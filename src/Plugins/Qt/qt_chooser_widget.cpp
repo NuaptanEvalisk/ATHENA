@@ -270,34 +270,34 @@ qt_chooser_widget_rep::perform_dialog () {
   c_string tmp (directory * "/" * file);
   QString path = QString::fromUtf8 (&tmp[0]);
   
-#if (defined(Q_OS_MAC) )// || defined(Q_WS_WIN)) //at least windows Xp and 7 lack image preview, switch to custom dialog
-  QFileDialog* dialog = new QFileDialog (NULL, caption, path);
-#else
-  QTMFileDialog*  dialog;
-  QTMImageDialog* imgdialog = 0; // to avoid a dynamic_cast
+  QFileDialog* native_dialog = 0;
+  QTMFileDialog* custom_dialog = 0;
+  QTMImageDialog* img_dialog = 0;
   
-  if (type == "image")
-    dialog = imgdialog = new QTMImageDialog (NULL, caption, path);
-  else
-    dialog = new QTMFileDialog (NULL, caption, path);
-#endif
+  if (type == "image") {
+    custom_dialog = img_dialog = new QTMImageDialog (NULL, caption, path);
+  } else {
+    native_dialog = new QFileDialog (NULL, caption, path);
+  }
 
-  dialog->setViewMode (QFileDialog::Detail);
+  QFileDialog* file_ptr = native_dialog ? native_dialog : custom_dialog->get_qfiledialog();
+
+  file_ptr->setViewMode (QFileDialog::Detail);
   if (type == "directory")
-    dialog->setFileMode (QFileDialog::Directory);
+    file_ptr->setFileMode (QFileDialog::Directory);
   else if (type == "image" && prompt == "")
     // check non saving mode just in case we support it
-    dialog->setFileMode (QFileDialog::ExistingFile);
+    file_ptr->setFileMode (QFileDialog::ExistingFile);
   else
-    dialog->setFileMode (QFileDialog::AnyFile);
+    file_ptr->setFileMode (QFileDialog::AnyFile);
 
   if (prompt != "") {
     string text= prompt;
     if (ends (text, ":")) text= text (0, N(text) - 1);
     if (ends (text, " as")) text= text (0, N(text) - 3);
-    dialog->setDefaultSuffix (defaultSuffix);
-    dialog->setAcceptMode (QFileDialog::AcceptSave);
-    dialog->setLabelText (QFileDialog::Accept, to_qstring (translate (text)));
+    file_ptr->setDefaultSuffix (defaultSuffix);
+    file_ptr->setAcceptMode (QFileDialog::AcceptSave);
+    file_ptr->setLabelText (QFileDialog::Accept, to_qstring (translate (text)));
   }
 
 #if (QT_VERSION >= 0x040400)
@@ -306,23 +306,25 @@ qt_chooser_widget_rep::perform_dialog () {
     if (nameFilter != "")
       filters << nameFilter;
     filters << to_qstring (translate ("All files (*)"));
-    dialog->setNameFilters (filters);
+    file_ptr->setNameFilters (filters);
   }
 #endif
 
-  dialog->updateGeometry();
-  QSize   sz = dialog->sizeHint();
+  QWidget* actual_dialog = native_dialog ? (QWidget*)native_dialog : (QWidget*)custom_dialog;
+  actual_dialog->updateGeometry();
+  QSize   sz = actual_dialog->sizeHint();
   QPoint pos = to_qpoint (position);
   QRect r;
 
   r.setSize (sz);
   r.moveCenter (pos);
-  dialog->setGeometry (r);
+  actual_dialog->setGeometry (r);
   
   QStringList fileNames;
   file = "#f";
-  if (dialog->exec ()) {
-    fileNames = dialog->selectedFiles();
+  int result = native_dialog ? native_dialog->exec() : custom_dialog->exec();
+  if (result) {
+    fileNames = file_ptr->selectedFiles();
     if (fileNames.count() > 0) {
       QString imqstring = fileNames.first();
       // QTBUG-59401: QFileDialog::setDefaultSuffix doesn't work when file path contains a dot
@@ -334,53 +336,25 @@ qt_chooser_widget_rep::perform_dialog () {
       string imname    = from_qstring_utf8 (imqstring);
       file = "(system->url " * scm_quote (imname) * ")";
       if (type == "image") {
-#if !defined(Q_OS_MAC) // && !defined(Q_WS_WIN)   //at least windows Xp and 7 lack image preview, switch to custom dialog
-        file = "(list " * file * imgdialog->getParamsAsString () * ")"; //set image size from preview
-#else //MacOs only now
-        /*
-        QPixmap pic (fileNames.first()); // Qt can't eps & pdf in windows.
-        string params;
-        // HACK: which value should we choose here?
-        //On other platforms we call image_size (u,  w,  h) which returns size in pt units.
-        int ww = get_current_editor()->get_page_width (false) / PIXEL;
-        int  w = pic.width ();
-        int  h = pic.height ();
-        string unit= "pt";
-        if (w == 0)
-          image_size (url_system (imname), w, h);
-        if (w >= ww) {
-          h= (int) ((((double) h) / ((double) w)) * ((double) ww));
-          w= ww;
-        }
-        if (w > 0) {
-          params << "\"" << as_string (w) << unit << "\" "
-                 << "\"" << as_string (h) << unit << "\" "
+        if (img_dialog) {
+          file = "(list " * file * img_dialog->getParamsAsString () * ")"; //set image size from preview
+        } else {
+          url u= url_system (imname);
+          string w, h;
+          qt_pretty_image_size (u, w, h);
+          string params;
+          params << "\"" << w << "\" "
+                 << "\"" << h << "\" "
                  << "\"" << "" << "\" "  // xps ??
                  << "\"" << "" << "\"";   // yps ??
+          file = "(list " * file * " " * params * ")";
         }
-        else {
-          params << "\"" << as_string (ww) << "px\" "
-                 << "\"" << "" << "\" "
-                 << "\"" << "" << "\" "  // xps ??
-                 << "\"" << "" << "\"";   // yps ??
-        }
-        file = "(list " * file * params * ")";
-        */
-        url u= url_system (imname);
-        string w, h;
-        qt_pretty_image_size (u, w, h);
-        string params;
-        params << "\"" << w << "\" "
-               << "\"" << h << "\" "
-               << "\"" << "" << "\" "  // xps ??
-               << "\"" << "" << "\"";   // yps ??
-        file = "(list " * file * " " * params * ")";
-#endif
       }
     }
   }
 
-  delete dialog;
+  if (native_dialog) delete native_dialog;
+  else delete custom_dialog;
   
   cmd ();
   if (!is_nil (quit)) quit ();

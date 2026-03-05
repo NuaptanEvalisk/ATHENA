@@ -46,6 +46,7 @@ public:
                  const QString& caption = QString(),
                  const QString& directory = QString(),
                  const QString & filter = QString());
+  QFileDialog* get_qfiledialog() { return file; }
   QStringList selectedFiles () { return file->selectedFiles (); };
 #if (defined(Q_OS_MAC) && (QT_VERSION >= 0x040500))
   void setOptions (QFileDialog::Options opts) { file->setOptions (opts); };
