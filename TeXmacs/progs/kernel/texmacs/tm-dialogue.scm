@@ -148,6 +148,7 @@
      (set-message
       "More information about GNU TeXmacs can be found in the Help->About menu"
       tmv)
+     (gui-hide-splash)
      (delayed
      (:pause 2500)
      (set-message "" ""))))))))

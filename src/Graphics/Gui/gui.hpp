@@ -38,6 +38,8 @@ void gui_start_loop ();
   // start the main loop
 void gui_close ();
   // cleanly close the gui
+void gui_hide_splash ();
+  // hide the splash screen if any
 void gui_root_extents (SI& width, SI& height);
   // get the screen size
 void gui_maximal_extents (SI& width, SI& height);

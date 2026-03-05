@@ -13,6 +13,7 @@
 #define QTMAPPLICATION_HPP
 
 #include <QApplication>
+#include <QSplashScreen>
 #include <QIcon>
 #include <QStyle>
 #include <QStyleFactory>
@@ -74,7 +75,11 @@ public:
     return *QTMMainTabWindow::topTabWindow();
   }
 
+  void show_splash ();
+  void hide_splash ();
+
 private:
+  QSplashScreen* mSplash;
 #if QT_VERSION >= 0x060000
   bool mPixmapManagerInitialized;
   QTMIconManager mIconManager;

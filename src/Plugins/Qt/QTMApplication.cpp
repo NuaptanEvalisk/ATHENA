@@ -1,8 +1,62 @@
 #include "QTMApplication.hpp"
+#include "qt_utilities.hpp"
 
   
 QTMApplication::QTMApplication (int& argc, char** argv) :
-  QApplication (argc, argv) { }
+  QApplication (argc, argv), mSplash (NULL) { }
+
+#include <QPixmap>
+#include <QPainter>
+#include <QScreen>
+
+void QTMApplication::show_splash () {
+  if (headless_mode) return;
+  string path = get_env ("TEXMACS_PATH");
+  url u1 = url_system (path * "/splash/splashscr.png");
+  url u2 = url_system (path * "/../splash/splashscr.png");
+  url u3 = url_system (path * "/misc/images/texmacs-512.png");
+  
+  url logo_url;
+  if (exists (u1)) logo_url = u1;
+  else if (exists (u2)) logo_url = u2;
+  else if (exists (u3)) logo_url = u3;
+  else return;
+
+  QPixmap pixmap (to_qstring (as_string (logo_url)));
+  
+  // Scale if too big (e.g. high-res images on small screens)
+  if (primaryScreen()) {
+    QSize screenSize = primaryScreen()->availableGeometry().size();
+    int maxW = screenSize.width() / 2;
+    int maxH = screenSize.height() / 2;
+    if (pixmap.width() > maxW || pixmap.height() > maxH) {
+      pixmap = pixmap.scaled (maxW, maxH, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    }
+  }
+
+  // Create a clean splash with white background to avoid "black square" if PNG has transparency
+  QPixmap splash_pix (pixmap.size());
+  splash_pix.fill (Qt::white);
+  QPainter painter (&splash_pix);
+  painter.drawPixmap (0, 0, pixmap);
+  painter.end ();
+
+  mSplash = new QSplashScreen (splash_pix, Qt::WindowStaysOnTopHint);
+  mSplash->show ();
+  mSplash->raise ();
+  mSplash->activateWindow ();
+  mSplash->showMessage ("Initializing...", Qt::AlignBottom | Qt::AlignCenter, Qt::black);
+  
+  for (int i=0; i<10; i++) processEvents();
+}
+
+void QTMApplication::hide_splash () {
+  if (mSplash) {
+    mSplash->finish (nullptr);
+    delete mSplash;
+    mSplash = nullptr;
+  }
+}
 
 void QTMApplication::load() {
   mUseTabWindow = get_user_preference ("enable tab") == "on";

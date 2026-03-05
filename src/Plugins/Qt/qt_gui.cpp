@@ -670,6 +670,11 @@ gui_start_loop () {
 }
 
 void
+gui_hide_splash () {
+  if (tmapp()) tmapp()->hide_splash ();
+}
+
+void
 gui_close () {
     // cleanly close the gui
   ASSERT (the_gui != NULL, "gui not yet open");

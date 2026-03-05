@@ -748,6 +748,7 @@ texmacs_entrypoint (int argc, char** argv) {
     QCoreApplication::setAttribute(Qt::AA_UseHighDpiPixmaps);
 #endif
     qtmapp= new QTMApplication (argc, argv);
+    tmapp()->show_splash ();
   }
 #endif
 #ifdef OS_ANDROID

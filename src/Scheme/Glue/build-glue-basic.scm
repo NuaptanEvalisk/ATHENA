@@ -765,6 +765,7 @@
   (get-toggle-package-menu get_toggle_package_menu (object))
   (refresh-now windows_refresh (void string))
   (get-screen-size get_screen_size (array_SI))
+  (gui-hide-splash gui_hide_splash (void))
 
   ;; buffers
   (buffer-list get_all_buffers (array_url))
