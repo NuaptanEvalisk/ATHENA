@@ -13,7 +13,8 @@
 #include "window.hpp"
 #include "qt_utilities.hpp"
 
-#include <QCloseEvent>
+#include <QMenuBar>
+#include <QKeyEvent>
 
 void QTMPlainWindow::closeEvent (QCloseEvent* event)
 {
@@ -39,6 +40,21 @@ void QTMPlainWindow::resizeEvent (QResizeEvent* event)
   coord2 sz= from_qsize (frameSize());
   notify_window_resize (name, sz.x1, sz.x2);
   QWidget::resizeEvent (event);
+}
+
+bool QTMWindow::event (QEvent *event)
+{
+  if (event->type() == QEvent::KeyPress) {
+    QKeyEvent *ke = static_cast<QKeyEvent*> (event);
+    if (ke->key() == Qt::Key_Alt || ke->key() == Qt::Key_Meta) {
+      // Standard behavior: Alt highlights the first menu
+      if (menuBar() && menuBar()->isVisible()) {
+        menuBar()->setFocus();
+        return true;
+      }
+    }
+  }
+  return QMainWindow::event (event);
 }
 
 void QTMWindow::closeEvent (QCloseEvent* event)

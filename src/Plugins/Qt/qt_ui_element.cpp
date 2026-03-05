@@ -19,6 +19,7 @@
 #include "qt_picture.hpp"
 
 #include "analyze.hpp"
+#include "wencoding.hpp"
 #include "widget.hpp"
 #include "message.hpp"
 #include "promise.hpp"
@@ -434,11 +435,14 @@ qt_ui_element_rep::as_qaction () {
       int   style = x.x2;  //FIXME: ignored. Use a QWidgeAction to use it?
       
       act = new QTMAction (NULL);
-      act->setText (to_qstring (name));
+      if (looks_universal (name))
+        act->setText (utf8_to_qstring (cork_to_utf8 (name)));
+      else
+        act->setText (to_qstring (name));
       act->setEnabled (false);
       act->setFont (to_qfont (style, act->font())); 
     }
-      break;
+    break;
       
     case pulldown_button:
     case pullright_button:

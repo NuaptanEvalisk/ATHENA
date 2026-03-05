@@ -151,8 +151,8 @@ qt_renderer_rep::set_zoom_factor (double zoom, bool safe) {
 #if QT_VERSION >= 0x060000
   basic_renderer_rep::set_zoom_factor (zoom_multiplier * zoom, safe);
 #else
-  renderer_rep::set_zoom_factor (retina_factor * zoom, safe);
-  retina_pixel= pixel * retina_factor;
+  renderer_rep::set_zoom_factor (pixel_ratio * zoom, safe);
+  retina_pixel= pixel * pixel_ratio;
 #endif
 }
 
@@ -667,15 +667,6 @@ qt_renderer_rep::draw (const QFont& qfn, const QString& qs,
 
 qt_renderer_rep*
 the_qt_renderer (double pixel_ratio) {
-#if QT_VERSION < 0x060000
-  static QPainter *the_painter = NULL;
-  static qt_renderer_rep* the_renderer= NULL;
-  if (!the_renderer) {
-    the_painter = new QPainter();
-    the_renderer= tm_new<qt_renderer_rep> (the_painter, 1.0);
-  }
-  return the_renderer;
-#else
   static QPainter *the_painter = NULL;
   static qt_renderer_rep* the_renderer= NULL;
   if (!the_renderer) {
@@ -689,7 +680,6 @@ the_qt_renderer (double pixel_ratio) {
 				   false);
   }
   return the_renderer;
-#endif
 }
 
 /******************************************************************************

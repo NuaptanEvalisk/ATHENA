@@ -185,16 +185,32 @@ needing_update (false)
 #   endif
     }
 #  else
-    SI w, h;
-    get_extents (w, h);
+    double dpr = 1.0;
+    if (QGuiApplication::primaryScreen())
+      dpr = QGuiApplication::primaryScreen()->devicePixelRatio();
     if (DEBUG_STD)
-      debug_boot << "Screen extents: " << w/PIXEL << " x " << h/PIXEL << "\n";
-    if (min (w, h) >= 1440 * PIXEL) {
-      retina_zoom = 2;
-      retina_scale= (tm_style_sheet == ""? 1.0: 1.6666);
+      debug_boot << "Device pixel ratio: " << dpr << "\n";
+
+    if (dpr > 1.0) {
+      retina_factor = (int) ceil (dpr);
+      retina_zoom = 1; 
+      retina_scale = 1.0;
       if (!retina_iman) {
         retina_iman  = true;
-        retina_icons = 2;
+        retina_icons = (int) ceil (dpr);
+      }
+    } else {
+      SI w, h;
+      get_extents (w, h);
+      if (DEBUG_STD)
+        debug_boot << "Screen extents: " << w/PIXEL << " x " << h/PIXEL << "\n";
+      if (min (w, h) >= 1440 * PIXEL) {
+        retina_zoom = 2;
+        retina_scale= (tm_style_sheet == ""? 1.0: 1.6666);
+        if (!retina_iman) {
+          retina_iman  = true;
+          retina_icons = 2;
+        }
       }
     }
 #  endif

@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "analyze.hpp"
+#include "wencoding.hpp"
 
 #include "qt_gui.hpp"
 #include "qt_utilities.hpp"
@@ -94,7 +95,14 @@ QTMAction::set_text (string s) {
     if (s == "Help" || s == "Edit" || s == "View" ||
         s == "Preferences...")
       s = s * " ";
-    s= replace (s, "&", "&&");
+    
+    // If it's a mnemonic (like &File), don't escape it to &&File
+    bool has_mnemonic = false;
+    for (int i=0; i<N(s)-1; i++)
+      if (s[i] == '&' && is_iso_alpha(s[i+1])) { has_mnemonic = true; break; }
+
+    if (!has_mnemonic)
+      s= replace (s, "&", "&&");
     str = s;
     setText (to_qstring (s));
   }

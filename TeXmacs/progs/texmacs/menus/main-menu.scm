@@ -36,7 +36,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (menu-bind texmacs-menu
-  (=> "File" (link file-menu))
+  (=> "&File" (link file-menu))
   (=> "Edit" (link edit-menu))
   (if (in-graphics?)
       (=> "Insert" (link graphics-insert-menu))

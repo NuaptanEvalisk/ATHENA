@@ -9,6 +9,9 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 
+#define _GNU_SOURCE
+#include <sys/resource.h>
+#include <sys/time.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -16,7 +19,7 @@
 #include <locale.h> // for setlocale
 #include <signal.h>
 #ifdef STACK_SIZE
-#include <sys/resource.h>
+// #include <sys/resource.h>
 #ifdef OS_ANDROID
 #include "Android/android.hpp"
 #endif
@@ -740,6 +743,9 @@ texmacs_entrypoint (int argc, char** argv) {
 #if defined(OS_GNULINUX) || defined(OS_FREEBSD)
     QApplication::setStyle("fusion");
 #endif
+#elif QT_VERSION >= 0x050600
+    QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
+    QCoreApplication::setAttribute(Qt::AA_UseHighDpiPixmaps);
 #endif
     qtmapp= new QTMApplication (argc, argv);
   }

@@ -22,6 +22,8 @@
 #include "analyze.hpp"
 #include "window.hpp"
 
+#include <QApplication>
+#include <QCursor>
 #include <QWidget>
 #include <QVariant>
 #include <QDockWidget>
@@ -191,7 +193,10 @@ qt_window_widget_rep::send (slot s, blackbox val) {
 #if QT_VERSION >= 0x060000
 	pt= ensure_visible_position (pt, qwid->screen (), qwid->size ());
 #endif
-        qwid->move (pt);
+        if (qwid->windowFlags() & Qt::Popup && QApplication::platformName() == "wayland")
+          qwid->move (QCursor::pos ());
+        else
+          qwid->move (pt);
       }
     }
       break;
@@ -207,7 +212,9 @@ qt_window_widget_rep::send (slot s, blackbox val) {
             //qwid->activateWindow();
             //WEIRD: in Ubuntu uncommenting the above line causes the main window 
             //to be opened in the background.
-            qwid->raise();
+            if (QApplication::platformName() != "wayland") {
+              qwid->raise();
+            }
             //QApplication::setActiveWindow (master);
           }
           else qwid->hide();
@@ -406,7 +413,11 @@ qt_popup_widget_rep::send (slot s, blackbox val) {
       bool flag = open_box<bool> (val);  // true= get grab, false= release grab
       
       qwid->hide();
-      if (flag) qwid->setWindowModality(Qt::WindowModal); //ok?
+      if (flag) {
+        if (QApplication::platformName() == "wayland")
+          qwid->move (QCursor::pos ());
+        qwid->setWindowModality(Qt::WindowModal); //ok?
+      }
       else      qwid->setWindowModality(Qt::NonModal);    //ok?
       qwid->show();
     }   

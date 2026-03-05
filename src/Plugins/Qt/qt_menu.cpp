@@ -15,6 +15,9 @@
 #include "QTMMenuHelper.hpp"
 
 
+#include <QApplication>
+#include <QCursor>
+
 qt_menu_rep::qt_menu_rep (qt_widget _content)
  : qt_widget_rep (vertical_menu), qact (NULL), content (_content) { }
 
@@ -54,20 +57,30 @@ qt_menu_rep::send (slot s, blackbox val) {
   case SLOT_POSITION:
     {
       check_type<coord2>(val, s);
-      get_qmenu()->move (to_qpoint (open_box<coord2> (val)));
+      if (QApplication::platformName() != "wayland")
+        get_qmenu()->move (to_qpoint (open_box<coord2> (val)));
     }
     break;
   case SLOT_VISIBILITY:
     {   
       check_type<bool> (val, s);
-      get_qmenu()->setVisible (open_box<bool> (val));
+      bool visible = open_box<bool> (val);
+      if (visible && QApplication::platformName() == "wayland")
+        get_qmenu()->popup (QCursor::pos ());
+      else
+        get_qmenu()->setVisible (visible);
     }   
     break;
   case SLOT_MOUSE_GRAB:
     {   
       check_type<bool> (val, s);
       bool flag = open_box<bool> (val);  // true= get grab, false= release grab
-      if (flag) get_qmenu()->exec();
+      if (flag) {
+        if (QApplication::platformName() == "wayland")
+          get_qmenu()->exec (QCursor::pos ());
+        else
+          get_qmenu()->exec ();
+      }
     }   
     break;
   default:

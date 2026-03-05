@@ -213,24 +213,26 @@ QTMWidget::devicePixelRatioChanged () {
 void
 QTMWidget::paintEvent (QPaintEvent* event) {
   QPainter p (surface());
+  double dpr = surface()->devicePixelRatio();
   p.drawPixmap (QRect (0, 0, surface()->width(), surface()->height()),
                 *(tm_widget()->backingPixmap),
-                QRect (0, 0, surface()->width()  * retina_factor,
-                             surface()->height() * retina_factor));
+                QRect (0, 0, (int) (surface()->width()  * dpr),
+                             (int) (surface()->height() * dpr)));
 }
 #else
 void
 QTMWidget::paintEvent (QPaintEvent* event) {
   QPainter p (surface());
+  double dpr = surface()->devicePixelRatio();
   QVector<QRect> rects = event->region().rects();
   for (int i = 0; i < rects.count(); ++i) {
     QRect qr = rects.at (i);
     p.drawPixmap (QRect (qr.x(), qr.y(), qr.width(), qr.height()),
                   *(tm_widget()->backingPixmap),
-                  QRect (retina_factor * qr.x(),
-                         retina_factor * qr.y(),
-                         retina_factor * qr.width(),
-                         retina_factor * qr.height()));
+                  QRect ((int) (dpr * qr.x()),
+                         (int) (dpr * qr.y()),
+                         (int) (dpr * qr.width()),
+                         (int) (dpr * qr.height())));
   }
 }
 #endif
@@ -791,6 +793,10 @@ QTMWidget::event (QEvent* event) {
    assigned to QActions while building menus, etc. In doing this, we keep the
    shortcut text in the menus while relaying all keypresses through the editor*/
   if (event->type() == QEvent::ShortcutOverride) {
+    QKeyEvent *ke = static_cast<QKeyEvent*> (event);
+    if (ke->modifiers() == Qt::AltModifier && ke->key() == Qt::Key_F) {
+      return false; // Let native Qt mnemonic handling take over for Alt+F
+    }
     event->accept();
     return true;
   }
@@ -839,7 +845,7 @@ QTMWidget::focusInEvent (QFocusEvent * event) {
   QTMScrollView::focusInEvent (event);
   // part 2/2 of the fix for bug 43373.
   if (!isEmbedded ()) {
-    if (!isActiveWindow()) activateWindow();
+    if (!isActiveWindow() && QApplication::platformName() != "wayland") activateWindow();
     if (isActiveWindow() && !hasFocus()) setFocus (Qt::OtherFocusReason);
     //=> this will send us back here...
     //This redundancy is weird but definitely needed to properly get focus with Qt >= 5.15. Qt bug?

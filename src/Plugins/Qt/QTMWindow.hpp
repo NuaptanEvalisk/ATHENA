@@ -80,9 +80,10 @@ signals:
   void closed ();
   
 protected:
-  virtual void  closeEvent (QCloseEvent* event);
-  virtual void   moveEvent (QMoveEvent* event);
-  virtual void resizeEvent (QResizeEvent* event);
+  virtual bool event (QEvent* event) override;
+  virtual void  closeEvent (QCloseEvent* event) override;
+  virtual void   moveEvent (QMoveEvent* event) override;
+  virtual void resizeEvent (QResizeEvent* event) override;
 };
 
 
