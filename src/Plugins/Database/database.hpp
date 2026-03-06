@@ -171,6 +171,7 @@ class database {
 };
 CONCRETE_CODE(database);
 
+database get_database (url u);
 void keep_history (url u, bool flag);
 void set_field (url u, string id, string attr, strings vals, db_time t);
 strings get_field (url u, string id, string attr, db_time t);

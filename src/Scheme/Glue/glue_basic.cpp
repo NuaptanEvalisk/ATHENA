@@ -10163,6 +10163,99 @@ tmg_project_get () {
 }
 
 tmscm
+tmg_vault_load (tmscm arg1, tmscm arg2, tmscm arg3) {
+  TMSCM_ASSERT_URL (arg1, TMSCM_ARG1, "vault-load");
+  TMSCM_ASSERT_STRING (arg2, TMSCM_ARG2, "vault-load");
+  TMSCM_ASSERT_STRING (arg3, TMSCM_ARG3, "vault-load");
+
+  url in1= tmscm_to_url (arg1);
+  string in2= tmscm_to_string (arg2);
+  string in3= tmscm_to_string (arg3);
+
+  // TMSCM_DEFER_INTS;
+  vault_load (in1, in2, in3);
+  // TMSCM_ALLOW_INTS;
+
+  return TMSCM_UNSPECIFIED;
+}
+
+tmscm
+tmg_vault_close () {
+  // TMSCM_DEFER_INTS;
+  vault_close ();
+  // TMSCM_ALLOW_INTS;
+
+  return TMSCM_UNSPECIFIED;
+}
+
+tmscm
+tmg_vault_activeP () {
+  // TMSCM_DEFER_INTS;
+  bool out= vault_active ();
+  // TMSCM_ALLOW_INTS;
+
+  return bool_to_tmscm (out);
+}
+
+tmscm
+tmg_vault_set_node (tmscm arg1, tmscm arg2, tmscm arg3, tmscm arg4) {
+  TMSCM_ASSERT_STRING (arg1, TMSCM_ARG1, "vault-set-node");
+  TMSCM_ASSERT_STRING (arg2, TMSCM_ARG2, "vault-set-node");
+  TMSCM_ASSERT_STRING (arg3, TMSCM_ARG3, "vault-set-node");
+  TMSCM_ASSERT_STRING (arg4, TMSCM_ARG4, "vault-set-node");
+
+  string in1= tmscm_to_string (arg1);
+  string in2= tmscm_to_string (arg2);
+  string in3= tmscm_to_string (arg3);
+  string in4= tmscm_to_string (arg4);
+
+  // TMSCM_DEFER_INTS;
+  vault_set_node (in1, in2, in3, in4);
+  // TMSCM_ALLOW_INTS;
+
+  return TMSCM_UNSPECIFIED;
+}
+
+tmscm
+tmg_vault_get_node (tmscm arg1) {
+  TMSCM_ASSERT_STRING (arg1, TMSCM_ARG1, "vault-get-node");
+
+  string in1= tmscm_to_string (arg1);
+
+  // TMSCM_DEFER_INTS;
+  tree out= vault_get_node (in1);
+  // TMSCM_ALLOW_INTS;
+
+  return tree_to_tmscm (out);
+}
+
+tmscm
+tmg_vault_remove_node (tmscm arg1) {
+  TMSCM_ASSERT_STRING (arg1, TMSCM_ARG1, "vault-remove-node");
+
+  string in1= tmscm_to_string (arg1);
+
+  // TMSCM_DEFER_INTS;
+  vault_remove_node (in1);
+  // TMSCM_ALLOW_INTS;
+
+  return TMSCM_UNSPECIFIED;
+}
+
+tmscm
+tmg_vault_has_nodeP (tmscm arg1) {
+  TMSCM_ASSERT_STRING (arg1, TMSCM_ARG1, "vault-has-node?");
+
+  string in1= tmscm_to_string (arg1);
+
+  // TMSCM_DEFER_INTS;
+  bool out= vault_has_node (in1);
+  // TMSCM_ALLOW_INTS;
+
+  return bool_to_tmscm (out);
+}
+
+tmscm
 tmg_alt_window_handle () {
   // TMSCM_DEFER_INTS;
   int out= window_handle ();
@@ -11395,6 +11488,13 @@ initialize_glue_basic () {
   tmscm_install_procedure ("project-detach",  tmg_project_detach, 0, 0, 0);
   tmscm_install_procedure ("project-attached?",  tmg_project_attachedP, 0, 0, 0);
   tmscm_install_procedure ("project-get",  tmg_project_get, 0, 0, 0);
+  tmscm_install_procedure ("vault-load",  tmg_vault_load, 3, 0, 0);
+  tmscm_install_procedure ("vault-close",  tmg_vault_close, 0, 0, 0);
+  tmscm_install_procedure ("vault-active?",  tmg_vault_activeP, 0, 0, 0);
+  tmscm_install_procedure ("vault-set-node",  tmg_vault_set_node, 4, 0, 0);
+  tmscm_install_procedure ("vault-get-node",  tmg_vault_get_node, 1, 0, 0);
+  tmscm_install_procedure ("vault-remove-node",  tmg_vault_remove_node, 1, 0, 0);
+  tmscm_install_procedure ("vault-has-node?",  tmg_vault_has_nodeP, 1, 0, 0);
   tmscm_install_procedure ("alt-window-handle",  tmg_alt_window_handle, 0, 0, 0);
   tmscm_install_procedure ("alt-window-create-quit",  tmg_alt_window_create_quit, 4, 0, 0);
   tmscm_install_procedure ("alt-window-create-plain",  tmg_alt_window_create_plain, 3, 0, 0);

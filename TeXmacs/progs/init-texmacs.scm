@@ -157,7 +157,8 @@
 
 ;(display "Booting main TeXmacs functionality\n")
 (use-modules (texmacs texmacs tm-server) (texmacs texmacs tm-view)
-             (texmacs texmacs tm-files) (texmacs texmacs tm-print))
+             (texmacs texmacs tm-files) (texmacs texmacs tm-print)
+             (texmacs texmacs tm-vault))
 (lazy-define (texmacs texmacs tm-files)
              buffer-missing-style? buffer-set-default-style)
 (use-modules (texmacs keyboard config-kbd))

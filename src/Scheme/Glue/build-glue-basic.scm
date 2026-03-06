@@ -841,6 +841,15 @@
   (project-attached? project_attached (bool))
   (project-get project_get (url))
 
+  ;; vault management
+  (vault-load vault_load (void url string string))
+  (vault-close vault_close (void))
+  (vault-active? vault_active (bool))
+  (vault-set-node vault_set_node (void string string string string))
+  (vault-get-node vault_get_node (tree string))
+  (vault-remove-node vault_remove_node (void string))
+  (vault-has-node vault_has_node (bool string))
+
   ;; transitional alternative windows; to be replaced by better solution
   (alt-window-handle window_handle (int))
   (alt-window-create-quit window_create (void int widget string command))

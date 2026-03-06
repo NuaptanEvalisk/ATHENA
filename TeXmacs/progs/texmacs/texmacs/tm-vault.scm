@@ -1,0 +1,25 @@
+(texmacs-module (texmacs texmacs tm-vault)
+  (:use (kernel boot abbrevs)))
+
+(tm-define (interactive-new-vault dir)
+  (interactive (lambda (name)
+                 (let* ((vault-file (url-append dir "Vaultfile"))
+                        (db-path "map.tmdb"))
+                   (save-object vault-file (list name db-path))
+                   (vault-load dir name db-path)
+                   (set-message (string-append "Created vault: " name) "Vault")))
+               '("Vault name" "string")))
+
+(tm-define (load-vault-dir dir)
+  (let* ((vault-file (url-append dir "Vaultfile")))
+    (if (url-exists? vault-file)
+        (let ((data (load-object vault-file)))
+          (if (and (list? data) (>= (length data) 2))
+              (begin
+                (vault-load dir (car data) (cadr data))
+                (set-message (string-append "Loaded vault: " (car data)) "Vault"))
+              (set-message "Invalid Vaultfile" "Error")))
+        (interactive-new-vault dir))))
+
+(tm-define (open-vault)
+  (choose-file load-vault-dir "Load Vault" "directory"))

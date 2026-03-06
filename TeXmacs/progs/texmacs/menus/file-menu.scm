@@ -260,6 +260,7 @@
 (menu-bind file-menu
   ("New" (new-document))
   ("Load" (open-document))
+  ("Load Vault" (open-vault))
   ("Revert" (revert-buffer))
   (-> "Recent"
       (link recent-file-menu)
