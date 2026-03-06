@@ -12,7 +12,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (texmacs-module (texmacs menus preferences-widgets)
-  (:use (texmacs menus preferences-menu)))
+  (:use (texmacs menus preferences-menu)
+        (texmacs texmacs tm-vault)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Wrapper
@@ -1001,6 +1002,9 @@
         (icon-tab "tm_prefs_security.xpm" (text "Security")
           (centered
             (dynamic (security-preferences-widget)))))
+      (icon-tab "tm_prefs_other.xpm" (text "Vault")
+        (centered
+          (dynamic (vault-preferences-widget))))
       (icon-tab "tm_prefs_other.xpm" (text "Other")
         (centered
           (dynamic (other-preferences-widget)))))))

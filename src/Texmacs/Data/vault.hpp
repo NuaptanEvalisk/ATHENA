@@ -28,6 +28,7 @@ extern vault_info current_vault;
 
 /* Vault lifecycle */
 bool vault_active ();
+url  vault_get_root ();
 void vault_load (url root_dir, string name, string db_rel_path);
 void vault_close ();
 
@@ -36,5 +37,7 @@ void    vault_set_node (string uuid, string path, string anchor_begin, string an
 tree    vault_get_node (string uuid); // Returns a tuple (path, begin, end) or UNINIT
 void    vault_remove_node (string uuid);
 bool    vault_has_node (string uuid);
+string  vault_find_uuid (string path, string anchor_begin, string anchor_end);
+string  vault_generate_uuid ();
 
 #endif // VAULT_HPP

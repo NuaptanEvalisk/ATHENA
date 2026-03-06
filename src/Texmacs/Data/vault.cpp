@@ -11,6 +11,7 @@
 #include "vault.hpp"
 #include "file.hpp"
 #include "web_files.hpp"
+#include "tm_timer.hpp"
 
 bool       is_vault_active = false;
 vault_info current_vault;
@@ -18,6 +19,11 @@ vault_info current_vault;
 bool
 vault_active () {
   return is_vault_active;
+}
+
+url
+vault_get_root () {
+  return current_vault.root;
 }
 
 void
@@ -90,4 +96,36 @@ vault_has_node (string uuid) {
   if (!is_vault_active) return false;
   strings p = get_field (current_vault.db_url, uuid, "v-path", 0);
   return N(p) > 0;
+}
+
+string
+vault_find_uuid (string path, string anchor_begin, string anchor_end) {
+  if (!is_vault_active) return "";
+  url u = current_vault.db_url;
+  
+  tree ql (TUPLE);
+  ql << tuple ("v-path", path);
+  ql << tuple ("v-anchor-begin", anchor_begin);
+  ql << tuple ("v-anchor-end", anchor_end);
+  
+  strings ids = query (u, ql, 0, 1, 0);
+  if (N(ids) > 0) return ids[0];
+  return "";
+}
+
+string
+vault_generate_uuid () {
+  static bool seeded = false;
+  if (!seeded) {
+    srandom ((int) raw_time ());
+    seeded = true;
+  }
+  
+  string res = "";
+  const char* hex = "0123456789abcdef";
+  for (int i=0; i<32; i++) {
+    if (i == 8 || i == 12 || i == 16 || i == 20) res << "-";
+    res << hex[random() % 16];
+  }
+  return res;
 }

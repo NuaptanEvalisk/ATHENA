@@ -845,10 +845,14 @@
   (vault-load vault_load (void url string string))
   (vault-close vault_close (void))
   (vault-active? vault_active (bool))
+  (vault-get-root vault_get_root (url))
   (vault-set-node vault_set_node (void string string string string))
   (vault-get-node vault_get_node (tree string))
   (vault-remove-node vault_remove_node (void string))
-  (vault-has-node vault_has_node (bool string))
+  (vault-has-node? vault_has_node (bool string))
+  (vault-find-uuid vault_find_uuid (string string string string))
+  (vault-generate-uuid vault_generate_uuid (string))
+
 
   ;; transitional alternative windows; to be replaced by better solution
   (alt-window-handle window_handle (int))

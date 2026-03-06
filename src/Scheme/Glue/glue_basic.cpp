@@ -10198,6 +10198,15 @@ tmg_vault_activeP () {
 }
 
 tmscm
+tmg_vault_get_root () {
+  // TMSCM_DEFER_INTS;
+  url out= vault_get_root ();
+  // TMSCM_ALLOW_INTS;
+
+  return url_to_tmscm (out);
+}
+
+tmscm
 tmg_vault_set_node (tmscm arg1, tmscm arg2, tmscm arg3, tmscm arg4) {
   TMSCM_ASSERT_STRING (arg1, TMSCM_ARG1, "vault-set-node");
   TMSCM_ASSERT_STRING (arg2, TMSCM_ARG2, "vault-set-node");
@@ -10253,6 +10262,32 @@ tmg_vault_has_nodeP (tmscm arg1) {
   // TMSCM_ALLOW_INTS;
 
   return bool_to_tmscm (out);
+}
+
+tmscm
+tmg_vault_find_uuid (tmscm arg1, tmscm arg2, tmscm arg3) {
+  TMSCM_ASSERT_STRING (arg1, TMSCM_ARG1, "vault-find-uuid");
+  TMSCM_ASSERT_STRING (arg2, TMSCM_ARG2, "vault-find-uuid");
+  TMSCM_ASSERT_STRING (arg3, TMSCM_ARG3, "vault-find-uuid");
+
+  string in1= tmscm_to_string (arg1);
+  string in2= tmscm_to_string (arg2);
+  string in3= tmscm_to_string (arg3);
+
+  // TMSCM_DEFER_INTS;
+  string out= vault_find_uuid (in1, in2, in3);
+  // TMSCM_ALLOW_INTS;
+
+  return string_to_tmscm (out);
+}
+
+tmscm
+tmg_vault_generate_uuid () {
+  // TMSCM_DEFER_INTS;
+  string out= vault_generate_uuid ();
+  // TMSCM_ALLOW_INTS;
+
+  return string_to_tmscm (out);
 }
 
 tmscm
@@ -11491,10 +11526,13 @@ initialize_glue_basic () {
   tmscm_install_procedure ("vault-load",  tmg_vault_load, 3, 0, 0);
   tmscm_install_procedure ("vault-close",  tmg_vault_close, 0, 0, 0);
   tmscm_install_procedure ("vault-active?",  tmg_vault_activeP, 0, 0, 0);
+  tmscm_install_procedure ("vault-get-root",  tmg_vault_get_root, 0, 0, 0);
   tmscm_install_procedure ("vault-set-node",  tmg_vault_set_node, 4, 0, 0);
   tmscm_install_procedure ("vault-get-node",  tmg_vault_get_node, 1, 0, 0);
   tmscm_install_procedure ("vault-remove-node",  tmg_vault_remove_node, 1, 0, 0);
   tmscm_install_procedure ("vault-has-node?",  tmg_vault_has_nodeP, 1, 0, 0);
+  tmscm_install_procedure ("vault-find-uuid",  tmg_vault_find_uuid, 3, 0, 0);
+  tmscm_install_procedure ("vault-generate-uuid",  tmg_vault_generate_uuid, 0, 0, 0);
   tmscm_install_procedure ("alt-window-handle",  tmg_alt_window_handle, 0, 0, 0);
   tmscm_install_procedure ("alt-window-create-quit",  tmg_alt_window_create_quit, 4, 0, 0);
   tmscm_install_procedure ("alt-window-create-plain",  tmg_alt_window_create_plain, 3, 0, 0);
