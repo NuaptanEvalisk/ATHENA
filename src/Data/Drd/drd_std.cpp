@@ -576,6 +576,12 @@ init_std_drd () {
   init (PAGEREF, "pageref",
         fixed (1) -> name ("page reference") ->
         identifier (0) -> name (0, "id") -> long_name (0, "identifier"));
+  init (TRANSCLUDE, "transclude",
+        fixed (4, 0, DETAILED) ->
+        string_type (0) -> name (0, "uuid") ->
+        string_type (1) -> name (1, "file-hint") ->
+        string_type (2) -> name (2, "begin-anchor-hint") ->
+        string_type (3) -> name (3, "end-anchor-hint"));
   init (GET_ATTACHMENT, "get-attachment",
         fixed (1) -> name ("get attachment") ->
         identifier (0) -> name (0, "name"));

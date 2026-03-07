@@ -113,6 +113,7 @@ class concater_rep {
   void typeset_compound (tree t, path ip);
   void typeset_auto (tree t, path ip, tree macro);
   void typeset_include (tree t, path ip);
+  void typeset_transclude (tree t, path ip);
   void typeset_drd_props (tree t, path ip);
   void typeset_eval (tree t, path ip);
   void typeset_value (tree t, path ip);

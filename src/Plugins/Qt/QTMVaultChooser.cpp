@@ -16,8 +16,9 @@
 #include <QApplication>
 #include <algorithm>
 
-QTMVaultChooser::QTMVaultChooser (QWidget* parent)
-  : QDialog (parent), state (SELECT_FILE), selectionChangedByArrows (false), resultAccepted (false)
+QTMVaultChooser::QTMVaultChooser (QWidget* parent, bool transcludeMode2)
+  : QDialog (parent), state (SELECT_FILE), transcludeMode (transcludeMode2),
+    selectionChangedByArrows (false), resultAccepted (false)
 {
   setWindowTitle ("Wikilink Chooser");
   resize (600, 400);
@@ -80,7 +81,7 @@ QTMVaultChooser::updateList () {
   
   if (state == SELECT_FILE) {
     filterFiles (hint);
-  } else if (state == SELECT_ANCHOR) {
+  } else if (state == SELECT_ANCHOR || state == SELECT_ANCHOR_BEGIN || state == SELECT_ANCHOR_END) {
     filterAnchors (hint);
   }
   
@@ -135,13 +136,18 @@ QTMVaultChooser::onReturnPressed () {
       }
     } else return;
     
-    // Switch to Anchor selection
-    state = SELECT_ANCHOR;
-    selectionChangedByArrows = false;
-    prompt->setText ("Search Anchor (optional):");
-    searchEdit->clear ();
     url absUrl = vault_get_root () * url_unix (from_qstring (selectedRelPath));
     allAnchors = vault_get_anchors (absUrl);
+
+    if (transcludeMode) {
+      state = SELECT_ANCHOR_BEGIN;
+      prompt->setText ("Search BEGIN Anchor:");
+    } else {
+      state = SELECT_ANCHOR;
+      prompt->setText ("Search Anchor (optional):");
+    }
+    selectionChangedByArrows = false;
+    searchEdit->clear ();
     updateList ();
     
   } else if (state == SELECT_ANCHOR) {
@@ -154,9 +160,9 @@ QTMVaultChooser::onReturnPressed () {
       anchorHint = searchEdit->text ();
     }
     
-    // Switch to Display Text
     state = SELECT_DISPLAY_TEXT;
     selectionChangedByArrows = false;
+    prompt->setText ("Enter Display Text:");
     searchEdit->clear ();
     resultList->hide ();
     if (!selectedAnchor.isEmpty()) {
@@ -166,6 +172,32 @@ QTMVaultChooser::onReturnPressed () {
     }
     searchEdit->selectAll ();
     
+  } else if (state == SELECT_ANCHOR_BEGIN) {
+    QListWidgetItem* item = resultList->currentItem ();
+    if (selectionChangedByArrows && item) {
+      selectedAnchorBegin = item->text ();
+    } else {
+      selectedAnchorBegin = (item ? item->text () : "");
+    }
+    
+    state = SELECT_ANCHOR_END;
+    prompt->setText ("Search END Anchor:");
+    searchEdit->clear ();
+    updateList ();
+
+  } else if (state == SELECT_ANCHOR_END) {
+    QListWidgetItem* item = resultList->currentItem ();
+    if (selectionChangedByArrows && item) {
+      selectedAnchorEnd = item->text ();
+      anchorHint = selectedAnchorEnd; 
+    } else {
+      selectedAnchorEnd = (item ? item->text () : "");
+      anchorHint = searchEdit->text ();
+    }
+    
+    resultAccepted = true;
+    accept ();
+
   } else if (state == SELECT_DISPLAY_TEXT) {
     displayText = searchEdit->text ();
     resultAccepted = true;
@@ -183,16 +215,23 @@ QTMVaultChooser::getResult () {
   if (!resultAccepted) return UNINIT;
   tree res (TUPLE);
   res << tree (from_qstring (selectedRelPath));
-  res << tree (from_qstring (selectedAnchor));
+  if (transcludeMode) {
+    res << tree (from_qstring (selectedAnchorBegin));
+    res << tree (from_qstring (selectedAnchorEnd));
+  } else {
+    res << tree (from_qstring (selectedAnchor));
+  }
   res << tree (from_qstring (fileHint));
-  res << tree (from_qstring (anchorHint));
-  res << tree (from_qstring (displayText));
+  res << tree (from_qstring (anchorHint)); // anchorHint is the search string
+  if (!transcludeMode) {
+    res << tree (from_qstring (displayText));
+  }
   return res;
 }
 
 tree
-vault_choose_link () {
-  QTMVaultChooser chooser (NULL);
+vault_choose_link (bool transcludeMode) {
+  QTMVaultChooser chooser (NULL, transcludeMode);
   if (chooser.exec () == QDialog::Accepted) {
     return chooser.getResult ();
   }

@@ -24,9 +24,10 @@ class QTMVaultChooser : public QDialog {
   Q_OBJECT
 
 public:
-  enum State { SELECT_FILE, SELECT_ANCHOR, SELECT_DISPLAY_TEXT };
+  enum State { SELECT_FILE, SELECT_ANCHOR, SELECT_DISPLAY_TEXT,
+               SELECT_ANCHOR_BEGIN, SELECT_ANCHOR_END };
 
-  QTMVaultChooser (QWidget* parent = nullptr);
+  QTMVaultChooser (QWidget* parent = nullptr, bool transcludeMode = false);
   ~QTMVaultChooser ();
 
   tree getResult ();
@@ -57,15 +58,18 @@ private:
   // Results
   QString      selectedRelPath;
   QString      selectedAnchor;
+  QString      selectedAnchorBegin;
+  QString      selectedAnchorEnd;
   QString      fileHint;
   QString      anchorHint;
   QString      displayText;
   
+  bool         transcludeMode;
   bool         selectionChangedByArrows;
   bool         resultAccepted;
 };
 
 // Glue function
-tree vault_choose_link ();
+tree vault_choose_link (bool transcludeMode = false);
 
 #endif // QTMVAULTCHOOSER_HPP

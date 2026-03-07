@@ -10300,9 +10300,13 @@ tmg_vault_generate_uuid () {
 }
 
 tmscm
-tmg_vault_choose_link () {
+tmg_vault_choose_link (tmscm arg1) {
+  TMSCM_ASSERT_BOOL (arg1, TMSCM_ARG1, "vault-choose-link");
+
+  bool in1= tmscm_to_bool (arg1);
+
   // TMSCM_DEFER_INTS;
-  tree out= vault_choose_link ();
+  tree out= vault_choose_link (in1);
   // TMSCM_ALLOW_INTS;
 
   return tree_to_tmscm (out);
@@ -11552,7 +11556,7 @@ initialize_glue_basic () {
   tmscm_install_procedure ("vault-has-node?",  tmg_vault_has_nodeP, 1, 0, 0);
   tmscm_install_procedure ("vault-find-uuid",  tmg_vault_find_uuid, 3, 0, 0);
   tmscm_install_procedure ("vault-generate-uuid",  tmg_vault_generate_uuid, 0, 0, 0);
-  tmscm_install_procedure ("vault-choose-link",  tmg_vault_choose_link, 0, 0, 0);
+  tmscm_install_procedure ("vault-choose-link",  tmg_vault_choose_link, 1, 0, 0);
   tmscm_install_procedure ("alt-window-handle",  tmg_alt_window_handle, 0, 0, 0);
   tmscm_install_procedure ("alt-window-create-quit",  tmg_alt_window_create_quit, 4, 0, 0);
   tmscm_install_procedure ("alt-window-create-plain",  tmg_alt_window_create_plain, 3, 0, 0);

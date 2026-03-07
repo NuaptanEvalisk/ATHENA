@@ -6,14 +6,20 @@
         (kernel texmacs tm-file-system)
         (kernel texmacs tm-secure)))
 
-(define-secure-symbols wikilink-repair-apply)
+(tm-define (vault-jump-to-source path anchor)
+  (load-buffer path)
+  (if (!= anchor "")
+      (delayed (:idle 100) (go-to-label anchor))))
+
+(define-secure-symbols wikilink-repair-apply vault-jump-to-source)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Settings
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define-preferences
-  ("vault fuzzy search limit" "3" noop))
+  ("vault fuzzy search limit" "3" noop)
+  ("vault transclusion color" "#f8f8f8" noop))
 
 (define (get-fuzzy-limit)
   (let ((pref (get-preference "vault fuzzy search limit")))
@@ -25,7 +31,11 @@
       (enum (set-preference "vault fuzzy search limit" answer)
             '("1" "2" "3" "5" "10")
             (get-preference "vault fuzzy search limit")
-            "10em"))))
+            "10em"))
+    (item (text "Transclusion background:")
+      (input (set-preference "vault transclusion color" answer) "string"
+             (list (get-preference "vault transclusion color"))
+             "10em"))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Vault management
@@ -76,21 +86,20 @@
          (final (sublist new 0 (min (length new) 20))))
     (save-object (recent-vaults-file) final)))
 
-(tm-define (recent-vault-menu)
-  (let* ((l (get-recent-vaults))
-         (items (map (lambda (dir-s)
-                       (let* ((u (string->url dir-s))
-                              (name (url->system (url-tail u))))
-                         `((balloon (verbatim ,name) (verbatim ,dir-s))
-                           (load-vault-dir ,u))))
-                     l)))
-    (append-map identity items)))
+(tm-menu (recent-vault-menu)
+  (for (dir-s (get-recent-vaults))
+    (let* ((u (string->url dir-s))
+           (name (url->system (url-tail u)))
+           (v-name `(verbatim ,name))
+           (v-dir `(verbatim ,dir-s)))
+      ((balloon (eval v-name) (eval v-dir))
+       (load-vault-dir u)))))
 
 (tm-define (insert-wikilink)
   (:interactive #t)
   (if (not (vault-active?))
       (set-message "No active vault. Please load a vault first." "Error")
-      (let ((res (vault-choose-link)))
+      (let ((res (vault-choose-link #f)))
         (if (and (tree? res) (== (tree-label res) 'tuple))
             (let* ((rel-path (tree->string (tree-ref res 0)))
                    (anchor (tree->string (tree-ref res 1)))
@@ -106,8 +115,27 @@
                               ,(string-append "tmfs://wikilink/" uuid "/" 
                                               file-hint "/" anchor-hint))))))))
 
+(tm-define (insert-transclude)
+  (:interactive #t)
+  (if (not (vault-active?))
+      (set-message "No active vault. Please load a vault first." "Error")
+      (let ((res (vault-choose-link #t)))
+        (if (and (tree? res) (== (tree-label res) 'tuple))
+            (let* ((rel-path (tree->string (tree-ref res 0)))
+                   (anchor-b (tree->string (tree-ref res 1)))
+                   (anchor-e (tree->string (tree-ref res 2)))
+                   (file-hint (tree->string (tree-ref res 3)))
+                   (anchor-hint (tree->string (tree-ref res 4)))
+                   (uuid (vault-find-uuid rel-path anchor-b anchor-e)))
+              (if (string-null? uuid)
+                  (begin
+                    (set! uuid (vault-generate-uuid))
+                    (vault-set-node uuid rel-path anchor-b anchor-e)))
+              (insert `(transclude ,uuid ,file-hint ,anchor-b ,anchor-e)))))))
+
 (kbd-commands
-  ("=" "Insert Wikilink" (if (in-text?) (insert-wikilink))))
+  ("=" "Insert Wikilink" (if (in-text?) (insert-wikilink)))
+  ("+" "Insert Transclusion" (if (in-text?) (insert-transclude))))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -161,7 +189,116 @@
 ;; Wikilink Handler
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(tm-define (wikilink-repair-apply bad-uuid new-uuid path anchor-begin anchor-end)
+(define active-transclusions '())
+
+(define (vault-strip-labels st)
+  (cond ((not (pair? st)) st)
+        ((eq? (car st) 'label) '(concat))
+        (else (cons (car st) (map vault-strip-labels (cdr st))))))
+
+(tm-define (vault-resolve-transclude uuid f-hint b-hint e-hint)
+  (let* ((uuid-str (tree->string uuid))
+         (f-hint-str (tree->string f-hint))
+         (b-hint-str (tree->string b-hint))
+         (e-hint-str (tree->string e-hint)))
+    (if (member uuid-str active-transclusions)
+        `(with "color" "red" (concat (bold "Broken Transclusion: ") "Cyclic transclusion detected (" ,f-hint-str ")."))
+        (let ((res #f))
+          (catch #t
+            (lambda ()
+              (set! active-transclusions (cons uuid-str active-transclusions))
+              (let* ((node (vault-get-node uuid-str)))
+                (set! res 
+                      (if (and (tree? node) (== (tree-label node) 'tuple))
+                          (let* ((rel-path (tree->string (tree-ref node 0)))
+                                 (a-begin (tree->string (tree-ref node 1)))
+                                 (a-end (tree->string (tree-ref node 2)))
+                                 (abs-url (url-append (vault-get-root) (unix->url rel-path)))
+                                 (filename (url->system (url-tail abs-url))))
+                            (if (url-exists? abs-url)
+                                (let* ((t (tree-import abs-url "texmacs"))
+                                       (content (vault-extract-range t a-begin a-end)))
+                                  (if (null? content)
+                                      (vault-transclude-error uuid-str f-hint-str b-hint-str e-hint-str "Anchors not found in target.")
+                                      (let* ((btn-cmd (string-append "(vault-jump-to-source " 
+                                                                     (object->string (url->string abs-url)) " "
+                                                                     (object->string a-begin) ")"))
+                                             (bg-color (get-preference "vault transclusion color")))
+                                        `(with "ornament-color" ,bg-color
+                                               "ornament-shape" "rectangular"
+                                               "ornament-border" "1ln"
+                                           (ornamented 
+                                             (document 
+                                               (with "font-size" "0.8" "color" "blue"
+                                                 (concat (action ,(string-append "[Source: " filename "]") ,btn-cmd)))
+                                               ,@(map vault-strip-labels (map tree->stree content))))))))
+                                (vault-transclude-error uuid-str f-hint-str b-hint-str e-hint-str "Target file missing.")))
+                          (vault-transclude-error uuid-str f-hint-str b-hint-str e-hint-str "UUID not in database.")))))
+            (lambda (key . args)
+              (display* "Transclude error: " key " " args "\n")
+              (set! res (vault-transclude-error uuid-str f-hint-str b-hint-str e-hint-str "Internal error."))))
+          (set! active-transclusions (list-difference active-transclusions (list uuid-str)))
+          res))))
+
+(define (vault-common-prefix l1 l2)
+  (cond ((or (null? l1) (null? l2)) '())
+        ((== (car l1) (car l2))
+         (cons (car l1) (vault-common-prefix (cdr l1) (cdr l2))))
+        (else '())))
+
+(define (vault-subtree t path)
+  (if (null? path) t
+      (vault-subtree (tree-ref t (car path)) (cdr path))))
+
+(define (vault-list-tail l k)
+  (if (<= k 0) l
+      (if (null? l) '()
+          (vault-list-tail (cdr l) (- k 1)))))
+
+(define (vault-extract-range t b e)
+  (let* ((p-begin (tree-search-label t b))
+         (p-end (tree-search-label t e)))
+    (if (and p-begin p-end)
+        (let* ((prefix (vault-common-prefix p-begin p-end)))
+          (if (null? prefix) '()
+              (let* ((parent (vault-subtree t prefix))
+                     (rem-b (vault-list-tail p-begin (length prefix)))
+                     (rem-e (vault-list-tail p-end (length prefix)))
+                     (i-begin (if (null? rem-b) 0 (car rem-b)))
+                     (i-end (if (null? rem-e) (- (tree-arity parent) 1) (car rem-e)))
+                     (res '()))
+                (display* "Transclude Extract Range: " b " (path " p-begin ") to " e " (path " p-end ")\n")
+                (display* "  Common prefix: " prefix "\n")
+                (display* "  Top-level indices in parent: " i-begin " to " i-end "\n")
+                (if (<= i-begin i-end)
+                    (for (i i-begin (+ i-end 1))
+                      (let ((child (tree-ref parent i)))
+                        (set! res (append res (list child)))))
+                    '())
+                (display* "  Raw Extracted:\n")
+                (for (item res) (display* "    " (tree->stree item) "\n"))
+                res)))
+        (begin
+          (display* "Transclude Extract Failed: could not find both labels. p-begin=" p-begin ", p-end=" p-end "\n")
+          '()))))
+
+(define (tree-search-label t lab)
+  (if (string-null? lab) #f
+      (let* ((pred? (lambda (node)
+                      (and (tree-compound? node)
+                           (== (tree-label node) 'label)
+                           (>= (tree-arity node) 1)
+                           (== (tree->string (tree-ref node 0)) lab))))
+             (indices (tree-search-indices t pred?)))
+        (if (pair? indices) (car indices) #f))))
+
+(define (vault-transclude-error uuid f-hint b-hint e-hint msg)
+  `(with "color" "red"
+     (concat (bold "Broken Transclusion: ") ,msg " "
+             (action "Repair" "(insert-transclude)"))))
+
+(tm-define (wikilink-repair-apply
+ bad-uuid new-uuid path anchor-begin anchor-end)
   (display* "Applying repair: " bad-uuid " -> " new-uuid " at " path "\n")
   (vault-set-node new-uuid path anchor-begin anchor-end)
   (let* ((old-link (string-append "tmfs://wikilink/" bad-uuid))

@@ -23,6 +23,7 @@
 
 (menu-bind insert-link-menu
   ("Wikilink" (insert-wikilink))
+  ("Transclusion" (insert-transclude))
   ---
   (when (not (selection-active-non-small?))
     ("Label" (make-label))

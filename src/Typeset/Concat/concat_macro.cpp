@@ -10,6 +10,8 @@
 ******************************************************************************/
 
 #include "concater.hpp"
+#include "glue.hpp"
+#include "hashset.hpp"
 
 /******************************************************************************
 * Typesetting environment changes
@@ -441,4 +443,56 @@ concater_rep::typeset_range (tree t, path ip) {
       marker (descend (ip, 1));
     }
   }
+}
+
+static array<string> active_transclusions;
+
+struct TranscludeCycleLock {
+  bool ok;
+  TranscludeCycleLock (string uuid) {
+    ok = true;
+    for (int i=0; i<N(active_transclusions); i++) {
+      if (active_transclusions[i] == uuid) ok = false;
+    }
+    if (ok) active_transclusions << uuid;
+  }
+  ~TranscludeCycleLock () {
+    if (ok) {
+      int n = N(active_transclusions);
+      if (n > 0) {
+        array<string> next;
+        for (int i=0; i<n-1; i++) next << active_transclusions[i];
+        active_transclusions = next;
+      }
+    }
+  }
+};
+
+void
+concater_rep::typeset_transclude (tree t, path ip) {
+  if (N(t) != 4) { typeset_error (t, ip); return; }
+  
+  string uuid = as_string (t[0]);
+  TranscludeCycleLock lock (uuid);
+  
+  if (!lock.ok) {
+    tree err = tree (WITH, "color", "red", tree (CONCAT, "Broken Transclusion: Cyclic transclusion detected (" * as_string (t[1]) * ")."));
+    typeset (err, ip);
+    return;
+  }
+  
+  static tmscm fun = scm_lookup_string ("vault-resolve-transclude");
+  tmscm res_scm = call_scheme (fun, 
+                               tree_to_tmscm (t[0]), 
+                               tree_to_tmscm (t[1]), 
+                               tree_to_tmscm (t[2]), 
+                               tree_to_tmscm (t[3]));
+  
+  tree content = tmscm_to_content (res_scm);
+  
+  if (is_compound (content, DOCUMENT) && N(content) > 0)
+    content = content[0];
+  
+  tree rewritten = env->rewrite (content);
+  typeset_dynamic (rewritten, ip);
 }

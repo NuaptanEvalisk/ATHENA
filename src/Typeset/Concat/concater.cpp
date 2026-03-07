@@ -534,6 +534,9 @@ concater_rep::typeset (tree t, path ip) {
   case INCLUDE:
     typeset_compound (t, ip);
     break;
+  case TRANSCLUDE:
+    typeset_transclude (t, ip);
+    break;
   case WITH_PACKAGE:
     typeset_rewrite (t, ip);
     break;
