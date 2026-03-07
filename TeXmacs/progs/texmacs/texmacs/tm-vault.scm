@@ -74,6 +74,10 @@
                               ,(string-append "tmfs://wikilink/" uuid "/" 
                                               file-hint "/" anchor-hint))))))))
 
+(kbd-commands
+  ("=" "Insert Wikilink" (if (in-text?) (insert-wikilink))))
+
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Fuzzy Search Logic
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
