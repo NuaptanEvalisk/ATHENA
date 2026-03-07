@@ -47,12 +47,44 @@
           (if (and (list? data) (>= (length data) 2))
               (begin
                 (vault-load dir (car data) (cadr data))
+                (add-recent-vault dir)
                 (set-message (string-append "Loaded vault: " (car data)) "Vault"))
               (set-message "Invalid Vaultfile" "Error")))
         (interactive-new-vault dir))))
 
 (tm-define (open-vault)
   (choose-file load-vault-dir "Load Vault" "directory"))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Recent Vaults
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(tm-define (recent-vaults-file)
+  "$TEXMACS_HOME_PATH/system/recent_vaults.scm")
+
+(tm-define (get-recent-vaults)
+  (let ((file (recent-vaults-file)))
+    (if (url-exists? file)
+        (let ((data (load-object file)))
+          (if (list? data) data '()))
+        '())))
+
+(tm-define (add-recent-vault dir)
+  (let* ((dir-s (url->string dir))
+         (old (get-recent-vaults))
+         (new (cons dir-s (list-difference old (list dir-s))))
+         (final (sublist new 0 (min (length new) 20))))
+    (save-object (recent-vaults-file) final)))
+
+(tm-define (recent-vault-menu)
+  (let* ((l (get-recent-vaults))
+         (items (map (lambda (dir-s)
+                       (let* ((u (string->url dir-s))
+                              (name (url->system (url-tail u))))
+                         `((balloon (verbatim ,name) (verbatim ,dir-s))
+                           (load-vault-dir ,u))))
+                     l)))
+    (append-map identity items)))
 
 (tm-define (insert-wikilink)
   (:interactive #t)
@@ -169,7 +201,6 @@
                (a-begin (tree->string (tree-ref node 1)))
                (a-end (tree->string (tree-ref node 2)))
                (abs-url (url-append (vault-get-root) (unix->url rel-path))))
-          (display* "  Target: " abs-url "\n")
           (if (url-exists? abs-url)
               (begin
                 (display* "  Opening target via delayed execution...\n")

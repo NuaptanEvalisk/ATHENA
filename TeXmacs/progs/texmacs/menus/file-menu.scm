@@ -16,6 +16,7 @@
     (utils library cursor)
     (texmacs texmacs tm-server)
     (texmacs texmacs tm-files)
+    (texmacs texmacs tm-vault)
     (texmacs menus print-widgets)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -267,6 +268,11 @@
       (if (nnull? (recent-file-list 1)) ---)
       (when (nnull? (recent-file-list 1))
         ("Clear menu" (forget-interactive "recent-buffer"))))
+  (-> "Recent Vaults"
+      (link recent-vault-menu)
+      (if (nnull? (get-recent-vaults)) ---)
+      (when (nnull? (get-recent-vaults))
+        ("Clear menu" (save-object (recent-vaults-file) '()))))
   ---
   ("Save" (save-buffer))
   ("Save as" (choose-file save-buffer-as "Save TeXmacs file" "texmacs"))
