@@ -21,6 +21,7 @@
 #include "editor.hpp"
 #include "modification.hpp"
 #include "patch.hpp"
+#include "colors.hpp"
 
 /******************************************************************************
 * The object representation class
@@ -455,6 +456,8 @@ static bool preferences_ok= false;
 void
 notify_preferences_booted () {
   preferences_ok= true;
+  gui_cursor_color = named_color (get_preference ("gui cursor color", "red"));
+  gui_selection_color = named_color (get_preference ("gui selection color", "red"));
 }
 
 void

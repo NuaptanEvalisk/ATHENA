@@ -767,6 +767,8 @@
   (gui-interrupted? gui_interrupted (bool))
   (get-screen-size get_screen_size (array_SI))
   (gui-hide-splash gui_hide_splash (void))
+  (gui-set-cursor-color gui_set_cursor_color (void string))
+  (gui-set-selection-color gui_set_selection_color (void string))
 
   ;; buffers
   (buffer-list get_all_buffers (array_url))

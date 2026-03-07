@@ -13,6 +13,9 @@
 #include "colors.hpp"
 #include "analyze.hpp"
 
+color gui_cursor_color = rgb_color(255, 0, 0);
+color gui_selection_color = rgb_color(255, 0, 0);
+
 #include "tm_colors.hpp"
 #include "x11_colors.hpp"
 #include "svg_colors.hpp"

@@ -100,4 +100,8 @@ inline color html_color  (string s) {return svg_ch  [locase_all (s)];};
 inline color tm_color    (string s) {return tm_ch   [locase_all (s)];};
 inline color xc_color    (string s) {return xc_ch   [locase_all (s)];};
 
+/* Globally configurable UI colors */
+extern color gui_cursor_color;
+extern color gui_selection_color;
+
 #endif // defined COLORS_H

@@ -95,9 +95,9 @@ edit_interface_rep::draw_cursor (renderer ren) {
       SI x2= cu->ox + ((SI) (cu->y2 * cu->slope)), y2= cu->oy + cu->y2;
       string mode= get_env_string (MODE);
       string family, series;
-      color cuc= get_env_color (CURSOR_COLOR);
+      color cuc= gui_cursor_color;
       if (!cu->valid) cuc= green;
-      else if (mode == "math") cuc= get_env_color (MATH_CURSOR_COLOR);
+      // else if (mode == "math") cuc= get_env_color (MATH_CURSOR_COLOR);
       ren->set_pencil (pencil (cuc, zpixel + dw));
       if ((mode == "text") || (mode == "src")) {
         family= get_env_string (FONT_FAMILY);
@@ -160,8 +160,8 @@ edit_interface_rep::draw_selection (renderer ren, rectangle r) {
 #endif
   }
   if (!is_nil (selection_rects)) {
-    color col= get_env_color (SELECTION_COLOR);
-    if (table_selection) col= get_env_color (TABLE_SELECTION_COLOR);
+    color col= gui_selection_color;
+    // if (table_selection) col= get_env_color (TABLE_SELECTION_COLOR);
     ren->set_pencil (pencil (col, ren->pixel));
 #ifdef QTTEXMACS
     ren->draw_selection (selection_rects & visible);

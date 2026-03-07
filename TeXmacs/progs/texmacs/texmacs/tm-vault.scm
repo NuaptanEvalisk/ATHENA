@@ -4,7 +4,9 @@
         (kernel library tree)
         (kernel texmacs tm-define)
         (kernel texmacs tm-file-system)
-        (kernel texmacs tm-secure)))
+        (kernel texmacs tm-secure)
+        (utils library cursor)
+        (generic document-edit)))
 
 (tm-define (vault-jump-to-source path anchor)
   (load-buffer path)
@@ -17,9 +19,17 @@
 ;; Settings
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(define (notify-cursor-color name val)
+  (gui-set-cursor-color val))
+
+(define (notify-selection-color name val)
+  (gui-set-selection-color val))
+
 (define-preferences
   ("vault fuzzy search limit" "3" noop)
-  ("vault transclusion color" "#f8f8f8" noop))
+  ("vault transclusion color" "#f8f8f8" noop)
+  ("gui cursor color" "red" notify-cursor-color)
+  ("gui selection color" "red" notify-selection-color))
 
 (define (get-fuzzy-limit)
   (let ((pref (get-preference "vault fuzzy search limit")))
@@ -35,6 +45,14 @@
     (item (text "Transclusion background:")
       (input (set-preference "vault transclusion color" answer) "string"
              (list (get-preference "vault transclusion color"))
+             "10em"))
+    (item (text "Cursor color:")
+      (input (set-preference "gui cursor color" answer) "string"
+             (list (get-preference "gui cursor color"))
+             "10em"))
+    (item (text "Selection color:")
+      (input (set-preference "gui selection color" answer) "string"
+             (list (get-preference "gui selection color"))
              "10em"))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
