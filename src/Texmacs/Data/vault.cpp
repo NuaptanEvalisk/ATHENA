@@ -12,6 +12,10 @@
 #include "file.hpp"
 #include "web_files.hpp"
 #include "tm_timer.hpp"
+#include "analyze.hpp"
+#include "convert.hpp"
+#include "sys_utils.hpp"
+#include "Texmacs/Data/new_buffer.hpp"
 
 bool       is_vault_active = false;
 vault_info current_vault;
@@ -96,6 +100,67 @@ vault_has_node (string uuid) {
   if (!is_vault_active) return false;
   strings p = get_field (current_vault.db_url, uuid, "v-path", 0);
   return N(p) > 0;
+}
+
+static void
+scan_recursive (url dir, array<url>& res) {
+  bool err;
+  array<string> all = read_directory (dir, err);
+  if (err) return;
+  for (int i=0; i<N(all); i++) {
+    url u = dir * url (all[i]);
+    string name = all[i];
+    if (name != "" && name[0] == '.') continue;
+    if (is_directory (u)) {
+      scan_recursive (u, res);
+    } else if (suffix (u) == "tm") {
+      res << u;
+    }
+  }
+}
+
+array<url>
+vault_get_all_files () {
+  array<url> res;
+  if (!is_vault_active) return res;
+  scan_recursive (current_vault.root, res);
+  return res;
+}
+
+static void
+find_labels (tree t, strings& res) {
+  if (is_atomic (t)) return;
+  // Standard label tag
+  if (is_func (t, LABEL, 1)) {
+    res << tree_as_string (t[0]);
+  }
+  // Labels can also be inside assign or other tags, but find_labels is recursive.
+  for (int i=0; i<N(t); i++) {
+    find_labels (t[i], res);
+  }
+}
+
+strings
+vault_get_anchors (url u) {
+  strings res;
+  if (!exists (u)) return res;
+  tree t = import_tree (u, "texmacs");
+  find_labels (t, res);
+  return res;
+}
+
+int
+vault_get_mtime (url u) {
+  // TeXmacs doesn't have a direct cross-platform mtime in its basic file API
+  // but we can use sys_utils if needed. For now return 0 if not available.
+  // Actually, let's just return 0 for now to keep it simple, or use stat if on linux.
+#ifdef OS_WIN32
+  return 0;
+#else
+  struct stat st;
+  if (stat (as_charp (concretize (u)), &st) == 0) return (int) st.st_mtime;
+  return 0;
+#endif
 }
 
 string

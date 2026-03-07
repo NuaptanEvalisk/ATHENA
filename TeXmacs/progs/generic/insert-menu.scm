@@ -22,6 +22,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (menu-bind insert-link-menu
+  ("Wikilink" (insert-wikilink))
+  ---
   (when (not (selection-active-non-small?))
     ("Label" (make-label))
     ("Reference" (make 'reference))

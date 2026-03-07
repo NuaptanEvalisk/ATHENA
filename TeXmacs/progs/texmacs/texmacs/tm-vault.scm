@@ -3,7 +3,10 @@
         (kernel library list)
         (kernel library tree)
         (kernel texmacs tm-define)
-        (kernel texmacs tm-file-system)))
+        (kernel texmacs tm-file-system)
+        (kernel texmacs tm-secure)))
+
+(define-secure-symbols wikilink-repair-apply)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Settings
@@ -51,6 +54,26 @@
 (tm-define (open-vault)
   (choose-file load-vault-dir "Load Vault" "directory"))
 
+(tm-define (insert-wikilink)
+  (:interactive #t)
+  (if (not (vault-active?))
+      (set-message "No active vault. Please load a vault first." "Error")
+      (let ((res (vault-choose-link)))
+        (if (and (tree? res) (== (tree-label res) 'tuple))
+            (let* ((rel-path (tree->string (tree-ref res 0)))
+                   (anchor (tree->string (tree-ref res 1)))
+                   (file-hint (tree->string (tree-ref res 2)))
+                   (anchor-hint (tree->string (tree-ref res 3)))
+                   (display-text (tree->string (tree-ref res 4)))
+                   (uuid (vault-find-uuid rel-path "" anchor)))
+              (if (string-null? uuid)
+                  (begin
+                    (set! uuid (vault-generate-uuid))
+                    (vault-set-node uuid rel-path "" anchor)))
+              (insert `(hlink ,display-text 
+                              ,(string-append "tmfs://wikilink/" uuid "/" 
+                                              file-hint "/" anchor-hint))))))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Fuzzy Search Logic
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -66,7 +89,7 @@
         (string-occurs? (string-downcase hint) (string-downcase s)))))
 
 (define (vault-scan-files dir hint)
-  (if (interrupted?) '()
+  (if (gui-interrupted?) '()
       (begin
         (display* "  Scanning: " dir " for " hint "\n")
         (refresh-now "wikilink-search")
@@ -75,9 +98,9 @@
                (subdirs (list-filter (url-read-directory dir "*") url-directory?)))
           (for (d subdirs)
             (let ((name (url->unix (url-tail d))))
-              (if (and (not (interrupted?)) (not (string-starts? name ".")))
+              (if (and (not (gui-interrupted?)) (not (string-starts? name ".")))
                   (set! matches (append matches (vault-scan-files d hint))))))
-          matches)))
+          matches))))
 
 (define (vault-find-anchor-in-file u hint)
   (if (string-null? hint) ""
@@ -127,7 +150,7 @@
     (if (not (string-null? anchor-end))
         (delayed (:idle 100) (go-to-label anchor-end)))))
 
-(tmfs-load-handler (wikilink name)
+(define (wikilink-handler-sub name)
   (display* "Wikilink load: " name "\n")
   (let* ((parts (string-tokenize-by-char name #\/))
          (uuid (if (pair? parts) (car parts) ""))
@@ -145,21 +168,30 @@
           (display* "  Target: " abs-url "\n")
           (if (url-exists? abs-url)
               (begin
-                (display* "  Opening target...\n")
+                (display* "  Opening target via delayed execution...\n")
                 (exec-delayed (lambda ()
-                                (load-buffer (url->string abs-url))
+                                (display* "  Executing load-buffer for " abs-url "\n")
+                                (load-buffer abs-url)
                                 (if (not (string-null? a-end))
-                                    (delayed (:idle 100) (go-to-label a-end)))))
-                `(document (TeXmacs ,(texmacs-version)) (style (tuple "generic")) (body (document))))
+                                    (begin
+                                      (display* "  Jumping to label " a-end "\n")
+                                      (delayed (:idle 100) (go-to-label a-end))))
+                                (display* "  Navigation complete.\n")))
+                `(document (TeXmacs ,(texmacs-version)) 
+                           (style (tuple "generic")) 
+                           (body (document "Redirecting..."))))
               (begin
-                (display* "  Target does not exist, triggering repair...\n")
+                (display* "  Target file missing on disk, triggering repair...\n")
                 (wikilink-trigger-repair uuid file-hint anchor-hint))))
         (begin
-          (display* "  Invalid node, triggering repair...\n")
+          (display* "  UUID not found in database, triggering repair...\n")
           (wikilink-trigger-repair uuid file-hint anchor-hint)))))
 
+(tmfs-load-handler (wikilink name)
+  (wikilink-handler-sub name))
+
 (tmfs-load-handler (Wikilink name)
-  (call "tmfs-load" (string-append "tmfs://wikilink/" name)))
+  (wikilink-handler-sub name))
 
 (define (wikilink-trigger-repair uuid file-hint anchor-hint)
   (display* "Trigger repair for " uuid ", hint: " file-hint "\n")
@@ -172,7 +204,7 @@
                (candidates '()))
           (display* "  Candidates found: " (length files) "\n")
           (for (f (sublist files 0 (min (length files) limit)))
-            (let* ((rel (url->unix (url-delta (vault-get-root) f)))
+            (let* ((rel (url->unix (url-delta (url-append (vault-get-root) "") f)))
                    (anchor (vault-find-anchor-in-file f anchor-hint)))
               (display* "    Candidate relative path: " rel "\n")
               (set! candidates (cons (list rel anchor) candidates))))
@@ -208,7 +240,7 @@
                                                (object->string new-uuid) " "
                                                (object->string path) " \"\" "
                                                (object->string anchor) ")")))
-                           `(concat (item)
+                      `(concat (item)
                                (action ,label ,cmd)
                                " (UUID: " ,new-uuid ")")))
-                           candidates)))))))
+                  candidates)))))))

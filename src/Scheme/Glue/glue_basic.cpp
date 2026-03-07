@@ -9283,6 +9283,15 @@ tmg_refresh_now (tmscm arg1) {
 }
 
 tmscm
+tmg_gui_interruptedP () {
+  // TMSCM_DEFER_INTS;
+  bool out= gui_interrupted ();
+  // TMSCM_ALLOW_INTS;
+
+  return bool_to_tmscm (out);
+}
+
+tmscm
 tmg_get_screen_size () {
   // TMSCM_DEFER_INTS;
   array_SI out= get_screen_size ();
@@ -10288,6 +10297,15 @@ tmg_vault_generate_uuid () {
   // TMSCM_ALLOW_INTS;
 
   return string_to_tmscm (out);
+}
+
+tmscm
+tmg_vault_choose_link () {
+  // TMSCM_DEFER_INTS;
+  tree out= vault_choose_link ();
+  // TMSCM_ALLOW_INTS;
+
+  return tree_to_tmscm (out);
 }
 
 tmscm
@@ -11453,6 +11471,7 @@ initialize_glue_basic () {
   tmscm_install_procedure ("get-remove-package-menu",  tmg_get_remove_package_menu, 0, 0, 0);
   tmscm_install_procedure ("get-toggle-package-menu",  tmg_get_toggle_package_menu, 0, 0, 0);
   tmscm_install_procedure ("refresh-now",  tmg_refresh_now, 1, 0, 0);
+  tmscm_install_procedure ("gui-interrupted?",  tmg_gui_interruptedP, 0, 0, 0);
   tmscm_install_procedure ("get-screen-size",  tmg_get_screen_size, 0, 0, 0);
   tmscm_install_procedure ("gui-hide-splash",  tmg_gui_hide_splash, 0, 0, 0);
   tmscm_install_procedure ("buffer-list",  tmg_buffer_list, 0, 0, 0);
@@ -11533,6 +11552,7 @@ initialize_glue_basic () {
   tmscm_install_procedure ("vault-has-node?",  tmg_vault_has_nodeP, 1, 0, 0);
   tmscm_install_procedure ("vault-find-uuid",  tmg_vault_find_uuid, 3, 0, 0);
   tmscm_install_procedure ("vault-generate-uuid",  tmg_vault_generate_uuid, 0, 0, 0);
+  tmscm_install_procedure ("vault-choose-link",  tmg_vault_choose_link, 0, 0, 0);
   tmscm_install_procedure ("alt-window-handle",  tmg_alt_window_handle, 0, 0, 0);
   tmscm_install_procedure ("alt-window-create-quit",  tmg_alt_window_create_quit, 4, 0, 0);
   tmscm_install_procedure ("alt-window-create-plain",  tmg_alt_window_create_plain, 3, 0, 0);

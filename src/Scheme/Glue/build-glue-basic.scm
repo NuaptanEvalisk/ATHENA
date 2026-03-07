@@ -764,6 +764,7 @@
   (get-remove-package-menu get_remove_package_menu (object))
   (get-toggle-package-menu get_toggle_package_menu (object))
   (refresh-now windows_refresh (void string))
+  (gui-interrupted? gui_interrupted (bool))
   (get-screen-size get_screen_size (array_SI))
   (gui-hide-splash gui_hide_splash (void))
 
@@ -852,6 +853,7 @@
   (vault-has-node? vault_has_node (bool string))
   (vault-find-uuid vault_find_uuid (string string string string))
   (vault-generate-uuid vault_generate_uuid (string))
+  (vault-choose-link vault_choose_link (tree))
 
 
   ;; transitional alternative windows; to be replaced by better solution

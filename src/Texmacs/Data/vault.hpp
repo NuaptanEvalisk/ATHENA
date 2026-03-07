@@ -40,4 +40,9 @@ bool    vault_has_node (string uuid);
 string  vault_find_uuid (string path, string anchor_begin, string anchor_end);
 string  vault_generate_uuid ();
 
+/* Vault scanning */
+array<url> vault_get_all_files ();
+strings    vault_get_anchors (url u);
+int        vault_get_mtime (url u);
+
 #endif // VAULT_HPP

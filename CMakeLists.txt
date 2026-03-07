@@ -427,6 +427,7 @@ set (TeXmacs_Include_Dirs
   ${TEXMACS_SOURCE_DIR}/src/Plugins
   ${TEXMACS_SOURCE_DIR}/src/Plugins/Pdf/LibAesgm
   ${TEXMACS_SOURCE_DIR}/src/Plugins/Gnutls
+  ${TEXMACS_SOURCE_DIR}/src/Plugins/Qt
   ${TEXMACS_SOURCE_DIR}/src/Scheme
   ${TEXMACS_SOURCE_DIR}/src/Scheme/Guile
   ${TEXMACS_SOURCE_DIR}/src/Scheme/Scheme
@@ -528,6 +529,7 @@ set (TeXmacs_Qt_Moc_HDRS
   ${TEXMACS_SOURCE_DIR}/src/Plugins/Qt/QTMSockets.hpp
   ${TEXMACS_SOURCE_DIR}/src/Plugins/Qt/QTMStyle.hpp
   ${TEXMACS_SOURCE_DIR}/src/Plugins/Qt/QTMTreeModel.hpp
+  ${TEXMACS_SOURCE_DIR}/src/Plugins/Qt/QTMVaultChooser.hpp
   ${TEXMACS_SOURCE_DIR}/src/Plugins/Qt/QTMWidget.hpp
   ${TEXMACS_SOURCE_DIR}/src/Plugins/Qt/QTMWindow.hpp
 )
