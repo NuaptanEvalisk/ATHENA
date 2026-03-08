@@ -496,3 +496,22 @@ concater_rep::typeset_transclude (tree t, path ip) {
   tree rewritten = env->rewrite (content);
   typeset_dynamic (rewritten, ip);
 }
+
+void
+concater_rep::typeset_label (tree t, path ip) {
+  string mode = get_preference ("vault labels mode", "visible");
+  if (mode == "hidden") {
+    box b= empty_box (ip, 0, 0, 0, 0); // Zero height
+    a << line_item (CONTROL_ITEM, OP_SKIP, b, HYPH_INVALID, t);
+    return;
+  }
+  if (mode == "small") {
+    string name = "#";
+    if (N(t) > 0) name = tree_as_string (t[0]);
+    tree tiny_t = tree (WITH, "font-size", "0.5", "color", "grey", 
+                        tree (CONCAT, "[", name, "]"));
+    typeset (tiny_t, ip);
+    return;
+  }
+  typeset_compound (t, ip);
+}

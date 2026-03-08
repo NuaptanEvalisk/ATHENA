@@ -127,6 +127,10 @@
   ("Fit to screen" (fit-to-screen))
   ("Fit to screen width" (fit-to-screen-width))
   ("Persistent fit width" (toggle-persistent-fit-width))
+  (-> "Labels"
+      ("Visible" (set-preference "vault labels mode" "visible"))
+      ("Small" (set-preference "vault labels mode" "small"))
+      ("Hidden" (set-preference "vault labels mode" "hidden")))
   ;;("Fit to screen height" (fit-to-screen-height))
   ("Zoom in" (zoom-in (sqrt (sqrt 2.0))))
   ("Zoom out" (zoom-out (sqrt (sqrt 2.0))))

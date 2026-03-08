@@ -37,12 +37,16 @@
 (define (notify-selection-color name val)
   (gui-set-selection-color val))
 
+(define (notify-labels-mode name val)
+  (refresh-now "labels"))
+
 (define-preferences
   ("vault fuzzy search limit" "3" noop)
   ("vault transclusion color" "#f8f8f8" noop)
   ("gui cursor color" "red" notify-cursor-color)
   ("gui selection color" "red" notify-selection-color)
-  ("vault welcome page" "on" noop))
+  ("vault welcome page" "on" noop)
+  ("vault labels mode" "visible" notify-labels-mode))
 
 (define (get-fuzzy-limit)
   (let ((pref (get-preference "vault fuzzy search limit")))
@@ -72,7 +76,12 @@
               (equal? (get-preference "vault welcome page") "on")))
     (item (text "Persistent fit width:")
       (toggle (set-preference "persistent fit width" (if answer "on" "off"))
-              (equal? (get-preference "persistent fit width") "on")))))
+              (equal? (get-preference "persistent fit width") "on")))
+    (item (text "Labels display:")
+      (enum (set-preference "vault labels mode" answer)
+            '("visible" "small" "hidden")
+            (get-preference "vault labels mode")
+            "10em"))))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -305,20 +314,13 @@
                      (i-begin (if (null? rem-b) 0 (car rem-b)))
                      (i-end (if (null? rem-e) (- (tree-arity parent) 1) (car rem-e)))
                      (res '()))
-                (display* "Transclude Extract Range: " b " (path " p-begin ") to " e " (path " p-end ")\n")
-                (display* "  Common prefix: " prefix "\n")
-                (display* "  Top-level indices in parent: " i-begin " to " i-end "\n")
                 (if (<= i-begin i-end)
                     (for (i i-begin (+ i-end 1))
                       (let ((child (tree-ref parent i)))
                         (set! res (append res (list child)))))
                     '())
-                (display* "  Raw Extracted:\n")
-                (for (item res) (display* "    " (tree->stree item) "\n"))
                 res)))
-        (begin
-          (display* "Transclude Extract Failed: could not find both labels. p-begin=" p-begin ", p-end=" p-end "\n")
-          '()))))
+        '())))
 
 (define (tree-search-label t lab)
   (if (string-null? lab) #f

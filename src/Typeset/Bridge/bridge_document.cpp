@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "bridge.hpp"
+#include "scheme.hpp"
 
 bridge bridge_docrange (typesetter ttt, tree st, path ip, array<bridge>& brs,
 			int begin, int end, bool divide);
@@ -201,11 +202,24 @@ bridge_document_rep::my_typeset (int desired_status) {
     int i, n= N(st);
     array<line_item> a= ttt->a;
     array<line_item> b= ttt->b;
+    string mode = get_preference ("vault labels mode", "visible");
+
+    int first_visible = -1;
+    int last_visible = -1;
     for (i=0; i<n; i++) {
+      if (mode == "hidden" && is_only_labels_and_white (st[i]) && has_label (st[i])) continue;
+      if (first_visible == -1) first_visible = i;
+      last_visible = i;
+    }
+
+    if (first_visible == -1) return;
+
+    for (i=0; i<n; i++) {
+      if (mode == "hidden" && is_only_labels_and_white (st[i]) && has_label (st[i])) continue;
       //cout << "Typesetting " << st[i] << LF;
-      int wanted= (i==n-1? desired_status & WANTED_MASK: WANTED_PARAGRAPH);
-      ttt->a= (i==0  ? a: array<line_item> ());
-      ttt->b= (i==n-1? b: array<line_item> ());
+      int wanted= (i==last_visible? desired_status & WANTED_MASK: WANTED_PARAGRAPH);
+      ttt->a= (i==first_visible  ? a: array<line_item> ());
+      ttt->b= (i==last_visible   ? b: array<line_item> ());
       brs[i]->typeset (PROCESSED+ wanted);
     }
   }

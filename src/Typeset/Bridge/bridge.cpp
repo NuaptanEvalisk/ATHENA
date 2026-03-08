@@ -11,6 +11,49 @@
 
 #include "bridge.hpp"
 #include "Boxes/construct.hpp"
+#include "scheme.hpp"
+
+bool
+is_pure_white (tree t) {
+  if (is_atomic (t)) {
+    if (is_string (t)) {
+      string s = t->label;
+      for (int i=0; i<N(s); i++)
+        if (s[i] != ' ' && s[i] != '\t' && s[i] != '\n' && s[i] != '\r') return false;
+      return true;
+    }
+    return false;
+  }
+  if (is_func (t, PARA) || is_func (t, CONCAT) || is_func (t, WITH) || 
+      is_func (t, ATTR) || is_func (t, COMPOUND) || is_func (t, SURROUND)) {
+    for (int i=0; i<N(t); i++)
+      if (!is_pure_white (t[i])) return false;
+    return true;
+  }
+  return false;
+}
+
+bool
+has_label (tree t) {
+  if (is_func (t, LABEL)) return true;
+  if (is_atomic (t)) return false;
+  for (int i=0; i<N(t); i++)
+    if (has_label (t[i])) return true;
+  return false;
+}
+
+bool
+is_only_labels_and_white (tree t) {
+  if (is_func (t, LABEL)) return true;
+  if (is_pure_white (t)) return true;
+  if (is_func (t, PARA) || is_func (t, CONCAT) || is_func (t, WITH) || 
+      is_func (t, ATTR) || is_func (t, COMPOUND) || is_func (t, SURROUND)) {
+    for (int i=0; i<N(t); i++)
+      if (!is_only_labels_and_white (t[i])) return false;
+    return true;
+  }
+  return false;
+}
 
 bridge bridge_document (typesetter, tree, path);
 bridge bridge_surround (typesetter, tree, path);

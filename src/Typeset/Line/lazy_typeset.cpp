@@ -16,6 +16,8 @@
 #include "Boxes/construct.hpp"
 #include "analyze.hpp"
 #include "packrat.hpp"
+#include "scheme.hpp"
+#include "tree_label.hpp"
 
 array<line_item> typeset_marker (edit_env env, path ip);
 array<line_item> typeset_concat (edit_env, tree t, path ip);
@@ -30,12 +32,72 @@ lazy make_lazy_art_box (edit_env env, tree t, path ip);
 * Documents
 ******************************************************************************/
 
+static bool
+is_pure_white (tree t) {
+  if (is_atomic (t)) {
+    if (is_string (t)) {
+      string s = t->label;
+      for (int i=0; i<N(s); i++)
+        if (s[i] != ' ' && s[i] != '\t' && s[i] != '\n' && s[i] != '\r') return false;
+      return true;
+    }
+    return false;
+  }
+  if (is_func (t, PARA) || is_func (t, CONCAT) || is_func (t, WITH) || 
+      is_func (t, ATTR) || is_func (t, COMPOUND) || is_func (t, SURROUND)) {
+    for (int i=0; i<N(t); i++)
+      if (!is_pure_white (t[i])) return false;
+    return true;
+  }
+  return false;
+}
+
+static bool
+has_label (tree t) {
+  if (is_func (t, LABEL)) return true;
+  if (is_atomic (t)) return false;
+  for (int i=0; i<N(t); i++)
+    if (has_label (t[i])) return true;
+  return false;
+}
+
+static bool
+is_only_labels_and_white (tree t) {
+  if (is_func (t, LABEL)) return true;
+  if (is_pure_white (t)) return true;
+  if (is_func (t, PARA) || is_func (t, CONCAT) || is_func (t, WITH) || 
+      is_func (t, ATTR) || is_func (t, COMPOUND) || is_func (t, SURROUND)) {
+    for (int i=0; i<N(t); i++)
+      if (!is_only_labels_and_white (t[i])) return false;
+    return true;
+  }
+  return false;
+}
+
 lazy_document_rep::lazy_document_rep (edit_env env, tree t, path ip):
-  lazy_rep (LAZY_DOCUMENT, ip), par (N(t))
+  lazy_rep (LAZY_DOCUMENT, ip)
 {
   int i, n= N(t);
-  for (i=0; i<n; i++)
-    par[i]= make_lazy (env, t[i], descend (ip, i));
+  string mode = get_preference ("vault labels mode", "visible");
+  
+  cout << "lazy_document_rep: evaluating document with " << n << " children. Mode=" << mode << "\n";
+  
+  array<lazy> p_arr;
+  for (i=0; i<n; i++) {
+    bool white = is_pure_white (t[i]);
+    bool has = has_label (t[i]);
+    bool only = is_only_labels_and_white (t[i]);
+    
+    cout << "  Child " << i << ": " << t[i] << "\n";
+    cout << "    white=" << white << " has_label=" << has << " only_labels=" << only << "\n";
+
+    if (mode == "hidden" && only && has) {
+      cout << "    -> SKIPPING\n";
+      continue;
+    }
+    p_arr << make_lazy (env, t[i], descend (ip, i));
+  }
+  par = p_arr;
 }
 
 format

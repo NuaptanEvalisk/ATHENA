@@ -11,6 +11,8 @@
 
 #include "Stack/stacker.hpp"
 #include "Boxes/construct.hpp"
+#include "tree_label.hpp"
+#include "scheme.hpp"
 
 /******************************************************************************
 * Constructors and basic routines for stackers
@@ -398,6 +400,49 @@ stacker_rep::flush () {
 * User interface
 ******************************************************************************/
 
+static bool
+is_pure_white (tree t) {
+  if (is_atomic (t)) {
+    if (is_string (t)) {
+      string s = t->label;
+      for (int i=0; i<N(s); i++)
+        if (s[i] != ' ' && s[i] != '\t' && s[i] != '\n' && s[i] != '\r') return false;
+      return true;
+    }
+    return false;
+  }
+  // Structural containers that are transparent if their children are invisible
+  if (is_func (t, PARA) || is_func (t, CONCAT) || is_func (t, WITH) || 
+      is_func (t, ATTR) || is_func (t, COMPOUND) || is_func (t, SURROUND)) {
+    for (int i=0; i<N(t); i++)
+      if (!is_pure_white (t[i])) return false;
+    return true;
+  }
+  return false;
+}
+
+static bool
+has_label (tree t) {
+  if (is_func (t, LABEL)) return true;
+  if (is_atomic (t)) return false;
+  for (int i=0; i<N(t); i++)
+    if (has_label (t[i])) return true;
+  return false;
+}
+
+static bool
+is_only_labels_and_white (tree t) {
+  if (is_func (t, LABEL)) return true;
+  if (is_pure_white (t)) return true;
+  if (is_func (t, PARA) || is_func (t, CONCAT) || is_func (t, WITH) || 
+      is_func (t, ATTR) || is_func (t, COMPOUND) || is_func (t, SURROUND)) {
+    for (int i=0; i<N(t); i++)
+      if (!is_only_labels_and_white (t[i])) return false;
+    return true;
+  }
+  return false;
+}
+
 box
 typeset_as_stack (edit_env env, tree t, path ip) {
   // cout << "Typeset as stack " << t << "\n";
@@ -411,8 +456,19 @@ typeset_as_stack (edit_env env, tree t, path ip) {
   SI top       = env->fn->yx;
   array<SI> swell;
   sss->set_env_vars (height, sep, hor_sep, ver_sep, bot, top, swell);
-  for (i=0; i<n; i++)
+  string mode = get_preference ("vault labels mode", "visible");
+  for (i=0; i<n; i++) {
+    bool white = is_pure_white (t[i]);
+    bool has = has_label (t[i]);
+    bool only = is_only_labels_and_white (t[i]);
+    
+    cout << "Vault Stack Item: " << t[i] << " | white:" << white << " has:" << has << " only:" << only << "\n";
+
+    if (mode == "hidden" && only && has) {
+      continue;
+    }
     sss->print (typeset_as_concat (env, t[i], descend (ip, i)));
+  }
 
   n= N(sss->l);
   array<box> lines_bx (n);

@@ -18,6 +18,7 @@
 ******************************************************************************/
 
 #include "bridge.hpp"
+#include "scheme.hpp"
 
 #define ACC_THRESHOLD 32
 
@@ -257,6 +258,8 @@ bridge_docrange_rep::my_typeset (int desired_status) {
   int i, n= N(acc);
   array<line_item> a= ttt->a;
   array<line_item> b= ttt->b;
+  string mode = get_preference ("vault labels mode", "visible");
+
   if (divide) {
     for (i=0; i<n; i++) {
       int wanted= (i==n-1? desired_status & WANTED_MASK: WANTED_PARAGRAPH);
@@ -266,19 +269,22 @@ bridge_docrange_rep::my_typeset (int desired_status) {
     }
   }
   else {
-    //bool show= top_level;
-    //bool old_top_level= top_level;
-    //top_level= false;
-    //if (show) cout << "Typeset range: " << begin << " -- " << end << "\n  ";
+    int first_visible = -1;
+    int last_visible = -1;
     for (i=begin; i<end; i++) {
-      int wanted= (i==end-1? desired_status & WANTED_MASK: WANTED_PARAGRAPH);
-      ttt->a= (i==0    ? a: array<line_item> ());
-      ttt->b= (i==end-1? b: array<line_item> ());
-      //if (show) cout << (brs[i]->status == PROCESSED + wanted);
-      //if (show) cout.flush ();
+      if (mode == "hidden" && is_only_labels_and_white (brs[i]->st) && has_label (brs[i]->st)) continue;
+      if (first_visible == -1) first_visible = i;
+      last_visible = i;
+    }
+
+    if (first_visible == -1) return;
+
+    for (i=begin; i<end; i++) {
+      if (mode == "hidden" && is_only_labels_and_white (brs[i]->st) && has_label (brs[i]->st)) continue;
+      int wanted= (i==last_visible? desired_status & WANTED_MASK: WANTED_PARAGRAPH);
+      ttt->a= (i==first_visible? a: array<line_item> ());
+      ttt->b= (i==last_visible ? b: array<line_item> ());
       brs[i]->typeset (PROCESSED+ wanted);
     }
-    //if (show) cout << "\n";
-    //top_level= old_top_level;
   }
 }

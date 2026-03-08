@@ -12,9 +12,11 @@
 
 #include "concater.hpp"
 #include "analyze.hpp"
-#include "file.hpp"
+#include "concater.hpp"
+#include "scheme.hpp"
 
 /******************************************************************************
+
 * Printing items
 ******************************************************************************/
 
@@ -229,14 +231,28 @@ concater_rep::typeset (tree t, path ip) {
     typeset_hspace (t, ip);
     break;
   case VAR_VSPACE:
-    flag (env->drd->get_name (L(t)), ip, brown);
-    t= tree (VAR_VSPACE, env->exec (tree (TMLEN, A(t))));
-    control (t, ip);
+    {
+      flag (env->drd->get_name (L(t)), ip, brown);
+      string mode = get_preference ("vault labels mode", "visible");
+      if (mode == "hidden" && N(a) > 0 && a[N(a)-1]->type == CONTROL_ITEM && is_func (a[N(a)-1]->t, LABEL)) {
+        // Suppress vspace* after hidden label
+        break;
+      }
+      t= tree (VAR_VSPACE, env->exec (tree (TMLEN, A(t))));
+      control (t, ip);
+    }
     break;
   case VSPACE:
-    flag (env->drd->get_name (L(t)), ip, brown);
-    t= tree (VSPACE, env->exec (tree (TMLEN, A(t))));
-    control (t, ip);
+    {
+      flag (env->drd->get_name (L(t)), ip, brown);
+      string mode = get_preference ("vault labels mode", "visible");
+      if (mode == "hidden" && N(a) > 0 && a[N(a)-1]->type == CONTROL_ITEM && is_func (a[N(a)-1]->t, LABEL)) {
+        // Suppress vspace after hidden label
+        break;
+      }
+      t= tree (VSPACE, env->exec (tree (TMLEN, A(t))));
+      control (t, ip);
+    }
     break;
   case SPACE:
     t= env->exec (t);
@@ -696,6 +712,8 @@ concater_rep::typeset (tree t, path ip) {
   case HIDDEN_BINDING:
     break;
   case LABEL:
+    typeset_label (t, ip);
+    break;
   case REFERENCE:
   case PAGEREF:
     typeset_compound (t, ip);

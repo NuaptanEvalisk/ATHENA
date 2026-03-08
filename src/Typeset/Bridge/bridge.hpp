@@ -80,6 +80,11 @@ tm_ostream& operator << (tm_ostream& out, bridge br);
 extern bridge nil_bridge;
 tree substitute (tree t, path p, tree u);
 
+/* Recursive label and whitespace detection */
+bool is_pure_white (tree t);
+bool has_label (tree t);
+bool is_only_labels_and_white (tree t);
+
 #include "impl_typesetter.hpp"
 
 #endif // defined BRIDGE_H
