@@ -6,14 +6,26 @@
         (kernel texmacs tm-file-system)
         (kernel texmacs tm-secure)
         (utils library cursor)
-        (generic document-edit)))
+        (generic document-edit)
+        (texmacs menus file-menu)))
+
+(display* "Loading tm-vault module...\n")
 
 (tm-define (vault-jump-to-source path anchor)
   (load-buffer path)
   (if (!= anchor "")
       (delayed (:idle 100) (go-to-label anchor))))
 
-(define-secure-symbols wikilink-repair-apply vault-jump-to-source)
+(tm-define (vault-load-latest-action path-s)
+  (load-vault-dir (string->url path-s)))
+
+(tm-define (go-to-welcome-page)
+  (load-buffer "tmfs://welcome/home"))
+
+(define-secure-symbols wikilink-repair-apply vault-jump-to-source 
+                       new-document load-buffer load-vault-dir 
+                       string->url vault-load-latest-action
+                       go-to-welcome-page)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Settings
@@ -29,7 +41,8 @@
   ("vault fuzzy search limit" "3" noop)
   ("vault transclusion color" "#f8f8f8" noop)
   ("gui cursor color" "red" notify-cursor-color)
-  ("gui selection color" "red" notify-selection-color))
+  ("gui selection color" "red" notify-selection-color)
+  ("vault welcome page" "on" noop))
 
 (define (get-fuzzy-limit)
   (let ((pref (get-preference "vault fuzzy search limit")))
@@ -53,7 +66,11 @@
     (item (text "Selection color:")
       (input (set-preference "gui selection color" answer) "string"
              (list (get-preference "gui selection color"))
-             "10em"))))
+             "10em"))
+    (item (text "Show welcome page:")
+      (toggle (set-preference "vault welcome page" (if answer "on" "off"))
+              (equal? (get-preference "vault welcome page") "on")))))
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Vault management
@@ -377,9 +394,38 @@
           (display* "  UUID not found in database, triggering repair...\n")
           (wikilink-trigger-repair uuid file-hint anchor-hint)))))
 
-(tmfs-load-handler (wikilink name)
-  (wikilink-handler-sub name))
+(tmfs-load-handler (welcome name)
+  (let* ((recent-files (recent-file-list 15))
+         (recent-vaults (get-recent-vaults))
+         (latest-vault (if (pair? recent-vaults) (car recent-vaults) #f)))
+    (tm->stree
+      `(document
+         (TeXmacs ,(texmacs-version))
+         (style (tuple "generic"))
+         (body (document
+           (with "par-mode" "center"
+             (document
+               (with "font-size" "2" "font-series" "bold"
+                 (concat "GNU " (TeXmacs) " Wyvern Edition"))
+               (with "font-size" "1.2" "font-shape" "italic"
+                 "Integrated Mathematics Environment")))
+           (vspace "2fn")
 
+           (section* "Quick Start")
+           (enumerate (document
+             (concat (item) (action "Open Blank Buffer" "(new-document)"))
+             ,@(if latest-vault
+                   `((concat (item) (action ,(string-append "Load Latest Vault (" (url->system (url-tail (string->url latest-vault))) ")")
+                                            ,(string-append "(vault-load-latest-action " (object->string latest-vault) ")"))))
+                   '())))
+
+           (vspace "1fn")
+           (section* "Recent Files")
+           (enumerate (document
+             ,@(map (lambda (u)
+                    `(concat (item) (action ,(url->system u) ,(string-append "(load-buffer " (object->string (url->string u)) ")"))))
+                  recent-files)))
+           ))))))
 (tmfs-load-handler (Wikilink name)
   (wikilink-handler-sub name))
 

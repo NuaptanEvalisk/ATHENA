@@ -263,7 +263,7 @@
   ("Load" (open-document))
   ("Load Vault" (open-vault))
   ("Revert" (revert-buffer))
-  (-> "Recent"
+  (-> "Recent Files"
       (link recent-file-menu)
       (if (nnull? (recent-file-list 1)) ---)
       (when (nnull? (recent-file-list 1))
@@ -305,6 +305,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (menu-bind go-menu
+  ("Welcome page" (go-to-welcome-page))
+  ---
   (when (cursor-has-history?)
     ("Back" (cursor-history-backward)))
   (when (cursor-has-future?)
@@ -338,7 +340,7 @@
               ---
               (link linked-file-menu)))
       (if (nnull? (recent-unloaded-file-list 1))
-          (-> "Recent"
+          (-> "Recent Files"
               ---
               (link recent-unloaded-file-menu)))
       (if (nnull? (bookmarks-menu))
