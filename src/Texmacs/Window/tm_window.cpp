@@ -11,6 +11,7 @@
 
 #include "tm_window.hpp"
 #include "tm_data.hpp"
+#include "scheme.hpp"
 #include "message.hpp"
 #include "dictionary.hpp"
 #include "merge_sort.hpp"
@@ -96,6 +97,7 @@ notify_window_resize (string name, SI ww, SI hh) {
         resize_accept (as_int (old_w), as_int (old_h), w, h)) {
       set_user_preference ("width " * name, as_string (w));
       set_user_preference ("height " * name, as_string (h));
+      eval ("(window-resize-notifier)");
     }
   }
 }

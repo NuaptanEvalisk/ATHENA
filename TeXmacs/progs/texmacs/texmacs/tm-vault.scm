@@ -69,7 +69,10 @@
              "10em"))
     (item (text "Show welcome page:")
       (toggle (set-preference "vault welcome page" (if answer "on" "off"))
-              (equal? (get-preference "vault welcome page") "on")))))
+              (equal? (get-preference "vault welcome page") "on")))
+    (item (text "Persistent fit width:")
+      (toggle (set-preference "persistent fit width" (if answer "on" "off"))
+              (equal? (get-preference "persistent fit width") "on")))))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

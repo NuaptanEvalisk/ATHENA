@@ -67,6 +67,7 @@
   ("markup gui" "off" noop)
   ("zoom factor" "1" notify-zoom-factor)
   ("snap to pages" "off" noop)
+  ("persistent fit width" "off" noop)
   ("ir-up" "home" notify-remote-control)
   ("ir-down" "end" notify-remote-control)
   ("ir-left" "pageup" notify-remote-control)
@@ -302,3 +303,23 @@
   (:synopsis "Toggle page snapping")
   (:check-mark "v" snap-to-pages?)
   (toggle-preference "snap to pages"))
+
+(define (persistent-fit-width?)
+  (get-boolean-preference "persistent fit width"))
+
+(tm-define (toggle-persistent-fit-width)
+  (:synopsis "Toggle persistent fit to width")
+  (:check-mark "v" persistent-fit-width?)
+  (toggle-preference "persistent fit width")
+  (when (persistent-fit-width?)
+    (fit-to-screen-width)))
+
+(define persistent-resize-count 0)
+
+(tm-define (window-resize-notifier)
+  (when (persistent-fit-width?)
+    (set! persistent-resize-count (+ persistent-resize-count 1))
+    (with current persistent-resize-count
+      (delayed (:idle 100)
+        (when (== current persistent-resize-count)
+          (fit-to-screen-width))))))
