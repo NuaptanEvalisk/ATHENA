@@ -385,8 +385,8 @@ set (prefix ${CMAKE_INSTALL_PREFIX})
 set (exec_prefix ${prefix})
 set (datarootdir ${prefix}/share)
 set (datadir ${datarootdir})
-set (tmdata ${datarootdir}/TeXmacs)
-set (tmbin ${exec_prefix}/lib/texmacs/TeXmacs)
+set (tmdata ${datarootdir}/ATHENA)
+set (tmbin ${exec_prefix}/lib/athena/ATHENA)
 
 configure_file (${TEXMACS_SOURCE_DIR}/src/System/config.h.cmake ${TEXMACS_BINARY_DIR}/src/System/config.h)
 configure_file (${TEXMACS_SOURCE_DIR}/src/System/tm_configure.hpp.cmake ${TEXMACS_BINARY_DIR}/src/System/tm_configure.hpp)
@@ -447,7 +447,7 @@ set (TeXmacs_Include_Dirs
   ${TEXMACS_SOURCE_DIR}/src/Typeset/Bridge
   ${TEXMACS_SOURCE_DIR}/src/Typeset/Concat
   ${TEXMACS_SOURCE_DIR}/src/Typeset/Page
-  ${TEXMACS_SOURCE_DIR}/TeXmacs/include 
+  ${TEXMACS_SOURCE_DIR}/ATHENA/include 
   ${TEXMACS_BINARY_DIR}/src/System/ 
 )
 
@@ -803,7 +803,7 @@ include_directories (${TeXmacs_Include_Dirs})
 add_subdirectory (src)
 add_subdirectory (plugins)
 add_subdirectory (misc)
-add_subdirectory (TeXmacs)
+add_subdirectory (ATHENA)
 
 ### --------------------------------------------------------------------
 ### Installation
@@ -826,7 +826,7 @@ if (NOT WIN32)
 endif (NOT WIN32)
 
 ### include/
-install (DIRECTORY TeXmacs/include DESTINATION ${CMAKE_INSTALL_PREFIX}
+install (DIRECTORY ATHENA/include DESTINATION ${CMAKE_INSTALL_PREFIX}
   FILE_PERMISSIONS OWNER_READ GROUP_READ WORLD_READ)
 
 ### share/
@@ -837,23 +837,23 @@ if (WIN32)
     PATTERN "CMakeLists.txt" EXCLUDE
     PATTERN ".gitignore" EXCLUDE)
 else (WIN32)
-  install (DIRECTORY plugins DESTINATION share/TeXmacs
+  install (DIRECTORY plugins DESTINATION share/ATHENA
     FILE_PERMISSIONS OWNER_READ GROUP_READ WORLD_READ
     PATTERN "bin" EXCLUDE
     PATTERN "CMakeLists.txt" EXCLUDE
     PATTERN ".gitignore" EXCLUDE)
 endif (WIN32)
 
-install (FILES TeXmacs/misc/mime/texmacs.desktop DESTINATION share/applications)
-install (FILES TeXmacs/misc/images/texmacs.svg RENAME TeXmacs.svg
+install (FILES ATHENA/misc/mime/texmacs.desktop DESTINATION share/applications)
+install (FILES ATHENA/misc/images/texmacs.svg RENAME TeXmacs.svg
   DESTINATION share/icons/hicolor/scalable/apps)
-install (FILES TeXmacs/misc/images/text-x-texmacs.svg
+install (FILES ATHENA/misc/images/text-x-texmacs.svg
   DESTINATION share/icons/hicolor/scalable/mimetypes)
-install (FILES TeXmacs/misc/mime/texmacs.xml DESTINATION share/mime/packages)
-install (FILES TeXmacs/misc/pixmaps/TeXmacs.xpm DESTINATION share/pixmaps)
+install (FILES ATHENA/misc/mime/texmacs.xml DESTINATION share/mime/packages)
+install (FILES ATHENA/misc/pixmaps/TeXmacs.xpm DESTINATION share/pixmaps)
 foreach (size IN ITEMS 16 22 24 32 48 64 128 256 512)
   message (STATUS ${size})
-  install (FILES TeXmacs/misc/images/texmacs-${size}.png RENAME TeXmacs.png
+  install (FILES ATHENA/misc/images/texmacs-${size}.png RENAME TeXmacs.png
     DESTINATION share/icons/hicolor/${size}x${size}/apps/)
 endforeach ()
 

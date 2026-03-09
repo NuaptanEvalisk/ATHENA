@@ -3,11 +3,11 @@
 ### --------------------------------------------------------------------
 
 if (APPLE)
-  set (TeXmacs_binary_name "TeXmacs")
+  set (TeXmacs_binary_name "ATHENA")
 elseif (WIN32)
-  set (TeXmacs_binary_name "texmacs")
+  set (TeXmacs_binary_name "ATHENA")
 else (APPLE)
-  set (TeXmacs_binary_name "texmacs.bin")
+  set (TeXmacs_binary_name "ATHENA.bin")
 endif (APPLE)
 
 add_library(texmacs_body STATIC ${TeXmacs_All_SRCS})
