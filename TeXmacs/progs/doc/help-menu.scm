@@ -30,6 +30,8 @@
        (load-help-article (string-append name))))))
 
 (menu-bind help-menu
+  ("About Wyvern Edition" (help-about))
+  ---
   (when (url-exists-in-help? "about/welcome/new-welcome.en.tm")
 	("Welcome" (load-help-article "about/welcome/new-welcome"))
 	("Getting started" (load-help-article "about/welcome/start"))

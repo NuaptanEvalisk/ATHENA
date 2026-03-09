@@ -1,0 +1,514 @@
+
+###############################################################################
+# MODULE     : main make file for TeXmacs source
+# BY         : Joris van der Hoeven, David Allouche
+# COPYRIGHT  : This software falls under the GNU general public license;
+#              see the file 'LICENSE', which is provided with this package.
+###############################################################################
+
+default: all
+
+vpath %.cpp $(shell find . -type d '!' -name Deps '!' -name Objects|tr '\n' ' ')
+vpath %.m $(shell find . -type d '!' -name Deps '!' -name Objects|tr '\n' ' ')
+vpath %.mm $(shell find . -type d '!' -name Deps '!' -name Objects|tr '\n' ' ')
+vpath %.c $(shell find . -type d '!' -name Deps '!' -name Objects|tr '\n' ' ')
+
+###############################################################################
+# Configuration variables
+###############################################################################
+
+tmsrc = /home/felix/data/Software/TeXmacs/texmacs/TeXmacs
+SO_SUFFIX= so
+CONFIG_OS= GNU_LINUX
+
+CC = clang
+CXX = clang++
+OBJC = clang
+OBJCXX = clang++
+CXXWARNING = -Wall -Wno-return-type
+CXXTEMPLATE = 
+CXXOPTIMIZE = -O3 -fexpensive-optimizations 
+CXXDEBUG =  
+CXXSANITIZERS = 
+CXXPROFILE = 
+CFLAGS = -g -O2 -std=gnu89 -fpermissive -Wno-error=all
+CXXFLAGS = $(CXXWARNING) $(CXXTEMPLATE) $(CXXOPTIMIZE) $(CXXDEBUG) $(CXXPROFILE) $(CXXSANITIZERS)  
+CPPFLAGS =  -include config.h -DQT_NO_DEBUG -DQT_PRINTSUPPORT_LIB -DQT_SVG_LIB -DQT_WIDGETS_LIB -DQT_GUI_LIB -DQT_NETWORK_LIB -DQT_CORE_LIB -I. -I. -I/usr/include/qt5 -I/usr/include/qt5/QtPrintSupport -I/usr/include/qt5/QtSvg -I/usr/include/qt5/QtWidgets -I/usr/include/qt5/QtGui -I/usr/include/qt5/QtNetwork -I/usr/include/qt5/QtCore -I. -I/usr/lib64/qt5/mkspecs/linux-g++ -DQTTEXMACS
+CXXX11 = 
+CXXCOCOA = 
+CXXQT = -pipe -O2 -Wall -Wextra -D_REENTRANT -fPIC -DQT_NO_DEBUG -DQT_PRINTSUPPORT_LIB -DQT_SVG_LIB -DQT_WIDGETS_LIB -DQT_GUI_LIB -DQT_NETWORK_LIB -DQT_CORE_LIB -std=c++11
+CXXGUI = $(CXXQT)
+CXXAXEL = 
+CXXCAIRO = 
+CXXIMLIB2 = 
+CXXSQLITE3 = 
+CXXGNUTLS =  
+CXXFREETYPE =   -I/usr/include/freetype2
+CXXICONV = 
+CXXGUILE =   -I/usr/include -I/usr/include/guile
+CXXSPARKLE =  
+CXXPDF =  
+
+LD = clang++
+LDFLAGS = -Wl,--as-needed -rdynamic -lpthread -L/usr/lib64 -L/usr/lib -Wl,-rpath,/usr/lib64 -Wl,-O1  -Wl,-O1 $(CXXPROFILE) $(CXXSANITIZERS)
+LIBS =   -lz -lpng -Wl,--as-needed -rdynamic -L/usr/lib64 -L/usr/lib /usr/lib64/libQt5PrintSupport.so /usr/lib64/libQt5Svg.so /usr/lib64/libQt5Widgets.so /usr/lib64/libQt5Gui.so /usr/lib64/libQt5Network.so /usr/lib64/libQt5Core.so -lGL -lpthread -lfreetype -lguile -lgmp -lcrypt -lm -lltdl 
+LDSTATIC = -lxcb -lexpat -lXdmcp -lXau -lXrender
+LDSHARED = -Wl,-Bdynamic
+LDPATH = -Wl,-rpath,
+LDX11 =
+LDCOCOA = 
+LDQT = -Wl,--as-needed -rdynamic -L/usr/lib64 -L/usr/lib /usr/lib64/libQt5PrintSupport.so /usr/lib64/libQt5Svg.so /usr/lib64/libQt5Widgets.so /usr/lib64/libQt5Gui.so /usr/lib64/libQt5Network.so /usr/lib64/libQt5Core.so -lGL -lpthread 
+LDGUI = $(LDQT)
+LDGNUTLS= 
+
+AR = ar
+ARFLAGS = -r
+RM = rm -f
+CP = rsync -a --exclude='.*'
+GLUE = cd Scheme/Glue; ./build-glue
+TOUCH = touch
+MOC = /usr/bin/moc-qt5
+MOCFLAGS = -DQT_NO_DEBUG -DQT_PRINTSUPPORT_LIB -DQT_SVG_LIB -DQT_WIDGETS_LIB -DQT_GUI_LIB -DQT_NETWORK_LIB -DQT_CORE_LIB -I. -I. -I/usr/include/qt5 -I/usr/include/qt5/QtPrintSupport -I/usr/include/qt5/QtSvg -I/usr/include/qt5/QtWidgets -I/usr/include/qt5/QtGui -I/usr/include/qt5/QtNetwork -I/usr/include/qt5/QtCore -I. -I/usr/lib64/qt5/mkspecs/linux-g++
+
+###############################################################################
+# Source files
+###############################################################################
+
+# The following definition are used to locate source files by name in
+# the main TeXmacs source package.
+#
+# Get the file name of each source file. The files are grouped
+# according to the compilation options they require and group they
+# belong to (in aggregate compilation).
+#
+# The enclosing makefile must have a "vpath %.cpp" directive to allow
+# make to find the sources files given only their file name.
+
+findsrc_in = \
+$(foreach dir,$(patsubst %,$(1)/%,$(2)),\
+$(notdir $(wildcard $(dir)/*.cpp $(dir)/*/*.cpp)))
+findsrc = $(call findsrc_in,$(1),*)
+findm_in = \
+$(foreach dir,$(patsubst %,$(1)/%,$(2)),\
+$(notdir $(wildcard $(dir)/*.m $(dir)/*/*.m)))
+findmm_in = \
+$(foreach dir,$(patsubst %,$(1)/%,$(2)),\
+$(notdir $(wildcard $(dir)/*.mm $(dir)/*/*.mm)))
+findc_in = \
+$(foreach dir,$(patsubst %,$(1)/%,$(2)),\
+$(notdir $(wildcard $(dir)/*.c)))
+
+kernel_src   := $(call findsrc,Kernel)
+system_src   := $(call findsrc,System)
+data_src     := $(call findsrc,Data)
+graphics_src := $(call findsrc,Graphics)
+plugins_src  := $(call findsrc_in,Plugins,Bibtex Cairo Imlib2 Sqlite3 \
+                                          Ispell Metafont Openssl Updater \
+                                          LaTeX_Preview Database)
+x11_src      := $(call findsrc_in,Plugins,)
+cocoa_m_src  := $(call findm_in,Plugins, )
+cocoa_mm_src := $(call findmm_in,Plugins,  )
+os_src       := $(call findsrc_in,Plugins,Unix)
+qt_src       := $(call findsrc_in,Plugins,Qt)
+gs_src       := $(call findsrc_in,Plugins,Ghostscript)
+style_src    := $(call findsrc_in,Style,)
+typeset_src  := $(call findsrc,Typeset)
+edit_src     := $(call findsrc,Edit)
+texmacs_src  := $(call findsrc,Texmacs)
+scheme_src   := $(call findsrc_in,Scheme,Scheme Guile)
+pdf_src      := $(call findsrc_in,Plugins,Pdf)
+pdf_c_src    := $(call findc_in,Plugins,Pdf/LibAesgm)
+freetype_src := $(call findsrc_in,Plugins,Freetype)
+gnutls_src   := $(call findsrc_in,Plugins,Gnutls)
+
+# Each makefile will have its own Deps directory. Okay that is a bit
+# inefficient, but that is much simpler to maintain.
+#
+# The enclosing makefile should accumulate a dependences file name in
+# $(deps) and define an rule without command for every source file it
+# compiles.
+
+make_cpp_deps = $(patsubst %.cpp,Deps/%.d,$(notdir $(1)))
+make_c_deps = $(patsubst %.c,Objects/%.o,$(notdir $(1)))
+make_m_deps = $(patsubst %.m,Deps/%.d,$(notdir $(1)))
+make_mm_deps = $(patsubst %.mm,Deps/%.d,$(notdir $(1)))
+
+texmacs_cpp_deps := $(call make_cpp_deps,$(system_src) $(kernel_src) $(data_src)\
+ $(edit_src) $(scheme_src) $(graphics_src)\
+ $(plugins_src) $(x11_src) $(texmacs_src)\
+ $(typeset_src) $(style_src) $(qt_src) $(gs_src) $(os_src)\
+ $(pdf_src) $(freetype_src) $(gnutls_src))
+texmacs_m_deps += $(call make_m_deps,$(cocoa_m_src))
+texmacs_mm_deps += $(call make_mm_deps,$(cocoa_mm_src))
+texmacs_c_deps := $(call make_c_deps, $(call findc_in,System,Misc))
+texmacs_c_deps += $(call make_c_deps, $(pdf_c_src))
+
+#deps += $(texmacs_cpp_deps) $(texmacs_m_deps) $(texmacs_mm_deps)
+
+###############################################################################
+# Include files
+###############################################################################
+
+incl_flags = $(patsubst %,-I%,$(1))
+
+system_incl   := $(call incl_flags,System System/Boot System/Classes \
+  System/Files System/Link System/Misc System/Language Kernel/Abstractions \
+  Kernel/Containers Kernel/Types Data/Convert Data/Drd Data/History \
+  Data/Observers Data/Document Data/String Data/Tmfs Data/Tree \
+  Data/Parser Scheme \
+  Graphics/Bitmap_fonts Graphics/Fonts Graphics/Gui Graphics/Mathematics \
+  Graphics/Renderer Graphics/Handwriting Graphics/Types Graphics/Pictures \
+  Graphics/Spacial Graphics/Colors Plugins Plugins/Unix \
+  Plugins/Gnutls)
+kernel_incl   := $(system_incl)
+data_incl     := $(system_incl)
+graphics_incl := $(system_incl)
+plugins_incl  := $(system_incl)
+x11_incl      := $(system_incl)
+cocoa_incl    := $(system_incl)
+os_incl       := $(system_incl)
+qt_incl       := $(system_incl) \
+	$(call incl_flags,Texmacs Texmacs/Data Edit Typeset Plugins/Gnutls)
+gs_incl       := $(system_incl)
+style_incl    := $(system_incl) \
+  $(call incl_flags,Style/Memorizer Style/Environment Style/Evaluate)
+typeset_incl  := $(system_incl) \
+  $(call incl_flags,Typeset Typeset/Bridge Typeset/Concat Typeset/Page Edit)
+scheme_incl    := $(typeset_incl) $(call incl_flags,Plugins Texmacs)
+edit_incl     := $(scheme_incl) \
+  $(call incl_flags,Edit/Editor Edit/Interface Edit/Modify)
+texmacs_incl  := $(scheme_incl)
+pdf_incl      := $(system_incl) \
+  $(call incl_flags,Plugins/Pdf/LibAesgm Texmacs/Data)
+freetype_incl := $(system_incl)
+gnutls_incl   := $(system_incl)
+
+###############################################################################
+# MOC files
+###############################################################################
+
+# moc source files are generated for each header present in $(qt_moc) and
+# put in the Plugins/Qt directory
+
+ifeq "Qt" ""
+qt_moc := 
+else
+qt_moc := QTMStyle.hpp QTMGuiHelper.hpp QTMInteractiveInputHelper.hpp \
+  QTMMenuHelper.hpp QTMWidget.hpp  QTMWindow.hpp QTMScrollView.hpp \
+  QTMPipeLink.hpp QTMInteractivePrompt.hpp QTMFileDialog.hpp \
+  QTMPrintDialog.hpp QTMPrinterSettings.hpp QTMApplication.hpp \
+  QTMTreeModel.hpp QTMSockets.hpp QTMMainTabWindow.hpp \
+  QTMToolbar.hpp QTMDelayedMethodCall.hpp QTMAbout.hpp
+endif
+
+qt_moc_src = $(patsubst %.hpp, moc_%.cpp,$(qt_moc))
+qt_moc_paths = $(patsubst %,./Plugins/Qt/%,$(qt_moc_src))
+
+$(qt_moc_paths): ./Plugins/Qt/moc_%.cpp: ./Plugins/Qt/%.hpp
+	$(MOC) $(MOCFLAGS) $< -o $@
+
+###############################################################################
+# Windows resource file
+###############################################################################
+
+WINDRES = windres.exe
+WINDRESFLAGS = -O coff
+
+Objects/winresource.rc.o:
+	$(WINDRES) $(WINDRESFLAGS) ../packages/windows/resource.rc \
+	-o Objects/winresource.rc.o
+
+ifeq "GNU_LINUX" "MINGW"
+uses_windowsres = Objects/winresource.rc.o
+else
+uses_windowsres =
+endif
+
+###############################################################################
+# Dependencies
+###############################################################################
+
+deps_incl = $(call incl_flags,System System/Boot System/Classes System/Files \
+  System/Link System/Misc System/Language Kernel/Abstractions \
+  Kernel/Containers Kernel/Types Data/Convert \
+  Data/Document Data/Drd Data/History Data/Parser \
+  Data/Observers Data/Document Data/String Data/Tmfs Data/Tree Graphics \
+  Plugins Plugins/Pdf/LibAesgm Plugins/Qt \
+  Style/Environment Style/Evaluate Style/Memorizer \
+  Typeset Edit Texmacs Texmacs/Data Scheme Graphics/Bitmap_fonts \
+  Graphics/Colors Graphics/Fonts \
+  Graphics/Gui Graphics/Mathematics Graphics/Renderer Graphics/Pictures \
+  Graphics/Handwriting Graphics/Types Graphics/Spacial)
+
+deps_flags = $(deps_incl) \
+ $(CPPFLAGS) $(CXXAXEL) $(CXXCAIRO) $(CXXIMLIB2) $(CXXSQLITE3) $(CXXFREETYPE) \
+ $(CXXICONV) $(CXXGUILE) $(CXXGNUTLS) -I$(tmsrc)/include $(CXXGUI)
+# we should use -I- to separate local includes from system includes, but
+# headers of guile 1.6.0 use includes in quotes with names relative to the
+# current directory, and that feature is disable by -I-.
+
+$(texmacs_cpp_deps): Deps/%.d: %.cpp
+$(texmacs_m_deps): Deps/%.d: %.m
+$(texmacs_mm_deps): Deps/%.d: %.mm
+
+$(deps):
+	@ echo "make deps: $@"
+	@ set -e; $(CXX) -M $(deps_flags) $< \
+	  | sed 's|\($*\)\.o[ :]*|Objects/\1.o $@ : |g' > $@; \
+	  [ -s $@ ] || $(RM) $@
+
+# To avoid unneeded processing, the Deps will not be included (and thus
+# remade if needed) unless the "deps" target has been previously made,
+# by hand.
+
+deps: $(deps)
+	$(TOUCH) Deps/stamp
+
+.PHONY: deps
+
+ifeq ($(shell test -f Deps/stamp && echo yes || echo no),yes)
+include $(deps)
+endif
+
+###############################################################################
+# Object files
+###############################################################################
+
+makeobj = $(patsubst %.cpp,Objects/%.o,$(1))
+makeobj_m = $(patsubst %.m,Objects/%.o,$(1))
+makeobj_mm = $(patsubst %.mm,Objects/%.o,$(1))
+makeobj_c = $(patsubst %.c,Objects/%.o,$(1))
+
+system_obj   := $(call makeobj,$(system_src))
+kernel_obj   := $(call makeobj,$(kernel_src))
+data_obj     := $(call makeobj,$(data_src))
+edit_obj     := $(call makeobj,$(edit_src))
+scheme_obj   := $(call makeobj,$(scheme_src))
+graphics_obj := $(call makeobj,$(graphics_src))
+x11_obj      := $(call makeobj,$(x11_src))
+cocoa_m_obj  := $(call makeobj_m,$(cocoa_m_src))
+cocoa_mm_obj := $(call makeobj_mm,$(cocoa_mm_src))
+os_obj       := $(call makeobj,$(os_src))
+moc_obj	     := $(call makeobj,$(qt_moc_src))
+qt_obj 	     := $(filter-out $(moc_obj), $(call makeobj,$(qt_src)))
+gs_obj       := $(call makeobj,$(gs_src))
+plugins_obj  := $(call makeobj,$(plugins_src))
+texmacs_obj  := $(call makeobj,$(texmacs_src))
+typeset_obj  := $(call makeobj,$(typeset_src))
+style_obj    := $(call makeobj,$(style_src))
+pdf_obj      := $(call makeobj,$(pdf_src))
+freetype_obj := $(call makeobj,$(freetype_src))
+gnutls_obj   := $(call makeobj,$(gnutls_src))
+
+# To enforce some degree of modularity, each object file must be
+# compiled with only a specific set of include flags. To achieve that,
+# we must disable the default (implicit) compilation rule and define
+# an appropriate rule for each object file.
+
+
+%.o: %.cpp # Disable implicit compilation rule
+%.o: %.c # Disable implicit compilation rule
+
+ifneq "NO" "yes"
+cxx_flags = $(strip $(CXX) $(1) -c $< -o $@)
+else
+define cxx_flags
+$(strip $(CXX) $(1) -E $< -o $@.lst)
+$(strip $(CXX) $(1) -c $< -o $@)
+endef
+endif
+cxx_incl     = $(call cxx_flags,$(1) \
+ $(CPPFLAGS) $(CXXFLAGS)) 
+objcxx_flags = $(strip $(OBJCXX) $(1) -c $< -o $@)
+objcxx_incl  = $(call objcxx_flags,$(1) \
+ $(CPPFLAGS) $(CXXFLAGS))
+cc_flags    = $(strip $(CC) $(1) -c $< -o $@)
+cc_incl     = $(call cc_flags,$(1) \
+  $(CPPFLAGS) $(CXXFLAGS)) 
+objc_flags = $(strip $(OBJC) $(1) -c $< -o $@)
+objc_incl  = $(call objc_flags,$(1) \
+  $(CPPFLAGS) $(CXXFLAGS))
+
+$(system_obj): Objects/%.o: %.cpp
+	$(call cxx_incl,$(system_incl) -I$(tmsrc)/include $(CXXGUI))
+$(kernel_obj): Objects/%.o: %.cpp
+	$(call cxx_incl,$(kernel_incl))
+$(data_obj): Objects/%.o: %.cpp
+	$(call cxx_incl,$(data_incl) -I$(tmsrc)/include $(CXXGUILE))
+$(edit_obj): Objects/%.o: %.cpp
+	$(call cxx_incl,$(edit_incl) $(CXXGUI))
+$(scheme_obj): Objects/%.o: %.cpp
+	$(call cxx_incl,$(scheme_incl) $(CXXGUILE) $(CXXGUI))
+$(graphics_obj): Objects/%.o: %.cpp
+	$(call cxx_incl,$(graphics_incl))
+$(plugins_obj): Objects/%.o: %.cpp
+	$(call cxx_incl,$(plugins_incl) $(CXXAXEL) $(CXXCAIRO) $(CXXIMLIB2) $(CXXSQLITE3) $(CXXGNUTLS) $(CXXICONV) $(CXXSPARKLE) $(CXXX11) $(CXXQT) $(CXXGUILE))
+$(plugins_c_obj): Objects/%.o: %.c
+	$(call cc_incl,$(plugins_incl))
+$(x11_obj): Objects/%.o: %.cpp
+	$(call cxx_incl,$(x11_incl) $(CXXX11) $(CXXGUILE))
+$(os_obj): Objects/%.o: %.cpp
+	$(call cxx_incl,$(os_incl) $(CXXQT) $(CXXGUILE))
+$(qt_obj): Objects/%.o: %.cpp
+	$(call cxx_incl,$(qt_incl) $(CXXQT) $(CXXGUILE))
+$(moc_obj): Objects/%.o: ./Plugins/Qt/%.cpp
+	$(call cxx_incl,$(qt_incl) $(CXXQT) $(CXXGUILE))
+$(gs_obj): Objects/%.o: %.cpp
+	$(call cxx_incl,$(gs_incl)  $(CXXX11))
+$(cocoa_m_obj): Objects/%.o: %.m
+	$(call objc_incl,$(cocoa_incl) $(CXXCOCOA))
+$(cocoa_mm_obj): Objects/%.o: %.mm
+	$(call objcxx_incl,$(cocoa_incl) $(CXXCOCOA) $(CXXSPARKLE) $(CXXGUI))
+$(texmacs_obj): Objects/%.o: %.cpp
+	$(call cxx_incl,$(texmacs_incl) $(CXXGUI))
+$(typeset_obj): Objects/%.o: %.cpp
+	$(call cxx_incl,$(typeset_incl))
+$(style_obj): Objects/%.o: %.cpp
+	$(call cxx_incl,$(style_incl))
+$(pdf_obj): Objects/%.o: %.cpp
+	$(call cxx_incl,$(pdf_incl) $(CXXFREETYPE) $(CXXPDF) $(CXXGUI))
+$(freetype_obj): Objects/%.o: %.cpp
+	$(call cxx_incl,$(freetype_incl) $(CXXFREETYPE))
+$(gnutls_obj): Objects/%.o: %.cpp
+	$(call cxx_incl,$(gnutls_incl) $(CXXGNUTLS) $(CXXQT))
+$(texmacs_c_deps):   Objects/%.o: %.c
+	$(call cc_flags, $(CFLAGS))
+
+###############################################################################
+# Make editor
+###############################################################################
+
+# Linking rules
+#
+# The link_bin function uses different flags depending on the value
+# of the $(link) option, and on the host type. Its parameter must be a
+# sequence of options for the compiler control which libraries to link
+# with and where to find them.
+#
+# It should be used as the body of rules whose target are executable
+# binaries and the prerequisites are the object files being linked in
+# the target.
+
+ifeq "$(link)" ""
+ifeq "$(CONFIG_OS)" "DEC"
+link_bin = $(strip $(LD) $(LDFLAGS) -lstdc++ $(LDSHARED) $^ $(1) $(LIBS) -o $@)
+else ifeq "$(CONFIG_OS)" "FREEBSD"
+link_bin = $(strip $(LD) $(LDFLAGS) $(LDSHARED) $^ $(1) $(LIBS) -lthr -o $@)
+else
+link_bin = $(strip $(LD) $^ $(1) $(LDFLAGS) $(LDSHARED) $(LIBS) -o $@)
+endif
+endif
+ifeq "$(link)" "static"
+ifeq "$(CONFIG_OS)" "DEC"
+link_bin = $(strip $(LD) $(LDFLAGS) $^ $(LDSTATIC) $(1) $(LIBS) -lstdc++ -o $@)
+else
+link_bin = $(strip $(LD) $(LDFLAGS) $^ -Wl,-Bstatic $(1) $(LDSTATIC) $(LIBS) -static-libgcc -o $@)
+endif
+endif
+
+# Compilation of objects
+#
+# The 'uses' function must be used as a prerequisite of a link rule
+# (whose body is a link_bin function call). It takes a number of
+# module names in parameters.
+
+uses = $(sort $(foreach use,$(patsubst %,uses_%,$(1)),$($(use))))
+
+uses_system   := $(system_obj)
+uses_kernel   := $(kernel_obj)
+uses_data     := $(data_obj)
+uses_graphics := $(graphics_obj)
+uses_plugins  := $(plugins_obj) $(plugins_c_obj)
+uses_x11      := $(x11_obj)
+uses_os       := $(os_obj)
+uses_qt       := $(qt_obj) $(moc_obj)
+uses_gs       := $(gs_obj)
+uses_cocoa    := $(cocoa_m_obj) $(cocoa_mm_obj)
+uses_typeset  := $(typeset_obj)
+uses_style    := $(style_obj)
+uses_edit     := $(edit_obj)
+uses_scheme   := $(scheme_obj)
+uses_texmacs  := $(texmacs_obj)
+uses_pdf      := $(pdf_obj)
+uses_freetype := $(freetype_obj)
+uses_gnutls   := $(gnutls_obj)
+#"uses_windowsres" is defined above
+
+# Compilation rules
+
+TEXMACS_objects := $(strip $(call uses,system kernel data graphics\
+ plugins x11 os qt gs cocoa style typeset edit scheme texmacs pdf\
+ freetype gnutls windowsres)) $(texmacs_c_deps)
+
+link_options:=-L$(tmsrc)/lib -lm $(LDPATH) $(LDGUI) $(LDICONV) $(CXXFLAGS)\
+   $(LDAXEL) $(LDCAIRO) $(LDSQLITE3) $(LDGNUTLS) 
+
+
+$(tmsrc)/bin/texmacs.bin: Objects/texmacs.bin
+	$(CP) $^ $@
+
+Objects/texmacs.bin: Objects/texmacs.o Objects/tm_ostream.o Objects/fast_alloc.o Objects/tree.o $(TEXMACS_objects)
+	$(call link_bin,$(link_options))
+
+all: $(tmsrc)/bin/texmacs.bin
+
+Objects/libtexmacs.$(SO_SUFFIX): Objects/texmacs.o Objects/tm_ostream.o Objects/fast_alloc.o Objects/tree.o $(TEXMACS_objects)
+	$(LD) $^ $(link_options) $(LDFLAGS) $(LDSHARED) $(LIBS) -o $@
+
+Objects/libtexmacs.a: Objects/texmacs.o Objects/tm_ostream.o Objects/fast_alloc.o Objects/tree.o $(TEXMACS_objects)
+	$(AR) $(ARFLAGS) $@ $^
+
+.PHONY: all liball $(tmsrc)/bin/texmacs.bin
+
+###############################################################################
+# Interface for Guile
+###############################################################################
+
+# Compilation of glue
+#
+# When dependences are generated, the glue code can be rebuilt
+# automatically, but only if there is an appropriate rule for
+# regenerating the glue source from the scheme documents.
+
+Scheme/Glue/glue_%.cpp: Scheme/Glue/build-glue-%.scm
+	$(MAKE) GLUE
+
+gluesrc = Scheme/Glue
+
+GLUE: $(gluesrc)/glue_basic.cpp $(gluesrc)/glue_editor.cpp $(gluesrc)/glue_server.cpp
+	$(RM) Objects/glue.o
+
+.PHONY: GLUE
+
+$(gluesrc)/glue_basic.cpp: $(gluesrc)/build-glue.scm
+$(gluesrc)/glue_editor.cpp: $(gluesrc)/build-glue.scm 
+$(gluesrc)/glue_server.cpp: $(gluesrc)/build-glue.scm
+
+$(gluesrc)/glue_basic.cpp: $(gluesrc)/build-glue-basic.scm
+	$(GLUE) build-glue-basic.scm glue_basic.cpp
+
+$(gluesrc)/glue_editor.cpp: $(gluesrc)/build-glue-editor.scm
+	$(GLUE) build-glue-editor.scm glue_editor.cpp
+
+$(gluesrc)/glue_server.cpp: $(gluesrc)/build-glue-server.scm
+	$(GLUE) build-glue-server.scm glue_server.cpp
+
+###############################################################################
+# Cleaning and backup
+###############################################################################
+
+DISTR: 
+	$(RM) Deps/*.*
+	$(RM) Deps/stamp
+
+CLEAN: DISTR
+	$(RM) Objects/*.o
+	$(RM) Objects/*.lst
+	$(RM) Plugins/Qt/moc_*.cpp
+
+clean: CLEAN
+
+maintainer-clean: CLEAN
+	$(RM) Objects/*.*
+
+PHONY: DISTR CLEAN clean maintainer-clean

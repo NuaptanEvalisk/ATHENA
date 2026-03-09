@@ -10826,8 +10826,18 @@ tmg_array_url_append (tmscm arg1, tmscm arg2) {
   return array_url_to_tmscm (out);
 }
 
+tmscm
+tmg_help_about () {
+  // TMSCM_DEFER_INTS;
+  help_about_qt ();
+  // TMSCM_ALLOW_INTS;
+
+  return TMSCM_UNSPECIFIED;
+}
+
 void
 initialize_glue_basic () {
+  tmscm_install_procedure ("help-about",  tmg_help_about, 0, 0, 0);
   tmscm_install_procedure ("texmacs-version-release",  tmg_texmacs_version_release, 1, 0, 0);
   tmscm_install_procedure ("version-before?",  tmg_version_beforeP, 2, 0, 0);
   tmscm_install_procedure ("updater-supported?",  tmg_updater_supportedP, 0, 0, 0);

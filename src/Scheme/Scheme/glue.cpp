@@ -25,6 +25,7 @@
 #include "file.hpp"
 #include "vault.hpp"
 #include "QTMVaultChooser.hpp"
+#include "QTMAbout.hpp"
 #include "locale.hpp"
 #include "iterator.hpp"
 #include "Freetype/tt_tools.hpp"

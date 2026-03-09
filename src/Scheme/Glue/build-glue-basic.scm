@@ -900,4 +900,5 @@
   
   ;; utilities
   (array-url-append append (array_url url array_url))
+  (help-about help_about_qt (void))
   )
