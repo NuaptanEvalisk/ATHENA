@@ -118,18 +118,14 @@ concater_rep::typeset_compound (tree t, path ip) {
       var = as_string(L(t));
     }
     
-    bool is_enum = (var == "theorem" || var == "lemma" || var == "corollary" || 
-                    var == "proposition" || var == "axiom" || var == "definition" || 
-                    var == "notation" || var == "conjecture" || var == "remark" || 
-                    var == "example" || var == "proof");
-    if (is_enum) {
+    if (is_enunciation_type (var)) {
       string col = get_preference ("vault " * var * " color", "none");
       if (col != "none") {
         f = copy(f); // Must copy before modifying the global macro definition
         f[n] = tree(WITH, "vault-enunciation-color", col, f[n]);
       }
     }
-    else if (var == "render-enunciation") {
+    else if (var == "render-enunciation" || var == "render-proof") {
       if (env->provides("vault-enunciation-color")) {
         string col = as_string(env->read("vault-enunciation-color"));
         if (col != "none") {
