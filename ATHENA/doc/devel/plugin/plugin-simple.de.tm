@@ -10,7 +10,7 @@
   Betrachten wir das <verbatim|world> Plugin im Verzeichnis
 
   <\verbatim>
-    \ \ \ \ $TEXMACS_PATH/examples/plugins
+    \ \ \ \ $ATHENA_PATH/examples/plugins
   </verbatim>
 
   Es zeigt wie man <TeXmacs> erweitert mit ein wenig zusätzlichen
@@ -20,7 +20,7 @@
 
   finden. Um das Plugin zu testen müssen Sie sie das Verzeichnis
   world/progs/init-world.scm rekursiv in das Verzeichnis
-  <verbatim|$TEXMACS_PATH/plugins> bzw. <verbatim|$TEXMACS_HOME_PATH/plugins>
+  <verbatim|$ATHENA_PATH/plugins> bzw. <verbatim|$ATHENA_HOME_PATH/plugins>
   kopieren. Wenn Sie dann <TeXmacs> erneut starten, sollte das Plugin
   automatisch erkannt werden und eine entsprechendes Menü eingerichtet
   werden.

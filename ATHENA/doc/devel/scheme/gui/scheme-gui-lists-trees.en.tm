@@ -179,7 +179,7 @@
     string representation for <scm|DisplayRole>, <scm|EditRole>,
     <scm|ToolTipRole> and <scm|StatusTipRole>. For the <scm|DecorationRole>
     it will try to load pixmaps named <shell|treelabel-\<less\>label\<gtr\>.xpm>
-    in <shell|$TEXMACS_PIXMAP_PATH>. This search
+    in <shell|$ATHENA_PIXMAP_PATH>. This search
     <with|font-series|bold|won't> happen if the <scm|DecorationRole> is
     specified (i.e. a full path with or without environment variables and
     wildcards must be given). The default <scm|CommandRole> is the subtree
@@ -214,8 +214,8 @@
     format with e.g. <scm|tree-\<gtr\>stree>)
 
     <paragraph|Examples>See <scm|widget10> in
-    <hlink|<verbatim|menu-test.scm>|$TEXMACS_PATH/progs/kernel/gui/menu-test.scm>
-    and ``<hlink|Displaying lists and trees|$TEXMACS_PATH/doc/devel/scheme/gui/scheme-gui-lists-trees.en.tm>''.
+    <hlink|<verbatim|menu-test.scm>|$ATHENA_PATH/progs/kernel/gui/menu-test.scm>
+    and ``<hlink|Displaying lists and trees|$ATHENA_PATH/doc/devel/scheme/gui/scheme-gui-lists-trees.en.tm>''.
   </explain>
 
   <paragraph|An example using data roles>
@@ -236,7 +236,7 @@
 
       \ \ \ '(root
 
-      \ \ \ \ \ (library "Library" "$TEXMACS_PIXMAP_PATH/tm_german.xpm" 01
+      \ \ \ \ \ (library "Library" "$ATHENA_PIXMAP_PATH/tm_german.xpm" 01
 
       \ \ \ \ \ \ \ \ \ \ \ \ \ \ (collection "Cool stuff" 001)
 
@@ -288,7 +288,7 @@
     </input>
   </session>
 
-  Notice how we must add <shell|$TEXMACS_PIXMAP_PATH> to the name of the
+  Notice how we must add <shell|$ATHENA_PIXMAP_PATH> to the name of the
   pixmap because we are not using the default <scm|DecorationRole>.\ 
 
   <subparagraph|An example using the buffer tree>

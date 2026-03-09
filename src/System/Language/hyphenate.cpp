@@ -78,7 +78,7 @@ load_hyphen_tables (string file_name,
                     hashmap<string,string>& hyphenations, bool toCork) {
   string s;
   file_name= string ("hyphen.") * file_name;
-  load_string (url ("$TEXMACS_PATH/langs/natural/hyphen", file_name), s, true);
+  load_string (url ("$ATHENA_PATH/langs/natural/hyphen", file_name), s, true);
   if (DEBUG_VERBOSE)
     debug_automatic << "TeXmacs] Loading " << file_name << "\n";
 

@@ -91,7 +91,7 @@ direct_color_picker (command cmd, bool bg, array<tree> proposals) {
     picker[3]= glue_wk_widget (true, false, 0, 5*PIXEL);
 
     bool dir_problem;
-    url pattern_dir= "$TEXMACS_PATH/misc/patterns";
+    url pattern_dir= "$ATHENA_PATH/misc/patterns";
     array<string> all= read_directory (pattern_dir, dir_problem);
     array<tree> cols3;
     for (int i=0; i<N(all); i++)

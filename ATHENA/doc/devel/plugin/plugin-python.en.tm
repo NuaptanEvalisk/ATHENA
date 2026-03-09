@@ -10,7 +10,7 @@
   Consider the example of the <verbatim|pyminimal> plug-in in the directory
 
   <\verbatim>
-    \ \ \ \ $TEXMACS_PATH/examples/plugins
+    \ \ \ \ $ATHENA_PATH/examples/plugins
   </verbatim>
 
   It consists of the following files:
@@ -25,10 +25,10 @@
   directory
 
   <\verbatim>
-    \ \ \ \ $TEXMACS_PATH/examples/plugins/pyminimal
+    \ \ \ \ $ATHENA_PATH/examples/plugins/pyminimal
   </verbatim>
 
-  to <verbatim|$TEXMACS_PATH/plugins> or <verbatim|$TEXMACS_HOME_PATH/plugins>.
+  to <verbatim|$ATHENA_PATH/plugins> or <verbatim|$ATHENA_HOME_PATH/plugins>.
 
   When relaunching <TeXmacs>, the plug-in should now be automatically
   recognized.
@@ -42,17 +42,17 @@
   <\scm-code>
     (define (python-launcher)
 
-    \ \ (if (url-exists? "$TEXMACS_HOME_PATH/plugins/pyminimal")
+    \ \ (if (url-exists? "$ATHENA_HOME_PATH/plugins/pyminimal")
 
     \ \ \ \ \ \ (string-append "python \\""
 
-    \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ (getenv "TEXMACS_HOME_PATH")
+    \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ (getenv "ATHENA_HOME_PATH")
 
     \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ "/plugins/pyminimal/src/minimal.py\\"")
 
     \ \ \ \ \ \ (string-append "python \\""
 
-    \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ (getenv "TEXMACS_PATH")
+    \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ (getenv "ATHENA_PATH")
 
     \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ "/plugins/pyminimal/src/minimal.py\\"")))
 
@@ -76,20 +76,20 @@
 
   The <scm|python-launcher> function will be evaluated and return the proper
   command to launcher the extern program. If
-  <shell|$TEXMACS_HOME_PATH/plugins/pyminimal> exists, it would be
+  <shell|$ATHENA_HOME_PATH/plugins/pyminimal> exists, it would be
 
   <\shell-code>
-    python "$TEXMACS_HOME_PATH/plugins/pyminimal/src/minimal.py"
+    python "$ATHENA_HOME_PATH/plugins/pyminimal/src/minimal.py"
   </shell-code>
 
   otherwise,
 
   <\shell-code>
-    python "$TEXMACS_PATH/plugins/pyminimal/src/minimal.py"
+    python "$ATHENA_PATH/plugins/pyminimal/src/minimal.py"
   </shell-code>
 
   The environment variables will be replaced in runtime. Sometimes,
-  <shell|$TEXMACS_HOME_PATH> and <shell|$TEXMACS_PATH> may contain spaces, as
+  <shell|$ATHENA_HOME_PATH> and <shell|$ATHENA_PATH> may contain spaces, as
   a result, we quote the path using the double quotes.
 
   <paragraph|How it works: The Python Part>
@@ -109,20 +109,20 @@
 
     from os.path import exists
 
-    tmpy_home_path = os.environ.get("TEXMACS_HOME_PATH") + "/plugins/tmpy"
+    tmpy_home_path = os.environ.get("ATHENA_HOME_PATH") + "/plugins/tmpy"
 
     if (exists (tmpy_home_path)):
 
-    \ \ \ \ sys.path.append(os.environ.get("TEXMACS_HOME_PATH") +
+    \ \ \ \ sys.path.append(os.environ.get("ATHENA_HOME_PATH") +
     "/plugins/")
 
     else:
 
-    \ \ \ \ sys.path.append(os.environ.get("TEXMACS_PATH") + "/plugins/")
+    \ \ \ \ sys.path.append(os.environ.get("ATHENA_PATH") + "/plugins/")
   </python-code>
 
-  The first part of the code just add <shell|$TEXMACS_HOME_PATH/plugins> or
-  <shell|$TEXMACS_PATH/plugins> to the python path for importing the
+  The first part of the code just add <shell|$ATHENA_HOME_PATH/plugins> or
+  <shell|$ATHENA_PATH/plugins> to the python path for importing the
   <name|tmpy> package.
 
   <\python-code>

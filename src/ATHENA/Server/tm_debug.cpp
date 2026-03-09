@@ -40,7 +40,7 @@ get_system_information () {
   string r;
   r << "System information:\n";
   r << "  TeXmacs version  : "
-    << TEXMACS_VERSION << "\n";
+    << ATHENA_VERSION << "\n";
   r << "  Built by         : "
     << BUILD_USER << "\n";
   r << "  Building date    : "
@@ -162,7 +162,7 @@ tm_failure (const char* msg) {
 
   //cerr << "Saving crash report...\n";
   string report= get_crash_report (msg);
-  url dir ("$TEXMACS_HOME_PATH/system/crash");
+  url dir ("$ATHENA_HOME_PATH/system/crash");
   url err= url_numbered (dir, "crash_report_", "");
   if (!save_string (err, report))
     cerr << "TeXmacs] Crash report saved in " << err << "\n";

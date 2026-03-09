@@ -31,7 +31,7 @@
     <item><strong|Keep <TeXmacs> updated> to receive security fixes.
 
     <item><strong|Backup server data regularly>, including the database and
-    user files in <verbatim|$TEXMACS_HOME_PATH/server/>.
+    user files in <verbatim|$ATHENA_HOME_PATH/server/>.
   </itemize>
 
   <tmdoc-copyright|2025|Robin Wils>

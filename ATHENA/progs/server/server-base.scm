@@ -154,14 +154,14 @@
 
 (define (server-load-pending-users)
   (when (== (ahash-size server-pending-users) 0)
-    (with f "$TEXMACS_HOME_PATH/server/pending-users.scm"
+    (with f "$ATHENA_HOME_PATH/server/pending-users.scm"
       (set! server-pending-users
             (if (url-exists? f)
                 (list->ahash-table (load-object f))
                 (make-ahash-table))))))
 
 (define (server-save-pending-users)
-  (with f "$TEXMACS_HOME_PATH/server/pending-users.scm"
+  (with f "$ATHENA_HOME_PATH/server/pending-users.scm"
     (save-object f (ahash-table->list server-pending-users))))
 
 (tm-define (server-clean-pending-users)
@@ -213,14 +213,14 @@
 
 (define (server-load-users)
   (when (== (ahash-size server-users) 0)
-    (with f "$TEXMACS_HOME_PATH/server/users.scm"
+    (with f "$ATHENA_HOME_PATH/server/users.scm"
       (set! server-users
             (if (url-exists? f)
                 (list->ahash-table (load-object f))
                 (make-ahash-table))))))
 
 (define (server-save-users)
-  (with f "$TEXMACS_HOME_PATH/server/users.scm"
+  (with f "$ATHENA_HOME_PATH/server/users.scm"
     (save-object f (ahash-table->list server-users))))
 
 (tm-define (server-find-user pseudo)
@@ -527,7 +527,7 @@
     (server-error envelope "not allowed")))
 
 (define server-preferences-edit-form-path
-  "$TEXMACS_PATH/progs/forms/server-preferences.tm")
+  "$ATHENA_PATH/progs/forms/server-preferences.tm")
 
 (define (is-on? pref)
   (or (and (boolean? pref) pref)
@@ -572,7 +572,7 @@
 ;; License
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define server-license-url "$TEXMACS_HOME_PATH/server/license.tm")
+(define server-license-url "$ATHENA_HOME_PATH/server/license.tm")
 
 (define (generic-document doc)
   `(document
@@ -674,10 +674,10 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define server-email-new-account-source-url
-  (string->url "$TEXMACS_PATH/progs/server/server-email-new-account.txt"))
+  (string->url "$ATHENA_PATH/progs/server/server-email-new-account.txt"))
 
 (define server-email-new-account-url
-  (string->url "$TEXMACS_HOME_PATH/server/email-new-account.txt"))
+  (string->url "$ATHENA_HOME_PATH/server/email-new-account.txt"))
 
 (tm-define (server-get-email-new-account)
   (if (not (url-exists? server-email-new-account-url))
@@ -694,10 +694,10 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define server-email-reset-credentials-source-url
-  (string->url "$TEXMACS_PATH/progs/server/server-email-reset-credentials.txt"))
+  (string->url "$ATHENA_PATH/progs/server/server-email-reset-credentials.txt"))
 
 (define server-email-reset-credentials-url
-  (string->url "$TEXMACS_HOME_PATH/server/email-reset-credentials.txt"))
+  (string->url "$ATHENA_HOME_PATH/server/email-reset-credentials.txt"))
 
 (tm-define (server-get-email-reset-credentials)
   (if (not (url-exists? server-email-reset-credentials-url))
@@ -957,14 +957,14 @@
 
 (define (server-load-reset-credentials-users)
   (when (== (ahash-size server-reset-credentials-users) 0)
-    (with f "$TEXMACS_HOME_PATH/server/reset-credentials-users.scm"
+    (with f "$ATHENA_HOME_PATH/server/reset-credentials-users.scm"
       (set! server-reset-credentials-users
             (if (url-exists? f)
                 (list->ahash-table (load-object f))
                 (make-ahash-table))))))
 
 (define (server-save-reset-credentials-users)
-  (with f "$TEXMACS_HOME_PATH/server/reset-credentials-users.scm"
+  (with f "$ATHENA_HOME_PATH/server/reset-credentials-users.scm"
     (save-object f (ahash-table->list server-reset-credentials-users))))
 
 (tm-define (server-clean-reset-credentials-users)

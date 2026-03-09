@@ -44,7 +44,7 @@ openssl_enc (string args) {
 
 void
 rsa_initialize () {
-  url dir = url ("$TEXMACS_HOME_PATH") * "system/crypto";
+  url dir = url ("$ATHENA_HOME_PATH") * "system/crypto";
   url priv= dir * "texmacs.private";
   url pub = dir * "texmacs.public";
   if (!exists (dir)) mkdir (dir);
@@ -58,7 +58,7 @@ rsa_initialize () {
 string
 rsa_my_private_key () {
   rsa_initialize ();
-  url dir = url ("$TEXMACS_HOME_PATH") * "system/crypto";
+  url dir = url ("$ATHENA_HOME_PATH") * "system/crypto";
   url priv= dir * "texmacs.private";
   string private_key;
   load_string (priv, private_key, true);
@@ -68,7 +68,7 @@ rsa_my_private_key () {
 string
 rsa_my_public_key () {
   rsa_initialize ();
-  url dir = url ("$TEXMACS_HOME_PATH") * "system/crypto";
+  url dir = url ("$ATHENA_HOME_PATH") * "system/crypto";
   url priv= dir * "texmacs.public";
   string public_key;
   load_string (priv, public_key, true);

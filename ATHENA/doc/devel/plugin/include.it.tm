@@ -16,18 +16,18 @@
   è di creare una directory:
 
   <\verbatim>
-    \ \ \ \ $TEXMACS_HOME_PATH/plugins/myplugin
+    \ \ \ \ $ATHENA_HOME_PATH/plugins/myplugin
   </verbatim>
 
   dove <verbatim|myplugin> è il nome del corrispondente plugin. Ricordiamo
-  che <verbatim|$TEXMACS_HOME_PATH> è assimilato per defult a
-  <verbatim|~/.TeXmacs>. Nella directory <verbatim|$TEXMACS_PATH/plugins>
+  che <verbatim|$ATHENA_HOME_PATH> è assimilato per defult a
+  <verbatim|~/.TeXmacs>. Nella directory <verbatim|$ATHENA_PATH/plugins>
   potete trovare tutti i plugin standard disponibili nella distribuzione di
   <TeXmacs> che state usando. I plugin già implementati rappresentano
   altrettanti buoni esempi da cui prendere spunto.
 
   La directory <verbatim|myplugin> dovrebbe contenere una struttura di
-  sottodirectory analoga a quella di <verbatim|$TEXMACS_PATH>, anche se è
+  sottodirectory analoga a quella di <verbatim|$ATHENA_PATH>, anche se è
   possibile omettere le directory che non vengono direttamente utilizzate. In
   ogni caso deve essere fornito un file <verbatim|progs/init-myplugin.scm>
   che descriva come inizializzare il vostro plugin. Tipicamente questo file

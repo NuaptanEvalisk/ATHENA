@@ -30,7 +30,7 @@ QTMAbout::QTMAbout (QWidget* parent)
 
   logoLabel = new QLabel (this);
   
-  string tm_path = get_env ("TEXMACS_PATH");
+  string tm_path = get_env ("ATHENA_PATH");
   url logo_u1 = url_system (tm_path * "/splash/splashscr.png");
   url logo_u2 = url_system (tm_path * "/../splash/splashscr.png");
   url logo_u3 = url_system (tm_path * "/misc/images/texmacs-512.png");
@@ -55,7 +55,7 @@ QTMAbout::QTMAbout (QWidget* parent)
   infoLabel->setOpenExternalLinks (true);
   
   QString info = "<h2>TeXmacs Wyvern Edition</h2>"
-                 "<p><b>Version " TEXMACS_VERSION "</b></p>"
+                 "<p><b>Version " ATHENA_VERSION "</b></p>"
                  "<p>A WYSIWYM Math Knowledge Management environment.</p>"
                  "<p>Forked from GNU TeXmacs.</p>"
                  "<p><a href='https://www.texmacs.org'>www.texmacs.org</a></p>";

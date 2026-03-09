@@ -11,7 +11,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 ;; Given a page from the documentation, we parse it and all its children and
-;; store every "explain" tag into a cache in the users $TEXMACS_HOMEPATH
+;; store every "explain" tag into a cache in the users $ATHENA_HOMEPATH
 ;; directory. 
 ;; We use this to provide documentation for scheme symbols and texmacs macros.
 ;; Multiple languages can be stored for each tag, allowing for localization
@@ -78,7 +78,7 @@
     (if (and (!= pref "default") (url-exists? (system->url pref)))
         (system->url pref)
         (with new (persistent-file-name
-                   (unix->url "$TEXMACS_HOME_PATH/system/cache/")
+                   (unix->url "$ATHENA_HOME_PATH/system/cache/")
                    "api")
           (set-preference "doc:doc-scm-cache" (url->system new))
           new))))
@@ -89,7 +89,7 @@
     (if (and (!= pref "default") (url-exists? (system->url pref)))
         (system->url pref)
         (with new (persistent-file-name 
-                   (unix->url "$TEXMACS_HOME_PATH/system/cache/")
+                   (unix->url "$ATHENA_HOME_PATH/system/cache/")
                    "api")
           (set-preference "doc:doc-macro-cache" (url->system new))
           new))))
@@ -172,7 +172,7 @@
   (parse-branch `(branch (dummy) ,fname) basedir))
 
 (define (doc-collect-sub where what lan)
-  (let ((path (string-append "$TEXMACS_PATH/doc/" where "/"))
+  (let ((path (string-append "$ATHENA_PATH/doc/" where "/"))
         (file (string-append what "." lan ".tm"))
         (msg  (string-append  "(" what ", " lan ")")))
     (system-wait "Building index" msg)

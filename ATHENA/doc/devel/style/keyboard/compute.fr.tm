@@ -33,7 +33,7 @@
 
     <expand|item*|<key|executable \<gtr\>>>traduction d'un mot d'un langage
     source dans un langage destination (voir les dictionnaires dans
-    <verbatim|$TEXMACS_PATH/data/dic>).
+    <verbatim|$ATHENA_PATH/data/dic>).
 
     <expand|item*|<key|executable =>>test d'égalité.
 

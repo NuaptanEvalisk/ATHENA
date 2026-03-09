@@ -33,7 +33,7 @@
 
     <item*|<key|executable \<gtr\>>>Übersetzung eines Wortes von einer Quellsprache
     in eine Zielsprache (siehe die Wörterbücher (dictionary) in
-    <verbatim|$TEXMACS_PATH/data/dic>).
+    <verbatim|$ATHENA_PATH/data/dic>).
 
     <item*|<key|executable =>>Teste auf Gleichheit.
 

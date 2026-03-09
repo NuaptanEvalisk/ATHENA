@@ -259,7 +259,7 @@ input_widget_rep::handle_keypress (keypress_event ev) {
     if (ends (type, "file") || type == "directory") {
       url search= url_here ();
       url dir= (ends (s, string (URL_CONCATER))? url (s): head (url (s)));
-      if (type == "smart-file") search= url ("$TEXMACS_FILE_PATH");
+      if (type == "smart-file") search= url ("$ATHENA_FILE_PATH");
       if (is_rooted (dir)) search= url_here ();
       if (is_none (dir)) dir= url_here ();
       tabs= file_completions (search, dir);

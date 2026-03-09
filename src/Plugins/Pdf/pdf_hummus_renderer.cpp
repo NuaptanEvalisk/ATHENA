@@ -1315,7 +1315,7 @@ pdf_hummus_renderer_rep::flush_fonts()
 
 static hashset<string>
 pdf_font_issues () {
-  static const url u ("$TEXMACS_PATH/fonts/pdf-font-issues.scm");
+  static const url u ("$ATHENA_PATH/fonts/pdf-font-issues.scm");
   static bool loaded= false;
   static hashset<string> set;
   if (loaded)
@@ -1723,7 +1723,7 @@ pdf_image_rep::flush (PDFWriter& pdfw)
 {
   url name= resolve (u);
   if (is_none (name))
-    name= "$TEXMACS_PATH/misc/pixmaps/unknown.ps";
+    name= "$ATHENA_PATH/misc/pixmaps/unknown.ps";
   
   url temp;
   string s= suffix (name);
@@ -2472,7 +2472,7 @@ pdf_hummus_renderer_rep::flush_metadata () {
     info.Author= as_hummus_string (metadata ["author"]);
   if (metadata->contains ("subject"))
     info.Subject= as_hummus_string (metadata ["subject"]);
-  string creator= "TeXmacs " * string (TEXMACS_VERSION);
+  string creator= "TeXmacs " * string (ATHENA_VERSION);
   string producer= creator * " + Hummus 4.0";
   info.Creator= utf8_as_hummus_string (creator);
   info.Producer= utf8_as_hummus_string (producer);

@@ -90,7 +90,7 @@
     <menu|Document|Language> menu. The built-in <TeXmacs> dictionaries can be
     found in
 
-    <verbatim| \ \ \ $TEXMACS_PATH/languages/natural/dic>
+    <verbatim| \ \ \ $ATHENA_PATH/languages/natural/dic>
 
     When attempting to use a non-existing dictionary, the program may quit.
     For most purposes, it is more convenient to use the <markup|localize>

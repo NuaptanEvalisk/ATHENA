@@ -90,13 +90,13 @@
 
   <\explain|<markup|icon>>
     Enlace a un icono en un directorio central como
-    <verbatim|$TEXMACS_PATH/doc/images/pixmaps>.
+    <verbatim|$ATHENA_PATH/doc/images/pixmaps>.
   </explain>
 
   <\explain|<markup|screenshot>>
     Enlace a una captura de pantalla. Las capturas de pantalla actuales son
     almacenadas en un directorio central como
-    <verbatim|$TEXMACS_PATH/doc/images/screenshots>.
+    <verbatim|$ATHENA_PATH/doc/images/screenshots>.
   </explain>
 
   <\explain|<markup|scheme>>

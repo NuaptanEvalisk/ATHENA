@@ -3,7 +3,7 @@
 
 ## Installation
 It is a built-in plugin in TeXmacs. If you need to customize it, please install it
-under the `$TEXMACS_HOME_PATH`:
+under the `$ATHENA_HOME_PATH`:
 
 ``` bash
 For GNU/Linux and macOS:

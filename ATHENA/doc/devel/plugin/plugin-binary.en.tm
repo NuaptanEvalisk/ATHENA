@@ -10,7 +10,7 @@
   Consider the example of the <verbatim|minimal> plug-in in the directory
 
   <\verbatim>
-    \ \ \ \ $TEXMACS_PATH/examples/plugins
+    \ \ \ \ $ATHENA_PATH/examples/plugins
   </verbatim>
 
   It consists of the following files:
@@ -27,10 +27,10 @@
   directory
 
   <\verbatim>
-    \ \ \ \ $TEXMACS_PATH/examples/plugins/minimal
+    \ \ \ \ $ATHENA_PATH/examples/plugins/minimal
   </verbatim>
 
-  to <verbatim|$TEXMACS_PATH/plugins> or <verbatim|$TEXMACS_HOME_PATH/plugins>.
+  to <verbatim|$ATHENA_PATH/plugins> or <verbatim|$ATHENA_HOME_PATH/plugins>.
   Next, running the <verbatim|Makefile> using
 
   <\verbatim>

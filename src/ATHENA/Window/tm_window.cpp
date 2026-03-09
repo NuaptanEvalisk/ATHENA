@@ -313,7 +313,7 @@ enrich_embedded_document (tree body, tree style) {
   // TODO: to be carefully checked for all operating systems
   initial ("no-zoom")= "true";
   tree doc (DOCUMENT);
-  doc << compound ("TeXmacs", TEXMACS_VERSION);
+  doc << compound ("TeXmacs", ATHENA_VERSION);
   doc << style; //compound ("style", style);
   doc << compound ("body", body);
   doc << compound ("initial", make_collection (initial));

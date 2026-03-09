@@ -47,8 +47,8 @@ AC_DEFUN([TM_SUBVERSION],[
   AC_MSG_NOTICE($DEVEL_REVISION)
   
   if test "$SVNREV" != "$DEVEL_REVISION"
-  then AC_DEFINE_UNQUOTED(TEXMACS_REVISION, ["Custom $SVNREV"],[Svn build revision])
-  else AC_DEFINE_UNQUOTED(TEXMACS_REVISION,["$DEVEL_REVISION"],[Svn build revision])
+  then AC_DEFINE_UNQUOTED(ATHENA_REVISION, ["Custom $SVNREV"],[Svn build revision])
+  else AC_DEFINE_UNQUOTED(ATHENA_REVISION,["$DEVEL_REVISION"],[Svn build revision])
   fi
 
   SVNPATCH=0

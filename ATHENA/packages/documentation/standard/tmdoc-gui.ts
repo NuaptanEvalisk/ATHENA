@@ -14,7 +14,7 @@
 
     <\src-license>
       This software falls under the <hlink|GNU general public license,
-      version 3 or later|$TEXMACS_PATH/LICENSE>. It comes WITHOUT ANY
+      version 3 or later|$ATHENA_PATH/LICENSE>. It comes WITHOUT ANY
       WARRANTY WHATSOEVER. You should have received a copy of the license
       which the software. If not, see <hlink|http://www.gnu.org/licenses/gpl-3.0.html|http://www.gnu.org/licenses/gpl-3.0.html>.
     </src-license>
@@ -76,9 +76,9 @@
     </src-comment>
   </active*>
 
-  <assign|icon|<macro|name|<image|<find-file|$TEXMACS_PATH/misc/pixmaps/modern/32x32/table|$TEXMACS_PATH/misc/pixmaps/modern/24x24/main|$TEXMACS_PATH/misc/pixmaps/modern/20x20/mode|$TEXMACS_PATH/misc/pixmaps/modern/16x16/focus|$TEXMACS_DOC_PATH/images/pixmaps|$TEXMACS_HOME_PATH/doc/images/pixmaps|$TEXMACS_PATH/doc/images/pixmaps|http://www.gnu.org/software/texmacs-doc/images/pixmaps|<arg|name>>||2ex||-0.333ex>>>
+  <assign|icon|<macro|name|<image|<find-file|$ATHENA_PATH/misc/pixmaps/modern/32x32/table|$ATHENA_PATH/misc/pixmaps/modern/24x24/main|$ATHENA_PATH/misc/pixmaps/modern/20x20/mode|$ATHENA_PATH/misc/pixmaps/modern/16x16/focus|$ATHENA_DOC_PATH/images/pixmaps|$ATHENA_HOME_PATH/doc/images/pixmaps|$ATHENA_PATH/doc/images/pixmaps|http://www.gnu.org/software/texmacs-doc/images/pixmaps|<arg|name>>||2ex||-0.333ex>>>
 
-  <assign|screenshot|<macro|name|<image|<find-file|$TEXMACS_DOC_PATH/images/screenshots|$TEXMACS_HOME_PATH/doc/images/screenshots|$TEXMACS_PATH/doc/images/screenshots|http://www.gnu.org/software/texmacs-doc/images/screenshots|<arg|name>>|0.5w|0.5h||>>>
+  <assign|screenshot|<macro|name|<image|<find-file|$ATHENA_DOC_PATH/images/screenshots|$ATHENA_HOME_PATH/doc/images/screenshots|$ATHENA_PATH/doc/images/screenshots|http://www.gnu.org/software/texmacs-doc/images/screenshots|<arg|name>>|0.5w|0.5h||>>>
 
   <\active*>
     <\src-comment>

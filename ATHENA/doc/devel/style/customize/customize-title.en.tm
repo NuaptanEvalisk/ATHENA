@@ -66,7 +66,7 @@
   descriptions|../../../main/styles/header/header-title-global.en.tm> of the
   macros which are involved in this process. It is also good to study the
   definitions of these macros in the <hlink|package
-  itself|$TEXMACS_PATH/packages/header/title-base.ts>. In order to indicate
+  itself|$ATHENA_PATH/packages/header/title-base.ts>. In order to indicate
   the way things work, we finish with an example on how the email address and
   homepage of an author can be rendered in a footnote instead of the main
   title:

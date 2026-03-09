@@ -9,7 +9,7 @@
   several ways to customize the rendering of source trees in your document.
   We recommend you to play around with the different possibilities in a
   document of your own (after enabling <menu|Document|Source|Source tree>) or a
-  standard style package in <verbatim|$TEXMACS_PATH/packages>.
+  standard style package in <verbatim|$ATHENA_PATH/packages>.
 
   First of all, you may choose between the different major styles
   ``angular'', ``scheme'', ``functional'' and ``<LaTeX>'' \ for rendering

@@ -109,7 +109,7 @@ string
 chatgpt_command (string s, string model, string chat) {
   (void) chat;
   (void) model;
-  url u ("$TEXMACS_HOME_PATH/system/tmp/chatgpt.txt");
+  url u ("$ATHENA_HOME_PATH/system/tmp/chatgpt.txt");
   if (save_string (u, s)) return "";
   string cmd= "openai -k 5000 complete " * as_string (u);
   return cmd;

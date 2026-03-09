@@ -10,7 +10,7 @@
   Consideriamo il plugin <verbatim|world> nella directory
 
   <\verbatim>
-    \ \ \ \ $TEXMACS_PATH/examples/plugins
+    \ \ \ \ $ATHENA_PATH/examples/plugins
   </verbatim>
 
   Questo plugin mostra come estendere <TeXmacs> aggiungendo parti di codice
@@ -24,11 +24,11 @@
   la directory
 
   <\verbatim>
-    \ \ \ \ $TEXMACS_PATH/examples/plugins/world
+    \ \ \ \ $ATHENA_PATH/examples/plugins/world
   </verbatim>
 
-  in <verbatim|$TEXMACS_PATH/plugins> o in
-  <verbatim|$TEXMACS_HOME_PATH/plugins>. Dopo aver rilanciato <TeXmacs> il
+  in <verbatim|$ATHENA_PATH/plugins> o in
+  <verbatim|$ATHENA_HOME_PATH/plugins>. Dopo aver rilanciato <TeXmacs> il
   plugin dovrebbe essere automaticamente riconosciuto (un menu
   <apply|menu|World> dovrebbe comparire nella barra dei menu).
 

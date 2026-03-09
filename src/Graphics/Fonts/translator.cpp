@@ -69,7 +69,7 @@ load_virtual (string name) {
   string s, r;
   name= name * ".vfn";
   if (DEBUG_STD) debug_fonts << "Loading " << name << "\n";
-  url u ("$TEXMACS_HOME_PATH/fonts/virtual:$TEXMACS_PATH/fonts/virtual", name);
+  url u ("$ATHENA_HOME_PATH/fonts/virtual:$ATHENA_PATH/fonts/virtual", name);
   load_string (u, s, true);
   tree t= string_to_scheme_tree (s);
   ASSERT (is_tuple (t, "virtual-font"), "bad virtual font format");
@@ -99,7 +99,7 @@ load_translator (string name) {
   string s, r;
   string file_name= name * ".enc";
   if (DEBUG_STD) debug_fonts << "Loading " << file_name << "\n";
-  url u ("$TEXMACS_HOME_PATH/fonts/enc:$TEXMACS_PATH/fonts/enc", file_name);
+  url u ("$ATHENA_HOME_PATH/fonts/enc:$ATHENA_PATH/fonts/enc", file_name);
   if (load_string (u, s, false)) return load_virtual (name);
 
   translator trl= tm_new<translator_rep> (name);

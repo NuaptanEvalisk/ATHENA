@@ -3011,7 +3011,7 @@ is_non_style_document (tree doc) {
     if (style[i] == "source") return false;
   string ms= style[0]->label;
   if (N(existing_styles) == 0) {
-    url sty_u= descendance ("$TEXMACS_STYLE_ROOT");
+    url sty_u= descendance ("$ATHENA_STYLE_ROOT");
     declare_style (sty_u);
     //cout << "Styles: " << existing_styles << LF;
   }

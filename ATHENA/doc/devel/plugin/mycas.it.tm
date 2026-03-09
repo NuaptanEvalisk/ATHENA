@@ -8,7 +8,7 @@
   Il modo migliore per iniziare ad implementare in <TeXmacs> una nuova
   interfaccia, consiste nello studiare attentamente l'esempio del sistema di
   computer algebra <verbatim|mycas>, che è contenuto nella directory
-  <verbatim|$TEXMACS_PATH/misc/mycas>. Il file <verbatim|mycas.cpp>, il cui
+  <verbatim|$ATHENA_PATH/misc/mycas>. Il file <verbatim|mycas.cpp>, il cui
   listato è disponibile alla fine di questa sezione, contiene un esempio
   molto semplice di programma che può essere interfacciato con
   <apply|TeXmacs>. Per testare il programma è necessario compilarlo

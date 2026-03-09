@@ -94,12 +94,12 @@
 
   <\explain|<markup|icon>>
     link ad una icona in una directory centrale come
-    \ <verbatim|$TEXMACS_PATH/doc/images/pixmaps>
+    \ <verbatim|$ATHENA_PATH/doc/images/pixmaps>
   </explain>
 
   <\explain|<markup|screenshot>>
     link a una schermata. Le schermate sono attualmente contenuta nella
-    directory centrale <verbatim|$TEXMACS_PATH/doc/images/screenshots>
+    directory centrale <verbatim|$ATHENA_PATH/doc/images/screenshots>
   </explain>
 
   <\explain|<markup|scheme>>

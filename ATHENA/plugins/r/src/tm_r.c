@@ -9,7 +9,7 @@
  ******************************************************************************/
 
 #include "config.h"
-#define TEXMACS_R_VERSION "0.15"
+#define ATHENA_R_VERSION "0.15"
 #include <stdio.h>
 #include <sys/select.h>
 #ifdef __FreeBSD__
@@ -103,7 +103,7 @@ jmp_buf error_return_env ;
 
 int N_data_begins = 0 ;
 
-char *DEFAULT_TEXMACS_SEND = "source(paste(Sys.getenv(\"TEXMACS_PATH\"),\"/plugins/r/texmacs.r\",sep=\"\"))\n";
+char *DEFAULT_ATHENA_SEND = "source(paste(Sys.getenv(\"ATHENA_PATH\"),\"/plugins/r/texmacs.r\",sep=\"\"))\n";
 
 
 // Add one more DATA_BEGIN, i.e. open bracket.
@@ -826,13 +826,13 @@ int main(int argc, char *argv[])
   int last_nl = 0, command_place ;
   
   
-  char *TEXMACS_HOME_PATH, *TEXMACS_R, *TEXMACS_SEND_E, *TEXMACS_LIB, *HOME ;
+  char *ATHENA_HOME_PATH, *ATHENA_R, *ATHENA_SEND_E, *ATHENA_LIB, *HOME ;
   struct termios termi ;
   sigset_t sigmask, orig_sigmask;
   
   struct stat stat_buf;
 
-  name = getenv("TEXMACS_R_SESSION") ;
+  name = getenv("ATHENA_R_SESSION") ;
   if( argc > 1 ) name = argv[1] ;
   
 #ifdef USE_DEBUG
@@ -846,25 +846,25 @@ int main(int argc, char *argv[])
   HOME = getenv("HOME") ;
   if( HOME == NULL ) HOME = "~" ;
 
-  TEXMACS_HOME_PATH = getenv("TEXMACS_HOME_PATH") ;
-  if( TEXMACS_HOME_PATH == NULL ) {
-    TEXMACS_HOME_PATH = (char *)malloc( 4096 ) ;
-    snprintf( TEXMACS_HOME_PATH, 4096, "%s/.TeXmacs",HOME) ;
+  ATHENA_HOME_PATH = getenv("ATHENA_HOME_PATH") ;
+  if( ATHENA_HOME_PATH == NULL ) {
+    ATHENA_HOME_PATH = (char *)malloc( 4096 ) ;
+    snprintf( ATHENA_HOME_PATH, 4096, "%s/.TeXmacs",HOME) ;
   }
   
   /* Lazy installing the TeXmacs package */
-  TEXMACS_LIB = (char *)malloc(4096);
-  snprintf(TEXMACS_LIB,4096,"%s/plugins/r/r",TEXMACS_HOME_PATH);
-  if (stat(TEXMACS_LIB,&stat_buf))
+  ATHENA_LIB = (char *)malloc(4096);
+  snprintf(ATHENA_LIB,4096,"%s/plugins/r/r",ATHENA_HOME_PATH);
+  if (stat(ATHENA_LIB,&stat_buf))
     system("r_install"); 
 
   setenv( "TERM", "dumb", 1) ;
   
   
   // Build the command tp execute
-  TEXMACS_R = getenv("TEXMACS_CMD") ;
-  if( TEXMACS_R == NULL ) {
-    TEXMACS_R = "R"; 
+  ATHENA_R = getenv("ATHENA_CMD") ;
+  if( ATHENA_R == NULL ) {
+    ATHENA_R = "R"; 
     /* ignore 1 input request - i.e. do not generate a prompt channel in
        texmacs for it */
     n_ignore_prompts=0;
@@ -873,9 +873,9 @@ int main(int argc, char *argv[])
   }
   
   // Send commands to the process we just started. This is usually to load the TeXmacs library.
-  TEXMACS_SEND_E = getenv("TEXMACS_SEND") ;
-  if( TEXMACS_SEND_E == NULL ) TEXMACS_SEND_E = DEFAULT_TEXMACS_SEND ;
-  DEBUG_LOG( "TEXMACS_SEND=%s",TEXMACS_SEND_E) ;
+  ATHENA_SEND_E = getenv("ATHENA_SEND") ;
+  if( ATHENA_SEND_E == NULL ) ATHENA_SEND_E = DEFAULT_ATHENA_SEND ;
+  DEBUG_LOG( "ATHENA_SEND=%s",ATHENA_SEND_E) ;
 
   
 
@@ -883,26 +883,26 @@ int main(int argc, char *argv[])
     /* I'm the child - I'll run the command */
     char **exec_argv ;
     int i,n,m;
-    m = strlen( TEXMACS_R ) ;
+    m = strlen( ATHENA_R ) ;
     for( i=0,n=0; i<m; i++)
-      if( TEXMACS_R[i] == ' ' ) 
+      if( ATHENA_R[i] == ' ' ) 
         n++ ;
 	
     unsetenv( "DYLD_LIBRARY_PATH") ;
 	
     exec_argv = (char **) malloc( (n+2)*sizeof( char * ) ) ;
 
-    /* split TEXMACS_R into arguments into exec_argv, 
+    /* split ATHENA_R into arguments into exec_argv, 
        at each " " that doesn't have a \ to escape it  */
-    exec_argv[0] = TEXMACS_R ;
+    exec_argv[0] = ATHENA_R ;
     for( i=0,n=0; i<m; i++)
-      if( (TEXMACS_R[i] == ' ') && (i>0) && (TEXMACS_R[i-1]!='\\') ) {
+      if( (ATHENA_R[i] == ' ') && (i>0) && (ATHENA_R[i-1]!='\\') ) {
         n++ ;
-        exec_argv[n] = TEXMACS_R+i+1 ;
-        TEXMACS_R[i] = 0 ;
+        exec_argv[n] = ATHENA_R+i+1 ;
+        ATHENA_R[i] = 0 ;
       }
     exec_argv[n+1] = NULL ;
-    execvp(TEXMACS_R,exec_argv) ;
+    execvp(ATHENA_R,exec_argv) ;
   } else {
     /* I'm the parent - I'll handle input and output and watch the child.*/
 	
@@ -936,7 +936,7 @@ int main(int argc, char *argv[])
 	
 		  
     // Send initial commands
-    copy_to_B( TO_R_B, temp_buf, snprintf( temp_buf, TEMP_BUF_SIZE, "%s",TEXMACS_SEND_E ) ) ;  
+    copy_to_B( TO_R_B, temp_buf, snprintf( temp_buf, TEMP_BUF_SIZE, "%s",ATHENA_SEND_E ) ) ;  
 
     DEBUG_LOG("setting mask\n") ;
     sigemptyset (&sigmask);

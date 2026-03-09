@@ -18,7 +18,7 @@
     (string-append "scilab_complete (\"" s "\", " (number->string n) ")\n")))
 
 (define (scilab-launcher)
-  (with path "$TEXMACS_PATH/plugins/scilab/bin/init-scilab.sce"
+  (with path "$ATHENA_PATH/plugins/scilab/bin/init-scilab.sce"
     (string-append
      (if (os-mingw?)
          "Scilex --texmacs -texmacs"
@@ -48,7 +48,7 @@
 (when (supports-scilab?)
   (import-from (scilab-menus))
   (with f (url-concretize 
-           "$TEXMACS_PATH/plugins/scilab/bin/scilab-demo.sce")
+           "$ATHENA_PATH/plugins/scilab/bin/scilab-demo.sce")
     (if (url-exists? f)
         (scilab-add-to-demo-menu `("Basics" ,f))))
   (kbd-map

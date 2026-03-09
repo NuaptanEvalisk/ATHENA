@@ -16,7 +16,7 @@
 
     <\src-license>
       This software falls under the <hlink|GNU general public license,
-      version 3 or later|$TEXMACS_PATH/LICENSE>. It comes WITHOUT ANY
+      version 3 or later|$ATHENA_PATH/LICENSE>. It comes WITHOUT ANY
       WARRANTY WHATSOEVER. You should have received a copy of the license
       which the software. If not, see <hlink|http://www.gnu.org/licenses/gpl-3.0.html|http://www.gnu.org/licenses/gpl-3.0.html>.
     </src-license>
@@ -28,9 +28,9 @@
     </src-comment>
   </active*>
 
-  <assign|tmdoc-lgnu|<macro|<active*|<image|local:$TEXMACS_PATH/misc/images/tm_gnu1.ps|0.25w|0.25h||>>>>
+  <assign|tmdoc-lgnu|<macro|<active*|<image|local:$ATHENA_PATH/misc/images/tm_gnu1.ps|0.25w|0.25h||>>>>
 
-  <assign|tmdoc-rgnu|<macro|<active*|<image|local:$TEXMACS_PATH/misc/images/tm_gnu2.ps|0.25w|0.25h||>>>>
+  <assign|tmdoc-rgnu|<macro|<active*|<image|local:$ATHENA_PATH/misc/images/tm_gnu2.ps|0.25w|0.25h||>>>>
 
   <assign|tmdoc-gnu-title|<macro|title|<tabular*|<tformat|<twith|table-width|0.99par>|<cwith|1|1|2|2|cell-hpart|1>|<cwith|1|1|1|-1|cell-valign|c>|<cwith|1|1|1|1|cell-vcorrect|n>|<cwith|1|1|3|3|cell-vcorrect|n>|<cwith|1|1|2|2|cell-hyphen|c>|<cwith|1|1|1|1|cell-lsep|0fn>|<cwith|1|1|3|3|cell-rsep|0fn>|<table|<row|<cell|<tmdoc-lgnu>>|<\cell>
     <\with|par-mode|center>
@@ -54,7 +54,7 @@
     </cell>>>>>
   </macro>>
 
-  <assign|tmdoc-tmimage|<macro|<image|local:$TEXMACS_PATH/misc/images/texmacs-256.png|3em|3em||-0.3h>>>
+  <assign|tmdoc-tmimage|<macro|<image|local:$ATHENA_PATH/misc/images/texmacs-256.png|3em|3em||-0.3h>>>
 
   <assign|fira-font|<macro|x|<case|<equal|<value|language>|chinese>|<arg|x>|<with|TeXmacs|<macro|<active*|T<rsub|<space|-0.4spc><resize|<with|math-level|0|E>||||0.5fn>>X<rsub|<resize|M<space|0.2spc>AC<space|0.1spc>S||||0.5fn>>>>|font|Fira|<arg|x>>>>>
 
@@ -152,7 +152,7 @@
   </macro>>
 
   <assign|tmdoc-include|<\macro|inclusion>
-    <extern|tmdoc-include|<find-file|.|$TEXMACS_DOC_PATH|http://www.gnu.org/software/texmacs-doc|<quote-arg|inclusion>>>
+    <extern|tmdoc-include|<find-file|.|$ATHENA_DOC_PATH|http://www.gnu.org/software/texmacs-doc|<quote-arg|inclusion>>>
   </macro>>
 
   \;

@@ -1,4 +1,4 @@
-include_directories (${TEXMACS_BINARY_DIR}/src/System/)
+include_directories (${ATHENA_BINARY_DIR}/src/System/)
 
 set (r_SRCS src/tm_r.c)
 

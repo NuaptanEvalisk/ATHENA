@@ -98,7 +98,7 @@ initialize_scheme () {
 	"  (call-with-output-string\n"
 	"    (lambda (port) (write obj port))))\n"
 	"\n"
-	"(define (texmacs-version) \"" TEXMACS_VERSION "\")\n"
+	"(define (texmacs-version) \"" ATHENA_VERSION "\")\n"
 	"(define object-stack '(()))";
 	
 	scm_eval_string (init_prg);
@@ -106,8 +106,8 @@ initialize_scheme () {
 	object_stack= scm_lookup_string ("object-stack");
 	
 	
-	scm_eval_string("(load (url-concretize \"$TEXMACS_PATH/progs/init-tinyscheme.scm\"))");
-	scm_eval_string("(load (url-concretize \"$TEXMACS_PATH/progs/init-scheme-tm.scm\"))");
+	scm_eval_string("(load (url-concretize \"$ATHENA_PATH/progs/init-tinyscheme.scm\"))");
+	scm_eval_string("(load (url-concretize \"$ATHENA_PATH/progs/init-scheme-tm.scm\"))");
 	
 	//REPL
 	//scm_eval_file (stdin);

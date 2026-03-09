@@ -148,7 +148,7 @@
     Show personalized manual install instructions
   <|folded-documentation>
     Copy the <verbatim|<extern|(lambda (x) (url-concretize (url-append
-    (system-\<gtr\>url "$TEXMACS_PATH") (string-\<gtr\>url
+    (system-\<gtr\>url "$ATHENA_PATH") (string-\<gtr\>url
     "plugins/equation-editor/misc/inkscape_extension/texmacs"))))|>> folder
     (with all its files) to <verbatim|<extern|(lambda (x) (url-concretize
     (url-append (if (os-mingw?) (system-\<gtr\>url "$APPDATA")

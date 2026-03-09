@@ -97,13 +97,13 @@
   (group "Configuration")
   ((replace "Open %1" (verbatim "my-init-texmacs.scm"))
    (scm-load-buffer 
-    (url-concretize "$TEXMACS_HOME_PATH/progs/my-init-texmacs.scm")))
+    (url-concretize "$ATHENA_HOME_PATH/progs/my-init-texmacs.scm")))
   ((replace "Open %1" (verbatim "my-init-buffer.scm"))
    (scm-load-buffer
-    (url-concretize "$TEXMACS_HOME_PATH/progs/my-init-buffer.scm")))
+    (url-concretize "$ATHENA_HOME_PATH/progs/my-init-buffer.scm")))
   ((replace "Open %1" (verbatim "preferences.scm"))
    (scm-load-buffer
-    (url-concretize "$TEXMACS_HOME_PATH/system/preferences.scm")))
+    (url-concretize "$ATHENA_HOME_PATH/system/preferences.scm")))
   ---
   (group "Custom keyboard")
   ("Show keyboard" (toggle-custom-keyboard))

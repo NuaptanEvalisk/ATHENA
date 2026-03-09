@@ -1,42 +1,42 @@
 #!/bin/sh
 ##set -x
 
-TEXMACS_HOME_PLUGINS_MAPLE_DIR="$TEXMACS_HOME_PATH/plugins/maple"
-if [ ! -d $TEXMACS_HOME_PLUGINS_MAPLE_DIR ]; then
-	mkdir $TEXMACS_HOME_PLUGINS_MAPLE_DIR
+ATHENA_HOME_PLUGINS_MAPLE_DIR="$ATHENA_HOME_PATH/plugins/maple"
+if [ ! -d $ATHENA_HOME_PLUGINS_MAPLE_DIR ]; then
+	mkdir $ATHENA_HOME_PLUGINS_MAPLE_DIR
 fi
-TEXMACS_HOME_PLUGINS_MAPLE_CONF="$TEXMACS_HOME_PLUGINS_MAPLE_DIR/tm_maple.conf"
+ATHENA_HOME_PLUGINS_MAPLE_CONF="$ATHENA_HOME_PLUGINS_MAPLE_DIR/tm_maple.conf"
 
-TEXMACS_MAPLE_BIN=`which maple`
-TEXMACS_HOME_PLUGINS_MAPLE_DO_SYMLINK="no"
-if [ -r $TEXMACS_HOME_PLUGINS_MAPLE_CONF ]; then
-	. $TEXMACS_HOME_PLUGINS_MAPLE_CONF
+ATHENA_MAPLE_BIN=`which maple`
+ATHENA_HOME_PLUGINS_MAPLE_DO_SYMLINK="no"
+if [ -r $ATHENA_HOME_PLUGINS_MAPLE_CONF ]; then
+	. $ATHENA_HOME_PLUGINS_MAPLE_CONF
 fi
 
-TEXMACS_MAPLE_DIR=`echo "printf(kernelopts(mapledir));" | $TEXMACS_MAPLE_BIN -q`
-export TEXMACS_MAPLE_BIN
-export TEXMACS_MAPLE_DIR
+ATHENA_MAPLE_DIR=`echo "printf(kernelopts(mapledir));" | $ATHENA_MAPLE_BIN -q`
+export ATHENA_MAPLE_BIN
+export ATHENA_MAPLE_DIR
 
-if [ -d "$TEXMACS_MAPLE_DIR/extern" ]; then
-	TEXMACS_MAPLE_STAMP="$TEXMACS_MAPLE_DIR/license/version.txt"
-	if [ ! -f $TEXMACS_MAPLE_STAMP ]; then
-		TEXMACS_MAPLE_STAMP="$TEXMACS_MAPLE_DIR/license/license.dat"
-		if [ ! -f $TEXMACS_MAPLE_STAMP ]; then
-			TEXMACS_MAPLE_STAMP="$TEXMACS_HOME_PLUGINS_MAPLE_DIR/maple-stamp"
-			MAPLE_KERNEL_BUILD_DATE=`echo "printf(op(3,sscanf(kernelopts(version),\"%[^,],%[^,],%[^,]\")));" | $TEXMACS_MAPLE_BIN -q`
-			touch -d "$MAPLE_KERNEL_BUILD_DATE" $TEXMACS_MAPLE_STAMP
+if [ -d "$ATHENA_MAPLE_DIR/extern" ]; then
+	ATHENA_MAPLE_STAMP="$ATHENA_MAPLE_DIR/license/version.txt"
+	if [ ! -f $ATHENA_MAPLE_STAMP ]; then
+		ATHENA_MAPLE_STAMP="$ATHENA_MAPLE_DIR/license/license.dat"
+		if [ ! -f $ATHENA_MAPLE_STAMP ]; then
+			ATHENA_MAPLE_STAMP="$ATHENA_HOME_PLUGINS_MAPLE_DIR/maple-stamp"
+			MAPLE_KERNEL_BUILD_DATE=`echo "printf(op(3,sscanf(kernelopts(version),\"%[^,],%[^,],%[^,]\")));" | $ATHENA_MAPLE_BIN -q`
+			touch -d "$MAPLE_KERNEL_BUILD_DATE" $ATHENA_MAPLE_STAMP
 		fi
 	fi
-	if [ ! -x "$TEXMACS_HOME_PATH/bin/tm_maple_9" -o "$TEXMACS_MAPLE_STAMP" -nt "$TEXMACS_HOME_PATH/bin/tm_maple_9" ] || \
-			[ ! -x "$TEXMACS_HOME_PATH/bin/tm_maple_9.sh" -o "$TEXMACS_MAPLE_STAMP" -nt "$TEXMACS_HOME_PATH/bin/tm_maple_9.sh" ]; then
-		MAPLE_SYS_BIN=`echo "printf(kernelopts(bindir));" | $TEXMACS_MAPLE_BIN -q`
+	if [ ! -x "$ATHENA_HOME_PATH/bin/tm_maple_9" -o "$ATHENA_MAPLE_STAMP" -nt "$ATHENA_HOME_PATH/bin/tm_maple_9" ] || \
+			[ ! -x "$ATHENA_HOME_PATH/bin/tm_maple_9.sh" -o "$ATHENA_MAPLE_STAMP" -nt "$ATHENA_HOME_PATH/bin/tm_maple_9.sh" ]; then
+		MAPLE_SYS_BIN=`echo "printf(kernelopts(bindir));" | $ATHENA_MAPLE_BIN -q`
 		MAPLE_LIBRARY_PATH=$MAPLE_SYS_BIN
 		if [ -d "$MAPLE_SYS_BIN/system" -a -x "$MAPLE_SYS_BIN/cppcheck" ]; then
 			if ! ( LD_LIBRARY_PATH=$MAPLE_SYS_BIN $MAPLE_SYS_BIN/cppcheck > /dev/null 2>&1 ; ) then
 				MAPLE_LIBRARY_PATH="$MAPLE_SYS_BIN/system:$MAPLE_LIBRARY_PATH"
 			fi
 		fi
-		MAPLE_CPPFLAGS="-I$TEXMACS_MAPLE_DIR/extern/include"
+		MAPLE_CPPFLAGS="-I$ATHENA_MAPLE_DIR/extern/include"
 		MAPLE_LDFLAGS="-L$MAPLE_LIBRARY_PATH"
 		MAPLE_LIBADD="-lmaplec"
 		case "${MAPLE_SYS_BIN##*bin.}" in
@@ -47,17 +47,17 @@ if [ -d "$TEXMACS_MAPLE_DIR/extern" ]; then
 		export MAPLE_CPPFLAGS
 		export MAPLE_LDFLAGS
 		export MAPLE_LIBADD
-		make -s -C $TEXMACS_PATH/plugins/maple -f Makefile.9 TEXMACS_HOME_PATH="$TEXMACS_HOME_PATH" TEXMACS_MAPLE_STAMP="$TEXMACS_MAPLE_STAMP"
+		make -s -C $ATHENA_PATH/plugins/maple -f Makefile.9 ATHENA_HOME_PATH="$ATHENA_HOME_PATH" ATHENA_MAPLE_STAMP="$ATHENA_MAPLE_STAMP"
 		if [ $? -ne 0 ]; then
-			echo "cannot build $TEXMACS_HOME_PATH/bin/tm_maple_9*" 1>&2
+			echo "cannot build $ATHENA_HOME_PATH/bin/tm_maple_9*" 1>&2
 			exit 1
 		fi
-		if [ "$TEXMACS_HOME_PLUGINS_MAPLE_DO_SYMLINK" != "no" -a ! -f $TEXMACS_HOME_PATH/bin/tm_maple ]; then
-			{ cd $TEXMACS_HOME_PATH/bin && ln -s tm_maple_9.sh tm_maple ; }
+		if [ "$ATHENA_HOME_PLUGINS_MAPLE_DO_SYMLINK" != "no" -a ! -f $ATHENA_HOME_PATH/bin/tm_maple ]; then
+			{ cd $ATHENA_HOME_PATH/bin && ln -s tm_maple_9.sh tm_maple ; }
 		fi
 	fi
-	exec "$TEXMACS_HOME_PATH/bin/tm_maple_9.sh"
-elif [ -f "$TEXMACS_MAPLE_DIR/mwshelp" ]; then
+	exec "$ATHENA_HOME_PATH/bin/tm_maple_9.sh"
+elif [ -f "$ATHENA_MAPLE_DIR/mwshelp" ]; then
 	exec tm_maple_5
 else
 	echo "Maple version not yet supported" 1>&2

@@ -754,7 +754,7 @@ qt_translate (const string& s) {
 string
 qt_application_directory () {
   return string (QCoreApplication::applicationDirPath().toUtf8().constData());
-  // This is used to set $TEXMACS_PATH
+  // This is used to set $ATHENA_PATH
   // in Windows TeXmacs cannot run if this path contains unicode characters
   // apparently because Guile uses standard narrow char api to load its modules => patch Guile?.  
   // return from_qstring (QCoreApplication::applicationDirPath ());
@@ -1061,18 +1061,18 @@ init_style_sheet (QApplication* app) {
   url css (tm_style_sheet);
   if (!exists (css)) {
     if (suffix (css) == "") css= glue (css, ".css");
-    url dir ("$TEXMACS_THEME_PATH");
+    url dir ("$ATHENA_THEME_PATH");
     css= resolve (dir * css);
     if (is_none (css)) return;
   }
   if (tm_style_sheet != "" && !load_string (css, ss, false)) {
-    string p= as_string (url ("$TEXMACS_PATH"));
+    string p= as_string (url ("$ATHENA_PATH"));
 #ifdef Q_OS_WIN
     p = replace (p , "\\", "/");
 #endif
     ss= replace (ss, "\n", " ");
     ss= replace (ss, "\t", " ");
-    ss= replace (ss, "$TEXMACS_PATH", p);
+    ss= replace (ss, "$ATHENA_PATH", p);
 #if (QT_VERSION < 0x050000)
     ss= replace (ss, "Qt4", "");
 #endif

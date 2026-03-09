@@ -52,7 +52,7 @@ get_old_settings (string s) {
 static void
 init_upgrade_scheme () {
 #ifndef OS_WIN32
-  url u= "$TEXMACS_HOME_PATH/progs";
+  url u= "$ATHENA_HOME_PATH/progs";
   string prgs= as_string (u);
   if (exists (u * "Init.scm") && (!exists (u * "my-init-texmacs.scm"))) {
     system ("sed 's/Init.scm/init-texmacs.scm/'", u * "Init.scm",
@@ -80,8 +80,8 @@ string_load (url u) {
 
 static void
 init_upgrade_doc (string install_version) {
-  url from_dir= "$TEXMACS_PATH/doc/about/changes";
-  url to= "$TEXMACS_HOME_PATH/doc/about/changes/changes-recent.en.tm";
+  url from_dir= "$ATHENA_PATH/doc/about/changes";
+  url to= "$ATHENA_HOME_PATH/doc/about/changes/changes-recent.en.tm";
   string s= string_load (from_dir * "changes-pre.en.ptm");
   if (version_inf (install_version, "0.3.3.24"))
     s << string_load (from_dir * "changes-1.en.ptm");
@@ -137,27 +137,27 @@ init_upgrade () {
   debug_boot << "Your disk contains a configuration file for TeXmacs-";
   debug_boot << install_version << ".\n";
   debug_boot << "I will now perform the upgrade to version ";
-  debug_boot << TEXMACS_VERSION <<"\n";
+  debug_boot << ATHENA_VERSION <<"\n";
   debug_boot << HRULE;
 
-  url old_settings= "$TEXMACS_HOME_PATH/system" * url_wildcard ("TEX_PATHS*");
-  url new_settings= "$TEXMACS_HOME_PATH/system/settings.scm";
+  url old_settings= "$ATHENA_HOME_PATH/system" * url_wildcard ("TEX_PATHS*");
+  url new_settings= "$ATHENA_HOME_PATH/system/settings.scm";
   remove (old_settings);
   remove (new_settings);
 
-  setup_texmacs ();
+  setup_athena ();
   init_upgrade_scheme ();
   init_upgrade_doc (install_version);
 
-  remove (url ("$TEXMACS_HOME_PATH/system/setup.scm"));
-  remove (url ("$TEXMACS_HOME_PATH/system/cache") * url_wildcard ("__*"));
-  remove (url ("$TEXMACS_HOME_PATH/system/cache/dir_cache.scm"));
-  remove (url ("$TEXMACS_HOME_PATH/system/cache/doc_cache"));
-  remove (url ("$TEXMACS_HOME_PATH/system/cache/file_cache"));
-  remove (url ("$TEXMACS_HOME_PATH/system/cache/stat_cache.scm"));
-  remove (url ("$TEXMACS_HOME_PATH/fonts/font-database.scm"));
-  remove (url ("$TEXMACS_HOME_PATH/fonts/font-features.scm"));
-  remove (url ("$TEXMACS_HOME_PATH/fonts/font-characteristics.scm"));
-  remove (url ("$TEXMACS_HOME_PATH/fonts/error") * url_wildcard ("*"));
+  remove (url ("$ATHENA_HOME_PATH/system/setup.scm"));
+  remove (url ("$ATHENA_HOME_PATH/system/cache") * url_wildcard ("__*"));
+  remove (url ("$ATHENA_HOME_PATH/system/cache/dir_cache.scm"));
+  remove (url ("$ATHENA_HOME_PATH/system/cache/doc_cache"));
+  remove (url ("$ATHENA_HOME_PATH/system/cache/file_cache"));
+  remove (url ("$ATHENA_HOME_PATH/system/cache/stat_cache.scm"));
+  remove (url ("$ATHENA_HOME_PATH/fonts/font-database.scm"));
+  remove (url ("$ATHENA_HOME_PATH/fonts/font-features.scm"));
+  remove (url ("$ATHENA_HOME_PATH/fonts/font-characteristics.scm"));
+  remove (url ("$ATHENA_HOME_PATH/fonts/error") * url_wildcard ("*"));
   cache_refresh ();
 }

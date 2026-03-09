@@ -375,7 +375,7 @@ tt_font_name (url u) {
 url
 tt_unpack (string s) {
   if (!is_int (suffix (url (s)))) return url_none ();
-  url dir= url ("$TEXMACS_HOME_PATH/fonts/unpacked");
+  url dir= url ("$ATHENA_HOME_PATH/fonts/unpacked");
   if (!exists (dir)) mkdir (dir);
   url name= dir * url (s * ".ttf");
   if (exists (name)) return name;

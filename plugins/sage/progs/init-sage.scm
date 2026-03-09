@@ -31,17 +31,17 @@
       (string-append  s  "\n<EOF>\n"))))
 
 (define (sage-entry)
-  (if (url-exists? "$TEXMACS_HOME_PATH/plugins/tmpy")
-      (system-url->string "$TEXMACS_HOME_PATH/plugins/tmpy/session/tm_sage.py")
-      (system-url->string "$TEXMACS_PATH/plugins/tmpy/session/tm_sage.py")))
+  (if (url-exists? "$ATHENA_HOME_PATH/plugins/tmpy")
+      (system-url->string "$ATHENA_HOME_PATH/plugins/tmpy/session/tm_sage.py")
+      (system-url->string "$ATHENA_PATH/plugins/tmpy/session/tm_sage.py")))
 
 (define (texmacs-cygwin-path)
-  (if (url-exists? "$TEXMACS_HOME_PATH/plugins/tmpy")
+  (if (url-exists? "$ATHENA_HOME_PATH/plugins/tmpy")
       (string-replace
        (string-replace
         (string-replace
          (string-replace
-          (string-replace (getenv "TEXMACS_HOME_PATH")
+          (string-replace (getenv "ATHENA_HOME_PATH")
            "C:" "/cygdrive/c")
           "\\" "/")
          " " "\\ ")
@@ -51,7 +51,7 @@
        (string-replace
         (string-replace
          (string-replace
-          (string-replace (getenv "TEXMACS_PATH")
+          (string-replace (getenv "ATHENA_PATH")
            "C:" "/cygdrive/c")
           "\\" "/")
          " " "\\ ")

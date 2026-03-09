@@ -35,7 +35,7 @@
   nous aborderons les routines les plus importantes. Un guide de référence
   plus complet sera écrit plus tard. Vous pouvez aussi examiner les fichiers
   <with|font shape|small-caps|Scheme> <verbatim|.scm> situés dans le
-  répertoire <verbatim|$TEXMACS_PATH/progs>.
+  répertoire <verbatim|$ATHENA_PATH/progs>.
 
   <apply|tmdoc-copyright|1998--2002|Joris van der Hoeven|Michèle Garoche>
 

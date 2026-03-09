@@ -8,8 +8,8 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 
-#ifndef TEXMACS_WINDOWS_SYSTEM_HPP
-#define TEXMACS_WINDOWS_SYSTEM_HPP
+#ifndef ATHENA_WINDOWS_SYSTEM_HPP
+#define ATHENA_WINDOWS_SYSTEM_HPP
 
 #include "string.hpp"
 #include "array.hpp"
@@ -25,7 +25,7 @@ typedef struct _stat64 struct_stat;
 
 struct texmacs_dir_t;
 
-typedef struct texmacs_dir_t* TEXMACS_DIR;
+typedef struct texmacs_dir_t* ATHENA_DIR;
 
 /*
  * @brief Structure to represent a directory entry
@@ -88,17 +88,17 @@ void texmacs_fclose(FILE *&file, bool unlock = true);
 /*
  * @brief Proxy function to the opendir function with UTF-8 encoded strings
  */
-TEXMACS_DIR texmacs_opendir(string dirname);
+ATHENA_DIR texmacs_opendir(string dirname);
 
 /*
  * @brief Proxy function to the closedir function
  */
-void texmacs_closedir(TEXMACS_DIR dir);
+void texmacs_closedir(ATHENA_DIR dir);
 
 /*
  * @brief Proxy function to the readdir function with UTF-8 encoded strings
  */
-texmacs_dirent texmacs_readdir(TEXMACS_DIR dirp);
+texmacs_dirent texmacs_readdir(ATHENA_DIR dirp);
 
 /*
  * @brief Proxy function to the stat function with UTF-8 encoded strings

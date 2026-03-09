@@ -14,13 +14,13 @@
   si ottiene è già soddisfacente. Se ciò accade, si può spedire alla rivista
   il file <verbatim|name.tex> insieme al file di stile
   <verbatim|TeXmacs.sty>, che si trova nella
-  <verbatim|$TEXMACS_PATH/misc/latex>.
+  <verbatim|$ATHENA_PATH/misc/latex>.
 
   Spesso, la rivista utilizza un proprio file di stile, detto
   <verbatim|journal.sty>. In tal caso, si dovrebbe copiare anche il file\ 
 
   <\verbatim>
-    \ \ \ \ $TEXMACS_PATH/styles/article.ts
+    \ \ \ \ $ATHENA_PATH/styles/article.ts
   </verbatim>
 
   in\ 

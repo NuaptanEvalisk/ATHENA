@@ -547,7 +547,7 @@
     (insert-go-to s '(2 1 1 0 0))
     (with-innermost t field-input-context?
       (with u (tree-ref t :previous 0)
-	(if (url-exists? (url-unix "$TEXMACS_STYLE_PATH"
+	(if (url-exists? (url-unix "$ATHENA_STYLE_PATH"
 				   (string-append lan ".ts")))
 	    (add-style-package lan))
 	(session-feed lan ses :start u t '())))))

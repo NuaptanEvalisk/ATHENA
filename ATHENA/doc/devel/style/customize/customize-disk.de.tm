@@ -37,9 +37,9 @@
 
   Genauer, das Paket <markup|use-package> läd die Stil-Pakete in der
   Reihenfolge seiner Argumente. Die Pakete müssen im Pfad
-  \ <verbatim|$TEXMACS_PACKAGE_PATH> liegen, die gemäÿ Vorgabe
+  \ <verbatim|$ATHENA_PACKAGE_PATH> liegen, die gemäÿ Vorgabe
   \ <verbatim|.>, <verbatim|~/.TeXmacs/packages> und
-  <verbatim|$TEXMACS_PATH/packages> enthalten. Auÿerdem werden Befehle, die
+  <verbatim|$ATHENA_PATH/packages> enthalten. Auÿerdem werden Befehle, die
   der Darstellung von Quellcode dienen, wie z.B. <markup|style-with>, vor der
   Evaluierung entfernt.
 
@@ -49,9 +49,9 @@
     Diese findet man unter
 
     <\verbatim>
-      \ \ \ \ $TEXMACS_PATH/styles
+      \ \ \ \ $ATHENA_PATH/styles
 
-      \ \ \ \ $TEXMACS_PATH/packages
+      \ \ \ \ $ATHENA_PATH/packages
     </verbatim>
 
     Wenn man <shortcut|(interactive load-buffer)> benutzt, um Dateien zu laden, dann sind die oben

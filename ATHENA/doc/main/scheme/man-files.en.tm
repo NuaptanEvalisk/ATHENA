@@ -8,19 +8,19 @@
   Some other files may also be worth looking at:
 
   <\itemize>
-    <item><verbatim|$TEXMACS_PATH/fonts/enc> contains encodings for different
+    <item><verbatim|$ATHENA_PATH/fonts/enc> contains encodings for different
     <apply|TeX> fonts.
 
-    <item><verbatim|$TEXMACS_PATH/fonts/virtual> contains definitions of
+    <item><verbatim|$ATHENA_PATH/fonts/virtual> contains definitions of
     virtual characters.
 
-    <item><verbatim|$TEXMACS_PATH/langs/natural/dic> contains the current
+    <item><verbatim|$ATHENA_PATH/langs/natural/dic> contains the current
     dictionaries used by <apply|TeXmacs>.
 
-    <item><verbatim|$TEXMACS_PATH/langs/natural/hyphen> contains hyphenation
+    <item><verbatim|$ATHENA_PATH/langs/natural/hyphen> contains hyphenation
     patterns for various languages.
 
-    <item><verbatim|$TEXMACS_PATH/progs/fonts> contains <apply|scheme>
+    <item><verbatim|$ATHENA_PATH/progs/fonts> contains <apply|scheme>
     programs for setting up the fonts.
   </itemize>
 

@@ -448,7 +448,7 @@
 ("clear" "очистити")
 ("clear all fields" "очистити всі поля")
 ("clear font cache" "очистити кеш шрифтів")
-("clear font cache under TEXMACS_HOME_PATH." "Очистити кеш шрифтів у TEXMACS_HOME_PATH.")
+("clear font cache under ATHENA_HOME_PATH." "Очистити кеш шрифтів у ATHENA_HOME_PATH.")
 ("clear local information" "очистити локальну інформацію")
 ("clear menu" "очистити меню")
 ("clear selection" "зняти виділення")

@@ -26,12 +26,12 @@
 
 (define (maxima-launchers) ;; returns list of launchers for each version
   (if (os-mingw?)
-      (if (url-exists? "$TEXMACS_HOME_PATH\\plugins\\maxima")
+      (if (url-exists? "$ATHENA_HOME_PATH\\plugins\\maxima")
           `((:launch
-            ,(string-append "maxima.bat -p \"" (getenv "TEXMACS_HOME_PATH")
+            ,(string-append "maxima.bat -p \"" (getenv "ATHENA_HOME_PATH")
                             "\\plugins\\maxima\\lisp\\texmacs-maxima.lisp\"")))
           `((:launch
-            ,(string-append "maxima.bat -p \"" (getenv "TEXMACS_PATH")
+            ,(string-append "maxima.bat -p \"" (getenv "ATHENA_PATH")
                             "\\plugins\\maxima\\lisp\\texmacs-maxima.lisp\""))))
       (with version-list
           (if reconfigure-flag? (maxima-versions) (plugin-versions "maxima"))

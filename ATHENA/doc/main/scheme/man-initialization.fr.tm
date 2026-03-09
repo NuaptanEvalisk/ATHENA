@@ -6,21 +6,21 @@
   <expand|tmdoc-title|Personnalisation des fichiers d'initialisation>
 
   Lors de son lancement, <apply|TeXmacs> exécute le fichier
-  <verbatim|$TEXMACS_PATH/progs/init-texmacs.scm>, sauf si vous créez votre
-  propre fichier d'initialisation dans <verbatim|$TEXMACS_HOME_PATH/progs/my-init-texmacs.scm>.
-  Par défaut, le chemin <verbatim|$TEXMACS_HOME_PATH> correspond à
+  <verbatim|$ATHENA_PATH/progs/init-texmacs.scm>, sauf si vous créez votre
+  propre fichier d'initialisation dans <verbatim|$ATHENA_HOME_PATH/progs/my-init-texmacs.scm>.
+  Par défaut, le chemin <verbatim|$ATHENA_HOME_PATH> correspond à
   <verbatim|.TeXmacs>. Vous voudrez peut-être ajouter certaines actions au
   fichier d'initialisation par défaut. Dans ce cas, n'oubliez pas d'inclure
   la commande suivante :\ 
 
   <\verbatim>
-    \ \ \ \ (exec-file "$TEXMACS_PATH/progs" "init-texmacs.scm")
+    \ \ \ \ (exec-file "$ATHENA_PATH/progs" "init-texmacs.scm")
   </verbatim>
 
   dans votre fichier d'initialisation. De même, le fichier
-  <verbatim|$TEXMACS_PATH/progs/init-buffer.scm> est exécuté chaque fois que
+  <verbatim|$ATHENA_PATH/progs/init-buffer.scm> est exécuté chaque fois que
   vous créez un nouveau tampon, sauf si vous créez votre propre fichier
-  d'initialisation <verbatim|$TEXMACS_HOME_PATH/progs/my-init-buffer.scm>.
+  d'initialisation <verbatim|$ATHENA_HOME_PATH/progs/my-init-buffer.scm>.
 
   <apply|tmdoc-copyright|1998--2002|Joris van der Hoeven|Michèle Garoche>
 

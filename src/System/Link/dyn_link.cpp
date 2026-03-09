@@ -105,7 +105,7 @@ make_dynamic_link (string lib, string symb, string init, string session) {
 #ifndef OS_MINGW
 static TeXmacs_exports_1 TeXmacs= {
   const_cast<char*> ("TeXmacs communication protocol 1"),
-  const_cast<char*> ("TeXmacs " TEXMACS_VERSION),
+  const_cast<char*> ("TeXmacs " ATHENA_VERSION),
 };
 #endif
 

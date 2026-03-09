@@ -17,12 +17,12 @@
         (string-append s "\n<EOF>\n"))))
 
 (define (xypic-launcher)
-  (if (url-exists? "$TEXMACS_HOME_PATH/plugins/tmpy")
+  (if (url-exists? "$ATHENA_HOME_PATH/plugins/tmpy")
       (string-append (python-command) " \""
-                     (getenv "TEXMACS_HOME_PATH")
+                     (getenv "ATHENA_HOME_PATH")
                      "/plugins/tmpy/session/tm_xypic.py\"")
       (string-append (python-command) " \""
-                     (getenv "TEXMACS_PATH")
+                     (getenv "ATHENA_PATH")
                      "/plugins/tmpy/session/tm_xypic.py\"")))
 
 (define (xypic-exists?)

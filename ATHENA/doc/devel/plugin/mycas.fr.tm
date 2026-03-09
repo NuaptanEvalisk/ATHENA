@@ -7,7 +7,7 @@
 
   La meilleure façon d'implémenter votre première interface avec
   <apply|TeXmacs> est d'examiner soigneusement l'exemple <verbatim|mycas>,
-  que vous trouverez dans le répertoire <verbatim|$TEXMACS_PATH/misc/mycas>.
+  que vous trouverez dans le répertoire <verbatim|$ATHENA_PATH/misc/mycas>.
   Le fichier <verbatim|mycas.cpp>, dont le contenu est inclus à la fin de
   cette section, contient un programme très simple que l'on peut interfacer
   avec <apply|TeXmacs>. Pour tester ce programme, compilez-le avec :

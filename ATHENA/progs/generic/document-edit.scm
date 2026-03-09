@@ -139,7 +139,7 @@
           (init-env "font-family" "rm")
           (remove-font-packages)
           (with pack (font-package-name val)
-            (with dir "$TEXMACS_PATH/packages/customize/fonts"
+            (with dir "$ATHENA_PATH/packages/customize/fonts"
               (when (url-exists? (url-append dir (string-append pack ".ts")))
                 (init-default "font")
                 (init-default "font-family")

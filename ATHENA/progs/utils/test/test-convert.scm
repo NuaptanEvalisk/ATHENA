@@ -167,7 +167,7 @@
                      ((== name "texmacs-scheme-manual")
                       (string-append "devel/scheme/scheme." lan ".tm"))
                      (else "unknown.en.tm")))
-         (doc-dir "$TEXMACS_DOC_PATH"))
+         (doc-dir "$ATHENA_DOC_PATH"))
     (if (url-exists? (url-unix doc-dir root))
         (let* ((old-lan (get-output-language))
                (new-lan (locale-to-language lan))

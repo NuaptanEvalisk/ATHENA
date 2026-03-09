@@ -29,9 +29,9 @@ tests/converter_test
 ```
 
 However, this specify unit test will fail. For `utf8_to_cork`, we need to set
-the `TEXMACS_PATH` to find the dictionaries. You may specify it manually:
+the `ATHENA_PATH` to find the dictionaries. You may specify it manually:
 ``` bash
-TEXMACS_PATH=/path/to/somewhere tests/converter_test
+ATHENA_PATH=/path/to/somewhere tests/converter_test
 ```
 
 Or just using ctest(we've set the necessary environment variables):

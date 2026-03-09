@@ -5,7 +5,7 @@
 <\body>
   <tmdoc-title|Server data location>
 
-  All server data is stored in <verbatim|$TEXMACS_HOME_PATH/server/>,
+  All server data is stored in <verbatim|$ATHENA_HOME_PATH/server/>,
   typically <verbatim|~/.TeXmacs/server/>:
 
   <\description>

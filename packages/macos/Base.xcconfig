@@ -1,0 +1,62 @@
+// TeXmacs private settings
+
+TM_CXXWARNING = -Wall -Wno-return-type
+TM_CXXTEMPLATE = 
+TM_CXXOPTIMIZE = -O3 -fexpensive-optimizations 
+TM_CXXDEBUG = 
+TM_CXXSANITIZERS = 
+TM_CXXPROFILE = 
+TM_CFLAGS = -g -O2 -std=gnu89 -fpermissive -Wno-error=all
+TM_CXXFLAGS = $(TM_CXXWARNING) $(TM_CXXTEMPLATE) $(TM_CXXOPTIMIZE) $(TM_CXXDEBUG) $(TM_CXXPROFILE) $(TM_CXXSANITIZERS)  
+TM_CPPFLAGS =  -include config.h -DQT_NO_DEBUG -DQT_PRINTSUPPORT_LIB -DQT_SVG_LIB -DQT_WIDGETS_LIB -DQT_GUI_LIB -DQT_NETWORK_LIB -DQT_CORE_LIB -I. -I. -I/usr/include/qt5 -I/usr/include/qt5/QtPrintSupport -I/usr/include/qt5/QtSvg -I/usr/include/qt5/QtWidgets -I/usr/include/qt5/QtGui -I/usr/include/qt5/QtNetwork -I/usr/include/qt5/QtCore -I. -I/usr/lib64/qt5/mkspecs/linux-g++
+TM_QTCPPFLAGS = -DQT_NO_DEBUG -DQT_PRINTSUPPORT_LIB -DQT_SVG_LIB -DQT_WIDGETS_LIB -DQT_GUI_LIB -DQT_NETWORK_LIB -DQT_CORE_LIB -I. -I. -I/usr/include/qt5 -I/usr/include/qt5/QtPrintSupport -I/usr/include/qt5/QtSvg -I/usr/include/qt5/QtWidgets -I/usr/include/qt5/QtGui -I/usr/include/qt5/QtNetwork -I/usr/include/qt5/QtCore -I. -I/usr/lib64/qt5/mkspecs/linux-g++
+TM_CXXX11 = 
+TM_CXXCOCOA = 
+TM_CXXQT = -pipe -O2 -Wall -Wextra -D_REENTRANT -fPIC -DQT_NO_DEBUG -DQT_PRINTSUPPORT_LIB -DQT_SVG_LIB -DQT_WIDGETS_LIB -DQT_GUI_LIB -DQT_NETWORK_LIB -DQT_CORE_LIB -std=c++11
+TM_CXXGUI = $(TM_CXXQT)
+TM_CXXAXEL = 
+TM_CXXCAIRO = 
+TM_CXXIMLIB2 = 
+TM_CXXSQLITE3 = 
+TM_CXXFREETYPE =   -I/usr/include/freetype2
+TM_CXXICONV = 
+TM_CXXGUILE =   -I/usr/include -I/usr/include/guile
+TM_CXXSPARKLE =   
+TM_CXXPDF =  
+
+TM_LD = clang++
+TM_LDFLAGS =  -Wl,--as-needed -rdynamic -lpthread -L/usr/lib64 -L/usr/lib -Wl,-rpath,/usr/lib64 -Wl,-O1   $(TM_CXXPROFILE) $(TM_CXXSANITIZERS)
+TM_LIBS =    -lz -lpng -Wl,--as-needed -rdynamic -L/usr/lib64 -L/usr/lib /usr/lib64/libQt5PrintSupport.so /usr/lib64/libQt5Svg.so /usr/lib64/libQt5Widgets.so /usr/lib64/libQt5Gui.so /usr/lib64/libQt5Network.so /usr/lib64/libQt5Core.so -lGL -lpthread -lfreetype -lguile -lgmp -lcrypt -lm -lltdl
+TM_LDRT = 
+TM_LDSTATIC = -lxcb -lexpat -lXdmcp -lXau -lXrender
+TM_LDSHARED = -Wl,-Bdynamic
+TM_LDPATH = -Wl,-rpath,
+TM_LDX11 =
+TM_LDCOCOA = 
+TM_LDQT = -Wl,-O1 -Wl,--as-needed -rdynamic -L/usr/lib64 -L/usr/lib /usr/lib64/libQt5PrintSupport.so /usr/lib64/libQt5Svg.so /usr/lib64/libQt5Widgets.so /usr/lib64/libQt5Gui.so /usr/lib64/libQt5Network.so /usr/lib64/libQt5Core.so -lGL -lpthread 
+TM_LDGUI = $(TM_LDQT)
+
+TM_MOC = /usr/bin/moc-qt5
+TM_MOCFLAGS = -DQT_NO_DEBUG -DQT_PRINTSUPPORT_LIB -DQT_SVG_LIB -DQT_WIDGETS_LIB -DQT_GUI_LIB -DQT_NETWORK_LIB -DQT_CORE_LIB -I. -I. -I/usr/include/qt5 -I/usr/include/qt5/QtPrintSupport -I/usr/include/qt5/QtSvg -I/usr/include/qt5/QtWidgets -I/usr/include/qt5/QtGui -I/usr/include/qt5/QtNetwork -I/usr/include/qt5/QtCore -I. -I/usr/lib64/qt5/mkspecs/linux-g++
+
+TM_BASE = $(SRCROOT)/../..
+TM_HEADER_SEARCH_PATHS = $(TM_BASE)/src/System $(TM_BASE)/src/System/Boot $(TM_BASE)/src/System/Classes $(TM_BASE)/src/System/Files $(TM_BASE)/src/System/Link $(TM_BASE)/src/System/Misc $(TM_BASE)/src/System/Language $(TM_BASE)/src/Kernel/Abstractions $(TM_BASE)/src/Kernel/Containers $(TM_BASE)/src/Kernel/Types $(TM_BASE)/src/Data/Convert $(TM_BASE)/src/Data/Drd $(TM_BASE)/src/Data/History $(TM_BASE)/src/Data/Observers $(TM_BASE)/src/Data/String $(TM_BASE)/src/Data/Tmfs $(TM_BASE)/src/Data/Tree $(TM_BASE)/src/Scheme $(TM_BASE)/src/Graphics/Bitmap_fonts $(TM_BASE)/src/Graphics/Fonts $(TM_BASE)/src/Graphics/Gui $(TM_BASE)/src/Graphics/Mathematics $(TM_BASE)/src/Graphics/Renderer $(TM_BASE)/src/Plugins $(TM_BASE)/src/Edit $(TM_BASE)/src/Typeset $(TM_BASE)/src/Typeset/Bridge $(TM_BASE)/src/Typeset/Concat $(TM_BASE)/src/Typeset/Page $(TM_BASE)/src/Style/Memorizer $(TM_BASE)/src/Style/Environment $(TM_BASE)/src/Style/Evaluate $(TM_BASE)/TeXmacs/include $(TM_BASE)/src
+
+TM_QT_FRAMEWORKS_PATH = /usr/lib64
+
+// Disable universal binaries
+//ARCHS = $(NATIVE_ARCH)
+//ARCHS = $(NATIVE_ARCH)
+ONLY_ACTIVE_ARCH = YES
+//MACOSX_DEPLOYMENT_TARGET=@MACOSX_DEPLOYMENT_TARGET@
+
+// Basic settings
+
+//FRAMEWORK_SEARCH_PATHS = 
+//LIBRARY_SEARCH_PATHS =
+HEADER_SEARCH_PATHS =  $(TM_HEADER_SEARCH_PATHS)
+INFOPLIST_FILE = $(TM_BASE)/packages/macos/Info-Xcode.plist
+INFOPLIST_PREPROCESS = YES
+INFOPLIST_EXPAND_BUILD_SETTINGS = YES
+GCC_PRECOMPILE_PREFIX_HEADER = NO
+

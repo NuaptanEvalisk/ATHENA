@@ -8,8 +8,8 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 
-#ifndef TEXMACS_WINDOWS_ENTRYPOINT_HPP
-#define TEXMACS_WINDOWS_ENTRYPOINT_HPP
+#ifndef ATHENA_WINDOWS_ENTRYPOINT_HPP
+#define ATHENA_WINDOWS_ENTRYPOINT_HPP
 
 /*
  * @brief The main function of texmacs
@@ -40,7 +40,7 @@ void texmacs_attach_console();
 void texmacs_init_guile_hooks();
 
 /**
-  * @brief Initialize the TEXMACS_DISPLAYNAME environment variable with the
+  * @brief Initialize the ATHENA_DISPLAYNAME environment variable with the
   * full username.
   */
 void texmacs_initialize_displayname();

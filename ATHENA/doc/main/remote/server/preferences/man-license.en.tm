@@ -7,7 +7,7 @@
 
   You can configure a license agreement that users must accept when creating
   an account. The license is stored as a <TeXmacs> document in
-  <verbatim|$TEXMACS_HOME_PATH/server/license.tm>.
+  <verbatim|$ATHENA_HOME_PATH/server/license.tm>.
 
   To edit the license:
 

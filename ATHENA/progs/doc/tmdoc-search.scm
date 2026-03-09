@@ -18,7 +18,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (tm-define (tmdoc-search-local-one grep-string searcher lan)
-  (let* ((docpath (string->url "$TEXMACS_DOC_PATH"))
+  (let* ((docpath (string->url "$ATHENA_DOC_PATH"))
          (suffix (url-wildcard (string-append "*." lan ".tm")))
          (docfiles (url-append docpath (url-append (url-any) suffix)))
          (candidates (url->list (url-grep grep-string docfiles))))

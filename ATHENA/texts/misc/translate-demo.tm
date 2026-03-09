@@ -9,11 +9,11 @@
 
   The file with English to Dutch translations is
 
-  <space|2em><slink|$TEXMACS_PATH/langs/natural/dic/english-dutch.scm>
+  <space|2em><slink|$ATHENA_PATH/langs/natural/dic/english-dutch.scm>
 
   The file with all entries to be translated is
 
-  <space|2em><slink|$TEXMACS_PATH/langs/natural/dic/english-new.scm>
+  <space|2em><slink|$ATHENA_PATH/langs/natural/dic/english-new.scm>
 
   By executing
 
@@ -29,14 +29,14 @@
 
   you may create the following file with missing entries for Dutch:
 
-  <space|2em><slink|$TEXMACS_PATH/langs/natural/miss/english-dutch-miss.scm>
+  <space|2em><slink|$ATHENA_PATH/langs/natural/miss/english-dutch-miss.scm>
 
   You may wish to perform as many translations as possible automatically,
   using on-line tools such as <name|Google Translate>, <name|DeepL Pro>,
   Collins free online translator, etc. For this, first construct an english
   source file for the files to be translated:
 
-  <space|2em><slink|$TEXMACS_PATH/langs/natural/miss/list-english.scm>
+  <space|2em><slink|$ATHENA_PATH/langs/natural/miss/list-english.scm>
 
   using
 
@@ -49,7 +49,7 @@
   You next have to translate this file using your online tool and put the
   result in
 
-  <space|2em><slink|$TEXMACS_PATH/langs/natural/miss/list-dutch.scm>
+  <space|2em><slink|$ATHENA_PATH/langs/natural/miss/list-dutch.scm>
 
   Once you are done, you execute
 
@@ -61,12 +61,12 @@
 
   This command updates the file
 
-  <space|2em><slink|$TEXMACS_PATH/langs/natural/miss/english-dutch-miss.scm>
+  <space|2em><slink|$ATHENA_PATH/langs/natural/miss/english-dutch-miss.scm>
 
   You next have to further correct this file. For testing the translations,
   simply put the correctly translated entries in
 
-  <space|2em><slink|$TEXMACS_PATH/langs/natural/dic/english-dutch.scm>
+  <space|2em><slink|$ATHENA_PATH/langs/natural/dic/english-dutch.scm>
 
   and restart <TeXmacs> (possibly using the option <verbatim|--setup> to
   clear the cache).

@@ -64,7 +64,7 @@ preprocess_style (tree st, url name) {
     r[i]= st[i];
     if (!is_atomic (st[i])) continue;
     string pack= st[i]->label * ".ts";
-    if (!remote || is_none (resolve (url ("$TEXMACS_STYLE_PATH") * pack))) {
+    if (!remote || is_none (resolve (url ("$ATHENA_STYLE_PATH") * pack))) {
       url stf= resolve (expand (head (name) * url_ancestor () * pack));
       if (!is_none (stf)) r[i]= as_string (stf);
     }
@@ -105,7 +105,7 @@ style_invalidate_cache () {
     sd= NULL;
   }
   init_style_data ();
-  remove ("$TEXMACS_HOME_PATH/system/cache" * url_wildcard ("__*"));
+  remove ("$ATHENA_HOME_PATH/system/cache" * url_wildcard ("__*"));
 }
 
 void
@@ -114,7 +114,7 @@ style_set_cache (tree style, hashmap<string,tree> H, tree t) {
   // cout << "set cache " << style << LF;
   sd->style_cache (copy (style))= H;
   sd->style_drd   (copy (style))= t;
-  url name ("$TEXMACS_HOME_PATH/system/cache", cache_file_name (style));
+  url name ("$ATHENA_HOME_PATH/system/cache", cache_file_name (style));
   if (!exists (name)) {
     save_string (name, tree_to_scheme (tuple ((tree) H, t)));
     // cout << "saved " << name << LF;
@@ -133,7 +133,7 @@ style_get_cache (tree style, hashmap<string,tree>& H, tree& t, bool& f) {
   }
   else {
     string s;
-    url name ("$TEXMACS_HOME_PATH/system/cache", cache_file_name (style));
+    url name ("$ATHENA_HOME_PATH/system/cache", cache_file_name (style));
     if (exists (name) && (!load_string (name, s, false))) {
       //cout << "loaded " << name << LF;
       tree p= scheme_to_tree (s);
@@ -319,7 +319,7 @@ bool
 hidden_package (string name) {
   if (name == "std-latex") return false;
   if (!hidden_packages->contains (name)) {
-    url pck_u= descendance ("$TEXMACS_PACKAGE_ROOT");
+    url pck_u= descendance ("$ATHENA_PACKAGE_ROOT");
     hidden_packages (name)= hidden_package (pck_u, name, false);
   }
   return hidden_packages [name];
@@ -359,28 +359,28 @@ compute_style_menu (url u, int kind) {
 
 object
 get_style_menu () {
-  url sty_u= descendance ("$TEXMACS_STYLE_ROOT");
+  url sty_u= descendance ("$ATHENA_STYLE_ROOT");
   string sty= compute_style_menu (sty_u, 0);
   return eval ("(menu-dynamic " * sty * ")");
 }
 
 object
 get_add_package_menu () {
-  url pck_u= descendance ("$TEXMACS_PACKAGE_ROOT");
+  url pck_u= descendance ("$ATHENA_PACKAGE_ROOT");
   string pck= compute_style_menu (pck_u, 1);
   return eval ("(menu-dynamic " * pck * ")");
 }
 
 object
 get_remove_package_menu () {
-  url pck_u= descendance ("$TEXMACS_PACKAGE_ROOT");
+  url pck_u= descendance ("$ATHENA_PACKAGE_ROOT");
   string pck= compute_style_menu (pck_u, 2);
   return eval ("(menu-dynamic " * pck * ")");
 }
 
 object
 get_toggle_package_menu () {
-  url pck_u= descendance ("$TEXMACS_PACKAGE_ROOT");
+  url pck_u= descendance ("$ATHENA_PACKAGE_ROOT");
   string pck= compute_style_menu (pck_u, 3);
   return eval ("(menu-dynamic " * pck * ")");
 }

@@ -7,11 +7,11 @@ foreach (_test_file ${TEST_SRC_FILES})
     ${_test_file}
   )
   target_link_libraries (${_test_name}
-    texmacs_body
-    ${TeXmacs_Libraries}
+    athena_body
+    ${ATHENA_Libraries}
     Qt5::Test
   )
   add_test (${_test_name} ${_test_name})
   set_tests_properties (${_test_name} PROPERTIES TIMEOUT 5)
-  set_tests_properties (${_test_name} PROPERTIES ENVIRONMENT "TEXMACS_PATH=${TEXMACS_SOURCE_DIR}/ATHENA")
+  set_tests_properties (${_test_name} PROPERTIES ENVIRONMENT "ATHENA_PATH=${ATHENA_SOURCE_DIR}/ATHENA")
 endforeach ()

@@ -45,7 +45,7 @@
     <code*|PATH>, <menu|Insert|Session|Matlab> will show up.
 
     <item>As you probably need to customize the <samp|matlab-plugin>, you
-    will want to install it under the <code*|$TEXMACS_HOME_PATH>:
+    will want to install it under the <code*|$ATHENA_HOME_PATH>:
 
     <code|<\code*>
       # For GNU/Linux or macOS
@@ -65,7 +65,7 @@
     Github and unzip <shell|master.zip> to the corresponding directory.
 
     <item>Then, it is critical to make sure that the <name|Matlab>-startup
-    script <verbatim|tm_matlab> in <code*|$TEXMACS_HOME_PATH/plugins/matlab/bin>
+    script <verbatim|tm_matlab> in <code*|$ATHENA_HOME_PATH/plugins/matlab/bin>
     looks like this<space|0.2spc>:\ 
   </enumerate>
 
@@ -79,7 +79,7 @@
 
       \ \ \ echo -ne "\\002verbatim:"
 
-      \ \ \ PLUGIN_CODE_PATH=$TEXMACS_PATH/plugins/matlab/code/
+      \ \ \ PLUGIN_CODE_PATH=$ATHENA_PATH/plugins/matlab/code/
 
       \ \ \ export MATLABPATH="$MATLABPATH:$PLUGIN_CODE_PATH"
 

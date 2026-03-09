@@ -176,7 +176,7 @@
           (url-append 
             (if (os-mingw?) (system->url "$APPDATA")  (system->url "~/.config"))
             (string->url "inkscape/extensions")))))
-         (source-dir (escape-shell (url-concretize (url-unix "$TEXMACS_PATH" "plugins/equation-editor/misc/inkscape_extension")))))
+         (source-dir (escape-shell (url-concretize (url-unix "$ATHENA_PATH" "plugins/equation-editor/misc/inkscape_extension")))))
          (if (os-mingw?)
            (system (string-append "xcopy " source-dir " " dest-dir "\\ /S /Y"))
            (system (string-append "mkdir -p " dest-dir " ; cp -r " source-dir "/texmacs " dest-dir)))
@@ -184,7 +184,7 @@
        
 (define (install-libreoffice-extension)
 ;; use OS file associations to open extension installer in libreoffice
-  (with lo-ext (escape-shell (url->string (url-complete (url-append (url-concretize (url-unix "$TEXMACS_PATH" "plugins/equation-editor/misc/")) (url-wildcard "SVG_and_Texmacs-L*.oxt")) "fr")))
+  (with lo-ext (escape-shell (url->string (url-complete (url-append (url-concretize (url-unix "$ATHENA_PATH" "plugins/equation-editor/misc/")) (url-wildcard "SVG_and_Texmacs-L*.oxt")) "fr")))
   (if (os-mingw?) 
     (system (string-append "start \"\" " lo-ext))
     (if (os-macos?) 

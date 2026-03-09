@@ -195,7 +195,7 @@ tracked_tree_to_latex_document (tree d, object opts, string& s, string& ms) {
     if (false) {
       cout << "Attempt " << attempt << LF;
       string mname= "marked-" * as_string (attempt) * ".tex";
-      save_string ("$TEXMACS_HOME_PATH/system/tmp/" * mname, ms, false);
+      save_string ("$ATHENA_HOME_PATH/system/tmp/" * mname, ms, false);
     }
     //cout << HRULE << "Marked latex" << LF << HRULE << ms << LF;
     l->insert (path (-1)); // force checking

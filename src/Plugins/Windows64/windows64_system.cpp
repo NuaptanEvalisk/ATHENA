@@ -133,7 +133,7 @@ void texmacs_fclose(FILE *&file, bool unlock) {
   file = nullptr;
 }
 
-TEXMACS_DIR texmacs_opendir(string dirname) {
+ATHENA_DIR texmacs_opendir(string dirname) {
   dirname = dirname * "\\*";
   texmacs_dir_t *dir = new texmacs_dir_t;
   dir->handle = FindFirstFileW(
@@ -147,12 +147,12 @@ TEXMACS_DIR texmacs_opendir(string dirname) {
   return dir;
 }
 
-void texmacs_closedir(TEXMACS_DIR dir) {
+void texmacs_closedir(ATHENA_DIR dir) {
   FindClose(dir->handle);
   delete dir;
 }
 
-texmacs_dirent texmacs_readdir(TEXMACS_DIR dirp) {
+texmacs_dirent texmacs_readdir(ATHENA_DIR dirp) {
   texmacs_dirent dirent;
   dirent.is_valid = dirp->is_find_data_valid;
   dirent.d_name = texmacs_wide_to_utf8(dirp->find_data.cFileName);

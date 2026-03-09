@@ -10,7 +10,7 @@
   Consider the <verbatim|world> plug-in in the directory
 
   <\verbatim>
-    \ \ \ \ $TEXMACS_PATH/examples/plugins
+    \ \ \ \ $ATHENA_PATH/examples/plugins
   </verbatim>
 
   This plug-in shows how to extend <TeXmacs> with some additional <scheme>
@@ -24,10 +24,10 @@
   the directory
 
   <\verbatim>
-    \ \ \ \ $TEXMACS_PATH/examples/plugins/world
+    \ \ \ \ $ATHENA_PATH/examples/plugins/world
   </verbatim>
 
-  to <verbatim|$TEXMACS_PATH/plugins> or <verbatim|$TEXMACS_HOME_PATH/plugins>.
+  to <verbatim|$ATHENA_PATH/plugins> or <verbatim|$ATHENA_HOME_PATH/plugins>.
   When relaunching <TeXmacs>, the plug-in should now be automatically
   recognized (a <menu|World> menu should appear in the menu bar).
 

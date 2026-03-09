@@ -138,8 +138,8 @@ static void banner(MKernelVector kv) {
 
 int
 main (int argc, char *argv[]) {
-  const char* tm_path=getenv("TEXMACS_PATH");
-  const char* tm_home_path=getenv("TEXMACS_HOME_PATH");
+  const char* tm_path=getenv("ATHENA_PATH");
+  const char* tm_home_path=getenv("ATHENA_HOME_PATH");
   char in [2148];
   char err[2048];
 	char tmmplinit [2048];

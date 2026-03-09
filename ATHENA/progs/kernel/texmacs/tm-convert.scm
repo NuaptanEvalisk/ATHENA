@@ -548,12 +548,12 @@
 
 ;; (define-public (save-viewers)
 ;;   "Save viewers from disk"
-;;   (with u "$TEXMACS_HOME_PATH/system/viewers.scm"
+;;   (with u "$ATHENA_HOME_PATH/system/viewers.scm"
 ;;     (save-object u (ahash-table->list viewer-table))))
 
 ;; (define (retrieve-viewers)
 ;;   "Retrieve viewers from disk"
-;;   (with u "$TEXMACS_HOME_PATH/system/viewers.scm"
+;;   (with u "$ATHENA_HOME_PATH/system/viewers.scm"
 ;;     (when (url-exists? u)
 ;;       (set! viewer-table (list->ahash-table (load-object u))))))
 

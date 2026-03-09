@@ -8,7 +8,7 @@
   En particular, el archivo de inicialización por defecto ejecuta
 
   <\verbatim>
-    \ \ \ \ $TEXMACS_PATH/progs/menu/main_menu.scm
+    \ \ \ \ $ATHENA_PATH/progs/menu/main_menu.scm
   </verbatim>
 
   a fin de configurar el menú principal de <TeXmacs>. Le sugerimos echar un

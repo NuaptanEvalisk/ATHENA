@@ -9,11 +9,11 @@
   Verzeichnis erstellen
 
   <\verbatim>
-    \ \ \ \ $TEXMACS_HOME_PATH/plugins/<em|myplugin>
+    \ \ \ \ $ATHENA_HOME_PATH/plugins/<em|myplugin>
   </verbatim>
 
   das Sie alle notwendigen Dateien enthalten wird. Denken Sie bitte daran,
-  dass der <verbatim|$TEXMACS_HOME_PATH> gemäÿ Vorgabe
+  dass der <verbatim|$ATHENA_HOME_PATH> gemäÿ Vorgabe
   <verbatim|$HOME/.TeXmacs> ist. Zusätzlich können Sie die folgenden
   Verzeichnisse erzeugen, falls Sie sie brauchen sollten:
 
@@ -41,12 +41,12 @@
   Unterverzeichnis existiert, dann wird
 
   <\verbatim>
-    \ \ \ \ $TEXMACS_HOME_PATH/plugins/<em|myplugin>/bin
+    \ \ \ \ $ATHENA_HOME_PATH/plugins/<em|myplugin>/bin
   </verbatim>
 
   automatisch zu der <verbatim|PATH>-Kontext-Variablen hinzugefügt. Beachten
   Sie, dass die Verzeichnisstruktur eines Plugins derjenigen von
-  <verbatim|$TEXMACS_PATH> ähnelt.
+  <verbatim|$ATHENA_PATH> ähnelt.
 
   <\example>
     Der simpelste Typ von Plugins besteht nur aus Daten-Dateien, wie z.B.
@@ -54,11 +54,11 @@
     die Verzeichnisse
 
     <\verbatim>
-      \ \ \ \ $TEXMACS_HOME_PATH/plugins/<em|myplugin>
+      \ \ \ \ $ATHENA_HOME_PATH/plugins/<em|myplugin>
 
-      \ \ \ \ $TEXMACS_HOME_PATH/plugins/<em|myplugin>/styles
+      \ \ \ \ $ATHENA_HOME_PATH/plugins/<em|myplugin>/styles
 
-      \ \ \ \ $TEXMACS_HOME_PATH/plugins/<em|myplugin>/packages
+      \ \ \ \ $ATHENA_HOME_PATH/plugins/<em|myplugin>/packages
     </verbatim>
 
     herzustellen und die Dateien in die entsprechenden Verzeichnisse zu
@@ -72,7 +72,7 @@
   <value|scheme>-Konfigurations-Datei erstellen
 
   <\verbatim>
-    \ \ \ \ $TEXMACS_HOME_PATH/plugins/<em|myplugin>/progs/init-<em|myplugin>.scm
+    \ \ \ \ $ATHENA_HOME_PATH/plugins/<em|myplugin>/progs/init-<em|myplugin>.scm
   </verbatim>
 
   Diese Konfigurations-Datei sollte eine Anweisung der folgenden Form
@@ -90,9 +90,9 @@
   Plugins erläutern. Viele weitere Beispiele finden Sie unter
 
   <\verbatim>
-    \ \ \ \ $TEXMACS_PATH/examples/plugins
+    \ \ \ \ $ATHENA_PATH/examples/plugins
 
-    \ \ \ \ $TEXMACS_PATH/plugins
+    \ \ \ \ $ATHENA_PATH/plugins
   </verbatim>
 
   Einige werden eingehender im Kapitel über

@@ -109,7 +109,7 @@ ispeller_rep::start () {
   }
 #ifdef ASPELL
   if ((name == "") || (!testdic)) {
-    u = url_system ("$TEXMACS_PATH\\" ASPELL "\\bin\\aspell.exe");
+    u = url_system ("$ATHENA_PATH\\" ASPELL "\\bin\\aspell.exe");
     testcmd = exists (u);
     if (testcmd)  {
       cmd = as_string(u);

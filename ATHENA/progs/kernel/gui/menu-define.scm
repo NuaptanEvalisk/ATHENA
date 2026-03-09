@@ -624,7 +624,7 @@
       (set-preference type r))))
 
 (define-public (tm-pattern name . args)
-  (cond ((url-exists? (url-append "$TEXMACS_PATTERN_PATH" (url-tail name)))
+  (cond ((url-exists? (url-append "$ATHENA_PATTERN_PATH" (url-tail name)))
          `(pattern ,(url->unix (url-tail name)) ,@args))
         ((string-starts? (url->unix (url->delta-unix name)) "../")
          (when (url? name) (set! name (url->system name)))
@@ -668,10 +668,10 @@
 
 (define-public (clipart-list)
   (list-filter
-   (list (list "Dot hatches" "$TEXMACS_PATH/misc/patterns/dots-hatches")
-         (list "Line hatches" "$TEXMACS_PATH/misc/patterns/lines-default")
-         (list "Artistic hatches" "$TEXMACS_PATH/misc/patterns/lines-artistic")
-         (list "Textile" "$TEXMACS_PATH/misc/patterns/textile")
+   (list (list "Dot hatches" "$ATHENA_PATH/misc/patterns/dots-hatches")
+         (list "Line hatches" "$ATHENA_PATH/misc/patterns/lines-default")
+         (list "Artistic hatches" "$ATHENA_PATH/misc/patterns/lines-artistic")
+         (list "Textile" "$ATHENA_PATH/misc/patterns/textile")
          (list "Hatch" "/opt/local/share/openclipart/special/patterns")
          (list "Personal" "~/patterns")
          (list "Simple" "~/simple-tiles"))
@@ -687,7 +687,7 @@
      (dynamic (standard-color-menu (lambda (answer) ,@(cddr x))))
      ---
      (dynamic (standard-pattern-menu (lambda (answer) ,@(cddr x))
-                                     "$TEXMACS_PATH/misc/patterns/vintage"
+                                     "$ATHENA_PATH/misc/patterns/vintage"
                                      ,(cadr x)))
      (when (nnull? (get-preferred-list "my patterns" 32))
        ---

@@ -6,7 +6,7 @@
   <tmdoc-title|Email templates>
 
   The server uses two email templates stored in
-  <verbatim|$TEXMACS_HOME_PATH/server/>:
+  <verbatim|$ATHENA_HOME_PATH/server/>:
 
   <\description>
     <item*|email-new-account.txt>Sent when a new account requires

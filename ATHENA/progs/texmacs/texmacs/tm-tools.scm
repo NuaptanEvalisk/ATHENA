@@ -67,13 +67,13 @@
   (set-show-kbd (not (get-show-kbd))))
 
 (tm-define (clear-font-cache)
-  (:synopsis "Clear font cache under TEXMACS_HOME_PATH")
+  (:synopsis "Clear font cache under ATHENA_HOME_PATH")
   (map system-remove
     (list
-      "$TEXMACS_HOME_PATH/system/cache/font_cache.scm"
-      "$TEXMACS_HOME_PATH/fonts/font-database.scm"
-      "$TEXMACS_HOME_PATH/fonts/font-features.scm"
-      "$TEXMACS_HOME_PATH/fonts/font-characteristics.scm")))
+      "$ATHENA_HOME_PATH/system/cache/font_cache.scm"
+      "$ATHENA_HOME_PATH/fonts/font-database.scm"
+      "$ATHENA_HOME_PATH/fonts/font-features.scm"
+      "$ATHENA_HOME_PATH/fonts/font-characteristics.scm")))
 
 (tm-define (scan-disk-for-fonts)
   (:interactive #t)

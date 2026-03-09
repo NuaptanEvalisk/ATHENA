@@ -130,17 +130,17 @@ void texmacs_fclose (FILE *&file, bool unlock) {
   file = nullptr;
 }
 
-TEXMACS_DIR texmacs_opendir (string dirname) {
-  return (TEXMACS_DIR)
+ATHENA_DIR texmacs_opendir (string dirname) {
+  return (ATHENA_DIR)
     opendir (texmacs_utf8_string_to_system_string (dirname).c_str());
 }
 
-void texmacs_closedir (TEXMACS_DIR dir) {
+void texmacs_closedir (ATHENA_DIR dir) {
   closedir ((DIR*)dir);
   dir = nullptr;
 }
 
-texmacs_dirent texmacs_readdir (TEXMACS_DIR dirp) {
+texmacs_dirent texmacs_readdir (ATHENA_DIR dirp) {
   struct dirent* entry = readdir (dirp);
   if (entry == NULL) {
     return {false, ""};
@@ -206,9 +206,9 @@ string get_default_theme () {
 }
 
 url texmacs_get_application_directory () {
-  // sometimes, the bin path is set in TEXMACS_BIN_PATH
+  // sometimes, the bin path is set in ATHENA_BIN_PATH
   string bin_path;
-  if (texmacs_getenv ("TEXMACS_BIN_PATH", bin_path))
+  if (texmacs_getenv ("ATHENA_BIN_PATH", bin_path))
     return url (bin_path) * "..";
 #ifdef OS_GNU_LINUX
   // use proc self exe to get the path of the executable

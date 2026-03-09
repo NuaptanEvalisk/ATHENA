@@ -13,26 +13,26 @@
     \ \ \ \ <em|mioplugin>-<em|version>-<em|architecture>.tar.gz
   </verbatim>
 
-  Se si installa <TeXmacs> nella directory <verbatim|$TEXMACS_PATH>, allora
+  Se si installa <TeXmacs> nella directory <verbatim|$ATHENA_PATH>, allora
   si dovrà scompattare questo tarball nella directory
-  <verbatim|$TEXMACS_PATH/plugins>, utilizzando il comando
+  <verbatim|$ATHENA_PATH/plugins>, utilizzando il comando
 
   <\verbatim>
     \ \ \ \ tar -zxvf <em|mioplugin>-<em|version>-<em|architecture>.tar.gz
   </verbatim>
 
   In tal modo verrà creata la sottodirectory <verbatim|<em|mioplugin>> in
-  <verbatim|$TEXMACS_PATH/plugins>. Dopo aver fatto ripartire <TeXmacs> il
+  <verbatim|$ATHENA_PATH/plugins>. Dopo aver fatto ripartire <TeXmacs> il
   plugin dovrebbe essere automaticamente riconosciuto. Siete comunque pregati
   di leggere la documentazione relativa al plugin che volete utilizzare per
   capirne bene il funzionamento.
 
   <\remark>
     Se non avete eseguito personalmente l'installazione di <TeXmacs> o se non
-    avete accesso diretto alla directory <verbatim|$TEXMACS_PATH>, potete
+    avete accesso diretto alla directory <verbatim|$ATHENA_PATH>, potete
     scompattare il tarball direttamente nella directory
-    <verbatim|$TEXMACS_HOME_PATH/plugins>. Infatti ricordiamo che
-    <verbatim|$TEXMACS_HOME_PATH> è per default <verbatim|$HOME/.TeXmacs>.
+    <verbatim|$ATHENA_HOME_PATH/plugins>. Infatti ricordiamo che
+    <verbatim|$ATHENA_HOME_PATH> è per default <verbatim|$HOME/.TeXmacs>.
     Dopo aver fatto ripartire <TeXmacs> il plugin dovrebbe, anche questa
     volta, essere automaticamente riconosciuto.
   </remark>
@@ -57,8 +57,8 @@
 
   <\remark>
     Per l'aggiornamento di un plugin è sufficiente rimuovere la versione
-    vecchia contenuta in <verbatim|$TEXMACS_PATH/plugins> o in
-    <verbatim|$TEXMACS_HOME_PATH/plugins>, utilizzando il comando
+    vecchia contenuta in <verbatim|$ATHENA_PATH/plugins> o in
+    <verbatim|$ATHENA_HOME_PATH/plugins>, utilizzando il comando
 
     <\verbatim>
       \ \ \ \ rm -rf <em|mioplugin>

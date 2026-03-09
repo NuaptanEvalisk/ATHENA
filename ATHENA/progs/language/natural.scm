@@ -63,7 +63,7 @@
 (tm-define (tr-file language)
   (:synopsis "Returns the path to the dictionary file for @language")
   (url-concretize
-   (string-append "$TEXMACS_PATH/langs/natural/dic/english-"
+   (string-append "$ATHENA_PATH/langs/natural/dic/english-"
                   language
                   ".scm")))
 

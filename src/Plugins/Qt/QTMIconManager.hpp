@@ -9,8 +9,8 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 
-#ifndef TEXMACS_QTMICONMANAGER_HPP
-#define TEXMACS_QTMICONMANAGER_HPP
+#ifndef ATHENA_QTMICONMANAGER_HPP
+#define ATHENA_QTMICONMANAGER_HPP
 
 #include <QApplication>
 
@@ -39,4 +39,4 @@ private:
 };
 
 #endif // QT_VERSION >= 0x060000
-#endif // TEXMACS_QTMICONMANAGER_HPP
+#endif // ATHENA_QTMICONMANAGER_HPP

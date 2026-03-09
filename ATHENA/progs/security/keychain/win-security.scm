@@ -21,7 +21,7 @@
   (report-system-error "Windows security command failed" cmd out err))
 
 (define (wallet-cmd)
-  (url-concretize (url-resolve-in-path "$TEXMACS_PATH/bin/winwallet")))
+  (url-concretize (url-resolve-in-path "$ATHENA_PATH/bin/winwallet")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Add generic password

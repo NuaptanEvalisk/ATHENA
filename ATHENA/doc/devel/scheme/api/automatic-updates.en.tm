@@ -31,7 +31,7 @@
   then zip and finally digitally sign the resulting
   <verbatim|TeXmacs-*.app.zip> with the script
   <verbatim|admin/misc/sign_update>. In order for this to work, one has to
-  set the environment variable <verbatim|TEXMACS_PRIVATE_DSA> to point to the
+  set the environment variable <verbatim|ATHENA_PRIVATE_DSA> to point to the
   location of the private <name|DSA> key used to sign releases. At the end of
   the build process a chunk of <name|XML> is printed that can be pasted in
   the <verbatim|appcast.xml> file.

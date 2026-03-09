@@ -30,7 +30,7 @@ struct tm_reader {
   string  last;               // last read string
 
   tm_reader (string buf2):
-    version (TEXMACS_VERSION),
+    version (ATHENA_VERSION),
     codes (STD_CODE),
     EXPAND_APPLY (EXPAND),
     backslash_ok (true),

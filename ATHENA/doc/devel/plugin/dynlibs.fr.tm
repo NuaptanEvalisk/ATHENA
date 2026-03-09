@@ -23,7 +23,7 @@
     sorties verbatim et qui sera lié à votre libraire partagé lors de
     l'exécution.
 
-    <item>Copiez le fichier <verbatim|$TEXMACS_PATH/include/TeXmacs.h> dans
+    <item>Copiez le fichier <verbatim|$ATHENA_PATH/include/TeXmacs.h> dans
     le répertoire include de votre source et écrivez les routines
     d'entrée/sortie en suivant le dernier protocole de communication de
     <TeXmacs> décrit ci-dessous.
@@ -49,7 +49,7 @@
 
   Le protocole de communication de <apply|TeXmacs> est utilisé pour lier
   dynamiquement des librairies à <apply|TeXmacs>. Le fichier
-  <verbatim|$TEXMACS_PATH/include/TeXmacs.h> contient les déclarations de
+  <verbatim|$ATHENA_PATH/include/TeXmacs.h> contient les déclarations de
   toutes les structures de données et toutes les fonctions utilisées par le
   protocole. En fait, nous prévoyons une succession de différents protocoles.
   Ils possèdent tous en commun les structures de données abstraites

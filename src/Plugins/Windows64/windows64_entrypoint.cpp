@@ -46,43 +46,43 @@
         it is the default behavior."
 #endif
 
-void setup_texmacs_path () {
+void setup_athena_path () {
   /*string environment_texmacs_path;
-  if (texmacs_getenv ("TEXMACS_PATH", environment_texmacs_path)) {
-    cout << "TEXMACS_PATH is set to: " 
+  if (texmacs_getenv ("ATHENA_PATH", environment_texmacs_path)) {
+    cout << "ATHENA_PATH is set to: " 
          << environment_texmacs_path << LF;
     return;
   }*/
   url exedir = texmacs_get_application_directory ();
   cout << "Executable directory is: " 
        << exedir << LF;
-    if (test_texmacs_path (exedir * "TeXmacs")) {
-      cout << "TEXMACS_PATH is autoset to: " 
+    if (test_athena_path (exedir * "TeXmacs")) {
+      cout << "ATHENA_PATH is autoset to: " 
            << exedir * "TeXmacs" << LF;
     return;
   }
-  if (test_texmacs_path (exedir * "..")) {
-    cout << "TEXMACS_PATH is autoset to: " 
+  if (test_athena_path (exedir * "..")) {
+    cout << "ATHENA_PATH is autoset to: " 
          << exedir * ".." << LF;
     return;
   }
-  cout << "TEXMACS_PATH is not set" << LF;
+  cout << "ATHENA_PATH is not set" << LF;
 }
 
-void setup_texmacs_home_path () {
+void setup_athena_home_path () {
   url appdata_path = url_system(get_local_appdata_path());
   url texmacs_home_path = appdata_path * "TeXmacs";
-  cout << "TEXMACS_HOME_PATH is autoset to: " 
+  cout << "ATHENA_HOME_PATH is autoset to: " 
        << texmacs_home_path << LF;
-  texmacs_setenv("TEXMACS_HOME_PATH", concretize(texmacs_home_path));
+  texmacs_setenv("ATHENA_HOME_PATH", concretize(texmacs_home_path));
 }
 
 int WINAPI CommonMain() {
   texmacs_attach_console();
   texmacs_initialize_displayname();
-  setup_texmacs_path();
+  setup_athena_path();
   //if (is_running_in_msix()) {
-  //  setup_texmacs_home_path();
+  //  setup_athena_home_path();
   //}
   texmacs_init_guile_hooks();
 
@@ -137,7 +137,7 @@ void texmacs_attach_console() {
 }
 
 void texmacs_initialize_displayname() {
-  if (_wgetenv(L"TEXMACS_DISPLAYNAME") != nullptr) {
+  if (_wgetenv(L"ATHENA_DISPLAYNAME") != nullptr) {
     return;
   }
   wchar_t username[256 + 1];
@@ -148,7 +148,7 @@ void texmacs_initialize_displayname() {
   }
 
   if (result) {
-    std::wstring full_username = L"TEXMACS_DISPLAYNAME=" 
+    std::wstring full_username = L"ATHENA_DISPLAYNAME=" 
                                  + std::wstring(username);
     _wputenv(full_username.c_str());
   } else {
@@ -159,6 +159,6 @@ void texmacs_initialize_displayname() {
     cout << "texmacs_initialize_displayname error " 
          << texmacs_wide_to_utf8(error_message) << "\r\n";
 
-    _wputenv(L"TEXMACS_DISPLAYNAME=Default User");
+    _wputenv(L"ATHENA_DISPLAYNAME=Default User");
   }
 }

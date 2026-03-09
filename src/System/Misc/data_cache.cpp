@@ -246,13 +246,13 @@ cache_refresh () {
 
 void
 cache_initialize () {
-  texmacs_path= url_system ("$TEXMACS_PATH");
-  if (get_env ("TEXMACS_HOME_PATH") == "")
+  texmacs_path= url_system ("$ATHENA_PATH");
+  if (get_env ("ATHENA_HOME_PATH") == "")
     texmacs_home_path= url_system ("$HOME/.ATHENA");
-  else texmacs_home_path= url_system ("$TEXMACS_HOME_PATH");
-  if (get_env ("TEXMACS_DOC_PATH") == "")
-    texmacs_doc_path= url_system ("$TEXMACS_PATH/doc");
-  else texmacs_doc_path= url_system ("$TEXMACS_DOC_PATH");
+  else texmacs_home_path= url_system ("$ATHENA_HOME_PATH");
+  if (get_env ("ATHENA_DOC_PATH") == "")
+    texmacs_doc_path= url_system ("$ATHENA_PATH/doc");
+  else texmacs_doc_path= url_system ("$ATHENA_DOC_PATH");
   
   texmacs_path_string = concretize (texmacs_path);
   texmacs_home_path_string = concretize (texmacs_home_path);

@@ -28,14 +28,14 @@
   (:require (check-jupyter?)))
 
 (define (jupyter-find-kernels)
-  (let* ((u "$TEXMACS_PATH/plugins/jupyter/tm_jupyter/kernels.py")
+  (let* ((u "$ATHENA_PATH/plugins/jupyter/tm_jupyter/kernels.py")
          (cmd (string-append (python-command) " " (system-url->string u)))
          (val (eval-system cmd))
          (l (string-split (string-replace val "\r" "") #\newline)))     
     (list-filter l (lambda (k) (!= "" k)))))
 
 (tm-define (jupyter-launcher kernel)
-  (let* ((u "$TEXMACS_PATH/plugins/jupyter/tm_jupyter/client.py")
+  (let* ((u "$ATHENA_PATH/plugins/jupyter/tm_jupyter/client.py")
          (cmd (string-append (python-command) " " (system-url->string u))))
     (if (== kernel "") cmd (string-append cmd " --kernel=" kernel))))
 

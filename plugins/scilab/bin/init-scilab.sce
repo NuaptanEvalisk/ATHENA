@@ -12,12 +12,12 @@
 banner ()
 
 funcprot(0)
-texmacs_path= getenv("TEXMACS_PATH");
-exec (fullfile (getenv("TEXMACS_PATH"), 'plugins/scilab/bin/tmstree.sci'), -1);
-exec (fullfile (getenv("TEXMACS_PATH"), 'plugins/scilab/bin/plotout.sci'), -1);
-exec (fullfile (getenv("TEXMACS_PATH"), 'plugins/scilab/bin/add_to_insert_menu.sci'), -1);
-exec (fullfile (getenv("TEXMACS_PATH"), 'plugins/scilab/bin/rm_from_insert_menu.sci'), -1);
-exec (fullfile (getenv("TEXMACS_PATH"), 'plugins/scilab/bin/populates_demo_menu.sci'), -1);
+texmacs_path= getenv("ATHENA_PATH");
+exec (fullfile (getenv("ATHENA_PATH"), 'plugins/scilab/bin/tmstree.sci'), -1);
+exec (fullfile (getenv("ATHENA_PATH"), 'plugins/scilab/bin/plotout.sci'), -1);
+exec (fullfile (getenv("ATHENA_PATH"), 'plugins/scilab/bin/add_to_insert_menu.sci'), -1);
+exec (fullfile (getenv("ATHENA_PATH"), 'plugins/scilab/bin/rm_from_insert_menu.sci'), -1);
+exec (fullfile (getenv("ATHENA_PATH"), 'plugins/scilab/bin/populates_demo_menu.sci'), -1);
 
 
 // hack to make completion works

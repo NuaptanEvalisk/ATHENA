@@ -18,7 +18,7 @@
 tree
 attach_data (tree body, new_data data, bool no_aux) {
   tree doc (DOCUMENT);
-  doc << compound ("TeXmacs", TEXMACS_VERSION);
+  doc << compound ("TeXmacs", ATHENA_VERSION);
   if (data->project != "")
     doc << compound ("project", copy (data->project));
   if (data->style != tree (TUPLE))

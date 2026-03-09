@@ -64,7 +64,7 @@ if ($MuPAD_version =~ m/(\d)\.(\d)\.(\d)/) {
 my $log = new IO::File ">> $logfile" if $verbose;
 
 # presets
-my $tmhome = $ENV{'TEXMACS_HOME_PATH'} || 
+my $tmhome = $ENV{'ATHENA_HOME_PATH'} || 
     ($ENV{'HOME'}.'/.TeXmacs/');
 my $uinitdir = $tmhome.'/tmp/mupad/link.'.$$;
 mkdir $tmhome.'/tmp';

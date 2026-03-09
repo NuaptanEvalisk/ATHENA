@@ -21,7 +21,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define gpg-wallet-url
-  (url-concretize "$TEXMACS_HOME_PATH/system/gnupg/wallet"))
+  (url-concretize "$ATHENA_HOME_PATH/system/gnupg/wallet"))
 
 (define gpg-wallet-table-url
   (url-append gpg-wallet-url "table.gpg"))

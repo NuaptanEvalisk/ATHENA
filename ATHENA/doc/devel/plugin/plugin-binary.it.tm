@@ -12,7 +12,7 @@
   Consideriamo l'esempio del plugin <verbatim|minimal> nella directory
 
   <\verbatim>
-    \ \ \ \ $TEXMACS_PATH/examples/plugins
+    \ \ \ \ $ATHENA_PATH/examples/plugins
   </verbatim>
 
   Il plugin è costituito dai seguenti file:
@@ -28,10 +28,10 @@
   Per testare il plugin è necessario copiare ricorsivamente la directory
 
   <\verbatim>
-    \ \ \ \ $TEXMACS_PATH/examples/plugins/minimal
+    \ \ \ \ $ATHENA_PATH/examples/plugins/minimal
   </verbatim>
 
-  in <verbatim|$TEXMACS_PATH/plugins> o in <verbatim|$TEXMACS_HOME_PATH/plugins>.
+  in <verbatim|$ATHENA_PATH/plugins> o in <verbatim|$ATHENA_HOME_PATH/plugins>.
   Quindi si esegue <verbatim|Makefile> utilizzando
 
   <\verbatim>

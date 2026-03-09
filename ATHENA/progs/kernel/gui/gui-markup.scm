@@ -633,7 +633,7 @@
   ($quote `(shortcut ($unquote (object->string ',cmd)))))
 
 (tm-define-macro ($tmdoc-link dest . l)
-  `(with s (string-append "$TEXMACS_DOC_PATH/" ,dest ".en.tm")
+  `(with s (string-append "$ATHENA_DOC_PATH/" ,dest ".en.tm")
      ($link s ,@l)))
 
 (tm-define-macro ($menu . l)

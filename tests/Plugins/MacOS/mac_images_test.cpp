@@ -16,7 +16,7 @@ class TestMacImages: public QObject {
   Q_OBJECT
 
 private:
-  url jpg_file= url ("$TEXMACS_PATH/misc/patterns/wall/solid.jpg");
+  url jpg_file= url ("$ATHENA_PATH/misc/patterns/wall/solid.jpg");
   int jpg_file_width= 500;
   int jpg_file_height= 500;
 
@@ -28,8 +28,8 @@ private slots:
 void
 TestMacImages::test_mac_supports () {
 #ifdef MACOSX_EXTENSIONS 
-  QVERIFY (!mac_supports (url ("$TEXMACS_PATH/misc/images/fancy-c.svg")));
-  QVERIFY (mac_supports (url ("$TEXMACS_PATH/misc/images/fancy-c.png")));
+  QVERIFY (!mac_supports (url ("$ATHENA_PATH/misc/images/fancy-c.svg")));
+  QVERIFY (mac_supports (url ("$ATHENA_PATH/misc/images/fancy-c.png")));
   QVERIFY (mac_supports (jpg_file));
 #endif
 }

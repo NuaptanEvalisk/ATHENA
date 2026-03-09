@@ -13,14 +13,14 @@
   <verbatim|name.tex> dans <apply|LaTeX> et voyez si vous obtenez un résultat
   satisfaisant. Si c'est le cas, vous pouvez soumettre au journal le fichier
   <verbatim|name.tex> et le fichier de style <verbatim|TeXmacs.sty>, que vous
-  trouverez dans le dossier <verbatim|$TEXMACS_PATH/misc/latex>.
+  trouverez dans le dossier <verbatim|$ATHENA_PATH/misc/latex>.
 
   Le journal auquel vous soumettez votre article utilise, en général, son
   propre fichier de style, disons <verbatim|journal.sty>. Dans ce cas, vous
   devrez aussi copier le fichier :
 
   <\verbatim>
-    \ \ \ \ $TEXMACS_PATH/styles/article.ts
+    \ \ \ \ $ATHENA_PATH/styles/article.ts
   </verbatim>
 
   dans :

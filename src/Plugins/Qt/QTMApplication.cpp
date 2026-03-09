@@ -11,7 +11,7 @@ QTMApplication::QTMApplication (int& argc, char** argv) :
 
 void QTMApplication::show_splash () {
   if (headless_mode) return;
-  string path = get_env ("TEXMACS_PATH");
+  string path = get_env ("ATHENA_PATH");
   url u1 = url_system (path * "/splash/splashscr.png");
   url u2 = url_system (path * "/../splash/splashscr.png");
   url u3 = url_system (path * "/misc/images/texmacs-512.png");
@@ -85,9 +85,9 @@ void QTMApplication::init_theme () {
   if (theme == "default") 
     theme = get_default_theme ();
   if (theme == "light")
-    tm_style_sheet= "$TEXMACS_PATH/misc/themes/standard-light.css";
+    tm_style_sheet= "$ATHENA_PATH/misc/themes/standard-light.css";
   else if (theme == "dark")
-    tm_style_sheet= "$TEXMACS_PATH/misc/themes/standard-dark.css";
+    tm_style_sheet= "$ATHENA_PATH/misc/themes/standard-dark.css";
   else if (theme != "")
     tm_style_sheet= theme;
 
@@ -96,7 +96,7 @@ void QTMApplication::init_theme () {
 }
 
 void QTMApplication::set_window_icon (string icon_path) {
-  url icon_url= url_system (get_env ("TEXMACS_PATH") * icon_path);
+  url icon_url= url_system (get_env ("ATHENA_PATH") * icon_path);
   if (exists (icon_url)) {
     const c_string _icon (as_string (icon_url));
     setWindowIcon (QIcon ((const char*) _icon));

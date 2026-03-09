@@ -158,7 +158,7 @@
 
 (define (url-resolve-package name)
   (let* ((style-name  (string-append name ".ts"))
-         (style-url   (url-append "$TEXMACS_STYLE_PATH" style-name))
+         (style-url   (url-append "$ATHENA_STYLE_PATH" style-name))
          (style-local (url-relative (current-buffer) style-name)))
     ;; we give precedence to the local style file to a global style with same name     
     (url-resolve (url-or style-local style-url) "r")))

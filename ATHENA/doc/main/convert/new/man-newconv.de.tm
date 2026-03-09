@@ -11,7 +11,7 @@
   Initialisierungs-Datei <verbatim|~/.TeXmacs/progs/my-init-texmacs.scm>
   definiert oder in einem speziellen Plugin. Einige Beispiele finden Sie in
   einem Unterverzeichnis <verbatim|progs/convert> ihres
-  <TeXmacs>-Verzeichnisses, wie z.B. <hlink|init-html.scm|$TEXMACS_PATH/progs/convert/html/init-html.scm>.
+  <TeXmacs>-Verzeichnisses, wie z.B. <hlink|init-html.scm|$ATHENA_PATH/progs/convert/html/init-html.scm>.
 
   <paragraph*|neue formate definieren>
 

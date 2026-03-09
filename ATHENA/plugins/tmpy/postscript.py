@@ -99,7 +99,7 @@ def ps_out (out):
 
 pdf_out_tmp_file = "pdf_out_" + str(os.getpid()) + ".pdf"
 
-tmpy_home_path= os.environ.get("TEXMACS_HOME_PATH")
+tmpy_home_path= os.environ.get("ATHENA_HOME_PATH")
 if tmpy_home_path is None:
     tmpy_home_path= tempfile.gettempdir()
     pdf_out_tmp_file = os.path.join (tmpy_home_path, pdf_out_tmp_file)

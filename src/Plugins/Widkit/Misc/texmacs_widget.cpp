@@ -137,7 +137,7 @@ make_footer (int mask) {
   array<string> F_name (3);
   F[0]= text_wk_widget (translate ("Welcome to TeXmacs!"));
   F[1]= glue_wk_widget (true, false);
-  F[2]= text_wk_widget ("TeXmacs " TEXMACS_VERSION);
+  F[2]= text_wk_widget ("TeXmacs " ATHENA_VERSION);
   F_name[0]= "left";
   F_name[1]= "middle";
   F_name[2]= "right";

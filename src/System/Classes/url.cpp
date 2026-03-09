@@ -37,7 +37,7 @@
 *     would be OK.
 *   - Unix format: this format forces unix-like notation even for
 *     other systems like Windows. This is convenient for url's in
-*     the source code. Unix environment variables like ~ and $TEXMACS_PATH
+*     the source code. Unix environment variables like ~ and $ATHENA_PATH
 *     can also be part of the url.
 *   - Standard format: the format which is used on the web.
 *     Notice that ftp://www.texmacs.org/pub and ftp://www.texmacs.org/pub/
@@ -763,7 +763,7 @@ descends (url u, url base) {
 
 bool
 is_secure (url u) {
-  return descends (u, expand (url_path ("$TEXMACS_SECURE_PATH")));
+  return descends (u, expand (url_path ("$ATHENA_SECURE_PATH")));
 }
 
 /******************************************************************************
@@ -1053,7 +1053,7 @@ resolve_in_path (url u) {
       cout << "TeXmacs] " << which << "\n";
   }
 #if defined(OS_MINGW) || defined(OS_ANDROID)
-  return resolve ((url_path ("$TEXMACS_PATH/bin") | url_path ("$PATH")) * u, "x");
+  return resolve ((url_path ("$ATHENA_PATH/bin") | url_path ("$PATH")) * u, "x");
 #else
   return resolve (url_path ("$PATH") * u, "x");
 #endif

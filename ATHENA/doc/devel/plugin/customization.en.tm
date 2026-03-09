@@ -15,7 +15,7 @@
   extension language and you may add such support to the file
   <verbatim|init-myplugin.scm>. We again recommend you to take a look at the
   plugins which are shipped with <TeXmacs> inside the directory
-  <verbatim|$TEXMACS_HOME_PATH/plugins>.
+  <verbatim|$ATHENA_HOME_PATH/plugins>.
 
   Certain output from your system might require special markup. For instance,
   assume that you want to associate an invisible type to each subexpression

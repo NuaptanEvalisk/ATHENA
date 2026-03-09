@@ -39,7 +39,7 @@ tmp=`echo DATA_BEGIN=X DATA_END=Y DATA_ESCAPE=Z | tr "XYZ" "\002\005\027" `
 eval $tmp
 
 #
-PLUGIN_DIR=$TEXMACS_PATH/plugins/feynmf
+PLUGIN_DIR=$ATHENA_PATH/plugins/feynmf
 
 # Defining temporary files directory and make it if it doesn't exist
 TEMP_DIR=~/.TeXmacs/system/tmp

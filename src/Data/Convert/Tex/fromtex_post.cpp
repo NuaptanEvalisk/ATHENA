@@ -2417,7 +2417,7 @@ latex_to_tree (tree t0) {
   tree t11= drd_correct (std_drd, t10);
   // cout << "\n\nt11= " << t11 << "\n\n";
 
-  if (!exists (url ("$TEXMACS_STYLE_PATH", style * ".ts")))
+  if (!exists (url ("$ATHENA_STYLE_PATH", style * ".ts")))
     style= "generic";
 
   if (lan != "") {
@@ -2449,7 +2449,7 @@ latex_to_tree (tree t0) {
   // cout << "\n\nt15= " << t15 << "\n\n";
   
   if (is_document) {
-    tree the_version= compound ("TeXmacs", TEXMACS_VERSION);
+    tree the_version= compound ("TeXmacs", ATHENA_VERSION);
     tree the_style  = compound ("style", tuple (style));
     tree the_body   = compound ("body", t15);
     if (textm_natbib)

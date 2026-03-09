@@ -22,7 +22,7 @@ private slots:
 
 void TestImageFiles::test_svg_image_size() {
   int w=0, h=0;
-  svg_image_size (url ("$TEXMACS_PATH/misc/images/fancy-c.svg"), w, h);
+  svg_image_size (url ("$ATHENA_PATH/misc/images/fancy-c.svg"), w, h);
   QCOMPARE (w, 24);
   QCOMPARE (h, 24);
 }

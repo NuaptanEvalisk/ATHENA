@@ -12,12 +12,12 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define (python-launcher)
-  (if (url-exists? "$TEXMACS_HOME_PATH/plugins/pyminimal")
+  (if (url-exists? "$ATHENA_HOME_PATH/plugins/pyminimal")
       (string-append "python \""
-                     (getenv "TEXMACS_HOME_PATH")
+                     (getenv "ATHENA_HOME_PATH")
                      "/plugins/pyminimal/src/minimal.py\"")
       (string-append "python \""
-                     (getenv "TEXMACS_PATH")
+                     (getenv "ATHENA_PATH")
                      "/plugins/pyminimal/src/minimal.py\"")))
 
 (plugin-configure pyminimal

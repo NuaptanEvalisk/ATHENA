@@ -197,9 +197,9 @@ declare_style (url u) {
 static bool
 is_internal_style (string style) {
   if (N (internal_styles) == 0) {
-    url sty_u= descendance ("$TEXMACS_PATH/styles");
+    url sty_u= descendance ("$ATHENA_PATH/styles");
     declare_style (sty_u);
-    sty_u= descendance ("$TEXMACS_PATH/packages");
+    sty_u= descendance ("$ATHENA_PATH/packages");
     declare_style (sty_u);
   }
   return internal_styles->contains (style);

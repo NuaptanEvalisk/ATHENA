@@ -73,8 +73,8 @@ void TestURL::test_is_rooted_web () {
 
 void TestURL::test_descends () {
   QVERIFY (descends (url_system ("/tmp/a.txt"), root_tmp));
-  QVERIFY (descends (url_system ("$TEXMACS_PATH/doc/main/man-manual.en.tm"),
-                     url_system ("$TEXMACS_PATH")));
+  QVERIFY (descends (url_system ("$ATHENA_PATH/doc/main/man-manual.en.tm"),
+                     url_system ("$ATHENA_PATH")));
   QVERIFY (!descends (root_no_such_tmp, root_tmp));
 }
 

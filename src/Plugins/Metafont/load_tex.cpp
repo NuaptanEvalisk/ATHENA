@@ -53,7 +53,7 @@ try_tfm (string family, int size, int osize, tex_font_metric& tfm, bool make) {
   if (DEBUG_STD) debug_fonts << "Try tfm " << name << "\n";
   url u= resolve_tex (name);
   if (is_none (u)) {
-    if (exists (url ("$TEXMACS_HOME_PATH/fonts/error", name))) {
+    if (exists (url ("$ATHENA_HOME_PATH/fonts/error", name))) {
       if (DEBUG_STD)
         debug_fonts << "Error during " << name << " loading\n";
       return false;
@@ -66,7 +66,7 @@ try_tfm (string family, int size, int osize, tex_font_metric& tfm, bool make) {
       if (is_none (u)) {
 	reset_tfm_path ();
 	u= resolve_tex (name);
-	save_string (url ("$TEXMACS_HOME_PATH/fonts/error", name), "");
+	save_string (url ("$ATHENA_HOME_PATH/fonts/error", name), "");
       }
     }
     if (is_none (u)) return false;
@@ -227,7 +227,7 @@ try_pk (string family, int size, int dpi, int dsize,
   if (DEBUG_STD) debug_fonts << "Open pk " << name << "\n";
   url u= resolve_tex (name);
   if (is_none (u)) {
-    if (exists (url ("$TEXMACS_HOME_PATH/fonts/error", name))) {
+    if (exists (url ("$ATHENA_HOME_PATH/fonts/error", name))) {
       if (DEBUG_STD)
         debug_fonts << "Error during " << name << " loading\n";
       return false;
@@ -243,7 +243,7 @@ try_pk (string family, int size, int dpi, int dsize,
       }
     }
     if (is_none (u)) {
-      save_string (url ("$TEXMACS_HOME_PATH/fonts/error", name), "");
+      save_string (url ("$ATHENA_HOME_PATH/fonts/error", name), "");
       if (DEBUG_STD)
         debug_fonts << "Error during " << name << " loading\n";
       return false;

@@ -14,11 +14,11 @@
   und Ihre persönliche Initialisierungsdatei
 
   <\verbatim>
-    \ \ \ \ $TEXMACS_HOME_PATH/progs/my-init-texmacs.scm
+    \ \ \ \ $ATHENA_HOME_PATH/progs/my-init-texmacs.scm
   </verbatim>
 
   aus, sofern sie existiert. Per Vorgabe entspricht der
-  <verbatim|$TEXMACS_HOME_PATH> dem Pfad <verbatim|.TeXmacs>. Jedes mal, wenn
+  <verbatim|$ATHENA_HOME_PATH> dem Pfad <verbatim|.TeXmacs>. Jedes mal, wenn
   Sie einen neuen Puffer erzeugen, indem Sie eine Datei laden oder mit dem
   Menü-befehl <menu|File|New> neu schaffen, wird die Datei
 
@@ -29,7 +29,7 @@
   ausgeführt und auch
 
   <\verbatim>
-    \ \ \ \ $TEXMACS_HOME_PATH/progs/my-init-buffer.scm
+    \ \ \ \ $ATHENA_HOME_PATH/progs/my-init-buffer.scm
   </verbatim>
 
   wenn sie existiert.

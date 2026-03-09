@@ -19,7 +19,7 @@
   <key|&> <abbr|resp.> <key|%>. The shortcuts for <math|\<in\>>,
   <math|\<prec\>> and <math|\|> have also been changed. For more information,
   please refer to the documentation on <hlink|editing mathematical
-  formulas|$TEXMACS_DOC_PATH/main/math/man-math.en.tm>. At this place, you
+  formulas|$ATHENA_DOC_PATH/main/math/man-math.en.tm>. At this place, you
   will also find more information about the newly added semantic editing
   features.
 

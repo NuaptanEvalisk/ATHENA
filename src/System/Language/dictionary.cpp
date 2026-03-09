@@ -61,7 +61,7 @@ void
 dictionary_rep::load (string fname) {
   fname= fname * ".scm";
   if (DEBUG_CONVERT) debug_convert << "Loading " << fname << "\n";
-  url u= url ("$TEXMACS_DIC_PATH") * url_wildcard ("*" * fname);
+  url u= url ("$ATHENA_DIC_PATH") * url_wildcard ("*" * fname);
   load (expand (complete (u)));
 }
 

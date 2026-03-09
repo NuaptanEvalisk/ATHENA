@@ -12,12 +12,12 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define (python-launcher)
-  (if (url-exists? "$TEXMACS_HOME_PATH/plugins/pyprompt")
+  (if (url-exists? "$ATHENA_HOME_PATH/plugins/pyprompt")
       (string-append "python \""
-                     (getenv "TEXMACS_HOME_PATH")
+                     (getenv "ATHENA_HOME_PATH")
                      "/plugins/pyprompt/src/prompt.py\"")
       (string-append "python \""
-                     (getenv "TEXMACS_PATH")
+                     (getenv "ATHENA_PATH")
                      "/plugins/pyprompt/src/prompt.py\"")))
 
 (plugin-configure pyprompt

@@ -3,7 +3,7 @@
 
 ## Installation
 It is a built-in plugin in TeXmacs. If you need to customize it, please install it
-under the `$TEXMACS_HOME_PATH`:
+under the `$ATHENA_HOME_PATH`:
 
 ``` bash
 # For GNU/Linux or macOS:
@@ -13,10 +13,10 @@ git clone git@github.com:texmacs/python.git $HOME/.TeXmacs/plugins/python
 git clone git@github.com:texmacs/python.git %APPDATA%\TeXmacs\plugins\python
 ```
 ## Change the Python Interpreter
-Install the Python plugin to `$TEXMACS_HOME_PATH/plugins` and then change
-the python launcher in `$TEXMACS_HOME_PATH/plugins/python/progs/init-python.scm`.
+Install the Python plugin to `$ATHENA_HOME_PATH/plugins` and then change
+the python launcher in `$ATHENA_HOME_PATH/plugins/python/progs/init-python.scm`.
 
-If you have permissions for `$TEXMACS_PATH/plugins/python/progs/init-python.scm`, you may also change the system one.
+If you have permissions for `$ATHENA_PATH/plugins/python/progs/init-python.scm`, you may also change the system one.
 
 Here is the detailed example of changing the python command:
 

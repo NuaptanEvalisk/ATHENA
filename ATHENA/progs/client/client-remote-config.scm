@@ -19,7 +19,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define server-preferences-edit-form-path
-  "$TEXMACS_PATH/progs/client/forms/server-preferences.tm")
+  "$ATHENA_PATH/progs/client/forms/server-preferences.tm")
 
 (define server-preferences-edit-form-url
   (string->url server-preferences-edit-form-path))

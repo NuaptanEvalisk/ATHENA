@@ -65,7 +65,7 @@ ispeller_rep::start () {
   
   config = new_aspell_config ();
 
-  url aspell_path = url_system ("$TEXMACS_PATH/aspell-0.60");
+  url aspell_path = url_system ("$ATHENA_PATH/aspell-0.60");
   if (exists (aspell_path)) {
     cout << "Found aspell path: " << concretize(aspell_path) << "\n";
     aspell_config_replace (config, "data-dir", as_charp(concretize(aspell_path)));

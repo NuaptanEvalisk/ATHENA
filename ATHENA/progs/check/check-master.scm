@@ -78,7 +78,7 @@
   (check-latex-export u))
 
 (tm-define (run-checks)
-  (check-latex-export "$TEXMACS_CHECKS/latex-export"))
+  (check-latex-export "$ATHENA_CHECKS/latex-export"))
 
 (tm-define (run-all-tests)
   (regtest-htmltm)

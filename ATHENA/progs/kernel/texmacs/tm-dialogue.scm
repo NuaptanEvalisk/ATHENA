@@ -301,7 +301,7 @@
 
 (define (save-learned)
   (with l (ahash-table->list interactive-arg-table)
-    (save-object "$TEXMACS_HOME_PATH/system/interactive.scm" l)))
+    (save-object "$ATHENA_HOME_PATH/system/interactive.scm" l)))
 
 (define (ahash-set-2! t x)
   (with (key . l) x
@@ -329,8 +329,8 @@
       (list->ahash-table m))))
 
 (define (retrieve-learned)
-  (if (url-exists? "$TEXMACS_HOME_PATH/system/interactive.scm")
-      (let* ((l (load-object "$TEXMACS_HOME_PATH/system/interactive.scm"))
+  (if (url-exists? "$ATHENA_HOME_PATH/system/interactive.scm")
+      (let* ((l (load-object "$ATHENA_HOME_PATH/system/interactive.scm"))
              (old? (and (pair? l) (pair? (car l)) (list-2? (caar l))))
              (decode (if old? decode-old list->ahash-table)))
         (set! interactive-arg-table (decode l)))))

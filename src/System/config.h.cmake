@@ -9,7 +9,7 @@
 /* Enable experimental style rewriting code */
 #cmakedefine EXPERIMENTAL 1
 
-/* gs path relative to TEXMACS_PATH */
+/* gs path relative to ATHENA_PATH */
 #cmakedefine GS_EXE "@GS_EXE@"
 
 /* gs fonts */
@@ -139,7 +139,7 @@
 /* Define to 1 if you have the ANSI C header files. */
 #cmakedefine STDC_HEADERS 1
 
-#cmakedefine TEXMACS_REVISION "@TEXMACS_REVISION@"
+#cmakedefine ATHENA_REVISION "@ATHENA_REVISION@"
 
 #cmakedefine TM_DYNAMIC_LINKING 1
 

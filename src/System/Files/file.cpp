@@ -431,13 +431,13 @@ url_numbered (url dir, string prefix, string postfix, int i) {
 
 url
 url_scratch (string prefix, string postfix, int i) {
-  url dir ("$TEXMACS_HOME_PATH/texts/scratch");
+  url dir ("$ATHENA_HOME_PATH/texts/scratch");
   return url_numbered (dir, prefix, postfix, i);
 }
 
 bool
 is_scratch (url u) {
-  return head (u) == url ("$TEXMACS_HOME_PATH/texts/scratch");
+  return head (u) == url ("$ATHENA_HOME_PATH/texts/scratch");
 }
 
 string
@@ -479,7 +479,7 @@ read_directory (url u, bool& error_flag) {
   bench_start ("read directory");
   // End caching
 
-  TEXMACS_DIR dp;
+  ATHENA_DIR dp;
   dp = texmacs_opendir (name);
 
   error_flag= (dp==NULL);

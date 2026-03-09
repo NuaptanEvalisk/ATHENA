@@ -14,7 +14,7 @@
 
     <\src-license>
       This software falls under the <hlink|GNU general public license,
-      version 3 or later|$TEXMACS_PATH/LICENSE>. It comes WITHOUT ANY
+      version 3 or later|$ATHENA_PATH/LICENSE>. It comes WITHOUT ANY
       WARRANTY WHATSOEVER. You should have received a copy of the license
       which the software. If not, see <hlink|http://www.gnu.org/licenses/gpl-3.0.html|http://www.gnu.org/licenses/gpl-3.0.html>.
     </src-license>
@@ -93,7 +93,7 @@
     </src-comment>
   </active*>
 
-  <assign|deco-title-shadow-picture|$TEXMACS_PATH/misc/pictures/shadows/title-drop-shadow.png>
+  <assign|deco-title-shadow-picture|$ATHENA_PATH/misc/pictures/shadows/title-drop-shadow.png>
 
   <assign|deco-title-shadow-effect|0>
 

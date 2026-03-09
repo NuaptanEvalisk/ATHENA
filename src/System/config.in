@@ -24,13 +24,13 @@
 /* Enable experimental style rewriting code */
 #undef EXPERIMENTAL
 
-/* gs path relative to TEXMACS_PATH */
+/* gs path relative to ATHENA_PATH */
 #undef GS_EXE
 
-/* gs fonts relative to TEXMACS_PATH */
+/* gs fonts relative to ATHENA_PATH */
 #undef GS_FONTS
 
-/* gs lib path relative to TEXMACS_PATH */
+/* gs lib path relative to ATHENA_PATH */
 #undef GS_LIB
 
 /* Guile version */
@@ -237,10 +237,10 @@
 #undef STDC_HEADERS
 
 /* Special fix */
-#undef TEXMACS_FIX_1_GNUTLS
+#undef ATHENA_FIX_1_GNUTLS
 
 /* Svn build revision */
-#undef TEXMACS_REVISION
+#undef ATHENA_REVISION
 
 /* Dynamic linking function name */
 #undef TM_DYNAMIC_LINKING

@@ -551,7 +551,7 @@ initialize_scheme () {
   "  (call-with-output-string\n"
   "    (lambda (port) (write obj port))))\n"
   "\n"
-  "(define (texmacs-version) \"" TEXMACS_VERSION "\")\n"
+  "(define (texmacs-version) \"" ATHENA_VERSION "\")\n"
   "(define object-stack '(()))";
   
   scm_c_eval_string (init_prg);

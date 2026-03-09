@@ -12,12 +12,12 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define (python-launcher)
-  (if (url-exists? "$TEXMACS_HOME_PATH/plugins/pycomplete")
+  (if (url-exists? "$ATHENA_HOME_PATH/plugins/pycomplete")
       (string-append "python \""
-                     (getenv "TEXMACS_HOME_PATH")
+                     (getenv "ATHENA_HOME_PATH")
                      "/plugins/pycomplete/src/complete.py\"")
       (string-append "python \""
-                     (getenv "TEXMACS_PATH")
+                     (getenv "ATHENA_PATH")
                      "/plugins/pycomplete/src/complete.py\"")))
 
 (plugin-configure pycomplete

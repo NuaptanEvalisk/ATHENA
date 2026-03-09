@@ -37,7 +37,7 @@ string
 gs_embedded () {
   string cmd; // no need to resolve each time
   
-  url tmp= url_system (get_env ("TEXMACS_PATH"));
+  url tmp= url_system (get_env ("ATHENA_PATH"));
   url gs= tmp * url_system (GS_EXE);
    
   if (exists (gs)) {
@@ -53,7 +53,7 @@ static string
 gs_executable () {
 #ifdef GS_EXE
   static string cmd;
-  if(N (cmd) == 0) cmd= gs_embedded (); // init had to be postponed because of TEXMACS_PATH initialization
+  if(N (cmd) == 0) cmd= gs_embedded (); // init had to be postponed because of ATHENA_PATH initialization
 #else
   static string cmd= gs_system ();
 #endif
@@ -232,7 +232,7 @@ gs_PDFimage_size (url image, int& w_pt, int& h_pt) {
       cmd << "--permit-file-read=" << sys_concretize (image) << " "; 
     cmd << "-dNODISPLAY -q -sFile=";
     cmd << sys_concretize (image);
-    cmd << " " << sys_concretize ("$TEXMACS_PATH/misc/convert/pdf_info.ps");
+    cmd << " " << sys_concretize ("$ATHENA_PATH/misc/convert/pdf_info.ps");
     buf= eval_system (cmd);
   }
   if (DEBUG_CONVERT) debug_convert << "gs cmd :" << cmd << LF

@@ -23,7 +23,7 @@
   particolare, si possono guardare i file nella directory
 
   <\verbatim>
-    \ \ \ \ $TEXMACS_PATH/progs/menu
+    \ \ \ \ $ATHENA_PATH/progs/menu
   </verbatim>
 
   per vedere come sono definiti i menu standard di <apply|TeXmacs>.

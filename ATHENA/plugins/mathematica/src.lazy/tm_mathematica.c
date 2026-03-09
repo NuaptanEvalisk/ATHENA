@@ -263,7 +263,7 @@ int main(int argc, char *argv[]) {
   log=fopen(LOG,"w");
 #endif
 
-  tm_path=getenv("TEXMACS_PATH");
+  tm_path=getenv("ATHENA_PATH");
   if (tm_path==NULL) exit(1);
   l=strlen(tm_path);
   pre_name=malloc(l+strlen(PRE_NAME)+1);

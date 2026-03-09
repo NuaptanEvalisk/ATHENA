@@ -31,16 +31,16 @@
   <abbr|etc.>) or add new <value|scheme> routines to <TeXmacs>. Your
   application may even extend the typesetter.
 
-  In the directory <verbatim|$TEXMACS_PATH/examples/plugins>, you can find
+  In the directory <verbatim|$ATHENA_PATH/examples/plugins>, you can find
   many examples of simple plug-ins. In the next sections, we will give a more
   detailed explanation of the interfacing features of <TeXmacs> on the hand
   of these examples. In order to try one of these examples, we recall that
   you just have to copy it to either one of the directories
 
   <\verbatim>
-    \ \ \ \ $TEXMACS_PATH/plugins
+    \ \ \ \ $ATHENA_PATH/plugins
 
-    \ \ \ \ $TEXMACS_HOME_PATH/plugins
+    \ \ \ \ $ATHENA_HOME_PATH/plugins
   </verbatim>
 
   and run the <verbatim|Makefile> (if there is one).

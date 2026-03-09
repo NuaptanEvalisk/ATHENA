@@ -108,7 +108,7 @@
 	    ("Summary"
 	     (load-help-article "about/about-summary"))
 	    ("License"
-	     (load-document "$TEXMACS_PATH/LICENSE"))
+	     (load-document "$ATHENA_PATH/LICENSE"))
 	    ("Philosophy"
 	     (load-help-article "about/philosophy/philosophy"))
 	    ("The TeXmacs authors"

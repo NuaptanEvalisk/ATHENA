@@ -17,7 +17,7 @@
   you will see a <menu|Mycas> entry in the <menu|Insert|Session> menu. Below,
   we briefly explain how the <name|Mycas> plug-in works. For more details on
   how to write your own plug-ins, look at <menu|Help|Interfacing>. A lot of
-  additional examples are provided in <verbatim|$TEXMACS_PATH/examples/plugins>.
+  additional examples are provided in <verbatim|$ATHENA_PATH/examples/plugins>.
 
   <section|Studying the source code step by step>
 

@@ -33,7 +33,7 @@ make_file (int cmd, tree data, array<url> args) {
     return as_url (make_cache[key]);
 
   // generate target and check names
-  url make_dir= "$TEXMACS_HOME_PATH/system/make";
+  url make_dir= "$ATHENA_HOME_PATH/system/make";
   int code= hash (key) & 0x7fffffff;
   string hex= as_hexadecimal (code);
   url make_target= make_dir * url (hex);
@@ -86,7 +86,7 @@ make_file (int cmd, tree data, array<url> args) {
       else if (is_rooted_tmfs (args[i])) {
         string name= as_string (args[i]);
         if (starts (name, "tmfs://artwork/")) {
-          url local ("$TEXMACS_HOME_PATH/misc/" * name (15, N(name)));
+          url local ("$ATHENA_HOME_PATH/misc/" * name (15, N(name)));
           if (exists (local)) { bis << local; continue; }
         }
         bis << make_file (CMD_GET_FROM_SERVER, "", range (args, i, i+1));

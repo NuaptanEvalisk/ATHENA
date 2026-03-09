@@ -136,7 +136,7 @@
 ;; Memorize which files have been built
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define lp-db (url->url "$TEXMACS_HOME_PATH/system/database/lp-master.tmdb"))
+(define lp-db (url->url "$ATHENA_HOME_PATH/system/database/lp-master.tmdb"))
 
 (define (lp-set-time-stamp src dir)
   (tmdb-keep-history lp-db #f)

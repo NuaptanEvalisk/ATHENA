@@ -18,7 +18,7 @@
 ;; Loading help buffers
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define help-file-path "$TEXMACS_DOC_PATH")
+(define help-file-path "$ATHENA_DOC_PATH")
 (define help-url-cache (make-ahash-table))
 (define help-titles (make-ahash-table))
 (define parse-times (make-ahash-table))
@@ -80,4 +80,4 @@
   (load-help-buffer (url-append "https://www.texmacs.org/tmbrowse" s)))
 
 (tm-define (update-help-online)
-  (system "cd $TEXMACS_HOME_PATH; wget ftp://ftp.texmacs.org/pub/TeXmacs/doc/TeXmacs-doc.tar.gz -O TeXmacs-doc.tar.gz; gunzip TeXmacs-doc.tar.gz; tar -xvf TeXmacs-doc.tar; rm -f TeXmacs-doc.tar"))
+  (system "cd $ATHENA_HOME_PATH; wget ftp://ftp.texmacs.org/pub/TeXmacs/doc/TeXmacs-doc.tar.gz -O TeXmacs-doc.tar.gz; gunzip TeXmacs-doc.tar.gz; tar -xvf TeXmacs-doc.tar; rm -f TeXmacs-doc.tar"))

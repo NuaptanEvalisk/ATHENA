@@ -111,8 +111,8 @@ Here, we take care that these characters are properly translated back to texmacs
     return bytes(s, 'utf8').decode('unicode_escape')
 
 TEXTEXT_NS = u"http://www.iki.fi/pav/software/textext/"
-TEXMACS_NS = u"https://www.texmacs.org/"
-TEXMACS_OLD_NS = u"http://www.texmacs.org/"
+ATHENA_NS = u"https://www.texmacs.org/"
+ATHENA_OLD_NS = u"http://www.texmacs.org/"
 SVG_NS = u"http://www.w3.org/2000/svg"
 XLINK_NS = u"http://www.w3.org/1999/xlink"
 
@@ -179,31 +179,31 @@ class Texmacs(inkex.EffectExtension):
             #inkex.utils.debug("root: " + root.tag )
             # selects each member of selection in turn ;
             #only the first one which can be processed will be
-            if ('{%s}texmacscode' % TEXMACS_NS) in root.attrib :
+            if ('{%s}texmacscode' % ATHENA_NS) in root.attrib :
                 node = root
             else :
-                node = root.find('.//{%s}g[@{%s}texmacscode]' % (SVG_NS, TEXMACS_NS))
+                node = root.find('.//{%s}g[@{%s}texmacscode]' % (SVG_NS, ATHENA_NS))
             if node is not None:
-                tm_equation = string_unescape(node.attrib.get('{%s}texmacscode' % TEXMACS_NS, ''))
-                if '{%s}texmacsstyle'%TEXMACS_NS in node.attrib: #contains styling info (fonts , font size...)
-                    tm_style = string_unescape(node.attrib.get('{%s}texmacsstyle' % TEXMACS_NS, ''))
+                tm_equation = string_unescape(node.attrib.get('{%s}texmacscode' % ATHENA_NS, ''))
+                if '{%s}texmacsstyle'%ATHENA_NS in node.attrib: #contains styling info (fonts , font size...)
+                    tm_style = string_unescape(node.attrib.get('{%s}texmacsstyle' % ATHENA_NS, ''))
                 else:
                     tm_style =''
-                if '{%s}texmacsstyle2'%TEXMACS_NS in node.attrib: #further contains document style info
-                    tm_style2 = string_unescape(node.attrib.get('{%s}texmacsstyle2' % TEXMACS_NS, ''))
+                if '{%s}texmacsstyle2'%ATHENA_NS in node.attrib: #further contains document style info
+                    tm_style2 = string_unescape(node.attrib.get('{%s}texmacsstyle2' % ATHENA_NS, ''))
                 else:
                     tm_style2 ='generic'
                 return (node, '', tm_equation, tm_style, tm_style2)
         
             else : 
-                if ('{%s}texmacscode' % TEXMACS_OLD_NS) in root.attrib :
+                if ('{%s}texmacscode' % ATHENA_OLD_NS) in root.attrib :
                     node = root
                 else :
-                    node = root.find('.//{%s}g[@{%s}texmacscode]' % (SVG_NS, TEXMACS_OLD_NS)) 
+                    node = root.find('.//{%s}g[@{%s}texmacscode]' % (SVG_NS, ATHENA_OLD_NS)) 
                 if node is not None:
-                    tm_equation = string_unescape(node.attrib.get('{%s}texmacscode' % TEXMACS_OLD_NS, ''))
-                    if '{%s}texmacsstyle'%TEXMACS_OLD_NS in node.attrib: #further contains styling info
-                        tm_style = string_unescape(node.attrib.get('{%s}texmacsstyle' % TEXMACS_OLD_NS, ''))
+                    tm_equation = string_unescape(node.attrib.get('{%s}texmacscode' % ATHENA_OLD_NS, ''))
+                    if '{%s}texmacsstyle'%ATHENA_OLD_NS in node.attrib: #further contains styling info
+                        tm_style = string_unescape(node.attrib.get('{%s}texmacsstyle' % ATHENA_OLD_NS, ''))
                     else:
                         tm_style =''
                     return (node, '', tm_equation, tm_style, 'generic')

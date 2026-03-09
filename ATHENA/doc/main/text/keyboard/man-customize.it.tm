@@ -7,7 +7,7 @@
 
   L'utilizzatore può modificare il comportamento della tastiera. Per fare
   questo, suggeriamo di guardare innanzitutto i file nella directory
-  <verbatim|$TEXMACS_PATH/progs/keyboard>, dove è definito il comportamento
+  <verbatim|$ATHENA_PATH/progs/keyboard>, dove è definito il comportamento
   standard della tastiera. Si potrà quindi ridefinire il comportamento della
   tastiera in un proprio file di inizializzazione.
 

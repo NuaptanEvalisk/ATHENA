@@ -18,12 +18,12 @@
         (string-append s "\n<EOF>\n"))))
 
 (define (dratex-launcher)
-  (if (url-exists? "$TEXMACS_HOME_PATH/plugins/tmpy")
+  (if (url-exists? "$ATHENA_HOME_PATH/plugins/tmpy")
       (string-append (python-command) " \""
-                     (getenv "TEXMACS_HOME_PATH")
+                     (getenv "ATHENA_HOME_PATH")
                      "/plugins/tmpy/session/tm_dratex.py\"")
       (string-append (python-command) " \""
-                     (getenv "TEXMACS_PATH")
+                     (getenv "ATHENA_PATH")
                      "/plugins/tmpy/session/tm_dratex.py\"")))
 
 (plugin-configure dratex

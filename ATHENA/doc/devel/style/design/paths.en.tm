@@ -11,29 +11,29 @@
   important <apply|TeXmacs> paths:
 
   <\itemize>
-    <item><verbatim|$TEXMACS_PATH> is the main path for <apply|TeXmacs>.
+    <item><verbatim|$ATHENA_PATH> is the main path for <apply|TeXmacs>.
 
-    <item><verbatim|$TEXMACS_HOME_PATH> is the main user path for
+    <item><verbatim|$ATHENA_HOME_PATH> is the main user path for
     <apply|TeXmacs> files (documents, styles or programs). By default, this
     path is set to <verbatim|~/.TeXmacs>.
 
-    <item><verbatim|$TEXMACS_STYLE_ROOT> the root directories for style
-    files. By default, this path contains <verbatim|$TEXMACS_PATH/styles> and
-    <verbatim|$TEXMACS_HOME_PATH/styles>.
+    <item><verbatim|$ATHENA_STYLE_ROOT> the root directories for style
+    files. By default, this path contains <verbatim|$ATHENA_PATH/styles> and
+    <verbatim|$ATHENA_HOME_PATH/styles>.
 
-    <item><verbatim|$TEXMACS_PACKAGE_ROOT> the root directories for style
+    <item><verbatim|$ATHENA_PACKAGE_ROOT> the root directories for style
     packages. By default, this path contains
-    <verbatim|$TEXMACS_PATH/packages> and
-    <verbatim|$TEXMACS_HOME_PATH/packages>.
+    <verbatim|$ATHENA_PATH/packages> and
+    <verbatim|$ATHENA_HOME_PATH/packages>.
 
-    <item><verbatim|$TEXMACS_STYLE_PATH> contains the path for including
+    <item><verbatim|$ATHENA_STYLE_PATH> contains the path for including
     style files. By default, this path contains <verbatim|.> and all
-    subdirectories in <verbatim|$TEXMACS_STYLE_ROOT> and
-    <verbatim|$TEXMACS_PACKAGE_ROOT>.
+    subdirectories in <verbatim|$ATHENA_STYLE_ROOT> and
+    <verbatim|$ATHENA_PACKAGE_ROOT>.
 
-    <item><verbatim|$TEXMACS_FILE_PATH> contains the path for searching text
-    files. By default, this path contains <verbatim|$TEXMACS_STYLE_PATH>,
-    <verbatim|$TEXMACS_PATH/texts> and <verbatim|$TEXMACS_HOME_PATH/texts>.
+    <item><verbatim|$ATHENA_FILE_PATH> contains the path for searching text
+    files. By default, this path contains <verbatim|$ATHENA_STYLE_PATH>,
+    <verbatim|$ATHENA_PATH/texts> and <verbatim|$ATHENA_HOME_PATH/texts>.
   </itemize>
 
   <apply|tmdoc-copyright|1998--2002|Joris van der Hoeven>

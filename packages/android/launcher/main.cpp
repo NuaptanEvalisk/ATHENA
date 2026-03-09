@@ -67,10 +67,10 @@ void *main_thread (void* args) {
   QString progsPath = QDir::homePath() + "/TeXmacs/progs";
   QString pluginsPath = QDir::homePath() + "/TeXmacs/plugins";
 
-  qputenv("TEXMACS_HOME_PATH", homePath.toUtf8());
-  qputenv("TEXMACS_PATH", path.toUtf8());
-  qputenv("TEXMACS_PROGS_PATH", progsPath.toUtf8());
-  qputenv("TEXMACS_PLUGINS_PATH", pluginsPath.toUtf8());
+  qputenv("ATHENA_HOME_PATH", homePath.toUtf8());
+  qputenv("ATHENA_PATH", path.toUtf8());
+  qputenv("ATHENA_PROGS_PATH", progsPath.toUtf8());
+  qputenv("ATHENA_PLUGINS_PATH", pluginsPath.toUtf8());
   qputenv("GUILE_LOAD_PATH", QDir::homePath().toUtf8());
   qDebug() << "Starting TeXmacs...";
 

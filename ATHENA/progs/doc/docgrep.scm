@@ -70,8 +70,8 @@
     (tm->stree (build-doc-search-results keyword the-result))))
 
 (define (src-file-short-name s) 
-  (let ((p1 (url->system (unix->url "$TEXMACS_PATH/")))
-        (p2 (url->system (unix->url "$TEXMACS_SOURCE_PATH/"))))
+  (let ((p1 (url->system (unix->url "$ATHENA_PATH/")))
+        (p2 (url->system (unix->url "$ATHENA_SOURCE_PATH/"))))
     (cond ((nstring? s) s)  ;; wtf?
           ((string-starts? s p1) (string-drop s (string-length p1)))
           ((string-starts? s p2) (string-drop s (string-length p2)))
@@ -141,24 +141,24 @@
          (what (query-ref query "what"))
          (lan  (string-take (language-to-locale (get-output-language)) 2)))
     (cond ((== type "Scheme")
-           (srcgrep what "$TEXMACS_PATH/progs" "*.scm"))
+           (srcgrep what "$ATHENA_PATH/progs" "*.scm"))
           ((== type "Styles")
-           (srcgrep what "$TEXMACS_PATH/styles:$TEXMACS_PATH/packages" "*.ts"))
+           (srcgrep what "$ATHENA_PATH/styles:$ATHENA_PATH/packages" "*.ts"))
           ((== type "C++")
-           (srcgrep what "$TEXMACS_SOURCE_PATH/src" "*.hpp" "*.cpp"))
+           (srcgrep what "$ATHENA_SOURCE_PATH/src" "*.hpp" "*.cpp"))
           ((== type "All code")
-           (srcgrep what "$TEXMACS_PATH:$TEXMACS_SOURCE_PATH/src"
+           (srcgrep what "$ATHENA_PATH:$ATHENA_SOURCE_PATH/src"
                     "*.scm" "*.hpp" "*.cpp" "*.ts"))
           ((== type "texts")
-           (docgrep what "$TEXMACS_FILE_PATH" "*.tm"))
+           (docgrep what "$ATHENA_FILE_PATH" "*.tm"))
           ((== type "recent")
            (txtgrep what (recent-file-list 50)))
           ((== type "doc")
-           (docgrep what "$TEXMACS_DOC_PATH"
+           (docgrep what "$ATHENA_DOC_PATH"
             (string-append "*." lan ".tm")
             (string-append "*." lan ".tmml")))
           (else
-           (docgrep what "$TEXMACS_DOC_PATH" "*.en.tm")))))
+           (docgrep what "$ATHENA_DOC_PATH" "*.en.tm")))))
 
 (tmfs-title-handler (grep query doc)
   (with what (query-ref query "what")

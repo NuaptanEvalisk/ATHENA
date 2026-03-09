@@ -137,7 +137,7 @@ typedef struct texmacs_android_dir_t {
   QString dirname;
 } texmacs_android_dir_t;
 
-TEXMACS_DIR texmacs_opendir(string dirname) {
+ATHENA_DIR texmacs_opendir(string dirname) {
   QDirIterator *iterator = new QDirIterator(
     texmacs_string_to_qstring(dirname),
     QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot
@@ -149,16 +149,16 @@ TEXMACS_DIR texmacs_opendir(string dirname) {
   texmacs_android_dir_t *dir = new texmacs_android_dir_t;
   dir->iterator = iterator;
   dir->dirname = texmacs_string_to_qstring(dirname);
-  return (TEXMACS_DIR)dir;
+  return (ATHENA_DIR)dir;
 }
 
-void texmacs_closedir(TEXMACS_DIR dir) {
+void texmacs_closedir(ATHENA_DIR dir) {
   texmacs_android_dir_t *dirp = (texmacs_android_dir_t*)dir;
   delete dirp->iterator;
   delete dirp;
 }
 
-texmacs_dirent texmacs_readdir(TEXMACS_DIR dirp) {
+texmacs_dirent texmacs_readdir(ATHENA_DIR dirp) {
   texmacs_android_dir_t *dir = (texmacs_android_dir_t*)dirp;
   if (!dir->iterator->hasNext()) {
     return {false, ""};

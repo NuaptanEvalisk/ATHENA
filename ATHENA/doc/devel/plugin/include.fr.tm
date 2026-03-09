@@ -16,17 +16,17 @@
   <TeXmacs>. Il suffit de créer un répertoire :
 
   <\verbatim>
-    \ \ \ \ $TEXMACS_HOME_PATH/plugins/myplugin
+    \ \ \ \ $ATHENA_HOME_PATH/plugins/myplugin
   </verbatim>
 
   où <verbatim|myplugin> est le nom de votre plugin. Nous vous rappelons que
-  <verbatim|$TEXMACS_HOME_PATH> est assimilé à <verbatim|~/.TeXmacs> par
-  défaut. Vous trouverez dans le répertoire <verbatim|$TEXMACS_PATH/plugins>
+  <verbatim|$ATHENA_HOME_PATH> est assimilé à <verbatim|~/.TeXmacs> par
+  défaut. Vous trouverez dans le répertoire <verbatim|$ATHENA_PATH/plugins>
   tous les plugins standards qui sont livrés avec <TeXmacs>. Servez-vous en
   de base pour construire les vôtres.
 
   Le répertoire <verbatim|myplugin> devra contenir une structure de
-  répertoire similaire à la structure du répertoire <verbatim|$TEXMACS_PATH>,
+  répertoire similaire à la structure du répertoire <verbatim|$ATHENA_PATH>,
   quoique vous puissiez omettre les sous-répertoires dont vous ne vous servez
   pas. Néanmoins, il vous faudra créer un fichier
   <verbatim|progs/init-myplugin.scm> qui décrira l'initialisation de votre

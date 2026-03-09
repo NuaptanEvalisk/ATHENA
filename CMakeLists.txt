@@ -2,7 +2,7 @@
 ###############################################################################
 #
 # MODULE      : CMakeLists.txt
-# DESCRIPTION : CMake file for TeXmacs
+# DESCRIPTION : CMake file for ATHENA
 # COPYRIGHT   : (C) 2008-2009  Massimiliano Gubinelli
 #               (C) 2017-2020  Darcy Shen
 #
@@ -12,8 +12,8 @@
 
 
 # The name of our project is "TEXMACS". CMakeLists files in this project can 
-# refer to the root source directory of the project as ${TEXMACS_SOURCE_DIR} and 
-# to the root binary directory of the project as ${TEXMACS_BINARY_DIR}. 
+# refer to the root source directory of the project as ${ATHENA_SOURCE_DIR} and 
+# to the root binary directory of the project as ${ATHENA_BINARY_DIR}. 
 
 
 ### --------------------------------------------------------------------
@@ -48,31 +48,31 @@ endif (CCACHE_FOUND)
 
 project (TEXMACS CXX C) # check for C/C++ compiler
 
-set (PACKAGE TeXmacs)
-set (CMAKE_MODULE_PATH ${TEXMACS_SOURCE_DIR}/cmake)
+set (PACKAGE ATHENA)
+set (CMAKE_MODULE_PATH ${ATHENA_SOURCE_DIR}/cmake)
 
 set (VERSION_MAJOR "2")
 set (VERSION_MINOR "1")
 set (VERSION_BUILD "4")
-set (TEXMACS_VERSION ${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_BUILD})
+set (ATHENA_VERSION ${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_BUILD})
 
-set (DEVEL_VERSION ${TEXMACS_VERSION})
+set (DEVEL_VERSION ${ATHENA_VERSION})
 set (DEVEL_RELEASE "1")
-set (STABLE_VERSION ${TEXMACS_VERSION})
+set (STABLE_VERSION ${ATHENA_VERSION})
 set (STABLE_RELEASE "1")
-set (TEXMACS_REVISION ${TEXMACS_VERSION})
+set (ATHENA_REVISION ${ATHENA_VERSION})
 
 
 ### --------------------------------------------------------------------
 ### Options
 ### --------------------------------------------------------------------
-if (NOT TEXMACS_GUI)
+if (NOT ATHENA_GUI)
   if (APPLE)
-    set (TEXMACS_GUI "Qt4" CACHE STRING "TeXmacs Gui (Qt, X11, Aqua)")
+    set (ATHENA_GUI "Qt4" CACHE STRING "ATHENA Gui (Qt, X11, Aqua)")
   else (APPLE)
-    set (TEXMACS_GUI "Qt" CACHE STRING "TeXmacs Gui (Qt, X11, Aqua)")
+    set (ATHENA_GUI "Qt" CACHE STRING "ATHENA Gui (Qt, X11, Aqua)")
   endif (APPLE)
-endif (NOT TEXMACS_GUI)
+endif (NOT ATHENA_GUI)
 
 option (QTPIPES "use Qt pipes" ON)
 
@@ -370,14 +370,14 @@ else (WIN32)
 endif (WIN32)
 
 set (CONFIG_STD_SETENV "#define STD_SETENV")
-set (tm_orig ${TEXMACS_SOURCE_DIR})
+set (tm_orig ${ATHENA_SOURCE_DIR})
 set (CONFIG_HOST_OS "linux-gnu") # TODO: should not be hard-coded
 set (CONFIG_HOST_VENDOR "pc") # TODO: should not be hard-coded
 set (CONFIG_HOST_CPU ${CMAKE_SYSTEM_PROCESSOR})
 set (CONFIG_USER $ENV{USER})
 string (TIMESTAMP CONFIG_DATE)
-set (tm_devel TeXmacs-${DEVEL_VERSION})
-set (tm_stable TeXmacs-${STABLE_VERSION})
+set (tm_devel ATHENA-${DEVEL_VERSION})
+set (tm_stable ATHENA-${STABLE_VERSION})
 set (tm_devel_release ${tm_devel}-${DEVEL_RELEASE})
 set (tm_stable_release ${tm_stable}-${STABLE_RELEASE})
 
@@ -388,78 +388,78 @@ set (datadir ${datarootdir})
 set (tmdata ${datarootdir}/ATHENA)
 set (tmbin ${exec_prefix}/lib/athena/ATHENA)
 
-configure_file (${TEXMACS_SOURCE_DIR}/src/System/config.h.cmake ${TEXMACS_BINARY_DIR}/src/System/config.h)
-configure_file (${TEXMACS_SOURCE_DIR}/src/System/tm_configure.hpp.cmake ${TEXMACS_BINARY_DIR}/src/System/tm_configure.hpp)
+configure_file (${ATHENA_SOURCE_DIR}/src/System/config.h.cmake ${ATHENA_BINARY_DIR}/src/System/config.h)
+configure_file (${ATHENA_SOURCE_DIR}/src/System/tm_configure.hpp.cmake ${ATHENA_BINARY_DIR}/src/System/tm_configure.hpp)
 
-set (CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -include ${TEXMACS_BINARY_DIR}/src/System/config.h")
+set (CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -include ${ATHENA_BINARY_DIR}/src/System/config.h")
 
 ### --------------------------------------------------------------------
 ### the include dirs
 ### --------------------------------------------------------------------
-set (TeXmacs_Include_Dirs
-  ${TEXMACS_SOURCE_DIR}/src/Data/Convert
-  ${TEXMACS_SOURCE_DIR}/src/Data/Document
-  ${TEXMACS_SOURCE_DIR}/src/Data/Drd
-  ${TEXMACS_SOURCE_DIR}/src/Data/History
-  ${TEXMACS_SOURCE_DIR}/src/Data/Observers
-  ${TEXMACS_SOURCE_DIR}/src/Data/Parser
-  ${TEXMACS_SOURCE_DIR}/src/Data/String
-  ${TEXMACS_SOURCE_DIR}/src/Data/Tree
-  ${TEXMACS_SOURCE_DIR}/src/Edit
-  ${TEXMACS_SOURCE_DIR}/src/Edit/Editor
-  ${TEXMACS_SOURCE_DIR}/src/Edit/Interface
-  ${TEXMACS_SOURCE_DIR}/src/Edit/Modify
-  ${TEXMACS_SOURCE_DIR}/src/Edit/Process
-  ${TEXMACS_SOURCE_DIR}/src/Edit/Replace
-  ${TEXMACS_SOURCE_DIR}/src/Graphics/Bitmap_fonts
-  ${TEXMACS_SOURCE_DIR}/src/Graphics/Colors
-  ${TEXMACS_SOURCE_DIR}/src/Graphics/Fonts
-  ${TEXMACS_SOURCE_DIR}/src/Graphics/Gui
-  ${TEXMACS_SOURCE_DIR}/src/Graphics/Handwriting
-  ${TEXMACS_SOURCE_DIR}/src/Graphics/Mathematics
-  ${TEXMACS_SOURCE_DIR}/src/Graphics/Pictures
-  ${TEXMACS_SOURCE_DIR}/src/Graphics/Renderer
-  ${TEXMACS_SOURCE_DIR}/src/Graphics/Spacial
-  ${TEXMACS_SOURCE_DIR}/src/Graphics/Types
-  ${TEXMACS_SOURCE_DIR}/src/Kernel/Abstractions
-  ${TEXMACS_SOURCE_DIR}/src/Kernel/Containers
-  ${TEXMACS_SOURCE_DIR}/src/Kernel/Types
-  ${TEXMACS_SOURCE_DIR}/src/Plugins
-  ${TEXMACS_SOURCE_DIR}/src/Plugins/Pdf/LibAesgm
-  ${TEXMACS_SOURCE_DIR}/src/Plugins/Gnutls
-  ${TEXMACS_SOURCE_DIR}/src/Plugins/Qt
-  ${TEXMACS_SOURCE_DIR}/src/Scheme
-  ${TEXMACS_SOURCE_DIR}/src/Scheme/Guile
-  ${TEXMACS_SOURCE_DIR}/src/Scheme/Scheme
-  ${TEXMACS_SOURCE_DIR}/src/Style/Environment
-  ${TEXMACS_SOURCE_DIR}/src/Style/Evaluate
-  ${TEXMACS_SOURCE_DIR}/src/Style/Memorizer
-  ${TEXMACS_SOURCE_DIR}/src/System
-  ${TEXMACS_SOURCE_DIR}/src/System/Boot
-  ${TEXMACS_SOURCE_DIR}/src/System/Classes
-  ${TEXMACS_SOURCE_DIR}/src/System/Files
-  ${TEXMACS_SOURCE_DIR}/src/System/Language
-  ${TEXMACS_SOURCE_DIR}/src/System/Link
-  ${TEXMACS_SOURCE_DIR}/src/System/Misc
-  ${TEXMACS_SOURCE_DIR}/src/Texmacs
-  ${TEXMACS_SOURCE_DIR}/src/Texmacs/Data
-  ${TEXMACS_SOURCE_DIR}/src/Typeset
-  ${TEXMACS_SOURCE_DIR}/src/Typeset/Bridge
-  ${TEXMACS_SOURCE_DIR}/src/Typeset/Concat
-  ${TEXMACS_SOURCE_DIR}/src/Typeset/Page
-  ${TEXMACS_SOURCE_DIR}/ATHENA/include 
-  ${TEXMACS_BINARY_DIR}/src/System/ 
+set (ATHENA_Include_Dirs
+  ${ATHENA_SOURCE_DIR}/src/Data/Convert
+  ${ATHENA_SOURCE_DIR}/src/Data/Document
+  ${ATHENA_SOURCE_DIR}/src/Data/Drd
+  ${ATHENA_SOURCE_DIR}/src/Data/History
+  ${ATHENA_SOURCE_DIR}/src/Data/Observers
+  ${ATHENA_SOURCE_DIR}/src/Data/Parser
+  ${ATHENA_SOURCE_DIR}/src/Data/String
+  ${ATHENA_SOURCE_DIR}/src/Data/Tree
+  ${ATHENA_SOURCE_DIR}/src/Edit
+  ${ATHENA_SOURCE_DIR}/src/Edit/Editor
+  ${ATHENA_SOURCE_DIR}/src/Edit/Interface
+  ${ATHENA_SOURCE_DIR}/src/Edit/Modify
+  ${ATHENA_SOURCE_DIR}/src/Edit/Process
+  ${ATHENA_SOURCE_DIR}/src/Edit/Replace
+  ${ATHENA_SOURCE_DIR}/src/Graphics/Bitmap_fonts
+  ${ATHENA_SOURCE_DIR}/src/Graphics/Colors
+  ${ATHENA_SOURCE_DIR}/src/Graphics/Fonts
+  ${ATHENA_SOURCE_DIR}/src/Graphics/Gui
+  ${ATHENA_SOURCE_DIR}/src/Graphics/Handwriting
+  ${ATHENA_SOURCE_DIR}/src/Graphics/Mathematics
+  ${ATHENA_SOURCE_DIR}/src/Graphics/Pictures
+  ${ATHENA_SOURCE_DIR}/src/Graphics/Renderer
+  ${ATHENA_SOURCE_DIR}/src/Graphics/Spacial
+  ${ATHENA_SOURCE_DIR}/src/Graphics/Types
+  ${ATHENA_SOURCE_DIR}/src/Kernel/Abstractions
+  ${ATHENA_SOURCE_DIR}/src/Kernel/Containers
+  ${ATHENA_SOURCE_DIR}/src/Kernel/Types
+  ${ATHENA_SOURCE_DIR}/src/Plugins
+  ${ATHENA_SOURCE_DIR}/src/Plugins/Pdf/LibAesgm
+  ${ATHENA_SOURCE_DIR}/src/Plugins/Gnutls
+  ${ATHENA_SOURCE_DIR}/src/Plugins/Qt
+  ${ATHENA_SOURCE_DIR}/src/Scheme
+  ${ATHENA_SOURCE_DIR}/src/Scheme/Guile
+  ${ATHENA_SOURCE_DIR}/src/Scheme/Scheme
+  ${ATHENA_SOURCE_DIR}/src/Style/Environment
+  ${ATHENA_SOURCE_DIR}/src/Style/Evaluate
+  ${ATHENA_SOURCE_DIR}/src/Style/Memorizer
+  ${ATHENA_SOURCE_DIR}/src/System
+  ${ATHENA_SOURCE_DIR}/src/System/Boot
+  ${ATHENA_SOURCE_DIR}/src/System/Classes
+  ${ATHENA_SOURCE_DIR}/src/System/Files
+  ${ATHENA_SOURCE_DIR}/src/System/Language
+  ${ATHENA_SOURCE_DIR}/src/System/Link
+  ${ATHENA_SOURCE_DIR}/src/System/Misc
+  ${ATHENA_SOURCE_DIR}/src/ATHENA
+  ${ATHENA_SOURCE_DIR}/src/ATHENA/Data
+  ${ATHENA_SOURCE_DIR}/src/Typeset
+  ${ATHENA_SOURCE_DIR}/src/Typeset/Bridge
+  ${ATHENA_SOURCE_DIR}/src/Typeset/Concat
+  ${ATHENA_SOURCE_DIR}/src/Typeset/Page
+  ${ATHENA_SOURCE_DIR}/ATHENA/include 
+  ${ATHENA_BINARY_DIR}/src/System/ 
 )
 
 if (WIN32)
-  set (TeXmacs_Include_Dirs ${TeXmacs_Include_Dirs}
-    ${TEXMACS_SOURCE_DIR}/src/Plugins/Windows
-    ${TEXMACS_SOURCE_DIR}/src/Plugins/Windows/nowide
+  set (ATHENA_Include_Dirs ${ATHENA_Include_Dirs}
+    ${ATHENA_SOURCE_DIR}/src/Plugins/Windows
+    ${ATHENA_SOURCE_DIR}/src/Plugins/Windows/nowide
   )
 else (WIN32)
 endif (WIN32)
 
-set (TeXmacs_Include_Dirs ${TeXmacs_Include_Dirs}
+set (ATHENA_Include_Dirs ${ATHENA_Include_Dirs}
   ${Guile_INCLUDE_DIRS} ${FREETYPE_INCLUDE_DIRS} ${Cairo_INCLUDE_DIRS}
   ${IMLIB2_INCLUDE_DIR} ${GMP_INCLUDES} ${GNUTLS_INCLUDE_DIRS}
 )
@@ -467,101 +467,101 @@ set (TeXmacs_Include_Dirs ${TeXmacs_Include_Dirs}
 ### --------------------------------------------------------------------
 ### the main sources
 ### --------------------------------------------------------------------
-file (GLOB_RECURSE TeXmacs_Base_SRCS
-  "${TEXMACS_SOURCE_DIR}/src/Data/*.cpp"
-  "${TEXMACS_SOURCE_DIR}/src/Edit/*.cpp"
-  "${TEXMACS_SOURCE_DIR}/src/Graphics/*.cpp"
-  "${TEXMACS_SOURCE_DIR}/src/Kernel/*.cpp"
-  "${TEXMACS_SOURCE_DIR}/src/Scheme/Scheme/*.cpp"
-  "${TEXMACS_SOURCE_DIR}/src/Scheme/Guile/*.cpp"
-  "${TEXMACS_SOURCE_DIR}/src/System/*.cpp"
-  "${TEXMACS_SOURCE_DIR}/src/Texmacs/Data/*.cpp"
-  "${TEXMACS_SOURCE_DIR}/src/Texmacs/Server/*.cpp"
-  "${TEXMACS_SOURCE_DIR}/src/Texmacs/Window/*.cpp"
-  "${TEXMACS_SOURCE_DIR}/src/Typeset/*.cpp"
+file (GLOB_RECURSE ATHENA_Base_SRCS
+  "${ATHENA_SOURCE_DIR}/src/Data/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Edit/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Graphics/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Kernel/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Scheme/Scheme/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Scheme/Guile/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/System/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/ATHENA/Data/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/ATHENA/Server/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/ATHENA/Window/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Typeset/*.cpp"
 )
 
-file (GLOB_RECURSE TeXmacs_Std_Plugins_SRCS
-  "${TEXMACS_SOURCE_DIR}/src/Plugins/Axel/*.cpp"
-  "${TEXMACS_SOURCE_DIR}/src/Plugins/Bibtex/*.cpp"
-  "${TEXMACS_SOURCE_DIR}/src/Plugins/Cairo/*.cpp"
-  "${TEXMACS_SOURCE_DIR}/src/Plugins/Database/*.cpp"
-  "${TEXMACS_SOURCE_DIR}/src/Plugins/Freetype/*.cpp"
-  "${TEXMACS_SOURCE_DIR}/src/Plugins/Gnutls/*.cpp"
-  "${TEXMACS_SOURCE_DIR}/src/Plugins/Pdf/*.cpp"
-  "${TEXMACS_SOURCE_DIR}/src/Plugins/Pdf/*.c"
-  "${TEXMACS_SOURCE_DIR}/src/Plugins/Ghostscript/*.cpp"
-  "${TEXMACS_SOURCE_DIR}/src/Plugins/Imlib2/*.cpp"
-  "${TEXMACS_SOURCE_DIR}/src/Plugins/Ispell/*.cpp"
-  "${TEXMACS_SOURCE_DIR}/src/Plugins/Metafont/*.cpp"
-  "${TEXMACS_SOURCE_DIR}/src/Plugins/LaTeX_Preview/*.cpp"
-  "${TEXMACS_SOURCE_DIR}/src/Plugins/Mplayer/*.cpp"
-  "${TEXMACS_SOURCE_DIR}/src/Plugins/Openssl/*.cpp"
-  "${TEXMACS_SOURCE_DIR}/src/Plugins/Sqlite3/*.cpp"
-  "${TEXMACS_SOURCE_DIR}/src/Plugins/Updater/*.cpp"
+file (GLOB_RECURSE ATHENA_Std_Plugins_SRCS
+  "${ATHENA_SOURCE_DIR}/src/Plugins/Axel/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Plugins/Bibtex/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Plugins/Cairo/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Plugins/Database/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Plugins/Freetype/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Plugins/Gnutls/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Plugins/Pdf/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Plugins/Pdf/*.c"
+  "${ATHENA_SOURCE_DIR}/src/Plugins/Ghostscript/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Plugins/Imlib2/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Plugins/Ispell/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Plugins/Metafont/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Plugins/LaTeX_Preview/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Plugins/Mplayer/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Plugins/Openssl/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Plugins/Sqlite3/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Plugins/Updater/*.cpp"
 )
 
-file (GLOB_RECURSE TeXmacs_Style_SRCS
-  "${TEXMACS_SOURCE_DIR}/src/Style/*.cpp"
+file (GLOB_RECURSE ATHENA_Style_SRCS
+  "${ATHENA_SOURCE_DIR}/src/Style/*.cpp"
 )
 
-set (TeXmacs_All_SRCS ${TeXmacs_Base_SRCS}  ${TeXmacs_Std_Plugins_SRCS})
+set (ATHENA_All_SRCS ${ATHENA_Base_SRCS}  ${ATHENA_Std_Plugins_SRCS})
 
 ### --------------------------------------------------------------------
 ### GUI Interfaces
 ### --------------------------------------------------------------------
 
-file (GLOB_RECURSE TeXmacs_Widkit_SRCS "${TEXMACS_SOURCE_DIR}/src/Plugins/Widkit/*.cpp")
-file (GLOB_RECURSE TeXmacs_X11_SRCS "${TEXMACS_SOURCE_DIR}/src/Plugins/X11/*.cpp")
-file (GLOB_RECURSE TeXmacs_Qt_SRCS "${TEXMACS_SOURCE_DIR}/src/Plugins/Qt/*.cpp")
+file (GLOB_RECURSE ATHENA_Widkit_SRCS "${ATHENA_SOURCE_DIR}/src/Plugins/Widkit/*.cpp")
+file (GLOB_RECURSE ATHENA_X11_SRCS "${ATHENA_SOURCE_DIR}/src/Plugins/X11/*.cpp")
+file (GLOB_RECURSE ATHENA_Qt_SRCS "${ATHENA_SOURCE_DIR}/src/Plugins/Qt/*.cpp")
 
-set (TeXmacs_Qt_Moc_HDRS
-  ${TEXMACS_SOURCE_DIR}/src/Plugins/Qt/QTMApplication.hpp
-  ${TEXMACS_SOURCE_DIR}/src/Plugins/Qt/QTMFileDialog.hpp
-  ${TEXMACS_SOURCE_DIR}/src/Plugins/Qt/QTMGuiHelper.hpp
-  ${TEXMACS_SOURCE_DIR}/src/Plugins/Qt/QTMInteractiveInputHelper.hpp
-  ${TEXMACS_SOURCE_DIR}/src/Plugins/Qt/QTMInteractivePrompt.hpp
-  ${TEXMACS_SOURCE_DIR}/src/Plugins/Qt/QTMMenuHelper.hpp
-  ${TEXMACS_SOURCE_DIR}/src/Plugins/Qt/QTMPipeLink.hpp
-  ${TEXMACS_SOURCE_DIR}/src/Plugins/Qt/QTMPrintDialog.hpp
-  ${TEXMACS_SOURCE_DIR}/src/Plugins/Qt/QTMPrinterSettings.hpp
-  ${TEXMACS_SOURCE_DIR}/src/Plugins/Qt/QTMScrollView.hpp
-  ${TEXMACS_SOURCE_DIR}/src/Plugins/Qt/QTMSockets.hpp
-  ${TEXMACS_SOURCE_DIR}/src/Plugins/Qt/QTMStyle.hpp
-  ${TEXMACS_SOURCE_DIR}/src/Plugins/Qt/QTMTreeModel.hpp
-  ${TEXMACS_SOURCE_DIR}/src/Plugins/Qt/QTMVaultChooser.hpp
-  ${TEXMACS_SOURCE_DIR}/src/Plugins/Qt/QTMWidget.hpp
-  ${TEXMACS_SOURCE_DIR}/src/Plugins/Qt/QTMWindow.hpp
+set (ATHENA_Qt_Moc_HDRS
+  ${ATHENA_SOURCE_DIR}/src/Plugins/Qt/QTMApplication.hpp
+  ${ATHENA_SOURCE_DIR}/src/Plugins/Qt/QTMFileDialog.hpp
+  ${ATHENA_SOURCE_DIR}/src/Plugins/Qt/QTMGuiHelper.hpp
+  ${ATHENA_SOURCE_DIR}/src/Plugins/Qt/QTMInteractiveInputHelper.hpp
+  ${ATHENA_SOURCE_DIR}/src/Plugins/Qt/QTMInteractivePrompt.hpp
+  ${ATHENA_SOURCE_DIR}/src/Plugins/Qt/QTMMenuHelper.hpp
+  ${ATHENA_SOURCE_DIR}/src/Plugins/Qt/QTMPipeLink.hpp
+  ${ATHENA_SOURCE_DIR}/src/Plugins/Qt/QTMPrintDialog.hpp
+  ${ATHENA_SOURCE_DIR}/src/Plugins/Qt/QTMPrinterSettings.hpp
+  ${ATHENA_SOURCE_DIR}/src/Plugins/Qt/QTMScrollView.hpp
+  ${ATHENA_SOURCE_DIR}/src/Plugins/Qt/QTMSockets.hpp
+  ${ATHENA_SOURCE_DIR}/src/Plugins/Qt/QTMStyle.hpp
+  ${ATHENA_SOURCE_DIR}/src/Plugins/Qt/QTMTreeModel.hpp
+  ${ATHENA_SOURCE_DIR}/src/Plugins/Qt/QTMVaultChooser.hpp
+  ${ATHENA_SOURCE_DIR}/src/Plugins/Qt/QTMWidget.hpp
+  ${ATHENA_SOURCE_DIR}/src/Plugins/Qt/QTMWindow.hpp
 )
 
-set (TeXmacs_Cocoa_SRCS
-  ${TEXMACS_SOURCE_DIR}/src/Plugins/Cocoa/aqua_dialogues.mm
-  ${TEXMACS_SOURCE_DIR}/src/Plugins/Cocoa/aqua_gui.mm
-  ${TEXMACS_SOURCE_DIR}/src/Plugins/Cocoa/aqua_menu.mm
-  ${TEXMACS_SOURCE_DIR}/src/Plugins/Cocoa/aqua_renderer.mm
-  ${TEXMACS_SOURCE_DIR}/src/Plugins/Cocoa/aqua_utilities.mm
-  ${TEXMACS_SOURCE_DIR}/src/Plugins/Cocoa/aqua_widget.mm
-  ${TEXMACS_SOURCE_DIR}/src/Plugins/Cocoa/mac_utilities.mm
-  ${TEXMACS_SOURCE_DIR}/src/Plugins/Cocoa/TMButtonsController.m
-  ${TEXMACS_SOURCE_DIR}/src/Plugins/Cocoa/TMView.mm
+set (ATHENA_Cocoa_SRCS
+  ${ATHENA_SOURCE_DIR}/src/Plugins/Cocoa/aqua_dialogues.mm
+  ${ATHENA_SOURCE_DIR}/src/Plugins/Cocoa/aqua_gui.mm
+  ${ATHENA_SOURCE_DIR}/src/Plugins/Cocoa/aqua_menu.mm
+  ${ATHENA_SOURCE_DIR}/src/Plugins/Cocoa/aqua_renderer.mm
+  ${ATHENA_SOURCE_DIR}/src/Plugins/Cocoa/aqua_utilities.mm
+  ${ATHENA_SOURCE_DIR}/src/Plugins/Cocoa/aqua_widget.mm
+  ${ATHENA_SOURCE_DIR}/src/Plugins/Cocoa/mac_utilities.mm
+  ${ATHENA_SOURCE_DIR}/src/Plugins/Cocoa/TMButtonsController.m
+  ${ATHENA_SOURCE_DIR}/src/Plugins/Cocoa/TMView.mm
 )
 
-set (TeXmacs_MacOS_SRCS
-  ${TEXMACS_SOURCE_DIR}/src/Plugins/MacOS/HIDRemote.m
-  ${TEXMACS_SOURCE_DIR}/src/Plugins/MacOS/mac_images.mm
-  ${TEXMACS_SOURCE_DIR}/src/Plugins/MacOS/mac_spellservice.mm
-  ${TEXMACS_SOURCE_DIR}/src/Plugins/MacOS/mac_utilities.mm
+set (ATHENA_MacOS_SRCS
+  ${ATHENA_SOURCE_DIR}/src/Plugins/MacOS/HIDRemote.m
+  ${ATHENA_SOURCE_DIR}/src/Plugins/MacOS/mac_images.mm
+  ${ATHENA_SOURCE_DIR}/src/Plugins/MacOS/mac_spellservice.mm
+  ${ATHENA_SOURCE_DIR}/src/Plugins/MacOS/mac_utilities.mm
 )
 
 ### --------------------------------------------------------------------
-### Determine TeXmacs_Libraries
+### Determine ATHENA_Libraries
 ### --------------------------------------------------------------------
 
 if (APPLE AND EXISTS /opt/homebrew/lib)
   link_directories (/opt/homebrew/lib)
 endif ()
 
-set (TeXmacs_Libraries
+set (ATHENA_Libraries
   ${Guile_LIBRARIES}
   ${ZLIB_LIBRARIES}
   ${JPEG_LIBRARIES}
@@ -570,19 +570,19 @@ set (TeXmacs_Libraries
 )
 
 if (LINKED_CAIRO)
-  set (TeXmacs_Libraries ${TeXmacs_Libraries} ${CAIRO_LIBRARIES})
+  set (ATHENA_Libraries ${ATHENA_Libraries} ${CAIRO_LIBRARIES})
 endif (LINKED_CAIRO)
 
 if (LINKED_SQLITE3)
-  set (TeXmacs_Libraries ${TeXmacs_Libraries} ${SQLITE3_LIBRARIES})
+  set (ATHENA_Libraries ${ATHENA_Libraries} ${SQLITE3_LIBRARIES})
 endif (LINKED_SQLITE3)
 
 if (LINKED_FREETYPE)
-  set (TeXmacs_Libraries ${TeXmacs_Libraries} ${FREETYPE_LIBRARIES})
+  set (ATHENA_Libraries ${ATHENA_Libraries} ${FREETYPE_LIBRARIES})
 endif (LINKED_FREETYPE)
 
 if (LINKED_GNUTLS)
-  set (TeXmacs_Libraries ${TeXmacs_Libraries} ${GNUTLS_LIBRARIES})
+  set (ATHENA_Libraries ${ATHENA_Libraries} ${GNUTLS_LIBRARIES})
 endif (LINKED_GNUTLS)
 
 ### --------------------------------------------------------------------
@@ -591,21 +591,21 @@ endif (LINKED_GNUTLS)
 
 set (GUI_TYPE) # nothing or WIN32, MACOSX bundles are treated independetly
 
-if (TEXMACS_GUI MATCHES "Qt.*")
+if (ATHENA_GUI MATCHES "Qt.*")
 
-  if (TEXMACS_GUI STREQUAL "Qt4")
+  if (ATHENA_GUI STREQUAL "Qt4")
     find_package (Qt4 REQUIRED)
-    set (TeXmacs_Include_Dirs
-      ${TeXmacs_Include_Dirs}
+    set (ATHENA_Include_Dirs
+      ${ATHENA_Include_Dirs}
       ${QT_INCLUDE_DIR}
     )
     include (${QT_USE_FILE})
-  elseif (TEXMACS_GUI STREQUAL "Qt6")
+  elseif (ATHENA_GUI STREQUAL "Qt6")
 	  find_package (Qt6 COMPONENTS Core Gui Widgets PrintSupport Svg Network Core5Compat REQUIRED)
 	  set (QT_LIBRARIES Qt6::Core Qt6::Gui Qt6::Widgets Qt6::PrintSupport Qt6::Svg Qt6::Network Qt6::Core5Compat)
   
-    set (TeXmacs_Include_Dirs
-      ${TeXmacs_Include_Dirs}
+    set (ATHENA_Include_Dirs
+      ${ATHENA_Include_Dirs}
       ${Qt6Core_INCLUDE_DIRS}
       ${Qt6Gui_INCLUDE_DIRS}
       ${Qt6Widgets_INCLUDE_DIRS}
@@ -620,7 +620,7 @@ if (TEXMACS_GUI MATCHES "Qt.*")
     if (APPLE)
       add_definitions ("-DQ_WS_MAC")
     endif (APPLE)
-  else (TEXMACS_GUI STREQUAL "Qt4")
+  else (ATHENA_GUI STREQUAL "Qt4")
     # Homebrew installs Qt5 in /usr/local/opt/qt5
     if (APPLE AND EXISTS /usr/local/opt/qt5)
       list (APPEND CMAKE_PREFIX_PATH "/usr/local/opt/qt5")
@@ -656,8 +656,8 @@ if (TEXMACS_GUI MATCHES "Qt.*")
       set (QT_LIBRARIES Qt5::Core Qt5::Gui Qt5::Widgets Qt5::PrintSupport Qt5::Svg)
     endif (APPLE)
 
-    set (TeXmacs_Include_Dirs
-      ${TeXmacs_Include_Dirs}
+    set (ATHENA_Include_Dirs
+      ${ATHENA_Include_Dirs}
       ${Qt5Core_INCLUDE_DIRS}
       ${Qt5Gui_INCLUDE_DIRS}
       ${Qt5Widgets_INCLUDE_DIRS}
@@ -673,7 +673,7 @@ if (TEXMACS_GUI MATCHES "Qt.*")
     if (APPLE)
       add_definitions ("-DQ_WS_MAC")
     endif (APPLE)
-  endif (TEXMACS_GUI STREQUAL "Qt4")
+  endif (ATHENA_GUI STREQUAL "Qt4")
 
   add_definitions (${QT_DEFINITIONS})
   add_definitions ("-DQTTEXMACS")
@@ -682,9 +682,9 @@ if (TEXMACS_GUI MATCHES "Qt.*")
     add_definitions ("-DQT_NO_DEBUG")
   endif (CMAKE_BUILD_TYPE STREQUAL "Release")
 
-  set (TeXmacs_All_SRCS ${TeXmacs_All_SRCS} ${TeXmacs_Qt_SRCS} ${TeXmacs_Qt_Moc_HDRS})
-  set (TeXmacs_Include_Dirs ${TeXmacs_Include_Dirs} ${QT_INCLUDES})
-  set (TeXmacs_Libraries ${TeXmacs_Libraries}  ${QT_LIBRARIES})
+  set (ATHENA_All_SRCS ${ATHENA_All_SRCS} ${ATHENA_Qt_SRCS} ${ATHENA_Qt_Moc_HDRS})
+  set (ATHENA_Include_Dirs ${ATHENA_Include_Dirs} ${QT_INCLUDES})
+  set (ATHENA_Libraries ${ATHENA_Libraries}  ${QT_LIBRARIES})
 
   if (WIN32)
     set (GUI_TYPE WIN32)
@@ -694,27 +694,27 @@ if (TEXMACS_GUI MATCHES "Qt.*")
   set (CONFIG_GUI "QT")
   set (CONFIG_QT "Qt")
   message (STATUS "Enabling Qt port")
-elseif (TEXMACS_GUI STREQUAL "Aqua")
+elseif (ATHENA_GUI STREQUAL "Aqua")
   find_library (COCOA_LIBRARY Cocoa)
   find_path (COCOA_INCLUDE_DIR Cocoa/Cocoa.h)
-  set (TeXmacs_Include_Dirs
-    ${TeXmacs_Include_Dirs}
+  set (ATHENA_Include_Dirs
+    ${ATHENA_Include_Dirs}
     ${COCOA_INCLUDE_DIR}
   )
-  set (TeXmacs_All_SRCS ${TeXmacs_All_SRCS} ${TeXmacs_Cocoa_SRCS})
-  set (TeXmacs_Libraries ${TeXmacs_Libraries} ${COCOA_LIBRARY})
+  set (ATHENA_All_SRCS ${ATHENA_All_SRCS} ${ATHENA_Cocoa_SRCS})
+  set (ATHENA_Libraries ${ATHENA_Libraries} ${COCOA_LIBRARY})
 
   mark_as_advanced(COCOA_LIBRARY)
   mark_as_advanced(COCOA_INCLUDE_DIR)
-else (TEXMACS_GUI STREQUAL "Qt")
+else (ATHENA_GUI STREQUAL "Qt")
   find_package (X11)
 
-  set (TeXmacs_Include_Dirs
-    ${TeXmacs_Include_Dirs}
+  set (ATHENA_Include_Dirs
+    ${ATHENA_Include_Dirs}
     ${X11_INCLUDE_DIR}
   )
-  set (TeXmacs_All_SRCS ${TeXmacs_All_SRCS} ${TeXmacs_Widkit_SRCS} ${TeXmacs_X11_SRCS})
-  set (TeXmacs_Libraries ${TeXmacs_Libraries} ${X11_LIBRARIES})
+  set (ATHENA_All_SRCS ${ATHENA_All_SRCS} ${ATHENA_Widkit_SRCS} ${ATHENA_X11_SRCS})
+  set (ATHENA_Libraries ${ATHENA_Libraries} ${X11_LIBRARIES})
 
   add_definitions ("-DX11TEXMACS")
   set (X11TEXMACS 1)
@@ -723,19 +723,19 @@ else (TEXMACS_GUI STREQUAL "Qt")
   set (CONFIG_GUI "X11")
 
   message (STATUS "Enabling standard X11 interface")
-endif (TEXMACS_GUI MATCHES "Qt.*")
+endif (ATHENA_GUI MATCHES "Qt.*")
 
-if (APPLE AND TEXMACS_GUI STREQUAL "X11")
-  set (TeXmacs_MacOS_SRCS
-    ${TeXmacs_MacOS_SRCS}
-    ${TEXMACS_SOURCE_DIR}/src/Plugins/MacOS/mac_app.mm
+if (APPLE AND ATHENA_GUI STREQUAL "X11")
+  set (ATHENA_MacOS_SRCS
+    ${ATHENA_MacOS_SRCS}
+    ${ATHENA_SOURCE_DIR}/src/Plugins/MacOS/mac_app.mm
   )
-endif (APPLE AND TEXMACS_GUI STREQUAL "X11")
+endif (APPLE AND ATHENA_GUI STREQUAL "X11")
 
 if (APPLE AND USE_SPARKLE)
-  set (TeXmacs_MacOS_SRCS
-    ${TeXmacs_MacOS_SRCS}
-    ${TEXMACS_SOURCE_DIR}/src/Plugins/Updater/tm_sparkle.mm
+  set (ATHENA_MacOS_SRCS
+    ${ATHENA_MacOS_SRCS}
+    ${ATHENA_SOURCE_DIR}/src/Plugins/Updater/tm_sparkle.mm
   )
 endif (APPLE AND USE_SPARKLE)
 
@@ -744,16 +744,16 @@ endif (APPLE AND USE_SPARKLE)
 ### --------------------------------------------------------------------
 
 if (WIN32)
-  file (GLOB_RECURSE TeXmacs_System_SRCS "${TEXMACS_SOURCE_DIR}/src/Plugins/Windows/*.cpp")
+  file (GLOB_RECURSE ATHENA_System_SRCS "${ATHENA_SOURCE_DIR}/src/Plugins/Windows/*.cpp")
 else (WIN32)
-  file (GLOB_RECURSE TeXmacs_System_SRCS "${TEXMACS_SOURCE_DIR}/src/Plugins/Unix/*.cpp")
+  file (GLOB_RECURSE ATHENA_System_SRCS "${ATHENA_SOURCE_DIR}/src/Plugins/Unix/*.cpp")
 endif (WIN32)
 
-set (TeXmacs_All_SRCS ${TeXmacs_All_SRCS} ${TeXmacs_System_SRCS})
+set (ATHENA_All_SRCS ${ATHENA_All_SRCS} ${ATHENA_System_SRCS})
 
 if (APPLE)
-  set (TeXmacs_Libraries
-    ${TeXmacs_Libraries}
+  set (ATHENA_Libraries
+    ${ATHENA_Libraries}
     "-framework ApplicationServices"
     "-framework CoreFoundation"
     "-framework Security"
@@ -767,7 +767,7 @@ if (APPLE)
     "-framework Foundation"
     "-framework ImageIO"
   )
-  set (TeXmacs_All_SRCS ${TeXmacs_All_SRCS} ${TeXmacs_MacOS_SRCS})
+  set (ATHENA_All_SRCS ${ATHENA_All_SRCS} ${ATHENA_MacOS_SRCS})
 
   set (GUI_TYPE MACOSX_BUNDLE)
   set (NO_FAST_ALLOC 1)
@@ -781,7 +781,7 @@ if (APPLE)
 else (APPLE)
 endif (APPLE)
 
-include_directories (${TeXmacs_Include_Dirs})
+include_directories (${ATHENA_Include_Dirs})
 
 ### --------------------------------------------------------------------
 ### Debugging options
@@ -810,15 +810,15 @@ add_subdirectory (ATHENA)
 ### --------------------------------------------------------------------
 
 if (APPLE)
-  install (FILES packages/macos/TeXmacs.icns DESTINATION ${CMAKE_INSTALL_PREFIX})
-  install (FILES packages/macos/TeXmacs-document.icns DESTINATION ${CMAKE_INSTALL_PREFIX})
+  install (FILES packages/macos/ATHENA.icns DESTINATION ${CMAKE_INSTALL_PREFIX})
+  install (FILES packages/macos/ATHENA-document.icns DESTINATION ${CMAKE_INSTALL_PREFIX})
   install (DIRECTORY src/Plugins/Cocoa/English.lproj DESTINATION ${CMAKE_INSTALL_PREFIX})
   install (DIRECTORY src/Plugins/Cocoa/zh_CN.lproj DESTINATION ${CMAKE_INSTALL_PREFIX})
 endif (APPLE)
 
 if (NOT WIN32)
-  install (FILES ${TEXMACS_BINARY_DIR}/misc/scripts/texmacs
-                 ${TEXMACS_BINARY_DIR}/misc/scripts/fig2ps
+  install (FILES ${ATHENA_BINARY_DIR}/misc/scripts/athena
+                 ${ATHENA_BINARY_DIR}/misc/scripts/fig2ps
                  misc/scripts/tm_gs
           DESTINATION bin
           PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ
@@ -844,16 +844,16 @@ else (WIN32)
     PATTERN ".gitignore" EXCLUDE)
 endif (WIN32)
 
-install (FILES ATHENA/misc/mime/texmacs.desktop DESTINATION share/applications)
-install (FILES ATHENA/misc/images/texmacs.svg RENAME TeXmacs.svg
+install (FILES ATHENA/misc/mime/athena.desktop DESTINATION share/applications)
+install (FILES ATHENA/misc/images/athena.svg RENAME ATHENA.svg
   DESTINATION share/icons/hicolor/scalable/apps)
-install (FILES ATHENA/misc/images/text-x-texmacs.svg
+install (FILES ATHENA/misc/images/text-x-athena.svg
   DESTINATION share/icons/hicolor/scalable/mimetypes)
-install (FILES ATHENA/misc/mime/texmacs.xml DESTINATION share/mime/packages)
-install (FILES ATHENA/misc/pixmaps/TeXmacs.xpm DESTINATION share/pixmaps)
+install (FILES ATHENA/misc/mime/athena.xml DESTINATION share/mime/packages)
+install (FILES ATHENA/misc/pixmaps/ATHENA.xpm DESTINATION share/pixmaps)
 foreach (size IN ITEMS 16 22 24 32 48 64 128 256 512)
   message (STATUS ${size})
-  install (FILES ATHENA/misc/images/texmacs-${size}.png RENAME TeXmacs.png
+  install (FILES ATHENA/misc/images/athena-${size}.png RENAME ATHENA.png
     DESTINATION share/icons/hicolor/${size}x${size}/apps/)
 endforeach ()
 
@@ -874,13 +874,13 @@ endif (BUILD_TESTS)
 ### ---------------------------------------------------------------------
 ### VSCode Support
 ### ---------------------------------------------------------------------
-foreach (DIR ${TeXmacs_Include_Dirs})
+foreach (DIR ${ATHENA_Include_Dirs})
   set (VSCODE_INCLUDE_DIRS "${VSCODE_INCLUDE_DIRS}\"${DIR}\",\n                ")
-endforeach (DIR ${TeXmacs_Include_Dirs})
+endforeach (DIR ${ATHENA_Include_Dirs})
 
-configure_file (${TEXMACS_SOURCE_DIR}/misc/vscode/c_cpp_properties.json.in
-  ${TEXMACS_SOURCE_DIR}/.vscode/c_cpp_properties.json
+configure_file (${ATHENA_SOURCE_DIR}/misc/vscode/c_cpp_properties.json.in
+  ${ATHENA_SOURCE_DIR}/.vscode/c_cpp_properties.json
   @ONLY
 )
 
-message (STATUS "TeXmacs_Libraries" ${TeXmacs_Libraries})
+message (STATUS "ATHENA_Libraries" ${ATHENA_Libraries})

@@ -131,7 +131,7 @@ make_tex_tfm (string name) {
     r= system (s);
   }
   if (get_setting ("MAKETFM") == "mktextfm") {
-    url tfm_dir ("$TEXMACS_HOME_PATH/fonts/tfm");
+    url tfm_dir ("$ATHENA_HOME_PATH/fonts/tfm");
     s= "mktextfm " *
       string ("--destdir ") * as_string (tfm_dir) * " " *
       name;
@@ -144,7 +144,7 @@ make_tex_tfm (string name) {
   if (get_setting ("MAKETFM") == "maketfm"){
     if (name(N(name) - 4, N(name)) == ".tfm")
       name = name (0, N(name) - 4);
-    s = "maketfm --dest-dir \"" * get_env("$TEXMACS_HOME_PATH")
+    s = "maketfm --dest-dir \"" * get_env("$ATHENA_HOME_PATH")
       * "\\fonts\\tfm\" " * name;
     if (DEBUG_VERBOSE) debug_fonts << "Executing " << s << "\n";
     r= system (s);
@@ -164,7 +164,7 @@ make_tex_pk (string name, int dpi, int design_dpi) {
     r= system (s);
   }
   if (get_setting ("MAKEPK") == "mktexpk") {
-    url pk_dir ("$TEXMACS_HOME_PATH/fonts/pk");
+    url pk_dir ("$ATHENA_HOME_PATH/fonts/pk");
     s="mktexpk " *
       string ("--dpi ") * as_string (dpi) * " " *
       string ("--bdpi ") * as_string (design_dpi) * " " *
@@ -177,12 +177,12 @@ make_tex_pk (string name, int dpi, int design_dpi) {
   if (get_setting ("MAKEPK") == "makepk") {
 #ifdef OS_WIN32
     s = "makepk --dest-dir \""
-      * get_env("$TEXMACS_HOME_PATH") * "\\fonts\\pk\" "
+      * get_env("$ATHENA_HOME_PATH") * "\\fonts\\pk\" "
       * name * " " * as_string(dpi) * " " * as_string(design_dpi)
       * " " * as_string(dpi) * "%//" * as_string(design_dpi);
 #else
     s = "makepk --dest-dir \""
-      * get_env("$TEXMACS_HOME_PATH") * "\\fonts\\pk\" "
+      * get_env("$ATHENA_HOME_PATH") * "\\fonts\\pk\" "
       * name * " " * as_string(dpi) * " " * as_string(design_dpi)
       * " " * as_string(dpi) * "/" * as_string(design_dpi);
 #endif
@@ -224,8 +224,8 @@ reset_tfm_path (bool rehash) { (void) rehash;
   string tfm= get_setting ("TFM");
   the_tfm_path=
     url_here () |
-    search_sub_dirs ("$TEXMACS_HOME_PATH/fonts/tfm") |
-    search_sub_dirs ("$TEXMACS_PATH/fonts/tfm") |
+    search_sub_dirs ("$ATHENA_HOME_PATH/fonts/tfm") |
+    search_sub_dirs ("$ATHENA_PATH/fonts/tfm") |
     "$TEX_TFM_PATH" |
     ((tfm == "" || tfm == "{}") ? url_none () : tfm);
   if ((get_setting ("MAKETFM") != "false") ||
@@ -241,8 +241,8 @@ reset_pk_path (bool rehash) { (void) rehash;
   string pk= get_setting ("PK");
   the_pk_path=
     url_here () |
-    search_sub_dirs ("$TEXMACS_HOME_PATH/fonts/pk") |
-    search_sub_dirs ("$TEXMACS_PATH/fonts/pk") |
+    search_sub_dirs ("$ATHENA_HOME_PATH/fonts/pk") |
+    search_sub_dirs ("$ATHENA_PATH/fonts/pk") |
     "$TEX_PK_PATH" |
     (pk == ""? url_none (): pk);
   if ((get_setting ("MAKEPK") != "false") ||
@@ -257,8 +257,8 @@ reset_pfb_path () {
   string pfb= get_setting ("PFB");
   the_pfb_path=
     url_here () |
-    search_sub_dirs ("$TEXMACS_HOME_PATH/fonts/type1") |
-    search_sub_dirs ("$TEXMACS_PATH/fonts/type1") |
+    search_sub_dirs ("$ATHENA_HOME_PATH/fonts/type1") |
+    search_sub_dirs ("$ATHENA_PATH/fonts/type1") |
     "$TEX_PFB_PATH" |
     (pfb == ""? url_none (): url_system (pfb));
   the_pfb_path= expand (factor (the_pfb_path));

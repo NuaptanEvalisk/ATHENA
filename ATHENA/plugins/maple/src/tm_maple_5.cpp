@@ -284,7 +284,7 @@ invoke_maple () {
   argv[0] = const_cast<char*> ("maple");
   argv[1] = const_cast<char*> ("-q");
   argv[2] = 0;
-  char* maple_bin= getenv ("TEXMACS_MAPLE_BIN");
+  char* maple_bin= getenv ("ATHENA_MAPLE_BIN");
   execve (maple_bin, argv, environ);
   exit(127);
 }
@@ -295,7 +295,7 @@ init_maple () {
   cout << "Maple session inside TeXmacs";
   send ("tmmaple:=5:\n");
   send ("interface(errorbreak=0,screenheight=9999):\n");
-  char* tm_path= getenv ("TEXMACS_PATH");
+  char* tm_path= getenv ("ATHENA_PATH");
   send ("read (`" * string (tm_path) *
 	"/plugins/maple/maple/init-maple.mpl`):\n");
   next_input ();

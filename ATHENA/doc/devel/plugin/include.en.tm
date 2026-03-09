@@ -15,17 +15,17 @@
   is to create a directory:
 
   <\verbatim>
-    \ \ \ \ $TEXMACS_HOME_PATH/plugins/myplugin
+    \ \ \ \ $ATHENA_HOME_PATH/plugins/myplugin
   </verbatim>
 
   where <verbatim|myplugin> is the name of your plugin. Here we recall that
-  <verbatim|$TEXMACS_HOME_PATH> is bound to <verbatim|~/.TeXmacs>, by
-  default. In the directory <verbatim|$TEXMACS_PATH/plugins> you can find all
+  <verbatim|$ATHENA_HOME_PATH> is bound to <verbatim|~/.TeXmacs>, by
+  default. In the directory <verbatim|$ATHENA_PATH/plugins> you can find all
   standard plugins, which are shipped with your <TeXmacs> distribution. These
   provide good examples which you may imitate.
 
   The above <verbatim|myplugin> directory should contain a similar
-  subdirectory structure as <verbatim|$TEXMACS_PATH> itself, but you may omit
+  subdirectory structure as <verbatim|$ATHENA_PATH> itself, but you may omit
   directories which you do not actually use. In any case, you need to provide
   a file <verbatim|progs/init-myplugin.scm> which describes how to initialize
   your plugin. Usually, this file contains just one <name|Scheme> instruction

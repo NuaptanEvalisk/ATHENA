@@ -18,7 +18,7 @@
 ;; Caching existing BibTeX files
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define bib-dir "$TEXMACS_HOME_PATH/system/database")
+(define bib-dir "$ATHENA_HOME_PATH/system/database")
 (define bib-cache-dir (string-append bib-dir "/bib"))
 (define bib-master (url->url (string-append bib-dir "/bib-master.tmdb")))
 
@@ -337,7 +337,7 @@
                (xdoc (convert doc2 "texmacs-stree" "bibtex-document"))
                (all-docs (append bib-docs (list "\n") (list xdoc)))
                (full-doc (apply string-append all-docs))
-               (auto (url->url "$TEXMACS_HOME_PATH/system/bib/auto.bib")))
+               (auto (url->url "$ATHENA_HOME_PATH/system/bib/auto.bib")))
           ;;(display* auto "\n-----------------------------\n" full-doc "\n")
           (string-save full-doc auto)
           (bibtex-run prefix style auto names)))))

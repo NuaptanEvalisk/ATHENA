@@ -44,15 +44,15 @@ tt_extend_font_path (url u) {
 
 url
 tt_font_path () {
-  string xtt= get_env ("TEXMACS_FONT_PATH");
+  string xtt= get_env ("ATHENA_FONT_PATH");
   url xu= url_none ();
   if (xtt != "") xu= search_sub_dirs (xtt);
   string ximp= get_preference ("imported fonts", "");
   if (ximp != "") xu= xu | search_sub_dirs (url_unix (ximp));
   return
     xu |
-    search_sub_dirs ("$TEXMACS_HOME_PATH/fonts/truetype") |
-    search_sub_dirs ("$TEXMACS_PATH/fonts/truetype") |
+    search_sub_dirs ("$ATHENA_HOME_PATH/fonts/truetype") |
+    search_sub_dirs ("$ATHENA_PATH/fonts/truetype") |
 #if defined OS_MINGW
     search_sub_dirs ("$windir/Fonts");
 #elif defined OS_MACOS

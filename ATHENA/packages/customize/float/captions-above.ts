@@ -18,7 +18,7 @@
 
     <\src-license>
       This <TeXmacs> style package falls under the <hlink|GNU general public
-      license v3|$TEXMACS_PATH/LICENSE> and comes WITHOUT ANY WARRANTY
+      license v3|$ATHENA_PATH/LICENSE> and comes WITHOUT ANY WARRANTY
       WHATSOEVER. If you don't have this file, then write to the Free
       Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
       02110-1301, USA.

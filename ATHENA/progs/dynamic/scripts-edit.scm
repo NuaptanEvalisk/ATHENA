@@ -110,7 +110,7 @@
   (tree-in? t '(script-input script-output)))
 
 (tm-define (make-script-input* lan ses)
-  (if (url-exists? (url-unix "$TEXMACS_STYLE_PATH"
+  (if (url-exists? (url-unix "$ATHENA_STYLE_PATH"
                              (string-append lan ".ts")))
       (add-style-package lan))
   (insert-go-to `(script-input ,lan ,ses "" "") '(2 0)))

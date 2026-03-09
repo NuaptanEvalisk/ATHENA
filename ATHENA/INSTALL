@@ -7,11 +7,11 @@ Installation of GNU TeXmacs
    Let [installation directory] be the current directory,
    which contains this file. Depending on your shell, either type
 
-       setenv TEXMACS_PATH [installation directory]
-       setenv PATH $TEXMACS_PATH/bin:$PATH
+       setenv ATHENA_PATH [installation directory]
+       setenv PATH $ATHENA_PATH/bin:$PATH
    or
-       export TEXMACS_PATH=[installation directory]
-       export PATH=$TEXMACS_PATH/bin:$PATH
+       export ATHENA_PATH=[installation directory]
+       export PATH=$ATHENA_PATH/bin:$PATH
 
 2. Run 'TeXmacs' using
 

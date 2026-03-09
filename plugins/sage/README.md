@@ -5,7 +5,7 @@
 SageMath is a built-in plugin in GNU TeXmacs.
 Sometimes, the built-in one does not work or does not meet your requirement.
 You may install the latest or the specific version of the plugin manually
-to `$TEXMACS_HOME_PATH/plugins`. The plugin under `$TEXMACS_HOME_PATH` will
+to `$ATHENA_HOME_PATH/plugins`. The plugin under `$ATHENA_HOME_PATH` will
 override the system one.
 
 For GNU/Linux and macOS:

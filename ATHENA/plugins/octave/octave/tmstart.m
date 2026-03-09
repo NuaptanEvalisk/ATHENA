@@ -12,15 +12,15 @@
 ## in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 
 # prefix=
-# - TEXMACS_HOME_PATH/plugins/octave/octave (higher priority)
-# - TEXMACS_PATH/plugins/octave/octave
-# The octave under TEXMACS_HOME_PATH will override the built-in one
+# - ATHENA_HOME_PATH/plugins/octave/octave (higher priority)
+# - ATHENA_PATH/plugins/octave/octave
+# The octave under ATHENA_HOME_PATH will override the built-in one
 
 relative_path= ["plugins", filesep, "octave", filesep, "octave", filesep];
-prefix= [getenv("TEXMACS_HOME_PATH"), filesep, relative_path];
+prefix= [getenv("ATHENA_HOME_PATH"), filesep, relative_path];
 if (exist (prefix) == 7)
 else
-  prefix= [getenv("TEXMACS_PATH"), filesep, relative_path];
+  prefix= [getenv("ATHENA_PATH"), filesep, relative_path];
 endif
 
 if (strcmp (PS1(), "octave:\\#> "))
@@ -38,7 +38,7 @@ if (length (prefix) > 0)
   global TMSTRUCT= 0;
   global TMCOLORS= ["black"; "red"; "magenta"; "orange"; "green"; "blue";];
   global TMCOLIDX= rows (TMCOLORS);
-  global TEXMACS_OCTAVE_PLUGIN_CONTROL= 0;
+  global ATHENA_OCTAVE_PLUGIN_CONTROL= 0;
   global TM_OCTAVE_PLOT_DIGEST= 0;
 
   if (any (strcmp ("gnuplot", available_graphics_toolkits)))

@@ -53,7 +53,7 @@
 (tm-define (auto-load-help name h)
   (let* ((base "tmfs://help/article/tm/doc/main/automated/")
          (ext (string-append "." (ext-language-suffix) ".tm"))
-         (test (string-append "$TEXMACS_PATH/doc/main/automated/" h ext))
+         (test (string-append "$ATHENA_PATH/doc/main/automated/" h ext))
          (loc (string-append base h ext))
          (eng (string-append base h ".en.tm"))
          (u (if (url-exists? test) loc eng)))

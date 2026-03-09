@@ -38,9 +38,9 @@ AC_DEFUN([LC_GS],[
             esac
           done <<< "$($GS_EXE -h)"    # try to change path to match the bundle if any
         
-          AC_DEFINE_UNQUOTED([GS_EXE],["bin/$(basename $GS_EXE)"],[gs path relative to TEXMACS_PATH])
-          AC_DEFINE_UNQUOTED([GS_LIB],["share/ghostscript/lib"],[gs lib path relative to TEXMACS_PATH])
-          AC_DEFINE_UNQUOTED([GS_FONTS],["share/ghostscript/fonts"],[gs fonts relative to TEXMACS_PATH])
+          AC_DEFINE_UNQUOTED([GS_EXE],["bin/$(basename $GS_EXE)"],[gs path relative to ATHENA_PATH])
+          AC_DEFINE_UNQUOTED([GS_LIB],["share/ghostscript/lib"],[gs lib path relative to ATHENA_PATH])
+          AC_DEFINE_UNQUOTED([GS_FONTS],["share/ghostscript/fonts"],[gs fonts relative to ATHENA_PATH])
           AC_SUBST([GS_EXE])
           AC_SUBST([GS_LIB])
           AC_SUBST([GS_FONTS])

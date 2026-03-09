@@ -15,7 +15,7 @@
   following header file:
 
   <\verbatim>
-    \ \ \ \ <simple-link|$TEXMACS_PATH/include/TeXmacs.h>
+    \ \ \ \ <simple-link|$ATHENA_PATH/include/TeXmacs.h>
   </verbatim>
 
   In this file it is specified that your application should export a data
@@ -146,7 +146,7 @@
 
   so that running it will create a dynamic library
   <verbatim|dynlink/lib/libdynlink.so> from <verbatim|dynlink.cpp>. The
-  <verbatim|tmsrc> variable should contain <verbatim|$TEXMACS_PATH>, so as to
+  <verbatim|tmsrc> variable should contain <verbatim|$ATHENA_PATH>, so as to
   find the include file <verbatim|TeXmacs.h>. The configuration file
   <verbatim|init-dynlink.scm> simply contains
 

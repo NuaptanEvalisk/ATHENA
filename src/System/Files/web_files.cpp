@@ -113,13 +113,13 @@ get_from_web (url name) {
   string cmd= "";
   
   if (tool == "wget") {
-    cmd= "wget --header='User-Agent: TeXmacs-" TEXMACS_VERSION "' -q";
+    cmd= "wget --header='User-Agent: TeXmacs-" ATHENA_VERSION "' -q";
     cmd << " --no-check-certificate --tries=1";
     cmd << " -O " << tmp_s << " " << escape_sh (web_encode (as_string (name)));
   }
   
   if (tool == "curl") {
-    cmd= "curl --user-agent TeXmacs-" TEXMACS_VERSION;
+    cmd= "curl --user-agent TeXmacs-" ATHENA_VERSION;
     cmd << " " << escape_sh (web_encode (as_string (name)));
     cmd << " --output " << tmp_s;
   }

@@ -8,29 +8,29 @@
   When starting up, <TeXmacs> executes the file
 
   <\verbatim>
-    \ \ \ \ $TEXMACS_PATH/progs/init-texmacs.scm
+    \ \ \ \ $ATHENA_PATH/progs/init-texmacs.scm
   </verbatim>
 
   as well as your personal initialization file
 
   <\verbatim>
-    \ \ \ \ $TEXMACS_HOME_PATH/progs/my-init-texmacs.scm
+    \ \ \ \ $ATHENA_HOME_PATH/progs/my-init-texmacs.scm
   </verbatim>
 
-  if it exists. By default, the path <verbatim|$TEXMACS_HOME_PATH> equals
+  if it exists. By default, the path <verbatim|$ATHENA_HOME_PATH> equals
   <verbatim|%appdata%\\TeXmacs> on <name|Windows> or
   <verbatim|$HOME/.TeXmacs> on <name|GNU>/<name|Linux> and <name|macOS>.
   Similarly, each time you create a new buffer (either by creating a new file
   or opening an already existing one), the file
 
   <\verbatim>
-    \ \ \ \ $TEXMACS_PATH/progs/init-buffer.scm
+    \ \ \ \ $ATHENA_PATH/progs/init-buffer.scm
   </verbatim>
 
   is executed, as well as
 
   <\verbatim>
-    \ \ \ \ $TEXMACS_HOME_PATH/progs/my-init-buffer.scm
+    \ \ \ \ $ATHENA_HOME_PATH/progs/my-init-buffer.scm
   </verbatim>
 
   if it exists.
@@ -38,7 +38,7 @@
   <\example>
     Suppose you want to add a style package <verbatim|CustomStyle.ts> of your
     own to every new document you create. You can add the following lines to
-    <verbatim|$TEXMACS_HOME_PATH/progs/my-init-buffer.scm>:
+    <verbatim|$ATHENA_HOME_PATH/progs/my-init-buffer.scm>:
 
     <\scm-code>
       (when (buffer-newly-created? (current-buffer))

@@ -27,7 +27,7 @@
     (for-each (cut ahash-set! name-to-id-table <> id) l)))
 
 (define (load-registry)
-  (with name "$TEXMACS_HOME_PATH/system/registry.scm"
+  (with name "$ATHENA_HOME_PATH/system/registry.scm"
     (when (and (not registry-loaded) (url-exists? name))
       (set! registry-loaded #t)
       (let* ((reg (load-object name))
@@ -36,7 +36,7 @@
 	(set! id-to-name-table t)))))
 
 (define (save-registry)
-  (with name "$TEXMACS_HOME_PATH/system/registry.scm"
+  (with name "$ATHENA_HOME_PATH/system/registry.scm"
     (save-object name (ahash-table->list id-to-name-table))))
 
 (define (registry-get id)

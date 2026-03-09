@@ -8,8 +8,8 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 
-#ifndef TEXMACS_ANDROID_SYSTEM_HPP
-#define TEXMACS_ANDROID_SYSTEM_HPP
+#ifndef ATHENA_ANDROID_SYSTEM_HPP
+#define ATHENA_ANDROID_SYSTEM_HPP
 
 #include <sys/file.h>
 #include <sys/stat.h>
@@ -21,7 +21,7 @@
 #include "string.hpp"
 #include "url.hpp"
 
-typedef void* TEXMACS_DIR;
+typedef void* ATHENA_DIR;
 typedef struct stat struct_stat;
 
 /*
@@ -77,17 +77,17 @@ void texmacs_fclose(FILE *&file, bool unlock = true);
 /*
  * @brief Proxy function to the opendir function
  */
-TEXMACS_DIR texmacs_opendir(string dirname);
+ATHENA_DIR texmacs_opendir(string dirname);
 
 /*
  * @brief Proxy function to the closedir function
  */
-void texmacs_closedir(TEXMACS_DIR dir);
+void texmacs_closedir(ATHENA_DIR dir);
 
 /*
  * @brief Proxy function to the readdir function
  */
-texmacs_dirent texmacs_readdir(TEXMACS_DIR dirp);
+texmacs_dirent texmacs_readdir(ATHENA_DIR dirp);
 
 /*
  * @brief Proxy function to the stat function
@@ -152,4 +152,4 @@ string get_default_theme();
  */
 url texmacs_get_application_directory();
 
-#endif // TEXMACS_ANDROID_SYSTEM_HPP
+#endif // ATHENA_ANDROID_SYSTEM_HPP

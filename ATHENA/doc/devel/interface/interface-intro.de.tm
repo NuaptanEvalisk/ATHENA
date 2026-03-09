@@ -47,7 +47,7 @@
   <\verbatim>
     \ \ \ \ plugins
 
-    \ \ \ \ $TEXMACS_HOME_PATH/plugins
+    \ \ \ \ $ATHENA_HOME_PATH/plugins
   </verbatim>
 
   und <verbatim|make> durchführen, sofern ein Makefile vorhanden ist.

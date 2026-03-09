@@ -9,8 +9,8 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 
-#ifndef TEXMACS_WINDOWS_STRING_ENCODING_HPP
-#define TEXMACS_WINDOWS_STRING_ENCODING_HPP
+#ifndef ATHENA_WINDOWS_STRING_ENCODING_HPP
+#define ATHENA_WINDOWS_STRING_ENCODING_HPP
 
 /*
  * This file contains a set of functions to convert strings between UTF-8 and 
@@ -68,4 +68,4 @@ string texmacs_ainsi_to_utf8(const std::string &ainsi_str);
  */
 string texmacs_wide_to_utf8(const std::wstring &wide_str);
 
-#endif // TEXMACS_WINDOWS_STRING_ENCODING_HPP
+#endif // ATHENA_WINDOWS_STRING_ENCODING_HPP

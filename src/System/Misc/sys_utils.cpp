@@ -102,7 +102,7 @@ set_env (string var, string with) {
 
 url
 get_texmacs_path () {
-  string tmpath= get_env ("TEXMACS_PATH");
+  string tmpath= get_env ("ATHENA_PATH");
     //FIXME: Why is this?
   while ((N(tmpath)>0) && (tmpath [N(tmpath) - 1] == '/'))
     tmpath= tmpath (0, N(tmpath)-1);
@@ -111,7 +111,7 @@ get_texmacs_path () {
 
 url
 get_texmacs_home_path () {
-  url path= get_env ("TEXMACS_HOME_PATH");
+  url path= get_env ("ATHENA_HOME_PATH");
   if (path == "")
     path= url_system ("$HOME/.ATHENA");
   return path;
@@ -139,7 +139,7 @@ evaluate_system (array<string> arg,
 string 
 get_printing_default () {
 #if defined (OS_MINGW)
-  url embedded ("$TEXMACS_PATH/bin/SumatraPDF.exe");
+  url embedded ("$ATHENA_PATH/bin/SumatraPDF.exe");
   if (exists (embedded))
     return sys_concretize (embedded) * " -print-dialog -exit-when-done";
   else return "";

@@ -7,7 +7,7 @@
 
   The best way to start implementing a new interface with <apply|TeXmacs> is
   to take a look at the sample ``computer algebra system'' <verbatim|mycas>,
-  which can be found in the directory <verbatim|$TEXMACS_PATH/misc/mycas>.
+  which can be found in the directory <verbatim|$ATHENA_PATH/misc/mycas>.
   The file <verbatim|mycas.cpp>, which is listed at the end of this section,
   contains a very simple program which can be interfaced with
   <apply|TeXmacs>. In order to test the program, you should compile it using:\ 

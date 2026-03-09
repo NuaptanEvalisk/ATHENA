@@ -1,0 +1,83 @@
+; -- TeXmacs.iss --
+; Inno Setup configuration file for the compilation of the 
+; Windows TeXmacs installer
+
+[Setup]
+AppName=TeXmacs
+AppVerName=Texmacs
+DefaultDirName={autopf}\TeXmacs
+DefaultGroupName=TeXmacs
+VersionInfoTextVersion=2.1.4
+AppPublisher=Max Team from LIX and CNRS
+AppPublisherURL=https://www.texmacs.org/
+AppVersion=2.1.4
+LicenseFile=..\..\..\distr\TeXmacs-Windows\LICENSE
+UninstallDisplayIcon={app}\TeXmacs.ico
+OutputDir=..\..\..\distr\windows
+OutputBaseFilename=TeXmacs-2.1.4-installer
+; SourceDir=../..
+ChangesAssociations=yes
+PrivilegesRequired=lowest
+PrivilegesRequiredOverridesAllowed=commandline dialog
+CloseApplications=yes
+ArchitecturesAllowed=x64os
+ChangesEnvironment=yes
+
+[Languages]
+Name: "english"; MessagesFile: "compiler:Default.isl"
+Name: "spanish"; MessagesFile: "compiler:Languages\Spanish.isl"
+Name: "french"; MessagesFile: "compiler:Languages\French.isl"
+Name: "portuguese"; MessagesFile: "compiler:Languages\Portuguese.isl"
+Name: "russian"; MessagesFile: "compiler:Languages\Russian.isl"
+Name: "german"; MessagesFile: "compiler:Languages\German.isl"
+Name: "japanese"; MessagesFile: "compiler:Languages\Japanese.isl"
+
+[Registry]
+Root: HKA; Subkey: "Software\Classes\.tm"; ValueType: string; ValueName: ""; ValueData: "tmfile"; Flags: uninsdeletevalue
+Root: HKA; Subkey: "Software\Classes\tmfile"; ValueType: string; ValueName: ""; ValueData: "text/tm"; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\tmfile\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\TeXmacs.ico"
+Root: HKA; Subkey: "Software\Classes\tmfile\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\bin\texmacs.exe"" ""%1""" 
+Root: HKA; Subkey: "{code:GetEnvironmentKey}"; ValueType: string; ValueName: "ATHENA_PATH"; ValueData: "{app}"
+
+[Files]
+Source: ..\..\..\distr\TeXmacs-Windows\*; DestDir: {app}; Flags: recursesubdirs createallsubdirs ignoreversion
+Source: TeXmacs.ico; DestDir: {app}
+Source: topbanner.bmp; Flags: dontcopy
+
+[Icons]
+Name: "{group}\TeXmacs"; Filename: "{app}\bin\texmacs.exe"; IconFilename: "{app}\TeXmacs.ico"
+Name: "{group}\Uninstall TeXmacs"; Filename: "{uninstallexe}"
+Name: "{userdesktop}\TeXmacs"; Filename: "{app}\bin\texmacs.exe"; IconFilename: "{app}\TeXmacs.ico"
+
+[UninstallDelete]
+Type: files; Name: "{app}\*"
+Type: dirifempty; Name: "{app}"
+
+[Code]
+procedure InitializeWizard();
+var
+  BitmapImage: TBitmapImage;
+begin
+  ExtractTemporaryFile('topbanner.bmp');
+  BitmapImage := TBitmapImage.Create(WizardForm);
+  BitmapImage.Parent := WizardForm.MainPanel;
+  BitmapImage.Width := WizardForm.MainPanel.Width;
+  BitmapImage.Height := WizardForm.MainPanel.Height;
+  BitmapImage.Anchors := [akLeft, akTop, akRight, akBottom];
+  BitmapImage.Stretch := True;
+  BitmapImage.AutoSize := False;
+  BitmapImage.Bitmap.LoadFromFile(ExpandConstant('{tmp}\topbanner.bmp'));
+  
+  WizardForm.WizardSmallBitmapImage.Visible := False;
+  WizardForm.PageDescriptionLabel.Visible := False;
+  WizardForm.PageNameLabel.Visible := False;
+end;
+
+function GetEnvironmentKey(Param: string): string;
+begin
+  if IsAdminInstallMode then
+    Result := 'System\CurrentControlSet\Control\Session Manager\Environment'
+  else
+    Result := 'Environment';
+end;
+

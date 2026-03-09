@@ -5,7 +5,7 @@
 * COPYRIGHT  : (C) 2020  Darcy Shen
 *******************************************************************************
 * This software falls under the GNU general public license and comes WITHOUT
-* ANY WARRANTY WHATSOEVER. See the file $TEXMACS_PATH/LICENSE for more details.
+* ANY WARRANTY WHATSOEVER. See the file $ATHENA_PATH/LICENSE for more details.
 * If you don't have this file, write to the Free Software Foundation, Inc.,
 * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 ******************************************************************************/
@@ -274,11 +274,11 @@ prog_language_rep::get_color (tree t, int start, int end) {
 }
 
 bool prog_lang_exists (string s) {
-  return exists (url_system ("$TEXMACS_PATH/progs/prog/" * s * "-lang.scm"))
-   || exists (url_system ("$TEXMACS_PATH/plugins/" * s * "/progs/" * s * "-lang.scm"))
-   || exists (url_system ("$TEXMACS_PATH/plugins/code/progs/" * s * "-lang.scm"))
-   || exists (url_system ("$TEXMACS_HOME_PATH/plugins/" * s * "/progs/" * s * "-lang.scm"))
-   || exists (url_system ("$TEXMACS_HOME_PATH/plugins/code/progs/" * s * "-lang.scm"))
+  return exists (url_system ("$ATHENA_PATH/progs/prog/" * s * "-lang.scm"))
+   || exists (url_system ("$ATHENA_PATH/plugins/" * s * "/progs/" * s * "-lang.scm"))
+   || exists (url_system ("$ATHENA_PATH/plugins/code/progs/" * s * "-lang.scm"))
+   || exists (url_system ("$ATHENA_HOME_PATH/plugins/" * s * "/progs/" * s * "-lang.scm"))
+   || exists (url_system ("$ATHENA_HOME_PATH/plugins/code/progs/" * s * "-lang.scm"))
    ;
 }
 

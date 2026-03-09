@@ -137,7 +137,7 @@
     with <TeXmacs> in
 
     <\verbatim>
-      \ \ \ \ $TEXMACS_PATH/plugins
+      \ \ \ \ $ATHENA_PATH/plugins
     </verbatim>
 
     you can find several examples of how this can be done.

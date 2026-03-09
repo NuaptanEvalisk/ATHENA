@@ -30,18 +30,18 @@
 
 #define EXPERIMENTAL_REEXEC_DETACHED 0
 
-void setup_texmacs_path () {
+void setup_athena_path () {
   string environment_texmacs_path;
-  if (texmacs_getenv ("TEXMACS_PATH", environment_texmacs_path)) return;
+  if (texmacs_getenv ("ATHENA_PATH", environment_texmacs_path)) return;
   url exedir = texmacs_get_application_directory ();
-  if (test_texmacs_path (exedir * "TeXmacs")) return;
-  if (test_texmacs_path (exedir * "..")) return;
+  if (test_athena_path (exedir * "TeXmacs")) return;
+  if (test_athena_path (exedir * "..")) return;
   
-  if (test_texmacs_path (exedir * "usr/share/TeXmacs")) return;
-  if (test_texmacs_path (exedir * "usr/local/share/TeXmacs")) return;
-  if (test_texmacs_path (exedir * "../usr/share/TeXmacs")) return;
-  if (test_texmacs_path ("/usr/share/TeXmacs")) return;
-  if (test_texmacs_path ("/usr/local/share/TeXmacs")) return;
+  if (test_athena_path (exedir * "usr/share/TeXmacs")) return;
+  if (test_athena_path (exedir * "usr/local/share/TeXmacs")) return;
+  if (test_athena_path (exedir * "../usr/share/TeXmacs")) return;
+  if (test_athena_path ("/usr/share/TeXmacs")) return;
+  if (test_athena_path ("/usr/local/share/TeXmacs")) return;
 }
 
 #if EXPERIMENTAL_REEXEC_DETACHED
@@ -223,7 +223,7 @@ int main (int argc, char** argv) {
 #endif
 
   texmacs_init_guile_hooks ();
-  setup_texmacs_path ();
+  setup_athena_path ();
   if (get_env ("APPIMAGE") != "") {
     url usr_bin = url (get_env ("APPDIR")) * "usr/bin";
     url usr_local_bin = url (get_env ("APPDIR")) * "usr/local/bin";

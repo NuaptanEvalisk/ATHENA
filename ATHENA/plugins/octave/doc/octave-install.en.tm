@@ -32,7 +32,7 @@
   </enumerate>
 
   If you need to customize it, please install it under the
-  <code*|$TEXMACS_HOME_PATH>:
+  <code*|$ATHENA_HOME_PATH>:
 
   <\shell-code>
     # For GNU/Linux or macOS

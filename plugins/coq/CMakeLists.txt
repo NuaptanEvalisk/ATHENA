@@ -7,7 +7,7 @@
 # in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ###############################################################################
 
-include_directories (${TEXMACS_BINARY_DIR}/src/System/)
+include_directories (${ATHENA_BINARY_DIR}/src/System/)
 
 set (coq_SRCS src/pico_xml.c src/tm_coq.c)
 
@@ -15,5 +15,5 @@ add_executable (tm_coq ${coq_SRCS})
 
 # target_link_libraries(tm_r -lutil)
 
-install(TARGETS tm_coq DESTINATION share/TeXmacs/plugins/coq/bin)
+install(TARGETS tm_coq DESTINATION share/ATHENA/plugins/coq/bin)
 

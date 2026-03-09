@@ -16,7 +16,7 @@
   possibile aggiungere questo supporto nel file <verbatim|init-myplugin.scm>.
   Ancora una volta si consiglia di dare un'occhiata ai materiali relativi ai
   plugin attualmente già implementati in <TeXmacs> che si trovano all'interno
-  della directory <verbatim|$TEXMACS_HOME_PATH/plugins>.
+  della directory <verbatim|$ATHENA_HOME_PATH/plugins>.
 
   Alcuni output del sistema da implementare potrebbero richiedere dei
   marcatori speciali. Ad esempio, se si vuole associare un tipo invisibile a

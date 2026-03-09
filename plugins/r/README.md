@@ -3,16 +3,16 @@
 
 The R plugin is builtin for GNU TeXmacs.
 
-To develop or customize it, just install it to `$TEXMACS_HOME_PATH`:
+To develop or customize it, just install it to `$ATHENA_HOME_PATH`:
 
 ```
 git clone git@github.com:texmacs/plugins.git
 cd plugins/r
 make
-# rm -rf $TEXMACS_HOME_PATH/plugins/r
-cp -r ../r $TEXMACS_HOME_PATH/plugins
+# rm -rf $ATHENA_HOME_PATH/plugins/r
+cp -r ../r $ATHENA_HOME_PATH/plugins
 ```
 
-For GNU/Linux and macOS, `$TEXMACS_HOME_PATH` is `$HOME/.TeXmacs/`.
+For GNU/Linux and macOS, `$ATHENA_HOME_PATH` is `$HOME/.TeXmacs/`.
 
-For Windows, `$TEXMACS_HOME_PATH` is `%APPDATA%\TeXmacs\`.
+For Windows, `$ATHENA_HOME_PATH` is `%APPDATA%\TeXmacs\`.

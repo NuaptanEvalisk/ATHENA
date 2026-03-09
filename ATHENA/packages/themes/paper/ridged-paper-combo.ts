@@ -14,7 +14,7 @@
 
     <\src-license>
       This software falls under the <hlink|GNU general public license,
-      version 3 or later|$TEXMACS_PATH/LICENSE>. It comes WITHOUT ANY
+      version 3 or later|$ATHENA_PATH/LICENSE>. It comes WITHOUT ANY
       WARRANTY WHATSOEVER. You should have received a copy of the license
       which the software. If not, see <hlink|http://www.gnu.org/licenses/gpl-3.0.html|http://www.gnu.org/licenses/gpl-3.0.html>.
     </src-license>
@@ -45,9 +45,9 @@
     </src-comment>
   </active*>
 
-  <assign|left-gnu|<macro|<move|<image|$TEXMACS_PATH/misc/images/left-head.png|0.222222w|0.222222h||>|0fn|-0.333fn>>>
+  <assign|left-gnu|<macro|<move|<image|$ATHENA_PATH/misc/images/left-head.png|0.222222w|0.222222h||>|0fn|-0.333fn>>>
 
-  <assign|right-gnu|<macro|<move|<image|$TEXMACS_PATH/misc/images/right-head.png|0.222222w|0.222222h||>|0fn|-0.333fn>>>
+  <assign|right-gnu|<macro|<move|<image|$ATHENA_PATH/misc/images/right-head.png|0.222222w|0.222222h||>|0fn|-0.333fn>>>
 
   <assign|title-left|<macro|body|<if|<equal|<value|title-theme>|title-bar>||<right-gnu>>>>
 

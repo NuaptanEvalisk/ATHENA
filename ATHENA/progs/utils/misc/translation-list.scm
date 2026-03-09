@@ -173,19 +173,19 @@
 
 (define (tr-file language)
   (url-concretize
-   (string-append "$TEXMACS_PATH/langs/natural/dic/english-"
+   (string-append "$ATHENA_PATH/langs/natural/dic/english-"
                   language
                   ".scm")))
 
 (define (tr-miss language)
   (url-concretize
-   (string-append "$TEXMACS_PATH/langs/natural/miss/english-"
+   (string-append "$ATHENA_PATH/langs/natural/miss/english-"
                   language
                   "-miss.scm")))
 
 (define (tr-auto language)
   (url-concretize
-   (string-append "$TEXMACS_PATH/langs/natural/miss/list-"
+   (string-append "$ATHENA_PATH/langs/natural/miss/list-"
                   language
                   ".scm")))
 
@@ -232,9 +232,9 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Further routines for speeding up translations using on-line tools
 ;;   1) First call 'translate-begin' for your language.
-;;      This creates a file $TEXMACS_PATH/langs/natural/miss/list-english.scm
+;;      This creates a file $ATHENA_PATH/langs/natural/miss/list-english.scm
 ;;   2) Next translate this file using an online tool.
-;;      Put the result in $TEXMACS_PATH/langs/natural/miss/list-[language].scm
+;;      Put the result in $ATHENA_PATH/langs/natural/miss/list-[language].scm
 ;;   3) Call 'translate-end' for your language.
 ;;      The english and translated lists will be combined and
 ;;      the file with missing translations will be updated accordingly.
@@ -295,7 +295,7 @@
   (let* ((nt (tr-load (tr-new)))
          (it (tr-load (tr-ignore)))
          (mt (ahash-table-append nt it))
-         (at (tr-search (string->url "$TEXMACS_PATH/progs")))
+         (at (tr-search (string->url "$ATHENA_PATH/progs")))
          (xt (ahash-table-difference at mt)))
     (tr-save (tr-extra) xt)))
 

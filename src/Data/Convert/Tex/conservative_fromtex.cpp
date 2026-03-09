@@ -51,9 +51,9 @@ static tree
 upgrade_texmacs_attachments (tree oldt, hashmap<path,path>& updic) {
   string v= as_string (extract (oldt, "TeXmacs"));
   //cout << "Old version: " << v << LF;
-  //cout << "New version: " << TEXMACS_VERSION << LF;
+  //cout << "New version: " << ATHENA_VERSION << LF;
   if (v == "") return oldt;
-  if (v == TEXMACS_VERSION) return oldt;
+  if (v == ATHENA_VERSION) return oldt;
   tree newt= upgrade (oldt, v);
   tree oldb= extract (oldt, "body");
   tree newb= extract (newt, "body");

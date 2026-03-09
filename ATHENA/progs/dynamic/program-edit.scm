@@ -560,7 +560,7 @@
     (ahash-set! program-session-mode (program-key) #t)
     (with-innermost t prog-field-input-context?
       (with u (tree-ref t :previous 0)
-	(if (url-exists? (url-unix "$TEXMACS_STYLE_PATH"
+	(if (url-exists? (url-unix "$ATHENA_STYLE_PATH"
 				   (string-append lan ".ts")))
 	    (add-style-package lan))
 	(program-feed lan ses :start u t '())))))

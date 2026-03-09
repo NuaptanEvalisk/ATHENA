@@ -645,7 +645,7 @@ hashtree_from_dictionary (
   if (DEBUG_CONVERT) debug_convert << "Loading dictionary " << file_name << LF;
   string key_string, val_string, file;
   file_name = file_name * ".scm";
-  if (load_string (url ("$TEXMACS_PATH/langs/encoding", file_name),
+  if (load_string (url ("$ATHENA_PATH/langs/encoding", file_name),
                    file, false)) {
     convert_error << "Couldn't open encoding dictionary " << file_name << LF;
     return;

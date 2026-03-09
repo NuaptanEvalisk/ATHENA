@@ -9,7 +9,7 @@
   When you finished typing your input, press <shortcut|(kbd-return)> in order
   to compute the output. Multiline input is entered using
   <shortcut|(kbd-shift-return)>. More features are described in the chapter
-  ``<hlink|<TeXmacs> as an interface|$TEXMACS_DOC_PATH/main/interface/man-itf.en.tm>''.
+  ``<hlink|<TeXmacs> as an interface|$ATHENA_DOC_PATH/main/interface/man-itf.en.tm>''.
 
   If something goes wrong, the <LaTeX> compilation will stay [busy] in the
   menubar below. Just press the ``stop'' button to interrupt exectution. In

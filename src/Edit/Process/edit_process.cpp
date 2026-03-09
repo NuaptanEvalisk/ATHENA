@@ -66,7 +66,7 @@ remove_labels (tree t) {
 void
 copy_bst_file (url base, string style) {
   string bst= style * ".bst";
-  url u1= url ("$TEXMACS_HOME_PATH/system/bib", bst);
+  url u1= url ("$ATHENA_HOME_PATH/system/bib", bst);
   url u2= relative (base, bst);
   if (!exists (u1) && exists (u2)) copy (u2, u1);
 }
@@ -129,7 +129,7 @@ edit_process_rep::generate_bibliography (
   copy_bst_file (buf->buf->name, style);
   url bib_file= find_bib_file (buf->buf->name, fname);
   //cout << fname << " -> " << concretize (bib_file) << "\n";
-  url xbib_file= "$TEXMACS_PATH/misc/bib/texmacs.bib";
+  url xbib_file= "$ATHENA_PATH/misc/bib/texmacs.bib";
   if (is_none (bib_file)) {
     url bbl_file= find_bib_file (buf->buf->name, fname, ".bbl");
     if (is_none (bbl_file)) {

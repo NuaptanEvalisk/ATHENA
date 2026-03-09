@@ -18,7 +18,7 @@
 ;; Management of the list of user keyboard shortcuts
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define user-shortcuts-file "$TEXMACS_HOME_PATH/system/shortcuts.scm")
+(define user-shortcuts-file "$ATHENA_HOME_PATH/system/shortcuts.scm")
 (define current-user-shortcuts (list))
 
 (define (apply-user-shortcut sh cmd)

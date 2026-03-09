@@ -18,9 +18,9 @@
       (string-append (string-replace s "^" "**") "\n<EOF>\n"))))
 
 (define (gnuplot-entry)
-  (if (url-exists? "$TEXMACS_HOME_PATH/plugins/tmpy")
-      (system-url->string "$TEXMACS_HOME_PATH/plugins/tmpy/session/tm_gnuplot.py")
-      (system-url->string "$TEXMACS_PATH/plugins/tmpy/session/tm_gnuplot.py")))
+  (if (url-exists? "$ATHENA_HOME_PATH/plugins/tmpy")
+      (system-url->string "$ATHENA_HOME_PATH/plugins/tmpy/session/tm_gnuplot.py")
+      (system-url->string "$ATHENA_PATH/plugins/tmpy/session/tm_gnuplot.py")))
 
 (plugin-add-macos-path "Octave*/Contents/Resources/usr/Cellar/gnuplot-octave-app/*" "bin" #t)
 

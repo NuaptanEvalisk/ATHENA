@@ -85,7 +85,7 @@
     <menu|Edit|Preferences|Language> auf Englisch einstellt. Die eingebauten
     <TeXmacs>-Wörterbücher findet man in
 
-    <verbatim| \ \ \ $TEXMACS_PATH/languages/natural/dic>
+    <verbatim| \ \ \ $ATHENA_PATH/languages/natural/dic>
 
     Wenn man versucht ein nicht vorhandenes Wörterbuch zu benutzen, kann das
     Programm abstürzen. Meistens ist es einfacher das Makro <markup|localize>

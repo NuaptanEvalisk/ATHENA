@@ -83,7 +83,7 @@ file_chooser_command_rep::apply () {
     break;
   case BUTTON_TEXTS:
     fch_wid << set_string ("directory",
-			   as_string (url ("$TEXMACS_HOME_PATH", "texts")));
+			   as_string (url ("$ATHENA_HOME_PATH", "texts")));
     break;
   case BUTTON_FILE_OK:
     {

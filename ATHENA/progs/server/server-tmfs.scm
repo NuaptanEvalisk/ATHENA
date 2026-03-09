@@ -18,7 +18,7 @@
 ;; Repository
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define repo (url-concretize "$TEXMACS_HOME_PATH/server"))
+(define repo (url-concretize "$ATHENA_HOME_PATH/server"))
 (define repo-seed-val (* 65536 (abs (texmacs-time))))
 (define repo-seed (seed->random-state repo-seed-val))
 

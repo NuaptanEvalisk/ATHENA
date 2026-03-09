@@ -138,7 +138,7 @@ QMenu::item:disabled {
 }
 
 MingwQMenu::right-arrow {
-    border-image: url("$TEXMACS_PATH/misc/pixmaps/modern/16x16/focus/tm_search_next_x4.png") 7 7 7 7;
+    border-image: url("$ATHENA_PATH/misc/pixmaps/modern/16x16/focus/tm_search_next_x4.png") 7 7 7 7;
 }
 
 
@@ -217,11 +217,11 @@ MingwQComboBox::drop-down {
 }
 
 QComboBox::down-arrow {
-    border-image: url($TEXMACS_PATH/misc/pixmaps/modern/16x16/focus/tm_similar_next_x4.png) 0 0 0 0 stretch stretch;
+    border-image: url($ATHENA_PATH/misc/pixmaps/modern/16x16/focus/tm_similar_next_x4.png) 0 0 0 0 stretch stretch;
 }
 
 MingwQComboBox::down-arrow {
-    border-image: url("$TEXMACS_PATH/misc/pixmaps/modern/16x16/focus/tm_similar_next_x4.png") 7 7 7 7 stretch stretch;
+    border-image: url("$ATHENA_PATH/misc/pixmaps/modern/16x16/focus/tm_similar_next_x4.png") 7 7 7 7 stretch stretch;
 }
 
 QComboBox QAbstractItemView {

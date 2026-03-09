@@ -70,7 +70,7 @@
             isEnabled = "YES">
          </EnvironmentVariable>
          <EnvironmentVariable
-            key = "TEXMACS_PATH"
+            key = "ATHENA_PATH"
             value = "/Users/mgubi/t/clean/TeXmacs"
             isEnabled = "YES">
          </EnvironmentVariable>

@@ -1,0 +1,32 @@
+#!/bin/sh
+# Program to make a postscript image from a fig picture with latex labels
+
+datarootdir="${prefix}/share"
+datadir="${datarootdir}"
+
+if test $# != 2; then
+  echo "Usage: fig2ps <input.fig> <output.ps>" >&2
+  exit 1
+fi
+
+if test -z "$ATHENA_PATH"; then
+  ATHENA_PATH=${datarootdir}/TeXmacs
+  export ATHENA_PATH
+fi
+if test -z "$ATHENA_HOME_PATH"; then
+  ATHENA_HOME_PATH="$HOME/.TeXmacs"
+  export ATHENA_HOME_PATH
+fi
+cp "$1" "$ATHENA_HOME_PATH/system/pre.fig"
+OLDPWD="$PWD"   # for broken Solaris sh
+cd "$ATHENA_HOME_PATH/system"
+cp "$ATHENA_PATH/misc/latex/f2pspost.tex" .
+fig2dev -L pstex pre.fig > pre.ps
+fig2dev -L pstex_t -p pre.ps pre.fig > pre.tex
+latex f2pspost
+dvips -E -o f2pspost.ps f2pspost
+cd "$OLDPWD"
+mv "$ATHENA_HOME_PATH/system/f2pspost.ps" "$2"
+rm -r -f "$ATHENA_HOME_PATH"/system/pre*
+rm -r -f "$ATHENA_HOME_PATH"/system/f2pspost*
+exit 0

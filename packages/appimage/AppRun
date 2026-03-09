@@ -17,14 +17,14 @@ exec_prefix="${prefix}"
 datarootdir="${prefix}/share"
 datadir="${datarootdir}"
 
-TEXMACS_PATH=${datarootdir}/TeXmacs
-export TEXMACS_PATH
-TEXMACS_BIN_PATH=${exec_prefix}
-export TEXMACS_BIN_PATH
+ATHENA_PATH=${datarootdir}/TeXmacs
+export ATHENA_PATH
+ATHENA_BIN_PATH=${exec_prefix}
+export ATHENA_BIN_PATH
 
-export PATH="$TEXMACS_BIN_PATH/bin:$APPDIR"/usr/bin/:"$PATH"
+export PATH="$ATHENA_BIN_PATH/bin:$APPDIR"/usr/bin/:"$PATH"
 
-#export APPIMAGE_PRESERVE_ENV_PREFIX="TEXMACS_"
+#export APPIMAGE_PRESERVE_ENV_PREFIX="ATHENA_"
 #export APPIMAGE_EXECSO_DEBUG="1"
 
 exec texmacs.bin "$@" < /dev/null

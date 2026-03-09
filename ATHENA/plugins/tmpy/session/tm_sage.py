@@ -13,11 +13,11 @@
 import os
 import sys
 from os.path import exists
-tmpy_home_path = os.environ.get("TEXMACS_HOME_PATH") + "/plugins/tmpy"
+tmpy_home_path = os.environ.get("ATHENA_HOME_PATH") + "/plugins/tmpy"
 if (exists (tmpy_home_path)):
-    sys.path.append(os.environ.get("TEXMACS_HOME_PATH") + "/plugins/")
+    sys.path.append(os.environ.get("ATHENA_HOME_PATH") + "/plugins/")
 else:
-    sys.path.append(os.environ.get("TEXMACS_PATH") + "/plugins/")
+    sys.path.append(os.environ.get("ATHENA_PATH") + "/plugins/")
 
 
 import tempfile

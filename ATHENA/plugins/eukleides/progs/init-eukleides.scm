@@ -17,9 +17,9 @@
         (string-append s "\n<EOF>\n"))))
 
 (define (eukleides-entry)
-  (if (url-exists? "$TEXMACS_HOME_PATH/plugins/eukleides")
-      (system-url->string "$TEXMACS_HOME_PATH/plugins/eukleides/python/tm_eukleides.py")
-      (system-url->string "$TEXMACS_PATH/plugins/eukleides/python/tm_eukleides.py")))
+  (if (url-exists? "$ATHENA_HOME_PATH/plugins/eukleides")
+      (system-url->string "$ATHENA_HOME_PATH/plugins/eukleides/python/tm_eukleides.py")
+      (system-url->string "$ATHENA_PATH/plugins/eukleides/python/tm_eukleides.py")))
 
 (define (eukleides-launcher)
   `((:launch ,(string-append (python-command) " " (eukleides-entry)))))

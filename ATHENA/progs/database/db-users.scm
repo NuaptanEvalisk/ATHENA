@@ -31,7 +31,7 @@
 ;; The database for user management
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define users-dir "$TEXMACS_HOME_PATH/users")
+(define users-dir "$ATHENA_HOME_PATH/users")
 (define users-master (url->url (string-append users-dir "/users-master.tmdb")))
 
 (tm-define (add-user pseudo name)
@@ -127,7 +127,7 @@
  (if (os-android?)
     "Default User"
  (if (os-mingw?)
-     (getenv "TEXMACS_DISPLAYNAME")
+     (getenv "ATHENA_DISPLAYNAME")
      (safe-getpwnam user))))
 
 (define (create-default-user)

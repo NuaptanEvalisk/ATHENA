@@ -30,8 +30,8 @@
 *     'init' an initialization string.
 ******************************************************************************/
 
-#ifndef __TEXMACS_H
-#define __TEXMACS_H
+#ifndef __ATHENA_H
+#define __ATHENA_H
 
 #if defined (__cplusplus)
 extern "C" {
@@ -86,4 +86,4 @@ typedef struct package_exports_1 {
 }
 #endif
 
-#endif /* __TEXMACS_H */
+#endif /* __ATHENA_H */

@@ -14,7 +14,7 @@
 
     <\src-license>
       This software falls under the <hlink|GNU general public license,
-      version 3 or later|$TEXMACS_PATH/LICENSE>. It comes WITHOUT ANY
+      version 3 or later|$ATHENA_PATH/LICENSE>. It comes WITHOUT ANY
       WARRANTY WHATSOEVER. You should have received a copy of the license
       which the software. If not, see <hlink|http://www.gnu.org/licenses/gpl-3.0.html|http://www.gnu.org/licenses/gpl-3.0.html>.
     </src-license>
@@ -109,7 +109,7 @@
 
   <assign|tmdoc-file|<macro|name|<or|<find-file|<arg|name>>|<find-file-upwards|<merge|<arg|name>|.|<language-suffix>|.tm>|doc|web|texmacs>|<find-file-upwards|<merge|<arg|name>|.en.tm>|doc|web|texmacs>|<arg|name>>>>
 
-  <assign|tmdoc-image|<macro|name|<find-file|$TEXMACS_IMAGE_PATH|<arg|name>>>>
+  <assign|tmdoc-image|<macro|name|<find-file|$ATHENA_IMAGE_PATH|<arg|name>>>>
 
   <assign|tmdoc-link|<macro|body|destination|<with|file|<tmdoc-file|<arg|destination>>|<if|<unequal|<value|file>|false>|<hlink|<arg|body>|<value|file>>|<arg|body>>>>>
 
@@ -131,7 +131,7 @@
 
   <assign|re-index|<macro|body|<arg|body><index|<arg|body>>>>
 
-  <assign|example-plugin-link|<macro|plugin|<style-with|src-compact|none|<hlink|<with|font-family|tt|<arg|plugin>>|<merge|$TEXMACS_PATH/examples/plugins/|<arg|plugin>>>>>>
+  <assign|example-plugin-link|<macro|plugin|<style-with|src-compact|none|<hlink|<with|font-family|tt|<arg|plugin>>|<merge|$ATHENA_PATH/examples/plugins/|<arg|plugin>>>>>>
 
   <assign|tmdoc-length-unit|<macro|unit|<with|font-family|tt|<src-length|<arg|unit>>>>>
 

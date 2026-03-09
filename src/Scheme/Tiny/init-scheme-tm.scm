@@ -3,16 +3,16 @@
 
 
 ;;(display "initialization for LittleScheme/TeXmacs\n")
-;;(load (url-concretize "$TEXMACS_PATH/progs/init-scheme.scm"))
+;;(load (url-concretize "$ATHENA_PATH/progs/init-scheme.scm"))
 
 (define (reload) 
- (load (url-concretize "$TEXMACS_PATH/progs/init-scheme-tm.scm")))
+ (load (url-concretize "$ATHENA_PATH/progs/init-scheme-tm.scm")))
 
 
 (define (module->path name)
   (url-concretize (string-append
   (foldr (lambda (a b) (string-append (atom->string a) 
-          "/" (atom->string b))) "$TEXMACS_PATH/progs" name) ".scm")))
+          "/" (atom->string b))) "$ATHENA_PATH/progs" name) ".scm")))
   
 
 (define module-list '())

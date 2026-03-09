@@ -90,7 +90,7 @@ public:
 
 url
 resolve_pattern (url im) {
-  url pats= expand (url ("$TEXMACS_PATTERN_PATH"));
+  url pats= expand (url ("$ATHENA_PATTERN_PATH"));
   url image= resolve (im);
   if (is_none (image)) {
     if (!is_rooted (im)) image= resolve (pats * im);

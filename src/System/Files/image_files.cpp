@@ -92,8 +92,8 @@ static hashmap<tree,imgbox> img_box;
 tree
 xpm_load (url u) {
   string s;
-  load_string ("$TEXMACS_PIXMAP_PATH" * u, s, false);
-  if (s == "") load_string ("$TEXMACS_PATH/misc/pixmaps/TeXmacs.xpm", s, true);
+  load_string ("$ATHENA_PIXMAP_PATH" * u, s, false);
+  if (s == "") load_string ("$ATHENA_PATH/misc/pixmaps/TeXmacs.xpm", s, true);
 
   int i, j;
   tree t (TUPLE);
@@ -104,7 +104,7 @@ xpm_load (url u) {
       while ((i<N(s)) && (s[i]!='\x22')) i++;
       t << s (j, i);
     }
-  if (N(t)==0) return xpm_load ("$TEXMACS_PATH/misc/pixmaps/TeXmacs.xpm");
+  if (N(t)==0) return xpm_load ("$ATHENA_PATH/misc/pixmaps/TeXmacs.xpm");
   return t;
 }
 
@@ -205,7 +205,7 @@ ps_load (url image, bool conv) {
 
   url name= resolve (image);
   if (is_none (name))
-    name= "$TEXMACS_PATH/misc/pixmaps/unknown.ps";
+    name= "$ATHENA_PATH/misc/pixmaps/unknown.ps";
 
 #ifdef OS_WIN32
   if (is_ramdisc (name)) name= get_from_ramdisc (name);
@@ -217,7 +217,7 @@ ps_load (url image, bool conv) {
   else 
     if (conv) s= image_to_psdoc (image); // call converters, then load resulting ps
     
-  if (s == "") load_string ("$TEXMACS_PATH/misc/pixmaps/unknown.ps", s, true);
+  if (s == "") load_string ("$ATHENA_PATH/misc/pixmaps/unknown.ps", s, true);
   return s;
 }
 
@@ -470,7 +470,7 @@ image_to_eps (url image, url eps, int w_pt, int h_pt, int dpi) {
 
   if (!exists (eps)) {
     convert_error << image << " could not be converted to eps" << LF;
-    copy ("$TEXMACS_PATH/misc/pixmaps/unknown.eps", eps);
+    copy ("$ATHENA_PATH/misc/pixmaps/unknown.eps", eps);
     inform_about_dependencies ();
   }
 }
@@ -515,7 +515,7 @@ image_to_pdf (url image, url pdf, int w_pt, int h_pt, int dpi) {
 
   if (!exists (pdf)) {
     convert_error << image << " could not be converted to pdf" << LF;
-    copy ("$TEXMACS_PATH/misc/pixmaps/unknown.pdf", pdf);
+    copy ("$ATHENA_PATH/misc/pixmaps/unknown.pdf", pdf);
     inform_about_dependencies ();
   }
 }
@@ -555,7 +555,7 @@ image_to_png (url image, url png, int w, int h) {// IN PIXEL UNITS!
   call_imagemagick_convert (image, png, w, h);
   if (! exists(png)) {
     convert_error << image << " could not be converted to png" <<LF;
-    copy("$TEXMACS_PATH/misc/pixmaps/unknown.png",png);
+    copy("$ATHENA_PATH/misc/pixmaps/unknown.png",png);
   }
 }
 

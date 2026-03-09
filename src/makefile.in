@@ -436,7 +436,7 @@ uses_gnutls   := $(gnutls_obj)
 
 # Compilation rules
 
-TEXMACS_objects := $(strip $(call uses,system kernel data graphics\
+ATHENA_objects := $(strip $(call uses,system kernel data graphics\
  plugins x11 os qt gs cocoa style typeset edit scheme texmacs pdf\
  freetype gnutls windowsres)) $(texmacs_c_deps)
 
@@ -447,15 +447,15 @@ link_options:=-L$(tmsrc)/lib -lm $(LDPATH) $(LDGUI) $(LDICONV) $(CXXFLAGS)\
 $(tmsrc)/bin/texmacs.bin: Objects/texmacs.bin
 	$(CP) $^ $@
 
-Objects/texmacs.bin: Objects/texmacs.o Objects/tm_ostream.o Objects/fast_alloc.o Objects/tree.o $(TEXMACS_objects)
+Objects/texmacs.bin: Objects/texmacs.o Objects/tm_ostream.o Objects/fast_alloc.o Objects/tree.o $(ATHENA_objects)
 	$(call link_bin,$(link_options))
 
 all: $(tmsrc)/bin/texmacs.bin
 
-Objects/libtexmacs.$(SO_SUFFIX): Objects/texmacs.o Objects/tm_ostream.o Objects/fast_alloc.o Objects/tree.o $(TEXMACS_objects)
+Objects/libtexmacs.$(SO_SUFFIX): Objects/texmacs.o Objects/tm_ostream.o Objects/fast_alloc.o Objects/tree.o $(ATHENA_objects)
 	$(LD) $^ $(link_options) $(LDFLAGS) $(LDSHARED) $(LIBS) -o $@
 
-Objects/libtexmacs.a: Objects/texmacs.o Objects/tm_ostream.o Objects/fast_alloc.o Objects/tree.o $(TEXMACS_objects)
+Objects/libtexmacs.a: Objects/texmacs.o Objects/tm_ostream.o Objects/fast_alloc.o Objects/tree.o $(ATHENA_objects)
 	$(AR) $(ARFLAGS) $@ $^
 
 .PHONY: all liball $(tmsrc)/bin/texmacs.bin

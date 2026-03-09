@@ -138,7 +138,7 @@ init_heuristic_tex_paths () {
 
 void
 setup_tex () {
-  remove ("$TEXMACS_HOME_PATH/fonts/font-index.scm");
+  remove ("$ATHENA_HOME_PATH/fonts/font-index.scm");
   init_helper_binaries ();
   init_heuristic_tex_paths ();
 }

@@ -34,7 +34,7 @@
   las rutinas más importantes. Planeamos escribir una guía de referencia más
   completa después. Usted puede también echar un vistazo a los archivos
   <name|Scheme> <verbatim|.scm> en el directorio
-  <verbatim|$TEXMACS_PATH/progs>.
+  <verbatim|$ATHENA_PATH/progs>.
 
   <apply|tmdoc-copyright|1998--2002|Joris van der Hoeven|Offray Vladimir Luna
   Cárdenas>

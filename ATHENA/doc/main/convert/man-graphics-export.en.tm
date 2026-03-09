@@ -53,7 +53,7 @@
   </itemize-dot>
 
   Several of these converters are accessed through <scheme> <code*|converter>
-  procedures (defined in <verbatim|$TEXMACS_PATH/progs/convert/images/init-images.scm>).
+  procedures (defined in <verbatim|$ATHENA_PATH/progs/convert/images/init-images.scm>).
   <hlink|Additional converters|new/man-newconv.en.tm> can be similarly
   defined, when needed.\ 
 

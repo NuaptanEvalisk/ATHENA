@@ -7,7 +7,7 @@
 
   Der Benutzer kann das Tastatur-Verhalten ändern. Wenn Sie das wünschen,
   dann empfehlen wir Ihnen zuerst die Dateien anzuschauen, die im Ordner
-  <verbatim|$TEXMACS_PATH/progs/keyboard> stehen, wo das Standard-Verhalten
+  <verbatim|$ATHENA_PATH/progs/keyboard> stehen, wo das Standard-Verhalten
   definiert ist. Dann können Sie Ihre eigenen Initialisierungs-Dateien
   schreiben und damit das Verhalten steuern.
 

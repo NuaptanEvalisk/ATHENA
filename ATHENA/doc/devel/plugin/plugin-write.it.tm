@@ -9,10 +9,10 @@
   inizia creando la directory
 
   <\verbatim>
-    \ \ \ \ $TEXMACS_HOME_PATH/plugins/<em|mioplugin>
+    \ \ \ \ $ATHENA_HOME_PATH/plugins/<em|mioplugin>
   </verbatim>
 
-  in cui sistemare tutti i file (si ricorda che <verbatim|$TEXMACS_HOME_PATH>
+  in cui sistemare tutti i file (si ricorda che <verbatim|$ATHENA_HOME_PATH>
   per default è <verbatim|$HOME/.TeXmacs>). Opzionalmente è possibile creare
   le seguenti sottodirectory:
 
@@ -41,13 +41,13 @@
   prevista una sottodirectory <verbatim|bin> allora la stringa
 
   <\verbatim>
-    \ \ \ \ $TEXMACS_HOME_PATH/plugins/<em|mioplugin>/bin
+    \ \ \ \ $ATHENA_HOME_PATH/plugins/<em|mioplugin>/bin
   </verbatim>
 
   verrà automaticamente aggiunta, all'avvio, alla variabile ambientale
   <verbatim|PATH>. Osserviamo come la struttura della sottodirectory di un
   plugin sia molto simile alla struttura della sottodirectory di
-  <verbatim|$TEXMACS_PATH>.
+  <verbatim|$ATHENA_PATH>.
 
   <\example>
     Il tipo più semplice di plugin consiste solo di file di dati, ossia di
@@ -55,11 +55,11 @@
     questo genere è sufficiente creare le sottodirectory:
 
     <\verbatim>
-      \ \ \ \ $TEXMACS_HOME_PATH/plugins/<em|mioplugin>
+      \ \ \ \ $ATHENA_HOME_PATH/plugins/<em|mioplugin>
 
-      \ \ \ \ $TEXMACS_HOME_PATH/plugins/<em|mioplugin>/styles
+      \ \ \ \ $ATHENA_HOME_PATH/plugins/<em|mioplugin>/styles
 
-      \ \ \ \ $TEXMACS_HOME_PATH/plugins/<em|mioplugin>/packages
+      \ \ \ \ $ATHENA_HOME_PATH/plugins/<em|mioplugin>/packages
     </verbatim>
 
     e sistemare i file di stile e i pacchetti nelle ultime due
@@ -73,7 +73,7 @@
   configurazione in <value|scheme>
 
   <\verbatim>
-    \ \ \ \ $TEXMACS_HOME_PATH/plugins/<em|mioplugin>/progs/init-<em|mioplugin>.scm
+    \ \ \ \ $ATHENA_HOME_PATH/plugins/<em|mioplugin>/progs/init-<em|mioplugin>.scm
   </verbatim>
 
   che dovrebbe contenere istruzioni del tipo
@@ -91,7 +91,7 @@
   nella directory
 
   <\verbatim>
-    \ \ \ \ $TEXMACS_PATH/examples/plugins
+    \ \ \ \ $ATHENA_PATH/examples/plugins
   </verbatim>
 
   Alcuni di questi verranno comunque descritti in dettaglio nel capitolo

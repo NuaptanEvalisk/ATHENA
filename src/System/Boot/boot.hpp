@@ -13,7 +13,7 @@
 #define BOOT_H
 #include "url.hpp"
 
-extern tree texmacs_settings;
+extern tree athena_settings;
 extern int  install_status;
 extern bool use_which;
 extern bool use_locate;
@@ -24,11 +24,11 @@ string get_setting (string var, string def= "");
 void   set_setting (string var, string val);
 void   get_old_settings (string s);
 void   init_upgrade ();
-void   init_texmacs ();
+void   init_athena ();
 void   init_plugins ();
-void   setup_texmacs ();
+void   setup_athena ();
 void   release_boot_lock ();
-bool   test_texmacs_path (url path, bool set_environment = true);
+bool   test_athena_path (url path, bool set_environment = true);
 
 scheme_tree plugin_list ();
 

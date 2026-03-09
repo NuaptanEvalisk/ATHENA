@@ -14,14 +14,14 @@
   comprobar si obtiene resultados satisfactorios. En caso afirmativo, debe
   enviar <verbatim|nombre.tex> junto con el fichero de estilo
   <verbatim|TeXmacs.sty>, que podrá encontrar en el directorio
-  <verbatim|$TEXMACS_PATH/misc/latex>.
+  <verbatim|$ATHENA_PATH/misc/latex>.
 
   Es usual que la publicación a la que usted envíe sus trabajos use su propio
   fichero de estilo (llamémoslo <verbatim|journal.sty>). En ese caso , debe
   también copiar el fichero
 
   <\verbatim>
-    \ \ \ \ $TEXMACS_PATH/styles/article.ts
+    \ \ \ \ $ATHENA_PATH/styles/article.ts
   </verbatim>
 
   como\ 

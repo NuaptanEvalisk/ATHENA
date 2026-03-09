@@ -321,15 +321,15 @@ new_qt_load_xpm (url file_name) {
     else if (scale == 4.0) suf= "_x4.png";
     else { suf= "_x4.png"; f= scale / 4.0; }
     url png_equiv= glue (unglue (file_name, 4), suf);
-    load_string ("$TEXMACS_PIXMAP_PATH" * png_equiv, sss, false);
+    load_string ("$ATHENA_PIXMAP_PATH" * png_equiv, sss, false);
   }
   if (sss == "") {
     f= scale;
-    load_string ("$TEXMACS_PIXMAP_PATH" * file_name, sss, false);
+    load_string ("$ATHENA_PIXMAP_PATH" * file_name, sss, false);
   }
   if (sss == "") {
     f= scale;
-    load_string ("$TEXMACS_PATH/misc/pixmaps/TeXmacs.xpm", sss, true);
+    load_string ("$ATHENA_PATH/misc/pixmaps/TeXmacs.xpm", sss, true);
   }
   c_string buf (sss);
   QImage pm;
@@ -367,16 +367,16 @@ qt_load_xpm (url file_name) {
   string sss;
   if (retina_icons > 1 && suffix (file_name) == "xpm") {
     url png_equiv= glue (unglue (file_name, 4), "_x2.png");
-    load_string ("$TEXMACS_PIXMAP_PATH" * png_equiv, sss, false);
+    load_string ("$ATHENA_PIXMAP_PATH" * png_equiv, sss, false);
   }
   if (sss == "" && suffix (file_name) == "xpm") {
     url png_equiv= glue (unglue (file_name, 3), "png");
-    load_string ("$TEXMACS_PIXMAP_PATH" * png_equiv, sss, false);
+    load_string ("$ATHENA_PIXMAP_PATH" * png_equiv, sss, false);
   }
   if (sss == "")
-    load_string ("$TEXMACS_PIXMAP_PATH" * file_name, sss, false);
+    load_string ("$ATHENA_PIXMAP_PATH" * file_name, sss, false);
   if (sss == "")
-    load_string ("$TEXMACS_PATH/misc/pixmaps/TeXmacs.xpm", sss, true);
+    load_string ("$ATHENA_PATH/misc/pixmaps/TeXmacs.xpm", sss, true);
   c_string buf (sss);
   QImage pm;
   pm.loadFromData ((uchar*) (char*) buf, N(sss));

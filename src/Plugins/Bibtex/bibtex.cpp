@@ -152,7 +152,7 @@ complete_bib_file (url& bib_file, tree bib_t) {
     if (is_atomic (bib_t[i]) && starts (bib_t[i]->label, "TeXmacs:")) {
       if (suffix (bib_file) != "bib") bib_file= glue (bib_file, ".bib");
       url rad= unglue (bib_file, 4);
-      url xbib_file= "$TEXMACS_PATH/misc/bib/texmacs.bib";
+      url xbib_file= "$ATHENA_PATH/misc/bib/texmacs.bib";
       url mbib_file= head (bib_file) * glue (rad, "-extended.bib");
       copy (bib_file, mbib_file);
       append_to (xbib_file, mbib_file);
@@ -183,17 +183,17 @@ bibtex_run (string bib, string style, url bib_file, tree bib_t) {
   if ((N(bib_name) >= 4) && (bib_name (N(bib_name)-4, N(bib_name)) == ".bib"))
     bib_name= bib_name (0, N(bib_name)- 4);
   bib_s << "\\bibdata{" << bib_name << "}\n";
-  save_string ("$TEXMACS_HOME_PATH/system/bib/temp.aux", bib_s);
+  save_string ("$ATHENA_HOME_PATH/system/bib/temp.aux", bib_s);
 
 #ifdef OS_WIN32_LATER
   c_string directory (dir);
-  RunBibtex (directory, "$TEXMACS_HOME_PATH/system/bib", "temp");
+  RunBibtex (directory, "$ATHENA_HOME_PATH/system/bib", "temp");
 #else
-  string cmdln= "cd $TEXMACS_HOME_PATH/system/bib; ";
+  string cmdln= "cd $ATHENA_HOME_PATH/system/bib; ";
   cmdln << "BIBINPUTS=\"" << dir << "\":$BIBINPUTS "
 	<< "BSTINPUTS=\"" << dir << "\":$BSTINPUTS "
 	<< bibtex_command
-        << " temp > $TEXMACS_HOME_PATH/system/bib/temp.log";
+        << " temp > $ATHENA_HOME_PATH/system/bib/temp.log";
   if (DEBUG_AUTO) {
     if (!(DEBUG_STD))
       debug_shell << cmdln << "\n";
@@ -214,10 +214,10 @@ bibtex_run (string bib, string style, url bib_file, tree bib_t) {
   }
 #endif
 
-  return bibtex_load_bbl (bib, "$TEXMACS_HOME_PATH/system/bib/temp.bbl");
+  return bibtex_load_bbl (bib, "$ATHENA_HOME_PATH/system/bib/temp.bbl");
   /*
   string result;
-  if (load_string ("$TEXMACS_HOME_PATH/system/bib/temp.bbl", result, false))
+  if (load_string ("$ATHENA_HOME_PATH/system/bib/temp.bbl", result, false))
     return "Error: bibtex failed to create bibliography";
 
   int count=1;

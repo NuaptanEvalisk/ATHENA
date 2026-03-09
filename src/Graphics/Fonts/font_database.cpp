@@ -23,19 +23,19 @@ void font_database_filter_features ();
 void font_database_filter_characteristics ();
 static array<string> font_database_families (hashmap<tree,tree> ftab);
 
-#define GLOBAL_DATABASE "$TEXMACS_PATH/fonts/font-database.scm"
-#define GLOBAL_FEATURES "$TEXMACS_PATH/fonts/font-features.scm"
-#define GLOBAL_FEATURES_BIS "$TEXMACS_PATH/fonts/font-features.bis.scm"
-#define GLOBAL_CHARACTERISTICS "$TEXMACS_PATH/fonts/font-characteristics.scm"
-#define GLOBAL_SUBSTITUTIONS "$TEXMACS_PATH/fonts/font-substitutions.scm"
-#define LOCAL_DATABASE "$TEXMACS_HOME_PATH/fonts/font-database.scm"
-#define LOCAL_FEATURES "$TEXMACS_HOME_PATH/fonts/font-features.scm"
+#define GLOBAL_DATABASE "$ATHENA_PATH/fonts/font-database.scm"
+#define GLOBAL_FEATURES "$ATHENA_PATH/fonts/font-features.scm"
+#define GLOBAL_FEATURES_BIS "$ATHENA_PATH/fonts/font-features.bis.scm"
+#define GLOBAL_CHARACTERISTICS "$ATHENA_PATH/fonts/font-characteristics.scm"
+#define GLOBAL_SUBSTITUTIONS "$ATHENA_PATH/fonts/font-substitutions.scm"
+#define LOCAL_DATABASE "$ATHENA_HOME_PATH/fonts/font-database.scm"
+#define LOCAL_FEATURES "$ATHENA_HOME_PATH/fonts/font-features.scm"
 #define LOCAL_CHARACTERISTICS \
-  "$TEXMACS_HOME_PATH/fonts/font-characteristics.scm"
-#define DELTA_DATABASE "$TEXMACS_HOME_PATH/fonts/delta-database.scm"
-#define DELTA_FEATURES "$TEXMACS_HOME_PATH/fonts/delta-features.scm"
+  "$ATHENA_HOME_PATH/fonts/font-characteristics.scm"
+#define DELTA_DATABASE "$ATHENA_HOME_PATH/fonts/delta-database.scm"
+#define DELTA_FEATURES "$ATHENA_HOME_PATH/fonts/delta-features.scm"
 #define DELTA_CHARACTERISTICS \
-  "$TEXMACS_HOME_PATH/fonts/delta-characteristics.scm"
+  "$ATHENA_HOME_PATH/fonts/delta-characteristics.scm"
 
 /******************************************************************************
 * Additional comparison operators
@@ -153,7 +153,7 @@ font_database_save_database (url u) {
   string s= scheme_tree_to_block (tree (TUPLE, r));
   save_string (u, s);
   // FIXME: this should not be necessary
-  remove ("$TEXMACS_PATH/system/cache/file_cache");
+  remove ("$ATHENA_PATH/system/cache/file_cache");
   cache_refresh ();
 }
 
@@ -171,7 +171,7 @@ font_database_save_features (url u) {
   string s= scheme_tree_to_block (tree (TUPLE, r));
   save_string (u, s);
   // FIXME: this should not be necessary
-  remove ("$TEXMACS_PATH/system/cache/file_cache");
+  remove ("$ATHENA_PATH/system/cache/file_cache");
   cache_refresh ();
 }
 
@@ -187,7 +187,7 @@ font_database_save_characteristics (url u) {
   string s= scheme_tree_to_block (tree (TUPLE, r));
   save_string (u, s);
   // FIXME: this should not be necessary
-  remove ("$TEXMACS_PATH/system/cache/file_cache");
+  remove ("$ATHENA_PATH/system/cache/file_cache");
   cache_refresh ();
 }
 

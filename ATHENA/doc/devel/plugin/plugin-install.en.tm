@@ -13,24 +13,24 @@
   </verbatim>
 
   If you installed <TeXmacs> yourself in the directory
-  <verbatim|$TEXMACS_PATH>, then you should unpack this tarball in the
-  directory <verbatim|$TEXMACS_PATH/plugins>, using
+  <verbatim|$ATHENA_PATH>, then you should unpack this tarball in the
+  directory <verbatim|$ATHENA_PATH/plugins>, using
 
   <\verbatim>
     \ \ \ \ tar -zxvf <em|myplugin>-<em|version>-<em|architecture>.tar.gz
   </verbatim>
 
   This will create a <verbatim|<em|myplugin>> subdirectory in
-  <verbatim|$TEXMACS_PATH/plugins>. As soon as you restart <TeXmacs>, the
+  <verbatim|$ATHENA_PATH/plugins>. As soon as you restart <TeXmacs>, the
   plug-in should be automatically recognized. If not, then click on
   <menu|Tools|Update|Plugins> and relaunch <TeXmacs>. Please read the
   documentation which comes with your plug-in in order to learn using it.
 
   <\remark>
     If you did not install <TeXmacs> yourself, or if you do not have write
-    access to <verbatim|$TEXMACS_PATH>, then you may also unpack the tarball
-    in <verbatim|$TEXMACS_HOME_PATH/plugins>. Here we recall that
-    <verbatim|$TEXMACS_HOME_PATH> defaults to <verbatim|$HOME/.TeXmacs>. When
+    access to <verbatim|$ATHENA_PATH>, then you may also unpack the tarball
+    in <verbatim|$ATHENA_HOME_PATH/plugins>. Here we recall that
+    <verbatim|$ATHENA_HOME_PATH> defaults to <verbatim|$HOME/.TeXmacs>. When
     starting <TeXmacs>, your plug-in should again be automatically
     recognized.
   </remark>
@@ -54,7 +54,7 @@
 
   <\remark>
     In order to upgrade a plug-in, just remove the old version in
-    <verbatim|$TEXMACS_PATH/plugins> or <verbatim|$TEXMACS_HOME_PATH/plugins>
+    <verbatim|$ATHENA_PATH/plugins> or <verbatim|$ATHENA_HOME_PATH/plugins>
     using
 
     <\verbatim>

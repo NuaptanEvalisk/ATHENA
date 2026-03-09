@@ -82,7 +82,7 @@
             isEnabled = "YES">
          </EnvironmentVariable>
          <EnvironmentVariable
-            key = "TEXMACS_PATH"
+            key = "ATHENA_PATH"
             value = "$(TM_BASE)/TeXmacs"
             isEnabled = "YES">
          </EnvironmentVariable>

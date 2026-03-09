@@ -35,8 +35,8 @@
 
   More precisely, the <markup|use-package> package sequentially includes the
   style packages corresponding to its arguments. The packages should be in
-  <verbatim|$TEXMACS_PACKAGE_PATH>, which contains <verbatim|.>,
-  <verbatim|~/.TeXmacs/packages> and <verbatim|$TEXMACS_PATH/packages> by
+  <verbatim|$ATHENA_PACKAGE_PATH>, which contains <verbatim|.>,
+  <verbatim|~/.TeXmacs/packages> and <verbatim|$ATHENA_PATH/packages> by
   default. Furthermore rendering information for the source code like
   <markup|style-with> tags are discarded before evaluation of the files.
 
@@ -45,9 +45,9 @@
     style files and packages which can be found in
 
     <\verbatim>
-      \ \ \ \ $TEXMACS_PATH/styles
+      \ \ \ \ $ATHENA_PATH/styles
 
-      \ \ \ \ $TEXMACS_PATH/packages
+      \ \ \ \ $ATHENA_PATH/packages
     </verbatim>
 
     When loading using <shortcut|(interactive load-buffer)>, these paths are in the standard load

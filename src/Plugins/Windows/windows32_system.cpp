@@ -91,18 +91,18 @@ void texmacs_fclose(FILE *&file, bool unlock) {
   file = nullptr;
 }
 
-TEXMACS_DIR texmacs_opendir(string dirname) {
+ATHENA_DIR texmacs_opendir(string dirname) {
   cout << "texmacs_opendir " << dirname << "\r\n";
   c_string c_dirname = dirname;
-  return (TEXMACS_DIR)opendir(c_dirname);
+  return (ATHENA_DIR)opendir(c_dirname);
 }
 
-void texmacs_closedir(TEXMACS_DIR dir) {
+void texmacs_closedir(ATHENA_DIR dir) {
   closedir((DIR*)dir);
   dir = nullptr;
 }
 
-texmacs_dirent texmacs_readdir(TEXMACS_DIR dirp) {
+texmacs_dirent texmacs_readdir(ATHENA_DIR dirp) {
   std::string nextname;
   bool res = nowide::readir_entry((DIR*)dirp, nextname);
   if (!res) {

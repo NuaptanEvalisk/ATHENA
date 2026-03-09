@@ -71,9 +71,9 @@ mac_alternate_startup () {
 void 
 mac_fix_paths () {
   NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
-  /* add appropriate TEXMACS_PATH to the current environment */
+  /* add appropriate ATHENA_PATH to the current environment */
 #if 0
-  setenv("TEXMACS_PATH",
+  setenv("ATHENA_PATH",
          [[[[NSBundle mainBundle] resourcePath] 
            stringByAppendingPathComponent:@"share/TeXmacs"] 
           cStringUsingEncoding:NSUTF8StringEncoding],

@@ -7,7 +7,7 @@
 
   Es posible para el usuario modificar el comportamiento del teclado. A fin
   de hacer eso, sugerimos primero mirar los archivos en el directorio
-  <verbatim|$TEXMACS_PATH/progs/keyboard>, donde el comportamiento estándard
+  <verbatim|$ATHENA_PATH/progs/keyboard>, donde el comportamiento estándard
   del teclado es definido. Entonces usted puede redefinir el comportamiento
   en su archivo de inicialización privado.
 

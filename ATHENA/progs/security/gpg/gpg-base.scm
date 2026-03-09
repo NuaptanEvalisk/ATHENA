@@ -50,7 +50,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (tm-define (gpg-userdir)
-  (url-concretize (string-append "$TEXMACS_HOME_PATH/users/"
+  (url-concretize (string-append "$ATHENA_HOME_PATH/users/"
 				 (get-default-user))))
 
 (tm-define (gpg-homedir)

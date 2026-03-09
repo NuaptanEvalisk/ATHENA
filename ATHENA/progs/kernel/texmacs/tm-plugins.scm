@@ -193,13 +193,13 @@
                (launcher-list)
                (ahash-table->list connection-session)
                (ahash-table->list connection-scripts)
-               (url->system (string->url "$TEXMACS_PATH"))
-               (url->system (string->url "$TEXMACS_HOME_PATH"))))
+               (url->system (string->url "$ATHENA_PATH"))
+               (url->system (string->url "$ATHENA_HOME_PATH"))))
   (display "\n"))
 
 (define-public (get-remote-plugin-info where)
   ;; NOTE: prepare environment in ~/.bashrc
-  (let* ((tmp "$TEXMACS_HOME_PATH/system/remote-plugin-info")
+  (let* ((tmp "$ATHENA_HOME_PATH/system/remote-plugin-info")
          (rcmd "texmacs -s -x \"(write-local-plugin-info)\" -q")
          (qcmd (string-quote rcmd))
          (lcmd (string-append "ssh " where " " qcmd " > " tmp)))
@@ -208,7 +208,7 @@
       (system-remove tmp)
       (string->object res))))
 
-(define remote-plugins "$TEXMACS_HOME_PATH/system/remote-plugins.scm")
+(define remote-plugins "$ATHENA_HOME_PATH/system/remote-plugins.scm")
 (define remote-plugins-initialized? #f)
 (define remote-plugins-table (make-ahash-table))
 
@@ -262,8 +262,8 @@
 (define (opt-export env opts)
   (if (null? opts) env
       (string-append env
-                     "; export TEXMACS_PATH=" (car opts)
-                     "; export TEXMACS_HOME_PATH=" (cadr opts))))
+                     "; export ATHENA_PATH=" (car opts)
+                     "; export ATHENA_HOME_PATH=" (cadr opts))))
 
 (define-public (update-remote-tables)
   (set! remote-servers-table (make-ahash-table))
@@ -375,7 +375,7 @@
 
 (define-public reconfigure-flag? #t)
 (define plugin-loaded-setup? #f)
-(define plugin-cache "$TEXMACS_HOME_PATH/system/cache/plugin_cache.scm")
+(define plugin-cache "$ATHENA_HOME_PATH/system/cache/plugin_cache.scm")
 
 (define plugin-check-path "")
 (define check-dir-table (make-ahash-table))
@@ -418,7 +418,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define home-dir (string->url "~"))
-(define texmacs-dir (string->url "$TEXMACS_PATH"))
+(define texmacs-dir (string->url "$ATHENA_PATH"))
 
 (define (init-check-dir-table)
   (set! check-dir-table (make-ahash-table))
@@ -624,7 +624,7 @@
   (when (ahash-ref plugin-initialize-todo name*)
     (let* ((name (symbol->string name*))
            (file (string-append "plugins/" name "/progs/init-" name ".scm"))
-           (u (url-unix "$TEXMACS_HOME_PATH:$TEXMACS_PATH" file)))
+           (u (url-unix "$ATHENA_HOME_PATH:$ATHENA_PATH" file)))
       (ahash-remove! plugin-initialize-todo name*)
       (if (url-exists? u)
           (with fname (url-materialize u "r")

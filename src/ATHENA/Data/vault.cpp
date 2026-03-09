@@ -15,7 +15,7 @@
 #include "analyze.hpp"
 #include "convert.hpp"
 #include "sys_utils.hpp"
-#include "Texmacs/Data/new_buffer.hpp"
+#include "ATHENA/Data/new_buffer.hpp"
 
 bool       is_vault_active = false;
 vault_info current_vault;

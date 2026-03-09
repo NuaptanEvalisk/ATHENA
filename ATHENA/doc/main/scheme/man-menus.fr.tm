@@ -22,7 +22,7 @@
   menu. Examinez les fichiers situés dans le répertoire :
 
   <\verbatim>
-    \ \ \ \ $TEXMACS_PATH/progs/menu
+    \ \ \ \ $ATHENA_PATH/progs/menu
   </verbatim>
 
   pour voir comment les menus standards de <apply|TeXmacs> sont définis.

@@ -17,10 +17,10 @@
   <verbatim|myplugin>, trägt:\ 
 
   <\verbatim>
-    \ \ \ \ $TEXMACS_HOME_PATH/plugins/myplugin
+    \ \ \ \ $ATHENA_HOME_PATH/plugins/myplugin
   </verbatim>
 
-  <verbatim|$TEXMACS_HOME_PATH> ist vorgabemäÿig <verbatim|~/.TeXmacs>. In
+  <verbatim|$ATHENA_HOME_PATH> ist vorgabemäÿig <verbatim|~/.TeXmacs>. In
   einem Unter-Verzeichnis, <verbatim|plugins>, Ihres <TeXmacs>-Verzeichnisses
   können Sie alle Standard Plugins finden, die mit Ihrer
   <TeXmacs>-Distribution. ausgeliefert werden. Diese bieten gute Beispiele

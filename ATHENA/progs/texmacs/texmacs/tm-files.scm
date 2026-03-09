@@ -528,8 +528,8 @@
 (tm-define (load-buffer-main name . opts)
   ;;(display* "load-buffer-main " name ", " opts "\n")
   (if (and (not (url-exists? name))
-           (url-exists? (url-append "$TEXMACS_FILE_PATH" name)))
-      (set! name (url-resolve (url-append "$TEXMACS_FILE_PATH" name) "f")))
+           (url-exists? (url-append "$ATHENA_FILE_PATH" name)))
+      (set! name (url-resolve (url-append "$ATHENA_FILE_PATH" name) "f")))
   (if (not (url-rooted? name))
       (if (current-buffer)
           (set! name (url-relative (current-buffer) name))
@@ -612,8 +612,8 @@
 (tm-define (import-buffer-main name fm opts)
   ;;(display* "import-buffer-main " name ", " fm "\n")
   (if (and (not (url-exists? name))
-           (url-exists? (url-append "$TEXMACS_FILE_PATH" name)))
-      (set! name (url-resolve (url-append "$TEXMACS_FILE_PATH" name) "f")))
+           (url-exists? (url-append "$ATHENA_FILE_PATH" name)))
+      (set! name (url-resolve (url-append "$ATHENA_FILE_PATH" name) "f")))
   (import-buffer-check-permissions name fm opts))
 
 (tm-define (import-buffer name fm . opts)
@@ -685,7 +685,7 @@
 (tm-define (interactive-print-buffer)
   (:synopsis "Print the current buffer")
   (:interactive #t)
-  (with file (string-append "$TEXMACS_HOME_PATH/system/tmp/tmpprint."
+  (with file (string-append "$ATHENA_HOME_PATH/system/tmp/tmpprint."
 			    (printer-file-suffix))
     (print-to-file file)
     (interactive-print '() file)))

@@ -2,7 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="org.texmacs" 
     android:installLocation="auto"
-    android:versionCode="@TEXMACS_ANDROID_VERSION_CODE@" 
+    android:versionCode="@ATHENA_ANDROID_VERSION_CODE@" 
     android:versionName="@STABLE_VERSION@">
 
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />

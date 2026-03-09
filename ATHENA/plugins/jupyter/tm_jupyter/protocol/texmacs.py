@@ -27,7 +27,7 @@ DATA_ESCAPE = chr(27)
 DATA_COMMAND = chr(16)
 
 def in_texmacs():
-    return (os.environ.get("TEXMACS_PATH") != None)
+    return (os.environ.get("ATHENA_PATH") != None)
 
 def data_begin():
     """Signal the beginning of data to TeXmacs."""

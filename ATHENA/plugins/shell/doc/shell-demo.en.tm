@@ -13,7 +13,7 @@
     </unfolded-io>
 
     <\unfolded-io|Shell] >
-      echo $TEXMACS_PATH
+      echo $ATHENA_PATH
     <|unfolded-io>
       /usr/share/TeXmacs
     </unfolded-io>

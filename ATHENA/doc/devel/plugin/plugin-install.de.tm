@@ -14,26 +14,26 @@
     <em|myplugin>-<em|version>-<em|architecture>.tgz
   </verbatim>
 
-  vor. Wenn Sie Ihr <TeXmacs> in das Verzeichnis <verbatim|$TEXMACS_PATH>
+  vor. Wenn Sie Ihr <TeXmacs> in das Verzeichnis <verbatim|$ATHENA_PATH>
   installiert haben, dann sollten Sie diese Datei in dem Verzeichnis
-  <verbatim|$TEXMACS_PATH/plugins> auspacken mit dem Befehl
+  <verbatim|$ATHENA_PATH/plugins> auspacken mit dem Befehl
 
   <\verbatim>
     \ \ \ \ tar -zxvf <em|myplugin>-<em|version>-<em|architecture>.tar.gz
   </verbatim>
 
   Damit wird ein Unterverzeichnis <verbatim|<em|myplugin>> unter
-  <verbatim|$TEXMACS_PATH/plugins> angelegt. Wenn Sie nun <TeXmacs> starten,
+  <verbatim|$ATHENA_PATH/plugins> angelegt. Wenn Sie nun <TeXmacs> starten,
   sollte Ihr Plugin automatisch erkannt werden. Bitte lesen Sie die
   Dokumentation, die mit dem Plugin kommt, um den Gebrauch des Plugins zu
   erlernen.
 
   <\remark>
     Wenn Sie <TeXmacs> nicht selbst installiert haben, oder wenn Sie keinen
-    Zugriff auf <verbatim|$TEXMACS_PATH> haben, dann können Sie auch in das
-    Verzeichnis <verbatim|$TEXMACS_HOME_PATH/plugins> gehen und dort Ihren
+    Zugriff auf <verbatim|$ATHENA_PATH> haben, dann können Sie auch in das
+    Verzeichnis <verbatim|$ATHENA_HOME_PATH/plugins> gehen und dort Ihren
     \RTarball'' auspacken. Erinnern Sie sich, dass
-    <verbatim|$TEXMACS_HOME_PATH> gemäÿ Vorgabe das Verzeichnis
+    <verbatim|$ATHENA_HOME_PATH> gemäÿ Vorgabe das Verzeichnis
     \ <verbatim|$HOME/.TeXmacs> ist. Nachdem Sie Ihr Plugin so installiert
     haben, sollte <TeXmacs> nach dem Neustart auch hier Ihr Plugin
     automatisch erkennen.,
@@ -61,8 +61,8 @@
 
   <\remark>
     Um eine neue Version des Plugins die Dateien im entsprechenden
-    Plugin-Verzeichnis <verbatim|$TEXMACS_PATH/plugins> oder
-    <verbatim|$TEXMACS_HOME_PATH/plugins> mit
+    Plugin-Verzeichnis <verbatim|$ATHENA_PATH/plugins> oder
+    <verbatim|$ATHENA_HOME_PATH/plugins> mit
 
     <\verbatim>
       \ \ \ \ rm -rf <em|myplugin>

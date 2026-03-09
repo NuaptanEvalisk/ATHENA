@@ -6,7 +6,7 @@ error() {
     exit 1
 }
 
-if [ ! -x "$TEXMACS_HOME_PATH/bin/tm_mathematica.bin" ]
+if [ ! -x "$ATHENA_HOME_PATH/bin/tm_mathematica.bin" ]
 then
     MATH0=`which math`
     if [ $? -ne 0 ]
@@ -38,10 +38,10 @@ to one of them and try again."
         fi
     fi
     export MATHLINK_PATH="$MATH3/CompilerAdditions"
-    (cd "$TEXMACS_PATH/plugins/mathematica"; make -f Makefile.lazy)
+    (cd "$ATHENA_PATH/plugins/mathematica"; make -f Makefile.lazy)
 fi
 
-if [ -x $TEXMACS_HOME_PATH/bin/tm_mathematica.bin ]
-then exec $TEXMACS_HOME_PATH/bin/tm_mathematica.bin
+if [ -x $ATHENA_HOME_PATH/bin/tm_mathematica.bin ]
+then exec $ATHENA_HOME_PATH/bin/tm_mathematica.bin
 else error "Error in Mathematica plugin installation"
 fi

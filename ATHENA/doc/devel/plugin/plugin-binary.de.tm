@@ -10,7 +10,7 @@
   betrachten wir das Beispiel <verbatim|minimal> im Verzeichnis
 
   <\verbatim>
-    \ \ \ \ $TEXMACS_PATH/examples/plugins/minimal
+    \ \ \ \ $ATHENA_PATH/examples/plugins/minimal
   </verbatim>
 
   Es besteht aus den Dateien:
@@ -26,11 +26,11 @@
   Um das Plugin auszuprobieren müssen Sie das Verzeichnis
 
   <\verbatim>
-    \ \ \ \ $TEXMACS_PATH/examples/plugins/minimal
+    \ \ \ \ $ATHENA_PATH/examples/plugins/minimal
   </verbatim>
 
-  rekursiv in das Verzeichnis <verbatim|$TEXMACS_PATH/plugins> kopieren oder in
-  das Verzeichnis <verbatim|$TEXMACS_HOME_PATH/plugins>. Danach müssen Sie in
+  rekursiv in das Verzeichnis <verbatim|$ATHENA_PATH/plugins> kopieren oder in
+  das Verzeichnis <verbatim|$ATHENA_HOME_PATH/plugins>. Danach müssen Sie in
   dem Verzeichnis minimal den Befehl
 
   <\verbatim>

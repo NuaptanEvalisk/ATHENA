@@ -1217,7 +1217,7 @@ edit_env_rep::exec_use_package (tree t) {
   for (i=0; i<n; i++) {
     //cout << "Package " << as_string (t[i]) << "\n";
     url name= url_none ();
-    url styp= "$TEXMACS_STYLE_PATH";
+    url styp= "$ATHENA_STYLE_PATH";
     if (is_rooted (base_file_name, "default"))
       styp= styp | ::expand (head (base_file_name) * url_ancestor ());
     else styp= styp | head (base_file_name);

@@ -17,7 +17,7 @@
     <item><verbatim|key.pem>: The private key
   </itemize>
 
-  These files are stored in <verbatim|$TEXMACS_HOME_PATH/server/> (typically
+  These files are stored in <verbatim|$ATHENA_HOME_PATH/server/> (typically
   <verbatim|~/.TeXmacs/server/> for Linux and macOS).
 
   <\traverse>

@@ -7,7 +7,7 @@
 
   Il est possible à l'utilisateur de modifier le comportement du clavier.
   Pour ce faire, nous vous suggérons d'étudier d'abord les fichiers situés
-  dans le répertoire <verbatim|$TEXMACS_PATH/progs/keyboard>, dans lequel le
+  dans le répertoire <verbatim|$ATHENA_PATH/progs/keyboard>, dans lequel le
   comportement par défaut du clavier est défini. Ensuite, vous pourrez
   redéfinir le comportement du clavier dans votre propre fichier
   d'initialisation.

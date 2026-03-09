@@ -93,7 +93,7 @@
         (else (list))))
 
 (tm-define (built-in-style? s)
-  (with d (url-complete (url-append "$TEXMACS_PATH/styles" (url-any)) "dr")
+  (with d (url-complete (url-append "$ATHENA_PATH/styles" (url-any)) "dr")
     (with name (string-append s ".ts")
       (with f (url-complete (url-append (url-expand d) name) "fr")
         (nnull? (url->list (url-expand f)))))))
@@ -178,7 +178,7 @@
 (define (edit-macro-in-style-file l)
   (and-with name (search-style-package l)
     (let* ((style-name (string-append name ".ts"))
-           (style-url (url-append "$TEXMACS_STYLE_PATH" style-name))
+           (style-url (url-append "$ATHENA_STYLE_PATH" style-name))
            (file-name (url-resolve style-url "r")))
       (cursor-history-add (cursor-path))
       (load-document file-name)

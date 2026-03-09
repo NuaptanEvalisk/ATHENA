@@ -15,7 +15,7 @@
   d'extension <name|Guile/Scheme>. Vous pouvez intégrer vos changements au
   fichier <verbatim|init-myplugin.scm>. Nous vous recommandons d'examiner
   attentivement les plugins livrés avec <TeXmacs> et situés dans le
-  répertoire <verbatim|$TEXMACS_HOME_PATH/plugins>.
+  répertoire <verbatim|$ATHENA_HOME_PATH/plugins>.
 
   Il vous faudra peut-être créer des balises spéciales pour certaines sorties
   sur votre système. Supposons que vous vouliez associer un type invisible à

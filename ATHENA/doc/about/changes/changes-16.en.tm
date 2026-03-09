@@ -16,13 +16,13 @@
   contents is highly context dependent and determined as a function of the
   <em|current focus>. Similarly, a third <em|focus toolbar> has been
   introduced. For more information, we refer to the section on <hlink|typing
-  structured text|$TEXMACS_DOC_PATH/main/text/man-structure.en.tm>.
+  structured text|$ATHENA_DOC_PATH/main/text/man-structure.en.tm>.
 
   <TeXmacs> developers should also notice that the introduction of the focus
   has modified the way contextual overloading is done. For more details, we
   refer to the sections on <hlink|contextual
-  overloading|$TEXMACS_DOC_PATH/devel/scheme/overview/overview-overloading.en.tm> and
-  <hlink|the <TeXmacs> editing model|$TEXMACS_DOC_PATH/devel/scheme/edit/edit-model.en.tm>.
+  overloading|$ATHENA_DOC_PATH/devel/scheme/overview/overview-overloading.en.tm> and
+  <hlink|the <TeXmacs> editing model|$ATHENA_DOC_PATH/devel/scheme/edit/edit-model.en.tm>.
 
   <tmdoc-copyright|2010|Joris van der Hoeven>
 

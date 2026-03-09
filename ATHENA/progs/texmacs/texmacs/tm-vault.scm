@@ -218,7 +218,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (tm-define (recent-vaults-file)
-  "$TEXMACS_HOME_PATH/system/recent_vaults.scm")
+  "$ATHENA_HOME_PATH/system/recent_vaults.scm")
 
 (tm-define (get-recent-vaults)
   (let ((file (recent-vaults-file)))

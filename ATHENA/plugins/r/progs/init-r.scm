@@ -20,9 +20,9 @@
     		      (string-replace s "\n" ";;")) "\n")))))
 
 (define (r-launcher)
-  (if (url-exists? "$TEXMACS_HOME_PATH/plugins/r")
-      (system-setenv "TEXMACS_SEND"
-              "source(paste(Sys.getenv(\"TEXMACS_HOME_PATH\"),\"/plugins/r/texmacs.r\",sep=\"\"))\n"))
+  (if (url-exists? "$ATHENA_HOME_PATH/plugins/r")
+      (system-setenv "ATHENA_SEND"
+              "source(paste(Sys.getenv(\"ATHENA_HOME_PATH\"),\"/plugins/r/texmacs.r\",sep=\"\"))\n"))
   "tm_r")
 
 (tm-widget (plugin-preferences-widget name)

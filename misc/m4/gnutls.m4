@@ -39,7 +39,7 @@ AC_DEFUN([LC_GNUTLS],[
       GNUTLS_EXTRA_LIBS=""
       
       if test "$TMREPO" != "" -a "$TMREPO" != "no" -a "$CONFIG_OS" = "MINGW"; then
-          AC_DEFINE(TEXMACS_FIX_1_GNUTLS, 1, [Special fix])
+          AC_DEFINE(ATHENA_FIX_1_GNUTLS, 1, [Special fix])
           GNUTLS_EXTRA_LIBS="$GNUTLS_EXTRA_LIBS -ldbghelp -lSecur32 -lshell32 -lole32 -ladvapi32 -lsecur32 -lpthread"
       fi
       if test "$TMREPO" != "" -a "$TMREPO" != "no" -a "$CONFIG_OS" = "MACOS"; then

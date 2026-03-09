@@ -14,7 +14,7 @@
 
     <\src-license>
       This software falls under the <hlink|GNU general public license,
-      version 3 or later|$TEXMACS_PATH/LICENSE>. It comes WITHOUT ANY
+      version 3 or later|$ATHENA_PATH/LICENSE>. It comes WITHOUT ANY
       WARRANTY WHATSOEVER. You should have received a copy of the license
       which the software. If not, see <hlink|http://www.gnu.org/licenses/gpl-3.0.html|http://www.gnu.org/licenses/gpl-3.0.html>.
     </src-license>
@@ -49,7 +49,7 @@
 
   <assign|ring-indent|1fn>
 
-  <assign|ring-pattern|<pattern|$TEXMACS_PATH/misc/images/ring-binder-1.png|100%||#fff0>>
+  <assign|ring-pattern|<pattern|$ATHENA_PATH/misc/images/ring-binder-1.png|100%||#fff0>>
 
   <assign|ring-ornamented|<\macro|body>
     <\with|old-shape|<value|ornament-shape>|old-color|<value|ornament-color>|old-hpadding|<value|ornament-hpadding>|old-vpadding|<value|ornament-vpadding>|ornament-shape|ring|ornament-color|<value|ring-pattern>|ornament-hpadding|<over|<value|ring-width>|2>|ornament-vpadding|0spc>

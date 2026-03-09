@@ -19,9 +19,9 @@ if (( $? != 0 )); then
   exit 2
 fi
 
-if [ ! -e "$TEXMACS_PRIVATE_DSA" ]; then
-  echo "$0: private DSA key not found or not set: \"$TEXMACS_PRIVATE_DSA\""
-  echo "       Please set the environment variable TEXMACS_PRIVATE_DSA to its location."
+if [ ! -e "$ATHENA_PRIVATE_DSA" ]; then
+  echo "$0: private DSA key not found or not set: \"$ATHENA_PRIVATE_DSA\""
+  echo "       Please set the environment variable ATHENA_PRIVATE_DSA to its location."
   exit 3
 fi
 
@@ -30,7 +30,7 @@ if [ ! -f "$fpath" ]; then
   exit 4
 fi
 
-sha1=$($cmd dgst -sha1 -binary < "$fpath" | $cmd dgst -dss1 -sign "$TEXMACS_PRIVATE_DSA" | $cmd enc -base64)
+sha1=$($cmd dgst -sha1 -binary < "$fpath" | $cmd dgst -dss1 -sign "$ATHENA_PRIVATE_DSA" | $cmd enc -base64)
 fsize=$(stat -f "%z" "$fpath")
 tstamp=$(date)
 

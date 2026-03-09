@@ -1,5 +1,5 @@
 function tmdisp(M)
-	if (length(getenv('TEXMACS_PATH'))>0)
+	if (length(getenv('ATHENA_PATH'))>0)
 		tmp1=obj2scm(M);
 		if strcmp(tmp1,'')
 			disp(M);

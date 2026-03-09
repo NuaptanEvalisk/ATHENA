@@ -32,7 +32,7 @@
 
     <item>Unix format: this format forces unix-like notation even for other
     systems like Windows. This is convenient for url's in the source code.
-    Unix environment variables like ~ and $TEXMACS_PATH can also be part of
+    Unix environment variables like ~ and $ATHENA_PATH can also be part of
     the url.
 
     <item>Standard format: the format which is used on the web. Notice that
@@ -146,7 +146,7 @@
 
     <\session|scheme|default>
       <\unfolded-io|Scheme] >
-        (url-regular? "$TEXMACS_PATH/LICENSE")
+        (url-regular? "$ATHENA_PATH/LICENSE")
       <|unfolded-io>
         #t
       </unfolded-io>
@@ -178,7 +178,7 @@
       </unfolded-io>
 
       <\unfolded-io|Scheme] >
-        (url-directory? "$TEXMACS_PATH/LICENSE")
+        (url-directory? "$ATHENA_PATH/LICENSE")
       <|unfolded-io>
         #f
       </unfolded-io>

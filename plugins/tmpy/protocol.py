@@ -79,8 +79,8 @@ def flush_err(content):
     os.sys.stderr.flush() 
 
 def get_plugin_path(name):
-    the_home_path = os.getenv("TEXMACS_HOME_PATH").replace("\\", "/") + "/plugins/" + name
-    the_sys_path = os.getenv("TEXMACS_PATH").replace("\\", "/") + "/plugins/" + name
+    the_home_path = os.getenv("ATHENA_HOME_PATH").replace("\\", "/") + "/plugins/" + name
+    the_sys_path = os.getenv("ATHENA_PATH").replace("\\", "/") + "/plugins/" + name
     if (exists(the_home_path)):
         return the_home_path
     else:

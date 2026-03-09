@@ -13,7 +13,7 @@
   sont systématiquement préfixés par <verbatim|tm-> (par exemple, le syle
   <verbatim|tm-plain> correspond au style <verbatim|plain> de <TeXmacs>).
   D'autres styles peuvent être ajoutés dans le répertoire
-  <verbatim|$TEXMACS_PATH\\prog\\bibtex>.
+  <verbatim|$ATHENA_PATH\\prog\\bibtex>.
 
   Pour l'éditeur, chaque style correspond à un fichier <verbatim|.scm>. Les
   fichiers correspondant à chaque style sont traités comme des programmes
@@ -38,7 +38,7 @@
   <subsection|Étude d'un exemple>
 
   Un fichier de style bibliographique est un<with|font-shape|italic|> fichier
-  placé dans le répertoire <verbatim|$TEXMACS_PATH/prog/bibtex> portant le
+  placé dans le répertoire <verbatim|$ATHENA_PATH/prog/bibtex> portant le
   nom du style suivi de l'extension <verbatim|.scm>, par exemple
   <verbatim|example.scm> pour un style <verbatim|example> ; ce dernier sera
   dénoté par <verbatim|tm-example> lors de son utilisation dans un document

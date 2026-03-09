@@ -12,25 +12,25 @@ Using TeX fonts
 
 2. When starting GNU TeXmacs for the first time, the program examines
    the way your TeX system has been installed. The result of this
-   examination is written the file $TEXMACS_HOME_PATH/system/TEX_PATHS.
-   By default, $TEXMACS_HOME_PATH contains ~/.TeXmacs.
+   examination is written the file $ATHENA_HOME_PATH/system/TEX_PATHS.
+   By default, $ATHENA_HOME_PATH contains ~/.TeXmacs.
    Whenever you change your TeX system, or if you add new fonts,
    it may be a good idea to remove this file in order to recreate it.
-   In the directory $TEXMACS_HOME_PATH/fonts/error, you also find
+   In the directory $ATHENA_HOME_PATH/fonts/error, you also find
    a trace of all fonts which GNU TeXmacs failed to create.
    When adding new fonts, you should remove all files in this directory.
 
 3. If the user did not install the TeTeX distribution or
    no TeX distribution at all, we provide by default
-   a limited set of compiled fonts in $TEXMACS_PATH/data/tfm and
-   $TEXMACS_PATH/data/pk. The user may also specify his own paths
+   a limited set of compiled fonts in $ATHENA_PATH/data/tfm and
+   $ATHENA_PATH/data/pk. The user may also specify his own paths
    TEX_TFM_PATH and TEX_PK_PATH for .tfm and .pk files
    respectively. GNU TeXmacs uses the following algorithm to find fonts:
 
     - Look whether the font is in one of directories specified by
       the user paths TEX_TFM_PATH or TEX_PK_PATH.
     - Look whether the font is installed by default in
-      $TEXMACS_PATH/data/tfm or $TEXMACS_PATH/data/pk. 
+      $ATHENA_PATH/data/tfm or $ATHENA_PATH/data/pk. 
     - Look whether the font was already generated in
       the TeTeX distribution (using kpsepath). 
     - Automatically generate the font using

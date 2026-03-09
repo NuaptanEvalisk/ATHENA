@@ -12,7 +12,7 @@
     <item>Obtain the certificate and private key from your CA.
 
     <item>Save them as <verbatim|cert.pem> and <verbatim|key.pem> in
-    <verbatim|$TEXMACS_HOME_PATH/server/>.
+    <verbatim|$ATHENA_HOME_PATH/server/>.
 
     <item>Start the server normally.
   </enumerate>

@@ -1,0 +1,38 @@
+#!/bin/sh
+
+prefix="/usr/local"
+exec_prefix="${prefix}"
+datarootdir="${prefix}/share"
+datadir="${datarootdir}"
+
+if [ -z "$ATHENA_PATH" ] ; then
+  ATHENA_PATH=${datarootdir}/TeXmacs
+  export ATHENA_PATH
+  if [ -z "$ATHENA_BIN_PATH" ] ; then
+    ATHENA_BIN_PATH=${exec_prefix}/libexec/TeXmacs
+    export ATHENA_BIN_PATH
+  fi
+else
+  ATHENA_BIN_PATH="$ATHENA_PATH"
+  export ATHENA_BIN_PATH
+fi
+
+if [ -f "/usr/bin/cygwin1.dll" ] ; then
+  # For coexistence with WinTeXmacs
+  export ATHENA_PATH=${datarootdir}/TeXmacs
+  export ATHENA_BIN_PATH=${exec_prefix}/libexec/TeXmacs
+  unset GUILE_LOAD_PATH
+  # For auxiliary file creation by subprograms like ps2pdf under cygwin
+  export TEMP=/tmp
+fi
+
+DISTRIBUTOR_ID=`lsb_release -a 2>/dev/null |grep "Distributor ID"`
+if [ ! "${DISTRIBUTOR_ID#*Ubuntu}" = "$DISTRIBUTOR_ID" ] ; then
+  export QT_X11_NO_NATIVE_MENUBAR=1
+fi
+
+PATH="$ATHENA_BIN_PATH/bin:$PATH"
+LD_LIBRARY_PATH="$ATHENA_BIN_PATH/lib${LD_LIBRARY_PATH+":$LD_LIBRARY_PATH"}"
+export PATH LD_LIBRARY_PATH
+
+exec texmacs.bin "$@" < /dev/null

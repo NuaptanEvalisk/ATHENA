@@ -17,8 +17,8 @@ import sys
 import platform
 from os.path import exists
 
-tmpy_home_path= os.environ.get("TEXMACS_HOME_PATH")
-tmpy_path= os.environ.get("TEXMACS_PATH")
+tmpy_home_path= os.environ.get("ATHENA_HOME_PATH")
+tmpy_path= os.environ.get("ATHENA_PATH")
 
 if not (tmpy_home_path is None) and exists (tmpy_home_path + "/plugins/tmpy"):
   sys.path.append(tmpy_home_path + "/plugins/")

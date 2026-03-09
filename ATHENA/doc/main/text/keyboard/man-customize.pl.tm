@@ -6,7 +6,7 @@
   <tmdoc-title|Dostosowywanie klawiatury>
 
   U»ytkownik mo»e zmienia¢ zachowanie klawiatury. Najlepsz¡ metod¡ jest
-  zapoznanie si¦ z plikami w katalogu <verbatim|$TEXMACS_PATH/progs/keyboard>,
+  zapoznanie si¦ z plikami w katalogu <verbatim|$ATHENA_PATH/progs/keyboard>,
   gdzie zdefiniowane jest standardowe zachowanie klawiatury. Potem mo»na
   przedefiniowa¢ w prywatnych plikach inicjacyjnych.
 

@@ -1116,7 +1116,7 @@
   (let* ((body (tmhtml (first l)))
 	 (to (cork->html (force-string (second l)))))
     (if (string-starts? to "$")
-	body ;; temporary fix for URLs like $TEXMACS_PATH/...
+	body ;; temporary fix for URLs like $ATHENA_PATH/...
 	`((h:a (@ (href ,(tmhtml-suffix to))) ,@body)))))
 
 (define (tmhtml-specific l)

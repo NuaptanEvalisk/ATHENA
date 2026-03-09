@@ -126,7 +126,7 @@ evaluate_use_package (tree t) {
   int i, n= N(t);
   for (i=0; i<n; i++) {
     url base_file_name (as_string (std_env["base-file-name"]));
-    url styp= "$TEXMACS_STYLE_PATH";
+    url styp= "$ATHENA_STYLE_PATH";
     url name= as_string (t[i]) * string (".ts");
     //cout << "Package " << name << "\n";
     if (is_rooted_web (base_file_name))

@@ -21,7 +21,7 @@
     typically become a very small program, which handles verbatim input and
     output, and which is linked with your shared library at runtime.
 
-    <item>Copy the include file <verbatim|$TEXMACS_PATH/include/TeXmacs.h>
+    <item>Copy the include file <verbatim|$ATHENA_PATH/include/TeXmacs.h>
     into the include directory of your system's source and write the
     input/output routines as required by the last <TeXmacs> communication
     protocol as explained below.
@@ -47,7 +47,7 @@
 
   The <apply|TeXmacs> communication protocol is used for linking libraries
   dynamically to <apply|TeXmacs>. The file
-  <verbatim|$TEXMACS_PATH/include/TeXmacs.h> contains the declarations of all
+  <verbatim|$ATHENA_PATH/include/TeXmacs.h> contains the declarations of all
   data structures and functions used by the protocol. Actually, we foresee a
   succession of different protocols. Each of these protocols have the
   abstract data structures <verbatim|TeXmacs_exports> and

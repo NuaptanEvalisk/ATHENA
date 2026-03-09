@@ -20,7 +20,7 @@ endif (NOT WIN32)
 file(GLOB PLUGIN_DIRS LIST_DIRECTORIES true *)
 foreach(PLUGIN ${PLUGIN_DIRS})
   if (EXISTS ${PLUGIN}/bin/)
-    file(RELATIVE_PATH PLUGIN_NAME ${TEXMACS_SOURCE_DIR}/plugins ${PLUGIN})
+    file(RELATIVE_PATH PLUGIN_NAME ${ATHENA_SOURCE_DIR}/plugins ${PLUGIN})
     if (WIN32)
       install(DIRECTORY ${PLUGIN}/bin/ DESTINATION plugins/${PLUGIN_NAME}/bin
         PATTERN "*"

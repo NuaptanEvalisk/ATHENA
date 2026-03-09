@@ -8,27 +8,27 @@
   Quando si apre <apply|TeXmacs> viene eseguito il file
 
   <\verbatim>
-    \ \ \ \ $TEXMACS_PATH/progs/init-texmacs.scm
+    \ \ \ \ $ATHENA_PATH/progs/init-texmacs.scm
   </verbatim>
 
   e, se esiste, viene eseguito anche il file dell'utente
 
   <\verbatim>
-    \ \ \ \ $TEXMACS_HOME_PATH/progs/my-init-texmacs.scm
+    \ \ \ \ $ATHENA_HOME_PATH/progs/my-init-texmacs.scm
   </verbatim>
 
-  Per default, il path <verbatim|$TEXMACS_HOME_PATH> coincide con
+  Per default, il path <verbatim|$ATHENA_HOME_PATH> coincide con
   <verbatim|.TeXmacs>. Analogamente, ogni volta che si crea un nuovo buffer,
   viene eseguito il file
 
   <\verbatim>
-    \ \ \ \ $TEXMACS_PATH/progs/init-buffer.scm
+    \ \ \ \ $ATHENA_PATH/progs/init-buffer.scm
   </verbatim>
 
   e, se esiste, viene eseguito anche
 
   <\verbatim>
-    \ \ \ \ $TEXMACS_HOME_PATH/progs/my-init-buffer.scm
+    \ \ \ \ $ATHENA_HOME_PATH/progs/my-init-buffer.scm
   </verbatim>
 
   <apply|tmdoc-copyright|1998--2003|Joris van der Hoeven|Lucia

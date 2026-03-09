@@ -59,8 +59,8 @@ target_link_libraries(
         PkgConfig::hogweed
 )
 
-if(TEXMACS_LIBS)
-  target_link_libraries(TeXmacsLauncher PRIVATE ${TEXMACS_LIBS})
+if(ATHENA_LIBS)
+  target_link_libraries(TeXmacsLauncher PRIVATE ${ATHENA_LIBS})
 endif()
 
 target_link_libraries(TeXmacsLauncher PRIVATE ${CMAKE_SOURCE_DIR}/libtexmacs.a)

@@ -388,7 +388,7 @@
 
 ;; Graphics context [reset]
 (define current-cursor #f)
-(define TM_PATH (getenv "TEXMACS_PATH"))
+(define TM_PATH (getenv "ATHENA_PATH"))
 (define (tm_xpm name) (string-append TM_PATH "/misc/pixmaps/traditional/--x17/" name))
 
 (tm-define (graphics-reset-context cmd)

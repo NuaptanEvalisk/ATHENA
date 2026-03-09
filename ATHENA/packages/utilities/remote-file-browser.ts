@@ -14,7 +14,7 @@
 
     <\src-license>
       This software falls under the <hlink|GNU general public license,
-      version 3 or later|$TEXMACS_PATH/LICENSE>. It comes WITHOUT ANY
+      version 3 or later|$ATHENA_PATH/LICENSE>. It comes WITHOUT ANY
       WARRANTY WHATSOEVER. You should have received a copy of the license
       which the software. If not, see <hlink|http://www.gnu.org/licenses/gpl-3.0.html|http://www.gnu.org/licenses/gpl-3.0.html>.
     </src-license>
@@ -28,7 +28,7 @@
     </src-comment>
   </active*>
 
-  <assign|dir-entry-icon|<macro|name|tip|<with|icon|<image|<find-file|$TEXMACS_PATH/misc/pixmaps/light|$TEXMACS_PATH/misc/pixmaps/modern/24x24/main|$TEXMACS_PATH/misc/pixmaps/modern/16x16/focus|<arg|name>>||12pt||-0.666ex>|<if|<equal|<length|<arg|tip>>|0>|<value|icon>|<help-balloon|<value|icon>|<arg|tip>|left|Bottom>>>>>
+  <assign|dir-entry-icon|<macro|name|tip|<with|icon|<image|<find-file|$ATHENA_PATH/misc/pixmaps/light|$ATHENA_PATH/misc/pixmaps/modern/24x24/main|$ATHENA_PATH/misc/pixmaps/modern/16x16/focus|<arg|name>>||12pt||-0.666ex>|<if|<equal|<length|<arg|tip>>|0>|<value|icon>|<help-balloon|<value|icon>|<arg|tip>|left|Bottom>>>>>
 
   <assign|phantom-icon|<macro|<phantom|<dir-entry-icon|tm_cloud_share.svg|>>>>
 

@@ -14,7 +14,7 @@
 
     <\src-license>
       This software falls under the <hlink|GNU general public license,
-      version 3 or later|$TEXMACS_PATH/LICENSE>. It comes WITHOUT ANY
+      version 3 or later|$ATHENA_PATH/LICENSE>. It comes WITHOUT ANY
       WARRANTY WHATSOEVER. You should have received a copy of the license
       which the software. If not, see <hlink|http://www.gnu.org/licenses/gpl-3.0.html|http://www.gnu.org/licenses/gpl-3.0.html>.
     </src-license>
@@ -28,7 +28,7 @@
     </src-comment>
   </active*>
 
-  <assign|session-ring|<pattern|$TEXMACS_PATH/misc/images/ring-binder-2.png|100%||#fff0>>
+  <assign|session-ring|<pattern|$ATHENA_PATH/misc/images/ring-binder-2.png|100%||#fff0>>
 
   <assign|session-ring-width|0.75fn>
 

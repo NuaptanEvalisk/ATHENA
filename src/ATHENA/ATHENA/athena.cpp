@@ -120,9 +120,9 @@ clean_exit_on_sigterm (int sig_num) {
 * Texmacs paths
 ******************************************************************************/
 
-void TeXmacs_init_font() {
+void ATHENA_init_font() {
 #if defined(QTTEXMACS) && defined(qt_no_fontconfig)
-  string default_font_dir = get_env ("TEXMACS_PATH") * "/fonts/truetype/stix";
+  string default_font_dir = get_env ("ATHENA_PATH") * "/fonts/truetype/stix";
   string current_qt_qpa_fontdir = get_env ("QT_QPA_FONTDIR");
   if (is_empty(current_qt_qpa_fontdir))
     set_env("QT_QPA_FONTDIR", default_font_dir);
@@ -130,7 +130,7 @@ void TeXmacs_init_font() {
 }
 
 void
-TeXmacs_init_paths (int& argc, char** argv) {
+ATHENA_init_paths (int& argc, char** argv) {
   (void) argc; (void) argv;
 #if defined(QTTEXMACS) && QT_VERSION < 0x050000
   url exedir = url_system (qt_application_directory ());
@@ -138,7 +138,7 @@ TeXmacs_init_paths (int& argc, char** argv) {
   url exedir = texmacs_get_application_directory();
 #endif
 
-  string current_texmacs_path = get_env ("TEXMACS_PATH");
+  string current_athena_path = get_env ("ATHENA_PATH");
 
 #ifdef Q_OS_MAC 
   // the following line can inibith external plugin loading
@@ -176,30 +176,30 @@ TeXmacs_init_paths (int& argc, char** argv) {
   // Mac bundle environment initialization
   // We set some environment variables when the executable
   // is in a .app bundle on MacOSX
-  if (is_empty (current_texmacs_path))
-    set_env ("TEXMACS_PATH", as_string(exedir * "../Resources/share/TeXmacs"));
+  if (is_empty (current_athena_path))
+    set_env ("ATHENA_PATH", as_string(exedir * "../Resources/share/ATHENA"));
   //cout << get_env("PATH") * ":" * as_string(url("$PWD") * argv[0]
-  // * "../../Resources/share/TeXmacs/bin") << LF;
+  // * "../../Resources/share/ATHENA/bin") << LF;
   if (exists("/bin/bash")) {
     string shell_env = var_eval_system ("PATH='' /bin/bash -l -c 'echo $PATH'");
     set_env ("PATH", get_env("PATH") * ":" * shell_env * ":" *
-             as_string (exedir * "../Resources/share/TeXmacs/bin"));
+             as_string (exedir * "../Resources/share/ATHENA/bin"));
   } else {
     set_env ("PATH", get_env("PATH") * ":" *
-             as_string (exedir * "../Resources/share/TeXmacs/bin"));
+             as_string (exedir * "../Resources/share/ATHENA/bin"));
   }
   // system("set");
 #endif
 
 #ifdef OS_MINGW
   // Win bundle environment initialization
-  // TEXMACS_PATH is set by assuming that the executable is in TeXmacs/bin/
+  // ATHENA_PATH is set by assuming that the executable is in ATHENA/bin/
   // HOME is set to USERPROFILE
   // PWD is set to HOME
   // if PWD is lacking, then the path resolution machinery may not work
   
-  if (is_empty (current_texmacs_path))
-    set_env ("TEXMACS_PATH", as_string (exedir * ".."));
+  if (is_empty (current_athena_path))
+    set_env ("ATHENA_PATH", as_string (exedir * ".."));
   // if (get_env ("HOME") == "") //now set in immediate_options otherwise --setup option fails
   //   set_env ("HOME", get_env("USERPROFILE"));
   // HACK
@@ -214,22 +214,22 @@ TeXmacs_init_paths (int& argc, char** argv) {
 
 #ifdef OS_HAIKU
   // Initialization inside the Haiku package management environment
-  // TEXMACS_PATH is set relative to the executable which is in $prefix/app
-  // to $prefix/data/TeXmacs
+  // ATHENA_PATH is set relative to the executable which is in $prefix/app
+  // to $prefix/data/ATHENA
 
-  if (is_empty (current_texmacs_path))
-    set_env ("TEXMACS_PATH", as_string (exedir * "../data/TeXmacs"));
+  if (is_empty (current_athena_path))
+    set_env ("ATHENA_PATH", as_string (exedir * "../data/ATHENA"));
 
   set_env ("PATH", get_env("PATH") * ":" *
-           as_string (exedir * "/system/lib/TeXmacs/bin"));
+           as_string (exedir * "/system/lib/ATHENA/bin"));
 #endif
 
-  // check on the latest $TEXMACS_PATH
-  current_texmacs_path = get_env ("TEXMACS_PATH");
-  if (is_empty (current_texmacs_path) ||
-      !exists (url_system (current_texmacs_path))) {
-    cout << "The required TEXMACS_PATH("
-         << current_texmacs_path
+  // check on the latest $ATHENA_PATH
+  current_athena_path = get_env ("ATHENA_PATH");
+  if (is_empty (current_athena_path) ||
+      !exists (url_system (current_athena_path))) {
+    cout << "The required ATHENA_PATH("
+         << current_athena_path
          << ") does not exists" << LF;
     exit(1);
   }
@@ -326,22 +326,22 @@ set_global_options  (int argc, char** argv)  {
       }
       else if ((s == "-v") || (s == "-version")) {
         cout << "\n";
-        cout << "TeXmacs version " << TEXMACS_VERSION << "\n";
-        cout << "SVN version " << TEXMACS_REVISION << "\n";
-        cout << TEXMACS_COPYRIGHT << "\n";
+        cout << "TeXmacs version " << ATHENA_VERSION << "\n";
+        cout << "SVN version " << ATHENA_REVISION << "\n";
+        cout << ATHENA_COPYRIGHT << "\n";
         cout << "\n";
         exit (0);
       }
       else if ((s == "-p") || (s == "-path")) {
-        cout << get_env ("TEXMACS_PATH") << "\n";
+        cout << get_env ("ATHENA_PATH") << "\n";
         exit (0);
       }
       else if ((s == "-hp") || (s == "-homepath")) {
-        cout << get_env ("TEXMACS_HOME_PATH") << "\n";
+        cout << get_env ("ATHENA_HOME_PATH") << "\n";
         exit (0);
       }
       else if ((s == "-bp") || (s == "-binpath")) {
-        cout << get_env ("TEXMACS_BIN_PATH") << "\n";
+        cout << get_env ("ATHENA_BIN_PATH") << "\n";
         exit (0);
       }
       else if ((s == "-q") || (s == "-quit"))
@@ -492,13 +492,13 @@ set_global_options  (int argc, char** argv)  {
 
   // Further options via environment variables
 #if QT_VERSION < 0x060000
-  if (get_env ("TEXMACS_RETINA") == "off") {
+  if (get_env ("ATHENA_RETINA") == "off") {
     retina_manual= true;
     retina_factor= 1;
     retina_icons = 1;
     retina_scale = 1.0;
   }
-  if (get_env ("TEXMACS_RETINA") == "on") {
+  if (get_env ("ATHENA_RETINA") == "on") {
     retina_manual= true;
 #ifdef MACOSX_EXTENSIONS
     retina_factor= 2;
@@ -511,11 +511,11 @@ set_global_options  (int argc, char** argv)  {
 #endif
     retina_icons = 2;
   }
-  if (get_env ("TEXMACS_RETINA_ICONS") == "off") {
+  if (get_env ("ATHENA_RETINA_ICONS") == "off") {
     retina_iman  = true;
     retina_icons = 1;
   }
-  if (get_env ("TEXMACS_RETINA_ICONS") == "on") {
+  if (get_env ("ATHENA_RETINA_ICONS") == "on") {
     retina_iman  = true;
     retina_icons = 2;
   }
@@ -659,60 +659,60 @@ boot_hacks () {
 
 void
 immediate_options (int argc, char** argv) {
-  if (get_env ("TEXMACS_HOME_PATH") == "")
+  if (get_env ("ATHENA_HOME_PATH") == "")
 #ifdef OS_MINGW
   {
     if (get_env ("HOME") == "")
         set_env ("HOME", get_env("USERPROFILE"));
-    set_env ("TEXMACS_HOME_PATH", get_env ("APPDATA") * "\\ATHENA");
+    set_env ("ATHENA_HOME_PATH", get_env ("APPDATA") * "\\ATHENA");
 	}
 #elif defined(OS_HAIKU)
-    set_env ("TEXMACS_HOME_PATH", get_env ("HOME") * "/config/settings/ATHENA");
+    set_env ("ATHENA_HOME_PATH", get_env ("HOME") * "/config/settings/ATHENA");
 #else
-    set_env ("TEXMACS_HOME_PATH", get_env ("HOME") * "/.ATHENA");
+    set_env ("ATHENA_HOME_PATH", get_env ("HOME") * "/.ATHENA");
 #endif
-  if (get_env ("TEXMACS_HOME_PATH") == "") return;
+  if (get_env ("ATHENA_HOME_PATH") == "") return;
   for (int i=1; i<argc; i++) {
     string s= argv[i];
     if ((N(s)>=2) && (s(0,2)=="--")) s= s (1, N(s));
     if ((s == "-S") || (s == "-setup")) {
-      remove (url ("$TEXMACS_HOME_PATH/system/settings.scm"));
-      remove (url ("$TEXMACS_HOME_PATH/system/setup.scm"));
-      remove (url ("$TEXMACS_HOME_PATH/system/cache") * url_wildcard ("*"));
-      remove (url ("$TEXMACS_HOME_PATH/fonts/font-database.scm"));
-      remove (url ("$TEXMACS_HOME_PATH/fonts/font-features.scm"));
-      remove (url ("$TEXMACS_HOME_PATH/fonts/font-characteristics.scm"));
-      remove (url ("$TEXMACS_HOME_PATH/fonts/error") * url_wildcard ("*"));
+      remove (url ("$ATHENA_HOME_PATH/system/settings.scm"));
+      remove (url ("$ATHENA_HOME_PATH/system/setup.scm"));
+      remove (url ("$ATHENA_HOME_PATH/system/cache") * url_wildcard ("*"));
+      remove (url ("$ATHENA_HOME_PATH/fonts/font-database.scm"));
+      remove (url ("$ATHENA_HOME_PATH/fonts/font-features.scm"));
+      remove (url ("$ATHENA_HOME_PATH/fonts/font-characteristics.scm"));
+      remove (url ("$ATHENA_HOME_PATH/fonts/error") * url_wildcard ("*"));
     }
     else if (s == "-delete-cache")
-      remove (url ("$TEXMACS_HOME_PATH/system/cache") * url_wildcard ("*"));
+      remove (url ("$ATHENA_HOME_PATH/system/cache") * url_wildcard ("*"));
     else if (s == "-delete-style-cache")
-      remove (url ("$TEXMACS_HOME_PATH/system/cache") * url_wildcard ("__*"));
+      remove (url ("$ATHENA_HOME_PATH/system/cache") * url_wildcard ("__*"));
     else if (s == "-delete-font-cache") {
-      remove (url ("$TEXMACS_HOME_PATH/system/cache/font_cache.scm"));
-      remove (url ("$TEXMACS_HOME_PATH/fonts/font-database.scm"));
-      remove (url ("$TEXMACS_HOME_PATH/fonts/font-features.scm"));
-      remove (url ("$TEXMACS_HOME_PATH/fonts/font-characteristics.scm"));
-      remove (url ("$TEXMACS_HOME_PATH/fonts/error") * url_wildcard ("*"));
+      remove (url ("$ATHENA_HOME_PATH/system/cache/font_cache.scm"));
+      remove (url ("$ATHENA_HOME_PATH/fonts/font-database.scm"));
+      remove (url ("$ATHENA_HOME_PATH/fonts/font-features.scm"));
+      remove (url ("$ATHENA_HOME_PATH/fonts/font-characteristics.scm"));
+      remove (url ("$ATHENA_HOME_PATH/fonts/error") * url_wildcard ("*"));
     }
     else if (s == "-delete-doc-cache") {
-      remove (url ("$TEXMACS_HOME_PATH/system/cache/doc_cache"));
-      remove (url ("$TEXMACS_HOME_PATH/system/cache/dir_cache.scm"));
-      remove (url ("$TEXMACS_HOME_PATH/system/cache/stat_cache.scm"));
+      remove (url ("$ATHENA_HOME_PATH/system/cache/doc_cache"));
+      remove (url ("$ATHENA_HOME_PATH/system/cache/dir_cache.scm"));
+      remove (url ("$ATHENA_HOME_PATH/system/cache/stat_cache.scm"));
     }
     else if (s == "-delete-file-cache") {
-      remove (url ("$TEXMACS_HOME_PATH/system/cache/doc_cache"));
-      remove (url ("$TEXMACS_HOME_PATH/system/cache/file_cache"));
-      remove (url ("$TEXMACS_HOME_PATH/system/cache/dir_cache.scm"));
-      remove (url ("$TEXMACS_HOME_PATH/system/cache/stat_cache.scm"));
+      remove (url ("$ATHENA_HOME_PATH/system/cache/doc_cache"));
+      remove (url ("$ATHENA_HOME_PATH/system/cache/file_cache"));
+      remove (url ("$ATHENA_HOME_PATH/system/cache/dir_cache.scm"));
+      remove (url ("$ATHENA_HOME_PATH/system/cache/stat_cache.scm"));
     }
     else if (s == "-delete-plugin-cache")
-      remove (url ("$TEXMACS_HOME_PATH/system/cache/plugin_cache.scm"));
+      remove (url ("$ATHENA_HOME_PATH/system/cache/plugin_cache.scm"));
     else if (s == "-delete-server-data")
-      system ("rm -rf", url ("$TEXMACS_HOME_PATH/server"));
+      system ("rm -rf", url ("$ATHENA_HOME_PATH/server"));
     else if (s == "-delete-databases") {
-      system ("rm -rf", url ("$TEXMACS_HOME_PATH/system/database"));
-      system ("rm -rf", url ("$TEXMACS_HOME_PATH/users"));
+      system ("rm -rf", url ("$ATHENA_HOME_PATH/system/database"));
+      system ("rm -rf", url ("$ATHENA_HOME_PATH/users"));
     }
 #ifdef QTTEXMACS
     else if (s == "-headless" || s == "-H" || s == "-C" ||
@@ -772,7 +772,7 @@ texmacs_entrypoint (int argc, char** argv) {
   original_path= get_env ("PATH");
   boot_hacks ();
   windows_delayed_refresh (1000000000);
-  TeXmacs_init_paths (argc, argv);
+  ATHENA_init_paths (argc, argv);
   load_user_preferences ();
 #ifndef OS_MINGW
   set_env ("LC_NUMERIC", "POSIX");
@@ -781,10 +781,10 @@ texmacs_entrypoint (int argc, char** argv) {
   // Reset TeXmacs if Alt is pressed during startup
   if (mac_alternate_startup()) {
     cout << "TeXmacs] Performing setup (Alt on startup)" << LF; 
-    remove (url ("$TEXMACS_HOME_PATH/system/settings.scm"));
-    remove (url ("$TEXMACS_HOME_PATH/system/setup.scm"));
-    remove (url ("$TEXMACS_HOME_PATH/system/cache") * url_wildcard ("*"));
-    remove (url ("$TEXMACS_HOME_PATH/fonts/error") * url_wildcard ("*"));    
+    remove (url ("$ATHENA_HOME_PATH/system/settings.scm"));
+    remove (url ("$ATHENA_HOME_PATH/system/setup.scm"));
+    remove (url ("$ATHENA_HOME_PATH/system/cache") * url_wildcard ("*"));
+    remove (url ("$ATHENA_HOME_PATH/fonts/error") * url_wildcard ("*"));    
   }
 #endif 
 
@@ -796,7 +796,7 @@ texmacs_entrypoint (int argc, char** argv) {
     ((QTMApplication*)qtmapp)->load();
 #endif
 
-  TeXmacs_init_font  ();
+  ATHENA_init_font  ();
 #ifdef QTTEXMACS
   if (!headless_mode) {
 #  if QT_VERSION >= 0x060000
@@ -813,7 +813,7 @@ texmacs_entrypoint (int argc, char** argv) {
   the_et->obs= ip_observer (path ());
   cache_initialize ();
   bench_start ("initialize texmacs");
-  init_texmacs ();
+  init_athena ();
   bench_cumul ("initialize texmacs");
 #ifdef ENABLE_TESTS
   test_routines ();

@@ -65,7 +65,7 @@
       </BuildableProductRunnable>
       <EnvironmentVariables>
          <EnvironmentVariable
-            key = "TEXMACS_PATH"
+            key = "ATHENA_PATH"
             value = "/Users/mgubi/t/svn-src/TeXmacs"
             isEnabled = "YES">
          </EnvironmentVariable>

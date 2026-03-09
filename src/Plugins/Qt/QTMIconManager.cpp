@@ -25,8 +25,8 @@ load_svg (url file_name, QIcon& icon) {
     url ("dark") : url ("light");
   url res= file_name;
   if (!is_rooted (file_name)) {
-    res= resolve (url ("$TEXMACS_PIXMAP_PATH") * sub * file_name |
-		  url ("$TEXMACS_PIXMAP_PATH") * file_name);
+    res= resolve (url ("$ATHENA_PIXMAP_PATH") * sub * file_name |
+		  url ("$ATHENA_PIXMAP_PATH") * file_name);
     if (is_none (res)) return false;
   }
   icon= QIcon (to_qstring (concretize (res)));
@@ -57,10 +57,10 @@ load_pixmap (url file_name, QIcon& icon, double dpr) {
       tag= "_x" * as_string (possible_dpr);
     url name_png= glue (name, tag * ".png");
     url name_xpm= glue (name, tag * ".xpm");
-    res= resolve (url ("$TEXMACS_PIXMAP_PATH") * sub * name_png |
-		  url ("$TEXMACS_PIXMAP_PATH") * sub * name_xpm |
-		  url ("$TEXMACS_PIXMAP_PATH") * name_png |
-		  url ("$TEXMACS_PIXMAP_PATH") * name_xpm);
+    res= resolve (url ("$ATHENA_PIXMAP_PATH") * sub * name_png |
+		  url ("$ATHENA_PIXMAP_PATH") * sub * name_xpm |
+		  url ("$ATHENA_PIXMAP_PATH") * name_png |
+		  url ("$ATHENA_PIXMAP_PATH") * name_xpm);
     if (is_none (res)) return false;
   }
   QPixmap pm= QPixmap (to_qstring (concretize (res)));
@@ -100,7 +100,7 @@ QTMIconManager::getIcon (url file_name) {
   }
   if (file_name != url ("TeXmacs"))
     std_error << "Icon not found: " << file_name << LF;
-  load_svg (url ("$TEXMACS_PATH/misc/images/texmacs.svg"), icon);
+  load_svg (url ("$ATHENA_PATH/misc/images/texmacs.svg"), icon);
   return icon;
 }
 

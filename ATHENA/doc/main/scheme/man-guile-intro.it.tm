@@ -34,7 +34,7 @@
   <apply|scheme>. Qui di seguito, discuteremo alcune delle routine più
   importanti. In futuro, scriveremo una guida di riferimento più completa
   sull'argomento. Si possono comunque guardare i file scheme <verbatim|.scm>
-  nella directory <verbatim|$TEXMACS_PATH/progs>.
+  nella directory <verbatim|$ATHENA_PATH/progs>.
 
   <apply|tmdoc-copyright|1998--2003|Joris van der Hoeven|Lucia
   Gecchelin|Andrea Centomo>

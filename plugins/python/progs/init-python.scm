@@ -34,12 +34,12 @@
 (define (python-utf8-command) (string-append (python-command) " -X utf8 "))
 
 (define (python-launcher)
-  (if (url-exists? "$TEXMACS_HOME_PATH/plugins/tmpy")
+  (if (url-exists? "$ATHENA_HOME_PATH/plugins/tmpy")
       (string-append (python-utf8-command) " \""
-                     (getenv "TEXMACS_HOME_PATH")
+                     (getenv "ATHENA_HOME_PATH")
                      "/plugins/tmpy/session/tm_python.py\"")
       (string-append (python-utf8-command) " \""
-                     (getenv "TEXMACS_PATH")
+                     (getenv "ATHENA_PATH")
                      "/plugins/tmpy/session/tm_python.py\"")))
 
 (tm-widget (plugin-preferences-widget name)

@@ -485,7 +485,7 @@ load_style_tree (string package) {
   if (style_tree_cache->contains (package))
     return style_tree_cache [package];
   url name= url_none ();
-  url styp= "$TEXMACS_STYLE_PATH";
+  url styp= "$ATHENA_STYLE_PATH";
   if (ends (package, ".ts")) name= package;
   else name= styp * (package * ".ts");
   name= resolve (name);

@@ -13,9 +13,9 @@
 
 (texmacs-module (utils misc tiles))
 
-(define pattern-path "$TEXMACS_PATH/misc/patterns")
-(define dummy-pattern "$TEXMACS_PATH/misc/patterns/pine.png")
-(define line-hatches-path "$TEXMACS_PATH/misc/patterns/lines")
+(define pattern-path "$ATHENA_PATH/misc/patterns")
+(define dummy-pattern "$ATHENA_PATH/misc/patterns/pine.png")
+(define line-hatches-path "$ATHENA_PATH/misc/patterns/lines")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Subroutines

@@ -9,10 +9,10 @@
   creating a directory
 
   <\verbatim>
-    \ \ \ \ $TEXMACS_HOME_PATH/plugins/<em|myplugin>
+    \ \ \ \ $ATHENA_HOME_PATH/plugins/<em|myplugin>
   </verbatim>
 
-  where to put all your files (recall that <verbatim|$TEXMACS_HOME_PATH>
+  where to put all your files (recall that <verbatim|$ATHENA_HOME_PATH>
   defaults to <verbatim|$HOME/.TeXmacs>). In addition, you may create the
   following subdirectories (when needed):
 
@@ -40,12 +40,12 @@
   provide a <verbatim|bin> subdirectory, then
 
   <\verbatim>
-    \ \ \ \ $TEXMACS_HOME_PATH/plugins/<em|myplugin>/bin
+    \ \ \ \ $ATHENA_HOME_PATH/plugins/<em|myplugin>/bin
   </verbatim>
 
   will be automatically added to the <verbatim|PATH> environment variable at
   startup. Notice that the subdirectory structure of a plug-in is very
-  similar to the subdirectory structure of <verbatim|$TEXMACS_PATH>.
+  similar to the subdirectory structure of <verbatim|$ATHENA_PATH>.
 
   Similarly, plugin documentation is intended to be automatically added to
   the <menu|Help|Plug-ins> submenu. For this to automation to work, the
@@ -69,11 +69,11 @@
     plug-in, it suffices to create directories
 
     <\verbatim>
-      \ \ \ \ $TEXMACS_HOME_PATH/plugins/<em|myplugin>
+      \ \ \ \ $ATHENA_HOME_PATH/plugins/<em|myplugin>
 
-      \ \ \ \ $TEXMACS_HOME_PATH/plugins/<em|myplugin>/styles
+      \ \ \ \ $ATHENA_HOME_PATH/plugins/<em|myplugin>/styles
 
-      \ \ \ \ $TEXMACS_HOME_PATH/plugins/<em|myplugin>/packages
+      \ \ \ \ $ATHENA_HOME_PATH/plugins/<em|myplugin>/packages
     </verbatim>
 
     and to put your style files and packages in the last two directories.
@@ -86,7 +86,7 @@
   <c++> code, one usually has to provide a <scheme> configuration file
 
   <\verbatim>
-    \ \ \ \ $TEXMACS_HOME_PATH/plugins/<em|myplugin>/progs/init-<em|myplugin>.scm
+    \ \ \ \ $ATHENA_HOME_PATH/plugins/<em|myplugin>/progs/init-<em|myplugin>.scm
   </verbatim>
 
   This configuration file should contain an instruction of the following form
@@ -104,9 +104,9 @@
   directories
 
   <\verbatim>
-    \ \ \ \ $TEXMACS_PATH/examples/plugins
+    \ \ \ \ $ATHENA_PATH/examples/plugins
 
-    \ \ \ \ $TEXMACS_PATH/plugins
+    \ \ \ \ $ATHENA_PATH/plugins
   </verbatim>
 
   Some of these are <hlink|described|../interface/interface.en.tm> in more
