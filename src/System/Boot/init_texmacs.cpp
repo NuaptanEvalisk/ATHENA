@@ -92,13 +92,13 @@ plugin_list () {
 static void
 init_main_paths () {
 #ifdef OS_MINGW
-  if (is_none (get_env_path ("TEXMACS_HOME_PATH", get_env ("APPDATA") * "/TeXmacs"))) {
+  if (is_none (get_env_path ("TEXMACS_HOME_PATH", get_env ("APPDATA") * "/ATHENA"))) {
 #else
-  if (is_none (get_env_path ("TEXMACS_HOME_PATH", "~/.TeXmacs"))) {
+  if (is_none (get_env_path ("TEXMACS_HOME_PATH", "~/.ATHENA"))) {
 #endif
     boot_error << "\n";
     boot_error << "Installation problem: please send a bug report.\n";
-    boot_error << "'TEXMACS_HOME_PATH' could not be set to '~/.TeXmacs'.\n";
+    boot_error << "'TEXMACS_HOME_PATH' could not be set to '~/.ATHENA'.\n";
     boot_error << "You may try to set this environment variable manually\n";
     boot_error << "\n";
     FAILED ("installation problem");
