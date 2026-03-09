@@ -136,21 +136,27 @@
         (enum (set-preference "vault labels mode" answer)
               '("visible" "small" "hidden")
               (get-preference "vault labels mode")
-              "10em"))
-      ---
-      (group "Enunciations")
+              "10em")))
+    ======
+    (bold (text "Enunciations"))
+    ===
+    (aligned
       (for (x vault-enunciation-list)
         (item (text (string-append (car x) " background:"))
           (input (set-preference (string-append "vault " (cadr x) " color") answer) "string"
-                 (list (get-preference (string-append "vault " (cadr x) " color"))) "10em")))
-      ---
-      (group "Remarks & Notes")
+                 (list (get-preference (string-append "vault " (cadr x) " color"))) "10em"))))
+    ======
+    (bold (text "Remarks & Notes"))
+    ===
+    (aligned
       (for (x vault-remark-list)
         (item (text (string-append (car x) " background:"))
           (input (set-preference (string-append "vault " (cadr x) " color") answer) "string"
-                 (list (get-preference (string-append "vault " (cadr x) " color"))) "10em")))
-      ---
-      (group "Exercises & Proofs")
+                 (list (get-preference (string-append "vault " (cadr x) " color"))) "10em"))))
+    ======
+    (bold (text "Exercises & Proofs"))
+    ===
+    (aligned
       (for (x vault-exercise-list)
         (item (text (string-append (car x) " background:"))
           (input (set-preference (string-append "vault " (cadr x) " color") answer) "string"
