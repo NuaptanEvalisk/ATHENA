@@ -22,10 +22,15 @@
 (tm-define (go-to-welcome-page)
   (load-buffer "tmfs://welcome/home"))
 
+(tm-define (ext-get-preference key def)
+  (let ((val (get-preference key)))
+    (if (string-null? val) def val)))
+
 (define-secure-symbols wikilink-repair-apply vault-jump-to-source 
-                       new-document load-buffer load-vault-dir 
+                       load-buffer load-vault-dir 
                        string->url vault-load-latest-action
-                       go-to-welcome-page)
+                       go-to-welcome-page
+                       ext-get-preference)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Settings
@@ -36,9 +41,12 @@
 
 (define (notify-selection-color name val)
   (gui-set-selection-color val))
-
 (define (notify-labels-mode name val)
   (refresh-now "labels"))
+
+(define (notify-enunciation-color name val)
+  (refresh-now "enunciations"))
+
 
 (define-preferences
   ("vault fuzzy search limit" "3" noop)
@@ -46,7 +54,10 @@
   ("gui cursor color" "red" notify-cursor-color)
   ("gui selection color" "red" notify-selection-color)
   ("vault welcome page" "on" noop)
-  ("vault labels mode" "visible" notify-labels-mode))
+  ("vault labels mode" "visible" notify-labels-mode)
+  ("vault theorem color" "none" notify-enunciation-color)
+  ("vault remark color" "none" notify-enunciation-color)
+  ("vault proof color" "none" notify-enunciation-color))
 
 (define (get-fuzzy-limit)
   (let ((pref (get-preference "vault fuzzy search limit")))
@@ -81,7 +92,16 @@
       (enum (set-preference "vault labels mode" answer)
             '("visible" "small" "hidden")
             (get-preference "vault labels mode")
-            "10em"))))
+            "10em"))
+    (item (text "Theorem background:")
+      (input (set-preference "vault theorem color" answer) "string"
+             (list (get-preference "vault theorem color")) "10em"))
+    (item (text "Remark background:")
+      (input (set-preference "vault remark color" answer) "string"
+             (list (get-preference "vault remark color")) "10em"))
+    (item (text "Proof background:")
+      (input (set-preference "vault proof color" answer) "string"
+             (list (get-preference "vault proof color")) "10em"))))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -485,3 +505,4 @@
                                (action ,label ,cmd)
                                " (UUID: " ,new-uuid ")")))
                   candidates)))))))
+

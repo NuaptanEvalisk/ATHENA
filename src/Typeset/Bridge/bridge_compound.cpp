@@ -11,6 +11,7 @@
 
 #include "bridge.hpp"
 #include "drd_std.hpp"
+#include "scheme.hpp"
 
 tree insert_at (tree, path, tree);
 tree remove_at (tree, path, int);
@@ -196,6 +197,40 @@ bridge_compound_rep::my_typeset (int desired_status) {
 
   if (is_applicable (f)) {
     int i, n=N(f)-1, m=N(st)-d;
+    
+    // WYVERN EDITION: Inject background colors for enunciations
+    string var;
+    if (L(st) == COMPOUND) {
+      if (is_atomic(st[0])) var = st[0]->label;
+    } else {
+      var = as_string(L(st));
+    }
+    
+    bool is_enum = (var == "theorem" || var == "lemma" || var == "corollary" || 
+                    var == "proposition" || var == "axiom" || var == "definition" || 
+                    var == "notation" || var == "conjecture" || var == "remark" || 
+                    var == "example" || var == "proof");
+    if (is_enum) {
+      string col = get_preference ("vault " * var * " color", "none");
+      if (col != "none") {
+        f = copy(f);
+        f[n] = tree(WITH, "vault-enunciation-color", col, f[n]);
+      }
+    }
+    else if (var == "render-enunciation") {
+      if (env->provides("vault-enunciation-color")) {
+        string col = as_string(env->read("vault-enunciation-color"));
+        if (col != "none") {
+          f = copy(f);
+          tree arg_which = tree(ARG, "which");
+          tree arg_body = tree(ARG, "body");
+          tree surr = tree(SURROUND, arg_which, tree(VAR_YES_INDENT), arg_body);
+          tree orn = tree(WITH, "ornament-color", col, "ornament-shape", "rectangular", "ornament-border", "0.5ln", tree(ORNAMENT, surr));
+          f[n] = tree(COMPOUND, tree("padded*"), orn);
+        }
+      }
+    }
+
     env->macro_arg= list<hashmap<string,tree> > (
       hashmap<string,tree> (UNINIT), env->macro_arg);
     env->macro_src= list<hashmap<string,path> > (

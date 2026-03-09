@@ -379,6 +379,40 @@ make_lazy_compound (edit_env env, tree t, path ip) {
 
   if (is_applicable (f)) {
     int i, n=N(f)-1, m=N(t)-d;
+    
+    // WYVERN EDITION: Inject background colors for enunciations
+    string var;
+    if (L(t) == COMPOUND) {
+      if (is_atomic(t[0])) var = t[0]->label;
+    } else {
+      var = as_string(L(t));
+    }
+    
+    bool is_enum = (var == "theorem" || var == "lemma" || var == "corollary" || 
+                    var == "proposition" || var == "axiom" || var == "definition" || 
+                    var == "notation" || var == "conjecture" || var == "remark" || 
+                    var == "example" || var == "proof");
+    if (is_enum) {
+      string col = get_preference ("vault " * var * " color", "none");
+      if (col != "none") {
+        f = copy(f); // Must copy before modifying the global macro definition
+        f[n] = tree(WITH, "vault-enunciation-color", col, f[n]);
+      }
+    }
+    else if (var == "render-enunciation") {
+      if (env->provides("vault-enunciation-color")) {
+        string col = as_string(env->read("vault-enunciation-color"));
+        if (col != "none") {
+          f = copy(f); // Must copy before modifying
+          tree arg_which = tree(ARG, "which");
+          tree arg_body = tree(ARG, "body");
+          tree surr = tree(SURROUND, arg_which, tree(VAR_YES_INDENT), arg_body);
+          tree orn = tree(WITH, "ornament-color", col, "ornament-shape", "rectangular", "ornament-border", "0.5ln", tree(ORNAMENT, surr));
+          f[n] = tree(COMPOUND, tree("padded*"), orn);
+        }
+      }
+    }
+
     env->macro_arg= list<hashmap<string,tree> > (
       hashmap<string,tree> (UNINIT), env->macro_arg);
     env->macro_src= list<hashmap<string,path> > (
