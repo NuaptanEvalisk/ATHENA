@@ -149,7 +149,7 @@ make_tex_tfm (string name) {
     if (DEBUG_VERBOSE) debug_fonts << "Executing " << s << "\n";
     r= system (s);
   }
-  if (r) cout << "TeXmacs] system command failed: " << s << "\n";
+  if (r) cout << "ATHENA] system command failed: " << s << "\n";
 }
 
 void
@@ -189,7 +189,7 @@ make_tex_pk (string name, int dpi, int design_dpi) {
     if (DEBUG_VERBOSE) debug_fonts << "Executing " << s << "\n";
     r= system (s);
   }
-  if (r) cout << "TeXmacs] system command failed: " << s << "\n";
+  if (r) cout << "ATHENA] system command failed: " << s << "\n";
 }
 
 /******************************************************************************

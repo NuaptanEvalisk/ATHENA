@@ -260,7 +260,7 @@ try_latex_export (tree doc, object opts, url src, url dest) {
   if (tracked_tree_to_latex_document (doc, opts, s, ms)) {
     //cout << "Failed to export\n";
     //return "Error: could not track LaTeX export";
-    cout << "TeXmacs] Failed to track LaTeX export\n";
+    cout << "ATHENA] Failed to track LaTeX export\n";
     ms= s;
   }
   hashmap<int,array<path> > corr;

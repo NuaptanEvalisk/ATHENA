@@ -416,10 +416,10 @@ font_rep::get_glyph (string s) {
     FAILED ("no bitmap available");
   }
   else {
-    cout << "TeXmacs] warning, no bitmap available for " << s << "\n";
+    cout << "ATHENA] warning, no bitmap available for " << s << "\n";
     if (N(s) == 1)
-      cout << "TeXmacs]   character code " << (int) (unsigned char) (s[0]) << "\n";
-    cout << "TeXmacs]   in font " << res_name << "\n";
+      cout << "ATHENA]   character code " << (int) (unsigned char) (s[0]) << "\n";
+    cout << "ATHENA]   in font " << res_name << "\n";
   }
   return glyph (0, 0, 0, 0);
 }
@@ -433,10 +433,10 @@ font_rep::index_glyph (string s, font_metric& fnm, font_glyphs& fng) {
     FAILED ("no bitmap available");
   }
   else {
-    cout << "TeXmacs] warning, no glyph index available for " << s << "\n";
+    cout << "ATHENA] warning, no glyph index available for " << s << "\n";
     if (N(s) == 1)
-      cout << "TeXmacs]   character code " << (int) (unsigned char) (s[0]) << "\n";
-    cout << "TeXmacs]   in font " << res_name << "\n";
+      cout << "ATHENA]   character code " << (int) (unsigned char) (s[0]) << "\n";
+    cout << "ATHENA]   in font " << res_name << "\n";
   }
   return -1;
 }

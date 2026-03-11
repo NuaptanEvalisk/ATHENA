@@ -458,11 +458,11 @@ void
 system_wait (string message, string argument, int level) {
   if (the_wait_handler == NULL) {
     if (DEBUG_AUTO) {
-      if (message == "") cout << "TeXmacs] Done" << LF;
+      if (message == "") cout << "ATHENA] Done" << LF;
       else {
-	if (argument == "") cout << "TeXmacs] " << message << LF;
-	else cout << "TeXmacs] " << message << " " << argument << LF;
-	cout << "TeXmacs] Please wait..." << LF;
+	if (argument == "") cout << "ATHENA] " << message << LF;
+	else cout << "ATHENA] " << message << " " << argument << LF;
+	cout << "ATHENA] Please wait..." << LF;
       }
     }
   }

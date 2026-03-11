@@ -131,7 +131,7 @@ debug_message_sub (string channel, string msg) {
       debug_messages << tuple (channel, msg, "");
       debug_lf_flag= false;
       if (channel != "debug-boot") {
-        cout << "TeXmacs] ";
+        cout << "ATHENA] ";
         if (channel != "debug-automatic" &&
             channel != "boot-error")
           cout << channel << ", ";

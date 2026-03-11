@@ -131,7 +131,7 @@ x_window_rep::initialize () {
 		   XNClientWindow, win,
 		   NULL);
     if (ic == NULL)
-      cout << "TeXmacs] Warning: couldn't create input context\n";
+      cout << "ATHENA] Warning: couldn't create input context\n";
     else {
       ic_ok= true;
       XGetICValues (ic, XNFilterEvents, &ic_mask, NULL);

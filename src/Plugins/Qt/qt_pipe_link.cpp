@@ -76,7 +76,7 @@ qt_pipe_link_rep::start () {
     debug_shell << "Launching '" << PipeLink.cmd << "'\n";
   if (! PipeLink.launchCmd ()) {
     if (DEBUG_AUTO)
-      debug_shell << "TeXmacs] Error: cannot start '" << PipeLink.cmd << "'\n";
+      debug_shell << "ATHENA] Error: cannot start '" << PipeLink.cmd << "'\n";
     return "Error: cannot start application";
   }
   alive= true;

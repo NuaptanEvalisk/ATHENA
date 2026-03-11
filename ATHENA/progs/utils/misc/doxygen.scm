@@ -14,7 +14,7 @@
 (texmacs-module (utils misc doxygen)
   (:use (ice-9 rdelim)))
 
-(display "TeXmacs] Loading doxygen C++ support\n")
+(display "ATHENA] Loading doxygen C++ support\n")
 
 ;; Global variables
 
@@ -109,7 +109,7 @@
 	  ((tagged? 'anchor x)
 	   (set! anchor (second x)))
 	  (else
-	    (display "TeXmacs] doxygen warning, unknown tag type within a 'member:\n")
+	    (display "ATHENA] doxygen warning, unknown tag type within a 'member:\n")
 	    (display x)
 	    (newline))))
       (set! l (cdr l)))
@@ -135,7 +135,7 @@
 		       (cons tag (ahash-ref* key->tag name '())))))
 	((== kind "friend"))
 	(else
-	  (display "TeXmacs] doxygen warning, unknown kind of 'member:\n")
+	  (display "ATHENA] doxygen warning, unknown kind of 'member:\n")
 	  (display kind)
 	  (newline))))))
 
@@ -171,7 +171,7 @@
 	  ((tagged? 'templarg x))
 	  ((tagged? 'member x) (parse-member x))
 	  (else
-	    (display "TeXmacs] doxygen warning, unknown tag type within a 'struct 'compound:\n")
+	    (display "ATHENA] doxygen warning, unknown tag type within a 'struct 'compound:\n")
 	    (display x)
 	    (newline))))
       (set! l (cdr l)))
@@ -208,7 +208,7 @@
 	  ((tagged? 'docanchor x))
 	  ((tagged? 'includes x))
 	  (else
-	    (display "TeXmacs] doxygen warning, unknown tag type within a 'file 'compound:\n")
+	    (display "ATHENA] doxygen warning, unknown tag type within a 'file 'compound:\n")
 	    (display x)
 	    (newline))))
       (set! l (cdr l)))
@@ -235,7 +235,7 @@
 	   (== kind "struct"))
        (parse-compound_struct x))
       (else
-	(display "TeXmacs] doxygen warning, unknown kind of 'compound:\n")
+	(display "ATHENA] doxygen warning, unknown kind of 'compound:\n")
 	(display kind)
 	(newline)))))
 
@@ -247,7 +247,7 @@
 	  ((string? x)) ; these are only spaces
 	  ((tagged? 'compound x) (parse-compound x))
 	  (else
-	    (display "TeXmacs] doxygen warning, unknown tag within a 'tagfile:")
+	    (display "ATHENA] doxygen warning, unknown tag within a 'tagfile:")
 	    (display x)
 	    (newline))))
       (set! l (cdr l)))))
@@ -263,7 +263,7 @@
 	  ((tagged? '*PI* x))
 	  ((tagged? 'tagfile x) (parse-tagfile x))
 	  (else
-	    (display "TeXmacs] doxygen warning, unknown tag:")
+	    (display "ATHENA] doxygen warning, unknown tag:")
 	    (display x)
 	    (newline))))
       (set! l (cdr l)))))

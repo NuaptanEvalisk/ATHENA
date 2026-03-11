@@ -450,7 +450,7 @@ edit_typeset_rep::typeset_exec_until (path p) {
       // apply_changes ();
     }
   if (p == tp && inside_graphics (true) && p != closest_inside (et, p)) {
-    //cout << "TeXmacs] Warning: corrected cursor\n";
+    //cout << "ATHENA] Warning: corrected cursor\n";
     tp= closest_inside (et, tp);
     p = tp;
   }

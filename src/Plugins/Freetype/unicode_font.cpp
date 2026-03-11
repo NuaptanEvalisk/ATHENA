@@ -177,7 +177,7 @@ unicode_font_rep::unicode_font_rep (string name,
     fnm= std_font_metric (res_name, NULL, 0, -1);
     fng= std_font_glyphs (res_name, NULL, 0, -1);
     if (DEBUG_AUTO)
-      debug_fonts << "TeXmacs] Font " << family << " " << size << "pt "
+      debug_fonts << "ATHENA] Font " << family << " " << size << "pt "
                   << "at " << hdpi << " dpi could not be loaded\n";
     
   }

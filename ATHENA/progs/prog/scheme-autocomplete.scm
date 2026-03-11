@@ -60,7 +60,7 @@
   (set! completions (pt-add-list completions lst)))
 
 (tm-define (scheme-completions-rebuild)
-  (display "Texmacs] Populating autocompletions tree... ")
+  (display "ATHENA] Populating autocompletions tree... ")
   (let ((start (texmacs-time))
         (symbols (append (all-used-symbols) (all-glued-symbols))))
     (scheme-completions-add-list symbols)

@@ -499,7 +499,7 @@
                        (with sy (string->symbol (string-append "tmx" s2))
                          (list '!symbol (list sy))))
                       ((not (logic-in? (car ss) latex-symbol%))
-                       (display* "TeXmacs] non converted symbol: " s "\n")
+                       (display* "ATHENA] non converted symbol: " s "\n")
                        (list '!symbol (list 'nonconverted s2)))
                       (group? (list '!group ss))
                       (else (list '!symbol ss)))))))
@@ -824,7 +824,7 @@
 (define (tmtex-show-part s l) (tmtex (cadr l)))
 
 (define (tmtex-error l)
-  (display* "TeXmacs] error in conversion: " l "\n")
+  (display* "ATHENA] error in conversion: " l "\n")
   (if tmtex-debug-mode? "(error)" ""))
 
 (define (tmtex-line-note l)
@@ -1147,7 +1147,7 @@
         ((in? s '("(" ")" "[" "]" "|" "/")) s)
         ((in? s '("{" "}")) (string-append "\\" s))
         (else
-         (display* "TeXmacs] non converted bracket: " s "\n")
+         (display* "ATHENA] non converted bracket: " s "\n")
          "")))
 
 (define (tmtex-left l)
@@ -1164,7 +1164,7 @@
       (tmtex-large-decode-text (car l))))
 
 (define (tmtex-mid l)
-  (display* "TeXmacs] downgraded large middle delimiter: " (car l) "\n")
+  (display* "ATHENA] downgraded large middle delimiter: " (car l) "\n")
   (if (tmtex-math-mode?)
       (with s (tmtex-large-decode (car l))
         (if (== s ".") "" s))
@@ -1331,7 +1331,7 @@
           ((in? acc '("<sqoverbrace>" "<sqoverbrace*>"))
            (tmtex-below `(,(car l) (text (downbracefill)))))
           (else
-           (display* "TeXmacs] non converted accent below: " acc "\n")
+           (display* "ATHENA] non converted accent below: " acc "\n")
            arg))))
 
 (define (tmtex-wide? x)
@@ -1390,7 +1390,7 @@
           ((in? acc '("<squnderbrace>" "<squnderbrace*>"))
            (tmtex-above `(,(car l) (text (upbracefill)))))
           (else
-           (display* "TeXmacs] non converted accent: " acc "\n")
+           (display* "ATHENA] non converted accent: " acc "\n")
            arg))))
 
 (define (tmtex-neg l)
@@ -2239,15 +2239,15 @@
          (tmtex-tt (cadr x)))
         ((func? x 'with)
          (begin
-           (display* "TeXmacs] lost <with> in verbatim content: " (cDr x) "\n")
+           (display* "ATHENA] lost <with> in verbatim content: " (cDr x) "\n")
            (tmtex-tt (cAr x))))
         ((func? x 'math)
          (begin
-           (display* "TeXmacs] lost <math> in verbatim content: " (cDr x) "\n")
+           (display* "ATHENA] lost <math> in verbatim content: " (cDr x) "\n")
            (tmtex-tt (cAr x))))
         (else
           (begin
-            (display* "TeXmacs] non converted verbatim content: " x "\n")
+            (display* "ATHENA] non converted verbatim content: " x "\n")
             ""))))
 
 (define (unescape-angles l)
@@ -2595,7 +2595,7 @@
          `(bibitem (!option ,(tmtex (car l))) ,(cadr l)))
         (else
           (begin
-            (display* "TeXmacs] non converted bibitem content: "
+            (display* "ATHENA] non converted bibitem content: "
                       (list s l) "\n")
             ""))))
 
@@ -2807,7 +2807,7 @@
 (define (tmtex-cite-list l)
   (cond ((null? l) "")
         ((nstring? (car l))
-         (display* "TeXmacs] non converted citation: " (car l) "\n")
+         (display* "ATHENA] non converted citation: " (car l) "\n")
          (tmtex-cite-list (cdr l)))
         ((null? (cdr l)) (car l))
         (else (string-append (car l) "," (tmtex-cite-list (cdr l))))))

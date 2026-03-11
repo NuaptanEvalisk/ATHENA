@@ -528,7 +528,7 @@ set_cursor (path p, tree data) {
   if (is_inside (the_et, p))
     set_cursor (subtree (the_et, path_up (p)), last_item (p), data);
   else
-    cout << "TeXmacs] warning: invalid cursor position " << p << "\n";
+    cout << "ATHENA] warning: invalid cursor position " << p << "\n";
 }
 
 void

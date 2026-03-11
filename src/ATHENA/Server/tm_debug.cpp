@@ -151,25 +151,25 @@ get_crash_report (const char* msg) {
 void
 tm_failure (const char* msg) {
   if (rescue_mode) {
-    fprintf (stderr, "\nTeXmacs] Fatal unrecoverable error, %s\n", msg);
+    fprintf (stderr, "\nATHENA] Fatal unrecoverable error, %s\n", msg);
 #ifdef DEBUG_ASSERT
     return;
 #endif
     exit (1);
   }
   rescue_mode= true;
-  cerr << "\nTeXmacs] Fatal error, " << msg << "\n";
+  cerr << "\nATHENA] Fatal error, " << msg << "\n";
 
   //cerr << "Saving crash report...\n";
   string report= get_crash_report (msg);
   url dir ("$ATHENA_HOME_PATH/system/crash");
   url err= url_numbered (dir, "crash_report_", "");
   if (!save_string (err, report))
-    cerr << "TeXmacs] Crash report saved in " << err << "\n";
+    cerr << "ATHENA] Crash report saved in " << err << "\n";
   else
-    cerr << "TeXmacs] Crash report could not be saved in "
+    cerr << "ATHENA] Crash report could not be saved in "
          << err << "\n"
-         << "TeXmacs] Dumping report below\n\n"
+         << "ATHENA] Dumping report below\n\n"
          << report << "\n";
 
   //cerr << "Saving current buffer...\n";
@@ -178,11 +178,11 @@ tm_failure (const char* msg) {
   string buf= tree_report (subtree (the_et, ed->rp), ed->rp);
   url buf_err= glue (err, "_tree");
   if (!save_string (buf_err, buf))
-    cerr << "TeXmacs] Current buffer report saved in " << buf_err << "\n";
+    cerr << "ATHENA] Current buffer report saved in " << buf_err << "\n";
   else
-    cerr << "TeXmacs] Current buffer report could not be saved in "
+    cerr << "ATHENA] Current buffer report could not be saved in "
          << buf_err << "\n"
-         << "TeXmacs] Dumping report below\n\n"
+         << "ATHENA] Dumping report below\n\n"
          << buf << "\n";
 
   //cerr << "Autosaving...\n";

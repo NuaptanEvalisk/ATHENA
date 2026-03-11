@@ -43,7 +43,7 @@
 editor_rep::editor_rep ():
   simple_widget_rep (), cvw (NULL), mvw (NULL),
   drd (std_drd), et (the_et), rp () {
-  cout << "TeXmacs] warning, this virtual constructor should never be called\n";
+  cout << "ATHENA] warning, this virtual constructor should never be called\n";
 }
 
 editor_rep::editor_rep (server_rep* sv2, tm_buffer buf2):

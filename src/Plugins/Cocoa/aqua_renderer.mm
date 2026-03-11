@@ -301,7 +301,7 @@ aqua_renderer_rep::image (url u, SI w, SI h, SI x, SI y, int alpha) {
   }
     
   if (pm == NULL ) {
-    debug_events << "TeXmacs] warning: cannot render " << as_string (u) << "\n";
+    debug_events << "ATHENA] warning: cannot render " << as_string (u) << "\n";
     return;
   }
  

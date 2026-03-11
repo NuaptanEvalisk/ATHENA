@@ -1033,7 +1033,7 @@ drd_info_rep::heuristic_init (hashmap<string,tree> env2) {
         flag= heuristic_init_parameter (var, val) | flag;
     }
     if ((round++) == 10) {
-      cout << "TeXmacs] Warning: bad heuristic drd convergence\n";
+      cout << "ATHENA] Warning: bad heuristic drd convergence\n";
       flag= false;
     }
   }

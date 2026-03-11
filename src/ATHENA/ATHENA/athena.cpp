@@ -725,7 +725,7 @@ immediate_options (int argc, char** argv) {
       char* log_file = argv[i];
       tm_ostream logf (log_file);
       if (!logf->is_writable ())
-        cerr << "TeXmacs] Error: could not open " << log_file << "\n";
+        cerr << "ATHENA] Error: could not open " << log_file << "\n";
       cout.redirect (logf);
       cerr.redirect (logf);
     }
@@ -780,7 +780,7 @@ texmacs_entrypoint (int argc, char** argv) {
 #ifdef MACOSX_EXTENSIONS
   // Reset TeXmacs if Alt is pressed during startup
   if (mac_alternate_startup()) {
-    cout << "TeXmacs] Performing setup (Alt on startup)" << LF; 
+    cout << "ATHENA] Performing setup (Alt on startup)" << LF; 
     remove (url ("$ATHENA_HOME_PATH/system/settings.scm"));
     remove (url ("$ATHENA_HOME_PATH/system/setup.scm"));
     remove (url ("$ATHENA_HOME_PATH/system/cache") * url_wildcard ("*"));

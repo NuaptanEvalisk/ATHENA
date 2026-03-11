@@ -756,7 +756,7 @@ make_lazy (edit_env env, tree t, path ip) {
   /*
   if (is_accessible (ip)) {
     if (obtain_ip (t) != ip)
-      cout << "TeXmacs] Wrong ip: " << t << "\n";
+      cout << "ATHENA] Wrong ip: " << t << "\n";
   }
   */
 

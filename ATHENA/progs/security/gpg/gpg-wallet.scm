@@ -14,7 +14,7 @@
 (texmacs-module (security gpg gpg-wallet)
   (:use (security gpg gpg-base)))
 
-;(display "TeXmacs] Loading GnuPG wallet\n")
+;(display "ATHENA] Loading GnuPG wallet\n")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Settings and initialization

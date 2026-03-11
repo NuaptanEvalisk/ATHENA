@@ -164,7 +164,7 @@ concater_rep::typeset (tree t, path ip) {
 
   /*
   if (obtain_ip (t) != ip)
-    cout << "TeXmacs] Wrong ip: " << t << "\n"
+    cout << "ATHENA] Wrong ip: " << t << "\n"
 	 << "       ] " << obtain_ip (t) << " -> " << ip << "\n";
   */
 

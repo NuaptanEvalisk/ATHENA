@@ -77,10 +77,10 @@
                 (live-connect lid server)
                 (live-terminate-retrieval lid)))
             (lambda (err)
-              (display* "TeXmacs] " err "\n")
+              (display* "ATHENA] " err "\n")
               (set-message err "retrieve remote live document")))
           (begin
-            (display* "TeXmacs] could not connect to server " sname "\n")
+            (display* "ATHENA] could not connect to server " sname "\n")
             (set-message `(concat "could not connect to server " ,sname)
                          "retrieve remote live document"))))))
 
@@ -104,7 +104,7 @@
           (live-set-remote-state lid server new-state)
           (live-forget-obsolete lid)))
       (lambda (err)
-        (display* "TeXmacs] " err "\n")
+        (display* "ATHENA] " err "\n")
         (set-message err "modify remote live document")))))
 
 (tm-define (live-apply-patch lid p . opt-state)

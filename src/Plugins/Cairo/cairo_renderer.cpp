@@ -290,7 +290,7 @@ cairo_renderer_rep::image (url u, SI w, SI h, SI x, SI y, int alpha) {
   }
   
   if (pm == NULL ) {
-    cout << "TeXmacs] warning: cannot render " << as_string (u) << "\n";
+    cout << "ATHENA] warning: cannot render " << as_string (u) << "\n";
     return;
   }
   

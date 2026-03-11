@@ -80,7 +80,7 @@ load_hyphen_tables (string file_name,
   file_name= string ("hyphen.") * file_name;
   load_string (url ("$ATHENA_PATH/langs/natural/hyphen", file_name), s, true);
   if (DEBUG_VERBOSE)
-    debug_automatic << "TeXmacs] Loading " << file_name << "\n";
+    debug_automatic << "ATHENA] Loading " << file_name << "\n";
 
   if (toCork) s= utf8_to_cork (s);
 

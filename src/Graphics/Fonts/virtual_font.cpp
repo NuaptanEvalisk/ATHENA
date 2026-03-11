@@ -1167,7 +1167,7 @@ virtual_font_rep::compile_bis (scheme_tree t, metric& ex) {
     return circle_glyph (r, w);
   }
 
-  failed_error << "TeXmacs] The defining tree is " << t << "\n";
+  failed_error << "ATHENA] The defining tree is " << t << "\n";
   FAILED ("invalid virtual character");
   return glyph ();
 }

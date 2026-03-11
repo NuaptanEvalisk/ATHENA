@@ -247,7 +247,7 @@ font_database_load () {
 void
 font_database_global_load () {
   if (fonts_global_loaded) return;
-  cout << "TeXmacs] warning, missing font, loading global substitution list\n";
+  cout << "ATHENA] warning, missing font, loading global substitution list\n";
   font_database_load_database (GLOBAL_DATABASE, font_global_table);
   font_database_load_features (GLOBAL_FEATURES);
   font_database_load_characteristics (GLOBAL_CHARACTERISTICS);
@@ -475,7 +475,7 @@ find_best_approximation (tree ff) {
       }
     }
   }
-  cout << "TeXmacs] approximating font " << ff << " ~> " << best << "\n";
+  cout << "ATHENA] approximating font " << ff << " ~> " << best << "\n";
   if (N(best) >= 2) return best;
   return ff (0, 2);
 }
@@ -503,7 +503,7 @@ font_database_collect (url u) {
                  back_font_table->contains (ff (0, 2))) {
               ff= find_best_approximation (ff);
               if (j != 0 && N (tt_font_name (u * a[i])) <= j) {
-                cout << "TeXmacs] ignore " << ff << " and higher subfonts\n";
+                cout << "ATHENA] ignore " << ff << " and higher subfonts\n";
                 break;
               }
             }

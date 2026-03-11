@@ -502,7 +502,7 @@ qt_image_to_pdf (url image, url outfile, int w_pt, int h_pt, int dpi) {
   if (suffix(outfile)=="eps") {
 #if (QT_VERSION >= 0x050000)
     //note that PostScriptFormat is gone in Qt5. a substitute?: http://soft.proindependent.com/eps/
-    cout << "TeXmacs] warning: PostScript format no longer supported in Qt5\n";
+    cout << "ATHENA] warning: PostScript format no longer supported in Qt5\n";
     printer.setOutputFormat(QPrinter::PdfFormat);
 #else    
     printer.setOutputFormat(QPrinter::PostScriptFormat);

@@ -1050,7 +1050,7 @@ resolve_in_path (url u) {
              (!occurs ("bin/which: ", which)) &&
              (!starts (which, "which: ")) &&
              (!starts (which, "no ")))
-      cout << "TeXmacs] " << which << "\n";
+      cout << "ATHENA] " << which << "\n";
   }
 #if defined(OS_MINGW) || defined(OS_ANDROID)
   return resolve ((url_path ("$ATHENA_PATH/bin") | url_path ("$PATH")) * u, "x");

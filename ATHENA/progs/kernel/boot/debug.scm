@@ -30,7 +30,7 @@
   (for-each display-err l))
 
 (define-public (tm-display-error . l)
-  (apply display-err* `("TeXmacs] " ,@l "\n")))
+  (apply display-err* `("ATHENA] " ,@l "\n")))
 
 (define-public (write* . l)
   "Write all objects in @l to standard output."
@@ -141,7 +141,7 @@
   (if (not (member old deprecated-done))
       (begin
         (set! deprecated-done (cons old deprecated-done))
-        (display* "TeXmacs] warning, deprecated function '" old "'\n")
+        (display* "ATHENA] warning, deprecated function '" old "'\n")
         (if (not (null? l))
             (begin
               (display* "       ] please reimplement using '" (car l) "'")

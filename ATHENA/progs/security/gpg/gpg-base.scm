@@ -15,7 +15,7 @@
   (:use (utils base environment))
   (:use (database db-users)))
 
-;(display "TeXmacs] Loading GnuPG base support (http://www.gnupg.org)\n")
+;(display "ATHENA] Loading GnuPG base support (http://www.gnupg.org)\n")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; User preferences

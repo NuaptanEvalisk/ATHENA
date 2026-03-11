@@ -108,7 +108,7 @@
              (expand-table done))
             (else
               (for (key (map car (ahash-table->list todo)))
-                (display* "TeXmacs] Problematic chunk: " key "\n"))
+                (display* "ATHENA] Problematic chunk: " key "\n"))
               (set-message "Error: cyclic or missing chunks detected"
                            "build-all")
               done)))))
@@ -185,7 +185,7 @@
       (with target (url-append dir key)
         (when (not (url-exists? (url-head target)))
           (system-mkdir (url-head target)))
-        (display* "TeXmacs] Building " (url->system target) "\n")
+        (display* "ATHENA] Building " (url->system target) "\n")
         (string-save (ahash-ref t key) target)))))
 
 (define (lp-build* file dir)

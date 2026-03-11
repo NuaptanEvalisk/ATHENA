@@ -22,7 +22,7 @@ string
 openssl (string args) {
   if (openssl_cmd == "") openssl_cmd= get_env ("TM_OPENSSL");
   if (openssl_cmd == "") openssl_cmd= "openssl";
-  //cout << "TeXmacs] " << (openssl_cmd * " " * args) << LF;
+  //cout << "ATHENA] " << (openssl_cmd * " " * args) << LF;
   return eval_system (openssl_cmd * " " * args);
 }
 

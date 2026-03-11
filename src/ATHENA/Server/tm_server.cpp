@@ -59,7 +59,7 @@ texmacs_wait_handler (string message, string arg, int level) {
   if (texmacs_started && the_server != NULL)
     (*the_server)->wait_handler (message, arg);
   else
-    cout << "TeXmacs] Please wait: " << message << " " << arg << "\n";
+    cout << "ATHENA] Please wait: " << message << " " << arg << "\n";
 }
 
 bool is_server_started () {
@@ -183,7 +183,7 @@ tm_server_rep::wait_handler (string message, string arg) {
   if (has_current_window ())
     show_wait_indicator (concrete_window () -> win, translate (message), arg);
   else
-    cout << "TeXmacs] Please wait: " << message << " " << arg << "\n";
+    cout << "ATHENA] Please wait: " << message << " " << arg << "\n";
 }
 
 void

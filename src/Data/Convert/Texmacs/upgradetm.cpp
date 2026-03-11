@@ -1860,9 +1860,9 @@ upgrade_function (tree t) {
     int i, n= N(t[1])-1;
     for (i=0; i<n; i++)
       if (ends (as_string (t[1][i]), "*"))
-        cout << "TeXmacs] Deprecated argument list '" << t[1][i]
+        cout << "ATHENA] Deprecated argument list '" << t[1][i]
              << "' in function '" << t[0] << "'\n"
-             << "TeXmacs] You should use the 'xmacro' primitive now\n";
+             << "ATHENA] You should use the 'xmacro' primitive now\n";
   }
   /*
   if (is_func (t, ASSIGN, 2) && is_func (t[1], FUNC) && (N(t[1])>1)) {
@@ -3055,7 +3055,7 @@ upgrade_resize_arg (tree t) {
         u[1]= upgrade_resize_arg (t[1]);
         return u;
       }
-    cout << "TeXmacs] warning, resize argument " << t << " not upgraded\n";
+    cout << "ATHENA] warning, resize argument " << t << " not upgraded\n";
     return t;
   }
   if (is_func (t, ARG, 1) ||
@@ -3063,12 +3063,12 @@ upgrade_resize_arg (tree t) {
       is_func (t, MINIMUM, 2) || is_func (t, MAXIMUM, 2))
     return t;
   if (!is_atomic (t)) {
-    cout << "TeXmacs] warning, resize argument " << t << " not upgraded\n";
+    cout << "ATHENA] warning, resize argument " << t << " not upgraded\n";
     return t;
   }
   string s= t->label;
   if (starts (s, "c")) {
-    cout << "TeXmacs] warning, resize argument " << t << " not upgraded\n";
+    cout << "ATHENA] warning, resize argument " << t << " not upgraded\n";
     return t;
   }
   if (s == "l") return "1l";

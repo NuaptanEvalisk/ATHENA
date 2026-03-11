@@ -1,6 +1,6 @@
 # tm-jupyter-client
 
-A [TeXmacs](https://www.texmacs.org/) plugin to run and communicate with [Jupyter kernels](https://github.com/jupyter/jupyter/wiki/Jupyter-kernels).
+A [ATHENA](https://www.texmacs.org/) plugin to run and communicate with [Jupyter kernels](https://github.com/jupyter/jupyter/wiki/Jupyter-kernels).
 
 ##### Notes
 

@@ -52,7 +52,7 @@
   (when (and (!= dir html-dir) (!= dir (system->url ".")))
     (tmweb-make-dir (url-expand (url-append dir (url-parent))) html-dir))
   (when (not (url-exists? dir))
-    (display* "TeXmacs] Creating directory " (url->system dir) "\n")
+    (display* "ATHENA] Creating directory " (url->system dir) "\n")
     (system-mkdir dir)
     (system-1 "chmod a+x" dir)))
 
@@ -78,7 +78,7 @@
       (tmweb-make-dir dir (url-expand html-dir))
       (when (needs-update? file u3 update?)
         (system-wait "Converting" (url->system u1))
-        (display* "TeXmacs] Converting " (url->system u1) "\n")
+        (display* "ATHENA] Converting " (url->system u1) "\n")
         (tmweb-convert-file file u3)))))
 
 (define (tmweb-copy-file-dir file tm-dir html-dir update?)
@@ -96,7 +96,7 @@
       (tmweb-make-dir dir (url-expand html-dir))
       (when (needs-update? file u2 update?)
         (system-wait "Copying" (url->system u1))
-        (display* "TeXmacs] Copying " (url->system u1) "\n")
+        (display* "ATHENA] Copying " (url->system u1) "\n")
         (system-copy file u2)))))
 
 (define (tmweb-convert-directory tm-dir html-dir update? keep?)

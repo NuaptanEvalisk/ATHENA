@@ -274,7 +274,7 @@ family_to_master (string f) {
   font_database_load ();
   if (!font_features->contains (tree (f)) &&
       f != "tcx" && f != "tc") {
-    cout << "TeXmacs] missing '" << f << "' family\n";
+    cout << "ATHENA] missing '" << f << "' family\n";
     font_database_global_load ();
   }
   if (font_features->contains (tree (f))) {
@@ -328,7 +328,7 @@ master_to_families (string m) {
   font_database_load ();
   if (!font_variants->contains (tree (m)) &&
       m != "tcx" && m != "tc") {
-    cout << "TeXmacs] missing '" << m << "' master\n";
+    cout << "ATHENA] missing '" << m << "' master\n";
     font_database_global_load ();
   }
   array<string> r;
