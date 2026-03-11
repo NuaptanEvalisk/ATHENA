@@ -305,7 +305,8 @@
       (begin
         (display* "  Scanning: " dir " for " hint "\n")
         (refresh-now "wikilink-search")
-        (let* ((all (url-read-directory dir "*.tm"))
+        (let* ((all (append (url-read-directory dir "*.tm")
+                            (url-read-directory dir "*.ath")))
                (matches (list-filter all (lambda (u) (string-fuzzy-match? (url-tail u) hint))))
                (subdirs (list-filter (url-read-directory dir "*") url-directory?)))
           (for (d subdirs)

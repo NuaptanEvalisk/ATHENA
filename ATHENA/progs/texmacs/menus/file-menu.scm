@@ -175,7 +175,7 @@
 
 (menu-bind save-menu
   ("Save" (save-buffer))
-  ("Save as" (choose-file save-buffer-as "Save TeXmacs file" "texmacs"))
+  ("Save as" (choose-file save-buffer-as "Save ATHENA file" "texmacs"))
   ---
   (link export-top-menu)
   ---
@@ -233,7 +233,7 @@
   (if (not (window-per-buffer?))
       ("Close document" (close-document))
       ("Close window" (close-document*)))
-  ("Close TeXmacs" (safely-quit-TeXmacs)))
+  ("Close ATHENA" (safely-quit-ATHENA)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; The File menu
@@ -275,7 +275,7 @@
         ("Clear menu" (save-object (recent-vaults-file) '()))))
   ---
   ("Save" (save-buffer))
-  ("Save as" (choose-file save-buffer-as "Save TeXmacs file" "texmacs"))
+  ("Save as" (choose-file save-buffer-as "Save ATHENA file" "texmacs"))
   ---
   (link print-menu)
   ---
@@ -298,7 +298,7 @@
       ("Close window" (close-document)))
   (if (not (window-per-buffer?))
       ("Close document" (close-document)))
-  ("Close TeXmacs" (safely-quit-TeXmacs)))
+  ("Close ATHENA" (safely-quit-ATHENA)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; The Go menu

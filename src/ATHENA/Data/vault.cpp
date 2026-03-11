@@ -113,8 +113,11 @@ scan_recursive (url dir, array<url>& res) {
     if (name != "" && name[0] == '.') continue;
     if (is_directory (u)) {
       scan_recursive (u, res);
-    } else if (suffix (u) == "tm") {
-      res << u;
+    } else {
+      string suf = suffix (u);
+      if (suf == "ath" || suf == "tm") {
+        res << u;
+      }
     }
   }
 }

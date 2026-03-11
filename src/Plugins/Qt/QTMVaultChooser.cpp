@@ -98,7 +98,9 @@ QTMVaultChooser::filterFiles (const QString& hint) {
   for (int i = 0; i < N(allFiles); i++) {
     url rel = delta (root * url (""), allFiles[i]);
     string s = as_unix_string (rel);
-    if (suffix (rel) == "tm" && N(s) > 3) s = s (0, N(s) - 3);
+    string suf = suffix (rel);
+    if (suf == "tm" && N(s) > 3) s = s (0, N(s) - 3);
+    else if (suf == "ath" && N(s) > 4) s = s (0, N(s) - 4);
     QString relNoExt = to_qstring (s);
     if (fuzzyMatch (relNoExt, hint)) {
       resultList->addItem (to_qstring (as_unix_string (rel)));
@@ -130,6 +132,7 @@ QTMVaultChooser::onReturnPressed () {
       if (selectionChangedByArrows) {
         QString s = selectedRelPath;
         if (s.endsWith (".tm")) s.chop (3);
+        else if (s.endsWith (".ath")) s.chop (4);
         fileHint = s;
       } else {
         fileHint = searchEdit->text ();
@@ -168,7 +171,10 @@ QTMVaultChooser::onReturnPressed () {
     if (!selectedAnchor.isEmpty()) {
       searchEdit->setText (selectedAnchor);
     } else {
-      searchEdit->setText (selectedRelPath);
+      QString s = selectedRelPath;
+      if (s.endsWith (".tm")) s.chop (3);
+      else if (s.endsWith (".ath")) s.chop (4);
+      searchEdit->setText (s);
     }
     searchEdit->selectAll ();
     

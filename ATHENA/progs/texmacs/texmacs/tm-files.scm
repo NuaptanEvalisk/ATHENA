@@ -205,7 +205,7 @@
            (choose-file
 	    (lambda (x) (apply save-buffer-as-main
 		(cons x (if (x-gui?) opts (cons :overwrite opts)))))
-	      "Save TeXmacs file" "texmacs"))
+	      "Save ATHENA file" "texmacs"))
           ((not (buffer-exists? name))
            (with msg `(concat "The buffer " ,vname " does not exist")
              (set-message msg "Save file")))

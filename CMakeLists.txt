@@ -11,9 +11,9 @@
 # in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 
 
-# The name of our project is "TEXMACS". CMakeLists files in this project can 
-# refer to the root source directory of the project as ${ATHENA_SOURCE_DIR} and 
-# to the root binary directory of the project as ${ATHENA_BINARY_DIR}. 
+# The name of our project is "TEXMACS". CMakeLists files in this project can
+# refer to the root source directory of the project as ${ATHENA_SOURCE_DIR} and
+# to the root binary directory of the project as ${ATHENA_BINARY_DIR}.
 
 
 ### --------------------------------------------------------------------
@@ -43,10 +43,10 @@ endif (CCACHE_FOUND)
 
 
 ### --------------------------------------------------------------------
-### Project name 
+### Project name
 ### --------------------------------------------------------------------
 
-project (TEXMACS CXX C) # check for C/C++ compiler
+project (ATHENA CXX C) # check for C/C++ compiler
 
 set (PACKAGE ATHENA)
 set (CMAKE_MODULE_PATH ${ATHENA_SOURCE_DIR}/cmake)
@@ -240,7 +240,7 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "SunOS")
   set (CONFIG_CXXOPTIMIZE "-O3 -fexpensive-optimizations")
   set (CONFIG_CXXOPTIMIZE "-O3")
   set (CONFIG_BPATH "-Wl,-R,")
-#  SET(X11_LDFLAGS "${X_LIBS} -lXext -lX11 -lsocket")
+  #  SET(X11_LDFLAGS "${X_LIBS} -lXext -lX11 -lsocket")
 endif (${CMAKE_SYSTEM_NAME} STREQUAL "SunOS")
 
 if (${CMAKE_SYSTEM_NAME} STREQUAL "CYGWIN_NT-5.1")
@@ -447,8 +447,8 @@ set (ATHENA_Include_Dirs
   ${ATHENA_SOURCE_DIR}/src/Typeset/Bridge
   ${ATHENA_SOURCE_DIR}/src/Typeset/Concat
   ${ATHENA_SOURCE_DIR}/src/Typeset/Page
-  ${ATHENA_SOURCE_DIR}/ATHENA/include 
-  ${ATHENA_BINARY_DIR}/src/System/ 
+  ${ATHENA_SOURCE_DIR}/ATHENA/include
+  ${ATHENA_BINARY_DIR}/src/System/
 )
 
 if (WIN32)
@@ -601,9 +601,9 @@ if (ATHENA_GUI MATCHES "Qt.*")
     )
     include (${QT_USE_FILE})
   elseif (ATHENA_GUI STREQUAL "Qt6")
-	  find_package (Qt6 COMPONENTS Core Gui Widgets PrintSupport Svg Network Core5Compat REQUIRED)
-	  set (QT_LIBRARIES Qt6::Core Qt6::Gui Qt6::Widgets Qt6::PrintSupport Qt6::Svg Qt6::Network Qt6::Core5Compat)
-  
+    find_package (Qt6 COMPONENTS Core Gui Widgets PrintSupport Svg Network Core5Compat REQUIRED)
+    set (QT_LIBRARIES Qt6::Core Qt6::Gui Qt6::Widgets Qt6::PrintSupport Qt6::Svg Qt6::Network Qt6::Core5Compat)
+
     set (ATHENA_Include_Dirs
       ${ATHENA_Include_Dirs}
       ${Qt6Core_INCLUDE_DIRS}
@@ -649,7 +649,7 @@ if (ATHENA_GUI MATCHES "Qt.*")
     else (APPLE)
       find_package (Qt5 COMPONENTS Core Gui Widgets PrintSupport Svg REQUIRED)
     endif ()
-    
+
     if (APPLE)
       set (QT_LIBRARIES Qt5::Core Qt5::Gui Qt5::Widgets Qt5::PrintSupport Qt5::Svg Qt5::MacExtras)
     else (APPLE)

@@ -25,8 +25,8 @@
            (string-starts? s "edit"))))
 
 (define-format texmacs
-  (:name "TeXmacs")
-  (:suffix "tm" "ts" "tp")
+  (:name "ATHENA")
+  (:suffix "ath" "tm" "ts" "tp")
   (:must-recognize texmacs-recognizes?))
 
 (converter texmacs-tree texmacs-stree
@@ -55,8 +55,8 @@
   (and (string? s) (string-starts? s "(document (TeXmacs")))
 
 (define-format stm
-  (:name "TeXmacs Scheme")
-  (:suffix "stm")
+  (:name "ATHENA Scheme")
+  (:suffix "ascm" "stm")
   (:must-recognize stm-recognizes?))
 
 (converter texmacs-tree stm-document
