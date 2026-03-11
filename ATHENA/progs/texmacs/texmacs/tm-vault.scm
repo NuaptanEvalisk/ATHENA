@@ -513,9 +513,9 @@
            (with "par-mode" "center"
              (document
                (with "font-size" "2" "font-series" "bold"
-                 (concat "GNU " (TeXmacs) " Wyvern Edition"))
+                 "Welcome to ATHENA")
                (with "font-size" "1.2" "font-shape" "italic"
-                 "Integrated Mathematics Environment")))
+                 "Advanced Typesetting and Hypertext Environment for Notes and Archives")))
            (vspace "2fn")
 
            (section* "Quick Start")
@@ -532,6 +532,16 @@
              ,@(map (lambda (u)
                     `(concat (item) (action ,(url->system u) ,(string-append "(load-buffer " (object->string (url->string u)) ")"))))
                   recent-files)))
+
+           (vspace "2fn")
+           (with "font-size" "0.8" "color" "grey"
+             (document
+               (with "par-mode" "center"
+                 (document
+                   "ATHENA is a fork based on GNU TeXmacs."
+                   (concat "Copyright " (C) " 1999-2026 Joris van der Hoeven and others.")
+                   (concat "Copyright " (C) " 2026 Nuaptan F. Evalisk.")
+                   "Released under the GNU General Public License version 3 or later."))))
            ))))))
 (tmfs-load-handler (Wikilink name)
   (wikilink-handler-sub name))
