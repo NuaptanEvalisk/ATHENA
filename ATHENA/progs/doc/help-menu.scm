@@ -30,7 +30,7 @@
        (load-help-article (string-append name))))))
 
 (menu-bind help-menu
-  ("About Wyvern Edition" (help-about))
+  ("About ATHENA" (help-about))
   ---
   (when (url-exists-in-help? "about/welcome/new-welcome.en.tm")
 	("Welcome" (load-help-article "about/welcome/new-welcome"))
@@ -72,30 +72,30 @@
 	     (load-help-article "main/editing/man-editing-tools"))
 	    ("Laptop presentations"
 	     (load-help-article "main/beamer/man-beamer"))
-	    ("TeXmacs as an interface"
+	    ("ATHENA as an interface"
 	     (load-help-article "main/interface/man-itf"))
 	    ("Remote tools and collaborative editing"
 	     (load-help-article "main/remote/man-collaborative"))
             ---
 	    ("Writing your own style files"
 	     (load-help-article "devel/style/style"))
-	    ("Customizing TeXmacs"
+	    ("Customizing ATHENA"
 	     (load-help-article "main/scheme/man-scheme"))
-	    ("The TeXmacs plug-in system"
+	    ("The ATHENA plug-in system"
 	     (load-help-article "devel/plugin/plugins"))))
   (when (url-exists-in-help? "main/man-manual.en.tm")
 	(-> "Reference guide"
 	    ("Browse" (load-help-buffer "main/man-reference"))
 	    ---
-	    ("The TeXmacs format"
+	    ("The ATHENA format"
 	     (load-help-article "devel/format/basics/basics"))
 	    ("Standard environment variables"
 	     (load-help-article "devel/format/environment/environment"))
-	    ("TeXmacs primitives"
+	    ("ATHENA primitives"
 	     (load-help-article "devel/format/regular/regular"))
 	    ("Stylesheet language"
 	     (load-help-article "devel/format/stylesheet/stylesheet"))
-	    ("Standard TeXmacs styles"
+	    ("Standard ATHENA styles"
 	     (load-help-article "main/styles/styles"))
 	    ("Compatibility with other formats"
 	     (load-help-article "main/convert/man-convert"))))
@@ -111,7 +111,7 @@
 	     (load-document "$ATHENA_PATH/LICENSE"))
 	    ("Philosophy"
 	     (load-help-article "about/philosophy/philosophy"))
-	    ("The TeXmacs authors"
+	    ("The ATHENA authors"
 	     (load-help-article "about/authors/authors"))
 	    ---
 	    (when (and (updater-supported?) (not (updater-running?)))
@@ -146,9 +146,9 @@
 	     (load-help-article "about/contribute/converters/converters"))
 	    ("Porting TeXmacs to other platforms"
 	     (load-help-article "about/contribute/porting/porting"))
-	    ("Interfacing TeXmacs with other systems"
+	    ("Interfacing ATHENA with other systems"
 	     (load-help-article "about/contribute/interfaces/interfaces"))
-	    ("Become a TeXmacs developer"
+	    ("Become an ATHENA developer"
 	     (load-help-article "about/contribute/develop/develop"))))
 ;;      (when (url-exists-in-help? "about/projects/projects.en.tm")
 ;;	(-> "Projects"
@@ -224,7 +224,7 @@
 	    ---
 	    ("Overview of the scheme extension language"
 	     (load-help-article "devel/scheme/overview/scheme-overview"))
-	    ("TeXmacs extensions to scheme and utilities"
+	    ("ATHENA extensions to scheme and utilities"
 	     (load-help-article "devel/scheme/utils/scheme-utils"))
 	    ("Programming routines for editing documents"
 	     (load-help-article "devel/scheme/edit/scheme-edit"))
@@ -235,7 +235,7 @@
             
             ("Customizing and extending the user interface"
              (load-help-article "devel/scheme/gui/scheme-gui"))
-	    ("Writing TeXmacs bibliography styles"
+	    ("Writing ATHENA bibliography styles"
 	     (load-help-article "devel/scheme/bibliography/bibliography"))
             ---
             ("Browse modules documentation" (apidoc-all-modules))

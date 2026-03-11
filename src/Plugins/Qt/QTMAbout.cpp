@@ -21,8 +21,8 @@
 QTMAbout::QTMAbout (QWidget* parent)
   : QDialog (parent)
 {
-  setWindowTitle ("About TeXmacs Wyvern Edition");
-  setMinimumWidth (400);
+  setWindowTitle ("About ATHENA");
+  setMinimumWidth (500);
 
   layout = new QVBoxLayout (this);
   layout->setContentsMargins (30, 30, 30, 30);
@@ -43,7 +43,7 @@ QTMAbout::QTMAbout (QWidget* parent)
   if (!logoPath.isEmpty ()) {
     QPixmap pixmap (logoPath);
     if (!pixmap.isNull ()) {
-      logoLabel->setPixmap (pixmap.scaled (128, 128, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+      logoLabel->setPixmap (pixmap.scaled (160, 160, Qt::KeepAspectRatio, Qt::SmoothTransformation));
     }
   }
   logoLabel->setAlignment (Qt::AlignCenter);
@@ -52,13 +52,19 @@ QTMAbout::QTMAbout (QWidget* parent)
   infoLabel = new QLabel (this);
   infoLabel->setTextFormat (Qt::RichText);
   infoLabel->setAlignment (Qt::AlignCenter);
+  infoLabel->setWordWrap (true);
   infoLabel->setOpenExternalLinks (true);
   
-  QString info = "<h2>TeXmacs Wyvern Edition</h2>"
+  QString info = "<h3>Advanced Typesetting and Hypertext Environment for Notes and Archives (ATHENA)</h3>"
                  "<p><b>Version " ATHENA_VERSION "</b></p>"
-                 "<p>A WYSIWYM Math Knowledge Management environment.</p>"
-                 "<p>Forked from GNU TeXmacs.</p>"
-                 "<p><a href='https://www.texmacs.org'>www.texmacs.org</a></p>";
+                 "<p>ATHENA is a fork based on <a href='https://www.texmacs.org'>GNU TeXmacs</a>.<br>"
+                 "We gratefully acknowledge and credit the original authors of GNU TeXmacs, "
+                 "primarily Joris van der Hoeven, for their foundational work.</p>"
+                 "<p>Copyright &copy; 1999-2026 Joris van der Hoeven and others.<br>"
+                 "Copyright &copy; 2026 Nuaptan F. Evalisk.</p>"
+                 "<p style='font-size: small;'>This program is free software: you can redistribute it and/or modify it "
+                 "under the terms of the GNU General Public License as published by the "
+                 "Free Software Foundation, either version 3 of the License, or (at your option) any later version.</p>";
   infoLabel->setText (info);
   layout->addWidget (infoLabel);
 
