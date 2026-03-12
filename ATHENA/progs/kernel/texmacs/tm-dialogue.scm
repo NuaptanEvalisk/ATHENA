@@ -134,24 +134,27 @@
   (recall-message-after len))
 
 (define-public (texmacs-banner)
-  (with tmv (string-append "GNU TeXmacs " (texmacs-version))
+  (with tmv (string-append "ATHENA " (texmacs-version))
     (delayed
-     (set-message "Welcome to GNU TeXmacs" tmv)
-     (delayed
-     (:pause 5000)
-     (set-message "GNU TeXmacs falls under the GNU general public license" tmv)
-     (delayed
-     (:pause 2500)
-     (set-message "GNU TeXmacs comes without any form of legal warranty" tmv)
-     (delayed
-     (:pause 2500)
-     (set-message
-      "More information about GNU TeXmacs can be found in the Help->About menu"
-      tmv)
+     (set-message "Welcome to ATHENA" tmv)
      (gui-hide-splash)
      (delayed
-     (:pause 2500)
-     (set-message "" ""))))))))
+      (:pause 5000)
+      (set-message "ATHENA is a fork of GNU TeXmacs" tmv)
+      (delayed
+       (:pause 2500)
+       (set-message "ATHENA falls under the GNU general public license" tmv)
+       (delayed
+        (:pause 2500)
+        (set-message "ATHENA comes without any form of legal warranty" tmv)
+        (delayed
+         (:pause 2500)
+         (set-message
+          "More information about ATHENA can be found in the Help->About menu"
+          tmv)
+         (delayed
+          (:pause 2500)
+          (set-message "" "")))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Interactive commands
