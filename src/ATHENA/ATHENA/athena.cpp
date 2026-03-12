@@ -736,7 +736,15 @@ immediate_options (int argc, char** argv) {
 
 int
 texmacs_entrypoint (int argc, char** argv) {
-  immediate_options (argc, argv);
+  for (int i=1; i<argc; i++) {
+    string s= argv[i];
+    if ((N(s)>=2) && (s(0,2)=="--")) s= s (1, N(s));
+    if (s == "-headless" || s == "-H" || s == "-C" ||
+	     s == "-build-website" || s == "-W" ||
+	     s == "-update-website" || s == "-U")
+      headless_mode= true;
+  }
+  ATHENA_init_paths (argc, argv);
 #ifdef QTTEXMACS
   if (!headless_mode) {
 #if QT_VERSION >= 0x060000
@@ -753,6 +761,7 @@ texmacs_entrypoint (int argc, char** argv) {
     tmapp()->show_splash ();
   }
 #endif
+  immediate_options (argc, argv);
 #ifdef OS_ANDROID
   init_android();
 #endif
@@ -772,7 +781,6 @@ texmacs_entrypoint (int argc, char** argv) {
   original_path= get_env ("PATH");
   boot_hacks ();
   windows_delayed_refresh (1000000000);
-  ATHENA_init_paths (argc, argv);
   load_user_preferences ();
 #ifndef OS_MINGW
   set_env ("LC_NUMERIC", "POSIX");

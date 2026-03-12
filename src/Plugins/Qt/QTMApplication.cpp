@@ -23,6 +23,7 @@ void QTMApplication::show_splash () {
   else return;
 
   QPixmap pixmap (to_qstring (as_string (logo_url)));
+  if (pixmap.isNull ()) return;
   
   // Scale if too big (e.g. high-res images on small screens)
   if (primaryScreen()) {
@@ -43,11 +44,14 @@ void QTMApplication::show_splash () {
 
   mSplash = new QSplashScreen (splash_pix, Qt::WindowStaysOnTopHint);
   mSplash->show ();
+  mSplash->repaint ();
   mSplash->raise ();
   mSplash->activateWindow ();
   mSplash->showMessage ("Initializing...", Qt::AlignBottom | Qt::AlignCenter, Qt::black);
   
-  for (int i=0; i<10; i++) processEvents();
+  for (int i = 0; i < 10; i++) {
+    qApp->processEvents (QEventLoop::AllEvents, 10);
+  }
 }
 
 void QTMApplication::hide_splash () {
