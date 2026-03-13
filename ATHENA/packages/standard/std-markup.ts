@@ -26,6 +26,10 @@
     </src-comment>
   </active*>
 
+  <assign|ATHENA|<macro|<active*|<with|font-series|bold|A<space|-0.25spc><move|<resize|T||||0.7fn>|0fn|0.3fn><space|-0.2spc>H<space|-0.2spc><move|<resize|E||||0.7fn>|0fn|-0.2fn><space|-0.2spc>N<space|-0.25spc>A>>>>
+
+  <assign|athena|<macro|<ATHENA>>>
+
   <assign|TeXmacs|<macro|<active*|T<rsub|<space|-0.4spc><move|<resize|<with|math-level|0|E>||||0.5fn>|0fn|-0.1fn>><space|-0.4spc>X<rsub|<space|-0.4spc><move|<resize|M<space|-0.2spc>A<space|-0.4spc>CS||||0.5fn>|0fn|-0.1fn>>>>>
 
   <assign|TeXmacs-version|<macro|<extern|texmacs-version>>>

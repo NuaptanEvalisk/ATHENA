@@ -27,6 +27,8 @@
 (texmacs-module (prog glue-symbols))
 
 (tm-define (all-glued-symbols) '( 
+"ATHENA"
+"athena"
 "texmacs-version-release"
 "version-before?"
 "updater-supported?"

@@ -418,7 +418,7 @@
            (with "par-mode" "center"
              (document
                (with "font-size" "2" "font-series" "bold"
-                 "Welcome to ATHENA")
+                 (concat "Welcome to " (ATHENA)))
                (with "font-size" "1.2" "font-shape" "italic"
                  "Advanced Typesetting and Hypertext Environment for Notes and Archives")))
            (vspace "2fn")
