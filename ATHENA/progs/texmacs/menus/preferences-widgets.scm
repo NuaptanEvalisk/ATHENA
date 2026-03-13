@@ -114,7 +114,124 @@
                 '("Default" "Bright" "Dark" "Native" "Legacy" "")
             )
             (get-pretty-preference "gui theme")
-            "18em"))))
+            "18em"))
+    (item (text "Show welcome page:")
+      (toggle (set-preference "vault welcome page" (if answer "on" "off"))
+              (equal? (get-preference "vault welcome page") "on")))
+    (item (text "Persistent fit width:")
+      (toggle (set-preference "persistent fit width" (if answer "on" "off"))
+              (equal? (get-preference "persistent fit width") "on")))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Rendering preferences widget
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(tm-widget (rendering-document-preferences-widget)
+  (aligned
+    (item (text "Transclusion background:")
+      (input (set-preference "vault transclusion color" answer) "string"
+             (list (get-preference "vault transclusion color"))
+             "10em"))
+    (item (text "Cursor color:")
+      (input (set-preference "gui cursor color" answer) "string"
+             (list (get-preference "gui cursor color"))
+             "10em"))
+    (item (text "Selection color:")
+      (input (set-preference "gui selection color" answer) "string"
+             (list (get-preference "gui selection color"))
+             "10em"))
+    (item (text "Labels display:")
+      (enum (set-preference "vault labels mode" answer)
+            '("visible" "small" "hidden")
+            (get-preference "vault labels mode")
+            "10em"))))
+
+(tm-widget (rendering-enunciations-preferences-widget)
+  (aligned
+    (item (text "Theorem background:")
+      (input (set-preference "vault theorem color" answer) "string"
+             (list (get-preference "vault theorem color")) "10em"))
+    (item (text "Lemma background:")
+      (input (set-preference "vault lemma color" answer) "string"
+             (list (get-preference "vault lemma color")) "10em"))
+    (item (text "Corollary background:")
+      (input (set-preference "vault corollary color" answer) "string"
+             (list (get-preference "vault corollary color")) "10em"))
+    (item (text "Proposition background:")
+      (input (set-preference "vault proposition color" answer) "string"
+             (list (get-preference "vault proposition color")) "10em"))
+    (item (text "Axiom background:")
+      (input (set-preference "vault axiom color" answer) "string"
+             (list (get-preference "vault axiom color")) "10em"))
+    (item (text "Definition background:")
+      (input (set-preference "vault definition color" answer) "string"
+             (list (get-preference "vault definition color")) "10em"))
+    (item (text "Notation background:")
+      (input (set-preference "vault notation color" answer) "string"
+             (list (get-preference "vault notation color")) "10em"))
+    (item (text "Convention background:")
+      (input (set-preference "vault convention color" answer) "string"
+             (list (get-preference "vault convention color")) "10em"))
+    (item (text "Conjecture background:")
+      (input (set-preference "vault conjecture color" answer) "string"
+             (list (get-preference "vault conjecture color")) "10em"))))
+
+(tm-widget (rendering-remarks-preferences-widget)
+  (aligned
+    (item (text "Remark background:")
+      (input (set-preference "vault remark color" answer) "string"
+             (list (get-preference "vault remark color")) "10em"))
+    (item (text "Note background:")
+      (input (set-preference "vault note color" answer) "string"
+             (list (get-preference "vault note color")) "10em"))
+    (item (text "Example background:")
+      (input (set-preference "vault example color" answer) "string"
+             (list (get-preference "vault example color")) "10em"))
+    (item (text "Warning background:")
+      (input (set-preference "vault warning color" answer) "string"
+             (list (get-preference "vault warning color")) "10em"))
+    (item (text "Acknowledgments background:")
+      (input (set-preference "vault acknowledgments color" answer) "string"
+             (list (get-preference "vault acknowledgments color")) "10em"))))
+
+(tm-widget (rendering-exercises-preferences-widget)
+  (aligned
+    (item (text "Exercise background:")
+      (input (set-preference "vault exercise color" answer) "string"
+             (list (get-preference "vault exercise color")) "10em"))
+    (item (text "Problem background:")
+      (input (set-preference "vault problem color" answer) "string"
+             (list (get-preference "vault problem color")) "10em"))
+    (item (text "Question background:")
+      (input (set-preference "vault question color" answer) "string"
+             (list (get-preference "vault question color")) "10em"))
+    (item (text "Solution background:")
+      (input (set-preference "vault solution color" answer) "string"
+             (list (get-preference "vault solution color")) "10em"))
+    (item (text "Answer background:")
+      (input (set-preference "vault answer color" answer) "string"
+             (list (get-preference "vault answer color")) "10em"))
+    (item (text "Proof background:")
+      (input (set-preference "vault proof color" answer) "string"
+             (list (get-preference "vault proof color")) "10em"))))
+
+(tm-widget (rendering-preferences-widget)
+  ===
+  (padded
+    (tabs
+      (tab (text "Document")
+        (centered
+          (dynamic (rendering-document-preferences-widget))))
+      (tab (text "Enunciations")
+        (centered
+          (dynamic (rendering-enunciations-preferences-widget))))
+      (tab (text "Remarks, Notes")
+        (centered
+          (dynamic (rendering-remarks-preferences-widget))))
+      (tab (text "Exercises, Proofs")
+        (centered
+          (dynamic (rendering-exercises-preferences-widget))))))
+  ===)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Keyboard preferences
@@ -996,13 +1113,15 @@
       (icon-tab "tm_math_preferences.xpm" (text "Maths")
         (centered
           (dynamic (math-preferences-widget))))
+      (icon-tab "tm_view.svg" (text "Rendering")
+        (dynamic (rendering-preferences-widget)))
       (icon-tab "tm_prefs_convert.xpm" (text "Convert")
         (dynamic (conversion-preferences-widget)))
       (assuming (== (get-preference "experimental encryption") "on")
         (icon-tab "tm_prefs_security.xpm" (text "Security")
           (centered
             (dynamic (security-preferences-widget)))))
-      (icon-tab "tm_prefs_other.xpm" (text "Vault")
+      (icon-tab "tm_link.svg" (text "Vault")
         (centered
           (dynamic (vault-preferences-widget))))
       (icon-tab "tm_prefs_other.xpm" (text "Other")

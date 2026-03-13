@@ -83,106 +83,11 @@
 (tm-widget (vault-preferences-widget)
   (vertical
     (aligned
-      (item (text "Fuzzy search limit:")
+      (item (text "Popup fuzzy search limit:")
         (enum (set-preference "vault fuzzy search limit" answer)
               '("1" "2" "3" "5" "10")
               (get-preference "vault fuzzy search limit")
-              "10em"))
-      (item (text "Transclusion background:")
-        (input (set-preference "vault transclusion color" answer) "string"
-               (list (get-preference "vault transclusion color"))
-               "10em"))
-      (item (text "Cursor color:")
-        (input (set-preference "gui cursor color" answer) "string"
-               (list (get-preference "gui cursor color"))
-               "10em"))
-      (item (text "Selection color:")
-        (input (set-preference "gui selection color" answer) "string"
-               (list (get-preference "gui selection color"))
-               "10em"))
-      (item (text "Show welcome page:")
-        (toggle (set-preference "vault welcome page" (if answer "on" "off"))
-                (equal? (get-preference "vault welcome page") "on")))
-      (item (text "Persistent fit width:")
-        (toggle (set-preference "persistent fit width" (if answer "on" "off"))
-                (equal? (get-preference "persistent fit width") "on")))
-      (item (text "Labels display:")
-        (enum (set-preference "vault labels mode" answer)
-              '("visible" "small" "hidden")
-              (get-preference "vault labels mode")
-              "10em")))
-    ======
-    (bold (text "Enunciations"))
-    ===
-    (aligned
-      (item (text "Theorem background:")
-        (input (set-preference "vault theorem color" answer) "string"
-               (list (get-preference "vault theorem color")) "10em"))
-      (item (text "Lemma background:")
-        (input (set-preference "vault lemma color" answer) "string"
-               (list (get-preference "vault lemma color")) "10em"))
-      (item (text "Corollary background:")
-        (input (set-preference "vault corollary color" answer) "string"
-               (list (get-preference "vault corollary color")) "10em"))
-      (item (text "Proposition background:")
-        (input (set-preference "vault proposition color" answer) "string"
-               (list (get-preference "vault proposition color")) "10em"))
-      (item (text "Axiom background:")
-        (input (set-preference "vault axiom color" answer) "string"
-               (list (get-preference "vault axiom color")) "10em"))
-      (item (text "Definition background:")
-        (input (set-preference "vault definition color" answer) "string"
-               (list (get-preference "vault definition color")) "10em"))
-      (item (text "Notation background:")
-        (input (set-preference "vault notation color" answer) "string"
-               (list (get-preference "vault notation color")) "10em"))
-      (item (text "Convention background:")
-        (input (set-preference "vault convention color" answer) "string"
-               (list (get-preference "vault convention color")) "10em"))
-      (item (text "Conjecture background:")
-        (input (set-preference "vault conjecture color" answer) "string"
-               (list (get-preference "vault conjecture color")) "10em")))
-    ======
-    (bold (text "Remarks & Notes"))
-    ===
-    (aligned
-      (item (text "Remark background:")
-        (input (set-preference "vault remark color" answer) "string"
-               (list (get-preference "vault remark color")) "10em"))
-      (item (text "Note background:")
-        (input (set-preference "vault note color" answer) "string"
-               (list (get-preference "vault note color")) "10em"))
-      (item (text "Example background:")
-        (input (set-preference "vault example color" answer) "string"
-               (list (get-preference "vault example color")) "10em"))
-      (item (text "Warning background:")
-        (input (set-preference "vault warning color" answer) "string"
-               (list (get-preference "vault warning color")) "10em"))
-      (item (text "Acknowledgments background:")
-        (input (set-preference "vault acknowledgments color" answer) "string"
-               (list (get-preference "vault acknowledgments color")) "10em")))
-    ======
-    (bold (text "Exercises & Proofs"))
-    ===
-    (aligned
-      (item (text "Exercise background:")
-        (input (set-preference "vault exercise color" answer) "string"
-               (list (get-preference "vault exercise color")) "10em"))
-      (item (text "Problem background:")
-        (input (set-preference "vault problem color" answer) "string"
-               (list (get-preference "vault problem color")) "10em"))
-      (item (text "Question background:")
-        (input (set-preference "vault question color" answer) "string"
-               (list (get-preference "vault question color")) "10em"))
-      (item (text "Solution background:")
-        (input (set-preference "vault solution color" answer) "string"
-               (list (get-preference "vault solution color")) "10em"))
-      (item (text "Answer background:")
-        (input (set-preference "vault answer color" answer) "string"
-               (list (get-preference "vault answer color")) "10em"))
-      (item (text "Proof background:")
-        (input (set-preference "vault proof color" answer) "string"
-               (list (get-preference "vault proof color")) "10em")))))
+              "10em")))))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
