@@ -14,7 +14,7 @@ void QTMApplication::show_splash () {
   string path = get_env ("ATHENA_PATH");
   url u1 = url_system (path * "/splash/splashscr.png");
   url u2 = url_system (path * "/../splash/splashscr.png");
-  url u3 = url_system (path * "/misc/images/texmacs-512.png");
+  url u3 = url_system (path * "/misc/images/ATHENA-512.png");
   
   url logo_url;
   if (exists (u1)) logo_url = u1;

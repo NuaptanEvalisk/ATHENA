@@ -33,7 +33,7 @@ QTMAbout::QTMAbout (QWidget* parent)
   string tm_path = get_env ("ATHENA_PATH");
   url logo_u1 = url_system (tm_path * "/splash/splashscr.png");
   url logo_u2 = url_system (tm_path * "/../splash/splashscr.png");
-  url logo_u3 = url_system (tm_path * "/misc/images/texmacs-512.png");
+  url logo_u3 = url_system (tm_path * "/misc/images/ATHENA-512.png");
   
   QString logoPath;
   if (exists (logo_u1)) logoPath = to_qstring (as_string (logo_u1));

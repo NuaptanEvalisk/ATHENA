@@ -727,8 +727,8 @@ APPIMAGE: TEXMACS
 	$(CP) packages/appimage/org.texmacs.texmacs.metainfo.xml ../distr/TeXmacs.AppDir/usr/share/metainfo/org.texmacs.texmacs.metainfo.xml
 	$(CP) packages/appimage/org.texmacs.texmacs.desktop ../distr/TeXmacs.AppDir/usr/share/applications/org.texmacs.texmacs.desktop
 	$(CP) packages/appimage/org.texmacs.texmacs.desktop ../distr/TeXmacs.AppDir/org.texmacs.texmacs.desktop	
-	$(CP) ../distr/TeXmacs.AppDir/usr/share/TeXmacs/misc/images/texmacs.svg ../distr/TeXmacs.AppDir/texmacs.svg
-	$(CP) ../distr/TeXmacs.AppDir/usr/share/TeXmacs/misc/images/texmacs.svg ../distr/TeXmacs.AppDir/.DirIcon
+	$(CP) ../distr/TeXmacs.AppDir/usr/share/TeXmacs/misc/images/ATHENA.svg ../distr/TeXmacs.AppDir/ATHENA.svg
+	$(CP) ../distr/TeXmacs.AppDir/usr/share/TeXmacs/misc/images/ATHENA.svg ../distr/TeXmacs.AppDir/.DirIcon
 
 	# Remove the bash executable of TeXmacs
 	$(RM) ../distr/TeXmacs.AppDir/usr/bin/texmacs

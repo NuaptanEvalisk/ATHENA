@@ -67,8 +67,8 @@ cp -f $RPM_BUILD_ROOT%{_datadir}/TeXmacs/misc/mime/texmacs.keys $RPM_BUILD_ROOT/
 cp -f $RPM_BUILD_ROOT%{_datadir}/TeXmacs/misc/mime/texmacs.mime $RPM_BUILD_ROOT/usr/share/mime-info
 cp -f $RPM_BUILD_ROOT%{_datadir}/TeXmacs/misc/mime/texmacs.xml $RPM_BUILD_ROOT/usr/share/mime/packages
 cp -f $RPM_BUILD_ROOT%{_datadir}/TeXmacs/misc/pixmaps/TeXmacs.xpm $RPM_BUILD_ROOT/usr/share/pixmaps
-cp -f $RPM_BUILD_ROOT%{_datadir}/TeXmacs/misc/images/TeXmacs.svg $RPM_BUILD_ROOT/usr/share/icons/gnome/scalable/apps
-cp -f $RPM_BUILD_ROOT%{_datadir}/TeXmacs/misc/images/text-texmacs.svg $RPM_BUILD_ROOT/usr/share/icons/gnome/scalable/mimetypes
+cp -f $RPM_BUILD_ROOT%{_datadir}/TeXmacs/misc/images/ATHENA.svg $RPM_BUILD_ROOT/usr/share/icons/gnome/scalable/apps
+cp -f $RPM_BUILD_ROOT%{_datadir}/TeXmacs/misc/images/text-ATHENA.svg $RPM_BUILD_ROOT/usr/share/icons/gnome/scalable/mimetypes
 
 %files
 %{_bindir}/fig2ps
@@ -84,8 +84,8 @@ cp -f $RPM_BUILD_ROOT%{_datadir}/TeXmacs/misc/images/text-texmacs.svg $RPM_BUILD
 /usr/share/mime-info/texmacs.mime
 /usr/share/mime/packages/texmacs.xml
 /usr/share/pixmaps/TeXmacs.xpm
-/usr/share/icons/gnome/scalable/apps/TeXmacs.svg
-/usr/share/icons/gnome/scalable/mimetypes/text-texmacs.svg
+/usr/share/icons/gnome/scalable/apps/ATHENA.svg
+/usr/share/icons/gnome/scalable/mimetypes/text-ATHENA.svg
 
 %clean
 rm -rf $RPM_BUILD_ROOT
