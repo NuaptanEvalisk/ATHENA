@@ -98,7 +98,7 @@ QTMIconManager::getIcon (url file_name) {
     icon_cache ()[qfile_name]= icon;
     return icon;
   }
-  if (file_name != url ("TeXmacs"))
+  if (file_name != url ("ATHENA"))
     std_error << "Icon not found: " << file_name << LF;
   load_svg (url ("$ATHENA_PATH/misc/images/ATHENA.svg"), icon);
   return icon;

@@ -66,7 +66,7 @@ cp -f $RPM_BUILD_ROOT%{_datadir}/TeXmacs/misc/mime/texmacs.applications $RPM_BUI
 cp -f $RPM_BUILD_ROOT%{_datadir}/TeXmacs/misc/mime/texmacs.keys $RPM_BUILD_ROOT/usr/share/mime-info
 cp -f $RPM_BUILD_ROOT%{_datadir}/TeXmacs/misc/mime/texmacs.mime $RPM_BUILD_ROOT/usr/share/mime-info
 cp -f $RPM_BUILD_ROOT%{_datadir}/TeXmacs/misc/mime/texmacs.xml $RPM_BUILD_ROOT/usr/share/mime/packages
-cp -f $RPM_BUILD_ROOT%{_datadir}/TeXmacs/misc/pixmaps/TeXmacs.xpm $RPM_BUILD_ROOT/usr/share/pixmaps
+cp -f $RPM_BUILD_ROOT%{_datadir}/TeXmacs/misc/pixmaps/ATHENA.xpm $RPM_BUILD_ROOT/usr/share/pixmaps
 cp -f $RPM_BUILD_ROOT%{_datadir}/TeXmacs/misc/images/ATHENA.svg $RPM_BUILD_ROOT/usr/share/icons/gnome/scalable/apps
 cp -f $RPM_BUILD_ROOT%{_datadir}/TeXmacs/misc/images/text-ATHENA.svg $RPM_BUILD_ROOT/usr/share/icons/gnome/scalable/mimetypes
 
@@ -83,7 +83,7 @@ cp -f $RPM_BUILD_ROOT%{_datadir}/TeXmacs/misc/images/text-ATHENA.svg $RPM_BUILD_
 /usr/share/mime-info/texmacs.keys
 /usr/share/mime-info/texmacs.mime
 /usr/share/mime/packages/texmacs.xml
-/usr/share/pixmaps/TeXmacs.xpm
+/usr/share/pixmaps/ATHENA.xpm
 /usr/share/icons/gnome/scalable/apps/ATHENA.svg
 /usr/share/icons/gnome/scalable/mimetypes/text-ATHENA.svg
 

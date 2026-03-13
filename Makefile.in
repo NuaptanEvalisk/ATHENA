@@ -189,7 +189,7 @@ INSTALL_PLUGINS:
 
 INSTALL_ICONS:
 	$(MKDIR) $(DESTDIR)/pixmaps
-	$(CP) $(tmdir)/misc/pixmaps/TeXmacs.xpm $(DESTDIR)/pixmaps
+	$(CP) $(tmdir)/misc/pixmaps/ATHENA.xpm $(DESTDIR)/pixmaps
 	packages/linux/icons.sh install $(tmdir)/misc/images texmacs text-x-texmacs
 	packages/linux/mime.sh install $(tmdir)/misc/mime
 	@echo installed TeXmacs icons in $(DESTDIR)/pixmaps
@@ -236,7 +236,7 @@ UNINSTALL:
 	@echo removed TeXmacs executables from $(tmbin)
 	$(RM) -r $(tmdata)
 	@echo removed TeXmacs data from $(tmdata)
-	$(RM) $(datadir)/pixmaps/TeXmacs.xpm
+	$(RM) $(datadir)/pixmaps/ATHENA.xpm
 	packages/linux/mime.sh uninstall $(tmdir)/misc/mime
 	packages/linux/icons.sh uninstall $(tmdir)/misc/images texmacs text-x-texmacs
 	$(RM) $(includedir)/TeXmacs.h

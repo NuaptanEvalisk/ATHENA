@@ -329,7 +329,7 @@ new_qt_load_xpm (url file_name) {
   }
   if (sss == "") {
     f= scale;
-    load_string ("$ATHENA_PATH/misc/pixmaps/TeXmacs.xpm", sss, true);
+    load_string ("$ATHENA_PATH/misc/pixmaps/ATHENA.xpm", sss, true);
   }
   c_string buf (sss);
   QImage pm;
@@ -376,7 +376,7 @@ qt_load_xpm (url file_name) {
   if (sss == "")
     load_string ("$ATHENA_PIXMAP_PATH" * file_name, sss, false);
   if (sss == "")
-    load_string ("$ATHENA_PATH/misc/pixmaps/TeXmacs.xpm", sss, true);
+    load_string ("$ATHENA_PATH/misc/pixmaps/ATHENA.xpm", sss, true);
   c_string buf (sss);
   QImage pm;
   pm.loadFromData ((uchar*) (char*) buf, N(sss));

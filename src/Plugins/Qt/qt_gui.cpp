@@ -501,7 +501,7 @@ qt_gui_rep::show_wait_indicator (widget w, string message, string arg)  {
     waitWindow->setLayout (layout);
     QLabel* iconLabel = new QLabel (waitWindow);
     layout->addWidget (iconLabel);
-    QIcon icon = tmapp ()->icon_manager ().getIcon ("TeXmacs");
+    QIcon icon = tmapp ()->icon_manager ().getIcon ("ATHENA");
     QPixmap pm = icon.pixmap (256, 256);
     iconLabel->setPixmap (pm);
     iconLabel->setAlignment (Qt::AlignCenter);

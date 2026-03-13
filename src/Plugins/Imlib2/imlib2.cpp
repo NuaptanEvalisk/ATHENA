@@ -110,7 +110,7 @@ static Imlib_Image
 imlib2_load_image (url u) {
   url name= resolve (u);
   if (is_none (name))
-    name= resolve ("$ATHENA_PIXMAP_PATH/TeXmacs-gnu.xpm");
+    name= resolve ("$ATHENA_PIXMAP_PATH/ATHENA.xpm");
   Imlib_Image image;
   {
     c_string _name (as_string (name));

@@ -141,7 +141,7 @@
   funny stuff\Q when converted to LaTeX. We conclude with a picture:
 
   <\with|par-mode|center>
-    <image|../../misc/pixmaps/TeXmacs-solid.xpm||||>
+    <image|../../misc/pixmaps/ATHENA.xpm||||>
   </with>
 
   \;
