@@ -326,8 +326,8 @@ set_global_options  (int argc, char** argv)  {
       }
       else if ((s == "-v") || (s == "-version")) {
         cout << "\n";
-        cout << "TeXmacs version " << ATHENA_VERSION << "\n";
-        cout << "SVN version " << ATHENA_REVISION << "\n";
+        cout << "ATHENA (Advanced Typesetting and Hypertext Environment for Notes and Archives)\n";
+        cout << "Version " << ATHENA_VERSION << "\n";
         cout << ATHENA_COPYRIGHT << "\n";
         cout << "\n";
         exit (0);
@@ -449,27 +449,27 @@ set_global_options  (int argc, char** argv)  {
       else if (starts (s, "-psn"));
       else {
         cout << "\n";
-        cout << "Options for TeXmacs:\n\n";
+        cout << "Options for ATHENA:\n\n";
         cout << "  -b [file]  Specify scheme buffers initialization file\n";
         cout << "  -C [i] [o] Convert file 'i' into file 'o'\n";
         cout << "  -d         For debugging purposes\n";
         cout << "  -fn [font] Set the default TeX font\n";
         cout << "  -g [geom]  Set geometry of window in pixels\n";
         cout << "  -h         Display this help message\n";
-        cout << "  -H         Run TeXmacs in headless mode\n";
+        cout << "  -H         Run ATHENA in headless mode\n";
         cout << "  -i [file]  Specify scheme initialization file\n";
-        cout << "  -p         Get the TeXmacs path\n";
+        cout << "  -p         Get the ATHENA path\n";
         cout << "  -q         Shortcut for -x \"(quit-TeXmacs)\"\n";
         cout << "  -r         Reverse video mode\n";
         cout << "  -s         Suppress information messages\n";
-        cout << "  -S         Rerun TeXmacs setup program before starting\n";
-        cout << "  -v         Display current TeXmacs version\n";
+        cout << "  -S         Rerun ATHENA setup program before starting\n";
+        cout << "  -v         Display current ATHENA version\n";
         cout << "  -V         Show some informative messages\n";
         cout << "  -W [i] [o] Recursively convert directory into website\n";
         cout << "  -x [cmd]   Execute scheme command\n";
         cout << "  -Oc        TeX characters bitmap clipping off\n";
         cout << "  +Oc        TeX characters bitmap clipping on (default)\n";
-        cout << "\nPlease report bugs to <bugs@texmacs.org>\n";
+        cout << "\nPlease report bugs to <nuaptan@outlook.com>\n";
         cout << "\n";
         exit (0);
       }

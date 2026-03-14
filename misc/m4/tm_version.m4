@@ -15,12 +15,12 @@
 #--------------------------------------------------------------------
 
 AC_DEFUN([TM_VERSION],[
-  PACKAGE="TeXmacs"
-  DEBIAN_NAME="texmacs"
+  PACKAGE="ATHENA"
+  DEBIAN_NAME="athena"
 
-  VERSION_MAJOR="2"
+  VERSION_MAJOR="0"
   VERSION_MINOR="1"
-  VERSION_BUILD="4"
+  VERSION_BUILD=""
   
   # the svn revision of this version
   DEVEL_REVISION="$Rev$:"
