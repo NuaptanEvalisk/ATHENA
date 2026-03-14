@@ -30,7 +30,8 @@
                        load-buffer load-vault-dir 
                        string->url vault-load-latest-action
                        go-to-welcome-page
-                       ext-get-preference)
+                       ext-get-preference
+                       new-document)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Settings

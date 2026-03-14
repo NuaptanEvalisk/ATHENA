@@ -80,7 +80,7 @@ lazy_document_rep::lazy_document_rep (edit_env env, tree t, path ip):
   int i, n= N(t);
   string mode = get_preference ("vault labels mode", "visible");
   
-  cout << "lazy_document_rep: evaluating document with " << n << " children. Mode=" << mode << "\n";
+  // cout << "lazy_document_rep: evaluating document with " << n << " children. Mode=" << mode << "\n";
   
   array<lazy> p_arr;
   for (i=0; i<n; i++) {
@@ -88,11 +88,11 @@ lazy_document_rep::lazy_document_rep (edit_env env, tree t, path ip):
     bool has = has_label (t[i]);
     bool only = is_only_labels_and_white (t[i]);
     
-    cout << "  Child " << i << ": " << t[i] << "\n";
-    cout << "    white=" << white << " has_label=" << has << " only_labels=" << only << "\n";
+    // cout << "  Child " << i << ": " << t[i] << "\n";
+    // cout << "    white=" << white << " has_label=" << has << " only_labels=" << only << "\n";
 
     if (mode == "hidden" && only && has) {
-      cout << "    -> SKIPPING\n";
+      // cout << "    -> SKIPPING\n";
       continue;
     }
     p_arr << make_lazy (env, t[i], descend (ip, i));

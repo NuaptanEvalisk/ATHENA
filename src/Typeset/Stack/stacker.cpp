@@ -462,7 +462,7 @@ typeset_as_stack (edit_env env, tree t, path ip) {
     bool has = has_label (t[i]);
     bool only = is_only_labels_and_white (t[i]);
     
-    cout << "Vault Stack Item: " << t[i] << " | white:" << white << " has:" << has << " only:" << only << "\n";
+    // cout << "Vault Stack Item: " << t[i] << " | white:" << white << " has:" << has << " only:" << only << "\n";
 
     if (mode == "hidden" && only && has) {
       continue;
