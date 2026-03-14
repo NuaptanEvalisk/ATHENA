@@ -3,7 +3,10 @@
 <style|<tuple|tmdoc|english|old-spacing>>
 
 <\body>
-  <tmdoc-title|The authors of <TeXmacs>>
+  <tmdoc-title|The authors of <ATHENA>>
+
+  <ATHENA> is a fork of GNU <TeXmacs>. The <ATHENA> fork is maintained by
+  Nuaptan F. Evalisk.
 
   The GNU <TeXmacs> system, which is part of the GNU project, was designed
   and written by Joris van der Hoeven. Special thanks go to the
@@ -12,6 +15,8 @@
   the program. Further thanks go to the contributors below.
 
   <\traverse>
+    <branch|Contributors to <ATHENA>|athena.en.tm>
+
     <branch|Developers of <TeXmacs>|developers.en.tm>
 
     <branch|Authors and maintainers of <TeXmacs> plugins|about-plugins.en.tm>
@@ -30,7 +35,9 @@
     <branch|Contacting us|contact.en.tm>
   </traverse>
 
-  <tmdoc-copyright|1998--2002|Joris van der Hoeven>
+  <tmdoc-copyright|1998\U2026|Joris van der Hoeven>
+
+  <tmdoc-copyright|2026|Nuaptan Felix Evalisk>
 
   <tmdoc-license|Permission is granted to copy, distribute and/or modify this
   document under the terms of the GNU Free Documentation License, Version 1.1

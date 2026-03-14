@@ -1,21 +1,14 @@
-<TeXmacs|1.99.18>
+<TeXmacs|2.1.4>
 
-<style|<tuple|tmdoc|english|old-spacing|old-dots|old-lengths>>
+<style|<tuple|tmdoc|english|old-spacing>>
 
 <\body>
-  <tmdoc-title|About <ATHENA>-0.1>
+  <tmdoc-title|Contributors to <ATHENA>>
 
-  <\traverse>
-    <branch|Summary|about-summary.en.tm>
-
-    <branch|Philosophy|philosophy/philosophy.en.tm>
-
-    <branch|The <ATHENA> authors|authors/authors.en.tm>
-
-    <branch|Important changes|changes/changes-main.en.tm>
-  </traverse>
-
-  <tmdoc-copyright|1998\U2026|Joris van der Hoeven>
+  <\description>
+    <item*|Nuaptan Felix Evalisk>Initial design and implementation of the
+    <ATHENA> fork, including vault management, wikilinks, and transclusions.
+  </description>
 
   <tmdoc-copyright|2026|Nuaptan Felix Evalisk>
 

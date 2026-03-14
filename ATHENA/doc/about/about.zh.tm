@@ -1,21 +1,23 @@
 <TeXmacs|1.99.18>
 
-<style|<tuple|tmdoc|chinese|old-spacing|old-dots|old-lengths>>
+<style|<tuple|tmdoc|english|old-spacing|old-dots|old-lengths>>
 
 <\body>
-  <tmdoc-title|\<#5173\>\<#4E8E\>GNU <TeXmacs>-<TeXmacs-version>>
+  <tmdoc-title|About <ATHENA>-0.1>
 
   <\traverse>
-    <branch|\<#6982\>\<#8981\>|about-summary.zh.tm>
+    <branch|Summary|about-summary.en.tm>
 
-    <branch|\<#54F2\>\<#5B66\>|philosophy/philosophy.zh.tm>
+    <branch|Philosophy|philosophy/philosophy.en.tm>
 
-    <branch|<TeXmacs>\<#7684\>\<#4F5C\>\<#8005\>\<#4EEC\>|authors/authors.zh.tm>
+    <branch|The <ATHENA> authors|authors/authors.en.tm>
 
-    <branch|\<#91CD\>\<#8981\>\<#6539\>\<#53D8\>|changes/changes-main.en.tm>
+    <branch|Important changes|changes/changes-main.en.tm>
   </traverse>
 
-  <tmdoc-copyright|1998\U2021|Joris van der Hoeven|\<#6C88\>\<#8FBE\>>
+  <tmdoc-copyright|1998\U2026|Joris van der Hoeven>
+
+  <tmdoc-copyright|2026|Nuaptan Felix Evalisk>
 
   <tmdoc-license|Permission is granted to copy, distribute and/or modify this
   document under the terms of the GNU Free Documentation License, Version 1.1

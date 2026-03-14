@@ -1,45 +1,83 @@
-<TeXmacs|1.0.5.2>
+<TeXmacs|2.1.4>
 
-<style|tmdoc>
+<style|<tuple|tmdoc|english|old-spacing|old-dots|old-lengths>>
 
 <\body>
-  <with|language|spanish|><tmdoc-title|Sumario>
+  <tmdoc-title|Summary>
 
-  <big-table|<descriptive-table|<tformat|<cwith|1|1|1|1|cell-row-span|1>|<cwith|1|1|1|1|cell-col-span|2>|<cwith|1|1|1|1|cell-halign|c>|<table|<row|<cell|GNU
-  <TeXmacs>>|<cell|>>|<row|<cell|Versión>|<cell|<TeXmacs-version>>>|<row|<cell|Sistemas
-  soportados>|<cell|La mayoría de los sistemas
-  GNU/<name|Linux>>>|<row|<cell|Copyright>|<cell|<copyright> 1998--2024 por
-  Joris van der Hoeven >>|<row|<cell|Licencia>|<cell|<hlink|Licencia Pública
-  General GNU|$ATHENA_PATH/LICENSE>>>|<row|<cell|Sitios
-  web>|<cell|<tabular|<tformat|<twith|table-valign|T>|<cwith|1|-1|1|-1|cell-lsep|0spc>|<cwith|1|-1|1|-1|cell-rsep|0spc>|<table|<row|<cell|<verbatim|https://www.texmacs.org>>>|<row|<cell|<verbatim|http://www.gnu.org/software/texmacs>>>>>>>>|<row|<cell|Contacto>|<cell|<verbatim|contact@texmacs.org>>>|<row|<cell|Correo
-  regular>|<cell|<tabular|<tformat|<twith|table-valign|T>|<cwith|1|-1|1|-1|cell-lsep|0spc>|<cwith|1|-1|1|-1|cell-rsep|0spc>|<table|<row|<cell|<abbr|Dr.>
-  Joris van der Hoeven>>|<row|<cell|<abbr|Dépt.> de Mathématiques
-  (<abbr|Bât.> 425)>>|<row|<cell|Université Paris-Sud>>|<row|<cell|91405
-  Orsay Cedex>>|<row|<cell|Francia>>>>>>>>>>|Sumario de la principal
-  información acerca de GNU <TeXmacs>.>
+  <big-table|<descriptive-table|<tformat|<cwith|1|1|1|1|cell-row-span|1>|<cwith|1|1|1|1|cell-col-span|2>|<cwith|1|1|1|1|cell-halign|c>|<table|<row|<cell|<ATHENA>>|<cell|>>|<row|<cell|Installed
+  version>|<cell|0.1>>|<row|<cell|Revision>|<cell|<TeXmacs-version-release|revision>>>|<row|<cell|Supported
+  systems>|<cell|Most GNU/<name|Linux> systems, Windows, MacOS>>|<row|<cell|Copyright>|<cell|<copyright>
+  1998\U2026 by Joris van der Hoeven and others<next-line><copyright> 2026
+  by Nuaptan F. Evalisk>>|<row|<cell|License>|<cell|<hlink|GNU General Public
+  License|$ATHENA_PATH/LICENSE>>>|<row|<cell|Web sites>|<cell|>>|<row|<cell|Contact>|<cell|<verbatim|nuaptan@outlook.com>>>|<row|<cell|Regular
+  mail>|<cell|<tabular|<tformat|<twith|table-valign|T>|<cwith|1|-1|1|-1|cell-lsep|0spc>|<cwith|1|-1|1|-1|cell-rsep|0spc>|<table|<row|<cell|Nuaptan
+  F. Evalisk>>|<row|<cell|University of Chinese Academy of
+  Sciences>>|<row|<cell|Yanqi Lake Campus>>|<row|<cell|Huairou District,
+  Beijing>>|<row|<cell|People's Republic of China>>>>>>>>>>|Summary of the
+  principal information about <ATHENA>.>
 
-  <tmdoc-copyright|1998--2002|Joris van der Hoeven|Offray Vladimir Luna
-  Cárdenas>
+  <paragraph*|Disclaimers>
 
-  <tmdoc-license|Se garantiza el permiso para copiar, distribuir y/o
-  modificar este documento bajo los terminos de la GNU Free Documentation
-  License, Versión 1.1 o cualquier versión posterior publicada por la Free
-  Software Foundation; sin Secciones Invariantes, sin Textos de Portada, y
-  sin Textos de Contraportada. Una copia de la licencia está incluida en la
-  sección titulada "GNU Free Documentation License".>
+  <\itemize>
+    <item><ATHENA> includes the LibAes library with the following copyright
+    notice:
 
-  <\tmdoc-license>
-    Permission is granted to copy, distribute and/or modify this document
-    under the terms of the GNU Free Documentation License, Version 1.1 or any
-    later version published by the Free Software Foundation; with no
-    Invariant Sections, with no Front-Cover Texts, and with no Back-Cover
-    Texts. A copy of the license is included in the section entitled "GNU
-    Free Documentation License".
-  </tmdoc-license>
+    <\very-small>
+      <\compact>
+        <\verbatim>
+          Copyright (c) 1998-2013, Brian Gladman, Worcester, UK. All rights
+          reserved.
+
+          \;
+
+          The redistribution and use of this software (with or without
+          changes)
+
+          is allowed without the payment of fees or royalties provided that:
+
+          \;
+
+          \ \ source code distributions include the above copyright notice,
+          this
+
+          \ \ list of conditions and the following disclaimer;
+
+          \;
+
+          \ \ binary distributions include the above copyright notice, this
+          list
+
+          \ \ of conditions and the following disclaimer in their
+          documentation.
+
+          \;
+
+          This software is provided 'as is' with no explicit or implied
+          warranties
+
+          in respect of its operation, including, but not limited to,
+          correctness
+
+          and fitness for purpose.
+        </verbatim>
+      </compact>
+    </very-small>
+  </itemize>
+
+  <tmdoc-copyright|1998\U2026|Joris van der Hoeven>
+
+  <tmdoc-copyright|2026|Nuaptan Felix Evalisk>
+
+  <tmdoc-license|Permission is granted to copy, distribute and/or modify this
+  document under the terms of the GNU Free Documentation License, Version 1.1
+  or any later version published by the Free Software Foundation; with no
+  Invariant Sections, with no Front-Cover Texts, and with no Back-Cover
+  Texts. A copy of the license is included in the section entitled "GNU Free
+  Documentation License".>
 </body>
 
 <\initial>
   <\collection>
-    <associate|language|spanish>
   </collection>
 </initial>
