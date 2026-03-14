@@ -1,6 +1,6 @@
 
 -------------------------------------------------------------------------------
-Installation of GNU TeXmacs
+Installation of ATHENA
 -------------------------------------------------------------------------------
 
 1. Set the environment variables.
@@ -13,29 +13,20 @@ Installation of GNU TeXmacs
        export ATHENA_PATH=[installation directory]
        export PATH=$ATHENA_PATH/bin:$PATH
 
-2. Run 'TeXmacs' using
+2. Run 'ATHENA' using
 
-       texmacs &
+       ATHENA &
 
-3. Be cool and let us know if you like or dislike the program; see
-
-	http://www.texmacs.org
-
-   It is very useful for us to have a rough idea about the number of
-   permanent users and for what applications you are interested in TeXmacs.
-   Furthermore, we are glad to receive your suggestions and problems,
-   no matter how silly they may seem to you. If you really like the program,
-   then please consider donating money or services to us; see
-
-	http://www.texmacs.org/Web/Donations.html
-
+3. Be cool and let us know if you like or dislike the program.
+   We are glad to receive your suggestions and problems,
+   no matter how silly they may seem to you. 
    Of course, you may also contribute yourself.
 
 -------------------------------------------------------------------------------
 
 Appendix A: Possible problems
 
-    * TeXmacs runs fine, but certain fonts are not displayed correctly.
+    * ATHENA runs fine, but certain fonts are not displayed correctly.
       Solution: This problem may have several causes:
       o You use a recent version (>= 7.3) of RedHat Linux or
         one of its clones. On such systems, the installation of
