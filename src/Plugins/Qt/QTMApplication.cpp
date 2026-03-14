@@ -12,8 +12,8 @@ QTMApplication::QTMApplication (int& argc, char** argv) :
 void QTMApplication::show_splash () {
   if (headless_mode) return;
   string path = get_env ("ATHENA_PATH");
-  url u1 = url_system (path * "/splash/splashscr.png");
-  url u2 = url_system (path * "/../splash/splashscr.png");
+  url u1 = url_system (path * "/misc/pictures/splash/splashscr.png");
+  url u2 = url_system (path * "/../misc/pictures/splash/splashscr.png");
   url u3 = url_system (path * "/misc/images/ATHENA-512.png");
   
   url logo_url;

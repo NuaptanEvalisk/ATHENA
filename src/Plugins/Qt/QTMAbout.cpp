@@ -31,8 +31,8 @@ QTMAbout::QTMAbout (QWidget* parent)
   logoLabel = new QLabel (this);
   
   string tm_path = get_env ("ATHENA_PATH");
-  url logo_u1 = url_system (tm_path * "/splash/splashscr.png");
-  url logo_u2 = url_system (tm_path * "/../splash/splashscr.png");
+  url logo_u1 = url_system (tm_path * "/misc/pictures/splash/splashscr.png");
+  url logo_u2 = url_system (tm_path * "/../misc/pictures/splash/splashscr.png");
   url logo_u3 = url_system (tm_path * "/misc/images/ATHENA-512.png");
   
   QString logoPath;
