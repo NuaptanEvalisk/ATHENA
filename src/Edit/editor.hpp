@@ -29,7 +29,7 @@
 #  include "../Style/Memorizer/memorizer.hpp"
 #endif
 #include "new_data.hpp"
-#define ATHENA_COPYRIGHT (string("(c) 1999-2025 by Joris van der Hoeven and others"))
+#define ATHENA_COPYRIGHT (string("(c) 1999-2026 by Joris van der Hoeven and others\n(c) 2026 Nuaptan F. Evalisk"))
 
 #define THE_CURSOR ((int) 1)
 #define THE_FOCUS ((int) 2)

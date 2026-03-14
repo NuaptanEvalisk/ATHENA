@@ -14,7 +14,7 @@
 
 #define STD_SETENV
 
-#define ATHENA_VERSION "2.1.4"
+#define ATHENA_VERSION "0.1"
 #define ATHENA_SOURCES "/home/felix/data/Software/TeXmacs/texmacs"
 
 #define HOST_OS "linux-gnu"
@@ -23,9 +23,9 @@
 #define BUILD_USER "felix"
 #define BUILD_DATE "Mon Mar  2 19:33:34 CST 2026"
 
-#define TM_DEVEL "TeXmacs-2.1.4"
-#define TM_STABLE "TeXmacs-2.1.4"
-#define TM_DEVEL_RELEASE "TeXmacs-2.1.4-1"
-#define TM_STABLE_RELEASE "TeXmacs-2.1.4-1"
+#define TM_DEVEL "ATHENA-0.1"
+#define TM_STABLE "ATHENA-0.1"
+#define TM_DEVEL_RELEASE "ATHENA-0.1"
+#define TM_STABLE_RELEASE "ATHENA-0.1"
 
 #endif // defined TM_CONFIGURE_H
