@@ -63,6 +63,7 @@ icon_bar_name (int which) {
 
 int
 tm_frame_rep::get_window_serial () {
+  if (!has_current_window ()) return 0;
   return concrete_window () -> serial;
 }
 
