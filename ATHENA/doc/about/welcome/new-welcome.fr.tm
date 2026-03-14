@@ -1,60 +1,94 @@
-<TeXmacs|1.99.12>
+<TeXmacs|2.1.4>
 
-<style|<tuple|tmdoc|old-spacing|old-dots|french>>
+<style|<tuple|tmdoc|french|old-spacing|old-dots|old-lengths>>
 
 <\body>
-  <tmdoc-title|Bienvenue sur GNU <TeXmacs> <TeXmacs-version>>
+  <\tmdoc-title>
+    Bienvenue sur <ATHENA> version 0.1
+  </tmdoc-title>
 
-  Merci pour l'utilisation de <TeXmacs> ! Ici suivent quelques conseils pour
-  bien d�marrer, au cas o� vous venez de d�couvrir le logiciel :
+  Merci d'utiliser <ATHENA> !
 
-  <\wide-tabular>
-    <tformat|<cwith|1|1|1|1|cell-hyphen|n>|<cwith|5|5|1|1|cell-hyphen|n>|<cwith|2|2|1|1|cell-hyphen|n>|<cwith|3|3|1|1|cell-hyphen|n>|<cwith|1|-1|1|-1|cell-valign|t>|<cwith|1|-1|1|1|cell-halign|r>|<cwith|1|-1|1|-1|cell-bsep|1em>|<cwith|5|5|1|-1|cell-bsep|0em>|<cwith|1|-1|1|1|cell-rsep|2spc>|<cwith|1|1|1|-1|cell-tsep|1em>|<table|<row|<cell|<image|../../../misc/images/welcome-videos.png||2.2em||>>|<\cell>
-      Sur notre site <slink|https://www.texmacs.org>, vous pouvez trouver
-      plusieurs <hlink|vid�os|https://www.texmacs.org/tmweb/home/videos.en.html><nbsp>:
-      comment taper votre premier article, des formules math�matiques, des
-      documents structur�s, des tableaux, des pr�sentations sur ordinateur,
-      etc.
-    </cell>>|<row|<cell|<image|../../../misc/images/welcome-manual.png||2.2em||>
-    >|<\cell>
-      Le guide de l'utilisateur <TeXmacs> peut �tre parcouru via le menu
-      <menu|Help|Manual> ou <hlink|t�l�charg�|https://www.texmacs.org/tmweb/help/book.en.html>
-      sous forme de document<nbsp><name|Pdf> depuis notre site. Notre site
-      fournit aussi plusieurs <hlink|tutoriels|https://www.texmacs.org/tmweb/help/tutorial.en.html>.
-    </cell>>|<row|<cell|<image|../../../misc/images/welcome-help.png||2.2em||>>|<\cell>
-      La touche <shortcut|(interactive docgrep-in-doc)> permet de chercher
-      des mots clefs dans la documentation int�gr�e.
-      L'ic�ne<nbsp><icon|tm_focus_help_x4.png> sur la troisi�me barre
-      d'outils sert � obtenir de l'aide contextuelle.
-    </cell>>|<row|<\cell>
-      <image|../../../misc/images/welcome-email.png||2.2em||>
-    </cell>|<\cell>
-      D'autres questions ? N'h�sitez pas � vous
-      <hlink|abonner|https://www.texmacs.org/tmweb/home/ml.en.html#tmusers> �
-      notre liste de diffusion <verbatim|texmacs-users@texmacs.org> pour
-      poser vos questions. Vous pouvez aussi parcourir les
-      <hlink|archives|https://lists.texmacs.org/wws/arc/texmacs-users> de
-      cette liste.
-    </cell>>|<row|<cell|<image|../../../misc/images/welcome-promote.png||2.2em||>
-    >|<\cell>
-      Si vous aimez le programme, alors vous pouvez nous aider ! Merci de
-      toujours citer <TeXmacs> dans vos travaux utilisant l'ic�ne
-      <icon|tm_like_x4.png> sur la troisi�me barre d'outils. Il est aussi
-      possible de nous faire des <hlink|donations|https://www.texmacs.org/tmweb/contribute/donations.en.html>
-      ou de <hlink|joindre|https://www.texmacs.org/tmweb/contribute/contribute.en.html>
-      l'�quipe des d�veloppeurs.
-    </cell>>>>
-  </wide-tabular>
+  <ATHENA> signifie <em|Advanced Typesetting and Hypertext Environment
+  for Notes and Archives>. <ATHENA> est une plateforme d'édition de nouvelle
+  génération spécifiquement conçue pour la <em|gestion des connaissances
+  mathématiques> à grande échelle. Essentiellement, elle s'attaque à la
+  difficulté de trouver une prise de notes structurée pour les mathématiques.
 
-  <tmdoc-copyright|1998\U2020|Joris van der Hoeven>
+  <\description>
+    <item*|Prise de notes structurée><ATHENA> comble le fossé entre l'édition
+    scientifique et la prise de notes moderne et interconnectée. Elle offre
+    une expérience \Pà la Obsidian\Q adaptée aux rigueurs de l'écriture
+    technique et de la construction de bases de connaissances, comprenant :
 
-  <tmdoc-license|Permission is granted to copy, distribute and/or modify this
-  document under the terms of the GNU Free Documentation License, Version 1.1
-  or any later version published by the Free Software Foundation; with no
-  Invariant Sections, with no Front-Cover Texts, and with no Back-Cover
-  Texts. A copy of the license is included in the section entitled "GNU Free
-  Documentation License".>
+    <\description-compact>
+      <item*|Vaults (Coffres)>Organisez tout votre écosystème de connaissances
+      de notes et d'archives dans des bases de connaissances autonomes et
+      portables, peut-être un peu comme un <samp|ncatlab> ou un
+      <samp|Wikipedia> personnalisé.
+
+      <item*|Wikilinks (Liens wiki)>Connectez sans effort des idées et des
+      blocs (par exemple, des définitions, des théorèmes) à travers différents
+      documents grâce à des liens simples et intuitifs. La référence aux blocs
+      est prise en charge. Les wikilinks ont une fonctionnalité
+      d'<em|auto-réparation>, de sorte que même si vous modifiez l'UUID du
+      lien ou le nom de l'ancre par accident, le lien n'est pas perdu.
+
+      <item*|Transclusions>Incorporez dynamiquement des parties d'un document,
+      par exemple un théorème, dans un autre, vous permettant de reformuler
+      sans effort les choses importantes dans leur contexte. Plus besoin de
+      chercher la \Pdéfinition 3.31\Q furieusement pendant des minutes si vous
+      pouvez simplement la transclure sur place.
+    </description-compact>
+
+    <item*|Fondations et Divergence><ATHENA> est un fork de GNU <TeXmacs>. Nous
+    saluons avec gratitude les décennies de travail fondamental du
+    <name|Prof. Joris van der Hoeven> et de l'équipe <TeXmacs> qui ont rendu
+    ce projet possible.
+
+    Cependant, il est important de noter qu'<ATHENA> n'est <strong|pas> une
+    distribution de GNU <TeXmacs>. Pour prendre en charge ses fonctionnalités
+    de gestion des connaissances, <ATHENA> introduit des nœuds AST
+    incompatibles et d'autres changements au niveau du code source. Ainsi,
+    bien qu'en théorie <ATHENA> puisse charger n'importe quel fichier créé
+    par la version amont de <TeXmacs>, l'inverse n'est peut-être pas
+    possible. Bien que nous maintenions un profond respect pour notre
+    héritage, <ATHENA> évolue vers un environnement distinct optimisé pour le
+    chercheur moderne.
+
+    <item*|Licence><ATHENA> est un logiciel libre et est publié sous la Licence
+    Publique Générale GNU (GPL).
+
+    <item*|État du développement>Veuillez noter qu'<ATHENA> est encore en cours
+    de développement actif et n'est pas encore considéré comme une version de
+    production stable.
+  </description>
+
+  Pour les nouveaux utilisateurs, nous recommandons le tutoriel
+  \P<hlink|Premiers pas avec <ATHENA>|start.en.tm>\Q.
+
+  <\tmdoc-copyright>
+    1998\U2026
+
+    2026
+  <|tmdoc-copyright>
+    <person|Joris van der Hoeven>
+
+    <person|Nuaptan Felix Evalisk>.
+  </tmdoc-copyright>
+
+  <tmdoc-license|La permission est accordée de copier, distribuer et/ou
+  modifier ce document selon les termes de la Licence de Documentation Libre
+  GNU, version 1.1 ou toute version ultérieure publiée par la Free Software
+  Foundation ; sans sections invariantes, sans textes de couverture, et sans
+  textes de quatrième de couverture. Une copie de la licence est incluse dans
+  la section intitulée "GNU Free Documentation License".>
 </body>
 
-<initial|<\collection>
-</collection>>
+<\initial>
+  <\collection>
+    <associate|font|roman>
+    <associate|font-family|tt>
+    <associate|math-font|roman>
+  </collection>
+</initial>

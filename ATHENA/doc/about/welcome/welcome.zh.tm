@@ -1,45 +1,68 @@
-<TeXmacs|2.1.2>
+<TeXmacs|2.1.4>
 
 <style|<tuple|tmdoc|chinese|old-spacing|old-dots|old-lengths>>
 
 <\body>
-  <tmdoc-title|\<#6B22\>\<#8FCE\>\<#4F7F\>\<#7528\>GNU <TeXmacs>>
+  <\tmdoc-title>
+    欢迎使用 <ATHENA> 版本 0.1
+  </tmdoc-title>
 
-  <section|\<#5982\>\<#4F55\>\<#5165\>\<#95E8\>>
+  感谢您使用 <ATHENA>！
 
-  \<#5982\>\<#679C\>\<#4F60\>\<#662F\>\<#7B2C\>\<#4E00\>\<#6B21\>\<#4F7F\>\<#7528\><TeXmacs>\<#FF0C\>\<#90A3\>\<#4E48\>\<#5EFA\>\<#8BAE\>\<#4F60\>\<#5148\>\<#4E86\>\<#89E3\>\<#4E00\>\<#4E0B\>\<#5982\>\<#4F55\>\<#9605\>\<#8BFB\>\<#6587\>\<#6863\>\<#3002\>\<#9996\>\<#5148\>\<#70B9\><hlink|\<#8FD9\>\<#91CC\>|../../main/start/man-conventions.zh.tmml>\<#4E86\>\<#89E3\>\<#6587\>\<#6863\>\<#4E2D\>\<#7684\>\<#60EF\>\<#4F8B\>\<#3002\>\<#63A5\>\<#7740\>\<#6309\>\<#4E0B\><key|F1>\<#FF0C\>\<#8F93\>\<#5165\>\<#5173\>\<#952E\>\<#5B57\>\<#540E\>\<#53EF\>\<#4EE5\>\<#641C\>\<#7D22\>\<#6574\>\<#4E2A\>\<#6587\>\<#6863\>\<#5BFB\>\<#6C42\>\<#5E2E\>\<#52A9\>\<#3002\>\<#6700\>\<#540E\>\<#53EF\>\<#4EE5\>\<#4E86\>\<#89E3\>\<#5982\>\<#4F55\><hlink|\<#914D\>\<#7F6E\>|../../main/config/man-configuration.zh.tm><TeXmacs>\<#3002\>
+  <ATHENA> 是 <em|Advanced Typesetting and Hypertext Environment for Notes
+  and Archives> 的缩写。 <ATHENA>
+  是专为大规模<em|数学知识管理>打造的下一代编辑平台。从本质上讲，它致力于解决数学领域结构化笔记记录的难题。
 
-  <section|\<#5E38\>\<#89C1\>\<#5E2E\>\<#52A9\>>
+  <\description>
+    <item*|结构化笔记><ATHENA> 弥合了科学出版与现代、互联的笔记记录之间的鸿沟。它提供了一种采用了针对严谨技术写作和知识库构建的
+    \PObsidian 式\Q 体验，其特色包括：
 
-  <\itemize>
-    <item>\<#5728\><hlink|<menu|Help|Manual>|../../main/man-manual.zh.tmml>\<#83DC\>\<#5355\>\<#4E2D\>\<#FF0C\>\<#6709\>\<#5982\>\<#4F55\>\<#4F7F\>\<#7528\><TeXmacs>\<#7684\>\<#4ECB\>\<#7ECD\>\<#3002\>\<#8FD9\>\<#4E9B\>\<#624B\>\<#518C\>\<#975E\>\<#5E38\>\<#5B8C\>\<#6574\>\<#FF0C\>\<#4F46\>\<#5E76\>\<#4E0D\>\<#8BE6\>\<#7EC6\>\<#3002\>
+    <\description-compact>
+      <item*|Vaults（仓库）>将您的整个笔记和档案知识生态系统组织成自包含、可移植的知识库，或许有点像个性化的
+      <samp|ncatlab> 或 <samp|维基百科>。
 
-    <item>\<#5728\><hlink|<menu|Help|Reference
-    guide>|../../main/man-reference.zh.tm>\<#83DC\>\<#5355\>\<#4E2D\>\<#FF0C\>\<#6709\>\<#5173\>\<#4E8E\>TeXmacs\<#7684\>\<#683C\>\<#5F0F\>\<#3001\>\<#539F\>\<#8BED\>\<#3001\>\<#73AF\>\<#5883\>\<#53D8\>\<#91CF\>\<#548C\>\<#6807\>\<#51C6\>\<#6837\>\<#5F0F\>\<#6587\>\<#4EF6\>\<#7684\>\<#8BE6\>\<#7EC6\>\<#6587\>\<#6863\>\<#3002\>
+      <item*|Wikilinks（Wiki 链接）>通过简单、直观的链接，轻松连接不同文档中的想法和块（例如定义、定理）。支持块引用。Wiki
+      链接具有<em|自我修复>功能，因此即使您不小心改动了链接的 UUID
+      或锚点名称，链接也不会丢失。
 
-    <item>\<#5728\><hlink|<menu|Help|About>|../../about/about.zh.tm>\<#83DC\>\<#5355\>\<#4E2D\>\<#FF0C\>\<#6709\>\<#5173\>\<#4E8E\><TeXmacs>\<#66F4\>\<#591A\>\<#4FE1\>\<#606F\>\<#FF0C\>\<#6BD4\>\<#5982\><hlink|\<#4F5C\>\<#8005\>|../../about/authors/authors.zh.tm>\<#FF0C\>\<#5982\>\<#4F55\><hlink|\<#8054\>\<#7CFB\>\<#6211\>\<#4EEC\>|../../about/authors/contact.zh.tm>\<#4EE5\>\<#53CA\>\<#8F6F\>\<#4EF6\>\<#7684\><hlink|\<#66F4\>\<#65B0\>\<#65E5\>\<#5FD7\>|../../about/changes/changes.zh.tm>\<#3002\>
+      <item*|Transclusions（嵌入）>将一个文档的部分内容（例如某个定理）动态嵌入到另一个文档中，让您能够毫不费力地在上下文中复述重要的内容。如果您可以在现场直接嵌入，就不必为了找
+      \P定义 3.31\Q 而疯狂翻找好几分钟。
+    </description-compact>
 
-    <item><menu|Help|full manuals|Compile
-    book>\<#53EF\>\<#5C06\>\<#6240\>\<#6709\>\<#6587\>\<#6863\>\<#7F16\>\<#8BD1\>\<#4E3A\>\<#4E00\>\<#672C\>\<#4E66\>\<#FF0C\>\<#4E0D\>\<#8FC7\>\<#8FD9\>\<#9700\>\<#8981\>\<#86EE\>\<#957F\>\<#65F6\>\<#95F4\>\<#7684\>\<#7B49\>\<#5F85\>\<#3002\>
-  </itemize>
+    <item*|基础与分歧><ATHENA> 是 GNU <TeXmacs> 的一个分支。我们由衷感谢
+    <name|Joris van der Hoeven 教授>和 <TeXmacs> 团队几十年来为本项目奠定的基础工作。
 
-  <section|\<#4E3A\><TeXmacs>\<#505A\>\<#8D21\>\<#732E\>>
+    然而，需要注意的是，<ATHENA> <strong|并非> GNU <TeXmacs>
+    的一个发行版。为了支持其知识管理功能，<ATHENA> 引入了不兼容的 AST
+    节点和其他源代码级更改。因此，尽管从理论上讲 <ATHENA> 可以加载由上游
+    <TeXmacs> 创建的任何文件，但反之则可能不行。虽然我们对历史传统保持深切的尊重，但
+    <ATHENA> 正在演变成一个专为现代研究人员优化的独立环境。
 
-  \<#81EA\>\<#7531\>\<#8F6F\>\<#4EF6\>\<#7684\>\<#4E00\>\<#5927\>\<#4F18\>\<#52BF\>\<#4FBF\>\<#662F\>\<#4F60\>\<#53EF\>\<#4EE5\>\<#4FEE\>\<#6539\>\<#8F6F\>\<#4EF6\>\<#4EE5\>\<#9002\>\<#5E94\>\<#81EA\>\<#5DF1\>\<#7684\>\<#9700\>\<#6C42\>\<#4E14\>\<#5206\>\<#4EAB\>\<#7ED9\>\<#5927\>\<#5BB6\>\<#3002\>\<#5B9E\>\<#9645\>\<#4E0A\>\<#FF0C\>\<#4E3A\>\<#81EA\>\<#7531\>\<#8F6F\>\<#4EF6\>\<#505A\>\<#8D21\>\<#732E\>\<#8FDC\>\<#6BD4\>\<#5927\>\<#591A\>\<#6570\>\<#4EBA\>\<#60F3\>\<#8C61\>\<#7684\>\<#8981\>\<#7B80\>\<#5355\>\<#3002\>\<#4F60\>\<#6216\>\<#8BB8\>\<#60F3\>\<#4E86\>\<#89E3\>\<#5982\>\<#4F55\>\<#4E3A\><TeXmacs>\<#9879\>\<#76EE\>\<#505A\><hlink|\<#8D21\>\<#732E\>|../../about/contribute/contribute.en.tm>\<#3002\>\<#5F53\>\<#7136\>\<#FF0C\>\<#4F60\>\<#4E5F\>\<#53EF\>\<#4EE5\>\<#7ED9\>\<#6211\>\<#4EEC\><hlink|\<#6350\>\<#6B3E\>|../../about/contribute/material/donations.en.tm>\<#3002\>
+    <item*|许可><ATHENA> 是自由软件，并在 GNU 通用公共许可证 (GPL) 下发布。
 
-  \<#5982\>\<#679C\>\<#4F60\>\<#60F3\>\<#7ED9\><TeXmacs>\<#505A\>\<#8D21\>\<#732E\>\<#6216\>\<#8005\>\<#4F60\>\<#60F3\>\<#4FEE\>\<#6539\>\<#8FD9\>\<#4E2A\>\<#7A0B\>\<#5E8F\>\<#7684\>\<#6E90\>\<#4EE3\>\<#7801\>\<#FF0C\><hlink|<menu|Help|Help
-  us>|../contribute/contribute.en.tm>\<#548C\><hlink|<menu|Help|Projects>|../projects/projects.en.tm>\<#4E2D\>\<#6709\>\<#4F60\>\<#9700\>\<#8981\>\<#7684\>\<#4E00\>\<#4E9B\>\<#4FE1\>\<#606F\>\<#3002\><hlink|<menu|Help|Interfacing>|../../devel/plugin/plugin.en.tm>\<#7684\>\<#6587\>\<#6863\>\<#4E2D\>\<#89E3\>\<#91CA\>\<#4E86\>\<#5982\>\<#4F55\>\<#8BA9\><TeXmacs>\<#6210\>\<#4E3A\>\<#5176\>\<#4ED6\>\<#7CFB\>\<#7EDF\>\<#7684\>\<#754C\>\<#9762\>\<#3002\><hlink|<menu|Help|Source
-  code>|../../devel/source/source.en.tm>\<#662F\>\<#90E8\>\<#5206\>\<#6E90\>\<#4EE3\>\<#7801\>\<#7684\>\<#6587\>\<#6863\>\<#3002\>
+    <item*|开发状态>请注意，<ATHENA> 仍处于积极开发阶段，尚未被视为稳定的生产版本。
+  </description>
 
-  <tmdoc-copyright|2013\U2023|Joris van der Hoeven|\<#6C88\>\<#8FBE\>>
+  对于新用户，我们推荐教程 \P<hlink|开始使用 <ATHENA>|start.en.tm>\Q。
 
-  <tmdoc-license|Permission is granted to copy, distribute and/or modify this
-  document under the terms of the GNU Free Documentation License, Version 1.1
-  or any later version published by the Free Software Foundation; with no
-  Invariant Sections, with no Front-Cover Texts, and with no Back-Cover
-  Texts. A copy of the license is included in the section entitled "GNU Free
-  Documentation License".>
+  <\tmdoc-copyright>
+    1998\U2026
+
+    2026
+  <|tmdoc-copyright>
+    <person|Joris van der Hoeven>
+
+    <person|Nuaptan Felix Evalisk>.
+  </tmdoc-copyright>
+
+  <tmdoc-license|对于本文档，在 GNU 自由文档许可证 1.1 版本或由自由软件基金会发布的任何后续版本的条款下，授予复制、分发和/或修改本文件的许可；没有不变章节，没有封面文本，也没有封底文本。许可副本包含在题为“GNU
+  Free Documentation License”的章节中。>
 </body>
 
-<initial|<\collection>
-</collection>>
+<\initial>
+  <\collection>
+    <associate|font|roman>
+    <associate|font-family|tt>
+    <associate|math-font|roman>
+  </collection>
+</initial>

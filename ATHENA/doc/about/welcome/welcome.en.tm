@@ -3,67 +3,73 @@
 <style|<tuple|tmdoc|english|old-spacing|old-dots|old-lengths>>
 
 <\body>
-  <tmdoc-title|Welcome to GNU <TeXmacs>>
+  <\tmdoc-title>
+    Welcome to <ATHENA> version 0.1
+  </tmdoc-title>
 
-  <section|How to get started>
+  Thank you for using <ATHENA>!
 
-  If you are new to <TeXmacs>, then you might first want to get some
-  information on how to read the documentation. Click
-  <hlink|here|../../main/start/man-conventions.en.tm> with your mouse in
-  order to learn more about the conventions which are used throughout the
-  documentation. You may search for words in the documentation by pressing
-  <no-break><shortcut|(interactive docgrep-in-doc)>. Another important thing
-  you might want to do is to <hlink|configure|../../main/config/man-configuration.en.tm>
-  <TeXmacs> so that it will suit your needs best.
+  <ATHENA> stands for the <em|Advanced Typesetting and Hypertext Environment
+  for Notes and Archives>. <ATHENA> is a next-generation editing platform
+  specifically crafted for <em|mathematical knowledge management> at scale.
+  Essentially, it confronts the difficulty in finding a structured notetaking
+  for mathematics.
 
-  <section|Information for general users>
+  <\description>
+    <item*|Structured Notetaking><ATHENA> bridges the gap between scientific
+    publishing and modern, interconnected notetaking. It provides an
+    \PObsidian-like\Q experience adopted for the rigors of technical writing
+    and knowledge base construction, featuring:
 
-  <\itemize>
-    <item>In the <hlink|<menu|Help|Manual>|../../main/man-manual.en.tm> menu,
-    you find the main documentation about how to use <TeXmacs>. The manual is
-    quite complete, but not very detailed.
+    <\description-compact>
+      <item*|Vaults>Organize your entire knowledge ecosystem of notes and
+      archives into self-contained, portable knowledge bases, perhaps
+      somewhat like a personalized <samp|ncatlab> or <samp|Wikipedia>.
 
-    <item>In the <hlink|<menu|Help|Reference
-    guide>|../../main/man-reference.en.tm> menu, you find more detailed
-    documentation about the <TeXmacs> format, its primitives and environment
-    variables, and the standard style files.
+      <item*|Wikilinks>Effortlessly connect ideas and blocks (e.g.
+      definitions, theorems) across different documents with simple,
+      intuitive linking. Block reference is supported. Wikilinks have a
+      <em|self-repair> functionality, so even if you touch the link UUID or
+      anchor name by accident, the link is not lost.
 
-    <item>The <hlink|<menu|Help|Apropos>|../../about/about.en.tm> menu
-    contains more information about <TeXmacs>, like information about its
-    <hlink|authors|../../about/authors/authors.en.tm>, how to <hlink|contact
-    us|../../about/authors/contact.en.tm>, and
-    <hlink|changes|../../about/changes/changes.en.tm> in different versions
-    of the program.
+      <item*|Transclusions>Embed parts of one document, e.g. some theorem,
+      into another dynamically, allowing you to effortlessly restate things
+      that matter in context. No need to find \Pdefinition 3.31\Q furiously
+      for minutes if you can just transclude it at the spot.
+    </description-compact>
 
-    <item>Documentation in the form of full books is also available in
-    <menu|Help|full manuals>. In fact, you may compile such books yourself
-    from any help page using <menu|Help|full manuals|Compile book>. This may
-    take a few minutes though.
+    <item*|Foundations and Divergence><ATHENA> is a fork of GNU <TeXmacs>. We
+    gratefully acknowledge the decades of foundational work by <name|Prof.
+    Joris van der Hoeven> and the <TeXmacs> team that made this project
+    possible.
 
-    <item>Finally the <hlink|<TeXmacs> website|https://www.texmacs.org>
-    provides further material such as videos, tutorials (not necessarily
-    up-to-date), FAQs, links to user forum and mailing lists, etc.\ 
-  </itemize>
+    However, it is important to note that <ATHENA> is <strong|not> a
+    distribution of GNU <TeXmacs>. To support its knowledge management
+    features, <ATHENA> introduces incompatible AST nodes and other
+    source-level changes. Thus although theoretically <ATHENA> can load any
+    file created by upstream <TeXmacs>, the converse may not be possible.
+    While we maintain a deep respect for our heritage, <ATHENA> is evolving
+    into a distinct environment optimized for the modern researcher.
 
-  <section|Contribute to <TeXmacs>>
+    <item*|Licensing><ATHENA> is free software and is released under the GNU
+    General Public License (GPL).
 
-  One great thing about free software is that you may adapt the software to
-  fit your own needs and share your experiences with others. In fact, this
-  turns out to be far easier than most people think. Therefore you might wish
-  to learn more about how to <hlink|contribute|../../about/contribute/contribute.en.tm>
-  to the <TeXmacs> project. You can also make a
-  <hlink|donation|../../about/contribute/material/donations.en.tm> to us.
+    <item*|Development Status>Please be aware that <ATHENA> is still in
+    active development and is not yet considered a stable production version.
+  </description>
 
-  If you want to contribute to <TeXmacs>, or if you want to adapt the program
-  for some particular purpose, then you will find more useful information in
-  the <hlink|<menu|Help|Help us>|../contribute/contribute.en.tm> and
-  <hlink|<menu|Help|Projects>|../projects/projects.en.tm> menus. In
-  <hlink|<menu|Help|Interfacing>|../../devel/plugin/plugin.en.tm> it is
-  explained how to interface <TeXmacs> with other systems. A part of the
-  source code has also been documented in <hlink|<menu|Help|Source
-  code>|../../devel/source/source.en.tm>.
+  For new users, we recommend the tutorial \P<hlink|Getting started with
+  <ATHENA>|start.en.tm>\Q.
 
-  <tmdoc-copyright|1998\U2002|Joris van der Hoeven>
+  <\tmdoc-copyright>
+    1998\U2026
+
+    2026
+  <|tmdoc-copyright>
+    <person|Joris van der Hoeven>
+
+    <person|Nuaptan Felix Evalisk>.
+  </tmdoc-copyright>
 
   <tmdoc-license|Permission is granted to copy, distribute and/or modify this
   document under the terms of the GNU Free Documentation License, Version 1.1
@@ -73,5 +79,10 @@
   Documentation License".>
 </body>
 
-<initial|<\collection>
-</collection>>
+<\initial>
+  <\collection>
+    <associate|font|roman>
+    <associate|font-family|tt>
+    <associate|math-font|roman>
+  </collection>
+</initial>

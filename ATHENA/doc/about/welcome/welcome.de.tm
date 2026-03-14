@@ -3,131 +3,92 @@
 <style|<tuple|tmdoc|german|old-spacing|old-dots|old-lengths>>
 
 <\body>
-  <tmdoc-title|Willkommen zu GNU <TeXmacs>>
+  <\tmdoc-title>
+    Willkommen bei <ATHENA> Version 0.1
+  </tmdoc-title>
 
-  <\itemize>
-    <item>Im Menü <menu|Help|Manual><hlink||../../main/man-manual.de.tm>,
-    finden Sie ein Handbuch mit den wesentlichen Informationen zur Benutzung
-    von <TeXmacs>.
+  Vielen Dank, dass Sie <ATHENA> benutzen!
 
-    <item>Unter <menu|Help|Tutorial> finden Sie ein <TeXmacs>-Tutorial, das
-    sich gerade in der Entwicklung befindet und sich vor allem an Anfänger
-    wendet. Es wird aber auch Kapitel für fortgeschrittene Benutzer
-    enthalten. Leider ist es noch recht unvollständig.
+  <ATHENA> steht fÃ¼r <em|Advanced Typesetting and Hypertext Environment
+  for Notes and Archives>. <ATHENA> ist eine Bearbeitungsplattform der nÃ¤chsten
+  Generation, die speziell fÃ¼r das <em|Management mathematischen Wissens> in groÃŸem
+  MaÃŸstab entwickelt wurde. Im Wesentlichen stellt es sich der Schwierigkeit, eine
+  strukturierte NotizfÃ¼hrung fÃ¼r die Mathematik zu finden.
 
-    <item>Im Menü <menu|Help|Manual|Writing your own style files> sind die
-    verschiedenen <TeXmacs>-Dokument-Stile erläutert.\ 
+  <\description>
+    <item*|Strukturierte NotizfÃ¼hrung><ATHENA> schlieÃŸt die LÃ¼cke zwischen
+    wissenschaftlichem Publizieren und moderner, vernetzter NotizfÃ¼hrung. Es
+    bietet eine \PObsidian-Ã¤hnliche\Q Erfahrung, die fÃ¼r die Anforderungen des
+    technischen Schreibens und des Aufbaus von Wissensdatenbanken angepasst wurde,
+    mit folgenden Merkmalen:
 
-    <item>Das Menü <menu|Help |Apropos> enthält weitere Informationen über
-    <TeXmacs>, wie beispielsweise über seine
-    <hlink|Autoren|../../about/authors/authors.de.tm>, deren
-    <hlink|Kontaktadressen|../../about/authors/contact.de.tm>, und
-    <hlink|Änderungen|../../about/changes/changes.de.tm> in den verschiedenen
-    Versionen des Programms.\ 
+    <\description-compact>
+      <item*|Vaults (Tresore)>Organisieren Sie Ihr gesamtes Wissens-Ã–kosystem aus
+      Notizen und Archiven in eigenstÃ¤ndigen, portablen Wissensdatenbanken,
+      vielleicht Ã¤hnlich wie ein personalisiertes <samp|ncatlab> oder
+      <samp|Wikipedia>.
 
-    <item>Man kann immer neuere Dokumentationen über das Internet mit
-    <menu|Help|Online help> erhalten. Dokumentationen in Form ganzer Bücher
-    bekommt man unter <menu|Help|Full manuals>. Tatsächlich können Sie
-    Buch-Versionen von jedem Artikel und jedem Handbuch selbst erstellen mit
-    den Befehlen <menu|Help|Full manuals|Compile article> bzw.
-    <menu|Help|Full manuals|Compile book>. Das dauert aber einiges.
-  </itemize>
+      <item*|Wikilinks>VerknÃ¼pfen Sie mÃ¼helos Ideen und BlÃ¶cke (z. B. Definitionen,
+      Theoreme) Ã¼ber verschiedene Dokumente hinweg mit einfachen, intuitiven Links.
+      Blockreferenzen werden unterstÃ¼tzt. Wikilinks verfÃ¼gen Ã¼ber eine
+      <em|Selbstreparatur-Funktion>, so dass der Link nicht verloren geht, selbst
+      wenn Sie versehentlich die Link-UUID oder den Ankernamen Ã¤ndern.
 
-  <section|Kommentar zur Übertragung ins Deutsche>
+      <item*|Transklusionen>Betten Sie Teile eines Dokuments, z. B. ein Theorem,
+      dynamisch in ein anderes ein, so dass Sie wichtige Dinge mÃ¼helos im Kontext
+      wiederholen kÃ¶nnen. Man muss nicht mehr minutenlang verzweifelt nach
+      \PDefinition 3.31\Q suchen, wenn man sie einfach an Ort und Stelle
+      transkludieren kann.
+    </description-compact>
 
-  Die Übertragung von Programm-Beschreibungen in eine andere Sprache ist
-  immer problematisch. Ein Teil der Probleme resultiert daraus, dass
-  Fachbegriffe oft noch nicht in die andere Sprache eingedrungen sind. Dazu
-  kommt, dass häufig eigene Fachbegriffe eingeführt werden, die aus der
-  Umgangssprache stammen und im Kontext in der Ursprungssprache leicht zu
-  verstehen sind, bei der Übertragung dagegen nicht.\ 
+    <item*|Grundlagen und Divergenz><ATHENA> ist ein Fork von GNU <TeXmacs>. Wir
+    erkennen mit Dankbarkeit die jahrzehntelange grundlegende Arbeit von
+    <name|Prof. Joris van der Hoeven> und dem <TeXmacs>-Team an, die dieses
+    Projekt ermÃ¶glicht haben.
 
-  Hier kommt noch dazu, dass <TeXmacs> kein Textverarbeitungsprogramm ist
-  sondern wie <LaTeX> ein Schriftsatz-Programm. Deshalb sind auÿer den
-  gewohnten Begriffen der Textverarbeitung viele neue Begriffe von Nöten, die
-  dem Schriftsetzer vertraut sind, dem Autor dagegen kaum. Da aber die Kunst
-  des Schriftsatzes sich über die Jahrhunderte in den verschiedenen
-  Sprachgebieten unterschiedlich entwickelt hat, gibt es häufig Begriffe, die
-  keine Entsprechung in anderen Sprachräumen haben.\ 
+    Es ist jedoch wichtig zu beachten, dass <ATHENA> <strong|keine> Distribution
+    von GNU <TeXmacs> ist. Um seine Wissensmanagement-Funktionen zu unterstÃ¼tzen,
+    fÃ¼hrt <ATHENA> inkompatible AST-Knoten und andere Ã„nderungen auf
+    Quellcode-Ebene ein. Obwohl <ATHENA> theoretisch jede mit dem Upstream-
+    <TeXmacs> erstellte Datei laden kann, ist die Umkehrung mÃ¶glicherweise nicht
+    mÃ¶glich. WÃ¤hrend wir unseren tiefen Respekt vor unserem Erbe bewahren,
+    entwickelt sich <ATHENA> zu einer eigenstÃ¤ndigen Umgebung, die fÃ¼r den
+    modernen Forscher optimiert ist.
 
-  Im folgenden werden einige Konventionen erklärt, die in der deutschen
-  Übertragung verwendet wurden.\ 
+    <item*|Lizenzierung><ATHENA> ist freie Software und wird unter der GNU
+    General Public License (GPL) verÃ¶ffentlicht.
 
-  <\itemize-dot>
-    <item><strong|Konstrukt> wird als Übersetzung des englischen
-    <em|primitive> verwendet. Ein Konstrukt kann auch ausführbar, also ein
-    <strong|Befehl> sein.
+    <item*|Entwicklungsstatus>Bitte beachten Sie, dass sich <ATHENA> noch in der
+    aktiven Entwicklung befindet und noch nicht als stabile Produktionsversion
+    gilt.
+  </description>
 
-    <item><strong|Kontext> wird für das englische <em|environment> benutzt.
-    Dies ist einen Befehl, der sich über ein Textstück erstreckt und den
-    Schriftsatz steuert. Die wörtliche Übersetzung, Umgebung, wird zur
-    Kennzeichnung der Betriebssystem-Umgebung benutzt. Dementsprechend sind
-    \ die <em|environment variables> auf Deutsch die
-    <strong|Kontextvariablen>.
+  FÃ¼r neue Benutzer empfehlen wir das Tutorial \P<hlink|Erste Schritte mit
+  <ATHENA>|start.en.tm>\Q.
 
-    <item>Die linearisierte Darstellung der logischen Baumstrukturen führt zu
-    Darstellungen, die wie in HTML aus Marken, <em|tags>, bestehen. Diese
-    <strong|Tags> können als einzeln stehende Marke vorkommen, oft
-    umschlieÿen <strong|Start- und Stoptags> einen Kontext/Befehl.
+  <\tmdoc-copyright>
+    1998\U2026
 
-    <item>Mit <strong|Kurzbefehl> werden Tastenkombinationen bezeichnet, die
-    <TeXmacs>-Befehlen entsprechen.
+    2026
+  <|tmdoc-copyright>
+    <person|Joris van der Hoeven>
 
-    <item><strong|Box> ist ein rechteckiger Raum, indem Zeichen in bestimmter
-    Weise angeordnet sind, der als ganzes in den Text eingefügt wird. Ein
-    Beispiel dafür ist ein mathematischer Bruch.
+    <person|Nuaptan Felix Evalisk>.
+  </tmdoc-copyright>
 
-    <item><strong|Zeileninhalt>, im englischen Text <em|inline content>, sind
-    kurze Textstücke und Konstrukte, die kurze Textstücke speziell
-    darstellen, im Gegensatz zu <strong|Blockkontext> oder
-    <strong|Blockinhalt>, der mehrere Absätze umfasst. \ 
-
-    <item><strong|Flag> ist eine boolesche Variable mit den Werten ja oder
-    nein (bzw. an/aus, +/-).
-
-    <item><strong|Label> ist eine Zielmarke für Referenzen
-
-    <item><strong|Dimension>, englisch arity, die Anzahl der erlaubten oder
-    vorhandenen Argumente
-
-    <item><strong|Flags> sind Kennzeichen im Editor, die nicht gedruckt
-    werden. Das Wort Flag wird auch für boolescher Variablen
-    (Kontextvariablen) gebraucht.
-  </itemize-dot>
-
-  <section|Selbst beitragen zu <TeXmacs>>
-
-  <em|Freie Software> kann und darf jeder an seine speziellen Bedürfnisse
-  anpassen. Dies und die Möglichkeit, seine Erfahrungen mit anderen zu teilen
-  ist eine groÿartige Sache, die davon lebt, dass sich viele freiwillig
-  beteiligen. Vielleicht wollen Sie das ja auch - und es ist leichter, als
-  Sie sich das vorstellen. Mehr Information darüber, wie Sie selbst zum
-  <TeXmacs>-Projekt beitragen können, finden Sie
-  \ <hlink|hier|../../about/contribute/contribute.en.tm>. Natürlich sind wir
-  auch für eine <hlink|Spende|../../about/contribute/material/donations.en.tm>
-  dankbar.
-
-  Wenn Sie also einen Beitrag zu<TeXmacs> leisten wollen, oder wenn Sie das
-  Programm speziell anpassen wollen, dann finden Sie wichtige Informationen
-  im <menu|Help>-Menü. <hlink|<menu|Help|Document
-  format>|../../devel/format/format.en.tm> gibt Informationen über das
-  <TeXmacs> Dokumentenformat und unter <hlink|<menu|Help|Interfacing>|../../devel/plugin/plugin.en.tm>
-  wird \ erklärt, wie<TeXmacs> mit anderen Programmen zusammenarbeiten kann.
-  Ein Teil des Quellcodes ist unter <hlink|<menu|Help|Source
-  code>|../../devel/source/source.en.tm> dokumentiert.
-
-  <tmdoc-copyright|1998\U2002|Joris van der Hoeven>
-
-  <tmdoc-license|Permission is granted to copy, distribute and/or modify this
-  document under the terms of the GNU Free Documentation License, Version 1.1
-  or any later version published by the Free Software Foundation; with no
-  Invariant Sections, with no Front-Cover Texts, and with no Back-Cover
-  Texts. A copy of the license is included in the section entitled "GNU Free
-  Documentation License".>
+  <tmdoc-license|Es wird die Erlaubnis erteilt, dieses Dokument unter den
+  Bedingungen der GNU Free Documentation License, Version 1.1 oder einer
+  spÃ¤teren, von der Free Software Foundation verÃ¶ffentlichten Version zu
+  kopieren, zu verbreiten und/oder zu modifizieren; ohne unverÃ¤nderliche
+  Abschnitte, ohne vordere Umschlagtexte und ohne hintere Umschlagtexte. Eine
+  Kopie der Lizenz ist in dem Abschnitt mit dem Titel "GNU Free Documentation
+  License" enthalten.>
 </body>
 
 <\initial>
   <\collection>
-    <associate|preamble|false>
+    <associate|font|roman>
+    <associate|font-family|tt>
+    <associate|math-font|roman>
   </collection>
 </initial>

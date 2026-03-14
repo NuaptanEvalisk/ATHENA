@@ -3,81 +3,88 @@
 <style|<tuple|tmdoc|italian|old-spacing|old-dots|old-lengths>>
 
 <\body>
-  <tmdoc-title|Benvenuto in GNU <TeXmacs>>
+  <\tmdoc-title>
+    Benvenuti in <ATHENA> versione 0.1
+  </tmdoc-title>
 
-  <section|Come iniziare>
+  Grazie per aver scelto <ATHENA>!
 
-  Se sei un nuovo utilizzatore di <TeXmacs>, allora potresti aver bisogno di
-  alcune informazioni su come accedere alla documentazione. Cliccando con il
-  mouse due volte <hlink|qui|../../main/start/man-conventions.it.tm> potrai
-  leggere le convenzioni utilizzate per la documentazione di <TeXmacs>. Un
-  altro aspetto che potrebbe interessarti è come
-  <hlink|configurare|../../main/config/man-configuration.it.tm> <TeXmacs> in
-  modo da adattarlo il più possibile alle tue esigenze personali.
+  <ATHENA> Ã¨ l'acronimo di <em|Advanced Typesetting and Hypertext Environment
+  for Notes and Archives>. <ATHENA> Ã¨ una piattaforma di editing di nuova
+  generazione progettata specificamente per la <em|gestione della conoscenza
+  matematica> su vasta scala. In sostanza, affronta la difficoltÃ  di trovare
+  un sistema di note strutturato per la matematica.
 
-  <section|Informazioni generali>
+  <\description>
+    <item*|Note strutturate><ATHENA> colma il divario tra l'editoria
+    scientifica e la moderna presa di note interconnesse. Fornisce un'esperienza
+    \Palla Obsidian\Q adattata ai rigori della scrittura tecnica e della
+    costruzione di basi di conoscenza, offrendo:
 
-  <\itemize>
-    <item>Nel menu <hlink|<menu|Help|Manual>|../../main/man-manual.en.tm> è
-    contenuta la documentazione principale su come poter usare <TeXmacs>. Il
-    manuale è completo anche se non molto dettagliato.
+    <\description-compact>
+      <item*|Vaults (Caveau)>Organizza l'intero ecosistema di conoscenze di note e
+      archivi in basi di conoscenza autonome e portatili, forse in modo simile a un
+      <samp|ncatlab> o una <samp|Wikipedia> personalizzata.
 
-    <item>Nel menu <hlink|<menu|Help|Tutorial>|../../tutorial/tut-tutorial.en.tm>
-    si trova l'inizio di un tutorial per <TeXmacs>. Il tutorial è rivolto
-    soprattutto ai principianti, anche se i capitoli finali potrebbero
-    servire anche ad utenti più esperti. Sfortunatamente, al momento, il
-    tutorial è assai incompleto.
+      <item*|Wikilinks>Collega senza sforzo idee e blocchi (ad esempio definizioni,
+      teoremi) tra diversi documenti con collegamenti semplici e intuitivi. Il
+      riferimento ai blocchi Ã¨ supportato. I Wikilink hanno una funzionalitÃ  di
+      <em|autoriparazione>, quindi anche se si modifica accidentalmente l'UUID del
+      collegamento o il nome dell'ancora, il collegamento non va perduto.
 
-    <item>Nel menu <hlink|<menu|Help|Style>|../../devel/style/style.en.tm>
-    sono documentati tutti i diversi stili di documento implementati in
-    \ <TeXmacs>. Viene anche spiegato come creare stili personalizzati e
-    preamboli.
+      <item*|Transclusioni>Incorpora parti di un documento, ad esempio un teorema,
+      in un altro in modo dinamico, consentendo di citare senza sforzo ciÃ² che
+      conta nel contesto. Non c'Ã¨ bisogno di cercare furiosamente la \Pdefinizione
+      3.31\Q per minuti se puoi semplicemente includerla sul posto.
+    </description-compact>
 
-    <item>Il menu <hlink|<menu|Help|Apropos>|../../about/about.en.tm>
-    contiene ulteriori informazioni su <TeXmacs> come informazioni
-    riguardanti gli <hlink|autori|../../about/authors/authors.it.tm>, su come
-    <hlink|contattarci|../../about/authors/contact.it.tm> e sui
-    <hlink|cambiamenti|../../about/changes/changes.it.tm> intervenuti durante
-    lo sviluppo del programma.
+    <item*|Fondamenta e Divergenza><ATHENA> Ã¨ un fork di GNU <TeXmacs>.
+    Riconosciamo con gratitudine i decenni di lavoro fondamentale del
+    <name|Prof. Joris van der Hoeven> e del team di <TeXmacs> che hanno reso
+    possibile questo progetto.
 
-    <item>È possibile avere aggiornamenti della documentazione via web
-    utilizzando <menu|Help|Online help>. La documentazione completa in
-    formato libro è disponibile in <menu|Help|full manuals>. Potete compilare
-    personalmente il libro a partire da ciascuna pagina del manuale
-    utilizzando il comando <menu|Help|full manuals|Compile book>. Ciò
-    richiede qualche minuto di attesa.
-  </itemize>
+    Tuttavia, Ã¨ importante notare che <ATHENA> <strong|non> Ã¨ una distribuzione
+    di GNU <TeXmacs>. Per supportare le sue funzionalitÃ  di gestione della
+    conoscenza, <ATHENA> introduce nodi AST incompatibili e altre modifiche a
+    livello di codice sorgente. Quindi, sebbene teoricamente <ATHENA> possa
+    caricare qualsiasi file creato da <TeXmacs> ufficiale, il contrario
+    potrebbe non essere possibile. Pur mantenendo un profondo rispetto per la
+    nostra ereditÃ , <ATHENA> si sta evolvendo in un ambiente distinto ottimizzato
+    per il ricercatore moderno.
 
-  <section|Contribuire a <TeXmacs>>
+    <item*|Licenza><ATHENA> Ã¨ software libero ed Ã¨ rilasciato sotto la GNU
+    General Public License (GPL).
 
-  Un aspetto importante del software libero consiste sia nella sua alta
-  adattabilità alle specifiche esigenze dell'utilizzatore sia nel suo
-  sviluppo attraverso una fitta collaborazione internazionale. Collaborare ad
-  un progetto per il software libero è più semplice di quanto si possa
-  comunemente credere. Per questo potrebbe interessarti sapere come
-  <hlink|contribuire|../../about/contribute/contribute.it.tm> al progetto
-  <TeXmacs>. Tra le altre cose, il progetto accetta
-  <hlink|donazioni|../../about/contribute/material/donations.it.tm>.
+    <item*|Stato dello sviluppo>Si prega di notare che <ATHENA> Ã¨ ancora in fase
+    di sviluppo attivo e non Ã¨ ancora considerata una versione di produzione
+    stabile.
+  </description>
 
-  Se desideri contribuire a <TeXmacs> o se vuoi adattare il programma per
-  scopi particolari, troverai informazioni utili nel menu <menu|Help>. Il
-  sottomenu <hlink|<menu|Help|Document format>|../../devel/format/format.en.tm>
-  contiene informazioni sul formato dei documenti di <TeXmacs> e in
-  <hlink|<menu|Help|Interfacing>|../../devel/plugin/plugin.en.tm> vengono
-  fornite spiegazioni su come interfacciare <TeXmacs> con altri sistemi. Una
-  parte del codice sorgente di <TeXmacs> è documentata in
-  <hlink|<menu|Help|Source code>|../../devel/source/source.en.tm>.
+  Per i nuovi utenti, raccomandiamo il tutorial \P<hlink|Primi passi con
+  <ATHENA>|start.en.tm>\Q.
 
-  <tmdoc-copyright|1998\U2003|Joris van der Hoeven|Andrea Centomo|Lucia
-  Gecchelin>
+  <\tmdoc-copyright>
+    1998\U2026
 
-  <tmdoc-license|Permission is granted to copy, distribute and/or modify this
-  document under the terms of the GNU Free Documentation License, Version 1.1
-  or any later version published by the Free Software Foundation; with no
-  Invariant Sections, with no Front-Cover Texts, and with no Back-Cover
-  Texts. A copy of the license is included in the section entitled "GNU Free
-  Documentation License".>
+    2026
+  <|tmdoc-copyright>
+    <person|Joris van der Hoeven>
+
+    <person|Nuaptan Felix Evalisk>.
+  </tmdoc-copyright>
+
+  <tmdoc-license|Ãˆ concesso il permesso di copiare, distribuire e/o modificare
+  questo documento secondo i termini della GNU Free Documentation License,
+  versione 1.1 o qualsiasi versione successiva pubblicata dalla Free Software
+  Foundation; senza sezioni invarianti, senza testi di copertina e senza testi
+  di quarta di copertina. Una copia della licenza Ã¨ inclusa nella sezione
+  intitolata "GNU Free Documentation License".>
 </body>
 
-<initial|<\collection>
-</collection>>
+<\initial>
+  <\collection>
+    <associate|font|roman>
+    <associate|font-family|tt>
+    <associate|math-font|roman>
+  </collection>
+</initial>
