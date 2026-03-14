@@ -173,7 +173,7 @@ qt_tm_widget_rep::qt_tm_widget_rep(int mask, command _quit)
   // status bar
   
   QStatusBar* bar= new QStatusBar(mw);
-  leftLabel= new QLabel (qt_translate ("Welcome to TeXmacs"), mw);
+  leftLabel= new QLabel (qt_translate ("Welcome to ATHENA"), mw);
   rightLabel= new QLabel (qt_translate ("Booting"), mw);
   leftLabel->setFrameStyle (QFrame::NoFrame);
   rightLabel->setFrameStyle (QFrame::NoFrame);

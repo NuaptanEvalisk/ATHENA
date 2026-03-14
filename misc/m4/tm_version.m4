@@ -18,9 +18,10 @@ AC_DEFUN([TM_VERSION],[
   PACKAGE="ATHENA"
   DEBIAN_NAME="athena"
 
-  VERSION_MAJOR="0"
+  VERSION_MAJOR="2"
   VERSION_MINOR="1"
-  VERSION_BUILD=""
+  VERSION_BUILD="4"
+  APP_VERSION="0.1"
   
   # the svn revision of this version
   DEVEL_REVISION="$Rev$:"

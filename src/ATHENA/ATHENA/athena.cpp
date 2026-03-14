@@ -327,7 +327,7 @@ set_global_options  (int argc, char** argv)  {
       else if ((s == "-v") || (s == "-version")) {
         cout << "\n";
         cout << "ATHENA (Advanced Typesetting and Hypertext Environment for Notes and Archives)\n";
-        cout << "Version " << ATHENA_VERSION << "\n";
+        cout << "Version " << ATHENA_APP_VERSION << "\n";
         cout << ATHENA_COPYRIGHT << "\n";
         cout << "\n";
         exit (0);

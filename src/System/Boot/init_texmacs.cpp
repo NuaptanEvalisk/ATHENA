@@ -462,12 +462,12 @@ set_setting (string var, string val) {
 void
 setup_athena () {
   url settings_file= "$ATHENA_HOME_PATH/system/settings.scm";
-  debug_boot << "Welcome to TeXmacs " ATHENA_VERSION "\n";
+  debug_boot << "Welcome to ATHENA " ATHENA_APP_VERSION "\n";
   debug_boot << HRULE;
 
   set_setting ("VERSION", ATHENA_VERSION);
   setup_tex ();
-  
+
   string s= scheme_tree_to_block (athena_settings);
   //cout << "settings_t= " << athena_settings << "\n";
   //cout << "settings_s= " << s << "\n";
@@ -476,9 +476,8 @@ setup_athena () {
     failed_error << "I could not save or reload the file\n\n";
     failed_error << "\t" << settings_file << "\n\n";
     failed_error << "Please give me full access control over this file and\n";
-    failed_error << "rerun 'TeXmacs'.\n";
-    failed_error << HRULE;
-    FAILED ("unable to write settings");
+    failed_error << "rerun 'ATHENA'.\n";
+    failed_error << HRULE;    FAILED ("unable to write settings");
   }
   
   debug_boot << HRULE;
