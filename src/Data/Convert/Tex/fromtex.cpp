@@ -2768,7 +2768,7 @@ latex_command_to_tree (tree t) {
   if (is_tuple (t, "\\xequal", 1))
     return tree (LONG_ARROW, "<rubber-equal>", l2e (t[1]));
   if (is_tuple (t, "\\xlongequal", 1))
-    return tree (LONG_ARROW, "<rubber-longequal>", l2e (t[1]));
+    return tree (LONG_ARROW, "<rubber-equal>", l2e (t[1]));
   if (is_tuple (t, "\\xLeftarrow", 1))    return tree (LONG_ARROW, "<rubber-Leftarrow>", l2e (t[1]));
   if (is_tuple (t, "\\xRightarrow", 1))
     return tree (LONG_ARROW, "<rubber-Rightarrow>", l2e (t[1]));
@@ -2790,7 +2790,7 @@ latex_command_to_tree (tree t) {
   if (is_tuple (t, "\\xequal*", 2))
     return tree (LONG_ARROW, "<rubber-equal>", l2e (t[1]), l2e (t[2]));
   if (is_tuple (t, "\\xlongequal*", 2))
-    return tree (LONG_ARROW, "<rubber-longequal>", l2e (t[1]), l2e (t[2]));
+    return tree (LONG_ARROW, "<rubber-equal>", l2e (t[1]), l2e (t[2]));
   if (is_tuple (t, "\\xLeftarrow*", 2))    return tree (LONG_ARROW, "<rubber-Leftarrow>", l2e (t[1]), l2e (t[2]));
   if (is_tuple (t, "\\xRightarrow*", 2))
     return tree (LONG_ARROW, "<rubber-Rightarrow>", l2e (t[1]), l2e (t[2]));
