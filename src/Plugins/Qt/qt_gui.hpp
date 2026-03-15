@@ -15,6 +15,7 @@
 #include <QTranslator>
 #include <QTimer>
 #include <QLabel>
+#include <QSplashScreen>
 #include <QList>
 
 #include "qt_simple_widget.hpp"
@@ -123,14 +124,9 @@ class qt_gui_rep {
   bool           interrupted;
   time_t      interrupt_time;
   QTimer*        updatetimer;
-#if QT_VERSION >= 0x060000
-  QDialog*        waitWindow;
+  QWidget*        waitWindow;
   QLabel*          waitLabel;
   QList<QString> waitDialogs;
-#else
-  QWidget*        waitWindow;
-  QList<QLabel*> waitDialogs;
-#endif
   widget          _popup_wid;
   time_t      popup_wid_time; //!< 0 means not to show _popup_wid
   
