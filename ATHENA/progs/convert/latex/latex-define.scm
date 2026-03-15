@@ -35,6 +35,8 @@
   (leftrightsquigarrowlim "\\mathop{\\leftrightsquigarrow}\\limits")
   (equallim "\\mathop{=}\\limits")
   (longequallim "\\mathop{\\longequal}\\limits")
+  (varinjlim "\\mathop{\\injlim}\\limits")
+  (varprojlim "\\mathop{\\projlim}\\limits")
   (Leftarrowlim "\\mathop{\\leftarrow}\\limits")
   (Rightarrowlim "\\mathop{\\rightarrow}\\limits")
   (Leftrightarrowlim "\\mathop{\\leftrightarrow}\\limits")
@@ -782,6 +784,8 @@
 (latex-texmacs-long "\\xmapsfrom" "\\leftarrow\\!\\!\\dashv"
                     "\\leftarrow" "\\relbar" "\\dashv")
 (latex-texmacs-long "\\xequal" "="
+                    "\\DOTSB\\Relbar" "\\Relbar" "\\DOTSB\\Relbar")
+(latex-texmacs-long "\\xlongequal" "\\longequal"
                     "\\DOTSB\\Relbar" "\\Relbar" "\\DOTSB\\Relbar")
 (latex-texmacs-long "\\xLeftarrow" "\\Longleftarrow"
                     "\\Leftarrow" "\\Relbar" "\\Relbar")

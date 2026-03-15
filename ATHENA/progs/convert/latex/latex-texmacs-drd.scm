@@ -260,7 +260,7 @@
   thankshomepage thanksemail thanksdate thanksamisc thanksmisc thankssubtitle
   mho tmfloat
 
-  xminus xleftrightarrow xmapsto xmapsfrom xequal
+  xminus xleftrightarrow xmapsto xmapsfrom xequal xlongequal
   xLeftarrow xRightarrow xLeftrightarrow)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

@@ -18,11 +18,57 @@
 ;; Inserting mathematical markup
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(tm-widget (latex-formula-widget cmd)
+  (form "LatexFormula"
+    (aligned
+      (item (text "Mode:")
+        (form-enum "mode" '("none" "inline" "display") "inline" "10em"))
+      (item (text "LaTeX formula:")
+        (form-input "formula" "string" '("") "30em")))
+    ===
+    (bottom-buttons
+      ("Cancel" (cmd #f)) >>
+      ("Insert" (cmd (form-values))))))
+
+(tm-define (open-latex-formula-dialog)
+  (:interactive #t)
+  (dialogue-window latex-formula-widget
+    (lambda (vals)
+      (when (and vals (list? vals) (>= (length vals) 2))
+        (let* ((mode (first vals))
+               (input (second vals)))
+          (cond ((== mode "inline")
+                 (let* ((wrapped (string-append "$" input "$"))
+                        (t (latex->texmacs (parse-latex wrapped)))
+                        (c (if (and (tree-is? t 'document) (> (tree-arity t) 0))
+                               (tree-ref t 0)
+                               t))
+                        (body (if (and (tree-is? c 'with)
+                                       (>= (tree-arity c) 2)
+                                       (== (tree-ref c 0) "mode")
+                                       (== (tree-ref c 1) "math"))
+                                  (tree-ref c (1- (tree-arity c)))
+                                  c)))
+                   (insert `(math ,body))))
+                ((== mode "display")
+                 (let ((t (latex->texmacs (parse-latex (string-append "\\[" input "\\]")))))
+                   (when (tree? t)
+                     (for (c (tree-children t))
+                       (insert c)))))
+                (else
+                 (let ((t (latex->texmacs (parse-latex input))))
+                   (when (tree? t)
+                     (for (c (tree-children t))
+                       (insert c)))))))))
+    "Insert LaTeX formula"))
+
 (menu-bind insert-math-menu
   ("Inline formula" (make 'math))
   (if (style-has? "env-math-dtd")
       ("Displayed formula" (make-equation*))
-      ("Several equations" (make-eqnarray*))))
+      ("Several equations" (make-eqnarray*)))
+  ---
+  ("LaTeX formula" (open-latex-formula-dialog)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; General purpose markup that is also relevant for mathematics

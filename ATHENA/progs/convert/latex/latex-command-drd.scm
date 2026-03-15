@@ -143,7 +143,7 @@
   makebox
   subjclass declaretheorem footnotetext
   xleftarrow xrightarrow xleftrightarrow xminus
-  xLeftarrow xRightarrow xLeftrightarrow xequal
+  xLeftarrow xRightarrow xLeftrightarrow xequal xlongequal
   xmapsto xmapsfrom citealp citet citep citet* citep*
   Begin ELSIF FORALL FOR IF WHILE tcp tcp* tcc tcc*
   hyperref)
@@ -286,7 +286,7 @@
 
 (logic-group latex-operator%
   arccos arcsin arctan arg cos cosh cot coth csc deg det dim exp gcd hom
-  inf ker lg lim liminf limsup ln log max min Pr sec sin sinh sup tan tanh)
+  inf ker lg lim liminf limsup varinjlim varprojlim ln log max min Pr sec sin sinh sup tan tanh)
 
 (logic-group latex-list%
   begin-itemize begin-enumerate begin-description

@@ -1126,7 +1126,11 @@ latex_symbol_to_tree (string s) {
 
     if (latex_type (s) == "ignore") return "";
 
-    if (latex_type (s) == "operator" || latex_type (s) == "control") return s;
+    if (latex_type (s) == "operator" || latex_type (s) == "control") {
+      if (s == "varinjlim") return "injlim";
+      if (s == "varprojlim") return "projlim";
+      return s;
+    }
     if (s == "bignone") return tree (BIG, ".");
     if (s == "Return") return tree (APPLY, "algo-return");
     if (s == "tmhrule") return tree (APPLY, "hrule");
@@ -2763,8 +2767,9 @@ latex_command_to_tree (tree t) {
     return tree (LONG_ARROW, "<rubber-mapsfrom>", l2e (t[1]));
   if (is_tuple (t, "\\xequal", 1))
     return tree (LONG_ARROW, "<rubber-equal>", l2e (t[1]));
-  if (is_tuple (t, "\\xLeftarrow", 1))
-    return tree (LONG_ARROW, "<rubber-Leftarrow>", l2e (t[1]));
+  if (is_tuple (t, "\\xlongequal", 1))
+    return tree (LONG_ARROW, "<rubber-longequal>", l2e (t[1]));
+  if (is_tuple (t, "\\xLeftarrow", 1))    return tree (LONG_ARROW, "<rubber-Leftarrow>", l2e (t[1]));
   if (is_tuple (t, "\\xRightarrow", 1))
     return tree (LONG_ARROW, "<rubber-Rightarrow>", l2e (t[1]));
   if (is_tuple (t, "\\xLeftrightarrow", 1))
@@ -2784,8 +2789,9 @@ latex_command_to_tree (tree t) {
     return tree (LONG_ARROW, "<rubber-mapsfrom>", l2e (t[1]), l2e (t[2]));
   if (is_tuple (t, "\\xequal*", 2))
     return tree (LONG_ARROW, "<rubber-equal>", l2e (t[1]), l2e (t[2]));
-  if (is_tuple (t, "\\xLeftarrow*", 2))
-    return tree (LONG_ARROW, "<rubber-Leftarrow>", l2e (t[1]), l2e (t[2]));
+  if (is_tuple (t, "\\xlongequal*", 2))
+    return tree (LONG_ARROW, "<rubber-longequal>", l2e (t[1]), l2e (t[2]));
+  if (is_tuple (t, "\\xLeftarrow*", 2))    return tree (LONG_ARROW, "<rubber-Leftarrow>", l2e (t[1]), l2e (t[2]));
   if (is_tuple (t, "\\xRightarrow*", 2))
     return tree (LONG_ARROW, "<rubber-Rightarrow>", l2e (t[1]), l2e (t[2]));
   if (is_tuple (t, "\\xLeftrightarrow*", 2))
