@@ -1127,8 +1127,8 @@ latex_symbol_to_tree (string s) {
     if (latex_type (s) == "ignore") return "";
 
     if (latex_type (s) == "operator" || latex_type (s) == "control") {
-      if (s == "varinjlim") return "injlim";
-      if (s == "varprojlim") return "projlim";
+      if (s == "varinjlim") return tree (VAR_WIDE, "lim", "<wide-varrightarrow>");
+      if (s == "varprojlim") return tree (VAR_WIDE, "lim", "<wide-varleftarrow>");
       return s;
     }
     if (s == "bignone") return tree (BIG, ".");
