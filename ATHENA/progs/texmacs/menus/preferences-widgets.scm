@@ -218,15 +218,16 @@
     (refresh-now "preferred-fonts-list")
     (update-menus)))
 
-(tm-menu (preferred-fonts-list-menu)
+(tm-define (preferred-fonts-list-widget)
   (let ((fonts (get-user-preferred-fonts)))
     (if (null? fonts)
-        "No preferred fonts added yet."
-        (vlist
-          (for (f fonts)
-            (hlist (text f) >>>
-                   (explicit-buttons
-                     ("Remove" (remove-user-preferred-font f)))))))))
+        '(text "No preferred fonts added yet.")
+        `(vertical
+           ,@(map (lambda (f)
+                    `(hlist (text ,f) 
+                            (glue #t #f 15 0) 
+                            ("Remove" ,(lambda () (remove-user-preferred-font f)))))
+                  fonts)))))
 
 (tm-widget (general-fonts-preferences-widget)
   (vertical
@@ -243,7 +244,7 @@
     (bold (text "Preferred fonts"))
     ===
     (refreshable "preferred-fonts-list"
-      (dynamic (preferred-fonts-list-menu)))
+      (dynamic (preferred-fonts-list-widget)))
     ===
     (hlist
       (explicit-buttons ("Add font" (add-user-preferred-font))) >>>)
