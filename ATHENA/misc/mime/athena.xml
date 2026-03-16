@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+	<mime-type type="text/x-athena.sty">
+		<comment>ATHENA stylesheet</comment>
+		<comment xml:lang="ar">نمط ATHENA</comment>
+		<comment xml:lang="be@latin">Arkuš stylaŭ ATHENA</comment>
+		<comment xml:lang="bg">Стилове — ATHENA</comment>
+		<comment xml:lang="ca">Full d'estil ATHENA</comment>
+		<comment xml:lang="cs">Styl ATHENA</comment>
+		<comment xml:lang="da">ATHENA-stilark</comment>
+		<comment xml:lang="de">ATHENA-Stylesheet</comment>
+		<comment xml:lang="el">φύλλο στυλ ATHENA</comment>
+		<comment xml:lang="en_GB">ATHENA stylesheet</comment>
+		<comment xml:lang="eo">ATHENA-stilfolio</comment>
+		<comment xml:lang="es">Hoja de estilo ATHENA</comment>
+		<comment xml:lang="eu">ATHENA estilo-orria</comment>
+		<comment xml:lang="fi">ATHENA-tyylitiedosto</comment>
+		<comment xml:lang="fr">Feuille de style ATHENA</comment>
+		<comment xml:lang="ga">Stílbhileog ATHENA</comment>
+		<comment xml:lang="he">סגנון גליון ATHENA</comment>
+		<comment xml:lang="hu">ATHENA-stíluslap</comment>
+		<comment xml:lang="id">Lembar gaya ATHENA</comment>
+		<comment xml:lang="it">Foglio di stile ATHENA</comment>
+		<comment xml:lang="ja">ATHENA スタイルシート</comment>
+		<comment xml:lang="kk">ATHENA стильдер кестесі</comment>
+		<comment xml:lang="ko">ATHENA 스타일시트</comment>
+		<comment xml:lang="lt">ATHENA stiliaus aprašas</comment>
+		<comment xml:lang="lv">ATHENA izklājlapa</comment>
+		<comment xml:lang="ms">Helaian Gaya ATHENA</comment>
+		<comment xml:lang="nb">ATHENA-stilark</comment>
+		<comment xml:lang="nl">ATHENA-stijlblad</comment>
+		<comment xml:lang="nn">ATHENA-stilark</comment>
+		<comment xml:lang="pl">Arkusz stylów ATHENA</comment>
+		<comment xml:lang="pt">Folha de estilos ATHENA</comment>
+		<comment xml:lang="pt_BR">Folha de estilo ATHENA</comment>
+		<comment xml:lang="ro">Fișă de stil ATHENA</comment>
+		<comment xml:lang="ru">таблица стилей ATHENA</comment>
+		<comment xml:lang="sk">Štýl ATHENA</comment>
+		<comment xml:lang="sl">Slogovna predloga ATHENA</comment>
+		<comment xml:lang="sq">Fletë stili ATHENA</comment>
+		<comment xml:lang="sr">Датотека са ATHENA стилом</comment>
+		<comment xml:lang="sv">ATHENA-stilmall</comment>
+		<comment xml:lang="uk">таблиця стилів ATHENA</comment>
+		<comment xml:lang="vi">Tờ kiểu dáng ATHENA</comment>
+		<comment xml:lang="zh_CN">ATHENA 样式表</comment>
+		<comment xml:lang="zh_TW">ATHENA 樣式表</comment>
+		<magic priority="90">
+			<match type="string" value="ATHENA"/><match type="string" value="ATHENA" offset="1:7" offset="1:7"/>
+		</magic>
+		<glob weight="90" pattern="*.ts"/>
+  	<icon name="text-x-athena"/>
+  	<generic-icon name="text-x-athena"/>
+	</mime-type>
+	<mime-type type="text/x-athena.doc">
+		<comment>ATHENA document</comment>
+		<comment xml:lang="ar">مستند ATHENA</comment>
+		<comment xml:lang="be@latin">Dakument ATHENA</comment>
+		<comment xml:lang="bg">Документ — ATHENA</comment>
+		<comment xml:lang="ca">Document ATHENA</comment>
+		<comment xml:lang="cs">Dokument ATHENA</comment>
+		<comment xml:lang="da">ATHENA-dokument</comment>
+		<comment xml:lang="de">ATHENA-Dokument</comment>
+		<comment xml:lang="en_GB">ATHENA document</comment>
+		<comment xml:lang="es">Documento ATHENA</comment>
+		<comment xml:lang="eu">ATHENA dokumentua</comment>
+		<comment xml:lang="fi">ATHENA-asiakirja</comment>
+		<comment xml:lang="fr">Document ATHENA</comment>
+		<comment xml:lang="ga">cáipéis ATHENA</comment>
+		<comment xml:lang="he">מסמך ATHENA</comment>
+		<comment xml:lang="hu">ATHENA dokumentum</comment>
+		<comment xml:lang="id">Dokumen ATHENA</comment>
+		<comment xml:lang="it">Documento ATHENA</comment>
+		<comment xml:lang="ja">ATHENA ドキュメント</comment>
+		<comment xml:lang="kk">ATHENA құжаты</comment>
+		<comment xml:lang="ko">ATHENA 문서</comment>
+		<comment xml:lang="lt">ATHENA dokumentas</comment>
+		<comment xml:lang="lv">ATHENA dokuments</comment>
+		<comment xml:lang="nb">ATHENA-dokument</comment>
+		<comment xml:lang="nl">ATHENA-document</comment>
+		<comment xml:lang="nn">ATHENA-dokument</comment>
+		<comment xml:lang="pl">Dokument ATHENA</comment>
+		<comment xml:lang="pt_BR">Documento ATHENA</comment>
+		<comment xml:lang="ro">Document ATHENA</comment>
+		<comment xml:lang="ru">документ ATHENA</comment>
+		<comment xml:lang="sk">Dokument ATHENA</comment>
+		<comment xml:lang="sl">Dokument ATHENA</comment>
+		<comment xml:lang="sq">Dokument ATHENA</comment>
+		<comment xml:lang="sv">ATHENA-dokument</comment>
+		<comment xml:lang="uk">документ ATHENA</comment>
+		<comment xml:lang="vi">Tài liệu ATHENA</comment>
+		<comment xml:lang="zh_CN">ATHENA 文档</comment>
+		<comment xml:lang="zh_TW">ATHENA 文件</comment>
+		<magic priority="90">
+			<match type="string" value="ATHENA"/><match type="string" value="ATHENA" offset="1:7" offset="1:7"/>
+		</magic> 
+		<glob weight="90" pattern="*.ath"/><glob weight="90" pattern="*.tm"/>
+	  <icon name="text-x-athena"/>
+  	<generic-icon name="text-x-athena"/>
+	</mime-type>
+</mime-info>

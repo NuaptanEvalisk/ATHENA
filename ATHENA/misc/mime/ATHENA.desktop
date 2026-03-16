@@ -1,0 +1,16 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=ATHENA
+GenericName=Advanced Typesetting and Hypertext Environment for Notes and Archives
+Keywords=Notebook Interface;Editor;Computer Algebra System;CAS;LaTeX;TeX;Text;Obsidian;Vault;
+Comment=A structured WYSIWYG scientific editing platform
+MimeType=application/x-athena;text/x-texmacs.doc;text/x-texmacs.sty;text/plain;text/x-tex;
+TryExec=ATHENA
+Exec=ATHENA %f
+Icon=ATHENA
+Hidden=false
+Terminal=false
+Categories=Education;Science;Office;Math;ComputerScience;Physics;NumericalAnalysis;Publishing;
+X-KDE-Priority=TopLevel
+InitialPreference=99
