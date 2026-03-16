@@ -85,9 +85,6 @@
   ;;(-> "Web"
   ;;    ("Create web site" (tmweb-interactive-build))
   ;;    ("Update web site" (tmweb-interactive-update)))
-  (-> "Fonts"
-      ("Scan disk for fonts" (scan-disk-for-fonts))
-      ("Clear font cache" (clear-font-cache)))
   (-> "Equation editor" (link tools-equation-editor-menu))
   (-> "Miscellaneous"
       ("Clear undo history" (clear-undo-history))

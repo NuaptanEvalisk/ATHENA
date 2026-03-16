@@ -197,13 +197,24 @@
                       "5em")))))))))
 
 (tm-widget (general-fonts-preferences-widget)
-  (aligned
-    (item (text "New style fonts:")
-      (toggle (set-boolean-preference "new style fonts" answer)
-              (get-boolean-preference "new style fonts")))
-    (item (text "Advanced font customization:")
-      (toggle (set-boolean-preference "advanced font customization" answer)
-              (get-boolean-preference "advanced font customization")))))
+  (vertical
+    (bold (text "Styling"))
+    ===
+    (aligned
+      (item (text "New style fonts:")
+        (toggle (set-boolean-preference "new style fonts" answer)
+                (get-boolean-preference "new style fonts")))
+      (item (text "Advanced font customization:")
+        (toggle (set-boolean-preference "advanced font customization" answer)
+                (get-boolean-preference "advanced font customization"))))
+    ======
+    (bold (text "Maintenance"))
+    ===
+    (aligned
+      (item (text "Scan for system fonts:")
+        (explicit-buttons ("Scan disk for fonts" (scan-disk-for-fonts))))
+      (item (text "Clear local font cache:")
+        (explicit-buttons ("Clear font cache" (clear-font-cache)))))))
 
 (tm-widget (general-preferences-widget)
   ===
