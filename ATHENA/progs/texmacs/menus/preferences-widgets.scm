@@ -1089,13 +1089,41 @@
         (toggle (set-boolean-preference "use unified toolbar" answer)
                 (get-boolean-preference "use unified toolbar"))))))
 
+(tm-widget (ai-preferences-widget)
+  (vertical
+    (aligned
+      (item (text "AI engine:")
+        (enum (set-preference "ai" answer)
+              '("off" "chatgpt" "gemini" "llama" "open-mistral-7b")
+              (get-preference "ai")
+              "12em"))
+      (item (text "OpenAI API key:")
+        (input (set-preference "openai api key" answer) "string"
+               (list (get-preference "openai api key"))
+               "20em"))
+      (item (text "Gemini API key:")
+        (input (set-preference "gemini api key" answer) "string"
+               (list (get-preference "gemini api key"))
+               "20em"))
+      (item (text "Mistral API key:")
+        (input (set-preference "mistral api key" answer) "string"
+               (list (get-preference "mistral api key"))
+               "20em")))))
+
 (tm-widget (other-preferences-widget)
-  (centered
-    (dynamic (misc-preferences-widget))
-    ======
-    (bold (text "Experimental features (to be used with care)"))
-    ======
-    (dynamic (experimental-preferences-widget))))
+  ===
+  (padded
+    (tabs
+      (tab (text "Misc.")
+        (centered
+          (dynamic (misc-preferences-widget))
+          ======
+          (bold (text "Experimental features (to be used with care)"))
+          ======
+          (dynamic (experimental-preferences-widget))))
+      (tab (text "AI")
+        (centered
+          (dynamic (ai-preferences-widget)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Plugin preferences widget

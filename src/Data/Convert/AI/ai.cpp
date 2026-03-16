@@ -109,9 +109,10 @@ string
 chatgpt_command (string s, string model, string chat) {
   (void) chat;
   (void) model;
+  string key= get_preference ("openai api key", "");
   url u ("$ATHENA_HOME_PATH/system/tmp/chatgpt.txt");
   if (save_string (u, s)) return "";
-  string cmd= "openai -k 5000 complete " * as_string (u);
+  string cmd= "openai -a " * key * " -k 5000 complete " * as_string (u);
   return cmd;
 }
 
@@ -119,7 +120,7 @@ string
 gemini_command (string s, string model, string chat) {
   (void) chat;
   (void) model;
-  string key= get_env ("GEMINI_API_KEY");
+  string key= get_preference ("gemini api key", "");
   string gem= "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
   string cmd= "curl \"" * gem * "\" \\\n";
   cmd << "  -H 'Content-Type: application/json' \\\n"
@@ -152,7 +153,7 @@ llama_command (string s, string model, string chat) {
 string
 mistral_command (string s, string model, string chat) {
   (void) chat;
-  string key= get_env ("MISTRAL_API_KEY");
+  string key= get_preference ("mistral api key", "");
   string cmd= "curl -X POST \\\n";
   cmd << "  -H \"Authorization: Bearer " << key << "\" \\\n"
       << "  -H \"Content-Type: application/json\" \\\n"

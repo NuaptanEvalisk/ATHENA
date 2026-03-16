@@ -75,29 +75,11 @@
       ("Count words" (show-word-count))
       ("Count lines" (show-line-count)))
   ---
-  (-> "AI engine"
-      ("Off" (reset-preference "ai"))
-      ---
-      (when (has-chatgpt?)
-        ("Chat GPT" (set-preference "ai" "chatgpt")))
-      (when (has-gemini?)
-        ("Gemini" (set-preference "ai" "gemini")))
-      (when (has-llama? "llama3")
-        ("Llama 3" (set-preference "ai" "llama3")))
-      (when (has-llama? "llama4")
-        ("Llama 4" (set-preference "ai" "llama4")))
-      (when (has-open-mistral-7b?)
-        ("Mistral 7B" (set-preference "ai" "open-mistral-7b"))))
-  (when (and (cpp-has-preference? "ai")
+  (when (and (!= (get-preference "ai") "off")
              (selection-active-any?))
-    ("Correct" (ai-correct (get-preference "ai")))
-    (-> "Translate"
+    ("AI Correct" (ai-correct (get-preference "ai")))
+    (-> "AI Translate"
         (link ai-translate-menu)))
-  (-> "External AI"
-      (when (selection-active-any?)
-        ("Copy" (ai-copy))
-        ("Cut" (ai-cut)))
-      ("Paste" (ai-paste)))
   ---
   ("Create web site" (open-website-builder))
   ;;(-> "Web"

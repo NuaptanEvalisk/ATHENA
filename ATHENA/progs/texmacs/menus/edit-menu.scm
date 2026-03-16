@@ -71,6 +71,7 @@
       ---
       (when (selection-active-any?)
         (-> "Copy to"
+            ("External AI" (ai-copy))
             (link clipboard-copy-export-menu)
             (if (qt-gui?) ("Image" (clipboard-copy-image "")))
             ---
@@ -80,6 +81,7 @@
             ---
             ("Other" (interactive clipboard-copy)))
         (-> "Cut to"
+            ("External AI" (ai-cut))
             (link clipboard-cut-export-menu)
             ---
             ("Primary" (clipboard-cut "primary"))
@@ -88,6 +90,7 @@
             ---
             ("Other" (interactive clipboard-cut))))
       (-> "Paste from"
+          ("External AI" (ai-paste))
           (link clipboard-paste-import-menu)
           ---
           ("Primary" (clipboard-paste "primary"))

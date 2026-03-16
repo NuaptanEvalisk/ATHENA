@@ -116,10 +116,16 @@
   (and (== (get-preference "markup gui") "on")
        (== (get-preference "developer tool") "on")))
 
-(define-public (has-chatgpt?) #f)
-(define-public (has-gemini?) #f)
-(define-public (has-llama?) #f)
-(define-public (has-mistral-7b?) #f)
+(define-public (has-chatgpt?)
+  (!= (get-preference "openai api key" "") ""))
+
+(define-public (has-gemini?)
+  (!= (get-preference "gemini api key" "") ""))
+
+(define-public (has-llama?) #t)
+
+(define-public (has-mistral-7b?)
+  (!= (get-preference "mistral api key" "") ""))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Mode related
