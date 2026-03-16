@@ -102,7 +102,15 @@
             '("Documents in separate windows"
               "Multiple documents share window")
             (get-pretty-preference "buffer management")
-            "18em"))))
+            "18em"))
+    (item (text "Automatically save:")
+      (enum (set-pretty-preference "autosave" answer)
+            '("5 sec" "30 sec" "120 sec" "300 sec" "Disable")
+            (get-pretty-preference "autosave")
+            "18em"))
+    (item (text "Use case-insensitive search:")
+      (toggle (set-boolean-preference "case-insensitive-match" answer)
+              (get-boolean-preference "case-insensitive-match")))))
 
 (tm-widget (general-appearance-preferences-widget)
   (vertical
@@ -122,7 +130,19 @@
               "18em"))
       (item (text "Show welcome page:")
         (toggle (set-preference "vault welcome page" (if answer "on" "off"))
-                (equal? (get-preference "vault welcome page") "on"))))
+                (equal? (get-preference "vault welcome page") "on")))
+      (item (text "Use multi-tabs:")
+        (toggle (set-boolean-preference "enable tab" answer)
+                (get-boolean-preference "enable tab")))
+      (item (text "Use print dialogue:")
+        (toggle (set-boolean-preference "gui:print dialogue" answer)
+                (get-boolean-preference "gui:print dialogue")))
+      (item (text "Disable window positioning:")
+        (toggle (set-boolean-preference "disable texmacs window positioning" answer)
+                (get-boolean-preference "disable texmacs window positioning")))
+      (item (text "New bibliography dialogue:")
+        (toggle (set-boolean-preference "gui:new bibliography dialogue" answer)
+                (get-boolean-preference "gui:new bibliography dialogue"))))
     (assuming (> (get-retina-scale) 0)
       (vertical
         ===
@@ -205,7 +225,18 @@
             "10em"))
     (item (text "Persistent fit width:")
       (toggle (set-preference "persistent fit width" (if answer "on" "off"))
-              (equal? (get-preference "persistent fit width") "on")))))
+              (equal? (get-preference "persistent fit width") "on")))
+    (item (text "Alpha transparency:")
+      (toggle (set-boolean-preference "experimental alpha" answer)
+              (get-boolean-preference "experimental alpha")))
+    (item (text "New style page breaking:")
+      (toggle (set-boolean-preference "new style page breaking" answer)
+              (get-boolean-preference "new style page breaking")))
+    (item (text "Document updates run:")
+      (enum (set-pretty-preference "document update times" answer)
+            '("Once" "Twice" "Three times")
+            (get-pretty-preference "document update times") 
+            "10em"))))
 
 (tm-widget (rendering-enunciations-preferences-widget)
   (aligned
@@ -935,8 +966,8 @@
       (bold (text "Wallet"))
       ===
       (dynamic (wallet-preferences-widget))
-      ====== ======
-      (bold (text "Encryption"))
+      ======
+      (bold (text "GnuPG Configuration"))
       ===
       (dynamic (gpg-preferences-widget))
       ;;====== ======
@@ -945,27 +976,23 @@
       ;;(dynamic (script-preferences-widget))
       )))
 
-(tm-widget (misc-preferences-widget)
+(tm-widget (security-misc-preferences-widget)
   (aligned
-    (item (text "Automatically save:")
-      (enum (set-pretty-preference "autosave" answer)
-            '("5 sec" "30 sec" "120 sec" "300 sec" "Disable")
-            (get-pretty-preference "autosave")
-            "12em"))
-    (item (text "Security:")
+    (item (text "Script execution:")
       (enum (set-pretty-preference "security" answer)
             '("Accept no scripts" "Prompt on scripts" "Accept all scripts")
             (get-pretty-preference "security")
-            "12em"))
+            "15em"))
+    (item (text "Encryption:")
+      (toggle (set-boolean-preference "experimental encryption" answer)
+              (get-boolean-preference "experimental encryption")))))
+
+(tm-widget (misc-preferences-widget)
+  (aligned
     (item (text "Scripting language:")
       (enum (set-pretty-preference "scripting language" answer)
             (scripts-preferences-list)
             (get-pretty-preference "scripting language")
-            "12em"))
-    (item (text "Document updates run:")
-      (enum (set-pretty-preference "document update times" answer)
-            '("Once" "Twice" "Three times")
-            (get-pretty-preference "document update times") 
             "12em"))
     (assuming (updater-supported?)
       (item (text "Check for automatic updates:")
@@ -979,24 +1006,15 @@
 (tm-widget (experimental-preferences-widget)
   (hlist
     (aligned
-      (meti (hlist // (text "Encryption"))
-        (toggle (set-boolean-preference "experimental encryption" answer)
-                (get-boolean-preference "experimental encryption")))
       (meti (hlist // (text "Fast environments"))
         (toggle (set-boolean-preference "fast environments" answer)
                 (get-boolean-preference "fast environments")))
-      (meti (hlist // (text "Alpha transparency"))
-        (toggle (set-boolean-preference "experimental alpha" answer)
-                (get-boolean-preference "experimental alpha")))
       (meti (hlist // (text "New style fonts"))
         (toggle (set-boolean-preference "new style fonts" answer)
                 (get-boolean-preference "new style fonts")))
       (meti (hlist // (text "Advanced font customization"))
         (toggle (set-boolean-preference "advanced font customization" answer)
                 (get-boolean-preference "advanced font customization")))
-      (meti (hlist // (text "New style page breaking"))
-        (toggle (set-boolean-preference "new style page breaking" answer)
-                (get-boolean-preference "new style page breaking")))
       (assuming (os-macos?)
         (meti (hlist // (text "Use native menubar"))
           (toggle (set-boolean-preference "use native menubar" answer)
@@ -1004,10 +1022,6 @@
     /// ///
     (vlist
       (aligned
-        (meti (hlist // (text "New bibliography dialogue"))
-          (toggle
-           (set-boolean-preference "gui:new bibliography dialogue" answer)
-           (get-boolean-preference "gui:new bibliography dialogue")))
         (meti (hlist // (text "Program bracket matching"))
           (toggle (set-boolean-preference "prog:highlight brackets" answer)
                   (get-boolean-preference "prog:highlight brackets")))
@@ -1017,54 +1031,28 @@
         (meti (hlist // (text "Program bracket selections"))
           (toggle (set-boolean-preference "prog:select brackets" answer)
                   (get-boolean-preference "prog:select brackets")))
-        (meti (hlist // (text "Case-insensitive search"))
-          (toggle (set-boolean-preference "case-insensitive-match" answer)
-                  (get-boolean-preference "case-insensitive-match")))
-        (assuming (qt-gui?)  ; TODO: recode the dialogue in scheme
-          (meti (hlist // (text "Use print dialogue"))
-            (toggle (set-boolean-preference "gui:print dialogue" answer)
-                    (get-boolean-preference "gui:print dialogue"))))
         (assuming (os-macos?)
           (meti (hlist // (text "Use unified toolbars"))
             (toggle (set-boolean-preference "use unified toolbar" answer)
                     (get-boolean-preference "use unified toolbar"))))
-        (meti (hlist // (text "Use multi-tabs"))
-          (toggle (set-boolean-preference "enable tab" answer)
-            (get-boolean-preference "enable tab")))
         (assuming (qt6-or-later-gui?)
           (meti (hlist // (text "Use new toolbar"))
             (toggle (set-boolean-preference "new toolbar" answer)
               (get-boolean-preference "new toolbar"))))
-        (meti (hlist // (text "Disable texmacs window positioning") )
-          (toggle (set-boolean-preference "disable texmacs window positioning" answer)
-            (get-boolean-preference "disable texmacs window positioning")))
       ) ; aligned
       (glue #f #t 0 0))))
 
 (tm-widget (experimental-preferences-widget*)
   (aligned
-    (meti (hlist // (text "Encryption"))
-      (toggle (set-boolean-preference "experimental encryption" answer)
-              (get-boolean-preference "experimental encryption")))
     (meti (hlist // (text "Fast environments"))
       (toggle (set-boolean-preference "fast environments" answer)
               (get-boolean-preference "fast environments")))
-    ;;(meti (hlist // (text "Alpha transparency"))
-    ;;  (toggle (set-boolean-preference "experimental alpha" answer)
-    ;;          (get-boolean-preference "experimental alpha")))
-    ;;(meti (hlist // (text "New style fonts"))
-    ;;  (toggle (set-boolean-preference "new style fonts" answer)
-    ;;          (get-boolean-preference "new style fonts")))
-    ;;(meti (hlist // (text "Advanced font customization"))
-    ;;  (toggle (set-boolean-preference "advanced font customization" answer)
-    ;;          (get-boolean-preference "advanced font customization")))
-    (meti (hlist // (text "New style page breaking"))
-      (toggle (set-boolean-preference "new style page breaking" answer)
-              (get-boolean-preference "new style page breaking")))
-    ;;(meti (hlist // (text "New bibliography dialogue"))
-    ;;  (toggle
-    ;;   (set-boolean-preference "gui:new bibliography dialogue" answer)
-    ;;   (get-boolean-preference "gui:new bibliography dialogue")))
+    (meti (hlist // (text "New style fonts"))
+      (toggle (set-boolean-preference "new style fonts" answer)
+              (get-boolean-preference "new style fonts")))
+    (meti (hlist // (text "Advanced font customization"))
+      (toggle (set-boolean-preference "advanced font customization" answer)
+              (get-boolean-preference "advanced font customization")))
     (meti (hlist // (text "Program bracket matching"))
       (toggle (set-boolean-preference "prog:highlight brackets" answer)
               (get-boolean-preference "prog:highlight brackets")))
@@ -1074,13 +1062,6 @@
     (meti (hlist // (text "Program bracket selections"))
       (toggle (set-boolean-preference "prog:select brackets" answer)
               (get-boolean-preference "prog:select brackets")))
-    ;;(meti (hlist // (text "Case-insensitive search"))
-    ;;  (toggle (set-boolean-preference "case-insensitive-match" answer)
-    ;;          (get-boolean-preference "case-insensitive-match")))
-    (assuming (qt-gui?)  ; TODO: recode the dialogue in scheme
-      (meti (hlist // (text "Use print dialogue"))
-        (toggle (set-boolean-preference "gui:print dialogue" answer)
-                (get-boolean-preference "gui:print dialogue"))))
     (assuming (os-macos?)
       (meti (hlist // (text "Use native menubar"))
         (toggle (set-boolean-preference "use native menubar" answer)
@@ -1123,7 +1104,14 @@
           (dynamic (experimental-preferences-widget))))
       (tab (text "AI")
         (centered
-          (dynamic (ai-preferences-widget)))))))
+          (dynamic (ai-preferences-widget))))
+      (tab (text "Security")
+        (centered
+          (dynamic (security-misc-preferences-widget))
+          ======
+          (bold (text "Advanced Security"))
+          ======
+          (dynamic (security-preferences-widget)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Plugin preferences widget
@@ -1222,10 +1210,6 @@
         (dynamic (rendering-preferences-widget)))
       (icon-tab "tm_prefs_convert.xpm" (text "Convert")
         (dynamic (conversion-preferences-widget)))
-      (assuming (== (get-preference "experimental encryption") "on")
-        (icon-tab "tm_prefs_security.xpm" (text "Security")
-          (centered
-            (dynamic (security-preferences-widget)))))
       (icon-tab "tm_link.svg" (text "Vault")
         (centered
           (dynamic (vault-preferences-widget))))

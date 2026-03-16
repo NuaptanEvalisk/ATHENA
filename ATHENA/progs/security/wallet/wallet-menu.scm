@@ -294,9 +294,10 @@
 
 (tm-widget (wallet-not-supported-preferences-widget)
   (centered
-    (text "Passphrase wallet facilities are not currently available.")
+    (text "Encryption is not currently enabled or")
+    (text "GnuPG is not yet installed on your system.")
     (text "Please install GnuPG software from https://www.gnupg.org/,")
-    (text "and perform casual settings from the \"Encryption\" tab.")))
+    (text "and enable Encryption from the \"Security\" tab.")))
 
 (tm-widget (wallet-initialized-preferences-widget)
   (with cb (lambda (x) (refresh-now "security-preferences-refresher"))
