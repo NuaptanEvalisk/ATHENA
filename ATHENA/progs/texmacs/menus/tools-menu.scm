@@ -46,8 +46,6 @@
 (menu-bind tools-menu
   (-> "Macros"
       (link source-macros-menu))
-  (-> "Keyboard"
-      ("Edit keyboard shortcuts" (open-shortcuts-editor "" "")))
   (-> "Speech"
       ("Off" (reset-preference "speech"))
       ---

@@ -118,14 +118,8 @@
   ("Show panorama" (toggle-panorama-mode))
   ("Show all slides" (toggle-slideshow-mode))
   ("Remote control" (toggle-remote-control-mode))
-  (if (> (get-retina-scale) 0) ;; Retina settings disabled since Qt6
-    (assuming (os-macos?)
-      ("Retina settings" (open-retina-settings)))
-    (assuming (not (os-macos?))
-      ("High resolution settings" (open-retina-settings))))
   ---
-  ("Fit to screen" (fit-to-screen))
-  ("Fit to screen width" (fit-to-screen-width))
+  ("Fit to screen" (fit-to-screen))  ("Fit to screen width" (fit-to-screen-width))
   ("Persistent fit width" (toggle-persistent-fit-width))
   (-> "Labels"
       ("Visible" (set-preference "vault labels mode" "visible"))

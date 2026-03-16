@@ -13,6 +13,7 @@
 
 (texmacs-module (texmacs menus preferences-widgets)
   (:use (texmacs menus preferences-menu)
+        (texmacs menus view-widgets)
         (texmacs texmacs tm-vault)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -74,13 +75,8 @@
   (when (in? (get-preference "gui theme") '("light" "dark" "default"))
     (set-preference "gui theme" "default")))
 
-(tm-widget (general-preferences-widget)
+(tm-widget (general-basic-preferences-widget)
   (aligned
-    (item (text "Look and feel:")
-      (enum (set-pretty-preference* "look and feel" answer)
-            '("Default" "Emacs" "Gnome" "KDE" "Mac OS" "Windows")
-            (get-pretty-preference "look and feel")
-            "18em"))
     (item (text "User interface language:")
       (enum (set-pretty-preference "language" answer)
             (map upcase-first supported-languages)
@@ -106,21 +102,83 @@
             '("Documents in separate windows"
               "Multiple documents share window")
             (get-pretty-preference "buffer management")
-            "18em"))
-    (item (text "User interface theme:")
-      (enum (set-pretty-preference* "gui theme" answer)
-            (if (qt6-or-later-gui?)
-                '("Default" "Bright" "Dark" "")
-                '("Default" "Bright" "Dark" "Native" "Legacy" "")
-            )
-            (get-pretty-preference "gui theme")
-            "18em"))
-    (item (text "Show welcome page:")
-      (toggle (set-preference "vault welcome page" (if answer "on" "off"))
-              (equal? (get-preference "vault welcome page") "on")))
-    (item (text "Persistent fit width:")
-      (toggle (set-preference "persistent fit width" (if answer "on" "off"))
-              (equal? (get-preference "persistent fit width") "on")))))
+            "18em"))))
+
+(tm-widget (general-appearance-preferences-widget)
+  (vertical
+    (aligned
+      (item (text "Look and feel:")
+        (enum (set-pretty-preference* "look and feel" answer)
+              '("Default" "Emacs" "Gnome" "KDE" "Mac OS" "Windows")
+              (get-pretty-preference "look and feel")
+              "18em"))
+      (item (text "User interface theme:")
+        (enum (set-pretty-preference* "gui theme" answer)
+              (if (qt6-or-later-gui?)
+                  '("Default" "Bright" "Dark" "")
+                  '("Default" "Bright" "Dark" "Native" "Legacy" "")
+              )
+              (get-pretty-preference "gui theme")
+              "18em"))
+      (item (text "Show welcome page:")
+        (toggle (set-preference "vault welcome page" (if answer "on" "off"))
+                (equal? (get-preference "vault welcome page") "on"))))
+    (assuming (> (get-retina-scale) 0)
+      (vertical
+        ===
+        (aligned
+          (assuming (and (os-macos?) (qt4-gui?))
+            (item (text "Use retina fonts:")
+              (toggle (set-retina-boolean-preference "retina-factor" answer)
+                      (get-retina-boolean-preference "retina-factor"))))
+          (assuming (and (os-macos?) (qt4-gui?))
+            (item (text "Use retina icons:")
+              (toggle (set-retina-boolean-preference "retina-icons" answer)
+                      (get-retina-boolean-preference "retina-icons"))))
+          (assuming (and (os-macos?) (qt4-gui?))
+            (item (text "Scale graphical interface:")
+              (enum (set-retina-preference "retina-scale" answer)
+                    '("1" "1.2" "1.4" "1.6" "1.8" "2" "")
+                    (get-retina-preference "retina-scale")
+                    "5em")))
+          (assuming (and (os-macos?) (qt5-or-later-gui?))
+            (item (text "Use retina fonts:")
+              (toggle (set-retina-boolean-preference "retina-factor" answer)
+                      (get-retina-boolean-preference "retina-factor"))))
+          (assuming (and (os-macos?) (qt5-or-later-gui?))
+            (assuming (!= (get-preference "gui theme") "")
+              (item (text "Scale graphical interface:")
+                (enum (set-retina-preference "retina-scale" answer)
+                      '("1" "1.2" "1.5" "2" "")
+                      (get-retina-preference "retina-scale")
+                      "5em"))))
+          (assuming (not (os-macos?))
+            (item (text "Double the zoom factor for TeXmacs documents:")
+              (toggle (set-retina-boolean-preference "retina-zoom" answer)
+                      (get-retina-boolean-preference "retina-zoom"))))
+          (assuming (not (os-macos?))
+            (item (text "Use high resolution icons:")
+              (toggle (set-retina-boolean-preference "retina-icons" answer)
+                      (get-retina-boolean-preference "retina-icons"))))
+          (assuming (not (os-macos?))
+            (assuming (!= (get-preference "gui theme") "")
+              (item (text "Scale of the graphical user interface:")
+                (enum (set-retina-preference "retina-scale" answer)
+                      '("1" "1.2" "1.5" "2" "")
+                      (get-retina-preference "retina-scale")
+                      "5em")))))))))
+
+(tm-widget (general-preferences-widget)
+  ===
+  (padded
+    (tabs
+      (tab (text "Basic")
+        (centered
+          (dynamic (general-basic-preferences-widget))))
+      (tab (text "Appearance")
+        (centered
+          (dynamic (general-appearance-preferences-widget))))))
+  ===)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Rendering preferences widget
@@ -144,7 +202,10 @@
       (enum (set-preference "vault labels mode" answer)
             '("visible" "small" "hidden")
             (get-preference "vault labels mode")
-            "10em"))))
+            "10em"))
+    (item (text "Persistent fit width:")
+      (toggle (set-preference "persistent fit width" (if answer "on" "off"))
+              (equal? (get-preference "persistent fit width") "on")))))
 
 (tm-widget (rendering-enunciations-preferences-widget)
   (aligned
@@ -270,39 +331,43 @@
   ("jcuken" "Jcuken")
   ("yawerty" "Yawerty"))
 
-(tm-widget (keyboard-preferences-widget)
-  ======
-  (aligned
-    (item (text "Space bar in text mode:")
-      (enum (set-pretty-preference "text spacebar" answer)
-            '("Default" "No multiple spaces"
-              "Glue multiple spaces" "Allow multiple spaces")
-            (get-pretty-preference "text spacebar")
-            "15em"))
-    (item (text "Space bar in math mode:")
-      (enum (set-pretty-preference "math spacebar" answer)
-            '("Default" "No spurious spaces"
-              "Avoid spurious spaces" "Allow spurious spaces")
-            (get-pretty-preference "math spacebar")
-            "15em"))
-    (item (text "Automatic quotes:")
-      (enum (set-pretty-preference "automatic quotes" answer)
-            '("Default" "Disabled" "Dutch" "English" "French" "German" "Spanish" "Swiss")
-            (get-pretty-preference "automatic quotes")
-            "15em"))
-    (item (text "Automatic brackets:")
-      (enum (set-pretty-preference "automatic brackets" answer)
-            '("Disabled" "Enabled" "Inside mathematics")
-            (get-pretty-preference "automatic brackets")
-            "15em"))
-    (item (text "Cyrillic input method:")
-      (enum (set-pretty-preference "cyrillic input method" answer)
-            '("None" "Translit" "Jcuken" "Yawerty")
-            (get-pretty-preference "cyrillic input method")
-            "15em")))
-  ====== ======
-  (bold (text "Remote controllers with keyboard simulation"))
-  ======
+(tm-widget (keyboard-input-preferences-widget)
+  (vertical
+    (aligned
+      (item (text "Space bar in text mode:")
+        (enum (set-pretty-preference "text spacebar" answer)
+              '("Default" "No multiple spaces"
+                "Glue multiple spaces" "Allow multiple spaces")
+              (get-pretty-preference "text spacebar")
+              "15em"))
+      (item (text "Space bar in math mode:")
+        (enum (set-pretty-preference "math spacebar" answer)
+              '("Default" "No spurious spaces"
+                "Avoid spurious spaces" "Allow spurious spaces")
+              (get-pretty-preference "math spacebar")
+              "15em"))
+      (item (text "Automatic quotes:")
+        (enum (set-pretty-preference "automatic quotes" answer)
+              '("Default" "Disabled" "Dutch" "English" "French" "German" "Spanish" "Swiss")
+              (get-pretty-preference "automatic quotes")
+              "15em"))
+      (item (text "Automatic brackets:")
+        (enum (set-pretty-preference "automatic brackets" answer)
+              '("Disabled" "Enabled" "Inside mathematics")
+              (get-pretty-preference "automatic brackets")
+              "15em"))
+      (item (text "Cyrillic input method:")
+        (enum (set-pretty-preference "cyrillic input method" answer)
+              '("None" "Translit" "Jcuken" "Yawerty")
+              (get-pretty-preference "cyrillic input method")
+              "15em")))
+    ===
+    (hlist
+      (text "Advanced settings:") //
+      (explicit-buttons
+        ("Edit keyboard shortcuts" (open-shortcuts-editor "" ""))))))
+
+(tm-widget (keyboard-remote-preferences-widget)
   (hlist
     (aligned
       (item (text "Left:")
@@ -331,6 +396,18 @@
       (item (text "Menu:")
         (enum (set-preference "ir-menu" answer) '("." "")
               (get-preference "ir-menu") "8em")))))
+
+(tm-widget (keyboard-preferences-widget)
+  ===
+  (padded
+    (tabs
+      (tab (text "Input")
+        (centered
+          (dynamic (keyboard-input-preferences-widget))))
+      (tab (text "Remote Control")
+        (centered
+          (dynamic (keyboard-remote-preferences-widget))))))
+  ===)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Mathematics preferences widget
