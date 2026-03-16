@@ -26,6 +26,7 @@
 #endif
 
 #include "tm_ostream.hpp"
+#include "font.hpp"
 #include "boot.hpp"
 #include "file.hpp"
 #include "server.hpp"
@@ -121,6 +122,7 @@ clean_exit_on_sigterm (int sig_num) {
 ******************************************************************************/
 
 void ATHENA_init_font() {
+  font_database_load ();
 #if defined(QTTEXMACS) && defined(qt_no_fontconfig)
   string default_font_dir = get_env ("ATHENA_PATH") * "/fonts/truetype/stix";
   string current_qt_qpa_fontdir = get_env ("QT_QPA_FONTDIR");

@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "font.hpp"
+#include "message.hpp"
 #include "iterator.hpp"
 #include "file.hpp"
 #include "convert.hpp"
@@ -222,8 +223,10 @@ font_database_load_substitutions (url u) {
 void
 font_database_load () {
   if (fonts_loaded) return;
+  system_wait ("Loading font database", "please wait...");
   font_database_load_database (LOCAL_DATABASE);
   if (N (font_table) == 0) {
+    system_wait ("Scanning system fonts", "this may take a while...");
     font_database_load_database (GLOBAL_DATABASE);
     font_database_filter ();
     font_database_save_database (LOCAL_DATABASE);
@@ -242,6 +245,7 @@ font_database_load () {
   }
   font_database_load_substitutions (GLOBAL_SUBSTITUTIONS);
   fonts_loaded= true;
+  system_wait ("");
 }
 
 void
