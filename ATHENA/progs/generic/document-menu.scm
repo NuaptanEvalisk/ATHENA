@@ -357,9 +357,18 @@
   (if (font-exists-in-tt? "unbatang")
       ("Unbatang" (init-font "unbatang"))))
 
+(tm-define (get-user-preferred-fonts)
+  (let ((p (get-preference "preferred fonts")))
+    (if (== p "") '()
+        (let ((obj (string->object p)))
+          (if (list? obj) obj '())))))
+
 (menu-bind document-short-font-menu
   ("Default" (init-default-font))
   ---
+  (for (f (get-user-preferred-fonts))
+    ((eval f) (init-font f)))
+  (if (nnull? (get-user-preferred-fonts)) ---)
   ("Roman" (init-font "roman" "roman"))
   ("Stix" (init-font "stix" "math-stix"))
   (if (or (font-exists-in-tt? "texgyrebonum-math")

@@ -14,6 +14,7 @@
 (texmacs-module (texmacs menus preferences-widgets)
   (:use (texmacs menus preferences-menu)
         (texmacs menus view-widgets)
+        (fonts font-new-widgets)
         (texmacs texmacs tm-vault)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -196,6 +197,37 @@
                       (get-retina-preference "retina-scale")
                       "5em")))))))))
 
+(tm-define (set-user-preferred-fonts l)
+  (set-preference "preferred fonts" (object->string l)))
+
+(tm-define (add-user-preferred-font)
+  (:interactive #t)
+  (interactive (lambda (fam)
+                 (when (and fam (!= fam ""))
+                   (let* ((cur (get-user-preferred-fonts))
+                          (new (if (in? fam cur) cur (append cur (list fam)))))
+                     (set-user-preferred-fonts new)
+                     (refresh-now "preferred-fonts-list")
+                     (update-menus))))
+               (cons* "Select a font to add" "string" (font-database-families))))
+
+(tm-define (remove-user-preferred-font fam)
+  (let* ((cur (get-user-preferred-fonts))
+         (new (list-filter cur (lambda (x) (!= x fam)))))
+    (set-user-preferred-fonts new)
+    (refresh-now "preferred-fonts-list")
+    (update-menus)))
+
+(tm-menu (preferred-fonts-list-menu)
+  (let ((fonts (get-user-preferred-fonts)))
+    (if (null? fonts)
+        "No preferred fonts added yet."
+        (vlist
+          (for (f fonts)
+            (hlist (text f) >>>
+                   (explicit-buttons
+                     ("Remove" (remove-user-preferred-font f)))))))))
+
 (tm-widget (general-fonts-preferences-widget)
   (vertical
     (bold (text "Styling"))
@@ -207,6 +239,14 @@
       (item (text "Advanced font customization:")
         (toggle (set-boolean-preference "advanced font customization" answer)
                 (get-boolean-preference "advanced font customization"))))
+    ======
+    (bold (text "Preferred fonts"))
+    ===
+    (refreshable "preferred-fonts-list"
+      (dynamic (preferred-fonts-list-menu)))
+    ===
+    (hlist
+      (explicit-buttons ("Add font" (add-user-preferred-font))) >>>)
     ======
     (bold (text "Maintenance"))
     ===
