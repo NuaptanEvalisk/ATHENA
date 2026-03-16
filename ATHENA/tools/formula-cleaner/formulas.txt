@@ -1,0 +1,1019 @@
+\left(\begin{array}{}
+1&0&0&\cdots&0\\-s_1&1&0&\cdots&0\\s_2&-s_1&1&\cdots&0\\\vdots&\vdots&\vdots&&\vdots\\(-1)^{k-1}s_{k-1}&(-1)^{k-2}s_{k-2}&(-1)^{k-3}s_{k-3}&\cdots&1
+\end{array}\right)\left(\begin{array}{c}p_1\\p_2\\p_3\\\vdots\\p_k\end{array}\right)=\left(\begin{array}{c}s_1\\-2s_2\\3s_3\\\vdots\\(-1)^{k+1}s_kk\end{array}\right)
+
+-----
+
+\begin{align}
+p_k&=\frac{\left\vert\begin{array}{}
+1&0&0&\cdots&s_1\\-s_1&1&0&\cdots&-2s_2\\s_2&-s_1&1&\cdots&3s_3\\\vdots&\vdots&\vdots&&\vdots\\(-1)^{k-1}s_{k-1}&(-1)^{k-2}s_{k-2}&(-1)^{k-3}s_{k-3}&\cdots&(-1)^{k+1}s_kk
+\end{array}\right\vert}{\left\vert\begin{array}{}
+1&0&0&\cdots&0\\-s_1&1&0&\cdots&0\\s_2&-s_1&1&\cdots&0\\\vdots&\vdots&\vdots&&\vdots\\(-1)^{k-1}s_{k-1}&(-1)^{k-2}s_{k-2}&(-1)^{k-3}s_{k-3}&\cdots&1
+\end{array}\right\vert}\\
+&={\left\vert\begin{array}{}
+1&0&0&\cdots&s_1\\-s_1&1&0&\cdots&-2s_2\\s_2&-s_1&1&\cdots&3s_3\\\vdots&\vdots&\vdots&&\vdots\\(-1)^{k-1}s_{k-1}&(-1)^{k-2}s_{k-2}&(-1)^{k-3}s_{k-3}&\cdots&(-1)^{k+1}s_kk
+\end{array}\right\vert}\\
+&=(-1)^{k-1}\left\vert\begin{array}{}s_1&1&0&0&\cdots&0\\-2s_2&-s_1&1&0&\cdots&0\\3s_3&s_2&-s_1&1&\cdots&0\\\vdots&\vdots&\vdots&\vdots&&\vdots\\(-1)^{k+1}s_{k}k&(-1)^{k-1}s_{k-1}&(-1)^{k-2}s_{k-2}&(-1)^{k-3}s_{k-3}&\cdots&(-1)s_1\end{array}\right\vert\\
+&=(-1)^{k-1}\left\vert\begin{array}{}s_1&1&0&0&\cdots&0\\2s_2&s_1&1&0&\cdots&0\\3s_3&s_2&s_1&1&\cdots&0\\\vdots&\vdots&\vdots&\vdots&&\vdots\\(-1)^{k+1}s_{k}k&(-1)^{k-1}s_{k-1}&(-1)^{k-1}s_{k-2}&(-1)^{k-3}s_{k-3}&\cdots&(-1)s_1\end{array}\right\vert\\
+\end{align}
+
+-----
+
+x+y=z_1
+
+-----
+
+\begin{align}
+s_k&=\frac{\left\vert\begin{array}{}-1&0&0&\cdots&-p_1\\-p_1&2&0&\cdots&-p_2\\-p_2&p_1&-3&\cdots&-p_3\\\vdots&\vdots&\vdots&&\vdots\\-p_{k-1}&p_{k-2}&-p_{k-3}&\cdots&-p_k\end{array}\right\vert}{\left\vert\begin{array}{}-1&0&0&\cdots&0\\-p_1&2&0&\cdots&0\\-p_2&p_1&-3&\cdots&0\\\vdots&\vdots&\vdots&&\vdots\\-p_{k-1}&p_{k-2}&-p_{k-3}&\cdots&(-1)^kk\end{array}\right\vert}=\frac1{k!(-1)^{1+\cdots+k}}\left\vert\begin{array}{}-1&0&0&\cdots&-p_1\\-p_1&2&0&\cdots&-p_2\\-p_2&p_1&-3&\cdots&-p_3\\\vdots&\vdots&\vdots&&\vdots\\-p_{k-1}&p_{k-2}&-p_{k-3}&\cdots&-p_k\end{array}\right\vert\\&=\frac1{k!}(-1)^{k(k+1)/2}(-1)^{k}\left\vert\begin{array}{}p_1&(-1)^11&0&0&\cdots&0\\p_2&(-1)^1p_1&(-1)^22&0&\cdots&0\\p_3&(-1)^1p_2&(-1)^2p_1&(-1)^3p_3&\cdots&0\\\vdots&\vdots&\vdots&\vdots&&\vdots\\p_k&(-1)^1p_{k-1}&(-1)^2p_{k-2}&(-1)^3p_{k-3}&\cdots&(-1)^{k-1}p_1\end{array}\right\vert\\
+&=\frac1{k!}(-1)^{k^2+k}\left\vert\begin{array}{}p_1&1&0&0&\cdots&0\\p_2&p_1&2&0&\cdots&0\\p_3&p_2&p_1&3&\cdots&0\\\cdots&\cdots&\cdots&\cdots&\cdots&\cdots\\p_{k-1}&p_{k-2}&p_{k-3}&p_{k-4}&\cdots&k-1\\p_k&p_{k-1}&p_{k-2}&p_{k-3}&\cdots&p_1\end{array}\right\vert=\frac1{k!}\text{RHS}
+\end{align}
+
+-----
+
+\begin{align}
+f(x,1)&=g(x,1)\cdot h(x,1)=\sum_{i=0}^n\sum_{j=0}^ng_ih_jx^{i+j}&&\leadsto&&f(x,y)=\sum_{i=0}^n\sum_{j=0}^ng_ih_jx^{i+j}y^{n-(i+j)}
+\end{align}
+
+-----
+
+\varinjlim G_i=\frac{\bigoplus_iG_i}{\left(g_1,g_2-\alpha_1(g_1),g_3-\alpha_2(g_2),\cdots\right)}
+
+-----
+
+\begin{aligned}H^n(X ; G) & =\operatorname{Hom}\left(H_n(X ; G), G\right) \\& =\operatorname{Hom}\left(\varinjlim H_n\left(X_i ; G\right), G\right) \\& =\varinjlim\operatorname{Hom}\left(H_n\left(X_i ; G\right), G\right) \\& =\varinjlim H^n\left(X_i ; G\right)\end{aligned}
+
+-----
+
+\begin{align}
+\tau:C_k(X)&\longrightarrow C_k(\widetilde X)\\ (\sigma:\Delta^k\longrightarrow X)&\longmapsto \sum_{n \text{ distinct lifts}}(\widetilde\sigma:\Delta^k\longrightarrow\widetilde X)
+\end{align}
+
+-----
+
+\boxed{C_n(X;M)=C_n(\widetilde X)\otimes_{\mathbb Z[\pi]}M}
+
+-----
+
+\begin{align}
+(\delta\varphi)(\widetilde e^1)&=\varphi(\partial\widetilde e^1)=\varphi((t-1)\widetilde e^0)\xlongequal{\text{homomorphism}}(t-1)\varphi(\widetilde e^0)\\&\xlongequal{\varphi(\widetilde e^0)=x}(t-1)x=-2x
+\end{align}
+
+-----
+
+\begin{align}
+\overline q: (Y\cup_f CX)\cup_j CY&\longrightarrow \Sigma X\\
+\overline q':((Y\cup_f CX)\cup_jCY)\cup_k C(Y\cup_f CX)&\longrightarrow\Sigma Y
+\end{align}
+
+-----
+
+\begin{align}
+[X,x_0;W,w_0]&\stackrel{f^\ast}\longleftarrow[Y,y_0;W,w_0]\stackrel{j^\ast}\longleftarrow \left[Y\cup_f CX,\ast;W,w_0\right]\stackrel{k'^\ast}\longleftarrow\left[\Sigma X,\ast;W,w_0\right]\\&\stackrel{\Sigma f^\ast}\longleftarrow\left[\Sigma Y,\ast;W,w_0\right]\longleftarrow\cdots
+\end{align}
+
+-----
+
+\begin{align}
+\alpha':Y\cup_f CX&\longrightarrow \Sigma X\vee(Y\cup_f CX)\\ y&\longmapsto(\ast,y)\\ [t,x]&\longmapsto\begin{cases}([2t,x],\ast)&0\leq t\leq\frac12\\\ (\ast,[2t-1,x])&\frac12\leq t\leq 1\end{cases}
+\end{align}
+
+-----
+
+\begin{align}
+\text{d}\pi_*\Big(\phi\cdot f(x,t)\text{d}t\Big)&=\text{d}\left(\phi\int_{-\infty}^{+\infty}f(x,t)\text{d}t\right)=\left(\int_{-\infty}^{+\infty}\sum_i\frac{\partial f(x,t)}{\partial x^i}\text{d}x^i\right)\phi+\text{d}\phi\int_{-\infty}^{+\infty}f(x,t)\text{d}t\\&=\pi_*\left(f(x,t)\text{d}\phi+\phi\sum_i\frac{\partial f(x,t)}{\partial x^i}\text{d}x^i\right)\text{d}t=\pi_*\text{d}\Big(\phi\cdot f(x,t)\text{d}t\Big)
+\end{align}
+
+-----
+
+\begin{align}
+(1-e_*\pi_*)\phi\cdot f\text{d}t=&\phi\cdot f\text{d}t-\phi\left(\int_{-\infty}^{+\infty}f\right)\wedge e\\ (\text{d}K)(\phi\cdot f\text{d}t)=&(\text{d}\phi)\int_{-\infty}^tf+(-1)^{q-1}\phi\left(\int_{-\infty}^t\frac{\partial f}{\partial x}\right)\text{d}x+(-1)^{q-1}\phi\cdot f\text{d}t-(\text{d}\phi)A(t)\int_{-\infty}^{+\infty}f\\&+(-1)^q\phi\left(e\int_{-\infty}^{+\infty}f+A(t)\left(\int_{-\infty}^{+\infty}\frac{\partial f}{\partial x}\right)\text{d}x\right)\\ (K\text{d})(\phi\cdot f\text{d}t)=&K\left((\text{d}\phi)\cdot f\text{d}t+(-1)^{q-1}\phi\frac{\partial f}{\partial x}\text{d}x\text{d}t\right)=(\text{d}\phi)\int_{-\infty}^tf-(\text{d}\phi)A(t)\int_{-\infty}^{+\infty}f\\&+(-1)^{q-1}\left(\phi\left(\int_{-\infty}^t\frac{\partial f}{;pd x}\right)\text{d}x-\phi(A)\left(\int_{-\infty}^{+\infty}\frac{\partial f}{\partial x}\right)\text{d}x\right)
+\end{align}
+
+-----
+
+\int_{U\cap V}\omega\wedge d_*\tau=\int_{U\cap V}\omega(\text{d}\rho_V)\tau=(-1)^{\deg\omega}\int_{U\cap V}(\text{d}\rho_V)\omega\wedge\tau
+
+-----
+
+\begin{align}
+\cdots&\longrightarrow\bigoplus_{p=0}^nH^p(U\cup V)\otimes H^{n-p}(F)\longrightarrow \bigoplus_{p=0}^n\Big(H^p(U)\otimes H^{n-p}(F)\Big)\oplus\Big(H^p(V)\otimes H^{n-p}(F)\Big)\\ &\longrightarrow \bigoplus_{p=0}^n H^p(U\cap V)\otimes H^{n-p}(F)\longrightarrow\cdots
+\end{align}
+
+-----
+
+\begin{align}
+b\left(x,-\frac k2x+y\right)&=1\\
+b\left(-\frac k2x+y,-\frac k2x+y\right)&=\frac{k^2}4b(x,x)-k\cdot b(x,y)+b(y,y)=0
+\end{align}
+
+-----
+
+\left(\begin{array}{}1&-1\\\frac12&\frac12\end{array}\right)^T\left(\begin{array}{}0&1\\1&0\end{array}\right)\left(\begin{array}{}1&-1\\\frac12&\frac12\end{array}\right)=\left(\begin{array}{}1&0\\0&-1\end{array}\right)
+
+-----
+
+\begin{align}
+b\left(y,\tau_{x-y}(u)\right)=b\left(y,u-\frac{2b(u,x-y)}{b(x-y,x-y)}(x-y)\right)=b(y,u)+\frac{0+2b(u,y)}{2q(x)-2b(x,y)}b(y,x-y)=0
+\end{align}
+
+-----
+
+(V,q)\simeq\left<1,\cdots,1,-1,\cdots,-1\right>=\underbrace{\left<1,-1\right>\boxplus\cdots\boxplus\left<1,-1\right>}_m\boxplus\left<\underbrace{-1,\cdots,-1}_n\right>
+
+-----
+
+\begin{align}
+\mathbb 1\equiv\left(\begin{array}{}1&0\\0&1\end{array}\right)&& i\equiv\left(\begin{array}{}\sqrt{-1}&0\\0&-\sqrt{-1}\end{array}\right)&&j\equiv\left(\begin{array}{}0&1\\-1&0\end{array}\right)&&k\equiv\left(\begin{array}{}0&\sqrt{-1}\\\sqrt{-1}&0\end{array}\right)
+\end{align}
+
+-----
+
+\begin{align}
+Su&=\tau_{u+v}\left(u-\frac{-2}{-2}(u-v)\right)=\tau_{u+v}v=v-\frac{2}{2}(u+v)=-u\\
+Sv&=\tau_{u+v}\left(v-\frac{2}{-2}(u-v)\right)=\tau_{u+v}u=u-\frac22(u+v)=-v
+\end{align}
+
+-----
+
+\begin{align}
+\left<\nabla^2E,\varphi\right>&=\left<E,\nabla^2\varphi\right> = \int_{\mathbb R^2}\frac1{2\pi}\ln|x|\nabla^2\varphi\text{d}x\\ &=\lim_{\varepsilon\rightarrow0}\int_{|x|>\varepsilon}\frac1{2\pi}\ln|x|\nabla^2\varphi\text{d}x=:\lim_{\varepsilon\rightarrow0}I_\varepsilon
+\end{align}
+
+-----
+
+\left<\nabla^2E,\varphi\right> = \left<E,\nabla^2\varphi\right> =\int_{\mathbb R^n}E\cdot\nabla^2\varphi\text{d}x=\lim_{\varepsilon\rightarrow0}\int_{|x| >\varepsilon}E\cdot\nabla^2\varphi\text{d}x=:\lim_{\varepsilon\rightarrow0}I_\varepsilon
+
+-----
+
+\begin{align}
+\left<(\nabla^2+k^2)E,\varphi\right>&=\left<E,\nabla^2\varphi\right>+\left<E,k^2\varphi\right> = \left<E,(\nabla^2+k^2)\varphi\right>\\ &=\int_{\mathbb R^3}E(x)(\nabla^2+k^2)\varphi(x)\text{d}x\\&=\lim_{\varepsilon\rightarrow+0}\int_{|x|>\varepsilon}E(x)(\nabla^2+k^2)\varphi(x)\text{d}x=:\lim_{\varepsilon\rightarrow+0}I_\varepsilon
+\end{align}
+
+-----
+
+\begin{align}
+\left<E,\psi\right>&=\int_0^{+\infty}\frac{1}{4\pi a^2t}\int_{S_{at}}\psi(x,t)\text{d}\sigma \text{d}t=\int_0^{+\infty}t\bar\psi(at,t)\text{d}t\\
+\left<\square_a E,\varphi\right>&=\int_0^{+\infty}t\overline{\square_a\varphi}(at,t)\text{d}t=\int_0^{+\infty}t\left( \overline{\varphi_{tt}}-a^2\overline{\varphi}_{rr}-\frac{2a^2}{r}\overline{\varphi_r} \right)_{r=at,t=t}\text{d}t\\&=\int_0^{+\infty}\frac{1}{a^2}\left(\left(\partial_t^2-a^2\partial_r^2\right)\left(ar\bar\varphi(r,t)\right)\right)_{r=at}\text{d}t\\&=\frac1{a^2}\int_0^{+\infty}\frac{\text d}{\text d t}\left[\left(\partial_t-a\partial_r\right)ar\bar\varphi\right]_{(r,t)=:(at,t)}\text{d}t\\&=\frac1{a^2}\Big[G(at,t)\Big]_{t=0}^{t=+\infty}
+\end{align}
+
+-----
+
+\begin{align}
+\left<\square_aE,\varphi\right>&=\left<E,\square_a\varphi\right> = \frac1{2\pi a}\int_0^{+\infty}\text{d}t\int_{|x|\leq at}\frac{\square_a\varphi(x,t)}{\sqrt{a^2t^2-|x|^2}}\text{d}x\\&=\frac1{4\pi a}\int_0^{+\infty}\text{d}t\frac1{at}\left(\int_{y=\sqrt {}}\square_a\tilde\varphi\text{d}\sigma+\int_{_{y=-\sqrt{}}}\square_a\tilde\varphi\text{d}\sigma\right)\\&=\int_0^{+\infty}t\text{d}t\frac{1}{4\pi(at)^2}\int_{\sqrt{|x|^2+z^2}=at}\square_a\tilde\varphi\text{d}\sigma=\tilde\varphi(0,0,0)=\left<\delta,\varphi\right>
+\end{align}
+
+-----
+
+\begin{align}
+\|f\|_p&\geq\sqrt[p]{\int_{x_0-\delta}^{x_0+\delta}|f(x)|^p\text{d}x}\geq\sqrt[p]{\int_{x_0-\delta}^{x_0+\delta}(|f(x_0)|(1-\varepsilon))^p\text{d}x}=(1-\varepsilon)\sqrt[p]{\int_{x_0-\delta}^{x_0+\delta}|f(x_0)|^p\text{d}x}\\&=(1-\varepsilon)\sqrt[p]{2\delta\cdot|f(x_0)|^p}\longrightarrow(1-\varepsilon)|f(x_0)|=(1-\varepsilon)\max|f(x)|
+\end{align}
+
+-----
+
+\begin{align}
+\left(\int_a^bf(x)\text{d}x\right)\left(\int_a^b\frac1{f(x)}\text{d}x\right)&=\left(\int_a^b\left(\sqrt{|f|}\right)^2\text{d}x\right)\left(\int_a^b\left(\frac1{\sqrt{|f|}}\right)^2\text{d}x\right)\\ &\geq\left(\int_a^b1\text{d}x\right)^2=(b-a)^2
+\end{align}
+
+-----
+
+\left\{\begin{align}
+R_\parallel&=\frac{n_2\cos\theta_i-n_1\cos\theta_t}{n_2\cos\theta_i+n_1\cos\theta_t}A_\parallel\\ R_\perp&=\frac{n_1\cos\theta_i-n_2\cos\theta_t}{n_1\cos\theta_i+n_2\cos\theta_t}A_\perp
+\end{align}\right.
+
+-----
+
+\boxed{I_R=\frac{I_0}{1+\frac{(1-\rho)^2}{4\rho\sin^2\Delta\varphi/2}}}
+
+-----
+
+U(\mu_B):=\left\{\mu_x\in\widetilde M:x\in B,\mu_B\longmapsto\mu_x\,\text{naturally.}\right\}
+
+-----
+
+\begin{align}
+H_n(M;R)&\longrightarrow\Gamma_R(M)\\ \alpha&\longmapsto(x\longmapsto \alpha_x)
+\end{align}
+
+-----
+
+\begin{align}
+\text{cycle}\frown\text{cocycle}&=\text{cycle}\\ \text{cycle}\frown\text{coboundary}&=\text{boundary}\\ \text{boundary}\frown\text{cocycle}&=\text{boundary}
+\end{align}
+
+-----
+
+0\rightarrow\mathbb Z\rightarrow  \mathbb Z\oplus \mathbb Z\rightarrow \mathbb Z\rightarrow H_{n-1}(M_1\sharp M_2)\rightarrow H_{n-1}(M_1)\oplus H_{n-1}(M_2)\rightarrow0
+
+-----
+
+J(L)_{r,s}=J(L)\cap \operatorname\bigotimes^{r+1}(L)_s+\operatorname\bigotimes^{\leq r}(L)
+
+-----
+
+\begin{align}
+(1\otimes\delta)(\delta(x))&=(1\otimes\delta)(x\otimes1+1\otimes x)\\&=x\otimes1\otimes1+1\otimes(x\otimes1+1\otimes x)\\&=(x\otimes1+1\otimes x)\otimes1+1\otimes1\otimes x\\&=(\delta\otimes1)(x\otimes1+1\otimes x)\\&=(\delta\otimes1)(\delta(x))\\
+(1\otimes\varepsilon)(\delta(x))&=(1\otimes\varepsilon)(x\otimes1+1\otimes x)\\&=x\otimes1\cong z\cong 1\otimes x\\&=(\varepsilon\otimes1)(x\otimes 1+1\otimes x)\\&=(\varepsilon\otimes1)(\delta(x))
+\end{align}
+
+-----
+
+\begin{align}
+\log(\exp x\exp y)&=\log(1-(1-\exp x\exp y))\\&=\sum_{n>0}(-1)^{n+1}n^{-1}(\exp x\exp y-1)^n\\&=\sum_{n>0}(-1)^{n+1}n^{-1}\left(\sum_{p_i+q_i>0}(p_1!\cdots p_n!q_1!\cdots q_n!)^{-1}x^{p_1}y^{q_1}\cdots x^{p_n}y^{q_n}\right)
+\end{align}
+
+-----
+
+\begin{align}
+\mathscr U(\mathfrak{sl}_2)=\frac{\mathbb F\left<e,f,h\right>}{\left(he-eh-2e,hf-hf+2f,ef-fe-h\right)}
+\end{align}
+
+-----
+
+\begin{align}
+\left(\begin{array}{cc}a&b\\c&d\end{array}\right)\cdot z&=\left(\begin{array}{cc}a&b\\ c&d\end{array}\right)\cdot[1:z]=\left[a+bz:c+dz\right]=\frac{c+dz}{a+bz}\\
+\left(\begin{array}{cc}a&b\\c&d\end{array}\right)\cdot\infty&=\left(\begin{array}{cc}a&b\\c&d\end{array}\right)\cdot[0:1]=[b,d]=\begin{cases}d/b&b\neq0\\ \infty&b=0\end{cases}
+\end{align}
+
+-----
+
+\begin{align}
+I&=\int_0^{\pi/2}\log 2\sin\frac x2\cos\frac x2\text{d}x\\&=\frac\pi2\log2+\int_0^{\pi/2}\log\sin\frac x2\text{d}x+\int_0^{\pi/2}\log\cos\frac x2\text{d}x\\ &=\frac\pi2\log2+2\int_0^{\pi/4}\log\sin x\text{d}x+2\int_0^{\pi/4}\log\cos x\text{d}x\\
+\end{align}
+
+-----
+
+f^{(n)}(0)=\frac{n!}{2\pi\mathbb i}\oint_{\partial\mathbb D}\frac{\text{d}\zeta}{\zeta^{n+2}}=\frac{n!}{2\pi\mathbb i}\int_{0}^{2\pi}e^{-\mathbb i(n+2)t}\mathbb ie^{\mathbb it}\text{d}t=\frac{n!}{2\pi}\frac{e^{-\mathbb i(n+1)t}}{-\mathbb i(n+1)}\Bigg\vert_{t=0}^{t=2\pi}=0
+
+-----
+
+\begin{align}
+\left\vert s(s+1)\right\vert&=\sqrt{t^2+\sigma^2}\sqrt{t^2+(\sigma+1)^2}\\&=\sqrt{T^2-(\sigma-c)^2+\sigma^2}\sqrt{T^2-(\sigma-c)^2+(\sigma+1)^2}\\&=\sqrt{T^2-c^2+2\sigma c}\sqrt{T^2-c^2+1+2\sigma c+2\sigma}\\&\geq\sqrt{T^2+c^2}\sqrt{T^2+(c+1)^2}\geq\frac12T^2
+\end{align}
+
+-----
+
+\begin{align}
+\int_0^1\frac{x^{s-1}}{e^x-1}\text{d}x&=\int_0^1x^{s-2}\cdot\frac x{e^x-1}\text{d}x=\int_0^1\sum_{m=0}^\infty\frac{B_m}{m!}x^{m+s-2}\text{d}x\\ &\xlongequal!\sum_{m=0}^\infty\int_0^1\frac{B_m}{m!}x^{m+s-2}\text{d}x=\sum_{m=0}^\infty\frac{B_m}{m!(m+s-1)}
+\end{align}
+
+-----
+
+\begin{align}
+\sum_{m=0}^\infty\left\vert\frac{B_m}{m!}x^{m+s-2}\right\vert&\leq\sum_{m=0}^\infty C_\varepsilon(2\pi-\varepsilon)^{-m} |x|^{m+\sigma-2}=C_\varepsilon|x|^{\sigma-2}\sum_{m=0}^\infty\frac{|x|^m}{(2\pi-\varepsilon)^m}\\&=C_\varepsilon x^{\sigma-2}\frac1{1-x/(2\pi-\varepsilon)}\leq \underbrace{\frac{2\pi-\varepsilon}{2\pi-\varepsilon-1}C_\varepsilon}_{C_\varepsilon'} x^{\sigma-2}=:g(x)
+\end{align}
+
+-----
+
+\begin{align}
+1&=h_0(x_1,\cdots,x_n,1/f)\left(1-\frac1ff\right)+\sum_{i=1}^mh_i(x_1,\cdots,x_n,1/f)g_i(x_1,\cdots,x_n)\\&=\sum_{i=1}^mh_i(x_1,\cdots,x_n,1/f)g_i(x_1,\cdots,x_n)
+\end{align}
+
+-----
+
+(\mathcal C^\vee)^{\text{op}}=\text{Fct}(\mathcal C,\mathsf{Set})=(\mathcal C^{\text{op}})^\wedge
+
+-----
+
+\begin{align}
+I(P,F\cap G)&=\dim_{\mathbb k}\Big(\mathcal O/(F,G)\Big)\geq\dim_{\mathbb k}\Big(\mathcal O/(I^{m+n},F,G)\Big)\\&\xlongequal{\alpha}\dim_{\mathbb k}\Big(\mathbb k[X,Y]/(I^{m+n},F,G)\Big)\\&\geq \dim_{\mathbb k}\Big(\mathbb k[X,Y]/I^{m+n}\Big)-\dim_{\mathbb k}\Big(\mathbb k[X,Y]/I^n\Big)-\dim_{\mathbb k}\Big(\mathbb k[X,Y]/I^m\Big)
+\end{align}
+
+-----
+
+F=\prod_iF_i^{r_i}\quad\quad G=\prod_jG_j^{s_j}\quad\quad\quad I(P,F\cap G)=\sum_{i,j}r_is_j
+I(P,F_i\cap G_j)
+
+-----
+
+\begin{align}
+&L_1\bullet C=P+Q+S'\quad\quad\quad M_1\bullet C=O+S'+S\quad\quad\quad L_2\bullet C=S+R+T'\\ &M_2\bullet C=Q+R+U'\quad\quad\quad L_3\bullet C=O+U'+U\quad\quad\quad M_3\bullet C=P+U+T''
+\end{align}
+
+-----
+
+\begin{align}
+-\left\vert\begin{array}{}1-\lambda&1&\cdots&1&1\\-\lambda&\lambda&\cdots&0&0\\-\lambda&0&\cdots&0&0\\\vdots&\vdots&&\vdots&\vdots\\-\lambda&0&\cdots&0&\lambda\end{array}\right\vert=-\lambda^{n-1}\left\vert\begin{array}{}2-\lambda&1&\cdots&1&1\\-1&1&\cdots&0&0\\\vdots&\vdots&&\vdots&\vdots\\-1&0&\cdots&1&0\\0&0&\cdots&0&1\end{array}\right\vert=-\lambda^{n-1}(n-\lambda)
+\end{align}
+
+-----
+
+\left(\begin{array}{}Q^T\\&1\end{array}\right)\left(\begin{array}{ccc|c}a_{11}&\cdots&a_{1n}&x_1\\\vdots&&\vdots&\vdots\\a_{n1}&\cdots&a_{nn}&x_n\\ \hline x_1&\cdots&x_n&0\end{array}\right)\left(\begin{array}{}Q\\&1\end{array}\right)=\left(\begin{array}{}Q^T\\&1\end{array}\right)\left(\begin{array}{}&&&x_1\\&AQ&&\vdots\\&&&x_n\\&x^TQ&&0\end{array}\right)=\left(\begin{array}{}Q^TAQ&Q^Tx\\x^TQ&0\end{array}\right)=\left(\begin{array}{}
+1&&&y_1\\
+&\ddots&&\vdots\\
+&&1&y_n\\y_1&\cdots&y_n&0
+\end{array}\right)
+
+-----
+
+\left(\begin{array}{}
+1&&&y_1\\
+&\ddots&&\vdots\\
+&&1&y_n\\y_1&\cdots&y_n&0
+\end{array}\right)\longmapsto\left(\begin{array}{}
+1&&&0\\&\ddots&&\vdots\\&&1&0\\y_1&\cdots&y_n&-y_1^2-\cdots-y_n^2
+\end{array}\right)\longmapsto-y_1^2-\cdots-y_n^2
+
+-----
+
+L_K\left(\widetilde{A_n}\right)\simeq L_K\left(\widetilde{A_n}\right)w\oplus\left(\bigoplus_{i\in\mathbb N}L_K\left(\widetilde{A_n}\right)v_i\right)\simeq \bigoplus_{i\in\mathbb N}\left(L_K\left(\widetilde{A_n}\right)v_i\right)^{\oplus2}
+
+-----
+
+\begin{align}
+\text{Aut}: \mathcal{Grp}&\longrightarrow\mathcal{Grp}\\ G&\longmapsto \text{Aut}(G)\\ \phi&\longmapsto\text{Ad}_\phi
+\end{align}
+
+-----
+
+\Delta_n(x)=\begin{cases}
+\frac{\cos^{2n}(x)}{\int_{-\pi/2}^{+\pi/2}\cos^{2n}(x)\text{d}x}&|x|\leq\frac\pi2\\ 0&|x|>\frac\pi2
+\end{cases}
+
+-----
+
+\begin{align}
+(F\ast\Delta_n)(x)&=\int_{-\infty}^{+\infty}F(y)\Delta_n(x-y)\text{d}y\\ &= \int_{0}^{2\pi}F(y)\frac{\cos^{2n}(x-y)}{\int_{-\pi/2}^{+\pi/2}\cos^{2n}(z)\text{d}z}\text{d}y
+\end{align}
+
+-----
+
+H_n(\mathbb R^n,\mathbb R^n\setminus0)\cong H_{n-1}(\mathbb R^n\setminus0)\cong\mathbb Z
+
+-----
+
+\begin{align}
+\det\exp X&=\det\sum\frac1{k!}X^k=\det\sum\frac1{k!}\left(\begin{array}{}\lambda_1^k&&*\\&\ddots\\&&\lambda_n^k\end{array}\right)=\det\left(\begin{array}{}e^{\lambda_1}&&*\\&\ddots\\&&e^{\lambda_n}\end{array}\right)=\exp\sum\lambda_i=\exp\text{Tr }X
+\end{align}
+
+-----
+
+\begin{align}
+\mathrm\det_{*,A}AX=\frac{\text{d}}{\text{d}t}\Bigg\vert_{t=0}\det A\det\exp tX=\det A\text{ Tr}(X)
+\end{align}
+
+-----
+
+\left\{\begin{align}
+K_{21}-K_{21}^T&=B_{11}\quad\quad\quad \text{skew-symmetric}\\
+K_{22}+K_{11}^T&=B_{12}\quad\quad\quad \text{arbitrary matrix}\\
+K_{12}^T-K_{12}&=B_{22}\quad\quad\quad \text{skew-symmetric}
+\end{align}\right.
+
+-----
+
+F_{*,A}(H)=\frac{\text{d}}{\text{d}t}\Bigg\vert_{t=0}\Big((A+tH)^TJ(A+tH)-A^TJA\Big)=H^TJA+A^TJH=(A^{-1}H)^TJ+J(A^{-1}H)
+
+-----
+
+\begin{align}
+&\left(
+\begin{array}{ccc}
+ 0 & a_1 & a_2 \\
+ -a_1 & 0 & a_3 \\
+ -a_2 & -a_3 & 0 \\
+\end{array}
+\right).\left(
+\begin{array}{ccc}
+ 0 & b_1 & b_2 \\
+ -b_1 & 0 & b_3 \\
+ -b_2 & -b_3 & 0 \\
+\end{array}
+\right)-\left(
+\begin{array}{ccc}
+ 0 & b_1 & b_2 \\
+ -b_1 & 0 & b_3 \\
+ -b_2 & -b_3 & 0 \\
+\end{array}
+\right).\left(
+\begin{array}{ccc}
+ 0 & a_1 & a_2 \\
+ -a_1 & 0 & a_3 \\
+ -a_2 & -a_3 & 0 \\
+\end{array}
+\right)\\=&\left(
+\begin{array}{ccc}
+ 0 & a_3 b_2-a_2 b_3 & a_1
+   b_3-a_3 b_1 \\
+ a_2 b_3-a_3 b_2 & 0 & a_2
+   b_1-a_1 b_2 \\
+ a_3 b_1-a_1 b_3 & a_1 b_2-a_2
+   b_1 & 0 \\
+\end{array}
+\right)\longmapsto\left(\begin{array}{c}a_3b_2-a_2b_3\\ a_1b_3-a_3b_1\\ a_2b_1-a_1b_2\end{array}\right)
+\end{align}
+
+-----
+
+\begin{align}
+\Delta t_1&=\frac{\frac14T+(v/c^2)\cdot A}{\sqrt{1-(v/c)^2}}=\sqrt{\frac m{k(c^2-v^2)}}\left(\frac\pi2c+\frac{uv}c\right)\\
+\Delta t_2&=\frac{\frac12T}{\sqrt{1-(v/c)^2}}=\sqrt{\frac m{k(c^2-v^2)}}\cdot\pi c
+\end{align}
+
+-----
+
+\Phi(t)=\iint \vec B\cdot\text{d}\vec S=\int_{-a}^{a}\frac{\mu_0I}{2\pi \sqrt{a^2+b^2+2ab\cos\theta}}\frac{b\cos\theta+a}{\sqrt{a^2+b^2+2ab\cos\theta}}2a\text{d}x=\frac{\mu_0Ia}{2\pi}\ln\frac{a^2+b^2+2ab\cos\omega t}{a^2+b^2-2ab\cos\omega t}
+
+-----
+
+\left(\frac{\text{d}}{\text{d}t}\Bigg\vert_{t=t_0}\omega_t\right)_p=\sum \frac{\partial b_J}{\partial t}(t_0,p)\text{d}x^J\Bigg\vert_p
+
+-----
+
+\begin{align}
+\varphi_{-t,*}\Big(Y_{\varphi_t(p)}\Big)=\sum_j b^j\Big(\varphi(t,p)\Big)\varphi_{-t,*}\left(\frac\partial{\partial x^j}\Bigg\vert_{\varphi_t(p)}\right)=\sum b^j\Big(\varphi(t,p)\Big)\frac{\partial\varphi^i}{\partial x^j}(-t,p)\frac{\partial}{\partial x^i}\Bigg\vert_p
+\end{align}
+
+-----
+
+\begin{align}
+\left(\mathcal L_XY\right)_p&=\sum\frac\partial{\partial t}\Bigg\vert_{t=0}\left(b^j\Big(\varphi(t,p)\Big)\frac{\partial\varphi^i}{\partial x^j}(-t,p)\right)\frac{\partial}{\partial x^i}\Bigg\vert_p\\&=\left[
+\sum\left(\frac{\partial b^j}{\partial x^k}(\varphi(t,p))\frac{\partial \varphi^k}{\partial t}(t,p)\frac{\partial\varphi^i}{\partial x^j}(-t,p)\right)\frac\partial{\partial x^i}-\sum\left(b^j(\varphi(t,p))\frac\partial{\partial x^j}\frac{\partial\varphi^i}{\partial t}(-t,p)\right)\frac\partial{\partial x^i}
+\right]_{i=0}\\&=\sum\left(\frac{\partial b^j}{\partial x^k}(p)a^k(p)\frac{\partial \varphi^i}{\partial x^j}(0,p)\right)\frac\partial{\partial x^i}-\sum\left(b^j(p)\frac{\partial a^i}{\partial x^j}(p)\right)\frac\partial{\partial x^i}\\ &\xlongequal{\varphi_0=\text{id}}\sum\left(a^k\frac{\partial b^i}{\partial x^k}(p)-b^k\frac{\partial a^i}{\partial x^k}(p)\right)\frac\partial{\partial x^i}=[X,Y]_p
+\end{align}
+
+-----
+
+\begin{align}
+\Big(\mathcal L_X(\omega\wedge\tau)\Big)_p&=\frac{\text d}{\text d t}\Bigg\vert_{t=0}\Big(\varphi_t^*(\omega\wedge\tau)\Big)_p=\frac{\text d}{\text d t}\Bigg\vert_{t=0}\Big(\varphi_t^*\omega\Big)_p\wedge\Big(\varphi_t^*\tau\Big)_p=\left(\frac{\text d}{\text d t}\Bigg\vert_{t=0}(\varphi_t^*\omega)_p\right)\wedge\tau_p+\omega_p\wedge\left(\frac{\text d}{\text d t}\Bigg\vert_{t=0}\varphi_t^*\tau\right)_p\\&=(\mathcal L_X\omega)_p\wedge\tau_p+\omega_p\wedge(\mathcal L_X\tau)_p
+\end{align}
+
+-----
+
+\begin{align}
+\Big(\iota_v\left(\alpha^1\wedge\cdots\wedge\alpha^k\right)\Big)(v_2,\cdots,v_k)&=\Big(\alpha^1\wedge\cdots\wedge\alpha^k\Big)(v,v_2,\cdots,v_k)=\left\vert\begin{array}{}\alpha^1(v)&\cdots&\alpha^1(v_k)\\\vdots&&\vdots\\\alpha^k(v)&\cdots&\alpha^k(v_k)\end{array}\right\vert\\&=\sum_i(-1)^{i+1}\alpha^i(v)\det A_i=\text{RHS}
+\end{align}
+
+-----
+
+\begin{align}
+(\text{d}\omega)(Y_0,\cdots,Y_k)&=(\iota_{Y_0}\text{d}\omega)(Y_1,\cdots,Y_k)\xlongequal{\text{CHF}}(\mathcal L_{Y_0}\omega)(Y_1,\cdots,Y_k)-(\text{d}\iota_{Y_0}\omega)(Y_1,\cdots,Y_k)\\ &=Y_0\circ\omega(Y_1,\cdots,Y_k)-\sum_{i=1}^k\omega(Y_1,\cdots,[X,Y_i],\cdots,Y_k)-\sum_{i=1}^k(-1)^iY_i\omega(Y_0,\cdots,\overline{Y_i},\cdots,Y_k)\\ &-\sum_{1\leq i<j\leq k}(-1)^{i+j}\omega\Big(Y_0,[Y_i,Y_j],Y_1,\cdots,\overline{Y_i},\cdots,\overline{{Y_j}},\cdots,Y_k\Big)=\text{RHS}
+\end{align}
+
+-----
+
+S=\left\{\begin{align}(av_1+v_2,w)-a(v_1,w)-(v_2,w)\\(v,aw_1+w_2)-a(v,w_1)-(v,w_2)\end{align}:a\in F, v_1,v_2,v\in V,w_1,w_2,w\in W\right\}
+
+-----
+
+\begin{align}
+(\phi\circ\psi)\Big((v_1\otimes w)\oplus(v_2\otimes w)\Big)&=\phi\Big((v_1\oplus v_2)\otimes w\Big)=(v_1\otimes w)\oplus(v_2\otimes w)\\
+(\psi\circ\phi)\Big((v_1\oplus v_2)\otimes w\Big)&=\psi\Big((v_1\otimes w)\oplus(v_2\otimes w)\Big)=(v_1\oplus v_2)\otimes w
+\end{align}
+
+-----
+
+\bigg(\Big(v,(w,z)\Big)\longmapsto v^*(v)\cdot \Big(w^*(w)\cdot z^*(z)\Big)\bigg)\stackrel{\varphi}{\longmapsto}\bigg(\Big((v,w),z)\Big)\longmapsto \Big(v^*(v)\cdot w^*(w)\Big)\cdot z^*(z)\bigg)
+
+-----
+
+\begin{align}
+x&=\overline x_{k_1,\cdots,k_s}^{i_1,\cdots,i_r} \overline e_{i_1}\otimes\cdots\otimes \overline e_{j_r}\otimes\overline e^{*l_1}\otimes\cdots\otimes\overline  e^{*l_s}\\&=\overline x_{k_1,\cdots,k_s}^{i_1,\cdots,i_r} \alpha_{i_1}^{j_1}e_{j_1}\otimes\cdots\otimes\beta_{l_s}^{k_s}e^{*l_s}=\overline x_{k_1,\cdots,k_s}^{i_1,\cdots,i_r} \alpha_{i_1}^{j_1}\cdots\alpha_{i_r}^{j_r}\beta_{l_1}^{k_1}\cdots\beta_{l_s}^{k_s}e_{j_1}\otimes\cdots\otimes e^{*l_s}
+\end{align}
+
+-----
+
+v_1\otimes\cdots\otimes v_p=(-1)^{\text{sgn }\sigma}\sigma\left(v_1\otimes\cdots\otimes v_p\right)=\frac1{p!}\sum_{\sigma\in S_p}(-1)^{\text{sgn }\sigma}\sigma\left(v_1\otimes\cdots\otimes v_p\right)=A_p(v_1\otimes\cdots\otimes v_p)=\alpha\Big(\pi(v_1\otimes\cdots\otimes v_p)\Big)
+
+-----
+
+\psi(f_1\wedge\cdots\wedge f_p)(v_1\wedge\cdots\wedge v_p)=\left\vert\begin{array}{}
+f_1(v_1)&\cdots&f_1(v_p)\\\vdots&&\vdots\\f_p(v_1)&\cdots&f_p(v_p)
+\end{array}\right\vert
+
+-----
+
+S(f,g)=\left(\begin{array}{}a_n&a_{n-1}&a_{n-2}&\cdots&a_0&0&0&\cdots&0\\0&a_n&a_{n-1}&\cdots&a_1&a_0&0&\cdots&0\\\vdots&\vdots&\vdots&&\vdots&\vdots&\vdots&&\vdots\\
+0&0&0&\cdots&a_n&a_{n-1}&a_{n-2}&\cdots&a_0\\
+b_m&b_{m-1}&b_{m-2}&\cdots&b_0&0&0&\cdots&0\\
+0&b_m&b_{m-1}&\cdots&b_1&b_0&0&\cdots&0\\
+\vdots&\vdots&\vdots&&\vdots&\vdots&\vdots&&\vdots\\
+0&0&0&\cdots&b_m&b_{m-1}&b_{m-2}&\cdots&b_0
+\end{array}\right)\in M_{m+n}(F)
+
+-----
+
+\begin{align}
+&\left(\begin{array}{}-3\\&-3\\&&2\\&&&2\\&&&&2\end{array}\right)\quad\quad\left(\begin{array}{}-3&1\\&-3\\&&2\\&&&2\\&&&&2\end{array}\right)\quad\quad\left(\begin{array}{}-3\\&-3\\&&2\\&&&2&1\\&&&&2\end{array}\right)\quad\quad\left(\begin{array}{}-3\\&-3\\&&2&1\\&&&2&1\\&&&&2\end{array}\right)\\
+&\left(\begin{array}{}-3&1\\&-3\\&&2\\&&&2&1\\&&&&2\end{array}\right)\quad\quad\left(\begin{array}{}-3&1\\&-3\\&&2&1\\&&&2&1\\&&&&2\end{array}\right)
+\end{align}
+
+-----
+
+s_k=\frac1{k!}\left\vert\begin{array}{}p_1&1&0&0&\cdots&0\\p_2&p_1&2&0&\cdots&0\\p_3&p_2&p_1&3&\cdots&0\\\cdots&\cdots&\cdots&\cdots&\cdots&\cdots\\p_{k-1}&p_{k-2}&p_{k-3}&p_{k-4}&\cdots&k-1\\p_k&p_{k-1}&p_{k-2}&p_{k-3}&\cdots&p_1\end{array}\right\vert
+
+-----
+
+\begin{align}
+r_3&=-\frac{8}{3}-\frac{1}{6} \left(1+i \sqrt{3}\right)
+   \sqrt[3]{\frac{1253}{2}-\frac{9
+   \sqrt{18857}}{2}}-\frac{1}{6} \left(1-i \sqrt{3}\right)
+   \sqrt[3]{\frac{1}{2} \left(1253+9 \sqrt{18857}\right)}\\
+r_4&=-\frac{8}{3}-\frac{1}{6} \left(1-i \sqrt{3}\right)
+   \sqrt[3]{\frac{1253}{2}-\frac{9
+   \sqrt{18857}}{2}}-\frac{1}{6} \left(1+i \sqrt{3}\right)
+   \sqrt[3]{\frac{1}{2} \left(1253+9 \sqrt{18857}\right)}
+\end{align}
+
+-----
+
+\begin{align}
+h(f_c,f_d)+h(f_d,f_c)&=h(x^c-x^5,x^d-x^5)+h(x^d-x^5,x^c-x^5)\\&=h(x^c,x^d)+h(x^d,x^c)-h(x^5,x^d)-h(x^c,x^5)+2h(x^5,x^5)-h(x^5,x^c)-h(x^d,x^5)\\&=\frac {d+c}{c+d}-\frac{d}{5+d}-\frac 5{5+c}+2\cdot\frac12-\frac c{5+c}-\frac 5{5+d}=0
+\end{align}
+
+-----
+
+GW=\det\left(\sum_{\rho=0}^{l-1}\Delta_\mu\frac1{\nu!}\left(\frac\partial{\partial x_p}\right)^\nu\phi_\rho(x_p)\psi_\rho(x_1,\cdots,x_{p-1})\right)=\det\left(\Delta_\mu\frac1{\nu!}\left(\frac\partial{\partial x_p}\right)^\nu R\right)=F
+
+-----
+
+\sum_{\nu=0}^{l-1}\max\left(0,\theta-\frac\nu{r_p}\right)=\frac1{r_p}\sum_{0\leq\nu\leq\theta r_p}(\theta r_p-\nu)\geq \frac{1}2r_p\theta^2>\frac13r_p\theta^2
+
+-----
+
+\begin{align}
+\sum_{k=-r/2}^{r/2}\frac1{\lambda+2\frac kr}&=\frac1\lambda+\sum_{k=1}^{r/2}\left(\frac1{\lambda+2\frac kr}+\frac1{\lambda-2\frac kr}\right)=\frac1\lambda+\sum_{k=1}^{r/2}\frac{2\lambda}{\lambda^2-4\frac{k^2}{r^2}}\\&\leq\frac1\lambda+\sum_{k=1}^{r/2}\frac{2\lambda}{\lambda^2-1}=\frac{\lambda^2-1}{\lambda(\lambda^2-1)}+\frac{\lambda^2 r}{(\lambda^2-1)\lambda}\\&\leq\frac{r+1}{\lambda\left(1-\frac1{\lambda^2}\right)}<\frac{r+1}{\lambda\left(1-\frac1{4m}\right)}<\frac{r+1}\lambda\sqrt{\frac1{1-\frac1m}}=\frac{r+1}\lambda\sqrt{\frac m{m-1}}
+\end{align}
+
+-----
+
+Q\left(\frac{h_1}{q_1},\cdots,\frac{h_m}{q_m}\right)=\sum_{i_1=0}^{r_1}\cdots\sum_{i_m=0}^{r_m}Q_{i_1,\cdots,i_m}(\alpha,\cdots,\alpha)\prod_{k=1}^m\left(\frac{h_k}{q_k}-\alpha\right)^{i_k}\tag{21}
+
+-----
+
+\begin{align}
+\log_p^{\mathbb Z}(p^e)^{p^e-3}\sum_{i=1}^{p^e-1}\sum_{j=i+1}^{p^e-1}(p^e-i)(p^e-j)&=e(p^e-2)\\
+\log_p^{\mathbb Z}(p^e)^{p^e-4}\sum_{i=1}^{p^e-1}\sum_{j=i+1}^{p^e-1}\sum_{k=j+1}^{p^e-1}(p^e-i)(p^e-j)(p^e-k)&=e(p^e-3)\\
+\cdots&=\cdots\\
+\log_p^{\mathbb Z}(p^e)^{1}\sum_{i=1}^{p^e-1}\prod_{1\leq j\leq p^e-1,j\neq i}(p^e-j)&=e\cdot2\\
+\log_p^{\mathbb Z}\prod_{i=1}^{p^e-1}(p^e-i)=e\cdot 1
+\end{align}
+
+-----
+
+\left(\sum_{i=0}^Nc_ip^i\equiv 0\mod p^r\right)\iff\left(\sum_{i=0}^{r-1}c_ip^i\equiv0\mod p^r\right)\iff\left(\bigwedge_{i=0}^{r-1}\left(\sum_{k=0}^{i}\frac{c_k}{p^{i-k}}\equiv0\mod p\right)\right)
+
+-----
+
+\log_p^{\mathbb Z}\left(C_0(p^e)^{p^e-1}+C_1(p^e)^{p^e-2}\sum_{i=1}^{p^e-1}(p^e-i)+C_2(p^e)^{p^e-3}\sum_{i=1}^{p^e-1}\sum_{j=i+1}^{p^e-1}(p^e-i)(p^e-j)+\cdots+C_{p^e-2}(p^e)^1\sum_{i=1}^{p^e-1}\prod_{1\leq j\leq p^e-1,j\neq i}(p^e-j)\right)>\log_p^{\mathbb Z}\prod_{i=1}^{p^e-1}(p^e-i)
+
+-----
+
+\begin{align}
+A&=a^4 l^2 \left(b^2+c^2\right)+a^2 \left(b^4 m^2-2 b^2 c^2 l^2+c^4 n^2\right)-b^2 c^2 \left(b^2 m^2+c^2
+   n^2\right)+R\\
+   B&=a^4 l^2 (b-c) (b+c)+a^2 \left(b^2 m^2 \left(b^2-2 c^2\right)-c^4 n^2\right)+b^4 c^2 m^2+b^2 c^4
+   n^2+R\\
+   C&=a^4 l^2 \left(c^2-b^2\right)+a^2 \left(b^4 \left(-m^2\right)-2 b^2 c^2 n^2+c^4 n^2\right)+b^4 c^2 m^2+b^2 c^4n^2+R\\
+A'&=-\left(a^4 l^2 \left(b^2+c^2\right)\right)-a^2 \left(b^4 m^2-2 b^2 c^2 l^2+c^4 n^2\right)+b^4 c^2 m^2+b^2 c^4 n^2+R\\
+B'&=a^4 l^2 \left(c^2-b^2\right)+a^2 \left(c^4 n^2-b^2 m^2 \left(b^2-2 c^2\right)\right)-b^2 c^2 \left(b^2 m^2+c^2 n^2\right)+R\\C'&=a^4 l^2 (b-c) (b+c)+a^2 \left(b^4 m^2-c^2 n^2 \left(c^2-2 b^2\right)\right)-b^2 c^2 \left(b^2 m^2+c^2 n^2\right)+R\\
+   R&=\sqrt{\left(a^4 l^2 (b-c) (b+c)+b^4 m^2
+   (a-c) (a+c)\right)^2+c^8 n^4 \left(a^2-b^2\right)^2-2 c^4 n^2 (a-b) (a+b) \left(a^4 l^2 (b-c) (b+c)+b^4 m^2 \left(c^2-a^2\right)\right)}
+\end{align}
+
+-----
+
+f=\frac{x^2/a^2+y^2/b^2+z^2/c^2}{x^2+y^2+z^2}=\frac{\frac{l^2}{\left(\frac{1}{a^2}-\lambda \right)^2}+\frac{m^2}{\left(\frac{1}{b^2}-\lambda \right)^2}+\frac{n^2}{\left(\frac{1}{c^2}-\lambda \right)^2}}{\frac{a^2
+   l^2}{\left(\frac{1}{a^2}-\lambda \right)^2}+\frac{b^2 m^2}{\left(\frac{1}{b^2}-\lambda \right)^2}+\frac{c^2 n^2}{\left(\frac{1}{c^2}-\lambda \right)^2}}=\frac{\frac{l^2}{\left(\frac{1}{a^2}-\lambda \right)^2}+\frac{m^2}{\left(\frac{1}{b^2}-\lambda \right)^2}+\frac{n^2}{\left(\frac{1}{c^2}-\lambda \right)^2}}{\frac{a^6
+   l^2}{\left(a^2 \lambda -1\right)^2}+\frac{b^6 m^2}{\left(b^2 \lambda -1\right)^2}+\frac{c^6 n^2}{\left(c^2 \lambda -1\right)^2}}
+
+-----
+
+ \frac{l^2}{a^2 (-\lambda )-2 \lambda  \left(x^2+y^2+z^2\right)+1}+\frac{m^2}{b^2
+    (-\lambda )-2 \lambda  \left(x^2+y^2+z^2\right)+1}+\frac{n^2}{c^2 (-\lambda )-2 \lambda
+    \left(x^2+y^2+z^2\right)+1}=0
+
+-----
+
+\begin{align}
+\int\frac{\text{d}x}{2\cos^2x+\sin x\cos x+\sin^2x}&=\int\frac{(1+\tan^2x)\cdot\text{d}x}{\tan^2x+\tan x+2}\xlongequal{u=\tan x}\int\frac{\text{d}u}{u^2+u+2}\xlongequal{v=u+\frac12}\int\frac{\text{d}v}{v^2+\frac74}\\&=\frac2{\sqrt7}\arctan\frac{2u+1}{\sqrt 7}+C=\frac2{\sqrt7}\arctan\frac{2\tan x+1}{\sqrt 7}+C
+\end{align}
+
+-----
+
+\begin{align}
+\int\frac{\text{d}x}{\sqrt[3]{(x+1)^3(x-1)^4}}&=\int\frac{\text{d}x}{(x+1)(x-1)^{4/3}}\xlongequal{u=(x-1)^{-1/3}}-3\int\frac{u^3\text{d}u}{1+2u^3}=-\frac32u+\frac32\int\frac{\text{d}u}{2u^3+1}\\&=-\frac32u+\frac32\frac1{\sqrt[3]2}\int\frac{\text{d}v}{v^3+1}\\&=-\frac32\frac1{(x-1)^3}+\frac1{2^{4/3}}\ln\left(\sqrt[3]{\frac2{x-1}}+1\right)-\frac1{2^{7/3}}\ln\left(1-\sqrt[3]{\frac2{x-1}}+\sqrt[3]{\frac 4{(x-1)^2}}\right)\\&+\frac{\sqrt3}{2^{4/3}}\arctan\frac{2}{\sqrt3}\left(-\frac12+\sqrt[3]{\frac2{x-1}}\right)+C
+\end{align}
+
+-----
+
+\begin{align}
+\int\frac{\text{d}x}{1+\sqrt x+\sqrt{x+1}}&=\int\frac{(\sqrt x+1-\sqrt{x+1})}{2\sqrt x}\cdot\text{d}x=\frac12x+\sqrt x-\frac12\int\sqrt{\frac{x+1}x}\cdot\text{d}x\\&=\frac12x+\sqrt x-\int\sqrt{x+1}\cdot\text{d}\sqrt x=\frac12x+\sqrt x-\frac12\sqrt x\sqrt{1+x}-\frac12\ln\left(\sqrt{1+x}-\sqrt x\right)+C
+\end{align}
+
+-----
+
+\begin{align}
+\int\frac{\sqrt{x^2+2x+2}}x\cdot\text{d}x&\xlongequal{u=x+1}\int\frac{\sqrt{u^2+1}}{u-1}\cdot\text{d}u=\frac12\int\frac{(t^2+1)^2}{t^2(t^2+2t-1)}\cdot\text{d}t=\frac12\int\left(1-\frac2t-\frac1{t^2}+\frac8{t^2+2t-1}\right)\cdot\text{d}t\\&=\frac12t-\ln|t|+\frac12\frac1t+4\int\frac{\text{d}t}{(t+1)^2-2}=\frac12t-\ln|t|+\frac1{2t}+\sqrt2\ln\left\vert\frac{t+1-\sqrt2}{t+1+\sqrt2}\right\vert+C\\
+&=\sqrt2\ln\frac{\sqrt{x^2+2x+2}-x-\sqrt2}{\sqrt{x^2+2x+2}-x+\sqrt2}+\sqrt{x^2+2x+2}-\ln\left(\sqrt{x^2+2x+2}-x-1\right)+C
+\end{align}
+
+-----
+
+\begin{align}
+&\lim_{n\rightarrow\infty}\frac{b-a}{2n}\left(f(a)+2f\left(a+\frac{b-a}n\right)+\cdots+2f\left(a+\frac{(n-1)(b-a)}n\right)+f(b)\right)\\=&\lim_{n\rightarrow\infty}\frac{b-a}n\sum_{i=0}^{n-1}f\left(a+\frac{(i+1)(b-a)}n\right)=\int_a^bf(x)\cdot\text{d}x
+\end{align}
+
+-----
+
+\begin{align}
+\frac{f(b)-f(a)}{b-a}(x-b)+f(b)=\frac{x-b}{a-b}f(a)+\frac{a-x}{a-b}f(b)\leq f\left(\frac{x-b}{a-b}a+\frac{a-x}{a-b}b\right)=f(x)
+\end{align}
+
+-----
+
+\begin{align}
+M_{c+\varepsilon}\cap U&=\left\{-x_1-\cdots-x_k^2+x_{k+1}^2+\cdots+x_n^2\leq\varepsilon\right\}\\
+M_{c-\varepsilon}\cap U&=\left\{-x_1-\cdots-x_k^2+x_{k+1}^2+\cdots+x_n^2\leq-\varepsilon\right\}
+\end{align}
+
+-----
+
+H(fg)=\int_{\text{upper}}m\wedge\text{d}m+\int_{\text{lower}}m\wedge\text{d}m=\int_{S^{2n-1}}\omega\wedge\text{d}\omega+\int_{S^{2n-1}}\tau\wedge\text{d}\tau=H(f)+H(g)
+
+-----
+
+\begin{align}
+p: S^3\setminus\left\{(0,0,0,1)\right\}&\longrightarrow\mathbb R^3=\left\{x_4=0\right\}\\ (x_1,x_2,x_3,x_4)&\longmapsto\left(\frac{x_1}{1-x_4},\frac{x_2}{1-x_4},\frac{x_3}{1-x_4}\right)
+\end{align}
+
+-----
+
+\begin{array}{|c|c|}\hline\alpha&\ast\\ \hline\ast&\beta\\ \hline\end{array}\quad\quad\quad \delta(t_1,\cdots,t_q)=\begin{cases}\alpha(2t_1,2t_2-1,t_3,\cdots,t_q)&0\leq t_1\leq \frac12,\frac12\leq t_2\leq 1\\ \beta(2t_1-1,2t_2,\cdots,t_q)&\frac12\leq t_1\leq 1,0\leq t_2\leq \frac12\\ \ast&\text{otherwise.}\end{cases}
+
+-----
+
+H^q(S^1,\mathbb Z_p)=\text{Hom}(H_q(S^1),\mathbb Z_p)\oplus\underbrace{\text{Ext}(H_{q-1}(S^1),\mathbb Z_p)}_{0}=\begin{cases}\mathbb Z_p&q=0,1\\0&\text{otherwise.}\end{cases}
+
+-----
+
+\begin{align}
+0&=\underbrace{\text{Hom}(H_1,\mathbb Z)}_{\text{no free part}}\oplus\text{Ext}(H_0,\mathbb Z)\\ 0&=\text{Hom}(H_2,\mathbb Z)\oplus\underbrace{\text{Ext}(H_1,\mathbb Z)}_{\text{no torsion part}}
+\end{align}
+
+-----
+
+\begin{align}
+H_d^{p,q}\left\{C^\ast\left(\pi^{-1}\mathfrak U,\Omega_{cv}^\ast\right)\right\}&=H_{cv}^q\left(\coprod \pi^{-1}U_{\alpha_0\cdots\alpha_p}\right)=\prod H_{cv}^q\left(\pi^{-1} U_{\alpha_0\cdots\alpha_p}\right)\\&=C^p\left(\mathfrak U,\mathscr H_{cv}^q\right)
+\end{align}
+
+-----
+
+\rho:\pi_1(N(\mathfrak U))=\frac{\left\{\text{loops}\right\}}{\left\{\text{bounding loops}\right\}}\longrightarrow\text{Aut }G
+
+-----
+
+\left(\begin{array}{}1&2&3&4&5&6&7&8&9&10\\1&3&5&7&9&2&4&6&8&10\end{array}\right)=\left(\begin{array}{}2&3&5&9&8&6\end{array}\right)\left(\begin{array}{}4&7\end{array}\right)
+
+-----
+
+\begin{align}
+&a_{i1}(\alpha X_1+\beta Y_1)+a_{i2}(\alpha X_2+\beta Y_2)+\cdots+a_{in}(\alpha X_n+\beta Y_n)\\=&\alpha(a_{i1}X_1+a_{i2}X_2+\cdots+a_{in}X_n)+\beta(a_{i1}Y_1+a_{i2}Y_2+\cdots+a_{in}Y_n)\\=&\alpha\cdot0+\beta\cdot 0=0
+\end{align}
+
+-----
+
+\rightarrow\left(
+\begin{array}{ccccc}
+ 8 & -4 & 0 & 5 & 0 \\
+ -15 & 0 & -5 & -10 & 0 \\
+ 0 & 0 & 0 & 0 & 1 \\
+ 3 & 0 & 1 & 2 & 0 \\
+\end{array}
+\right)\rightarrow\left(
+\begin{array}{ccccc}
+ 8 & -4 & 0 & 5 & 0 \\
+ 3 & 0 & 1 & 2 & 0 \\
+ 0 & 0 & 0 & 0 & 1 \\
+ 0 & 0 & 0 & 0 & 0 \\
+\end{array}
+\right)\rightarrow\left(\begin{array}{}1&0&0&0&0\\0&1&0&3&2\\0&0&-4&8&5\\0&0&0&0&0\end{array}\right)
+
+-----
+
+\lim_{n\rightarrow\infty}\left(\frac{n+\ln n}{n-\ln n}\right)^{\frac n{\ln n}}=\lim_{n\rightarrow\infty}\left(\frac{\frac n{\ln n}+1}{\frac n{\ln n}-1}\right)^{\frac n{\ln n}}=\lim_{x\rightarrow+\infty}\left(\frac{x+1}{x-1}\right)^x=e^2
+
+-----
+
+\begin{align}
+\lim_{x\rightarrow a}f_1(x)^{g_1(x)}&=\exp\left(\lim_{x\rightarrow a}g_1(x)\ln f_1(x)\right)=\exp\left(\lim_{x\rightarrow a}\frac{g_1(x)}{g_2(x)}\cdot\lim_{x\rightarrow a}g_2(x)\ln f_1(x)\right)=\exp\left(\lim_{x\rightarrow a}g_2(x)\ln f_1(x)\right)\\&=\exp\left(\lim_{x\rightarrow a}g_2(x)\left(\ln f_2(x)+\ln\frac{f_1(x)}{f_2(x)}\right)\right)=\exp\left(\lim_{x\rightarrow a}g_2(x)\ln f_2(x)+\lim_{x\rightarrow a}g_2(x)\cdot\ln\lim_{x\rightarrow a}\frac{f_1(x)}{f_2(x)}\right)\\&=\exp\left(\lim_{x\rightarrow a}g_2(x)\ln f_2(x)+0\cdot C\right)=\lim_{x\rightarrow a}f_2(x)^{g_2(x)}=A
+\end{align}
+
+-----
+
+\begin{align}
+\frac{\partial z}{\partial x}&=-\frac{F_x}{F_z}(x,y,z)=-\frac{1-\exp(x+y+z)}{1-\exp(x+y+z)}=-1\\
+\frac{\partial z}{\partial y}&=-\frac{F_y}{F_z}(x,y,z)=-\frac{1-\exp(x+y+z)}{1-\exp(x+y+z)}=-1
+\end{align}
+
+-----
+
+\begin{align}
+\|y\|&=\max_{0\leq x\leq 2\pi}\left\vert\frac1{e^{2a\pi}-1}\int_x^{x+2\pi}e^{-a(x-s)}f(s)\operatorname{d}s\right\vert\leq\underbrace{\frac1{e^{2a\pi}-1}2\pi E}_k\max_{0\leq x\leq2\pi}|f|
+\end{align}
+
+-----
+
+\begin{align}
+y(x)&=\frac1{e^{2a\pi}-1}\int_x^{x+2\pi}e^{-a(x-s)}(c_1f(x)+c_2g(x))\operatorname{d}s\\
+&=\frac{c_1}{e^{2a\pi}-1}\int_x^{x+2\pi}e^{-a(x-s)}f(x)\operatorname{d}s+\frac{c_2}{e^{2a\pi}-1}\int_x^{x+2\pi}e^{-a(x-s)}g(x)\operatorname{d}s\\&=c_1 \varphi(f)+c_2\varphi(g)
+\end{align}
+
+-----
+
+\tilde K=K_0(T_1,\cdots,T_n)\textemdash \tilde L^G\textemdash\textemdash \tilde L=K_0(X_1,\cdots,X_n)
+
+-----
+
+\begin{align}
+\pi&=\left((p-1)!^{(q-1)/2},\left(\left(\frac{q-1}2\right)!\right)^{p-1}\right)=_{G}\left((-1)^{(q-1)/2},\left(\left(\frac{q-1}2\right)!\right)^{2\cdot(p-1)/2}\right)\\&=_G\left((-1)^{(q-1)/2},(-1)^{(p-1)(p-1)/4}(-1)^{(p-1)/2}\right)\in(\mathbb Z/p\mathbb Z)^*\times(\mathbb Z/q\mathbb Z)^*
+\end{align}
+
+-----
+
+\prod_{n\in A\setminus B}n=\frac{\prod_{n\in A}n}{\prod_{n\in B}n}=\frac{(p-1)!^{(q-1)/2}\left(\frac{p-1}2\right)!}{q\cdot2q\cdots\frac{p-1}2q}=\frac{(-1)^{(q-1)/2}}{q^{(p-1)/2}}
+
+-----
+
+\begin{align}
+r_1&=\varphi\left(\zeta^{k_1},\zeta^{k_2},\cdots\right)=A_0+A_1\zeta+A_2\zeta^2+\cdots+A_{p-1}\zeta^{p-1}\\
+r_t&=\varphi\left(\zeta^{tk_1},\zeta^{tk_2},\cdots\right)=A_0+A_1\zeta^t+A_{2}\zeta^{2t}+\cdots+A_{p-1}\zeta^{(p-1)t}\\
+r_p&=\varphi\left(\zeta^{pk_1},\zeta^{pk_2},\cdots\right)=\varphi(1,1,\cdots)=A_0+A_1+A_2+\cdots+A_{p-1}
+\end{align}
+
+-----
+
+\mathbb Q_p=\left\{\sum_{j=-n}^\infty c_jp^j\in\mathbb Q[[p]]:n\in\mathbb Z,0\leq j<p\right\}
+
+-----
+
+\begin{align}\left(\begin{array}{}G_{nm}&G_{n,m-1}&\cdots&G_{n0}\\G_{n-1,m}&G_{n-1,m-1}&\cdots&G_{n-1,0}\\\vdots&\vdots&&\vdots\\G_{0m}&G_{0,m-1}&\cdots&G_{00}\end{array}\right)&&\left(\begin{array}{}G_{mn}'&G_{m,n-1}'&\cdots&G_{m0}'\\G_{m-1,n}'&G_{m-1,n-1}'&\cdots&G_{m-1,0}'\\\vdots&\vdots&&\vdots\\G_{0n}'&G_{0,n-1}'&\cdots&G_{00}'\end{array}\right)\end{align}
+
+-----
+
+\begin{align}
+\bigwedge_{i=1}^n\text{d}f^i(x)&=\bigwedge_{i=1}^n\sum_j\frac{\partial f^i(x)}{\partial x^j}\text{d}x^j=\sum_{j_1,\cdots,j_n}\left(\prod_{k=1}^n\frac{\partial f^k(x)}{\partial x^{j_k}}\right)\bigwedge_{k=1}^n\text{d}x^{j_k}=\sum_{\left\{j_1,\cdots,j_n\right\}\subset\left\{1,\cdots,n\right\}}\left(\prod_{k=1}^n\frac{\partial f^k(x)}{\partial x^{j_k}}\right)\bigwedge_{k=1}^n\text{d}x^{j_k}\\&=\sum_{\sigma\in S(n)}(-1)^{\text{sgn }\sigma}\left(\prod_{k=1}^n\frac{\partial f^k(x)}{\partial x^{\sigma(k)}}\right)\bigwedge_{k=1}^n\text{d}x^{k}\xlongequal{\text{definition of }\det}\det\left(\frac{\partial f^i(x)}{\partial x^j}\right)\bigwedge_{k=1}^n\text{d}x^k
+\end{align}
+
+-----
+
+\begin{align}
+\bigwedge_{i=1}^k\text{d}f^i&=\bigwedge_{i=1}^k\sum_{j=1}^n\frac{\partial f^i(x)}{\partial x^j}\text{d}x^j=\sum_{j_1,\cdots,j_n}\left(\prod_{t=1}^k\frac{\partial f^t(x)}{\partial x^{j_t}}\right)\bigwedge_{t=1}^k\text{d}x^{j_t}\\&=\sum_{T\subset\left\{1,\cdots,n\right\},|T|=k}\sum_{\sigma\in S(T)}(-1)^{\text{sgn }\sigma}\left(\prod_{t=1}^k\frac{\partial f^t(x)}{\partial x^{\sigma(t)}}\right)\bigwedge_{t=1}^k\text{d}x^{b_t}\quad\quad\quad \text{where }b_1<\cdots<b_k\in T\\
+&=\sum_{1\leq i_1<\cdots<i_k\leq n}\left\vert\begin{array}{}\partial_{i_1}f^1&\cdots&\partial_{i_k}f^1\\\vdots&&\vdots\\\partial_{i_1}f^k&\cdots&\partial_{i_k}f^k\end{array}\right\vert\bigwedge_{j=1}^k\text{d}x^{i_j}
+\end{align}
+
+-----
+
+\begin{align}
+\omega^2&=\Big((\text{d}p_1\wedge\text{d}q^1)+(\text{d}p_2\wedge\text{d}q^2)\Big)\wedge\Big((\text{d}p_1\wedge\text{d}q^1)+(\text{d}p_2\wedge\text{d}q^2)\Big)\\&=(\text{d}p_1\wedge\text{d}q^1)\wedge(\text{d}p_2\wedge\text{d}q^2)+(\text{d}p_2\wedge\text{d}q^2)\wedge(\text{d}p_1\wedge\text{d}q^1)\neq0\\
+&= 2(\text{d}p_1\wedge\text{d}q^1)\wedge(\text{d}p_2\wedge\text{d}q^2)\quad\quad\quad \text{as claimed.}
+\end{align}
+
+-----
+
+\begin{align}
+\text{d}^2f&=\sum_{i=1}^n\text{d}\left(\frac{\partial f}{\partial x^i}\text{d}x^i\right)=\sum_{i=1}^n\sum_{j=1}^n\frac{\partial^2f}{\partial x^i\partial x^j}\text{d}x^j\wedge\text{d}x^i=\sum_{i\neq j}\frac{\partial^2f}{\partial x^i\partial x^j}\text{d}x^j\wedge\text{d}x^i\\&=\sum_{i<j}\frac{\partial^2f}{\partial x^i\partial x^j}(\text{d}x^j\wedge\text{d}x^i+\text{d}x^i\wedge\text{d}x^j)=0
+\end{align}
+
+-----
+
+\begin{align}
+\text{d}^2\omega&=\text{d}(\text{d}\omega)=\sum_{i_0,\cdots,i_k}\sum_j\frac{\partial^2a_{i_1,\cdots,i_p}(x)}{\partial x^{i_0}\partial x^j}\text{d}x^j\wedge\left(\bigwedge_{t=0}^k\text{d}x^{i_t}\right)=\sum_{i_1,\cdots,i_p}\left(\bigwedge_{t=0}^k\text{d}x^{i_t}\right)\wedge\sum_{i_0,j}\frac{\partial^2a_{i_1,\cdots,i_p}(x)}{\partial x^{i_0}\partial x^j}(\text{d}x^j\wedge\text{d}x^{i_0})\\&=\sum_{i_1,\cdots,i_p}\left(\bigwedge_{t=0}^k\text{d}x^{i_t}\right)\wedge\sum_{i_0<j}\frac{\partial^2a_{i_1,\cdots,i_p}(x)}{\partial x^{i_0}\partial x^j}\left(\text{d}x^j\wedge\text{d}x^{i_0}-\text{d}x^{i_0}\wedge\text{d}x^j\right)=0
+\end{align}
+
+-----
+
+\begin{align}
+V&=\int_0^{2\pi}\text{d}\varphi\int_0^{2a/(\cos\varphi+\sin\varphi+\sqrt3)}\text{d}r\int_0^{2a-r\cos\varphi-r\sin\varphi}r\text{d}z\\&=4a^3\int_0^{2\pi}\left(\frac1{(\cos\varphi+\sin\varphi+\sqrt3)^2}-\frac{2(\cos\varphi+\sin\varphi)}{3(\cos\varphi+\sin\varphi+\sqrt3)^3}\right)\text{d}\varphi\\&=4a^3\int_0^{2\pi}\frac{\text{d}\varphi}{3(\sqrt2\sin\varphi+\sqrt3)^2}+4a^3\int_0^{2\pi}\frac{2\sqrt3\text{d}\varphi}{3(\sqrt2\sin\varphi+\sqrt3)^3}=24\sqrt3\pi a^3
+\end{align}
+
+-----
+
+\begin{align}
+\sum_{k=0}^n r^k\cos k\varphi&=\sum_{k=0}^nr^k\Re e^{i k\varphi}=\Re\frac{1-(re^{i\varphi})^{n+1}}{1-re^{i\varphi}}=\Re\frac{1-r\cos(n+1)\varphi-ir\sin(n+1)\varphi}{1-r\cos\varphi-ir\sin\varphi}\\ &=\frac{(1-r\cos\varphi)(1-r\cos(n+1)\varphi)+r^2\sin\varphi\sin(n+1)\varphi}{(1-r\cos\varphi)^2+r^2\sin^2\varphi}\\ &=\frac{1-r\cos\varphi-r\cos(n+1)\varphi+r^2\cos\varphi\cos(n+1)\varphi+r^2\sin\varphi\sin(n+1)\varphi}{1+r^2-2r\cos\varphi}
+\end{align}
+
+-----
+
+\begin{align}
+\frac12+\sum_{k=1}^\infty r^k\cos k\varphi&=-\frac12+\Re\frac1{1-r\cos\varphi-ir\sin\varphi}=-\frac12+\frac{1-r\cos\varphi}{1+r^2-2r\cos\varphi}\\&=\frac12\frac{-1-r^2+2r\cos\varphi+2-2r\cos\varphi}{1+r^2-2r\cos\varphi}=\frac12\frac{1-r^2}{1+r^2-2r\cos\varphi}
+\end{align}
+
+-----
+
+\begin{align}
+\left\vert\sum_{n=0}^\infty(n+1)(\sigma_n-A)x^n\right\vert&\leq \sum_{n=0}^N(n+1)|\sigma_n-A|x^n+\sum_{n=N+1}^\infty|\sigma_n-A|x^n\\ &\leq \sum_{n=0}^N(n+1)|\sigma_n-A|+\frac\varepsilon{(1-x)^2}
+\end{align}
+
+-----
+
+\begin{align}
+\int_0^{2\pi}f(e^{\mathbb i\varphi})e^{\mathbb in\varphi}\text{d}\varphi&=\lim_{m\rightarrow+\infty}\int_0^{2\pi}\underbrace{p_m(e^{\mathbb in\varphi})e^{\mathbb in\varphi}}_{q_m(e^{\mathbb i\varphi})}\text{d}\varphi\\ &=\lim_{m\rightarrow+\infty}\sum_{k=0}^{M(m)}\int_0^{2\pi}e^{\mathbb ik\varphi}\text{d}\varphi\\ &=\lim_{m\rightarrow+\infty}\sum_{k=0}^{M(m)}\oint_{C}z^{k-1}\frac{\text{d}z}{\mathbb i}=0
+\end{align}
+
+-----
+
+\begin{align}
+\int_0^\pi\frac{\text{d}x}{1-2r\cos x+r^2}&=\int_0^\infty\frac{\frac2{1+t^2}\text{d}t}{1-2r\left(\frac{1-t^2}{1+t^2}\right)+r^2}\\&=\int_0^\infty\frac{2\text{d}t}{(1-r)^2+(1+r)^2t^2}\\ &= \frac2{(1+r)^2}\left[\frac{1+r}{1-r}\arctan\frac{(1+r)t}{1-r}\right]_0^\infty\\&=\frac2{1-r^2}\cdot\frac\pi2=\frac\pi{1-r^2}
+\end{align}
+
+-----
+
+\begin{align}
+I(x)+I''(x)&=\int_0^{\pi}\cos(x\cos\varphi)\sin^{2n}\varphi(1-\cos^2\varphi)\text{d}\varphi\\
+&=\int_0^\pi\cos(x\cos\varphi)\sin^{2n+2}\varphi\text{d}\varphi\\
+I'(x)&=-\int_0^\pi\sin(x\cos\varphi)\cos\varphi\sin^{2n}\varphi\text{d}\varphi=-\frac1{2n+1}\int_0^\pi\sin(x\cos\varphi)\text{d}\sin^{2n+1}\varphi\\ &=\frac1{2n+1}\int_0^\pi\sin^{2n+1}\varphi\cos(x\cos\varphi)(-x\sin\varphi)\text{d}\varphi\\ &=\frac{-x}{2n+1}\int_0^1\sin^{2n+2}\varphi\cos(x\cos\varphi)\text{d}\varphi
+\end{align}
+
+-----
+
+\begin{align}
+J_n'(x)&=\frac{nx^{n-1}}{(2n-1)!!\pi}J(x)+\frac{x^n}{(2n-1)!!\pi}J'(x)\\
+J_n''(x)&=\frac{n(n-1)x^{n-2}}{(2n-1)!!\pi}J(x)+\frac{2nx^{n-1}}{(2n-1)!!\pi}J'(x)+\frac{x^n}{(2n-1)!!\pi}J''(x)
+\end{align}
+
+-----
+
+\begin{align}
+\frac{x^{n+1}}{(2n+1)!!\pi}\int_{-1}^{+1}(1-t^2)^{(n+1/2)}\cos xt\text{d}t&=\frac{x^{n-1}}{(2n-3)!!\pi}\int_{-1}^{+1}(1-t^2)^{(n-3/2)}\cos xt\text{d}t\\&-\frac{2nx^{n-1}}{(2n-1)!!\pi}\int_{-1}^{+1}(1-t^2)^{(n-1/2)}\cos xt\text{d}t\\&-\frac{2x^n}{(2n-1)!!\pi}\int_{-1}^{+1}(1-t^2)^{(n-1/2)}(-\sin xt)t\text{d}t\\
+\iff x^2\int_{-1}^{+1}(1-t^2)^{(n+1/2)}\cos xt\text{d}t&=(2n+1)(2n-1)\int_{-1}^{+1}(1-t^2)^{(n-3/2)}\cos xt\text{d}t\\&-2n(2n+1)\int_{-1}^{+1}(1-t^2)^{(n-1/2)}\cos xt\text{d}t\\ &+2(2n+1)x\int_{-1}^{+1}(1-t^2)^{(n-1/2)}t\sin xt\text{d}t
+\end{align}
+
+-----
+
+\begin{align}
+\frac{\text{d}\tilde E}{\text{d}k}&=E'(\sqrt{1-k^2})\frac{-k}{\sqrt{1-k^2}}=\frac{k(\tilde K-\tilde E)}{1-k^2}\\
+\frac{\text{d}\tilde K}{\text{d}k}&=K'(\sqrt{1-k^2})\frac{-k}{\sqrt{1-k^2}}=\left(\frac{\tilde E}{k\sqrt{1-k^2}}-\frac {\tilde K}{\sqrt{1-k^2}}\right)\frac{-k}{\sqrt{1-k^2}}\\ &=-\frac {\tilde E}{1-k^2}+\frac{k\tilde K}{1-k^2}
+\end{align}
+
+-----
+
+\begin{align}
+(E\tilde K+\tilde EK-K\tilde K)'(k)&=\frac{E-K}k\tilde K(k)+E(k)\left(-\frac {\tilde E}{1-k^2}+\frac{k\tilde K}{1-k^2}\right)\\ &+\frac{k(\tilde K-\tilde E)}{1-k^2}K(k)+\tilde E(k)\left(\frac E{k(1-k^2)}-\frac Kk\right)\\ &-\left(\frac E{k(1-k^2)}-\frac Kk\right)\tilde K(k)-K(k)\left(-\frac{\tilde E}{1-k^2}+\frac{k\tilde K}{1-k^2}\right)
+\end{align}
+
+-----
+
+\begin{align}
+c_n&=\sqrt{\left(\frac{a_{n-1}+b_{n-1}}2\right)^2-a_{n-1}b_{n-1}}=\frac{a_{n-1}-b_{n-1}}2=\frac{a_{n-1}^2-b_{n-1}^2}{2(a_{n-1}+b_{n-1})}=\frac{c_{n-1}^2}{4a_{n}}=\frac{(c_{n-p})^{2^p}}{\prod_{j=0}^{p-1}(4a_{n-j})^{2^j}}=\frac{c_0^{2^n}}{\prod_{j=0}^{p-1}2^{2^{j+1}}(a_{n-j})^{2^j}}\\
+&=4\frac{(a-b)^{2^{n-1}}(a+b)^{2^{n-1}}}{2^{n+1}\prod_{j=0}^{n-1}(a_{n-j})^{2^j}}=4\frac{\left(\frac{a-b}2\right)^{2^{n-1}}}{2^{2^n}\prod_{l=2}^n(a_{l})^{2^{n-l}}}=4\frac{\left(\frac{a-b}8\right)^{2^{n-l}}}{\prod_{l=2}^n(a_l)^{2^{n-l}}}
+\end{align}\tag4
+
+-----
+
+\begin{align}
+M\left(1+\frac{2x}{1-x},1\right)&=\sum_{k=0}^\infty 2^kh_k\sum_{m=k-1}^\infty{m\choose k-1}x^{m+1}=\sum_{k=0}^\infty 2^kh_kx^k+\sum_{m=0}^\infty\sum_{k=0}^m2^kh_k{m\choose k-1}x^{m+1}\\
+&=1+\sum_{m=1}^\infty x^m\left(2^mh_m+\sum_{k=0}^{m-1}2^kh_k{m-1\choose k-1}\right)=1+\sum_{m=1}^\infty c_m x^m
+\end{align}
+
+-----
+
+f_{2j}=\frac1{2^{2j}}\left(f_{2\left\lceil\frac j2\right\rceil}-(-1)^j\sum_{m=1}^{j-1}f_{2m}2^{2m}{j+m-1\choose 2m-1}(-1)^m\right)\tag{10}
+
+-----
+
+\begin{align}
+\frac{\partial m}{\partial x}(x,y)=\frac{\partial m}{\partial x}\Big(\frac{x+y}2,\sqrt{xy}\Big)\frac12+\frac{\partial m}{\partial y}\Big(\frac{x+y}2,\sqrt{xy}\Big)\frac12\sqrt{\frac yx}\\
+\frac{\partial m}{\partial y}(x,y)=\frac{\partial m}{\partial x}\Big(\frac{x+y}2,\sqrt{xy}\Big)\frac12+\frac{\partial m}{\partial y}\Big(\frac{x+y}2,\sqrt{xy}\Big)\frac12\sqrt{\frac xy}
+\end{align}
+
+-----
+
+\left\vert\frac1{n!}f^{(n)}(z_0)\right\vert R^n\leq\sqrt{\frac1{2\pi}\cdot2\pi \sup_{\theta\in\mathbb R}\left\vert f(z_0+Re^{\mathbb i\theta})\right\vert^2}=\sup_{\theta\in\mathbb R}\left\vert f(z_0+Re^{\mathbb i\theta})\right\vert
+
+-----
+
+\begin{align}\left<T(u),T(v)\right>_2&=\frac14\|T(u)+T(v)\|^2-\frac14\|T(u)-T(v)\|^2+\frac i4\|T(u)+iT(v)\|^2-\frac i4\|T(u)-iT(v)\|^2\\&=\frac14\|T(u+v)\|^2-\frac14\|T(u-v)\|^2+\frac i4\|T(u+iv)\|^2-\frac i4\|T(u-iv)\|^2\\&=\frac14\|u+v\|^2-\frac14\|u-v\|^2+\frac i4\|u+iv\|^2-\frac i4\|u-iv\|^2=\left<u,v\right>_1\end{align}
+
+-----
+
+\begin{align}
+\left<\left(\mathcal P\frac1x\right)',x\right>&=-\left<\mathcal P\frac1x,\varphi'\right> = -\int_{0}^{+\infty}\frac{\varphi'(x)-\varphi'(-x)}x\text{d}x\\ &=-\lim_{\varepsilon\rightarrow+0}\int_\varepsilon^{+\infty}\frac{\varphi'(x)-\varphi'(-x)}{x}\text{d}x\\&=-\lim_{\varepsilon\rightarrow+0}\int_{\varepsilon}^{+\infty}\frac{\text{d}(\varphi(x)+\varphi(-x)-2\varphi(0))}x\\&=\lim_{\varepsilon\rightarrow+0}\frac{\varphi(\varepsilon)-\varphi(0)}{\varepsilon}-\lim_{\varepsilon\rightarrow +0}\frac{\varphi(0)-\varphi(-\varepsilon)}{-\varepsilon}\\&+\int_0^{+\infty}\frac{\varphi(x)+\varphi(-x)-2\varphi(0)}x\text{d}x\\ &=\varphi'(0)-\varphi'(0)+\int_0^{+\infty}\frac{\varphi(x)-\varphi(-x)-2\varphi(0)}x\text{d}x\\&=\int_0^{+\infty}\frac{\varphi(x)-\varphi(-x)-2\varphi(0)}x\text{d}x
+\end{align}
+
+-----
+
+\begin{align}
+\left<\mathcal P\frac1x,\varphi\right>&=\text{PV}\int_{-\infty}^{+\infty}\frac{\varphi(x)}{x}\text{d}x=\lim _{\varepsilon \rightarrow+0}\left(\int_{-\infty}^{-\varepsilon}+\int_{\varepsilon}^{+\infty}\right) \frac{\varphi(x)}{x} \mathrm{~d} x\\ &=\lim_{\varepsilon\rightarrow+0}\int_{-\infty}^{-\varepsilon}\frac{\varphi(x)}x\text{d}x+\lim_{\varepsilon\rightarrow+0}\int_\varepsilon^{+\infty}\frac{\varphi(x)}x\text{d}x\\&=\int_{0}^{+\infty}\frac{-\varphi(-x)}x\text{d}x+\int_0^{+\infty}\frac{\varphi(x)}x\text{d}x\\&=\int_0^{+\infty}\frac{\varphi(x)-\varphi(-x)}x\text{d}x
+\end{align}
+
+-----
+
+\begin{align}
+\left<f',\varphi\right>&= -\left<f,\varphi'\right> = -\sum_{k\in\mathbb Z}\int_{2\pi k}^{2\pi(k+1)}\left(\frac12-\frac{x-2\pi k}{2\pi}\right)\varphi'(x)\text{d}x\\&= \frac12\sum_{k\in\mathbb Z}(\varphi(2\pi(k+1))-\varphi(2\pi k))-\frac1{2\pi}\sum_{k\in\mathbb Z}\int_{2\pi k}^{2\pi(k+1)}\varphi(x)\text{d}x\\ &=\sum_{k\in\mathbb Z}\varphi(2\pi k)-\frac1{2\pi}\int_{\mathbb R}\varphi(x)\text{d}x\\&= \left<\sum_{k\in\mathbb Z}\delta(x-2\pi k)-\frac1{2\pi},\varphi\right>
+\end{align}
+
+-----
+
+\begin{align}
+\lim_{\alpha\rightarrow0}\left<F_\alpha,\varphi\right>&=\lim_{\alpha\rightarrow0}\int_{-\infty}^{+\infty}\int_{-\infty}^x\Delta_\alpha(t)\text{d}t\cdot\varphi(x)\text{d}x\\ &=\lim_{\alpha\rightarrow0}\int_{-\infty}^0\int_{-\infty}^x\Delta_\alpha(t)\text{d}t\cdot\varphi(x)\text{d}x+\lim_{\alpha\rightarrow0}\int_{0}^{+\infty}\int_{-\infty}^x\Delta_\alpha(t)\cdot\varphi(x)\text{d}x\\ &=\int_{-\infty}^0\lim_{\alpha\rightarrow0}\int_{-\infty}^x\Delta_\alpha(t)\text{d}t\cdot\varphi(x)\text{d}x+\int_{0}^{+\infty}\lim_{\alpha\rightarrow0}\int_{-\infty}^x\Delta_\alpha(t)\cdot\varphi(x)\text{d}x\\ &=\int_{-\infty}^00\text{d}x+\int_0^{+\infty}\varphi(x)\text{d}x=\int_{\mathbb R}H(x)\cdot\varphi(x)\text{d}x=\left<H,\varphi\right>
+\end{align}
+
+-----
+
+\begin{align}
+\lim_{\alpha\rightarrow+0}\left<\frac\alpha{x^2+\alpha^2},\varphi\right>&=\lim_{\alpha\rightarrow+0}\int_{-\infty}^{+\infty}\frac{\alpha\varphi(x)}{x^2+\alpha^2}\text{d}x=\lim_{\alpha\rightarrow+0}\int_{-\infty}^{+\infty}\varphi(x)\text{d}\arctan\frac x\alpha \\&= -\lim_{\alpha\rightarrow+0}\int_{-\infty}^{+\infty}\arctan\frac x\alpha\varphi'(x)\text{d}x\\&=-\lim_{\alpha\rightarrow+0}\int_{-\infty}^0\arctan\frac x\alpha\varphi'(x)\text{d}x-\lim_{\alpha\rightarrow+0}\int_0^{+\infty}\arctan\frac x\alpha\varphi'(x)\text{d}x\\ &=-\int_{-\infty}^{0}\lim_{\alpha\rightarrow+0}\arctan\frac x\alpha\varphi'(x)\text{d}x-\int_0^{+\infty}\lim_{\alpha\rightarrow+0}\arctan\frac x\alpha\varphi'(x)\text{d}x\\&=+\int_{-\infty}^0\frac\pi 2\varphi'(x)\text{d}x-\int_0^{+\infty}\frac\pi2\varphi'(x)\text{d}x=\pi\varphi(0)\\&=\left<\pi\delta,\varphi\right>
+\end{align}
+
+-----
+
+\begin{align}
+p_B(B)&=\prod_{i=1}^n\left(\begin{array}{}A'-\lambda_i I_{n-1}&*\\O&\lambda_n-\lambda_i\end{array}\right)\\&=\left(\begin{array}{}\prod_{i=1}^{n-1}(A'-\lambda_iI_{n-1})&*\\O&\prod_{i=1}^{n-1}(\lambda_n-\lambda_i)\end{array}\right)\left(\begin{array}{}A'-\lambda_nI_{n-1}&*\\O&0\end{array}\right)\\&=\left(\begin{array}{}O&*\\O&\prod_{i=1}^{n-1}(\lambda_n-\lambda_i)\end{array}\right)\left(\begin{array}{}A'-\lambda_nI_{n-1}&*\\O&0\end{array}\right)=O
+\end{align}
+
+-----
+
+\begin{align}
+\left\vert b_{n-2}-\alpha_1\right\vert&=\left\vert a_{n-1}\right\vert>1+\left\vert a_{n-2}\right\vert+\cdots+|a_1|+|a_0|\\&=1+\left\vert b_{n-3}-b_{n-2}\alpha_1\right\vert+\cdots+\left\vert b_0\alpha_1\right\vert\\&\geq1+\left\vert b_{n-2}\right\vert\cdot\left\vert\alpha_1\right\vert-\left\vert b_{n-3}\right\vert+\left\vert b_{n-3}\right\vert\cdot\left\vert\alpha_1\right\vert-\left\vert b_{n-4}\right\vert+\cdots+\left\vert b_1\right\vert\cdot\left\vert \alpha_1\right\vert-\left\vert b_0\right\vert+\left\vert b_0\right\vert\cdot\left\vert\alpha_1\right\vert\\&=1+\left\vert b_{n-2}\right\vert+\left(\left\vert\alpha_1\right\vert-1\right)\left(\left\vert b_{n-2}\right\vert+\left\vert b_{n-3}\right\vert+\cdots+\left\vert b_1\right\vert+\cdots+\left\vert b_0\right\vert\right)
+\end{align}
+
+-----
+
+\begin{align}
+F'(t)&=\int_0^\infty\frac{e^{-t^2(1+x^2)/2}}{1+x^2}\left(-\frac{1+x^2}2\right)2t\cdot\text{d}x=-te^{-t^2/2}\int_0^\infty e^{-t^2x^2/2}\cdot\text{d}x\\&=-e^{-t^2/2}\int_0^\infty e^{-(tx)^2/2}\cdot\text{d}(tx)=-Ie^{-t^2/2}
+\end{align}
+
+-----
+
+\begin{align}
+\text{LHS}&=\frac{\text{d}}{\text{d}t}\int_{a(t)}^{b(t)}f(x,t)\cdot\text{d}x=\lim_{h\rightarrow0}\frac1h\left(\int_{a(t+h)}^{b(t+h)}f(x,t+h)\cdot\text{d}x-\int_{a(t)}^{b(t)}f(x,t)\cdot\text{d}x\right)\\
+&=\lim_{h\rightarrow0}\frac1h\left(\int_{a(t+h)}^{a(t)}f(x,t+h)\cdot\text{d}x+\int_{b(t)}^{b(t+h)}f(x,t+h)\cdot\text{d}x-\int_{a(t)}^{b(t)}\left(f(x,t+h)-f(x,t)\right)\cdot\text{d}x\right)\\
+\end{align}
+
+-----
+
+c_{kl}=\frac{(-1)^{(\deg\tau_k)(\deg\omega_l)}\delta_{kl}}{(-1)^{(\deg\tau_k+\deg\omega_l)\deg\omega_k}}=(-1)^{-\deg\omega_k\deg\omega_k}\delta_{kl}=(-1)^{\deg\omega_k}\delta_{kl}
+
+-----
+
+\begin{align}
+\int_\Delta\pi^\ast\tau_k\wedge\rho^\ast\omega_l&=\int_{M\times M}\pi^\ast\tau_k\wedge\rho^\ast\omega_l\wedge\eta_\Delta=\sum_{i,j}c_{ij}\int_{M\times M}\pi^\ast\tau_k\wedge\rho^\ast\omega_l\wedge\pi^\ast\omega_i\wedge\rho^\ast\tau_j\\&=\sum_{i,j}c_{ij}(-1)^{(\deg\tau_k+\deg\omega_l)(\deg\omega_i)}\int_{M\times M}\pi^\ast(\omega_i\wedge\tau_k)\rho^\ast(\omega_l\wedge\tau_j)\\&=(-1)^{(\deg\tau_k+\deg\omega_l)\deg\omega_k}c_{kl}
+\end{align}
+
+-----
+
+\begin{align}
+(-D''K)^2\varepsilon&=-\text{d}K\text{d}K\varepsilon=\text{d}K\text{d}\left(\frac{\phi}{2\pi}+\delta\tau\right)=\underbrace{\text{d}K\text{d}\frac{\phi}{2\pi}}_{\text{d}\xi}+\text{d}K\text{d}\delta\tau\\ &=\text{d}\xi+\text{d}(1-\delta K)\text{d}\tau=\text{d}\xi-\delta \text{d}K\text{d}\tau
+\end{align}
+
+-----
+
+r^\ast:H_{DR}^\ast(E)\simeq H_D\left\{C^\ast\left(\pi^{-1}\mathfrak U,\Omega^\ast\right)\right\}
+
+-----
+
+\begin{align}
+f: \bar e'(\sigma_1,\cdots,\sigma_n)\times D&\longrightarrow\bar e'(\sigma_1,\cdots,\sigma_{n+1})\\
+((x_1,\cdots,x_n),u)&\longmapsto(x_1,\cdots,x_n,Tu)
+\end{align}
+
+-----
+
+\begin{align}
+x\mathbin{\huge\lrcorner}\Big((w\wedge a)\wedge v\Big)&=(x\mathbin{\huge\lrcorner}w)\wedge(a\wedge v)+(-1)^{k}w\wedge(x\mathbin{\huge\lrcorner}(a\wedge v))\\&=(x\mathbin{\huge\lrcorner}w)\wedge(a\wedge v)+(-1)^kw\wedge\Big((x\cdot a)v-a\wedge(x\mathbin{\huge\lrcorner}v)\Big)\\&=(x\mathbin{\huge\lrcorner}w)\wedge(a\wedge v)+(-1)^k(x\cdot a)w\wedge v-(-1)^kw\wedge a\wedge(x\mathbin{\huge\lrcorner}v)\\
+\end{align}
+
+-----
+
+\begin{align}
+\widehat u&=\left<u\right>_0-\left<u\right>_1+\left<u\right>_2-\left<u\right>_3&\text{grade involution}\\
+\widetilde u&=\left<u\right>_0+\left<u\right>_1-\left<u\right>_2-\left<u\right>_3&\text{reversion}\\
+\overline u&=\left<u\right>_0-\left<u\right>_1-\left<u\right>_2+\left<u\right>_3&\text{Clifford conjugation}
+\end{align}
+
+-----
+
+\begin{align}
+e_1\simeq\left(\begin{array}{}(0,0)&(-i,i)\\(i,-i)&(0,0)\end{array}\right)&&e_2\simeq\left(\begin{array}{}(0,0)&(-j,j)\\(j,-j)&(0,0)\end{array}\right)&&e_3\simeq\left(\begin{array}{}(0,0)&(-k,k)\\(k,-k)&(0,0)\end{array}\right)\\
+e_4\simeq\left(\begin{array}{}(1,-1)&(0,0)\\(0,0)&(-1,1)\end{array}\right)&&e_5\simeq\left(\begin{array}{}(0,0)&(1,-1)\\(1,-1)&(0,0)\end{array}\right)
+\end{align}
+
+-----
+
+\begin{align}
+\text{Cl}_{0,3}&\longrightarrow\mathbb H\oplus\mathbb H\\
+1&\longmapsto(1,1)\\
+e_1,e_2,e_3&\longmapsto(i,-i),(j,-j),(k,-k)\\
+e_2e_3,e_3e_1,e_1e_2&\longmapsto(i,i),(j,j),(k,k)\\
+e_1e_2e_3&\longmapsto(-1,1)
+\end{align}
+
+-----
+
+(xe_1+ye_2)\longmapsto\left(\cos\frac\theta2+e_1e_2\sin\frac\theta2\right)^{-1}(xe_1+ye_2)\left(\cos\frac\theta2+e_1e_2\sin\frac\theta2\right)
+
+-----
+
+\begin{align}
+\operatorname{res}_x(f,g)&=\left\vert\begin{array}{}a_1&a_0&0&\cdots&0&0\\0&a_1&a_0&\cdots&0&0\\\vdots&\vdots&\vdots&&\vdots&\vdots\\0&0&0&\cdots&a_1&a_0\\b_m&b_{m-1}&b_{m-2}&\cdots&b_1&b_0\end{array}\right\vert\\&=b_0a_1^m-b_1a_1^{m-1}a_0+\cdots+(-1)^{m-1}b_ma_0^m=a_1^m(b_0+\cdots+b_m\alpha_1^m)\\&=a_1^mg(\alpha_1)=R(f,g)
+\end{align}
+
+-----
+
+\begin{align}
+\operatorname{res}_x(f,gh)&=a_n^{m+\ell}(b_mc_\ell)^n\prod_{1\leq i\leq n,1\leq j\leq m}(\alpha_i-\beta_j)\prod_{1\leq i'\leq n,1\leq j'\leq \ell}(\alpha_{i'}-\beta_{j'})\\
+&=a_n^mb_m^n \prod_{1\leq i\leq n,1\leq j\leq m}(\alpha_i-\beta_j)\cdot a_n^\ell c_\ell^n\prod_{1\leq i'\leq n,1\leq j'\leq \ell}(\alpha_{i'}-\beta_{j'})\\&=\operatorname{res}_x(f,g)\cdot\operatorname{res}_x(f,h)
+\end{align}
+
+-----
+
+f(x)=\begin{cases}1&x>0\\0&x<0\end{cases}
