@@ -110,7 +110,15 @@
             "18em"))
     (item (text "Use case-insensitive search:")
       (toggle (set-boolean-preference "case-insensitive-match" answer)
-              (get-boolean-preference "case-insensitive-match")))))
+              (get-boolean-preference "case-insensitive-match")))
+    (assuming (updater-supported?)
+      (item (text "Check for automatic updates:")
+        (enum (set-pretty-preference "updater:interval" answer)
+              (automatic-checks-choices)
+              (get-pretty-preference "updater:interval")
+              "18em")))
+    (assuming (updater-supported?)
+      (item (text "Last check:") (text (last-check-string))))))
 
 (tm-widget (general-appearance-preferences-widget)
   (vertical
@@ -188,6 +196,15 @@
                       (get-retina-preference "retina-scale")
                       "5em")))))))))
 
+(tm-widget (general-fonts-preferences-widget)
+  (aligned
+    (item (text "New style fonts:")
+      (toggle (set-boolean-preference "new style fonts" answer)
+              (get-boolean-preference "new style fonts")))
+    (item (text "Advanced font customization:")
+      (toggle (set-boolean-preference "advanced font customization" answer)
+              (get-boolean-preference "advanced font customization")))))
+
 (tm-widget (general-preferences-widget)
   ===
   (padded
@@ -197,7 +214,10 @@
           (dynamic (general-basic-preferences-widget))))
       (tab (text "Appearance")
         (centered
-          (dynamic (general-appearance-preferences-widget))))))
+          (dynamic (general-appearance-preferences-widget))))
+      (tab (text "Fonts")
+        (centered
+          (dynamic (general-fonts-preferences-widget))))))
   ===)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -236,7 +256,10 @@
       (enum (set-pretty-preference "document update times" answer)
             '("Once" "Twice" "Three times")
             (get-pretty-preference "document update times") 
-            "10em"))))
+            "10em"))
+    (item (text "Fast environments:")
+      (toggle (set-boolean-preference "fast environments" answer)
+              (get-boolean-preference "fast environments")))))
 
 (tm-widget (rendering-enunciations-preferences-widget)
   (aligned
@@ -520,7 +543,7 @@
               (get-boolean-preference
                "manual homoglyph correct")))))
 
-(tm-widget (math-preferences-widget)
+(tm-widget (editing-math-preferences-widget)
   (padded
     (hlist
       (vlist
@@ -533,7 +556,36 @@
         (dynamic (math-semantics-preferences-widget))
         ====== ======
         (dynamic (math-correction-preferences-widget))
-        (glue #f #t 0 1)))))  
+        (glue #f #t 0 1)))))
+
+(tm-widget (editing-programming-preferences-widget)
+  (aligned
+    (item (text "Scripting language:")
+      (enum (set-pretty-preference "scripting language" answer)
+            (scripts-preferences-list)
+            (get-pretty-preference "scripting language")
+            "15em"))
+    (item (text "Highlight matching brackets:")
+      (toggle (set-boolean-preference "prog:highlight brackets" answer)
+              (get-boolean-preference "prog:highlight brackets")))
+    (item (text "Automatic program brackets:")
+      (toggle (set-boolean-preference "prog:automatic brackets" answer)
+              (get-boolean-preference "prog:automatic brackets")))
+    (item (text "Use smart bracket selections:")
+      (toggle (set-boolean-preference "prog:select brackets" answer)
+              (get-boolean-preference "prog:select brackets")))))
+
+(tm-widget (editing-preferences-widget)
+  ===
+  (padded
+    (tabs
+      (tab (text "Maths")
+        (centered
+          (dynamic (editing-math-preferences-widget))))
+      (tab (text "Programming")
+        (centered
+          (dynamic (editing-programming-preferences-widget))))))
+  ===)
 
 (tm-widget (math-preferences-widget*)
   (dynamic (math-keyboard-preferences-widget))
@@ -987,89 +1039,6 @@
       (toggle (set-boolean-preference "experimental encryption" answer)
               (get-boolean-preference "experimental encryption")))))
 
-(tm-widget (misc-preferences-widget)
-  (aligned
-    (item (text "Scripting language:")
-      (enum (set-pretty-preference "scripting language" answer)
-            (scripts-preferences-list)
-            (get-pretty-preference "scripting language")
-            "12em"))
-    (assuming (updater-supported?)
-      (item (text "Check for automatic updates:")
-        (enum (set-pretty-preference "updater:interval" answer)
-              (automatic-checks-choices)
-              (get-pretty-preference "updater:interval")
-              "12em")))
-    (assuming (updater-supported?)
-      (item (text "Last check:") (text (last-check-string))))))
-
-(tm-widget (experimental-preferences-widget)
-  (hlist
-    (aligned
-      (meti (hlist // (text "Fast environments"))
-        (toggle (set-boolean-preference "fast environments" answer)
-                (get-boolean-preference "fast environments")))
-      (meti (hlist // (text "New style fonts"))
-        (toggle (set-boolean-preference "new style fonts" answer)
-                (get-boolean-preference "new style fonts")))
-      (meti (hlist // (text "Advanced font customization"))
-        (toggle (set-boolean-preference "advanced font customization" answer)
-                (get-boolean-preference "advanced font customization")))
-      (assuming (os-macos?)
-        (meti (hlist // (text "Use native menubar"))
-          (toggle (set-boolean-preference "use native menubar" answer)
-                  (get-boolean-preference "use native menubar")))))
-    /// ///
-    (vlist
-      (aligned
-        (meti (hlist // (text "Program bracket matching"))
-          (toggle (set-boolean-preference "prog:highlight brackets" answer)
-                  (get-boolean-preference "prog:highlight brackets")))
-        (meti (hlist // (text "Automatic program brackets"))
-          (toggle (set-boolean-preference "prog:automatic brackets" answer)
-                  (get-boolean-preference "prog:automatic brackets")))
-        (meti (hlist // (text "Program bracket selections"))
-          (toggle (set-boolean-preference "prog:select brackets" answer)
-                  (get-boolean-preference "prog:select brackets")))
-        (assuming (os-macos?)
-          (meti (hlist // (text "Use unified toolbars"))
-            (toggle (set-boolean-preference "use unified toolbar" answer)
-                    (get-boolean-preference "use unified toolbar"))))
-        (assuming (qt6-or-later-gui?)
-          (meti (hlist // (text "Use new toolbar"))
-            (toggle (set-boolean-preference "new toolbar" answer)
-              (get-boolean-preference "new toolbar"))))
-      ) ; aligned
-      (glue #f #t 0 0))))
-
-(tm-widget (experimental-preferences-widget*)
-  (aligned
-    (meti (hlist // (text "Fast environments"))
-      (toggle (set-boolean-preference "fast environments" answer)
-              (get-boolean-preference "fast environments")))
-    (meti (hlist // (text "New style fonts"))
-      (toggle (set-boolean-preference "new style fonts" answer)
-              (get-boolean-preference "new style fonts")))
-    (meti (hlist // (text "Advanced font customization"))
-      (toggle (set-boolean-preference "advanced font customization" answer)
-              (get-boolean-preference "advanced font customization")))
-    (meti (hlist // (text "Program bracket matching"))
-      (toggle (set-boolean-preference "prog:highlight brackets" answer)
-              (get-boolean-preference "prog:highlight brackets")))
-    (meti (hlist // (text "Automatic program brackets"))
-      (toggle (set-boolean-preference "prog:automatic brackets" answer)
-              (get-boolean-preference "prog:automatic brackets")))
-    (meti (hlist // (text "Program bracket selections"))
-      (toggle (set-boolean-preference "prog:select brackets" answer)
-              (get-boolean-preference "prog:select brackets")))
-    (assuming (os-macos?)
-      (meti (hlist // (text "Use native menubar"))
-        (toggle (set-boolean-preference "use native menubar" answer)
-                (get-boolean-preference "use native menubar")))
-      (meti (hlist // (text "Use unified toolbars"))
-        (toggle (set-boolean-preference "use unified toolbar" answer)
-                (get-boolean-preference "use unified toolbar"))))))
-
 (tm-widget (ai-preferences-widget)
   (vertical
     (aligned
@@ -1095,13 +1064,6 @@
   ===
   (padded
     (tabs
-      (tab (text "Misc.")
-        (centered
-          (dynamic (misc-preferences-widget))
-          ======
-          (bold (text "Experimental features (to be used with care)"))
-          ======
-          (dynamic (experimental-preferences-widget))))
       (tab (text "AI")
         (centered
           (dynamic (ai-preferences-widget))))
@@ -1203,9 +1165,9 @@
       ;; TODO: please implement nice icon tabs first before
       ;; adding new tabs in the preferences widget
       ;; The tabs currently take too much horizontal space
-      (icon-tab "tm_math_preferences.xpm" (text "Maths")
+      (icon-tab "tm_math_preferences.xpm" (text "Editing")
         (centered
-          (dynamic (math-preferences-widget))))
+          (dynamic (editing-preferences-widget))))
       (icon-tab "tm_view.svg" (text "Rendering")
         (dynamic (rendering-preferences-widget)))
       (icon-tab "tm_prefs_convert.xpm" (text "Convert")
