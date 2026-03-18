@@ -63,6 +63,14 @@
         </verbatim>
       </compact>
     </very-small>
+    </item>
+
+    <item>The core <ATHENA> source code is licensed under the GNU GPLv3. The
+    AI model weights provided in the <verbatim|tools/formula-cleaner/>
+    directory are independent data assets governed by the Meta Llama 2
+    Community License. They are distributed alongside this software as a mere
+    aggregation and do not alter or infect the GPLv3 licensing of the
+    C++/Scheme codebase.
   </itemize>
 
   <tmdoc-copyright|1998\U2026|Joris van der Hoeven>
