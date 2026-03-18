@@ -363,11 +363,14 @@
         (let ((obj (string->object p)))
           (if (list? obj) obj '())))))
 
+(tm-define (document-preferred-font-menu)
+  (map (lambda (f) (list f (list 'init-font f)))
+       (get-user-preferred-fonts)))
+
 (menu-bind document-short-font-menu
   ("Default" (init-default-font))
   ---
-  (for (f (get-user-preferred-fonts))
-    ((eval f) (init-font f)))
+  (dynamic (document-preferred-font-menu))
   (if (nnull? (get-user-preferred-fonts)) ---)
   ("Roman" (init-font "roman" "roman"))
   ("Stix" (init-font "stix" "math-stix"))

@@ -1,0 +1,98 @@
+warning: guile hooks are not available
+ATHENA] std-warning, Couldn't concretize tuple (none)
+<unnamed port>: In procedure open-file in expression (primitive-load name):
+<unnamed port>: No such file or directory: "/usr/share/TeXmacs/progs/xxx"
+ATHENA] With linked TrueType support
+/usr/share/TeXmacs/progs/init-buffer.scm:14:1: In expression (when (not #) (when # #)):
+/usr/share/TeXmacs/progs/init-buffer.scm:14:1: Unbound variable: when
+<unnamed port>:1:1: In expression (lazy-initialize-force):
+<unnamed port>:1:1: Unbound variable: lazy-initialize-force
+ERROR: Unbound variable: menu-expand
+ERROR: In procedure apply:
+ERROR: Wrong type argument in position 1: (unbound-variable #f "Unbound variable: ~S" (menu-expand) #f)
+ERROR: Unbound variable: make-menu-widget
+ERROR: In procedure apply:
+ERROR: Wrong type argument in position 1: (unbound-variable #f "Unbound variable: ~S" (make-menu-widget) #f)
+ERROR: Unbound variable: cache-menu?
+ERROR: In procedure apply:
+ERROR: Wrong type argument in position 1: (unbound-variable #f "Unbound variable: ~S" (cache-menu?) #f)
+<unnamed port>:1:1: In expression (lazy-initialize-force):
+<unnamed port>:1:1: Unbound variable: lazy-initialize-force
+ERROR: Unbound variable: menu-expand
+ERROR: In procedure apply:
+ERROR: Wrong type argument in position 1: (unbound-variable #f "Unbound variable: ~S" (menu-expand) #f)
+ERROR: Unbound variable: make-menu-widget
+ERROR: In procedure apply:
+ERROR: Wrong type argument in position 1: (unbound-variable #f "Unbound variable: ~S" (make-menu-widget) #f)
+ERROR: Unbound variable: cache-menu?
+ERROR: In procedure apply:
+ERROR: Wrong type argument in position 1: (unbound-variable #f "Unbound variable: ~S" (cache-menu?) #f)
+<unnamed port>:1:1: In expression (lazy-initialize-force):
+<unnamed port>:1:1: Unbound variable: lazy-initialize-force
+ERROR: Unbound variable: menu-expand
+ERROR: In procedure apply:
+ERROR: Wrong type argument in position 1: (unbound-variable #f "Unbound variable: ~S" (menu-expand) #f)
+ERROR: Unbound variable: make-menu-widget
+ERROR: In procedure apply:
+ERROR: Wrong type argument in position 1: (unbound-variable #f "Unbound variable: ~S" (make-menu-widget) #f)
+ERROR: Unbound variable: cache-menu?
+ERROR: In procedure apply:
+ERROR: Wrong type argument in position 1: (unbound-variable #f "Unbound variable: ~S" (cache-menu?) #f)
+<unnamed port>:1:1: In expression (lazy-initialize-force):
+<unnamed port>:1:1: Unbound variable: lazy-initialize-force
+ERROR: Unbound variable: menu-expand
+ERROR: In procedure apply:
+ERROR: Wrong type argument in position 1: (unbound-variable #f "Unbound variable: ~S" (menu-expand) #f)
+ERROR: Unbound variable: make-menu-widget
+ERROR: In procedure apply:
+ERROR: Wrong type argument in position 1: (unbound-variable #f "Unbound variable: ~S" (make-menu-widget) #f)
+ERROR: Unbound variable: cache-menu?
+ERROR: In procedure apply:
+ERROR: Wrong type argument in position 1: (unbound-variable #f "Unbound variable: ~S" (cache-menu?) #f)
+<unnamed port>:1:1: In expression (lazy-initialize-force):
+<unnamed port>:1:1: Unbound variable: lazy-initialize-force
+ERROR: Unbound variable: menu-expand
+ERROR: In procedure apply:
+ERROR: Wrong type argument in position 1: (unbound-variable #f "Unbound variable: ~S" (menu-expand) #f)
+ERROR: Unbound variable: make-menu-widget
+ERROR: In procedure apply:
+ERROR: Wrong type argument in position 1: (unbound-variable #f "Unbound variable: ~S" (make-menu-widget) #f)
+ERROR: Unbound variable: cache-menu?
+ERROR: In procedure apply:
+ERROR: Wrong type argument in position 1: (unbound-variable #f "Unbound variable: ~S" (cache-menu?) #f)
+<unnamed port>:1:1: In expression (lazy-initialize-force):
+<unnamed port>:1:1: Unbound variable: lazy-initialize-force
+ERROR: Unbound variable: menu-expand
+ERROR: In procedure apply:
+ERROR: Wrong type argument in position 1: (unbound-variable #f "Unbound variable: ~S" (menu-expand) #f)
+ERROR: Unbound variable: make-menu-widget*
+ERROR: In procedure apply:
+ERROR: Wrong type argument in position 1: (unbound-variable #f "Unbound variable: ~S" (make-menu-widget*) #f)
+<unnamed port>:1:1: In expression (lazy-initialize-force):
+<unnamed port>:1:1: Unbound variable: lazy-initialize-force
+ERROR: Unbound variable: menu-expand
+ERROR: In procedure apply:
+ERROR: Wrong type argument in position 1: (unbound-variable #f "Unbound variable: ~S" (menu-expand) #f)
+ERROR: Unbound variable: make-menu-widget*
+ERROR: In procedure apply:
+ERROR: Wrong type argument in position 1: (unbound-variable #f "Unbound variable: ~S" (make-menu-widget*) #f)
+<unnamed port>:1:1: In expression (lazy-initialize-force):
+<unnamed port>:1:1: Unbound variable: lazy-initialize-force
+ERROR: Unbound variable: menu-expand
+ERROR: In procedure apply:
+ERROR: Wrong type argument in position 1: (unbound-variable #f "Unbound variable: ~S" (menu-expand) #f)
+ERROR: Unbound variable: make-menu-widget
+ERROR: In procedure apply:
+ERROR: Wrong type argument in position 1: (unbound-variable #f "Unbound variable: ~S" (make-menu-widget) #f)
+<unnamed port>:1:1: In expression (lazy-initialize-force):
+<unnamed port>:1:1: Unbound variable: lazy-initialize-force
+ERROR: Unbound variable: menu-expand
+ERROR: In procedure apply:
+ERROR: Wrong type argument in position 1: (unbound-variable #f "Unbound variable: ~S" (menu-expand) #f)
+ERROR: Unbound variable: make-menu-widget
+ERROR: In procedure apply:
+ERROR: Wrong type argument in position 1: (unbound-variable #f "Unbound variable: ~S" (make-menu-widget) #f)
+<unnamed port>:1:19: In procedure quit-TeXmacs in expression (quit-TeXmacs):
+<unnamed port>:1:19: Unbound variable: quit-TeXmacs-scheme
+<unnamed port>:1:19: In procedure apply in expression (quit-TeXmacs):
+<unnamed port>:1:19: Wrong type argument in position 1: (unbound-variable #f "Unbound variable: ~S" (quit-TeXmacs-scheme) #f)
