@@ -1,18 +1,39 @@
-# GNU TeXmacs
-[![Join the chat at https://gitter.im/texmacs/Lobby](https://badges.gitter.im/texmacs/Lobby.svg)](https://gitter.im/texmacs/Lobby?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+# ATHENA
+**(Advanced Typesetting and Hypertext Environment for Notes and Archives)**
 
-[GNU ATHENA](https://texmacs.org) is a free wysiwyw (what you see is what you want) editing platform with special features for scientists. The software aims to provide a unified and user friendly framework for editing structured documents with different types of content (text, graphics, mathematics, interactive content, etc.). The rendering engine uses high-quality typesetting algorithms so as to produce professionally looking documents, which can either be printed out or presented from a laptop.
+ATHENA is an editing platform specifically crafted for mathematical knowledge management at scale. Essentially, it confronts the difficulty in finding a structured notetaking environment for mathematics.
 
-The software includes a text editor with support for mathematical formulas, a small technical picture editor and a tool for making presentations from a laptop. Moreover, TeXmacs can be used as an interface for many external systems for computer algebra, numerical analysis, statistics, etc. New presentation styles can be written by the user and new features can be added to the editor using the Scheme extension language. A native spreadsheet and tools for collaborative authoring are planned for later.
+The intent to create ATHENA originates from seeking an alternative for Obsidian. While Obsidian is great in many aspects, it is definitely not math-centered, has numerous bugs that make for an unhappy experience, and feels too web-styled. ATHENA bridges the gap between scientific publishing and modern, interconnected notetaking, providing an "Obsidian-like" experience adapted for the rigors of technical writing and knowledge base construction.
 
-TeXmacs runs on all major Unix platforms and Windows. Documents can be saved in TeXmacs, Xml or Scheme format and printed as Postscript or Pdf files. Converters exist for TeX/LaTeX and Html/Mathml. 
+## Features
 
-## Documentation
-GNU TeXmacs is self-documented. You may browse the manual in the `Help` menu or browse the online [one](https://www.texmacs.org/tmweb/manual/web-manual.en.html).
+### Structured Notetaking
+*   **Vaults:** Organize your entire knowledge ecosystem of notes and archives into self-contained, portable knowledge bases, somewhat like a personalized nLab or Wikipedia.
+*   **Wikilinks:** Effortlessly connect ideas and blocks (e.g. definitions, theorems) across different documents with simple, intuitive linking. Block reference is supported. Wikilinks have a self-repair functionality, so even if you touch the link UUID or anchor name by accident, the link is not lost.
+*   **Transclusions:** Embed parts of one document, e.g. some theorem, into another dynamically, allowing you to effortlessly restate things that matter in context.
 
-For developer, see [this](./COMPILE) to compile the project.
+### Customization and UI
+*   Added extensive customization options not found in upstream versions, such as the ability to define background colors for enunciations, custom cursor colors, selection colors, and more.
+*   Completely restructured the Preferences dialog to make navigating these advanced styling and UI options highly intuitive.
 
-## Contributing
-Please report any [new bugs](https://www.texmacs.org/tmweb/contact/bugs.en.html) and [suggestions](https://www.texmacs.org/tmweb/contact/wishes.en.html) to us. It is also possible to [subscribe](https://www.texmacs.org/tmweb/help/tmusers.en.html) to the <texmacs-users@texmacs.org> mailing list in order to get or give help from or to other TeXmacs users.
+## Foundations and Divergence
 
-You may contribute patches for TeXmacs using the [patch manager](http://savannah.gnu.org/patch/?group=texmacs) on Savannah or by submitting a [pull request](https://github.com/texmacs/texmacs/pulls) on Github.Please note that while we use SVN on Savannah, GitHub serves only as a mirror. To facilitate synchronization, we have a `svn_mirror` branch. Please refrain from submitting pull requests to the `svn_mirror` branch; instead, use the `development` branch as the base to ensure proper merging and integration into the main SVN trunk.
+ATHENA is a fork of GNU TeXmacs. We gratefully acknowledge the decades of foundational work by Prof. Joris van der Hoeven and the TeXmacs team that made this project possible.
+
+However, it is important to note that ATHENA is **not** a distribution of GNU TeXmacs. To support its knowledge management features, ATHENA introduces incompatible AST nodes and other source-level changes. Thus, although theoretically ATHENA can load any file created by upstream TeXmacs, the converse may not be possible. While we maintain a deep respect for our heritage, ATHENA is evolving into a distinct environment optimized for the modern researcher.
+
+Please be aware that ATHENA is still in active development and is not yet considered a stable production version.
+
+## Building from Source
+
+ATHENA runs on most major GNU/Linux distributions, macOS, and Windows. 
+
+To compile the project, please see the [COMPILE](./COMPILE) instructions.
+
+## Licensing
+
+ATHENA is free software and is released under the [GNU General Public License (GPL) version 3 or later](./LICENSE).
+
+---
+*Copyright © 1998–2026 Joris van der Hoeven and others.*
+*Copyright © 2026 Nuaptan F. Evalisk.*
