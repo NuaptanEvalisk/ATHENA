@@ -1235,7 +1235,7 @@
 
 (tm-define (restart-message)
   (:interactive #t)
-  (show-message "Restart TeXmacs in order to let changes take effect"
+  (show-message "Restart ATHENA in order to let changes take effect"
                 "Notification"))
 
 (tm-widget ((notify-dialogue message) cmd)

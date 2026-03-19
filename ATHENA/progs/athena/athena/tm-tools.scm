@@ -82,6 +82,15 @@
                "(can be long)")
   (font-database-build-local))
 
+(tm-define (clean-athena-cache)
+  (:interactive #t)
+  (:synopsis "Clean the system cache")
+  (user-confirm "Are you sure you want to clean the system cache?" #f
+    (lambda (answ)
+      (when answ
+        (system "rm -rf ~/.ATHENA/system/cache")
+        (restart-message)))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Miscellaneous
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

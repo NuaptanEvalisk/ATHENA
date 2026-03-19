@@ -78,4 +78,5 @@
   ---
   ("Clear undo history" (clear-undo-history))
   ("Save auxiliary data" (toggle-save-aux))
-  ("Show key presses" (toggle-show-kbd)))
+  ("Show key presses" (toggle-show-kbd))
+  ("Clean cache" (clean-athena-cache)))
