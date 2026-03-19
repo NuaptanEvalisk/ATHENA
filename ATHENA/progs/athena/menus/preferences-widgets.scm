@@ -628,13 +628,17 @@
 
 (define-preferences
   ("latex->texmacs:matrix-recognition" "on" noop)
-  ("latex->texmacs:aligned-to-eqnarray" "on" noop))
+  ("latex->texmacs:aligned-to-eqnarray" "on" noop)
+  ("latex->texmacs:align-to-aligned" "on" noop))
 
 (tm-widget (editing-importer-preferences-widget)
   (aligned
     (item (text "Recognize matrices and determinants disguised as arrays:")
       (toggle (set-boolean-preference "latex->texmacs:matrix-recognition" answer)
               (get-boolean-preference "latex->texmacs:matrix-recognition")))
+    (item (text "Treat 'align' as 'aligned':")
+      (toggle (set-boolean-preference "latex->texmacs:align-to-aligned" answer)
+              (get-boolean-preference "latex->texmacs:align-to-aligned")))
     (item (text "Convert 'aligned' blocks into 'eqnarray' environments:")
       (toggle (set-boolean-preference "latex->texmacs:aligned-to-eqnarray" answer)
               (get-boolean-preference "latex->texmacs:aligned-to-eqnarray")))))

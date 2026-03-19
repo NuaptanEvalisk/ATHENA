@@ -24,6 +24,11 @@ static string
 preprocess_latex_formula (string latex) {
   std::string str = as_charp (latex);
 
+  if (get_preference ("latex->texmacs:align-to-aligned", "on") == "on") {
+    str = std::regex_replace (str, std::regex(R"(\\begin\{align\})"), R"(\begin{aligned})");
+    str = std::regex_replace (str, std::regex(R"(\\end\{align\})"), R"(\end{aligned})");
+  }
+
   if (get_preference ("latex->texmacs:matrix-recognition", "on") == "on") {
     std::vector<std::pair<std::regex, std::string>> rules = {
       {std::regex(R"(\\left\s*\(\s*\\begin\{array\}(\s*\{[^}]*\})?([\s\S]*?)\\end\{array\}\s*\\right\s*\))"), R"(\begin{pmatrix}$2\end{pmatrix})"},
