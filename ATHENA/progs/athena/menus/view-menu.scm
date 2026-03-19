@@ -117,7 +117,6 @@
   ("Presentation mode" (toggle-full-screen-mode))
   ("Show panorama" (toggle-panorama-mode))
   ("Show all slides" (toggle-slideshow-mode))
-  ("Remote control" (toggle-remote-control-mode))
   ---
   ("Fit to screen" (fit-to-screen))  ("Fit to screen width" (fit-to-screen-width))
   ("Persistent fit width" (toggle-persistent-fit-width))

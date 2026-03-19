@@ -79,4 +79,5 @@
   ("Clear undo history" (clear-undo-history))
   ("Save auxiliary data" (toggle-save-aux))
   ("Show key presses" (toggle-show-kbd))
+  ("Remote control" (toggle-remote-control-mode))
   ("Clean cache" (clean-athena-cache)))
