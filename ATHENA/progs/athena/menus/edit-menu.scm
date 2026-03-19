@@ -32,6 +32,17 @@
 (tm-define (clipboard-paste-import-menu)
   (clipboard-extern-menu converters-to-special clipboard-paste-import))
 
+(tm-menu (clipboard-preference-menu cvs fun)
+  (with l (cvs "texmacs-file" "-file" #f)
+    (for (fm l)
+      (with name (format-get-name fm)
+        ((eval name) (fun fm))))))
+
+(tm-define (clipboard-import-preference-menu)
+  (clipboard-preference-menu converters-to-special clipboard-set-import))
+(tm-define (clipboard-export-preference-menu)
+  (clipboard-preference-menu converters-from-special clipboard-set-export))
+
 (tm-menu (redo-menu)
   (for (i (.. 0 (redo-possibilities)))
     ((eval `(concat "Branch " ,(number->string (+ i 1)))) (redo i))))
@@ -98,6 +109,11 @@
           ("Ternary" (clipboard-paste "ternary"))
           ---
           ("Other" (interactive clipboard-paste))))
+  ---
+  (-> "Import selections as"
+      (link clipboard-import-preference-menu))
+  (-> "Export selections as"
+      (link clipboard-export-preference-menu))
   ---
   (if (use-menus?)
       (-> "Preferences"
