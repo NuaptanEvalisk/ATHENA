@@ -21,7 +21,7 @@
   (:use (convert rewrite init-rewrite) 
         (doc apidoc-collect)
         (doc apidoc-widgets)
-        (kernel texmacs tm-preferences)
+        (kernel athena tm-preferences)
         (kernel gui kbd-handlers)))
 
 (tm-define char-set:stopmark

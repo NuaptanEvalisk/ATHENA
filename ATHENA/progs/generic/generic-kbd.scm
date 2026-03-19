@@ -12,7 +12,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (texmacs-module (generic generic-kbd)
-  (:use (texmacs keyboard prefix-kbd)
+  (:use (athena keyboard prefix-kbd)
         (utils edit variants)
         (utils edit auto-close)
         (utils library cursor)
@@ -21,8 +21,8 @@
         (generic format-edit)
         (generic format-geometry-edit)
         (source source-edit)
-        (texmacs texmacs tm-files)
-        (texmacs texmacs tm-print)
+        (athena athena tm-files)
+        (athena athena tm-print)
         (doc help-funcs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

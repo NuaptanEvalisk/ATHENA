@@ -170,6 +170,7 @@
            print-menu print-menu-inline close-menu)
 (lazy-menu (athena menus edit-menu) edit-menu)
 (lazy-menu (athena menus view-menu) view-menu athena-bottom-toolbars)
+(lazy-menu (athena menus interface-menu) interface-menu)
 (lazy-menu (athena menus tools-menu) tools-menu)
 (lazy-menu (athena menus preferences-menu) preferences-menu page-setup-menu)
 (lazy-menu (athena menus preferences-widgets)

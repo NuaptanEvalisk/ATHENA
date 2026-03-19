@@ -21,7 +21,7 @@
 (texmacs-module (doc apidoc-widgets)
   (:use (doc apidoc-funcs)
         (doc apidoc-collect)
-        (kernel texmacs tm-preferences)))
+        (kernel athena tm-preferences)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; A contextual help widget

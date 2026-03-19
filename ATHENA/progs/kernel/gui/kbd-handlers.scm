@@ -12,7 +12,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (texmacs-module (kernel gui kbd-handlers)
-  (:use (kernel texmacs tm-define)))
+  (:use (kernel athena tm-define)))
 
 (tm-define ShiftMask     256)
 (tm-define LockMask      512)

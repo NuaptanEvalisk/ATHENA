@@ -12,7 +12,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (texmacs-module (utils test test-latex-export)
-  (:use (texmacs texmacs tm-files)
+  (:use (athena athena tm-files)
         (generic document-style)
         (utils library cursor)
         (check check-master)

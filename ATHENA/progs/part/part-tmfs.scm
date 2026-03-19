@@ -13,7 +13,7 @@
 
 (texmacs-module (part part-tmfs)
   (:use (part part-shared)
-        (texmacs texmacs tm-files)))
+        (athena athena tm-files)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Useful subroutines

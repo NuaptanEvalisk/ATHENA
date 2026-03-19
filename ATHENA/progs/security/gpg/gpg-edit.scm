@@ -12,7 +12,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (texmacs-module (security gpg gpg-edit)
-  (:use (texmacs texmacs tm-files)
+  (:use (athena athena tm-files)
 	(security gpg gpg-widgets)
 	(utils library cursor)))
 
