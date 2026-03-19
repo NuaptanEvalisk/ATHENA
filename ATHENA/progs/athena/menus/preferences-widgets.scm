@@ -627,13 +627,17 @@
               (get-boolean-preference "prog:select brackets")))))
 
 (define-preferences
-  ("latex->texmacs:matrix-recognition" "on" noop))
+  ("latex->texmacs:matrix-recognition" "on" noop)
+  ("latex->texmacs:aligned-to-eqnarray" "on" noop))
 
 (tm-widget (editing-importer-preferences-widget)
   (aligned
     (item (text "Recognize matrices and determinants disguised as arrays:")
       (toggle (set-boolean-preference "latex->texmacs:matrix-recognition" answer)
-              (get-boolean-preference "latex->texmacs:matrix-recognition")))))
+              (get-boolean-preference "latex->texmacs:matrix-recognition")))
+    (item (text "Convert 'aligned' blocks into 'eqnarray' environments:")
+      (toggle (set-boolean-preference "latex->texmacs:aligned-to-eqnarray" answer)
+              (get-boolean-preference "latex->texmacs:aligned-to-eqnarray")))))
 
 (tm-widget (editing-preferences-widget)
   ===

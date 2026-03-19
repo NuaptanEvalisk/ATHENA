@@ -21,26 +21,36 @@ tree latex_symbol_to_tree (string s);
 string verbatim_escape (string s);
 
 static string
-recognize_latex_matrices (string latex) {
-  if (get_preference ("latex->texmacs:matrix-recognition", "on") != "on")
-    return latex;
-
+preprocess_latex_formula (string latex) {
   std::string str = as_charp (latex);
-  
-  std::vector<std::pair<std::regex, std::string>> rules = {
-    {std::regex("\\\\left\\s*\\("          "\\s*\\\\begin\\{array\\}(\\s*\\{[^}]*\\})?([\\s\\S]*?)\\\\end\\{array\\}\\s*" "\\\\right\\s*\\)"), "\\begin{pmatrix}$2\\end{pmatrix}"},
-    {std::regex("\\\\left\\s*\\["          "\\s*\\\\begin\\{array\\}(\\s*\\{[^}]*\\})?([\\s\\S]*?)\\\\end\\{array\\}\\s*" "\\\\right\\s*\\]"), "\\begin{bmatrix}$2\\end{bmatrix}"},
-    {std::regex("\\\\left\\s*(?:\\\\vert|\\|)" "\\s*\\\\begin\\{array\\}(\\s*\\{[^}]*\\})?([\\s\\S]*?)\\\\end\\{array\\}\\s*" "\\\\right\\s*(?:\\\\vert|\\|)"), "\\begin{vmatrix}$2\\end{vmatrix}"},
-    {std::regex("\\\\left\\s*(?:\\\\Vert|\\\\\\|)" "\\s*\\\\begin\\{array\\}(\\s*\\{[^}]*\\})?([\\s\\S]*?)\\\\end\\{array\\}\\s*" "\\\\right\\s*(?:\\\\Vert|\\\\\\|)"), "\\begin{Vmatrix}$2\\end{Vmatrix}"}
-  };
-  
-  for (auto& rule : rules) {
-    str = std::regex_replace (str, rule.first, rule.second);
+
+  if (get_preference ("latex->texmacs:matrix-recognition", "on") == "on") {
+    std::vector<std::pair<std::regex, std::string>> rules = {
+      {std::regex(R"(\\left\s*\(\s*\\begin\{array\}(\s*\{[^}]*\})?([\s\S]*?)\\end\{array\}\s*\\right\s*\))"), R"(\begin{pmatrix}$2\end{pmatrix})"},
+      {std::regex(R"(\\left\s*\[\s*\\begin\{array\}(\s*\{[^}]*\})?([\s\S]*?)\\end\{array\}\s*\\right\s*\])"), R"(\begin{bmatrix}$2\end{bmatrix})"},
+      {std::regex(R"(\\left\s*(?:\\vert|\|)\s*\\begin\{array\}(\s*\{[^}]*\})?([\s\S]*?)\\end\{array\}\s*\\right\s*(?:\\vert|\|))"), R"(\begin{vmatrix}$2\end{vmatrix})"},
+      {std::regex(R"(\\left\s*(?:\\Vert|\\\|)\s*\\begin\{array\}(\s*\{[^}]*\})?([\s\S]*?)\\end\{array\}\s*\\right\s*(?:\\Vert|\\\|))"), R"(\begin{Vmatrix}$2\end{Vmatrix})"}
+    };
+    for (auto& rule : rules) {
+      str = std::regex_replace (str, rule.first, rule.second);
+    }
+    std::regex naked_regex (R"(\\begin\{array\}(\s*\{[^}]*\})?([\s\S]*?)\\end\{array\})");
+    str = std::regex_replace (str, naked_regex, R"(\begin{matrix}$2\end{matrix})");
   }
-  
-  std::regex naked_regex ("\\\\begin\\{array\\}(\\s*\\{[^}]*\\})?([\\s\\S]*?)\\\\end\\{array\\}");
-  str = std::regex_replace (str, naked_regex, "\\begin{matrix}$2\\end{matrix}");
-  
+
+  if (get_preference ("latex->texmacs:aligned-to-eqnarray", "on") == "on") {
+    std::vector<std::pair<std::regex, std::string>> aligned_rules = {
+      {std::regex(R"(\\begin\{equation\}\s*\\begin\{aligned\}([\s\S]*?)\\end\{aligned\}\s*\\end\{equation\})"), R"(\begin{eqnarray}$1\end{eqnarray})"},
+      {std::regex(R"(\\begin\{equation\*\}\s*\\begin\{aligned\}([\s\S]*?)\\end\{aligned\}\s*\\end\{equation\*\})"), R"(\begin{eqnarray*}$1\end{eqnarray*})"},
+      {std::regex(R"(\\\[\s*\\begin\{aligned\}([\s\S]*?)\\end\{aligned\}\s*\\\])"), R"(\begin{eqnarray*}$1\end{eqnarray*})"},
+      {std::regex(R"(\$\$\s*\\begin\{aligned\}([\s\S]*?)\\end\{aligned\}\s*\$\$)"), R"(\begin{eqnarray*}$1\end{eqnarray*})"},
+      {std::regex(R"(\\begin\{aligned\}([\s\S]*?)\\end\{aligned\})"), R"(\begin{eqnarray*}$1\end{eqnarray*})"}
+    };
+    for (auto& rule : aligned_rules) {
+      str = std::regex_replace (str, rule.first, rule.second);
+    }
+  }
+
   return string (str.c_str());
 }
 
@@ -2010,7 +2020,7 @@ latex_encoding_to_iconv (string s) {
 tree
 parse_latex (string s, bool change, bool as_pic) {
   tree r;
-  s= recognize_latex_matrices (s);
+  s= preprocess_latex_formula (s);
   s= dos_to_better (s);
   string lan= get_latex_language (s);
   string encoding= latex_encoding_to_iconv (get_latex_encoding (s));
