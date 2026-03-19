@@ -626,6 +626,15 @@
       (toggle (set-boolean-preference "prog:select brackets" answer)
               (get-boolean-preference "prog:select brackets")))))
 
+(define-preferences
+  ("latex->texmacs:matrix-recognition" "on" noop))
+
+(tm-widget (editing-importer-preferences-widget)
+  (aligned
+    (item (text "Recognize matrices and determinants disguised as arrays:")
+      (toggle (set-boolean-preference "latex->texmacs:matrix-recognition" answer)
+              (get-boolean-preference "latex->texmacs:matrix-recognition")))))
+
 (tm-widget (editing-preferences-widget)
   ===
   (padded
@@ -635,7 +644,10 @@
           (dynamic (editing-math-preferences-widget))))
       (tab (text "Programming")
         (centered
-          (dynamic (editing-programming-preferences-widget))))))
+          (dynamic (editing-programming-preferences-widget))))
+      (tab (text "Formula Importer")
+        (centered
+          (dynamic (editing-importer-preferences-widget))))))
   ===)
 
 (tm-widget (math-preferences-widget*)

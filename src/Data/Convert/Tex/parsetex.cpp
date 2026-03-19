@@ -12,11 +12,37 @@
 #include "Tex/convert_tex.hpp"
 #include "converter.hpp"
 #include "wencoding.hpp"
+#include "Scheme/scheme.hpp"
+#include <regex>
 
 extern bool textm_class_flag;
 
 tree latex_symbol_to_tree (string s);
 string verbatim_escape (string s);
+
+static string
+recognize_latex_matrices (string latex) {
+  if (get_preference ("latex->texmacs:matrix-recognition", "on") != "on")
+    return latex;
+
+  std::string str = as_charp (latex);
+  
+  std::vector<std::pair<std::regex, std::string>> rules = {
+    {std::regex("\\\\left\\s*\\("          "\\s*\\\\begin\\{array\\}(\\s*\\{[^}]*\\})?([\\s\\S]*?)\\\\end\\{array\\}\\s*" "\\\\right\\s*\\)"), "\\begin{pmatrix}$2\\end{pmatrix}"},
+    {std::regex("\\\\left\\s*\\["          "\\s*\\\\begin\\{array\\}(\\s*\\{[^}]*\\})?([\\s\\S]*?)\\\\end\\{array\\}\\s*" "\\\\right\\s*\\]"), "\\begin{bmatrix}$2\\end{bmatrix}"},
+    {std::regex("\\\\left\\s*(?:\\\\vert|\\|)" "\\s*\\\\begin\\{array\\}(\\s*\\{[^}]*\\})?([\\s\\S]*?)\\\\end\\{array\\}\\s*" "\\\\right\\s*(?:\\\\vert|\\|)"), "\\begin{vmatrix}$2\\end{vmatrix}"},
+    {std::regex("\\\\left\\s*(?:\\\\Vert|\\\\\\|)" "\\s*\\\\begin\\{array\\}(\\s*\\{[^}]*\\})?([\\s\\S]*?)\\\\end\\{array\\}\\s*" "\\\\right\\s*(?:\\\\Vert|\\\\\\|)"), "\\begin{Vmatrix}$2\\end{Vmatrix}"}
+  };
+  
+  for (auto& rule : rules) {
+    str = std::regex_replace (str, rule.first, rule.second);
+  }
+  
+  std::regex naked_regex ("\\\\begin\\{array\\}(\\s*\\{[^}]*\\})?([\\s\\S]*?)\\\\end\\{array\\}");
+  str = std::regex_replace (str, naked_regex, "\\begin{matrix}$2\\end{matrix}");
+  
+  return string (str.c_str());
+}
 
 /******************************************************************************
 * The latex_parser structure
@@ -1984,6 +2010,7 @@ latex_encoding_to_iconv (string s) {
 tree
 parse_latex (string s, bool change, bool as_pic) {
   tree r;
+  s= recognize_latex_matrices (s);
   s= dos_to_better (s);
   string lan= get_latex_language (s);
   string encoding= latex_encoding_to_iconv (get_latex_encoding (s));
