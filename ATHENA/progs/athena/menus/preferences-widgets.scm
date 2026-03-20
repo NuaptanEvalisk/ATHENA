@@ -632,7 +632,8 @@
   ("latex->texmacs:align-to-aligned" "on" noop)
   ("latex->texmacs:operator-d-is-differential" "on" noop)
   ("latex->texmacs:roman-d-is-differential" "on" noop)
-  ("latex->texmacs:text-d-is-differential" "on" noop))
+  ("latex->texmacs:text-d-is-differential" "on" noop)
+  ("latex->texmacs:parse-bbbk" "on" noop))
 
 (tm-widget (editing-importer-preferences-widget)
   (aligned
@@ -653,7 +654,10 @@
               (get-boolean-preference "latex->texmacs:roman-d-is-differential")))
     (item (text "Parse text d as differential d:")
       (toggle (set-boolean-preference "latex->texmacs:text-d-is-differential" answer)
-              (get-boolean-preference "latex->texmacs:text-d-is-differential")))))
+              (get-boolean-preference "latex->texmacs:text-d-is-differential")))
+    (item (text "Parse blackboard k as Bbbk:")
+      (toggle (set-boolean-preference "latex->texmacs:parse-bbbk" answer)
+              (get-boolean-preference "latex->texmacs:parse-bbbk")))))
 
 (tm-widget (editing-preferences-widget)
   ===
