@@ -599,6 +599,12 @@ default_chinese_font_name () {
   if (tt_font_exists ("uming")) return "uming";
   if (tt_font_exists ("儷黑 Pro")) return "lihei";
   if (tt_font_exists ("SimSun")) return "apple-simsun";
+
+  array<string> query;
+  query << string("cjk");
+  array<string> cjk_fonts = search_font_families (query);
+  if (N(cjk_fonts) > 0) return cjk_fonts[0];
+
   return "roman";
 }
 
@@ -622,7 +628,13 @@ default_japanese_font_name () {
   if (tt_font_exists ("sazanami")) return "sazanami";
   if (tt_font_exists ("ttf-japanese-gothic")) return "ttf-japanese";
   if (tt_font_exists ("ヒラギノ明朝 ProN W6")) return "kaku";
-  return "roman";  
+
+  array<string> query;
+  query << string("cjk");
+  array<string> cjk_fonts = search_font_families (query);
+  if (N(cjk_fonts) > 0) return cjk_fonts[0];
+
+  return "roman";
 }
 
 string
@@ -645,5 +657,11 @@ default_korean_font_name () {
   if (tt_font_exists ("UnBatang")) return (new_fonts? "UnBatang": "modern");
   if (tt_font_exists ("AppleGothic")) return "apple-gothic";
   if (tt_font_exists ("Gulim")) return "gulim";
+
+  array<string> query;
+  query << string("hangul");
+  array<string> korean_fonts = search_font_families (query);
+  if (N(korean_fonts) > 0) return korean_fonts[0];
+
   return "roman";
 }
