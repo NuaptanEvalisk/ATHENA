@@ -629,7 +629,10 @@
 (define-preferences
   ("latex->texmacs:matrix-recognition" "on" noop)
   ("latex->texmacs:aligned-to-eqnarray" "on" noop)
-  ("latex->texmacs:align-to-aligned" "on" noop))
+  ("latex->texmacs:align-to-aligned" "on" noop)
+  ("latex->texmacs:operator-d-is-differential" "on" noop)
+  ("latex->texmacs:roman-d-is-differential" "on" noop)
+  ("latex->texmacs:text-d-is-differential" "on" noop))
 
 (tm-widget (editing-importer-preferences-widget)
   (aligned
@@ -641,7 +644,16 @@
               (get-boolean-preference "latex->texmacs:align-to-aligned")))
     (item (text "Convert 'aligned' blocks into 'eqnarray' environments:")
       (toggle (set-boolean-preference "latex->texmacs:aligned-to-eqnarray" answer)
-              (get-boolean-preference "latex->texmacs:aligned-to-eqnarray")))))
+              (get-boolean-preference "latex->texmacs:aligned-to-eqnarray")))
+    (item (text "Parse operator d as differential d:")
+      (toggle (set-boolean-preference "latex->texmacs:operator-d-is-differential" answer)
+              (get-boolean-preference "latex->texmacs:operator-d-is-differential")))
+    (item (text "Parse Roman d as differential d:")
+      (toggle (set-boolean-preference "latex->texmacs:roman-d-is-differential" answer)
+              (get-boolean-preference "latex->texmacs:roman-d-is-differential")))
+    (item (text "Parse text d as differential d:")
+      (toggle (set-boolean-preference "latex->texmacs:text-d-is-differential" answer)
+              (get-boolean-preference "latex->texmacs:text-d-is-differential")))))
 
 (tm-widget (editing-preferences-widget)
   ===

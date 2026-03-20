@@ -1129,6 +1129,7 @@ latex_symbol_to_tree (string s) {
     if (latex_type (s) == "operator" || latex_type (s) == "control") {
       if (s == "varinjlim") return tree (VAR_WIDE, "lim", "<wide-varrightarrow>");
       if (s == "varprojlim") return tree (VAR_WIDE, "lim", "<wide-varleftarrow>");
+      if (s == "mathd" || s == "mathD" || s == "partial") return "<" * s * ">";
       return s;
     }
     if (s == "bignone") return tree (BIG, ".");
@@ -1385,7 +1386,10 @@ latex_concat_to_tree (tree t, bool& new_flag) {
       bool old_flag= new_flag;
       if (!cc_flag) new_flag= ((N(s)==1) && is_alpha(s));
       if ((command_type ["!mode"] == "math") &&
-          (!cc_flag) && old_flag && (new_flag || operator_flag)) s= "*" * s;
+          (!cc_flag) && old_flag && (new_flag || operator_flag)) {
+        if (u == "<mathd>" || u == "<mathD>" || u == "<partial>") s= " " * s;
+        else s= "*" * s;
+      }
       if ((N(r)>0) && is_atomic (r[N(r)-1])) {
         if (s != " " || r[N(r)-1]->label != " ")
           r[N(r)-1]->label << s;

@@ -286,7 +286,8 @@
 
 (logic-group latex-operator%
   arccos arcsin arctan arg cos cosh cot coth csc deg det dim exp gcd hom
-  inf ker lg lim liminf limsup varinjlim varprojlim ln log max min Pr sec sin sinh sup tan tanh)
+  inf ker lg lim liminf limsup varinjlim varprojlim ln log max min Pr sec sin sinh sup tan tanh
+  mathd mathD partial)
 
 (logic-group latex-list%
   begin-itemize begin-enumerate begin-description
