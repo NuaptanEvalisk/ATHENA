@@ -47,7 +47,6 @@ void QTMApplication::show_splash () {
   mSplash->repaint ();
   mSplash->raise ();
   mSplash->activateWindow ();
-  mSplash->showMessage ("Initializing...", Qt::AlignBottom | Qt::AlignCenter, Qt::black);
   
   // 核心防黑屏 Hack：强行滞留主线程，等待异步 Window Manager 完成 Expose
   // 10次循环 * 5ms 睡眠 = 50ms。这足以让 KWin/Mutter 处理完映射请求并分配显存。
