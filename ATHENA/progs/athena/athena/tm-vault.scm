@@ -445,8 +445,8 @@
                (with "par-mode" "center"
                  (document
                    "ATHENA is a fork based on GNU TeXmacs."
-                   (concat "Copyright " (C) " 1999-2026 Joris van der Hoeven and others.")
-                   (concat "Copyright " (C) " 2026 Nuaptan F. Evalisk.")
+                   (concat "Copyright " (copyright) " 1999-2026 Joris van der Hoeven and others.")
+                   (concat "Copyright " (copyright) " 2026 Nuaptan F. Evalisk.")
                    "Released under the GNU General Public License version 3 or later."))))
            ))))))
 (tmfs-load-handler (Wikilink name)
