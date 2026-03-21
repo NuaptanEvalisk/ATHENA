@@ -24,6 +24,10 @@
 #include "new_style.hpp"
 #include "Database/database.hpp"
 
+#ifdef QTTEXMACS
+#include <QCoreApplication>
+#endif
+
 server* the_server= NULL;
 bool texmacs_started= false;
 url tm_init_file= url_none ();
@@ -125,7 +129,10 @@ tree as_footer_tree (object obj);
 
 void
 tm_server_rep::set_center_message (tree m) {
-  cout << "DEBUG set_center_message: " << m << "\n";
+#ifdef QTTEXMACS
+  if (QCoreApplication::instance ())
+    QCoreApplication::instance ()->processEvents (QEventLoop::ExcludeUserInputEvents);
+#endif
   center_message= m;
   tree c = as_footer_tree (call ("center-footer-hook", object (m)));
   set_center_footer (translate (c));
