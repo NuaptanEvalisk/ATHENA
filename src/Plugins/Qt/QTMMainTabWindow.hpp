@@ -26,8 +26,9 @@ class QTMMainTabWindow : public QMainWindow {
 
 public:
   QTMMainTabWindow();
+  ~QTMMainTabWindow();
 
-  void showWidget(QWidget *widget);
+  void showWidget(QWidget *widget, bool isDocument = false);
   void removeWidget(QWidget *widget);
   void tabTitleChanged(QWidget *widget, QString title);
   void closeAndSetTopTabWindow();

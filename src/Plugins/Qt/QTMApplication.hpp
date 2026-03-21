@@ -77,6 +77,9 @@ public:
   }
 
   inline QTMMainTabWindow &mainTabWindow() {
+    if (QTMMainTabWindow::topTabWindow() == nullptr) {
+      new QTMMainTabWindow();
+    }
     return *QTMMainTabWindow::topTabWindow();
   }
 

@@ -61,6 +61,12 @@ QTMMainTabWindow::QTMMainTabWindow() {
   gTopTabWindow = this;
 }
 
+QTMMainTabWindow::~QTMMainTabWindow() {
+  if (gTopTabWindow == this) {
+    gTopTabWindow = nullptr;
+  }
+}
+
 void QTMMainTabWindow::onWindowActivated() {
   gTopTabWindow = this;
 }
@@ -204,13 +210,16 @@ bool QTMMainTabWindow::eventFilter(QObject *obj, QEvent *event) {
   return eventFilterTabBar(obj, event);
 }
 
-void QTMMainTabWindow::showWidget(QWidget *widget) {
+void QTMMainTabWindow::showWidget(QWidget *widget, bool isDocument) {
   if (tmapp()->useMdi()) {
     bool first = mMdiArea->subWindowList().isEmpty();
     QMdiSubWindow* sub = mMdiArea->addSubWindow (widget);
     sub->setAttribute(Qt::WA_DeleteOnClose);
-    if (first) sub->showMaximized();
-    else sub->show();
+    if (isDocument && (first || mMdiArea->activeSubWindow())) {
+      sub->showMaximized();
+    } else {
+      sub->show();
+    }
   } else {
     mTabWidget->addTab(widget, widget->windowTitle());
     mTabWidget->setCurrentWidget(widget);

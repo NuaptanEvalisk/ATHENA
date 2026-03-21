@@ -485,8 +485,12 @@ TM_DEBUG
   int instance_count = 0;
 )
 
+// defined in src/ATHENA/Server/tm_server.cpp
+bool is_server_started ();
+
 void
 edit_interface_rep::set_footer () {
+  if (!is_server_started ()) return;
   TM_DEBUG
   (
     cout << "--------------------------------------------------------------\n";
