@@ -14,6 +14,7 @@
 
 #include <QApplication>
 #include <QSplashScreen>
+#include <QThread>
 #include <QIcon>
 #include <QStyle>
 #include <QStyleFactory>
