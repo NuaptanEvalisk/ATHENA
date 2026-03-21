@@ -94,6 +94,9 @@
   (group "Documentation")
   (link apidoc-menu)
   ---
+  (group "Crash Test")
+  ("Trigger segfault" (cpp-error))
+  ---
   (group "Configuration")
   ((replace "Open %1" (verbatim "my-init-texmacs.scm"))
    (scm-load-buffer 

@@ -191,5 +191,10 @@ tm_failure (const char* msg) {
   close_all_pipes ();
   call ("quit-TeXmacs-scheme");
   clear_pending_commands ();
+
+  // defined in src/Kernel/Abstractions/basic.cpp
+  void qarma_crash_report (string report);
+  qarma_crash_report (report);
+
   //exit (1);
 }

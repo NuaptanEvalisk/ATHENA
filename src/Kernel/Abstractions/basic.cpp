@@ -13,6 +13,8 @@
 #include "string.hpp"
 #include "analyze.hpp"
 #include "scheme.hpp"
+#include "url.hpp"
+#include "file.hpp"
 #include "Freetype/tt_file.hpp"
 #include "dictionary.hpp"
 #include "sys_utils.hpp"
@@ -200,6 +202,46 @@ string the_report;
 string get_crash_report (const char* msg);
 
 void
+qarma_crash_report (string report) {
+  // Save full crash report to a file
+  url dir ("$ATHENA_HOME_PATH/system/crash");
+  url err= url_numbered (dir, "crash_report_", "");
+  save_string (err, report);
+
+  // Extract first 10 lines for the dialog
+  string summary = "";
+  int lines = 0;
+  for (int i=0; i<N(report); i++) {
+    if (report[i] == '\n') lines++;
+    summary << report[i];
+    if (lines >= 10) break;
+  }
+
+  // Display crash report using qarma
+  string qarma_text = "ATHENA has encountered a fatal error and needs to close.\n";
+  qarma_text << "A full crash report has been saved to: " << as_string (err) << "\n\n";
+  qarma_text << "Summary:\n" << summary;
+  if (lines >= 10) qarma_text << "...\n";
+  
+  string escaped_report = "";
+  for (int i=0; i<N(qarma_text); i++) {
+    if (qarma_text[i] == '\"') escaped_report << "\\\"";
+    else if (qarma_text[i] == '`') escaped_report << "\\`";
+    else if (qarma_text[i] == '$') escaped_report << "\\$";
+    else if (qarma_text[i] == '\\') escaped_report << "\\\\";
+    else if (qarma_text[i] == '\n') escaped_report << "<br/>";
+    else escaped_report << qarma_text[i];
+  }
+
+  string qarma_cmd = "qarma --error --text \"";
+  qarma_cmd << escaped_report << "\" ";
+  qarma_cmd << "--selectable-labels --name=\"ATHENA Error Reporting\" ";
+  qarma_cmd << "--title=\"ATHENA Error Reporting\" --modal &";
+  
+  system (qarma_cmd);
+}
+
+void
 tm_throw (const char* msg) {
   the_exception= msg;
   the_report   = get_crash_report (msg);
@@ -207,6 +249,7 @@ tm_throw (const char* msg) {
   cout << "-------------------------------------------------\n";
   cout << the_report << LF;
   cout << "-------------------------------------------------\n";
+  qarma_crash_report (the_report);
   throw string (msg);
 }
 

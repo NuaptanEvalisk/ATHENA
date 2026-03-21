@@ -103,8 +103,8 @@ tm_errput (string s) {
 
 void
 cpp_error () {
-  //char *np= 0; *np= 1;
-  FAILED ("an error occurred");
+  // FAILED ("an error occurred");
+  *((volatile int*)nullptr) = 0xDEADBEEF;
 }
 
 array<int>

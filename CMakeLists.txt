@@ -884,4 +884,14 @@ configure_file (${ATHENA_SOURCE_DIR}/misc/vscode/c_cpp_properties.json.in
   @ONLY
 )
 
+### --------------------------------------------------------------------
+### Check for qarma (optional but recommended for crash reporting)
+### --------------------------------------------------------------------
+find_program (QARMA_EXECUTABLE qarma)
+if (QARMA_EXECUTABLE)
+  message (STATUS "Found qarma: ${QARMA_EXECUTABLE}")
+else ()
+  message (STATUS "Could NOT find qarma (optional, but recommended for crash reporting)")
+endif ()
+
 message (STATUS "ATHENA_Libraries" ${ATHENA_Libraries})
