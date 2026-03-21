@@ -134,7 +134,7 @@ tm_server_rep::set_center_message (tree m) {
     QCoreApplication::instance ()->processEvents (QEventLoop::ExcludeUserInputEvents);
 #endif
   center_message= m;
-  tree c = as_footer_tree (call ("center-footer-hook", object (m)));
+  tree c = as_footer_tree (call ("center-footer-hook", object (as_string (m))));
   set_center_footer (translate (c));
 }
 

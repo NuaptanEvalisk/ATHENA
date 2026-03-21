@@ -151,7 +151,10 @@
                 (get-boolean-preference "disable texmacs window positioning")))
       (item (text "New bibliography dialogue:")
         (toggle (set-boolean-preference "gui:new bibliography dialogue" answer)
-                (get-boolean-preference "gui:new bibliography dialogue"))))
+                (get-boolean-preference "gui:new bibliography dialogue")))
+      (item (text "Show live statistics in central footer:")
+        (toggle (set-boolean-preference "gui:live-statistics" answer)
+                (get-boolean-preference "gui:live-statistics"))))
     (assuming (> (get-retina-scale) 0)
       (vertical
         ===

@@ -511,12 +511,12 @@ edit_interface_rep::set_footer () {
     if (set_hybrid_footer (st)) return;
     set_left_footer();
     set_right_footer();
-    set_center_footer (as_footer_tree (call ("center-footer-hook", object (get_server () -> get_center_message ()))));
+    set_center_footer (as_footer_tree (call ("center-footer-hook", object (as_string (get_server () -> get_center_message ())))));
   }
   else {
     if (message_l == "") set_left_footer ();
     else set_left_footer (message_l);
-    set_center_footer (as_footer_tree (call ("center-footer-hook", object (get_server () -> get_center_message ()))));
+    set_center_footer (as_footer_tree (call ("center-footer-hook", object (as_string (get_server () -> get_center_message ())))));
     if (message_r == "") set_right_footer ();
     else set_right_footer (message_r);
     message_l= message_r= "";
