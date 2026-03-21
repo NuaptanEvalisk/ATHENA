@@ -254,7 +254,28 @@ void QTMMainTabWindow::tileSubWindows() {
 }
 
 void QTMMainTabWindow::cascadeSubWindows() {
-  mMdiArea->cascadeSubWindows();
+  QList<QMdiSubWindow *> windows = mMdiArea->subWindowList();
+  int x = 0;
+  int y = 0;
+  int offset = 30;
+  
+  // Calculate a reasonable default size for cascaded windows (e.g., 80% of area)
+  int w = mMdiArea->width() * 0.8;
+  int h = mMdiArea->height() * 0.8;
+
+  for (QMdiSubWindow *window : windows) {
+    if (window->isMinimized()) continue;
+    window->showNormal();
+    window->setGeometry(x, y, w, h);
+    x += offset;
+    y += offset;
+    
+    // Wrap around if we go too far
+    if (x > mMdiArea->width() / 2 || y > mMdiArea->height() / 2) {
+      x = 0;
+      y = 0;
+    }
+  }
 }
 
 void QTMMainTabWindow::mdi_maximize_active() {
