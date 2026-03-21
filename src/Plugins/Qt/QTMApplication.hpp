@@ -68,6 +68,10 @@ public:
     return mUseTabWindow;
   }
 
+  inline bool useMdi() {
+    return mUseMdi;
+  }
+
   inline bool useNewToolbar() {
     return mUseNewToolbar;
   }
@@ -87,6 +91,7 @@ private:
 #endif
   QTMKeyboard mKeyboard;
   bool mUseTabWindow;
+  bool mUseMdi;
   bool mUseNewToolbar;
 };
 

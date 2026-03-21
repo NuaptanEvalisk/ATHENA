@@ -62,6 +62,8 @@
   (set-message set_message (void content content))
   (set-message-temp set_message (void content content bool))
   (set-center-message set_center_message (void content))
+  (mdi-tile mdi_tile (void))
+  (mdi-cascade mdi_cascade (void))
   (recall-message recall_message (void))
   (yes? is_yes (bool string))
   (quit-TeXmacs quit (void)))

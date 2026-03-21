@@ -26,6 +26,7 @@
 
 #ifdef QTTEXMACS
 #include <QCoreApplication>
+#include "QTMMainTabWindow.hpp"
 #endif
 
 server* the_server= NULL;
@@ -141,6 +142,20 @@ tm_server_rep::set_center_message (tree m) {
 tree
 tm_server_rep::get_center_message () {
   return center_message;
+}
+
+void
+tm_server_rep::mdi_tile () {
+#ifdef QTTEXMACS
+  QTMMainTabWindow::topTabWindow () -> tileSubWindows ();
+#endif
+}
+
+void
+tm_server_rep::mdi_cascade () {
+#ifdef QTTEXMACS
+  QTMMainTabWindow::topTabWindow () -> cascadeSubWindows ();
+#endif
 }
 
 /******************************************************************************

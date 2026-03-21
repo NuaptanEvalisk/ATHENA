@@ -5419,11 +5419,43 @@ source code.
   </explain>
 
   <\explain>
+    <scm|(gui-interrupted?)>
+<explain-synopsis|no synopsis>
+  <|explain>
+    Calls the <c++> function <cpp|gui_interrupted> which returns
+    <scm|bool>.
+  </explain>
+
+  <\explain>
     <scm|(get-screen-size)>
 <explain-synopsis|no synopsis>
   <|explain>
     Calls the <c++> function <cpp|get_screen_size> which returns
     <scm|array_SI>.
+  </explain>
+
+  <\explain>
+    <scm|(gui-hide-splash)>
+<explain-synopsis|no synopsis>
+  <|explain>
+    Calls the <c++> function <cpp|gui_hide_splash> which returns
+    <scm|void>.
+  </explain>
+
+  <\explain>
+    <scm|(gui-set-cursor-color <scm-arg|string>)>
+<explain-synopsis|no synopsis>
+  <|explain>
+    Calls the <c++> function <cpp|gui_set_cursor_color> which returns
+    <scm|void>.
+  </explain>
+
+  <\explain>
+    <scm|(gui-set-selection-color <scm-arg|string>)>
+<explain-synopsis|no synopsis>
+  <|explain>
+    Calls the <c++> function <cpp|gui_set_selection_color> which returns
+    <scm|void>.
   </explain>
 
   <\explain>
@@ -5971,6 +6003,94 @@ source code.
   </explain>
 
   <\explain>
+    <scm|(vault-load <scm-arg|url> <scm-arg|string> <scm-arg|string>)>
+<explain-synopsis|no synopsis>
+  <|explain>
+    Calls the <c++> function <cpp|vault_load> which returns
+    <scm|void>.
+  </explain>
+
+  <\explain>
+    <scm|(vault-close)>
+<explain-synopsis|no synopsis>
+  <|explain>
+    Calls the <c++> function <cpp|vault_close> which returns
+    <scm|void>.
+  </explain>
+
+  <\explain>
+    <scm|(vault-active?)>
+<explain-synopsis|no synopsis>
+  <|explain>
+    Calls the <c++> function <cpp|vault_active> which returns
+    <scm|bool>.
+  </explain>
+
+  <\explain>
+    <scm|(vault-get-root)>
+<explain-synopsis|no synopsis>
+  <|explain>
+    Calls the <c++> function <cpp|vault_get_root> which returns
+    <scm|url>.
+  </explain>
+
+  <\explain>
+    <scm|(vault-set-node <scm-arg|string> <scm-arg|string> <scm-arg|string> <scm-arg|string>)>
+<explain-synopsis|no synopsis>
+  <|explain>
+    Calls the <c++> function <cpp|vault_set_node> which returns
+    <scm|void>.
+  </explain>
+
+  <\explain>
+    <scm|(vault-get-node <scm-arg|string>)>
+<explain-synopsis|no synopsis>
+  <|explain>
+    Calls the <c++> function <cpp|vault_get_node> which returns
+    <scm|tree>.
+  </explain>
+
+  <\explain>
+    <scm|(vault-remove-node <scm-arg|string>)>
+<explain-synopsis|no synopsis>
+  <|explain>
+    Calls the <c++> function <cpp|vault_remove_node> which returns
+    <scm|void>.
+  </explain>
+
+  <\explain>
+    <scm|(vault-has-node? <scm-arg|string>)>
+<explain-synopsis|no synopsis>
+  <|explain>
+    Calls the <c++> function <cpp|vault_has_node> which returns
+    <scm|bool>.
+  </explain>
+
+  <\explain>
+    <scm|(vault-find-uuid <scm-arg|string> <scm-arg|string> <scm-arg|string>)>
+<explain-synopsis|no synopsis>
+  <|explain>
+    Calls the <c++> function <cpp|vault_find_uuid> which returns
+    <scm|string>.
+  </explain>
+
+  <\explain>
+    <scm|(vault-generate-uuid)>
+<explain-synopsis|no synopsis>
+  <|explain>
+    Calls the <c++> function <cpp|vault_generate_uuid> which returns
+    <scm|string>.
+  </explain>
+
+  <\explain>
+    <scm|(vault-choose-link <scm-arg|bool>)>
+<explain-synopsis|no synopsis>
+  <|explain>
+    Calls the <c++> function <cpp|vault_choose_link> which returns
+    <scm|tree>.
+  </explain>
+
+  <\explain>
     <scm|(alt-window-handle)>
 <explain-synopsis|no synopsis>
   <|explain>
@@ -6240,6 +6360,14 @@ source code.
   <|explain>
     Calls the <c++> function <cpp|append> which returns
     <scm|array_url>.
+  </explain>
+
+  <\explain>
+    <scm|(help-about)>
+<explain-synopsis|no synopsis>
+  <|explain>
+    Calls the <c++> function <cpp|help_about_qt> which returns
+    <scm|void>.
   </explain>
 
   <\explain>
@@ -6567,6 +6695,30 @@ source code.
 <explain-synopsis|no synopsis>
   <|explain>
     Calls the <c++> function <cpp|set_message> which returns
+    <scm|void>.
+  </explain>
+
+  <\explain>
+    <scm|(set-center-message <scm-arg|content>)>
+<explain-synopsis|no synopsis>
+  <|explain>
+    Calls the <c++> function <cpp|set_center_message> which returns
+    <scm|void>.
+  </explain>
+
+  <\explain>
+    <scm|(mdi-tile)>
+<explain-synopsis|no synopsis>
+  <|explain>
+    Calls the <c++> function <cpp|mdi_tile> which returns
+    <scm|void>.
+  </explain>
+
+  <\explain>
+    <scm|(mdi-cascade)>
+<explain-synopsis|no synopsis>
+  <|explain>
+    Calls the <c++> function <cpp|mdi_cascade> which returns
     <scm|void>.
   </explain>
 

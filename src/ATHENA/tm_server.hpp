@@ -36,6 +36,10 @@ public:
   void   set_center_message (tree m);
   tree   get_center_message ();
 
+  /* mdi */
+  void   mdi_tile ();
+  void   mdi_cascade ();
+
   /* Miscellaneous routines */
   void   style_clear_cache ();
   void   refresh ();

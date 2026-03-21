@@ -24,6 +24,9 @@
 (define (get-default-buffer-management)
   (if (or (like-macos?) (like-windows?)) "separate" "shared"))
 
+(define (buffer-management-choices)
+  '("shared" "separate" "mdi"))
+
 (define (notify-buffer-management var val)
   (when (== val (get-default-buffer-management))
     (reset-preference "buffer management")))

@@ -81,7 +81,13 @@
       (=> "Developer" (link developer-menu)))
   (if (nnull? (test-menu))
       (=> "Test" (link test-menu)))
+  (if (window-mdi?)
+      (=> "Window" (link window-menu)))
   (=> "Help" (link help-menu)))
+
+(menu-bind window-menu
+  ("Tile" (mdi-tile))
+  ("Cascade" (mdi-cascade)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; The TeXmacs popup menus
