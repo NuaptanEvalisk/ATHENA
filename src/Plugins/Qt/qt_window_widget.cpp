@@ -118,6 +118,13 @@ qt_window_widget_rep::~qt_window_widget_rep ()
   }
 }
 
+bool
+qt_window_widget_rep::is_document_window () {
+  if (type != texmacs_widget) return false;
+  if (orig_name == "popup") return false;
+  return true;
+}
+
 widget
 qt_window_widget_rep::popup_window_widget (string s)
 {
@@ -224,9 +231,20 @@ qt_window_widget_rep::send (slot s, blackbox val) {
           else qwid->hide();
         } else {
           if (flag) {
-            tmapp()->mainTabWindow().showWidget(qwid);
+            if (is_document_window()) {
+              tmapp()->mainTabWindow().showWidget(qwid, true);
+            } else {
+              qwid->show();
+              if (QApplication::platformName() != "wayland") {
+                qwid->raise();
+              }
+            }
           } else {
-            tmapp()->mainTabWindow().removeWidget(qwid);
+            if (is_document_window()) {
+              tmapp()->mainTabWindow().removeWidget(qwid);
+            } else {
+              qwid->hide();
+            }
           }
         }
       }
