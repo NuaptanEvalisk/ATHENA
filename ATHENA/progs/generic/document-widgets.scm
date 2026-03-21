@@ -134,20 +134,24 @@
   (== (initial-get u "page-type") "user"))
 
 (define (encode-rendering s)
-  (cond ((== s "screen") "automatic")
-        (else s)))
+  (cond ((== s "Reflow") "automatic")
+        ((== s "Scroll") "papyrus")
+        ((== s "Slides") "beamer")
+        (else (downcase s))))
 
 (define (decode-rendering s)
-  (cond ((== s "automatic") "screen")
-        (else s)))
+  (cond ((== s "automatic") "Reflow")
+        ((== s "papyrus") "Scroll")
+        ((== s "beamer") "Slides")
+        (else (upcase-first s))))
 
 (define (encode-crop-marks s)
-  (cond ((== s "none") "")
-        (else s)))
+  (cond ((== s "None") "")
+        (else (downcase s))))
 
 (define (decode-crop-marks s)
-  (cond ((== s "") "none")
-        (else s)))
+  (cond ((== s "") "None")
+        (else (upcase s))))
 
 (tm-widget (page-formatter-format u quit)
   (centered
@@ -155,7 +159,7 @@
       (aligned
         (item (text "Page rendering:")
           (enum (initial-set-page-rendering u (encode-rendering answer))
-                '("paper" "papyrus" "screen" "beamer" "book" "panorama")
+                '("Paper" "Scroll" "Reflow" "Slides" "Book" "Panorama")
                 (decode-rendering (initial-get-page-rendering u)) "10em"))
         (item (text "Page type:")
           (enum (begin
@@ -164,8 +168,8 @@
                     (initial-set u "page-width" "auto")
                     (initial-set u "page-height" "auto"))
                   (refresh-now "page-user-format-settings"))
-                (cons-new (initial-get u "page-type") (page-size-list u))
-                (initial-get u "page-type") "10em"))
+                (map string-upcase (cons-new (initial-get u "page-type") (page-size-list u)))
+                (string-upcase (initial-get u "page-type")) "10em"))
         (item (text "Orientation:")
           (enum (initial-set u "page-orientation" answer)
                 '("portrait" "landscape")
@@ -176,7 +180,7 @@
                 (initial-get u "page-first") "10em"))
         (item (text "Crop marks:")
           (enum (initial-set u "page-crop-marks" (encode-crop-marks answer))
-                '("none" "a3" "a4" "letter")
+                '("None" "A3" "A4" "Letter")
                 (decode-crop-marks (initial-get u "page-crop-marks"))
                 "10em")))))
   ===
@@ -404,14 +408,26 @@
 ;; Document -> Page / Breaking
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(define (initial-set-page-breaking u s)
+  (let* ((v (cond ((== s "LibreOffice flavor") "sloppy")
+                  ((== s "TeX flavor") "professional")
+                  (else s))))
+    (initial-set u "page-breaking" v)))
+
+(define (initial-get-page-breaking u)
+  (let* ((v (initial-get u "page-breaking")))
+    (cond ((== v "sloppy") "LibreOffice flavor")
+          ((== v "professional") "TeX flavor")
+          (else v))))
+
 (tm-widget (page-formatter-breaking u quit)
   (padded
     (refreshable "page-breaking-settings"
       (aligned
         (item (text "Page breaking algorithm:")
-          (enum (initial-set u "page-breaking" answer)
-                '("sloppy" "professional")
-                (initial-get u "page-breaking") "10em"))
+          (enum (initial-set-page-breaking u answer)
+                '("LibreOffice flavor" "TeX flavor")
+                (initial-get-page-breaking u) "10em"))
         (item (text "Allowed page height reduction:")
           (enum (initial-set u "page-shrink" answer)
                 (cons-new (initial-get u "page-shrink")
@@ -513,7 +529,7 @@
       (tab (text "Margins")
         (padded
           (dynamic (page-formatter-margins u quit))))
-      (tab (text "Breaking")
+      (tab (text "Page Breaking")
         (padded
           (dynamic (page-formatter-breaking u quit))))
       (tab (text "Headers")

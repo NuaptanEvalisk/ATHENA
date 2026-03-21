@@ -232,20 +232,24 @@
   (== (window-get-init win "page-type") "user"))
 
 (define (encode-rendering s)
-  (cond ((== s "screen") "automatic")
-        (else s)))
+  (cond ((== s "Reflow") "automatic")
+        ((== s "Scroll") "papyrus")
+        ((== s "Slides") "beamer")
+        (else (downcase s))))
 
 (define (decode-rendering s)
-  (cond ((== s "automatic") "screen")
-        (else s)))
+  (cond ((== s "automatic") "Reflow")
+        ((== s "papyrus") "Scroll")
+        ((== s "beamer") "Slides")
+        (else (upcase-first s))))
 
 (define (encode-crop-marks s)
-  (cond ((== s "none") "")
-        (else s)))
+  (cond ((== s "None") "")
+        (else (downcase s))))
 
 (define (decode-crop-marks s)
-  (cond ((== s "") "none")
-        (else s)))
+  (cond ((== s "") "None")
+        (else (upcase s))))
 
 (tm-widget (page-format-tool win)
   (refreshable "page format tool"
@@ -253,8 +257,7 @@
     (aligned
       (item (text "Page rendering:")
         (enum (window-set-page-rendering win (encode-rendering answer))
-              '("paper" "papyrus" "screen" "beamer" "book"
-                "panorama" "slideshow")
+              '("Paper" "Scroll" "Reflow" "Slides" "Book" "Panorama" "Slideshow")
               (decode-rendering (window-get-page-rendering win)) "10em"))
       (item (text "Page type:")
         (enum (begin
@@ -263,9 +266,9 @@
                   (window-set-init win "page-width" "auto")
                   (window-set-init win "page-height" "auto"))
                 (refresh-now "page format tool"))
-              (cons-new (window-get-init win "page-type")
-                        (window-page-size-list win))
-              (window-get-init win "page-type") "10em"))
+              (map string-upcase (cons-new (window-get-init win "page-type")
+                                    (window-page-size-list win)))
+              (string-upcase (window-get-init win "page-type")) "10em"))
       (item (when (window-user-page-size? win) (text "Page width:"))
         (when (window-user-page-size? win)
           (enum (window-set-init win "page-width" answer)
@@ -287,7 +290,7 @@
       (item (text "Crop marks:")
         (enum (window-set-init win "page-crop-marks"
                                (encode-crop-marks answer))
-              '("none" "a3" "a4" "letter")
+              '("None" "A3" "A4" "Letter")
               (decode-crop-marks (window-get-init win "page-crop-marks"))
               "10em")))
     ===
@@ -491,14 +494,26 @@
 ;; Document -> Page / Breaking
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(define (window-set-page-breaking win s)
+  (let* ((v (cond ((== s "LibreOffice flavor") "sloppy")
+                  ((== s "TeX flavor") "professional")
+                  (else s))))
+    (window-set-init win "page-breaking" v)))
+
+(define (window-get-page-breaking win)
+  (let* ((v (window-get-init win "page-breaking")))
+    (cond ((== v "sloppy") "LibreOffice flavor")
+          ((== v "professional") "TeX flavor")
+          (else v))))
+
 (tm-widget (page-breaking-tool win)
   (refreshable "page-breaking-settings"
     ===
     (aligned
       (item (text "Page breaking algorithm:")
-        (enum (window-set-init win "page-breaking" answer)
-              '("sloppy" "professional")
-              (window-get-init win "page-breaking") "10em"))
+        (enum (window-set-page-breaking win answer)
+              '("LibreOffice flavor" "TeX flavor")
+              (window-get-page-breaking win) "10em"))
       (item (text "Allowed page height reduction:")
         (enum (window-set-init win "page-shrink" answer)
               (cons-new (window-get-init win "page-shrink")
@@ -610,7 +625,7 @@
   (section-tabs "document-page-tabs" win
     (section-tab "Format" ===
       (centered (dynamic (page-format-tool win))))
-    (section-tab "Breaking" ===
+    (section-tab "Page Breaking" ===
       (centered (dynamic (page-breaking-tool win))))
     (section-tab "Margins" ===
       (centered (dynamic (page-margins-tool win))))
