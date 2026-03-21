@@ -48,7 +48,11 @@ public:
 
   void setCursorPos (QPoint pos) { cursor_pos = pos; }
   qt_simple_widget_rep* tm_widget () const;
-  
+
+signals:
+  void closed ();
+
+public:
   bool isPreediting () { return preediting; }
 #if QT_VERSION >= 0x050000
   static QTMWidget *getLastFocusedWidget();
@@ -91,6 +95,7 @@ protected:
   virtual QVariant inputMethodQuery (Qt::InputMethodQuery query) const override;
 
   void showEvent (QShowEvent *event) override;
+  void closeEvent (QCloseEvent *event) override;
 
 #if defined(OS_ANDROID) && QT_VERSION >= 0x060000
   /*

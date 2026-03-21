@@ -27,6 +27,7 @@
 #include <QWidget>
 #include <QVariant>
 #include <QDockWidget>
+#include <QMdiSubWindow>
 
 /* Windows are created at their previous position, which is saved in
    user preferences.
@@ -110,7 +111,10 @@ qt_window_widget_rep::~qt_window_widget_rep ()
   if (DEBUG_QT)
     debug_qt << "Deleting qt_window_widget " << id << "\n";
   if (qwid) {
-    qwid->deleteLater(); // this caused bug 61884
+    if (qwid->parentWidget () && qobject_cast<QMdiSubWindow*> (qwid->parentWidget ()))
+      qwid->parentWidget ()->deleteLater ();
+    else
+      qwid->deleteLater();
   }
 }
 

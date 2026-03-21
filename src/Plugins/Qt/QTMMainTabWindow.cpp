@@ -208,6 +208,7 @@ void QTMMainTabWindow::showWidget(QWidget *widget) {
   if (tmapp()->useMdi()) {
     bool first = mMdiArea->subWindowList().isEmpty();
     QMdiSubWindow* sub = mMdiArea->addSubWindow (widget);
+    sub->setAttribute(Qt::WA_DeleteOnClose);
     if (first) sub->showMaximized();
     else sub->show();
   } else {

@@ -1099,6 +1099,12 @@ void QTMWidget::showEvent (QShowEvent *event) {
   QTMScrollView::showEvent (event);
 }
 
+void QTMWidget::closeEvent (QCloseEvent *event) {
+  if (DEBUG_QT_WIDGETS) debug_widgets << "Close QTMWidget" << LF;
+  event->ignore ();
+  emit closed ();
+}
+
 #if defined(OS_ANDROID) && QT_VERSION >= 0x060000
 void QTMWidget::showKeyboard() {
   qApp->inputMethod()->show();
