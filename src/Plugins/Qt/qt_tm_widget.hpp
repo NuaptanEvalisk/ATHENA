@@ -59,6 +59,7 @@ class qt_tm_widget_rep: public qt_window_widget_rep {
    } visibility_t;
    */
   QLabel*       rightLabel;
+  QLabel*       centerLabel;
   QLabel*        leftLabel;
 #if !DISABLE_QTMTOOLBAR
   QTMToolbar*    menuToolBar;

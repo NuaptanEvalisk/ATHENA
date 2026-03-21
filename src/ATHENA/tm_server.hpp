@@ -25,11 +25,16 @@ class tm_server_rep:
 {
 protected:
   double def_zoomf; // default zoom factor
+  tree   center_message; // persistent center message
 
 public:
   tm_server_rep ();
   ~tm_server_rep ();
   server_rep* get_server ();
+
+  /* status bar */
+  void   set_center_message (tree m);
+  tree   get_center_message ();
 
   /* Miscellaneous routines */
   void   style_clear_cache ();

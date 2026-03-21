@@ -61,6 +61,7 @@
   (update-all-buffers typeset_update_all (void))
   (set-message set_message (void content content))
   (set-message-temp set_message (void content content bool))
+  (set-center-message set_center_message (void content))
   (recall-message recall_message (void))
   (yes? is_yes (bool string))
   (quit-TeXmacs quit (void)))

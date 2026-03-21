@@ -254,6 +254,12 @@ tm_frame_rep::set_left_footer (string s) {
 }
 
 void
+tm_frame_rep::set_center_footer (string s) {
+  if (!has_current_window ()) return;
+  concrete_window () -> set_center_footer (s);
+}
+
+void
 tm_frame_rep::set_right_footer (string s) {
   if (!has_current_window ()) return;
   concrete_window () -> set_right_footer (s);
@@ -262,7 +268,7 @@ tm_frame_rep::set_right_footer (string s) {
 void
 tm_frame_rep::set_message (tree left, tree right, bool temp) {
   if (!has_current_window ()) return;
-  get_current_editor() -> set_message (left, right, temp);
+  view_to_editor (get_current_view ()) -> set_message (left, right, temp);
 }
 
 void

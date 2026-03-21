@@ -92,7 +92,7 @@ gui_set_output_language (string lan) {
 server_rep::server_rep () {}
 server_rep::~server_rep () {}
 
-tm_server_rep::tm_server_rep (): def_zoomf (1.0) {
+tm_server_rep::tm_server_rep (): def_zoomf (1.0), center_message ("") {
   the_server= tm_new<server> (this);
   initialize_scheme ();
   gui_interpose (texmacs_interpose_handler);
@@ -119,6 +119,22 @@ tm_server_rep::tm_server_rep (): def_zoomf (1.0) {
 tm_server_rep::~tm_server_rep () {}
 server::server (): rep (tm_new<tm_server_rep> ()) {}
 server_rep* tm_server_rep::get_server () { return this; }
+
+// defined in src/Edit/Interface/edit_footer.cpp
+tree as_footer_tree (object obj);
+
+void
+tm_server_rep::set_center_message (tree m) {
+  cout << "DEBUG set_center_message: " << m << "\n";
+  center_message= m;
+  tree c = as_footer_tree (call ("center-footer-hook", object (m)));
+  set_center_footer (translate (c));
+}
+
+tree
+tm_server_rep::get_center_message () {
+  return center_message;
+}
 
 /******************************************************************************
 * Miscellaneous routines

@@ -70,6 +70,9 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define-public footer-hook (lambda (s) s))
+(define-public center-footer-hook (lambda (s) s))
+;(define-public (center-footer-hook  s) "Center text")
+(define-public right-footer-hook (lambda (s) s))
 
 (define-macro (benchmark message . args)
   `(let ((start (texmacs-time)))

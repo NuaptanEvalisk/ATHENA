@@ -14,6 +14,12 @@
 #include "connect.hpp"
 #include "dictionary.hpp"
 
+tree
+as_footer_tree (object obj) {
+  if (is_string (obj)) return tree (as_string (obj));
+  return as_tree (obj);
+}
+
 /******************************************************************************
 * Set left footer with information about environment variables
 ******************************************************************************/
@@ -89,13 +95,18 @@ edit_interface_rep::set_left_footer () {
       break;
     }
   }
-  s= as_tree (call ("footer-hook", object (s)));
+  s= as_footer_tree (call ("footer-hook", object (s)));
   set_left_footer (s);
 }
 
 /******************************************************************************
 * Set right footer with information about cursor position
 ******************************************************************************/
+
+void
+edit_interface_rep::set_center_footer (tree c) {
+  SERVER (set_center_footer (translate (c)));
+}
 
 void
 edit_interface_rep::set_right_footer (tree r) {
@@ -393,6 +404,7 @@ edit_interface_rep::set_right_footer () {
   if (is_atomic (st)) lf= compute_text_footer (st);
   else lf= compute_operation_footer (st);
   if (N(focus_get (false))+1 >= N(tp)) cf= concat (cf, lf);
+  cf= as_footer_tree (call ("right-footer-hook", object (cf)));
   set_right_footer (cf);
 }
 
@@ -499,10 +511,12 @@ edit_interface_rep::set_footer () {
     if (set_hybrid_footer (st)) return;
     set_left_footer();
     set_right_footer();
+    set_center_footer (as_footer_tree (call ("center-footer-hook", object (get_server () -> get_center_message ()))));
   }
   else {
     if (message_l == "") set_left_footer ();
     else set_left_footer (message_l);
+    set_center_footer (as_footer_tree (call ("center-footer-hook", object (get_server () -> get_center_message ()))));
     if (message_r == "") set_right_footer ();
     else set_right_footer (message_r);
     message_l= message_r= "";

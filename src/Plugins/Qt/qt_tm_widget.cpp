@@ -174,11 +174,25 @@ qt_tm_widget_rep::qt_tm_widget_rep(int mask, command _quit)
   
   QStatusBar* bar= new QStatusBar(mw);
   leftLabel= new QLabel (qt_translate ("Welcome to ATHENA"), mw);
+  centerLabel= new QLabel ("Center Label", mw);
   rightLabel= new QLabel (qt_translate ("Booting"), mw);
   leftLabel->setFrameStyle (QFrame::NoFrame);
+  centerLabel->setFrameStyle (QFrame::NoFrame);
   rightLabel->setFrameStyle (QFrame::NoFrame);
   leftLabel->setIndent (8);
-  bar->addWidget (leftLabel, 1);
+  centerLabel->setAlignment (Qt::AlignCenter);
+
+  // --- THE FIX ---
+  // 1. Force a minimum width so the layout engine cannot crush it to 0 pixels.
+  centerLabel->setMinimumWidth(100);
+
+  // 2. Temporarily apply an aggressive stylesheet so you can visually verify
+  // its geometry bounding box in the UI immediately upon compilation.
+  centerLabel->setStyleSheet("background-color: red; color: white;");
+  // ---------------
+
+  bar->addWidget (leftLabel, 0.5);
+  bar->addWidget (centerLabel, 0.5);
   bar->addPermanentWidget (rightLabel);
   if (tm_style_sheet == "")
     bar->setStyle (qtmstyle ());
@@ -672,6 +686,7 @@ qt_tm_widget_rep::update_visibility () {
     int fs = as_int (get_preference ("gui:mini-fontsize", QTM_MINI_FONTSIZE));
     f.setPointSize (qt_zoom (fs > 0 ? fs : QTM_MINI_FONTSIZE));
     leftLabel->setFont(f);
+    centerLabel->setFont(f);
     rightLabel->setFont(f);
   }
 }
@@ -796,6 +811,14 @@ qt_tm_widget_rep::send (slot s, blackbox val) {
       leftLabel->update ();
     }
       break;
+    case SLOT_CENTER_FOOTER:
+    {
+      check_type<string>(val, s);
+      string msg = open_box<string> (val);
+      centerLabel->setText (to_qstring (msg));
+      centerLabel->update ();
+    }
+      break;
     case SLOT_RIGHT_FOOTER:
     {
       check_type<string>(val, s);
@@ -815,15 +838,18 @@ qt_tm_widget_rep::send (slot s, blackbox val) {
       if (open_box<bool> (val) == true) {
         prompt = new QTMInteractivePrompt (int_prompt, int_input, mainwindow());
         mainwindow()->statusBar()->removeWidget (leftLabel);
+        mainwindow()->statusBar()->removeWidget (centerLabel);
         mainwindow()->statusBar()->removeWidget (rightLabel);
         mainwindow()->statusBar()->addWidget (prompt, 1);
         prompt->start();
       } else {
         if (prompt) prompt->end();
         mainwindow()->statusBar()->removeWidget (prompt);
-        mainwindow()->statusBar()->addWidget (leftLabel);
+        mainwindow()->statusBar()->addWidget (leftLabel, 1);
+        mainwindow()->statusBar()->addWidget (centerLabel, 1);
         mainwindow()->statusBar()->addPermanentWidget (rightLabel);
         leftLabel->show();
+        centerLabel->show();
         rightLabel->show();
         prompt->deleteLater();
         prompt = NULL;

@@ -535,6 +535,19 @@ tmg_set_message_temp (tmscm arg1, tmscm arg2, tmscm arg3) {
 }
 
 tmscm
+tmg_set_center_message (tmscm arg1) {
+  TMSCM_ASSERT_CONTENT (arg1, TMSCM_ARG1, "set-center-message");
+
+  content in1= tmscm_to_content (arg1);
+
+  // TMSCM_DEFER_INTS;
+  get_server()->set_center_message (in1);
+  // TMSCM_ALLOW_INTS;
+
+  return TMSCM_UNSPECIFIED;
+}
+
+tmscm
 tmg_recall_message () {
   // TMSCM_DEFER_INTS;
   get_server()->recall_message ();
@@ -608,6 +621,7 @@ initialize_glue_server () {
   tmscm_install_procedure ("update-all-buffers",  tmg_update_all_buffers, 0, 0, 0);
   tmscm_install_procedure ("set-message",  tmg_set_message, 2, 0, 0);
   tmscm_install_procedure ("set-message-temp",  tmg_set_message_temp, 3, 0, 0);
+  tmscm_install_procedure ("set-center-message",  tmg_set_center_message, 1, 0, 0);
   tmscm_install_procedure ("recall-message",  tmg_recall_message, 0, 0, 0);
   tmscm_install_procedure ("yes?",  tmg_yesP, 1, 0, 0);
   tmscm_install_procedure ("quit-TeXmacs",  tmg_quit_TeXmacs, 0, 0, 0);

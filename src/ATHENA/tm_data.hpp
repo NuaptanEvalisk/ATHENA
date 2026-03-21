@@ -19,5 +19,7 @@ extern array<tm_buffer> bufs;
 /* Commodity macros */
 inline void set_message (tree left, tree right, bool temp= false) {
   get_server () -> set_message (left, right, temp); }
+inline void set_center_message (tree m) {
+  get_server () -> set_center_message (m); }
 
 #endif // defined TM_DATA_H

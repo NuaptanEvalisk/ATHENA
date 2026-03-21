@@ -80,8 +80,11 @@ public:
   virtual void show_footer   (bool flag) = 0;
   virtual bool visible_footer () = 0;
   virtual void set_left_footer (string s) = 0;
+  virtual void set_center_footer (string s) = 0;
   virtual void set_right_footer (string s) = 0;
   virtual void set_message (tree left, tree right, bool temp= false) = 0;
+  virtual void set_center_message (tree m) = 0;
+  virtual tree get_center_message () = 0;
   virtual void recall_message () = 0;
   virtual void dialogue_start (string name, widget wid) = 0;
   virtual void dialogue_inquire (int i, string& arg) = 0;

@@ -582,6 +582,11 @@ tm_window_rep::set_left_footer (string s) {
 }
 
 void
+tm_window_rep::set_center_footer (string s) {
+  ::set_center_footer (wid, s);
+}
+
+void
 tm_window_rep::set_right_footer (string s) {
   ::set_right_footer (wid, s);
 }

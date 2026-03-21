@@ -20,6 +20,27 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define search-window #f)
+(define search-match-total 0)
+(define search-match-current 0)
+(define search-match-sels (list))
+
+(define (search-set-current p)
+  (if (or (null? p) (null? search-match-sels))
+      (set! search-match-current 0)
+      (let loop ((i 0) (l search-match-sels))
+        (cond ((null? l) (set! search-match-current 0))
+              ((equal? (car l) p) (set! search-match-current (+ (quotient i 2) 1)))
+              (else (loop (+ i 1) (cdr l)))))))
+
+(define (search-match-info)
+  (if (== search-match-total 0) ""
+      (string-append "(" (number->string search-match-current)
+                     "/" (number->string search-match-total) ")")))
+
+(define (search-update-center-info)
+  (if (== search-match-total 0)
+      (set-center-message "")
+      (set-center-message (string-append "Search: " (search-match-info)))))
 
 (tm-define (search-buffer)
   (string->url "tmfs://aux/search"))
@@ -153,6 +174,10 @@
           (begin
             (selection-cancel)
             (cancel-alt-selection "alternate")
+            (set! search-match-total 0)
+            (set! search-match-current 0)
+            (set! search-match-sels (list))
+            (search-update-center-info)
             (go-to** (get-search-reference #t)))
           (let* ((t (buffer-tree))
                  (sels* (tree-perform-search t what (tree->path t) limit))
@@ -165,10 +190,17 @@
 		  ((null? sels)
 		   (selection-cancel)
 		   (cancel-alt-selection "alternate")
+           (set! search-match-total 0)
+           (set! search-match-current 0)
+           (set! search-match-sels (list))
+           (search-update-center-info)
 		   (go-to** (get-search-reference #t))
 		   (set! ok? #f))
 		  (else
 		   (set-alt-selection "alternate" sels)
+           (set! search-match-total (/ (length sels) 2))
+           (set! search-match-sels sels)
+           (search-update-center-info)
 		   (with after? (next-search-result #t #f)
 		     (when (not after?)
 		       (selection-cancel))))))))
@@ -219,6 +251,8 @@
            (selection-set-range-set sel)
            (go-to* (car sel))
            (when strict? (set-search-reference (car sel)))
+           (search-set-current (car sel))
+           (search-update-center-info)
            #t))))
 
 (define (extreme-search-result last?)
@@ -228,7 +262,9 @@
          (begin
            (selection-set-range-set sel)
            (go-to* (car sel))
-           (set-search-reference (car sel))))))
+           (set-search-reference (car sel))
+           (search-set-current (car sel))
+           (search-update-center-info)))))
 
 (tm-define (search-next-match forward?)
   (with-buffer (master-buffer)
@@ -246,6 +282,7 @@
 (tm-define ((search-cancel u) . args)
   (search-show-all)
   (set! search-serial (+ search-serial 1))
+  (set-center-message "")
   (with-buffer (master-buffer)
     (cancel-alt-selection "alternate")))
 
@@ -595,7 +632,7 @@
         ((balloon (icon "tm_search_next.xpm") "Next occurrence")
          (search-next-match #t))
         ((balloon (icon "tm_search_last.xpm") "Last occurrence")
-         (search-extreme-matche #t))
+         (search-extreme-match #t))
         >>>
         (=> (balloon (icon "tm_preferences.xpm") "Search preferences")
             (link search-preferences-menu))
@@ -838,7 +875,6 @@
 (tm-define (toolbar-search-end)
   (cancel-alt-selection "alternate")
   (search-show-all)
-  (set! search-filter-out? #f)
   (set! toolbar-search-active? #f)
   (set! toolbar-replace-active? #f)
   (update-bottom-tools)
@@ -846,6 +882,10 @@
   (set! pending-key-strokes "")
   (set! current-search #f)
   (set! current-replace #f)
+  (set! search-match-total 0)
+  (set! search-match-current 0)
+  (set! search-match-sels (list))
+  (set-center-message "")
   (when toolbar-db-active?
     (db-show-toolbar))
   (when (and (not (cursor-accessible?)) (not (in-source?)))

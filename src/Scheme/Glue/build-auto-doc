@@ -1,8 +1,12 @@
 #!/bin/sh
 # Program to make Guile interface to TeXmacs
 
-# update documentation of glue 
-guile -l make-apidoc-module.scm  -c "(quit)" | cat > ../../../TeXmacs/progs/prog/glue-symbols.scm
+GUILE=guile
+if [ -f "$HOME/opt/guile18/bin/guile" ]; then
+  GUILE="$HOME/opt/guile18/bin/guile"
+fi
 
-guile -l make-apidoc-doc.scm  -c "(quit)" | cat > ../../../TeXmacs/doc/devel/scheme/api/glue-auto-doc.en.tm
+# update documentation of glue
+$GUILE -l make-apidoc-module.scm -c "(quit)" | cat >../../../ATHENA/progs/prog/glue-symbols.scm
 
+$GUILE -l make-apidoc-doc.scm -c "(quit)" | cat >../../../ATHENA/doc/devel/scheme/api/glue-auto-doc.en.tm
