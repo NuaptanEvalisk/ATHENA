@@ -174,25 +174,19 @@ qt_tm_widget_rep::qt_tm_widget_rep(int mask, command _quit)
   
   QStatusBar* bar= new QStatusBar(mw);
   leftLabel= new QLabel (qt_translate ("Welcome to ATHENA"), mw);
-  centerLabel= new QLabel ("Center Label", mw);
+  centerLabel= new QLabel ("", mw);
+  rightSpacer= new QLabel ("", mw);
   rightLabel= new QLabel (qt_translate ("Booting"), mw);
   leftLabel->setFrameStyle (QFrame::NoFrame);
   centerLabel->setFrameStyle (QFrame::NoFrame);
+  rightSpacer->setFrameStyle (QFrame::NoFrame);
   rightLabel->setFrameStyle (QFrame::NoFrame);
   leftLabel->setIndent (8);
   centerLabel->setAlignment (Qt::AlignCenter);
 
-  // --- THE FIX ---
-  // 1. Force a minimum width so the layout engine cannot crush it to 0 pixels.
-  centerLabel->setMinimumWidth(100);
-
-  // 2. Temporarily apply an aggressive stylesheet so you can visually verify
-  // its geometry bounding box in the UI immediately upon compilation.
-  centerLabel->setStyleSheet("background-color: red; color: white;");
-  // ---------------
-
-  bar->addWidget (leftLabel, 0.5);
-  bar->addWidget (centerLabel, 0.5);
+  bar->addWidget (leftLabel, 1);
+  bar->addWidget (centerLabel, 1);
+  bar->addWidget (rightSpacer, 1);
   bar->addPermanentWidget (rightLabel);
   if (tm_style_sheet == "")
     bar->setStyle (qtmstyle ());
@@ -687,6 +681,7 @@ qt_tm_widget_rep::update_visibility () {
     f.setPointSize (qt_zoom (fs > 0 ? fs : QTM_MINI_FONTSIZE));
     leftLabel->setFont(f);
     centerLabel->setFont(f);
+    rightSpacer->setFont(f);
     rightLabel->setFont(f);
   }
 }
@@ -839,6 +834,7 @@ qt_tm_widget_rep::send (slot s, blackbox val) {
         prompt = new QTMInteractivePrompt (int_prompt, int_input, mainwindow());
         mainwindow()->statusBar()->removeWidget (leftLabel);
         mainwindow()->statusBar()->removeWidget (centerLabel);
+        mainwindow()->statusBar()->removeWidget (rightSpacer);
         mainwindow()->statusBar()->removeWidget (rightLabel);
         mainwindow()->statusBar()->addWidget (prompt, 1);
         prompt->start();
@@ -847,9 +843,11 @@ qt_tm_widget_rep::send (slot s, blackbox val) {
         mainwindow()->statusBar()->removeWidget (prompt);
         mainwindow()->statusBar()->addWidget (leftLabel, 1);
         mainwindow()->statusBar()->addWidget (centerLabel, 1);
+        mainwindow()->statusBar()->addWidget (rightSpacer, 1);
         mainwindow()->statusBar()->addPermanentWidget (rightLabel);
         leftLabel->show();
         centerLabel->show();
+        rightSpacer->show();
         rightLabel->show();
         prompt->deleteLater();
         prompt = NULL;

@@ -60,6 +60,7 @@ class qt_tm_widget_rep: public qt_window_widget_rep {
    */
   QLabel*       rightLabel;
   QLabel*       centerLabel;
+  QLabel*       rightSpacer;
   QLabel*        leftLabel;
 #if !DISABLE_QTMTOOLBAR
   QTMToolbar*    menuToolBar;
