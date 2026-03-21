@@ -261,6 +261,7 @@
 (menu-bind file-menu
   ("New" (new-document))
   ("Load" (open-document))
+  ("Load in new window" (open-document*))
   ("Load Vault" (open-vault))
   ("Revert" (revert-buffer))
   (-> "Recent Files"
@@ -329,8 +330,6 @@
       (link buffer-windows-menu)
       ---
       (group "Buffer in this window")
-      ("New" (new-document*))
-      ("Load" (open-document*))
       (if (nnull? (buffer-invisible-list 25))
           (-> "Hidden"
               ---
@@ -346,5 +345,5 @@
       (if (nnull? (bookmarks-menu))
           (-> "Bookmarks"
               ---
-              (link bookmarks-menu)))
-      ("Close" (close-document*))))
+              (link bookmarks-menu))))
+)

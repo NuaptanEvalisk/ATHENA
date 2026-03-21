@@ -41,6 +41,8 @@ public:
 
   void tileSubWindows();
   void cascadeSubWindows();
+  void mdi_maximize_active();
+  void mdi_minimize_active();
 
 protected:
   bool eventFilter(QObject * obj, QEvent * event) override;

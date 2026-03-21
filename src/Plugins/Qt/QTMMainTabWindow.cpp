@@ -45,6 +45,7 @@ QTMMainTabWindow::QTMMainTabWindow() {
 
   connect(mTabWidget, SIGNAL(tabCloseRequested(int)), this, SLOT(closeTab(int)));
   connect(mMdiArea, SIGNAL(subWindowActivated(QMdiSubWindow*)), this, SLOT(onSubWindowActivated(QMdiSubWindow*)));
+  
   show();
 
 #if !defined(OS_ANDROID) && QT_VERSION >= 0x060000
@@ -205,8 +206,10 @@ bool QTMMainTabWindow::eventFilter(QObject *obj, QEvent *event) {
 
 void QTMMainTabWindow::showWidget(QWidget *widget) {
   if (tmapp()->useMdi()) {
+    bool first = mMdiArea->subWindowList().isEmpty();
     QMdiSubWindow* sub = mMdiArea->addSubWindow (widget);
-    sub->show();
+    if (first) sub->showMaximized();
+    else sub->show();
   } else {
     mTabWidget->addTab(widget, widget->windowTitle());
     mTabWidget->setCurrentWidget(widget);
@@ -242,6 +245,18 @@ void QTMMainTabWindow::tileSubWindows() {
 
 void QTMMainTabWindow::cascadeSubWindows() {
   mMdiArea->cascadeSubWindows();
+}
+
+void QTMMainTabWindow::mdi_maximize_active() {
+  if (QMdiSubWindow* active = mMdiArea->activeSubWindow()) {
+    active->showMaximized();
+  }
+}
+
+void QTMMainTabWindow::mdi_minimize_active() {
+  if (QMdiSubWindow* active = mMdiArea->activeSubWindow()) {
+    active->showMinimized();
+  }
 }
 
 void QTMMainTabWindow::tabTitleChanged(QWidget *widget, QString title) {

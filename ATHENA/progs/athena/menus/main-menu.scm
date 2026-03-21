@@ -69,6 +69,8 @@
       (=> "Version" (link version-menu)))
   (=> "Interface" (link interface-menu))
   (=> "View" (link view-menu))
+  (if (window-mdi?)
+      (=> "Window" (link window-menu)))
   (=> "Go" (link go-menu))
   (if (detailed-menus?) (=> "Tools" (link tools-menu)))
   (if (with-database-tool?)
@@ -81,13 +83,16 @@
       (=> "Developer" (link developer-menu)))
   (if (nnull? (test-menu))
       (=> "Test" (link test-menu)))
-  (if (window-mdi?)
-      (=> "Window" (link window-menu)))
   (=> "Help" (link help-menu)))
 
 (menu-bind window-menu
-  ("Tile" (mdi-tile))
-  ("Cascade" (mdi-cascade)))
+  ("New window" (new-document*))
+  ("Close window" (close-document*))
+  (if (window-mdi?) ---)
+  (if (window-mdi?) ("Tile" (mdi-tile)))
+  (if (window-mdi?) ("Cascade" (mdi-cascade)))
+  (if (window-mdi?) ("Maximize" (mdi-maximize-active)))
+  (if (window-mdi?) ("Minimize" (mdi-minimize-active))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; The TeXmacs popup menus
