@@ -317,13 +317,19 @@ qt_window_widget_rep::query (slot s, int type_id) {
 
     case SLOT_SIZE:
     {
-      check_type_id<coord2> (type_id, s);
-      QSize sz = qwid->frameSize();
-      return close_box<coord2> (from_qsize (sz));
+     check_type_id<coord2> (type_id, s);
+     QSize sz = qwid->frameSize();
+     return close_box<coord2> (from_qsize (sz));
     }
 
-    default:
-      return qt_widget_rep::query (s, type_id);
+    case SLOT_IS_FLOATING:
+    {
+     check_type_id<bool> (type_id, s);
+     bool floating = qwid->parentWidget() == nullptr;
+     return close_box<bool> (floating);
+    }
+
+    default:      return qt_widget_rep::query (s, type_id);
   }
 }
 

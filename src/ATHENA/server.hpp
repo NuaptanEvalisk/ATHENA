@@ -82,6 +82,7 @@ public:
   virtual void set_left_footer (string s) = 0;
   virtual void set_center_footer (string s) = 0;
   virtual void set_right_footer (string s) = 0;
+  virtual bool is_window_floating (url win) = 0;
   virtual void set_message (tree left, tree right, bool temp= false) = 0;
   virtual void set_center_message (tree m) = 0;
   virtual tree get_center_message () = 0;
@@ -115,8 +116,9 @@ public:
   virtual void   mdi_cascade () = 0;
   virtual void   mdi_maximize_active () = 0;
   virtual void   mdi_minimize_active () = 0;
-  };
-class server {
+  virtual void   mdi_detach () = 0;
+  virtual void   mdi_attach () = 0;
+  };class server {
   ABSTRACT(server);
   server ();
 };

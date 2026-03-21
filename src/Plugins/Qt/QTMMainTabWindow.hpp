@@ -44,6 +44,8 @@ public:
   void cascadeSubWindows();
   void mdi_maximize_active();
   void mdi_minimize_active();
+  void detachWidget(QWidget* widget);
+  void attachWidget(QWidget* widget);
 
 protected:
   bool eventFilter(QObject * obj, QEvent * event) override;

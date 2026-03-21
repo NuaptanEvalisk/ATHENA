@@ -22,10 +22,14 @@
 #include "tm_link.hpp"
 #include "socket_notifier.hpp"
 #include "new_style.hpp"
+#include "new_view.hpp"
 #include "Database/database.hpp"
 
 #ifdef QTTEXMACS
 #include <QCoreApplication>
+#include <QApplication>
+#include <QMdiSubWindow>
+#include "QTMApplication.hpp"
 #include "QTMMainTabWindow.hpp"
 #endif
 
@@ -144,6 +148,13 @@ tm_server_rep::get_center_message () {
   return center_message;
 }
 
+bool
+tm_server_rep::is_window_floating (url win) {
+  tm_window nwin = concrete_window (win);
+  if (nwin == NULL) return true;
+  return query<bool> (nwin->wid, SLOT_IS_FLOATING);
+}
+
 void
 tm_server_rep::mdi_tile () {
 #ifdef QTTEXMACS
@@ -169,6 +180,35 @@ void
 tm_server_rep::mdi_minimize_active () {
 #ifdef QTTEXMACS
   QTMMainTabWindow::topTabWindow () -> mdi_minimize_active ();
+#endif
+}
+
+void
+tm_server_rep::mdi_detach () {
+#ifdef QTTEXMACS
+  QWidget* active = nullptr;
+  if (tmapp()->useMdi()) {
+    if (QMdiSubWindow* sub = QTMMainTabWindow::topTabWindow()->mdiArea()->activeSubWindow()) {
+      active = sub->widget();
+    }
+  } else {
+    active = QTMMainTabWindow::topTabWindow()->tabWidget()->currentWidget();
+  }
+  if (active) QTMMainTabWindow::topTabWindow()->detachWidget(active);
+#endif
+}
+
+void
+tm_server_rep::mdi_attach () {
+#ifdef QTTEXMACS
+  for (QWidget *topWidget : QApplication::topLevelWidgets()) {
+    if (topWidget->property("texmacs_window_widget").isValid()) {
+      if (!qobject_cast<QTMMainTabWindow*>(topWidget)) {
+        QTMMainTabWindow::topTabWindow()->attachWidget(topWidget);
+        return;
+      }
+    }
+  }
 #endif
 }
 

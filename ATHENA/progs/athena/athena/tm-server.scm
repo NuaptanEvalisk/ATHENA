@@ -96,6 +96,18 @@
   (when athena-booted?
     (notify-now "Restart ATHENA in order to let the new setting take effect")))
 
+(tm-define (mdi-detach-interactive)
+  (:interactive #t)
+  (if (window-floating? (current-window))
+      (notify-now "The window is already detached.")
+      (mdi-detach)))
+
+(tm-define (mdi-attach-interactive)
+  (:interactive #t)
+  (if (not (window-floating? (current-window)))
+      (notify-now "The window is already attached.")
+      (mdi-attach)))
+
 (define-preferences
   ("profile" "beginner" (lambda args (noop)))
   ("look and feel" "default" notify-look-and-feel)
@@ -213,8 +225,7 @@
   (cond ((and (buffer-embedded? (current-buffer)) (null? opt-name))
          (alt-windows-delete (alt-window-search (current-buffer))))
         ((<= (windows-number) 1)
-         (safely-quit-TeXmacs))
-        ((nnull? opt-name)
+         (safely-quit-ATHENA))        ((nnull? opt-name)
          (if (buffer-modified? (window->buffer (car opt-name)))
              (user-confirm
                  "The document has not been saved. Really close it?" #f
@@ -227,7 +238,7 @@
              (when answ (do-kill-window)))))
         (else (do-kill-window))))
 
-(tm-define (safely-quit-TeXmacs)
+(tm-define (safely-quit-ATHENA)
   (let* ((m (filter buffer-modified? (buffer-list)))
 	 (l (filter (non buffer-aux?) m)))
     (if (null? l)
@@ -236,9 +247,8 @@
           (when (nin? (current-buffer) l)
             ;; FIXME: focus on window with buffer, if any
             (switch-to-buffer (car l)))
-          (user-confirm "There are unsaved documents. Really quit?" #f  
+          (user-confirm "There are unsaved documents. Really quit?" #f
             (lambda (answ) (when answ (quit-TeXmacs))))))))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; System dependent conventions for buffer management
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

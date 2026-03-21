@@ -6707,6 +6707,14 @@ source code.
   </explain>
 
   <\explain>
+    <scm|(window-floating? <scm-arg|url>)>
+<explain-synopsis|no synopsis>
+  <|explain>
+    Calls the <c++> function <cpp|is_window_floating> which returns
+    <scm|bool>.
+  </explain>
+
+  <\explain>
     <scm|(mdi-tile)>
 <explain-synopsis|no synopsis>
   <|explain>
@@ -6735,6 +6743,22 @@ source code.
 <explain-synopsis|no synopsis>
   <|explain>
     Calls the <c++> function <cpp|mdi_minimize_active> which returns
+    <scm|void>.
+  </explain>
+
+  <\explain>
+    <scm|(mdi-detach)>
+<explain-synopsis|no synopsis>
+  <|explain>
+    Calls the <c++> function <cpp|mdi_detach> which returns
+    <scm|void>.
+  </explain>
+
+  <\explain>
+    <scm|(mdi-attach)>
+<explain-synopsis|no synopsis>
+  <|explain>
+    Calls the <c++> function <cpp|mdi_attach> which returns
     <scm|void>.
   </explain>
 

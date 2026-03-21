@@ -35,12 +35,15 @@ public:
   /* status bar */
   void   set_center_message (tree m);
   tree   get_center_message ();
+  bool   is_window_floating (url win);
 
   /* mdi */
   void   mdi_tile ();
   void   mdi_cascade ();
   void   mdi_maximize_active ();
   void   mdi_minimize_active ();
+  void   mdi_detach ();
+  void   mdi_attach ();
 
   /* Miscellaneous routines */
   void   style_clear_cache ();

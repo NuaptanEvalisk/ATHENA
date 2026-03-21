@@ -290,6 +290,31 @@ void QTMMainTabWindow::mdi_minimize_active() {
   }
 }
 
+void QTMMainTabWindow::detachWidget(QWidget* widget) {
+  if (tmapp()->useMdi()) {
+    if (QMdiSubWindow* sub = qobject_cast<QMdiSubWindow*>(widget->parentWidget())) {
+      mMdiArea->removeSubWindow(widget);
+      widget->setParent(nullptr);
+      widget->setWindowFlags(Qt::Window);
+      widget->show();
+    }
+  } else {
+    int index = mTabWidget->indexOf(widget);
+    if (index != -1) {
+      mTabWidget->removeTab(index);
+      widget->setParent(nullptr);
+      widget->setWindowFlags(Qt::Window);
+      widget->show();
+    }
+  }
+}
+
+void QTMMainTabWindow::attachWidget(QWidget* widget) {
+  if (widget->parentWidget() == nullptr) {
+    showWidget(widget, true);
+  }
+}
+
 void QTMMainTabWindow::tabTitleChanged(QWidget *widget, QString title) {
   if (tmapp()->useMdi()) {
     widget->setWindowTitle (title);

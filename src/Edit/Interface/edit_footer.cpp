@@ -13,6 +13,8 @@
 #include "convert.hpp"
 #include "connect.hpp"
 #include "dictionary.hpp"
+#include "tm_server.hpp"
+#include "server.hpp"
 
 tree
 as_footer_tree (object obj) {

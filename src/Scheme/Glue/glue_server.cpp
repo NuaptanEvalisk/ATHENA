@@ -548,6 +548,19 @@ tmg_set_center_message (tmscm arg1) {
 }
 
 tmscm
+tmg_window_floatingP (tmscm arg1) {
+  TMSCM_ASSERT_URL (arg1, TMSCM_ARG1, "window-floating?");
+
+  url in1= tmscm_to_url (arg1);
+
+  // TMSCM_DEFER_INTS;
+  bool out= get_server()->is_window_floating (in1);
+  // TMSCM_ALLOW_INTS;
+
+  return bool_to_tmscm (out);
+}
+
+tmscm
 tmg_mdi_tile () {
   // TMSCM_DEFER_INTS;
   get_server()->mdi_tile ();
@@ -578,6 +591,24 @@ tmscm
 tmg_mdi_minimize_active () {
   // TMSCM_DEFER_INTS;
   get_server()->mdi_minimize_active ();
+  // TMSCM_ALLOW_INTS;
+
+  return TMSCM_UNSPECIFIED;
+}
+
+tmscm
+tmg_mdi_detach () {
+  // TMSCM_DEFER_INTS;
+  get_server()->mdi_detach ();
+  // TMSCM_ALLOW_INTS;
+
+  return TMSCM_UNSPECIFIED;
+}
+
+tmscm
+tmg_mdi_attach () {
+  // TMSCM_DEFER_INTS;
+  get_server()->mdi_attach ();
   // TMSCM_ALLOW_INTS;
 
   return TMSCM_UNSPECIFIED;
@@ -658,10 +689,13 @@ initialize_glue_server () {
   tmscm_install_procedure ("set-message",  tmg_set_message, 2, 0, 0);
   tmscm_install_procedure ("set-message-temp",  tmg_set_message_temp, 3, 0, 0);
   tmscm_install_procedure ("set-center-message",  tmg_set_center_message, 1, 0, 0);
+  tmscm_install_procedure ("window-floating?",  tmg_window_floatingP, 1, 0, 0);
   tmscm_install_procedure ("mdi-tile",  tmg_mdi_tile, 0, 0, 0);
   tmscm_install_procedure ("mdi-cascade",  tmg_mdi_cascade, 0, 0, 0);
   tmscm_install_procedure ("mdi-maximize-active",  tmg_mdi_maximize_active, 0, 0, 0);
   tmscm_install_procedure ("mdi-minimize-active",  tmg_mdi_minimize_active, 0, 0, 0);
+  tmscm_install_procedure ("mdi-detach",  tmg_mdi_detach, 0, 0, 0);
+  tmscm_install_procedure ("mdi-attach",  tmg_mdi_attach, 0, 0, 0);
   tmscm_install_procedure ("recall-message",  tmg_recall_message, 0, 0, 0);
   tmscm_install_procedure ("yes?",  tmg_yesP, 1, 0, 0);
   tmscm_install_procedure ("quit-TeXmacs",  tmg_quit_TeXmacs, 0, 0, 0);

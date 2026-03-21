@@ -88,6 +88,9 @@
 (menu-bind window-menu
   ("New window" (new-document*))
   ("Close window" (close-document*))
+  ---
+  ("Detach" (mdi-detach-interactive))
+  ("Attach" (mdi-attach-interactive))
   (if (window-mdi?) ---)
   (if (window-mdi?) ("Tile" (mdi-tile)))
   (if (window-mdi?) ("Cascade" (mdi-cascade)))

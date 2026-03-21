@@ -294,6 +294,8 @@
   (window-mdi% (== (get-preference "buffer management") "mdi"))
   (buffers-share-window% (or (== (get-preference "buffer management") "shared")
                              (== (get-preference "buffer management") "mdi")))
+  (window-attached? (not (window-floating? (current-window))))
+  (window-detached? (window-floating? (current-window)))
   (with-database-tool% (== (get-preference "database tool") "on"))
   (with-debugging-tool% (== (get-preference "debugging tool") "on"))
   (with-developer-tool% (== (get-preference "developer tool") "on"))
