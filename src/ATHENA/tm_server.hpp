@@ -39,6 +39,8 @@ public:
   /* mdi */
   void   mdi_tile ();
   void   mdi_cascade ();
+  void   mdi_maximize_active ();
+  void   mdi_minimize_active ();
 
   /* Miscellaneous routines */
   void   style_clear_cache ();

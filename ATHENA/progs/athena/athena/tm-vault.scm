@@ -9,8 +9,6 @@
         (generic document-edit)
         (athena menus file-menu)))
 
-(display* "Loading tm-vault module...\n")
-
 (tm-define (vault-jump-to-source path anchor)
   (load-buffer path)
   (if (!= anchor "")

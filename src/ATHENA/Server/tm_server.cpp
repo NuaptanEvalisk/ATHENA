@@ -158,6 +158,20 @@ tm_server_rep::mdi_cascade () {
 #endif
 }
 
+void
+tm_server_rep::mdi_maximize_active () {
+#ifdef QTTEXMACS
+  QTMMainTabWindow::topTabWindow () -> mdi_maximize_active ();
+#endif
+}
+
+void
+tm_server_rep::mdi_minimize_active () {
+#ifdef QTTEXMACS
+  QTMMainTabWindow::topTabWindow () -> mdi_minimize_active ();
+#endif
+}
+
 /******************************************************************************
 * Miscellaneous routines
 ******************************************************************************/

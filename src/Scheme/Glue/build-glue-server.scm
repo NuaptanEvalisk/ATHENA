@@ -64,6 +64,8 @@
   (set-center-message set_center_message (void content))
   (mdi-tile mdi_tile (void))
   (mdi-cascade mdi_cascade (void))
+  (mdi-maximize-active mdi_maximize_active (void))
+  (mdi-minimize-active mdi_minimize_active (void))
   (recall-message recall_message (void))
   (yes? is_yes (bool string))
   (quit-TeXmacs quit (void)))

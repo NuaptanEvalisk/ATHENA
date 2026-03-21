@@ -113,8 +113,9 @@ public:
   virtual void   shell    (string s) = 0;
   virtual void   mdi_tile () = 0;
   virtual void   mdi_cascade () = 0;
+  virtual void   mdi_maximize_active () = 0;
+  virtual void   mdi_minimize_active () = 0;
   };
-
 class server {
   ABSTRACT(server);
   server ();

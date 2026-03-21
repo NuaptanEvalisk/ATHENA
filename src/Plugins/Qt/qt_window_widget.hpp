@@ -50,6 +50,7 @@ public:
   ~qt_window_widget_rep ();
 
   virtual inline string get_nickname () { return orig_name; }
+  virtual bool is_document_window ();
   virtual widget popup_window_widget (string s);
 
   virtual void      send (slot s, blackbox val);
