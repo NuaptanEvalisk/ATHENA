@@ -551,4 +551,5 @@
 ;(display "------------------------------------------------------\n")
 (delayed (:idle 10000) (autosave-delayed))
 (athena-banner)
+(set! athena-booted? #t)
 ;(display "Initialization done\n")

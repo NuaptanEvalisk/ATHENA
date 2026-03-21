@@ -90,8 +90,11 @@
 (define (get-default-unified-toolbar)
   (if (qt4-gui?) "on" "off"))
 
+(define athena-booted? #f)
+
 (define (notify-restart . args)
-  (notify-now "Restart ATHENA in order to let the new setting take effect"))
+  (when athena-booted?
+    (notify-now "Restart ATHENA in order to let the new setting take effect")))
 
 (define-preferences
   ("profile" "beginner" (lambda args (noop)))
