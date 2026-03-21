@@ -865,6 +865,8 @@
 "set-center-message"
 "mdi-tile"
 "mdi-cascade"
+"mdi-maximize-active"
+"mdi-minimize-active"
 "recall-message"
 "yes?"
 "quit-TeXmacs"

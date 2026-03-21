@@ -566,6 +566,24 @@ tmg_mdi_cascade () {
 }
 
 tmscm
+tmg_mdi_maximize_active () {
+  // TMSCM_DEFER_INTS;
+  get_server()->mdi_maximize_active ();
+  // TMSCM_ALLOW_INTS;
+
+  return TMSCM_UNSPECIFIED;
+}
+
+tmscm
+tmg_mdi_minimize_active () {
+  // TMSCM_DEFER_INTS;
+  get_server()->mdi_minimize_active ();
+  // TMSCM_ALLOW_INTS;
+
+  return TMSCM_UNSPECIFIED;
+}
+
+tmscm
 tmg_recall_message () {
   // TMSCM_DEFER_INTS;
   get_server()->recall_message ();
@@ -642,6 +660,8 @@ initialize_glue_server () {
   tmscm_install_procedure ("set-center-message",  tmg_set_center_message, 1, 0, 0);
   tmscm_install_procedure ("mdi-tile",  tmg_mdi_tile, 0, 0, 0);
   tmscm_install_procedure ("mdi-cascade",  tmg_mdi_cascade, 0, 0, 0);
+  tmscm_install_procedure ("mdi-maximize-active",  tmg_mdi_maximize_active, 0, 0, 0);
+  tmscm_install_procedure ("mdi-minimize-active",  tmg_mdi_minimize_active, 0, 0, 0);
   tmscm_install_procedure ("recall-message",  tmg_recall_message, 0, 0, 0);
   tmscm_install_procedure ("yes?",  tmg_yesP, 1, 0, 0);
   tmscm_install_procedure ("quit-TeXmacs",  tmg_quit_TeXmacs, 0, 0, 0);

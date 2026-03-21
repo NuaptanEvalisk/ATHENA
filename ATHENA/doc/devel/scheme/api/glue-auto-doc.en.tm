@@ -6723,6 +6723,22 @@ source code.
   </explain>
 
   <\explain>
+    <scm|(mdi-maximize-active)>
+<explain-synopsis|no synopsis>
+  <|explain>
+    Calls the <c++> function <cpp|mdi_maximize_active> which returns
+    <scm|void>.
+  </explain>
+
+  <\explain>
+    <scm|(mdi-minimize-active)>
+<explain-synopsis|no synopsis>
+  <|explain>
+    Calls the <c++> function <cpp|mdi_minimize_active> which returns
+    <scm|void>.
+  </explain>
+
+  <\explain>
     <scm|(recall-message)>
 <explain-synopsis|no synopsis>
   <|explain>
