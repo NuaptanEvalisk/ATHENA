@@ -74,6 +74,7 @@ enum slot_id {
   SLOT_EXTRA_TOOLS,
   SLOT_FOOTER_VISIBILITY,
   SLOT_LEFT_FOOTER,
+  SLOT_CENTER_FOOTER,
   SLOT_RIGHT_FOOTER,
   SLOT_INTERACTIVE_MODE,
   SLOT_INTERACTIVE_PROMPT,
@@ -682,6 +683,12 @@ inline void
 set_left_footer (widget w, string s) {
   // set left footer
   send<string> (w, SLOT_LEFT_FOOTER, s);
+}
+
+inline void
+set_center_footer (widget w, string s) {
+  // set center footer
+  send<string> (w, SLOT_CENTER_FOOTER, s);
 }
 
 inline void
