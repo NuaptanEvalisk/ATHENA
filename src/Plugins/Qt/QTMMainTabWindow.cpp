@@ -228,7 +228,11 @@ void QTMMainTabWindow::showWidget(QWidget *widget, bool isDocument) {
 
 void QTMMainTabWindow::removeWidget(QWidget *widget) {
   if (tmapp()->useMdi()) {
-    mMdiArea->removeSubWindow (widget);
+    if (QMdiSubWindow* sub = qobject_cast<QMdiSubWindow*>(widget->parentWidget())) {
+      sub->close();
+    } else {
+      mMdiArea->removeSubWindow (widget);
+    }
   } else {
     mTabWidget->removeTab(mTabWidget->indexOf(widget));
   }
@@ -293,8 +297,8 @@ void QTMMainTabWindow::mdi_minimize_active() {
 void QTMMainTabWindow::detachWidget(QWidget* widget) {
   if (tmapp()->useMdi()) {
     if (QMdiSubWindow* sub = qobject_cast<QMdiSubWindow*>(widget->parentWidget())) {
-      mMdiArea->removeSubWindow(widget);
-      widget->setParent(nullptr);
+      sub->setWidget(nullptr);
+      sub->deleteLater();
       widget->setWindowFlags(Qt::Window);
       widget->show();
     }
