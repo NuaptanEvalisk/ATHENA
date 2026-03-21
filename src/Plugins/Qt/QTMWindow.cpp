@@ -37,7 +37,7 @@ void QTMPlainWindow::resizeEvent (QResizeEvent* event)
 {
   string name= from_qstring (windowTitle ());
     // FIXME: rather use a slot for this
-  coord2 sz= from_qsize (frameSize());
+  coord2 sz= from_qsize (size());
   notify_window_resize (name, sz.x1, sz.x2);
   QWidget::resizeEvent (event);
 }
@@ -85,7 +85,7 @@ void QTMWindow::resizeEvent (QResizeEvent * event)
   widget tmwid = qt_window_widget_rep::widget_from_qwidget(this);
   string name= ( !is_nil(tmwid) ? concrete(tmwid)->get_nickname () : "QTMWindow");
   // FIXME: rather use a slot for this
-  coord2 sz = from_qsize (frameSize());
+  coord2 sz = from_qsize (size());
   notify_window_resize (name, sz.x1, sz.x2);
   QMainWindow::resizeEvent (event);
 }

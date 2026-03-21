@@ -11,7 +11,8 @@
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(texmacs-module (athena athena tm-view))
+(texmacs-module (athena athena tm-view)
+  (:use (utils library cursor)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; View preferences
@@ -316,10 +317,14 @@
 
 (define persistent-resize-count 0)
 
-(tm-define (window-resize-notifier)
+(tm-define (window-resize-notifier name)
   (when (persistent-fit-width?)
     (set! persistent-resize-count (+ persistent-resize-count 1))
     (with current persistent-resize-count
       (delayed (:idle 100)
         (when (== current persistent-resize-count)
-          (fit-to-screen-width))))))
+          (if (window-mdi?)
+              (for-each (lambda (win)
+                          (with-window win (fit-to-screen-width)))
+                        (window-list))
+              (fit-to-screen-width)))))))
