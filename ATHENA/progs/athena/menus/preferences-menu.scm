@@ -297,4 +297,5 @@
   (dynamic (compute-preferences-menu page-setup-tree)))
 
 (tm-menu (preferences-menu)
+  (:require (not (preferences-open?)))
   (dynamic (compute-preferences-menu preferences-tree)))

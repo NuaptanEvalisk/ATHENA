@@ -1271,9 +1271,17 @@
         (centered
           (dynamic (other-preferences-widget)))))))
 
+(define preferences-window-count 0)
+
+(tm-define (preferences-open?)
+  (> preferences-window-count 0))
+
 (tm-define (open-preferences-window)
   (:interactive #t)
-  (top-window preferences-widget "User preferences"))
+  (when (not (preferences-open?))
+    (set! preferences-window-count (+ preferences-window-count 1))
+    (top-window preferences-widget "User preferences"
+                (lambda () (set! preferences-window-count (- preferences-window-count 1))))))
 
 (tm-define (open-preferences)
   (:interactive #t)

@@ -29,7 +29,8 @@
 
 (define (notify-buffer-management var val)
   (when (== val (get-default-buffer-management))
-    (reset-preference "buffer management")))
+    (reset-preference "buffer management"))
+  (notify-restart))
 
 (define (get-default-enable-tab)
   (if (os-android?) "on" "off"))
@@ -89,9 +90,8 @@
 (define (get-default-unified-toolbar)
   (if (qt4-gui?) "on" "off"))
 
-(define (notify-restart var val)
-  (set-message "Restart in order to let the new setting take effect"
-               "configure graphical interface"))
+(define (notify-restart . args)
+  (notify-now "Restart ATHENA in order to let the new setting take effect"))
 
 (define-preferences
   ("profile" "beginner" (lambda args (noop)))

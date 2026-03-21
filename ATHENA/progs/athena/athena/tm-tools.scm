@@ -19,7 +19,7 @@
 
 (tm-define (count-characters doc)
   (with s (convert doc "texmacs-tree" "verbatim-snippet")
-    (string-length s)))
+    (if (string? s) (string-length s) 0)))
 
 (define (compress-spaces s)
   (let* ((s1 (string-replace s "\n" " "))
@@ -31,11 +31,15 @@
 
 (tm-define (count-words doc)
   (with s (convert doc "texmacs-tree" "verbatim-snippet")
-    (length (string-tokenize-by-char (compress-spaces s) #\space))))
+    (if (string? s)
+        (length (string-tokenize-by-char (compress-spaces s) #\space))
+        0)))
 
 (tm-define (count-lines doc)
   (with s (convert doc "texmacs-tree" "verbatim-snippet")
-    (length (string-tokenize-by-char s #\newline))))
+    (if (string? s)
+        (length (string-tokenize-by-char s #\newline))
+        0)))
 
 (tm-define (selection-or-document)
   (if (selection-active-any?)
