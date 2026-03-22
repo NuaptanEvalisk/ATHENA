@@ -15,6 +15,8 @@
 #include "config.h"
 #include "tm_configure.hpp"
 #include <stdlib.h>
+#include <type_traits>
+#include <cstring>
 
 #include "tm_ostream.hpp"
 
@@ -422,8 +424,12 @@ tm_new_array (int n) {
   *((int*) ptr)= n;
   ptr= (void*) (((char*) ptr) + WORD_LENGTH);
   C* ctr= (C*) ptr;
-  for (int i=0; i<n; i++, ctr++)
-    (void) new ((void*) ctr) C ();
+  if constexpr (std::is_trivially_default_constructible_v<C>) {
+    std::memset (ctr, 0, n * sizeof (C));
+  } else {
+    for (int i=0; i<n; i++, ctr++)
+      (void) new ((void*) ctr) C ();
+  }
   return (C*) ptr;
 }
 
