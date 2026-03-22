@@ -36,9 +36,9 @@ string_rep::resize (int m) {
   int mm= round_length (m);
   if (mm != nn) {
     if (mm != 0) {
-      int i, k= (m<n? m: n);
       char* b= tm_new_array<char> (mm);
-      for (i=0; i<k; i++) b[i]= a[i];
+      int k= (m<n? m: n);
+      if (k > 0) memcpy (b, a, k);
       if (nn != 0) tm_delete_array (a);
       a= b;
     }
@@ -54,22 +54,18 @@ string::string (char c) {
 
 string::string (char c, int n) {
   rep= tm_new<string_rep> (n);
-  for (int i=0; i<n; i++)
-    rep->a[i]=c;
+  if (n > 0) memset (rep->a, c, n);
 }
 
 string::string (const char* a) {
-  int i, n=strlen(a);
+  int n=strlen(a);
   rep= tm_new<string_rep> (n);
-  for (i=0; i<n; i++)
-    rep->a[i]=a[i];
+  if (n > 0) memcpy (rep->a, a, n);
 }
 
 string::string (const char* a, int n) {
-  int i;
   rep= tm_new<string_rep> (n);
-  for (i=0; i<n; i++)
-    rep->a[i]=a[i];
+  if (n > 0) memcpy (rep->a, a, n);
 }
 
 /******************************************************************************
@@ -100,39 +96,35 @@ string::operator != (const char* s) const {
 
 bool
 string::operator == (const string& a) const {
-  int i;
-  if (rep->n!=a->n) return false;
-  for (i=0; i<rep->n; i++)
-    if (rep->a[i]!=a->a[i]) return false;
-  return true;
+  if (rep->n != a.rep->n) return false;
+  if (rep->n == 0) return true;
+  return memcmp (rep->a, a.rep->a, rep->n) == 0;
 }
 
 bool
 string::operator != (const string& a) const {
-  int i;
-  if (rep->n!=a->n) return true;
-  for (i=0; i<rep->n; i++)
-    if (rep->a[i]!=a->a[i]) return true;
-  return false;
+  if (rep->n != a.rep->n) return true;
+  if (rep->n == 0) return false;
+  return memcmp (rep->a, a.rep->a, rep->n) != 0;
 }
 
 string
 string::operator () (int begin, int end) const {
   if (end <= begin) return string();
 
-  int i;
   begin = max(min(rep->n, begin), 0);
   end = max(min(rep->n, end), 0);
-  string r (end-begin);
-  for (i=begin; i<end; i++) r[i-begin]=rep->a[i];
+  int n= end-begin;
+  string r (n);
+  if (n > 0) memcpy (&r[0], rep->a + begin, n);
   return r;
 }
 
 string
 copy (const string& s) {
-  int i, n=N(s);
+  int n=N(s);
   string r (n);
-  for (i=0; i<n; i++) r[i]=s[i];
+  if (n > 0) memcpy (&r[0], &s[0], n);
   return r;
 }
 
@@ -145,18 +137,18 @@ operator << (string& a, char x) {
 
 string&
 operator << (string& a, const string& b) {
-  int i, k1= N(a), k2=N(b);
+  int k1= N(a), k2=N(b);
   a->resize (k1+k2);
-  for (i=0; i<k2; i++) a[k1+i]= b[i];
+  if (k2 > 0) memcpy (&a[k1], &b[0], k2);
   return a;
 }
 
 string
 operator * (const string& a, const string& b) {
-  int i, n1=N(a), n2=N(b);
+  int n1=N(a), n2=N(b);
   string c(n1+n2);
-  for (i=0; i<n1; i++) c[i]=a[i];
-  for (i=0; i<n2; i++) c[i+n1]=b[i];
+  if (n1 > 0) memcpy(&c[0], &a[0], n1);
+  if (n2 > 0) memcpy(&c[n1], &b[0], n2);
   return c;
 }
 
