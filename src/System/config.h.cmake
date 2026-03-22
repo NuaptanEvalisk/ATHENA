@@ -1,3 +1,6 @@
+#ifndef CONFIG_H
+#define CONFIG_H
+
 /* src/System/config.h.cmake */
 
 /* check assertions in code */
@@ -173,3 +176,22 @@
 
 /* Guile string size type */
 #define guile_str_size_t @guile_str_size_t@
+
+#define MAX_FAST 264
+
+#define WORD_LENGTH 8
+
+#define WORD_MASK 0xfffffffffffffff8
+
+#define WORD_LENGTH_INC 7
+
+#define ALIGNOF_VOID_P 8
+
+ #define OS_GNU_LINUX 1
+
+#define AC_QT_MAJOR_VERSION 5
+
+#define GUILE_VERSION 1.8
+
+#endif // CONFIG_H
+
