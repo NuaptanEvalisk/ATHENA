@@ -446,7 +446,11 @@
                    (concat "Copyright " (copyright) " 1999-2026 Joris van der Hoeven and others.")
                    (concat "Copyright " (copyright) " 2026 Nuaptan F. Evalisk.")
                    "Released under the GNU General Public License version 3 or later."))))
-           ))))))
+           ))
+         (initial (collection
+           (associate "font-base-size" "7")
+           (associate "font-family" "tt")
+           (associate "page-medium" "automatic")))))))
 (tmfs-load-handler (Wikilink name)
   (wikilink-handler-sub name))
 
