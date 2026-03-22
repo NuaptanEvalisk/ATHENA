@@ -87,9 +87,9 @@
 ;; Subroutines for the definition of keyboard shortcuts
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define kbd-map-table (make-ahash-table))
-(define kbd-inv-table (make-ahash-table))
-(define kbd-rev-table (make-ahash-table))
+(define-public kbd-map-table (make-ahash-table))
+(define-public kbd-inv-table (make-ahash-table))
+(define-public kbd-rev-table (make-ahash-table))
 (define (kbd-set-map! key im) (ahash-set! kbd-map-table key im))
 (define (kbd-set-inv! key im) (ahash-set! kbd-inv-table key im))
 (define (kbd-set-rev! key im) (ahash-set! kbd-rev-table key im))

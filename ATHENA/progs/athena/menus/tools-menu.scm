@@ -12,7 +12,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (texmacs-module (athena menus tools-menu)
-  (:use (athena athena tm-tools)))
+  (:use (athena athena tm-tools)
+        (athena tools shortcut-listing)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Dynamic menus for formats, languages, and AI
@@ -24,7 +25,7 @@
      (ai-translate lan (get-preference "ai")))))
 
 (tm-menu (tools-equation-editor-menu)
-  ("Enable" (begin 
+  ("Enable" (begin
               (toggle-preference "equation-editor")
               (reinit-plugin-cache))))
 
@@ -35,8 +36,8 @@
 (menu-bind tools-menu
   (-> "Macros"
       (link source-macros-menu))
-  (-> "Speech"
-      ("Off" (reset-preference "speech"))
+  ("Shortcuts listing" (list-all-shortcuts))
+  (-> "Speech"      ("Off" (reset-preference "speech"))
       ---
       ("English" (set-preference "speech" "english"))
       ("French" (set-preference "speech" "french")))
