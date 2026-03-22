@@ -21,9 +21,9 @@ else (WIN32)
     ./ATHENA/ATHENA/athena.cpp
   )
 endif (WIN32)
-
 target_link_libraries (${ATHENA_binary_name}
   athena_body
+  mimalloc
   ${ATHENA_Libraries}
 )
 

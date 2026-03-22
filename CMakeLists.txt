@@ -75,6 +75,8 @@ if (NOT ATHENA_GUI)
   endif (APPLE)
 endif (NOT ATHENA_GUI)
 
+find_package (mimalloc REQUIRED)
+
 option (QTPIPES "use Qt pipes" ON)
 
 option (USE_SQLITE3 "Use SQLite3" ON)

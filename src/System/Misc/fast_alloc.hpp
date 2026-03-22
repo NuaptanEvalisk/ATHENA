@@ -17,6 +17,7 @@
 #include <stdlib.h>
 #include <type_traits>
 #include <cstring>
+#include <mimalloc.h>
 
 #include "tm_ostream.hpp"
 

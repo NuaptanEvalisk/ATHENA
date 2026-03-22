@@ -101,28 +101,13 @@ fast_free (void* ptr, size_t sz) {
 
 void*
 fast_new (size_t s) {
-  void* ptr;
-  #ifdef DEBUG_ON
+#ifdef DEBUG_ON
   s= (s+ (4 * WORD_LENGTH) + WORD_LENGTH_INC)&WORD_MASK;
-  #else
-  s= (s+ WORD_LENGTH+ WORD_LENGTH_INC)&WORD_MASK;
-  #endif
-  if (s<MAX_FAST) {
-    ptr= alloc_ptr(s);
-    if (ptr==NULL) ptr= enlarge_malloc (s);
-    else alloc_ptr(s)= ind(ptr);
-    #ifdef DEBUG_ON
-    break_stub(ptr);
-    #endif
+  void* ptr= mi_malloc (s);
+  if (ptr == NULL) {
+    cerr << "ATHENA] Out of memory\n";
+    exit (1);
   }
-  else {
-    if (MEM_DEBUG>=3) cout << "Big alloc of " << s << " bytes\n";
-    if (MEM_DEBUG>=3) cout << "Memory used: " << mem_used () << " bytes\n";
-    ptr= safe_malloc (s);
-    //if ((((int) ptr) & 15) != 0) cout << "Unaligned new " << ptr << "\n";
-    large_uses += s;
-  }
-  #ifdef DEBUG_ON
   char *mem=(char *)ptr;
   *((size_t *) ptr)=s;
   ptr= ((char*) ptr)+ WORD_LENGTH;
@@ -132,10 +117,16 @@ fast_new (size_t s) {
   ptr= ((char*) ptr)+ WORD_LENGTH;
   *((int*)(mem+s-WORD_LENGTH))=0x55aa;
   return (void*) ptr;
-  #else
+#else
+  s= (s+ WORD_LENGTH+ WORD_LENGTH_INC)&WORD_MASK;
+  void* ptr= mi_malloc (s);
+  if (ptr == NULL) {
+    cerr << "ATHENA] Out of memory\n";
+    exit (1);
+  }
   *((size_t *) ptr)=s;
   return (void*) (((char*) ptr)+ WORD_LENGTH);
-  #endif
+#endif
 }
 
 #ifdef DEBUG_ON
@@ -161,28 +152,15 @@ void* alloc_check(const char *msg,void *ptr,size_t* sp) {
 
 void
 fast_delete (void* ptr) {
-  #ifdef DEBUG_ON
+  if (ptr == NULL) return;
+#ifdef DEBUG_ON
   size_t s;
   ptr=alloc_check("fast_delete",ptr,&s);
-  #else
+  mi_free (ptr);
+#else
   ptr= (void*) (((char*) ptr)- WORD_LENGTH);
-  size_t s= *((size_t *) ptr);
-  #endif
-  if (s<MAX_FAST) {
-    #ifdef DEBUG_ON
-    break_stub(ptr);
-    break_stub(alloc_ptr(s));
-    #endif
-    ind(ptr)    = alloc_ptr(s);
-    alloc_ptr(s)= ptr;
-  }
-  else {
-    if (MEM_DEBUG>=3) cout << "Big free of " << s << " bytes\n";
-    //if ((((int) ptr) & 15) != 0) cout << "Unaligned delete " << ptr << "\n";
-    free (ptr);
-    large_uses -= s;
-    if (MEM_DEBUG>=3) cout << "Memory used: " << mem_used () << " bytes\n";
-  }
+  mi_free (ptr);
+#endif
 }
 
 /******************************************************************************
