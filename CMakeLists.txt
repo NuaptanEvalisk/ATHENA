@@ -396,6 +396,18 @@ configure_file (${ATHENA_SOURCE_DIR}/src/System/tm_configure.hpp.cmake ${ATHENA_
 
 set (CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -include ${ATHENA_BINARY_DIR}/src/System/config.h")
 
+if (CMAKE_CXX_COMPILER_ID STREQUAL "IntelLLVM")
+  message(STATUS "Detected IntelLLVM compiler, adding aggressive optimization flags")
+  # Modern optimization: O3, native architecture, AVX2, loop unrolling, and ThinLTO
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -march=native -mavx2 -funroll-loops -flto=thin -fp-model fast")
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -march=native -mavx2 -funroll-loops -flto=thin -fp-model fast")
+  
+  # Linker flags: Use lld, ThinLTO, and enable caching in the build directory
+  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -flto=thin -fuse-ld=lld -Wl,--thinlto-cache-dir=${CMAKE_BINARY_DIR}/lto_cache")
+  set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -flto=thin -fuse-ld=lld -Wl,--thinlto-cache-dir=${CMAKE_BINARY_DIR}/lto_cache")
+endif()
+
+
 ### --------------------------------------------------------------------
 ### the include dirs
 ### --------------------------------------------------------------------
