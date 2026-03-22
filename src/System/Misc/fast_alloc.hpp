@@ -438,8 +438,10 @@ tm_delete_array (C* Ptr) {
   void* ptr= (void*) Ptr;
   ptr= (void*) (((char*) ptr) - WORD_LENGTH);
   int n= *((int*) ptr);
-  C* ctr= Ptr+n-1;
-  for (int i=0; i<n; i++, ctr--) ctr -> ~C();
+  if constexpr (!std::is_trivially_destructible_v<C>) {
+    C* ctr= Ptr+n-1;
+    for (int i=0; i<n; i++, ctr--) ctr -> ~C();
+  }
   fast_free (ptr, n * sizeof (C) + WORD_LENGTH);
 }
 #endif
