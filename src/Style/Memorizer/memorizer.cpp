@@ -316,7 +316,7 @@ memorizer::~memorizer () {
 }
 
 memorizer&
-memorizer::operator = (memorizer mem) {
+memorizer::operator = (const memorizer& mem) {
   //cout << "assign " << rep << ", " << mem.rep << LF;
   if (rep == mem.rep) return *this;
   if (rep != NULL) {

@@ -58,7 +58,7 @@ public:
   tm_ostream (tm_ostream_rep*);
   ~tm_ostream ();
   tm_ostream_rep* operator -> ();
-  tm_ostream& operator = (tm_ostream x);
+  tm_ostream& operator = (const tm_ostream& x);
   bool operator == (tm_ostream&);
 
   void clear ();

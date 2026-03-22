@@ -62,7 +62,7 @@ public:
       rep->ref_count++; } }
   memorizer (memorizer_rep* rep);
   ~memorizer ();
-  memorizer& operator = (memorizer mem);
+  memorizer& operator = (const memorizer& mem);
   inline memorizer_rep* operator -> () { return rep; }
   inline friend bool is_memorized (const memorizer& mem) {
     return mem.rep->ref_count >= 3; }

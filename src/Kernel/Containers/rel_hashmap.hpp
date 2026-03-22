@@ -15,7 +15,7 @@
 
 template<class T, class U> class rel_hashmap;
 template<class T, class U> class rel_hashmap_rep;
-template<class T, class U> bool is_nil (rel_hashmap<T,U> h);
+template<class T, class U> bool is_nil (const rel_hashmap<T,U>& h);
 
 template<class T, class U> class rel_hashmap {
   CONCRETE_NULL_TEMPLATE_2(rel_hashmap,T,U);

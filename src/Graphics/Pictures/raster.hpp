@@ -19,7 +19,7 @@
 ******************************************************************************/
 
 template<typename C> class raster;
-template<typename C> bool is_nil (raster<C> r);
+template<typename C> bool is_nil (const raster<C>& r);
 
 template<typename C>
 class raster_rep: public abstract_struct {

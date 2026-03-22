@@ -243,9 +243,12 @@ tm_ostream::~tm_ostream () {
   DEC_COUNT (this->rep); }
 tm_ostream_rep* tm_ostream::operator -> () {
   return rep; }
-tm_ostream& tm_ostream::operator = (tm_ostream x) {
-  INC_COUNT (x.rep); DEC_COUNT (this->rep);
-  this->rep=x.rep; return *this; }
+tm_ostream& tm_ostream::operator = (const tm_ostream& x) {
+  if (this->rep != x.rep) {
+    INC_COUNT (x.rep); DEC_COUNT (this->rep);
+    this->rep=x.rep;
+  }
+  return *this; }
 bool tm_ostream::operator == (tm_ostream& out) {
   return (&out == this); }
 

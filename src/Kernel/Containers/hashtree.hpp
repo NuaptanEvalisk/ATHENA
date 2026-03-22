@@ -96,7 +96,7 @@ template<class K, class V> class hashtree {
 public:
   inline hashtree (const hashtree<K,V>&);
   inline ~hashtree ();
-  inline hashtree<K,V>& operator= (hashtree<K,V> x);
+  inline hashtree<K,V>& operator= (const hashtree<K,V>& x);
     
   // default constructor returns a non-NULL node, which does not have a value
   inline hashtree (): rep (tm_new<hashtree_rep<K,V> > ()) {}

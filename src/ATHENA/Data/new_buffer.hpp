@@ -52,9 +52,12 @@ inline new_buffer::new_buffer (const new_buffer& x):
 inline new_buffer::~new_buffer () { DEC_COUNT (this->rep); }
 inline new_buffer_rep* new_buffer::operator -> () {
   return rep; }
-inline new_buffer& new_buffer::operator = (new_buffer x) {
-  INC_COUNT (x.rep); DEC_COUNT (this->rep);
-  this->rep=x.rep; return *this; }
+inline new_buffer& new_buffer::operator = (const new_buffer& x) {
+  if (this->rep != x.rep) {
+    INC_COUNT (x.rep); DEC_COUNT (this->rep);
+    this->rep=x.rep;
+  }
+  return *this; }
 
 /******************************************************************************
 * Low level types and routines

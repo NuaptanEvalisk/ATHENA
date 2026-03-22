@@ -18,7 +18,7 @@
 class tree;
 TMPL class unary_function_rep;
 TMPL class unary_function;
-TMPL bool is_nil (unary_function<T,S> l);
+TMPL bool is_nil (const unary_function<T,S>& l);
 
 TMPL
 class unary_function_rep: public abstract_struct {

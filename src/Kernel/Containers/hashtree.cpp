@@ -31,13 +31,14 @@ hashtree<K,V>::~hashtree() {
 }
 
 template<class K,class V> inline hashtree<K,V>&
-hashtree<K,V>::operator= (hashtree<K,V> x) {
-  if (this->rep!=NULL) DEC_COUNT (this->rep); 
-  this->rep = x.rep;
-  if (x.rep!=NULL) INC_COUNT (x.rep);
+hashtree<K,V>::operator= (const hashtree<K,V>& x) {
+  if (this->rep != x.rep) {
+    if (this->rep!=NULL) DEC_COUNT (this->rep);
+    this->rep = x.rep;
+    if (x.rep!=NULL) INC_COUNT (x.rep);
+  }
   return *this;
 }
-
 /******************************************************************************
 * Methods of hashtree_rep<K,V>
 ******************************************************************************/

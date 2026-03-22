@@ -35,7 +35,7 @@ public:
   inline tree (const tree& x);
   inline ~tree ();
   inline atomic_rep* operator -> ();
-  inline tree& operator = (tree x);
+  inline tree& operator = (const tree& x);
 
   inline tree ();
   inline tree (string l);
@@ -159,10 +159,12 @@ inline tree::~tree () {
 inline atomic_rep* tree::operator -> () {
   CHECK_ATOMIC (*this);
   return static_cast<atomic_rep*> (rep); }
-inline tree& tree::operator = (tree x) {
-  x.rep->ref_count++;
-  if ((--rep->ref_count)==0) destroy_tree_rep (rep);
-  rep= x.rep;
+inline tree& tree::operator = (const tree& x) {
+  if (rep != x.rep) {
+    x.rep->ref_count++;
+    if ((--rep->ref_count)==0) destroy_tree_rep (rep);
+    rep= x.rep;
+  }
   return *this; }
 
 inline tree::tree ():
