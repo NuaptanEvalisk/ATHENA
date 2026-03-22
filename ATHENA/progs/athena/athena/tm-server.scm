@@ -229,12 +229,13 @@
          (alt-windows-delete (alt-window-search (current-buffer))))
         ((<= (windows-number) 1)
          (safely-quit-ATHENA))        ((nnull? opt-name)
-         (if (buffer-modified? (window->buffer (car opt-name)))
-             (user-confirm
-                 "The document has not been saved. Really close it?" #f
-               (lambda (answ)
-                 (when answ (do-kill-window* (car opt-name)))))
-             (do-kill-window* (car opt-name))))
+         (with buf (window->buffer (car opt-name))
+           (if (and buf (buffer-modified? buf))
+               (user-confirm
+                   "The document has not been saved. Really close it?" #f
+                 (lambda (answ)
+                   (when answ (do-kill-window* (car opt-name)))))
+               (do-kill-window* (car opt-name)))))
         ((buffer-modified? (current-buffer))
          (user-confirm "The document has not been saved. Really close it?" #f
            (lambda (answ)

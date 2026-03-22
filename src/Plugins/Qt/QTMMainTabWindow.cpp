@@ -1,5 +1,6 @@
 #include "QTMMainTabWindow.hpp"
 #include "QTMApplication.hpp"
+#include "qt_window_widget.hpp"
 #include "scheme.hpp"
 #include "tm_server.hpp"
 
@@ -218,6 +219,29 @@ bool QTMMainTabWindow::eventFilter(QObject *obj, QEvent *event) {
     return eventFilterWindow(obj, event);
   }
 
+  if (QMdiSubWindow* sub = qobject_cast<QMdiSubWindow*>(obj)) {
+    if (event->type() == QEvent::MouseButtonPress) {
+      QMouseEvent *mouseEvent = static_cast<QMouseEvent *>(event);
+      if (mouseEvent->button() == Qt::MiddleButton) {
+        // Detect if click is in the title bar area
+        int titleBarHeight = sub->style()->pixelMetric(QStyle::PM_TitleBarHeight);
+#if QT_VERSION >= 0x060000
+        int y = mouseEvent->position().toPoint().y();
+#else
+        int y = mouseEvent->pos().y();
+#endif
+        if (y >= 0 && y < titleBarHeight) {
+          if (QWidget* inner = sub->widget()) {
+            if (inner->metaObject()->indexOfSignal("closed()") != -1) {
+              QMetaObject::invokeMethod(inner, "closed");
+              return true;
+            }
+          }
+        }
+      }
+    }
+  }
+
   return eventFilterTabBar(obj, event);
 }
 
@@ -233,6 +257,7 @@ void QTMMainTabWindow::showWidget(QWidget *widget, bool isDocument) {
       bool first = mMdiArea->subWindowList().isEmpty();
       sub = mMdiArea->addSubWindow (widget);
       sub->setAttribute(Qt::WA_DeleteOnClose);
+      sub->installEventFilter(this); // Listen for middle clicks on title bar
       mStackedWidget->setCurrentWidget (mMdiArea);
       if (first) sub->showMaximized();
       else sub->show();
