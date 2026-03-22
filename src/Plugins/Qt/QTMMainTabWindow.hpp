@@ -48,6 +48,7 @@ public:
   void attachWidget(QWidget* widget);
 
 protected:
+  void closeEvent (QCloseEvent* event) override;
   bool eventFilter(QObject * obj, QEvent * event) override;
   bool eventFilterWindow(QObject * obj, QEvent * event);
   bool eventFilterTabBar(QObject * obj, QEvent * event);

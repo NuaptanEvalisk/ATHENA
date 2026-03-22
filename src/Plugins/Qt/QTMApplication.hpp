@@ -27,9 +27,10 @@
 #include "QTMIconManager.hpp"
 #include "QTMMainTabWindow.hpp"
 
-void init_palette (QApplication* app);
+bool init_palette (QApplication* app);
 void init_style_sheet (QApplication* app);
 void set_standard_style_sheet (QWidget *w);
+bool is_server_started ();
 
 #if defined(Q_OS_MAC) && QT_VERSION < 0x060000 
 #include "QTMMacPasteboardMimePDF.hpp"
@@ -78,7 +79,8 @@ public:
 
   inline QTMMainTabWindow &mainTabWindow() {
     if (QTMMainTabWindow::topTabWindow() == nullptr) {
-      new QTMMainTabWindow();
+      if (is_server_started ()) new QTMMainTabWindow();
+      else ASSERT (false, "mainTabWindow() called while server is not started");
     }
     return *QTMMainTabWindow::topTabWindow();
   }

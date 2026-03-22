@@ -1,11 +1,13 @@
 #include "QTMMainTabWindow.hpp"
 #include "QTMApplication.hpp"
 #include "scheme.hpp"
+#include "tm_server.hpp"
 
 #include <QMouseEvent>
 #include <QTabBar>
 #include <QApplication>
 #include <QMdiSubWindow>
+#include <QCloseEvent>
 
 QTMMainTabWindow *QTMMainTabWindow::gTopTabWindow = nullptr;
 
@@ -64,6 +66,15 @@ QTMMainTabWindow::QTMMainTabWindow() {
 QTMMainTabWindow::~QTMMainTabWindow() {
   if (gTopTabWindow == this) {
     gTopTabWindow = nullptr;
+  }
+}
+
+void QTMMainTabWindow::closeEvent(QCloseEvent *event) {
+  if (is_server_started()) {
+    event->ignore();
+    eval("(safely-quit-ATHENA)");
+  } else {
+    QMainWindow::closeEvent(event);
   }
 }
 
