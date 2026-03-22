@@ -21,11 +21,10 @@
 
 static inline int
 round_length (int n) {
-  n=(n+3)&(0xfffffffc);
-  if (n<24) return n;
-  int i=32;
-  while (n>i) i<<=1;
-  return i;
+  unsigned int u = (unsigned int) n;
+  u = (u + 3) & ~3u;
+  if (u < 24) return (int) u;
+  return 1 << (32 - __builtin_clz (u - 1));
 }
 
 string_rep::string_rep (int n2):
