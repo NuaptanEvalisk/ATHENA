@@ -14,21 +14,21 @@
 
 #include <QAbstractScrollArea>
 #include <QRect>
+#include <QTimer>
 #include "QTMDelayedMethodCall.hpp"
 
-class QResizeEvent;
 class QPaintEvent;
 
 /*! Scroll view widget.
 
- The current structure of the central texmacs widget (the canvas) is the 
+ The current structure of the central texmacs widget (the canvas) is the
  following: the canvas is a derived class of QTMScrollView which being
  a QAbstractScrollArea owns a central widget called the "viewport".
  QAbstractScrollArea coordinates the viewport with the scrollbars and maintains
- informations like the real extent of the working surface and the current 
- origin which can be acted upon via the scrollbars. This setup has been 
- augmented via another widget child of the scrollview which we call the 
- "surface", with the purpose of centering the working area. See the 
+ informations like the real extent of the working surface and the current
+ origin which can be acted upon via the scrollbars. This setup has been
+ augmented via another widget child of the scrollview which we call the
+ "surface", with the purpose of centering the working area. See the
  documentation for QTMSurface for more info on this.
 */
 class QTMScrollView : public QAbstractScrollArea {
@@ -38,9 +38,14 @@ class QTMScrollView : public QAbstractScrollArea {
   QRect    p_extents;   // The size of the virtual area where things are drawn.
   QPoint    p_origin;   // The offset into that area
   QWidget* p_surface;   // Actual drawing area, centered (or not) in the scrollarea
-  
+
 public:
-  
+  // Inertial scrolling state
+  QTimer* mInertiaTimer;
+  double mInertiaVelocityX;
+  double mInertiaVelocityY;
+  double mInertiaFriction;
+
   QTMScrollView (QWidget *_parent = NULL);
 
   QPoint  origin () { return p_origin; }

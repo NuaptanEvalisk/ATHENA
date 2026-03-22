@@ -79,12 +79,31 @@ protected:
 QTMScrollView::QTMScrollView (QWidget *_parent):
   QAbstractScrollArea (_parent),
   editor_flag (false),
-  p_extents (QRect(0,0,0,0))
+  p_extents (QRect(0,0,0,0)),
+  mInertiaVelocityX(0),
+  mInertiaVelocityY(0),
+  mInertiaFriction(0.90)
 {
   QWidget *_viewport = QAbstractScrollArea::viewport();
   _viewport->setBackgroundRole(QPalette::Mid);
   _viewport->setAutoFillBackground(true);
   setFrameShape(QFrame::NoFrame);
+
+  mInertiaTimer = new QTimer(this);
+  connect(mInertiaTimer, &QTimer::timeout, this, [this]() {
+    if (std::abs(mInertiaVelocityX) < 1.0 && std::abs(mInertiaVelocityY) < 1.0) {
+      mInertiaTimer->stop();
+      mInertiaVelocityX = 0;
+      mInertiaVelocityY = 0;
+      return;
+    }
+    QScrollBar *hBar = horizontalScrollBar();
+    QScrollBar *vBar = verticalScrollBar();
+    hBar->setValue(hBar->value() - qRound(mInertiaVelocityX));
+    vBar->setValue(vBar->value() - qRound(mInertiaVelocityY));
+    mInertiaVelocityX *= mInertiaFriction;
+    mInertiaVelocityY *= mInertiaFriction;
+  });
 
   p_surface = new QTMSurface (_viewport, this);
   p_surface->setAttribute(Qt::WA_NoSystemBackground);

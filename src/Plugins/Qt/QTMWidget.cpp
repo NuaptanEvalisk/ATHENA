@@ -35,9 +35,9 @@
 #include <QFocusEvent>
 #include <QPainter>
 #include <QApplication>
+#include <QScrollBar>
 
 #ifdef OS_ANDROID
-#include <QScrollBar>
 #include <QScroller>
 #endif
 
@@ -1091,7 +1091,40 @@ QTMWidget::wheelEvent(QWheelEvent *event) {
     }
 #endif
   }
-  else QAbstractScrollArea::wheelEvent (event);
+  else {
+    if (get_user_preference("inertial scrolling") == "on") {
+#if QT_VERSION >= 0x050000
+      QPoint numPixels = event->pixelDelta();
+      QPoint numDegrees = event->angleDelta() / 8;
+      double dx = 0, dy = 0;
+      if (!numPixels.isNull()) {
+        dx = numPixels.x();
+        dy = numPixels.y();
+      } else if (!numDegrees.isNull()) {
+        dx = numDegrees.x();
+        dy = numDegrees.y();
+      }
+#else
+      double delta = event->delta();
+      bool hor = event->orientation() == Qt::Horizontal;
+      double dx = hor ? delta : 0;
+      double dy = hor ? 0 : delta;
+#endif
+      mInertiaFriction = as_double(get_user_preference("inertial scrolling friction", "0.90"));
+      double sensitivity = as_double(get_user_preference("inertial scrolling sensitivity", "1.0"));
+      mInertiaVelocityX += dx * 0.15 * sensitivity;
+      mInertiaVelocityY += dy * 0.15 * sensitivity;
+      if (!mInertiaTimer->isActive()) mInertiaTimer->start(16);
+      
+      QScrollBar *hBar = horizontalScrollBar();
+      QScrollBar *vBar = verticalScrollBar();
+      hBar->setValue(hBar->value() - qRound(dx));
+      vBar->setValue(vBar->value() - qRound(dy));
+      event->accept();
+    } else {
+      QAbstractScrollArea::wheelEvent (event);
+    }
+  }
 }
 
 void QTMWidget::showEvent (QShowEvent *event) {
