@@ -223,17 +223,36 @@ bool QTMMainTabWindow::eventFilter(QObject *obj, QEvent *event) {
 
 void QTMMainTabWindow::showWidget(QWidget *widget, bool isDocument) {
   if (tmapp()->useMdi()) {
-    bool first = mMdiArea->subWindowList().isEmpty();
-    QMdiSubWindow* sub = mMdiArea->addSubWindow (widget);
-    sub->setAttribute(Qt::WA_DeleteOnClose);
-    if (isDocument && (first || mMdiArea->activeSubWindow())) {
-      sub->showMaximized();
-    } else {
+    QMdiSubWindow* sub = qobject_cast<QMdiSubWindow*>(widget->parentWidget());
+    if (sub) {
+      mStackedWidget->setCurrentWidget (mMdiArea);
       sub->show();
+      mMdiArea->setActiveSubWindow(sub);
+      widget->setFocus();
+    } else if (isDocument) {
+      bool first = mMdiArea->subWindowList().isEmpty();
+      sub = mMdiArea->addSubWindow (widget);
+      sub->setAttribute(Qt::WA_DeleteOnClose);
+      mStackedWidget->setCurrentWidget (mMdiArea);
+      if (first) sub->showMaximized();
+      else sub->show();
+      mMdiArea->setActiveSubWindow(sub);
+      widget->setFocus();
+    } else {
+      widget->show();
+      widget->raise();
+      widget->activateWindow();
+      widget->setFocus();
     }
   } else {
-    mTabWidget->addTab(widget, widget->windowTitle());
-    mTabWidget->setCurrentWidget(widget);
+    int index = mTabWidget->indexOf(widget);
+    if (index == -1) {
+      mTabWidget->addTab(widget, widget->windowTitle());
+      index = mTabWidget->indexOf(widget);
+    }
+    mTabWidget->setCurrentIndex(index);
+    mStackedWidget->setCurrentWidget (mTabWidget);
+    widget->setFocus();
   }
 }
 

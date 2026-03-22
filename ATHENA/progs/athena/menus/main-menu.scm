@@ -85,6 +85,17 @@
       (=> "Test" (link test-menu)))
   (=> "Help" (link help-menu)))
 
+(tm-menu (window-list-menu)
+  (for (win (window-list))
+    (let* ((buf (window-to-buffer win))
+           (title (buffer-get-title buf))
+           (title* (if (== title "") (url->system (url-tail buf)) title))
+           (mod? (buffer-modified? buf))
+           (short-name `(verbatim ,(string-append title* (if mod? " *" ""))))
+           (active? (== (current-window) win)))
+      ((check (eval short-name) "v" active?)
+       (switch-to-window win)))))
+
 (menu-bind window-menu
   ("New window" (new-document*))
   ("Close window" (close-document*))
@@ -95,7 +106,9 @@
   (if (window-mdi?) ("Tile" (mdi-tile)))
   (if (window-mdi?) ("Cascade" (mdi-cascade)))
   (if (window-mdi?) ("Maximize" (mdi-maximize-active)))
-  (if (window-mdi?) ("Minimize" (mdi-minimize-active))))
+  (if (window-mdi?) ("Minimize" (mdi-minimize-active)))
+  ---
+  (link window-list-menu))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; The TeXmacs popup menus
