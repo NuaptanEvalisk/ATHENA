@@ -25,7 +25,7 @@ class atomic_rep;
 class compound_rep;
 class generic_rep;
 class blackbox;
-tree copy (tree t);
+tree copy (const tree& t);
 
 extern tree_rep* dummy_tree_rep;
 
@@ -38,6 +38,7 @@ public:
   inline tree (tree&& x) noexcept;
   inline ~tree ();
   inline atomic_rep* operator -> ();
+  inline const atomic_rep* operator -> () const;
   inline tree& operator = (const tree& x);
   inline tree& operator = (tree&& x) noexcept;
 
@@ -58,37 +59,38 @@ public:
   tree (tree_label l, tree t1, tree t2, tree t3, tree t4,
 	              tree t5, tree t6, tree t7, tree t8);
   inline tree& operator [] (int i);
-  tree operator () (int start, int end);
+  inline const tree& operator [] (int i) const;
+  tree operator () (int start, int end) const;
 
-  friend inline int N (tree t);
-  friend inline int arity (tree t);
-  friend inline tree_label L (tree t);
-  friend inline tree_label& LR (tree t);
-  friend inline array<tree> A (tree t);
-  friend inline array<tree>& AR (tree t);
-  friend inline bool is_atomic (tree t);
-  friend inline bool is_compound (tree t);
-  friend inline bool is_generic (tree t);
-  friend inline bool operator == (tree t, tree_label lab);
-  friend inline bool operator != (tree t, tree_label lab);
-  friend inline bool operator == (tree t, string s);
-  friend inline bool operator != (tree t, string s);
-  friend inline bool operator == (tree t, const char* s);
-  friend inline bool operator != (tree t, const char* s);
-  friend inline tree_rep* inside (tree t);
-  friend inline bool strong_equal (tree t, tree u);
-  friend inline bool is_func (tree t, tree_label l);
-  friend inline bool is_func (tree t, tree_label l, int i);
+  friend inline int N (const tree& t);
+  friend inline int arity (const tree& t);
+  friend inline tree_label L (const tree& t);
+  friend inline tree_label& LR (const tree& t);
+  friend inline array<tree> A (const tree& t);
+  friend inline array<tree>& AR (const tree& t);
+  friend inline bool is_atomic (const tree& t);
+  friend inline bool is_compound (const tree& t);
+  friend inline bool is_generic (const tree& t);
+  friend inline bool operator == (const tree& t, tree_label lab);
+  friend inline bool operator != (const tree& t, tree_label lab);
+  friend inline bool operator == (const tree& t, const string& s);
+  friend inline bool operator != (const tree& t, const string& s);
+  friend inline bool operator == (const tree& t, const char* s);
+  friend inline bool operator != (const tree& t, const char* s);
+  friend inline tree_rep* inside (const tree& t);
+  friend inline bool strong_equal (const tree& t, const tree& u);
+  friend inline bool is_func (const tree& t, tree_label l);
+  friend inline bool is_func (const tree& t, tree_label l, int i);
 
-  friend tree copy (tree t);
-  friend tree freeze (tree t);
-  friend bool operator == (tree t, tree u);
-  friend bool operator != (tree t, tree u);
-  friend tree& operator << (tree& t, tree t2);
-  friend tree& operator << (tree& t, array<tree> a);
-  friend tm_ostream& operator << (tm_ostream& out, tree t);
-  friend tree operator * (tree t1, tree t2);
-  friend void print_tree (tree t, int tab);
+  friend tree copy (const tree& t);
+  friend tree freeze (const tree& t);
+  friend bool operator == (const tree& t, const tree& u);
+  friend bool operator != (const tree& t, const tree& u);
+  friend tree& operator << (tree& t, const tree& t2);
+  friend tree& operator << (tree& t, const array<tree>& a);
+  friend tm_ostream& operator << (tm_ostream& out, const tree& t);
+  friend tree operator * (const tree& t1, const tree& t2);
+  friend void print_tree (const tree& t, int tab);
   friend list<tree> as_trees (list<pointer> l);
   friend class tree_pointer_rep;
   friend class tree_position_rep;
@@ -164,6 +166,9 @@ inline tree::~tree () {
 inline atomic_rep* tree::operator -> () {
   CHECK_ATOMIC (*this);
   return static_cast<atomic_rep*> (rep); }
+inline const atomic_rep* tree::operator -> () const {
+  CHECK_ATOMIC (*this);
+  return static_cast<const atomic_rep*> (rep); }
 inline tree& tree::operator = (const tree& x) {
   if (rep != x.rep) {
     x.rep->ref_count++;
@@ -196,56 +201,59 @@ inline tree::tree (tree t, int n):
 inline tree& tree::operator [] (int i) {
   CHECK_COMPOUND (*this);
   return (static_cast<compound_rep*> (rep))->a[i]; }
-inline int N (tree t) {
+inline const tree& tree::operator [] (int i) const {
+  CHECK_COMPOUND (*this);
+  return (static_cast<compound_rep*> (rep))->a[i]; }
+inline int N (const tree& t) {
+  if (t.rep->op == TMSTRING) return 0;
   CHECK_COMPOUND (t);
   return N ((static_cast<compound_rep*> (t.rep))->a); }
-inline int arity (tree t) {
+inline int arity (const tree& t) {
   if (t.rep->op == TMSTRING) return 0;
   else return N ((static_cast<compound_rep*> (t.rep))->a); }
-inline int right_index (tree t) {
+inline int right_index (const tree& t) {
   return is_atomic (t)? N(t->label): 1; }
-inline tree_label L (tree t) {
+inline tree_label L (const tree& t) {
   return t.rep->op; }
-inline tree_label& LR (tree t) {
+inline tree_label& LR (const tree& t) {
   return t.rep->op; }
-inline array<tree> A (tree t) {
+inline array<tree> A (const tree& t) {
   CHECK_COMPOUND (t);
   return (static_cast<compound_rep*> (t.rep))->a; }
-inline array<tree>& AR (tree t) {
+inline array<tree>& AR (const tree& t) {
   CHECK_COMPOUND (t);
   return (static_cast<compound_rep*> (t.rep))->a; }
-
-inline bool is_atomic (tree t) { return (((int) t.rep->op) == 0); }
-inline bool is_compound (tree t) { return (((int) t.rep->op) > TMSTRING); }
-inline bool is_generic (tree t) { return ((int) t.rep->op) < 0; }
-inline string get_label (tree t) {
+inline bool is_atomic (const tree& t) { return (((int) t.rep->op) == 0); }
+inline bool is_compound (const tree& t) { return (((int) t.rep->op) > TMSTRING); }
+inline bool is_generic (const tree& t) { return ((int) t.rep->op) < 0; }
+inline string get_label (const tree& t) {
   return is_atomic (t)? t->label: copy (as_string (L(t))); }
-inline bool operator == (tree t, tree_label lab) {
+inline bool operator == (const tree& t, tree_label lab) {
   return (t.rep->op == lab) && (N(t)==0); }
-inline bool operator != (tree t, tree_label lab) {
+inline bool operator != (const tree& t, tree_label lab) {
   return (t.rep->op != lab) || (N(t)!=0); }
-inline bool operator == (tree t, string s) {
+inline bool operator == (const tree& t, const string& s) {
   return (t.rep->op == TMSTRING) && (t->label == s); }
-inline bool operator != (tree t, string s) {
+inline bool operator != (const tree& t, const string& s) {
   return (t.rep->op != TMSTRING) || (t->label != s); }
-inline bool operator == (tree t, const char* s) {
+inline bool operator == (const tree& t, const char* s) {
   return (t.rep->op == TMSTRING) && (t->label == s); }
-inline bool operator != (tree t, const char* s) {
+inline bool operator != (const tree& t, const char* s) {
   return (t.rep->op != TMSTRING) || (t->label != s); }
-inline tree_rep* inside (tree t) {
+inline tree_rep* inside (const tree& t) {
   return t.rep; }
-inline bool strong_equal (tree t, tree u) {
+inline bool strong_equal (const tree& t, const tree& u) {
   return t.rep == u.rep; }
 
-inline bool is_func (tree t, tree_label l) {
+inline bool is_func (const tree& t, tree_label l) {
   return (t.rep->op==l) && (N(t)!=0); }
-inline bool is_func (tree t, tree_label l, int i) {
+inline bool is_func (const tree& t, tree_label l, int i) {
   return (t.rep->op==l) && (N(t)==i); }
 
-inline bool is_bool (tree t) { return is_atomic (t) && is_bool (t->label); }
-inline bool is_int (tree t) { return is_atomic (t) && is_int (t->label); }
-inline bool is_double (tree t) { return is_atomic (t) && is_double(t->label); }
-inline bool is_string (tree t) { return is_atomic (t); }
+inline bool is_bool (const tree& t) { return is_atomic (t) && is_bool (t->label); }
+inline bool is_int (const tree& t) { return is_atomic (t) && is_int (t->label); }
+inline bool is_double (const tree& t) { return is_atomic (t) && is_double(t->label); }
+inline bool is_string (const tree& t) { return is_atomic (t); }
 inline bool is_enunciation_type (string var) {
   return (var == "theorem" || var == "lemma" || var == "corollary" || 
           var == "proposition" || var == "axiom" || var == "definition" || 
@@ -267,11 +275,11 @@ inline long int as_long_int (tree t) {
 inline double as_double (tree t) {
   if (is_atomic (t)) return as_double (t->label);
   else return 0.0; }
-inline string as_string (tree t) {
+inline string as_string (const tree& t) {
   if (is_atomic (t)) return t->label;
   else return ""; }
-string tree_as_string (tree t);
-tree replace (tree t, tree w, tree b);
+string tree_as_string (const tree& t);
+tree replace (const tree& t, const tree& w, const tree& b);
 template<class T> inline tree as_tree (T x) { return (tree) x; }
 template<> inline tree as_tree (int x) { return as_string (x); }
 template<> inline tree as_tree (long int x) { return as_string (x); }
@@ -396,7 +404,7 @@ inline tree verbatim (tree t1) {
 ******************************************************************************/
 
 tree   correct (tree t);
-int    hash (tree t);
+int    hash (const tree& t);
 
 template<class T>
 array<T>::operator tree () {
@@ -414,6 +422,6 @@ public:
   inline formatted (const formatted& f): rep (f.rep) {}
 };
 
-void print_tree (tree t, int tab=0);
+void print_tree (const tree& t, int tab=0);
 
 #endif // defined TREE_H

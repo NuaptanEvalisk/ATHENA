@@ -116,7 +116,7 @@ tree::tree (tree_label l,
 }
 
 tree
-tree::operator () (int begin, int end) {
+tree::operator () (int begin, int end) const {
   int i;
   tree r (rep->op, end-begin);
   for (i=begin; i<end; i++)
@@ -125,21 +125,21 @@ tree::operator () (int begin, int end) {
 }
 
 bool
-operator == (tree t, tree u) {
+operator == (const tree& t, const tree& u) {
   if (strong_equal (t, u)) return true;
   return (L(t)==L(u)) &&
     (L(t)==TMSTRING? (t->label==u->label): (A(t)==A(u)));
 }
 
 bool
-operator != (tree t, tree u) {
+operator != (const tree& t, const tree& u) {
   if (strong_equal (t, u)) return false;
   return (L(t)!=L(u)) ||
     (L(t)==TMSTRING? (t->label!=u->label): (A(t)!=A(u)));
 }
 
 tree
-copy (tree t) {
+copy (const tree& t) {
   if (is_atomic (t)) return tree (copy (t->label));
   else {
     int i, n= N(t);
@@ -150,7 +150,7 @@ copy (tree t) {
 }
 
 tree
-freeze (tree t) {
+freeze (const tree& t) {
   if (is_atomic (t)) return copy (t->label);
   if (is_func (t, UNFREEZE, 1)) return t[0];
   else {
@@ -163,32 +163,33 @@ freeze (tree t) {
 }
 
 tree
-operator * (tree t1, tree t2) {
+operator * (const tree& t1, const tree& t2) {
   int i;
-  if (is_atomic (t1)) t1= tree (L(t2), t1);
-  if (is_atomic (t2)) t2= tree (L(t1), t2);
-  tree r (t1, N(t1)+N(t2));
-  for (i=0; i<N(t1); i++) r[i]= t1[i];
-  for (i=0; i<N(t2); i++) r[i+N(t1)]= t2[i];
+  tree r1= t1, r2= t2;
+  if (is_atomic (r1)) r1= tree (L(r2), r1);
+  if (is_atomic (r2)) r2= tree (L(r1), r2);
+  tree r (r1, N(r1)+N(r2));
+  for (i=0; i<N(r1); i++) r[i]= r1[i];
+  for (i=0; i<N(r2); i++) r[i+N(r1)]= r2[i];
   return r;
 }
 
 tree&
-operator << (tree& t, tree t2) {
+operator << (tree& t, const tree& t2) {
   CHECK_COMPOUND (t);
   (static_cast<compound_rep*> (t.rep))->a << t2;
   return t;
 }
 
 tree&
-operator << (tree& t, array<tree> a) {
+operator << (tree& t, const array<tree>& a) {
   CHECK_COMPOUND (t);
   (static_cast<compound_rep*> (t.rep))->a << a;
   return t;
 }
 
 tm_ostream&
-operator << (tm_ostream& out, tree t) {
+operator << (tm_ostream& out, const tree& t) {
   if (is_atomic (t)) return out << t->label;
   else if (is_compound (t)) {
     int i, n= N(t);
@@ -205,7 +206,7 @@ operator << (tm_ostream& out, tree t) {
 }
 
 void
-print_tree (tree t, int tab) {
+print_tree (const tree& t, int tab) {
   int i;
   for (i=0; i<tab; i++) cout << " ";
   if (is_atomic (t)) cout << t->label << "\n";
@@ -216,7 +217,7 @@ print_tree (tree t, int tab) {
 }
 
 int
-hash (array<tree> a) {
+hash (const array<tree>& a) {
   int i, h=0, n=N(a);
   for (i=0; i<n; i++) {
     h=(h<<7) + (h>>25);
@@ -226,13 +227,13 @@ hash (array<tree> a) {
 }
 
 int
-hash (tree t) {
+hash (const tree& t) {
   if (is_atomic (t)) return hash (t->label);
   else return ((int) L(t)) ^ hash (A(t));
 }
 
 string
-tree_as_string (tree t) {
+tree_as_string (const tree& t) {
   if (is_atomic (t)) return t->label;
   else if (is_concat (t) || is_document (t)) {
     int i, n= N(t);
@@ -249,7 +250,7 @@ tree_as_string (tree t) {
 }
 
 tree
-replace (tree t, tree w, tree b) {
+replace (const tree& t, const tree& w, const tree& b) {
   if (t == w) return b;
   else if (is_atomic (t)) return t;
   else {

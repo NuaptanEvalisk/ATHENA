@@ -44,6 +44,7 @@ template<class T> class array {
   array (T x1, T x2, T x3, T x4);
   array (T x1, T x2, T x3, T x4, T x5);
   inline T& operator [] (int i) { return rep->a[i]; }
+  inline const T& operator [] (int i) const { return rep->a[i]; }
   operator tree (); // defined in tree.hpp
 };
 CONCRETE_TEMPLATE_CODE(array,class,T);
