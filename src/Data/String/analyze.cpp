@@ -923,7 +923,7 @@ unescape_guile (string s) {
 ******************************************************************************/
 
 bool
-test (string s, int i, const char* test) {
+test (const string& s, int i, const char* test) {
   int n= N(s), j=0;
   while (test[j]!='\0') {
     if (i>=n) return false;
@@ -934,41 +934,41 @@ test (string s, int i, const char* test) {
 }
 
 bool
-test (string s, int i, string test) {
-  int n= N(s), m= N(test), j=0;
+test (const string& s, int i, const string& test_str) {
+  int n= N(s), m= N(test_str), j=0;
   while (j<m) {
     if (i>=n) return false;
-    if (s[i]!=test[j]) return false;
+    if (s[i]!=test_str[j]) return false;
     i++; j++;
   }
   return true;
 }
 
 bool
-starts (string s, const char* what) {
+starts (const string& s, const char* what) {
   return test (s, 0, what);
 }
 
 bool
-starts (string s, const string what) {
+starts (const string& s, const string& what) {
   return test (s, 0, what);
 }
 
 bool
-ends (string s, const char* what) {
+ends (const string& s, const char* what) {
   string r (what);
   if (N(r) > N(s)) return false;
   return s (N(s)-N(r), N(s)) == r;
 }
 
 bool
-ends (string s, const string r) {
+ends (const string& s, const string& r) {
   if (N(r) > N(s)) return false;
   return s (N(s)-N(r), N(s)) == r;
 }
 
 bool
-read (string s, int& i, const char* test) {
+read (const string& s, int& i, const char* test) {
   int n= N(s), j=0, k=i;
   while (test[j]!='\0') {
     if (k>=n) return false;
@@ -980,17 +980,17 @@ read (string s, int& i, const char* test) {
 }
 
 bool
-read (string s, string test) {
+read (const string& s, const string& test_str) {
   int i = 0;
-  return read (s, i, test);
+  return read (s, i, test_str);
 }
 
 bool
-read (string s, int& i, string test) {
-  int n= N(s), m= N(test), j=0, k=i;
+read (const string& s, int& i, const string& test_str) {
+  int n= N(s), m= N(test_str), j=0, k=i;
   while (j<m) {
     if (k>=n) return false;
-    if (s[k]!=test[j]) return false;
+    if (s[k]!=test_str[j]) return false;
     j++; k++;
   }
   i=k;
@@ -998,7 +998,7 @@ read (string s, int& i, string test) {
 }
 
 bool
-read_line (string s, int& i, string& result) {
+read_line (const string& s, int& i, string& result) {
   int start= i;
   for (; i<N(s); i++) {
     if (s[i]=='\n') {
@@ -1011,7 +1011,7 @@ read_line (string s, int& i, string& result) {
 }
 
 bool
-read_int (string s, int& i, int& result) {
+read_int (const string& s, int& i, int& result) {
   int n= N(s), start= i;
   result= 0;
   if (i==n) return false;
@@ -1027,7 +1027,7 @@ read_int (string s, int& i, int& result) {
 }
 
 bool
-read_double (string s, int& i, double& result) {
+read_double (const string& s, int& i, double& result) {
   int n= N(s), start= i;
   result= 0.0;
   if (i==n) return false;
@@ -1051,7 +1051,7 @@ read_double (string s, int& i, double& result) {
 }
 
 bool
-read_word (string s, int& i, string& result) {
+read_word (const string& s, int& i, string& result) {
   int opos= i;
   while (i<N(s) && is_alpha (s[i])) {
     i++;
@@ -1061,33 +1061,33 @@ read_word (string s, int& i, string& result) {
 }
 
 bool
-is_whitespace (string s) {
+is_whitespace (const string& s) {
   for (int i=0; i<N(s); i++)
     if (s[i] != ' ' && s[i] != '\t' && s[i] != '\n') return false;
   return true;
 }
 
 void
-skip_spaces (string s, int& i) {
+skip_spaces (const string& s, int& i) {
   int n=N(s);
   while ((i<n) && ((s[i]==' ') || (s[i]=='\t'))) i++;
 }
 
 void
-skip_whitespace (string s, int& i) {
+skip_whitespace (const string& s, int& i) {
   int n=N(s);
   while ((i<n) && ((s[i]==' ') || (s[i]=='\t') || (s[i]=='\n'))) i++;
 }
 
 void
-skip_line (string s, int& i) {
+skip_line (const string& s, int& i) {
   int n=N(s);
   while ((i<n) && (s[i]!='\n')) i++;
   if (i<n) i++;
 }
 
 void
-skip_symbol (string s, int& i) {
+skip_symbol (const string& s, int& i) {
   int n=N(s);
   if (i<n) {
     if (s[i]=='<') {
@@ -1144,31 +1144,31 @@ downgrade_math_letters (string s) {
 ******************************************************************************/
 
 void
-parse (string s, int& pos, Z8& ret) {
+parse (const string& s, int& pos, Z8& ret) {
   ret= (Z8) s[pos++];
 }
 
 void
-parse (string s, int& pos, N8& ret) {
+parse (const string& s, int& pos, N8& ret) {
   ret= (N8) s[pos++];
 }
 
 void
-parse (string s, int& pos, Z16& ret) {
+parse (const string& s, int& pos, Z16& ret) {
   Z8 c1= (Z8) s[pos++];
   N8 c2= (N8) s[pos++];
   ret= (((short) c1)<<8)+ c2;
 }
 
 void
-parse (string s, int& pos, N16& ret) {
+parse (const string& s, int& pos, N16& ret) {
   N8 c1= (N8) s[pos++];
   N8 c2= (N8) s[pos++];
   ret= (((unsigned short) c1)<<8)+ c2;
 }
 
 void
-parse (string s, int& pos, Z32& ret) {
+parse (const string& s, int& pos, Z32& ret) {
   Z8 c1= (Z8) s[pos++];
   N8 c2= (N8) s[pos++];
   N8 c3= (N8) s[pos++];
@@ -1177,7 +1177,7 @@ parse (string s, int& pos, Z32& ret) {
 }
 
 void
-parse (string s, int& pos, Z32*& a, int len) {
+parse (const string& s, int& pos, Z32*& a, int len) {
   int i;
   a= tm_new_array<Z32> (len);
   for (i=0; i<len; i++) parse (s, pos, a[i]);
@@ -1188,7 +1188,7 @@ parse (string s, int& pos, Z32*& a, int len) {
 ******************************************************************************/
 
 int
-search_forwards (array<string> a, int pos, string in) {
+search_forwards (array<string> a, int pos, const string& in) {
   int n= N(in), na= N(a);
   while (pos <= n) {
     for (int i=0; i<na; i++)
@@ -1199,7 +1199,7 @@ search_forwards (array<string> a, int pos, string in) {
 }
 
 int
-search_forwards (string s, int pos, string in) {
+search_forwards (const string& s, int pos, const string& in) {
   int k= N(s), n= N(in);
   if (k == 0) return pos;
   char c= s[0];
@@ -1211,17 +1211,17 @@ search_forwards (string s, int pos, string in) {
 }
 
 int
-search_forwards (string s, string in) {
+search_forwards (const string& s, const string& in) {
   return search_forwards (s, 0, in);
 }
 
 bool
-occurs (string what, string in) {
+occurs (const string& what, const string& in) {
   return search_forwards (what, 0, in) >= 0;
 }
 
 int
-search_backwards (string s, int pos, string in) {
+search_backwards (const string& s, int pos, const string& in) {
   while (pos >= 0) {
     if (test (in, pos, s)) return pos;
     pos--;
@@ -1230,12 +1230,12 @@ search_backwards (string s, int pos, string in) {
 }
 
 int
-search_backwards (string s, string in) {
+search_backwards (const string& s, const string& in) {
   return search_backwards (s, N(in)-N(s), in);
 }
 
 int
-count_occurrences (string s, string in) {
+count_occurrences (const string& s, const string& in) {
   int count= 0;
   int i=0, next, n= N(in);
   while (i<n) {
@@ -1248,7 +1248,7 @@ count_occurrences (string s, string in) {
 }
 
 int
-overlapping (string s1, string s2) {
+overlapping (const string& s1, const string& s2) {
   // return the longuest string being suffix of s1 and prefix of s2
   int i= min (N(s1), N(s2)), n= N(s1);
   while (i>0) {
@@ -1260,7 +1260,7 @@ overlapping (string s1, string s2) {
 }
 
 string
-replace (string s, string what, string by) {
+replace (const string& s, const string& what, const string& by) {
   int i, n= N(s);
   string r;
   for (i=0; i<n; )
@@ -1276,7 +1276,7 @@ replace (string s, string what, string by) {
 }
 
 static bool
-match_wildcard (string s, int spos, string w, int wpos) {
+match_wildcard (const string& s, int spos, const string& w, int wpos) {
   if (wpos == N(w)) return spos == N(s);
   if (w[wpos] != '*')
     return (spos < N(s)) && (s[spos] == w[wpos]) &&
@@ -1290,12 +1290,12 @@ match_wildcard (string s, int spos, string w, int wpos) {
 }
 
 bool
-match_wildcard (string s, string w) {
+match_wildcard (const string& s, const string& w) {
   return match_wildcard (s, 0, w, 0);
 }
 
 int
-find_non_alpha (string s, int pos, bool forward) {
+find_non_alpha (const string& s, int pos, bool forward) {
   if (forward) {
     for (; pos<N(s); pos++)
       if (!is_alpha (s[pos])) return pos;
@@ -1308,7 +1308,7 @@ find_non_alpha (string s, int pos, bool forward) {
 }
 
 array<string>
-tokenize (string s, string sep) {
+tokenize (const string& s, const string& sep) {
   int start=0;
   array<string> a;
   for (int i=0; i<N(s); )
@@ -1323,7 +1323,7 @@ tokenize (string s, string sep) {
 }
 
 string
-recompose (array<string> a, string sep) {
+recompose (array<string> a, const string& sep) {
   string r;
   for (int i=0; i<N(a); i++) {
     if (i != 0) r << sep;
@@ -1333,21 +1333,21 @@ recompose (array<string> a, string sep) {
 }
 
 string
-trim_spaces_left (string s) {
+trim_spaces_left (const string& s) {
   int start;
   for (start=0; start<N(s) && is_space (s[start]); start++) ;
   return s (start, N(s));
 }
 
 string
-trim_spaces_right (string s) {
+trim_spaces_right (const string& s) {
   int end;
   for (end=N(s)-1; end >= 0 && is_space (s[end]); end--) ;
   return s (0, end+1);
 }
 
 string
-trim_spaces (string s) {
+trim_spaces (const string& s) {
   return trim_spaces_left (trim_spaces_right (s));
 }
 
@@ -1555,7 +1555,7 @@ strip_completions (array<string> a, string prefix) {
 ******************************************************************************/
 
 static int
-find_longest (string s1, string s2, int& c1, int& c2) {
+find_longest (const string& s1, const string& s2, int& c1, int& c2) {
   int n1= N(s1), n2= N(s2), bc= 0, bl= 0, br= 0;
   for (c2=0; c2<n2; c2++)
     if (s1[c1] == s2[c2]) {
@@ -1576,7 +1576,7 @@ find_longest (string s1, string s2, int& c1, int& c2) {
 }
 
 static void
-find_common (string s1, string s2, int& c1, int& c2) {
+find_common (const string& s1, const string& s2, int& c1, int& c2) {
   int best_len= 0;
   c1= c2= 0;
   int n1= N(s1), n2= N(s2);
@@ -1590,7 +1590,7 @@ find_common (string s1, string s2, int& c1, int& c2) {
 }
 
 array<int>
-differences (string s1, string s2) {
+differences (const string& s1, const string& s2) {
   int n1= N(s1), n2= N(s2);
   int i1= 0, i2= 0, j1= n1, j2= n2;
   while (i1<j1 && i2<j2 && s1[i1] == s2[i2]) { i1++; i2++; }
@@ -1630,7 +1630,7 @@ differences (string s1, string s2) {
 }
 
 int
-distance (string s1, string s2) {
+distance (const string& s1, const string& s2) {
   int d= 0;
   array<int> r= differences (s1, s2);
   for (int k=0; k<N(r); k+=4)
@@ -1643,7 +1643,7 @@ distance (string s1, string s2) {
 ******************************************************************************/
 
 void
-parse_length (string s, double& len, string& unit) {
+parse_length (const string& s, double& len, string& unit) {
   int start= 0;
   int i, n= N(s);
   for (i=start; i<n && !is_locase (s[i]); i++) {}

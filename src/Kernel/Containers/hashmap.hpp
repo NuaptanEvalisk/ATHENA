@@ -33,7 +33,7 @@ template<class T, class U> struct hashentry {
   T key;
   U im;
   hashentry () { }
-  hashentry (int code, T key2, U im2);
+  hashentry (int code, const T& key2, const U& im2);
   operator tree ();
 };
 
@@ -50,14 +50,14 @@ public:
     a(tm_new_array<list<hashentry<T,U> > > (n)) {}
   inline ~hashmap_rep () { tm_delete_array (a); }
   void resize (int n);
-  void reset (T x);
+  void reset (const T& x);
   void clear ();
-  void generate (void (*routine) (T));
-  bool contains (T x);
   bool empty ();
-  U    bracket_ro (T x);
-  U&   bracket_rw (T x);
-  U&   bracket_rw_debug (T x);
+  void generate (void (*routine) (T));
+  bool contains (const T& x);
+  U&   bracket_rw (const T& x);
+  U    bracket_ro (const T& x);
+  U&   bracket_rw_debug (const T& x);
   void join (hashmap<T,U> H);
 
   friend class hashmap<T,U>;

@@ -78,7 +78,7 @@ string::string (const char* a, int n) {
 ******************************************************************************/
 
 bool
-string::operator == (const char* s) {
+string::operator == (const char* s) const {
   int i, n= rep->n;
   char* S= rep->a;
   for (i=0; i<n; i++) {
@@ -89,7 +89,7 @@ string::operator == (const char* s) {
 }
 
 bool
-string::operator != (const char* s) {
+string::operator != (const char* s) const {
   int i, n= rep->n;
   char* S= rep->a;
   for (i=0; i<n; i++) {
@@ -100,7 +100,7 @@ string::operator != (const char* s) {
 }
 
 bool
-string::operator == (string a) {
+string::operator == (const string& a) const {
   int i;
   if (rep->n!=a->n) return false;
   for (i=0; i<rep->n; i++)
@@ -109,7 +109,7 @@ string::operator == (string a) {
 }
 
 bool
-string::operator != (string a) {
+string::operator != (const string& a) const {
   int i;
   if (rep->n!=a->n) return true;
   for (i=0; i<rep->n; i++)
@@ -118,7 +118,7 @@ string::operator != (string a) {
 }
 
 string
-string::operator () (int begin, int end) {
+string::operator () (int begin, int end) const {
   if (end <= begin) return string();
 
   int i;
@@ -130,7 +130,7 @@ string::operator () (int begin, int end) {
 }
 
 string
-copy (string s) {
+copy (const string& s) {
   int i, n=N(s);
   string r (n);
   for (i=0; i<n; i++) r[i]=s[i];
@@ -145,15 +145,15 @@ operator << (string& a, char x) {
 }
 
 string&
-operator << (string& a, string b) {
+operator << (string& a, const string& b) {
   int i, k1= N(a), k2=N(b);
   a->resize (k1+k2);
-  for (i=0; i<k2; i++) a[i+k1]= b[i];
+  for (i=0; i<k2; i++) a[k1+i]= b[i];
   return a;
 }
 
 string
-operator * (string a, string b) {
+operator * (const string& a, const string& b) {
   int i, n1=N(a), n2=N(b);
   string c(n1+n2);
   for (i=0; i<n1; i++) c[i]=a[i];
@@ -162,17 +162,17 @@ operator * (string a, string b) {
 }
 
 string
-operator * (const char* a, string b) {
+operator * (const char* a, const string& b) {
   return string (a) * b;
 }
 
 string
-operator * (string a, const char* b) {
+operator * (const string& a, const char* b) {
   return a * string (b);
 }
 
 bool
-operator < (string s1, string s2) {
+operator < (const string& s1, const string& s2) {
   int i;
   for (i=0; i<N(s1); i++) {
     if (i>=N(s2)) return false;
@@ -183,7 +183,7 @@ operator < (string s1, string s2) {
 }
 
 bool
-operator <= (string s1, string s2) {
+operator <= (const string& s1, const string& s2) {
   int i;
   for (i=0; i<N(s1); i++) {
     if (i>=N(s2)) return false;
@@ -194,13 +194,13 @@ operator <= (string s1, string s2) {
 }
 
 tm_ostream&
-operator << (tm_ostream& out, string a) {
+operator << (tm_ostream& out, const string& a) {
   out->write (&a[0], N(a));
   return out;
 }
 
 int
-hash (string s) {
+hash (const string& s) {
   int i, h=0, n=N(s);
   for (i=0; i<n; i++) {
     h=(h<<9)+(h>>23);
@@ -214,12 +214,12 @@ hash (string s) {
 ******************************************************************************/
 
 bool
-as_bool (string s) {
+as_bool (const string& s) {
   return (s == "true" || s == "#t");
 }
 
 int
-as_int (string s) {
+as_int (const string& s) {
   int i=0, n=N(s), val=0;
   if (n==0) return 0;
   if (s[0]=='-') i++;
@@ -236,7 +236,7 @@ as_int (string s) {
 
 
 long int
-as_long_int (string s) {
+as_long_int (const string& s) {
   int i=0, n=N(s);
   long int val=0;
   if (n==0) return 0;
@@ -253,7 +253,7 @@ as_long_int (string s) {
 }
 
 double
-as_double (string s) {
+as_double (const string& s) {
   double x= 0.0;
   {
     int i, n= N(s);
@@ -267,7 +267,7 @@ as_double (string s) {
 }
 
 char*
-as_charp (string s) {
+as_charp (const string& s) {
   int i, n= N(s);
   char *s2= tm_new_array<char> (n+1);
   for (i=0; i<n; i++) s2[i]=s[i];
@@ -372,17 +372,17 @@ as_string (const unsigned char* s) {
 }
 
 bool
-is_empty (string s) {
+is_empty (const string& s) {
   return N(s) == 0;
 }
 
 bool
-is_bool (string s) {
+is_bool (const string& s) {
   return (s == "true") || (s == "false");
 }
 
 bool
-is_int (string s) {
+is_int (const string& s) {
   int i=0, n=N(s);
   if (n==0) return false;
   if (s[i]=='+') i++;
@@ -394,7 +394,7 @@ is_int (string s) {
 }
 
 bool
-is_double (string s) {
+is_double (const string& s) {
   int i=0, n=N(s);
   if (n==0) return false;
   if (s[i]=='+') i++;
@@ -420,18 +420,18 @@ is_double (string s) {
 }
 
 bool
-is_charp (string s) { (void) s;
+is_charp (const string& s) { (void) s;
   return true;
 }
 
 bool
-is_quoted (string s) {
+is_quoted (const string& s) {
   int n=N(s);
   return (n>=2) && (s[0]=='\"') && (s[n-1]=='\"');
 }
 
 bool
-is_id (string s) {
+is_id (const string& s) {
   int i=0, n=N(s);
   if (n==0) return false;
   for (i=0; i< n; i++) {
@@ -455,7 +455,7 @@ set_wait_handler (void (*routine) (string, string, int)) {
   the_wait_handler= routine; }
 
 void
-system_wait (string message, string argument, int level) {
+system_wait (const string& message, const string& argument, int level) {
   if (the_wait_handler == NULL) {
     if (DEBUG_AUTO) {
       if (message == "") cout << "ATHENA] Done" << LF;

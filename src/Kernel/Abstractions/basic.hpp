@@ -239,12 +239,15 @@ public:                             \
   inline PTR (const PTR&);          \
   inline ~PTR ();                   \
   inline PTR##_rep* operator -> (); \
+  inline const PTR##_rep* operator -> () const; \
   inline PTR& operator = (PTR x)
 #define CONCRETE_CODE(PTR)                       \
   inline PTR::PTR (const PTR& x):                \
     rep(x.rep) { INC_COUNT (this->rep); }        \
   inline PTR::~PTR () { DEC_COUNT (this->rep); } \
   inline PTR##_rep* PTR::operator -> () {        \
+    return rep; }                                \
+  inline const PTR##_rep* PTR::operator -> () const { \
     return rep; }                                \
   inline PTR& PTR::operator = (PTR x) {          \
     INC_COUNT (x.rep); DEC_COUNT (this->rep);    \
@@ -257,12 +260,15 @@ public:                               \
   inline PTR (const PTR<T>&);         \
   inline ~PTR ();                     \
   inline PTR##_rep<T>* operator -> (); \
+  inline const PTR##_rep<T>* operator -> () const; \
   inline PTR<T>& operator = (PTR<T> x)
 #define CONCRETE_TEMPLATE_CODE(PTR,TT,T)                          \
   template<TT T> inline PTR<T>::PTR (const PTR<T>& x):            \
     rep(x.rep) { INC_COUNT (this->rep); }                         \
   template<TT T> inline PTR<T>::~PTR() { DEC_COUNT (this->rep); } \
   template<TT T> inline PTR##_rep<T>* PTR<T>::operator -> () {    \
+    return this->rep; }                                           \
+  template<TT T> inline const PTR##_rep<T>* PTR<T>::operator -> () const { \
     return this->rep; }                                           \
   template<TT T> inline PTR<T>& PTR<T>::operator = (PTR<T> x) {   \
     INC_COUNT (x.rep); DEC_COUNT (this->rep);                     \
@@ -275,12 +281,15 @@ public:                                    \
   inline PTR (const PTR<T1,T2>&);          \
   inline ~PTR ();                          \
   inline PTR##_rep<T1,T2>* operator -> (); \
+  inline const PTR##_rep<T1,T2>* operator -> () const; \
   inline PTR<T1,T2>& operator = (PTR<T1,T2> x)
 #define CONCRETE_TEMPLATE_2_CODE(PTR,TT1,T1,TT2,T2)                           \
   template<TT1 T1,TT2 T2> inline PTR<T1,T2>::PTR (const PTR<T1,T2>& x):       \
     rep(x.rep) { INC_COUNT (this->rep); }                                     \
   template<TT1 T1,TT2 T2> inline PTR<T1,T2>::~PTR () { DEC_COUNT(this->rep);} \
   template<TT1 T1,TT2 T2> inline PTR##_rep<T1,T2>* PTR<T1,T2>::operator -> () \
+    { return this->rep; }                                                     \
+  template<TT1 T1,TT2 T2> inline const PTR##_rep<T1,T2>* PTR<T1,T2>::operator -> () const \
     { return this->rep; }                                                     \
   template <TT1 T1,TT2 T2>                                                    \
   inline PTR<T1,T2>& PTR<T1,T2>::operator = (PTR<T1,T2> x) {                  \

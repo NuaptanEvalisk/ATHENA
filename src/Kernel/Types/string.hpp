@@ -26,7 +26,7 @@ public:
   void resize (int n);
 
   friend class string;
-  friend inline int N (string a);
+  friend inline int N (const string& a);
 };
 
 class string {
@@ -38,31 +38,32 @@ class string {
   string (const char *s);
   string (const char *s, int n);
   inline char& operator [] (int i) { return rep->a[i]; }
-  bool operator == (const char* s);
-  bool operator != (const char* s);
-  bool operator == (string s);
-  bool operator != (string s);
-  string operator () (int start, int end);
+  inline const char& operator [] (int i) const { return rep->a[i]; }
+  bool operator == (const char* s) const;
+  bool operator != (const char* s) const;
+  bool operator == (const string& s) const;
+  bool operator != (const string& s) const;
+  string operator () (int start, int end) const;
 };
 CONCRETE_CODE(string);
 
-extern inline int N (string a) { return a->n; }
-string   copy (string a);
-tm_ostream& operator << (tm_ostream& out, string a);
+extern inline int N (const string& a) { return a->n; }
+string   copy (const string& a);
+tm_ostream& operator << (tm_ostream& out, const string& a);
 string&  operator << (string& a, char);
-string&  operator << (string& a, string b);
-string   operator * (const char* a, string b);
-string   operator * (string a, string b);
-string   operator * (string a, const char* b);
-bool     operator < (string a, string b);
-bool     operator <= (string a, string b);
-int      hash (string s);
+string&  operator << (string& a, const string& b);
+string   operator * (const char* a, const string& b);
+string   operator * (const string& a, const string& b);
+string   operator * (const string& a, const char* b);
+bool     operator < (const string& a, const string& b);
+bool     operator <= (const string& a, const string& b);
+int      hash (const string& s);
 
-bool     as_bool   (string s);
-int      as_int    (string s);
-long int as_long_int (string s);
-double   as_double (string s);
-char*    as_charp  (string s);
+bool     as_bool   (const string& s);
+int      as_int    (const string& s);
+long int as_long_int (const string& s);
+double   as_double (const string& s);
+char*    as_charp  (const string& s);
 string   as_string_bool (bool f);
 string   as_string (int i);
 string   as_string (unsigned int i);
@@ -72,17 +73,17 @@ string   as_string (unsigned long int i);
 string   as_string (double x);
 string   as_string (const char* s);
 string   as_string (const unsigned char* s);
-bool     is_empty  (string s);
-bool     is_bool   (string s);
-bool     is_int    (string s);
-bool     is_double (string s);
-bool     is_charp  (string s);
+bool     is_empty  (const string& s);
+bool     is_bool   (const string& s);
+bool     is_int    (const string& s);
+bool     is_double (const string& s);
+bool     is_charp  (const string& s);
 
-bool  is_quoted (string s);
-bool  is_id     (string s);
+bool  is_quoted (const string& s);
+bool  is_id     (const string& s);
 
 void  set_wait_handler (void (*) (string, string, int));
-void  system_wait (string message, string argument= "", int level= 0);
+void  system_wait (const string& message, const string& argument= "", int level= 0);
 
 template<typename C> inline string
 print_to_string (C x) {

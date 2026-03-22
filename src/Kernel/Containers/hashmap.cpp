@@ -19,7 +19,7 @@
 * Hashmap entries
 ******************************************************************************/
 
-TMPL H::hashentry (int code2, T key2, U im2):
+TMPL H::hashentry (int code2, const T& key2, const U& im2):
   code (code2), key (key2), im (im2) {}
 
 TMPL H::operator tree () {
@@ -64,7 +64,7 @@ hashmap_rep<T,U>::resize (int n2) {
 }
 
 TMPL bool
-hashmap_rep<T,U>::contains (T x) {
+hashmap_rep<T,U>::contains (const T& x) {
   int hv= hash (x);
   list<hashentry<T,U> >  l (a [hv & (n-1)]);
   while (!is_nil (l)) {
@@ -81,7 +81,7 @@ hashmap_rep<T,U>::empty () {
 }
 
 TMPL U&
-hashmap_rep<T,U>::bracket_rw (T x) {
+hashmap_rep<T,U>::bracket_rw (const T& x) {
   int hv= hash (x);
   list<hashentry<T,U> >  l (a [hv & (n-1)]);
   while (!is_nil (l)) {
@@ -97,7 +97,7 @@ hashmap_rep<T,U>::bracket_rw (T x) {
 }
 
 TMPL U
-hashmap_rep<T,U>::bracket_ro (T x) {
+hashmap_rep<T,U>::bracket_ro (const T& x) {
   int hv= hash (x);
   list<hashentry<T,U> >  l (a [hv & (n-1)]);
   while (!is_nil (l)) {
@@ -109,7 +109,7 @@ hashmap_rep<T,U>::bracket_ro (T x) {
 }
 
 TMPL void
-hashmap_rep<T,U>::reset (T x) {
+hashmap_rep<T,U>::reset (const T& x) {
   int hv= hash (x);
   list<hashentry<T,U> > *l= &(a [hv & (n-1)]);
   while (!is_nil (*l)) {

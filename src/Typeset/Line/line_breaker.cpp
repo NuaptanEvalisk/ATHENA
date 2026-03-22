@@ -43,7 +43,7 @@ operator << (tm_ostream& out, lb_info hi) {
 
 // FIXME: explicit instantiation for broken g++
 #include "hashmap.hpp"
-template lb_info& hashmap_rep<list<int>, lb_info>::bracket_rw(list<int>);
+template lb_info& hashmap_rep<list<int>, lb_info>::bracket_rw(const list<int>&);
 
 /******************************************************************************
 * The line_breaker class
