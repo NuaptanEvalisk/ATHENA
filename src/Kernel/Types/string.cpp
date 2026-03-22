@@ -30,6 +30,14 @@ round_length (int n) {
 string_rep::string_rep (int n2):
   n(n2), a ((n==0)?((char*) NULL):tm_new_array<char> (round_length(n))) {}
 
+struct dummy_string_rep_type : public string_rep {
+  dummy_string_rep_type() : string_rep(0) {
+    this->ref_count = 1000000000;
+  }
+};
+static dummy_string_rep_type the_dummy_string_rep;
+string_rep* dummy_string_rep = &the_dummy_string_rep;
+
 void
 string_rep::resize (int m) {
   int nn= round_length (n);

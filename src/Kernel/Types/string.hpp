@@ -15,7 +15,7 @@
 #include "basic.hpp"
 
 class string;
-class string_rep: concrete_struct {
+class string_rep: public concrete_struct {
   int n;
   char* a;
 
@@ -29,10 +29,24 @@ public:
   friend inline int N (const string& a);
 };
 
+extern string_rep* dummy_string_rep;
+
 class string {
   CONCRETE(string);
+public:
   inline string (): rep (tm_new<string_rep> ()) {}
   inline string (int n): rep (tm_new<string_rep> (n)) {}
+  inline string (string&& x) noexcept : rep(x.rep) { 
+    x.rep = dummy_string_rep; 
+  }
+  inline string& operator = (string&& x) noexcept {
+    if (this != &x) {
+      string_rep* tmp = rep;
+      rep = x.rep;
+      x.rep = tmp;
+    }
+    return *this;
+  }
   string (char c);
   string (char c, int n);
   string (const char *s);
