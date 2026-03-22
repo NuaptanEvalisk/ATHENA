@@ -79,6 +79,9 @@ static QTMApplication* qtmapp= NULL;
 static QTMCoreApplication* qtmcoreapp= NULL;
 #endif
 
+#include <mimalloc-override.h>
+#include <mimalloc-new-delete.h>
+
 bool
 is_headless () {
   return headless_mode;
