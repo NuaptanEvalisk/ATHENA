@@ -74,7 +74,7 @@ TMPL bool     contains (list<T> l, T what);
 
 TMPL tm_ostream& operator << (tm_ostream& out, list<T> l);
 TMPL list<T>& operator << (list<T>& l, T item);
-TMPL list<T>& operator << (list<T>& l1, list<T> l2);
+TMPL list<T>& operator << (list<T>& l1, const list<T>& l2);
 TMPL list<T>& operator >> (T item, list<T>& l);
 TMPL list<T>& operator << (T& item, list<T>& l);
 TMPL bool     operator == (list<T> l1, list<T> l2);

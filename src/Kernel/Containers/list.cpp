@@ -59,9 +59,18 @@ operator << (list<T>& l, T item) {
 }
 
 template<class T> list<T>&
-operator << (list<T>& l1, list<T> l2) {
-  if (is_nil (l1)) l1= l2;
-  else l1->next << l2;
+operator << (list<T>& l1, const list<T>& l2) {
+  if (is_nil (l1)) {
+    l1 = l2;
+    return l1;
+  }
+  
+  list<T> cursor = l1;
+  while (!is_nil(cursor->next)) {
+    cursor = cursor->next;
+  }
+  
+  cursor->next = l2;
   return l1;
 }
 
