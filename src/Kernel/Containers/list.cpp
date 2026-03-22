@@ -113,30 +113,30 @@ suppress_last (list<T>& l) {
 ******************************************************************************/
 
 template<class T> bool
-strong_equal (list<T> l1, list<T> l2) {
+strong_equal (const list<T>& l1, const list<T>& l2) {
   return l1.rep == l2.rep;
 }
 
 template<class T> bool
-operator == (list<T> l1, list<T> l2) {
+operator == (const list<T>& l1, const list<T>& l2) {
   if (is_nil (l1) || is_nil (l2)) return (is_nil (l1) == is_nil (l2));
   return (l1->item==l2->item) && (l1->next==l2->next);
 }
 
 template<class T> bool
-operator != (list<T> l1, list<T> l2) {
+operator != (const list<T>& l1, const list<T>& l2) {
   if (is_nil (l1) || is_nil (l2)) return (is_nil (l1) != is_nil (l2));
   return (l1->item!=l2->item) || (l1->next!=l2->next);
 }
 
 template<class T> bool
-operator < (list<T> l1, list<T> l2) {
+operator < (const list<T>& l1, const list<T>& l2) {
   if (is_nil (l1) || is_nil (l2)) return !is_nil (l2);
   return (l1->item==l2->item) && (l1->next<l2->next);
 }
 
 template<class T> bool
-operator <= (list<T> l1, list<T> l2) {
+operator <= (const list<T>& l1, const list<T>& l2) {
   if (is_nil (l1) || is_nil (l2)) return is_nil (l1);
   return (l1->item==l2->item) && (l1->next<=l2->next);
 }

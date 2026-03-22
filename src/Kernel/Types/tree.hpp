@@ -27,15 +27,19 @@ class generic_rep;
 class blackbox;
 tree copy (tree t);
 
+extern tree_rep* dummy_tree_rep;
+
 class tree {
   tree_rep* rep; // can be atomic or compound or generic
   inline tree (tree_rep* rep2);
 
 public:
   inline tree (const tree& x);
+  inline tree (tree&& x) noexcept;
   inline ~tree ();
   inline atomic_rep* operator -> ();
   inline tree& operator = (const tree& x);
+  inline tree& operator = (tree&& x) noexcept;
 
   inline tree ();
   inline tree (string l);
@@ -99,7 +103,7 @@ public:
   friend blackbox as_blackbox (const tree& t);
 };
 
-class tree_rep: concrete_struct {
+class tree_rep: public concrete_struct {
 public:
   tree_label op;
   observer obs;
@@ -154,6 +158,7 @@ typedef tree scheme_tree;
 void destroy_tree_rep (tree_rep* rep);
 inline tree::tree (tree_rep* rep2): rep (rep2) { rep->ref_count++; }
 inline tree::tree (const tree& x): rep (x.rep) { rep->ref_count++; }
+inline tree::tree (tree&& x) noexcept: rep (x.rep) { x.rep = dummy_tree_rep; }
 inline tree::~tree () {
   if ((--rep->ref_count)==0) { destroy_tree_rep (rep); rep= NULL; } }
 inline atomic_rep* tree::operator -> () {
@@ -164,6 +169,13 @@ inline tree& tree::operator = (const tree& x) {
     x.rep->ref_count++;
     if ((--rep->ref_count)==0) destroy_tree_rep (rep);
     rep= x.rep;
+  }
+  return *this; }
+inline tree& tree::operator = (tree&& x) noexcept {
+  if (rep != x.rep) {
+    if ((--rep->ref_count)==0) destroy_tree_rep (rep);
+    rep= x.rep;
+    x.rep = dummy_tree_rep;
   }
   return *this; }
 

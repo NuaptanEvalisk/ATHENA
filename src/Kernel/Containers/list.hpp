@@ -17,9 +17,9 @@ class tree;
 template<class T> class list_rep;
 template<class T> class list;
 
-template<class T> bool is_nil (list<T> l);
-template<class T> bool is_atom (list<T> l);
-template<class T> bool strong_equal (list<T> l1, list<T> l2);
+template<class T> bool is_nil (const list<T>& l);
+template<class T> bool is_atom (const list<T>& l);
+template<class T> bool strong_equal (const list<T>& l1, const list<T>& l2);
 
 template<class T> class list {
   CONCRETE_NULL_TEMPLATE(list,T);
@@ -31,8 +31,8 @@ template<class T> class list {
   operator tree ();
   static list<T> init;
 
-  friend bool is_atom LESSGTR (list<T> l);
-  friend bool strong_equal LESSGTR (list<T> l1, list<T> l2);
+  friend bool is_atom LESSGTR (const list<T>& l);
+  friend bool strong_equal LESSGTR (const list<T>& l1, const list<T>& l2);
 };
 
 extern int list_count;
@@ -56,7 +56,7 @@ TMPL inline list<T>::list (T item1, T item2, list<T> next):
   rep (tm_new<list_rep<T> > (item1, list<T> (item2, next))) {}
 TMPL inline list<T>::list (T item1, T item2, T item3, list<T> next):
   rep (tm_new<list_rep<T> > (item1, list<T> (item2, item3, next))) {}
-TMPL inline bool is_atom (list<T> l) { return (!is_nil (l)) && is_nil (l->next); }
+TMPL inline bool is_atom (const list<T>& l) { return (!is_nil (l)) && is_nil (l->next); }
 TMPL list<T> list<T>::init= list<T> ();
 
 TMPL int      N (list<T> l);
@@ -77,10 +77,10 @@ TMPL list<T>& operator << (list<T>& l, T item);
 TMPL list<T>& operator << (list<T>& l1, const list<T>& l2);
 TMPL list<T>& operator >> (T item, list<T>& l);
 TMPL list<T>& operator << (T& item, list<T>& l);
-TMPL bool     operator == (list<T> l1, list<T> l2);
-TMPL bool     operator != (list<T> l1, list<T> l2);
-TMPL bool     operator < (list<T> l1, list<T> l2);
-TMPL bool     operator <= (list<T> l1, list<T> l2);
+TMPL bool     operator == (const list<T>& l1, const list<T>& l2);
+TMPL bool     operator != (const list<T>& l1, const list<T>& l2);
+TMPL bool     operator < (const list<T>& l1, const list<T>& l2);
+TMPL bool     operator <= (const list<T>& l1, const list<T>& l2);
 #undef TMPL
 
 #include "list.cpp"

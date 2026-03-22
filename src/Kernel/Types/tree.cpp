@@ -20,6 +20,14 @@
 tree type_helper<tree>::init (UNINIT);
 int type_helper<tree>::id  = new_type_identifier ();
 
+struct dummy_tree_rep_type : public tree_rep {
+  dummy_tree_rep_type() : tree_rep(UNINIT) {
+    this->ref_count = 1000000000;
+  }
+};
+static dummy_tree_rep_type the_dummy_tree_rep;
+tree_rep* dummy_tree_rep = &the_dummy_tree_rep;
+
 void
 destroy_tree_rep (tree_rep* rep) {
   if (((int) rep->op) == 0) tm_delete (static_cast<atomic_rep*> (rep));
