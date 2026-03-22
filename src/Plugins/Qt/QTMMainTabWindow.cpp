@@ -292,8 +292,7 @@ void QTMMainTabWindow::removeWidget(QWidget *widget) {
     mTabWidget->removeTab(mTabWidget->indexOf(widget));
   }
   
-  bool empty = tmapp()->useMdi() ? mMdiArea->subWindowList().isEmpty() : (mTabWidget->count() == 0);
-  if (empty) closeAndSetTopTabWindow();
+  if (nr_windows <= 1) closeAndSetTopTabWindow();
 }
 
 void QTMMainTabWindow::closeTab(int index) {
