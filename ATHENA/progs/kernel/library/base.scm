@@ -157,37 +157,40 @@
 
 (provide-public (string-tokenize-by-char s sep)
   "Cut string @s into pieces using @sep as a separator."
-  (with d (string-index s sep)
-    (if d
-	(cons (substring s 0 d)
-	      (string-tokenize-by-char (substring s (+ 1 d) (string-length s)) sep))
-	(list s))))
+  (let loop ((rest s) (acc '()))
+    (with d (string-index rest sep)
+      (if d
+          (loop (substring rest (+ 1 d) (string-length rest))
+                (cons (substring rest 0 d) acc))
+          (reverse (cons rest acc))))))
 
 (define-public (string-tokenize-by-char-n s sep n)
   "As @string-tokenize-by-char, but only cut first @n pieces"
-  (with d (string-index s sep)
-    (if (or (= n 0) (not d))
-	(list s)
-	(cons (substring s 0 d)
-	      (string-tokenize-by-char-n
-               (substring s (+ 1 d) (string-length s))
-               sep
-               (- n 1))))))
+  (let loop ((rest s) (count n) (acc '()))
+    (with d (string-index rest sep)
+      (if (or (= count 0) (not d))
+          (reverse (cons rest acc))
+          (loop (substring rest (+ 1 d) (string-length rest))
+                (- count 1)
+                (cons (substring rest 0 d) acc))))))
 
 (define-public (string-decompose s sep)
-  (with d (string-search-forwards sep 0 s)
-    (if (< d 0)
-        (list s)
-        (cons (substring s 0 d)
-              (string-decompose (substring s (+ d (string-length sep))
-                                           (string-length s)) sep)))))
+  (let loop ((rest s) (acc '()))
+    (with d (string-search-forwards sep 0 rest)
+      (if (< d 0)
+          (reverse (cons rest acc))
+          (loop (substring rest (+ d (string-length sep)) (string-length rest))
+                (cons (substring rest 0 d) acc))))))
 
 (define-public (string-recompose l sep)
   "Turn list @l of strings into one string using @sep as separator."
   (if (char? sep) (set! sep (list->string (list sep))))
-  (cond ((null? l) "")
-	((null? (cdr l)) (car l))
-	(else (string-append (car l) sep (string-recompose (cdr l) sep)))))
+  (if (null? l)
+      ""
+      (let loop ((rest (cdr l)) (acc (car l)))
+        (if (null? rest)
+            acc
+            (loop (cdr rest) (string-append acc sep (car rest)))))))
 
 (define-public (string-tokenize-comma s)
   "Cut string @s into pieces using comma as a separator and remove whitespace."
