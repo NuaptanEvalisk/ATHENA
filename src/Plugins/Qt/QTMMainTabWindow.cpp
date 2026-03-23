@@ -221,6 +221,10 @@ bool QTMMainTabWindow::eventFilterTabBar(QObject *obj, QEvent *event) {
 }
 
 bool QTMMainTabWindow::eventFilter(QObject *obj, QEvent *event) {
+  if (event->type() == QEvent::Close) {
+    std::cout << "ATHENA ADS DEBUG: QEvent::Close received on object of type: " << obj->metaObject()->className() << std::endl;
+  }
+
   if (obj == this) {
     return eventFilterWindow(obj, event);
   }
@@ -260,15 +264,27 @@ void QTMMainTabWindow::showWidget(QWidget *widget, bool isDocument) {
       dockWidget->raise();
       widget->setFocus();
     } else if (isDocument) {
-      std::cout << "ATHENA ADS: Creating CDockWidget for " << widget->windowTitle().toStdString() << std::endl;
       dockWidget = new ads::CDockWidget(widget->windowTitle());
       dockWidget->setWidget(widget);
-      dockWidget->setFeature(ads::CDockWidget::DockWidgetDeleteOnClose, true);
-      connect(dockWidget, &ads::CDockWidget::closed, [widget]() {
+      
+      // Use CustomCloseHandling to prevent automatic deletion/hiding and let TeXmacs handle it safely.
+      dockWidget->setFeature(ads::CDockWidget::DockWidgetDeleteOnClose, false);
+      dockWidget->setFeature(ads::CDockWidget::CustomCloseHandling, true);
+      
+      connect(dockWidget, &ads::CDockWidget::closeRequested, [widget]() {
+        if (nr_windows <= 1) {
+          if (is_server_started()) {
+            eval("(safely-quit-ATHENA)");
+          } else {
+            gTopTabWindow->closeAndSetTopTabWindow();
+          }
+          return;
+        }
         if (widget->metaObject()->indexOfSignal("closed()") != -1) {
           QMetaObject::invokeMethod(widget, "closed");
         }
       });
+      
       mDockManager->addDockWidget(ads::CenterDockWidgetArea, dockWidget);
       mStackedWidget->setCurrentWidget (mDockManager);
       widget->setFocus();
@@ -315,9 +331,11 @@ void QTMMainTabWindow::showWidget(QWidget *widget, bool isDocument) {
 }
 
 void QTMMainTabWindow::removeWidget(QWidget *widget) {
+  std::cout << "ATHENA ADS: removeWidget called. nr_windows = " << nr_windows << std::endl;
   if (tmapp()->useAds()) {
     if (ads::CDockWidget* dockWidget = qobject_cast<ads::CDockWidget*>(widget->parentWidget())) {
-      dockWidget->close();
+      mDockManager->removeDockWidget(dockWidget);
+      dockWidget->deleteLater();
     }
   } else if (tmapp()->useMdi()) {
     if (QMdiSubWindow* sub = qobject_cast<QMdiSubWindow*>(widget->parentWidget())) {
@@ -329,7 +347,14 @@ void QTMMainTabWindow::removeWidget(QWidget *widget) {
     mTabWidget->removeTab(mTabWidget->indexOf(widget));
   }
   
-  if (nr_windows <= 1) closeAndSetTopTabWindow();
+  if (nr_windows <= 1) {
+    std::cout << "ATHENA ADS: triggering safely-quit-ATHENA (nr_windows <= 1)" << std::endl;
+    if (is_server_started()) {
+      eval("(safely-quit-ATHENA)");
+    } else {
+      closeAndSetTopTabWindow();
+    }
+  }
 }
 
 void QTMMainTabWindow::closeTab(int index) {
@@ -411,12 +436,10 @@ void QTMMainTabWindow::attachWidget(QWidget* widget) {
 }
 
 void QTMMainTabWindow::tabTitleChanged(QWidget *widget, QString title) {
-  std::cout << "ATHENA ADS: tabTitleChanged for widget " << (void*)widget << " to '" << title.toStdString() << "'" << std::endl;
   if (tmapp()->useAds()) {
     QWidget* p = widget->parentWidget();
     while (p) {
       if (ads::CDockWidget* dockWidget = qobject_cast<ads::CDockWidget*>(p)) {
-        std::cout << "ATHENA ADS: setting CDockWidget title to '" << title.toStdString() << "'" << std::endl;
         dockWidget->setWindowTitle(title);
         break;
       }
