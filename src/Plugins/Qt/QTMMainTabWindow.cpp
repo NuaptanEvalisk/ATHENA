@@ -10,6 +10,7 @@
 #include <QMdiSubWindow>
 #include <QCloseEvent>
 #include <QToolButton>
+#include <iostream>
 
 QTMMainTabWindow *QTMMainTabWindow::gTopTabWindow = nullptr;
 
@@ -259,6 +260,7 @@ void QTMMainTabWindow::showWidget(QWidget *widget, bool isDocument) {
       dockWidget->raise();
       widget->setFocus();
     } else if (isDocument) {
+      std::cout << "ATHENA ADS: Creating CDockWidget for " << widget->windowTitle().toStdString() << std::endl;
       dockWidget = new ads::CDockWidget(widget->windowTitle());
       dockWidget->setWidget(widget);
       dockWidget->setFeature(ads::CDockWidget::DockWidgetDeleteOnClose, true);
@@ -271,6 +273,7 @@ void QTMMainTabWindow::showWidget(QWidget *widget, bool isDocument) {
       mStackedWidget->setCurrentWidget (mDockManager);
       widget->setFocus();
     } else {
+
       widget->show();
       widget->raise();
       widget->activateWindow();
@@ -408,7 +411,18 @@ void QTMMainTabWindow::attachWidget(QWidget* widget) {
 }
 
 void QTMMainTabWindow::tabTitleChanged(QWidget *widget, QString title) {
-  if (tmapp()->useMdi()) {
+  std::cout << "ATHENA ADS: tabTitleChanged for widget " << (void*)widget << " to '" << title.toStdString() << "'" << std::endl;
+  if (tmapp()->useAds()) {
+    QWidget* p = widget->parentWidget();
+    while (p) {
+      if (ads::CDockWidget* dockWidget = qobject_cast<ads::CDockWidget*>(p)) {
+        std::cout << "ATHENA ADS: setting CDockWidget title to '" << title.toStdString() << "'" << std::endl;
+        dockWidget->setWindowTitle(title);
+        break;
+      }
+      p = p->parentWidget();
+    }
+  } else if (tmapp()->useMdi()) {
     widget->setWindowTitle (title);
   } else {
     int index = mTabWidget->indexOf(widget);
