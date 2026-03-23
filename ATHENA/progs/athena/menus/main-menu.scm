@@ -71,6 +71,8 @@
   (=> "View" (link view-menu))
   (if (window-mdi?)
       (=> "Window" (link window-menu)))
+  (if (window-ads?)
+      (=> "Workspace" (link workspace-menu)))
   (=> "Go" (link go-menu))
   (if (detailed-menus?) (=> "Tools" (link tools-menu)))
   (if (with-database-tool?)
@@ -95,6 +97,9 @@
            (active? (== (current-window) win)))
       ((check (eval short-name) "v" active?)
        (switch-to-window win)))))
+
+(menu-bind workspace-menu
+  ("New window" (load-buffer "tmfs://welcome/home" :new-window)))
 
 (menu-bind window-menu
   ("New window" (new-document*))
