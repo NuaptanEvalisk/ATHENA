@@ -267,19 +267,11 @@ void QTMMainTabWindow::showWidget(QWidget *widget, bool isDocument) {
       dockWidget = new ads::CDockWidget(widget->windowTitle());
       dockWidget->setWidget(widget);
       
-      // Use CustomCloseHandling to prevent automatic deletion/hiding and let TeXmacs handle it safely.
+      // Use CustomCloseHandling to let TeXmacs handle the safe-exit sequence.
       dockWidget->setFeature(ads::CDockWidget::DockWidgetDeleteOnClose, false);
       dockWidget->setFeature(ads::CDockWidget::CustomCloseHandling, true);
       
       connect(dockWidget, &ads::CDockWidget::closeRequested, [widget]() {
-        if (nr_windows <= 1) {
-          if (is_server_started()) {
-            eval("(safely-quit-ATHENA)");
-          } else {
-            gTopTabWindow->closeAndSetTopTabWindow();
-          }
-          return;
-        }
         if (widget->metaObject()->indexOfSignal("closed()") != -1) {
           QMetaObject::invokeMethod(widget, "closed");
         }
@@ -331,11 +323,15 @@ void QTMMainTabWindow::showWidget(QWidget *widget, bool isDocument) {
 }
 
 void QTMMainTabWindow::removeWidget(QWidget *widget) {
-  std::cout << "ATHENA ADS: removeWidget called. nr_windows = " << nr_windows << std::endl;
   if (tmapp()->useAds()) {
-    if (ads::CDockWidget* dockWidget = qobject_cast<ads::CDockWidget*>(widget->parentWidget())) {
-      mDockManager->removeDockWidget(dockWidget);
-      dockWidget->deleteLater();
+    QWidget* p = widget->parentWidget();
+    while (p) {
+      if (ads::CDockWidget* dockWidget = qobject_cast<ads::CDockWidget*>(p)) {
+        mDockManager->removeDockWidget(dockWidget);
+        dockWidget->deleteLater();
+        break;
+      }
+      p = p->parentWidget();
     }
   } else if (tmapp()->useMdi()) {
     if (QMdiSubWindow* sub = qobject_cast<QMdiSubWindow*>(widget->parentWidget())) {
@@ -348,7 +344,6 @@ void QTMMainTabWindow::removeWidget(QWidget *widget) {
   }
   
   if (nr_windows <= 1) {
-    std::cout << "ATHENA ADS: triggering safely-quit-ATHENA (nr_windows <= 1)" << std::endl;
     if (is_server_started()) {
       eval("(safely-quit-ATHENA)");
     } else {
