@@ -1294,10 +1294,6 @@ qt_tm_widget_rep::set_full_screen(bool flag) {
   QWidget *win = mainwindow()->window();  
   if (win) {
     if (flag ) {
-      QPalette pal;
-      pal.setColor(QPalette::Mid, QColor (0, 0, 0));
-      mainwindow()->setPalette(pal);
-      mainwindow()->setStyleSheet ("* { background: #000000; }");
 #ifdef UNIFIED_TOOLBAR
       if (use_unified_toolbar) {
         //HACK: we disable unified toolbar since otherwise
