@@ -68,6 +68,8 @@
   (mdi-maximize-active mdi_maximize_active (void))
   (mdi-minimize-active mdi_minimize_active (void))
   (mdi-detach mdi_detach (void))
+  (ads-detach ads_detach (void))
+  (ads-prepare-floating ads_prepare_floating (void))
   (mdi-attach mdi_attach (void))
   (recall-message recall_message (void))
   (yes? is_yes (bool string))

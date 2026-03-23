@@ -44,6 +44,8 @@ public:
   void   mdi_minimize_active ();
   void   mdi_detach ();
   void   mdi_attach ();
+  void   ads_detach ();
+  void   ads_prepare_floating ();
 
   /* Miscellaneous routines */
   void   style_clear_cache ();

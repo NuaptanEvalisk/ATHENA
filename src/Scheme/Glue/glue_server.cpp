@@ -606,6 +606,24 @@ tmg_mdi_detach () {
 }
 
 tmscm
+tmg_ads_detach () {
+  // TMSCM_DEFER_INTS;
+  get_server()->ads_detach ();
+  // TMSCM_ALLOW_INTS;
+
+  return TMSCM_UNSPECIFIED;
+}
+
+tmscm
+tmg_ads_prepare_floating () {
+  // TMSCM_DEFER_INTS;
+  get_server()->ads_prepare_floating ();
+  // TMSCM_ALLOW_INTS;
+
+  return TMSCM_UNSPECIFIED;
+}
+
+tmscm
 tmg_mdi_attach () {
   // TMSCM_DEFER_INTS;
   get_server()->mdi_attach ();
@@ -695,6 +713,8 @@ initialize_glue_server () {
   tmscm_install_procedure ("mdi-maximize-active",  tmg_mdi_maximize_active, 0, 0, 0);
   tmscm_install_procedure ("mdi-minimize-active",  tmg_mdi_minimize_active, 0, 0, 0);
   tmscm_install_procedure ("mdi-detach",  tmg_mdi_detach, 0, 0, 0);
+  tmscm_install_procedure ("ads-detach",  tmg_ads_detach, 0, 0, 0);
+  tmscm_install_procedure ("ads-prepare-floating",  tmg_ads_prepare_floating, 0, 0, 0);
   tmscm_install_procedure ("mdi-attach",  tmg_mdi_attach, 0, 0, 0);
   tmscm_install_procedure ("recall-message",  tmg_recall_message, 0, 0, 0);
   tmscm_install_procedure ("yes?",  tmg_yesP, 1, 0, 0);

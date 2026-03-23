@@ -99,7 +99,11 @@
        (switch-to-window win)))))
 
 (menu-bind workspace-menu
-  ("New window" (load-buffer "tmfs://welcome/home" :new-window)))
+  ("New window" (load-buffer "tmfs://welcome/home" :new-window))
+  ("New floating window" 
+    (begin
+      (ads-prepare-floating)
+      (load-buffer "tmfs://welcome/home" :new-window))))
 
 (menu-bind window-menu
   ("New window" (new-document*))

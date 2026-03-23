@@ -48,6 +48,7 @@ public:
   void mdi_minimize_active();
   void detachWidget(QWidget* widget);
   void attachWidget(QWidget* widget);
+  void setNextWidgetFloating();
 
 protected:
   void closeEvent (QCloseEvent* event) override;

@@ -102,6 +102,10 @@
       (notify-now "The window is already detached.")
       (mdi-detach)))
 
+(tm-define (ads-detach-interactive)
+  (:interactive #t)
+  (ads-detach))
+
 (tm-define (mdi-attach-interactive)
   (:interactive #t)
   (if (not (window-floating? (current-window)))

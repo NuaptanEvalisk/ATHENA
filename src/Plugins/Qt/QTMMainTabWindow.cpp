@@ -13,6 +13,7 @@
 #include <iostream>
 
 QTMMainTabWindow *QTMMainTabWindow::gTopTabWindow = nullptr;
+static bool gNextWidgetFloating = false;
 
 bool isMovingTab = false;
 bool isMovingWindow = false;
@@ -91,6 +92,10 @@ void QTMMainTabWindow::onWindowActivated() {
 
 void QTMMainTabWindow::onDoubleClickOnEmptyTabBarSpace() {
   eval ("new-document*");
+}
+
+void QTMMainTabWindow::setNextWidgetFloating() {
+  gNextWidgetFloating = true;
 }
 
 bool QTMMainTabWindow::eventFilterWindow(QObject *obj, QEvent *event) {
@@ -277,7 +282,13 @@ void QTMMainTabWindow::showWidget(QWidget *widget, bool isDocument) {
         }
       });
       
-      mDockManager->addDockWidget(ads::CenterDockWidgetArea, dockWidget);
+      if (gNextWidgetFloating) {
+        mDockManager->addDockWidgetFloating(dockWidget);
+        gNextWidgetFloating = false;
+      } else {
+        mDockManager->addDockWidget(ads::CenterDockWidgetArea, dockWidget);
+      }
+      
       mStackedWidget->setCurrentWidget (mDockManager);
       widget->setFocus();
     } else {
@@ -406,7 +417,16 @@ void QTMMainTabWindow::mdi_minimize_active() {
 }
 
 void QTMMainTabWindow::detachWidget(QWidget* widget) {
-  if (tmapp()->useMdi()) {
+  if (tmapp()->useAds()) {
+    QWidget* p = widget->parentWidget();
+    while (p) {
+      if (ads::CDockWidget* dockWidget = qobject_cast<ads::CDockWidget*>(p)) {
+        mDockManager->addDockWidgetFloating(dockWidget);
+        break;
+      }
+      p = p->parentWidget();
+    }
+  } else if (tmapp()->useMdi()) {
     if (QMdiSubWindow* sub = qobject_cast<QMdiSubWindow*>(widget->parentWidget())) {
       sub->setWidget(nullptr);
       sub->deleteLater();

@@ -199,6 +199,36 @@ tm_server_rep::mdi_detach () {
 }
 
 void
+tm_server_rep::ads_detach () {
+#ifdef QTTEXMACS
+  QWidget* active = nullptr;
+  if (tmapp()->useAds()) {
+    ads::CDockManager* dm = QTMMainTabWindow::topTabWindow()->dockManager();
+    if (ads::CDockWidget* dw = dm->focusedDockWidget()) {
+      active = dw->widget();
+    } else {
+      // Fallback: If timing causes focus to be null, grab the last added widget.
+      // (This is common when a command like 'New floating window' uses a delayed trigger)
+      auto map = dm->dockWidgetsMap();
+      if (!map.isEmpty()) {
+        active = map.last()->widget();
+      }
+    }
+    if (active) QTMMainTabWindow::topTabWindow()->detachWidget(active);
+  }
+#endif
+}
+
+void
+tm_server_rep::ads_prepare_floating () {
+#ifdef QTTEXMACS
+  if (tmapp()->useAds()) {
+    QTMMainTabWindow::topTabWindow()->setNextWidgetFloating();
+  }
+#endif
+}
+
+void
 tm_server_rep::mdi_attach () {
 #ifdef QTTEXMACS
   for (QWidget *topWidget : QApplication::topLevelWidgets()) {

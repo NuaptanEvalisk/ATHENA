@@ -118,6 +118,8 @@ public:
   virtual void   mdi_minimize_active () = 0;
   virtual void   mdi_detach () = 0;
   virtual void   mdi_attach () = 0;
+  virtual void   ads_detach () = 0;
+  virtual void   ads_prepare_floating () = 0;
   };class server {
   ABSTRACT(server);
   server ();
