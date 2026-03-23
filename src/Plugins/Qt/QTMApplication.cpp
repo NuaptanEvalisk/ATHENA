@@ -67,7 +67,8 @@ void QTMApplication::hide_splash () {
 void QTMApplication::load() {
   string bm = get_user_preference ("buffer management");
   mUseMdi = (bm == "mdi");
-  mUseTabWindow = (bm == "shared") || (mUseMdi) || (get_user_preference ("enable tab") == "on");
+  mUseAds = (bm == "ads");
+  mUseTabWindow = (bm == "shared") || (mUseMdi) || (mUseAds) || (get_user_preference ("enable tab") == "on");
 
 #if QT_VERSION >= 0x060000
   mUseNewToolbar = get_user_preference ("new toolbar") != "off";

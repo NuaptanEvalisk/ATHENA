@@ -25,7 +25,7 @@
   (if (or (like-macos?) (like-windows?)) "separate" "shared"))
 
 (define (buffer-management-choices)
-  '("shared" "separate" "mdi"))
+  '("shared" "separate" "mdi" "ads"))
 
 (define (notify-buffer-management var val)
   (when (== val (get-default-buffer-management))

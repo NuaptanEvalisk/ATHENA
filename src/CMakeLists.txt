@@ -11,6 +11,9 @@ else (APPLE)
 endif (APPLE)
 
 add_library(athena_body STATIC ${ATHENA_All_SRCS})
+target_link_libraries (athena_body
+  ${ADS_LIBRARIES}
+)
 
 if (WIN32)
   add_executable (${ATHENA_binary_name} WIN32
@@ -24,6 +27,7 @@ endif (WIN32)
 target_link_libraries (${ATHENA_binary_name}
   athena_body
   mimalloc
+  ${ADS_LIBRARIES}
   ${ATHENA_Libraries}
 )
 

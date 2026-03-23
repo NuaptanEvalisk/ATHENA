@@ -73,6 +73,10 @@ public:
     return mUseMdi;
   }
 
+  inline bool useAds() {
+    return mUseAds;
+  }
+
   inline bool useNewToolbar() {
     return mUseNewToolbar;
   }
@@ -97,6 +101,7 @@ private:
   QTMKeyboard mKeyboard;
   bool mUseTabWindow;
   bool mUseMdi;
+  bool mUseAds;
   bool mUseNewToolbar;
 };
 

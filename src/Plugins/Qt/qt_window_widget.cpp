@@ -113,6 +113,8 @@ qt_window_widget_rep::~qt_window_widget_rep ()
   if (qwid) {
     if (qwid->parentWidget () && qobject_cast<QMdiSubWindow*> (qwid->parentWidget ()))
       qwid->parentWidget ()->deleteLater ();
+    else if (qwid->parentWidget () && qobject_cast<ads::CDockWidget*> (qwid->parentWidget ()))
+      qwid->parentWidget ()->deleteLater ();
     else
       qwid->deleteLater();
   }

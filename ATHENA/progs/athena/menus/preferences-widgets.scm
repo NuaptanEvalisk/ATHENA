@@ -58,7 +58,8 @@
 (define-preference-names "buffer management"
   ("separate" "Documents in separate windows")
   ("shared" "Multiple documents share window")
-  ("mdi" "Multiple documents in sub-windows (MDI)"))
+  ("mdi" "Multiple documents in sub-windows (MDI)")
+  ("ads" "Advanced Docking System"))
 
 (if (qt6-or-later-gui?)
     (define-preference-names "gui theme"
@@ -103,7 +104,8 @@
       (enum (set-pretty-preference "buffer management" answer)
             '("Documents in separate windows"
               "Multiple documents share window"
-              "Multiple documents in sub-windows (MDI)")
+              "Multiple documents in sub-windows (MDI)"
+              "Advanced Docking System")
             (get-pretty-preference "buffer management")
             "18em"))
     (item (text "Automatically save:")

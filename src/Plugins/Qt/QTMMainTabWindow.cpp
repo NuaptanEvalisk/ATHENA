@@ -30,10 +30,14 @@ QTMMainTabWindow::QTMMainTabWindow() {
   mMdiArea = new QMdiArea(mStackedWidget);
   mMdiArea->setViewMode (QMdiArea::SubWindowView);
 
+  mDockManager = new ads::CDockManager(mStackedWidget);
+
   mStackedWidget->addWidget (mTabWidget);
   mStackedWidget->addWidget (mMdiArea);
+  mStackedWidget->addWidget (mDockManager);
 
   if (tmapp()->useMdi()) mStackedWidget->setCurrentWidget (mMdiArea);
+  else if (tmapp()->useAds()) mStackedWidget->setCurrentWidget (mDockManager);
   else mStackedWidget->setCurrentWidget (mTabWidget);
 
   // todo : keep the tab window size and position in the user preferences
@@ -246,7 +250,32 @@ bool QTMMainTabWindow::eventFilter(QObject *obj, QEvent *event) {
 }
 
 void QTMMainTabWindow::showWidget(QWidget *widget, bool isDocument) {
-  if (tmapp()->useMdi()) {
+  if (tmapp()->useAds()) {
+    ads::CDockWidget* dockWidget = qobject_cast<ads::CDockWidget*>(widget->parentWidget());
+    if (dockWidget) {
+      mStackedWidget->setCurrentWidget (mDockManager);
+      dockWidget->show();
+      dockWidget->raise();
+      widget->setFocus();
+    } else if (isDocument) {
+      dockWidget = new ads::CDockWidget(widget->windowTitle());
+      dockWidget->setWidget(widget);
+      dockWidget->setFeature(ads::CDockWidget::DockWidgetDeleteOnClose, true);
+      connect(dockWidget, &ads::CDockWidget::closed, [widget]() {
+        if (widget->metaObject()->indexOfSignal("closed()") != -1) {
+          QMetaObject::invokeMethod(widget, "closed");
+        }
+      });
+      mDockManager->addDockWidget(ads::CenterDockWidgetArea, dockWidget);
+      mStackedWidget->setCurrentWidget (mDockManager);
+      widget->setFocus();
+    } else {
+      widget->show();
+      widget->raise();
+      widget->activateWindow();
+      widget->setFocus();
+    }
+  } else if (tmapp()->useMdi()) {
     QMdiSubWindow* sub = qobject_cast<QMdiSubWindow*>(widget->parentWidget());
     if (sub) {
       mStackedWidget->setCurrentWidget (mMdiArea);
@@ -282,7 +311,11 @@ void QTMMainTabWindow::showWidget(QWidget *widget, bool isDocument) {
 }
 
 void QTMMainTabWindow::removeWidget(QWidget *widget) {
-  if (tmapp()->useMdi()) {
+  if (tmapp()->useAds()) {
+    if (ads::CDockWidget* dockWidget = qobject_cast<ads::CDockWidget*>(widget->parentWidget())) {
+      dockWidget->close();
+    }
+  } else if (tmapp()->useMdi()) {
     if (QMdiSubWindow* sub = qobject_cast<QMdiSubWindow*>(widget->parentWidget())) {
       sub->close();
     } else {

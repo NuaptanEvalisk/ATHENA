@@ -403,8 +403,8 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "IntelLLVM")
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -march=native -mavx2 -funroll-loops -flto=thin -fp-model fast")
   
   # Linker flags: Use lld, ThinLTO, and enable caching in the build directory
-  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -flto=thin -fuse-ld=lld -Wl,--thinlto-cache-dir=${CMAKE_BINARY_DIR}/lto_cache")
-  set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -flto=thin -fuse-ld=lld -Wl,--thinlto-cache-dir=${CMAKE_BINARY_DIR}/lto_cache")
+  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -flto=thin -fuse-ld=lld -Wl,--thinlto-cache-dir=${CMAKE_BINARY_DIR}/lto_cache -static-intel")
+  set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -flto=thin -fuse-ld=lld -Wl,--thinlto-cache-dir=${CMAKE_BINARY_DIR}/lto_cache -static-intel")
 endif()
 
 
@@ -709,6 +709,25 @@ if (ATHENA_GUI MATCHES "Qt.*")
   set (CONFIG_GUI "QT")
   set (CONFIG_QT "Qt")
   message (STATUS "Enabling Qt port")
+
+  if (Qt6_FOUND)
+    set(QT_VERSION_MAJOR 6)
+  elseif (Qt5_FOUND)
+    set(QT_VERSION_MAJOR 5)
+  endif()
+
+  include(FetchContent)
+  ### --------------------------------------------------------------------
+  ### Qt Advanced Docking System
+  ### --------------------------------------------------------------------
+  FetchContent_Declare(
+    ads
+    GIT_REPOSITORY https://github.com/githubuser0xFFFF/Qt-Advanced-Docking-System.git
+    GIT_TAG        4.3.1
+  )
+  set(ADS_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+  FetchContent_MakeAvailable(ads)
+  set(ADS_LIBRARIES "qt${QT_VERSION_MAJOR}advanceddocking")
 elseif (ATHENA_GUI STREQUAL "Aqua")
   find_library (COCOA_LIBRARY Cocoa)
   find_path (COCOA_INCLUDE_DIR Cocoa/Cocoa.h)

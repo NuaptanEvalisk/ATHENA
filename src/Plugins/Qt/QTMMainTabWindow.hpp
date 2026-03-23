@@ -17,6 +17,7 @@
 #include <QTabWidget>
 #include <QMdiArea>
 #include <QStackedWidget>
+#include <DockManager.h>
 
 /**
  * @brief A multi-document window that supports both Tabs and MDI.
@@ -39,6 +40,7 @@ public:
 
   QTabWidget* tabWidget() { return mTabWidget; }
   QMdiArea* mdiArea() { return mMdiArea; }
+  ads::CDockManager* dockManager() { return mDockManager; }
 
   void tileSubWindows();
   void cascadeSubWindows();
@@ -64,9 +66,11 @@ public slots:
 
 private:
   static QTMMainTabWindow *gTopTabWindow;
+
   QStackedWidget* mStackedWidget;
   QTabWidget* mTabWidget;
   QMdiArea* mMdiArea;
+  ads::CDockManager* mDockManager;
 };
 
 #endif // QTMMAINTABWINDOW_HPP
