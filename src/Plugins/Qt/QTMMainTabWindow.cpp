@@ -9,6 +9,7 @@
 #include <QApplication>
 #include <QMdiSubWindow>
 #include <QCloseEvent>
+#include <QToolButton>
 
 QTMMainTabWindow *QTMMainTabWindow::gTopTabWindow = nullptr;
 
@@ -428,6 +429,29 @@ void QTMMainTabWindow::closeAndSetTopTabWindow() {
 }
 
 void QTMMainTabWindow::setDefaultStyle() {
+  QString adsStyle =
+    "ads--CDockAreaTitleBar { "
+    "   min-height: 38px !important; "
+    "} "
+    "ads--CDockWidgetTab { "
+    "   min-height: 38px !important; "
+    "   padding: 0 15px !important; "
+    "} "
+    "ads--CTitleBarButton, "
+    "ads--CDockAreaWidget QToolButton, "
+    "#tabsMenuButton, #dockAreaCloseButton, #detachGroupButton, "
+    "#tabCloseButton, #floatingTitleCloseButton, #floatingTitleMaximizeButton { "
+    "   qproperty-iconSize: 24px 24px !important; "
+    "   min-width: 32px !important; "
+    "   min-height: 32px !important; "
+    "   width: 32px !important; "
+    "   height: 32px !important; "
+    "   padding: 0px !important; "
+    "   margin: 0px !important; "
+    "} ";
+  
+  this->setStyleSheet(adsStyle);
+
   mTabWidget->setStyleSheet(
     "QTabBar::tab { "
     "   height: 30px; "

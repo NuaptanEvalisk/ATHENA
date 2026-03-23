@@ -720,10 +720,12 @@ if (ATHENA_GUI MATCHES "Qt.*")
   ### --------------------------------------------------------------------
   ### Qt Advanced Docking System
   ### --------------------------------------------------------------------
+  find_package(Python3 REQUIRED)
   FetchContent_Declare(
     ads
     GIT_REPOSITORY https://github.com/githubuser0xFFFF/Qt-Advanced-Docking-System.git
     GIT_TAG        4.3.1
+    PATCH_COMMAND  ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/patch_ads.py <SOURCE_DIR>
   )
   set(ADS_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
   FetchContent_MakeAvailable(ads)
