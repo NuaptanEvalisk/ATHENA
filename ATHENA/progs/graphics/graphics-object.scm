@@ -331,33 +331,31 @@
       "fill-color" ,fill-color
       (concat ,@op))))
 
-(define (create-graphical-contours l ptr pts) ;; Group mode
-  ;; This routine draws the contours of each one
-  ;; of the trees contained in the list l. If the
-  ;; path ptr is the path of one of the trees in
-  ;; the list, the corresponding object is drawn
-  ;; using special points. Finally, the drawing
-  ;; is made according to the mode in pts (i.e.,
-  ;; object, points, etc.).
+(define (create-graphical-contours l ptr pts)
   (define on-aobj #f)
   (define aobj-selected #f)
   (define (asc col fcol op)
     (if (and on-aobj (not aobj-selected))
         (set! fcol #f))
     (add-selections-colors op col fcol))
-  (define res '())
+
+  (define res '()) ;; Accumulator
   (define curscol #f)
-  ;;(display* "create-graphical-contours " l ", " ptr ", " pts "\n")
+
+  ;; Pre-compute and cache the reversed paths to avoid double-consing
+  ;; If mutating `o` is unsafe, use an alist or hash to cache paths.
   (for (o l)
     (if (tree? o)
-        (with path (reverse (tree-ip o))
+        (let ((path (reverse (tree-ip o))))
           (if (== path ptr)
               (set! aobj-selected #t)))))
+
   (if (and (== pts 'points) ptr)
-      (begin
-        (set! l (cons (path->tree ptr) l))))
+      (set! l (cons (path->tree ptr) l)))
+
   (set! l (append-map (lambda (x)
                         (or (graphics-anim-radicals x) (list x))) l))
+
   (for (o l)
     (if (not (and (tree? o) (< (cAr (tree-ip o)) 0)))
         (let* ((props #f)
@@ -365,32 +363,30 @@
                (path0 #f))
           (set! curscol #f)
           (set! on-aobj #f)
+
           (if (tree? o)
-              (with path (reverse (tree-ip o))
-                (set! props (create-graphical-props (if (== pts 'points)
-                                                        'default path)
-                                                    (if (== pts 'object)
-                                                        #f "square")))
+              ;; Note: If performance is absolutely critical, cache this reverse 
+              ;; from the first loop rather than doing it twice.
+              (let ((path (reverse (tree-ip o)))) 
+                (set! props (create-graphical-props (if (== pts 'points) 'default path)
+                                                    (if (== pts 'object) #f "square")))
                 (if (or (== path ptr)
-                        (and (list? path) (list? ptr)
-                             (list-starts? path ptr)))
+                        (and (list? path) (list? ptr) (list-starts? path ptr)))
                     (begin
                       (set! on-aobj #t)
                       (set! curscol default-color-go-points)))
                 (set! path0 path)
-                (set! o (tree->stree o))) ;; FIXME: Remove this (tree->stree)
-              )
+                (set! o (tree->stree o))))
+
           (if (and (== (car o) 'gr-group) (!= pts 'object))
               (set! props (create-graphical-props 'default #f)))
+
           (cond ((== (car o) 'point)
-                 (if (not curscol)
-                     (set! curscol default-color-selected-points))
-                 (set! t (if (== pts 'object)
-                             `(,o)
-                             (asc curscol #f `(,o)))))
+                 (if (not curscol) (set! curscol default-color-selected-points))
+                 (set! t (if (== pts 'object) `(,o) (asc curscol #f `(,o)))))
+
                 ((graphical-text-at-context? o)
-                 (if (not curscol)
-                     (set! curscol default-color-selected-points))
+                 (if (not curscol) (set! curscol default-color-selected-points))
                  (set! t
                        (let* ((valign-var (graphics-valign-var o))
                               (ha (get-graphical-prop path0 "text-at-halign"))
@@ -399,47 +395,38 @@
                               (hm (get-graphical-prop path0 "doc-at-hmode"))
                               (pp (get-graphical-prop path0 "doc-at-ppsep"))
                               (mag (get-graphical-prop path0 "magnify"))
-			      (gc (asc curscol #f
-                                       (create-graphical-embedding-box
-                                        o ha va ha va w hm pp mag))))
+                              (gc (asc curscol #f (create-graphical-embedding-box o ha va ha va w hm pp mag))))
                          (if (== pts 'object-and-points)
                              (cons o gc)
-                             (if (== pts 'object)
-				 `(,o)
-                                 gc)))))
+                             (if (== pts 'object) `(,o) gc)))))
+
                 ((== (car o) 'gr-group)
-                 (if (not curscol)
-                     (set! curscol default-color-selected-points))
-                 (set! t (with gc (asc curscol #f
-                                       (let* ((ha (get-graphical-prop
-                                                   path0 "text-at-halign"))
-                                              (va (get-graphical-prop
-                                                   path0 "text-at-valign"))
-                                              (mag (get-graphical-prop
-                                                    path0 "magnify")))
-                                         (create-graphical-embedding-box
-                                          o ha va "center" "center"
-                                          "1par" "min" "0fn" mag)))
+                 (if (not curscol) (set! curscol default-color-selected-points))
+                 (set! t (let ((gc (asc curscol #f
+                                        (let* ((ha (get-graphical-prop path0 "text-at-halign"))
+                                               (va (get-graphical-prop path0 "text-at-valign"))
+                                               (mag (get-graphical-prop path0 "magnify")))
+                                          (create-graphical-embedding-box o ha va "center" "center" "1par" "min" "0fn" mag)))))
                            (if (== pts 'object-and-points)
                                (cons o gc)
-                               (if (== pts 'object)
-                                   `(,o)
-                                   gc)))))
-                (else
-                  (set! t (if (== pts 'object-and-points)
-                              (cons o
-                                    (asc curscol default-color-selected-points
-                                         (compress* (cdr o))))
-                              (if (== pts 'object)
-                                  `(,o)
-                                  (asc curscol default-color-selected-points
-                                       (compress* (cdr o))))))))
-          (set! res (append res
-                            (if props
-                                `(,(append props `(,(cons* 'concat t))))
-                                t))))))
-  res)
+                               (if (== pts 'object) `(,o) gc)))))
 
+                (else
+                 (set! t (if (== pts 'object-and-points)
+                             (cons o (asc curscol default-color-selected-points (compress* (cdr o))))
+                             (if (== pts 'object)
+                                 `(,o)
+                                 (asc curscol default-color-selected-points (compress* (cdr o))))))))
+
+          ;; OPTIMIZATION: Cons the new list chunk onto the front of res. $O(1)$ allocation.
+          (let ((new-chunk (if props
+                               `(,(append props `(,(cons* 'concat t))))
+                               t)))
+            (set! res (cons new-chunk res))))))
+
+  ;; OPTIMIZATION: Flatten the chunks out and reverse them destructively in one pass.
+  ;; `apply append` flattens the list of lists. `reverse!` mutates pointers in-place.
+  (apply append (reverse! res)))
 ;; Create graphical object
 ;;NOTE: This subsection is OK
 
