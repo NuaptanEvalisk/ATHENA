@@ -424,9 +424,12 @@
                                t)))
             (set! res (cons new-chunk res))))))
 
-  ;; OPTIMIZATION: Flatten the chunks out and reverse them destructively in one pass.
-  ;; `apply append` flattens the list of lists. `reverse!` mutates pointers in-place.
-  (apply append (reverse! res)))
+  ;; OPTIMIZATION: Safely flatten the reversed chunks in O(N) time 
+  ;; WITHOUT blowing up the Guile 1.8 physical C argument stack.
+  (let loop ((lst res) (flattened '()))
+    (if (null? lst)
+        flattened
+        (loop (cdr lst) (append (car lst) flattened)))))
 ;; Create graphical object
 ;;NOTE: This subsection is OK
 
