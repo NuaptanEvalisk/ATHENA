@@ -869,6 +869,8 @@
 "mdi-maximize-active"
 "mdi-minimize-active"
 "mdi-detach"
+"ads-detach"
+"ads-prepare-floating"
 "mdi-attach"
 "recall-message"
 "yes?"

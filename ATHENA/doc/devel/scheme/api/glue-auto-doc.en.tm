@@ -6755,6 +6755,22 @@ source code.
   </explain>
 
   <\explain>
+    <scm|(ads-detach)>
+<explain-synopsis|no synopsis>
+  <|explain>
+    Calls the <c++> function <cpp|ads_detach> which returns
+    <scm|void>.
+  </explain>
+
+  <\explain>
+    <scm|(ads-prepare-floating)>
+<explain-synopsis|no synopsis>
+  <|explain>
+    Calls the <c++> function <cpp|ads_prepare_floating> which returns
+    <scm|void>.
+  </explain>
+
+  <\explain>
     <scm|(mdi-attach)>
 <explain-synopsis|no synopsis>
   <|explain>
