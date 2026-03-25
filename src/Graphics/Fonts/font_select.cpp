@@ -12,6 +12,13 @@
 #include "font.hpp"
 #include "Freetype/tt_tools.hpp"
 #include "analyze.hpp"
+#include "boot.hpp"
+
+#ifdef QTTEXMACS
+#include <QMessageBox>
+#include <QApplication>
+#include "Qt/qt_utilities.hpp"
+#endif
 
 extern hashmap<tree,tree> font_features;
 extern hashmap<tree,tree> font_variants;
@@ -274,8 +281,7 @@ family_to_master (string f) {
   font_database_load ();
   if (!font_features->contains (tree (f)) &&
       f != "tcx" && f != "tc") {
-    cout << "ATHENA] missing '" << f << "' family\n";
-    font_database_global_load ();
+    font_database_global_load (f);
   }
   if (font_features->contains (tree (f))) {
     tree t= font_features [tree (f)];
@@ -328,8 +334,7 @@ master_to_families (string m) {
   font_database_load ();
   if (!font_variants->contains (tree (m)) &&
       m != "tcx" && m != "tc") {
-    cout << "ATHENA] missing '" << m << "' master\n";
-    font_database_global_load ();
+    font_database_global_load (m);
   }
   array<string> r;
   if (font_variants->contains (tree (m))) {

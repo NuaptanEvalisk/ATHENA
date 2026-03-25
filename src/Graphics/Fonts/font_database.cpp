@@ -11,6 +11,13 @@
 
 #include "font.hpp"
 #include "message.hpp"
+#include "boot.hpp"
+
+#ifdef QTTEXMACS
+#include <QMessageBox>
+#include <QApplication>
+#include "Qt/qt_utilities.hpp"
+#endif
 #include "iterator.hpp"
 #include "file.hpp"
 #include "convert.hpp"
@@ -249,9 +256,17 @@ font_database_load () {
 }
 
 void
-font_database_global_load () {
+font_database_global_load (string name) {
   if (fonts_global_loaded) return;
-  cout << "ATHENA] warning, missing font, loading global substitution list\n";
+#ifdef QTTEXMACS
+  if (QCoreApplication::instance () && !is_headless ()) {
+    string msg = "Missing font: " * (name == "" ? "unknown" : name) * 
+                 "\nLoading global substitution list...";
+    QMessageBox::warning (NULL, "ATHENA warning", to_qstring (msg));
+  }
+#endif
+  if (name == "") cout << "ATHENA] warning, missing font, loading global substitution list\n";
+  else cout << "ATHENA] warning, missing font '" << name << "', loading global substitution list\n";
   font_database_load_database (GLOBAL_DATABASE, font_global_table);
   font_database_load_features (GLOBAL_FEATURES);
   font_database_load_characteristics (GLOBAL_CHARACTERISTICS);
