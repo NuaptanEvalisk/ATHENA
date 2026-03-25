@@ -111,10 +111,13 @@
 	  (else (tmdoc-substitute x root cur)))))
 
 (define (tmdoc-rewrite l root cur level done)
-  (if (null? l) l
-      (let ((d1 (tmdoc-rewrite-one (car l) root cur level done))
-	    (d2 (tmdoc-rewrite (cdr l) root cur level done)))
-	(if (func? d1 'document) (append (cdr d1) d2) (cons d1 d2)))))
+  (let loop ((rest l) (acc '()))
+    (if (null? rest)
+        (apply append (reverse! acc))
+        (let ((d1 (tmdoc-rewrite-one (car rest) root cur level done)))
+          (if (func? d1 'document)
+              (loop (cdr rest) (cons (cdr d1) acc))
+              (loop (cdr rest) (cons (list d1) acc)))))))
 
 (define (tmdoc-expand root cur level . opts)
   ;;(display* "tmdoc-expand " cur "\n")
