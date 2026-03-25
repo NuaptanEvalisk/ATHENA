@@ -391,6 +391,8 @@ set (datadir ${datarootdir})
 set (tmdata ${datarootdir}/ATHENA)
 set (tmbin ${exec_prefix}/lib/athena/ATHENA)
 
+set (STACK_SIZE 0x8000000)
+
 configure_file (${ATHENA_SOURCE_DIR}/src/System/config.h.cmake ${ATHENA_BINARY_DIR}/src/System/config.h)
 configure_file (${ATHENA_SOURCE_DIR}/src/System/tm_configure.hpp.cmake ${ATHENA_BINARY_DIR}/src/System/tm_configure.hpp)
 

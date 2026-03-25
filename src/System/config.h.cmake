@@ -193,5 +193,7 @@
 
 #define GUILE_VERSION 1.8
 
+#define STACK_SIZE @STACK_SIZE@
+
 #endif // CONFIG_H
 
