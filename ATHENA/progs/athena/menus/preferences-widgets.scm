@@ -256,7 +256,10 @@
                 (get-boolean-preference "new style fonts")))
       (item (text "Advanced font customization:")
         (toggle (set-boolean-preference "advanced font customization" answer)
-                (get-boolean-preference "advanced font customization"))))
+                (get-boolean-preference "advanced font customization")))
+      (item (text "Show warning for font substitution:")
+        (toggle (set-boolean-preference "show font substitution warning" answer)
+                (get-boolean-preference "show font substitution warning"))))
     ======
     (bold (text "Preferred fonts"))
     ===

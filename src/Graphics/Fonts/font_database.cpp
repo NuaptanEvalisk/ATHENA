@@ -259,7 +259,8 @@ void
 font_database_global_load (string name) {
   if (fonts_global_loaded) return;
 #ifdef QTTEXMACS
-  if (QCoreApplication::instance () && !is_headless ()) {
+  if (QCoreApplication::instance () && !is_headless () &&
+      get_user_preference ("show font substitution warning") == "on") {
     string msg = "Missing font: " * (name == "" ? "unknown" : name) * 
                  "\nLoading global substitution list...";
     QMessageBox::warning (NULL, "ATHENA warning", to_qstring (msg));

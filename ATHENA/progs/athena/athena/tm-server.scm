@@ -165,6 +165,7 @@
   ("open console on errors" "on" noop)
   ("open console on warnings" "on" noop)
   ("gui:line-input:autocommit" "on" noop)
+  ("show font substitution warning" "on" noop)
   ("use native menubar" (get-default-native-menubar) noop)
   ("use unified toolbar" (get-default-unified-toolbar) noop))
 
