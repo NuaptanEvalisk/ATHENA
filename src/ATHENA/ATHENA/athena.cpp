@@ -34,6 +34,7 @@
 #include "data_cache.hpp"
 #include "tm_window.hpp"
 #include "client_server.hpp"
+#include "scheme.hpp"
 
 #ifdef AQUATEXMACS
 void mac_fix_paths ();
@@ -71,6 +72,7 @@ extern void aofm_debug_dump(const std::string& file_path);
 bool disable_error_recovery= false;
 bool start_server_flag= false;
 bool headless_mode= false;
+std::string aofm_debug_convert_file;
 string extra_init_cmd;
 bool exec_exit= true;
 void server_start ();
@@ -326,6 +328,9 @@ set_global_options  (int argc, char** argv)  {
       else if ((s == "-b") || (s == "-initialize-buffer")) {
         i++;
         if (i<argc) tm_init_buffer_file= url_system (argv[i]);
+      }
+      else if (s == "-debug-aofm-convert") {
+        i++;
       }
       else if ((s == "-i") || (s == "-initialize")) {
         i++;
@@ -591,6 +596,12 @@ TeXmacs_main (int argc, char** argv) {
         extra_init_cmd << "(load-buffer \"tmfs://welcome/home\")";
       }
     }
+
+    if (!aofm_debug_convert_file.empty ()) {
+      eval ("(lazy-initialize-force)");
+      aofm_debug_dump (aofm_debug_convert_file);
+      exit (0);
+    }
   
     bench_print ();
     bench_reset ("initialize texmacs");
@@ -749,8 +760,8 @@ texmacs_entrypoint (int argc, char** argv) {
     if (s == "-debug-aofm-convert") {
       i++;
       if (i < argc) {
-        aofm_debug_dump(argv[i]);
-        exit(0);
+        aofm_debug_convert_file= argv[i];
+        headless_mode= true;
       }
     }
     if (s == "-headless" || s == "-H" || s == "-C" ||

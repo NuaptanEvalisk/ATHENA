@@ -101,6 +101,43 @@ append_document(tree& out, tree piece) {
 tree convert_inline(const AstPtr& ast);
 
 tree
+convert_latex_math_inline(const std::string& latex_source) {
+  tree converted = extract(
+      tracked_latex_to_texmacs(tm_string("$" + latex_source + "$"), false),
+      "body");
+
+  converted = simplify_document(converted);
+
+  if (is_func(converted, DOCUMENT) && N(converted) > 0) {
+    converted = converted[0];
+  }
+
+  if (is_compound(converted, "math", 1)) {
+    return converted;
+  }
+
+  if (is_func(converted, WITH) && N(converted) >= 3 &&
+      converted[0] == "mode" && converted[1] == "math") {
+    converted = converted[N(converted) - 1];
+  }
+
+  return compound("math", converted);
+}
+
+tree
+convert_latex_math_display(const std::string& latex_source) {
+  tree converted = extract(
+      tracked_latex_to_texmacs(tm_string("$$" + latex_source + "$$"), false),
+      "body");
+
+  if (is_document(converted)) {
+    return simplify_document(converted);
+  }
+
+  return converted;
+}
+
+tree
 convert_inline_children(const AstPtr& ast) {
   tree out(CONCAT);
   if (!ast) return out;
@@ -215,8 +252,8 @@ convert_inline_from_raw(const std::string& raw) {
       size_t close = raw.find('$', i + 1);
       if (close != std::string::npos) {
         flush_text();
-        append_concat(out, compound("math",
-                                    text_tree(raw.substr(i + 1, close - i - 1))));
+        append_concat(out, convert_latex_math_inline(
+                               raw.substr(i + 1, close - i - 1)));
         i = close + 1;
         continue;
       }
@@ -292,8 +329,7 @@ convert_inline(const AstPtr& ast) {
   }
 
   if (ast_is(ast, "InlineMath")) {
-    return compound("math",
-                    text_tree(strip_wrapping(ast_source(ast), 1, 1)));
+    return convert_latex_math_inline(strip_wrapping(ast_source(ast), 1, 1));
   }
 
   if (ast_is(ast, "Strikethrough") || ast_is(ast, "Highlight") ||
@@ -386,8 +422,8 @@ convert_code_block(const AstPtr& ast) {
 
 tree
 convert_math_block(const AstPtr& ast) {
-  return compound("math",
-                  text_tree(extract_fenced_body(ast_source(ast), "$$")));
+  return convert_latex_math_display(
+      extract_fenced_body(ast_source(ast), "$$"));
 }
 
 std::string
