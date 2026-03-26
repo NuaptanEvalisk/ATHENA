@@ -442,6 +442,7 @@ set (ATHENA_Include_Dirs
   ${ATHENA_SOURCE_DIR}/src/Kernel/Containers
   ${ATHENA_SOURCE_DIR}/src/Kernel/Types
   ${ATHENA_SOURCE_DIR}/src/Plugins
+  ${ATHENA_SOURCE_DIR}/src/Plugins/PEGLib
   ${ATHENA_SOURCE_DIR}/src/Plugins/Pdf/LibAesgm
   ${ATHENA_SOURCE_DIR}/src/Plugins/Gnutls
   ${ATHENA_SOURCE_DIR}/src/Plugins/Qt

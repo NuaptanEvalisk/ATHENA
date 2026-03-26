@@ -66,6 +66,8 @@ extern int geometry_x, geometry_y;
 extern tree the_et;
 extern bool texmacs_started;
 
+extern void aofm_debug_dump(const std::string& file_path);
+
 bool disable_error_recovery= false;
 bool start_server_flag= false;
 bool headless_mode= false;
@@ -744,6 +746,13 @@ texmacs_entrypoint (int argc, char** argv) {
   for (int i=1; i<argc; i++) {
     string s= argv[i];
     if ((N(s)>=2) && (s(0,2)=="--")) s= s (1, N(s));
+    if (s == "-debug-aofm-convert") {
+      i++;
+      if (i < argc) {
+        aofm_debug_dump(argv[i]);
+        exit(0);
+      }
+    }
     if (s == "-headless" || s == "-H" || s == "-C" ||
 	     s == "-build-website" || s == "-W" ||
 	     s == "-update-website" || s == "-U")
