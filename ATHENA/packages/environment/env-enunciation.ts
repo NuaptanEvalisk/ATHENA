@@ -103,6 +103,10 @@
 
   <assign|proof-text|<macro|<localize|Proof>>>
 
+  <assign|proof-alternative-text|<macro|<localize|Proof (Alternative)>>>
+
+  <assign|proof-standard-text|<macro|<localize|Proof (Standard)>>>
+
   <assign|solution-text|<macro|<localize|Solution>>>
 
   <assign|answer-text|<macro|<localize|Answer>>>
@@ -117,8 +121,20 @@
     </surround>
   </macro>>
 
+  <assign|render-proof-alternative|<value|render-proof>>
+
+  <assign|render-proof-standard|<value|render-proof>>
+
   <assign|proof|<\macro|body>
     <render-proof|<proof-text>|<arg|body>>
+  </macro>>
+
+  <assign|proof-alternative|<\macro|body>
+    <render-proof-alternative|<proof-alternative-text>|<arg|body>>
+  </macro>>
+
+  <assign|proof-standard|<\macro|body>
+    <render-proof-standard|<proof-standard-text>|<arg|body>>
   </macro>>
 
   <assign|proof-of|<\macro|what|body>

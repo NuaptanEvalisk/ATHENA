@@ -141,16 +141,20 @@
       ("Lemma" (make 'lemma))
       ("Corollary" (make 'corollary))
       ("Proof" (make 'proof))
+      ("Proof (Alternative)" (make 'proof-alternative))
+      ("Proof (Standard)" (make 'proof-standard))
       ---
       ("Axiom" (make 'axiom))
       ("Definition" (make 'definition))
       ("Notation" (make 'notation))
+      ("Law" (make 'law))
       ("Convention" (make 'convention))
       ---
       ("Remark" (make 'remark))
       ("Note" (make 'note))
       ("Example" (make 'example))
       ("Warning" (make 'warning))
+      ("Disambiguation" (make 'disambiguation))
       ("Acknowledgments" (make 'acknowledgments*))
       ---)
   ("Exercise" (make 'exercise))
@@ -918,7 +922,9 @@
 (tm-define (standard-options l)
   (:require (or (in? l (enunciation-tag-list))
                 (in? l (render-enunciation-tag-list))
-                (in? l '(proof render-proof))))
+                (in? l '(proof render-proof
+                         proof-alternative render-proof-alternative
+                         proof-standard render-proof-standard))))
   (append (list "number-europe" ;; "number-us"
                 "number-long-article"
                 "framed-theorems"

@@ -589,7 +589,9 @@
 (tm-define (dueto-supporting-context? t)
   (or (tree-in? t (numbered-unnumbered-append (enunciation-tag-list)))
       (tree-in? t (render-enunciation-tag-list))
-      (tree-in? t '(proof render-proof))))
+      (tree-in? t '(proof render-proof
+                    proof-alternative render-proof-alternative
+                    proof-standard render-proof-standard))))
 
 (tm-define (dueto-added? t)
   (tm-find t (lambda (x) (tm-is? x 'dueto))))
@@ -730,6 +732,10 @@
          (tree-set! t `(render-exercise "" ,(tree-ref t 0))))
         ((tree-in? t '(proof))
          (tree-set! t `(render-proof "" ,(tree-ref t 0))))
+        ((tree-in? t '(proof-alternative))
+         (tree-set! t `(render-proof-alternative "" ,(tree-ref t 0))))
+        ((tree-in? t '(proof-standard))
+         (tree-set! t `(render-proof-standard "" ,(tree-ref t 0))))
         ((tree-in? t (numbered-unnumbered-append (small-figure-tag-list)))
          (tree-set! t `(render-small-figure "" "" ,(tree-ref t 0)
                                                   ,(tree-ref t 1))))
@@ -746,6 +752,10 @@
          (tree-set! t `(solution ,(tree-ref t 1))))
         ((tree-is? t 'render-proof)
          (tree-set! t `(proof ,(tree-ref t 1))))
+        ((tree-is? t 'render-proof-alternative)
+         (tree-set! t `(proof-alternative ,(tree-ref t 1))))
+        ((tree-is? t 'render-proof-standard)
+         (tree-set! t `(proof-standard ,(tree-ref t 1))))
         ((tree-is? t 'render-small-figure)
          (tree-set! t `(small-figure ,(tree-ref t 2) ,(tree-ref t 3))))
         ((tree-is? t 'render-big-figure)

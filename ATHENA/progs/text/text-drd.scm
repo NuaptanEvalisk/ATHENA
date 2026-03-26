@@ -47,10 +47,11 @@
   (auto-titled-tag) (render-titled-tag))
 
 (define-group auto-titled-tag
-  (enunciation-tag) proof (figure-tag))
+  (enunciation-tag) proof proof-alternative proof-standard (figure-tag))
 
 (define-group render-titled-tag
-  (render-enunciation-tag) render-proof (render-figure-tag))
+  (render-enunciation-tag) render-proof render-proof-alternative
+  render-proof-standard (render-figure-tag))
 
 ;; Sections
 
@@ -133,13 +134,13 @@
   (theorem-tag) (definition-tag) (remark-tag) (exercise-tag) (solution-tag))
 
 (define-group theorem-tag
-  theorem proposition lemma corollary conjecture)
+  theorem proposition lemma corollary conjecture law)
 
 (define-group definition-tag
   definition axiom notation)
 
 (define-group remark-tag
-  remark note example convention warning acknowledgments)
+  remark note example convention warning disambiguation acknowledgments)
 
 (define-group exercise-tag
   exercise problem question)

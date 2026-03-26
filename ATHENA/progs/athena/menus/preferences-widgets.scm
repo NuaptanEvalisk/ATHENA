@@ -361,7 +361,10 @@
              (list (get-preference "vault convention color")) "10em"))
     (item (text "Conjecture background:")
       (input (set-preference "vault conjecture color" answer) "string"
-             (list (get-preference "vault conjecture color")) "10em"))))
+             (list (get-preference "vault conjecture color")) "10em"))
+    (item (text "Law background:")
+      (input (set-preference "vault law color" answer) "string"
+             (list (get-preference "vault law color")) "10em"))))
 
 (tm-widget (rendering-remarks-preferences-widget)
   (aligned
@@ -377,6 +380,9 @@
     (item (text "Warning background:")
       (input (set-preference "vault warning color" answer) "string"
              (list (get-preference "vault warning color")) "10em"))
+    (item (text "Disambiguation background:")
+      (input (set-preference "vault disambiguation color" answer) "string"
+             (list (get-preference "vault disambiguation color")) "10em"))
     (item (text "Acknowledgments background:")
       (input (set-preference "vault acknowledgments color" answer) "string"
              (list (get-preference "vault acknowledgments color")) "10em"))))
@@ -400,7 +406,13 @@
              (list (get-preference "vault answer color")) "10em"))
     (item (text "Proof background:")
       (input (set-preference "vault proof color" answer) "string"
-             (list (get-preference "vault proof color")) "10em"))))
+             (list (get-preference "vault proof color")) "10em"))
+    (item (text "Proof (Alternative) background:")
+      (input (set-preference "vault proof alternative color" answer) "string"
+             (list (get-preference "vault proof alternative color")) "10em"))
+    (item (text "Proof (Standard) background:")
+      (input (set-preference "vault proof standard color" answer) "string"
+             (list (get-preference "vault proof standard color")) "10em"))))
 
 (tm-widget (rendering-preferences-widget)
   ===

@@ -44,6 +44,8 @@
 
   <new-theorem|conjecture|Conjecture>
 
+  <new-theorem|law|Law>
+
   \;
 
   <new-remark|remark|Remark>
@@ -53,6 +55,8 @@
   <new-remark|note|Note>
 
   <new-remark|warning|Warning>
+
+  <new-remark|disambiguation|Disambiguation>
 
   <new-remark|convention|Convention>
 
