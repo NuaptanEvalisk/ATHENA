@@ -80,6 +80,189 @@ strip_wrapping(const std::string& s, size_t left, size_t right) {
 }
 
 bool
+is_blank_line(const std::string& line) {
+  return trim_copy(line).empty();
+}
+
+bool
+erase_prefix(std::string& s, const char* prefix) {
+  std::string p = prefix;
+  if (s.compare(0, p.size(), p) != 0) return false;
+  s.erase(0, p.size());
+  return true;
+}
+
+std::string
+strip_known_invisible_prefixes(std::string line) {
+  while (true) {
+    bool changed = false;
+    changed = erase_prefix(line, "\xEF\xBB\xBF") || changed;
+    changed = erase_prefix(line, "\xE2\x80\x8B") || changed;
+    changed = erase_prefix(line, "\xEF\xBF\xBC") || changed;
+    if (!changed) break;
+  }
+  return line;
+}
+
+std::string
+normalize_markdown_lines(const std::string& raw) {
+  std::vector<std::string> lines;
+  std::stringstream in(raw);
+  std::string line;
+  while (std::getline(in, line)) {
+    if (!line.empty() && line.back() == '\r') line.pop_back();
+    lines.push_back(strip_known_invisible_prefixes(line));
+  }
+
+  std::string result;
+  for (size_t i = 0; i < lines.size(); ++i) {
+    if (i > 0) result += '\n';
+    result += lines[i];
+  }
+  return result;
+}
+
+bool
+is_anchor_line(const std::string& line) {
+  std::string trimmed = trim_copy(line);
+  return !trimmed.empty() && trimmed[0] == '^';
+}
+
+size_t
+leading_space_count(const std::string& line) {
+  size_t pos = 0;
+  while (pos < line.size() && (line[pos] == ' ' || line[pos] == '\t')) pos++;
+  return pos;
+}
+
+bool
+starts_blockquote_line(const std::string& line) {
+  size_t pos = leading_space_count(line);
+  return pos < line.size() && line[pos] == '>';
+}
+
+bool
+starts_callout_header_line(const std::string& line) {
+  size_t pos = leading_space_count(line);
+  if (pos >= line.size() || line[pos] != '>') return false;
+  pos++;
+  while (pos < line.size() && (line[pos] == ' ' || line[pos] == '\t')) pos++;
+  return line.compare(pos, 3, "[!") == 0;
+}
+
+std::string
+strip_one_blockquote_marker(const std::string& line) {
+  size_t pos = leading_space_count(line);
+  if (pos >= line.size() || line[pos] != '>') return line;
+  pos++;
+  if (pos < line.size() && line[pos] == ' ') pos++;
+  return line.substr(pos);
+}
+
+bool
+is_proof_marker_text(const std::string& raw) {
+  static const char* kMarkers[] = {
+      "**Proof:**",
+      "**Proof：**",
+      "**证明:**",
+      "**证明：**"
+  };
+
+  std::string trimmed = trim_copy(raw);
+  for (const char* marker : kMarkers) {
+    std::string prefix = marker;
+    if (trimmed.compare(0, prefix.size(), prefix) != 0) continue;
+    if (trimmed.size() == prefix.size()) return true;
+    char next = trimmed[prefix.size()];
+    if (next == ' ' || next == '\t' || next == '\r' || next == '\n') {
+      return true;
+    }
+  }
+  return false;
+}
+
+std::string
+preprocess_isolated_callout_proofs(const std::string& raw) {
+  std::vector<std::string> lines;
+  std::stringstream in(raw);
+  std::string line;
+  while (std::getline(in, line)) {
+    if (!line.empty() && line.back() == '\r') line.pop_back();
+    lines.push_back(line);
+  }
+
+  std::vector<std::string> out;
+
+  for (size_t i = 0; i < lines.size(); ) {
+    if (!starts_callout_header_line(lines[i])) {
+      out.push_back(lines[i]);
+      ++i;
+      continue;
+    }
+
+    size_t block_end = i + 1;
+    while (block_end < lines.size() && starts_blockquote_line(lines[block_end])) {
+      block_end++;
+    }
+
+    size_t proof_index = block_end;
+    for (size_t j = i + 1; j < block_end; ++j) {
+      if (is_proof_marker_text(strip_one_blockquote_marker(lines[j]))) {
+        proof_index = j;
+        break;
+      }
+    }
+
+    if (proof_index == block_end) {
+      for (size_t j = i; j < block_end; ++j) out.push_back(lines[j]);
+      i = block_end;
+      continue;
+    }
+
+    std::vector<std::string> theorem_lines;
+    for (size_t j = i; j < proof_index; ++j) theorem_lines.push_back(lines[j]);
+
+    std::vector<std::string> proof_lines;
+    for (size_t j = proof_index; j < block_end; ++j) {
+      proof_lines.push_back(strip_one_blockquote_marker(lines[j]));
+    }
+
+    size_t cursor = block_end;
+    bool saw_blank_after_callout = false;
+    while (cursor < lines.size() && is_blank_line(lines[cursor])) {
+      saw_blank_after_callout = true;
+      cursor++;
+    }
+
+    std::string moved_anchor;
+    if (saw_blank_after_callout && cursor < lines.size() &&
+        is_anchor_line(lines[cursor])) {
+      moved_anchor = lines[cursor];
+      cursor++;
+    } else {
+      cursor = block_end;
+    }
+
+    for (const auto& theorem_line : theorem_lines) out.push_back(theorem_line);
+    out.push_back("");
+    if (!moved_anchor.empty()) {
+      out.push_back(moved_anchor);
+      out.push_back("");
+    }
+    for (const auto& proof_line : proof_lines) out.push_back(proof_line);
+
+    i = cursor;
+  }
+
+  std::string result;
+  for (size_t i = 0; i < out.size(); ++i) {
+    if (i > 0) result += '\n';
+    result += out[i];
+  }
+  return result;
+}
+
+bool
 ends_with(const std::string& s, const std::string& suffix) {
   return s.size() >= suffix.size() &&
          s.compare(s.size() - suffix.size(), suffix.size(), suffix) == 0;
@@ -88,6 +271,13 @@ ends_with(const std::string& s, const std::string& suffix) {
 tree
 text_tree(const std::string& s) {
   return as_tree(tm_string(s));
+}
+
+tree
+ensure_document_tree(tree t) {
+  t = simplify_document(t);
+  if (!is_document(t)) t = document(t);
+  return t;
 }
 
 void
@@ -556,8 +746,7 @@ convert_blockquote_body(const std::string& raw, const std::string& source_name) 
 tree
 convert_blockquote(const AstPtr& ast) {
   tree body = convert_blockquote_body(ast_source(ast), "blockquote");
-  if (!is_document(body)) body = document(body);
-  return compound("quote-env", simplify_document(body));
+  return compound("quote-env", ensure_document_tree(body));
 }
 
 std::string
@@ -576,6 +765,13 @@ strip_anchor_lines(const std::string& raw) {
   }
 
   return trim_copy(out);
+}
+
+std::string
+extract_anchor_id(const std::string& raw) {
+  std::string trimmed = trim_copy(strip_trailing_newlines(raw));
+  if (!trimmed.empty() && trimmed[0] == '^') trimmed.erase(0, 1);
+  return trim_copy(trimmed);
 }
 
 struct CalloutHeader {
@@ -760,6 +956,145 @@ map_extended_callout_tag(const CalloutHeader& header, std::string& tag,
   return false;
 }
 
+bool
+is_theorem_like_callout_tag(const std::string& tag) {
+  return tag == "theorem" || tag == "proposition" || tag == "lemma" ||
+         tag == "corollary" || tag == "remark" || tag == "example" ||
+         tag == "definition" || tag == "axiom" || tag == "conjecture" ||
+         tag == "law";
+}
+
+bool
+is_theorem_like_env_tree(const tree& t) {
+  return is_compound(t, "theorem", 1) || is_compound(t, "proposition", 1) ||
+         is_compound(t, "lemma", 1) || is_compound(t, "corollary", 1) ||
+         is_compound(t, "remark", 1) || is_compound(t, "example", 1) ||
+         is_compound(t, "definition", 1) || is_compound(t, "axiom", 1) ||
+         is_compound(t, "conjecture", 1) || is_compound(t, "law", 1);
+}
+
+tree
+split_callout_proof_tail(const std::string& tag, tree body) {
+  if (!is_document(body) || !is_theorem_like_callout_tag(tag)) {
+    return compound(tag.c_str(), ensure_document_tree(body));
+  }
+
+  int proof_index = -1;
+  for (int i = 0; i < N(body); ++i) {
+    if (is_compound(body[i], "proof", 1)) {
+      proof_index = i;
+      break;
+    }
+  }
+
+  if (proof_index < 0) {
+    return compound(tag.c_str(), ensure_document_tree(body));
+  }
+
+  tree head(DOCUMENT);
+  tree tail(DOCUMENT);
+  for (int i = 0; i < proof_index; ++i) head << body[i];
+  for (int i = proof_index; i < N(body); ++i) tail << body[i];
+
+  tree out(DOCUMENT);
+  out << compound(tag.c_str(), ensure_document_tree(head));
+  append_document(out, simplify_document(tail));
+  return simplify_document(out);
+}
+
+bool
+extend_theorem_callout_proof(const std::vector<AstPtr>& nodes, size_t index,
+                             tree converted, size_t& consumed_to,
+                             tree& result) {
+  tree doc = ensure_document_tree(converted);
+  if (!is_document(doc) || N(doc) < 2) return false;
+  if (!is_theorem_like_env_tree(doc[0])) return false;
+  if (!is_compound(doc[N(doc) - 1], "proof", 1)) return false;
+
+  size_t cursor = index + 1;
+  tree moved_labels(DOCUMENT);
+  bool saw_anchor = false;
+  while (cursor < nodes.size()) {
+    AstPtr payload = block_payload(nodes[cursor]);
+    if (!payload) {
+      ++cursor;
+      continue;
+    }
+    if (!ast_is(payload, "AnchorBlock")) break;
+    moved_labels << compound("label",
+                             text_tree(extract_anchor_id(ast_source(payload))));
+    saw_anchor = true;
+    ++cursor;
+  }
+  if (!saw_anchor) return false;
+
+  while (cursor < nodes.size()) {
+    AstPtr payload = block_payload(nodes[cursor]);
+    if (!payload) {
+      ++cursor;
+      continue;
+    }
+    break;
+  }
+
+  if (cursor >= nodes.size()) return false;
+  AstPtr payload = block_payload(nodes[cursor]);
+  if (!payload || !is_proof_body_block(payload)) return false;
+
+  tree continuation(DOCUMENT);
+  size_t j = cursor;
+  bool closed = false;
+  while (j < nodes.size()) {
+    AstPtr body_payload = block_payload(nodes[j]);
+    if (!body_payload) {
+      ++j;
+      continue;
+    }
+    if (!is_proof_body_block(body_payload)) break;
+
+    size_t k = j + 1;
+    while (k < nodes.size()) {
+      AstPtr next_payload = block_payload(nodes[k]);
+      if (!next_payload) {
+        ++k;
+        continue;
+      }
+      break;
+    }
+
+    AstPtr next_payload =
+        k < nodes.size() ? block_payload(nodes[k]) : nullptr;
+    if (!next_payload || !is_proof_body_block(next_payload)) {
+      std::string raw = ast_source(body_payload);
+      if (strip_proof_qed_suffix(raw)) {
+        if (!raw.empty()) {
+          append_document(continuation,
+                          parse_embedded_aofm_blocks(raw, "proof-body"));
+        }
+        ++j;
+        closed = true;
+        break;
+      }
+    }
+
+    append_document(continuation, convert_block(nodes[j]));
+    ++j;
+  }
+
+  if (!closed || N(continuation) == 0) return false;
+
+  tree proof_body = ensure_document_tree(doc[N(doc) - 1][0]);
+  append_document(proof_body, continuation);
+
+  tree out(DOCUMENT);
+  out << doc[0];
+  append_document(out, simplify_document(moved_labels));
+  out << compound("proof", ensure_document_tree(proof_body));
+  result = simplify_document(out);
+  consumed_to = j - 1;
+  return true;
+}
+
 std::string
 extract_callout_body_source(const std::string& raw) {
   size_t nl = raw.find('\n');
@@ -779,7 +1114,7 @@ prepend_callout_title(tree body, const std::string& title) {
 
 tree
 convert_callout(const AstPtr& ast) {
-  std::string raw = strip_anchor_lines(ast_source(ast));
+  std::string raw = ast_source(ast);
   CalloutHeader header;
   if (!parse_callout_header(raw, header)) {
     return text_tree(trim_copy(strip_trailing_newlines(raw)));
@@ -787,8 +1122,7 @@ convert_callout(const AstPtr& ast) {
 
   tree body = parse_embedded_aofm_blocks(extract_callout_body_source(raw),
                                          "callout");
-  if (!is_document(body)) body = document(body);
-  body = prepend_callout_title(simplify_document(body), header.title);
+  body = prepend_callout_title(ensure_document_tree(body), header.title);
 
   std::string tag;
   bool use_quote_env = false;
@@ -800,10 +1134,10 @@ convert_callout(const AstPtr& ast) {
   }
 
   if (use_quote_env) {
-    return compound("quote-env", simplify_document(body));
+    return compound("quote-env", ensure_document_tree(body));
   }
   if (mapped) {
-    return compound(tag.c_str(), simplify_document(body));
+    return split_callout_proof_tail(tag, simplify_document(body));
   }
   return text_tree(trim_copy(strip_trailing_newlines(raw)));
 }
@@ -880,6 +1214,7 @@ convert_block(const AstPtr& ast) {
       std::string first_proof_chunk;
       if (extract_proof_marker_body(child_payload, first_proof_chunk)) {
         tree proof_body(DOCUMENT);
+        tree proof_prefix(DOCUMENT);
         size_t j = i + 1;
 
         if (!first_proof_chunk.empty()) {
@@ -901,18 +1236,64 @@ convert_block(const AstPtr& ast) {
             break;
           }
 
-          AstPtr next_payload = k < ast->nodes.size() ? block_payload(ast->nodes[k])
-                                                      : nullptr;
-          if (!next_payload || !is_proof_body_block(next_payload)) {
+          size_t anchor_scan = k;
+          bool moved_anchor = false;
+          while (anchor_scan < ast->nodes.size()) {
+            AstPtr anchor_payload = block_payload(ast->nodes[anchor_scan]);
+            if (!anchor_payload) {
+              ++anchor_scan;
+              continue;
+            }
+            if (!ast_is(anchor_payload, "AnchorBlock")) break;
+            proof_prefix << compound("label",
+                                     text_tree(extract_anchor_id(
+                                         ast_source(anchor_payload))));
+            moved_anchor = true;
+            ++anchor_scan;
+          }
+          while (anchor_scan < ast->nodes.size()) {
+            AstPtr anchor_next_payload = block_payload(ast->nodes[anchor_scan]);
+            if (!anchor_next_payload) {
+              ++anchor_scan;
+              continue;
+            }
+            break;
+          }
+
+          AstPtr anchor_next_payload =
+              anchor_scan < ast->nodes.size() ? block_payload(ast->nodes[anchor_scan])
+                                              : nullptr;
+          if (moved_anchor && anchor_next_payload &&
+              is_proof_body_block(anchor_next_payload)) {
             std::string raw = ast_source(body_payload);
             if (strip_proof_qed_suffix(raw)) {
               if (!raw.empty()) {
                 append_document(proof_body,
                                 parse_embedded_aofm_blocks(raw, "proof-body"));
               }
-              ++j;
-              break;
+            } else {
+              append_document(proof_body, convert_block(body_block));
             }
+            j = anchor_scan;
+            continue;
+          }
+
+          std::string raw = ast_source(body_payload);
+          if (strip_proof_qed_suffix(raw)) {
+            if (!raw.empty()) {
+              append_document(proof_body,
+                              parse_embedded_aofm_blocks(raw, "proof-body"));
+            }
+            ++j;
+            break;
+          }
+
+          AstPtr next_payload = k < ast->nodes.size() ? block_payload(ast->nodes[k])
+                                                      : nullptr;
+          if (!next_payload || !is_proof_body_block(next_payload)) {
+            append_document(proof_body, convert_block(body_block));
+            ++j;
+            break;
           }
 
           append_document(proof_body, convert_block(body_block));
@@ -920,21 +1301,35 @@ convert_block(const AstPtr& ast) {
         }
 
         if (N(proof_body) > 0) {
-          out << compound("proof", simplify_document(proof_body));
+          append_document(out, simplify_document(proof_prefix));
+          out << compound("proof", ensure_document_tree(proof_body));
           i = j - 1;
           continue;
         }
       }
 
-      append_document(out, convert_block(child));
+      tree converted_child = convert_block(child);
+      size_t consumed_to = i;
+      tree extended_child;
+      if (ast_is(child_payload, "Callout") &&
+          extend_theorem_callout_proof(ast->nodes, i, converted_child,
+                                       consumed_to, extended_child)) {
+        append_document(out, extended_child);
+        i = consumed_to;
+        continue;
+      }
+      append_document(out, converted_child);
     }
     return simplify_document(out);
   }
 
   if (ast_is(ast, "BlankLine") || ast_is(ast, "EOF") ||
-      ast_is(ast, "YAMLFrontmatter") || ast_is(ast, "HTMLCommentBlock") ||
-      ast_is(ast, "AnchorBlock")) {
+      ast_is(ast, "YAMLFrontmatter") || ast_is(ast, "HTMLCommentBlock")) {
     return "";
+  }
+
+  if (ast_is(ast, "AnchorBlock")) {
+    return compound("label", text_tree(extract_anchor_id(ast_source(ast))));
   }
 
   if (ast_is(ast, "Paragraph")) return convert_paragraph(ast);
@@ -1018,6 +1413,8 @@ std::shared_ptr<peg::Ast> aofm_parse_file(const std::string& file_path) {
     // Keep memory alive for string_view references stored in AST nodes.
     aofm_content.assign((std::istreambuf_iterator<char>(ifs)),
                         (std::istreambuf_iterator<char>()));
+    aofm_content = normalize_markdown_lines(aofm_content);
+    aofm_content = preprocess_isolated_callout_proofs(aofm_content);
 
     if (!aofm_content.empty() && aofm_content.back() != '\n') {
         aofm_content += '\n';
