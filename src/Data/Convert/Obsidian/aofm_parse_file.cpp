@@ -79,6 +79,12 @@ strip_wrapping(const std::string& s, size_t left, size_t right) {
   return s.substr(left, s.size() - left - right);
 }
 
+bool
+ends_with(const std::string& s, const std::string& suffix) {
+  return s.size() >= suffix.size() &&
+         s.compare(s.size() - suffix.size(), suffix.size(), suffix) == 0;
+}
+
 tree
 text_tree(const std::string& s) {
   return as_tree(tm_string(s));
@@ -99,6 +105,7 @@ append_document(tree& out, tree piece) {
 }
 
 tree convert_inline(const AstPtr& ast);
+tree convert_block(const AstPtr& ast);
 
 tree
 convert_latex_math_inline(const std::string& latex_source) {
@@ -376,6 +383,70 @@ convert_paragraph(const AstPtr& ast) {
   return simplify_document(out);
 }
 
+bool
+extract_proof_marker_body(const AstPtr& ast, std::string& body) {
+  if (!ast_is(ast, "Paragraph")) return false;
+  std::string raw = trim_copy(strip_trailing_newlines(ast_source(ast)));
+  static const char* kMarkers[] = {
+      "**Proof:**",
+      "**Proof：**",
+      "**证明:**",
+      "**证明：**"
+  };
+
+  for (const char* marker : kMarkers) {
+    std::string prefix = marker;
+    if (raw.compare(0, prefix.size(), prefix) != 0) continue;
+    if (raw.size() > prefix.size() &&
+        raw[prefix.size()] != ' ' &&
+        raw[prefix.size()] != '\t' &&
+        raw[prefix.size()] != '\r' &&
+        raw[prefix.size()] != '\n') {
+      continue;
+    }
+    body = trim_copy(raw.substr(prefix.size()));
+    return true;
+  }
+
+  return false;
+}
+
+AstPtr
+block_payload(const AstPtr& ast) {
+  if (!ast) return nullptr;
+  if (!ast_name_is(ast, "Block")) return ast;
+  for (const auto& child : ast->nodes) {
+    if (!ast_is(child, "BlankLine")) return child;
+  }
+  return nullptr;
+}
+
+bool
+is_proof_body_block(const AstPtr& ast) {
+  return ast_is(ast, "Paragraph") || ast_is(ast, "Blockquote") ||
+         ast_is(ast, "List") || ast_is(ast, "CodeBlock") ||
+         ast_is(ast, "MathBlock") || ast_is(ast, "Table");
+}
+
+bool
+strip_proof_qed_suffix(std::string& raw) {
+  std::string trimmed = trim_copy(strip_trailing_newlines(raw));
+  static const char* kSuffixes[] = {
+      "$\\blacksquare$",
+      "$\\blacksquare$.",
+      "$\\blacksquare$。"
+  };
+
+  for (const char* suffix : kSuffixes) {
+    std::string s = suffix;
+    if (!ends_with(trimmed, s)) continue;
+    trimmed.erase(trimmed.size() - s.size());
+    raw = trim_copy(trimmed);
+    return true;
+  }
+  return false;
+}
+
 std::string
 strip_heading_text(const std::string& raw) {
   size_t pos = 0;
@@ -436,7 +507,7 @@ strip_blockquote_markers(const std::string& raw) {
   while (std::getline(in, line)) {
     size_t pos = 0;
     while (pos < line.size() && (line[pos] == ' ' || line[pos] == '\t')) pos++;
-    while (pos < line.size() && line[pos] == '>') {
+    if (pos < line.size() && line[pos] == '>') {
       pos++;
       if (pos < line.size() && line[pos] == ' ') pos++;
     }
@@ -449,8 +520,44 @@ strip_blockquote_markers(const std::string& raw) {
 }
 
 tree
+parse_embedded_aofm_blocks(const std::string& raw, const std::string& source_name) {
+  std::string saved_content = aofm_content;
+  std::string embedded_content = raw;
+  if (!embedded_content.empty() && embedded_content.back() != '\n') {
+    embedded_content += '\n';
+  }
+
+  peg::parser parser(aofm_grammar);
+  if (!parser) {
+    return text_tree(trim_copy(strip_trailing_newlines(raw)));
+  }
+
+  parser.enable_ast();
+  parser.set_logger([](size_t line, size_t col, const std::string& msg,
+                       const std::string& rule) {
+    std::cerr << "AOFM Parse Error at " << line << ":" << col
+              << " (Rule: " << rule << "): " << msg << std::endl;
+  });
+
+  AstPtr ast;
+  aofm_content.swap(embedded_content);
+  bool ok = parser.parse(aofm_content, ast, source_name.c_str());
+  tree out = ok ? convert_block(ast)
+                : text_tree(trim_copy(strip_trailing_newlines(raw)));
+  aofm_content.swap(saved_content);
+  return out;
+}
+
+tree
+convert_blockquote_body(const std::string& raw, const std::string& source_name) {
+  return parse_embedded_aofm_blocks(strip_blockquote_markers(raw), source_name);
+}
+
+tree
 convert_blockquote(const AstPtr& ast) {
-  return text_tree(strip_blockquote_markers(ast_source(ast)));
+  tree body = convert_blockquote_body(ast_source(ast), "blockquote");
+  if (!is_document(body)) body = document(body);
+  return compound("quote-env", simplify_document(body));
 }
 
 std::string
@@ -469,6 +576,236 @@ strip_anchor_lines(const std::string& raw) {
   }
 
   return trim_copy(out);
+}
+
+struct CalloutHeader {
+  std::string base;
+  std::string ext;
+  std::string title;
+};
+
+bool
+is_space_or_tab(char c) {
+  return c == ' ' || c == '\t';
+}
+
+void
+skip_spaces(std::string::size_type& pos, const std::string& s) {
+  while (pos < s.size() && is_space_or_tab(s[pos])) pos++;
+}
+
+bool
+consume_prefix(std::string::size_type& pos, const std::string& s,
+               const std::string& prefix) {
+  if (s.compare(pos, prefix.size(), prefix) != 0) return false;
+  pos += prefix.size();
+  return true;
+}
+
+bool
+starts_with_token(const std::string& s, std::string::size_type pos,
+                  const std::string& token) {
+  if (s.compare(pos, token.size(), token) != 0) return false;
+  std::string::size_type end = pos + token.size();
+  return end >= s.size() || is_space_or_tab(s[end]);
+}
+
+bool
+parse_callout_header(const std::string& raw, CalloutHeader& header) {
+  size_t nl = raw.find('\n');
+  std::string line = nl == std::string::npos ? raw : raw.substr(0, nl);
+  std::string::size_type pos = 0;
+
+  skip_spaces(pos, line);
+  if (!consume_prefix(pos, line, ">")) return false;
+  skip_spaces(pos, line);
+  if (!consume_prefix(pos, line, "[!")) return false;
+
+  std::string::size_type close = line.find(']', pos);
+  if (close == std::string::npos) return false;
+  header.base = line.substr(pos, close - pos);
+  pos = close + 1;
+
+  if (pos < line.size() && (line[pos] == '+' || line[pos] == '-')) pos++;
+  skip_spaces(pos, line);
+
+  static const char* kCalloutExts[] = {
+      "Alternative Proof", "Standard Steps", "Disambiguation",
+      "Proposition", "Corollary", "Conjecture", "Definition",
+      "Question", "Theorem", "Example", "Caution", "Remark",
+      "Paster", "Axiom", "Lemma", "Law"};
+
+  header.ext.clear();
+  for (const char* ext : kCalloutExts) {
+    if (starts_with_token(line, pos, ext)) {
+      header.ext = ext;
+      pos += header.ext.size();
+      break;
+    }
+  }
+
+  skip_spaces(pos, line);
+  header.title = trim_copy(line.substr(pos));
+  return true;
+}
+
+bool
+map_basic_callout_tag(const std::string& base, std::string& tag,
+                      bool& use_quote_env) {
+  use_quote_env = false;
+
+  if (base == "question" || base == "help" || base == "faq") {
+    tag = "question";
+    return true;
+  }
+
+  if (base == "warning" || base == "caution" || base == "attention" ||
+      base == "failure" || base == "fail" || base == "missing" ||
+      base == "danger" || base == "error" || base == "bug") {
+    tag = "warning";
+    return true;
+  }
+
+  if (base == "example") {
+    tag = "example";
+    return true;
+  }
+
+  if (base == "quote" || base == "cite") {
+    use_quote_env = true;
+    return true;
+  }
+
+  if (base == "abstract" || base == "note" || base == "summary" ||
+      base == "tldr" || base == "info" || base == "todo" ||
+      base == "tip" || base == "hint" || base == "important" ||
+      base == "success" || base == "check" || base == "done") {
+    tag = "note";
+    return true;
+  }
+
+  return false;
+}
+
+bool
+map_extended_callout_tag(const CalloutHeader& header, std::string& tag,
+                         bool& use_quote_env) {
+  use_quote_env = false;
+
+  if (header.base == "abstract" && header.ext == "Definition") {
+    tag = "definition";
+    return true;
+  }
+  if (header.base == "example" && header.ext == "Example") {
+    tag = "example";
+    return true;
+  }
+  if (header.base == "question" && header.ext == "Question") {
+    tag = "question";
+    return true;
+  }
+  if (header.base == "question" && header.ext == "Conjecture") {
+    tag = "conjecture";
+    return true;
+  }
+  if (header.base == "note" && header.ext == "Theorem") {
+    tag = "theorem";
+    return true;
+  }
+  if (header.base == "note" && header.ext == "Proposition") {
+    tag = "proposition";
+    return true;
+  }
+  if (header.base == "note" && header.ext == "Lemma") {
+    tag = "lemma";
+    return true;
+  }
+  if (header.base == "note" && header.ext == "Corollary") {
+    tag = "corollary";
+    return true;
+  }
+  if (header.base == "abstract" && header.ext == "Axiom") {
+    tag = "axiom";
+    return true;
+  }
+  if (header.base == "note" && header.ext == "Remark") {
+    tag = "remark";
+    return true;
+  }
+  if (header.base == "done" && header.ext == "Alternative Proof") {
+    tag = "proof-alternative";
+    return true;
+  }
+  if (header.base == "caution" && header.ext == "Caution") {
+    tag = "warning";
+    return true;
+  }
+  if (header.base == "done" && header.ext == "Standard Steps") {
+    tag = "proof-standard";
+    return true;
+  }
+  if (header.base == "note" && header.ext == "Law") {
+    tag = "law";
+    return true;
+  }
+  if (header.base == "cite" && header.ext == "Paster") {
+    use_quote_env = true;
+    return true;
+  }
+  if (header.base == "tip" && header.ext == "Disambiguation") {
+    tag = "disambiguation";
+    return true;
+  }
+
+  return false;
+}
+
+std::string
+extract_callout_body_source(const std::string& raw) {
+  size_t nl = raw.find('\n');
+  if (nl == std::string::npos || nl + 1 >= raw.size()) return "";
+  return strip_blockquote_markers(raw.substr(nl + 1));
+}
+
+tree
+prepend_callout_title(tree body, const std::string& title) {
+  if (title.empty()) return body;
+
+  tree out(DOCUMENT);
+  out << convert_inline_from_raw(title);
+  append_document(out, body);
+  return simplify_document(out);
+}
+
+tree
+convert_callout(const AstPtr& ast) {
+  std::string raw = strip_anchor_lines(ast_source(ast));
+  CalloutHeader header;
+  if (!parse_callout_header(raw, header)) {
+    return text_tree(trim_copy(strip_trailing_newlines(raw)));
+  }
+
+  tree body = parse_embedded_aofm_blocks(extract_callout_body_source(raw),
+                                         "callout");
+  if (!is_document(body)) body = document(body);
+  body = prepend_callout_title(simplify_document(body), header.title);
+
+  std::string tag;
+  bool use_quote_env = false;
+  bool mapped = !header.ext.empty()
+                    ? map_extended_callout_tag(header, tag, use_quote_env)
+                    : map_basic_callout_tag(header.base, tag, use_quote_env);
+  if (!mapped && !header.ext.empty()) {
+    mapped = map_basic_callout_tag(header.base, tag, use_quote_env);
+  }
+
+  if (use_quote_env) {
+    return compound("quote-env", simplify_document(body));
+  }
+  if (mapped) {
+    return compound(tag.c_str(), simplify_document(body));
+  }
+  return text_tree(trim_copy(strip_trailing_newlines(raw)));
 }
 
 tree
@@ -534,9 +871,61 @@ tree
 convert_block(const AstPtr& ast) {
   if (!ast) return "";
 
-  if (ast_name_is(ast, "Block")) {
+  if (ast_name_is(ast, "Block") || ast_name_is(ast, "Document")) {
     tree out(DOCUMENT);
-    for (const auto& child : ast->nodes) {
+    for (size_t i = 0; i < ast->nodes.size(); ++i) {
+      const auto& child = ast->nodes[i];
+      AstPtr child_payload = block_payload(child);
+
+      std::string first_proof_chunk;
+      if (extract_proof_marker_body(child_payload, first_proof_chunk)) {
+        tree proof_body(DOCUMENT);
+        size_t j = i + 1;
+
+        if (!first_proof_chunk.empty()) {
+          proof_body << convert_inline_from_raw(first_proof_chunk);
+        }
+
+        while (j < ast->nodes.size()) {
+          const auto& body_block = ast->nodes[j];
+          AstPtr body_payload = block_payload(body_block);
+          if (!body_payload || !is_proof_body_block(body_payload)) break;
+
+          size_t k = j + 1;
+          while (k < ast->nodes.size()) {
+            AstPtr next_payload = block_payload(ast->nodes[k]);
+            if (!next_payload) {
+              ++k;
+              continue;
+            }
+            break;
+          }
+
+          AstPtr next_payload = k < ast->nodes.size() ? block_payload(ast->nodes[k])
+                                                      : nullptr;
+          if (!next_payload || !is_proof_body_block(next_payload)) {
+            std::string raw = ast_source(body_payload);
+            if (strip_proof_qed_suffix(raw)) {
+              if (!raw.empty()) {
+                append_document(proof_body,
+                                parse_embedded_aofm_blocks(raw, "proof-body"));
+              }
+              ++j;
+              break;
+            }
+          }
+
+          append_document(proof_body, convert_block(body_block));
+          ++j;
+        }
+
+        if (N(proof_body) > 0) {
+          out << compound("proof", simplify_document(proof_body));
+          i = j - 1;
+          continue;
+        }
+      }
+
       append_document(out, convert_block(child));
     }
     return simplify_document(out);
@@ -556,10 +945,7 @@ convert_block(const AstPtr& ast) {
   if (ast_is(ast, "List")) return convert_list(ast);
   if (ast_is(ast, "Blockquote")) return convert_blockquote(ast);
   if (ast_is(ast, "Table")) return convert_table(ast);
-
-  if (ast_is(ast, "Callout")) {
-    return text_tree(strip_anchor_lines(trim_copy(ast_source(ast))));
-  }
+  if (ast_is(ast, "Callout")) return convert_callout(ast);
 
   if (!ast->nodes.empty()) {
     tree out(DOCUMENT);
