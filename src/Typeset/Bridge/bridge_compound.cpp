@@ -218,10 +218,12 @@ bridge_compound_rep::my_typeset (int desired_status) {
         string col = as_string(env->read("vault-enunciation-color"));
         if (col != "none") {
           f = copy(f);
-          tree arg_which = tree(ARG, "which");
-          tree arg_body = tree(ARG, "body");
-          tree surr = tree(SURROUND, arg_which, tree(VAR_YES_INDENT), arg_body);
-          tree orn = tree(WITH, "ornament-color", col, "ornament-shape", "rectangular", "ornament-border", "0.5ln", tree(ORNAMENT, surr));
+          tree body= copy (f[n]);
+          if (var == "render-proof")
+            body= tree(WITH, "vault-enunciation-color", "none", body);
+          tree orn = tree(WITH, "ornament-color", col, "ornament-shape",
+                          "rectangular", "ornament-border", "0.5ln",
+                          tree(ORNAMENT, body));
           f[n] = tree(COMPOUND, tree("padded*"), orn);
         }
       }
