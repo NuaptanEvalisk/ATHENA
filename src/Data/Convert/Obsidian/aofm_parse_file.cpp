@@ -164,8 +164,12 @@ is_proof_marker_text(const std::string& raw) {
   static const char* kMarkers[] = {
       "**Proof:**",
       "**Proof：**",
+      "**Solution:**",
+      "**Solution：**",
       "**证明:**",
-      "**证明：**"
+      "**证明：**",
+      "**解:**",
+      "**解：**"
   };
 
   std::string trimmed = trim_copy(raw);
@@ -580,8 +584,12 @@ extract_proof_marker_body(const AstPtr& ast, std::string& body) {
   static const char* kMarkers[] = {
       "**Proof:**",
       "**Proof：**",
+      "**Solution:**",
+      "**Solution：**",
       "**证明:**",
-      "**证明：**"
+      "**证明：**",
+      "**解:**",
+      "**解：**"
   };
 
   for (const char* marker : kMarkers) {
@@ -643,6 +651,138 @@ strip_proof_qed_suffix(std::string& raw) {
     return true;
   }
   return false;
+}
+
+bool
+is_qed_math_tree(const tree& t) {
+  return is_compound(t, "math", 1) &&
+         tree_to_texmacs(t) == "<math|\\<blacksquare\\>>";
+}
+
+tree
+strip_qed_from_right_edge(tree t) {
+  if (t == "") return t;
+  if (is_qed_math_tree(t)) return "";
+
+  if (is_concat(t)) {
+    tree out(CONCAT);
+    for (int i = 0; i < N(t); ++i) {
+      tree child = t[i];
+      if (i == N(t) - 1) child = strip_qed_from_right_edge(child);
+      if (child != "") out << child;
+    }
+    return simplify_concat(out);
+  }
+
+  if (is_document(t)) {
+    tree out(DOCUMENT);
+    for (int i = 0; i < N(t); ++i) {
+      tree child = t[i];
+      if (i == N(t) - 1) child = strip_qed_from_right_edge(child);
+      append_document(out, child);
+    }
+    return simplify_document(out);
+  }
+
+  return t;
+}
+
+tree
+sanitize_proof_trees(tree t) {
+  if (t == "") return t;
+
+  if (is_document(t)) {
+    tree out(DOCUMENT);
+    for (int i = 0; i < N(t); ++i) {
+      append_document(out, sanitize_proof_trees(t[i]));
+    }
+    return simplify_document(out);
+  }
+
+  if (is_compound(t, "proof", 1)) {
+    tree body = sanitize_proof_trees(ensure_document_tree(t[0]));
+    body = strip_qed_from_right_edge(body);
+    return compound("proof", ensure_document_tree(body));
+  }
+
+  if (is_compound(t, "proof-alternative", 1)) {
+    tree body = sanitize_proof_trees(ensure_document_tree(t[0]));
+    body = strip_qed_from_right_edge(body);
+    return compound("proof-alternative", ensure_document_tree(body));
+  }
+
+  if (is_compound(t, "proof-standard", 1)) {
+    tree body = sanitize_proof_trees(ensure_document_tree(t[0]));
+    body = strip_qed_from_right_edge(body);
+    return compound("proof-standard", ensure_document_tree(body));
+  }
+
+  if (is_compound(t, "theorem", 1)) {
+    return compound("theorem", ensure_document_tree(sanitize_proof_trees(t[0])));
+  }
+  if (is_compound(t, "proposition", 1)) {
+    return compound("proposition", ensure_document_tree(sanitize_proof_trees(t[0])));
+  }
+  if (is_compound(t, "lemma", 1)) {
+    return compound("lemma", ensure_document_tree(sanitize_proof_trees(t[0])));
+  }
+  if (is_compound(t, "corollary", 1)) {
+    return compound("corollary", ensure_document_tree(sanitize_proof_trees(t[0])));
+  }
+  if (is_compound(t, "remark", 1)) {
+    return compound("remark", ensure_document_tree(sanitize_proof_trees(t[0])));
+  }
+  if (is_compound(t, "example", 1)) {
+    return compound("example", ensure_document_tree(sanitize_proof_trees(t[0])));
+  }
+  if (is_compound(t, "definition", 1)) {
+    return compound("definition", ensure_document_tree(sanitize_proof_trees(t[0])));
+  }
+  if (is_compound(t, "axiom", 1)) {
+    return compound("axiom", ensure_document_tree(sanitize_proof_trees(t[0])));
+  }
+  if (is_compound(t, "conjecture", 1)) {
+    return compound("conjecture", ensure_document_tree(sanitize_proof_trees(t[0])));
+  }
+  if (is_compound(t, "law", 1)) {
+    return compound("law", ensure_document_tree(sanitize_proof_trees(t[0])));
+  }
+  if (is_compound(t, "note", 1)) {
+    return compound("note", ensure_document_tree(sanitize_proof_trees(t[0])));
+  }
+  if (is_compound(t, "question", 1)) {
+    return compound("question", ensure_document_tree(sanitize_proof_trees(t[0])));
+  }
+  if (is_compound(t, "warning", 1)) {
+    return compound("warning", ensure_document_tree(sanitize_proof_trees(t[0])));
+  }
+  if (is_compound(t, "disambiguation", 1)) {
+    return compound("disambiguation", ensure_document_tree(sanitize_proof_trees(t[0])));
+  }
+  if (is_compound(t, "quote-env", 1)) {
+    return compound("quote-env", ensure_document_tree(sanitize_proof_trees(t[0])));
+  }
+
+  return t;
+}
+
+bool is_theorem_like_env_tree(const tree& t);
+
+void
+insert_label_before_trailing_proof(tree& doc, tree label) {
+  if (!is_document(doc) || label == "") return;
+  if (N(doc) < 2 ||
+      !is_compound(doc[N(doc) - 1], "proof", 1) ||
+      !is_theorem_like_env_tree(doc[N(doc) - 2])) {
+    append_document(doc, label);
+    return;
+  }
+
+  tree out(DOCUMENT);
+  for (int i = 0; i < N(doc) - 1; ++i) out << doc[i];
+  append_document(out, label);
+  out << doc[N(doc) - 1];
+  doc = simplify_document(out);
 }
 
 std::string
@@ -1131,6 +1271,13 @@ consume_proof(const std::vector<AstPtr>& nodes, size_t start,
       continue;
     }
 
+    if (ast_is(payload, "AnchorBlock")) {
+      tree label = compound("label", text_tree(extract_anchor_id(ast_source(payload))));
+      insert_label_before_trailing_proof(stack.back().body, label);
+      ++j;
+      continue;
+    }
+
     std::string nested_chunk;
     if (extract_proof_marker_body(payload, nested_chunk)) {
       stack.push_back(ProofFrame { tree(DOCUMENT) });
@@ -1143,8 +1290,16 @@ consume_proof(const std::vector<AstPtr>& nodes, size_t start,
 
     if (!is_proof_body_block(payload)) break;
 
-    if (ast_is(payload, "Callout")) {
+    if (ast_is(payload, "Callout") || ast_is(payload, "Blockquote")) {
       tree converted_callout = convert_block(nodes[j]);
+      size_t extended_to = j;
+      tree extended_callout;
+      if (extend_theorem_callout_proof(nodes, j, converted_callout,
+                                       extended_to, extended_callout)) {
+        append_document(stack.back().body, extended_callout);
+        j = extended_to + 1;
+        continue;
+      }
       append_document(stack.back().body, converted_callout);
       ++j;
       continue;
@@ -1215,6 +1370,7 @@ convert_callout(const AstPtr& ast) {
   tree body = parse_embedded_aofm_blocks(extract_callout_body_source(raw),
                                          "callout");
   body = prepend_callout_title(ensure_document_tree(body), header.title);
+  body = sanitize_proof_trees(ensure_document_tree(body));
 
   std::string tag;
   bool use_quote_env = false;
@@ -1315,6 +1471,14 @@ convert_block(const AstPtr& ast) {
       }
 
       tree converted_child = convert_block(child);
+      size_t extended_to = i;
+      tree extended_child;
+      if (extend_theorem_callout_proof(ast->nodes, i, converted_child,
+                                       extended_to, extended_child)) {
+        append_document(out, extended_child);
+        i = extended_to;
+        continue;
+      }
       append_document(out, converted_child);
     }
     return simplify_document(out);
