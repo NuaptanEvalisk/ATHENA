@@ -130,6 +130,9 @@ tree   default_with_simplify (tree t);
 tree vernac_to_tree (string s);
 tree vernac_document_to_tree (string s);
 
+/*** Obsidian ***/
+bool aofm_import_vault (string source_dir, string destination_dir);
+
 /*** AI tools ***/
 tree compress_tree (tree t);
 tree decompress_tree (tree t);

@@ -68,11 +68,14 @@ extern tree the_et;
 extern bool texmacs_started;
 
 extern void aofm_debug_dump(const std::string& file_path);
+extern bool aofm_import_vault(string source_dir, string destination_dir);
 
 bool disable_error_recovery= false;
 bool start_server_flag= false;
 bool headless_mode= false;
 std::string aofm_debug_convert_file;
+string aofm_debug_vault_convert_source;
+string aofm_debug_vault_convert_destination;
 string extra_init_cmd;
 bool exec_exit= true;
 void server_start ();
@@ -331,6 +334,9 @@ set_global_options  (int argc, char** argv)  {
       }
       else if (s == "-debug-aofm-convert") {
         i++;
+      }
+      else if (s == "-debug-aofm-vault-convert") {
+        i += 2;
       }
       else if ((s == "-i") || (s == "-initialize")) {
         i++;
@@ -602,7 +608,14 @@ TeXmacs_main (int argc, char** argv) {
       aofm_debug_dump (aofm_debug_convert_file);
       exit (0);
     }
-  
+    if (aofm_debug_vault_convert_source != "" &&
+        aofm_debug_vault_convert_destination != "") {
+      eval ("(lazy-initialize-force)");
+      bool ok= aofm_import_vault (aofm_debug_vault_convert_source,
+                                  aofm_debug_vault_convert_destination);
+      exit (ok ? 0 : 1);
+    }
+
     bench_print ();
     bench_reset ("initialize texmacs");
     bench_reset ("initialize plugins");
@@ -761,6 +774,15 @@ texmacs_entrypoint (int argc, char** argv) {
       i++;
       if (i < argc) {
         aofm_debug_convert_file= argv[i];
+        headless_mode= true;
+      }
+    }
+    if (s == "-debug-aofm-vault-convert") {
+      if (i + 2 < argc) {
+        i++;
+        aofm_debug_vault_convert_source= argv[i];
+        i++;
+        aofm_debug_vault_convert_destination= argv[i];
         headless_mode= true;
       }
     }
