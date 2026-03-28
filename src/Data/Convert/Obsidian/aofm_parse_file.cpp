@@ -22,6 +22,24 @@ using AstPtr = std::shared_ptr<peg::Ast>;
 
 std::string aofm_content;
 
+struct AofmDocumentMetadata {
+  std::string created_time;
+  std::string modified_time;
+  std::string content_hash;
+
+  void clear() {
+    created_time.clear();
+    modified_time.clear();
+    content_hash.clear();
+  }
+};
+
+AofmDocumentMetadata aofm_metadata;
+
+bool starts_callout_header_line(const std::string& line);
+bool starts_blockquote_line(const std::string& line);
+std::string strip_one_blockquote_marker(const std::string& line);
+
 string
 tm_string(const std::string& s) {
   return string(s.c_str());
@@ -117,6 +135,90 @@ normalize_markdown_lines(const std::string& raw) {
   std::string result;
   for (size_t i = 0; i < lines.size(); ++i) {
     if (i > 0) result += '\n';
+    result += lines[i];
+  }
+  return result;
+}
+
+std::string
+strip_inline_code_quotes(const std::string& s) {
+  std::string trimmed = trim_copy(s);
+  if (trimmed.size() >= 2 && trimmed.front() == '`' && trimmed.back() == '`') {
+    return trimmed.substr(1, trimmed.size() - 2);
+  }
+  return trimmed;
+}
+
+void
+set_aofm_metadata_field(const std::string& key, const std::string& value) {
+  if (key == "Created Time") aofm_metadata.created_time = value;
+  else if (key == "Modified Time") aofm_metadata.modified_time = value;
+  else if (key == "Content Hash") aofm_metadata.content_hash = value;
+}
+
+void
+parse_aofm_metadata_line(const std::string& line) {
+  std::string raw = strip_one_blockquote_marker(line);
+  std::string trimmed = trim_copy(raw);
+  size_t colon = trimmed.find(':');
+  if (colon == std::string::npos) return;
+  std::string key = trim_copy(trimmed.substr(0, colon));
+  std::string value = strip_inline_code_quotes(trimmed.substr(colon + 1));
+  set_aofm_metadata_field(key, value);
+}
+
+bool
+is_aofm_metadata_header_line(const std::string& line) {
+  std::string trimmed = trim_copy(line);
+  return trimmed == "> [!info] Metadata" || trimmed == ">[!info] Metadata";
+}
+
+bool
+is_aofm_metadata_line(const std::string& line) {
+  std::string trimmed = trim_copy(line);
+  return !trimmed.empty() && trimmed[0] == '>';
+}
+
+std::string
+extract_aofm_document_metadata(const std::string& raw) {
+  aofm_metadata.clear();
+
+  std::vector<std::string> lines;
+  std::stringstream in(raw);
+  std::string line;
+  while (std::getline(in, line)) {
+    if (!line.empty() && line.back() == '\r') line.pop_back();
+    lines.push_back(line);
+  }
+
+  size_t pos = 0;
+  if (pos < lines.size() && trim_copy(lines[pos]) == "---") {
+    pos++;
+    while (pos < lines.size() && trim_copy(lines[pos]) != "---") pos++;
+    if (pos < lines.size()) pos++;
+  }
+  while (pos < lines.size() && is_blank_line(lines[pos])) pos++;
+
+  if (pos >= lines.size() || !is_aofm_metadata_header_line(lines[pos])) return raw;
+
+  size_t block_end = pos + 1;
+  while (block_end < lines.size() && is_aofm_metadata_line(lines[block_end])) {
+    parse_aofm_metadata_line(lines[block_end]);
+    block_end++;
+  }
+
+  size_t erase_end = block_end;
+  if (erase_end < lines.size() && is_blank_line(lines[erase_end])) erase_end++;
+  if (erase_end < lines.size() &&
+      trim_copy(lines[erase_end]) == "<!-- End of Obindex Metadata -->") {
+    erase_end++;
+    if (erase_end < lines.size() && is_blank_line(lines[erase_end])) erase_end++;
+  }
+
+  std::string result;
+  for (size_t i = 0; i < lines.size(); ++i) {
+    if (i >= pos && i < erase_end) continue;
+    if (!result.empty()) result += '\n';
     result += lines[i];
   }
   return result;
@@ -1521,6 +1623,15 @@ aofm_ast_to_texmacs_document(const AstPtr& ast) {
   body = simplify_document(body);
 
   new_data data;
+  if (!aofm_metadata.created_time.empty()) {
+    data->init("global-created-time") = tree(tm_string(aofm_metadata.created_time));
+  }
+  if (!aofm_metadata.modified_time.empty()) {
+    data->init("global-modified-time") = tree(tm_string(aofm_metadata.modified_time));
+  }
+  if (!aofm_metadata.content_hash.empty()) {
+    data->init("global-content-hash") = tree(tm_string(aofm_metadata.content_hash));
+  }
   return attach_data(body, data, true);
 }
 
@@ -1575,6 +1686,7 @@ std::shared_ptr<peg::Ast> aofm_parse_file(const std::string& file_path) {
     aofm_content.assign((std::istreambuf_iterator<char>(ifs)),
                         (std::istreambuf_iterator<char>()));
     aofm_content = normalize_markdown_lines(aofm_content);
+    aofm_content = extract_aofm_document_metadata(aofm_content);
     aofm_content = preprocess_isolated_callout_proofs(aofm_content);
 
     if (!aofm_content.empty() && aofm_content.back() != '\n') {

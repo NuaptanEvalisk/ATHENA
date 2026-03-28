@@ -567,13 +567,25 @@
                  (list (buffer-get-metadata u "author")) "24em"))
         (item (text "Subject:")
           (input (initial-set u "global-subject" answer) "string"
-                 (list (buffer-get-metadata u "subject")) "24em"))))
+                 (list (buffer-get-metadata u "subject")) "24em"))
+        (item (text "Created Time:")
+          (input (initial-set u "global-created-time" answer) "string"
+                 (list (buffer-get-metadata u "created-time")) "24em"))
+        (item (text "Modified Time:")
+          (input (initial-set u "global-modified-time" answer) "string"
+                 (list (buffer-get-metadata u "modified-time")) "24em"))
+        (item (text "Content Hash:")
+          (input (initial-set u "global-content-hash" answer) "string"
+                 (list (buffer-get-metadata u "content-hash")) "24em"))))
     ======
     (explicit-buttons
       (hlist
         >>>
         ("Reset"
-         (initial-default u "global-title" "global-author" "global-subject")
+         (initial-default u
+                          "global-title" "global-author" "global-subject"
+                          "global-created-time" "global-modified-time"
+                          "global-content-hash")
          (refresh-now "document-metadata"))
         // //
         ("Ok" (quit))))))

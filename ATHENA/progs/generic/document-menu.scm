@@ -721,7 +721,10 @@
 (menu-bind document-metadata-menu
   ("Title" (init-interactive-env "global-title"))
   ("Author" (init-interactive-env "global-author"))
-  ("Subject" (init-interactive-env "global-subject")))
+  ("Subject" (init-interactive-env "global-subject"))
+  ("Created Time" (init-interactive-env "global-created-time"))
+  ("Modified Time" (init-interactive-env "global-modified-time"))
+  ("Content Hash" (init-interactive-env "global-content-hash")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; The Document -> Magnification menu
