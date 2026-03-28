@@ -615,6 +615,14 @@ bool
 is_proof_body_block(const AstPtr& ast) {
   return ast_is(ast, "Paragraph") || ast_is(ast, "Blockquote") ||
          ast_is(ast, "List") || ast_is(ast, "CodeBlock") ||
+         ast_is(ast, "MathBlock") || ast_is(ast, "Table") ||
+         ast_is(ast, "Callout");
+}
+
+bool
+can_close_proof_with_qed(const AstPtr& ast) {
+  return ast_is(ast, "Paragraph") || ast_is(ast, "Blockquote") ||
+         ast_is(ast, "List") || ast_is(ast, "CodeBlock") ||
          ast_is(ast, "MathBlock") || ast_is(ast, "Table");
 }
 
@@ -1095,6 +1103,90 @@ extend_theorem_callout_proof(const std::vector<AstPtr>& nodes, size_t index,
   return true;
 }
 
+tree
+consume_proof(const std::vector<AstPtr>& nodes, size_t start,
+              size_t& consumed_to) {
+  struct ProofFrame {
+    tree body;
+  };
+
+  std::string first_chunk;
+  if (start >= nodes.size() ||
+      !extract_proof_marker_body(block_payload(nodes[start]), first_chunk)) {
+    consumed_to = start;
+    return "";
+  }
+
+  std::vector<ProofFrame> stack;
+  stack.push_back(ProofFrame { tree(DOCUMENT) });
+  if (!first_chunk.empty()) {
+    stack.back().body << convert_inline_from_raw(first_chunk);
+  }
+
+  size_t j = start + 1;
+  while (j < nodes.size() && !stack.empty()) {
+    AstPtr payload = block_payload(nodes[j]);
+    if (!payload) {
+      ++j;
+      continue;
+    }
+
+    std::string nested_chunk;
+    if (extract_proof_marker_body(payload, nested_chunk)) {
+      stack.push_back(ProofFrame { tree(DOCUMENT) });
+      if (!nested_chunk.empty()) {
+        stack.back().body << convert_inline_from_raw(nested_chunk);
+      }
+      ++j;
+      continue;
+    }
+
+    if (!is_proof_body_block(payload)) break;
+
+    if (ast_is(payload, "Callout")) {
+      tree converted_callout = convert_block(nodes[j]);
+      append_document(stack.back().body, converted_callout);
+      ++j;
+      continue;
+    }
+
+    std::string raw = ast_source(payload);
+    bool closes_proof = strip_proof_qed_suffix(raw);
+
+    if (closes_proof) {
+      if (!raw.empty()) {
+        append_document(stack.back().body,
+                        parse_embedded_aofm_blocks(raw, "proof-body"));
+      }
+
+      tree finished = compound("proof", ensure_document_tree(stack.back().body));
+      stack.pop_back();
+      if (stack.empty()) {
+        consumed_to = j;
+        return finished;
+      }
+
+      append_document(stack.back().body, finished);
+      ++j;
+      continue;
+    }
+
+    append_document(stack.back().body, convert_block(nodes[j]));
+    ++j;
+  }
+
+  consumed_to = j > start ? j - 1 : start;
+
+  while (stack.size() > 1) {
+    tree finished = compound("proof", ensure_document_tree(stack.back().body));
+    stack.pop_back();
+    append_document(stack.back().body, finished);
+  }
+
+  if (stack.empty()) return "";
+  return compound("proof", ensure_document_tree(stack.back().body));
+}
+
 std::string
 extract_callout_body_source(const std::string& raw) {
   size_t nl = raw.find('\n');
@@ -1213,111 +1305,16 @@ convert_block(const AstPtr& ast) {
 
       std::string first_proof_chunk;
       if (extract_proof_marker_body(child_payload, first_proof_chunk)) {
-        tree proof_body(DOCUMENT);
-        tree proof_prefix(DOCUMENT);
-        size_t j = i + 1;
-
-        if (!first_proof_chunk.empty()) {
-          proof_body << convert_inline_from_raw(first_proof_chunk);
-        }
-
-        while (j < ast->nodes.size()) {
-          const auto& body_block = ast->nodes[j];
-          AstPtr body_payload = block_payload(body_block);
-          if (!body_payload || !is_proof_body_block(body_payload)) break;
-
-          size_t k = j + 1;
-          while (k < ast->nodes.size()) {
-            AstPtr next_payload = block_payload(ast->nodes[k]);
-            if (!next_payload) {
-              ++k;
-              continue;
-            }
-            break;
-          }
-
-          size_t anchor_scan = k;
-          bool moved_anchor = false;
-          while (anchor_scan < ast->nodes.size()) {
-            AstPtr anchor_payload = block_payload(ast->nodes[anchor_scan]);
-            if (!anchor_payload) {
-              ++anchor_scan;
-              continue;
-            }
-            if (!ast_is(anchor_payload, "AnchorBlock")) break;
-            proof_prefix << compound("label",
-                                     text_tree(extract_anchor_id(
-                                         ast_source(anchor_payload))));
-            moved_anchor = true;
-            ++anchor_scan;
-          }
-          while (anchor_scan < ast->nodes.size()) {
-            AstPtr anchor_next_payload = block_payload(ast->nodes[anchor_scan]);
-            if (!anchor_next_payload) {
-              ++anchor_scan;
-              continue;
-            }
-            break;
-          }
-
-          AstPtr anchor_next_payload =
-              anchor_scan < ast->nodes.size() ? block_payload(ast->nodes[anchor_scan])
-                                              : nullptr;
-          if (moved_anchor && anchor_next_payload &&
-              is_proof_body_block(anchor_next_payload)) {
-            std::string raw = ast_source(body_payload);
-            if (strip_proof_qed_suffix(raw)) {
-              if (!raw.empty()) {
-                append_document(proof_body,
-                                parse_embedded_aofm_blocks(raw, "proof-body"));
-              }
-            } else {
-              append_document(proof_body, convert_block(body_block));
-            }
-            j = anchor_scan;
-            continue;
-          }
-
-          std::string raw = ast_source(body_payload);
-          if (strip_proof_qed_suffix(raw)) {
-            if (!raw.empty()) {
-              append_document(proof_body,
-                              parse_embedded_aofm_blocks(raw, "proof-body"));
-            }
-            ++j;
-            break;
-          }
-
-          AstPtr next_payload = k < ast->nodes.size() ? block_payload(ast->nodes[k])
-                                                      : nullptr;
-          if (!next_payload || !is_proof_body_block(next_payload)) {
-            append_document(proof_body, convert_block(body_block));
-            ++j;
-            break;
-          }
-
-          append_document(proof_body, convert_block(body_block));
-          ++j;
-        }
-
-        if (N(proof_body) > 0) {
-          append_document(out, simplify_document(proof_prefix));
-          out << compound("proof", ensure_document_tree(proof_body));
-          i = j - 1;
+        size_t consumed_to = i;
+        tree proof = consume_proof(ast->nodes, i, consumed_to);
+        if (proof != "") {
+          out << proof;
+          i = consumed_to;
           continue;
         }
       }
 
       tree converted_child = convert_block(child);
-      size_t consumed_to = i;
-      tree extended_child;
-      if (ast_is(child_payload, "Callout") &&
-          extend_theorem_callout_proof(ast->nodes, i, converted_child,
-                                       consumed_to, extended_child)) {
-        append_document(out, extended_child);
-        i = consumed_to;
-        continue;
-      }
       append_document(out, converted_child);
     }
     return simplify_document(out);
