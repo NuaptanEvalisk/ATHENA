@@ -131,6 +131,8 @@ tree vernac_to_tree (string s);
 tree vernac_document_to_tree (string s);
 
 /*** Obsidian ***/
+bool aofm_convert_tree (string file_path, tree& document,
+                        bool materialize_anchor_literals=true);
 bool aofm_import_vault (string source_dir, string destination_dir);
 
 /*** AI tools ***/

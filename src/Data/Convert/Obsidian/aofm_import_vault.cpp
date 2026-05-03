@@ -10,6 +10,7 @@
 
 #include "convert.hpp"
 #include "file.hpp"
+#include "tree.hpp"
 #include "url.hpp"
 #include "vault.hpp"
 
@@ -62,9 +63,143 @@ std_to_tm_string(const std::string& s) {
   return string(s.c_str());
 }
 
+std::string
+tree_to_std_string(const tree& t) {
+  return std::string(as_charp(as_string(t)));
+}
+
+tree
+text_tree(const std::string& s) {
+  return as_tree(string(s.c_str()));
+}
+
+tree
+make_label_tree(const std::string& label) {
+  return compound("label", text_tree(label));
+}
+
+void
+append_document(tree& out, tree piece) {
+  if (piece == "") return;
+  if (is_document(piece)) out << A(piece);
+  else out << piece;
+}
+
 void
 report_import_error(const std::string& message) {
   std::cerr << "aofm2athena: error: " << message << std::endl;
+}
+
+bool
+is_aofm_anchor_block_placeholder(const tree& t) {
+  return is_compound(t, "__aofm_anchor_block", 1);
+}
+
+bool
+is_aofm_inline_anchor_placeholder(const tree& t) {
+  return is_compound(t, "__aofm_anchor_inline", 1);
+}
+
+std::string
+placeholder_anchor_id(const tree& t) {
+  if (!is_aofm_anchor_block_placeholder(t) &&
+      !is_aofm_inline_anchor_placeholder(t)) {
+    return "";
+  }
+  return tree_to_std_string(t[0]);
+}
+
+tree
+materialize_anchor_literal(const tree& t) {
+  if (is_aofm_anchor_block_placeholder(t)) {
+    return text_tree("^" + placeholder_anchor_id(t));
+  }
+  if (is_aofm_inline_anchor_placeholder(t)) {
+    return text_tree(" ^" + placeholder_anchor_id(t));
+  }
+  return t;
+}
+
+bool
+is_enunciation_like_tree(const tree& t) {
+  if (!is_compound(t) || N(t) != 1) return false;
+  std::string tag = std::string(as_charp(as_string(L(t))));
+  return tag == "theorem" || tag == "lemma" || tag == "corollary" ||
+         tag == "proposition" || tag == "axiom" || tag == "definition" ||
+         tag == "conjecture" || tag == "remark" || tag == "note" ||
+         tag == "example" || tag == "warning" || tag == "question" ||
+         tag == "proof" || tag == "solution" || tag == "law" ||
+         tag == "disambiguation" || tag == "proof-alternative" ||
+         tag == "proof-standard";
+}
+
+tree
+resolve_anchor_placeholders(const tree& t, const AnchorMap& anchor_map,
+                            const std::string& rel_ath_path) {
+  if (is_aofm_inline_anchor_placeholder(t)) {
+    std::string anchor = placeholder_anchor_id(t);
+    auto it = anchor_map.find(anchor);
+    if (it == anchor_map.end()) {
+      report_import_error("anchor '^" + anchor + "' not found while converting " +
+                          rel_ath_path);
+      return materialize_anchor_literal(t);
+    }
+    return make_label_tree(it->second.anchor_1);
+  }
+
+  if (is_aofm_anchor_block_placeholder(t)) {
+    std::string anchor = placeholder_anchor_id(t);
+    auto it = anchor_map.find(anchor);
+    if (it == anchor_map.end()) {
+      report_import_error("anchor '^" + anchor + "' not found while converting " +
+                          rel_ath_path);
+      return materialize_anchor_literal(t);
+    }
+    return make_label_tree(it->second.anchor_1);
+  }
+
+  if (is_atomic(t)) return t;
+
+  if (is_document(t)) {
+    tree out(DOCUMENT);
+    for (int i = 0; i < N(t); ++i) {
+      const tree& child = t[i];
+      if (is_aofm_anchor_block_placeholder(child)) {
+        std::string anchor = placeholder_anchor_id(child);
+        auto it = anchor_map.find(anchor);
+        if (it == anchor_map.end()) {
+          report_import_error("anchor '^" + anchor + "' not found while converting " +
+                              rel_ath_path);
+          append_document(out, materialize_anchor_literal(child));
+          continue;
+        }
+
+        if (!it->second.anchor_2.empty() &&
+            N(out) > 0 &&
+            is_enunciation_like_tree(out[N(out) - 1])) {
+          tree previous = out[N(out) - 1];
+          out[N(out) - 1] = make_label_tree(it->second.anchor_1);
+          append_document(out, previous);
+          append_document(out, make_label_tree(it->second.anchor_2));
+          continue;
+        }
+
+        append_document(out, make_label_tree(it->second.anchor_1));
+        continue;
+      }
+
+      append_document(out,
+                      resolve_anchor_placeholders(child, anchor_map,
+                                                  rel_ath_path));
+    }
+    return simplify_document(out);
+  }
+
+  tree out(t, N(t));
+  for (int i = 0; i < N(t); ++i) {
+    out[i] = resolve_anchor_placeholders(t[i], anchor_map, rel_ath_path);
+  }
+  return out;
 }
 
 std::string
@@ -575,6 +710,14 @@ validate_destination_dir(url destination_root) {
   return true;
 }
 
+std::string
+join_unix_paths(const std::string& root, const std::string& rel) {
+  if (root.empty()) return rel;
+  if (rel.empty()) return root;
+  if (root[root.size() - 1] == '/') return root + rel;
+  return root + "/" + rel;
+}
+
 } // namespace
 
 bool
@@ -606,5 +749,26 @@ aofm_import_vault(string source_dir, string destination_dir) {
   }
 
   dump_anchor_map(anchor_map);
+
+  std::string destination_root_path =
+      tm_to_std_string(as_unix_string(destination_root));
+  for (const ImportFileInfo& file_info : files) {
+    tree document;
+    if (!aofm_convert_tree(as_unix_string(file_info.source_url), document, false)) {
+      report_import_error("failed to convert file: " + file_info.relative_md_path);
+      return false;
+    }
+
+    tree resolved =
+        resolve_anchor_placeholders(document, anchor_map, file_info.relative_ath_path);
+    string serialized = tree_to_texmacs(resolved);
+    std::string destination_path =
+        join_unix_paths(destination_root_path, file_info.relative_ath_path);
+    if (save_string(url_system(std_to_tm_string(destination_path)), serialized)) {
+      report_import_error("failed to write destination file: " + destination_path);
+      return false;
+    }
+  }
+
   return true;
 }

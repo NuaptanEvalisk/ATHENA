@@ -916,6 +916,7 @@
 "make-return-before"
 "make-return-after"
 "temp-proof-fix"
+"run-proof-pipeline"
 "get-full-env"
 "get-all-inits"
 "init-default-one"

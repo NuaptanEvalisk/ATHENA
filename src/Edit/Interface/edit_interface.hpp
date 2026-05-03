@@ -134,6 +134,7 @@ public:
   bool has_changed (int question);
   int  idle_time (int event_type= ANY_EVENT);
   int  change_time ();
+  void run_proof_pipeline ();
   void update_menus ();
   int  find_alt_selection_index (range_set alt_sel, SI y, int b, int e);
   void apply_changes ();

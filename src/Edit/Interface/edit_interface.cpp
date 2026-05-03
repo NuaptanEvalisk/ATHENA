@@ -1101,6 +1101,12 @@ edit_interface_rep::full_screen_mode (bool flag) {
 }
 
 void
+edit_interface_rep::run_proof_pipeline () {
+  typeset_invalidate_all ();
+  apply_changes ();
+}
+
+void
 edit_interface_rep::before_menu_action () {
   archive_state ();
   start_editing ();

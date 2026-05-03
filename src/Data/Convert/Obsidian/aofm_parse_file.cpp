@@ -45,6 +45,24 @@ tm_string(const std::string& s) {
   return string(s.c_str());
 }
 
+void
+report_aofm_error(const std::string& message) {
+  std::cerr << "aofm2athena: error: " << message << std::endl;
+}
+
+void
+report_aofm_parse_error(const std::string& source_name, size_t line, size_t col,
+                        const std::string& msg, const std::string& rule) {
+  std::ostringstream out;
+  if (!source_name.empty()) out << source_name << ": ";
+  out << "line " << line;
+  if (col != 0) out << ":" << col;
+  out << " (reason: " << msg;
+  if (!rule.empty()) out << "; rule: " << rule;
+  out << ")";
+  report_aofm_error(out.str());
+}
+
 bool
 ast_is(const AstPtr& ast, const char* rule_name) {
   return ast &&
@@ -80,6 +98,17 @@ trim_copy(const std::string& s) {
   }
 
   return s.substr(start, end - start);
+}
+
+std::string
+rtrim_copy(const std::string& s) {
+  size_t end = s.size();
+  while (end > 0 &&
+         (s[end - 1] == ' ' || s[end - 1] == '\t' ||
+          s[end - 1] == '\r' || s[end - 1] == '\n')) {
+    end--;
+  }
+  return s.substr(0, end);
 }
 
 std::string
@@ -402,6 +431,51 @@ append_document(tree& out, tree piece) {
 
 tree convert_inline(const AstPtr& ast);
 tree convert_block(const AstPtr& ast);
+bool extract_trailing_inline_anchor_text(const std::string& raw,
+                                         std::string& content,
+                                         std::string& anchor);
+
+std::string
+tree_to_std_string(const tree& t) {
+  return std::string(as_charp(as_string(t)));
+}
+
+tree
+make_aofm_anchor_block_placeholder(const std::string& anchor_id) {
+  return compound("__aofm_anchor_block", text_tree(anchor_id));
+}
+
+tree
+make_aofm_inline_anchor_placeholder(const std::string& anchor_id) {
+  return compound("__aofm_anchor_inline", text_tree(anchor_id));
+}
+
+bool
+is_aofm_anchor_block_placeholder(const tree& t) {
+  return is_compound(t, "__aofm_anchor_block", 1);
+}
+
+bool
+is_aofm_inline_anchor_placeholder(const tree& t) {
+  return is_compound(t, "__aofm_anchor_inline", 1);
+}
+
+tree
+materialize_aofm_anchor_literals(const tree& t) {
+  if (is_aofm_anchor_block_placeholder(t)) {
+    return text_tree("^" + tree_to_std_string(t[0]));
+  }
+  if (is_aofm_inline_anchor_placeholder(t)) {
+    return text_tree(" ^" + tree_to_std_string(t[0]));
+  }
+  if (is_atomic(t)) return t;
+
+  tree out(t, N(t));
+  for (int i = 0; i < N(t); ++i) {
+    out[i] = materialize_aofm_anchor_literals(t[i]);
+  }
+  return out;
+}
 
 tree
 convert_latex_math_inline(const std::string& latex_source) {
@@ -463,6 +537,22 @@ convert_inline_from_raw(const std::string& raw) {
   };
 
   while (i < raw.size()) {
+    if (raw[i] == ' ' && i + 2 < raw.size() && raw[i + 1] == '^') {
+      size_t j = i + 2;
+      while (j < raw.size() &&
+             raw[j] != ' ' && raw[j] != '\t' &&
+             raw[j] != '\r' && raw[j] != '\n') {
+        ++j;
+      }
+      if (j > i + 2 && j == raw.size()) {
+        flush_text();
+        append_concat(out,
+                      make_aofm_inline_anchor_placeholder(raw.substr(i + 2)));
+        i = j;
+        continue;
+      }
+    }
+
     if (raw.compare(i, 3, "***") == 0) {
       size_t close = raw.find("***", i + 3);
       if (close != std::string::npos) {
@@ -635,10 +725,19 @@ convert_inline(const AstPtr& ast) {
     return convert_latex_math_inline(strip_wrapping(ast_source(ast), 1, 1));
   }
 
+  if (ast_is(ast, "InlineAnchor")) {
+    std::string raw = ast_source(ast);
+    size_t pos = raw.find('^');
+    if (pos != std::string::npos && pos + 1 < raw.size()) {
+      return make_aofm_inline_anchor_placeholder(trim_copy(raw.substr(pos + 1)));
+    }
+    return text_tree(raw);
+  }
+
   if (ast_is(ast, "Strikethrough") || ast_is(ast, "Highlight") ||
       ast_is(ast, "WikiLink") || ast_is(ast, "Transclusion") ||
       ast_is(ast, "Image") || ast_is(ast, "PDF") ||
-      ast_is(ast, "ExtLink") || ast_is(ast, "InlineAnchor")) {
+      ast_is(ast, "ExtLink")) {
     return text_tree(ast_source(ast));
   }
 
@@ -662,7 +761,15 @@ convert_paragraph(const AstPtr& ast) {
 
   auto flush_chunk = [&]() {
     if (chunk.empty()) return;
-    out << convert_inline_from_raw(chunk);
+    std::string content;
+    std::string anchor;
+    if (extract_trailing_inline_anchor_text(chunk, content, anchor)) {
+      out << convert_inline_from_raw(content);
+      out << make_aofm_inline_anchor_placeholder(anchor);
+    }
+    else {
+      out << convert_inline_from_raw(chunk);
+    }
     chunk.clear();
   };
 
@@ -887,6 +994,28 @@ insert_label_before_trailing_proof(tree& doc, tree label) {
   doc = simplify_document(out);
 }
 
+bool
+extract_trailing_inline_anchor_text(const std::string& raw,
+                                    std::string& content,
+                                    std::string& anchor) {
+  std::string trimmed = rtrim_copy(raw);
+  if (trimmed.empty()) return false;
+
+  size_t pos = trimmed.find_last_of('^');
+  if (pos == std::string::npos || pos == 0) return false;
+  if (trimmed[pos - 1] != ' ' && trimmed[pos - 1] != '\t') return false;
+
+  std::string candidate = trim_copy(trimmed.substr(pos + 1));
+  if (candidate.empty()) return false;
+  for (char ch : candidate) {
+    if (ch == ' ' || ch == '\t' || ch == '\r' || ch == '\n') return false;
+  }
+
+  content = rtrim_copy(trimmed.substr(0, pos));
+  anchor = candidate;
+  return true;
+}
+
 std::string
 strip_heading_text(const std::string& raw) {
   size_t pos = 0;
@@ -973,10 +1102,9 @@ parse_embedded_aofm_blocks(const std::string& raw, const std::string& source_nam
   }
 
   parser.enable_ast();
-  parser.set_logger([](size_t line, size_t col, const std::string& msg,
-                       const std::string& rule) {
-    std::cerr << "AOFM Parse Error at " << line << ":" << col
-              << " (Rule: " << rule << "): " << msg << std::endl;
+  parser.set_logger([source_name](size_t line, size_t col, const std::string& msg,
+                                  const std::string& rule) {
+    report_aofm_parse_error(source_name, line, col, msg, rule);
   });
 
   AstPtr ast;
@@ -1271,8 +1399,8 @@ extend_theorem_callout_proof(const std::vector<AstPtr>& nodes, size_t index,
       continue;
     }
     if (!ast_is(payload, "AnchorBlock")) break;
-    moved_labels << compound("label",
-                             text_tree(extract_anchor_id(ast_source(payload))));
+    moved_labels << make_aofm_anchor_block_placeholder(
+        extract_anchor_id(ast_source(payload)));
     saw_anchor = true;
     ++cursor;
   }
@@ -1374,7 +1502,8 @@ consume_proof(const std::vector<AstPtr>& nodes, size_t start,
     }
 
     if (ast_is(payload, "AnchorBlock")) {
-      tree label = compound("label", text_tree(extract_anchor_id(ast_source(payload))));
+      tree label = make_aofm_anchor_block_placeholder(
+          extract_anchor_id(ast_source(payload)));
       insert_label_before_trailing_proof(stack.back().body, label);
       ++j;
       continue;
@@ -1592,7 +1721,7 @@ convert_block(const AstPtr& ast) {
   }
 
   if (ast_is(ast, "AnchorBlock")) {
-    return compound("label", text_tree(extract_anchor_id(ast_source(ast))));
+    return make_aofm_anchor_block_placeholder(extract_anchor_id(ast_source(ast)));
   }
 
   if (ast_is(ast, "Paragraph")) return convert_paragraph(ast);
@@ -1649,10 +1778,8 @@ bool
 aofm_convert_file(const std::string& file_path,
                   std::string& output_path,
                   string& serialized_document) {
-  auto ast = aofm_parse_file(file_path);
-  if (!ast) return false;
-
-  tree doc = aofm_ast_to_texmacs_document(ast);
+  tree doc;
+  if (!aofm_convert_tree(string(file_path.c_str()), doc, true)) return false;
   serialized_document = tree_to_texmacs(doc);
   output_path = aofm_output_path_for(file_path);
   return !save_string(url_system(tm_string(output_path)), serialized_document);
@@ -1660,25 +1787,36 @@ aofm_convert_file(const std::string& file_path,
 
 } // namespace
 
+bool
+aofm_convert_tree(string file_path, tree& document, bool materialize_anchor_literals) {
+    auto ast = aofm_parse_file(as_charp(file_path));
+    if (!ast) return false;
+
+    document = aofm_ast_to_texmacs_document(ast);
+    if (materialize_anchor_literals) {
+      document = materialize_aofm_anchor_literals(document);
+    }
+    return true;
+}
+
 std::shared_ptr<peg::Ast> aofm_parse_file(const std::string& file_path) {
     peg::parser parser(aofm_grammar);
 
     if (!parser) {
-        std::cerr << "aofm_parse_file: Failed to initialize parser from aofm_grammar" << std::endl;
+        report_aofm_error("failed to initialize parser from aofm_grammar");
         return nullptr;
     }
 
     parser.enable_ast();
 
-    // Set logger for detailed error reporting
-    parser.set_logger([](size_t line, size_t col, const std::string& msg, const std::string& rule) {
-        std::cerr << "AOFM Parse Error at " << line << ":" << col 
-                  << " (Rule: " << rule << "): " << msg << std::endl;
+    parser.set_logger([file_path](size_t line, size_t col, const std::string& msg,
+                                  const std::string& rule) {
+        report_aofm_parse_error(file_path, line, col, msg, rule);
     });
 
     std::ifstream ifs(file_path, std::ios::in | std::ios::binary);
     if (!ifs.is_open()) {
-        std::cerr << "aofm_parse_file: Could not open file: " << file_path << std::endl;
+        report_aofm_error("could not open file: " + file_path);
         return nullptr;
     }
 
@@ -1697,7 +1835,7 @@ std::shared_ptr<peg::Ast> aofm_parse_file(const std::string& file_path) {
     if (parser.parse(aofm_content, ast, file_path.c_str())) {
         return ast;
     } else {
-        std::cerr << "aofm_parse_file: Parsing failed for file: " << file_path << std::endl;
+        report_aofm_error("parsing failed for file: " + file_path);
         return nullptr;
     }
 }
@@ -1729,8 +1867,7 @@ void aofm_debug_dump(const std::string& file_path) {
     std::string output_path;
     string serialized_document;
     if (!aofm_convert_file(file_path, output_path, serialized_document)) {
-        std::cerr << "aofm_debug_dump: Conversion failed for file: "
-                  << file_path << std::endl;
+        report_aofm_error("conversion failed for file: " + file_path);
         return;
     }
 

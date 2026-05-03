@@ -29,6 +29,9 @@
               (toggle-preference "equation-editor")
               (reinit-plugin-cache))))
 
+(tm-define (run-proof-pipeline-menu-action)
+  (run-proof-pipeline))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; The Tools menu
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -64,6 +67,7 @@
       ("Count characters" (show-character-count))
       ("Count words" (show-word-count))
       ("Count lines" (show-line-count)))
+  ("Run proof pipeline" (run-proof-pipeline-menu-action))
   ---
   (when (and (!= (get-preference "ai") "off")
              (selection-active-any?))

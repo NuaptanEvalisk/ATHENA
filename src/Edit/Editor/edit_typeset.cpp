@@ -56,6 +56,7 @@ edit_typeset_rep::set_data (new_data data) {
   set_att   (data->att);
   notify_page_change ();
   add_init (data->init);
+  notify_change (THE_ENVIRONMENT);
   notify_change (THE_DECORATIONS);
   typeset_invalidate_env ();
   iterator<string> it = iterate (data->att);
