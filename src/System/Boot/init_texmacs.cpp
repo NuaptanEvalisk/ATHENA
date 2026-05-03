@@ -481,8 +481,7 @@ setup_athena () {
   }
   
   debug_boot << HRULE;
-  debug_boot << "Installation completed successfully !\n";
-  debug_boot << "I will now start up the editor\n";
+  debug_boot << "ATHENA setup okay, booting now.\n";
   debug_boot << HRULE;
 }
 

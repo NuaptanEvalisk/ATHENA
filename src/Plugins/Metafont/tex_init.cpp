@@ -96,7 +96,7 @@ static void
 search_sub_dirs (url root, url& tfm, url& pk, url& pfb) {
   url dirs= search_sub_dirs (root);
   if (!is_none (dirs)) {
-    debug_boot << "Found TeX directory " << root << "\n";
+    debug_boot << "TeX Probing: found TeX fonts at " << root << "\n";
     search_sub_dirs_sub (url_here (), dirs, tfm, pk, pfb, 0);
   }
 }
