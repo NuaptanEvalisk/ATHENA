@@ -51,7 +51,14 @@ struct CalloutHeaderInfo {
   std::string header_tail;
 };
 
+struct AofmVaultFileInfo {
+  std::string uuid;
+  std::string relative_ath_path;
+  std::string stem;
+};
+
 using AnchorMap = std::unordered_map<std::string, AofmVaultAnchorInfo>;
+using FileIndexMap = std::unordered_map<std::string, AofmVaultFileInfo>;
 
 std::string
 tm_to_std_string(string s) {
@@ -61,6 +68,15 @@ tm_to_std_string(string s) {
 string
 std_to_tm_string(const std::string& s) {
   return string(s.c_str());
+}
+
+std::string
+path_stem(const std::string& path) {
+  size_t slash = path.find_last_of("/\\");
+  size_t start = (slash == std::string::npos) ? 0 : slash + 1;
+  size_t dot = path.find_last_of('.');
+  if (dot == std::string::npos || dot < start) return path.substr(start);
+  return path.substr(start, dot - start);
 }
 
 std::string
@@ -133,8 +149,19 @@ is_enunciation_like_tree(const tree& t) {
          tag == "proof-standard";
 }
 
+bool
+is_aofm_wikilink_placeholder(const tree& t) {
+  return is_compound(t, "__aofm_wikilink", 3);
+}
+
+bool
+is_aofm_transclusion_placeholder(const tree& t) {
+  return is_compound(t, "__aofm_transclusion", 3);
+}
+
 tree
 resolve_anchor_placeholders(const tree& t, const AnchorMap& anchor_map,
+                            const FileIndexMap& file_map,
                             const std::string& rel_ath_path) {
   if (is_aofm_inline_anchor_placeholder(t)) {
     std::string anchor = placeholder_anchor_id(t);
@@ -156,6 +183,59 @@ resolve_anchor_placeholders(const tree& t, const AnchorMap& anchor_map,
       return materialize_anchor_literal(t);
     }
     return make_label_tree(it->second.anchor_1);
+  }
+
+  if (is_aofm_wikilink_placeholder(t) || is_aofm_transclusion_placeholder(t)) {
+    bool is_trans = is_aofm_transclusion_placeholder(t);
+    std::string target = tree_to_std_string(t[0]);
+    std::string sub = tree_to_std_string(t[1]);
+    std::string alias = tree_to_std_string(t[2]);
+
+    std::string uuid, file_hint, anchor_hint, display;
+    if (target.empty()) {
+      // Local link
+      file_hint = path_stem(rel_ath_path);
+    }
+    else {
+      auto it = file_map.find(target);
+      if (it != file_map.end()) {
+        uuid = it->second.uuid;
+        file_hint = it->second.stem;
+      }
+      else {
+        file_hint = target;
+      }
+    }
+
+    if (!sub.empty()) {
+      auto it = anchor_map.find(sub);
+      if (it != anchor_map.end()) {
+        uuid = it->second.uuid;
+        anchor_hint = it->second.anchor_1;
+      }
+      else {
+        anchor_hint = sub;
+      }
+    }
+
+    if (is_trans) {
+      return compound("TRANSCLUDE", text_tree(uuid), text_tree(file_hint),
+                      text_tree(""), text_tree(anchor_hint));
+    }
+
+    if (!alias.empty()) {
+      display = alias;
+    }
+    else {
+      display = target;
+      if (!sub.empty()) {
+        if (!display.empty()) display += "#";
+        display += sub;
+      }
+    }
+
+    std::string hlink = "tmfs://wikilink/" + uuid + "/" + file_hint + "/" + anchor_hint;
+    return compound("hlink", text_tree(display), text_tree(hlink));
   }
 
   if (is_atomic(t)) return t;
@@ -189,7 +269,7 @@ resolve_anchor_placeholders(const tree& t, const AnchorMap& anchor_map,
       }
 
       append_document(out,
-                      resolve_anchor_placeholders(child, anchor_map,
+                      resolve_anchor_placeholders(child, anchor_map, file_map,
                                                   rel_ath_path));
     }
     return simplify_document(out);
@@ -197,7 +277,7 @@ resolve_anchor_placeholders(const tree& t, const AnchorMap& anchor_map,
 
   tree out(t, N(t));
   for (int i = 0; i < N(t); ++i) {
-    out[i] = resolve_anchor_placeholders(t[i], anchor_map, rel_ath_path);
+    out[i] = resolve_anchor_placeholders(t[i], anchor_map, file_map, rel_ath_path);
   }
   return out;
 }
@@ -250,15 +330,6 @@ collapse_whitespace(const std::string& s) {
     last_space = space;
   }
   return trim_copy(out);
-}
-
-std::string
-path_stem(const std::string& path) {
-  size_t slash = path.find_last_of("/\\");
-  size_t start = (slash == std::string::npos) ? 0 : slash + 1;
-  size_t dot = path.find_last_of('.');
-  if (dot == std::string::npos || dot < start) return path.substr(start);
-  return path.substr(start, dot - start);
 }
 
 std::string
@@ -632,16 +703,16 @@ process_markdown_file(const ImportFileInfo& file_info, AnchorMap& map) {
 }
 
 void
-dump_anchor_map(const AnchorMap& map) {
+dump_anchor_map(const AnchorMap& map, std::ostream& out) {
   std::vector<std::string> anchors;
   anchors.reserve(map.size());
   for (const auto& entry : map) anchors.push_back(entry.first);
   std::sort(anchors.begin(), anchors.end());
 
-  std::cout << "--- AOFM VAULT ANCHOR MAP BEGIN ---" << std::endl;
+  out << "--- AOFM VAULT ANCHOR MAP BEGIN ---" << std::endl;
   for (const std::string& anchor : anchors) {
     const AofmVaultAnchorInfo& info = map.at(anchor);
-    std::cout << anchor << " -> ("
+    out << anchor << " -> ("
               << "uuid=" << info.uuid
               << ", path=" << info.path
               << ", anchor_1=" << info.anchor_1
@@ -649,7 +720,7 @@ dump_anchor_map(const AnchorMap& map) {
               << ", hlink_w=" << info.hlink_w
               << ")" << std::endl;
   }
-  std::cout << "--- AOFM VAULT ANCHOR MAP END ---" << std::endl;
+  out << "--- AOFM VAULT ANCHOR MAP END ---" << std::endl;
 }
 
 bool
@@ -744,15 +815,38 @@ aofm_import_vault(string source_dir, string destination_dir) {
   }
 
   AnchorMap anchor_map;
+  FileIndexMap file_map;
   for (const ImportFileInfo& file_info : files) {
+    std::string stem = path_stem(file_info.relative_md_path);
+    AofmVaultFileInfo f_info;
+    f_info.uuid = tm_to_std_string(vault_generate_uuid());
+    f_info.relative_ath_path = file_info.relative_ath_path;
+    f_info.stem = stem;
+    file_map[stem] = f_info;
+
     process_markdown_file(file_info, anchor_map);
   }
 
-  dump_anchor_map(anchor_map);
-
   std::string destination_root_path =
       tm_to_std_string(as_unix_string(destination_root));
+
+  std::string dump_path = join_unix_paths(destination_root_path, "anchor_map.txt");
+  std::ofstream dump_file(dump_path);
+  if (dump_file.is_open()) {
+    dump_anchor_map(anchor_map, dump_file);
+    dump_file.close();
+  }
+
+  std::cout << "Starting vault conversion of " << files.size() << " files..." << std::endl;
+
+  size_t total_files = files.size();
+  size_t current_index = 0;
   for (const ImportFileInfo& file_info : files) {
+    current_index++;
+    int percent = (int)((double)current_index / (double)total_files * 100.0);
+    std::cout << "[" << current_index << "/" << total_files << "] (" << percent << "%) "
+              << "Converting: " << file_info.relative_md_path << std::endl;
+
     tree document;
     if (!aofm_convert_tree(as_unix_string(file_info.source_url), document, false)) {
       report_import_error("failed to convert file: " + file_info.relative_md_path);
@@ -760,7 +854,7 @@ aofm_import_vault(string source_dir, string destination_dir) {
     }
 
     tree resolved =
-        resolve_anchor_placeholders(document, anchor_map, file_info.relative_ath_path);
+        resolve_anchor_placeholders(document, anchor_map, file_map, file_info.relative_ath_path);
     string serialized = tree_to_texmacs(resolved);
     std::string destination_path =
         join_unix_paths(destination_root_path, file_info.relative_ath_path);
@@ -769,6 +863,8 @@ aofm_import_vault(string source_dir, string destination_dir) {
       return false;
     }
   }
+
+  std::cout << "Vault conversion completed successfully." << std::endl;
 
   return true;
 }

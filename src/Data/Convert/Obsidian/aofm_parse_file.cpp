@@ -450,6 +450,22 @@ make_aofm_inline_anchor_placeholder(const std::string& anchor_id) {
   return compound("__aofm_anchor_inline", text_tree(anchor_id));
 }
 
+tree
+make_aofm_wikilink_placeholder(const std::string& target,
+                               const std::string& sub_target,
+                               const std::string& alias) {
+  return compound("__aofm_wikilink", text_tree(target),
+                  text_tree(sub_target), text_tree(alias));
+}
+
+tree
+make_aofm_transclusion_placeholder(const std::string& target,
+                                   const std::string& sub_target,
+                                   const std::string& alias) {
+  return compound("__aofm_transclusion", text_tree(target),
+                  text_tree(sub_target), text_tree(alias));
+}
+
 bool
 is_aofm_anchor_block_placeholder(const tree& t) {
   return is_compound(t, "__aofm_anchor_block", 1);
@@ -460,6 +476,16 @@ is_aofm_inline_anchor_placeholder(const tree& t) {
   return is_compound(t, "__aofm_anchor_inline", 1);
 }
 
+bool
+is_aofm_wikilink_placeholder(const tree& t) {
+  return is_compound(t, "__aofm_wikilink", 3);
+}
+
+bool
+is_aofm_transclusion_placeholder(const tree& t) {
+  return is_compound(t, "__aofm_transclusion", 3);
+}
+
 tree
 materialize_aofm_anchor_literals(const tree& t) {
   if (is_aofm_anchor_block_placeholder(t)) {
@@ -468,6 +494,23 @@ materialize_aofm_anchor_literals(const tree& t) {
   if (is_aofm_inline_anchor_placeholder(t)) {
     return text_tree(" ^" + tree_to_std_string(t[0]));
   }
+
+  if (is_aofm_wikilink_placeholder(t)) {
+    std::string s = "[[" + tree_to_std_string(t[0]);
+    if (!tree_to_std_string(t[1]).empty()) s += "#" + tree_to_std_string(t[1]);
+    if (!tree_to_std_string(t[2]).empty()) s += "|" + tree_to_std_string(t[2]);
+    s += "]]";
+    return text_tree(s);
+  }
+
+  if (is_aofm_transclusion_placeholder(t)) {
+    std::string s = "![[" + tree_to_std_string(t[0]);
+    if (!tree_to_std_string(t[1]).empty()) s += "#" + tree_to_std_string(t[1]);
+    if (!tree_to_std_string(t[2]).empty()) s += "|" + tree_to_std_string(t[2]);
+    s += "]]";
+    return text_tree(s);
+  }
+
   if (is_atomic(t)) return t;
 
   tree out(t, N(t));
@@ -734,8 +777,24 @@ convert_inline(const AstPtr& ast) {
     return text_tree(raw);
   }
 
+  if (ast_is(ast, "WikiLink") || ast_is(ast, "Transclusion")) {
+    bool is_transclusion = ast_is(ast, "Transclusion");
+    std::string target, sub, alias;
+    for (const auto& node : ast->nodes) {
+      if (ast_is(node, "LinkTarget")) target = ast_source(node);
+      if (ast_is(node, "SubTarget")) {
+        sub = ast_source(node);
+        if (!sub.empty() && sub[0] == '^') sub.erase(0, 1);
+      }
+      if (ast_is(node, "Alias")) alias = ast_source(node);
+    }
+    if (is_transclusion) {
+      return make_aofm_transclusion_placeholder(target, sub, alias);
+    }
+    return make_aofm_wikilink_placeholder(target, sub, alias);
+  }
+
   if (ast_is(ast, "Strikethrough") || ast_is(ast, "Highlight") ||
-      ast_is(ast, "WikiLink") || ast_is(ast, "Transclusion") ||
       ast_is(ast, "Image") || ast_is(ast, "PDF") ||
       ast_is(ast, "ExtLink")) {
     return text_tree(ast_source(ast));
