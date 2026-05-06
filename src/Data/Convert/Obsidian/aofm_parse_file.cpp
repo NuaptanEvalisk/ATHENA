@@ -480,6 +480,79 @@ append_document(tree& out, tree piece) {
   else out << piece;
 }
 
+bool
+is_theorem_like_callout_tag(const std::string& tag) {
+  return tag == "theorem" || tag == "proposition" || tag == "lemma" ||
+         tag == "corollary" || tag == "remark" || tag == "example" ||
+         tag == "definition" || tag == "axiom" || tag == "conjecture" ||
+         tag == "law" || tag == "quote-env";
+}
+
+bool
+is_theorem_like_env_tree(const tree& t) {
+  return is_compound(t, "theorem", 1) || is_compound(t, "proposition", 1) ||
+         is_compound(t, "lemma", 1) || is_compound(t, "corollary", 1) ||
+         is_compound(t, "remark", 1) || is_compound(t, "example", 1) ||
+         is_compound(t, "definition", 1) || is_compound(t, "axiom", 1) ||
+         is_compound(t, "conjecture", 1) || is_compound(t, "law", 1) ||
+         is_compound(t, "quote-env", 1);
+}
+
+bool
+is_useless_tree(const tree& t) {
+  if (t == "") return true;
+  if (is_document(t) || is_concat(t)) {
+    for (int i = 0; i < N(t); ++i) {
+      if (!is_useless_tree(t[i])) return false;
+    }
+    return true;
+  }
+  if (is_atomic(t)) {
+    std::string s = as_charp(as_string(t));
+    for (char c : s) {
+      if (!isspace((unsigned char)c)) return false;
+    }
+    return true;
+  }
+  return false;
+}
+
+tree
+split_callout_proof_tail(const std::string& tag, tree body) {
+  if (is_compound(body, "proof", 1)) {
+    return body;
+  }
+
+  if (!is_document(body) || !is_theorem_like_callout_tag(tag)) {
+    return compound(tag.c_str(), ensure_document_tree(body));
+  }
+
+  int proof_index = -1;
+  for (int i = 0; i < N(body); ++i) {
+    if (is_compound(body[i], "proof", 1)) {
+      proof_index = i;
+      break;
+    }
+  }
+
+  if (proof_index < 0) {
+    return compound(tag.c_str(), ensure_document_tree(body));
+  }
+
+  tree head(DOCUMENT);
+  tree tail(DOCUMENT);
+  for (int i = 0; i < proof_index; ++i) head << body[i];
+  for (int i = proof_index; i < N(body); ++i) tail << body[i];
+
+  tree out(DOCUMENT);
+  tree simplified_head = simplify_document(head);
+  if (simplified_head != "" && !is_useless_tree(simplified_head)) {
+    out << compound(tag.c_str(), ensure_document_tree(simplified_head));
+  }
+  append_document(out, simplify_document(tail));
+  return simplify_document(out);
+}
+
 tree convert_inline(const AstPtr& ast);
 tree convert_block(const AstPtr& ast);
 bool extract_trailing_inline_anchor_text(const std::string& raw,
@@ -1228,7 +1301,7 @@ convert_blockquote_body(const std::string& raw, const std::string& source_name) 
 tree
 convert_blockquote(const AstPtr& ast) {
   tree body = convert_blockquote_body(ast_source(ast), "blockquote");
-  return compound("quote-env", ensure_document_tree(body));
+  return split_callout_proof_tail("quote-env", simplify_document(body));
 }
 
 std::string
@@ -1350,7 +1423,7 @@ map_basic_callout_tag(const std::string& base, std::string& tag,
   }
 
   if (base == "quote" || base == "cite") {
-    use_quote_env = true;
+    tag = "quote-env";
     return true;
   }
 
@@ -1436,52 +1509,6 @@ map_extended_callout_tag(const CalloutHeader& header, std::string& tag,
   }
 
   return false;
-}
-
-bool
-is_theorem_like_callout_tag(const std::string& tag) {
-  return tag == "theorem" || tag == "proposition" || tag == "lemma" ||
-         tag == "corollary" || tag == "remark" || tag == "example" ||
-         tag == "definition" || tag == "axiom" || tag == "conjecture" ||
-         tag == "law";
-}
-
-bool
-is_theorem_like_env_tree(const tree& t) {
-  return is_compound(t, "theorem", 1) || is_compound(t, "proposition", 1) ||
-         is_compound(t, "lemma", 1) || is_compound(t, "corollary", 1) ||
-         is_compound(t, "remark", 1) || is_compound(t, "example", 1) ||
-         is_compound(t, "definition", 1) || is_compound(t, "axiom", 1) ||
-         is_compound(t, "conjecture", 1) || is_compound(t, "law", 1);
-}
-
-tree
-split_callout_proof_tail(const std::string& tag, tree body) {
-  if (!is_document(body) || !is_theorem_like_callout_tag(tag)) {
-    return compound(tag.c_str(), ensure_document_tree(body));
-  }
-
-  int proof_index = -1;
-  for (int i = 0; i < N(body); ++i) {
-    if (is_compound(body[i], "proof", 1)) {
-      proof_index = i;
-      break;
-    }
-  }
-
-  if (proof_index < 0) {
-    return compound(tag.c_str(), ensure_document_tree(body));
-  }
-
-  tree head(DOCUMENT);
-  tree tail(DOCUMENT);
-  for (int i = 0; i < proof_index; ++i) head << body[i];
-  for (int i = proof_index; i < N(body); ++i) tail << body[i];
-
-  tree out(DOCUMENT);
-  out << compound(tag.c_str(), ensure_document_tree(head));
-  append_document(out, simplify_document(tail));
-  return simplify_document(out);
 }
 
 bool
@@ -1726,9 +1753,6 @@ convert_callout(const AstPtr& ast) {
     mapped = map_basic_callout_tag(header.base, tag, use_quote_env);
   }
 
-  if (use_quote_env) {
-    return compound("quote-env", ensure_document_tree(body));
-  }
   if (mapped) {
     return split_callout_proof_tail(tag, simplify_document(body));
   }
