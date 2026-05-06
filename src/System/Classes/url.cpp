@@ -443,10 +443,13 @@ url_wildcard (string name) {
 
 bool
 is_rooted (url u) {
-  return
+  if (u->rooted_cache != -1) return (bool) u->rooted_cache;
+  bool res =
     is_root (u) ||
     (is_concat (u) && is_rooted (u[1])) ||
     (is_or (u) && is_rooted (u[1]) && is_rooted (u[2]));
+  u->rooted_cache = res ? 1 : 0;
+  return res;
 }
 
 bool

@@ -24,7 +24,9 @@
 
 struct url_rep: concrete_struct {
   tree t;
-  inline url_rep (tree t2): t (t2) {}
+  mutable signed char rooted_cache; // -1: uninitialized, 0: false, 1: true
+  mutable signed char is_root_cache; // -1: uninitialized, 0: false, 1: true
+  inline url_rep (tree t2): t (t2), rooted_cache (-1), is_root_cache (-1) {}
 };
 
 class url {
@@ -93,7 +95,11 @@ inline bool is_atomic (url u) { return is_atomic (u->t); }
 inline bool is_concat (url u) { return is_tuple (u->t, "concat", 2); }
 inline bool is_or (url u) { return is_tuple (u->t, "or", 2); }
 inline bool is_root (url u) {
-  return is_tuple (u->t, "root") && (N(u->t) >= 2); }
+  if (u->is_root_cache != -1) return (bool) u->is_root_cache;
+  bool res = is_tuple (u->t, "root") && (N(u->t) >= 2);
+  u->is_root_cache = res ? 1 : 0;
+  return res;
+}
 inline bool is_root (url u, string s) {
   return is_root (u) && (u[1]->t->label == s); }
 inline bool is_root_web (url u) {
