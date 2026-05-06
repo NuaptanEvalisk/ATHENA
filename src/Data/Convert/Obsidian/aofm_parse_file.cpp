@@ -139,6 +139,40 @@ erase_prefix(std::string& s, const char* prefix) {
   return true;
 }
 
+bool
+is_proof_marker_text(const std::string& raw) {
+  std::string trimmed = trim_copy(raw);
+  if (trimmed.empty()) return false;
+
+  std::string lower = trimmed;
+  std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
+
+  bool has_keyword = (lower.find("proof") != std::string::npos ||
+                      lower.find("solution") != std::string::npos ||
+                      lower.find("证明") != std::string::npos ||
+                      lower.find("解") != std::string::npos);
+  if (!has_keyword) return false;
+
+  if (trimmed.find("**") != std::string::npos ||
+      trimmed.find("#") != std::string::npos) {
+    return true;
+  }
+
+  char last = trimmed.back();
+  if (last == ':') return true;
+
+  // Check for Chinese colon ： (UTF-8: EF BC 9A)
+  if (trimmed.size() >= 3) {
+    if ((unsigned char)trimmed[trimmed.size() - 3] == 0xEF &&
+        (unsigned char)trimmed[trimmed.size() - 2] == 0xBC &&
+        (unsigned char)trimmed[trimmed.size() - 1] == 0x9A) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 std::string
 strip_known_invisible_prefixes(std::string line) {
   while (true) {
@@ -158,6 +192,18 @@ normalize_markdown_lines(const std::string& raw) {
   std::string line;
   while (std::getline(in, line)) {
     if (!line.empty() && line.back() == '\r') line.pop_back();
+
+    std::string content = line;
+    if (starts_blockquote_line(line)) {
+      content = strip_one_blockquote_marker(line);
+    }
+
+    if (is_proof_marker_text(content)) {
+      if (!lines.empty() && !trim_copy(lines.back()).empty()) {
+        lines.push_back("");
+      }
+    }
+
     lines.push_back(strip_known_invisible_prefixes(line));
   }
 
@@ -288,32 +334,6 @@ strip_one_blockquote_marker(const std::string& line) {
   pos++;
   if (pos < line.size() && line[pos] == ' ') pos++;
   return line.substr(pos);
-}
-
-bool
-is_proof_marker_text(const std::string& raw) {
-  static const char* kMarkers[] = {
-      "**Proof:**",
-      "**Proof：**",
-      "**Solution:**",
-      "**Solution：**",
-      "**证明:**",
-      "**证明：**",
-      "**解:**",
-      "**解：**"
-  };
-
-  std::string trimmed = trim_copy(raw);
-  for (const char* marker : kMarkers) {
-    std::string prefix = marker;
-    if (trimmed.compare(0, prefix.size(), prefix) != 0) continue;
-    if (trimmed.size() == prefix.size()) return true;
-    char next = trimmed[prefix.size()];
-    if (next == ' ' || next == '\t' || next == '\r' || next == '\n') {
-      return true;
-    }
-  }
-  return false;
 }
 
 std::string
@@ -905,6 +925,35 @@ block_payload(const AstPtr& ast) {
   return nullptr;
 }
 
+std::string
+strip_blockquote_markers(const std::string& raw) {
+  std::stringstream in(raw);
+  std::string line;
+  std::string out;
+  bool first = true;
+
+  while (std::getline(in, line)) {
+    size_t pos = 0;
+    while (pos < line.size() && (line[pos] == ' ' || line[pos] == '\t')) pos++;
+    if (pos < line.size() && line[pos] == '>') {
+      pos++;
+      if (pos < line.size() && line[pos] == ' ') pos++;
+    }
+    if (!first) out += '\n';
+    out += line.substr(pos);
+    first = false;
+  }
+
+  return trim_copy(out);
+}
+
+std::string
+extract_callout_body_source(const std::string& raw) {
+  size_t nl = raw.find('\n');
+  if (nl == std::string::npos || nl + 1 >= raw.size()) return "";
+  return strip_blockquote_markers(raw.substr(nl + 1));
+}
+
 bool
 is_proof_body_block(const AstPtr& ast) {
   return ast_is(ast, "Paragraph") || ast_is(ast, "Blockquote") ||
@@ -1141,28 +1190,6 @@ tree
 convert_math_block(const AstPtr& ast) {
   return convert_latex_math_display(
       extract_fenced_body(ast_source(ast), "$$"));
-}
-
-std::string
-strip_blockquote_markers(const std::string& raw) {
-  std::stringstream in(raw);
-  std::string line;
-  std::string out;
-  bool first = true;
-
-  while (std::getline(in, line)) {
-    size_t pos = 0;
-    while (pos < line.size() && (line[pos] == ' ' || line[pos] == '\t')) pos++;
-    if (pos < line.size() && line[pos] == '>') {
-      pos++;
-      if (pos < line.size() && line[pos] == ' ') pos++;
-    }
-    if (!first) out += '\n';
-    out += line.substr(pos);
-    first = false;
-  }
-
-  return trim_copy(out);
 }
 
 tree
@@ -1599,6 +1626,12 @@ consume_proof(const std::vector<AstPtr>& nodes, size_t start,
     if (!is_proof_body_block(payload)) break;
 
     if (ast_is(payload, "Callout") || ast_is(payload, "Blockquote")) {
+      std::string body_raw;
+      if (ast_is(payload, "Callout")) body_raw = extract_callout_body_source(ast_source(payload));
+      else body_raw = strip_blockquote_markers(ast_source(payload));
+
+      bool closes_callout_proof = strip_proof_qed_suffix(body_raw);
+
       tree converted_callout = convert_block(nodes[j]);
       size_t extended_to = j;
       tree extended_callout;
@@ -1606,10 +1639,21 @@ consume_proof(const std::vector<AstPtr>& nodes, size_t start,
                                        extended_to, extended_callout)) {
         append_document(stack.back().body, extended_callout);
         j = extended_to + 1;
-        continue;
+      } else {
+        append_document(stack.back().body, converted_callout);
+        ++j;
       }
-      append_document(stack.back().body, converted_callout);
-      ++j;
+
+      if (closes_callout_proof) {
+        tree finished =
+            compound("proof", ensure_document_tree(stack.back().body));
+        stack.pop_back();
+        if (stack.empty()) {
+          consumed_to = j - 1;
+          return finished;
+        }
+        append_document(stack.back().body, finished);
+      }
       continue;
     }
 
@@ -1648,13 +1692,6 @@ consume_proof(const std::vector<AstPtr>& nodes, size_t start,
 
   if (stack.empty()) return "";
   return compound("proof", ensure_document_tree(stack.back().body));
-}
-
-std::string
-extract_callout_body_source(const std::string& raw) {
-  size_t nl = raw.find('\n');
-  if (nl == std::string::npos || nl + 1 >= raw.size()) return "";
-  return strip_blockquote_markers(raw.substr(nl + 1));
 }
 
 tree
@@ -1839,6 +1876,7 @@ convert_block(const AstPtr& ast) {
 tree
 aofm_ast_to_texmacs_document(const AstPtr& ast) {
   tree body = convert_block(ast);
+  body = sanitize_proof_trees(body);
   if (!is_document(body)) body = document(body);
   body = simplify_document(body);
 
