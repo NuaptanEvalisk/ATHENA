@@ -404,7 +404,7 @@ make_lazy_compound (edit_env env, tree t, path ip) {
           if (var == "render-proof")
             body= tree(WITH, "vault-enunciation-color", "none", body);
           tree orn = tree(WITH, "ornament-color", col, "ornament-shape",
-                          "rectangular", "ornament-border", "0.5ln",
+                          "rectangular", "ornament-border", "0ln",
                           tree(ORNAMENT, body));
           f[n] = tree(COMPOUND, tree("padded*"), orn);
         }
