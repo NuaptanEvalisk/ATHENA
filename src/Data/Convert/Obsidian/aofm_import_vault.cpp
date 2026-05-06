@@ -805,8 +805,8 @@ print_progress_bar(size_t current, size_t total, const std::string& filename) {
   }
 
   std::string display_path = filename;
-  if (display_path.length() > 60) {
-    display_path = "..." + display_path.substr(display_path.length() - 57);
+  if (display_path.length() > 40) {
+    display_path = "..." + display_path.substr(display_path.length() - 37);
   }
 
   std::cout << "] " << (int)(progress * 100.0) << "% "

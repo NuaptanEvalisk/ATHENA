@@ -90,22 +90,18 @@ const char* aofm_grammar = R"(
     # 段落 (纯文本及行内元素的聚合)
     # ------------------------------------------------------------------
     Paragraph       <- ParagraphLine+
-    ParagraphLine   <- !BlankLine !BlockStart Inline+ NL
-    
+    ParagraphLine   <- !BlankLine !BlockStart < (!NL .)+ > (NL / EOF)
+
     # 遇到这些符号意味着段落结束，新块开始
     BlockStart      <- Heading / HorizontalRule / CodeBlock / MathBlock / CalloutHeader / Blockquote / ListPrefix
 
     UnknownBlock    <- < [^\r\n]+ > (NL / EOF)
 
     # ------------------------------------------------------------------
-    # 行内元素 (Inline)
+    # 行内元素 (Inline) - 现在主要用于辅助规则和简单的原子识别
     # ------------------------------------------------------------------
-    Inline          <- Image / PDF / Transclusion / WikiLink / ExtLink / 
-                       InlineMath / InlineCode / 
-                       TripleBoth / TripleItalicOuter / TripleStrongOuter / 
-                       TripleRightItalic / TripleRightStrong / 
-                       Strong / Italic / Strikethrough / Highlight / 
-                       EscapeChar / InlineAnchor / Text / AnyChar
+    Inline          <- < (!NL .)+ >
+
 
     AnyChar         <- < !NL . >
 
@@ -130,19 +126,19 @@ const char* aofm_grammar = R"(
     # ------------------------------------------------------------------
     # 基础格式与特化重载定界符
     # ------------------------------------------------------------------
-    InlineMath      <- '$' < (!'$' .)+ > '$'
-    InlineCode      <- '`' < (!'`' .)+ > '`'
-    Strikethrough   <- '~~' < (!'~~' .)+ > '~~'
-    Highlight       <- '==' < (!'==' .)+ > '=='
+    InlineMath      <- '$' < (!'$' (. / NL))+ > '$'
+    InlineCode      <- '`' < (!'`' (. / NL))+ > '`'
+    Strikethrough   <- '~~' < (!'~~' (. / NL))+ > '~~'
+    Highlight       <- '==' < (!'==' (. / NL))+ > '=='
 
     # 解决非对称嵌套问题
-    TripleBoth        <- '***' < (!'***' .)+ > '***'
-    TripleItalicOuter <- '***' < (!'**' .)+ > '**' < (!'*' .)+ > '*'
-    TripleStrongOuter <- '***' < (!'*' .)+ > '*' < (!'**' .)+ > '**'
-    TripleRightItalic <- '*' < (!'**' .)+ > '**' < (!'***' .)+ > '***'
-    TripleRightStrong <- '**' < (!'*' .)+ > '*' < (!'***' .)+ > '***'
-    Strong            <- '**' < (!'**' .)+ > '**'
-    Italic            <- '*' < (!'*' .)+ > '*'
+    TripleBoth        <- '***' < (!'***' (. / NL))+ > '***'
+    TripleItalicOuter <- '***' < (!'**' (. / NL))+ > '**' < (!'*' (. / NL))+ > '*'
+    TripleStrongOuter <- '***' < (!'*' (. / NL))+ > '*' < (!'**' (. / NL))+ > '**'
+    TripleRightItalic <- '*' < (!'**' (. / NL))+ > '**' < (!'***' (. / NL))+ > '***'
+    TripleRightStrong <- '**' < (!'*' (. / NL))+ > '*' < (!'***' (. / NL))+ > '***'
+    Strong            <- '**' < (!'**' (. / NL))+ > '**'
+    Italic            <- '*' < (!'*' (. / NL))+ > '*'
 
     # ------------------------------------------------------------------
     # 锚点、转义与兜底文本
