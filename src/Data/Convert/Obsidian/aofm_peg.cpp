@@ -21,7 +21,8 @@ const char* aofm_grammar = R"(
                          List / 
                          HTMLCommentBlock /
                          AnchorBlock /
-                         Paragraph
+                         Paragraph /
+                         UnknownBlock
                        )
 
     # ------------------------------------------------------------------
@@ -93,6 +94,8 @@ const char* aofm_grammar = R"(
     
     # 遇到这些符号意味着段落结束，新块开始
     BlockStart      <- Heading / HorizontalRule / CodeBlock / MathBlock / CalloutHeader / Blockquote / ListPrefix
+
+    UnknownBlock    <- < [^\r\n]+ > (NL / EOF)
 
     # ------------------------------------------------------------------
     # 行内元素 (Inline)

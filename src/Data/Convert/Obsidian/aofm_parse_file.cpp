@@ -397,6 +397,37 @@ preprocess_isolated_callout_proofs(const std::string& raw) {
   return result;
 }
 
+std::string
+sanitize_markdown_blocks(const std::string& raw) {
+  std::istringstream stream(raw);
+  std::string line;
+  std::vector<std::string> out;
+
+  while (std::getline(stream, line)) {
+    if (!line.empty() && line.back() == '\r') {
+      line.pop_back();
+    }
+
+    std::string trimmed = trim_copy(line);
+    if (trimmed == "$$") {
+      out.push_back("$$");
+    } else if (trimmed.size() >= 3 && trimmed.substr(0, 3) == "```") {
+      out.push_back(trimmed);
+    } else if (trimmed.empty()) {
+      out.push_back("");
+    } else {
+      out.push_back(line);
+    }
+  }
+
+  std::string result;
+  for (size_t i = 0; i < out.size(); ++i) {
+    if (i > 0) result += '\n';
+    result += out[i];
+  }
+  return result;
+}
+
 bool
 ends_with(const std::string& s, const std::string& suffix) {
   return s.size() >= suffix.size() &&
@@ -1793,6 +1824,12 @@ convert_block(const AstPtr& ast) {
   if (ast_is(ast, "Table")) return convert_table(ast);
   if (ast_is(ast, "Callout")) return convert_callout(ast);
 
+  if (ast_is(ast, "UnknownBlock")) {
+    std::cerr << "aofm2athena: warning: Unknown block encountered: [" 
+              << trim_copy(ast_source(ast)) << "]" << std::endl;
+    return text_tree(trim_copy(strip_trailing_newlines(ast_source(ast))));
+  }
+
   if (!ast->nodes.empty()) {
     tree out(DOCUMENT);
     for (const auto& child : ast->nodes) {
@@ -1885,6 +1922,7 @@ std::shared_ptr<peg::Ast> aofm_parse_file(const std::string& file_path) {
     aofm_content = normalize_markdown_lines(aofm_content);
     aofm_content = extract_aofm_document_metadata(aofm_content);
     aofm_content = preprocess_isolated_callout_proofs(aofm_content);
+    aofm_content = sanitize_markdown_blocks(aofm_content);
 
     if (!aofm_content.empty() && aofm_content.back() != '\n') {
         aofm_content += '\n';
