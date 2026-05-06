@@ -791,6 +791,29 @@ join_unix_paths(const std::string& root, const std::string& rel) {
 
 } // namespace
 
+void
+print_progress_bar(size_t current, size_t total, const std::string& filename) {
+  int bar_width = 30;
+  float progress = (float)current / (float)total;
+  int pos = (int)(bar_width * progress);
+
+  std::cout << "\r[" ;
+  for (int i = 0; i < bar_width; ++i) {
+    if (i < pos) std::cout << "=";
+    else if (i == pos) std::cout << ">";
+    else std::cout << " ";
+  }
+
+  std::string display_path = filename;
+  if (display_path.length() > 60) {
+    display_path = "..." + display_path.substr(display_path.length() - 57);
+  }
+
+  std::cout << "] " << (int)(progress * 100.0) << "% "
+            << "[" << current << "/" << total << "] "
+            << "Converting: " << display_path << "                             " << std::flush;
+}
+
 bool
 aofm_import_vault(string source_dir, string destination_dir) {
   url source_root = url_system(source_dir);
@@ -843,12 +866,11 @@ aofm_import_vault(string source_dir, string destination_dir) {
   size_t current_index = 0;
   for (const ImportFileInfo& file_info : files) {
     current_index++;
-    int percent = (int)((double)current_index / (double)total_files * 100.0);
-    std::cout << "[" << current_index << "/" << total_files << "] (" << percent << "%) "
-              << "Converting: " << file_info.relative_md_path << std::endl;
+    print_progress_bar(current_index, total_files, file_info.relative_md_path);
 
     tree document;
     if (!aofm_convert_tree(as_unix_string(file_info.source_url), document, false)) {
+      std::cout << std::endl;
       report_import_error("failed to convert file: " + file_info.relative_md_path);
       return false;
     }
@@ -859,12 +881,13 @@ aofm_import_vault(string source_dir, string destination_dir) {
     std::string destination_path =
         join_unix_paths(destination_root_path, file_info.relative_ath_path);
     if (save_string(url_system(std_to_tm_string(destination_path)), serialized)) {
+      std::cout << std::endl;
       report_import_error("failed to write destination file: " + destination_path);
       return false;
     }
   }
 
-  std::cout << "Vault conversion completed successfully." << std::endl;
+  std::cout << "\nVault conversion completed successfully." << std::endl;
 
   return true;
 }
