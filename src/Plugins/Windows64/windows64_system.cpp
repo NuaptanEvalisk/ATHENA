@@ -365,8 +365,6 @@ void texmacs_init_guile_hooks() {
   guile_getenv = texmacs_guile_getenv;
   guile_fprintf = texmacs_guile_fprintf;
   guile_printf = texmacs_guile_printf;
-#else
-  cout << "warning: guile hooks are not available" << LF;
 #endif
 }
 

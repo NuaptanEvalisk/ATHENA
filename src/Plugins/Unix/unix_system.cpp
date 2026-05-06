@@ -228,7 +228,4 @@ url texmacs_get_application_directory () {
 }
 
 void texmacs_init_guile_hooks() {
-#ifndef SCM_HAVE_HOOKS
-  cout << "warning: guile hooks are not available" << LF;
-#endif
 }
