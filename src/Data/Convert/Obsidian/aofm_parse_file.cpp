@@ -13,8 +13,13 @@
 #include "tree.hpp"
 #include "url.hpp"
 
+#include <chrono>
+
 extern const char* aofm_grammar;
 std::shared_ptr<peg::Ast> aofm_parse_file(const std::string& file_path);
+
+double aofm_math_time = 0.0;
+int aofm_math_count = 0;
 
 namespace {
 
@@ -646,6 +651,7 @@ materialize_aofm_anchor_literals(const tree& t) {
 
 tree
 convert_latex_math_inline(const std::string& latex_source) {
+  auto start = ::std::chrono::high_resolution_clock::now();
   tree converted = extract(
       tracked_latex_to_texmacs(tm_string("$" + latex_source + "$"), false),
       "body");
@@ -657,6 +663,9 @@ convert_latex_math_inline(const std::string& latex_source) {
   }
 
   if (is_compound(converted, "math", 1)) {
+    auto end = ::std::chrono::high_resolution_clock::now();
+    aofm_math_time += ::std::chrono::duration<double>(end - start).count();
+    aofm_math_count++;
     return converted;
   }
 
@@ -665,14 +674,22 @@ convert_latex_math_inline(const std::string& latex_source) {
     converted = converted[N(converted) - 1];
   }
 
+  auto end = ::std::chrono::high_resolution_clock::now();
+  aofm_math_time += ::std::chrono::duration<double>(end - start).count();
+  aofm_math_count++;
   return compound("math", converted);
 }
 
 tree
 convert_latex_math_display(const std::string& latex_source) {
+  auto start = ::std::chrono::high_resolution_clock::now();
   tree converted = extract(
       tracked_latex_to_texmacs(tm_string("$$" + latex_source + "$$"), false),
       "body");
+
+  auto end = ::std::chrono::high_resolution_clock::now();
+  aofm_math_time += ::std::chrono::duration<double>(end - start).count();
+  aofm_math_count++;
 
   if (is_document(converted)) {
     return simplify_document(converted);
@@ -694,13 +711,13 @@ convert_inline_children(const AstPtr& ast) {
 tree
 convert_inline_from_raw(const std::string& raw) {
   tree out(CONCAT);
-  std::string text;
+  std::string text_str;
   size_t i = 0;
 
   auto flush_text = [&]() {
-    if (text.empty()) return;
-    append_concat(out, text_tree(text));
-    text.clear();
+    if (text_str.empty()) return;
+    append_concat(out, text_tree(text_str));
+    text_str.clear();
   };
 
   while (i < raw.size()) {
@@ -709,7 +726,7 @@ convert_inline_from_raw(const std::string& raw) {
       char next = raw[i + 1];
       if (next == '$' || next == '*' || next == '_' || next == '`' ||
           next == '[' || next == ']' || next == '^' || next == '\\') {
-        text += next;
+        text_str += next;
         i += 2;
         continue;
       }
@@ -812,7 +829,7 @@ convert_inline_from_raw(const std::string& raw) {
       }
     }
 
-    text += raw[i];
+    text_str += raw[i];
     i++;
   }
 
@@ -1931,11 +1948,17 @@ bool
 aofm_convert_file(const std::string& file_path,
                   std::string& output_path,
                   string& serialized_document) {
+  aofm_math_time = 0.0;
+  aofm_math_count = 0;
   tree doc;
   if (!aofm_convert_tree(string(file_path.c_str()), doc, true)) return false;
   serialized_document = tree_to_texmacs(doc);
   output_path = aofm_output_path_for(file_path);
-  return !save_string(url_system(tm_string(output_path)), serialized_document);
+  bool ok = !save_string(url_system(tm_string(output_path)), serialized_document);
+  if (aofm_math_count > 0) {
+    std::cout << "AOFM] Math processing: " << aofm_math_time << "s (" << aofm_math_count << " formulas, avg " << (aofm_math_time / aofm_math_count) << "s)" << std::endl;
+  }
+  return ok;
 }
 
 } // namespace
@@ -2018,6 +2041,8 @@ void aofm_dump_ast(std::shared_ptr<peg::Ast> ast) {
 }
 
 void aofm_debug_dump(const std::string& file_path) {
+    aofm_math_time = 0.0;
+    aofm_math_count = 0;
     std::string output_path;
     string serialized_document;
     if (!aofm_convert_file(file_path, output_path, serialized_document)) {

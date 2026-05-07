@@ -605,12 +605,16 @@ TeXmacs_main (int argc, char** argv) {
 
     if (!aofm_debug_convert_file.empty ()) {
       eval ("(lazy-initialize-force)");
+      aofm_enable_converter_mode (true);
+      aofm_cache_preferences ();
       aofm_debug_dump (aofm_debug_convert_file);
       exit (0);
     }
     if (aofm_debug_vault_convert_source != "" &&
         aofm_debug_vault_convert_destination != "") {
       eval ("(lazy-initialize-force)");
+      aofm_enable_converter_mode (true);
+      aofm_cache_preferences ();
       bool ok= aofm_import_vault (aofm_debug_vault_convert_source,
                                   aofm_debug_vault_convert_destination);
       exit (ok ? 0 : 1);

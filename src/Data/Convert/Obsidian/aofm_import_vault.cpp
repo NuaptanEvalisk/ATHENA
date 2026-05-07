@@ -14,6 +14,11 @@
 #include "url.hpp"
 #include "vault.hpp"
 
+#include <chrono>
+
+extern double aofm_math_time;
+extern int aofm_math_count;
+
 namespace {
 
 struct AofmVaultAnchorInfo {
@@ -888,6 +893,10 @@ aofm_import_vault(string source_dir, string destination_dir) {
   }
 
   std::cout << "\nVault conversion completed successfully." << std::endl;
+
+  if (aofm_math_count > 0) {
+    std::cout << "AOFM] Total math processing: " << aofm_math_time << "s (" << aofm_math_count << " formulas, avg " << (aofm_math_time / aofm_math_count) << "s)" << std::endl;
+  }
 
   return true;
 }

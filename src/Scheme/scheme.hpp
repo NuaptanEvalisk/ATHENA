@@ -122,6 +122,9 @@ void set_preference (string var, string val);
 void notify_preference (string var);
 string get_preference (string var, string def= "default");
 
+void aofm_enable_converter_mode (bool enable);
+void aofm_cache_preferences ();
+
 object eval (const char* expr);
 object eval (string expr);
 object eval (object expr);

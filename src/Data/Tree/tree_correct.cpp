@@ -1030,7 +1030,7 @@ math_status_print () {
 
 bool
 enabled_preference (string s) {
-  return call ("get-preference", s) == object ("on");
+  return get_preference (s, "off") == "on";
 }
 
 tree

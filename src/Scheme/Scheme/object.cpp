@@ -12,9 +12,11 @@
 #include "object.hpp"
 #include "glue.hpp"
 
+#include <iostream>
 #include "config.h"
 #include "list.hpp"
 #include "array.hpp"
+#include "hashmap.hpp"
 #include "promise.hpp"
 #include "widget.hpp"
 #include "boot.hpp"
@@ -452,6 +454,42 @@ object call (object fun, array<object> a) {
 ******************************************************************************/
 
 static bool preferences_ok= false;
+static bool aofm_converter_mode = false;
+static hashmap<string, string> aofm_pref_cache ("");
+
+void
+aofm_enable_converter_mode (bool enable) {
+  aofm_converter_mode = enable;
+}
+
+void
+aofm_cache_preferences () {
+  std::cout << "AOFM] Caching preferences..." << std::endl;
+  array<string> prefs;
+  prefs << string ("latex->texmacs:align-to-aligned")
+        << string ("latex->texmacs:operator-d-is-differential")
+        << string ("latex->texmacs:roman-d-is-differential")
+        << string ("latex->texmacs:text-d-is-differential")
+        << string ("latex->texmacs:parse-bbbk")
+        << string ("latex->texmacs:matrix-recognition")
+        << string ("latex->texmacs:aligned-to-eqnarray")
+        << string ("latex->texmacs:source-tracking")
+        << string ("latex->texmacs:transparent-source-tracking")
+        << string ("latex->texmacs:conservative")
+        << string ("remove superfluous invisible")
+        << string ("homoglyph correct")
+        << string ("insert missing invisible")
+        << string ("zealous invisible correct")
+        << string ("manual remove superfluous invisible")
+        << string ("manual homoglyph correct")
+        << string ("manual insert missing invisible")
+        << string ("manual zealous invisible correct");
+  for (int i=0; i<N(prefs); i++) {
+    string val = as_string (call ("get-preference", prefs[i]));
+    aofm_pref_cache (prefs[i]) = val;
+    std::cout << "AOFM]   " << as_charp (prefs[i]) << " -> " << as_charp (val) << std::endl;
+  }
+}
 
 void
 notify_preferences_booted () {
@@ -473,9 +511,15 @@ notify_preference (string var) {
 
 string
 get_preference (string var, string def) {
+  if (aofm_converter_mode && aofm_pref_cache->contains (var)) {
+    // cout << "AOFM] (cache hit) " << var << endl;
+    string pref = aofm_pref_cache[var];
+    if (pref == "default") return def; else return pref;
+  }
   if (!preferences_ok)
     return get_user_preference (var, def);
   else {
+    // if (aofm_converter_mode) cout << "AOFM] (cache miss) " << var << endl;
     string pref= as_string (call ("get-preference", var));
     if (pref == "default") return def; else return pref;
   }
