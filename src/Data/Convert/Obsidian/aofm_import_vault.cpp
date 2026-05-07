@@ -13,11 +13,9 @@
 #include "tree.hpp"
 #include "url.hpp"
 #include "vault.hpp"
+#include "aofm_telemetry.hpp"
 
 #include <chrono>
-
-extern double aofm_math_time;
-extern int aofm_math_count;
 
 namespace {
 
@@ -821,6 +819,27 @@ print_progress_bar(size_t current, size_t total, const std::string& filename) {
 
 bool
 aofm_import_vault(string source_dir, string destination_dir) {
+  time_parse_latex_doc = 0.0;
+  time_latex_to_tree = 0.0;
+  aofm_math_time = 0.0;
+  aofm_math_count = 0;
+  
+  time_l2t_kill_space = 0.0;
+  time_l2t_parsed_latex = 0.0;
+  time_l2t_finalize_doc = 0.0;
+  time_l2t_handle_matches = 0.0;
+  time_l2t_upgrade_tex = 0.0;
+  time_l2t_finalize_misc = 0.0;
+  time_l2t_drd_correct = 0.0;
+  time_l2t_style_check = 0.0;
+  time_l2t_simplify_correct = 0.0;
+  time_l2t_latex_correct = 0.0;
+  time_l2t_guess_missing = 0.0;
+  time_l2t_post_metadata = 0.0;
+  
+  count_l2t_is_document = 0;
+  count_l2t_total = 0;
+
   url source_root = url_system(source_dir);
   url destination_root = url_system(destination_dir);
   if (!is_rooted(source_root)) {
@@ -897,6 +916,21 @@ aofm_import_vault(string source_dir, string destination_dir) {
   if (aofm_math_count > 0) {
     std::cout << "AOFM] Total math processing: " << aofm_math_time << "s (" << aofm_math_count << " formulas, avg " << (aofm_math_time / aofm_math_count) << "s)" << std::endl;
   }
+  std::cout << "AOFM] Total parse_latex_document: " << time_parse_latex_doc << "s" << std::endl;
+  std::cout << "AOFM] Total latex_to_tree: " << time_latex_to_tree << "s" << std::endl;
+  std::cout << "  - kill_space_invaders: " << time_l2t_kill_space << "s" << std::endl;
+  std::cout << "  - parsed_latex_to_tree: " << time_l2t_parsed_latex << "s" << std::endl;
+  std::cout << "  - finalize_doc/preamble: " << time_l2t_finalize_doc << "s" << std::endl;
+  std::cout << "  - handle_matches: " << time_l2t_handle_matches << "s" << std::endl;
+  std::cout << "  - upgrade_tex: " << time_l2t_upgrade_tex << "s" << std::endl;
+  std::cout << "  - finalize_misc/textm: " << time_l2t_finalize_misc << "s" << std::endl;
+  std::cout << "  - drd_correct: " << time_l2t_drd_correct << "s" << std::endl;
+  std::cout << "  - style_check (exists): " << time_l2t_style_check << "s" << std::endl;
+  std::cout << "  - simplify_correct: " << time_l2t_simplify_correct << "s" << std::endl;
+  std::cout << "  - latex_correct: " << time_l2t_latex_correct << "s" << std::endl;
+  std::cout << "  - guess_missing: " << time_l2t_guess_missing << "s" << std::endl;
+  std::cout << "  - postprocess_metadata: " << time_l2t_post_metadata << "s" << std::endl;
+  std::cout << "AOFM] is_document counts: " << count_l2t_is_document << " / " << count_l2t_total << std::endl;
 
   return true;
 }

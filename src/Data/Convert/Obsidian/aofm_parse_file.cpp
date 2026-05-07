@@ -12,14 +12,41 @@
 #include "tm_configure.hpp"
 #include "tree.hpp"
 #include "url.hpp"
+#include "aofm_telemetry.hpp"
 
 #include <chrono>
 
 extern const char* aofm_grammar;
 std::shared_ptr<peg::Ast> aofm_parse_file(const std::string& file_path);
 
+double time_track = 0.0;
+double time_simplify = 0.0;
+double time_normalize = 0.0;
+double time_latex_mark = 0.0;
+double time_doc_to_tree = 0.0;
+double time_group_markers = 0.0;
+double time_other = 0.0;
+
+double time_parse_latex_doc = 0.0;
+double time_latex_to_tree = 0.0;
 double aofm_math_time = 0.0;
 int aofm_math_count = 0;
+
+double time_l2t_kill_space = 0.0;
+double time_l2t_parsed_latex = 0.0;
+double time_l2t_finalize_doc = 0.0;
+double time_l2t_handle_matches = 0.0;
+double time_l2t_upgrade_tex = 0.0;
+double time_l2t_finalize_misc = 0.0;
+double time_l2t_drd_correct = 0.0;
+double time_l2t_style_check = 0.0;
+double time_l2t_simplify_correct = 0.0;
+double time_l2t_latex_correct = 0.0;
+double time_l2t_guess_missing = 0.0;
+double time_l2t_post_metadata = 0.0;
+
+int count_l2t_is_document = 0;
+int count_l2t_total = 0;
 
 namespace {
 
@@ -653,7 +680,7 @@ tree
 convert_latex_math_inline(const std::string& latex_source) {
   auto start = ::std::chrono::high_resolution_clock::now();
   tree converted = extract(
-      tracked_latex_to_texmacs(tm_string("$" + latex_source + "$"), false),
+      latex_document_to_tree(tm_string("$" + latex_source + "$"), false, true),
       "body");
 
   converted = simplify_document(converted);
@@ -684,7 +711,7 @@ tree
 convert_latex_math_display(const std::string& latex_source) {
   auto start = ::std::chrono::high_resolution_clock::now();
   tree converted = extract(
-      tracked_latex_to_texmacs(tm_string("$$" + latex_source + "$$"), false),
+      latex_document_to_tree(tm_string("$$" + latex_source + "$$"), false, true),
       "body");
 
   auto end = ::std::chrono::high_resolution_clock::now();

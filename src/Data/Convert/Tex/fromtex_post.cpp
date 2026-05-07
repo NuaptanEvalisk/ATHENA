@@ -1,22 +1,28 @@
 
 /******************************************************************************
-* MODULE     : fromtex.cpp
-* DESCRIPTION: conversion of tex strings into texmacs trees
-* COPYRIGHT  : (C) 1999  Joris van der Hoeven
-*******************************************************************************
-* This software falls under the GNU general public license version 3 or later.
-* It comes WITHOUT ANY WARRANTY WHATSOEVER. For details, see the file LICENSE
-* in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
-******************************************************************************/
+ * MODULE     : fromtex.cpp
+ * DESCRIPTION: conversion of tex strings into texmacs trees
+ * COPYRIGHT  : (C) 1999  Joris van der Hoeven
+ *******************************************************************************
+ * This software falls under the GNU general public license version 3 or later.
+ * It comes WITHOUT ANY WARRANTY WHATSOEVER. For details, see the file LICENSE
+ * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
+ ******************************************************************************/
 
-#include "LaTeX_Preview/latex_preview.hpp"
-#include "Tex/convert_tex.hpp"
+#include <qtextstream.h>
+
+#include <chrono>
+#include <iostream>
+
 #include "Bibtex/bibtex.hpp"
+#include "LaTeX_Preview/latex_preview.hpp"
+#include "Obsidian/aofm_telemetry.hpp"
+#include "Tex/convert_tex.hpp"
 #include "metadata.hpp"
 #include "scheme.hpp"
-#include "vars.hpp"
 #include "tree_correct.hpp"
 #include "url.hpp"
+#include "vars.hpp"
 
 tree upgrade_tex (tree t);
 extern bool textm_class_flag;
@@ -2373,12 +2379,19 @@ guess_missing (tree t) {
 ******************************************************************************/
 
 tree
-latex_to_tree (tree t0) {
+latex_to_tree (tree t0, bool not_document) {
   // cout << "\n\nt0= " << t0 << "\n\n";
+  auto s1 = std::chrono::high_resolution_clock::now();
   tree t1= kill_space_invaders (t0);
+  time_l2t_kill_space += std::chrono::duration<double>(std::chrono::high_resolution_clock::now() - s1).count();
+
   string style, lan= "";
   bool is_document= is_compound (t1, "!file", 1);
-  if (is_document) t1= t1[0];
+  count_l2t_total++;
+  if (is_document) {
+    count_l2t_is_document++;
+    t1= t1[0];
+  }
   if (is_compound (t1, "!language", 2)) {
     lan= t1[1]->label;
     t1 = t1[0];
@@ -2388,19 +2401,33 @@ latex_to_tree (tree t0) {
   textm_natbib    = false;
   command_type ("!em") = "false";
   // cout << "\n\nt1= " << t1 << "\n\n";
-  tree t2= is_document? filter_preamble (t1): t1;
+  tree t2= (is_document)? filter_preamble (t1): t1;
   // cout << "\n\nt2= " << t2 << "\n\n";
+
+  auto s2 = std::chrono::high_resolution_clock::now();
   tree t3= parsed_latex_to_tree (t2);
+  time_l2t_parsed_latex += std::chrono::duration<double>(std::chrono::high_resolution_clock::now() - s2).count();
+
   // cout << "\n\nt3= " << t3 << "\n\n";
+  auto s3 = std::chrono::high_resolution_clock::now();
   tree t4= finalize_document (t3);
   // cout << "\n\nt4= " << t4 << "\n\n";
-  tree t5= is_document? finalize_preamble (t4, style): t4;
+  tree t5= (is_document)? finalize_preamble (t4, style): t4;
+  time_l2t_finalize_doc += std::chrono::duration<double>(std::chrono::high_resolution_clock::now() - s3).count();
+
   // cout << "\n\nt5= " << t5 << "\n\n";
+  auto s4 = std::chrono::high_resolution_clock::now();
   tree t6= handle_matches (t5);
+  time_l2t_handle_matches += std::chrono::duration<double>(std::chrono::high_resolution_clock::now() - s4).count();
+
   // cout << "\n\nt6= " << t6 << "\n\n";
   if ((!is_document) && is_func (t6, DOCUMENT, 1)) t6= t6[0];
+  auto s5 = std::chrono::high_resolution_clock::now();
   tree t7= upgrade_tex (t6);
+  time_l2t_upgrade_tex += std::chrono::duration<double>(std::chrono::high_resolution_clock::now() - s5).count();
+
   // cout << "\n\nt7= " << t7 << "\n\n";
+  auto s6 = std::chrono::high_resolution_clock::now();
   tree t8= finalize_floats (t7);
   // cout << "\n\nt8= " << t8 << "\n\n";
   tree t9= finalize_misc (t8);
@@ -2413,12 +2440,27 @@ latex_to_tree (tree t0) {
   }
 
   tree t10= finalize_textm (t9);
+  time_l2t_finalize_misc += std::chrono::duration<double>(std::chrono::high_resolution_clock::now() - s6).count();
+
   // cout << "\n\nt10= " << t10 << "\n\n";
+  auto s7 = std::chrono::high_resolution_clock::now();
   tree t11= drd_correct (std_drd, t10);
+  time_l2t_drd_correct += std::chrono::duration<double>(std::chrono::high_resolution_clock::now() - s7).count();
+
   // cout << "\n\nt11= " << t11 << "\n\n";
 
-  if (!exists (url ("$ATHENA_STYLE_PATH", style * ".ts")))
-    style= "generic";
+  auto s_style = std::chrono::high_resolution_clock::now();
+  if (!not_document) {
+    if (!exists (url ("$ATHENA_STYLE_PATH", style * ".ts")))
+      style= "generic";
+
+    // cout << "(DEBUG) style = " << style  << "\n";
+  }
+  else
+  {
+    style = "generic";
+  }
+  time_l2t_style_check += std::chrono::duration<double>(std::chrono::high_resolution_clock::now() - s_style).count();
 
   if (lan != "") {
     initial << tree (ASSOCIATE, LANGUAGE, lan);
@@ -2438,14 +2480,24 @@ latex_to_tree (tree t0) {
   }
 
   tree t12= t11;
+  auto s8 = std::chrono::high_resolution_clock::now();
   if (is_document) t12= simplify_correct (t11);
   else if (N (mods) > 0) { t12= mods; t12 << t11; }
+  time_l2t_simplify_correct += std::chrono::duration<double>(std::chrono::high_resolution_clock::now() - s8).count();
+
   // cout << "\n\nt12= " << t12 << "\n\n";
+  auto s9 = std::chrono::high_resolution_clock::now();
   tree t13= latex_correct (t12);
+  time_l2t_latex_correct += std::chrono::duration<double>(std::chrono::high_resolution_clock::now() - s9).count();
+
   // cout << "\n\nt13= " << t13 << "\n\n";
+  auto s10 = std::chrono::high_resolution_clock::now();
   tree t14= guess_missing (t13);
-  // cout << "\n\nt14= " << t14 << "\n\n";
+  time_l2t_guess_missing += std::chrono::duration<double>(std::chrono::high_resolution_clock::now() - s10).count();
+
+  auto s11 = std::chrono::high_resolution_clock::now();
   tree t15= postprocess_metadata (t14);
+  time_l2t_post_metadata += std::chrono::duration<double>(std::chrono::high_resolution_clock::now() - s11).count();
   // cout << "\n\nt15= " << t15 << "\n\n";
   
   if (is_document) {
@@ -2467,14 +2519,25 @@ latex_to_tree (tree t0) {
 }
 
 tree
-latex_document_to_tree (string s, bool as_pic) {
+latex_document_to_tree (string s, bool as_pic, bool lite_mode) {
   tree r;
   command_type ->extend ();
   command_arity->extend ();
   command_def  ->extend ();
+
+  auto start_parse = std::chrono::high_resolution_clock::now();
   tree t= parse_latex_document (s, true, as_pic);
   if (as_pic) t= latex_fallback_on_pictures (s, t);
-  r= latex_to_tree (t);
+  auto end_parse = std::chrono::high_resolution_clock::now();
+  std::chrono::duration<double> diff_parse = end_parse - start_parse;
+  time_parse_latex_doc += diff_parse.count();
+
+  auto start_to_tree = std::chrono::high_resolution_clock::now();
+  r= latex_to_tree (t, lite_mode);
+  auto end_to_tree = std::chrono::high_resolution_clock::now();
+  std::chrono::duration<double> diff_to_tree = end_to_tree - start_to_tree;
+  time_latex_to_tree += diff_to_tree.count();
+
   command_type ->shorten ();
   command_arity->shorten ();
   command_def  ->shorten ();

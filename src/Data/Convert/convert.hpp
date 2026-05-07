@@ -72,8 +72,8 @@ tree   verbatim_document_to_tree (string s, bool w= false, string e= "default");
 /*** Latex ***/
 tree   parse_latex (string s, bool change= false, bool as_pic= false);
 tree   parse_latex_document (string s, bool change= false, bool as_pic= false);
-tree   latex_to_tree (tree t);
-tree   latex_document_to_tree (string s, bool as_pic= false);
+tree   latex_to_tree (tree t, bool not_document= false);
+tree   latex_document_to_tree (string s, bool as_pic= false, bool lite_mode= false);
 tree   latex_class_document_to_tree (string s);
 string latex_verbarg_to_string (tree t);
 string get_latex_style (tree t);
