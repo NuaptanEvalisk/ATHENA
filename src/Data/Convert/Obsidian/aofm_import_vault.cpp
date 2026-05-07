@@ -17,7 +17,48 @@
 
 #include <chrono>
 
+#if defined(__unix__) || defined(__APPLE__)
+#include <unistd.h>
+#include <sys/wait.h>
+#include <sys/types.h>
+#include <poll.h>
+#include <thread>
+#include <cstring>
+#include <csignal>
+#endif
+
 namespace {
+
+enum class IpcMsgType { PROGRESS, ERROR_MSG, DONE };
+
+struct IpcTelemetryData {
+  double time_parse_latex_doc;
+  double time_latex_to_tree;
+  double aofm_math_time;
+  int aofm_math_count;
+  double time_l2t_kill_space;
+  double time_l2t_parsed_latex;
+  double time_l2t_finalize_doc;
+  double time_l2t_handle_matches;
+  double time_l2t_upgrade_tex;
+  double time_l2t_finalize_misc;
+  double time_l2t_drd_correct;
+  double time_l2t_style_check;
+  double time_l2t_simplify_correct;
+  double time_l2t_latex_correct;
+  double time_l2t_guess_missing;
+  double time_l2t_post_metadata;
+  int count_l2t_is_document;
+  int count_l2t_total;
+};
+
+struct IpcMessage {
+  IpcMsgType type;
+  union {
+    char filename[256];
+    IpcTelemetryData telemetry;
+  };
+};
 
 struct AofmVaultAnchorInfo {
   std::string uuid;
@@ -888,6 +929,182 @@ aofm_import_vault(string source_dir, string destination_dir) {
 
   size_t total_files = files.size();
   size_t current_index = 0;
+
+#if defined(__unix__) || defined(__APPLE__)
+  int num_workers = std::thread::hardware_concurrency();
+  if (num_workers <= 0) num_workers = 1;
+  if (num_workers > (int)files.size()) num_workers = (int)files.size();
+
+  std::vector<int> pipes(num_workers);
+  std::vector<pid_t> pids;
+
+  for (int i = 0; i < num_workers; ++i) {
+    int fd[2];
+    if (pipe(fd) == -1) {
+      report_import_error("failed to create pipe");
+      return false;
+    }
+
+    pid_t pid = fork();
+    if (pid == -1) {
+      report_import_error("failed to fork");
+      return false;
+    }
+
+    if (pid == 0) {
+      // Child process
+      close(fd[0]);
+      size_t start = (files.size() * i) / num_workers;
+      size_t end = (files.size() * (i + 1)) / num_workers;
+
+      // Reset local telemetry for the child to avoid double-counting inherited values
+      time_parse_latex_doc = 0.0;
+      time_latex_to_tree = 0.0;
+      aofm_math_time = 0.0;
+      aofm_math_count = 0;
+      time_l2t_kill_space = 0.0;
+      time_l2t_parsed_latex = 0.0;
+      time_l2t_finalize_doc = 0.0;
+      time_l2t_handle_matches = 0.0;
+      time_l2t_upgrade_tex = 0.0;
+      time_l2t_finalize_misc = 0.0;
+      time_l2t_drd_correct = 0.0;
+      time_l2t_style_check = 0.0;
+      time_l2t_simplify_correct = 0.0;
+      time_l2t_latex_correct = 0.0;
+      time_l2t_guess_missing = 0.0;
+      time_l2t_post_metadata = 0.0;
+      count_l2t_is_document = 0;
+      count_l2t_total = 0;
+
+      for (size_t j = start; j < end; ++j) {
+        const ImportFileInfo& file_info = files[j];
+        tree document;
+        if (!aofm_convert_tree(as_unix_string(file_info.source_url), document, false)) {
+          IpcMessage msg;
+          msg.type = IpcMsgType::ERROR_MSG;
+          strncpy(msg.filename, file_info.relative_md_path.c_str(), 255);
+          msg.filename[255] = '\0';
+          write(fd[1], &msg, sizeof(IpcMessage));
+          _exit(1);
+        }
+
+        tree resolved = resolve_anchor_placeholders(document, anchor_map, file_map, file_info.relative_ath_path);
+        string serialized = tree_to_texmacs(resolved);
+        std::string destination_path = join_unix_paths(destination_root_path, file_info.relative_ath_path);
+        if (save_string(url_system(std_to_tm_string(destination_path)), serialized)) {
+          IpcMessage msg;
+          msg.type = IpcMsgType::ERROR_MSG;
+          std::string err = "write fail: " + file_info.relative_ath_path;
+          strncpy(msg.filename, err.c_str(), 255);
+          msg.filename[255] = '\0';
+          write(fd[1], &msg, sizeof(IpcMessage));
+          _exit(1);
+        }
+
+        IpcMessage msg;
+        msg.type = IpcMsgType::PROGRESS;
+        strncpy(msg.filename, file_info.relative_md_path.c_str(), 255);
+        msg.filename[255] = '\0';
+        write(fd[1], &msg, sizeof(IpcMessage));
+      }
+
+      IpcMessage msg;
+      msg.type = IpcMsgType::DONE;
+      msg.telemetry.time_parse_latex_doc = time_parse_latex_doc;
+      msg.telemetry.time_latex_to_tree = time_latex_to_tree;
+      msg.telemetry.aofm_math_time = aofm_math_time;
+      msg.telemetry.aofm_math_count = aofm_math_count;
+      msg.telemetry.time_l2t_kill_space = time_l2t_kill_space;
+      msg.telemetry.time_l2t_parsed_latex = time_l2t_parsed_latex;
+      msg.telemetry.time_l2t_finalize_doc = time_l2t_finalize_doc;
+      msg.telemetry.time_l2t_handle_matches = time_l2t_handle_matches;
+      msg.telemetry.time_l2t_upgrade_tex = time_l2t_upgrade_tex;
+      msg.telemetry.time_l2t_finalize_misc = time_l2t_finalize_misc;
+      msg.telemetry.time_l2t_drd_correct = time_l2t_drd_correct;
+      msg.telemetry.time_l2t_style_check = time_l2t_style_check;
+      msg.telemetry.time_l2t_simplify_correct = time_l2t_simplify_correct;
+      msg.telemetry.time_l2t_latex_correct = time_l2t_latex_correct;
+      msg.telemetry.time_l2t_guess_missing = time_l2t_guess_missing;
+      msg.telemetry.time_l2t_post_metadata = time_l2t_post_metadata;
+      msg.telemetry.count_l2t_is_document = count_l2t_is_document;
+      msg.telemetry.count_l2t_total = count_l2t_total;
+      write(fd[1], &msg, sizeof(IpcMessage));
+      _exit(0);
+    } else {
+      // Parent process
+      close(fd[1]);
+      pipes[i] = fd[0];
+      pids.push_back(pid);
+    }
+  }
+
+  // Parent monitoring loop
+  std::vector<pollfd> poll_fds(num_workers);
+  for (int i = 0; i < num_workers; ++i) {
+    poll_fds[i].fd = pipes[i];
+    poll_fds[i].events = POLLIN;
+  }
+
+  int active_workers = num_workers;
+  while (active_workers > 0) {
+    int ret = poll(poll_fds.data(), num_workers, -1);
+    if (ret <= 0) continue;
+
+    for (int i = 0; i < num_workers; ++i) {
+      if (poll_fds[i].fd != -1 && (poll_fds[i].revents & POLLIN)) {
+        IpcMessage msg;
+        ssize_t n = read(poll_fds[i].fd, &msg, sizeof(IpcMessage));
+        if (n <= 0) {
+          if (n == 0) {
+            close(poll_fds[i].fd);
+            poll_fds[i].fd = -1;
+            active_workers--;
+          }
+          continue;
+        }
+
+        if (msg.type == IpcMsgType::PROGRESS) {
+          current_index++;
+          print_progress_bar(current_index, total_files, msg.filename);
+        } else if (msg.type == IpcMsgType::ERROR_MSG) {
+          std::cout << std::endl;
+          report_import_error("child error: " + std::string(msg.filename));
+          // For simplicity, we abort on first child error
+          for (pid_t p : pids) kill(p, SIGTERM);
+          return false;
+        } else if (msg.type == IpcMsgType::DONE) {
+          time_parse_latex_doc += msg.telemetry.time_parse_latex_doc;
+          time_latex_to_tree += msg.telemetry.time_latex_to_tree;
+          aofm_math_time += msg.telemetry.aofm_math_time;
+          aofm_math_count += msg.telemetry.aofm_math_count;
+          time_l2t_kill_space += msg.telemetry.time_l2t_kill_space;
+          time_l2t_parsed_latex += msg.telemetry.time_l2t_parsed_latex;
+          time_l2t_finalize_doc += msg.telemetry.time_l2t_finalize_doc;
+          time_l2t_handle_matches += msg.telemetry.time_l2t_handle_matches;
+          time_l2t_upgrade_tex += msg.telemetry.time_l2t_upgrade_tex;
+          time_l2t_finalize_misc += msg.telemetry.time_l2t_finalize_misc;
+          time_l2t_drd_correct += msg.telemetry.time_l2t_drd_correct;
+          time_l2t_style_check += msg.telemetry.time_l2t_style_check;
+          time_l2t_simplify_correct += msg.telemetry.time_l2t_simplify_correct;
+          time_l2t_latex_correct += msg.telemetry.time_l2t_latex_correct;
+          time_l2t_guess_missing += msg.telemetry.time_l2t_guess_missing;
+          time_l2t_post_metadata += msg.telemetry.time_l2t_post_metadata;
+          count_l2t_is_document += msg.telemetry.count_l2t_is_document;
+          count_l2t_total += msg.telemetry.count_l2t_total;
+        }
+      } else if (poll_fds[i].fd != -1 && (poll_fds[i].revents & (POLLHUP | POLLERR | POLLNVAL))) {
+        close(poll_fds[i].fd);
+        poll_fds[i].fd = -1;
+        active_workers--;
+      }
+    }
+  }
+
+  for (pid_t pid : pids) {
+    waitpid(pid, NULL, 0);
+  }
+#else
   for (const ImportFileInfo& file_info : files) {
     current_index++;
     print_progress_bar(current_index, total_files, file_info.relative_md_path);
@@ -910,6 +1127,7 @@ aofm_import_vault(string source_dir, string destination_dir) {
       return false;
     }
   }
+#endif
 
   std::cout << "\nVault conversion completed successfully." << std::endl;
 
