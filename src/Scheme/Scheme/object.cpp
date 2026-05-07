@@ -454,13 +454,15 @@ object call (object fun, array<object> a) {
 ******************************************************************************/
 
 static bool preferences_ok= false;
-static bool aofm_converter_mode = false;
+bool aofm_converter_mode = false;
 static hashmap<string, string> aofm_pref_cache ("");
 
 void
 aofm_enable_converter_mode (bool enable) {
   aofm_converter_mode = enable;
 }
+
+extern void aofm_cache_latex_commands();
 
 void
 aofm_cache_preferences () {
@@ -489,6 +491,8 @@ aofm_cache_preferences () {
     aofm_pref_cache (prefs[i]) = val;
     std::cout << "AOFM]   " << as_charp (prefs[i]) << " -> " << as_charp (val) << std::endl;
   }
+  
+  aofm_cache_latex_commands();
 }
 
 void

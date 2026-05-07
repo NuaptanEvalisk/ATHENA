@@ -13,6 +13,12 @@
 #include "rel_hashmap.hpp"
 #include "scheme.hpp"
 
+#include <iostream>
+#include <unordered_map>
+#include <string>
+
+#include "tm_ostream.hpp"
+
 static string
 paper_opts_func (string s) {
   return as_string (call ("latex-paper-opts", s));
@@ -23,13 +29,97 @@ paper_type_func (string s) {
   return as_string (call ("latex-paper-type", s));
 }
 
+extern bool aofm_converter_mode;
+
+static std::unordered_map<std::string, std::string> aofm_type_cache;
+static std::unordered_map<std::string, int> aofm_arity_cache;
+
+void aofm_cache_latex_commands() {
+  std::cout << "AOFM] Caching LaTeX command dictionary..." << std::endl;
+  string scheme_code = 
+    "(begin "
+    "  (use-modules (convert latex latex-drd)) "
+    "  (map (lambda (row) "
+    "         (let* ((tag (cdar row)) "
+    "                (s (if (symbol? tag) (symbol->string tag) tag)) "
+    "                (type (latex-type s)) "
+    "                (arity (latex-arity s))) "
+    "           (list s type arity))) "
+    "       (query '(latex-tag% 'x))))";
+  
+  object result = eval(scheme_code);
+  if (is_list(result)) {
+    array<object> rows = as_array_object(result);
+    for (int i=0; i<N(rows); i++) {
+      if (is_list(rows[i])) {
+        array<object> row = as_array_object(rows[i]);
+        if (N(row) >= 3) {
+          std::string cmd = as_charp(as_string(row[0]));
+          std::string type = as_charp(as_string(row[1]));
+          int arity = as_int(row[2]);
+          aofm_type_cache[cmd] = type;
+          aofm_arity_cache[cmd] = arity;
+        }
+      }
+    }
+    std::cout << "AOFM] Cached " << aofm_type_cache.size() << " LaTeX commands." << std::endl;
+  } else {
+    std::cout << "AOFM] Failed to cache LaTeX commands." << std::endl;
+  }
+}
+
 static string
 latex_type_func (string s) {
+  if (aofm_converter_mode) {
+    std::string norm_s = as_charp(s);
+    
+    // Replicate Scheme `latex-resolve` normalization
+    if (!norm_s.empty() && norm_s[0] == '\\') {
+      norm_s = norm_s.substr(1);
+    }
+    if (norm_s.compare(0, 4, "end-") == 0) {
+      norm_s = "begin-" + norm_s.substr(4);
+    }
+
+    auto it = aofm_type_cache.find(norm_s);
+    if (it != aofm_type_cache.end()) {
+      return string(it->second.c_str());
+    }
+
+    // Cache miss means the command is definitely not in the Scheme database
+    return "undefined";
+  }
   return as_string (call ("latex-type", s));
 }
 
 static int
 latex_arity_func (string s) {
+  if (aofm_converter_mode) {
+    std::string norm_s = as_charp(s);
+    
+    // Replicate Scheme `latex-resolve` normalization
+    if (!norm_s.empty() && norm_s[0] == '\\') {
+      norm_s = norm_s.substr(1);
+    }
+    
+    bool was_end = false;
+    if (norm_s.compare(0, 4, "end-") == 0) {
+      norm_s = "begin-" + norm_s.substr(4);
+      was_end = true;
+    }
+
+    if (was_end) {
+      return 0; // `end-` tags always have 0 arity according to latex-resolve
+    }
+
+    auto it = aofm_arity_cache.find(norm_s);
+    if (it != aofm_arity_cache.end()) {
+      return it->second;
+    }
+
+    // Cache miss means the command is definitely not in the Scheme database
+    return 0;
+  }
   return as_int (call ("latex-arity", s));
 }
 

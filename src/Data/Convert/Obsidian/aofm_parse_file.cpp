@@ -1950,6 +1950,7 @@ aofm_convert_file(const std::string& file_path,
                   string& serialized_document) {
   aofm_math_time = 0.0;
   aofm_math_count = 0;
+  
   tree doc;
   if (!aofm_convert_tree(string(file_path.c_str()), doc, true)) return false;
   serialized_document = tree_to_texmacs(doc);
