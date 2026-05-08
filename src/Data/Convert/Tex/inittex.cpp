@@ -34,6 +34,24 @@ extern bool aofm_converter_mode;
 static std::unordered_map<std::string, std::string> aofm_type_cache;
 static std::unordered_map<std::string, int> aofm_arity_cache;
 
+static void
+print_latex_cache_progress (int current, int total) {
+  int bar_width= 30;
+  float progress= (total > 0)? ((float) current / (float) total): 1.0f;
+  int pos= (int) (bar_width * progress);
+
+  std::cout << "\r[";
+  for (int i= 0; i < bar_width; ++i) {
+    if (i < pos) std::cout << "=";
+    else if (i == pos && current < total) std::cout << ">";
+    else std::cout << " ";
+  }
+
+  std::cout << "] " << (int) (progress * 100.0f) << "% "
+            << "[" << current << "/" << total << "] "
+            << "Caching LaTeX command dictionary" << std::flush;
+}
+
 void aofm_cache_latex_commands() {
   // 1. Fetch all LaTeX command names from the database
   // This query is usually very fast compared to property lookups.
@@ -63,7 +81,7 @@ void aofm_cache_latex_commands() {
   
   for (int i = 0; i < total; i += chunk_size) {
     int end = (i + chunk_size > total) ? total : (i + chunk_size);
-    std::cout << "AOFM] Caching LaTeX command dictionary: " << end << "/" << total << " \r" << std::flush;
+    print_latex_cache_progress (end, total);
 
     // Build the chunk list in C++ to avoid string escaping issues
     object chunk_list = null_object();
