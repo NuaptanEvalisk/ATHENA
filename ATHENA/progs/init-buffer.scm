@@ -11,6 +11,7 @@
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(when (not (buffer-has-name? (current-buffer)))
-  (when (buffer-missing-style?)
-    (buffer-set-default-style)))
+(let ((buf (current-buffer)))
+  (when (and buf (not (buffer-has-name? buf)))
+    (when (buffer-missing-style?)
+      (buffer-set-default-style))))

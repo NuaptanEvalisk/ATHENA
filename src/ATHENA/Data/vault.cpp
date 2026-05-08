@@ -36,6 +36,8 @@ vault_load (url root_dir, string name, string db_rel_path) {
   current_vault.name   = name;
   current_vault.db_url = root_dir * url (db_rel_path);
   
+  // Ensure a previously loaded TMDB is refreshed after external conversion.
+  sync_databases ();
   // Trigger TMDB loading
   (void) get_database (current_vault.db_url);
   

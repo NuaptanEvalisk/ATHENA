@@ -47,18 +47,32 @@ convert_paragraph(const AstPtr& ast) {
 }
 
 static std::string
+strip_closing_heading_hashes(std::string title) {
+  title = trim_copy(title);
+  size_t hash_start = title.size();
+  while (hash_start > 0 && title[hash_start - 1] == '#') hash_start--;
+  if (hash_start == title.size()) return title;
+  if (hash_start == 0) return title;
+  if (title[hash_start - 1] != ' ' && title[hash_start - 1] != '\t') return title;
+  return trim_copy(title.substr(0, hash_start - 1));
+}
+
+static std::string
 strip_heading_text(const std::string& raw) {
   size_t pos = 0;
+  while (pos < raw.size() && (raw[pos] == ' ' || raw[pos] == '\t')) pos++;
   while (pos < raw.size() && raw[pos] == '#') pos++;
   while (pos < raw.size() && (raw[pos] == ' ' || raw[pos] == '\t')) pos++;
-  return trim_copy(strip_trailing_newlines(raw.substr(pos)));
+  return strip_closing_heading_hashes(strip_trailing_newlines(raw.substr(pos)));
 }
 
 tree
 convert_heading(const AstPtr& ast) {
   std::string raw = ast_source(ast);
+  size_t pos = 0;
+  while (pos < raw.size() && (raw[pos] == ' ' || raw[pos] == '\t')) pos++;
   int level = 0;
-  while (level < static_cast<int>(raw.size()) && raw[level] == '#') level++;
+  while (pos + level < raw.size() && raw[pos + level] == '#') level++;
 
   std::string title = strip_heading_text(raw);
   const char* tag = "section";
@@ -69,7 +83,11 @@ convert_heading(const AstPtr& ast) {
     case 4: tag = "paragraph"; break;
     default: tag = "subparagraph"; break;
   }
-  return compound(tag, convert_inline_from_raw(title));
+  std::string label = std::string(level, '#') + " " + title;
+  tree out(DOCUMENT);
+  out << compound("label", text_tree(label));
+  out << compound(tag, convert_inline_from_raw(title));
+  return simplify_document(out);
 }
 
 tree

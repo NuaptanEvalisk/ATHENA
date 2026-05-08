@@ -31,6 +31,58 @@
                        ext-get-preference
                        new-document)
 
+(define (vault-url-component-unreserved? c)
+  (or (char-alphabetic? c)
+      (char-numeric? c)
+      (char=? c #\-)
+      (char=? c #\.)
+      (char=? c #\_)
+      (char=? c #\~)))
+
+(define (vault-url-hex-char n)
+  (integer->char (if (< n 10) (+ n 48) (+ n 55))))
+
+(define (vault-url-hex-value c)
+  (cond ((char-numeric? c) (- (char->integer c) 48))
+        ((and (char>=? c #\A) (char<=? c #\F))
+         (- (char->integer c) 55))
+        ((and (char>=? c #\a) (char<=? c #\f))
+         (- (char->integer c) 87))
+        (else #f)))
+
+(define (vault-url-component-encode s)
+  (list->string
+   (append-map
+    (lambda (c)
+      (let ((n (char->integer c)))
+        (if (or (>= n 128) (vault-url-component-unreserved? c))
+            (list c)
+            (list #\%
+                  (vault-url-hex-char (quotient n 16))
+                  (vault-url-hex-char (remainder n 16))))))
+    (string->list s))))
+
+(define (vault-url-component-decode s)
+  (let loop ((cs (string->list s)) (out '()))
+    (if (null? cs)
+        (list->string (reverse out))
+        (if (and (char=? (car cs) #\%)
+                 (pair? (cdr cs))
+                 (pair? (cddr cs)))
+            (let ((hi (vault-url-hex-value (cadr cs)))
+                  (lo (vault-url-hex-value (caddr cs))))
+              (if (and hi lo)
+                  (loop (cdddr cs)
+                        (cons (integer->char (+ (* 16 hi) lo)) out))
+                  (loop (cdr cs) (cons (car cs) out))))
+            (loop (cdr cs) (cons (car cs) out))))))
+
+(define (vault-wikilink-url uuid file-hint anchor-hint)
+  (string-append "tmfs://wikilink/"
+                 (vault-url-component-encode uuid) "/"
+                 (vault-url-component-encode file-hint) "/"
+                 (vault-url-component-encode anchor-hint)))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Settings
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -167,9 +219,8 @@
                   (begin
                     (set! uuid (vault-generate-uuid))
                     (vault-set-node uuid rel-path "" anchor)))
-              (insert `(hlink ,display-text 
-                              ,(string-append "tmfs://wikilink/" uuid "/" 
-                                              file-hint "/" anchor-hint))))))))
+              (insert `(hlink ,display-text
+                              ,(vault-wikilink-url uuid file-hint anchor-hint))))))))
 
 (tm-define (insert-transclude)
   (:interactive #t)
@@ -376,9 +427,11 @@
 (define (wikilink-handler-sub name)
   (display* "Wikilink load: " name "\n")
   (let* ((parts (string-tokenize-by-char name #\/))
-         (uuid (if (pair? parts) (car parts) ""))
-         (file-hint (if (and (pair? parts) (pair? (cdr parts))) (cadr parts) ""))
-         (anchor-hint (if (and (pair? parts) (pair? (cdr parts)) (pair? (cddr parts))) (caddr parts) ""))
+         (uuid (if (pair? parts) (vault-url-component-decode (car parts)) ""))
+         (file-hint (if (and (pair? parts) (pair? (cdr parts)))
+                        (vault-url-component-decode (cadr parts)) ""))
+         (anchor-hint (if (and (pair? parts) (pair? (cdr parts)) (pair? (cddr parts)))
+                          (vault-url-component-decode (list->tmfs (cddr parts))) ""))
          (node (vault-get-node uuid)))
     (display* "  UUID: " uuid ", hints: " file-hint ", " anchor-hint "\n")
     (display* "  Node: " node "\n")
@@ -456,6 +509,9 @@
            (associate "font-family" "tt")
            (associate "page-medium" "automatic")))))))
 (tmfs-load-handler (Wikilink name)
+  (wikilink-handler-sub name))
+
+(tmfs-load-handler (wikilink name)
   (wikilink-handler-sub name))
 
 (define (wikilink-trigger-repair uuid file-hint anchor-hint)
