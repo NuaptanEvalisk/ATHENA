@@ -109,8 +109,11 @@ struct AofmVaultFileInfo {
 
 struct AofmVaultHeadingInfo {
   std::string uuid;
+  std::string transclusion_uuid;
   std::string path;
   std::string label;
+  std::string end_label;
+  int level = 0;
 };
 
 using AnchorMap = std::unordered_map<std::string, AofmVaultAnchorInfo>;
@@ -250,6 +253,19 @@ is_heading_tree(const tree& t) {
          is_compound(t, "subparagraph", 1);
 }
 
+int
+heading_level_from_label(const std::string& label) {
+  int level = 0;
+  while (level < (int) label.size() && label[level] == '#') level++;
+  if (level == 0 || level > 6) return 0;
+  if (level < (int) label.size() &&
+      label[level] != ' ' &&
+      label[level] != '\t') {
+    return 0;
+  }
+  return level;
+}
+
 void
 append_document(tree& out, tree piece) {
   if (piece == "") return;
@@ -330,6 +346,62 @@ is_aofm_transclusion_placeholder(const tree& t) {
   return is_compound(t, "__aofm_transclusion", 3);
 }
 
+std::string
+target_extension_lower(const std::string& target) {
+  size_t slash = target.find_last_of('/');
+  size_t dot = target.find_last_of('.');
+  if (dot == std::string::npos ||
+      (slash != std::string::npos && dot < slash)) {
+    return "";
+  }
+  std::string ext = target.substr(dot + 1);
+  for (char& ch : ext) ch = (char) std::tolower((unsigned char) ch);
+  return ext;
+}
+
+bool
+is_image_target(const std::string& target) {
+  std::string ext = target_extension_lower(target);
+  return ext == "png" || ext == "jpg" || ext == "jpeg" ||
+         ext == "bmp" || ext == "svg" || ext == "gif";
+}
+
+tree
+make_image_embed(const std::string& target) {
+  return compound("image", text_tree(target), text_tree("0.5par"),
+                  text_tree(""), text_tree(""), text_tree(""));
+}
+
+tree
+make_pdf_embed(const std::string& target) {
+  return compound("hlink", text_tree(target), text_tree(target));
+}
+
+const AofmVaultHeadingInfo*
+find_heading_info_by_label(const HeadingMap& heading_map,
+                           const std::string& rel_ath_path,
+                           const std::string& label) {
+  for (const auto& entry : heading_map) {
+    const AofmVaultHeadingInfo& info = entry.second;
+    if (info.path == rel_ath_path && info.label == label &&
+        !info.end_label.empty() && info.level > 0) {
+      return &info;
+    }
+  }
+  return nullptr;
+}
+
+void
+close_heading_ranges(tree& out,
+                     std::vector<const AofmVaultHeadingInfo*>& open_headings,
+                     int min_level) {
+  while (!open_headings.empty() &&
+         open_headings.back()->level >= min_level) {
+    append_document(out, make_label_tree(open_headings.back()->end_label));
+    open_headings.pop_back();
+  }
+}
+
 tree
 resolve_anchor_placeholders(const tree& t, const AnchorMap& anchor_map,
                             const FileIndexMap& file_map,
@@ -365,6 +437,15 @@ resolve_anchor_placeholders(const tree& t, const AnchorMap& anchor_map,
 
     std::string uuid, file_hint, anchor_hint, display;
     std::string target_stem = target.empty() ? path_stem(rel_ath_path) : path_stem(target);
+    if (is_trans && sub.empty()) {
+      if (is_image_target(target)) {
+        return make_image_embed(target);
+      }
+      if (target_extension_lower(target) == "pdf") {
+        return make_pdf_embed(target);
+      }
+    }
+
     if (target.empty()) {
       // Local link
       file_hint = path_stem(rel_ath_path);
@@ -398,7 +479,8 @@ resolve_anchor_placeholders(const tree& t, const AnchorMap& anchor_map,
           h_it = heading_map.find(normalized_heading_map_key(target_stem, sub));
         }
         if (h_it != heading_map.end()) {
-          uuid = h_it->second.uuid;
+          uuid = (is_trans && !h_it->second.transclusion_uuid.empty()) ?
+                 h_it->second.transclusion_uuid : h_it->second.uuid;
           anchor_hint = h_it->second.label;
         }
         else {
@@ -415,7 +497,7 @@ resolve_anchor_placeholders(const tree& t, const AnchorMap& anchor_map,
           anchor_begin = it->second.anchor_1;
         }
       }
-      return compound("TRANSCLUDE", text_tree(uuid), text_tree(file_hint),
+      return compound("transclude", text_tree(uuid), text_tree(file_hint),
                       text_tree(anchor_begin), text_tree(anchor_hint));
     }
 
@@ -438,9 +520,11 @@ resolve_anchor_placeholders(const tree& t, const AnchorMap& anchor_map,
 
   if (is_document(t)) {
     tree out(DOCUMENT);
+    std::vector<const AofmVaultHeadingInfo*> open_headings;
     for (int i = 0; i < N(t); ++i) {
       const tree& child = t[i];
-      if (is_aofm_anchor_block_placeholder(child)) {
+      if (is_aofm_anchor_block_placeholder(child) ||
+          is_aofm_anchor_inline_placeholder(child)) {
         std::string anchor = placeholder_anchor_id(child);
         auto it = anchor_map.find(anchor);
         if (it == anchor_map.end()) {
@@ -450,9 +534,7 @@ resolve_anchor_placeholders(const tree& t, const AnchorMap& anchor_map,
           continue;
         }
 
-        if (!it->second.anchor_2.empty() &&
-            N(out) > 0 &&
-            is_enunciation_like_tree(out[N(out) - 1])) {
+        if (!it->second.anchor_2.empty() && N(out) > 0) {
           tree previous = out[N(out) - 1];
           out[N(out) - 1] = make_label_tree(it->second.anchor_1);
           append_document(out, previous);
@@ -499,11 +581,24 @@ resolve_anchor_placeholders(const tree& t, const AnchorMap& anchor_map,
         continue;
       }
 
+      if (is_compound(child, "label", 1)) {
+        std::string label = tree_to_std_string(child[0]);
+        const AofmVaultHeadingInfo* info =
+            find_heading_info_by_label(heading_map, rel_ath_path, label);
+        if (info != nullptr) {
+          close_heading_ranges(out, open_headings, info->level);
+          append_document(out, child);
+          open_headings.push_back(info);
+          continue;
+        }
+      }
+
       append_document(out,
                       resolve_anchor_placeholders(child, anchor_map, file_map,
                                                   heading_map,
                                                   rel_ath_path));
     }
+    close_heading_ranges(out, open_headings, 0);
     return simplify_document(out);
   }
 
@@ -809,6 +904,13 @@ make_paragraph_anchor_sample(const std::vector<std::string>& lines) {
 }
 
 std::pair<std::string,std::string>
+make_paragraph_anchor_pair(const std::vector<std::string>& lines) {
+  std::string sample = make_paragraph_anchor_sample(lines);
+  if (sample.empty()) sample = "paragraph";
+  return std::make_pair(sample + " {", sample + " }");
+}
+
+std::pair<std::string,std::string>
 make_callout_anchor_pair(const std::vector<std::string>& lines) {
   CalloutHeaderInfo header;
   if (lines.empty() || !parse_callout_header_line(lines[0], header)) {
@@ -938,11 +1040,11 @@ process_markdown_file(const ImportFileInfo& file_info, AnchorMap& map,
       }
       else if (context.kind == BlockKind::PARAGRAPH) {
         store_anchor(map, anchor, file_info.relative_ath_path, file_hint,
-                     std::make_pair(make_paragraph_anchor_sample(context.lines), ""));
+                     make_paragraph_anchor_pair(context.lines));
       }
       else if (context.kind == BlockKind::HEADING && !context.lines.empty()) {
         store_anchor(map, anchor, file_info.relative_ath_path, file_hint,
-                     std::make_pair(context.lines[0], ""));
+                     std::make_pair(context.lines[0], context.lines[0] + " }"));
       }
       finalize_current_block(current, last);
       continue;
@@ -962,8 +1064,11 @@ process_markdown_file(const ImportFileInfo& file_info, AnchorMap& map,
       if (heading_map.find(key) == heading_map.end()) {
         AofmVaultHeadingInfo info;
         info.uuid = tm_to_std_string(vault_generate_uuid());
+        info.transclusion_uuid = tm_to_std_string(vault_generate_uuid());
         info.path = file_info.relative_ath_path;
         info.label = heading_label;
+        info.end_label = heading_label + " }";
+        info.level = heading_level_from_label(heading_label);
         heading_map[key] = info;
         std::string normalized_key = normalized_heading_map_key(file_hint, heading_target);
         if (normalized_key != key &&
@@ -992,7 +1097,7 @@ process_markdown_file(const ImportFileInfo& file_info, AnchorMap& map,
       }
       else {
         store_anchor(map, anchor, file_info.relative_ath_path, file_hint,
-                     std::make_pair(make_paragraph_anchor_sample(current.lines), ""));
+                     make_paragraph_anchor_pair(current.lines));
       }
       finalize_current_block(current, last);
     }
@@ -1033,8 +1138,11 @@ dump_heading_map(const HeadingMap& map, std::ostream& out) {
     const AofmVaultHeadingInfo& info = map.at(heading);
     out << heading << " -> ("
         << "uuid=" << info.uuid
+        << ", transclusion_uuid=" << info.transclusion_uuid
         << ", path=" << info.path
         << ", label=" << info.label
+        << ", end_label=" << info.end_label
+        << ", level=" << info.level
         << ")" << std::endl;
   }
   out << "--- AOFM VAULT HEADING MAP END ---" << std::endl;
@@ -1159,6 +1267,10 @@ write_vault_database(url destination_root, const FileIndexMap& file_map,
   for (const auto& entry : heading_map) {
     const AofmVaultHeadingInfo& info = entry.second;
     set_vault_db_node(db_url, info.uuid, info.path, "", info.label);
+    if (!info.transclusion_uuid.empty() && !info.end_label.empty()) {
+      set_vault_db_node(db_url, info.transclusion_uuid, info.path,
+                        info.label, info.end_label);
+    }
   }
 
   sync_databases();
