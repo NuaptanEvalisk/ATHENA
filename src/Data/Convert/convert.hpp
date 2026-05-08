@@ -133,7 +133,7 @@ tree vernac_document_to_tree (string s);
 /*** Obsidian ***/
 bool aofm_convert_tree (string file_path, tree& document,
                         bool materialize_anchor_literals=true);
-bool aofm_import_vault (string source_dir, string destination_dir);
+bool aofm_import_vault (string source_dir, string destination_dir, bool ignore_nonempty= false);
 void aofm_debug_dump (const std::string& file_path);
 
 /*** AI tools ***/

@@ -89,11 +89,7 @@ aofm_parse_file(const std::string& file_path) {
     aofm_content = extract_aofm_document_metadata(aofm_content);
     aofm_content = preprocess_isolated_callout_proofs(aofm_content);
     aofm_content = sanitize_markdown_blocks(aofm_content);
-
-    std::cout << "--- AOFM PREPROCESSED BEGIN ---" << std::endl;
-    std::cout << aofm_content << std::endl;
-    std::cout << "--- AOFM PREPROCESSED END ---" << std::endl;
-
+  
     if (!aofm_content.empty() && aofm_content.back() != '\n') {
         aofm_content += '\n';
     }

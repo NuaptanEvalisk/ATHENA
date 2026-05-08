@@ -68,7 +68,7 @@ extern tree the_et;
 extern bool texmacs_started;
 
 extern void aofm_debug_dump(const std::string& file_path);
-extern bool aofm_import_vault(string source_dir, string destination_dir);
+extern bool aofm_import_vault(string source_dir, string destination_dir, bool ignore_nonempty);
 
 bool disable_error_recovery= false;
 bool start_server_flag= false;
@@ -76,6 +76,7 @@ bool headless_mode= false;
 std::string aofm_debug_convert_file;
 string aofm_debug_vault_convert_source;
 string aofm_debug_vault_convert_destination;
+bool   aofm_ignore_nonempty_dest = false;
 string extra_init_cmd;
 bool exec_exit= true;
 void server_start ();
@@ -337,6 +338,9 @@ set_global_options  (int argc, char** argv)  {
       }
       else if (s == "-debug-aofm-vault-convert") {
         i += 2;
+      }
+      else if (s == "-ignore-nonempty-dest") {
+        // Handled in texmacs_entrypoint
       }
       else if ((s == "-i") || (s == "-initialize")) {
         i++;
@@ -616,7 +620,8 @@ TeXmacs_main (int argc, char** argv) {
       aofm_enable_converter_mode (true);
       aofm_cache_preferences ();
       bool ok= aofm_import_vault (aofm_debug_vault_convert_source,
-                                  aofm_debug_vault_convert_destination);
+                                  aofm_debug_vault_convert_destination,
+                                  aofm_ignore_nonempty_dest);
       exit (ok ? 0 : 1);
     }
 
@@ -789,6 +794,9 @@ texmacs_entrypoint (int argc, char** argv) {
         aofm_debug_vault_convert_destination= argv[i];
         headless_mode= true;
       }
+    }
+    if (s == "-ignore-nonempty-dest") {
+      aofm_ignore_nonempty_dest = true;
     }
     if (s == "-headless" || s == "-H" || s == "-C" ||
 	     s == "-build-website" || s == "-W" ||

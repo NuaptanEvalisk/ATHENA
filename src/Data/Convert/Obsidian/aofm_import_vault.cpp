@@ -149,6 +149,11 @@ report_import_error(const std::string& message) {
   std::cerr << "aofm2athena: error: " << message << std::endl;
 }
 
+void
+report_import_warning(const std::string& message) {
+  std::cerr << "aofm2athena: warning: " << message << std::endl;
+}
+
 bool
 is_aofm_anchor_block_placeholder(const tree& t) {
   return is_compound(t, "__aofm_anchor_block", 1);
@@ -831,7 +836,7 @@ scan_markdown_files(url source_root, url source_dir, url destination_dir,
 }
 
 bool
-validate_destination_dir(url destination_root) {
+validate_destination_dir(url destination_root, bool ignore_nonempty) {
   if (!exists(destination_root)) {
     mkdir(destination_root);
     return true;
@@ -849,6 +854,10 @@ validate_destination_dir(url destination_root) {
   }
   for (int i = 0; i < N(entries); ++i) {
     if (entries[i] == "." || entries[i] == "..") continue;
+    if (ignore_nonempty) {
+      report_import_warning("destination directory is not empty");
+      return true;
+    }
     report_import_error("destination directory is not empty");
     return false;
   }
@@ -889,7 +898,7 @@ print_progress_bar(size_t current, size_t total, const std::string& filename) {
 }
 
 bool
-aofm_import_vault(string source_dir, string destination_dir) {
+aofm_import_vault(string source_dir, string destination_dir, bool ignore_nonempty) {
   time_parse_latex_doc = 0.0;
   time_latex_to_tree = 0.0;
   aofm_math_time = 0.0;
@@ -924,7 +933,7 @@ aofm_import_vault(string source_dir, string destination_dir) {
     report_import_error("source path is not a directory");
     return false;
   }
-  if (!validate_destination_dir(destination_root)) return false;
+  if (!validate_destination_dir(destination_root, ignore_nonempty)) return false;
 
   std::vector<ImportFileInfo> files;
   if (!scan_markdown_files(source_root, source_root, destination_root, files)) {
