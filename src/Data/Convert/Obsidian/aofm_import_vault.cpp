@@ -123,6 +123,24 @@ path_stem(const std::string& path) {
 }
 
 std::string
+path_stem_without_trailing_separators(const std::string& path) {
+  size_t end = path.find_last_not_of("/\\");
+  if (end == std::string::npos) return "";
+  return path_stem(path.substr(0, end + 1));
+}
+
+std::string
+scheme_quote_string(const std::string& s) {
+  std::string out = "\"";
+  for (char c : s) {
+    if (c == '\\' || c == '"') out += '\\';
+    out += c;
+  }
+  out += "\"";
+  return out;
+}
+
+std::string
 tree_to_std_string(const tree& t) {
   return std::string(as_charp(as_string(t)));
 }
@@ -872,6 +890,16 @@ join_unix_paths(const std::string& root, const std::string& rel) {
   return root + "/" + rel;
 }
 
+bool
+write_vaultfile(const std::string& destination_root_path,
+                const std::string& vault_name) {
+  std::string vaultfile_path = join_unix_paths(destination_root_path, "Vaultfile");
+  std::ofstream vaultfile(vaultfile_path);
+  if (!vaultfile.is_open()) return false;
+  vaultfile << "(" << scheme_quote_string(vault_name) << " \"map.tmdb\")\n";
+  return (bool) vaultfile;
+}
+
 } // namespace
 
 void
@@ -935,6 +963,16 @@ aofm_import_vault(string source_dir, string destination_dir, bool ignore_nonempt
   }
   if (!validate_destination_dir(destination_root, ignore_nonempty)) return false;
 
+  std::string destination_root_path =
+      tm_to_std_string(as_unix_string(destination_root));
+  std::string vault_name =
+      path_stem_without_trailing_separators(tm_to_std_string(as_unix_string(source_root)));
+  if (vault_name.empty()) vault_name = "Vault";
+  if (!write_vaultfile(destination_root_path, vault_name)) {
+    report_import_error("failed to write Vaultfile");
+    return false;
+  }
+
   std::vector<ImportFileInfo> files;
   if (!scan_markdown_files(source_root, source_root, destination_root, files)) {
     report_import_error("failed to scan source vault");
@@ -953,9 +991,6 @@ aofm_import_vault(string source_dir, string destination_dir, bool ignore_nonempt
 
     process_markdown_file(file_info, anchor_map);
   }
-
-  std::string destination_root_path =
-      tm_to_std_string(as_unix_string(destination_root));
 
   std::string dump_path = join_unix_paths(destination_root_path, "anchor_map.txt");
   std::ofstream dump_file(dump_path);
