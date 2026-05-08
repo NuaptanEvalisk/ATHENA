@@ -730,7 +730,7 @@ if (ATHENA_GUI MATCHES "Qt.*")
     GIT_TAG        4.3.1
     PATCH_COMMAND  ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/patch_ads.py <SOURCE_DIR>
   )
-  set(ADS_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+  set(BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
   FetchContent_MakeAvailable(ads)
   set(ADS_LIBRARIES "qt${QT_VERSION_MAJOR}advanceddocking")
 elseif (ATHENA_GUI STREQUAL "Aqua")
