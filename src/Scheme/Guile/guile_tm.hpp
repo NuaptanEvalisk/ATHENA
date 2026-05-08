@@ -187,11 +187,7 @@ typedef SCM (*scm_t_catch_handler) (void *data, SCM tag, SCM throw_args);
 #define SCM_ARG10 10
 #define SCM_ARG11 11
 
-#ifdef DOTS_OK
-typedef SCM (*FN)(...);
-#else
 typedef SCM (*FN)();
-#endif
 
 #if defined(GUILE_A) || defined(GUILE_B)
 int scm_to_bool (SCM obj);

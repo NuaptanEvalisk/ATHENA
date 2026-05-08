@@ -330,23 +330,6 @@ set (CMAKE_REQUIRED_FLAGS "-Werror ${Guile_CFLAGS}")
 set (CMAKE_REQUIRED_INCLUDES ${Guile_INCLUDE_DIRS})
 set (guile_str_size_t size_t)
 
-message (STATUS "Checking whether ... arguments behave correctly")
-
-check_c_source_compiles ("
-#include <guile/gh.h>
-#include <libguile.h>
-typedef SCM (*FN)(...);
-static SCM identity (SCM x) { return x; }
-void declare () { gh_new_procedure (\"identity\", (FN) identity, 1, 0, 0); }
-int main() { return 0; }
-" _guile_dots_test)
-
-if (_guile_dots_test)
-  set (DOTS_OK 1)
-else (_guile_dots_test)
-  set (DOTS_OK)
-endif (_guile_dots_test)
-
 ### --------------------------------------------------------------------
 ### Generate configure headers
 ### --------------------------------------------------------------------

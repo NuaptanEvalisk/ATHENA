@@ -49,11 +49,7 @@ start_scheme (int argc, char** argv, void (*call_back) (int, char**)) {
   old_call_back= call_back;
   scm_boot_guile (argc, argv, new_call_back, 0);
 #else
-#ifdef DOTS_OK
-  gh_enter (argc, argv, (void (*)(...)) ((void*) call_back));
-#else
   gh_enter (argc, argv, call_back);
-#endif
 #endif
 }
 

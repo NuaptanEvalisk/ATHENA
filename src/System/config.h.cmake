@@ -6,9 +6,6 @@
 /* check assertions in code */
 #cmakedefine DEBUG_ASSERT 1
 
-/* Defined if ...-style argument passing works */
-#cmakedefine DOTS_OK 1
-
 /* Enable experimental style rewriting code */
 #cmakedefine EXPERIMENTAL 1
 
