@@ -1,4 +1,5 @@
 #include "aofm_utils.hpp"
+#include "converter.hpp"
 #include <iostream>
 #include <sstream>
 #include <algorithm>
@@ -7,12 +8,12 @@ namespace aofm {
 
 string
 tm_string(const std::string& s) {
-  return string(s.c_str());
+  return utf8_to_cork(string(s.c_str()));
 }
 
 string
 std_to_tm_string(const std::string& s) {
-  return string(s.c_str());
+  return utf8_to_cork(string(s.c_str()));
 }
 
 void
