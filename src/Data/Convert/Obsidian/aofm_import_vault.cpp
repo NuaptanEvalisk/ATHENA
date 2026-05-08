@@ -27,6 +27,10 @@
 #include <csignal>
 #endif
 
+#include "aofm_utils.hpp"
+
+using namespace aofm;
+
 namespace {
 
 enum class IpcMsgType { PROGRESS, ERROR_MSG, DONE };
@@ -109,11 +113,6 @@ tm_to_std_string(string s) {
   return std::string(as_charp(s));
 }
 
-string
-std_to_tm_string(const std::string& s) {
-  return string(s.c_str());
-}
-
 std::string
 path_stem(const std::string& path) {
   size_t slash = path.find_last_of("/\\");
@@ -156,14 +155,14 @@ is_aofm_anchor_block_placeholder(const tree& t) {
 }
 
 bool
-is_aofm_inline_anchor_placeholder(const tree& t) {
+is_aofm_anchor_inline_placeholder(const tree& t) {
   return is_compound(t, "__aofm_anchor_inline", 1);
 }
 
 std::string
 placeholder_anchor_id(const tree& t) {
   if (!is_aofm_anchor_block_placeholder(t) &&
-      !is_aofm_inline_anchor_placeholder(t)) {
+      !is_aofm_anchor_inline_placeholder(t)) {
     return "";
   }
   return tree_to_std_string(t[0]);
@@ -174,7 +173,7 @@ materialize_anchor_literal(const tree& t) {
   if (is_aofm_anchor_block_placeholder(t)) {
     return text_tree("^" + placeholder_anchor_id(t));
   }
-  if (is_aofm_inline_anchor_placeholder(t)) {
+  if (is_aofm_anchor_inline_placeholder(t)) {
     return text_tree(" ^" + placeholder_anchor_id(t));
   }
   return t;
@@ -207,7 +206,7 @@ tree
 resolve_anchor_placeholders(const tree& t, const AnchorMap& anchor_map,
                             const FileIndexMap& file_map,
                             const std::string& rel_ath_path) {
-  if (is_aofm_inline_anchor_placeholder(t)) {
+  if (is_aofm_anchor_inline_placeholder(t)) {
     std::string anchor = placeholder_anchor_id(t);
     auto it = anchor_map.find(anchor);
     if (it == anchor_map.end()) {
