@@ -174,12 +174,13 @@ normalize_markdown_lines(const std::string& raw) {
     if (!line.empty() && line.back() == '\r') line.pop_back();
 
     std::string content = line;
-    if (starts_blockquote_line(line)) {
+    bool is_bq = starts_blockquote_line(line);
+    if (is_bq) {
       content = strip_one_blockquote_marker(line);
     }
 
     if (is_proof_marker_text(content)) {
-      if (!lines.empty() && !trim_copy(lines.back()).empty()) {
+      if (!is_bq && !lines.empty() && !trim_copy(lines.back()).empty()) {
         lines.push_back("");
       }
     }
@@ -214,7 +215,7 @@ starts_callout_header_line(const std::string& line) {
   if (pos >= line.size() || line[pos] != '>') return false;
   pos++;
   while (pos < line.size() && (line[pos] == ' ' || line[pos] == '\t')) pos++;
-  return line.compare(pos, 3, "[!") == 0;
+  return line.compare(pos, 2, "[!") == 0;
 }
 
 std::string

@@ -26,7 +26,8 @@ bool map_basic_callout_tag(const std::string& base, std::string& tag, bool& use_
 bool map_extended_callout_tag(const CalloutHeader& header, std::string& tag, bool& use_quote_env);
 
 tree convert_callout(const AstPtr& ast);
-bool extend_theorem_callout_proof(const std::vector<AstPtr>& nodes, size_t index, tree converted, size_t& consumed_to, tree& result);
+bool absorb_trailing_anchor(const std::vector<AstPtr>& nodes, size_t index, tree converted, size_t& consumed_to, tree& result);
+bool absorb_trailing_proof(const std::vector<AstPtr>& nodes, size_t index, tree converted, size_t& consumed_to, tree& result);
 tree consume_proof(const std::vector<AstPtr>& nodes, size_t start, size_t& consumed_to);
 
 bool strip_proof_qed_suffix(std::string& raw);

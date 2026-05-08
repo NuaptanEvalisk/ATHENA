@@ -203,12 +203,19 @@ convert_block(const AstPtr& ast) {
       tree converted_child = convert_block(child);
       size_t extended_to = i;
       tree extended_child;
-      if (extend_theorem_callout_proof(ast->nodes, i, converted_child,
-                                       extended_to, extended_child)) {
-        append_document(out, extended_child);
+      
+      if (absorb_trailing_anchor(ast->nodes, i, converted_child,
+                                 extended_to, extended_child)) {
+        converted_child = extended_child;
         i = extended_to;
-        continue;
       }
+      
+      if (absorb_trailing_proof(ast->nodes, i, converted_child,
+                                extended_to, extended_child)) {
+        converted_child = extended_child;
+        i = extended_to;
+      }
+      
       append_document(out, converted_child);
     }
     return simplify_document(out);

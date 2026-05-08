@@ -181,7 +181,7 @@ materialize_anchor_literal(const tree& t) {
 
 bool
 is_enunciation_like_tree(const tree& t) {
-  if (!is_compound(t) || N(t) != 1) return false;
+  if (!is_compound(t)) return false;
   std::string tag = std::string(as_charp(as_string(L(t))));
   return tag == "theorem" || tag == "lemma" || tag == "corollary" ||
          tag == "proposition" || tag == "axiom" || tag == "definition" ||
@@ -190,6 +190,16 @@ is_enunciation_like_tree(const tree& t) {
          tag == "proof" || tag == "solution" || tag == "law" ||
          tag == "disambiguation" || tag == "proof-alternative" ||
          tag == "proof-standard";
+}
+
+bool
+is_theorem_like_tree(const tree& t) {
+  if (!is_compound(t)) return false;
+  std::string tag = std::string(as_charp(as_string(L(t))));
+  return tag == "theorem" || tag == "lemma" || tag == "corollary" ||
+         tag == "proposition" || tag == "axiom" || tag == "definition" ||
+         tag == "conjecture" || tag == "remark" || tag == "law" || 
+         tag == "example";
 }
 
 bool
@@ -304,6 +314,27 @@ resolve_anchor_placeholders(const tree& t, const AnchorMap& anchor_map,
           out[N(out) - 1] = make_label_tree(it->second.anchor_1);
           append_document(out, previous);
           append_document(out, make_label_tree(it->second.anchor_2));
+
+          // Dual-Wrap logic for separated proofs
+          if (is_theorem_like_tree(previous) && i + 1 < N(t) && is_compound(t[i + 1], "proof")) {
+            std::string t_label1 = it->second.anchor_1;
+            std::string t_label2 = it->second.anchor_2;
+
+            auto derive_proof_label = [](const std::string& l) {
+              size_t colon = l.find(':');
+              std::string suffix = (colon == std::string::npos ? l : l.substr(colon + 1));
+              // Ensure we remove the trailing ' {' or ' }' if they are part of the string
+              size_t space = suffix.find_last_not_of(" {}");
+              if (space != std::string::npos) suffix = suffix.substr(0, space + 1);
+              return "proof:" + suffix;
+            };
+
+            append_document(out, make_label_tree(derive_proof_label(t_label1) + " {"));
+            append_document(out, resolve_anchor_placeholders(t[i+1], anchor_map, file_map, rel_ath_path));
+            append_document(out, make_label_tree(derive_proof_label(t_label2) + " }"));
+
+            i++; // Consume the proof node
+          }
           continue;
         }
 

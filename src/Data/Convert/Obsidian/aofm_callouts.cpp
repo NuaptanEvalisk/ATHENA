@@ -47,20 +47,6 @@ preprocess_isolated_callout_proofs(const std::string& raw) {
       }
     }
 
-    if (proof_index == block_end) {
-      for (size_t j = i; j < block_end; ++j) out.push_back(lines[j]);
-      i = block_end;
-      continue;
-    }
-
-    std::vector<std::string> theorem_lines;
-    for (size_t j = i; j < proof_index; ++j) theorem_lines.push_back(lines[j]);
-
-    std::vector<std::string> proof_lines;
-    for (size_t j = proof_index; j < block_end; ++j) {
-      proof_lines.push_back(strip_one_blockquote_marker(lines[j]));
-    }
-
     size_t cursor = block_end;
     bool saw_blank_after_callout = false;
     while (cursor < lines.size() && is_blank_line(lines[cursor])) {
@@ -68,7 +54,6 @@ preprocess_isolated_callout_proofs(const std::string& raw) {
       cursor++;
     }
 
-    // Check for anchor line
     bool is_anchor = false;
     if (cursor < lines.size()) {
        std::string trimmed = trim_copy(lines[cursor]);
@@ -79,8 +64,35 @@ preprocess_isolated_callout_proofs(const std::string& raw) {
     if (saw_blank_after_callout && is_anchor) {
       moved_anchor = lines[cursor];
       cursor++;
-    } else {
-      cursor = block_end;
+    }
+
+    // If no proof was found, we still want to move the anchor if it exists.
+    if (proof_index == block_end) {
+      for (size_t j = i; j < block_end; ++j) out.push_back(lines[j]);
+      if (!moved_anchor.empty()) {
+        out.push_back("");
+        out.push_back(moved_anchor);
+      }
+      i = cursor;
+      continue;
+    }
+
+    std::vector<std::string> theorem_lines;
+    for (size_t j = i; j < proof_index; ++j) theorem_lines.push_back(lines[j]);
+
+    // Trim trailing empty blockquote lines or blank lines from theorem_lines
+    while (!theorem_lines.empty()) {
+      std::string last = trim_copy(theorem_lines.back());
+      if (last == ">" || last.empty()) {
+        theorem_lines.pop_back();
+      } else {
+        break;
+      }
+    }
+
+    std::vector<std::string> proof_lines;
+    for (size_t j = proof_index; j < block_end; ++j) {
+      proof_lines.push_back(strip_one_blockquote_marker(lines[j]));
     }
 
     for (const auto& theorem_line : theorem_lines) out.push_back(theorem_line);
@@ -284,13 +296,13 @@ map_extended_callout_tag(const CalloutHeader& header, std::string& tag,
 }
 
 bool
-extend_theorem_callout_proof(const std::vector<AstPtr>& nodes, size_t index,
-                             tree converted, size_t& consumed_to,
-                             tree& result) {
+absorb_trailing_anchor(const std::vector<AstPtr>& nodes, size_t index,
+                       tree converted, size_t& consumed_to, tree& result) {
   tree doc = ensure_document_tree(converted);
-  if (!is_document(doc) || N(doc) < 2) return false;
-  if (!is_theorem_like_env_tree(doc[0])) return false;
-  if (!is_compound(doc[N(doc) - 1], "proof", 1)) return false;
+  if (!is_document(doc) || N(doc) < 1) return false;
+
+  tree env = is_document(doc) && N(doc) == 1 ? doc[0] : doc;
+  if (!is_theorem_like_env_tree(env)) return false;
 
   size_t cursor = index + 1;
   tree moved_labels(DOCUMENT);
@@ -307,8 +319,29 @@ extend_theorem_callout_proof(const std::vector<AstPtr>& nodes, size_t index,
     saw_anchor = true;
     ++cursor;
   }
+  
   if (!saw_anchor) return false;
 
+  tree out(DOCUMENT);
+  out << converted;
+  append_document(out, simplify_document(moved_labels));
+  
+  result = out;
+  consumed_to = cursor - 1;
+  return true;
+}
+
+bool
+absorb_trailing_proof(const std::vector<AstPtr>& nodes, size_t index,
+                      tree converted, size_t& consumed_to, tree& result) {
+  tree doc = ensure_document_tree(converted);
+  if (!is_document(doc) || N(doc) < 1) return false;
+
+  tree env = is_document(doc) && N(doc) == 1 ? doc[0] : doc;
+  if (!is_theorem_like_env_tree(env)) return false;
+  if (!is_compound(env[N(env) - 1], "proof", 1)) return false;
+
+  size_t cursor = index + 1;
   while (cursor < nodes.size()) {
     AstPtr payload = block_payload(nodes[cursor]);
     if (!payload) {
@@ -364,14 +397,18 @@ extend_theorem_callout_proof(const std::vector<AstPtr>& nodes, size_t index,
 
   if (!closed || N(continuation) == 0) return false;
 
-  tree proof_body = ensure_document_tree(doc[N(doc) - 1][0]);
+  tree proof_body = ensure_document_tree(env[N(env) - 1][0]);
   append_document(proof_body, continuation);
 
-  tree out(DOCUMENT);
-  out << doc[0];
-  append_document(out, simplify_document(moved_labels));
-  out << compound("proof", ensure_document_tree(proof_body));
-  result = simplify_document(out);
+  tree new_env(env, N(env));
+  new_env[N(env) - 1] = compound("proof", ensure_document_tree(proof_body));
+
+  if (is_document(doc) && N(doc) == 1) {
+    result = document(new_env);
+  } else {
+    result = new_env;
+  }
+
   consumed_to = j - 1;
   return true;
 }
@@ -392,8 +429,18 @@ consume_proof(const std::vector<AstPtr>& nodes, size_t start,
 
   std::vector<ProofFrame> stack;
   stack.push_back(ProofFrame { tree(DOCUMENT) });
+
+  bool closes_immediately = strip_proof_qed_suffix(first_chunk);
+
   if (!first_chunk.empty()) {
     stack.back().body << convert_inline_from_raw(first_chunk);
+  }
+
+  if (closes_immediately) {
+    tree finished = compound("proof", ensure_document_tree(stack.back().body));
+    stack.pop_back();
+    consumed_to = start;
+    return finished;
   }
 
   size_t j = start + 1;
@@ -414,9 +461,19 @@ consume_proof(const std::vector<AstPtr>& nodes, size_t start,
 
     std::string nested_chunk;
     if (extract_proof_marker_body(payload, nested_chunk)) {
+      // 【新增】：同样的逻辑应用到可能存在的嵌套 Proof
+      bool closes_nested = strip_proof_qed_suffix(nested_chunk);
+
       stack.push_back(ProofFrame { tree(DOCUMENT) });
       if (!nested_chunk.empty()) {
         stack.back().body << convert_inline_from_raw(nested_chunk);
+      }
+
+      // 【新增】：立即闭合嵌套 Proof
+      if (closes_nested) {
+        tree finished = compound("proof", ensure_document_tree(stack.back().body));
+        stack.pop_back();
+        append_document(stack.back().body, finished);
       }
       ++j;
       continue;
@@ -434,14 +491,18 @@ consume_proof(const std::vector<AstPtr>& nodes, size_t start,
       tree converted_callout = convert_block(nodes[j]);
       size_t extended_to = j;
       tree extended_callout;
-      if (extend_theorem_callout_proof(nodes, j, converted_callout,
-                                       extended_to, extended_callout)) {
-        append_document(stack.back().body, extended_callout);
-        j = extended_to + 1;
-      } else {
-        append_document(stack.back().body, converted_callout);
-        ++j;
+      if (absorb_trailing_anchor(nodes, j, converted_callout,
+                                 extended_to, extended_callout)) {
+        converted_callout = extended_callout;
+        j = extended_to;
       }
+      if (absorb_trailing_proof(nodes, j, converted_callout,
+                                extended_to, extended_callout)) {
+        converted_callout = extended_callout;
+        j = extended_to;
+      }
+      append_document(stack.back().body, converted_callout);
+      ++j;
 
       if (closes_callout_proof) {
         tree finished =
