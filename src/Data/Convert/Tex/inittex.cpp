@@ -35,37 +35,61 @@ static std::unordered_map<std::string, std::string> aofm_type_cache;
 static std::unordered_map<std::string, int> aofm_arity_cache;
 
 void aofm_cache_latex_commands() {
-  std::cout << "AOFM] Caching LaTeX command dictionary..." << std::endl;
-  string scheme_code = 
+  // 1. Fetch all LaTeX command names from the database
+  // This query is usually very fast compared to property lookups.
+  string get_tags_code = 
     "(begin "
     "  (use-modules (convert latex latex-drd)) "
     "  (map (lambda (row) "
-    "         (let* ((tag (cdar row)) "
-    "                (s (if (symbol? tag) (symbol->string tag) tag)) "
-    "                (type (latex-type s)) "
-    "                (arity (latex-arity s))) "
-    "           (list s type arity))) "
+    "         (let ((tag (cdar row))) "
+    "           (if (symbol? tag) (symbol->string tag) tag))) "
     "       (query '(latex-tag% 'x))))";
   
-  object result = eval(scheme_code);
-  if (is_list(result)) {
-    array<object> rows = as_array_object(result);
-    for (int i=0; i<N(rows); i++) {
-      if (is_list(rows[i])) {
-        array<object> row = as_array_object(rows[i]);
-        if (N(row) >= 3) {
-          std::string cmd = as_charp(as_string(row[0]));
-          std::string type = as_charp(as_string(row[1]));
-          int arity = as_int(row[2]);
-          aofm_type_cache[cmd] = type;
-          aofm_arity_cache[cmd] = arity;
+  object tags_result = eval(get_tags_code);
+  if (!is_list(tags_result)) {
+    std::cout << "AOFM] Failed to fetch LaTeX command tags." << std::endl;
+    return;
+  }
+  
+  array<object> tags = as_array_object(tags_result);
+  int total = N(tags);
+  int chunk_size = 50;
+
+  // Ensure modules are loaded at the top level
+  eval("(use-modules (convert latex latex-drd))");
+
+  // Resolve the resolver once
+  object resolver = eval("(lambda (l) (map (lambda (s) (list s (latex-type s) (latex-arity s))) l))");
+  
+  for (int i = 0; i < total; i += chunk_size) {
+    int end = (i + chunk_size > total) ? total : (i + chunk_size);
+    std::cout << "AOFM] Caching LaTeX command dictionary: " << end << "/" << total << " \r" << std::flush;
+
+    // Build the chunk list in C++ to avoid string escaping issues
+    object chunk_list = null_object();
+    for (int j = end - 1; j >= i; --j) {
+      chunk_list = cons(tags[j], chunk_list);
+    }
+
+    object batch_result = call(resolver, chunk_list);
+    if (is_list(batch_result)) {
+      array<object> rows = as_array_object(batch_result);
+      for (int k = 0; k < N(rows); ++k) {
+        if (is_list(rows[k])) {
+          array<object> row = as_array_object(rows[k]);
+          if (N(row) >= 3) {
+            std::string cmd = as_charp(as_string(row[0]));
+            std::string type = as_charp(as_string(row[1]));
+            int arity = as_int(row[2]);
+            aofm_type_cache[cmd] = type;
+            aofm_arity_cache[cmd] = arity;
+          }
         }
       }
     }
-    std::cout << "AOFM] Cached " << aofm_type_cache.size() << " LaTeX commands." << std::endl;
-  } else {
-    std::cout << "AOFM] Failed to cache LaTeX commands." << std::endl;
   }
+  std::cout << std::endl;
+  std::cout << "AOFM] Cached " << aofm_type_cache.size() << " LaTeX commands." << std::endl;
 }
 
 static string
