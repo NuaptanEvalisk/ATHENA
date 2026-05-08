@@ -12,6 +12,14 @@ extern const char* aofm_grammar;
 
 namespace aofm {
 
+static bool
+is_standalone_transclusion_line(const std::string& line) {
+  std::string trimmed = trim_copy(line);
+  return trimmed.size() >= 5 &&
+         trimmed.compare(0, 3, "![[") == 0 &&
+         trimmed.compare(trimmed.size() - 2, 2, "]]") == 0;
+}
+
 tree
 convert_paragraph(const AstPtr& ast) {
   std::stringstream in(strip_trailing_newlines(ast_source(ast)));
@@ -36,6 +44,11 @@ convert_paragraph(const AstPtr& ast) {
   while (std::getline(in, line)) {
     if (trim_copy(line).empty()) {
       flush_chunk();
+      continue;
+    }
+    if (is_standalone_transclusion_line(line)) {
+      flush_chunk();
+      append_document(out, convert_inline_from_raw(trim_copy(line)));
       continue;
     }
     if (!chunk.empty()) chunk += ' ';

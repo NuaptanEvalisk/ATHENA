@@ -30,6 +30,7 @@ bool is_proof_marker_text(const std::string& raw);
 
 std::string strip_known_invisible_prefixes(std::string line);
 std::string normalize_markdown_lines(const std::string& raw);
+std::string normalize_transclusion_lines(const std::string& raw);
 
 size_t leading_space_count(const std::string& line);
 bool starts_blockquote_line(const std::string& line);

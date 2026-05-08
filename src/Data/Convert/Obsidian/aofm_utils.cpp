@@ -196,6 +196,77 @@ normalize_markdown_lines(const std::string& raw) {
   return result;
 }
 
+static std::string
+blockquote_prefix_of(const std::string& line) {
+  size_t pos = leading_space_count(line);
+  if (pos >= line.size() || line[pos] != '>') return "";
+  pos++;
+  if (pos < line.size() && line[pos] == ' ') pos++;
+  return line.substr(0, pos);
+}
+
+static std::vector<std::string>
+split_transclusion_line(const std::string& line) {
+  std::vector<std::string> out;
+  std::string prefix = blockquote_prefix_of(line);
+  std::string body = prefix.empty() ? line : line.substr(prefix.size());
+  size_t pos = 0;
+  size_t start = 0;
+
+  while (true) {
+    size_t bang = body.find("![[", pos);
+    if (bang == std::string::npos) break;
+    size_t close = body.find("]]", bang + 3);
+    if (close == std::string::npos) break;
+
+    std::string before = rtrim_copy(body.substr(start, bang - start));
+    if (!before.empty()) out.push_back(prefix + before);
+
+    out.push_back(prefix + body.substr(bang, close + 2 - bang));
+    pos = close + 2;
+    start = pos;
+  }
+
+  std::string tail = body.substr(start);
+  if (!tail.empty()) out.push_back(prefix + tail);
+  if (out.empty()) out.push_back(line);
+  return out;
+}
+
+std::string
+normalize_transclusion_lines(const std::string& raw) {
+  std::vector<std::string> lines;
+  std::stringstream in(raw);
+  std::string line;
+  bool in_fenced_code = false;
+
+  while (std::getline(in, line)) {
+    if (!line.empty() && line.back() == '\r') line.pop_back();
+
+    std::string trimmed = trim_copy(line);
+    if (trimmed.compare(0, 3, "```") == 0) {
+      in_fenced_code = !in_fenced_code;
+      lines.push_back(line);
+      continue;
+    }
+
+    if (in_fenced_code || line.find("![[") == std::string::npos) {
+      lines.push_back(line);
+      continue;
+    }
+
+    std::vector<std::string> split = split_transclusion_line(line);
+    lines.insert(lines.end(), split.begin(), split.end());
+  }
+
+  std::string result;
+  for (size_t i = 0; i < lines.size(); ++i) {
+    if (i > 0) result += '\n';
+    result += lines[i];
+  }
+  return result;
+}
+
 size_t
 leading_space_count(const std::string& line) {
   size_t pos = 0;
