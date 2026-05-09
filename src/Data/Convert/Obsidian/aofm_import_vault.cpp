@@ -325,12 +325,12 @@ scheme_quote_string(const std::string& s) {
 
 std::string
 tree_to_std_string(const tree& t) {
-  return std::string(as_charp(as_string(t)));
+  return std::string(as_charp(cork_to_utf8(as_string(t))));
 }
 
 tree
 text_tree(const std::string& s) {
-  return as_tree(string(s.c_str()));
+  return as_tree(std_to_tm_string(s));
 }
 
 tree
