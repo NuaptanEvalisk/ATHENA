@@ -5,6 +5,7 @@
 #include "aofm_inline.hpp"
 #include "aofm_callouts.hpp"
 #include "aofm_math.hpp"
+#include "vars.hpp"
 #include <iostream>
 #include <sstream>
 
@@ -205,9 +206,167 @@ convert_list(const AstPtr& ast) {
   return compound(is_ordered_list(ast) ? "enumerate" : "itemize", items);
 }
 
+static std::vector<std::string>
+split_table_row(std::string line) {
+  line = trim_copy(strip_trailing_newlines(line));
+  if (!line.empty() && line.front() == '|') line.erase(line.begin());
+  if (!line.empty() && line.back() == '|') {
+    size_t backslashes = 0;
+    for (size_t i = line.size() - 1; i > 0 && line[i - 1] == '\\'; --i) {
+      backslashes++;
+    }
+    if ((backslashes % 2) == 0) line.pop_back();
+  }
+
+  std::vector<std::string> cells;
+  std::string cell;
+  bool in_code = false;
+  bool in_math = false;
+  bool in_wikilink = false;
+
+  for (size_t i = 0; i < line.size(); ++i) {
+    char ch = line[i];
+
+    if (ch == '\\') {
+      if (i + 1 < line.size() && line[i + 1] == '|') {
+        cell += '|';
+        i++;
+      }
+      else {
+        cell += ch;
+      }
+      continue;
+    }
+
+    if (!in_code && !in_math &&
+        ((i + 1 < line.size() && line.compare(i, 2, "[[") == 0) ||
+         (i + 2 < line.size() && line.compare(i, 3, "![[") == 0))) {
+      in_wikilink = true;
+      cell += ch;
+      continue;
+    }
+
+    if (in_wikilink && i + 1 < line.size() &&
+        line.compare(i, 2, "]]") == 0) {
+      in_wikilink = false;
+      cell += "]]";
+      i++;
+      continue;
+    }
+
+    if (!in_wikilink && !in_math && ch == '`') {
+      in_code = !in_code;
+      cell += ch;
+      continue;
+    }
+
+    if (!in_wikilink && !in_code && ch == '$') {
+      in_math = !in_math;
+      cell += ch;
+      continue;
+    }
+
+    if (!in_wikilink && !in_code && !in_math && ch == '|') {
+      cells.push_back(trim_copy(cell));
+      cell.clear();
+      continue;
+    }
+    cell += ch;
+  }
+  cells.push_back(trim_copy(cell));
+  return cells;
+}
+
+static std::vector<std::string>
+split_table_lines(const std::string& raw) {
+  std::stringstream in(strip_trailing_newlines(raw));
+  std::vector<std::string> lines;
+  std::string line;
+  while (std::getline(in, line)) {
+    if (!line.empty() && line.back() == '\r') line.pop_back();
+    if (!trim_copy(line).empty()) lines.push_back(line);
+  }
+  return lines;
+}
+
+static std::string
+table_alignment_from_separator(const std::string& cell) {
+  std::string s = trim_copy(cell);
+  if (s.empty()) return "l";
+  bool left = s.front() == ':';
+  bool right = s.back() == ':';
+  if (left && right) return "c";
+  if (right) return "r";
+  return "l";
+}
+
+static tree
+make_table_cell(const std::string& raw, bool header) {
+  tree content = convert_inline_from_raw(trim_copy(raw));
+  if (header) content = compound("strong", content);
+  return tree(CELL, content);
+}
+
+static tree
+make_table_row(const std::vector<std::string>& cells, size_t nr_cols,
+               bool header) {
+  tree row(ROW);
+  for (size_t i = 0; i < nr_cols; ++i) {
+    row << make_table_cell(i < cells.size() ? cells[i] : "", header);
+  }
+  return row;
+}
+
+static void
+append_table_format(tree& fmt, const std::string& row1, const std::string& row2,
+                    const std::string& col1, const std::string& col2,
+                    const string& var, const char* value) {
+  fmt << tree(CWITH, tm_string(row1), tm_string(row2),
+              tm_string(col1), tm_string(col2), var, tm_string(value));
+}
+
 tree
 convert_table(const AstPtr& ast) {
-  return text_tree(trim_copy(strip_trailing_newlines(ast_source(ast))));
+  std::vector<std::string> lines = split_table_lines(ast_source(ast));
+  if (lines.size() < 2) {
+    return text_tree(trim_copy(strip_trailing_newlines(ast_source(ast))));
+  }
+
+  std::vector<std::vector<std::string>> rows;
+  rows.push_back(split_table_row(lines[0]));
+  std::vector<std::string> separators = split_table_row(lines[1]);
+  for (size_t i = 2; i < lines.size(); ++i) {
+    rows.push_back(split_table_row(lines[i]));
+  }
+
+  size_t nr_cols = separators.size();
+  for (const auto& row : rows) nr_cols = std::max(nr_cols, row.size());
+  if (nr_cols == 0 || rows.empty()) {
+    return text_tree(trim_copy(strip_trailing_newlines(ast_source(ast))));
+  }
+
+  tree table(TABLE);
+  table << make_table_row(rows[0], nr_cols, true);
+  for (size_t i = 1; i < rows.size(); ++i) {
+    table << make_table_row(rows[i], nr_cols, false);
+  }
+
+  tree fmt(TFORMAT);
+  append_table_format(fmt, "1", "-1", "1", "-1", CELL_LBORDER, "1ln");
+  append_table_format(fmt, "1", "-1", "1", "-1", CELL_RBORDER, "1ln");
+  append_table_format(fmt, "1", "-1", "1", "-1", CELL_TBORDER, "1ln");
+  append_table_format(fmt, "1", "-1", "1", "-1", CELL_BBORDER, "1ln");
+  append_table_format(fmt, "1", "1", "1", "-1", CELL_BACKGROUND, "pastel blue");
+
+  for (size_t i = 0; i < nr_cols; ++i) {
+    std::string align = table_alignment_from_separator(
+        i < separators.size() ? separators[i] : "");
+    append_table_format(fmt, "1", "-1", std::to_string(i + 1),
+                        std::to_string(i + 1), CELL_HALIGN, align.c_str());
+  }
+
+  fmt << table;
+  return compound("tabular", fmt);
 }
 
 tree

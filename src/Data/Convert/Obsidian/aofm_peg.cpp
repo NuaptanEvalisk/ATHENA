@@ -93,7 +93,7 @@ const char* aofm_grammar = R"(
     ParagraphLine   <- !BlankLine !BlockStart < (!NL .)+ > (NL / EOF)
 
     # 遇到这些符号意味着段落结束，新块开始
-    BlockStart      <- Heading / HorizontalRule / CodeBlock / MathBlock / CalloutHeader / Blockquote / ListPrefix
+    BlockStart      <- Heading / HorizontalRule / CodeBlock / MathBlock / CalloutHeader / Blockquote / Table / ListPrefix
 
     UnknownBlock    <- < [^\r\n]+ > (NL / EOF)
 
