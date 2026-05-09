@@ -143,6 +143,9 @@ include (FindPkgConfig)
 include (CheckCSourceCompiles)
 include (FindX11)
 
+find_path (RESVGQT_INCLUDE_DIR ResvgQt.h)
+find_library (RESVG_LIBRARY resvg)
+
 
 ### --------------------------------------------------------------------
 ### Check for standard functionalities
@@ -678,6 +681,12 @@ if (ATHENA_GUI MATCHES "Qt.*")
 
   add_definitions (${QT_DEFINITIONS})
   add_definitions ("-DQTTEXMACS")
+
+  if (RESVGQT_INCLUDE_DIR AND RESVG_LIBRARY)
+    add_definitions ("-DUSE_RESVGQT")
+    set (ATHENA_Include_Dirs ${ATHENA_Include_Dirs} ${RESVGQT_INCLUDE_DIR})
+    set (ATHENA_Libraries ${ATHENA_Libraries} ${RESVG_LIBRARY})
+  endif (RESVGQT_INCLUDE_DIR AND RESVG_LIBRARY)
 
   if (CMAKE_BUILD_TYPE STREQUAL "Release")
     add_definitions ("-DQT_NO_DEBUG")

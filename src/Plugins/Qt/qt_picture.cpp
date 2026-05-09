@@ -26,6 +26,10 @@
 #include <QPainter>
 #include <QPaintDevice>
 #include <QPixmap>
+#include <QFileInfo>
+#ifdef USE_RESVGQT
+#include <ResvgQt.h>
+#endif
 #include <QSvgRenderer>
 
 /******************************************************************************
@@ -232,16 +236,58 @@ may_transform (url file_name, const QImage& pm) {
 * Loading pictures
 ******************************************************************************/
 
+#ifdef USE_RESVGQT
+static ResvgOptions&
+resvg_options_for (const QString& file_path) {
+  static bool fonts_loaded= false;
+  static ResvgOptions opt;
+  if (!fonts_loaded) {
+    opt.loadSystemFonts ();
+    fonts_loaded= true;
+  }
+
+  QFileInfo info (file_path);
+  if (info.exists ())
+    opt.setResourcesDir (info.absolutePath ());
+  return opt;
+}
+
+static QImage*
+render_svg_with_resvg (url u, int w, int h) {
+  QString file_path= utf8_to_qstring (concretize (u));
+  ResvgRenderer renderer;
+  if (!renderer.load (file_path, resvg_options_for (file_path)) ||
+      renderer.isEmpty ())
+    return NULL;
+
+  QImage rendered=
+    (w > 0 && h > 0)? renderer.renderToImage (QSize (w, h)):
+                      renderer.renderToImage ();
+  if (rendered.isNull ()) return NULL;
+  if (w > 0 && h > 0 &&
+      (rendered.width () != w || rendered.height () != h))
+    rendered= rendered.scaled (w, h, Qt::IgnoreAspectRatio,
+                               Qt::SmoothTransformation);
+  return new QImage (rendered);
+}
+#endif
+
 QImage*
 get_image_for_real (url u, int w, int h, tree eff, SI pixel) {
   QImage *pm = NULL;
 
   if (suffix (u) == "svg") {
+#ifdef USE_RESVGQT
+    pm= render_svg_with_resvg (u, w, h);
+    if (pm == NULL)
+#endif
+    {
     QSvgRenderer renderer (utf8_to_qstring (concretize (u)));
     pm= new QImage (w, h, QImage::Format_ARGB32);
     pm->fill (Qt::transparent);
     QPainter painter (pm);
     renderer.render (&painter);
+    }
   } else if (qt_supports (u)) {
     pm= new QImage (utf8_to_qstring (concretize (u)));
   } else {

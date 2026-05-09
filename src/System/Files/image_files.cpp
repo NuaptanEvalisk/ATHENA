@@ -42,6 +42,9 @@
 
 #ifdef QTTEXMACS
 #include "Qt/qt_utilities.hpp"
+#ifdef USE_RESVGQT
+#include <ResvgQt.h>
+#endif
 #endif
 
 #ifdef OS_WIN32
@@ -403,6 +406,24 @@ pdf_image_size (url image, int& w, int& h) {
 
 void
 svg_image_size (url image, int& w, int& h) {
+#ifdef USE_RESVGQT
+  ResvgOptions opt;
+  opt.loadSystemFonts ();
+  string file_name= concretize (image);
+  string dir_name= as_string (head (url (file_name)));
+  if (dir_name != "") opt.setResourcesDir (utf8_to_qstring (dir_name));
+
+  ResvgRenderer renderer;
+  if (renderer.load (utf8_to_qstring (file_name), opt) && !renderer.isEmpty ()) {
+    QSizeF size= renderer.defaultSizeF ();
+    if (size.width () > 0.0 && size.height () > 0.0) {
+      w= (int) tm_round (72.0 * size.width () / 96.0);
+      h= (int) tm_round (72.0 * size.height () / 96.0);
+      return;
+    }
+  }
+#endif
+
   string content;
   bool err= load_string (concretize (image), content, false);
   if (!err) {
