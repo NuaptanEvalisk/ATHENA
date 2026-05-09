@@ -1024,6 +1024,44 @@ first_bold_segment(const std::string& s) {
   return s.substr(open + 2, close - open - 2);
 }
 
+std::string
+wikilink_visible_text(const std::string& body) {
+  size_t pipe = body.find('|');
+  if (pipe != std::string::npos) return trim_copy(body.substr(pipe + 1));
+  return trim_copy(body);
+}
+
+std::string
+reduce_markdown_links_to_text(const std::string& s) {
+  std::string out;
+  for (size_t i = 0; i < s.size(); ) {
+    if (i + 2 <= s.size() && s.compare(i, 2, "[[") == 0) {
+      size_t close = s.find("]]", i + 2);
+      if (close != std::string::npos) {
+        out += wikilink_visible_text(s.substr(i + 2, close - i - 2));
+        i = close + 2;
+        continue;
+      }
+    }
+
+    if ((i == 0 || s[i - 1] != '!') && s[i] == '[') {
+      size_t close_text = s.find(']', i + 1);
+      if (close_text != std::string::npos &&
+          close_text + 1 < s.size() && s[close_text + 1] == '(') {
+        size_t close_url = s.find(')', close_text + 2);
+        if (close_url != std::string::npos) {
+          out += s.substr(i + 1, close_text - i - 1);
+          i = close_url + 1;
+          continue;
+        }
+      }
+    }
+
+    out += s[i++];
+  }
+  return out;
+}
+
 bool
 uses_parenthesized_title(const std::string& type) {
   return type == "theorem" || type == "lemma" || type == "proposition" ||
@@ -1124,6 +1162,7 @@ make_paragraph_anchor_sample(const std::vector<std::string>& lines) {
     text += lines[i];
   }
   text = collapse_whitespace(text);
+  text = reduce_markdown_links_to_text(text);
   if (text.size() > 50) text = text.substr(0, 50);
   return text;
 }
@@ -1150,6 +1189,7 @@ make_callout_anchor_pair(const std::vector<std::string>& lines) {
     sample_source += strip_one_blockquote_marker(lines[i]);
   }
   sample_source = collapse_whitespace(sample_source);
+  sample_source = reduce_markdown_links_to_text(sample_source);
 
   std::string bold = first_bold_segment(sample_source);
   std::string title;
