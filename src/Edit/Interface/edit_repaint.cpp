@@ -143,6 +143,22 @@ edit_interface_rep::draw_context (renderer ren, rectangle r) {
 }
 
 void
+edit_interface_rep::draw_image_resize_handles (renderer ren, rectangle r) {
+  path p;
+  rectangle img_r;
+  if (image_resize_active) {
+    p= image_resize_path;
+    if (!image_bounds (p, img_r)) return;
+  }
+  else if (!selected_image_path (p) || !image_bounds (p, img_r)) return;
+
+  rectangles visible (thicken (r, 2 * ren->pixel, 2 * ren->pixel));
+  color col= get_env_color (FOCUS_COLOR);
+  ren->set_pencil (pencil (col, ren->pixel));
+  ren->draw_rectangles (image_resize_handles (img_r) & visible);
+}
+
+void
 edit_interface_rep::draw_selection (renderer ren, rectangle r) {
   rectangles visible (thicken (r, 2 * ren->pixel, 2 * ren->pixel));
   if (!is_nil (locus_rects)) {
@@ -169,6 +185,7 @@ edit_interface_rep::draw_selection (renderer ren, rectangle r) {
     ren->draw_rectangles (selection_rects & visible);
 #endif
   }
+  draw_image_resize_handles (ren, r);
 }
 
 void

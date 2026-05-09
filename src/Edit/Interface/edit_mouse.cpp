@@ -30,9 +30,180 @@
 
 void disable_double_clicks ();
 
+static const int IMAGE_RESIZE_NONE   = 0;
+static const int IMAGE_RESIZE_RIGHT  = 1;
+static const int IMAGE_RESIZE_BOTTOM = 2;
+static const int IMAGE_RESIZE_CORNER = 3;
+
 /******************************************************************************
 * Routines for the mouse
 ******************************************************************************/
+
+static bool
+is_image_tree (tree t) {
+  return is_func (t, IMAGE, 5);
+}
+
+static bool
+inside_rect (SI x, SI y, rectangle r) {
+  return x >= r->x1 && x <= r->x2 && y >= r->y1 && y <= r->y2;
+}
+
+static SI
+abs_si (SI x) {
+  return x >= 0? x: -x;
+}
+
+static void
+extend_with_candidate (array<path>& ps, path p) {
+  while (!is_nil (p)) {
+    ps << p;
+    p= path_up (p);
+  }
+}
+
+bool
+edit_interface_rep::selected_image_path (path& p) {
+  array<path> ps;
+  path p1, p2;
+  get_selection (p1, p2);
+  extend_with_candidate (ps, p1);
+  extend_with_candidate (ps, p2);
+  extend_with_candidate (ps, tp);
+
+  for (int i=0; i<N(ps); i++) {
+    path q= ps[i];
+    if (rp <= q && has_subtree (et, q) && is_image_tree (subtree (et, q))) {
+      p= q;
+      return true;
+    }
+  }
+  return false;
+}
+
+bool
+edit_interface_rep::image_bounds (path p, rectangle& r) {
+  if (!(rp <= p) || !has_subtree (et, p) || !is_image_tree (subtree (et, p)))
+    return false;
+  selection sel= eb->find_check_selection (start (et, p), end (et, p));
+  if (!sel->valid || is_nil (sel->rs)) return false;
+  r= least_upper_bound (sel->rs);
+  return r != rectangle (0, 0, 0, 0);
+}
+
+rectangles
+edit_interface_rep::image_resize_handles (rectangle r) {
+  SI s= 5 * pixel;
+  SI mx= (r->x1 + r->x2) / 2;
+  SI my= (r->y1 + r->y2) / 2;
+  rectangle right  (r->x2 - s, my - s, r->x2 + s, my + s);
+  rectangle bottom (mx - s, r->y1 - s, mx + s, r->y1 + s);
+  rectangle corner (r->x2 - s, r->y1 - s, r->x2 + s, r->y1 + s);
+  return rectangles (right, rectangles (bottom, rectangles (corner)));
+}
+
+int
+edit_interface_rep::image_resize_handle_at (SI x, SI y,
+                                            rectangle& r, path& p) {
+  if (!selected_image_path (p) || !image_bounds (p, r)) return IMAGE_RESIZE_NONE;
+
+  SI s= 7 * pixel;
+  SI mx= (r->x1 + r->x2) / 2;
+  SI my= (r->y1 + r->y2) / 2;
+  rectangle corner (r->x2 - s, r->y1 - s, r->x2 + s, r->y1 + s);
+  rectangle right  (r->x2 - s, my - s, r->x2 + s, my + s);
+  rectangle bottom (mx - s, r->y1 - s, mx + s, r->y1 + s);
+
+  if (inside_rect (x, y, corner)) return IMAGE_RESIZE_CORNER;
+  if (inside_rect (x, y, right)) return IMAGE_RESIZE_RIGHT;
+  if (inside_rect (x, y, bottom)) return IMAGE_RESIZE_BOTTOM;
+  return IMAGE_RESIZE_NONE;
+}
+
+bool
+edit_interface_rep::image_resize_start (SI x, SI y) {
+  if (inside_graphics ()) return false;
+  rectangle r;
+  path p;
+  int handle= image_resize_handle_at (x, y, r, p);
+  if (handle == IMAGE_RESIZE_NONE) return false;
+
+  image_resize_active= true;
+  image_resize_handle= handle;
+  image_resize_path  = p;
+  image_resize_start_x= x;
+  image_resize_start_y= y;
+  image_resize_x1= r->x1; image_resize_y1= r->y1;
+  image_resize_x2= r->x2; image_resize_y2= r->y2;
+  image_resize_rects= image_resize_handles (r);
+  send_mouse_grab (this, true);
+  return true;
+}
+
+bool
+edit_interface_rep::image_resize_update (SI x, SI y) {
+  if (!image_resize_active) return false;
+  path p= image_resize_path;
+  if (!(rp <= p) || !has_subtree (et, p) || !is_image_tree (subtree (et, p))) {
+    image_resize_finish ();
+    return true;
+  }
+
+  if (!is_nil (image_resize_rects)) invalidate (image_resize_rects);
+
+  SI min_w= max (as_length ("8px"), (SI) 1);
+  SI max_w= max (as_length ("4096px"), min_w);
+  SI old_w= max (abs_si (image_resize_x2 - image_resize_x1), (SI) 1);
+  SI old_h= max (abs_si (image_resize_y2 - image_resize_y1), (SI) 1);
+  SI left = min (image_resize_x1, image_resize_x2);
+  SI top  = max (image_resize_y1, image_resize_y2);
+  SI new_w= old_w;
+  SI new_h= old_h;
+  if (image_resize_handle == IMAGE_RESIZE_RIGHT ||
+      image_resize_handle == IMAGE_RESIZE_CORNER)
+    new_w= max (abs_si (x - left), min_w);
+  if (image_resize_handle == IMAGE_RESIZE_BOTTOM ||
+      image_resize_handle == IMAGE_RESIZE_CORNER)
+    new_h= max (abs_si (top - y), min_w);
+
+  double sx= ((double) new_w) / ((double) old_w);
+  double sy= ((double) new_h) / ((double) old_h);
+  double scale= sx;
+  if (image_resize_handle == IMAGE_RESIZE_BOTTOM) scale= sy;
+  else if (image_resize_handle == IMAGE_RESIZE_CORNER)
+    scale= (sx >= 1.0 && sy >= 1.0)? min (sx, sy): max (sx, sy);
+
+  SI final_w= (SI) tm_round (((double) old_w) * scale);
+  final_w= min (max (final_w, min_w), max_w);
+  SI px_len= max (as_length ("1px"), (SI) 1);
+  int width_px= (int) max ((SI) 1, (SI) tm_round (((double) final_w) /
+                                                   ((double) px_len)));
+  string width= as_string (width_px) * "px";
+
+  tree t= subtree (et, p);
+  tree nt= tree (IMAGE, copy (t[0]), tree (width), tree (""),
+                 copy (t[3]), copy (t[4]));
+  assign (p, nt);
+  set_selection (start (et, p), end (et, p));
+
+  rectangle r;
+  if (image_bounds (p, r)) image_resize_rects= image_resize_handles (r);
+  else image_resize_rects= rectangles ();
+  if (!is_nil (image_resize_rects)) invalidate (image_resize_rects);
+  notify_change (THE_SELECTION + THE_DECORATIONS);
+  return true;
+}
+
+void
+edit_interface_rep::image_resize_finish () {
+  if (!image_resize_active) return;
+  image_resize_active= false;
+  image_resize_handle= IMAGE_RESIZE_NONE;
+  if (!is_nil (image_resize_rects)) invalidate (image_resize_rects);
+  image_resize_rects= rectangles ();
+  send_mouse_grab (this, false);
+  notify_change (THE_DECORATIONS);
+}
 
 bool
 edit_interface_rep::mouse_message (string message, SI x, SI y) {
@@ -535,7 +706,15 @@ edit_interface_rep::mouse_any (string type, SI x, SI y, int mods, time_t t,
     // but a cleaner solution would be welcome
     call ("link-follow-ids", object (mouse_ids), object ("mouse-over"));
   }
-  if (type == "move") mouse_message ("move", x, y);
+  if (type == "move") {
+    mouse_message ("move", x, y);
+    rectangle r;
+    path p;
+    int handle= image_resize_handle_at (x, y, r, p);
+    if (handle == IMAGE_RESIZE_CORNER) set_pointer ("XC_bottom_right_corner");
+    else if (handle == IMAGE_RESIZE_RIGHT) set_pointer ("XC_right_side");
+    else if (handle == IMAGE_RESIZE_BOTTOM) set_pointer ("XC_bottom_side");
+  }
 
   if (type == "leave")
     set_pointer ("XC_top_left_arrow");
@@ -569,6 +748,7 @@ edit_interface_rep::mouse_any (string type, SI x, SI y, int mods, time_t t,
   }
   
   if (type == "press-left" || type == "start-drag-left") {
+    if (mods <= 1 && image_resize_start (x, y)) return;
     if (mods > 1) {
       mouse_adjusting = mods;
       mouse_adjust_selection(x, y, mods);
@@ -576,6 +756,10 @@ edit_interface_rep::mouse_any (string type, SI x, SI y, int mods, time_t t,
       mouse_click (x, y);
   }
   if (type == "dragging-left") {
+    if (image_resize_active) {
+      image_resize_update (x, y);
+      return;
+    }
     if (mouse_adjusting && mods > 1) {
       mouse_adjusting = mods;
       mouse_adjust_selection(x, y, mods);
@@ -583,6 +767,11 @@ edit_interface_rep::mouse_any (string type, SI x, SI y, int mods, time_t t,
     else mouse_drag (x, y);
   }
   if ((type == "release-left" || type == "end-drag-left")) {
+    if (image_resize_active) {
+      image_resize_update (x, y);
+      image_resize_finish ();
+      return;
+    }
     if (!(mouse_adjusting & ShiftMask))
       mouse_select (x, y, mods, type == "end-drag-left");
     mouse_adjusting &= ~mouse_adjusting;

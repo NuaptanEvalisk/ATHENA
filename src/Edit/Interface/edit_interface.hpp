@@ -58,6 +58,13 @@ protected:
   bool          tremble_right;
   bool          table_selection;
   int           mouse_adjusting;  // mask with active key modifiers upon click
+  bool          image_resize_active;
+  int           image_resize_handle;
+  path          image_resize_path;
+  SI            image_resize_start_x, image_resize_start_y;
+  SI            image_resize_x1, image_resize_y1;
+  SI            image_resize_x2, image_resize_y2;
+  rectangles    image_resize_rects;
   rectangles    selection_rects;
   array<rectangles> alt_selection_rects;
   rectangle     last_visible;
@@ -186,6 +193,14 @@ public:
   void mouse_adjust (SI x, SI y, int mods);
   void mouse_adjust_selection (SI x, SI y, int mods);
   void mouse_scroll (SI x, SI y, bool up);
+  bool selected_image_path (path& p);
+  bool image_bounds (path p, rectangle& r);
+  rectangles image_resize_handles (rectangle r);
+  int  image_resize_handle_at (SI x, SI y, rectangle& r, path& p);
+  bool image_resize_start (SI x, SI y);
+  bool image_resize_update (SI x, SI y);
+  void image_resize_finish ();
+  void draw_image_resize_handles (renderer ren, rectangle r);
   cursor get_cursor ();
   array<SI> get_mouse_position ();
   void set_pointer (string name);

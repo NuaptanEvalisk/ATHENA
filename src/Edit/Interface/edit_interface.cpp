@@ -70,6 +70,12 @@ edit_interface_rep::edit_interface_rep ():
   last_x (0), last_y (0), last_t (0),
   tremble_count (0), tremble_right (false),
   table_selection (false), mouse_adjusting (false),
+  image_resize_active (false), image_resize_handle (0),
+  image_resize_path (),
+  image_resize_start_x (0), image_resize_start_y (0),
+  image_resize_x1 (0), image_resize_y1 (0),
+  image_resize_x2 (0), image_resize_y2 (0),
+  image_resize_rects (),
   oc (0, 0), temp_invalid_cursor (false),
   shadow (NULL), stored (NULL),
   cur_sb (2), cur_wb (2)
