@@ -19,6 +19,7 @@
 #include "locale.hpp"
 #include "message.hpp"
 #include "scheme.hpp"
+#include "sys_utils.hpp"
 #include "tm_window.hpp"
 #include "new_window.hpp"
 #include "boot.hpp"
@@ -43,6 +44,14 @@
 #include <QPainter>
 #include <QFile>
 #include <QClipboard>
+#include <QApplication>
+#include <QCryptographicHash>
+#include <QFileIconProvider>
+#include <QFileInfo>
+#include <QMimeDatabase>
+#include <QMimeType>
+#include <QPixmap>
+#include <QStyle>
 #include <QBuffer>
 #include <QFileOpenEvent>
 #include <QStackedLayout>
@@ -651,6 +660,53 @@ gui_version () {
   return "qt4";
 #endif
 #endif
+}
+
+static QIcon
+system_icon_for_mime (const QString& target, const QString& type) {
+  QFileIconProvider provider;
+  QString lower= type.toLower ();
+  if (target.startsWith ("http://") || target.startsWith ("https://") ||
+      lower == "web") {
+    QIcon icon= provider.icon (QFileIconProvider::Network);
+    if (!icon.isNull ()) return icon;
+    return QApplication::style ()->standardIcon (QStyle::SP_DriveNetIcon);
+  }
+  if (target.endsWith ("/") || lower == "folder")
+    return provider.icon (QFileIconProvider::Folder);
+
+  QFileInfo info (target);
+  QMimeDatabase db;
+  QMimeType mime= db.mimeTypeForFile (info.fileName (),
+                                      QMimeDatabase::MatchExtension);
+  QIcon icon;
+  if (mime.isValid ()) {
+    icon= QIcon::fromTheme (mime.iconName ());
+    if (icon.isNull ()) icon= QIcon::fromTheme (mime.genericIconName ());
+  }
+  if (icon.isNull ()) icon= provider.icon (info);
+  if (icon.isNull ()) icon= provider.icon (QFileIconProvider::File);
+  return icon;
+}
+
+string
+system_icon_for_link (string target, string type) {
+  QString qtarget= to_qstring (target);
+  QString qtype= to_qstring (type);
+  QIcon icon= system_icon_for_mime (qtarget, qtype);
+  if (icon.isNull ()) return "";
+
+  QByteArray key= (qtarget + "|" + qtype).toUtf8 ();
+  QString hash= QCryptographicHash::hash (key, QCryptographicHash::Sha1).toHex ();
+  url dir= get_texmacs_home_path () * url ("system/cache/cardlink-icons");
+  mkdir (dir);
+  url file= dir * url (from_qstring (hash) * ".png");
+  QString path= to_qstring (concretize (file));
+  if (!QFileInfo::exists (path)) {
+    QPixmap pixmap= icon.pixmap (QSize (64, 64));
+    if (pixmap.isNull () || !pixmap.save (path, "PNG")) return "";
+  }
+  return concretize (file);
 }
 
 /******************************************************************************

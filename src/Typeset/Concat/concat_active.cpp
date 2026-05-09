@@ -248,6 +248,15 @@ concater_rep::typeset_locus (tree t, path ip) {
           tmp_a= array<line_item> ();
         }
       }
+      else if (N(ids) != 0) {
+        box lb= locus_box (a[i]->b->ip, a[i]->b, ids, env->pixel, ref, anchor);
+        line_item item (a[i]->type, a[i]->op_type, lb, a[i]->penalty);
+        item->spc= a[i]->spc;
+        item->limits= a[i]->limits;
+        item->lan= a[i]->lan;
+        item->t= a[i]->t;
+        new_a << item;
+      }
       else new_a << a[i];
     }
     a->resize (pos);

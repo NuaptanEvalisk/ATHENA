@@ -35,6 +35,7 @@
   (x-gui? gui_is_x (bool))
   (qt-gui? gui_is_qt (bool))
   (gui-version gui_version (string))
+  (system-icon-for-link system_icon_for_link (string string string))
   (default-look-and-feel default_look_and_feel (string))
   (default-chinese-font default_chinese_font_name (string))
   (default-japanese-font default_japanese_font_name (string))

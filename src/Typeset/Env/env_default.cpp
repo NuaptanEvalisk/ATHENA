@@ -393,12 +393,19 @@ initialize_default_env () {
   tree tagflag (FLAG, tree (ARG, "Id"), "blue", "Id");
   tree reftxt (GET_BINDING, tree (ARG, "Id"));
   tree preftxt (GET_BINDING, tree (ARG, "Id"), "1");
+  tree card_id (ID, tree (HARD_ID, tree (ARG, "destination")));
+  tree card_ln (LINK, "hyperlink", copy (card_id), copy (dest_url));
   tree act_id (ID, tree (HARD_ID, tree (ARG, "args", "0")));
   tree act_script (MAP_ARGS, "find-accessible", "script", "args", "1");
   tree act_ln (LINK, "action", copy (act_id), copy (act_script));
   env ("hlink")= tree (MACRO, "body", "destination",
 		       tree (LOCUS, copy (src_id), ln1,
                              tree (ARG, "body")));
+  env ("cardlink")= tree (MACRO, "body", "destination",
+		       tree (LOCUS, copy (card_id), copy (card_ln),
+                             tree (EXTERN, "ext-cardlink-render",
+                                   tree (ARG, "body"),
+                                   tree (ARG, "destination"))));
   env ("action")= tree (XMACRO, "args",
 			tree (LOCUS, copy (act_id), copy (act_ln),
                               tree (ARG, "args", "0")));

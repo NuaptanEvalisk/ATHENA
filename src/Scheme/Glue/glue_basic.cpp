@@ -188,6 +188,21 @@ tmg_gui_version () {
 }
 
 tmscm
+tmg_system_icon_for_link (tmscm arg1, tmscm arg2) {
+  TMSCM_ASSERT_STRING (arg1, TMSCM_ARG1, "system-icon-for-link");
+  TMSCM_ASSERT_STRING (arg2, TMSCM_ARG2, "system-icon-for-link");
+
+  string in1= tmscm_to_string (arg1);
+  string in2= tmscm_to_string (arg2);
+
+  // TMSCM_DEFER_INTS;
+  string out= system_icon_for_link (in1, in2);
+  // TMSCM_ALLOW_INTS;
+
+  return string_to_tmscm (out);
+}
+
+tmscm
 tmg_default_look_and_feel () {
   // TMSCM_DEFER_INTS;
   string out= default_look_and_feel ();
@@ -10856,6 +10871,7 @@ initialize_glue_basic () {
   tmscm_install_procedure ("x-gui?",  tmg_x_guiP, 0, 0, 0);
   tmscm_install_procedure ("qt-gui?",  tmg_qt_guiP, 0, 0, 0);
   tmscm_install_procedure ("gui-version",  tmg_gui_version, 0, 0, 0);
+  tmscm_install_procedure ("system-icon-for-link",  tmg_system_icon_for_link, 2, 0, 0);
   tmscm_install_procedure ("default-look-and-feel",  tmg_default_look_and_feel, 0, 0, 0);
   tmscm_install_procedure ("default-chinese-font",  tmg_default_chinese_font, 0, 0, 0);
   tmscm_install_procedure ("default-japanese-font",  tmg_default_japanese_font, 0, 0, 0);

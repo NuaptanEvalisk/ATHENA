@@ -507,6 +507,14 @@
 (tm-menu (focus-animate-menu t))
 (tm-menu (focus-misc-menu t))
 
+(tm-menu (focus-misc-menu t)
+  (:require (tree-in? t '(hlink)))
+  ("Convert to card" (display-link-as-card t)))
+
+(tm-menu (focus-misc-menu t)
+  (:require (tree-in? t '(cardlink)))
+  ("Convert to hyperlink" (display-card-as-link t)))
+
 (tm-menu (focus-style-options-menu t)
   (with opts (search-tag-options t)
     (if (nnull? opts)

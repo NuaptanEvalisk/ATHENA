@@ -45,6 +45,7 @@
 "x-gui?"
 "qt-gui?"
 "gui-version"
+"system-icon-for-link"
 "default-look-and-feel"
 "default-chinese-font"
 "default-japanese-font"

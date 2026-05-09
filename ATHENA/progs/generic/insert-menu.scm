@@ -36,6 +36,7 @@
   (when (not (selection-active-non-small?))
     ("Link to URL" (make 'slink))
     ("Hyperlink" (make 'hlink))
+    ("Card Link" (make 'cardlink))
     (if (detailed-menus?)
         ("Action" (make 'action))))
   (if (simple-menus?)

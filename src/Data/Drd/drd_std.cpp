@@ -548,6 +548,11 @@ init_std_drd () {
         accessible (0) -> name (0, "text") ->
         url_type (1) -> name (1, "destination") ->
         name ("hyperlink"));
+  init (make_tree_label ("cardlink"), "cardlink",
+        fixed (1, 1, BIFORM) ->
+        regular (0) -> name (0, "text") ->
+        url_type (1) -> name (1, "destination") ->
+        name ("card link"));
   init (ACTION, "action",
         repeat (2, 1, DETAILED) ->
         accessible (0) -> name (0, "text") ->

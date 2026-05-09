@@ -765,3 +765,10 @@ string
 gui_version () {
   return "x11";
 }
+
+string
+system_icon_for_link (string target, string type) {
+  (void) target;
+  (void) type;
+  return "";
+}

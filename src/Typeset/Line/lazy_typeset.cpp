@@ -626,7 +626,7 @@ make_lazy_locus (edit_env env, tree t, path ip) {
   extern bool build_locus (edit_env env, tree t, list<string>& ids, string& c);
   list<string> ids;
   string col;
-  if (!build_locus (env, t, ids, col))
+  if (!build_locus (env, t, ids, col) && N(ids) == 0)
     typeset_warning << "Ignored unaccessible loci\n";
   int last= N(t)-1;
   tree old_col= env->read (COLOR);

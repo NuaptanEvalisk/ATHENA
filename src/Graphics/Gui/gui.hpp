@@ -48,6 +48,8 @@ void gui_refresh ();
   // update and redraw all windows (e.g. on change of output language)
 string gui_version ();
   // retrieve the type of GUI that is being used
+string system_icon_for_link (string target, string type);
+  // retrieve a cached image path for the platform icon matching a link target
 
 /******************************************************************************
 * Font support

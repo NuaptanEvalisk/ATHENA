@@ -23,6 +23,7 @@
 #include "universal.hpp"
 #include "convert.hpp"
 #include "file.hpp"
+#include "gui.hpp"
 #include "vault.hpp"
 #include "QTMVaultChooser.hpp"
 #include "QTMAbout.hpp"

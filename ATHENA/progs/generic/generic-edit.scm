@@ -350,6 +350,87 @@
 (tm-define (focus-has-search-menu? t) #f)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Card links
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(define-secure-symbols system-icon-for-link)
+
+(define (cardlink-destination-string destination)
+  (tree->string destination))
+
+(define (cardlink-has-extension? s extensions)
+  (in? (string-downcase (url-suffix (string->url s))) extensions))
+
+(define (cardlink-type destination)
+  (let ((s (string-downcase (cardlink-destination-string destination))))
+    (cond ((or (string-starts? s "http://")
+               (string-starts? s "https://"))
+           "Web")
+          ((string-ends? s "/") "Folder")
+          ((string-ends? s ".pdf") "PDF")
+          ((cardlink-has-extension? s '("png" "jpg" "jpeg" "gif" "svg" "webp"))
+           "Image")
+          ((cardlink-has-extension? s '("mp3" "ogg" "wav" "flac" "m4a"))
+           "Audio")
+          ((cardlink-has-extension? s '("mp4" "mkv" "mov" "webm" "avi"))
+           "Video")
+          ((cardlink-has-extension? s '("zip" "tar" "gz" "bz2" "xz" "7z"))
+           "Archive")
+          ((cardlink-has-extension? s '("txt" "md" "tm" "ath" "tex" "html" "htm"))
+           "Text")
+          ((cardlink-has-extension? s '("doc" "docx" "odt" "rtf" "ppt" "pptx"
+                                         "odp" "xls" "xlsx" "ods"))
+           "Office")
+          (else "File"))))
+
+(define (cardlink-icon destination type)
+  (let ((icon (system-icon-for-link (cardlink-destination-string destination)
+                                    type)))
+    (if (!= icon "")
+        `(image ,icon "1.35em" "" "" "")
+        `(with "font-family" "ss"
+               "font-series" "bold"
+               "color" "#404040"
+           ,(string-append "[" (upcase type) "]")))))
+
+(define (cardlink-empty-body? body)
+  (or (tm-equal? body "")
+      (and (tree-atomic? body)
+           (string-null? (tree->string body)))))
+
+(define (cardlink-display-body body destination)
+  (if (cardlink-empty-body? body)
+      (string-append (cardlink-type destination) " Document")
+      body))
+
+(define (cardlink-default-link-body destination)
+  (string-append (cardlink-type destination) " document"))
+
+(tm-define (ext-cardlink-render body destination)
+  (:secure #t)
+  (let* ((type (cardlink-type destination))
+         (icon (cardlink-icon destination type))
+         (display (cardlink-display-body body destination)))
+    `(with "ornament-shape" "rectangular"
+           "ornament-border" "1ln"
+           "ornament-color" "#f8f8f8"
+           "ornament-hpadding" "1spc"
+           "ornament-vpadding" "0.75spc"
+       (ornament
+         (concat ,icon "  " ,display)))))
+
+(tm-define (display-link-as-card t)
+  (tree-set! t `(cardlink ,(tree-ref t 0) ,(tree-ref t 1))))
+
+(tm-define (display-card-as-link t)
+  (let ((body (tree-ref t 0))
+        (destination (tree-ref t 1)))
+    (tree-set! t `(hlink ,(if (cardlink-empty-body? body)
+                              (cardlink-default-link-body destination)
+                              body)
+                         ,destination))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Tree traversal
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

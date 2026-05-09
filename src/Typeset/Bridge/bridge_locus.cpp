@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "bridge.hpp"
+#include "Boxes/construct.hpp"
 
 class bridge_locus_rep: public bridge_rep {
 protected:
@@ -136,14 +137,28 @@ bridge_locus_rep::my_typeset_will_be_complete () {
 
 void
 bridge_locus_rep::my_typeset (int desired_status) {
-  extern bool build_locus (edit_env env, tree t, list<string>& ids, string& c);
+  extern bool build_locus (edit_env env, tree t, list<string>& ids, string& c,
+                           string& ref, string& anchor);
   list<string> ids;
-  string col;
-  bool ok= build_locus (env, st, ids, col);
-  if (!ok) typeset_warning << "Ignored unaccessible loci\n";
+  string col, ref, anchor;
+  bool ok= build_locus (env, st, ids, col, ref, anchor);
+  bool wrap= (!ok && N(ids) != 0);
+  if (!ok && !wrap) typeset_warning << "Ignored unaccessible loci\n";
   tree old_col= env->read (COLOR);
   env->write_update (COLOR, col);
   ttt->insert_marker (st, ip);
-  body->typeset (desired_status);
+  if (wrap) {
+    array<page_item> l2;
+    stack_border sb2;
+    ttt->local_start (l2, sb2);
+    body->typeset (desired_status);
+    ttt->local_end (l2, sb2);
+    for (int i=0; i<N(l2); i++)
+      if (l2[i]->type == PAGE_LINE_ITEM || l2[i]->type == PAGE_HIDDEN_ITEM)
+        l2[i]->b= locus_box (l2[i]->b->ip, l2[i]->b, ids, env->pixel,
+                             ref, anchor);
+    ttt->insert_stack (l2, sb2);
+  }
+  else body->typeset (desired_status);
   env->write_update (COLOR, old_col);
 }
