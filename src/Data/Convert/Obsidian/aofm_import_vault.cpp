@@ -450,22 +450,19 @@ is_aofm_image_placeholder(const tree& t) {
   return is_compound(t, "__aofm_image", 2);
 }
 
-std::string
-target_extension_lower(const std::string& target) {
-  size_t slash = target.find_last_of('/');
-  size_t dot = target.find_last_of('.');
-  if (dot == std::string::npos ||
-      (slash != std::string::npos && dot < slash)) {
-    return "";
-  }
-  std::string ext = target.substr(dot + 1);
-  for (char& ch : ext) ch = (char) std::tolower((unsigned char) ch);
-  return ext;
-}
-
 bool
 is_image_target(const std::string& target) {
   return aofm::is_aofm_image_target(target);
+}
+
+bool
+is_pdf_target(const std::string& target) {
+  return aofm::is_aofm_pdf_target(target);
+}
+
+bool
+is_copyable_asset_target(const std::string& target) {
+  return is_image_target(target) || is_pdf_target(target);
 }
 
 const AofmVaultAssetInfo*
@@ -561,7 +558,7 @@ make_image_embed(const std::string& image_path, const std::string& width) {
 
 tree
 make_pdf_embed(const std::string& target) {
-  return compound("hlink", text_tree(target), text_tree(target));
+  return compound("cardlink", text_tree(""), text_tree(target));
 }
 
 const AofmVaultHeadingInfo*
@@ -643,6 +640,19 @@ resolve_anchor_placeholders(const tree& t, const AnchorMap& anchor_map,
 
     std::string uuid, file_hint, anchor_hint, display;
     std::string target_stem = target.empty() ? path_stem(rel_ath_path) : path_stem(target);
+    if (!target.empty() && is_pdf_target(target)) {
+      const AofmVaultAssetInfo* asset =
+          resolve_asset_target(target, rel_ath_path, asset_map, dir_children);
+      if (asset == nullptr) {
+        report_import_warning("pdf '" + target + "' not found while converting " +
+                              rel_ath_path);
+        return text_tree((is_trans ? "!" : "") + std::string("[[") + target + "]]");
+      }
+      std::string pdf_path =
+          relative_path_from_dir(path_dirname(rel_ath_path), asset->relative_path);
+      return make_pdf_embed(pdf_path);
+    }
+
     if (is_trans && sub.empty()) {
       if (is_image_target(target)) {
         const AofmVaultAssetInfo* asset =
@@ -655,9 +665,6 @@ resolve_anchor_placeholders(const tree& t, const AnchorMap& anchor_map,
         std::string image_path =
             relative_path_from_dir(path_dirname(rel_ath_path), asset->relative_path);
         return make_image_embed(image_path, "0.8par");
-      }
-      if (target_extension_lower(target) == "pdf") {
-        return make_pdf_embed(target);
       }
     }
 
@@ -1396,11 +1403,11 @@ scan_markdown_files(url source_root, url source_dir, url destination_dir,
 
     std::string rel_path =
         normalize_rel_path(tm_to_std_string(as_unix_string(delta(source_root * url(""), src))));
-    if (is_image_target(rel_path)) {
+    if (is_copyable_asset_target(rel_path)) {
       url dst = destination_dir * url(entry);
       copy(src, dst);
       if (!exists(dst)) {
-        report_import_warning("failed to copy image asset: " + rel_path);
+        report_import_warning("failed to copy asset: " + rel_path);
       }
       AofmVaultAssetInfo info;
       info.relative_path = rel_path;
