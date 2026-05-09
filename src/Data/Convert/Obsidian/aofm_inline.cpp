@@ -30,6 +30,53 @@ parse_image_embed_source(const std::string& raw,
   return parse_image_embed_inner(raw.substr(3, raw.size() - 5), target, width);
 }
 
+static size_t
+find_unescaped_char(const std::string& raw, char needle, size_t start) {
+  for (size_t i = start; i < raw.size(); ++i) {
+    if (raw[i] != needle) continue;
+    size_t backslashes = 0;
+    size_t j = i;
+    while (j > 0 && raw[--j] == '\\') backslashes++;
+    if ((backslashes % 2) == 0) return i;
+  }
+  return std::string::npos;
+}
+
+static bool
+parse_external_link_at(const std::string& raw,
+                       size_t pos,
+                       std::string& label,
+                       std::string& destination,
+                       size_t& end) {
+  if (pos >= raw.size() || raw[pos] != '[') return false;
+  if (pos > 0 && raw[pos - 1] == '!') return false;
+  if (pos + 1 < raw.size() && raw[pos + 1] == '[') return false;
+
+  size_t close_label = find_unescaped_char(raw, ']', pos + 1);
+  if (close_label == std::string::npos ||
+      close_label + 1 >= raw.size() ||
+      raw[close_label + 1] != '(') {
+    return false;
+  }
+
+  size_t close_dest = find_unescaped_char(raw, ')', close_label + 2);
+  if (close_dest == std::string::npos) return false;
+
+  label = raw.substr(pos + 1, close_label - pos - 1);
+  destination = raw.substr(close_label + 2, close_dest - close_label - 2);
+  end = close_dest + 1;
+  return !label.empty() && !destination.empty();
+}
+
+static bool
+parse_external_link_source(const std::string& raw,
+                           std::string& label,
+                           std::string& destination) {
+  size_t end = 0;
+  return parse_external_link_at(raw, 0, label, destination, end) &&
+         end == raw.size();
+}
+
 tree
 convert_inline_children(const AstPtr& ast) {
   tree out(CONCAT);
@@ -179,6 +226,20 @@ convert_inline_from_raw(const std::string& raw) {
       }
     }
 
+    // 7. External Links
+    if (raw[i] == '[') {
+      std::string label, destination;
+      size_t end = 0;
+      if (parse_external_link_at(raw, i, label, destination, end)) {
+        flush_text();
+        append_concat(out, compound("hlink",
+                                    convert_inline_from_raw(label),
+                                    text_tree(destination)));
+        i = end;
+        continue;
+      }
+    }
+
     text_str += raw[i];
     i++;
   }
@@ -286,9 +347,17 @@ convert_inline(const AstPtr& ast) {
     return text_tree(ast_source(ast));
   }
 
-  if (ast_is(ast, "Strikethrough") ||
-      ast_is(ast, "PDF") ||
-      ast_is(ast, "ExtLink")) {
+  if (ast_is(ast, "Strikethrough") || ast_is(ast, "PDF")) {
+    return text_tree(ast_source(ast));
+  }
+
+  if (ast_is(ast, "ExtLink")) {
+    std::string label, destination;
+    if (parse_external_link_source(ast_source(ast), label, destination)) {
+      return compound("hlink",
+                      convert_inline_from_raw(label),
+                      text_tree(destination));
+    }
     return text_tree(ast_source(ast));
   }
 
