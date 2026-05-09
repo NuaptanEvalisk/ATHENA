@@ -20,6 +20,35 @@
 (tm-define (go-to-welcome-page)
   (load-buffer "tmfs://welcome/home"))
 
+(define (vault-startup-unavailable-message dir-s)
+  (show-message
+   (string-append "Last vault is unavailable:\n" dir-s)
+   "Vault unavailable"))
+
+(define (vault-startup-available? dir)
+  (url-exists? (url-append dir "Vaultfile")))
+
+(define (vault-startup-open-welcome?)
+  (== (get-preference "vault welcome page") "on"))
+
+(tm-define (vault-startup-open-initial-buffer)
+  (let* ((auto-load? (== (get-preference "vault auto load last") "on"))
+         (report-missing? (== (get-preference "vault report missing last") "on"))
+         (recent-vaults (get-recent-vaults))
+         (latest-vault (if (pair? recent-vaults) (car recent-vaults) #f)))
+    (cond
+      ((not auto-load?)
+       (if (vault-startup-open-welcome?) (go-to-welcome-page)))
+      ((not latest-vault) #f)
+      (else
+       (let ((dir (string->url latest-vault)))
+         (if (vault-startup-available? dir)
+             (begin
+               (load-vault-dir dir)
+               (if (vault-startup-open-welcome?) (go-to-welcome-page)))
+             (if report-missing?
+                 (vault-startup-unavailable-message latest-vault))))))))
+
 (tm-define (ext-get-preference key def)
   (let ((val (get-preference key)))
     (if (string-null? val) def val)))
@@ -105,6 +134,8 @@
   ("gui cursor color" "red" notify-cursor-color)
   ("gui selection color" "red" notify-selection-color)
   ("vault welcome page" "on" noop)
+  ("vault auto load last" "off" noop)
+  ("vault report missing last" "off" noop)
   ("vault labels mode" "visible" notify-labels-mode)
   ("vault theorem color" "none" notify-enunciation-color)
   ("vault lemma color" "none" notify-enunciation-color)
@@ -142,7 +173,13 @@
         (enum (set-preference "vault fuzzy search limit" answer)
               '("1" "2" "3" "5" "10")
               (get-preference "vault fuzzy search limit")
-              "10em")))))
+              "10em"))
+      (item (text "Auto load last vault:")
+        (toggle (set-preference "vault auto load last" (if answer "on" "off"))
+                (equal? (get-preference "vault auto load last") "on")))
+      (item (text "Report if last vault is unavailable:")
+        (toggle (set-preference "vault report missing last" (if answer "on" "off"))
+                (equal? (get-preference "vault report missing last") "on"))))))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

@@ -601,10 +601,8 @@ TeXmacs_main (int argc, char** argv) {
     if (number_buffers () == 0) {
       if (DEBUG_STD) debug_boot << "Creating 'no name' buffer...\n";
       open_window ();
-      if (get_preference ("vault welcome page", "on") == "on") {
-        if (DEBUG_STD) debug_boot << "Queueing welcome page load...\n";
-        extra_init_cmd << "(load-buffer \"tmfs://welcome/home\")";
-      }
+      if (DEBUG_STD) debug_boot << "Queueing vault startup initialization...\n";
+      extra_init_cmd << "(vault-startup-open-initial-buffer)";
     }
 
     if (!aofm_debug_convert_file.empty ()) {
