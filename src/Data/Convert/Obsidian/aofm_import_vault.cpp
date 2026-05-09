@@ -554,8 +554,9 @@ resolve_asset_target(const std::string& target,
 
 tree
 make_image_embed(const std::string& image_path, const std::string& width) {
-  return compound("image", text_tree(image_path), text_tree(width),
-                  text_tree(""), text_tree(""), text_tree(""));
+  tree image = compound("image", text_tree(image_path), text_tree(width),
+                        text_tree(""), text_tree(""), text_tree(""));
+  return compound("big-figure", image, text_tree(""));
 }
 
 tree
@@ -630,7 +631,7 @@ resolve_anchor_placeholders(const tree& t, const AnchorMap& anchor_map,
 
     std::string image_path =
         relative_path_from_dir(path_dirname(rel_ath_path), asset->relative_path);
-    return make_image_embed(image_path, width.empty() ? "" : width + "px");
+    return make_image_embed(image_path, width.empty() ? "0.8par" : width + "px");
   }
 
   if (is_aofm_wikilink_placeholder(t) || is_aofm_transclusion_placeholder(t)) {
@@ -652,7 +653,7 @@ resolve_anchor_placeholders(const tree& t, const AnchorMap& anchor_map,
         }
         std::string image_path =
             relative_path_from_dir(path_dirname(rel_ath_path), asset->relative_path);
-        return make_image_embed(image_path, "");
+        return make_image_embed(image_path, "0.8par");
       }
       if (target_extension_lower(target) == "pdf") {
         return make_pdf_embed(target);
