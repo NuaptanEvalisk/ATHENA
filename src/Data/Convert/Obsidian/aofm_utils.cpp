@@ -1,5 +1,6 @@
 #include "aofm_utils.hpp"
 #include "converter.hpp"
+#include <cctype>
 #include <iostream>
 #include <sstream>
 #include <algorithm>
@@ -119,6 +120,42 @@ starts_with_token(const std::string& s, std::string::size_type pos,
   return end >= s.size() || is_space_or_tab(s[end]);
 }
 
+std::string
+target_extension_lower(const std::string& target) {
+  size_t slash = target.find_last_of('/');
+  size_t dot = target.find_last_of('.');
+  if (dot == std::string::npos ||
+      (slash != std::string::npos && dot < slash)) {
+    return "";
+  }
+  std::string ext = target.substr(dot + 1);
+  for (char& ch : ext) {
+    ch = (char) std::tolower((unsigned char) ch);
+  }
+  return ext;
+}
+
+bool
+is_aofm_image_target(const std::string& target) {
+  std::string ext = target_extension_lower(target);
+  return ext == "png" || ext == "jpg" || ext == "jpeg" ||
+         ext == "bmp" || ext == "svg";
+}
+
+bool
+is_aofm_pdf_target(const std::string& target) {
+  return target_extension_lower(target) == "pdf";
+}
+
+bool
+is_decimal_digits(const std::string& s) {
+  if (s.empty()) return false;
+  for (char ch : s) {
+    if (!std::isdigit((unsigned char) ch)) return false;
+  }
+  return true;
+}
+
 bool
 is_proof_marker_text(const std::string& raw) {
   std::string trimmed = trim_copy(raw);
@@ -205,6 +242,19 @@ blockquote_prefix_of(const std::string& line) {
   return line.substr(0, pos);
 }
 
+static bool
+is_asset_embed_inner(const std::string& inner) {
+  size_t pipe = inner.find('|');
+  std::string target = trim_copy(pipe == std::string::npos ?
+                                 inner : inner.substr(0, pipe));
+  std::string modifier = pipe == std::string::npos ?
+                         "" : trim_copy(inner.substr(pipe + 1));
+  if (is_aofm_image_target(target)) {
+    return modifier.empty() || is_decimal_digits(modifier);
+  }
+  return is_aofm_pdf_target(target);
+}
+
 static std::vector<std::string>
 split_transclusion_line(const std::string& line) {
   std::vector<std::string> out;
@@ -218,6 +268,11 @@ split_transclusion_line(const std::string& line) {
     if (bang == std::string::npos) break;
     size_t close = body.find("]]", bang + 3);
     if (close == std::string::npos) break;
+
+    if (is_asset_embed_inner(body.substr(bang + 3, close - (bang + 3)))) {
+      pos = close + 2;
+      continue;
+    }
 
     std::string before = rtrim_copy(body.substr(start, bang - start));
     if (!before.empty()) out.push_back(prefix + before);

@@ -25,6 +25,10 @@ bool is_space_or_tab(char c);
 void skip_spaces(std::string::size_type& pos, const std::string& s);
 bool consume_prefix(std::string::size_type& pos, const std::string& s, const std::string& prefix);
 bool starts_with_token(const std::string& s, std::string::size_type pos, const std::string& token);
+std::string target_extension_lower(const std::string& target);
+bool is_aofm_image_target(const std::string& target);
+bool is_aofm_pdf_target(const std::string& target);
+bool is_decimal_digits(const std::string& s);
 
 bool is_proof_marker_text(const std::string& raw);
 

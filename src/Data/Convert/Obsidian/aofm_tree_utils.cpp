@@ -85,6 +85,12 @@ make_aofm_transclusion_placeholder(const std::string& target,
   return compound("__aofm_transclusion", text_tree(target), text_tree(sub), text_tree(alias));
 }
 
+tree
+make_aofm_image_placeholder(const std::string& target,
+                            const std::string& width) {
+  return compound("__aofm_image", text_tree(target), text_tree(width));
+}
+
 bool
 is_aofm_anchor_block_placeholder(const tree& t) {
   return is_compound(t, "__aofm_anchor_block", 1);
@@ -105,10 +111,21 @@ is_aofm_transclusion_placeholder(const tree& t) {
   return is_compound(t, "__aofm_transclusion", 3);
 }
 
+bool
+is_aofm_image_placeholder(const tree& t) {
+  return is_compound(t, "__aofm_image", 2);
+}
+
 tree
 materialize_aofm_anchor_literals(const tree& t) {
   if (is_aofm_anchor_inline_placeholder(t) || is_aofm_anchor_block_placeholder(t)) {
     return text_tree("^" + tree_to_std_string(t[0]));
+  }
+  if (is_aofm_image_placeholder(t)) {
+    std::string width = tree_to_std_string(t[1]);
+    if (!width.empty()) width += "px";
+    return compound("image", t[0], text_tree(width),
+                    text_tree(""), text_tree(""), text_tree(""));
   }
   if (is_atomic(t)) return t;
   tree out(L(t), N(t));

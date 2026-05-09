@@ -7,6 +7,29 @@
 
 namespace aofm {
 
+static bool
+parse_image_embed_inner(const std::string& inner,
+                        std::string& target,
+                        std::string& width) {
+  size_t pipe = inner.find('|');
+  target = trim_copy(pipe == std::string::npos ? inner : inner.substr(0, pipe));
+  width = pipe == std::string::npos ? "" : trim_copy(inner.substr(pipe + 1));
+  return is_aofm_image_target(target) &&
+         (width.empty() || is_decimal_digits(width));
+}
+
+static bool
+parse_image_embed_source(const std::string& raw,
+                         std::string& target,
+                         std::string& width) {
+  if (raw.size() < 5 ||
+      raw.compare(0, 3, "![[") != 0 ||
+      raw.compare(raw.size() - 2, 2, "]]") != 0) {
+    return false;
+  }
+  return parse_image_embed_inner(raw.substr(3, raw.size() - 5), target, width);
+}
+
 tree
 convert_inline_children(const AstPtr& ast) {
   tree out(CONCAT);
@@ -108,7 +131,7 @@ convert_inline_from_raw(const std::string& raw) {
       }
     }
 
-    // 6. Transclusions and Wikilinks
+    // 6. Images, Transclusions, and Wikilinks
     bool is_trans = (raw.compare(i, 3, "![[") == 0);
     bool is_wiki = (raw.compare(i, 2, "[[") == 0);
     if (is_trans || is_wiki) {
@@ -117,6 +140,12 @@ convert_inline_from_raw(const std::string& raw) {
       if (close != std::string::npos) {
         flush_text();
         std::string inner = raw.substr(start, close - start);
+        std::string image_target, image_width;
+        if (is_trans && parse_image_embed_inner(inner, image_target, image_width)) {
+          append_concat(out, make_aofm_image_placeholder(image_target, image_width));
+          i = close + 2;
+          continue;
+        }
         size_t pipe = inner.find('|');
         size_t hash = inner.find('#');
         std::string target, sub, alias;
@@ -231,9 +260,16 @@ convert_inline(const AstPtr& ast) {
     return make_aofm_wikilink_placeholder(target, sub, alias);
   }
 
+  if (ast_is(ast, "Image")) {
+    std::string target, width;
+    if (parse_image_embed_source(ast_source(ast), target, width)) {
+      return make_aofm_image_placeholder(target, width);
+    }
+    return text_tree(ast_source(ast));
+  }
+
   if (ast_is(ast, "Strikethrough") || ast_is(ast, "Highlight") ||
-      ast_is(ast, "Image") || ast_is(ast, "PDF") ||
-      ast_is(ast, "ExtLink")) {
+      ast_is(ast, "PDF") || ast_is(ast, "ExtLink")) {
     return text_tree(ast_source(ast));
   }
 

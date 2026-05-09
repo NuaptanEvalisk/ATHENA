@@ -116,9 +116,15 @@ struct AofmVaultHeadingInfo {
   int level = 0;
 };
 
+struct AofmVaultAssetInfo {
+  std::string relative_path;
+};
+
 using AnchorMap = std::unordered_map<std::string, AofmVaultAnchorInfo>;
 using FileIndexMap = std::unordered_map<std::string, AofmVaultFileInfo>;
 using HeadingMap = std::unordered_map<std::string, AofmVaultHeadingInfo>;
+using AssetIndexMap = std::unordered_map<std::string, AofmVaultAssetInfo>;
+using DirChildrenMap = std::unordered_map<std::string, std::vector<std::string>>;
 
 std::string
 tm_to_std_string(string s) {
@@ -132,6 +138,99 @@ path_stem(const std::string& path) {
   size_t dot = path.find_last_of('.');
   if (dot == std::string::npos || dot < start) return path.substr(start);
   return path.substr(start, dot - start);
+}
+
+std::string
+path_basename(const std::string& path) {
+  size_t slash = path.find_last_of("/\\");
+  return slash == std::string::npos ? path : path.substr(slash + 1);
+}
+
+std::string
+path_dirname(const std::string& path) {
+  size_t slash = path.find_last_of("/\\");
+  return slash == std::string::npos ? "" : path.substr(0, slash);
+}
+
+std::string
+join_rel_paths(const std::string& left, const std::string& right) {
+  if (left.empty()) return right;
+  if (right.empty()) return left;
+  return left + "/" + right;
+}
+
+std::vector<std::string>
+split_rel_path(const std::string& path) {
+  std::vector<std::string> parts;
+  size_t start = 0;
+  while (start <= path.size()) {
+    size_t slash = path.find('/', start);
+    std::string part = path.substr(start, slash == std::string::npos ?
+                                           std::string::npos : slash - start);
+    if (!part.empty() && part != ".") {
+      if (part == ".." && !parts.empty()) parts.pop_back();
+      else if (part != "..") parts.push_back(part);
+    }
+    if (slash == std::string::npos) break;
+    start = slash + 1;
+  }
+  return parts;
+}
+
+std::string
+join_rel_parts(const std::vector<std::string>& parts, size_t start) {
+  std::string out;
+  for (size_t i = start; i < parts.size(); ++i) {
+    if (!out.empty()) out += "/";
+    out += parts[i];
+  }
+  return out;
+}
+
+std::string
+normalize_rel_path(const std::string& path) {
+  return join_rel_parts(split_rel_path(path), 0);
+}
+
+std::string
+strip_leading_slash(std::string path) {
+  while (!path.empty() && path[0] == '/') path.erase(0, 1);
+  return path;
+}
+
+std::string
+lower_ascii(std::string s) {
+  for (char& ch : s) ch = (char) std::tolower((unsigned char) ch);
+  return s;
+}
+
+std::string
+asset_key(const std::string& rel_path) {
+  return lower_ascii(normalize_rel_path(strip_leading_slash(rel_path)));
+}
+
+bool
+parent_dir_of(const std::string& dir, std::string& parent) {
+  if (dir.empty()) return false;
+  parent = path_dirname(dir);
+  return true;
+}
+
+std::string
+relative_path_from_dir(const std::string& from_dir,
+                       const std::string& to_path) {
+  std::vector<std::string> from = split_rel_path(from_dir);
+  std::vector<std::string> to = split_rel_path(to_path);
+  size_t common = 0;
+  while (common < from.size() && common < to.size() &&
+         from[common] == to[common]) {
+    common++;
+  }
+
+  std::vector<std::string> out;
+  for (size_t i = common; i < from.size(); ++i) out.push_back("..");
+  for (size_t i = common; i < to.size(); ++i) out.push_back(to[i]);
+  return join_rel_parts(out, 0);
 }
 
 std::string
@@ -346,6 +445,11 @@ is_aofm_transclusion_placeholder(const tree& t) {
   return is_compound(t, "__aofm_transclusion", 3);
 }
 
+bool
+is_aofm_image_placeholder(const tree& t) {
+  return is_compound(t, "__aofm_image", 2);
+}
+
 std::string
 target_extension_lower(const std::string& target) {
   size_t slash = target.find_last_of('/');
@@ -361,14 +465,96 @@ target_extension_lower(const std::string& target) {
 
 bool
 is_image_target(const std::string& target) {
-  std::string ext = target_extension_lower(target);
-  return ext == "png" || ext == "jpg" || ext == "jpeg" ||
-         ext == "bmp" || ext == "svg" || ext == "gif";
+  return aofm::is_aofm_image_target(target);
+}
+
+const AofmVaultAssetInfo*
+find_asset_by_rel_path(const AssetIndexMap& asset_map,
+                       const std::string& rel_path) {
+  auto it = asset_map.find(asset_key(rel_path));
+  return it == asset_map.end() ? nullptr : &it->second;
+}
+
+const AofmVaultAssetInfo*
+contains_asset_file(const AssetIndexMap& asset_map,
+                    const std::string& dir,
+                    const std::string& link_name) {
+  return find_asset_by_rel_path(asset_map, join_rel_paths(dir, link_name));
+}
+
+const AofmVaultAssetInfo*
+bfs_search_asset(const AssetIndexMap& asset_map,
+                 const DirChildrenMap& dir_children,
+                 const std::string& link_name,
+                 const std::string& start_dir) {
+  std::vector<std::string> queue;
+  queue.push_back(start_dir);
+  size_t pos = 0;
+
+  while (pos < queue.size()) {
+    std::string dir = queue[pos++];
+    const AofmVaultAssetInfo* asset =
+        contains_asset_file(asset_map, dir, link_name);
+    if (asset != nullptr) return asset;
+
+    auto it = dir_children.find(dir);
+    if (it == dir_children.end()) continue;
+    for (const std::string& child : it->second) queue.push_back(child);
+  }
+
+  return nullptr;
+}
+
+const AofmVaultAssetInfo*
+resolve_asset_target(const std::string& target,
+                     const std::string& rel_ath_path,
+                     const AssetIndexMap& asset_map,
+                     const DirChildrenMap& dir_children) {
+  std::string link_name = trim_copy(target);
+  if (link_name.empty()) return nullptr;
+
+  std::string current_dir = path_dirname(rel_ath_path);
+  bool absolute = !link_name.empty() && link_name[0] == '/';
+  link_name = strip_leading_slash(link_name);
+
+  if (absolute) {
+    return find_asset_by_rel_path(asset_map, link_name);
+  }
+
+  const AofmVaultAssetInfo* forward =
+      bfs_search_asset(asset_map, dir_children, link_name, current_dir);
+  if (forward != nullptr) return forward;
+
+  std::string prev = current_dir;
+  std::string curr;
+  bool has_curr = parent_dir_of(current_dir, curr);
+  while (has_curr) {
+    const AofmVaultAssetInfo* parent_asset =
+        contains_asset_file(asset_map, curr, link_name);
+    if (parent_asset != nullptr) return parent_asset;
+
+    auto it = dir_children.find(curr);
+    if (it != dir_children.end()) {
+      for (const std::string& sibling : it->second) {
+        if (sibling == prev) continue;
+        const AofmVaultAssetInfo* asset =
+            bfs_search_asset(asset_map, dir_children, link_name, sibling);
+        if (asset != nullptr) return asset;
+      }
+    }
+
+    prev = curr;
+    std::string parent;
+    has_curr = parent_dir_of(curr, parent);
+    curr = parent;
+  }
+
+  return nullptr;
 }
 
 tree
-make_image_embed(const std::string& target) {
-  return compound("image", text_tree(target), text_tree("0.5par"),
+make_image_embed(const std::string& image_path, const std::string& width) {
+  return compound("image", text_tree(image_path), text_tree(width),
                   text_tree(""), text_tree(""), text_tree(""));
 }
 
@@ -406,6 +592,8 @@ tree
 resolve_anchor_placeholders(const tree& t, const AnchorMap& anchor_map,
                             const FileIndexMap& file_map,
                             const HeadingMap& heading_map,
+                            const AssetIndexMap& asset_map,
+                            const DirChildrenMap& dir_children,
                             const std::string& rel_ath_path) {
   if (is_aofm_anchor_inline_placeholder(t)) {
     std::string anchor = placeholder_anchor_id(t);
@@ -429,6 +617,22 @@ resolve_anchor_placeholders(const tree& t, const AnchorMap& anchor_map,
     return make_label_tree(it->second.anchor_1);
   }
 
+  if (is_aofm_image_placeholder(t)) {
+    std::string target = tree_to_std_string(t[0]);
+    std::string width = tree_to_std_string(t[1]);
+    const AofmVaultAssetInfo* asset =
+        resolve_asset_target(target, rel_ath_path, asset_map, dir_children);
+    if (asset == nullptr) {
+      report_import_warning("image '" + target + "' not found while converting " +
+                            rel_ath_path);
+      return text_tree("![[" + target + (width.empty() ? "" : "|" + width) + "]]");
+    }
+
+    std::string image_path =
+        relative_path_from_dir(path_dirname(rel_ath_path), asset->relative_path);
+    return make_image_embed(image_path, width.empty() ? "" : width + "px");
+  }
+
   if (is_aofm_wikilink_placeholder(t) || is_aofm_transclusion_placeholder(t)) {
     bool is_trans = is_aofm_transclusion_placeholder(t);
     std::string target = tree_to_std_string(t[0]);
@@ -439,7 +643,16 @@ resolve_anchor_placeholders(const tree& t, const AnchorMap& anchor_map,
     std::string target_stem = target.empty() ? path_stem(rel_ath_path) : path_stem(target);
     if (is_trans && sub.empty()) {
       if (is_image_target(target)) {
-        return make_image_embed(target);
+        const AofmVaultAssetInfo* asset =
+            resolve_asset_target(target, rel_ath_path, asset_map, dir_children);
+        if (asset == nullptr) {
+          report_import_warning("image '" + target + "' not found while converting " +
+                                rel_ath_path);
+          return text_tree("![[" + target + "]]");
+        }
+        std::string image_path =
+            relative_path_from_dir(path_dirname(rel_ath_path), asset->relative_path);
+        return make_image_embed(image_path, "");
       }
       if (target_extension_lower(target) == "pdf") {
         return make_pdf_embed(target);
@@ -557,6 +770,7 @@ resolve_anchor_placeholders(const tree& t, const AnchorMap& anchor_map,
             append_document(out, make_label_tree(derive_proof_label(t_label1) + " {"));
             append_document(out, resolve_anchor_placeholders(t[i+1], anchor_map,
                                                             file_map, heading_map,
+                                                            asset_map, dir_children,
                                                             rel_ath_path));
             append_document(out, make_label_tree(derive_proof_label(t_label2) + " }"));
 
@@ -596,6 +810,7 @@ resolve_anchor_placeholders(const tree& t, const AnchorMap& anchor_map,
       append_document(out,
                       resolve_anchor_placeholders(child, anchor_map, file_map,
                                                   heading_map,
+                                                  asset_map, dir_children,
                                                   rel_ath_path));
     }
     close_heading_ranges(out, open_headings, 0);
@@ -605,6 +820,7 @@ resolve_anchor_placeholders(const tree& t, const AnchorMap& anchor_map,
   tree out(t, N(t));
   for (int i = 0; i < N(t); ++i) {
     out[i] = resolve_anchor_placeholders(t[i], anchor_map, file_map, heading_map,
+                                         asset_map, dir_children,
                                          rel_ath_path);
   }
   return out;
@@ -1150,7 +1366,9 @@ dump_heading_map(const HeadingMap& map, std::ostream& out) {
 
 bool
 scan_markdown_files(url source_root, url source_dir, url destination_dir,
-                    std::vector<ImportFileInfo>& files) {
+                    std::vector<ImportFileInfo>& files,
+                    AssetIndexMap& asset_map,
+                    DirChildrenMap& dir_children) {
   bool err = false;
   array<string> entries = read_directory(source_dir, err);
   if (err) return false;
@@ -1161,21 +1379,45 @@ scan_markdown_files(url source_root, url source_dir, url destination_dir,
 
     url src = source_dir * url(entry);
     if (is_directory(src)) {
+      std::string rel_dir =
+          normalize_rel_path(tm_to_std_string(as_unix_string(delta(source_root * url(""), src))));
+      std::string parent_dir = path_dirname(rel_dir);
+      dir_children[parent_dir].push_back(rel_dir);
+
       mkdir(destination_dir * url(entry));
-      if (!scan_markdown_files(source_root, src, destination_dir * url(entry), files)) {
+      if (!scan_markdown_files(source_root, src, destination_dir * url(entry),
+                               files, asset_map, dir_children)) {
         return false;
       }
       continue;
     }
 
+    std::string rel_path =
+        normalize_rel_path(tm_to_std_string(as_unix_string(delta(source_root * url(""), src))));
+    if (is_image_target(rel_path)) {
+      url dst = destination_dir * url(entry);
+      copy(src, dst);
+      if (!exists(dst)) {
+        report_import_warning("failed to copy image asset: " + rel_path);
+      }
+      AofmVaultAssetInfo info;
+      info.relative_path = rel_path;
+      asset_map[asset_key(rel_path)] = info;
+      continue;
+    }
+
     if (suffix(src) != "md") continue;
 
-    std::string rel_md = tm_to_std_string(as_unix_string(delta(source_root * url(""), src)));
+    std::string rel_md = rel_path;
     ImportFileInfo info;
     info.source_url = src;
     info.relative_md_path = rel_md;
     info.relative_ath_path = replace_md_with_ath(rel_md);
     files.push_back(info);
+  }
+
+  for (auto& entry : dir_children) {
+    std::sort(entry.second.begin(), entry.second.end());
   }
 
   return true;
@@ -1351,7 +1593,10 @@ aofm_import_vault(string source_dir, string destination_dir, bool ignore_nonempt
   }
 
   std::vector<ImportFileInfo> files;
-  if (!scan_markdown_files(source_root, source_root, destination_root, files)) {
+  AssetIndexMap asset_map;
+  DirChildrenMap dir_children;
+  if (!scan_markdown_files(source_root, source_root, destination_root, files,
+                           asset_map, dir_children)) {
     report_import_error("failed to scan source vault");
     return false;
   }
@@ -1450,6 +1695,7 @@ aofm_import_vault(string source_dir, string destination_dir, bool ignore_nonempt
 
         tree resolved = resolve_anchor_placeholders(document, anchor_map, file_map,
                                                     heading_map,
+                                                    asset_map, dir_children,
                                                     file_info.relative_ath_path);
         string serialized = tree_to_texmacs(resolved);
         std::string destination_path = join_unix_paths(destination_root_path, file_info.relative_ath_path);
@@ -1579,6 +1825,7 @@ aofm_import_vault(string source_dir, string destination_dir, bool ignore_nonempt
 
     tree resolved =
         resolve_anchor_placeholders(document, anchor_map, file_map, heading_map,
+                                    asset_map, dir_children,
                                     file_info.relative_ath_path);
     string serialized = tree_to_texmacs(resolved);
     std::string destination_path =

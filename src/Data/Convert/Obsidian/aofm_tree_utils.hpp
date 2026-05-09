@@ -18,11 +18,13 @@ tree make_aofm_anchor_block_placeholder(const std::string& anchor_id);
 tree make_aofm_anchor_inline_placeholder(const std::string& anchor_id);
 tree make_aofm_wikilink_placeholder(const std::string& target, const std::string& sub, const std::string& alias);
 tree make_aofm_transclusion_placeholder(const std::string& target, const std::string& sub, const std::string& alias);
+tree make_aofm_image_placeholder(const std::string& target, const std::string& width);
 
 bool is_aofm_anchor_block_placeholder(const tree& t);
 bool is_aofm_anchor_inline_placeholder(const tree& t);
 bool is_aofm_wikilink_placeholder(const tree& t);
 bool is_aofm_transclusion_placeholder(const tree& t);
+bool is_aofm_image_placeholder(const tree& t);
 
 tree materialize_aofm_anchor_literals(const tree& t);
 
