@@ -57,7 +57,8 @@ convert_inline_from_raw(const std::string& raw) {
     if (raw[i] == '\\' && i + 1 < raw.size()) {
       char next = raw[i + 1];
       if (next == '$' || next == '*' || next == '_' || next == '`' ||
-          next == '[' || next == ']' || next == '^' || next == '\\') {
+          next == '[' || next == ']' || next == '^' || next == '=' ||
+          next == '\\') {
         text_str += next;
         i += 2;
         continue;
@@ -76,7 +77,18 @@ convert_inline_from_raw(const std::string& raw) {
       }
     }
 
-    // 3. Formatting (Bold, Italic)
+    // 3. Formatting (Bold, Italic, Highlight)
+    if (raw.compare(i, 2, "==") == 0) {
+      size_t close = raw.find("==", i + 2);
+      if (close != std::string::npos && close > i + 2) {
+        flush_text();
+        append_concat(out, compound("marked",
+                                    convert_inline_from_raw(
+                                      raw.substr(i + 2, close - i - 2))));
+        i = close + 2;
+        continue;
+      }
+    }
     if (raw.compare(i, 3, "***") == 0) {
       size_t close = raw.find("***", i + 3);
       if (close != std::string::npos) {
@@ -230,6 +242,12 @@ convert_inline(const AstPtr& ast) {
                     text_tree(strip_wrapping(ast_source(ast), 1, 1)));
   }
 
+  if (ast_is(ast, "Highlight")) {
+    return compound("marked",
+                    convert_inline_from_raw(
+                      strip_wrapping(ast_source(ast), 2, 2)));
+  }
+
   if (ast_is(ast, "InlineMath")) {
     return convert_latex_math_inline(strip_wrapping(ast_source(ast), 1, 1));
   }
@@ -268,8 +286,9 @@ convert_inline(const AstPtr& ast) {
     return text_tree(ast_source(ast));
   }
 
-  if (ast_is(ast, "Strikethrough") || ast_is(ast, "Highlight") ||
-      ast_is(ast, "PDF") || ast_is(ast, "ExtLink")) {
+  if (ast_is(ast, "Strikethrough") ||
+      ast_is(ast, "PDF") ||
+      ast_is(ast, "ExtLink")) {
     return text_tree(ast_source(ast));
   }
 
