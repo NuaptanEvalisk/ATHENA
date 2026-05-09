@@ -10,6 +10,8 @@
 ******************************************************************************/
 
 #include "concater.hpp"
+#include "Format/format.hpp"
+#include "formatter.hpp"
 #include "glue.hpp"
 #include "hashset.hpp"
 
@@ -526,7 +528,17 @@ concater_rep::typeset_transclude (tree t, path ip) {
     content = content[0];
   
   tree rewritten = env->rewrite (content);
-  typeset_dynamic (rewritten, ip);
+  bool decorated= is_decoration (ip);
+  SI width, d1, d2, d3, d4, d5, d6, d7;
+  env->get_page_pars (width, d1, d2, d3, d4, d5, d6, d7);
+
+  if (!decorated) marker (descend (ip, 0));
+  lazy lz= decorated? make_lazy (env, attach_here (rewritten, ip)):
+                      make_lazy (env, attach_right (rewritten, ip));
+  lazy vs= lz->produce (LAZY_VSTREAM, make_format_vstream (width, 0, 0));
+  box b= (box) vs->produce (LAZY_BOX, make_format_none ());
+  print (b);
+  if (!decorated) marker (descend (ip, 1));
 }
 
 void
