@@ -50,12 +50,26 @@ concat_decompose (tree t) {
   return r;
 }
 
+static bool
+is_texmacs_symbol_string (string s) {
+  // Keep TeXmacs symbol atoms isolated; otherwise "<gtr>" can be retokenized
+  // later as the raw characters '<', 'g', 't', 'r', '>'.
+  return N(s) >= 3 && s[0] == '<' && s[N(s)-1] == '>';
+}
+
 tree
 concat_recompose (array<tree> a) {
   array<tree> r;
   string s;
   for (int i=0; i<N(a); i++)
-    if (is_atomic (a[i])) s << a[i]->label;
+    if (is_atomic (a[i])) {
+      if (is_texmacs_symbol_string (a[i]->label)) {
+        if (s != "") r << tree (s);
+        r << a[i];
+        s= "";
+      }
+      else s << a[i]->label;
+    }
     else {
       if (s != "") r << tree (s);
       r << a[i];

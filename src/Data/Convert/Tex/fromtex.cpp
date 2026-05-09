@@ -750,8 +750,11 @@ string latex_to_texmacs_languages (string s);
 tree
 latex_symbol_to_tree (string s) {
   if (s == "") return "";
+  if (N(s) >= 3 && s[0] == '<' && s[N(s)-1] == '>') return s;
   if (s[0] == '\\') {
     s= s(1,N(s));
+    if (s == "less") return "<less>";
+    if (s == "gtr") return "<gtr>";
     if ((s == "ldots" || s == "dots" || s == "dotso")
         && (command_type ("!mode") != "math")) return "...";
     if (s == "\n")     return tree (APPLY, "!emptyline");
@@ -1311,6 +1314,11 @@ latex_key_arg (tree t) {
   return r;
 }
 
+static bool
+is_texmacs_symbol_string (string s) {
+  return N(s) >= 3 && s[0] == '<' && s[N(s)-1] == '>';
+}
+
 tree
 latex_concat_to_tree (tree t, bool& new_flag) {
   int i, n=N(t);
@@ -1390,7 +1398,12 @@ latex_concat_to_tree (tree t, bool& new_flag) {
         if (u == "<mathd>" || u == "<mathD>" || u == "<partial>") s= " " * s;
         else s= "*" * s;
       }
-      if ((N(r)>0) && is_atomic (r[N(r)-1])) {
+      bool keep_symbol_separate=
+        command_type ["!mode"] == "math" &&
+        (is_texmacs_symbol_string (u->label) ||
+         (N(r)>0 && is_atomic (r[N(r)-1]) &&
+          is_texmacs_symbol_string (r[N(r)-1]->label)));
+      if ((N(r)>0) && is_atomic (r[N(r)-1]) && !keep_symbol_separate) {
         if (s != " " || r[N(r)-1]->label != " ")
           r[N(r)-1]->label << s;
       }

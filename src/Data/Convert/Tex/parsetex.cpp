@@ -79,6 +79,31 @@ preprocess_latex_formula (string latex) {
   return string (str.c_str());
 }
 
+static bool
+read_texmacs_symbol_token (string s, int i, string& token) {
+  // AOFM/UTF-8 to Cork conversion rewrites '<' and '>' as TeXmacs
+  // universal tokens such as <less> and <gtr>; keep them atomic here.
+  if (i >= N(s) || s[i] != '<') return false;
+  int j= i + 1;
+  if (j >= N(s)) return false;
+
+  if (s[j] == '#') {
+    j++;
+    if (j >= N(s) || !is_digit (s[j])) return false;
+    while (j < N(s) && is_digit (s[j])) j++;
+  }
+  else {
+    if (!is_alpha (s[j])) return false;
+    while (j < N(s) &&
+           (is_alpha (s[j]) || is_digit (s[j]) || s[j] == '-'))
+      j++;
+  }
+
+  if (j >= N(s) || s[j] != '>') return false;
+  token= s (i, j + 1);
+  return true;
+}
+
 /******************************************************************************
 * The latex_parser structure
 *******************************************************************************
@@ -405,11 +430,20 @@ latex_parser::parse (string s, int& i, string stop, int change) {
       */
       break;
     case '<':
-      t << tree (TUPLE, "\\<less>");
-      i++;
+      {
+        string token;
+        if (read_texmacs_symbol_token (s, i, token)) {
+          t << tree (token);
+          i += N(token);
+        }
+        else {
+          t << tree (TUPLE, "\\less");
+          i++;
+        }
+      }
       break;
     case '>':
-      t << tree (TUPLE, "\\<gtr>");
+      t << tree (TUPLE, "\\gtr");
       i++;
       break;
     case '\244':
@@ -677,8 +711,16 @@ latex_parser::parse_symbol (string s, int& i) {
   int start= i, end;
   if ((s[i] == '*') && (command_type ["!mode"] == "math")) {
     i++; return tree (TUPLE, "\\ast"); }
-  if (s[i] == '<') { i++; return tree (TUPLE, "\\<less>"); }
-  if (s[i] == '>') { i++; return tree (TUPLE, "\\<gtr>"); }
+  if (s[i] == '<') {
+    string token;
+    if (read_texmacs_symbol_token (s, i, token)) {
+      i += N(token);
+      return tree (token);
+    }
+    i++;
+    return tree (TUPLE, "\\less");
+  }
+  if (s[i] == '>') { i++; return tree (TUPLE, "\\gtr"); }
   if (s[i] == '#' && i+1 < N(s) && is_digit (s[i+1])) {
     i+=2; return s(start, i);
   }
@@ -1566,8 +1608,8 @@ latex_parser::parse_alltt (string s, int& i, string end, string env, tree opt)
 
 static tree
 from_char_code (int i) {
-  if (i == ((int) '<')) return tree (TUPLE, "\\<less>");
-  if (i == ((int) '>')) return tree (TUPLE, "\\<gtr>");
+  if (i == ((int) '<')) return tree (TUPLE, "\\less");
+  if (i == ((int) '>')) return tree (TUPLE, "\\gtr");
   if (i == ((int) '\\')) return tree (TUPLE, "\\textbackslash");
   string s ("?");
   s[0]= (unsigned char) i;
