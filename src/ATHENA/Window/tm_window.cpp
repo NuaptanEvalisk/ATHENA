@@ -18,6 +18,7 @@
 #include "iterator.hpp"
 #include "boot.hpp"
 #include "drd_std.hpp"
+#include "ATHENA/Data/vault.hpp"
 
 int geometry_w= 800, geometry_h= 600;
 int geometry_x= 0  , geometry_y= 0;
@@ -140,7 +141,7 @@ tm_window_rep::tm_window_rep (widget wid2, tree geom):
   wid (wid2), id (create_window_id ()),
   serial (tm_window_serial++),
   menu_current (object ()), menu_cache (widget ()),
-  text_ptr (NULL)
+  text_ptr (NULL), cur_url (url_none ())
 {
   zoomf= retina_zoom * get_server () -> get_default_zoom_factor ();
 }
@@ -164,7 +165,7 @@ tm_window_rep::tm_window_rep (tree doc, command quit):
   wid (win), id (url_none ()),
   serial (tm_window_serial++),
   menu_current (object ()), menu_cache (widget ()),
-  text_ptr (NULL)
+  text_ptr (NULL), cur_url (url_none ())
 {
   zoomf= retina_zoom * get_doc_zoom_factor (doc);
   if (zoomf < 0.0)
@@ -347,9 +348,26 @@ texmacs_input_widget (tree doc, tree style, url wname) {
 
 void
 tm_window_rep::set_window_name (string s) {
-  if (cur_title != s) {
-    cur_title= s;
-    set_name (wid, s);
+  if (cur_doc_title != s)
+    cur_doc_title= s;
+  refresh_window_title ();
+}
+
+static string
+format_window_title (string title) {
+  if (title == "" || title == "TeXmacs")
+    title= "ATHENA";
+  if (vault_active () && vault_get_name () != "")
+    return vault_get_name () * " - " * title;
+  return title;
+}
+
+void
+tm_window_rep::refresh_window_title () {
+  string title= format_window_title (cur_doc_title);
+  if (cur_title != title) {
+    cur_title= title;
+    set_name (wid, title);
   }
 }
 
@@ -360,6 +378,9 @@ tm_window_rep::set_modified (bool flag) {
 
 void
 tm_window_rep::set_window_url (url u) {
+  if (cur_url != u)
+    cur_url= u;
+  refresh_window_title ();
   if (!is_none (u)) set_file (wid, as_string (u));
 }
 

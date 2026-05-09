@@ -60,6 +60,8 @@ protected:
   void setHoverStyle();
   void onWindowActivated();
   void onDoubleClickOnEmptyTabBarSpace();
+  void setMainTitle(QString title);
+  void setMainTitleFromWidget(QWidget* widget);
 
 public slots:
   void closeTab(int index);

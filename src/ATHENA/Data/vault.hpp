@@ -28,6 +28,7 @@ extern vault_info current_vault;
 
 /* Vault lifecycle */
 bool vault_active ();
+string vault_get_name ();
 url  vault_get_root ();
 void vault_load (url root_dir, string name, string db_rel_path);
 void vault_close ();

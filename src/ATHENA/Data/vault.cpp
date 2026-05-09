@@ -16,6 +16,8 @@
 #include "convert.hpp"
 #include "sys_utils.hpp"
 #include "ATHENA/Data/new_buffer.hpp"
+#include "ATHENA/Data/new_window.hpp"
+#include "ATHENA/tm_window.hpp"
 
 bool       is_vault_active = false;
 vault_info current_vault;
@@ -25,9 +27,31 @@ vault_active () {
   return is_vault_active;
 }
 
+string
+vault_get_name () {
+  return current_vault.name;
+}
+
 url
 vault_get_root () {
   return current_vault.root;
+}
+
+static void
+vault_refresh_window_titles () {
+  array<url> bs= get_all_buffers ();
+  for (int i=0; i<N(bs); i++) {
+    tm_buffer buf= concrete_buffer (bs[i]);
+    if (buf == NULL) continue;
+    array<url> ws= buffer_to_windows (bs[i]);
+    for (int j=0; j<N(ws); j++) {
+      tm_window win= concrete_window (ws[j]);
+      if (win != NULL) {
+        win->set_window_name (buf->buf->title);
+        win->set_window_url (buf->buf->name);
+      }
+    }
+  }
 }
 
 void
@@ -42,6 +66,7 @@ vault_load (url root_dir, string name, string db_rel_path) {
   (void) get_database (current_vault.db_url);
   
   is_vault_active = true;
+  vault_refresh_window_titles ();
 }
 
 void
@@ -53,6 +78,7 @@ vault_close () {
   current_vault.root = url_none ();
   current_vault.name = "";
   current_vault.db_url = url_none ();
+  vault_refresh_window_titles ();
 }
 
 void

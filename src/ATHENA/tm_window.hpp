@@ -31,6 +31,8 @@ protected:
   string*  text_ptr;  // where the interactive string is returned
   command  call_back; // called when typing finished
   string   cur_title; // current window title
+  string   cur_doc_title; // current document title before window decoration
+  url      cur_url;   // current document url
 
 public:
   tm_window_rep (widget wid2, tree geom);
@@ -39,6 +41,7 @@ public:
   void set_window_name (string s);
   void set_modified (bool flag);
   void set_window_url (url u);
+  void refresh_window_title ();
   void map ();
   void unmap ();
   void refresh ();
