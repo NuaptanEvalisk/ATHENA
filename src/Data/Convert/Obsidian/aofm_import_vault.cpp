@@ -631,7 +631,8 @@ resolve_anchor_placeholders(const tree& t, const AnchorMap& anchor_map,
 
     std::string image_path =
         relative_path_from_dir(path_dirname(rel_ath_path), asset->relative_path);
-    return make_image_embed(image_path, width.empty() ? "0.8par" : width + "px");
+    return make_image_embed(image_path, width.empty() ? "0.8par" :
+                            width + "guipx");
   }
 
   if (is_aofm_wikilink_placeholder(t) || is_aofm_transclusion_placeholder(t)) {

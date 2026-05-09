@@ -123,7 +123,7 @@ materialize_aofm_anchor_literals(const tree& t) {
   }
   if (is_aofm_image_placeholder(t)) {
     std::string width = tree_to_std_string(t[1]);
-    if (!width.empty()) width += "px";
+    if (!width.empty()) width += "guipx";
     else width = "0.8par";
     tree image = compound("image", t[0], text_tree(width),
                           text_tree(""), text_tree(""), text_tree(""));
