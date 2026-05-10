@@ -940,7 +940,7 @@ QTMWidget::dropEvent (QDropEvent *event) {
           tree im (IMAGE, name, w, h, "", "");
           doc << im;
         } else {
-          doc << name;
+          doc << tree (make_tree_label ("cardlink"), "", name);
         }
       } else {
         // not a local file, drop an slink to the document
