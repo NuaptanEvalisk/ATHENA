@@ -174,6 +174,7 @@
 (lazy-menu (athena menus tools-menu) tools-menu)
 (lazy-menu (athena menus preferences-menu) preferences-menu page-setup-menu)
 (lazy-menu (athena menus preferences-widgets)
+           preferences-open?
            open-preferences open-plugin-preferences open-plugins-preferences)
 (use-modules (athena menus main-menu))
 (lazy-define (athena menus file-menu) recent-file-list recent-directory-list)
