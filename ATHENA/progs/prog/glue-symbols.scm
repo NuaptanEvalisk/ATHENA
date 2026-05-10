@@ -788,6 +788,7 @@
 "vault-generate-uuid"
 "vault-choose-link"
 "vault-quick-switcher"
+"vault-show-explorer"
 "alt-window-handle"
 "alt-window-create-quit"
 "alt-window-create-plain"

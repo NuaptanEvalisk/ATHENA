@@ -325,6 +325,12 @@
                     ((== action "create")
                      (vault-create-and-open-ath payload))))))))
 
+(tm-define (open-vault-explorer)
+  (:interactive #t)
+  (if (not (vault-active?))
+      (show-message "No active vault. Please load a vault first." "Vault Explorer")
+      (vault-show-explorer)))
+
 (tm-define (insert-wikilink)
   (:interactive #t)
   (if (not (vault-active?))

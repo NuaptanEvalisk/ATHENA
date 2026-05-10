@@ -27,6 +27,7 @@
 #include "vault.hpp"
 #include "QTMVaultChooser.hpp"
 #include "QTMQuickSwitcher.hpp"
+#include "QTMVaultExplorer.hpp"
 #include "QTMAbout.hpp"
 #include "locale.hpp"
 #include "iterator.hpp"
