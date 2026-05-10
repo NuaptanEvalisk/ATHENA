@@ -521,9 +521,7 @@ void QTMMainTabWindow::tabTitleChanged(QWidget *widget, QString title) {
     while (p) {
       if (ads::CDockWidget* dockWidget = qobject_cast<ads::CDockWidget*>(p)) {
         dockWidget->setWindowTitle(title);
-        if (mDockManager->focusedDockWidget() == dockWidget ||
-            widgetOrChildHasFocus(widget))
-          setMainTitle(title);
+        setMainTitle(title);
         break;
       }
       p = p->parentWidget();

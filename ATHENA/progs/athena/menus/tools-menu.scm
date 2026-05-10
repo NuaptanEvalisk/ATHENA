@@ -13,6 +13,7 @@
 
 (texmacs-module (athena menus tools-menu)
   (:use (athena athena tm-tools)
+        (athena athena tm-vault)
         (athena tools shortcut-listing)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -39,6 +40,7 @@
 (menu-bind tools-menu
   (-> "Macros"
       (link source-macros-menu))
+  ("Quick switcher" (open-quick-switcher))
   ("Shortcuts listing" (list-all-shortcuts))
   (-> "Speech"      ("Off" (reset-preference "speech"))
       ---

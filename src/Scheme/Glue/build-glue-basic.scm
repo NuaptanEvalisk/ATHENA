@@ -857,6 +857,7 @@
   (vault-find-uuid vault_find_uuid (string string string string))
   (vault-generate-uuid vault_generate_uuid (string))
   (vault-choose-link vault_choose_link (tree bool))
+  (vault-quick-switcher vault_quick_switcher (tree array_string))
 
 
   ;; transitional alternative windows; to be replaced by better solution

@@ -10356,6 +10356,19 @@ tmg_vault_choose_link (tmscm arg1) {
 }
 
 tmscm
+tmg_vault_quick_switcher (tmscm arg1) {
+  TMSCM_ASSERT_ARRAY_STRING (arg1, TMSCM_ARG1, "vault-quick-switcher");
+
+  array_string in1= tmscm_to_array_string (arg1);
+
+  // TMSCM_DEFER_INTS;
+  tree out= vault_quick_switcher (in1);
+  // TMSCM_ALLOW_INTS;
+
+  return tree_to_tmscm (out);
+}
+
+tmscm
 tmg_alt_window_handle () {
   // TMSCM_DEFER_INTS;
   int out= window_handle ();
@@ -11613,6 +11626,7 @@ initialize_glue_basic () {
   tmscm_install_procedure ("vault-find-uuid",  tmg_vault_find_uuid, 3, 0, 0);
   tmscm_install_procedure ("vault-generate-uuid",  tmg_vault_generate_uuid, 0, 0, 0);
   tmscm_install_procedure ("vault-choose-link",  tmg_vault_choose_link, 1, 0, 0);
+  tmscm_install_procedure ("vault-quick-switcher",  tmg_vault_quick_switcher, 1, 0, 0);
   tmscm_install_procedure ("alt-window-handle",  tmg_alt_window_handle, 0, 0, 0);
   tmscm_install_procedure ("alt-window-create-quit",  tmg_alt_window_create_quit, 4, 0, 0);
   tmscm_install_procedure ("alt-window-create-plain",  tmg_alt_window_create_plain, 3, 0, 0);

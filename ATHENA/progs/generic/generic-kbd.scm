@@ -23,6 +23,7 @@
         (source source-edit)
         (athena athena tm-files)
         (athena athena tm-print)
+        (athena athena tm-vault)
         (doc help-funcs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -33,6 +34,8 @@
   ("F1" (interactive docgrep-in-doc))
   ("S-F1" (interactive docgrep-in-src)) ;; FIXME: S-F1 should be 'What is This?'
   ;("M-F1" (load-help-buffer "about/welcome/welcome")) ; Conflict with devtools
+  ("C-S-o" (open-quick-switcher))
+  ("C-S-O" (open-quick-switcher))
 
   ("<" "<less>")
   (">" "<gtr>")
@@ -441,6 +444,7 @@
   ("std n" (new-document))
   ("std N" (new-document*))
   ("std o" (open-document))
+  ("std O" (open-quick-switcher))
   ("std L" (open-document*))
   ("std p" (preview-buffer))
   ("std q" (safely-quit-ATHENA))

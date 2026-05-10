@@ -517,7 +517,7 @@ set (ATHENA_All_SRCS ${ATHENA_Base_SRCS}  ${ATHENA_Std_Plugins_SRCS})
 
 file (GLOB_RECURSE ATHENA_Widkit_SRCS "${ATHENA_SOURCE_DIR}/src/Plugins/Widkit/*.cpp")
 file (GLOB_RECURSE ATHENA_X11_SRCS "${ATHENA_SOURCE_DIR}/src/Plugins/X11/*.cpp")
-file (GLOB_RECURSE ATHENA_Qt_SRCS "${ATHENA_SOURCE_DIR}/src/Plugins/Qt/*.cpp")
+file (GLOB_RECURSE ATHENA_Qt_SRCS CONFIGURE_DEPENDS "${ATHENA_SOURCE_DIR}/src/Plugins/Qt/*.cpp")
 
 set (ATHENA_Qt_Moc_HDRS
   ${ATHENA_SOURCE_DIR}/src/Plugins/Qt/QTMApplication.hpp
