@@ -114,6 +114,21 @@
 (tm-define (linked-file-menu)
   (file-list-menu (list-remove-duplicates (linked-file-list)) #f))
 
+(tm-define (buffer-is-real-file?)
+  (let* ((u (current-buffer)))
+    (and (not (url-rooted-tmfs? u))
+         (not (url-rooted-web? u))
+         (not (url-scratch? u)))))
+
+(tm-define (open-in-text-editor)
+  (let* ((u (current-buffer)))
+    (system-1 (default-open) u)))
+
+(tm-define (open-in-file-manager)
+  (let* ((u (current-buffer))
+         (dir-url (url-head u)))
+    (system-1 (default-open) dir-url)))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Dynamic menus for formats
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -264,6 +279,10 @@
   ("Load in new window" (open-document*))
   ("Load Vault" (open-vault))
   ("Revert" (revert-buffer))
+  (when (buffer-is-real-file?)
+    ("Open in text editor" (open-in-text-editor)))
+  (when (buffer-is-real-file?)
+    ("Open in file manager" (open-in-file-manager)))
   (-> "Recent Files"
       (link recent-file-menu)
       (if (nnull? (recent-file-list 1)) ---)
