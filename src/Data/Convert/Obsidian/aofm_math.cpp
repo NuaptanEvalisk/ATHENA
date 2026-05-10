@@ -3,15 +3,54 @@
 #include "aofm_ast_helpers.hpp"
 #include "aofm_telemetry.hpp"
 #include "convert.hpp"
+#include <cctype>
 #include <chrono>
 
 namespace aofm {
 
+static bool
+is_tex_command_char(char c) {
+  return std::isalpha(static_cast<unsigned char>(c)) != 0;
+}
+
+static std::string
+normalize_latex_math_source(const std::string& source) {
+  std::string out;
+  out.reserve(source.size());
+
+  for (size_t i = 0; i < source.size();) {
+    if (source[i] != '\\') {
+      out += source[i++];
+      continue;
+    }
+
+    size_t command_start = i + 1;
+    size_t command_end = command_start;
+    while (command_end < source.size() &&
+           is_tex_command_char(source[command_end])) {
+      command_end++;
+    }
+
+    if (source.compare(command_start, command_end - command_start,
+                       "textemdash") == 0) {
+      out += "\\longminus";
+      i = command_end;
+    }
+    else {
+      out.append(source, i, command_end - i);
+      i = command_end;
+    }
+  }
+
+  return out;
+}
+
 tree
 convert_latex_math_inline(const std::string& latex_source) {
   auto start = ::std::chrono::high_resolution_clock::now();
+  std::string normalized_source = normalize_latex_math_source(latex_source);
   tree converted = extract(
-      latex_document_to_tree(tm_string("$" + latex_source + "$"), false, true),
+      latex_document_to_tree(tm_string("$" + normalized_source + "$"), false, true),
       "body");
 
   converted = simplify_document(converted);
@@ -41,8 +80,9 @@ convert_latex_math_inline(const std::string& latex_source) {
 tree
 convert_latex_math_display(const std::string& latex_source) {
   auto start = ::std::chrono::high_resolution_clock::now();
+  std::string normalized_source = normalize_latex_math_source(latex_source);
   tree converted = extract(
-      latex_document_to_tree(tm_string("$$" + latex_source + "$$"), false, true),
+      latex_document_to_tree(tm_string("$$" + normalized_source + "$$"), false, true),
       "body");
 
   auto end = ::std::chrono::high_resolution_clock::now();
