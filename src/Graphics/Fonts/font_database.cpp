@@ -680,7 +680,7 @@ font_database_styles (string family) {
 
 array<string>
 font_database_global_styles (string family) {
-  font_database_global_load ();
+  font_database_global_load (family);
   return font_database_styles (family, font_global_table);
 }
 
