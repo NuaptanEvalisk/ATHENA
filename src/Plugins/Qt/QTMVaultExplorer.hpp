@@ -12,6 +12,7 @@
 #define QTMVAULTEXPLORER_HPP
 
 #include "string.hpp"
+#include "url.hpp"
 #include <QSize>
 #include <QString>
 #include <QWidget>
@@ -26,6 +27,7 @@ public:
   QTMVaultExplorer (QWidget* parent = nullptr);
 
   void setVault (const QString& rootPath, const QString& vaultName);
+  void revealPath (const QString& path);
   QSize sizeHint () const override;
 
 private:
@@ -55,5 +57,6 @@ private:
 };
 
 void vault_show_explorer ();
+void vault_explorer_track_file (url file);
 
 #endif // QTMVAULTEXPLORER_HPP

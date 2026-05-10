@@ -10378,6 +10378,19 @@ tmg_vault_show_explorer () {
 }
 
 tmscm
+tmg_vault_explorer_track_file (tmscm arg1) {
+  TMSCM_ASSERT_URL (arg1, TMSCM_ARG1, "vault-explorer-track-file");
+
+  url in1= tmscm_to_url (arg1);
+
+  // TMSCM_DEFER_INTS;
+  vault_explorer_track_file (in1);
+  // TMSCM_ALLOW_INTS;
+
+  return TMSCM_UNSPECIFIED;
+}
+
+tmscm
 tmg_alt_window_handle () {
   // TMSCM_DEFER_INTS;
   int out= window_handle ();
@@ -11637,6 +11650,7 @@ initialize_glue_basic () {
   tmscm_install_procedure ("vault-choose-link",  tmg_vault_choose_link, 1, 0, 0);
   tmscm_install_procedure ("vault-quick-switcher",  tmg_vault_quick_switcher, 1, 0, 0);
   tmscm_install_procedure ("vault-show-explorer",  tmg_vault_show_explorer, 0, 0, 0);
+  tmscm_install_procedure ("vault-explorer-track-file",  tmg_vault_explorer_track_file, 1, 0, 0);
   tmscm_install_procedure ("alt-window-handle",  tmg_alt_window_handle, 0, 0, 0);
   tmscm_install_procedure ("alt-window-create-quit",  tmg_alt_window_create_quit, 4, 0, 0);
   tmscm_install_procedure ("alt-window-create-plain",  tmg_alt_window_create_plain, 3, 0, 0);

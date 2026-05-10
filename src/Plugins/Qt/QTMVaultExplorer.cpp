@@ -10,6 +10,7 @@
 
 #include "QTMVaultExplorer.hpp"
 #include "QTMMainTabWindow.hpp"
+#include "boot.hpp"
 #include "scheme.hpp"
 #include "qt_utilities.hpp"
 #include "vault.hpp"
@@ -146,6 +147,24 @@ QTMVaultExplorer::setVault (const QString& rootPath2, const QString& vaultName2)
   tree->setRootIndex (root);
   for (int i=1; i<model->columnCount (); i++) tree->hideColumn (i);
   tree->header ()->setSectionResizeMode (0, QHeaderView::Stretch);
+}
+
+void
+QTMVaultExplorer::revealPath (const QString& path) {
+  if (path.isEmpty () || !pathInVault (path) || !QFileInfo::exists (path))
+    return;
+
+  QModelIndex index= model->index (path);
+  if (!index.isValid ()) return;
+
+  QModelIndex parent= index.parent ();
+  while (parent.isValid () && parent != tree->rootIndex ()) {
+    tree->expand (parent);
+    parent= parent.parent ();
+  }
+  tree->expand (index.parent ());
+  tree->setCurrentIndex (index);
+  tree->scrollTo (index, QAbstractItemView::PositionAtCenter);
 }
 
 QModelIndex
@@ -461,4 +480,16 @@ vault_show_explorer () {
     set_vault_explorer_area_width (win->dockManager (), vault_explorer_area);
   });
   vault_explorer_widget->setFocus ();
+}
+
+void
+vault_explorer_track_file (url file) {
+  if (get_preference ("vault explorer track current file", "off") != "on")
+    return;
+  if (!vault_active () || vault_explorer_widget == nullptr) return;
+  if (is_none (file)) return;
+  if (!is_rooted (file, "default") && !is_rooted (file, "file")) return;
+
+  QString path= to_qstring (concretize (file));
+  vault_explorer_widget->revealPath (path);
 }

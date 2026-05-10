@@ -17,6 +17,7 @@
 #include "QTMGuiHelper.hpp"
 #include "QTMMenuHelper.hpp"
 #include "QTMApplication.hpp"
+#include "QTMVaultExplorer.hpp"
 
 #include "message.hpp"
 #include "analyze.hpp"
@@ -273,6 +274,13 @@ qt_window_widget_rep::send (slot s, blackbox val) {
       } else {
         if (qwid) tmapp()->mainTabWindow().tabTitleChanged (qwid, to_qstring (name));
       }
+    }
+      break;
+    case SLOT_FILE:
+    {
+      check_type<string> (val, s);
+      string file= open_box<string> (val);
+      vault_explorer_track_file (url (file));
     }
       break;
     case SLOT_MODIFIED:

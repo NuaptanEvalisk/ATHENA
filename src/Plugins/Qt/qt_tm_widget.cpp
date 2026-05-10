@@ -39,6 +39,7 @@
 #include "QTMGuiHelper.hpp"  // needed to connect()
 #include "QTMInteractivePrompt.hpp"
 #include "QTMInteractiveInputHelper.hpp"
+#include "QTMVaultExplorer.hpp"
 
 int menu_count = 0;  // zero if no menu is currently being displayed
 list<qt_tm_widget_rep*> waiting_widgets;
@@ -862,6 +863,7 @@ qt_tm_widget_rep::send (slot s, blackbox val) {
 #if (QT_VERSION >= 0x040400)
       mainwindow()->setWindowFilePath (utf8_to_qstring (file));
 #endif
+      vault_explorer_track_file (url (file));
     }
       break;
     case SLOT_POSITION:

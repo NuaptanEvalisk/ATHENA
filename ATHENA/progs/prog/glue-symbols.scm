@@ -789,6 +789,7 @@
 "vault-choose-link"
 "vault-quick-switcher"
 "vault-show-explorer"
+"vault-explorer-track-file"
 "alt-window-handle"
 "alt-window-create-quit"
 "alt-window-create-plain"

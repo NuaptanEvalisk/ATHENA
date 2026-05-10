@@ -31,6 +31,24 @@
 (define (vault-startup-open-welcome?)
   (== (get-preference "vault welcome page") "on"))
 
+(define (vault-startup-show-explorer?)
+  (== (get-preference "vault explorer show on startup") "on"))
+
+(define (vault-track-current-buffer-if-enabled)
+  (if (and (== (get-preference "vault explorer track current file") "on")
+           (vault-active?)
+           (current-buffer))
+      (vault-explorer-track-file (current-buffer))))
+
+(define (vault-show-explorer-and-track)
+  (vault-show-explorer)
+  (vault-track-current-buffer-if-enabled))
+
+(define (vault-startup-show-explorer)
+  (if (vault-startup-show-explorer?)
+      (delayed (:idle 100)
+        (if (vault-active?) (vault-show-explorer-and-track)))))
+
 (tm-define (vault-startup-open-initial-buffer)
   (let* ((auto-load? (== (get-preference "vault auto load last") "on"))
          (report-missing? (== (get-preference "vault report missing last") "on"))
@@ -45,6 +63,7 @@
          (if (vault-startup-available? dir)
              (begin
                (load-vault-dir dir)
+               (vault-startup-show-explorer)
                (if (vault-startup-open-welcome?) (go-to-welcome-page)))
              (if report-missing?
                  (vault-startup-unavailable-message latest-vault))))))))
@@ -57,6 +76,9 @@
                        load-buffer load-vault-dir 
                        string->url vault-load-latest-action
                        go-to-welcome-page
+                       vault-show-explorer
+                       vault-show-explorer-and-track
+                       vault-explorer-track-file
                        ext-get-preference
                        new-document)
 
@@ -127,6 +149,9 @@
 (define (notify-enunciation-color name val)
   (refresh-now "enunciations"))
 
+(define (notify-vault-explorer-track name val)
+  (if (== val "on") (vault-track-current-buffer-if-enabled)))
+
 
 (define-preferences
   ("vault fuzzy search limit" "3" noop)
@@ -136,6 +161,8 @@
   ("vault welcome page" "on" noop)
   ("vault auto load last" "off" noop)
   ("vault report missing last" "off" noop)
+  ("vault explorer show on startup" "on" noop)
+  ("vault explorer track current file" "off" notify-vault-explorer-track)
   ("vault labels mode" "visible" notify-labels-mode)
   ("vault theorem color" "none" notify-enunciation-color)
   ("vault lemma color" "none" notify-enunciation-color)
@@ -179,7 +206,13 @@
                 (equal? (get-preference "vault auto load last") "on")))
       (item (text "Report if last vault is unavailable:")
         (toggle (set-preference "vault report missing last" (if answer "on" "off"))
-                (equal? (get-preference "vault report missing last") "on"))))))
+                (equal? (get-preference "vault report missing last") "on")))
+      (item (text "Show vault explorer on startup:")
+        (toggle (set-preference "vault explorer show on startup" (if answer "on" "off"))
+                (equal? (get-preference "vault explorer show on startup") "on")))
+      (item (text "Track current file in vault explorer:")
+        (toggle (set-preference "vault explorer track current file" (if answer "on" "off"))
+                (equal? (get-preference "vault explorer track current file") "on"))))))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -329,7 +362,7 @@
   (:interactive #t)
   (if (not (vault-active?))
       (show-message "No active vault. Please load a vault first." "Vault Explorer")
-      (vault-show-explorer)))
+      (vault-show-explorer-and-track)))
 
 (tm-define (insert-wikilink)
   (:interactive #t)
