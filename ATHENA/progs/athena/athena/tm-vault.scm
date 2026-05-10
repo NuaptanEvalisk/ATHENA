@@ -426,6 +426,32 @@
         ((eq? (car st) 'label) '(concat))
         (else (cons (car st) (map vault-strip-labels (cdr st))))))
 
+(define (vault-absolute-image-path? path)
+  (or (string-null? path)
+      (string-starts? path "/")
+      (string-starts? path "~")
+      (string-starts? path "$")
+      (string-occurs? "://" path)))
+
+(define (vault-transclude-rebase-image-path path source-dir)
+  (if (vault-absolute-image-path? path) path
+      (let* ((decoded (cork->utf8 path))
+             (absolute (url-append source-dir (unix->url decoded))))
+        (utf8->cork (url->system absolute)))))
+
+(define (vault-transclude-rebase-images st source-dir)
+  (cond ((not (pair? st)) st)
+        ((and (eq? (car st) 'image)
+              (pair? (cdr st))
+              (string? (cadr st)))
+         (cons 'image
+               (cons (vault-transclude-rebase-image-path (cadr st) source-dir)
+                     (map (cut vault-transclude-rebase-images <> source-dir)
+                          (cddr st)))))
+        (else (cons (car st)
+                    (map (cut vault-transclude-rebase-images <> source-dir)
+                         (cdr st))))))
+
 (tm-define (vault-resolve-transclude uuid f-hint b-hint e-hint)
   (let* ((uuid-str (tree->string uuid))
          (f-hint-str (tree->string f-hint))
@@ -444,6 +470,7 @@
                                  (a-begin (tree->string (tree-ref node 1)))
                                  (a-end (tree->string (tree-ref node 2)))
                                  (abs-url (url-append (vault-get-root) (unix->url rel-path)))
+                                 (source-dir (url-head abs-url))
                                  (filename (url->system (url-tail abs-url))))
                             (if (url-exists? abs-url)
                                 (let* ((t (tree-import abs-url "texmacs"))
@@ -457,11 +484,15 @@
                                         `(with "ornament-color" ,bg-color
                                                "ornament-shape" "rectangular"
                                                "ornament-border" "1ln"
-                                           (ornamented 
-                                             (document 
-                                               (with "font-size" "0.8" "color" "blue"
-                                                 (concat (action ,(string-append "[Source: " filename "]") ,btn-cmd)))
-                                               ,@(map vault-strip-labels (map tree->stree content))))))))
+                                           (ornamented
+                                               (document
+                                                 (with "font-size" "0.8" "color" "blue"
+                                                   (concat (action ,(string-append "[Source: " filename "]") ,btn-cmd)))
+                                               ,@(map (lambda (st)
+                                                        (vault-transclude-rebase-images
+                                                         (vault-strip-labels st)
+                                                         source-dir))
+                                                      (map tree->stree content))))))))
                                 (vault-transclude-error uuid-str f-hint-str b-hint-str e-hint-str "Target file missing.")))
                           (vault-transclude-error uuid-str f-hint-str b-hint-str e-hint-str "UUID not in database.")))))
             (lambda (key . args)
