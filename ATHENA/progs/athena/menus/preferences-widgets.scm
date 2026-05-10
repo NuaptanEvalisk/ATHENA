@@ -296,20 +296,35 @@
 ;; Rendering preferences widget
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(tm-widget (rendering-color-preference-widget pref optional?)
+  (let* ((val (get-preference pref))
+         (shown (if (== val "none") "none" val))
+         (setter (lambda (col)
+                   (when col
+                     (set-preference pref col)
+                     (refresh-now pref)))))
+    (refreshable pref
+      (hlist
+        (text shown)
+        // //
+        ((icon "tm_color.xpm")
+         (interactive-color setter (list val)))
+        (when optional?
+          // //
+          ((icon "tm_remove.xpm")
+           (set-preference pref "none")
+           (refresh-now pref)))
+        >>))))
+
 (tm-widget (rendering-document-preferences-widget)
   (aligned
     (item (text "Transclusion background:")
-      (input (set-preference "vault transclusion color" answer) "string"
-             (list (get-preference "vault transclusion color"))
-             "10em"))
+      (dynamic (rendering-color-preference-widget
+                 "vault transclusion color" #t)))
     (item (text "Cursor color:")
-      (input (set-preference "gui cursor color" answer) "string"
-             (list (get-preference "gui cursor color"))
-             "10em"))
+      (dynamic (rendering-color-preference-widget "gui cursor color" #f)))
     (item (text "Selection color:")
-      (input (set-preference "gui selection color" answer) "string"
-             (list (get-preference "gui selection color"))
-             "10em"))
+      (dynamic (rendering-color-preference-widget "gui selection color" #f)))
     (item (text "Labels display:")
       (enum (set-preference "vault labels mode" answer)
             '("visible" "small" "hidden")
@@ -336,83 +351,63 @@
 (tm-widget (rendering-enunciations-preferences-widget)
   (aligned
     (item (text "Theorem background:")
-      (input (set-preference "vault theorem color" answer) "string"
-             (list (get-preference "vault theorem color")) "10em"))
+      (dynamic (rendering-color-preference-widget "vault theorem color" #t)))
     (item (text "Lemma background:")
-      (input (set-preference "vault lemma color" answer) "string"
-             (list (get-preference "vault lemma color")) "10em"))
+      (dynamic (rendering-color-preference-widget "vault lemma color" #t)))
     (item (text "Corollary background:")
-      (input (set-preference "vault corollary color" answer) "string"
-             (list (get-preference "vault corollary color")) "10em"))
+      (dynamic (rendering-color-preference-widget "vault corollary color" #t)))
     (item (text "Proposition background:")
-      (input (set-preference "vault proposition color" answer) "string"
-             (list (get-preference "vault proposition color")) "10em"))
+      (dynamic (rendering-color-preference-widget "vault proposition color" #t)))
     (item (text "Axiom background:")
-      (input (set-preference "vault axiom color" answer) "string"
-             (list (get-preference "vault axiom color")) "10em"))
+      (dynamic (rendering-color-preference-widget "vault axiom color" #t)))
     (item (text "Definition background:")
-      (input (set-preference "vault definition color" answer) "string"
-             (list (get-preference "vault definition color")) "10em"))
+      (dynamic (rendering-color-preference-widget "vault definition color" #t)))
     (item (text "Notation background:")
-      (input (set-preference "vault notation color" answer) "string"
-             (list (get-preference "vault notation color")) "10em"))
+      (dynamic (rendering-color-preference-widget "vault notation color" #t)))
     (item (text "Convention background:")
-      (input (set-preference "vault convention color" answer) "string"
-             (list (get-preference "vault convention color")) "10em"))
+      (dynamic (rendering-color-preference-widget "vault convention color" #t)))
     (item (text "Conjecture background:")
-      (input (set-preference "vault conjecture color" answer) "string"
-             (list (get-preference "vault conjecture color")) "10em"))
+      (dynamic (rendering-color-preference-widget "vault conjecture color" #t)))
     (item (text "Law background:")
-      (input (set-preference "vault law color" answer) "string"
-             (list (get-preference "vault law color")) "10em"))))
+      (dynamic (rendering-color-preference-widget "vault law color" #t)))))
 
 (tm-widget (rendering-remarks-preferences-widget)
   (aligned
     (item (text "Remark background:")
-      (input (set-preference "vault remark color" answer) "string"
-             (list (get-preference "vault remark color")) "10em"))
+      (dynamic (rendering-color-preference-widget "vault remark color" #t)))
     (item (text "Note background:")
-      (input (set-preference "vault note color" answer) "string"
-             (list (get-preference "vault note color")) "10em"))
+      (dynamic (rendering-color-preference-widget "vault note color" #t)))
     (item (text "Example background:")
-      (input (set-preference "vault example color" answer) "string"
-             (list (get-preference "vault example color")) "10em"))
+      (dynamic (rendering-color-preference-widget "vault example color" #t)))
     (item (text "Warning background:")
-      (input (set-preference "vault warning color" answer) "string"
-             (list (get-preference "vault warning color")) "10em"))
+      (dynamic (rendering-color-preference-widget "vault warning color" #t)))
     (item (text "Disambiguation background:")
-      (input (set-preference "vault disambiguation color" answer) "string"
-             (list (get-preference "vault disambiguation color")) "10em"))
+      (dynamic (rendering-color-preference-widget
+                 "vault disambiguation color" #t)))
     (item (text "Acknowledgments background:")
-      (input (set-preference "vault acknowledgments color" answer) "string"
-             (list (get-preference "vault acknowledgments color")) "10em"))))
+      (dynamic (rendering-color-preference-widget
+                 "vault acknowledgments color" #t)))))
 
 (tm-widget (rendering-exercises-preferences-widget)
   (aligned
     (item (text "Exercise background:")
-      (input (set-preference "vault exercise color" answer) "string"
-             (list (get-preference "vault exercise color")) "10em"))
+      (dynamic (rendering-color-preference-widget "vault exercise color" #t)))
     (item (text "Problem background:")
-      (input (set-preference "vault problem color" answer) "string"
-             (list (get-preference "vault problem color")) "10em"))
+      (dynamic (rendering-color-preference-widget "vault problem color" #t)))
     (item (text "Question background:")
-      (input (set-preference "vault question color" answer) "string"
-             (list (get-preference "vault question color")) "10em"))
+      (dynamic (rendering-color-preference-widget "vault question color" #t)))
     (item (text "Solution background:")
-      (input (set-preference "vault solution color" answer) "string"
-             (list (get-preference "vault solution color")) "10em"))
+      (dynamic (rendering-color-preference-widget "vault solution color" #t)))
     (item (text "Answer background:")
-      (input (set-preference "vault answer color" answer) "string"
-             (list (get-preference "vault answer color")) "10em"))
+      (dynamic (rendering-color-preference-widget "vault answer color" #t)))
     (item (text "Proof background:")
-      (input (set-preference "vault proof color" answer) "string"
-             (list (get-preference "vault proof color")) "10em"))
+      (dynamic (rendering-color-preference-widget "vault proof color" #t)))
     (item (text "Proof (Alternative) background:")
-      (input (set-preference "vault proof alternative color" answer) "string"
-             (list (get-preference "vault proof alternative color")) "10em"))
+      (dynamic (rendering-color-preference-widget
+                 "vault proof alternative color" #t)))
     (item (text "Proof (Standard) background:")
-      (input (set-preference "vault proof standard color" answer) "string"
-             (list (get-preference "vault proof standard color")) "10em"))))
+      (dynamic (rendering-color-preference-widget
+                 "vault proof standard color" #t)))))
 
 (tm-widget (rendering-preferences-widget)
   ===
