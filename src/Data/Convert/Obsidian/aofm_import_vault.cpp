@@ -116,6 +116,12 @@ struct AofmVaultHeadingInfo {
   int level = 0;
 };
 
+struct OpenHeadingInfo {
+  int level;
+  std::string key;
+  std::string normalized_key;
+};
+
 struct AofmVaultAssetInfo {
   std::string relative_path;
 };
@@ -579,9 +585,9 @@ void
 close_heading_ranges(tree& out,
                      std::vector<const AofmVaultHeadingInfo*>& open_headings,
                      int min_level) {
+  (void) out;
   while (!open_headings.empty() &&
          open_headings.back()->level >= min_level) {
-    append_document(out, make_label_tree(open_headings.back()->end_label));
     open_headings.pop_back();
   }
 }
@@ -753,6 +759,13 @@ resolve_anchor_placeholders(const tree& t, const AnchorMap& anchor_map,
           report_import_error("anchor '^" + anchor + "' not found while converting " +
                               rel_ath_path);
           append_document(out, materialize_anchor_literal(child));
+          continue;
+        }
+
+        if (!it->second.anchor_2.empty() &&
+            N(out) > 1 &&
+            is_heading_tree(out[N(out) - 1]) &&
+            is_label_tree_with(out[N(out) - 2], it->second.anchor_1)) {
           continue;
         }
 
@@ -1271,6 +1284,20 @@ finalize_current_block(BlockContext& current, BlockContext& last) {
 }
 
 void
+set_heading_end_label(HeadingMap& heading_map, const OpenHeadingInfo& open,
+                      const std::string& end_label) {
+  auto it = heading_map.find(open.key);
+  if (it != heading_map.end() && it->second.end_label.empty())
+    it->second.end_label = end_label;
+
+  if (!open.normalized_key.empty() && open.normalized_key != open.key) {
+    auto normalized = heading_map.find(open.normalized_key);
+    if (normalized != heading_map.end() && normalized->second.end_label.empty())
+      normalized->second.end_label = end_label;
+  }
+}
+
+void
 process_markdown_file(const ImportFileInfo& file_info, AnchorMap& map,
                       HeadingMap& heading_map) {
   std::ifstream in(as_charp(concretize(file_info.source_url)), std::ios::in | std::ios::binary);
@@ -1289,6 +1316,7 @@ process_markdown_file(const ImportFileInfo& file_info, AnchorMap& map,
   BlockContext current;
   BlockContext last;
   std::string file_hint = path_stem(file_info.relative_md_path);
+  std::vector<OpenHeadingInfo> open_headings;
 
   for (size_t i = 0; i < lines.size(); ++i) {
     std::string anchor;
@@ -1326,20 +1354,29 @@ process_markdown_file(const ImportFileInfo& file_info, AnchorMap& map,
       last.lines.clear();
       last.lines.push_back(heading_label);
       std::string key = heading_map_key(file_hint, heading_target);
+      std::string normalized_key = normalized_heading_map_key(file_hint, heading_target);
+      int level = heading_level_from_label(heading_label);
+      while (!open_headings.empty() && open_headings.back().level >= level) {
+        set_heading_end_label(heading_map, open_headings.back(), heading_label);
+        open_headings.pop_back();
+      }
       if (heading_map.find(key) == heading_map.end()) {
         AofmVaultHeadingInfo info;
         info.uuid = tm_to_std_string(vault_generate_uuid());
         info.transclusion_uuid = tm_to_std_string(vault_generate_uuid());
         info.path = file_info.relative_ath_path;
         info.label = heading_label;
-        info.end_label = heading_label + " }";
-        info.level = heading_level_from_label(heading_label);
+        info.level = level;
         heading_map[key] = info;
-        std::string normalized_key = normalized_heading_map_key(file_hint, heading_target);
         if (normalized_key != key &&
             heading_map.find(normalized_key) == heading_map.end()) {
           heading_map[normalized_key] = info;
         }
+        OpenHeadingInfo open;
+        open.level = level;
+        open.key = key;
+        open.normalized_key = normalized_key;
+        open_headings.push_back(open);
       }
       continue;
     }
@@ -1558,7 +1595,7 @@ write_vault_database(url destination_root, const FileIndexMap& file_map,
   for (const auto& entry : heading_map) {
     const AofmVaultHeadingInfo& info = entry.second;
     set_vault_db_node(db_url, info.uuid, info.path, "", info.label);
-    if (!info.transclusion_uuid.empty() && !info.end_label.empty()) {
+    if (!info.transclusion_uuid.empty()) {
       set_vault_db_node(db_url, info.transclusion_uuid, info.path,
                         info.label, info.end_label);
     }
