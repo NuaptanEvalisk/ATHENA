@@ -351,6 +351,29 @@ get_utf8_code (string c) {
   else return -1;
 }
 
+static bool
+is_emoji_code (int code) {
+  return
+    (code >= 0x1f000 && code <= 0x1faff) ||
+    (code >= 0x2600  && code <= 0x27bf) ||
+    (code >= 0xfe00  && code <= 0xfe0f) ||
+    code == 0x200d ||
+    code == 0x20e3;
+}
+
+static bool
+is_emoji (string c) {
+  string uc= strict_cork_to_utf8 (c);
+  int pos= 0;
+  bool has_emoji = false;
+  while (pos < N(uc)) {
+    int code = decode_from_utf8 (uc, pos);
+    if (is_emoji_code (code)) has_emoji = true;
+    if (code >= 0xfe00 && code <= 0xfe0f) has_emoji = true;
+  }
+  return has_emoji;
+}
+
 string
 substitute_math_letter (string c, int math_kind) {
   if (math_kind == 0) return "";
@@ -461,6 +484,7 @@ get_unicode_range (int code) {
   else if (code >= 0x80 && code <= 0x37f) return "latin";
   else if (code >= 0x380 && code <= 0x3ff) return "greek";
   else if (code >= 0x400 && code <= 0x4ff) return "cyrillic";
+  else if (is_emoji_code (code)) return "emoji";
   else if (code >= 0x3000 && code <= 0x303f) return "cjk";
   else if (code >= 0x4e00 && code <= 0x9fcc) return "cjk";
   else if (code >= 0xff00 && code <= 0xffef) return "cjk";
@@ -923,6 +947,23 @@ smart_font_rep::advance (string s, int& pos, string& r, int& nr) {
     else {
       int end= pos;
       tm_char_forwards (s, end);
+      int last_code = get_utf8_code (s (pos, end));
+
+      while (end < N(s) && s[end] == '<') {
+        int next_end = end;
+        tm_char_forwards (s, next_end);
+        int next_code = get_utf8_code (s (end, next_end));
+        if (next_code == 0x200d || (next_code >= 0xfe00 && next_code <= 0xfe0f) || (next_code >= 0x1f3fb && next_code <= 0x1f3ff)) {
+          end = next_end;
+          last_code = next_code;
+        } else if (last_code == 0x200d) {
+          end = next_end;
+          last_code = next_code;
+        } else {
+          break;
+        }
+      }
+
       int next= cht[s (pos, end)];
       if (next == -1) next= resolve (s (pos, end));
       if (count == 1 && nr != -1 && next == nr) {
@@ -1190,6 +1231,9 @@ smart_font_rep::resolve (string c) {
   //     << "; " << fn[SUBFONT_MAIN]->res_name << "; " << math_kind << "\n";
   array<string> a= trimmed_tokenize (family, ",");
 
+  if (is_emoji (c))
+    return sm->add_char (tuple ("emoji"), c);
+
   if (math_kind != 0) {
     string upc= substitute_upright (c);
     if (upc != "" && fn[SUBFONT_MAIN]->supports (upc)) {
@@ -1313,6 +1357,13 @@ smart_font_rep::initialize_font (int nr) {
     fn[nr]= adjust_subfont (get_cyrillic_font (a[1], a[2], a[3], a[4]));
   else if (a[0] == "greek")
     fn[nr]= adjust_subfont (get_greek_font (a[1], a[2], a[3], a[4]));
+  else if (a[0] == "emoji") {
+    font cfn= qt_font ("emoji", sz, dpi);
+    if (is_nil (cfn)) cfn= fn[SUBFONT_ERROR];
+    else if (hdpi != dpi)
+      cfn= cfn->magnify (((double) hdpi) / ((double) dpi), 1.0);
+    fn[nr]= cfn;
+  }
   else if (a[0] == "subfont")
     fn[nr]= smart_font_bis (a[1], variant, series, shape, sz, hdpi, dpi);
   else if (a[0] == "special")

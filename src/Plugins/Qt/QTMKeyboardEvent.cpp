@@ -13,6 +13,7 @@
 
 #include <QApplication>
 #include <QLocale>
+#include <QVector>
 #include "analyze.hpp"
 #include "basic.hpp"
 
@@ -42,7 +43,8 @@ void QTMKeyboardEvent::printDebugInformations() const {
 #else
   debug_qt << "count: " << mEvent.text().count() << LF;
 #endif
-  debug_qt << "unic : " << mEvent.text().data()[0].unicode() << LF;
+  QVector<uint> ucs4= mEvent.text().toUcs4 ();
+  debug_qt << "unic : " << (ucs4.size () == 0 ? 0 : ucs4[0]) << LF;
 
 #ifdef OS_MINGW
   debug_qt << "nativeScanCode: " << mEvent.nativeScanCode() << LF; 
@@ -189,10 +191,11 @@ QTMKeyboardEvent::handleKeyboardByTexmacs() {
     // We need to use text(): Alt-{5,6,7,8,9} are []|{} under MacOS, etc.
   nss = mEvent.text();
   kc  = mEvent.nativeVirtualKey();
-  if (nss.size() == 0) {
+  QVector<uint> ucs4= nss.toUcs4 ();
+  if (ucs4.size() == 0) {
     unic = 0;
   } else {
-    unic= nss.data()[0].unicode();
+    unic= ucs4[0];
   }
 
   if (unic > 32 && unic < 255 && 

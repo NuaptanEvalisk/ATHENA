@@ -110,7 +110,7 @@ private:
     string mTexmacsKeyCombination;
     QString nss;
     unsigned int   kc;
-    unsigned short unic;
+    unsigned int   unic;
     
 
 };

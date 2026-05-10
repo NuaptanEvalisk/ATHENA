@@ -13,6 +13,10 @@
 #include "Qt/qt_utilities.hpp"
 #include "Qt/qt_renderer.hpp"
 
+#include <QFontDatabase>
+#include <QStringList>
+#include <QVector>
+
 #include "analyze.hpp"
 #include "dictionary.hpp"
 
@@ -22,13 +26,35 @@
 #define CEIL(x)  ((SI) ceil  (x * MAGN))
 
 /******************************************************************************
+* Helpers
+******************************************************************************/
+
+static QFont
+make_qt_font (string family, int size) {
+  QFont qfn;
+  if (family == "emoji") {
+    QString noto= "Noto Color Emoji";
+#if QT_VERSION >= 0x060000
+    QStringList families= QFontDatabase::families ();
+#else
+    QFontDatabase db;
+    QStringList families= db.families ();
+#endif
+    if (families.contains (noto, Qt::CaseInsensitive))
+      qfn.setFamily (noto);
+  }
+  else if (family != "") qfn.setFamily (to_qstring (family));
+  qfn.setPixelSize (size);
+  return qfn;
+}
+
+/******************************************************************************
 * The implementation
 ******************************************************************************/
 
 qt_font_rep::qt_font_rep (string name, string family2, int size2, int dpi2):
   font_rep (name), family (family2), size (size2), dpi (dpi2),
-  qfn (to_qstring (family), size),
-  //qfn (to_qstring (family), size, QFont::Normal, false),
+  qfn (make_qt_font (family, size)),
   qfm (qfn)
 {
   type= FONT_TYPE_QT;
@@ -36,8 +62,14 @@ qt_font_rep::qt_font_rep (string name, string family2, int size2, int dpi2):
   // get main font parameters
   y1= FLOOR (-qfm.descent ());
   y2= CEIL  (qfm.ascent () + 1);
-  display_size = y2-y1;
   design_size  = size << 8;
+
+  if (family == "emoji") {
+    y1 = max(y1, - (int)(0.3 * design_size));
+    y2 = min(y2, (int)(1.1 * design_size));
+  }
+
+  display_size = y2-y1;
 
   // get character dimensions
   metric ex;
@@ -81,7 +113,15 @@ qt_font_rep::qt_font_rep (string name, string family2, int size2, int dpi2):
 bool
 qt_font_rep::supports (string c) {
   QString qs= utf8_to_qstring (cork_to_utf8 (c));
+  QVector<uint> ucs4= qs.toUcs4 ();
+  if (ucs4.size () == 0) return false;
+  if (family == "" || family == "emoji") return true;
+  if (ucs4.size () != 1) return false;
+#if QT_VERSION >= 0x050000
+  return qfm.inFontUcs4 (ucs4[0]);
+#else
   return qs.length () == 1 && qfm.inFont (qs[0]);
+#endif
 }
 
 void
@@ -99,6 +139,12 @@ qt_font_rep::get_extents (string s, metric& ex) {
   ex->y2= CEIL  (-rect.top ());
   ex->x3= FLOOR (rect.left ());
   ex->x4= CEIL  (rect.right ());
+  
+  if (family == "emoji") {
+    ex->y1 = max(ex->y1, y1);
+    ex->y2 = min(ex->y2, y2);
+  }
+
   ex->y3= ex->y1;
   ex->y4= ex->y2;
 }
@@ -125,7 +171,8 @@ qt_font_rep::magnify (double zoomx, double zoomy) {
 
 font
 qt_font (string family, int size, int dpi) {
-  string name= "qt:" * family * as_string (size) * "@" * as_string (dpi);
+  string name= "qt:" * (family == "" ? string ("default") : family) *
+               as_string (size) * "@" * as_string (dpi);
   if (font::instances -> contains (name)) return font (name);
   else return tm_new<qt_font_rep> (name, family, size, dpi);
 }
