@@ -68,7 +68,8 @@ extern tree the_et;
 extern bool texmacs_started;
 
 extern void aofm_debug_dump(const std::string& file_path);
-extern bool aofm_import_vault(string source_dir, string destination_dir, bool ignore_nonempty);
+extern bool aofm_import_vault(string source_dir, string destination_dir,
+                              bool ignore_nonempty, int parallelism);
 
 bool disable_error_recovery= false;
 bool start_server_flag= false;
@@ -77,9 +78,23 @@ std::string aofm_debug_convert_file;
 string aofm_debug_vault_convert_source;
 string aofm_debug_vault_convert_destination;
 bool   aofm_ignore_nonempty_dest = false;
+int    aofm_debug_vault_convert_parallelism = 0;
 string extra_init_cmd;
 bool exec_exit= true;
 void server_start ();
+
+static bool
+is_positive_integer_arg (string s) {
+  if (N(s) == 0) return false;
+  for (int i=0; i<N(s); i++)
+    if (!is_numeric (s[i])) return false;
+  return as_int (s) > 0;
+}
+
+static int
+as_positive_integer_arg (string s) {
+  return is_positive_integer_arg (s) ? as_int (s) : 0;
+}
 
 #ifdef QTTEXMACS
 // Qt application infrastructure
@@ -338,6 +353,7 @@ set_global_options  (int argc, char** argv)  {
       }
       else if (s == "-debug-aofm-vault-convert") {
         i += 2;
+        if (i+1 < argc && is_positive_integer_arg (string (argv[i+1]))) i++;
       }
       else if (s == "-ignore-nonempty-dest") {
         // Handled in texmacs_entrypoint
@@ -619,7 +635,8 @@ TeXmacs_main (int argc, char** argv) {
       aofm_cache_preferences ();
       bool ok= aofm_import_vault (aofm_debug_vault_convert_source,
                                   aofm_debug_vault_convert_destination,
-                                  aofm_ignore_nonempty_dest);
+                                  aofm_ignore_nonempty_dest,
+                                  aofm_debug_vault_convert_parallelism);
       exit (ok ? 0 : 1);
     }
 
@@ -790,6 +807,11 @@ texmacs_entrypoint (int argc, char** argv) {
         aofm_debug_vault_convert_source= argv[i];
         i++;
         aofm_debug_vault_convert_destination= argv[i];
+        if (i + 1 < argc && is_positive_integer_arg (string (argv[i+1]))) {
+          i++;
+          aofm_debug_vault_convert_parallelism=
+            as_positive_integer_arg (string (argv[i]));
+        }
         headless_mode= true;
       }
     }

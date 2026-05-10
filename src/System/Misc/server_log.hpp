@@ -55,6 +55,7 @@ inline tm_ostream& server_get_stream (int level) {
     case log_debug:
       return debug_io;
   }
+  return io_error;
 }
 void server_log_start ();
 void server_log_stop ();

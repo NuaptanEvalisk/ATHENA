@@ -1594,7 +1594,8 @@ print_progress_bar(size_t current, size_t total, const std::string& filename) {
 }
 
 bool
-aofm_import_vault(string source_dir, string destination_dir, bool ignore_nonempty) {
+aofm_import_vault(string source_dir, string destination_dir,
+                  bool ignore_nonempty, int parallelism) {
   time_parse_latex_doc = 0.0;
   time_latex_to_tree = 0.0;
   aofm_math_time = 0.0;
@@ -1684,7 +1685,8 @@ aofm_import_vault(string source_dir, string destination_dir, bool ignore_nonempt
   size_t current_index = 0;
 
 #if defined(__unix__) || defined(__APPLE__)
-  int num_workers = std::thread::hardware_concurrency();
+  int num_workers = parallelism > 0 ?
+      parallelism : (int) std::thread::hardware_concurrency();
   if (num_workers <= 0) num_workers = 1;
   if (num_workers > (int)files.size()) num_workers = (int)files.size();
 
