@@ -52,6 +52,23 @@ cell_rep::typeset (tree fm, tree t, path iq) {
         b= vresize_box (iq, b, y1, y2);
       }
       if (swell > 0) swell_padding ();
+
+      tree len = env->as_tmlen ("1par");
+      tree old1= env->local_begin (PAGE_MEDIUM, "papyrus");
+      tree old2= env->local_begin (PAR_LEFT, "0tmpt");
+      tree old3= env->local_begin (PAR_RIGHT, "0tmpt");
+      tree old4= env->local_begin (PAR_MODE, "justify");
+      tree old5= env->local_begin (PAR_NO_FIRST, "true");
+      tree old7= env->local_begin (PAR_WIDTH, len);
+
+      lz= make_lazy (env, t, iq);
+
+      env->local_end (PAR_WIDTH, old7);
+      env->local_end (PAR_NO_FIRST, old5);
+      env->local_end (PAR_MODE, old4);
+      env->local_end (PAR_RIGHT, old3);
+      env->local_end (PAR_LEFT, old2);
+      env->local_end (PAGE_MEDIUM, old1);
     }
     else {
       b= empty_box (iq);
@@ -386,6 +403,23 @@ cell_rep::position_vertically (SI offset, SI mh, SI bh, SI th) {
     else yoff= bh;
   }
   else yoff= -T->y1 + bborder;
+}
+
+/******************************************************************************
+* Automatic wrapping
+******************************************************************************/
+
+void
+cell_rep::enable_wrapping () {
+  if (!is_nil (T)) {
+    T->enable_cell_wrapping ();
+    return;
+  }
+  if (is_nil (lz)) return;
+  hyphen= "t";
+  hmode= "auto";
+  width= 0;
+  b= empty_box (ip);
 }
 
 /******************************************************************************

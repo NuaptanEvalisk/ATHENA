@@ -82,6 +82,8 @@ public:
   void compute_heights (SI* mh, SI* bh, SI* th, SI xh);
   void compute_vertical_parts (double* parts);
   void position_rows ();
+  void enable_cell_wrapping ();
+  void wrap_to_width (SI width);
   void finish_horizontal ();
   void finish ();
   array<box> var_finish ();
@@ -152,6 +154,7 @@ public:
   void compute_height (SI& mh, SI& bh, SI& th, SI xh);
   void position_horizontally (SI offset, SI mw, SI lw, SI rw);
   void position_vertically (SI offset, SI mh, SI bh, SI th);
+  void enable_wrapping ();
   void swell_padding ();
   void finish_horizontal ();
   void finish ();

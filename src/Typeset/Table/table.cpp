@@ -838,6 +838,36 @@ table_rep::compute_height (SI& tmh, SI& tbh, SI& tth, SI xh) {
 }
 
 /******************************************************************************
+* Automatic wrapping
+******************************************************************************/
+
+void
+table_rep::enable_cell_wrapping () {
+  for (int i=0; i<nr_rows; i++)
+    for (int j=0; j<nr_cols; j++)
+      if (!is_nil (T[i][j]))
+        T[i][j]->enable_wrapping ();
+}
+
+void
+table_rep::wrap_to_width (SI w) {
+  if (w <= 0) return;
+  width= max (w - lsep - rsep - lborder - rborder, (SI) 1);
+  hmode= "exact";
+  enable_cell_wrapping ();
+}
+
+static void
+wrap_table_if_needed (table T, SI available) {
+  if (available <= 0) return;
+  if (as_string (T->env->read (MODE)) == "math") return;
+  SI tmw, tlw, trw;
+  T->compute_width (tmw, tlw, trw, true);
+  if (tmw > available)
+    T->wrap_to_width (available);
+}
+
+/******************************************************************************
 * Generate table
 ******************************************************************************/
 
@@ -996,6 +1026,7 @@ lazy_table_rep::produce (lazy_type request, format fm) {
       string s= as_string (T->var[TABLE_WIDTH]);
       if (ends (s, "par"))
         T->width= max ((SI) (as_double (s (0, N(s)-3)) * fs->width), 1);
+      wrap_table_if_needed (T, fs->width);
     }
     T->position_columns (true);
     T->finish_horizontal ();
@@ -1034,6 +1065,7 @@ typeset_as_table (edit_env env, tree t, path ip) {
   T->handle_decorations ();
   T->handle_span ();
   T->merge_borders ();
+  wrap_table_if_needed (T, env->as_length ("1par"));
   T->position_columns (true);
   T->finish_horizontal ();
   T->position_rows ();
@@ -1048,6 +1080,7 @@ typeset_as_var_table (edit_env env, tree t, path ip) {
   T->handle_decorations ();
   T->handle_span ();
   T->merge_borders ();
+  wrap_table_if_needed (T, env->as_length ("1par"));
   T->position_columns (true);
   T->finish_horizontal ();
   T->position_rows ();
