@@ -394,7 +394,7 @@ initialize_default_env () {
   tree reftxt (GET_BINDING, tree (ARG, "Id"));
   tree preftxt (GET_BINDING, tree (ARG, "Id"), "1");
   tree card_id (ID, tree (HARD_ID, tree (ARG, "destination")));
-  tree card_ln (LINK, "hyperlink", copy (card_id), copy (dest_url));
+  tree card_ln (LINK, "cardlink", copy (card_id), copy (dest_url));
   tree act_id (ID, tree (HARD_ID, tree (ARG, "args", "0")));
   tree act_script (MAP_ARGS, "find-accessible", "script", "args", "1");
   tree act_ln (LINK, "action", copy (act_id), copy (act_script));

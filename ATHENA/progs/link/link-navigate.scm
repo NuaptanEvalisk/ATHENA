@@ -146,9 +146,16 @@
   (with type (link-item-type item)
     ;;(display* "Filter: " item " on " event "\n")
     ;;(display* "Filter: " type " on " event "\n")
-    (or (and (== event "click") (nin? type (list "focus" "mouse-over")))
+    (or (and (== event "click") (nin? type (list "focus" "mouse-over" "cardlink")))
+        (and (== event "double-click") (== type "cardlink"))
         (== event "hover")
         (== (link-item-type item) event))))
+
+(tm-define (link-has-cardlink? ids)
+  (:synopsis "Check if any identifier in @ids corresponds to a cardlink")
+  (not (null? (list-filter (ids->link-list ids)
+                           (lambda (item) (== (link-item-type item) "cardlink"))))))
+
 
 (define (filter-link-list l event)
   (let* ((f1 (if (navigation-bidirectional?) l

@@ -235,6 +235,10 @@ bool
 edit_interface_rep::mouse_extra_click (SI x, SI y) {
   go_to (x, y);
   if (mouse_message ("double-click", x, y)) return true;
+  if (!is_nil (mouse_ids)) {
+    call ("link-follow-ids", object (mouse_ids), object ("double-click"));
+    return true;
+  }
   go_to (x, y);
   path p1, p2;
   get_selection (p1, p2);
@@ -316,9 +320,11 @@ void
 edit_interface_rep::mouse_select (SI x, SI y, int mods, bool drag) {
   if (mouse_message ("select" , x, y)) return;
   if (!is_nil (mouse_ids) && (mods & (ShiftMask+Mod2Mask)) == 0 && !drag) {
-    call ("link-follow-ids", object (mouse_ids), object ("click"));
-    disable_double_clicks ();
-    return;
+    if (!as_bool (call ("link-has-cardlink?", object (mouse_ids)))) {
+      call ("link-follow-ids", object (mouse_ids), object ("click"));
+      disable_double_clicks ();
+      return;
+    }
   }
   tree g;
   bool b0= inside_graphics (false);

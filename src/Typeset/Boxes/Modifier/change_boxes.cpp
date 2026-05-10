@@ -731,8 +731,10 @@ locus_box_rep::expand_glyphs (int mode, double factor) {
 void
 locus_box_rep::loci (SI x, SI y, SI delta, list<string>& l, rectangles& rs) {
   bs[0]->loci (x, y, delta, l, rs);
-  l = l * ids;
-  rs= rs * outlines (rectangles (rectangle (x1, y1, x2, y2)), pixel);
+  if (x >= x1 && x < x2 && y >= y1 && y < y2) {
+    l = l * ids;
+    rs= rs * outlines (rectangles (rectangle (x1, y1, x2, y2)), pixel);
+  }
 }
 
 void
