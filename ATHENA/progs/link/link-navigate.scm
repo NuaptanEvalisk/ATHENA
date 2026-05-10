@@ -529,6 +529,10 @@
         (and (resolve-id id)
              (delayed (:idle 25) (apply go-to-id (cons id opt-from)))))))
 
+(define (wikilink-url? u)
+  (or (url-rooted-tmfs-protocol? u "wikilink")
+      (url-rooted-tmfs-protocol? u "Wikilink")))
+
 (tm-define (go-to-url u . opt-from)
   (:synopsis "Jump to the url @u")
   (:argument opt-from "Optional path for the cursor history")
@@ -536,7 +540,8 @@
   (if (string? u) (set! u (system->url u)))
   (with (action post) (url-handlers u) 
     (action u) (post u))
-  (if (nnull? opt-from) (cursor-history-add (cursor-path))))
+  (if (and (nnull? opt-from) (not (wikilink-url? u)))
+      (cursor-history-add (cursor-path))))
 
 (define (execute-at cmd opt-location)
   (if (null? opt-location) (exec-delayed cmd)
