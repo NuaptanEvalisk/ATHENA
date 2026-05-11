@@ -92,6 +92,15 @@
         "math-language" (getter "math-language")
         "prog-language" (getter "prog-language")))
 
+(define (search-input-init)
+  (append (get-main-attrs get-env)
+          (list "font-base-size" "10"
+                "font-size" "1"
+                "magnification" "1")))
+
+(define (search-input-style)
+  '("generic" "macro-editor" "side-tools"))
+
 (define (set-search-filter)
   (let* ((vars (list "mode" (mode-language (get-env "mode"))))
          (vals (map get-env-tree vars))
@@ -580,14 +589,23 @@
   ("Disable case sensitivity"
    (toggle-search-preference "case-insensitive-match")))
 
+(define (search-input-wrapper? t)
+  (and (tree-is? t 'with)
+       (== (tree-ref t 0) "mode")))
+
+(define (search-plain-document t)
+  (if (search-input-wrapper? t)
+      (search-plain-document (tree-ref t :last))
+      t))
+
 (tm-define (search-document)
   (if (buffer-exists? (search-buffer))
-      (buffer->tree (search-buffer))
+      (search-plain-document (buffer-get-body (search-buffer)))
       `(document "")))
 
 (tm-widget ((search-widget u style init aux) quit)
   (padded
-    (resize "600px" "100px"
+    (resize '("600px" "900px" "2400px") '("120px" "140px" "220px")
       (texmacs-input `(with ,@init ,(search-document))
                      `(style (tuple ,@style)) aux))
     ===
@@ -647,20 +665,17 @@
   (:interactive #t)
   (when (not (inside-search-buffer?))
     (let* ((u (current-buffer))
-           (st (embedded-style-list "macro-editor"))
-           (init (get-main-attrs get-env))
-           (aux (search-buffer))
-           (tool (list 'search-tool u st init aux)))
+           (st (search-input-style))
+           (init (search-input-init))
+           (aux (search-buffer)))
       (buffer-set-master aux u)
       (set! search-window (current-window))
       (set-search-reference (cursor-path))
       (set-search-filter)
       (set! search-filter-out? #f)
-      (if (side-tools?)
-          (tool-focus :bottom-right tool aux)
-          (dialogue-window (search-widget u st init aux)
-                           (search-cancel u)
-                           "Search" aux)))))
+      (ads-tool-pane (search-widget u st init aux)
+                     (search-cancel u)
+                     "Search" aux))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Search and replace widget
@@ -680,16 +695,16 @@
 
 (tm-define (replace-document)
   (if (buffer-exists? (replace-buffer))
-      (buffer->tree (replace-buffer))
+      (search-plain-document (buffer-get-body (replace-buffer)))
       `(document "")))
 
 (tm-widget ((replace-widget u style init saux raux) quit)
   (padded
-    (resize "600px" "100px"
+    (resize '("600px" "900px" "2400px") '("110px" "130px" "190px")
       (texmacs-input `(with ,@init ,(search-document))
                      `(style (tuple ,@style)) saux))
     === ===
-    (resize "600px" "100px"
+    (resize '("600px" "900px" "2400px") '("110px" "130px" "190px")
       (texmacs-input `(with ,@init ,(replace-document))
                      `(style (tuple ,@style)) raux))
     === ===
@@ -765,22 +780,19 @@
   (:interactive #t)
   (when (not (inside-search-buffer?))
     (let* ((u (current-buffer))
-           (st (embedded-style-list "macro-editor"))
-           (init (get-main-attrs get-env))
+           (st (search-input-style))
+           (init (search-input-init))
            (saux (search-buffer))
-           (raux (replace-buffer))
-           (tool (list 'replace-tool u st init saux raux)))
+           (raux (replace-buffer)))
       (buffer-set-master saux u)
       (buffer-set-master raux u)
       (set! search-window (current-window))
       (set-search-reference (cursor-path))
       (set-search-filter)
       (set! search-filter-out? #f)
-      (if (side-tools?)
-          (tool-focus :bottom-right tool saux)
-          (dialogue-window (replace-widget u st init saux raux)
-                           (search-cancel u)
-                           "Search and replace" saux raux)))))
+      (ads-tool-pane (replace-widget u st init saux raux)
+                     (search-cancel u)
+                     "Search and replace" saux raux))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Search toolbar
@@ -846,8 +858,7 @@
     ((check (balloon (icon "tm_filter.xpm") "Only show paragraphs with hits")
             "v" (search-filter-enabled?))
      (search-toggle-filter))
-    ((balloon (icon "tm_expand_tool.xpm") "Open tool in separate window")
-     (set-boolean-preference "toolbar search" #f)
+    ((balloon (icon "tm_expand_tool.xpm") "Open search pane")
      (toolbar-search-end)
      (open-search))
     ((balloon (icon "tm_close_tool.xpm") "Close search tool")
@@ -952,8 +963,7 @@
     ((check (balloon (icon "tm_filter.xpm") "Only show paragraphs with hits")
             "v" (search-filter-enabled?))
      (search-toggle-filter))
-    ((balloon (icon "tm_expand_tool.xpm") "Open tool in separate window")
-     (set-boolean-preference "toolbar replace" #f)
+    ((balloon (icon "tm_expand_tool.xpm") "Open search and replace pane")
      (toolbar-search-end)
      (open-replace))
     ((balloon (icon "tm_close_tool.xpm") "Close replace tool")
@@ -1066,15 +1076,13 @@
 (tm-define (interactive-search)
   (:interactive #t)
   (set-boolean-preference "search-and-replace" #f)
-  (if (and (get-boolean-preference "toolbar search")
-           (not (buffer-aux? (current-buffer))))
+  (if (not (buffer-aux? (current-buffer)))
       (toolbar-search-start)
       (open-search)))
 
 (tm-define (interactive-replace)
   (:interactive #t)
   (set-boolean-preference "search-and-replace" #t)
-  (if (and (get-boolean-preference "toolbar replace")
-           (not (buffer-aux? (current-buffer))))
+  (if (not (buffer-aux? (current-buffer)))
       (toolbar-replace-start)
       (open-replace)))

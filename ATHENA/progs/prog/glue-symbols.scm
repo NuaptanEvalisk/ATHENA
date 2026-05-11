@@ -790,6 +790,8 @@
 "vault-quick-switcher"
 "vault-show-explorer"
 "vault-explorer-track-file"
+"ads-show-tool-pane"
+"ads-close-tool-pane"
 "alt-window-handle"
 "alt-window-create-quit"
 "alt-window-create-plain"

@@ -88,6 +88,8 @@
   (object->command as_command (command object))
   (command-eval eval (void command))
   (command-apply apply (void command object))
+  (ads-show-tool-pane ads_show_tool_pane (void widget string string command))
+  (ads-close-tool-pane ads_close_tool_pane (void string))
   (exec-delayed exec_delayed (void object))
   (exec-delayed-pause exec_delayed_pause (void object))
   (protected-call protected_call (void object))

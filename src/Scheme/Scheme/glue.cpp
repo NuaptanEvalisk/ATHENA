@@ -25,16 +25,26 @@
 #include "file.hpp"
 #include "gui.hpp"
 #include "vault.hpp"
+#include "QTMMainTabWindow.hpp"
 #include "QTMVaultChooser.hpp"
 #include "QTMQuickSwitcher.hpp"
 #include "QTMVaultExplorer.hpp"
 #include "QTMAbout.hpp"
+#include "qt_widget.hpp"
+#include "qt_utilities.hpp"
+#include "message.hpp"
 #include "locale.hpp"
 #include "iterator.hpp"
 #include "Freetype/tt_tools.hpp"
 #include "Database/database.hpp"
 #include "Sqlite3/sqlite3.hpp"
 #include "Updater/tm_updater.hpp"
+
+#include <DockWidget.h>
+#include <QPointer>
+#include <QWidget>
+#include <map>
+#include <string>
 
 tmscm 
 blackboxP (tmscm t) {
@@ -61,6 +71,99 @@ template<class T> tmscm boxP (tmscm t) {
 ******************************************************************************/
 
 string original_path;
+
+struct ads_tool_pane_rep {
+  widget                    win;
+  QPointer<ads::CDockWidget> dock;
+  command                   close;
+  bool                      closing;
+
+  ads_tool_pane_rep (widget win2, ads::CDockWidget* dock2, command close2)
+    : win (win2), dock (dock2), close (close2), closing (false) {}
+};
+
+static std::map<std::string, ads_tool_pane_rep*> ads_tool_panes;
+
+static std::string
+ads_tool_key (string id) {
+  return to_qstring (id).toStdString ();
+}
+
+static void
+ads_destroy_tool_pane (const std::string& key, bool run_close) {
+  std::map<std::string, ads_tool_pane_rep*>::iterator it=
+    ads_tool_panes.find (key);
+  if (it == ads_tool_panes.end ()) return;
+
+  ads_tool_pane_rep* pane= it->second;
+  if (pane->closing) return;
+  pane->closing= true;
+
+  if (run_close && !is_nil (pane->close)) pane->close ();
+
+  if (pane->dock) {
+    QTMMainTabWindow* win= QTMMainTabWindow::topTabWindow ();
+    if (win != nullptr && win->dockManager () != nullptr)
+      win->dockManager ()->removeDockWidget (pane->dock);
+  }
+
+  widget doomed= pane->win;
+  if (!is_nil (doomed)) {
+    send_destroy (doomed);
+    destroy_window_widget (doomed);
+  }
+
+  ads_tool_panes.erase (it);
+  delete pane;
+}
+
+void
+ads_close_tool_pane (string id) {
+  ads_destroy_tool_pane (ads_tool_key (id), false);
+}
+
+void
+ads_show_tool_pane (widget wid, string id, string title, command close) {
+  std::string key= ads_tool_key (id);
+  ads_destroy_tool_pane (key, false);
+
+  widget pane_window= plain_window_widget (wid, id, command ());
+  qt_widget qtw= concrete (pane_window);
+  QWidget* pane_widget= qtw->qwid;
+  if (pane_widget == nullptr) return;
+
+  QTMMainTabWindow* win= QTMMainTabWindow::topTabWindow ();
+  if (win == nullptr || win->dockManager () == nullptr) {
+    pane_widget->setWindowTitle (to_qstring (title));
+    pane_widget->show ();
+    pane_widget->raise ();
+    pane_widget->setFocus ();
+    ads_tool_panes[key]= new ads_tool_pane_rep (pane_window, nullptr, close);
+    return;
+  }
+
+  ads::CDockWidget* dock= new ads::CDockWidget (to_qstring (title));
+  dock->resize (960, 340);
+  dock->setWidget (pane_widget);
+  dock->setFeature (ads::CDockWidget::DockWidgetDeleteOnClose, false);
+  dock->setFeature (ads::CDockWidget::CustomCloseHandling, true);
+
+  ads_tool_panes[key]= new ads_tool_pane_rep (pane_window, dock, close);
+  QObject::connect (dock, &ads::CDockWidget::closeRequested, [key] () {
+    ads_destroy_tool_pane (key, true);
+  });
+  QObject::connect (dock, &QObject::destroyed, [key] () {
+    std::map<std::string, ads_tool_pane_rep*>::iterator it=
+      ads_tool_panes.find (key);
+    if (it != ads_tool_panes.end () && !it->second->closing)
+      ads_destroy_tool_pane (key, true);
+  });
+
+  win->dockManager ()->addDockWidget (ads::BottomDockWidgetArea, dock);
+  dock->show ();
+  dock->raise ();
+  pane_widget->setFocus ();
+}
 
 string
 get_original_path () {

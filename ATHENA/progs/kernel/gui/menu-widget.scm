@@ -1122,6 +1122,20 @@
     (for-each (lambda (buf) (ahash-set! window-deleters buf del)) bufs)
     del))
 
+(define (unregister-window-deleters bufs)
+  (for-each (lambda (buf) (ahash-remove! window-deleters buf)) bufs))
+
+(define (make-ads-pane-deleter id bufs)
+  (for-each (lambda (buf)
+              (and-with old-del (ahash-ref window-deleters buf) (old-del)))
+            bufs)
+  (with del
+      (lambda ()
+        (unregister-window-deleters bufs)
+        (ads-close-tool-pane id))
+    (for-each (lambda (buf) (ahash-set! window-deleters buf del)) bufs)
+    del))
+
 (tm-define (top-window menu-promise name . opts)
   (:interactive #t)
   (with (bufs qqq) (decode-options opts)
@@ -1133,6 +1147,21 @@
            (wid (make-menu-widget* scm 0)))
       (alt-window-create-quit win wid (translate name) qui)
       (alt-window-show win))))
+
+(tm-define (ads-tool-pane menu-promise cmd name . opts)
+  (:interactive #t)
+  (with (bufs qqq) (decode-options opts)
+    (let* ((id name)
+           (del (make-ads-pane-deleter id bufs))
+           (qui (object->command
+                  (lambda ()
+                    (qqq)
+                    (unregister-window-deleters bufs))))
+           (lbd (lambda x (apply cmd x) (del)))
+           (men (menu-promise lbd))
+           (scm (list 'vertical men))
+           (wid (make-menu-widget* scm 0)))
+      (ads-show-tool-pane wid id (translate name) qui))))
 
 (tm-define (dialogue-window menu-promise cmd name . opts)
   (:interactive #t)
