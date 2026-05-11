@@ -1183,6 +1183,9 @@ edit_interface_rep::handle_notify_resize (SI w, SI h) {
   (void) w; (void) h;
   if (is_nil (buf)) return;
   notify_change (THE_TREE+THE_FREEZE);
+  if (as_bool (call ("defined?",
+                     symbol_object ("schedule-persistent-fit-width"))))
+    call ("schedule-persistent-fit-width");
 }
 
 void

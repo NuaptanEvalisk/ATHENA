@@ -13,6 +13,7 @@
 
 (texmacs-module (athena athena tm-files)
   (:use (athena athena tm-server)
+        (athena athena tm-view)
         (athena athena tm-print)
         (utils library cursor)))
 
@@ -139,7 +140,8 @@
   (cond ((== buf (current-buffer)) (noop))
         ((nnull? (buffer->windows buf))
          (switch-to-window (car (buffer->windows buf))))
-        (else (switch-to-buffer buf))))
+        (else (switch-to-buffer buf)))
+  (schedule-persistent-fit-width))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Saving buffers
@@ -468,6 +470,7 @@
          (open-buffer-in-window name (buffer-get name) ""))
         (else
           (switch-to-buffer name)))
+  (schedule-persistent-fit-width)
   (buffer-notify-recent name)
   (when (nnull? (select (buffer-get name)
                         '(:* gpg-passphrase-encrypted-buffer)))

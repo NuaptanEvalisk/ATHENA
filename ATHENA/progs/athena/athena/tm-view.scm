@@ -308,23 +308,43 @@
 (define (persistent-fit-width?)
   (get-boolean-preference "persistent fit width"))
 
+(define persistent-fit-width-count 0)
+
+(define (fit-to-screen-width-preserve-scroll)
+  (with (sx sy) (list (get-scroll-x) (get-scroll-y))
+    (fit-to-screen-width)
+    (delayed (:idle 1) (set-scroll sx sy))
+    (delayed (:idle 25) (set-scroll sx sy))))
+
+(define (fit-persistent-to-screen-width)
+  (if (window-mdi?)
+      (for-each (lambda (win)
+                  (with-window win (fit-to-screen-width-preserve-scroll)))
+                (window-list))
+      (fit-to-screen-width-preserve-scroll)))
+
+(tm-define (schedule-persistent-fit-width)
+  (:synopsis "Schedule persistent fit to width")
+  (when (persistent-fit-width?)
+    (set! persistent-fit-width-count (+ persistent-fit-width-count 1))
+    (with current persistent-fit-width-count
+      ;; Qt ADS pane widths and page metrics may settle after the first idle
+      ;; pass; repeat the fit briefly, while cancelling older resize bursts.
+      (for-each
+       (lambda (delay)
+         (delayed (:idle delay)
+           (when (and (persistent-fit-width?)
+                      (== current persistent-fit-width-count))
+             (fit-persistent-to-screen-width))))
+       '(25 100 250 600)))))
+
 (tm-define (toggle-persistent-fit-width)
   (:synopsis "Toggle persistent fit to width")
   (:check-mark "v" persistent-fit-width?)
   (toggle-preference "persistent fit width")
   (when (persistent-fit-width?)
-    (fit-to-screen-width)))
-
-(define persistent-resize-count 0)
+    (fit-persistent-to-screen-width)
+    (schedule-persistent-fit-width)))
 
 (tm-define (window-resize-notifier name)
-  (when (persistent-fit-width?)
-    (set! persistent-resize-count (+ persistent-resize-count 1))
-    (with current persistent-resize-count
-      (delayed (:idle 100)
-        (when (== current persistent-resize-count)
-          (if (window-mdi?)
-              (for-each (lambda (win)
-                          (with-window win (fit-to-screen-width)))
-                        (window-list))
-              (fit-to-screen-width)))))))
+  (schedule-persistent-fit-width))
