@@ -8,6 +8,7 @@
 #include "vars.hpp"
 #include <iostream>
 #include <sstream>
+#include <string>
 
 extern const char* aofm_grammar;
 
@@ -97,7 +98,7 @@ convert_heading(const AstPtr& ast) {
     case 4: tag = "paragraph"; break;
     default: tag = "subparagraph"; break;
   }
-  std::string label = std::string(level, '#') + " " + title;
+  std::string label = "H" + std::to_string(level) + " " + title;
   tree out(DOCUMENT);
   out << compound("label", text_tree(label));
   out << compound(tag, convert_inline_from_raw(title));
