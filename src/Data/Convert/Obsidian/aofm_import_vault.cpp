@@ -127,6 +127,9 @@ struct AofmVaultAssetInfo {
 };
 
 using AnchorMap = std::unordered_map<std::string, AofmVaultAnchorInfo>;
+using AnchorOccurrenceMap =
+    std::unordered_map<std::string, std::vector<AofmVaultAnchorInfo>>;
+using AnchorOccurrenceCursor = std::unordered_map<std::string, size_t>;
 using FileIndexMap = std::unordered_map<std::string, AofmVaultFileInfo>;
 using HeadingMap = std::unordered_map<std::string, AofmVaultHeadingInfo>;
 using AssetIndexMap = std::unordered_map<std::string, AofmVaultAssetInfo>;
@@ -279,6 +282,11 @@ normalize_heading_target_text(const std::string& s) {
 std::string
 heading_map_key(const std::string& file_stem, const std::string& heading) {
   return file_stem + "\n" + heading;
+}
+
+std::string
+anchor_occurrence_key(const std::string& rel_ath_path, const std::string& anchor) {
+  return rel_ath_path + "\n" + anchor;
 }
 
 std::string
@@ -594,31 +602,53 @@ close_heading_ranges(tree& out,
 
 tree
 resolve_anchor_placeholders(const tree& t, const AnchorMap& anchor_map,
+                            const AnchorOccurrenceMap& anchor_occurrences,
                             const FileIndexMap& file_map,
                             const HeadingMap& heading_map,
                             const AssetIndexMap& asset_map,
                             const DirChildrenMap& dir_children,
-                            const std::string& rel_ath_path) {
+                            const std::string& rel_ath_path,
+                            AnchorOccurrenceCursor* anchor_cursor = nullptr) {
+  AnchorOccurrenceCursor local_anchor_cursor;
+  if (anchor_cursor == nullptr) anchor_cursor = &local_anchor_cursor;
+
+  auto next_anchor_occurrence = [&](const std::string& anchor)
+      -> const AofmVaultAnchorInfo* {
+    std::string occurrence_key = anchor_occurrence_key(rel_ath_path, anchor);
+    auto occurrence_it = anchor_occurrences.find(occurrence_key);
+    if (occurrence_it != anchor_occurrences.end() &&
+        !occurrence_it->second.empty()) {
+      size_t& pos = (*anchor_cursor)[occurrence_key];
+      if (pos < occurrence_it->second.size()) {
+        return &occurrence_it->second[pos++];
+      }
+      return &occurrence_it->second.back();
+    }
+
+    auto it = anchor_map.find(anchor);
+    return it == anchor_map.end() ? nullptr : &it->second;
+  };
+
   if (is_aofm_anchor_inline_placeholder(t)) {
     std::string anchor = placeholder_anchor_id(t);
-    auto it = anchor_map.find(anchor);
-    if (it == anchor_map.end()) {
+    const AofmVaultAnchorInfo* info = next_anchor_occurrence(anchor);
+    if (info == nullptr) {
       report_import_error("anchor '^" + anchor + "' not found while converting " +
                           rel_ath_path);
       return materialize_anchor_literal(t);
     }
-    return make_label_tree(it->second.anchor_1);
+    return make_label_tree(info->anchor_1);
   }
 
   if (is_aofm_anchor_block_placeholder(t)) {
     std::string anchor = placeholder_anchor_id(t);
-    auto it = anchor_map.find(anchor);
-    if (it == anchor_map.end()) {
+    const AofmVaultAnchorInfo* info = next_anchor_occurrence(anchor);
+    if (info == nullptr) {
       report_import_error("anchor '^" + anchor + "' not found while converting " +
                           rel_ath_path);
       return materialize_anchor_literal(t);
     }
-    return make_label_tree(it->second.anchor_1);
+    return make_label_tree(info->anchor_1);
   }
 
   if (is_aofm_image_placeholder(t)) {
@@ -754,31 +784,31 @@ resolve_anchor_placeholders(const tree& t, const AnchorMap& anchor_map,
       if (is_aofm_anchor_block_placeholder(child) ||
           is_aofm_anchor_inline_placeholder(child)) {
         std::string anchor = placeholder_anchor_id(child);
-        auto it = anchor_map.find(anchor);
-        if (it == anchor_map.end()) {
+        const AofmVaultAnchorInfo* info = next_anchor_occurrence(anchor);
+        if (info == nullptr) {
           report_import_error("anchor '^" + anchor + "' not found while converting " +
                               rel_ath_path);
           append_document(out, materialize_anchor_literal(child));
           continue;
         }
 
-        if (!it->second.anchor_2.empty() &&
+        if (!info->anchor_2.empty() &&
             N(out) > 1 &&
             is_heading_tree(out[N(out) - 1]) &&
-            is_label_tree_with(out[N(out) - 2], it->second.anchor_1)) {
+            is_label_tree_with(out[N(out) - 2], info->anchor_1)) {
           continue;
         }
 
-        if (!it->second.anchor_2.empty() && N(out) > 0) {
+        if (!info->anchor_2.empty() && N(out) > 0) {
           tree previous = out[N(out) - 1];
-          out[N(out) - 1] = make_label_tree(it->second.anchor_1);
+          out[N(out) - 1] = make_label_tree(info->anchor_1);
           append_document(out, previous);
-          append_document(out, make_label_tree(it->second.anchor_2));
+          append_document(out, make_label_tree(info->anchor_2));
 
           // Dual-Wrap logic for separated proofs
           if (is_theorem_like_tree(previous) && i + 1 < N(t) && is_compound(t[i + 1], "proof")) {
-            std::string t_label1 = it->second.anchor_1;
-            std::string t_label2 = it->second.anchor_2;
+            std::string t_label1 = info->anchor_1;
+            std::string t_label2 = info->anchor_2;
 
             auto derive_proof_label = [](const std::string& l) {
               size_t colon = l.find(':');
@@ -791,9 +821,11 @@ resolve_anchor_placeholders(const tree& t, const AnchorMap& anchor_map,
 
             append_document(out, make_label_tree(derive_proof_label(t_label1) + " {"));
             append_document(out, resolve_anchor_placeholders(t[i+1], anchor_map,
+                                                            anchor_occurrences,
                                                             file_map, heading_map,
                                                             asset_map, dir_children,
-                                                            rel_ath_path));
+                                                            rel_ath_path,
+                                                            anchor_cursor));
             append_document(out, make_label_tree(derive_proof_label(t_label2) + " }"));
 
             i++; // Consume the proof node
@@ -801,19 +833,19 @@ resolve_anchor_placeholders(const tree& t, const AnchorMap& anchor_map,
           continue;
         }
 
-        if (it->second.anchor_2.empty() &&
+        if (info->anchor_2.empty() &&
             N(out) > 0 &&
-            is_label_tree_with(out[N(out) - 1], it->second.anchor_1)) {
+            is_label_tree_with(out[N(out) - 1], info->anchor_1)) {
           continue;
         }
-        if (it->second.anchor_2.empty() &&
+        if (info->anchor_2.empty() &&
             N(out) > 1 &&
             is_heading_tree(out[N(out) - 1]) &&
-            is_label_tree_with(out[N(out) - 2], it->second.anchor_1)) {
+            is_label_tree_with(out[N(out) - 2], info->anchor_1)) {
           continue;
         }
 
-        append_document(out, make_label_tree(it->second.anchor_1));
+        append_document(out, make_label_tree(info->anchor_1));
         continue;
       }
 
@@ -830,10 +862,12 @@ resolve_anchor_placeholders(const tree& t, const AnchorMap& anchor_map,
       }
 
       append_document(out,
-                      resolve_anchor_placeholders(child, anchor_map, file_map,
+                      resolve_anchor_placeholders(child, anchor_map,
+                                                  anchor_occurrences, file_map,
                                                   heading_map,
                                                   asset_map, dir_children,
-                                                  rel_ath_path));
+                                                  rel_ath_path,
+                                                  anchor_cursor));
     }
     close_heading_ranges(out, open_headings, 0);
     return simplify_document(out);
@@ -841,9 +875,10 @@ resolve_anchor_placeholders(const tree& t, const AnchorMap& anchor_map,
 
   tree out(t, N(t));
   for (int i = 0; i < N(t); ++i) {
-    out[i] = resolve_anchor_placeholders(t[i], anchor_map, file_map, heading_map,
-                                         asset_map, dir_children,
-                                         rel_ath_path);
+    out[i] = resolve_anchor_placeholders(t[i], anchor_map, anchor_occurrences,
+                                         file_map, heading_map, asset_map,
+                                         dir_children, rel_ath_path,
+                                         anchor_cursor);
   }
   return out;
 }
@@ -1262,6 +1297,43 @@ make_callout_anchor_pair(const std::vector<std::string>& lines) {
   return std::make_pair(prefix + " {", prefix + " }");
 }
 
+std::string
+anchor_label_key(const std::string& label) {
+  if (label.size() >= 2 &&
+      label[label.size() - 2] == ' ' &&
+      (label[label.size() - 1] == '{' || label[label.size() - 1] == '}')) {
+    return label.substr(0, label.size() - 2);
+  }
+  return label;
+}
+
+std::string
+append_anchor_label_number(const std::string& label, int nr) {
+  std::string suffix;
+  std::string base = label;
+  if (label.size() >= 2 &&
+      label[label.size() - 2] == ' ' &&
+      (label[label.size() - 1] == '{' || label[label.size() - 1] == '}')) {
+    suffix = label.substr(label.size() - 2);
+    base = label.substr(0, label.size() - 2);
+  }
+  return base + " (" + std::to_string(nr) + ")" + suffix;
+}
+
+std::pair<std::string,std::string>
+make_unique_anchor_pair(const std::pair<std::string,std::string>& pair,
+                        std::unordered_map<std::string,int>& label_counts) {
+  if (pair.first.empty()) return pair;
+
+  std::string key = anchor_label_key(pair.first);
+  int count = label_counts[key]++;
+  if (count == 0) return pair;
+
+  return std::make_pair(append_anchor_label_number(pair.first, count),
+                        pair.second.empty() ? "" :
+                        append_anchor_label_number(pair.second, count));
+}
+
 bool
 extract_anchor_only(const std::string& line, std::string& anchor) {
   std::string trimmed = trim_copy(line);
@@ -1293,19 +1365,40 @@ extract_trailing_anchor(const std::string& line,
 }
 
 void
-store_anchor(AnchorMap& map, const std::string& anchor, const std::string& rel_ath_path,
-             const std::string& file_hint, const std::pair<std::string,std::string>& pair) {
+store_anchor(AnchorMap& map, AnchorOccurrenceMap& occurrences,
+             const std::string& anchor, const std::string& rel_ath_path,
+             const std::string& file_hint, const std::pair<std::string,std::string>& pair,
+             std::unordered_map<std::string,int>& label_counts) {
+  std::pair<std::string,std::string> unique_pair =
+      make_unique_anchor_pair(pair, label_counts);
   std::string uuid = tm_to_std_string(vault_generate_uuid());
   AofmVaultAnchorInfo info;
   info.uuid = uuid;
-  if (!pair.second.empty()) {
+  if (!unique_pair.second.empty()) {
     info.transclusion_uuid = tm_to_std_string(vault_generate_uuid());
   }
   info.path = rel_ath_path;
-  info.anchor_1 = pair.first;
-  info.anchor_2 = pair.second;
+  info.anchor_1 = unique_pair.first;
+  info.anchor_2 = unique_pair.second;
   info.hlink_w = make_wikilink_url(uuid, file_hint, info.anchor_1);
-  map[anchor] = info;
+
+  std::string occurrence_key = anchor_occurrence_key(rel_ath_path, anchor);
+  std::vector<AofmVaultAnchorInfo>& anchor_occurrences =
+      occurrences[occurrence_key];
+  size_t occurrence_index = anchor_occurrences.size();
+  anchor_occurrences.push_back(info);
+
+  if (map.find(anchor) == map.end()) {
+    map[anchor] = info;
+  }
+  else {
+    std::string duplicate_key;
+    int suffix = (int) occurrence_index + 1;
+    do {
+      duplicate_key = anchor + "#duplicate-" + std::to_string(suffix++);
+    } while (map.find(duplicate_key) != map.end());
+    map[duplicate_key] = info;
+  }
 }
 
 void
@@ -1331,6 +1424,7 @@ set_heading_end_label(HeadingMap& heading_map, const OpenHeadingInfo& open,
 
 void
 process_markdown_file(const ImportFileInfo& file_info, AnchorMap& map,
+                      AnchorOccurrenceMap& occurrences,
                       HeadingMap& heading_map) {
   std::ifstream in(as_charp(concretize(file_info.source_url)), std::ios::in | std::ios::binary);
   if (!in.is_open()) {
@@ -1349,6 +1443,7 @@ process_markdown_file(const ImportFileInfo& file_info, AnchorMap& map,
   BlockContext last;
   std::string file_hint = path_stem(file_info.relative_md_path);
   std::vector<OpenHeadingInfo> open_headings;
+  std::unordered_map<std::string,int> label_counts;
 
   for (size_t i = 0; i < lines.size(); ++i) {
     std::string anchor;
@@ -1360,16 +1455,17 @@ process_markdown_file(const ImportFileInfo& file_info, AnchorMap& map,
       const BlockContext& context =
           (current.kind != BlockKind::NONE && !current.lines.empty()) ? current : last;
       if (context.kind == BlockKind::CALLOUT) {
-        store_anchor(map, anchor, file_info.relative_ath_path, file_hint,
-                     make_callout_anchor_pair(context.lines));
+        store_anchor(map, occurrences, anchor, file_info.relative_ath_path, file_hint,
+                     make_callout_anchor_pair(context.lines), label_counts);
       }
       else if (context.kind == BlockKind::PARAGRAPH) {
-        store_anchor(map, anchor, file_info.relative_ath_path, file_hint,
-                     make_paragraph_anchor_pair(context.lines));
+        store_anchor(map, occurrences, anchor, file_info.relative_ath_path, file_hint,
+                     make_paragraph_anchor_pair(context.lines), label_counts);
       }
       else if (context.kind == BlockKind::HEADING && !context.lines.empty()) {
-        store_anchor(map, anchor, file_info.relative_ath_path, file_hint,
-                     std::make_pair(context.lines[0], context.lines[0] + " }"));
+        store_anchor(map, occurrences, anchor, file_info.relative_ath_path, file_hint,
+                     std::make_pair(context.lines[0], context.lines[0] + " }"),
+                     label_counts);
       }
       finalize_current_block(current, last);
       continue;
@@ -1426,12 +1522,12 @@ process_markdown_file(const ImportFileInfo& file_info, AnchorMap& map,
 
     if (has_trailing_anchor) {
       if (current.kind == BlockKind::CALLOUT) {
-        store_anchor(map, anchor, file_info.relative_ath_path, file_hint,
-                     make_callout_anchor_pair(current.lines));
+        store_anchor(map, occurrences, anchor, file_info.relative_ath_path, file_hint,
+                     make_callout_anchor_pair(current.lines), label_counts);
       }
       else {
-        store_anchor(map, anchor, file_info.relative_ath_path, file_hint,
-                     make_paragraph_anchor_pair(current.lines));
+        store_anchor(map, occurrences, anchor, file_info.relative_ath_path, file_hint,
+                     make_paragraph_anchor_pair(current.lines), label_counts);
       }
       finalize_current_block(current, last);
     }
@@ -1721,6 +1817,7 @@ aofm_import_vault(string source_dir, string destination_dir,
   }
 
   AnchorMap anchor_map;
+  AnchorOccurrenceMap anchor_occurrences;
   FileIndexMap file_map;
   HeadingMap heading_map;
   for (const ImportFileInfo& file_info : files) {
@@ -1731,7 +1828,7 @@ aofm_import_vault(string source_dir, string destination_dir,
     f_info.stem = stem;
     file_map[stem] = f_info;
 
-    process_markdown_file(file_info, anchor_map, heading_map);
+    process_markdown_file(file_info, anchor_map, anchor_occurrences, heading_map);
   }
 
   std::string dump_path = join_unix_paths(destination_root_path, "anchor_map.txt");
@@ -1813,7 +1910,8 @@ aofm_import_vault(string source_dir, string destination_dir,
           _exit(1);
         }
 
-        tree resolved = resolve_anchor_placeholders(document, anchor_map, file_map,
+        tree resolved = resolve_anchor_placeholders(document, anchor_map,
+                                                    anchor_occurrences, file_map,
                                                     heading_map,
                                                     asset_map, dir_children,
                                                     file_info.relative_ath_path);
@@ -1944,8 +2042,8 @@ aofm_import_vault(string source_dir, string destination_dir,
     }
 
     tree resolved =
-        resolve_anchor_placeholders(document, anchor_map, file_map, heading_map,
-                                    asset_map, dir_children,
+        resolve_anchor_placeholders(document, anchor_map, anchor_occurrences,
+                                    file_map, heading_map, asset_map, dir_children,
                                     file_info.relative_ath_path);
     string serialized = tree_to_texmacs(resolved);
     std::string destination_path =
