@@ -48,6 +48,9 @@
 (tm-define (replace-buffer)
   (string->url "tmfs://aux/replace"))
 
+(tm-define (global-search-buffer)
+  (string->url "tmfs://aux/global-search"))
+
 (tm-define (master-buffer)
   (and (buffer-exists? (search-buffer))
        (with mas (buffer-get-master (search-buffer))
@@ -71,8 +74,12 @@
 (tm-define (inside-replace-buffer?)
   (== (current-buffer) (replace-buffer)))
 
+(tm-define (inside-global-search-buffer?)
+  (== (current-buffer) (global-search-buffer)))
+
 (tm-define (inside-search-or-replace-buffer?)
-  (in? (current-buffer) (list (search-buffer) (replace-buffer))))
+  (in? (current-buffer)
+       (list (search-buffer) (replace-buffer) (global-search-buffer))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Filtered searching
@@ -793,6 +800,18 @@
       (ads-tool-pane (replace-widget u st init saux raux)
                      (search-cancel u)
                      "Search and replace" saux raux))))
+
+(tm-define (global-search-open-result u p)
+  (load-buffer u)
+  (exec-delayed
+    (lambda ()
+      (go-to (append (tree->path (buffer-tree)) p)))))
+
+(tm-define (open-global-search)
+  (:interactive #t)
+  (if (not (vault-active?))
+      (show-message "No active vault. Please load a vault first." "Global search")
+      (global-search-show)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Search toolbar

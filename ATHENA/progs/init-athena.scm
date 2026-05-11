@@ -212,7 +212,7 @@
 (lazy-define (generic search-widgets) search-toolbar replace-toolbar
              open-search toolbar-search-start interactive-search
              open-replace toolbar-replace-start interactive-replace
-             search-next-match)
+             search-next-match open-global-search)
 (lazy-define (generic spell-widgets) spell-toolbar
              open-spell toolbar-spell-start interactive-spell)
 (lazy-define (generic format-widgets) open-paragraph-format open-page-format)

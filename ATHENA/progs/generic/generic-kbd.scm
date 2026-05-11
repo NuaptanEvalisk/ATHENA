@@ -440,6 +440,7 @@
   ("std b" (toggle-bold))
   ("std c" (kbd-copy))
   ("std f" (interactive-search))
+  ("std F" (open-global-search))
   ("std i" (toggle-italic))
   ("std n" (new-document))
   ("std N" (new-document*))
@@ -471,8 +472,8 @@
   ("std 7" (fit-all-to-screen))
   ("std 8" (fit-to-screen))
   ("std 9" (fit-to-screen-width))  
-  ("search std f" (search-next-match #t))   ;; added for convenience
-  ("search std F" (search-next-match #f)))  ;; added for convenience
+  ("search std f" (search-next-match #t))
+  ("search std F" (open-global-search)))
 
 (kbd-map
   (:profile emacs)
@@ -533,7 +534,7 @@
   ;; further shortcuts for Gnome look and feel
   ("gnome g" (selection-cancel))
   ("gnome l" (recenter-window))
-  ("gnome F" (interactive-search))
+  ("gnome F" (open-global-search))
 
   ("altcmd g" (kbd-cancel))
   ("altcmd q" (make 'symbol))
@@ -597,7 +598,7 @@
   ;; further shortcuts for KDE look and feel
   ("kde g" (selection-cancel))
   ("kde l" (recenter-window))
-  ("kde F" (interactive-search))
+  ("kde F" (open-global-search))
 
   ("altcmd g" (kbd-cancel))
   ("altcmd q" (make 'symbol))

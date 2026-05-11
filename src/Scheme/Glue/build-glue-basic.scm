@@ -862,6 +862,7 @@
   (vault-quick-switcher vault_quick_switcher (tree array_string))
   (vault-show-explorer vault_show_explorer (void))
   (vault-explorer-track-file vault_explorer_track_file (void url))
+  (global-search-show global_search_show (void))
 
 
   ;; transitional alternative windows; to be replaced by better solution

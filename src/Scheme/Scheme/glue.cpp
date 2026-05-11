@@ -29,6 +29,7 @@
 #include "QTMVaultChooser.hpp"
 #include "QTMQuickSwitcher.hpp"
 #include "QTMVaultExplorer.hpp"
+#include "QTMGlobalSearch.hpp"
 #include "QTMAbout.hpp"
 #include "qt_widget.hpp"
 #include "qt_utilities.hpp"
