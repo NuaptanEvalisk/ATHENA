@@ -1038,6 +1038,36 @@ first_bold_segment(const std::string& s) {
 }
 
 std::string
+normalize_callout_auto_title_candidate(std::string s) {
+  s = collapse_whitespace(trim_copy(s));
+
+  while (!s.empty() && std::ispunct((unsigned char) s.front())) {
+    s.erase(s.begin());
+  }
+  while (!s.empty() && std::ispunct((unsigned char) s.back())) {
+    s.pop_back();
+  }
+
+  std::string out;
+  for (char ch : s) {
+    out += (char) std::tolower((unsigned char) ch);
+  }
+  return collapse_whitespace(out);
+}
+
+bool
+is_common_callout_auto_title_candidate(const std::string& s) {
+  std::string normalized = normalize_callout_auto_title_candidate(s);
+  static const char* kIgnored[] = {
+      "not", "cannot", "however", "but", "should not", "is", "is not",
+      "can not"};
+  for (const char* ignored : kIgnored) {
+    if (normalized == ignored) return true;
+  }
+  return false;
+}
+
+std::string
 wikilink_visible_text(const std::string& body) {
   size_t pipe = body.find('|');
   if (pipe != std::string::npos) return trim_copy(body.substr(pipe + 1));
@@ -1215,7 +1245,9 @@ make_callout_anchor_pair(const std::vector<std::string>& lines) {
     }
   }
   else if (!bold.empty()) {
-    title = bold;
+    if (!is_common_callout_auto_title_candidate(bold)) {
+      title = bold;
+    }
   }
 
   std::string id = sanitize_anchor_text(title, 100);
