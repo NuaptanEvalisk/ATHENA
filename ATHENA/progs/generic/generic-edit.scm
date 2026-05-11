@@ -155,7 +155,7 @@
   (if (complete-try?) (noop)))
 
 (tm-define (bib-cite-context? t)
-  (and (tree-in? t '(cite nocite cite-detail cite-TeXmacs))
+  (and (tree-in? t '(cite nocite cite-detail))
        (cursor-inside? t)))
 
 (tm-define (kbd-variant t forwards?)

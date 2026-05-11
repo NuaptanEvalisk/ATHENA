@@ -127,8 +127,8 @@
   (and-with u (if (tree-func? t 'cite-detail) (tree-ref t 0) (tree-down t))
     (open-bib-chooser
      (lambda (key)
-       (when (and key
+	(when (and key
                   (tree->path u)
 		  (tree-in? (tree-up u)
-                            '(cite nocite cite-detail cite-TeXmacs)))
+                            '(cite nocite cite-detail)))
 	 (tree-set! u key))))))

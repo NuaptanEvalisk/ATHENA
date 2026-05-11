@@ -409,8 +409,6 @@
 ("circle" "cirkel")
 ("citation" "citatie")
 ("cite" "citeer")
-("cite TeXmacs" "TeXmacs citeren")
-("cite TeXmacs-related work" "citeer werk omtrent TeXmacs")
 ("cite related work" "citeer gerelateerd werk")
 ("class" "klasse")
 ("classic" "klassiek")

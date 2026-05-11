@@ -438,7 +438,6 @@
 ("citation" "цитування")
 ("cite" "цитата")
 ("cite a paper or other work on TeXmacs" "Цитувати статтю або іншу роботу з TeXmacs")
-("cite TeXmacs" "Цитувати TeXmacs")
 ("cJK" "cJK")
 ("cJK spacing:" "розмір пробілів для cJK:")
 ("cJK spacing" "cJK інтервал")

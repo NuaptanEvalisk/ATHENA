@@ -413,8 +413,6 @@
 ("circle" "cercle")
 ("citation" "citation")
 ("cite" "citer")
-("cite TeXmacs" "citer TeXmacs")
-("cite TeXmacs-related work" "citer des travaux concernant TeXmacs")
 ("cite related work" "citer des travaux connexes")
 ("class" "classe")
 ("classic" "classique")

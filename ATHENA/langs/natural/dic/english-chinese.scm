@@ -244,7 +244,6 @@
 ("circle" "圆圈")
 ("citation" "引用")
 ("cite" "引文")
-("cite TeXmacs" "引用TeXmacs")
 ("class" "类")
 ("clear" "清除")
 ("clear all fields" "清除全部区域")

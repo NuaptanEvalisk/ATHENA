@@ -407,8 +407,6 @@
 ("circle" "")
 ("citation" "")
 ("cite" "")
-("cite TeXmacs" "")
-("cite TeXmacs-related work" "")
 ("cite related work" "")
 ("class" "")
 ("classic" "")

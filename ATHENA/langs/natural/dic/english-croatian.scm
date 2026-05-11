@@ -416,7 +416,6 @@
 ("cite" "citiranje")
 ("cite detail" "detaljno citiranje")
 ("cite related work" "citiranje povezanih radova")
-("cite TeXmacs" "citiraj TeXmacs")
 ("cJK" "CJK")
 ("cJK spacing" "CJK razmicanje")
 ("class" "razred")

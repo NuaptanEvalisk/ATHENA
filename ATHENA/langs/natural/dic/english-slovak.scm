@@ -398,8 +398,6 @@
 ("circle" "kruh")
 ("citation" "citácia")
 ("cite" "citovať")
-("cite TeXmacs" "citovať TeXmacs")
-("cite TeXmacs-related work" "citovať prácu súvisiacu s TeXmacsom")
 ("cite related work" "citovať súvisiacu prácu")
 ("class" "trieda")
 ("classic" "klasické")

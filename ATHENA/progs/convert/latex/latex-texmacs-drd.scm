@@ -101,7 +101,7 @@
   infixand infixor infixiff)
 
 (logic-group latex-texmacs-1%
-  citetexmacs key tmrsub tmrsup keepcase
+  key tmrsub tmrsup keepcase
   tmtextrm tmtextsf tmtexttt tmtextmd tmtextbf
   tmtextup tmtextsl tmtextit tmtextsc tmmathbf tmmathmd
   tmverbatim tmop tmstrong tmem tmtt tmname tmsamp tmabbr

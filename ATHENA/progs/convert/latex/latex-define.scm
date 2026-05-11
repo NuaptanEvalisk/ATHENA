@@ -401,9 +401,6 @@
   (tmieeeemail (!append (textit (!translate "Email:")) " " 1))
   (tmnote (thanks (!append (textit (!translate "Note:")) " " 1)))
   (tmmisc (thanks (!append (textit (!translate "Misc:")) " " 1)))
-  (citetexmacs
-    (!append (!translate "This document has been written using") " GNU "
-             (!group (!recurse (TeXmacs))) " " (cite 1) "."))
   (key (!append
          (fcolorbox "black" "gray!25!white"
                     (raisebox "0pt" (!option "5pt") (!option "0pt") (texttt 1)))
