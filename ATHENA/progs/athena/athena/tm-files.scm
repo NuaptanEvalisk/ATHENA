@@ -15,6 +15,7 @@
   (:use (athena athena tm-server)
         (athena athena tm-view)
         (athena athena tm-print)
+        (kernel athena tm-dialogue)
         (utils library cursor)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -151,7 +152,8 @@
 (tm-define current-save-target (url-none))
 
 (define (buffer-notify-recent name)
-  (learn-interactive 'recent-buffer (list (cons "0" (url->unix name)))))
+  (learn-interactive 'recent-buffer (list (cons "0" (url->unix name))))
+  (save-learned))
 
 (define (has-faithful-format? name)
   (in? (url-suffix name) '("ath" "tm" "ts" "tp" "stm" "tmml" "scm" "")))

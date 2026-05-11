@@ -302,7 +302,7 @@
 ;; Store learned arguments from one session to another
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define (save-learned)
+(define-public (save-learned)
   (with l (ahash-table->list interactive-arg-table)
     (save-object "$ATHENA_HOME_PATH/system/interactive.scm" l)))
 

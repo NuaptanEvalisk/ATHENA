@@ -460,7 +460,7 @@
           (display* "Vault bugcheck: " msg "\n")
           (set-message msg "Vault Bugcheck")
           (when (vault-bugcheck-load-file u)
-            (delayed (:idle 350)
+            (delayed (:pause 350)
               (vault-bugcheck-after-load files total index run-id u)))))))
 
 (tm-define (vault-bugcheck)
