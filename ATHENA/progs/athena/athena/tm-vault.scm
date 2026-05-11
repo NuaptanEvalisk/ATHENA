@@ -7,6 +7,7 @@
         (kernel athena tm-secure)
         (utils library cursor)
         (generic document-edit)
+        (link ref-edit)
         (athena menus file-menu)))
 
 (tm-define (vault-jump-to-source path anchor)
@@ -363,6 +364,119 @@
   (if (not (vault-active?))
       (show-message "No active vault. Please load a vault first." "Vault Explorer")
       (vault-show-explorer-and-track)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Vault bugcheck
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(define vault-bugcheck-run-id 0)
+
+(define (vault-ath-files-recursive dir)
+  (let* ((files (url-read-directory dir "*.ath"))
+         (subdirs (list-sort
+                   (list-filter (url-read-directory dir "*") url-directory?)
+                   (lambda (a b) (string<=? (url->unix a) (url->unix b)))))
+         (res files))
+    (for (d subdirs)
+      (let ((name (url->unix (url-tail d))))
+        (if (not (string-starts? name "."))
+            (set! res (append res (vault-ath-files-recursive d))))))
+    (list-sort res (lambda (a b) (string<=? (url->unix a) (url->unix b))))))
+
+(define (vault-bugcheck-rel u)
+  (url->unix (url-delta (vault-root-base) u)))
+
+(define (vault-bugcheck-report-error u key args)
+  (let ((rel (vault-bugcheck-rel u)))
+    (display* "Vault bugcheck failed while loading " rel ": "
+              key ", " args "\n")
+    (show-message
+     (string-append "Error while loading:\n" rel "\n\n"
+                    (object->string (cons key args)))
+     "Vault Bugcheck")))
+
+(define (vault-bugcheck-load-file u)
+  (catch #t
+    (lambda ()
+      (clear-debug-messages)
+      (load-buffer u)
+      #t)
+    (lambda (key . args)
+      (vault-bugcheck-report-error u key args)
+      #f)))
+
+(define (vault-bugcheck-debug-messages)
+  (tree-children (get-debug-messages "Error messages" 1000)))
+
+(define (vault-bugcheck-format-debug-message m)
+  (let ((channel (tree->string (tree-ref m 0)))
+        (message (tree->string (tree-ref m 1))))
+    (string-append channel ": " message)))
+
+(define (vault-bugcheck-after-load files total index run-id u)
+  (when (== run-id vault-bugcheck-run-id)
+    (catch #t
+      (lambda ()
+        (let ((messages (vault-bugcheck-debug-messages))
+              (dups (duplicate-labels))
+              (rel (vault-bugcheck-rel u)))
+          (cond
+            ((nnull? messages)
+             (let ((message (vault-bugcheck-format-debug-message (car messages))))
+               (display* "Vault bugcheck found TeXmacs diagnostic in "
+                         rel ": " message "\n")
+               (show-message
+                (string-append "TeXmacs reported a diagnostic while loading:\n"
+                               rel "\n\n" message
+                               "\n\nThe file has been left open.")
+                "Vault Bugcheck")))
+            (dups
+              (begin
+                (display* "Vault bugcheck found duplicate labels in "
+                          rel "\n")
+                (show-message
+                 (string-append "Duplicate labels found in:\n" rel
+                                "\n\nThe file has been left open.")
+                 "Vault Bugcheck")))
+            (else
+             (vault-bugcheck-step (cdr files) total (+ index 1) run-id)))))
+      (lambda (key . args)
+        (vault-bugcheck-report-error u key args)))))
+
+(define (vault-bugcheck-step files total index run-id)
+  (when (== run-id vault-bugcheck-run-id)
+    (if (null? files)
+        (begin
+          (display* "Vault bugcheck completed: " total " files checked\n")
+          (show-message
+           (string-append "Vault bugcheck completed.\n"
+                          (number->string total) " .ath files checked.")
+           "Vault Bugcheck"))
+        (let* ((u (car files))
+               (rel (vault-bugcheck-rel u))
+               (msg (string-append "Checking "
+                                   (number->string index) "/"
+                                   (number->string total) ": " rel)))
+          (display* "Vault bugcheck: " msg "\n")
+          (set-message msg "Vault Bugcheck")
+          (when (vault-bugcheck-load-file u)
+            (delayed (:idle 350)
+              (vault-bugcheck-after-load files total index run-id u)))))))
+
+(tm-define (vault-bugcheck)
+  (:interactive #t)
+  (if (not (vault-active?))
+      (show-message "No active vault. Please load a vault first." "Vault Bugcheck")
+      (let ((files (vault-ath-files-recursive (vault-get-root))))
+        (set! vault-bugcheck-run-id (+ vault-bugcheck-run-id 1))
+        (if (null? files)
+            (show-message "No .ath files found in the current vault." "Vault Bugcheck")
+            (begin
+              (clear-debug-messages)
+              (display* "Vault bugcheck starting with "
+                        (length files) " files\n")
+              (vault-bugcheck-step files (length files) 1
+                                   vault-bugcheck-run-id))))))
 
 (tm-define (insert-wikilink)
   (:interactive #t)

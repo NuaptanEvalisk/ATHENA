@@ -42,6 +42,7 @@
       (link source-macros-menu))
   ("Quick switcher" (open-quick-switcher))
   ("Vault Explorer" (open-vault-explorer))
+  ("Vault Bugcheck" (vault-bugcheck))
   ("Shortcuts listing" (list-all-shortcuts))
   (-> "Speech"      ("Off" (reset-preference "speech"))
       ---
