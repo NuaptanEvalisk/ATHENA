@@ -47,7 +47,7 @@ const char* aofm_grammar = R"(
     # ------------------------------------------------------------------
     # Callout (学术扩展严格校验)
     # ------------------------------------------------------------------
-    Callout         <- CalloutHeader CalloutLine*
+    Callout         <- CalloutHeader ('>' !([ \t]* '[!') [ \t]* < (!NL .)* > NL)*
     CalloutHeader   <- '>' [ \t]* '[!' CalloutBase ']' FoldFlag? [ \t]* CalloutExt? [ \t]* CalloutTitle? NL
     CalloutBase     <- 'abstract' / 'note' / 'summary' / 'tldr' / 'info' / 'todo' / 'tip' / 'hint' / 'important' / 
                        'success' / 'check' / 'done' / 'question' / 'help' / 'faq' / 'warning' / 'caution' / 
@@ -59,7 +59,7 @@ const char* aofm_grammar = R"(
                        'Standard Steps' / 'Law' / 'Paster' / 'Disambiguation'
     FoldFlag        <- '+' / '-'
     CalloutTitle    <- < (!NL .)+ >
-    CalloutLine     <- '>' [ \t]* < (!NL .)* > NL
+    CalloutLine     <- '>' !([ \t]* '[!') [ \t]* < (!NL .)* > NL
 
     # ------------------------------------------------------------------
     # Blockquote (层叠捕获，内部留给 AST 后处理解析)

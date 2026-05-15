@@ -161,28 +161,30 @@ is_proof_marker_text(const std::string& raw) {
   std::string trimmed = trim_copy(raw);
   if (trimmed.empty()) return false;
 
-  std::string lower = trimmed;
-  std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
-
-  bool has_keyword = (lower.find("proof") != std::string::npos ||
-                      lower.find("solution") != std::string::npos ||
-                      lower.find("证明") != std::string::npos ||
-                      lower.find("解") != std::string::npos);
-  if (!has_keyword) return false;
-
-  if (trimmed.find("**") != std::string::npos ||
-      trimmed.find("#") != std::string::npos) {
-    return true;
+  size_t pos = 0;
+  while (pos < trimmed.size() && trimmed[pos] == '#') pos++;
+  while (pos < trimmed.size() &&
+         (trimmed[pos] == ' ' || trimmed[pos] == '\t')) {
+    pos++;
   }
+  trimmed = trimmed.substr(pos);
 
-  char last = trimmed.back();
-  if (last == ':') return true;
+  static const char* kMarkers[] = {
+      "**Proof:**",    "**Proof：**",    "**Solution:**",
+      "**Solution：**", "**证明:**",       "**证明：**",
+      "**解:**",       "**解：**",        "Proof:",
+      "Proof：",       "Solution:",      "Solution：",
+      "证明:",         "证明：",          "解:",
+      "解："};
 
-  // Check for Chinese colon ： (UTF-8: EF BC 9A)
-  if (trimmed.size() >= 3) {
-    if ((unsigned char)trimmed[trimmed.size() - 3] == 0xEF &&
-        (unsigned char)trimmed[trimmed.size() - 2] == 0xBC &&
-        (unsigned char)trimmed[trimmed.size() - 1] == 0x9A) {
+  for (const char* marker : kMarkers) {
+    std::string prefix = marker;
+    if (trimmed.compare(0, prefix.size(), prefix) != 0) continue;
+    if (trimmed.size() == prefix.size() ||
+        trimmed[prefix.size()] == ' ' ||
+        trimmed[prefix.size()] == '\t' ||
+        trimmed[prefix.size()] == '\r' ||
+        trimmed[prefix.size()] == '\n') {
       return true;
     }
   }
