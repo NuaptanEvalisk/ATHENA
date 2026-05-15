@@ -73,6 +73,9 @@ preprocess_isolated_callout_proofs(const std::string& raw) {
         out.push_back("");
         out.push_back(moved_anchor);
       }
+      else if (saw_blank_after_callout && cursor < lines.size()) {
+        out.push_back("");
+      }
       i = cursor;
       continue;
     }
@@ -102,6 +105,9 @@ preprocess_isolated_callout_proofs(const std::string& raw) {
       out.push_back("");
     }
     for (const auto& proof_line : proof_lines) out.push_back(proof_line);
+    if (saw_blank_after_callout && cursor < lines.size()) {
+      out.push_back("");
+    }
 
     i = cursor;
   }
