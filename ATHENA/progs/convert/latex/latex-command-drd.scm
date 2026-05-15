@@ -97,7 +97,7 @@
 (logic-group latex-command-2%
   cfrac dfrac tfrac sfrac
   binom tbinom dbinom equal href
-  sideset stackrel underaccent
+  sideset stackrel overset underset underaccent
   setcounter addtocounter setlength addtolength
   colorbox scalebox texorpdfstring raisebox foreignlanguage
   Call Function Procedure SetKw SetKwData SetKwFunction SetKwInOut
@@ -302,6 +302,7 @@
   begin-align begin-align*
   begin-multline begin-multline*
   begin-gather begin-gather*
+  begin-gathered
   begin-eqsplit begin-eqsplit*)
 
 (logic-group latex-math-environment-1%

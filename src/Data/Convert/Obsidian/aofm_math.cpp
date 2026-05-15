@@ -13,6 +13,17 @@ is_tex_command_char(char c) {
   return std::isalpha(static_cast<unsigned char>(c)) != 0;
 }
 
+static void
+replace_all(std::string& text, const std::string& from, const std::string& to) {
+  if (from.empty()) return;
+
+  size_t pos = 0;
+  while ((pos = text.find(from, pos)) != std::string::npos) {
+    text.replace(pos, from.size(), to);
+    pos += to.size();
+  }
+}
+
 static std::string
 normalize_latex_math_source(const std::string& source) {
   std::string out;
@@ -41,6 +52,9 @@ normalize_latex_math_source(const std::string& source) {
       i = command_end;
     }
   }
+
+  replace_all(out, "\\begin{gathered}", "\\begin{eqnarray*}");
+  replace_all(out, "\\end{gathered}", "\\end{eqnarray*}");
 
   return out;
 }

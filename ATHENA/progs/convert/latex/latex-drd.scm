@@ -87,6 +87,7 @@
   (begin-flalign* "amsmath")
   (begin-gather "amsmath")
   (begin-gather* "amsmath")
+  (begin-gathered "amsmath")
   (begin-multline "amsmath")
   (begin-multline* "amsmath")
   (begin-split "amsmath")
