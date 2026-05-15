@@ -237,26 +237,17 @@ static std::string
 blockquote_prefix_of(const std::string& line) {
   size_t pos = leading_space_count(line);
   if (pos >= line.size() || line[pos] != '>') return "";
-  pos++;
-  if (pos < line.size() && line[pos] == ' ') pos++;
+
+  while (pos < line.size() && line[pos] == '>') {
+    pos++;
+    if (pos < line.size() && line[pos] == ' ') pos++;
+  }
+
   return line.substr(0, pos);
 }
 
-static bool
-is_asset_embed_inner(const std::string& inner) {
-  size_t pipe = inner.find('|');
-  std::string target = trim_copy(pipe == std::string::npos ?
-                                 inner : inner.substr(0, pipe));
-  std::string modifier = pipe == std::string::npos ?
-                         "" : trim_copy(inner.substr(pipe + 1));
-  if (is_aofm_image_target(target)) {
-    return modifier.empty() || is_decimal_digits(modifier);
-  }
-  return is_aofm_pdf_target(target);
-}
-
 static std::vector<std::string>
-split_transclusion_line(const std::string& line) {
+split_embed_line(const std::string& line) {
   std::vector<std::string> out;
   std::string prefix = blockquote_prefix_of(line);
   std::string body = prefix.empty() ? line : line.substr(prefix.size());
@@ -269,11 +260,6 @@ split_transclusion_line(const std::string& line) {
     size_t close = body.find("]]", bang + 3);
     if (close == std::string::npos) break;
 
-    if (is_asset_embed_inner(body.substr(bang + 3, close - (bang + 3)))) {
-      pos = close + 2;
-      continue;
-    }
-
     std::string before = rtrim_copy(body.substr(start, bang - start));
     if (!before.empty()) out.push_back(prefix + before);
 
@@ -282,7 +268,7 @@ split_transclusion_line(const std::string& line) {
     start = pos;
   }
 
-  std::string tail = body.substr(start);
+  std::string tail = trim_copy(body.substr(start));
   if (!tail.empty()) out.push_back(prefix + tail);
   if (out.empty()) out.push_back(line);
   return out;
@@ -310,7 +296,7 @@ normalize_transclusion_lines(const std::string& raw) {
       continue;
     }
 
-    std::vector<std::string> split = split_transclusion_line(line);
+    std::vector<std::string> split = split_embed_line(line);
     lines.insert(lines.end(), split.begin(), split.end());
   }
 
