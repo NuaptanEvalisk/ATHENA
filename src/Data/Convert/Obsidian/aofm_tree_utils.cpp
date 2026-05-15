@@ -12,6 +12,7 @@ text_tree(const std::string& s) {
 
 tree
 ensure_document_tree(tree t) {
+  if (is_document(t)) return t;
   t = simplify_document(t);
   if (!is_document(t)) t = document(t);
   return t;

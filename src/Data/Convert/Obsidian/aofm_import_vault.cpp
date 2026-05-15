@@ -905,7 +905,7 @@ resolve_anchor_placeholders(const tree& t, const AnchorMap& anchor_map,
                                                   heading_cursor));
     }
     close_heading_ranges(out, open_headings, 0);
-    return simplify_document(out);
+    return out;
   }
 
   tree out(t, N(t));

@@ -22,7 +22,9 @@
 
 #include <DockWidget.h>
 #include <QApplication>
+#include <QEvent>
 #include <QHBoxLayout>
+#include <QKeyEvent>
 #include <QLabel>
 #include <QListWidget>
 #include <QMessageBox>
@@ -64,6 +66,7 @@ QTMGlobalSearch::QTMGlobalSearch (QWidget* parent)
 
   resultList= new QListWidget (this);
   resultList->setAlternatingRowColors (true);
+  resultList->installEventFilter (this);
 
   scanTimer= new QTimer (this);
   scanTimer->setInterval (0);
@@ -89,9 +92,9 @@ QTMGlobalSearch::QTMGlobalSearch (QWidget* parent)
   connect (scanTimer, &QTimer::timeout,
            this, [this] () { scanChunk (); });
   connect (resultList, &QListWidget::itemDoubleClicked,
-           this, [this] (QListWidgetItem*) { openCurrentResult (); });
+           this, [this] (QListWidgetItem* item) { openResult (item); });
   connect (resultList, &QListWidget::itemActivated,
-           this, [this] (QListWidgetItem*) { openCurrentResult (); });
+           this, [this] (QListWidgetItem* item) { openResult (item); });
 
   setIdleStatus ();
 }
@@ -104,6 +107,18 @@ QTMGlobalSearch::~QTMGlobalSearch () {
 QSize
 QTMGlobalSearch::sizeHint () const {
   return QSize (1100, 560);
+}
+
+bool
+QTMGlobalSearch::eventFilter (QObject* watched, QEvent* event) {
+  if (watched == resultList && event->type () == QEvent::KeyPress) {
+    QKeyEvent* key= static_cast<QKeyEvent*> (event);
+    if (key->key () == Qt::Key_Return || key->key () == Qt::Key_Enter) {
+      openCurrentResult ();
+      return true;
+    }
+  }
+  return QWidget::eventFilter (watched, event);
 }
 
 QWidget*
@@ -289,8 +304,7 @@ QTMGlobalSearch::finishSearch () {
 }
 
 void
-QTMGlobalSearch::openCurrentResult () {
-  QListWidgetItem* item= resultList->currentItem ();
+QTMGlobalSearch::openResult (QListWidgetItem* item) {
   if (item == nullptr) return;
   int index= item->data (Qt::UserRole).toInt ();
   if (index < 0 || index >= (int) results.size ()) return;
@@ -301,6 +315,13 @@ QTMGlobalSearch::openCurrentResult () {
                  object (result.file),
                  list_object (symbol_object ("quote"),
                               object (result.firstHit)))));
+}
+
+void
+QTMGlobalSearch::openCurrentResult () {
+  QListWidgetItem* item= resultList->currentItem ();
+  if (item == nullptr && resultList->count () > 0) item= resultList->item (0);
+  openResult (item);
 }
 
 void

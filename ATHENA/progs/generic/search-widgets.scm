@@ -803,7 +803,7 @@
 
 (tm-define (global-search-open-result u p)
   (load-buffer u)
-  (exec-delayed
+  (delayed (:idle 100)
     (lambda ()
       (go-to (append (tree->path (buffer-tree)) p)))))
 

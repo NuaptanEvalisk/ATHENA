@@ -109,7 +109,6 @@ aofm_ast_to_texmacs_document(const AstPtr& ast) {
     tree body = convert_block(ast);
     body = sanitize_proof_trees(body);
     if (!is_document(body)) body = document(body);
-    body = simplify_document(body);
 
     new_data data;
     if (!aofm_metadata.created_time.empty()) {

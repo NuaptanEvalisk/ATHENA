@@ -28,6 +28,7 @@ convert_paragraph(const AstPtr& ast) {
   std::string line;
   std::string chunk;
   tree out(DOCUMENT);
+  bool has_standalone_embed = false;
 
   auto flush_chunk = [&]() {
     if (chunk.empty()) return;
@@ -51,6 +52,7 @@ convert_paragraph(const AstPtr& ast) {
     if (is_standalone_transclusion_line(line)) {
       flush_chunk();
       append_document(out, convert_inline_from_raw(trim_copy(line)));
+      has_standalone_embed = true;
       continue;
     }
     if (!chunk.empty()) chunk += ' ';
@@ -58,7 +60,7 @@ convert_paragraph(const AstPtr& ast) {
   }
 
   flush_chunk();
-  return simplify_document(out);
+  return has_standalone_embed ? out : simplify_document(out);
 }
 
 static std::string
@@ -409,7 +411,7 @@ convert_block(const AstPtr& ast) {
       
       append_document(out, converted_child);
     }
-    return simplify_document(out);
+    return out;
   }
 
   if (ast_is(ast, "BlankLine") || ast_is(ast, "EOF") ||
@@ -442,7 +444,7 @@ convert_block(const AstPtr& ast) {
     for (const auto& child : ast->nodes) {
       append_document(out, convert_block(child));
     }
-    return simplify_document(out);
+    return out;
   }
 
   return text_tree(trim_copy(strip_trailing_newlines(ast_source(ast))));

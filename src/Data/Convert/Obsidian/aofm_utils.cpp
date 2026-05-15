@@ -170,12 +170,16 @@ is_proof_marker_text(const std::string& raw) {
   trimmed = trimmed.substr(pos);
 
   static const char* kMarkers[] = {
-      "**Proof:**",    "**Proof：**",    "**Solution:**",
-      "**Solution：**", "**证明:**",       "**证明：**",
-      "**解:**",       "**解：**",        "Proof:",
-      "Proof：",       "Solution:",      "Solution：",
-      "证明:",         "证明：",          "解:",
-      "解："};
+      "**Proof (Alternative):**",    "**Proof (Alternative)：**",
+      "**Proof:**",                  "**Proof：**",
+      "**Solution:**",               "**Solution：**",
+      "**证明:**",                   "**证明：**",
+      "**解:**",                     "**解：**",
+      "Proof (Alternative):",        "Proof (Alternative)：",
+      "Proof:",                      "Proof：",
+      "Solution:",                   "Solution：",
+      "证明:",                       "证明：",
+      "解:",                         "解："};
 
   for (const char* marker : kMarkers) {
     std::string prefix = marker;

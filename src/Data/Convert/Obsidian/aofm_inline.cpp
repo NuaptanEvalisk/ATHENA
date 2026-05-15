@@ -4,6 +4,7 @@
 #include "aofm_tree_utils.hpp"
 #include "aofm_math.hpp"
 #include <algorithm>
+#include <sstream>
 
 namespace aofm {
 
@@ -28,6 +29,14 @@ parse_image_embed_source(const std::string& raw,
     return false;
   }
   return parse_image_embed_inner(raw.substr(3, raw.size() - 5), target, width);
+}
+
+static bool
+is_standalone_embed_source(const std::string& raw) {
+  std::string trimmed = trim_copy(raw);
+  return trimmed.size() >= 5 &&
+         trimmed.compare(0, 3, "![[") == 0 &&
+         trimmed.compare(trimmed.size() - 2, 2, "]]") == 0;
 }
 
 static size_t
@@ -89,6 +98,40 @@ convert_inline_children(const AstPtr& ast) {
 
 tree
 convert_inline_from_raw(const std::string& raw) {
+  if (raw.find('\n') != std::string::npos ||
+      raw.find('\r') != std::string::npos) {
+    std::stringstream in(raw);
+    std::string line;
+    std::string chunk;
+    tree doc(DOCUMENT);
+    bool split_embed = false;
+
+    auto flush_chunk = [&]() {
+      if (chunk.empty()) return;
+      append_document(doc, convert_inline_from_raw(chunk));
+      chunk.clear();
+    };
+
+    while (std::getline(in, line)) {
+      if (!line.empty() && line.back() == '\r') line.pop_back();
+      if (trim_copy(line).empty()) {
+        flush_chunk();
+        continue;
+      }
+      if (is_standalone_embed_source(line)) {
+        flush_chunk();
+        append_document(doc, convert_inline_from_raw(trim_copy(line)));
+        split_embed = true;
+        continue;
+      }
+      if (!chunk.empty()) chunk += ' ';
+      chunk += line;
+    }
+
+    flush_chunk();
+    if (split_embed) return doc;
+  }
+
   tree out(CONCAT);
   std::string text_str;
   size_t i = 0;

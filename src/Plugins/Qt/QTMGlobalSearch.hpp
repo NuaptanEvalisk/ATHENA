@@ -23,7 +23,9 @@
 #include <vector>
 
 class QLabel;
+class QEvent;
 class QListWidget;
+class QListWidgetItem;
 class QPushButton;
 class QProgressBar;
 class QTimer;
@@ -34,6 +36,7 @@ public:
   ~QTMGlobalSearch ();
 
   QSize sizeHint () const override;
+  bool eventFilter (QObject* watched, QEvent* event) override;
 
 private:
   struct Result {
@@ -52,6 +55,7 @@ private:
   bool     searchFile (url u, Result& result) const;
   QString  relativePath (url u) const;
   void     addResult (const Result& result);
+  void     openResult (QListWidgetItem* item);
   void     openCurrentResult ();
   void     setIdleStatus ();
   void     setRunningStatus ();

@@ -38,6 +38,8 @@ bool can_close_proof_with_qed(const AstPtr& ast);
 bool is_qed_math_tree(const tree& t);
 tree strip_qed_from_right_edge(tree t);
 
+bool extract_proof_marker(const AstPtr& ast, std::string& tag,
+                          std::string& body);
 bool extract_proof_marker_body(const AstPtr& ast, std::string& body);
 std::string strip_blockquote_markers(const std::string& raw);
 std::string extract_callout_body_source(const std::string& raw);
