@@ -722,8 +722,7 @@ search_font_among (array<string> v, array<string> fams, array<string> avoid,
 array<string>
 search_font (array<string> v, bool require_exact, array<string> avoid) {
   if (N(v) == 0)
-    return array<string> (string ("TeXmacs Computer Modern"),
-                          string ("Unknown"));
+    return array<string> (string ("roman"), string ("rm"));
   //cout << "Searching " << v << ", " << logical_font_enrich (v)
   //     << (require_exact? string (" (exact)"): string ("")) << "\n";
   int best_distance;

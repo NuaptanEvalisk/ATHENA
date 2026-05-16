@@ -155,6 +155,9 @@ upgrade_family_name (string f) {
     t ("math-termes")= "TeX Gyre Termes";
 
     t ("modern")= "roman";
+    t ("TeXmacs Computer Modern")= "roman";
+    t ("TeXmacs Computer Modern Mono")= "roman";
+    t ("TeXmacs Computer Modern Sans")= "roman";
     t ("cyrillic")= "roman";
     t ("rm-cyrillic")= "roman";
     t ("sys-chinese")= default_chinese_font_name ();

@@ -407,6 +407,8 @@ compute_wide_accent (path ip, box b, string s,
     */
     else very_wide= true;
   }
+  // Unicode fonts do not provide TeXmacs' legacy varvect glyph; draw it.
+  if (unicode && s == "<vect>") very_wide= true;
   if (wide && stix) {
     if (s == "^") s= "<hat>";
     if (s == "~") s= "<tilde>";

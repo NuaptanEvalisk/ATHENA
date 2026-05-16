@@ -115,6 +115,14 @@ static bool font_database_families_cached= false;
 static array<string> font_database_families_cache;
 static hashmap<string,tree> font_database_styles_cache (UNINIT);
 
+static bool
+font_database_core_family (string family) {
+  string upgraded= upgrade_family_name (family);
+  return upgraded == "roman" || upgraded == "concrete" ||
+         starts (family, "TeXmacs Computer Modern") ||
+         starts (family, "TeXmacs Concrete");
+}
+
 void set_new_fonts (bool new_val) { new_fonts= new_val; }
 bool get_new_fonts () { return new_fonts; }
 
@@ -304,16 +312,26 @@ font_database_load () {
 void
 font_database_global_load (string name) {
   if (fonts_global_loaded) return;
+  string requested= name;
+  name= upgrade_family_name (name);
+  bool quiet= font_database_core_family (requested);
 #ifdef QTTEXMACS
-  if (QCoreApplication::instance () && !is_headless () &&
+  if (!quiet && QCoreApplication::instance () && !is_headless () &&
       get_user_preference ("show font substitution warning") == "on") {
-    string msg = "Missing font: " * (name == "" ? "unknown" : name) * 
-                 "\nLoading global substitution list...";
+    string msg= name == "" ?
+      "Loading the global font fallback database." :
+      "Font family not found in the local font database: " * requested *
+      "\nLoading the global font fallback database.";
     QMessageBox::warning (NULL, "ATHENA warning", to_qstring (msg));
   }
 #endif
-  if (name == "") cout << "ATHENA] warning, missing font, loading global substitution list\n";
-  else cout << "ATHENA] warning, missing font '" << name << "', loading global substitution list\n";
+  if (!quiet) {
+    if (name == "")
+      cout << "ATHENA] warning, loading global font fallback database\n";
+    else
+      cout << "ATHENA] warning, font family '" << requested
+           << "' not found in local font database; loading global font fallback database\n";
+  }
   font_database_load_database (GLOBAL_DATABASE, font_global_table);
   font_database_load_features (GLOBAL_FEATURES);
   font_database_load_characteristics (GLOBAL_CHARACTERISTICS);
@@ -726,6 +744,7 @@ font_database_styles (string family, hashmap<tree,tree> ftab) {
 
 array<string>
 font_database_styles (string family) {
+  family= upgrade_family_name (family);
   font_database_load ();
   if (font_database_styles_cache->contains (family)) {
     tree cached= font_database_styles_cache[family];
@@ -739,12 +758,14 @@ font_database_styles (string family) {
 
 array<string>
 font_database_global_styles (string family) {
+  family= upgrade_family_name (family);
   font_database_global_load (family);
   return font_database_styles (family, font_global_table);
 }
 
 array<string>
 font_database_search (string family, string style) {
+  family= upgrade_family_name (family);
   font_database_load ();
   array<string> r;
   tree key= tuple (family, style);
@@ -773,6 +794,7 @@ font_database_search (string fam, string var, string series, string shape) {
 
 array<string>
 font_database_characteristics (string family, string style) {
+  family= upgrade_family_name (family);
   font_database_load ();
   array<string> r;
   tree key= tuple (family, style);
@@ -787,6 +809,7 @@ font_database_characteristics (string family, string style) {
 
 tree
 font_database_substitutions (string family) {
+  family= upgrade_family_name (family);
   font_database_load ();
   if (font_substitutions->contains (family))
     return font_substitutions [family];

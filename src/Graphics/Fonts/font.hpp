@@ -260,6 +260,7 @@ tree font_database_substitutions (string family);
 tree array_as_tuple (array<string> a);
 array<string> tuple_as_array (tree t);
 string encode_feature (string s);
+string upgrade_family_name (string f);
 string family_to_master (string f);
 array<string> master_to_families (string f);
 array<string> master_features (string m);

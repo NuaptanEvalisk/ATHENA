@@ -848,6 +848,34 @@ is_theorem_like_callout_tag(const std::string& tag) {
 }
 
 bool
+is_display_formula_tree(const tree& t) {
+  return is_compound(t, "equation", 1) || is_compound(t, "equation*", 1) ||
+         is_compound(t, "eqnarray", 1) || is_compound(t, "eqnarray*", 1);
+}
+
+tree
+break_before_lone_display_formula(const std::string& tag, tree body) {
+  if (!is_theorem_like_callout_tag(tag)) return body;
+
+  tree simplified = simplify_document(body);
+  tree formula = "";
+  if (is_display_formula_tree(simplified)) {
+    formula = simplified;
+  }
+  else if (is_document(simplified) && N(simplified) == 1 &&
+           is_display_formula_tree(simplified[0])) {
+    formula = simplified[0];
+  }
+
+  if (formula == "") return body;
+
+  tree out(DOCUMENT);
+  out << compound("right-flush");
+  out << formula;
+  return out;
+}
+
+bool
 is_theorem_like_env_tree(const tree& t) {
   return is_compound(t, "theorem", 1) || is_compound(t, "proposition", 1) ||
          is_compound(t, "lemma", 1) || is_compound(t, "corollary", 1) ||
@@ -964,6 +992,7 @@ convert_callout(const AstPtr& ast) {
       }
       return compound(tag.c_str(), ensure_document_tree(simplified));
     }
+    body = break_before_lone_display_formula(tag, body);
     return split_callout_proof_tail(tag, simplify_document(body));
   }
   return text_tree(trim_copy(strip_trailing_newlines(raw)));

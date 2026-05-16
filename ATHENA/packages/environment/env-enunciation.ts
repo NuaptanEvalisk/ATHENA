@@ -60,9 +60,13 @@
     </src-comment>
   </active*>
 
+  <assign|enunciation-display-body?|<\macro|body>
+    <or|<equal|<get-label|<arg|body>>|equation>|<equal|<get-label|<arg|body>>|equation*>|<equal|<get-label|<arg|body>>|eqnarray>|<equal|<get-label|<arg|body>>|eqnarray*>|<and|<equal|<get-label|<arg|body>>|document>|<or|<equal|<get-label|<tm-ref|<arg|body>|0>>|equation>|<equal|<get-label|<tm-ref|<arg|body>|0>>|equation*>|<equal|<get-label|<tm-ref|<arg|body>|0>>|eqnarray>|<equal|<get-label|<tm-ref|<arg|body>|0>>|eqnarray*>>>>
+  </macro>>
+
   <assign|render-enunciation|<\macro|which|body>
     <\padded*>
-      <surround|<arg|which>|<yes-indent*>|<arg|body>>
+      <surround|<arg|which>|<if|<enunciation-display-body?|<arg|body>>|<right-flush>|<yes-indent*>>|<arg|body>>
     </padded*>
   </macro>>
 

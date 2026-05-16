@@ -401,6 +401,7 @@ endif()
 ### the include dirs
 ### --------------------------------------------------------------------
 set (ATHENA_Include_Dirs
+  ${ATHENA_BINARY_DIR}/src/System/
   ${ATHENA_SOURCE_DIR}/src/Data/Convert
   ${ATHENA_SOURCE_DIR}/src/Data/Document
   ${ATHENA_SOURCE_DIR}/src/Data/Drd
@@ -453,7 +454,6 @@ set (ATHENA_Include_Dirs
   ${ATHENA_SOURCE_DIR}/src/Typeset/Concat
   ${ATHENA_SOURCE_DIR}/src/Typeset/Page
   ${ATHENA_SOURCE_DIR}/ATHENA/include
-  ${ATHENA_BINARY_DIR}/src/System/
 )
 
 if (WIN32)
