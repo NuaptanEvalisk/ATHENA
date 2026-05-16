@@ -929,6 +929,10 @@
 (tm-define (make-include u)
   (insert `(include ,(url->delta-unix u))))
 
+(tm-define (make-experimental-build-warning)
+  (:synopsis "Insert the ATHENA experimental build warning")
+  (insert '(experimental-build-warning)))
+
 (tm-define (make-inline-image l)
   (apply make-image (cons* (url->delta-unix (car l)) #f (cdr l))))
 

@@ -62,6 +62,19 @@
   document has been produced using> <with|font-series|bold|ATHENA>
   (<localize|Advanced Typesetting and Hypertext Environment for Notes and Archives>).<right-flush>>>>>
 
+  <assign|experimental-build-warning|<\macro>
+    <\note>
+      This document is typeset using <ATHENA>, the <with|font-shape|italic|Advanced
+      Typesetting and Hypertext Environment for Notes and Archives>. <ATHENA> is
+      a fork of GNU <TeXmacs> and is free software. Currently, <ATHENA> is still
+      experimental and is considered as unstable. In case you find any typesetting
+      / rendering errors, please kindly file a bug report to <hlink|GitHub
+      Issues|https://github.com/NuaptanEvalisk/ATHENA/issues>. (<ATHENA>,
+      version <texmacs-version>, built on <texmacs-build-date>, for
+      <texmacs-host-os>, <texmacs-host-cpu>)
+    </note>
+  </macro>>
+
   <assign|tm-made|<macro|<with|ornament-color||ornament-shadow-color|<value|color>|ornament-sunny-color|<value|color>|ornament-border|1ln|ornament-shape|rounded|ornament-hpadding|0.5spc|ornament-vpadding|0.5spc|<ornament|<math|\<Backsigma\>>>>>>
 
   <assign|TeX|<macro|<active*|T<rsub|<space|-0.4spc><move|<resize|<with|math-level|0|E>||||0.5fn>|0fn|-0.1fn>><space|-0.4spc>X>>>

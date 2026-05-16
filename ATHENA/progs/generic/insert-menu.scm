@@ -147,6 +147,7 @@
   (-> "Table" (link insert-table-menu))
   (-> "Image" (link insert-image-menu))
   (-> "Link" (link insert-link-menu))
+  ("Build warning" (make-experimental-build-warning))
   (if (detailed-menus?)
       (if (style-has? "std-fold-dtd")
           (-> "Fold" (link insert-fold-menu)))
