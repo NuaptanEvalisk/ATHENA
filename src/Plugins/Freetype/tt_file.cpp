@@ -19,6 +19,7 @@
 #include "tm_timer.hpp"
 #include "data_cache.hpp"
 #include "scheme.hpp"
+#include "sys_utils.hpp"
 
 static hashmap<string,string> tt_fonts ("no");
 
@@ -40,6 +41,31 @@ tt_extend_font_path (url u) {
     url dirs= add_to_path (url_unix (old), u);
     set_preference ("imported fonts", as_unix_string (dirs));
   }
+}
+
+static url
+tt_fontconfig_path () {
+#if defined OS_MINGW || defined OS_MACOS
+  return url_none ();
+#else
+  static url cached_path= url_none ();
+  static bool initialized= false;
+  if (initialized) return cached_path;
+  initialized= true;
+
+  string out= eval_system ("fc-list --format='%{file}\\n' 2> /dev/null");
+  int i= 0;
+  string line;
+  while (read_line (out, i, line)) {
+    line= trim_spaces (line);
+    if (line == "") continue;
+    url file= url_system (line);
+    if (exists (file))
+      cached_path= add_to_path (cached_path, head (file));
+    if (i >= N(out)) break;
+  }
+  return cached_path;
+#endif
 }
 
 url
@@ -73,9 +99,13 @@ tt_font_path () {
     search_sub_dirs ("/usr/local/texlive/2022/texmf-dist/fonts/opentype") |
     search_sub_dirs ("/usr/local/texlive/2022/texmf-dist/fonts/truetype");
 #else
+    tt_fontconfig_path () |
     search_sub_dirs ("$HOME/.fonts") |
+    search_sub_dirs ("$HOME/.local/share/fonts") |
+    search_sub_dirs ("/usr/share/fonts") |
     search_sub_dirs ("/usr/share/fonts/opentype") |
     search_sub_dirs ("/usr/share/fonts/truetype") |
+    search_sub_dirs ("/usr/local/share/fonts") |
     search_sub_dirs ("/usr/local/share/fonts/opentype") |
     search_sub_dirs ("/usr/local/share/fonts/truetype") |
     search_sub_dirs ("/usr/local/texlive/2020/texmf-dist/fonts/opentype") |

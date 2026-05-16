@@ -354,17 +354,33 @@
                 (selector-search-glyphs-decoded specs))
     (list-filter l (cut != <> "Any"))))
 
+(define selected-families-cache (make-ahash-table))
+(define selected-styles-cache (make-ahash-table))
+
+(define (font-selector-cache-clear)
+  (set! selected-families-cache (make-ahash-table))
+  (set! selected-styles-cache (make-ahash-table)))
+
 (tm-define-macro (selector-set* specs var val)
   `(begin
+     (font-selector-cache-clear)
      (selector-set ,specs ,var ,val)
      (delayed
        (refresh-now "font-family-selector"))))
 
 (tm-define (selected-families specs)
-  (search-font-families (selected-properties specs)))
+  (with props (selected-properties specs)
+    (or (ahash-ref selected-families-cache props)
+        (let ((r (search-font-families props)))
+          (ahash-set! selected-families-cache props r)
+          r))))
 
 (tm-define (selected-styles specs family)
-  (search-font-styles family (selected-properties specs)))
+  (with key (cons family (selected-properties specs))
+    (or (ahash-ref selected-styles-cache key)
+        (let ((r (search-font-styles family (selected-properties specs))))
+          (ahash-set! selected-styles-cache key r)
+          r))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Global state for font customization
@@ -736,6 +752,7 @@
       (dynamic (font-sample-text specs)))))
 
 (tm-define (font-import name)
+  (font-selector-cache-clear)
   (font-database-extend-local name)
   (refresh-now "font-family-selector")
   (refresh-now "font-style-selector")

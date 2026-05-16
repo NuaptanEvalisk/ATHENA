@@ -31,6 +31,24 @@ void font_database_filter_features ();
 void font_database_filter_characteristics ();
 static array<string> font_database_families (hashmap<tree,tree> ftab);
 
+static bool
+font_database_has_extension (string name, string ext) {
+  return ends (locase_all (name), ext);
+}
+
+static bool
+font_database_is_tt_file (string name) {
+  return font_database_has_extension (name, ".ttf") ||
+         font_database_has_extension (name, ".ttc") ||
+         font_database_has_extension (name, ".otf");
+}
+
+static bool
+font_database_is_font_file (string name) {
+  return font_database_is_tt_file (name) ||
+         font_database_has_extension (name, ".tfm");
+}
+
 #define GLOBAL_DATABASE "$ATHENA_PATH/fonts/font-database.scm"
 #define GLOBAL_FEATURES "$ATHENA_PATH/fonts/font-features.scm"
 #define GLOBAL_FEATURES_BIS "$ATHENA_PATH/fonts/font-features.bis.scm"
@@ -40,6 +58,8 @@ static array<string> font_database_families (hashmap<tree,tree> ftab);
 #define LOCAL_FEATURES "$ATHENA_HOME_PATH/fonts/font-features.scm"
 #define LOCAL_CHARACTERISTICS \
   "$ATHENA_HOME_PATH/fonts/font-characteristics.scm"
+#define LOCAL_DISCOVERY_VERSION "$ATHENA_HOME_PATH/fonts/font-discovery-version"
+#define FONT_DISCOVERY_VERSION "2"
 #define DELTA_DATABASE "$ATHENA_HOME_PATH/fonts/delta-database.scm"
 #define DELTA_FEATURES "$ATHENA_HOME_PATH/fonts/delta-features.scm"
 #define DELTA_CHARACTERISTICS \
@@ -91,9 +111,19 @@ hashmap<tree,tree> font_features (UNINIT);
 hashmap<tree,tree> font_variants (UNINIT);
 hashmap<tree,tree> font_characteristics (UNINIT);
 hashmap<string,tree> font_substitutions (UNINIT);
+static bool font_database_families_cached= false;
+static array<string> font_database_families_cache;
+static hashmap<string,tree> font_database_styles_cache (UNINIT);
 
 void set_new_fonts (bool new_val) { new_fonts= new_val; }
 bool get_new_fonts () { return new_fonts; }
+
+static void
+font_database_invalidate_selectors () {
+  font_database_families_cached= false;
+  font_database_families_cache= array<string> ();
+  font_database_styles_cache= hashmap<string,tree> (UNINIT);
+}
 
 void
 tuple_insert (tree& t, tree x) {
@@ -105,6 +135,7 @@ tuple_insert (tree& t, tree x) {
 void
 font_database_load_database (url u, hashmap<tree,tree>& ftab= font_table) {
   if (!exists (u)) return;
+  if (&ftab == &font_table) font_database_invalidate_selectors ();
   string s;
   if (!load_string (u, s, false)) {
     tree t= block_to_scheme_tree (s);
@@ -199,6 +230,18 @@ font_database_save_characteristics (url u) {
   cache_refresh ();
 }
 
+static bool
+font_database_discovery_current () {
+  string s;
+  return !load_string (LOCAL_DISCOVERY_VERSION, s, false) &&
+         trim_spaces (s) == FONT_DISCOVERY_VERSION;
+}
+
+static void
+font_database_save_discovery_version () {
+  save_string (LOCAL_DISCOVERY_VERSION, FONT_DISCOVERY_VERSION "\n");
+}
+
 static array<string>
 font_database_styles (string family, hashmap<tree,tree> ftab);
 
@@ -232,11 +275,14 @@ font_database_load () {
   if (fonts_loaded) return;
   system_wait ("Loading font database", "please wait...");
   font_database_load_database (LOCAL_DATABASE);
+  if (N (font_table) != 0 && !font_database_discovery_current ())
+    font_table= hashmap<tree,tree> (UNINIT);
   if (N (font_table) == 0) {
     system_wait ("Scanning system fonts", "this may take a while...");
     font_database_load_database (GLOBAL_DATABASE);
     font_database_filter ();
     font_database_save_database (LOCAL_DATABASE);
+    font_database_save_discovery_version ();
   }
   font_database_load_features (LOCAL_FEATURES);
   if (N (font_features) == 0) {
@@ -280,6 +326,7 @@ font_database_save () {
   font_database_save_database (LOCAL_DATABASE);
   font_database_save_features (LOCAL_FEATURES);
   font_database_save_characteristics (LOCAL_CHARACTERISTICS);
+  font_database_save_discovery_version ();
 }
 
 /******************************************************************************
@@ -300,6 +347,7 @@ on_blacklist (string name) {
 
 void
 font_database_build (url u) {
+  font_database_invalidate_selectors ();
   if (is_none (u));
   else if (is_or (u)) {
     font_database_build (u[1]);
@@ -310,9 +358,7 @@ font_database_build (url u) {
     array<string> a= read_directory (u, err);
     for (int i=0; i<N(a); i++)
       if (!starts (a[i], "."))
-        if (ends (a[i], ".ttf") ||
-            ends (a[i], ".ttc") ||
-            ends (a[i], ".otf"))
+        if (font_database_is_tt_file (a[i]))
           font_database_build (u * url (a[i]));
   }
   else if (is_regular (u)) {
@@ -350,6 +396,7 @@ font_database_guess_features () {
 
 void
 font_database_build_local () {
+  font_database_invalidate_selectors ();
   font_database_load ();
   font_database_build (tt_font_path ());
   font_database_build_characteristics (false);
@@ -359,6 +406,7 @@ font_database_build_local () {
 
 void
 font_database_extend_local (url u) {
+  font_database_invalidate_selectors ();
   tt_extend_font_path (u);
   font_database_load ();
   font_database_build (u);
@@ -405,6 +453,7 @@ keep_delta (hashmap<tree,tree>& new_t, hashmap<tree,tree> old_t) {
 
 void
 font_database_save_local_delta () {
+  font_database_invalidate_selectors ();
   fonts_loaded= fonts_global_loaded= false;
   font_table= hashmap<tree,tree> (UNINIT);
   font_features= hashmap<tree,tree> (UNINIT);
@@ -512,10 +561,7 @@ font_database_collect (url u) {
     array<string> a= read_directory (u, err);
     for (int i=0; i<N(a); i++)
       if (!starts (a[i], "."))
-        if (ends (a[i], ".ttf") ||
-            ends (a[i], ".ttc") ||
-            ends (a[i], ".otf") ||
-            ends (a[i], ".tfm"))
+        if (font_database_is_font_file (a[i]))
           for (int j=0; j<65536; j++) {
             int  sz= file_size (u * a[i]);
             tree ff= tuple (a[i], as_string (j), as_string (sz));
@@ -545,12 +591,14 @@ font_database_collect (url u) {
 
 void
 font_database_filter () {
+  font_database_invalidate_selectors ();
   new_font_table = hashmap<tree,tree> (UNINIT);
   back_font_table= hashmap<tree,tree> (UNINIT);
   build_back_table ();
   font_database_collect (tt_font_path ());
   font_database_collect (tfm_font_path ());
   font_table= new_font_table;
+  font_database_invalidate_selectors ();
   new_font_table = hashmap<tree,tree> (UNINIT);
   back_font_table= hashmap<tree,tree> (UNINIT);
 }
@@ -605,11 +653,11 @@ font_database_build_characteristics (bool force) {
           string name= as_string (im[i][0]);
           string nr  = as_string (im[i][1]);
           cout << "| Processing " << name << ", " << nr << "\n";
-          if (ends (name, ".ttc"))
+          if (font_database_has_extension (name, ".ttc"))
             name= (name (0, N(name)-4) * "." * nr * ".ttf");
-          if (ends (name, ".ttf") ||
-              ends (name, ".otf") ||
-              ends (name, ".tfm")) {
+          if (font_database_has_extension (name, ".ttf") ||
+              font_database_has_extension (name, ".otf") ||
+              font_database_has_extension (name, ".tfm")) {
             name= name (0, N(name)-4);
             if (!tt_font_exists (name) && ends (name, "10"))
               name= name (0, N(name)-2);
@@ -649,7 +697,11 @@ font_database_families (hashmap<tree,tree> ftab) {
 array<string>
 font_database_families () {
   font_database_load ();
-  return font_database_families (font_table);
+  if (!font_database_families_cached) {
+    font_database_families_cache= font_database_families (font_table);
+    font_database_families_cached= true;
+  }
+  return font_database_families_cache;
 }
 
 array<string>
@@ -675,7 +727,14 @@ font_database_styles (string family, hashmap<tree,tree> ftab) {
 array<string>
 font_database_styles (string family) {
   font_database_load ();
-  return font_database_styles (family, font_table);
+  if (font_database_styles_cache->contains (family)) {
+    tree cached= font_database_styles_cache[family];
+    if (is_func (cached, TUPLE))
+      return tuple_as_array (cached);
+  }
+  array<string> r= font_database_styles (family, font_table);
+  font_database_styles_cache (family)= array_as_tuple (r);
+  return r;
 }
 
 array<string>
