@@ -111,6 +111,7 @@ aofm_ast_to_texmacs_document(const AstPtr& ast) {
     if (!is_document(body)) body = document(body);
 
     new_data data;
+    data->init("page-medium") = tree("automatic");
     if (!aofm_metadata.created_time.empty()) {
         data->init("global-created-time") = tree(tm_string(aofm_metadata.created_time));
     }
