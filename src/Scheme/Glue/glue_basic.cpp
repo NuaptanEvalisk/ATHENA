@@ -926,6 +926,32 @@ tmg_cpp_reset_preference (tmscm arg1) {
 }
 
 tmscm
+tmg_cpp_load_preferences (tmscm arg1) {
+  TMSCM_ASSERT_URL (arg1, TMSCM_ARG1, "cpp-load-preferences");
+
+  url in1= tmscm_to_url (arg1);
+
+  // TMSCM_DEFER_INTS;
+  load_user_preferences (in1);
+  // TMSCM_ALLOW_INTS;
+
+  return TMSCM_UNSPECIFIED;
+}
+
+tmscm
+tmg_cpp_dump_preferences (tmscm arg1) {
+  TMSCM_ASSERT_URL (arg1, TMSCM_ARG1, "cpp-dump-preferences");
+
+  url in1= tmscm_to_url (arg1);
+
+  // TMSCM_DEFER_INTS;
+  dump_user_preferences (in1);
+  // TMSCM_ALLOW_INTS;
+
+  return TMSCM_UNSPECIFIED;
+}
+
+tmscm
 tmg_save_preferences () {
   // TMSCM_DEFER_INTS;
   save_user_preferences ();
@@ -11009,6 +11035,8 @@ initialize_glue_basic () {
   tmscm_install_procedure ("cpp-get-preference",  tmg_cpp_get_preference, 2, 0, 0);
   tmscm_install_procedure ("cpp-set-preference",  tmg_cpp_set_preference, 2, 0, 0);
   tmscm_install_procedure ("cpp-reset-preference",  tmg_cpp_reset_preference, 1, 0, 0);
+  tmscm_install_procedure ("cpp-load-preferences",  tmg_cpp_load_preferences, 1, 0, 0);
+  tmscm_install_procedure ("cpp-dump-preferences",  tmg_cpp_dump_preferences, 1, 0, 0);
   tmscm_install_procedure ("save-preferences",  tmg_save_preferences, 0, 0, 0);
   tmscm_install_procedure ("get-default-printing-command",  tmg_get_default_printing_command, 0, 0, 0);
   tmscm_install_procedure ("set-input-language",  tmg_set_input_language, 1, 0, 0);

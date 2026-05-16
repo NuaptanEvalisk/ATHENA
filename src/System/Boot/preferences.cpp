@@ -23,6 +23,7 @@
 
 bool user_prefs_modified= false;
 hashmap<string,string> user_prefs ("");
+url user_prefs_file= "$ATHENA_HOME_PATH/system/preferences.scm";
 void notify_preference (string var);
 
 bool
@@ -55,9 +56,9 @@ get_user_preference (string var, string val) {
 * Loading and saving user preferences
 ******************************************************************************/
 
-void
-load_user_preferences () {
-  url prefs_file= "$ATHENA_HOME_PATH/system/preferences.scm";
+static hashmap<string,string>
+read_user_preferences (url prefs_file) {
+  hashmap<string,string> prefs ("");
   string s;
   tree p (TUPLE);
   if (!load_string (prefs_file, s, false))
@@ -69,15 +70,13 @@ load_user_preferences () {
         is_quoted (p[i][0]->label) && is_quoted (p[i][1]->label)) {
       string var= scm_unquote (p[i][0]->label);
       string val= scm_unquote (p[i][1]->label);
-      user_prefs (var)= val;
+      prefs (var)= val;
     }
-  user_prefs_modified= false;
+  return prefs;
 }
 
-void
-save_user_preferences () {
-  if (!user_prefs_modified) return;
-  url prefs_file= "$ATHENA_HOME_PATH/system/preferences.scm";
+static void
+write_user_preferences (url prefs_file) {
   iterator<string> it= iterate (user_prefs);
   array<string> a;
   while (it->busy ())
@@ -89,5 +88,29 @@ save_user_preferences () {
       << " " << scm_quote (user_prefs[a[i]]) << ")\n";
   if (save_string (prefs_file, s))
     std_warning << "The user preferences could not be saved\n";
+}
+
+void
+load_user_preferences () {
+  load_user_preferences ("$ATHENA_HOME_PATH/system/preferences.scm");
+}
+
+void
+load_user_preferences (url prefs_file) {
+  save_user_preferences ();
+  user_prefs_file= prefs_file;
+  user_prefs= read_user_preferences (prefs_file);
+  user_prefs_modified= false;
+}
+
+void
+dump_user_preferences (url prefs_file) {
+  write_user_preferences (prefs_file);
+}
+
+void
+save_user_preferences () {
+  if (!user_prefs_modified) return;
+  write_user_preferences (user_prefs_file);
   user_prefs_modified= false;
 }

@@ -37,6 +37,8 @@ string get_user_preference (string var, string def= "");
 void   set_user_preference (string var, string val);
 void   reset_user_preference (string var);
 void   load_user_preferences ();
+void   load_user_preferences (url prefs_file);
+void   dump_user_preferences (url prefs_file);
 void   save_user_preferences ();
 
 #endif // defined BOOT_H

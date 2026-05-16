@@ -105,6 +105,8 @@
 "cpp-get-preference"
 "cpp-set-preference"
 "cpp-reset-preference"
+"cpp-load-preferences"
+"cpp-dump-preferences"
 "save-preferences"
 "get-default-printing-command"
 "set-input-language"

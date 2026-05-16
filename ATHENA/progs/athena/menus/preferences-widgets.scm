@@ -152,9 +152,6 @@
         (input (set-preference "inertial scrolling sensitivity" answer) "string"
                (list (get-preference "inertial scrolling sensitivity"))
                "10em"))
-      (item (text "Vault welcome page:")
-        (toggle (set-preference "vault welcome page" (if answer "on" "off"))
-                (equal? (get-preference "vault welcome page") "on")))
       (item (text "Use multi-tabs:")
         (toggle (set-boolean-preference "enable tab" answer)
                 (get-boolean-preference "enable tab")))
@@ -1303,7 +1300,7 @@
   (:interactive #t)
   (when (not (preferences-open?))
     (set! preferences-window-count (+ preferences-window-count 1))
-    (top-window preferences-widget "User preferences"
+    (top-window preferences-widget "Preferences"
                 (lambda () (set! preferences-window-count (- preferences-window-count 1))))))
 
 (tm-define (open-preferences)

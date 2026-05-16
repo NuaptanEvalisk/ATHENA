@@ -77,6 +77,16 @@
   ;;(display* "notify-preference " which ", " (get-preference which) "\n")
   ((get-call-back which) which (get-preference which)))
 
+(tm-define (notify-all-preferences)
+  (:synopsis "Notify that all preferences were reloaded")
+  (for (entry (ahash-table->list preferences-call-back))
+    (notify-preference (car entry))))
+
+(tm-define (load-preferences-from file)
+  (:synopsis "Load user preferences from @file")
+  (cpp-load-preferences file)
+  (notify-all-preferences))
+
 (tm-define (get-preference which)
   (:synopsis "Get preference @which")
   (let* ((def (or (ahash-ref preferences-default which) "default"))

@@ -278,6 +278,7 @@
   ("Load" (open-document))
   ("Load in new window" (open-document*))
   ("Load Vault" (open-vault))
+  ("Unload Vault" (unload-vault))
   ("Revert" (revert-buffer))
   (when (buffer-is-real-file?)
     ("Open in text editor" (open-in-text-editor)))

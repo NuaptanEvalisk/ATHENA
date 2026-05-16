@@ -153,6 +153,68 @@
 (define (notify-vault-explorer-track name val)
   (if (== val "on") (vault-track-current-buffer-if-enabled)))
 
+(define vault-preferences-active? #f)
+(define vault-preferences-file #f)
+(define vault-preferences-reloading? #f)
+
+(define (vault-system-preferences-file)
+  "$ATHENA_HOME_PATH/system/preferences.scm")
+
+(define (vault-take-preferences?)
+  (== (get-preference "vault take preferences with vault") "on"))
+
+(define (notify-vault-preferences-mode name val)
+  (when (not vault-preferences-reloading?)
+    (cond ((and (== val "off") vault-preferences-active?)
+           (vault-preferences-deactivate))
+          ((and (== val "on") (vault-active?) (not vault-preferences-active?))
+           (vault-preferences-activate-current)))))
+
+(define (vaultfile-preferences-path data)
+  (if (and (list? data) (>= (length data) 3) (string? (caddr data)))
+      (caddr data)
+      ""))
+
+(define (vaultfile-with-preferences data prefs-path)
+  (list (car data) (cadr data) prefs-path))
+
+(define (vault-preferences-url dir prefs-path)
+  (url-append dir prefs-path))
+
+(define (vault-preferences-ensure-file dir vault-file data)
+  (let* ((rel (vaultfile-preferences-path data))
+         (prefs-rel (if (string-null? rel) "vprefs.scm" rel))
+         (prefs-file (vault-preferences-url dir prefs-rel)))
+    (when (string-null? rel)
+      (save-object vault-file (vaultfile-with-preferences data prefs-rel)))
+    (when (not (url-exists? prefs-file))
+      (cpp-dump-preferences prefs-file))
+    prefs-file))
+
+(define (vault-preferences-activate dir vault-file data)
+  (let ((prefs-file (vault-preferences-ensure-file dir vault-file data)))
+    (set! vault-preferences-file prefs-file)
+    (set! vault-preferences-active? #t)
+    (set! vault-preferences-reloading? #t)
+    (load-preferences-from prefs-file)
+    (set! vault-preferences-reloading? #f)))
+
+(define (vault-preferences-activate-current)
+  (if (vault-active?)
+      (let* ((dir (vault-get-root))
+             (vault-file (url-append dir "Vaultfile"))
+             (data (if (url-exists? vault-file) (load-object vault-file) '())))
+        (if (and (list? data) (>= (length data) 2))
+            (vault-preferences-activate dir vault-file data)))))
+
+(define (vault-preferences-deactivate)
+  (when vault-preferences-active?
+    (save-preferences)
+    (set! vault-preferences-active? #f)
+    (set! vault-preferences-file #f)
+    (set! vault-preferences-reloading? #t)
+    (load-preferences-from (vault-system-preferences-file))
+    (set! vault-preferences-reloading? #f)))
 
 (define-preferences
   ("vault fuzzy search limit" "3" noop)
@@ -160,6 +222,7 @@
   ("gui cursor color" "red" notify-cursor-color)
   ("gui selection color" "red" notify-selection-color)
   ("vault welcome page" "on" noop)
+  ("vault take preferences with vault" "off" notify-vault-preferences-mode)
   ("vault auto load last" "off" noop)
   ("vault report missing last" "off" noop)
   ("vault explorer show on startup" "on" noop)
@@ -209,9 +272,15 @@
       (item (text "Report if last vault is unavailable:")
         (toggle (set-preference "vault report missing last" (if answer "on" "off"))
                 (equal? (get-preference "vault report missing last") "on")))
+      (item (text "Show vault welcome page on start:")
+        (toggle (set-preference "vault welcome page" (if answer "on" "off"))
+                (equal? (get-preference "vault welcome page") "on")))
       (item (text "Show vault explorer on startup:")
         (toggle (set-preference "vault explorer show on startup" (if answer "on" "off"))
                 (equal? (get-preference "vault explorer show on startup") "on")))
+      (item (text "Take preferences with vault:")
+        (toggle (set-preference "vault take preferences with vault" (if answer "on" "off"))
+                (equal? (get-preference "vault take preferences with vault") "on")))
       (item (text "Track current file in vault explorer:")
         (toggle (set-preference "vault explorer track current file" (if answer "on" "off"))
                 (equal? (get-preference "vault explorer track current file") "on")))
@@ -230,6 +299,9 @@
                         (db-path "map.tmdb"))
                    (save-object vault-file (list name db-path))
                    (vault-load dir name db-path)
+                   (if (vault-take-preferences?)
+                       (vault-preferences-activate dir vault-file
+                                                   (list name db-path)))
                    (set-message (string-append "Created vault: " name) "Vault")))
                '("Vault name" "string")))
 
@@ -238,8 +310,11 @@
     (if (url-exists? vault-file)
         (let ((data (load-object vault-file)))
           (if (and (list? data) (>= (length data) 2))
-              (begin
+              (let ((take-prefs? (vault-take-preferences?)))
+                (vault-preferences-deactivate)
                 (vault-load dir (car data) (cadr data))
+                (if take-prefs?
+                    (vault-preferences-activate dir vault-file data))
                 (add-recent-vault dir)
                 (set-message (string-append "Loaded vault: " (car data)) "Vault"))
               (set-message "Invalid Vaultfile" "Error")))
@@ -247,6 +322,15 @@
 
 (tm-define (open-vault)
   (choose-file load-vault-dir "Load Vault" "directory"))
+
+(tm-define (unload-vault)
+  (:interactive #t)
+  (if (vault-active?)
+      (begin
+        (vault-preferences-deactivate)
+        (vault-close)
+        (set-message "Unloaded vault" "Vault"))
+      (set-message "No active vault to unload" "Vault")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Recent Vaults
