@@ -35,6 +35,7 @@
 #include "tm_window.hpp"
 #include "client_server.hpp"
 #include "scheme.hpp"
+#include "ATHENA/Data/vault_maintenance.hpp"
 
 #ifdef AQUATEXMACS
 void mac_fix_paths ();
@@ -77,6 +78,7 @@ bool headless_mode= false;
 std::string aofm_debug_convert_file;
 string aofm_debug_vault_convert_source;
 string aofm_debug_vault_convert_destination;
+string vault_maintenance_dir;
 bool   aofm_ignore_nonempty_dest = false;
 int    aofm_debug_vault_convert_parallelism = 0;
 string extra_init_cmd;
@@ -355,6 +357,9 @@ set_global_options  (int argc, char** argv)  {
         i += 2;
         if (i+1 < argc && is_positive_integer_arg (string (argv[i+1]))) i++;
       }
+      else if (s == "-vault-maintenance") {
+        i++;
+      }
       else if (s == "-ignore-nonempty-dest") {
         // Handled in texmacs_entrypoint
       }
@@ -503,6 +508,7 @@ set_global_options  (int argc, char** argv)  {
         cout << "  -S         Rerun ATHENA setup program before starting\n";
         cout << "  -v         Display current ATHENA version\n";
         cout << "  -V         Show some informative messages\n";
+        cout << "  --vault-maintenance [dir]  Maintain an ATHENA vault headlessly\n";
         cout << "  -W [i] [o] Recursively convert directory into website\n";
         cout << "  -x [cmd]   Execute scheme command\n";
         cout << "  -Oc        TeX characters bitmap clipping off\n";
@@ -637,6 +643,11 @@ TeXmacs_main (int argc, char** argv) {
                                   aofm_debug_vault_convert_destination,
                                   aofm_ignore_nonempty_dest,
                                   aofm_debug_vault_convert_parallelism);
+      exit (ok ? 0 : 1);
+    }
+    if (vault_maintenance_dir != "") {
+      eval ("(lazy-initialize-force)");
+      bool ok= vault_maintenance_run (vault_maintenance_dir);
       exit (ok ? 0 : 1);
     }
 
@@ -812,6 +823,13 @@ texmacs_entrypoint (int argc, char** argv) {
           aofm_debug_vault_convert_parallelism=
             as_positive_integer_arg (string (argv[i]));
         }
+        headless_mode= true;
+      }
+    }
+    if (s == "-vault-maintenance") {
+      i++;
+      if (i < argc) {
+        vault_maintenance_dir= argv[i];
         headless_mode= true;
       }
     }

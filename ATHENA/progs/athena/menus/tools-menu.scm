@@ -43,6 +43,7 @@
   ("Quick switcher" (open-quick-switcher))
   ("Vault Explorer" (open-vault-explorer))
   ("Vault Bugcheck" (vault-bugcheck))
+  ("Vault maintenance" (vault-maintenance))
   ("Shortcuts listing" (list-all-shortcuts))
   (-> "Speech"      ("Off" (reset-preference "speech"))
       ---

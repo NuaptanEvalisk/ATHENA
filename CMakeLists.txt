@@ -472,7 +472,7 @@ set (ATHENA_Include_Dirs ${ATHENA_Include_Dirs}
 ### --------------------------------------------------------------------
 ### the main sources
 ### --------------------------------------------------------------------
-file (GLOB_RECURSE ATHENA_Base_SRCS
+file (GLOB_RECURSE ATHENA_Base_SRCS CONFIGURE_DEPENDS
   "${ATHENA_SOURCE_DIR}/src/Data/*.cpp"
   "${ATHENA_SOURCE_DIR}/src/Edit/*.cpp"
   "${ATHENA_SOURCE_DIR}/src/Graphics/*.cpp"
