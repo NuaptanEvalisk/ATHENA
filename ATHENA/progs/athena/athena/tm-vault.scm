@@ -164,6 +164,7 @@
   ("vault report missing last" "off" noop)
   ("vault explorer show on startup" "on" noop)
   ("vault explorer track current file" "off" notify-vault-explorer-track)
+  ("vault explorer use system trash" "off" noop)
   ("vault labels mode" "visible" notify-labels-mode)
   ("vault theorem color" "none" notify-enunciation-color)
   ("vault lemma color" "none" notify-enunciation-color)
@@ -213,7 +214,10 @@
                 (equal? (get-preference "vault explorer show on startup") "on")))
       (item (text "Track current file in vault explorer:")
         (toggle (set-preference "vault explorer track current file" (if answer "on" "off"))
-                (equal? (get-preference "vault explorer track current file") "on"))))))
+                (equal? (get-preference "vault explorer track current file") "on")))
+      (item (text "Use system trash for safe deletion:")
+        (toggle (set-preference "vault explorer use system trash" (if answer "on" "off"))
+                (equal? (get-preference "vault explorer use system trash") "on"))))))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

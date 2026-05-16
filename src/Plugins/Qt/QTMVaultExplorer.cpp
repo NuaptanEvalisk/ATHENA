@@ -46,6 +46,21 @@ static QTMVaultExplorer* vault_explorer_widget= nullptr;
 static ads::CDockWidget* vault_explorer_dock= nullptr;
 static ads::CDockAreaWidget* vault_explorer_area= nullptr;
 
+static bool
+vault_explorer_use_system_trash () {
+  return get_preference ("vault explorer use system trash", "off") == "on";
+}
+
+static bool
+vault_explorer_move_to_trash (const QString& path) {
+#if QT_VERSION >= QT_VERSION_CHECK(5, 15, 0)
+  return QFile::moveToTrash (path);
+#else
+  (void) path;
+  return false;
+#endif
+}
+
 static QIcon
 vault_explorer_icon (const QString& name, QStyle::StandardPixmap fallback) {
   QIcon icon= QIcon::fromTheme (name);
@@ -375,11 +390,23 @@ QTMVaultExplorer::deleteSelected () {
   QString path= selectedPath ();
   if (path == rootPath || !pathInVault (path)) return;
   QFileInfo info (path);
-  QString text= "Delete '" + info.fileName () + "'?";
+  bool useTrash= vault_explorer_use_system_trash ();
+  QString action= useTrash ? "Move to Trash" : "Delete";
+  QString text= action + " '" + info.fileName () + "'?";
   if (QMessageBox::question (this, "Delete", text,
                              QMessageBox::Yes | QMessageBox::No) !=
       QMessageBox::Yes)
     return;
+
+  if (useTrash) {
+#if QT_VERSION >= QT_VERSION_CHECK(5, 15, 0)
+    if (!vault_explorer_move_to_trash (path))
+      showError ("Could not move item to system trash.");
+#else
+    showError ("System trash requires Qt 5.15 or newer.");
+#endif
+    return;
+  }
 
   bool ok= info.isDir () ? QDir (path).removeRecursively () : QFile::remove (path);
   if (!ok) showError ("Could not delete item.");
