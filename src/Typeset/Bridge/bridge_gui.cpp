@@ -36,6 +36,8 @@ public:
 
   void my_exec_until (path p);
   bool my_typeset_will_be_complete ();
+  void typeset_ornament_stack (int desired_status,
+                               array<page_item>& l2, stack_border& sb2);
   box  typeset_ornament (int desired_status);
   void insert_ornament (box b);
 };
@@ -158,16 +160,71 @@ make_ornament_body (path ip, array<page_item> l) {
   return move_box (decorate (ip), stack_box (ip, lines_bx, lines_ht), 0, dy);
 }
 
+static bool
+contains_highlight_box (box b) {
+  tree t= (tree) b;
+  if (is_tuple (t, "highlight")) return true;
+  for (int i=0; i<b->subnr (); i++)
+    if (contains_highlight_box (b->subbox (i))) return true;
+  return false;
+}
+
+static page_item
+stack_page_items (path ip, array<page_item> l, int start, int end) {
+  int n= end - start + 1;
+  array<box> lines_bx (n);
+  array<SI> lines_ht (n);
+  for (int i=0; i<n; i++) {
+    box b= l[start + i]->b;
+    lines_bx[i]= resize_box (b->ip, b, b->x1, min (b->y1, b->y3),
+                              b->x2, max (b->y2, b->y4));
+    lines_ht[i]= l[start + i]->spc->def;
+  }
+  box b= stack_box (ip, lines_bx, lines_ht);
+  SI dy= n == 0? 0: b[0]->y2;
+  b= move_box (decorate (ip), b, 0, dy);
+  page_item last= l[end];
+  return page_item (PAGE_LINE_ITEM, b, space (0), last->penalty,
+                    last->fl, last->nr_cols, last->t);
+}
+
+static void
+group_highlight_runs (path ip, array<page_item>& l) {
+  array<page_item> r;
+  for (int i=0; i<N(l); ) {
+    if (l[i]->type != PAGE_LINE_ITEM || !contains_highlight_box (l[i]->b)) {
+      r << l[i++];
+      continue;
+    }
+    int start= i;
+    while (i+1<N(l) && l[i+1]->type == PAGE_LINE_ITEM &&
+           contains_highlight_box (l[i+1]->b))
+      i++;
+    if (i == start) r << l[start];
+    else r << stack_page_items (ip, l, start, i);
+    i++;
+  }
+  l= r;
+}
+
 box
 bridge_ornamented_rep::typeset_ornament (int desired_status) {
+  array<page_item> l2;
+  stack_border sb2;
+  typeset_ornament_stack (desired_status, l2, sb2);
+  return make_ornament_body (ip, l2);
+}
+
+void
+bridge_ornamented_rep::typeset_ornament_stack (
+  int desired_status, array<page_item>& l2, stack_border& sb2)
+{
   int i;
   tree old (TUPLE, N(with));
   for (i=0; i<N(with)-1; i+=2) {
     old[i+1]= env->read (with[i]->label);
     env->write_update (with[i]->label, with[i+1]);
   }
-  array<page_item> l2;
-  stack_border sb2;
   array<line_item> a2, b2;
   ttt->local_start (l2, sb2);
   a2= ttt->a; b2= ttt->b;
@@ -177,7 +234,6 @@ bridge_ornamented_rep::typeset_ornament (int desired_status) {
   ttt->local_end (l2, sb2);
   for (i-=2; i>=0; i-=2)
     env->write_update (with[i]->label, old[i+1]);
-  return make_ornament_body (ip, l2);
 }
 
 void
@@ -267,12 +323,65 @@ bridge_ornament_rep::my_typeset (int desired_status) {
   SI   r = env->get_length (PAR_RIGHT) + ps->rpad;
   with   = tuple (PAR_LEFT , tree (TMLEN, as_string (l))) *
            tuple (PAR_RIGHT, tree (TMLEN, as_string (r)));
-  box  b = typeset_ornament (desired_status);
   box  xb;
   if (N(st) == 2) xb= typeset_as_concat (env, st[1], descend (ip, 1));
-  box  hb= highlight_box (ip, b, xb, ps);
-  box  mb= move_box (decorate (ip), hb, -l, 0);
-  insert_ornament (remember_box (decorate (ip), mb));
+
+  array<page_item> l2;
+  stack_border sb2;
+  typeset_ornament_stack (desired_status, l2, sb2);
+  group_highlight_runs (ip, l2);
+  SI body_w, d1, d2, d3, d4, d5, d6, d7;
+  env->get_page_pars (body_w, d1, d2, d3, d4, d5, d6, d7);
+  SI body_x1= l;
+  SI body_x2= max (body_x1, body_w - r);
+
+  int first= -1, last= -1;
+  for (int i=0; i<N(l2); i++)
+    if (l2[i]->type == PAGE_LINE_ITEM) {
+      if (first < 0) first= i;
+      last= i;
+    }
+  if (first < 0) {
+    box b = make_ornament_body (ip, l2);
+    box hb= highlight_box (ip, b, xb, ps);
+    box mb= move_box (decorate (ip), hb, -l, 0);
+    insert_ornament (remember_box (decorate (ip), mb));
+    return;
+  }
+  for (int i=first; i<=last; i++)
+    if (l2[i]->type == PAGE_LINE_ITEM) {
+      body_x1= min (body_x1, l2[i]->b->x1);
+      body_x2= max (body_x2, l2[i]->b->x2);
+    }
+
+  for (int i=first; i<=last; i++)
+    if (l2[i]->type == PAGE_LINE_ITEM) {
+      page_item item= copy (l2[i]);
+      ornament_parameters ps_i= copy (ps);
+      box xb_i= (i == first? xb: box ());
+      if (i != first) {
+        ps_i->tw= 0;
+        ps_i->text= 0.0;
+        ps_i->tpad= 0;
+        ps_i->tcor= 0;
+      }
+      if (i != last) {
+        ps_i->bw= 0;
+        ps_i->bext= 0.0;
+        ps_i->bpad += item->spc->def;
+        ps_i->bcor= 0;
+        item->spc= space (0);
+      }
+      SI body_y1= min (item->b->y1, env->fn->y1);
+      SI body_y2= max (item->b->y2, env->fn->y2);
+      box rb= resize_box (item->b->ip, item->b,
+                          body_x1, body_y1, body_x2, body_y2);
+      box hb= highlight_box (ip, rb, xb_i, ps_i);
+      box mb= move_box (decorate (ip), hb, -l, 0);
+      item->b= remember_box (decorate (ip), mb);
+      l2[i]= item;
+    }
+  ttt->insert_stack (l2, sb2);
 }
 
 /******************************************************************************

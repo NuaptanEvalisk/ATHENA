@@ -167,6 +167,53 @@ EXTEND_NULL(lazy,lazy_ornament);
 };
 EXTEND_NULL_CODE(lazy,lazy_ornament);
 
+static bool
+contains_highlight_box (box b) {
+  tree t= (tree) b;
+  if (is_tuple (t, "highlight")) return true;
+  for (int i=0; i<b->subnr (); i++)
+    if (contains_highlight_box (b->subbox (i))) return true;
+  return false;
+}
+
+static page_item
+stack_page_items (path ip, array<page_item> l, int start, int end) {
+  int n= end - start + 1;
+  array<box> lines_bx (n);
+  array<SI> lines_ht (n);
+  for (int i=0; i<n; i++) {
+    box b= l[start + i]->b;
+    lines_bx[i]= resize_box (b->ip, b, b->x1, min (b->y1, b->y3),
+                              b->x2, max (b->y2, b->y4));
+    lines_ht[i]= l[start + i]->spc->def;
+  }
+  box b= stack_box (ip, lines_bx, lines_ht);
+  SI dy= n == 0? 0: b[0]->y2;
+  b= move_box (decorate (ip), b, 0, dy);
+  page_item last= l[end];
+  return page_item (PAGE_LINE_ITEM, b, space (0), last->penalty,
+                    last->fl, last->nr_cols, last->t);
+}
+
+static void
+group_highlight_runs (path ip, array<page_item>& l) {
+  array<page_item> r;
+  for (int i=0; i<N(l); ) {
+    if (l[i]->type != PAGE_LINE_ITEM || !contains_highlight_box (l[i]->b)) {
+      r << l[i++];
+      continue;
+    }
+    int start= i;
+    while (i+1<N(l) && l[i+1]->type == PAGE_LINE_ITEM &&
+           contains_highlight_box (l[i+1]->b))
+      i++;
+    if (i == start) r << l[start];
+    else r << stack_page_items (ip, l, start, i);
+    i++;
+  }
+  l= r;
+}
+
 format
 lazy_ornament_rep::query (lazy_type request, format fm) {
   if ((request == LAZY_BOX) && (fm->type == QUERY_VSTREAM_WIDTH)) {
@@ -181,29 +228,80 @@ lazy_ornament_rep::query (lazy_type request, format fm) {
 lazy
 lazy_ornament_rep::produce (lazy_type request, format fm) {
   if (request == type) return this;
-  if (request == LAZY_VSTREAM || request == LAZY_BOX) {
-    format bfm= fm;
-    if (request == LAZY_VSTREAM) {
-      format_vstream fvs= (format_vstream) fm;
-      SI dw= ps->lpad + ps->rpad;
-      bfm= make_format_width (fvs->width - dw);
+  if (request == LAZY_VSTREAM && fm->type == FORMAT_VSTREAM) {
+    format_vstream fvs= (format_vstream) fm;
+    SI dw= ps->lpad + ps->rpad;
+    format bfm= make_format_vstream (fvs->width - dw, fvs->before, fvs->after);
+    lazy body= par->produce (LAZY_VSTREAM, bfm);
+    lazy_vstream body_vs= (lazy_vstream) body;
+    array<page_item> l= body_vs->l;
+    group_highlight_runs (ip, l);
+    SI body_x1= 0;
+    SI body_x2= max (body_x1, fvs->width - dw);
+
+    int first= -1, last= -1;
+    for (int i=0; i<N(l); i++)
+      if (l[i]->type == PAGE_LINE_ITEM) {
+        if (first < 0) first= i;
+        last= i;
+      }
+    if (first < 0) {
+      box b = (box) par->produce (LAZY_BOX, make_format_width (fvs->width - dw));
+      box hb= highlight_box (ip, b, xb, ps);
+      hb= surround (env, hb, ip, fvs->before, fvs->after, bfm);
+      array<page_item> empty_l;
+      empty_l << page_item (hb);
+      return lazy_vstream (ip, "", empty_l, stack_border ());
     }
+    for (int i=first; i<=last; i++)
+      if (l[i]->type == PAGE_LINE_ITEM) {
+        body_x1= min (body_x1, l[i]->b->x1);
+        body_x2= max (body_x2, l[i]->b->x2);
+      }
+
+    for (int i=first; i<=last; i++)
+      if (l[i]->type == PAGE_LINE_ITEM) {
+        page_item item= copy (l[i]);
+        ornament_parameters ps_i= copy (ps);
+        box xb_i= (i == first? xb: box ());
+        if (i != first) {
+          ps_i->tw= 0;
+          ps_i->text= 0.0;
+          ps_i->tpad= 0;
+          ps_i->tcor= 0;
+        }
+        if (i != last) {
+          ps_i->bw= 0;
+          ps_i->bext= 0.0;
+          ps_i->bpad += item->spc->def;
+          ps_i->bcor= 0;
+          item->spc= space (0);
+        }
+        SI body_y1= min (item->b->y1, env->fn->y1);
+        SI body_y2= max (item->b->y2, env->fn->y2);
+        box rb= resize_box (item->b->ip, item->b,
+                            body_x1, body_y1, body_x2, body_y2);
+        item->b= highlight_box (ip, rb, xb_i, ps_i);
+        l[i]= item;
+      }
+    return lazy_vstream (ip, "", l, body_vs->sb);
+  }
+  if (request == LAZY_VSTREAM) {
+    box b = (box) par->produce (LAZY_BOX, fm);
+    box hb= highlight_box (ip, b, xb, ps);
+    array<page_item> l;
+    l << page_item (hb);
+    return lazy_vstream (ip, "", l, stack_border ());
+  }
+  if (request == LAZY_BOX) {
+    format bfm= fm;
     box b = (box) par->produce (LAZY_BOX, bfm);
     box hb= highlight_box (ip, b, xb, ps);
     // FIXME: this dirty hack ensures that shoving is correct
     hb= move_box (decorate (ip), hb, 1, 0);
     hb= move_box (decorate (ip), hb, -1, 0);
     // End dirty hack
-    if (fm->type == FORMAT_VSTREAM) {
-      format_vstream fs= (format_vstream) fm;
-      hb= surround (env, hb, ip, fs->before, fs->after, bfm);
-    }
-    if (request == LAZY_BOX) return make_lazy_box (hb);
-    else {
-      array<page_item> l;
-      l << page_item (hb);
-      return lazy_vstream (ip, "", l, stack_border ());
-    }
+    return make_lazy_box (hb);
   }
   return lazy_rep::produce (request, fm);
 }
