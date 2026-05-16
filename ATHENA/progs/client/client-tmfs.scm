@@ -169,7 +169,7 @@
 
 (tm-define (remote-file-browser-document doc)
   `(document
-     (TeXmacs ,(texmacs-version))
+     (TeXmacs ,(texmacs-compat-version))
      (style (tuple "generic" "remote-file-browser"))
      (body ,doc)))
 

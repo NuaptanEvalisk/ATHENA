@@ -67,7 +67,7 @@
 
 (define (chat-document doc)
   `(document
-     (TeXmacs ,(texmacs-version))
+     (TeXmacs ,(texmacs-compat-version))
      (style (tuple "generic" "chat-room"))
      (body ,doc)))
 

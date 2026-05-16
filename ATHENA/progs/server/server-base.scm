@@ -576,7 +576,7 @@
 
 (define (generic-document doc)
   `(document
-     (TeXmacs ,(texmacs-version))
+     (TeXmacs ,(texmacs-compat-version))
      (style (tuple "generic"))
      (body ,doc)))
 

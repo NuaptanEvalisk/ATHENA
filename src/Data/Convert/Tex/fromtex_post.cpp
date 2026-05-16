@@ -2501,7 +2501,7 @@ latex_to_tree (tree t0, bool not_document) {
   // cout << "\n\nt15= " << t15 << "\n\n";
   
   if (is_document) {
-    tree the_version= compound ("TeXmacs", ATHENA_VERSION);
+    tree the_version= compound ("TeXmacs", TEXMACS_COMPAT_VERSION);
     tree the_style  = compound ("style", tuple (style));
     tree the_body   = compound ("body", t15);
     if (textm_natbib)

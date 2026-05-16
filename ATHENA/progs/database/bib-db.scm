@@ -439,7 +439,7 @@
   (let* ((t (bibtex->texmacs (parse-bibtex-document s)))
          (doc (bib->db* t))
          (tm (if (tmfile-extract doc 'TeXmacs) (list)
-                 (list `(TeXmacs ,(texmacs-version)))))
+                 (list `(TeXmacs ,(texmacs-compat-version)))))
          (body (tmfile-extract doc 'body))
          (att `(collection (associate "bibtex-source" ,s)
                            (associate "bibtex-target" ,body))))

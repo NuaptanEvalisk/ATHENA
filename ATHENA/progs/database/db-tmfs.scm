@@ -107,7 +107,7 @@
          (l (get-db-fields a kind))
          (l* (if (null? l) (list "") l)))
     `(document
-       (TeXmacs ,(texmacs-version))
+       (TeXmacs ,(texmacs-compat-version))
        (style (tuple ,(db-get-style kind)))
        (body (document ,@l*)))))
 

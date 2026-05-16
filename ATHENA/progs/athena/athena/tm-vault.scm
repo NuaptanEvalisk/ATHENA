@@ -334,7 +334,7 @@
 (define (vault-empty-ath-document)
   (stree->tree
    `(document
-      (TeXmacs ,(texmacs-version))
+      (TeXmacs ,(texmacs-compat-version))
       (style (tuple "generic"))
       (body (document "")))))
 
@@ -888,7 +888,7 @@
                                       (display* "  Jumping to label " a-end "\n")
                                       (delayed (:idle 100) (go-to-label a-end))))
                                 (display* "  Navigation complete.\n")))
-                `(document (TeXmacs ,(texmacs-version)) 
+                `(document (TeXmacs ,(texmacs-compat-version)) 
                            (style (tuple "generic")) 
                            (body (document "Redirecting..."))))
               (begin
@@ -904,7 +904,7 @@
          (latest-vault (if (pair? recent-vaults) (car recent-vaults) #f)))
     (tm->stree
       `(document
-         (TeXmacs ,(texmacs-version))
+         (TeXmacs ,(texmacs-compat-version))
          (style (tuple "generic"))
          (body (document
            (with "par-mode" "center"
@@ -953,7 +953,7 @@
 (define (wikilink-trigger-repair uuid file-hint anchor-hint)
   (display* "Trigger repair for " uuid ", hint: " file-hint "\n")
   (if (string-null? file-hint)
-      `(document (TeXmacs ,(texmacs-version)) (style (tuple "generic")) (body (document (bold "Error: ") "Broken Wikilink and no file hint provided.")))
+      `(document (TeXmacs ,(texmacs-compat-version)) (style (tuple "generic")) (body (document (bold "Error: ") "Broken Wikilink and no file hint provided.")))
       (begin
         (system-wait "Searching vault" (string-append "for " file-hint))
         (let* ((limit (get-fuzzy-limit))
@@ -970,14 +970,14 @@
           (if (null? candidates)
               (begin
                 (display* "  No candidates, returning error page\n")
-                `(document (TeXmacs ,(texmacs-version)) (style (tuple "generic")) (body (document (bold "Error: ") "Could not find any matches for: " ,file-hint))))
+                `(document (TeXmacs ,(texmacs-compat-version)) (style (tuple "generic")) (body (document (bold "Error: ") "Could not find any matches for: " ,file-hint))))
               (begin
                 (display* "  Returning repair page with " (length candidates) " items\n")
                 (wikilink-repair-page uuid file-hint anchor-hint (reverse candidates))))))))
 
 (define (wikilink-repair-page uuid f-hint a-hint candidates)
   `(document
-     (TeXmacs ,(texmacs-version))
+     (TeXmacs ,(texmacs-compat-version))
      (style (tuple "generic"))
      (body (document
        (section "Repair Wikilink")

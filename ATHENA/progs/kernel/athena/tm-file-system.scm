@@ -306,7 +306,7 @@
 
 (tmfs-load-handler (id what)
   `(document
-     (TeXmacs ,(texmacs-version))
+     (TeXmacs ,(texmacs-compat-version))
      (style (tuple "generic"))
      (body (document ,what))))
 
@@ -317,7 +317,7 @@
 (tmfs-handler #t 'load
   (lambda (name)
     `(document
-       (TeXmacs ,(texmacs-version))
+       (TeXmacs ,(texmacs-compat-version))
        (style (tuple "generic"))
        (body (document "Invalid tmfs document.")))))
 
@@ -370,7 +370,7 @@
 (tmfs-load-handler (aux name)
   (or (ahash-ref aux-buffers name)
       `(document
-         (TeXmacs ,(texmacs-version))
+         (TeXmacs ,(texmacs-compat-version))
          (style (tuple "generic"))
          (body (document "")))))
 
@@ -402,7 +402,7 @@
   (with doc (tm->stree t)
     (if (and (tm-func? doc 'document)
              (not (tm-func? (tm-ref doc 0) 'TeXmacs)))
-        `(document (TeXmacs ,(texmacs-version)) ,@(cdr doc))
+        `(document (TeXmacs ,(texmacs-compat-version)) ,@(cdr doc))
         doc)))
 
 (tmfs-load-handler (import name)
@@ -411,7 +411,7 @@
              (u (tmfs-string->url (tmfs-cdr name))))
         (tmfs-document (tree-import u fm)))
       `(document
-         (TeXmacs ,(texmacs-version))
+         (TeXmacs ,(texmacs-compat-version))
          (style (tuple "generic"))
          (body (document "")))))
 

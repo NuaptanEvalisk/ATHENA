@@ -136,7 +136,7 @@
 	 (l (biblio-entries f b)))
     (if (null? l) (set! l (list "")))
     `(document
-       (TeXmacs ,(texmacs-version))
+       (TeXmacs ,(texmacs-compat-version))
        (style (tuple "database-bib"))
        (body (document ,@l)))))
 

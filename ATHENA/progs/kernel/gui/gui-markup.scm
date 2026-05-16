@@ -579,7 +579,7 @@
 (tm-define-macro ($generic . l)
   ($quote
    `(document
-      (TeXmacs ,(texmacs-version))
+      (TeXmacs ,(texmacs-compat-version))
       (style (tuple "generic"))
       (body ($unquote ($block ,@l))))))
 
@@ -587,7 +587,7 @@
   (with lan (get-output-language)
     ($quote
       `(document
-         (TeXmacs ,(texmacs-version))
+         (TeXmacs ,(texmacs-compat-version))
          (style (tuple "tmdoc" ,lan))
          (body ($unquote ($block ,@l)))))))
 

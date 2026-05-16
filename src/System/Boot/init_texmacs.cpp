@@ -465,7 +465,7 @@ setup_athena () {
   debug_boot << "Welcome to ATHENA " ATHENA_APP_VERSION "\n";
   debug_boot << HRULE;
 
-  set_setting ("VERSION", ATHENA_VERSION);
+  set_setting ("VERSION", TEXMACS_COMPAT_VERSION);
   setup_tex ();
 
   string s= scheme_tree_to_block (athena_settings);
@@ -533,7 +533,7 @@ init_plugins () {
   }
   else athena_settings= block_to_scheme_tree (s);
 
-  if (get_setting ("VERSION") != ATHENA_VERSION) {
+  if (get_setting ("VERSION") != TEXMACS_COMPAT_VERSION) {
     init_upgrade ();
     url ch ("$ATHENA_HOME_PATH/doc/about/changes/changes-recent.en.tm");
     install_status= exists (ch)? 2: 0;

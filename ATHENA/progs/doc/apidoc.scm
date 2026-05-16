@@ -66,7 +66,7 @@
   (with lan (get-output-language)
     ($quote
       `(document
-         (TeXmacs ,(texmacs-version))
+         (TeXmacs ,(texmacs-compat-version))
          (style (tuple "tmdoc" "scheme-api" ,lan))
          (body ($unquote ($block ,@l)))))))
 

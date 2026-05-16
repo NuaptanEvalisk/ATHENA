@@ -162,7 +162,7 @@
 	 (defs (extract-macro-definitions))
 	 (body `(document ,tit ,@packs ,@inits ,@defs))
 	 (doc `(document
-		 (TeXmacs ,(texmacs-version))
+		 (TeXmacs ,(texmacs-compat-version))
 		 (style (tuple "source"))
 		 (body ,body))))
     (new-buffer)

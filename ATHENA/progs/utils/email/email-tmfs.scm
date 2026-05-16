@@ -109,7 +109,7 @@
          (d `(document ,@(paragraphs h) ,@(paragraphs b))))
     ;;(display* "document= " d "\n")
     `(document
-       (TeXmacs ,(texmacs-version))
+       (TeXmacs ,(texmacs-compat-version))
        (style (tuple "email"))
        (body ,d))))
 

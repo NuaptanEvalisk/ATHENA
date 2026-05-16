@@ -203,7 +203,7 @@
         (set-message err "list of live documents")))
     (set-message "loading..." "list of live documents")
     `(document
-       (TeXmacs ,(texmacs-version))
+       (TeXmacs ,(texmacs-compat-version))
        (style (tuple "generic" "remote-file-browser"))
        (body (document "")))))
 
@@ -251,7 +251,7 @@
 (tmfs-load-handler (live fname)
   (with lid (string-append "tmfs://live/" fname)
     `(document
-       (TeXmacs ,(texmacs-version))
+       (TeXmacs ,(texmacs-compat-version))
        (style (tuple "generic" "live-document"))
        (body (document
                (live-io* ,(get-live-vid lid) ,lid (document "")))))))

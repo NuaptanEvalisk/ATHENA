@@ -137,7 +137,7 @@ init_upgrade () {
   debug_boot << "Your disk contains a configuration file for TeXmacs-";
   debug_boot << install_version << ".\n";
   debug_boot << "I will now perform the upgrade to version ";
-  debug_boot << ATHENA_VERSION <<"\n";
+  debug_boot << TEXMACS_COMPAT_VERSION <<"\n";
   debug_boot << HRULE;
 
   url old_settings= "$ATHENA_HOME_PATH/system" * url_wildcard ("TEX_PATHS*");

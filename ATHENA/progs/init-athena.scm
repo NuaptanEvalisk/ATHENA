@@ -21,6 +21,9 @@
 (define boot-start (athena-time))
 (define remote-client-list (list))
 
+(if (not (defined? 'texmacs-compat-version))
+    (define-public (texmacs-compat-version) "2.1.4"))
+
 (define developer-mode?
   (equal? (cpp-get-preference "developer tool" "off") "on"))
 

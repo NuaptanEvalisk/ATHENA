@@ -457,7 +457,7 @@
         (if (url-exists? u) (system-remove u))
         (let* ((body `(document ,@l))
                (doc `(document
-                       (TeXmacs ,(texmacs-version))
+                       (TeXmacs ,(texmacs-compat-version))
                        (style "generic")
                        (body ,body)))
                (t (stree->tree doc))

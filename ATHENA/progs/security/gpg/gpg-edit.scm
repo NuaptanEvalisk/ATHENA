@@ -516,7 +516,7 @@
       (with enc (gpg-passphrase-encrypt dec passphrase)
 	(if enc
 	    (stree->tree
-	     `(document (TeXmacs ,(texmacs-version))
+	     `(document (TeXmacs ,(texmacs-compat-version))
 			(style (tuple "generic"))
 			(body (document
 				(gpg-passphrase-encrypted-buffer ,enc)))))

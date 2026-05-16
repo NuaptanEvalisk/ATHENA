@@ -88,7 +88,7 @@
            ;;   (display* "---------------------------\n")))
            (new-body (conservative-bib-import old-s old-body new-s))
            ;;(d2 (display* "new-body= " (tm->stree new-body) "\n"))
-           (new-t `(document (TeXmacs ,(texmacs-version))
+           (new-t `(document (TeXmacs ,(texmacs-compat-version))
                              (style "database-bib")
                              (body ,new-body)))
            (new-doc (convert new-t "texmacs-stree" "texmacs-document")))
