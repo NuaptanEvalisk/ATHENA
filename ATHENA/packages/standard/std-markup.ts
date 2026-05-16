@@ -34,6 +34,28 @@
 
   <assign|TeXmacs-version|<macro|<extern|texmacs-version>>>
 
+  <assign|texmacs-version|<macro|<extern|texmacs-version>>>
+
+  <assign|TeXmacs-build-user|<macro|<extern|texmacs-build-user>>>
+
+  <assign|texmacs-build-user|<macro|<extern|texmacs-build-user>>>
+
+  <assign|TeXmacs-build-date|<macro|<extern|texmacs-build-date>>>
+
+  <assign|texmacs-build-date|<macro|<extern|texmacs-build-date>>>
+
+  <assign|TeXmacs-host-os|<macro|<extern|texmacs-host-os>>>
+
+  <assign|texmacs-host-os|<macro|<extern|texmacs-host-os>>>
+
+  <assign|TeXmacs-host-vendor|<macro|<extern|texmacs-host-vendor>>>
+
+  <assign|texmacs-host-vendor|<macro|<extern|texmacs-host-vendor>>>
+
+  <assign|TeXmacs-host-cpu|<macro|<extern|texmacs-host-cpu>>>
+
+  <assign|texmacs-host-cpu|<macro|<extern|texmacs-host-cpu>>>
+
   <assign|TeXmacs-version-release|<macro|type|<extern|texmacs-version-release*|<quote-arg|type>>>>
 
   <assign|made-by-TeXmacs|<macro|<float|footnote||<with|font-size|0.84|par-mode|justify|par-left|0cm|par-right|0cm|<localize|This

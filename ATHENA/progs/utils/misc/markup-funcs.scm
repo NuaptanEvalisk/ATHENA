@@ -21,6 +21,26 @@
   (:secure #t)
   (texmacs-version-release (tree->string t)))
 
+(tm-define (texmacs-build-user*)
+  (:secure #t)
+  (texmacs-build-user))
+
+(tm-define (texmacs-build-date*)
+  (:secure #t)
+  (texmacs-build-date))
+
+(tm-define (texmacs-host-os*)
+  (:secure #t)
+  (texmacs-host-os))
+
+(tm-define (texmacs-host-vendor*)
+  (:secure #t)
+  (texmacs-host-vendor))
+
+(tm-define (texmacs-host-cpu*)
+  (:secure #t)
+  (texmacs-host-cpu))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Map
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

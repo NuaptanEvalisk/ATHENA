@@ -34,6 +34,8 @@
   cdaaar cdaadr cdadar cdaddr cddaar cddadr cdddar cddddr
   cons list append length reverse
   texmacs-version texmacs-version-release*
+  texmacs-build-user texmacs-build-date texmacs-host-os
+  texmacs-host-vendor texmacs-host-cpu texmacs-build-info
   display display*
   refresh-now)
 
