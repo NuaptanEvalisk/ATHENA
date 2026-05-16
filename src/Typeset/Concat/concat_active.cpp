@@ -28,11 +28,23 @@ concater_rep::typeset_if (tree t, path ip) {
   // This method must be kept consistent with edit_env_rep::exec(tree)
   // in ../Env/env_exec.cpp
   if ((N(t)!=2) && (N(t)!=3)) {
+    cout << "ATHENA] macro error: bad if while typesetting active markup\n"
+         << "ATHENA]   reason: expected 2 or 3 arguments, got " << N(t) << "\n"
+         << "ATHENA]   source tree: " << tree_to_scheme (t) << "\n"
+         << "ATHENA]   typeset path: " << as_string (ip) << "\n"
+         << "ATHENA]   source path: " << as_string (obtain_ip (t)) << "\n";
     typeset_executable (t, ip);
     return;
   }
   tree tt= env->exec (t[0]);
   if (is_compound (tt) || ! is_bool (tt->label)) {
+    cout << "ATHENA] macro error: bad if while typesetting active markup\n"
+         << "ATHENA]   reason: condition did not evaluate to a boolean atom\n"
+         << "ATHENA]   condition source: " << tree_to_scheme (t[0]) << "\n"
+         << "ATHENA]   condition result: " << tree_to_scheme (tt) << "\n"
+         << "ATHENA]   source tree: " << tree_to_scheme (t) << "\n"
+         << "ATHENA]   typeset path: " << as_string (ip) << "\n"
+         << "ATHENA]   source path: " << as_string (obtain_ip (t)) << "\n";
     typeset_executable (t, ip);
     return;
   }

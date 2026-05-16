@@ -24,9 +24,23 @@ tree load_inclusion (url u); // implemented in tm_file.cpp
 
 tree
 evaluate_if (tree t) {
-  if (N(t) != 2 && N(t) != 3) return evaluate_error ("bad if");
+  if (N(t) != 2 && N(t) != 3) {
+    cout << "ATHENA] macro error: bad if in style evaluator\n"
+         << "ATHENA]   reason: expected 2 or 3 arguments, got " << N(t) << "\n"
+         << "ATHENA]   source tree: " << tree_to_scheme (t) << "\n"
+         << "ATHENA]   source path: " << as_string (obtain_ip (t)) << "\n";
+    return evaluate_error ("bad if");
+  }
   tree u= evaluate (t[0]);
-  if (!is_bool (u)) return evaluate_error ("bad if");
+  if (!is_bool (u)) {
+    cout << "ATHENA] macro error: bad if in style evaluator\n"
+         << "ATHENA]   reason: condition did not evaluate to a boolean\n"
+         << "ATHENA]   condition source: " << tree_to_scheme (t[0]) << "\n"
+         << "ATHENA]   condition result: " << tree_to_scheme (u) << "\n"
+         << "ATHENA]   source tree: " << tree_to_scheme (t) << "\n"
+         << "ATHENA]   source path: " << as_string (obtain_ip (t)) << "\n";
+    return evaluate_error ("bad if");
+  }
   if (as_bool (u)) return evaluate (t[1]);
   if (N(t)==3) return evaluate (t[2]);
   return "";

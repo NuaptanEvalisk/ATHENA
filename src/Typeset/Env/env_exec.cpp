@@ -1130,10 +1130,23 @@ edit_env_rep::exec_if (tree t) {
   // This case must be kept consistent with
   // concater_rep::typeset_if(tree, path)
   // in ../Concat/concat_active.cpp
-  if ((N(t)!=2) && (N(t)!=3)) return tree (_ERROR, "bad if");
-  tree tt= exec (t[0]);
-  if (is_compound (tt) || !is_bool (tt->label))
+  if ((N(t)!=2) && (N(t)!=3)) {
+    cout << "ATHENA] macro error: bad if in environment executor\n"
+         << "ATHENA]   reason: expected 2 or 3 arguments, got " << N(t) << "\n"
+         << "ATHENA]   source tree: " << tree_to_scheme (t) << "\n"
+         << "ATHENA]   source path: " << as_string (obtain_ip (t)) << "\n";
     return tree (_ERROR, "bad if");
+  }
+  tree tt= exec (t[0]);
+  if (is_compound (tt) || !is_bool (tt->label)) {
+    cout << "ATHENA] macro error: bad if in environment executor\n"
+         << "ATHENA]   reason: condition did not evaluate to a boolean atom\n"
+         << "ATHENA]   condition source: " << tree_to_scheme (t[0]) << "\n"
+         << "ATHENA]   condition result: " << tree_to_scheme (tt) << "\n"
+         << "ATHENA]   source tree: " << tree_to_scheme (t) << "\n"
+         << "ATHENA]   source path: " << as_string (obtain_ip (t)) << "\n";
+    return tree (_ERROR, "bad if");
+  }
   if (as_bool (tt->label)) return exec (t[1]);
   if (N(t)==3) return exec (t[2]);
   return "";

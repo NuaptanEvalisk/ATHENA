@@ -96,6 +96,11 @@ cache_file_name (tree t) {
   }
 }
 
+static string
+style_cache_file_name (tree style) {
+  return "__athena-style-cache-v2__" * cache_file_name (style);
+}
+
 void
 style_invalidate_cache () {
   style_tree_cache= hashmap<string,tree> ();
@@ -114,7 +119,7 @@ style_set_cache (tree style, hashmap<string,tree> H, tree t) {
   // cout << "set cache " << style << LF;
   sd->style_cache (copy (style))= H;
   sd->style_drd   (copy (style))= t;
-  url name ("$ATHENA_HOME_PATH/system/cache", cache_file_name (style));
+  url name ("$ATHENA_HOME_PATH/system/cache", style_cache_file_name (style));
   if (!exists (name)) {
     save_string (name, tree_to_scheme (tuple ((tree) H, t)));
     // cout << "saved " << name << LF;
@@ -133,7 +138,7 @@ style_get_cache (tree style, hashmap<string,tree>& H, tree& t, bool& f) {
   }
   else {
     string s;
-    url name ("$ATHENA_HOME_PATH/system/cache", cache_file_name (style));
+    url name ("$ATHENA_HOME_PATH/system/cache", style_cache_file_name (style));
     if (exists (name) && (!load_string (name, s, false))) {
       //cout << "loaded " << name << LF;
       tree p= scheme_to_tree (s);
