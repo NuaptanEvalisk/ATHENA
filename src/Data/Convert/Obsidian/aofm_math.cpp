@@ -47,6 +47,18 @@ normalize_latex_math_source(const std::string& source) {
       out += "\\longminus";
       i = command_end;
     }
+    else if (source.compare(command_start, command_end - command_start,
+                            "left") == 0 &&
+             command_end < source.size() && source[command_end] == '<') {
+      out += "\\left\\langle ";
+      i = command_end + 1;
+    }
+    else if (source.compare(command_start, command_end - command_start,
+                            "right") == 0 &&
+             command_end < source.size() && source[command_end] == '>') {
+      out += "\\right\\rangle ";
+      i = command_end + 1;
+    }
     else {
       out.append(source, i, command_end - i);
       i = command_end;
