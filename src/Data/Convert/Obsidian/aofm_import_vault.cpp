@@ -77,6 +77,7 @@ enum class BlockKind {
   NONE,
   PARAGRAPH,
   CALLOUT,
+  PROOF,
   HEADING
 };
 
@@ -462,6 +463,30 @@ is_theorem_like_tree(const tree& t) {
 }
 
 bool
+can_own_separated_proof_tree(const tree& t) {
+  if (is_theorem_like_tree(t)) return true;
+  if (!is_compound(t)) return false;
+  std::string tag = std::string(as_charp(as_string(L(t))));
+  return tag == "question";
+}
+
+bool
+is_separated_proof_tree(const tree& t) {
+  if (!is_compound(t)) return false;
+  std::string tag = std::string(as_charp(as_string(L(t))));
+  return tag == "proof" || tag == "proof-alternative" ||
+         tag == "proof-standard";
+}
+
+std::string
+separated_proof_label_prefix(const tree& t) {
+  if (!is_compound(t)) return "proof";
+  std::string tag = std::string(as_charp(as_string(L(t))));
+  if (tag == "proof-alternative" || tag == "proof-standard") return tag;
+  return "proof";
+}
+
+bool
 is_aofm_wikilink_placeholder(const tree& t) {
   return is_compound(t, "__aofm_wikilink", 3);
 }
@@ -837,17 +862,19 @@ resolve_anchor_placeholders(const tree& t, const AnchorMap& anchor_map,
           append_document(out, make_label_tree(info->anchor_2));
 
           // Dual-Wrap logic for separated proofs
-          if (is_theorem_like_tree(previous) && i + 1 < N(t) && is_compound(t[i + 1], "proof")) {
+          if (can_own_separated_proof_tree(previous) &&
+              i + 1 < N(t) && is_separated_proof_tree(t[i + 1])) {
             std::string t_label1 = info->anchor_1;
             std::string t_label2 = info->anchor_2;
+            std::string proof_prefix = separated_proof_label_prefix(t[i + 1]);
 
-            auto derive_proof_label = [](const std::string& l) {
+            auto derive_proof_label = [&](const std::string& l) {
               size_t colon = l.find(':');
               std::string suffix = (colon == std::string::npos ? l : l.substr(colon + 1));
               // Ensure we remove the trailing ' {' or ' }' if they are part of the string
               size_t space = suffix.find_last_not_of(" {}");
               if (space != std::string::npos) suffix = suffix.substr(0, space + 1);
-              return "proof:" + suffix;
+              return proof_prefix + ":" + suffix;
             };
 
             append_document(out, make_label_tree(derive_proof_label(t_label1) + " {"));
@@ -1288,6 +1315,107 @@ make_paragraph_anchor_pair(const std::vector<std::string>& lines) {
   return std::make_pair(sample + " {", sample + " }");
 }
 
+bool
+extract_bold_proof_marker_line(const std::string& raw,
+                               std::string& tag,
+                               std::string& body) {
+  std::string line = trim_copy(strip_trailing_newlines(raw));
+  struct Marker {
+    const char* text;
+    const char* tag;
+  };
+  static const Marker kMarkers[] = {
+      {"**Proof (Alternative):**", "proof-alternative"},
+      {"**Proof (Alternative)：**", "proof-alternative"},
+      {"**Proof:**", "proof"},
+      {"**Proof：**", "proof"},
+      {"**Solution:**", "proof"},
+      {"**Solution：**", "proof"},
+      {"**证明:**", "proof"},
+      {"**证明：**", "proof"},
+      {"**解:**", "proof"},
+      {"**解：**", "proof"}
+  };
+
+  for (const Marker& marker : kMarkers) {
+    std::string prefix = marker.text;
+    if (line.compare(0, prefix.size(), prefix) != 0) continue;
+    if (line.size() > prefix.size() &&
+        line[prefix.size()] != ' ' &&
+        line[prefix.size()] != '\t' &&
+        line[prefix.size()] != '\r' &&
+        line[prefix.size()] != '\n') {
+      continue;
+    }
+    tag = marker.tag;
+    body = trim_copy(line.substr(prefix.size()));
+    return true;
+  }
+  return false;
+}
+
+bool
+line_closes_isolated_proof(const std::string& raw) {
+  std::string trimmed = trim_copy(strip_trailing_newlines(raw));
+  static const char* kSuffixes[] = {
+      "$\\blacksquare$",
+      "$\\blacksquare$.",
+      "$\\blacksquare$。"
+  };
+  for (const char* suffix : kSuffixes) {
+    if (ends_with(trimmed, suffix)) return true;
+  }
+  return false;
+}
+
+std::string
+strip_isolated_proof_qed_suffix(std::string raw) {
+  std::string trimmed = trim_copy(strip_trailing_newlines(raw));
+  static const char* kSuffixes[] = {
+      "$\\blacksquare$",
+      "$\\blacksquare$.",
+      "$\\blacksquare$。"
+  };
+  for (const char* suffix : kSuffixes) {
+    std::string s = suffix;
+    if (!ends_with(trimmed, s)) continue;
+    trimmed.erase(trimmed.size() - s.size());
+    return trim_copy(trimmed);
+  }
+  return trim_copy(raw);
+}
+
+std::pair<std::string,std::string>
+make_proof_anchor_pair(const std::vector<std::string>& lines) {
+  std::string tag = "proof";
+  std::string first_body;
+  size_t start = 0;
+
+  if (!lines.empty()) {
+    std::string parsed_tag;
+    std::string parsed_body;
+    if (extract_bold_proof_marker_line(lines[0], parsed_tag, parsed_body)) {
+      tag = parsed_tag;
+      first_body = parsed_body;
+      start = 1;
+    }
+  }
+
+  std::string sample_source = first_body;
+  for (size_t i = start; i < lines.size(); ++i) {
+    if (!sample_source.empty()) sample_source += ' ';
+    sample_source += lines[i];
+  }
+  sample_source = collapse_whitespace(sample_source);
+  sample_source = strip_isolated_proof_qed_suffix(sample_source);
+  sample_source = reduce_markdown_links_to_text(sample_source);
+
+  std::string id = sanitize_anchor_text(sample_source, 100);
+  if (id.empty()) id = tag;
+  std::string prefix = tag + ":" + id;
+  return std::make_pair(prefix + " {", prefix + " }");
+}
+
 std::pair<std::string,std::string>
 make_callout_anchor_pair(const std::vector<std::string>& lines) {
   CalloutHeaderInfo header;
@@ -1541,6 +1669,10 @@ process_markdown_file(const ImportFileInfo& file_info, AnchorMap& map,
         store_anchor(map, occurrences, anchor, file_info.relative_ath_path, file_hint,
                      make_callout_anchor_pair(context.lines), label_counts);
       }
+      else if (context.kind == BlockKind::PROOF) {
+        store_anchor(map, occurrences, anchor, file_info.relative_ath_path, file_hint,
+                     make_proof_anchor_pair(context.lines), label_counts);
+      }
       else if (context.kind == BlockKind::PARAGRAPH) {
         store_anchor(map, occurrences, anchor, file_info.relative_ath_path, file_hint,
                      make_paragraph_anchor_pair(context.lines), label_counts);
@@ -1555,6 +1687,10 @@ process_markdown_file(const ImportFileInfo& file_info, AnchorMap& map,
     }
 
     if (is_blank_line(lines[i])) {
+      if (current.kind == BlockKind::PROOF) {
+        current.lines.push_back(lines[i]);
+        continue;
+      }
       finalize_current_block(current, last);
       continue;
     }
@@ -1583,7 +1719,15 @@ process_markdown_file(const ImportFileInfo& file_info, AnchorMap& map,
     bool has_trailing_anchor = extract_trailing_anchor(lines[i], anchorless, anchor);
     std::string effective_line = has_trailing_anchor ? anchorless : lines[i];
     bool is_callout = starts_with_blockquote(effective_line);
-    BlockKind next_kind = is_callout ? BlockKind::CALLOUT : BlockKind::PARAGRAPH;
+    std::string proof_tag;
+    std::string proof_body;
+    bool is_proof = !is_callout &&
+                    extract_bold_proof_marker_line(effective_line,
+                                                   proof_tag, proof_body);
+    BlockKind next_kind = is_callout ? BlockKind::CALLOUT :
+                          (is_proof || current.kind == BlockKind::PROOF
+                           ? BlockKind::PROOF
+                           : BlockKind::PARAGRAPH);
 
     if (current.kind != BlockKind::NONE && current.kind != next_kind) {
       finalize_current_block(current, last);
@@ -1596,10 +1740,18 @@ process_markdown_file(const ImportFileInfo& file_info, AnchorMap& map,
         store_anchor(map, occurrences, anchor, file_info.relative_ath_path, file_hint,
                      make_callout_anchor_pair(current.lines), label_counts);
       }
+      else if (current.kind == BlockKind::PROOF) {
+        store_anchor(map, occurrences, anchor, file_info.relative_ath_path, file_hint,
+                     make_proof_anchor_pair(current.lines), label_counts);
+      }
       else {
         store_anchor(map, occurrences, anchor, file_info.relative_ath_path, file_hint,
                      make_paragraph_anchor_pair(current.lines), label_counts);
       }
+      finalize_current_block(current, last);
+    }
+    else if (current.kind == BlockKind::PROOF &&
+             line_closes_isolated_proof(effective_line)) {
       finalize_current_block(current, last);
     }
   }
