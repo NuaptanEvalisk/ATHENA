@@ -25,15 +25,11 @@
 #include <random>
 #include <sstream>
 #include <string>
+#include <thread>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
-
-#if defined(__unix__) || defined(__APPLE__)
-#include <sys/types.h>
-#include <sys/wait.h>
-#include <unistd.h>
-#endif
+#include <zstd.h>
 
 namespace fs = std::filesystem;
 
@@ -142,27 +138,86 @@ timestamp_string () {
   return std::string (buf);
 }
 
+class ProgressDisplay {
+public:
+  void update (size_t current, size_t total, const std::string& phase,
+               const std::string& item) {
+    if (total == 0) total = 1;
+    current_ = current;
+    total_ = total;
+    phase_ = phase;
+    item_ = item;
+    draw ();
+  }
+
+  void log (const std::string& message) {
+    bool was_active = active_;
+    clear ();
+    std::cout << message << std::endl;
+    if (was_active) draw ();
+  }
+
+  void finish () {
+    if (!active_) return;
+    std::cout << std::endl;
+    active_ = false;
+  }
+
+private:
+  void draw () {
+    int bar_width = 30;
+    double progress = std::min (1.0, (double) current_ / (double) total_);
+    int pos = (int) (bar_width * progress);
+
+    std::string shown = item_;
+    if (shown.size () > 44) shown = "..." + shown.substr (shown.size () - 41);
+
+    std::ostringstream line;
+    line << "[";
+    for (int i=0; i<bar_width; i++) {
+      if (i < pos) line << "=";
+      else if (i == pos) line << ">";
+      else line << " ";
+    }
+    line << "] " << (int) (progress * 100.0) << "% "
+         << "[" << current_ << "/" << total_ << "] "
+         << phase_ << ": " << shown;
+    last_width_ = line.str ().size ();
+    std::cout << "\r" << line.str () << std::flush;
+    active_ = true;
+  }
+
+  void clear () {
+    if (!active_) return;
+    std::cout << "\r" << std::string (last_width_ + 8, ' ') << "\r"
+              << std::flush;
+  }
+
+  bool active_ = false;
+  size_t current_ = 0;
+  size_t total_ = 1;
+  size_t last_width_ = 0;
+  std::string phase_;
+  std::string item_;
+};
+
+static ProgressDisplay progress_display;
+
+static void
+log_info (const std::string& message) {
+  progress_display.log ("ATHENA] vault maintenance: " + message);
+}
+
+static void
+log_error (const std::string& message) {
+  progress_display.finish ();
+  std::cerr << "ATHENA] vault maintenance: " << message << std::endl;
+}
+
 static void
 print_progress (size_t current, size_t total, const std::string& phase,
                 const std::string& item) {
-  if (total == 0) total = 1;
-  int bar_width = 30;
-  double progress = std::min (1.0, (double) current / (double) total);
-  int pos = (int) (bar_width * progress);
-
-  std::string shown = item;
-  if (shown.size () > 44) shown = "..." + shown.substr (shown.size () - 41);
-
-  std::cout << "\r[";
-  for (int i=0; i<bar_width; i++) {
-    if (i < pos) std::cout << "=";
-    else if (i == pos) std::cout << ">";
-    else std::cout << " ";
-  }
-  std::cout << "] " << (int) (progress * 100.0) << "% "
-            << "[" << current << "/" << total << "] "
-            << phase << ": " << shown << "                              "
-            << std::flush;
+  progress_display.update (current, total, phase, item);
 }
 
 static std::string
@@ -190,41 +245,219 @@ canonical_extension (const fs::path& path) {
   return ext.empty () ? ext : ext;
 }
 
-static bool
-run_process (const std::vector<std::string>& args) {
-  if (args.empty ()) return false;
-#if defined(__unix__) || defined(__APPLE__)
-  pid_t pid = fork ();
-  if (pid < 0) {
-    std::cerr << "ATHENA] vault maintenance: fork failed: "
-              << std::strerror (errno) << std::endl;
-    return false;
-  }
-  if (pid == 0) {
-    std::vector<char*> argv;
-    argv.reserve (args.size () + 1);
-    for (const std::string& arg : args)
-      argv.push_back (const_cast<char*> (arg.c_str ()));
-    argv.push_back (nullptr);
-    execvp (argv[0], argv.data ());
-    _exit (127);
+class ZstdWriter {
+public:
+  explicit ZstdWriter (const fs::path& path): out_ (path, std::ios::binary) {
+    cctx_ = ZSTD_createCCtx ();
+    if (cctx_ != nullptr) {
+      ZSTD_CCtx_setParameter (cctx_, ZSTD_c_compressionLevel, 3);
+      ZSTD_CCtx_setParameter (cctx_, ZSTD_c_nbWorkers,
+                              std::max (1u, std::thread::hardware_concurrency ()));
+    }
+    output_.resize (ZSTD_CStreamOutSize ());
   }
 
-  int status = 0;
-  if (waitpid (pid, &status, 0) < 0) {
-    std::cerr << "ATHENA] vault maintenance: waitpid failed: "
-              << std::strerror (errno) << std::endl;
+  ~ZstdWriter () {
+    if (cctx_ != nullptr) ZSTD_freeCCtx (cctx_);
+  }
+
+  bool ok () const {
+    return out_.good () && cctx_ != nullptr && error_.empty ();
+  }
+
+  const std::string& error () const { return error_; }
+
+  bool write (const void* data, size_t size) {
+    if (!ok ()) return false;
+    ZSTD_inBuffer input = { data, size, 0 };
+    while (input.pos < input.size) {
+      ZSTD_outBuffer output = { output_.data (), output_.size (), 0 };
+      size_t ret = ZSTD_compressStream2 (cctx_, &output, &input, ZSTD_e_continue);
+      if (ZSTD_isError (ret)) {
+        error_ = ZSTD_getErrorName (ret);
+        return false;
+      }
+      out_.write ((const char*) output.dst, (std::streamsize) output.pos);
+      if (!out_) {
+        error_ = "failed to write compressed backup";
+        return false;
+      }
+    }
+    return true;
+  }
+
+  bool write_string (const std::string& s) {
+    return write (s.data (), s.size ());
+  }
+
+  bool finish () {
+    if (!ok ()) return false;
+    size_t ret = 0;
+    do {
+      ZSTD_inBuffer input = { nullptr, 0, 0 };
+      ZSTD_outBuffer output = { output_.data (), output_.size (), 0 };
+      ret = ZSTD_compressStream2 (cctx_, &output, &input, ZSTD_e_end);
+      if (ZSTD_isError (ret)) {
+        error_ = ZSTD_getErrorName (ret);
+        return false;
+      }
+      out_.write ((const char*) output.dst, (std::streamsize) output.pos);
+      if (!out_) {
+        error_ = "failed to finalize compressed backup";
+        return false;
+      }
+    } while (ret != 0);
+    out_.close ();
+    return true;
+  }
+
+private:
+  std::ofstream out_;
+  ZSTD_CCtx* cctx_ = nullptr;
+  std::vector<char> output_;
+  std::string error_;
+};
+
+static void
+tar_write_octal (char* field, size_t width, uint64_t value) {
+  std::snprintf (field, width, "%0*lo", (int) width - 1, (unsigned long) value);
+}
+
+static void
+tar_write_base256 (char* field, size_t width, uint64_t value) {
+  std::memset (field, 0, width);
+  for (size_t i=0; i<width; i++) {
+    field[width - 1 - i] = (char) (value & 0xff);
+    value >>= 8;
+  }
+  field[0] |= (char) 0x80;
+}
+
+static void
+tar_write_number (char* field, size_t width, uint64_t value) {
+  uint64_t limit = 1;
+  for (size_t i=1; i<width; i++) limit *= 8;
+  if (value < limit) tar_write_octal (field, width, value);
+  else tar_write_base256 (field, width, value);
+}
+
+static std::string
+pax_record (const std::string& key, const std::string& value) {
+  std::string body = key + "=" + value + "\n";
+  size_t len = body.size () + 2;
+  while (true) {
+    size_t digits = std::to_string (len).size ();
+    size_t next = body.size () + digits + 1;
+    if (next == len) break;
+    len = next;
+  }
+  return std::to_string (len) + " " + body;
+}
+
+static bool
+tar_write_padding (ZstdWriter& writer, uint64_t size) {
+  static const char zeros[512] = {0};
+  size_t rem = (size_t) (size % 512);
+  if (rem == 0) return true;
+  return writer.write (zeros, 512 - rem);
+}
+
+static bool
+tar_write_header (ZstdWriter& writer, const std::string& path, char type,
+                  uint64_t size, uint64_t mtime, const std::string& link = "") {
+  char h[512];
+  std::memset (h, 0, sizeof (h));
+  std::string name = path;
+  std::string prefix;
+
+  if (name.size () > 100) {
+    size_t split = name.rfind ('/', std::min<size_t> (name.size (), 155));
+    if (split != std::string::npos && name.size () - split - 1 <= 100) {
+      prefix = name.substr (0, split);
+      name = name.substr (split + 1);
+    }
+  }
+  if (name.size () > 100 || prefix.size () > 155) {
+    name = "PaxHeader";
+    prefix.clear ();
+  }
+
+  std::memcpy (h, name.data (), std::min<size_t> (name.size (), 100));
+  tar_write_number (h + 100, 8, type == '5' ? 0755 : 0644);
+  tar_write_number (h + 108, 8, 0);
+  tar_write_number (h + 116, 8, 0);
+  tar_write_number (h + 124, 12, size);
+  tar_write_number (h + 136, 12, mtime);
+  std::memset (h + 148, ' ', 8);
+  h[156] = type;
+  if (!link.empty ())
+    std::memcpy (h + 157, link.data (), std::min<size_t> (link.size (), 100));
+  std::memcpy (h + 257, "ustar", 5);
+  std::memcpy (h + 263, "00", 2);
+  if (!prefix.empty ())
+    std::memcpy (h + 345, prefix.data (), std::min<size_t> (prefix.size (), 155));
+
+  unsigned int sum = 0;
+  for (unsigned char c : h) sum += c;
+  std::snprintf (h + 148, 8, "%06o", sum);
+  h[154] = '\0';
+  h[155] = ' ';
+  return writer.write (h, sizeof (h));
+}
+
+static bool
+tar_write_pax_path (ZstdWriter& writer, const std::string& path, uint64_t mtime) {
+  std::string record = pax_record ("path", path);
+  if (!tar_write_header (writer, "PaxHeader", 'x', record.size (), mtime))
     return false;
+  return writer.write_string (record) && tar_write_padding (writer, record.size ());
+}
+
+static bool
+tar_write_entry (ZstdWriter& writer, const fs::path& root, const fs::path& path) {
+  std::error_code ec;
+  fs::path rel = path.lexically_relative (root);
+  std::string rel_s = rel.generic_string ();
+  auto ftime = fs::last_write_time (path, ec);
+  uint64_t mtime = 0;
+  if (!ec) {
+    auto system_time =
+      std::chrono::time_point_cast<std::chrono::system_clock::duration> (
+        ftime - fs::file_time_type::clock::now () +
+        std::chrono::system_clock::now ());
+    auto seconds = std::chrono::duration_cast<std::chrono::seconds> (
+      system_time.time_since_epoch ()).count ();
+    if (seconds > 0) mtime = (uint64_t) seconds;
   }
-  return WIFEXITED (status) && WEXITSTATUS (status) == 0;
-#else
-  std::ostringstream cmd;
-  for (size_t i=0; i<args.size (); i++) {
-    if (i != 0) cmd << ' ';
-    cmd << '"' << args[i] << '"';
+
+  if (rel_s.size () > 100) {
+    if (!tar_write_pax_path (writer, rel_s, mtime)) return false;
   }
-  return std::system (cmd.str ().c_str ()) == 0;
-#endif
+
+  if (fs::is_directory (path, ec)) {
+    if (!rel_s.empty () && rel_s.back () != '/') rel_s += "/";
+    return tar_write_header (writer, rel_s, '5', 0, mtime);
+  }
+  if (fs::is_symlink (path, ec)) {
+    fs::path target = fs::read_symlink (path, ec);
+    if (ec) return false;
+    return tar_write_header (writer, rel_s, '2', 0, mtime, target.generic_string ());
+  }
+  if (!fs::is_regular_file (path, ec)) return true;
+
+  uint64_t size = fs::file_size (path, ec);
+  if (ec) return false;
+  if (!tar_write_header (writer, rel_s, '0', size, mtime)) return false;
+
+  std::ifstream in (path, std::ios::binary);
+  if (!in) return false;
+  std::vector<char> buf (1 << 20);
+  while (in) {
+    in.read (buf.data (), (std::streamsize) buf.size ());
+    std::streamsize n = in.gcount ();
+    if (n > 0 && !writer.write (buf.data (), (size_t) n)) return false;
+  }
+  return tar_write_padding (writer, size);
 }
 
 static bool
@@ -233,22 +466,50 @@ create_backup (const fs::path& root, fs::path& archive_path) {
   std::error_code ec;
   fs::create_directories (backup_dir, ec);
   if (ec) {
-    std::cerr << "ATHENA] vault maintenance: failed to create backup directory: "
-              << backup_dir << ": " << ec.message () << std::endl;
+    log_error ("failed to create backup directory: " + backup_dir.string () +
+               ": " + ec.message ());
     return false;
   }
 
-  archive_path = backup_dir / "vault.tar.bz2";
-  std::cout << "ATHENA] vault maintenance: backing up vault to "
-            << archive_path << std::endl;
+  archive_path = backup_dir / "vault.tar.zst";
+  log_info ("backing up vault to " + archive_path.string ());
 
-  std::vector<std::string> args = {
-    "tar", "--exclude=./.backup", "-cjf",
-    archive_path.string (), "-C", root.string (), "."
-  };
-  if (!run_process (args)) {
-    std::cerr << "ATHENA] vault maintenance: backup failed; expected tar with "
-              << "bzip2 support" << std::endl;
+  ZstdWriter writer (archive_path);
+  if (!writer.ok ()) {
+    log_error ("failed to initialize zstd backup writer");
+    return false;
+  }
+
+  std::vector<fs::path> entries;
+  for (fs::recursive_directory_iterator it (
+         root, fs::directory_options::skip_permission_denied, ec), end;
+       !ec && it != end; it.increment (ec)) {
+    fs::path path = it->path ();
+    if (it->is_directory (ec) && path.filename () == ".backup") {
+      it.disable_recursion_pending ();
+      continue;
+    }
+    if (!is_backup_path (root, path)) entries.push_back (path);
+  }
+  if (ec) {
+    log_error ("backup scan failed: " + ec.message ());
+    return false;
+  }
+
+  for (size_t i=0; i<entries.size (); i++) {
+    print_progress (i + 1, entries.size (), "Backing up",
+                    entries[i].filename ().string ());
+    if (!tar_write_entry (writer, root, entries[i])) {
+      progress_display.finish ();
+      log_error ("failed to archive " + entries[i].string ());
+      return false;
+    }
+  }
+  progress_display.finish ();
+
+  static const char zeros[1024] = {0};
+  if (!writer.write (zeros, sizeof (zeros)) || !writer.finish ()) {
+    log_error ("zstd backup failed: " + writer.error ());
     return false;
   }
   return true;
@@ -275,8 +536,7 @@ scan_noncanonical_images (const fs::path& root) {
   }
 
   if (ec)
-    std::cerr << "ATHENA] vault maintenance: scan warning: "
-              << ec.message () << std::endl;
+    log_info ("scan warning: " + ec.message ());
   std::sort (images.begin (), images.end ());
   return images;
 }
@@ -307,8 +567,7 @@ scan_documents (const fs::path& root) {
   }
 
   if (ec)
-    std::cerr << "ATHENA] vault maintenance: document scan warning: "
-              << ec.message () << std::endl;
+    log_info ("document scan warning: " + ec.message ());
   std::sort (docs.begin (), docs.end ());
   return docs;
 }
@@ -350,13 +609,12 @@ rename_images (const std::vector<RenamePlan>& plans) {
     fs::rename (plan.old_path, plan.new_path, ec);
     if (ec) {
       std::cout << std::endl;
-      std::cerr << "ATHENA] vault maintenance: failed to rename "
-                << plan.old_path << " -> " << plan.new_path << ": "
-                << ec.message () << std::endl;
+      log_error ("failed to rename " + plan.old_path.string () + " -> " +
+                 plan.new_path.string () + ": " + ec.message ());
       return false;
     }
   }
-  if (!plans.empty ()) std::cout << std::endl;
+  progress_display.finish ();
   return true;
 }
 
@@ -473,8 +731,7 @@ rewrite_document_image_refs (
   size_t& replacements) {
   std::string text;
   if (!read_file_bytes (doc_path, text)) {
-    std::cerr << "ATHENA] vault maintenance: failed to read document "
-              << doc_path << std::endl;
+    log_error ("failed to read document " + doc_path.string ());
     return false;
   }
 
@@ -482,6 +739,7 @@ rewrite_document_image_refs (
   out.reserve (text.size ());
   size_t cursor = 0;
   bool changed = false;
+  size_t document_replacements = 0;
 
   while (true) {
     size_t pos = text.find ("<image|", cursor);
@@ -515,17 +773,17 @@ rewrite_document_image_refs (
     cursor = ref.end;
     changed = true;
     replacements++;
-    std::cout << "ATHENA] vault maintenance: " << doc_path
-              << ": " << unescaped << " -> " << new_ref << std::endl;
+    document_replacements++;
   }
 
   if (!changed) return true;
   out.append (text, cursor, std::string::npos);
   if (!write_file_bytes (doc_path, out)) {
-    std::cerr << "ATHENA] vault maintenance: failed to write document "
-              << doc_path << std::endl;
+    log_error ("failed to write document " + doc_path.string ());
     return false;
   }
+  log_info ("updated " + std::to_string (document_replacements) +
+            " image references in " + doc_path.string ());
   return true;
 }
 
@@ -540,8 +798,8 @@ rewrite_documents (const fs::path& root, const std::vector<RenamePlan>& plans,
     rename_path_by_old_path[plans[i].old_key] = plans[i].new_path;
 
   std::vector<fs::path> docs = scan_documents (root);
-  std::cout << "ATHENA] vault maintenance: scanning " << docs.size ()
-            << " document files for image references" << std::endl;
+  log_info ("scanning " + std::to_string (docs.size ()) +
+            " document files for image references");
 
   replacements = 0;
   for (size_t i=0; i<docs.size (); i++) {
@@ -550,11 +808,11 @@ rewrite_documents (const fs::path& root, const std::vector<RenamePlan>& plans,
     if (!rewrite_document_image_refs (docs[i], plans_by_stem,
                                       rename_path_by_old_path,
                                       replacements)) {
-      std::cout << std::endl;
+      progress_display.finish ();
       return false;
     }
   }
-  if (!docs.empty ()) std::cout << std::endl;
+  progress_display.finish ();
   return true;
 }
 
@@ -573,45 +831,37 @@ normalize_root (const fs::path& input) {
 bool
 vault_maintenance_run (string vault_dir) {
   fs::path root = normalize_root (fs::path (tm_to_std (vault_dir)));
-  std::cout << "ATHENA] vault maintenance: vault root: "
-            << root << std::endl;
+  log_info ("vault root: " + root.string ());
 
   if (!fs::exists (root) || !fs::is_directory (root)) {
-    std::cerr << "ATHENA] vault maintenance: vault root is not a directory"
-              << std::endl;
+    log_error ("vault root is not a directory");
     return false;
   }
   if (!fs::exists (root / "Vaultfile")) {
-    std::cerr << "ATHENA] vault maintenance: missing Vaultfile in "
-              << root << std::endl;
+    log_error ("missing Vaultfile in " + root.string ());
     return false;
   }
 
   fs::path archive;
   if (!create_backup (root, archive)) return false;
-  std::cout << "ATHENA] vault maintenance: backup complete: "
-            << archive << std::endl;
+  log_info ("backup complete: " + archive.string ());
 
   std::vector<fs::path> images = scan_noncanonical_images (root);
-  std::cout << "ATHENA] vault maintenance: found " << images.size ()
-            << " non-canonical image files" << std::endl;
+  log_info ("found " + std::to_string (images.size ()) +
+            " non-canonical image files");
   if (images.empty ()) {
-    std::cout << "ATHENA] vault maintenance: no image normalization needed"
-              << std::endl;
+    log_info ("no image normalization needed");
     return true;
   }
 
   std::vector<RenamePlan> plans = build_rename_plan (images);
-  for (const RenamePlan& plan : plans)
-    std::cout << "ATHENA] vault maintenance: plan "
-              << plan.old_path << " -> " << plan.new_path << std::endl;
+  log_info ("planned " + std::to_string (plans.size ()) + " image renames");
 
   if (!rename_images (plans)) return false;
 
   size_t replacements = 0;
   if (!rewrite_documents (root, plans, replacements)) return false;
-  std::cout << "ATHENA] vault maintenance: updated " << replacements
-            << " image references" << std::endl;
-  std::cout << "ATHENA] vault maintenance: complete" << std::endl;
+  log_info ("updated " + std::to_string (replacements) + " image references");
+  log_info ("complete");
   return true;
 }

@@ -290,6 +290,7 @@ find_package (PNG)
 find_package (Iconv)
 find_package (ZLIB)
 find_package (JPEG)
+pkg_check_modules (ZSTD REQUIRED libzstd)
 #FIND_PACKAGE(Axel)
 
 ### --------------------------------------------------------------------
@@ -571,6 +572,7 @@ set (ATHENA_Libraries
   ${ZLIB_LIBRARIES}
   ${JPEG_LIBRARIES}
   ${PNG_LIBRARIES}
+  ${ZSTD_LIBRARIES}
   -lpthread
 )
 
@@ -814,6 +816,7 @@ else (APPLE)
 endif (APPLE)
 
 include_directories (${ATHENA_Include_Dirs})
+include_directories (${ZSTD_INCLUDE_DIRS})
 
 ### --------------------------------------------------------------------
 ### Debugging options
