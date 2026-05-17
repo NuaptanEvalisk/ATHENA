@@ -229,6 +229,8 @@ cache_memorize () {
   cache_save ("dir_cache.scm");
   cache_save ("stat_cache.scm");
   cache_save ("font_cache.scm");
+  cache_save ("font_path_cache.scm");
+  cache_save ("font_file_index.scm");
   cache_save ("validate_cache.scm");
 }
 
@@ -241,6 +243,8 @@ cache_refresh () {
   cache_load ("dir_cache.scm");
   cache_load ("stat_cache.scm");
   cache_load ("font_cache.scm");
+  cache_load ("font_path_cache.scm");
+  cache_load ("font_file_index.scm");
   cache_load ("validate_cache.scm");
 }
 

@@ -33,6 +33,7 @@
 #include "client_server.hpp"
 #include "scheme.hpp"
 #include "convert.hpp"
+#include "Freetype/tt_file.hpp"
 #include "ATHENA/Data/vault_maintenance.hpp"
 
 #ifdef AQUATEXMACS
@@ -236,6 +237,7 @@ clean_exit_on_sigterm (int sig_num) {
 ******************************************************************************/
 
 void ATHENA_init_font() {
+  tt_font_cache_warmup ();
   font_database_load ();
 #if defined(QTTEXMACS) && defined(qt_no_fontconfig)
   string default_font_dir = get_env ("ATHENA_PATH") * "/fonts/truetype/stix";
@@ -846,6 +848,8 @@ immediate_options (int argc, char** argv) {
       remove (url ("$ATHENA_HOME_PATH/system/cache") * url_wildcard ("__*"));
     else if (s == "-delete-font-cache") {
       remove (url ("$ATHENA_HOME_PATH/system/cache/font_cache.scm"));
+      remove (url ("$ATHENA_HOME_PATH/system/cache/font_path_cache.scm"));
+      remove (url ("$ATHENA_HOME_PATH/system/cache/font_file_index.scm"));
       remove (url ("$ATHENA_HOME_PATH/fonts/font-database.scm"));
       remove (url ("$ATHENA_HOME_PATH/fonts/font-features.scm"));
       remove (url ("$ATHENA_HOME_PATH/fonts/font-characteristics.scm"));
@@ -991,6 +995,7 @@ texmacs_entrypoint (int argc, char** argv) {
     ((QTMApplication*)qtmapp)->load();
 #endif
 
+  cache_initialize ();
   ATHENA_init_font  ();
 #ifdef QTTEXMACS
   if (!headless_mode) {
@@ -1006,7 +1011,6 @@ texmacs_entrypoint (int argc, char** argv) {
   //cout << "Bench  ] Started TeXmacs\n";
   the_et     = tuple ();
   the_et->obs= ip_observer (path ());
-  cache_initialize ();
   bench_start ("initialize texmacs");
   init_athena ();
   bench_cumul ("initialize texmacs");
