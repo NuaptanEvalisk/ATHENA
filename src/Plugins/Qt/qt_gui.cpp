@@ -22,6 +22,8 @@
 #include "sys_utils.hpp"
 #include "tm_window.hpp"
 #include "new_window.hpp"
+#include "ATHENA/Data/new_buffer.hpp"
+#include "ATHENA/Data/vault_image_insertion.hpp"
 #include "boot.hpp"
 
 #include "qt_gui.hpp"
@@ -311,8 +313,31 @@ qt_gui_rep::get_selection (string key, tree& t, string& s, string format) {
       if (md->hasUrls ()) {
         QList<QUrl> l= md->urls ();
         if (l.size () == 1) {
-          s= from_qstring (l[0].toString ());
-          input_format = "linked-picture";
+          string ref, error;
+          string local;
+          bool prepared= false;
+          if (l[0].isLocalFile ()) {
+#ifdef OS_MACOS
+            local= from_qstring (fromNSUrl (l[0]));
+#else
+            local= from_qstring (l[0].toLocalFile ());
+#endif
+            prepared= vault_image_insertion_prepare_file (
+              get_current_buffer_safe (), url_system (local), ref, error);
+          }
+          if (prepared && ref != "") {
+            string w, h;
+            qt_pretty_image_size (url_system (local), w, h);
+            tree im (IMAGE, ref, w, h, "", "");
+            s= as_string (call ("convert", im, "texmacs-tree",
+                                "texmacs-snippet"));
+            input_format= "";
+          }
+          else if (prepared) return false;
+          else {
+            s= from_qstring (l[0].toString ());
+            input_format = "linked-picture";
+          }
         }
       }
       else {
@@ -320,7 +345,23 @@ qt_gui_rep::get_selection (string key, tree& t, string& s, string format) {
         QImage image= qvariant_cast<QImage> (md->imageData());
         qbuf.open (QIODevice::WriteOnly);
         image.save (&qbuf, "PNG");
-        input_format = "picture";
+        string raw (buf.constData (), buf.size ());
+        string ref, error;
+        bool prepared= vault_image_insertion_prepare_data (
+              get_current_buffer_safe (), raw, "png", ref, error);
+        if (prepared && ref != "") {
+          QSize size= image.size ();
+          int ww= size.width (), hh= size.height ();
+          string w, h;
+          qt_pretty_image_size (ww, hh, w, h);
+          tree im (IMAGE, ref, w, h, "", "");
+          s= as_string (call ("convert", im, "texmacs-tree",
+                              "texmacs-snippet"));
+          input_format= "";
+          buf.clear ();
+        }
+        else if (prepared) return false;
+        else input_format = "picture";
       }
     }
     else if (md->hasHtml ()) {

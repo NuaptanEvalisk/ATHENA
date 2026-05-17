@@ -13,6 +13,7 @@
 #include "file.hpp"
 #include "analyze.hpp"
 #include "scheme.hpp"
+#include "ATHENA/Data/vault_image_insertion.hpp"
 
 /******************************************************************************
 * Constructors and destructors
@@ -361,6 +362,16 @@ edit_text_rep::make_image (
   string file_name, bool link, string w, string h, string x, string y)
 {
   url image= url_unix (file_name);
+  string vault_ref, vault_error;
+  if (vault_image_insertion_prepare_file (
+        get_name (), relative (get_name (), image), vault_ref, vault_error)) {
+    if (vault_ref == "") {
+      set_message (vault_error, "insert image");
+      return;
+    }
+    image= url_unix (vault_ref);
+    link= true;
+  }
   string type= "";
   tree t (IMAGE);
   if (link) {

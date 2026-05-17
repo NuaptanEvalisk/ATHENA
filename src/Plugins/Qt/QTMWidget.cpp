@@ -18,6 +18,8 @@
 #include "boot.hpp"
 #include "scheme.hpp"
 #include "new_view.hpp"
+#include "ATHENA/Data/new_buffer.hpp"
+#include "ATHENA/Data/vault_image_insertion.hpp"
 #include "editor.hpp"
 #include "Interface/edit_graphics.hpp"
 #include "qt_renderer.hpp"
@@ -937,7 +939,10 @@ QTMWidget::dropEvent (QDropEvent *event) {
             (extension == "jpg") || (extension == "jpeg")) {
           string w, h;
           qt_pretty_image_size (url_system (orig_name), w, h);
-          tree im (IMAGE, name, w, h, "", "");
+          string ref, error;
+          bool prepared= vault_image_insertion_prepare_file (
+            get_current_buffer_safe (), url_system (orig_name), ref, error);
+          tree im (IMAGE, prepared && ref != "" ? ref : name, w, h, "", "");
           doc << im;
         } else {
           doc << tree (make_tree_label ("cardlink"), "", name);
@@ -967,18 +972,33 @@ QTMWidget::dropEvent (QDropEvent *event) {
     int ww= size.width (), hh= size.height ();
     string w, h;
     qt_pretty_image_size (ww, hh, w, h);
-    tree t (IMAGE, tree (RAW_DATA, string (buf.constData (), buf.size()), "png"),
-            w, h, "", "");
+    string raw (buf.constData (), buf.size ());
+    string ref, error;
+    bool prepared= vault_image_insertion_prepare_data (
+      get_current_buffer_safe (), raw, "png", ref, error);
+    tree t= prepared && ref != "" ?
+      tree (IMAGE, ref, w, h, "", "") :
+      tree (IMAGE, tree (RAW_DATA, raw, "png"), w, h, "", "");
     doc << t;
   } else if (md->hasFormat("application/postscript")) {
     buf= md->data("application/postscript");
-    tree t (IMAGE, tree (RAW_DATA, string (buf.constData (), buf.size ()), "ps"),
-                   "", "", "", "");
+    string raw (buf.constData (), buf.size ());
+    string ref, error;
+    bool prepared= vault_image_insertion_prepare_data (
+      get_current_buffer_safe (), raw, "ps", ref, error);
+    tree t= prepared && ref != "" ?
+      tree (IMAGE, ref, "", "", "", "") :
+      tree (IMAGE, tree (RAW_DATA, raw, "ps"), "", "", "", "");
     doc << t;
   } else if (md->hasFormat("application/pdf")) {
     buf= md->data("application/pdf");
-    tree t (IMAGE, tree (RAW_DATA, string (buf.constData (), buf.size ()), "pdf"),
-                   "", "", "", "");
+    string raw (buf.constData (), buf.size ());
+    string ref, error;
+    bool prepared= vault_image_insertion_prepare_data (
+      get_current_buffer_safe (), raw, "pdf", ref, error);
+    tree t= prepared && ref != "" ?
+      tree (IMAGE, ref, "", "", "", "") :
+      tree (IMAGE, tree (RAW_DATA, raw, "pdf"), "", "", "", "");
     doc << t;
   } else if (md->hasText ()) {
     buf= md->text ().toUtf8 ();

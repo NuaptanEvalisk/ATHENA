@@ -8,6 +8,7 @@
         (utils library cursor)
         (generic document-edit)
         (link ref-edit)
+        (athena athena tm-vault-images)
         (athena menus file-menu)))
 
 (tm-define (vault-jump-to-source path anchor)
@@ -286,7 +287,8 @@
                 (equal? (get-preference "vault explorer track current file") "on")))
       (item (text "Use system trash for safe deletion:")
         (toggle (set-preference "vault explorer use system trash" (if answer "on" "off"))
-                (equal? (get-preference "vault explorer use system trash") "on"))))))
+                (equal? (get-preference "vault explorer use system trash") "on"))))
+    (dynamic (vault-image-preferences-widget))))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
