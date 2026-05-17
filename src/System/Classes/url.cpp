@@ -1118,6 +1118,63 @@ subdirectories (url u) {
 * Concretization of resolved urls
 ******************************************************************************/
 
+static string
+bool_string (bool b) {
+  return b? "true": "false";
+}
+
+static string
+url_kind (url u) {
+  if (is_none (u)) return "none";
+  if (is_here (u)) return "here";
+  if (is_parent (u)) return "parent";
+  if (is_ancestor (u)) return "ancestor";
+  if (is_root (u)) return "root";
+  if (is_concat (u)) return "concat";
+  if (is_or (u)) return "or";
+  if (is_wildcard (u)) return "wildcard";
+  if (is_atomic (u)) return "atomic";
+  return "unknown";
+}
+
+static string
+concretize_failure_reason (url u) {
+  if (is_none (u)) return "URL is none";
+  if (is_or (u))
+    return "URL is a disjunction/path list; resolve it to one concrete URL first";
+  if (is_wildcard (u))
+    return "URL contains a wildcard; complete or resolve it before concretizing";
+  if (!is_rooted (u) && !is_here (u) && !is_parent (u))
+    return "URL is rootless or unresolved; concretize expects a resolved URL";
+  if (is_rooted_web (u))
+    return "web URL could not be materialized to a local cache file";
+  if (is_rooted_tmfs (u))
+    return "tmfs URL could not be materialized from the server";
+  if (is_ramdisc (u))
+    return "ramdisc URL could not be materialized";
+  string root= get_root (u);
+  if (root != "")
+    return "unsupported root protocol for concretization: " * root;
+  return "URL shape is not supported by concretize_url";
+}
+
+static void
+diagnose_concretize_failure (url u, url c) {
+  string root= get_root (u);
+  std_warning << "Couldn't concretize URL" << LF;
+  std_warning << "  tree: " << u->t << LF;
+  std_warning << "  kind: " << url_kind (u) << LF;
+  std_warning << "  root: " << (root == ""? string ("<none>"): root) << LF;
+  std_warning << "  rooted: " << bool_string (is_rooted (u)) << LF;
+  std_warning << "  name-only: " << bool_string (is_name (u)) << LF;
+  std_warning << "  wildcard: " << bool_string (is_wildcard (u)) << LF;
+  std_warning << "  concretize_url result: " << c->t << LF;
+  std_warning << "  likely reason: " << concretize_failure_reason (u) << LF;
+  std_warning << "  expected input: resolved URL rooted at default/file/blank,"
+              << " materializable web/tmfs/ramdisc URL, here, parent,"
+              << " or a single wildcard name" << LF;
+}
+
 url
 concretize_url (url u) {
   // This routine transforms a resolved url into a system url.
@@ -1147,7 +1204,7 @@ concretize (url u) {
   url c= concretize_url (u);
   if (!is_none (c)) return as_string (c);
   if (is_wildcard (u, 1)) return u->t[1]->label;
-  std_warning << "Couldn't concretize " << u->t << LF;
+  diagnose_concretize_failure (u, c);
   // failed_error << "u= " << u << LF;
   // FAILED ("url has no root");
   return "xxx";
