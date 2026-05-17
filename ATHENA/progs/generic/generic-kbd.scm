@@ -34,6 +34,8 @@
   ("F1" (interactive docgrep-in-doc))
   ("S-F1" (interactive docgrep-in-src)) ;; FIXME: S-F1 should be 'What is This?'
   ;("M-F1" (load-help-buffer "about/welcome/welcome")) ; Conflict with devtools
+  ("C-S-p" (command-palette-show))
+  ("C-S-P" (command-palette-show))
   ("C-S-o" (open-quick-switcher))
   ("C-S-O" (open-quick-switcher))
 
@@ -446,6 +448,7 @@
   ("std N" (new-document*))
   ("std o" (open-document))
   ("std O" (open-quick-switcher))
+  ("std P" (command-palette-show))
   ("std L" (open-document*))
   ("std p" (preview-buffer))
   ("std q" (safely-quit-ATHENA))

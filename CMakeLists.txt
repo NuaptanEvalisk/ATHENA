@@ -685,17 +685,24 @@ if (ATHENA_GUI MATCHES "Qt.*")
               "Use KDE Frameworks KIO file dialogs for Qt5 builds" ON)
       if (USE_KF5_KIO_FILE_DIALOGS)
         find_package (KF5KIO REQUIRED)
+        find_package (KF5ConfigWidgets REQUIRED)
         get_target_property (KF5_KIO_FILE_WIDGETS_INCLUDE_DIRS
                              KF5::KIOFileWidgets
                              INTERFACE_INCLUDE_DIRECTORIES)
         get_target_property (KF5_KIO_WIDGETS_INCLUDE_DIRS
                              KF5::KIOWidgets
                              INTERFACE_INCLUDE_DIRECTORIES)
+        get_target_property (KF5_CONFIG_WIDGETS_INCLUDE_DIRS
+                             KF5::ConfigWidgets
+                             INTERFACE_INCLUDE_DIRECTORIES)
         add_definitions ("-DUSE_KF5_KIO")
         set (ATHENA_Include_Dirs ${ATHENA_Include_Dirs}
              ${KF5_KIO_FILE_WIDGETS_INCLUDE_DIRS}
-             ${KF5_KIO_WIDGETS_INCLUDE_DIRS})
-        set (ATHENA_Libraries ${ATHENA_Libraries} KF5::KIOFileWidgets)
+             ${KF5_KIO_WIDGETS_INCLUDE_DIRS}
+             ${KF5_CONFIG_WIDGETS_INCLUDE_DIRS})
+        set (ATHENA_Libraries ${ATHENA_Libraries}
+             KF5::KIOFileWidgets
+             KF5::ConfigWidgets)
       endif ()
     endif ()
 

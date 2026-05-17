@@ -40,6 +40,7 @@
 (menu-bind tools-menu
   (-> "Macros"
       (link source-macros-menu))
+  ("Command palette" (command-palette-show))
   ("Quick switcher" (open-quick-switcher))
   ("Vault Explorer" (open-vault-explorer))
   ("Vault backup viewer" (open-vault-backup-viewer))
