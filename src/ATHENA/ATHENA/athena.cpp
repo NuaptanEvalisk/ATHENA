@@ -20,9 +20,6 @@
 #include <signal.h>
 #ifdef STACK_SIZE
 // #include <sys/resource.h>
-#ifdef OS_ANDROID
-#include "Android/android.hpp"
-#endif
 #endif
 
 #include "tm_ostream.hpp"
@@ -859,10 +856,6 @@ texmacs_entrypoint (int argc, char** argv) {
   }
 #endif
   immediate_options (argc, argv);
-#ifdef OS_ANDROID
-  init_android();
-#endif
-
 #ifdef STACK_SIZE
   struct rlimit limit;
 

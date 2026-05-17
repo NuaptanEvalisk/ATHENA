@@ -145,9 +145,6 @@
 #undef OLD_GNU_COMPILER
 
 /* OS type */
-#undef OS_ANDROID
-
-/* OS type */
 #undef OS_CYGWIN
 
 /* OS type */

@@ -123,14 +123,6 @@ source code.
   </explain>
 
   <\explain>
-    <scm|(os-android?)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|os_android> which returns
-    <scm|bool>.
-  </explain>
-
-  <\explain>
     <scm|(has-printing-cmd?)>
 <explain-synopsis|no synopsis>
   <|explain>

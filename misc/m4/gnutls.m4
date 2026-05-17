@@ -48,9 +48,6 @@ AC_DEFUN([LC_GNUTLS],[
       if test "$TMREPO" != "" -a "$TMREPO" != "no" -a "$CONFIG_OS" = "GNU_LINUX"; then
           GNUTLS_EXTRA_LIBS="$GNUTLS_EXTRA_LIBS -lz"
       fi
-      if test "$TMREPO" != "" -a "$TMREPO" != "no" -a "$CONFIG_OS" = "ANDROID"; then
-          GNUTLS_EXTRA_LIBS="$GNUTLS_EXTRA_LIBS -lz"
-      fi
       GNUTLS_BASE_LIBS=`pkg-config --libs gnutls hogweed nettle`
       LIBS="$GNUTLS_BASE_LIBS $GNUTLS_EXTRA_LIBS"
       AC_MSG_CHECKING(for GnuTLS version >= 3 (https://www.gnutls.org))

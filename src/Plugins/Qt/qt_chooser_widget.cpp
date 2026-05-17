@@ -35,10 +35,6 @@
 #include <KIOWidgets/kfile.h>
 #endif
 
-#ifdef OS_ANDROID
-#include "android.hpp"
-#endif
-
 /*!
   \param _cmd  Scheme closure to execute after the dialog is closed.
   \param _type What kind of dialog to show. Can be one of "image", "directory",
@@ -392,9 +388,6 @@ qt_chooser_widget_rep::perform_dialog_with_kfiledialog() {
  */
 void
 qt_chooser_widget_rep::perform_dialog () {
-#if QT_VERSION >= 0x060000 && defined(OS_ANDROID)
-  return perform_dialog_with_qfiledialog();
-#endif
 #ifdef USE_KF5_KIO
   return perform_dialog_with_kfiledialog();
 #endif

@@ -135,13 +135,6 @@
     debugging facilities and so on.
   </itemize>
 
-  <section|<TeXmacs> on tablets and mobile phones>
-
-  After the release of <TeXmacs> 2.1, we wish to upgrade <TeXmacs> to
-  <name|Qt>5, which should allow the deployment on new platforms such as
-  <name|Android>. This also opens the road for a specific interface for
-  tablets and mobile phones.
-
   <tmdoc-copyright|1998--2019|Joris van der Hoeven>
 
   <tmdoc-license|Permission is granted to copy, distribute and/or modify this

@@ -97,19 +97,7 @@ protected:
   void showEvent (QShowEvent *event) override;
   void closeEvent (QCloseEvent *event) override;
 
-#if defined(OS_ANDROID) && QT_VERSION >= 0x060000
-  /*
-   * @brief Show the android virtual keyboard
-   */
-  void showKeyboard ();
-#endif
-
 private:
-  bool hasMousePress;
-  QTouchEvent::TouchPoint firstTouchPoint;
-  bool haveFirstTouchPoint;
-  QTime firstTouchTime;
-  bool ignoreNextTouchEvents;
   qreal lastPixelRatio = 0.0;
 
 };

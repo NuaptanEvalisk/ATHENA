@@ -115,20 +115,16 @@
 	   "")))
 
 (define (safe-getpwuid id)
-  (if (os-android?)
-      "user"
   (catch #t
 	 (lambda () (passwd:name (getpwuid id)))
 	 (lambda err
 	   (display* "Error in getpwuid: " err "\n")
-	   ""))))
+	   "")))
 
 (define (get-full-name user)
- (if (os-android?)
-    "Default User"
  (if (os-mingw?)
      (getenv "ATHENA_DISPLAYNAME")
-     (safe-getpwnam user))))
+     (safe-getpwnam user)))
 
 (define (create-default-user)
   (let* ((pseudo (or (getlogin) (safe-getpwuid (getuid))))

@@ -40,7 +40,6 @@
 "os-mingw?"
 "os-mingw64?"
 "os-macos?"
-"os-android?"
 "has-printing-cmd?"
 "x-gui?"
 "qt-gui?"

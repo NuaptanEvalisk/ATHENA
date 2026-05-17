@@ -389,7 +389,7 @@ on `(hostname || uname -n) 2>/dev/null | sed 1q`
 "
 
 # Files that config.status was made for.
-config_files=" Makefile src/makefile misc/admin/admin.makefile misc/doxygen/Doxyfile:misc/doxygen/Doxyfile.in misc/man/athena.1:misc/man/athena.1.in packages/redhat/ATHENA.spec:packages/redhat/ATHENA.spec.in misc/scripts/fig2ps:misc/scripts/fig2ps.in misc/scripts/athena:misc/scripts/athena.in ATHENA/examples/plugins/dynlink/Makefile:ATHENA/examples/plugins/dynlink/Makefile.in packages/macos/Base.xcconfig:packages/macos/Base.xcconfig.in packages/macos/Info-Xcode.plist:packages/macos/Info-Xcode.plist.in packages/macos/Info.plist:packages/macos/Info.plist.in packages/fedora/ATHENA.spec:packages/fedora/ATHENA.spec.in packages/mandriva/ATHENA.spec:packages/mandriva/ATHENA.spec.in packages/centos/ATHENA.spec:packages/centos/ATHENA.spec.in packages/windows/ATHENA.iss:packages/windows/ATHENA.iss.in packages/windows/resource.rc:packages/windows/resource.rc.in packages/msix/AppxManifest.xml:packages/msix/AppxManifest.xml.in packages/msix/AppxManifestStore.xml:packages/msix/AppxManifestStore.xml.in packages/debian/changelog:packages/debian/changelog.in packages/debian/control:packages/debian/control.in packages/android/res/values/libs.xml:packages/android/libs.xml.in packages/android/AndroidManifest.xml:packages/android/AndroidManifest.xml.in src/System/tm_configure.hpp:src/System/tm_configure.in"
+config_files=" Makefile src/makefile misc/admin/admin.makefile misc/doxygen/Doxyfile:misc/doxygen/Doxyfile.in misc/man/athena.1:misc/man/athena.1.in packages/redhat/ATHENA.spec:packages/redhat/ATHENA.spec.in misc/scripts/fig2ps:misc/scripts/fig2ps.in misc/scripts/athena:misc/scripts/athena.in ATHENA/examples/plugins/dynlink/Makefile:ATHENA/examples/plugins/dynlink/Makefile.in packages/macos/Base.xcconfig:packages/macos/Base.xcconfig.in packages/macos/Info-Xcode.plist:packages/macos/Info-Xcode.plist.in packages/macos/Info.plist:packages/macos/Info.plist.in packages/fedora/ATHENA.spec:packages/fedora/ATHENA.spec.in packages/mandriva/ATHENA.spec:packages/mandriva/ATHENA.spec.in packages/centos/ATHENA.spec:packages/centos/ATHENA.spec.in packages/windows/ATHENA.iss:packages/windows/ATHENA.iss.in packages/windows/resource.rc:packages/windows/resource.rc.in packages/msix/AppxManifest.xml:packages/msix/AppxManifest.xml.in packages/msix/AppxManifestStore.xml:packages/msix/AppxManifestStore.xml.in packages/debian/changelog:packages/debian/changelog.in packages/debian/control:packages/debian/control.in src/System/tm_configure.hpp:src/System/tm_configure.in"
 config_headers=" src/System/config.h:src/System/config.in"
 
 ac_cs_usage="\
@@ -552,8 +552,6 @@ do
     "packages/msix/AppxManifestStore.xml") CONFIG_FILES="$CONFIG_FILES packages/msix/AppxManifestStore.xml:packages/msix/AppxManifestStore.xml.in" ;;
     "packages/debian/changelog") CONFIG_FILES="$CONFIG_FILES packages/debian/changelog:packages/debian/changelog.in" ;;
     "packages/debian/control") CONFIG_FILES="$CONFIG_FILES packages/debian/control:packages/debian/control.in" ;;
-    "packages/android/res/values/libs.xml") CONFIG_FILES="$CONFIG_FILES packages/android/res/values/libs.xml:packages/android/libs.xml.in" ;;
-    "packages/android/AndroidManifest.xml") CONFIG_FILES="$CONFIG_FILES packages/android/AndroidManifest.xml:packages/android/AndroidManifest.xml.in" ;;
     "src/System/tm_configure.hpp") CONFIG_FILES="$CONFIG_FILES src/System/tm_configure.hpp:src/System/tm_configure.in" ;;
 
   *) as_fn_error $? "invalid argument: '$ac_config_target'" "$LINENO" 5;;
@@ -799,28 +797,7 @@ S["NDK"]=""
 S["SDK"]=""
 S["QT_PATH"]="/usr/bin"
 S["QT_HOST_PATH"]=""
-S["QT_ANDROID_APP_PACKAGE_SOURCE_ROOT"]=""
-S["QT_ANDROID_APP_EXTRA_LIBS"]=""
-S["QT_ANDROID_USE_LLVM"]=""
-S["QT_ANDROID_STL_PATH"]=""
 S["CMAKE_SOURCE_DIR"]=""
-S["QT_ANDROID_APP_NAME"]=""
-S["QT_ANDROID_APP_PACKAGE_NAME"]=""
-S["QT_ANDROID_APPLICATION_BINARY"]=""
-S["ANDROID_API"]=""
-S["ANDROID_ABI"]=""
-S["QT_ANDROID_TARGET_SDK_VERSION"]=""
-S["QT_ANDROID_ARCHITECTURES"]=""
-S["ANDROID_NDK_HOST_SYSTEM_NAME"]=""
-S["QT_ANDROID_TOOL_PREFIX"]=""
-S["QT_ANDROID_TOOLCHAIN_VERSION"]=""
-S["QT_ANDROID_TOOLCHAIN_PREFIX"]=""
-S["QT_ANDROID_SDK_BUILDTOOLS_REVISION"]=""
-S["QT_ANDROID_NDK_ROOT"]=""
-S["QT_ANDROID_SDK_ROOT"]=""
-S["QT_ANDROID_QT_ROOT"]=""
-S["QT_ANDROID_PATH"]=""
-S["ATHENA_ANDROID_VERSION_CODE"]=""
 S["CONFIG_HOST_CPU"]="x86_64"
 S["PKGPATH"]=""
 S["REPOPATH"]=""

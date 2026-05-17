@@ -275,12 +275,9 @@ AC_DEFUN([LC_GUILE],[
     LC_GUILE_LOCAL
   fi
 
-  # on windows 64 bits and any android, we need to have guile hooks
+  # on windows 64 bits, we need to have guile hooks
   case "${host}" in
     *64*w64-mingw32)
-      LC_GUILE_NEED_HOOKS
-    ;;
-    *android*)
       LC_GUILE_NEED_HOOKS
     ;;
   esac

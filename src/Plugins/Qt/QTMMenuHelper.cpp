@@ -829,9 +829,7 @@ QTMTabWidget::QTMTabWidget (QWidget *p) : QTabWidget(p) {
 #if QT_VERSION < 0x060000
   QObject::connect (this, SIGNAL (currentChanged (int)), this, SLOT (resizeOthers (int)));
 #else
-#ifndef OS_ANDROID
   QObject::connect (this, &QTabWidget::currentChanged, this, &QTMTabWidget::resizeOthers);
-#endif
 #endif
 }
 
@@ -1336,4 +1334,3 @@ inline QTMTreeModel*
 QTMTreeView::tmModel() const {
   return static_cast<QTMTreeModel*> (model());
 }
-

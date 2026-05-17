@@ -1,6 +1,6 @@
 /******************************************************************************
 * MODULE     : QTMTToolbar.hpp
-* DESCRIPTION: Custom toolbar for TeXmacs, that can scroll on Android.
+* DESCRIPTION: Custom toolbar for TeXmacs.
 * COPYRIGHT  : (C) 2025 Liza Belos
 *******************************************************************************
 * This software falls under the GNU general public license version 3 or later.

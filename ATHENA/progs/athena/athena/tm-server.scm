@@ -33,7 +33,7 @@
   (notify-restart))
 
 (define (get-default-enable-tab)
-  (if (os-android?) "on" "off"))
+  "off")
 
 (define (get-default-show-table-cells)
   (if (qt-gui?) "on" "off"))

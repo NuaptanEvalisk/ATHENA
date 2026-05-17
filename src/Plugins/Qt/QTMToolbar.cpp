@@ -1,6 +1,6 @@
 /******************************************************************************
 * MODULE     : QTMTToolbar.cpp
-* DESCRIPTION: Custom toolbar for TeXmacs, that can scroll on Android.
+* DESCRIPTION: Custom toolbar for TeXmacs.
 * COPYRIGHT  : (C) 2025 Liza Belos
 *******************************************************************************
 * This software falls under the GNU general public license version 3 or later.
@@ -268,7 +268,7 @@ void QTMToolbar::addAction (QAction* action) {
     }
   }
   
-  // add the button to the toolbar, and on Android to the scrollable layout
+  // add the button to the toolbar
   if (tmapp()->useNewToolbar()) {
     actionWidget->setSizePolicy (QSizePolicy::Preferred, QSizePolicy::Expanding);
     mLayout->addWidget (actionWidget);

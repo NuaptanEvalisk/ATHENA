@@ -357,14 +357,6 @@ os_macos () {
 #endif
 }
 
-bool os_android () {
-#if defined (OS_ANDROID)
-  return true;
-#else
-  return false;
-#endif
-}
-
 bool
 use_macos_fonts () {
 #ifdef OS_MACOS

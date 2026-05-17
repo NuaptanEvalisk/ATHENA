@@ -55,9 +55,7 @@ QTMMainTabWindow::QTMMainTabWindow() {
   else mStackedWidget->setCurrentWidget (mTabWidget);
 
   // todo : keep the tab window size and position in the user preferences
-#ifndef OS_ANDROID
   setMinimumSize(800, 600);
-#endif
 
   setAttribute(Qt::WA_DeleteOnClose);
 
@@ -69,12 +67,12 @@ QTMMainTabWindow::QTMMainTabWindow() {
   
   show();
 
-#if !defined(OS_ANDROID) && QT_VERSION >= 0x060000
+#if QT_VERSION >= 0x060000
   QRect screenGeometry = QApplication::screens().at(0)->geometry();
   move(screenGeometry.center() - rect().center());
 #endif
 
-#if !defined(OS_ANDROID) && QT_VERSION >= 0x060000
+#if QT_VERSION >= 0x060000
   installEventFilter(this);
   mTabWidget->tabBar()->installEventFilter(this);
 #endif

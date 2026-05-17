@@ -17,7 +17,7 @@
 
 #ifdef OS_MINGW
 #include <windows.h>
-#elif !defined(OS_ANDROID)
+#else
 #include <wordexp.h>
 #endif
 
@@ -75,7 +75,7 @@ QTMPipeLink::launchCmd () {
 
   LocalFree(argv);
 
-#elif !defined(OS_ANDROID)
+#else
   wordexp_t exp;
   memset(&exp, 0, sizeof(exp));
 
@@ -89,16 +89,10 @@ QTMPipeLink::launchCmd () {
   if (exp.we_wordc > 0) {
     program = QString::fromUtf8(exp.we_wordv[0]);
     for (size_t i = 1; i < exp.we_wordc; ++i)
-    args << QString::fromUtf8(exp.we_wordv[i]);
+      args << QString::fromUtf8(exp.we_wordv[i]);
   }
 
   wordfree(&exp);
-#else
-  QStringList list = QProcess::splitCommand(raw);
-  if (!list.isEmpty()) {
-    program = list.takeFirst();
-  }
-  args = list;
 #endif
 
   this->start(program, args);
@@ -147,4 +141,3 @@ QTMPipeLink::killProcess (int msecs) {
   if (! waitForFinished (msecs)) kill ();
 #endif
 }
-

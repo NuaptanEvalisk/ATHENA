@@ -16,8 +16,6 @@
 #include "Windows64/windows64_system.hpp"
 #elif defined (OS_MINGW)
 #include "Windows/windows32_system.hpp"
-#elif defined (OS_ANDROID)
-#include "Android/android_system.hpp"
 #else
 #include "Unix/unix_system.hpp"
 #endif
