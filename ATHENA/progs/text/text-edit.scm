@@ -729,7 +729,7 @@
         ((tree-in? t (numbered-unnumbered-append (exercise-tag-list)))
          (tree-set! t `(render-exercise "" ,(tree-ref t 0))))
         ((tree-in? t (numbered-unnumbered-append (solution-tag-list)))
-         (tree-set! t `(render-exercise "" ,(tree-ref t 0))))
+         (tree-set! t `(render-solution "" ,(tree-ref t 0))))
         ((tree-in? t '(proof))
          (tree-set! t `(render-proof "" ,(tree-ref t 0))))
         ((tree-in? t '(proof-alternative))

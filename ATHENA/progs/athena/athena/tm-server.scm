@@ -84,6 +84,23 @@
 (define (notify-new-page-breaking var val)
   (noop))
 
+(define (notify-enunciation-rendering var val)
+  (refresh-now "enunciations"))
+
+(tm-define (ext-render-exercises-smaller?)
+  (:secure #t)
+  (if (== (get-preference "render solution in smaller font") "on")
+      "true"
+      "false"))
+
+(tm-define (ext-render-solution-smaller?)
+  (:secure #t)
+  (ext-render-exercises-smaller?))
+
+(tm-define (ext-render-exercise-diagnostic stage which body)
+  (:secure #t)
+  "")
+
 (define (get-default-native-menubar)
   (if (qt4-gui?) "on" "off"))
 
@@ -125,6 +142,7 @@
   ("interactive questions" (get-default-interactive-questions) noop)
   ("language" (get-locale-language) notify-language)
   ("default cjk language" "chinese" noop)
+  ("render solution in smaller font" "on" notify-enunciation-rendering)
   ("gui theme" "default" notify-gui-theme)
   ("page medium" "paper" (lambda args (noop)))
   ("fast environments" "on" notify-fast-environments)

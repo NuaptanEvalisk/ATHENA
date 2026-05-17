@@ -68,7 +68,7 @@
 
   <new-exercise|problem|Problem>
 
-  <new-exercise|solution|Solution>
+  <new-env|solution|Solution|exercise-env|render-solution>
 
   <new-remark|question|Question>
 

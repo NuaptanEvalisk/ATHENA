@@ -74,7 +74,7 @@
     <render-enunciation|<theorem-name|<arg|which><theorem-sep>>|<with|font-shape|italic|<arg|body>>>
   </macro>>
 
-  <assign|render-exercise|<\macro|which|body>
+  <assign|render-exercise-small|<\macro|which|body>
     <\padded>
       <\indent-left|<value|exercise-indentation>>
         <\small>
@@ -82,6 +82,14 @@
         </small>
       </indent-left>
     </padded>
+  </macro>>
+
+  <assign|render-exercise-normal|<\macro|which|body>
+    <render-enunciation|<exercise-name|<arg|which><exercise-sep>>|<arg|body>>
+  </macro>>
+
+  <assign|render-exercise|<\macro|which|body>
+    <compound|<if|<extern|ext-render-exercises-smaller?>|render-exercise-small|render-exercise-normal>|<arg|which>|<arg|body>>
   </macro>>
 
   <\active*>

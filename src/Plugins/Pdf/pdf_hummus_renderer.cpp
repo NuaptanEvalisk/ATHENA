@@ -2478,7 +2478,7 @@ pdf_hummus_renderer_rep::flush_metadata () {
     info.Author= as_hummus_string (metadata ["author"]);
   if (metadata->contains ("subject"))
     info.Subject= as_hummus_string (metadata ["subject"]);
-  string creator= "TeXmacs " * string (ATHENA_VERSION);
+  string creator= "ATHENA " * string (ATHENA_VERSION);
   string producer= creator * " + Hummus 4.0";
   info.Creator= utf8_as_hummus_string (creator);
   info.Producer= utf8_as_hummus_string (producer);
