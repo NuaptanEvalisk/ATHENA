@@ -1,5 +1,7 @@
 #include "QTMMainTabWindow.hpp"
 #include "QTMApplication.hpp"
+#include "QTMBufferSwitcher.hpp"
+#include "QTMWidget.hpp"
 #include "qt_window_widget.hpp"
 #include "scheme.hpp"
 #include "tm_server.hpp"
@@ -25,6 +27,13 @@ QTMMainTabWindow *targetTabWindow = nullptr;
 static bool widgetOrChildHasFocus(QWidget* widget) {
   QWidget* focus = QApplication::focusWidget();
   return widget && (focus == widget || widget->isAncestorOf(focus));
+}
+
+static bool
+isDocumentWidget(QWidget* widget) {
+  return widget != nullptr &&
+         (qobject_cast<QTMWidget*> (widget) != nullptr ||
+          widget->findChild<QTMWidget*> () != nullptr);
 }
 
 QTMMainTabWindow::QTMMainTabWindow() {
@@ -126,6 +135,8 @@ void QTMMainTabWindow::setMainTitleFromWidget(QWidget* widget) {
     QWidget* p = widget->parentWidget();
     while (p) {
       if (ads::CDockWidget* dockWidget = qobject_cast<ads::CDockWidget*>(p)) {
+        if (isDocumentWidget (dockWidget->widget ()))
+          buffer_switcher_note_widget (dockWidget->widget ());
         setMainTitle(dockWidget->windowTitle());
         return;
       }
@@ -133,12 +144,16 @@ void QTMMainTabWindow::setMainTitleFromWidget(QWidget* widget) {
     }
   } else if (tmapp()->useMdi()) {
     if (QMdiSubWindow* sub = qobject_cast<QMdiSubWindow*>(widget->parentWidget())) {
+      if (isDocumentWidget (sub->widget ()))
+        buffer_switcher_note_widget (sub->widget ());
       setMainTitle(sub->windowTitle());
       return;
     }
   } else {
     int index = mTabWidget->indexOf(widget);
     if (index != -1) {
+      if (isDocumentWidget (widget))
+        buffer_switcher_note_widget (widget);
       setMainTitle(mTabWidget->tabText(index));
       return;
     }
@@ -319,6 +334,7 @@ bool QTMMainTabWindow::eventFilter(QObject *obj, QEvent *event) {
 
 void QTMMainTabWindow::showWidget(QWidget *widget, bool isDocument) {
   if (isDocument) widget->installEventFilter(this);
+  if (isDocument) buffer_switcher_note_widget (widget);
   if (tmapp()->useAds()) {
     ads::CDockWidget* dockWidget = qobject_cast<ads::CDockWidget*>(widget->parentWidget());
     if (dockWidget) {
@@ -394,6 +410,97 @@ void QTMMainTabWindow::showWidget(QWidget *widget, bool isDocument) {
     widget->setFocus();
     setMainTitleFromWidget(widget);
   }
+}
+
+QList<QWidget*>
+QTMMainTabWindow::documentWidgets() const {
+  QList<QWidget*> out;
+  if (tmapp()->useAds()) {
+    auto map= mDockManager->dockWidgetsMap();
+    for (auto it= map.begin (); it != map.end (); ++it) {
+      ads::CDockWidget* dockWidget= it.value ();
+      if (dockWidget == nullptr) continue;
+      QWidget* widget= dockWidget->widget ();
+      if (isDocumentWidget (widget) && !out.contains (widget))
+        out.append (widget);
+    }
+  }
+  else if (tmapp()->useMdi()) {
+    QList<QMdiSubWindow*> windows= mMdiArea->subWindowList ();
+    for (QMdiSubWindow* sub : windows) {
+      if (sub == nullptr) continue;
+      QWidget* widget= sub->widget ();
+      if (isDocumentWidget (widget) && !out.contains (widget))
+        out.append (widget);
+    }
+  }
+  else {
+    for (int i=0; i<mTabWidget->count (); ++i) {
+      QWidget* widget= mTabWidget->widget (i);
+      if (isDocumentWidget (widget) && !out.contains (widget))
+        out.append (widget);
+    }
+  }
+  return out;
+}
+
+QWidget*
+QTMMainTabWindow::currentDocumentWidget() const {
+  QWidget* current= nullptr;
+  if (tmapp()->useAds()) {
+    if (ads::CDockWidget* dockWidget= mDockManager->focusedDockWidget ())
+      current= dockWidget->widget ();
+    if (!isDocumentWidget (current)) {
+      QTMWidget* last= QTMWidget::getLastFocusedWidget ();
+      for (QWidget* widget : documentWidgets ())
+        if (widget == last || widget->isAncestorOf (last)) {
+          current= widget;
+          break;
+        }
+    }
+  }
+  else if (tmapp()->useMdi()) {
+    if (QMdiSubWindow* sub= mMdiArea->activeSubWindow ())
+      current= sub->widget ();
+  }
+  else current= mTabWidget->currentWidget ();
+
+  if (isDocumentWidget (current) && documentWidgets ().contains (current))
+    return current;
+  return nullptr;
+}
+
+QString
+QTMMainTabWindow::documentWidgetTitle(QWidget* widget) const {
+  if (widget == nullptr) return QString ();
+
+  if (tmapp()->useAds()) {
+    QWidget* p= widget->parentWidget ();
+    while (p != nullptr) {
+      if (ads::CDockWidget* dockWidget= qobject_cast<ads::CDockWidget*> (p))
+        return dockWidget->windowTitle ();
+      p= p->parentWidget ();
+    }
+  }
+  else if (tmapp()->useMdi()) {
+    if (QMdiSubWindow* sub= qobject_cast<QMdiSubWindow*> (widget->parentWidget ()))
+      return sub->windowTitle ();
+  }
+  else {
+    int index= mTabWidget->indexOf (widget);
+    if (index >= 0) return mTabWidget->tabText (index);
+  }
+
+  return widget->windowTitle ();
+}
+
+void
+QTMMainTabWindow::activateDocumentWidget(QWidget* widget) {
+  if (widget == nullptr || !documentWidgets ().contains (widget)) return;
+  showWidget (widget, true);
+  buffer_switcher_note_widget (widget);
+  activateWindow ();
+  widget->setFocus ();
 }
 
 void QTMMainTabWindow::removeWidget(QWidget *widget) {

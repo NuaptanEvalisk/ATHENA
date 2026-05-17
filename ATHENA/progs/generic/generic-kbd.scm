@@ -24,6 +24,7 @@
         (athena athena tm-files)
         (athena athena tm-print)
         (athena athena tm-vault)
+        (athena menus file-menu)
         (doc help-funcs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -38,6 +39,7 @@
   ("C-S-P" (command-palette-show))
   ("C-S-o" (open-quick-switcher))
   ("C-S-O" (open-quick-switcher))
+  ("C-S-tab" (visual-buffer-switcher-show))
 
   ("<" "<less>")
   (">" "<gtr>")
@@ -469,7 +471,7 @@
   ;; not yet implemented
   ;;("std t" (add-tab))
   ;;("std tab" (next-tab))
-  ;;("std S-tab" (previous-tab))
+  ("std S-tab" (visual-buffer-switcher-show))
 
   ;; extras
   ("std 7" (fit-all-to-screen))

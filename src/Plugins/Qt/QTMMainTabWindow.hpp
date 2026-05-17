@@ -17,6 +17,7 @@
 #include <QTabWidget>
 #include <QMdiArea>
 #include <QStackedWidget>
+#include <QList>
 #include <DockManager.h>
 
 /**
@@ -41,6 +42,11 @@ public:
   QTabWidget* tabWidget() { return mTabWidget; }
   QMdiArea* mdiArea() { return mMdiArea; }
   ads::CDockManager* dockManager() { return mDockManager; }
+
+  QList<QWidget*> documentWidgets() const;
+  QWidget* currentDocumentWidget() const;
+  QString documentWidgetTitle(QWidget* widget) const;
+  void activateDocumentWidget(QWidget* widget);
 
   void tileSubWindows();
   void cascadeSubWindows();

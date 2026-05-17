@@ -29,6 +29,7 @@
 #include "QTMMainTabWindow.hpp"
 #include "QTMVaultChooser.hpp"
 #include "QTMQuickSwitcher.hpp"
+#include "QTMBufferSwitcher.hpp"
 #include "QTMVaultExplorer.hpp"
 #include "QTMVaultBackupViewer.hpp"
 #include "QTMGlobalSearch.hpp"
@@ -1390,6 +1391,16 @@ tmscm_to_list_tree (tmscm p) {
 #include "../Glue/glue_editor.cpp"
 #include "../Glue/glue_server.cpp"
 
+tmscm
+tmg_visual_buffer_switcher_choose (tmscm arg1) {
+  TMSCM_ASSERT_ARRAY_STRING (arg1, TMSCM_ARG1,
+                             "visual-buffer-switcher-choose");
+
+  array_string in1= tmscm_to_array_string (arg1);
+  string out= visual_buffer_switcher_choose (in1);
+  return string_to_tmscm (out);
+}
+
 void
 initialize_glue () {
   tmscm_install_procedure ("tree?", treeP, 1, 0, 0);
@@ -1403,6 +1414,10 @@ initialize_glue () {
   tmscm_install_procedure ("outline-pane-show", outline_pane_show, 0, 0, 0);
   tmscm_install_procedure ("command-palette-show",
                            command_palette_show, 0, 0, 0);
+  tmscm_install_procedure ("visual-buffer-switcher-show",
+                           visual_buffer_switcher_show, 0, 0, 0);
+  tmscm_install_procedure ("visual-buffer-switcher-choose",
+                           tmg_visual_buffer_switcher_choose, 1, 0, 0);
   tmscm_install_procedure ("vault-backup-viewer-show",
                            vault_backup_viewer_show, 0, 0, 0);
   tmscm_install_procedure ("image-remove-background",

@@ -47,6 +47,21 @@
          (l2 (list-sort l1 buffer-more-recent?)))
     (sublist l2 0 (min (length l2) nr))))
 
+(define (buffer-switcher-entry name)
+  (let* ((abbr (buffer-get-title name))
+         (abbr* (if (== abbr "") (url->system (url-tail name)) abbr))
+         (mod? (buffer-modified? name))
+         (short-name (string-append abbr* (if mod? " *" "")))
+         (long-name (url->system name)))
+    (list (url->string name) short-name long-name)))
+
+(tm-define (visual-buffer-switcher-show)
+  (let* ((buffers (buffer-menu-list 50))
+         (entries (apply append (map buffer-switcher-entry buffers)))
+         (selected (visual-buffer-switcher-choose entries)))
+    (when (!= selected "")
+      (switch-to-buffer* (string->url selected)))))
+
 (tm-define (buffer-go-menu)
   (let* ((l1 (list-difference (buffer-menu-list 15) (linked-file-list)))
          (l2 (map window->buffer (window-list)))
