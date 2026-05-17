@@ -102,7 +102,7 @@ AC_DEFUN([LC_WITH_QT],[
     AT_WITH_QT([$xtralibs +core +gui +printsupport +svg +network $xtraPlug],[+exceptions],[
       LIBS += $LDFLAGS
       QTPLUGIN += qjpeg qgif qico qsvg qxcb
-      QTPLUGIN.platforms += qminimal qxcb
+      QTPLUGIN.platforms += qxcb
       CONFIG += import_plugins
       CONFIG += static
     ],AC_MSG_ERROR([Cannot find a working Qt library]))

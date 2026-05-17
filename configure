@@ -29859,7 +29859,7 @@ $at_mod"
   echo "
       LIBS += $LDFLAGS
       QTPLUGIN += qjpeg qgif qico qsvg qxcb
-      QTPLUGIN.platforms += qminimal qxcb
+      QTPLUGIN.platforms += qxcb
       CONFIG += import_plugins
       CONFIG += static
     " >>"$pro_file"
@@ -38546,5 +38546,4 @@ if test -n "$ac_unrecognized_opts" && test "$enable_option_checking" != no; then
   { printf "%s\n" "$as_me:${as_lineno-$LINENO}: WARNING: unrecognized options: $ac_unrecognized_opts" >&5
 printf "%s\n" "$as_me: WARNING: unrecognized options: $ac_unrecognized_opts" >&2;}
 fi
-
 

@@ -90,6 +90,94 @@ is_positive_integer_arg (string s) {
   return as_int (s) > 0;
 }
 
+static string
+qt_platform_name (string value) {
+  int end= N(value);
+  for (int i=0; i<N(value); i++)
+    if (value[i] == ':' || value[i] == ';' || value[i] == ',') {
+      end= i;
+      break;
+    }
+  return value (0, end);
+}
+
+static bool
+unsupported_qt_platform (string value) {
+  string platform= qt_platform_name (locase_all (value));
+  return platform == "eglfs" ||
+         platform == "linuxfb" ||
+         platform == "minimal" ||
+         platform == "minimalegl" ||
+         platform == "vnc";
+}
+
+static bool
+supported_qt_platform (string value) {
+  string platform= qt_platform_name (locase_all (value));
+  return platform == "offscreen" ||
+         platform == "wayland-egl" ||
+         platform == "wayland" ||
+         platform == "wayland-xcomposite-egl" ||
+         platform == "wayland-xcomposite-glx" ||
+         platform == "xcb"
+#if defined (Q_OS_MAC)
+         || platform == "cocoa"
+#endif
+#if defined (Q_OS_WIN)
+         || platform == "windows"
+#endif
+         ;
+}
+
+static void
+print_available_qt_platforms () {
+  cerr << "ATHENA] Available platform plugins are: ";
+#if defined (Q_OS_MAC)
+  cerr << "cocoa, ";
+#endif
+  cerr << "offscreen, wayland-egl, wayland, wayland-xcomposite-egl, "
+       << "wayland-xcomposite-glx, xcb";
+#if defined (Q_OS_WIN)
+  cerr << ", windows";
+#endif
+  cerr << ".\n";
+}
+
+static void
+reject_qt_platform (string source, string value) {
+  if (value == "help" || value == "--help" || value == "-help") {
+    print_available_qt_platforms ();
+    exit (0);
+  }
+  if (unsupported_qt_platform (value) || !supported_qt_platform (value)) {
+    cerr << "ATHENA] unsupported Qt platform plugin in " << source << ": "
+         << value << "\n";
+    print_available_qt_platforms ();
+    exit (1);
+  }
+}
+
+static void
+reject_unsupported_qt_platforms (int argc, char** argv) {
+  string env_platform= get_env ("QT_QPA_PLATFORM");
+  if (!is_empty (env_platform))
+    reject_qt_platform ("QT_QPA_PLATFORM", env_platform);
+
+  for (int i=1; i<argc; i++) {
+    string arg= argv[i];
+    if (starts (arg, "--platform=") || starts (arg, "-platform=")) {
+      int start= starts (arg, "--platform=")? 11: 10;
+      string value= arg (start, N(arg));
+      reject_qt_platform ("--platform", value);
+    }
+    else if ((arg == "--platform" || arg == "-platform") && i+1 < argc) {
+      string value= argv[i+1];
+      reject_qt_platform ("--platform", value);
+      i++;
+    }
+  }
+}
+
 static int
 as_positive_integer_arg (string s) {
   return is_positive_integer_arg (s) ? as_int (s) : 0;
@@ -840,6 +928,7 @@ texmacs_entrypoint (int argc, char** argv) {
   }
   ATHENA_init_paths (argc, argv);
 #ifdef QTTEXMACS
+  reject_unsupported_qt_platforms (argc, argv);
   if (!headless_mode) {
 #if QT_VERSION >= 0x060000
     QGuiApplication::setHighDpiScaleFactorRoundingPolicy

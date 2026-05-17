@@ -38,8 +38,16 @@ function bundle_qt_plugins {
   else oplug="$2/$1"
   fi
   for d in $oplug
-  do test -d $d && mkdir Plugins/$(basename $d) && \
-    test -n "$(echo $d/*dylib)" && cp $d/*dylib Plugins/$(basename $d)/
+  do
+    test -d $d || continue
+    mkdir Plugins/$(basename $d)
+    for plugin in $d/*dylib
+    do
+      case "$(basename "$plugin")" in
+        *qeglfs*|*qlinuxfb*|*qminimal*|*qminimalegl*|*qvnc*) continue ;;
+      esac
+      cp "$plugin" Plugins/$(basename $d)/
+    done
   done
   
   for p in $(eval echo Plugins/*/*dylib)
