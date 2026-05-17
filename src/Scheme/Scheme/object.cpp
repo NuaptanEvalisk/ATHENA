@@ -485,7 +485,8 @@ aofm_cache_preferences () {
         << string ("manual remove superfluous invisible")
         << string ("manual homoglyph correct")
         << string ("manual insert missing invisible")
-        << string ("manual zealous invisible correct");
+        << string ("manual zealous invisible correct")
+        << string ("vault preferred font");
   for (int i=0; i<N(prefs); i++) {
     string val = as_string (call ("get-preference", prefs[i]));
     aofm_pref_cache (prefs[i]) = val;

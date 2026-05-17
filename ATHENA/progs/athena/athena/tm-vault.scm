@@ -7,6 +7,7 @@
         (kernel athena tm-secure)
         (utils library cursor)
         (generic document-edit)
+        (fonts font-new-widgets)
         (link ref-edit)
         (athena athena tm-vault-images)
         (athena menus file-menu)))
@@ -229,6 +230,7 @@
   ("vault explorer show on startup" "on" noop)
   ("vault explorer track current file" "off" notify-vault-explorer-track)
   ("vault explorer use system trash" "off" noop)
+  ("vault preferred font" "" noop)
   ("vault labels mode" "visible" notify-labels-mode)
   ("vault theorem color" "none" notify-enunciation-color)
   ("vault lemma color" "none" notify-enunciation-color)
@@ -259,6 +261,21 @@
   (let ((pref (get-preference "vault fuzzy search limit")))
     (or (string->number pref) 3)))
 
+(define (vault-font-preference-choices)
+  (list-remove-duplicates
+    (cons-new (get-preference "vault preferred font")
+      (append '("" "roman" "stix" "bonum" "pagella" "schola" "termes")
+              (get-user-preferred-fonts)
+              (font-database-families)))))
+
+(tm-define (vault-apply-preferred-font-to-current-buffer)
+  (when (and (defined? 'vault-active?)
+             (defined? 'init-font)
+             (vault-active?))
+    (let ((font (get-preference "vault preferred font")))
+      (when (!= font "")
+        (init-font font)))))
+
 (tm-widget (vault-preferences-widget)
   (vertical
     (aligned
@@ -287,7 +304,12 @@
                 (equal? (get-preference "vault explorer track current file") "on")))
       (item (text "Use system trash for safe deletion:")
         (toggle (set-preference "vault explorer use system trash" (if answer "on" "off"))
-                (equal? (get-preference "vault explorer use system trash") "on"))))
+                (equal? (get-preference "vault explorer use system trash") "on")))
+      (item (text "Global preferred font for vault:")
+        (enum (set-preference "vault preferred font" answer)
+              (vault-font-preference-choices)
+              (get-preference "vault preferred font")
+              "18em")))
     (dynamic (vault-image-preferences-widget))))
 
 

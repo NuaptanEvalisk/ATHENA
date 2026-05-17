@@ -9,6 +9,7 @@
 #include "convert.hpp"
 #include "file.hpp"
 #include "new_data.hpp"
+#include "scheme.hpp"
 #include "tm_configure.hpp"
 #include "tree.hpp"
 #include "url.hpp"
@@ -90,6 +91,49 @@ aofm_prepend_document_title(tree& body, const std::string& title,
     body = out;
 }
 
+static bool
+aofm_starts_with(const string& s, const char* prefix) {
+    string p(prefix);
+    return N(s) >= N(p) && s(0, N(p)) == p;
+}
+
+static string
+aofm_normalize_preferred_font(string font) {
+    if (font == "" || font == "default") return "";
+    if (font == "TeXmacs Computer Modern") return "roman";
+    if (font == "Roman") return "roman";
+    if (font == "Stix" || aofm_starts_with(font, "STIX")) return "stix";
+    if (font == "Bonum" || aofm_starts_with(font, "TeX Gyre Bonum")) return "bonum";
+    if (font == "Pagella" || aofm_starts_with(font, "TeX Gyre Pagella")) return "pagella";
+    if (font == "Schola" || aofm_starts_with(font, "TeX Gyre Schola")) return "schola";
+    if (font == "Termes" || aofm_starts_with(font, "TeX Gyre Termes")) return "termes";
+    return font;
+}
+
+static string
+aofm_matching_math_font(string font) {
+    if (font == "roman") return "roman";
+    if (font == "stix") return "math-stix";
+    if (font == "bonum") return "math-bonum";
+    if (font == "pagella") return "math-pagella";
+    if (font == "schola") return "math-schola";
+    if (font == "termes") return "math-termes";
+    return "";
+}
+
+static void
+aofm_apply_preferred_font(new_data& data) {
+    string font = aofm_normalize_preferred_font(
+        get_preference("vault preferred font", ""));
+    if (font == "") return;
+
+    data->init("font") = tree(font);
+    data->init("font-family") = tree("rm");
+
+    string math_font = aofm_matching_math_font(font);
+    if (math_font != "") data->init("math-font") = tree(math_font);
+}
+
 std::shared_ptr<peg::Ast>
 aofm_parse_file(const std::string& file_path) {
     peg::parser parser(aofm_grammar);
@@ -142,6 +186,7 @@ aofm_ast_to_texmacs_document(const AstPtr& ast, const std::string& title,
 
     new_data data;
     data->init("page-medium") = tree("automatic");
+    aofm_apply_preferred_font(data);
     if (!aofm_metadata.created_time.empty()) {
         data->init("global-created-time") = tree(tm_string(aofm_metadata.created_time));
     }
