@@ -29,6 +29,16 @@ preprocess_latex_formula (string latex) {
     str = std::regex_replace (str, std::regex(R"(\\end\{align\})"), R"(\end{aligned})");
   }
 
+  // A braced aligned block is semantically a cases/choice table.  If this is
+  // allowed to fall through to the generic aligned -> eqnarray* rule below,
+  // then the large left brace attaches to the full display-width equation box
+  // and renders at the left margin instead of next to the equations.
+  str = std::regex_replace (
+    str,
+    std::regex (
+      R"(\\left\s*(?:\\\{|\\lbrace)\s*\\begin\{aligned\}([\s\S]*?)\\end\{aligned\}\s*\\right\s*\.)"),
+    R"(\begin{cases}$1\end{cases})");
+
   if (get_preference ("latex->texmacs:operator-d-is-differential", "on") == "on") {
     str = std::regex_replace (str, std::regex(R"(\\operatorname\s*\{d\})"), R"(\mathd )");
     str = std::regex_replace (str, std::regex(R"(\\operatorname\s+d)"), R"(\mathd )");
