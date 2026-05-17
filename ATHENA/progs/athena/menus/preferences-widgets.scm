@@ -321,6 +321,11 @@
     (item (text "Transclusion background:")
       (dynamic (rendering-color-preference-widget
                  "vault transclusion color" #t)))
+    (item (text "Default CJK language:")
+      (enum (set-pretty-preference "default cjk language" answer)
+            '("Chinese" "Japanese" "Korean" "Taiwanese")
+            (get-pretty-preference "default cjk language")
+            "10em"))
     (item (text "Cursor color:")
       (dynamic (rendering-color-preference-widget "gui cursor color" #f)))
     (item (text "Selection color:")
@@ -1094,6 +1099,12 @@
   ("1" "Once")
   ("2" "Twice")
   ("3" "Three times"))
+
+(define-preference-names "default cjk language"
+  ("chinese" "Chinese")
+  ("japanese" "Japanese")
+  ("korean" "Korean")
+  ("taiwanese" "Taiwanese"))
 
 (define-preference-names "scripting language"
   ("none" "None"))

@@ -486,10 +486,13 @@ get_unicode_range (int code) {
   else if (code >= 0x400 && code <= 0x4ff) return "cyrillic";
   else if (is_emoji_code (code)) return "emoji";
   else if (code >= 0x3000 && code <= 0x303f) return "cjk";
+  else if (code >= 0x3400 && code <= 0x4dbf) return "cjk";
   else if (code >= 0x4e00 && code <= 0x9fcc) return "cjk";
-  else if (code >= 0xff00 && code <= 0xffef) return "cjk";
+  else if (code >= 0xf900 && code <= 0xfaff) return "cjk";
   else if (code >= 0x3040 && code <= 0x309F) return "hiragana";
+  else if (code >= 0x30a0 && code <= 0x30ff) return "hiragana";
   else if (code >= 0xac00 && code <= 0xd7af) return "hangul";
+  else if (code >= 0xff00 && code <= 0xffef) return "cjk";
   else if (code >= 0x2000 && code <= 0x23ff) return "mathsymbols";
   else if (code >= 0x2900 && code <= 0x2e7f) return "mathextra";
   else if (code >= 0x1d400 && code <= 0x1d7ff) return "mathletters";
@@ -1139,8 +1142,18 @@ smart_font_rep::resolve (string c, string fam, int attempt) {
     int a= attempt - 1;
     string v;
     if (range == "") v= variant;
-    else if (v == "rm") v= range;
+    else if (variant == "rm") v= range;
     else v= variant * "-" * range;
+    string cjk_fam= default_cjk_font_name_for_range (range);
+    if (cjk_fam != "" && cjk_fam != fam) {
+      font cfn= closest_font (cjk_fam, variant, series, rshape, sz, dpi, 1);
+      if (!is_nil (cfn) && cfn->supports (c)) {
+        tree key= tuple (cjk_fam, variant, series, rshape, "1");
+        int nr= sm->add_font (key, REWRITE_NONE);
+        initialize_font (nr);
+        return sm->add_char (key, c);
+      }
+    }
     font cfn= closest_font (fam, v, series, rshape, sz, dpi, a);
     //cout << "Trying " << c << " in " << cfn->res_name << "\n";
     if (cfn->supports (c)) {
@@ -1775,12 +1788,13 @@ smart_font_bis (string family, string variant, string series, string shape,
   }
   string name=
     family * "-" * variant * "-" *
-    series * "-" * shape * "-" *
+    series * "-" * shape * "-" * default_cjk_language_name () * "-" *
     as_string (sz) * "-" * as_string (vdpi) * "-smart";
   if (hdpi != vdpi)
     name=
       family * "-" * variant * "-" *
-      series * "-" * shape * "-" * as_string (sz) * "-" *
+      series * "-" * shape * "-" * default_cjk_language_name () * "-" *
+      as_string (sz) * "-" *
       as_string (hdpi) * "-" * as_string (vdpi) * "-smart";
   if (font::instances->contains (name)) return font (name);
   if (starts (family, "tc")) {

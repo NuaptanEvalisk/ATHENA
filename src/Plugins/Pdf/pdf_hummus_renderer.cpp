@@ -1372,6 +1372,12 @@ pdf_hummus_renderer_rep::make_pdf_font (string fontname)
 	EuropeanComputerModern_fonts->insert (fontname);
       return;
     }
+    else if (font != NULL) {
+      convert_warning << "pdf_hummus_renderer, font: " << fname
+		      << " in file " << u << " has a known native PDF "
+		      << "embedding issue. It is converted to bitmap type 3 "
+		      << "font." << LF;
+    }
     else {
       convert_warning << "pdf_hummus_renderer, font: " << fname
 		      << " in file " << u << " cannot be loaded. "

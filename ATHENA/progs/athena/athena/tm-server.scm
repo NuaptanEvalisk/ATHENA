@@ -124,6 +124,7 @@
   ("complex actions" "popups" noop)
   ("interactive questions" (get-default-interactive-questions) noop)
   ("language" (get-locale-language) notify-language)
+  ("default cjk language" "chinese" noop)
   ("gui theme" "default" notify-gui-theme)
   ("page medium" "paper" (lambda args (noop)))
   ("fast environments" "on" notify-fast-environments)

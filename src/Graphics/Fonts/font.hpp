@@ -154,6 +154,10 @@ struct font_rep: rep<font> {
 string default_chinese_font_name ();
 string default_japanese_font_name ();
 string default_korean_font_name ();
+string default_taiwanese_font_name ();
+string default_cjk_language_name ();
+string default_cjk_font_name ();
+string default_cjk_font_name_for_range (string range);
 
 font error_font (font fn);
 font virtual_font (font base, string fam, int sz, int hdpi, int vdpi, bool ext);

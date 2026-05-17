@@ -609,6 +609,22 @@ default_chinese_font_name () {
 }
 
 string
+default_taiwanese_font_name () {
+  if (has_user_preference("default taiwanese font name")) {
+    return get_user_preference("default taiwanese font name");
+  }
+
+  if (tt_font_exists ("Noto Serif CJK TC")) return "Noto Serif CJK TC";
+  if (tt_font_exists ("Noto Sans CJK TC")) return "Noto Sans CJK TC";
+  if (tt_font_exists ("Source Han Serif TC")) return "Source Han Serif TC";
+  if (tt_font_exists ("Source Han Sans TC")) return "Source Han Sans TC";
+  if (tt_font_exists ("AR PL UMing TW")) return "AR PL UMing TW";
+  if (tt_font_exists ("uming")) return "uming";
+
+  return default_chinese_font_name ();
+}
+
+string
 default_japanese_font_name () {
   if (has_user_preference("default japanese font name")) {
     return get_user_preference("default japanese font name");
@@ -635,6 +651,34 @@ default_japanese_font_name () {
   if (N(cjk_fonts) > 0) return cjk_fonts[0];
 
   return "roman";
+}
+
+string
+default_cjk_language_name () {
+  string lan= "chinese";
+  if (has_user_preference ("default cjk language"))
+    lan= get_user_preference ("default cjk language");
+  if (lan == "chinese" || lan == "japanese" ||
+      lan == "korean" || lan == "taiwanese")
+    return lan;
+  return "chinese";
+}
+
+string
+default_cjk_font_name () {
+  string lan= default_cjk_language_name ();
+  if (lan == "japanese") return default_japanese_font_name ();
+  if (lan == "korean") return default_korean_font_name ();
+  if (lan == "taiwanese") return default_taiwanese_font_name ();
+  return default_chinese_font_name ();
+}
+
+string
+default_cjk_font_name_for_range (string range) {
+  if (range == "hangul") return default_korean_font_name ();
+  if (range == "hiragana") return default_japanese_font_name ();
+  if (range == "cjk") return default_cjk_font_name ();
+  return "";
 }
 
 string
