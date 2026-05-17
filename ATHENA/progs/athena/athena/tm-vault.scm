@@ -499,6 +499,13 @@
       (show-message "No active vault. Please load a vault first." "Vault Explorer")
       (vault-show-explorer-and-track)))
 
+(tm-define (open-vault-backup-viewer)
+  (:interactive #t)
+  (if (not (vault-active?))
+      (show-message "No active vault. Please load a vault first."
+                    "Vault Backup Viewer")
+      (vault-backup-viewer-show)))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Vault bugcheck
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

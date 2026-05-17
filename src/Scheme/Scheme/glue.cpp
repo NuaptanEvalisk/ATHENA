@@ -30,6 +30,7 @@
 #include "QTMVaultChooser.hpp"
 #include "QTMQuickSwitcher.hpp"
 #include "QTMVaultExplorer.hpp"
+#include "QTMVaultBackupViewer.hpp"
 #include "QTMGlobalSearch.hpp"
 #include "QTMOutlinePane.hpp"
 #include "QTMAbout.hpp"
@@ -1399,6 +1400,8 @@ initialize_glue () {
   tmscm_install_procedure ("blackbox?", blackboxP, 1, 0, 0);
   tmscm_install_procedure ("run-proof-pipeline", run_proof_pipeline, 0, 0, 0);
   tmscm_install_procedure ("outline-pane-show", outline_pane_show, 0, 0, 0);
+  tmscm_install_procedure ("vault-backup-viewer-show",
+                           vault_backup_viewer_show, 0, 0, 0);
   tmscm_install_procedure ("image-remove-background",
                            image_remove_background_current, 1, 0, 0);
   

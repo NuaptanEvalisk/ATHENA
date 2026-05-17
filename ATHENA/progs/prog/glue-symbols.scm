@@ -794,6 +794,7 @@
 "vault-explorer-track-file"
 "global-search-show"
 "outline-pane-show"
+"vault-backup-viewer-show"
 "image-remove-background"
 "ads-show-tool-pane"
 "ads-close-tool-pane"
