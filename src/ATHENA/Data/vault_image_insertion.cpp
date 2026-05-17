@@ -10,6 +10,7 @@
 
 #include "ATHENA/Data/vault_image_insertion.hpp"
 
+#include "ATHENA/Data/image_background.hpp"
 #include "ATHENA/Data/vault.hpp"
 #include "scheme.hpp"
 
@@ -37,6 +38,11 @@ auto_copy_images () {
 static bool
 normalize_image_names () {
   return preference_on ("vault normalize image filename when inserting");
+}
+
+static bool
+auto_remove_background () {
+  return image_auto_remove_background_enabled ();
 }
 
 static std::string
@@ -162,7 +168,8 @@ relative_ref (const fs::path& doc_path, const fs::path& target) {
 static bool
 policy_enabled_for_document (url document, fs::path& doc_path,
                              fs::path& root_path) {
-  return (auto_copy_images () || normalize_image_names ()) &&
+  return (auto_copy_images () || normalize_image_names () ||
+          auto_remove_background ()) &&
          document_in_vault (document, doc_path, root_path);
 }
 
@@ -192,6 +199,12 @@ vault_image_insertion_prepare_file (url document, url source,
 
   bool in_vault= path_descends (source_path, root_path);
   if (in_vault && (!normalize_image_names () || canonical_image_name (source_path))) {
+    if (auto_remove_background () &&
+        lower_extension (source_path.extension ().string ()) == "png" &&
+        !image_remove_white_background_png (url_system (to_tm (source_path.string ())),
+                                            error)) {
+      return true;
+    }
     document_ref= relative_ref (doc_path, source_path);
     return true;
   }
@@ -200,6 +213,12 @@ vault_image_insertion_prepare_file (url document, url source,
   if (!ensure_assets_dir (doc_path, assets_dir, error)) return true;
   fs::path target= target_path (assets_dir, source_path, "");
   if (!copy_file (source_path, target, error)) return true;
+  if (auto_remove_background () &&
+      lower_extension (target.extension ().string ()) == "png" &&
+      !image_remove_white_background_png (url_system (to_tm (target.string ())),
+                                          error)) {
+    return true;
+  }
   document_ref= relative_ref (doc_path, target);
   return true;
 }
@@ -214,6 +233,12 @@ vault_image_insertion_prepare_data (url document, string data, string extension,
   if (!ensure_assets_dir (doc_path, assets_dir, error)) return true;
   fs::path target= target_path (assets_dir, fs::path (), to_std (extension));
   if (!write_bytes (target, data, error)) return true;
+  if (auto_remove_background () &&
+      lower_extension (target.extension ().string ()) == "png" &&
+      !image_remove_white_background_png (url_system (to_tm (target.string ())),
+                                          error)) {
+    return true;
+  }
   document_ref= relative_ref (doc_path, target);
   return true;
 }

@@ -291,6 +291,8 @@ find_package (Iconv)
 find_package (ZLIB)
 find_package (JPEG)
 pkg_check_modules (ZSTD REQUIRED libzstd)
+pkg_check_modules (MAGICKWAND REQUIRED MagickWand)
+add_definitions (${MAGICKWAND_CFLAGS_OTHER})
 #FIND_PACKAGE(Axel)
 
 ### --------------------------------------------------------------------
@@ -573,6 +575,7 @@ set (ATHENA_Libraries
   ${JPEG_LIBRARIES}
   ${PNG_LIBRARIES}
   ${ZSTD_LIBRARIES}
+  ${MAGICKWAND_LIBRARIES}
   -lpthread
 )
 
@@ -836,6 +839,8 @@ endif (APPLE)
 
 include_directories (${ATHENA_Include_Dirs})
 include_directories (${ZSTD_INCLUDE_DIRS})
+include_directories (${MAGICKWAND_INCLUDE_DIRS})
+link_directories (${MAGICKWAND_LIBRARY_DIRS})
 
 ### --------------------------------------------------------------------
 ### Debugging options

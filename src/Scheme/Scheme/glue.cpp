@@ -30,7 +30,9 @@
 #include "QTMQuickSwitcher.hpp"
 #include "QTMVaultExplorer.hpp"
 #include "QTMGlobalSearch.hpp"
+#include "QTMOutlinePane.hpp"
 #include "QTMAbout.hpp"
+#include "ATHENA/Data/image_background.hpp"
 #include "qt_widget.hpp"
 #include "qt_utilities.hpp"
 #include "message.hpp"
@@ -195,6 +197,20 @@ run_proof_pipeline () {
 void
 set_fast_environments (bool b) {
   enable_fastenv= b;
+}
+
+tmscm
+image_remove_background_current (tmscm arg1) {
+  if (!tmscm_is_string (arg1))
+    return string_to_tmscm ("Remove background expects an image path.");
+
+  string file_name= tmscm_to_string (arg1);
+  url image= relative (get_current_editor ()->get_name (),
+                       url_unix (file_name));
+  string error;
+  if (!image_remove_white_background_png (image, error))
+    return string_to_tmscm (error);
+  return string_to_tmscm ("");
 }
 
 void
@@ -1381,6 +1397,9 @@ initialize_glue () {
   tmscm_install_procedure ("patch?", patchP, 1, 0, 0);
   tmscm_install_procedure ("blackbox?", blackboxP, 1, 0, 0);
   tmscm_install_procedure ("run-proof-pipeline", run_proof_pipeline, 0, 0, 0);
+  tmscm_install_procedure ("outline-pane-show", outline_pane_show, 0, 0, 0);
+  tmscm_install_procedure ("image-remove-background",
+                           image_remove_background_current, 1, 0, 0);
   
   initialize_glue_basic ();
   initialize_glue_editor ();

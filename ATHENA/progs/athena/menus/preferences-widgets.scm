@@ -992,6 +992,9 @@
 
 ;; Images ----------
 
+(define-preferences
+  ("image auto remove background" "off" noop))
+
 (define (pretty-format-list)
   (let* ((desired-image-format-list '(("svg" "Svg")  ("eps" "Eps")
            ("png" "Png")("tif" "Tiff") ("jpg" "Jpeg") ("pdf" "Pdf")))
@@ -1022,6 +1025,9 @@
   (bold (text "Image -> TeXmacs"))
   ===
   (aligned
+    (meti (hlist // (text "Auto remove image background"))
+      (toggle (set-boolean-preference "image auto remove background" answer)
+              (get-boolean-preference "image auto remove background")))
     (meti
       (when (supports-inkscape?)
         (hlist // (text "Use Inkscape for conversion from SVG")))

@@ -156,5 +156,21 @@
   (with t (tree-innermost linked-image-context? #t)
     (embed-image t)))
 
+(tm-define (remove-image-background)
+  (:interactive #t)
+  (with t (tree-innermost image-context? #t)
+    (if (not t)
+        (show-message "No image selected." "Remove background")
+        (if (embedded-image-context? t)
+            (show-message "Remove background supports linked PNG images only."
+                          "Remove background")
+        (let* ((f (tm->string (tm-ref t 0)))
+               (err (image-remove-background f)))
+          (if (== err "")
+              (begin
+                (when (defined? 'picture-gc) (picture-gc))
+                (set-message "Removed image background" "Remove background"))
+              (show-message err "Remove background")))))))
+
 (tm-define (embed-all-images)
   (embed-images (buffer-tree)))

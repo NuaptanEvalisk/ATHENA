@@ -793,6 +793,8 @@
 "vault-show-explorer"
 "vault-explorer-track-file"
 "global-search-show"
+"outline-pane-show"
+"image-remove-background"
 "ads-show-tool-pane"
 "ads-close-tool-pane"
 "alt-window-handle"
