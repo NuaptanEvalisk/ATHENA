@@ -316,6 +316,147 @@
            (refresh-now pref)))
         >>))))
 
+(define enunciation-color-preset-data
+  (list
+    (cons "Solarized Light"
+      '(("vault theorem color" "#eee8d5")
+        ("vault lemma color" "#e7f1df")
+        ("vault corollary color" "#ddeef2")
+        ("vault proposition color" "#e8e2f2")
+        ("vault axiom color" "#f4e1dc")
+        ("vault definition color" "#f1ead2")
+        ("vault notation color" "#dfeee8")
+        ("vault convention color" "#ebe6d6")
+        ("vault conjecture color" "#e0eaf2")
+        ("vault law color" "#f3e7c8")
+        ("vault remark color" "#e6ead8")
+        ("vault note color" "#dcecf0")
+        ("vault example color" "#e9efd5")
+        ("vault warning color" "#f5dfd6")
+        ("vault disambiguation color" "#e2e6f1")
+        ("vault acknowledgments color" "#f0e2ea")
+        ("vault exercise color" "#e4efd8")
+        ("vault problem color" "#dcebe3")
+        ("vault question color" "#f2e8d1")))
+    (cons "Gruvbox Light"
+      '(("vault theorem color" "#f1e5c0")
+        ("vault lemma color" "#e5ecc4")
+        ("vault corollary color" "#dce9d1")
+        ("vault proposition color" "#d7e7de")
+        ("vault axiom color" "#ead6cb")
+        ("vault definition color" "#f0dec2")
+        ("vault notation color" "#e8e0c5")
+        ("vault convention color" "#dfe4c8")
+        ("vault conjecture color" "#d8e2cf")
+        ("vault law color" "#ecd9bf")
+        ("vault remark color" "#eee8cc")
+        ("vault note color" "#d9e8dc")
+        ("vault example color" "#e3e9c2")
+        ("vault warning color" "#f1d7c7")
+        ("vault disambiguation color" "#dedde8")
+        ("vault acknowledgments color" "#ead9dd")
+        ("vault exercise color" "#e1edcb")
+        ("vault problem color" "#d8e5d6")
+        ("vault question color" "#efe0c8")))
+    (cons "Catppuccin Latte"
+      '(("vault theorem color" "#e8e4f4")
+        ("vault lemma color" "#dfe8f4")
+        ("vault corollary color" "#dcecf0")
+        ("vault proposition color" "#dceee8")
+        ("vault axiom color" "#f2e1e6")
+        ("vault definition color" "#f1e4d5")
+        ("vault notation color" "#e7ead7")
+        ("vault convention color" "#e4e8dc")
+        ("vault conjecture color" "#e6e1ef")
+        ("vault law color" "#f3dfd9")
+        ("vault remark color" "#ebe7d6")
+        ("vault note color" "#e1e7f2")
+        ("vault example color" "#e4eedf")
+        ("vault warning color" "#f4dfd4")
+        ("vault disambiguation color" "#e0e3f0")
+        ("vault acknowledgments color" "#efdfec")
+        ("vault exercise color" "#dfeee1")
+        ("vault problem color" "#dfe9ed")
+        ("vault question color" "#f0e7d8")))
+    (cons "Everforest Light"
+      '(("vault theorem color" "#e7e8c9")
+        ("vault lemma color" "#dce9c8")
+        ("vault corollary color" "#d8e8d0")
+        ("vault proposition color" "#d6e7dc")
+        ("vault axiom color" "#edd6c8")
+        ("vault definition color" "#eee0c2")
+        ("vault notation color" "#e1e6c7")
+        ("vault convention color" "#e5dfca")
+        ("vault conjecture color" "#d9e2db")
+        ("vault law color" "#f0dac4")
+        ("vault remark color" "#e9e4c8")
+        ("vault note color" "#d7e7df")
+        ("vault example color" "#e1eac9")
+        ("vault warning color" "#f0d4c6")
+        ("vault disambiguation color" "#dce1e3")
+        ("vault acknowledgments color" "#ead8da")
+        ("vault exercise color" "#d9eacb")
+        ("vault problem color" "#d7e5d7")
+        ("vault question color" "#ebe1c9")))
+    (cons "Nord Light"
+      '(("vault theorem color" "#e5e9f0")
+        ("vault lemma color" "#dfeaf2")
+        ("vault corollary color" "#dcecf0")
+        ("vault proposition color" "#dceeea")
+        ("vault axiom color" "#ece3ed")
+        ("vault definition color" "#f0e4d8")
+        ("vault notation color" "#e7ebdd")
+        ("vault convention color" "#e3e8e2")
+        ("vault conjecture color" "#e2e5f1")
+        ("vault law color" "#f1e0d5")
+        ("vault remark color" "#e8eadc")
+        ("vault note color" "#dde8f1")
+        ("vault example color" "#e2eddc")
+        ("vault warning color" "#f1ded4")
+        ("vault disambiguation color" "#e0e4ec")
+        ("vault acknowledgments color" "#ece0e9")
+        ("vault exercise color" "#dfece0")
+        ("vault problem color" "#dce9e7")
+        ("vault question color" "#eee6da")))))
+
+(tm-define (enunciation-color-preset-names)
+  (map car enunciation-color-preset-data))
+
+(tm-define (enunciation-color-preset-current)
+  (let ((p (get-preference "enunciation color preset")))
+    (if (in? p (enunciation-color-preset-names))
+        p
+        "Solarized Light")))
+
+(tm-define (enunciation-color-preset-colors name)
+  (let ((entry (assoc name enunciation-color-preset-data)))
+    (if entry
+        (cdr entry)
+        (cdar enunciation-color-preset-data))))
+
+(tm-define (apply-enunciation-color-preset)
+  (:interactive #t)
+  (for-each
+    (lambda (entry)
+      (set-preference (car entry) (cadr entry))
+      (refresh-now (car entry)))
+    (enunciation-color-preset-colors
+      (enunciation-color-preset-current))))
+
+(tm-widget (rendering-enunciation-color-presets-widget)
+  (refreshable "enunciation-color-preset"
+    (hlist
+      (text "Preset:")
+      // //
+      (enum (begin
+              (set-preference "enunciation color preset" answer)
+              (refresh-now "enunciation-color-preset"))
+            (enunciation-color-preset-names)
+            (enunciation-color-preset-current)
+            "16em")
+      // //
+      (explicit-buttons ("Apply" (apply-enunciation-color-preset))))))
+
 (tm-widget (rendering-document-preferences-widget)
   (aligned
     (item (text "Transclusion background:")
@@ -418,24 +559,27 @@
                  "vault proof standard color" #t)))))
 
 (tm-widget (rendering-enunciation-colors-preferences-widget)
-  (hlist
-    (vlist
-      (bold (text "Enunciations"))
-      ===
-      (dynamic (rendering-enunciations-preferences-widget))
-      (glue #f #t 0 1))
-    (glue #f #f 24 0)
-    (vlist
-      (bold (text "Remarks and notes"))
-      ===
-      (dynamic (rendering-remarks-preferences-widget))
-      (glue #f #t 0 1))
-    (glue #f #f 24 0)
-    (vlist
-      (bold (text "Exercises and proofs"))
-      ===
-      (dynamic (rendering-exercises-preferences-widget))
-      (glue #f #t 0 1))))
+  (vertical
+    (dynamic (rendering-enunciation-color-presets-widget))
+    ======
+    (hlist
+      (vlist
+        (bold (text "Enunciations"))
+        ===
+        (dynamic (rendering-enunciations-preferences-widget))
+        (glue #f #t 0 1))
+      (glue #f #f 24 0)
+      (vlist
+        (bold (text "Remarks and notes"))
+        ===
+        (dynamic (rendering-remarks-preferences-widget))
+        (glue #f #t 0 1))
+      (glue #f #f 24 0)
+      (vlist
+        (bold (text "Exercises and proofs"))
+        ===
+        (dynamic (rendering-exercises-preferences-widget))
+        (glue #f #t 0 1)))))
 
 (tm-widget (rendering-preferences-widget)
   ===
