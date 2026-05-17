@@ -15,6 +15,8 @@
 
 namespace aofm {
 
+static bool is_proof_tree(const tree& t);
+
 static bool
 is_proof_like_callout_header(const std::string& line) {
   CalloutHeader header;
@@ -365,7 +367,7 @@ absorb_trailing_proof(const std::vector<AstPtr>& nodes, size_t index,
 
   tree env = is_document(doc) && N(doc) == 1 ? doc[0] : doc;
   if (!is_theorem_like_env_tree(env)) return false;
-  if (!is_compound(env[N(env) - 1], "proof", 1)) return false;
+  if (!is_proof_tree(env[N(env) - 1])) return false;
 
   size_t cursor = index + 1;
   while (cursor < nodes.size()) {
@@ -423,11 +425,22 @@ absorb_trailing_proof(const std::vector<AstPtr>& nodes, size_t index,
 
   if (!closed || N(continuation) == 0) return false;
 
-  tree proof_body = ensure_document_tree(env[N(env) - 1][0]);
+  tree proof_body = ensure_document_tree(
+      is_compound(env[N(env) - 1], "proof-of", 2)
+          ? env[N(env) - 1][1]
+          : env[N(env) - 1][0]);
   append_document(proof_body, continuation);
 
   tree new_env(env, N(env));
-  new_env[N(env) - 1] = compound("proof", ensure_document_tree(proof_body));
+  if (is_compound(env[N(env) - 1], "proof-of", 2)) {
+    new_env[N(env) - 1] =
+        compound("proof-of", env[N(env) - 1][0], ensure_document_tree(proof_body));
+  }
+  else {
+    new_env[N(env) - 1] =
+        compound(as_charp(as_string(L(env[N(env) - 1]))),
+                 ensure_document_tree(proof_body));
+  }
 
   if (is_document(doc) && N(doc) == 1) {
     result = document(new_env);
@@ -444,20 +457,33 @@ consume_proof(const std::vector<AstPtr>& nodes, size_t start,
               size_t& consumed_to) {
   struct ProofFrame {
     std::string tag;
+    std::string title;
     tree body;
+  };
+
+  auto make_proof_tree = [] (const ProofFrame& frame) {
+    tree body = ensure_document_tree(frame.body);
+    if (frame.tag == "proof" && !frame.title.empty()) {
+      return compound("proof-of", convert_inline_from_raw("(" + frame.title + ")"),
+                      body);
+    }
+    return compound(frame.tag.c_str(), body);
   };
 
   std::string first_chunk;
   std::string first_tag;
+  std::string first_title;
+  AstPtr first_payload = start < nodes.size() ? block_payload(nodes[start]) : nullptr;
   if (start >= nodes.size() ||
-      !extract_proof_marker(block_payload(nodes[start]), first_tag,
-                            first_chunk)) {
+      !ast_is(first_payload, "Paragraph") ||
+      !extract_proof_marker_text(ast_source(first_payload),
+                                 first_tag, first_title, first_chunk)) {
     consumed_to = start;
     return "";
   }
 
   std::vector<ProofFrame> stack;
-  stack.push_back(ProofFrame { first_tag, tree(DOCUMENT) });
+  stack.push_back(ProofFrame { first_tag, first_title, tree(DOCUMENT) });
 
   bool closes_immediately = strip_proof_qed_suffix(first_chunk);
 
@@ -466,8 +492,7 @@ consume_proof(const std::vector<AstPtr>& nodes, size_t start,
   }
 
   if (closes_immediately) {
-    tree finished = compound(stack.back().tag.c_str(),
-                             ensure_document_tree(stack.back().body));
+    tree finished = make_proof_tree(stack.back());
     stack.pop_back();
     consumed_to = start;
     return finished;
@@ -491,19 +516,21 @@ consume_proof(const std::vector<AstPtr>& nodes, size_t start,
 
     std::string nested_chunk;
     std::string nested_tag;
-    if (extract_proof_marker(payload, nested_tag, nested_chunk)) {
+    std::string nested_title;
+    if (ast_is(payload, "Paragraph") &&
+        extract_proof_marker_text(ast_source(payload), nested_tag,
+                                  nested_title, nested_chunk)) {
       // 【新增】：同样的逻辑应用到可能存在的嵌套 Proof
       bool closes_nested = strip_proof_qed_suffix(nested_chunk);
 
-      stack.push_back(ProofFrame { nested_tag, tree(DOCUMENT) });
+      stack.push_back(ProofFrame { nested_tag, nested_title, tree(DOCUMENT) });
       if (!nested_chunk.empty()) {
         stack.back().body << convert_inline_from_raw(nested_chunk);
       }
 
       // 【新增】：立即闭合嵌套 Proof
       if (closes_nested) {
-        tree finished = compound(stack.back().tag.c_str(),
-                                 ensure_document_tree(stack.back().body));
+        tree finished = make_proof_tree(stack.back());
         stack.pop_back();
         append_document(stack.back().body, finished);
       }
@@ -537,9 +564,7 @@ consume_proof(const std::vector<AstPtr>& nodes, size_t start,
       ++j;
 
       if (closes_callout_proof) {
-        tree finished =
-            compound(stack.back().tag.c_str(),
-                     ensure_document_tree(stack.back().body));
+        tree finished = make_proof_tree(stack.back());
         stack.pop_back();
         if (stack.empty()) {
           consumed_to = j - 1;
@@ -559,8 +584,7 @@ consume_proof(const std::vector<AstPtr>& nodes, size_t start,
                         parse_embedded_aofm_blocks(raw, "proof-body"));
       }
 
-      tree finished = compound(stack.back().tag.c_str(),
-                               ensure_document_tree(stack.back().body));
+      tree finished = make_proof_tree(stack.back());
       stack.pop_back();
       if (stack.empty()) {
         consumed_to = j;
@@ -579,15 +603,13 @@ consume_proof(const std::vector<AstPtr>& nodes, size_t start,
   consumed_to = j > start ? j - 1 : start;
 
   while (stack.size() > 1) {
-    tree finished = compound(stack.back().tag.c_str(),
-                             ensure_document_tree(stack.back().body));
+    tree finished = make_proof_tree(stack.back());
     stack.pop_back();
     append_document(stack.back().body, finished);
   }
 
   if (stack.empty()) return "";
-  return compound(stack.back().tag.c_str(),
-                  ensure_document_tree(stack.back().body));
+  return make_proof_tree(stack.back());
 }
 
 bool
@@ -673,6 +695,12 @@ sanitize_proof_trees(tree t) {
     return compound("proof-standard", ensure_document_tree(body));
   }
 
+  if (is_compound(t, "proof-of", 2)) {
+    tree body = sanitize_proof_trees(ensure_document_tree(t[1]));
+    body = strip_qed_from_right_edge(body);
+    return compound("proof-of", t[0], ensure_document_tree(body));
+  }
+
   if (is_compound(t, "theorem", 1)) {
     return compound("theorem", ensure_document_tree(sanitize_proof_trees(t[0])));
   }
@@ -742,39 +770,64 @@ extract_proof_marker(const AstPtr& ast, std::string& tag,
                      std::string& body) {
   if (!ast_is(ast, "Paragraph")) return false;
   std::string raw = trim_copy(strip_trailing_newlines(ast_source(ast)));
-  struct Marker {
-    const char* text;
-    const char* tag;
-  };
-  static const Marker kMarkers[] = {
-      {"**Proof (Alternative):**", "proof-alternative"},
-      {"**Proof (Alternative)：**", "proof-alternative"},
-      {"**Proof:**", "proof"},
-      {"**Proof：**", "proof"},
-      {"**Solution:**", "proof"},
-      {"**Solution：**", "proof"},
-      {"**证明:**", "proof"},
-      {"**证明：**", "proof"},
-      {"**解:**", "proof"},
-      {"**解：**", "proof"}
-  };
 
-  for (const Marker& marker : kMarkers) {
-    std::string prefix = marker.text;
-    if (raw.compare(0, prefix.size(), prefix) != 0) continue;
-    if (raw.size() > prefix.size() &&
-        raw[prefix.size()] != ' ' &&
-        raw[prefix.size()] != '\t' &&
-        raw[prefix.size()] != '\r' &&
-        raw[prefix.size()] != '\n') {
-      continue;
+  std::string title;
+  return extract_proof_marker_text(raw, tag, title, body);
+}
+
+bool
+extract_proof_marker_text(const std::string& raw, std::string& tag,
+                          std::string& title, std::string& body) {
+  std::string line = trim_copy(strip_trailing_newlines(raw));
+  if (line.compare(0, 2, "**") != 0) return false;
+
+  size_t marker_end = std::string::npos;
+  size_t delimiter_size = 0;
+  for (const std::string& delimiter : {std::string(":**"), std::string("：**")}) {
+    size_t pos = line.find(delimiter, 2);
+    if (pos != std::string::npos &&
+        (marker_end == std::string::npos || pos < marker_end)) {
+      marker_end = pos;
+      delimiter_size = delimiter.size();
     }
-    tag = marker.tag;
-    body = trim_copy(raw.substr(prefix.size()));
-    return true;
+  }
+  if (marker_end == std::string::npos) return false;
+
+  size_t after = marker_end + delimiter_size;
+  if (line.size() > after &&
+      line[after] != ' ' &&
+      line[after] != '\t' &&
+      line[after] != '\r' &&
+      line[after] != '\n') {
+    return false;
   }
 
-  return false;
+  std::string marker = trim_copy(line.substr(2, marker_end - 2));
+  title.clear();
+  if (marker == "Proof") {
+    tag = "proof";
+  }
+  else if (marker == "Proof (Alternative)") {
+    tag = "proof-alternative";
+  }
+  else if (marker == "Proof (Standard)") {
+    tag = "proof-standard";
+  }
+  else if (marker.compare(0, 7, "Proof (") == 0 &&
+           marker.size() > 8 && marker.back() == ')') {
+    tag = "proof";
+    title = trim_copy(marker.substr(7, marker.size() - 8));
+    if (title.empty()) return false;
+  }
+  else if (marker == "Solution" || marker == "证明" || marker == "解") {
+    tag = "proof";
+  }
+  else {
+    return false;
+  }
+
+  body = trim_copy(line.substr(after));
+  return true;
 }
 
 bool
@@ -826,7 +879,8 @@ void
 insert_label_before_trailing_proof(tree& doc, tree label) {
   if (!is_document(doc) || label == "") return;
   if (N(doc) < 2 ||
-      !is_compound(doc[N(doc) - 1], "proof", 1) ||
+      !(is_compound(doc[N(doc) - 1], "proof", 1) ||
+        is_compound(doc[N(doc) - 1], "proof-of", 2)) ||
       !is_theorem_like_env_tree(doc[N(doc) - 2])) {
     append_document(doc, label);
     return;
@@ -837,6 +891,14 @@ insert_label_before_trailing_proof(tree& doc, tree label) {
   append_document(out, label);
   out << doc[N(doc) - 1];
   doc = simplify_document(out);
+}
+
+static bool
+is_proof_tree(const tree& t) {
+  return is_compound(t, "proof", 1) ||
+         is_compound(t, "proof-alternative", 1) ||
+         is_compound(t, "proof-standard", 1) ||
+         is_compound(t, "proof-of", 2);
 }
 
 bool
@@ -916,7 +978,7 @@ extract_trailing_anchor_inline_text(const std::string& raw,
 
 tree
 split_callout_proof_tail(const std::string& tag, tree body) {
-  if (is_compound(body, "proof", 1)) {
+  if (is_proof_tree(body)) {
     return body;
   }
 
@@ -926,7 +988,7 @@ split_callout_proof_tail(const std::string& tag, tree body) {
 
   int proof_index = -1;
   for (int i = 0; i < N(body); ++i) {
-    if (is_compound(body[i], "proof", 1)) {
+    if (is_proof_tree(body[i])) {
       proof_index = i;
       break;
     }
@@ -976,16 +1038,16 @@ convert_callout(const AstPtr& ast) {
     if (tag == "proof-alternative" || tag == "proof-standard") {
       tree simplified = simplify_document(body);
       tree proof_body = "";
-      if (is_compound(simplified, "proof", 1) ||
-          is_compound(simplified, "proof-alternative", 1) ||
-          is_compound(simplified, "proof-standard", 1)) {
-        proof_body = simplified[0];
+      if (is_proof_tree(simplified)) {
+        proof_body = is_compound(simplified, "proof-of", 2)
+                         ? simplified[1]
+                         : simplified[0];
       }
       else if (is_document(simplified) && N(simplified) == 1 &&
-               (is_compound(simplified[0], "proof", 1) ||
-                is_compound(simplified[0], "proof-alternative", 1) ||
-                is_compound(simplified[0], "proof-standard", 1))) {
-        proof_body = simplified[0][0];
+               is_proof_tree(simplified[0])) {
+        proof_body = is_compound(simplified[0], "proof-of", 2)
+                         ? simplified[0][1]
+                         : simplified[0][0];
       }
       if (proof_body != "") {
         return compound(tag.c_str(), ensure_document_tree(proof_body));

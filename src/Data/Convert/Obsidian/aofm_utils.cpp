@@ -193,6 +193,22 @@ is_proof_marker_text(const std::string& raw) {
     }
   }
 
+  if (trimmed.compare(0, 9, "**Proof (") == 0) {
+    for (const std::string& delimiter :
+         {std::string("):**"), std::string(")：**")}) {
+      size_t pos = trimmed.find(delimiter, 9);
+      if (pos == std::string::npos) continue;
+      size_t after = pos + delimiter.size();
+      if (after == trimmed.size() ||
+          trimmed[after] == ' ' ||
+          trimmed[after] == '\t' ||
+          trimmed[after] == '\r' ||
+          trimmed[after] == '\n') {
+        return true;
+      }
+    }
+  }
+
   return false;
 }
 

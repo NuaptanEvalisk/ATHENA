@@ -35,6 +35,9 @@ namespace {
 
 enum class IpcMsgType { PROGRESS, ERROR_MSG, DONE };
 
+std::string sanitize_anchor_text(const std::string& s, size_t limit);
+std::string collapse_whitespace(const std::string& s);
+
 struct IpcTelemetryData {
   double time_parse_latex_doc;
   double time_latex_to_tree;
@@ -449,7 +452,7 @@ is_enunciation_like_tree(const tree& t) {
          tag == "example" || tag == "warning" || tag == "question" ||
          tag == "proof" || tag == "solution" || tag == "law" ||
          tag == "disambiguation" || tag == "proof-alternative" ||
-         tag == "proof-standard";
+         tag == "proof-standard" || tag == "proof-of";
 }
 
 bool
@@ -475,7 +478,35 @@ is_separated_proof_tree(const tree& t) {
   if (!is_compound(t)) return false;
   std::string tag = std::string(as_charp(as_string(L(t))));
   return tag == "proof" || tag == "proof-alternative" ||
-         tag == "proof-standard";
+         tag == "proof-standard" || tag == "proof-of";
+}
+
+bool
+is_anchor_placeholder_tree(const tree& t) {
+  return is_aofm_anchor_block_placeholder(t) || is_aofm_anchor_inline_placeholder(t);
+}
+
+std::string
+plain_anchor_text(const tree& t) {
+  if (is_atomic(t)) return tree_to_std_string(t);
+  if (!is_compound(t)) return "";
+
+  std::string tag = std::string(as_charp(as_string(L(t))));
+  if (tag == "label" || tag == "reference" || tag == "pageref" ||
+      tag == "image" || tag == "include" || tag == "bibliography" ||
+      tag == "transclude") {
+    return "";
+  }
+  if (tag == "hlink" && N(t) > 0) return plain_anchor_text(t[0]);
+
+  std::string out;
+  for (int i = 0; i < N(t); ++i) {
+    std::string child = plain_anchor_text(t[i]);
+    if (child.empty()) continue;
+    if (!out.empty()) out += ' ';
+    out += child;
+  }
+  return collapse_whitespace(out);
 }
 
 std::string
@@ -483,7 +514,23 @@ separated_proof_label_prefix(const tree& t) {
   if (!is_compound(t)) return "proof";
   std::string tag = std::string(as_charp(as_string(L(t))));
   if (tag == "proof-alternative" || tag == "proof-standard") return tag;
+  if (tag == "proof-of" && N(t) >= 1) {
+    std::string title = sanitize_anchor_text(tree_to_std_string(t[0]), 80);
+    if (!title.empty()) return "proof:" + title;
+  }
   return "proof";
+}
+
+std::string
+auto_separated_proof_anchor_id(const tree& t) {
+  std::string prefix = separated_proof_label_prefix(t);
+  tree body = "";
+  if (is_compound(t, "proof-of", 2)) body = t[1];
+  else if (is_compound(t) && N(t) > 0) body = t[0];
+
+  std::string sample = sanitize_anchor_text(plain_anchor_text(body), 100);
+  if (sample.empty()) return prefix;
+  return prefix + (prefix.find(':') == std::string::npos ? ":" : " ") + sample;
 }
 
 bool
@@ -835,10 +882,10 @@ resolve_anchor_placeholders(const tree& t, const AnchorMap& anchor_map,
   if (is_document(t)) {
     tree out(DOCUMENT);
     std::vector<const AofmVaultHeadingInfo*> open_headings;
+    std::unordered_map<std::string,int> auto_proof_label_counts;
     for (int i = 0; i < N(t); ++i) {
       const tree& child = t[i];
-      if (is_aofm_anchor_block_placeholder(child) ||
-          is_aofm_anchor_inline_placeholder(child)) {
+      if (is_anchor_placeholder_tree(child)) {
         std::string anchor = placeholder_anchor_id(child);
         const AofmVaultAnchorInfo* info = next_anchor_occurrence(anchor);
         if (info == nullptr) {
@@ -906,6 +953,25 @@ resolve_anchor_placeholders(const tree& t, const AnchorMap& anchor_map,
         }
 
         append_document(out, make_label_tree(info->anchor_1));
+        continue;
+      }
+
+      if (is_separated_proof_tree(child) &&
+          (i + 1 >= N(t) || !is_anchor_placeholder_tree(t[i + 1]))) {
+        std::string id = auto_separated_proof_anchor_id(child);
+        int count = auto_proof_label_counts[id]++;
+        if (count > 0) id += " " + std::to_string(count);
+        append_document(out, make_label_tree(id + " {"));
+        append_document(out,
+                        resolve_anchor_placeholders(child, anchor_map,
+                                                    anchor_occurrences, file_map,
+                                                    heading_map,
+                                                    heading_occurrences,
+                                                    asset_map, dir_children,
+                                                    rel_ath_path,
+                                                    anchor_cursor,
+                                                    heading_cursor));
+        append_document(out, make_label_tree(id + " }"));
         continue;
       }
 
@@ -1318,40 +1384,58 @@ make_paragraph_anchor_pair(const std::vector<std::string>& lines) {
 bool
 extract_bold_proof_marker_line(const std::string& raw,
                                std::string& tag,
+                               std::string& title,
                                std::string& body) {
   std::string line = trim_copy(strip_trailing_newlines(raw));
-  struct Marker {
-    const char* text;
-    const char* tag;
-  };
-  static const Marker kMarkers[] = {
-      {"**Proof (Alternative):**", "proof-alternative"},
-      {"**Proof (Alternative)：**", "proof-alternative"},
-      {"**Proof:**", "proof"},
-      {"**Proof：**", "proof"},
-      {"**Solution:**", "proof"},
-      {"**Solution：**", "proof"},
-      {"**证明:**", "proof"},
-      {"**证明：**", "proof"},
-      {"**解:**", "proof"},
-      {"**解：**", "proof"}
-  };
+  if (line.compare(0, 2, "**") != 0) return false;
 
-  for (const Marker& marker : kMarkers) {
-    std::string prefix = marker.text;
-    if (line.compare(0, prefix.size(), prefix) != 0) continue;
-    if (line.size() > prefix.size() &&
-        line[prefix.size()] != ' ' &&
-        line[prefix.size()] != '\t' &&
-        line[prefix.size()] != '\r' &&
-        line[prefix.size()] != '\n') {
-      continue;
+  size_t marker_end = std::string::npos;
+  size_t delimiter_size = 0;
+  for (const std::string& delimiter : {std::string(":**"), std::string("：**")}) {
+    size_t pos = line.find(delimiter, 2);
+    if (pos != std::string::npos &&
+        (marker_end == std::string::npos || pos < marker_end)) {
+      marker_end = pos;
+      delimiter_size = delimiter.size();
     }
-    tag = marker.tag;
-    body = trim_copy(line.substr(prefix.size()));
-    return true;
   }
-  return false;
+  if (marker_end == std::string::npos) return false;
+
+  size_t after = marker_end + delimiter_size;
+  if (line.size() > after &&
+      line[after] != ' ' &&
+      line[after] != '\t' &&
+      line[after] != '\r' &&
+      line[after] != '\n') {
+    return false;
+  }
+
+  std::string marker = trim_copy(line.substr(2, marker_end - 2));
+  title.clear();
+  if (marker == "Proof") {
+    tag = "proof";
+  }
+  else if (marker == "Proof (Alternative)") {
+    tag = "proof-alternative";
+  }
+  else if (marker == "Proof (Standard)") {
+    tag = "proof-standard";
+  }
+  else if (marker.compare(0, 7, "Proof (") == 0 &&
+           marker.size() > 8 && marker.back() == ')') {
+    tag = "proof";
+    title = trim_copy(marker.substr(7, marker.size() - 8));
+    if (title.empty()) return false;
+  }
+  else if (marker == "Solution" || marker == "证明" || marker == "解") {
+    tag = "proof";
+  }
+  else {
+    return false;
+  }
+
+  body = trim_copy(line.substr(after));
+  return true;
 }
 
 bool
@@ -1393,10 +1477,16 @@ make_proof_anchor_pair(const std::vector<std::string>& lines) {
 
   if (!lines.empty()) {
     std::string parsed_tag;
+    std::string parsed_title;
     std::string parsed_body;
-    if (extract_bold_proof_marker_line(lines[0], parsed_tag, parsed_body)) {
+    if (extract_bold_proof_marker_line(lines[0], parsed_tag,
+                                       parsed_title, parsed_body)) {
       tag = parsed_tag;
-      first_body = parsed_body;
+      first_body = parsed_title;
+      if (!parsed_body.empty()) {
+        if (!first_body.empty()) first_body += ' ';
+        first_body += parsed_body;
+      }
       start = 1;
     }
   }
@@ -1720,10 +1810,12 @@ process_markdown_file(const ImportFileInfo& file_info, AnchorMap& map,
     std::string effective_line = has_trailing_anchor ? anchorless : lines[i];
     bool is_callout = starts_with_blockquote(effective_line);
     std::string proof_tag;
+    std::string proof_title;
     std::string proof_body;
     bool is_proof = !is_callout &&
                     extract_bold_proof_marker_line(effective_line,
-                                                   proof_tag, proof_body);
+                                                   proof_tag, proof_title,
+                                                   proof_body);
     BlockKind next_kind = is_callout ? BlockKind::CALLOUT :
                           (is_proof || current.kind == BlockKind::PROOF
                            ? BlockKind::PROOF
