@@ -16,6 +16,87 @@
 #include "sys_utils.hpp"
 
 /******************************************************************************
+* Shared Unicode CJK classification
+******************************************************************************/
+
+static bool
+read_unicode_entity (string s, int pos, int& next, int& code) {
+  int i= pos + 2;
+  if (pos + 3 >= N(s) || s[pos] != '<' || s[pos+1] != '#')
+    return false;
+  code= 0;
+  while (i < N(s) && s[i] != '>') {
+    if (!is_hex_digit (s[i])) return false;
+    code= (code << 4) + from_hexadecimal (s (i, i+1));
+    i++;
+  }
+  if (i >= N(s) || i == pos + 2) return false;
+  next= i + 1;
+  return true;
+}
+
+static bool
+is_cjk_letter_code (int code) {
+  return (code >= 0x2E80  && code <= 0x2EFF ) ||
+         (code >= 0x2F00  && code <= 0x2FDF ) ||
+         (code >= 0x3040  && code <= 0x30FF ) ||
+         (code >= 0x3100  && code <= 0x312F ) ||
+         (code >= 0x3130  && code <= 0x318F ) ||
+         (code >= 0x31A0  && code <= 0x31BF ) ||
+         (code >= 0x31C0  && code <= 0x31EF ) ||
+         (code >= 0x31F0  && code <= 0x31FF ) ||
+         (code >= 0x3400  && code <= 0x4DBF ) ||
+         (code >= 0x4E00  && code <= 0x9FFF ) ||
+         (code >= 0xA960  && code <= 0xA97F ) ||
+         (code >= 0xAC00  && code <= 0xD7FF ) ||
+         (code >= 0xF900  && code <= 0xFAFF ) ||
+         (code >= 0xFF00  && code <= 0xFFEF ) ||
+         (code >= 0x1B000 && code <= 0x1B0FF) ||
+         (code >= 0x20000 && code <= 0x2A6DF) ||
+         (code >= 0x2A700 && code <= 0x2B73F) ||
+         (code >= 0x2B740 && code <= 0x2B81F) ||
+         (code >= 0x2B820 && code <= 0x2CEAF) ||
+         (code >= 0x2CEB0 && code <= 0x2EBEF) ||
+         (code >= 0x2F800 && code <= 0x2FA1F) ||
+         (code >= 0x30000 && code <= 0x3134F);
+}
+
+static bool
+is_cjk_punctuation_code (int code) {
+  return (code >= 0x3000 && code <= 0x303F) ||
+         code == 0xFF01 || code == 0xFF0C || code == 0xFF0E ||
+         code == 0xFF1A || code == 0xFF1B || code == 0xFF1F;
+}
+
+static bool
+is_cjk_forbidden_line_start (string s, int pos) {
+  int next, code;
+  if (pos >= N(s)) return true;
+  if (is_punctuation (s[pos])) return true;
+  return read_unicode_entity (s, pos, next, code) &&
+         is_cjk_punctuation_code (code);
+}
+
+static text_property
+advance_cjk_entity (string s, int& pos) {
+  int code, next;
+  if (!read_unicode_entity (s, pos, next, code)) return NULL;
+  if (!is_cjk_letter_code (code) && !is_cjk_punctuation_code (code))
+    return NULL;
+
+  bool next_forbidden_start= is_cjk_forbidden_line_start (s, next);
+  pos= next;
+  if (is_cjk_punctuation_code (code)) {
+    if (next_forbidden_start)
+      return &tp_cjk_no_break_period_rep;
+    return &tp_cjk_period_rep;
+  }
+  if (next_forbidden_start)
+    return &tp_cjk_no_break_rep;
+  return &tp_cjk_normal_rep;
+}
+
+/******************************************************************************
 * Western text languages / 8 bit charset
 ******************************************************************************/
 
@@ -45,6 +126,9 @@ text_language_rep::advance (tree t, int& pos) {
       return &tp_space_rep;
     return &tp_nb_space_rep;
   }
+
+  text_property cjk= advance_cjk_entity (s, pos);
+  if (cjk != NULL) return cjk;
   
   if (is_punctuation (s[pos])) {
     while ((pos<N(s)) && is_punctuation (s[pos])) pos++;
@@ -140,6 +224,9 @@ french_language_rep::advance (tree t, int& pos) {
       return &tp_nb_thin_space_rep;
     return &tp_nb_space_rep;
   }
+
+  text_property cjk= advance_cjk_entity (s, pos);
+  if (cjk != NULL) return cjk;
   
   if (is_french_punctuation (s[pos])) {
     while ((pos<N(s)) && is_french_punctuation (s[pos])) pos++;
@@ -229,6 +316,9 @@ ucs_text_language_rep::advance (tree t, int& pos) {
       return &tp_space_rep;
     return &tp_nb_space_rep;
   }
+
+  text_property cjk= advance_cjk_entity (s, pos);
+  if (cjk != NULL) return cjk;
   
   if (is_punctuation (s[pos])) {
     while ((pos<N(s)) && is_punctuation (s[pos])) pos++;
