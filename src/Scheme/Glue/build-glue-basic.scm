@@ -853,6 +853,7 @@
   (vault-close vault_close (void))
   (vault-active? vault_active (bool))
   (vault-get-root vault_get_root (url))
+  (vault-backup-pre-save vault_backup_pre_save (bool url))
   (vault-set-node vault_set_node (void string string string string))
   (vault-get-node vault_get_node (tree string))
   (vault-remove-node vault_remove_node (void string))

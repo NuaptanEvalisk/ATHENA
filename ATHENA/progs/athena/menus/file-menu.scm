@@ -296,6 +296,7 @@
         ("Clear menu" (save-object (recent-vaults-file) '()))))
   ---
   ("Save" (save-buffer))
+  ("Autosave" (toggle-autosave-current-buffer))
   ("Save as" (choose-file save-buffer-as "Save ATHENA file" "texmacs"))
   ---
   (link print-menu)

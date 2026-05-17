@@ -13,6 +13,7 @@
 #include "file.hpp"
 #include "data_cache.hpp"
 #include "convert.hpp"
+#include "tm_configure.hpp"
 #include "../../Typeset/env.hpp"
 
 /******************************************************************************
@@ -98,7 +99,10 @@ cache_file_name (tree t) {
 
 static string
 style_cache_file_name (tree style) {
-  return "__athena-style-cache-v3__" * cache_file_name (style);
+  string ns= BUILD_DATE;
+  for (int i=0; i<N(ns); i++)
+    if (!is_alpha (ns[i]) && !is_digit (ns[i])) ns[i]= '_';
+  return "__athena-style-cache-" * ns * "__" * cache_file_name (style);
 }
 
 void

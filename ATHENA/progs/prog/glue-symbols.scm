@@ -781,6 +781,7 @@
 "vault-close"
 "vault-active?"
 "vault-get-root"
+"vault-backup-pre-save"
 "vault-set-node"
 "vault-get-node"
 "vault-remove-node"

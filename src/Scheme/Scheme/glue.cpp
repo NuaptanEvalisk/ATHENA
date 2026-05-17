@@ -25,6 +25,7 @@
 #include "file.hpp"
 #include "gui.hpp"
 #include "vault.hpp"
+#include "ATHENA/Data/vault_backup.hpp"
 #include "QTMMainTabWindow.hpp"
 #include "QTMVaultChooser.hpp"
 #include "QTMQuickSwitcher.hpp"

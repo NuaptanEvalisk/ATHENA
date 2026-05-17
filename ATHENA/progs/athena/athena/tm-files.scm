@@ -168,6 +168,7 @@
 (define (save-buffer-save name opts)
   ;;(display* "save-buffer-save " name "\n")
   (with vname `(verbatim ,(utf8->cork (url->system name)))
+    (vault-backup-pre-save name)
     (if (buffer-save name)
         (begin
           (buffer-pretend-modified name)
@@ -338,6 +339,43 @@
 ;; Autosave
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(define autosave-buffer-state (make-ahash-table))
+
+(define (autosave-key name)
+  (url->system name))
+
+(define (autosave-default-enabled?)
+  (== (get-preference "autosave default") "on"))
+
+(define (autosave-real-file? name)
+  (and (url? name)
+       (not (url-rooted-web? name))
+       (not (url-rooted-tmfs? name))
+       (not (url-scratch? name))
+       (url-exists? name)
+       (url-test? name "fw")))
+
+(tm-define (autosave-buffer-enabled? name)
+  (and (autosave-real-file? name)
+       (with state (ahash-ref autosave-buffer-state (autosave-key name))
+         (if state (== state "on") (autosave-default-enabled?)))))
+
+(tm-define (current-buffer-autosave-enabled?)
+  (autosave-buffer-enabled? (current-buffer)))
+
+(tm-define (toggle-autosave-current-buffer)
+  (:check-mark "v" current-buffer-autosave-enabled?)
+  (let ((name (current-buffer)))
+    (if (not (autosave-real-file? name))
+        (set-message "Autosave is only available for on-disk files"
+                     "Auto-save file")
+        (let ((enabled? (not (autosave-buffer-enabled? name))))
+          (ahash-set! autosave-buffer-state (autosave-key name)
+                      (if enabled? "on" "off"))
+          (if enabled? (autosave-delayed))
+          (set-message (if enabled? "Autosave enabled" "Autosave disabled")
+                       "Auto-save file")))))
+
 (define (more-recent file suffix1 suffix2)
   (and (url-exists? (url-glue file suffix1))
        (url-exists? (url-glue file suffix2))
@@ -372,6 +410,7 @@
 
 (tm-define (autosave-buffer name)
   (when (and (buffer-modified-since-autosave? name)
+             (autosave-buffer-enabled? name)
              (url-autosave name "~"))
     ;;(display* "Autosave " name "\n")
     ;; FIXME: incorrectly autosaves after cursor movements only
@@ -415,7 +454,8 @@
       (autosave-delayed)))
 
 (define-preferences
-  ("autosave" "120" notify-autosave))
+  ("autosave" "120" notify-autosave)
+  ("autosave default" "on" noop))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Opening files using external tools

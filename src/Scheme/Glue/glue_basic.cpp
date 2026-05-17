@@ -10308,6 +10308,19 @@ tmg_vault_get_root () {
 }
 
 tmscm
+tmg_vault_backup_pre_save (tmscm arg1) {
+  TMSCM_ASSERT_URL (arg1, TMSCM_ARG1, "vault-backup-pre-save");
+
+  url in1= tmscm_to_url (arg1);
+
+  // TMSCM_DEFER_INTS;
+  bool out= vault_backup_pre_save (in1);
+  // TMSCM_ALLOW_INTS;
+
+  return bool_to_tmscm (out);
+}
+
+tmscm
 tmg_vault_set_node (tmscm arg1, tmscm arg2, tmscm arg3, tmscm arg4) {
   TMSCM_ASSERT_STRING (arg1, TMSCM_ARG1, "vault-set-node");
   TMSCM_ASSERT_STRING (arg2, TMSCM_ARG2, "vault-set-node");
@@ -11702,6 +11715,7 @@ initialize_glue_basic () {
   tmscm_install_procedure ("vault-close",  tmg_vault_close, 0, 0, 0);
   tmscm_install_procedure ("vault-active?",  tmg_vault_activeP, 0, 0, 0);
   tmscm_install_procedure ("vault-get-root",  tmg_vault_get_root, 0, 0, 0);
+  tmscm_install_procedure ("vault-backup-pre-save",  tmg_vault_backup_pre_save, 1, 0, 0);
   tmscm_install_procedure ("vault-set-node",  tmg_vault_set_node, 4, 0, 0);
   tmscm_install_procedure ("vault-get-node",  tmg_vault_get_node, 1, 0, 0);
   tmscm_install_procedure ("vault-remove-node",  tmg_vault_remove_node, 1, 0, 0);
