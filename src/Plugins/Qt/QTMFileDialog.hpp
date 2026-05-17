@@ -16,6 +16,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QHBoxLayout>
+#include <QSlider>
 #include "string.hpp"
 
 class QMyFileDialog : public QFileDialog
@@ -67,6 +68,11 @@ class QTMImagePreview : public QWidget
   Q_OBJECT
 
   QLabel *image;
+  QSlider *wid_slider;
+  QSlider *hei_slider;
+  bool updating_dims;
+  int natural_width_pt;
+  int natural_height_pt;
 
 public:
   QLineEdit* wid;
@@ -77,9 +83,16 @@ public:
 public slots:
   void setImage (const QString&);
   void clear_dim();
+  void widthEdited (const QString&);
+  void heightEdited (const QString&);
+  void widthSliderChanged (int);
+  void heightSliderChanged (int);
 
 public:
   QTMImagePreview (QWidget* parent= 0);
+  void updateSliders();
+  void setPairedHeightFromWidth (const QString&);
+  void setPairedWidthFromHeight (const QString&);
 };
 
 class QTMImageDialog : public QTMFileDialog
@@ -97,4 +110,3 @@ public:
 };
 
 #endif // defined QTMFILEDIALOG_HPP
-

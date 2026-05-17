@@ -27,6 +27,13 @@
 #include <QStringList>
 #include <QFileDialog>
 #include <QByteArray>
+#include <QUrl>
+
+#ifdef USE_KF5_KIO
+#include <KIOFileWidgets/KFileCustomDialog>
+#include <KIOFileWidgets/KFileWidget>
+#include <KIOWidgets/kfile.h>
+#endif
 
 #ifdef OS_ANDROID
 #include "android.hpp"
@@ -256,6 +263,129 @@ qt_chooser_widget_rep::perform_dialog_with_qfiledialog() {
 }
 
 
+#ifdef USE_KF5_KIO
+static QString
+qt_chooser_kde_filter (const string& type) {
+  if (type == "image")
+    return "*.png *.jpg *.jpeg *.bmp *.gif *.pdf *.svg|" +
+           to_qstring (translate ("Image file")) +
+           " (*.png *.jpg *.jpeg *.bmp *.gif *.pdf *.svg)";
+  if (type == "directory")
+    return QString ();
+  if (type == "generic")
+    return "*|" + to_qstring (translate ("All files (*)"));
+
+  object ret= call ("format-get-suffixes*", type);
+  array<object> suffixes= as_array_object (ret);
+  QString patterns;
+  for (int i=1; i<N(suffixes); ++i) {
+    if (!patterns.isEmpty ()) patterns += " ";
+    patterns += "*." + to_qstring (as_string (suffixes[i]));
+  }
+  if (patterns.isEmpty ()) patterns= "*";
+  QString label= to_qstring (translate (as_string (call ("format-get-name", type))
+                                        * " file"));
+  return patterns + "|" + label + " (" + patterns + ")";
+}
+
+static QString
+qt_chooser_selected_local_file (KFileWidget* file_widget) {
+  QString selected= file_widget->selectedFile ();
+  if (!selected.isEmpty ()) return selected;
+  QUrl selected_url= file_widget->selectedUrl ();
+  if (selected_url.isLocalFile ()) return selected_url.toLocalFile ();
+  return QString ();
+}
+
+void
+qt_chooser_widget_rep::perform_dialog_with_kfiledialog() {
+  QString caption= to_qstring (win_title);
+  c_string tmp (directory * "/" * file);
+  QString path= QString::fromUtf8 (&tmp[0]);
+  QUrl start_url= QUrl::fromLocalFile (path);
+
+  KFileCustomDialog dialog (start_url);
+  dialog.setWindowTitle (caption);
+  dialog.setOperationMode (prompt == ""?
+                           KFileWidget::Opening:
+                           KFileWidget::Saving);
+
+  KFileWidget* file_widget= dialog.fileWidget ();
+  if (type == "directory")
+    file_widget->setMode (KFile::Directory | KFile::ExistingOnly |
+                          KFile::LocalOnly);
+  else if (prompt == "")
+    file_widget->setMode (KFile::File | KFile::ExistingOnly |
+                          KFile::LocalOnly);
+  else
+    file_widget->setMode (KFile::File | KFile::LocalOnly);
+
+  QString filter= qt_chooser_kde_filter (type);
+  if (!filter.isEmpty ())
+    file_widget->setFilter (filter);
+  if (prompt != "")
+    file_widget->setConfirmOverwrite (true);
+
+  QTMImagePreview* preview= NULL;
+  if (type == "image") {
+    preview= new QTMImagePreview ();
+    dialog.setCustomWidget (preview);
+    QObject::connect (file_widget, &KFileWidget::fileHighlighted,
+                      preview, [preview] (const QUrl& url) {
+      preview->setImage (url.isLocalFile ()? url.toLocalFile (): QString ());
+    });
+  }
+
+  dialog.updateGeometry ();
+  QRect r;
+  QSize dialog_size= dialog.sizeHint ();
+  int max_width= type == "image"? 980: 860;
+  if (dialog_size.width () > max_width)
+    dialog_size.setWidth (max_width);
+  r.setSize (dialog_size);
+  r.moveCenter (to_qpoint (position));
+  dialog.setGeometry (r);
+
+  file= "#f";
+  if (dialog.exec () == QDialog::Accepted) {
+    QString imqstring= qt_chooser_selected_local_file (file_widget);
+    if (!defaultSuffix.isEmpty () && imqstring.contains (QLatin1Char ('/'))
+        && !imqstring.endsWith (QLatin1Char ('/'))
+        && imqstring.indexOf (QLatin1Char ('.'),
+                              imqstring.lastIndexOf (QLatin1Char ('/'))) == -1)
+      imqstring= imqstring + QLatin1Char ('.') + defaultSuffix;
+
+    if (!imqstring.isEmpty ()) {
+      string imname= from_qstring_utf8 (imqstring);
+      file= "(system->url " * scm_quote (imname) * ")";
+      if (type == "image") {
+        string params;
+        string w, h, x, y;
+        if (preview) {
+          w= from_qstring (preview->wid->text ());
+          h= from_qstring (preview->hei->text ());
+          x= from_qstring (preview->xps->text ());
+          y= from_qstring (preview->yps->text ());
+        }
+        if (w == "" && h == "") {
+          url u= url_system (imname);
+          qt_pretty_image_size (u, w, h);
+        }
+        params << "\"" << w << "\" "
+               << "\"" << h << "\" "
+               << "\"" << x << "\" "
+               << "\"" << y << "\"";
+        file= "(list " * file * " " * params * ")";
+      }
+    }
+  }
+
+  cmd ();
+  if (!is_nil (quit)) quit ();
+}
+#endif
+
+
 /*! Actually displays the dialog with all the options set.
  * Uses a native dialog on Mac/Win and opens a custom dialog with image preview
  * for other platforms.
@@ -265,7 +395,10 @@ qt_chooser_widget_rep::perform_dialog () {
 #if QT_VERSION >= 0x060000 && defined(OS_ANDROID)
   return perform_dialog_with_qfiledialog();
 #endif
-  
+#ifdef USE_KF5_KIO
+  return perform_dialog_with_kfiledialog();
+#endif
+
   QString caption = to_qstring (win_title);
   c_string tmp (directory * "/" * file);
   QString path = QString::fromUtf8 (&tmp[0]);
