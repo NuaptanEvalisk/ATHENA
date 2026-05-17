@@ -32,6 +32,7 @@
 #include "tm_window.hpp"
 #include "client_server.hpp"
 #include "scheme.hpp"
+#include "convert.hpp"
 #include "ATHENA/Data/vault_maintenance.hpp"
 
 #ifdef AQUATEXMACS
@@ -448,6 +449,9 @@ set_global_options  (int argc, char** argv)  {
       else if (s == "-ignore-nonempty-dest") {
         // Handled in texmacs_entrypoint
       }
+      else if (s == "-insert-build-warning") {
+        // Handled in texmacs_entrypoint
+      }
       else if ((s == "-i") || (s == "-initialize")) {
         i++;
         if (i<argc) tm_init_file= url_system (argv[i]);
@@ -594,6 +598,7 @@ set_global_options  (int argc, char** argv)  {
         cout << "  -v         Display current ATHENA version\n";
         cout << "  -V         Show some informative messages\n";
         cout << "  --vault-maintenance [dir]  Maintain an ATHENA vault headlessly\n";
+        cout << "  --insert-build-warning     Insert ATHENA experimental build warnings during AOFM conversion\n";
         cout << "  -W [i] [o] Recursively convert directory into website\n";
         cout << "  -x [cmd]   Execute scheme command\n";
         cout << "  -Oc        TeX characters bitmap clipping off\n";
@@ -920,6 +925,9 @@ texmacs_entrypoint (int argc, char** argv) {
     }
     if (s == "-ignore-nonempty-dest") {
       aofm_ignore_nonempty_dest = true;
+    }
+    if (s == "-insert-build-warning") {
+      aofm_insert_build_warning = true;
     }
     if (s == "-headless" || s == "-H" || s == "-C" ||
 	     s == "-build-website" || s == "-W" ||

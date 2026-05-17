@@ -55,11 +55,39 @@ double time_l2t_post_metadata = 0.0;
 
 int count_l2t_is_document = 0;
 int count_l2t_total = 0;
+bool aofm_insert_build_warning = false;
 
 using namespace aofm;
 
 namespace aofm {
   std::string aofm_content;
+}
+
+static std::string
+aofm_path_stem(const std::string& path) {
+    size_t slash = path.find_last_of("/\\");
+    size_t start = (slash == std::string::npos) ? 0 : slash + 1;
+    size_t dot = path.find_last_of('.');
+    if (dot == std::string::npos || dot < start) return path.substr(start);
+    return path.substr(start, dot - start);
+}
+
+static void
+aofm_prepend_document_title(tree& body, const std::string& title,
+                            bool insert_build_warning) {
+    tree out(DOCUMENT);
+    out << compound("doc-data",
+                    compound("doc-title", tm_string(title)));
+    if (insert_build_warning) {
+        out << compound("experimental-build-warning");
+    }
+
+    if (is_document(body)) {
+        for (int i = 0; i < N(body); ++i) out << body[i];
+    } else {
+        out << body;
+    }
+    body = out;
 }
 
 std::shared_ptr<peg::Ast>
@@ -105,10 +133,12 @@ aofm_parse_file(const std::string& file_path) {
 }
 
 tree
-aofm_ast_to_texmacs_document(const AstPtr& ast) {
+aofm_ast_to_texmacs_document(const AstPtr& ast, const std::string& title,
+                             bool insert_build_warning) {
     tree body = convert_block(ast);
     body = sanitize_proof_trees(body);
     if (!is_document(body)) body = document(body);
+    aofm_prepend_document_title(body, title, insert_build_warning);
 
     new_data data;
     data->init("page-medium") = tree("automatic");
@@ -159,10 +189,12 @@ aofm_convert_file(const std::string& file_path,
 
 bool
 aofm_convert_tree(string file_path, tree& document, bool materialize_anchor_literals) {
-    auto ast = aofm_parse_file(as_charp(file_path));
+    std::string source_path = as_charp(file_path);
+    auto ast = aofm_parse_file(source_path);
     if (!ast) return false;
 
-    document = aofm_ast_to_texmacs_document(ast);
+    document = aofm_ast_to_texmacs_document(ast, aofm_path_stem(source_path),
+                                            aofm_insert_build_warning);
     if (materialize_anchor_literals) {
         document = materialize_aofm_anchor_literals(document);
     }
