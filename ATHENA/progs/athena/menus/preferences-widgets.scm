@@ -78,6 +78,9 @@
   (when (in? (get-preference "gui theme") '("light" "dark" "default"))
     (set-preference "gui theme" "default")))
 
+(define-preferences
+  ("remember ads panes layout" "on" noop))
+
 (tm-widget (general-basic-preferences-widget)
   (aligned
     (item (text "User interface language:")
@@ -108,6 +111,9 @@
               "Advanced Docking System")
             (get-pretty-preference "buffer management")
             "18em"))
+    (item (text "Remember panes layout:")
+      (toggle (set-boolean-preference "remember ads panes layout" answer)
+              (get-boolean-preference "remember ads panes layout")))
     (item (text "Automatically save:")
       (enum (set-pretty-preference "autosave" answer)
             '("5 sec" "30 sec" "120 sec" "300 sec" "Disable")

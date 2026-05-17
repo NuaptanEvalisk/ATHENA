@@ -150,6 +150,8 @@ ads_show_tool_pane (widget wid, string id, string title, command close) {
   }
 
   ads::CDockWidget* dock= new ads::CDockWidget (to_qstring (title));
+  dock->setObjectName (QString ("athena-tool-pane-%1")
+                       .arg (QString::fromStdString (key)));
   dock->resize (960, 340);
   dock->setWidget (pane_widget);
   dock->setFeature (ads::CDockWidget::DockWidgetDeleteOnClose, false);
@@ -167,6 +169,7 @@ ads_show_tool_pane (widget wid, string id, string title, command close) {
   });
 
   win->dockManager ()->addDockWidget (ads::BottomDockWidgetArea, dock);
+  win->restoreAdsLayoutState ();
   dock->show ();
   dock->raise ();
   pane_widget->setFocus ();
@@ -215,6 +218,13 @@ image_remove_background_current (tmscm arg1) {
   if (!image_remove_white_background_png (image, error))
     return string_to_tmscm (error);
   return string_to_tmscm ("");
+}
+
+tmscm
+ads_restore_visible_panes () {
+  QTMMainTabWindow* win= QTMMainTabWindow::topTabWindow ();
+  if (win != nullptr) win->restoreAdsVisiblePanes ();
+  return TMSCM_UNSPECIFIED;
 }
 
 void
@@ -1418,6 +1428,8 @@ initialize_glue () {
                            visual_buffer_switcher_show, 0, 0, 0);
   tmscm_install_procedure ("visual-buffer-switcher-choose",
                            tmg_visual_buffer_switcher_choose, 1, 0, 0);
+  tmscm_install_procedure ("ads-restore-visible-panes",
+                           ads_restore_visible_panes, 0, 0, 0);
   tmscm_install_procedure ("vault-backup-viewer-show",
                            vault_backup_viewer_show, 0, 0, 0);
   tmscm_install_procedure ("image-remove-background",

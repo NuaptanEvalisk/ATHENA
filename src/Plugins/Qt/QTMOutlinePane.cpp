@@ -280,6 +280,7 @@ outline_pane_show () {
 
   if (outline_pane_dock == nullptr) {
     outline_pane_dock= new ads::CDockWidget ("Outline");
+    outline_pane_dock->setObjectName ("athena-outline-pane");
     outline_pane_dock->resize (320, 600);
     outline_pane_dock->setWidget (outline_pane_widget);
     outline_pane_dock->setFeature (
@@ -289,6 +290,7 @@ outline_pane_show () {
     });
     win->dockManager ()->addDockWidget (
       ads::RightDockWidgetArea, outline_pane_dock);
+    win->restoreAdsLayoutState ();
   }
 
   outline_pane_dock->show ();

@@ -725,6 +725,7 @@ TeXmacs_main (int argc, char** argv) {
       if (DEBUG_STD) debug_boot << "Queueing vault startup initialization...\n";
       extra_init_cmd << "(vault-startup-open-initial-buffer)";
     }
+    extra_init_cmd << "(delayed (:idle 300) (ads-restore-visible-panes))";
 
     if (!aofm_debug_convert_file.empty ()) {
       eval ("(lazy-initialize-force)");

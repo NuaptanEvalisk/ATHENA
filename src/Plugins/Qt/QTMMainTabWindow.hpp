@@ -42,6 +42,9 @@ public:
   QTabWidget* tabWidget() { return mTabWidget; }
   QMdiArea* mdiArea() { return mMdiArea; }
   ads::CDockManager* dockManager() { return mDockManager; }
+  void saveAdsLayoutState();
+  void restoreAdsLayoutState();
+  void restoreAdsVisiblePanes();
 
   QList<QWidget*> documentWidgets() const;
   QWidget* currentDocumentWidget() const;
@@ -68,6 +71,10 @@ protected:
   void onDoubleClickOnEmptyTabBarSpace();
   void setMainTitle(QString title);
   void setMainTitleFromWidget(QWidget* widget);
+  bool adsLayoutPersistenceEnabled() const;
+  QString adsLayoutStatePath() const;
+  QString adsVisiblePanesStatePath() const;
+  void scheduleAdsLayoutRestore();
 
 public slots:
   void closeTab(int index);

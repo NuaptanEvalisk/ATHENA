@@ -350,6 +350,7 @@ global_search_show () {
   QString title= "Global search";
   if (global_search_dock == nullptr) {
     global_search_dock= new ads::CDockWidget (title);
+    global_search_dock->setObjectName ("athena-global-search");
     global_search_dock->resize (1100, 560);
     global_search_dock->setWidget (global_search_widget);
     global_search_dock->setFeature (
@@ -359,6 +360,7 @@ global_search_show () {
     });
     win->dockManager ()->addDockWidget (
       ads::BottomDockWidgetArea, global_search_dock);
+    win->restoreAdsLayoutState ();
   }
 
   global_search_dock->setWindowTitle (title);

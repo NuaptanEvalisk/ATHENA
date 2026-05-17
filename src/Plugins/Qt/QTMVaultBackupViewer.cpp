@@ -283,6 +283,7 @@ vault_backup_viewer_show () {
                  QString ("Vault Backup Viewer - ") + name;
   if (vault_backup_viewer_dock == nullptr) {
     vault_backup_viewer_dock= new ads::CDockWidget (title);
+    vault_backup_viewer_dock->setObjectName ("athena-vault-backup-viewer");
     vault_backup_viewer_dock->resize (520, 600);
     vault_backup_viewer_dock->setWidget (vault_backup_viewer_widget);
     vault_backup_viewer_dock->setFeature (
@@ -292,6 +293,7 @@ vault_backup_viewer_show () {
     });
     win->dockManager ()->addDockWidget (
       ads::RightDockWidgetArea, vault_backup_viewer_dock);
+    win->restoreAdsLayoutState ();
   }
 
   vault_backup_viewer_dock->setWindowTitle (title);

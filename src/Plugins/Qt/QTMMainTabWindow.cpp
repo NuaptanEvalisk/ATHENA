@@ -1,10 +1,16 @@
 #include "QTMMainTabWindow.hpp"
 #include "QTMApplication.hpp"
 #include "QTMBufferSwitcher.hpp"
+#include "QTMGlobalSearch.hpp"
 #include "QTMWidget.hpp"
+#include "QTMOutlinePane.hpp"
+#include "QTMVaultBackupViewer.hpp"
+#include "QTMVaultExplorer.hpp"
 #include "qt_window_widget.hpp"
+#include "qt_utilities.hpp"
 #include "scheme.hpp"
 #include "tm_server.hpp"
+#include "vault.hpp"
 
 #include <QMouseEvent>
 #include <QTabBar>
@@ -12,10 +18,27 @@
 #include <QMdiSubWindow>
 #include <QCloseEvent>
 #include <QToolButton>
+#include <QDir>
+#include <QFile>
+#include <QFileInfo>
+#include <QMap>
+#include <QSaveFile>
+#include <QTimer>
+#include <QStringList>
 #include <iostream>
 
 QTMMainTabWindow *QTMMainTabWindow::gTopTabWindow = nullptr;
 static bool gNextWidgetFloating = false;
+static int gAdsDocumentDockCounter = 0;
+static const int ATHENA_ADS_LAYOUT_VERSION = 1;
+
+static bool
+isPersistentAdsPane (const QString& name) {
+  return name == "athena-outline-pane" ||
+         name == "athena-vault-explorer" ||
+         name == "athena-global-search" ||
+         name == "athena-vault-backup-viewer";
+}
 
 bool isMovingTab = false;
 bool isMovingWindow = false;
@@ -54,6 +77,8 @@ QTMMainTabWindow::QTMMainTabWindow() {
             if (now) setMainTitle(now->windowTitle());
             else setMainTitle("");
           });
+  connect(qApp, &QCoreApplication::aboutToQuit,
+          this, &QTMMainTabWindow::saveAdsLayoutState);
 
   mStackedWidget->addWidget (mTabWidget);
   mStackedWidget->addWidget (mMdiArea);
@@ -96,6 +121,7 @@ QTMMainTabWindow::~QTMMainTabWindow() {
 }
 
 void QTMMainTabWindow::closeEvent(QCloseEvent *event) {
+  saveAdsLayoutState();
   if (is_server_started()) {
     event->ignore();
     eval("(safely-quit-ATHENA)");
@@ -159,6 +185,136 @@ void QTMMainTabWindow::setMainTitleFromWidget(QWidget* widget) {
     }
   }
   setMainTitle(widget->windowTitle());
+}
+
+bool QTMMainTabWindow::adsLayoutPersistenceEnabled() const {
+  return tmapp()->useAds() &&
+         get_preference ("remember ads panes layout", "on") == "on";
+}
+
+QString QTMMainTabWindow::adsLayoutStatePath() const {
+  QString home= to_qstring (get_env ("ATHENA_HOME_PATH"));
+  if (home.isEmpty()) return QString ();
+  return QDir (home).filePath ("system/ads-layout-state.bin");
+}
+
+QString QTMMainTabWindow::adsVisiblePanesStatePath() const {
+  QString home= to_qstring (get_env ("ATHENA_HOME_PATH"));
+  if (home.isEmpty()) return QString ();
+  return QDir (home).filePath ("system/ads-visible-panes.txt");
+}
+
+void QTMMainTabWindow::saveAdsLayoutState() {
+  if (!adsLayoutPersistenceEnabled() || mDockManager == nullptr) return;
+
+  QString path= adsLayoutStatePath();
+  if (path.isEmpty()) return;
+
+  QDir dir= QFileInfo (path).dir();
+  if (!dir.exists() && !dir.mkpath(".")) {
+    std::cerr << "ATHENA] warning, could not create ADS layout cache directory: "
+              << dir.absolutePath().toStdString() << std::endl;
+    return;
+  }
+
+  QSaveFile file (path);
+  if (!file.open (QIODevice::WriteOnly)) {
+    std::cerr << "ATHENA] warning, could not save ADS layout state to "
+              << path.toStdString() << ": "
+              << file.errorString().toStdString() << std::endl;
+    return;
+  }
+
+  file.write (mDockManager->saveState (ATHENA_ADS_LAYOUT_VERSION));
+  if (!file.commit()) {
+    std::cerr << "ATHENA] warning, could not commit ADS layout state to "
+              << path.toStdString() << ": "
+              << file.errorString().toStdString() << std::endl;
+  }
+
+  QString panesPath= adsVisiblePanesStatePath();
+  if (panesPath.isEmpty()) return;
+
+  QSaveFile panesFile (panesPath);
+  if (!panesFile.open (QIODevice::WriteOnly | QIODevice::Text)) {
+    std::cerr << "ATHENA] warning, could not save ADS visible panes to "
+              << panesPath.toStdString() << ": "
+              << panesFile.errorString().toStdString() << std::endl;
+    return;
+  }
+
+  QMap<QString, ads::CDockWidget*> docks= mDockManager->dockWidgetsMap();
+  for (auto it= docks.constBegin(); it != docks.constEnd(); ++it) {
+    ads::CDockWidget* dock= it.value();
+    if (dock == nullptr || dock->isClosed()) continue;
+    QString name= dock->objectName();
+    if (!isPersistentAdsPane (name)) continue;
+    panesFile.write (name.toUtf8());
+    panesFile.write ("\n");
+  }
+  if (!panesFile.commit()) {
+    std::cerr << "ATHENA] warning, could not commit ADS visible panes to "
+              << panesPath.toStdString() << ": "
+              << panesFile.errorString().toStdString() << std::endl;
+  }
+}
+
+void QTMMainTabWindow::restoreAdsLayoutState() {
+  if (!adsLayoutPersistenceEnabled() || mDockManager == nullptr) return;
+
+  QString path= adsLayoutStatePath();
+  if (path.isEmpty()) return;
+
+  QFile file (path);
+  if (!file.exists()) return;
+  if (!file.open (QIODevice::ReadOnly)) {
+    std::cerr << "ATHENA] warning, could not read ADS layout state from "
+              << path.toStdString() << ": "
+              << file.errorString().toStdString() << std::endl;
+    return;
+  }
+
+  QByteArray state= file.readAll();
+  if (!state.isEmpty() &&
+      !mDockManager->restoreState (state, ATHENA_ADS_LAYOUT_VERSION)) {
+    std::cerr << "ATHENA] warning, ignored incompatible ADS layout state: "
+              << path.toStdString() << std::endl;
+  }
+}
+
+void QTMMainTabWindow::restoreAdsVisiblePanes() {
+  if (!adsLayoutPersistenceEnabled() || mDockManager == nullptr) return;
+
+  QString path= adsVisiblePanesStatePath();
+  if (path.isEmpty()) return;
+
+  QFile file (path);
+  if (!file.exists()) return;
+  if (!file.open (QIODevice::ReadOnly | QIODevice::Text)) {
+    std::cerr << "ATHENA] warning, could not read ADS visible panes from "
+              << path.toStdString() << ": "
+              << file.errorString().toStdString() << std::endl;
+    return;
+  }
+
+  QStringList panes= QString::fromUtf8 (file.readAll()).split ('\n');
+  for (const QString& rawName : panes) {
+    QString name= rawName.trimmed();
+    if (name == "athena-outline-pane") outline_pane_show ();
+    else if (vault_active() && name == "athena-vault-explorer")
+      vault_show_explorer ();
+    else if (vault_active() && name == "athena-global-search")
+      global_search_show ();
+    else if (vault_active() && name == "athena-vault-backup-viewer")
+      vault_backup_viewer_show ();
+  }
+
+  restoreAdsLayoutState();
+}
+
+void QTMMainTabWindow::scheduleAdsLayoutRestore() {
+  if (!adsLayoutPersistenceEnabled()) return;
+  QTimer::singleShot (0, this, [this] () { restoreAdsLayoutState(); });
 }
 
 void QTMMainTabWindow::setNextWidgetFloating() {
@@ -345,6 +501,8 @@ void QTMMainTabWindow::showWidget(QWidget *widget, bool isDocument) {
       setMainTitleFromWidget(widget);
     } else if (isDocument) {
       dockWidget = new ads::CDockWidget(widget->windowTitle());
+      dockWidget->setObjectName (
+        QString ("athena-document-%1").arg (++gAdsDocumentDockCounter));
       dockWidget->setWidget(widget);
       
       // Use CustomCloseHandling to let TeXmacs handle the safe-exit sequence.
@@ -363,7 +521,8 @@ void QTMMainTabWindow::showWidget(QWidget *widget, bool isDocument) {
       } else {
         mDockManager->addDockWidget(ads::CenterDockWidgetArea, dockWidget);
       }
-      
+
+      scheduleAdsLayoutRestore();
       mStackedWidget->setCurrentWidget (mDockManager);
       widget->setFocus();
       setMainTitleFromWidget(widget);

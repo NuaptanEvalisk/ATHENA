@@ -484,6 +484,7 @@ vault_show_explorer () {
 
   if (vault_explorer_dock == nullptr) {
     vault_explorer_dock= new ads::CDockWidget (title);
+    vault_explorer_dock->setObjectName ("athena-vault-explorer");
     vault_explorer_dock->resize (300, 600);
     vault_explorer_dock->setWidget (vault_explorer_widget);
     vault_explorer_dock->setFeature (
@@ -494,6 +495,8 @@ vault_show_explorer () {
     });
     vault_explorer_area= win->dockManager ()->addDockWidget (
       ads::LeftDockWidgetArea, vault_explorer_dock);
+    win->restoreAdsLayoutState ();
+    vault_explorer_area= vault_explorer_dock->dockAreaWidget ();
   }
 
   if (vault_explorer_area == nullptr)
