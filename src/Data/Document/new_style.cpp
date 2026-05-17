@@ -98,7 +98,7 @@ cache_file_name (tree t) {
 
 static string
 style_cache_file_name (tree style) {
-  return "__athena-style-cache-v2__" * cache_file_name (style);
+  return "__athena-style-cache-v3__" * cache_file_name (style);
 }
 
 void

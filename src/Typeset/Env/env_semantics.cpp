@@ -43,6 +43,7 @@ initialize_default_var_type () {
   var_type (MAGNIFICATION)      = Env_Magnification;
   var_type (MAGNIFY)            = Env_Magnify;
   var_type (COLOR)              = Env_Color;
+  var_type ("text-background-color") = Env_Color;
   var_type (OPACITY)            = Env_Color;
   var_type (NO_PATTERNS)        = Env_Pattern_Mode;
   var_type (LANGUAGE)           = Env_Language;

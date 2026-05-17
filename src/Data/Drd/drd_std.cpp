@@ -1044,6 +1044,7 @@ init_std_drd () {
   init_var (FONT_EFFECTS, TYPE_STRING);
   init_var (MAGNIFICATION, TYPE_NUMERIC);
   init_var (COLOR, TYPE_COLOR);
+  init_var ("text-background-color", TYPE_COLOR);
   init_var (OPACITY, TYPE_NUMERIC);
   init_var (BG_COLOR, TYPE_COLOR);
   init_var (LOCUS_COLOR, TYPE_COLOR);

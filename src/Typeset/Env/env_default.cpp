@@ -78,6 +78,7 @@ initialize_default_env () {
   env (FONT_EFFECTS)     = "";          // additional effects applied to font
   env (MAGNIFICATION)    = "1";         // magnification (slides for instance)
   env (COLOR)            = "black";     // the color
+  env ("text-background-color") = "";    // background color for inline markup
   env (OPACITY)          = "100%";      // the opacity
   env (BG_COLOR)         = "white";     // the background color
   env (LOCUS_COLOR)      = "global";    // the color of loci

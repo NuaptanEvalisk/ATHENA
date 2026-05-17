@@ -45,8 +45,10 @@ struct text_box_rep: public box_rep {
   font      fn;
   pencil    pen;
   xkerning  xk;
+  brush     bg;
 
-  text_box_rep (path ip, int pos, string s, font fn, pencil pen, xkerning xk);
+  text_box_rep (path ip, int pos, string s, font fn, pencil pen, xkerning xk,
+                brush bg);
   operator tree () { return str; }
   box adjust_kerning (int mode, double factor);
   box expand_glyphs (int mode, double factor);
@@ -90,8 +92,8 @@ struct text_box_rep: public box_rep {
 ******************************************************************************/
 
 text_box_rep::text_box_rep (path ip, int pos2, string s,
-                            font fn2, pencil p2, xkerning xk2):
-  box_rep (ip), pos (pos2), str (s), fn (fn2), pen (p2), xk (xk2)
+                            font fn2, pencil p2, xkerning xk2, brush bg2):
+  box_rep (ip), pos (pos2), str (s), fn (fn2), pen (p2), xk (xk2), bg (bg2)
 {
   metric ex;
   fn->get_extents (str, ex);
@@ -127,19 +129,25 @@ text_box_rep::adjust_kerning (int mode, double factor) {
   }
   if ((mode & START_OF_LINE) != 0) nxk->left  -= pad;
   if ((mode & END_OF_LINE  ) != 0) nxk->right -= pad;
-  return tm_new<text_box_rep> (ip, pos, str, fn, pen, nxk);
+  return tm_new<text_box_rep> (ip, pos, str, fn, pen, nxk, bg);
 }
 
 box
 text_box_rep::expand_glyphs (int mode, double factor) {
   if (N(str) == 0) return this;
   font nfn= fn->magnify (1.0 + factor, 1.0);
-  return tm_new<text_box_rep> (ip, pos, str, nfn, pen, xk);
+  return tm_new<text_box_rep> (ip, pos, str, nfn, pen, xk, bg);
 }
 
 void
 text_box_rep::display (renderer ren) {
   if (N(str) > 0) {
+    if (bg->get_type () != brush_none) {
+      brush old_bg= ren->get_background ();
+      ren->set_background (bg);
+      ren->clear_pattern (x1, min (y1, fn->y1), x2, max (y2, fn->y2));
+      ren->set_background (old_bg);
+    }
     ren->set_pencil (pen);
     if (is_nil (xk)) fn->draw (ren, str, 0, 0);
     else fn->draw (ren, str, xk->left, 0, xk->padding);
@@ -588,5 +596,11 @@ wide_stix_box (path ip, string s, font fn, pencil pen, SI width) {
 
 box
 text_box (path ip, int pos, string s, font fn, pencil pen) {
-  return tm_new<text_box_rep> (ip, pos, s, fn, pen, xkerning ());
+  return tm_new<text_box_rep> (ip, pos, s, fn, pen, xkerning (),
+                               brush (false));
+}
+
+box
+text_box (path ip, int pos, string s, font fn, pencil pen, brush bg) {
+  return tm_new<text_box_rep> (ip, pos, s, fn, pen, xkerning (), bg);
 }

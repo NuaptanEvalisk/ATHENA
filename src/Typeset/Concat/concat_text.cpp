@@ -16,19 +16,27 @@
 
 lazy make_lazy_vstream (edit_env env, tree t, path ip, tree channel);
 
+static box
+make_text_box (edit_env env, path ip, int pos, string s, pencil pen) {
+  tree bg= env->read ("text-background-color");
+  if (bg == "" || N(s) == 0)
+    return text_box (ip, pos, s, env->fn, pen);
+  return text_box (ip, pos, s, env->fn, pen, brush (bg, env->alpha));
+}
+
 /******************************************************************************
 * Typesetting strings
 ******************************************************************************/
 
 void
 concater_rep::typeset_substring (string s, path ip, int pos) {
-  box b= text_box (ip, pos, s, env->fn, env->pen);
+  box b= make_text_box (env, ip, pos, s, env->pen);
   a << line_item (STRING_ITEM, OP_TEXT, b, HYPH_INVALID, env->lan);
 }
 
 void
 concater_rep::typeset_math_substring (string s, path ip, int pos, int otype) {
-  box b= text_box (ip, pos, s, env->fn, env->pen);
+  box b= make_text_box (env, ip, pos, s, env->pen);
   a << line_item (STRING_ITEM, otype, b, HYPH_INVALID, env->lan);
 }
 
@@ -77,7 +85,7 @@ concater_rep::typeset_colored_substring
     else c= named_color (as_string (t), env->alpha);
   }
   else c= named_color (col, env->alpha);
-  box b= text_box (ip, pos, s, env->fn, c);
+  box b= make_text_box (env, ip, pos, s, c);
   a << line_item (STRING_ITEM, OP_TEXT, b, HYPH_INVALID, env->lan);
 }
 
