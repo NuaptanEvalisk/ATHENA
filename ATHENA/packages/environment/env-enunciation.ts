@@ -93,7 +93,7 @@
   <assign|dueto|<macro|name|<with|font-shape|right|<theorem-name|(<arg|name>)
   >>>>
 
-  <assign|qed|<macro|<math-ignore|<active*|<with|mode|math|\<box\>>>>>>
+  <assign|qed|<macro|<math-ignore|<active*|<with|mode|math|font-size|1.35|\<box\>>>>>>
 
   <assign|tab-qed|<macro|<htab|0.5fn|0><qed>>>
 
@@ -151,9 +151,11 @@
     </render-exercise>
   </macro>>
 
-  <assign|solution-old|<\macro|body>
+  <assign|solution|<\macro|body>
     <render-solution|<solution-text>|<arg|body>>
   </macro>>
+
+  <assign|solution-old|<value|solution>>
 
   <assign|solution-of|<\macro|what|body>
     <render-solution|<solution-text> <arg|what>|<arg|body>>

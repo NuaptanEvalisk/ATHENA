@@ -478,7 +478,8 @@ is_separated_proof_tree(const tree& t) {
   if (!is_compound(t)) return false;
   std::string tag = std::string(as_charp(as_string(L(t))));
   return tag == "proof" || tag == "proof-alternative" ||
-         tag == "proof-standard" || tag == "proof-of";
+         tag == "proof-standard" || tag == "proof-of" ||
+         tag == "solution";
 }
 
 bool
@@ -514,6 +515,7 @@ separated_proof_label_prefix(const tree& t) {
   if (!is_compound(t)) return "proof";
   std::string tag = std::string(as_charp(as_string(L(t))));
   if (tag == "proof-alternative" || tag == "proof-standard") return tag;
+  if (tag == "solution") return "solution";
   if (tag == "proof-of" && N(t) >= 1) {
     std::string title = sanitize_anchor_text(tree_to_std_string(t[0]), 80);
     if (!title.empty()) return "proof:" + title;
@@ -1427,8 +1429,11 @@ extract_bold_proof_marker_line(const std::string& raw,
     title = trim_copy(marker.substr(7, marker.size() - 8));
     if (title.empty()) return false;
   }
-  else if (marker == "Solution" || marker == "证明" || marker == "解") {
+  else if (marker == "证明") {
     tag = "proof";
+  }
+  else if (marker == "Solution" || marker == "解") {
+    tag = "solution";
   }
   else {
     return false;

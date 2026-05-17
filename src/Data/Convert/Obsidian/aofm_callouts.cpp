@@ -461,6 +461,10 @@ consume_proof(const std::vector<AstPtr>& nodes, size_t start,
     tree body;
   };
 
+  auto is_solution_frame = [] (const ProofFrame& frame) {
+    return frame.tag == "solution";
+  };
+
   auto make_proof_tree = [] (const ProofFrame& frame) {
     tree body = ensure_document_tree(frame.body);
     if (frame.tag == "proof" && !frame.title.empty()) {
@@ -514,12 +518,20 @@ consume_proof(const std::vector<AstPtr>& nodes, size_t start,
       continue;
     }
 
+    if (is_solution_frame(stack.back()) && ast_is(payload, "Callout")) {
+      break;
+    }
+
     std::string nested_chunk;
     std::string nested_tag;
     std::string nested_title;
     if (ast_is(payload, "Paragraph") &&
         extract_proof_marker_text(ast_source(payload), nested_tag,
                                   nested_title, nested_chunk)) {
+      if (is_solution_frame(stack.back())) {
+        break;
+      }
+
       // 【新增】：同样的逻辑应用到可能存在的嵌套 Proof
       bool closes_nested = strip_proof_qed_suffix(nested_chunk);
 
@@ -701,6 +713,12 @@ sanitize_proof_trees(tree t) {
     return compound("proof-of", t[0], ensure_document_tree(body));
   }
 
+  if (is_compound(t, "solution", 1)) {
+    tree body = sanitize_proof_trees(ensure_document_tree(t[0]));
+    body = strip_qed_from_right_edge(body);
+    return compound("solution", ensure_document_tree(body));
+  }
+
   if (is_compound(t, "theorem", 1)) {
     return compound("theorem", ensure_document_tree(sanitize_proof_trees(t[0])));
   }
@@ -819,8 +837,11 @@ extract_proof_marker_text(const std::string& raw, std::string& tag,
     title = trim_copy(marker.substr(7, marker.size() - 8));
     if (title.empty()) return false;
   }
-  else if (marker == "Solution" || marker == "证明" || marker == "解") {
+  else if (marker == "证明") {
     tag = "proof";
+  }
+  else if (marker == "Solution" || marker == "解") {
+    tag = "solution";
   }
   else {
     return false;
