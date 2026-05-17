@@ -13,66 +13,15 @@
         (athena athena tm-vault-images)
         (athena athena tm-vault-maintenance)
         (athena athena tm-vault-quick-switcher)
+        (athena athena tm-vault-recents)
+        (athena athena tm-vault-startup)
+        (athena athena tm-vault-welcome)
         (athena menus file-menu)))
 
 (tm-define (vault-jump-to-source path anchor)
   (load-buffer path)
   (if (!= anchor "")
       (delayed (:idle 100) (go-to-label anchor))))
-
-(tm-define (vault-load-latest-action path-s)
-  (load-vault-dir (string->url path-s)))
-
-(tm-define (go-to-welcome-page)
-  (load-buffer "tmfs://welcome/home"))
-
-(define (vault-startup-unavailable-message dir-s)
-  (show-message
-   (string-append "Last vault is unavailable:\n" dir-s)
-   "Vault unavailable"))
-
-(define (vault-startup-available? dir)
-  (url-exists? (url-append dir "Vaultfile")))
-
-(define (vault-startup-open-welcome?)
-  (== (get-preference "vault welcome page") "on"))
-
-(define (vault-startup-show-explorer?)
-  (== (get-preference "vault explorer show on startup") "on"))
-
-(define (vault-track-current-buffer-if-enabled)
-  (if (and (== (get-preference "vault explorer track current file") "on")
-           (vault-active?)
-           (current-buffer))
-      (vault-explorer-track-file (current-buffer))))
-
-(define (vault-show-explorer-and-track)
-  (vault-show-explorer)
-  (vault-track-current-buffer-if-enabled))
-
-(define (vault-startup-show-explorer)
-  (if (vault-startup-show-explorer?)
-      (delayed (:idle 100)
-        (if (vault-active?) (vault-show-explorer-and-track)))))
-
-(tm-define (vault-startup-open-initial-buffer)
-  (let* ((auto-load? (== (get-preference "vault auto load last") "on"))
-         (report-missing? (== (get-preference "vault report missing last") "on"))
-         (recent-vaults (get-recent-vaults))
-         (latest-vault (if (pair? recent-vaults) (car recent-vaults) #f)))
-    (cond
-      ((not auto-load?)
-       (if (vault-startup-open-welcome?) (go-to-welcome-page)))
-      ((not latest-vault) #f)
-      (else
-       (let ((dir (string->url latest-vault)))
-         (if (vault-startup-available? dir)
-             (begin
-               (load-vault-dir dir)
-               (vault-startup-show-explorer)
-               (if (vault-startup-open-welcome?) (go-to-welcome-page)))
-             (if report-missing?
-                 (vault-startup-unavailable-message latest-vault))))))))
 
 (tm-define (ext-get-preference key def)
   (let ((val (get-preference key)))
@@ -358,36 +307,6 @@
         (vault-close)
         (set-message "Unloaded vault" "Vault"))
       (set-message "No active vault to unload" "Vault")))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Recent Vaults
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(tm-define (recent-vaults-file)
-  "$ATHENA_HOME_PATH/system/recent_vaults.scm")
-
-(tm-define (get-recent-vaults)
-  (let ((file (recent-vaults-file)))
-    (if (url-exists? file)
-        (let ((data (load-object file)))
-          (if (list? data) data '()))
-        '())))
-
-(tm-define (add-recent-vault dir)
-  (let* ((dir-s (url->string dir))
-         (old (get-recent-vaults))
-         (new (cons dir-s (list-difference old (list dir-s))))
-         (final (sublist new 0 (min (length new) 20))))
-    (save-object (recent-vaults-file) final)))
-
-(tm-menu (recent-vault-menu)
-  (for (dir-s (get-recent-vaults))
-    (let* ((u (string->url dir-s))
-           (name (url->system (url-tail u)))
-           (v-name `(verbatim ,name))
-           (v-dir `(verbatim ,dir-s)))
-      ((balloon (eval v-name) (eval v-dir))
-       (load-vault-dir u)))))
 
 (tm-define (open-vault-explorer)
   (:interactive #t)
@@ -704,52 +623,6 @@
           (display* "  UUID not found in database, triggering repair...\n")
           (wikilink-trigger-repair uuid file-hint anchor-hint)))))
 
-(tmfs-load-handler (welcome name)
-  (let* ((recent-files (recent-file-list 15))
-         (recent-vaults (get-recent-vaults))
-         (latest-vault (if (pair? recent-vaults) (car recent-vaults) #f)))
-    (tm->stree
-      `(document
-         (TeXmacs ,(texmacs-compat-version))
-         (style (tuple "generic"))
-         (body (document
-           (with "par-mode" "center"
-             (document
-               (with "font-size" "2" "font-series" "bold"
-                 (concat "Welcome to " (ATHENA)))
-               (with "font-size" "1.2" "font-shape" "italic"
-                 "Advanced Typesetting and Hypertext Environment for Notes and Archives")))
-           (vspace "2fn")
-
-           (section* "Quick Start")
-           (enumerate (document
-             (concat (item) (action "Open Blank Buffer" "(new-document)"))
-             ,@(if latest-vault
-                   `((concat (item) (action ,(string-append "Load Latest Vault (" (url->system (url-tail (string->url latest-vault))) ")")
-                                            ,(string-append "(vault-load-latest-action " (object->string latest-vault) ")"))))
-                   '())))
-
-           (vspace "1fn")
-           (section* "Recent Files")
-           (enumerate (document
-             ,@(map (lambda (u)
-                    `(concat (item) (action ,(url->system u) ,(string-append "(load-buffer " (object->string (url->string u)) ")"))))
-                  recent-files)))
-
-           (vspace "2fn")
-           (with "font-size" "0.8" "color" "grey"
-             (document
-               (with "par-mode" "center"
-                 (document
-                   "ATHENA is a fork based on GNU TeXmacs."
-                   (concat "Copyright " (copyright) " 1999-2026 Joris van der Hoeven and others.")
-                   (concat "Copyright " (copyright) " 2026 Nuaptan F. Evalisk.")
-                   "Released under the GNU General Public License version 3 or later."))))
-           ))
-         (initial (collection
-           (associate "font-base-size" "7")
-           (associate "font-family" "tt")
-           (associate "page-medium" "automatic")))))))
 (tmfs-load-handler (Wikilink name)
   (wikilink-handler-sub name))
 
