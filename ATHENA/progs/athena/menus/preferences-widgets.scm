@@ -358,64 +358,84 @@
 
 (tm-widget (rendering-enunciations-preferences-widget)
   (aligned
-    (item (text "Theorem background:")
+    (item (text "Theorem:")
       (dynamic (rendering-color-preference-widget "vault theorem color" #t)))
-    (item (text "Lemma background:")
+    (item (text "Lemma:")
       (dynamic (rendering-color-preference-widget "vault lemma color" #t)))
-    (item (text "Corollary background:")
+    (item (text "Corollary:")
       (dynamic (rendering-color-preference-widget "vault corollary color" #t)))
-    (item (text "Proposition background:")
+    (item (text "Proposition:")
       (dynamic (rendering-color-preference-widget "vault proposition color" #t)))
-    (item (text "Axiom background:")
+    (item (text "Axiom:")
       (dynamic (rendering-color-preference-widget "vault axiom color" #t)))
-    (item (text "Definition background:")
+    (item (text "Definition:")
       (dynamic (rendering-color-preference-widget "vault definition color" #t)))
-    (item (text "Notation background:")
+    (item (text "Notation:")
       (dynamic (rendering-color-preference-widget "vault notation color" #t)))
-    (item (text "Convention background:")
+    (item (text "Convention:")
       (dynamic (rendering-color-preference-widget "vault convention color" #t)))
-    (item (text "Conjecture background:")
+    (item (text "Conjecture:")
       (dynamic (rendering-color-preference-widget "vault conjecture color" #t)))
-    (item (text "Law background:")
+    (item (text "Law:")
       (dynamic (rendering-color-preference-widget "vault law color" #t)))))
 
 (tm-widget (rendering-remarks-preferences-widget)
   (aligned
-    (item (text "Remark background:")
+    (item (text "Remark:")
       (dynamic (rendering-color-preference-widget "vault remark color" #t)))
-    (item (text "Note background:")
+    (item (text "Note:")
       (dynamic (rendering-color-preference-widget "vault note color" #t)))
-    (item (text "Example background:")
+    (item (text "Example:")
       (dynamic (rendering-color-preference-widget "vault example color" #t)))
-    (item (text "Warning background:")
+    (item (text "Warning:")
       (dynamic (rendering-color-preference-widget "vault warning color" #t)))
-    (item (text "Disambiguation background:")
+    (item (text "Disambiguation:")
       (dynamic (rendering-color-preference-widget
                  "vault disambiguation color" #t)))
-    (item (text "Acknowledgments background:")
+    (item (text "Acknowledgments:")
       (dynamic (rendering-color-preference-widget
                  "vault acknowledgments color" #t)))))
 
 (tm-widget (rendering-exercises-preferences-widget)
   (aligned
-    (item (text "Exercise background:")
+    (item (text "Exercise:")
       (dynamic (rendering-color-preference-widget "vault exercise color" #t)))
-    (item (text "Problem background:")
+    (item (text "Problem:")
       (dynamic (rendering-color-preference-widget "vault problem color" #t)))
-    (item (text "Question background:")
+    (item (text "Question:")
       (dynamic (rendering-color-preference-widget "vault question color" #t)))
-    (item (text "Solution background:")
+    (item (text "Solution:")
       (dynamic (rendering-color-preference-widget "vault solution color" #t)))
-    (item (text "Answer background:")
+    (item (text "Answer:")
       (dynamic (rendering-color-preference-widget "vault answer color" #t)))
-    (item (text "Proof background:")
+    (item (text "Proof:")
       (dynamic (rendering-color-preference-widget "vault proof color" #t)))
-    (item (text "Proof (Alternative) background:")
+    (item (text "Proof (Alternative):")
       (dynamic (rendering-color-preference-widget
                  "vault proof alternative color" #t)))
-    (item (text "Proof (Standard) background:")
+    (item (text "Proof (Standard):")
       (dynamic (rendering-color-preference-widget
                  "vault proof standard color" #t)))))
+
+(tm-widget (rendering-enunciation-colors-preferences-widget)
+  (hlist
+    (vlist
+      (bold (text "Enunciations"))
+      ===
+      (dynamic (rendering-enunciations-preferences-widget))
+      (glue #f #t 0 1))
+    (glue #f #f 24 0)
+    (vlist
+      (bold (text "Remarks and notes"))
+      ===
+      (dynamic (rendering-remarks-preferences-widget))
+      (glue #f #t 0 1))
+    (glue #f #f 24 0)
+    (vlist
+      (bold (text "Exercises and proofs"))
+      ===
+      (dynamic (rendering-exercises-preferences-widget))
+      (glue #f #t 0 1))))
 
 (tm-widget (rendering-preferences-widget)
   ===
@@ -424,15 +444,9 @@
       (tab (text "Document")
         (centered
           (dynamic (rendering-document-preferences-widget))))
-      (tab (text "Enunciations")
+      (tab (text "Enunciations Coloring")
         (centered
-          (dynamic (rendering-enunciations-preferences-widget))))
-      (tab (text "Remarks, Notes")
-        (centered
-          (dynamic (rendering-remarks-preferences-widget))))
-      (tab (text "Exercises, Proofs")
-        (centered
-          (dynamic (rendering-exercises-preferences-widget))))))
+          (dynamic (rendering-enunciation-colors-preferences-widget))))))
   ===)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
