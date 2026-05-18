@@ -280,10 +280,7 @@
 ;(display "Booting programming modes\n")
 (lazy-format (prog prog-format) scheme)
 (lazy-format (code-format) cpp julia scala java json csv)
-(lazy-format (mathemagix-format) mathemagix)
-(lazy-format (caas-format) caas)
 (lazy-format (python-format) python)
-(lazy-format (scilab-format) scilab)
 (lazy-keyboard (prog prog-kbd) in-prog?)
 (lazy-menu (prog prog-menu) prog-format-menu prog-format-icons
 	   prog-menu prog-icons)

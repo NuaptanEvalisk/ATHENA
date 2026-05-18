@@ -418,16 +418,6 @@ init_misc () {
 
 static void
 init_deprecated () {
-#ifndef OS_WIN32
-  // Check for Macaulay2
-  if (get_env ("M2HOME") == "")
-    if (exists_in_path ("M2")) {
-      string where= concretize (resolve_in_path ("M2"));
-      string s    = var_eval_system ("grep 'M2HOME=' " * where);
-      string dir  = s (search_forwards ("=", s) + 1, N(s));
-      if (dir != "") set_env ("M2HOME", dir);
-    }
-#endif
 }
 
 /******************************************************************************

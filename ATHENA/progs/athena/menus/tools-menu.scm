@@ -25,11 +25,6 @@
     ((eval (upcase-first lan))
      (ai-translate lan (get-preference "ai")))))
 
-(tm-menu (tools-equation-editor-menu)
-  ("Enable" (begin
-              (toggle-preference "equation-editor")
-              (reinit-plugin-cache))))
-
 (tm-define (run-proof-pipeline-menu-action)
   (run-proof-pipeline))
 
@@ -86,7 +81,6 @@
   ;;(-> "Web"
   ;;    ("Create web site" (tmweb-interactive-build))
   ;;    ("Update web site" (tmweb-interactive-update)))
-  (-> "Use as Equation Editor" (link tools-equation-editor-menu))
   ---
   ("Clear undo history" (clear-undo-history))
   ("Save auxiliary data" (toggle-save-aux))

@@ -1,4 +1,0 @@
-#!/bin/sh -f
-ATHENA_REDUCE_PATH="$ATHENA_PATH/plugins/reduce"
-export ATHENA_REDUCE_PATH
-exec redpsl

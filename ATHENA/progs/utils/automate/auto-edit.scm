@@ -18,8 +18,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define-group implied-tag
-  implied-generic implied-verbatim implied-scm implied-cpp implied-mmx
-  implied-python implied-julia implied-scilab implied-shell)
+  implied-generic implied-verbatim implied-scm implied-cpp
+  implied-python implied-julia implied-shell)
 
 (define-group variant-tag
   (implied-tag))

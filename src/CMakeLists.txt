@@ -37,7 +37,6 @@ if (APPLE)
   set_target_properties (${ATHENA_binary_name}
     PROPERTIES
     MACOSX_BUNDLE TRUE
-    MACOSX_BUNDLE_INFO_PLIST ${ATHENA_SOURCE_DIR}/packages/macos/Info.plist.in
     DEBUG_OUTPUT_NAME ${ATHENA_binary_name}${EXE_DEBUG_EXTENSION}
     RELEASE_OUTPUT_NAME ${ATHENA_binary_name}
     RUNTIME_OUTPUT_DIRECTORY ${ATHENA_BINARY_DIR}
@@ -47,4 +46,3 @@ elseif (WIN32)
 else (APPLE)
   install (TARGETS ${ATHENA_binary_name} DESTINATION ${tmbin}/bin)
 endif (APPLE)
-

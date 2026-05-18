@@ -21,8 +21,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define-group chunk-tag
-  generic-chunk verbatim-chunk scm-chunk cpp-chunk mmx-chunk
-  python-chunk scilab-chunk shell-chunk scala-chunk java-chunk)
+  generic-chunk verbatim-chunk scm-chunk cpp-chunk
+  python-chunk shell-chunk scala-chunk java-chunk)
 
 (define-group variant-tag
   (chunk-tag))
@@ -101,9 +101,7 @@
           ((in? suffix '("scala")) "scala")
           ((in? suffix '("java")) "java")
           ((in? suffix '("c" "cc" "cpp" "h" "hh" "hpp")) "cpp")
-          ((in? suffix '("mmx" "mmh")) "mmx")
           ((in? suffix '("py")) "python")
-          ((in? suffix '("sce" "sci")) "scilab")
           ((in? suffix '("bat" "sh")) "shell")
           (else "verbatim"))))
 

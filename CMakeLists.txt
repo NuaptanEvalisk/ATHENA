@@ -875,13 +875,6 @@ add_subdirectory (ATHENA)
 ### Installation
 ### --------------------------------------------------------------------
 
-if (APPLE)
-  install (FILES packages/macos/ATHENA.icns DESTINATION ${CMAKE_INSTALL_PREFIX})
-  install (FILES packages/macos/ATHENA-document.icns DESTINATION ${CMAKE_INSTALL_PREFIX})
-  install (DIRECTORY src/Plugins/Cocoa/English.lproj DESTINATION ${CMAKE_INSTALL_PREFIX})
-  install (DIRECTORY src/Plugins/Cocoa/zh_CN.lproj DESTINATION ${CMAKE_INSTALL_PREFIX})
-endif (APPLE)
-
 if (NOT WIN32)
   install (FILES ${ATHENA_BINARY_DIR}/misc/scripts/athena
                  ${ATHENA_BINARY_DIR}/misc/scripts/fig2ps

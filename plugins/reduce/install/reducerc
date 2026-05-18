@@ -1,2 +1,0 @@
-lisp << if getenv("ATHENA_REDUCE_PATH") then load tmprint >>$
-end$

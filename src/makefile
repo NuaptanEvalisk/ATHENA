@@ -207,22 +207,7 @@ qt_moc_paths = $(patsubst %,./Plugins/Qt/%,$(qt_moc_src))
 $(qt_moc_paths): ./Plugins/Qt/moc_%.cpp: ./Plugins/Qt/%.hpp
 	$(MOC) $(MOCFLAGS) $< -o $@
 
-###############################################################################
-# Windows resource file
-###############################################################################
-
-WINDRES = windres.exe
-WINDRESFLAGS = -O coff
-
-Objects/winresource.rc.o:
-	$(WINDRES) $(WINDRESFLAGS) ../packages/windows/resource.rc \
-	-o Objects/winresource.rc.o
-
-ifeq "GNU_LINUX" "MINGW"
-uses_windowsres = Objects/winresource.rc.o
-else
 uses_windowsres =
-endif
 
 ###############################################################################
 # Dependencies
