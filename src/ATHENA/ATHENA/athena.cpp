@@ -900,8 +900,8 @@ immediate_options (int argc, char** argv) {
   }
 }
 
-static const char* progs_fingerprint_cache_name=
-  "progs_fingerprint.txt";
+static const char* source_fingerprint_cache_name=
+  "source_fingerprint.txt";
 
 static std::string
 athena_to_std_string (const string& s) {
@@ -990,24 +990,39 @@ athena_fingerprint_walk (const std::string& root, const std::string& rel,
 }
 #endif
 
+static void
+athena_source_fingerprint_for_subdir (uint64_t& hash, size_t& entries,
+                                      const std::string& root,
+                                      const char* subdir) {
+#ifndef OS_MINGW
+  std::string dir= root + "/" + subdir;
+  struct stat st;
+  if (stat (dir.c_str (), &st) != 0 || !S_ISDIR (st.st_mode))
+    return;
+  athena_fingerprint_feed (hash, subdir);
+  athena_fingerprint_walk (dir, "", hash, entries);
+#else
+  (void) hash; (void) entries; (void) root; (void) subdir;
+#endif
+}
+
 static std::string
-athena_progs_fingerprint_for_root (const char* label, const string& root_s) {
+athena_source_fingerprint_for_root (const char* label, const string& root_s) {
 #ifdef OS_MINGW
   (void) label; (void) root_s;
   return "";
 #else
   if (root_s == "") return "";
   std::string root= athena_to_std_string (root_s);
-  struct stat st;
-  if (stat ((root + "/progs").c_str (), &st) != 0 || !S_ISDIR (st.st_mode))
-    return "";
 
   uint64_t hash= 1469598103934665603ULL;
   size_t entries= 0;
-  athena_fingerprint_feed (hash, "athena-progs-fingerprint-v1");
+  athena_fingerprint_feed (hash, "athena-source-fingerprint-v2");
   athena_fingerprint_feed (hash, label);
   athena_fingerprint_feed (hash, root);
-  athena_fingerprint_walk (root + "/progs", "", hash, entries);
+  athena_source_fingerprint_for_subdir (hash, entries, root, "progs");
+  athena_source_fingerprint_for_subdir (hash, entries, root, "packages");
+  if (entries == 0) return "";
 
   char digest[64];
   snprintf (digest, sizeof (digest), "%016llx",
@@ -1018,10 +1033,10 @@ athena_progs_fingerprint_for_root (const char* label, const string& root_s) {
 }
 
 static std::string
-athena_current_progs_fingerprint () {
-  std::string fp= "athena-progs-fingerprint-v1\n";
-  fp += athena_progs_fingerprint_for_root ("install", get_env ("ATHENA_PATH"));
-  fp += athena_progs_fingerprint_for_root ("home", get_env ("ATHENA_HOME_PATH"));
+athena_current_source_fingerprint () {
+  std::string fp= "athena-source-fingerprint-v2\n";
+  fp += athena_source_fingerprint_for_root ("install", get_env ("ATHENA_PATH"));
+  fp += athena_source_fingerprint_for_root ("home", get_env ("ATHENA_HOME_PATH"));
   return fp;
 }
 
@@ -1032,14 +1047,14 @@ athena_cache_has_payload (url cache_dir) {
   if (err) return false;
   for (int i=0; i<N(entries); i++)
     if (entries[i] != "." && entries[i] != ".." &&
-        entries[i] != progs_fingerprint_cache_name)
+        entries[i] != source_fingerprint_cache_name)
       return true;
   return false;
 }
 
 static bool
-athena_write_progs_fingerprint (url fingerprint_file,
-                                const std::string& fingerprint) {
+athena_write_source_fingerprint (url fingerprint_file,
+                                 const std::string& fingerprint) {
   return !save_string (fingerprint_file,
                        string (fingerprint.data (), (int) fingerprint.size ()));
 }
@@ -1061,7 +1076,7 @@ athena_restart_after_cache_refresh (int argc, char** argv) {
 }
 
 static void
-athena_refresh_cache_if_progs_changed (int argc, char** argv) {
+athena_refresh_cache_if_sources_changed (int argc, char** argv) {
   url home_dir= url_system (get_env ("ATHENA_HOME_PATH"));
   if (!is_directory (home_dir)) mkdir (home_dir);
   if (!is_directory (home_dir * url ("progs")))
@@ -1070,9 +1085,9 @@ athena_refresh_cache_if_progs_changed (int argc, char** argv) {
   url cache_dir= home_dir * url ("system/cache");
   if (!is_directory (cache_dir)) mkdir (cache_dir);
 
-  url fingerprint_file= cache_dir * url (progs_fingerprint_cache_name);
-  std::string current= athena_current_progs_fingerprint ();
-  if (current == "athena-progs-fingerprint-v1\n") return;
+  url fingerprint_file= cache_dir * url (source_fingerprint_cache_name);
+  std::string current= athena_current_source_fingerprint ();
+  if (current == "athena-source-fingerprint-v2\n") return;
 
   string stored_s;
   bool has_stored= !load_string (fingerprint_file, stored_s, false);
@@ -1083,16 +1098,16 @@ athena_refresh_cache_if_progs_changed (int argc, char** argv) {
     athena_cache_has_payload (cache_dir);
   if (!stale) {
     if (!has_stored)
-      (void) athena_write_progs_fingerprint (fingerprint_file, current);
+      (void) athena_write_source_fingerprint (fingerprint_file, current);
     return;
   }
 
-  cout << "ATHENA] cache refresh: progs fingerprint changed; clearing cache"
+  cout << "ATHENA] cache refresh: source fingerprint changed; clearing cache"
        << LF;
   remove (cache_dir * url_wildcard ("*"));
   if (!is_directory (cache_dir)) mkdir (cache_dir);
-  if (!athena_write_progs_fingerprint (fingerprint_file, current)) {
-    cerr << "ATHENA] cache refresh: could not store progs fingerprint; "
+  if (!athena_write_source_fingerprint (fingerprint_file, current)) {
+    cerr << "ATHENA] cache refresh: could not store source fingerprint; "
          << "continuing without restart" << LF;
     return;
   }
@@ -1162,7 +1177,7 @@ texmacs_entrypoint (int argc, char** argv) {
   }
 #endif
   immediate_options (argc, argv);
-  athena_refresh_cache_if_progs_changed (argc, argv);
+  athena_refresh_cache_if_sources_changed (argc, argv);
 #ifdef STACK_SIZE
   struct rlimit limit;
 
