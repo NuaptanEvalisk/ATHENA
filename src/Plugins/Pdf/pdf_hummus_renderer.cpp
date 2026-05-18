@@ -1340,6 +1340,15 @@ no_font_issues (url u) {
   return !pdf_font_issues ()->contains (h);
 }
 
+static bool
+pdf_font_fallback_warning_seen (string kind, string fname, url u) {
+  static hashset<string> seen;
+  string key= kind * "\n" * fname * "\n" * as_string (u);
+  if (seen->contains (key)) return true;
+  seen->insert (key);
+  return false;
+}
+
 void
 pdf_hummus_renderer_rep::make_pdf_font (string fontname)
 {
@@ -1373,15 +1382,17 @@ pdf_hummus_renderer_rep::make_pdf_font (string fontname)
       return;
     }
     else if (font != NULL) {
-      convert_warning << "pdf_hummus_renderer, font: " << fname
-		      << " in file " << u << " has a known native PDF "
-		      << "embedding issue. It is converted to bitmap type 3 "
-		      << "font." << LF;
+      if (!pdf_font_fallback_warning_seen ("known-issue", fname, u))
+	convert_warning << "pdf_hummus_renderer, font: " << fname
+			<< " in file " << u << " has a known native PDF "
+			<< "embedding issue. It is converted to bitmap type 3 "
+			<< "font." << LF;
     }
     else {
-      convert_warning << "pdf_hummus_renderer, font: " << fname
-		      << " in file " << u << " cannot be loaded. "
-		      << "It is converted to bitmap type 3 font." << LF;
+      if (!pdf_font_fallback_warning_seen ("load-failed", fname, u))
+	convert_warning << "pdf_hummus_renderer, font: " << fname
+			<< " in file " << u << " cannot be loaded. "
+			<< "It is converted to bitmap type 3 font." << LF;
     }
   }
   not_native_fonts->insert (fontname);
