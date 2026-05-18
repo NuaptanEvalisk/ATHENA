@@ -1,6 +1,7 @@
 #include "QTMMainTabWindow.hpp"
 #include "QTMApplication.hpp"
 #include "QTMBufferSwitcher.hpp"
+#include "QTMErrorMessagesPane.hpp"
 #include "QTMGlobalSearch.hpp"
 #include "QTMWidget.hpp"
 #include "QTMOutlinePane.hpp"
@@ -37,7 +38,8 @@ isPersistentAdsPane (const QString& name) {
   return name == "athena-outline-pane" ||
          name == "athena-vault-explorer" ||
          name == "athena-global-search" ||
-         name == "athena-vault-backup-viewer";
+         name == "athena-vault-backup-viewer" ||
+         name == "athena-error-messages";
 }
 
 bool isMovingTab = false;
@@ -307,6 +309,9 @@ void QTMMainTabWindow::restoreAdsVisiblePanes() {
       global_search_show ();
     else if (vault_active() && name == "athena-vault-backup-viewer")
       vault_backup_viewer_show ();
+    else if (name == "athena-error-messages" ||
+             name == "athena-tool-pane-Error messages")
+      error_messages_show ();
   }
 
   restoreAdsLayoutState();

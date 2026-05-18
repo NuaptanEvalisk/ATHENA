@@ -1,0 +1,346 @@
+/******************************************************************************
+* MODULE     : QTMErrorMessagesPane.cpp
+* DESCRIPTION: Qt ADS pane for error and warning messages
+* COPYRIGHT  : (C) 2026 Felix
+*******************************************************************************
+* This software falls under the GNU general public license version 3 or later.
+* It comes WITHOUT ANY WARRANTY WHATSOEVER. For details, see the file LICENSE
+* in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
+******************************************************************************/
+
+#include "QTMErrorMessagesPane.hpp"
+#include "QTMMainTabWindow.hpp"
+#include "basic.hpp"
+#include "convert.hpp"
+#include "qt_utilities.hpp"
+#include "tree.hpp"
+
+#include <DockAreaWidget.h>
+#include <DockContainerWidget.h>
+#include <DockSplitter.h>
+#include <DockWidget.h>
+#include <QAbstractItemView>
+#include <QApplication>
+#include <QCheckBox>
+#include <QComboBox>
+#include <QHeaderView>
+#include <QHBoxLayout>
+#include <QLabel>
+#include <QMessageBox>
+#include <QPushButton>
+#include <QSet>
+#include <QSize>
+#include <QStringList>
+#include <QTimer>
+#include <QTreeWidget>
+#include <QTreeWidgetItem>
+#include <QVBoxLayout>
+#include <iostream>
+
+static QTMErrorMessagesPane* error_messages_widget= nullptr;
+static ads::CDockWidget* error_messages_dock= nullptr;
+static ads::CDockAreaWidget* error_messages_area= nullptr;
+
+static void
+set_error_messages_area_height (ads::CDockAreaWidget* area) {
+  if (area == nullptr) return;
+  ads::CDockSplitter* splitter= area->parentSplitter ();
+  if (splitter == nullptr) return;
+  QList<int> sizes= splitter->sizes ();
+  if (sizes.size () < 2) return;
+  int total= 0;
+  for (int size : sizes) total += size;
+  if (total <= 0) return;
+  int target= qBound (260, total / 3, 420);
+  int areaIndex= splitter->indexOf (area);
+  if (areaIndex < 0 || areaIndex >= sizes.size ()) return;
+  int delta= target - sizes[areaIndex];
+  if (delta == 0) return;
+  sizes[areaIndex]= target;
+  int other= areaIndex == 0 ? 1 : 0;
+  sizes[other]= qMax (120, sizes[other] - delta);
+  splitter->setSizes (sizes);
+}
+
+static void
+log_error_messages_dock_state (const char* stage, QTMMainTabWindow* win) {
+  std::cerr << "ATHENA] error messages pane diagnostic: " << stage << "\n"
+            << "ATHENA]   top window: " << (void*) win << "\n"
+            << "ATHENA]   dock manager: "
+            << (void*) (win == nullptr ? nullptr : win->dockManager ()) << "\n"
+            << "ATHENA]   widget: " << (void*) error_messages_widget << "\n"
+            << "ATHENA]   dock: " << (void*) error_messages_dock << "\n"
+            << "ATHENA]   area: " << (void*) error_messages_area << "\n";
+  if (error_messages_widget != nullptr) {
+    QWidget* parent= error_messages_widget->parentWidget ();
+    std::cerr << "ATHENA]   widget parent: " << (void*) parent
+              << " class="
+              << (parent == nullptr ? "<none>" : parent->metaObject ()->className ())
+              << " isWindow=" << error_messages_widget->isWindow () << "\n";
+  }
+  if (error_messages_dock != nullptr) {
+    QWidget* parent= error_messages_dock->parentWidget ();
+    ads::CDockContainerWidget* container= error_messages_dock->dockContainer ();
+    std::cerr << "ATHENA]   dock parent: " << (void*) parent
+              << " class="
+              << (parent == nullptr ? "<none>" : parent->metaObject ()->className ())
+              << " isWindow=" << error_messages_dock->isWindow ()
+              << " isFloating=" << error_messages_dock->isFloating ()
+              << "\n"
+              << "ATHENA]   dock area widget: "
+              << (void*) error_messages_dock->dockAreaWidget ()
+              << "\n"
+              << "ATHENA]   dock container: " << (void*) container;
+    if (container != nullptr)
+      std::cerr << " containerIsFloating=" << container->isFloating ();
+    std::cerr << "\n";
+  }
+}
+
+static QString
+debug_tree_text (const tree& t) {
+  if (is_atomic (t)) return utf8_to_qstring (t->label);
+  return to_qstring (tree_to_scheme (t));
+}
+
+static QString
+message_type (const QString& channel) {
+  if (channel.endsWith ("-error")) return channel.left (channel.size () - 6);
+  if (channel.endsWith ("-warning")) return channel.left (channel.size () - 8);
+  if (channel.endsWith ("-bench")) return channel.left (channel.size () - 6);
+  if (channel.startsWith ("debug-")) return channel.mid (6);
+  return channel;
+}
+
+static bool
+is_error_channel (const QString& channel) {
+  return channel.endsWith ("-error");
+}
+
+static bool
+is_warning_channel (const QString& channel) {
+  return channel.endsWith ("-warning");
+}
+
+QTMErrorMessagesPane::QTMErrorMessagesPane (QWidget* parent)
+  : QWidget (parent),
+    categoryBox (new QComboBox (this)),
+    limitBox (new QComboBox (this)),
+    detailsCheck (new QCheckBox ("Details", this)),
+    refreshButton (new QPushButton ("Refresh", this)),
+    clearButton (new QPushButton ("Clear", this)),
+    statusLabel (new QLabel (this)),
+    messageTree (new QTreeWidget (this)),
+    refreshTimer (new QTimer (this)) {
+  categoryBox->addItem ("All");
+  categoryBox->addItem ("Errors");
+  categoryBox->addItem ("Warnings");
+
+  limitBox->addItem ("Last 25", 25);
+  limitBox->addItem ("Last 100", 100);
+  limitBox->addItem ("Last 250", 250);
+  limitBox->addItem ("Last 1000", 1000);
+  limitBox->addItem ("All", 1000000);
+  limitBox->setCurrentIndex (1);
+
+  messageTree->setColumnCount (3);
+  messageTree->setHeaderLabels (QStringList () << "Kind" << "Channel" << "Message");
+  messageTree->setAlternatingRowColors (true);
+  messageTree->setRootIsDecorated (false);
+  messageTree->setSelectionMode (QAbstractItemView::ExtendedSelection);
+  messageTree->header ()->setStretchLastSection (true);
+  messageTree->header ()->setSectionResizeMode (0, QHeaderView::ResizeToContents);
+  messageTree->header ()->setSectionResizeMode (1, QHeaderView::ResizeToContents);
+
+  QHBoxLayout* controls= new QHBoxLayout ();
+  controls->addWidget (new QLabel ("Show", this));
+  controls->addWidget (categoryBox);
+  controls->addWidget (limitBox);
+  controls->addWidget (detailsCheck);
+  controls->addStretch ();
+  controls->addWidget (refreshButton);
+  controls->addWidget (clearButton);
+
+  QVBoxLayout* layout= new QVBoxLayout (this);
+  layout->setContentsMargins (8, 8, 8, 8);
+  layout->addLayout (controls);
+  layout->addWidget (messageTree, 1);
+  layout->addWidget (statusLabel);
+
+  connect (categoryBox, QOverload<int>::of (&QComboBox::currentIndexChanged),
+           this, [this] () { refresh (); });
+  connect (limitBox, QOverload<int>::of (&QComboBox::currentIndexChanged),
+           this, [this] () { refresh (); });
+  connect (detailsCheck, &QCheckBox::toggled,
+           this, [this] () { refresh (); });
+  connect (refreshButton, &QPushButton::clicked,
+           this, [this] () { refresh (); });
+  connect (clearButton, &QPushButton::clicked,
+           this, [this] () { clearMessages (); });
+  connect (refreshTimer, &QTimer::timeout,
+           this, [this] () { refresh (); });
+
+  refreshTimer->setInterval (750);
+  refreshTimer->start ();
+  refresh ();
+}
+
+QSize
+QTMErrorMessagesPane::sizeHint () const {
+  return QSize (900, 360);
+}
+
+QString
+QTMErrorMessagesPane::selectedCategory () const {
+  return categoryBox->currentText ();
+}
+
+int
+QTMErrorMessagesPane::messageLimit () const {
+  return limitBox->currentData ().toInt ();
+}
+
+void
+QTMErrorMessagesPane::rebuildCategories () {
+  QString current= categoryBox->currentText ();
+  QSet<QString> seen;
+  tree messages= get_debug_messages ("Error messages", 1000000);
+  for (int i=0; i<N(messages); i++) {
+    tree m= messages[i];
+    if (!is_func (m, TUPLE, 3) || !is_atomic (m[0])) continue;
+    seen.insert (message_type (utf8_to_qstring (m[0]->label)));
+  }
+
+  categoryBox->blockSignals (true);
+  categoryBox->clear ();
+  categoryBox->addItem ("All");
+  categoryBox->addItem ("Errors");
+  categoryBox->addItem ("Warnings");
+  QStringList categories= QStringList (seen.values ());
+  categories.sort (Qt::CaseInsensitive);
+  for (const QString& category : categories)
+    if (category != "Errors" && category != "Warnings" && category != "All")
+      categoryBox->addItem (category);
+  int index= categoryBox->findText (current);
+  categoryBox->setCurrentIndex (index >= 0 ? index : 0);
+  categoryBox->blockSignals (false);
+}
+
+void
+QTMErrorMessagesPane::refresh () {
+  rebuildCategories ();
+  QString category= selectedCategory ();
+  tree messages= get_debug_messages ("Error messages", messageLimit ());
+
+  messageTree->clear ();
+  int shown= 0;
+  for (int i=0; i<N(messages); i++) {
+    tree m= messages[i];
+    if (!is_func (m, TUPLE, 3) || !is_atomic (m[0]) || !is_atomic (m[1]))
+      continue;
+
+    QString channel= utf8_to_qstring (m[0]->label);
+    QString type= message_type (channel);
+    if (category == "Errors" && !is_error_channel (channel)) continue;
+    if (category == "Warnings" && !is_warning_channel (channel)) continue;
+    if (category != "All" && category != "Errors" && category != "Warnings" &&
+        type != category)
+      continue;
+
+    QString text= utf8_to_qstring (m[1]->label);
+    QTreeWidgetItem* item= new QTreeWidgetItem (messageTree);
+    item->setText (0, type);
+    item->setText (1, channel);
+    item->setText (2, text);
+    if (is_error_channel (channel))
+      item->setForeground (2, QColor ("#b00020"));
+    else if (is_warning_channel (channel))
+      item->setForeground (2, QColor ("#7a3b00"));
+
+    bool hasDetails= !(is_atomic (m[2]) && m[2]->label == "");
+    if (detailsCheck->isChecked () && hasDetails) {
+      QTreeWidgetItem* detail= new QTreeWidgetItem (item);
+      detail->setText (2, debug_tree_text (m[2]));
+      item->setExpanded (true);
+    }
+    shown++;
+  }
+  if (shown == 0) {
+    QTreeWidgetItem* item= new QTreeWidgetItem (messageTree);
+    item->setText (2, "No error or warning messages.");
+    item->setFlags (item->flags () & ~Qt::ItemIsSelectable);
+  }
+  statusLabel->setText (QString ("%1 message%2 shown")
+                        .arg (shown)
+                        .arg (shown == 1 ? "" : "s"));
+}
+
+void
+QTMErrorMessagesPane::clearMessages () {
+  clear_debug_messages ();
+  refresh ();
+}
+
+void
+error_messages_show () {
+  std::cerr << "ATHENA] error messages pane diagnostic: error_messages_show invoked\n";
+  QTMMainTabWindow* win= QTMMainTabWindow::topTabWindow ();
+  log_error_messages_dock_state ("entry", win);
+  if (win == nullptr || win->dockManager () == nullptr) {
+    std::cerr << "ATHENA] error messages pane diagnostic: cannot show pane; missing top window or dock manager\n";
+    QMessageBox::warning (QApplication::activeWindow (), "Error messages",
+                          "No active ATHENA window.");
+    return;
+  }
+
+  if (error_messages_widget == nullptr) {
+    std::cerr << "ATHENA] error messages pane diagnostic: creating native QTMErrorMessagesPane widget\n";
+    error_messages_widget= new QTMErrorMessagesPane ();
+    error_messages_widget->resize (900, 360);
+    QObject::connect (error_messages_widget, &QObject::destroyed, [] () {
+      error_messages_widget= nullptr;
+      error_messages_dock= nullptr;
+      error_messages_area= nullptr;
+    });
+  }
+  log_error_messages_dock_state ("after widget ensure", win);
+
+  if (error_messages_dock == nullptr) {
+    std::cerr << "ATHENA] error messages pane diagnostic: creating ADS CDockWidget and adding to dock manager\n";
+    error_messages_dock= new ads::CDockWidget ("Error messages");
+    error_messages_dock->setObjectName ("athena-error-messages");
+    error_messages_dock->resize (900, 360);
+    error_messages_dock->setWidget (error_messages_widget);
+    error_messages_dock->setFeature (
+      ads::CDockWidget::DockWidgetDeleteOnClose, false);
+    QObject::connect (error_messages_dock, &QObject::destroyed, [] () {
+      error_messages_dock= nullptr;
+      error_messages_area= nullptr;
+    });
+  }
+
+  if (error_messages_dock->dockAreaWidget () == nullptr ||
+      error_messages_dock->dockContainer () == nullptr) {
+    std::cerr << "ATHENA] error messages pane diagnostic: adding ADS CDockWidget to dock manager\n";
+    error_messages_area= win->dockManager ()->addDockWidget (
+      ads::BottomDockWidgetArea, error_messages_dock);
+    std::cerr << "ATHENA] error messages pane diagnostic: addDockWidget returned area="
+              << (void*) error_messages_area << "\n";
+    log_error_messages_dock_state ("after addDockWidget", win);
+  }
+  else {
+    error_messages_area= error_messages_dock->dockAreaWidget ();
+  }
+  log_error_messages_dock_state ("before show", win);
+
+  error_messages_widget->refresh ();
+  error_messages_dock->show ();
+  error_messages_dock->raise ();
+  set_error_messages_area_height (error_messages_area);
+  QTimer::singleShot (0, win, [] () {
+    set_error_messages_area_height (error_messages_area);
+    log_error_messages_dock_state ("after queued size adjustment", QTMMainTabWindow::topTabWindow ());
+  });
+  error_messages_widget->setFocus ();
+  log_error_messages_dock_state ("after show", win);
+}

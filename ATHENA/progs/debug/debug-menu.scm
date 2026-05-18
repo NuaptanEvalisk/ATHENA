@@ -57,7 +57,7 @@
       ("Evaluate scheme expression" (interactive footer-eval)))
   (-> "Consoles"
       ("Debugging console" (open-debug-console))
-      ("Error messages" (open-error-messages))
+      ("Error messages" (error-messages-show))
       ---
       (group "Automatic")
       ("Open on errors" (toggle-preference "open console on errors"))

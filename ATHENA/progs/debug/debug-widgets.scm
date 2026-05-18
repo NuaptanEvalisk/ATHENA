@@ -159,11 +159,10 @@
   (when (and (or (and console-errors?
                       (get-boolean-preference "open console on errors"))
                  (and console-warnings?
-                      (get-boolean-preference "open console on warnings")))
-             (not (ahash-ref console-active? "Error messages")))
+                      (get-boolean-preference "open console on warnings"))))
     (delayed
       (:idle 1)
-      (open-error-messages)))
+      (error-messages-show)))
   (set! console-updating? #f)
   (set! console-errors? #f)
   (set! console-warnings? #f))
@@ -182,7 +181,11 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define (open-console kind)
-  (when (not (ahash-ref console-active? kind))
+  (when (== kind "Error messages")
+    (display* "ATHENA] error messages pane diagnostic: blocked legacy Scheme console path; forwarding to native C++ ADS pane\n")
+    (error-messages-show))
+  (when (and (!= kind "Error messages")
+             (not (ahash-ref console-active? kind)))
     (ahash-set! console-active? kind #t)
     (ahash-set! console-categories kind (list-message-types kind))
     (ahash-set! console-selected kind (ahash-ref console-categories kind))
@@ -193,4 +196,5 @@
   (open-console "Debugging console"))
 
 (tm-define (open-error-messages)
-  (open-console "Error messages"))
+  (display* "ATHENA] error messages pane diagnostic: open-error-messages compatibility wrapper; forwarding to native C++ ADS pane\n")
+  (error-messages-show))
