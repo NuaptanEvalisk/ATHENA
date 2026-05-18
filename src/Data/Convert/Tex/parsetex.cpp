@@ -20,6 +20,66 @@ extern bool textm_class_flag;
 tree latex_symbol_to_tree (string s);
 string verbatim_escape (string s);
 
+static bool
+latex_body_has_alignment_row_break (const std::string& body) {
+  for (size_t i=0; i+1<body.size(); i++)
+    if (body[i] == '\\' && body[i+1] == '\\')
+      return true;
+  return false;
+}
+
+static std::string
+latex_strip_single_row_alignment_marks (const std::string& body) {
+  std::string out;
+  for (size_t i=0; i<body.size(); ) {
+    if (body[i] == '\\') {
+      out += body[i++];
+      if (i<body.size()) out += body[i++];
+    }
+    else if (body[i] == '&') {
+      size_t j= i;
+      while (j<body.size() && body[j] == '&') j++;
+      if (j - i > 1) out += "\\qquad ";
+      i= j;
+    }
+    else out += body[i++];
+  }
+  return out;
+}
+
+static std::string
+latex_unwrap_single_row_aligned (const std::string& str) {
+  const std::string begin= "\\begin{aligned}";
+  const std::string end= "\\end{aligned}";
+
+  std::string out;
+  size_t pos= 0;
+  while (true) {
+    size_t start= str.find (begin, pos);
+    if (start == std::string::npos) {
+      out += str.substr (pos);
+      break;
+    }
+
+    size_t body_start= start + begin.size();
+    size_t stop= str.find (end, body_start);
+    if (stop == std::string::npos) {
+      out += str.substr (pos);
+      break;
+    }
+
+    std::string body= str.substr (body_start, stop - body_start);
+    out += str.substr (pos, start - pos);
+    if (latex_body_has_alignment_row_break (body))
+      out += begin + body + end;
+    else
+      out += latex_strip_single_row_alignment_marks (body);
+
+    pos= stop + end.size();
+  }
+  return out;
+}
+
 static string
 preprocess_latex_formula (string latex) {
   std::string str = as_charp (latex);
@@ -74,6 +134,8 @@ preprocess_latex_formula (string latex) {
   }
 
   if (get_preference ("latex->texmacs:aligned-to-eqnarray", "on") == "on") {
+    str = latex_unwrap_single_row_aligned (str);
+
     std::vector<std::pair<std::regex, std::string>> aligned_rules = {
       {std::regex(R"(\\begin\{equation\}\s*\\begin\{aligned\}([\s\S]*?)\\end\{aligned\}\s*\\end\{equation\})"), R"(\begin{eqnarray}$1\end{eqnarray})"},
       {std::regex(R"(\\begin\{equation\*\}\s*\\begin\{aligned\}([\s\S]*?)\\end\{aligned\}\s*\\end\{equation\*\})"), R"(\begin{eqnarray*}$1\end{eqnarray*})"},
