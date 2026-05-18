@@ -930,18 +930,6 @@ if (BUILD_TESTS)
   # add_subdirectory (misc/benchmark)
 endif (BUILD_TESTS)
 
-### ---------------------------------------------------------------------
-### VSCode Support
-### ---------------------------------------------------------------------
-foreach (DIR ${ATHENA_Include_Dirs})
-  set (VSCODE_INCLUDE_DIRS "${VSCODE_INCLUDE_DIRS}\"${DIR}\",\n                ")
-endforeach (DIR ${ATHENA_Include_Dirs})
-
-configure_file (${ATHENA_SOURCE_DIR}/misc/vscode/c_cpp_properties.json.in
-  ${ATHENA_SOURCE_DIR}/.vscode/c_cpp_properties.json
-  @ONLY
-)
-
 ### --------------------------------------------------------------------
 ### Check for qarma (optional but recommended for crash reporting)
 ### --------------------------------------------------------------------

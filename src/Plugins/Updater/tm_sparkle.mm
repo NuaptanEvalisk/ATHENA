@@ -10,7 +10,7 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 
-  // HACK, should be fixed with autotools
+  // HACK, should be moved behind the CMake Sparkle feature switch.
 #if defined (OS_MACOS) && defined (USE_SPARKLE)
 
 #include "tm_sparkle.hpp"
