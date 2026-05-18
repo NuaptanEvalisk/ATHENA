@@ -81,6 +81,7 @@ extern bool aofm_import_vault(string source_dir, string destination_dir,
 bool disable_error_recovery= false;
 bool start_server_flag= false;
 bool headless_mode= false;
+bool no_splash_screen= false;
 std::string aofm_debug_convert_file;
 string aofm_debug_vault_convert_source;
 string aofm_debug_vault_convert_destination;
@@ -461,6 +462,9 @@ set_global_options  (int argc, char** argv)  {
       else if (s == "-insert-build-warning") {
         // Handled in texmacs_entrypoint
       }
+      else if (s == "-no-splash-screen") {
+        no_splash_screen= true;
+      }
       else if ((s == "-i") || (s == "-initialize")) {
         i++;
         if (i<argc) tm_init_file= url_system (argv[i]);
@@ -606,6 +610,7 @@ set_global_options  (int argc, char** argv)  {
         cout << "  -S         Rerun ATHENA setup program before starting\n";
         cout << "  -v         Display current ATHENA version\n";
         cout << "  -V         Show some informative messages\n";
+        cout << "  --no-splash-screen       Start without showing the splash screen\n";
         cout << "  --vault-maintenance [dir]  Maintain an ATHENA vault headlessly\n";
         cout << "  --insert-build-warning     Insert ATHENA experimental build warnings during AOFM conversion\n";
         cout << "  -W [i] [o] Recursively convert directory into website\n";
@@ -1153,6 +1158,9 @@ texmacs_entrypoint (int argc, char** argv) {
     if (s == "-insert-build-warning") {
       aofm_insert_build_warning = true;
     }
+    if (s == "-no-splash-screen") {
+      no_splash_screen= true;
+    }
     if (s == "-headless" || s == "-H" || s == "-C" ||
 	     s == "-build-website" || s == "-W" ||
 	     s == "-update-website" || s == "-U")
@@ -1173,7 +1181,7 @@ texmacs_entrypoint (int argc, char** argv) {
     QCoreApplication::setAttribute(Qt::AA_UseHighDpiPixmaps);
 #endif
     qtmapp= new QTMApplication (argc, argv);
-    tmapp()->show_splash ();
+    if (!no_splash_screen) tmapp()->show_splash ();
   }
 #endif
   immediate_options (argc, argv);
