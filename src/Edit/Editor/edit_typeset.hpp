@@ -26,6 +26,9 @@ protected:
   hashmap<string,tree> init;              // environment changes w.r.t. style
   hashmap<string,tree> fin;               // environment changes w.r.t. doc
   hashmap<string,tree> grefs;             // global references
+  hashset<string> folded_headings;         // screen-only folded heading paths
+  bool fold_view_active;                   // screen typesetter uses folded tree
+  bool fold_view_rebuild;                  // recreate screen typesetter
   edit_env env;                           // the environment for typesetting
   typesetter ttt;                         // the (not) yet typesetted document
 
@@ -44,6 +47,8 @@ protected:
   void                 set_ref (hashmap<string,tree> ref);
   void                 set_aux (hashmap<string,tree> aux);
   void                 set_att (hashmap<string,tree> att);
+  tree                 folded_screen_tree ();
+  bool                 heading_fold_set_current (bool folded, bool toggle);
 
 public:
   edit_typeset_rep ();
@@ -132,6 +137,11 @@ public:
   void     typeset_invalidate (path p);
   void     typeset_invalidate_all ();
   void     typeset_invalidate_players (path p, bool reattach);
+  bool     heading_fold_toggle ();
+  bool     heading_fold_current ();
+  bool     heading_unfold_current ();
+  bool     heading_fold_toggle_at (string p);
+  void     heading_unfold_all ();
   void     typeset_sub (SI& x1, SI& y1, SI& x2, SI& y2);
   void     typeset (SI& x1, SI& y1, SI& x2, SI& y2);
   void     typeset_forced ();

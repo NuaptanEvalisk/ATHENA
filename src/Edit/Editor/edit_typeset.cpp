@@ -36,6 +36,7 @@ edit_typeset_rep::edit_typeset_rep ():
   the_style (TUPLE),
   cur (hashmap<string,tree> (UNINIT)),
   stydef (UNINIT), pre (UNINIT), init (UNINIT), fin (UNINIT), grefs (UNINIT),
+  folded_headings (), fold_view_active (false), fold_view_rebuild (false),
   env (drd, buf->buf->master,
        buf->data->ref, (buf->prj==NULL? grefs: buf->prj->data->ref),
        buf->data->aux, (buf->prj==NULL? buf->data->aux: buf->prj->data->aux),
@@ -968,6 +969,198 @@ edit_typeset_rep::init_default (string var) {
 * Actual typesetting
 ******************************************************************************/
 
+static int
+heading_level (tree t) {
+  if (is_atomic (t) || N(t) != 1) return 0;
+  string s= as_string (L(t));
+  if (ends (s, "*")) s= s (0, N(s) - 1);
+  if (s == "part") return 1;
+  if (s == "chapter" || s == "appendix" ||
+      s == "prologue" || s == "epilogue")
+    return 2;
+  if (s == "section") return 3;
+  if (s == "subsection") return 4;
+  if (s == "subsubsection") return 5;
+  if (s == "paragraph") return 6;
+  if (s == "subparagraph") return 7;
+  return 0;
+}
+
+static bool
+heading_fold_container (tree t) {
+  return is_func (t, DOCUMENT) ||
+         is_func (t, CONCAT) ||
+         is_compound (t, "ignore") ||
+         is_compound (t, "show-part") ||
+         is_compound (t, "hide-part") ||
+         is_compound (t, "live-io*");
+}
+
+static void
+heading_collect_paths (tree t, path p, array<path>& paths) {
+  if (is_atomic (t)) return;
+  if (heading_level (t) != 0) {
+    paths << p;
+    return;
+  }
+  for (int i=0; i<N(t); i++)
+    heading_collect_paths (t[i], p * i, paths);
+}
+
+static bool
+heading_path_starts_with (path p, path prefix) {
+  if (is_nil (prefix)) return true;
+  if (is_nil (p)) return false;
+  return p->item == prefix->item &&
+         heading_path_starts_with (p->next, prefix->next);
+}
+
+static bool
+heading_find_for_cursor (tree doc, path cursor, path& heading) {
+  for (path p= cursor; !is_nil (p); p= path_up (p))
+    if (has_subtree (doc, p) && heading_level (subtree (doc, p)) != 0) {
+      heading= p;
+      return true;
+    }
+
+  array<path> headings;
+  heading_collect_paths (doc, path (), headings);
+
+  bool found= false;
+  for (int i=0; i<N(headings); i++)
+    if (path_less_eq (headings[i], cursor)) {
+      heading= headings[i];
+      found= true;
+    }
+    else break;
+
+  return found && has_subtree (doc, heading) &&
+         heading_level (subtree (doc, heading)) != 0;
+}
+
+static tree
+heading_fold_hidden () {
+  return compound ("folded-hidden");
+}
+
+static tree
+heading_fold_screen_tree (tree t, path p, hashset<string> folded) {
+  if (is_atomic (t)) return t;
+  if (!heading_fold_container (t)) return t;
+
+  tree r (t, N(t));
+  int folded_level= 0;
+  for (int i=0; i<N(t); i++) {
+    path cp= p * i;
+    int level= heading_level (t[i]);
+    bool folded_here= level != 0 && folded->contains (as_string (cp));
+
+    if (folded_level != 0) {
+      if (level != 0 && level <= folded_level) folded_level= 0;
+      else {
+        r[i]= heading_fold_hidden ();
+        continue;
+      }
+    }
+
+    r[i]= heading_fold_screen_tree (t[i], cp, folded);
+    if (folded_here)
+      folded_level= level;
+  }
+  return r;
+}
+
+tree
+edit_typeset_rep::folded_screen_tree () {
+  tree doc= subtree (et, rp);
+  return heading_fold_screen_tree (doc, path (), folded_headings);
+}
+
+bool
+edit_typeset_rep::heading_fold_toggle () {
+  return heading_fold_set_current (false, true);
+}
+
+bool
+edit_typeset_rep::heading_fold_current () {
+  return heading_fold_set_current (true, false);
+}
+
+bool
+edit_typeset_rep::heading_unfold_current () {
+  return heading_fold_set_current (false, false);
+}
+
+bool
+edit_typeset_rep::heading_fold_toggle_at (string p) {
+  path hp= as_path (p);
+  tree doc= subtree (et, rp);
+  if (!has_subtree (doc, hp) || heading_level (subtree (doc, hp)) == 0) {
+    set_message ("No heading at path", p);
+    return false;
+  }
+
+  string key= as_string (hp);
+  if (folded_headings->contains (key)) {
+    folded_headings->remove (key);
+    set_message ("Heading unfolded", "");
+  }
+  else {
+    folded_headings->insert (key);
+    set_message ("Heading folded", "");
+  }
+  fold_view_rebuild= true;
+  typeset_invalidate_all ();
+  invalidate_all ();
+  return true;
+}
+
+void
+edit_typeset_rep::heading_unfold_all () {
+  folded_headings= hashset<string> ();
+  fold_view_rebuild= true;
+  typeset_invalidate_all ();
+  invalidate_all ();
+}
+
+bool
+edit_typeset_rep::heading_fold_set_current (bool folded, bool toggle) {
+  tree doc= subtree (et, rp);
+  cout << "ATHENA] heading fold diagnostic: heading_fold_set_current\n";
+  cout << "ATHENA]   root path: " << rp << "\n";
+  cout << "ATHENA]   cursor path: " << tp << "\n";
+  cout << "ATHENA]   folded requested: " << folded
+       << ", toggle: " << toggle << "\n";
+  if (!heading_path_starts_with (tp, rp)) {
+    cout << "ATHENA]   rejection: cursor is not inside root path\n";
+    set_message ("No heading at cursor", "");
+    return false;
+  }
+
+  path hp;
+  if (!heading_find_for_cursor (doc, tp / rp, hp)) {
+    cout << "ATHENA]   rejection: no heading found for relative cursor "
+         << (tp / rp) << "\n";
+    set_message ("No heading at cursor", "");
+    return false;
+  }
+
+  string key= as_string (hp);
+  bool was_folded= folded_headings->contains (key);
+  bool now_folded= toggle? !was_folded: folded;
+  cout << "ATHENA]   heading path: " << hp << "\n";
+  cout << "ATHENA]   heading key: " << key << "\n";
+  cout << "ATHENA]   was folded: " << was_folded
+       << ", now folded: " << now_folded << "\n";
+  if (now_folded) folded_headings->insert (key);
+  else folded_headings->remove (key);
+  fold_view_rebuild= true;
+  typeset_invalidate_all ();
+  invalidate_all ();
+  set_message (now_folded? "Heading folded": "Heading unfolded", "");
+  return true;
+}
+
 void
 edit_typeset_rep::typeset_sub (SI& x1, SI& y1, SI& x2, SI& y2) {
   //time_t t1= texmacs_time ();
@@ -978,13 +1171,30 @@ edit_typeset_rep::typeset_sub (SI& x1, SI& y1, SI& x2, SI& y2) {
 #ifdef USE_EXCEPTIONS
   try {
 #endif
+    bool folded_screen=
+      env->get_string (PAGE_PRINTED) != "true" && N(folded_headings) != 0;
+    bool full_repaint= fold_view_rebuild ||
+                       folded_screen != fold_view_active ||
+                       folded_screen;
+    if (full_repaint) {
+      tree doc= folded_screen? folded_screen_tree (): subtree (et, rp);
+      ttt->screen_tree= folded_screen;
+      ::notify_assign (ttt, path (), doc);
+      fold_view_rebuild= false;
+      fold_view_active= folded_screen;
+    }
     eb= ::typeset (ttt, x1, y1, x2, y2);
+    if (full_repaint) {
+      SI big= (SI) (1 << 30);
+      x1= -big; y1= -big; x2= big; y2= big;
+    }
 #ifdef USE_EXCEPTIONS
   }
   catch (string msg) {
     the_exception= msg;
     std_error << "Typesetting failure, resetting to empty document\n";
     assign (rp, tree (DOCUMENT, ""));
+    ttt->screen_tree= false;
     ::notify_assign (ttt, path(), subtree (et, rp));
     eb= ::typeset (ttt, x1, y1, x2, y2);    
   }

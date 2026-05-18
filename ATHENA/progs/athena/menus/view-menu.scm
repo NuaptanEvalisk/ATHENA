@@ -113,6 +113,8 @@
   ("Show all slides" (toggle-slideshow-mode))
   ("Show outline" (outline-pane-show))
   ("Error messages" (error-messages-show))
+  (-> "Headings"
+      ("Unfold all" (heading-unfold-all)))
   ---
   ("Fit to screen" (fit-to-screen))  ("Fit to screen width" (fit-to-screen-width))
   ("Persistent fit width" (toggle-persistent-fit-width))

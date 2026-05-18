@@ -28,6 +28,7 @@ public:
   SI x1, y1, x2, y2;
   hashmap<string,tree> old_patch;
   bool paper;
+  bool screen_tree;          // typeset a transient screen tree, not the_et
 
 public:
   typesetter_rep (edit_env& env, tree et, path ip);

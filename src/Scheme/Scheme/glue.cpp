@@ -1412,6 +1412,39 @@ tmg_visual_buffer_switcher_choose (tmscm arg1) {
   return string_to_tmscm (out);
 }
 
+tmscm
+tmg_heading_fold_toggle () {
+  bool out= get_current_editor()->heading_fold_toggle ();
+  return bool_to_tmscm (out);
+}
+
+tmscm
+tmg_heading_fold_current () {
+  bool out= get_current_editor()->heading_fold_current ();
+  return bool_to_tmscm (out);
+}
+
+tmscm
+tmg_heading_unfold_current () {
+  bool out= get_current_editor()->heading_unfold_current ();
+  return bool_to_tmscm (out);
+}
+
+tmscm
+tmg_heading_fold_toggle_path (tmscm arg1) {
+  TMSCM_ASSERT_STRING (arg1, TMSCM_ARG1, "heading-fold-toggle-path");
+
+  string in1= tmscm_to_string (arg1);
+  bool out= get_current_editor()->heading_fold_toggle_at (in1);
+  return bool_to_tmscm (out);
+}
+
+tmscm
+tmg_heading_unfold_all () {
+  get_current_editor()->heading_unfold_all ();
+  return TMSCM_UNSPECIFIED;
+}
+
 void
 initialize_glue () {
   tmscm_install_procedure ("tree?", treeP, 1, 0, 0);
@@ -1431,6 +1464,16 @@ initialize_glue () {
                            visual_buffer_switcher_show, 0, 0, 0);
   tmscm_install_procedure ("visual-buffer-switcher-choose",
                            tmg_visual_buffer_switcher_choose, 1, 0, 0);
+  tmscm_install_procedure ("heading-fold-toggle",
+                           tmg_heading_fold_toggle, 0, 0, 0);
+  tmscm_install_procedure ("heading-fold-current",
+                           tmg_heading_fold_current, 0, 0, 0);
+  tmscm_install_procedure ("heading-unfold-current",
+                           tmg_heading_unfold_current, 0, 0, 0);
+  tmscm_install_procedure ("heading-fold-toggle-path",
+                           tmg_heading_fold_toggle_path, 1, 0, 0);
+  tmscm_install_procedure ("heading-unfold-all",
+                           tmg_heading_unfold_all, 0, 0, 0);
   tmscm_install_procedure ("ads-restore-visible-panes",
                            ads_restore_visible_panes, 0, 0, 0);
   tmscm_install_procedure ("vault-backup-viewer-show",

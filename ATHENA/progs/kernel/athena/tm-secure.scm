@@ -36,6 +36,7 @@
   texmacs-version texmacs-compat-version texmacs-version-release*
   texmacs-build-user texmacs-build-date texmacs-host-os
   texmacs-host-vendor texmacs-host-cpu texmacs-build-info
+  heading-fold-toggle-tree heading-fold-toggle
   display display*
   refresh-now)
 

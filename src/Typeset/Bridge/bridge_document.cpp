@@ -207,6 +207,7 @@ bridge_document_rep::my_typeset (int desired_status) {
     int first_visible = -1;
     int last_visible = -1;
     for (i=0; i<n; i++) {
+      if (is_compound (st[i], "folded-hidden")) continue;
       if (mode == "hidden" && is_only_labels_and_white (st[i]) && has_label (st[i])) continue;
       if (first_visible == -1) first_visible = i;
       last_visible = i;
@@ -215,6 +216,7 @@ bridge_document_rep::my_typeset (int desired_status) {
     if (first_visible == -1) return;
 
     for (i=0; i<n; i++) {
+      if (is_compound (st[i], "folded-hidden")) continue;
       if (mode == "hidden" && is_only_labels_and_white (st[i]) && has_label (st[i])) continue;
       //cout << "Typesetting " << st[i] << LF;
       int wanted= (i==last_visible? desired_status & WANTED_MASK: WANTED_PARAGRAPH);

@@ -34,6 +34,26 @@ bridge_hidden (typesetter ttt, tree st, path ip) {
   return tm_new<bridge_hidden_rep> (ttt, st, ip);
 }
 
+class bridge_folded_hidden_rep: public bridge_rep {
+public:
+  bridge_folded_hidden_rep (typesetter ttt, tree st, path ip);
+
+  void notify_assign (path p, tree u);
+  bool notify_macro  (int type, string var, int level, path p, tree u);
+  void notify_change ();
+
+  void my_typeset (int desired_status);
+};
+
+bridge_folded_hidden_rep::bridge_folded_hidden_rep (
+  typesetter ttt, tree st, path ip):
+    bridge_rep (ttt, st, ip) {}
+
+bridge
+bridge_folded_hidden (typesetter ttt, tree st, path ip) {
+  return tm_new<bridge_folded_hidden_rep> (ttt, st, ip);
+}
+
 /******************************************************************************
 * Event notification
 ******************************************************************************/
@@ -81,4 +101,27 @@ bridge_hidden_rep::my_typeset (int desired_status) {
   ttt->l = temp_l;
   ttt->sb= temp_sb; // stack_border ();
   //ttt->insert_stack (temp_l, temp_sb);
+}
+
+void
+bridge_folded_hidden_rep::notify_assign (path p, tree u) {
+  status= CORRUPTED;
+  st= substitute (st, p, u);
+}
+
+bool
+bridge_folded_hidden_rep::notify_macro (int type, string var, int level,
+                                        path p, tree u) {
+  (void) type; (void) var; (void) level; (void) p; (void) u;
+  return false;
+}
+
+void
+bridge_folded_hidden_rep::notify_change () {
+  status= CORRUPTED;
+}
+
+void
+bridge_folded_hidden_rep::my_typeset (int desired_status) {
+  (void) desired_status;
 }

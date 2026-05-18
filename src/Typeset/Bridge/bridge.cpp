@@ -58,6 +58,7 @@ is_only_labels_and_white (tree t) {
 bridge bridge_document (typesetter, tree, path);
 bridge bridge_surround (typesetter, tree, path);
 bridge bridge_hidden (typesetter, tree, path);
+bridge bridge_folded_hidden (typesetter, tree, path);
 bridge bridge_formatting (typesetter, tree, path, string);
 bridge bridge_with (typesetter, tree, path);
 bridge bridge_rewrite (typesetter, tree, path);
@@ -103,6 +104,8 @@ bridge
 make_bridge (typesetter ttt, tree st, path ip) {
   // cout << "Make bridge " << st << ", " << ip << LF;
   // cout << "Preamble mode= " << ttt->env->preamble << LF;
+  if (is_compound (st, "folded-hidden"))
+    return bridge_folded_hidden (ttt, st, ip);
   if (ttt->env->preamble)
     return make_inactive_bridge (ttt, st, ip);
   switch (L(st)) {
@@ -338,7 +341,7 @@ bridge_rep::typeset (int desired_status) {
   // the bridge and the edit tree at the typesetting stage.
   // This should not be necessary, but we use because the ip_observers
   // may become wrong otherwise.
-  if (is_accessible (ip))
+  if (!ttt->screen_tree && is_accessible (ip))
     st= subtree (the_et, reverse (ip));
   if (!is_accessible (ip)) {
     path ip2= obtain_ip (st);

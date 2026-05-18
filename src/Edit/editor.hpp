@@ -349,6 +349,11 @@ public:
   virtual void     typeset_invalidate (path p) = 0;
   virtual void     typeset_invalidate_all () = 0;
   virtual void     typeset_invalidate_players (path p, bool reattach) = 0;
+  virtual bool     heading_fold_toggle () = 0;
+  virtual bool     heading_fold_current () = 0;
+  virtual bool     heading_unfold_current () = 0;
+  virtual bool     heading_fold_toggle_at (string p) = 0;
+  virtual void     heading_unfold_all () = 0;
 
   /* public routines from edit_modify */
   virtual void notify_assign (path p, tree u) = 0;
