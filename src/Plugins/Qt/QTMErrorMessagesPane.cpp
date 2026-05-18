@@ -62,41 +62,6 @@ set_error_messages_area_height (ads::CDockAreaWidget* area) {
   splitter->setSizes (sizes);
 }
 
-static void
-log_error_messages_dock_state (const char* stage, QTMMainTabWindow* win) {
-  std::cerr << "ATHENA] error messages pane diagnostic: " << stage << "\n"
-            << "ATHENA]   top window: " << (void*) win << "\n"
-            << "ATHENA]   dock manager: "
-            << (void*) (win == nullptr ? nullptr : win->dockManager ()) << "\n"
-            << "ATHENA]   widget: " << (void*) error_messages_widget << "\n"
-            << "ATHENA]   dock: " << (void*) error_messages_dock << "\n"
-            << "ATHENA]   area: " << (void*) error_messages_area << "\n";
-  if (error_messages_widget != nullptr) {
-    QWidget* parent= error_messages_widget->parentWidget ();
-    std::cerr << "ATHENA]   widget parent: " << (void*) parent
-              << " class="
-              << (parent == nullptr ? "<none>" : parent->metaObject ()->className ())
-              << " isWindow=" << error_messages_widget->isWindow () << "\n";
-  }
-  if (error_messages_dock != nullptr) {
-    QWidget* parent= error_messages_dock->parentWidget ();
-    ads::CDockContainerWidget* container= error_messages_dock->dockContainer ();
-    std::cerr << "ATHENA]   dock parent: " << (void*) parent
-              << " class="
-              << (parent == nullptr ? "<none>" : parent->metaObject ()->className ())
-              << " isWindow=" << error_messages_dock->isWindow ()
-              << " isFloating=" << error_messages_dock->isFloating ()
-              << "\n"
-              << "ATHENA]   dock area widget: "
-              << (void*) error_messages_dock->dockAreaWidget ()
-              << "\n"
-              << "ATHENA]   dock container: " << (void*) container;
-    if (container != nullptr)
-      std::cerr << " containerIsFloating=" << container->isFloating ();
-    std::cerr << "\n";
-  }
-}
-
 static QString
 debug_tree_text (const tree& t) {
   if (is_atomic (t)) return utf8_to_qstring (t->label);
@@ -283,18 +248,14 @@ QTMErrorMessagesPane::clearMessages () {
 
 void
 error_messages_show () {
-  std::cerr << "ATHENA] error messages pane diagnostic: error_messages_show invoked\n";
   QTMMainTabWindow* win= QTMMainTabWindow::topTabWindow ();
-  log_error_messages_dock_state ("entry", win);
   if (win == nullptr || win->dockManager () == nullptr) {
-    std::cerr << "ATHENA] error messages pane diagnostic: cannot show pane; missing top window or dock manager\n";
     QMessageBox::warning (QApplication::activeWindow (), "Error messages",
                           "No active ATHENA window.");
     return;
   }
 
   if (error_messages_widget == nullptr) {
-    std::cerr << "ATHENA] error messages pane diagnostic: creating native QTMErrorMessagesPane widget\n";
     error_messages_widget= new QTMErrorMessagesPane ();
     error_messages_widget->resize (900, 360);
     QObject::connect (error_messages_widget, &QObject::destroyed, [] () {
@@ -303,10 +264,8 @@ error_messages_show () {
       error_messages_area= nullptr;
     });
   }
-  log_error_messages_dock_state ("after widget ensure", win);
 
   if (error_messages_dock == nullptr) {
-    std::cerr << "ATHENA] error messages pane diagnostic: creating ADS CDockWidget and adding to dock manager\n";
     error_messages_dock= new ads::CDockWidget ("Error messages");
     error_messages_dock->setObjectName ("athena-error-messages");
     error_messages_dock->resize (900, 360);
@@ -321,17 +280,12 @@ error_messages_show () {
 
   if (error_messages_dock->dockAreaWidget () == nullptr ||
       error_messages_dock->dockContainer () == nullptr) {
-    std::cerr << "ATHENA] error messages pane diagnostic: adding ADS CDockWidget to dock manager\n";
     error_messages_area= win->dockManager ()->addDockWidget (
       ads::BottomDockWidgetArea, error_messages_dock);
-    std::cerr << "ATHENA] error messages pane diagnostic: addDockWidget returned area="
-              << (void*) error_messages_area << "\n";
-    log_error_messages_dock_state ("after addDockWidget", win);
   }
   else {
     error_messages_area= error_messages_dock->dockAreaWidget ();
   }
-  log_error_messages_dock_state ("before show", win);
 
   error_messages_widget->refresh ();
   error_messages_dock->show ();
@@ -339,8 +293,6 @@ error_messages_show () {
   set_error_messages_area_height (error_messages_area);
   QTimer::singleShot (0, win, [] () {
     set_error_messages_area_height (error_messages_area);
-    log_error_messages_dock_state ("after queued size adjustment", QTMMainTabWindow::topTabWindow ());
   });
   error_messages_widget->setFocus ();
-  log_error_messages_dock_state ("after show", win);
 }

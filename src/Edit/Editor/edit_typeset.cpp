@@ -1126,21 +1126,13 @@ edit_typeset_rep::heading_unfold_all () {
 bool
 edit_typeset_rep::heading_fold_set_current (bool folded, bool toggle) {
   tree doc= subtree (et, rp);
-  cout << "ATHENA] heading fold diagnostic: heading_fold_set_current\n";
-  cout << "ATHENA]   root path: " << rp << "\n";
-  cout << "ATHENA]   cursor path: " << tp << "\n";
-  cout << "ATHENA]   folded requested: " << folded
-       << ", toggle: " << toggle << "\n";
   if (!heading_path_starts_with (tp, rp)) {
-    cout << "ATHENA]   rejection: cursor is not inside root path\n";
     set_message ("No heading at cursor", "");
     return false;
   }
 
   path hp;
   if (!heading_find_for_cursor (doc, tp / rp, hp)) {
-    cout << "ATHENA]   rejection: no heading found for relative cursor "
-         << (tp / rp) << "\n";
     set_message ("No heading at cursor", "");
     return false;
   }
@@ -1148,10 +1140,6 @@ edit_typeset_rep::heading_fold_set_current (bool folded, bool toggle) {
   string key= as_string (hp);
   bool was_folded= folded_headings->contains (key);
   bool now_folded= toggle? !was_folded: folded;
-  cout << "ATHENA]   heading path: " << hp << "\n";
-  cout << "ATHENA]   heading key: " << key << "\n";
-  cout << "ATHENA]   was folded: " << was_folded
-       << ", now folded: " << now_folded << "\n";
   if (now_folded) folded_headings->insert (key);
   else folded_headings->remove (key);
   fold_view_rebuild= true;

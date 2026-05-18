@@ -65,7 +65,7 @@
 
   <assign|sectional-no-indent|<macro|<no-indent*>>>
 
-  <assign|heading-fold-control|<macro|name|<style-with|src-compact|none|<action|<specific|screen*|<active*|<with|color|dark grey|<rigid|[+/-]>>>>|heading-fold-toggle-tree|<arg|name>>>>>
+  <assign|heading-fold-control|<macro|name|<style-with|src-compact|none|<action|<specific|screen*|<active*|<with|color|dark grey|<rigid|[+]>>>>|heading-fold-toggle-tree|<arg|name>>>>>
 
   <assign|heading-fold-title|<macro|name|<surround||<right-flush><heading-fold-control|<arg|name>>|<arg|name>>>>
 

@@ -182,7 +182,6 @@
 
 (define (open-console kind)
   (when (== kind "Error messages")
-    (display* "ATHENA] error messages pane diagnostic: blocked legacy Scheme console path; forwarding to native C++ ADS pane\n")
     (error-messages-show))
   (when (and (!= kind "Error messages")
              (not (ahash-ref console-active? kind)))
@@ -196,5 +195,4 @@
   (open-console "Debugging console"))
 
 (tm-define (open-error-messages)
-  (display* "ATHENA] error messages pane diagnostic: open-error-messages compatibility wrapper; forwarding to native C++ ADS pane\n")
   (error-messages-show))

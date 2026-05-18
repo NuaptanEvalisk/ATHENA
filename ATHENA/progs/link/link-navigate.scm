@@ -19,21 +19,11 @@
   (:type (-> tree void))
   (:synopsis "Toggle folding for the heading containing @t")
   (:secure #t)
-  (display* "ATHENA] heading fold diagnostic: heading-fold-toggle-tree invoked\n")
-  (display* "ATHENA]   argument tree?: " (tree? t) "\n")
-  (display* "ATHENA]   argument path: "
-            (if (and (tree? t) (tree->path t)) (tree->path t) "<none>") "\n")
-  (display* "ATHENA]   cursor path before: " (cursor-path) "\n")
   (if (and (tree? t) (tree->path t))
       (begin
         (tree-go-to t :start)
-        (display* "ATHENA]   cursor path after tree-go-to: "
-                  (cursor-path) "\n")
-        (display* "ATHENA]   invoking primitive heading-fold-toggle\n")
         (heading-fold-toggle))
-      (begin
-        (display* "ATHENA]   cannot toggle: action argument has no path\n")
-        #f)))
+      #f))
 
 (define-secure-symbols heading-fold-toggle-tree heading-fold-toggle)
 
@@ -589,25 +579,6 @@
 	 (sym-cmd (cons sym-fun (map (lambda (x) (list 'quote x)) args)))
          (ok? (or secure-origin? (secure? sym-cmd)))
 	 (cmd (eval (list 'lambda (list) sym-cmd))))
-    (when (string-starts? s "heading-fold")
-      (display* "ATHENA] heading fold action diagnostic: new-execute-script\n")
-      (display* "ATHENA]   script name: " s "\n")
-      (display* "ATHENA]   symbol: " sym-fun "\n")
-      (display* "ATHENA]   defined?: " (defined? sym-fun) "\n")
-      (display* "ATHENA]   secure-origin?: " secure-origin? "\n")
-      (display* "ATHENA]   property :secure: " (property sym-fun :secure) "\n")
-      (display* "ATHENA]   secure? command: " (secure? sym-cmd) "\n")
-      (display* "ATHENA]   effective ok?: " ok? "\n")
-      (display* "ATHENA]   security preference: "
-                (get-preference "security") "\n")
-      (display* "ATHENA]   argument count: " (length args) "\n")
-      (for-each
-       (lambda (x)
-         (display* "ATHENA]   argument tree?: " (tree? x)
-                   ", path: "
-                   (if (and (tree? x) (tree->path x))
-                       (tree->path x) "<none>") "\n"))
-       args))
     (cond ((or ok? (== (get-preference "security") "accept all scripts"))
            (exec-delayed cmd))
           ((== (get-preference "security") "prompt on scripts")
