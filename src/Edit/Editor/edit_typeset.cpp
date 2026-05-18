@@ -1174,8 +1174,7 @@ edit_typeset_rep::typeset_sub (SI& x1, SI& y1, SI& x2, SI& y2) {
     bool folded_screen=
       env->get_string (PAGE_PRINTED) != "true" && N(folded_headings) != 0;
     bool full_repaint= fold_view_rebuild ||
-                       folded_screen != fold_view_active ||
-                       folded_screen;
+                       folded_screen != fold_view_active;
     if (full_repaint) {
       tree doc= folded_screen? folded_screen_tree (): subtree (et, rp);
       ttt->screen_tree= folded_screen;
@@ -1296,6 +1295,8 @@ edit_typeset_rep::typeset_invalidate (path p) {
 void
 edit_typeset_rep::typeset_invalidate_all () {
   //cout << "Invalidate all\n";
+  if (fold_view_active || N(folded_headings) != 0)
+    fold_view_rebuild= true;
   notify_change (THE_ENVIRONMENT);
   typeset_preamble ();
   ::notify_assign (ttt, path(), subtree (et, rp));
