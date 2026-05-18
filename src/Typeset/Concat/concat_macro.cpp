@@ -545,8 +545,18 @@ void
 concater_rep::typeset_label (tree t, path ip) {
   string mode = get_preference ("vault labels mode", "visible");
   if (mode == "hidden") {
-    box b= empty_box (ip, 0, 0, 0, 0); // Zero height
-    a << line_item (CONTROL_ITEM, OP_SKIP, b, HYPH_INVALID, t);
+    if (N(t) == 1) {
+      tree src_id (ID, tree (HARD_ID, copy (t[0])));
+      tree anchor (ID, tree (MERGE, "#", copy (t[0])));
+      tree link (LINK, "anchor", anchor);
+      tree binding (SET_BINDING, copy (t[0]), tree (VALUE, THE_LABEL));
+      tree hidden_label (LOCUS, src_id, link, binding);
+      typeset_locus (hidden_label, ip);
+    }
+    else {
+      box b= empty_box (ip, 0, 0, 0, 0);
+      a << line_item (CONTROL_ITEM, OP_SKIP, b, HYPH_INVALID, t);
+    }
     return;
   }
   if (mode == "small") {

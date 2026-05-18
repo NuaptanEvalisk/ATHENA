@@ -393,7 +393,8 @@ initialize_default_env () {
   tree merged (MERGE, tree (VALUE, THE_TAGS), tuple (tree (ARG, "Id")));
   tree tagflag (FLAG, tree (ARG, "Id"), "blue", "Id");
   tree reftxt (GET_BINDING, tree (ARG, "Id"));
-  tree preftxt (GET_BINDING, tree (ARG, "Id"), "1");
+  tree prefval (GET_BINDING, tree (ARG, "Id"), "1");
+  tree preftxt (IF, tree (EQUAL, copy (prefval), "?"), "Go", copy (prefval));
   tree card_id (ID, tree (HARD_ID, tree (ARG, "destination")));
   tree card_ln (LINK, "cardlink", copy (card_id), copy (dest_url));
   tree act_id (ID, tree (HARD_ID, tree (ARG, "args", "0")));

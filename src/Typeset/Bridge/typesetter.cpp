@@ -128,6 +128,13 @@ typesetter_rep::determine_page_references (box b) {
     string var= it->next ();
     tree   val= copy (h[var]);
     tree   old= env->local_ref [var];
+    tree   old_page= tree (UNINIT);
+    if (is_func (old, TUPLE, 2) || is_func (old, TUPLE, 3))
+      old_page= old[1];
+    else if (old != tree (UNINIT))
+      old_page= "?";
+    if (old_page != val)
+      env->page_refs_changed= true;
     if (is_func (old, TUPLE, 2))
       env->local_ref (var)= tuple (old[0], val);
     else if (is_func (old, TUPLE, 3))
@@ -158,6 +165,7 @@ typesetter_rep::typeset () {
   }
 
   // Typeset
+  env->page_refs_changed= false;
   if (env->complete) {
     env->local_aux= hashmap<string,tree> (UNINIT);
     env->missing  = hashmap<string,tree> (UNINIT);
@@ -276,10 +284,20 @@ typeset (typesetter ttt, SI& x1, SI& y1, SI& x2, SI& y2) {
 
 box
 typeset_as_document (edit_env env, tree t, path ip) {
-  env->style_init_env ();
-  env->update ();
-  typesetter ttt= new_typesetter (env, t, ip);
-  box b= ttt->typeset ();
-  delete_typesetter (ttt);
+  box b;
+  hashmap<string,tree> base_env;
+  env->read_env (base_env);
+  for (int pass=0; pass<6; pass++) {
+    env->write_env (base_env);
+    env->style_init_env ();
+    env->update ();
+    typesetter ttt= new_typesetter (env, t, ip);
+    b= ttt->typeset ();
+    bool again= env->page_refs_changed;
+    delete_typesetter (ttt);
+    if (!again) break;
+    if (pass == 5)
+      typeset_warning << "Page references did not stabilize" << LF;
+  }
   return b;
 }

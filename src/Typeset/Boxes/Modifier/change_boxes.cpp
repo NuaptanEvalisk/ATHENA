@@ -691,6 +691,7 @@ struct locus_box_rep: public change_box_rep {
   box adjust_kerning (int mode, double factor);
   box expand_glyphs (int mode, double factor);
   void loci (SI x, SI y, SI delta, list<string>& ids2, rectangles& rs);
+  void collect_page_numbers (hashmap<string,tree>& h, tree page);
   void post_display (renderer &ren);
 };
 
@@ -735,6 +736,16 @@ locus_box_rep::loci (SI x, SI y, SI delta, list<string>& l, rectangles& rs) {
     l = l * ids;
     rs= rs * outlines (rectangles (rectangle (x1, y1, x2, y2)), pixel);
   }
+}
+
+void
+locus_box_rep::collect_page_numbers (hashmap<string,tree>& h, tree page) {
+  if (anchor != "") {
+    string key= anchor;
+    if (starts (key, "#")) key= key (1, N(key));
+    h (key)= page;
+  }
+  bs[0]->collect_page_numbers (h, page);
 }
 
 void

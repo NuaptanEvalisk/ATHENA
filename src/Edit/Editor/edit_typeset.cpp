@@ -1033,18 +1033,30 @@ void
 edit_typeset_rep::typeset (SI& x1, SI& y1, SI& x2, SI& y2) {
   int missing_nr= INT_MAX;
   int redefined_nr= INT_MAX;
+  int page_ref_updates= 0;
   x1= MAX_SI; y1= MAX_SI; x2= MIN_SI; y2= MIN_SI;
   while (true) {
     SI sx1, sy1, sx2, sy2;
     typeset_sub (sx1, sy1, sx2, sy2);
+    bool page_refs_changed= env->page_refs_changed;
     x1= min (x1, sx1); y1= min (y1, sy1);
     x2= max (x2, sx2); y2= max (y2, sy2);
     if (!env->complete) break;
     env->complete= false;
     clean_unused (env->local_ref, env->touched);
-    if (N(env->missing) == 0 && N(env->redefined) == 0) break;
-    if ((N(env->missing) == missing_nr && N(env->redefined) == redefined_nr) ||
-        (N(env->missing) > missing_nr || N(env->redefined) > redefined_nr)) {
+    if (N(env->missing) == 0 && N(env->redefined) == 0 &&
+        !page_refs_changed)
+      break;
+    if (page_refs_changed) {
+      page_ref_updates++;
+      if (page_ref_updates > 5) {
+        typeset_warning << "Page references did not stabilize" << LF;
+        break;
+      }
+    }
+    if (!page_refs_changed &&
+        ((N(env->missing) == missing_nr && N(env->redefined) == redefined_nr) ||
+         (N(env->missing) > missing_nr || N(env->redefined) > redefined_nr))) {
       report_missing (env->missing);
       report_redefined (env->redefined);
       break;

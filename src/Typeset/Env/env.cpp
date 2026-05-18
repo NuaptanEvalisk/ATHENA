@@ -46,6 +46,7 @@ edit_env_rep::edit_env_rep (drd_info& drd2,
   style_init_env ();
   update ();
   complete= false;
+  page_refs_changed= false;
   recover_env= tuple ();
   anim_start= anim_end= anim_portion= 0.0;
 }

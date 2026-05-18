@@ -150,6 +150,7 @@ public:
   hashmap<string,tree>&        global_att;
   bool                         complete;    // typeset complete document ?
   bool                         read_only;   // write-protected ?
+  bool                         page_refs_changed; // page references changed ?
   hashmap<string,tree>         missing;     // missing refs
   array<tree>                  redefined;   // redefined labels
   hashmap<string,bool>         touched;     // touched refs
