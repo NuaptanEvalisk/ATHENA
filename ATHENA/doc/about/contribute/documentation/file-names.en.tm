@@ -38,9 +38,9 @@
   tutorial in the manual. The <verbatim|language> in which is the
   documentation has been written should be a two letter code like
   <verbatim|en>, <verbatim|fr>, etc. The main <verbatim|name> of your file
-  should be the same for the translations in other languages. For instance,
-  <verbatim|man-keyboard.en.tm> should not be translated as
-  <verbatim|man-clavier.fr.tm>.
+  should remain stable across revisions. For instance,
+  <verbatim|man-keyboard.en.tm> should not be renamed as
+  <verbatim|keyboard-shortcuts.en.tm> without a good reason.
 
   <tmdoc-copyright|1998--2002|Joris van der Hoeven>
 
