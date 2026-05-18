@@ -64,14 +64,14 @@
 
   <assign|experimental-build-warning|<\macro>
     <\note>
-      This document is typeset using <ATHENA>, the <with|font-shape|italic|Advanced
+      This document was typeset with <ATHENA>, the <with|font-shape|italic|Advanced
       Typesetting and Hypertext Environment for Notes and Archives>. <ATHENA> is
-      a fork of GNU <TeXmacs> and is free software. Currently, <ATHENA> is still
-      experimental and is considered as unstable. In case you find any typesetting
-      / rendering errors, please kindly file a bug report to <hlink|GitHub
-      Issues|https://github.com/NuaptanEvalisk/ATHENA/issues>. (<ATHENA>,
+      a free software fork of GNU <TeXmacs>. <ATHENA> is currently experimental,
+      and its rendering may still contain defects. If you notice any typesetting
+      or rendering problem, please file a report at <hlink|GitHub
+      Issues|https://github.com/NuaptanEvalisk/ATHENA/issues>. (<ATHENA>
       version <texmacs-version>, built on <texmacs-build-date>, for
-      <texmacs-host-os>, <texmacs-host-cpu>)
+      <texmacs-host-os>/<texmacs-host-cpu>.)
     </note>
   </macro>>
 
