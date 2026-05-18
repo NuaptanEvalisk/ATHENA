@@ -71,6 +71,7 @@ protected:
   void onDoubleClickOnEmptyTabBarSpace();
   void setMainTitle(QString title);
   void setMainTitleFromWidget(QWidget* widget);
+  void showAfterContentReady(QWidget* focusWidget);
   bool adsLayoutPersistenceEnabled() const;
   QString adsLayoutStatePath() const;
   QString adsVisiblePanesStatePath() const;

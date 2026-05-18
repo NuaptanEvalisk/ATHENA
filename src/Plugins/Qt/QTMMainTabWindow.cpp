@@ -100,13 +100,6 @@ QTMMainTabWindow::QTMMainTabWindow() {
 
   connect(mTabWidget, SIGNAL(tabCloseRequested(int)), this, SLOT(closeTab(int)));
   connect(mMdiArea, SIGNAL(subWindowActivated(QMdiSubWindow*)), this, SLOT(onSubWindowActivated(QMdiSubWindow*)));
-  
-  show();
-
-#if QT_VERSION >= 0x060000
-  QRect screenGeometry = QApplication::screens().at(0)->geometry();
-  move(screenGeometry.center() - rect().center());
-#endif
 
 #if QT_VERSION >= 0x060000
   installEventFilter(this);
@@ -187,6 +180,19 @@ void QTMMainTabWindow::setMainTitleFromWidget(QWidget* widget) {
     }
   }
   setMainTitle(widget->windowTitle());
+}
+
+void QTMMainTabWindow::showAfterContentReady(QWidget* focusWidget) {
+  if (!isVisible()) {
+    show();
+#if QT_VERSION >= 0x060000
+    QRect screenGeometry = QApplication::screens().at(0)->geometry();
+    move(screenGeometry.center() - rect().center());
+#endif
+    raise();
+    activateWindow();
+  }
+  if (focusWidget != nullptr) focusWidget->setFocus();
 }
 
 bool QTMMainTabWindow::adsLayoutPersistenceEnabled() const {
@@ -574,6 +580,7 @@ void QTMMainTabWindow::showWidget(QWidget *widget, bool isDocument) {
     widget->setFocus();
     setMainTitleFromWidget(widget);
   }
+  showAfterContentReady(widget);
 }
 
 QList<QWidget*>
