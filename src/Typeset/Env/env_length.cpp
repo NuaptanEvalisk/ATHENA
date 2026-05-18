@@ -502,7 +502,13 @@ tree edit_env_rep::exec_guipx_length () {
   else if (tm_style_sheet == "") scale= 2.6666;
   else scale= 1.8 * retina_scale;
 #endif
-  return tree (TMLEN, as_string ((int) floor (scale * pixel + 0.5)));
+  // GUI pixel lengths are calibrated at zoom 1 in the default 600 dpi editing
+  // environment.  Do not use the current zoom-dependent renderer pixel here:
+  // doing so makes guipx boxes cancel View->Zoom and shrink relative to text
+  // when exporting at printer dpi.
+  double dpi_scale= ((double) dpi) / 600.0;
+  double base_pixel= ((double) std_shrinkf) * ((double) PIXEL);
+  return tree (TMLEN, as_string ((int) floor (scale * dpi_scale * base_pixel + 0.5)));
 }
 
 tree edit_env_rep::exec_lcorner_length () {

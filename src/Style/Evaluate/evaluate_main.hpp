@@ -138,6 +138,7 @@ tree evaluate_gh_length ();
 tree evaluate_gu_length ();
 tree evaluate_tmpt_length ();
 tree evaluate_px_length ();
+tree evaluate_guipx_length ();
 tree evaluate_msec_length ();
 tree evaluate_sec_length ();
 tree evaluate_min_length ();

@@ -175,7 +175,9 @@ edit_interface_rep::image_resize_update (SI x, SI y) {
 
   SI final_w= (SI) tm_round (((double) old_w) * scale);
   final_w= min (max (final_w, min_w), max_w);
-  SI px_len= max (as_length ("1px"), (SI) 1);
+  SI px_len= (SI) tm_round (((double) max (as_length ("1px"), (SI) 1)) *
+                            zoomf);
+  px_len= max (px_len, (SI) 1);
   int width_px= (int) max ((SI) 1, (SI) tm_round (((double) final_w) /
                                                    ((double) px_len)));
   string width= as_string (width_px) * "px";

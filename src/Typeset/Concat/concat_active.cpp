@@ -422,6 +422,29 @@ concater_rep::typeset_hyphenate_as (tree t, path ip) {
   return; \
 }
 
+static bool
+image_px_length (tree t, double& len) {
+  if (!is_atomic (t)) return false;
+  string s= t->label;
+  int start= 0, n= N(s);
+  while ((start+1<n) && (s[start]=='-') && (s[start+1]=='-')) start += 2;
+  string unit;
+  parse_length (s (start, n), len, unit);
+  return unit == "px";
+}
+
+static SI
+image_length (edit_env env, tree t, string perc) {
+  double len;
+  if (image_px_length (t, len)) {
+    SI screen_px= max (env->as_length ("1px"), (SI) 1);
+    double dpi_scale= ((double) env->dpi) / 600.0;
+    double doc_px= ((double) screen_px) * env->zoomf * dpi_scale;
+    return (SI) tm_round (len * doc_px);
+  }
+  return env->as_length (env->exec (t), perc);
+}
+
 void
 concater_rep::typeset_image (tree t, path ip) {
   // determine the image url
@@ -457,8 +480,8 @@ concater_rep::typeset_image (tree t, path ip) {
   // determine the width and the height
   tree old_w= env->local_begin ("w-length", as_string (w) * "tmpt");
   tree old_h= env->local_begin ("h-length", as_string (h) * "tmpt");
-  SI imw= (t[1] == ""? w: env->as_length (env->exec (t[1]), "w"));
-  SI imh= (t[2] == ""? h: env->as_length (env->exec (t[2]), "h"));
+  SI imw= (t[1] == ""? w: image_length (env, t[1], "w"));
+  SI imh= (t[2] == ""? h: image_length (env, t[2], "h"));
   if (t[1] == "" && t[2] != "" && ih != 0)
     imw= (SI) ((iw * ((double) imh)) / ih);
   if (t[1] != "" && t[2] == "" && iw != 0)
@@ -472,8 +495,8 @@ concater_rep::typeset_image (tree t, path ip) {
   // determine the offset
   old_w= env->local_begin ("w-length", as_string (imw) * "tmpt");
   old_h= env->local_begin ("h-length", as_string (imh) * "tmpt");
-  SI imx= (t[3] == ""? 0: env->as_length (env->exec (t[3]), "w"));
-  SI imy= (t[4] == ""? 0: env->as_length (env->exec (t[4]), "h"));
+  SI imx= (t[3] == ""? 0: image_length (env, t[3], "w"));
+  SI imy= (t[4] == ""? 0: image_length (env, t[4], "h"));
   env->local_end ("w-length", old_w);
   env->local_end ("h-length", old_h);
   

@@ -312,6 +312,8 @@ evaluate_impl (tree t) {
     return evaluate_tmpt_length ();
   case PX_LENGTH:
     return evaluate_px_length ();
+  case GUIPX_LENGTH:
+    return evaluate_guipx_length ();
   case MSEC_LENGTH:
     return evaluate_msec_length ();
   case SEC_LENGTH:

@@ -331,6 +331,9 @@ tree evaluate_tmpt_length () {
 tree evaluate_px_length () {
   int px= (int) tm_round ((std_shrinkf * PIXEL) / std_zoom ());
   return tree (TMLEN, as_string (px)); }
+tree evaluate_guipx_length () {
+  return tree (TMLEN, as_string (((double) std_dpi () / 600.0) *
+                                 std_shrinkf * PIXEL)); }
 
 tree
 evaluate_gw_length () {
