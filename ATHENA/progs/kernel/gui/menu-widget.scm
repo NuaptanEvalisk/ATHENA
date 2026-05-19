@@ -1250,36 +1250,25 @@
   (dialogue-window (system-error-widget cmd out err) noop win-name)
   #f)
 
-(tm-widget ((message-widget msg) done)
-  (padded
-    (centered (text msg))
-    ===
-    (centered
-      (explicit-buttons
-        ("Ok" (done))))))
+(define (native-dialog-string x)
+  (cond ((string? x) x)
+        ((tree? x) (tree->string x))
+        (else (object->string x))))
 
 (tm-define (show-message msg title)
   (:interactive #t)
-  (dialogue-window (message-widget msg) noop title))
+  (native-info-dialog (native-dialog-string msg)
+                      (native-dialog-string title)))
 
 (tm-define (restart-message)
   (:interactive #t)
   (show-message "Restart ATHENA in order to let changes take effect"
                 "Notification"))
 
-(tm-widget ((notify-dialogue message) cmd)
-  (padded
-    (text message)
-    ===
-    (bottom-buttons
-      >>
-      ("Ok" (cmd "Ok"))
-      >>)))
-
 (tm-define (notify-now message)
   (delayed
     (:idle 1)
-    (dialogue-window (notify-dialogue message) noop "Notification")))
+    (native-info-dialog (native-dialog-string message) "Notification")))
 
 (tm-define (notify-restart . args)
   (notify-now "Restart TeXmacs in order to let changes take effect"))

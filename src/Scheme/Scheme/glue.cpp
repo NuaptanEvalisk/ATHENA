@@ -38,6 +38,7 @@
 #include "QTMCommandPalette.hpp"
 #include "QTMAbout.hpp"
 #include "ATHENA/Data/image_background.hpp"
+#include "boot.hpp"
 #include "qt_widget.hpp"
 #include "qt_utilities.hpp"
 #include "message.hpp"
@@ -49,7 +50,12 @@
 #include "Updater/tm_updater.hpp"
 
 #include <DockWidget.h>
+#include <QApplication>
+#include <QGridLayout>
+#include <QLabel>
+#include <QMessageBox>
 #include <QPointer>
+#include <QSpacerItem>
 #include <QWidget>
 #include <map>
 #include <string>
@@ -1445,6 +1451,36 @@ tmg_heading_unfold_all () {
   return TMSCM_UNSPECIFIED;
 }
 
+tmscm
+tmg_native_info_dialog (tmscm arg1, tmscm arg2) {
+  TMSCM_ASSERT_STRING (arg1, TMSCM_ARG1, "native-info-dialog");
+  TMSCM_ASSERT_STRING (arg2, TMSCM_ARG2, "native-info-dialog");
+
+  if (headless_mode) return TMSCM_UNSPECIFIED;
+
+  string message= tmscm_to_string (arg1);
+  string title  = tmscm_to_string (arg2);
+
+  QMessageBox msg_box (QApplication::activeWindow ());
+  msg_box.setWindowTitle (to_qstring (title));
+  msg_box.setText (to_qstring (message));
+  msg_box.setTextFormat (Qt::PlainText);
+  msg_box.setIcon (QMessageBox::Information);
+  msg_box.setStandardButtons (QMessageBox::Ok);
+  msg_box.setMinimumWidth (560);
+  for (QLabel* label: msg_box.findChildren<QLabel*> ())
+    label->setWordWrap (true);
+  if (QGridLayout* layout = qobject_cast<QGridLayout*> (msg_box.layout ())) {
+    QSpacerItem* spacer =
+      new QSpacerItem (520, 0, QSizePolicy::Minimum, QSizePolicy::Expanding);
+    layout->addItem (spacer, layout->rowCount (), 0, 1,
+                     layout->columnCount ());
+  }
+  msg_box.exec ();
+
+  return TMSCM_UNSPECIFIED;
+}
+
 void
 initialize_glue () {
   tmscm_install_procedure ("tree?", treeP, 1, 0, 0);
@@ -1474,6 +1510,8 @@ initialize_glue () {
                            tmg_heading_fold_toggle_path, 1, 0, 0);
   tmscm_install_procedure ("heading-unfold-all",
                            tmg_heading_unfold_all, 0, 0, 0);
+  tmscm_install_procedure ("native-info-dialog",
+                           tmg_native_info_dialog, 2, 0, 0);
   tmscm_install_procedure ("ads-restore-visible-panes",
                            ads_restore_visible_panes, 0, 0, 0);
   tmscm_install_procedure ("vault-backup-viewer-show",
