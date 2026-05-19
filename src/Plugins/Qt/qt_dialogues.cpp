@@ -34,6 +34,8 @@
 #include <QPushButton>
 #include <QDialogButtonBox>
 #include <QApplication>
+#include <QGridLayout>
+#include <QSpacerItem>
 
 
 #include "string.hpp"
@@ -283,7 +285,16 @@ qt_inputs_list_widget_rep::perform_dialog() {
     // before calling the dialog
     QMessageBox msgBox (mainwindow);
     //sets parent widget, so that it appears at the proper location	
+    msgBox.setMinimumWidth (620);
     msgBox.setText (to_qstring (field(0)->prompt));
+    msgBox.setTextFormat (Qt::PlainText);
+    for (QLabel* label: msgBox.findChildren<QLabel*> ())
+      label->setWordWrap (true);
+    if (QGridLayout* layout = qobject_cast<QGridLayout*> (msgBox.layout ())) {
+      QSpacerItem* spacer =
+        new QSpacerItem (560, 0, QSizePolicy::Minimum, QSizePolicy::Expanding);
+      layout->addItem (spacer, layout->rowCount (), 0, 1, layout->columnCount ());
+    }
     msgBox.setStandardButtons (QMessageBox::Cancel);
     
       // Allow any number of choices. The first one is the default.

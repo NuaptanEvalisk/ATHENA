@@ -14,6 +14,7 @@
 (texmacs-module (generic document-menu)
   (:use (generic document-edit)
         (generic generic-menu)
+        (athena athena tm-vault-anchors)
         (athena menus file-menu)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -859,6 +860,7 @@
       (group "Preferences")
       (link document-source-preferences-menu))
   (-> "Update" (link document-update-menu))
+  ("Anchor enunciations" (anchor-enunciations-current-document))
   ---
   (-> "Font" (link document-full-font-menu))
   (-> "Paragraph" (link document-paragraph-menu))
@@ -890,6 +892,7 @@
       ("Edit source tree" (toggle-source-mode))
       ("Preferences" (open-source-tree-preferences)))
   (-> "Update" (link document-update-menu))
+  ("Anchor enunciations" (anchor-enunciations-current-document))
   ---
   (if (new-fonts?)
       ("Font" (open-document-font-selector)))

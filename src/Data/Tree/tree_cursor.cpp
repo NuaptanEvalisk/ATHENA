@@ -329,8 +329,35 @@ valid_cursor (tree t, path p, bool start_flag) {
 }
 
 static path
+label_boundary_for_invalid_cursor (tree t, path p) {
+  if (is_nil (p)) return path (0);
+  if (is_atom (p)) return path (p->item <= 0 ? 0 : 1);
+  if (p->item < 0) return path (0);
+  if (p->item >= arity (t)) return path (1);
+  if (is_atomic (t[p->item]) && is_atom (p->next))
+    return path (p->next->item <= 0 ? 0 : 1);
+  return path (p->item <= 0 ? 0 : 1);
+}
+
+static bool
+invalid_cursor_inside_label (tree t, path p) {
+  if (!is_func (t, LABEL) || is_nil (p)) return false;
+  if (is_atom (p)) return p->item < 0 || p->item > 1;
+  if (p->item < 0 || p->item >= arity (t)) return true;
+  return is_atomic (t[p->item]) && is_atom (p->next) &&
+         (p->next->item < 0 || p->next->item > N(t[p->item]->label));
+}
+
+static path
 pre_correct (tree t, path p) {
   //cout << "Precorrect " << p << " in " << t << "\n";
+  if (invalid_cursor_inside_label (t, p)) {
+    // Labels are zero-width anchors.  Stale cursor/selection/scroll positions
+    // may land inside their atomic payload after structural edits; normalize
+    // those positions to the nearest label boundary instead of treating this as
+    // a document warning.
+    return label_boundary_for_invalid_cursor (t, p);
+  }
   if ((!is_nil (p)) && (!is_atom (p)) && ((p->item < 0) || (p->item >= arity (t)))) {
     if (is_func (t, GRAPHICS)) {
       std_warning << "Precorrecting " << p << " in " << t << "\n";
@@ -342,7 +369,7 @@ pre_correct (tree t, path p) {
     }
   }
 
-  if (is_nil (p)) return pre_correct (t, path(0));
+  if (is_nil (p)) return pre_correct (t, path (0));
   if (is_atom (p)) {
     if (!is_atomic (t) && the_drd->is_child_enforcing (t)) {
       if (p->item == 0) {
@@ -400,6 +427,7 @@ static bool
 left_most (tree t, path p) {
   if (is_nil (p)) FAILED ("invalid nil path");
   if ((!is_atom (p)) && ((p->item < 0) || (p->item >= arity (t)))) {
+    if (is_func (t, LABEL)) return false;
     failed_error << "Left most " << p << " in " << t << "\n";
     FAILED ("bad path");
   }
@@ -414,6 +442,8 @@ static path
 left_correct (tree t, path p) {
   //cout << "Left correct " << p << " in " << t << "\n";
   if (is_nil (p)) FAILED ("invalid nil path");
+  if (invalid_cursor_inside_label (t, p))
+    return label_boundary_for_invalid_cursor (t, p);
   if ((!is_atom (p)) && ((p->item < 0) || (p->item >= arity (t)))) {
     failed_error << "Left correcting " << p << " in " << t << "\n";
     FAILED ("bad path");
@@ -436,6 +466,7 @@ static bool
 right_most (tree t, path p) {
   if (is_nil (p)) FAILED ("invalid nil path");
   if ((!is_atom (p)) && ((p->item < 0) || (p->item >= arity (t)))) {
+    if (is_func (t, LABEL)) return false;
     failed_error << "Right most " << p << " in " << t << "\n";
     FAILED ("bad path");
   }
@@ -449,6 +480,8 @@ right_most (tree t, path p) {
 static path
 right_correct (tree t, path p) {
   if (is_nil (p)) FAILED ("invalid nil path");
+  if (invalid_cursor_inside_label (t, p))
+    return label_boundary_for_invalid_cursor (t, p);
   if ((!is_atom (p)) && ((p->item < 0) || (p->item >= arity (t)))) {
     failed_error << "Right correcting " << p << " in " << t << "\n";
     FAILED ("bad path");

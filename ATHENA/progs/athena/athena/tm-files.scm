@@ -15,6 +15,7 @@
   (:use (athena athena tm-server)
         (athena athena tm-view)
         (athena athena tm-print)
+        (athena athena tm-vault-anchors)
         (kernel athena tm-dialogue)
         (utils library cursor)))
 
@@ -165,7 +166,7 @@
         ((in? :commit opts)
          (commit-buffer name))))
 
-(define (save-buffer-save name opts)
+(define (save-buffer-save-now name opts)
   ;;(display* "save-buffer-save " name "\n")
   (with vname `(verbatim ,(utf8->cork (url->system name)))
     (vault-backup-pre-save name)
@@ -179,6 +180,13 @@
           (buffer-notify-recent name)
           (set-message `(concat "Saved " ,vname) "Save file")
           (save-buffer-post name opts)))))
+
+(define (save-buffer-save name opts)
+  (if (in? :manual opts)
+      (vault-anchor-before-manual-save
+       name
+       (lambda () (save-buffer-save-now name opts)))
+      (save-buffer-save-now name opts)))
 
 (define (save-buffer-check-faithful name opts)
   ;;(display* "save-buffer-check-faithful " name "\n")
@@ -238,6 +246,9 @@
 
 (tm-define (save-buffer . l)
   (apply save-buffer-main l))
+
+(tm-define (save-buffer-manual . l)
+  (apply save-buffer-main (append l '(:manual))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Saving buffers under a new name

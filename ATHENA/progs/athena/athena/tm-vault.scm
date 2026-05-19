@@ -11,6 +11,7 @@
         (link ref-edit)
         (athena athena tm-vault-bugcheck)
         (athena athena tm-vault-images)
+        (athena athena tm-vault-anchors)
         (athena athena tm-vault-maintenance)
         (athena athena tm-vault-quick-switcher)
         (athena athena tm-vault-recents)
@@ -262,6 +263,7 @@
               (vault-font-preference-choices)
               (get-preference "vault preferred font")
               "18em")))
+    (dynamic (vault-anchor-preferences-widget))
     (dynamic (vault-image-preferences-widget))))
 
 

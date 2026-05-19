@@ -204,7 +204,7 @@
                   "Export selection as image" fm))))
 
 (menu-bind save-menu
-  ("Save" (save-buffer))
+  ("Save" (save-buffer-manual))
   ("Save as" (choose-file save-buffer-as "Save ATHENA file" "texmacs"))
   ---
   (link export-top-menu)
@@ -310,7 +310,7 @@
       (when (nnull? (get-recent-vaults))
         ("Clear menu" (save-object (recent-vaults-file) '()))))
   ---
-  ("Save" (save-buffer))
+  ("Save" (save-buffer-manual))
   ("Autosave" (toggle-autosave-current-buffer))
   ("Save as" (choose-file save-buffer-as "Save ATHENA file" "texmacs"))
   ---
