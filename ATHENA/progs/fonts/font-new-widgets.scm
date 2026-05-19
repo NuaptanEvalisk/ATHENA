@@ -850,19 +850,30 @@
 ;; High level window interface
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(define (native-font-selector-window specs title)
+  (let* ((init (initial-font-data specs))
+         (res (native-font-selector (car init) (cadr init) (caddr init) title)))
+    (when (list-3? res)
+      (ahash-set! selector-table (selkey specs :family) (car res))
+      (ahash-set! selector-table (selkey specs :style) (cadr res))
+      (ahash-set! selector-table (selkey specs :size) (caddr res))
+      (with changes (selector-get-changes specs (car specs))
+        (when (nnull? changes)
+          ((cadr specs) changes)))
+      (selector-clean specs)
+      (keyboard-focus-on "canvas"))))
+
 (tm-define (open-font-selector-window)
   (:interactive #t)
   (with specs (list get-env make-multi-with #f)
     (selector-clean specs)
-    (dialogue-window (font-selector specs #f)
-                     make-multi-with "Font selector")))
+    (native-font-selector-window specs "Font selector")))
 
 (tm-define (open-document-font-selector-window)
   (:interactive #t)
   (with specs (list get-init init-multi #t)
     (selector-clean specs)
-    (dialogue-window (font-selector specs #t)
-                     init-multi "Document font selector")))
+    (native-font-selector-window specs "Document font selector")))
 
 (define ((prefixed-get-init prefix) var)
   (if (init-has? (string-append prefix var))
@@ -879,8 +890,7 @@
          (setter (prefixed-init-multi prefix))
          (specs (list getter setter #t)))
     (selector-clean specs)
-    (dialogue-window (font-selector specs #t)
-                     setter "Font selector")))
+    (native-font-selector-window specs "Font selector")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; High level tool interface

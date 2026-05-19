@@ -37,6 +37,7 @@
 #include "QTMErrorMessagesPane.hpp"
 #include "QTMCommandPalette.hpp"
 #include "QTMAbout.hpp"
+#include "QTMFontSelector.hpp"
 #include "ATHENA/Data/image_background.hpp"
 #include "boot.hpp"
 #include "qt_widget.hpp"
@@ -1481,6 +1482,23 @@ tmg_native_info_dialog (tmscm arg1, tmscm arg2) {
   return TMSCM_UNSPECIFIED;
 }
 
+tmscm
+tmg_native_font_selector (tmscm arg1, tmscm arg2, tmscm arg3, tmscm arg4) {
+  TMSCM_ASSERT_STRING (arg1, TMSCM_ARG1, "native-font-selector");
+  TMSCM_ASSERT_STRING (arg2, TMSCM_ARG2, "native-font-selector");
+  TMSCM_ASSERT_STRING (arg3, TMSCM_ARG3, "native-font-selector");
+  TMSCM_ASSERT_STRING (arg4, TMSCM_ARG4, "native-font-selector");
+
+  if (headless_mode) return tmscm_null ();
+
+  array<string> result=
+    native_font_selector_dialog (tmscm_to_string (arg1),
+                                 tmscm_to_string (arg2),
+                                 tmscm_to_string (arg3),
+                                 tmscm_to_string (arg4));
+  return array_string_to_tmscm (result);
+}
+
 void
 initialize_glue () {
   tmscm_install_procedure ("tree?", treeP, 1, 0, 0);
@@ -1512,6 +1530,8 @@ initialize_glue () {
                            tmg_heading_unfold_all, 0, 0, 0);
   tmscm_install_procedure ("native-info-dialog",
                            tmg_native_info_dialog, 2, 0, 0);
+  tmscm_install_procedure ("native-font-selector",
+                           tmg_native_font_selector, 4, 0, 0);
   tmscm_install_procedure ("ads-restore-visible-panes",
                            ads_restore_visible_panes, 0, 0, 0);
   tmscm_install_procedure ("vault-backup-viewer-show",
