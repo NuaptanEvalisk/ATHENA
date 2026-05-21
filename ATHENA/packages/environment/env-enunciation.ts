@@ -152,14 +152,16 @@
   \;
 
   <assign|render-solution|<\macro|which|body>
-    <\render-exercise|<arg|which>>
-      <\with|par-left|0em>
-        <arg|body>
-      </with>
-    </render-exercise>
+    <\render-remark|<arg|which>>
+      <arg|body>
+    </render-remark>
   </macro>>
 
   <assign|solution|<\macro|body>
+    <render-solution|<solution-text>|<arg|body>>
+  </macro>>
+
+  <assign|solution*|<\macro|body>
     <render-solution|<solution-text>|<arg|body>>
   </macro>>
 

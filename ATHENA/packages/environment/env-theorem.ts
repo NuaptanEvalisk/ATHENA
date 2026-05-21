@@ -68,7 +68,21 @@
 
   <new-exercise|problem|Problem>
 
-  <new-env|solution|Solution|exercise-env|render-solution>
+  <add-to-counter-group|solution|exercise-env>
+
+  <assign|solution-title|<macro|num|<solution-text> <env-number|<arg|num>>>>
+
+  <assign|solution-with-number|<\macro|body>
+    <surround|<style-with|src-compact|none|<next-solution>>||<style-with|src-compact|none|<render-solution|<style-with|src-compact|none|<solution-title|<the-solution>>>|<arg|body>>>>
+  </macro>>
+
+  <assign|solution*|<\macro|body>
+    <style-with|src-compact|none|<render-solution|<solution-text>|<arg|body>>>
+  </macro>>
+
+  <assign|solution|<\macro|body>
+    <compound|<if|<extern|ext-number-solutions?>|solution-with-number|solution*>|<arg|body>>
+  </macro>>
 
   <new-remark|question|Question>
 

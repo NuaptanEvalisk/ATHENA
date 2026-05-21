@@ -97,6 +97,10 @@
   (:secure #t)
   (ext-render-exercises-smaller?))
 
+(tm-define (ext-number-solutions?)
+  (:secure #t)
+  (if (== (get-preference "number solutions") "on") "true" "false"))
+
 (tm-define (ext-render-exercise-diagnostic stage which body)
   (:secure #t)
   "")
@@ -143,6 +147,7 @@
   ("language" (get-locale-language) notify-language)
   ("default cjk language" "chinese" noop)
   ("render solution in smaller font" "on" notify-enunciation-rendering)
+  ("number solutions" "on" notify-enunciation-rendering)
   ("gui theme" "default" notify-gui-theme)
   ("page medium" "paper" (lambda args (noop)))
   ("fast environments" "on" notify-fast-environments)
