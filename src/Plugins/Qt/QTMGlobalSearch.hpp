@@ -28,6 +28,7 @@ class QListWidget;
 class QListWidgetItem;
 class QPushButton;
 class QProgressBar;
+class QSplitter;
 class QTimer;
 
 class QTMGlobalSearch : public QWidget {
@@ -37,43 +38,58 @@ public:
 
   QSize sizeHint () const override;
   bool eventFilter (QObject* watched, QEvent* event) override;
+  void setPreviewZoomFactor (double zoom);
 
 private:
   struct Result {
     QString relPath;
     url     file;
-    int     hits;
-    path    firstHit;
+    int     occurrence;
+    int     fileHits;
+    path    hitStart;
+    path    hitEnd;
   };
 
   QWidget* createQueryWidget ();
+  QWidget* createPreviewWidget ();
   tree     currentQuery () const;
   tree     normalizeQuery (tree t) const;
   void     startSearch ();
   void     cancelSearch ();
   void     scanChunk ();
-  bool     searchFile (url u, Result& result) const;
+  int      searchFile (url u, std::vector<Result>& hits) const;
   QString  relativePath (url u) const;
+  tree     buildPreview (const Result& result) const;
+  tree     buildPreviewFromBody (tree body, path hitStart) const;
   void     addResult (const Result& result);
+  void     updatePreview (QListWidgetItem* current);
+  void     clearPreview ();
   void     openResult (QListWidgetItem* item);
   void     openCurrentResult ();
+  void     applyPreviewZoom ();
   void     setIdleStatus ();
   void     setRunningStatus ();
   void     finishSearch ();
 
   widget              queryWidget;
+  widget              previewWidget;
   url                 queryUrl;
+  url                 previewUrl;
   tree                queryTree;
   std::vector<url>    scanFiles;
   int                 scanIndex;
+  int                 matchedFiles;
+  double              previewZoomFactor;
   std::vector<Result> results;
 
   QLabel*       prompt;
   QLabel*       status;
+  QLabel*       previewTitle;
   QPushButton*  searchButton;
   QPushButton*  cancelButton;
   QProgressBar* progress;
   QListWidget*  resultList;
+  QSplitter*    splitter;
   QTimer*       scanTimer;
 };
 

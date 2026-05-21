@@ -12,14 +12,20 @@
 #include "QTMMainTabWindow.hpp"
 #include "convert.hpp"
 #include "drd_mode.hpp"
+#include "message.hpp"
 #include "new_buffer.hpp"
 #include "qt_utilities.hpp"
 #include "qt_widget.hpp"
+#include "renderer.hpp"
 #include "scheme.hpp"
+#include "link.hpp"
+#include "tm_buffer.hpp"
 #include "tm_window.hpp"
 #include "tree_search.hpp"
 #include "vault.hpp"
 
+#include <DockAreaWidget.h>
+#include <DockSplitter.h>
 #include <DockWidget.h>
 #include <QApplication>
 #include <QEvent>
@@ -32,6 +38,7 @@
 #include <QPushButton>
 #include <QSize>
 #include <QSizePolicy>
+#include <QSplitter>
 #include <QTimer>
 #include <QVBoxLayout>
 #include <algorithm>
@@ -39,21 +46,46 @@
 
 static QTMGlobalSearch* global_search_widget= nullptr;
 static ads::CDockWidget* global_search_dock= nullptr;
+static ads::CDockAreaWidget* global_search_area= nullptr;
 
 static QString
 qstring_from_tm (string s) {
   return to_qstring (s);
 }
 
+static void
+set_global_search_area_height (ads::CDockAreaWidget* area) {
+  if (area == nullptr) return;
+  ads::CDockSplitter* splitter= area->parentSplitter ();
+  if (splitter == nullptr) return;
+  QList<int> sizes= splitter->sizes ();
+  if (sizes.size () < 2) return;
+  int total= 0;
+  for (int size : sizes) total += size;
+  if (total <= 0) return;
+  int target= qBound (440, total / 2, 720);
+  int areaIndex= splitter->indexOf (area);
+  if (areaIndex < 0 || areaIndex >= sizes.size ()) return;
+  int delta= target - sizes[areaIndex];
+  if (delta == 0) return;
+  sizes[areaIndex]= target;
+  int other= areaIndex == 0 ? 1 : 0;
+  sizes[other]= qMax (180, sizes[other] - delta);
+  splitter->setSizes (sizes);
+}
+
 QTMGlobalSearch::QTMGlobalSearch (QWidget* parent)
   : QWidget (parent),
     queryUrl (url ("tmfs://aux/global-search")),
-    scanIndex (0) {
+    previewUrl (url ("tmfs://aux/global-search-preview")),
+    scanIndex (0),
+    matchedFiles (0),
+    previewZoomFactor (1.0) {
   prompt= new QLabel ("Search the current vault", this);
   status= new QLabel (this);
 
   QWidget* query= createQueryWidget ();
-  query->setMinimumHeight (120);
+  query->setMinimumHeight (88);
   setFocusProxy (query);
 
   searchButton= new QPushButton ("Search", this);
@@ -66,7 +98,32 @@ QTMGlobalSearch::QTMGlobalSearch (QWidget* parent)
 
   resultList= new QListWidget (this);
   resultList->setAlternatingRowColors (true);
+  resultList->setMinimumWidth (480);
+  resultList->setMinimumHeight (320);
   resultList->installEventFilter (this);
+
+  previewTitle= new QLabel ("Select a result to preview it.", this);
+  QWidget* preview= createPreviewWidget ();
+  preview->setMinimumHeight (220);
+
+  QWidget* leftPane= new QWidget (this);
+  leftPane->setMinimumWidth (500);
+  QVBoxLayout* leftLayout= new QVBoxLayout (leftPane);
+  leftLayout->setContentsMargins (0, 0, 0, 0);
+  leftLayout->addWidget (resultList, 1);
+
+  QWidget* rightPane= new QWidget (this);
+  QVBoxLayout* rightLayout= new QVBoxLayout (rightPane);
+  rightLayout->setContentsMargins (0, 0, 0, 0);
+  rightLayout->addWidget (previewTitle);
+  rightLayout->addWidget (preview, 1);
+
+  splitter= new QSplitter (Qt::Horizontal, this);
+  splitter->addWidget (leftPane);
+  splitter->addWidget (rightPane);
+  splitter->setStretchFactor (0, 0);
+  splitter->setStretchFactor (1, 1);
+  splitter->setSizes (QList<int> () << 520 << 820);
 
   scanTimer= new QTimer (this);
   scanTimer->setInterval (0);
@@ -83,7 +140,7 @@ QTMGlobalSearch::QTMGlobalSearch (QWidget* parent)
   layout->addLayout (buttons);
   layout->addWidget (progress);
   layout->addWidget (status);
-  layout->addWidget (resultList, 1);
+  layout->addWidget (splitter, 1);
 
   connect (searchButton, &QPushButton::clicked,
            this, [this] () { startSearch (); });
@@ -95,6 +152,10 @@ QTMGlobalSearch::QTMGlobalSearch (QWidget* parent)
            this, [this] (QListWidgetItem* item) { openResult (item); });
   connect (resultList, &QListWidget::itemActivated,
            this, [this] (QListWidgetItem* item) { openResult (item); });
+  connect (resultList, &QListWidget::currentItemChanged,
+           this, [this] (QListWidgetItem* current, QListWidgetItem*) {
+             updatePreview (current);
+           });
 
   setIdleStatus ();
 }
@@ -102,11 +163,19 @@ QTMGlobalSearch::QTMGlobalSearch (QWidget* parent)
 QTMGlobalSearch::~QTMGlobalSearch () {
   scanTimer->stop ();
   if (!is_nil (queryWidget)) send_destroy (queryWidget);
+  if (!is_nil (previewWidget)) send_destroy (previewWidget);
 }
 
 QSize
 QTMGlobalSearch::sizeHint () const {
-  return QSize (1100, 560);
+  return QSize (1360, 720);
+}
+
+void
+QTMGlobalSearch::setPreviewZoomFactor (double zoom) {
+  if (zoom >= 0.04 && zoom <= 25.0)
+    previewZoomFactor= zoom;
+  applyPreviewZoom ();
 }
 
 bool
@@ -129,6 +198,25 @@ QTMGlobalSearch::createQueryWidget () {
   QWidget* qwid= concrete (queryWidget)->as_qwidget (this);
   qwid->setSizePolicy (QSizePolicy::Expanding, QSizePolicy::Fixed);
   return qwid;
+}
+
+QWidget*
+QTMGlobalSearch::createPreviewWidget () {
+  tree doc (DOCUMENT, "");
+  tree style= compound ("style", tuple ("generic"));
+  previewWidget= texmacs_input_widget (doc, style, previewUrl);
+  tm_buffer buf= concrete_buffer (previewUrl);
+  if (!is_nil (buf)) buf->buf->read_only= true;
+  QWidget* qwid= concrete (previewWidget)->as_qwidget (this);
+  qwid->setSizePolicy (QSizePolicy::Expanding, QSizePolicy::Expanding);
+  applyPreviewZoom ();
+  return qwid;
+}
+
+void
+QTMGlobalSearch::applyPreviewZoom () {
+  if (is_nil (previewWidget)) return;
+  set_zoom_factor (previewWidget, get_retina_zoom () * previewZoomFactor);
 }
 
 tree
@@ -180,9 +268,11 @@ QTMGlobalSearch::startSearch () {
 
   if (scanTimer->isActive ()) scanTimer->stop ();
   resultList->clear ();
+  clearPreview ();
   results.clear ();
   scanFiles.clear ();
   scanIndex= 0;
+  matchedFiles= 0;
 
   queryTree= currentQuery ();
   if (is_empty (queryTree)) {
@@ -214,16 +304,17 @@ void
 QTMGlobalSearch::cancelSearch () {
   if (!scanTimer->isActive ()) return;
   scanTimer->stop ();
-  status->setText (QString ("Search cancelled after %1/%2 files; %3 matching files.")
+  status->setText (QString ("Search cancelled after %1/%2 files; %3 occurrence(s) in %4 file(s).")
                    .arg (scanIndex)
                    .arg ((int) scanFiles.size ())
-                   .arg ((int) results.size ()));
+                   .arg ((int) results.size ())
+                   .arg (matchedFiles));
   searchButton->setEnabled (true);
   cancelButton->setEnabled (false);
 }
 
-bool
-QTMGlobalSearch::searchFile (url u, Result& result) const {
+int
+QTMGlobalSearch::searchFile (url u, std::vector<Result>& hits) const {
   try {
     tree t= import_tree (u, "texmacs");
     tree body= extract (t, "body");
@@ -240,19 +331,65 @@ QTMGlobalSearch::searchFile (url u, Result& result) const {
     }
     set_access_mode (oldMode);
 
-    int hits= N(sels) / 2;
-    if (hits <= 0) return false;
+    int hitCount= N(sels) / 2;
+    if (hitCount <= 0) return 0;
 
-    result.relPath= relativePath (u);
-    result.file= u;
-    result.hits= hits;
-    result.firstHit= sels[0];
-    return true;
+    QString rel= relativePath (u);
+    for (int i=0; i<hitCount; i++) {
+      Result result;
+      result.relPath= rel;
+      result.file= u;
+      result.occurrence= i + 1;
+      result.fileHits= hitCount;
+      result.hitStart= sels[2*i];
+      result.hitEnd= sels[2*i + 1];
+      hits.push_back (result);
+    }
+    return hitCount;
   }
   catch (...) {
     std::cout << "Global search: skipped "
               << to_qstring (concretize (u)).toStdString () << "\n";
-    return false;
+    return 0;
+  }
+}
+
+tree
+QTMGlobalSearch::buildPreviewFromBody (tree body, path hitStart) const {
+  if (is_empty (body)) return tree (DOCUMENT, "");
+  if (!is_func (body, DOCUMENT)) {
+    tree preview (DOCUMENT);
+    preview << compound ("marked", copy (body));
+    return preview;
+  }
+
+  if (N(body) == 0) return tree (DOCUMENT, "");
+
+  int top= 0;
+  if (!is_nil (hitStart)) top= hitStart->item;
+  if (top < 0 || top >= N(body)) top= 0;
+
+  int first= std::max (0, top - 2);
+  int last = std::min (N(body), top + 3);
+  tree preview (DOCUMENT);
+  for (int i= first; i<last; i++) {
+    tree block= copy (body[i]);
+    if (i == top) block= compound ("marked", block);
+    preview << block;
+  }
+  return preview;
+}
+
+tree
+QTMGlobalSearch::buildPreview (const Result& result) const {
+  try {
+    tree t= import_tree (result.file, "texmacs");
+    tree body= extract (t, "body");
+    if (is_empty (body)) body= t;
+    return buildPreviewFromBody (body, result.hitStart);
+  }
+  catch (...) {
+    return tree (DOCUMENT, "Preview unavailable.");
   }
 }
 
@@ -260,13 +397,50 @@ void
 QTMGlobalSearch::addResult (const Result& result) {
   results.push_back (result);
   QListWidgetItem* item= new QListWidgetItem (
-    QString ("%1    %2 hit%3")
+    QString ("%1 (%2)")
       .arg (result.relPath)
-      .arg (result.hits)
-      .arg (result.hits == 1 ? "" : "s"));
+      .arg (result.occurrence));
+  item->setToolTip (
+    QString ("%1\nOccurrence %2 of %3\nHit path: %4")
+      .arg (result.relPath)
+      .arg (result.occurrence)
+      .arg (result.fileHits)
+      .arg (qstring_from_tm (as_string (result.hitStart))));
   item->setData (Qt::UserRole, (int) results.size () - 1);
   resultList->addItem (item);
   if (resultList->count () == 1) resultList->setCurrentRow (0);
+}
+
+void
+QTMGlobalSearch::updatePreview (QListWidgetItem* current) {
+  if (current == nullptr) {
+    clearPreview ();
+    return;
+  }
+
+  int index= current->data (Qt::UserRole).toInt ();
+  if (index < 0 || index >= (int) results.size ()) {
+    clearPreview ();
+    return;
+  }
+
+  const Result& result= results[index];
+  previewTitle->setText (
+    QString ("%1  (%2 of %3)")
+      .arg (result.relPath)
+      .arg (result.occurrence)
+      .arg (result.fileHits));
+  set_buffer_body (previewUrl, buildPreview (result));
+  tm_buffer buf= concrete_buffer (previewUrl);
+  if (!is_nil (buf)) buf->buf->read_only= true;
+  applyPreviewZoom ();
+}
+
+void
+QTMGlobalSearch::clearPreview () {
+  if (previewTitle != nullptr)
+    previewTitle->setText ("Select a result to preview it.");
+  set_buffer_body (previewUrl, tree (DOCUMENT, ""));
 }
 
 void
@@ -274,17 +448,21 @@ QTMGlobalSearch::scanChunk () {
   const int chunkSize= 8;
   int end= std::min (scanIndex + chunkSize, (int) scanFiles.size ());
   for (; scanIndex < end; scanIndex++) {
-    Result result;
-    if (searchFile (scanFiles[scanIndex], result))
-      addResult (result);
+    std::vector<Result> hits;
+    if (searchFile (scanFiles[scanIndex], hits) > 0) {
+      matchedFiles++;
+      for (const Result& result : hits)
+        addResult (result);
+    }
   }
 
   progress->setValue (scanIndex);
   status->setText (
-    QString ("Searching %1/%2 files; %3 matching files.")
+    QString ("Searching %1/%2 files; %3 occurrence(s) in %4 file(s).")
       .arg (scanIndex)
       .arg ((int) scanFiles.size ())
-      .arg ((int) results.size ()));
+      .arg ((int) results.size ())
+      .arg (matchedFiles));
 
   if (scanIndex >= (int) scanFiles.size ())
     finishSearch ();
@@ -296,11 +474,13 @@ QTMGlobalSearch::finishSearch () {
   searchButton->setEnabled (true);
   cancelButton->setEnabled (false);
   status->setText (
-    QString ("%1 matching files out of %2.")
+    QString ("%1 occurrence(s) in %2 file(s), out of %3 scanned files.")
       .arg ((int) results.size ())
+      .arg (matchedFiles)
       .arg ((int) scanFiles.size ()));
   std::cout << "Global search: deferred scan finished with "
-            << (int) results.size () << " result files\n";
+            << (int) results.size () << " occurrences in "
+            << matchedFiles << " files\n";
 }
 
 void
@@ -310,11 +490,12 @@ QTMGlobalSearch::openResult (QListWidgetItem* item) {
   if (index < 0 || index >= (int) results.size ()) return;
 
   const Result result= results[index];
-  exec_delayed (scheme_cmd (
-    list_object (symbol_object ("global-search-open-result"),
-                 object (result.file),
-                 list_object (symbol_object ("quote"),
-                              object (result.firstHit)))));
+  array<object> cmd;
+  cmd << symbol_object ("global-search-open-occurrence");
+  cmd << object (result.file);
+  cmd << list_object (symbol_object ("quote"), object (result.hitStart));
+  cmd << list_object (symbol_object ("quote"), object (result.hitEnd));
+  exec_delayed (scheme_cmd (as_list_object (cmd)));
 }
 
 void
@@ -341,30 +522,43 @@ global_search_show () {
 
   if (global_search_widget == nullptr) {
     global_search_widget= new QTMGlobalSearch ();
+    global_search_widget->resize (1360, 720);
     QObject::connect (global_search_widget, &QObject::destroyed, [] () {
       global_search_widget= nullptr;
       global_search_dock= nullptr;
+      global_search_area= nullptr;
     });
   }
+  global_search_widget->setPreviewZoomFactor (
+    get_server ()->get_window_zoom_factor ());
 
   QString title= "Global search";
   if (global_search_dock == nullptr) {
     global_search_dock= new ads::CDockWidget (title);
     global_search_dock->setObjectName ("athena-global-search");
-    global_search_dock->resize (1100, 560);
+    global_search_dock->resize (1360, 720);
     global_search_dock->setWidget (global_search_widget);
     global_search_dock->setFeature (
       ads::CDockWidget::DockWidgetDeleteOnClose, false);
     QObject::connect (global_search_dock, &QObject::destroyed, [] () {
       global_search_dock= nullptr;
+      global_search_area= nullptr;
     });
-    win->dockManager ()->addDockWidget (
-      ads::BottomDockWidgetArea, global_search_dock);
-    win->restoreAdsLayoutState ();
   }
+
+  if (global_search_dock->dockAreaWidget () == nullptr ||
+      global_search_dock->dockContainer () == nullptr) {
+    global_search_area= win->dockManager ()->addDockWidget (
+      ads::BottomDockWidgetArea, global_search_dock);
+  }
+  else global_search_area= global_search_dock->dockAreaWidget ();
 
   global_search_dock->setWindowTitle (title);
   global_search_dock->show ();
   global_search_dock->raise ();
+  set_global_search_area_height (global_search_area);
+  QTimer::singleShot (0, win, [] () {
+    set_global_search_area_height (global_search_area);
+  });
   global_search_widget->setFocus ();
 }

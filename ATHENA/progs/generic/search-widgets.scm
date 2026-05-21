@@ -807,6 +807,18 @@
     (lambda ()
       (go-to (append (tree->path (buffer-tree)) p)))))
 
+(tm-define (global-search-open-occurrence u start end)
+  (load-buffer u)
+  (delayed (:idle 100)
+    (lambda ()
+      (let* ((root (tree->path (buffer-tree)))
+             (p (append root start))
+             (q (append root end)))
+        (go-to p)
+        (when (!= p q)
+          (selection-set p q)
+          (show-selection))))))
+
 (tm-define (open-global-search)
   (:interactive #t)
   (if (not (vault-active?))
