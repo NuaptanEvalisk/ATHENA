@@ -17,6 +17,7 @@
 
 #include <DockAreaWidget.h>
 #include <DockSplitter.h>
+#include <DockWidget.h>
 #include <QAbstractItemView>
 #include <QAction>
 #include <QApplication>
@@ -26,6 +27,7 @@
 #include <QFileInfo>
 #include <QFileSystemModel>
 #include <QHeaderView>
+#include <QHBoxLayout>
 #include <QIcon>
 #include <QInputDialog>
 #include <QLineEdit>
@@ -33,6 +35,7 @@
 #include <QMessageBox>
 #include <QModelIndex>
 #include <QSize>
+#include <QSizeGrip>
 #include <QStyle>
 #include <QTextStream>
 #include <QTimer>
@@ -44,7 +47,6 @@
 static QString vault_explorer_clipboard_path;
 static QTMVaultExplorer* vault_explorer_widget= nullptr;
 static ads::CDockWidget* vault_explorer_dock= nullptr;
-static ads::CDockAreaWidget* vault_explorer_area= nullptr;
 
 static bool
 vault_explorer_use_system_trash () {
@@ -70,9 +72,12 @@ vault_explorer_icon (const QString& name, QStyle::StandardPixmap fallback) {
 
 static void
 set_vault_explorer_area_width (ads::CDockManager* manager,
-                               ads::CDockAreaWidget* area) {
-  if (manager == nullptr || area == nullptr) return;
+                               ads::CDockWidget* dock) {
+  if (manager == nullptr || dock == nullptr || dock->isInFloatingContainer ())
+    return;
 
+  ads::CDockAreaWidget* area= dock->dockAreaWidget ();
+  if (area == nullptr || dock->dockContainer () == nullptr) return;
   ads::CDockSplitter* splitter= area->parentSplitter ();
   if (splitter == nullptr || splitter->orientation () != Qt::Horizontal) return;
 
@@ -107,7 +112,8 @@ set_vault_explorer_area_width (ads::CDockManager* manager,
 
 QTMVaultExplorer::QTMVaultExplorer (QWidget* parent)
   : QWidget (parent), model (new QFileSystemModel (this)),
-    tree (new QTreeView (this)) {
+    tree (new QTreeView (this)),
+    floatingSizeGrip (new QSizeGrip (this)) {
   model->setReadOnly (false);
   model->setFilter (QDir::AllDirs | QDir::Files | QDir::NoDotAndDotDot);
 
@@ -136,10 +142,17 @@ QTMVaultExplorer::QTMVaultExplorer (QWidget* parent)
     "Refresh", this, [this] () { refresh (); });
   refreshAction->setToolTip ("Refresh");
 
+  floatingSizeGrip->hide ();
+  QHBoxLayout* gripRow= new QHBoxLayout ();
+  gripRow->setContentsMargins (0, 0, 0, 0);
+  gripRow->addStretch ();
+  gripRow->addWidget (floatingSizeGrip, 0, Qt::AlignRight | Qt::AlignBottom);
+
   QVBoxLayout* layout= new QVBoxLayout (this);
   layout->setContentsMargins (0, 0, 0, 0);
   layout->addWidget (toolbar);
-  layout->addWidget (tree);
+  layout->addWidget (tree, 1);
+  layout->addLayout (gripRow);
 
   connect (tree, &QTreeView::doubleClicked,
            this, [this] (const QModelIndex& index) { loadIndex (index); });
@@ -150,6 +163,11 @@ QTMVaultExplorer::QTMVaultExplorer (QWidget* parent)
 QSize
 QTMVaultExplorer::sizeHint () const {
   return QSize (280, 600);
+}
+
+void
+QTMVaultExplorer::setFloatingResizeGripVisible (bool visible) {
+  floatingSizeGrip->setVisible (visible);
 }
 
 void
@@ -471,7 +489,6 @@ vault_show_explorer () {
     QObject::connect (vault_explorer_widget, &QObject::destroyed, [] () {
       vault_explorer_widget= nullptr;
       vault_explorer_dock= nullptr;
-      vault_explorer_area= nullptr;
     });
   }
 
@@ -489,25 +506,35 @@ vault_show_explorer () {
     vault_explorer_dock->setWidget (vault_explorer_widget);
     vault_explorer_dock->setFeature (
       ads::CDockWidget::DockWidgetDeleteOnClose, false);
+    QTMVaultExplorer* pane= vault_explorer_widget;
+    ads::CDockWidget* dock= vault_explorer_dock;
+    QObject::connect (dock, &ads::CDockWidget::topLevelChanged,
+                      pane, [pane, dock] (bool) {
+                        pane->setFloatingResizeGripVisible (
+                          dock->isInFloatingContainer ());
+                      });
     QObject::connect (vault_explorer_dock, &QObject::destroyed, [] () {
       vault_explorer_dock= nullptr;
-      vault_explorer_area= nullptr;
     });
-    vault_explorer_area= win->dockManager ()->addDockWidget (
-      ads::LeftDockWidgetArea, vault_explorer_dock);
+    win->dockManager ()->addDockWidget (ads::LeftDockWidgetArea,
+                                        vault_explorer_dock);
     win->restoreAdsLayoutState ();
-    vault_explorer_area= vault_explorer_dock->dockAreaWidget ();
   }
 
-  if (vault_explorer_area == nullptr)
-    vault_explorer_area= vault_explorer_dock->dockAreaWidget ();
+  if (vault_explorer_dock->dockAreaWidget () == nullptr ||
+      vault_explorer_dock->dockContainer () == nullptr) {
+    win->dockManager ()->addDockWidget (ads::LeftDockWidgetArea,
+                                        vault_explorer_dock);
+  }
 
   vault_explorer_dock->setWindowTitle (title);
+  vault_explorer_widget->setFloatingResizeGripVisible (
+    vault_explorer_dock->isInFloatingContainer ());
   vault_explorer_dock->show ();
   vault_explorer_dock->raise ();
-  set_vault_explorer_area_width (win->dockManager (), vault_explorer_area);
+  set_vault_explorer_area_width (win->dockManager (), vault_explorer_dock);
   QTimer::singleShot (0, win, [win] () {
-    set_vault_explorer_area_width (win->dockManager (), vault_explorer_area);
+    set_vault_explorer_area_width (win->dockManager (), vault_explorer_dock);
   });
   vault_explorer_widget->setFocus ();
 }

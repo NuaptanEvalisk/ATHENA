@@ -18,6 +18,7 @@ class QCheckBox;
 class QComboBox;
 class QLabel;
 class QPushButton;
+class QSizeGrip;
 class QTimer;
 class QTreeWidget;
 
@@ -27,6 +28,7 @@ public:
 
   QSize sizeHint () const override;
   void refresh ();
+  void setFloatingResizeGripVisible (bool visible);
 
 private:
   void rebuildCategories ();
@@ -39,6 +41,7 @@ private:
   QCheckBox*   detailsCheck;
   QPushButton* refreshButton;
   QPushButton* clearButton;
+  QSizeGrip*   floatingSizeGrip;
   QLabel*      statusLabel;
   QTreeWidget* messageTree;
   QTimer*      refreshTimer;

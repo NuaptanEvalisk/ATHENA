@@ -73,6 +73,12 @@ QTMMainTabWindow::QTMMainTabWindow() {
   mMdiArea = new QMdiArea(mStackedWidget);
   mMdiArea->setViewMode (QMdiArea::SubWindowView);
 
+  // ATHENA is primarily developed on KDE/KWin. ADS defaults to a frameless
+  // custom floating title bar there, which loses the window-manager resize
+  // border/corners. Force native floating containers so floating panes remain
+  // normally resizable by dragging their edges and corners.
+  ads::CDockManager::setConfigFlag (
+    ads::CDockManager::FloatingContainerForceNativeTitleBar, true);
   mDockManager = new ads::CDockManager(mStackedWidget);
   connect(mDockManager, &ads::CDockManager::focusedDockWidgetChanged,
           this, [this](ads::CDockWidget*, ads::CDockWidget* now) {

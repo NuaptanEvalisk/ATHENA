@@ -30,6 +30,7 @@
 #include <QPushButton>
 #include <QSet>
 #include <QSize>
+#include <QSizeGrip>
 #include <QStringList>
 #include <QTimer>
 #include <QTreeWidget>
@@ -39,11 +40,12 @@
 
 static QTMErrorMessagesPane* error_messages_widget= nullptr;
 static ads::CDockWidget* error_messages_dock= nullptr;
-static ads::CDockAreaWidget* error_messages_area= nullptr;
 
 static void
-set_error_messages_area_height (ads::CDockAreaWidget* area) {
-  if (area == nullptr) return;
+set_error_messages_area_height (ads::CDockWidget* dock) {
+  if (dock == nullptr || dock->isInFloatingContainer ()) return;
+  ads::CDockAreaWidget* area= dock->dockAreaWidget ();
+  if (area == nullptr || dock->dockContainer () == nullptr) return;
   ads::CDockSplitter* splitter= area->parentSplitter ();
   if (splitter == nullptr) return;
   QList<int> sizes= splitter->sizes ();
@@ -94,6 +96,7 @@ QTMErrorMessagesPane::QTMErrorMessagesPane (QWidget* parent)
     detailsCheck (new QCheckBox ("Details", this)),
     refreshButton (new QPushButton ("Refresh", this)),
     clearButton (new QPushButton ("Clear", this)),
+    floatingSizeGrip (new QSizeGrip (this)),
     statusLabel (new QLabel (this)),
     messageTree (new QTreeWidget (this)),
     refreshTimer (new QTimer (this)) {
@@ -126,11 +129,18 @@ QTMErrorMessagesPane::QTMErrorMessagesPane (QWidget* parent)
   controls->addWidget (refreshButton);
   controls->addWidget (clearButton);
 
+  floatingSizeGrip->hide ();
+  QHBoxLayout* gripRow= new QHBoxLayout ();
+  gripRow->setContentsMargins (0, 0, 0, 0);
+  gripRow->addWidget (statusLabel);
+  gripRow->addStretch ();
+  gripRow->addWidget (floatingSizeGrip, 0, Qt::AlignRight | Qt::AlignBottom);
+
   QVBoxLayout* layout= new QVBoxLayout (this);
   layout->setContentsMargins (8, 8, 8, 8);
   layout->addLayout (controls);
   layout->addWidget (messageTree, 1);
-  layout->addWidget (statusLabel);
+  layout->addLayout (gripRow);
 
   connect (categoryBox, QOverload<int>::of (&QComboBox::currentIndexChanged),
            this, [this] () { refresh (); });
@@ -153,6 +163,11 @@ QTMErrorMessagesPane::QTMErrorMessagesPane (QWidget* parent)
 QSize
 QTMErrorMessagesPane::sizeHint () const {
   return QSize (900, 360);
+}
+
+void
+QTMErrorMessagesPane::setFloatingResizeGripVisible (bool visible) {
+  floatingSizeGrip->setVisible (visible);
 }
 
 QString
@@ -261,7 +276,6 @@ error_messages_show () {
     QObject::connect (error_messages_widget, &QObject::destroyed, [] () {
       error_messages_widget= nullptr;
       error_messages_dock= nullptr;
-      error_messages_area= nullptr;
     });
   }
 
@@ -272,27 +286,32 @@ error_messages_show () {
     error_messages_dock->setWidget (error_messages_widget);
     error_messages_dock->setFeature (
       ads::CDockWidget::DockWidgetDeleteOnClose, false);
+    QTMErrorMessagesPane* pane= error_messages_widget;
+    ads::CDockWidget* dock= error_messages_dock;
+    QObject::connect (dock, &ads::CDockWidget::topLevelChanged,
+                      pane, [pane, dock] (bool) {
+                        pane->setFloatingResizeGripVisible (
+                          dock->isInFloatingContainer ());
+                      });
     QObject::connect (error_messages_dock, &QObject::destroyed, [] () {
       error_messages_dock= nullptr;
-      error_messages_area= nullptr;
     });
   }
 
   if (error_messages_dock->dockAreaWidget () == nullptr ||
       error_messages_dock->dockContainer () == nullptr) {
-    error_messages_area= win->dockManager ()->addDockWidget (
-      ads::BottomDockWidgetArea, error_messages_dock);
-  }
-  else {
-    error_messages_area= error_messages_dock->dockAreaWidget ();
+    win->dockManager ()->addDockWidget (ads::BottomDockWidgetArea,
+                                        error_messages_dock);
   }
 
   error_messages_widget->refresh ();
+  error_messages_widget->setFloatingResizeGripVisible (
+    error_messages_dock->isInFloatingContainer ());
   error_messages_dock->show ();
   error_messages_dock->raise ();
-  set_error_messages_area_height (error_messages_area);
+  set_error_messages_area_height (error_messages_dock);
   QTimer::singleShot (0, win, [] () {
-    set_error_messages_area_height (error_messages_area);
+    set_error_messages_area_height (error_messages_dock);
   });
   error_messages_widget->setFocus ();
 }

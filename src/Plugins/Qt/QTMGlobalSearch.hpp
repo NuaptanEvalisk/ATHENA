@@ -27,6 +27,7 @@ class QEvent;
 class QListWidget;
 class QListWidgetItem;
 class QPushButton;
+class QSizeGrip;
 class QProgressBar;
 class QSplitter;
 class QTimer;
@@ -39,6 +40,7 @@ public:
   QSize sizeHint () const override;
   bool eventFilter (QObject* watched, QEvent* event) override;
   void setPreviewZoomFactor (double zoom);
+  void setFloatingResizeGripVisible (bool visible);
 
 private:
   struct Result {
@@ -87,6 +89,7 @@ private:
   QLabel*       previewTitle;
   QPushButton*  searchButton;
   QPushButton*  cancelButton;
+  QSizeGrip*    floatingSizeGrip;
   QProgressBar* progress;
   QListWidget*  resultList;
   QSplitter*    splitter;

@@ -37,6 +37,7 @@
 #include <QProgressBar>
 #include <QPushButton>
 #include <QSize>
+#include <QSizeGrip>
 #include <QSizePolicy>
 #include <QSplitter>
 #include <QTimer>
@@ -46,7 +47,6 @@
 
 static QTMGlobalSearch* global_search_widget= nullptr;
 static ads::CDockWidget* global_search_dock= nullptr;
-static ads::CDockAreaWidget* global_search_area= nullptr;
 
 static QString
 qstring_from_tm (string s) {
@@ -54,8 +54,10 @@ qstring_from_tm (string s) {
 }
 
 static void
-set_global_search_area_height (ads::CDockAreaWidget* area) {
-  if (area == nullptr) return;
+set_global_search_area_height (ads::CDockWidget* dock) {
+  if (dock == nullptr || dock->isInFloatingContainer ()) return;
+  ads::CDockAreaWidget* area= dock->dockAreaWidget ();
+  if (area == nullptr || dock->dockContainer () == nullptr) return;
   ads::CDockSplitter* splitter= area->parentSplitter ();
   if (splitter == nullptr) return;
   QList<int> sizes= splitter->sizes ();
@@ -83,6 +85,7 @@ QTMGlobalSearch::QTMGlobalSearch (QWidget* parent)
     previewZoomFactor (1.0) {
   prompt= new QLabel ("Search the current vault", this);
   status= new QLabel (this);
+  floatingSizeGrip= new QSizeGrip (this);
 
   QWidget* query= createQueryWidget ();
   query->setMinimumHeight (88);
@@ -133,6 +136,12 @@ QTMGlobalSearch::QTMGlobalSearch (QWidget* parent)
   buttons->addWidget (cancelButton);
   buttons->addStretch ();
 
+  floatingSizeGrip->hide ();
+  QHBoxLayout* gripRow= new QHBoxLayout ();
+  gripRow->setContentsMargins (0, 0, 0, 0);
+  gripRow->addStretch ();
+  gripRow->addWidget (floatingSizeGrip, 0, Qt::AlignRight | Qt::AlignBottom);
+
   QVBoxLayout* layout= new QVBoxLayout (this);
   layout->setContentsMargins (8, 8, 8, 8);
   layout->addWidget (prompt);
@@ -141,6 +150,7 @@ QTMGlobalSearch::QTMGlobalSearch (QWidget* parent)
   layout->addWidget (progress);
   layout->addWidget (status);
   layout->addWidget (splitter, 1);
+  layout->addLayout (gripRow);
 
   connect (searchButton, &QPushButton::clicked,
            this, [this] () { startSearch (); });
@@ -176,6 +186,11 @@ QTMGlobalSearch::setPreviewZoomFactor (double zoom) {
   if (zoom >= 0.04 && zoom <= 25.0)
     previewZoomFactor= zoom;
   applyPreviewZoom ();
+}
+
+void
+QTMGlobalSearch::setFloatingResizeGripVisible (bool visible) {
+  floatingSizeGrip->setVisible (visible);
 }
 
 bool
@@ -526,7 +541,6 @@ global_search_show () {
     QObject::connect (global_search_widget, &QObject::destroyed, [] () {
       global_search_widget= nullptr;
       global_search_dock= nullptr;
-      global_search_area= nullptr;
     });
   }
   global_search_widget->setPreviewZoomFactor (
@@ -540,25 +554,32 @@ global_search_show () {
     global_search_dock->setWidget (global_search_widget);
     global_search_dock->setFeature (
       ads::CDockWidget::DockWidgetDeleteOnClose, false);
+    QTMGlobalSearch* pane= global_search_widget;
+    ads::CDockWidget* dock= global_search_dock;
+    QObject::connect (dock, &ads::CDockWidget::topLevelChanged,
+                      pane, [pane, dock] (bool) {
+                        pane->setFloatingResizeGripVisible (
+                          dock->isInFloatingContainer ());
+                      });
     QObject::connect (global_search_dock, &QObject::destroyed, [] () {
       global_search_dock= nullptr;
-      global_search_area= nullptr;
     });
   }
 
   if (global_search_dock->dockAreaWidget () == nullptr ||
       global_search_dock->dockContainer () == nullptr) {
-    global_search_area= win->dockManager ()->addDockWidget (
-      ads::BottomDockWidgetArea, global_search_dock);
+    win->dockManager ()->addDockWidget (ads::BottomDockWidgetArea,
+                                        global_search_dock);
   }
-  else global_search_area= global_search_dock->dockAreaWidget ();
 
   global_search_dock->setWindowTitle (title);
+  global_search_widget->setFloatingResizeGripVisible (
+    global_search_dock->isInFloatingContainer ());
   global_search_dock->show ();
   global_search_dock->raise ();
-  set_global_search_area_height (global_search_area);
+  set_global_search_area_height (global_search_dock);
   QTimer::singleShot (0, win, [] () {
-    set_global_search_area_height (global_search_area);
+    set_global_search_area_height (global_search_dock);
   });
   global_search_widget->setFocus ();
 }

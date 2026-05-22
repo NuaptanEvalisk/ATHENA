@@ -20,6 +20,7 @@
 class QFileSystemModel;
 class QModelIndex;
 class QPoint;
+class QSizeGrip;
 class QTreeView;
 
 class QTMVaultExplorer : public QWidget {
@@ -29,6 +30,7 @@ public:
   void setVault (const QString& rootPath, const QString& vaultName);
   void revealPath (const QString& path);
   QSize sizeHint () const override;
+  void setFloatingResizeGripVisible (bool visible);
 
 private:
   void    loadIndex (const QModelIndex& index);
@@ -52,6 +54,7 @@ private:
 
   QFileSystemModel* model;
   QTreeView*        tree;
+  QSizeGrip*        floatingSizeGrip;
   QString           rootPath;
   QString           vaultName;
 };
