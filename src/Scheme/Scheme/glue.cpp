@@ -25,6 +25,7 @@
 #include "file.hpp"
 #include "gui.hpp"
 #include "vault.hpp"
+#include "namespaces.hpp"
 #include "ATHENA/Data/vault_backup.hpp"
 #include "QTMMainTabWindow.hpp"
 #include "QTMVaultChooser.hpp"
@@ -36,6 +37,7 @@
 #include "QTMOutlinePane.hpp"
 #include "QTMErrorMessagesPane.hpp"
 #include "QTMCommandPalette.hpp"
+#include "QTMNamespaceManager.hpp"
 #include "QTMAbout.hpp"
 #include "QTMFontSelector.hpp"
 #include "ATHENA/Data/image_background.hpp"
@@ -1499,6 +1501,25 @@ tmg_native_font_selector (tmscm arg1, tmscm arg2, tmscm arg3, tmscm arg4) {
   return array_string_to_tmscm (result);
 }
 
+tmscm
+tmg_vault_load_with_ns (tmscm arg1, tmscm arg2, tmscm arg3, tmscm arg4) {
+  TMSCM_ASSERT_URL (arg1, TMSCM_ARG1, "vault-load-with-ns");
+  TMSCM_ASSERT_STRING (arg2, TMSCM_ARG2, "vault-load-with-ns");
+  TMSCM_ASSERT_STRING (arg3, TMSCM_ARG3, "vault-load-with-ns");
+  TMSCM_ASSERT_STRING (arg4, TMSCM_ARG4, "vault-load-with-ns");
+
+  vault_load (tmscm_to_url (arg1), tmscm_to_string (arg2),
+              tmscm_to_string (arg3), tmscm_to_string (arg4));
+  return TMSCM_UNSPECIFIED;
+}
+
+tmscm
+tmg_namespace_info_page (tmscm arg1) {
+  TMSCM_ASSERT_STRING (arg1, TMSCM_ARG1, "namespace-info-page");
+
+  return tree_to_tmscm (athena_namespace_info_page (tmscm_to_string (arg1)));
+}
+
 void
 initialize_glue () {
   tmscm_install_procedure ("tree?", treeP, 1, 0, 0);
@@ -1536,6 +1557,12 @@ initialize_glue () {
                            ads_restore_visible_panes, 0, 0, 0);
   tmscm_install_procedure ("vault-backup-viewer-show",
                            vault_backup_viewer_show, 0, 0, 0);
+  tmscm_install_procedure ("namespace-manager-show",
+                           namespace_manager_show, 0, 0, 0);
+  tmscm_install_procedure ("namespace-info-page",
+                           tmg_namespace_info_page, 1, 0, 0);
+  tmscm_install_procedure ("vault-load-with-ns",
+                           tmg_vault_load_with_ns, 4, 0, 0);
   tmscm_install_procedure ("image-remove-background",
                            image_remove_background_current, 1, 0, 0);
   

@@ -80,11 +80,9 @@ find_package (mimalloc REQUIRED)
 
 option (QTPIPES "use Qt pipes" ON)
 
-option (USE_SQLITE3 "Use SQLite3" ON)
-if (USE_SQLITE3)
-  find_package (SQLite3)
-  option (LINKED_SQLITE3 "Use Linked SQLite3" ON)
-endif (USE_SQLITE3)
+find_package (SQLite3 REQUIRED)
+set (USE_SQLITE3 ON CACHE BOOL "Use SQLite3" FORCE)
+set (LINKED_SQLITE3 ON CACHE BOOL "Use Linked SQLite3" FORCE)
 
 option (USE_FREETYPE "use Freetype" ON)
 if (USE_FREETYPE)
@@ -146,6 +144,13 @@ include (FindX11)
 
 find_path (RESVGQT_INCLUDE_DIR ResvgQt.h)
 find_library (RESVG_LIBRARY resvg)
+find_path (TCC_INCLUDE_DIR libtcc.h)
+find_library (TCC_LIBRARY NAMES tcc libtcc)
+if (NOT TCC_INCLUDE_DIR OR NOT TCC_LIBRARY)
+  message (FATAL_ERROR
+    "libtcc is required for ATHENA namespace sorters. "
+    "Install libtcc-devel or provide TCC_INCLUDE_DIR/TCC_LIBRARY.")
+endif ()
 
 
 ### --------------------------------------------------------------------
@@ -470,6 +475,7 @@ endif (WIN32)
 set (ATHENA_Include_Dirs ${ATHENA_Include_Dirs}
   ${Guile_INCLUDE_DIRS} ${FREETYPE_INCLUDE_DIRS} ${Cairo_INCLUDE_DIRS}
   ${IMLIB2_INCLUDE_DIR} ${GMP_INCLUDES} ${GNUTLS_INCLUDE_DIRS}
+  ${TCC_INCLUDE_DIR} ${SQLITE3_INCLUDE_DIRS}
 )
 
 ### --------------------------------------------------------------------
@@ -576,6 +582,8 @@ set (ATHENA_Libraries
   ${PNG_LIBRARIES}
   ${ZSTD_LIBRARIES}
   ${MAGICKWAND_LIBRARIES}
+  ${TCC_LIBRARY}
+  ${CMAKE_DL_LIBS}
   -lpthread
 )
 

@@ -20,6 +20,7 @@ struct vault_info {
   string name;
   url    root;
   url    db_url;
+  url    ns_db_url;
 };
 
 /* Global vault state */
@@ -30,7 +31,10 @@ extern vault_info current_vault;
 bool vault_active ();
 string vault_get_name ();
 url  vault_get_root ();
+url  vault_get_namespace_db ();
 void vault_load (url root_dir, string name, string db_rel_path);
+void vault_load (url root_dir, string name, string db_rel_path,
+                 string ns_db_rel_path);
 void vault_close ();
 
 /* CRUD for Wikilink/Transclusion Map */

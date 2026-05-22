@@ -13,6 +13,7 @@
         (athena athena tm-vault-images)
         (athena athena tm-vault-anchors)
         (athena athena tm-vault-maintenance)
+        (athena athena tm-vault-namespaces)
         (athena athena tm-vault-quick-switcher)
         (athena athena tm-vault-recents)
         (athena athena tm-vault-startup)
@@ -130,8 +131,28 @@
       (caddr data)
       ""))
 
+(define (vaultfile-namespace-db-path data)
+  (if (and (list? data) (>= (length data) 4) (string? (cadddr data)))
+      (cadddr data)
+      "ns.sqlite"))
+
+(define (vaultfile-normalized data)
+  (list (car data)
+        (cadr data)
+        (vaultfile-preferences-path data)
+        (vaultfile-namespace-db-path data)))
+
+(define (vaultfile-normalize! vault-file data)
+  (let ((normalized (vaultfile-normalized data)))
+    (when (not (equal? data normalized))
+      (save-object vault-file normalized))
+    normalized))
+
 (define (vaultfile-with-preferences data prefs-path)
-  (list (car data) (cadr data) prefs-path))
+  (list (car data)
+        (cadr data)
+        prefs-path
+        (vaultfile-namespace-db-path data)))
 
 (define (vault-preferences-url dir prefs-path)
   (url-append dir prefs-path))
@@ -271,15 +292,22 @@
 ;; Vault management
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(define (vault-load/namespace-db dir name db-path ns-path)
+  (if (defined? 'vault-load-with-ns)
+      (vault-load-with-ns dir name db-path ns-path)
+      (vault-load dir name db-path)))
+
 (tm-define (interactive-new-vault dir)
   (interactive (lambda (name)
                  (let* ((vault-file (url-append dir "Vaultfile"))
-                        (db-path "map.tmdb"))
-                   (save-object vault-file (list name db-path))
-                   (vault-load dir name db-path)
+                        (db-path "map.tmdb")
+                        (ns-path "ns.sqlite")
+                        (data (list name db-path "" ns-path)))
+                   (save-object vault-file data)
+                   (vault-load/namespace-db dir name db-path ns-path)
                    (if (vault-take-preferences?)
                        (vault-preferences-activate dir vault-file
-                                                   (list name db-path)))
+                                                   data))
                    (set-message (string-append "Created vault: " name) "Vault")))
                '("Vault name" "string")))
 
@@ -288,9 +316,11 @@
     (if (url-exists? vault-file)
         (let ((data (load-object vault-file)))
           (if (and (list? data) (>= (length data) 2))
-              (let ((take-prefs? (vault-take-preferences?)))
+              (let* ((data (vaultfile-normalize! vault-file data))
+                     (take-prefs? (vault-take-preferences?)))
                 (vault-preferences-deactivate)
-                (vault-load dir (car data) (cadr data))
+                (vault-load/namespace-db dir (car data) (cadr data)
+                                         (vaultfile-namespace-db-path data))
                 (if take-prefs?
                     (vault-preferences-activate dir vault-file data))
                 (add-recent-vault dir)

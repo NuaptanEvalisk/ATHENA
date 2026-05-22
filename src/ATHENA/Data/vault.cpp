@@ -37,6 +37,11 @@ vault_get_root () {
   return current_vault.root;
 }
 
+url
+vault_get_namespace_db () {
+  return current_vault.ns_db_url;
+}
+
 static void
 vault_refresh_window_titles () {
   array<url> bs= get_all_buffers ();
@@ -56,9 +61,16 @@ vault_refresh_window_titles () {
 
 void
 vault_load (url root_dir, string name, string db_rel_path) {
+  vault_load (root_dir, name, db_rel_path, "ns.sqlite");
+}
+
+void
+vault_load (url root_dir, string name, string db_rel_path,
+            string ns_db_rel_path) {
   current_vault.root   = root_dir;
   current_vault.name   = name;
   current_vault.db_url = root_dir * url (db_rel_path);
+  current_vault.ns_db_url = root_dir * url (ns_db_rel_path);
   
   // Ensure a previously loaded TMDB is refreshed after external conversion.
   sync_databases ();
@@ -78,6 +90,7 @@ vault_close () {
   current_vault.root = url_none ();
   current_vault.name = "";
   current_vault.db_url = url_none ();
+  current_vault.ns_db_url = url_none ();
   vault_refresh_window_titles ();
 }
 

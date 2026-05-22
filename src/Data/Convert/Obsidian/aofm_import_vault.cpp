@@ -2000,7 +2000,8 @@ write_vaultfile(const std::string& destination_root_path,
   std::string vaultfile_path = join_unix_paths(destination_root_path, "Vaultfile");
   std::ofstream vaultfile(vaultfile_path);
   if (!vaultfile.is_open()) return false;
-  vaultfile << "(" << scheme_quote_string(vault_name) << " \"map.tmdb\")\n";
+  vaultfile << "(" << scheme_quote_string(vault_name)
+            << " \"map.tmdb\" \"\" \"ns.sqlite\")\n";
   return (bool) vaultfile;
 }
 

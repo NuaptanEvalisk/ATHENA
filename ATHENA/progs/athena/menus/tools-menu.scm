@@ -14,6 +14,7 @@
 (texmacs-module (athena menus tools-menu)
   (:use (athena athena tm-tools)
         (athena athena tm-vault)
+        (athena athena tm-vault-namespaces)
         (athena tools shortcut-listing)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -38,6 +39,7 @@
   ("Command palette" (command-palette-show))
   ("Quick switcher" (open-quick-switcher))
   ("Vault Explorer" (open-vault-explorer))
+  ("Namespace Manager" (open-namespace-manager))
   ("Vault backup viewer" (open-vault-backup-viewer))
   ("Vault Bugcheck" (vault-bugcheck))
   ("Vault maintenance" (vault-maintenance))
