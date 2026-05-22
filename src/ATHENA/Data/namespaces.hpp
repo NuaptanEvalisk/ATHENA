@@ -48,6 +48,7 @@ bool athena_namespace_get (string name, athena_namespace_definition& out);
 bool athena_namespace_save (const athena_namespace_definition& ns,
                             string& error);
 bool athena_namespace_remove (string name, string& error);
+bool athena_namespace_refresh_derived (string& error);
 
 std::vector<athena_namespace_relation> athena_namespace_relations_list ();
 bool athena_namespace_relation_set (string parent, string child,

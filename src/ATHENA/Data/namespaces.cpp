@@ -31,12 +31,14 @@
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
+#include <functional>
 #include <fstream>
 #include <map>
 #include <set>
 #include <sstream>
 #include <string>
 #include <sys/stat.h>
+#include <tuple>
 #include <vector>
 
 using std::size_t;
@@ -663,6 +665,260 @@ match_stem (const athena_namespace_definition& ns, const std::string& stem,
   return true;
 }
 
+struct child_template_position {
+  size_t tok;
+  size_t off;
+};
+
+static child_template_position
+normalize_child_position (const std::vector<template_token>& child,
+                          child_template_position pos) {
+  while (pos.tok < child.size () && !child[pos.tok].field &&
+         pos.off >= child[pos.tok].literal.size ()) {
+    pos.tok++;
+    pos.off= 0;
+  }
+  return pos;
+}
+
+static bool
+field_types_compatible_for_derivation (ns_field_type parent,
+                                       ns_field_type child) {
+  return parent == child;
+}
+
+static bool
+filled_literal_satisfies_field (ns_field_type type, const std::string& s) {
+  if (s.empty ()) return false;
+  if (type == ns_string_field) return true;
+  if (type == ns_word_field) {
+    for (char c: s)
+      if (is_space_byte (c)) return false;
+    return true;
+  }
+  if (type == ns_char_field)
+    return utf8_char_len (s, 0) == s.size ();
+  if (type == ns_int_field || type == ns_pos_int_field) {
+    size_t p= 0;
+    if (type == ns_int_field && s[p] == '-') p++;
+    if (p >= s.size ()) return false;
+    for (size_t i=p; i<s.size (); i++)
+      if (!std::isdigit ((unsigned char) s[i])) return false;
+    if (type == ns_pos_int_field)
+      return std::strtoll (s.c_str (), nullptr, 10) > 0;
+    return true;
+  }
+  if (type == ns_roman_field)
+    return parse_roman_value (s) > 0;
+  return false;
+}
+
+static std::vector<size_t>
+field_fill_lengths_for_literal (ns_field_type type, const std::string& lit,
+                                size_t off) {
+  std::vector<size_t> lens;
+  if (off >= lit.size ()) return lens;
+
+  if (type == ns_char_field) {
+    size_t len= utf8_char_len (lit, off);
+    if (len != 0 && off + len <= lit.size ()) lens.push_back (len);
+    return lens;
+  }
+
+  if (type == ns_word_field) {
+    size_t end= off;
+    while (end < lit.size () && !is_space_byte (lit[end])) end++;
+    for (size_t len=end - off; len>0; len--)
+      lens.push_back (len);
+    return lens;
+  }
+
+  if (type == ns_int_field || type == ns_pos_int_field) {
+    size_t end= off;
+    if (type == ns_int_field && lit[end] == '-') end++;
+    size_t digits= end;
+    while (end < lit.size () && std::isdigit ((unsigned char) lit[end]))
+      end++;
+    for (size_t len=end - off; len>0; len--) {
+      std::string s= lit.substr (off, len);
+      if (filled_literal_satisfies_field (type, s)) lens.push_back (len);
+    }
+    return lens;
+  }
+
+  if (type == ns_roman_field) {
+    size_t end= off;
+    while (end < lit.size () && roman_value (lit[end]) != 0) end++;
+    for (size_t len=end - off; len>0; len--) {
+      std::string s= lit.substr (off, len);
+      if (filled_literal_satisfies_field (type, s)) lens.push_back (len);
+    }
+    return lens;
+  }
+
+  for (size_t len=lit.size () - off; len>0; len--)
+    lens.push_back (len);
+  return lens;
+}
+
+static bool
+consume_child_literal (const std::vector<template_token>& child,
+                       child_template_position pos, const std::string& lit,
+                       child_template_position& next) {
+  pos= normalize_child_position (child, pos);
+  size_t p= 0;
+  while (p < lit.size ()) {
+    if (pos.tok >= child.size () || child[pos.tok].field) return false;
+    const std::string& cur= child[pos.tok].literal;
+    if (pos.off >= cur.size ()) {
+      pos= normalize_child_position (child, pos);
+      continue;
+    }
+    size_t n= std::min (lit.size () - p, cur.size () - pos.off);
+    if (cur.compare (pos.off, n, lit, p, n) != 0) return false;
+    p += n;
+    pos.off += n;
+    pos= normalize_child_position (child, pos);
+  }
+  next= normalize_child_position (child, pos);
+  return true;
+}
+
+static bool
+template_derives_from_tokens (const std::vector<template_token>& child,
+                              const std::vector<template_token>& parent) {
+  using key= std::tuple<size_t, size_t, size_t, bool>;
+  std::set<key> seen;
+
+  std::function<bool(size_t, child_template_position, bool)> rec;
+  rec= [&] (size_t pi, child_template_position cpos, bool filled) -> bool {
+    cpos= normalize_child_position (child, cpos);
+    key k (pi, cpos.tok, cpos.off, filled);
+    if (seen.count (k) != 0) return false;
+    seen.insert (k);
+
+    if (pi == parent.size ()) {
+      child_template_position end= normalize_child_position (child, cpos);
+      return filled && end.tok == child.size ();
+    }
+
+    const template_token& ptok= parent[pi];
+    if (!ptok.field) {
+      child_template_position next;
+      if (!consume_child_literal (child, cpos, ptok.literal, next))
+        return false;
+      return rec (pi + 1, next, filled);
+    }
+
+    if (cpos.tok < child.size () && child[cpos.tok].field &&
+        field_types_compatible_for_derivation (ptok.type,
+                                               child[cpos.tok].type)) {
+      child_template_position next { cpos.tok + 1, 0 };
+      if (rec (pi + 1, next, filled)) return true;
+    }
+
+    if (cpos.tok < child.size () && !child[cpos.tok].field) {
+      const std::string& lit= child[cpos.tok].literal;
+      for (size_t len: field_fill_lengths_for_literal (ptok.type, lit,
+                                                       cpos.off)) {
+        std::string fill= lit.substr (cpos.off, len);
+        if (!filled_literal_satisfies_field (ptok.type, fill)) continue;
+        child_template_position next { cpos.tok, cpos.off + len };
+        if (rec (pi + 1, next, true)) return true;
+      }
+    }
+
+    return false;
+  };
+
+  return rec (0, child_template_position { 0, 0 }, false);
+}
+
+static bool
+template_derives_from (string child_template, string parent_template,
+                       bool& derives, string& error) {
+  derives= false;
+  std::vector<template_token> child;
+  std::vector<template_token> parent;
+  if (!parse_template (child_template, child, error)) return false;
+  if (!parse_template (parent_template, parent, error)) return false;
+  derives= template_derives_from_tokens (child, parent);
+  return true;
+}
+
+static bool
+namespace_has_template (const athena_namespace_definition& ns) {
+  return ns.kind != "abstract" && ns.templ != "";
+}
+
+static bool
+namespace_row_list (sqlite3* db, std::vector<athena_namespace_definition>& out,
+                    string& error) {
+  sqlite3_stmt* st= nullptr;
+  if (!prepare_sql (db,
+        "SELECT name, kind, template, sorter_trivial, sorter_path, style_path "
+        "FROM namespaces ORDER BY name;",
+        &st, error)) return false;
+
+  while (true) {
+    int status= sqlite3_step (st);
+    if (status == SQLITE_DONE) break;
+    if (status != SQLITE_ROW) {
+      set_sql_error (db, "SQLite namespace list query failed", error);
+      sqlite3_finalize (st);
+      return false;
+    }
+    athena_namespace_definition ns;
+    ns.name= column_tm_string (st, 0);
+    ns.kind= canonical_kind (column_tm_string (st, 1));
+    ns.templ= column_tm_string (st, 2);
+    ns.sorter_trivial= sqlite3_column_int (st, 3) != 0;
+    ns.sorter_path= column_tm_string (st, 4);
+    ns.style_path= column_tm_string (st, 5);
+    ns.parents= strings ();
+    ns.derived_parents= strings ();
+    out.push_back (ns);
+  }
+  sqlite3_finalize (st);
+  return true;
+}
+
+static bool
+recompute_derived_parents (sqlite3* db, string& error) {
+  std::vector<athena_namespace_definition> namespaces;
+  if (!namespace_row_list (db, namespaces, error)) return false;
+
+  if (!exec_sql (db, "DELETE FROM namespace_parents WHERE source='derived';",
+                 error))
+    return false;
+  if (!exec_sql (db, "DELETE FROM relation_decisions WHERE source='derived';",
+                 error))
+    return false;
+
+  for (const athena_namespace_definition& child: namespaces) {
+    if (!namespace_has_template (child)) continue;
+    int ord= 0;
+    for (const athena_namespace_definition& parent: namespaces) {
+      if (child.name == parent.name || !namespace_has_template (parent))
+        continue;
+      bool derives= false;
+      if (!template_derives_from (child.templ, parent.templ, derives, error))
+        return false;
+      if (!derives) continue;
+      if (!exec_prepared (db,
+            "INSERT OR REPLACE INTO namespace_parents"
+            "(child, parent, source, ord) VALUES(?, ?, 'derived', ?);",
+            { child.name, parent.name, std_to_tm (std::to_string (ord++)) },
+            error))
+        return false;
+      if (!upsert_relation_decision (db, parent.name, child.name, "allow",
+                                     "derived", error))
+        return false;
+    }
+  }
+  return true;
+}
+
 static std::string
 stem_for_file (url u) {
   std::string p= tm_to_std (concretize (u));
@@ -922,6 +1178,33 @@ error_page (const std::string& title, const std::string& message) {
 
 } // anonymous namespace
 
+bool
+athena_namespace_refresh_derived (string& error) {
+  if (!vault_active ()) {
+    error= "No active vault.";
+    return false;
+  }
+  if (!ns_db_exists ()) return true;
+
+  ns_sqlite_connection cx;
+  if (!cx.open (true, error)) return false;
+  if (!exec_sql (cx.db, "BEGIN IMMEDIATE;", error)) return false;
+
+  bool ok= recompute_derived_parents (cx.db, error);
+  if (ok) {
+    if (!exec_sql (cx.db, "COMMIT;", error)) {
+      string ignored;
+      exec_sql (cx.db, "ROLLBACK;", ignored);
+      ok= false;
+    }
+  }
+  else {
+    string ignored;
+    exec_sql (cx.db, "ROLLBACK;", ignored);
+  }
+  return ok;
+}
+
 std::vector<athena_namespace_definition>
 athena_namespaces_list () {
   std::vector<athena_namespace_definition> out;
@@ -999,7 +1282,7 @@ athena_namespace_save (const athena_namespace_definition& ns, string& error) {
         ns.sorter_path, ns.style_path },
       error) &&
     exec_prepared (cx.db,
-      "DELETE FROM namespace_parents WHERE child=?;",
+      "DELETE FROM namespace_parents WHERE child=? AND source='declared';",
       { ns.name }, error);
 
   for (int i=0; ok && i<N(ns.parents); i++)
@@ -1008,18 +1291,7 @@ athena_namespace_save (const athena_namespace_definition& ns, string& error) {
       "(child, parent, source, ord) VALUES(?, ?, 'declared', ?);",
       { ns.name, ns.parents[i], std_to_tm (std::to_string (i)) }, error);
 
-  for (int i=0; ok && i<N(ns.derived_parents); i++)
-    ok= exec_prepared (cx.db,
-      "INSERT OR REPLACE INTO namespace_parents"
-      "(child, parent, source, ord) VALUES(?, ?, 'derived', ?);",
-      { ns.name, ns.derived_parents[i], std_to_tm (std::to_string (i)) },
-      error);
-
-  for (int i=0; i<N(ns.derived_parents); i++) {
-    if (!ok) break;
-    ok= upsert_relation_decision (cx.db, ns.derived_parents[i], ns.name,
-                                  "allow", "derived", error);
-  }
+  if (ok) ok= recompute_derived_parents (cx.db, error);
 
   if (ok) {
     if (!exec_sql (cx.db, "COMMIT;", error)) {

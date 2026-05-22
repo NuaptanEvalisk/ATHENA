@@ -350,6 +350,11 @@ QTMNamespaceManager::refreshAll () {
 
 void
 QTMNamespaceManager::refreshNamespaces () {
+  string error;
+  if (!athena_namespace_refresh_derived (error) && error != "")
+    statusLabel->setText ("Derived parent refresh failed: " +
+                          to_qstring (error));
+
   QString selected= namespaceList->currentItem () == nullptr
     ? loadedName : namespaceList->currentItem ()->text ();
   namespaceList->clear ();
@@ -462,7 +467,7 @@ QTMNamespaceManager::saveNamespace () {
   ns.sorter_path= from_qstring (sorterEdit->text ().trimmed ());
   ns.style_path= from_qstring (styleEdit->text ().trimmed ());
   ns.parents= qlist_to_strings (explicitParentsList);
-  ns.derived_parents= qlist_to_strings (derivedParentsList);
+  ns.derived_parents= strings ();
 
   if (ns.name == "") {
     QMessageBox::warning (this, "Namespace Manager",
