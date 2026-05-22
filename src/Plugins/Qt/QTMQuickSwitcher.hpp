@@ -13,11 +13,14 @@
 
 #include "tree.hpp"
 #include "string.hpp"
+#include "namespaces.hpp"
 #include <QDialog>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QString>
+#include <QStringList>
+#include <QTabWidget>
 #include <QVBoxLayout>
 #include <vector>
 
@@ -45,20 +48,39 @@ private:
   };
 
   void loadFiles (array<string> recentFiles);
+  void loadNamespaces ();
   void updateList ();
+  void updateRawList ();
+  void updateStructuredList ();
   void acceptOpen ();
   void acceptCreate ();
+  void acceptStructuredOpen ();
+  void openStructuredNamespaceInfo ();
+  void descendStructuredNamespace (QListWidgetItem* item);
   void completeFromSelection ();
+  void switchTab ();
+  void moveSelection (int delta);
+  QListWidget* activeList () const;
   int  fuzzyScore (const Entry& e, const QString& query) const;
+  int  fuzzyScore (const QString& text, const QString& query) const;
   int  fuzzySubsequenceScore (const QString& text, const QString& query) const;
+  QString structuredCurrentNamespace () const;
+  QStringList structuredParentsOf (const QString& name) const;
+  QString structuredNamespaceUrl (const QStringList& path) const;
 
   QVBoxLayout* layout;
   QLabel*      prompt;
   QLineEdit*   searchEdit;
-  QListWidget* resultList;
+  QTabWidget*  tabs;
+  QListWidget* rawList;
+  QListWidget* structuredList;
 
   std::vector<Entry> entries;
   std::vector<int>   recentIndices;
+  std::vector<athena_namespace_definition> namespaces;
+  QStringList structuredPath;
+  bool        structuredParentChoice;
+  QString     structuredParentChoiceFor;
 
   QString action;
   QString result;

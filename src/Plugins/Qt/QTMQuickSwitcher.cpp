@@ -21,8 +21,25 @@
 
 static const int quick_switcher_limit= 100;
 
+namespace {
+enum QuickItemType {
+  QuickFile= 0,
+  QuickNamespace= 1,
+  QuickUp= 2
+};
+
+enum QuickRoles {
+  QuickTypeRole= Qt::UserRole,
+  QuickPayloadRole,
+  QuickCompletionRole,
+  QuickNamespacePathRole
+};
+}
+
 QTMQuickSwitcher::QTMQuickSwitcher (QWidget* parent, array<string> recentFiles)
-  : QDialog (parent), resultAccepted (false) {
+  : QDialog (parent),
+    structuredParentChoice (false),
+    resultAccepted (false) {
   setWindowTitle ("Quick switcher");
   setWindowFlags (windowFlags () | Qt::Tool);
   resize (1775, 550);
@@ -35,19 +52,29 @@ QTMQuickSwitcher::QTMQuickSwitcher (QWidget* parent, array<string> recentFiles)
   searchEdit->setPlaceholderText ("Search .ath files");
   layout->addWidget (searchEdit);
 
-  resultList = new QListWidget (this);
-  layout->addWidget (resultList);
+  tabs= new QTabWidget (this);
+  rawList= new QListWidget (this);
+  structuredList= new QListWidget (this);
+  tabs->addTab (rawList, "Raw");
+  tabs->addTab (structuredList, "Structured");
+  layout->addWidget (tabs);
 
   searchEdit->installEventFilter (this);
-  resultList->installEventFilter (this);
+  rawList->installEventFilter (this);
+  structuredList->installEventFilter (this);
 
   loadFiles (recentFiles);
+  loadNamespaces ();
   updateList ();
 
   connect (searchEdit, &QLineEdit::textChanged,
            this, [this] (const QString&) { updateList (); });
-  connect (resultList, &QListWidget::itemDoubleClicked,
+  connect (tabs, &QTabWidget::currentChanged,
+           this, [this] (int) { updateList (); });
+  connect (rawList, &QListWidget::itemDoubleClicked,
            this, [this] (QListWidgetItem*) { acceptOpen (); });
+  connect (structuredList, &QListWidget::itemDoubleClicked,
+           this, [this] (QListWidgetItem*) { acceptStructuredOpen (); });
 
   searchEdit->setFocus ();
 }
@@ -110,6 +137,13 @@ QTMQuickSwitcher::loadFiles (array<string> recentFiles) {
     recentIndices.push_back (p.second);
 }
 
+void
+QTMQuickSwitcher::loadNamespaces () {
+  string error;
+  athena_namespace_refresh_derived (error);
+  namespaces= athena_namespaces_list ();
+}
+
 int
 QTMQuickSwitcher::fuzzySubsequenceScore (const QString& text,
                                          const QString& query) const {
@@ -145,9 +179,25 @@ QTMQuickSwitcher::fuzzyScore (const Entry& e, const QString& query) const {
   return -1;
 }
 
+int
+QTMQuickSwitcher::fuzzyScore (const QString& text, const QString& query) const {
+  QString normalized= text.toLower ();
+  if (query.isEmpty ()) return 0;
+  if (normalized == query) return 100000;
+  if (normalized.startsWith (query)) return 90000 - normalized.length ();
+  if (normalized.contains (query)) return 80000 - normalized.length ();
+  return fuzzySubsequenceScore (normalized, query);
+}
+
 void
 QTMQuickSwitcher::updateList () {
-  resultList->clear ();
+  if (tabs->currentIndex () == 0) updateRawList ();
+  else updateStructuredList ();
+}
+
+void
+QTMQuickSwitcher::updateRawList () {
+  rawList->clear ();
   QString query= searchEdit->text ().trimmed ().toLower ();
 
   if (query.isEmpty ()) {
@@ -155,8 +205,10 @@ QTMQuickSwitcher::updateList () {
     int n= 0;
     for (int index : recentIndices) {
       QListWidgetItem* item= new QListWidgetItem (entries[index].relPath);
-      item->setData (Qt::UserRole, entries[index].relPath);
-      resultList->addItem (item);
+      item->setData (QuickTypeRole, QuickFile);
+      item->setData (QuickPayloadRole, entries[index].relPath);
+      item->setData (QuickCompletionRole, entries[index].relPath);
+      rawList->addItem (item);
       if (++n >= quick_switcher_limit) break;
     }
   }
@@ -172,32 +224,169 @@ QTMQuickSwitcher::updateList () {
     for (auto m : matches) {
       const Entry& e= entries[m.second];
       QListWidgetItem* item= new QListWidgetItem (e.relPath);
-      item->setData (Qt::UserRole, e.relPath);
-      resultList->addItem (item);
+      item->setData (QuickTypeRole, QuickFile);
+      item->setData (QuickPayloadRole, e.relPath);
+      item->setData (QuickCompletionRole, e.relPath);
+      rawList->addItem (item);
       if (++n >= quick_switcher_limit) break;
     }
   }
 
-  if (resultList->count () > 0) resultList->setCurrentRow (0);
+  if (rawList->count () > 0) rawList->setCurrentRow (0);
+}
+
+QString
+QTMQuickSwitcher::structuredCurrentNamespace () const {
+  return structuredPath.isEmpty () ? QString () : structuredPath.last ();
+}
+
+QStringList
+QTMQuickSwitcher::structuredParentsOf (const QString& name) const {
+  QStringList out;
+  for (const athena_namespace_definition& ns: namespaces) {
+    if (to_qstring (ns.name) != name) continue;
+    for (int i=0; i<N(ns.parents); i++) {
+      QString parent= to_qstring (ns.parents[i]);
+      if (!out.contains (parent)) out << parent;
+    }
+    for (int i=0; i<N(ns.derived_parents); i++) {
+      QString parent= to_qstring (ns.derived_parents[i]);
+      if (!out.contains (parent)) out << parent;
+    }
+    break;
+  }
+  out.sort ();
+  return out;
+}
+
+QString
+QTMQuickSwitcher::structuredNamespaceUrl (const QStringList& path) const {
+  return QString ("tmfs://ns/") + path.join ("/");
+}
+
+void
+QTMQuickSwitcher::updateStructuredList () {
+  structuredList->clear ();
+  QString query= searchEdit->text ().trimmed ().toLower ();
+  QString current= structuredCurrentNamespace ();
+
+  QStringList namespaceNames;
+  QStringList namespacePaths;
+  if (structuredParentChoice) {
+    prompt->setText (QString ("Parents of namespace %1")
+                     .arg (structuredParentChoiceFor));
+    namespaceNames= structuredParentsOf (structuredParentChoiceFor);
+    for (const QString& name: namespaceNames)
+      namespacePaths << name;
+  }
+  else if (current.isEmpty ()) {
+    prompt->setText ("Structured namespaces");
+    for (const athena_namespace_definition& ns: namespaces) {
+      QString name= to_qstring (ns.name);
+      namespaceNames << name;
+      namespacePaths << name;
+    }
+  }
+  else {
+    prompt->setText (QString ("Namespace %1").arg (structuredPath.join (" / ")));
+    for (const athena_namespace_definition& ns: namespaces) {
+      bool child= false;
+      for (int i=0; i<N(ns.parents); i++)
+        if (to_qstring (ns.parents[i]) == current) child= true;
+      for (int i=0; i<N(ns.derived_parents); i++)
+        if (to_qstring (ns.derived_parents[i]) == current) child= true;
+      if (!child) continue;
+      QString name= to_qstring (ns.name);
+      namespaceNames << name;
+      QStringList path= structuredPath;
+      path << name;
+      namespacePaths << path.join ("/");
+    }
+  }
+
+  std::vector<std::pair<int,int> > nsMatches;
+  for (int i=0; i<namespaceNames.size (); i++) {
+    int score= fuzzyScore (namespaceNames[i], query);
+    if (score >= 0) nsMatches.push_back (std::make_pair (-score, i));
+  }
+  std::sort (nsMatches.begin (), nsMatches.end (),
+             [&] (const std::pair<int,int>& a,
+                  const std::pair<int,int>& b) {
+               if (a.first != b.first) return a.first < b.first;
+               return namespaceNames[a.second] < namespaceNames[b.second];
+             });
+
+  int n= 0;
+  for (auto m: nsMatches) {
+    QString name= namespaceNames[m.second];
+    QStringList path= namespacePaths[m.second].split ("/", Qt::SkipEmptyParts);
+    QListWidgetItem* item= new QListWidgetItem (name + "/");
+    item->setData (QuickTypeRole, QuickNamespace);
+    item->setData (QuickPayloadRole, name);
+    item->setData (QuickCompletionRole, name);
+    item->setData (QuickNamespacePathRole, path);
+    structuredList->addItem (item);
+    if (++n >= quick_switcher_limit) break;
+  }
+
+  if (!structuredParentChoice && !current.isEmpty () && n < quick_switcher_limit) {
+    string error;
+    std::vector<athena_namespace_match> members=
+      athena_namespace_members (from_qstring (current), error);
+    url root= vault_get_root ();
+    for (const athena_namespace_match& m: members) {
+      url rel= delta (root * url (""), m.file);
+      QString relPath= to_qstring (as_unix_string (rel));
+      QString stem= to_qstring (m.stem);
+      int score= std::max (fuzzyScore (stem, query),
+                           fuzzyScore (relPath, query));
+      if (score < 0) continue;
+      QListWidgetItem* item= new QListWidgetItem (relPath);
+      item->setData (QuickTypeRole, QuickFile);
+      item->setData (QuickPayloadRole, relPath);
+      item->setData (QuickCompletionRole, relPath);
+      structuredList->addItem (item);
+      if (++n >= quick_switcher_limit) break;
+    }
+  }
+
+  QListWidgetItem* up= new QListWidgetItem ("..");
+  up->setData (QuickTypeRole, QuickUp);
+  up->setData (QuickPayloadRole, QString (".."));
+  up->setData (QuickCompletionRole, QString ());
+  structuredList->addItem (up);
+
+  if (structuredList->count () > 0) structuredList->setCurrentRow (0);
 }
 
 void
 QTMQuickSwitcher::acceptOpen () {
-  QListWidgetItem* item= resultList->currentItem ();
-  if (item == nullptr && resultList->count () > 0) item= resultList->item (0);
+  if (tabs->currentIndex () != 0) {
+    acceptStructuredOpen ();
+    return;
+  }
+
+  QListWidgetItem* item= rawList->currentItem ();
+  if (item == nullptr && rawList->count () > 0) item= rawList->item (0);
   if (item == nullptr) return;
 
   action= "open";
-  result= item->data (Qt::UserRole).toString ();
+  result= item->data (QuickPayloadRole).toString ();
   resultAccepted= true;
   accept ();
 }
 
 void
 QTMQuickSwitcher::acceptCreate () {
-  if (resultList->count () > 0) {
-    acceptOpen ();
-    return;
+  if (tabs->currentIndex () == 1) {
+    QListWidgetItem* item= structuredList->currentItem ();
+    if (item == nullptr && structuredList->count () > 0)
+      item= structuredList->item (0);
+    if (item != nullptr &&
+        item->data (QuickTypeRole).toInt () == QuickNamespace) {
+      openStructuredNamespaceInfo ();
+      return;
+    }
   }
 
   QString query= searchEdit->text ().trimmed ();
@@ -210,12 +399,97 @@ QTMQuickSwitcher::acceptCreate () {
 }
 
 void
-QTMQuickSwitcher::completeFromSelection () {
-  QListWidgetItem* item= resultList->currentItem ();
-  if (item == nullptr && resultList->count () > 0) item= resultList->item (0);
+QTMQuickSwitcher::acceptStructuredOpen () {
+  QListWidgetItem* item= structuredList->currentItem ();
+  if (item == nullptr && structuredList->count () > 0)
+    item= structuredList->item (0);
   if (item == nullptr) return;
 
-  QString completion= item->data (Qt::UserRole).toString ();
+  int type= item->data (QuickTypeRole).toInt ();
+  if (type == QuickFile) {
+    action= "open";
+    result= item->data (QuickPayloadRole).toString ();
+    resultAccepted= true;
+    accept ();
+    return;
+  }
+  descendStructuredNamespace (item);
+}
+
+void
+QTMQuickSwitcher::openStructuredNamespaceInfo () {
+  QListWidgetItem* item= structuredList->currentItem ();
+  if (item == nullptr && structuredList->count () > 0)
+    item= structuredList->item (0);
+  if (item == nullptr ||
+      item->data (QuickTypeRole).toInt () != QuickNamespace)
+    return;
+
+  QStringList path= item->data (QuickNamespacePathRole).toStringList ();
+  if (path.isEmpty ()) return;
+  action= "open-url";
+  result= structuredNamespaceUrl (path);
+  resultAccepted= true;
+  accept ();
+}
+
+void
+QTMQuickSwitcher::descendStructuredNamespace (QListWidgetItem* item) {
+  int type= item->data (QuickTypeRole).toInt ();
+  if (type == QuickUp) {
+    if (structuredPath.isEmpty ()) {
+      structuredParentChoice= false;
+      structuredParentChoiceFor.clear ();
+    }
+    else {
+      structuredParentChoice= true;
+      structuredParentChoiceFor= structuredPath.last ();
+    }
+    searchEdit->clear ();
+    updateStructuredList ();
+    return;
+  }
+  if (type != QuickNamespace) return;
+
+  structuredPath= item->data (QuickNamespacePathRole).toStringList ();
+  structuredParentChoice= false;
+  structuredParentChoiceFor.clear ();
+  searchEdit->clear ();
+  updateStructuredList ();
+}
+
+QListWidget*
+QTMQuickSwitcher::activeList () const {
+  return tabs->currentIndex () == 0 ? rawList : structuredList;
+}
+
+void
+QTMQuickSwitcher::switchTab () {
+  tabs->setCurrentIndex (tabs->currentIndex () == 0 ? 1 : 0);
+}
+
+void
+QTMQuickSwitcher::moveSelection (int delta) {
+  QListWidget* list= activeList ();
+  int count= list->count ();
+  if (count <= 0) return;
+
+  int row= list->currentRow ();
+  if (row < 0) row= delta > 0 ? -1 : 0;
+  row= (row + delta + count) % count;
+  list->setCurrentRow (row);
+}
+
+void
+QTMQuickSwitcher::completeFromSelection () {
+  QListWidget* list= activeList ();
+  QListWidgetItem* item= list->currentItem ();
+  if (item == nullptr && list->count () > 0) item= list->item (0);
+  if (item == nullptr) return;
+  if (item->data (QuickTypeRole).toInt () == QuickUp) return;
+
+  QString completion= item->data (QuickCompletionRole).toString ();
+  if (completion.isEmpty ()) return;
   if (completion.endsWith (".ath")) completion.chop (4);
   searchEdit->setText (completion);
   searchEdit->setCursorPosition (completion.length ());
@@ -226,8 +500,9 @@ QTMQuickSwitcher::eventFilter (QObject* watched, QEvent* event) {
   if (event->type () == QEvent::KeyPress) {
     QKeyEvent* key= static_cast<QKeyEvent*> (event);
     if (key->key () == Qt::Key_Up || key->key () == Qt::Key_Down) {
-      if (watched == searchEdit) {
-        QApplication::sendEvent (resultList, event);
+      if (watched == searchEdit || watched == rawList ||
+          watched == structuredList) {
+        moveSelection (key->key () == Qt::Key_Up ? -1 : 1);
         return true;
       }
       return false;
@@ -238,6 +513,10 @@ QTMQuickSwitcher::eventFilter (QObject* watched, QEvent* event) {
       return true;
     }
     if (key->key () == Qt::Key_Tab) {
+      if (key->modifiers () & Qt::ControlModifier) {
+        switchTab ();
+        return true;
+      }
       completeFromSelection ();
       return true;
     }

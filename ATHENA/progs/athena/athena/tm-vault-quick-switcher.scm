@@ -81,5 +81,7 @@
                   (payload (tree->string (tree-ref res 1))))
               (cond ((== action "open")
                      (load-buffer (url-append (vault-get-root) (unix->url payload))))
+                    ((== action "open-url")
+                     (load-buffer (string->url payload)))
                     ((== action "create")
                      (vault-create-and-open-ath payload))))))))
