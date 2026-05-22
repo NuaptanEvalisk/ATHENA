@@ -6,11 +6,17 @@
 
 (define-secure-symbols namespace-info-page
                        namespace-manager-show
-                       open-namespace-manager)
+                       namespace-explorer-show
+                       open-namespace-manager
+                       open-namespace-explorer)
 
 (tm-define (open-namespace-manager)
   (:interactive #t)
   (namespace-manager-show))
+
+(tm-define (open-namespace-explorer)
+  (:interactive #t)
+  (namespace-explorer-show))
 
 (tmfs-load-handler (ns name)
   (tree->stree (namespace-info-page name)))

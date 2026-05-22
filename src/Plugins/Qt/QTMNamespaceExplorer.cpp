@@ -1,0 +1,627 @@
+/******************************************************************************
+* MODULE     : QTMNamespaceExplorer.cpp
+* DESCRIPTION: Qt namespace explorer pane for ATHENA vault files
+* COPYRIGHT  : (C) 2026 Felix
+*******************************************************************************
+* This software falls under the GNU general public license version 3 or later.
+* It comes WITHOUT ANY WARRANTY WHATSOEVER. For details, see the file LICENSE
+* in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
+******************************************************************************/
+
+#include "QTMNamespaceExplorer.hpp"
+
+#include "QTMMainTabWindow.hpp"
+#include "boot.hpp"
+#include "namespaces.hpp"
+#include "qt_utilities.hpp"
+#include "scheme.hpp"
+#include "vault.hpp"
+
+#include <DockAreaWidget.h>
+#include <DockSplitter.h>
+#include <DockWidget.h>
+#include <QAbstractItemView>
+#include <QAction>
+#include <QApplication>
+#include <QDesktopServices>
+#include <QDir>
+#include <QFile>
+#include <QFileInfo>
+#include <QHeaderView>
+#include <QHBoxLayout>
+#include <QIcon>
+#include <QInputDialog>
+#include <QLineEdit>
+#include <QMenu>
+#include <QMessageBox>
+#include <QSize>
+#include <QSizeGrip>
+#include <QStyle>
+#include <QTimer>
+#include <QToolBar>
+#include <QTreeWidget>
+#include <QTreeWidgetItem>
+#include <QUrl>
+#include <QVBoxLayout>
+#include <QTextStream>
+
+#include <algorithm>
+
+static QTMNamespaceExplorer* namespace_explorer_widget= nullptr;
+static ads::CDockWidget* namespace_explorer_dock= nullptr;
+static QString namespace_explorer_clipboard_path;
+
+namespace {
+enum NamespaceExplorerItemType {
+  NamespaceItem= 0,
+  FileItem= 1,
+  PlaceholderItem= 2
+};
+
+enum NamespaceExplorerRoles {
+  TypeRole= Qt::UserRole,
+  NamespaceNameRole,
+  NamespacePathRole,
+  FilePathRole,
+  PopulatedRole
+};
+}
+
+static bool
+namespace_explorer_use_system_trash () {
+  return get_preference ("vault explorer use system trash", "off") == "on";
+}
+
+static QIcon
+namespace_explorer_icon (const QString& name, QStyle::StandardPixmap fallback) {
+  QIcon icon= QIcon::fromTheme (name);
+  if (icon.isNull ()) icon= QApplication::style ()->standardIcon (fallback);
+  return icon;
+}
+
+static QString
+namespace_explorer_relative_path (const QString& root, const QString& path) {
+  QString rel= QDir (root).relativeFilePath (path);
+  return rel == "." ? QFileInfo (path).fileName () : rel;
+}
+
+static string
+namespace_explorer_scheme_quote (const QString& s) {
+  QByteArray bytes= s.toUtf8 ();
+  std::string out= "\"";
+  for (char ch: bytes) {
+    unsigned char c= (unsigned char) ch;
+    if (c == '\\') out += "\\\\";
+    else if (c == '"') out += "\\\"";
+    else if (c == '\n') out += "\\n";
+    else if (c == '\r') out += "\\r";
+    else if (c == '\t') out += "\\t";
+    else out.push_back ((char) c);
+  }
+  out += "\"";
+  return string (out.c_str ());
+}
+
+static void
+set_namespace_explorer_area_width (ads::CDockManager* manager,
+                                   ads::CDockWidget* dock) {
+  if (manager == nullptr || dock == nullptr || dock->isInFloatingContainer ())
+    return;
+
+  ads::CDockAreaWidget* area= dock->dockAreaWidget ();
+  if (area == nullptr || dock->dockContainer () == nullptr) return;
+  ads::CDockSplitter* splitter= area->parentSplitter ();
+  if (splitter == nullptr || splitter->orientation () != Qt::Horizontal) return;
+
+  QList<int> sizes= manager->splitterSizes (area);
+  int index= splitter->indexOf (area);
+  if (index < 0 || index >= sizes.size () || sizes.size () < 2) return;
+
+  int total= 0;
+  for (int size: sizes) total += size;
+  if (total <= 0) total= splitter->width ();
+  if (total <= 0) return;
+
+  const int target= qMin (340, qMax (240, total / 3));
+  int remaining= qMax (120, total - target);
+  int otherTotal= 0;
+  for (int i=0; i<sizes.size (); i++)
+    if (i != index) otherTotal += sizes[i];
+
+  sizes[index]= target;
+  int assigned= target;
+  int lastOther= -1;
+  for (int i=0; i<sizes.size (); i++) {
+    if (i == index) continue;
+    lastOther= i;
+    sizes[i]= otherTotal > 0 ? (sizes[i] * remaining) / otherTotal
+                             : remaining / (sizes.size () - 1);
+    assigned += sizes[i];
+  }
+  if (lastOther >= 0) sizes[lastOther] += total - assigned;
+  manager->setSplitterSizes (area, sizes);
+}
+
+QTMNamespaceExplorer::QTMNamespaceExplorer (QWidget* parent)
+  : QWidget (parent),
+    tree (new QTreeWidget (this)),
+    floatingSizeGrip (new QSizeGrip (this)) {
+  tree->setColumnCount (1);
+  tree->setHeaderHidden (true);
+  tree->setContextMenuPolicy (Qt::CustomContextMenu);
+  tree->setEditTriggers (QAbstractItemView::NoEditTriggers);
+  tree->setExpandsOnDoubleClick (false);
+  tree->setSelectionMode (QAbstractItemView::SingleSelection);
+  tree->setUniformRowHeights (true);
+  tree->header ()->setSectionResizeMode (0, QHeaderView::Stretch);
+
+  QToolBar* toolbar= new QToolBar (this);
+  toolbar->setIconSize (QSize (16, 16));
+  toolbar->setToolButtonStyle (Qt::ToolButtonIconOnly);
+  QAction* refreshAction= toolbar->addAction (
+    namespace_explorer_icon ("view-refresh", QStyle::SP_BrowserReload),
+    "Refresh", this, [this] () { refresh (); });
+  refreshAction->setToolTip ("Refresh");
+
+  floatingSizeGrip->hide ();
+  QHBoxLayout* gripRow= new QHBoxLayout ();
+  gripRow->setContentsMargins (0, 0, 0, 0);
+  gripRow->addStretch ();
+  gripRow->addWidget (floatingSizeGrip, 0, Qt::AlignRight | Qt::AlignBottom);
+
+  QVBoxLayout* layout= new QVBoxLayout (this);
+  layout->setContentsMargins (0, 0, 0, 0);
+  layout->addWidget (toolbar);
+  layout->addWidget (tree, 1);
+  layout->addLayout (gripRow);
+
+  connect (tree, &QTreeWidget::itemExpanded,
+           this, [this] (QTreeWidgetItem* item) {
+             populateNamespaceItem (item);
+           });
+  connect (tree, &QTreeWidget::itemDoubleClicked,
+           this, [this] (QTreeWidgetItem* item, int) { loadItem (item); });
+  connect (tree, &QTreeWidget::customContextMenuRequested,
+           this, [this] (const QPoint& pos) { showContextMenu (pos); });
+}
+
+QSize
+QTMNamespaceExplorer::sizeHint () const {
+  return QSize (320, 600);
+}
+
+void
+QTMNamespaceExplorer::setFloatingResizeGripVisible (bool visible) {
+  floatingSizeGrip->setVisible (visible);
+}
+
+bool
+QTMNamespaceExplorer::pathInVault (const QString& path) const {
+  QString canonicalRoot= QFileInfo (rootPath).canonicalFilePath ();
+  QString canonicalPath= QFileInfo (path).canonicalFilePath ();
+  if (canonicalRoot.isEmpty ()) canonicalRoot= QDir::cleanPath (rootPath);
+  if (canonicalPath.isEmpty ()) canonicalPath= QDir::cleanPath (path);
+  canonicalRoot= QDir::cleanPath (canonicalRoot);
+  canonicalPath= QDir::cleanPath (canonicalPath);
+  return canonicalPath == canonicalRoot ||
+         canonicalPath.startsWith (canonicalRoot + QDir::separator ());
+}
+
+void
+QTMNamespaceExplorer::showError (const QString& message) const {
+  QMessageBox::warning (const_cast<QTMNamespaceExplorer*> (this),
+                        "Namespace Explorer", message);
+}
+
+void
+QTMNamespaceExplorer::refresh () {
+  rootPath= to_qstring (concretize (vault_get_root ()));
+  namespaces.clear ();
+  tree->clear ();
+
+  string error;
+  if (!athena_namespace_refresh_derived (error) && error != "")
+    showError ("Derived parent refresh failed: " + to_qstring (error));
+
+  QStringList names;
+  for (const athena_namespace_definition& ns: athena_namespaces_list ()) {
+    QString name= to_qstring (ns.name);
+    namespaces.insert (name, ns);
+    names << name;
+  }
+  names.sort ();
+
+  for (const QString& name: names)
+    addNamespaceItem (nullptr, name, QStringList () << name);
+}
+
+void
+QTMNamespaceExplorer::addNamespaceItem (QTreeWidgetItem* parent,
+                                        const QString& name,
+                                        const QStringList& path) {
+  QTreeWidgetItem* item= parent == nullptr
+    ? new QTreeWidgetItem (tree) : new QTreeWidgetItem (parent);
+  item->setText (0, name);
+  item->setIcon (0, namespace_explorer_icon ("folder", QStyle::SP_DirIcon));
+  item->setData (0, TypeRole, NamespaceItem);
+  item->setData (0, NamespaceNameRole, name);
+  item->setData (0, NamespacePathRole, path);
+  item->setData (0, PopulatedRole, false);
+  item->setChildIndicatorPolicy (QTreeWidgetItem::ShowIndicator);
+  item->setToolTip (0, "Namespace: " + name);
+}
+
+void
+QTMNamespaceExplorer::addFileItem (QTreeWidgetItem* parent,
+                                   const QString& display,
+                                   const QString& path,
+                                   const QString& tooltip) {
+  QTreeWidgetItem* item= new QTreeWidgetItem (parent);
+  item->setText (0, display);
+  item->setIcon (0, namespace_explorer_icon ("text-x-generic",
+                                             QStyle::SP_FileIcon));
+  item->setData (0, TypeRole, FileItem);
+  item->setData (0, FilePathRole, path);
+  item->setToolTip (0, tooltip);
+}
+
+void
+QTMNamespaceExplorer::populateNamespaceItem (QTreeWidgetItem* item) {
+  if (item == nullptr ||
+      item->data (0, TypeRole).toInt () != NamespaceItem ||
+      item->data (0, PopulatedRole).toBool ())
+    return;
+
+  qDeleteAll (item->takeChildren ());
+  QString name= item->data (0, NamespaceNameRole).toString ();
+  QStringList path= item->data (0, NamespacePathRole).toStringList ();
+
+  QStringList childNames;
+  for (auto it= namespaces.constBegin (); it != namespaces.constEnd (); ++it) {
+    const athena_namespace_definition& ns= it.value ();
+    bool child= false;
+    for (int i=0; i<N(ns.parents); i++)
+      if (to_qstring (ns.parents[i]) == name) child= true;
+    for (int i=0; i<N(ns.derived_parents); i++)
+      if (to_qstring (ns.derived_parents[i]) == name) child= true;
+    if (child && !path.contains (it.key ()) && !childNames.contains (it.key ()))
+      childNames << it.key ();
+  }
+  childNames.sort ();
+  for (const QString& child: childNames) {
+    QStringList childPath= path;
+    childPath << child;
+    addNamespaceItem (item, child, childPath);
+  }
+
+  string error;
+  std::vector<athena_namespace_match> members=
+    athena_namespace_members (from_qstring (name), error);
+  if (error != "") showError ("Namespace sorter warning: " + to_qstring (error));
+  for (const athena_namespace_match& m: members) {
+    QString path= to_qstring (concretize (m.file));
+    QFileInfo info (path);
+    QString display= info.fileName ();
+    if (display.isEmpty ()) display= to_qstring (m.stem) + ".ath";
+    QString tooltip= namespace_explorer_relative_path (rootPath, path);
+    addFileItem (item, display, path, tooltip);
+  }
+
+  item->setData (0, PopulatedRole, true);
+}
+
+void
+QTMNamespaceExplorer::loadItem (QTreeWidgetItem* item) {
+  if (item == nullptr) return;
+  int type= item->data (0, TypeRole).toInt ();
+  if (type == NamespaceItem) {
+    item->setExpanded (!item->isExpanded ());
+    return;
+  }
+  if (type == FileItem) openFile (item);
+}
+
+void
+QTMNamespaceExplorer::openFile (QTreeWidgetItem* item) {
+  QString path= item == nullptr ? QString () :
+    item->data (0, FilePathRole).toString ();
+  if (path.isEmpty () || !pathInVault (path) || !QFileInfo::exists (path))
+    return;
+
+  exec_delayed (scheme_cmd (list_object (symbol_object ("load-buffer"),
+                            object (url_system (from_qstring (path))))));
+}
+
+void
+QTMNamespaceExplorer::openNamespaceSummary (QTreeWidgetItem* item) {
+  if (item == nullptr || item->data (0, TypeRole).toInt () != NamespaceItem)
+    return;
+
+  QString name= item->data (0, NamespaceNameRole).toString ();
+  QString tmfs= "tmfs://ns/" + name;
+  exec_delayed (scheme_cmd ("(load-buffer (string->url " *
+                            namespace_explorer_scheme_quote (tmfs) * "))"));
+}
+
+QString
+QTMNamespaceExplorer::selectedFilePath () const {
+  QTreeWidgetItem* item= tree->currentItem ();
+  if (item == nullptr || item->data (0, TypeRole).toInt () != FileItem)
+    return QString ();
+  return item->data (0, FilePathRole).toString ();
+}
+
+QString
+QTMNamespaceExplorer::selectedDirectory () const {
+  QString path= selectedFilePath ();
+  if (path.isEmpty ()) return rootPath;
+  return QFileInfo (path).absolutePath ();
+}
+
+bool
+QTMNamespaceExplorer::writeNewFile (const QString& path) {
+  QFileInfo info (path);
+  QDir ().mkpath (info.absolutePath ());
+  QFile file (path);
+  if (!file.open (QIODevice::WriteOnly | QIODevice::NewOnly | QIODevice::Text))
+    return false;
+
+  QString suffix= info.suffix ().toLower ();
+  if (suffix == "ath" || suffix == "tm") {
+    QTextStream out (&file);
+    out << "<TeXmacs|2.1.4>\n\n"
+        << "<style|generic>\n\n"
+        << "<\\body>\n"
+        << "  \n"
+        << "</body>\n";
+  }
+  return true;
+}
+
+void
+QTMNamespaceExplorer::newFileNearSelected () {
+  QString dir= selectedDirectory ();
+  bool ok= false;
+  QString name= QInputDialog::getText (this, "New File", "File name:",
+                                       QLineEdit::Normal, "", &ok).trimmed ();
+  if (!ok || name.isEmpty ()) return;
+  if (name.contains ('/') || name.contains ('\\')) {
+    showError ("File name must not contain path separators.");
+    return;
+  }
+
+  QString path= QDir (dir).filePath (name);
+  if (!pathInVault (dir) || QFileInfo::exists (path)) {
+    showError ("Cannot create file at this location.");
+    return;
+  }
+  if (!writeNewFile (path)) showError ("Could not create file.");
+  else refresh ();
+}
+
+void
+QTMNamespaceExplorer::newFolderNearSelected () {
+  QString dir= selectedDirectory ();
+  bool ok= false;
+  QString name= QInputDialog::getText (this, "New Folder", "Folder name:",
+                                       QLineEdit::Normal, "", &ok).trimmed ();
+  if (!ok || name.isEmpty ()) return;
+  if (name.contains ('/') || name.contains ('\\')) {
+    showError ("Folder name must not contain path separators.");
+    return;
+  }
+
+  QString path= QDir (dir).filePath (name);
+  if (!pathInVault (dir) || QFileInfo::exists (path) || !QDir ().mkpath (path))
+    showError ("Could not create folder.");
+  else refresh ();
+}
+
+void
+QTMNamespaceExplorer::renameSelectedFile () {
+  QString path= selectedFilePath ();
+  if (path.isEmpty () || !pathInVault (path)) return;
+
+  QFileInfo info (path);
+  bool ok= false;
+  QString name= QInputDialog::getText (this, "Rename", "New name:",
+                                       QLineEdit::Normal, info.fileName (),
+                                       &ok).trimmed ();
+  if (!ok || name.isEmpty () || name == info.fileName ()) return;
+  if (name.contains ('/') || name.contains ('\\')) {
+    showError ("Name must not contain path separators.");
+    return;
+  }
+
+  QString target= QDir (info.absolutePath ()).filePath (name);
+  if (QFileInfo::exists (target) || !QFile::rename (path, target))
+    showError ("Could not rename file.");
+  else
+    refresh ();
+}
+
+void
+QTMNamespaceExplorer::copySelectedFile () {
+  QString path= selectedFilePath ();
+  if (!path.isEmpty () && pathInVault (path))
+    namespace_explorer_clipboard_path= path;
+}
+
+bool
+QTMNamespaceExplorer::copyRecursively (const QString& src,
+                                       const QString& dst) {
+  QFileInfo info (src);
+  if (info.isDir ()) {
+    QDir sourceDir (src);
+    if (!QDir ().mkpath (dst)) return false;
+    QFileInfoList entries= sourceDir.entryInfoList (
+      QDir::AllEntries | QDir::NoDotAndDotDot, QDir::DirsFirst | QDir::Name);
+    for (const QFileInfo& entry: entries) {
+      QString childDst= QDir (dst).filePath (entry.fileName ());
+      if (!copyRecursively (entry.absoluteFilePath (), childDst)) return false;
+    }
+    return true;
+  }
+  return QFile::copy (src, dst);
+}
+
+void
+QTMNamespaceExplorer::pasteNearSelected () {
+  if (namespace_explorer_clipboard_path.isEmpty () ||
+      !QFileInfo::exists (namespace_explorer_clipboard_path))
+    return;
+
+  QString dir= selectedDirectory ();
+  QFileInfo source (namespace_explorer_clipboard_path);
+  QString target= QDir (dir).filePath (source.fileName ());
+  QString cleanSource= QDir::cleanPath (source.absoluteFilePath ());
+  QString cleanTarget= QDir::cleanPath (target);
+  if (!pathInVault (dir) || QFileInfo::exists (target)) {
+    showError ("Cannot paste item at this location.");
+    return;
+  }
+  if (source.isDir () &&
+      cleanTarget.startsWith (cleanSource + QDir::separator ())) {
+    showError ("Cannot paste a folder inside itself.");
+    return;
+  }
+  if (!copyRecursively (namespace_explorer_clipboard_path, target))
+    showError ("Could not paste item.");
+  else refresh ();
+}
+
+void
+QTMNamespaceExplorer::deleteSelectedFile () {
+  QString path= selectedFilePath ();
+  if (path.isEmpty () || !pathInVault (path)) return;
+
+  QFileInfo info (path);
+  bool useTrash= namespace_explorer_use_system_trash ();
+  QString action= useTrash ? "Move to Trash" : "Delete";
+  QString text= action + " '" + info.fileName () + "'?";
+  if (QMessageBox::question (this, "Delete", text,
+                             QMessageBox::Yes | QMessageBox::No) !=
+      QMessageBox::Yes)
+    return;
+
+  bool ok= false;
+  if (useTrash) {
+#if QT_VERSION >= QT_VERSION_CHECK(5, 15, 0)
+    ok= QFile::moveToTrash (path);
+#else
+    showError ("System trash requires Qt 5.15 or newer.");
+    return;
+#endif
+  }
+  else ok= QFile::remove (path);
+
+  if (!ok) showError ("Could not delete file.");
+  else refresh ();
+}
+
+void
+QTMNamespaceExplorer::openSelectedFileInFileManager () {
+  QString path= selectedFilePath ();
+  if (path.isEmpty () || !pathInVault (path)) return;
+  QDesktopServices::openUrl (QUrl::fromLocalFile (QFileInfo (path).absolutePath ()));
+}
+
+void
+QTMNamespaceExplorer::showContextMenu (const QPoint& pos) {
+  QTreeWidgetItem* item= tree->itemAt (pos);
+  if (item != nullptr) tree->setCurrentItem (item);
+  if (item == nullptr) return;
+
+  int type= item->data (0, TypeRole).toInt ();
+  QMenu menu (this);
+  if (type == NamespaceItem) {
+    menu.addAction ("Open summary", this,
+                    [this, item] () { openNamespaceSummary (item); });
+  }
+  else if (type == FileItem) {
+    menu.addAction ("Load file", this, [this, item] () { openFile (item); });
+    menu.addSeparator ();
+    menu.addAction ("New file", this, [this] () { newFileNearSelected (); });
+    menu.addAction ("New folder", this, [this] () { newFolderNearSelected (); });
+    menu.addSeparator ();
+    menu.addAction ("Rename", this, [this] () { renameSelectedFile (); });
+    menu.addAction ("Copy", this, [this] () { copySelectedFile (); });
+    menu.addAction ("Paste", this, [this] () { pasteNearSelected (); })
+        ->setEnabled (!namespace_explorer_clipboard_path.isEmpty ());
+    menu.addAction ("Delete", this, [this] () { deleteSelectedFile (); });
+    menu.addSeparator ();
+    menu.addAction ("Open in system file manager", this,
+                    [this] () { openSelectedFileInFileManager (); });
+    menu.addAction ("Refresh", this, [this] () { refresh (); });
+  }
+  if (!menu.actions ().isEmpty ())
+    menu.exec (tree->viewport ()->mapToGlobal (pos));
+}
+
+void
+namespace_explorer_show () {
+  if (!vault_active ()) {
+    QMessageBox::warning (QApplication::activeWindow (), "Namespace Explorer",
+                          "No active vault. Please load a vault first.");
+    return;
+  }
+
+  QTMMainTabWindow* win= QTMMainTabWindow::topTabWindow ();
+  if (win == nullptr || win->dockManager () == nullptr) {
+    QMessageBox::warning (QApplication::activeWindow (), "Namespace Explorer",
+                          "No active ATHENA window.");
+    return;
+  }
+
+  if (namespace_explorer_widget == nullptr) {
+    namespace_explorer_widget= new QTMNamespaceExplorer ();
+    namespace_explorer_widget->resize (320, 600);
+    QObject::connect (namespace_explorer_widget, &QObject::destroyed, [] () {
+      namespace_explorer_widget= nullptr;
+      namespace_explorer_dock= nullptr;
+    });
+  }
+  namespace_explorer_widget->refresh ();
+
+  QString title= QString ("Namespace Explorer - ") + to_qstring (vault_get_name ());
+  if (namespace_explorer_dock == nullptr) {
+    namespace_explorer_dock= new ads::CDockWidget (title);
+    namespace_explorer_dock->setObjectName ("athena-namespace-explorer");
+    namespace_explorer_dock->resize (340, 600);
+    namespace_explorer_dock->setWidget (namespace_explorer_widget);
+    namespace_explorer_dock->setFeature (
+      ads::CDockWidget::DockWidgetDeleteOnClose, false);
+    QTMNamespaceExplorer* pane= namespace_explorer_widget;
+    ads::CDockWidget* dock= namespace_explorer_dock;
+    QObject::connect (dock, &ads::CDockWidget::topLevelChanged,
+                      pane, [pane, dock] (bool) {
+                        pane->setFloatingResizeGripVisible (
+                          dock->isInFloatingContainer ());
+                      });
+    QObject::connect (namespace_explorer_dock, &QObject::destroyed, [] () {
+      namespace_explorer_dock= nullptr;
+    });
+    win->dockManager ()->addDockWidget (ads::LeftDockWidgetArea,
+                                        namespace_explorer_dock);
+    win->restoreAdsLayoutState ();
+  }
+
+  if (namespace_explorer_dock->dockAreaWidget () == nullptr ||
+      namespace_explorer_dock->dockContainer () == nullptr) {
+    win->dockManager ()->addDockWidget (ads::LeftDockWidgetArea,
+                                        namespace_explorer_dock);
+  }
+
+  namespace_explorer_dock->setWindowTitle (title);
+  namespace_explorer_widget->setFloatingResizeGripVisible (
+    namespace_explorer_dock->isInFloatingContainer ());
+  namespace_explorer_dock->show ();
+  namespace_explorer_dock->raise ();
+  set_namespace_explorer_area_width (win->dockManager (),
+                                     namespace_explorer_dock);
+  QTimer::singleShot (0, win, [win] () {
+    set_namespace_explorer_area_width (win->dockManager (),
+                                       namespace_explorer_dock);
+  });
+  namespace_explorer_widget->setFocus ();
+}

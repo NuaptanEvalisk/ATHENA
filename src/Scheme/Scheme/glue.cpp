@@ -38,6 +38,7 @@
 #include "QTMErrorMessagesPane.hpp"
 #include "QTMCommandPalette.hpp"
 #include "QTMNamespaceManager.hpp"
+#include "QTMNamespaceExplorer.hpp"
 #include "QTMAbout.hpp"
 #include "QTMFontSelector.hpp"
 #include "ATHENA/Data/image_background.hpp"
@@ -1559,6 +1560,8 @@ initialize_glue () {
                            vault_backup_viewer_show, 0, 0, 0);
   tmscm_install_procedure ("namespace-manager-show",
                            namespace_manager_show, 0, 0, 0);
+  tmscm_install_procedure ("namespace-explorer-show",
+                           namespace_explorer_show, 0, 0, 0);
   tmscm_install_procedure ("namespace-info-page",
                            tmg_namespace_info_page, 1, 0, 0);
   tmscm_install_procedure ("vault-load-with-ns",

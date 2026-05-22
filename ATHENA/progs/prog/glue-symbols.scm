@@ -792,6 +792,7 @@
 "vault-quick-switcher"
 "vault-show-explorer"
 "vault-explorer-track-file"
+"namespace-explorer-show"
 "global-search-show"
 "outline-pane-show"
 "error-messages-show"
