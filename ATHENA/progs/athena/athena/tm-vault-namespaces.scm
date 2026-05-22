@@ -13,4 +13,4 @@
   (namespace-manager-show))
 
 (tmfs-load-handler (ns name)
-  (namespace-info-page name))
+  (tree->stree (namespace-info-page name)))

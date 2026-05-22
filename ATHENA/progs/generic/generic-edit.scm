@@ -366,6 +366,7 @@
     (cond ((or (string-starts? s "http://")
                (string-starts? s "https://"))
            "Web")
+          ((string-starts? s "tmfs://") "TMFS")
           ((string-ends? s "/") "Folder")
           ((string-ends? s ".pdf") "PDF")
           ((cardlink-has-extension? s '("png" "jpg" "jpeg" "gif" "svg" "webp"))
@@ -382,6 +383,14 @@
                                          "odp" "xls" "xlsx" "ods"))
            "Office")
           (else "File"))))
+
+(define (cardlink-type-display-name type)
+  (cond ((== type "TMFS") "TMFS Link")
+        (else (string-append type " Document"))))
+
+(define (cardlink-type-default-link-name type)
+  (cond ((== type "TMFS") "TMFS link")
+        (else (string-append type " document"))))
 
 (define (cardlink-icon destination type)
   (let ((icon (system-icon-for-link (cardlink-destination-string destination)
@@ -400,11 +409,11 @@
 
 (define (cardlink-display-body body destination)
   (if (cardlink-empty-body? body)
-      (string-append (cardlink-type destination) " Document")
+      (cardlink-type-display-name (cardlink-type destination))
       body))
 
 (define (cardlink-default-link-body destination)
-  (string-append (cardlink-type destination) " document"))
+  (cardlink-type-default-link-name (cardlink-type destination)))
 
 (tm-define (ext-cardlink-render body destination)
   (:secure #t)
@@ -416,8 +425,10 @@
            "ornament-color" "#f8f8f8"
            "ornament-hpadding" "1spc"
            "ornament-vpadding" "0.75spc"
-       (ornament
-         (concat ,icon "  " ,display)))))
+       (resize
+         (ornament
+           (concat ,icon "  " ,display))
+         "" "" "" ""))))
 
 (tm-define (display-link-as-card t)
   (tree-set! t `(cardlink ,(tree-ref t 0) ,(tree-ref t 1))))
