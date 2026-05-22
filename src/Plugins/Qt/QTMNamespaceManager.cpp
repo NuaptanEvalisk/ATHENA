@@ -16,11 +16,14 @@
 #include "vault.hpp"
 
 #include <DockWidget.h>
+#include <KIOFileWidgets/KFileCustomDialog>
+#include <KIOFileWidgets/KFileWidget>
 #include <QAbstractItemView>
 #include <QAction>
 #include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QDir>
 #include <QFileInfo>
 #include <QFormLayout>
 #include <QHeaderView>
@@ -36,34 +39,99 @@
 #include <QToolBar>
 #include <QTreeWidget>
 #include <QTreeWidgetItem>
+#include <QUrl>
 #include <QVBoxLayout>
 
 static QTMNamespaceManager* namespace_manager_widget= nullptr;
 static ads::CDockWidget* namespace_manager_dock= nullptr;
-
-static strings
-qline_to_strings (QLineEdit* edit) {
-  strings out;
-  QStringList parts= edit->text ().split (',', Qt::SkipEmptyParts);
-  for (QString part: parts) {
-    QString item= part.trimmed ();
-    if (!item.isEmpty ()) out << from_qstring (item);
-  }
-  return out;
-}
-
-static QString
-strings_to_qline (const strings& xs) {
-  QStringList parts;
-  for (int i=0; i<N(xs); i++) parts << to_qstring (xs[i]);
-  return parts.join (", ");
-}
 
 static QIcon
 namespace_icon (const QString& name, QStyle::StandardPixmap fallback) {
   QIcon icon= QIcon::fromTheme (name);
   if (icon.isNull ()) icon= QApplication::style ()->standardIcon (fallback);
   return icon;
+}
+
+static strings
+qlist_to_strings (QListWidget* list) {
+  strings out;
+  for (int i=0; i<list->count (); i++)
+    out << from_qstring (list->item (i)->text ());
+  return out;
+}
+
+static void
+set_qlist_strings (QListWidget* list, const strings& xs) {
+  list->clear ();
+  for (int i=0; i<N(xs); i++) list->addItem (to_qstring (xs[i]));
+}
+
+static bool
+qlist_contains (QListWidget* list, const QString& text) {
+  return !list->findItems (text, Qt::MatchExactly).isEmpty ();
+}
+
+static QString
+namespace_selected_local_file (KFileWidget* file_widget) {
+  QString selected= file_widget->selectedFile ();
+  if (!selected.isEmpty ()) return selected;
+  QUrl selected_url= file_widget->selectedUrl ();
+  return selected_url.isLocalFile () ? selected_url.toLocalFile () : QString ();
+}
+
+static QString
+namespace_vault_root_path () {
+  return QFileInfo (to_qstring (concretize (vault_get_root ())))
+    .absoluteFilePath ();
+}
+
+static QString
+namespace_existing_path_for_edit (QLineEdit* edit) {
+  QString text= edit->text ().trimmed ();
+  QString root= namespace_vault_root_path ();
+  if (text.isEmpty ()) return root;
+  QFileInfo info (text);
+  if (info.isAbsolute ()) return info.absoluteFilePath ();
+  return QDir (root).absoluteFilePath (text);
+}
+
+static QString
+namespace_relative_path_if_possible (const QString& path) {
+  QString root= namespace_vault_root_path ();
+  QString rel= QDir (root).relativeFilePath (path);
+  if (rel == "." || rel.startsWith ("../") || rel == ".." ||
+      QDir::isAbsolutePath (rel))
+    return path;
+  return rel;
+}
+
+static QString
+namespace_choose_file (QWidget* parent, QLineEdit* edit,
+                       const QString& title, const QString& filter) {
+  QString start_path= namespace_existing_path_for_edit (edit);
+  QFileInfo start_info (start_path);
+  if (!start_info.exists ()) start_path= start_info.absolutePath ();
+
+  KFileCustomDialog dialog (QUrl::fromLocalFile (start_path), parent);
+  dialog.setWindowTitle (title);
+  dialog.setOperationMode (KFileWidget::Opening);
+
+  KFileWidget* file_widget= dialog.fileWidget ();
+  file_widget->setMode (KFile::File | KFile::ExistingOnly | KFile::LocalOnly);
+  if (!filter.isEmpty ()) file_widget->setFilter (filter);
+
+  QRect r;
+  QSize dialog_size= dialog.sizeHint ();
+  if (dialog_size.width () > 860) dialog_size.setWidth (860);
+  r.setSize (dialog_size);
+  QWidget* anchor= parent == nullptr ? QApplication::activeWindow () : parent;
+  if (anchor != nullptr) r.moveCenter (anchor->geometry ().center ());
+  dialog.setGeometry (r);
+
+  if (dialog.exec () != QDialog::Accepted) return QString ();
+  QString selected= namespace_selected_local_file (file_widget);
+  return selected.isEmpty () ? QString () :
+    namespace_relative_path_if_possible (selected);
 }
 
 QTMNamespaceManager::QTMNamespaceManager (QWidget* parent)
@@ -74,9 +142,11 @@ QTMNamespaceManager::QTMNamespaceManager (QWidget* parent)
     templateEdit (new QLineEdit (this)),
     trivialSorterCheck (new QCheckBox ("Use trivial sorting algorithm", this)),
     sorterEdit (new QLineEdit (this)),
+    sorterBrowseButton (new QPushButton ("Browse...", this)),
     styleEdit (new QLineEdit (this)),
-    parentsEdit (new QLineEdit (this)),
-    derivedParentsEdit (new QLineEdit (this)),
+    explicitParentsList (new QListWidget (this)),
+    explicitParentCombo (new QComboBox (this)),
+    derivedParentsList (new QListWidget (this)),
     saveNamespaceAction (nullptr),
     deleteNamespaceAction (nullptr),
     modeLabel (new QLabel (this)),
@@ -92,6 +162,14 @@ QTMNamespaceManager::QTMNamespaceManager (QWidget* parent)
 
   namespaceList->setSelectionMode (QAbstractItemView::SingleSelection);
   namespaceList->setUniformItemSizes (true);
+  explicitParentsList->setSelectionMode (QAbstractItemView::ExtendedSelection);
+  explicitParentsList->setUniformItemSizes (true);
+  explicitParentsList->setMinimumHeight (84);
+  explicitParentCombo->setEditable (true);
+  derivedParentsList->setSelectionMode (QAbstractItemView::NoSelection);
+  derivedParentsList->setUniformItemSizes (true);
+  derivedParentsList->setMinimumHeight (72);
+  derivedParentsList->setFocusPolicy (Qt::NoFocus);
 
   membersTree->setColumnCount (4);
   membersTree->setHeaderLabels (QStringList () << "File" << "Captures"
@@ -144,12 +222,38 @@ QTMNamespaceManager::QTMNamespaceManager (QWidget* parent)
   QVBoxLayout* sorterLayout= new QVBoxLayout (sorterWidget);
   sorterLayout->setContentsMargins (0, 0, 0, 0);
   sorterLayout->setSpacing (4);
-  sorterLayout->addWidget (sorterEdit);
+  QHBoxLayout* sorterPathLayout= new QHBoxLayout ();
+  sorterPathLayout->setContentsMargins (0, 0, 0, 0);
+  sorterPathLayout->setSpacing (4);
+  sorterPathLayout->addWidget (sorterEdit, 1);
+  sorterPathLayout->addWidget (sorterBrowseButton);
+  sorterLayout->addLayout (sorterPathLayout);
   sorterLayout->addWidget (trivialSorterCheck);
   form->addRow ("Sorter .c path", sorterWidget);
-  form->addRow ("Style path", styleEdit);
-  form->addRow ("Parents", parentsEdit);
-  form->addRow ("Derived parents", derivedParentsEdit);
+  QWidget* styleWidget= new QWidget (this);
+  QHBoxLayout* styleLayout= new QHBoxLayout (styleWidget);
+  styleLayout->setContentsMargins (0, 0, 0, 0);
+  styleLayout->setSpacing (4);
+  QPushButton* styleBrowse= new QPushButton ("Browse...", this);
+  styleLayout->addWidget (styleEdit, 1);
+  styleLayout->addWidget (styleBrowse);
+  form->addRow ("Style path", styleWidget);
+  QWidget* explicitParentsWidget= new QWidget (this);
+  QVBoxLayout* explicitParentsLayout= new QVBoxLayout (explicitParentsWidget);
+  explicitParentsLayout->setContentsMargins (0, 0, 0, 0);
+  explicitParentsLayout->setSpacing (4);
+  explicitParentsLayout->addWidget (explicitParentsList);
+  QHBoxLayout* explicitParentControls= new QHBoxLayout ();
+  explicitParentControls->setContentsMargins (0, 0, 0, 0);
+  explicitParentControls->setSpacing (4);
+  QPushButton* addParent= new QPushButton ("Add", this);
+  QPushButton* removeParent= new QPushButton ("Remove selected", this);
+  explicitParentControls->addWidget (explicitParentCombo, 1);
+  explicitParentControls->addWidget (addParent);
+  explicitParentControls->addWidget (removeParent);
+  explicitParentsLayout->addLayout (explicitParentControls);
+  form->addRow ("Explicit parents", explicitParentsWidget);
+  form->addRow ("Derived parents", derivedParentsList);
 
   QHBoxLayout* relationEditLayout= new QHBoxLayout ();
   relationEditLayout->addWidget (new QLabel ("Parent", this));
@@ -212,9 +316,20 @@ QTMNamespaceManager::QTMNamespaceManager (QWidget* parent)
            [this] () { setSelectedRelationDecision ("deny"); });
   connect (delRel, &QPushButton::clicked, this,
            [this] () { deleteSelectedRelation (); });
+  connect (sorterBrowseButton, &QPushButton::clicked, this,
+           [this] () { chooseSorterPath (); });
+  connect (styleBrowse, &QPushButton::clicked, this,
+           [this] () { chooseStylePath (); });
+  connect (addParent, &QPushButton::clicked, this,
+           [this] () { addExplicitParent (); });
+  connect (removeParent, &QPushButton::clicked, this,
+           [this] () { removeSelectedExplicitParents (); });
+  connect (explicitParentCombo->lineEdit (), &QLineEdit::returnPressed, this,
+           [this] () { addExplicitParent (); });
   connect (trivialSorterCheck, &QCheckBox::toggled, this,
            [this] (bool on) {
              sorterEdit->setEnabled (!on);
+             sorterBrowseButton->setEnabled (!on);
              sorterEdit->setPlaceholderText (
                on ? "Built-in sorter returns 0 for every comparison" : "");
            });
@@ -238,8 +353,14 @@ QTMNamespaceManager::refreshNamespaces () {
   QString selected= namespaceList->currentItem () == nullptr
     ? loadedName : namespaceList->currentItem ()->text ();
   namespaceList->clear ();
-  for (const athena_namespace_definition& ns: athena_namespaces_list ())
+  QString comboSelected= explicitParentCombo->currentText ();
+  explicitParentCombo->clear ();
+  for (const athena_namespace_definition& ns: athena_namespaces_list ()) {
+    QString name= to_qstring (ns.name);
     namespaceList->addItem (to_qstring (ns.name));
+    explicitParentCombo->addItem (name);
+  }
+  explicitParentCombo->setCurrentText (comboSelected);
 
   QList<QListWidgetItem*> matches=
     namespaceList->findItems (selected, Qt::MatchExactly);
@@ -302,9 +423,10 @@ QTMNamespaceManager::loadNamespace (QListWidgetItem* item) {
   trivialSorterCheck->setChecked (ns.sorter_trivial);
   sorterEdit->setText (to_qstring (ns.sorter_path));
   sorterEdit->setEnabled (!ns.sorter_trivial);
+  sorterBrowseButton->setEnabled (!ns.sorter_trivial);
   styleEdit->setText (to_qstring (ns.style_path));
-  parentsEdit->setText (strings_to_qline (ns.parents));
-  derivedParentsEdit->setText (strings_to_qline (ns.derived_parents));
+  set_qlist_strings (explicitParentsList, ns.parents);
+  set_qlist_strings (derivedParentsList, ns.derived_parents);
   updateModeUi ();
   refreshMembers ();
 }
@@ -319,9 +441,10 @@ QTMNamespaceManager::newNamespace () {
   trivialSorterCheck->setChecked (false);
   sorterEdit->clear ();
   sorterEdit->setEnabled (true);
+  sorterBrowseButton->setEnabled (true);
   styleEdit->clear ();
-  parentsEdit->clear ();
-  derivedParentsEdit->clear ();
+  explicitParentsList->clear ();
+  derivedParentsList->clear ();
   membersTree->clear ();
   statusLabel->setText ("Fill the form, then click Create namespace.");
   updateModeUi ();
@@ -338,8 +461,8 @@ QTMNamespaceManager::saveNamespace () {
   ns.sorter_trivial= trivialSorterCheck->isChecked ();
   ns.sorter_path= from_qstring (sorterEdit->text ().trimmed ());
   ns.style_path= from_qstring (styleEdit->text ().trimmed ());
-  ns.parents= qline_to_strings (parentsEdit);
-  ns.derived_parents= qline_to_strings (derivedParentsEdit);
+  ns.parents= qlist_to_strings (explicitParentsList);
+  ns.derived_parents= qlist_to_strings (derivedParentsList);
 
   if (ns.name == "") {
     QMessageBox::warning (this, "Namespace Manager",
@@ -429,6 +552,40 @@ QTMNamespaceManager::updateModeUi () {
       "Update the selected namespace using the current form fields");
   }
   deleteNamespaceAction->setEnabled (!creating);
+}
+
+void
+QTMNamespaceManager::chooseSorterPath () {
+  QString selected= namespace_choose_file (
+    this, sorterEdit, "Choose Namespace Sorter", "*.c|C source files");
+  if (!selected.isEmpty ()) sorterEdit->setText (selected);
+}
+
+void
+QTMNamespaceManager::chooseStylePath () {
+  QString selected= namespace_choose_file (
+    this, styleEdit, "Choose Namespace Style", "*.ts *.scm|ATHENA style files");
+  if (!selected.isEmpty ()) styleEdit->setText (selected);
+}
+
+void
+QTMNamespaceManager::addExplicitParent () {
+  QString parent= explicitParentCombo->currentText ().trimmed ();
+  if (parent.isEmpty ()) return;
+  if (parent == nameEdit->text ().trimmed ()) {
+    QMessageBox::warning (this, "Namespace Manager",
+                          "A namespace cannot be its own parent.");
+    return;
+  }
+  if (qlist_contains (explicitParentsList, parent)) return;
+  explicitParentsList->addItem (parent);
+}
+
+void
+QTMNamespaceManager::removeSelectedExplicitParents () {
+  QList<QListWidgetItem*> items= explicitParentsList->selectedItems ();
+  for (QListWidgetItem* item: items)
+    delete explicitParentsList->takeItem (explicitParentsList->row (item));
 }
 
 void

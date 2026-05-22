@@ -22,6 +22,7 @@ class QLineEdit;
 class QListWidget;
 class QListWidgetItem;
 class QAction;
+class QPushButton;
 class QTreeWidget;
 class QTreeWidgetItem;
 
@@ -41,6 +42,10 @@ private:
   void saveNamespace ();
   void deleteNamespace ();
   void updateModeUi ();
+  void chooseSorterPath ();
+  void chooseStylePath ();
+  void addExplicitParent ();
+  void removeSelectedExplicitParents ();
   void saveRelation ();
   void deleteSelectedRelation ();
   void setSelectedRelationDecision (const QString& decision);
@@ -52,9 +57,11 @@ private:
   QLineEdit*   templateEdit;
   QCheckBox*   trivialSorterCheck;
   QLineEdit*   sorterEdit;
+  QPushButton* sorterBrowseButton;
   QLineEdit*   styleEdit;
-  QLineEdit*   parentsEdit;
-  QLineEdit*   derivedParentsEdit;
+  QListWidget* explicitParentsList;
+  QComboBox*   explicitParentCombo;
+  QListWidget* derivedParentsList;
   QAction*     saveNamespaceAction;
   QAction*     deleteNamespaceAction;
   QLabel*      modeLabel;
