@@ -13,6 +13,7 @@
 #include "QTMMainTabWindow.hpp"
 #include "namespaces.hpp"
 #include "qt_utilities.hpp"
+#include "scheme.hpp"
 #include "vault.hpp"
 
 #include <DockWidget.h>
@@ -23,6 +24,8 @@
 #include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QDialog>
+#include <QDialogButtonBox>
 #include <QDir>
 #include <QFileInfo>
 #include <QFormLayout>
@@ -33,6 +36,7 @@
 #include <QListWidget>
 #include <QListWidgetItem>
 #include <QMessageBox>
+#include <QPlainTextEdit>
 #include <QPushButton>
 #include <QSplitter>
 #include <QStyle>
@@ -134,6 +138,156 @@ namespace_choose_file (QWidget* parent, QLineEdit* edit,
     namespace_relative_path_if_possible (selected);
 }
 
+static bool
+namespace_at_least_semi_concrete (const athena_namespace_definition& ns) {
+  return ns.kind != "abstract" && ns.templ != "" &&
+         (ns.sorter_trivial || ns.sorter_path != "");
+}
+
+static QStringList
+namespace_lines (const QString& text) {
+  QStringList out;
+  for (const QString& line: text.split ('\n')) {
+    QString trimmed= line.trimmed ();
+    if (!trimmed.isEmpty () && !out.contains (trimmed)) out << trimmed;
+  }
+  return out;
+}
+
+static bool
+namespace_confirm_sorter_compatibility (
+  QWidget* parent, const athena_namespace_definition& first,
+  const athena_namespace_definition& second) {
+  string error;
+  string first_source, second_source;
+  if (!athena_namespace_sorter_source (first, first_source, error)) {
+    QMessageBox::warning (parent, "Generate Sub-products", to_qstring (error));
+    return false;
+  }
+  if (!athena_namespace_sorter_source (second, second_source, error)) {
+    QMessageBox::warning (parent, "Generate Sub-products", to_qstring (error));
+    return false;
+  }
+
+  QDialog dialog (parent);
+  dialog.setWindowTitle ("Confirm Sorter Compatibility");
+  QVBoxLayout* layout= new QVBoxLayout (&dialog);
+  QLabel* label= new QLabel (
+    "Confirm that these two namespace sorting algorithms are compatible.",
+    &dialog);
+  label->setWordWrap (true);
+  layout->addWidget (label);
+
+  QHBoxLayout* sources= new QHBoxLayout ();
+  auto add_source= [&] (const QString& title, const QString& source) {
+    QWidget* pane= new QWidget (&dialog);
+    QVBoxLayout* pane_layout= new QVBoxLayout (pane);
+    pane_layout->setContentsMargins (0, 0, 0, 0);
+    pane_layout->addWidget (new QLabel (title, pane));
+    QPlainTextEdit* edit= new QPlainTextEdit (pane);
+    edit->setReadOnly (true);
+    edit->setLineWrapMode (QPlainTextEdit::NoWrap);
+    edit->setPlainText (source);
+    edit->setMinimumSize (420, 300);
+    pane_layout->addWidget (edit);
+    sources->addWidget (pane);
+  };
+  add_source (to_qstring (first.name), utf8_to_qstring (first_source));
+  add_source (to_qstring (second.name), utf8_to_qstring (second_source));
+  layout->addLayout (sources);
+
+  QDialogButtonBox* buttons= new QDialogButtonBox (
+    QDialogButtonBox::Yes | QDialogButtonBox::No, &dialog);
+  QObject::connect (buttons, &QDialogButtonBox::accepted, &dialog,
+                    &QDialog::accept);
+  QObject::connect (buttons, &QDialogButtonBox::rejected, &dialog,
+                    &QDialog::reject);
+  layout->addWidget (buttons);
+  return dialog.exec () == QDialog::Accepted;
+}
+
+static QStringList
+namespace_ask_subproduct_names (QWidget* parent, const QString& first,
+                                const QString& second) {
+  QDialog dialog (parent);
+  dialog.setWindowTitle ("Sub-product Names");
+  QVBoxLayout* layout= new QVBoxLayout (&dialog);
+  QLabel* label= new QLabel (
+    "Enter one namespace name per line. Each name will be created with the "
+    "same sub-product template and product sorter.",
+    &dialog);
+  label->setWordWrap (true);
+  layout->addWidget (label);
+  QPlainTextEdit* edit= new QPlainTextEdit (&dialog);
+  edit->setPlainText (first + " - " + second + "\n" +
+                      second + " - " + first);
+  edit->setMinimumSize (520, 180);
+  layout->addWidget (edit);
+  QDialogButtonBox* buttons= new QDialogButtonBox (
+    QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+  QObject::connect (buttons, &QDialogButtonBox::accepted, &dialog,
+                    &QDialog::accept);
+  QObject::connect (buttons, &QDialogButtonBox::rejected, &dialog,
+                    &QDialog::reject);
+  layout->addWidget (buttons);
+  if (dialog.exec () != QDialog::Accepted) return QStringList ();
+  return namespace_lines (edit->toPlainText ());
+}
+
+static bool
+namespace_ask_subproduct_template (QWidget* parent,
+                                   const athena_namespace_definition& first,
+                                   const athena_namespace_definition& second,
+                                   QString& templ) {
+  while (true) {
+    QDialog dialog (parent);
+    dialog.setWindowTitle ("Sub-product Naming Template");
+    QVBoxLayout* layout= new QVBoxLayout (&dialog);
+    QLabel* label= new QLabel (
+      "Confirm or edit the naming template for the generated sub-product "
+      "namespaces. It must derive from both selected namespace templates.",
+      &dialog);
+    label->setWordWrap (true);
+    layout->addWidget (label);
+    QLineEdit* edit= new QLineEdit (templ, &dialog);
+    edit->setMinimumWidth (560);
+    layout->addWidget (edit);
+    QDialogButtonBox* buttons= new QDialogButtonBox (
+      QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+    QObject::connect (buttons, &QDialogButtonBox::accepted, &dialog,
+                      &QDialog::accept);
+    QObject::connect (buttons, &QDialogButtonBox::rejected, &dialog,
+                      &QDialog::reject);
+    layout->addWidget (buttons);
+    if (dialog.exec () != QDialog::Accepted) return false;
+
+    QString candidate= edit->text ().trimmed ();
+    if (candidate.isEmpty ()) {
+      QMessageBox::warning (parent, "Sub-product Template",
+                            "The template cannot be empty.");
+      continue;
+    }
+    string error;
+    bool d1= false, d2= false;
+    if (!athena_namespace_template_derives (from_qstring (candidate),
+                                            first.templ, d1, error) ||
+        !athena_namespace_template_derives (from_qstring (candidate),
+                                            second.templ, d2, error)) {
+      QMessageBox::warning (parent, "Sub-product Template",
+                            to_qstring (error));
+      continue;
+    }
+    if (!d1 || !d2) {
+      QMessageBox::warning (
+        parent, "Sub-product Template",
+        "The template does not derive from both selected namespace templates.");
+      continue;
+    }
+    templ= candidate;
+    return true;
+  }
+}
+
 QTMNamespaceManager::QTMNamespaceManager (QWidget* parent)
   : QWidget (parent),
     namespaceList (new QListWidget (this)),
@@ -160,7 +314,7 @@ QTMNamespaceManager::QTMNamespaceManager (QWidget* parent)
                                       << "abstract");
   relationDecisionCombo->addItems (QStringList () << "allow" << "deny");
 
-  namespaceList->setSelectionMode (QAbstractItemView::SingleSelection);
+  namespaceList->setSelectionMode (QAbstractItemView::ExtendedSelection);
   namespaceList->setUniformItemSizes (true);
   explicitParentsList->setSelectionMode (QAbstractItemView::ExtendedSelection);
   explicitParentsList->setUniformItemSizes (true);
@@ -208,6 +362,11 @@ QTMNamespaceManager::QTMNamespaceManager (QWidget* parent)
                         "Delete selected", this,
                         [this] () { deleteNamespace (); });
   deleteNamespaceAction->setToolTip ("Delete the selected namespace");
+  toolbar->addSeparator ();
+  toolbar->addAction (namespace_icon ("list-add", QStyle::SP_FileDialogNewFolder),
+                      "Generate sub-products", this,
+                      [this] () { generateSubproducts (); })
+          ->setToolTip ("Generate sub-product namespaces from two selected namespaces");
   toolbar->addSeparator ();
   toolbar->addAction (namespace_icon ("view-refresh", QStyle::SP_BrowserReload),
                       "Refresh", this, [this] () { refreshAll (); })
@@ -538,6 +697,109 @@ QTMNamespaceManager::deleteNamespace () {
   newNamespace ();
   refreshAll ();
   statusLabel->setText ("Namespace deleted.");
+}
+
+QStringList
+QTMNamespaceManager::selectedNamespaceNames () const {
+  QStringList names;
+  QList<QListWidgetItem*> items= namespaceList->selectedItems ();
+  for (QListWidgetItem* item: items)
+    if (!names.contains (item->text ())) names << item->text ();
+  if (names.isEmpty () && namespaceList->currentItem () != nullptr)
+    names << namespaceList->currentItem ()->text ();
+  return names;
+}
+
+void
+QTMNamespaceManager::generateSubproducts () {
+  QStringList names= selectedNamespaceNames ();
+  if (names.size () != 2) {
+    QMessageBox::warning (
+      this, "Generate Sub-products",
+      "Select exactly two namespaces in the namespace list first.");
+    return;
+  }
+
+  athena_namespace_definition first, second;
+  if (!athena_namespace_get (from_qstring (names[0]), first) ||
+      !athena_namespace_get (from_qstring (names[1]), second)) {
+    QMessageBox::warning (this, "Generate Sub-products",
+                          "Could not load the selected namespaces.");
+    return;
+  }
+  if (!namespace_at_least_semi_concrete (first) ||
+      !namespace_at_least_semi_concrete (second)) {
+    QMessageBox::warning (
+      this, "Generate Sub-products",
+      "Both selected namespaces must be at least semi-concrete and have a "
+      "sorting algorithm.");
+    return;
+  }
+
+  if (!namespace_confirm_sorter_compatibility (this, first, second)) return;
+
+  QStringList productNames=
+    namespace_ask_subproduct_names (this, names[0], names[1]);
+  if (productNames.isEmpty ()) return;
+
+  bool aggressive=
+    get_preference ("vault subproduct consume string aggressively", "on") ==
+    "on";
+  string suggested;
+  string error;
+  if (!athena_namespace_suggest_subproduct_template (
+        first.templ, second.templ, aggressive, suggested, error)) {
+    suggested= "";
+    if (error != "")
+      QMessageBox::information (this, "Sub-product Template",
+                                to_qstring (error));
+  }
+  QString templ= to_qstring (suggested);
+  if (!namespace_ask_subproduct_template (this, first, second, templ)) return;
+
+  string sorterPath;
+  if (!athena_namespace_generate_product_sorter (
+        first, second, from_qstring (templ), sorterPath, error)) {
+    QMessageBox::warning (this, "Generate Sub-products", to_qstring (error));
+    return;
+  }
+
+  QStringList existing;
+  for (const QString& name: productNames) {
+    athena_namespace_definition ignored;
+    if (athena_namespace_get (from_qstring (name), ignored))
+      existing << name;
+  }
+  if (!existing.isEmpty ()) {
+    if (QMessageBox::question (
+          this, "Update Existing Namespaces",
+          QString ("These namespaces already exist and will be updated:\n%1")
+            .arg (existing.join ("\n")),
+          QMessageBox::Yes | QMessageBox::No) != QMessageBox::Yes)
+      return;
+  }
+
+  for (const QString& name: productNames) {
+    athena_namespace_definition ns;
+    ns.name= from_qstring (name);
+    ns.kind= "semi-concrete";
+    ns.templ= from_qstring (templ);
+    ns.sorter_trivial= false;
+    ns.sorter_path= sorterPath;
+    ns.style_path= "";
+    ns.parents= strings ();
+    ns.parents << first.name << second.name;
+    ns.derived_parents= strings ();
+    if (!athena_namespace_save (ns, error)) {
+      QMessageBox::warning (this, "Generate Sub-products", to_qstring (error));
+      return;
+    }
+  }
+
+  refreshAll ();
+  statusLabel->setText (
+    QString ("Generated %1 sub-product namespace(s).")
+      .arg (productNames.size ()));
 }
 
 void

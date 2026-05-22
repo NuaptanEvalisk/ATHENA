@@ -41,6 +41,7 @@ private:
   void newNamespace ();
   void saveNamespace ();
   void deleteNamespace ();
+  void generateSubproducts ();
   void updateModeUi ();
   void chooseSorterPath ();
   void chooseStylePath ();
@@ -50,6 +51,7 @@ private:
   void deleteSelectedRelation ();
   void setSelectedRelationDecision (const QString& decision);
   QStringList selectedRelationKeys () const;
+  QStringList selectedNamespaceNames () const;
 
   QListWidget* namespaceList;
   QLineEdit*   nameEdit;

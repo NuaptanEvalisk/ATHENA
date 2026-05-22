@@ -58,6 +58,20 @@ bool athena_namespace_relation_remove (string parent, string child,
                                        string& error);
 bool athena_namespace_validate_relation (string parent, string child,
                                          bool ask_user, string& error);
+bool athena_namespace_template_derives (string child_template,
+                                        string parent_template,
+                                        bool& derives, string& error);
+bool athena_namespace_suggest_subproduct_template (string first_template,
+                                                   string second_template,
+                                                   bool aggressive_string,
+                                                   string& suggestion,
+                                                   string& error);
+bool athena_namespace_sorter_source (const athena_namespace_definition& ns,
+                                     string& source, string& error);
+bool athena_namespace_generate_product_sorter (
+  const athena_namespace_definition& first,
+  const athena_namespace_definition& second,
+  string product_template, string& sorter_path, string& error);
 
 std::vector<athena_namespace_match> athena_namespace_members (string name,
                                                               string& error);

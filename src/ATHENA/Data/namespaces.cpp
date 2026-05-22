@@ -30,11 +30,11 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <ctime>
 #include <filesystem>
 #include <functional>
 #include <fstream>
 #include <map>
-#include <set>
 #include <sstream>
 #include <string>
 #include <sys/stat.h>
@@ -670,6 +670,22 @@ struct child_template_position {
   size_t off;
 };
 
+struct field_fragment {
+  bool        child;
+  int         child_index;
+  std::string literal;
+};
+
+struct parent_field_expr {
+  ns_field_type type;
+  std::vector<field_fragment> parts;
+};
+
+struct derivation_result {
+  bool changed= false;
+  std::vector<parent_field_expr> fields;
+};
+
 static child_template_position
 normalize_child_position (const std::vector<template_token>& child,
                           child_template_position pos) {
@@ -684,7 +700,14 @@ normalize_child_position (const std::vector<template_token>& child,
 static bool
 field_types_compatible_for_derivation (ns_field_type parent,
                                        ns_field_type child) {
-  return parent == child;
+  if (parent == child) return true;
+  if (parent == ns_string_field) return true;
+  if (parent == ns_word_field)
+    return child == ns_char_field || child == ns_int_field ||
+           child == ns_pos_int_field || child == ns_roman_field;
+  if (parent == ns_int_field)
+    return child == ns_pos_int_field;
+  return false;
 }
 
 static bool
@@ -768,7 +791,15 @@ consume_child_literal (const std::vector<template_token>& child,
   pos= normalize_child_position (child, pos);
   size_t p= 0;
   while (p < lit.size ()) {
-    if (pos.tok >= child.size () || child[pos.tok].field) return false;
+    if (pos.tok >= child.size ()) return false;
+    if (pos.tok < child.size () && child[pos.tok].field &&
+        child[pos.tok].type == ns_string_field) {
+      pos.tok++;
+      pos.off= 0;
+      pos= normalize_child_position (child, pos);
+      continue;
+    }
+    if (child[pos.tok].field) return false;
     const std::string& cur= child[pos.tok].literal;
     if (pos.off >= cur.size ()) {
       pos= normalize_child_position (child, pos);
@@ -784,22 +815,140 @@ consume_child_literal (const std::vector<template_token>& child,
   return true;
 }
 
-static bool
-template_derives_from_tokens (const std::vector<template_token>& child,
-                              const std::vector<template_token>& parent) {
-  using key= std::tuple<size_t, size_t, size_t, bool>;
-  std::set<key> seen;
+static int
+child_field_index_at (const std::vector<template_token>& child, size_t tok) {
+  int index= 0;
+  for (size_t i=0; i<tok && i<child.size (); i++)
+    if (child[i].field) index++;
+  return index;
+}
 
-  std::function<bool(size_t, child_template_position, bool)> rec;
-  rec= [&] (size_t pi, child_template_position cpos, bool filled) -> bool {
+static bool
+literal_allows_field_fragment (ns_field_type type, const std::string& s) {
+  if (s.empty ()) return false;
+  if (type == ns_string_field) return true;
+  if (type == ns_word_field) {
+    for (char c: s)
+      if (is_space_byte (c)) return false;
+    return true;
+  }
+  return filled_literal_satisfies_field (type, s);
+}
+
+static std::vector<size_t>
+field_fragment_literal_lengths (ns_field_type type, const std::string& lit,
+                                size_t off) {
+  std::vector<size_t> lens;
+  if (off >= lit.size ()) return lens;
+  if (type == ns_string_field) {
+    for (size_t len=lit.size () - off; len>0; len--)
+      lens.push_back (len);
+    return lens;
+  }
+  if (type == ns_word_field) {
+    size_t end= off;
+    while (end < lit.size () && !is_space_byte (lit[end])) end++;
+    for (size_t len=end - off; len>0; len--)
+      lens.push_back (len);
+    return lens;
+  }
+  return field_fill_lengths_for_literal (type, lit, off);
+}
+
+static bool
+field_expr_identity (const parent_field_expr& expr,
+                     const std::vector<template_token>& child,
+                     ns_field_type parent_type) {
+  if (expr.parts.size () != 1 || !expr.parts[0].child) return false;
+  int index= expr.parts[0].child_index;
+  int seen= 0;
+  for (size_t i=0; i<child.size (); i++) {
+    if (!child[i].field) continue;
+    if (seen == index) return child[i].type == parent_type;
+    seen++;
+  }
+  return false;
+}
+
+static bool
+field_expr_can_stop (const parent_field_expr& expr,
+                     ns_field_type type) {
+  if (expr.parts.empty ()) return false;
+  if (type == ns_string_field || type == ns_word_field) return true;
+  if (expr.parts.size () != 1) return false;
+  const field_fragment& f= expr.parts[0];
+  if (f.child) return true;
+  return filled_literal_satisfies_field (type, f.literal);
+}
+
+static void
+enumerate_parent_field_exprs (const std::vector<template_token>& child,
+                              child_template_position start,
+                              ns_field_type type,
+                              std::vector<std::pair<
+                                parent_field_expr,
+                                child_template_position> >& out) {
+  std::function<void(child_template_position,parent_field_expr)> rec;
+  rec= [&] (child_template_position pos, parent_field_expr expr) {
+    if (out.size () > 512) return;
+    pos= normalize_child_position (child, pos);
+
+    if (pos.tok < child.size ()) {
+      const template_token& tok= child[pos.tok];
+      if (tok.field) {
+        if (field_types_compatible_for_derivation (type, tok.type)) {
+          parent_field_expr next= expr;
+          field_fragment f;
+          f.child= true;
+          f.child_index= child_field_index_at (child, pos.tok);
+          next.parts.push_back (f);
+          rec (child_template_position { pos.tok + 1, 0 }, next);
+        }
+      }
+      else {
+        for (size_t len: field_fragment_literal_lengths (type, tok.literal,
+                                                         pos.off)) {
+          std::string s= tok.literal.substr (pos.off, len);
+          if (!literal_allows_field_fragment (type, s)) continue;
+          parent_field_expr next= expr;
+          field_fragment f;
+          f.child= false;
+          f.child_index= -1;
+          f.literal= s;
+          next.parts.push_back (f);
+          rec (child_template_position { pos.tok, pos.off + len }, next);
+        }
+      }
+    }
+
+    if (field_expr_can_stop (expr, type))
+      out.push_back (std::make_pair (expr, pos));
+  };
+
+  parent_field_expr empty;
+  empty.type= type;
+  rec (start, empty);
+}
+
+static bool
+template_derivation_mapping_tokens (
+  const std::vector<template_token>& child,
+  const std::vector<template_token>& parent,
+  bool require_changed, derivation_result& result) {
+  derivation_result current;
+
+  std::function<bool(size_t, child_template_position)> rec;
+  rec= [&] (size_t pi, child_template_position cpos) -> bool {
     cpos= normalize_child_position (child, cpos);
-    key k (pi, cpos.tok, cpos.off, filled);
-    if (seen.count (k) != 0) return false;
-    seen.insert (k);
 
     if (pi == parent.size ()) {
       child_template_position end= normalize_child_position (child, cpos);
-      return filled && end.tok == child.size ();
+      if (end.tok == child.size () &&
+          (!require_changed || current.changed)) {
+        result= current;
+        return true;
+      }
+      return false;
     }
 
     const template_token& ptok= parent[pi];
@@ -807,42 +956,45 @@ template_derives_from_tokens (const std::vector<template_token>& child,
       child_template_position next;
       if (!consume_child_literal (child, cpos, ptok.literal, next))
         return false;
-      return rec (pi + 1, next, filled);
+      return rec (pi + 1, next);
     }
 
-    if (cpos.tok < child.size () && child[cpos.tok].field &&
-        field_types_compatible_for_derivation (ptok.type,
-                                               child[cpos.tok].type)) {
-      child_template_position next { cpos.tok + 1, 0 };
-      if (rec (pi + 1, next, filled)) return true;
+    std::vector<std::pair<parent_field_expr, child_template_position> > exprs;
+    enumerate_parent_field_exprs (child, cpos, ptok.type, exprs);
+    for (auto& cand: exprs) {
+      bool old_changed= current.changed;
+      current.fields.push_back (cand.first);
+      current.changed= current.changed ||
+        !field_expr_identity (cand.first, child, ptok.type);
+      if (rec (pi + 1, cand.second)) return true;
+      current.fields.pop_back ();
+      current.changed= old_changed;
     }
-
-    if (cpos.tok < child.size () && !child[cpos.tok].field) {
-      const std::string& lit= child[cpos.tok].literal;
-      for (size_t len: field_fill_lengths_for_literal (ptok.type, lit,
-                                                       cpos.off)) {
-        std::string fill= lit.substr (cpos.off, len);
-        if (!filled_literal_satisfies_field (ptok.type, fill)) continue;
-        child_template_position next { cpos.tok, cpos.off + len };
-        if (rec (pi + 1, next, true)) return true;
-      }
-    }
-
     return false;
   };
 
-  return rec (0, child_template_position { 0, 0 }, false);
+  return rec (0, child_template_position { 0, 0 });
+}
+
+static bool
+template_derivation_mapping (string child_template, string parent_template,
+                             bool require_changed, derivation_result& result,
+                             string& error) {
+  std::vector<template_token> child;
+  std::vector<template_token> parent;
+  if (!parse_template (child_template, child, error)) return false;
+  if (!parse_template (parent_template, parent, error)) return false;
+  return template_derivation_mapping_tokens (child, parent, require_changed,
+                                            result);
 }
 
 static bool
 template_derives_from (string child_template, string parent_template,
                        bool& derives, string& error) {
   derives= false;
-  std::vector<template_token> child;
-  std::vector<template_token> parent;
-  if (!parse_template (child_template, child, error)) return false;
-  if (!parse_template (parent_template, parent, error)) return false;
-  derives= template_derives_from_tokens (child, parent);
+  derivation_result mapping;
+  derives= template_derivation_mapping (child_template, parent_template, true,
+                                        mapping, error);
   return true;
 }
 
@@ -1176,6 +1328,280 @@ error_page (const std::string& title, const std::string& message) {
   return document_for_body (body);
 }
 
+static std::string
+placeholder_for_type (ns_field_type type) {
+  switch (type) {
+  case ns_string_field: return "%s";
+  case ns_word_field: return "%w";
+  case ns_char_field: return "%c";
+  case ns_int_field: return "%d";
+  case ns_pos_int_field: return "%N";
+  case ns_roman_field: return "%R";
+  }
+  return "%s";
+}
+
+static std::string
+template_to_std (const std::vector<template_token>& toks) {
+  std::string out;
+  for (const template_token& tok: toks)
+    out += tok.field ? placeholder_for_type (tok.type) : tok.literal;
+  return out;
+}
+
+static std::string
+c_string_escape (const std::string& s) {
+  std::string out;
+  for (char ch: s) {
+    unsigned char c= (unsigned char) ch;
+    if (c == '\\') out += "\\\\";
+    else if (c == '"') out += "\\\"";
+    else if (c == '\n') out += "\\n";
+    else if (c == '\r') out += "\\r";
+    else if (c == '\t') out += "\\t";
+    else if (c < 32 || c >= 127) {
+      char buf[8];
+      std::snprintf (buf, sizeof (buf), "\\x%02x", c);
+      out += buf;
+    }
+    else out.push_back (ch);
+  }
+  return out;
+}
+
+static std::string
+safe_identifier (const std::string& s) {
+  std::string out;
+  for (char ch: s) {
+    if (std::isalnum ((unsigned char) ch)) out.push_back (ch);
+    else out.push_back ('_');
+  }
+  if (out.empty () || std::isdigit ((unsigned char) out[0]))
+    out= "_" + out;
+  return out;
+}
+
+static std::string
+safe_file_component (const std::string& s) {
+  std::string out;
+  for (char ch: s) {
+    if (std::isalnum ((unsigned char) ch) || ch == '-' || ch == '_')
+      out.push_back ((char) std::tolower ((unsigned char) ch));
+    else if (ch == ' ') out.push_back ('-');
+  }
+  if (out.empty ()) out= "namespace";
+  return out;
+}
+
+static std::string
+replace_identifier (const std::string& source, const std::string& from,
+                    const std::string& to) {
+  std::string out;
+  for (size_t i=0; i<source.size (); ) {
+    if (source.compare (i, from.size (), from) == 0) {
+      bool left= i == 0 ||
+        !(std::isalnum ((unsigned char) source[i - 1]) ||
+          source[i - 1] == '_');
+      size_t end= i + from.size ();
+      bool right= end >= source.size () ||
+        !(std::isalnum ((unsigned char) source[end]) ||
+          source[end] == '_');
+      if (left && right) {
+        out += to;
+        i= end;
+        continue;
+      }
+    }
+    out.push_back (source[i++]);
+  }
+  return out;
+}
+
+static bool
+sorter_source_for_function (const athena_namespace_definition& ns,
+                            const std::string& function_name,
+                            std::string& source, string& error) {
+  if (ns.sorter_trivial || ns.sorter_path == "") {
+    source=
+      std::string ("static int\n") + function_name +
+      " (int n, const AthenaNsField* a, const AthenaNsField* b) {\n"
+      "  (void) n; (void) a; (void) b;\n"
+      "  return 0;\n"
+      "}\n";
+    return true;
+  }
+
+  std::string path= resolve_vault_relative_path (ns.sorter_path);
+  if (path.empty () || !std::filesystem::exists (path)) {
+    error= "Cannot open sorter source: " * ns.sorter_path;
+    return false;
+  }
+  source= replace_identifier (read_file_std (path), "athena_ns_compare",
+                              function_name);
+  return true;
+}
+
+static std::string
+c_field_type_expr (ns_field_type type) {
+  switch (type) {
+  case ns_string_field: return "ATHENA_NS_STRING";
+  case ns_word_field: return "ATHENA_NS_WORD";
+  case ns_char_field: return "ATHENA_NS_CHAR";
+  case ns_int_field: return "ATHENA_NS_INT";
+  case ns_pos_int_field: return "ATHENA_NS_POS_INT";
+  case ns_roman_field: return "ATHENA_NS_ROMAN";
+  }
+  return "ATHENA_NS_STRING";
+}
+
+static void
+append_field_build_code (std::ostringstream& out, const std::string& prefix,
+                         const std::string& src_name,
+                         const std::vector<parent_field_expr>& fields) {
+  int count= (int) fields.size ();
+  out << "  AthenaNsField " << prefix << "[" << (count == 0 ? 1 : count)
+      << "];\n";
+  for (int i=0; i<count; i++) {
+    std::string buf= prefix + "_text_" + std::to_string (i);
+    out << "  char " << buf << "[512];\n";
+    out << "  " << buf << "[0] = 0;\n";
+    for (const field_fragment& part: fields[(size_t) i].parts) {
+      if (part.child) {
+        out << "  if (" << part.child_index << " < n) "
+            << "athena_ns_product_append (" << buf << ", 512, "
+            << src_name << "[" << part.child_index << "].text);\n";
+      }
+      else {
+        out << "  athena_ns_product_append (" << buf << ", 512, \""
+            << c_string_escape (part.literal) << "\");\n";
+      }
+    }
+    out << "  " << prefix << "[" << i << "].text = " << buf << ";\n";
+    out << "  " << prefix << "[" << i << "].type = "
+        << c_field_type_expr (fields[(size_t) i].type) << ";\n";
+    out << "  " << prefix << "[" << i << "].integer = "
+        << "athena_ns_product_parse_int (" << buf << ");\n";
+    out << "  " << prefix << "[" << i << "].roman = "
+        << "athena_ns_roman_value (" << buf << ");\n";
+  }
+}
+
+static std::string
+product_sorter_source (const athena_namespace_definition& first,
+                       const athena_namespace_definition& second,
+                       const derivation_result& first_map,
+                       const derivation_result& second_map,
+                       string product_template, string& error) {
+  std::string first_source, second_source;
+  if (!sorter_source_for_function (first, "athena_ns_compare_left",
+                                   first_source, error))
+    return "";
+  if (!sorter_source_for_function (second, "athena_ns_compare_right",
+                                   second_source, error))
+    return "";
+
+  std::ostringstream out;
+  out << "/*\n"
+      << " * Generated ATHENA namespace product sorter.\n"
+      << " * Parent 1: " << c_string_escape (tm_to_std (first.name)) << "\n"
+      << " * Parent 2: " << c_string_escape (tm_to_std (second.name)) << "\n"
+      << " * Product template: "
+      << c_string_escape (tm_to_std (product_template)) << "\n"
+      << " */\n\n";
+  out << first_source << "\n" << second_source << "\n";
+  out << "static void\n"
+      << "athena_ns_product_append (char* out, int cap, const char* s) {\n"
+      << "  int i = 0;\n"
+      << "  if (cap <= 0) return;\n"
+      << "  while (i + 1 < cap && out[i] != 0) i++;\n"
+      << "  if (s == 0) return;\n"
+      << "  while (i + 1 < cap && *s != 0) out[i++] = *s++;\n"
+      << "  out[i] = 0;\n"
+      << "}\n\n"
+      << "static long long\n"
+      << "athena_ns_product_parse_int (const char* s) {\n"
+      << "  long long sign = 1, value = 0;\n"
+      << "  if (s == 0) return 0;\n"
+      << "  if (*s == '-') { sign = -1; s++; }\n"
+      << "  while (*s >= '0' && *s <= '9') {\n"
+      << "    value = value * 10 + (*s - '0');\n"
+      << "    s++;\n"
+      << "  }\n"
+      << "  return sign * value;\n"
+      << "}\n\n";
+  out << "int\n"
+      << "athena_ns_compare (int n, const AthenaNsField* a, "
+      << "const AthenaNsField* b) {\n";
+  append_field_build_code (out, "left_a", "a", first_map.fields);
+  append_field_build_code (out, "left_b", "b", first_map.fields);
+  append_field_build_code (out, "right_a", "a", second_map.fields);
+  append_field_build_code (out, "right_b", "b", second_map.fields);
+  out << "  int c1 = athena_ns_compare_left ("
+      << first_map.fields.size () << ", left_a, left_b);\n"
+      << "  int c2 = athena_ns_compare_right ("
+      << second_map.fields.size () << ", right_a, right_b);\n"
+      << "  if (c1 < 0 || c2 < 0) return -1;\n"
+      << "  if (c1 > 0 || c2 > 0) return 1;\n"
+      << "  return 0;\n"
+      << "}\n";
+  return out.str ();
+}
+
+static std::string
+first_literal_before_field (const std::vector<template_token>& toks) {
+  for (const template_token& tok: toks) {
+    if (tok.field) return "";
+    if (!tok.literal.empty ()) return tok.literal;
+  }
+  return "";
+}
+
+static bool
+template_starts_with_field (const std::vector<template_token>& toks) {
+  return !toks.empty () && toks[0].field;
+}
+
+static bool
+has_string_field (const std::vector<template_token>& toks) {
+  for (const template_token& tok: toks)
+    if (tok.field && tok.type == ns_string_field) return true;
+  return false;
+}
+
+static void
+insert_non_aggressive_string_tail (std::string& candidate) {
+  size_t last_percent= candidate.rfind ('%');
+  if (last_percent == std::string::npos || last_percent == 0) return;
+  size_t insert_at= candidate.rfind (' ', last_percent);
+  if (insert_at == std::string::npos) insert_at= last_percent;
+  candidate.insert (insert_at, "%s");
+}
+
+static bool
+subproduct_candidate_from_order (string first_template,
+                                 string second_template,
+                                 bool aggressive_string,
+                                 string& suggestion,
+                                 string& error) {
+  std::vector<template_token> first, second;
+  if (!parse_template (first_template, first, error)) return false;
+  if (!parse_template (second_template, second, error)) return false;
+  if (!template_starts_with_field (first)) return false;
+
+  std::string lit= first_literal_before_field (second);
+  if (lit.empty ()) return false;
+  std::string fill= trim_std (lit);
+  if (fill.empty ()) return false;
+
+  std::vector<template_token> out= first;
+  out.erase (out.begin ());
+  std::string candidate= fill + template_to_std (out);
+  if (!aggressive_string && has_string_field (second))
+    insert_non_aggressive_string_tail (candidate);
+  suggestion= std_to_tm (candidate);
+  return true;
+}
+
 } // anonymous namespace
 
 bool
@@ -1476,6 +1902,163 @@ athena_namespace_validate_relation (string parent, string child, bool ask_user,
   athena_namespace_relation_set (parent, child, "deny", "user", ignored);
   error= "Namespace relation denied.";
   return false;
+}
+
+bool
+athena_namespace_template_derives (string child_template,
+                                   string parent_template,
+                                   bool& derives, string& error) {
+  return template_derives_from (child_template, parent_template, derives,
+                                error);
+}
+
+bool
+athena_namespace_suggest_subproduct_template (string first_template,
+                                              string second_template,
+                                              bool aggressive_string,
+                                              string& suggestion,
+                                              string& error) {
+  bool derives= false;
+  if (!athena_namespace_template_derives (first_template, second_template,
+                                          derives, error))
+    return false;
+  if (derives) {
+    suggestion= first_template;
+    return true;
+  }
+  if (!athena_namespace_template_derives (second_template, first_template,
+                                          derives, error))
+    return false;
+  if (derives) {
+    suggestion= second_template;
+    return true;
+  }
+
+  string candidate;
+  if (subproduct_candidate_from_order (first_template, second_template,
+                                       aggressive_string, candidate, error)) {
+    bool d1= false, d2= false;
+    if (!athena_namespace_template_derives (candidate, first_template, d1,
+                                            error))
+      return false;
+    if (!athena_namespace_template_derives (candidate, second_template, d2,
+                                            error))
+      return false;
+    if (d1 && d2) {
+      suggestion= candidate;
+      return true;
+    }
+  }
+
+  error= "";
+  if (subproduct_candidate_from_order (second_template, first_template,
+                                       aggressive_string, candidate, error)) {
+    bool d1= false, d2= false;
+    if (!athena_namespace_template_derives (candidate, first_template, d1,
+                                            error))
+      return false;
+    if (!athena_namespace_template_derives (candidate, second_template, d2,
+                                            error))
+      return false;
+    if (d1 && d2) {
+      suggestion= candidate;
+      return true;
+    }
+  }
+
+  error= "Could not infer a sub-product template. Please enter one manually.";
+  return false;
+}
+
+bool
+athena_namespace_sorter_source (const athena_namespace_definition& ns,
+                                string& source, string& error) {
+  if (ns.sorter_trivial || ns.sorter_path == "") {
+    source= "Built-in trivial sorter: every pair of files compares equal.";
+    return true;
+  }
+  std::string path= resolve_vault_relative_path (ns.sorter_path);
+  if (path.empty () || !std::filesystem::exists (path)) {
+    error= "Cannot open sorter source: " * ns.sorter_path;
+    return false;
+  }
+  source= std_to_tm (read_file_std (path));
+  return true;
+}
+
+bool
+athena_namespace_generate_product_sorter (
+  const athena_namespace_definition& first,
+  const athena_namespace_definition& second,
+  string product_template, string& sorter_path, string& error) {
+  if (!vault_active ()) {
+    error= "No active vault.";
+    return false;
+  }
+  if ((!first.sorter_trivial && first.sorter_path == "") ||
+      (!second.sorter_trivial && second.sorter_path == "")) {
+    error= "Both product parents need explicit or trivial sorters.";
+    return false;
+  }
+
+  derivation_result first_map, second_map;
+  if (!template_derivation_mapping (product_template, first.templ, false,
+                                    first_map, error)) {
+    if (error == "") error= "Product template does not derive from " *
+                            first.name * ".";
+    return false;
+  }
+  if (!template_derivation_mapping (product_template, second.templ, false,
+                                    second_map, error)) {
+    if (error == "") error= "Product template does not derive from " *
+                            second.name * ".";
+    return false;
+  }
+
+  std::string source= product_sorter_source (first, second, first_map,
+                                             second_map, product_template,
+                                             error);
+  if (source.empty ()) return false;
+
+  std::filesystem::path root (tm_to_std (concretize (vault_get_root ())));
+  std::filesystem::path dir= root / ".athena" / "ns-sorters";
+  std::error_code ec;
+  std::filesystem::create_directories (dir, ec);
+  if (ec) {
+    error= "Cannot create namespace sorter directory: " *
+           std_to_tm (ec.message ());
+    return false;
+  }
+
+  std::string stem= "product-" + safe_file_component (tm_to_std (first.name)) +
+                    "-" + safe_file_component (tm_to_std (second.name)) +
+                    "-" + std::to_string ((long long) std::time (nullptr));
+  std::filesystem::path file;
+  for (int i=0; i<1000; i++) {
+    std::string suffix= i == 0 ? "" : "-" + std::to_string (i);
+    file= dir / (stem + suffix + ".c");
+    if (!std::filesystem::exists (file)) break;
+  }
+
+  std::ofstream out (file, std::ios::binary);
+  if (!out.good ()) {
+    error= "Cannot write generated product sorter.";
+    return false;
+  }
+  out << source;
+  out.close ();
+
+  std::filesystem::path rel= std::filesystem::relative (file, root, ec);
+  sorter_path= std_to_tm (ec ? file.string () : rel.generic_string ());
+
+  string compile_error;
+  (void) load_sorter (sorter_path, compile_error);
+  if (compile_error != "") {
+    std::filesystem::remove (file, ec);
+    error= "Generated product sorter did not compile: " * compile_error;
+    return false;
+  }
+  return true;
 }
 
 std::vector<athena_namespace_match>
