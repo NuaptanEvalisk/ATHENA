@@ -19,6 +19,7 @@
 #include <QAbstractItemView>
 #include <QAction>
 #include <QApplication>
+#include <QCheckBox>
 #include <QComboBox>
 #include <QFileInfo>
 #include <QFormLayout>
@@ -71,6 +72,7 @@ QTMNamespaceManager::QTMNamespaceManager (QWidget* parent)
     nameEdit (new QLineEdit (this)),
     kindCombo (new QComboBox (this)),
     templateEdit (new QLineEdit (this)),
+    trivialSorterCheck (new QCheckBox ("Use trivial sorting algorithm", this)),
     sorterEdit (new QLineEdit (this)),
     styleEdit (new QLineEdit (this)),
     parentsEdit (new QLineEdit (this)),
@@ -138,7 +140,13 @@ QTMNamespaceManager::QTMNamespaceManager (QWidget* parent)
   form->addRow ("Name", nameEdit);
   form->addRow ("Kind", kindCombo);
   form->addRow ("Template", templateEdit);
-  form->addRow ("Sorter .c path", sorterEdit);
+  QWidget* sorterWidget= new QWidget (this);
+  QVBoxLayout* sorterLayout= new QVBoxLayout (sorterWidget);
+  sorterLayout->setContentsMargins (0, 0, 0, 0);
+  sorterLayout->setSpacing (4);
+  sorterLayout->addWidget (sorterEdit);
+  sorterLayout->addWidget (trivialSorterCheck);
+  form->addRow ("Sorter .c path", sorterWidget);
   form->addRow ("Style path", styleEdit);
   form->addRow ("Parents", parentsEdit);
   form->addRow ("Derived parents", derivedParentsEdit);
@@ -204,6 +212,12 @@ QTMNamespaceManager::QTMNamespaceManager (QWidget* parent)
            [this] () { setSelectedRelationDecision ("deny"); });
   connect (delRel, &QPushButton::clicked, this,
            [this] () { deleteSelectedRelation (); });
+  connect (trivialSorterCheck, &QCheckBox::toggled, this,
+           [this] (bool on) {
+             sorterEdit->setEnabled (!on);
+             sorterEdit->setPlaceholderText (
+               on ? "Built-in sorter returns 0 for every comparison" : "");
+           });
   updateModeUi ();
 }
 
@@ -285,7 +299,9 @@ QTMNamespaceManager::loadNamespace (QListWidgetItem* item) {
   nameEdit->setText (to_qstring (ns.name));
   kindCombo->setCurrentText (to_qstring (ns.kind));
   templateEdit->setText (to_qstring (ns.templ));
+  trivialSorterCheck->setChecked (ns.sorter_trivial);
   sorterEdit->setText (to_qstring (ns.sorter_path));
+  sorterEdit->setEnabled (!ns.sorter_trivial);
   styleEdit->setText (to_qstring (ns.style_path));
   parentsEdit->setText (strings_to_qline (ns.parents));
   derivedParentsEdit->setText (strings_to_qline (ns.derived_parents));
@@ -300,7 +316,9 @@ QTMNamespaceManager::newNamespace () {
   nameEdit->clear ();
   kindCombo->setCurrentText ("concrete");
   templateEdit->clear ();
+  trivialSorterCheck->setChecked (false);
   sorterEdit->clear ();
+  sorterEdit->setEnabled (true);
   styleEdit->clear ();
   parentsEdit->clear ();
   derivedParentsEdit->clear ();
@@ -317,6 +335,7 @@ QTMNamespaceManager::saveNamespace () {
   ns.name= from_qstring (nameEdit->text ().trimmed ());
   ns.kind= from_qstring (kindCombo->currentText ());
   ns.templ= from_qstring (templateEdit->text ().trimmed ());
+  ns.sorter_trivial= trivialSorterCheck->isChecked ();
   ns.sorter_path= from_qstring (sorterEdit->text ().trimmed ());
   ns.style_path= from_qstring (styleEdit->text ().trimmed ());
   ns.parents= qline_to_strings (parentsEdit);

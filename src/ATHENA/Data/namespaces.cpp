@@ -222,7 +222,7 @@ public:
     }
     sqlite3_busy_timeout (db, 5000);
     if (!exec_sql (db, "PRAGMA foreign_keys=ON;", error)) return false;
-    if (create && !ensure_schema (error)) return false;
+    if (!ensure_schema (error)) return false;
     return true;
   }
 
@@ -238,6 +238,7 @@ private:
       "  kind TEXT NOT NULL CHECK(kind IN"
       "    ('abstract','semi-concrete','concrete')),"
       "  template TEXT NOT NULL DEFAULT '',"
+      "  sorter_trivial INTEGER NOT NULL DEFAULT 0,"
       "  sorter_path TEXT NOT NULL DEFAULT '',"
       "  style_path TEXT NOT NULL DEFAULT ''"
       ");"
@@ -261,7 +262,36 @@ private:
       ");"
       "INSERT INTO meta(key, value) VALUES('schema-version', '1') "
       "  ON CONFLICT(key) DO NOTHING;";
-    return exec_sql (db, schema, error);
+    if (!exec_sql (db, schema, error)) return false;
+    return ensure_column ("namespaces", "sorter_trivial",
+                          "INTEGER NOT NULL DEFAULT 0", error);
+  }
+
+  bool ensure_column (const char* table, const char* column,
+                      const char* definition, string& error) {
+    std::string pragma= std::string ("PRAGMA table_info(") + table + ");";
+    sqlite3_stmt* st= nullptr;
+    if (!prepare_sql (db, pragma.c_str (), &st, error)) return false;
+    bool found= false;
+    while (true) {
+      int status= sqlite3_step (st);
+      if (status == SQLITE_ROW) {
+        const unsigned char* name= sqlite3_column_text (st, 1);
+        if (name != nullptr && std::strcmp ((const char*) name, column) == 0)
+          found= true;
+      }
+      else if (status == SQLITE_DONE) break;
+      else {
+        set_sql_error (db, "SQLite schema query failed", error);
+        sqlite3_finalize (st);
+        return false;
+      }
+    }
+    sqlite3_finalize (st);
+    if (found) return true;
+    std::string sql= std::string ("ALTER TABLE ") + table +
+                     " ADD COLUMN " + column + " " + definition + ";";
+    return exec_sql (db, sql.c_str (), error);
   }
 };
 
@@ -297,7 +327,7 @@ get_namespace_from_db (sqlite3* db, string name,
                        athena_namespace_definition& out, string& error) {
   sqlite3_stmt* st= nullptr;
   if (!prepare_sql (db,
-        "SELECT name, kind, template, sorter_path, style_path "
+        "SELECT name, kind, template, sorter_trivial, sorter_path, style_path "
         "FROM namespaces WHERE name=?;",
         &st, error)) return false;
   if (!bind_tm_string (st, 1, name, error)) {
@@ -317,8 +347,9 @@ get_namespace_from_db (sqlite3* db, string name,
   out.name= column_tm_string (st, 0);
   out.kind= canonical_kind (column_tm_string (st, 1));
   out.templ= column_tm_string (st, 2);
-  out.sorter_path= column_tm_string (st, 3);
-  out.style_path= column_tm_string (st, 4);
+  out.sorter_trivial= sqlite3_column_int (st, 3) != 0;
+  out.sorter_path= column_tm_string (st, 4);
+  out.style_path= column_tm_string (st, 5);
   sqlite3_finalize (st);
   out.parents= strings ();
   out.derived_parents= strings ();
@@ -847,17 +878,14 @@ to_c_field (const athena_namespace_match& m, int i) {
 static int
 compare_with_sorter (ns_compare_fn fn, const athena_namespace_match& a,
                      const athena_namespace_match& b) {
+  if (fn == nullptr) return 0;
   int n= std::min (N(a.captures), N(b.captures));
   std::vector<AthenaNsField> aa, bb;
   for (int i=0; i<n; i++) {
     aa.push_back (to_c_field (a, i));
     bb.push_back (to_c_field (b, i));
   }
-  if (fn != nullptr) {
-    int r= fn (n, aa.data (), bb.data ());
-    if (r != 0) return r;
-  }
-  return std::strcmp (as_charp (a.stem), as_charp (b.stem));
+  return fn (n, aa.data (), bb.data ());
 }
 
 static tree
@@ -958,14 +986,17 @@ athena_namespace_save (const athena_namespace_definition& ns, string& error) {
   bool ok=
     exec_prepared (
       cx.db,
-      "INSERT INTO namespaces(name, kind, template, sorter_path, style_path) "
-      "VALUES(?, ?, ?, ?, ?) "
+      "INSERT INTO namespaces"
+      "(name, kind, template, sorter_trivial, sorter_path, style_path) "
+      "VALUES(?, ?, ?, ?, ?, ?) "
       "ON CONFLICT(name) DO UPDATE SET "
       "  kind=excluded.kind,"
       "  template=excluded.template,"
+      "  sorter_trivial=excluded.sorter_trivial,"
       "  sorter_path=excluded.sorter_path,"
       "  style_path=excluded.style_path;",
-      { ns.name, kind, ns.templ, ns.sorter_path, ns.style_path },
+      { ns.name, kind, ns.templ, ns.sorter_trivial ? "1" : "0",
+        ns.sorter_path, ns.style_path },
       error) &&
     exec_prepared (cx.db,
       "DELETE FROM namespace_parents WHERE child=?;",
@@ -1207,14 +1238,24 @@ athena_namespace_members (string name, string& error) {
     }
   }
 
-  string sort_error;
-  ns_compare_fn fn= load_sorter (ns.sorter_path, sort_error);
-  if (sort_error != "") error= sort_error;
-  std::sort (out.begin (), out.end (),
-             [fn] (const athena_namespace_match& a,
+  if (ns.sorter_trivial || ns.sorter_path != "") {
+    string sort_error;
+    ns_compare_fn fn= ns.sorter_trivial ? nullptr :
+      load_sorter (ns.sorter_path, sort_error);
+    if (sort_error != "") error= sort_error;
+    std::stable_sort (out.begin (), out.end (),
+               [fn] (const athena_namespace_match& a,
+                     const athena_namespace_match& b) {
+                 return compare_with_sorter (fn, a, b) < 0;
+               });
+  }
+  else {
+    std::sort (out.begin (), out.end (),
+               [] (const athena_namespace_match& a,
                    const athena_namespace_match& b) {
-               return compare_with_sorter (fn, a, b) < 0;
-             });
+                 return std::strcmp (as_charp (a.stem), as_charp (b.stem)) < 0;
+               });
+  }
   return out;
 }
 
@@ -1254,7 +1295,9 @@ athena_namespace_info_page (string tmfs_name) {
   body << line_tm ("Derived parents: " *
                    (N(ns.derived_parents) == 0 ? string ("<none>") :
                     join_list (ns.derived_parents)));
-  if (ns.sorter_path != "")
+  if (ns.sorter_trivial)
+    body << line_tm ("Sorter: trivial");
+  else if (ns.sorter_path != "")
     body << line_tm ("Sorter: " * ns.sorter_path);
   if (ns.style_path != "")
     body << line_tm ("Style: " * ns.style_path);

@@ -16,6 +16,7 @@
 #include <QWidget>
 
 class QComboBox;
+class QCheckBox;
 class QLabel;
 class QLineEdit;
 class QListWidget;
@@ -49,6 +50,7 @@ private:
   QLineEdit*   nameEdit;
   QComboBox*   kindCombo;
   QLineEdit*   templateEdit;
+  QCheckBox*   trivialSorterCheck;
   QLineEdit*   sorterEdit;
   QLineEdit*   styleEdit;
   QLineEdit*   parentsEdit;

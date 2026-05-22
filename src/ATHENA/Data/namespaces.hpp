@@ -21,6 +21,7 @@ struct athena_namespace_definition {
   string  name;
   string  kind;
   string  templ;
+  bool    sorter_trivial;
   string  sorter_path;
   string  style_path;
   strings parents;
