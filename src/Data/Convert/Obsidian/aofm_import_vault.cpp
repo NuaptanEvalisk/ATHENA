@@ -450,7 +450,8 @@ is_enunciation_like_tree(const tree& t) {
          tag == "proposition" || tag == "axiom" || tag == "definition" ||
          tag == "conjecture" || tag == "remark" || tag == "note" ||
          tag == "example" || tag == "warning" || tag == "question" ||
-         tag == "proof" || tag == "solution" || tag == "law" ||
+         tag == "proof" || tag == "solution" || tag == "solution*" ||
+         tag == "law" ||
          tag == "disambiguation" || tag == "proof-alternative" ||
          tag == "proof-standard" || tag == "proof-of";
 }
@@ -479,7 +480,7 @@ is_separated_proof_tree(const tree& t) {
   std::string tag = std::string(as_charp(as_string(L(t))));
   return tag == "proof" || tag == "proof-alternative" ||
          tag == "proof-standard" || tag == "proof-of" ||
-         tag == "solution";
+         tag == "solution" || tag == "solution*";
 }
 
 bool
@@ -515,7 +516,7 @@ separated_proof_label_prefix(const tree& t) {
   if (!is_compound(t)) return "proof";
   std::string tag = std::string(as_charp(as_string(L(t))));
   if (tag == "proof-alternative" || tag == "proof-standard") return tag;
-  if (tag == "solution") return "solution";
+  if (tag == "solution" || tag == "solution*") return "solution";
   if (tag == "proof-of" && N(t) >= 1) {
     std::string title = sanitize_anchor_text(tree_to_std_string(t[0]), 80);
     if (!title.empty()) return "proof:" + title;

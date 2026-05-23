@@ -471,6 +471,9 @@ consume_proof(const std::vector<AstPtr>& nodes, size_t start,
       return compound("proof-of", convert_inline_from_raw("(" + frame.title + ")"),
                       body);
     }
+    if (frame.tag == "solution") {
+      return compound("solution*", body);
+    }
     return compound(frame.tag.c_str(), body);
   };
 
@@ -713,10 +716,10 @@ sanitize_proof_trees(tree t) {
     return compound("proof-of", t[0], ensure_document_tree(body));
   }
 
-  if (is_compound(t, "solution", 1)) {
+  if (is_compound(t, "solution", 1) || is_compound(t, "solution*", 1)) {
     tree body = sanitize_proof_trees(ensure_document_tree(t[0]));
     body = strip_qed_from_right_edge(body);
-    return compound("solution", ensure_document_tree(body));
+    return compound("solution*", ensure_document_tree(body));
   }
 
   if (is_compound(t, "theorem", 1)) {
@@ -901,6 +904,7 @@ insert_label_before_trailing_proof(tree& doc, tree label) {
   if (!is_document(doc) || label == "") return;
   if (N(doc) < 2 ||
       !(is_compound(doc[N(doc) - 1], "proof", 1) ||
+        is_compound(doc[N(doc) - 1], "solution*", 1) ||
         is_compound(doc[N(doc) - 1], "proof-of", 2)) ||
       !is_theorem_like_env_tree(doc[N(doc) - 2])) {
     append_document(doc, label);
@@ -919,6 +923,7 @@ is_proof_tree(const tree& t) {
   return is_compound(t, "proof", 1) ||
          is_compound(t, "proof-alternative", 1) ||
          is_compound(t, "proof-standard", 1) ||
+         is_compound(t, "solution*", 1) ||
          is_compound(t, "proof-of", 2);
 }
 
