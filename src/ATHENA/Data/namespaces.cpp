@@ -2061,6 +2061,84 @@ athena_namespace_generate_product_sorter (
   return true;
 }
 
+static bool
+append_unique_namespace_match (std::vector<athena_namespace_match>& out,
+                               std::map<std::string,bool>& seen,
+                               const athena_namespace_match& m) {
+  std::string key= tm_to_std (concretize (m.file));
+  if (seen[key]) return false;
+  seen[key]= true;
+  out.push_back (m);
+  return true;
+}
+
+static bool
+namespace_is_child_of (const athena_namespace_definition& child,
+                       string parent) {
+  for (int i=0; i<N(child.parents); i++)
+    if (child.parents[i] == parent) return true;
+  for (int i=0; i<N(child.derived_parents); i++)
+    if (child.derived_parents[i] == parent) return true;
+  return false;
+}
+
+static bool
+collect_direct_namespace_members (const athena_namespace_definition& ns,
+                                  std::vector<athena_namespace_match>& out,
+                                  std::map<std::string,bool>& seen,
+                                  string& error) {
+  if (ns.kind == "abstract") return true;
+
+  std::vector<template_token> toks;
+  if (!parse_template (ns.templ, toks, error)) return false;
+
+  array<url> files= vault_get_all_files ();
+  for (int i=0; i<N(files); i++) {
+    if (!is_ath_file (files[i])) continue;
+    athena_namespace_match m;
+    string err;
+    if (match_stem (ns, stem_for_file (files[i]), m, err)) {
+      m.file= files[i];
+      append_unique_namespace_match (out, seen, m);
+    }
+    else if (err != "") {
+      error= err;
+      return false;
+    }
+  }
+  return true;
+}
+
+static bool
+collect_namespace_members (const athena_namespace_definition& ns,
+                           bool include_descendants,
+                           std::map<std::string,bool>& visiting,
+                           std::map<std::string,bool>& seen,
+                           std::vector<athena_namespace_match>& out,
+                           string& error) {
+  std::string key= tm_to_std (ns.name);
+  if (visiting[key]) return true;
+  visiting[key]= true;
+
+  if (!collect_direct_namespace_members (ns, out, seen, error)) {
+    visiting[key]= false;
+    return false;
+  }
+
+  if (include_descendants) {
+    for (const athena_namespace_definition& child: athena_namespaces_list ()) {
+      if (!namespace_is_child_of (child, ns.name)) continue;
+      if (!collect_namespace_members (child, true, visiting, seen, out, error)) {
+        visiting[key]= false;
+        return false;
+      }
+    }
+  }
+
+  visiting[key]= false;
+  return true;
+}
+
 std::vector<athena_namespace_match>
 athena_namespace_members (string name, string& error) {
   std::vector<athena_namespace_match> out;
@@ -2073,25 +2151,12 @@ athena_namespace_members (string name, string& error) {
     error= "Unknown namespace: " * name;
     return out;
   }
-  if (ns.kind == "abstract") return out;
 
-  std::vector<template_token> toks;
-  if (!parse_template (ns.templ, toks, error)) return out;
-
-  array<url> files= vault_get_all_files ();
-  for (int i=0; i<N(files); i++) {
-    if (!is_ath_file (files[i])) continue;
-    athena_namespace_match m;
-    string err;
-    if (match_stem (ns, stem_for_file (files[i]), m, err)) {
-      m.file= files[i];
-      out.push_back (m);
-    }
-    else if (err != "") {
-      error= err;
-      return out;
-    }
-  }
+  std::map<std::string,bool> visiting;
+  std::map<std::string,bool> seen;
+  if (!collect_namespace_members (ns, ns.kind == "abstract", visiting, seen,
+                                  out, error))
+    return out;
 
   if (ns.sorter_trivial || ns.sorter_path != "") {
     string sort_error;
