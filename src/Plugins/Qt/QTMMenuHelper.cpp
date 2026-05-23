@@ -574,6 +574,11 @@ void
 QTMLineEdit::keyPressEvent (QKeyEvent* ev)
 {
 #if QT_VERSION >= 0x050000
+  if (continuous () && ev->matches (QKeySequence::SelectAll)) {
+    QLineEdit::keyPressEvent (ev);
+    return;
+  }
+
   if (ev == QKeySequence::Copy ||
       ev == QKeySequence::Paste ||
       ev == QKeySequence::Cut) {
