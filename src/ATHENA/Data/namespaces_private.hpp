@@ -1,0 +1,155 @@
+/******************************************************************************
+* MODULE     : namespaces_private.hpp
+* DESCRIPTION: Private helpers for ATHENA vault namespace implementation
+* COPYRIGHT  : (C) 2026 Felix
+*******************************************************************************
+* This software falls under the GNU general public license version 3 or later.
+* It comes WITHOUT ANY WARRANTY WHATSOEVER. For details, see the file LICENSE
+* in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
+*******************************************************************************/
+
+#ifndef ATHENA_NAMESPACES_PRIVATE_HPP
+#define ATHENA_NAMESPACES_PRIVATE_HPP
+
+#include "namespaces.hpp"
+
+#include "convert.hpp"
+
+#include <algorithm>
+#include <cctype>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
+#include <filesystem>
+#include <fstream>
+#include <map>
+#include <sstream>
+#include <string>
+#include <sys/stat.h>
+#include <tuple>
+#include <vector>
+
+namespace athena_namespaces {
+
+inline std::string
+tm_to_std (string s) {
+  return std::string (as_charp (s));
+}
+
+inline string
+std_to_tm (const std::string& s) {
+  return string (s.c_str ());
+}
+
+inline std::string
+trim_std (const std::string& s) {
+  size_t a= 0, b= s.size ();
+  while (a < b && std::isspace ((unsigned char) s[a])) a++;
+  while (b > a && std::isspace ((unsigned char) s[b - 1])) b--;
+  return s.substr (a, b - a);
+}
+
+inline string
+join_list (const strings& s) {
+  string out= "";
+  for (int i=0; i<N(s); i++) {
+    if (i != 0) out << ", ";
+    out << s[i];
+  }
+  return out;
+}
+
+inline bool
+has_string (const strings& xs, string x) {
+  for (int i=0; i<N(xs); i++)
+    if (xs[i] == x) return true;
+  return false;
+}
+
+inline string
+canonical_kind (string kind) {
+  if (kind == "abstract" || kind == "semi-concrete" || kind == "concrete")
+    return kind;
+  return "concrete";
+}
+
+enum ns_field_type {
+  ns_string_field,
+  ns_word_field,
+  ns_char_field,
+  ns_int_field,
+  ns_pos_int_field,
+  ns_roman_field
+};
+
+struct template_token {
+  bool          field;
+  std::string   literal;
+  ns_field_type type;
+};
+
+struct child_template_position {
+  size_t tok;
+  size_t off;
+};
+
+struct field_fragment {
+  bool        child;
+  int         child_index;
+  std::string literal;
+};
+
+struct parent_field_expr {
+  ns_field_type type;
+  std::vector<field_fragment> parts;
+};
+
+struct derivation_result {
+  bool changed= false;
+  std::vector<parent_field_expr> fields;
+};
+
+extern "C" {
+enum AthenaNsFieldType {
+  ATHENA_NS_STRING,
+  ATHENA_NS_WORD,
+  ATHENA_NS_CHAR,
+  ATHENA_NS_INT,
+  ATHENA_NS_POS_INT,
+  ATHENA_NS_ROMAN
+};
+
+typedef struct {
+  const char* text;
+  int         type;
+  long long   integer;
+  int         roman;
+} AthenaNsField;
+}
+
+typedef int (*ns_compare_fn) (int, const AthenaNsField*, const AthenaNsField*);
+
+const char* field_type_name (ns_field_type t);
+int parse_roman_value (const std::string& s);
+bool parse_template (string templ, std::vector<template_token>& out,
+                     string& error);
+std::string template_to_std (const std::vector<template_token>& toks);
+bool match_stem (const athena_namespace_definition& ns, const std::string& stem,
+                 athena_namespace_match& out, string& error);
+bool template_derivation_mapping (string child_template, string parent_template,
+                                  bool require_changed,
+                                  derivation_result& result, string& error);
+bool template_derives_from (string child_template, string parent_template,
+                            bool& derives, string& error);
+bool subproduct_candidate_from_order (string first_template,
+                                      string second_template,
+                                      bool aggressive_string,
+                                      string& suggestion, string& error);
+
+ns_compare_fn load_sorter (string sorter_path, string& error);
+int compare_with_sorter (ns_compare_fn fn, const athena_namespace_match& a,
+                         const athena_namespace_match& b);
+
+} // namespace athena_namespaces
+
+#endif // ATHENA_NAMESPACES_PRIVATE_HPP
