@@ -170,7 +170,6 @@ blend_colors (color fg, color bg) {
 color
 rgb_color (int r, int g, int b, int a) {
   if (true_colors) {
-    if (reverse_colors) reverse (r, g, b);
     return (a << 24) + (r << 16) + (g << 8) + b;
   }
   else if ((r==g) && (g==b))
@@ -198,7 +197,6 @@ get_rgb_color (color col, int& r, int& g, int& b, int& a) {
     r= (col >> 16) & 255;
     g= (col >> 8 ) & 255;
     b=  col        & 255;
-    if (reverse_colors) reverse (r, g, b);
   }
   else {
     a= (col >> 24) & 255;

@@ -28,6 +28,14 @@
 * Qt images
 ******************************************************************************/
 
+static QColor
+to_render_qcolor (color c) {
+  int r, g, b, a;
+  get_rgb_color (c, r, g, b, a);
+  if (get_reverse_colors ()) reverse (r, g, b);
+  return QColor (r, g, b, a);
+}
+
 struct qt_image_rep: concrete_struct {
   QTMImage *img;
   SI xo,yo;
@@ -257,7 +265,7 @@ qt_renderer_rep::set_pencil (pencil np) {
   basic_renderer_rep::set_pencil (np);
   QPen p (painter->pen ());
   QBrush b (painter->brush ());
-  QColor qc= to_qcolor (pen->get_color ());
+  QColor qc= to_render_qcolor (pen->get_color ());
   p.setColor (qc);
   b.setColor (qc);
   //SI pw= 0;
@@ -298,7 +306,7 @@ qt_renderer_rep::set_brush (brush br) {
   else {
     QPen p (painter->pen ());
     QBrush b (painter->brush ());
-    QColor col= to_qcolor (pen->get_color ());
+    QColor col= to_render_qcolor (pen->get_color ());
     p.setColor (col);
     b.setColor (col);
     painter->setPen (p);
@@ -367,7 +375,7 @@ qt_renderer_rep::clear (SI x1, SI y1, SI x2, SI y2) {
   decode (x1, y1);
   decode (x2, y2);
   if ((x1>=x2) || (y1<=y2)) return;
-  QBrush br (to_qcolor (bg_brush->get_color ()));
+  QBrush br (to_render_qcolor (bg_brush->get_color ()));
 #if QT_VERSION < 0x060000
   painter->setRenderHints (0);
 #else
@@ -396,13 +404,49 @@ qt_renderer_rep::fill (SI x1, SI y1, SI x2, SI y2) {
   decode (x1, y1);
   decode (x2, y2);
 
-  QBrush br (to_qcolor (pen->get_color ()));
+  QBrush br (to_render_qcolor (pen->get_color ()));
 #if QT_VERSION < 0x060000
   painter->setRenderHints (0);
 #else
   painter->setRenderHints (QPainter::Antialiasing, false); 
 #endif
   painter->fillRect (x1, y2, x2-x1, y1-y2, br);       
+}
+
+void
+qt_renderer_rep::draw_selection (rectangles rs) {
+  color fg= get_pencil () -> get_color ();
+  int r, g, b, a;
+  get_rgb_color (fg, r, g, b, a);
+  QColor inner= to_render_qcolor (rgb_color (r, g, b, (a + 1) / 16));
+  QColor outer= to_render_qcolor (fg);
+  rectangles inn= ::thicken (rs, -pixel, -pixel);
+  rectangles out= ::correct (rs - inn);
+
+  auto fill_rectangles = [this] (rectangles rects, const QColor& col) {
+    rectangles it= ::simplify (rects);
+    QBrush br (col);
+#if QT_VERSION < 0x060000
+    painter->setRenderHints (0);
+#else
+    painter->setRenderHints (QPainter::Antialiasing, false);
+#endif
+    while (!is_nil (it)) {
+      SI x1= it->item->x1, y1= it->item->y1;
+      SI x2= it->item->x2, y2= it->item->y2;
+      x1= max (x1, cx1-ox); y1= max (y1, cy1-oy);
+      x2= min (x2, cx2-ox); y2= min (y2, cy2-oy);
+      if ((x1<x2) && (y1<y2)) {
+        decode (x1, y1);
+        decode (x2, y2);
+        painter->fillRect (x1, y2, x2-x1, y1-y2, br);
+      }
+      it= it->next;
+    }
+  };
+
+  fill_rectangles (inn, inner);
+  fill_rectangles (out, outer);
 }
 
 void
@@ -423,7 +467,7 @@ qt_renderer_rep::fill_arc (SI x1, SI y1, SI x2, SI y2, int alpha, int delta) {
   decode (x2, y2, rx2, ry2);
   QBrush br= painter->brush ();
   if (is_nil (fg_brush) || fg_brush->get_type () != brush_pattern)
-    br= QBrush (to_qcolor (pen->get_color ()));
+    br= QBrush (to_render_qcolor (pen->get_color ()));
   QPainterPath pp;
   pp.arcMoveTo (QRectF (rx1, ry2, rx2-rx1, ry1-ry2), alpha / 64);
   pp.arcTo (QRectF (rx1, ry2, rx2-rx1, ry1-ry2), alpha / 64, delta / 64);
@@ -447,7 +491,7 @@ qt_renderer_rep::polygon (array<SI> x, array<SI> y, bool convex) {
   if (is_nil (fg_brush) || fg_brush->get_type () != brush_pattern)
     // FIXME: is this really necessary?
     // The brush should have been set at the moment of set_pencil or set_brush
-    br= QBrush (to_qcolor (pen->get_color ()));
+    br= QBrush (to_render_qcolor (pen->get_color ()));
   QPainterPath pp;
   pp.addPolygon (poly);
   pp.closeSubpath ();
@@ -478,7 +522,7 @@ qt_renderer_rep::draw_triangle (SI x1, SI y1, SI x2, SI y2, SI x3, SI y3) {
   if (is_nil (fg_brush) || fg_brush->get_type () != brush_pattern)
     // FIXME: is this really necessary?
     // The brush should have been set at the moment of set_pencil or set_brush
-    br= QBrush (to_qcolor (pen->get_color ()));
+    br= QBrush (to_render_qcolor (pen->get_color ()));
   QPainterPath pp;
   pp.addPolygon (poly);
   pp.closeSubpath ();

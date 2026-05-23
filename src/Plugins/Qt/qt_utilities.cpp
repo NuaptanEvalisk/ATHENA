@@ -376,7 +376,6 @@ QColor
 to_qcolor(color c) {
   int r, g, b, a;
   get_rgb_color (c, r, g, b, a);
-  if (get_reverse_colors ()) reverse (r, g, b);
   return QColor (r, g, b, a);
 }
 
@@ -384,7 +383,6 @@ color
 to_color (const QColor& c) {
   int r, g, b, a;
   c.getRgb (&r, &g, &b, &a);
-  if (get_reverse_colors ()) reverse (r, g, b);
   return rgb_color (r, g, b, a);
 }
 
@@ -1150,4 +1148,3 @@ qt_download_file(string _urlStr, string _outputFile) {
   return 0;
 }
 #endif
-

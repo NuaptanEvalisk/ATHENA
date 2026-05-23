@@ -352,6 +352,11 @@ picture
 load_picture (url u, int w, int h, tree eff, int pixel) {
   QImage* im= get_image (u, w, h, eff, pixel);
   if (im == NULL) return error_picture (w, h);
+  if (get_reverse_colors ()) {
+    QImage rev= *im;
+    invert_colors (rev);
+    return qt_picture (rev, 0, 0);
+  }
   return qt_picture (*im, 0, 0);
 }
 
