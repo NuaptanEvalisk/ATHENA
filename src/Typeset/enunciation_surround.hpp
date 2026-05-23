@@ -80,9 +80,18 @@ athena_enunciation_starts_display (edit_env env, tree t, int depth= 0) {
   if (is_atomic (t)) return false;
   if (is_func (t, ARG, 1) && is_atomic (t[0]) &&
       (!is_nil (env->macro_arg)) &&
-      env->macro_arg->item->contains (t[0]->label))
-    return athena_enunciation_starts_display (
-      env, env->macro_arg->item [t[0]->label], depth + 1);
+      env->macro_arg->item->contains (t[0]->label)) {
+    string name= t[0]->label;
+    tree value= env->macro_arg->item [name];
+    list<hashmap<string,tree> > old_arg= env->macro_arg;
+    list<hashmap<string,path> > old_src= env->macro_src;
+    if (!is_nil (env->macro_arg)) env->macro_arg= env->macro_arg->next;
+    if (!is_nil (env->macro_src)) env->macro_src= env->macro_src->next;
+    bool r= athena_enunciation_starts_display (env, value, depth + 1);
+    env->macro_arg= old_arg;
+    env->macro_src= old_src;
+    return r;
+  }
 
   string tag= athena_tree_tag (t);
   if (athena_display_math_tag (tag)) return true;
@@ -116,8 +125,6 @@ athena_enunciation_surround_rewrite (edit_env env, tree t) {
   tree right= t[d + 1];
   tree body = t[d + 2];
   bool display= athena_enunciation_starts_display (env, body);
-  if ((!display) && is_func (body, ARG, 1))
-    display= athena_enunciation_starts_display (env, env->exec (body));
   if (display) {
     tree title_line= tree (WITH, "par-mode", "left",
                            tree (CONCAT, tree (NO_INDENT), left));

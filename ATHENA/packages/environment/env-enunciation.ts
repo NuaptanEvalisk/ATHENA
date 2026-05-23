@@ -66,6 +66,8 @@
     </padded*>
   </macro>>
 
+  <drd-props|enunciation-surround|arity|3|accessible|2>
+
   <assign|render-remark|<\macro|which|body>
     <render-enunciation|<remark-name|<arg|which><remark-sep>>|<arg|body>>
   </macro>>

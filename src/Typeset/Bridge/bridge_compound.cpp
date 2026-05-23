@@ -204,7 +204,7 @@ void
 bridge_compound_rep::my_typeset (int desired_status) {
   if (athena_is_enunciation_surround (st)) {
     tree r= athena_enunciation_surround_rewrite (env, st);
-    initialize (r, 0, tree (MACRO, "body", r));
+    initialize (r, 0, r);
     if (!the_drd->is_child_enforcing (st))
       ttt->insert_marker (st, ip);
     body->typeset (desired_status);
