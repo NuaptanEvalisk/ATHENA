@@ -13,6 +13,7 @@
 #include "convert.hpp"
 #include "drd_mode.hpp"
 #include "message.hpp"
+#include "namespaces.hpp"
 #include "new_buffer.hpp"
 #include "qt_utilities.hpp"
 #include "qt_widget.hpp"
@@ -28,10 +29,12 @@
 #include <DockSplitter.h>
 #include <DockWidget.h>
 #include <QApplication>
+#include <QCompleter>
 #include <QEvent>
 #include <QHBoxLayout>
 #include <QKeyEvent>
 #include <QLabel>
+#include <QLineEdit>
 #include <QListWidget>
 #include <QMessageBox>
 #include <QProgressBar>
@@ -40,10 +43,12 @@
 #include <QSizeGrip>
 #include <QSizePolicy>
 #include <QSplitter>
+#include <QStringListModel>
 #include <QTimer>
 #include <QVBoxLayout>
 #include <algorithm>
 #include <iostream>
+#include <set>
 
 static QTMGlobalSearch* global_search_widget= nullptr;
 static ads::CDockWidget* global_search_dock= nullptr;
@@ -109,6 +114,16 @@ QTMGlobalSearch::QTMGlobalSearch (QWidget* parent)
   QWidget* preview= createPreviewWidget ();
   preview->setMinimumHeight (220);
 
+  namespaceEdit= new QLineEdit (this);
+  namespaceEdit->setPlaceholderText ("All namespaces");
+  namespaceEdit->setClearButtonEnabled (true);
+  namespaceEdit->setMinimumWidth (360);
+  namespaceModel= new QStringListModel (this);
+  QCompleter* namespaceCompleter= new QCompleter (namespaceModel, this);
+  namespaceCompleter->setCaseSensitivity (Qt::CaseInsensitive);
+  namespaceCompleter->setFilterMode (Qt::MatchContains);
+  namespaceEdit->setCompleter (namespaceCompleter);
+
   QWidget* leftPane= new QWidget (this);
   leftPane->setMinimumWidth (500);
   QVBoxLayout* leftLayout= new QVBoxLayout (leftPane);
@@ -132,6 +147,9 @@ QTMGlobalSearch::QTMGlobalSearch (QWidget* parent)
   scanTimer->setInterval (0);
 
   QHBoxLayout* buttons= new QHBoxLayout ();
+  buttons->addWidget (new QLabel ("Namespace:", this));
+  buttons->addWidget (namespaceEdit);
+  buttons->addSpacing (12);
   buttons->addWidget (searchButton);
   buttons->addWidget (cancelButton);
   buttons->addStretch ();
@@ -167,6 +185,7 @@ QTMGlobalSearch::QTMGlobalSearch (QWidget* parent)
              updatePreview (current);
            });
 
+  refreshNamespaces ();
   setIdleStatus ();
 }
 
@@ -258,6 +277,29 @@ QTMGlobalSearch::relativePath (url u) const {
 }
 
 void
+QTMGlobalSearch::refreshNamespaces () {
+  QString current= namespaceEdit == nullptr ? QString () :
+    namespaceEdit->text ().trimmed ();
+
+  QStringList names;
+  string error;
+  athena_namespace_refresh_derived (error);
+  for (const athena_namespace_definition& ns: athena_namespaces_list ())
+    names << to_qstring (ns.name);
+  names.removeDuplicates ();
+  names.sort (Qt::CaseInsensitive);
+  namespaceModel->setStringList (names);
+
+  if (!current.isEmpty () && !names.contains (current, Qt::CaseSensitive))
+    namespaceEdit->setText (current);
+}
+
+QString
+QTMGlobalSearch::selectedNamespace () const {
+  return namespaceEdit == nullptr ? QString () : namespaceEdit->text ().trimmed ();
+}
+
+void
 QTMGlobalSearch::setIdleStatus () {
   status->setText ("Enter a query and search the current vault.");
   progress->setRange (0, 1);
@@ -266,8 +308,13 @@ QTMGlobalSearch::setIdleStatus () {
 
 void
 QTMGlobalSearch::setRunningStatus () {
-  status->setText (QString ("Searching %1 vault files...")
-                   .arg ((int) scanFiles.size ()));
+  QString ns= selectedNamespace ();
+  status->setText (
+    ns.isEmpty ()
+      ? QString ("Searching %1 vault files...").arg ((int) scanFiles.size ())
+      : QString ("Searching %1 file(s) in namespace %2...")
+          .arg ((int) scanFiles.size ())
+          .arg (ns));
   progress->setRange (0, (int) scanFiles.size ());
   progress->setValue (0);
 }
@@ -297,10 +344,37 @@ QTMGlobalSearch::startSearch () {
     return;
   }
 
-  array<url> files= vault_get_all_files ();
-  for (int i=0; i<N(files); i++)
-    if (suffix (files[i]) == "ath")
-      scanFiles.push_back (files[i]);
+  refreshNamespaces ();
+  QString ns= selectedNamespace ();
+  if (ns.isEmpty ()) {
+    array<url> files= vault_get_all_files ();
+    for (int i=0; i<N(files); i++)
+      if (suffix (files[i]) == "ath")
+        scanFiles.push_back (files[i]);
+  }
+  else {
+    string error;
+    athena_namespace_definition def;
+    if (!athena_namespace_get (from_qstring (ns), def)) {
+      QMessageBox::warning (this, "Global search",
+                            "Unknown namespace: " + ns);
+      setIdleStatus ();
+      return;
+    }
+    std::vector<athena_namespace_match> members=
+      athena_namespace_members (from_qstring (ns), error);
+    if (error != "") {
+      QMessageBox::warning (this, "Global search",
+                            "Namespace warning: " + to_qstring (error));
+    }
+    std::set<std::string> seen;
+    for (const athena_namespace_match& m: members) {
+      if (suffix (m.file) != "ath") continue;
+      std::string key= to_qstring (concretize (m.file)).toStdString ();
+      if (!seen.insert (key).second) continue;
+      scanFiles.push_back (m.file);
+    }
+  }
 
   std::sort (scanFiles.begin (), scanFiles.end (),
              [this] (const url& a, const url& b) {
@@ -308,7 +382,10 @@ QTMGlobalSearch::startSearch () {
              });
 
   std::cout << "Global search: deferred scan starting, "
-            << (int) scanFiles.size () << " files\n";
+            << (int) scanFiles.size () << " files";
+  if (!ns.isEmpty ())
+    std::cout << " in namespace " << ns.toStdString ();
+  std::cout << "\n";
   setRunningStatus ();
   searchButton->setEnabled (false);
   cancelButton->setEnabled (true);
@@ -543,6 +620,7 @@ global_search_show () {
       global_search_dock= nullptr;
     });
   }
+  global_search_widget->refreshNamespaces ();
   global_search_widget->setPreviewZoomFactor (
     get_server ()->get_window_zoom_factor ());
 

@@ -26,9 +26,11 @@ class QLabel;
 class QEvent;
 class QListWidget;
 class QListWidgetItem;
+class QLineEdit;
 class QPushButton;
 class QSizeGrip;
 class QProgressBar;
+class QStringListModel;
 class QSplitter;
 class QTimer;
 
@@ -41,6 +43,7 @@ public:
   bool eventFilter (QObject* watched, QEvent* event) override;
   void setPreviewZoomFactor (double zoom);
   void setFloatingResizeGripVisible (bool visible);
+  void refreshNamespaces ();
 
 private:
   struct Result {
@@ -56,6 +59,7 @@ private:
   QWidget* createPreviewWidget ();
   tree     currentQuery () const;
   tree     normalizeQuery (tree t) const;
+  QString  selectedNamespace () const;
   void     startSearch ();
   void     cancelSearch ();
   void     scanChunk ();
@@ -87,6 +91,8 @@ private:
   QLabel*       prompt;
   QLabel*       status;
   QLabel*       previewTitle;
+  QLineEdit*    namespaceEdit;
+  QStringListModel* namespaceModel;
   QPushButton*  searchButton;
   QPushButton*  cancelButton;
   QSizeGrip*    floatingSizeGrip;
