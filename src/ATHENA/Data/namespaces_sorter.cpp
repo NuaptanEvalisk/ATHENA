@@ -445,6 +445,54 @@ product_sorter_source (const athena_namespace_definition& first,
   return out.str ();
 }
 
+static std::string
+restricted_sorter_source (const athena_namespace_definition& parent,
+                          const derivation_result& parent_map,
+                          string product_template, string& error) {
+  std::string parent_source;
+  if (!sorter_source_for_function (parent, "athena_ns_compare_parent",
+                                   parent_source, error))
+    return "";
+
+  std::ostringstream out;
+  out << "/*\n"
+      << " * Generated ATHENA namespace restricted sorter.\n"
+      << " * Parent: " << c_string_escape (tm_to_std (parent.name)) << "\n"
+      << " * Product template: "
+      << c_string_escape (tm_to_std (product_template)) << "\n"
+      << " */\n\n";
+  out << parent_source << "\n";
+  out << "static void\n"
+      << "athena_ns_product_append (char* out, int cap, const char* s) {\n"
+      << "  int i = 0;\n"
+      << "  if (cap <= 0) return;\n"
+      << "  while (i + 1 < cap && out[i] != 0) i++;\n"
+      << "  if (s == 0) return;\n"
+      << "  while (i + 1 < cap && *s != 0) out[i++] = *s++;\n"
+      << "  out[i] = 0;\n"
+      << "}\n\n"
+      << "static long long\n"
+      << "athena_ns_product_parse_int (const char* s) {\n"
+      << "  long long sign = 1, value = 0;\n"
+      << "  if (s == 0) return 0;\n"
+      << "  if (*s == '-') { sign = -1; s++; }\n"
+      << "  while (*s >= '0' && *s <= '9') {\n"
+      << "    value = value * 10 + (*s - '0');\n"
+      << "    s++;\n"
+      << "  }\n"
+      << "  return sign * value;\n"
+      << "}\n\n";
+  out << "int\n"
+      << "athena_ns_compare (int n, const AthenaNsField* a, "
+      << "const AthenaNsField* b) {\n";
+  append_field_build_code (out, "parent_a", "a", parent_map.fields);
+  append_field_build_code (out, "parent_b", "b", parent_map.fields);
+  out << "  return athena_ns_compare_parent ("
+      << parent_map.fields.size () << ", parent_a, parent_b);\n"
+      << "}\n";
+  return out.str ();
+}
+
 
 
 } // namespace athena_namespaces
@@ -537,6 +585,71 @@ athena_namespace_generate_product_sorter (
   if (compile_error != "") {
     std::filesystem::remove (file, ec);
     error= "Generated product sorter did not compile: " * compile_error;
+    return false;
+  }
+  return true;
+}
+
+bool
+athena_namespace_generate_restricted_sorter (
+  const athena_namespace_definition& parent,
+  string product_template, string& sorter_path, string& error) {
+  if (!vault_active ()) {
+    error= "No active vault.";
+    return false;
+  }
+  if (!parent.sorter_trivial && parent.sorter_path == "") {
+    error= "The semi-concrete parent needs an explicit or trivial sorter.";
+    return false;
+  }
+
+  derivation_result parent_map;
+  if (!template_derivation_mapping (product_template, parent.templ, false,
+                                    parent_map, error)) {
+    if (error == "") error= "Product template does not derive from " *
+                            parent.name * ".";
+    return false;
+  }
+
+  std::string source= restricted_sorter_source (parent, parent_map,
+                                                product_template, error);
+  if (source.empty ()) return false;
+
+  std::filesystem::path root (tm_to_std (concretize (vault_get_root ())));
+  std::filesystem::path dir= root / ".athena" / "ns-sorters";
+  std::error_code ec;
+  std::filesystem::create_directories (dir, ec);
+  if (ec) {
+    error= "Cannot create namespace sorter directory: " *
+           std_to_tm (ec.message ());
+    return false;
+  }
+
+  std::string stem= "restricted-" + safe_file_component (tm_to_std (parent.name)) +
+                    "-" + std::to_string ((long long) std::time (nullptr));
+  std::filesystem::path file;
+  for (int i=0; i<1000; i++) {
+    std::string suffix= i == 0 ? "" : "-" + std::to_string (i);
+    file= dir / (stem + suffix + ".c");
+    if (!std::filesystem::exists (file)) break;
+  }
+
+  std::ofstream out (file, std::ios::binary);
+  if (!out.good ()) {
+    error= "Cannot write generated restricted sorter.";
+    return false;
+  }
+  out << source;
+  out.close ();
+
+  std::filesystem::path rel= std::filesystem::relative (file, root, ec);
+  sorter_path= std_to_tm (ec ? file.string () : rel.generic_string ());
+
+  string compile_error;
+  (void) load_sorter (sorter_path, compile_error);
+  if (compile_error != "") {
+    std::filesystem::remove (file, ec);
+    error= "Generated restricted sorter did not compile: " * compile_error;
     return false;
   }
   return true;

@@ -494,6 +494,54 @@ private:
   QLineEdit* edit;
 };
 
+class SingleParentSubproductTemplateWizardPage : public QWizardPage {
+public:
+  SingleParentSubproductTemplateWizardPage (
+    const athena_namespace_definition& parent,
+    const QString& suggested, QWidget* wizardParent = nullptr)
+    : QWizardPage (wizardParent), parent (parent),
+      edit (new QLineEdit (suggested, this)) {
+    setTitle ("Sub-product Template");
+    setSubTitle ("Confirm or edit the naming template. It must derive from the "
+                 "selected semi-concrete namespace template.");
+    edit->setMinimumWidth (620);
+    QVBoxLayout* layout= new QVBoxLayout (this);
+    layout->addWidget (edit);
+  }
+
+  QString templ () const {
+    return edit->text ().trimmed ();
+  }
+
+  bool validatePage () override {
+    QString candidate= templ ();
+    if (candidate.isEmpty ()) {
+      QMessageBox::warning (this, "Sub-product Template",
+                            "The template cannot be empty.");
+      return false;
+    }
+    string error;
+    bool derives= false;
+    if (!athena_namespace_template_derives (from_qstring (candidate),
+                                            parent.templ, derives, error)) {
+      QMessageBox::warning (this, "Sub-product Template", to_qstring (error));
+      return false;
+    }
+    if (!derives) {
+      QMessageBox::warning (
+        this, "Sub-product Template",
+        "The template does not derive from the selected semi-concrete "
+        "namespace template.");
+      return false;
+    }
+    return true;
+  }
+
+private:
+  athena_namespace_definition parent;
+  QLineEdit* edit;
+};
+
 class SubproductSummaryWizardPage : public QWizardPage {
 public:
   SubproductSummaryWizardPage (SubproductNamesWizardPage* namesPage,
@@ -517,6 +565,59 @@ public:
 private:
   SubproductNamesWizardPage* namesPage;
   SubproductTemplateWizardPage* templatePage;
+  QLabel* summary;
+};
+
+class SingleParentSubproductSummaryWizardPage : public QWizardPage {
+public:
+  SingleParentSubproductSummaryWizardPage (
+    SubproductNamesWizardPage* namesPage,
+    SingleParentSubproductTemplateWizardPage* templatePage,
+    QWidget* parent = nullptr)
+    : QWizardPage (parent), namesPage (namesPage),
+      templatePage (templatePage), summary (new QLabel (this)) {
+    setTitle ("Confirm Sub-products");
+    setSubTitle ("Review the generated namespaces before creating them.");
+    summary->setWordWrap (true);
+    summary->setTextFormat (Qt::PlainText);
+    QVBoxLayout* layout= new QVBoxLayout (this);
+    layout->addWidget (summary);
+  }
+
+  void initializePage () override {
+    summary->setText ("Namespaces:\n" + namesPage->names ().join ("\n") +
+                      "\n\nKind:\nsemi-concrete" +
+                      "\n\nTemplate:\n" + templatePage->templ ());
+  }
+
+private:
+  SubproductNamesWizardPage* namesPage;
+  SingleParentSubproductTemplateWizardPage* templatePage;
+  QLabel* summary;
+};
+
+class AbstractSubproductSummaryWizardPage : public QWizardPage {
+public:
+  AbstractSubproductSummaryWizardPage (SubproductNamesWizardPage* namesPage,
+                                       QWidget* parent = nullptr)
+    : QWizardPage (parent), namesPage (namesPage), summary (new QLabel (this)) {
+    setTitle ("Confirm Sub-products");
+    setSubTitle ("Review the generated abstract namespaces before creating them.");
+    summary->setWordWrap (true);
+    summary->setTextFormat (Qt::PlainText);
+    QVBoxLayout* layout= new QVBoxLayout (this);
+    layout->addWidget (summary);
+  }
+
+  void initializePage () override {
+    summary->setText ("Namespaces:\n" + namesPage->names ().join ("\n") +
+                      "\n\nKind:\nabstract" +
+                      "\n\nTemplate:\n<none>" +
+                      "\n\nSorter:\n<none>");
+  }
+
+private:
+  SubproductNamesWizardPage* namesPage;
   QLabel* summary;
 };
 
@@ -982,93 +1083,174 @@ QTMNamespaceManager::generateSubproducts () {
                           "Could not load the selected namespaces.");
     return;
   }
-  if (!namespace_at_least_semi_concrete (first) ||
-      !namespace_at_least_semi_concrete (second)) {
+
+  string error;
+  bool firstSemi= namespace_at_least_semi_concrete (first);
+  bool secondSemi= namespace_at_least_semi_concrete (second);
+  if (first.kind != "abstract" && !firstSemi) {
     QMessageBox::warning (
       this, "Generate Sub-products",
-      "Both selected namespaces must be at least semi-concrete and have a "
-      "sorting algorithm.");
+      QString ("Namespace \"%1\" has a template but no usable sorter. "
+               "Add a sorter or mark it abstract before generating "
+               "sub-products.")
+        .arg (names[0]));
+    return;
+  }
+  if (second.kind != "abstract" && !secondSemi) {
+    QMessageBox::warning (
+      this, "Generate Sub-products",
+      QString ("Namespace \"%1\" has a template but no usable sorter. "
+               "Add a sorter or mark it abstract before generating "
+               "sub-products.")
+        .arg (names[1]));
     return;
   }
 
-  bool aggressive=
-    get_preference ("vault subproduct consume string aggressively", "on") ==
-    "on";
-  string suggested;
-  string error;
-  if (!athena_namespace_suggest_subproduct_template (
-        first.templ, second.templ, aggressive, suggested, error)) {
-    suggested= "";
-    if (error != "")
-      QMessageBox::information (this, "Sub-product Template",
-                                to_qstring (error));
-  }
+  auto confirmExisting= [this] (const QStringList& productNames) {
+    QStringList existing;
+    for (const QString& name: productNames) {
+      athena_namespace_definition ignored;
+      if (athena_namespace_get (from_qstring (name), ignored))
+        existing << name;
+    }
+    if (existing.isEmpty ()) return true;
+    return QMessageBox::question (
+      this, "Update Existing Namespaces",
+      QString ("These namespaces already exist and will be updated:\n%1")
+        .arg (existing.join ("\n")),
+      QMessageBox::Yes | QMessageBox::No) == QMessageBox::Yes;
+  };
 
-  string firstSource, secondSource;
-  if (!athena_namespace_sorter_source (first, firstSource, error)) {
-    QMessageBox::warning (this, "Generate Sub-products", to_qstring (error));
-    return;
-  }
-  if (!athena_namespace_sorter_source (second, secondSource, error)) {
-    QMessageBox::warning (this, "Generate Sub-products", to_qstring (error));
-    return;
-  }
+  auto saveProducts= [this, &first, &second, &error] (
+      const QStringList& productNames, const QString& kind,
+      const QString& templ, bool sorterTrivial, string sorterPath) {
+    for (const QString& name: productNames) {
+      athena_namespace_definition ns;
+      ns.name= from_qstring (name);
+      ns.kind= from_qstring (kind);
+      ns.templ= from_qstring (templ);
+      ns.sorter_trivial= sorterTrivial;
+      ns.sorter_path= sorterTrivial ? string ("") : sorterPath;
+      ns.style_path= "";
+      ns.parents= strings ();
+      ns.parents << first.name << second.name;
+      ns.derived_parents= strings ();
+      if (ns.kind == "abstract") {
+        ns.templ= "";
+        ns.sorter_trivial= false;
+        ns.sorter_path= "";
+      }
+      if (!athena_namespace_save (ns, error)) return false;
+    }
+    return true;
+  };
 
-  QWizard wizard (this);
-  wizard.setWindowTitle ("Generate Sub-products");
-  wizard.setWizardStyle (QWizard::ModernStyle);
-  wizard.resize (980, 680);
-  wizard.addPage (new SorterCompatibilityWizardPage (
-    first, second, utf8_to_qstring (firstSource), utf8_to_qstring (secondSource),
-    &wizard));
-  SubproductNamesWizardPage* namesPage=
-    new SubproductNamesWizardPage (names[0], names[1], &wizard);
-  SubproductTemplateWizardPage* templatePage=
-    new SubproductTemplateWizardPage (first, second, to_qstring (suggested),
-                                      &wizard);
-  wizard.addPage (namesPage);
-  wizard.addPage (templatePage);
-  wizard.addPage (new SubproductSummaryWizardPage (namesPage, templatePage,
-                                                   &wizard));
-  if (wizard.exec () != QDialog::Accepted) return;
+  QStringList productNames;
+  if (firstSemi && secondSemi) {
+    bool aggressive=
+      get_preference ("vault subproduct consume string aggressively", "on") ==
+      "on";
+    string suggested;
+    if (!athena_namespace_suggest_subproduct_template (
+          first.templ, second.templ, aggressive, suggested, error)) {
+      suggested= "";
+      if (error != "")
+        QMessageBox::information (this, "Sub-product Template",
+                                  to_qstring (error));
+    }
 
-  QStringList productNames= namesPage->names ();
-  QString templ= templatePage->templ ();
-
-  string sorterPath;
-  if (!athena_namespace_generate_product_sorter (
-        first, second, from_qstring (templ), sorterPath, error)) {
-    QMessageBox::warning (this, "Generate Sub-products", to_qstring (error));
-    return;
-  }
-
-  QStringList existing;
-  for (const QString& name: productNames) {
-    athena_namespace_definition ignored;
-    if (athena_namespace_get (from_qstring (name), ignored))
-      existing << name;
-  }
-  if (!existing.isEmpty ()) {
-    if (QMessageBox::question (
-          this, "Update Existing Namespaces",
-          QString ("These namespaces already exist and will be updated:\n%1")
-            .arg (existing.join ("\n")),
-          QMessageBox::Yes | QMessageBox::No) != QMessageBox::Yes)
+    string firstSource, secondSource;
+    if (!athena_namespace_sorter_source (first, firstSource, error)) {
+      QMessageBox::warning (this, "Generate Sub-products", to_qstring (error));
       return;
-  }
+    }
+    if (!athena_namespace_sorter_source (second, secondSource, error)) {
+      QMessageBox::warning (this, "Generate Sub-products", to_qstring (error));
+      return;
+    }
 
-  for (const QString& name: productNames) {
-    athena_namespace_definition ns;
-    ns.name= from_qstring (name);
-    ns.kind= "semi-concrete";
-    ns.templ= from_qstring (templ);
-    ns.sorter_trivial= false;
-    ns.sorter_path= sorterPath;
-    ns.style_path= "";
-    ns.parents= strings ();
-    ns.parents << first.name << second.name;
-    ns.derived_parents= strings ();
-    if (!athena_namespace_save (ns, error)) {
+    QWizard wizard (this);
+    wizard.setWindowTitle ("Generate Sub-products");
+    wizard.setWizardStyle (QWizard::ModernStyle);
+    wizard.resize (980, 680);
+    wizard.addPage (new SorterCompatibilityWizardPage (
+      first, second, utf8_to_qstring (firstSource),
+      utf8_to_qstring (secondSource), &wizard));
+    SubproductNamesWizardPage* namesPage=
+      new SubproductNamesWizardPage (names[0], names[1], &wizard);
+    SubproductTemplateWizardPage* templatePage=
+      new SubproductTemplateWizardPage (first, second, to_qstring (suggested),
+                                        &wizard);
+    wizard.addPage (namesPage);
+    wizard.addPage (templatePage);
+    wizard.addPage (new SubproductSummaryWizardPage (namesPage, templatePage,
+                                                     &wizard));
+    if (wizard.exec () != QDialog::Accepted) return;
+
+    productNames= namesPage->names ();
+    QString templ= templatePage->templ ();
+    string sorterPath;
+    if (!athena_namespace_generate_product_sorter (
+          first, second, from_qstring (templ), sorterPath, error)) {
+      QMessageBox::warning (this, "Generate Sub-products", to_qstring (error));
+      return;
+    }
+    if (!confirmExisting (productNames)) return;
+    if (!saveProducts (productNames, "semi-concrete", templ, false,
+                       sorterPath)) {
+      QMessageBox::warning (this, "Generate Sub-products", to_qstring (error));
+      return;
+    }
+  }
+  else if (firstSemi || secondSemi) {
+    const athena_namespace_definition& semi= firstSemi ? first : second;
+
+    QWizard wizard (this);
+    wizard.setWindowTitle ("Generate Sub-products");
+    wizard.setWizardStyle (QWizard::ModernStyle);
+    wizard.resize (760, 560);
+    SubproductNamesWizardPage* namesPage=
+      new SubproductNamesWizardPage (names[0], names[1], &wizard);
+    SingleParentSubproductTemplateWizardPage* templatePage=
+      new SingleParentSubproductTemplateWizardPage (
+        semi, to_qstring (semi.templ), &wizard);
+    wizard.addPage (namesPage);
+    wizard.addPage (templatePage);
+    wizard.addPage (new SingleParentSubproductSummaryWizardPage (
+      namesPage, templatePage, &wizard));
+    if (wizard.exec () != QDialog::Accepted) return;
+
+    productNames= namesPage->names ();
+    bool sorterTrivial= semi.sorter_trivial;
+    string sorterPath;
+    if (!sorterTrivial &&
+        !athena_namespace_generate_restricted_sorter (
+          semi, from_qstring (templatePage->templ ()), sorterPath, error)) {
+      QMessageBox::warning (this, "Generate Sub-products", to_qstring (error));
+      return;
+    }
+    if (!confirmExisting (productNames)) return;
+    if (!saveProducts (productNames, "semi-concrete", templatePage->templ (),
+                       sorterTrivial, sorterPath)) {
+      QMessageBox::warning (this, "Generate Sub-products", to_qstring (error));
+      return;
+    }
+  }
+  else {
+    QWizard wizard (this);
+    wizard.setWindowTitle ("Generate Sub-products");
+    wizard.setWizardStyle (QWizard::ModernStyle);
+    wizard.resize (700, 430);
+    SubproductNamesWizardPage* namesPage=
+      new SubproductNamesWizardPage (names[0], names[1], &wizard);
+    wizard.addPage (namesPage);
+    wizard.addPage (new AbstractSubproductSummaryWizardPage (namesPage,
+                                                             &wizard));
+    if (wizard.exec () != QDialog::Accepted) return;
+
+    productNames= namesPage->names ();
+    if (!confirmExisting (productNames)) return;
+    if (!saveProducts (productNames, "abstract", "", false, "")) {
       QMessageBox::warning (this, "Generate Sub-products", to_qstring (error));
       return;
     }

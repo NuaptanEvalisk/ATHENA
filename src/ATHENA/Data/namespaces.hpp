@@ -72,6 +72,9 @@ bool athena_namespace_generate_product_sorter (
   const athena_namespace_definition& first,
   const athena_namespace_definition& second,
   string product_template, string& sorter_path, string& error);
+bool athena_namespace_generate_restricted_sorter (
+  const athena_namespace_definition& parent,
+  string product_template, string& sorter_path, string& error);
 
 std::vector<athena_namespace_match> athena_namespace_members (string name,
                                                               string& error);
