@@ -15,6 +15,7 @@
 #include "Stack/stacker.hpp"
 #include "Boxes/construct.hpp"
 #include "analyze.hpp"
+#include "enunciation_surround.hpp"
 #include "packrat.hpp"
 #include "scheme.hpp"
 #include "tree_label.hpp"
@@ -351,6 +352,10 @@ make_lazy_with (edit_env env, tree t, path ip) {
 
 lazy
 make_lazy_compound (edit_env env, tree t, path ip) {
+  if (athena_is_enunciation_surround (t))
+    return make_lazy (
+      env, attach_right (athena_enunciation_surround_rewrite (env, t), ip));
+
   int d; tree f;
   if (L(t) == COMPOUND) {
     d= 1;

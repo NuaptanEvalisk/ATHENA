@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "concater.hpp"
+#include "enunciation_surround.hpp"
 #include "Format/format.hpp"
 #include "formatter.hpp"
 #include "glue.hpp"
@@ -84,6 +85,11 @@ concater_rep::typeset_with (tree t, path ip) {
 
 void
 concater_rep::typeset_compound (tree t, path ip) {
+  if (athena_is_enunciation_surround (t)) {
+    typeset (athena_enunciation_surround_rewrite (env, t), ip);
+    return;
+  }
+
   int d; tree f;
   if (L(t) == COMPOUND) {
     if (N(t) == 0) { typeset_error (t, ip); return; }

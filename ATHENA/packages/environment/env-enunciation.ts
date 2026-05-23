@@ -62,7 +62,7 @@
 
   <assign|render-enunciation|<\macro|which|body>
     <\padded*>
-      <surround|<arg|which>|<yes-indent*>|<arg|body>>
+      <enunciation-surround|<arg|which>|<yes-indent*>|<arg|body>>
     </padded*>
   </macro>>
 

@@ -11,6 +11,7 @@
 
 #include "bridge.hpp"
 #include "drd_std.hpp"
+#include "enunciation_surround.hpp"
 #include "scheme.hpp"
 
 tree insert_at (tree, path, tree);
@@ -67,6 +68,12 @@ void
 bridge_compound_rep::notify_assign (path p, tree u) {
   // cout << "Assign " << p << ", " << u << " in " << st << "\n";
   ASSERT (!is_nil (p) || L(u) >= START_EXTENSIONS, "nil path");
+  if (athena_is_enunciation_surround (st)) {
+    st= substitute (st, p, u);
+    valid= false;
+    status= CORRUPTED;
+    return;
+  }
   if (is_nil (p) || (p->item == 0) || is_nil (body)) {
     st= substitute (st, p, u);
     valid= false;
@@ -87,6 +94,12 @@ void
 bridge_compound_rep::notify_insert (path p, tree u) {
   // cout << "Insert " << p << ", " << u << " in " << st << "\n";
   ASSERT (!is_nil (p), "nil path");
+  if (athena_is_enunciation_surround (st)) {
+    st= insert_at (st, p, u);
+    valid= false;
+    status= CORRUPTED;
+    return;
+  }
   if (is_atom (p) || is_nil (body)) bridge_rep::notify_insert (p, u);
   else {
     // bool mp_flag= is_multi_paragraph (st);
@@ -104,6 +117,12 @@ void
 bridge_compound_rep::notify_remove (path p, int nr) {
   // cout << "Remove " << p << ", " << nr << " in " << st << "\n";
   ASSERT (!is_nil (p), "nil path");
+  if (athena_is_enunciation_surround (st)) {
+    st= remove_at (st, p, nr);
+    valid= false;
+    status= CORRUPTED;
+    return;
+  }
   if (is_atom (p) || is_nil (body)) bridge_rep::notify_remove (p, nr);
   else {
     // bool mp_flag= is_multi_paragraph (st);
@@ -128,6 +147,12 @@ bridge_compound_rep::notify_macro (
   */
 
   bool flag;
+  if (athena_is_enunciation_surround (st)) {
+    (void) type; (void) var; (void) l; (void) p; (void) u;
+    valid= false;
+    status= CORRUPTED;
+    return true;
+  }
   if (valid) {
     int i, n=N(fun)-1, m=N(st);
     env->macro_arg= list<hashmap<string,tree> > (
@@ -177,6 +202,15 @@ bridge_compound_rep::my_typeset_will_be_complete () {
 
 void
 bridge_compound_rep::my_typeset (int desired_status) {
+  if (athena_is_enunciation_surround (st)) {
+    tree r= athena_enunciation_surround_rewrite (env, st);
+    initialize (r, 0, tree (MACRO, "body", r));
+    if (!the_drd->is_child_enforcing (st))
+      ttt->insert_marker (st, ip);
+    body->typeset (desired_status);
+    return;
+  }
+
   int d; tree f;
   if (L(st) == COMPOUND) {
     d= 1;
