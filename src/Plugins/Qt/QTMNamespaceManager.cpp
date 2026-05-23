@@ -25,7 +25,6 @@
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDialog>
-#include <QDialogButtonBox>
 #include <QDir>
 #include <QFileInfo>
 #include <QFormLayout>
@@ -45,6 +44,8 @@
 #include <QTreeWidgetItem>
 #include <QUrl>
 #include <QVBoxLayout>
+#include <QWizard>
+#include <QWizardPage>
 
 static QTMNamespaceManager* namespace_manager_widget= nullptr;
 static ads::CDockWidget* namespace_manager_dock= nullptr;
@@ -68,6 +69,13 @@ static void
 set_qlist_strings (QListWidget* list, const strings& xs) {
   list->clear ();
   for (int i=0; i<N(xs); i++) list->addItem (to_qstring (xs[i]));
+}
+
+static QString
+namespace_join_strings (const strings& xs) {
+  QStringList parts;
+  for (int i=0; i<N(xs); i++) parts << to_qstring (xs[i]);
+  return parts.join (", ");
 }
 
 static bool
@@ -154,118 +162,313 @@ namespace_lines (const QString& text) {
   return out;
 }
 
-static bool
-namespace_confirm_sorter_compatibility (
-  QWidget* parent, const athena_namespace_definition& first,
-  const athena_namespace_definition& second) {
-  string error;
-  string first_source, second_source;
-  if (!athena_namespace_sorter_source (first, first_source, error)) {
-    QMessageBox::warning (parent, "Generate Sub-products", to_qstring (error));
+class NamespaceCreationPage : public QWizardPage {
+public:
+  NamespaceCreationPage (QWidget* parent = nullptr)
+    : QWizardPage (parent),
+      nameEdit (new QLineEdit (this)),
+      kindCombo (new QComboBox (this)),
+      templateEdit (new QLineEdit (this)),
+      trivialSorterCheck (new QCheckBox ("Use trivial sorting algorithm", this)),
+      sorterEdit (new QLineEdit (this)),
+      sorterBrowseButton (new QPushButton ("Browse...", this)),
+      styleEdit (new QLineEdit (this)),
+      styleBrowseButton (new QPushButton ("Browse...", this)),
+      parentList (new QListWidget (this)),
+      parentCombo (new QComboBox (this)) {
+    setTitle ("Namespace Details");
+    setSubTitle ("Choose the namespace kind and provide only the fields that "
+                 "are meaningful for that kind.");
+
+    kindCombo->addItems (QStringList () << "concrete" << "semi-concrete"
+                                        << "abstract");
+    parentList->setSelectionMode (QAbstractItemView::ExtendedSelection);
+    parentList->setMinimumHeight (92);
+    parentCombo->setEditable (true);
+    for (const athena_namespace_definition& ns: athena_namespaces_list ())
+      parentCombo->addItem (to_qstring (ns.name));
+
+    QFormLayout* form= new QFormLayout ();
+    form->setFieldGrowthPolicy (QFormLayout::ExpandingFieldsGrow);
+    form->addRow ("Name", nameEdit);
+    form->addRow ("Kind", kindCombo);
+    form->addRow ("Template", templateEdit);
+
+    QWidget* sorterWidget= new QWidget (this);
+    QVBoxLayout* sorterLayout= new QVBoxLayout (sorterWidget);
+    sorterLayout->setContentsMargins (0, 0, 0, 0);
+    sorterLayout->setSpacing (4);
+    QHBoxLayout* sorterPathLayout= new QHBoxLayout ();
+    sorterPathLayout->setContentsMargins (0, 0, 0, 0);
+    sorterPathLayout->setSpacing (4);
+    sorterPathLayout->addWidget (sorterEdit, 1);
+    sorterPathLayout->addWidget (sorterBrowseButton);
+    sorterLayout->addLayout (sorterPathLayout);
+    sorterLayout->addWidget (trivialSorterCheck);
+    form->addRow ("Sorter .c path", sorterWidget);
+
+    QWidget* styleWidget= new QWidget (this);
+    QHBoxLayout* styleLayout= new QHBoxLayout (styleWidget);
+    styleLayout->setContentsMargins (0, 0, 0, 0);
+    styleLayout->setSpacing (4);
+    styleLayout->addWidget (styleEdit, 1);
+    styleLayout->addWidget (styleBrowseButton);
+    form->addRow ("Style path", styleWidget);
+
+    QWidget* parentsWidget= new QWidget (this);
+    QVBoxLayout* parentsLayout= new QVBoxLayout (parentsWidget);
+    parentsLayout->setContentsMargins (0, 0, 0, 0);
+    parentsLayout->setSpacing (4);
+    parentsLayout->addWidget (parentList);
+    QHBoxLayout* parentControls= new QHBoxLayout ();
+    parentControls->setContentsMargins (0, 0, 0, 0);
+    parentControls->setSpacing (4);
+    QPushButton* addParent= new QPushButton ("Add", this);
+    QPushButton* removeParent= new QPushButton ("Remove selected", this);
+    parentControls->addWidget (parentCombo, 1);
+    parentControls->addWidget (addParent);
+    parentControls->addWidget (removeParent);
+    parentsLayout->addLayout (parentControls);
+    form->addRow ("Explicit parents", parentsWidget);
+
+    QVBoxLayout* layout= new QVBoxLayout (this);
+    layout->addLayout (form);
+
+    connect (kindCombo, &QComboBox::currentTextChanged, this,
+             [this] () { updateKindUi (); });
+    connect (trivialSorterCheck, &QCheckBox::toggled, this,
+             [this] () { updateKindUi (); });
+    connect (sorterBrowseButton, &QPushButton::clicked, this, [this] () {
+      QString selected= namespace_choose_file (
+        this, sorterEdit, "Choose Namespace Sorter", "*.c|C source files");
+      if (!selected.isEmpty ()) sorterEdit->setText (selected);
+    });
+    connect (styleBrowseButton, &QPushButton::clicked, this, [this] () {
+      QString selected= namespace_choose_file (
+        this, styleEdit, "Choose Namespace Style", "*.ts *.scm|ATHENA style files");
+      if (!selected.isEmpty ()) styleEdit->setText (selected);
+    });
+    connect (addParent, &QPushButton::clicked, this, [this] () {
+      QString parent= parentCombo->currentText ().trimmed ();
+      if (parent.isEmpty ()) return;
+      if (parent == nameEdit->text ().trimmed ()) {
+        QMessageBox::warning (this, "Namespace Wizard",
+                              "A namespace cannot be its own parent.");
+        return;
+      }
+      if (!qlist_contains (parentList, parent)) parentList->addItem (parent);
+    });
+    connect (removeParent, &QPushButton::clicked, this, [this] () {
+      QList<QListWidgetItem*> items= parentList->selectedItems ();
+      for (QListWidgetItem* item: items)
+        delete parentList->takeItem (parentList->row (item));
+    });
+
+    updateKindUi ();
+  }
+
+  void updateKindUi () {
+    bool abstract= kindCombo->currentText () == "abstract";
+    templateEdit->setEnabled (!abstract);
+    styleEdit->setEnabled (!abstract);
+    styleBrowseButton->setEnabled (!abstract);
+    trivialSorterCheck->setEnabled (!abstract);
+    bool sorterEnabled= !abstract && !trivialSorterCheck->isChecked ();
+    sorterEdit->setEnabled (sorterEnabled);
+    sorterBrowseButton->setEnabled (sorterEnabled);
+    sorterEdit->setPlaceholderText (
+      abstract ? "Abstract namespaces do not match files directly" :
+      trivialSorterCheck->isChecked ()
+        ? "Built-in sorter returns 0 for every comparison" : "");
+    templateEdit->setPlaceholderText (
+      abstract ? "Abstract namespaces aggregate subspaces" : "%w Lecture Notes %R");
+  }
+
+  bool validatePage () override {
+    QString name= nameEdit->text ().trimmed ();
+    QString kind= kindCombo->currentText ();
+    if (name.isEmpty ()) {
+      QMessageBox::warning (this, "Namespace Wizard",
+                            "Namespace name cannot be empty.");
+      return false;
+    }
+    if (kind != "abstract" && templateEdit->text ().trimmed ().isEmpty ()) {
+      QMessageBox::warning (this, "Namespace Wizard",
+                            "Concrete and semi-concrete namespaces need a "
+                            "filename template.");
+      return false;
+    }
+    return true;
+  }
+
+  athena_namespace_definition definition () const {
+    athena_namespace_definition ns;
+    ns.name= from_qstring (nameEdit->text ().trimmed ());
+    ns.kind= from_qstring (kindCombo->currentText ());
+    bool abstract= kindCombo->currentText () == "abstract";
+    ns.templ= abstract ? string ("") :
+      from_qstring (templateEdit->text ().trimmed ());
+    ns.sorter_trivial= !abstract && trivialSorterCheck->isChecked ();
+    ns.sorter_path= (!abstract && !ns.sorter_trivial) ?
+      from_qstring (sorterEdit->text ().trimmed ()) : string ("");
+    ns.style_path= abstract ? string ("") :
+      from_qstring (styleEdit->text ().trimmed ());
+    ns.parents= qlist_to_strings (parentList);
+    ns.derived_parents= strings ();
+    return ns;
+  }
+
+private:
+  QLineEdit*   nameEdit;
+  QComboBox*   kindCombo;
+  QLineEdit*   templateEdit;
+  QCheckBox*   trivialSorterCheck;
+  QLineEdit*   sorterEdit;
+  QPushButton* sorterBrowseButton;
+  QLineEdit*   styleEdit;
+  QPushButton* styleBrowseButton;
+  QListWidget* parentList;
+  QComboBox*   parentCombo;
+};
+
+class NamespaceCreationSummaryPage : public QWizardPage {
+public:
+  NamespaceCreationSummaryPage (NamespaceCreationPage* details,
+                                QWidget* parent = nullptr)
+    : QWizardPage (parent), details (details), summary (new QLabel (this)) {
+    setTitle ("Confirm Namespace");
+    setSubTitle ("Review the namespace before creating it.");
+    summary->setWordWrap (true);
+    summary->setTextFormat (Qt::PlainText);
+    QVBoxLayout* layout= new QVBoxLayout (this);
+    layout->addWidget (summary);
+  }
+
+  void initializePage () override {
+    athena_namespace_definition ns= details->definition ();
+    QStringList lines;
+    lines << "Name: " + to_qstring (ns.name)
+          << "Kind: " + to_qstring (ns.kind)
+          << "Template: " + (ns.templ == "" ? QString ("<none>") :
+                              to_qstring (ns.templ))
+          << "Sorter: " +
+             (ns.sorter_trivial ? QString ("<trivial>") :
+              ns.sorter_path == "" ? QString ("<none>") :
+              to_qstring (ns.sorter_path))
+          << "Style: " + (ns.style_path == "" ? QString ("<none>") :
+                          to_qstring (ns.style_path))
+          << "Explicit parents: " +
+             (N(ns.parents) == 0 ? QString ("<none>") :
+              namespace_join_strings (ns.parents));
+    summary->setText (lines.join ("\n"));
+  }
+
+private:
+  NamespaceCreationPage* details;
+  QLabel* summary;
+};
+
+class SorterCompatibilityWizardPage : public QWizardPage {
+public:
+  SorterCompatibilityWizardPage (const athena_namespace_definition& first,
+                                 const athena_namespace_definition& second,
+                                 const QString& firstSource,
+                                 const QString& secondSource,
+                                 QWidget* parent = nullptr)
+    : QWizardPage (parent),
+      confirmCheck (new QCheckBox ("These sorters are compatible", this)) {
+    setTitle ("Sorter Compatibility");
+    setSubTitle ("Read both sorting algorithms and confirm that their orderings "
+                 "are compatible for a sub-product namespace.");
+
+    QVBoxLayout* layout= new QVBoxLayout (this);
+    QHBoxLayout* sources= new QHBoxLayout ();
+    auto add_source= [&] (const QString& title, const QString& source) {
+      QWidget* pane= new QWidget (this);
+      QVBoxLayout* paneLayout= new QVBoxLayout (pane);
+      paneLayout->setContentsMargins (0, 0, 0, 0);
+      paneLayout->addWidget (new QLabel (title, pane));
+      QPlainTextEdit* edit= new QPlainTextEdit (pane);
+      edit->setReadOnly (true);
+      edit->setLineWrapMode (QPlainTextEdit::NoWrap);
+      edit->setPlainText (source);
+      edit->setMinimumSize (420, 280);
+      paneLayout->addWidget (edit);
+      sources->addWidget (pane);
+    };
+    add_source (to_qstring (first.name), firstSource);
+    add_source (to_qstring (second.name), secondSource);
+    layout->addLayout (sources);
+    layout->addWidget (confirmCheck);
+  }
+
+  bool validatePage () override {
+    if (confirmCheck->isChecked ()) return true;
+    QMessageBox::warning (this, "Generate Sub-products",
+                          "Confirm sorter compatibility before continuing.");
     return false;
   }
-  if (!athena_namespace_sorter_source (second, second_source, error)) {
-    QMessageBox::warning (parent, "Generate Sub-products", to_qstring (error));
-    return false;
-  }
 
-  QDialog dialog (parent);
-  dialog.setWindowTitle ("Confirm Sorter Compatibility");
-  QVBoxLayout* layout= new QVBoxLayout (&dialog);
-  QLabel* label= new QLabel (
-    "Confirm that these two namespace sorting algorithms are compatible.",
-    &dialog);
-  label->setWordWrap (true);
-  layout->addWidget (label);
+private:
+  QCheckBox* confirmCheck;
+};
 
-  QHBoxLayout* sources= new QHBoxLayout ();
-  auto add_source= [&] (const QString& title, const QString& source) {
-    QWidget* pane= new QWidget (&dialog);
-    QVBoxLayout* pane_layout= new QVBoxLayout (pane);
-    pane_layout->setContentsMargins (0, 0, 0, 0);
-    pane_layout->addWidget (new QLabel (title, pane));
-    QPlainTextEdit* edit= new QPlainTextEdit (pane);
-    edit->setReadOnly (true);
-    edit->setLineWrapMode (QPlainTextEdit::NoWrap);
-    edit->setPlainText (source);
-    edit->setMinimumSize (420, 300);
-    pane_layout->addWidget (edit);
-    sources->addWidget (pane);
-  };
-  add_source (to_qstring (first.name), utf8_to_qstring (first_source));
-  add_source (to_qstring (second.name), utf8_to_qstring (second_source));
-  layout->addLayout (sources);
-
-  QDialogButtonBox* buttons= new QDialogButtonBox (
-    QDialogButtonBox::Yes | QDialogButtonBox::No, &dialog);
-  QObject::connect (buttons, &QDialogButtonBox::accepted, &dialog,
-                    &QDialog::accept);
-  QObject::connect (buttons, &QDialogButtonBox::rejected, &dialog,
-                    &QDialog::reject);
-  layout->addWidget (buttons);
-  return dialog.exec () == QDialog::Accepted;
-}
-
-static QStringList
-namespace_ask_subproduct_names (QWidget* parent, const QString& first,
-                                const QString& second) {
-  QDialog dialog (parent);
-  dialog.setWindowTitle ("Sub-product Names");
-  QVBoxLayout* layout= new QVBoxLayout (&dialog);
-  QLabel* label= new QLabel (
-    "Enter one namespace name per line. Each name will be created with the "
-    "same sub-product template and product sorter.",
-    &dialog);
-  label->setWordWrap (true);
-  layout->addWidget (label);
-  QPlainTextEdit* edit= new QPlainTextEdit (&dialog);
-  edit->setPlainText (first + " - " + second + "\n" +
-                      second + " - " + first);
-  edit->setMinimumSize (520, 180);
-  layout->addWidget (edit);
-  QDialogButtonBox* buttons= new QDialogButtonBox (
-    QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
-  QObject::connect (buttons, &QDialogButtonBox::accepted, &dialog,
-                    &QDialog::accept);
-  QObject::connect (buttons, &QDialogButtonBox::rejected, &dialog,
-                    &QDialog::reject);
-  layout->addWidget (buttons);
-  if (dialog.exec () != QDialog::Accepted) return QStringList ();
-  return namespace_lines (edit->toPlainText ());
-}
-
-static bool
-namespace_ask_subproduct_template (QWidget* parent,
-                                   const athena_namespace_definition& first,
-                                   const athena_namespace_definition& second,
-                                   QString& templ) {
-  while (true) {
-    QDialog dialog (parent);
-    dialog.setWindowTitle ("Sub-product Naming Template");
-    QVBoxLayout* layout= new QVBoxLayout (&dialog);
-    QLabel* label= new QLabel (
-      "Confirm or edit the naming template for the generated sub-product "
-      "namespaces. It must derive from both selected namespace templates.",
-      &dialog);
-    label->setWordWrap (true);
-    layout->addWidget (label);
-    QLineEdit* edit= new QLineEdit (templ, &dialog);
-    edit->setMinimumWidth (560);
+class SubproductNamesWizardPage : public QWizardPage {
+public:
+  SubproductNamesWizardPage (const QString& first, const QString& second,
+                             QWidget* parent = nullptr)
+    : QWizardPage (parent), edit (new QPlainTextEdit (this)) {
+    setTitle ("Sub-product Names");
+    setSubTitle ("Enter one namespace name per line. Each name will be created "
+                 "with the same sub-product template and product sorter.");
+    edit->setPlainText (first + " - " + second + "\n" +
+                        second + " - " + first);
+    edit->setMinimumSize (560, 180);
+    QVBoxLayout* layout= new QVBoxLayout (this);
     layout->addWidget (edit);
-    QDialogButtonBox* buttons= new QDialogButtonBox (
-      QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
-    QObject::connect (buttons, &QDialogButtonBox::accepted, &dialog,
-                      &QDialog::accept);
-    QObject::connect (buttons, &QDialogButtonBox::rejected, &dialog,
-                      &QDialog::reject);
-    layout->addWidget (buttons);
-    if (dialog.exec () != QDialog::Accepted) return false;
+  }
 
-    QString candidate= edit->text ().trimmed ();
+  QStringList names () const {
+    return namespace_lines (edit->toPlainText ());
+  }
+
+  bool validatePage () override {
+    if (!names ().isEmpty ()) return true;
+    QMessageBox::warning (this, "Generate Sub-products",
+                          "Enter at least one sub-product namespace name.");
+    return false;
+  }
+
+private:
+  QPlainTextEdit* edit;
+};
+
+class SubproductTemplateWizardPage : public QWizardPage {
+public:
+  SubproductTemplateWizardPage (const athena_namespace_definition& first,
+                                const athena_namespace_definition& second,
+                                const QString& suggested,
+                                QWidget* parent = nullptr)
+    : QWizardPage (parent), first (first), second (second),
+      edit (new QLineEdit (suggested, this)) {
+    setTitle ("Sub-product Template");
+    setSubTitle ("Confirm or edit the naming template. It must derive from both "
+                 "selected namespace templates.");
+    edit->setMinimumWidth (620);
+    QVBoxLayout* layout= new QVBoxLayout (this);
+    layout->addWidget (edit);
+  }
+
+  QString templ () const {
+    return edit->text ().trimmed ();
+  }
+
+  bool validatePage () override {
+    QString candidate= templ ();
     if (candidate.isEmpty ()) {
-      QMessageBox::warning (parent, "Sub-product Template",
+      QMessageBox::warning (this, "Sub-product Template",
                             "The template cannot be empty.");
-      continue;
+      return false;
     }
     string error;
     bool d1= false, d2= false;
@@ -273,20 +476,49 @@ namespace_ask_subproduct_template (QWidget* parent,
                                             first.templ, d1, error) ||
         !athena_namespace_template_derives (from_qstring (candidate),
                                             second.templ, d2, error)) {
-      QMessageBox::warning (parent, "Sub-product Template",
-                            to_qstring (error));
-      continue;
+      QMessageBox::warning (this, "Sub-product Template", to_qstring (error));
+      return false;
     }
     if (!d1 || !d2) {
       QMessageBox::warning (
-        parent, "Sub-product Template",
+        this, "Sub-product Template",
         "The template does not derive from both selected namespace templates.");
-      continue;
+      return false;
     }
-    templ= candidate;
     return true;
   }
-}
+
+private:
+  athena_namespace_definition first;
+  athena_namespace_definition second;
+  QLineEdit* edit;
+};
+
+class SubproductSummaryWizardPage : public QWizardPage {
+public:
+  SubproductSummaryWizardPage (SubproductNamesWizardPage* namesPage,
+                               SubproductTemplateWizardPage* templatePage,
+                               QWidget* parent = nullptr)
+    : QWizardPage (parent), namesPage (namesPage),
+      templatePage (templatePage), summary (new QLabel (this)) {
+    setTitle ("Confirm Sub-products");
+    setSubTitle ("Review the generated namespaces before creating them.");
+    summary->setWordWrap (true);
+    summary->setTextFormat (Qt::PlainText);
+    QVBoxLayout* layout= new QVBoxLayout (this);
+    layout->addWidget (summary);
+  }
+
+  void initializePage () override {
+    summary->setText ("Namespaces:\n" + namesPage->names ().join ("\n") +
+                      "\n\nTemplate:\n" + templatePage->templ ());
+  }
+
+private:
+  SubproductNamesWizardPage* namesPage;
+  SubproductTemplateWizardPage* templatePage;
+  QLabel* summary;
+};
 
 QTMNamespaceManager::QTMNamespaceManager (QWidget* parent)
   : QWidget (parent),
@@ -298,6 +530,7 @@ QTMNamespaceManager::QTMNamespaceManager (QWidget* parent)
     sorterEdit (new QLineEdit (this)),
     sorterBrowseButton (new QPushButton ("Browse...", this)),
     styleEdit (new QLineEdit (this)),
+    styleBrowseButton (new QPushButton ("Browse...", this)),
     explicitParentsList (new QListWidget (this)),
     explicitParentCombo (new QComboBox (this)),
     derivedParentsList (new QListWidget (this)),
@@ -350,8 +583,8 @@ QTMNamespaceManager::QTMNamespaceManager (QWidget* parent)
   toolbar->setIconSize (QSize (16, 16));
   toolbar->setToolButtonStyle (Qt::ToolButtonTextBesideIcon);
   toolbar->addAction (namespace_icon ("document-new", QStyle::SP_FileIcon),
-                      "Start new", this, [this] () { newNamespace (); })
-          ->setToolTip ("Clear the form and start creating a new namespace");
+                      "New namespace...", this, [this] () { newNamespace (); })
+          ->setToolTip ("Create a namespace using the wizard");
   saveNamespaceAction=
     toolbar->addAction (namespace_icon ("document-save",
                                         QStyle::SP_DialogSaveButton),
@@ -393,9 +626,8 @@ QTMNamespaceManager::QTMNamespaceManager (QWidget* parent)
   QHBoxLayout* styleLayout= new QHBoxLayout (styleWidget);
   styleLayout->setContentsMargins (0, 0, 0, 0);
   styleLayout->setSpacing (4);
-  QPushButton* styleBrowse= new QPushButton ("Browse...", this);
   styleLayout->addWidget (styleEdit, 1);
-  styleLayout->addWidget (styleBrowse);
+  styleLayout->addWidget (styleBrowseButton);
   form->addRow ("Style path", styleWidget);
   QWidget* explicitParentsWidget= new QWidget (this);
   QVBoxLayout* explicitParentsLayout= new QVBoxLayout (explicitParentsWidget);
@@ -477,8 +709,10 @@ QTMNamespaceManager::QTMNamespaceManager (QWidget* parent)
            [this] () { deleteSelectedRelation (); });
   connect (sorterBrowseButton, &QPushButton::clicked, this,
            [this] () { chooseSorterPath (); });
-  connect (styleBrowse, &QPushButton::clicked, this,
+  connect (styleBrowseButton, &QPushButton::clicked, this,
            [this] () { chooseStylePath (); });
+  connect (kindCombo, &QComboBox::currentTextChanged, this,
+           [this] () { updateModeUi (); });
   connect (addParent, &QPushButton::clicked, this,
            [this] () { addExplicitParent (); });
   connect (removeParent, &QPushButton::clicked, this,
@@ -486,12 +720,7 @@ QTMNamespaceManager::QTMNamespaceManager (QWidget* parent)
   connect (explicitParentCombo->lineEdit (), &QLineEdit::returnPressed, this,
            [this] () { addExplicitParent (); });
   connect (trivialSorterCheck, &QCheckBox::toggled, this,
-           [this] (bool on) {
-             sorterEdit->setEnabled (!on);
-             sorterBrowseButton->setEnabled (!on);
-             sorterEdit->setPlaceholderText (
-               on ? "Built-in sorter returns 0 for every comparison" : "");
-           });
+           [this] () { updateModeUi (); });
   updateModeUi ();
 }
 
@@ -597,22 +826,39 @@ QTMNamespaceManager::loadNamespace (QListWidgetItem* item) {
 
 void
 QTMNamespaceManager::newNamespace () {
-  loadedName.clear ();
-  namespaceList->clearSelection ();
-  nameEdit->clear ();
-  kindCombo->setCurrentText ("concrete");
-  templateEdit->clear ();
-  trivialSorterCheck->setChecked (false);
-  sorterEdit->clear ();
-  sorterEdit->setEnabled (true);
-  sorterBrowseButton->setEnabled (true);
-  styleEdit->clear ();
-  explicitParentsList->clear ();
-  derivedParentsList->clear ();
-  membersTree->clear ();
-  statusLabel->setText ("Fill the form, then click Create namespace.");
+  QWizard wizard (this);
+  wizard.setWindowTitle ("New Namespace");
+  wizard.setWizardStyle (QWizard::ModernStyle);
+  wizard.setOption (QWizard::NoBackButtonOnStartPage, false);
+  NamespaceCreationPage* details= new NamespaceCreationPage (&wizard);
+  wizard.addPage (details);
+  wizard.addPage (new NamespaceCreationSummaryPage (details, &wizard));
+  wizard.resize (760, 560);
+  if (wizard.exec () != QDialog::Accepted) return;
+
+  athena_namespace_definition ns= details->definition ();
+  athena_namespace_definition existing;
+  if (athena_namespace_get (ns.name, existing)) {
+    if (QMessageBox::question (
+          this, "Update Namespace",
+          QString ("Namespace \"%1\" already exists. Update it instead?")
+            .arg (to_qstring (ns.name)),
+          QMessageBox::Yes | QMessageBox::No) != QMessageBox::Yes)
+      return;
+  }
+
+  string error;
+  if (!athena_namespace_save (ns, error)) {
+    QMessageBox::warning (this, "Namespace Manager", to_qstring (error));
+    return;
+  }
+
+  loadedName= to_qstring (ns.name);
+  refreshNamespaces ();
+  refreshRelations ();
+  refreshMembers ();
   updateModeUi ();
-  nameEdit->setFocus ();
+  statusLabel->setText ("Namespace created.");
 }
 
 void
@@ -627,6 +873,15 @@ QTMNamespaceManager::saveNamespace () {
   ns.style_path= from_qstring (styleEdit->text ().trimmed ());
   ns.parents= qlist_to_strings (explicitParentsList);
   ns.derived_parents= strings ();
+  if (ns.kind == "abstract") {
+    ns.templ= "";
+    ns.sorter_trivial= false;
+    ns.sorter_path= "";
+    ns.style_path= "";
+  }
+  else if (ns.sorter_trivial) {
+    ns.sorter_path= "";
+  }
 
   if (ns.name == "") {
     QMessageBox::warning (this, "Namespace Manager",
@@ -736,12 +991,6 @@ QTMNamespaceManager::generateSubproducts () {
     return;
   }
 
-  if (!namespace_confirm_sorter_compatibility (this, first, second)) return;
-
-  QStringList productNames=
-    namespace_ask_subproduct_names (this, names[0], names[1]);
-  if (productNames.isEmpty ()) return;
-
   bool aggressive=
     get_preference ("vault subproduct consume string aggressively", "on") ==
     "on";
@@ -754,8 +1003,37 @@ QTMNamespaceManager::generateSubproducts () {
       QMessageBox::information (this, "Sub-product Template",
                                 to_qstring (error));
   }
-  QString templ= to_qstring (suggested);
-  if (!namespace_ask_subproduct_template (this, first, second, templ)) return;
+
+  string firstSource, secondSource;
+  if (!athena_namespace_sorter_source (first, firstSource, error)) {
+    QMessageBox::warning (this, "Generate Sub-products", to_qstring (error));
+    return;
+  }
+  if (!athena_namespace_sorter_source (second, secondSource, error)) {
+    QMessageBox::warning (this, "Generate Sub-products", to_qstring (error));
+    return;
+  }
+
+  QWizard wizard (this);
+  wizard.setWindowTitle ("Generate Sub-products");
+  wizard.setWizardStyle (QWizard::ModernStyle);
+  wizard.resize (980, 680);
+  wizard.addPage (new SorterCompatibilityWizardPage (
+    first, second, utf8_to_qstring (firstSource), utf8_to_qstring (secondSource),
+    &wizard));
+  SubproductNamesWizardPage* namesPage=
+    new SubproductNamesWizardPage (names[0], names[1], &wizard);
+  SubproductTemplateWizardPage* templatePage=
+    new SubproductTemplateWizardPage (first, second, to_qstring (suggested),
+                                      &wizard);
+  wizard.addPage (namesPage);
+  wizard.addPage (templatePage);
+  wizard.addPage (new SubproductSummaryWizardPage (namesPage, templatePage,
+                                                   &wizard));
+  if (wizard.exec () != QDialog::Accepted) return;
+
+  QStringList productNames= namesPage->names ();
+  QString templ= templatePage->templ ();
 
   string sorterPath;
   if (!athena_namespace_generate_product_sorter (
@@ -806,10 +1084,10 @@ void
 QTMNamespaceManager::updateModeUi () {
   bool creating= loadedName.isEmpty ();
   if (creating) {
-    modeLabel->setText ("Mode: creating a new namespace");
+    modeLabel->setText ("Mode: no namespace selected");
     saveNamespaceAction->setText ("Create namespace");
     saveNamespaceAction->setToolTip (
-      "Create a namespace from the current form fields");
+      "Use New namespace... to create a namespace");
   }
   else {
     modeLabel->setText (QString ("Mode: editing namespace \"%1\"")
@@ -818,7 +1096,23 @@ QTMNamespaceManager::updateModeUi () {
     saveNamespaceAction->setToolTip (
       "Update the selected namespace using the current form fields");
   }
+  saveNamespaceAction->setEnabled (!creating);
   deleteNamespaceAction->setEnabled (!creating);
+
+  bool abstract= kindCombo->currentText () == "abstract";
+  templateEdit->setEnabled (!abstract);
+  templateEdit->setPlaceholderText (
+    abstract ? "Abstract namespaces aggregate subspaces" : "%w Lecture Notes %R");
+  styleEdit->setEnabled (!abstract);
+  styleBrowseButton->setEnabled (!abstract);
+  trivialSorterCheck->setEnabled (!abstract);
+  bool sorterEnabled= !abstract && !trivialSorterCheck->isChecked ();
+  sorterEdit->setEnabled (sorterEnabled);
+  sorterBrowseButton->setEnabled (sorterEnabled);
+  sorterEdit->setPlaceholderText (
+    abstract ? "Abstract namespaces do not match files directly" :
+    trivialSorterCheck->isChecked ()
+      ? "Built-in sorter returns 0 for every comparison" : "");
 }
 
 void

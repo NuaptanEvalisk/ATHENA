@@ -61,6 +61,7 @@ private:
   QLineEdit*   sorterEdit;
   QPushButton* sorterBrowseButton;
   QLineEdit*   styleEdit;
+  QPushButton* styleBrowseButton;
   QListWidget* explicitParentsList;
   QComboBox*   explicitParentCombo;
   QListWidget* derivedParentsList;
