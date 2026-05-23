@@ -1,0 +1,10 @@
+[project]
+name = "athena-data-art"
+version = "0.1.0"
+description = "Deterministic DataArt cover image generator for ATHENA PDF export"
+requires-python = ">=3.10"
+dependencies = [
+  "matplotlib>=3.8",
+  "numpy>=1.26",
+]
+

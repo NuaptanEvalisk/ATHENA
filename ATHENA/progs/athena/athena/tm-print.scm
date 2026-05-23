@@ -12,7 +12,9 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (texmacs-module (athena athena tm-print)
-  (:use (athena athena tm-files) (utils library cursor)))
+  (:use (athena athena tm-files)
+        (athena athena tm-data-art)
+        (utils library cursor)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Try to obtain the papersize in this order from
@@ -80,6 +82,7 @@
 (define-preferences
   ("native pdf" "on" noop)
   ("native postscript" "on" noop)
+  ("texmacs->pdf:data-art cover" "off" noop)
   ("texmacs->pdf:expand slides" "off" noop)
   ("texmacs->pdf:check" "off" noop)
   ("preview command" "default" notify-preview-command)
@@ -100,10 +103,10 @@
         (switch-to-buffer buf)
         (set-drd cur)
         (dynamic-make-slides)
-        (print-to-file fname)
+        (data-art-print-to-file fname)
         (switch-to-buffer cur)
         (buffer-close buf))
-      (print-to-file fname)))
+      (data-art-print-to-file fname)))
 
 (tm-define (wrapped-print-to-pdf-embeded-with-tm fname)
     (unless (string=? (url-suffix fname) "pdf")
@@ -116,13 +119,13 @@
         (switch-to-buffer buf)
         (set-drd cur)
         (dynamic-make-slides)
-        (print-to-file fname)
+        (data-art-print-to-file fname)
         (unless (attach-doc-to-exported-pdf fname)
           (notify-now "Fail to attach tm to pdf"))
         (switch-to-buffer cur)
         (buffer-close buf))
       (begin
-      (print-to-file fname)
+      (data-art-print-to-file fname)
       (unless (attach-doc-to-exported-pdf fname)
           (notify-now "Fail to attach tm to pdf")))))
 
@@ -180,6 +183,24 @@
   (:argument  last "Last page")
   (:proposals last  (list (number->string (get-page-count)) "")))
 
+(tm-define (data-art-print-to-file fname)
+  (if (not (and (data-art-enabled?) (data-art-pdf-target? fname)))
+      (print-to-file fname)
+      (let* ((cur (current-buffer))
+             (cover (data-art-generate-cover cur)))
+        (if (not cover)
+            (print-to-file fname)
+            (let ((buf (buffer-new)))
+              (buffer-copy cur buf)
+              (buffer-set-master buf cur)
+              (with-buffer buf
+                (data-art-insert-cover-in-buffer buf cover))
+              (switch-to-buffer buf)
+              (print-to-file fname)
+              (switch-to-buffer cur)
+              (buffer-close buf)
+              (system-remove cover))))))
+
 (tm-define (preview-file u)
   (with s (url-sys-concretize u)
     (cond ((!= preview-command "default")
@@ -208,7 +229,7 @@
                    ((or (os-macos?) (== (printer-file-format) "pdf"))
                     "$ATHENA_HOME_PATH/system/tmp/preview.pdf")
                    (else "$ATHENA_HOME_PATH/system/tmp/preview.ps"))
-    (print-to-file file)
+    (data-art-print-to-file file)
     (preview-file file)))
 
 (tm-define (choose-file-and-print-page-selection start end)

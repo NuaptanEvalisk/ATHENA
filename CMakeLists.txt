@@ -84,6 +84,9 @@ find_package (SQLite3 REQUIRED)
 set (USE_SQLITE3 ON CACHE BOOL "Use SQLite3" FORCE)
 set (LINKED_SQLITE3 ON CACHE BOOL "Use Linked SQLite3" FORCE)
 
+find_package (Python3 REQUIRED COMPONENTS Interpreter)
+find_program (UV_EXECUTABLE uv REQUIRED)
+
 option (USE_FREETYPE "use Freetype" ON)
 if (USE_FREETYPE)
   find_package (Freetype)
@@ -755,7 +758,6 @@ if (ATHENA_GUI MATCHES "Qt.*")
   ### --------------------------------------------------------------------
   ### Qt Advanced Docking System
   ### --------------------------------------------------------------------
-  find_package(Python3 REQUIRED)
   FetchContent_Declare(
     ads
     GIT_REPOSITORY https://github.com/githubuser0xFFFF/Qt-Advanced-Docking-System.git

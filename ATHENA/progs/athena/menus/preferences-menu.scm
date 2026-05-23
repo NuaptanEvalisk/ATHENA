@@ -193,6 +193,8 @@
               (toggle ("Produce native Pdf" "native pdf"))
               (toggle ("Produce native Postscript" "native postscript"))
               (toggle ("Expand beamer slides" "texmacs->pdf:expand slides"))
+              (toggle ("Generate DataArt cover image when exporting"
+                       "texmacs->pdf:data-art cover"))
 	      (toggle ("Distill encapsulated Pdf files" "texmacs->pdf:distill inclusion"))
 	      (toggle ("Check exported files" "texmacs->pdf:check"))
 	      (enum ("Pdf version" "texmacs->pdf:version")

@@ -10,6 +10,8 @@ build
 *.py[cod]
 *$py.class
 __pycache__/
+.venv/
+.uv-cache/
 
 # editor files
 *.sln
