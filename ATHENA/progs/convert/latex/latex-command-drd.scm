@@ -286,7 +286,7 @@
 
 (logic-group latex-operator%
   Ann Gal Tor Ext lcm Ob Hom Mor Aut End Isom Inn Disc ord supp res Res
-  Fct Frac MSpec Spec sgn diag kdim coker im Tr Orb Norm rank Stab ev
+  Fct Frac MSpec Spec sgn diag kdim coker im Tr Orb Norm rank Stab ev rel
   mult Card trdeg
   arccos arcsin arctan arg cos cosh cot coth csc deg det dim exp gcd hom
   inf ker lg lim liminf limsup varinjlim varprojlim ln log max min Pr sec sin sinh sup tan tanh

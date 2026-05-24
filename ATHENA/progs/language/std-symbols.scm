@@ -718,7 +718,7 @@
     "arccos" "arcsin" "arctan" "cos" "cosh" "cot" "coth" "csc"
     "coker" "deg" "det" "diag" "dim" "ev" "exp" "hom" "im"
     "kdim" "ker" "lcm" "lg" "ln" "log" "mult" "ord" "rank"
-    "res" "sgn" "supp" "trdeg"
+    "rel" "res" "sgn" "supp" "trdeg"
     "Pr" "sec" "sin" "sinh" "tan" "tanh")
 
   (define Unary-operator-symbol
