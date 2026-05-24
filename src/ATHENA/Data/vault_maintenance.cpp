@@ -10,6 +10,10 @@
 
 #include "ATHENA/Data/vault_maintenance.hpp"
 
+#include "boot.hpp"
+#include "scheme.hpp"
+#include "sys_utils.hpp"
+
 #include <algorithm>
 #include <array>
 #include <cerrno>
@@ -35,6 +39,12 @@ namespace fs = std::filesystem;
 
 namespace {
 
+static constexpr int BACKUP_LIMIT_UNLIMITED = -1;
+
+static void log_info (const std::string& message);
+static void log_error (const std::string& message);
+static bool read_file_bytes (const fs::path& path, std::string& text);
+
 struct RenamePlan {
   fs::path old_path;
   fs::path new_path;
@@ -47,6 +57,17 @@ struct ImageRef {
   size_t begin = 0;
   size_t end = 0;
   std::string raw_path;
+};
+
+struct MaintenanceSummary {
+  fs::path backup_archive;
+  int backup_limit = BACKUP_LIMIT_UNLIMITED;
+  size_t backups_purged = 0;
+  size_t image_renames = 0;
+  size_t image_reference_updates = 0;
+  bool orphan_collection_enabled = false;
+  size_t orphan_assets_collected = 0;
+  fs::path orphan_dir;
 };
 
 static std::string
@@ -65,6 +86,21 @@ static bool
 starts_with (const std::string& s, const std::string& prefix) {
   return s.size () >= prefix.size () &&
          s.compare (0, prefix.size (), prefix) == 0;
+}
+
+static bool
+ends_with (const std::string& s, const std::string& suffix) {
+  return s.size () >= suffix.size () &&
+         s.compare (s.size () - suffix.size (), suffix.size (), suffix) == 0;
+}
+
+static std::string
+trim_copy (const std::string& s) {
+  size_t begin = 0;
+  while (begin < s.size () && std::isspace ((unsigned char) s[begin])) begin++;
+  size_t end = s.size ();
+  while (end > begin && std::isspace ((unsigned char) s[end - 1])) end--;
+  return s.substr (begin, end - begin);
 }
 
 static bool
@@ -121,6 +157,106 @@ is_backup_path (const fs::path& root, const fs::path& path) {
   if (rel.empty ()) return false;
   auto it = rel.begin ();
   return it != rel.end () && *it == ".backup";
+}
+
+static bool
+is_digits (const std::string& s) {
+  if (s.empty ()) return false;
+  for (char c : s)
+    if (!std::isdigit ((unsigned char) c)) return false;
+  return true;
+}
+
+static bool
+is_orphan_dir_name (const std::string& name) {
+  if (name == "orphan") return true;
+  if (!starts_with (name, "orphan (") || !ends_with (name, ")")) return false;
+  return is_digits (name.substr (8, name.size () - 9));
+}
+
+static bool
+is_orphan_collection_path (const fs::path& root, const fs::path& path) {
+  fs::path rel = path.lexically_relative (root);
+  if (rel.empty ()) return false;
+  auto it = rel.begin ();
+  if (it == rel.end ()) return false;
+  return is_orphan_dir_name ((*it).string ());
+}
+
+static int
+backup_limit_preference () {
+  std::string pref =
+    trim_copy (tm_to_std (get_preference ("vault max full backups", "Unlimited")));
+  std::string low = lower_copy (pref);
+  if (pref.empty () || low == "unlimited") return BACKUP_LIMIT_UNLIMITED;
+  try {
+    size_t pos = 0;
+    int value = std::stoi (pref, &pos);
+    if (pos == pref.size () && value >= 1) return value;
+  }
+  catch (...) {}
+  log_info ("invalid backup retention preference '" + pref +
+            "'; using Unlimited");
+  return BACKUP_LIMIT_UNLIMITED;
+}
+
+static bool
+collect_orphan_assets_preference () {
+  return get_preference ("vault collect orphan assets", "off") == "on";
+}
+
+static std::vector<std::string>
+parse_vaultfile_strings (const std::string& text) {
+  std::vector<std::string> values;
+  for (size_t i=0; i<text.size (); i++) {
+    if (text[i] != '"') continue;
+    i++;
+    std::string value;
+    while (i < text.size ()) {
+      char c = text[i++];
+      if (c == '\\' && i < text.size ()) {
+        value.push_back (text[i++]);
+        continue;
+      }
+      if (c == '"') break;
+      value.push_back (c);
+    }
+    values.push_back (value);
+  }
+  return values;
+}
+
+static bool
+load_vault_preferences_if_enabled (const fs::path& root) {
+  std::string requested = lower_copy (tm_to_std (
+    get_env ("ATHENA_VAULT_MAINTENANCE_TAKE_PREFS")));
+  bool take_prefs = requested == "on" ||
+                    (requested.empty () &&
+                     get_preference ("vault take preferences with vault", "off") == "on");
+  if (!take_prefs) {
+    log_info ("preferences: using system preferences");
+    return true;
+  }
+
+  std::string text;
+  fs::path vault_file = root / "Vaultfile";
+  if (!read_file_bytes (vault_file, text)) {
+    log_error ("failed to read Vaultfile for vault preferences");
+    return false;
+  }
+
+  std::vector<std::string> fields = parse_vaultfile_strings (text);
+  std::string prefs_rel = fields.size () >= 3 ? fields[2] : "";
+  fs::path prefs_path = root / (prefs_rel.empty () ? "vprefs.scm" : prefs_rel);
+  if (!fs::exists (prefs_path)) {
+    log_info ("preferences: vault preferences enabled, but " +
+              prefs_path.string () + " does not exist; using system preferences");
+    return true;
+  }
+
+  load_user_preferences (url (prefs_path.string ().c_str ()));
+  log_info ("preferences: loaded vault preferences from " + prefs_path.string ());
+  return true;
 }
 
 static std::string
@@ -515,6 +651,64 @@ create_backup (const fs::path& root, fs::path& archive_path) {
   return true;
 }
 
+static bool
+purge_old_backups (const fs::path& root, int max_full_backups, size_t& purged) {
+  purged = 0;
+  if (max_full_backups == BACKUP_LIMIT_UNLIMITED) {
+    log_info ("backup retention: Unlimited");
+    return true;
+  }
+
+  fs::path backup_root = root / ".backup";
+  if (!fs::exists (backup_root)) {
+    log_info ("backup retention: no .backup directory found");
+    return true;
+  }
+
+  std::vector<fs::path> backup_dirs;
+  std::error_code ec;
+  for (fs::directory_iterator it (backup_root, fs::directory_options::skip_permission_denied, ec), end;
+       !ec && it != end; it.increment (ec)) {
+    if (!it->is_directory (ec)) continue;
+    fs::path archive = it->path () / "vault.tar.zst";
+    if (fs::is_regular_file (archive, ec)) backup_dirs.push_back (it->path ());
+  }
+  if (ec) {
+    log_error ("failed to scan backup directory for retention: " + ec.message ());
+    return false;
+  }
+
+  std::sort (backup_dirs.begin (), backup_dirs.end (),
+             [] (const fs::path& a, const fs::path& b) {
+               return a.filename ().string () > b.filename ().string ();
+             });
+
+  log_info ("backup retention: keeping at most " +
+            std::to_string (max_full_backups) + " full backup(s)");
+  if (backup_dirs.size () <= (size_t) max_full_backups) {
+    log_info ("backup retention: no old backups purged");
+    return true;
+  }
+
+  size_t total = backup_dirs.size () - (size_t) max_full_backups;
+  for (size_t i= max_full_backups; i<backup_dirs.size (); i++) {
+    print_progress (i - (size_t) max_full_backups + 1, total,
+                    "Purging backups", backup_dirs[i].filename ().string ());
+    fs::remove_all (backup_dirs[i], ec);
+    if (ec) {
+      progress_display.finish ();
+      log_error ("failed to purge old backup " + backup_dirs[i].string () +
+                 ": " + ec.message ());
+      return false;
+    }
+    purged++;
+  }
+  progress_display.finish ();
+  log_info ("backup retention: purged " + std::to_string (purged) +
+            " old full backup(s)");
+  return true;
+}
+
 static std::vector<fs::path>
 scan_noncanonical_images (const fs::path& root) {
   std::vector<fs::path> images;
@@ -526,11 +720,14 @@ scan_noncanonical_images (const fs::path& root) {
   for (; !ec && it != end; it.increment (ec)) {
     const fs::path path = it->path ();
     if (it->is_directory (ec)) {
-      if (path.filename () == ".backup") it.disable_recursion_pending ();
+      if (path.filename () == ".backup" ||
+          is_orphan_collection_path (root, path))
+        it.disable_recursion_pending ();
       continue;
     }
     if (!it->is_regular_file (ec)) continue;
     if (is_backup_path (root, path)) continue;
+    if (is_orphan_collection_path (root, path)) continue;
     if (!is_image_extension (path)) continue;
     if (!has_canonical_image_name (path)) images.push_back (path);
   }
@@ -570,6 +767,63 @@ scan_documents (const fs::path& root) {
     log_info ("document scan warning: " + ec.message ());
   std::sort (docs.begin (), docs.end ());
   return docs;
+}
+
+static std::vector<fs::path>
+scan_ath_documents (const fs::path& root) {
+  std::vector<fs::path> docs;
+  std::error_code ec;
+  fs::recursive_directory_iterator it (
+    root, fs::directory_options::skip_permission_denied, ec);
+  fs::recursive_directory_iterator end;
+
+  for (; !ec && it != end; it.increment (ec)) {
+    const fs::path path = it->path ();
+    if (it->is_directory (ec)) {
+      if (path.filename () == ".backup" ||
+          is_orphan_collection_path (root, path))
+        it.disable_recursion_pending ();
+      continue;
+    }
+    if (!it->is_regular_file (ec)) continue;
+    if (is_backup_path (root, path)) continue;
+    if (is_orphan_collection_path (root, path)) continue;
+    if (lower_copy (path.extension ().string ()) == ".ath")
+      docs.push_back (path);
+  }
+
+  if (ec)
+    log_info ("ATH document scan warning: " + ec.message ());
+  std::sort (docs.begin (), docs.end ());
+  return docs;
+}
+
+static std::vector<fs::path>
+scan_asset_files (const fs::path& root) {
+  std::vector<fs::path> assets;
+  std::error_code ec;
+  fs::recursive_directory_iterator it (
+    root, fs::directory_options::skip_permission_denied, ec);
+  fs::recursive_directory_iterator end;
+
+  for (; !ec && it != end; it.increment (ec)) {
+    const fs::path path = it->path ();
+    if (it->is_directory (ec)) {
+      if (path.filename () == ".backup" ||
+          is_orphan_collection_path (root, path))
+        it.disable_recursion_pending ();
+      continue;
+    }
+    if (!it->is_regular_file (ec)) continue;
+    if (is_backup_path (root, path)) continue;
+    if (is_orphan_collection_path (root, path)) continue;
+    if (is_image_extension (path)) assets.push_back (path);
+  }
+
+  if (ec)
+    log_info ("asset scan warning: " + ec.message ());
+  std::sort (assets.begin (), assets.end ());
+  return assets;
 }
 
 static std::vector<RenamePlan>
@@ -724,6 +978,37 @@ stem_from_reference (const std::string& ref) {
 }
 
 static bool
+collect_used_asset_refs_from_document (const fs::path& doc_path,
+                                       std::unordered_set<std::string>& used) {
+  std::string text;
+  if (!read_file_bytes (doc_path, text)) {
+    log_error ("failed to read document " + doc_path.string ());
+    return false;
+  }
+
+  size_t cursor = 0;
+  while (true) {
+    size_t pos = text.find ("<image|", cursor);
+    if (pos == std::string::npos) break;
+
+    ImageRef ref;
+    if (!parse_image_ref_at (text, pos, ref)) {
+      cursor = pos + 1;
+      continue;
+    }
+
+    std::string unescaped = tm_unescape_path (ref.raw_path);
+    if (is_probably_local_path (unescaped)) {
+      fs::path resolved = resolve_reference_path (doc_path, unescaped);
+      if (is_image_extension (resolved)) used.insert (path_key (resolved));
+    }
+    cursor = ref.end;
+  }
+
+  return true;
+}
+
+static bool
 rewrite_document_image_refs (
   const fs::path& doc_path,
   const std::unordered_map<std::string, std::vector<size_t>>& plans_by_stem,
@@ -817,6 +1102,106 @@ rewrite_documents (const fs::path& root, const std::vector<RenamePlan>& plans,
 }
 
 static fs::path
+next_orphan_directory (const fs::path& root) {
+  fs::path candidate = root / "orphan";
+  if (!fs::exists (candidate)) return candidate;
+  for (int i=1; ; i++) {
+    candidate = root / ("orphan (" + std::to_string (i) + ")");
+    if (!fs::exists (candidate)) return candidate;
+  }
+}
+
+static bool
+move_or_copy_file (const fs::path& from, const fs::path& to) {
+  std::error_code ec;
+  fs::rename (from, to, ec);
+  if (!ec) return true;
+
+  ec.clear ();
+  fs::copy_file (from, to, fs::copy_options::none, ec);
+  if (ec) return false;
+  fs::remove (from, ec);
+  return !ec;
+}
+
+static bool
+collect_orphan_assets (const fs::path& root, size_t& moved, fs::path& orphan_dir) {
+  moved = 0;
+  orphan_dir.clear ();
+
+  std::vector<fs::path> docs = scan_ath_documents (root);
+  log_info ("orphan assets: scanning " + std::to_string (docs.size ()) +
+            " .ath files for asset references");
+
+  std::unordered_set<std::string> used_assets;
+  for (size_t i=0; i<docs.size (); i++) {
+    print_progress (i + 1, docs.size (), "Scanning asset references",
+                    docs[i].filename ().string ());
+    if (!collect_used_asset_refs_from_document (docs[i], used_assets)) {
+      progress_display.finish ();
+      return false;
+    }
+  }
+  progress_display.finish ();
+
+  std::vector<fs::path> assets = scan_asset_files (root);
+  std::vector<fs::path> orphans;
+  for (const fs::path& asset : assets)
+    if (used_assets.find (path_key (asset)) == used_assets.end ())
+      orphans.push_back (asset);
+
+  log_info ("orphan assets: found " + std::to_string (orphans.size ()) +
+            " orphan asset(s)");
+  if (orphans.empty ()) return true;
+
+  orphan_dir = next_orphan_directory (root);
+  std::error_code ec;
+  fs::create_directories (orphan_dir, ec);
+  if (ec) {
+    log_error ("failed to create orphan asset directory " +
+               orphan_dir.string () + ": " + ec.message ());
+    return false;
+  }
+
+  std::ofstream manifest (orphan_dir / "orphans.lst",
+                          std::ios::binary | std::ios::trunc);
+  if (!manifest) {
+    log_error ("failed to create orphan manifest " +
+               (orphan_dir / "orphans.lst").string ());
+    return false;
+  }
+  manifest << "Renamed orphan\tOriginal full path\n";
+
+  for (size_t i=0; i<orphans.size (); i++) {
+    fs::path source = orphans[i];
+    std::string name = "orphan-" + std::to_string (i + 1) +
+                       canonical_extension (source);
+    fs::path target = orphan_dir / name;
+    print_progress (i + 1, orphans.size (), "Collecting orphans",
+                    source.filename ().string ());
+    manifest << name << "\t" << path_key (source) << "\n";
+    if (!move_or_copy_file (source, target)) {
+      progress_display.finish ();
+      log_error ("failed to move orphan asset " + source.string () +
+                 " -> " + target.string ());
+      return false;
+    }
+    moved++;
+  }
+  progress_display.finish ();
+  manifest.close ();
+  if (!manifest) {
+    log_error ("failed to finalize orphan manifest " +
+               (orphan_dir / "orphans.lst").string ());
+    return false;
+  }
+
+  log_info ("orphan assets: collected " + std::to_string (moved) +
+            " asset(s) into " + orphan_dir.string ());
+  return true;
+}
+
+static fs::path
 normalize_root (const fs::path& input) {
   std::error_code ec;
   fs::path absolute = fs::absolute (input, ec);
@@ -831,6 +1216,7 @@ normalize_root (const fs::path& input) {
 bool
 vault_maintenance_run (string vault_dir) {
   fs::path root = normalize_root (fs::path (tm_to_std (vault_dir)));
+  MaintenanceSummary summary;
   log_info ("vault root: " + root.string ());
 
   if (!fs::exists (root) || !fs::is_directory (root)) {
@@ -841,27 +1227,65 @@ vault_maintenance_run (string vault_dir) {
     log_error ("missing Vaultfile in " + root.string ());
     return false;
   }
+  if (!load_vault_preferences_if_enabled (root)) return false;
 
   fs::path archive;
   if (!create_backup (root, archive)) return false;
+  summary.backup_archive = archive;
   log_info ("backup complete: " + archive.string ());
+
+  summary.backup_limit = backup_limit_preference ();
+  summary.orphan_collection_enabled = collect_orphan_assets_preference ();
 
   std::vector<fs::path> images = scan_noncanonical_images (root);
   log_info ("found " + std::to_string (images.size ()) +
             " non-canonical image files");
-  if (images.empty ()) {
-    log_info ("no image normalization needed");
-    return true;
+
+  if (images.empty ()) log_info ("no image normalization needed");
+  else {
+    std::vector<RenamePlan> plans = build_rename_plan (images);
+    log_info ("planned " + std::to_string (plans.size ()) + " image renames");
+
+    if (!rename_images (plans)) return false;
+
+    size_t replacements = 0;
+    if (!rewrite_documents (root, plans, replacements)) return false;
+    summary.image_renames = plans.size ();
+    summary.image_reference_updates = replacements;
+    log_info ("updated " + std::to_string (replacements) + " image references");
   }
 
-  std::vector<RenamePlan> plans = build_rename_plan (images);
-  log_info ("planned " + std::to_string (plans.size ()) + " image renames");
+  if (summary.orphan_collection_enabled) {
+    if (!collect_orphan_assets (root, summary.orphan_assets_collected,
+                                summary.orphan_dir))
+      return false;
+  }
+  else log_info ("orphan assets: collection disabled");
 
-  if (!rename_images (plans)) return false;
+  if (!purge_old_backups (root, summary.backup_limit, summary.backups_purged))
+    return false;
 
-  size_t replacements = 0;
-  if (!rewrite_documents (root, plans, replacements)) return false;
-  log_info ("updated " + std::to_string (replacements) + " image references");
+  log_info ("summary: backup archive " + summary.backup_archive.string ());
+  if (summary.backup_limit == BACKUP_LIMIT_UNLIMITED)
+    log_info ("summary: full backup retention Unlimited; purged " +
+              std::to_string (summary.backups_purged) + " old backup(s)");
+  else
+    log_info ("summary: full backup retention " +
+              std::to_string (summary.backup_limit) + "; purged " +
+              std::to_string (summary.backups_purged) + " old backup(s)");
+  log_info ("summary: renamed " + std::to_string (summary.image_renames) +
+            " image file(s), updated " +
+            std::to_string (summary.image_reference_updates) +
+            " image reference(s)");
+  if (summary.orphan_collection_enabled) {
+    std::string where = summary.orphan_dir.empty ()
+                        ? std::string ("")
+                        : (" into " + summary.orphan_dir.string ());
+    log_info ("summary: collected " +
+              std::to_string (summary.orphan_assets_collected) +
+              " orphan asset(s)" + where);
+  }
+  else log_info ("summary: orphan asset collection disabled");
   log_info ("complete");
   return true;
 }

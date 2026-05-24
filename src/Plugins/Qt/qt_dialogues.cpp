@@ -21,6 +21,7 @@
 #include "converter.hpp"
 #include "QTMMenuHelper.hpp"
 #include "QTMGuiHelper.hpp"
+#include "server.hpp"
 
 #include <QMessageBox>
 #include <QLabel>
@@ -274,6 +275,20 @@ qt_inputs_list_widget_rep::field (int i) {
   return static_cast<qt_field_widget_rep*> (children[i].rep);
 }
 
+static bool
+question_proposals_are_yes_no (const array<string>& proposals, int& yes, int& no) {
+  yes = -1;
+  no = -1;
+  int choices = N(proposals);
+  if (choices != 2) return false;
+
+  for (int i=0; i<choices; i++) {
+    if (get_server ()->is_yes (proposals[i])) yes = i;
+    else no = i;
+  }
+  return yes >= 0 && no >= 0;
+}
+
 void
 qt_inputs_list_widget_rep::perform_dialog() {
   if ((N(children)==1) && (field(0)->type == "question")) {
@@ -295,40 +310,59 @@ qt_inputs_list_widget_rep::perform_dialog() {
         new QSpacerItem (560, 0, QSizePolicy::Minimum, QSizePolicy::Expanding);
       layout->addItem (spacer, layout->rowCount (), 0, 1, layout->columnCount ());
     }
-    msgBox.setStandardButtons (QMessageBox::Cancel);
-    
-      // Allow any number of choices. The first one is the default.
     int choices = N(field(0)->proposals);
-    QVector<QPushButton*> buttonlist (choices);
-    if (choices > 0) {
-      for(int i = 0; i < choices; ++i) {
+    int yes_index = -1;
+    int no_index = -1;
+    if (question_proposals_are_yes_no (field(0)->proposals,
+                                       yes_index, no_index)) {
+      msgBox.setStandardButtons (QMessageBox::Yes | QMessageBox::No |
+                                 QMessageBox::Cancel);
+      msgBox.setDefaultButton (yes_index == 0 ? QMessageBox::Yes :
+                                                QMessageBox::No);
+      msgBox.setWindowTitle (qt_translate ("Question"));
+      msgBox.setIcon (QMessageBox::Question);
+      int ret = msgBox.exec ();
+      if (ret == QMessageBox::Yes)
+        field(0)->input = scm_quote (field(0)->proposals[yes_index]);
+      else if (ret == QMessageBox::No)
+        field(0)->input = scm_quote (field(0)->proposals[no_index]);
+      else field(0)->input = "#f";
+    }
+    else {
+      msgBox.setStandardButtons (QMessageBox::Cancel);
+
+      // Allow any number of choices. The first one is the default.
+      QVector<QPushButton*> buttonlist (choices);
+      if (choices > 0) {
+        for(int i = 0; i < choices; ++i) {
           // Capitalize the first character?
-        string blabel= "&" * upcase_first (field(0)->proposals[i]);
-        buttonlist[i] = msgBox.addButton (to_qstring (blabel),
-                                           QMessageBox::ActionRole);
+          string blabel= "&" * upcase_first (field(0)->proposals[i]);
+          buttonlist[i] = msgBox.addButton (to_qstring (blabel),
+                                            QMessageBox::ActionRole);
+        }
+        msgBox.setDefaultButton (buttonlist[0]);
+        for (int i = 0; i < choices - 1; ++i)
+          QWidget::setTabOrder (buttonlist[i], buttonlist[i+1]);
+        QWidget::setTabOrder (buttonlist[choices-1], msgBox.escapeButton());
       }
-      msgBox.setDefaultButton (buttonlist[0]);
-      for (int i = 0; i < choices - 1; ++i)
-        QWidget::setTabOrder (buttonlist[i], buttonlist[i+1]);
-      QWidget::setTabOrder (buttonlist[choices-1], msgBox.escapeButton());
-    }
-    msgBox.setWindowTitle (qt_translate ("Question"));
-    msgBox.setIcon (QMessageBox::Question);
+      msgBox.setWindowTitle (qt_translate ("Question"));
+      msgBox.setIcon (QMessageBox::Question);
 #ifdef Q_OS_MAC
-    QTMFilterHack filter (msgBox.buttons());
-    msgBox.installEventFilter (&filter);
+      QTMFilterHack filter (msgBox.buttons());
+      msgBox.installEventFilter (&filter);
 #endif
-    msgBox.exec();
-    bool buttonclicked=false;
-    for(int i=0; i<choices; i++) {
-      if (msgBox.clickedButton() == buttonlist[i]) {
-        field(0)->input = scm_quote (field(0)->proposals[i]);
-        buttonclicked=true;
-        break;
+      msgBox.exec();
+      bool buttonclicked=false;
+      for(int i=0; i<choices; i++) {
+        if (msgBox.clickedButton() == buttonlist[i]) {
+          field(0)->input = scm_quote (field(0)->proposals[i]);
+          buttonclicked=true;
+          break;
+        }
       }
+      if (!buttonclicked) {field(0)->input = "#f";} //cancelled
     }
-    if (!buttonclicked) {field(0)->input = "#f";} //cancelled
-  } 
+  }
   
   else {  //usual dialog layout
     QDialog d (0, Qt::Sheet);

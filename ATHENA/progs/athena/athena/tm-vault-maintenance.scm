@@ -16,8 +16,12 @@
   (let* ((bin (url->system (vault-maintenance-binary)))
          (root-s (url->system root))
          (bin-q (escape-shell bin))
-         (root-q (escape-shell root-s)))
+         (root-q (escape-shell root-s))
+         (take-prefs? (if (== (get-preference "vault take preferences with vault")
+                              "on")
+                          "on" "off")))
     (string-append "( sleep 1; cd " root-q " && "
+                   "ATHENA_VAULT_MAINTENANCE_TAKE_PREFS=" take-prefs? " "
                    bin-q " --vault-maintenance " root-q " ) &")))
 
 (tm-define (vault-maintenance)
