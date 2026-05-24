@@ -473,6 +473,8 @@ aofm_cache_preferences () {
         << string ("latex->texmacs:roman-d-is-differential")
         << string ("latex->texmacs:text-d-is-differential")
         << string ("latex->texmacs:parse-bbbk")
+        << string ("latex->texmacs:parse-bbbi-as-mathi")
+        << string ("latex->texmacs:text-operators")
         << string ("latex->texmacs:matrix-recognition")
         << string ("latex->texmacs:aligned-to-eqnarray")
         << string ("latex->texmacs:source-tracking")

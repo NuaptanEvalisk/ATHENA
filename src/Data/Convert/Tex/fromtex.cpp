@@ -1319,6 +1319,8 @@ is_texmacs_symbol_string (string s) {
   return N(s) >= 3 && s[0] == '<' && s[N(s)-1] == '>';
 }
 
+static bool is_text_operator_command (tree t);
+
 tree
 latex_concat_to_tree (tree t, bool& new_flag) {
   int i, n=N(t);
@@ -1360,6 +1362,9 @@ latex_concat_to_tree (tree t, bool& new_flag) {
     bool operator_flag=
       command_operator_flag ||
       (is_tuple (t[i], "\\operatorname", 1) &&
+       is_atomic (u) &&
+       latex_type (u->label) == "operator") ||
+      (is_text_operator_command (t[i]) &&
        is_atomic (u) &&
        latex_type (u->label) == "operator");
     if (is_atomic (u)) {
@@ -1509,6 +1514,27 @@ operatorname_to_tree (tree t) {
       latex_type (name) == "operator")
     return name;
   return var_m2e (t, MATH_FONT_FAMILY, "rm");
+}
+
+static bool
+is_text_operator_command (tree t) {
+  return is_tuple (t, "\\text", 1) || is_tuple (t, "\\textnormal", 1) ||
+         is_tuple (t, "\\mbox", 1) || is_tuple (t, "\\hbox", 1) ||
+         is_tuple (t, "\\makebox", 1);
+}
+
+tree
+text_operator_to_tree (tree t) {
+  if (command_type ["!mode"] == "math" &&
+      get_preference ("latex->texmacs:text-operators", "on") == "on") {
+    string name;
+    tree body= t2e (t[1], false);
+    if (collect_operator_name (body, name) &&
+        is_operator_name (name) &&
+        latex_type (name) == "operator")
+      return name;
+  }
+  return var_m2e (t, MODE, "text");
 }
 
 tree
@@ -2600,7 +2626,7 @@ latex_command_to_tree (tree t) {
   if (is_tuple (t, "\\text", 1) || is_tuple (t, "\\textnormal", 1) ||
       is_tuple (t, "\\mbox", 1) || is_tuple (t, "\\hbox", 1) ||
       is_tuple (t, "\\makebox", 1))
-    return var_m2e (t, MODE, "text");
+    return text_operator_to_tree (t);
   if (is_tuple (t, "\\makebox*", 2))
     return var_m2e (tuple ("\\makebox", t[2]), MODE, "text");
   if (is_tuple (t, "\\mathchoice", 4))

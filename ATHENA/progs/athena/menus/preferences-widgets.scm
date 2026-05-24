@@ -836,7 +836,9 @@
   ("latex->texmacs:operator-d-is-differential" "on" noop)
   ("latex->texmacs:roman-d-is-differential" "on" noop)
   ("latex->texmacs:text-d-is-differential" "on" noop)
-  ("latex->texmacs:parse-bbbk" "on" noop))
+  ("latex->texmacs:parse-bbbk" "on" noop)
+  ("latex->texmacs:parse-bbbi-as-mathi" "on" noop)
+  ("latex->texmacs:text-operators" "on" noop))
 
 (tm-widget (editing-importer-preferences-widget)
   (aligned
@@ -860,7 +862,13 @@
               (get-boolean-preference "latex->texmacs:text-d-is-differential")))
     (item (text "Parse blackboard k as Bbbk:")
       (toggle (set-boolean-preference "latex->texmacs:parse-bbbk" answer)
-              (get-boolean-preference "latex->texmacs:parse-bbbk")))))
+              (get-boolean-preference "latex->texmacs:parse-bbbk")))
+    (item (text "Parse blackboard i as mathi:")
+      (toggle (set-boolean-preference "latex->texmacs:parse-bbbi-as-mathi" answer)
+              (get-boolean-preference "latex->texmacs:parse-bbbi-as-mathi")))
+    (item (text "Recognize operator names disguised as text:")
+      (toggle (set-boolean-preference "latex->texmacs:text-operators" answer)
+              (get-boolean-preference "latex->texmacs:text-operators")))))
 
 (tm-widget (editing-preferences-widget)
   ===
