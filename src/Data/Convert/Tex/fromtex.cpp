@@ -2264,7 +2264,7 @@ latex_command_to_tree (tree t) {
   if (is_tuple (t, "\\boldsymbol", 1))
     return var_m2e (t, MATH_FONT_SERIES, "bold");
   if (is_tuple (t, "\\mathnormal", 1)) return m2e (t, MATH_FONT_FAMILY, "mr");
-  if (is_tuple (t, "\\mathrm", 1)) return var_m2e (t, MATH_FONT_FAMILY, "rm");
+  if (is_tuple (t, "\\mathrm", 1)) return compound ("math-up", t2e (t[1], false));
   if (is_tuple (t, "\\mathtt", 1)) return var_m2e (t, MATH_FONT_FAMILY, "tt");
   if (is_tuple (t, "\\mathsf", 1)) return var_m2e (t, MATH_FONT_FAMILY, "ss");
   if (is_tuple (t, "\\mathbf", 1)) return var_m2e (t, MATH_FONT_FAMILY, "bf");
