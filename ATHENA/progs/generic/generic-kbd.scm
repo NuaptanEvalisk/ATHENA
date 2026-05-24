@@ -44,6 +44,8 @@
          (insert '(math-up "id")))
         ((== action "tree:varphi")
          (insert '(concat "<varphi>")))
+        ((string-starts? action "tree:operator:")
+         (insert (substring action 14 (string-length action))))
         (else (key-press action))))
 
 (tm-define (open-escape-symbol-picker)

@@ -66,7 +66,45 @@ esc_symbol_entries () {
     { "ve",    "varepsilon",  "ε",     "<varepsilon>", "varepsilon" },
     { "vp",    "tree:varphi", "φ",     "<varphi>",     "varphi" },
     { "vq",    "vartheta",    "ϑ",     "<vartheta>",   "vartheta" },
-    { "es",    "emptyset",    "∅",     "<emptyset>",   "empty set" }
+    { "es",    "emptyset",    "∅",     "<emptyset>",   "empty set" },
+    { "ann",   "tree:operator:Ann",   "Ann",   "Ann",   "operator Ann" },
+    { "gal",   "tree:operator:Gal",   "Gal",   "Gal",   "operator Gal" },
+    { "tor",   "tree:operator:Tor",   "Tor",   "Tor",   "operator Tor" },
+    { "ext",   "tree:operator:Ext",   "Ext",   "Ext",   "operator Ext" },
+    { "gcd",   "tree:operator:gcd",   "gcd",   "gcd",   "operator gcd" },
+    { "lcm",   "tree:operator:lcm",   "lcm",   "lcm",   "operator lcm" },
+    { "ob",    "tree:operator:Ob",    "Ob",    "Ob",    "operator Ob" },
+    { "hom",   "tree:operator:Hom",   "Hom",   "Hom",   "operator Hom" },
+    { "mor",   "tree:operator:Mor",   "Mor",   "Mor",   "operator Mor" },
+    { "aut",   "tree:operator:Aut",   "Aut",   "Aut",   "operator Aut" },
+    { "end",   "tree:operator:End",   "End",   "End",   "operator End" },
+    { "iso",   "tree:operator:Isom",  "Isom",  "Isom",  "operator Isom" },
+    { "inn",   "tree:operator:Inn",   "Inn",   "Inn",   "operator Inn" },
+    { "disc",  "tree:operator:Disc",  "Disc",  "Disc",  "operator Disc" },
+    { "ord",   "tree:operator:ord",   "ord",   "ord",   "operator ord" },
+    { "supp",  "tree:operator:supp",  "supp",  "supp",  "operator supp" },
+    { "res",   "tree:operator:res",   "res",   "res",   "operator res" },
+    { "Res",   "tree:operator:Res",   "Res",   "Res",   "operator Res" },
+    { "fct",   "tree:operator:Fct",   "Fct",   "Fct",   "operator Fct" },
+    { "fr",    "tree:operator:Frac",  "Frac",  "Frac",  "operator Frac" },
+    { "mspec", "tree:operator:MSpec", "MSpec", "MSpec", "operator MSpec" },
+    { "spec",  "tree:operator:Spec",  "Spec",  "Spec",  "operator Spec" },
+    { "sgn",   "tree:operator:sgn",   "sgn",   "sgn",   "operator sgn" },
+    { "diag",  "tree:operator:diag",  "diag",  "diag",  "operator diag" },
+    { "dim",   "tree:operator:dim",   "dim",   "dim",   "operator dim" },
+    { "kdim",  "tree:operator:kdim",  "kdim",  "kdim",  "operator kdim" },
+    { "coker", "tree:operator:coker", "coker", "coker", "operator coker" },
+    { "im",    "tree:operator:im",    "im",    "im",    "operator im" },
+    { "tr",    "tree:operator:Tr",    "Tr",    "Tr",    "operator Tr" },
+    { "orb",   "tree:operator:Orb",   "Orb",   "Orb",   "operator Orb" },
+    { "nm",    "tree:operator:Norm",  "Norm",  "Norm",  "operator Norm" },
+    { "rk",    "tree:operator:rank",  "rank",  "rank",  "operator rank" },
+    { "rank",  "tree:operator:rank",  "rank",  "rank",  "operator rank" },
+    { "stab",  "tree:operator:Stab",  "Stab",  "Stab",  "operator Stab" },
+    { "ev",    "tree:operator:ev",    "ev",    "ev",    "operator ev" },
+    { "mult",  "tree:operator:mult",  "mult",  "mult",  "operator mult" },
+    { "card",  "tree:operator:Card",  "Card",  "Card",  "operator Card" },
+    { "tdeg",  "tree:operator:trdeg", "trdeg", "trdeg", "operator trdeg" }
   };
 
   for (char c= 'a'; c <= 'z'; c++) {
@@ -179,7 +217,7 @@ protected:
 
 private:
   void refresh () {
-    QString q= searchEdit->text ().trimmed ().toLower ();
+    QString q= searchEdit->text ().trimmed ();
     list->clear ();
     addMatchingItems (q, true);
     addMatchingItems (q, false);
@@ -187,17 +225,19 @@ private:
   }
 
   void addMatchingItems (const QString& q, bool exact) {
+    QString qLower= q.toLower ();
     for (const esc_symbol_entry& e: entries) {
-      QString key= to_qstring_std (e.key).toLower ();
+      QString key= to_qstring_std (e.key);
+      QString keyLower= key.toLower ();
       if (exact && q != key) continue;
-      if (!exact && q == key) continue;
+      if (!exact && qLower == keyLower) continue;
       QString haystack= QString ("%1 %2 %3 %4")
         .arg (to_qstring_std (e.key))
         .arg (to_qstring_std (e.notation))
         .arg (to_qstring_std (e.preview))
         .arg (to_qstring_std (e.description))
         .toLower ();
-      if (!q.isEmpty () && !haystack.contains (q)) continue;
+      if (!qLower.isEmpty () && !haystack.contains (qLower)) continue;
       QListWidgetItem* item= new QListWidgetItem (
         QString ("%1    %2    %3    %4")
           .arg (to_qstring_std (e.key))
