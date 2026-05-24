@@ -68,6 +68,11 @@ struct MaintenanceSummary {
   size_t manual_save_histories_purged = 0;
   size_t image_renames = 0;
   size_t image_reference_updates = 0;
+  size_t anchor_files_scanned = 0;
+  size_t anchor_files_changed = 0;
+  size_t anchor_enunciations_wrapped = 0;
+  size_t anchor_dead_pairs_removed = 0;
+  size_t anchor_failures = 0;
   bool orphan_collection_enabled = false;
   size_t orphan_assets_collected = 0;
   fs::path orphan_dir;
@@ -76,6 +81,11 @@ struct MaintenanceSummary {
 static std::string
 tm_to_std (string s) {
   return std::string (as_charp (s));
+}
+
+static string
+std_to_tm (const std::string& s) {
+  return string (s.c_str ());
 }
 
 static std::string
@@ -236,6 +246,30 @@ manual_save_retention_label (long long seconds) {
   if (seconds == 7LL * 24LL * 60LL * 60LL) return "1 week";
   if (seconds == 30LL * 24LL * 60LL * 60LL) return "1 month";
   return std::to_string (seconds) + " seconds";
+}
+
+static std::vector<std::string>
+split_tabs (const std::string& text) {
+  std::vector<std::string> parts;
+  size_t begin = 0;
+  for (size_t i=0; i<=text.size (); i++) {
+    if (i == text.size () || text[i] == '\t') {
+      parts.push_back (text.substr (begin, i - begin));
+      begin = i + 1;
+    }
+  }
+  return parts;
+}
+
+static size_t
+parse_count (const std::string& text) {
+  try {
+    size_t pos = 0;
+    unsigned long long value = std::stoull (text, &pos);
+    if (pos == text.size ()) return (size_t) value;
+  }
+  catch (...) {}
+  return 0;
 }
 
 static std::vector<std::string>
@@ -1259,6 +1293,70 @@ rewrite_documents (const fs::path& root, const std::vector<RenamePlan>& plans,
   return true;
 }
 
+static bool
+anchor_enunciations_in_vault (const fs::path& root, MaintenanceSummary& summary) {
+  std::vector<fs::path> docs = scan_ath_documents (root);
+  summary.anchor_files_scanned = docs.size ();
+  log_info ("anchor enunciations: scanning " + std::to_string (docs.size ()) +
+            " .ath files");
+
+  for (size_t i=0; i<docs.size (); i++) {
+    print_progress (i + 1, docs.size (), "Anchoring enunciations",
+                    docs[i].filename ().string ());
+    std::string result;
+    try {
+      result = tm_to_std (as_string (
+        call ("vault-anchor-maintenance-file",
+              object (url_system (std_to_tm (docs[i].string ()))))));
+    }
+    catch (...) {
+      progress_display.finish ();
+      log_error ("anchor enunciations: Scheme failure for " + docs[i].string ());
+      summary.anchor_failures++;
+      continue;
+    }
+
+    std::vector<std::string> parts = split_tabs (result);
+    if (parts.size () < 5) {
+      log_error ("anchor enunciations: malformed result for " + docs[i].string ());
+      summary.anchor_failures++;
+      continue;
+    }
+
+    size_t wrapped = parse_count (parts[1]);
+    size_t removed = parse_count (parts[2]);
+    bool changed = parts[3] == "1";
+    if (parts[0] == "ok") {
+      summary.anchor_enunciations_wrapped += wrapped;
+      summary.anchor_dead_pairs_removed += removed;
+      if (changed) {
+        summary.anchor_files_changed++;
+        log_info ("anchor enunciations: updated " + docs[i].string () +
+                  " (wrapped " + std::to_string (wrapped) +
+                  ", removed " + std::to_string (removed) +
+                  " dead pair(s))");
+      }
+    }
+    else {
+      summary.anchor_failures++;
+      log_error ("anchor enunciations: failed for " + docs[i].string () +
+                 (parts[4].empty () ? std::string () : (": " + parts[4])));
+    }
+  }
+  progress_display.finish ();
+
+  log_info ("anchor enunciations: changed " +
+            std::to_string (summary.anchor_files_changed) + " file(s), wrapped " +
+            std::to_string (summary.anchor_enunciations_wrapped) +
+            " enunciation(s), removed " +
+            std::to_string (summary.anchor_dead_pairs_removed) +
+            " dead anchor pair(s)");
+  if (summary.anchor_failures != 0)
+    log_info ("anchor enunciations: " +
+              std::to_string (summary.anchor_failures) + " file(s) failed");
+  return true;
+}
+
 static fs::path
 next_orphan_directory (const fs::path& root) {
   fs::path candidate = root / "orphan";
@@ -1414,6 +1512,8 @@ vault_maintenance_run (string vault_dir) {
     log_info ("updated " + std::to_string (replacements) + " image references");
   }
 
+  if (!anchor_enunciations_in_vault (root, summary)) return false;
+
   if (summary.orphan_collection_enabled) {
     if (!collect_orphan_assets (root, summary.orphan_assets_collected,
                                 summary.orphan_dir))
@@ -1445,6 +1545,15 @@ vault_maintenance_run (string vault_dir) {
             " image file(s), updated " +
             std::to_string (summary.image_reference_updates) +
             " image reference(s)");
+  log_info ("summary: anchored " +
+            std::to_string (summary.anchor_enunciations_wrapped) +
+            " enunciation(s) in " +
+            std::to_string (summary.anchor_files_changed) + " of " +
+            std::to_string (summary.anchor_files_scanned) +
+            " .ath file(s); removed " +
+            std::to_string (summary.anchor_dead_pairs_removed) +
+            " dead anchor pair(s); failures " +
+            std::to_string (summary.anchor_failures));
   if (summary.orphan_collection_enabled) {
     std::string where = summary.orphan_dir.empty ()
                         ? std::string ("")

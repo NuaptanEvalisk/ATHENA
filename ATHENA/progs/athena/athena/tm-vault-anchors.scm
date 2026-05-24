@@ -4,6 +4,7 @@
         (kernel library base)
         (kernel library list)
         (kernel library tree)
+        (kernel athena tm-convert)
         (kernel athena tm-define)
         (utils library cursor)))
 
@@ -417,6 +418,61 @@
 
 (define (vault-anchor-plan body)
   (vector-ref (vault-anchor-live-plan body) 0))
+
+(define (vault-anchor-transform-stree st)
+  (let* ((counts (make-ahash-table))
+         (summary (vector 0 0 '())))
+    (vault-anchor-register-existing-labels st counts)
+    (let ((new-st (vault-anchor-transform-tree st counts summary #f)))
+      (list summary new-st))))
+
+(define (vault-anchor-transform-document doc)
+  (let* ((st (tree->stree doc))
+         (body (tmfile-extract st 'body)))
+    (if body
+        (let* ((res (vault-anchor-transform-stree body))
+               (summary (car res))
+               (new-body (cadr res))
+               (new-st (if (vault-anchor-summary-empty? summary)
+                           st
+                           (tmfile-assign st 'body new-body))))
+          (list summary (stree->tree new-st)))
+        (let* ((res (vault-anchor-transform-stree st))
+               (summary (car res))
+               (new-st (cadr res)))
+          (list summary (stree->tree new-st))))))
+
+(define (vault-anchor-tab-safe s)
+  (string-replace (string-replace s "\t" " ") "\n" " "))
+
+(define (vault-anchor-maintenance-result status wraps dead changed message)
+  (string-append status "\t"
+                 (number->string wraps) "\t"
+                 (number->string dead) "\t"
+                 (if changed "1" "0") "\t"
+                 (vault-anchor-tab-safe message)))
+
+(tm-define (vault-anchor-maintenance-file u)
+  (catch #t
+    (lambda ()
+      (let ((doc (tree-import u "texmacs")))
+        (if (== doc (tm->tree "error"))
+            (vault-anchor-maintenance-result "error" 0 0 #f
+                                             "could not import document")
+            (let* ((res (vault-anchor-transform-document doc))
+                   (summary (car res))
+                   (new-doc (cadr res))
+                   (wraps (vector-ref summary 0))
+                   (dead (vector-ref summary 1)))
+              (if (vault-anchor-summary-empty? summary)
+                  (vault-anchor-maintenance-result "ok" 0 0 #f "")
+                  (if (tree-export new-doc u "texmacs")
+                      (vault-anchor-maintenance-result "error" wraps dead #f
+                                                       "could not export document")
+                      (vault-anchor-maintenance-result "ok" wraps dead #t "")))))))
+    (lambda args
+      (vault-anchor-maintenance-result "error" 0 0 #f
+                                       (object->string args)))))
 
 (define (vault-anchor-current-buffer? buf)
   (and (current-buffer)
