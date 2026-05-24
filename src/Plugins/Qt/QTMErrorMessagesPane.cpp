@@ -298,17 +298,11 @@ error_messages_show () {
     });
   }
 
-  if (error_messages_dock->dockAreaWidget () == nullptr ||
-      error_messages_dock->dockContainer () == nullptr) {
-    win->dockManager ()->addDockWidget (ads::BottomDockWidgetArea,
-                                        error_messages_dock);
-  }
+  win->showAdsDockWidget (error_messages_dock, ads::BottomDockWidgetArea);
 
   error_messages_widget->refresh ();
   error_messages_widget->setFloatingResizeGripVisible (
     error_messages_dock->isInFloatingContainer ());
-  error_messages_dock->show ();
-  error_messages_dock->raise ();
   set_error_messages_area_height (error_messages_dock);
   QTimer::singleShot (0, win, [] () {
     set_error_messages_area_height (error_messages_dock);

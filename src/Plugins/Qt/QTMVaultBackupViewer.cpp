@@ -291,13 +291,11 @@ vault_backup_viewer_show () {
     QObject::connect (vault_backup_viewer_dock, &QObject::destroyed, [] () {
       vault_backup_viewer_dock= nullptr;
     });
-    win->dockManager ()->addDockWidget (
-      ads::RightDockWidgetArea, vault_backup_viewer_dock);
+    win->showAdsDockWidget (vault_backup_viewer_dock, ads::RightDockWidgetArea);
     win->restoreAdsLayoutState ();
   }
 
   vault_backup_viewer_dock->setWindowTitle (title);
-  vault_backup_viewer_dock->show ();
-  vault_backup_viewer_dock->raise ();
+  win->showAdsDockWidget (vault_backup_viewer_dock, ads::RightDockWidgetArea);
   vault_backup_viewer_widget->setFocus ();
 }

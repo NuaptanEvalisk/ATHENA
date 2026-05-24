@@ -1417,14 +1417,8 @@ namespace_manager_show () {
     });
   }
 
-  if (namespace_manager_dock->dockAreaWidget () == nullptr ||
-      namespace_manager_dock->dockContainer () == nullptr) {
-    win->dockManager ()->addDockWidget (ads::RightDockWidgetArea,
-                                        namespace_manager_dock);
-  }
+  win->showAdsDockWidget (namespace_manager_dock, ads::RightDockWidgetArea);
 
   namespace_manager_dock->setWindowTitle (title);
-  namespace_manager_dock->show ();
-  namespace_manager_dock->raise ();
   namespace_manager_widget->setFocus ();
 }

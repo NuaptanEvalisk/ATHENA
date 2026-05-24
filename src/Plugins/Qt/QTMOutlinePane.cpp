@@ -288,12 +288,10 @@ outline_pane_show () {
     QObject::connect (outline_pane_dock, &QObject::destroyed, [] () {
       outline_pane_dock= nullptr;
     });
-    win->dockManager ()->addDockWidget (
-      ads::RightDockWidgetArea, outline_pane_dock);
+    win->showAdsDockWidget (outline_pane_dock, ads::RightDockWidgetArea);
     win->restoreAdsLayoutState ();
   }
 
-  outline_pane_dock->show ();
-  outline_pane_dock->raise ();
+  win->showAdsDockWidget (outline_pane_dock, ads::RightDockWidgetArea);
   outline_pane_widget->setFocus ();
 }

@@ -644,17 +644,11 @@ global_search_show () {
     });
   }
 
-  if (global_search_dock->dockAreaWidget () == nullptr ||
-      global_search_dock->dockContainer () == nullptr) {
-    win->dockManager ()->addDockWidget (ads::BottomDockWidgetArea,
-                                        global_search_dock);
-  }
+  win->showAdsDockWidget (global_search_dock, ads::BottomDockWidgetArea);
 
   global_search_dock->setWindowTitle (title);
   global_search_widget->setFloatingResizeGripVisible (
     global_search_dock->isInFloatingContainer ());
-  global_search_dock->show ();
-  global_search_dock->raise ();
   set_global_search_area_height (global_search_dock);
   QTimer::singleShot (0, win, [] () {
     set_global_search_area_height (global_search_dock);

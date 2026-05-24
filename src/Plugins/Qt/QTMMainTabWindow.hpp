@@ -42,6 +42,7 @@ public:
   QTabWidget* tabWidget() { return mTabWidget; }
   QMdiArea* mdiArea() { return mMdiArea; }
   ads::CDockManager* dockManager() { return mDockManager; }
+  void showAdsDockWidget(ads::CDockWidget* dock, ads::DockWidgetArea area);
   void saveAdsLayoutState();
   void restoreAdsLayoutState();
   void restoreAdsVisiblePanes();

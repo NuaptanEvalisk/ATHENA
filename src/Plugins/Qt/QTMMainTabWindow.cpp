@@ -220,6 +220,18 @@ QString QTMMainTabWindow::adsVisiblePanesStatePath() const {
   return QDir (home).filePath ("system/ads-visible-panes.txt");
 }
 
+void QTMMainTabWindow::showAdsDockWidget(ads::CDockWidget* dock,
+                                         ads::DockWidgetArea area) {
+  if (dock == nullptr || mDockManager == nullptr) return;
+
+  if (dock->dockAreaWidget () == nullptr || dock->dockContainer () == nullptr)
+    mDockManager->addDockWidget (area, dock);
+
+  dock->toggleView (true);
+  dock->show ();
+  dock->raise ();
+}
+
 void QTMMainTabWindow::saveAdsLayoutState() {
   if (!adsLayoutPersistenceEnabled() || mDockManager == nullptr) return;
 

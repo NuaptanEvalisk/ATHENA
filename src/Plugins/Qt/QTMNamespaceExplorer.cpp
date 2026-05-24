@@ -601,22 +601,15 @@ namespace_explorer_show () {
     QObject::connect (namespace_explorer_dock, &QObject::destroyed, [] () {
       namespace_explorer_dock= nullptr;
     });
-    win->dockManager ()->addDockWidget (ads::LeftDockWidgetArea,
-                                        namespace_explorer_dock);
+    win->showAdsDockWidget (namespace_explorer_dock, ads::LeftDockWidgetArea);
     win->restoreAdsLayoutState ();
   }
 
-  if (namespace_explorer_dock->dockAreaWidget () == nullptr ||
-      namespace_explorer_dock->dockContainer () == nullptr) {
-    win->dockManager ()->addDockWidget (ads::LeftDockWidgetArea,
-                                        namespace_explorer_dock);
-  }
+  win->showAdsDockWidget (namespace_explorer_dock, ads::LeftDockWidgetArea);
 
   namespace_explorer_dock->setWindowTitle (title);
   namespace_explorer_widget->setFloatingResizeGripVisible (
     namespace_explorer_dock->isInFloatingContainer ());
-  namespace_explorer_dock->show ();
-  namespace_explorer_dock->raise ();
   set_namespace_explorer_area_width (win->dockManager (),
                                      namespace_explorer_dock);
   QTimer::singleShot (0, win, [win] () {

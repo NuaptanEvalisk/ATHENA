@@ -516,22 +516,15 @@ vault_show_explorer () {
     QObject::connect (vault_explorer_dock, &QObject::destroyed, [] () {
       vault_explorer_dock= nullptr;
     });
-    win->dockManager ()->addDockWidget (ads::LeftDockWidgetArea,
-                                        vault_explorer_dock);
+    win->showAdsDockWidget (vault_explorer_dock, ads::LeftDockWidgetArea);
     win->restoreAdsLayoutState ();
   }
 
-  if (vault_explorer_dock->dockAreaWidget () == nullptr ||
-      vault_explorer_dock->dockContainer () == nullptr) {
-    win->dockManager ()->addDockWidget (ads::LeftDockWidgetArea,
-                                        vault_explorer_dock);
-  }
+  win->showAdsDockWidget (vault_explorer_dock, ads::LeftDockWidgetArea);
 
   vault_explorer_dock->setWindowTitle (title);
   vault_explorer_widget->setFloatingResizeGripVisible (
     vault_explorer_dock->isInFloatingContainer ());
-  vault_explorer_dock->show ();
-  vault_explorer_dock->raise ();
   set_vault_explorer_area_width (win->dockManager (), vault_explorer_dock);
   QTimer::singleShot (0, win, [win] () {
     set_vault_explorer_area_width (win->dockManager (), vault_explorer_dock);
