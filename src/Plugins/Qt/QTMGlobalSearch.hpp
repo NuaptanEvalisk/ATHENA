@@ -24,6 +24,7 @@
 
 class QLabel;
 class QEvent;
+class QComboBox;
 class QListWidget;
 class QListWidgetItem;
 class QLineEdit;
@@ -33,6 +34,7 @@ class QProgressBar;
 class QStringListModel;
 class QSplitter;
 class QTimer;
+class QTMWidget;
 
 class QTMGlobalSearch : public QWidget {
 public:
@@ -60,6 +62,7 @@ private:
   tree     currentQuery () const;
   tree     normalizeQuery (tree t) const;
   QString  selectedNamespace () const;
+  QString  selectedEnunciation () const;
   void     startSearch ();
   void     cancelSearch ();
   void     scanChunk ();
@@ -73,6 +76,12 @@ private:
   void     openResult (QListWidgetItem* item);
   void     openCurrentResult ();
   void     applyPreviewZoom ();
+  void     notifyPreviewChanged ();
+  void     locatePreviewWidgets ();
+  void     installPreviewEventFilter (QWidget* root);
+  bool     isPreviewWatchedObject (QObject* watched) const;
+  void     refreshPreviewLayout ();
+  void     refreshPreviewLayoutNow ();
   void     setIdleStatus ();
   void     setRunningStatus ();
   void     finishSearch ();
@@ -91,6 +100,7 @@ private:
   QLabel*       prompt;
   QLabel*       status;
   QLabel*       previewTitle;
+  QComboBox*    enunciationCombo;
   QLineEdit*    namespaceEdit;
   QStringListModel* namespaceModel;
   QPushButton*  searchButton;
@@ -98,6 +108,10 @@ private:
   QSizeGrip*    floatingSizeGrip;
   QProgressBar* progress;
   QListWidget*  resultList;
+  QWidget*      previewQtWidget;
+  QWidget*      previewViewportWidget;
+  QWidget*      previewSurfaceWidget;
+  QTMWidget*    previewTexmacsWidget;
   QSplitter*    splitter;
   QTimer*       scanTimer;
 };

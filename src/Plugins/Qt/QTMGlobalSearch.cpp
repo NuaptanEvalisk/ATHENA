@@ -10,11 +10,15 @@
 
 #include "QTMGlobalSearch.hpp"
 #include "QTMMainTabWindow.hpp"
+#include "QTMWidget.hpp"
 #include "convert.hpp"
 #include "drd_mode.hpp"
+#include "editor.hpp"
 #include "message.hpp"
 #include "namespaces.hpp"
+#include "qt_gui.hpp"
 #include "new_buffer.hpp"
+#include "new_view.hpp"
 #include "qt_utilities.hpp"
 #include "qt_widget.hpp"
 #include "renderer.hpp"
@@ -28,15 +32,19 @@
 #include <DockAreaWidget.h>
 #include <DockSplitter.h>
 #include <DockWidget.h>
+#include <QAbstractScrollArea>
 #include <QApplication>
 #include <QCompleter>
+#include <QComboBox>
 #include <QEvent>
 #include <QHBoxLayout>
 #include <QKeyEvent>
 #include <QLabel>
+#include <QList>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QMessageBox>
+#include <QMouseEvent>
 #include <QProgressBar>
 #include <QPushButton>
 #include <QSize>
@@ -52,6 +60,63 @@
 
 static QTMGlobalSearch* global_search_widget= nullptr;
 static ads::CDockWidget* global_search_dock= nullptr;
+
+struct enunciation_filter_entry {
+  const char* label;
+  const char* tag;
+};
+
+static const enunciation_filter_entry enunciation_filter_entries[]= {
+  { "Theorem", "theorem" },
+  { "Proposition", "proposition" },
+  { "Lemma", "lemma" },
+  { "Corollary", "corollary" },
+  { "Axiom", "axiom" },
+  { "Definition", "definition" },
+  { "Conjecture", "conjecture" },
+  { "Remark", "remark" },
+  { "Note", "note" },
+  { "Example", "example" },
+  { "Warning", "warning" },
+  { "Disambiguation", "disambiguation" },
+  { "Question", "question" },
+  { "Solution", "solution" },
+  { "Solution*", "solution*" },
+  { "Proof", "proof" },
+  { "Alternative proof", "proof-alternative" },
+  { "Standard proof", "proof-standard" }
+};
+
+static bool
+is_tree_tag (tree t, const string& tag) {
+  return is_compound (t, tag);
+}
+
+static void
+append_search_hits (std::vector<range_set>& out, tree t, tree query,
+                    path base, int limit) {
+  if (limit <= 0) return;
+  range_set sels= search (t, query, base, limit);
+  if (N(sels) > 0) out.push_back (sels);
+}
+
+static void
+collect_enunciation_hits (std::vector<range_set>& out, tree t, tree query,
+                          const string& tag, path base, int limit) {
+  if (limit <= 0 || is_atomic (t)) return;
+
+  if (is_tree_tag (t, tag)) {
+    append_search_hits (out, t, query, base, limit);
+    return;
+  }
+
+  for (int i=0; i<N(t); i++) {
+    int found= 0;
+    for (const range_set& sels: out) found += N(sels) / 2;
+    if (found >= limit) return;
+    collect_enunciation_hits (out, t[i], query, tag, base * i, limit - found);
+  }
+}
 
 static QString
 qstring_from_tm (string s) {
@@ -87,7 +152,11 @@ QTMGlobalSearch::QTMGlobalSearch (QWidget* parent)
     previewUrl (url ("tmfs://aux/global-search-preview")),
     scanIndex (0),
     matchedFiles (0),
-    previewZoomFactor (1.0) {
+    previewZoomFactor (1.0),
+    previewQtWidget (nullptr),
+    previewViewportWidget (nullptr),
+    previewSurfaceWidget (nullptr),
+    previewTexmacsWidget (nullptr) {
   prompt= new QLabel ("Search the current vault", this);
   status= new QLabel (this);
   floatingSizeGrip= new QSizeGrip (this);
@@ -124,6 +193,12 @@ QTMGlobalSearch::QTMGlobalSearch (QWidget* parent)
   namespaceCompleter->setFilterMode (Qt::MatchContains);
   namespaceEdit->setCompleter (namespaceCompleter);
 
+  enunciationCombo= new QComboBox (this);
+  enunciationCombo->addItem ("Not required", "");
+  for (const enunciation_filter_entry& entry: enunciation_filter_entries)
+    enunciationCombo->addItem (entry.label, entry.tag);
+  enunciationCombo->setMinimumWidth (220);
+
   QWidget* leftPane= new QWidget (this);
   leftPane->setMinimumWidth (500);
   QVBoxLayout* leftLayout= new QVBoxLayout (leftPane);
@@ -149,6 +224,9 @@ QTMGlobalSearch::QTMGlobalSearch (QWidget* parent)
   QHBoxLayout* buttons= new QHBoxLayout ();
   buttons->addWidget (new QLabel ("Namespace:", this));
   buttons->addWidget (namespaceEdit);
+  buttons->addSpacing (12);
+  buttons->addWidget (new QLabel ("Enunciation:", this));
+  buttons->addWidget (enunciationCombo);
   buttons->addSpacing (12);
   buttons->addWidget (searchButton);
   buttons->addWidget (cancelButton);
@@ -214,6 +292,29 @@ QTMGlobalSearch::setFloatingResizeGripVisible (bool visible) {
 
 bool
 QTMGlobalSearch::eventFilter (QObject* watched, QEvent* event) {
+  if (event != nullptr && isPreviewWatchedObject (watched)) {
+    switch (event->type ()) {
+      case QEvent::ContextMenu:
+        event->accept ();
+        return true;
+      case QEvent::MouseButtonPress:
+      case QEvent::MouseButtonRelease:
+      case QEvent::MouseButtonDblClick:
+      case QEvent::MouseMove:
+      {
+        QMouseEvent* mouse= static_cast<QMouseEvent*> (event);
+        if (mouse->button () == Qt::RightButton ||
+            (mouse->buttons () & Qt::RightButton) != 0) {
+          event->accept ();
+          return true;
+        }
+        break;
+      }
+      default:
+        break;
+    }
+  }
+
   if (watched == resultList && event->type () == QEvent::KeyPress) {
     QKeyEvent* key= static_cast<QKeyEvent*> (event);
     if (key->key () == Qt::Key_Return || key->key () == Qt::Key_Enter) {
@@ -242,6 +343,9 @@ QTMGlobalSearch::createPreviewWidget () {
   tm_buffer buf= concrete_buffer (previewUrl);
   if (!is_nil (buf)) buf->buf->read_only= true;
   QWidget* qwid= concrete (previewWidget)->as_qwidget (this);
+  previewQtWidget= qwid;
+  locatePreviewWidgets ();
+  installPreviewEventFilter (previewQtWidget);
   qwid->setSizePolicy (QSizePolicy::Expanding, QSizePolicy::Expanding);
   applyPreviewZoom ();
   return qwid;
@@ -251,6 +355,97 @@ void
 QTMGlobalSearch::applyPreviewZoom () {
   if (is_nil (previewWidget)) return;
   set_zoom_factor (previewWidget, get_retina_zoom () * previewZoomFactor);
+  refreshPreviewLayout ();
+}
+
+void
+QTMGlobalSearch::notifyPreviewChanged () {
+  array<url> views= buffer_to_views (previewUrl);
+  for (int i=0; i<N(views); i++) {
+    editor ed= view_to_editor (views[i]);
+    if (!is_nil (ed))
+      ed->notify_change (THE_TREE + THE_EXTENTS + THE_FREEZE);
+  }
+}
+
+void
+QTMGlobalSearch::locatePreviewWidgets () {
+  previewTexmacsWidget= nullptr;
+  previewViewportWidget= nullptr;
+  previewSurfaceWidget= nullptr;
+  if (previewQtWidget == nullptr) return;
+
+  previewTexmacsWidget= qobject_cast<QTMWidget*> (previewQtWidget);
+  if (previewTexmacsWidget == nullptr)
+    previewTexmacsWidget= previewQtWidget->findChild<QTMWidget*> ();
+
+  if (previewTexmacsWidget != nullptr) {
+    previewTexmacsWidget->setContextMenuPolicy (Qt::NoContextMenu);
+    if (QAbstractScrollArea* area=
+          qobject_cast<QAbstractScrollArea*> (previewTexmacsWidget))
+      previewViewportWidget= area->viewport ();
+    previewSurfaceWidget= previewTexmacsWidget->surface ();
+  }
+}
+
+void
+QTMGlobalSearch::installPreviewEventFilter (QWidget* root) {
+  if (root == nullptr) return;
+
+  root->installEventFilter (this);
+  root->setContextMenuPolicy (Qt::NoContextMenu);
+  QList<QWidget*> children= root->findChildren<QWidget*> ();
+  for (QWidget* child : children) {
+    if (child == nullptr) continue;
+    child->installEventFilter (this);
+    child->setContextMenuPolicy (Qt::NoContextMenu);
+  }
+}
+
+bool
+QTMGlobalSearch::isPreviewWatchedObject (QObject* watched) const {
+  for (QObject* obj= watched; obj != nullptr; obj= obj->parent ())
+    if (obj == previewQtWidget) return true;
+  return false;
+}
+
+void
+QTMGlobalSearch::refreshPreviewLayoutNow () {
+  if (previewQtWidget == nullptr) return;
+
+  locatePreviewWidgets ();
+  installPreviewEventFilter (previewQtWidget);
+  previewQtWidget->updateGeometry ();
+  previewQtWidget->update ();
+
+  QTMWidget* tmWidget= previewTexmacsWidget;
+  if (tmWidget == nullptr || tmWidget->surface () == nullptr ||
+      the_gui == nullptr) return;
+
+  tmWidget->updateGeometry ();
+  tmWidget->update ();
+  tmWidget->surface ()->updateGeometry ();
+  tmWidget->surface ()->update ();
+
+  // A real click first activates the embedded TeXmacs editor through
+  // QTMWidget::focusInEvent.  The fit-width logic is attached to that
+  // editor-focus path, not to a bare tree notification.
+  the_gui->process_keyboard_focus (tmWidget->tm_widget (), true, texmacs_time ());
+
+  coord2 size= from_qsize (tmWidget->surface ()->size ());
+  if (size.x1 > 0 && size.x2 > 0)
+    the_gui->process_resize (tmWidget->tm_widget (), size.x1, size.x2);
+  the_gui->process_queued_events (4);
+  the_gui->force_update ();
+}
+
+void
+QTMGlobalSearch::refreshPreviewLayout () {
+  refreshPreviewLayoutNow ();
+
+  QTimer::singleShot (0, this, [this] () {
+    refreshPreviewLayoutNow ();
+  });
 }
 
 tree
@@ -299,6 +494,12 @@ QTMGlobalSearch::selectedNamespace () const {
   return namespaceEdit == nullptr ? QString () : namespaceEdit->text ().trimmed ();
 }
 
+QString
+QTMGlobalSearch::selectedEnunciation () const {
+  if (enunciationCombo == nullptr) return QString ();
+  return enunciationCombo->currentData ().toString ().trimmed ();
+}
+
 void
 QTMGlobalSearch::setIdleStatus () {
   status->setText ("Enter a query and search the current vault.");
@@ -309,12 +510,15 @@ QTMGlobalSearch::setIdleStatus () {
 void
 QTMGlobalSearch::setRunningStatus () {
   QString ns= selectedNamespace ();
-  status->setText (
-    ns.isEmpty ()
-      ? QString ("Searching %1 vault files...").arg ((int) scanFiles.size ())
-      : QString ("Searching %1 file(s) in namespace %2...")
-          .arg ((int) scanFiles.size ())
-          .arg (ns));
+  QString enunciation= selectedEnunciation ();
+  QString scope= ns.isEmpty () ? QString ("current vault") :
+    QString ("namespace %1").arg (ns);
+  QString kind= enunciation.isEmpty () ? QString () :
+    QString (" inside <%1>").arg (enunciation);
+  status->setText (QString ("Searching %1 file(s) in %2%3...")
+                   .arg ((int) scanFiles.size ())
+                   .arg (scope)
+                   .arg (kind));
   progress->setRange (0, (int) scanFiles.size ());
   progress->setValue (0);
 }
@@ -385,6 +589,9 @@ QTMGlobalSearch::startSearch () {
             << (int) scanFiles.size () << " files";
   if (!ns.isEmpty ())
     std::cout << " in namespace " << ns.toStdString ();
+  QString enunciation= selectedEnunciation ();
+  if (!enunciation.isEmpty ())
+    std::cout << ", enunciation " << enunciation.toStdString ();
   std::cout << "\n";
   setRunningStatus ();
   searchButton->setEnabled (false);
@@ -413,9 +620,14 @@ QTMGlobalSearch::searchFile (url u, std::vector<Result>& hits) const {
     if (is_empty (body)) body= t;
 
     int oldMode= set_access_mode (DRD_ACCESS_SOURCE);
-    range_set sels;
+    std::vector<range_set> hitRanges;
     try {
-      sels= search (body, queryTree, path (), 200);
+      QString enunciation= selectedEnunciation ();
+      if (enunciation.isEmpty ())
+        append_search_hits (hitRanges, body, queryTree, path (), 200);
+      else
+        collect_enunciation_hits (hitRanges, body, queryTree,
+                                  from_qstring (enunciation), path (), 200);
     }
     catch (...) {
       set_access_mode (oldMode);
@@ -423,19 +635,24 @@ QTMGlobalSearch::searchFile (url u, std::vector<Result>& hits) const {
     }
     set_access_mode (oldMode);
 
-    int hitCount= N(sels) / 2;
+    int hitCount= 0;
+    for (const range_set& sels: hitRanges) hitCount += N(sels) / 2;
     if (hitCount <= 0) return 0;
 
     QString rel= relativePath (u);
-    for (int i=0; i<hitCount; i++) {
-      Result result;
-      result.relPath= rel;
-      result.file= u;
-      result.occurrence= i + 1;
-      result.fileHits= hitCount;
-      result.hitStart= sels[2*i];
-      result.hitEnd= sels[2*i + 1];
-      hits.push_back (result);
+    int occurrence= 1;
+    for (const range_set& sels: hitRanges) {
+      int rangeHits= N(sels) / 2;
+      for (int i=0; i<rangeHits; i++) {
+        Result result;
+        result.relPath= rel;
+        result.file= u;
+        result.occurrence= occurrence++;
+        result.fileHits= hitCount;
+        result.hitStart= sels[2*i];
+        result.hitEnd= sels[2*i + 1];
+        hits.push_back (result);
+      }
     }
     return hitCount;
   }
@@ -525,7 +742,9 @@ QTMGlobalSearch::updatePreview (QListWidgetItem* current) {
   set_buffer_body (previewUrl, buildPreview (result));
   tm_buffer buf= concrete_buffer (previewUrl);
   if (!is_nil (buf)) buf->buf->read_only= true;
+  notifyPreviewChanged ();
   applyPreviewZoom ();
+  refreshPreviewLayout ();
 }
 
 void
@@ -533,6 +752,8 @@ QTMGlobalSearch::clearPreview () {
   if (previewTitle != nullptr)
     previewTitle->setText ("Select a result to preview it.");
   set_buffer_body (previewUrl, tree (DOCUMENT, ""));
+  notifyPreviewChanged ();
+  refreshPreviewLayout ();
 }
 
 void
