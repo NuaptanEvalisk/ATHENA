@@ -1,6 +1,9 @@
 #include "aofm_utils.hpp"
 #include "converter.hpp"
+#include <cmath>
 #include <cctype>
+#include <cstdlib>
+#include <iomanip>
 #include <iostream>
 #include <sstream>
 #include <algorithm>
@@ -53,6 +56,27 @@ trim_copy(const std::string& s) {
   }
 
   return s.substr(start, end - start);
+}
+
+std::string
+obsidian_image_width_to_athena_length(const std::string& width) {
+  std::string s = trim_copy(width);
+  if (s.empty()) return "";
+
+  char* end = nullptr;
+  double px = std::strtod(s.c_str(), &end);
+  if (end == s.c_str() || *end != '\0' || !std::isfinite(px) || px <= 0.0)
+    return "";
+
+  // Obsidian image widths are CSS pixels.  ATHENA image px are calibrated
+  // differently, but the observed document scale matches CSS px -> 0.75 px.
+  double athena_px = px * 0.75;
+  std::ostringstream out;
+  out << std::fixed << std::setprecision(3) << athena_px;
+  std::string n = out.str();
+  while (n.size() > 1 && n.back() == '0') n.pop_back();
+  if (!n.empty() && n.back() == '.') n.pop_back();
+  return n + "px";
 }
 
 std::string

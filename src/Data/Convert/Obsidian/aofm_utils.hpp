@@ -29,6 +29,7 @@ std::string target_extension_lower(const std::string& target);
 bool is_aofm_image_target(const std::string& target);
 bool is_aofm_pdf_target(const std::string& target);
 bool is_decimal_digits(const std::string& s);
+std::string obsidian_image_width_to_athena_length(const std::string& width);
 
 bool is_proof_marker_text(const std::string& raw);
 

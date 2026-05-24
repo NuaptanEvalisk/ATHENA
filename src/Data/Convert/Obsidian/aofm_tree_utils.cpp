@@ -124,8 +124,9 @@ materialize_aofm_anchor_literals(const tree& t) {
   }
   if (is_aofm_image_placeholder(t)) {
     std::string width = tree_to_std_string(t[1]);
-    if (!width.empty()) width += "guipx";
-    else width = "0.8par";
+    width = width.empty() ? "0.8par" :
+            obsidian_image_width_to_athena_length(width);
+    if (width.empty()) width = "0.8par";
     tree image = compound("image", t[0], text_tree(width),
                           text_tree(""), text_tree(""), text_tree(""));
     return compound("big-figure", image, text_tree(""));

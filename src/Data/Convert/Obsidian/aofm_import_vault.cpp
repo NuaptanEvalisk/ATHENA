@@ -770,8 +770,10 @@ resolve_anchor_placeholders(const tree& t, const AnchorMap& anchor_map,
 
     std::string image_path =
         relative_path_from_dir(path_dirname(rel_ath_path), asset->relative_path);
-    return make_image_embed(image_path, width.empty() ? "0.8par" :
-                            width + "guipx");
+    std::string athena_width =
+        width.empty() ? "0.8par" : obsidian_image_width_to_athena_length(width);
+    if (athena_width.empty()) athena_width = "0.8par";
+    return make_image_embed(image_path, athena_width);
   }
 
   if (is_aofm_wikilink_placeholder(t) || is_aofm_transclusion_placeholder(t)) {
