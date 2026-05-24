@@ -45,16 +45,6 @@
   ("structured:insert" "A-")
   ("structured:geometry" "M-"))
 
-(kbd-wildcards
-  ("escape" "M-" #t)
-  ("escape escape" "A-" #t)
-  ("escape escape escape" "C-" #t)
-  ("escape escape escape escape" "noop" #t)
-  ("S-escape" "M-A-" #t)
-  ("S-escape S-escape" "M-C-" #t)
-  ("S-escape S-escape S-escape" "A-C-" #t)
-  ("S-escape S-escape S-escape S-escape" "noop" #t))
-
 (kbd-map
   ("emacs" "" "Emacs command")
   ("emacs:contextual" "" "Emacs mode specific prefix command")
@@ -85,16 +75,6 @@
   ("structured:insert" "M-")
   ("structured:geometry" "M-C-"))
 
-(kbd-wildcards
-  ("escape" "M-" #t)
-  ("escape escape" "A-" #t)
-  ("escape escape escape" "C-" #t)
-  ("escape escape escape escape" "noop" #t)
-  ("S-escape" "M-C-" #t)
-  ("S-escape S-escape" "A-C-" #t)
-  ("S-escape S-escape S-escape" "M-A-" #t)
-  ("S-escape S-escape S-escape S-escape" "noop" #t))
-
 (kbd-map
   ("gnome" "" "Gnome command")
   ("std" "" "Gnome command"))
@@ -122,16 +102,6 @@
   ("structured:move" "M-A-")
   ("structured:insert" "M-")
   ("structured:geometry" "M-C-"))
-
-(kbd-wildcards
-  ("escape" "M-" #t)
-  ("escape escape" "A-" #t)
-  ("escape escape escape" "C-" #t)
-  ("escape escape escape escape" "noop" #t)
-  ("S-escape" "M-C-" #t)
-  ("S-escape S-escape" "A-C-" #t)
-  ("S-escape S-escape S-escape" "M-A-" #t)
-  ("S-escape S-escape S-escape S-escape" "noop" #t))
 
 (kbd-map
   ("kde" "" "KDE command")
@@ -161,16 +131,6 @@
   ("structured:insert" "C-")
   ("structured:geometry" "M-A-"))
 
-(kbd-wildcards
-  ("escape" "A-" #t)
-  ("escape escape" "C-" #t)
-  ("escape escape escape" "M-" #t)
-  ("escape escape escape escape" "noop" #t)
-  ("S-escape" "M-A-" #t)
-  ("S-escape S-escape" "A-C-" #t)
-  ("S-escape S-escape S-escape" "M-C-" #t)
-  ("S-escape S-escape S-escape S-escape" "noop" #t))
-
 (kbd-map
   ("macos" "" "MacOS command")
   ("std" "" "MacOS command")
@@ -199,16 +159,6 @@
   ("structured:move" "M-A-")
   ("structured:insert" "M-")
   ("structured:geometry" "M-C-"))
-
-(kbd-wildcards
-  ("escape" "M-" #t)
-  ("escape escape" "A-" #t)
-  ("escape escape escape" "C-" #t)
-  ("escape escape escape escape" "noop" #t)
-  ("S-escape" "M-C-" #t)
-  ("S-escape S-escape" "A-C-" #t)
-  ("S-escape S-escape S-escape" "M-A-" #t)
-  ("S-escape S-escape S-escape S-escape" "noop" #t))
 
 (kbd-map
   ("windows" "" "Windows command")

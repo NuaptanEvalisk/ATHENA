@@ -40,6 +40,7 @@
 #include "QTMNamespaceManager.hpp"
 #include "QTMNamespaceExplorer.hpp"
 #include "QTMAbout.hpp"
+#include "QTMESCSymbolPicker.hpp"
 #include "QTMFontSelector.hpp"
 #include "ATHENA/Data/image_background.hpp"
 #include "boot.hpp"
@@ -1503,6 +1504,12 @@ tmg_native_font_selector (tmscm arg1, tmscm arg2, tmscm arg3, tmscm arg4) {
 }
 
 tmscm
+tmg_escape_symbol_picker () {
+  if (headless_mode) return string_to_tmscm ("");
+  return string_to_tmscm (escape_symbol_picker_dialog ());
+}
+
+tmscm
 tmg_vault_load_with_ns (tmscm arg1, tmscm arg2, tmscm arg3, tmscm arg4) {
   TMSCM_ASSERT_URL (arg1, TMSCM_ARG1, "vault-load-with-ns");
   TMSCM_ASSERT_STRING (arg2, TMSCM_ARG2, "vault-load-with-ns");
@@ -1554,6 +1561,8 @@ initialize_glue () {
                            tmg_native_info_dialog, 2, 0, 0);
   tmscm_install_procedure ("native-font-selector",
                            tmg_native_font_selector, 4, 0, 0);
+  tmscm_install_procedure ("escape-symbol-picker",
+                           tmg_escape_symbol_picker, 0, 0, 0);
   tmscm_install_procedure ("ads-restore-visible-panes",
                            ads_restore_visible_panes, 0, 0, 0);
   tmscm_install_procedure ("vault-backup-viewer-show",

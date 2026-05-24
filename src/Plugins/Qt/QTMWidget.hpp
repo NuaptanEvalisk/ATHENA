@@ -47,6 +47,10 @@ public:
   virtual void scrollContentsBy (int dx, int dy) override;
 
   void setCursorPos (QPoint pos) { cursor_pos = pos; }
+  QPoint cursorGlobalPos () const {
+    QPoint p = contentsToViewport (cursor_pos);
+    return viewport ()->mapToGlobal (p + QPoint (0, 22));
+  }
   qt_simple_widget_rep* tm_widget () const;
 
 signals:

@@ -31,6 +31,26 @@
 ;; General shortcuts for all modes
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(tm-define (escape-symbol-insert action)
+  (cond ((== action "tree:dx")
+         (insert '(frac "<mathd>" (concat "<mathd>" "x"))))
+        ((== action "tree:dt")
+         (insert '(frac "<mathd>" (concat "<mathd>" "t"))))
+        ((== action "tree:inv")
+         (insert '(rsup "-1")))
+        ((== action "tree:op")
+         (insert '(rsup (math-up "op"))))
+        ((== action "tree:id")
+         (insert '(math-up "id")))
+        ((== action "tree:varphi")
+         (insert '(concat "<varphi>")))
+        (else (key-press action))))
+
+(tm-define (open-escape-symbol-picker)
+  (:interactive #t)
+  (with action (escape-symbol-picker)
+    (when (!= action "") (escape-symbol-insert action))))
+
 (kbd-map
   ("F1" (interactive docgrep-in-doc))
   ("S-F1" (interactive docgrep-in-src)) ;; FIXME: S-F1 should be 'What is This?'
@@ -40,6 +60,7 @@
   ("C-S-o" (open-quick-switcher))
   ("C-S-O" (open-quick-switcher))
   ("C-S-tab" (visual-buffer-switcher-show))
+  ("escape" (open-escape-symbol-picker))
 
   ("<" "<less>")
   (">" "<gtr>")
