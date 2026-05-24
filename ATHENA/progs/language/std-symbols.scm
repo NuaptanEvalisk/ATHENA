@@ -708,18 +708,18 @@
     "<intlim>" "<iintlim>" "<iiintlim>" "<iiiintlim>" "<idotsintlim>"
     "<ointlim>" "<oiintlim>" "<oiiintlim>")
 
-  ;; FIXME: spacing behind $\sin$ is currently incorrect,
-  ;; because the transition OP_UNARY -> OP_TEXT is not detected
-  ;; in concater_rep::typeset_math_string.  The unary operators
-  ;; can be uncommented as soon as this problem will be corrected.
-  ;;
-  ;;(define Unary-operator-textual-symbol
-  ;;  (:type unary)
-  ;;  (:penalty invalid)
-  ;;  (:spacing none default)
-  ;;  "arccos" "arcsin" "arctan" "cos" "cosh" "cot" "coth" "csc"
-  ;;  "deg" "det" "dim" "exp" "hom" "ker" "lg" "ln" "log"
-  ;;  "Pr" "sec" "sin" "sinh" "tan" "tanh")
+  (define Unary-operator-textual-symbol
+    (:type unary)
+    (:penalty invalid)
+    (:spacing none default)
+    "Ann" "Gal" "Tor" "Ext" "Ob" "Hom" "Mor" "Aut" "End" "Isom"
+    "Inn" "Disc" "Card" "MSpec" "Spec" "Fct" "Frac" "Res" "Tr"
+    "Orb" "Norm" "Stab"
+    "arccos" "arcsin" "arctan" "cos" "cosh" "cot" "coth" "csc"
+    "coker" "deg" "det" "diag" "dim" "ev" "exp" "hom" "im"
+    "kdim" "ker" "lcm" "lg" "ln" "log" "mult" "ord" "rank"
+    "res" "sgn" "supp" "trdeg"
+    "Pr" "sec" "sin" "sinh" "tan" "tanh")
 
   (define Unary-operator-symbol
     Unary-operator-glyph-symbol
@@ -736,7 +736,7 @@
     (:penalty invalid)
     (:spacing none default)
     (:limits display)
-    "gcd" "gcrd" "inf" "lclm" "lcm" "lim"
+    "gcd" "gcrd" "inf" "lclm" "lim"
     "liminf" "limsup" "max" "min" "statlim" "sup")
 
   (define Prefix-symbol

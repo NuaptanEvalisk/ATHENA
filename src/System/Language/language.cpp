@@ -166,6 +166,7 @@ init_succession_status_table () {
   init_expect_after (OP_TEXT);
   init_could_end    (OP_SYMBOL);
   init_expect_space (OP_UNARY);
+  set_status        (OP_UNARY, OP_APPLY, REMOVE_SPACE_BEFORE);
   init_expect_space (OP_BINARY);
   init_expect_space (OP_N_ARY);
   init_expect_after (OP_PREFIX);

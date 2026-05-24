@@ -1352,11 +1352,16 @@ latex_concat_to_tree (tree t, bool& new_flag) {
       continue;
     }
 
-    bool operator_flag=
+    bool command_operator_flag=
       is_tuple (t[i]) && (N(t[i])==1) &&
       (latex_type (t[i][0]->label) == "operator");
     bool cc_flag= is_concat (t[i]);
     tree u= (cc_flag? latex_concat_to_tree (t[i], new_flag): l2e (t[i]));
+    bool operator_flag=
+      command_operator_flag ||
+      (is_tuple (t[i], "\\operatorname", 1) &&
+       is_atomic (u) &&
+       latex_type (u->label) == "operator");
     if (is_atomic (u)) {
       if (u == " ") {
         if (command_type ["!mode"] == "math") {
@@ -1469,6 +1474,41 @@ url_arg_to_string (tree t) {
 string
 v2e (tree t) {
   return string_arg (t2e (t, false));
+}
+
+static bool
+collect_operator_name (tree t, string& out) {
+  if (is_atomic (t)) {
+    out << t->label;
+    return true;
+  }
+  if (is_concat (t) || is_document (t)) {
+    for (int i=0; i<N(t); i++)
+      if (!collect_operator_name (t[i], out))
+        return false;
+    return true;
+  }
+  return false;
+}
+
+static bool
+is_operator_name (string s) {
+  if (s == "") return false;
+  for (int i=0; i<N(s); i++)
+    if (!is_alpha (s[i]))
+      return false;
+  return true;
+}
+
+tree
+operatorname_to_tree (tree t) {
+  string name;
+  tree body= t2e (t[1], false);
+  if (collect_operator_name (body, name) &&
+      is_operator_name (name) &&
+      latex_type (name) == "operator")
+    return name;
+  return var_m2e (t, MATH_FONT_FAMILY, "rm");
 }
 
 tree
@@ -2194,7 +2234,7 @@ latex_command_to_tree (tree t) {
   if (is_tuple (t, "\\tmtextsc", 1)) return m2e (t, FONT_SHAPE, "small-caps");
   if (is_tuple (t, "\\emph", 1))   return compound ("em", l2e (t[1]));
   if (is_tuple (t, "\\operatorname", 1))
-    return var_m2e (t, MATH_FONT_FAMILY, "rm");
+    return operatorname_to_tree (t);
   if (is_tuple (t, "\\boldsymbol", 1))
     return var_m2e (t, MATH_FONT_SERIES, "bold");
   if (is_tuple (t, "\\mathnormal", 1)) return m2e (t, MATH_FONT_FAMILY, "mr");
