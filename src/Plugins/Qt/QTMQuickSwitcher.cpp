@@ -334,19 +334,51 @@ QTMQuickSwitcher::updateStructuredList () {
     std::vector<athena_namespace_match> members=
       athena_namespace_members (from_qstring (current), error);
     url root= vault_get_root ();
-    for (const athena_namespace_match& m: members) {
-      url rel= delta (root * url (""), m.file);
-      QString relPath= to_qstring (as_unix_string (rel));
-      QString stem= to_qstring (m.stem);
-      int score= std::max (fuzzyScore (stem, query),
-                           fuzzyScore (relPath, query));
-      if (score < 0) continue;
-      QListWidgetItem* item= new QListWidgetItem (relPath);
-      item->setData (QuickTypeRole, QuickFile);
-      item->setData (QuickPayloadRole, relPath);
-      item->setData (QuickCompletionRole, relPath);
-      structuredList->addItem (item);
-      if (++n >= quick_switcher_limit) break;
+    if (query.isEmpty ()) {
+      for (const athena_namespace_match& m: members) {
+        url rel= delta (root * url (""), m.file);
+        QString relPath= to_qstring (as_unix_string (rel));
+        QListWidgetItem* item= new QListWidgetItem (relPath);
+        item->setData (QuickTypeRole, QuickFile);
+        item->setData (QuickPayloadRole, relPath);
+        item->setData (QuickCompletionRole, relPath);
+        structuredList->addItem (item);
+        if (++n >= quick_switcher_limit) break;
+      }
+    }
+    else {
+      std::vector<std::pair<int,int> > matches;
+      for (int i=0; i<(int) members.size (); i++) {
+        const athena_namespace_match& m= members[i];
+        url rel= delta (root * url (""), m.file);
+        QString relPath= to_qstring (as_unix_string (rel));
+        QString stem= to_qstring (m.stem);
+        int score= std::max (fuzzyScore (stem, query),
+                             fuzzyScore (relPath, query));
+        if (score >= 0) matches.push_back (std::make_pair (-score, i));
+      }
+      std::sort (matches.begin (), matches.end (),
+                 [&] (const std::pair<int,int>& a,
+                      const std::pair<int,int>& b) {
+                   if (a.first != b.first) return a.first < b.first;
+                   const athena_namespace_match& ma= members[a.second];
+                   const athena_namespace_match& mb= members[b.second];
+                   QString sa= to_qstring (ma.stem);
+                   QString sb= to_qstring (mb.stem);
+                   if (sa != sb) return sa < sb;
+                   return a.second < b.second;
+                 });
+      for (auto match: matches) {
+        const athena_namespace_match& m= members[match.second];
+        url rel= delta (root * url (""), m.file);
+        QString relPath= to_qstring (as_unix_string (rel));
+        QListWidgetItem* item= new QListWidgetItem (relPath);
+        item->setData (QuickTypeRole, QuickFile);
+        item->setData (QuickPayloadRole, relPath);
+        item->setData (QuickCompletionRole, relPath);
+        structuredList->addItem (item);
+        if (++n >= quick_switcher_limit) break;
+      }
     }
   }
 
