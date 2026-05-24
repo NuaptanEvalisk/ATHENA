@@ -39,6 +39,7 @@
 #include <QMessageBox>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QRadioButton>
 #include <QSplitter>
 #include <QStyle>
 #include <QToolBar>
@@ -215,26 +216,77 @@ namespace_lines (const QString& text) {
   return out;
 }
 
-class NamespaceCreationPage : public QWizardPage {
+class NamespaceKindPage : public QWizardPage {
 public:
-  NamespaceCreationPage (QWidget* parent = nullptr)
+  NamespaceKindPage (QWidget* parent = nullptr)
     : QWizardPage (parent),
+      abstractButton (new QRadioButton ("Abstract", this)),
+      semiConcreteButton (new QRadioButton ("Semi-concrete", this)),
+      concreteButton (new QRadioButton ("Concrete", this)) {
+    setTitle ("Namespace Type");
+    setSubTitle ("Choose what kind of namespace to create.");
+
+    concreteButton->setChecked (true);
+
+    QLabel* abstractHelp= new QLabel (
+      "Groups other namespaces and does not match files directly.", this);
+    QLabel* semiHelp= new QLabel (
+      "Matches files using a template and sorter.", this);
+    QLabel* concreteHelp= new QLabel (
+      "Matches files and can provide style and initial content for new files.",
+      this);
+    for (QLabel* label: { abstractHelp, semiHelp, concreteHelp }) {
+      label->setWordWrap (true);
+      label->setStyleSheet ("color: palette(mid);");
+    }
+
+    QVBoxLayout* layout= new QVBoxLayout (this);
+    layout->addWidget (concreteButton);
+    layout->addWidget (concreteHelp);
+    layout->addSpacing (8);
+    layout->addWidget (semiConcreteButton);
+    layout->addWidget (semiHelp);
+    layout->addSpacing (8);
+    layout->addWidget (abstractButton);
+    layout->addWidget (abstractHelp);
+    layout->addStretch (1);
+  }
+
+  QString kind () const {
+    if (abstractButton->isChecked ()) return "abstract";
+    if (semiConcreteButton->isChecked ()) return "semi-concrete";
+    return "concrete";
+  }
+
+private:
+  QRadioButton* abstractButton;
+  QRadioButton* semiConcreteButton;
+  QRadioButton* concreteButton;
+};
+
+class NamespaceDetailsPage : public QWizardPage {
+public:
+  NamespaceDetailsPage (NamespaceKindPage* kindPage, QWidget* parent = nullptr)
+    : QWizardPage (parent),
+      kindPage (kindPage),
       nameEdit (new QLineEdit (this)),
-      kindCombo (new QComboBox (this)),
       templateEdit (new QLineEdit (this)),
       trivialSorterCheck (new QCheckBox ("Use trivial sorting algorithm", this)),
       sorterEdit (new QLineEdit (this)),
       sorterBrowseButton (new QPushButton ("Browse...", this)),
       styleEdit (new QLineEdit (this)),
       styleBrowseButton (new QPushButton ("Browse...", this)),
+      initialContentEdit (new QLineEdit (this)),
+      initialContentBrowseButton (new QPushButton ("Browse...", this)),
       parentList (new QListWidget (this)),
-      parentCombo (new QComboBox (this)) {
+      parentCombo (new QComboBox (this)),
+      templateLabel (new QLabel ("Template", this)),
+      sorterLabel (new QLabel ("Sorter .c path", this)),
+      styleLabel (new QLabel ("Style path", this)),
+      initialContentLabel (new QLabel ("Initial content", this)) {
     setTitle ("Namespace Details");
-    setSubTitle ("Choose the namespace kind and provide only the fields that "
-                 "are meaningful for that kind.");
+    setSubTitle ("Fill in the fields for the selected namespace type.");
 
-    kindCombo->addItems (QStringList () << "concrete" << "semi-concrete"
-                                        << "abstract");
     parentList->setSelectionMode (QAbstractItemView::ExtendedSelection);
     parentList->setMinimumHeight (92);
     parentCombo->setEditable (true);
@@ -244,10 +296,9 @@ public:
     QFormLayout* form= new QFormLayout ();
     form->setFieldGrowthPolicy (QFormLayout::ExpandingFieldsGrow);
     form->addRow ("Name", nameEdit);
-    form->addRow ("Kind", kindCombo);
-    form->addRow ("Template", templateEdit);
+    form->addRow (templateLabel, templateEdit);
 
-    QWidget* sorterWidget= new QWidget (this);
+    sorterWidget= new QWidget (this);
     QVBoxLayout* sorterLayout= new QVBoxLayout (sorterWidget);
     sorterLayout->setContentsMargins (0, 0, 0, 0);
     sorterLayout->setSpacing (4);
@@ -258,15 +309,23 @@ public:
     sorterPathLayout->addWidget (sorterBrowseButton);
     sorterLayout->addLayout (sorterPathLayout);
     sorterLayout->addWidget (trivialSorterCheck);
-    form->addRow ("Sorter .c path", sorterWidget);
+    form->addRow (sorterLabel, sorterWidget);
 
-    QWidget* styleWidget= new QWidget (this);
+    styleWidget= new QWidget (this);
     QHBoxLayout* styleLayout= new QHBoxLayout (styleWidget);
     styleLayout->setContentsMargins (0, 0, 0, 0);
     styleLayout->setSpacing (4);
     styleLayout->addWidget (styleEdit, 1);
     styleLayout->addWidget (styleBrowseButton);
-    form->addRow ("Style path", styleWidget);
+    form->addRow (styleLabel, styleWidget);
+
+    initialContentWidget= new QWidget (this);
+    QHBoxLayout* initialContentLayout= new QHBoxLayout (initialContentWidget);
+    initialContentLayout->setContentsMargins (0, 0, 0, 0);
+    initialContentLayout->setSpacing (4);
+    initialContentLayout->addWidget (initialContentEdit, 1);
+    initialContentLayout->addWidget (initialContentBrowseButton);
+    form->addRow (initialContentLabel, initialContentWidget);
 
     QWidget* parentsWidget= new QWidget (this);
     QVBoxLayout* parentsLayout= new QVBoxLayout (parentsWidget);
@@ -287,8 +346,6 @@ public:
     QVBoxLayout* layout= new QVBoxLayout (this);
     layout->addLayout (form);
 
-    connect (kindCombo, &QComboBox::currentTextChanged, this,
-             [this] () { updateKindUi (); });
     connect (trivialSorterCheck, &QCheckBox::toggled, this,
              [this] () { updateKindUi (); });
     connect (sorterBrowseButton, &QPushButton::clicked, this, [this] () {
@@ -300,6 +357,12 @@ public:
       QString selected= namespace_choose_file (
         this, styleEdit, "Choose Namespace Style", "*.ts *.scm|ATHENA style files");
       if (!selected.isEmpty ()) styleEdit->setText (selected);
+    });
+    connect (initialContentBrowseButton, &QPushButton::clicked, this, [this] () {
+      QString selected= namespace_choose_file (
+        this, initialContentEdit, "Choose Initial Content",
+        "*.ath|ATHENA documents");
+      if (!selected.isEmpty ()) initialContentEdit->setText (selected);
     });
     connect (addParent, &QPushButton::clicked, this, [this] () {
       QString parent= parentCombo->currentText ().trimmed ();
@@ -320,11 +383,25 @@ public:
     updateKindUi ();
   }
 
+  void initializePage () override { updateKindUi (); }
+
   void updateKindUi () {
-    bool abstract= kindCombo->currentText () == "abstract";
+    QString kind= kindPage->kind ();
+    bool abstract= kind == "abstract";
+    bool concrete= kind == "concrete";
+    templateLabel->setVisible (!abstract);
+    templateEdit->setVisible (!abstract);
+    sorterLabel->setVisible (!abstract);
+    sorterWidget->setVisible (!abstract);
+    styleLabel->setVisible (concrete);
+    styleWidget->setVisible (concrete);
+    initialContentLabel->setVisible (concrete);
+    initialContentWidget->setVisible (concrete);
     templateEdit->setEnabled (!abstract);
-    styleEdit->setEnabled (!abstract);
-    styleBrowseButton->setEnabled (!abstract);
+    styleEdit->setEnabled (concrete);
+    styleBrowseButton->setEnabled (concrete);
+    initialContentEdit->setEnabled (concrete);
+    initialContentBrowseButton->setEnabled (concrete);
     trivialSorterCheck->setEnabled (!abstract);
     bool sorterEnabled= !abstract && !trivialSorterCheck->isChecked ();
     sorterEdit->setEnabled (sorterEnabled);
@@ -334,12 +411,13 @@ public:
       trivialSorterCheck->isChecked ()
         ? "Built-in sorter returns 0 for every comparison" : "");
     templateEdit->setPlaceholderText (
-      abstract ? "Abstract namespaces aggregate subspaces" : "%w Lecture Notes %R");
+      abstract ? "" : "%w Lecture Notes %R");
+    initialContentEdit->setPlaceholderText ("Optional .ath template document");
   }
 
   bool validatePage () override {
     QString name= nameEdit->text ().trimmed ();
-    QString kind= kindCombo->currentText ();
+    QString kind= kindPage->kind ();
     if (name.isEmpty ()) {
       QMessageBox::warning (this, "Namespace Wizard",
                             "Namespace name cannot be empty.");
@@ -362,15 +440,18 @@ public:
   athena_namespace_definition definition () const {
     athena_namespace_definition ns;
     ns.name= from_qstring (nameEdit->text ().trimmed ());
-    ns.kind= from_qstring (kindCombo->currentText ());
-    bool abstract= kindCombo->currentText () == "abstract";
+    ns.kind= from_qstring (kindPage->kind ());
+    bool abstract= kindPage->kind () == "abstract";
+    bool concrete= kindPage->kind () == "concrete";
     ns.templ= abstract ? string ("") :
       from_qstring (templateEdit->text ().trimmed ());
     ns.sorter_trivial= !abstract && trivialSorterCheck->isChecked ();
     ns.sorter_path= (!abstract && !ns.sorter_trivial) ?
       from_qstring (sorterEdit->text ().trimmed ()) : string ("");
-    ns.style_path= abstract ? string ("") :
-      from_qstring (styleEdit->text ().trimmed ());
+    ns.style_path= concrete ?
+      from_qstring (styleEdit->text ().trimmed ()) : string ("");
+    ns.initial_content_path= concrete ?
+      from_qstring (initialContentEdit->text ().trimmed ()) : string ("");
     ns.homepage_path= "";
     ns.parents= qlist_to_strings (parentList);
     ns.derived_parents= strings ();
@@ -378,16 +459,25 @@ public:
   }
 
 private:
+  NamespaceKindPage* kindPage;
   QLineEdit*   nameEdit;
-  QComboBox*   kindCombo;
   QLineEdit*   templateEdit;
   QCheckBox*   trivialSorterCheck;
   QLineEdit*   sorterEdit;
   QPushButton* sorterBrowseButton;
+  QWidget*     sorterWidget;
   QLineEdit*   styleEdit;
   QPushButton* styleBrowseButton;
+  QWidget*     styleWidget;
+  QLineEdit*   initialContentEdit;
+  QPushButton* initialContentBrowseButton;
+  QWidget*     initialContentWidget;
   QListWidget* parentList;
   QComboBox*   parentCombo;
+  QLabel*      templateLabel;
+  QLabel*      sorterLabel;
+  QLabel*      styleLabel;
+  QLabel*      initialContentLabel;
 };
 
 class NamespaceHomepagePage : public QWizardPage {
@@ -470,7 +560,7 @@ private:
 
 class NamespaceCreationSummaryPage : public QWizardPage {
 public:
-  NamespaceCreationSummaryPage (NamespaceCreationPage* details,
+  NamespaceCreationSummaryPage (NamespaceDetailsPage* details,
                                 NamespaceHomepagePage* homepage,
                                 QWidget* parent = nullptr)
     : QWizardPage (parent), details (details), homepage (homepage),
@@ -497,6 +587,9 @@ public:
               to_qstring (ns.sorter_path))
           << "Style: " + (ns.style_path == "" ? QString ("<none>") :
                           to_qstring (ns.style_path))
+          << "Initial content: " +
+             (ns.initial_content_path == "" ? QString ("<none>") :
+              to_qstring (ns.initial_content_path))
           << "Homepage: " + (ns.homepage_path == "" ? QString ("<none>") :
                              to_qstring (ns.homepage_path))
           << "Explicit parents: " +
@@ -506,7 +599,7 @@ public:
   }
 
 private:
-  NamespaceCreationPage* details;
+  NamespaceDetailsPage* details;
   NamespaceHomepagePage* homepage;
   QLabel* summary;
 };
@@ -775,6 +868,8 @@ QTMNamespaceManager::QTMNamespaceManager (QWidget* parent)
     sorterBrowseButton (new QPushButton ("Browse...", this)),
     styleEdit (new QLineEdit (this)),
     styleBrowseButton (new QPushButton ("Browse...", this)),
+    initialContentEdit (new QLineEdit (this)),
+    initialContentBrowseButton (new QPushButton ("Browse...", this)),
     homepageEdit (new QLineEdit (this)),
     homepageBrowseButton (new QPushButton ("Browse...", this)),
     homepageCreateButton (new QPushButton ("Create...", this)),
@@ -877,6 +972,13 @@ QTMNamespaceManager::QTMNamespaceManager (QWidget* parent)
   styleLayout->addWidget (styleEdit, 1);
   styleLayout->addWidget (styleBrowseButton);
   form->addRow ("Style path", styleWidget);
+  QWidget* initialContentWidget= new QWidget (this);
+  QHBoxLayout* initialContentLayout= new QHBoxLayout (initialContentWidget);
+  initialContentLayout->setContentsMargins (0, 0, 0, 0);
+  initialContentLayout->setSpacing (4);
+  initialContentLayout->addWidget (initialContentEdit, 1);
+  initialContentLayout->addWidget (initialContentBrowseButton);
+  form->addRow ("Initial content", initialContentWidget);
   QWidget* homepageWidget= new QWidget (this);
   QHBoxLayout* homepageLayout= new QHBoxLayout (homepageWidget);
   homepageLayout->setContentsMargins (0, 0, 0, 0);
@@ -968,6 +1070,8 @@ QTMNamespaceManager::QTMNamespaceManager (QWidget* parent)
            [this] () { chooseSorterPath (); });
   connect (styleBrowseButton, &QPushButton::clicked, this,
            [this] () { chooseStylePath (); });
+  connect (initialContentBrowseButton, &QPushButton::clicked, this,
+           [this] () { chooseInitialContentPath (); });
   connect (homepageBrowseButton, &QPushButton::clicked, this,
            [this] () { chooseHomepagePath (); });
   connect (homepageCreateButton, &QPushButton::clicked, this,
@@ -1083,6 +1187,7 @@ QTMNamespaceManager::loadNamespace (QListWidgetItem* item) {
   sorterEdit->setEnabled (!ns.sorter_trivial);
   sorterBrowseButton->setEnabled (!ns.sorter_trivial);
   styleEdit->setText (to_qstring (ns.style_path));
+  initialContentEdit->setText (to_qstring (ns.initial_content_path));
   homepageEdit->setText (to_qstring (ns.homepage_path));
   set_qlist_strings (explicitParentsList, ns.parents);
   set_qlist_strings (derivedParentsList, ns.derived_parents);
@@ -1096,8 +1201,10 @@ QTMNamespaceManager::newNamespace () {
   wizard.setWindowTitle ("New Namespace");
   wizard.setWizardStyle (QWizard::ModernStyle);
   wizard.setOption (QWizard::NoBackButtonOnStartPage, false);
-  NamespaceCreationPage* details= new NamespaceCreationPage (&wizard);
+  NamespaceKindPage* kind= new NamespaceKindPage (&wizard);
+  NamespaceDetailsPage* details= new NamespaceDetailsPage (kind, &wizard);
   NamespaceHomepagePage* homepage= new NamespaceHomepagePage (&wizard);
+  wizard.addPage (kind);
   wizard.addPage (details);
   wizard.addPage (homepage);
   wizard.addPage (new NamespaceCreationSummaryPage (details, homepage, &wizard));
@@ -1140,6 +1247,8 @@ QTMNamespaceManager::saveNamespace () {
   ns.sorter_trivial= trivialSorterCheck->isChecked ();
   ns.sorter_path= from_qstring (sorterEdit->text ().trimmed ());
   ns.style_path= from_qstring (styleEdit->text ().trimmed ());
+  ns.initial_content_path=
+    from_qstring (initialContentEdit->text ().trimmed ());
   ns.homepage_path= from_qstring (homepageEdit->text ().trimmed ());
   ns.parents= qlist_to_strings (explicitParentsList);
   ns.derived_parents= strings ();
@@ -1148,9 +1257,14 @@ QTMNamespaceManager::saveNamespace () {
     ns.sorter_trivial= false;
     ns.sorter_path= "";
     ns.style_path= "";
+    ns.initial_content_path= "";
   }
   else if (ns.sorter_trivial) {
     ns.sorter_path= "";
+  }
+  if (ns.kind != "concrete") {
+    ns.style_path= "";
+    ns.initial_content_path= "";
   }
 
   if (ns.name == "") {
@@ -1306,6 +1420,8 @@ QTMNamespaceManager::generateSubproducts () {
       ns.sorter_trivial= sorterTrivial;
       ns.sorter_path= sorterTrivial ? string ("") : sorterPath;
       ns.style_path= "";
+      ns.initial_content_path= "";
+      ns.homepage_path= "";
       ns.parents= strings ();
       ns.parents << first.name << second.name;
       ns.derived_parents= strings ();
@@ -1456,11 +1572,20 @@ QTMNamespaceManager::updateModeUi () {
   deleteNamespaceAction->setEnabled (!creating);
 
   bool abstract= kindCombo->currentText () == "abstract";
+  bool concrete= kindCombo->currentText () == "concrete";
   templateEdit->setEnabled (!abstract);
   templateEdit->setPlaceholderText (
     abstract ? "Abstract namespaces aggregate subspaces" : "%w Lecture Notes %R");
-  styleEdit->setEnabled (!abstract);
-  styleBrowseButton->setEnabled (!abstract);
+  styleEdit->setEnabled (concrete);
+  styleBrowseButton->setEnabled (concrete);
+  styleEdit->setPlaceholderText (
+    concrete ? "Optional .ts stylesheet for new files" :
+               "Only concrete namespaces use a style");
+  initialContentEdit->setEnabled (concrete);
+  initialContentBrowseButton->setEnabled (concrete);
+  initialContentEdit->setPlaceholderText (
+    concrete ? "Optional .ath template document" :
+               "Only concrete namespaces use initial content");
   trivialSorterCheck->setEnabled (!abstract);
   bool sorterEnabled= !abstract && !trivialSorterCheck->isChecked ();
   sorterEdit->setEnabled (sorterEnabled);
@@ -1485,6 +1610,14 @@ QTMNamespaceManager::chooseStylePath () {
   QString selected= namespace_choose_file (
     this, styleEdit, "Choose Namespace Style", "*.ts *.scm|ATHENA style files");
   if (!selected.isEmpty ()) styleEdit->setText (selected);
+}
+
+void
+QTMNamespaceManager::chooseInitialContentPath () {
+  QString selected= namespace_choose_file (
+    this, initialContentEdit, "Choose Initial Content",
+    "*.ath|ATHENA documents");
+  if (!selected.isEmpty ()) initialContentEdit->setText (selected);
 }
 
 void

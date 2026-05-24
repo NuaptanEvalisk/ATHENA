@@ -45,6 +45,7 @@ private:
   void updateModeUi ();
   void chooseSorterPath ();
   void chooseStylePath ();
+  void chooseInitialContentPath ();
   void chooseHomepagePath ();
   void createHomepagePath ();
   void editHomepage ();
@@ -65,6 +66,8 @@ private:
   QPushButton* sorterBrowseButton;
   QLineEdit*   styleEdit;
   QPushButton* styleBrowseButton;
+  QLineEdit*   initialContentEdit;
+  QPushButton* initialContentBrowseButton;
   QLineEdit*   homepageEdit;
   QPushButton* homepageBrowseButton;
   QPushButton* homepageCreateButton;

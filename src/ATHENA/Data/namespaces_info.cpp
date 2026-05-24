@@ -250,6 +250,9 @@ technical_summary_page (const athena_namespace_definition& ns,
   body << compound ("section*", tree ("Namespace " * ns.name));
   body << line_tm ("Kind: " * ns.kind);
   body << line_tm ("Template: " * (ns.templ == "" ? "<none>" : ns.templ));
+  body << line_tm ("Initial content: " *
+                   (ns.initial_content_path == "" ? string ("<none>") :
+                    ns.initial_content_path));
   body << line_tm ("Homepage: " *
                    (ns.homepage_path == "" ? string ("<none>") :
                     ns.homepage_path));
