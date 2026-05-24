@@ -40,6 +40,7 @@ namespace fs = std::filesystem;
 namespace {
 
 static constexpr int BACKUP_LIMIT_UNLIMITED = -1;
+static constexpr long long MANUAL_SAVE_RETENTION_UNLIMITED = -1;
 
 static void log_info (const std::string& message);
 static void log_error (const std::string& message);
@@ -63,6 +64,8 @@ struct MaintenanceSummary {
   fs::path backup_archive;
   int backup_limit = BACKUP_LIMIT_UNLIMITED;
   size_t backups_purged = 0;
+  long long manual_save_retention_seconds = MANUAL_SAVE_RETENTION_UNLIMITED;
+  size_t manual_save_histories_purged = 0;
   size_t image_renames = 0;
   size_t image_reference_updates = 0;
   bool orphan_collection_enabled = false;
@@ -203,6 +206,36 @@ backup_limit_preference () {
 static bool
 collect_orphan_assets_preference () {
   return get_preference ("vault collect orphan assets", "off") == "on";
+}
+
+static long long
+manual_save_retention_preference () {
+  std::string pref = trim_copy (tm_to_std (
+    get_preference ("vault pre-save history preservation", "1 week")));
+  std::string low = lower_copy (pref);
+  if (pref.empty () || low == "unlimited")
+    return MANUAL_SAVE_RETENTION_UNLIMITED;
+  if (low == "1 hour") return 60LL * 60LL;
+  if (low == "6 hours") return 6LL * 60LL * 60LL;
+  if (low == "1 day") return 24LL * 60LL * 60LL;
+  if (low == "3 days") return 3LL * 24LL * 60LL * 60LL;
+  if (low == "1 week") return 7LL * 24LL * 60LL * 60LL;
+  if (low == "1 month") return 30LL * 24LL * 60LL * 60LL;
+  log_info ("invalid pre-save history preservation preference '" + pref +
+            "'; using Unlimited");
+  return MANUAL_SAVE_RETENTION_UNLIMITED;
+}
+
+static std::string
+manual_save_retention_label (long long seconds) {
+  if (seconds == MANUAL_SAVE_RETENTION_UNLIMITED) return "Unlimited";
+  if (seconds == 60LL * 60LL) return "1 hour";
+  if (seconds == 6LL * 60LL * 60LL) return "6 hours";
+  if (seconds == 24LL * 60LL * 60LL) return "1 day";
+  if (seconds == 3LL * 24LL * 60LL * 60LL) return "3 days";
+  if (seconds == 7LL * 24LL * 60LL * 60LL) return "1 week";
+  if (seconds == 30LL * 24LL * 60LL * 60LL) return "1 month";
+  return std::to_string (seconds) + " seconds";
 }
 
 static std::vector<std::string>
@@ -706,6 +739,131 @@ purge_old_backups (const fs::path& root, int max_full_backups, size_t& purged) {
   progress_display.finish ();
   log_info ("backup retention: purged " + std::to_string (purged) +
             " old full backup(s)");
+  return true;
+}
+
+static bool
+manual_save_time_from_name (
+  const std::string& name,
+  std::chrono::system_clock::time_point& out) {
+  if (name.size () < 15) return false;
+  std::string stamp = name.substr (0, 15);
+  if (stamp[8] != 'T') return false;
+  for (size_t i=0; i<stamp.size (); i++)
+    if (i != 8 && !std::isdigit ((unsigned char) stamp[i])) return false;
+
+  int year = std::stoi (stamp.substr (0, 4));
+  int month = std::stoi (stamp.substr (4, 2));
+  int day = std::stoi (stamp.substr (6, 2));
+  int hour = std::stoi (stamp.substr (9, 2));
+  int minute = std::stoi (stamp.substr (11, 2));
+  int second = std::stoi (stamp.substr (13, 2));
+  if (month < 1 || month > 12 || day < 1 || day > 31 ||
+      hour < 0 || hour > 23 || minute < 0 || minute > 59 ||
+      second < 0 || second > 60)
+    return false;
+
+  std::tm tm_value;
+  std::memset (&tm_value, 0, sizeof (tm_value));
+  tm_value.tm_year = year - 1900;
+  tm_value.tm_mon = month - 1;
+  tm_value.tm_mday = day;
+  tm_value.tm_hour = hour;
+  tm_value.tm_min = minute;
+  tm_value.tm_sec = second;
+  tm_value.tm_isdst = -1;
+  std::time_t t = std::mktime (&tm_value);
+  if (t == (std::time_t) -1) return false;
+  std::tm check;
+#if defined(_WIN32)
+  if (localtime_s (&check, &t) != 0) return false;
+#else
+  if (localtime_r (&t, &check) == nullptr) return false;
+#endif
+  if (check.tm_year != tm_value.tm_year || check.tm_mon != tm_value.tm_mon ||
+      check.tm_mday != tm_value.tm_mday || check.tm_hour != tm_value.tm_hour ||
+      check.tm_min != tm_value.tm_min || check.tm_sec != tm_value.tm_sec)
+    return false;
+  out = std::chrono::system_clock::from_time_t (t);
+  return true;
+}
+
+static std::chrono::system_clock::time_point
+file_time_to_system_time (fs::file_time_type t) {
+  return std::chrono::time_point_cast<std::chrono::system_clock::duration> (
+    t - fs::file_time_type::clock::now () + std::chrono::system_clock::now ());
+}
+
+static bool
+manual_save_history_time (
+  const fs::path& path,
+  std::chrono::system_clock::time_point& out) {
+  if (manual_save_time_from_name (path.filename ().string (), out)) return true;
+  std::error_code ec;
+  fs::file_time_type t = fs::last_write_time (path, ec);
+  if (ec) return false;
+  out = file_time_to_system_time (t);
+  return true;
+}
+
+static bool
+purge_old_manual_save_histories (const fs::path& root, long long retention_seconds,
+                                 size_t& purged) {
+  purged = 0;
+  if (retention_seconds == MANUAL_SAVE_RETENTION_UNLIMITED) {
+    log_info ("pre-save history retention: Unlimited");
+    return true;
+  }
+
+  fs::path manual_root = root / ".backup" / "manual-save";
+  if (!fs::exists (manual_root)) {
+    log_info ("pre-save history retention: no manual-save directory found");
+    return true;
+  }
+
+  auto cutoff = std::chrono::system_clock::now () -
+                std::chrono::seconds (retention_seconds);
+  std::vector<fs::path> expired;
+  std::error_code ec;
+  for (fs::directory_iterator it (manual_root, fs::directory_options::skip_permission_denied, ec), end;
+       !ec && it != end; it.increment (ec)) {
+    if (!it->is_directory (ec)) continue;
+    std::chrono::system_clock::time_point history_time;
+    if (!manual_save_history_time (it->path (), history_time)) {
+      log_info ("pre-save history retention: could not date " +
+                it->path ().string () + "; keeping it");
+      continue;
+    }
+    if (history_time < cutoff) expired.push_back (it->path ());
+  }
+  if (ec) {
+    log_error ("failed to scan manual-save backup directory: " + ec.message ());
+    return false;
+  }
+
+  std::sort (expired.begin (), expired.end ());
+  log_info ("pre-save history retention: keeping " +
+            manual_save_retention_label (retention_seconds));
+  if (expired.empty ()) {
+    log_info ("pre-save history retention: no old histories purged");
+    return true;
+  }
+
+  for (size_t i=0; i<expired.size (); i++) {
+    print_progress (i + 1, expired.size (), "Purging pre-save histories",
+                    expired[i].filename ().string ());
+    fs::remove_all (expired[i], ec);
+    if (ec) {
+      progress_display.finish ();
+      log_error ("failed to purge pre-save history " + expired[i].string () +
+                 ": " + ec.message ());
+      return false;
+    }
+    purged++;
+  }
+  progress_display.finish ();
+  log_info ("pre-save history retention: purged " + std::to_string (purged) +
+            " old history folder(s)");
   return true;
 }
 
@@ -1235,6 +1393,7 @@ vault_maintenance_run (string vault_dir) {
   log_info ("backup complete: " + archive.string ());
 
   summary.backup_limit = backup_limit_preference ();
+  summary.manual_save_retention_seconds = manual_save_retention_preference ();
   summary.orphan_collection_enabled = collect_orphan_assets_preference ();
 
   std::vector<fs::path> images = scan_noncanonical_images (root);
@@ -1264,6 +1423,10 @@ vault_maintenance_run (string vault_dir) {
 
   if (!purge_old_backups (root, summary.backup_limit, summary.backups_purged))
     return false;
+  if (!purge_old_manual_save_histories (
+        root, summary.manual_save_retention_seconds,
+        summary.manual_save_histories_purged))
+    return false;
 
   log_info ("summary: backup archive " + summary.backup_archive.string ());
   if (summary.backup_limit == BACKUP_LIMIT_UNLIMITED)
@@ -1273,6 +1436,11 @@ vault_maintenance_run (string vault_dir) {
     log_info ("summary: full backup retention " +
               std::to_string (summary.backup_limit) + "; purged " +
               std::to_string (summary.backups_purged) + " old backup(s)");
+  log_info ("summary: pre-save history retention " +
+            manual_save_retention_label (summary.manual_save_retention_seconds) +
+            "; purged " +
+            std::to_string (summary.manual_save_histories_purged) +
+            " old history folder(s)");
   log_info ("summary: renamed " + std::to_string (summary.image_renames) +
             " image file(s), updated " +
             std::to_string (summary.image_reference_updates) +
