@@ -365,6 +365,20 @@ tree_box_rep::find_child (SI x, SI y, SI delta, bool force) {
 ******************************************************************************/
 
 bool
+uses_emu_arrows_rubber_arrow (string s) {
+  return s == "<varleftarrow>" ||
+         s == "<varrightarrow>" ||
+         s == "<varleftrightarrow>";
+}
+
+font
+emu_arrows_rubber_font (font fn) {
+  int hdpi= (72 * fn->wpt + (PIXEL/2)) / PIXEL;
+  int vdpi= (72 * fn->hpt + (PIXEL/2)) / PIXEL;
+  return virtual_font (fn, "emu-arrows", fn->size, hdpi, vdpi, false);
+}
+
+bool
 compute_wide_accent (path ip, box b, string s,
                      font fn, pencil pen, bool request_wide, bool above,
                      box& wideb, SI& sep) {
@@ -454,9 +468,13 @@ compute_wide_accent (path ip, box b, string s,
       wideb= wide_squbr_box (decorate_middle (ip), b->x1, b->x2, wpen);
     else if (s == "<sqoverbrace>" || s == "<sqoverbrace*>")
       wideb= wide_sqobr_box (decorate_middle (ip), b->x1, b->x2, wpen);
-    else wideb= wide_box (decorate_middle (ip),
-                          "<rubber-" * s (1, N(s)-1) * ">",
-                          fn, pen, b->x2- b->x1);
+    else {
+      font rfn= uses_emu_arrows_rubber_arrow (s)?
+        emu_arrows_rubber_font (fn): fn;
+      wideb= wide_box (decorate_middle (ip),
+                       "<rubber-" * s (1, N(s)-1) * ">",
+                       rfn, pen, b->x2- b->x1);
+    }
     sep= fn->sep;
     if (stix || !unicode) sep= (SI) (1.5 * sep);
   }
