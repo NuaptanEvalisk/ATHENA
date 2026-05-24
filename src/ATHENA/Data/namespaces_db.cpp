@@ -163,7 +163,8 @@ private:
       "  template TEXT NOT NULL DEFAULT '',"
       "  sorter_trivial INTEGER NOT NULL DEFAULT 0,"
       "  sorter_path TEXT NOT NULL DEFAULT '',"
-      "  style_path TEXT NOT NULL DEFAULT ''"
+      "  style_path TEXT NOT NULL DEFAULT '',"
+      "  homepage_path TEXT NOT NULL DEFAULT ''"
       ");"
       "CREATE TABLE IF NOT EXISTS namespace_parents ("
       "  child TEXT NOT NULL,"
@@ -187,7 +188,9 @@ private:
       "  ON CONFLICT(key) DO NOTHING;";
     if (!exec_sql (db, schema, error)) return false;
     return ensure_column ("namespaces", "sorter_trivial",
-                          "INTEGER NOT NULL DEFAULT 0", error);
+                          "INTEGER NOT NULL DEFAULT 0", error) &&
+           ensure_column ("namespaces", "homepage_path",
+                          "TEXT NOT NULL DEFAULT ''", error);
   }
 
   bool ensure_column (const char* table, const char* column,
@@ -250,7 +253,8 @@ get_namespace_from_db (sqlite3* db, string name,
                        athena_namespace_definition& out, string& error) {
   sqlite3_stmt* st= nullptr;
   if (!prepare_sql (db,
-        "SELECT name, kind, template, sorter_trivial, sorter_path, style_path "
+        "SELECT name, kind, template, sorter_trivial, sorter_path, style_path, "
+        "homepage_path "
         "FROM namespaces WHERE name=?;",
         &st, error)) return false;
   if (!bind_tm_string (st, 1, name, error)) {
@@ -273,6 +277,7 @@ get_namespace_from_db (sqlite3* db, string name,
   out.sorter_trivial= sqlite3_column_int (st, 3) != 0;
   out.sorter_path= column_tm_string (st, 4);
   out.style_path= column_tm_string (st, 5);
+  out.homepage_path= column_tm_string (st, 6);
   sqlite3_finalize (st);
   out.parents= strings ();
   out.derived_parents= strings ();
@@ -306,7 +311,8 @@ namespace_row_list (sqlite3* db, std::vector<athena_namespace_definition>& out,
                     string& error) {
   sqlite3_stmt* st= nullptr;
   if (!prepare_sql (db,
-        "SELECT name, kind, template, sorter_trivial, sorter_path, style_path "
+        "SELECT name, kind, template, sorter_trivial, sorter_path, style_path, "
+        "homepage_path "
         "FROM namespaces ORDER BY name;",
         &st, error)) return false;
 
@@ -325,6 +331,7 @@ namespace_row_list (sqlite3* db, std::vector<athena_namespace_definition>& out,
     ns.sorter_trivial= sqlite3_column_int (st, 3) != 0;
     ns.sorter_path= column_tm_string (st, 4);
     ns.style_path= column_tm_string (st, 5);
+    ns.homepage_path= column_tm_string (st, 6);
     ns.parents= strings ();
     ns.derived_parents= strings ();
     out.push_back (ns);
@@ -450,6 +457,10 @@ athena_namespace_save (const athena_namespace_definition& ns, string& error) {
     error= "Namespace name cannot be empty.";
     return false;
   }
+  if (tm_to_std (ns.name).find ('!') != std::string::npos) {
+    error= "Namespace name cannot contain '!'.";
+    return false;
+  }
   string kind= canonical_kind (ns.kind);
   if ((kind == "semi-concrete" || kind == "concrete") && ns.templ == "") {
     error= "Concrete namespaces need a filename template.";
@@ -467,16 +478,18 @@ athena_namespace_save (const athena_namespace_definition& ns, string& error) {
     exec_prepared (
       cx.db,
       "INSERT INTO namespaces"
-      "(name, kind, template, sorter_trivial, sorter_path, style_path) "
-      "VALUES(?, ?, ?, ?, ?, ?) "
+      "(name, kind, template, sorter_trivial, sorter_path, style_path, "
+      "homepage_path) "
+      "VALUES(?, ?, ?, ?, ?, ?, ?) "
       "ON CONFLICT(name) DO UPDATE SET "
       "  kind=excluded.kind,"
       "  template=excluded.template,"
       "  sorter_trivial=excluded.sorter_trivial,"
       "  sorter_path=excluded.sorter_path,"
-      "  style_path=excluded.style_path;",
+      "  style_path=excluded.style_path,"
+      "  homepage_path=excluded.homepage_path;",
       { ns.name, kind, ns.templ, ns.sorter_trivial ? "1" : "0",
-        ns.sorter_path, ns.style_path },
+        ns.sorter_path, ns.style_path, ns.homepage_path },
       error) &&
     exec_prepared (cx.db,
       "DELETE FROM namespace_parents WHERE child=? AND source='declared';",

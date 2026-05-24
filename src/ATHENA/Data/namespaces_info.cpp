@@ -10,6 +10,8 @@
 
 #include "namespaces_private.hpp"
 
+#include "ATHENA/Data/new_buffer.hpp"
+#include "file.hpp"
 #include "vault.hpp"
 
 namespace athena_namespaces {
@@ -68,6 +70,27 @@ line_tm (string s) {
 }
 
 static tree
+link_to_url (string label, url target) {
+  return compound ("hlink", tree (label), tree (concretize (target)));
+}
+
+static tree
+namespace_link (string label, string tmfs_path) {
+  return compound ("hlink", tree (label), tree ("tmfs://ns/" * tmfs_path));
+}
+
+static string
+join_path (const std::vector<string>& path, bool technical) {
+  string out= "";
+  for (size_t i=0; i<path.size (); i++) {
+    if (i != 0) out << "/";
+    if (technical && i + 1 == path.size ()) out << "!";
+    out << path[i];
+  }
+  return out;
+}
+
+static tree
 document_for_body (tree body) {
   tree doc (DOCUMENT);
   doc << compound ("TeXmacs", TEXMACS_COMPAT_VERSION);
@@ -81,6 +104,173 @@ error_page (const std::string& title, const std::string& message) {
   tree body (DOCUMENT);
   body << compound ("section*", text (title));
   body << line (message);
+  return document_for_body (body);
+}
+
+static tree
+members_tree (const std::vector<athena_namespace_match>& members) {
+  tree body (DOCUMENT);
+  if (members.empty ()) {
+    body << line ("No matching .ath files.");
+    return body;
+  }
+  for (const athena_namespace_match& m: members) {
+    tree link= link_to_url (m.stem, m.file);
+    tree c (CONCAT);
+    c << link;
+    if (N(m.captures) > 0) {
+      c << tree ("  ");
+      c << tree ("[");
+      for (int i=0; i<N(m.captures); i++) {
+        if (i != 0) c << tree (", ");
+        c << tree (m.capture_types[i] * "=" * m.captures[i]);
+      }
+      c << tree ("]");
+    }
+    if (m.ambiguous) c << tree ("  (ambiguous)");
+    body << compound ("paragraph*", c);
+  }
+  return body;
+}
+
+static strings
+namespace_children (string name) {
+  strings out;
+  for (const athena_namespace_definition& ns: athena_namespaces_list ()) {
+    if (has_string (ns.parents, name) || has_string (ns.derived_parents, name))
+      out << ns.name;
+  }
+  return out;
+}
+
+static strings
+namespace_all_parents (const athena_namespace_definition& ns) {
+  strings out;
+  for (int i=0; i<N(ns.parents); i++)
+    if (!has_string (out, ns.parents[i])) out << ns.parents[i];
+  for (int i=0; i<N(ns.derived_parents); i++)
+    if (!has_string (out, ns.derived_parents[i])) out << ns.derived_parents[i];
+  return out;
+}
+
+static tree
+namespace_list_tree (const strings& names) {
+  tree body (DOCUMENT);
+  if (N(names) == 0) {
+    body << line ("<none>");
+    return body;
+  }
+  for (int i=0; i<N(names); i++)
+    body << compound ("paragraph*", namespace_link (names[i], names[i]));
+  return body;
+}
+
+static url
+namespace_path_url (string path) {
+  std::filesystem::path p (tm_to_std (path));
+  if (p.is_absolute ()) return url_system (path);
+  return vault_get_root () * url (path);
+}
+
+static tree
+sorter_tree (const athena_namespace_definition& ns) {
+  if (ns.kind == "abstract") return tree ("<none>");
+  if (ns.sorter_trivial) return tree ("trivial");
+  if (ns.sorter_path == "") return tree ("<none>");
+  return link_to_url (ns.sorter_path, namespace_path_url (ns.sorter_path));
+}
+
+static bool
+is_ns_tag (tree t, const char* name) {
+  string s= std_to_tm (std::string ("<") + name + ">");
+  return (is_atomic (t) && t->label == s) || is_compound (t, name, 0);
+}
+
+static tree namespace_dynamic_tree (
+  const athena_namespace_definition& ns,
+  const std::vector<string>& path,
+  const std::vector<athena_namespace_match>& members,
+  tree t);
+
+static tree
+namespace_dynamic_replacement (const athena_namespace_definition& ns,
+                               const std::vector<string>& path,
+                               const std::vector<athena_namespace_match>& members,
+                               tree t, bool& replaced) {
+  replaced= true;
+  if (is_ns_tag (t, "ns-name")) return tree (ns.name);
+  if (is_ns_tag (t, "ns-type")) return tree (ns.kind);
+  if (is_ns_tag (t, "ns-sorting-algo")) return sorter_tree (ns);
+  if (is_ns_tag (t, "ns-matches")) return members_tree (members);
+  if (is_ns_tag (t, "ns-children"))
+    return namespace_list_tree (namespace_children (ns.name));
+  if (is_ns_tag (t, "ns-parents"))
+    return namespace_list_tree (namespace_all_parents (ns));
+  if (is_ns_tag (t, "ns-filename-template"))
+    return ns.templ == "" ? tree ("<none>") : compound ("code", tree (ns.templ));
+  if (is_ns_tag (t, "ns-summary-link"))
+    return namespace_link ("Technical summary", join_path (path, true));
+  replaced= false;
+  return t;
+}
+
+static tree
+namespace_dynamic_tree (const athena_namespace_definition& ns,
+                        const std::vector<string>& path,
+                        const std::vector<athena_namespace_match>& members,
+                        tree t) {
+  bool replaced= false;
+  tree r= namespace_dynamic_replacement (ns, path, members, t, replaced);
+  if (replaced || is_atomic (t)) return r;
+  tree out (L(t));
+  for (int i=0; i<N(t); i++)
+    out << namespace_dynamic_tree (ns, path, members, t[i]);
+  return out;
+}
+
+static bool
+load_homepage (const athena_namespace_definition& ns,
+               const std::vector<string>& path,
+               const std::vector<athena_namespace_match>& members,
+               tree& out) {
+  if (ns.homepage_path == "") return false;
+  url u= namespace_path_url (ns.homepage_path);
+  string s;
+  if (load_string (u, s, false)) return false;
+  tree doc= import_loaded_tree (s, u, "texmacs");
+  out= namespace_dynamic_tree (ns, path, members, doc);
+  return true;
+}
+
+static tree
+technical_summary_page (const athena_namespace_definition& ns,
+                        const std::vector<athena_namespace_match>& members,
+                        string error) {
+  tree body (DOCUMENT);
+  body << compound ("section*", tree ("Namespace " * ns.name));
+  body << line_tm ("Kind: " * ns.kind);
+  body << line_tm ("Template: " * (ns.templ == "" ? "<none>" : ns.templ));
+  body << line_tm ("Homepage: " *
+                   (ns.homepage_path == "" ? string ("<none>") :
+                    ns.homepage_path));
+  body << line_tm ("Parents: " *
+                   (N(ns.parents) == 0 ? string ("<none>") :
+                    join_list (ns.parents)));
+  body << line_tm ("Derived parents: " *
+                   (N(ns.derived_parents) == 0 ? string ("<none>") :
+                    join_list (ns.derived_parents)));
+  if (ns.sorter_trivial)
+    body << line_tm ("Sorter: trivial");
+  else if (ns.sorter_path != "")
+    body << line_tm ("Sorter: " * ns.sorter_path);
+  if (ns.style_path != "")
+    body << line_tm ("Style: " * ns.style_path);
+  if (error != "")
+    body << line_tm ("Sorter warning: " * error);
+
+  body << compound ("subsection*", tree ("Members"));
+  tree ms= members_tree (members);
+  for (int i=0; i<N(ms); i++) body << ms[i];
   return document_for_body (body);
 }
 
@@ -99,6 +289,12 @@ athena_namespace_info_page (string tmfs_name) {
   if (path.empty ())
     return error_page ("Namespace", "No namespace specified.");
 
+  bool technical= false;
+  if (N(path.back ()) > 0 && path.back ()[0] == '!') {
+    technical= true;
+    path.back ()= path.back () (1, N(path.back ()));
+  }
+
   for (size_t i=0; i + 1<path.size (); i++) {
     string error;
     if (!athena_namespace_validate_relation (path[i], path[i + 1], true,
@@ -116,43 +312,9 @@ athena_namespace_info_page (string tmfs_name) {
   std::vector<athena_namespace_match> members=
     athena_namespace_members (name, error);
 
-  tree body (DOCUMENT);
-  body << compound ("section*", tree ("Namespace " * name));
-  body << line_tm ("Kind: " * ns.kind);
-  body << line_tm ("Template: " * (ns.templ == "" ? "<none>" : ns.templ));
-  body << line_tm ("Parents: " *
-                   (N(ns.parents) == 0 ? string ("<none>") :
-                    join_list (ns.parents)));
-  body << line_tm ("Derived parents: " *
-                   (N(ns.derived_parents) == 0 ? string ("<none>") :
-                    join_list (ns.derived_parents)));
-  if (ns.sorter_trivial)
-    body << line_tm ("Sorter: trivial");
-  else if (ns.sorter_path != "")
-    body << line_tm ("Sorter: " * ns.sorter_path);
-  if (ns.style_path != "")
-    body << line_tm ("Style: " * ns.style_path);
-  if (error != "")
-    body << line_tm ("Sorter warning: " * error);
-
-  body << compound ("subsection*", tree ("Members"));
-  if (members.empty ()) body << line ("No matching .ath files.");
-  for (const athena_namespace_match& m: members) {
-    tree link= compound ("hlink", tree (m.stem), tree (concretize (m.file)));
-    tree c (CONCAT);
-    c << link;
-    if (N(m.captures) > 0) {
-      c << tree ("  ");
-      c << tree ("[");
-      for (int i=0; i<N(m.captures); i++) {
-        if (i != 0) c << tree (", ");
-        c << tree (m.capture_types[i] * "=" * m.captures[i]);
-      }
-      c << tree ("]");
-    }
-    if (m.ambiguous) c << tree ("  (ambiguous)");
-    body << compound ("paragraph*", c);
+  if (!technical) {
+    tree homepage;
+    if (load_homepage (ns, path, members, homepage)) return homepage;
   }
-
-  return document_for_body (body);
+  return technical_summary_page (ns, members, error);
 }

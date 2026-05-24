@@ -45,6 +45,9 @@ private:
   void updateModeUi ();
   void chooseSorterPath ();
   void chooseStylePath ();
+  void chooseHomepagePath ();
+  void createHomepagePath ();
+  void editHomepage ();
   void addExplicitParent ();
   void removeSelectedExplicitParents ();
   void saveRelation ();
@@ -62,6 +65,10 @@ private:
   QPushButton* sorterBrowseButton;
   QLineEdit*   styleEdit;
   QPushButton* styleBrowseButton;
+  QLineEdit*   homepageEdit;
+  QPushButton* homepageBrowseButton;
+  QPushButton* homepageCreateButton;
+  QPushButton* homepageEditButton;
   QListWidget* explicitParentsList;
   QComboBox*   explicitParentCombo;
   QListWidget* derivedParentsList;

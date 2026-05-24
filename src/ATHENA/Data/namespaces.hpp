@@ -24,6 +24,7 @@ struct athena_namespace_definition {
   bool    sorter_trivial;
   string  sorter_path;
   string  style_path;
+  string  homepage_path;
   strings parents;
   strings derived_parents;
 };

@@ -338,7 +338,7 @@ QTMNamespaceExplorer::openNamespaceSummary (QTreeWidgetItem* item) {
     return;
 
   QString name= item->data (0, NamespaceNameRole).toString ();
-  QString tmfs= "tmfs://ns/" + name;
+  QString tmfs= "tmfs://ns/!" + name;
   exec_delayed (scheme_cmd ("(load-buffer (string->url " *
                             namespace_explorer_scheme_quote (tmfs) * "))"));
 }

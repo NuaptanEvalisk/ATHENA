@@ -11,6 +11,7 @@
 #include "QTMNamespaceManager.hpp"
 
 #include "QTMMainTabWindow.hpp"
+#include "boot.hpp"
 #include "namespaces.hpp"
 #include "qt_utilities.hpp"
 #include "scheme.hpp"
@@ -26,6 +27,7 @@
 #include <QComboBox>
 #include <QDialog>
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
 #include <QFormLayout>
 #include <QHeaderView>
@@ -144,6 +146,57 @@ namespace_choose_file (QWidget* parent, QLineEdit* edit,
   QString selected= namespace_selected_local_file (file_widget);
   return selected.isEmpty () ? QString () :
     namespace_relative_path_if_possible (selected);
+}
+
+static QString
+namespace_choose_homepage_target (QWidget* parent, QLineEdit* edit) {
+  QString start_path= namespace_existing_path_for_edit (edit);
+  QFileInfo start_info (start_path);
+  if (!start_info.exists ()) start_path= start_info.absolutePath ();
+
+  KFileCustomDialog dialog (QUrl::fromLocalFile (start_path), parent);
+  dialog.setWindowTitle ("Create Namespace Homepage");
+  dialog.setOperationMode (KFileWidget::Saving);
+
+  KFileWidget* file_widget= dialog.fileWidget ();
+  file_widget->setMode (KFile::File | KFile::LocalOnly);
+  file_widget->setFilter ("*.ath|ATHENA documents");
+
+  QRect r;
+  QSize dialog_size= dialog.sizeHint ();
+  if (dialog_size.width () > 860) dialog_size.setWidth (860);
+  r.setSize (dialog_size);
+  QWidget* anchor= parent == nullptr ? QApplication::activeWindow () : parent;
+  if (anchor != nullptr) r.moveCenter (anchor->geometry ().center ());
+  dialog.setGeometry (r);
+
+  if (dialog.exec () != QDialog::Accepted) return QString ();
+  QString selected= namespace_selected_local_file (file_widget);
+  if (selected.isEmpty ()) return QString ();
+  if (QFileInfo (selected).suffix ().isEmpty ()) selected += ".ath";
+  return namespace_relative_path_if_possible (selected);
+}
+
+static bool
+namespace_create_homepage_file (const QString& rel_or_abs, QString& error) {
+  QString root= namespace_vault_root_path ();
+  QString path= QFileInfo (rel_or_abs).isAbsolute ()
+    ? rel_or_abs : QDir (root).absoluteFilePath (rel_or_abs);
+  QFileInfo info (path);
+  QDir dir= info.dir ();
+  if (!dir.exists () && !dir.mkpath (".")) {
+    error= "Cannot create homepage directory.";
+    return false;
+  }
+  if (info.exists ()) return true;
+  QFile file (path);
+  if (!file.open (QIODevice::WriteOnly | QIODevice::Text)) {
+    error= "Cannot create homepage file.";
+    return false;
+  }
+  file.write ("(document (TeXmacs \"2.1\") (style \"generic\") "
+              "(body (document \"\")))\n");
+  return true;
 }
 
 static bool
@@ -292,6 +345,11 @@ public:
                             "Namespace name cannot be empty.");
       return false;
     }
+    if (name.contains ("!")) {
+      QMessageBox::warning (this, "Namespace Wizard",
+                            "Namespace name cannot contain '!'.");
+      return false;
+    }
     if (kind != "abstract" && templateEdit->text ().trimmed ().isEmpty ()) {
       QMessageBox::warning (this, "Namespace Wizard",
                             "Concrete and semi-concrete namespaces need a "
@@ -313,6 +371,7 @@ public:
       from_qstring (sorterEdit->text ().trimmed ()) : string ("");
     ns.style_path= abstract ? string ("") :
       from_qstring (styleEdit->text ().trimmed ());
+    ns.homepage_path= "";
     ns.parents= qlist_to_strings (parentList);
     ns.derived_parents= strings ();
     return ns;
@@ -331,11 +390,91 @@ private:
   QComboBox*   parentCombo;
 };
 
+class NamespaceHomepagePage : public QWizardPage {
+public:
+  NamespaceHomepagePage (QWidget* parent = nullptr)
+    : QWizardPage (parent),
+      useHomepage (new QCheckBox ("Use a homepage for this namespace", this)),
+      homepageEdit (new QLineEdit (this)),
+      browseButton (new QPushButton ("Browse existing...", this)),
+      createButton (new QPushButton ("Create new...", this)) {
+    setTitle ("Namespace Homepage");
+    setSubTitle ("Optionally attach a .ath document as the user-facing "
+                 "homepage for tmfs://ns/name.");
+
+    QHBoxLayout* row= new QHBoxLayout ();
+    row->setContentsMargins (0, 0, 0, 0);
+    row->setSpacing (4);
+    row->addWidget (homepageEdit, 1);
+    row->addWidget (browseButton);
+    row->addWidget (createButton);
+
+    QVBoxLayout* layout= new QVBoxLayout (this);
+    layout->addWidget (useHomepage);
+    layout->addLayout (row);
+
+    connect (useHomepage, &QCheckBox::toggled, this,
+             [this] () { updateUi (); });
+    connect (browseButton, &QPushButton::clicked, this, [this] () {
+      QString selected= namespace_choose_file (
+        this, homepageEdit, "Choose Namespace Homepage",
+        "*.ath|ATHENA documents");
+      if (!selected.isEmpty ()) {
+        homepageEdit->setText (selected);
+        useHomepage->setChecked (true);
+      }
+    });
+    connect (createButton, &QPushButton::clicked, this, [this] () {
+      QString selected= namespace_choose_homepage_target (this, homepageEdit);
+      if (selected.isEmpty ()) return;
+      QString error;
+      if (!namespace_create_homepage_file (selected, error)) {
+        QMessageBox::warning (this, "Namespace Wizard", error);
+        return;
+      }
+      homepageEdit->setText (selected);
+      useHomepage->setChecked (true);
+    });
+    updateUi ();
+  }
+
+  QString homepagePath () const {
+    return useHomepage->isChecked () ? homepageEdit->text ().trimmed () :
+                                      QString ();
+  }
+
+  bool validatePage () override {
+    if (!useHomepage->isChecked ()) return true;
+    if (homepageEdit->text ().trimmed ().isEmpty ()) {
+      QMessageBox::warning (this, "Namespace Wizard",
+                            "Choose or create a homepage file, or disable "
+                            "the homepage toggle.");
+      return false;
+    }
+    return true;
+  }
+
+private:
+  void updateUi () {
+    bool enabled= useHomepage->isChecked ();
+    homepageEdit->setEnabled (enabled);
+    browseButton->setEnabled (enabled);
+    createButton->setEnabled (enabled);
+  }
+
+  QCheckBox*  useHomepage;
+  QLineEdit*  homepageEdit;
+  QPushButton* browseButton;
+  QPushButton* createButton;
+};
+
 class NamespaceCreationSummaryPage : public QWizardPage {
 public:
   NamespaceCreationSummaryPage (NamespaceCreationPage* details,
+                                NamespaceHomepagePage* homepage,
                                 QWidget* parent = nullptr)
-    : QWizardPage (parent), details (details), summary (new QLabel (this)) {
+    : QWizardPage (parent), details (details), homepage (homepage),
+      summary (new QLabel (this)) {
     setTitle ("Confirm Namespace");
     setSubTitle ("Review the namespace before creating it.");
     summary->setWordWrap (true);
@@ -346,6 +485,7 @@ public:
 
   void initializePage () override {
     athena_namespace_definition ns= details->definition ();
+    ns.homepage_path= from_qstring (homepage->homepagePath ());
     QStringList lines;
     lines << "Name: " + to_qstring (ns.name)
           << "Kind: " + to_qstring (ns.kind)
@@ -357,6 +497,8 @@ public:
               to_qstring (ns.sorter_path))
           << "Style: " + (ns.style_path == "" ? QString ("<none>") :
                           to_qstring (ns.style_path))
+          << "Homepage: " + (ns.homepage_path == "" ? QString ("<none>") :
+                             to_qstring (ns.homepage_path))
           << "Explicit parents: " +
              (N(ns.parents) == 0 ? QString ("<none>") :
               namespace_join_strings (ns.parents));
@@ -365,6 +507,7 @@ public:
 
 private:
   NamespaceCreationPage* details;
+  NamespaceHomepagePage* homepage;
   QLabel* summary;
 };
 
@@ -632,6 +775,10 @@ QTMNamespaceManager::QTMNamespaceManager (QWidget* parent)
     sorterBrowseButton (new QPushButton ("Browse...", this)),
     styleEdit (new QLineEdit (this)),
     styleBrowseButton (new QPushButton ("Browse...", this)),
+    homepageEdit (new QLineEdit (this)),
+    homepageBrowseButton (new QPushButton ("Browse...", this)),
+    homepageCreateButton (new QPushButton ("Create...", this)),
+    homepageEditButton (new QPushButton ("Edit homepage", this)),
     explicitParentsList (new QListWidget (this)),
     explicitParentCombo (new QComboBox (this)),
     derivedParentsList (new QListWidget (this)),
@@ -730,6 +877,15 @@ QTMNamespaceManager::QTMNamespaceManager (QWidget* parent)
   styleLayout->addWidget (styleEdit, 1);
   styleLayout->addWidget (styleBrowseButton);
   form->addRow ("Style path", styleWidget);
+  QWidget* homepageWidget= new QWidget (this);
+  QHBoxLayout* homepageLayout= new QHBoxLayout (homepageWidget);
+  homepageLayout->setContentsMargins (0, 0, 0, 0);
+  homepageLayout->setSpacing (4);
+  homepageLayout->addWidget (homepageEdit, 1);
+  homepageLayout->addWidget (homepageBrowseButton);
+  homepageLayout->addWidget (homepageCreateButton);
+  homepageLayout->addWidget (homepageEditButton);
+  form->addRow ("Homepage", homepageWidget);
   QWidget* explicitParentsWidget= new QWidget (this);
   QVBoxLayout* explicitParentsLayout= new QVBoxLayout (explicitParentsWidget);
   explicitParentsLayout->setContentsMargins (0, 0, 0, 0);
@@ -812,6 +968,12 @@ QTMNamespaceManager::QTMNamespaceManager (QWidget* parent)
            [this] () { chooseSorterPath (); });
   connect (styleBrowseButton, &QPushButton::clicked, this,
            [this] () { chooseStylePath (); });
+  connect (homepageBrowseButton, &QPushButton::clicked, this,
+           [this] () { chooseHomepagePath (); });
+  connect (homepageCreateButton, &QPushButton::clicked, this,
+           [this] () { createHomepagePath (); });
+  connect (homepageEditButton, &QPushButton::clicked, this,
+           [this] () { editHomepage (); });
   connect (kindCombo, &QComboBox::currentTextChanged, this,
            [this] () { updateModeUi (); });
   connect (addParent, &QPushButton::clicked, this,
@@ -821,6 +983,8 @@ QTMNamespaceManager::QTMNamespaceManager (QWidget* parent)
   connect (explicitParentCombo->lineEdit (), &QLineEdit::returnPressed, this,
            [this] () { addExplicitParent (); });
   connect (trivialSorterCheck, &QCheckBox::toggled, this,
+           [this] () { updateModeUi (); });
+  connect (homepageEdit, &QLineEdit::textChanged, this,
            [this] () { updateModeUi (); });
   updateModeUi ();
 }
@@ -919,6 +1083,7 @@ QTMNamespaceManager::loadNamespace (QListWidgetItem* item) {
   sorterEdit->setEnabled (!ns.sorter_trivial);
   sorterBrowseButton->setEnabled (!ns.sorter_trivial);
   styleEdit->setText (to_qstring (ns.style_path));
+  homepageEdit->setText (to_qstring (ns.homepage_path));
   set_qlist_strings (explicitParentsList, ns.parents);
   set_qlist_strings (derivedParentsList, ns.derived_parents);
   updateModeUi ();
@@ -932,12 +1097,15 @@ QTMNamespaceManager::newNamespace () {
   wizard.setWizardStyle (QWizard::ModernStyle);
   wizard.setOption (QWizard::NoBackButtonOnStartPage, false);
   NamespaceCreationPage* details= new NamespaceCreationPage (&wizard);
+  NamespaceHomepagePage* homepage= new NamespaceHomepagePage (&wizard);
   wizard.addPage (details);
-  wizard.addPage (new NamespaceCreationSummaryPage (details, &wizard));
+  wizard.addPage (homepage);
+  wizard.addPage (new NamespaceCreationSummaryPage (details, homepage, &wizard));
   wizard.resize (760, 560);
   if (wizard.exec () != QDialog::Accepted) return;
 
   athena_namespace_definition ns= details->definition ();
+  ns.homepage_path= from_qstring (homepage->homepagePath ());
   athena_namespace_definition existing;
   if (athena_namespace_get (ns.name, existing)) {
     if (QMessageBox::question (
@@ -972,6 +1140,7 @@ QTMNamespaceManager::saveNamespace () {
   ns.sorter_trivial= trivialSorterCheck->isChecked ();
   ns.sorter_path= from_qstring (sorterEdit->text ().trimmed ());
   ns.style_path= from_qstring (styleEdit->text ().trimmed ());
+  ns.homepage_path= from_qstring (homepageEdit->text ().trimmed ());
   ns.parents= qlist_to_strings (explicitParentsList);
   ns.derived_parents= strings ();
   if (ns.kind == "abstract") {
@@ -987,6 +1156,11 @@ QTMNamespaceManager::saveNamespace () {
   if (ns.name == "") {
     QMessageBox::warning (this, "Namespace Manager",
                           "Namespace name cannot be empty.");
+    return;
+  }
+  if (std::string (as_charp (ns.name)).find ('!') != std::string::npos) {
+    QMessageBox::warning (this, "Namespace Manager",
+                          "Namespace name cannot contain '!'.");
     return;
   }
 
@@ -1295,6 +1469,8 @@ QTMNamespaceManager::updateModeUi () {
     abstract ? "Abstract namespaces do not match files directly" :
     trivialSorterCheck->isChecked ()
       ? "Built-in sorter returns 0 for every comparison" : "");
+  homepageEdit->setPlaceholderText ("Optional .ath homepage document");
+  homepageEditButton->setEnabled (!homepageEdit->text ().trimmed ().isEmpty ());
 }
 
 void
@@ -1309,6 +1485,43 @@ QTMNamespaceManager::chooseStylePath () {
   QString selected= namespace_choose_file (
     this, styleEdit, "Choose Namespace Style", "*.ts *.scm|ATHENA style files");
   if (!selected.isEmpty ()) styleEdit->setText (selected);
+}
+
+void
+QTMNamespaceManager::chooseHomepagePath () {
+  QString selected= namespace_choose_file (
+    this, homepageEdit, "Choose Namespace Homepage", "*.ath|ATHENA documents");
+  if (!selected.isEmpty ()) homepageEdit->setText (selected);
+  updateModeUi ();
+}
+
+void
+QTMNamespaceManager::createHomepagePath () {
+  QString selected= namespace_choose_homepage_target (this, homepageEdit);
+  if (selected.isEmpty ()) return;
+  QString error;
+  if (!namespace_create_homepage_file (selected, error)) {
+    QMessageBox::warning (this, "Namespace Manager", error);
+    return;
+  }
+  homepageEdit->setText (selected);
+  updateModeUi ();
+}
+
+void
+QTMNamespaceManager::editHomepage () {
+  QString path= homepageEdit->text ().trimmed ();
+  if (path.isEmpty ()) return;
+  QString root= namespace_vault_root_path ();
+  QString abs= QFileInfo (path).isAbsolute () ? path :
+    QDir (root).absoluteFilePath (path);
+  if (!QFileInfo::exists (abs)) {
+    QMessageBox::warning (this, "Namespace Manager",
+                          "Homepage file does not exist.");
+    return;
+  }
+  exec_delayed (scheme_cmd (list_object (symbol_object ("load-buffer"),
+                            object (url_system (from_qstring (abs))))));
 }
 
 void
