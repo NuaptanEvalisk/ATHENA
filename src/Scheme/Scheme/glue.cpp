@@ -37,6 +37,7 @@
 #include "QTMOutlinePane.hpp"
 #include "QTMErrorMessagesPane.hpp"
 #include "QTMCommandPalette.hpp"
+#include "QTMCustomStylesManager.hpp"
 #include "QTMNamespaceManager.hpp"
 #include "QTMNamespaceExplorer.hpp"
 #include "QTMAbout.hpp"
@@ -1543,6 +1544,8 @@ initialize_glue () {
                            error_messages_show, 0, 0, 0);
   tmscm_install_procedure ("command-palette-show",
                            command_palette_show, 0, 0, 0);
+  tmscm_install_procedure ("custom-styles-manager-show",
+                           custom_styles_manager_show, 0, 0, 0);
   tmscm_install_procedure ("visual-buffer-switcher-show",
                            visual_buffer_switcher_show, 0, 0, 0);
   tmscm_install_procedure ("visual-buffer-switcher-choose",

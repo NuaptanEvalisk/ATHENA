@@ -41,6 +41,7 @@
   ("Vault Explorer" (open-vault-explorer))
   ("Namespace Explorer" (open-namespace-explorer))
   ("Namespace Manager" (open-namespace-manager))
+  ("Custom styles manager" (custom-styles-manager-show))
   ("Vault backup viewer" (open-vault-backup-viewer))
   ("Vault Bugcheck" (vault-bugcheck))
   ("Vault maintenance" (vault-maintenance))

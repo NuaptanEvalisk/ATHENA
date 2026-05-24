@@ -797,6 +797,7 @@
 "outline-pane-show"
 "error-messages-show"
 "command-palette-show"
+"custom-styles-manager-show"
 "heading-fold-toggle"
 "heading-fold-toggle-tree"
 "heading-fold-current"

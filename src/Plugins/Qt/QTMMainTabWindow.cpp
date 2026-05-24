@@ -1,6 +1,7 @@
 #include "QTMMainTabWindow.hpp"
 #include "QTMApplication.hpp"
 #include "QTMBufferSwitcher.hpp"
+#include "QTMCustomStylesManager.hpp"
 #include "QTMErrorMessagesPane.hpp"
 #include "QTMGlobalSearch.hpp"
 #include "QTMWidget.hpp"
@@ -340,6 +341,8 @@ void QTMMainTabWindow::restoreAdsVisiblePanes() {
     else if (name == "athena-error-messages" ||
              name == "athena-tool-pane-Error messages")
       error_messages_show ();
+    else if (name == "athena-custom-styles-manager")
+      custom_styles_manager_show ();
   }
 
   restoreAdsLayoutState();

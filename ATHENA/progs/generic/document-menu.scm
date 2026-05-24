@@ -58,7 +58,8 @@
   ---
   ("No style" (set-no-style))
   ("Edit style" (edit-style-source))
-  ("Other style" (interactive set-main-style))
+  ("Enter style name..." (interactive set-main-style))
+  ("Install custom style..." (choose-and-install-custom-style))
   ---
   (group "Customizations")
   (with l (get-style-list)
@@ -946,7 +947,8 @@
         (link style-menu)
         ---
         ("Edit style" (edit-style-source))
-        ("Other style" (interactive set-main-style)))
+        ("Enter style name..." (interactive set-main-style))
+        ("Install custom style..." (choose-and-install-custom-style)))
     (dynamic (focus-style-extra-menu t))
     (for (pack (list-filter (cdr st) (negate hidden-package?)))
       (-> (eval (upcase-first pack))
@@ -1018,7 +1020,8 @@
           (link style-menu)
           ---
           ("Edit style" (edit-style-source))
-          ("Other style" (interactive set-main-style)))
+          ("Enter style name..." (interactive set-main-style))
+          ("Install custom style..." (choose-and-install-custom-style)))
       (dynamic (focus-style-extra-icons t))
       (for (pack (list-filter (cdr st) (negate hidden-package?)))
         (=> (eval pack)

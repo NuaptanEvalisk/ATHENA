@@ -122,6 +122,34 @@
     (:idle 1)
     (notify-new-style style)))
 
+(define (custom-style-file-name name)
+  (let* ((tail (url->system (url-tail name))))
+    (if (string-ends? tail ".ts")
+        (string-drop-right tail 3)
+        tail)))
+
+(tm-define (install-custom-style name)
+  (:synopsis* "Install custom document style")
+  (let* ((style-name (custom-style-file-name name))
+         (dest-dir   (url-append "$ATHENA_HOME_PATH" "styles"))
+         (dest       (url-append dest-dir
+                                 (string-append style-name ".ts"))))
+    (cond ((not (string-ends? (url->system (url-tail name)) ".ts"))
+           (show-message "Please select a TeXmacs stylesheet file ending in .ts."
+                         "Install custom style"))
+          (else
+           (system-mkdir dest-dir)
+           (system-copy name dest)
+           (style-clear-cache)
+           (set-main-style style-name)
+           (show-message
+            (string-append "Installed and activated style: " style-name)
+            "Install custom style")))))
+
+(tm-define (choose-and-install-custom-style)
+  (:synopsis* "Choose and install custom document style")
+  (choose-file install-custom-style "Install custom style" ""))
+
 (tm-define (has-style-package? pack)
   (or (in? pack (get-style-list))
       (and (list-find (get-style-list) (cut style-includes? <> pack))
