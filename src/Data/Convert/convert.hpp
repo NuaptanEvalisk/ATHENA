@@ -135,7 +135,8 @@ extern bool aofm_insert_build_warning;
 bool aofm_convert_tree (string file_path, tree& document,
                         bool materialize_anchor_literals=true);
 bool aofm_import_vault (string source_dir, string destination_dir,
-                        bool ignore_nonempty= false, int parallelism= 0);
+                        bool ignore_nonempty= false, int parallelism= 0,
+                        string model_vault= "");
 void aofm_debug_dump (const std::string& file_path);
 
 /*** AI tools ***/

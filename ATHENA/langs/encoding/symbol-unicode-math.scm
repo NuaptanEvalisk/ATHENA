@@ -24,6 +24,7 @@
 ("<ddot>"	"#A8")
 ("<bar>"	"#AF")
 ("<acute>"	"#B4")
+("<degree>"	"#B0")
 ("<cedille>"	"#B8")
 ("<flip-?>"	"#BF")
 ("<AA>"		"#C5")

@@ -35,7 +35,7 @@
   "Mu" "Nu" "Xi" "Omicron" "Pi" "Rho"
   "Sigma" "Tau" "Upsilon" "Phi" "Chi" "Psi" "Omega"
   "grave" "acute" "check" "breve" "invbreve" "bar"
-  "cedille"
+  "cedille" "degree"
 
   "ast" "asterisk"
   

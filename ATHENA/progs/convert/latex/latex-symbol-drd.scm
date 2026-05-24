@@ -63,7 +63,7 @@
   top flat natural sharp wp
   bot clubsuit diamondsuit heartsuit spadesuit
   Re Im angle partial textbackslash
-  dag ddag dagger ddagger guillemotleft guillemotright
+  dag ddag dagger ddagger degree guillemotleft guillemotright
 
   ;; Delimiters
   uparrow Uparrow downarrow Downarrow

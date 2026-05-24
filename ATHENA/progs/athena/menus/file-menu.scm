@@ -17,6 +17,7 @@
     (athena athena tm-server)
     (athena athena tm-files)
     (athena athena tm-vault)
+    (athena athena tm-vault-namespaces)
     (athena menus print-widgets)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -290,6 +291,7 @@
 
 (menu-bind file-menu
   ("New" (new-document))
+  ("New within namespace" (namespace-new-file-within-wizard))
   ("Load" (open-document))
   ("Load in new window" (open-document*))
   ("Load Vault" (open-vault))

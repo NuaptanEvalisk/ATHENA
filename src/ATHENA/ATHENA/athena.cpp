@@ -76,7 +76,8 @@ extern bool texmacs_started;
 
 extern void aofm_debug_dump(const std::string& file_path);
 extern bool aofm_import_vault(string source_dir, string destination_dir,
-                              bool ignore_nonempty, int parallelism);
+                              bool ignore_nonempty, int parallelism,
+                              string model_vault);
 
 bool disable_error_recovery= false;
 bool start_server_flag= false;
@@ -85,6 +86,7 @@ bool no_splash_screen= false;
 std::string aofm_debug_convert_file;
 string aofm_debug_vault_convert_source;
 string aofm_debug_vault_convert_destination;
+string aofm_debug_vault_model_vault;
 string vault_maintenance_dir;
 bool   aofm_ignore_nonempty_dest = false;
 int    aofm_debug_vault_convert_parallelism = 0;
@@ -453,6 +455,9 @@ set_global_options  (int argc, char** argv)  {
         i += 2;
         if (i+1 < argc && is_positive_integer_arg (string (argv[i+1]))) i++;
       }
+      else if (s == "-model-vault") {
+        i++;
+      }
       else if (s == "-vault-maintenance") {
         i++;
       }
@@ -613,6 +618,7 @@ set_global_options  (int argc, char** argv)  {
         cout << "  --no-splash-screen       Start without showing the splash screen\n";
         cout << "  --vault-maintenance [dir]  Maintain an ATHENA vault headlessly\n";
         cout << "  --insert-build-warning     Insert ATHENA experimental build warnings during AOFM conversion\n";
+        cout << "  --model-vault [dir]        Reuse a model vault for AOFM namespace/style conversion\n";
         cout << "  -W [i] [o] Recursively convert directory into website\n";
         cout << "  -x [cmd]   Execute scheme command\n";
         cout << "  -Oc        TeX characters bitmap clipping off\n";
@@ -747,7 +753,8 @@ TeXmacs_main (int argc, char** argv) {
       bool ok= aofm_import_vault (aofm_debug_vault_convert_source,
                                   aofm_debug_vault_convert_destination,
                                   aofm_ignore_nonempty_dest,
-                                  aofm_debug_vault_convert_parallelism);
+                                  aofm_debug_vault_convert_parallelism,
+                                  aofm_debug_vault_model_vault);
       exit (ok ? 0 : 1);
     }
     if (vault_maintenance_dir != "") {
@@ -1144,6 +1151,10 @@ texmacs_entrypoint (int argc, char** argv) {
         }
         headless_mode= true;
       }
+    }
+    if (s == "-model-vault") {
+      i++;
+      if (i < argc) aofm_debug_vault_model_vault= argv[i];
     }
     if (s == "-vault-maintenance") {
       i++;

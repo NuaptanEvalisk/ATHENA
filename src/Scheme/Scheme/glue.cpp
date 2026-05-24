@@ -40,6 +40,7 @@
 #include "QTMCustomStylesManager.hpp"
 #include "QTMNamespaceManager.hpp"
 #include "QTMNamespaceExplorer.hpp"
+#include "QTMNamespaceNewFile.hpp"
 #include "QTMAbout.hpp"
 #include "QTMESCSymbolPicker.hpp"
 #include "QTMFontSelector.hpp"
@@ -1529,6 +1530,24 @@ tmg_namespace_info_page (tmscm arg1) {
   return tree_to_tmscm (athena_namespace_info_page (tmscm_to_string (arg1)));
 }
 
+tmscm
+tmg_namespace_new_file_wizard () {
+  if (headless_mode) return string_to_tmscm ("");
+  return string_to_tmscm (namespace_new_file_wizard ());
+}
+
+tmscm
+tmg_namespace_create_file_with_optional_initializer (tmscm arg1) {
+  TMSCM_ASSERT_STRING (arg1, TMSCM_ARG1,
+                       "namespace-create-file-with-optional-initializer");
+  if (headless_mode) return string_to_tmscm ("Headless mode has no native namespace initializer chooser.");
+  string error;
+  if (namespace_create_file_with_optional_initializer (tmscm_to_string (arg1),
+                                                      error))
+    return string_to_tmscm ("");
+  return string_to_tmscm (error);
+}
+
 void
 initialize_glue () {
   tmscm_install_procedure ("tree?", treeP, 1, 0, 0);
@@ -1576,6 +1595,11 @@ initialize_glue () {
                            namespace_explorer_show, 0, 0, 0);
   tmscm_install_procedure ("namespace-info-page",
                            tmg_namespace_info_page, 1, 0, 0);
+  tmscm_install_procedure ("namespace-new-file-wizard",
+                           tmg_namespace_new_file_wizard, 0, 0, 0);
+  tmscm_install_procedure (
+    "namespace-create-file-with-optional-initializer",
+    tmg_namespace_create_file_with_optional_initializer, 1, 0, 0);
   tmscm_install_procedure ("vault-load-with-ns",
                            tmg_vault_load_with_ns, 4, 0, 0);
   tmscm_install_procedure ("image-remove-background",

@@ -71,6 +71,23 @@ normalize_latex_math_source(const std::string& source) {
   return out;
 }
 
+static tree
+normalize_converted_degree_symbols(tree t) {
+  if (is_atomic(t)) {
+    std::string text = as_charp(t->label);
+    std::string before = text;
+    replace_all(text, "\\<degree\\>", "<degree>");
+    if (text != before) return tree(string(text.c_str()));
+    return t;
+  }
+
+  tree out = copy(t);
+  for (int i = 0; i < N(out); ++i) {
+    out[i] = normalize_converted_degree_symbols(out[i]);
+  }
+  return out;
+}
+
 tree
 convert_latex_math_inline(const std::string& latex_source) {
   auto start = ::std::chrono::high_resolution_clock::now();
@@ -78,6 +95,7 @@ convert_latex_math_inline(const std::string& latex_source) {
   tree converted = extract(
       latex_document_to_tree(tm_string("$" + normalized_source + "$"), false, true),
       "body");
+  converted = normalize_converted_degree_symbols(converted);
 
   converted = simplify_document(converted);
 
@@ -110,6 +128,7 @@ convert_latex_math_display(const std::string& latex_source) {
   tree converted = extract(
       latex_document_to_tree(tm_string("$$" + normalized_source + "$$"), false, true),
       "body");
+  converted = normalize_converted_degree_symbols(converted);
 
   auto end = ::std::chrono::high_resolution_clock::now();
   aofm_math_time += ::std::chrono::duration<double>(end - start).count();

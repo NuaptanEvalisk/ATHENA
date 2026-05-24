@@ -45,6 +45,11 @@ struct athena_namespace_relation {
   string source;
 };
 
+struct athena_namespace_template_field {
+  string placeholder;
+  string type;
+};
+
 std::vector<athena_namespace_definition> athena_namespaces_list ();
 bool athena_namespace_get (string name, athena_namespace_definition& out);
 bool athena_namespace_save (const athena_namespace_definition& ns,
@@ -80,6 +85,21 @@ bool athena_namespace_generate_restricted_sorter (
 
 std::vector<athena_namespace_match> athena_namespace_members (string name,
                                                               string& error);
+std::vector<athena_namespace_definition>
+athena_namespace_concrete_matches_stem (string stem, string& error);
+std::vector<athena_namespace_template_field>
+athena_namespace_template_fields (const athena_namespace_definition& ns,
+                                  string& error);
+bool athena_namespace_build_stem (const athena_namespace_definition& ns,
+                                  const strings& values, string& stem,
+                                  string& error);
+tree athena_namespace_apply_style_to_tree (
+  tree doc, const athena_namespace_definition& ns, string base_root,
+  string& error);
+bool athena_namespace_create_file (
+  const athena_namespace_definition& ns, url target, string base_root,
+  bool use_initial_content, string& error);
+bool athena_namespace_create_plain_file (url target, string& error);
 tree athena_namespace_info_page (string tmfs_name);
 
 #endif // ATHENA_NAMESPACES_HPP

@@ -410,7 +410,7 @@
   (define Other-postfix-symbol
     (:type postfix)
     (:penalty invalid)
-    "!" "%" "<permil>"
+    "!" "%" "<permil>" "<degree>"
     "<postup>" "<postdown>" "<postupdown>" "<postmapsup>" "<postmapsdown>")
 
   (define Prime-symbol

@@ -1,6 +1,8 @@
 (texmacs-module (athena athena tm-vault-quick-switcher)
   (:use (kernel boot abbrevs)
         (kernel library list)
+        (kernel athena tm-file-system)
+        (athena athena tm-vault-namespaces)
         (athena menus file-menu)))
 
 (define (vault-quick-switcher-root-base)
@@ -66,10 +68,16 @@
         (let* ((target (url-append (vault-current-file-directory) (unix->url path)))
                (dir (url-head target)))
           (vault-ensure-directory dir)
-          (if (and (not (url-exists? target))
-                   (tree-export (vault-empty-ath-document) target "texmacs"))
-              (show-message "Could not create ATHENA file." "Quick switcher")
-              (load-buffer target))))))
+          (if (url-exists? target)
+              (load-buffer target)
+              (let ((err (namespace-create-file-with-optional-initializer
+                          (url->system target))))
+                (cond ((== err "")
+                       (load-buffer target))
+                      ((== err "cancelled")
+                       (noop))
+                      (else
+                       (show-message err "Quick switcher")))))))))
 
 (tm-define (open-quick-switcher)
   (:interactive #t)
