@@ -17,6 +17,12 @@
 
 (kbd-map
   (:mode in-table?)
+  ("C-S-," (structured-insert-left))
+  ("C-<" (structured-insert-left))
+  ("C-," (structured-insert-right))
+  ("C-S-return" (structured-insert-up))
+  ("C-return" (structured-insert-down))
+
   ("table N" "" "New table (t: tabular, b: block)")
   ("table H" "" "Horizontal table alignment (l: left, c: center, r: right)")
   ("table V" "" "Vertical table alignment: (b: bottom, c: center, t: top)")
@@ -130,3 +136,10 @@
   ("table b down" (table-row-decoration #t))
   ("table s" (interactive cell-set-span))
   ("table j" (cell-set-span-selection)))
+
+(kbd-unmap
+  (:mode in-table?)
+  "M-left"
+  "M-right"
+  "M-up"
+  "M-down")
