@@ -16,6 +16,7 @@
 	(utils library cursor)
 	(utils edit auto-close)
 	(math math-drd)
+        (math math-stats)
         (generic format-geometry-edit)
         (convert tools tmconcat)))
 
@@ -350,6 +351,21 @@
                      (script-context? (tree-ref t :previous)))
                 (and (tree-ref t :next)
                      (script-context? (tree-ref t :next)))))))
+
+(define (math-jump-out)
+  (structured-exit-right))
+
+(define (math-make-above)
+  (if (selection-active-small?)
+      (make-above)
+      (with body (cut-before-cursor)
+        (insert-go-to `(above ,body "") '(1 0)))))
+
+(define (math-make-below)
+  (if (selection-active-small?)
+      (make-below)
+      (with body (cut-before-cursor)
+        (insert-go-to `(below ,body "") '(1 0)))))
 
 (tm-define (variant-circulate t forward?)
   (:require (script-context? t))

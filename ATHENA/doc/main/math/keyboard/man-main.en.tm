@@ -5,25 +5,28 @@
 <\body>
   <tmdoc-title|Main mathematical constructs>
 
-  The main mathematical objects are created using the <key|math> prefix as
-  follows:
+  The main mathematical objects are created using the following shortcuts:
 
-  <big-table|<descriptive-table|<tformat|<table|<row|<cell|Shortcut>|<cell|Purpose>|<cell|Example>>|<row|<cell|<key|math $>>|<cell|Text>|<cell|<with|mode|math|L={x\|x<with|mode|text|
-  is sufficiently large>}>>>|<row|<cell|<key|math f>>|<cell|Fractions>|<cell|<with|mode|math|<frac|a|b+c>>>>|<row|<cell|<key|math s>>|<cell|Square
-  roots>|<cell|<with|mode|math|<sqrt|x+y>>>>|<row|<cell|<key|math S>>|<cell|<with|mode|math|n>-th
-  Roots>|<cell|<with|mode|math|<sqrt|x<rsup|3>+y<rsup|3>|3>>>>|<row|<cell|<key|math n>>|<cell|Negations>|<cell|<with|mode|math|<neg|<frac|a|b+c>>>>>>>>|Creation
+  <big-table|<descriptive-table|<tformat|<table|<row|<cell|Shortcut>|<cell|Purpose>|<cell|Example>>|<row|<cell|<key|C-9>>|<cell|Text>|<cell|<with|mode|math|L={x\|x<with|mode|text|
+  is sufficiently large>}>>>|<row|<cell|<key|C-/>>|<cell|Fractions>|<cell|<with|mode|math|<frac|a|b+c>>>>|<row|<cell|<key|C-2>>|<cell|Square
+  roots>|<cell|<with|mode|math|<sqrt|x+y>>>>|<row|<cell|<key|math n>>|<cell|Negations>|<cell|<with|mode|math|<neg|<frac|a|b+c>>>>>>>>|Creation
   of major mathematical markup.>
 
   Primes, subscripts and superscripts are created as follows:
 
   <big-table|<descriptive-table|<tformat|<table|<row|<cell|Shortcut>|<cell|Purpose>|<cell|Example>>|<row|<cell|<key|'>>|<cell|Primes>|<cell|<with|mode|math|f<rprime|'>>
-  or <with|mode|math|<with|mode|math|><with|mode|math|(g+h)<rprime|'''>>>>>|<row|<cell|<key|`>>|<cell|Back-primes>|<cell|<with|mode|math|<lprime|`>f>>>|<row|<cell|<key|_>>|<cell|Subscripts>|<cell|<with|mode|math|x<rsub|n>>
-  or <with|mode|math|x<rsub|i<rsub|3>>>>>|<row|<cell|<key|^>>|<cell|Superscripts>|<cell|<with|mode|math|x<rsup|2>>,
+  or <with|mode|math|<with|mode|math|><with|mode|math|(g+h)<rprime|'''>>>>>|<row|<cell|<key|`>>|<cell|Back-primes>|<cell|<with|mode|math|<lprime|`>f>>>|<row|<cell|<key|_> or <key|C-->>|<cell|Subscripts>|<cell|<with|mode|math|x<rsub|n>>
+  or <with|mode|math|x<rsub|i<rsub|3>>>>>|<row|<cell|<key|^> or <key|C-6>>|<cell|Superscripts>|<cell|<with|mode|math|x<rsup|2>>,
   <with|mode|math|x<rsub|n><rsup|2>> or <with|mode|math|\<mathe\><rsup|\<mathe\><rsup|x>>>>>|<row|<cell|<key|math l
   _>>|<cell|Left subscripts>|<cell|<with|mode|math|<lsub|2>x>>>|<row|<cell|<key|math l
   ^>>|<cell|Left superscripts>|<cell|<with|mode|math|<lsup|\<pi\>>x> or
   <with|mode|math|<lsub|\<ast\>><lsup|\<ast\>>He<rsub|\<ast\>><rsup|\<ast\>>>>>>>>|Creation
   of primes, subscripts and superscripts>
+
+  Additional two-dimensional editing shortcuts:
+
+  <big-table|<descriptive-table|<tformat|<table|<row|<cell|Shortcut>|<cell|Purpose>>|<row|<cell|<key|C-7>>|<cell|Overscript>>|<row|<cell|<key|C-4>>|<cell|Underscript>>|<row|<cell|<key|C-space>>|<cell|Jump out of the current structure>>|<row|<cell|<key|C-\<gtr\>> or <key|C-.>>|<cell|Select around the cursor; repeat to enlarge>>>>>|Navigation
+  and two-dimensional formula editing.>
 
   Some important mathematical constructs are actually <hyper-link|tabular
   constructs|../../table/man-create-table.en.tm> and are documented

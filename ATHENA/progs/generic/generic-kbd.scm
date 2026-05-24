@@ -419,13 +419,12 @@
   ("A-C-]" (geometry-faster))
 
   ("C-<" (cursor-history-backward))
-  ("C->" (cursor-history-forward))
+  ("C->" (kbd-select-enlarge))
+  ("C-." (kbd-select-enlarge))
   ("C-!" (cursor-history-add (cursor-path)))
   ("C-#" (numbered-toggle (focus-tree)))
   ("C-*" (alternate-toggle (focus-tree)))
   ("C-%" (inactive-toggle (focus-tree)))
-  ("C-+" (zoom-in (sqrt (sqrt 2.0))))
-  ("C--" (zoom-out (sqrt (sqrt 2.0))))
   ("C-0" (change-zoom-factor 1.0))
   
   ("C-7" (fit-all-to-screen))
@@ -464,8 +463,6 @@
   ("std x" (kbd-cut))
   ("std z" (undo 0))
   ("std Z" (redo 0))
-  ("std +" (zoom-in (sqrt (sqrt 2.0))))
-  ("std -" (zoom-out (sqrt (sqrt 2.0))))
   ("std 0" (change-zoom-factor 1.0))
 
   ;; not yet implemented
