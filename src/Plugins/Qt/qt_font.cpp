@@ -10,10 +10,12 @@
 ******************************************************************************/
 
 #include "Qt/qt_font.hpp"
+#include "Qt/qt_picture.hpp"
 #include "Qt/qt_utilities.hpp"
 #include "Qt/qt_renderer.hpp"
 
 #include <QFontDatabase>
+#include <QPainter>
 #include <QStringList>
 #include <QVector>
 
@@ -153,9 +155,43 @@ void
 qt_font_rep::draw_fixed (renderer ren, string s, SI x, SI y) {
   if (N(s)!=0) {
     QString qs= utf8_to_qstring (cork_to_utf8 (s));
-    double zoom= dpi / (std_shrinkf * 72.0);
-    qt_renderer_rep* qren= (qt_renderer_rep*) ren->get_handle ();
-    qren -> draw (qfn, qs, x, y, zoom);
+    if (ren->is_screen) {
+      double zoom= dpi / (std_shrinkf * 72.0);
+      qt_renderer_rep* qren= (qt_renderer_rep*) ren->get_handle ();
+      qren -> draw (qfn, qs, x, y, zoom);
+    }
+    else if (ren->is_printer ()) {
+      double scale= ((double) dpi) / 72.0;
+      QFont pqfn= qfn;
+      pqfn.setPixelSize (max (1, (int) ceil (((double) size) * scale)));
+      QFontMetricsF pqfm (pqfn);
+      QRectF rect= pqfm.tightBoundingRect (qs);
+#if QT_VERSION >= 0x060000
+      qreal advance= pqfm.horizontalAdvance (qs);
+#else
+      qreal advance= pqfm.width (qs);
+#endif
+      qreal left  = min ((qreal) 0.0, rect.left ());
+      qreal right = max (advance, rect.right ());
+      qreal top   = rect.top ();
+      qreal bottom= rect.bottom ();
+      int pad= 2;
+      int w= max (1, (int) ceil (right - left) + 2 * pad);
+      int h= max (1, (int) ceil (bottom - top) + 2 * pad);
+      int ox= (int) floor (-left) + pad;
+      int baseline= (int) floor (-top) + pad;
+      int oy= h - 1 - baseline;
+
+      QImage im (w, h, QImage::Format_ARGB32);
+      im.fill (QColor (0, 0, 0, 0));
+      QPainter painter (&im);
+      painter.setFont (pqfn);
+      painter.setPen (to_qcolor (ren->get_pencil ()->get_color ()));
+      painter.drawText (QPointF (ox, baseline), qs);
+      painter.end ();
+
+      ren->draw_picture (qt_picture (im, ox, oy), x, y);
+    }
   }
 }
 
