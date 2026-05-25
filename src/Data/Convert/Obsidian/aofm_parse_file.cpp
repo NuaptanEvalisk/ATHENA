@@ -82,6 +82,7 @@ aofm_prepend_document_title(tree& body, const std::string& title,
     if (insert_build_warning) {
         out << compound("experimental-build-warning");
     }
+    out << compound("table-of-contents", "toc", tree(DOCUMENT));
 
     if (is_document(body)) {
         for (int i = 0; i < N(body); ++i) out << body[i];

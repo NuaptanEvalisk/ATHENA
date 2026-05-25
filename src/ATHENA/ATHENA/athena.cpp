@@ -83,13 +83,13 @@ bool disable_error_recovery= false;
 bool start_server_flag= false;
 bool headless_mode= false;
 bool no_splash_screen= false;
-std::string aofm_debug_convert_file;
-string aofm_debug_vault_convert_source;
-string aofm_debug_vault_convert_destination;
-string aofm_debug_vault_model_vault;
+std::string aofm_convert_file;
+string aofm_convert_vault_source;
+string aofm_convert_vault_destination;
+string aofm_convert_vault_model_vault;
 string vault_maintenance_dir;
 bool   aofm_ignore_nonempty_dest = false;
-int    aofm_debug_vault_convert_parallelism = 0;
+int    aofm_convert_vault_parallelism = 0;
 string extra_init_cmd;
 bool exec_exit= true;
 void server_start ();
@@ -448,10 +448,10 @@ set_global_options  (int argc, char** argv)  {
         i++;
         if (i<argc) tm_init_buffer_file= url_system (argv[i]);
       }
-      else if (s == "-debug-aofm-convert") {
+      else if (s == "-aofm-convert-file") {
         i++;
       }
-      else if (s == "-debug-aofm-vault-convert") {
+      else if (s == "-aofm-convert-vault") {
         i += 2;
         if (i+1 < argc && is_positive_integer_arg (string (argv[i+1]))) i++;
       }
@@ -617,6 +617,8 @@ set_global_options  (int argc, char** argv)  {
         cout << "  -V         Show some informative messages\n";
         cout << "  --no-splash-screen       Start without showing the splash screen\n";
         cout << "  --vault-maintenance [dir]  Maintain an ATHENA vault headlessly\n";
+        cout << "  --aofm-convert-file [file]  Convert one AOFM Markdown file headlessly\n";
+        cout << "  --aofm-convert-vault [src] [dest] [jobs]  Convert an AOFM vault headlessly\n";
         cout << "  --insert-build-warning     Insert ATHENA experimental build warnings during AOFM conversion\n";
         cout << "  --model-vault [dir]        Reuse a model vault for AOFM namespace/style conversion\n";
         cout << "  -W [i] [o] Recursively convert directory into website\n";
@@ -738,23 +740,23 @@ TeXmacs_main (int argc, char** argv) {
     }
     extra_init_cmd << "(delayed (:idle 300) (ads-restore-visible-panes))";
 
-    if (!aofm_debug_convert_file.empty ()) {
+    if (!aofm_convert_file.empty ()) {
       eval ("(lazy-initialize-force)");
       aofm_enable_converter_mode (true);
       aofm_cache_preferences ();
-      aofm_debug_dump (aofm_debug_convert_file);
+      aofm_debug_dump (aofm_convert_file);
       exit (0);
     }
-    if (aofm_debug_vault_convert_source != "" &&
-        aofm_debug_vault_convert_destination != "") {
+    if (aofm_convert_vault_source != "" &&
+        aofm_convert_vault_destination != "") {
       eval ("(lazy-initialize-force)");
       aofm_enable_converter_mode (true);
       aofm_cache_preferences ();
-      bool ok= aofm_import_vault (aofm_debug_vault_convert_source,
-                                  aofm_debug_vault_convert_destination,
+      bool ok= aofm_import_vault (aofm_convert_vault_source,
+                                  aofm_convert_vault_destination,
                                   aofm_ignore_nonempty_dest,
-                                  aofm_debug_vault_convert_parallelism,
-                                  aofm_debug_vault_model_vault);
+                                  aofm_convert_vault_parallelism,
+                                  aofm_convert_vault_model_vault);
       exit (ok ? 0 : 1);
     }
     if (vault_maintenance_dir != "") {
@@ -1131,22 +1133,22 @@ texmacs_entrypoint (int argc, char** argv) {
   for (int i=1; i<argc; i++) {
     string s= argv[i];
     if ((N(s)>=2) && (s(0,2)=="--")) s= s (1, N(s));
-    if (s == "-debug-aofm-convert") {
+    if (s == "-aofm-convert-file") {
       i++;
       if (i < argc) {
-        aofm_debug_convert_file= argv[i];
+        aofm_convert_file= argv[i];
         headless_mode= true;
       }
     }
-    if (s == "-debug-aofm-vault-convert") {
+    if (s == "-aofm-convert-vault") {
       if (i + 2 < argc) {
         i++;
-        aofm_debug_vault_convert_source= argv[i];
+        aofm_convert_vault_source= argv[i];
         i++;
-        aofm_debug_vault_convert_destination= argv[i];
+        aofm_convert_vault_destination= argv[i];
         if (i + 1 < argc && is_positive_integer_arg (string (argv[i+1]))) {
           i++;
-          aofm_debug_vault_convert_parallelism=
+          aofm_convert_vault_parallelism=
             as_positive_integer_arg (string (argv[i]));
         }
         headless_mode= true;
@@ -1154,7 +1156,7 @@ texmacs_entrypoint (int argc, char** argv) {
     }
     if (s == "-model-vault") {
       i++;
-      if (i < argc) aofm_debug_vault_model_vault= argv[i];
+      if (i < argc) aofm_convert_vault_model_vault= argv[i];
     }
     if (s == "-vault-maintenance") {
       i++;
