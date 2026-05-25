@@ -11,6 +11,9 @@ else (APPLE)
 endif (APPLE)
 
 add_library(athena_body STATIC ${ATHENA_All_SRCS})
+target_compile_definitions(athena_body PRIVATE
+  $<$<CONFIG:Debug>:ATHENA_DEBUG_BUILD=1>
+)
 target_link_libraries (athena_body
   ${ADS_LIBRARIES}
 )
@@ -24,7 +27,10 @@ else (WIN32)
     ./ATHENA/ATHENA/athena.cpp
   )
 endif (WIN32)
-target_compile_definitions(${ATHENA_binary_name} PRIVATE MI_OVERRIDE=1)
+target_compile_definitions(${ATHENA_binary_name} PRIVATE
+  MI_OVERRIDE=1
+  $<$<CONFIG:Debug>:ATHENA_DEBUG_BUILD=1>
+)
 target_link_libraries (${ATHENA_binary_name}
   athena_body
   mimalloc

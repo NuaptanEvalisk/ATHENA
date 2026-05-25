@@ -64,10 +64,19 @@ isDocumentWidget(QWidget* widget) {
           widget->findChild<QTMWidget*> () != nullptr);
 }
 
+static QString
+athenaMainWindowBaseTitle() {
+#ifdef ATHENA_DEBUG_BUILD
+  return "ATHENA DEBUG BUILD";
+#else
+  return "ATHENA";
+#endif
+}
+
 QTMMainTabWindow::QTMMainTabWindow() {
   mStackedWidget = new QStackedWidget(this);
   setCentralWidget (mStackedWidget);
-  setWindowTitle ("ATHENA");
+  setWindowTitle (athenaMainWindowBaseTitle());
 
   mTabWidget = new QTabWidget(mStackedWidget);
   mTabWidget->setTabsClosable(true);
@@ -152,8 +161,9 @@ void QTMMainTabWindow::onDoubleClickOnEmptyTabBarSpace() {
 }
 
 void QTMMainTabWindow::setMainTitle(QString title) {
-  if (title.isEmpty()) setWindowTitle ("ATHENA");
-  else setWindowTitle (QString ("ATHENA [") + title + "]");
+  QString base= athenaMainWindowBaseTitle();
+  if (title.isEmpty()) setWindowTitle (base);
+  else setWindowTitle (base + " [" + title + "]");
 }
 
 void QTMMainTabWindow::setMainTitleFromWidget(QWidget* widget) {

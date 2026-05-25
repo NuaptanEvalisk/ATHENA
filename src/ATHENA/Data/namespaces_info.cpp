@@ -11,6 +11,7 @@
 #include "namespaces_private.hpp"
 
 #include "ATHENA/Data/new_buffer.hpp"
+#include "converter.hpp"
 #include "file.hpp"
 #include "vault.hpp"
 
@@ -229,6 +230,33 @@ namespace_dynamic_tree (const athena_namespace_definition& ns,
 }
 
 static bool
+namespace_absolute_image_path (const string& path) {
+  return path == "" || starts (path, "/") || starts (path, "~") ||
+         starts (path, "$") || occurs ("://", path);
+}
+
+static string
+namespace_rebase_image_path (const string& path, url source_dir) {
+  if (namespace_absolute_image_path (path)) return path;
+  url absolute= source_dir * url_unix (cork_to_utf8 (path));
+  return utf8_to_cork (as_system_string (absolute));
+}
+
+static tree
+namespace_rebase_homepage_images (tree t, url source_dir) {
+  if (is_atomic (t)) return copy (t);
+
+  tree out (L(t));
+  for (int i=0; i<N(t); i++) {
+    if (i == 0 && is_func (t, IMAGE) && is_atomic (t[i]))
+      out << tree (namespace_rebase_image_path (t[i]->label, source_dir));
+    else
+      out << namespace_rebase_homepage_images (t[i], source_dir);
+  }
+  return out;
+}
+
+static bool
 load_homepage (const athena_namespace_definition& ns,
                const std::vector<string>& path,
                const std::vector<athena_namespace_match>& members,
@@ -238,7 +266,8 @@ load_homepage (const athena_namespace_definition& ns,
   string s;
   if (load_string (u, s, false)) return false;
   tree doc= import_loaded_tree (s, u, "texmacs");
-  out= namespace_dynamic_tree (ns, path, members, doc);
+  tree expanded= namespace_dynamic_tree (ns, path, members, doc);
+  out= namespace_rebase_homepage_images (expanded, head (u));
   return true;
 }
 
