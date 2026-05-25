@@ -87,11 +87,9 @@ set (LINKED_SQLITE3 ON CACHE BOOL "Use Linked SQLite3" FORCE)
 find_package (Python3 REQUIRED COMPONENTS Interpreter)
 find_program (UV_EXECUTABLE uv REQUIRED)
 
-option (USE_FREETYPE "use Freetype" ON)
-if (USE_FREETYPE)
-  find_package (Freetype)
-  option (LINKED_FREETYPE "linked Freetype" ON)
-endif (USE_FREETYPE)
+set (USE_FREETYPE ON CACHE BOOL "use Freetype" FORCE)
+find_package (Freetype REQUIRED)
+set (LINKED_FREETYPE ON CACHE BOOL "linked Freetype" FORCE)
 
 option (USE_CAIRO "use Cairo" OFF)
 if (USE_CAIRO)
@@ -109,16 +107,12 @@ option (USE_SPARKLE "use Sparkle" OFF)
 
 option (PDFHUMMUS_NO_TIFF "Disable TIFF in PDF Hummus" ON)
 
-option (USE_GMP "use GMP" ON)
-if (USE_GMP)
-  find_package (GMP)
-endif (USE_GMP)
+set (USE_GMP ON CACHE BOOL "use GMP" FORCE)
+find_package (GMP REQUIRED)
 
-option (USE_GNUTLS "use GnuTLS" ON)
-if (USE_GNUTLS)
-  find_package (GnuTLS)
-  option (LINKED_GNUTLS "Use Linked GnuTLS" ON)
-endif (USE_GNUTLS)
+set (USE_GNUTLS ON CACHE BOOL "use GnuTLS" FORCE)
+find_package (GnuTLS REQUIRED)
+set (LINKED_GNUTLS ON CACHE BOOL "Use Linked GnuTLS" FORCE)
 
 if (WIN32)
   option (OS_MINGW "Using OS MINGW" ON)
@@ -147,6 +141,12 @@ include (FindX11)
 
 find_path (RESVGQT_INCLUDE_DIR ResvgQt.h)
 find_library (RESVG_LIBRARY resvg)
+if (NOT RESVGQT_INCLUDE_DIR OR NOT RESVG_LIBRARY)
+  message (FATAL_ERROR
+    "resvg and ResvgQt.h are required for ATHENA SVG rendering. "
+    "Install resvg/ResvgQt development packages or provide "
+    "RESVGQT_INCLUDE_DIR/RESVG_LIBRARY.")
+endif ()
 find_path (TCC_INCLUDE_DIR libtcc.h)
 find_library (TCC_LIBRARY NAMES tcc libtcc)
 if (NOT TCC_INCLUDE_DIR OR NOT TCC_LIBRARY)
@@ -294,10 +294,11 @@ set (PACKAGE_VERSION 1)
 ###  Test for Libraries
 ### --------------------------------------------------------------------
 
-find_package (PNG)
-find_package (Iconv)
-find_package (ZLIB)
-find_package (JPEG)
+find_package (PNG REQUIRED)
+find_package (Iconv REQUIRED)
+set (USE_ICONV ON CACHE BOOL "Use Iconv" FORCE)
+find_package (ZLIB REQUIRED)
+find_package (JPEG REQUIRED)
 pkg_check_modules (ZSTD REQUIRED libzstd)
 pkg_check_modules (MAGICKWAND REQUIRED MagickWand)
 add_definitions (${MAGICKWAND_CFLAGS_OTHER})
@@ -351,11 +352,8 @@ set (guile_str_size_t size_t)
 set (DEBUG_ASSERT 1)
 
 set (USE_GS 1)
-if (WIN32)
-  set (GS_EXE bin/gs.exe)
-else (WIN32)
-  set (GS_EXE /usr/bin/gs)
-endif (WIN32)
+find_program (GS_EXECUTABLE NAMES gs gswin64c gswin32c REQUIRED)
+set (GS_EXE ${GS_EXECUTABLE})
 set (GS_FONTS ../share/ghostscript/fonts:/usr/share/fonts:)
 set (GS_LIB ../share/ghostscript/9.06/lib:)
 
@@ -478,7 +476,7 @@ endif (WIN32)
 set (ATHENA_Include_Dirs ${ATHENA_Include_Dirs}
   ${Guile_INCLUDE_DIRS} ${FREETYPE_INCLUDE_DIRS} ${Cairo_INCLUDE_DIRS}
   ${IMLIB2_INCLUDE_DIR} ${GMP_INCLUDES} ${GNUTLS_INCLUDE_DIRS}
-  ${TCC_INCLUDE_DIR} ${SQLITE3_INCLUDE_DIRS}
+  ${TCC_INCLUDE_DIR} ${SQLITE3_INCLUDE_DIRS} ${ICONV_INCLUDE_DIR}
 )
 
 ### --------------------------------------------------------------------
@@ -585,6 +583,7 @@ set (ATHENA_Libraries
   ${PNG_LIBRARIES}
   ${ZSTD_LIBRARIES}
   ${MAGICKWAND_LIBRARIES}
+  ${ICONV_LIBRARIES}
   ${TCC_LIBRARY}
   ${CMAKE_DL_LIBS}
   -lpthread
@@ -601,6 +600,8 @@ endif (LINKED_SQLITE3)
 if (LINKED_FREETYPE)
   set (ATHENA_Libraries ${ATHENA_Libraries} ${FREETYPE_LIBRARIES})
 endif (LINKED_FREETYPE)
+
+set (ATHENA_Libraries ${ATHENA_Libraries} ${GMP_LIBRARIES})
 
 if (LINKED_GNUTLS)
   set (ATHENA_Libraries ${ATHENA_Libraries} ${GNUTLS_LIBRARIES})
@@ -725,11 +726,9 @@ if (ATHENA_GUI MATCHES "Qt.*")
   add_definitions (${QT_DEFINITIONS})
   add_definitions ("-DQTTEXMACS")
 
-  if (RESVGQT_INCLUDE_DIR AND RESVG_LIBRARY)
-    add_definitions ("-DUSE_RESVGQT")
-    set (ATHENA_Include_Dirs ${ATHENA_Include_Dirs} ${RESVGQT_INCLUDE_DIR})
-    set (ATHENA_Libraries ${ATHENA_Libraries} ${RESVG_LIBRARY})
-  endif (RESVGQT_INCLUDE_DIR AND RESVG_LIBRARY)
+  add_definitions ("-DUSE_RESVGQT")
+  set (ATHENA_Include_Dirs ${ATHENA_Include_Dirs} ${RESVGQT_INCLUDE_DIR})
+  set (ATHENA_Libraries ${ATHENA_Libraries} ${RESVG_LIBRARY})
 
   if (CMAKE_BUILD_TYPE STREQUAL "Release")
     add_definitions ("-DQT_NO_DEBUG")
