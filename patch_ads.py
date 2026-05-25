@@ -21,6 +21,87 @@ def patch_file(file_path, old_patterns, new):
     else:
         print(f"No changes needed for {file_path}")
 
+def patch_ads_floating_windows(base_dir):
+    # ATHENA keeps ADS' custom floating title bar on KDE because native KWin
+    # title bars do not provide the live move events ADS needs for redocking.
+    # Add side-edge snapping to the ADS drag-release path instead.
+    path = os.path.join(base_dir, 'src/FloatingDockContainer.cpp')
+    if not os.path.exists(path):
+        print(f"File not found: {path}")
+        return
+
+    with open(path, 'r') as f:
+        content = f.read()
+
+    original_content = content
+    if '#include <QScreen>' not in content:
+        content = content.replace('#include <QTime>\n',
+                                  '#include <QTime>\n#include <QScreen>\n')
+    if 'athenaSnapFloatingContainerToScreenEdge' not in content:
+        content = content.replace(
+            'namespace ads\n{\n',
+            '''namespace ads
+{
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
+static void
+athenaSnapFloatingContainerToScreenEdge(QWidget* widget)
+{
+    if (widget == nullptr || !widget->isVisible())
+    {
+        return;
+    }
+
+    QScreen* screen = QGuiApplication::screenAt(QCursor::pos());
+    if (screen == nullptr)
+    {
+        screen = widget->screen();
+    }
+    if (screen == nullptr)
+    {
+        return;
+    }
+
+    QRect area = screen->availableGeometry();
+    QPoint cursor = QCursor::pos();
+    int threshold = qMax(24, area.width() / 80);
+    QRect target;
+    if (qAbs(cursor.x() - area.left()) <= threshold)
+    {
+        target = QRect(area.left(), area.top(),
+                       area.width() / 2, area.height());
+    }
+    else if (qAbs(cursor.x() - area.right()) <= threshold)
+    {
+        target = QRect(area.left() + area.width() / 2, area.top(),
+                       area.width() - area.width() / 2, area.height());
+    }
+    else
+    {
+        return;
+    }
+
+    widget->setGeometry(target);
+}
+#endif
+
+''',
+            1)
+    content = content.replace(
+        '''\td->titleMouseReleaseEvent();
+}''',
+        '''\td->titleMouseReleaseEvent();
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
+\tathenaSnapFloatingContainerToScreenEdge(this);
+#endif
+}''')
+
+    if content != original_content:
+        with open(path, 'w') as f:
+            f.write(content)
+        print(f"Patched {path}")
+    else:
+        print(f"No changes needed for {path}")
+
 # If run from CMake, the first argument is the source directory
 base_dir = sys.argv[1] if len(sys.argv) > 1 else "."
 
@@ -46,3 +127,5 @@ for css in css_files:
     path = os.path.join(base_dir, css)
     patch_file(path, ['qproperty-iconSize: 16px;', 'qproperty-iconSize: 24px;'], 'qproperty-iconSize: 32px;')
     patch_file(path, ['qproperty-iconSize: 16px 16px;', 'qproperty-iconSize: 24px 24px;'], 'qproperty-iconSize: 32px 32px;')
+
+patch_ads_floating_windows(base_dir)
