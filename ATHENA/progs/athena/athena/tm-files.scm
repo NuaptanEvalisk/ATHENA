@@ -152,9 +152,17 @@
 (tm-define current-save-source (url-none))
 (tm-define current-save-target (url-none))
 
+(tm-define (autosave-file? name)
+  (and (url? name)
+       (not (url-rooted-tmfs? name))
+       (with s (url->system name)
+         (or (string-ends? s "~")
+             (string-ends? s "#")))))
+
 (define (buffer-notify-recent name)
-  (learn-interactive 'recent-buffer (list (cons "0" (url->unix name))))
-  (save-learned))
+  (when (not (autosave-file? name))
+    (learn-interactive 'recent-buffer (list (cons "0" (url->unix name))))
+    (save-learned)))
 
 (define (has-faithful-format? name)
   (in? (url-suffix name) '("ath" "tm" "ts" "tp" "stm" "tmml" "scm" "")))
