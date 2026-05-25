@@ -13,13 +13,11 @@
 #include "convert.hpp"
 #include "converter.hpp"
 #include "drd_mode.hpp"
-#include "edit_interface.hpp"
 #include "editor.hpp"
 #include "link.hpp"
 #include "message.hpp"
 #include "namespaces.hpp"
 #include "vault.hpp"
-#include "new_buffer.hpp"
 #include "new_view.hpp"
 #include "renderer.hpp"
 #include "server.hpp"
@@ -31,7 +29,6 @@
 #include "qt_widget.hpp"
 #include "tree_search.hpp"
 #include <QKeyEvent>
-#include <QAbstractScrollArea>
 #include <QApplication>
 #include <QComboBox>
 #include <QCompleter>
@@ -40,8 +37,10 @@
 #include <QMouseEvent>
 #include <QMessageBox>
 #include <QProgressBar>
+#include <QPointer>
 #include <QPushButton>
 #include <QRadioButton>
+#include <QScrollBar>
 #include <QSizePolicy>
 #include <QShowEvent>
 #include <QSplitter>
@@ -304,6 +303,7 @@ struct WikilinkFileEntry {
   QString stem;
   QString searchText;
   int     mtime;
+  bool    isCurrent;
 };
 
 struct WikilinkAnchorEntry {
@@ -373,9 +373,103 @@ strip_known_extension (QString s) {
   return s;
 }
 
+static bool
+is_autosave_document_path (const QString& relPath) {
+  return relPath.endsWith (".ath~", Qt::CaseInsensitive) ||
+         relPath.endsWith (".tm~", Qt::CaseInsensitive);
+}
+
+static QString
+current_vault_relative_document () {
+  if (!vault_active ()) return QString ();
+  url current= get_current_buffer_safe ();
+  if (is_none (current)) return QString ();
+  url root= vault_get_root ();
+  if (!descends (current, root)) return QString ();
+
+  string suf= suffix (current);
+  if (suf != "ath" && suf != "tm") return QString ();
+  QString relPath= to_qstring (
+    as_unix_string (delta (root * url (""), current)));
+  if (is_autosave_document_path (relPath)) return QString ();
+  return relPath;
+}
+
 static QString
 file_display_stem (const QString& relPath) {
   return strip_known_extension (relPath.section ('/', -1));
+}
+
+struct TeXmacsFocusSnapshot {
+  url view;
+  QPointer<QTMWidget> widget;
+  int hScroll;
+  int vScroll;
+  bool hasScroll;
+};
+
+static TeXmacsFocusSnapshot
+capture_texmacs_focus_snapshot () {
+  TeXmacsFocusSnapshot s;
+  s.view= get_current_view_safe ();
+  s.widget= QTMWidget::getLastFocusedWidget ();
+  s.hScroll= 0;
+  s.vScroll= 0;
+  s.hasScroll= false;
+
+  if (!s.widget.isNull () && !s.widget->isEmbedded ()) {
+    QScrollBar* h= s.widget->horizontalScrollBar ();
+    QScrollBar* v= s.widget->verticalScrollBar ();
+    if (h != nullptr && v != nullptr) {
+      s.hScroll= h->value ();
+      s.vScroll= v->value ();
+      s.hasScroll= true;
+    }
+  }
+  else s.widget= nullptr;
+  return s;
+}
+
+static void
+restore_texmacs_focus_snapshot (const TeXmacsFocusSnapshot& s,
+                                bool restoreScroll) {
+  if (!is_none (s.view) && concrete_view (s.view) != NULL)
+    set_current_view (s.view);
+
+  if (s.widget.isNull ()) return;
+  if (restoreScroll && s.hasScroll) {
+    if (s.widget->horizontalScrollBar () != nullptr)
+      s.widget->horizontalScrollBar ()->setValue (s.hScroll);
+    if (s.widget->verticalScrollBar () != nullptr)
+      s.widget->verticalScrollBar ()->setValue (s.vScroll);
+  }
+
+  s.widget->setFocus (Qt::OtherFocusReason);
+  if (the_gui != nullptr && s.widget->tm_widget () != nullptr) {
+    the_gui->process_keyboard_focus (s.widget->tm_widget (), true,
+                                     texmacs_time ());
+    the_gui->process_queued_events (4);
+  }
+
+  if (restoreScroll && s.hasScroll) {
+    if (s.widget->horizontalScrollBar () != nullptr)
+      s.widget->horizontalScrollBar ()->setValue (s.hScroll);
+    if (s.widget->verticalScrollBar () != nullptr)
+      s.widget->verticalScrollBar ()->setValue (s.vScroll);
+  }
+}
+
+static void
+restore_texmacs_focus_snapshot_later (const TeXmacsFocusSnapshot& s) {
+  QTimer::singleShot (0, [s] () {
+    restore_texmacs_focus_snapshot (s, true);
+    QTimer::singleShot (80, [s] () {
+      restore_texmacs_focus_snapshot (s, true);
+      QTimer::singleShot (220, [s] () {
+        restore_texmacs_focus_snapshot (s, true);
+      });
+    });
+  });
 }
 
 static QString
@@ -633,73 +727,53 @@ class WikilinkPreview : public QObject {
 public:
   WikilinkPreview (QObject* parent= nullptr)
     : QObject (parent),
-      previewUrl (url (string ("tmfs://aux/wikilink-preview-") *
-                       as_string (nextPreviewId++))),
+      previewBody (tree (DOCUMENT, "")),
+      previewParent (nullptr),
       previewQtWidget (nullptr),
-      previewViewportWidget (nullptr),
-      previewSurfaceWidget (nullptr),
-      previewTexmacsWidget (nullptr) {}
+      previewTexmacsWidget (nullptr),
+      previewWidth (0),
+      previewZoom (0.0),
+      recreating (false) {}
 
   ~WikilinkPreview () {
     destroyPreview ();
   }
 
   void destroyPreview () {
-    if (!is_nil (previewWidget)) {
-      try {
-        send_destroy (previewWidget);
-      }
-      catch (...) {
-        // If this is reached during Qt page destruction, the embedded close
-        // path may already be unsafe.  Callers that complete the wizard should
-        // destroy previews before accepting, while the pages are still intact.
-      }
+    if (previewQtWidget != nullptr) {
+      if (previewQtWidget->parentWidget () != nullptr &&
+          previewQtWidget->parentWidget ()->layout () != nullptr)
+        previewQtWidget->parentWidget ()->layout ()->removeWidget (
+          previewQtWidget);
+      previewQtWidget->hide ();
+      previewQtWidget->deleteLater ();
     }
+    if (!is_nil (previewWidget)) {
+      try { send_destroy (previewWidget); }
+      catch (...) {}
+    }
+    if (previewParent != nullptr)
+      previewParent->removeEventFilter (this);
     previewWidget= widget ();
+    previewParent= nullptr;
     previewQtWidget= nullptr;
-    previewViewportWidget= nullptr;
-    previewSurfaceWidget= nullptr;
     previewTexmacsWidget= nullptr;
+    previewWidth= 0;
+    previewZoom= 0.0;
   }
 
   QWidget* ensureCreated (QWidget* parent) {
     if (previewQtWidget != nullptr) return previewQtWidget;
     if (parent == nullptr) return nullptr;
-
-    tree doc (DOCUMENT, "");
-    tree style= compound ("style", tuple ("generic"));
-    previewWidget= texmacs_input_widget (doc, style, previewUrl);
-    tm_buffer buf= concrete_buffer (previewUrl);
-    if (!is_nil (buf)) buf->buf->read_only= true;
-
-    QWidget* qwid= concrete (previewWidget)->as_qwidget (parent);
-    previewQtWidget= qwid;
-    locateWidgets ();
-    installPreviewEventFilter (previewQtWidget);
-    qwid->setSizePolicy (QSizePolicy::Expanding, QSizePolicy::Expanding);
-    set_zoom_factor (previewWidget,
-                     get_retina_zoom () *
-                       get_server ()->get_window_zoom_factor ());
-    if (parent->layout () != nullptr)
-      parent->layout ()->addWidget (qwid);
-    qwid->show ();
-    if (previewTexmacsWidget != nullptr) {
-      previewTexmacsWidget->show ();
-      if (previewTexmacsWidget->viewport () != nullptr)
-        previewTexmacsWidget->viewport ()->show ();
-      if (previewTexmacsWidget->surface () != nullptr)
-        previewTexmacsWidget->surface ()->show ();
-    }
-
-    return qwid;
+    previewParent= parent;
+    previewParent->installEventFilter (this);
+    recreatePreview ();
+    return previewQtWidget;
   }
 
   void setBody (tree body) {
-    set_buffer_body (previewUrl, body);
-    tm_buffer buf= concrete_buffer (previewUrl);
-    if (!is_nil (buf)) buf->buf->read_only= true;
-    notifyPreviewChanged ();
-    refreshLayout ();
+    previewBody= body;
+    if (previewParent != nullptr) recreatePreview ();
   }
 
   void refresh () {
@@ -707,6 +781,10 @@ public:
   }
 
   bool eventFilter (QObject* watched, QEvent* event) override {
+    if (event != nullptr && event->type () == QEvent::Resize &&
+        (watched == previewParent || isPreviewWatchedObject (watched))) {
+      QTimer::singleShot (0, this, [this] () { refreshLayoutNow (); });
+    }
     if (event != nullptr && isPreviewWatchedObject (watched)) {
       switch (event->type ()) {
         case QEvent::ContextMenu:
@@ -733,50 +811,17 @@ public:
   }
 
 private:
-  void notifyPreviewChanged () {
-    array<url> views= buffer_to_views (previewUrl);
-    for (int i=0; i<N(views); i++) {
-      editor ed= view_to_editor (views[i]);
-      if (!is_nil (ed))
-        ed->notify_change (THE_TREE + THE_EXTENTS + THE_FREEZE);
-    }
-  }
-
-  void applyPreviewChanges () {
-    if (previewTexmacsWidget == nullptr) return;
-    edit_interface_rep* ed=
-      dynamic_cast<edit_interface_rep*> (previewTexmacsWidget->tm_widget ());
-    if (ed != nullptr) ed->apply_changes ();
-  }
-
-  void locateWidgets () {
-    previewTexmacsWidget= nullptr;
-    previewViewportWidget= nullptr;
-    previewSurfaceWidget= nullptr;
-    if (previewQtWidget == nullptr) return;
-
-    previewTexmacsWidget= qobject_cast<QTMWidget*> (previewQtWidget);
-    if (previewTexmacsWidget == nullptr)
-      previewTexmacsWidget= previewQtWidget->findChild<QTMWidget*> ();
-
-    if (previewTexmacsWidget != nullptr) {
-      previewTexmacsWidget->setContextMenuPolicy (Qt::NoContextMenu);
-      if (QAbstractScrollArea* area=
-            qobject_cast<QAbstractScrollArea*> (previewTexmacsWidget))
-        previewViewportWidget= area->viewport ();
-      previewSurfaceWidget= previewTexmacsWidget->surface ();
-    }
-  }
-
   void installPreviewEventFilter (QWidget* root) {
     if (root == nullptr) return;
     root->installEventFilter (this);
     root->setContextMenuPolicy (Qt::NoContextMenu);
+    root->setFocusPolicy (Qt::NoFocus);
     QList<QWidget*> children= root->findChildren<QWidget*> ();
     for (QWidget* child : children) {
       if (child == nullptr) continue;
       child->installEventFilter (this);
       child->setContextMenuPolicy (Qt::NoContextMenu);
+      child->setFocusPolicy (Qt::NoFocus);
     }
   }
 
@@ -786,65 +831,106 @@ private:
     return false;
   }
 
+  SI currentPreviewWidth () const {
+    if (previewParent == nullptr) return 0;
+    int w= previewParent->contentsRect ().width ();
+    if (w <= 0) w= previewParent->width ();
+    if (w <= 0) return 0;
+    return from_qsize (QSize (w, 1)).x1;
+  }
+
+  double currentPreviewZoom () const {
+    return get_retina_zoom () * get_server ()->get_window_zoom_factor ();
+  }
+
+  void recreatePreview () {
+    QWidget* parent= previewParent;
+    if (parent == nullptr || recreating) return;
+    recreating= true;
+
+    if (previewQtWidget != nullptr) {
+      if (previewQtWidget->parentWidget () != nullptr &&
+          previewQtWidget->parentWidget ()->layout () != nullptr)
+        previewQtWidget->parentWidget ()->layout ()->removeWidget (
+          previewQtWidget);
+      previewQtWidget->hide ();
+      previewQtWidget->deleteLater ();
+      previewQtWidget= nullptr;
+      previewTexmacsWidget= nullptr;
+    }
+    if (!is_nil (previewWidget)) {
+      try { send_destroy (previewWidget); }
+      catch (...) {}
+      previewWidget= widget ();
+    }
+
+    tree style= compound ("style", tuple ("generic"));
+    previewWidth= currentPreviewWidth ();
+    previewZoom= currentPreviewZoom ();
+    previewWidget= texmacs_output_widget (previewBody, style, previewWidth,
+                                          previewZoom);
+    QWidget* qwid= concrete (previewWidget)->as_qwidget (parent);
+    previewQtWidget= qwid;
+    previewTexmacsWidget= qobject_cast<QTMWidget*> (qwid);
+    if (previewTexmacsWidget == nullptr)
+      previewTexmacsWidget= qwid->findChild<QTMWidget*> ();
+
+    installPreviewEventFilter (qwid);
+    qwid->setSizePolicy (QSizePolicy::Expanding, QSizePolicy::Expanding);
+    if (parent->layout () != nullptr) parent->layout ()->addWidget (qwid);
+    qwid->show ();
+    recreating= false;
+    refreshLayout ();
+  }
+
   void refreshLayoutNow () {
     if (previewQtWidget == nullptr) return;
+    SI width= currentPreviewWidth ();
+    SI delta= width > previewWidth ? width - previewWidth :
+      previewWidth - width;
+    double zoom= currentPreviewZoom ();
+    double zoomDelta= zoom > previewZoom ? zoom - previewZoom :
+      previewZoom - zoom;
+    if ((width > 0 && (previewWidth <= 0 || delta > 8 * PIXEL)) ||
+        zoomDelta > 0.001) {
+      recreatePreview ();
+      return;
+    }
 
-    locateWidgets ();
     installPreviewEventFilter (previewQtWidget);
     previewQtWidget->show ();
     previewQtWidget->updateGeometry ();
     previewQtWidget->update ();
 
     QTMWidget* tmWidget= previewTexmacsWidget;
-    if (tmWidget == nullptr || tmWidget->surface () == nullptr ||
-        the_gui == nullptr)
-      return;
-
-    tmWidget->updateGeometry ();
-    tmWidget->show ();
-    tmWidget->update ();
-    if (tmWidget->viewport () != nullptr) {
-      tmWidget->viewport ()->show ();
-      if (tmWidget->viewport ()->size ().isEmpty () &&
-          !tmWidget->contentsRect ().size ().isEmpty ())
-        tmWidget->viewport ()->setGeometry (tmWidget->contentsRect ());
-      if (tmWidget->viewport ()->layout () != nullptr)
-        tmWidget->viewport ()->layout ()->activate ();
-    }
-    if (tmWidget->surface ()->size ().isEmpty ()) {
-      QSize fallback= tmWidget->viewport () == nullptr ? QSize () :
-        tmWidget->viewport ()->size ();
-      if (fallback.isEmpty ()) fallback= tmWidget->contentsRect ().size ();
-      if (fallback.isEmpty ()) fallback= tmWidget->size ();
-      if (!fallback.isEmpty ()) {
-        tmWidget->surface ()->setMinimumSize (fallback);
-        tmWidget->surface ()->resize (fallback);
+    if (tmWidget != nullptr) {
+      tmWidget->setFocusPolicy (Qt::NoFocus);
+      tmWidget->updateGeometry ();
+      tmWidget->show ();
+      tmWidget->update ();
+      if (tmWidget->viewport () != nullptr) {
+        tmWidget->viewport ()->setFocusPolicy (Qt::NoFocus);
+        tmWidget->viewport ()->show ();
+        if (tmWidget->viewport ()->layout () != nullptr)
+          tmWidget->viewport ()->layout ()->activate ();
+      }
+      if (tmWidget->surface () != nullptr) {
+        tmWidget->surface ()->setFocusPolicy (Qt::NoFocus);
+        tmWidget->surface ()->show ();
+        tmWidget->surface ()->updateGeometry ();
+        tmWidget->surface ()->update ();
       }
     }
-    tmWidget->surface ()->show ();
-    tmWidget->surface ()->updateGeometry ();
-    tmWidget->surface ()->update ();
 
-    the_gui->process_keyboard_focus (tmWidget->tm_widget (), true,
-                                     texmacs_time ());
-
-    coord2 size= from_qsize (tmWidget->surface ()->size ());
-    if (size.x1 > 0 && size.x2 > 0)
-      the_gui->process_resize (tmWidget->tm_widget (), size.x1, size.x2);
-    the_gui->process_queued_events (4);
-    applyPreviewChanges ();
-
-    // The wikilink wizard is launched by a synchronous Scheme command.  While
-    // its modal event loop is running, TeXmacs may still be inside
-    // qt_gui_rep::update(), where force_update() only marks a pending repaint.
-    // Repaint this embedded canvas synchronously so the preview is visible
-    // before the wizard closes.
-    qt_simple_widget_rep* simple= tmWidget->tm_widget ();
-    if (simple != nullptr) simple->reset_all ();
-    the_gui->force_update ();
-    applyPreviewChanges ();
+    // This is an output-only box widget, not a TeXmacs editor/view.  Do not
+    // send keyboard focus or resize events through the TeXmacs editor
+    // machinery; just force the backing store to repaint inside the modal
+    // wizard loop.
+    if (the_gui != nullptr) the_gui->force_update ();
     qt_simple_widget_rep::repaint_all ();
-    tmWidget->surface ()->repaint ();
+    if (tmWidget != nullptr && tmWidget->surface () != nullptr)
+      tmWidget->surface ()->repaint ();
+    else previewQtWidget->repaint ();
   }
 
   void refreshLayout () {
@@ -852,17 +938,15 @@ private:
     QTimer::singleShot (0, this, [this] () { refreshLayoutNow (); });
   }
 
-  static int nextPreviewId;
-
   widget     previewWidget;
-  url        previewUrl;
+  tree       previewBody;
+  QWidget*   previewParent;
   QWidget*   previewQtWidget;
-  QWidget*   previewViewportWidget;
-  QWidget*   previewSurfaceWidget;
   QTMWidget* previewTexmacsWidget;
+  SI         previewWidth;
+  double     previewZoom;
+  bool       recreating;
 };
-
-int WikilinkPreview::nextPreviewId= 1;
 
 class QTMVaultWikilinkWizard;
 
@@ -930,6 +1014,7 @@ public:
                    std::vector<WikilinkSearchResult>& hits) const;
   void addResult (const WikilinkSearchResult& result);
   void updatePreview (QListWidgetItem* current);
+  void updateDefaultDisplayText ();
   void acceptAnchorItem (QListWidgetItem* item);
 
   QLineEdit*   queryEdit;
@@ -941,11 +1026,14 @@ public:
   QProgressBar* progress;
   QListWidget* resultList;
   QListWidget* anchorList;
+  QLineEdit*   displayEdit;
+  QPushButton* insertButton;
   QLabel*      previewTitle;
   QWidget*     previewHost;
   WikilinkPreview preview;
   std::vector<WikilinkSearchResult> results;
   std::vector<WikilinkAnchorEntry> currentAnchors;
+  bool        displayTouched;
 };
 
 class QTMVaultWikilinkWizard : public QWizard {
@@ -1043,8 +1131,11 @@ WikilinkFilePage::updateList () {
   std::sort (matches.begin (), matches.end (),
              [&] (const std::pair<int,int>& a,
                   const std::pair<int,int>& b) {
+               const WikilinkFileEntry& fa= w->files[a.second];
+               const WikilinkFileEntry& fb= w->files[b.second];
+               if (fa.isCurrent != fb.isCurrent) return fa.isCurrent;
                if (a.first != b.first) return a.first < b.first;
-               return w->files[a.second].relPath < w->files[b.second].relPath;
+               return fa.relPath < fb.relPath;
              });
 
   const int limit= 200;
@@ -1320,7 +1411,7 @@ WikilinkAnchorPage::validatePage () {
 }
 
 WikilinkSearchPage::WikilinkSearchPage (QWidget* parent)
-  : QWizardPage (parent) {
+  : QWizardPage (parent), displayTouched (false) {
   setFinalPage (true);
   setTitle ("Locate by search");
   setSubTitle ("Search the vault, then click a usable { anchor from the preview.");
@@ -1352,6 +1443,8 @@ WikilinkSearchPage::WikilinkSearchPage (QWidget* parent)
   resultList->setAlternatingRowColors (true);
   anchorList= new QListWidget (this);
   anchorList->setAlternatingRowColors (true);
+  displayEdit= new QLineEdit (this);
+  insertButton= new QPushButton ("Insert selected anchor", this);
   previewTitle= new QLabel ("Select a search result to preview it.", this);
   previewHost= new QWidget (this);
   previewHost->setMinimumHeight (360);
@@ -1378,6 +1471,9 @@ WikilinkSearchPage::WikilinkSearchPage (QWidget* parent)
   leftLayout->addWidget (resultList, 1);
   leftLayout->addWidget (new QLabel ("Usable wikilink anchors in preview:", this));
   leftLayout->addWidget (anchorList, 1);
+  leftLayout->addWidget (new QLabel ("Display text:", this));
+  leftLayout->addWidget (displayEdit);
+  leftLayout->addWidget (insertButton);
 
   QWidget* right= new QWidget (this);
   QVBoxLayout* rightLayout= new QVBoxLayout (right);
@@ -1407,7 +1503,15 @@ WikilinkSearchPage::WikilinkSearchPage (QWidget* parent)
            this, [this] (QListWidgetItem* current, QListWidgetItem*) {
              updatePreview (current);
            });
-  connect (anchorList, &QListWidget::itemClicked,
+  connect (anchorList, &QListWidget::currentItemChanged,
+           this, [this] (QListWidgetItem*, QListWidgetItem*) {
+             updateDefaultDisplayText ();
+           });
+  connect (displayEdit, &QLineEdit::textEdited,
+           this, [this] (const QString&) { displayTouched= true; });
+  connect (insertButton, &QPushButton::clicked,
+           this, [this] () { acceptAnchorItem (anchorList->currentItem ()); });
+  connect (anchorList, &QListWidget::itemDoubleClicked,
            this, [this] (QListWidgetItem* item) { acceptAnchorItem (item); });
   connect (anchorList, &QListWidget::itemActivated,
            this, [this] (QListWidgetItem* item) { acceptAnchorItem (item); });
@@ -1524,6 +1628,8 @@ WikilinkSearchPage::startSearch () {
   currentAnchors.clear ();
   resultList->clear ();
   anchorList->clear ();
+  displayTouched= false;
+  displayEdit->clear ();
   previewTitle->setText ("Select a search result to preview it.");
   preview.ensureCreated (previewHost);
   preview.setBody (tree (DOCUMENT, ""));
@@ -1627,6 +1733,8 @@ void
 WikilinkSearchPage::updatePreview (QListWidgetItem* current) {
   currentAnchors.clear ();
   anchorList->clear ();
+  displayTouched= false;
+  displayEdit->clear ();
   if (current == nullptr) {
     previewTitle->setText ("Select a search result to preview it.");
     preview.ensureCreated (previewHost);
@@ -1676,6 +1784,26 @@ WikilinkSearchPage::updatePreview (QListWidgetItem* current) {
     item->setData (WikilinkIndexRole, i);
     anchorList->addItem (item);
   }
+  if (anchorList->count () > 0) anchorList->setCurrentRow (0);
+  updateDefaultDisplayText ();
+}
+
+void
+WikilinkSearchPage::updateDefaultDisplayText () {
+  if (displayTouched) return;
+  QListWidgetItem* item= anchorList->currentItem ();
+  if (item == nullptr || !(item->flags () & Qt::ItemIsEnabled)) {
+    displayEdit->clear ();
+    return;
+  }
+  int anchorIndex= item->data (WikilinkIndexRole).toInt ();
+  if (anchorIndex < 0 || anchorIndex >= (int) currentAnchors.size ()) {
+    displayEdit->clear ();
+    return;
+  }
+  QString text= clean_anchor_display (currentAnchors[anchorIndex].anchor);
+  if (text.isEmpty ()) text= currentAnchors[anchorIndex].anchor;
+  displayEdit->setText (text);
 }
 
 void
@@ -1691,7 +1819,8 @@ WikilinkSearchPage::acceptAnchorItem (QListWidgetItem* item) {
 
   const WikilinkSearchResult& result= results[resultIndex];
   QString anchor= currentAnchors[anchorIndex].anchor;
-  QString text= clean_anchor_display (anchor);
+  QString text= displayEdit->text ().trimmed ();
+  if (text.isEmpty ()) text= clean_anchor_display (anchor);
   if (text.isEmpty ()) text= anchor;
 
   QTMVaultWikilinkWizard* w=
@@ -1735,23 +1864,27 @@ void
 QTMVaultWikilinkWizard::loadFiles () {
   files.clear ();
   url root= vault_get_root ();
+  QString currentRelPath= current_vault_relative_document ();
   array<url> all= vault_get_all_files ();
   for (int i=0; i<N(all); i++) {
     string suf= suffix (all[i]);
     if (suf != "ath" && suf != "tm") continue;
     url rel= delta (root * url (""), all[i]);
     QString relPath= to_qstring (as_unix_string (rel));
+    if (is_autosave_document_path (relPath)) continue;
     WikilinkFileEntry e;
     e.file= all[i];
     e.relPath= relPath;
     e.stem= file_display_stem (relPath);
     e.searchText= strip_known_extension (relPath).toLower ();
     e.mtime= vault_get_mtime (all[i]);
+    e.isCurrent= relPath == currentRelPath;
     files.push_back (e);
   }
   std::sort (files.begin (), files.end (),
              [] (const WikilinkFileEntry& a,
                  const WikilinkFileEntry& b) {
+               if (a.isCurrent != b.isCurrent) return a.isCurrent;
                if (a.mtime != b.mtime) return a.mtime > b.mtime;
                return a.relPath < b.relPath;
              });
@@ -2059,8 +2192,11 @@ TransclusionFilePage::updateList () {
   std::sort (matches.begin (), matches.end (),
              [&] (const std::pair<int,int>& a,
                   const std::pair<int,int>& b) {
+               const WikilinkFileEntry& fa= w->files[a.second];
+               const WikilinkFileEntry& fb= w->files[b.second];
+               if (fa.isCurrent != fb.isCurrent) return fa.isCurrent;
                if (a.first != b.first) return a.first < b.first;
-               return w->files[a.second].relPath < w->files[b.second].relPath;
+               return fa.relPath < fb.relPath;
              });
 
   const int limit= 200;
@@ -2345,14 +2481,6 @@ TransclusionUpperPage::TransclusionUpperPage (QWidget* parent)
   : QWizardPage (parent) {
   setTitle ("Choose upper bound");
   setSubTitle ("Choose the first anchor in the transcluded range.");
-
-  // FIXME: arbitrary-anchor transclusion previews currently trigger a
-  // nonfatal TeXmacs segfault popup when the modal wizard is closed.  The
-  // preview renders correctly and the transclusion is inserted correctly; the
-  // popup does not crash ATHENA and can be dismissed.  Attempts to explicitly
-  // destroy or park the embedded texmacs_input_widget either crashed earlier or
-  // broke insertion, so we keep the preview-enabled behavior until this widget
-  // teardown path is fixed properly.
 
   searchEdit= new QLineEdit (this);
   searchEdit->setPlaceholderText ("Filter anchors");
@@ -3100,23 +3228,27 @@ void
 QTMVaultTransclusionWizard::loadFiles () {
   files.clear ();
   url root= vault_get_root ();
+  QString currentRelPath= current_vault_relative_document ();
   array<url> all= vault_get_all_files ();
   for (int i=0; i<N(all); i++) {
     string suf= suffix (all[i]);
     if (suf != "ath" && suf != "tm") continue;
     url rel= delta (root * url (""), all[i]);
     QString relPath= to_qstring (as_unix_string (rel));
+    if (is_autosave_document_path (relPath)) continue;
     WikilinkFileEntry e;
     e.file= all[i];
     e.relPath= relPath;
     e.stem= file_display_stem (relPath);
     e.searchText= strip_known_extension (relPath).toLower ();
     e.mtime= vault_get_mtime (all[i]);
+    e.isCurrent= relPath == currentRelPath;
     files.push_back (e);
   }
   std::sort (files.begin (), files.end (),
              [] (const WikilinkFileEntry& a,
                  const WikilinkFileEntry& b) {
+               if (a.isCurrent != b.isCurrent) return a.isCurrent;
                if (a.mtime != b.mtime) return a.mtime > b.mtime;
                return a.relPath < b.relPath;
              });
@@ -3179,13 +3311,24 @@ QTMVaultTransclusionWizard::getResult () const {
 tree
 vault_choose_link (bool transcludeMode) {
   if (!vault_active ()) return UNINIT;
+  TeXmacsFocusSnapshot focusSnapshot= capture_texmacs_focus_snapshot ();
+  tree result= UNINIT;
+
   if (!transcludeMode) {
-    QTMVaultWikilinkWizard wizard (QApplication::activeWindow ());
-    if (wizard.exec () == QDialog::Accepted) return wizard.getResult ();
-    return UNINIT;
+    {
+      QTMVaultWikilinkWizard wizard (QApplication::activeWindow ());
+      if (wizard.exec () == QDialog::Accepted) result= wizard.getResult ();
+    }
+    restore_texmacs_focus_snapshot (focusSnapshot, true);
+    restore_texmacs_focus_snapshot_later (focusSnapshot);
+    return result;
   }
 
-  QTMVaultTransclusionWizard wizard (QApplication::activeWindow ());
-  if (wizard.exec () == QDialog::Accepted) return wizard.getResult ();
-  return UNINIT;
+  {
+    QTMVaultTransclusionWizard wizard (QApplication::activeWindow ());
+    if (wizard.exec () == QDialog::Accepted) result= wizard.getResult ();
+  }
+  restore_texmacs_focus_snapshot (focusSnapshot, true);
+  restore_texmacs_focus_snapshot_later (focusSnapshot);
+  return result;
 }

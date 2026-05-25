@@ -279,8 +279,9 @@ is_transparent (tree init) {
   return true;
 }
 
-widget
-texmacs_output_widget (tree doc, tree style) {
+static widget
+texmacs_output_widget_with_width (tree doc, tree style, SI screen_width,
+                                  double widget_zoom) {
   doc= enrich_embedded_document (doc, style);
   drd_info drd ("none", std_drd);
   hashmap<string,tree> h1 (UNINIT), h2 (UNINIT);
@@ -302,6 +303,16 @@ texmacs_output_widget (tree doc, tree style) {
   format vf= make_query_vstream_width (array<line_item>(), array<line_item>());
   format rf= lz->query (LAZY_BOX, vf);
   SI w= ((format_vstream) rf)->width;
+#if QT_VERSION >= 0x060000
+  double zoom= 1.0;
+#else
+  double zoom= (retina_zoom == 2? 1.0: 1.2);
+#endif
+  if (widget_zoom > 0.0) zoom= widget_zoom;
+  if (screen_width > 0) {
+    double magf= zoom / std_shrinkf;
+    w= max ((SI) (screen_width / magf) - 4 * PIXEL, (SI) PIXEL);
+  }
   box b= (box) lz->produce (LAZY_BOX, make_format_width (w));
   //cout << (b->w()>>8) << ", " << (b->h()>>8) << "\n";
   //SI dw1= env->get_length (PAGE_SCREEN_LEFT);
@@ -316,12 +327,22 @@ texmacs_output_widget (tree doc, tree style) {
 #else
     col= light_grey;
 #endif
-#if QT_VERSION >= 0x060000
-  double zoom= 1.0;
-#else
-  double zoom= (retina_zoom == 2? 1.0: 1.2);
-#endif
   return widget (tm_new<box_widget_rep> (b, col, false, zoom, 0, 0));
+}
+
+widget
+texmacs_output_widget (tree doc, tree style) {
+  return texmacs_output_widget_with_width (doc, style, 0, 0.0);
+}
+
+widget
+texmacs_output_widget (tree doc, tree style, SI width) {
+  return texmacs_output_widget_with_width (doc, style, width, 0.0);
+}
+
+widget
+texmacs_output_widget (tree doc, tree style, SI width, double zoom) {
+  return texmacs_output_widget_with_width (doc, style, width, zoom);
 }
 
 array<SI>
