@@ -1,11 +1,17 @@
 # ATHENA
 
+<p align="center">
+  <img src="misc/images/icon_fullsize.png" alt="ATHENA icon" width="160">
+</p>
+
 **Advanced Typesetting and Hypertext Environment for Notes and Archives**
 
 ATHENA is a mathematics-centered knowledge work environment built from GNU
 TeXmacs. It combines high-quality structured WYSIWYG typesetting with vaults,
 wikilinks, transclusions, namespaces, fast search, and import tooling for
 large Obsidian-style mathematical note collections.
+
+![ATHENA screenshot](../screenshot.png)
 
 ## Warning: ATHENA Is Not For Everyone
 
