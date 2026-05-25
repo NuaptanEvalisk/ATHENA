@@ -15,6 +15,8 @@
 
 color gui_cursor_color = rgb_color(255, 0, 0);
 color gui_selection_color = rgb_color(255, 0, 0);
+color gui_focus_color = rgb_color(0, 255, 255);
+int gui_focus_border_width = 1;
 
 #include "tm_colors.hpp"
 #include "x11_colors.hpp"

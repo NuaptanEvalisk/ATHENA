@@ -773,6 +773,8 @@
   (gui-hide-splash gui_hide_splash (void))
   (gui-set-cursor-color gui_set_cursor_color (void string))
   (gui-set-selection-color gui_set_selection_color (void string))
+  (gui-set-focus-color gui_set_focus_color (void string))
+  (gui-set-focus-border-width gui_set_focus_border_width (void string))
 
   ;; buffers
   (buffer-list get_all_buffers (array_url))

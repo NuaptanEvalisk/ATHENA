@@ -532,8 +532,14 @@ correct_adjacent (rectangles& rs1, rectangles& rs2) {
   rs2->item->y2= mid;
 }
 
+static SI
+focus_outline_width (SI pixel) {
+  return max ((SI) gui_focus_border_width, (SI) 1) * pixel;
+}
+
 void
-edit_interface_rep::compute_env_rects (path p, rectangles& rs, bool recurse) {
+edit_interface_rep::compute_env_rects (path p, rectangles& rs, bool recurse,
+                                       SI outline_width) {
   if (p == rp) return;
   tree pt= subtree (et, path_up (p));
   tree st= subtree (et, p);
@@ -561,7 +567,7 @@ edit_interface_rep::compute_env_rects (path p, rectangles& rs, bool recurse) {
         }
     }
     rs << simplify (rl);
-    if (recurse) compute_env_rects (path_up (p), rs, recurse);
+    if (recurse) compute_env_rects (path_up (p), rs, recurse, outline_width);
   }
   else if (is_atomic (st) ||
            drd->is_child_enforcing (st) ||
@@ -578,7 +584,7 @@ edit_interface_rep::compute_env_rects (path p, rectangles& rs, bool recurse) {
            is_compound (st, "shared", 3) ||
            (is_compound (st, "math", 1) &&
             is_compound (subtree (et, path_up (p)), "input")))
-    compute_env_rects (path_up (p), rs, recurse);
+    compute_env_rects (path_up (p), rs, recurse, outline_width);
   else {
     int new_mode= DRD_ACCESS_NORMAL;
     if (get_init_string (MODE) == "src") new_mode= DRD_ACCESS_SOURCE;
@@ -599,11 +605,11 @@ edit_interface_rep::compute_env_rects (path p, rectangles& rs, bool recurse) {
       selection sel= eb->find_check_selection (q1, q2);
       if (N(focus_get ()) >= N(p))
         if (!recurse || get_preference ("show full context") == "on")
-          rs << outlines (sel->rs, pixel);
+          rs << outlines (sel->rs, outline_width);
     }
     set_access_mode (old_mode);
     if (recurse || N(rs) == 0)
-      compute_env_rects (path_up (p), rs, recurse);
+      compute_env_rects (path_up (p), rs, recurse, outline_width);
   }
 }
 
@@ -941,9 +947,9 @@ edit_interface_rep::apply_changes () {
     if (none_accessible (pt));
     else pp= path_up (pp);
     if (full_context || table_cells)
-      compute_env_rects (pp, env_rects, true);
+      compute_env_rects (pp, env_rects, true, pixel);
     if (show_focus && (!semantic_flag || !semantic_only))
-      compute_env_rects (pp, foc_rects, false);
+      compute_env_rects (pp, foc_rects, false, focus_outline_width (pixel));
     if (env_rects != old_env_rects) {
       invalidate (old_env_rects);
       invalidate (env_rects);

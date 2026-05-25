@@ -103,5 +103,7 @@ inline color xc_color    (string s) {return xc_ch   [locase_all (s)];};
 /* Globally configurable UI colors */
 extern color gui_cursor_color;
 extern color gui_selection_color;
+extern color gui_focus_color;
+extern int gui_focus_border_width;
 
 #endif // defined COLORS_H

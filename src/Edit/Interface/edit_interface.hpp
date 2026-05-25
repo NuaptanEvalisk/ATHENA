@@ -148,7 +148,8 @@ public:
   void animate ();
 
   /* miscellaneous */
-  void compute_env_rects (path p, rectangles& rs, bool recurse);
+  void compute_env_rects (path p, rectangles& rs, bool recurse,
+                          SI outline_width);
   void cursor_visible ();
   void selection_visible ();
   void full_screen_mode (bool flag);

@@ -17,6 +17,11 @@ extern int nr_painted;
 extern void clear_pattern_rectangles (renderer ren, rectangle m, rectangles l);
 extern bool animated_flag;
 
+static SI
+focus_border_width (renderer ren) {
+  return max ((SI) gui_focus_border_width, (SI) 1) * ren->pixel;
+}
+
 /******************************************************************************
 * repainting the window
 ******************************************************************************/
@@ -64,8 +69,8 @@ edit_interface_rep::draw_env (renderer ren) {
       ren->draw_rectangles (env_rects);
     }
     if (!is_nil (foc_rects)) {
-      color col= get_env_color (FOCUS_COLOR);
-      ren->set_pencil (pencil (col, ren->pixel));
+      color col= gui_focus_color;
+      ren->set_pencil (pencil (col, focus_border_width (ren)));
       ren->draw_rectangles (foc_rects);
     }
     if (!is_nil (sem_rects)) {
@@ -153,8 +158,8 @@ edit_interface_rep::draw_image_resize_handles (renderer ren, rectangle r) {
   else if (!selected_image_path (p) || !image_bounds (p, img_r)) return;
 
   rectangles visible (thicken (r, 2 * ren->pixel, 2 * ren->pixel));
-  color col= get_env_color (FOCUS_COLOR);
-  ren->set_pencil (pencil (col, ren->pixel));
+  color col= gui_focus_color;
+  ren->set_pencil (pencil (col, focus_border_width (ren)));
   ren->draw_rectangles (image_resize_handles (img_r) & visible);
 }
 

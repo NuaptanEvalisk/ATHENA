@@ -709,6 +709,8 @@
 "gui-hide-splash"
 "gui-set-cursor-color"
 "gui-set-selection-color"
+"gui-set-focus-color"
+"gui-set-focus-border-width"
 "buffer-list"
 "current-buffer-url"
 "path-to-buffer"

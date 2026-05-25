@@ -503,6 +503,9 @@ notify_preferences_booted () {
   preferences_ok= true;
   gui_cursor_color = named_color (get_preference ("gui cursor color", "red"));
   gui_selection_color = named_color (get_preference ("gui selection color", "red"));
+  gui_focus_color = named_color (get_preference ("gui focus color", "#0ff"));
+  gui_focus_border_width =
+    max (as_int (get_preference ("gui focus border width", "1")), 1);
 }
 
 void
