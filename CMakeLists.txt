@@ -86,6 +86,33 @@ set (LINKED_SQLITE3 ON CACHE BOOL "Use Linked SQLite3" FORCE)
 
 find_package (Python3 REQUIRED COMPONENTS Interpreter)
 find_program (UV_EXECUTABLE uv REQUIRED)
+if (NOT APPLE AND NOT WIN32)
+  find_program (PATCHELF_EXECUTABLE patchelf REQUIRED)
+endif ()
+
+set (ATHENA_DATA_ART_TOOL_DIR
+  "${CMAKE_SOURCE_DIR}/ATHENA/tools/data-art")
+set (ATHENA_DATA_ART_VENV_STAMP
+  "${ATHENA_DATA_ART_TOOL_DIR}/.venv/.athena-uv-sync-stamp")
+set (ATHENA_UV_CACHE_DIR
+  "${CMAKE_BINARY_DIR}/athena-uv-cache")
+add_custom_command (
+  OUTPUT ${ATHENA_DATA_ART_VENV_STAMP}
+  COMMAND ${CMAKE_COMMAND} -E make_directory ${ATHENA_UV_CACHE_DIR}
+  COMMAND ${CMAKE_COMMAND} -E env
+          "UV_CACHE_DIR=${ATHENA_UV_CACHE_DIR}"
+          "UV_PROJECT_ENVIRONMENT=${ATHENA_DATA_ART_TOOL_DIR}/.venv"
+          ${UV_EXECUTABLE} sync --locked --no-dev
+          --project ${ATHENA_DATA_ART_TOOL_DIR}
+  COMMAND ${CMAKE_COMMAND} -E touch ${ATHENA_DATA_ART_VENV_STAMP}
+  DEPENDS
+          ${ATHENA_DATA_ART_TOOL_DIR}/pyproject.toml
+          ${ATHENA_DATA_ART_TOOL_DIR}/uv.lock
+  WORKING_DIRECTORY ${ATHENA_DATA_ART_TOOL_DIR}
+  COMMENT "Synchronizing ATHENA DataArt Python environment"
+  VERBATIM)
+add_custom_target (athena-data-art-python ALL
+  DEPENDS ${ATHENA_DATA_ART_VENV_STAMP})
 
 set (USE_FREETYPE ON CACHE BOOL "use Freetype" FORCE)
 find_package (Freetype REQUIRED)
@@ -766,6 +793,12 @@ if (ATHENA_GUI MATCHES "Qt.*")
   set(BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
   FetchContent_MakeAvailable(ads)
   set(ADS_LIBRARIES "qt${QT_VERSION_MAJOR}advanceddocking")
+  if (NOT APPLE AND NOT WIN32)
+    set_target_properties (${ADS_LIBRARIES} PROPERTIES
+      SKIP_BUILD_RPATH TRUE
+      BUILD_RPATH ""
+      INSTALL_RPATH "")
+  endif ()
 elseif (ATHENA_GUI STREQUAL "Aqua")
   find_library (COCOA_LIBRARY Cocoa)
   find_path (COCOA_INCLUDE_DIR Cocoa/Cocoa.h)

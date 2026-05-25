@@ -2,30 +2,31 @@
 Building ATHENA
 -------------------------------------------------------------------------------
 
-ATHENA is built with CMake. The old GNU autotools build files are not maintained
+ATHENA is built with CMake. The inherited GNU autotools files are not maintained
 for ATHENA.
 
-The supported and tested development path is Linux. The build system still
-contains inherited Windows and macOS branches, but the ATHENA build process has
-not been tested on Windows or macOS.
+The supported and tested development path is Linux. The tree still contains
+inherited Windows and macOS branches, but the ATHENA build process has not been
+tested on Windows or macOS.
 
 -------------------------------------------------------------------------------
 Dependencies
 -------------------------------------------------------------------------------
 
-ATHENA intentionally requires a modern desktop development environment. The
+ATHENA intentionally assumes a modern desktop development environment. The
 CMake configuration currently requires, among others:
 
-  CMake, a C/C++ compiler, pkg-config, Qt 5, Guile, mimalloc, SQLite3, Python 3,
-  uv, FreeType, PNG, JPEG, zlib, zstd, ImageMagick/MagickWand, Iconv, GnuTLS,
-  GMP, Ghostscript, resvg with ResvgQt.h, and libtcc.
+  CMake, a C/C++ compiler, pkg-config, Qt 5, Guile 1.8, mimalloc, SQLite3,
+  Python 3, uv, FreeType, PNG, JPEG, zlib, zstd, ImageMagick/MagickWand,
+  Iconv, GnuTLS, GMP, Ghostscript, resvg with ResvgQt.h, libtcc, and patchelf.
 
-On openSUSE, this is a useful zypper baseline:
+On openSUSE, this is a useful zypper baseline for the ordinary system
+dependencies:
 
   sudo zypper install \
-    git cmake ninja pkgconf-pkg-config \
+    git cmake ninja pkgconf-pkg-config patchelf \
     libqt5-qtbase-devel libqt5-qtsvg-devel \
-    guile-devel mimalloc-devel sqlite3-devel \
+    mimalloc-devel sqlite3-devel \
     python3 python313-uv \
     freetype2-devel libpng16-devel libjpeg8-devel zlib-devel \
     libzstd-devel ImageMagick-devel \
@@ -35,6 +36,46 @@ Package names vary by distribution and repository. If CMake reports that
 ResvgQt.h or libtcc is missing, install the corresponding development package
 from your distribution or a local package/source build. ATHENA uses libtcc for
 namespace sorter support.
+
+-------------------------------------------------------------------------------
+Guile 1.8
+-------------------------------------------------------------------------------
+
+ATHENA currently needs Guile 1.8. Do not rely on a modern distribution's default
+Guile development package unless it actually provides Guile 1.8 pkg-config
+metadata.
+
+The Guile 1.8 package used for the verified build is:
+
+  https://build.opensuse.org/package/show/home:jmnotin:TeXmacs/Guile18
+
+Build and install Guile 1.8 separately before configuring ATHENA. If the package
+is installed system-wide and pkg-config can already find guile-1.8, no extra
+environment variable is needed. If you install it under a private prefix, for
+example $HOME/opt/guile18, export its pkg-config path before running CMake:
+
+  export PKG_CONFIG_PATH="$HOME/opt/guile18/lib64/pkgconfig:$PKG_CONFIG_PATH"
+
+Verify that pkg-config sees the correct version:
+
+  pkg-config --modversion guile-1.8
+
+The verified build used Guile 1.8.8.
+
+-------------------------------------------------------------------------------
+DataArt Python environment
+-------------------------------------------------------------------------------
+
+ATHENA's DataArt PDF cover generator is a uv-managed Python project in
+ATHENA/tools/data-art. CMake synchronizes its locked Python environment during
+the build by running:
+
+  uv sync --locked --no-dev --project ATHENA/tools/data-art
+
+The generated ATHENA/tools/data-art/.venv directory is build/runtime state. Do
+not commit it to source control. For a binary archive, either include a deliberate
+offline runtime bundle or require the packager to run the CMake build once so uv
+can synchronize the environment.
 
 -------------------------------------------------------------------------------
 Recommended compiler: Intel oneAPI ICPX
@@ -58,9 +99,7 @@ Before configuring ATHENA, load the oneAPI environment:
   which icpx
 
 If the build directory was previously configured with another compiler, remove
-it before switching compilers:
-
-  rm -rf build
+it before switching compilers.
 
 -------------------------------------------------------------------------------
 Configure and build
@@ -69,30 +108,83 @@ Configure and build
 From the repository root:
 
   source /opt/intel/oneapi/setvars.sh
-  CC=icx CXX=icpx cmake -S . -B build -G Ninja \
+  export PKG_CONFIG_PATH="$HOME/opt/guile18/lib64/pkgconfig:$PKG_CONFIG_PATH"
+
+  CC=icx CXX=icpx cmake -S . -B build_rel -G Ninja \
     -DCMAKE_BUILD_TYPE=RelWithDebInfo
-  CCACHE_DISABLE=1 cmake --build build -j "$(nproc)"
+
+  CCACHE_DISABLE=1 cmake --build build_rel -j "$(nproc)"
 
 Using all available processor cores is recommended; `nproc` is the preferred
 way to pick the parallelism level.
 
 If you are not using Ninja, omit `-G Ninja` and use your chosen CMake generator.
 
+CMake patches the built executable with:
+
+  RUNPATH=$ORIGIN/../lib
+
+This lets a copied ATHENA/bin/ATHENA.bin resolve bundled libraries from
+ATHENA/lib without manually running patchelf.
+
 -------------------------------------------------------------------------------
-Run the build
+Run from the source runtime tree
 -------------------------------------------------------------------------------
 
-For ATHENA development, do not run the executable directly from `build/src`.
-Copy it into the runtime tree first:
+For ATHENA development, do not run the executable directly from build_rel/src.
+Copy the build output into the ATHENA runtime tree first:
 
-  cp -f build/src/ATHENA.bin ATHENA/bin/ATHENA.bin
+  cp -f build_rel/src/ATHENA.bin ATHENA/bin/ATHENA.bin
+  mkdir -p ATHENA/lib
+  cp -f build_rel/x64/lib/libqt5advanceddocking.so.4.3.1 \
+    ATHENA/lib/libqt5advanceddocking.so.4.3.1
+  ln -sf libqt5advanceddocking.so.4.3.1 \
+    ATHENA/lib/libqt5advanceddocking.so
+  ln -sf libqt5advanceddocking.so.4.3.1 \
+    ATHENA/lib/libqt5advanceddocking.so.4
 
 Then run:
 
-  ./ATHENA/bin/ATHENA.bin
+  ./ATHENA/StartATHENA.sh
 
 This matters because ATHENA expects its Scheme code, packages, tools, assets,
 and runtime paths to be arranged under the ATHENA tree.
+
+-------------------------------------------------------------------------------
+Assemble a binary release tree
+-------------------------------------------------------------------------------
+
+To prepare the runtime directory that will later be packaged:
+
+  rm -rf release/ATHENA
+  mkdir -p release
+  rsync -a ATHENA/ release/ATHENA/
+
+  install -m 755 build_rel/src/ATHENA.bin release/ATHENA/bin/ATHENA.bin
+  mkdir -p release/ATHENA/lib
+  rm -f release/ATHENA/lib/libqt5advanceddockingd.so*
+  install -m 755 build_rel/x64/lib/libqt5advanceddocking.so.4.3.1 \
+    release/ATHENA/lib/libqt5advanceddocking.so.4.3.1
+  ln -sf libqt5advanceddocking.so.4.3.1 \
+    release/ATHENA/lib/libqt5advanceddocking.so
+  ln -sf libqt5advanceddocking.so.4.3.1 \
+    release/ATHENA/lib/libqt5advanceddocking.so.4
+
+Useful checks:
+
+  readelf -d release/ATHENA/bin/ATHENA.bin | \
+    grep -E 'RUNPATH|RPATH|qt5advanced'
+  readelf -d release/ATHENA/lib/libqt5advanceddocking.so.4.3.1 | \
+    grep -E 'RUNPATH|RPATH|SONAME'
+  ldd release/ATHENA/bin/ATHENA.bin | grep qt5advanceddocking
+
+The ADS library should resolve from release/ATHENA/lib. The executable should
+have RUNPATH $ORIGIN/../lib. The ADS library itself should not carry an
+absolute build rpath.
+
+Run the release tree with:
+
+  ./release/ATHENA/StartATHENA.sh
 
 -------------------------------------------------------------------------------
 Install
@@ -100,26 +192,35 @@ Install
 
 For a system install, use the usual CMake install workflow:
 
-  cmake --install build
+  cmake --install build_rel
 
 Set a custom prefix at configure time if needed:
 
-  CC=icx CXX=icpx cmake -S . -B build -G Ninja \
+  source /opt/intel/oneapi/setvars.sh
+  export PKG_CONFIG_PATH="$HOME/opt/guile18/lib64/pkgconfig:$PKG_CONFIG_PATH"
+  CC=icx CXX=icpx cmake -S . -B build_rel -G Ninja \
     -DCMAKE_BUILD_TYPE=RelWithDebInfo \
     -DCMAKE_INSTALL_PREFIX=/opt/athena
+
+The primary tested workflow is the ATHENA runtime tree described above; use
+CMake install only if you intentionally want a system-style installation.
 
 -------------------------------------------------------------------------------
 Troubleshooting
 -------------------------------------------------------------------------------
 
-If CMake cannot find a dependency, install the corresponding development
-package and rerun the configure step. If generated files or Scheme cache entries
-interfere with a local development build, remove the build directory and ATHENA
-cache, then configure again:
+If CMake cannot find a dependency, install the corresponding development package
+and rerun the configure step. If CMake cannot find Guile 1.8 specifically, check
+PKG_CONFIG_PATH and verify:
 
-  rm -rf build
+  pkg-config --modversion guile-1.8
+
+If generated files or Scheme cache entries interfere with a local development
+build, remove the build directory and ATHENA cache, then configure again:
+
+  rm -rf build_rel
   rm -rf ~/.ATHENA/system/cache
   source /opt/intel/oneapi/setvars.sh
-  CC=icx CXX=icpx cmake -S . -B build -G Ninja \
+  export PKG_CONFIG_PATH="$HOME/opt/guile18/lib64/pkgconfig:$PKG_CONFIG_PATH"
+  CC=icx CXX=icpx cmake -S . -B build_rel -G Ninja \
     -DCMAKE_BUILD_TYPE=RelWithDebInfo
-

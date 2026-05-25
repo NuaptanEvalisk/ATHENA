@@ -32,6 +32,15 @@ target_link_libraries (${ATHENA_binary_name}
   ${ATHENA_Libraries}
 )
 
+if (NOT APPLE AND NOT WIN32)
+  add_custom_command (TARGET ${ATHENA_binary_name} POST_BUILD
+    COMMAND ${PATCHELF_EXECUTABLE}
+            --set-rpath "$ORIGIN/../lib"
+            $<TARGET_FILE:${ATHENA_binary_name}>
+    COMMENT "Setting relocatable runtime library path for ATHENA"
+    VERBATIM)
+endif ()
+
 if (APPLE)
   set(MACOSX_BUNDLE_DISPLAY_NAME ATHENA)
   set_target_properties (${ATHENA_binary_name}
