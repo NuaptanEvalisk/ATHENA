@@ -55,6 +55,8 @@ esc_symbol_entries () {
     { "kk",    "bbb-k",       "𝕜",     "<bbb-k>",      "blackboard k" },
     { "dx",    "tree:dx",     "d/dx",  "d/dx",         "derivative with respect to x" },
     { "dt",    "tree:dt",     "d/dt",  "d/dt",         "derivative with respect to t" },
+    { "<",     "tree:angle-brackets",  "< >", "\\langle\\rangle", "angle brackets" },
+    { "|",     "tree:norm-brackets",   "|| ||", "\\|\\|", "double vertical bar brackets" },
     { "dag",   "dagger",      "†",     "<dag>",        "dagger" },
     { "oc",    "#2103",       "℃",     "<#2103>",      "Celsius" },
     { "-1",    "tree:inv",    "^-1",   "^{-1}",        "inverse superscript" },
