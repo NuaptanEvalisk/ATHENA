@@ -69,6 +69,7 @@
   ("zoom factor" "1" notify-zoom-factor)
   ("snap to pages" "off" noop)
   ("persistent fit width" "off" noop)
+  ("typewriter mode" "off" noop)
   ("ir-up" "home" notify-remote-control)
   ("ir-down" "end" notify-remote-control)
   ("ir-left" "pageup" notify-remote-control)
@@ -308,6 +309,9 @@
 (define (persistent-fit-width?)
   (get-boolean-preference "persistent fit width"))
 
+(define (typewriter-mode?)
+  (get-boolean-preference "typewriter mode"))
+
 (define persistent-fit-width-count 0)
 
 (define (fit-to-screen-width-preserve-scroll)
@@ -345,6 +349,11 @@
   (when (persistent-fit-width?)
     (fit-persistent-to-screen-width)
     (schedule-persistent-fit-width)))
+
+(tm-define (toggle-typewriter-mode)
+  (:synopsis "Keep the editing line near the vertical center in scroll view")
+  (:check-mark "v" typewriter-mode?)
+  (toggle-preference "typewriter mode"))
 
 (tm-define (window-resize-notifier name)
   (schedule-persistent-fit-width))

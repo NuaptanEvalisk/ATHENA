@@ -118,6 +118,7 @@
   ---
   ("Fit to screen" (fit-to-screen))  ("Fit to screen width" (fit-to-screen-width))
   ("Persistent fit width" (toggle-persistent-fit-width))
+  ("Typewriter mode" (toggle-typewriter-mode))
   (-> "Labels"
       ("Visible" (set-preference "vault labels mode" "visible"))
       ("Small" (set-preference "vault labels mode" "small"))

@@ -358,6 +358,25 @@ edit_interface_rep::cursor_visible () {
       (cu->oy+ cu->y1 <  vy1) ||
       (cu->oy+ cu->y2 >= vy2);
 
+    string medium= as_string (get_init_value (PAGE_MEDIUM));
+    bool typewriter=
+      get_user_preference ("typewriter mode", "off") == "on" &&
+      (medium == "papyrus" || medium == "automatic");
+    if (typewriter && (vx2 - vx1 > 80*pixel) && (vy2 - vy1 > 80*pixel)) {
+      SI cy= cu->oy + ((cu->y1 + cu->y2) >> 1);
+      SI vc= (vy1 + vy2) >> 1;
+      SI slack= max (40 * pixel, (vy2 - vy1) / 20);
+      SI cx1= cu->ox + ((SI) (cu->y1 * cu->slope));
+      SI cx2= cu->ox + ((SI) (cu->y2 * cu->slope));
+      bool vertical  = absval (cy - vc) > slack;
+      bool horizontal= cx1 < vx1 || cx2 >= vx2;
+      if (vertical || horizontal) {
+        scroll_to (horizontal ? cu->ox : ((vx1 + vx2) >> 1), cy);
+        send_invalidate_all (this);
+        return;
+      }
+    }
+
     if (get_user_preference ("snap to pages", "off") == "on") {
       box pages= eb[0];
       if (N(pages) > 1) {
@@ -892,6 +911,9 @@ edit_interface_rep::apply_changes () {
 #endif
       }
     }
+    if (get_user_preference ("typewriter mode", "off") == "on" &&
+        (medium == "papyrus" || medium == "automatic") && h > 0)
+      ey1 -= h >> 1;
     SERVER (set_extents (ex1, ey1, ex2, ey2));
     //set_extents (eb->x1, eb->y1, eb->x2, eb->y2);
   }
