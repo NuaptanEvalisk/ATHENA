@@ -107,6 +107,9 @@
 (define (notify-focus-border-width name val)
   (gui-set-focus-border-width val))
 
+(define (notify-link-color name val)
+  (refresh-now ""))
+
 (define (notify-labels-mode name val)
   (refresh-now "labels"))
 
@@ -206,6 +209,8 @@
   ("gui selection color" "red" notify-selection-color)
   ("gui focus color" "#0ff" notify-focus-color)
   ("gui focus border width" "1" notify-focus-border-width)
+  ("locus-color" "#404080" notify-link-color)
+  ("visited-color" "#702070" notify-link-color)
   ("vault welcome page" "on" noop)
   ("vault take preferences with vault" "off" notify-vault-preferences-mode)
   ("vault auto load last" "off" noop)
