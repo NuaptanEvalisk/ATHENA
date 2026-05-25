@@ -1,7 +1,10 @@
 
-             GNU TeXmacs: a WYSIWIG technical editor
+                           ATHENA
+             The Advanced Typesetting and Hypertext
+              Environment for Notes and Archives
          ----------------------------------------------
-            Copyright (C) 1998  Joris van der Hoeven
+            Copyright (C) 1998-2026  Joris van der Hoeven and others
+            Copyright (C) 2026  Nuaptan Felix Evalisk
 
 This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -13,22 +16,9 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with this program (see the file LICENSE); if not, write to
-
-	the Free Software Foundation, Inc.
-	51 Franklin Street, Fifth Floor
-	Boston
-	MA 02110-1301
-	USA
+along with this program (see the file LICENSE).
 
 For more information, you may also contact us by email at
 
-	contact@texmacs.org
-
-or by regular mail at
-
-	Joris van der Hoeven
-	Dept. de Mathématiques
-	Universite Paris-Sud
-	91405 Orsay Cedex
-	France
+	nuaptan@outlook.com
+	nuaptan@gmail.com

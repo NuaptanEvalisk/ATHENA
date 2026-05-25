@@ -2,48 +2,124 @@
 Building ATHENA
 -------------------------------------------------------------------------------
 
-ATHENA is built with CMake. The old GNU autotools build files are no longer
-maintained or shipped.
+ATHENA is built with CMake. The old GNU autotools build files are not maintained
+for ATHENA.
 
-1. Check dependencies.
+The supported and tested development path is Linux. The build system still
+contains inherited Windows and macOS branches, but the ATHENA build process has
+not been tested on Windows or macOS.
 
-   Install the development packages required by the CMake configuration. On a
-   typical Linux system these include Qt 5, Guile, FreeType, Fontconfig,
-   Hummus/PDF support, zstd, ImageMagick, and the other libraries reported by
-   CMake during configuration.
+-------------------------------------------------------------------------------
+Dependencies
+-------------------------------------------------------------------------------
 
-2. Configure and build.
+ATHENA intentionally requires a modern desktop development environment. The
+CMake configuration currently requires, among others:
 
-   From the repository root:
+  CMake, a C/C++ compiler, pkg-config, Qt 5, Guile, mimalloc, SQLite3, Python 3,
+  uv, FreeType, PNG, JPEG, zlib, zstd, ImageMagick/MagickWand, Iconv, GnuTLS,
+  GMP, Ghostscript, resvg with ResvgQt.h, and libtcc.
 
-     cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo
-     cmake --build build -j$(nproc)
+On openSUSE, this is a useful zypper baseline:
 
-   To install:
+  sudo zypper install \
+    git cmake ninja pkgconf-pkg-config \
+    libqt5-qtbase-devel libqt5-qtsvg-devel \
+    guile-devel mimalloc-devel sqlite3-devel \
+    python3 python313-uv \
+    freetype2-devel libpng16-devel libjpeg8-devel zlib-devel \
+    libzstd-devel ImageMagick-devel \
+    libgnutls-devel gmp-devel ghostscript resvg-devel
 
-     cmake --install build
+Package names vary by distribution and repository. If CMake reports that
+ResvgQt.h or libtcc is missing, install the corresponding development package
+from your distribution or a local package/source build. ATHENA uses libtcc for
+namespace sorter support.
 
-   Use the usual CMake options to select a prefix or generator. For example:
+-------------------------------------------------------------------------------
+Recommended compiler: Intel oneAPI ICPX
+-------------------------------------------------------------------------------
 
-     cmake -S . -B build -DCMAKE_INSTALL_PREFIX=/opt/athena
+ATHENA strongly recommends Intel oneAPI C++ (icpx). The project is large, and
+icpx has been the preferred compiler during current ATHENA development.
 
-3. Run from the build tree.
+Example oneAPI setup on an RPM/zypper based system:
 
-   The executable is produced under the build directory. For a default local
-   build, run:
+  sudo rpm --import \
+    https://yum.repos.intel.com/oneapi/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB
+  sudo zypper addrepo -f https://yum.repos.intel.com/oneapi oneAPI
+  sudo zypper refresh
+  sudo zypper install intel-oneapi-compiler-dpcpp-cpp
 
-     ./build/src/ATHENA.bin
+Before configuring ATHENA, load the oneAPI environment:
+
+  source /opt/intel/oneapi/setvars.sh
+  which icx
+  which icpx
+
+If the build directory was previously configured with another compiler, remove
+it before switching compilers:
+
+  rm -rf build
+
+-------------------------------------------------------------------------------
+Configure and build
+-------------------------------------------------------------------------------
+
+From the repository root:
+
+  source /opt/intel/oneapi/setvars.sh
+  CC=icx CXX=icpx cmake -S . -B build -G Ninja \
+    -DCMAKE_BUILD_TYPE=RelWithDebInfo
+  CCACHE_DISABLE=1 cmake --build build -j "$(nproc)"
+
+Using all available processor cores is recommended; `nproc` is the preferred
+way to pick the parallelism level.
+
+If you are not using Ninja, omit `-G Ninja` and use your chosen CMake generator.
+
+-------------------------------------------------------------------------------
+Run the build
+-------------------------------------------------------------------------------
+
+For ATHENA development, do not run the executable directly from `build/src`.
+Copy it into the runtime tree first:
+
+  cp -f build/src/ATHENA.bin ATHENA/bin/ATHENA.bin
+
+Then run:
+
+  ./ATHENA/bin/ATHENA.bin
+
+This matters because ATHENA expects its Scheme code, packages, tools, assets,
+and runtime paths to be arranged under the ATHENA tree.
+
+-------------------------------------------------------------------------------
+Install
+-------------------------------------------------------------------------------
+
+For a system install, use the usual CMake install workflow:
+
+  cmake --install build
+
+Set a custom prefix at configure time if needed:
+
+  CC=icx CXX=icpx cmake -S . -B build -G Ninja \
+    -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+    -DCMAKE_INSTALL_PREFIX=/opt/athena
 
 -------------------------------------------------------------------------------
 Troubleshooting
 -------------------------------------------------------------------------------
 
 If CMake cannot find a dependency, install the corresponding development
-package and rerun the configure step. If stale generated files or Scheme cache
-entries interfere with a local development build, remove the build directory
-and ATHENA cache, then configure again:
+package and rerun the configure step. If generated files or Scheme cache entries
+interfere with a local development build, remove the build directory and ATHENA
+cache, then configure again:
 
   rm -rf build
   rm -rf ~/.ATHENA/system/cache
-  cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo
+  source /opt/intel/oneapi/setvars.sh
+  CC=icx CXX=icpx cmake -S . -B build -G Ninja \
+    -DCMAKE_BUILD_TYPE=RelWithDebInfo
 

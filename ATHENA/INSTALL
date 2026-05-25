@@ -1,41 +1,52 @@
-
 -------------------------------------------------------------------------------
-Installation of ATHENA
--------------------------------------------------------------------------------
-
-1. Set the environment variables.
-   Let [installation directory] be the current directory,
-   which contains this file. Depending on your shell, either type
-
-       setenv ATHENA_PATH [installation directory]
-       setenv PATH $ATHENA_PATH/bin:$PATH
-   or
-       export ATHENA_PATH=[installation directory]
-       export PATH=$ATHENA_PATH/bin:$PATH
-
-2. Run 'ATHENA' using
-
-       ATHENA &
-
-3. Be cool and let us know if you like or dislike the program.
-   We are glad to receive your suggestions and problems,
-   no matter how silly they may seem to you. 
-   Of course, you may also contribute yourself.
-
+Running ATHENA from this tree
 -------------------------------------------------------------------------------
 
-Appendix A: Possible problems
+This directory is the ATHENA runtime tree. It contains the Scheme programs,
+packages, styles, tools, assets, and the executable under `bin/`.
 
-    * ATHENA runs fine, but certain fonts are not displayed correctly.
-      Solution: This problem may have several causes:
-      o You use a recent version (>= 7.3) of RedHat Linux or
-        one of its clones. On such systems, the installation of
-        TeTeX is bugged and you need to change some permissions
-        in order to allow font generation by Metafont.
-        As root, type
-	  chmod -R a+rw /var/lib/texmf/*
-      o You do not use a standard TeX/LaTeX distribution, such as TeTeX
-	(standard distributions come with scripts for generating fonts,
-	such as 'mktextfm' or 'MakeTeXTFM'). You may either install
-        a more standard TeX/LaTeX distribution, or download some
-        pregenerated fonts from texmacs.org.
+For development builds, first build the executable from the repository root and
+copy it here:
+
+    cp -f build/src/ATHENA.bin ATHENA/bin/ATHENA.bin
+
+Then run ATHENA from this directory:
+
+    cd ATHENA
+    ./StartATHENA.sh
+
+The launcher currently uses the runtime settings that are known to work well on
+the Linux/X11 development setup:
+
+    QT_QPA_PLATFORM=xcb
+    QT_IM_MODULE=fcitx
+    GTK_IM_MODULE=fcitx
+    XMODIFIERS=@im=fcitx
+    SDL_VIDEODRIVER=x11
+    QT_FONT_DPI=180
+    QT_AUTO_SCREEN_SCALE_FACTOR=0
+    QT_SCALE_FACTOR=1
+    QT_ENABLE_HIDPI_SCALING=1
+
+It then starts:
+
+    ./bin/ATHENA.bin --platform xcb
+
+Any arguments passed to `StartATHENA.sh` are forwarded to `ATHENA.bin`.
+
+For example:
+
+    ./StartATHENA.sh --no-splash-screen
+    ./StartATHENA.sh /path/to/document.ath
+
+-------------------------------------------------------------------------------
+Notes
+-------------------------------------------------------------------------------
+
+ATHENA is currently developed and tested on Linux. The build tree still contains
+inherited Windows and macOS code paths, but this runtime setup has not been
+tested on Windows or macOS.
+
+If the program starts but input methods do not work, make sure fcitx is running
+in your desktop session. If the interface scale is wrong, adjust `QT_FONT_DPI`
+or `QT_SCALE_FACTOR` in `StartATHENA.sh`.
