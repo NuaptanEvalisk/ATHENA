@@ -27,6 +27,7 @@ struct lazy_paragraph_rep: public lazy_rep {
   array<line_item>     a;          // the line items to format
   hashmap<string,tree> style;      // the style parameters
   stacker_rep*         sss;        // the typesetted paragraph
+  bool                 small_label_line;
 
 protected:
   array<box>    items;       // the boxes on the line in order

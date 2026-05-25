@@ -120,6 +120,12 @@ shove_in (box b1, box b2, SI hor_sep, SI top, SI bot) {
   return m;
 }
 
+static bool
+is_small_label_line (page_item item) {
+  return item->type == PAGE_LINE_ITEM &&
+         is_tuple (item->t, "athena-small-label-line");
+}
+
 // FIXME: from TeXmacs-1.0.4.1 on, the separation parameters between
 // successive lines are the maximum of the parameters for each line.
 // This may be further refined by allowing a "par-sep before and after",
@@ -130,10 +136,17 @@ shove_in (box b1, box b2, SI hor_sep, SI top, SI bot) {
 static void
 shove (page_item& item1, page_item& item2,
        stack_border sb, stack_border sb2, array<SI> swell) {
+  bool small1= is_small_label_line (item1);
+  bool small2= is_small_label_line (item2);
   SI  height = max (sb->height , sb2->height_before );
   SI  sep    = max (sb->sep    , sb2->sep_before    );
   SI  hor_sep= max (sb->hor_sep, sb2->hor_sep_before);
   SI  ver_sep= max (sb->ver_sep, sb2->ver_sep_before);
+  if (small1 || small2) {
+    height = small1? sb->height : sb2->height_before;
+    sep    = small1? sb->sep    : sb2->sep_before;
+    ver_sep= small1? sb->ver_sep: sb2->ver_sep_before;
+  }
   SI  bot    = sb->bot;
   SI  top    = sb2->top;
 

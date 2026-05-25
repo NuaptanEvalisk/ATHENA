@@ -16,6 +16,7 @@
 #include "Line/lazy_vstream.hpp"
 #include "Boxes/construct.hpp"
 #include "analyze.hpp"
+#include "scheme.hpp"
 
 array<line_item> typeset_concat (edit_env env, tree t, path ip);
 void hyphenate (line_item item, int pos, line_item& item1, line_item& item2);
@@ -25,12 +26,105 @@ line_breaks (array<line_item> a, int start, int end,
              SI first_spc, SI last_spc, bool ragged);
 
 /******************************************************************************
+* Compact anchor-only lines
+******************************************************************************/
+
+static bool
+is_pure_white (tree t) {
+  if (is_atomic (t)) {
+    if (is_string (t)) {
+      string s= t->label;
+      for (int i=0; i<N(s); i++)
+        if (s[i] != ' ' && s[i] != '\t' && s[i] != '\n' && s[i] != '\r')
+          return false;
+      return true;
+    }
+    return false;
+  }
+  if (is_func (t, PARA) || is_func (t, CONCAT) || is_func (t, WITH) ||
+      is_func (t, ATTR) || is_func (t, COMPOUND) || is_func (t, SURROUND)) {
+    for (int i=0; i<N(t); i++)
+      if (!is_pure_white (t[i])) return false;
+    return true;
+  }
+  return false;
+}
+
+static bool
+has_label (tree t) {
+  if (is_func (t, LABEL)) return true;
+  if (is_atomic (t)) return false;
+  for (int i=0; i<N(t); i++)
+    if (has_label (t[i])) return true;
+  return false;
+}
+
+static bool
+is_only_labels_and_white (tree t) {
+  if (is_func (t, LABEL)) return true;
+  if (is_pure_white (t)) return true;
+  if (is_func (t, PARA) || is_func (t, CONCAT) || is_func (t, WITH) ||
+      is_func (t, ATTR) || is_func (t, COMPOUND) || is_func (t, SURROUND)) {
+    for (int i=0; i<N(t); i++)
+      if (!is_only_labels_and_white (t[i])) return false;
+    return true;
+  }
+  return false;
+}
+
+struct small_label_line_env {
+  bool active;
+  tree par_sep;
+  tree par_ver_sep;
+  tree par_line_sep;
+  tree par_par_sep;
+};
+
+static small_label_line_env
+begin_small_label_line_env (edit_env env, tree t) {
+  small_label_line_env old;
+  old.active= get_preference ("vault labels mode", "visible") == "small" &&
+              has_label (t) && is_only_labels_and_white (t);
+  if (!old.active) return old;
+
+  old.par_sep     = env->read (PAR_SEP);
+  old.par_ver_sep = env->read (PAR_VER_SEP);
+  old.par_line_sep= env->read (PAR_LINE_SEP);
+  old.par_par_sep = env->read (PAR_PAR_SEP);
+
+  env->write_update (PAR_SEP, "-0.45fn");
+  env->write_update (PAR_VER_SEP, "0fn");
+  env->write_update (PAR_LINE_SEP, "0fn");
+  env->write_update (PAR_PAR_SEP, "0fn");
+  return old;
+}
+
+static void
+end_small_label_line_env (edit_env env, small_label_line_env old) {
+  if (!old.active) return;
+  env->write_update (PAR_PAR_SEP, old.par_par_sep);
+  env->write_update (PAR_LINE_SEP, old.par_line_sep);
+  env->write_update (PAR_VER_SEP, old.par_ver_sep);
+  env->write_update (PAR_SEP, old.par_sep);
+}
+
+static void
+mark_small_label_lines (array<page_item>& l) {
+  for (int i=0; i<N(l); i++)
+    if (l[i]->type == PAGE_LINE_ITEM) {
+      l[i]= copy (l[i]);
+      l[i]->t= tuple ("athena-small-label-line");
+    }
+}
+
+/******************************************************************************
 * Constructor
 ******************************************************************************/
 
 lazy_paragraph_rep::lazy_paragraph_rep (edit_env env2, path ip):
   lazy_rep (LAZY_PARAGRAPH, ip),
-  env (env2), style (""), sss (tm_new<stacker_rep> ())
+  env (env2), style (""), sss (tm_new<stacker_rep> ()),
+  small_label_line (false)
 {
   sss->ip= ip; // is this necessary?
   style (PAR_FIRST)   = env->read (PAR_FIRST);
@@ -820,12 +914,16 @@ typeset_stack (edit_env env, tree t, path ip, SI width,
 	       array<line_item> a, array<line_item> b, stack_border& sb)
 {
   // cout << "Typeset stack " << t << "\n";
+  small_label_line_env old= begin_small_label_line_env (env, t);
   lazy_paragraph par (env, ip);
   par->a= a;
   par->a << typeset_concat_or_table (env, t, ip);
   par->a << b;
   par->width= width;
   par->format_paragraph ();
+  par->small_label_line= old.active;
+  if (par->small_label_line) mark_small_label_lines (par->sss->l);
+  end_small_label_line_env (env, old);
   sb= par->sss->sb;
   return par->sss->l;
 }
@@ -835,19 +933,26 @@ typeset_stack (edit_env env, tree t, path ip,
 	       array<line_item> a, array<line_item> b, stack_border& sb)
 {
   // cout << "Typeset stack " << t << "\n";
+  small_label_line_env old= begin_small_label_line_env (env, t);
   lazy_paragraph par (env, ip);
   par->a= a;
   par->a << typeset_concat_or_table (env, t, ip);
   par->a << b;
   par->format_paragraph ();
+  par->small_label_line= old.active;
+  if (par->small_label_line) mark_small_label_lines (par->sss->l);
+  end_small_label_line_env (env, old);
   sb= par->sss->sb;
   return par->sss->l;
 }
 
 lazy
 make_lazy_paragraph (edit_env env, tree t, path ip) {
+  small_label_line_env old= begin_small_label_line_env (env, t);
   lazy_paragraph par (env, ip);
+  par->small_label_line= old.active;
   par->a= typeset_concat (env, t, ip);
+  end_small_label_line_env (env, old);
   return par;
 }
 
@@ -928,6 +1033,7 @@ lazy_paragraph_rep::produce (lazy_type request, format fm) {
       if (N (fs->after ) != 0) a= join (a, fs->after );
     }
     format_paragraph ();
+    if (small_label_line) mark_small_label_lines (sss->l);
     /* Hide line items of height 0 */
     int i, n= N(sss->l);
     if (hidden)
