@@ -494,6 +494,13 @@
       (dynamic (rendering-color-preference-widget "locus-color" #f)))
     (item (text "Clicked link color:")
       (dynamic (rendering-color-preference-widget "visited-color" #f)))
+    (item (text "Override white background:")
+      (toggle (set-boolean-preference "override white document background"
+                                      answer)
+              (get-boolean-preference "override white document background")))
+    (item (text "White background color:")
+      (dynamic (rendering-color-preference-widget
+                 "white document background override color" #f)))
     (item (text "Labels display:")
       (enum (set-preference "vault labels mode" answer)
             '("visible" "small" "hidden")

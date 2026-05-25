@@ -22,6 +22,21 @@ focus_border_width (renderer ren) {
   return max ((SI) gui_focus_border_width, (SI) 1) * ren->pixel;
 }
 
+static bool
+is_plain_white_background (tree bg) {
+  return bg == "white" || bg == "#fff" || bg == "#FFF" ||
+         bg == "#ffffff" || bg == "#FFFFFF";
+}
+
+static tree
+effective_document_background (tree bg) {
+  if (get_preference ("override white document background", "off") == "on" &&
+      is_plain_white_background (bg))
+    return tree (get_preference ("white document background override color",
+                                 "#f7f3e8"));
+  return bg;
+}
+
 /******************************************************************************
 * repainting the window
 ******************************************************************************/
@@ -29,7 +44,7 @@ focus_border_width (renderer ren) {
 void
 edit_interface_rep::draw_background (renderer ren,
                                      SI x1, SI y1, SI x2, SI y2) {
-  tree bg= get_init_value (BG_COLOR);
+  tree bg= effective_document_background (get_init_value (BG_COLOR));
   ren->set_background (bg);
   if (get_init_value (PAGE_MEDIUM) == "paper") {
     ren->clear_device (x1, y1, x2, y2);
@@ -49,7 +64,7 @@ void
 edit_interface_rep::draw_text (renderer ren, rectangles& l) {
   nr_painted=0;
   bool tp_found= false;
-  tree bg= get_init_value (BG_COLOR);
+  tree bg= effective_document_background (get_init_value (BG_COLOR));
   ren->set_background (bg);
   animated_flag= (texmacs_time () >= anim_next);
   if (animated_flag) anim_next= 1.0e12;

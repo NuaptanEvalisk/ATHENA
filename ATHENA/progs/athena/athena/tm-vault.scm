@@ -110,6 +110,9 @@
 (define (notify-link-color name val)
   (refresh-now ""))
 
+(define (notify-document-background-color name val)
+  (refresh-now ""))
+
 (define (notify-labels-mode name val)
   (refresh-now "labels"))
 
@@ -211,6 +214,8 @@
   ("gui focus border width" "1" notify-focus-border-width)
   ("locus-color" "#404080" notify-link-color)
   ("visited-color" "#702070" notify-link-color)
+  ("override white document background" "off" notify-document-background-color)
+  ("white document background override color" "#f7f3e8" notify-document-background-color)
   ("vault welcome page" "on" noop)
   ("vault take preferences with vault" "off" notify-vault-preferences-mode)
   ("vault auto load last" "off" noop)
