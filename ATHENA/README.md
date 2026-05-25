@@ -241,14 +241,13 @@ Recent ATHENA work includes substantial low-level engineering:
 ATHENA development is currently tested on Linux. The inherited Windows and
 macOS paths exist, but the ATHENA build process is not tested there.
 
-See [COMPILE](./COMPILE) for dependency installation and build instructions.
+See [COMPILE](../COMPILE) for dependency installation and build instructions.
 The recommended compiler is Intel oneAPI `icpx`.
 
-After building, copy the executable into the runtime tree before running:
+After building from the repository root, copy the executable into this runtime tree before running:
 
 ```bash
-cp -f build/src/ATHENA.bin ATHENA/bin/ATHENA.bin
-cd ATHENA
+cp -f ../build/src/ATHENA.bin bin/ATHENA.bin
 ./StartATHENA.sh
 ```
 
@@ -268,8 +267,8 @@ their polish. Expect the best experience on the developer's Linux setup.
 ## Licensing
 
 ATHENA is free software under the GNU General Public License, version 3 or
-later. See [LICENSE](./LICENSE), [COPYING](./COPYING), and
-[ATHENA/COPYING](./ATHENA/COPYING).
+later. See [LICENSE](../LICENSE), [COPYING](../COPYING), and
+[ATHENA/COPYING](./COPYING).
 
 Copyright (C) 1998-2026 Joris van der Hoeven and others.
 

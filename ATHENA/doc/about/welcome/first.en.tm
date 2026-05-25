@@ -3,57 +3,60 @@
 <style|<tuple|tmdoc|english|old-spacing|old-dots|old-lengths>>
 
 <\body>
-  <tmdoc-title|Welcome to GNU <TeXmacs>>
+  <tmdoc-title|First start of <ATHENA>>
 
-  Thank you for using this program. Since this seems to be the first time
-  that you are using it, you will find a few useful comments and suggestions
-  below. This text only appears at the first time when you start <TeXmacs>.
-  If you want to read it again, you can find it in the menu
-  <menu|Help|Apropos|First start>.
+  This appears the first time you start <ATHENA>. It is intentionally direct:
+  <ATHENA> is experimental software for mathematical knowledge work, not a
+  general-purpose note app for everyone.
 
   <\description>
-    <item*|Help>
+    <item*|Who should use it>
 
-    For help about how to use the editor, please look in the <menu|Help>
-    menu. At either one of the websites\ 
+    Use <ATHENA> if you are dissatisfied with both <LaTeX> and Obsidian:
+    <LaTeX> because source-first batch typesetting is too indirect for living
+    notes, and Obsidian because Markdown plus plugins is not native
+    mathematical structure.
 
-    <\verbatim>
-      \ \ \ \ https://www.texmacs.org<next-line>
-      \ \ \ http://www.gnu.org/software/texmacs
-    </verbatim>
+    <item*|Start with a vault>
 
-    you will find more help. Notice that you can get updated help via
-    <menu|Help|Online help>.
+    Most <ATHENA> features are vault-aware. Load or create a vault before
+    evaluating wikilinks, transclusions, namespace pages, global search,
+    backup maintenance, or AOFM conversion output.
 
-    <item*|Support>
+    <item*|Learn the structural editor>
 
-    If you like the program, then you may subscribe yourself to one of the
-    <TeXmacs> mailing lists: see\ 
+    <ATHENA> documents are trees, not plain text. The colored focus box and
+    status bar show the current structure. This is essential for mathematics,
+    enunciations, tables, links, and transclusions.
 
-    <\verbatim>
-      \ \ \ \ https://www.texmacs.org/Web/Support.html<next-line>
-      \ \ \ http://www.gnu.org/software/texmacs/Web/Support.html
-    </verbatim>
+    <item*|Use the native panes>
 
-    Also, you should not hesitate to directly contact the authors at
-    <verbatim|contact@texmacs.org> for questions, suggestions or bugs.
+    Important tools live under native Qt ADS panes: Vault Explorer, Namespace
+    Manager, Namespace Explorer, Global Search, Error Messages, Backup Viewer,
+    Outline, and Custom Styles Manager.
 
-    <item*|Fonts>
+    <item*|Use the new math input>
 
-    The <TeXmacs> program uses professional <TeX> fonts. When you launch the
-    program for the first time, many of these fonts may have to be generated,
-    which may significantly slow down the editor. Keep cool: each font needs
-    only to be generated once. At\ 
+    In mathematics, common shortcuts include <key|Ctrl+/> for fractions,
+    <key|Ctrl+2> for square roots, <key|Ctrl+6> for superscripts,
+    <key|Ctrl+-> for subscripts, <key|Ctrl+Space> to jump out, and
+    <key|Esc> for the symbol picker.
 
-    <\verbatim>
-      \ \ \ \ ftp://ftp.texmacs.org/pub/TeXmacs/Fonts.html
-    </verbatim>
+    <item*|Read next>
 
-    you may also find some instructions about how to download some
-    pregenerated fonts.
+    Continue with \P<hlink|Getting started with <ATHENA>|start.en.tm>\Q, then
+    explore the Vault, Search, Namespace, and Preferences menus.
   </description>
 
-  <tmdoc-copyright|1998\U2002|Joris van der Hoeven>
+  <\tmdoc-copyright>
+    1998\U2026
+
+    2026
+  <|tmdoc-copyright>
+    <person|Joris van der Hoeven>
+
+    <person|Nuaptan Felix Evalisk>.
+  </tmdoc-copyright>
 
   <tmdoc-license|Permission is granted to copy, distribute and/or modify this
   document under the terms of the GNU Free Documentation License, Version 1.1

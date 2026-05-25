@@ -7,58 +7,99 @@
     Welcome to <ATHENA> version 0.1
   </tmdoc-title>
 
-  Thank you for using <ATHENA>!
+  Thank you for using <ATHENA>.
 
   <ATHENA> stands for the <em|Advanced Typesetting and Hypertext Environment
-  for Notes and Archives>. <ATHENA> is a next-generation editing platform
-  specifically crafted for <em|mathematical knowledge management> at scale.
-  Essentially, it confronts the difficulty in finding a structured notetaking
-  for mathematics.
+  for Notes and Archives>. It is a mathematics-centered knowledge work
+  environment built from GNU <TeXmacs>, combining structured WYSIWYG
+  typesetting with vaults, wikilinks, transclusions, namespaces, rendered
+  search, and import tooling for large mathematical note collections.
 
   <\description>
-    <item*|Structured Notetaking><ATHENA> bridges the gap between scientific
-    publishing and modern, interconnected notetaking. It provides an
-    \PObsidian-like\Q experience adopted for the rigors of technical writing
-    and knowledge base construction, featuring:
+    <item*|Warning: not for everyone>
 
-    <\description-compact>
-      <item*|Vaults>Organize your entire knowledge ecosystem of notes and
-      archives into self-contained, portable knowledge bases, perhaps
-      somewhat like a personalized <samp|ncatlab> or <samp|Wikipedia>.
+    Use <ATHENA> only if you are disappointed with <strong|both <LaTeX> and
+    Obsidian>. If Markdown plus plugins is enough, use Obsidian. If
+    source-first batch typesetting is enough, use <LaTeX>. <ATHENA> exists
+    for the uncomfortable middle: interactive mathematical writing at scale.
 
-      <item*|Wikilinks>Effortlessly connect ideas and blocks (e.g.
-      definitions, theorems) across different documents with simple,
-      intuitive linking. Block reference is supported. Wikilinks have a
-      <em|self-repair> functionality, so even if you touch the link UUID or
-      anchor name by accident, the link is not lost.
+    <item*|Vaults, wikilinks, and transclusions>
 
-      <item*|Transclusions>Embed parts of one document, e.g. some theorem,
-      into another dynamically, allowing you to effortlessly restate things
-      that matter in context. No need to find \Pdefinition 3.31\Q furiously
-      for minutes if you can just transclude it at the spot.
-    </description-compact>
+    <ATHENA> vaults are self-contained mathematical knowledge bases. They
+    support UUID-backed wikilinks to files, anchors, and theorem-like blocks;
+    preview-backed wikilink insertion; self-repair of moved links; and
+    transclusions of enunciations or anchored document ranges.
 
-    <item*|Foundations and Divergence><ATHENA> is a fork of GNU <TeXmacs>. We
-    gratefully acknowledge the decades of foundational work by <name|Prof.
-    Joris van der Hoeven> and the <TeXmacs> team that made this project
-    possible.
+    <item*|Namespaces>
 
-    However, it is important to note that <ATHENA> is <strong|not> a
-    distribution of GNU <TeXmacs>. To support its knowledge management
-    features, <ATHENA> introduces incompatible AST nodes and other
-    source-level changes. Thus although theoretically <ATHENA> can load any
-    file created by upstream <TeXmacs>, the converse may not be possible.
-    While we maintain a deep respect for our heritage, <ATHENA> is evolving
-    into a distinct environment optimized for the modern researcher.
+    Namespaces classify files by filename templates rather than by filesystem
+    folders. <ATHENA> supports abstract, semi-concrete, and concrete
+    namespaces; namespace homepages; namespace summaries at
+    <samp|tmfs://ns/!name>; namespace-aware quick switching; namespace-aware
+    search; namespace-aware file creation; custom C sorters; and generated
+    sub-product namespaces.
 
-    <item*|Licensing><ATHENA> is free software and is released under the GNU
-    General Public License (GPL).
+    <item*|Search and navigation>
 
-    <item*|Development Status>Please be aware that <ATHENA> is still in
-    active development and is not yet considered a stable production version.
+    The global search pane shows individual occurrences rather than just
+    filenames. Hits can be filtered by namespace and enunciation type, and the
+    preview pane renders a small read-only <ATHENA> document around the hit.
+
+    <item*|Mathematical input>
+
+    <ATHENA> provides Mathematica-style math shortcuts, an <key|Esc>-based
+    symbol picker, convenient enunciation aliases, extended textual math
+    operators, upright <samp|\\mathrm>, script <samp|\\mathscr>, boldsymbol
+    input, paired angle brackets, and norm brackets.
+
+    <item*|Enunciations>
+
+    Theorem-like environments are treated as first-class structure. <ATHENA>
+    supports many enunciation types, configurable colors, CJK line breaking,
+    automatic anchors, proper solution rendering, and corrected display-first
+    title layout.
+
+    <item*|Obsidian/AOFM conversion>
+
+    <ATHENA> can import Obsidian-style mathematical vaults, including
+    wikilinks, transclusions, callouts, proofs, anchors, images, tables, PDF
+    links, card links, formula normalization, generated titles, and table of
+    contents.
+
+    <item*|Maintenance and export>
+
+    Vault maintenance can create zstd backups, purge old full backups and
+    pre-save histories, collect orphan assets, and anchor enunciations across
+    the whole vault. PDF export can optionally generate temporary DataArt
+    cover images.
+
+    <item*|Native Qt interface>
+
+    <ATHENA> uses native Qt panes and dialogs for vault exploration,
+    namespaces, global search, error messages, custom styles, wikilinks,
+    transclusions, command palette, font selection, and color selection.
+
+    <item*|Foundations and divergence>
+
+    <ATHENA> is a fork of GNU <TeXmacs>. We gratefully acknowledge the
+    decades of foundational work by <name|Prof. Joris van der Hoeven> and the
+    <TeXmacs> contributors.
+
+    <ATHENA> is <strong|not> a conservative distribution of GNU <TeXmacs>. To
+    support its knowledge-management features, <ATHENA> introduces
+    incompatible AST nodes and runtime behavior. <ATHENA> can often load
+    upstream <TeXmacs> documents, but documents that use <ATHENA> features are
+    not guaranteed to be readable by upstream <TeXmacs>.
+
+    <item*|Development status>
+
+    <ATHENA> 0.1 is active experimental software. Expect rough edges. Expect
+    features to be deeper than their polish. The current build and runtime
+    workflow is tested on Linux; inherited Windows and macOS code paths have
+    not been tested for <ATHENA>.
   </description>
 
-  For new users, we recommend the tutorial \P<hlink|Getting started with
+  For new users, we recommend \P<hlink|Getting started with
   <ATHENA>|start.en.tm>\Q.
 
   <\tmdoc-copyright>
