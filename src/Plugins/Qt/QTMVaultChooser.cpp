@@ -986,6 +986,7 @@ public:
   void updateList ();
   void updateCurrentPreview ();
   void updateDefaultDisplayText ();
+  void moveFieldFocus (bool backward);
 
   QLineEdit*   searchEdit;
   QListWidget* anchorList;
@@ -1213,6 +1214,7 @@ WikilinkAnchorPage::WikilinkAnchorPage (QWidget* parent)
   searchEdit->setPlaceholderText ("Filter anchors; leave empty for the whole file");
   anchorList= new QListWidget (this);
   anchorList->setAlternatingRowColors (true);
+  anchorList->setTabKeyNavigation (false);
   anchorList->setMinimumWidth (500);
   displayEdit= new QLineEdit (this);
   previewTitle= new QLabel ("Select an anchor to preview it.", this);
@@ -1249,6 +1251,9 @@ WikilinkAnchorPage::WikilinkAnchorPage (QWidget* parent)
 
   searchEdit->installEventFilter (this);
   anchorList->installEventFilter (this);
+  displayEdit->installEventFilter (this);
+  setTabOrder (searchEdit, anchorList);
+  setTabOrder (anchorList, displayEdit);
 
   connect (searchEdit, &QLineEdit::textChanged,
            this, [this] (const QString&) { updateList (); });
@@ -1385,11 +1390,37 @@ WikilinkAnchorPage::updateDefaultDisplayText () {
   displayEdit->setText (text);
 }
 
+void
+WikilinkAnchorPage::moveFieldFocus (bool backward) {
+  QWidget* focus= QApplication::focusWidget ();
+  if (backward) {
+    if (focus == displayEdit)
+      anchorList->setFocus ();
+    else if (focus == anchorList)
+      searchEdit->setFocus ();
+    else
+      displayEdit->setFocus ();
+  }
+  else {
+    if (focus == searchEdit)
+      anchorList->setFocus ();
+    else if (focus == anchorList)
+      displayEdit->setFocus ();
+    else
+      searchEdit->setFocus ();
+  }
+}
+
 bool
 WikilinkAnchorPage::eventFilter (QObject* watched, QEvent* event) {
-  if ((watched == searchEdit || watched == anchorList) &&
+  if ((watched == searchEdit || watched == anchorList || watched == displayEdit) &&
       event->type () == QEvent::KeyPress) {
     QKeyEvent* key= static_cast<QKeyEvent*> (event);
+    if (key->key () == Qt::Key_Tab || key->key () == Qt::Key_Backtab) {
+      moveFieldFocus (key->key () == Qt::Key_Backtab ||
+                      (key->modifiers () & Qt::ShiftModifier));
+      return true;
+    }
     if (key->key () == Qt::Key_Up || key->key () == Qt::Key_Down) {
       int count= anchorList->count ();
       if (count <= 0) return true;
@@ -1441,8 +1472,10 @@ WikilinkSearchPage::WikilinkSearchPage (QWidget* parent)
   progress->setValue (0);
   resultList= new QListWidget (this);
   resultList->setAlternatingRowColors (true);
+  resultList->setTabKeyNavigation (false);
   anchorList= new QListWidget (this);
   anchorList->setAlternatingRowColors (true);
+  anchorList->setTabKeyNavigation (false);
   displayEdit= new QLineEdit (this);
   insertButton= new QPushButton ("Insert selected anchor", this);
   previewTitle= new QLabel ("Select a search result to preview it.", this);
@@ -1494,6 +1527,13 @@ WikilinkSearchPage::WikilinkSearchPage (QWidget* parent)
   layout->addWidget (statusLabel);
   layout->addWidget (progress);
   layout->addWidget (splitter, 1);
+  setTabOrder (queryEdit, searchButton);
+  setTabOrder (searchButton, namespaceEdit);
+  setTabOrder (namespaceEdit, enunciationCombo);
+  setTabOrder (enunciationCombo, resultList);
+  setTabOrder (resultList, anchorList);
+  setTabOrder (anchorList, displayEdit);
+  setTabOrder (displayEdit, insertButton);
 
   connect (searchButton, &QPushButton::clicked,
            this, [this] () { startSearch (); });
