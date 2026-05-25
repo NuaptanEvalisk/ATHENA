@@ -1,0 +1,6 @@
+body {
+  font-variant-ligatures: common-ligatures contextual discretionary-ligatures;
+  
+  -webkit-font-feature-settings: "liga" on, "clig" on, "dlig" on, "swsh" on;
+  font-feature-settings: "liga" on, "clig" on, "dlig" on, "swsh" on;
+}

@@ -1,0 +1,16 @@
+{
+  "accentColor": "#05ad9a",
+  "theme": "moonstone",
+  "cssTheme": "AnuPpuccin",
+  "baseFontSize": 21,
+  "textFontFamily": "CMU Typewriter Text,Libertinus Serif,TeX Gyre Schola,Noto Serif",
+  "monospaceFontFamily": "B612 Mono,CMU Typewriter Text,Fira Code,Source Code Pro",
+  "nativeMenus": false,
+  "interfaceFontFamily": "CMU Typewriter Text,Inter,Libertinus Sans,Segoe UI,Lexie Readable",
+  "baseFontSizeAction": false,
+  "enabledCssSnippets": [
+    "custom-rainbow-colors"
+  ],
+  "showRibbon": false,
+  "showViewHeader": true
+}

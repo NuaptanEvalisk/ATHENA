@@ -1,0 +1,17 @@
+{
+  "pdfExportSettings": {
+    "includeName": true,
+    "pageSize": "A4",
+    "landscape": false,
+    "margin": "0",
+    "downscalePercent": 63
+  },
+  "readableLineLength": false,
+  "propertiesInDocument": "visible",
+  "showLineNumber": false,
+  "rightToLeft": false,
+  "alwaysUpdateLinks": true,
+  "newFileLocation": "current",
+  "attachmentFolderPath": "./assets",
+  "showInlineTitle": true
+}

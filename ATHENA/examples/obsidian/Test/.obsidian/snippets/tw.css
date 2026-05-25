@@ -1,0 +1,16 @@
+/* 1. 设置 MathJax 容器的基础字体 */
+mjx-container[jax="CHTML"] {
+    font-family: "DejaVu Math TeX Gyre" !important;
+}
+
+/* 2. 针对所有的底层字符节点强制应用等宽字体，但严格排除包含 TEX- 的特殊变体类
+ *  (TEX-cal 对应 \mathcal, TEX-scr 对应 \mathscr, TEX-bb 对应 \mathbb, TEX-fr 对应 \mathfrak 等) */
+mjx-container[jax="CHTML"] mjx-c:not([class*="TEX-"]) {
+    font-family: "DejaVu Math TeX Gyre" !important;
+}
+
+/* 3. 如果需要覆盖之前的变量 (斜体) 和数字，同样加上排除条件 */
+mjx-container[jax="CHTML"] mjx-i mjx-c:not([class*="TEX-"]),
+mjx-container[jax="CHTML"] mjx-n mjx-c:not([class*="TEX-"]) {
+    font-family: "DejaVu Math TeX Gyre" !important;
+}

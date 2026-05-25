@@ -1,0 +1,26 @@
+/* Make Obsidian's titlebar/top area slimmer */
+.titlebar {
+    height: 24px !important;
+    border-radius: 0px !important;
+    padding: 0px !important;
+}
+
+/* Shrink and square tabs */
+.workspace-tabs,
+.workspace-tab-header,
+.workspace-tab-inner {
+    height: 22px !important;
+    border-radius: 0px !important;
+    padding: 0px !important;
+}
+
+/* Remove bubble-like top shadow and rounded area */
+.workspace-ribbon.mod-left,
+.workspace-ribbon.mod-right {
+    border-radius: 0px !important;
+}
+
+/* Remove pastel top background */
+.titlebar {
+    background: var(--background-primary) !important;
+}
