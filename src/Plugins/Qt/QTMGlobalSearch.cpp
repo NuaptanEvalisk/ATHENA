@@ -12,6 +12,7 @@
 #include "QTMMainTabWindow.hpp"
 #include "QTMWidget.hpp"
 #include "convert.hpp"
+#include "converter.hpp"
 #include "drd_mode.hpp"
 #include "editor.hpp"
 #include "message.hpp"
@@ -21,6 +22,7 @@
 #include "new_view.hpp"
 #include "qt_utilities.hpp"
 #include "qt_widget.hpp"
+#include "qt_simple_widget.hpp"
 #include "renderer.hpp"
 #include "scheme.hpp"
 #include "link.hpp"
@@ -123,6 +125,46 @@ qstring_from_tm (string s) {
   return to_qstring (s);
 }
 
+static tree
+import_body_for_global_preview (url file) {
+  tree t= import_tree (file, "texmacs");
+  tree body= extract (t, "body");
+  return is_empty (body) ? t : body;
+}
+
+static bool
+preview_absolute_image_path (const string& path) {
+  return path == "" || starts (path, "/") || starts (path, "~") ||
+    starts (path, "$") || occurs ("://", path);
+}
+
+static string
+preview_rebase_image_path (const string& path, url sourceDir) {
+  if (preview_absolute_image_path (path)) return path;
+  url absolute= sourceDir * url_unix (cork_to_utf8 (path));
+  return utf8_to_cork (as_system_string (absolute));
+}
+
+static tree
+rebase_preview_images (tree t, url sourceDir) {
+  if (is_atomic (t)) return copy (t);
+
+  tree r (L(t));
+  for (int i=0; i<N(t); i++) {
+    if (i == 0 && is_func (t, IMAGE) && is_atomic (t[i]))
+      r << tree (preview_rebase_image_path (t[i]->label, sourceDir));
+    else
+      r << rebase_preview_images (t[i], sourceDir);
+  }
+  return r;
+}
+
+static tree
+import_body_for_preview (url file) {
+  return rebase_preview_images (import_body_for_global_preview (file),
+                                head (file));
+}
+
 static void
 set_global_search_area_height (ads::CDockWidget* dock) {
   if (dock == nullptr || dock->isInFloatingContainer ()) return;
@@ -149,13 +191,15 @@ set_global_search_area_height (ads::CDockWidget* dock) {
 QTMGlobalSearch::QTMGlobalSearch (QWidget* parent)
   : QWidget (parent),
     queryUrl (url ("tmfs://aux/global-search")),
-    previewUrl (url ("tmfs://aux/global-search-preview")),
+    previewBody (tree (DOCUMENT, "")),
     scanIndex (0),
     matchedFiles (0),
     previewZoomFactor (1.0),
+    previewWidth (0),
+    previewZoom (0.0),
+    previewRecreating (false),
+    previewHostWidget (nullptr),
     previewQtWidget (nullptr),
-    previewViewportWidget (nullptr),
-    previewSurfaceWidget (nullptr),
     previewTexmacsWidget (nullptr) {
   prompt= new QLabel ("Search the current vault", this);
   status= new QLabel (this);
@@ -270,7 +314,7 @@ QTMGlobalSearch::QTMGlobalSearch (QWidget* parent)
 QTMGlobalSearch::~QTMGlobalSearch () {
   scanTimer->stop ();
   if (!is_nil (queryWidget)) send_destroy (queryWidget);
-  if (!is_nil (previewWidget)) send_destroy (previewWidget);
+  destroyPreviewWidget ();
 }
 
 QSize
@@ -292,6 +336,11 @@ QTMGlobalSearch::setFloatingResizeGripVisible (bool visible) {
 
 bool
 QTMGlobalSearch::eventFilter (QObject* watched, QEvent* event) {
+  if (event != nullptr && event->type () == QEvent::Resize &&
+      (watched == previewHostWidget || isPreviewWatchedObject (watched))) {
+    QTimer::singleShot (0, this, [this] () { refreshPreviewLayoutNow (); });
+  }
+
   if (event != nullptr && isPreviewWatchedObject (watched)) {
     switch (event->type ()) {
       case QEvent::ContextMenu:
@@ -337,55 +386,69 @@ QTMGlobalSearch::createQueryWidget () {
 
 QWidget*
 QTMGlobalSearch::createPreviewWidget () {
-  tree doc (DOCUMENT, "");
-  tree style= compound ("style", tuple ("generic"));
-  previewWidget= texmacs_input_widget (doc, style, previewUrl);
-  tm_buffer buf= concrete_buffer (previewUrl);
-  if (!is_nil (buf)) buf->buf->read_only= true;
-  QWidget* qwid= concrete (previewWidget)->as_qwidget (this);
-  previewQtWidget= qwid;
-  locatePreviewWidgets ();
-  installPreviewEventFilter (previewQtWidget);
-  qwid->setSizePolicy (QSizePolicy::Expanding, QSizePolicy::Expanding);
-  applyPreviewZoom ();
-  return qwid;
+  previewHostWidget= new QWidget (this);
+  previewHostWidget->setSizePolicy (QSizePolicy::Expanding,
+                                    QSizePolicy::Expanding);
+  QVBoxLayout* layout= new QVBoxLayout (previewHostWidget);
+  layout->setContentsMargins (0, 0, 0, 0);
+  layout->setSpacing (0);
+  previewHostWidget->installEventFilter (this);
+  recreatePreviewWidget ();
+  return previewHostWidget;
 }
 
 void
-QTMGlobalSearch::applyPreviewZoom () {
-  if (is_nil (previewWidget)) return;
-  set_zoom_factor (previewWidget, get_retina_zoom () * previewZoomFactor);
+QTMGlobalSearch::destroyPreviewWidget () {
+  if (previewQtWidget != nullptr) {
+    if (previewQtWidget->parentWidget () != nullptr &&
+        previewQtWidget->parentWidget ()->layout () != nullptr)
+      previewQtWidget->parentWidget ()->layout ()->removeWidget (
+        previewQtWidget);
+    previewQtWidget->hide ();
+    previewQtWidget->deleteLater ();
+    previewQtWidget= nullptr;
+    previewTexmacsWidget= nullptr;
+  }
+  if (!is_nil (previewWidget)) {
+    try { send_destroy (previewWidget); }
+    catch (...) {}
+    previewWidget= widget ();
+  }
+  previewWidth= 0;
+  previewZoom= 0.0;
+}
+
+void
+QTMGlobalSearch::recreatePreviewWidget () {
+  if (previewHostWidget == nullptr || previewRecreating) return;
+  previewRecreating= true;
+
+  destroyPreviewWidget ();
+
+  tree style= compound ("style", tuple ("generic"));
+  previewWidth= currentPreviewWidth ();
+  previewZoom= currentPreviewZoom ();
+  previewWidget= texmacs_output_widget (previewBody, style,
+                                        previewWidth, previewZoom);
+  QWidget* qwid= concrete (previewWidget)->as_qwidget (previewHostWidget);
+  previewQtWidget= qwid;
+  previewTexmacsWidget= qobject_cast<QTMWidget*> (qwid);
+  if (previewTexmacsWidget == nullptr)
+    previewTexmacsWidget= qwid->findChild<QTMWidget*> ();
+
+  installPreviewEventFilter (qwid);
+  qwid->setSizePolicy (QSizePolicy::Expanding, QSizePolicy::Expanding);
+  if (previewHostWidget->layout () != nullptr)
+    previewHostWidget->layout ()->addWidget (qwid);
+  qwid->show ();
+
+  previewRecreating= false;
   refreshPreviewLayout ();
 }
 
 void
-QTMGlobalSearch::notifyPreviewChanged () {
-  array<url> views= buffer_to_views (previewUrl);
-  for (int i=0; i<N(views); i++) {
-    editor ed= view_to_editor (views[i]);
-    if (!is_nil (ed))
-      ed->notify_change (THE_TREE + THE_EXTENTS + THE_FREEZE);
-  }
-}
-
-void
-QTMGlobalSearch::locatePreviewWidgets () {
-  previewTexmacsWidget= nullptr;
-  previewViewportWidget= nullptr;
-  previewSurfaceWidget= nullptr;
-  if (previewQtWidget == nullptr) return;
-
-  previewTexmacsWidget= qobject_cast<QTMWidget*> (previewQtWidget);
-  if (previewTexmacsWidget == nullptr)
-    previewTexmacsWidget= previewQtWidget->findChild<QTMWidget*> ();
-
-  if (previewTexmacsWidget != nullptr) {
-    previewTexmacsWidget->setContextMenuPolicy (Qt::NoContextMenu);
-    if (QAbstractScrollArea* area=
-          qobject_cast<QAbstractScrollArea*> (previewTexmacsWidget))
-      previewViewportWidget= area->viewport ();
-    previewSurfaceWidget= previewTexmacsWidget->surface ();
-  }
+QTMGlobalSearch::applyPreviewZoom () {
+  refreshPreviewLayout ();
 }
 
 void
@@ -394,11 +457,13 @@ QTMGlobalSearch::installPreviewEventFilter (QWidget* root) {
 
   root->installEventFilter (this);
   root->setContextMenuPolicy (Qt::NoContextMenu);
+  root->setFocusPolicy (Qt::NoFocus);
   QList<QWidget*> children= root->findChildren<QWidget*> ();
   for (QWidget* child : children) {
     if (child == nullptr) continue;
     child->installEventFilter (this);
     child->setContextMenuPolicy (Qt::NoContextMenu);
+    child->setFocusPolicy (Qt::NoFocus);
   }
 }
 
@@ -411,32 +476,50 @@ QTMGlobalSearch::isPreviewWatchedObject (QObject* watched) const {
 
 void
 QTMGlobalSearch::refreshPreviewLayoutNow () {
-  if (previewQtWidget == nullptr) return;
+  if (previewQtWidget == nullptr || previewHostWidget == nullptr) return;
 
-  locatePreviewWidgets ();
+  SI width= currentPreviewWidth ();
+  SI delta= width > previewWidth ? width - previewWidth :
+    previewWidth - width;
+  double zoom= currentPreviewZoom ();
+  double zoomDelta= zoom > previewZoom ? zoom - previewZoom :
+    previewZoom - zoom;
+  if ((width > 0 && (previewWidth <= 0 || delta > 8 * PIXEL)) ||
+      zoomDelta > 0.001) {
+    recreatePreviewWidget ();
+    return;
+  }
+
   installPreviewEventFilter (previewQtWidget);
+  previewQtWidget->show ();
   previewQtWidget->updateGeometry ();
   previewQtWidget->update ();
 
   QTMWidget* tmWidget= previewTexmacsWidget;
-  if (tmWidget == nullptr || tmWidget->surface () == nullptr ||
-      the_gui == nullptr) return;
+  if (tmWidget != nullptr) {
+    tmWidget->setFocusPolicy (Qt::NoFocus);
+    tmWidget->show ();
+    tmWidget->updateGeometry ();
+    tmWidget->update ();
+    if (tmWidget->viewport () != nullptr) {
+      tmWidget->viewport ()->setFocusPolicy (Qt::NoFocus);
+      tmWidget->viewport ()->show ();
+      if (tmWidget->viewport ()->layout () != nullptr)
+        tmWidget->viewport ()->layout ()->activate ();
+    }
+    if (tmWidget->surface () != nullptr) {
+      tmWidget->surface ()->setFocusPolicy (Qt::NoFocus);
+      tmWidget->surface ()->show ();
+      tmWidget->surface ()->updateGeometry ();
+      tmWidget->surface ()->update ();
+    }
+  }
 
-  tmWidget->updateGeometry ();
-  tmWidget->update ();
-  tmWidget->surface ()->updateGeometry ();
-  tmWidget->surface ()->update ();
-
-  // A real click first activates the embedded TeXmacs editor through
-  // QTMWidget::focusInEvent.  The fit-width logic is attached to that
-  // editor-focus path, not to a bare tree notification.
-  the_gui->process_keyboard_focus (tmWidget->tm_widget (), true, texmacs_time ());
-
-  coord2 size= from_qsize (tmWidget->surface ()->size ());
-  if (size.x1 > 0 && size.x2 > 0)
-    the_gui->process_resize (tmWidget->tm_widget (), size.x1, size.x2);
-  the_gui->process_queued_events (4);
-  the_gui->force_update ();
+  if (the_gui != nullptr) the_gui->force_update ();
+  qt_simple_widget_rep::repaint_all ();
+  if (tmWidget != nullptr && tmWidget->surface () != nullptr)
+    tmWidget->surface ()->repaint ();
+  else previewQtWidget->repaint ();
 }
 
 void
@@ -446,6 +529,20 @@ QTMGlobalSearch::refreshPreviewLayout () {
   QTimer::singleShot (0, this, [this] () {
     refreshPreviewLayoutNow ();
   });
+}
+
+SI
+QTMGlobalSearch::currentPreviewWidth () const {
+  if (previewHostWidget == nullptr) return 0;
+  int w= previewHostWidget->contentsRect ().width ();
+  if (w <= 0) w= previewHostWidget->width ();
+  if (w <= 0) return 0;
+  return from_qsize (QSize (w, 1)).x1;
+}
+
+double
+QTMGlobalSearch::currentPreviewZoom () const {
+  return get_retina_zoom () * previewZoomFactor;
 }
 
 tree
@@ -692,9 +789,7 @@ QTMGlobalSearch::buildPreviewFromBody (tree body, path hitStart) const {
 tree
 QTMGlobalSearch::buildPreview (const Result& result) const {
   try {
-    tree t= import_tree (result.file, "texmacs");
-    tree body= extract (t, "body");
-    if (is_empty (body)) body= t;
+    tree body= import_body_for_preview (result.file);
     return buildPreviewFromBody (body, result.hitStart);
   }
   catch (...) {
@@ -739,11 +834,8 @@ QTMGlobalSearch::updatePreview (QListWidgetItem* current) {
       .arg (result.relPath)
       .arg (result.occurrence)
       .arg (result.fileHits));
-  set_buffer_body (previewUrl, buildPreview (result));
-  tm_buffer buf= concrete_buffer (previewUrl);
-  if (!is_nil (buf)) buf->buf->read_only= true;
-  notifyPreviewChanged ();
-  applyPreviewZoom ();
+  previewBody= buildPreview (result);
+  recreatePreviewWidget ();
   refreshPreviewLayout ();
 }
 
@@ -751,8 +843,8 @@ void
 QTMGlobalSearch::clearPreview () {
   if (previewTitle != nullptr)
     previewTitle->setText ("Select a result to preview it.");
-  set_buffer_body (previewUrl, tree (DOCUMENT, ""));
-  notifyPreviewChanged ();
+  previewBody= tree (DOCUMENT, "");
+  recreatePreviewWidget ();
   refreshPreviewLayout ();
 }
 

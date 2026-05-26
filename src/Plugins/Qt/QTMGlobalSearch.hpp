@@ -59,6 +59,8 @@ private:
 
   QWidget* createQueryWidget ();
   QWidget* createPreviewWidget ();
+  void     destroyPreviewWidget ();
+  void     recreatePreviewWidget ();
   tree     currentQuery () const;
   tree     normalizeQuery (tree t) const;
   QString  selectedNamespace () const;
@@ -76,12 +78,12 @@ private:
   void     openResult (QListWidgetItem* item);
   void     openCurrentResult ();
   void     applyPreviewZoom ();
-  void     notifyPreviewChanged ();
-  void     locatePreviewWidgets ();
   void     installPreviewEventFilter (QWidget* root);
   bool     isPreviewWatchedObject (QObject* watched) const;
   void     refreshPreviewLayout ();
   void     refreshPreviewLayoutNow ();
+  SI       currentPreviewWidth () const;
+  double   currentPreviewZoom () const;
   void     setIdleStatus ();
   void     setRunningStatus ();
   void     finishSearch ();
@@ -89,12 +91,15 @@ private:
   widget              queryWidget;
   widget              previewWidget;
   url                 queryUrl;
-  url                 previewUrl;
   tree                queryTree;
+  tree                previewBody;
   std::vector<url>    scanFiles;
   int                 scanIndex;
   int                 matchedFiles;
   double              previewZoomFactor;
+  SI                  previewWidth;
+  double              previewZoom;
+  bool                previewRecreating;
   std::vector<Result> results;
 
   QLabel*       prompt;
@@ -108,9 +113,8 @@ private:
   QSizeGrip*    floatingSizeGrip;
   QProgressBar* progress;
   QListWidget*  resultList;
+  QWidget*      previewHostWidget;
   QWidget*      previewQtWidget;
-  QWidget*      previewViewportWidget;
-  QWidget*      previewSurfaceWidget;
   QTMWidget*    previewTexmacsWidget;
   QSplitter*    splitter;
   QTimer*       scanTimer;
