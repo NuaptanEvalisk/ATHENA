@@ -230,6 +230,58 @@
 (tm-define (buffers-modified?)
   (list-or (map buffer-modified? (buffer-list))))
 
+(define (quit-save-candidate-buffer? buf)
+  (and (not (buffer-aux? buf))
+       (not (string-starts? (url->string buf) "tmfs://"))))
+
+(define (modified-quit-save-candidate-buffers)
+  (filter (lambda (buf)
+            (and (quit-save-candidate-buffer? buf)
+                 (buffer-modified? buf)))
+          (buffer-list)))
+
+(define (unsaved-buffer-display-name buf)
+  (let ((s (url->system buf)))
+    (if (== s "") (url->string buf) s)))
+
+(define (unsaved-buffer-set-selected selected buf flag)
+  (cond (flag (if (in? buf selected) selected (cons buf selected)))
+        ((in? buf selected) (list-remove selected buf))
+        (else selected)))
+
+(define (save-selected-unsaved-buffers buffers)
+  (for-each (lambda (buf)
+              (when (and (buffer-exists? buf) (buffer-modified? buf))
+                (save-buffer-manual buf)))
+            buffers))
+
+(tm-widget ((unsaved-buffers-dialog buffers) quit)
+  (let ((selected buffers))
+    (padded
+      (resize '("560px" "760px" "1000px") '("280px" "420px" "700px")
+        (vertical
+          (text "The following buffers have unsaved changes:")
+          ===
+          (scrollable
+            (for (buf buffers)
+              (hlist
+                (toggle (set! selected
+                              (unsaved-buffer-set-selected
+                               selected buf answer))
+                        (in? buf selected))
+                // //
+                (text (unsaved-buffer-display-name buf))
+                >>)))))
+      ===
+      (bottom-buttons
+        ("Save and exit" (save-selected-unsaved-buffers selected)
+                         (quit-TeXmacs)
+                         (quit))
+        // //
+        ("Exit" (quit-TeXmacs) (quit))
+        // //
+        ("Cancel" (quit))))))
+
 (tm-define (safely-kill-buffer)
   (cond ((buffer-embedded? (current-buffer))
          (alt-windows-delete (alt-window-search (current-buffer))))
@@ -272,16 +324,17 @@
         (else (do-kill-window))))
 
 (tm-define (safely-quit-ATHENA)
-  (let* ((m (filter buffer-modified? (buffer-list)))
-	 (l (filter (non buffer-aux?) m)))
+  (let* ((l (modified-quit-save-candidate-buffers)))
     (if (null? l)
         (quit-TeXmacs)
         (begin
           (when (nin? (current-buffer) l)
             ;; FIXME: focus on window with buffer, if any
             (switch-to-buffer (car l)))
-          (user-confirm "There are unsaved documents. Really quit?" #f
-            (lambda (answ) (when answ (quit-TeXmacs))))))))
+          (dialogue-window
+           (unsaved-buffers-dialog l)
+           noop
+           "Unsaved buffers")))))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; System dependent conventions for buffer management
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
