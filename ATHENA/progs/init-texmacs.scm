@@ -190,6 +190,10 @@
 
 ;(display "Booting generic mode\n")
 (lazy-keyboard (generic generic-kbd) always?)
+(lazy-keyboard (generic live-spell) always?)
+(lazy-menu (generic live-spell) spell-live-popup-menu)
+(lazy-define (generic live-spell)
+             spell-live-import-custom-dictionary-from-preferences)
 (lazy-keyboard (generic generic-speech-en) always?)
 (lazy-keyboard (generic generic-speech-fr) always?)
 (lazy-menu (generic generic-menu) focus-menu texmacs-focus-icons)

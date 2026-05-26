@@ -845,6 +845,13 @@ edit_interface_rep::apply_changes () {
       if (is_empty (alt_sel))
         alt_selection_rects= array<rectangles> ();
     }
+    if (N (spell_selection_rects) != 0) {
+      rectangles visible (rectangle (vx1, vy1, vx2, vy2));
+      for (int i=0; i<N(spell_selection_rects); i++)
+        invalidate (thicken (spell_selection_rects[i], pixel, pixel) & visible);
+      if (is_empty (get_alt_selection ("spell-live")))
+        spell_selection_rects= array<rectangles> ();
+    }
   }
   
   // cout << "Handling environment\n";
@@ -1050,6 +1057,27 @@ edit_interface_rep::apply_changes () {
       rectangles visible (new_visible);
       for (int i=0; i<N(alt_selection_rects); i++)
         invalidate (alt_selection_rects[i] & visible);
+    }
+
+    range_set spell_sel= get_alt_selection ("spell-live");
+    if (!is_empty (spell_sel)) {
+      spell_selection_rects= array<rectangles> (); int b= 0, e= N(spell_sel);
+      if (e - b >= 200) {
+        b= max (find_alt_selection_index (spell_sel, vy2, b, e) - 100, b);
+        e= min (find_alt_selection_index (spell_sel, vy1, b, e) + 100, e);
+      }
+      for (int i=b; i+1<e; i+=2) {
+        range_set sub_sel= simple_range (spell_sel[i], spell_sel[i+1]);
+        selection sel= compute_selection (sub_sel);
+        rectangles rs= thicken (sel->rs, pixel, 3*pixel);
+#ifndef QTTEXMACS
+        rs= simplify (::correct (rs - thicken (rs, -pixel, -pixel)));
+#endif
+        if (N(rs) != 0) spell_selection_rects << rs;
+      }
+      rectangles visible (new_visible);
+      for (int i=0; i<N(spell_selection_rects); i++)
+        invalidate (thicken (spell_selection_rects[i], pixel, pixel) & visible);
     }
   }
   

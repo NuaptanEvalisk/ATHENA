@@ -130,6 +130,7 @@
   ("Remote control" (toggle-remote-control-mode)))
 
 (menu-bind texmacs-popup-menu
+  (link spell-live-popup-menu)
   (link focus-menu))
 
 (tm-menu (texmacs-popup-menu)

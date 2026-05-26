@@ -37,6 +37,39 @@ effective_document_background (tree bg) {
   return bg;
 }
 
+static void
+draw_spell_underlines (renderer ren, rectangles rs) {
+  rectangles it= rs;
+  SI amp = max ((SI) 2 * ren->pixel, (SI) 1);
+  SI step= max ((SI) 4 * ren->pixel, (SI) 2);
+  while (!is_nil (it)) {
+    rectangle r= it->item;
+    SI x1= r->x1;
+    SI x2= r->x2;
+    SI y = r->y1 + 2 * ren->pixel;
+    if (x2 <= x1) {
+      it= it->next;
+      continue;
+    }
+    if (x2 - x1 <= step) {
+      ren->line (x1, y, x2, y);
+      it= it->next;
+      continue;
+    }
+    array<SI> xs, ys;
+    bool up= false;
+    for (SI x=x1; x<x2; x += step) {
+      xs << x;
+      ys << (up ? y + amp : y);
+      up= !up;
+    }
+    xs << x2;
+    ys << (up ? y + amp : y);
+    ren->lines (xs, ys);
+    it= it->next;
+  }
+}
+
 /******************************************************************************
 * repainting the window
 ******************************************************************************/
@@ -194,6 +227,10 @@ edit_interface_rep::draw_selection (renderer ren, rectangle r) {
 #else
     ren->draw_rectangles (alt_selection_rects[i] & visible);
 #endif
+  }
+  for (int i=0; i<N(spell_selection_rects); i++) {
+    ren->set_pencil (pencil (rgb_color (220, 0, 0), 2 * ren->pixel));
+    draw_spell_underlines (ren, spell_selection_rects[i] & visible);
   }
   if (!is_nil (selection_rects)) {
     color col= gui_selection_color;

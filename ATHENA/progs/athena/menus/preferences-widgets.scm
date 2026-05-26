@@ -41,7 +41,9 @@
   ("windows" "Windows"))
 
 (for (l supported-languages)
-  (set-preference-name "language" l (upcase-first l)))
+  (set-preference-name "language" l (upcase-first l))
+  (set-preference-name "custom dictionary import language"
+                       l (upcase-first l)))
 
 (define-preference-names "complex actions"
   ("menus" "Through the menus")
@@ -847,6 +849,20 @@
       (toggle (set-boolean-preference "prog:select brackets" answer)
               (get-boolean-preference "prog:select brackets")))))
 
+(tm-widget (editing-text-preferences-widget)
+  (aligned
+    (item (text "Check spelling as you type:")
+      (toggle (set-boolean-preference "live spell checking" answer)
+              (get-boolean-preference "live spell checking")))
+    (item (text "Custom dictionary language:")
+      (enum (set-pretty-preference "custom dictionary import language" answer)
+            (map upcase-first supported-languages)
+            (get-pretty-preference "custom dictionary import language")
+            "15em"))
+    (item (text "Custom dictionary:")
+      (explicit-buttons
+        ("Import" (spell-live-import-custom-dictionary-from-preferences))))))
+
 (define-preferences
   ("latex->texmacs:matrix-recognition" "on" noop)
   ("latex->texmacs:aligned-to-eqnarray" "on" noop)
@@ -898,6 +914,9 @@
       (tab (text "Programming")
         (centered
           (dynamic (editing-programming-preferences-widget))))
+      (tab (text "Text")
+        (centered
+          (dynamic (editing-text-preferences-widget))))
       (tab (text "Formula Importer")
         (centered
           (dynamic (editing-importer-preferences-widget))))))

@@ -67,6 +67,7 @@ protected:
   rectangles    image_resize_rects;
   rectangles    selection_rects;
   array<rectangles> alt_selection_rects;
+  array<rectangles> spell_selection_rects;
   rectangle     last_visible;
   rectangles    env_rects;
   rectangles    foc_rects;
