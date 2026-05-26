@@ -285,29 +285,35 @@ QList<QAction*>*
 qt_ui_element_rep::get_qactionlist() {
     if (cachedActionList) return cachedActionList;
     
-    QList<QAction*> *list = new QList<QAction *>();
-    
-    switch (type) {
-        case vertical_menu:
-        case horizontal_menu:
-        case vertical_list:
-        {
-            typedef array<widget> T;
-            array<widget> arr = open_box<T> (load);
-            
-            for (int i = 0; i < N(arr); i++) {
-                if (is_nil (arr[i])) break;
-                QAction* a = concrete (arr[i])->as_qaction ();
-                list->append(a);
-            }
-        }
-          break;
-            
-        default:
-          break;
-    }
-    cachedActionList = list;
-    return list;
+    cachedActionList = get_fresh_qactionlist ();
+    if (cachedActionList == NULL) cachedActionList= new QList<QAction*> ();
+    return cachedActionList;
+}
+
+QList<QAction*>*
+qt_ui_element_rep::get_fresh_qactionlist() {
+  QList<QAction*> *list = new QList<QAction *>();
+
+  switch (type) {
+      case vertical_menu:
+      case horizontal_menu:
+      case vertical_list:
+      {
+          typedef array<widget> T;
+          array<widget> arr = open_box<T> (load);
+
+          for (int i = 0; i < N(arr); i++) {
+              if (is_nil (arr[i])) break;
+              QAction* a = concrete (arr[i])->as_qaction ();
+              list->append(a);
+          }
+      }
+        break;
+
+      default:
+        break;
+  }
+  return list;
 }
 
 /*! For the refresh_widget

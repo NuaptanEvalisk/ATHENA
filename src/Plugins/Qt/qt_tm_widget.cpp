@@ -520,6 +520,15 @@ qt_tm_widget_rep::~qt_tm_widget_rep () {
   
     // clear any residual waiting menu installation
   waiting_widgets = remove(waiting_widgets, this);
+  clear_main_menu_actions ();
+}
+
+void
+qt_tm_widget_rep::clear_main_menu_actions () {
+  while (!main_menu_actions.isEmpty ()) {
+    QAction* a= main_menu_actions.takeFirst ();
+    if (a != NULL) a->deleteLater ();
+  }
 }
 
 void
@@ -1000,12 +1009,15 @@ qt_tm_widget_rep::install_main_menu () {
 
     if (main_menu_widget == waiting_main_menu_widget) return;
     main_menu_widget = waiting_main_menu_widget;
-    QList<QAction*>* src = main_menu_widget->get_qactionlist();
+    QList<QAction*>* src = main_menu_widget->get_fresh_qactionlist();
     if (!src) return;
     QMenuBar* dest = mainwindow()->menuBar();
     dest->clear();
-    for (int i = 0; i < src->count(); i++) {
-      QAction* a = (*src)[i];
+    clear_main_menu_actions ();
+    main_menu_actions= *src;
+    delete src;
+    for (int i = 0; i < main_menu_actions.count(); i++) {
+      QAction* a = main_menu_actions[i];
       if (a->menu()) {
         //TRICK: Mac native QMenuBar accepts only menus which are already populated
         // this will cause a problem for us, since menus are lazy and populated only after triggering
@@ -1031,7 +1043,7 @@ qt_tm_widget_rep::install_main_menu () {
 
     if (main_menu_widget == waiting_main_menu_widget) return;
     main_menu_widget = waiting_main_menu_widget;
-    QList<QAction*>* src = main_menu_widget->get_qactionlist();
+    QList<QAction*>* src = main_menu_widget->get_fresh_qactionlist();
     if (!src) return;
     QTMToolbar* dest = menuToolBar;
 
@@ -1039,8 +1051,11 @@ qt_tm_widget_rep::install_main_menu () {
       dest->setStyle (qtmstyle ());
 
     dest->clear();
-    for (int i = 0; i < src->count(); i++) {
-      QAction* a = (*src)[i];
+    clear_main_menu_actions ();
+    main_menu_actions= *src;
+    delete src;
+    for (int i = 0; i < main_menu_actions.count(); i++) {
+      QAction* a = main_menu_actions[i];
       if (a->menu()) {
         dest->addAction(a->menu()->menuAction());
   #if DISABLE_QTMTOOLBAR

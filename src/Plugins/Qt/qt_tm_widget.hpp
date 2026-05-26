@@ -26,6 +26,7 @@
 #include <QMainWindow>
 #include <QStackedWidget>
 #include <QLayout>
+#include <QList>
 
 #if QT_VERSION >= 0x050000
 #define DISABLE_QTMTOOLBAR 0
@@ -34,6 +35,7 @@
 #endif
 
 class QLabel; 
+class QAction;
 class QTMInteractivePrompt;
 
 /*! Models one main window with toolbars, an associated view, etc.
@@ -97,6 +99,7 @@ class qt_tm_widget_rep: public qt_window_widget_rep {
   qt_widget main_widget;
   qt_widget main_menu_widget;
   qt_widget waiting_main_menu_widget;
+  QList<QAction*> main_menu_actions;
   qt_widget main_icons_widget;
   qt_widget mode_icons_widget;
   qt_widget focus_icons_widget;
@@ -122,6 +125,7 @@ public:
   void set_full_screen (bool flag);
   void update_visibility();
   void install_main_menu ();
+  void clear_main_menu_actions ();
   static void tweak_iconbar_size (QSize& sz);
 
   friend class QTMInteractiveInputHelper;

@@ -180,6 +180,11 @@ qt_widget_rep::get_qactionlist() {
   return NULL;
 }
 
+QList<QAction*>*
+qt_widget_rep::get_fresh_qactionlist() {
+  return NULL;
+}
+
 /*! Returns the widget as a window.
  
  Each TeXmacs widget can at some point be asked to present itself into a window.

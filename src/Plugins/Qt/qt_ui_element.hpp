@@ -66,6 +66,7 @@ public:
   virtual QWidget*         as_qwidget (QWidget* parent_widget);
   virtual QLayoutItem*     as_qlayoutitem (QWidget* parent_widget);
   virtual QList<QAction*>* get_qactionlist();
+  virtual QList<QAction*>* get_fresh_qactionlist();
 
   operator tree ();
 

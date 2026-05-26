@@ -40,7 +40,8 @@ private:
                     const QString& path, const QString& tooltip);
   void loadItem (QTreeWidgetItem* item);
   void openFile (QTreeWidgetItem* item);
-  void openNamespaceSummary (QTreeWidgetItem* item);
+  void openNamespaceHomepage (QTreeWidgetItem* item);
+  void openNamespaceTechnicalSummary (QTreeWidgetItem* item);
   void renameSelectedFile ();
   void newFileNearSelected ();
   void newFolderNearSelected ();

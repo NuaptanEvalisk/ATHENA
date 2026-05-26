@@ -102,6 +102,21 @@ namespace_explorer_scheme_quote (const QString& s) {
   return string (out.c_str ());
 }
 
+static QString
+namespace_explorer_namespace_url (const QStringList& path, bool technical) {
+  QStringList parts= path;
+  if (parts.isEmpty ()) return QString ();
+  if (technical) parts.last ()= "!" + parts.last ();
+  return QString ("tmfs://ns/") + parts.join ("/");
+}
+
+static void
+namespace_explorer_load_url (const QString& tmfs) {
+  if (tmfs.isEmpty ()) return;
+  exec_delayed (scheme_cmd ("(load-buffer (string->url " *
+                            namespace_explorer_scheme_quote (tmfs) * "))"));
+}
+
 static void
 set_namespace_explorer_area_width (ads::CDockManager* manager,
                                    ads::CDockWidget* dock) {
@@ -333,14 +348,21 @@ QTMNamespaceExplorer::openFile (QTreeWidgetItem* item) {
 }
 
 void
-QTMNamespaceExplorer::openNamespaceSummary (QTreeWidgetItem* item) {
+QTMNamespaceExplorer::openNamespaceHomepage (QTreeWidgetItem* item) {
   if (item == nullptr || item->data (0, TypeRole).toInt () != NamespaceItem)
     return;
 
-  QString name= item->data (0, NamespaceNameRole).toString ();
-  QString tmfs= "tmfs://ns/!" + name;
-  exec_delayed (scheme_cmd ("(load-buffer (string->url " *
-                            namespace_explorer_scheme_quote (tmfs) * "))"));
+  QStringList path= item->data (0, NamespacePathRole).toStringList ();
+  namespace_explorer_load_url (namespace_explorer_namespace_url (path, false));
+}
+
+void
+QTMNamespaceExplorer::openNamespaceTechnicalSummary (QTreeWidgetItem* item) {
+  if (item == nullptr || item->data (0, TypeRole).toInt () != NamespaceItem)
+    return;
+
+  QStringList path= item->data (0, NamespacePathRole).toStringList ();
+  namespace_explorer_load_url (namespace_explorer_namespace_url (path, true));
 }
 
 QString
@@ -535,8 +557,12 @@ QTMNamespaceExplorer::showContextMenu (const QPoint& pos) {
   int type= item->data (0, TypeRole).toInt ();
   QMenu menu (this);
   if (type == NamespaceItem) {
-    menu.addAction ("Open summary", this,
-                    [this, item] () { openNamespaceSummary (item); });
+    menu.addAction ("Open homepage", this,
+                    [this, item] () { openNamespaceHomepage (item); });
+    menu.addAction ("Technical summary", this,
+                    [this, item] () {
+                      openNamespaceTechnicalSummary (item);
+                    });
   }
   else if (type == FileItem) {
     menu.addAction ("Load file", this, [this, item] () { openFile (item); });
