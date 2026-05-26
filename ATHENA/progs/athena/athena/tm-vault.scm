@@ -552,14 +552,16 @@
                                                "ornament-shape" "rectangular"
                                                "ornament-border" "1ln"
                                            (ornamented
-                                               (document
-                                                 (with "font-size" "0.8" "color" "blue"
-                                                   (concat (action ,(string-append "[Source: " filename "]") ,btn-cmd)))
-                                               ,@(map (lambda (st)
-                                                        (vault-transclude-rebase-images
-                                                         (vault-strip-labels st)
-                                                         source-dir))
-                                                      (map tree->stree content))))))))
+                                               (with "par-par-sep" "0fn"
+                                                     "par-sep" "0fn"
+                                                 (document
+                                                   (with "font-size" "0.8" "color" "blue"
+                                                     (concat (action ,(string-append "[Source: " filename "]") ,btn-cmd)))
+                                                 ,@(map (lambda (st)
+                                                          (vault-transclude-rebase-images
+                                                           (vault-strip-labels st)
+                                                           source-dir))
+                                                        (map tree->stree content)))))))))
                                 (vault-transclude-error uuid-str f-hint-str b-hint-str e-hint-str "Target file missing.")))
                           (vault-transclude-error uuid-str f-hint-str b-hint-str e-hint-str "UUID not in database.")))))
             (lambda (key . args)
