@@ -359,9 +359,12 @@ edit_interface_rep::cursor_visible () {
       (cu->oy+ cu->y2 >= vy2);
 
     string medium= as_string (get_init_value (PAGE_MEDIUM));
+    bool selection_scrolling=
+      selection_active_any () || selection_active_enlarging ();
     bool typewriter=
       get_user_preference ("typewriter mode", "off") == "on" &&
-      (medium == "papyrus" || medium == "automatic");
+      (medium == "papyrus" || medium == "automatic") &&
+      !selection_scrolling;
     if (typewriter && (vx2 - vx1 > 80*pixel) && (vy2 - vy1 > 80*pixel)) {
       SI cy= cu->oy + ((cu->y1 + cu->y2) >> 1);
       SI vc= (vy1 + vy2) >> 1;
