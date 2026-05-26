@@ -24,6 +24,7 @@ struct concat_box_rep: public composite_box_rep {
   box adjust_kerning (int mode, double factor);
   box expand_glyphs (int mode, double factor);
 
+  void      display (renderer ren);
   void      finalize ();
   void      clear_incomplete (rectangles& rs, SI pixel, int i, int i1, int i2);
   bool      access_allowed ();
@@ -126,6 +127,26 @@ concat_box_rep::finalize () {
   ip= old_ip;
 }
 
+void
+concat_box_rep::display (renderer ren) {
+  int n= N(bs);
+  for (int i=1; i<n; i++) {
+    brush bg= bs[i-1]->get_leaf_background ();
+    if (bg->get_type () != brush_none) {
+      SI left = sx2 (i-1);
+      SI right= sx  (i);
+      if (right > left) {
+        font fn= bs[i-1]->get_leaf_font ();
+        SI bot = min (sy1 (i-1), sy (i-1) + fn->y1);
+        SI top = max (sy2 (i-1), sy (i-1) + fn->y2);
+        brush old_bg= ren->get_background ();
+        ren->set_background (bg);
+        ren->clear_pattern (left, bot, right, top);
+        ren->set_background (old_bg);
+      }
+    }
+  }
+}
 
 box
 concat_box_rep::adjust_kerning (int mode, double factor) {
@@ -654,6 +675,7 @@ phrase_box_rep::position_at (SI x, SI y, rectangles& logs) {
 
 void
 phrase_box_rep::display (renderer ren) {
+  concat_box_rep::display (ren);
   ren->apply_shadow (x1, y1, x2, y2);
 }
 

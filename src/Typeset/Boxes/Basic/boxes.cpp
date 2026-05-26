@@ -475,6 +475,11 @@ box_rep::get_leaf_pencil () {
   return pencil (false);
 }
 
+brush
+box_rep::get_leaf_background () {
+  return brush (false);
+}
+
 language
 box_rep::get_leaf_language () {
   failed_error << "The box is " << box (this) << "\n";

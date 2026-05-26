@@ -116,6 +116,7 @@ hyphenate (line_item item, int pos, line_item& item1, line_item& item2) {
   string s  = b->get_leaf_string ();
   font   fn = b->get_leaf_font ();
   pencil pen= b->get_leaf_pencil ();
+  brush  bg = b->get_leaf_background ();
 
   string s1, s2;
   array<int> hp= item->lan->get_hyphens (s);
@@ -128,10 +129,10 @@ hyphenate (line_item item, int pos, line_item& item1, line_item& item2) {
   int  x2= is_accessible (ip)? x1 + real_pos: 0;
   
   item1= line_item (STRING_ITEM, OP_SKIP,
-		    shorter_box (ip, text_box (ip, x1, s1, fn, pen), real_pos),
+		    shorter_box (ip, text_box (ip, x1, s1, fn, pen, bg), real_pos),
 		    hp[pos], item->lan);
   item2= line_item (STRING_ITEM, item->op_type,
-                    text_box (ip, x2, s2, fn, pen),
+                    text_box (ip, x2, s2, fn, pen, bg),
 		    item->penalty, item->lan);
   item2->spc= item->spc;
   // cout << s << " ---> " << s1 << " " << s2 << "\n";

@@ -243,6 +243,7 @@ public:
   virtual string    get_leaf_string ();
   virtual font      get_leaf_font ();
   virtual pencil    get_leaf_pencil ();
+  virtual brush     get_leaf_background ();
   virtual language  get_leaf_language ();
   virtual tree      get_leaf_tree ();
   virtual box       get_leaf_box ();
