@@ -355,9 +355,18 @@ tm_server_rep::inclusions_gc (string which) {
 
 void
 tm_server_rep::typeset_update (path p) {
-  array<url> vs= get_all_views ();
-  for (int i=0; i<N(vs); i++)
-    view_to_editor (vs[i]) -> typeset_invalidate (p);
+  url cur= get_current_view_safe ();
+  if (is_none (cur)) return;
+
+  url buf= view_to_buffer (cur);
+  if (is_none (buf)) return;
+
+  array<url> vs= buffer_to_views (buf);
+  for (int i=0; i<N(vs); i++) {
+    editor ed= view_to_editor (vs[i]);
+    if (ed != editor () && ed->test_subtree (p))
+      ed->typeset_invalidate (p);
+  }
 }
 
 void
