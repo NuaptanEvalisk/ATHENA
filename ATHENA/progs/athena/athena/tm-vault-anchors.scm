@@ -484,8 +484,37 @@
       (selection-cancel))
     (go-start)))
 
+(define (vault-anchor-restore-position! buf pos sx sy)
+  (when (and pos (vault-anchor-current-buffer? buf))
+    (catch #t
+      (lambda ()
+        (go-to (position-get pos)))
+      (lambda args (noop))))
+  (when (vault-anchor-current-buffer? buf)
+    (set-scroll sx sy)))
+
+(define (vault-anchor-schedule-restore! buf pos sx sy)
+  (vault-anchor-restore-position! buf pos sx sy)
+  (delayed (:idle 1) (vault-anchor-restore-position! buf pos sx sy))
+  (delayed (:idle 25) (vault-anchor-restore-position! buf pos sx sy))
+  (delayed (:idle 100)
+    (begin
+      (vault-anchor-restore-position! buf pos sx sy)
+      (when pos (position-delete pos)))))
+
+(define (vault-anchor-capture-position buf)
+  (if (vault-anchor-current-buffer? buf)
+      (let ((pos (position-new)))
+        (position-set pos (cursor-path))
+        (list pos (get-scroll-x) (get-scroll-y)))
+      (list #f 0 0)))
+
 (define (vault-anchor-apply! buf)
-  (let* ((body (buffer-get-body buf))
+  (let* ((restore (vault-anchor-capture-position buf))
+         (pos (car restore))
+         (sx (cadr restore))
+         (sy (caddr restore))
+         (body (buffer-get-body buf))
          (plan (vault-anchor-live-plan body))
          (summary (vector-ref plan 0))
          (ops (sort (vector-ref plan 1) vault-anchor-op-before?)))
@@ -507,6 +536,10 @@
                parent index
                (cons 'tuple (list (stree->tree (vector-ref op 4)))))))))
        ops))
+    (when (and pos (not (null? ops)))
+      (vault-anchor-schedule-restore! buf pos sx sy))
+    (when (and pos (null? ops))
+      (position-delete pos))
     summary))
 
 (define (vault-anchor-summary-empty? summary)
