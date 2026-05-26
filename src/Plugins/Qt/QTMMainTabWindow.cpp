@@ -64,6 +64,24 @@ isDocumentWidget(QWidget* widget) {
           widget->findChild<QTMWidget*> () != nullptr);
 }
 
+static ads::CDockWidget*
+adsDockWidgetFor(QWidget* widget) {
+  for (QWidget* p= widget; p != nullptr; p= p->parentWidget())
+    if (ads::CDockWidget* dockWidget= qobject_cast<ads::CDockWidget*> (p))
+      return dockWidget;
+  return nullptr;
+}
+
+static QWidget*
+documentFocusTarget(QWidget* widget) {
+  if (widget == nullptr) return nullptr;
+  if (QTMWidget* tmWidget= qobject_cast<QTMWidget*> (widget))
+    return tmWidget;
+  if (QTMWidget* tmWidget= widget->findChild<QTMWidget*> ())
+    return tmWidget;
+  return widget;
+}
+
 static QString
 athenaMainWindowBaseTitle() {
 #ifdef ATHENA_DEBUG_BUILD
@@ -538,12 +556,14 @@ void QTMMainTabWindow::showWidget(QWidget *widget, bool isDocument) {
   if (isDocument) widget->installEventFilter(this);
   if (isDocument) buffer_switcher_note_widget (widget);
   if (tmapp()->useAds()) {
-    ads::CDockWidget* dockWidget = qobject_cast<ads::CDockWidget*>(widget->parentWidget());
+    ads::CDockWidget* dockWidget = adsDockWidgetFor(widget);
     if (dockWidget) {
       mStackedWidget->setCurrentWidget (mDockManager);
-      dockWidget->show();
+      dockWidget->toggleView(true);
       dockWidget->raise();
-      widget->setFocus();
+      mDockManager->setDockWidgetFocused(dockWidget);
+      if (QWidget* focusTarget= documentFocusTarget(widget))
+        focusTarget->setFocus(Qt::OtherFocusReason);
       setMainTitleFromWidget(widget);
     } else if (isDocument) {
       dockWidget = new ads::CDockWidget(widget->windowTitle());
@@ -570,7 +590,8 @@ void QTMMainTabWindow::showWidget(QWidget *widget, bool isDocument) {
 
       scheduleAdsLayoutRestore();
       mStackedWidget->setCurrentWidget (mDockManager);
-      widget->setFocus();
+      if (QWidget* focusTarget= documentFocusTarget(widget))
+        focusTarget->setFocus(Qt::OtherFocusReason);
       setMainTitleFromWidget(widget);
     } else {
 
@@ -681,12 +702,8 @@ QTMMainTabWindow::documentWidgetTitle(QWidget* widget) const {
   if (widget == nullptr) return QString ();
 
   if (tmapp()->useAds()) {
-    QWidget* p= widget->parentWidget ();
-    while (p != nullptr) {
-      if (ads::CDockWidget* dockWidget= qobject_cast<ads::CDockWidget*> (p))
-        return dockWidget->windowTitle ();
-      p= p->parentWidget ();
-    }
+    if (ads::CDockWidget* dockWidget= adsDockWidgetFor(widget))
+      return dockWidget->windowTitle ();
   }
   else if (tmapp()->useMdi()) {
     if (QMdiSubWindow* sub= qobject_cast<QMdiSubWindow*> (widget->parentWidget ()))
@@ -706,7 +723,8 @@ QTMMainTabWindow::activateDocumentWidget(QWidget* widget) {
   showWidget (widget, true);
   buffer_switcher_note_widget (widget);
   activateWindow ();
-  widget->setFocus ();
+  if (QWidget* focusTarget= documentFocusTarget(widget))
+    focusTarget->setFocus(Qt::OtherFocusReason);
 }
 
 void QTMMainTabWindow::removeWidget(QWidget *widget) {

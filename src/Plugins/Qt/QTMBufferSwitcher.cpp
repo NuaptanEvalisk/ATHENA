@@ -10,6 +10,7 @@
 
 #include "QTMBufferSwitcher.hpp"
 #include "QTMMainTabWindow.hpp"
+#include "QTMWidget.hpp"
 #include "qt_utilities.hpp"
 
 #include <QApplication>
@@ -21,6 +22,7 @@
 #include <QListWidget>
 #include <QPointer>
 #include <QShowEvent>
+#include <QTimer>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -28,6 +30,53 @@
 #include <vector>
 
 static std::vector<QPointer<QWidget> > buffer_switcher_mru;
+
+struct BufferSwitcherScrollSnapshot {
+  QPointer<QTMWidget> widget;
+  QPoint              origin;
+};
+
+static QTMWidget*
+buffer_switcher_texmacs_widget (QWidget* widget) {
+  if (widget == nullptr) return nullptr;
+  if (QTMWidget* tmWidget= qobject_cast<QTMWidget*> (widget))
+    return tmWidget;
+  return widget->findChild<QTMWidget*> ();
+}
+
+static std::vector<BufferSwitcherScrollSnapshot>
+buffer_switcher_capture_scroll (const QList<QWidget*>& docs) {
+  std::vector<BufferSwitcherScrollSnapshot> snapshots;
+  for (QWidget* doc : docs) {
+    QTMWidget* tmWidget= buffer_switcher_texmacs_widget (doc);
+    if (tmWidget == nullptr) continue;
+    snapshots.push_back ({ QPointer<QTMWidget> (tmWidget), tmWidget->origin () });
+  }
+  return snapshots;
+}
+
+static void
+buffer_switcher_restore_scroll (
+  const std::vector<BufferSwitcherScrollSnapshot>& snapshots) {
+  for (const BufferSwitcherScrollSnapshot& snapshot : snapshots)
+    if (snapshot.widget != nullptr)
+      snapshot.widget->setOrigin (snapshot.origin);
+}
+
+static void
+buffer_switcher_schedule_scroll_restore (
+  const std::vector<BufferSwitcherScrollSnapshot>& snapshots) {
+  buffer_switcher_restore_scroll (snapshots);
+  QTimer::singleShot (0, [snapshots] () {
+    buffer_switcher_restore_scroll (snapshots);
+  });
+  QTimer::singleShot (80, [snapshots] () {
+    buffer_switcher_restore_scroll (snapshots);
+  });
+  QTimer::singleShot (220, [snapshots] () {
+    buffer_switcher_restore_scroll (snapshots);
+  });
+}
 
 void
 buffer_switcher_note_widget (QWidget* widget) {
@@ -258,6 +307,9 @@ visual_buffer_switcher_show () {
     return;
   }
 
+  std::vector<BufferSwitcherScrollSnapshot> scrollSnapshots=
+    buffer_switcher_capture_scroll (docs);
+
   QWidget* parent= QApplication::activeWindow ();
   QTMBufferSwitcher switcher (win, parent);
   if (switcher.exec () == QDialog::Accepted) {
@@ -265,6 +317,7 @@ visual_buffer_switcher_show () {
     if (selected != nullptr) {
       buffer_switcher_note_widget (selected);
       win->activateDocumentWidget (selected);
+      buffer_switcher_schedule_scroll_restore (scrollSnapshots);
     }
   }
 }
