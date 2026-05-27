@@ -75,7 +75,7 @@ const char* aofm_grammar = R"(
     # 紧随特判：后面是内容行，且不能以空白行或新的列表前缀开头
     TightContinuation <- !BlankLine !ListPrefix !BlockStart LineContent NL
     
-    ListPrefix      <- [ \t]* ('-' / [0-9]+ '.') ([ \t]+ '[' [ x] ']')? [ \t]+
+    ListPrefix      <- [ \t]* ('-' / [0-9]+ '.') ([ \t]+ '[' [ xX] ']')? [ \t]+
 
     # ------------------------------------------------------------------
     # 表格 (无需严格对齐的通用 Markdown 表格)

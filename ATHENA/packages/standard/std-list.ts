@@ -260,6 +260,20 @@
 
   <new-list|itemize-arrow|<value|aligned-space-item>|<macro|name|<active*|<with|mode|math|<rigid|\<rightarrow\>>>>>>
 
+  <assign|todo-box-render|<macro|<active*|<with|mode|math|<rigid|\<box\>>>>>>
+
+  <assign|todo-checked-box-render|<macro|<superpose|<todo-box-render>|<active*|<with|mode|math|<move|<rigid|\<checkmark\>>|0.1em|0.05em>>>>>>
+
+  <assign|todo-box|<macro|<action|<todo-box-render>|mouse-toggle-todo-item|<todo-box-render>>>>
+
+  <assign|todo-checked-box|<macro|<action|<todo-checked-box-render>|mouse-toggle-todo-item|<todo-checked-box-render>>>>
+
+  <assign|todo-item|<macro|<next-item><assign|last-item-nr|<value|item-nr>><render-item|<todo-box>>>>
+
+  <assign|done-item|<macro|<next-item><assign|last-item-nr|<value|item-nr>><render-item|<todo-checked-box>>>>
+
+  <new-list|todo-list|<value|aligned-space-item>|<macro|name|<todo-box>>>
+
   <new-list|enumerate-numeric|<value|aligned-dot-item>|<value|identity>>
 
   <new-list|enumerate-roman|<value|aligned-dot-item>|<macro|name|<number|<arg|name>|roman>>>

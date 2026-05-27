@@ -82,10 +82,13 @@
 ;; Lists
 
 (define-group list-tag
-  (itemize-tag) (enumerate-tag) (description-tag) (new-list-tag))
+  (itemize-tag) (enumerate-tag) (description-tag) (todo-tag) (new-list-tag))
 
 (define-group itemize-tag
   itemize itemize-minus itemize-dot itemize-arrow)
+
+(define-group todo-tag
+  todo-list)
 
 (define-group enumerate-tag
   enumerate enumerate-numeric enumerate-roman

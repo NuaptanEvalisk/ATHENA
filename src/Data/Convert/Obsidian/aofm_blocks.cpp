@@ -193,19 +193,52 @@ is_ordered_list(const AstPtr& ast) {
   return false;
 }
 
+static int
+list_item_task_state(const AstPtr& ast) {
+  if (!ast) return -1;
+  for (const auto& child : ast->nodes) {
+    if (!ast_is(child, "ListPrefix")) continue;
+
+    std::string prefix = ast_source(child);
+    size_t open = prefix.find('[');
+    if (open == std::string::npos || open + 2 >= prefix.size()) return -1;
+    if (prefix[open + 2] != ']') return -1;
+
+    char marker = prefix[open + 1];
+    if (marker == 'x' || marker == 'X') return 1;
+    if (marker == ' ') return 0;
+    return -1;
+  }
+  return -1;
+}
+
+static bool
+is_task_list(const AstPtr& ast) {
+  if (!ast) return false;
+  for (const auto& child : ast->nodes)
+    if (ast_is(child, "ListItem") && list_item_task_state(child) >= 0)
+      return true;
+  return false;
+}
+
 tree
 convert_list(const AstPtr& ast) {
   tree items(DOCUMENT);
+  bool task_list = is_task_list(ast);
 
   for (const auto& child : ast->nodes) {
     if (!ast_is(child, "ListItem")) continue;
 
+    int task_state = task_list ? list_item_task_state(child) : -1;
     tree item(CONCAT);
-    item << compound("item");
+    if (task_state > 0) item << compound("done-item");
+    else if (task_state == 0) item << compound("todo-item");
+    else item << compound("item");
     append_concat(item, convert_list_item_body(child));
     items << simplify_concat(item);
   }
 
+  if (task_list) return compound("todo-list", items);
   return compound(is_ordered_list(ast) ? "enumerate" : "itemize", items);
 }
 

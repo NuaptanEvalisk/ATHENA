@@ -436,7 +436,8 @@
   ---
   ("Bullets" (make-tmlist 'itemize-dot))
   ("Dashes" (make-tmlist 'itemize-minus))
-  ("Arrows" (make-tmlist 'itemize-arrow)))
+  ("Arrows" (make-tmlist 'itemize-arrow))
+  ("Todo list" (make-tmlist 'todo-list)))
 
 (menu-bind enumerate-menu
   ("Default" (make-tmlist 'enumerate))
@@ -462,6 +463,7 @@
   ("Bullets" (make-tmlist 'itemize-dot))
   ("Dashes" (make-tmlist 'itemize-minus))
   ("Arrows" (make-tmlist 'itemize-arrow))
+  ("Todo list" (make-tmlist 'todo-list))
   ---
   ("Enumerate" (make-tmlist 'enumerate))
   ---
@@ -886,6 +888,11 @@
   ---
   (-> "Go to section"
       (link focus-section-menu)))
+
+(tm-menu (focus-extra-menu t)
+  (:require (todo-list-item-context? t))
+  ---
+  ("Toggle todo item" (todo-toggle-current)))
 
 (tm-menu (focus-extra-icons t)
   (:require (section-context? t))

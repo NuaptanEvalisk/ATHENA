@@ -366,9 +366,24 @@
 (tm-define (enumerate-context? t)
   (tree-in? t (enumerate-tag-list)))
 
+(tm-define (todo-list-context? t)
+  (tree-in? t (todo-tag-list)))
+
 (tm-define (itemize-enumerate-context? t)
   (or (tree-in? t (itemize-tag-list))
       (tree-in? t (enumerate-tag-list))))
+
+(tm-define (todo-list-item-context? t)
+  (or (tree-is? t 'todo-item)
+      (tree-is? t 'done-item)
+      (and (tree-is? t 'item)
+           (tree-innermost 'todo-list #t))))
+
+(define (todo-current-item)
+  (or (tree-innermost 'todo-item #t)
+      (tree-innermost 'done-item #t)
+      (and (tree-innermost 'todo-list #t)
+           (tree-innermost 'item #t))))
 
 (tm-define (make-tmlist l)
   (with flag? (and (selection-active-non-small?)
@@ -382,6 +397,7 @@
       (with lab (inside-which (list-tag-list))
 	(cond ((in? lab (itemize-tag-list)) (make 'item))
 	      ((in? lab (enumerate-tag-list)) (make 'item))
+	      ((in? lab (todo-tag-list)) (make 'item))
 	      ((in? lab (description-tag-list)) (make 'item*))
               (else (make 'item))))))
 
@@ -392,6 +408,21 @@
 (tm-define (kbd-enter t shift?)
   (:require (tree-is? t 'item*))
   (go-end-of 'item*))
+
+(tm-define (todo-toggle-current)
+  (let ((t (todo-current-item)))
+    (when t
+      (tree-assign-node! t (if (tree-is? t 'done-item)
+                               'todo-item
+                               'done-item)))))
+
+(tm-define (mouse-toggle-todo-item t)
+  (:type (-> tree void))
+  (:synopsis "Toggle a todo-list item using the mouse")
+  (:secure #t)
+  (when (and (tree? t) (tree->path t))
+    (tree-go-to t :start))
+  (todo-toggle-current))
 
 (tm-define (focus-label t)
   (:require (or (list-context? t) (tree-is? t 'bib-list)))
