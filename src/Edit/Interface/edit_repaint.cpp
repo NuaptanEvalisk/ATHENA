@@ -17,6 +17,16 @@ extern int nr_painted;
 extern void clear_pattern_rectangles (renderer ren, rectangle m, rectangles l);
 extern bool animated_flag;
 
+static void
+append_key_tree_text (tree t, string& out) {
+  if (is_atomic (t)) {
+    out << t->label;
+    return;
+  }
+  for (int i=0; i<N(t); i++)
+    append_key_tree_text (t[i], out);
+}
+
 static SI
 focus_border_width (renderer ren) {
   return max ((SI) gui_focus_border_width, (SI) 1) * ren->pixel;
@@ -293,13 +303,11 @@ edit_interface_rep::draw_keys (renderer ren) {
     if (!is_concat (rew)) rew= tree (CONCAT, rew);
     string ns;
     for (int i=0; i<N(rew); i++) {
-      tree t= rew[i];
-      while (is_compound (t, "render-key") || is_func (t, WITH))
-        t= t[N(t)-1];
-      if (is_atomic (t)) {
-        if (N(ns) != 0) ns << "  ";
-        ns << t->label;
-      }
+      string part;
+      append_key_tree_text (rew[i], part);
+      if (N(part) == 0) continue;
+      if (N(ns) != 0) ns << "  ";
+      ns << part;
     }
     ren->set_background (rgb_color (240, 224, 208));
     rectangle r= keys_rects->item;

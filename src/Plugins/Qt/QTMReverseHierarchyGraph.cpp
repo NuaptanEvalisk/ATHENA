@@ -11,6 +11,7 @@
 #include "QTMReverseHierarchyGraph.hpp"
 
 #include "QTMMainTabWindow.hpp"
+#include "analyze.hpp"
 #include "editor.hpp"
 #include "namespaces.hpp"
 #include "new_view.hpp"
@@ -92,6 +93,7 @@ class ReverseHierarchyGraphPane;
 static ReverseHierarchyGraphPane* reverse_hierarchy_graph_widget= nullptr;
 constexpr double pi= 3.14159265358979323846;
 constexpr const char* default_graph_size= "14cm";
+constexpr int graph_item_url_role= 1;
 
 static QString
 current_buffer_identity () {
@@ -147,6 +149,18 @@ has_string_qt (const strings& xs, const QString& s) {
   for (int i=0; i<N(xs); i++)
     if (to_qstring (xs[i]) == s) return true;
   return false;
+}
+
+static QString
+namespace_url (const QString& name) {
+  return QString ("tmfs://ns/") + name;
+}
+
+static void
+open_graph_url (const QString& target) {
+  if (target.isEmpty ()) return;
+  exec_delayed (scheme_cmd ("(load-buffer (string->url " *
+                            scm_quote (from_qstring (target)) * "))"));
 }
 
 static void
@@ -609,6 +623,9 @@ create_scene (const RHGraph& graph) {
     QGraphicsRectItem* box= scene->addRect (
       rect, QPen (QColor ("#333333"), 1.4), QBrush (fill));
     box->setZValue (2);
+    box->setData (graph_item_url_role,
+                  n.kind == "file" ? graph.filePath : namespace_url (n.label));
+    box->setToolTip ("Double click to open");
     QGraphicsTextItem* text= scene->addText (n.label);
     QFont font= text->font ();
     font.setPointSize (10);
@@ -620,6 +637,9 @@ create_scene (const RHGraph& graph) {
     text->setPos (rect.center ().x () - br.width () / 2.0,
                   rect.center ().y () - br.height () / 2.0);
     text->setZValue (5);
+    text->setData (graph_item_url_role,
+                   n.kind == "file" ? graph.filePath : namespace_url (n.label));
+    text->setToolTip ("Double click to open");
   }
 
   QRectF r= scene->itemsBoundingRect ().adjusted (-24, -24, 24, 24);
@@ -710,6 +730,24 @@ protected:
       return;
     }
     QGraphicsView::mouseReleaseEvent (event);
+  }
+
+  void mouseDoubleClickEvent (QMouseEvent* event) override {
+    if (event->button () == Qt::LeftButton) {
+      QGraphicsItem* item= itemAt (event->pos ());
+      while (item != nullptr) {
+        QVariant target= item->data (graph_item_url_role);
+        if (target.isValid () && !target.toString ().isEmpty ()) {
+          dragging= false;
+          setCursor (Qt::OpenHandCursor);
+          open_graph_url (target.toString ());
+          event->accept ();
+          return;
+        }
+        item= item->parentItem ();
+      }
+    }
+    QGraphicsView::mouseDoubleClickEvent (event);
   }
 
   void contextMenuEvent (QContextMenuEvent* event) override {
