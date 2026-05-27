@@ -13,6 +13,7 @@
 
 (texmacs-module (athena keyboard latex-kbd)
   (:use (utils edit auto-close)
+	(athena athena tm-reverse-hierarchy-graph)
 	(generic format-edit)
 	(generic generic-edit)
 	(text text-edit)))
@@ -231,6 +232,8 @@
   ("subparagraph" "Insert subparagraph" (make-section 'subparagraph))
   ("table" "Insert a big table" (make 'big-table))
   ("figure" "Insert a big figure" (make 'big-figure))
+  ("graph-rev-hierarchy" "Insert reverse hierarchy graph"
+   (insert-reverse-hierarchy-graph))
 
   ("def" "Insert definition" (make 'definition))
   ("rem" "Insert remark" (make 'remark))

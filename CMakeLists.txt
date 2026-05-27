@@ -384,6 +384,8 @@ set (GS_EXE ${GS_EXECUTABLE})
 set (GS_FONTS ../share/ghostscript/fonts:/usr/share/fonts:)
 set (GS_LIB ../share/ghostscript/9.06/lib:)
 
+find_program (GRAPHVIZ_FDP_EXECUTABLE NAMES fdp REQUIRED)
+
 set (GUILE_NUM 1)
 set (PDF_RENDERER 1)
 set (SIZEOF_VOID_P 8)

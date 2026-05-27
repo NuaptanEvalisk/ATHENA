@@ -75,6 +75,10 @@
     </note>
   </macro>>
 
+  <assign|graph-rev-hierarchy|<macro|size|<extern|reverse-hierarchy-graph-render|<arg|size>>>>
+
+  <drd-props|graph-rev-hierarchy|arity|1|border|no>
+
   <assign|tm-made|<macro|<with|ornament-color||ornament-shadow-color|<value|color>|ornament-sunny-color|<value|color>|ornament-border|1ln|ornament-shape|rounded|ornament-hpadding|0.5spc|ornament-vpadding|0.5spc|<ornament|<math|\<Backsigma\>>>>>>
 
   <assign|TeX|<macro|<active*|T<rsub|<space|-0.4spc><move|<resize|<with|math-level|0|E>||||0.5fn>|0fn|-0.1fn>><space|-0.4spc>X>>>

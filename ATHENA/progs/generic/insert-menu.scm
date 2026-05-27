@@ -13,6 +13,7 @@
 
 (texmacs-module (generic insert-menu)
   (:use (utils edit selections)
+	(athena athena tm-reverse-hierarchy-graph)
 	(generic generic-edit)
 	(generic format-edit)
 	(generic format-geometry-edit)))
@@ -146,6 +147,8 @@
       (-> "Mathematics" (link insert-math-menu)))
   (-> "Table" (link insert-table-menu))
   (-> "Image" (link insert-image-menu))
+  (-> "Graph"
+      ("Reverse Hierarchy" (insert-reverse-hierarchy-graph)))
   (-> "Link" (link insert-link-menu))
   ("Build warning" (make-experimental-build-warning))
   (if (detailed-menus?)

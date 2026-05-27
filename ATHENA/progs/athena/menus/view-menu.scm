@@ -16,6 +16,7 @@
     (athena athena tm-view)
     (athena athena tm-server)
     (athena athena tm-files)
+    (athena athena tm-reverse-hierarchy-graph)
     (athena menus view-widgets)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -123,6 +124,8 @@
       ("Visible" (set-preference "vault labels mode" "visible"))
       ("Small" (set-preference "vault labels mode" "small"))
       ("Hidden" (set-preference "vault labels mode" "hidden")))
+  (-> "Graph"
+      ("Reverse Hierarchy" (open-reverse-hierarchy-graph)))
   ;;("Fit to screen height" (fit-to-screen-height))
   ("Zoom in" (zoom-in (sqrt (sqrt 2.0))))
   ("Zoom out" (zoom-out (sqrt (sqrt 2.0))))

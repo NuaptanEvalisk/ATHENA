@@ -41,6 +41,7 @@
 #include "QTMNamespaceManager.hpp"
 #include "QTMNamespaceExplorer.hpp"
 #include "QTMNamespaceNewFile.hpp"
+#include "QTMReverseHierarchyGraph.hpp"
 #include "QTMAbout.hpp"
 #include "QTMESCSymbolPicker.hpp"
 #include "QTMFontSelector.hpp"
@@ -1531,6 +1532,15 @@ tmg_namespace_info_page (tmscm arg1) {
 }
 
 tmscm
+tmg_reverse_hierarchy_graph_render (tmscm arg1) {
+  TMSCM_ASSERT_CONTENT (arg1, TMSCM_ARG1, "reverse-hierarchy-graph-render");
+
+  tree t= tmscm_to_content (arg1);
+  string size= is_atomic (t) ? t->label : tree_as_string (t);
+  return tree_to_tmscm (reverse_hierarchy_graph_render (size));
+}
+
+tmscm
 tmg_namespace_new_file_wizard () {
   if (headless_mode) return string_to_tmscm ("");
   return string_to_tmscm (namespace_new_file_wizard ());
@@ -1593,6 +1603,12 @@ initialize_glue () {
                            namespace_manager_show, 0, 0, 0);
   tmscm_install_procedure ("namespace-explorer-show",
                            namespace_explorer_show, 0, 0, 0);
+  tmscm_install_procedure ("reverse-hierarchy-graph-show",
+                           reverse_hierarchy_graph_show, 0, 0, 0);
+  tmscm_install_procedure ("reverse-hierarchy-graph-insert",
+                           reverse_hierarchy_graph_insert, 0, 0, 0);
+  tmscm_install_procedure ("reverse-hierarchy-graph-render",
+                           tmg_reverse_hierarchy_graph_render, 1, 0, 0);
   tmscm_install_procedure ("namespace-info-page",
                            tmg_namespace_info_page, 1, 0, 0);
   tmscm_install_procedure ("namespace-new-file-wizard",
