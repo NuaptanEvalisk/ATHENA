@@ -85,6 +85,9 @@ bool athena_namespace_generate_restricted_sorter (
 
 std::vector<athena_namespace_match> athena_namespace_members (string name,
                                                               string& error);
+bool athena_namespace_match_stem (const athena_namespace_definition& ns,
+                                  string stem, athena_namespace_match& match,
+                                  string& error);
 std::vector<athena_namespace_definition>
 athena_namespace_concrete_matches_stem (string stem, string& error);
 std::vector<athena_namespace_template_field>

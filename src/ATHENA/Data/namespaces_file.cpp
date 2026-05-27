@@ -129,6 +129,13 @@ namespace_load_initial_document (const athena_namespace_definition& ns,
 
 } // namespace
 
+bool
+athena_namespace_match_stem (const athena_namespace_definition& ns,
+                             string stem, athena_namespace_match& match,
+                             string& error) {
+  return match_stem (ns, tm_to_std (stem), match, error);
+}
+
 std::vector<athena_namespace_definition>
 athena_namespace_concrete_matches_stem (string stem, string& error) {
   std::vector<athena_namespace_definition> out;

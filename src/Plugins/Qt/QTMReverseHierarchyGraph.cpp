@@ -15,12 +15,14 @@
 #include "namespaces.hpp"
 #include "new_view.hpp"
 #include "qt_utilities.hpp"
+#include "scheme.hpp"
 #include "vault.hpp"
 
 #include <DockWidget.h>
 #include <QApplication>
 #include <QByteArray>
 #include <QBuffer>
+#include <QCheckBox>
 #include <QContextMenuEvent>
 #include <QDir>
 #include <QFile>
@@ -32,6 +34,7 @@
 #include <QGraphicsTextItem>
 #include <QGraphicsView>
 #include <QImage>
+#include <QLabel>
 #include <QMenu>
 #include <QMap>
 #include <QMessageBox>
@@ -41,13 +44,18 @@
 #include <QScrollBar>
 #include <QSet>
 #include <QSizeGrip>
+#include <QSignalBlocker>
+#include <QSlider>
 #include <QStringList>
+#include <QStyle>
 #include <QTimer>
+#include <QToolButton>
 #include <QHBoxLayout>
 #include <QVBoxLayout>
 
 #include <algorithm>
 #include <cmath>
+#include <functional>
 #include <iostream>
 #include <map>
 #include <set>
@@ -92,13 +100,6 @@ current_file_path () {
 }
 
 static QString
-canonical_path (const QString& path) {
-  QFileInfo info (path);
-  QString canonical= info.canonicalFilePath ();
-  return canonical.isEmpty () ? QDir::cleanPath (path) : canonical;
-}
-
-static QString
 file_stem (const QString& path) {
   QString stem= QFileInfo (path).completeBaseName ();
   return stem.isEmpty () ? QFileInfo (path).fileName () : stem;
@@ -121,20 +122,44 @@ add_unique_edge (std::vector<RHEdge>& edges, const QString& from,
 }
 
 static bool
-namespace_matches_file (const athena_namespace_definition& ns,
-                        const QString& path, string& error) {
-  if (ns.kind == "abstract") return false;
-  string local_error;
-  std::vector<athena_namespace_match> members=
-    athena_namespace_members (ns.name, local_error);
-  if (local_error != "" && error == "") error= local_error;
+reverse_hierarchy_simplify_graphs () {
+  return get_preference ("vault simplify hierarchy graphs", "off") == "on";
+}
 
-  QString target= canonical_path (path);
-  for (const athena_namespace_match& m: members) {
-    QString member= canonical_path (to_qstring (concretize (m.file)));
-    if (member == target) return true;
+static bool
+has_alternate_path (const std::vector<RHEdge>& edges, int skip,
+                    const QString& from, const QString& to) {
+  QMap<QString,QStringList> adjacent;
+  for (int i=0; i<(int) edges.size (); i++) {
+    if (i == skip) continue;
+    adjacent[edges[i].from] << edges[i].to;
+  }
+
+  QSet<QString> seen;
+  QList<QString> pending;
+  pending << from;
+  seen.insert (from);
+  while (!pending.isEmpty ()) {
+    QString current= pending.takeFirst ();
+    for (const QString& next: adjacent.value (current)) {
+      if (next == to) return true;
+      if (seen.contains (next)) continue;
+      seen.insert (next);
+      pending << next;
+    }
   }
   return false;
+}
+
+static void
+simplify_transitive_edges (std::vector<RHEdge>& edges) {
+  std::vector<RHEdge> reduced;
+  for (int i=0; i<(int) edges.size (); i++) {
+    const RHEdge& e= edges[i];
+    if (!has_alternate_path (edges, i, e.from, e.to))
+      reduced.push_back (e);
+  }
+  edges.swap (reduced);
 }
 
 static void
@@ -171,9 +196,6 @@ build_current_reverse_hierarchy_graph (RHGraph& graph, QString& error) {
     return false;
   }
 
-  string refresh_error;
-  athena_namespace_refresh_derived (refresh_error);
-
   QMap<QString,athena_namespace_definition> all;
   for (const athena_namespace_definition& ns: athena_namespaces_list ())
     all.insert (to_qstring (ns.name), ns);
@@ -181,11 +203,17 @@ build_current_reverse_hierarchy_graph (RHGraph& graph, QString& error) {
   QSet<QString> included;
   QStringList matching;
   string match_error;
+  string stem= from_qstring (file_stem (path));
   for (auto it= all.constBegin (); it != all.constEnd (); ++it) {
-    if (namespace_matches_file (it.value (), path, match_error)) {
+    const athena_namespace_definition& ns= it.value ();
+    if (ns.kind == "abstract") continue;
+    athena_namespace_match match;
+    string local_error;
+    if (athena_namespace_match_stem (ns, stem, match, local_error)) {
       included.insert (it.key ());
       matching << it.key ();
     }
+    else if (local_error != "" && match_error == "") match_error= local_error;
   }
 
   if (matching.isEmpty ()) {
@@ -200,6 +228,8 @@ build_current_reverse_hierarchy_graph (RHGraph& graph, QString& error) {
     add_unique_edge (graph.edges, "ns:" + ns, "file");
     collect_parent_namespaces (ns, all, included, graph.edges);
   }
+  if (reverse_hierarchy_simplify_graphs ())
+    simplify_transitive_edges (graph.edges);
 
   for (auto it= all.constBegin (); it != all.constEnd (); ++it) {
     if (!included.contains (it.key ())) continue;
@@ -347,6 +377,23 @@ find_node_const (const RHGraph& graph, const QString& id) {
   return nullptr;
 }
 
+static void
+adjust_node_sizes_for_text (RHGraph& graph) {
+  QFont font;
+  font.setPointSize (10);
+  for (RHNode& n: graph.nodes) {
+    QFont nodeFont= font;
+    nodeFont.setBold (n.kind == "file");
+
+    QGraphicsTextItem text (n.label);
+    text.setFont (nodeFont);
+    text.setTextWidth (std::max (n.size.width () - 12.0, 40.0));
+    QRectF br= text.boundingRect ();
+    double required= br.height () + 12.0;
+    if (required > n.size.height ()) n.size.setHeight (required);
+  }
+}
+
 static QRectF
 node_rect (const RHNode& n) {
   return QRectF (n.pos.x () - n.size.width () / 2.0,
@@ -439,14 +486,17 @@ add_arrow (QGraphicsScene* scene, QPointF from, QPointF to, const QPen& pen) {
 
 static QGraphicsScene*
 create_scene (const RHGraph& graph) {
+  RHGraph adjusted= graph;
+  adjust_node_sizes_for_text (adjusted);
+
   QGraphicsScene* scene= new QGraphicsScene ();
   scene->setBackgroundBrush (QColor ("#fbfbfb"));
   QPen edgePen (QColor ("#555555"), 1.6);
   edgePen.setBrush (QColor ("#555555"));
 
-  for (const RHEdge& e: graph.edges) {
-    const RHNode* from= find_node_const (graph, e.from);
-    const RHNode* to= find_node_const (graph, e.to);
+  for (const RHEdge& e: adjusted.edges) {
+    const RHNode* from= find_node_const (adjusted, e.from);
+    const RHNode* to= find_node_const (adjusted, e.to);
     if (from == nullptr || to == nullptr) continue;
     QRectF fr= node_rect (*from);
     QRectF tr= node_rect (*to);
@@ -455,7 +505,7 @@ create_scene (const RHGraph& graph) {
     add_arrow (scene, start, end, edgePen);
   }
 
-  for (const RHNode& n: graph.nodes) {
+  for (const RHNode& n: adjusted.nodes) {
     QRectF rect= node_rect (n);
     QColor fill= n.kind == "file" ? QColor ("#e9f3ff") :
                  n.kind == "abstract" ? QColor ("#f2ecff") :
@@ -485,7 +535,7 @@ create_scene (const RHGraph& graph) {
 class ReverseHierarchyGraphView: public QGraphicsView {
 public:
   ReverseHierarchyGraphView (QGraphicsScene* scene, QWidget* parent = nullptr)
-    : QGraphicsView (scene, parent), dragging (false) {
+    : QGraphicsView (scene, parent), dragging (false), zoomPercent (100) {
     setRenderHints (QPainter::Antialiasing | QPainter::TextAntialiasing);
     setDragMode (QGraphicsView::NoDrag);
     setTransformationAnchor (QGraphicsView::AnchorUnderMouse);
@@ -493,16 +543,39 @@ public:
     setCursor (Qt::OpenHandCursor);
   }
 
+  void setZoomChangedCallback (std::function<void(int)> cb) {
+    zoomChanged= cb;
+  }
+
+  void setOwnedScene (QGraphicsScene* scene) {
+    QGraphicsScene* old= this->scene ();
+    setScene (scene);
+    scene->setParent (this);
+    if (old != nullptr && old != scene) old->deleteLater ();
+  }
+
+  void setZoomPercent (int percent) {
+    zoomPercent= std::max (25, std::min (percent, 300));
+    resetTransform ();
+    double factor= zoomPercent / 100.0;
+    scale (factor, factor);
+    if (zoomChanged) zoomChanged (zoomPercent);
+  }
+
   void resetViewport () {
     if (scene () == nullptr) return;
     resetTransform ();
     fitInView (scene ()->sceneRect (), Qt::KeepAspectRatio);
+    zoomPercent= 100;
+    if (zoomChanged) zoomChanged (zoomPercent);
   }
 
 protected:
   void wheelEvent (QWheelEvent* event) override {
     const double factor= event->angleDelta ().y () > 0 ? 1.15 : 1.0 / 1.15;
     scale (factor, factor);
+    zoomPercent= std::max (25, std::min ((int) std::round (zoomPercent * factor), 300));
+    if (zoomChanged) zoomChanged (zoomPercent);
     event->accept ();
   }
 
@@ -553,14 +626,71 @@ protected:
 
 private:
   bool dragging;
+  int zoomPercent;
   QPoint lastDragPos;
+  std::function<void(int)> zoomChanged;
 };
+
+static bool build_layout_graph (RHGraph& graph, QString& error);
 
 class ReverseHierarchyGraphPane: public QWidget {
 public:
-  ReverseHierarchyGraphPane (ReverseHierarchyGraphView* view2,
-                             QWidget* parent = nullptr)
-    : QWidget (parent), view (view2), floatingSizeGrip (new QSizeGrip (this)) {
+  ReverseHierarchyGraphPane (QWidget* parent = nullptr)
+    : QWidget (parent),
+      view (new ReverseHierarchyGraphView (new QGraphicsScene (), this)),
+      zoomSlider (new QSlider (Qt::Horizontal, this)),
+      zoomLabel (new QLabel ("100%", this)),
+      lockedCheck (new QCheckBox ("Locked", this)),
+      floatingSizeGrip (new QSizeGrip (this)),
+      refreshTimer (new QTimer (this)) {
+    view->scene ()->setParent (view);
+    view->setZoomChangedCallback ([this] (int percent) {
+      QSignalBlocker blocker (zoomSlider);
+      zoomSlider->setValue (percent);
+      zoomLabel->setText (QString::number (percent) + "%");
+    });
+
+    QToolButton* zoomOut= new QToolButton (this);
+    zoomOut->setIcon (style ()->standardIcon (QStyle::SP_ArrowDown));
+    zoomOut->setToolTip ("Zoom out");
+    QToolButton* zoomIn= new QToolButton (this);
+    zoomIn->setIcon (style ()->standardIcon (QStyle::SP_ArrowUp));
+    zoomIn->setToolTip ("Zoom in");
+    QToolButton* reset= new QToolButton (this);
+    reset->setIcon (style ()->standardIcon (QStyle::SP_BrowserReload));
+    reset->setToolTip ("Reset viewport");
+
+    zoomSlider->setRange (25, 300);
+    zoomSlider->setValue (100);
+    zoomSlider->setSingleStep (5);
+    zoomSlider->setPageStep (25);
+    zoomSlider->setFixedWidth (160);
+    zoomLabel->setMinimumWidth (44);
+    lockedCheck->setToolTip (
+      "Keep showing this graph instead of following the active document");
+
+    connect (zoomOut, &QToolButton::clicked, this, [this] () {
+      view->setZoomPercent (zoomSlider->value () - 10);
+    });
+    connect (zoomIn, &QToolButton::clicked, this, [this] () {
+      view->setZoomPercent (zoomSlider->value () + 10);
+    });
+    connect (reset, &QToolButton::clicked,
+             this, [this] () { view->resetViewport (); });
+    connect (zoomSlider, &QSlider::valueChanged,
+             this, [this] (int value) { view->setZoomPercent (value); });
+
+    QHBoxLayout* controls= new QHBoxLayout ();
+    controls->setContentsMargins (4, 3, 4, 3);
+    controls->addWidget (zoomOut);
+    controls->addWidget (zoomSlider);
+    controls->addWidget (zoomIn);
+    controls->addWidget (zoomLabel);
+    controls->addSpacing (8);
+    controls->addWidget (reset);
+    controls->addStretch ();
+    controls->addWidget (lockedCheck);
+
     floatingSizeGrip->hide ();
 
     QHBoxLayout* gripRow= new QHBoxLayout ();
@@ -570,8 +700,14 @@ public:
 
     QVBoxLayout* layout= new QVBoxLayout (this);
     layout->setContentsMargins (0, 0, 0, 0);
+    layout->addLayout (controls);
     layout->addWidget (view, 1);
     layout->addLayout (gripRow);
+
+    refreshTimer->setInterval (700);
+    connect (refreshTimer, &QTimer::timeout,
+             this, [this] () { refreshIfActiveDocumentChanged (); });
+    refreshTimer->start ();
   }
 
   QSize sizeHint () const override { return QSize (620, 520); }
@@ -580,9 +716,50 @@ public:
     floatingSizeGrip->setVisible (visible);
   }
 
+  bool refreshFromCurrentDocument (QString* errorOut = nullptr) {
+    RHGraph graph;
+    QString error;
+    if (!build_layout_graph (graph, error)) {
+      if (errorOut != nullptr) *errorOut= error;
+      showMessageScene (error);
+      return false;
+    }
+
+    currentPath= graph.filePath;
+    view->setOwnedScene (create_scene (graph));
+    QTimer::singleShot (0, view, [this] () { view->resetViewport (); });
+    if (reverse_hierarchy_graph_dock != nullptr)
+      reverse_hierarchy_graph_dock->setWindowTitle (graph.title);
+    return true;
+  }
+
 private:
+  void showMessageScene (const QString& message) {
+    QGraphicsScene* scene= new QGraphicsScene ();
+    scene->setBackgroundBrush (QColor ("#fbfbfb"));
+    QGraphicsTextItem* text= scene->addText (message);
+    text->setDefaultTextColor (QColor ("#884444"));
+    text->setTextWidth (420);
+    text->setPos (20, 20);
+    scene->setSceneRect (0, 0, 500, 160);
+    view->setOwnedScene (scene);
+    currentPath= current_file_path ();
+  }
+
+  void refreshIfActiveDocumentChanged () {
+    if (lockedCheck->isChecked ()) return;
+    QString path= current_file_path ();
+    if (path.isEmpty () || path == currentPath) return;
+    refreshFromCurrentDocument ();
+  }
+
   ReverseHierarchyGraphView* view;
+  QSlider* zoomSlider;
+  QLabel* zoomLabel;
+  QCheckBox* lockedCheck;
   QSizeGrip* floatingSizeGrip;
+  QTimer* refreshTimer;
+  QString currentPath;
 };
 
 static bool
@@ -644,35 +821,38 @@ graph_image_tree (const QImage& image, string size) {
 
 void
 reverse_hierarchy_graph_show () {
-  RHGraph graph;
-  QString error;
-  if (!build_layout_graph (graph, error)) {
-    show_error (error);
-    return;
-  }
-
   QTMMainTabWindow* win= QTMMainTabWindow::topTabWindow ();
   if (win == nullptr || win->dockManager () == nullptr) {
     show_error ("No active ATHENA window.");
     return;
   }
 
-  ReverseHierarchyGraphPane* oldWidget= reverse_hierarchy_graph_widget;
-  QGraphicsScene* scene= create_scene (graph);
-  ReverseHierarchyGraphView* view= new ReverseHierarchyGraphView (scene);
-  scene->setParent (view);
-
-  ReverseHierarchyGraphPane* pane= new ReverseHierarchyGraphPane (view);
-  pane->resize (620, 520);
-  reverse_hierarchy_graph_widget= pane;
+  if (reverse_hierarchy_graph_widget == nullptr) {
+    reverse_hierarchy_graph_widget= new ReverseHierarchyGraphPane ();
+    reverse_hierarchy_graph_widget->resize (620, 520);
+    QObject::connect (reverse_hierarchy_graph_widget, &QObject::destroyed, [] () {
+      reverse_hierarchy_graph_widget= nullptr;
+      reverse_hierarchy_graph_dock= nullptr;
+    });
+  }
 
   if (reverse_hierarchy_graph_dock == nullptr) {
-    reverse_hierarchy_graph_dock= new ads::CDockWidget (graph.title);
+    reverse_hierarchy_graph_dock= new ads::CDockWidget (
+      "Reverse Hierarchy Graph");
     reverse_hierarchy_graph_dock->setObjectName (
       "athena-reverse-hierarchy-graph");
     reverse_hierarchy_graph_dock->resize (640, 560);
+    reverse_hierarchy_graph_dock->setWidget (reverse_hierarchy_graph_widget);
     reverse_hierarchy_graph_dock->setFeature (
       ads::CDockWidget::DockWidgetDeleteOnClose, false);
+    QObject::connect (reverse_hierarchy_graph_dock,
+                      &ads::CDockWidget::topLevelChanged,
+                      reverse_hierarchy_graph_widget,
+                      [] (bool topLevel) {
+                        if (reverse_hierarchy_graph_widget != nullptr)
+                          reverse_hierarchy_graph_widget->
+                            setFloatingResizeGripVisible (topLevel);
+                      });
     QObject::connect (reverse_hierarchy_graph_dock, &QObject::destroyed, [] () {
       reverse_hierarchy_graph_dock= nullptr;
       reverse_hierarchy_graph_widget= nullptr;
@@ -681,21 +861,16 @@ reverse_hierarchy_graph_show () {
                             ads::RightDockWidgetArea);
   }
 
-  reverse_hierarchy_graph_dock->setWindowTitle (graph.title);
-  reverse_hierarchy_graph_dock->setWidget (reverse_hierarchy_graph_widget);
-  QObject::connect (reverse_hierarchy_graph_dock,
-                    &ads::CDockWidget::topLevelChanged,
-                    pane, [pane] (bool topLevel) {
-                      pane->setFloatingResizeGripVisible (topLevel);
-                    });
-  if (oldWidget != nullptr) oldWidget->deleteLater ();
+  if (reverse_hierarchy_graph_dock->widget () != reverse_hierarchy_graph_widget)
+    reverse_hierarchy_graph_dock->setWidget (reverse_hierarchy_graph_widget);
   win->showAdsDockWidget (reverse_hierarchy_graph_dock,
                           ads::RightDockWidgetArea);
   reverse_hierarchy_graph_widget->setFloatingResizeGripVisible (
     reverse_hierarchy_graph_dock->isInFloatingContainer ());
-  QTimer::singleShot (0, view, [view, scene] () {
-    view->resetViewport ();
-  });
+
+  QString error;
+  if (!reverse_hierarchy_graph_widget->refreshFromCurrentDocument (&error))
+    show_error (error);
 }
 
 void
