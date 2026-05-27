@@ -357,6 +357,23 @@ qt_simple_widget_rep::query (slot s, int type_id) {
   }
 }
 
+bool
+qt_widget_global_position (widget w, SI x, SI y, SI& gx, SI& gy) {
+  if (is_nil (w)) return false;
+
+  qt_simple_widget_rep* rep= concrete_simple_widget (w);
+  if (rep == NULL || rep->canvas () == NULL ||
+      rep->canvas ()->surface () == NULL)
+    return false;
+
+  QPoint content= to_qpoint (coord2 (x, y));
+  QPoint local= content - rep->canvas ()->origin ();
+  coord2 global= from_qpoint (rep->canvas ()->surface ()->mapToGlobal (local));
+  gx= global.x1;
+  gy= global.x2;
+  return true;
+}
+
 widget
 qt_simple_widget_rep::read (slot s, blackbox index) {
   if (DEBUG_QT_WIDGETS)

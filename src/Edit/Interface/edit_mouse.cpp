@@ -366,8 +366,6 @@ edit_interface_rep::mouse_adjust (SI x, SI y, int mods) {
   y= (SI) (y * magf);
   abs_round (x, y);
   if (is_nil (popup_win)) {
-    SI wx, wy;
-    ::get_position (get_window (this), wx, wy);
     widget wid;
     string menu= "texmacs-popup-menu";
     if ((mods & (ShiftMask + ControlMask)) != 0)
@@ -375,13 +373,32 @@ edit_interface_rep::mouse_adjust (SI x, SI y, int mods) {
     SERVER (menu_widget ("(vertical (link " * menu * "))", wid));
     widget popup_wid= ::popup_widget (wid);
     popup_win= ::popup_window_widget (popup_wid, "Popup menu");
-#if defined (QTTEXMACS) || defined(AQUATEXMACS)
+#if defined (QTTEXMACS)
+    SI px, py;
+    if (qt_widget_global_position (this, x, y, px, py)) {
+      set_position (popup_win, px, py);
+    }
+    else {
+      SI wx, wy, ox, oy, sx, sy;
+      ::get_position (get_window (this), wx, wy);
+      get_position (this, ox, oy);
+      get_scroll_position (this, sx, sy);
+      ox -= sx; oy -= sy;
+      set_position (popup_win, wx+ ox+ x, wy+ oy+ y);
+    }
+#else
+    SI wx, wy;
+    ::get_position (get_window (this), wx, wy);
+#if defined(AQUATEXMACS)
     SI ox, oy, sx, sy;
     get_position (this, ox, oy);
-    get_scroll_position(this, sx, sy);
+    get_scroll_position (this, sx, sy);
     ox -= sx; oy -= sy;
-#endif
     set_position (popup_win, wx+ ox+ x, wy+ oy+ y);
+#else
+    set_position (popup_win, wx+ x, wy+ y);
+#endif
+#endif
     set_visibility (popup_win, true);
     send_keyboard_focus (this);
     send_mouse_grab (popup_wid, true);

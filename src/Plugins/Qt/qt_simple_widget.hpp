@@ -124,6 +124,8 @@ inline qt_simple_widget_rep* concrete_simple_widget (widget w) {
   return static_cast<qt_simple_widget_rep*>(w.rep);
 }
 
+bool qt_widget_global_position (widget w, SI x, SI y, SI& gx, SI& gy);
+
 // Export for TeXmacs' use
 typedef qt_simple_widget_rep simple_widget_rep;
 
