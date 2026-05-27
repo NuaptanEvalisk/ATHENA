@@ -20,6 +20,7 @@
 #include <QWidget>
 
 class QPoint;
+class QAction;
 class QSizeGrip;
 class QTreeWidget;
 class QTreeWidgetItem;
@@ -58,6 +59,7 @@ private:
   bool copyRecursively (const QString& src, const QString& dst);
 
   QTreeWidget* tree;
+  QAction*     leafMatchesOnlyAction;
   QSizeGrip*   floatingSizeGrip;
   QString      rootPath;
   QMap<QString, athena_namespace_definition> namespaces;

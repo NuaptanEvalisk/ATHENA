@@ -36,6 +36,7 @@
 #include <QMessageBox>
 #include <QSize>
 #include <QSizeGrip>
+#include <QSignalBlocker>
 #include <QStyle>
 #include <QTimer>
 #include <QToolBar>
@@ -70,6 +71,12 @@ enum NamespaceExplorerRoles {
 static bool
 namespace_explorer_use_system_trash () {
   return get_preference ("vault explorer use system trash", "off") == "on";
+}
+
+static bool
+namespace_explorer_leaf_matches_only () {
+  return get_preference ("vault namespace explorer leaf matches only", "off")
+         == "on";
 }
 
 static QIcon
@@ -160,6 +167,7 @@ set_namespace_explorer_area_width (ads::CDockManager* manager,
 QTMNamespaceExplorer::QTMNamespaceExplorer (QWidget* parent)
   : QWidget (parent),
     tree (new QTreeWidget (this)),
+    leafMatchesOnlyAction (nullptr),
     floatingSizeGrip (new QSizeGrip (this)) {
   tree->setColumnCount (1);
   tree->setHeaderHidden (true);
@@ -177,6 +185,19 @@ QTMNamespaceExplorer::QTMNamespaceExplorer (QWidget* parent)
     namespace_explorer_icon ("view-refresh", QStyle::SP_BrowserReload),
     "Refresh", this, [this] () { refresh (); });
   refreshAction->setToolTip ("Refresh");
+  leafMatchesOnlyAction= toolbar->addAction (
+    namespace_explorer_icon ("view-filter", QStyle::SP_FileDialogDetailedView),
+    "Leaf matches only");
+  leafMatchesOnlyAction->setCheckable (true);
+  leafMatchesOnlyAction->setChecked (namespace_explorer_leaf_matches_only ());
+  leafMatchesOnlyAction->setToolTip (
+    "Only show file matches for namespaces without child namespaces");
+  connect (leafMatchesOnlyAction, &QAction::toggled, this,
+           [this] (bool checked) {
+             set_preference ("vault namespace explorer leaf matches only",
+                             checked ? "on" : "off");
+             refresh ();
+           });
 
   floatingSizeGrip->hide ();
   QHBoxLayout* gripRow= new QHBoxLayout ();
@@ -233,6 +254,10 @@ QTMNamespaceExplorer::refresh () {
   rootPath= to_qstring (concretize (vault_get_root ()));
   namespaces.clear ();
   tree->clear ();
+  if (leafMatchesOnlyAction != nullptr) {
+    QSignalBlocker blocker (leafMatchesOnlyAction);
+    leafMatchesOnlyAction->setChecked (namespace_explorer_leaf_matches_only ());
+  }
 
   string error;
   if (!athena_namespace_refresh_derived (error) && error != "")
@@ -309,17 +334,20 @@ QTMNamespaceExplorer::populateNamespaceItem (QTreeWidgetItem* item) {
     addNamespaceItem (item, child, childPath);
   }
 
-  string error;
-  std::vector<athena_namespace_match> members=
-    athena_namespace_members (from_qstring (name), error);
-  if (error != "") showError ("Namespace sorter warning: " + to_qstring (error));
-  for (const athena_namespace_match& m: members) {
-    QString path= to_qstring (concretize (m.file));
-    QFileInfo info (path);
-    QString display= info.fileName ();
-    if (display.isEmpty ()) display= to_qstring (m.stem) + ".ath";
-    QString tooltip= namespace_explorer_relative_path (rootPath, path);
-    addFileItem (item, display, path, tooltip);
+  if (!namespace_explorer_leaf_matches_only () || childNames.isEmpty ()) {
+    string error;
+    std::vector<athena_namespace_match> members=
+      athena_namespace_members (from_qstring (name), error);
+    if (error != "")
+      showError ("Namespace sorter warning: " + to_qstring (error));
+    for (const athena_namespace_match& m: members) {
+      QString path= to_qstring (concretize (m.file));
+      QFileInfo info (path);
+      QString display= info.fileName ();
+      if (display.isEmpty ()) display= to_qstring (m.stem) + ".ath";
+      QString tooltip= namespace_explorer_relative_path (rootPath, path);
+      addFileItem (item, display, path, tooltip);
+    }
   }
 
   item->setData (0, PopulatedRole, true);
