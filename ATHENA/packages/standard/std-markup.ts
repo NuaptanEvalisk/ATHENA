@@ -26,7 +26,7 @@
     </src-comment>
   </active*>
 
-  <assign|ATHENA|<macro|<active*|<with|font-series|bold|A<space|-0.25spc><move|<resize|T||||0.7fn>|0fn|0.3fn><space|-0.2spc>H<space|-0.2spc><move|<resize|E||||0.7fn>|0fn|-0.2fn><space|-0.2spc>N<space|-0.25spc>A>>>>
+  <assign|ATHENA|<macro|<active*|<with|font-series|bold|<move|A|0.07fn|0fn><move|<resize|T||||0.7fn>|0fn|0.25fn><move|H|-0.05fn|0fn><move|<resize|E||||0.7fn>|0fn|-0.25fn>NA>>>>
 
   <assign|athena|<macro|<ATHENA>>>
 
