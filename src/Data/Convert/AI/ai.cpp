@@ -110,7 +110,7 @@ chatgpt_command (string s, string model, string chat) {
   (void) chat;
   (void) model;
   string key= get_preference ("openai api key", "");
-  url u ("$ATHENA_HOME_PATH/system/tmp/chatgpt.txt");
+  url u= url_temp_dir () * url ("chatgpt.txt");
   if (save_string (u, s)) return "";
   string cmd= "openai -a " * key * " -k 5000 complete " * as_string (u);
   return cmd;

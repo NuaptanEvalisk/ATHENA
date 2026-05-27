@@ -222,13 +222,9 @@
                  "preview")))))
 
 (tm-define (preview-buffer)
-  (with file (cond ((os-mingw?)
-                    (let* ((p (getenv "ATHENA_HOME_PATH"))
-                           (f (string-append p "\\system\\tmp\\preview.pdf")))
-                      (system->url f)))
-                   ((or (os-macos?) (== (printer-file-format) "pdf"))
-                    "$ATHENA_HOME_PATH/system/tmp/preview.pdf")
-                   (else "$ATHENA_HOME_PATH/system/tmp/preview.ps"))
+  (with file (url-append (url-temp-dir)
+                         (if (== (printer-file-format) "pdf")
+                             "preview.pdf" "preview.ps"))
     (data-art-print-to-file file)
     (preview-file file)))
 

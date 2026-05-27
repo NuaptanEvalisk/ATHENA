@@ -94,15 +94,52 @@ constexpr double pi= 3.14159265358979323846;
 constexpr const char* default_graph_size= "14cm";
 
 static QString
-current_file_path () {
+current_buffer_identity () {
   editor ed= get_current_editor ();
-  return to_qstring (concretize (ed->get_name ()));
+  if (is_nil (ed)) return QString ();
+  return to_qstring (as_string (ed->get_name ()));
 }
 
 static QString
 file_stem (const QString& path) {
   QString stem= QFileInfo (path).completeBaseName ();
   return stem.isEmpty () ? QFileInfo (path).fileName () : stem;
+}
+
+static QMap<QString,athena_namespace_definition>
+namespace_map () {
+  QMap<QString,athena_namespace_definition> all;
+  for (const athena_namespace_definition& ns: athena_namespaces_list ())
+    all.insert (to_qstring (ns.name), ns);
+  return all;
+}
+
+static bool
+current_physical_file_path (QString& path) {
+  editor ed= get_current_editor ();
+  if (is_nil (ed)) return false;
+  url name= ed->get_name ();
+  if (!is_rooted (name, "default") && !is_rooted (name, "file"))
+    return false;
+  path= to_qstring (concretize (name));
+  return !path.isEmpty () && QFileInfo::exists (path);
+}
+
+static QStringList
+parse_namespace_tmfs_path (const QString& identity) {
+  const QString prefix= "tmfs://ns/";
+  if (!identity.startsWith (prefix)) return QStringList ();
+
+  QString rest= identity.mid (prefix.size ());
+  QStringList out;
+  for (const QString& raw: rest.split ('/', Qt::SkipEmptyParts)) {
+    QString part= QString::fromUtf8 (
+      QByteArray::fromPercentEncoding (raw.toUtf8 ()));
+    if (!part.isEmpty ()) out << part;
+  }
+  if (!out.isEmpty () && out.last ().startsWith ("!"))
+    out.last ()= out.last ().mid (1);
+  return out;
 }
 
 static bool
@@ -184,22 +221,30 @@ collect_parent_namespaces (const QString& name,
 }
 
 static bool
-build_current_reverse_hierarchy_graph (RHGraph& graph, QString& error) {
-  if (!vault_active ()) {
-    error= "No active vault.";
-    return false;
+finish_namespace_graph (RHGraph& graph,
+                        const QMap<QString,athena_namespace_definition>& all,
+                        QSet<QString>& included) {
+  if (reverse_hierarchy_simplify_graphs ())
+    simplify_transitive_edges (graph.edges);
+
+  for (auto it= all.constBegin (); it != all.constEnd (); ++it) {
+    if (!included.contains (it.key ())) continue;
+    RHNode node;
+    node.id= "ns:" + it.key ();
+    node.label= it.key ();
+    node.kind= to_qstring (it.value ().kind);
+    node.size= QSizeF (1.9, 0.7);
+    graph.nodes.push_back (node);
   }
+  return !graph.nodes.empty ();
+}
 
-  QString path= current_file_path ();
-  if (path.isEmpty () || !QFileInfo::exists (path)) {
-    error= "The current buffer is not a saved file.";
-    return false;
-  }
-
-  QMap<QString,athena_namespace_definition> all;
-  for (const athena_namespace_definition& ns: athena_namespaces_list ())
-    all.insert (to_qstring (ns.name), ns);
-
+static bool
+build_file_reverse_hierarchy_graph (RHGraph& graph,
+                                    const QMap<QString,athena_namespace_definition>& all,
+                                    const QString& identity,
+                                    const QString& path,
+                                    QString& error) {
   QSet<QString> included;
   QStringList matching;
   string match_error;
@@ -222,24 +267,13 @@ build_current_reverse_hierarchy_graph (RHGraph& graph, QString& error) {
   }
 
   graph= RHGraph ();
-  graph.filePath= path;
+  graph.filePath= identity;
   graph.title= "Reverse Hierarchy - " + file_stem (path);
   for (const QString& ns: matching) {
     add_unique_edge (graph.edges, "ns:" + ns, "file");
     collect_parent_namespaces (ns, all, included, graph.edges);
   }
-  if (reverse_hierarchy_simplify_graphs ())
-    simplify_transitive_edges (graph.edges);
-
-  for (auto it= all.constBegin (); it != all.constEnd (); ++it) {
-    if (!included.contains (it.key ())) continue;
-    RHNode node;
-    node.id= "ns:" + it.key ();
-    node.label= it.key ();
-    node.kind= to_qstring (it.value ().kind);
-    node.size= QSizeF (1.9, 0.7);
-    graph.nodes.push_back (node);
-  }
+  finish_namespace_graph (graph, all, included);
 
   RHNode file;
   file.id= "file";
@@ -251,6 +285,67 @@ build_current_reverse_hierarchy_graph (RHGraph& graph, QString& error) {
   if (match_error != "")
     error= "Namespace sorter warning: " + to_qstring (match_error);
   return true;
+}
+
+static bool
+build_namespace_reverse_hierarchy_graph (
+  RHGraph& graph, const QMap<QString,athena_namespace_definition>& all,
+  const QString& identity, const QStringList& path, QString& error) {
+  if (path.isEmpty ()) {
+    error= "No namespace specified.";
+    return false;
+  }
+
+  for (int i=0; i + 1<path.size (); i++) {
+    string relation_error;
+    if (!athena_namespace_validate_relation (from_qstring (path[i]),
+                                             from_qstring (path[i + 1]),
+                                             true, relation_error)) {
+      error= "Invalid namespace relation: " + to_qstring (relation_error);
+      return false;
+    }
+  }
+
+  QString name= path.last ();
+  if (!all.contains (name)) {
+    error= "Unknown namespace: " + name;
+    return false;
+  }
+
+  QSet<QString> included;
+  included.insert (name);
+  graph= RHGraph ();
+  graph.filePath= identity;
+  graph.title= "Reverse Hierarchy - Namespace " + name;
+  collect_parent_namespaces (name, all, included, graph.edges);
+  if (!finish_namespace_graph (graph, all, included)) {
+    error= "Could not build namespace hierarchy graph.";
+    return false;
+  }
+  return true;
+}
+
+static bool
+build_current_reverse_hierarchy_graph (RHGraph& graph, QString& error) {
+  if (!vault_active ()) {
+    error= "No active vault.";
+    return false;
+  }
+
+  QString identity= current_buffer_identity ();
+  QMap<QString,athena_namespace_definition> all= namespace_map ();
+  QStringList ns_path= parse_namespace_tmfs_path (identity);
+  if (!ns_path.isEmpty ())
+    return build_namespace_reverse_hierarchy_graph (
+      graph, all, identity, ns_path, error);
+
+  QString path;
+  if (!current_physical_file_path (path)) {
+    error= "Reverse hierarchy applies to saved vault files and tmfs://ns/ namespace pages.";
+    return false;
+  }
+
+  return build_file_reverse_hierarchy_graph (graph, all, identity, path, error);
 }
 
 static QString
@@ -743,12 +838,12 @@ private:
     text->setPos (20, 20);
     scene->setSceneRect (0, 0, 500, 160);
     view->setOwnedScene (scene);
-    currentPath= current_file_path ();
+    currentPath= current_buffer_identity ();
   }
 
   void refreshIfActiveDocumentChanged () {
     if (lockedCheck->isChecked ()) return;
-    QString path= current_file_path ();
+    QString path= current_buffer_identity ();
     if (path.isEmpty () || path == currentPath) return;
     refreshFromCurrentDocument ();
   }

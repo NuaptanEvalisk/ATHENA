@@ -17,6 +17,8 @@
 #include "merge_sort.hpp"
 #include "drd_std.hpp"
 #include "language.hpp"
+#include <errno.h>
+#include <signal.h>
 #include <unistd.h>
 #ifdef OS_MINGW
 #include <time.h>
@@ -111,6 +113,7 @@ init_main_paths () {
 ******************************************************************************/
 
 static string main_tmp_dir= "$ATHENA_HOME_PATH/system/tmp";
+static const string home_tmp_dir= "$ATHENA_HOME_PATH/system/tmp";
 
 static void
 make_dir (url which) {
@@ -120,6 +123,40 @@ make_dir (url which) {
     make_dir (head (which));
     mkdir (which);
   }
+}
+
+static bool
+make_writable_dir (url which) {
+  if (is_none (which)) return false;
+  make_dir (which);
+  if (!is_directory (which)) return false;
+  string name= concretize (which);
+  return access (as_charp (name), W_OK | X_OK) == 0;
+}
+
+static bool
+set_main_tmp_dir (string dir) {
+  url u= url_system (dir);
+  if (!make_writable_dir (u)) return false;
+  main_tmp_dir= dir;
+  set_env ("ATHENA_TMP_PATH", concretize (u));
+  return true;
+}
+
+static void
+init_main_tmp_dir () {
+  string env_tmp= get_env ("ATHENA_TMP_PATH");
+  if (env_tmp != "" && set_main_tmp_dir (env_tmp)) return;
+
+#if !defined (OS_MINGW)
+  if (make_writable_dir (url_system ("/dev/shm"))) {
+    string shm_tmp=
+      "/dev/shm/ATHENA-" * as_string ((int) getuid ()) * "/system/tmp";
+    if (set_main_tmp_dir (shm_tmp)) return;
+  }
+#endif
+
+  (void) set_main_tmp_dir (home_tmp_dir);
 }
 
 static url
@@ -146,9 +183,13 @@ url_temp_dir () {
 
 bool
 process_running (int pid) {
+#ifndef OS_MINGW
+  return pid > 0 && (kill (pid, 0) == 0 || errno == EPERM);
+#else
   string cmd= "ps -p " * as_string (pid);
   string ret= eval_system (cmd);
-  return occurs ("texmacs", ret) && occurs (as_string (pid), ret);
+  return occurs (as_string (pid), ret);
+#endif
 }
 
 static void
@@ -221,6 +262,7 @@ init_user_dirs () {
   make_dir ("$ATHENA_HOME_PATH/system/database/bib");
   make_dir ("$ATHENA_HOME_PATH/system/make");
   make_dir ("$ATHENA_HOME_PATH/system/tmp");
+  init_main_tmp_dir ();
   make_dir ("$ATHENA_HOME_PATH/texts");
   make_dir ("$ATHENA_HOME_PATH/users");
   change_mode ("$ATHENA_HOME_PATH/server", 7 << 6);

@@ -747,8 +747,8 @@
 (tm-define (interactive-print-buffer)
   (:synopsis "Print the current buffer")
   (:interactive #t)
-  (with file (string-append "$ATHENA_HOME_PATH/system/tmp/tmpprint."
-			    (printer-file-suffix))
+  (with file (url-append (url-temp-dir)
+                         (string-append "tmpprint." (printer-file-suffix)))
     (print-to-file file)
     (interactive-print '() file)))
 
