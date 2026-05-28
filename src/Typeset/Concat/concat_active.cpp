@@ -283,7 +283,8 @@ concater_rep::typeset_set_binding (tree t, path ip) {
   tree keys= env->exec (t);
   if (L(keys) == HIDDEN_BINDING || L(keys) == HIDDEN) {
     keys= keys[0];
-    flag ("set binding", ip, blue);
+    if (get_preference ("vault labels mode", "visible") != "small")
+      flag ("set binding", ip, blue);
     if (N(keys) > 0) {
       path sip= ip;
       if (N(t) >= 3 && (!is_nil (env->macro_src))) {

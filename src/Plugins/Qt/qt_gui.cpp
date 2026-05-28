@@ -274,7 +274,6 @@ qt_gui_rep::get_selection (string key, tree& t, string& s, string format) {
   if (key == "primary" || (key == "mouse" && cb->supportsSelection ()))
     if (key == "mouse") mode = QClipboard::Selection;
   
-  QString originalText = cb->text (mode);
   const QMimeData *md = cb->mimeData (mode);
   QByteArray buf;
   string input_format;
@@ -433,17 +432,15 @@ qt_gui_rep::set_selection (string key, tree t,
   else if (key == "mouse" && cb->supportsSelection())
     mode = QClipboard::Selection;
   else return true;
-  cb->clear (mode);
-
   c_string selection (s);
   int N_selection= N(s);
 
-  cb->setText (QString::fromLatin1 (selection, N_selection), mode);
   QMimeData *md = new QMimeData;
 
   if (format == "verbatim" || format == "default") {
     if (format == "default") {
-      md->setData ("application/x-texmacs-clipboard", (char*)selection);
+      md->setData ("application/x-texmacs-clipboard",
+                   QByteArray ((char*) selection, N_selection));
       
       QString pid_str;
       pid_str.setNum (QCoreApplication::applicationPid ());
