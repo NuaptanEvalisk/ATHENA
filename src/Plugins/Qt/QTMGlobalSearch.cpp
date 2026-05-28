@@ -946,7 +946,8 @@ global_search_show () {
     get_server ()->get_window_zoom_factor ());
 
   QString title= "Global search";
-  if (global_search_dock == nullptr) {
+  bool freshDock= global_search_dock == nullptr;
+  if (freshDock) {
     global_search_dock= new ads::CDockWidget (title);
     global_search_dock->setObjectName ("athena-global-search");
     global_search_dock->resize (1360, 720);
@@ -965,7 +966,14 @@ global_search_show () {
     });
   }
 
-  win->showAdsDockWidget (global_search_dock, ads::BottomDockWidgetArea);
+  if (freshDock && global_search_dock->dockAreaWidget () == nullptr &&
+      global_search_dock->dockContainer () == nullptr) {
+    win->dockManager ()->addDockWidgetFloating (global_search_dock);
+    global_search_dock->toggleView (true);
+    global_search_dock->show ();
+    global_search_dock->raise ();
+  }
+  else win->showAdsDockWidget (global_search_dock, ads::BottomDockWidgetArea);
 
   global_search_dock->setWindowTitle (title);
   global_search_widget->setFloatingResizeGripVisible (

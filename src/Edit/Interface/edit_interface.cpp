@@ -1245,6 +1245,10 @@ edit_interface_rep::handle_notify_resize (SI w, SI h) {
   if (as_bool (call ("defined?",
                      symbol_object ("schedule-persistent-fit-width"))))
     call ("schedule-persistent-fit-width");
+  if (!is_embedded_widget () &&
+      as_bool (call ("defined?",
+                     symbol_object ("schedule-resize-editing-position"))))
+    call ("schedule-resize-editing-position");
 }
 
 void
