@@ -1016,6 +1016,7 @@ public:
   void addResult (const WikilinkSearchResult& result);
   void updatePreview (QListWidgetItem* current);
   void updateDefaultDisplayText ();
+  bool chooseAnchorItem (QListWidgetItem* item);
   void acceptAnchorItem (QListWidgetItem* item);
 
   QLineEdit*   queryEdit;
@@ -1846,16 +1847,16 @@ WikilinkSearchPage::updateDefaultDisplayText () {
   displayEdit->setText (text);
 }
 
-void
-WikilinkSearchPage::acceptAnchorItem (QListWidgetItem* item) {
-  if (item == nullptr || !(item->flags () & Qt::ItemIsEnabled)) return;
+bool
+WikilinkSearchPage::chooseAnchorItem (QListWidgetItem* item) {
+  if (item == nullptr || !(item->flags () & Qt::ItemIsEnabled)) return false;
   QListWidgetItem* resultItem= resultList->currentItem ();
-  if (resultItem == nullptr) return;
+  if (resultItem == nullptr) return false;
   int resultIndex= resultItem->data (WikilinkIndexRole).toInt ();
   int anchorIndex= item->data (WikilinkIndexRole).toInt ();
   if (resultIndex < 0 || resultIndex >= (int) results.size () ||
       anchorIndex < 0 || anchorIndex >= (int) currentAnchors.size ())
-    return;
+    return false;
 
   const WikilinkSearchResult& result= results[resultIndex];
   QString anchor= currentAnchors[anchorIndex].anchor;
@@ -1867,6 +1868,14 @@ WikilinkSearchPage::acceptAnchorItem (QListWidgetItem* item) {
     static_cast<QTMVaultWikilinkWizard*> (wizard ());
   w->setResult (result.relPath, anchor, file_display_stem (result.relPath),
                 anchor, text);
+  return true;
+}
+
+void
+WikilinkSearchPage::acceptAnchorItem (QListWidgetItem* item) {
+  if (!chooseAnchorItem (item)) return;
+  QTMVaultWikilinkWizard* w=
+    static_cast<QTMVaultWikilinkWizard*> (wizard ());
   QTimer::singleShot (0, w, [w] () { w->accept (); });
 }
 
@@ -1875,6 +1884,7 @@ WikilinkSearchPage::validatePage () {
   QTMVaultWikilinkWizard* w=
     static_cast<QTMVaultWikilinkWizard*> (wizard ());
   if (w->resultAccepted) return true;
+  if (chooseAnchorItem (anchorList->currentItem ())) return true;
   QMessageBox::information (this, "Insert wikilink",
                             "Click a usable { anchor in the search preview first.");
   return false;

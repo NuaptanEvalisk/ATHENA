@@ -882,17 +882,21 @@ edit_select_rep::selection_cut (string key) {
         tree sel= selection_get ();
         selection_set (key, sel);
       }
+      cut (p1, p2);
     }
     else {
       selection_get (p1, p2);
       go_to (p2);
       if (p2 == p1) return;
+      observer pos= position_new (p1);
       if (key != "none") {
         tree sel= selection_compute (et, p1, p2);
         selection_set (key, simplify_correct (sel));
       }
+      cut (p1, p2);
+      go_to (position_get (pos));
+      position_delete (pos);
     }
-    cut (p1, p2);
   }
 }
 

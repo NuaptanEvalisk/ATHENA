@@ -567,10 +567,19 @@ concater_rep::typeset_label (tree t, path ip) {
   }
   if (mode == "small") {
     string name = "#";
-    if (N(t) > 0) name = tree_as_string (t[0]);
+    tree id= name;
+    if (N(t) > 0) {
+      id= copy (t[0]);
+      name= tree_as_string (t[0]);
+    }
+    tree src_id (ID, tree (HARD_ID, copy (id)));
+    tree anchor (ID, tree (MERGE, "#", copy (id)));
+    tree link (LINK, "anchor", anchor);
+    tree binding (SET_BINDING, copy (id), tree (VALUE, THE_LABEL));
     tree tiny_t = tree (WITH, "font-size", "0.5", "color", "grey", 
                         tree (CONCAT, "[", name, "]"));
-    typeset (tiny_t, ip);
+    tree small_label (LOCUS, src_id, link, tree (CONCAT, binding, tiny_t));
+    typeset_locus (small_label, ip);
     return;
   }
   typeset_compound (t, ip);
