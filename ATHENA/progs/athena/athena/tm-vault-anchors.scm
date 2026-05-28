@@ -227,8 +227,7 @@
   (vector-set! summary key (+ (vector-ref summary key) value)))
 
 (define (vault-anchor-summary-note! summary message)
-  (when (< (length (vector-ref summary 2)) 8)
-    (vector-set! summary 2 (append (vector-ref summary 2) (list message)))))
+  (vector-set! summary 2 (append (vector-ref summary 2) (list message))))
 
 (define (vault-anchor-has-wrapper? previous next)
   (and previous next
@@ -575,6 +574,18 @@
                                   "\n\nFull dry-run summary was printed to the console."))))
     (string-append head tail "\n\n" action)))
 
+(define (vault-anchor-summary-notes-string summary)
+  (string-join
+   (map (cut vault-anchor-truncate-line <> 180)
+        (vector-ref summary 2))
+   "\n"))
+
+(define (vault-anchor-confirm-native summary)
+  (native-anchor-enunciations-confirm
+   (number->string (vector-ref summary 0))
+   (number->string (vector-ref summary 1))
+   (vault-anchor-summary-notes-string summary)))
+
 (define (vault-anchor-current-buffer-supported? buf)
   (and buf
        (buffer-exists? buf)
@@ -615,15 +626,9 @@
                    (set-message "No enunciation anchors needed"
                                 "Anchor enunciations")
                    (when cont (cont)))
-                 (user-confirm
-                  (vault-anchor-summary-message
-                   summary
-                   "Apply these anchor changes?")
-                  #f
-                  (lambda (answ)
-                    (if answ
-                        (vault-anchor-enunciations-confirmed buf cont)
-                        (when cont (cont)))))))))))
+                 (if (vault-anchor-confirm-native summary)
+                     (vault-anchor-enunciations-confirmed buf cont)
+                     (when cont (cont)))))))))
 
 (tm-define (anchor-enunciations-current-document)
   (:interactive #t)

@@ -126,6 +126,13 @@ qstring_from_tm (string s) {
 }
 
 static tree
+apply_vault_preferred_font_to_preview (tree body) {
+  string font= get_preference ("vault preferred font", "");
+  if (font == "") return body;
+  return tree (WITH, "font", font, body);
+}
+
+static tree
 import_body_for_global_preview (url file) {
   tree t= import_tree (file, "texmacs");
   tree body= extract (t, "body");
@@ -428,8 +435,9 @@ QTMGlobalSearch::recreatePreviewWidget () {
   tree style= compound ("style", tuple ("generic"));
   previewWidth= currentPreviewWidth ();
   previewZoom= currentPreviewZoom ();
-  previewWidget= texmacs_output_widget (previewBody, style,
-                                        previewWidth, previewZoom);
+  previewWidget= texmacs_output_widget (
+    apply_vault_preferred_font_to_preview (previewBody), style, previewWidth,
+    previewZoom);
   QWidget* qwid= concrete (previewWidget)->as_qwidget (previewHostWidget);
   previewQtWidget= qwid;
   previewTexmacsWidget= qobject_cast<QTMWidget*> (qwid);

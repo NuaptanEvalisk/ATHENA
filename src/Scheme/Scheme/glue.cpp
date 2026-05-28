@@ -59,11 +59,16 @@
 
 #include <DockWidget.h>
 #include <QApplication>
+#include <QDialog>
+#include <QDialogButtonBox>
 #include <QGridLayout>
 #include <QLabel>
+#include <QListWidget>
 #include <QMessageBox>
 #include <QPointer>
+#include <QPushButton>
 #include <QSpacerItem>
+#include <QVBoxLayout>
 #include <QWidget>
 #include <map>
 #include <string>
@@ -1490,6 +1495,65 @@ tmg_native_info_dialog (tmscm arg1, tmscm arg2) {
 }
 
 tmscm
+tmg_native_anchor_enunciations_confirm (tmscm arg1, tmscm arg2,
+                                        tmscm arg3) {
+  TMSCM_ASSERT_STRING (arg1, TMSCM_ARG1,
+                       "native-anchor-enunciations-confirm");
+  TMSCM_ASSERT_STRING (arg2, TMSCM_ARG2,
+                       "native-anchor-enunciations-confirm");
+  TMSCM_ASSERT_STRING (arg3, TMSCM_ARG3,
+                       "native-anchor-enunciations-confirm");
+
+  if (headless_mode) return bool_to_tmscm (false);
+
+  QString wraps= to_qstring (tmscm_to_string (arg1));
+  QString dead = to_qstring (tmscm_to_string (arg2));
+  QString notes= to_qstring (tmscm_to_string (arg3));
+
+  QDialog dialog (QApplication::activeWindow ());
+  dialog.setWindowTitle ("Anchor enunciations");
+  dialog.resize (760, 480);
+
+  QVBoxLayout* layout= new QVBoxLayout (&dialog);
+
+  QLabel* intro= new QLabel (
+    QString ("ATHENA will wrap %1 enunciation(s) and remove %2 dead anchor "
+             "pair(s). Review the planned changes before applying them.")
+      .arg (wraps, dead),
+    &dialog);
+  intro->setWordWrap (true);
+  layout->addWidget (intro);
+
+  QLabel* list_label= new QLabel ("Planned actions:", &dialog);
+  layout->addWidget (list_label);
+
+  QListWidget* list= new QListWidget (&dialog);
+  list->setAlternatingRowColors (true);
+  list->setSelectionMode (QAbstractItemView::NoSelection);
+  list->setMinimumHeight (300);
+  QStringList items= notes.split ('\n', Qt::SkipEmptyParts);
+  if (items.isEmpty ())
+    list->addItem ("No individual action details are available.");
+  else
+    for (const QString& item: items)
+      list->addItem (item);
+  layout->addWidget (list, 1);
+
+  QDialogButtonBox* buttons= new QDialogButtonBox (&dialog);
+  QPushButton* apply= buttons->addButton ("Apply", QDialogButtonBox::AcceptRole);
+  QPushButton* cancel= buttons->addButton (QDialogButtonBox::Cancel);
+  cancel->setDefault (true);
+  apply->setAutoDefault (false);
+  QObject::connect (buttons, &QDialogButtonBox::accepted,
+                    &dialog, &QDialog::accept);
+  QObject::connect (buttons, &QDialogButtonBox::rejected,
+                    &dialog, &QDialog::reject);
+  layout->addWidget (buttons);
+
+  return bool_to_tmscm (dialog.exec () == QDialog::Accepted);
+}
+
+tmscm
 tmg_native_font_selector (tmscm arg1, tmscm arg2, tmscm arg3, tmscm arg4) {
   TMSCM_ASSERT_STRING (arg1, TMSCM_ARG1, "native-font-selector");
   TMSCM_ASSERT_STRING (arg2, TMSCM_ARG2, "native-font-selector");
@@ -1591,6 +1655,8 @@ initialize_glue () {
                            tmg_heading_unfold_all, 0, 0, 0);
   tmscm_install_procedure ("native-info-dialog",
                            tmg_native_info_dialog, 2, 0, 0);
+  tmscm_install_procedure ("native-anchor-enunciations-confirm",
+                           tmg_native_anchor_enunciations_confirm, 3, 0, 0);
   tmscm_install_procedure ("native-font-selector",
                            tmg_native_font_selector, 4, 0, 0);
   tmscm_install_procedure ("escape-symbol-picker",

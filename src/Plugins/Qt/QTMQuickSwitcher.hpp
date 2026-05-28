@@ -14,6 +14,7 @@
 #include "tree.hpp"
 #include "string.hpp"
 #include "namespaces.hpp"
+#include "fuzzy_rank.hpp"
 #include <QDialog>
 #include <QLabel>
 #include <QLineEdit>
@@ -42,8 +43,8 @@ private:
   struct Entry {
     QString relPath;
     QString baseName;
-    QString searchPath;
-    QString searchBase;
+    string  searchPath;
+    string  searchBase;
     int     mtime;
   };
 
@@ -61,9 +62,8 @@ private:
   void switchTab ();
   void moveSelection (int delta);
   QListWidget* activeList () const;
-  int  fuzzyScore (const Entry& e, const QString& query) const;
-  int  fuzzyScore (const QString& text, const QString& query) const;
-  int  fuzzySubsequenceScore (const QString& text, const QString& query) const;
+  int  fuzzyScore (const Entry& e, string query) const;
+  int  fuzzyScore (string text, string query) const;
   QString structuredCurrentNamespace () const;
   QStringList structuredParentsOf (const QString& name) const;
   QString structuredNamespaceUrl (const QStringList& path) const;

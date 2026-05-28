@@ -14,12 +14,14 @@
 #include "converter.hpp"
 #include "drd_mode.hpp"
 #include "editor.hpp"
+#include "fuzzy_rank.hpp"
 #include "link.hpp"
 #include "message.hpp"
 #include "namespaces.hpp"
 #include "vault.hpp"
 #include "new_view.hpp"
 #include "renderer.hpp"
+#include "scheme.hpp"
 #include "server.hpp"
 #include "tm_buffer.hpp"
 #include "tm_window.hpp"
@@ -301,7 +303,8 @@ struct WikilinkFileEntry {
   url     file;
   QString relPath;
   QString stem;
-  QString searchText;
+  string  searchPath;
+  string  searchStem;
   int     mtime;
   bool    isCurrent;
 };
@@ -548,6 +551,22 @@ fuzzy_score (const QString& text, const QString& query) {
   if (normalized.startsWith (query)) return 90000 - normalized.length ();
   if (normalized.contains (query)) return 80000 - normalized.length ();
   return fuzzy_subsequence_score (normalized, query);
+}
+
+static int
+fuzzy_file_score (const WikilinkFileEntry& file, string query) {
+  array<fuzzy_rank_field> fields;
+  fields << fuzzy_rank_field (file.searchStem, 100);
+  fields << fuzzy_rank_field (file.searchPath, 35);
+  fuzzy_rank_result result= fuzzy_rank (query, fields);
+  return result.matched ? result.score : -1;
+}
+
+static tree
+apply_vault_preferred_font_to_preview (tree body) {
+  string font= get_preference ("vault preferred font", "");
+  if (font == "") return body;
+  return tree (WITH, "font", font, body);
 }
 
 static tree
@@ -867,8 +886,9 @@ private:
     tree style= compound ("style", tuple ("generic"));
     previewWidth= currentPreviewWidth ();
     previewZoom= currentPreviewZoom ();
-    previewWidget= texmacs_output_widget (previewBody, style, previewWidth,
-                                          previewZoom);
+    previewWidget= texmacs_output_widget (
+      apply_vault_preferred_font_to_preview (previewBody), style,
+      previewWidth, previewZoom);
     QWidget* qwid= concrete (previewWidget)->as_qwidget (parent);
     previewQtWidget= qwid;
     previewTexmacsWidget= qobject_cast<QTMWidget*> (qwid);
@@ -1123,11 +1143,11 @@ WikilinkFilePage::updateList () {
   QTMVaultWikilinkWizard* w=
     static_cast<QTMVaultWikilinkWizard*> (wizard ());
   fileList->clear ();
-  QString query= searchEdit->text ().trimmed ().toLower ();
+  string query= from_qstring (searchEdit->text ().trimmed ());
 
   std::vector<std::pair<int,int> > matches;
   for (int i=0; i<(int) w->files.size (); i++) {
-    int score= fuzzy_score (w->files[i].searchText, query);
+    int score= fuzzy_file_score (w->files[i], query);
     if (score >= 0) matches.push_back (std::make_pair (-score, i));
   }
   std::sort (matches.begin (), matches.end (),
@@ -1137,6 +1157,7 @@ WikilinkFilePage::updateList () {
                const WikilinkFileEntry& fb= w->files[b.second];
                if (fa.isCurrent != fb.isCurrent) return fa.isCurrent;
                if (a.first != b.first) return a.first < b.first;
+               if (fa.mtime != fb.mtime) return fa.mtime > fb.mtime;
                return fa.relPath < fb.relPath;
              });
 
@@ -1926,7 +1947,8 @@ QTMVaultWikilinkWizard::loadFiles () {
     e.file= all[i];
     e.relPath= relPath;
     e.stem= file_display_stem (relPath);
-    e.searchText= strip_known_extension (relPath).toLower ();
+    e.searchPath= from_qstring (strip_known_extension (relPath));
+    e.searchStem= from_qstring (e.stem);
     e.mtime= vault_get_mtime (all[i]);
     e.isCurrent= relPath == currentRelPath;
     files.push_back (e);
@@ -2232,11 +2254,11 @@ TransclusionFilePage::updateList () {
   QTMVaultTransclusionWizard* w=
     static_cast<QTMVaultTransclusionWizard*> (wizard ());
   fileList->clear ();
-  QString query= searchEdit->text ().trimmed ().toLower ();
+  string query= from_qstring (searchEdit->text ().trimmed ());
 
   std::vector<std::pair<int,int> > matches;
   for (int i=0; i<(int) w->files.size (); i++) {
-    int score= fuzzy_score (w->files[i].searchText, query);
+    int score= fuzzy_file_score (w->files[i], query);
     if (score >= 0) matches.push_back (std::make_pair (-score, i));
   }
   std::sort (matches.begin (), matches.end (),
@@ -2246,6 +2268,7 @@ TransclusionFilePage::updateList () {
                const WikilinkFileEntry& fb= w->files[b.second];
                if (fa.isCurrent != fb.isCurrent) return fa.isCurrent;
                if (a.first != b.first) return a.first < b.first;
+               if (fa.mtime != fb.mtime) return fa.mtime > fb.mtime;
                return fa.relPath < fb.relPath;
              });
 
@@ -3290,7 +3313,8 @@ QTMVaultTransclusionWizard::loadFiles () {
     e.file= all[i];
     e.relPath= relPath;
     e.stem= file_display_stem (relPath);
-    e.searchText= strip_known_extension (relPath).toLower ();
+    e.searchPath= from_qstring (strip_known_extension (relPath));
+    e.searchStem= from_qstring (e.stem);
     e.mtime= vault_get_mtime (all[i]);
     e.isCurrent= relPath == currentRelPath;
     files.push_back (e);

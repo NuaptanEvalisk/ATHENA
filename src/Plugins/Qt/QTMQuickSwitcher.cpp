@@ -106,10 +106,10 @@ QTMQuickSwitcher::loadFiles (array<string> recentFiles) {
     Entry e;
     e.relPath= relPath;
     e.baseName= base;
-    e.searchPath= relPath;
-    if (e.searchPath.endsWith (".ath")) e.searchPath.chop (4);
-    e.searchPath= e.searchPath.toLower ();
-    e.searchBase= base.toLower ();
+    QString searchPath= relPath;
+    if (searchPath.endsWith (".ath")) searchPath.chop (4);
+    e.searchPath= from_qstring (searchPath);
+    e.searchBase= from_qstring (base);
     e.mtime= vault_get_mtime (files[i]);
     entries.push_back (e);
   }
@@ -145,48 +145,20 @@ QTMQuickSwitcher::loadNamespaces () {
 }
 
 int
-QTMQuickSwitcher::fuzzySubsequenceScore (const QString& text,
-                                         const QString& query) const {
-  int qi= 0;
-  int spread= 0;
-  int first= -1;
-  for (int i=0; i<text.length () && qi<query.length (); i++) {
-    if (text[i] == query[qi]) {
-      if (first < 0) first= i;
-      spread= i - first;
-      qi++;
-    }
-  }
-  if (qi != query.length ()) return -1;
-  return 50000 - (10 * spread) - text.length ();
+QTMQuickSwitcher::fuzzyScore (const Entry& e, string query) const {
+  array<fuzzy_rank_field> fields;
+  fields << fuzzy_rank_field (e.searchBase, 100);
+  fields << fuzzy_rank_field (e.searchPath, 35);
+  fuzzy_rank_result result= fuzzy_rank (query, fields);
+  return result.matched ? result.score : -1;
 }
 
 int
-QTMQuickSwitcher::fuzzyScore (const Entry& e, const QString& query) const {
-  if (query.isEmpty ()) return 0;
-  if (e.searchBase == query) return 100000;
-  if (e.searchBase.startsWith (query)) return 90000 - e.searchBase.length ();
-  if (e.searchBase.contains (query)) return 80000 - e.searchBase.length ();
-
-  int baseFuzzy= fuzzySubsequenceScore (e.searchBase, query);
-  if (baseFuzzy >= 0) return baseFuzzy;
-
-  if (e.searchPath.startsWith (query)) return 40000 - e.searchPath.length ();
-  if (e.searchPath.contains (query)) return 30000 - e.searchPath.length ();
-
-  int pathFuzzy= fuzzySubsequenceScore (e.searchPath, query);
-  if (pathFuzzy >= 0) return pathFuzzy - 30000;
-  return -1;
-}
-
-int
-QTMQuickSwitcher::fuzzyScore (const QString& text, const QString& query) const {
-  QString normalized= text.toLower ();
-  if (query.isEmpty ()) return 0;
-  if (normalized == query) return 100000;
-  if (normalized.startsWith (query)) return 90000 - normalized.length ();
-  if (normalized.contains (query)) return 80000 - normalized.length ();
-  return fuzzySubsequenceScore (normalized, query);
+QTMQuickSwitcher::fuzzyScore (string text, string query) const {
+  array<fuzzy_rank_field> fields;
+  fields << fuzzy_rank_field (text, 100);
+  fuzzy_rank_result result= fuzzy_rank (query, fields);
+  return result.matched ? result.score : -1;
 }
 
 void
@@ -198,9 +170,10 @@ QTMQuickSwitcher::updateList () {
 void
 QTMQuickSwitcher::updateRawList () {
   rawList->clear ();
-  QString query= searchEdit->text ().trimmed ().toLower ();
+  QString queryText= searchEdit->text ().trimmed ();
+  string query= from_qstring (queryText);
 
-  if (query.isEmpty ()) {
+  if (queryText.isEmpty ()) {
     prompt->setText ("Recent ATHENA vault files");
     int n= 0;
     for (int index : recentIndices) {
@@ -267,17 +240,21 @@ QTMQuickSwitcher::structuredNamespaceUrl (const QStringList& path) const {
 void
 QTMQuickSwitcher::updateStructuredList () {
   structuredList->clear ();
-  QString query= searchEdit->text ().trimmed ().toLower ();
+  QString queryText= searchEdit->text ().trimmed ();
+  string query= from_qstring (queryText);
   QString current= structuredCurrentNamespace ();
 
   QStringList namespaceNames;
   QStringList namespacePaths;
+  std::vector<string> namespaceSearchNames;
   if (structuredParentChoice) {
     prompt->setText (QString ("Parents of namespace %1")
                      .arg (structuredParentChoiceFor));
     namespaceNames= structuredParentsOf (structuredParentChoiceFor);
-    for (const QString& name: namespaceNames)
+    for (const QString& name: namespaceNames) {
       namespacePaths << name;
+      namespaceSearchNames.push_back (from_qstring (name));
+    }
   }
   else if (current.isEmpty ()) {
     prompt->setText ("Structured namespaces");
@@ -285,6 +262,7 @@ QTMQuickSwitcher::updateStructuredList () {
       QString name= to_qstring (ns.name);
       namespaceNames << name;
       namespacePaths << name;
+      namespaceSearchNames.push_back (ns.name);
     }
   }
   else {
@@ -301,12 +279,13 @@ QTMQuickSwitcher::updateStructuredList () {
       QStringList path= structuredPath;
       path << name;
       namespacePaths << path.join ("/");
+      namespaceSearchNames.push_back (ns.name);
     }
   }
 
   std::vector<std::pair<int,int> > nsMatches;
   for (int i=0; i<namespaceNames.size (); i++) {
-    int score= fuzzyScore (namespaceNames[i], query);
+    int score= fuzzyScore (namespaceSearchNames[i], query);
     if (score >= 0) nsMatches.push_back (std::make_pair (-score, i));
   }
   std::sort (nsMatches.begin (), nsMatches.end (),
@@ -334,7 +313,7 @@ QTMQuickSwitcher::updateStructuredList () {
     std::vector<athena_namespace_match> members=
       athena_namespace_members (from_qstring (current), error);
     url root= vault_get_root ();
-    if (query.isEmpty ()) {
+    if (queryText.isEmpty ()) {
       for (const athena_namespace_match& m: members) {
         url rel= delta (root * url (""), m.file);
         QString relPath= to_qstring (as_unix_string (rel));
@@ -351,10 +330,12 @@ QTMQuickSwitcher::updateStructuredList () {
       for (int i=0; i<(int) members.size (); i++) {
         const athena_namespace_match& m= members[i];
         url rel= delta (root * url (""), m.file);
-        QString relPath= to_qstring (as_unix_string (rel));
-        QString stem= to_qstring (m.stem);
-        int score= std::max (fuzzyScore (stem, query),
-                             fuzzyScore (relPath, query));
+        string relString= as_unix_string (rel);
+        array<fuzzy_rank_field> fields;
+        fields << fuzzy_rank_field (m.stem, 100);
+        fields << fuzzy_rank_field (relString, 35);
+        fuzzy_rank_result result= fuzzy_rank (query, fields);
+        int score= result.matched ? result.score : -1;
         if (score >= 0) matches.push_back (std::make_pair (-score, i));
       }
       std::sort (matches.begin (), matches.end (),
