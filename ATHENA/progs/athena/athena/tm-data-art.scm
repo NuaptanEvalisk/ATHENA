@@ -39,6 +39,13 @@
      (center (image ,(url->system cover) "0.92par" "" "" ""))
      (vspace "1.5fn")))
 
+(define (data-art-cover-doc-misc cover)
+  `(doc-misc
+     (document
+       (vspace* "1fn")
+       (center (image ,(url->system cover) "0.72par" "" "" ""))
+       (vspace "1.5fn"))))
+
 (define (data-art-title-block? child)
   (and (pair? child)
        (in? (car child) '(doc-data title doc-title tmdoc-title tmdoc-title*
@@ -52,6 +59,30 @@
                `(document ,(car children) ,cover-tree ,@(cdr children)))
               (else
                `(document ,cover-tree ,@children))))
+      body))
+
+(define (data-art-insert-cover-in-doc-data-child child cover)
+  (if (and (pair? child) (eq? (car child) 'doc-data))
+      `(doc-data ,@(cdr child) ,(data-art-cover-doc-misc cover))
+      child))
+
+(define (data-art-insert-cover-in-doc-data-stree body cover)
+  (if (and (pair? body) (eq? (car body) 'document))
+      (let* ((children (cdr body))
+             (hit? #f)
+             (new-children
+              (map (lambda (child)
+                     (if (and (not hit?)
+                              (pair? child)
+                              (eq? (car child) 'doc-data))
+                         (begin
+                           (set! hit? #t)
+                           (data-art-insert-cover-in-doc-data-child child cover))
+                         child))
+                   children)))
+        (if hit?
+            `(document ,@new-children)
+            (data-art-insert-cover-stree body cover)))
       body))
 
 (define (data-art-seed-string buf)
@@ -96,4 +127,11 @@
   (let* ((body (buffer-get-body buf))
          (new-body (stree->tree
                     (data-art-insert-cover-stree (tree->stree body) cover))))
+    (buffer-set-body buf new-body)))
+
+(define-public (data-art-insert-cover-in-doc-data-buffer buf cover)
+  (let* ((body (buffer-get-body buf))
+         (new-body
+          (stree->tree
+           (data-art-insert-cover-in-doc-data-stree (tree->stree body) cover))))
     (buffer-set-body buf new-body)))

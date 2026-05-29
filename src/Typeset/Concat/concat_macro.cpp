@@ -578,8 +578,9 @@ concater_rep::typeset_label (tree t, path ip) {
     tree binding (SET_BINDING, copy (id), tree (VALUE, THE_LABEL));
     tree tiny_t = tree (WITH, "font-size", "0.5", "color", "grey", 
                         tree (CONCAT, "[", name, "]"));
-    tree small_label (LOCUS, src_id, link, tree (CONCAT, binding, tiny_t));
-    typeset_locus (small_label, ip);
+    tree hidden_anchor (LOCUS, src_id, link, binding);
+    typeset_locus (hidden_anchor, ip);
+    typeset (tiny_t, ip);
     return;
   }
   typeset_compound (t, ip);

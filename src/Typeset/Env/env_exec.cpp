@@ -1978,6 +1978,7 @@ edit_env_rep::exec_find_accessible (tree t) {
 
 tree
 edit_env_rep::exec_set_binding (tree t) {
+  static int set_binding_eval_depth= 0;
   tree keys, value;
   if (N(t) == 1) {
     keys= read ("the-tags");
@@ -1992,7 +1993,21 @@ edit_env_rep::exec_set_binding (tree t) {
 	//cout << "keys= " << keys << "\n";
 	return tree (_ERROR, "bad set binding");
       }
-    value= exec (t[0]);
+    if (set_binding_eval_depth > 64) {
+      typeset_warning << "Recursive set-binding suppressed" << LF;
+      value= tree (_ERROR, "recursive set binding");
+    }
+    else {
+      set_binding_eval_depth++;
+      try {
+        value= exec (t[0]);
+      }
+      catch (...) {
+        set_binding_eval_depth--;
+        throw;
+      }
+      set_binding_eval_depth--;
+    }
     assign (string ("the-tags"), tree (TUPLE));
     assign (string ("the-label"), copy (value));
   }
