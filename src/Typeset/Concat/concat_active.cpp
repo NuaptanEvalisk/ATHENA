@@ -19,6 +19,12 @@
 #include "convert.hpp"
 #include "converter.hpp"
 
+static string
+athena_labels_mode (edit_env env) {
+  if (env->get_string (PAGE_PRINTED) == "true") return "hidden";
+  return get_preference ("vault labels mode", "visible");
+}
+
 /******************************************************************************
 * Typesetting executable markup
 ******************************************************************************/
@@ -283,7 +289,7 @@ concater_rep::typeset_set_binding (tree t, path ip) {
   tree keys= env->exec (t);
   if (L(keys) == HIDDEN_BINDING || L(keys) == HIDDEN) {
     keys= keys[0];
-    if (get_preference ("vault labels mode", "visible") != "small")
+    if (athena_labels_mode (env) != "small")
       flag ("set binding", ip, blue);
     if (N(keys) > 0) {
       path sip= ip;

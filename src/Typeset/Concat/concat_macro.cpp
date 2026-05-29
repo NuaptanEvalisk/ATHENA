@@ -16,6 +16,12 @@
 #include "glue.hpp"
 #include "hashset.hpp"
 
+static string
+athena_labels_mode (edit_env env) {
+  if (env->get_string (PAGE_PRINTED) == "true") return "hidden";
+  return get_preference ("vault labels mode", "visible");
+}
+
 /******************************************************************************
 * Typesetting environment changes
 ******************************************************************************/
@@ -549,7 +555,7 @@ concater_rep::typeset_transclude (tree t, path ip) {
 
 void
 concater_rep::typeset_label (tree t, path ip) {
-  string mode = get_preference ("vault labels mode", "visible");
+  string mode = athena_labels_mode (env);
   if (mode == "hidden") {
     if (N(t) == 1) {
       tree src_id (ID, tree (HARD_ID, copy (t[0])));

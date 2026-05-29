@@ -22,6 +22,12 @@
 
 SI italic_correction (box left, box right);
 
+static string
+athena_labels_mode (edit_env env) {
+  if (env->get_string (PAGE_PRINTED) == "true") return "hidden";
+  return get_preference ("vault labels mode", "visible");
+}
+
 void
 concater_rep::print (box b) {
   a << line_item (STD_ITEM, env->mode_op, b, HYPH_INVALID);
@@ -233,7 +239,7 @@ concater_rep::typeset (tree t, path ip) {
   case VAR_VSPACE:
     {
       flag (env->drd->get_name (L(t)), ip, brown);
-      string mode = get_preference ("vault labels mode", "visible");
+      string mode = athena_labels_mode (env);
       if (mode == "hidden" && N(a) > 0 && a[N(a)-1]->type == CONTROL_ITEM && is_func (a[N(a)-1]->t, LABEL)) {
         // Suppress vspace* after hidden label
         break;
@@ -245,7 +251,7 @@ concater_rep::typeset (tree t, path ip) {
   case VSPACE:
     {
       flag (env->drd->get_name (L(t)), ip, brown);
-      string mode = get_preference ("vault labels mode", "visible");
+      string mode = athena_labels_mode (env);
       if (mode == "hidden" && N(a) > 0 && a[N(a)-1]->type == CONTROL_ITEM && is_func (a[N(a)-1]->t, LABEL)) {
         // Suppress vspace after hidden label
         break;

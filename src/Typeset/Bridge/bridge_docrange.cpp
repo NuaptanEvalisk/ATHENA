@@ -20,6 +20,12 @@
 #include "bridge.hpp"
 #include "scheme.hpp"
 
+static string
+athena_labels_mode (edit_env env) {
+  if (env->get_string (PAGE_PRINTED) == "true") return "hidden";
+  return get_preference ("vault labels mode", "visible");
+}
+
 #define ACC_THRESHOLD 32
 
 /******************************************************************************
@@ -258,7 +264,7 @@ bridge_docrange_rep::my_typeset (int desired_status) {
   int i, n= N(acc);
   array<line_item> a= ttt->a;
   array<line_item> b= ttt->b;
-  string mode = get_preference ("vault labels mode", "visible");
+  string mode = athena_labels_mode (env);
 
   if (divide) {
     for (i=0; i<n; i++) {

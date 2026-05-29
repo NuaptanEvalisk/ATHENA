@@ -25,6 +25,12 @@ line_breaks (array<line_item> a, int start, int end,
 	     SI line_width, SI large_width,
              SI first_spc, SI last_spc, bool ragged);
 
+static string
+athena_labels_mode (edit_env env) {
+  if (env->get_string (PAGE_PRINTED) == "true") return "hidden";
+  return get_preference ("vault labels mode", "visible");
+}
+
 /******************************************************************************
 * Compact anchor-only lines
 ******************************************************************************/
@@ -83,7 +89,7 @@ struct small_label_line_env {
 static small_label_line_env
 begin_small_label_line_env (edit_env env, tree t) {
   small_label_line_env old;
-  old.active= get_preference ("vault labels mode", "visible") == "small" &&
+  old.active= athena_labels_mode (env) == "small" &&
               has_label (t) && is_only_labels_and_white (t);
   if (!old.active) return old;
 

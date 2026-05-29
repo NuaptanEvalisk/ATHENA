@@ -12,6 +12,12 @@
 #include "bridge.hpp"
 #include "scheme.hpp"
 
+static string
+athena_labels_mode (edit_env env) {
+  if (env->get_string (PAGE_PRINTED) == "true") return "hidden";
+  return get_preference ("vault labels mode", "visible");
+}
+
 bridge bridge_docrange (typesetter ttt, tree st, path ip, array<bridge>& brs,
 			int begin, int end, bool divide);
 
@@ -202,7 +208,7 @@ bridge_document_rep::my_typeset (int desired_status) {
     int i, n= N(st);
     array<line_item> a= ttt->a;
     array<line_item> b= ttt->b;
-    string mode = get_preference ("vault labels mode", "visible");
+    string mode = athena_labels_mode (env);
 
     int first_visible = -1;
     int last_visible = -1;

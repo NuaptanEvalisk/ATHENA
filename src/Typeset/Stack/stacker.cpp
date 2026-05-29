@@ -14,6 +14,12 @@
 #include "tree_label.hpp"
 #include "scheme.hpp"
 
+static string
+athena_labels_mode (edit_env env) {
+  if (env->get_string (PAGE_PRINTED) == "true") return "hidden";
+  return get_preference ("vault labels mode", "visible");
+}
+
 /******************************************************************************
 * Constructors and basic routines for stackers
 ******************************************************************************/
@@ -469,7 +475,7 @@ typeset_as_stack (edit_env env, tree t, path ip) {
   SI top       = env->fn->yx;
   array<SI> swell;
   sss->set_env_vars (height, sep, hor_sep, ver_sep, bot, top, swell);
-  string mode = get_preference ("vault labels mode", "visible");
+  string mode = athena_labels_mode (env);
   for (i=0; i<n; i++) {
     bool white = is_pure_white (t[i]);
     bool has = has_label (t[i]);

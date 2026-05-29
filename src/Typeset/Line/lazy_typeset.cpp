@@ -29,6 +29,12 @@ lazy make_lazy_canvas (edit_env env, tree t, path ip);
 lazy make_lazy_ornament (edit_env env, tree t, path ip);
 lazy make_lazy_art_box (edit_env env, tree t, path ip);
 
+static string
+athena_labels_mode (edit_env env) {
+  if (env->get_string (PAGE_PRINTED) == "true") return "hidden";
+  return get_preference ("vault labels mode", "visible");
+}
+
 /******************************************************************************
 * Documents
 ******************************************************************************/
@@ -79,7 +85,7 @@ lazy_document_rep::lazy_document_rep (edit_env env, tree t, path ip):
   lazy_rep (LAZY_DOCUMENT, ip)
 {
   int i, n= N(t);
-  string mode = get_preference ("vault labels mode", "visible");
+  string mode = athena_labels_mode (env);
   
   // cout << "lazy_document_rep: evaluating document with " << n << " children. Mode=" << mode << "\n";
   
