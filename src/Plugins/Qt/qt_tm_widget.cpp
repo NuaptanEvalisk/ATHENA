@@ -11,6 +11,8 @@
 
 #include "QTMToolbar.hpp"
 #include <QToolButton>
+#include <QPushButton>
+#include <QLabel>
 #include <QDialog>
 #include <QComboBox>
 #include <QStatusBar>
@@ -72,12 +74,42 @@ replaceButtons (QToolBar* dest, QList<QAction*>* src) {
   dest->setUpdatesEnabled (false);
   bool visible = dest->isVisible();
   if (visible) dest->hide(); //TRICK: to avoid flicker of the dest widget
-  replaceActions (dest, src);
+  QList<QAction *> old= dest->actions();
+  for (int i=0; i<old.count(); i++)
+    dest->removeAction (old[i]);
+  for (int i=0; i<src->count(); i++) {
+    QAction* a= (*src)[i];
+    if (a->isSeparator()) {
+      dest->addSeparator ();
+    }
+    else if (a->icon().isNull() && !a->text().isEmpty()) {
+      QPushButton* button= new QPushButton (dest);
+      button->setText (a->text ());
+      button->setMenu (a->menu ());
+      button->setToolTip (a->toolTip ());
+      button->setEnabled (a->isEnabled ());
+      button->setSizePolicy (QSizePolicy::Fixed, QSizePolicy::Preferred);
+      int w= button->fontMetrics().horizontalAdvance (a->text()) + 24;
+      button->setFixedWidth (max (w, 44));
+      dest->addWidget (button);
+      if (a->menu () == NULL)
+        QObject::connect (button, SIGNAL (clicked ()), a, SLOT (trigger ()));
+    }
+    else {
+      dest->addAction (a);
+    }
+  }
   QList<QObject*> list = dest->children();
   for (int i = 0; i < list.count(); ++i) {
     QToolButton* button = qobject_cast<QToolButton*> (list[i]);
     if (button) {
       button->setPopupMode (QToolButton::InstantPopup);
+      QAction* action= button->defaultAction ();
+      if (action && action->icon ().isNull () && !action->text ().isEmpty ()) {
+        button->setToolButtonStyle (Qt::ToolButtonTextOnly);
+        button->setSizePolicy (QSizePolicy::Minimum, QSizePolicy::Preferred);
+        button->setMinimumWidth (button->sizeHint ().width ());
+      }
       if (tm_style_sheet == "")
         button->setStyle (qtmstyle());
     }
