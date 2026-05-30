@@ -541,6 +541,23 @@
       (position-delete pos))
     summary))
 
+(define (vault-anchor-apply-before-save! buf)
+  (let* ((restore (vault-anchor-capture-position buf))
+         (pos (car restore))
+         (sx (cadr restore))
+         (sy (caddr restore))
+         (body (buffer-get-body buf))
+         (res (vault-anchor-transform-stree (tree->stree body)))
+         (summary (car res))
+         (new-body (cadr res)))
+    (if (vault-anchor-summary-empty? summary)
+        (when pos (position-delete pos))
+        (begin
+          (buffer-set-body buf (stree->tree new-body))
+          (when pos
+            (vault-anchor-schedule-restore! buf pos sx sy))))
+    summary))
+
 (define (vault-anchor-summary-empty? summary)
   (and (== (vector-ref summary 0) 0)
        (== (vector-ref summary 1) 0)))
@@ -612,6 +629,26 @@
                   "Anchor enunciations")))
           (when cont (cont))))))
 
+(tm-define (vault-anchor-enunciations-confirmed-before-save buf cont)
+  (if (not (buffer-exists? buf))
+      (begin
+        (set-message "Buffer no longer exists" "Anchor enunciations")
+        (when cont (cont)))
+      (with-buffer buf
+        (let ((summary (vault-anchor-apply-before-save! buf)))
+          (cond ((vault-anchor-summary-empty? summary)
+                 (set-message "No enunciation anchors needed"
+                              "Anchor enunciations"))
+                (else
+                 (set-message
+                  (string-append "Wrapped "
+                                 (number->string (vector-ref summary 0))
+                                 " enunciation(s); removed "
+                                 (number->string (vector-ref summary 1))
+                                 " dead anchor pair(s)")
+                  "Anchor enunciations")))
+          (when cont (cont))))))
+
 (tm-define (vault-anchor-enunciations buf . maybe-cont)
   (:interactive #t)
   (let ((cont (and (pair? maybe-cont) (car maybe-cont))))
@@ -634,13 +671,29 @@
   (:interactive #t)
   (vault-anchor-enunciations (current-buffer)))
 
+(tm-define (vault-anchor-enunciations-before-save buf cont)
+  (cond ((not (vault-anchor-current-buffer-supported? buf))
+         (set-message "Current buffer cannot be anchored" "Anchor enunciations")
+         (when cont (cont)))
+        (else
+         (let ((summary (vault-anchor-plan (buffer-get-body buf))))
+           (vault-anchor-summary-print summary)
+           (if (vault-anchor-summary-empty? summary)
+               (begin
+                 (set-message "No enunciation anchors needed"
+                              "Anchor enunciations")
+                 (when cont (cont)))
+               (if (vault-anchor-confirm-native summary)
+                   (vault-anchor-enunciations-confirmed-before-save buf cont)
+                   (when cont (cont))))))))
+
 (tm-define (vault-auto-anchor-before-save? buf)
   (and (== (get-preference "vault auto anchor enunciations on save") "on")
        (vault-anchor-current-buffer-supported? buf)))
 
 (tm-define (vault-anchor-before-manual-save buf cont)
   (if (vault-auto-anchor-before-save? buf)
-      (vault-anchor-enunciations buf cont)
+      (vault-anchor-enunciations-before-save buf cont)
       (cont)))
 
 (tm-widget (vault-anchor-preferences-widget)
