@@ -64,6 +64,13 @@
 
   <assign|display-section|<macro|nr|<namespace-export-section-prefix><arg|nr>>>
 
+  <assign|part-title-sub|<macro|body|<style-with|src-compact|none|<no-indent><assign|page-this-header|><assign|page-this-footer|><new-line><no-indent><vspace*|2fn><with|math-font-series|bold|font-series|bold|font-size|2|<arg|body>><vspace|1fn><no-indent*>>>>
+
+  <assign|part-title|<macro|name|<part-title-sub|<style-with|src-compact|none|<htab|0fn><arg|name><htab|0fn>>>>>
+
+  <assign|part-numbered-title|<macro|name|<part-title-sub|<style-with|src-compact|none|<htab|0fn><part-text>
+  <the-part><htab|0fn><vspace|0.5fn><new-line><htab|0fn><arg|name><htab|0fn>>>>>
+
   <assign|part-header|<macro|name|<header-primary|<arg|name>|<if|<part-numbered>|<the-part>>|<part-text>>>>
 
   <assign|subchapter-header|<macro|name|<header-secondary|<arg|name>|<if|<subchapter-numbered>|<the-subchapter>>|<subchapter-text>>>>
@@ -101,6 +108,12 @@
   <assign|subsubsubsubsubchapter-toc|<macro|name|<toc-small-2|<toc-title|subsubsubsubsubchapter|<arg|name>>>>>
 
   <assign|subsubsubsubsubsubchapter-toc|<macro|name|<toc-small-2|<toc-title|subsubsubsubsubsubchapter|<arg|name>>>>>
+
+  <assign|render-table-of-contents|<\macro|name|body>
+    <with|chapter-toc|<macro|name|>|section-toc|<macro|name|>|<section*|<arg|name>>>
+
+    <with|par-first|0fn|par-par-sep|0fn|<arg|body>>
+  </macro>>
 
   \;
 </body>

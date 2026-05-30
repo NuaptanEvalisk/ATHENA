@@ -84,6 +84,7 @@ struct ExportNode {
   QString label;
   QString nsName;
   QString kind;
+  bool extra= false;
   QPointF pos;
   QSizeF size;
 };
@@ -105,18 +106,20 @@ struct FileMatch {
   QString stem;
 };
 
-struct ExportContext {
-  QString root;
-  QMap<QString,athena_namespace_definition> namespaces;
-  QMap<QString,QStringList> children;
-  QMap<QString,std::vector<FileMatch> > terminalFiles;
-  ExportGraph graph;
-};
-
 struct NamespaceRelations {
   QMap<QString,QStringList> directChildren;
   QMap<QString,QSet<QString> > descendants;
   QMap<QString,QSet<QString> > ancestors;
+};
+
+struct ExportContext {
+  QString root;
+  QMap<QString,athena_namespace_definition> allNamespaces;
+  QMap<QString,athena_namespace_definition> namespaces;
+  QMap<QString,QStringList> children;
+  QMap<QString,std::vector<FileMatch> > terminalFiles;
+  NamespaceRelations relations;
+  ExportGraph graph;
 };
 
 struct ExportOptions {
@@ -124,6 +127,7 @@ struct ExportOptions {
   bool includeDate= true;
   bool includeDataArt= true;
   bool includeDiagram= true;
+  bool includeReverseHierarchy= false;
 };
 
 struct ExportLabelMap {
@@ -373,17 +377,20 @@ plain_tokens (const QString& line) {
   return out;
 }
 
+static void adjust_node_sizes_for_text (ExportGraph& graph);
+
 static QString
 dot_for_graph (const ExportGraph& graph) {
   QString dot= "digraph namespace_export {\n"
-               "  graph [layout=fdp, overlap=prism, splines=true, "
-               "sep=\"+2\", nodesep=0.16, ranksep=0.18, K=0.16, "
+               "  graph [layout=fdp, overlap=false, splines=true, "
+               "sep=\"+1.4\", esep=\"+0.8\", nodesep=0.18, ranksep=0.20, K=0.16, "
                "maxiter=3000, margin=0];\n"
                "  node [shape=box, style=\"rounded,filled\", "
                "fontname=\"Alegreya Sans\", fontsize=12, margin=\"0.08,0.04\"];\n"
                "  edge [color=\"#666666\", arrowsize=0.8];\n";
   for (const ExportNode& n: graph.nodes) {
-    QString fill= n.kind == "terminal" ? "#e9f3ff" :
+    QString fill= n.extra ? "#e0e0e0" :
+                  n.kind == "terminal" ? "#e9f3ff" :
                   n.kind == "abstract" ? "#f2ecff" :
                   n.kind == "semi-concrete" ? "#fff5df" : "#eaf7ea";
     dot += QString ("  \"%1\" [label=\"%2\", width=%3, height=%4, "
@@ -400,8 +407,80 @@ dot_for_graph (const ExportGraph& graph) {
   return dot;
 }
 
+static QSizeF
+node_text_size_pixels (const ExportNode& n) {
+  QGraphicsTextItem text (n.label);
+  QFont font= text.font ();
+  font.setPointSize (10);
+  font.setBold (n.kind == "terminal");
+  text.setFont (font);
+  text.setTextWidth (220.0);
+  QRectF br= text.boundingRect ();
+  return QSizeF (qMax (150.0, br.width () + 26.0),
+                 qMax (52.0, br.height () + 20.0));
+}
+
+static void
+prepare_node_sizes_for_layout (ExportGraph& graph) {
+  for (ExportNode& n: graph.nodes) {
+    QSizeF pixels= node_text_size_pixels (n);
+    n.size= QSizeF (pixels.width () / 110.0, pixels.height () / 110.0);
+  }
+}
+
+static QRectF
+padded_node_rect (const ExportNode& n, double padding) {
+  return node_rect (n).adjusted (-padding, -padding, padding, padding);
+}
+
+static void
+compact_graph_positions (ExportGraph& graph) {
+  if (graph.nodes.empty ()) return;
+
+  QPointF center (0.0, 0.0);
+  for (const ExportNode& n: graph.nodes) center += n.pos;
+  center /= (double) graph.nodes.size ();
+
+  for (ExportNode& n: graph.nodes)
+    n.pos= center + (n.pos - center) * 0.68;
+
+  const double padding= 14.0;
+  for (int iter=0; iter<240; iter++) {
+    bool changed= false;
+    for (size_t i=0; i<graph.nodes.size (); i++) {
+      for (size_t j=i+1; j<graph.nodes.size (); j++) {
+        QRectF a= padded_node_rect (graph.nodes[i], padding);
+        QRectF b= padded_node_rect (graph.nodes[j], padding);
+        QRectF overlap= a.intersected (b);
+        if (overlap.width () <= 0.0 || overlap.height () <= 0.0) continue;
+
+        QPointF d= graph.nodes[j].pos - graph.nodes[i].pos;
+        if (std::abs (d.x ()) < 0.001 && std::abs (d.y ()) < 0.001)
+          d= QPointF ((i % 2) ? -1.0 : 1.0, (j % 2) ? -1.0 : 1.0);
+
+        if (overlap.width () < overlap.height ()) {
+          double sign= d.x () < 0.0 ? -1.0 : 1.0;
+          double push= overlap.width () / 2.0 + 1.0;
+          graph.nodes[i].pos.rx () -= sign * push;
+          graph.nodes[j].pos.rx () += sign * push;
+        }
+        else {
+          double sign= d.y () < 0.0 ? -1.0 : 1.0;
+          double push= overlap.height () / 2.0 + 1.0;
+          graph.nodes[i].pos.ry () -= sign * push;
+          graph.nodes[j].pos.ry () += sign * push;
+        }
+        changed= true;
+      }
+    }
+    if (!changed) break;
+  }
+}
+
 static bool
 layout_with_graphviz (ExportGraph& graph, QString& error) {
+  prepare_node_sizes_for_layout (graph);
+
   QProcess proc;
   proc.start (QString::fromUtf8 (ATHENA_GRAPHVIZ_FDP_EXECUTABLE),
               QStringList () << "-Tplain");
@@ -439,6 +518,8 @@ layout_with_graphviz (ExportGraph& graph, QString& error) {
     if (ok3 && ok4) n->size= QSizeF (qMax (w * 110.0, 120.0),
                                      qMax (h * 110.0, 46.0));
   }
+  adjust_node_sizes_for_text (graph);
+  compact_graph_positions (graph);
   return true;
 }
 
@@ -471,7 +552,7 @@ add_arrow (QGraphicsScene* scene, QPointF from, QPointF to, const QPen& pen,
   hitItem->setData (edge_index_role, edgeIndex);
 
   QGraphicsLineItem* lineItem= scene->addLine (line, pen);
-  lineItem->setZValue (selected ? 5 : 3);
+  lineItem->setZValue (8);
   lineItem->setData (edge_index_role, edgeIndex);
 
   double angle= std::atan2 (line.dy (), line.dx ());
@@ -483,7 +564,7 @@ add_arrow (QGraphicsScene* scene, QPointF from, QPointF to, const QPen& pen,
   QPolygonF arrow;
   arrow << to << p1 << p2;
   QGraphicsPolygonItem* arrowItem= scene->addPolygon (arrow, pen, pen.brush ());
-  arrowItem->setZValue (selected ? 5 : 3);
+  arrowItem->setZValue (8);
   arrowItem->setData (edge_index_role, edgeIndex);
 }
 
@@ -507,7 +588,6 @@ distance_to_segment (QPointF p, QPointF a, QPointF b) {
 
 static QGraphicsScene*
 create_scene (ExportGraph& graph, bool selectable) {
-  adjust_node_sizes_for_text (graph);
   QGraphicsScene* scene= new QGraphicsScene ();
   scene->setBackgroundBrush (QColor ("#fbfbfb"));
 
@@ -527,12 +607,14 @@ create_scene (ExportGraph& graph, bool selectable) {
 
   for (const ExportNode& n: graph.nodes) {
     QRectF rect= node_rect (n);
-    QColor fill= n.kind == "terminal" ? QColor ("#e9f3ff") :
+    QColor fill= n.extra ? QColor ("#e0e0e0") :
+                 n.kind == "terminal" ? QColor ("#e9f3ff") :
                  n.kind == "abstract" ? QColor ("#f2ecff") :
                  n.kind == "semi-concrete" ? QColor ("#fff5df") :
                  QColor ("#eaf7ea");
+    QColor stroke= n.extra ? QColor ("#8a8a8a") : QColor ("#333333");
     QGraphicsRectItem* box= scene->addRect (
-      rect, QPen (QColor ("#333333"), 1.4), QBrush (fill));
+      rect, QPen (stroke, 1.4), QBrush (fill));
     box->setZValue (6);
     box->setData (node_id_role, n.id);
     box->setToolTip (selectable ? "Click edges to choose the export tree" : "");
@@ -542,12 +624,12 @@ create_scene (ExportGraph& graph, bool selectable) {
     font.setPointSize (10);
     font.setBold (n.kind == "terminal");
     text->setFont (font);
-    text->setDefaultTextColor (QColor ("#111111"));
+    text->setDefaultTextColor (n.extra ? QColor ("#555555") : QColor ("#111111"));
     text->setTextWidth (rect.width () - 12.0);
     QRectF br= text->boundingRect ();
     text->setPos (rect.center ().x () - br.width () / 2.0,
                   rect.center ().y () - br.height () / 2.0);
-    text->setZValue (7);
+    text->setZValue (9);
     text->setData (node_id_role, n.id);
   }
 
@@ -711,6 +793,8 @@ build_export_context (const QString& root, ExportContext& cx, QString& error) {
   included.insert (root);
   included.unite (rel.descendants.value (root));
   cx.root= root;
+  cx.allNamespaces= all;
+  cx.relations= rel;
   for (const QString& name: included)
     cx.namespaces.insert (name, all[name]);
 
@@ -917,14 +1001,21 @@ choose_export_options (ExportOptions& options) {
   QCheckBox* date= new QCheckBox ("Include current date on cover", &dialog);
   QCheckBox* dataArt= new QCheckBox ("Generate DataArt cover image", &dialog);
   QCheckBox* diagram= new QCheckBox ("Include hierarchy diagram on second page", &dialog);
+  QCheckBox* reverseHierarchy=
+    new QCheckBox ("Include reverse hierarchy in exported graph", &dialog);
   date->setChecked (options.includeDate);
   dataArt->setChecked (options.includeDataArt);
   diagram->setChecked (options.includeDiagram);
+  reverseHierarchy->setChecked (options.includeReverseHierarchy);
+  reverseHierarchy->setEnabled (options.includeDiagram);
   form->addRow ("Author", author);
   layout->addLayout (form);
   layout->addWidget (date);
   layout->addWidget (dataArt);
   layout->addWidget (diagram);
+  layout->addWidget (reverseHierarchy);
+  QObject::connect (diagram, &QCheckBox::toggled,
+                    reverseHierarchy, &QCheckBox::setEnabled);
   QDialogButtonBox* buttons=
     new QDialogButtonBox (QDialogButtonBox::Ok | QDialogButtonBox::Cancel,
                           &dialog);
@@ -939,6 +1030,7 @@ choose_export_options (ExportOptions& options) {
   options.includeDate= date->isChecked ();
   options.includeDataArt= dataArt->isChecked ();
   options.includeDiagram= diagram->isChecked ();
+  options.includeReverseHierarchy= reverseHierarchy->isChecked ();
   return true;
 }
 
@@ -1187,7 +1279,8 @@ append_export_subtree (tree& body, const ExportContext& cx,
                        const QString& node, int depth,
                        ExportLabelMap& labels) {
   if (node != cx.root)
-    append_heading (body, heading_tag_for_namespace_depth (depth), node);
+    append_heading (body, heading_tag_for_namespace_depth (depth),
+                    terminal_namespace (node));
 
   if (node_is_terminal (node)) {
     const std::vector<FileMatch>& files= cx.terminalFiles.value (node);
@@ -1209,8 +1302,51 @@ append_export_subtree (tree& body, const ExportContext& cx,
                            labels);
 }
 
+static ExportNode
+namespace_diagram_node (const QString& name,
+                        const athena_namespace_definition& ns,
+                        bool extra) {
+  ExportNode node;
+  node.id= name;
+  node.label= name;
+  node.nsName= name;
+  node.kind= to_qstring (ns.kind);
+  node.extra= extra;
+  node.size= QSizeF (1.6, 0.55);
+  return node;
+}
+
+static void
+add_reverse_hierarchy_to_diagram (ExportGraph& graph, const ExportContext& cx,
+                                  const QSet<QString>& selected) {
+  QSet<QString> reverse;
+  reverse.insert (cx.root);
+  reverse.unite (cx.relations.ancestors.value (cx.root));
+
+  QStringList names= QStringList (reverse.values ());
+  names.sort (Qt::CaseInsensitive);
+
+  for (const QString& name: names) {
+    if (selected.contains (name) || find_node (graph, name) != nullptr)
+      continue;
+    if (!cx.allNamespaces.contains (name)) continue;
+    graph.nodes.push_back (
+      namespace_diagram_node (name, cx.allNamespaces.value (name), true));
+  }
+
+  for (const QString& parent: names) {
+    for (const QString& child: cx.relations.directChildren.value (parent)) {
+      if (!reverse.contains (child)) continue;
+      add_unique_edge (graph.edges, parent, child);
+    }
+  }
+}
+
 static QString
-render_hierarchy_diagram (ExportGraph graph, const QMap<QString,QStringList>& selectedChildren) {
+render_hierarchy_diagram (const ExportContext& cx,
+                          const QMap<QString,QStringList>& selectedChildren,
+                          bool includeReverseHierarchy) {
+  ExportGraph graph= cx.graph;
   QSet<QString> selected;
   selected.insert (graph.root);
   for (auto it= selectedChildren.begin (); it != selectedChildren.end (); ++it) {
@@ -1226,6 +1362,14 @@ render_hierarchy_diagram (ExportGraph graph, const QMap<QString,QStringList>& se
     if (e.selected && selected.contains (e.from) && selected.contains (e.to))
       edges.push_back (e);
   graph.edges.swap (edges);
+
+  if (includeReverseHierarchy)
+    add_reverse_hierarchy_to_diagram (graph, cx, selected);
+
+  QString error;
+  if (!layout_with_graphviz (graph, error))
+    warn_export ("Could not lay out exported hierarchy diagram: " + error);
+
   QGraphicsScene* scene= create_scene (graph, false);
   QRectF rect= scene->sceneRect ();
   QSize imageSize (qMax (800, (int) std::ceil (rect.width () + 40)),
@@ -1260,12 +1404,11 @@ build_export_document (const ExportContext& cx,
   tree body (DOCUMENT);
   body << build_cover (cx.root, options);
   body << compound ("table-of-contents", "toc", tree (DOCUMENT));
-  body << compound ("new-page");
   if (options.includeDiagram) {
-    QString imagePath= render_hierarchy_diagram (cx.graph, selectedChildren);
+    QString imagePath= render_hierarchy_diagram (
+      cx, selectedChildren, options.includeReverseHierarchy);
     body << compound ("section*", tree ("Selected namespace hierarchy"));
     body << compound ("image", tm_text (imagePath), "0.86par", "", "", "");
-    body << compound ("new-page");
   }
   QMap<QString,QStringList> sorted= selected_children_sorted (selectedChildren);
   ExportLabelMap labels;
