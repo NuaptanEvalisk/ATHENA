@@ -13,6 +13,7 @@
 
 #include "string.hpp"
 
+void initialize_escape_symbol_picker_data ();
 string escape_symbol_picker_dialog ();
 
 #endif // QTMESC_SYMBOL_PICKER_HPP

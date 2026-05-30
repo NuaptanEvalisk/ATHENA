@@ -10,15 +10,22 @@
 
 #include "QTMESCSymbolPicker.hpp"
 
+#include "file.hpp"
 #include "QTMWidget.hpp"
 #include "qt_utilities.hpp"
 
 #include <QApplication>
+#include <QByteArray>
 #include <QCursor>
 #include <QDialog>
 #include <QEvent>
 #include <QFrame>
 #include <QHBoxLayout>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonParseError>
+#include <QJsonValue>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
@@ -36,114 +43,92 @@ struct esc_symbol_entry {
   std::string description;
 };
 
+struct esc_symbol_data {
+  bool loaded= false;
+  bool warned= false;
+  std::string default_action;
+  std::vector<esc_symbol_entry> entries;
+};
+
+static esc_symbol_data&
+escape_symbol_data () {
+  static esc_symbol_data data;
+  return data;
+}
+
 static QString
 to_qstring_std (const std::string& s) {
   return QString::fromStdString (s);
 }
 
-static std::vector<esc_symbol_entry>
-esc_symbol_entries () {
-  std::vector<esc_symbol_entry> xs = {
-    { "a",     "alpha",       "α",     "<alpha>",      "alpha" },
-    { "b",     "beta",        "β",     "<beta>",       "beta" },
-    { "q",     "theta",       "θ",     "<theta>",      "theta" },
-    { "ii",    "mathi",       "ⅈ",     "<mathi>",      "imaginary unit" },
-    { "ee",    "mathe",       "ⅇ",     "<mathe>",      "Euler constant" },
-    { "oo",    "infty",       "∞",     "<infty>",      "infinity" },
-    { "pd",    "partial",     "∂",     "<partial>",    "partial" },
-    { "dd",    "mathd",       "ⅆ",     "<mathd>",      "differential d" },
-    { "kk",    "bbb-k",       "𝕜",     "<bbb-k>",      "blackboard k" },
-    { "dx",    "tree:dx",     "d/dx",  "d/dx",         "derivative with respect to x" },
-    { "dt",    "tree:dt",     "d/dt",  "d/dt",         "derivative with respect to t" },
-    { "<",     "tree:angle-brackets",  "< >", "\\langle\\rangle", "angle brackets" },
-    { "|",     "tree:norm-brackets",   "|| ||", "\\|\\|", "double vertical bar brackets" },
-    { "dag",   "dagger",      "†",     "<dag>",        "dagger" },
-    { "oc",    "#2103",       "℃",     "<#2103>",      "Celsius" },
-    { "-1",    "tree:inv",    "^-1",   "^{-1}",        "inverse superscript" },
-    { "op",    "tree:op",     "^op",   "^{op}",        "opposite superscript" },
-    { "uconv", "Rightarrow",  "⇒",     "<Rightarrow>", "double right arrow" },
-    { "ilim",  "tree:varinjlim",  "inj lim", "\\varinjlim",  "injective limit" },
-    { "colim", "tree:varinjlim",  "colim",   "\\varinjlim",  "colimit" },
-    { "plim",  "tree:varprojlim", "proj lim", "\\varprojlim", "projective limit" },
-    { "bij",   "tree:bij",        "1:1 →",   "\\stackrel{1:1}{\\longrightarrow}", "bijective arrow" },
-    { "acts",  "curvearrowright", "↷",       "<curvearrowright>", "right action" },
-    { "actsl", "curvearrowleft",  "↶",       "<curvearrowleft>",  "left action" },
-    { "cst",   "tree:const",      "const",   "\\mathrm{const}", "constant" },
-    { "emb",   "hookrightarrow",  "↪",       "<hookrightarrow>", "embedding arrow" },
-    { "lim",   "tree:lim-n-infty", "lim n→∞", "\\lim_{n\\to\\infty}", "limit as n tends to infinity" },
-    { "simto", "tree:simto",    "~ ->",  "\\stackrel{\\sim}{\\longrightarrow}", "isomorphism arrow" },
-    { "sl",    "tree:math-up:SL",  "SL", "\\mathrm{SL}", "special linear group" },
-    { "gl",    "tree:math-up:GL",  "GL", "\\mathrm{GL}", "general linear group" },
-    { "psl",   "tree:math-up:PSL", "PSL", "\\mathrm{PSL}", "projective special linear group" },
-    { "pgl",   "tree:math-up:PGL", "PGL", "\\mathrm{PGL}", "projective general linear group" },
-    { "sf",    "tree:math-ss", "sf", "\\sf", "sans serif formula style" },
-    { "bf",    "tree:math-bf", "bf", "\\bf", "bold formula style" },
-    { "bs",    "tree:math-boldsymbol", "bs", "\\boldsymbol", "bold math symbol style" },
-    { "frak",  "tree:math-frak", "frak", "\\frak", "fraktur formula style" },
-    { "scr",   "tree:math-scr", "scr", "\\mathscr", "script formula style" },
-    { "q3",    "tree:q3", "quad quad quad", "\\quad\\quad\\quad", "three quad spaces" },
-    { "11",    "bbb-1",       "𝟙",     "<bbb-1>",      "blackboard 1" },
-    { "ds1",   "bbb-1",       "𝟙",     "<bbb-1>",      "blackboard 1" },
-    { "id",    "tree:id",     "id",    "\\mathrm{id}", "identity" },
-    { "ve",    "varepsilon",  "ε",     "<varepsilon>", "varepsilon" },
-    { "vp",    "tree:varphi", "φ",     "<varphi>",     "varphi" },
-    { "vq",    "vartheta",    "ϑ",     "<vartheta>",   "vartheta" },
-    { "es",    "emptyset",    "∅",     "<emptyset>",   "empty set" },
-    { "ann",   "tree:operator:Ann",   "Ann",   "Ann",   "operator Ann" },
-    { "gal",   "tree:operator:Gal",   "Gal",   "Gal",   "operator Gal" },
-    { "tor",   "tree:operator:Tor",   "Tor",   "Tor",   "operator Tor" },
-    { "ext",   "tree:operator:Ext",   "Ext",   "Ext",   "operator Ext" },
-    { "gcd",   "tree:operator:gcd",   "gcd",   "gcd",   "operator gcd" },
-    { "lcm",   "tree:operator:lcm",   "lcm",   "lcm",   "operator lcm" },
-    { "ob",    "tree:operator:Ob",    "Ob",    "Ob",    "operator Ob" },
-    { "hom",   "tree:operator:Hom",   "Hom",   "Hom",   "operator Hom" },
-    { "mor",   "tree:operator:Mor",   "Mor",   "Mor",   "operator Mor" },
-    { "aut",   "tree:operator:Aut",   "Aut",   "Aut",   "operator Aut" },
-    { "end",   "tree:operator:End",   "End",   "End",   "operator End" },
-    { "iso",   "tree:operator:Isom",  "Isom",  "Isom",  "operator Isom" },
-    { "inn",   "tree:operator:Inn",   "Inn",   "Inn",   "operator Inn" },
-    { "disc",  "tree:operator:Disc",  "Disc",  "Disc",  "operator Disc" },
-    { "ord",   "tree:operator:ord",   "ord",   "ord",   "operator ord" },
-    { "supp",  "tree:operator:supp",  "supp",  "supp",  "operator supp" },
-    { "res",   "tree:operator:res",   "res",   "res",   "operator res" },
-    { "Res",   "tree:operator:Res",   "Res",   "Res",   "operator Res" },
-    { "rel",   "tree:rel",            "rel",   "\\;\\operatorname{rel}", "relative operator" },
-    { "fct",   "tree:operator:Fct",   "Fct",   "Fct",   "operator Fct" },
-    { "fr",    "tree:operator:Frac",  "Frac",  "Frac",  "operator Frac" },
-    { "mspec", "tree:operator:MSpec", "MSpec", "MSpec", "operator MSpec" },
-    { "spec",  "tree:operator:Spec",  "Spec",  "Spec",  "operator Spec" },
-    { "sgn",   "tree:operator:sgn",   "sgn",   "sgn",   "operator sgn" },
-    { "diag",  "tree:operator:diag",  "diag",  "diag",  "operator diag" },
-    { "dim",   "tree:operator:dim",   "dim",   "dim",   "operator dim" },
-    { "kdim",  "tree:operator:kdim",  "kdim",  "kdim",  "operator kdim" },
-    { "coker", "tree:operator:coker", "coker", "coker", "operator coker" },
-    { "im",    "tree:operator:im",    "im",    "im",    "operator im" },
-    { "tr",    "tree:operator:Tr",    "Tr",    "Tr",    "operator Tr" },
-    { "orb",   "tree:operator:Orb",   "Orb",   "Orb",   "operator Orb" },
-    { "nm",    "tree:operator:Norm",  "Norm",  "Norm",  "operator Norm" },
-    { "rk",    "tree:operator:rank",  "rank",  "rank",  "operator rank" },
-    { "rank",  "tree:operator:rank",  "rank",  "rank",  "operator rank" },
-    { "stab",  "tree:operator:Stab",  "Stab",  "Stab",  "operator Stab" },
-    { "ev",    "tree:operator:ev",    "ev",    "ev",    "operator ev" },
-    { "mult",  "tree:operator:mult",  "mult",  "mult",  "operator mult" },
-    { "card",  "tree:operator:Card",  "Card",  "Card",  "operator Card" },
-    { "tdeg",  "tree:operator:trdeg", "trdeg", "trdeg", "operator trdeg" }
-  };
+static void
+warn_escape_symbol_data (const std::string& message) {
+  esc_symbol_data& data= escape_symbol_data ();
+  if (data.warned) return;
+  data.warned= true;
+  std_warning << "escape symbol picker warning: "
+              << string (message.c_str ()) << "\n";
+}
 
-  for (char c= 'a'; c <= 'z'; c++) {
-    static const char* names[] = {
-      "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M",
-      "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"
-    };
-    int i= c - 'a';
-    std::string letter= names[i];
-    xs.push_back ({ "ds" + std::string (1, c),
-                    "bbb-" + letter,
-                    letter,
-                    "<bbb-" + letter + ">",
-                    "blackboard " + letter });
+static std::string
+json_string (const QJsonObject& obj, const char* field) {
+  QJsonValue value= obj.value (field);
+  if (!value.isString ()) return "";
+  return value.toString ().toStdString ();
+}
+
+void
+initialize_escape_symbol_picker_data () {
+  esc_symbol_data& data= escape_symbol_data ();
+  if (data.loaded) return;
+  data.loaded= true;
+
+  string text;
+  if (load_string (url ("$ATHENA_PATH/misc/input/escape-symbol-picker.json"),
+                   text, false)) {
+    warn_escape_symbol_data ("cannot read $ATHENA_PATH/misc/input/escape-symbol-picker.json");
+    return;
   }
-  return xs;
+
+  c_string bytes (text);
+  QJsonParseError error;
+  QJsonDocument doc= QJsonDocument::fromJson (QByteArray (bytes, N(text)),
+                                              &error);
+  if (error.error != QJsonParseError::NoError || !doc.isObject ()) {
+    warn_escape_symbol_data ("invalid JSON in escape-symbol-picker.json");
+    return;
+  }
+
+  QJsonObject root= doc.object ();
+  data.default_action= json_string (root, "default_action");
+  QJsonValue entries_value= root.value ("entries");
+  if (data.default_action.empty () || !entries_value.isArray ()) {
+    warn_escape_symbol_data ("escape-symbol-picker.json has invalid top-level fields");
+    data.default_action.clear ();
+    return;
+  }
+
+  std::vector<esc_symbol_entry> entries;
+  for (const QJsonValue& value: entries_value.toArray ()) {
+    if (!value.isObject ()) continue;
+    QJsonObject obj= value.toObject ();
+    esc_symbol_entry e {
+      json_string (obj, "key"),
+      json_string (obj, "action"),
+      json_string (obj, "preview"),
+      json_string (obj, "notation"),
+      json_string (obj, "description")
+    };
+    if (e.key.empty () || e.action.empty ()) continue;
+    entries.push_back (e);
+  }
+
+  if (entries.empty ()) {
+    warn_escape_symbol_data ("escape-symbol-picker.json contains no valid entries");
+    data.default_action.clear ();
+    return;
+  }
+  data.entries= entries;
 }
 
 static QPoint
@@ -174,7 +159,8 @@ public:
     : QDialog (parent),
       searchEdit (new QLineEdit (this)),
       list (new QListWidget (this)),
-      entries (esc_symbol_entries ()) {
+      entries (escape_symbol_data ().entries),
+      defaultAction (escape_symbol_data ().default_action) {
     setWindowFlags (Qt::Popup | Qt::FramelessWindowHint);
     setAttribute (Qt::WA_DeleteOnClose, false);
 
@@ -283,7 +269,7 @@ private:
 
   void acceptCurrent () {
     if (searchEdit->text ().trimmed ().isEmpty ()) {
-      selected= "cdots";
+      selected= string (defaultAction.c_str ());
       accept ();
       return;
     }
@@ -299,11 +285,13 @@ private:
   QLineEdit* searchEdit;
   QListWidget* list;
   std::vector<esc_symbol_entry> entries;
+  std::string defaultAction;
   string selected;
 };
 
 string
 escape_symbol_picker_dialog () {
+  initialize_escape_symbol_picker_data ();
   QTMESCSymbolPicker picker (QApplication::activeWindow ());
   if (picker.exec () != QDialog::Accepted) return "";
   return picker.selectedSymbol ();

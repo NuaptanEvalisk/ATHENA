@@ -1625,6 +1625,8 @@ tmg_namespace_create_file_with_optional_initializer (tmscm arg1) {
 
 void
 initialize_glue () {
+  initialize_escape_symbol_picker_data ();
+
   tmscm_install_procedure ("tree?", treeP, 1, 0, 0);
   tmscm_install_procedure ("tm?", contentP, 1, 0, 0);
   tmscm_install_procedure ("observer?", observerP, 1, 0, 0);
