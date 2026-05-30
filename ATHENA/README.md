@@ -110,6 +110,11 @@ Namespace support includes:
 - Custom C sorters compiled with libtcc.
 - Built-in trivial sorting behavior.
 - Generated sub-product namespaces and product sorters.
+- Reverse hierarchy graph panes and insertable reverse hierarchy diagrams.
+- Namespace export to a book-style document with cover metadata, table of
+  contents, selected hierarchy diagrams, optional reverse hierarchy context,
+  DataArt covers, rewritten internal wikilinks, and working PDF jumps.
+- A dedicated namespace manual under Help -> Manual.
 
 ### Search
 
@@ -122,6 +127,17 @@ ATHENA has a rendered, occurrence-level global search pane.
 - Preview hit neighborhoods in a rendered read-only ATHENA buffer.
 - Navigate by double-clicking an occurrence.
 - Preserve preview width, document zoom, and ADS pane behavior.
+- Use improved fuzzy ranking for vault and namespace search workflows.
+
+### Editing Workflow
+
+ATHENA adds editing modes and feedback aimed at large mathematical notes.
+
+- Live spell checking.
+- Typewriter mode for reflow-oriented editing.
+- Configurable editor focus boxes and marked-space rendering.
+- Scroll and cursor preservation across resize and automatic anchoring.
+- Unsaved-buffer listing before quit.
 
 ### Mathematical Input
 
@@ -143,6 +159,8 @@ ATHENA heavily customizes the math typing experience.
   - `Ctrl+Enter` insert row below
   - `Ctrl+Shift+Enter` insert row above
 - ESC symbol picker at the cursor.
+- Data-driven ESC symbol picker table loaded from
+  `ATHENA/misc/input/escape-symbol-picker.json`.
 - ESC aliases for Greek letters, blackboard symbols, operators, arrows,
   brackets, norm bars, math fonts, limits, group names, and common snippets.
 - Additional backslash aliases for theorem-like environments.
@@ -163,6 +181,7 @@ ATHENA treats theorem-like environments as first-class document structure.
   indentation.
 - CJK line breaking in solution and enunciation contexts.
 - Automatic enunciation anchoring on save or during maintenance.
+- Native confirmation dialog for planned enunciation anchor changes.
 - Display-first enunciation titles are kept left-aligned while display
   formulas remain centered.
 
@@ -191,9 +210,13 @@ The converter supports:
 ATHENA can generate richer PDF output than plain converted notes.
 
 - DataArt cover image generation for PDF export/preview.
+- Namespace export with cover page, table of contents, hierarchy diagram,
+  imported source documents, generated labels, and internal PDF jumps.
 - A uv-managed Python/matplotlib generator in `ATHENA/tools/data-art`.
 - Generated cover images live in temporary storage and are not saved to the
   vault.
+- Correct PDF destination emission for labels, wikilinks, tables of contents,
+  and exported namespace documents.
 - Optional build warnings and automatic table of contents for converted
   documents.
 - Reverse-video mode is confined to document rendering, including pictures,
@@ -218,6 +241,7 @@ ATHENA has moved much of the knowledge-work interface into native Qt.
 - Vault Explorer.
 - Namespace Manager.
 - Namespace Explorer.
+- Reverse Hierarchy Graph pane.
 - Global Search.
 - Error Messages pane.
 - Custom Styles Manager.
@@ -227,6 +251,9 @@ ATHENA has moved much of the knowledge-work interface into native Qt.
 - Native Qt dialogs for file selection, color picking, information messages,
   font selection, wikilink insertion, transclusion insertion, and namespace
   workflows.
+- Startup splash progress reporting from real startup phases.
+- Reliable text toolbar dropdowns for document style, theme, font, and font
+  size.
 
 ### Performance And Stability Work
 
@@ -237,7 +264,9 @@ Recent ATHENA work includes substantial low-level engineering:
 - Move semantics for core tree/string structures.
 - Large-document stack and parser fixes.
 - Font discovery caching.
+- Startup warming for font-menu probes to avoid first-open font dropdown lag.
 - Cache invalidation when Scheme/package sources change.
+- Shared-memory backed runtime temporary files.
 - PDF/export fallback font safety.
 - Resizable and reopenable ADS panes.
 - Crash reporting through native dialogs.
