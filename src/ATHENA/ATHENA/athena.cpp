@@ -257,8 +257,66 @@ clean_exit_on_sigterm (int sig_num) {
 * Texmacs paths
 ******************************************************************************/
 
+static void
+ATHENA_collect_font_menu_probes (url u, array<string>& names) {
+  string s;
+  if (load_string (u, s, false)) return;
+
+  string needle= "(font-exists-in-tt?";
+  int pos= 0;
+  while (pos < N(s)) {
+    int start= search_forwards (needle, pos, s);
+    if (start < 0) break;
+
+    int quote= start + N(needle);
+    while (quote < N(s) && s[quote] != '"') quote++;
+    if (quote >= N(s)) break;
+
+    string name;
+    int end= quote + 1;
+    while (end < N(s)) {
+      if (s[end] == '"' && (end == quote + 1 || s[end - 1] != '\\')) break;
+      name << s[end];
+      end++;
+    }
+    if (end < N(s) && N(name) != 0) names << name;
+    pos= end + 1;
+  }
+}
+
+static bool
+ATHENA_contains_string (array<string> names, string name) {
+  for (int i=0; i<N(names); i++)
+    if (names[i] == name) return true;
+  return false;
+}
+
+static int
+ATHENA_warm_font_menu_probe_cache () {
+  array<string> raw_names;
+  ATHENA_collect_font_menu_probes (
+    "$ATHENA_PATH/progs/generic/document-menu.scm", raw_names);
+  ATHENA_collect_font_menu_probes (
+    "$ATHENA_PATH/progs/fonts/font-old-menu.scm", raw_names);
+
+  array<string> names;
+  for (int i=0; i<N(raw_names); i++)
+    if (!ATHENA_contains_string (names, raw_names[i]))
+      names << raw_names[i];
+
+  for (int i=0; i<N(names); i++)
+    (void) tt_font_exists (names[i]);
+
+  if (N(names) != 0)
+    cout << "ATHENA] font cache: warmed font menu existence probes"
+         << ", names=" << N(names) << LF;
+  return N(names);
+}
+
 void ATHENA_init_font() {
   tt_font_cache_warmup ();
+  startup_progress (67, "Preparing font menus");
+  ATHENA_warm_font_menu_probe_cache ();
   font_database_load ();
 #if defined(QTTEXMACS) && defined(qt_no_fontconfig)
   string default_font_dir = get_env ("ATHENA_PATH") * "/fonts/truetype/stix";
