@@ -462,15 +462,22 @@ is_only_labels_and_white (tree t) {
   return false;
 }
 
+static string
+resolved_label_string (edit_env env, tree label) {
+  tree id= env->exec (label);
+  if (is_atomic (id)) return tree_as_string (id);
+  return tree_as_string (label);
+}
+
 static void
-collect_labels (tree t, array<string>& labels) {
+collect_labels (edit_env env, tree t, array<string>& labels) {
   if (is_func (t, LABEL, 1)) {
-    labels << tree_as_string (t[0]);
+    labels << resolved_label_string (env, t[0]);
     return;
   }
   if (is_atomic (t)) return;
   for (int i=0; i<N(t); i++)
-    collect_labels (t[i], labels);
+    collect_labels (env, t[i], labels);
 }
 
 static box
@@ -530,7 +537,7 @@ typeset_as_stack (edit_env env, tree t, path ip) {
       (void) typeset_as_concat (env, t[i], descend (ip, i));
       if (printed) {
         array<string> labels;
-        collect_labels (t[i], labels);
+        collect_labels (env, t[i], labels);
         for (int j=0; j<N(labels); j++) {
           pending_pdf_internal_anchors << labels[j];
         }

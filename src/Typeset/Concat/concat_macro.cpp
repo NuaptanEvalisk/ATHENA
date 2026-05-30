@@ -32,18 +32,11 @@ athena_pdf_anchor_name (tree label) {
   return starts (name, "#")? name: "#" * name;
 }
 
-void
-concater_rep::emit_printed_anchor (tree label, path ip) {
-  string anchor= athena_pdf_anchor_name (label);
-  path dip= decorate_middle (ip);
-  // Give the carrier a non-zero logical width, but keep zero ink and zero
-  // height. A completely zero-sized carrier may be pruned before display,
-  // preventing locus_box_rep::post_display from calling renderer::anchor().
-  box b= empty_box (dip, 0, 0, 1, 1);
-  box lb= locus_box (dip, b, list<string> (), env->pixel,
-                     "", anchor);
-  a << line_item (CONTROL_ITEM, OP_SKIP, lb, HYPH_INVALID,
-                  tree (LABEL, copy (label)));
+static tree
+athena_resolve_label_id (edit_env env, tree label) {
+  tree id= env->exec (label);
+  if (is_atomic (id)) return id;
+  return tree (tree_as_string (label));
 }
 
 void
@@ -579,18 +572,12 @@ concater_rep::typeset_label (tree t, path ip) {
   bool printed= env->get_string (PAGE_PRINTED) == "true";
   if (mode == "hidden") {
     if (N(t) == 1) {
-      string label_name= tree_as_string (t[0]);
-      string anchor_name= athena_pdf_anchor_name (t[0]);
-      if (printed &&
-          (starts (label_name, "export-label-") ||
-           starts (label_name, "#export-label-"))) {
-        emit_printed_anchor (t[0], ip);
-        return;
-      }
-      tree src_id (ID, tree (HARD_ID, copy (t[0])));
+      tree id= athena_resolve_label_id (env, t[0]);
+      string anchor_name= athena_pdf_anchor_name (id);
+      tree src_id (ID, tree (HARD_ID, copy (id)));
       tree anchor (ID, anchor_name);
       tree link (LINK, "anchor", anchor);
-      tree binding (SET_BINDING, copy (t[0]), tree (VALUE, THE_LABEL));
+      tree binding (SET_BINDING, copy (id), tree (VALUE, THE_LABEL));
       tree hidden_label (LOCUS, src_id, link, binding);
       typeset_locus (hidden_label, ip);
     }
@@ -604,8 +591,8 @@ concater_rep::typeset_label (tree t, path ip) {
     string name = "#";
     tree id= name;
     if (N(t) > 0) {
-      id= copy (t[0]);
-      name= tree_as_string (t[0]);
+      id= athena_resolve_label_id (env, t[0]);
+      name= tree_as_string (id);
     }
     tree src_id (ID, tree (HARD_ID, copy (id)));
     tree anchor (ID, athena_pdf_anchor_name (id));
