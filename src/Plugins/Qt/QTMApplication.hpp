@@ -90,6 +90,7 @@ public:
   }
 
   void show_splash ();
+  void set_splash_progress (int progress, string message);
   void hide_splash ();
 
 private:

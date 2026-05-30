@@ -108,6 +108,10 @@ Q_IMPORT_PLUGIN(QCocoaIntegrationPlugin)
 qt_gui_rep* the_gui = NULL;
 int nr_windows = 0; // FIXME: fake variable, referenced in tm_server
 
+static bool gui_event_loop_started= false;
+static bool startup_splash_hide_allowed= false;
+static bool startup_splash_hidden= false;
+
 /******************************************************************************
 * FIXME: temporary hack by Joris
 * Additional wait mechanism to keep CPU usage down
@@ -606,7 +610,10 @@ qt_gui_rep::event_loop () {
     app = QCoreApplication::instance ();
   else
     app = QApplication::instance ();
+  gui_event_loop_started= true;
+  if (!headless_mode) tmapp()->set_splash_progress (98, "Preparing editor");
   update();
+  startup_splash_hide_allowed= true;
     //need_update();
   app->exec();
 }
@@ -1040,6 +1047,15 @@ qt_gui_rep::update () {
  
   updatetimer->start (delay);
   updating = false;
+
+  if (!headless_mode &&
+      startup_splash_hide_allowed &&
+      !startup_splash_hidden &&
+      !delayed_commands.must_wait (texmacs_time())) {
+    startup_splash_hidden= true;
+    tmapp()->set_splash_progress (100, "Ready");
+    tmapp()->hide_splash ();
+  }
   
     // FIXME: we need to ensure that the interpose_handler is run at regular
     //        intervals (1/6th of sec) so that informations on the footbar are
@@ -1269,7 +1285,7 @@ command_queue::exec (object cmd) {
   q << cmd;
   start_times << (((time_t) texmacs_time ()) - 1000000000);
   lapse = texmacs_time();
-  the_gui->need_update();
+  if (gui_event_loop_started) the_gui->need_update();
   wait= true;
 }
 
@@ -1278,26 +1294,40 @@ command_queue::exec_pause (object cmd) {
   q << cmd;
   start_times << ((time_t) texmacs_time ());
   lapse = texmacs_time();
-  the_gui->need_update();
+  if (gui_event_loop_started) the_gui->need_update();
   wait= true;
 }
 
 void
 command_queue::exec_pending () {
+  static const int delayed_command_call_budget= 20;
+  static const time_t delayed_command_time_budget= 25;
   array<object> a = q;
   array<time_t> b = start_times;
   q = array<object> (0);
   start_times = array<time_t> (0);
   int i, n = N(a);
+  int processed_calls= 0;
+  time_t batch_begin= texmacs_time ();
   for (i = 0; i<n; i++) {
     time_t now =  texmacs_time ();
     if ((now - b[i]) >= 0) {
       object obj = call (a[i]);
+      processed_calls++;
+      time_t call_end= texmacs_time ();
       if (is_int (obj) && (now - b[i] < 1000000000)) {
         time_t pause = as_int (obj);
           //cout << "pause = " << obj << "\n";
         q << a[i];
         start_times << (now + pause);
+      }
+      if (processed_calls >= delayed_command_call_budget ||
+          call_end - batch_begin >= delayed_command_time_budget) {
+        for (int j=i+1; j<n; j++) {
+          q << a[j];
+          start_times << b[j];
+        }
+        break;
       }
     }
     else {

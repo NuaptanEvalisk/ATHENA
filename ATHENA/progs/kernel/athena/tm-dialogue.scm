@@ -140,7 +140,6 @@
      (delayed
       (:pause 5000)
       (set-message "ATHENA is a fork of GNU TeXmacs" tmv)
-      (gui-hide-splash)
       (delayed
        (:pause 2500)
        (set-message "ATHENA falls under the GNU general public license" tmv)

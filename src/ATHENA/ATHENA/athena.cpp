@@ -199,6 +199,17 @@ as_positive_integer_arg (string s) {
 // Qt application infrastructure
 static QTMApplication* qtmapp= NULL;
 static QTMCoreApplication* qtmcoreapp= NULL;
+
+static void
+startup_progress (int progress, string message) {
+  if (!headless_mode && qtmapp != NULL && !no_splash_screen)
+    qtmapp->set_splash_progress (progress, message);
+}
+#else
+static void
+startup_progress (int progress, string message) {
+  (void) progress; (void) message;
+}
 #endif
 
 #include <mimalloc-override.h>
@@ -701,20 +712,26 @@ set_global_options  (int argc, char** argv)  {
 void
 TeXmacs_main (int argc, char** argv) {
 
+  startup_progress (82, "Configuring session");
   set_global_options (argc, argv);
 
   if (DEBUG_STD) debug_boot << "Installing internal plug-ins...\n";
+  startup_progress (84, "Loading plug-ins");
   bench_start ("initialize plugins");
   init_plugins ();
   bench_cumul ("initialize plugins");
   if (DEBUG_STD) debug_boot << "Opening display...\n";
   
+  startup_progress (86, "Opening display");
   gui_open (argc, argv);
+  startup_progress (88, "Display ready");
   set_default_font (the_default_font);
   
   { // opening scope for server sv
     if (DEBUG_STD) debug_boot << "Starting server...\n";
+    startup_progress (90, "Starting server");
     server sv;
+    startup_progress (92, "Server ready");
   
     // append commands to open standard welcome messages if needed
     if (install_status == 1) {
@@ -734,7 +751,9 @@ TeXmacs_main (int argc, char** argv) {
   
     if (number_buffers () == 0) {
       if (DEBUG_STD) debug_boot << "Creating 'no name' buffer...\n";
+      startup_progress (94, "Opening first document");
       open_window ();
+      startup_progress (96, "First document ready");
       if (DEBUG_STD) debug_boot << "Queueing vault startup initialization...\n";
       extra_init_cmd << "(vault-startup-open-initial-buffer)";
     }
@@ -783,6 +802,9 @@ TeXmacs_main (int argc, char** argv) {
     
     // inject scheme commands 
     if (N(extra_init_cmd) > 0) exec_delayed (scheme_cmd (extra_init_cmd));
+    if (N(extra_init_cmd) > 0)
+      startup_progress (97, "Scheduling startup tasks");
+    startup_progress (98, "Preparing editor");
     gui_start_loop ();
   
     if (DEBUG_STD) debug_boot << "Stopping server...\n";
@@ -1195,10 +1217,15 @@ texmacs_entrypoint (int argc, char** argv) {
 #endif
     qtmapp= new QTMApplication (argc, argv);
     if (!no_splash_screen) tmapp()->show_splash ();
+    startup_progress (5, "Application created");
   }
 #endif
+  startup_progress (8, "Reading startup options");
   immediate_options (argc, argv);
+  startup_progress (10, "Startup options loaded");
+  startup_progress (12, "Checking caches");
   athena_refresh_cache_if_sources_changed (argc, argv);
+  startup_progress (20, "Caches ready");
 #ifdef STACK_SIZE
   struct rlimit limit;
 
@@ -1212,9 +1239,13 @@ texmacs_entrypoint (int argc, char** argv) {
 #endif
 
   original_path= get_env ("PATH");
+  startup_progress (25, "Booting core");
   boot_hacks ();
+  startup_progress (30, "Core booted");
   windows_delayed_refresh (1000000000);
+  startup_progress (34, "Loading preferences");
   load_user_preferences ();
+  startup_progress (38, "Preferences loaded");
 #ifndef OS_MINGW
   set_env ("LC_NUMERIC", "POSIX");
 #endif
@@ -1233,12 +1264,19 @@ texmacs_entrypoint (int argc, char** argv) {
   // initialize the Qt application infrastructure
   if (headless_mode)
     qtmcoreapp= new QTMCoreApplication (argc, argv);
-  else
+  else {
+    startup_progress (42, "Initializing interface");
     ((QTMApplication*)qtmapp)->load();
+    startup_progress (50, "Interface initialized");
+  }
 #endif
 
+  startup_progress (56, "Initializing caches");
   cache_initialize ();
+  startup_progress (60, "Caches initialized");
+  startup_progress (65, "Loading fonts");
   ATHENA_init_font  ();
+  startup_progress (70, "Fonts ready");
 #ifdef QTTEXMACS
   if (!headless_mode) {
 #  if QT_VERSION >= 0x060000
@@ -1250,18 +1288,22 @@ texmacs_entrypoint (int argc, char** argv) {
 #  endif
 #endif
   }
+  startup_progress (74, "Window icon ready");
   //cout << "Bench  ] Started TeXmacs\n";
   the_et     = tuple ();
   the_et->obs= ip_observer (path ());
+  startup_progress (78, "Initializing editor");
   bench_start ("initialize texmacs");
   init_athena ();
   bench_cumul ("initialize texmacs");
+  startup_progress (82, "Editor initialized");
 #ifdef ENABLE_TESTS
   test_routines ();
 #endif
 //#ifdef EXPERIMENTAL
 //  test_environments ();
 //#endif
+  startup_progress (83, "Starting Scheme");
   start_scheme (argc, argv, TeXmacs_main);
 #ifdef QTTEXMACS
   if (headless_mode)

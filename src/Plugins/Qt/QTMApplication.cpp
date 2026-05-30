@@ -1,6 +1,5 @@
 #include "QTMApplication.hpp"
 #include "qt_utilities.hpp"
-
   
 QTMApplication::QTMApplication (int& argc, char** argv) :
   QApplication (argc, argv), mSplash (NULL) { }
@@ -8,6 +7,63 @@ QTMApplication::QTMApplication (int& argc, char** argv) :
 #include <QPixmap>
 #include <QPainter>
 #include <QScreen>
+#include <algorithm>
+
+class ATHENASplashScreen: public QSplashScreen {
+public:
+  ATHENASplashScreen (const QPixmap& pixmap)
+    : QSplashScreen (pixmap, Qt::WindowStaysOnTopHint),
+      progress (0), status ("Starting ATHENA") {}
+
+  void set_progress (int new_progress, QString new_status) {
+    progress= std::max (0, std::min (100, new_progress));
+    status= new_status;
+    repaint ();
+  }
+
+protected:
+  void drawContents (QPainter* painter) override {
+    QSplashScreen::drawContents (painter);
+
+    QRect r= rect ();
+    int margin= std::max (12, r.width () / 28);
+    int bar_h= std::max (10, r.height () / 38);
+    int panel_h= bar_h + 38;
+    QRect panel (margin, r.height () - panel_h - margin,
+                 r.width () - 2 * margin, panel_h);
+    QRect bar (panel.left () + 12, panel.bottom () - bar_h - 10,
+               panel.width () - 24, bar_h);
+    int fill_w= (bar.width () * progress) / 100;
+
+    painter->setRenderHint (QPainter::Antialiasing, true);
+    painter->setPen (Qt::NoPen);
+    painter->setBrush (QColor (255, 255, 255, 230));
+    painter->drawRoundedRect (panel, 5, 5);
+
+    painter->setPen (QColor (45, 52, 62));
+    QFont f= painter->font ();
+    f.setPointSize (std::max (9, f.pointSize ()));
+    painter->setFont (f);
+    QString label= status + QString ("  %1%").arg (progress);
+    painter->drawText (panel.adjusted (12, 7, -12, -bar_h - 14),
+                       Qt::AlignLeft | Qt::AlignVCenter, label);
+
+    painter->setPen (QColor (170, 176, 184));
+    painter->setBrush (QColor (236, 239, 243));
+    painter->drawRoundedRect (bar, 4, 4);
+    if (fill_w > 0) {
+      QRect fill= bar;
+      fill.setWidth (fill_w);
+      painter->setPen (Qt::NoPen);
+      painter->setBrush (QColor (49, 112, 184));
+      painter->drawRoundedRect (fill, 4, 4);
+    }
+  }
+
+private:
+  int progress;
+  QString status;
+};
 
 void QTMApplication::show_splash () {
   if (headless_mode) return;
@@ -42,7 +98,8 @@ void QTMApplication::show_splash () {
   painter.drawPixmap (0, 0, pixmap);
   painter.end ();
 
-  mSplash = new QSplashScreen (splash_pix, Qt::WindowStaysOnTopHint);
+  mSplash = new ATHENASplashScreen (splash_pix);
+  set_splash_progress (2, "Preparing application");
   mSplash->show ();
   mSplash->repaint ();
   mSplash->raise ();
@@ -54,6 +111,12 @@ void QTMApplication::show_splash () {
     qApp->processEvents (QEventLoop::AllEvents, 10);
     QThread::msleep (5);
   }
+}
+
+void QTMApplication::set_splash_progress (int progress, string message) {
+  if (!mSplash) return;
+  ATHENASplashScreen* splash= dynamic_cast<ATHENASplashScreen*> (mSplash);
+  if (splash) splash->set_progress (progress, to_qstring (message));
 }
 
 void QTMApplication::hide_splash () {
