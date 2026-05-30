@@ -975,7 +975,8 @@ reverse_hierarchy_graph_show () {
     reverse_hierarchy_graph_dock->setObjectName (
       "athena-reverse-hierarchy-graph");
     reverse_hierarchy_graph_dock->resize (640, 560);
-    reverse_hierarchy_graph_dock->setWidget (reverse_hierarchy_graph_widget);
+    reverse_hierarchy_graph_dock->setWidget (
+      reverse_hierarchy_graph_widget, ads::CDockWidget::ForceNoScrollArea);
     reverse_hierarchy_graph_dock->setFeature (
       ads::CDockWidget::DockWidgetDeleteOnClose, false);
     QObject::connect (reverse_hierarchy_graph_dock,
@@ -990,14 +991,18 @@ reverse_hierarchy_graph_show () {
       reverse_hierarchy_graph_dock= nullptr;
       reverse_hierarchy_graph_widget= nullptr;
     });
+    win->dockManager ()->addDockWidgetFloating (reverse_hierarchy_graph_dock);
+    reverse_hierarchy_graph_dock->toggleView (true);
+    reverse_hierarchy_graph_dock->show ();
+    reverse_hierarchy_graph_dock->raise ();
+  }
+  else {
+    if (reverse_hierarchy_graph_dock->widget () != reverse_hierarchy_graph_widget)
+      reverse_hierarchy_graph_dock->setWidget (
+        reverse_hierarchy_graph_widget, ads::CDockWidget::ForceNoScrollArea);
     win->showAdsDockWidget (reverse_hierarchy_graph_dock,
                             ads::RightDockWidgetArea);
   }
-
-  if (reverse_hierarchy_graph_dock->widget () != reverse_hierarchy_graph_widget)
-    reverse_hierarchy_graph_dock->setWidget (reverse_hierarchy_graph_widget);
-  win->showAdsDockWidget (reverse_hierarchy_graph_dock,
-                          ads::RightDockWidgetArea);
   reverse_hierarchy_graph_widget->setFloatingResizeGripVisible (
     reverse_hierarchy_graph_dock->isInFloatingContainer ());
 
