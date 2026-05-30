@@ -8,6 +8,8 @@
   <\traverse>
     <branch|Creating labels, links and references|man-create-links.en.tm>
 
+    <branch|Namespaces in <ATHENA>|man-namespaces.en.tm>
+
     <branch|Inserting images|man-images.en.tm>
 
     <branch|Generating a table of contents|man-toc.en.tm>

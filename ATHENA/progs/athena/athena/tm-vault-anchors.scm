@@ -595,7 +595,7 @@
   (string-join
    (map (cut vault-anchor-truncate-line <> 180)
         (vector-ref summary 2))
-   "\n"))
+   "<<<ATHENA-ANCHOR-ACTION>>>"))
 
 (define (vault-anchor-confirm-native summary)
   (native-anchor-enunciations-confirm

@@ -3,7 +3,7 @@
 <style|<tuple|tmdoc|english|old-spacing|old-dots|old-lengths>>
 
 <\body>
-  <tmdoc-title|The GNU <TeXmacs> manual>
+  <tmdoc-title|The <ATHENA> manual>
 
   <\traverse>
     <branch|Getting started|start/man-getting-started.en.tm>
@@ -15,6 +15,8 @@
     <branch|Tabular material|table/man-table.en.tm>
 
     <branch|Links and automatically generated content|links/man-links.en.tm>
+
+    <branch|Namespaces in <ATHENA>|links/man-namespaces.en.tm>
 
     <branch|Creating technical pictures|graphics/man-graphics.en.tm>
 

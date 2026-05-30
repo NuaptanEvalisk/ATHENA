@@ -1511,6 +1511,47 @@ tmg_native_anchor_enunciations_confirm (tmscm arg1, tmscm arg2,
   QString dead = to_qstring (tmscm_to_string (arg2));
   QString notes= to_qstring (tmscm_to_string (arg3));
 
+  notes.replace ("<<<ATHENA-ANCHOR-ACTION>>>", "\n");
+  notes.replace ("\\r\\n", "\n");
+  notes.replace ("\\n", "\n");
+  notes.replace ("\\t", "\t");
+  notes.replace ("\r\n", "\n");
+  notes.replace ('\r', '\n');
+
+  QStringList items;
+  QString current;
+  for (int i=0; i<notes.size (); i++) {
+    QChar c= notes.at (i);
+    if (c == '\n' || c == '\t' || c.unicode () == 0x1e ||
+        c.unicode () == 0x00af) {
+      QString trimmed= current.trimmed ();
+      if (!trimmed.isEmpty ()) items << trimmed;
+      current.clear ();
+    }
+    else current.append (c);
+  }
+  QString trimmed= current.trimmed ();
+  if (!trimmed.isEmpty ()) items << trimmed;
+
+  if (items.size () <= 1 && !notes.trimmed ().isEmpty ()) {
+    QString compact= notes.simplified ();
+    QStringList split;
+    int start= 0;
+    for (int i=1; i<compact.size (); i++) {
+      bool boundary=
+        compact.mid (i).startsWith ("wrap ") ||
+        compact.mid (i).startsWith ("remove dead anchors: ");
+      if (boundary && compact.at (i - 1).isSpace ()) {
+        QString item= compact.mid (start, i - start).trimmed ();
+        if (!item.isEmpty ()) split << item;
+        start= i;
+      }
+    }
+    QString item= compact.mid (start).trimmed ();
+    if (!item.isEmpty ()) split << item;
+    if (split.size () > items.size ()) items= split;
+  }
+
   QDialog dialog (QApplication::activeWindow ());
   dialog.setWindowTitle ("Anchor enunciations");
   dialog.resize (760, 480);
@@ -1531,8 +1572,9 @@ tmg_native_anchor_enunciations_confirm (tmscm arg1, tmscm arg2,
   QListWidget* list= new QListWidget (&dialog);
   list->setAlternatingRowColors (true);
   list->setSelectionMode (QAbstractItemView::NoSelection);
+  list->setWordWrap (true);
+  list->setHorizontalScrollBarPolicy (Qt::ScrollBarAlwaysOff);
   list->setMinimumHeight (300);
-  QStringList items= notes.split ('\n', Qt::SkipEmptyParts);
   if (items.isEmpty ())
     list->addItem ("No individual action details are available.");
   else

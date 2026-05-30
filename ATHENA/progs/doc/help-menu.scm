@@ -63,6 +63,8 @@
 	     (load-help-article "main/table/man-table"))
 	    ("Automatic content generation"
 	     (load-help-article "main/links/man-links"))
+	    ("Namespaces in ATHENA"
+	     (load-help-article "main/links/man-namespaces"))
 	    ("Creating technical pictures"
 	     (load-help-article "main/graphics/man-graphics"))
 	    ("Advanced layout features"
