@@ -1407,8 +1407,10 @@ build_export_document (const ExportContext& cx,
   if (options.includeDiagram) {
     QString imagePath= render_hierarchy_diagram (
       cx, selectedChildren, options.includeReverseHierarchy);
-    body << compound ("section*", tree ("Selected namespace hierarchy"));
+    body << tree (NEW_PAGE);
+    body << compound ("section*", tree ("Selected Namespace Hierarchy"));
     body << compound ("image", tm_text (imagePath), "0.86par", "", "", "");
+    body << tree (NEW_PAGE);
   }
   QMap<QString,QStringList> sorted= selected_children_sorted (selectedChildren);
   ExportLabelMap labels;
