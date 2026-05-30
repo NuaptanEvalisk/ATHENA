@@ -89,8 +89,10 @@ struct small_label_line_env {
 static small_label_line_env
 begin_small_label_line_env (edit_env env, tree t) {
   small_label_line_env old;
-  old.active= athena_labels_mode (env) == "small" &&
-              has_label (t) && is_only_labels_and_white (t);
+  old.active=
+    (get_preference ("vault labels mode", "visible") == "small" ||
+     env->get_string (PAGE_PRINTED) == "true") &&
+    has_label (t) && is_only_labels_and_white (t);
   if (!old.active) return old;
 
   old.par_sep     = env->read (PAR_SEP);

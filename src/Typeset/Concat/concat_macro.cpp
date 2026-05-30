@@ -24,7 +24,27 @@ athena_labels_mode (edit_env env) {
 
 /******************************************************************************
 * Typesetting environment changes
-******************************************************************************/
+ ******************************************************************************/
+
+static string
+athena_pdf_anchor_name (tree label) {
+  string name= tree_as_string (label);
+  return starts (name, "#")? name: "#" * name;
+}
+
+void
+concater_rep::emit_printed_anchor (tree label, path ip) {
+  string anchor= athena_pdf_anchor_name (label);
+  path dip= decorate_middle (ip);
+  // Give the carrier a non-zero logical width, but keep zero ink and zero
+  // height. A completely zero-sized carrier may be pruned before display,
+  // preventing locus_box_rep::post_display from calling renderer::anchor().
+  box b= empty_box (dip, 0, 0, 1, 1);
+  box lb= locus_box (dip, b, list<string> (), env->pixel,
+                     "", anchor);
+  a << line_item (CONTROL_ITEM, OP_SKIP, lb, HYPH_INVALID,
+                  tree (LABEL, copy (label)));
+}
 
 void
 concater_rep::typeset_assign (tree t, path ip) {
@@ -556,10 +576,19 @@ concater_rep::typeset_transclude (tree t, path ip) {
 void
 concater_rep::typeset_label (tree t, path ip) {
   string mode = athena_labels_mode (env);
+  bool printed= env->get_string (PAGE_PRINTED) == "true";
   if (mode == "hidden") {
     if (N(t) == 1) {
+      string label_name= tree_as_string (t[0]);
+      string anchor_name= athena_pdf_anchor_name (t[0]);
+      if (printed &&
+          (starts (label_name, "export-label-") ||
+           starts (label_name, "#export-label-"))) {
+        emit_printed_anchor (t[0], ip);
+        return;
+      }
       tree src_id (ID, tree (HARD_ID, copy (t[0])));
-      tree anchor (ID, tree (MERGE, "#", copy (t[0])));
+      tree anchor (ID, anchor_name);
       tree link (LINK, "anchor", anchor);
       tree binding (SET_BINDING, copy (t[0]), tree (VALUE, THE_LABEL));
       tree hidden_label (LOCUS, src_id, link, binding);
@@ -579,7 +608,7 @@ concater_rep::typeset_label (tree t, path ip) {
       name= tree_as_string (t[0]);
     }
     tree src_id (ID, tree (HARD_ID, copy (id)));
-    tree anchor (ID, tree (MERGE, "#", copy (id)));
+    tree anchor (ID, athena_pdf_anchor_name (id));
     tree link (LINK, "anchor", anchor);
     tree binding (SET_BINDING, copy (id), tree (VALUE, THE_LABEL));
     tree tiny_t = tree (WITH, "font-size", "0.5", "color", "grey", 

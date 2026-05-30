@@ -118,9 +118,12 @@ class pdf_hummus_renderer_rep : public renderer_rep {
   
   // link annotation support
   hashmap<ObjectIDType,string> annot_list;
+  hashmap<ObjectIDType,string> annot_dest_name;
   list<dest_data> dests;
   ObjectIDType destId;
+  hashmap<string,string> direct_dest_by_name;
   hashmap<string,int> label_id;
+  hashset<string> emitted_dest_names;
   int label_count;
   hashmap<string,string> metadata;
 
@@ -167,6 +170,8 @@ class pdf_hummus_renderer_rep : public renderer_rep {
   void end_page();
   
   int get_label_id(string label);
+  string get_pdf_dest_name (string label);
+  void resolve_internal_annotations ();
 
   // various internal routines
   void flush_images();
@@ -372,6 +377,7 @@ pdf_hummus_renderer_rep::~pdf_hummus_renderer_rep () {
   flush_patterns();
   flush_glyphs();
   flush_dests();
+  resolve_internal_annotations();
   flush_outlines();
   flush_fonts();
   flush_metadata();
@@ -2302,6 +2308,29 @@ int pdf_hummus_renderer_rep::get_label_id(string label)
   return label_id(label);
 }
 
+string pdf_hummus_renderer_rep::get_pdf_dest_name (string label) {
+  string s= label;
+  if (starts (s, "#")) s= s (1, N(s));
+  return "/label" * as_string (get_label_id (s));
+}
+
+void
+pdf_hummus_renderer_rep::resolve_internal_annotations () {
+  iterator<ObjectIDType> it= iterate (annot_dest_name);
+  while (it->busy()) {
+    ObjectIDType annotId= it->next();
+    string pdfDest= annot_dest_name (annotId);
+    if (!direct_dest_by_name->contains (pdfDest))
+      continue;
+    string direct= direct_dest_by_name (pdfDest);
+    string old_dest= "\t/Dest " * pdfDest;
+    string new_dest= "\t/Dest " * direct;
+    string before= annot_list (annotId);
+    string after= replace (before, old_dest, new_dest);
+    annot_list (annotId)= after;
+  }
+}
+
 void
 pdf_hummus_renderer_rep::anchor (string label, SI x1, SI y1, SI x2, SI y2)
 {
@@ -2328,10 +2357,14 @@ pdf_hummus_renderer_rep::href (string label, SI x1, SI y1, SI x2, SI y2)
   dict << as_string(((double)default_dpi / dpi)*to_x(x2 + 5*pixel)) << " ";
   dict << as_string(((double)default_dpi / dpi)*to_y(y2 + 10*pixel)) << "]\r\n";
   if (starts (label, "#")) {
-    dict << "\t/Dest /label" << as_string(get_label_id(prepare_text (label))) << "\r\n";
+    string prepared= prepare_text (label);
+    string pdfDest= get_pdf_dest_name (prepared);
+    dict << "\t/Dest " << pdfDest << "\r\n";
+    annot_dest_name (annotId)= pdfDest;
   }
   else {
-    dict << "/A << /S /URI /URI (" << prepare_text (label) << ") >>\r\n";
+    string prepared= prepare_text (label);
+    dict << "/A << /S /URI /URI (" << prepared << ") >>\r\n";
   }
   dict << ">>\r\n";
   annot_list (annotId) = dict;
@@ -2354,8 +2387,19 @@ pdf_hummus_renderer_rep::flush_dests()
     int dest_x = it->item.x3;
     int dest_y = it->item.x4;
     {
-      dict << "\t\t/label" << as_string(get_label_id(label)) << " [ " << as_string(page_id(dest_page)) << " 0 R /XYZ "
-           << as_string(((double)default_dpi / dpi)*dest_x) << " " << as_string(((double)default_dpi / dpi)*dest_y) << " null ]\r\n";
+      string pdfDest= get_pdf_dest_name (label);
+      if (emitted_dest_names->contains (pdfDest)) {
+        it = it->next;
+        continue;
+      }
+      emitted_dest_names->insert (pdfDest);
+      string direct;
+      direct << "[ " << as_string(page_id(dest_page)) << " 0 R /XYZ "
+             << as_string(((double)default_dpi / dpi)*dest_x) << " "
+             << as_string(((double)default_dpi / dpi)*dest_y)
+             << " null ]";
+      direct_dest_by_name (pdfDest)= direct;
+      dict << "\t\t" << pdfDest << " " << direct << "\r\n";
     }
     it = it->next;
   }

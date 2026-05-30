@@ -265,6 +265,7 @@ bridge_docrange_rep::my_typeset (int desired_status) {
   array<line_item> a= ttt->a;
   array<line_item> b= ttt->b;
   string mode = athena_labels_mode (env);
+  bool printed= env->get_string (PAGE_PRINTED) == "true";
 
   if (divide) {
     for (i=0; i<n; i++) {
@@ -278,7 +279,9 @@ bridge_docrange_rep::my_typeset (int desired_status) {
     int first_visible = -1;
     int last_visible = -1;
     for (i=begin; i<end; i++) {
-      if (mode == "hidden" && is_only_labels_and_white (brs[i]->st) && has_label (brs[i]->st)) continue;
+      bool label_only= mode == "hidden" &&
+        is_only_labels_and_white (brs[i]->st) && has_label (brs[i]->st);
+      if (label_only && !printed) continue;
       if (first_visible == -1) first_visible = i;
       last_visible = i;
     }
@@ -286,7 +289,9 @@ bridge_docrange_rep::my_typeset (int desired_status) {
     if (first_visible == -1) return;
 
     for (i=begin; i<end; i++) {
-      if (mode == "hidden" && is_only_labels_and_white (brs[i]->st) && has_label (brs[i]->st)) continue;
+      bool label_only= mode == "hidden" &&
+        is_only_labels_and_white (brs[i]->st) && has_label (brs[i]->st);
+      if (label_only && !printed) continue;
       int wanted= (i==last_visible? desired_status & WANTED_MASK: WANTED_PARAGRAPH);
       ttt->a= (i==first_visible? a: array<line_item> ());
       ttt->b= (i==last_visible ? b: array<line_item> ());

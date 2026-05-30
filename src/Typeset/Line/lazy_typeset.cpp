@@ -86,6 +86,7 @@ lazy_document_rep::lazy_document_rep (edit_env env, tree t, path ip):
 {
   int i, n= N(t);
   string mode = athena_labels_mode (env);
+  bool printed= env->get_string (PAGE_PRINTED) == "true";
   
   // cout << "lazy_document_rep: evaluating document with " << n << " children. Mode=" << mode << "\n";
   
@@ -98,7 +99,7 @@ lazy_document_rep::lazy_document_rep (edit_env env, tree t, path ip):
     // cout << "  Child " << i << ": " << t[i] << "\n";
     // cout << "    white=" << white << " has_label=" << has << " only_labels=" << only << "\n";
 
-    if (mode == "hidden" && only && has) {
+    if (mode == "hidden" && only && has && !printed) {
       // cout << "    -> SKIPPING\n";
       continue;
     }

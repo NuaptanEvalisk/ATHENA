@@ -36,6 +36,7 @@ class concater_rep {
   void ghost (string s, path ip, color col);
   void flag_ok (string s, path ip, color col);
   void flag (string s, path ip, color col);
+  void emit_printed_anchor (tree label, path ip);
   void print (space spc);
   void penalty_min (int p);
   void penalty_max (int p);

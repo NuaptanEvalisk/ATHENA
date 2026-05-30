@@ -149,6 +149,7 @@ build_locus (edit_env env, tree t, list<string>& ids, string& col, string &ref, 
         visited= visited || has_been_visited ("id:" * id);
       }
       else if (is_compound (arg, "link") && N(arg) >= 2) {
+        string link_type= is_atomic (arg[0])? arg[0]->label: string ("");
         if (is_func (arg[1], ATTR)) arg= copy (arg);
         else arg= arg (0, 1) * tree (LINK, tree (ATTR)) * arg (1, N(arg));
         arg[1] << tree ("secure")
@@ -157,11 +158,11 @@ build_locus (edit_env env, tree t, list<string>& ids, string& col, string &ref, 
         for (j=2; j<N(arg); j++) {
           if (is_compound (arg[j], "id", 1) && is_atomic (arg[j][0])) {
             visited= visited || has_been_visited ("id:" * arg[j][0]->label);
-            anchor = arg[j][0]->label;
+            if (link_type == "anchor") anchor= arg[j][0]->label;
           }
           if (is_compound (arg[j], "url", 1) && is_atomic (arg[j][0])) {
             visited= visited || has_been_visited ("url:" * arg[j][0]->label);
-            ref = arg[j][0]->label;
+            if (link_type != "anchor") ref= arg[j][0]->label;
           }
         }
       }
@@ -225,11 +226,15 @@ concater_rep::typeset_locus (tree t, path ip) {
   list<string> ids;
   string col, ref, anchor;
   bool ok= build_locus (env, t, ids, col, ref, anchor);
+  bool printed= env->get_string (PAGE_PRINTED) == "true";
   marker (descend (ip, 0));
   tree old= env->local_begin (COLOR, col);
   int pos= N(a);
   typeset (t[last], descend (ip, last));
-  if (!ok) {
+  bool force_pdf_printed_locus=
+    printed &&
+    (anchor != "" || ref != "");
+  if (!ok || force_pdf_printed_locus) {
     path dip= decorate_middle (descend (ip, N(t) - 1));
     array<line_item> new_a;
     array<line_item> tmp_a;
@@ -259,6 +264,13 @@ concater_rep::typeset_locus (tree t, path ip) {
             a[i]->op_type != a[i+1]->op_type) {
           path sip= (N(tmp_a)==1? a[i]->b->ip: dip);
           box cc= produce_concat (dip, tmp_a);
+          if (anchor != "" && cc->w () == 0) {
+            array<box> bs;
+            array<SI>  spc;
+            bs  << cc << empty_box (dip, 0, 0, 1, 1);
+            spc << ((SI) 0) << ((SI) 0);
+            cc= concat_box (dip, bs, spc);
+          }
           box lb= locus_box (sip, cc, ids, env->pixel, ref, anchor);
           line_item item (STD_ITEM, a[i]->op_type, lb, a[i]->penalty);
           item->spc= a[i]->spc;

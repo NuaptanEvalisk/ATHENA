@@ -462,6 +462,47 @@ is_only_labels_and_white (tree t) {
   return false;
 }
 
+static void
+collect_labels (tree t, array<string>& labels) {
+  if (is_func (t, LABEL, 1)) {
+    labels << tree_as_string (t[0]);
+    return;
+  }
+  if (is_atomic (t)) return;
+  for (int i=0; i<N(t); i++)
+    collect_labels (t[i], labels);
+}
+
+static box
+wrap_pdf_internal_anchor (edit_env env, box b, string label, string where) {
+  string anchor= starts (label, "#")? label: "#" * label;
+  (void) where;
+  return locus_box (b->ip, b, list<string> (), env->pixel, "", anchor);
+}
+
+static box
+wrap_pdf_internal_anchors (edit_env env, box b, array<string> labels,
+                         string where) {
+  for (int i=0; i<N(labels); i++)
+    b= wrap_pdf_internal_anchor (env, b, labels[i], where);
+  return b;
+}
+
+static bool
+attach_pdf_internal_anchors_to_last_line (stacker sss, edit_env env,
+                                        array<string> labels) {
+  for (int i=N(sss->l)-1; i>=0; i--) {
+    if (sss->l[i]->type == PAGE_LINE_ITEM ||
+        sss->l[i]->type == PAGE_HIDDEN_ITEM) {
+      sss->l[i]= copy (sss->l[i]);
+      sss->l[i]->b= wrap_pdf_internal_anchors (env, sss->l[i]->b,
+                                             labels, "previous");
+      return true;
+    }
+  }
+  return false;
+}
+
 box
 typeset_as_stack (edit_env env, tree t, path ip) {
   // cout << "Typeset as stack " << t << "\n";
@@ -476,6 +517,8 @@ typeset_as_stack (edit_env env, tree t, path ip) {
   array<SI> swell;
   sss->set_env_vars (height, sep, hor_sep, ver_sep, bot, top, swell);
   string mode = athena_labels_mode (env);
+  bool printed= env->get_string (PAGE_PRINTED) == "true";
+  array<string> pending_pdf_internal_anchors;
   for (i=0; i<n; i++) {
     bool white = is_pure_white (t[i]);
     bool has = has_label (t[i]);
@@ -484,9 +527,28 @@ typeset_as_stack (edit_env env, tree t, path ip) {
     // cout << "Vault Stack Item: " << t[i] << " | white:" << white << " has:" << has << " only:" << only << "\n";
 
     if (mode == "hidden" && only && has) {
+      (void) typeset_as_concat (env, t[i], descend (ip, i));
+      if (printed) {
+        array<string> labels;
+        collect_labels (t[i], labels);
+        for (int j=0; j<N(labels); j++) {
+          pending_pdf_internal_anchors << labels[j];
+        }
+      }
       continue;
     }
-    sss->print (typeset_as_concat (env, t[i], descend (ip, i)));
+    box b= typeset_as_concat (env, t[i], descend (ip, i));
+    if (N(pending_pdf_internal_anchors) != 0) {
+      b= wrap_pdf_internal_anchors (env, b, pending_pdf_internal_anchors,
+                                    "next");
+      pending_pdf_internal_anchors= array<string> ();
+    }
+    sss->print (b);
+  }
+
+  if (N(pending_pdf_internal_anchors) != 0) {
+    (void) attach_pdf_internal_anchors_to_last_line (
+      sss, env, pending_pdf_internal_anchors);
   }
 
   n= N(sss->l);
