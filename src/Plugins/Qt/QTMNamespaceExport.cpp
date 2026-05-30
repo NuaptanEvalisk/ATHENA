@@ -1186,6 +1186,9 @@ append_export_subtree (tree& body, const ExportContext& cx,
                        const QMap<QString,QStringList>& selectedChildren,
                        const QString& node, int depth,
                        ExportLabelMap& labels) {
+  if (node != cx.root)
+    append_heading (body, heading_tag_for_namespace_depth (depth), node);
+
   if (node_is_terminal (node)) {
     const std::vector<FileMatch>& files= cx.terminalFiles.value (node);
     for (const FileMatch& fm: files) {
@@ -1201,8 +1204,6 @@ append_export_subtree (tree& body, const ExportContext& cx,
     return;
   }
 
-  if (node != cx.root)
-    append_heading (body, heading_tag_for_namespace_depth (depth), node);
   for (const QString& child: selectedChildren.value (node))
     append_export_subtree (body, cx, selectedChildren, child, depth + 1,
                            labels);

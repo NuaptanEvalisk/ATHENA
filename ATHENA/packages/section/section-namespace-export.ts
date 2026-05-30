@@ -64,6 +64,20 @@
 
   <assign|display-section|<macro|nr|<namespace-export-section-prefix><arg|nr>>>
 
+  <assign|part-header|<macro|name|<header-primary|<arg|name>|<if|<part-numbered>|<the-part>>|<part-text>>>>
+
+  <assign|subchapter-header|<macro|name|<header-secondary|<arg|name>|<if|<subchapter-numbered>|<the-subchapter>>|<subchapter-text>>>>
+
+  <assign|subsubchapter-header|<macro|name|<header-secondary|<arg|name>|<if|<subsubchapter-numbered>|<the-subsubchapter>>|<subsubchapter-text>>>>
+
+  <assign|subsubsubchapter-header|<macro|name|<header-secondary|<arg|name>|<if|<subsubsubchapter-numbered>|<the-subsubsubchapter>>|<subsubsubchapter-text>>>>
+
+  <assign|subsubsubsubchapter-header|<macro|name|<header-secondary|<arg|name>|<if|<subsubsubsubchapter-numbered>|<the-subsubsubsubchapter>>|<subsubsubsubchapter-text>>>>
+
+  <assign|subsubsubsubsubchapter-header|<macro|name|<header-secondary|<arg|name>|<if|<subsubsubsubsubchapter-numbered>|<the-subsubsubsubsubchapter>>|<subsubsubsubsubchapter-text>>>>
+
+  <assign|subsubsubsubsubsubchapter-header|<macro|name|<header-secondary|<arg|name>|<if|<subsubsubsubsubsubchapter-numbered>|<the-subsubsubsubsubsubchapter>>|<subsubsubsubsubsubchapter-text>>>>
+
   <assign|subchapter-title|<macro|name|<style-with|src-compact|none|<sectional-normal-bold|<vspace*|3fn><huge|<arg|name>><vspace|1fn>>>>>
 
   <assign|subsubchapter-title|<macro|name|<style-with|src-compact|none|<sectional-normal-bold|<vspace*|2.5fn><very-large|<arg|name>><vspace|0.8fn>>>>>

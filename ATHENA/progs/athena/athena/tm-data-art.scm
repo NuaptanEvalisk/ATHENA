@@ -46,6 +46,42 @@
        (center (image ,(url->system cover) "0.72par" "" "" ""))
        (vspace "1.5fn"))))
 
+(define (data-art-cover-document? t width)
+  (and (pair? t)
+       (eq? (car t) 'document)
+       (== (length t) 4)
+       (equal? (cadr t) '(vspace* "1fn"))
+       (let ((image-line (caddr t)))
+         (and (pair? image-line)
+              (eq? (car image-line) 'center)
+              (== (length image-line) 2)
+              (let ((image (cadr image-line)))
+                (and (pair? image)
+                     (eq? (car image) 'image)
+                     (>= (length image) 3)
+                     (equal? (caddr image) width)))))
+       (equal? (cadddr t) '(vspace "1.5fn"))))
+
+(define (data-art-doc-misc-cover? t)
+  (and (pair? t)
+       (eq? (car t) 'doc-misc)
+       (nnull? (cdr t))
+       (data-art-cover-document? (cadr t) "0.72par")))
+
+(define (data-art-body-cover? t)
+  (data-art-cover-document? t "0.92par"))
+
+(define (data-art-cover-present-stree? body)
+  (and (pair? body)
+       (eq? (car body) 'document)
+       (or (exists? data-art-body-cover? (cdr body))
+           (exists?
+            (lambda (child)
+              (and (pair? child)
+                   (eq? (car child) 'doc-data)
+                   (exists? data-art-doc-misc-cover? (cdr child))))
+            (cdr body)))))
+
 (define (data-art-title-block? child)
   (and (pair? child)
        (in? (car child) '(doc-data title doc-title tmdoc-title tmdoc-title*
@@ -67,23 +103,25 @@
       child))
 
 (define (data-art-insert-cover-in-doc-data-stree body cover)
-  (if (and (pair? body) (eq? (car body) 'document))
-      (let* ((children (cdr body))
-             (hit? #f)
-             (new-children
-              (map (lambda (child)
-                     (if (and (not hit?)
-                              (pair? child)
-                              (eq? (car child) 'doc-data))
-                         (begin
-                           (set! hit? #t)
-                           (data-art-insert-cover-in-doc-data-child child cover))
-                         child))
-                   children)))
-        (if hit?
-            `(document ,@new-children)
-            (data-art-insert-cover-stree body cover)))
-      body))
+  (if (data-art-cover-present-stree? body)
+      body
+      (if (and (pair? body) (eq? (car body) 'document))
+          (let* ((children (cdr body))
+                 (hit? #f)
+                 (new-children
+                  (map (lambda (child)
+                         (if (and (not hit?)
+                                  (pair? child)
+                                  (eq? (car child) 'doc-data))
+                             (begin
+                               (set! hit? #t)
+                               (data-art-insert-cover-in-doc-data-child child cover))
+                             child))
+                       children)))
+            (if hit?
+                `(document ,@new-children)
+                (data-art-insert-cover-stree body cover)))
+          body)))
 
 (define (data-art-seed-string buf)
   (string-append
@@ -126,7 +164,10 @@
 (define-public (data-art-insert-cover-in-buffer buf cover)
   (let* ((body (buffer-get-body buf))
          (new-body (stree->tree
-                    (data-art-insert-cover-stree (tree->stree body) cover))))
+                    (let ((stree-body (tree->stree body)))
+                      (if (data-art-cover-present-stree? stree-body)
+                          stree-body
+                          (data-art-insert-cover-stree stree-body cover))))))
     (buffer-set-body buf new-body)))
 
 (define-public (data-art-insert-cover-in-doc-data-buffer buf cover)
@@ -135,3 +176,6 @@
           (stree->tree
            (data-art-insert-cover-in-doc-data-stree (tree->stree body) cover))))
     (buffer-set-body buf new-body)))
+
+(define-public (data-art-cover-present-in-buffer? buf)
+  (data-art-cover-present-stree? (tree->stree (buffer-get-body buf))))
