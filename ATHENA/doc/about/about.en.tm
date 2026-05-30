@@ -3,7 +3,7 @@
 <style|<tuple|tmdoc|english|old-spacing|old-dots|old-lengths>>
 
 <\body>
-  <tmdoc-title|About <ATHENA>-0.1>
+  <tmdoc-title|About <ATHENA>-0.2>
 
   <\traverse>
     <branch|Summary|about-summary.en.tm>

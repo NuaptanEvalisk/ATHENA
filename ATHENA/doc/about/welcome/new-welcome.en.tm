@@ -4,7 +4,7 @@
 
 <\body>
   <\tmdoc-title>
-    Welcome to <ATHENA> version 0.1
+    Welcome to <ATHENA> version 0.2
   </tmdoc-title>
 
   Thank you for using <ATHENA>.
@@ -93,7 +93,7 @@
 
     <item*|Development status>
 
-    <ATHENA> 0.1 is active experimental software. Expect rough edges. Expect
+    <ATHENA> 0.2 is active experimental software. Expect rough edges. Expect
     features to be deeper than their polish. The current build and runtime
     workflow is tested on Linux; inherited Windows and macOS code paths have
     not been tested for <ATHENA>.

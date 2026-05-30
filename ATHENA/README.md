@@ -295,7 +295,7 @@ features are used, the document may become ATHENA-specific.
 
 ## Status
 
-ATHENA 0.1 is an active experimental system. It is powerful, opinionated, and
+ATHENA 0.2 is an active experimental system. It is powerful, opinionated, and
 still changing quickly. Expect rough edges. Expect features to be deeper than
 their polish. Expect the best experience on the developer's Linux setup.
 

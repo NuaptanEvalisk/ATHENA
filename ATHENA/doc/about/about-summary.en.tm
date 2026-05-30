@@ -6,7 +6,7 @@
   <tmdoc-title|Summary>
 
   <big-table|<descriptive-table|<tformat|<cwith|1|1|1|1|cell-row-span|1>|<cwith|1|1|1|1|cell-col-span|2>|<cwith|1|1|1|1|cell-halign|c>|<table|<row|<cell|<ATHENA>>|<cell|>>|<row|<cell|Installed
-  version>|<cell|0.1>>|<row|<cell|Revision>|<cell|<TeXmacs-version-release|revision>>>|<row|<cell|Supported
+  version>|<cell|0.2>>|<row|<cell|Revision>|<cell|<TeXmacs-version-release|revision>>>|<row|<cell|Supported
   systems>|<cell|Most GNU/<name|Linux> systems, Windows, MacOS>>|<row|<cell|Copyright>|<cell|<copyright>
   1998\U2026 by Joris van der Hoeven and others<next-line><copyright> 2026
   by Nuaptan F. Evalisk>>|<row|<cell|License>|<cell|<hlink|GNU General Public
