@@ -119,21 +119,5 @@
 (define (notify-julia-syntax var val)
   (syntax-read-preferences "julia"))
 
-(define-preferences
-  ("syntax:julia:none" "red" notify-julia-syntax)
-  ("syntax:julia:comment" "brown" notify-julia-syntax)
-  ("syntax:julia:error" "dark red" notify-julia-syntax)
-  ("syntax:julia:constant" "#4040c0" notify-julia-syntax)
-  ("syntax:julia:constant_number" "#4040c0" notify-julia-syntax)
-  ("syntax:julia:constant_string" "dark grey" notify-julia-syntax)
-  ("syntax:julia:constant_char" "#333333" notify-julia-syntax)
-  ("syntax:julia:declare_function" "#0000c0" notify-julia-syntax)
-  ("syntax:julia:declare_module" "0000c0" notify-julia-syntax)
-  ("syntax:julia:declare_type" "0000c0" notify-julia-syntax)
-  ("syntax:julia:operator" "#8b008b" notify-julia-syntax)
-  ("syntax:julia:operator_openclose" "#B02020" notify-julia-syntax)
-  ("syntax:julia:operator_field" "#88888" notify-julia-syntax)
-  ("syntax:julia:operator_special" "orange" notify-julia-syntax)
-  ("syntax:julia:keyword" "#309090" notify-julia-syntax)
-  ("syntax:julia:keyword_conditional" "#309090" notify-julia-syntax)
-  ("syntax:julia:keyword_control" "#309090" notify-julia-syntax))
+(register-preference-callback-procedures
+  (list notify-julia-syntax))

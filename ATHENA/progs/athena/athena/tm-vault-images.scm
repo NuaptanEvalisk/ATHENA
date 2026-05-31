@@ -1,8 +1,5 @@
 (texmacs-module (athena athena tm-vault-images))
 
-(define-preferences
-  ("vault auto copy images to vault" "off" noop)
-  ("vault normalize image filename when inserting" "off" noop))
 
 (tm-widget (vault-image-preferences-widget)
   (aligned

@@ -210,8 +210,6 @@
 ;; User interface
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define-preferences
-  ("manual style" "tmmanual" (lambda args (noop))))
 
 (tmfs-permission-handler (help name type)
   (and (== type "read")

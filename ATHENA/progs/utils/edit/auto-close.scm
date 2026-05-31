@@ -26,12 +26,6 @@
 (define (notify-auto-close-brackets var val)
   (set! auto-close-brackets? (== val "on")))
 
-(define-preferences
-  ("text spacebar" "default" ignore)
-  ("math spacebar" "default" ignore)
-  ("automatic quotes" "default" notify-quoting-style)
-  ("automatic brackets" "mathematics" notify-auto-close-brackets)
-  ("use large brackets" "on" (lambda args (noop))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Quotes
@@ -183,3 +177,6 @@
 	  (insert-go-to `(concat (big ,op) (big ".")) '(1 0))
 	  (if sel? (clipboard-paste "temp")))
 	(insert `(big ,op)))))
+
+(register-preference-callback-procedures
+  (list notify-auto-close-brackets notify-quoting-style))

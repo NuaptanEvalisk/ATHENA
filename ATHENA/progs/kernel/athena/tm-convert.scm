@@ -68,9 +68,10 @@
 (define (converter-define-option from to option val)
   (with key (list from to)
     (ahash-set! converter-option-for option key)
-    (converter-change-option from to option key)
-    (define-preferences
-      (option val converter-set-option))))
+    (converter-change-option from to option val)
+    (register-preference-default option val)
+    (register-preference-callback option 'converter-set-option)
+    (notify-preference option)))
 
 (define-public (converter-cmd from to cmd)
   "Helper routine for converter macro"
@@ -558,3 +559,6 @@
 ;;       (set! viewer-table (list->ahash-table (load-object u))))))
 
 ;; (retrieve-viewers)
+
+(register-preference-callback-procedures
+  (list converter-set-option))

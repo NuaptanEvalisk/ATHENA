@@ -135,43 +135,6 @@
     (server-log-write `info
       (string-append "Allowing to pull/push notifications " val))))
 
-(define-preferences
-  ("server port" "6561"
-   notify-server-port-preferences)
-  ("server service public preferences" "on"
-   notify-server-service-public-preferences)
-  ("server service admin preferences" "on"
-   notify-server-service-admin-preferences)
-  ("server service set preferences" "on"
-   notify-server-service-set-preferences)
-  ("server service new-account" "off"
-   notify-server-service-new-account)
-  ("server service login" "on"
-   notify-server-service-login)
-  ("tls-server" "on"
-   notify-tls-server)
-  ("tls-server authentication anonymous" "on"
-   notify-tls-server-authentication-anonymous)
-  ("server contact timeout" "10000" ;; 10s
-   notify-server-contact-timeout)
-  ("server connection timeout" "120" ;; 120s
-   notify-server-connection-timeout)
-  ("server failed login limit" "3"
-   notify-server-failed-login-limit)
-  ("server failed login delay" "3600" ;; 1h
-   notify-server-failed-login-delay)
-  ("server require strong passwords" "on"
-   notify-server-require-strong-passwords)
-  ("server account confirmation delay" "-1" ;; no confirmation
-   notify-server-account-confirmation-delay)
-  ("server service reset-credentials" "off"
-   notify-server-service-reset-credentials)
-  ("server reset-credentials delay" "3600" ;; 1h
-   notify-server-reset-credentials-delay)
-  ("server mail command" ""
-   notify-server-mail-command)
-  ("server service notifications" "on"
-   notify-server-service-notifications))
 
 (tm-define (server-get-port)
   (:synopsis "Port to run the server")
@@ -239,15 +202,13 @@
 (tm-define (server-get-mail-command) (get-preference "server mail command"))
 
 (tm-define (server-admin-preferences)
-  (with server-pref?
-    (lambda (pref value prior)
-      ; (display* pref value prior "\n")
-      (if (and (or (string-prefix? "server" pref)
-                   (string-prefix? "tls-server" pref))
-               (not (string-prefix? "server public:" pref)))
-        (acons pref (get-preference pref) prior)
-        prior))
-    (ahash-fold server-pref? '() preferences-default)))
+  (with ret '()
+    (for (pref (cpp-preference-names))
+      (when (and (or (string-prefix? "server" pref)
+                     (string-prefix? "tls-server" pref))
+                 (not (string-prefix? "server public:" pref)))
+        (set! ret (acons pref (get-preference pref) ret))))
+    ret))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Public server preferences
@@ -264,11 +225,6 @@
 	;"server connection timeout"
 	;"server password encoding"
 	;"server password update"))
-
-;; Preferences are all publicly available by default
-(for (x server-all-preferences)
-  (define-preferences
-    ((string-append "server public: " x) "on" noop)))
 
 (tm-define (server-public-preferences)
   (with ret `()
@@ -427,9 +383,6 @@
     (server-log-write `info
       (string-append "Turning password encoding to " val))))
 
-(define-preferences
-  ("server password encoding" (car (server-supported-password-encodings))
-  notify-server-password-encoding))
 
 (tm-define (server-password-encoding)
   (get-preference "server password encoding"))
@@ -440,8 +393,6 @@
     (server-log-write `info
       (string-append "Turning password updating " val))))
 
-(define-preferences
-  ("server password update" "on" notify-server-password-update))
 
 (tm-define (server-password-update?)
   (== (get-preference "server password update") "on"))
@@ -541,3 +492,6 @@
   (or (null? credentials)
       (and (server-strong-credential? (car credentials))
 	   (server-strong-credentials? (cdr credentials)))))
+
+(register-preference-callback-procedures
+  (list notify-server-account-confirmation-delay notify-server-connection-timeout notify-server-contact-timeout notify-server-failed-login-delay notify-server-failed-login-limit notify-server-mail-command notify-server-password-encoding notify-server-password-update notify-server-port-preferences notify-server-require-strong-passwords notify-server-reset-credentials-delay notify-server-service-admin-preferences notify-server-service-login notify-server-service-new-account notify-server-service-notifications notify-server-service-public-preferences notify-server-service-reset-credentials notify-server-service-set-preferences notify-tls-server notify-tls-server-authentication-anonymous))

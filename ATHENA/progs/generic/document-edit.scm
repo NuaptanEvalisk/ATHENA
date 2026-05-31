@@ -454,8 +454,6 @@
                 (else 1))
     (set! doc-update-times (min (max 1 n) 5)))) ; Just in case
 
-(define-preferences 
-  ("document update times" "1" notify-doc-update-times))
 
 (define (wait-update-current-buffer)
   (system-wait "Updating current buffer, " "please wait")
@@ -473,3 +471,6 @@
              ((== what "buffer") 
               (wait-update-current-buffer))
              (else (generate-aux what)))))))
+
+(register-preference-callback-procedures
+  (list notify-doc-update-times))

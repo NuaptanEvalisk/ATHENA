@@ -33,8 +33,6 @@
 (define (notify-gpg-wallet-key-fingerprint var val)
   (set! gpg-wallet-key-fingerprint val))
 
-(define-preferences
-  ("gpg wallet key fingerprint" "" notify-gpg-wallet-key-fingerprint))
 
 (tm-define (gpg-wallet-on?)
   (nstring? gpg-wallet-table))
@@ -178,3 +176,6 @@
 (tm-define (gpg-wallet-entries)
   (and (gpg-wallet-on?)
        (ahash-table->list gpg-wallet-table)))
+
+(register-preference-callback-procedures
+  (list notify-gpg-wallet-key-fingerprint))

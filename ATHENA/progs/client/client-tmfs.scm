@@ -65,9 +65,6 @@
                 (string-starts? u "tmfs://live-list/"))
         (rebuild-from-cache u)))))
 
-(define-preferences
-  ("remote-file-browser:sort-field" "type" notify-sort-change)
-  ("remote-file-browser:sort-direction" "asc" notify-sort-change))
 
 (tm-define (entry-type-priority type-str)
   (cond ((== type-str "dir") 0)
@@ -653,3 +650,6 @@
 (tm-define (version-head name)
   (:require (remote-file? name))
   (string->url (remote-strip-time name)))
+
+(register-preference-callback-procedures
+  (list notify-sort-change))

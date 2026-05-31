@@ -21,9 +21,6 @@
   (refresh-now "console-widget-categories")
   (refresh-now "console-widget-messages"))
 
-(define-preferences
-  ("console details" "normal" refresh-console)
-  ("console size" "100" refresh-console))
 
 (define (encode-size sz)
   (cond ((== sz "All") "1000000")
@@ -196,3 +193,6 @@
 
 (tm-define (open-error-messages)
   (error-messages-show))
+
+(register-preference-callback-procedures
+  (list refresh-console))

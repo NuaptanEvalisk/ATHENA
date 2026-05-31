@@ -25,8 +25,6 @@
 		    (updater-set-interval (string->number n))
 		    (updater-check-background)))))
 
-(define-preferences
-  ("updater:interval" "null" noop))
 
 ;; Uncomment to allow automatic updates
 ;(when (== (get-preference "updater:interval" "null"))

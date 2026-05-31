@@ -265,8 +265,6 @@
 (define (notify-wallet-always-remember var val)
   (set! wallet-always-remember val))
 
-(define-preferences
-  ("wallet always remember" "off" notify-wallet-always-remember))
 
 (tm-define (wallet-always-remember-on?)
   (== (get-preference "wallet always remember") "on"))
@@ -339,3 +337,6 @@
       (dynamic (wallet-uninitialized-preferences-widget)))
   (if (not (supports-wallet?))
     (dynamic (wallet-not-supported-preferences-widget))))
+
+(register-preference-callback-procedures
+  (list notify-wallet-always-remember))

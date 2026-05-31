@@ -37,8 +37,6 @@
 ;; Helper functions for conversions
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define-preferences
-  ("texmacs->image:raster-resolution" "300" noop))
 
 (define (get-raster-resolution opts)
   (or (assoc-ref opts "texmacs->image:raster-resolution")

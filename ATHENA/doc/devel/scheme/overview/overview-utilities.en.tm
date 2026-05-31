@@ -66,18 +66,18 @@
 
   <paragraph*|User preferences>
 
-  When writing a plug-in, you may wish to define some new user preferences.
-  This can be done using the <scm|define-preferences> command, which adds a
-  list of user preferences, together with their default values and a
-  call-back routine. The call-back routine is called whenever you change the
-  corresponding preference. For instance:
+  When writing a plug-in, you may wish to use user preferences. Persistent
+  preference defaults now belong in the native registry. Scheme code may still
+  register dynamic preferences with a default and a call-back routine. The
+  call-back routine is called whenever you change the corresponding
+  preference. For instance:
 
   <\scm-code>
-    (define-preferences
+    (register-preference-default "plugin:hair-color" "brown")
 
-    \ \ ("Gnu's hair color" "brown" notify-gnu-hair-change)
+    (register-preference-callback "plugin:hair-color"
 
-    \ \ ("Snail's cruising speed" "1mm/sec" notify-Achilles))
+    \ \ 'notify-plugin-hair-change)
   </scm-code>
 
   Preferences can be set, reset and read using <scm|set-preference>,

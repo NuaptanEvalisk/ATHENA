@@ -79,16 +79,6 @@
 (define (notify-printer-dpi var val)
   (set-printer-dpi val))
 
-(define-preferences
-  ("native pdf" "on" noop)
-  ("native postscript" "on" noop)
-  ("texmacs->pdf:data-art cover" "off" noop)
-  ("texmacs->pdf:expand slides" "off" noop)
-  ("texmacs->pdf:check" "off" noop)
-  ("preview command" "default" notify-preview-command)
-  ("printing command" (get-default-printing-command) notify-printing-command)
-  ("paper type" (get-default-paper-size) notify-paper-type)
-  ("printer dpi" "1200" notify-printer-dpi))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Printing wrapper for slides
@@ -246,3 +236,6 @@
   (choose-file (lambda (name) (print-pages-to-file name start end))
 	       "Print page selection to file" (printer-file-format)
 	       "Print:"))
+
+(register-preference-callback-procedures
+  (list notify-paper-type notify-preview-command notify-printer-dpi notify-printing-command))

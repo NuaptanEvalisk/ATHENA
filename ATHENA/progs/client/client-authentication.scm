@@ -20,9 +20,6 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;; Contact timeout in ms, default value is 10s
-(define-preferences
-  ("client contact timeout" "10000"
-   (lambda (var val) (noop))))
 
 (tm-define (client-get-contact-timeout)
   (string->number (get-preference "client contact timeout")))
@@ -34,9 +31,6 @@
     (set-preference "client contact timeout" val)))
 
 ;; Connection timeout in seconds
-(define-preferences
-  ("client connection timeout" "100"
-   (lambda (var val) (noop))))
 
 (tm-define (client-get-connection-timeout)
   (string->number (get-preference "client connection timeout")))

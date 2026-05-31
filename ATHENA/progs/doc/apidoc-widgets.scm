@@ -115,10 +115,6 @@
          (with (where key) val (help-window where key)))
         ((== pref "gui:help-window-visible") (noop))))
 
-(define-preferences
-  ("gui:help-window-geometry" '(400 -400 400 300) notify-help-win-preference)
-  ("gui:help-window-viewing" '("" "") notify-help-win-preference); cache, key
-  ("gui:help-window-visible" #f notify-help-win-preference))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; module browser widget
@@ -206,3 +202,6 @@
   (set! clw-string "")
   (set! clw-string-filter "")
   (top-window symbol-browser-widget "Symbol browser"))
+
+(register-preference-callback-procedures
+  (list notify-help-win-preference))

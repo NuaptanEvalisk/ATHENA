@@ -10,8 +10,10 @@
 ******************************************************************************/
 
 #include "boot.hpp"
+#include "basic.hpp"
 #include "file.hpp"
 #include "sys_utils.hpp"
+#include "locale.hpp"
 #include "analyze.hpp"
 #include "convert.hpp"
 #include "merge_sort.hpp"
@@ -31,14 +33,72 @@ bool user_prefs_modified= false;
 hashmap<string,string> user_prefs ("");
 hashmap<string,string> user_prefs_default ("");
 hashmap<string,bool> user_prefs_string_default (true);
+hashmap<string,string> user_prefs_callback ("");
 url user_prefs_file= "$ATHENA_HOME_PATH/system/preferences.json";
 void notify_preference (string var);
+
+enum builtin_default_kind {
+  PREF_STATIC,
+  PREF_BUFFER_MANAGEMENT,
+  PREF_INTERACTIVE_QUESTIONS,
+  PREF_LANGUAGE,
+  PREF_PRINTING_COMMAND,
+  PREF_PAPER_TYPE,
+  PREF_GPG_EXECUTABLE
+};
 
 struct builtin_preference {
   const char* key;
   const char* def;
   bool string_def;
+  const char* callback;
+  builtin_default_kind kind;
 };
+
+static string
+default_buffer_management () {
+  return (os_macos () || os_win32 ())? string ("separate"): string ("shared");
+}
+
+static string
+default_interactive_questions () {
+  return (os_macos () || os_win32 ())? string ("popup"): string ("footer");
+}
+
+static string
+default_gpg_executable () {
+  if (exists_in_path ("gpg")) return "gpg";
+  if (exists_in_path ("gpg2")) return "gpg2";
+  return "";
+}
+
+static string
+default_paper_type () {
+  string psize= get_env ("PAPERSIZE");
+  if (psize != "") return psize;
+  return "a4";
+}
+
+static string
+builtin_default_value (const builtin_preference& pref) {
+  switch (pref.kind) {
+  case PREF_BUFFER_MANAGEMENT:
+    return default_buffer_management ();
+  case PREF_INTERACTIVE_QUESTIONS:
+    return default_interactive_questions ();
+  case PREF_LANGUAGE:
+    return get_locale_language ();
+  case PREF_PRINTING_COMMAND:
+    return get_printing_default ();
+  case PREF_PAPER_TYPE:
+    return default_paper_type ();
+  case PREF_GPG_EXECUTABLE:
+    return default_gpg_executable ();
+  case PREF_STATIC:
+  default:
+    return pref.def;
+  }
+}
 
 static void
 ensure_builtin_user_preferences () {
@@ -47,26 +107,467 @@ ensure_builtin_user_preferences () {
   done= true;
 
   static const builtin_preference prefs[]= {
-    {"remember ads panes layout", "on", true},
-    {"heading word counts", "off", true},
-    {"latex->texmacs:matrix-recognition", "on", true},
-    {"latex->texmacs:aligned-to-eqnarray", "on", true},
-    {"latex->texmacs:align-to-aligned", "on", true},
-    {"latex->texmacs:operator-d-is-differential", "on", true},
-    {"latex->texmacs:roman-d-is-differential", "on", true},
-    {"latex->texmacs:text-d-is-differential", "on", true},
-    {"latex->texmacs:parse-bbbk", "on", true},
-    {"latex->texmacs:parse-bbbi-as-mathi", "on", true},
-    {"latex->texmacs:text-operators", "on", true},
-    {"image auto remove background", "off", true},
-    {"enunciation color preset", "Solarized Light", true}
+#define PREF(k, d, cb) {k, d, true, cb, PREF_STATIC}
+#define PREF_OBJ(k, d, cb) {k, d, false, cb, PREF_STATIC}
+#define PREF_KIND(k, d, cb, kind) {k, d, true, cb, kind}
+    PREF ("profile", "beginner", ""),
+    PREF ("look and feel", "default", "notify-look-and-feel"),
+    PREF ("case sensitive shortcuts", "default", ""),
+    PREF ("detailed menus", "detailed", ""),
+    PREF_KIND ("buffer management", "shared", "notify-buffer-management",
+               PREF_BUFFER_MANAGEMENT),
+    PREF ("enable tab", "off", "notify-restart"),
+    PREF ("new toolbar", "on", "notify-restart"),
+    PREF ("disable texmacs window positioning", "off", ""),
+    PREF ("complex actions", "popups", ""),
+    PREF_KIND ("interactive questions", "footer", "",
+               PREF_INTERACTIVE_QUESTIONS),
+    PREF_KIND ("language", "english", "notify-language", PREF_LANGUAGE),
+    PREF ("default cjk language", "chinese", ""),
+    PREF ("render solution in smaller font", "on",
+          "notify-enunciation-rendering"),
+    PREF ("number solutions", "on", "notify-enunciation-rendering"),
+    PREF ("gui theme", "default", "notify-gui-theme"),
+    PREF ("page medium", "paper", ""),
+    PREF ("fast environments", "on", "notify-fast-environments"),
+    PREF ("show full context", "on", ""),
+    PREF ("show table cells", "on", ""),
+    PREF ("show focus", "on", ""),
+    PREF ("show only semantic focus", "on", ""),
+    PREF ("semantic editing", "off", ""),
+    PREF ("semantic selections", "on", ""),
+    PREF ("semantic correctness", "off", ""),
+    PREF ("remove superfluous invisible", "off", ""),
+    PREF ("insert missing invisible", "off", ""),
+    PREF ("zealous invisible correct", "off", ""),
+    PREF ("homoglyph correct", "off", ""),
+    PREF ("manual remove superfluous invisible", "on", ""),
+    PREF ("manual insert missing invisible", "on", ""),
+    PREF ("manual zealous invisible correct", "off", ""),
+    PREF ("manual homoglyph correct", "on", ""),
+    PREF ("security", "prompt on scripts", "notify-security"),
+    PREF ("latex command", "pdflatex", "notify-latex-command"),
+    PREF ("bibtex command", "bibtex", "notify-bibtex-command"),
+    PREF ("scripting language", "none", "notify-scripting-language"),
+    PREF ("speech", "off", ""),
+    PREF ("database tool", "off", "notify-tool"),
+    PREF ("debugging tool", "off", "notify-tool"),
+    PREF ("developer tool", "off", "notify-tool"),
+    PREF ("linking tool", "off", "notify-tool"),
+    PREF ("presentation tool", "off", "notify-tool"),
+    PREF ("inertial scrolling", "off", ""),
+    PREF ("inertial scrolling friction", "0.95", ""),
+    PREF ("inertial scrolling sensitivity", "2.0", ""),
+    PREF ("remote tool", "off", "notify-tool"),
+    PREF ("source tool", "off", "notify-tool"),
+    PREF ("versioning tool", "off", "notify-tool"),
+    PREF ("experimental alpha", "on", "notify-tool"),
+    PREF ("new style fonts", "on", "notify-new-fonts"),
+    PREF ("bitmap effects", "on", "notify-tool"),
+    PREF ("new style page breaking", "on", "notify-new-page-breaking"),
+    PREF ("open console on errors", "on", ""),
+    PREF ("open console on warnings", "on", ""),
+    PREF ("gui:line-input:autocommit", "on", ""),
+    PREF ("show font substitution warning", "on", ""),
+    PREF ("use native menubar", "off", ""),
+    PREF ("use unified toolbar", "off", ""),
+    PREF ("remember ads panes layout", "on", ""),
+
+    PREF ("header", "on", "notify-header"),
+    PREF ("main icon bar", "on", "notify-icon-bar"),
+    PREF ("mode dependent icons", "on", "notify-icon-bar"),
+    PREF ("focus dependent icons", "on", "notify-icon-bar"),
+    PREF ("user provided icons", "off", "notify-icon-bar"),
+    PREF ("status bar", "on", "notify-status-bar"),
+    PREF ("side tools", "off", "notify-side-tools"),
+    PREF ("left tools", "off", "notify-side-tools"),
+    PREF ("markup gui", "off", ""),
+    PREF ("zoom factor", "1", "notify-zoom-factor"),
+    PREF ("snap to pages", "off", ""),
+    PREF ("persistent fit width", "off", ""),
+    PREF ("typewriter mode", "off", ""),
+    PREF ("ir-up", "home", "notify-remote-control"),
+    PREF ("ir-down", "end", "notify-remote-control"),
+    PREF ("ir-left", "pageup", "notify-remote-control"),
+    PREF ("ir-right", "pagedown", "notify-remote-control"),
+    PREF ("ir-center", "S-return", "notify-remote-control"),
+    PREF ("ir-play", "F5", "notify-remote-control"),
+    PREF ("ir-pause", "escape", "notify-remote-control"),
+    PREF ("ir-menu", ".", "notify-remote-control"),
+    PREF ("draw cursor", "on", ""),
+
+    PREF ("native pdf", "on", ""),
+    PREF ("native postscript", "on", ""),
+    PREF ("texmacs->pdf:data-art cover", "off", ""),
+    PREF ("texmacs->pdf:expand slides", "off", ""),
+    PREF ("texmacs->pdf:check", "off", ""),
+    PREF ("preview command", "default", "notify-preview-command"),
+    PREF_KIND ("printing command", "lpr", "notify-printing-command",
+               PREF_PRINTING_COMMAND),
+    PREF_KIND ("paper type", "a4", "notify-paper-type", PREF_PAPER_TYPE),
+    PREF ("printer dpi", "1200", "notify-printer-dpi"),
+
+    PREF ("autosave", "120", "notify-autosave"),
+    PREF ("autosave default", "on", ""),
+    PREF ("custom keyboard", "", ""),
+    PREF ("keyboard tool", "off", "notify-keyboard-tool"),
+    PREF ("cyrillic input method", "none", "notify-cyrillic-input-method"),
+    PREF ("versioning grain", "detailed", "notify-versioning-grain"),
+
+    PREF ("vault fuzzy search limit", "3", ""),
+    PREF ("vault transclusion color", "#f8f8f8", ""),
+    PREF ("gui cursor color", "red", "notify-cursor-color"),
+    PREF ("gui selection color", "red", "notify-selection-color"),
+    PREF ("gui focus color", "#0ff", "notify-focus-color"),
+    PREF ("gui focus border width", "1", "notify-focus-border-width"),
+    PREF ("locus-color", "#404080", "notify-link-color"),
+    PREF ("visited-color", "#702070", "notify-link-color"),
+    PREF ("override white document background", "off",
+          "notify-document-background-color"),
+    PREF ("white document background override color", "#f7f3e8",
+          "notify-document-background-color"),
+    PREF ("vault welcome page", "on", ""),
+    PREF ("vault take preferences with vault", "off",
+          "notify-vault-preferences-mode"),
+    PREF ("vault auto load last", "off", ""),
+    PREF ("vault report missing last", "off", ""),
+    PREF ("vault explorer show on startup", "on", ""),
+    PREF ("vault explorer track current file", "off",
+          "notify-vault-explorer-track"),
+    PREF ("vault explorer use system trash", "off", ""),
+    PREF ("vault namespace explorer leaf matches only", "off", ""),
+    PREF ("vault simplify hierarchy graphs", "off", ""),
+    PREF ("vault max full backups", "Unlimited", ""),
+    PREF ("vault pre-save history preservation", "1 week", ""),
+    PREF ("vault collect orphan assets", "off", ""),
+    PREF ("vault subproduct consume string aggressively", "on", ""),
+    PREF ("vault preferred font", "", ""),
+    PREF ("vault labels mode", "visible", "notify-labels-mode"),
+    PREF ("enunciation color preset", "Solarized Light", ""),
+    PREF ("vault theorem color", "none", "notify-enunciation-color"),
+    PREF ("vault lemma color", "none", "notify-enunciation-color"),
+    PREF ("vault corollary color", "none", "notify-enunciation-color"),
+    PREF ("vault proposition color", "none", "notify-enunciation-color"),
+    PREF ("vault axiom color", "none", "notify-enunciation-color"),
+    PREF ("vault definition color", "none", "notify-enunciation-color"),
+    PREF ("vault notation color", "none", "notify-enunciation-color"),
+    PREF ("vault convention color", "none", "notify-enunciation-color"),
+    PREF ("vault conjecture color", "none", "notify-enunciation-color"),
+    PREF ("vault law color", "none", "notify-enunciation-color"),
+    PREF ("vault remark color", "none", "notify-enunciation-color"),
+    PREF ("vault note color", "none", "notify-enunciation-color"),
+    PREF ("vault example color", "none", "notify-enunciation-color"),
+    PREF ("vault warning color", "none", "notify-enunciation-color"),
+    PREF ("vault disambiguation color", "none", "notify-enunciation-color"),
+    PREF ("vault acknowledgments color", "none", "notify-enunciation-color"),
+    PREF ("vault exercise color", "none", "notify-enunciation-color"),
+    PREF ("vault problem color", "none", "notify-enunciation-color"),
+    PREF ("vault question color", "none", "notify-enunciation-color"),
+    PREF ("vault solution color", "none", "notify-enunciation-color"),
+    PREF ("vault answer color", "none", "notify-enunciation-color"),
+    PREF ("vault proof color", "none", "notify-enunciation-color"),
+    PREF ("vault proof alternative color", "none", "notify-enunciation-color"),
+    PREF ("vault proof standard color", "none", "notify-enunciation-color"),
+    PREF ("vault auto copy images to vault", "off", ""),
+    PREF ("vault normalize image filename when inserting", "off", ""),
+    PREF ("vault auto anchor enunciations on save", "off", ""),
+
+    PREF ("bidirectional navigation", "off",
+          "notify-bidirectional-navigation"),
+    PREF ("external navigation", "on", "notify-external-navigation"),
+    PREF ("link pages", "on", "notify-link-pages"),
+    PREF ("document update times", "1", "notify-doc-update-times"),
+    PREF ("live spell checking", "off", "spell-live-notify"),
+    PREF ("custom dictionary import language", "english", ""),
+    PREF ("toolbar spell", "on", ""),
+    PREF ("toolbar search", "on", ""),
+    PREF ("toolbar replace", "on", ""),
+    PREF ("allow-blank-match", "on", ""),
+    PREF ("allow-initial-match", "on", ""),
+    PREF ("allow-partial-match", "on", ""),
+    PREF ("allow-injective-match", "on", ""),
+    PREF ("allow-cascaded-match", "on", ""),
+    PREF ("case-insensitive-match", "off", ""),
+    PREF ("allow-blank-replace", "off", ""),
+    PREF ("allow-initial-replace", "off", ""),
+    PREF ("allow-partial-replace", "off", ""),
+    PREF ("allow-injective-replace", "off", ""),
+    PREF ("auto bib import", "on", ""),
+    PREF ("console details", "normal", "refresh-console"),
+    PREF ("console size", "100", "refresh-console"),
+    PREF ("manual style", "tmmanual", ""),
+    PREF_OBJ ("doc:collect-timestamp", "0", "notify-doc-collect-preference"),
+    PREF_OBJ ("doc:collect-languages", "()", "notify-doc-collect-preference"),
+    PREF_OBJ ("gui:help-window-geometry", "(400 -400 400 300)",
+              "notify-help-win-preference"),
+    PREF_OBJ ("gui:help-window-viewing", "(\"\" \"\")",
+              "notify-help-win-preference"),
+    PREF_OBJ ("gui:help-window-visible", "#f",
+              "notify-help-win-preference"),
+
+    PREF ("text spacebar", "default", ""),
+    PREF ("math spacebar", "default", ""),
+    PREF ("automatic quotes", "default", "notify-quoting-style"),
+    PREF ("automatic brackets", "mathematics",
+          "notify-auto-close-brackets"),
+    PREF ("use large brackets", "on", ""),
+    PREF ("prog:automatic brackets", "off",
+          "notify-prog-auto-close-brackets"),
+    PREF ("prog:highlight brackets", "off", "notify-highlight-brackets"),
+    PREF ("prog:select brackets", "off", "notify-select-brackets"),
+    PREF_OBJ ("editor:verbatim:tabstop", "4", ""),
+    PREF ("syntax:fortran:none", "black", "notify-fortran-pref"),
+    PREF ("syntax:fortran:comment", "dark grey", "notify-fortran-pref"),
+    PREF ("syntax:fortran:keyword", "dark magenta", "notify-fortran-pref"),
+    PREF ("syntax:fortran:keyword_conditional", "dark magenta",
+          "notify-fortran-pref"),
+    PREF ("syntax:fortran:keyword_control", "dark magenta",
+          "notify-fortran-pref"),
+    PREF ("syntax:fortran:error", "dark red", "notify-fortran-pref"),
+    PREF ("syntax:fortran:operator", "dark red", "notify-fortran-pref"),
+    PREF ("syntax:fortran:operator_special", "dark red",
+          "notify-fortran-pref"),
+    PREF ("syntax:fortran:operator_openclose", "dark red",
+          "notify-fortran-pref"),
+    PREF ("syntax:fortran:operator_field", "dark red",
+          "notify-fortran-pref"),
+    PREF ("syntax:fortran:preprocessor", "dark green",
+          "notify-fortran-pref"),
+    PREF ("syntax:fortran:preprocessor_directive", "dark brown",
+          "notify-fortran-pref"),
+    PREF ("syntax:fortran:declare_type", "#4040c0", "notify-fortran-pref"),
+    PREF ("syntax:fortran:declare_function", "#4040c0",
+          "notify-fortran-pref"),
+    PREF ("syntax:fortran:variable_function", "#0000c0",
+          "notify-fortran-pref"),
+    PREF ("syntax:fortran:variable_type", "dark red",
+          "notify-fortran-pref"),
+    PREF ("syntax:fortran:constant", "#4040c0", "notify-fortran-pref"),
+    PREF ("syntax:fortran:constant_function", "#0000c0",
+          "notify-fortran-pref"),
+    PREF ("syntax:fortran:constant_type", "#4040c0",
+          "notify-fortran-pref"),
+    PREF ("syntax:fortran:constant_number", "#4040c0",
+          "notify-fortran-pref"),
+    PREF ("syntax:fortran:constant_string", "dark red",
+          "notify-fortran-pref"),
+    PREF ("syntax:scheme:none", "red", "notify-scheme-syntax"),
+    PREF ("syntax:scheme:comment", "brown", "notify-scheme-syntax"),
+    PREF ("syntax:scheme:keyword", "#309090", "notify-scheme-syntax"),
+    PREF ("syntax:scheme:error", "dark red", "notify-scheme-syntax"),
+    PREF ("syntax:scheme:constant_number", "#4040c0",
+          "notify-scheme-syntax"),
+    PREF ("syntax:scheme:constant_string", "dark grey",
+          "notify-scheme-syntax"),
+    PREF ("syntax:scheme:constant_char", "#333333",
+          "notify-scheme-syntax"),
+    PREF ("syntax:scheme:variable_identifier", "#204080",
+          "notify-scheme-syntax"),
+    PREF ("syntax:scheme:declare_category", "#d030d0",
+          "notify-scheme-syntax"),
+    PREF ("syntax:python:none", "red", "notify-python-syntax"),
+    PREF ("syntax:python:comment", "brown", "notify-python-syntax"),
+    PREF ("syntax:python:error", "dark red", "notify-python-syntax"),
+    PREF ("syntax:python:constant", "#4040c0", "notify-python-syntax"),
+    PREF ("syntax:python:constant_number", "#4040c0",
+          "notify-python-syntax"),
+    PREF ("syntax:python:constant_string", "dark grey",
+          "notify-python-syntax"),
+    PREF ("syntax:python:constant_char", "#333333",
+          "notify-python-syntax"),
+    PREF ("syntax:python:declare_function", "#0000c0",
+          "notify-python-syntax"),
+    PREF ("syntax:python:declare_type", "#0000c0",
+          "notify-python-syntax"),
+    PREF ("syntax:python:operator", "#8b008b", "notify-python-syntax"),
+    PREF ("syntax:python:operator_openclose", "#B02020",
+          "notify-python-syntax"),
+    PREF ("syntax:python:operator_field", "#88888",
+          "notify-python-syntax"),
+    PREF ("syntax:python:operator_special", "orange",
+          "notify-python-syntax"),
+    PREF ("syntax:python:keyword", "#309090", "notify-python-syntax"),
+    PREF ("syntax:python:keyword_conditional", "#309090",
+          "notify-python-syntax"),
+    PREF ("syntax:python:keyword_control", "#309090",
+          "notify-python-syntax"),
+    PREF ("syntax:cpp:none", "black", "notify-cpp-pref"),
+    PREF ("syntax:cpp:comment", "dark grey", "notify-cpp-pref"),
+    PREF ("syntax:cpp:keyword", "dark magenta", "notify-cpp-pref"),
+    PREF ("syntax:cpp:error", "dark red", "notify-cpp-pref"),
+    PREF ("syntax:cpp:preprocessor", "dark brown", "notify-cpp-pref"),
+    PREF ("syntax:cpp:preprocessor_directive", "dark green",
+          "notify-cpp-pref"),
+    PREF ("syntax:cpp:constant_type", "#4040c0", "notify-cpp-pref"),
+    PREF ("syntax:cpp:constant_number", "#4040c0", "notify-cpp-pref"),
+    PREF ("syntax:cpp:constant_string", "dark red", "notify-cpp-pref"),
+    PREF ("syntax:julia:none", "red", "notify-julia-syntax"),
+    PREF ("syntax:julia:comment", "brown", "notify-julia-syntax"),
+    PREF ("syntax:julia:error", "dark red", "notify-julia-syntax"),
+    PREF ("syntax:julia:constant", "#4040c0", "notify-julia-syntax"),
+    PREF ("syntax:julia:constant_number", "#4040c0",
+          "notify-julia-syntax"),
+    PREF ("syntax:julia:constant_string", "dark grey",
+          "notify-julia-syntax"),
+    PREF ("syntax:julia:constant_char", "#333333", "notify-julia-syntax"),
+    PREF ("syntax:julia:declare_function", "#0000c0",
+          "notify-julia-syntax"),
+    PREF ("syntax:julia:declare_module", "0000c0",
+          "notify-julia-syntax"),
+    PREF ("syntax:julia:declare_type", "0000c0", "notify-julia-syntax"),
+    PREF ("syntax:julia:operator", "#8b008b", "notify-julia-syntax"),
+    PREF ("syntax:julia:operator_openclose", "#B02020",
+          "notify-julia-syntax"),
+    PREF ("syntax:julia:operator_field", "#88888",
+          "notify-julia-syntax"),
+    PREF ("syntax:julia:operator_special", "orange",
+          "notify-julia-syntax"),
+    PREF ("syntax:julia:keyword", "#309090", "notify-julia-syntax"),
+    PREF ("syntax:julia:keyword_conditional", "#309090",
+          "notify-julia-syntax"),
+    PREF ("syntax:julia:keyword_control", "#309090",
+          "notify-julia-syntax"),
+
+    PREF ("ollama server", "localhost", ""),
+    PREF ("ollama port", "11434", ""),
+    PREF ("llama3 model", "llama3", ""),
+    PREF ("llama4 model", "llama4", ""),
+    PREF ("chatgpt-text-input", "on", ""),
+    PREF ("gemini-text-input", "on", ""),
+    PREF ("llama3-text-input", "on", ""),
+    PREF ("llama4-text-input", "on", ""),
+    PREF ("open-mistral-7b-text-input", "on", ""),
+
+    PREF ("w increase", "0.05", ""),
+    PREF ("h increase", "0.05", ""),
+    PREF ("em increase", "0.1", ""),
+    PREF ("ex increase", "0.1", ""),
+    PREF ("spc increase", "0.2", ""),
+    PREF ("fn increase", "0.5", ""),
+    PREF ("mm increase", "0.5", ""),
+    PREF ("cm increase", "0.1", ""),
+    PREF ("inch increase", "0.05", ""),
+    PREF ("pt increase", "10", ""),
+    PREF ("msec increase", "50", ""),
+    PREF ("sec increase", "1", ""),
+    PREF ("min increase", "0.1", ""),
+    PREF ("% increase", "5", ""),
+    PREF ("default unit", "ex", ""),
+
+    PREF ("texmacs->latex:transparent-tracking", "on", ""),
+    PREF ("texmacs->latex:source-tracking", "off", "converter-set-option"),
+    PREF ("texmacs->latex:conservative", "on", "converter-set-option"),
+    PREF ("texmacs->latex:transparent-source-tracking", "on",
+          "converter-set-option"),
+    PREF ("texmacs->latex:attach-tracking-info", "on",
+          "converter-set-option"),
+    PREF ("texmacs->latex:replace-style", "on", "converter-set-option"),
+    PREF ("texmacs->latex:expand-macros", "on", "converter-set-option"),
+    PREF ("texmacs->latex:expand-user-macros", "off",
+          "converter-set-option"),
+    PREF ("texmacs->latex:indirect-bib", "off", "converter-set-option"),
+    PREF ("texmacs->latex:use-macros", "on", "converter-set-option"),
+    PREF ("texmacs->latex:encoding", "ascii", "converter-set-option"),
+    PREF ("latex->texmacs:matrix-recognition", "on", ""),
+    PREF ("latex->texmacs:aligned-to-eqnarray", "on", ""),
+    PREF ("latex->texmacs:align-to-aligned", "on", ""),
+    PREF ("latex->texmacs:operator-d-is-differential", "on", ""),
+    PREF ("latex->texmacs:roman-d-is-differential", "on", ""),
+    PREF ("latex->texmacs:text-d-is-differential", "on", ""),
+    PREF ("latex->texmacs:parse-bbbk", "on", ""),
+    PREF ("latex->texmacs:parse-bbbi-as-mathi", "on", ""),
+    PREF ("latex->texmacs:text-operators", "on", ""),
+    PREF ("texmacs->verbatim:wrap", "off", "converter-set-option"),
+    PREF ("texmacs->verbatim:encoding", "auto", "converter-set-option"),
+    PREF ("verbatim->texmacs:wrap", "on", "converter-set-option"),
+    PREF ("verbatim->texmacs:encoding", "auto", "converter-set-option"),
+    PREF ("bibtex->texmacs:conservative", "on", ""),
+    PREF ("texmacs->bibtex:conservative", "on", ""),
+    PREF ("texmacs->image:raster-resolution", "300", ""),
+    PREF ("texmacs->image:format", "pdf", ""),
+    PREF ("image auto remove background", "off", ""),
+    PREF ("image->texmacs:svg-prefer-inkscape", "off",
+          "converter-set-option"),
+    PREF ("texmacs->html:css", "on", "converter-set-option"),
+    PREF ("texmacs->html:mathjax", "off", "converter-set-option"),
+    PREF ("texmacs->html:mathml", "off", "converter-set-option"),
+    PREF ("texmacs->html:images", "on", "converter-set-option"),
+    PREF ("texmacs->html:css-stylesheet", "---", "converter-set-option"),
+    PREF ("mathml->texmacs:latex-annotations", "on", "converter-set-option"),
+    PREF ("latex->texmacs:fallback-on-pictures", "off",
+          "converter-set-option"),
+
+    PREF ("server port", "6561", "notify-server-port-preferences"),
+    PREF ("server service public preferences", "on",
+          "notify-server-service-public-preferences"),
+    PREF ("server service admin preferences", "on",
+          "notify-server-service-admin-preferences"),
+    PREF ("server service set preferences", "on",
+          "notify-server-service-set-preferences"),
+    PREF ("server service new-account", "off",
+          "notify-server-service-new-account"),
+    PREF ("server service login", "on", "notify-server-service-login"),
+    PREF ("tls-server", "on", "notify-tls-server"),
+    PREF ("tls-server authentication anonymous", "on",
+          "notify-tls-server-authentication-anonymous"),
+    PREF ("server contact timeout", "10000",
+          "notify-server-contact-timeout"),
+    PREF ("server connection timeout", "120",
+          "notify-server-connection-timeout"),
+    PREF ("server failed login limit", "3",
+          "notify-server-failed-login-limit"),
+    PREF ("server failed login delay", "3600",
+          "notify-server-failed-login-delay"),
+    PREF ("server require strong passwords", "on",
+          "notify-server-require-strong-passwords"),
+    PREF ("server account confirmation delay", "-1",
+          "notify-server-account-confirmation-delay"),
+    PREF ("server service reset-credentials", "off",
+          "notify-server-service-reset-credentials"),
+    PREF ("server reset-credentials delay", "3600",
+          "notify-server-reset-credentials-delay"),
+    PREF ("server mail command", "", "notify-server-mail-command"),
+    PREF ("server service notifications", "on",
+          "notify-server-service-notifications"),
+    PREF ("server password encoding", "clear",
+          "notify-server-password-encoding"),
+    PREF ("server password update", "on", "notify-server-password-update"),
+    PREF ("server public: server port", "on", ""),
+    PREF ("server public: server service login", "on", ""),
+    PREF ("server public: tls-server", "on", ""),
+    PREF ("server public: tls-server authentication anonymous", "on", ""),
+    PREF ("client contact timeout", "10000", ""),
+    PREF ("client connection timeout", "100", ""),
+    PREF ("remote-file-browser:sort-field", "type", "notify-sort-change"),
+    PREF ("remote-file-browser:sort-direction", "asc", "notify-sort-change"),
+    PREF ("updater:interval", "null", ""),
+    PREF_KIND ("gpg executable", "", "notify-gpg-executable",
+               PREF_GPG_EXECUTABLE),
+    PREF ("experimental encryption", "off",
+          "gpg-notify-experimental-encryption"),
+    PREF ("gpg cipher algorithm", "AES256",
+          "notify-gpg-cipher-algorithm"),
+    PREF ("gpg wallet key fingerprint", "",
+          "notify-gpg-wallet-key-fingerprint"),
+    PREF ("gpg default key fingerprint", "",
+          "notify-gpg-default-key-fingerprint"),
+    PREF ("wallet persistent status", "off",
+          "notify-wallet-persistent-status"),
+    PREF ("wallet always remember", "off",
+          "notify-wallet-always-remember")
+#undef PREF_KIND
+#undef PREF_OBJ
+#undef PREF
   };
 
-  for (const builtin_preference& pref: prefs)
+  for (const builtin_preference& pref: prefs) {
     if (!user_prefs_default->contains (pref.key)) {
-      user_prefs_default (pref.key)= pref.def;
+      user_prefs_default (pref.key)= builtin_default_value (pref);
       user_prefs_string_default (pref.key)= pref.string_def;
     }
+    if (pref.callback != nullptr && string (pref.callback) != "")
+      user_prefs_callback (pref.key)= pref.callback;
+  }
 }
 
 static QString
@@ -108,12 +609,48 @@ register_user_preference (string var, string def, bool string_def) {
   }
 }
 
+void
+register_user_preference_callback (string var, string callback) {
+  ensure_builtin_user_preferences ();
+  if (callback == "") user_prefs_callback->reset (var);
+  else user_prefs_callback (var)= callback;
+}
+
 bool
 user_preference_default_is_string (string var) {
   ensure_builtin_user_preferences ();
   if (user_prefs_string_default->contains (var))
     return user_prefs_string_default[var];
   return true;
+}
+
+string
+get_user_preference_callback (string var) {
+  ensure_builtin_user_preferences ();
+  if (user_prefs_callback->contains (var)) return user_prefs_callback[var];
+  return "";
+}
+
+array<string>
+get_user_preference_names () {
+  ensure_builtin_user_preferences ();
+  iterator<string> it= iterate (user_prefs_default);
+  array<string> a;
+  while (it->busy ())
+    a << it->next ();
+  merge_sort (a);
+  return a;
+}
+
+array<string>
+get_user_preference_callback_names () {
+  ensure_builtin_user_preferences ();
+  iterator<string> it= iterate (user_prefs_callback);
+  array<string> a;
+  while (it->busy ())
+    a << it->next ();
+  merge_sort (a);
+  return a;
 }
 
 void

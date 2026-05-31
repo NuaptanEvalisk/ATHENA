@@ -35,8 +35,6 @@
   (set-user-info "gpg-key-fingerprint" val)
   (set! gpg-default-key-fingerprint val))
 
-(define-preferences
-  ("gpg default key fingerprint" "" notify-gpg-default-key-fingerprint))
 
 (tm-define (gpg-get-default-key-fingerprint)
   (:secure #t)
@@ -778,3 +776,6 @@
       (dynamic (gpg-supported-preferences-widget)))
   (if (not (supports-gpg?))
       (dynamic (gpg-not-supported-preferences-widget))))
+
+(register-preference-callback-procedures
+  (list notify-gpg-default-key-fingerprint))

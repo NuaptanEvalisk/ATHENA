@@ -15,43 +15,54 @@
   (:use (kernel athena tm-define)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Defining preference call back routines
+;; C++ backed preference glue
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(define-public preferences-default (make-ahash-table))
-(define-public preferences-call-back (make-ahash-table))
 
 (define (preference->string x)
   (if (string? x) x (object->string x)))
 
-(define-public (register-preference-default which value)
-  (cpp-register-preference which (preference->string value) (string? value))
-  (if (not (ahash-ref preferences-default which))
-      (ahash-set! preferences-default which value)))
+(tm-define (register-preference-default which value)
+  (cpp-register-preference which (preference->string value) (string? value)))
 
-(define (define-preference x)
-  (with (which value call-back) x
-    `(register-preference-default ,which ,value)))
+(define (preference-callback->string callback)
+  (cond ((string? callback) callback)
+        ((symbol? callback) (symbol->string callback))
+        ((procedure? callback)
+         (with name (procedure-name callback)
+           (if name (symbol->string name) "")))
+        (else "")))
 
-(define (define-preference-call-back x)
-  (with (which value call-back) x
-    `(begin
-       (ahash-set! preferences-call-back ,which ,call-back)
-       (notify-preference ,which))))
+(tm-define (register-preference-callback which callback)
+  (cpp-register-preference-callback
+    which (preference-callback->string callback)))
 
-(define-public-macro (define-preferences . l)
-  (append '(begin)
-          (map-in-order define-preference l)
-          (map-in-order define-preference-call-back l)))
+(define preference-callback-procedures (make-ahash-table))
+
+(tm-define (register-preference-callback-procedure callback)
+  (with name (preference-callback->string callback)
+    (when (!= name "")
+      (ahash-set! preference-callback-procedures name callback))))
+
+(tm-define (notify-preference-callback callback)
+  (with name (preference-callback->string callback)
+    (when (!= name "")
+      (for (which (cpp-preference-callbacks))
+        (when (== (cpp-preference-callback which) name)
+          (notify-preference which))))))
+
+(tm-define (register-preference-callback-procedures callbacks)
+  (for (callback callbacks)
+    (register-preference-callback-procedure callback)
+    (notify-preference-callback callback)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Setting and getting preferences
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define (test-preference? which what)
-  (== (get-preference which)
-      (if (!= what "default") what
-          (ahash-ref preferences-default which))))
+  (if (!= what "default")
+      (== (get-preference which) what)
+      (not (cpp-has-preference? which))))
 
 (tm-define (set-preference which what)
   (:synopsis "Set preference @which to @what")
@@ -74,8 +85,18 @@
     (save-preferences)))
 
 (define (get-call-back what)
-  (let ((r (ahash-ref preferences-call-back what)))
-    (if r r (lambda args (noop)))))
+  (with name (cpp-preference-callback what)
+    (if (== name "") (lambda args (noop))
+        (let ((r (ahash-ref preference-callback-procedures name)))
+          (if r r
+            (let ((sym (string->symbol name)))
+              (if (defined? sym)
+              (catch #t
+                (lambda ()
+                  (with r (eval sym)
+                    (if (procedure? r) r (lambda args (noop)))))
+                (lambda err (lambda args (noop))))
+              (lambda args (noop)))))))))
 
 (tm-define (notify-preference which)
   (:synopsis "Notify that the preference @which was changed")
@@ -84,8 +105,8 @@
 
 (tm-define (notify-all-preferences)
   (:synopsis "Notify that all preferences were reloaded")
-  (for (entry (ahash-table->list preferences-call-back))
-    (notify-preference (car entry))))
+  (for (which (cpp-preference-callbacks))
+    (notify-preference which)))
 
 (tm-define (load-preferences-from file)
   (:synopsis "Load user preferences from @file")

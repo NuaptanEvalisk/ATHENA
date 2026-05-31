@@ -65,17 +65,13 @@
 (tm-define prog-highlight-brackets? #f)
 (tm-define prog-select-brackets? #f)
 
-(define (notify-auto-close-brackets var val)
+(define (notify-prog-auto-close-brackets var val)
   (set! prog-auto-close-brackets? (== val "on")))
 (define (notify-highlight-brackets var val)
   (set! prog-highlight-brackets? (== val "on")))
 (define (notify-select-brackets var val)
   (set! prog-select-brackets? (== val "on")))
 
-(define-preferences
-  ("prog:automatic brackets" "off" notify-auto-close-brackets)
-  ("prog:highlight brackets" "off" notify-highlight-brackets)
-  ("prog:select brackets" "off" notify-select-brackets))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Bracket handling for strings
@@ -226,8 +222,6 @@
 ;; Whitespace handling
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define-preferences
-  ("editor:verbatim:tabstop" 4 (lambda (pref val) (noop))))
 
 (define (char-space? c)
   (== c #\space))
@@ -343,3 +337,5 @@
     (clipboard-paste-import fmt "primary")))
   
 
+(register-preference-callback-procedures
+  (list notify-prog-auto-close-brackets notify-highlight-brackets notify-select-brackets))

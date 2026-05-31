@@ -30,8 +30,8 @@
   (set-preference "versioning grain" w)
   (reactualize-differences))
 
-(define-preferences
-  ("versioning grain" "detailed" (lambda (var val) (set! version-grain val))))
+(define (notify-versioning-grain var val)
+  (set! version-grain val))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Useful subroutines for document comparison
@@ -351,3 +351,6 @@
       (when (inside-version?)
 	(tree-select (tree-innermost version-context?))
 	(reactualize-differences-sub))))
+
+(register-preference-callback-procedures
+  (list notify-versioning-grain))

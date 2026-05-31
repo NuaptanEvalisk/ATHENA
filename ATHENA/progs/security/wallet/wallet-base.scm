@@ -69,8 +69,6 @@
 (define (notify-wallet-persistent-status var val)
   (set! wallet-persistent-status val))
 
-(define-preferences
-  ("wallet persistent status" "off" notify-wallet-persistent-status))
 
 (tm-define (wallet-persistent-status-on?)
   (== (get-preference "wallet persistent status") "on"))
@@ -125,3 +123,6 @@
 (tm-define (wallet-entries)
   (:synopsis "List all entries of the wallet")
   (gpg-wallet-entries))
+
+(register-preference-callback-procedures
+  (list notify-wallet-persistent-status))

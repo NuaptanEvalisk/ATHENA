@@ -472,9 +472,6 @@
   (if (current-view) ; delayed-autosave would crash at initialization time
       (autosave-delayed)))
 
-(define-preferences
-  ("autosave" "120" notify-autosave)
-  ("autosave default" "on" noop))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Opening files using external tools
@@ -832,3 +829,6 @@
 (tm-define (kill-buffer)
   (deprecated-function "kill-buffer" "buffer-close")
   (buffer-close (current-buffer)))
+
+(register-preference-callback-procedures
+  (list notify-autosave))

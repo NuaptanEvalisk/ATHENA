@@ -95,13 +95,5 @@
 (define (notify-cpp-pref var val)
    (syntax-read-preferences "cpp"))
 
-(define-preferences
-  ("syntax:cpp:none" "black" notify-cpp-pref)
-  ("syntax:cpp:comment" "dark grey" notify-cpp-pref)
-  ("syntax:cpp:keyword" "dark magenta" notify-cpp-pref)
-  ("syntax:cpp:error" "dark red" notify-cpp-pref)
-  ("syntax:cpp:preprocessor" "dark brown" notify-cpp-pref)
-  ("syntax:cpp:preprocessor_directive" "dark green" notify-cpp-pref)
-  ("syntax:cpp:constant_type" "#4040c0" notify-cpp-pref)
-  ("syntax:cpp:constant_number" "#4040c0" notify-cpp-pref)
-  ("syntax:cpp:constant_string" "dark red" notify-cpp-pref))
+(register-preference-callback-procedures
+  (list notify-cpp-pref))

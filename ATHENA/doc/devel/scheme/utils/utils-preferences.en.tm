@@ -13,11 +13,10 @@
   prefix your options by the name of the plugin or module you are creating,
   like in <scm|"gui:help-window-position">.
 
-  The first step in defining a new preference is adding it with
-  <scm|define-preferences> and assigning a call-back function to handle
-  changes in the preference. This is important for instance in menus, where a
-  click on an item simply sets some preference to some value and it's up to
-  the call-back to actually take the necessary actions.
+  Built-in preferences are declared in the native preference registry. Scheme
+  code may register a dynamic default with <scm|register-preference-default>
+  and a call-back with <scm|register-preference-callback>, but new persistent
+  preferences should normally be added to the native registry.
 
   <\warning*>
     One may not store the boolean values <scm|#t>, <scm|#f> directly into
@@ -27,12 +26,13 @@
   </warning*>
 
   <\explain>
-    <scm|(define-preferences <scm-arg|list>)><explain-synopsis|define new
-    preferences with defaults and call-backs>
+    <scm|(register-preference-default <scm-arg|name>
+    <scm-arg|value>)><explain-synopsis|register a dynamic preference default>
   <|explain>
-    Each element of <scm-arg|list> is of the form <scm|("somename"
-    default-value notify-procedure)> where <scm|notify-procedure> is a
-    procedure taking two arguments like this:
+    Register a fallback value for a dynamically generated preference. The
+    call-back may be registered separately using
+    <scm|register-preference-callback>. The call-back procedure takes two
+    arguments like this:
 
     <scm|(define (notify-procedure property-name value) (do-things))>
 
@@ -50,7 +50,9 @@
         </input>
 
         <\input|Scheme] >
-          (define-preferences ("test:pref" "off" notify-test))
+          (register-preference-default "test:pref" "off")
+
+          (register-preference-callback "test:pref" 'notify-test)
         </input>
 
         <\unfolded-io|Scheme] >
@@ -81,8 +83,7 @@
     user preference>
   <|explain>
     Save preference <scm|name> with value <scm|value>. Then call the
-    call-back associated to this preference, as defined in
-    <scm|define-preferences>.
+    call-back associated to this preference.
 
     Remember to use the strings <scm|"on"> and <scm|"off"> instead of
     booleans <scm|#t>, <scm|#f>.
@@ -95,9 +96,8 @@
   <|explain>
     This convenience function appends <scm|value> to the list of values of
     preference <scm|name>, or creates a list with one element in case the
-    preference didn't exist. The call-back associated to this preference, as
-    defined in <scm|define-preferences> is called once the modification is
-    done.
+    preference didn't exist. The call-back associated to this preference is
+    called once the modification is done.
   </explain>
 
   <\explain>

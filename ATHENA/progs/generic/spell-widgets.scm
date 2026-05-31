@@ -594,8 +594,6 @@
 ;; Master routines
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define-preferences
-  ("toolbar spell" "on" noop))
 
 (tm-define (interactive-spell)
   (:interactive #t)

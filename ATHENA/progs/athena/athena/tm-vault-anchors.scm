@@ -8,8 +8,6 @@
         (kernel athena tm-define)
         (utils library cursor)))
 
-(define-preferences
-  ("vault auto anchor enunciations on save" "off" noop))
 
 (define vault-anchor-enunciation-tags
   '(theorem lemma corollary proposition axiom definition notation convention

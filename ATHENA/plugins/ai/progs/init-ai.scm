@@ -16,16 +16,6 @@
 ;; Preferences
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define-preferences
-  ("ollama server" "localhost" noop)
-  ("ollama port" "11434" noop)
-  ("llama3 model" "llama3" noop)
-  ("llama4 model" "llama4" noop)
-  ("chatgpt-text-input" "on" noop)
-  ("gemini-text-input" "on" noop)
-  ("llama3-text-input" "on" noop)
-  ("llama4-text-input" "on" noop)
-  ("open-mistral-7b-text-input" "on" noop))
 
 (tm-define (ollama-models)
   (list "llama3" "llama4"))

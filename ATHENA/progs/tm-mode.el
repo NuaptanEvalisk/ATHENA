@@ -20,7 +20,7 @@
 
 (setq nullary-keywords
   '(begin cond else
-    values define-preferences menu-dynamic conserve-focus attach-macro
+    values menu-dynamic conserve-focus attach-macro
     case-lambda kbd-map kbd-wildcards kbd-commands kbd-symbols
     define-grammar define-regexp-grammar
     drd-rule logic-rules assume texmacs-modes
@@ -49,7 +49,6 @@
     with-result and-let* setup-append-if
     while for repeat when unless assuming mini tile
     plugin-configure
-    define-preference-names
     with-focus-after
     logic-group logic-table logic-dispatcher
     with-aux with-action with-module

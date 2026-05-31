@@ -891,6 +891,21 @@ tmg_cpp_register_preference (tmscm arg1, tmscm arg2, tmscm arg3) {
 }
 
 tmscm
+tmg_cpp_register_preference_callback (tmscm arg1, tmscm arg2) {
+  TMSCM_ASSERT_STRING (arg1, TMSCM_ARG1, "cpp-register-preference-callback");
+  TMSCM_ASSERT_STRING (arg2, TMSCM_ARG2, "cpp-register-preference-callback");
+
+  string in1= tmscm_to_string (arg1);
+  string in2= tmscm_to_string (arg2);
+
+  // TMSCM_DEFER_INTS;
+  register_user_preference_callback (in1, in2);
+  // TMSCM_ALLOW_INTS;
+
+  return TMSCM_UNSPECIFIED;
+}
+
+tmscm
 tmg_cpp_preference_default_stringP (tmscm arg1) {
   TMSCM_ASSERT_STRING (arg1, TMSCM_ARG1, "cpp-preference-default-string?");
 
@@ -901,6 +916,37 @@ tmg_cpp_preference_default_stringP (tmscm arg1) {
   // TMSCM_ALLOW_INTS;
 
   return bool_to_tmscm (out);
+}
+
+tmscm
+tmg_cpp_preference_callback (tmscm arg1) {
+  TMSCM_ASSERT_STRING (arg1, TMSCM_ARG1, "cpp-preference-callback");
+
+  string in1= tmscm_to_string (arg1);
+
+  // TMSCM_DEFER_INTS;
+  string out= get_user_preference_callback (in1);
+  // TMSCM_ALLOW_INTS;
+
+  return string_to_tmscm (out);
+}
+
+tmscm
+tmg_cpp_preference_names () {
+  // TMSCM_DEFER_INTS;
+  array<string> out= get_user_preference_names ();
+  // TMSCM_ALLOW_INTS;
+
+  return array_string_to_tmscm (out);
+}
+
+tmscm
+tmg_cpp_preference_callbacks () {
+  // TMSCM_DEFER_INTS;
+  array<string> out= get_user_preference_callback_names ();
+  // TMSCM_ALLOW_INTS;
+
+  return array_string_to_tmscm (out);
 }
 
 tmscm
@@ -11094,7 +11140,11 @@ initialize_glue_basic () {
   tmscm_install_procedure ("notify-preferences-booted",  tmg_notify_preferences_booted, 0, 0, 0);
   tmscm_install_procedure ("cpp-has-preference?",  tmg_cpp_has_preferenceP, 1, 0, 0);
   tmscm_install_procedure ("cpp-register-preference",  tmg_cpp_register_preference, 3, 0, 0);
+  tmscm_install_procedure ("cpp-register-preference-callback",  tmg_cpp_register_preference_callback, 2, 0, 0);
   tmscm_install_procedure ("cpp-preference-default-string?",  tmg_cpp_preference_default_stringP, 1, 0, 0);
+  tmscm_install_procedure ("cpp-preference-callback",  tmg_cpp_preference_callback, 1, 0, 0);
+  tmscm_install_procedure ("cpp-preference-names",  tmg_cpp_preference_names, 0, 0, 0);
+  tmscm_install_procedure ("cpp-preference-callbacks",  tmg_cpp_preference_callbacks, 0, 0, 0);
   tmscm_install_procedure ("cpp-get-preference",  tmg_cpp_get_preference, 2, 0, 0);
   tmscm_install_procedure ("cpp-set-preference",  tmg_cpp_set_preference, 2, 0, 0);
   tmscm_install_procedure ("cpp-reset-preference",  tmg_cpp_reset_preference, 1, 0, 0);

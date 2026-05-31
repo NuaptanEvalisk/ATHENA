@@ -20,22 +20,6 @@
 ;; Customizable step changes for length modifications
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define-preferences
-  ("w increase" "0.05" noop)
-  ("h increase" "0.05" noop)
-  ("em increase" "0.1" noop)
-  ("ex increase" "0.1" noop)
-  ("spc increase" "0.2" noop)
-  ("fn increase" "0.5" noop)
-  ("mm increase" "0.5" noop)
-  ("cm increase" "0.1" noop)
-  ("inch increase" "0.05" noop)
-  ("pt increase" "10" noop)
-  ("msec increase" "50" noop)
-  ("sec increase" "1" noop)
-  ("min increase" "0.1" noop)
-  ("% increase" "5" noop)
-  ("default unit" "ex" noop))
 
 (define step-table (make-ahash-table))
 (define step-list

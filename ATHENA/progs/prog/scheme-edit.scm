@@ -177,16 +177,6 @@
 (define (notify-scheme-syntax var val)
   (syntax-read-preferences "scheme"))
 
-(define-preferences
-  ("syntax:scheme:none" "red" notify-scheme-syntax)
-  ("syntax:scheme:comment" "brown" notify-scheme-syntax)
-  ("syntax:scheme:keyword" "#309090" notify-scheme-syntax)
-  ("syntax:scheme:error" "dark red" notify-scheme-syntax)
-  ("syntax:scheme:constant_number" "#4040c0" notify-scheme-syntax)
-  ("syntax:scheme:constant_string" "dark grey" notify-scheme-syntax)
-  ("syntax:scheme:constant_char" "#333333" notify-scheme-syntax)
-  ("syntax:scheme:variable_identifier" "#204080" notify-scheme-syntax)
-  ("syntax:scheme:declare_category" "#d030d0" notify-scheme-syntax))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Copy and Paste
@@ -201,3 +191,6 @@
   (:mode in-prog-scheme?)
   (:require (textual? (selection-tree)))
   (clipboard-copy-export "scheme" "primary"))
+
+(register-preference-callback-procedures
+  (list notify-scheme-syntax))

@@ -31,11 +31,6 @@
       (set! gpg-executable val)
       (set! gpg-executable "")))
 
-(define-preferences
-  ("gpg executable" (cond ((url-exists-in-path? "gpg") "gpg")
-			  ((url-exists-in-path? "gpg2") "gpg2")
-			  (else ""))
-   notify-gpg-executable))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; GnuPG file format
@@ -93,8 +88,6 @@
   (and (== val "on")
        (gpg-valid-executable? gpg-executable)))
 
-(define-preferences
-  ("experimental encryption" "off" gpg-notify-experimental-encryption))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Ahash tables attached to documents
@@ -145,8 +138,6 @@
 (define (notify-gpg-cipher-algorithm var val)
   (set! gpg-cipher-algorithm val))
 
-(define-preferences
-  ("gpg cipher algorithm" "AES256" notify-gpg-cipher-algorithm))
 
 (tm-define (gpg-get-cipher-algorithm)
   (:synopsis "GnuPG cipher algorithm for passphrase encryption")
@@ -630,3 +621,6 @@
   (:synopsis "GnuPG decrypt armored string @data with passphrase @passphrase")
   (let* ((dir (if (null? homedir) (url-none) (car homedir))))
     (gpg-decrypt data passphrase dir)))
+
+(register-preference-callback-procedures
+  (list gpg-notify-experimental-encryption notify-gpg-cipher-algorithm notify-gpg-executable))

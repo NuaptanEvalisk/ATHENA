@@ -573,13 +573,6 @@
 ;; Search widget
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define-preferences
-  ("allow-blank-match" "on" noop)
-  ("allow-initial-match" "on" noop)
-  ("allow-partial-match" "on" noop)
-  ("allow-injective-match" "on" noop)
-  ("allow-cascaded-match" "on" noop)
-  ("case-insensitive-match" "off" noop))
 
 (tm-define (toggle-search-preference which)
   (:synopsis "Toggle the search preference @which")
@@ -688,11 +681,6 @@
 ;; Search and replace widget
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define-preferences
-  ("allow-blank-replace" "off" noop)
-  ("allow-initial-replace" "off" noop)
-  ("allow-partial-replace" "off" noop)
-  ("allow-injective-replace" "off" noop))
 
 (menu-bind replace-preferences-menu
   ("Allow blank matches" (toggle-search-preference "allow-blank-replace"))
@@ -1100,9 +1088,6 @@
 ;; Master routines
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define-preferences
-  ("toolbar search" "on" noop)
-  ("toolbar replace" "on" noop))
 
 (tm-define (interactive-search)
   (:interactive #t)

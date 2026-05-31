@@ -157,9 +157,6 @@
         ((== pref "doc:collect-languages") (noop))
         (else (noop))))
 
-(define-preferences
-  ("doc:collect-timestamp" 0 notify-doc-collect-preference)
-  ("doc:collect-languages" '() notify-doc-collect-preference))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Interface
@@ -237,3 +234,6 @@
                   (verbatim ,(url->system (doc-scm-cache))) 
                   (verbatim ,(url->system (doc-macro-cache))))
       #t run)))
+
+(register-preference-callback-procedures
+  (list notify-doc-collect-preference))

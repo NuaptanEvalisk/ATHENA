@@ -20,8 +20,6 @@
 ;; Preferences
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define-preferences
-  ("auto bib import" "on" ignore))
 
 (tm-widget (db-preferences-widget)
   (padded

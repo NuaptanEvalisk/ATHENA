@@ -126,10 +126,6 @@
 (define (notify-link-pages var val)
   (set! navigation-link-pages? (== val "on")))
 
-(define-preferences
-  ("bidirectional navigation" "off" notify-bidirectional-navigation)
-  ("external navigation" "on" notify-external-navigation)
-  ("link pages" "on" notify-link-pages))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Finding links in the form of "link lists". Items in such a list
@@ -685,3 +681,6 @@
   (let* ((ts (link-active-upwards (cursor-tree)))
          (ids (append-map tree->ids ts)))
     (link-follow-ids ids "click")))
+
+(register-preference-callback-procedures
+  (list notify-bidirectional-navigation notify-external-navigation notify-link-pages))

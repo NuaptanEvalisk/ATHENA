@@ -34,5 +34,5 @@
    ((== val "yawerty")
     (lazy-keyboard (text cyrillic yawerty-kbd) in-cyrillic-yawerty?))))
 
-(define-preferences
-  ("cyrillic input method" "none" notify-cyrillic-input-method))
+(register-preference-callback-procedures
+  (list notify-cyrillic-input-method))

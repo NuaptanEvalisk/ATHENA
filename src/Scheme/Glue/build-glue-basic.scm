@@ -95,8 +95,13 @@
   (notify-preferences-booted notify_preferences_booted (void))
   (cpp-has-preference? has_user_preference (bool string))
   (cpp-register-preference register_user_preference (void string string bool))
+  (cpp-register-preference-callback register_user_preference_callback
+    (void string string))
   (cpp-preference-default-string? user_preference_default_is_string
     (bool string))
+  (cpp-preference-callback get_user_preference_callback (string string))
+  (cpp-preference-names get_user_preference_names (array_string))
+  (cpp-preference-callbacks get_user_preference_callback_names (array_string))
   (cpp-get-preference get_user_preference (string string string))
   (cpp-set-preference set_user_preference (void string string))
   (cpp-reset-preference reset_user_preference (void string))

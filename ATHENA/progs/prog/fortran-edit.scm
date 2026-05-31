@@ -23,8 +23,6 @@
 ;; Automatic indentation
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define-preferences
-  ("editor:verbatim:tabstop" 4 (lambda (pref val) (noop))))
 
 (tm-define (program-compute-indentation doc row col)
   (:mode in-prog-fortran?)
@@ -67,25 +65,5 @@
 (define (notify-fortran-pref var val)
    (syntax-read-preferences "fortran"))
 
-(define-preferences
-  ("syntax:fortran:none" "black" notify-fortran-pref)
-  ("syntax:fortran:comment" "dark grey" notify-fortran-pref)
-  ("syntax:fortran:keyword" "dark magenta" notify-fortran-pref)
-  ("syntax:fortran:keyword_conditional" "dark magenta" notify-fortran-pref)
-  ("syntax:fortran:keyword_control" "dark magenta" notify-fortran-pref)
-  ("syntax:fortran:error" "dark red" notify-fortran-pref)
-  ("syntax:fortran:operator" "dark red" notify-fortran-pref)
-  ("syntax:fortran:operator_special" "dark red" notify-fortran-pref)
-  ("syntax:fortran:operator_openclose" "dark red" notify-fortran-pref)
-  ("syntax:fortran:operator_field" "dark red" notify-fortran-pref)
-  ("syntax:fortran:preprocessor" "dark green" notify-fortran-pref)
-  ("syntax:fortran:preprocessor_directive" "dark brown" notify-fortran-pref)
-  ("syntax:fortran:declare_type" "#4040c0" notify-fortran-pref)
-  ("syntax:fortran:declare_function" "#4040c0" notify-fortran-pref)
-  ("syntax:fortran:variable_function" "#0000c0" notify-fortran-pref)
-  ("syntax:fortran:variable_type" "dark red" notify-fortran-pref)
-  ("syntax:fortran:constant" "#4040c0" notify-fortran-pref)
-  ("syntax:fortran:constant_function" "#0000c0" notify-fortran-pref)
-  ("syntax:fortran:constant_type" "#4040c0" notify-fortran-pref)
-  ("syntax:fortran:constant_number" "#4040c0" notify-fortran-pref)
-  ("syntax:fortran:constant_string" "dark red" notify-fortran-pref))
+(register-preference-callback-procedures
+  (list notify-fortran-pref))

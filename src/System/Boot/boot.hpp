@@ -34,8 +34,12 @@ scheme_tree plugin_list ();
 
 bool   has_user_preference (string var);
 void   register_user_preference (string var, string def, bool string_def);
+void   register_user_preference_callback (string var, string callback);
 bool   user_preference_default_is_string (string var);
 string get_user_preference (string var, string def= "");
+string get_user_preference_callback (string var);
+array<string> get_user_preference_names ();
+array<string> get_user_preference_callback_names ();
 void   set_user_preference (string var, string val);
 void   reset_user_preference (string var);
 void   load_user_preferences ();

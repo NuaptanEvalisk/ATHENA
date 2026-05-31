@@ -56,29 +56,6 @@
 (define (notify-remote-control var val)
   (ahash-set! remote-control-remap val var))
 
-(define-preferences
-  ("header" "on" notify-header)
-  ("main icon bar" "on" notify-icon-bar)
-  ("mode dependent icons" "on" notify-icon-bar)
-  ("focus dependent icons" "on" notify-icon-bar)
-  ("user provided icons" "off" notify-icon-bar)
-  ("status bar" "on" notify-status-bar)
-  ("side tools" "off" notify-side-tools)
-  ("left tools" "off" notify-side-tools)
-  ("markup gui" "off" noop)
-  ("zoom factor" "1" notify-zoom-factor)
-  ("snap to pages" "off" noop)
-  ("persistent fit width" "off" noop)
-  ("typewriter mode" "off" noop)
-  ("ir-up" "home" notify-remote-control)
-  ("ir-down" "end" notify-remote-control)
-  ("ir-left" "pageup" notify-remote-control)
-  ("ir-right" "pagedown" notify-remote-control)
-  ("ir-center" "S-return" notify-remote-control)
-  ("ir-play" "F5" notify-remote-control)
-  ("ir-pause" "escape" notify-remote-control)
-  ("ir-menu" "." notify-remote-control)
-  ("draw cursor" "on" noop))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Changing the view properties
@@ -386,3 +363,6 @@
 
 (tm-define (window-resize-notifier name)
   (schedule-persistent-fit-width))
+
+(register-preference-callback-procedures
+  (list notify-header notify-icon-bar notify-remote-control notify-side-tools notify-status-bar notify-zoom-factor))

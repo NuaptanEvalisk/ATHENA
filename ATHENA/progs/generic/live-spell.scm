@@ -31,9 +31,6 @@
   (when (== val "off")
     (spell-live-stop!)))
 
-(define-preferences
-  ("live spell checking" "off" spell-live-notify)
-  ("custom dictionary import language" "english" noop))
 
 (define (spell-live-enabled?)
   (get-boolean-preference "live spell checking"))
@@ -208,3 +205,6 @@
   (:require (spell-live-enabled?))
   (former key time)
   (spell-live-schedule! key))
+
+(register-preference-callback-procedures
+  (list spell-live-notify))

@@ -35,9 +35,6 @@
 (tm-define (notify-keyboard-tool var val)
   (update-bottom-tools))
 
-(define-preferences
-  ("custom keyboard" "" (lambda args (noop)))
-  ("keyboard tool" "off" notify-keyboard-tool))
 
 (tm-define (set-custom-keyboard kbd)
   (with s (serialize-texmacs-snippet kbd)
@@ -133,3 +130,6 @@
     ;;    ("Gradient" (tool-select :right '(gradient-tool "Background gradient")))
     ;;    ("Picture" (tool-select :right '(picture-tool "Background picture"))))
     ))
+
+(register-preference-callback-procedures
+  (list notify-keyboard-tool))
