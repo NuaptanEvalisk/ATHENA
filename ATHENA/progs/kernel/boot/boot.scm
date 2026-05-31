@@ -42,6 +42,17 @@
       (apply original-write l)
       (tm-output (object->string (car l)))))
 
+(define texmacs-error-port
+  (make-soft-port
+   (vector (lambda (c) (tm-errput (char->string c)))
+           (lambda (s) (tm-errput s))
+           (lambda () (noop))
+           (lambda () #\?)
+           (lambda () (noop)))
+   "w"))
+
+(set-current-error-port texmacs-error-port)
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Provide functions if not defined and public macros
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

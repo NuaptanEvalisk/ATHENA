@@ -12,6 +12,7 @@
 
 #include "ATHENA/Data/vault.hpp"
 #include "file.hpp"
+#include "tm_ostream.hpp"
 
 #include <algorithm>
 #include <cerrno>
@@ -22,7 +23,6 @@
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
-#include <iostream>
 #include <sstream>
 #include <string>
 #include <sys/types.h>
@@ -123,11 +123,11 @@ static void
 backup_child (std::string source, std::string target) {
   bool ok= compress_file_zstd (fs::path (source), fs::path (target));
   if (ok)
-    std::cerr << "ATHENA] vault backup: saved pre-save copy to "
-              << target << "\n";
+    cerr << "ATHENA] vault backup: saved pre-save copy to "
+         << target.c_str () << LF;
   else
-    std::cerr << "ATHENA] vault backup: failed to save pre-save copy of "
-              << source << "\n";
+    cerr << "ATHENA] vault backup: failed to save pre-save copy of "
+         << source.c_str () << LF;
   _exit (ok ? 0 : 1);
 }
 
@@ -156,8 +156,8 @@ vault_backup_pre_save (url document) {
 
   pid_t pid= fork ();
   if (pid < 0) {
-    std::cerr << "ATHENA] vault backup: fork failed: "
-              << std::strerror (errno) << "\n";
+    cerr << "ATHENA] vault backup: fork failed: "
+         << std::strerror (errno) << LF;
     return false;
   }
   if (pid == 0) {

@@ -1,10 +1,10 @@
 #include "aofm_utils.hpp"
 #include "converter.hpp"
+#include "tm_ostream.hpp"
 #include <cmath>
 #include <cctype>
 #include <cstdlib>
 #include <iomanip>
-#include <iostream>
 #include <sstream>
 #include <algorithm>
 
@@ -22,7 +22,7 @@ std_to_tm_string(const std::string& s) {
 
 void
 report_aofm_error(const std::string& message) {
-  std::cerr << "aofm2athena: error: " << message << std::endl;
+  cerr << "aofm2athena: error: " << message.c_str () << LF;
 }
 
 void

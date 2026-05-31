@@ -257,13 +257,11 @@ win32_display (string s) {
 void
 tm_output (string s) {
   cout << s;
-  cout.flush ();
 }
 
 void
 tm_errput (string s) {
   cerr << s;
-  cerr.flush ();
 }
 
 void

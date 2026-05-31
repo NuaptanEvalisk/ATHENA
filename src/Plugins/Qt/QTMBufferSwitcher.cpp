@@ -12,6 +12,7 @@
 #include "QTMMainTabWindow.hpp"
 #include "QTMWidget.hpp"
 #include "qt_utilities.hpp"
+#include "tm_ostream.hpp"
 
 #include <QApplication>
 #include <QDialog>
@@ -26,7 +27,6 @@
 #include <QVBoxLayout>
 
 #include <algorithm>
-#include <iostream>
 #include <vector>
 
 static std::vector<QPointer<QWidget> > buffer_switcher_mru;
@@ -288,22 +288,22 @@ void
 visual_buffer_switcher_show () {
   QTMMainTabWindow* win= QTMMainTabWindow::topTabWindow ();
   if (win == nullptr) {
-    std::cout << "ATHENA] buffer switcher: no top tab window" << std::endl;
+    debug_qt << "ATHENA] buffer switcher: no top tab window" << LF;
     return;
   }
 
   QList<QWidget*> docs= win->documentWidgets ();
   QWidget* current= win->currentDocumentWidget ();
-  std::cout << "ATHENA] buffer switcher: invoked, documents="
-            << docs.size ();
+  debug_qt << "ATHENA] buffer switcher: invoked, documents="
+           << docs.size ();
   if (current != nullptr)
-    std::cout << ", current=\""
-              << win->documentWidgetTitle (current).toStdString () << "\"";
-  std::cout << std::endl;
+    debug_qt << ", current=\""
+             << from_qstring (win->documentWidgetTitle (current)) << "\"";
+  debug_qt << LF;
 
   if (docs.size () <= 1) {
-    std::cout << "ATHENA] buffer switcher: not showing, need at least two "
-              << "document buffers" << std::endl;
+    debug_qt << "ATHENA] buffer switcher: not showing, need at least two "
+             << "document buffers" << LF;
     return;
   }
 
@@ -324,12 +324,12 @@ visual_buffer_switcher_show () {
 
 string
 visual_buffer_switcher_choose (array<string> entries) {
-  std::cout << "ATHENA] buffer switcher: invoked, session entries="
-            << (N(entries) / 3) << std::endl;
+  debug_qt << "ATHENA] buffer switcher: invoked, session entries="
+           << (N(entries) / 3) << LF;
 
   if (N(entries) <= 3) {
-    std::cout << "ATHENA] buffer switcher: not showing, need at least two "
-              << "session buffers" << std::endl;
+    debug_qt << "ATHENA] buffer switcher: not showing, need at least two "
+             << "session buffers" << LF;
     return "";
   }
 

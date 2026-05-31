@@ -130,7 +130,7 @@ edit_modify_rep::post_notify (path p) {
   cur_pos= nil_observer;
   go_to_correct (tp);
   if (get_preference ("heading word counts", "off") == "on")
-    typeset_invalidate_all ();
+    notify_change (THE_ENVIRONMENT);
   /*
   cout << "et= " << et << "\n";
   cout << "tp= " << tp << "\n\n";

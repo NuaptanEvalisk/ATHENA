@@ -65,7 +65,7 @@ void aofm_cache_latex_commands() {
   
   object tags_result = eval(get_tags_code);
   if (!is_list(tags_result)) {
-    std::cout << "AOFM] Failed to fetch LaTeX command tags." << std::endl;
+    std_warning << "AOFM] Failed to fetch LaTeX command tags." << LF;
     return;
   }
   
@@ -107,7 +107,8 @@ void aofm_cache_latex_commands() {
     }
   }
   std::cout << std::endl;
-  std::cout << "AOFM] Cached " << aofm_type_cache.size() << " LaTeX commands." << std::endl;
+  cout << "AOFM] Cached " << (int) aofm_type_cache.size()
+       << " LaTeX commands." << LF;
 }
 
 static string

@@ -6,7 +6,7 @@
 #include "aofm_callouts.hpp"
 #include "aofm_math.hpp"
 #include "vars.hpp"
-#include <iostream>
+#include "tm_ostream.hpp"
 #include <sstream>
 #include <string>
 
@@ -467,8 +467,8 @@ convert_block(const AstPtr& ast) {
   if (ast_is(ast, "Callout")) return convert_callout(ast);
 
   if (ast_is(ast, "UnknownBlock")) {
-    std::cerr << "aofm2athena: warning: Unknown block encountered: [" 
-              << trim_copy(ast_source(ast)) << "]" << std::endl;
+    cerr << "aofm2athena: warning: Unknown block encountered: ["
+         << trim_copy(ast_source(ast)).c_str () << "]" << LF;
     return text_tree(trim_copy(strip_trailing_newlines(ast_source(ast))));
   }
 

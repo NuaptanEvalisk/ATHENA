@@ -240,6 +240,7 @@ test_routines () {
 void 
 clean_exit_on_segfault (int sig_num) {
   (void) sig_num;
+  athena_enable_emergency_logging ();
   FAILED ("segmentation fault");
 }
 

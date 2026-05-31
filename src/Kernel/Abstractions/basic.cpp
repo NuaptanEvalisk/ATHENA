@@ -112,15 +112,15 @@ tree debug_messages (TUPLE);
 bool debug_lf_flag= false;
 extern bool texmacs_started;
 
-void
-debug_message_sub (string channel, string msg) {
+static void
+debug_message_sub (string channel, string msg, bool flush_at_end) {
   if (occurs ("\n", msg)) {
     int pos= search_forwards ("\n", 0, msg);
-    debug_message_sub (channel, msg (0, pos));
+    debug_message_sub (channel, msg (0, pos), false);
     debug_lf_flag= true;
     cout << "\n";
     if (pos+1 < N(msg))
-      debug_message_sub (channel, msg (pos+1, N(msg)));
+      debug_message_sub (channel, msg (pos+1, N(msg)), false);
   }
   else {
     int n= N(debug_messages);
@@ -141,7 +141,12 @@ debug_message_sub (string channel, string msg) {
       cout << msg;
     }
   }
-  cout.flush ();
+  if (flush_at_end) cout.flush ();
+}
+
+void
+debug_message_sub (string channel, string msg) {
+  debug_message_sub (channel, msg, true);
 }
 
 void

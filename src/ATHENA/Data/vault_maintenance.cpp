@@ -13,6 +13,7 @@
 #include "boot.hpp"
 #include "scheme.hpp"
 #include "sys_utils.hpp"
+#include "tm_ostream.hpp"
 
 #include <algorithm>
 #include <array>
@@ -356,7 +357,7 @@ public:
   void log (const std::string& message) {
     bool was_active = active_;
     clear ();
-    std::cout << message << std::endl;
+    cout << message.c_str () << LF;
     if (was_active) draw ();
   }
 
@@ -414,7 +415,7 @@ log_info (const std::string& message) {
 static void
 log_error (const std::string& message) {
   progress_display.finish ();
-  std::cerr << "ATHENA] vault maintenance: " << message << std::endl;
+  cerr << "ATHENA] vault maintenance: " << message.c_str () << LF;
 }
 
 static void

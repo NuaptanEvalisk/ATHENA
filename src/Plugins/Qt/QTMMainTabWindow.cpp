@@ -13,6 +13,7 @@
 #include "qt_utilities.hpp"
 #include "scheme.hpp"
 #include "tm_server.hpp"
+#include "tm_ostream.hpp"
 #include "vault.hpp"
 
 #include <QMouseEvent>
@@ -28,7 +29,6 @@
 #include <QSaveFile>
 #include <QTimer>
 #include <QStringList>
-#include <iostream>
 
 QTMMainTabWindow *QTMMainTabWindow::gTopTabWindow = nullptr;
 static bool gNextWidgetFloating = false;
@@ -269,24 +269,24 @@ void QTMMainTabWindow::saveAdsLayoutState() {
 
   QDir dir= QFileInfo (path).dir();
   if (!dir.exists() && !dir.mkpath(".")) {
-    std::cerr << "ATHENA] warning, could not create ADS layout cache directory: "
-              << dir.absolutePath().toStdString() << std::endl;
+    std_warning << "could not create ADS layout cache directory: "
+                << from_qstring (dir.absolutePath()) << LF;
     return;
   }
 
   QSaveFile file (path);
   if (!file.open (QIODevice::WriteOnly)) {
-    std::cerr << "ATHENA] warning, could not save ADS layout state to "
-              << path.toStdString() << ": "
-              << file.errorString().toStdString() << std::endl;
+    std_warning << "could not save ADS layout state to "
+                << from_qstring (path) << ": "
+                << from_qstring (file.errorString()) << LF;
     return;
   }
 
   file.write (mDockManager->saveState (ATHENA_ADS_LAYOUT_VERSION));
   if (!file.commit()) {
-    std::cerr << "ATHENA] warning, could not commit ADS layout state to "
-              << path.toStdString() << ": "
-              << file.errorString().toStdString() << std::endl;
+    std_warning << "could not commit ADS layout state to "
+                << from_qstring (path) << ": "
+                << from_qstring (file.errorString()) << LF;
   }
 
   QString panesPath= adsVisiblePanesStatePath();
@@ -294,9 +294,9 @@ void QTMMainTabWindow::saveAdsLayoutState() {
 
   QSaveFile panesFile (panesPath);
   if (!panesFile.open (QIODevice::WriteOnly | QIODevice::Text)) {
-    std::cerr << "ATHENA] warning, could not save ADS visible panes to "
-              << panesPath.toStdString() << ": "
-              << panesFile.errorString().toStdString() << std::endl;
+    std_warning << "could not save ADS visible panes to "
+                << from_qstring (panesPath) << ": "
+                << from_qstring (panesFile.errorString()) << LF;
     return;
   }
 
@@ -310,9 +310,9 @@ void QTMMainTabWindow::saveAdsLayoutState() {
     panesFile.write ("\n");
   }
   if (!panesFile.commit()) {
-    std::cerr << "ATHENA] warning, could not commit ADS visible panes to "
-              << panesPath.toStdString() << ": "
-              << panesFile.errorString().toStdString() << std::endl;
+    std_warning << "could not commit ADS visible panes to "
+                << from_qstring (panesPath) << ": "
+                << from_qstring (panesFile.errorString()) << LF;
   }
 }
 
@@ -325,17 +325,17 @@ void QTMMainTabWindow::restoreAdsLayoutState() {
   QFile file (path);
   if (!file.exists()) return;
   if (!file.open (QIODevice::ReadOnly)) {
-    std::cerr << "ATHENA] warning, could not read ADS layout state from "
-              << path.toStdString() << ": "
-              << file.errorString().toStdString() << std::endl;
+    std_warning << "could not read ADS layout state from "
+                << from_qstring (path) << ": "
+                << from_qstring (file.errorString()) << LF;
     return;
   }
 
   QByteArray state= file.readAll();
   if (!state.isEmpty() &&
       !mDockManager->restoreState (state, ATHENA_ADS_LAYOUT_VERSION)) {
-    std::cerr << "ATHENA] warning, ignored incompatible ADS layout state: "
-              << path.toStdString() << std::endl;
+    std_warning << "ignored incompatible ADS layout state: "
+                << from_qstring (path) << LF;
   }
 }
 
@@ -348,9 +348,9 @@ void QTMMainTabWindow::restoreAdsVisiblePanes() {
   QFile file (path);
   if (!file.exists()) return;
   if (!file.open (QIODevice::ReadOnly | QIODevice::Text)) {
-    std::cerr << "ATHENA] warning, could not read ADS visible panes from "
-              << path.toStdString() << ": "
-              << file.errorString().toStdString() << std::endl;
+    std_warning << "could not read ADS visible panes from "
+                << from_qstring (path) << ": "
+                << from_qstring (file.errorString()) << LF;
     return;
   }
 
@@ -514,7 +514,8 @@ bool QTMMainTabWindow::eventFilterTabBar(QObject *obj, QEvent *event) {
 
 bool QTMMainTabWindow::eventFilter(QObject *obj, QEvent *event) {
   if (event->type() == QEvent::Close) {
-    std::cout << "ATHENA ADS DEBUG: QEvent::Close received on object of type: " << obj->metaObject()->className() << std::endl;
+    debug_qt << "ATHENA ADS DEBUG: QEvent::Close received on object of type: "
+             << obj->metaObject()->className() << LF;
   }
 
   if (event->type() == QEvent::FocusIn) {

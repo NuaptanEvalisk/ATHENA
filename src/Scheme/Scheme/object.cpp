@@ -12,7 +12,6 @@
 #include "object.hpp"
 #include "glue.hpp"
 
-#include <iostream>
 #include "config.h"
 #include "list.hpp"
 #include "array.hpp"
@@ -24,6 +23,7 @@
 #include "modification.hpp"
 #include "patch.hpp"
 #include "colors.hpp"
+#include "tm_ostream.hpp"
 
 /******************************************************************************
 * The object representation class
@@ -466,7 +466,7 @@ extern void aofm_cache_latex_commands();
 
 void
 aofm_cache_preferences () {
-  std::cout << "AOFM] Caching preferences..." << std::endl;
+  cout << "AOFM] Caching preferences..." << LF;
   array<string> prefs;
   prefs << string ("latex->texmacs:align-to-aligned")
         << string ("latex->texmacs:operator-d-is-differential")
@@ -492,7 +492,7 @@ aofm_cache_preferences () {
   for (int i=0; i<N(prefs); i++) {
     string val = as_string (call ("get-preference", prefs[i]));
     aofm_pref_cache (prefs[i]) = val;
-    std::cout << "AOFM]   " << as_charp (prefs[i]) << " -> " << as_charp (val) << std::endl;
+    cout << "AOFM]   " << prefs[i] << " -> " << val << LF;
   }
   
   aofm_cache_latex_commands();

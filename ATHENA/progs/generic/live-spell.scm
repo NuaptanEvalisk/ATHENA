@@ -12,8 +12,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (texmacs-module (generic live-spell)
-  (:use (kernel library base)
-        (kernel library list)))
+  (:use (kernel library list)))
 
 (define spell-live-serial 0)
 (define spell-live-engine-active? #f)

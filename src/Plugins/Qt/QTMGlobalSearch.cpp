@@ -27,6 +27,7 @@
 #include "scheme.hpp"
 #include "link.hpp"
 #include "tm_buffer.hpp"
+#include "tm_ostream.hpp"
 #include "tm_window.hpp"
 #include "tree_search.hpp"
 #include "vault.hpp"
@@ -57,7 +58,6 @@
 #include <QTimer>
 #include <QVBoxLayout>
 #include <algorithm>
-#include <iostream>
 #include <set>
 
 static QTMGlobalSearch* global_search_widget= nullptr;
@@ -630,7 +630,7 @@ QTMGlobalSearch::setRunningStatus () {
 
 void
 QTMGlobalSearch::startSearch () {
-  std::cout << "Global search: Search button clicked\n";
+  debug_qt << "Global search: Search button clicked" << LF;
   if (!vault_active ()) {
     QMessageBox::warning (this, "Global search",
                           "No active vault. Please load a vault first.");
@@ -690,14 +690,14 @@ QTMGlobalSearch::startSearch () {
                return relativePath (a) < relativePath (b);
              });
 
-  std::cout << "Global search: deferred scan starting, "
-            << (int) scanFiles.size () << " files";
+  debug_qt << "Global search: deferred scan starting, "
+           << (int) scanFiles.size () << " files";
   if (!ns.isEmpty ())
-    std::cout << " in namespace " << ns.toStdString ();
+    debug_qt << " in namespace " << from_qstring (ns);
   QString enunciation= selectedEnunciation ();
   if (!enunciation.isEmpty ())
-    std::cout << ", enunciation " << enunciation.toStdString ();
-  std::cout << "\n";
+    debug_qt << ", enunciation " << from_qstring (enunciation);
+  debug_qt << LF;
   setRunningStatus ();
   searchButton->setEnabled (false);
   cancelButton->setEnabled (true);
@@ -762,8 +762,8 @@ QTMGlobalSearch::searchFile (url u, std::vector<Result>& hits) const {
     return hitCount;
   }
   catch (...) {
-    std::cout << "Global search: skipped "
-              << to_qstring (concretize (u)).toStdString () << "\n";
+    debug_qt << "Global search: skipped "
+             << from_qstring (to_qstring (concretize (u))) << LF;
     return 0;
   }
 }
@@ -891,9 +891,9 @@ QTMGlobalSearch::finishSearch () {
       .arg ((int) results.size ())
       .arg (matchedFiles)
       .arg ((int) scanFiles.size ()));
-  std::cout << "Global search: deferred scan finished with "
-            << (int) results.size () << " occurrences in "
-            << matchedFiles << " files\n";
+  debug_qt << "Global search: deferred scan finished with "
+           << (int) results.size () << " occurrences in "
+           << matchedFiles << " files" << LF;
 }
 
 void

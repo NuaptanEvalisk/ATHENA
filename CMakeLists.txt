@@ -166,6 +166,8 @@ include (FindPkgConfig)
 include (CheckCSourceCompiles)
 include (FindX11)
 
+pkg_check_modules (SPDLOG REQUIRED IMPORTED_TARGET spdlog)
+
 find_path (RESVGQT_INCLUDE_DIR ResvgQt.h)
 find_library (RESVG_LIBRARY resvg)
 if (NOT RESVGQT_INCLUDE_DIR OR NOT RESVG_LIBRARY)

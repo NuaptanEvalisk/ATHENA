@@ -17,6 +17,7 @@
 #include "new_view.hpp"
 #include "qt_utilities.hpp"
 #include "scheme.hpp"
+#include "tm_ostream.hpp"
 #include "vault.hpp"
 
 #include <DockWidget.h>
@@ -57,7 +58,6 @@
 #include <algorithm>
 #include <cmath>
 #include <functional>
-#include <iostream>
 #include <map>
 #include <set>
 #include <vector>
@@ -903,7 +903,7 @@ build_layout_graph (RHGraph& graph, QString& error) {
     return false;
   }
   if (!layout_with_graphviz (graph, error)) return false;
-  if (!warning.isEmpty ()) std::cerr << "ATHENA] " << warning.toStdString () << "\n";
+  if (!warning.isEmpty ()) std_warning << from_qstring (warning) << LF;
   return true;
 }
 

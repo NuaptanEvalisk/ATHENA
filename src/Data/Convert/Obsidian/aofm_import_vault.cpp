@@ -12,6 +12,7 @@
 #include "tree.hpp"
 #include "url.hpp"
 #include "vault.hpp"
+#include "tm_ostream.hpp"
 #include "aofm_telemetry.hpp"
 #include "aofm_import_vault_internal.hpp"
 
@@ -180,7 +181,8 @@ aofm_import_vault(string source_dir, string destination_dir,
     heading_dump_file.close();
   }
 
-  std::cout << "Starting vault conversion of " << files.size() << " files..." << std::endl;
+  cout << "Starting vault conversion of " << (int) files.size()
+       << " files..." << LF;
 
   size_t total_files = files.size();
   size_t current_index = 0;
@@ -401,26 +403,30 @@ aofm_import_vault(string source_dir, string destination_dir,
     return false;
   }
 
-  std::cout << "\nVault conversion completed successfully." << std::endl;
+  cout << "\nVault conversion completed successfully." << LF;
 
   if (aofm_math_count > 0) {
-    std::cout << "AOFM] Total math processing: " << aofm_math_time << "s (" << aofm_math_count << " formulas, avg " << (aofm_math_time / aofm_math_count) << "s)" << std::endl;
+    cout << "AOFM] Total math processing: " << aofm_math_time << "s ("
+         << aofm_math_count << " formulas, avg "
+         << (aofm_math_time / aofm_math_count) << "s)" << LF;
   }
-  std::cout << "AOFM] Total parse_latex_document: " << time_parse_latex_doc << "s" << std::endl;
-  std::cout << "AOFM] Total latex_to_tree: " << time_latex_to_tree << "s" << std::endl;
-  std::cout << "  - kill_space_invaders: " << time_l2t_kill_space << "s" << std::endl;
-  std::cout << "  - parsed_latex_to_tree: " << time_l2t_parsed_latex << "s" << std::endl;
-  std::cout << "  - finalize_doc/preamble: " << time_l2t_finalize_doc << "s" << std::endl;
-  std::cout << "  - handle_matches: " << time_l2t_handle_matches << "s" << std::endl;
-  std::cout << "  - upgrade_tex: " << time_l2t_upgrade_tex << "s" << std::endl;
-  std::cout << "  - finalize_misc/textm: " << time_l2t_finalize_misc << "s" << std::endl;
-  std::cout << "  - drd_correct: " << time_l2t_drd_correct << "s" << std::endl;
-  std::cout << "  - style_check (exists): " << time_l2t_style_check << "s" << std::endl;
-  std::cout << "  - simplify_correct: " << time_l2t_simplify_correct << "s" << std::endl;
-  std::cout << "  - latex_correct: " << time_l2t_latex_correct << "s" << std::endl;
-  std::cout << "  - guess_missing: " << time_l2t_guess_missing << "s" << std::endl;
-  std::cout << "  - postprocess_metadata: " << time_l2t_post_metadata << "s" << std::endl;
-  std::cout << "AOFM] is_document counts: " << count_l2t_is_document << " / " << count_l2t_total << std::endl;
+  cout << "AOFM] Total parse_latex_document: " << time_parse_latex_doc
+       << "s" << LF;
+  cout << "AOFM] Total latex_to_tree: " << time_latex_to_tree << "s" << LF;
+  cout << "  - kill_space_invaders: " << time_l2t_kill_space << "s" << LF;
+  cout << "  - parsed_latex_to_tree: " << time_l2t_parsed_latex << "s" << LF;
+  cout << "  - finalize_doc/preamble: " << time_l2t_finalize_doc << "s" << LF;
+  cout << "  - handle_matches: " << time_l2t_handle_matches << "s" << LF;
+  cout << "  - upgrade_tex: " << time_l2t_upgrade_tex << "s" << LF;
+  cout << "  - finalize_misc/textm: " << time_l2t_finalize_misc << "s" << LF;
+  cout << "  - drd_correct: " << time_l2t_drd_correct << "s" << LF;
+  cout << "  - style_check (exists): " << time_l2t_style_check << "s" << LF;
+  cout << "  - simplify_correct: " << time_l2t_simplify_correct << "s" << LF;
+  cout << "  - latex_correct: " << time_l2t_latex_correct << "s" << LF;
+  cout << "  - guess_missing: " << time_l2t_guess_missing << "s" << LF;
+  cout << "  - postprocess_metadata: " << time_l2t_post_metadata << "s" << LF;
+  cout << "AOFM] is_document counts: " << count_l2t_is_document << " / "
+       << count_l2t_total << LF;
 
   return true;
 }

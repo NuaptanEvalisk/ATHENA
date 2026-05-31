@@ -1,8 +1,7 @@
 #include "aofm_import_vault_internal.hpp"
 
-#include <iostream>
-
 #include "converter.hpp"
+#include "tm_ostream.hpp"
 
 namespace aofm_import_vault_internal {
 
@@ -268,12 +267,12 @@ append_document(tree& out, tree piece) {
 
 void
 report_import_error(const std::string& message) {
-  std::cerr << "aofm2athena: error: " << message << std::endl;
+  cerr << "aofm2athena: error: " << message.c_str () << LF;
 }
 
 void
 report_import_warning(const std::string& message) {
-  std::cerr << "aofm2athena: warning: " << message << std::endl;
+  cerr << "aofm2athena: warning: " << message.c_str () << LF;
 }
 
 bool

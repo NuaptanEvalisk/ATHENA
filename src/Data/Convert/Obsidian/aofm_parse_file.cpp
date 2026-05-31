@@ -1,6 +1,5 @@
 #include <peglib.h>
 #include <fstream>
-#include <iostream>
 #include <memory>
 #include <sstream>
 #include <string>
@@ -11,6 +10,7 @@
 #include "new_data.hpp"
 #include "scheme.hpp"
 #include "tm_configure.hpp"
+#include "tm_ostream.hpp"
 #include "tree.hpp"
 #include "url.hpp"
 #include "aofm_telemetry.hpp"
@@ -227,7 +227,9 @@ aofm_convert_file(const std::string& file_path,
     }
 
     if (aofm_math_count > 0) {
-        std::cout << "AOFM] Math processing: " << aofm_math_time << "s (" << aofm_math_count << " formulas, avg " << (aofm_math_time / aofm_math_count) << "s)" << std::endl;
+        cout << "AOFM] Math processing: " << aofm_math_time << "s ("
+             << aofm_math_count << " formulas, avg "
+             << (aofm_math_time / aofm_math_count) << "s)" << LF;
     }
 
     return true;
@@ -263,8 +265,8 @@ aofm_debug_dump(const std::string& file_path) {
     string serialized = tree_to_texmacs(doc);
     std::string output_path = aofm_output_path_for(file_path);
 
-    std::cout << "--- ATH DUMP BEGIN ---" << std::endl;
-    std::cout << as_charp(serialized) << std::endl;
-    std::cout << "--- ATH DUMP END ---" << std::endl;
-    std::cout << "Saved to: " << output_path << std::endl;
+    cout << "--- ATH DUMP BEGIN ---" << LF;
+    cout << serialized << LF;
+    cout << "--- ATH DUMP END ---" << LF;
+    cout << "Saved to: " << output_path.c_str () << LF;
 }
