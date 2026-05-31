@@ -139,9 +139,7 @@ void QTMApplication::load() {
   mUseNewToolbar = false;
 #endif
 
-#if QT_VERSION >= 0x060000
   mPixmapManagerInitialized = false;
-#endif
 
   init_theme ();
 

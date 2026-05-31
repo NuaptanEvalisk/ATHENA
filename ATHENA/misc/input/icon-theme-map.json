@@ -1,0 +1,345 @@
+{
+  "version": 1,
+  "icons": {
+    "tm_new": {
+      "theme": [
+        "document-new"
+      ],
+      "libreoffice": [
+        "cmd/32/newdoc.svg"
+      ]
+    },
+    "tm_open": {
+      "theme": [
+        "document-open"
+      ],
+      "libreoffice": [
+        "cmd/32/open.svg"
+      ]
+    },
+    "tm_save": {
+      "theme": [
+        "document-save"
+      ],
+      "libreoffice": [
+        "cmd/32/save.svg"
+      ]
+    },
+    "tm_build": {
+      "theme": [
+        "view-refresh",
+        "system-run"
+      ],
+      "libreoffice": [
+        "cmd/32/reload.svg"
+      ]
+    },
+    "tm_print": {
+      "theme": [
+        "document-print"
+      ],
+      "libreoffice": [
+        "cmd/32/print.svg"
+      ]
+    },
+    "tm_preferences": {
+      "theme": [
+        "preferences-system",
+        "configure"
+      ],
+      "libreoffice": [
+        "cmd/32/optionstreedialog.svg"
+      ]
+    },
+    "tm_cancel": {
+      "theme": [
+        "window-close",
+        "document-close"
+      ],
+      "libreoffice": [
+        "cmd/32/closedoc.svg"
+      ]
+    },
+    "tm_cut": {
+      "theme": [
+        "edit-cut"
+      ],
+      "libreoffice": [
+        "cmd/32/cut.svg"
+      ]
+    },
+    "tm_copy": {
+      "theme": [
+        "edit-copy"
+      ],
+      "libreoffice": [
+        "cmd/32/copy.svg"
+      ]
+    },
+    "tm_paste": {
+      "theme": [
+        "edit-paste"
+      ],
+      "libreoffice": [
+        "cmd/32/paste.svg"
+      ]
+    },
+    "tm_find": {
+      "theme": [
+        "edit-find",
+        "system-search"
+      ],
+      "libreoffice": [
+        "cmd/32/searchdialog.svg"
+      ]
+    },
+    "tm_replace": {
+      "theme": [
+        "edit-find-replace",
+        "edit-find"
+      ]
+    },
+    "tm_spell": {
+      "theme": [
+        "tools-check-spelling",
+        "accessories-dictionary"
+      ],
+      "libreoffice": [
+        "cmd/32/spelling.svg"
+      ]
+    },
+    "tm_undo": {
+      "theme": [
+        "edit-undo"
+      ],
+      "libreoffice": [
+        "cmd/32/undo.svg"
+      ]
+    },
+    "tm_redo": {
+      "theme": [
+        "edit-redo"
+      ],
+      "libreoffice": [
+        "cmd/32/redo.svg"
+      ]
+    },
+    "tm_back": {
+      "theme": [
+        "go-previous",
+        "go-previous-view"
+      ],
+      "libreoffice": [
+        "cmd/32/backward.svg"
+      ]
+    },
+    "tm_reload": {
+      "theme": [
+        "view-refresh"
+      ],
+      "libreoffice": [
+        "cmd/32/reload.svg"
+      ]
+    },
+    "tm_forward": {
+      "theme": [
+        "go-next",
+        "go-next-view"
+      ],
+      "libreoffice": [
+        "cmd/32/forward.svg"
+      ]
+    },
+    "tm_bold": {
+      "theme": [
+        "format-text-bold"
+      ],
+      "libreoffice": [
+        "cmd/32/bold.svg"
+      ]
+    },
+    "tm_italic": {
+      "theme": [
+        "format-text-italic"
+      ],
+      "libreoffice": [
+        "cmd/32/italic.svg"
+      ]
+    },
+    "tm_underline": {
+      "theme": [
+        "format-text-underline"
+      ],
+      "libreoffice": [
+        "cmd/32/underline.svg"
+      ]
+    },
+    "tm_table": {
+      "theme": [
+        "x-office-spreadsheet",
+        "insert-table"
+      ],
+      "libreoffice": [
+        "cmd/32/inserttable.svg"
+      ]
+    },
+    "tm_table_left": {
+      "theme": [
+        "format-justify-left"
+      ],
+      "libreoffice": [
+        "cmd/32/alignleft.svg"
+      ]
+    },
+    "tm_table_right": {
+      "theme": [
+        "format-justify-right"
+      ],
+      "libreoffice": [
+        "cmd/32/alignright.svg"
+      ]
+    },
+    "tm_table_hcenter": {
+      "theme": [
+        "format-justify-center"
+      ],
+      "libreoffice": [
+        "cmd/32/aligncenter.svg"
+      ]
+    },
+    "tm_table_parwidth": {
+      "theme": [
+        "format-justify-fill"
+      ],
+      "libreoffice": [
+        "cmd/32/alignblock.svg"
+      ]
+    },
+    "tm_insert_down": {
+      "theme": [
+        "list-add"
+      ],
+      "libreoffice": [
+        "cmd/32/insertrowsafter.svg"
+      ]
+    },
+    "tm_insert_right": {
+      "theme": [
+        "list-add"
+      ],
+      "libreoffice": [
+        "cmd/32/insertcolumnsafter.svg"
+      ]
+    },
+    "tm_delete_down": {
+      "theme": [
+        "list-remove"
+      ],
+      "libreoffice": [
+        "cmd/32/deletetable.svg"
+      ]
+    },
+    "tm_delete_right": {
+      "theme": [
+        "list-remove"
+      ],
+      "libreoffice": [
+        "cmd/32/deletetable.svg"
+      ]
+    },
+    "tm_emphasize": {
+      "theme": [
+        "format-text-italic"
+      ],
+      "libreoffice": [
+        "cmd/32/emphasischarstyle.svg"
+      ]
+    },
+    "tm_strong": {
+      "theme": [
+        "format-text-bold"
+      ],
+      "libreoffice": [
+        "cmd/32/strongemphasischarstyle.svg"
+      ]
+    },
+    "tm_math": {
+      "theme": [
+        "insert-math-expression",
+        "formula"
+      ],
+      "libreoffice": [
+        "cmd/32/insertmath.svg"
+      ]
+    },
+    "tm_image": {
+      "theme": [
+        "insert-image"
+      ],
+      "libreoffice": [
+        "cmd/32/insertgraphic.svg"
+      ]
+    },
+    "tm_link": {
+      "theme": [
+        "insert-link"
+      ],
+      "libreoffice": [
+        "cmd/32/inserthyperlink.svg"
+      ]
+    },
+    "tm_textual": {
+      "theme": [
+        "insert-text",
+        "format-text-rich"
+      ],
+      "libreoffice": [
+        "cmd/32/text.svg"
+      ]
+    },
+    "tm_macro": {
+      "theme": [
+        "application-x-executable",
+        "system-run"
+      ],
+      "libreoffice": [
+        "cmd/32/assignmacro.svg"
+      ]
+    },
+    "tm_switch": {
+      "theme": [
+        "view-list-tree",
+        "object-flip-horizontal"
+      ],
+      "libreoffice": [
+        "cmd/32/switchcontroldesignmode.svg"
+      ]
+    },
+    "tm_shell": {
+      "theme": [
+        "utilities-terminal",
+        "application-x-shellscript"
+      ],
+      "libreoffice": [
+        "cmd/32/shell3d.svg"
+      ]
+    },
+    "tm_enter_image": {
+      "theme": [
+        "insert-image"
+      ],
+      "libreoffice": [
+        "cmd/32/insertgraphic.svg"
+      ]
+    },
+    "tm_exit_image": {
+      "theme": [
+        "window-close",
+        "document-close"
+      ],
+      "libreoffice": [
+        "cmd/32/closedoc.svg"
+      ]
+    }
+  }
+}

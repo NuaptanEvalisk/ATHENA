@@ -574,11 +574,7 @@ qt_ui_element_rep::as_qaction () {
     {
       url    image = open_box<url>(load);
       act = new QTMAction (NULL);
-#if QT_VERSION >= 0x060000
       act->setIcon(tmapp()->icon_manager().getIcon(image));
-#else
-      act->setIcon (QIcon (as_pixmap (*xpm_image (image))));
-#endif
     }
       break;
 
@@ -890,11 +886,7 @@ qt_ui_element_rep::as_qwidget (QWidget* parent_widget) {
         QToolButton* b = new QToolButton(parent_widget);
         
         QTMLazyMenu* lm = new QTMLazyMenu (pw, b, type == pullright_button);
-#if QT_VERSION >= 0x060000
         b->setIcon (tmapp()->icon_manager().getIcon(image));
-#else
-        b->setIcon (QIcon (as_pixmap (*xpm_image (image))));
-#endif
         b->setPopupMode (QToolButton::InstantPopup);
         b->setAutoRaise (true);
         b->setMenu (lm);
@@ -1008,12 +1000,10 @@ qt_ui_element_rep::as_qwidget (QWidget* parent_widget) {
     {
       url image = open_box<url>(load);
       QLabel* l = new QLabel (parent_widget);
-#if QT_VERSION >= 0x060000
       QIcon tmp= tmapp()->icon_manager().getIcon(image);
-      l->setPixmap (tmp.pixmap(tmp.availableSizes().last()));
-#else
-      l->setPixmap (as_pixmap (*xpm_image (image)));
-#endif
+      QList<QSize> sizes= tmp.availableSizes ();
+      QSize size= sizes.isEmpty () ? QSize (17, 17) : sizes.last ();
+      l->setPixmap (tmp.pixmap (size));
       qwid = l;
     }
       break;
@@ -1244,17 +1234,11 @@ qt_ui_element_rep::as_qwidget (QWidget* parent_widget) {
       int i;
       for (i = 0; i < N(tabs); i++) {
         if (is_nil (tabs[i])) break;
-        QImage*       img = xpm_image (icons[i]);
         QWidget* prelabel = concrete (tabs[i])->as_qwidget(tw);
         QLabel*     label = qobject_cast<QLabel*> (prelabel);
         QWidget*     body = concrete (bodies[i])->as_qwidget(tw);
-#if QT_VERSION >= 0x060000
-        tw->addTab(body, QIcon(), label ? label->text() : "");
-	      (void) img;
-	      tw->setTabIcon(i, tmapp()->icon_manager().getIcon (icons[i]));
-#else
-        tw->addTab (body, QIcon (as_pixmap (*img)), label ? label->text() : "");
-#endif
+        tw->addTab (body, tmapp()->icon_manager().getIcon (icons[i]),
+                    label ? label->text() : "");
         delete prelabel;
       }
 

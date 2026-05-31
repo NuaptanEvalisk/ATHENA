@@ -55,11 +55,9 @@ public:
   
   virtual bool notify (QObject* receiver, QEvent* event);
 
-#if QT_VERSION >= 0x060000
   QTMIconManager& icon_manager() {
     return mIconManager;
   }
-#endif
 
   inline QTMKeyboard &keyboard() {
     return mKeyboard;
@@ -95,10 +93,8 @@ public:
 
 private:
   QSplashScreen* mSplash;
-#if QT_VERSION >= 0x060000
   bool mPixmapManagerInitialized;
   QTMIconManager mIconManager;
-#endif
   QTMKeyboard mKeyboard;
   bool mUseTabWindow;
   bool mUseMdi;

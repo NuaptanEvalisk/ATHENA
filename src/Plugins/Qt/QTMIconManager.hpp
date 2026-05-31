@@ -1,7 +1,7 @@
 
 /******************************************************************************
 * MODULE     : QTMIconManager.hpp
-* DESCRIPTION: A Qt6 utility class to manage icons
+* DESCRIPTION: Utility class to manage icons
 * COPYRIGHT  : (C) 2024 Liza Belos, 2025 Gregoire Lecerf
 *******************************************************************************
 * This software falls under the GNU general public license version 3 or later.
@@ -14,12 +14,16 @@
 
 #include <QApplication>
 
-#if QT_VERSION >= 0x060000
-
 #include <QIcon>
 #include <QMap>
+#include <QStringList>
 #include "url.hpp"
 #include "gui.hpp"
+
+struct QTMIconMapping {
+  QStringList theme_names;
+  QStringList libreoffice_paths;
+};
 
 class QTMIconManager {
 
@@ -33,10 +37,15 @@ public:
 
 private:
   QMap<QString, QIcon> icon_table, dark_icon_table;
+  QMap<QString, QTMIconMapping> icon_map;
+  bool icon_map_loaded= false;
+  bool icon_map_warned= false;
   
-  inline const QMap<QString, QIcon>& icon_cache () {
+  void load_icon_map ();
+  void warn_icon_map (const char* message);
+
+  inline QMap<QString, QIcon>& icon_cache () {
     return is_dark_mode () ? dark_icon_table : icon_table; }
 };
 
-#endif // QT_VERSION >= 0x060000
 #endif // ATHENA_QTMICONMANAGER_HPP
