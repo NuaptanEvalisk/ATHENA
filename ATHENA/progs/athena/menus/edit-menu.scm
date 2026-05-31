@@ -116,8 +116,5 @@
   (-> "Export selections as"
       (link clipboard-export-preference-menu))
   ---
-  (if (and (use-menus?) (not (preferences-open?)))
-      (-> "Preferences"
-          (link preferences-menu)))
-  (if (and (use-popups?) (not (preferences-open?)))
+  (if (not (preferences-open?))
       ("Preferences" (open-preferences))))

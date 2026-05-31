@@ -239,10 +239,7 @@
 		    (printer-file-format) "Print:")))
   (if (not (use-print-dialog?))
       (-> "Print" (link print-menu-sub)))
-  (if (use-menus?)
-      (-> "Page setup" (link page-setup-menu)))
-  (if (use-popups?)
-      ("Page setup" (open-page-setup))))
+  ("Page setup" (open-page-setup)))
 
 (menu-bind print-menu-inline
   ("Preview" (preview-buffer))
@@ -255,10 +252,7 @@
       ---
       (link print-menu-sub)
       ---)
-  (if (use-menus?)
-      (-> "Page setup" (link page-setup-menu)))
-  (if (use-popups?)
-      ("Page setup" (open-page-setup))))
+  ("Page setup" (open-page-setup)))
 
 (menu-bind close-menu
   (if (window-per-buffer?)

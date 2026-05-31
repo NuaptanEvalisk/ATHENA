@@ -177,7 +177,6 @@
 (lazy-menu (athena menus view-menu) view-menu athena-bottom-toolbars)
 (lazy-menu (athena menus interface-menu) interface-menu)
 (lazy-menu (athena menus tools-menu) tools-menu)
-(lazy-menu (athena menus preferences-menu) preferences-menu page-setup-menu)
 (lazy-menu (athena menus preferences-widgets)
            preferences-open?
            open-preferences open-plugin-preferences open-plugins-preferences)
@@ -187,7 +186,6 @@
 (lazy-define (athena athena tm-reverse-hierarchy-graph)
              open-reverse-hierarchy-graph insert-reverse-hierarchy-graph)
 (define-secure-symbols reverse-hierarchy-graph-render)
-(lazy-tool (athena menus preferences-tools) preferences-tool)
 (lazy-tool (athena menus view-tools) retina-settings-tool)
 (tm-define (notify-set-attachment name key val) (noop))
 ;(display* "time: " (- (athena-time) boot-start) "\n")

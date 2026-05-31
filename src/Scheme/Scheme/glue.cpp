@@ -46,6 +46,7 @@
 #include "QTMAbout.hpp"
 #include "QTMESCSymbolPicker.hpp"
 #include "QTMFontSelector.hpp"
+#include "QTMPreferencesDialog.hpp"
 #include "ATHENA/Data/image_background.hpp"
 #include "boot.hpp"
 #include "qt_widget.hpp"
@@ -1621,6 +1622,23 @@ tmg_native_font_selector (tmscm arg1, tmscm arg2, tmscm arg3, tmscm arg4) {
 }
 
 tmscm
+tmg_native_open_preferences () {
+  qtm_preferences_dialog_show ();
+  return TMSCM_UNSPECIFIED;
+}
+
+tmscm
+tmg_native_preferences_openP () {
+  return bool_to_tmscm (qtm_preferences_dialog_open ());
+}
+
+tmscm
+tmg_native_open_page_setup () {
+  qtm_page_setup_dialog_show ();
+  return TMSCM_UNSPECIFIED;
+}
+
+tmscm
 tmg_escape_symbol_picker () {
   if (headless_mode) return string_to_tmscm ("");
   return string_to_tmscm (escape_symbol_picker_dialog ());
@@ -1713,6 +1731,12 @@ initialize_glue () {
                            tmg_native_anchor_enunciations_confirm, 3, 0, 0);
   tmscm_install_procedure ("native-font-selector",
                            tmg_native_font_selector, 4, 0, 0);
+  tmscm_install_procedure ("native-open-preferences",
+                           tmg_native_open_preferences, 0, 0, 0);
+  tmscm_install_procedure ("native-preferences-open?",
+                           tmg_native_preferences_openP, 0, 0, 0);
+  tmscm_install_procedure ("native-open-page-setup",
+                           tmg_native_open_page_setup, 0, 0, 0);
   tmscm_install_procedure ("escape-symbol-picker",
                            tmg_escape_symbol_picker, 0, 0, 0);
   tmscm_install_procedure ("ads-restore-visible-panes",

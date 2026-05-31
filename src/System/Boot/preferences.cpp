@@ -34,6 +34,41 @@ hashmap<string,bool> user_prefs_string_default (true);
 url user_prefs_file= "$ATHENA_HOME_PATH/system/preferences.json";
 void notify_preference (string var);
 
+struct builtin_preference {
+  const char* key;
+  const char* def;
+  bool string_def;
+};
+
+static void
+ensure_builtin_user_preferences () {
+  static bool done= false;
+  if (done) return;
+  done= true;
+
+  static const builtin_preference prefs[]= {
+    {"remember ads panes layout", "on", true},
+    {"heading word counts", "off", true},
+    {"latex->texmacs:matrix-recognition", "on", true},
+    {"latex->texmacs:aligned-to-eqnarray", "on", true},
+    {"latex->texmacs:align-to-aligned", "on", true},
+    {"latex->texmacs:operator-d-is-differential", "on", true},
+    {"latex->texmacs:roman-d-is-differential", "on", true},
+    {"latex->texmacs:text-d-is-differential", "on", true},
+    {"latex->texmacs:parse-bbbk", "on", true},
+    {"latex->texmacs:parse-bbbi-as-mathi", "on", true},
+    {"latex->texmacs:text-operators", "on", true},
+    {"image auto remove background", "off", true},
+    {"enunciation color preset", "Solarized Light", true}
+  };
+
+  for (const builtin_preference& pref: prefs)
+    if (!user_prefs_default->contains (pref.key)) {
+      user_prefs_default (pref.key)= pref.def;
+      user_prefs_string_default (pref.key)= pref.string_def;
+    }
+}
+
 static QString
 to_qstring (string s) {
   return QString::fromUtf8 (as_charp (s), N(s));
@@ -60,11 +95,13 @@ with_json_suffix (url u) {
 
 bool
 has_user_preference (string var) {
+  ensure_builtin_user_preferences ();
   return user_prefs->contains (var);
 }
 
 void
 register_user_preference (string var, string def, bool string_def) {
+  ensure_builtin_user_preferences ();
   if (!user_prefs_default->contains (var)) {
     user_prefs_default (var)= def;
     user_prefs_string_default (var)= string_def;
@@ -73,6 +110,7 @@ register_user_preference (string var, string def, bool string_def) {
 
 bool
 user_preference_default_is_string (string var) {
+  ensure_builtin_user_preferences ();
   if (user_prefs_string_default->contains (var))
     return user_prefs_string_default[var];
   return true;
@@ -80,6 +118,7 @@ user_preference_default_is_string (string var) {
 
 void
 set_user_preference (string var, string val) {
+  ensure_builtin_user_preferences ();
   if (val == "default") user_prefs->reset (var);
   else user_prefs (var)= val;
   user_prefs_modified= true;
@@ -88,6 +127,7 @@ set_user_preference (string var, string val) {
 
 void
 reset_user_preference (string var) {
+  ensure_builtin_user_preferences ();
   user_prefs->reset (var);
   user_prefs_modified= true;
   notify_preference (var);
@@ -95,6 +135,7 @@ reset_user_preference (string var) {
 
 string
 get_user_preference (string var, string val) {
+  ensure_builtin_user_preferences ();
   if (user_prefs->contains (var)) return user_prefs[var];
   if (user_prefs_default->contains (var)) return user_prefs_default[var];
   else return val;
@@ -252,6 +293,7 @@ load_user_preferences () {
 
 void
 load_user_preferences (url prefs_file) {
+  ensure_builtin_user_preferences ();
   save_user_preferences ();
   user_prefs= read_user_preferences (prefs_file, user_prefs_file);
   user_prefs_modified= false;
@@ -259,11 +301,13 @@ load_user_preferences (url prefs_file) {
 
 void
 dump_user_preferences (url prefs_file) {
+  ensure_builtin_user_preferences ();
   write_user_preferences (prefs_file);
 }
 
 void
 save_user_preferences () {
+  ensure_builtin_user_preferences ();
   if (!user_prefs_modified) return;
   write_user_preferences (user_prefs_file);
   user_prefs_modified= false;
