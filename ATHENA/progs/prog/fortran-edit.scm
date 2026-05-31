@@ -17,6 +17,8 @@
 
 (texmacs-module (prog fortran-edit)
   (:use (prog prog-edit)))
+(use-modules (kernel athena tm-preferences))
+
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

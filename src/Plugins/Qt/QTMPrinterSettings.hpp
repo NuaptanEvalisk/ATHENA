@@ -145,7 +145,7 @@ protected:
   void systemCommandFinished(int exitCode, QProcess::ExitStatus exitStatus);
   };
 
-#endif  // defined(Q_WS_MAC) || defined (Q_WS_X11)
+#endif
 
 #ifdef Q_OS_WIN
 
@@ -176,6 +176,6 @@ protected:
   void systemCommandFinished(int exitCode, QProcess::ExitStatus exitStatus);
 };
 
-#endif // Q_WS_WIN
+#endif
 
 #endif  // QTMPRINTERSETTINGS_HPP

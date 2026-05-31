@@ -70,9 +70,6 @@ static bool tm_cairo_error      = true;
   cairo_surface_t * (*tm_cairo_ps_surface_create) (const char *filename, double width_in_points, double height_in_points);
 #endif
 
-#ifdef CAIRO_HAS_XLIB_SURFACE
- cairo_surface_t * (*tm_cairo_xlib_surface_create) (Display *dpy, Drawable	drawable, Visual *visual, int width, int height);
-#endif
 
 #ifdef CAIRO_HAS_QUARTZ_SURFACE
   cairo_surface_t * (*tm_cairo_quartz_surface_create_for_cg_context) (CGContextRef cgContext, unsigned int width, unsigned int height);
@@ -142,9 +139,6 @@ tm_cairo_initialize () {
 #ifdef CAIRO_HAS_PS_SURFACE
   CAIRO_LINK(cairo_ps_surface_create, tm_cairo_ps_surface_create);
 #endif
-#ifdef CAIRO_HAS_XLIB_SURFACE
-  CAIRO_LINK(cairo_xlib_surface_create, tm_cairo_xlib_surface_create);
-#endif  
 #ifdef CAIRO_HAS_QUARTZ_SURFACE
   CAIRO_LINK(cairo_quartz_surface_create_for_cg_context, tm_cairo_quartz_surface_create_for_cg_context) ;
 #endif

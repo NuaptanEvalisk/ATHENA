@@ -20,10 +20,8 @@
 #include <QPaintEvent>
 #include <QStyle>
 #include <QApplication>
-#if QT_VERSION >= 0x050000
 #include <QScroller>
 #include <QScrollerProperties>
-#endif
 
 /*! Provide automatic centering of the working area inside the viewport.
  
@@ -73,8 +71,8 @@ protected:
  policy of Fixedl, as in qt_tm_widget_rep (see SLOT_SCROLLABLE there)
  
  NOTE:
- Don't try to disable double buffering even if we do our own: the flag 
- Qt::WA_PaintOnScreen is only supported on X11 and anyway makes things slower
+ Don't try to disable double buffering even if we do our own:
+ Qt::WA_PaintOnScreen is platform-specific and makes things slower.
  */
 QTMScrollView::QTMScrollView (QWidget *_parent):
   QAbstractScrollArea (_parent),
@@ -121,12 +119,10 @@ QTMScrollView::QTMScrollView (QWidget *_parent):
   layout->setContentsMargins(0,0,0,0);
   _viewport->setLayout(layout);
 
-#if QT_VERSION >= 0x050000
   QScrollerProperties properties = QScroller::scroller(this)->scrollerProperties();
   properties.setScrollMetric(QScrollerProperties::VerticalOvershootPolicy, QScrollerProperties::OvershootAlwaysOff);
   properties.setScrollMetric(QScrollerProperties::HorizontalOvershootPolicy, QScrollerProperties::OvershootAlwaysOff);
   QScroller::scroller(this)->setScrollerProperties(properties);
-#endif
 }
 
 void 

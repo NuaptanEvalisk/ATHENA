@@ -13,6 +13,8 @@
 
 (texmacs-module (security wallet wallet-menu)
   (:use (security wallet wallet-base)))
+(use-modules (kernel athena tm-preferences))
+
 
 (when (os-macos?) 
   (use-modules (security keychain macos-security)))

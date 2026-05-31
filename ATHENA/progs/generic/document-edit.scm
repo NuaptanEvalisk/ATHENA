@@ -18,6 +18,8 @@
         (utils library cursor)
         (generic generic-edit)
         (generic document-style)))
+(use-modules (kernel athena tm-preferences))
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Projects

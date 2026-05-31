@@ -55,10 +55,8 @@ public:
   void setAcceptMode (QFileDialog::AcceptMode mode) { file->setAcceptMode(mode); }
   void setViewMode (QFileDialog::ViewMode mode) { file->setViewMode (mode); }
   void setFileMode (QFileDialog::FileMode mode) { file->setFileMode (mode); }
-#if (QT_VERSION >= 0x040400)
   void setNameFilter (const QString& filter) { file->setNameFilter (filter); }
   void setNameFilters (const QStringList& filters) { file->setNameFilters (filters); }
-#endif
   void setDefaultSuffix (const QString& suffix) { file->setDefaultSuffix (suffix); }
   void setLabelText (QFileDialog::DialogLabel label, const QString& text) { file->setLabelText (label, text); }
 };

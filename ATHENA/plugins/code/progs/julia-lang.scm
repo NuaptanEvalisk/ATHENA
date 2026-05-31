@@ -28,6 +28,8 @@
 
 (texmacs-module (julia-lang)
   (:use (prog default-lang)))
+(use-modules (kernel athena tm-preferences))
+
 
 (tm-define (parser-feature lan key)
   (:require (and (== lan "julia") (== key "keyword")))

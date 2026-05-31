@@ -15,6 +15,8 @@
   (:use (client client-base)
         (client client-db)
         (version version-tmfs)))
+(use-modules (kernel athena tm-preferences))
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Directory entries cache (to avoid refetching on sort change)

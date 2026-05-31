@@ -573,7 +573,6 @@ void initkeymap ();
 void
 QTMLineEdit::keyPressEvent (QKeyEvent* ev)
 {
-#if QT_VERSION >= 0x050000
   if (continuous () && ev->matches (QKeySequence::SelectAll)) {
     QLineEdit::keyPressEvent (ev);
     return;
@@ -586,7 +585,6 @@ QTMLineEdit::keyPressEvent (QKeyEvent* ev)
           QLineEdit::keyPressEvent (ev);
       }
   }
-#endif
  
   QCompleter* c = completer();
   

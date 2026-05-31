@@ -13,6 +13,8 @@
 
 (texmacs-module (python-lang)
   (:use (prog default-lang)))
+(use-modules (kernel athena tm-preferences))
+
 
 (tm-define (parser-feature lan key)
   (:require (and (== lan "python") (== key "keyword")))

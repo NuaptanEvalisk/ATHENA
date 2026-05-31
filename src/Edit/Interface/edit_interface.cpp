@@ -247,9 +247,6 @@ edit_interface_rep::get_window_width () {
     if (medium == "automatic" || medium == "beamer") sb= false;
   }
   if (sb) w -= scrollbar_width ();
-#if defined(QTTEXMACS) && !defined(Q_OS_MAC) && (QT_VERSION < 0x050000)
-  w= (SI) (w / retina_zoom);
-#endif
   return w;
 }
 
@@ -258,9 +255,6 @@ edit_interface_rep::get_window_height () {
   SI w, h;
   widget me= ::get_canvas (widget (cvw));
   ::get_size (me, w, h);
-#if defined(QTTEXMACS) && !defined(Q_OS_MAC) && (QT_VERSION < 0x050000)
-  h= (SI) (h / retina_zoom);
-#endif
   return h;
 }
 
@@ -893,33 +887,15 @@ edit_interface_rep::apply_changes () {
     SI w, h;
     widget me= ::get_canvas (widget (cvw));
     ::get_size (me, w, h);
-#ifdef X11TEXMACS
-    w -= 2*PIXEL;
-    h -= 2*PIXEL;
-#endif
     if (cur_sb && ey2 - ey1 > h) w -= scrollbar_width ();
     if (cur_sb && ex2 - ex1 > w) h -= scrollbar_width ();
     if (ex2 - ex1 <= w + 2*PIXEL) {
       if (medium == "automatic")
         ex2= ex1 + w;
-      else {
-#ifdef X11TEXMACS
-        ex1= (ex1 + ex2 - w) / 2;
-        abs_round (ex1);
-        ex2= ex1 + w;
-#endif
-      }
     }
     if (ey2 - ey1 <= h + 2*PIXEL) {
       if (medium == "papyrus" || medium == "automatic")
         ey1= ey2 - h;
-      else {
-#ifdef X11TEXMACS
-        ey1= (ey1 + ey2 - h) / 2;
-        abs_round (ey1);
-        ey2= ey1 + h;
-#endif
-      }
     }
     if (get_user_preference ("typewriter mode", "off") == "on" &&
         (medium == "papyrus" || medium == "automatic") && h > 0)

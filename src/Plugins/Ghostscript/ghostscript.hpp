@@ -12,16 +12,4 @@
 #ifndef GHOSTSCRIPT_H
 #define GHOSTSCRIPT_H
 
-#ifdef X11TEXMACS
-
-#include "url.hpp"
-#include <X11/Xlib.h>
-#include <X11/Xatom.h>
-
-bool ghostscript_bugged ();
-void ghostscript_run (Display* dpy, Window gs_win, Pixmap pm,
-		      url image, SI w, SI h);
-
-#endif // X11TEXMACS
-
 #endif // GHOSTSCRIPT_H

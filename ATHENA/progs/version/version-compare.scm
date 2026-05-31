@@ -13,6 +13,8 @@
 
 (texmacs-module (version version-compare)
   (:use (version version-edit)))
+(use-modules (kernel athena tm-preferences))
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Versioning grain

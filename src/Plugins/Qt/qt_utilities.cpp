@@ -106,9 +106,6 @@ to_qfont (int style, QFont font) {
 
 double
 em_factor () {
-#if (QT_VERSION < 0x050000)
-  if (tm_style_sheet == "") return 1.0 / 1.4;
-#endif
   return 1.0;
 }
 
@@ -498,13 +495,9 @@ qt_image_to_pdf (url image, url outfile, int w_pt, int h_pt, int dpi) {
   printer.setPageOrientation(QPageLayout::Portrait);
 #endif
   if (suffix(outfile)=="eps") {
-#if (QT_VERSION >= 0x050000)
     //note that PostScriptFormat is gone in Qt5. a substitute?: http://soft.proindependent.com/eps/
     cout << "ATHENA] warning: PostScript format no longer supported in Qt5\n";
     printer.setOutputFormat(QPrinter::PdfFormat);
-#else    
-    printer.setOutputFormat(QPrinter::PostScriptFormat);
-#endif
   }
   else printer.setOutputFormat(QPrinter::PdfFormat);
   printer.setFullPage(true);
@@ -668,11 +661,7 @@ qt_image_to_eps (url image, int w_pt, int h_pt, int dpi) {
 QPixmap
 as_pixmap (const QImage& im) {
   QPixmap pm (im.size ());
-#if (QT_VERSION >= 0x040700)
   pm.convertFromImage (im);
-#else
-  pm.fromImage (im);
-#endif
   return pm;
 }
 
@@ -786,11 +775,7 @@ qt_get_date (string lan, string fm) {
     return buf;
   }
   QLocale loc = QLocale (to_qstring (language_to_locale(lan)));
-#if (QT_VERSION >= 0x040400)
   QString date = loc.toString (localtime, to_qstring (fm));
-#else
-  QString date = localtime.toString (to_qstring (fm));
-#endif
   return from_qstring (date);
 }
 
@@ -814,7 +799,6 @@ qt_pretty_date (int t, string fm) {
 #endif
 
   QLocale loc = QLocale (to_qstring (get_locale_language ()));
-#if (QT_VERSION >= 0x040400)
   QString s ("");
   if (fm == "short") {
     s = loc.toString (dt.date (), QLocale::FormatType::ShortFormat);
@@ -823,9 +807,6 @@ qt_pretty_date (int t, string fm) {
   } else {
     s = loc.toString (dt.date (), to_qstring (fm));
   }
-#else
-  QString s = dt.date ().toString ("MMM dd yyyy");
-#endif
   return from_qstring (s);
 }
 
@@ -1071,9 +1052,6 @@ init_style_sheet (QApplication* app) {
     ss= replace (ss, "\n", " ");
     ss= replace (ss, "\t", " ");
     ss= replace (ss, "$ATHENA_PATH", p);
-#if (QT_VERSION < 0x050000)
-    ss= replace (ss, "Qt4", "");
-#endif
 #ifdef OS_MACOS
     ss= replace (ss, "Macos", "");
 #else

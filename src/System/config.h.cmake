@@ -77,10 +77,6 @@
 /* Define to 1 if you have the <util.h> header file. */
 #cmakedefine HAVE_UTIL_H 1
 
-#cmakedefine HAVE_X11_XLIB_H 1
-
-#cmakedefine HAVE_X11_XUTIL_H 1
-
 /* Link axel library with TeXmacs */
 #cmakedefine LINKED_AXEL 1
 
@@ -168,9 +164,6 @@
 
 #cmakedefine USE_STACK_TRACE 1
 
-/* Define to 1 if the X Window System is missing or not being used. */
-#cmakedefine X_DISPLAY_MISSING 1
-
 /* Guile string size type */
 #define guile_str_size_t @guile_str_size_t@
 
@@ -193,4 +186,3 @@
 #define STACK_SIZE @STACK_SIZE@
 
 #endif // CONFIG_H
-

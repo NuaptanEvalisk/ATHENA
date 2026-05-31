@@ -313,32 +313,6 @@ QTMWidget::inputMethodEvent (QInputMethodEvent* event) {
   
   if (!commit_string.isEmpty()) {
     bool done= false;
-#ifdef OS_MACOS
-#if (QT_VERSION < 0x050000)
-    // NOTE: this hack is only needed for Qt4 under MacOS,
-    // but it only works for standard US keyboards
-    done= true;
-    string s= from_qstring (commit_string);
-    Qt::KeyboardModifiers SA= Qt::ShiftModifier | Qt::AltModifier;
-    if (s == "\17") kbdEvent (36, Qt::AltModifier, commit_string);
-    else if (s == "<ddagger>") kbdEvent (38, Qt::AltModifier, commit_string);
-    else if (s == "<leq>") kbdEvent (44, Qt::AltModifier, commit_string);
-    else if (s == "<geq>") kbdEvent (46, Qt::AltModifier, commit_string);
-    else if (s == "<trademark>") kbdEvent (50, Qt::AltModifier, commit_string);
-    else if (s == "<infty>") kbdEvent (53, Qt::AltModifier, commit_string);
-    else if (s == "<ldots>") kbdEvent (59, Qt::AltModifier, commit_string);
-    else if (s == "<#20AC>") kbdEvent (64, Qt::AltModifier, commit_string);
-    else if (s == "<partial>") kbdEvent (68, Qt::AltModifier, commit_string);
-    else if (s == "<#192>") kbdEvent (70, Qt::AltModifier, commit_string);
-    else if (s == "<dagger>") kbdEvent (84, Qt::AltModifier, commit_string);
-    else if (s == "<sqrt>") kbdEvent (86, Qt::AltModifier, commit_string);
-    else if (s == "\35") kbdEvent (94, Qt::AltModifier, commit_string);
-    else if (s == "\31") kbdEvent (66, SA, commit_string);
-    else if (s == "<lozenge>") kbdEvent (89, SA, commit_string);
-    else done= false;
-#endif
-#endif
-    
     if (!done) {
       if (DEBUG_QT)
         debug_qt << "IM committing: " << commit_string.toUtf8().data() << LF;
@@ -461,7 +435,6 @@ QTMWidget::mouseMoveEvent (QMouseEvent* event) {
   event->accept();
 }
 
-#if (QT_VERSION >= 0x050000)
 static unsigned int
 tablet_state (QTabletEvent* event, bool flag) {
   unsigned int i= 0;
@@ -540,7 +513,6 @@ QTMWidget::tabletEvent (QTabletEvent* event) {
   */
   event->accept();
 }
-#endif
 
 void
 QTMWidget::gestureEvent (QGestureEvent* event) {
@@ -580,7 +552,6 @@ QTMWidget::gestureEvent (QGestureEvent* event) {
     s= "pinch";
     hotspot = pinch->hotSpot ();
     QPinchGesture::ChangeFlags changeFlags = pinch->changeFlags();
-#if (QT_VERSION >= 0x050000)
     if (pinch->state() == Qt::GestureStarted) {
       pinch->setRotationAngle (0.0);
       pinch->setScaleFactor (1.0);
@@ -601,39 +572,6 @@ QTMWidget::gestureEvent (QGestureEvent* event) {
       s= "scale";
       data << ((double) scale);
     }
-#else
-    if (pinch->state() == Qt::GestureStarted) {
-      QPoint point (hotspot.x(), hotspot.y());
-      coord2 pt = from_qpoint (point);
-      the_gui->process_mouse (tm_widget(), "pinch-start", pt.x1, pt.x2, 
-                              0, texmacs_time ());
-    }
-    if (changeFlags & QPinchGesture::RotationAngleChanged) {
-      qreal a1 = pinch->lastRotationAngle();
-      qreal a2 = pinch->rotationAngle();
-      if (a2 != a1) {
-        s= "rotate";
-        data << ((double) a2);
-      }
-    }
-    else if (changeFlags & QPinchGesture::ScaleFactorChanged) {
-      qreal s1 = pinch->lastScaleFactor();
-      qreal s2 = pinch->scaleFactor();
-      if (s1 != s2) {
-        s= "scale";
-        data << ((double) s2);
-      }
-      else {
-        pinch->setScaleFactor (1.0);
-        s= "pinch-end";
-      }
-    }
-    else if (pinch->state() == Qt::GestureFinished) {
-      pinch->setRotationAngle (0.0);
-      pinch->setScaleFactor (1.0);
-      s= "pinch-end";
-    }
-#endif
   }
   else return;
   QPoint point (hotspot.x(), hotspot.y());
@@ -671,7 +609,6 @@ QTMWidget::event (QEvent* event) {
   return QTMScrollView::event (event);
 }
 
-#if QT_VERSION >= 0x050000
 QTMWidget *last_focused_widget = nullptr;
 
 QTMWidget *QTMWidget::getLastFocusedWidget() {
@@ -693,15 +630,12 @@ void QTMWidget::setFocusToLast() {
   the_gui->process_keyboard_focus (last_focused_widget->tm_widget(),
                                    true, texmacs_time());
 }
-#endif
 
 void
 QTMWidget::focusInEvent (QFocusEvent * event) {
-#if QT_VERSION >= 0x050000
   if (!is_nil (tmwid)) {
     last_focused_widget = this;
   }
-#endif
   if (!is_nil (tmwid)) {
     if (DEBUG_QT) debug_qt << "FOCUSIN: " << tm_widget()->type_as_string() << LF;
     the_gui->process_keyboard_focus (tm_widget(), true, texmacs_time());
@@ -794,9 +728,7 @@ QTMWidget::dropEvent (QDropEvent *event) {
 #endif
         string extension = suffix (name);
         if ((extension == "eps") || (extension == "ps")   ||
-#if (QT_VERSION >= 0x050000)
             (extension == "svg") ||
-#endif
             (extension == "pdf") || (extension == "png")  ||
             (extension == "jpg") || (extension == "jpeg")) {
           string w, h;
@@ -926,13 +858,7 @@ QTMWidget::wheelEvent(QWheelEvent *event) {
 #else
     QPoint  point= event->pos() + origin();
 #endif
-#if (QT_VERSION >= 0x050000)
     QPoint  wheel= event->pixelDelta();
-#else
-    double delta= event->delta();
-    bool   hor  = event->orientation() == Qt::Horizontal;
-    QPoint wheel (hor? delta: 0.0, hor? 0.0: delta);
-#endif
     coord2 pt = from_qpoint (point);
     coord2 wh = from_qpoint (wheel);
     unsigned int mstate= wheel_state (event);
@@ -975,7 +901,6 @@ QTMWidget::wheelEvent(QWheelEvent *event) {
   }
   else {
     if (get_user_preference("inertial scrolling") == "on") {
-#if QT_VERSION >= 0x050000
       QPoint numPixels = event->pixelDelta();
       QPoint numDegrees = event->angleDelta() / 8;
       double dx = 0, dy = 0;
@@ -986,12 +911,6 @@ QTMWidget::wheelEvent(QWheelEvent *event) {
         dx = numDegrees.x();
         dy = numDegrees.y();
       }
-#else
-      double delta = event->delta();
-      bool hor = event->orientation() == Qt::Horizontal;
-      double dx = hor ? delta : 0;
-      double dy = hor ? 0 : delta;
-#endif
       mInertiaFriction = as_double(get_user_preference("inertial scrolling friction", "0.90"));
       double sensitivity = as_double(get_user_preference("inertial scrolling sensitivity", "1.0"));
       mInertiaVelocityX += dx * 0.15 * sensitivity;

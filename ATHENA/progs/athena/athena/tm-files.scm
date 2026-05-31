@@ -18,6 +18,8 @@
         (athena athena tm-vault-anchors)
         (kernel athena tm-dialogue)
         (utils library cursor)))
+(use-modules (kernel athena tm-preferences))
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Supplementary routines on urls, taking into account the TeXmacs file system

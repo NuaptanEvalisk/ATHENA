@@ -13,6 +13,8 @@
 
 (texmacs-module (athena keyboard config-kbd)
   (:use (athena athena tm-server)))
+(use-modules (kernel athena tm-preferences))
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Bypassing the pre-edit mechanism

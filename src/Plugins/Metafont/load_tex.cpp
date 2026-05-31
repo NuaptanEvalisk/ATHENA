@@ -18,10 +18,6 @@
 #include "tm_timer.hpp"
 #include "data_cache.hpp"
 
-#ifdef OS_WIN32
-#include <x11/xlib.h>
-#endif
-
 /*
  For certain LaTeX fonts, it is possible to have non integer font sizes, 
  by multiplying the font size by 100. For instance, larm10 would be equivalent

@@ -123,7 +123,7 @@ static void
 backup_child (std::string source, std::string target) {
   bool ok= compress_file_zstd (fs::path (source), fs::path (target));
   if (ok)
-    cerr << "ATHENA] vault backup: saved pre-save copy to "
+    cout << "ATHENA] vault backup: saved pre-save copy to "
          << target.c_str () << LF;
   else
     cerr << "ATHENA] vault backup: failed to save pre-save copy of "

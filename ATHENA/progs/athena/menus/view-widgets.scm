@@ -48,20 +48,6 @@
 
 (tm-widget (retina-settings-widget cmd)
   (centered
-    (assuming (and (os-macos?) (qt4-gui?))
-      (centered
-	(aligned
-	  (item (text "Use retina fonts:")
-	    (toggle (set-retina-boolean-preference "retina-factor" answer)
-		    (get-retina-boolean-preference "retina-factor")))
-	  (item (text "Use retina icons:")
-	    (toggle (set-retina-boolean-preference "retina-icons" answer)
-		    (get-retina-boolean-preference "retina-icons")))
-          (item (text "Scale graphical interface:")
-            (enum (set-retina-preference "retina-scale" answer)
-                  '("1" "1.2" "1.4" "1.6" "1.8" "2" "")
-                  (get-retina-preference "retina-scale")
-                  "5em")))))
     (assuming (and (os-macos?) (qt5-or-later-gui?))
       (centered
         (aligned

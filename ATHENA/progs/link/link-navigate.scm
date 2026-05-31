@@ -14,6 +14,8 @@
 (texmacs-module (link link-navigate)
   (:use (utils library cursor) (link link-edit) (link link-extern)
         (generic generic-edit)))
+(use-modules (kernel athena tm-preferences))
+
 
 (tm-define (heading-fold-toggle-tree t)
   (:type (-> tree void))

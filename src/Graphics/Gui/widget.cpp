@@ -239,7 +239,7 @@ bool use_left_tools= false;
 
 array<SI>
 get_widget_size (widget w) {
-  // FIXME: this does not work yet (nor under Qt, nor under X11)
+  // FIXME: this does not work yet.
   SI width, height;
   get_size (w, width, height);
   return array<SI> (width, height);

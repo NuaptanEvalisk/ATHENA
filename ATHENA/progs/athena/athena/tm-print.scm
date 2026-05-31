@@ -15,6 +15,8 @@
   (:use (athena athena tm-files)
         (athena athena tm-data-art)
         (utils library cursor)))
+(use-modules (kernel athena tm-preferences))
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Try to obtain the papersize in this order from

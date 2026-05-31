@@ -96,9 +96,7 @@
 ;; (set! primitive-load new-primitive-load)
 
 ;(display "Booting TeXmacs kernel functionality\n")
-(if (and (os-mingw?) (string= (gui-version) "qt4"))
-    (load "kernel/boot/boot.scm")
-    (load (url-concretize "$ATHENA_PATH/progs/kernel/boot/boot.scm")))
+(load (url-concretize "$ATHENA_PATH/progs/kernel/boot/boot.scm"))
 (inherit-modules (kernel boot compat) (kernel boot abbrevs)
                  (kernel boot debug) (kernel boot srfi)
                  (kernel boot ahash-table) (kernel boot prologue))

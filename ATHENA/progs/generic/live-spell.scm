@@ -13,6 +13,8 @@
 
 (texmacs-module (generic live-spell)
   (:use (kernel library list)))
+(use-modules (kernel athena tm-preferences))
+
 
 (define spell-live-serial 0)
 (define spell-live-engine-active? #f)

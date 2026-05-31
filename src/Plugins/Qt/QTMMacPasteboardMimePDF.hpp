@@ -13,9 +13,6 @@
 // The QMacPasteboardMimePDF class is instantiated in QTMApplication
 // and provides the necessary support.
 //
-// code from:
-// https://www.lyx.org/trac/browser/lyxsvn/lyx-devel/trunk/src/frontends/qt4/GuiApplication.cpp?rev=24894
-
 // (mg) I'm not sure this is the right place to have this code, but well...
 
 class QMacPasteboardMimePDF : public QMacPasteboardMime

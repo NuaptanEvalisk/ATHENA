@@ -78,7 +78,6 @@
 #include "MacOS/mac_utilities.h"
 #endif
 
-#if (QT_VERSION >= 0x050000)
 #include <QtPlugin>
 
 #ifdef qt_static_plugin_xcb
@@ -102,7 +101,6 @@ Q_IMPORT_PLUGIN(qsvg)
 //#endif
 #ifdef QT_MAC_USE_COCOA
 Q_IMPORT_PLUGIN(QCocoaIntegrationPlugin)
-#endif
 #endif
 
 qt_gui_rep* the_gui = NULL;
@@ -157,7 +155,7 @@ needing_update (false)
 #if defined(QT_MAC_USE_COCOA) \
   || (defined(OS_MACOS) && QT_VERSION >= 0x060000)
     //HACK: this filter is needed to overcome a bug in Qt/Cocoa
-  extern void mac_install_filter(); // defined in src/Plugins/MacOS/mac_app.mm
+  extern void mac_install_filter();
   mac_install_filter();
 #endif
   
@@ -185,19 +183,7 @@ needing_update (false)
           
     if (mac_hidpi == 2) {
       if (DEBUG_STD) debug_boot << "Setting up HiDPI mode\n";
-#   if (QT_VERSION < 0x050000)
-      retina_factor= 2;
-      if (tm_style_sheet == "") retina_scale = 1.4;
-      else retina_scale = 1.0;
-      if (!retina_iman) {
-        retina_iman  = true;
-        retina_icons = 2;
-        // retina_icons = 1;
-        // retina_icons = 2;  // FIXME: why is this not better?
-      }
-#   else
       retina_factor= 2;      
-#   endif
     }
 #  else
     double dpr = 1.0;
@@ -699,11 +685,7 @@ gui_version () {
 #if (QT_VERSION >= 0x060000)
   return "qt6";
 #else
-#if (QT_VERSION >= 0x050000)
   return "qt5";
-#else
-  return "qt4";
-#endif
 #endif
 }
 

@@ -43,10 +43,6 @@
 #include "Freetype/tt_file.hpp"
 #include "ATHENA/Data/vault_maintenance.hpp"
 
-#ifdef AQUATEXMACS
-void mac_fix_paths ();
-#endif
-
 #ifdef QTTEXMACS
 #include "Qt/QTMApplication.hpp"
 #include "Qt/qt_utilities.hpp"
@@ -55,10 +51,6 @@ void mac_fix_paths ();
 
 #ifdef MACOSX_EXTENSIONS
 #include "MacOS/mac_utilities.h"
-#endif
-
-#if defined(X11TEXMACS) && defined(MACOSX_EXTENSIONS)
-#include "MacOS/mac_app.h"
 #endif
 
 extern bool   char_clip;
@@ -330,11 +322,7 @@ void ATHENA_init_font() {
 void
 ATHENA_init_paths (int& argc, char** argv) {
   (void) argc; (void) argv;
-#if defined(QTTEXMACS) && QT_VERSION < 0x050000
-  url exedir = url_system (qt_application_directory ());
-#else
   url exedir = texmacs_get_application_directory();
-#endif
 
   string current_athena_path = get_env ("ATHENA_PATH");
 
@@ -347,12 +335,8 @@ ATHENA_init_paths (int& argc, char** argv) {
   // so just allow everything that is reachable.
         
   // plugins need to be installed in TeXmacs.app/Contents/Plugins        
-#if QT_VERSION < 0x050000
-  QCoreApplication::addLibraryPath( QDir::cleanPath(QCoreApplication::applicationDirPath().append("/../Plugins")) );
-#else
   string plugins_path = concretize (exedir * "../Plugins");
   QCoreApplication::addLibraryPath(QString::fromUtf8(&plugins_path[0], N(plugins_path)));
-#endif
   // cout << from_qstring ( QCoreApplication::libraryPaths () .join("\n") ) << LF;
   {
     // ensure that private versions of the Qt frameworks have priority on
@@ -370,7 +354,7 @@ ATHENA_init_paths (int& argc, char** argv) {
   }
 #endif
 
-#if defined(AQUATEXMACS) || defined(Q_OS_MAC) || (defined(X11TEXMACS) && defined (MACOSX_EXTENSIONS))
+#ifdef Q_OS_MAC
   // Mac bundle environment initialization
   // We set some environment variables when the executable
   // is in a .app bundle on MacOSX
@@ -749,8 +733,8 @@ set_global_options  (int argc, char** argv)  {
   // End options via environment variables
 
   // Further user preferences
-  string native= (gui_version () == "qt4"? string ("on"): string ("off"));
-  string unify = (gui_version () == "qt4"? string ("on"): string ("off"));
+  string native= "off";
+  string unify = "off";
   string mini  = (os_macos ()? string ("off"): string ("on"));
   if (tm_style_sheet != "") mini= "off";
 #if (defined(OS_MACOS) && QT_VERSION < 0x060000) || defined(qt_no_fontconfig)
@@ -900,15 +884,6 @@ boot_hacks () {
   //printf ("max: %i\n", lims.rlim_max);
 #ifdef MACOSX_EXTENSIONS
   mac_fix_yosemite_bug();
-#endif
-
-#ifdef QTTEXMACS
-#if defined(MAC_OS_X_VERSION_10_9) || defined(MAC_OS_X_VERSION_10_10)
-#if QT_VERSION <= QT_VERSION_CHECK(4,8,5)
-  // Work around Qt bug: https://bugreports.qt-project.org/browse/QTBUG-32789
-  QFont::insertSubstitution (".Lucida Grande UI", "Lucida Grande");
-#endif
-#endif
 #endif
 
 #endif

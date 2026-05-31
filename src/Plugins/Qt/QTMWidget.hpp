@@ -58,10 +58,8 @@ signals:
 
 public:
   bool isPreediting () { return preediting; }
-#if QT_VERSION >= 0x050000
   static QTMWidget *getLastFocusedWidget();
   static void setFocusToLast();
-#endif
 #if QT_VERSION >= 0x060000
 protected slots:
   void devicePixelRatioChanged ();
@@ -85,9 +83,7 @@ protected:
   virtual void mousePressEvent (QMouseEvent* event) override;
   virtual void mouseReleaseEvent (QMouseEvent* event) override;
   virtual void mouseMoveEvent (QMouseEvent* event) override;
-#if (QT_VERSION >= 0x050000)
   virtual void tabletEvent (QTabletEvent* event) override;
-#endif
   virtual void gestureEvent (QGestureEvent* event);
   virtual void resizeEvent (QResizeEvent* event) override;
   virtual void resizeEventBis () override;

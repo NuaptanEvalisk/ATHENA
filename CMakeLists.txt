@@ -69,11 +69,7 @@ set (ATHENA_REVISION ${ATHENA_VERSION})
 ### Options
 ### --------------------------------------------------------------------
 if (NOT ATHENA_GUI)
-  if (APPLE)
-    set (ATHENA_GUI "Qt4" CACHE STRING "ATHENA Gui (Qt, X11, Aqua)")
-  else (APPLE)
-    set (ATHENA_GUI "Qt" CACHE STRING "ATHENA Gui (Qt, X11, Aqua)")
-  endif (APPLE)
+  set (ATHENA_GUI "Qt" CACHE STRING "ATHENA Gui (Qt or Qt6)")
 endif (NOT ATHENA_GUI)
 
 find_package (mimalloc REQUIRED)
@@ -164,7 +160,6 @@ include (CheckIncludeFile)
 include (CheckTypeSize)
 include (FindPkgConfig)
 include (CheckCSourceCompiles)
-include (FindX11)
 
 pkg_check_modules (SPDLOG REQUIRED IMPORTED_TARGET spdlog)
 
@@ -198,8 +193,6 @@ check_include_file (strings.h HAVE_STRINGS_H)
 check_include_file (string.h HAVE_STRING_H)
 check_include_file (sys/stat.h HAVE_SYS_STAT_H)
 check_include_file (unistd.h HAVE_UNISTD_H)
-check_include_file (X11/Xlib.h HAVE_X11_XLIB_H)
-check_include_file (X11/Xutil.h HAVE_X11_XUTIL_H)
 check_include_file (pty.h HAVE_PTY_H)
 check_include_file (util.h HAVE_UTIL_H)
 check_function_exists (gettimeofday HAVE_GETTIMEOFDAY)
@@ -284,7 +277,6 @@ if (${CMAKE_SYSTEM_NAME} STREQUAL "SunOS")
   set (CONFIG_CXXOPTIMIZE "-O3 -fexpensive-optimizations")
   set (CONFIG_CXXOPTIMIZE "-O3")
   set (CONFIG_BPATH "-Wl,-R,")
-  #  SET(X11_LDFLAGS "${X_LIBS} -lXext -lX11 -lsocket")
 endif (${CMAKE_SYSTEM_NAME} STREQUAL "SunOS")
 
 if (${CMAKE_SYSTEM_NAME} STREQUAL "CYGWIN_NT-5.1")
@@ -557,8 +549,6 @@ set (ATHENA_All_SRCS ${ATHENA_Base_SRCS}  ${ATHENA_Std_Plugins_SRCS})
 ### GUI Interfaces
 ### --------------------------------------------------------------------
 
-file (GLOB_RECURSE ATHENA_Widkit_SRCS "${ATHENA_SOURCE_DIR}/src/Plugins/Widkit/*.cpp")
-file (GLOB_RECURSE ATHENA_X11_SRCS "${ATHENA_SOURCE_DIR}/src/Plugins/X11/*.cpp")
 file (GLOB_RECURSE ATHENA_Qt_SRCS CONFIGURE_DEPENDS "${ATHENA_SOURCE_DIR}/src/Plugins/Qt/*.cpp")
 
 set (ATHENA_Qt_Moc_HDRS
@@ -578,18 +568,6 @@ set (ATHENA_Qt_Moc_HDRS
   ${ATHENA_SOURCE_DIR}/src/Plugins/Qt/QTMVaultChooser.hpp
   ${ATHENA_SOURCE_DIR}/src/Plugins/Qt/QTMWidget.hpp
   ${ATHENA_SOURCE_DIR}/src/Plugins/Qt/QTMWindow.hpp
-)
-
-set (ATHENA_Cocoa_SRCS
-  ${ATHENA_SOURCE_DIR}/src/Plugins/Cocoa/aqua_dialogues.mm
-  ${ATHENA_SOURCE_DIR}/src/Plugins/Cocoa/aqua_gui.mm
-  ${ATHENA_SOURCE_DIR}/src/Plugins/Cocoa/aqua_menu.mm
-  ${ATHENA_SOURCE_DIR}/src/Plugins/Cocoa/aqua_renderer.mm
-  ${ATHENA_SOURCE_DIR}/src/Plugins/Cocoa/aqua_utilities.mm
-  ${ATHENA_SOURCE_DIR}/src/Plugins/Cocoa/aqua_widget.mm
-  ${ATHENA_SOURCE_DIR}/src/Plugins/Cocoa/mac_utilities.mm
-  ${ATHENA_SOURCE_DIR}/src/Plugins/Cocoa/TMButtonsController.m
-  ${ATHENA_SOURCE_DIR}/src/Plugins/Cocoa/TMView.mm
 )
 
 set (ATHENA_MacOS_SRCS
@@ -644,16 +622,9 @@ endif (LINKED_GNUTLS)
 
 set (GUI_TYPE) # nothing or WIN32, MACOSX bundles are treated independetly
 
-if (ATHENA_GUI MATCHES "Qt.*")
+if (ATHENA_GUI STREQUAL "Qt" OR ATHENA_GUI STREQUAL "Qt5" OR ATHENA_GUI STREQUAL "Qt6")
 
-  if (ATHENA_GUI STREQUAL "Qt4")
-    find_package (Qt4 REQUIRED)
-    set (ATHENA_Include_Dirs
-      ${ATHENA_Include_Dirs}
-      ${QT_INCLUDE_DIR}
-    )
-    include (${QT_USE_FILE})
-  elseif (ATHENA_GUI STREQUAL "Qt6")
+  if (ATHENA_GUI STREQUAL "Qt6")
     find_package (Qt6 COMPONENTS Core Gui Widgets PrintSupport Svg Network Core5Compat REQUIRED)
     set (QT_LIBRARIES Qt6::Core Qt6::Gui Qt6::Widgets Qt6::PrintSupport Qt6::Svg Qt6::Network Qt6::Core5Compat)
 
@@ -670,10 +641,7 @@ if (ATHENA_GUI MATCHES "Qt.*")
     if (Qt6_POSITION_INDEPENDENT_CODE)
       set (CMAKE_POSITION_INDEPENDENT_CODE ON)
     endif (Qt6_POSITION_INDEPENDENT_CODE)
-    if (APPLE)
-      add_definitions ("-DQ_WS_MAC")
-    endif (APPLE)
-  else (ATHENA_GUI STREQUAL "Qt4")
+  else ()
     # Homebrew installs Qt5 in /usr/local/opt/qt5
     if (APPLE AND EXISTS /usr/local/opt/qt5)
       list (APPEND CMAKE_PREFIX_PATH "/usr/local/opt/qt5")
@@ -749,10 +717,7 @@ if (ATHENA_GUI MATCHES "Qt.*")
       endif ()
     endif ()
 
-    if (APPLE)
-      add_definitions ("-DQ_WS_MAC")
-    endif (APPLE)
-  endif (ATHENA_GUI STREQUAL "Qt4")
+  endif ()
 
   add_definitions (${QT_DEFINITIONS})
   add_definitions ("-DQTTEXMACS")
@@ -803,43 +768,12 @@ if (ATHENA_GUI MATCHES "Qt.*")
       BUILD_RPATH ""
       INSTALL_RPATH "")
   endif ()
-elseif (ATHENA_GUI STREQUAL "Aqua")
-  find_library (COCOA_LIBRARY Cocoa)
-  find_path (COCOA_INCLUDE_DIR Cocoa/Cocoa.h)
-  set (ATHENA_Include_Dirs
-    ${ATHENA_Include_Dirs}
-    ${COCOA_INCLUDE_DIR}
-  )
-  set (ATHENA_All_SRCS ${ATHENA_All_SRCS} ${ATHENA_Cocoa_SRCS})
-  set (ATHENA_Libraries ${ATHENA_Libraries} ${COCOA_LIBRARY})
-
-  mark_as_advanced(COCOA_LIBRARY)
-  mark_as_advanced(COCOA_INCLUDE_DIR)
-else (ATHENA_GUI STREQUAL "Qt")
-  find_package (X11)
-
-  set (ATHENA_Include_Dirs
-    ${ATHENA_Include_Dirs}
-    ${X11_INCLUDE_DIR}
-  )
-  set (ATHENA_All_SRCS ${ATHENA_All_SRCS} ${ATHENA_Widkit_SRCS} ${ATHENA_X11_SRCS})
-  set (ATHENA_Libraries ${ATHENA_Libraries} ${X11_LIBRARIES})
-
-  add_definitions ("-DX11TEXMACS")
-  set (X11TEXMACS 1)
-
-  set (CONFIG_X11 "X11 Widkit Ghostscript")
-  set (CONFIG_GUI "X11")
-
-  message (STATUS "Enabling standard X11 interface")
-endif (ATHENA_GUI MATCHES "Qt.*")
-
-if (APPLE AND ATHENA_GUI STREQUAL "X11")
-  set (ATHENA_MacOS_SRCS
-    ${ATHENA_MacOS_SRCS}
-    ${ATHENA_SOURCE_DIR}/src/Plugins/MacOS/mac_app.mm
-  )
-endif (APPLE AND ATHENA_GUI STREQUAL "X11")
+else ()
+  message (FATAL_ERROR
+    "Unsupported ATHENA_GUI='${ATHENA_GUI}'. "
+    "Legacy GUI backends have been removed; "
+    "use ATHENA_GUI=Qt for Qt5 or ATHENA_GUI=Qt6.")
+endif ()
 
 if (APPLE AND USE_SPARKLE)
   set (ATHENA_MacOS_SRCS
@@ -880,13 +814,7 @@ if (APPLE)
 
   set (GUI_TYPE MACOSX_BUNDLE)
   set (NO_FAST_ALLOC 1)
-  set (AQUATEXMACS 1)
-  set (COCOA_CFLAGS "")
-  set (COCOA_LDFLAGS "-framework COCOA")
-  set (CONFIG_GUI "COCOA")
-  set (CONFIG_COCOA "Cocoa")
-
-  message (STATUS "Enabling experimental Cocoa port")
+  message (STATUS "Enabling macOS Qt integration")
 else (APPLE)
 endif (APPLE)
 

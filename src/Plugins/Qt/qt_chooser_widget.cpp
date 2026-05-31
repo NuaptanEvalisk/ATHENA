@@ -426,7 +426,6 @@ qt_chooser_widget_rep::perform_dialog () {
     file_ptr->setLabelText (QFileDialog::Accept, to_qstring (translate (text)));
   }
 
-#if (QT_VERSION >= 0x040400)
   if (type != "directory") {
     QStringList filters;
     if (nameFilter != "")
@@ -434,7 +433,6 @@ qt_chooser_widget_rep::perform_dialog () {
     filters << to_qstring (translate ("All files (*)"));
     file_ptr->setNameFilters (filters);
   }
-#endif
 
   QWidget* actual_dialog = native_dialog ? (QWidget*)native_dialog : (QWidget*)custom_dialog;
   actual_dialog->updateGeometry();

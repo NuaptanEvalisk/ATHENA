@@ -60,7 +60,7 @@ void* alloc_check(const char *msg,void *ptr,size_t* sp);
 * Fast new and delete
 ******************************************************************************/
 
-#if (!defined(NO_FAST_ALLOC)) && (!defined(X11TEXMACS))
+#ifndef NO_FAST_ALLOC
 
 #ifdef OLD_GNU_COMPILER
 inline void* operator new   (size_t s, void* loc) { return loc; }
@@ -448,13 +448,13 @@ tm_delete_array (C* Ptr) {
 #endif
 
 
-#endif // (!defined(NO_FAST_ALLOC)) && (!defined(X11TEXMACS))
+#endif // !defined(NO_FAST_ALLOC)
 
 /******************************************************************************
 * Slow new and delete
 ******************************************************************************/
 
-#if defined(NO_FAST_ALLOC) || defined(X11TEXMACS)
+#ifdef NO_FAST_ALLOC
 
 #ifndef NO_FAST_ALLOC
 #ifdef OS_IRIX
@@ -712,6 +712,6 @@ tm_delete_array (C* Ptr) {
   delete[] Ptr;
 }
 
-#endif // defined(NO_FAST_ALLOC) || defined(X11TEXMACS)
+#endif // defined(NO_FAST_ALLOC)
 
 #endif // defined FAST_ALLOC_H

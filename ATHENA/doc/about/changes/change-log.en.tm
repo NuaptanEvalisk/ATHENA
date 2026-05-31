@@ -646,8 +646,6 @@
 
     <item>TrueColor support (1.0.6.14).
 
-    <item>Started native Aqua port for <TeXmacs> (1.0.6.14).
-
     <item>Fix compatibility issues for C++ and Guile (1.0.6.14).
 
     <item>Complete abstraction of the graphical user interface should make

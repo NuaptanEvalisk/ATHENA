@@ -13,15 +13,7 @@
 #define EDITOR_H
 #include "typesetter.hpp"
 #include "tree_select.hpp"
-#ifdef AQUATEXMACS
-#  include "Cocoa/aqua_simple_widget.h"
-#else
-#  ifdef QTTEXMACS
-#    include "Qt/qt_simple_widget.hpp"
-#  else
-#    include "Widkit/simple_wk_widget.hpp"
-#  endif
-#endif
+#include "Qt/qt_simple_widget.hpp"
 #include "server.hpp"
 #include "drd_info.hpp"
 #ifdef EXPERIMENTAL

@@ -7,9 +7,7 @@
 * This module contains all system-wide routines of GUIs.
 * An abstract widget interface can be found in widget.hpp / message.hpp and
 * an abstract interface for drawing primitives in renderer.hpp.
-* The Widkit plug-in provides a default implementation for a widget library.
-* When using Widkit, you should provide a simple window implementation,
-* as specified in window.hpp.
+* The Qt plug-in provides the supported widget implementation.
 *******************************************************************************
 * This software falls under the GNU general public license version 3 or later.
 * It comes WITHOUT ANY WARRANTY WHATSOEVER. For details, see the file LICENSE

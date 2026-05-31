@@ -19,7 +19,7 @@
 
 #undef FAILED // redefined by CARBON
 #define extend CARBON_extends // avoid name collision
-#include "Cocoa/mac_cocoa.h"
+#include "MacOS/mac_cocoa.h"
 #include <Carbon/Carbon.h>
 #include <crt_externs.h>
 #include "HIDRemote.h"
@@ -65,35 +65,6 @@ mac_alternate_startup () {
            & NSDeviceIndependentModifierFlagsMask) == kCGEventFlagMaskAlternate);
 #endif
 }
-
-
-#ifdef AQUATEXMACS
-void 
-mac_fix_paths () {
-  NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
-  /* add appropriate ATHENA_PATH to the current environment */
-#if 0
-  setenv("ATHENA_PATH",
-         [[[[NSBundle mainBundle] resourcePath] 
-           stringByAppendingPathComponent:@"share/TeXmacs"] 
-          cStringUsingEncoding:NSUTF8StringEncoding],
-         1);
-#endif
-  /* add TeX directory */
-  /* FIXME: make this user-defined */
-  // FIXME: encoding here is not quite correct!!!
-  setenv("PATH",
-         [[[NSString stringWithCString:getenv("PATH") encoding:NSASCIIStringEncoding] 
-           stringByAppendingString:@":/usr/texbin"]
-          cStringUsingEncoding:NSUTF8StringEncoding],
-         1); 
-  setenv("GUILE_LOAD_PATH","/opt/local/share/guile/1.8",1);
-  system("printenv");
-  [pool release];  
-}
-#endif
-
-
 
 
 #ifdef QTTEXMACS
@@ -189,7 +160,6 @@ mac_install_filter () {
 #endif // HACK
 #endif // QTTEXMACS
 
-//#ifdef Q_WS_MAC
 #if 0
 
 // this code is not used. It was an hack. Maybe sometimes in the future we
@@ -366,11 +336,7 @@ fromHardwareWithAttributes:(NSMutableDictionary *)attributes
 		NSString *remoteModeName = nil;
 		(void) remoteMode;
 		(void) remoteModeName;
-#ifdef X11TEXMACS
-    int mode = 1;
-#else
     int mode = 2;
-#endif
 
 		switch (mode)
 		{

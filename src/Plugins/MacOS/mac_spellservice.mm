@@ -15,7 +15,7 @@
 #include "language.hpp"
 #include "locale.hpp"
 
-#include "Cocoa/mac_cocoa.h"
+#include "MacOS/mac_cocoa.h"
 
 static string 
 from_nsstring (NSString *s) {
@@ -197,4 +197,3 @@ mac_spell_done (string lan) {
   current_tag = 0;
   [pool release];
 }
-

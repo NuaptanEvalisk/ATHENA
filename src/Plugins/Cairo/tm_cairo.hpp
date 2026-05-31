@@ -25,10 +25,6 @@ bool tm_cairo_present ();
 #ifdef CAIRO_HAS_PS_SURFACE
 #include <cairo-ps.h>
 #endif
-#ifdef CAIRO_HAS_XLIB_SURFACE
-#include <cairo-xlib.h>
-#undef KeyPress  // conflict between QEvent::KeyPrees and X11 defintion
-#endif
 #ifdef CAIRO_HAS_QUARTZ_SURFACE
 #define ID OTHER_ID
 // conflicts with X11 headers
@@ -88,10 +84,6 @@ extern cairo_font_face_t * (*tm_cairo_ft_font_face_create_for_ft_face) (FT_Face 
 
 #ifdef CAIRO_HAS_PS_SURFACE
 extern cairo_surface_t * (*tm_cairo_ps_surface_create) (const char *filename, double width_in_points, double height_in_points);
-#endif
-
-#ifdef CAIRO_HAS_XLIB_SURFACE
-extern cairo_surface_t * (*tm_cairo_xlib_surface_create) (Display *dpy, Drawable	drawable, Visual *visual, int width, int height);
 #endif
 
 #ifdef CAIRO_HAS_QUARTZ_SURFACE

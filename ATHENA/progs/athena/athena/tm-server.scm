@@ -13,6 +13,8 @@
 
 (texmacs-module (athena athena tm-server)
   (:use (generic document-edit)))
+(use-modules (kernel athena tm-preferences))
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Preferences
@@ -106,10 +108,10 @@
   "")
 
 (define (get-default-native-menubar)
-  (if (qt4-gui?) "on" "off"))
+  "off")
 
 (define (get-default-unified-toolbar)
-  (if (qt4-gui?) "on" "off"))
+  "off")
 
 (define athena-booted? #f)
 

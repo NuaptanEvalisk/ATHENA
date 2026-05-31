@@ -9,10 +9,6 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 
-#ifdef X11TEXMACS
-#define IMLIB2_X11TEXMACS
-#endif
-
 #include "config.h"
 #include "Imlib2/imlib2.hpp"
 #include "dyn_link.hpp"
@@ -36,10 +32,6 @@ void (*IMLIB2_render_image_part_on_drawable_at_size)
   (int source_x, int source_y, int source_width, int source_height,
    int x, int y, int width, int height);
 void (*IMLIB2_free_image) (void);
-void (*IMLIB2_context_set_display) (Display * display);
-void (*IMLIB2_context_set_visual) (Visual * visual);
-void (*IMLIB2_context_set_colormap) (Colormap colormap);
-void (*IMLIB2_context_set_drawable) (Drawable drawable);
 
 /******************************************************************************
 * Initialization
@@ -70,10 +62,6 @@ imlib2_initialize () {
   imlib2_bind (imlib_render_image_part_on_drawable_at_size,
 	       IMLIB2_render_image_part_on_drawable_at_size);
   imlib2_bind (imlib_free_image, IMLIB2_free_image);
-  imlib2_bind (imlib_context_set_display, IMLIB2_context_set_display);
-  imlib2_bind (imlib_context_set_visual, IMLIB2_context_set_visual);
-  imlib2_bind (imlib_context_set_colormap, IMLIB2_context_set_colormap);
-  imlib2_bind (imlib_context_set_drawable, IMLIB2_context_set_drawable);
   debug_on (status);
 
 #ifdef LINKED_IMLIB2
@@ -137,25 +125,6 @@ imlib2_image_size (url u, int& w, int& h) {
   }
 }
 
-void
-imlib2_display (Display* dpy, Pixmap pm, url u, SI w, SI h) {
-  Imlib_Image image= imlib2_load_image (u);
-  if (image) {
-    Visual *vis= DefaultVisual (dpy, DefaultScreen (dpy));
-    Colormap cm= DefaultColormap (dpy, DefaultScreen (dpy));
-    IMLIB2_context_set_display (dpy);
-    IMLIB2_context_set_visual (vis);
-    IMLIB2_context_set_colormap (cm);
-    IMLIB2_context_set_drawable (pm);
-
-    IMLIB2_context_set_image (image);
-    int iw= IMLIB2_image_get_width ();
-    int ih= IMLIB2_image_get_height ();
-    IMLIB2_render_image_part_on_drawable_at_size (0, 0, iw, ih, 0, 0, w, h);
-    IMLIB2_free_image ();
-  }
-}
-
 #else // USE_IMLIB2
 
 /******************************************************************************
@@ -170,14 +139,5 @@ imlib2_image_size (url u, int& w, int& h) {
   (void) u; (void) w; (void) h;
   FAILED ("imlib2 is not present");
 }
-
-#ifdef X11TEXMACS
-void
-imlib2_display (Display* dpy, Pixmap pm, url u, SI w, SI h) {
-  (void) dpy; (void) pm;
-  (void) u; (void) w; (void) h;
-  FAILED ("imlib2 is not present");
-}
-#endif
 
 #endif // USE_IMLIB2

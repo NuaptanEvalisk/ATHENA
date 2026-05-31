@@ -14,6 +14,8 @@
 (texmacs-module (prog prog-edit)
   (:use (utils library tree)
         (utils library cursor)))
+(use-modules (kernel athena tm-preferences))
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Basic routines for textual programs

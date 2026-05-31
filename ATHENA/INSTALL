@@ -16,7 +16,7 @@ Then run ATHENA from this directory:
     ./StartATHENA.sh
 
 The launcher currently uses the runtime settings that are known to work well on
-the Linux/X11 development setup:
+the Linux Qt/xcb development setup:
 
     QT_QPA_PLATFORM=xcb
     QT_IM_MODULE=fcitx

@@ -13,6 +13,8 @@
 
 (texmacs-module (security wallet wallet-base)
   (:use (security gpg gpg-wallet)))
+(use-modules (kernel athena tm-preferences))
+
 
 ;; So far portable implementation is based on GnuPG
 (tm-define (supports-wallet?)

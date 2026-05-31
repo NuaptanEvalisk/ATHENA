@@ -13,7 +13,6 @@
 #include "QTMWidget.hpp"
 #include "gui.hpp"
 
-#if QT_VERSION >= 0x050000
 #include <QToolButton>
 #include <QMenu>
 #include <QWidgetAction>
@@ -22,7 +21,6 @@
 #include <QEvent>
 #include <QScroller>
 #include <QScrollerProperties>
-#endif // QT_VERSION >= 0x050000
 
 #define QTMTOOLBAR_MARGIN 4
 
@@ -34,7 +32,6 @@ QTMToolbar::QTMToolbar (const QString& title, QSize iconSize, QWidget* parent)
   , mRightBtn(nullptr)
   , mCurrentMenu(nullptr)
 {  
-#if QT_VERSION >= 0x050000
   // strong focus
   setFocusPolicy (Qt::StrongFocus);
 
@@ -96,14 +93,12 @@ QTMToolbar::QTMToolbar (const QString& title, QSize iconSize, QWidget* parent)
     
     updateNavButtons();
   }
-#endif // QT_VERSION >= 0x050000
 }
 
 QTMToolbar::~QTMToolbar () {
 }
 
 void QTMToolbar::replaceActions (QList<QAction*>* src) {
-#if QT_VERSION >= 0x050000
   if (src == NULL)
     FAILED ("replaceActions expects valid objects");
   setUpdatesEnabled (false);
@@ -127,11 +122,9 @@ void QTMToolbar::replaceActions (QList<QAction*>* src) {
     addRightSpacer();
     updateNavButtons();
   }
-#endif // QT_VERSION >= 0x050000
 }
 
 void QTMToolbar::replaceButtons (QList<QAction*>* src) {
-#if QT_VERSION >= 0x050000
   if (src == NULL)
     FAILED ("replaceButtons expects valid objects");
   setUpdatesEnabled (false);
@@ -154,11 +147,9 @@ void QTMToolbar::replaceButtons (QList<QAction*>* src) {
     addRightSpacer();
     updateNavButtons();
   }
-#endif // QT_VERSION >= 0x050000
 }
 
 void QTMToolbar::addSeparator () {
-#if QT_VERSION >= 0x050000
   if (!tmapp()->useNewToolbar()) {
     QToolBar::addSeparator();
     return;
@@ -176,30 +167,22 @@ void QTMToolbar::addSeparator () {
   spacer = new QWidget (this);
   spacer->setFixedWidth (10);
   mLayout->addWidget (spacer);
-#else
-  QToolBar::addSeparator();
-#endif // QT_VERSION >= 0x050000
 }
 
 void QTMToolbar::addSmallSeparator () {
-#if QT_VERSION >= 0x050000
   QWidget* spacer = new QWidget (this);
   spacer->setFixedWidth (3);
   mLayout->addWidget (spacer);
-#endif
 }
 
 void QTMToolbar::addRightSpacer () {
-#if QT_VERSION >= 0x050000
   // a a spacer that will push the buttons to the left
   QWidget* spacer = new QWidget (this);
   spacer->setSizePolicy (QSizePolicy::Expanding, QSizePolicy::Preferred);
   mLayout->addWidget (spacer);
-#endif
 }
 
 void QTMToolbar::addAction (QAction* action) {
-#if QT_VERSION >= 0x050000
   // create the tool button
   QWidget *actionWidget = nullptr;
   
@@ -227,7 +210,6 @@ void QTMToolbar::addAction (QAction* action) {
       button->setIconSize (iconSize());
     }
     
-#if QT_VERSION >= 0x050000
     // on click finish, set the focus to the last focused widget
     connect (button, &QToolButton::clicked, []() {
       QTMWidget::setFocusToLast();
@@ -248,12 +230,6 @@ void QTMToolbar::addAction (QAction* action) {
       });
       actionMenu->installEventFilter (this);
     }
-#else
-    (void) button;
-    if (action->menu()) {
-      button->setPopupMode (QToolButton::InstantPopup);
-    }
-#endif
     
     // if the action contains only text, add a margin to the button
     if (action->icon().isNull()) {
@@ -276,13 +252,9 @@ void QTMToolbar::addAction (QAction* action) {
   } else {
     QToolBar::addWidget (actionWidget);
   }
-#else
-  QToolBar::addAction (action);
-#endif // QT_VERSION >= 0x050000
 }
 
 void QTMToolbar::removeAction (QAction* action) {
-#if QT_VERSION >= 0x050000
   if (!tmapp()->useNewToolbar()) {
     QToolBar::removeAction(action);
     return;
@@ -296,13 +268,9 @@ void QTMToolbar::removeAction (QAction* action) {
     }
   }
   updateNavButtons();
-#else
-  QToolBar::removeAction(action);
-#endif // QT_VERSION >= 0x050000
 }
 
 void QTMToolbar::clear () {
-#if QT_VERSION >= 0x050000
   if (!tmapp()->useNewToolbar()) {
     QToolBar::clear();
     return;
@@ -313,33 +281,23 @@ void QTMToolbar::clear () {
     delete w;
   }
   updateNavButtons();
-#else
-  QToolBar::clear();
-#endif // QT_VERSION >= 0x050000
 }
 
 int QTMToolbar::scrollStep () const {
-#if QT_VERSION >= 0x050000
   int byIcon = iconSize().isValid() ? iconSize().width() : 64;
   return byIcon;
-#else
-  return 0;
-#endif
 }
 
 void QTMToolbar::scrollBy (int dx) {
-#if QT_VERSION >= 0x050000
   if (!mScrollArea) return;
   QScrollBar* h = mScrollArea->horizontalScrollBar();
   if (!h) return;
   int v = h->value();
   int nv = qBound(h->minimum(), v + dx, h->maximum());
   if (nv != v) h->setValue(nv);
-#endif
 }
 
 void QTMToolbar::setRightActVisible (bool v) {
-#if QT_VERSION >= 0x050000
   if (v) {
     mRightAct->setEnabled(true);
     //mRightBtn->setText (QString::fromUtf8(">"));
@@ -349,11 +307,9 @@ void QTMToolbar::setRightActVisible (bool v) {
     //mRightBtn->setText (QString::fromUtf8(""));
     mRightBtn->setStyleSheet ("color: transparent;");
   }
-#endif
 }
 
 void QTMToolbar::setLeftActVisible (bool v) {
-#if QT_VERSION >= 0x050000
   if (v) {
     mLeftAct->setEnabled(true);
     //mLeftBtn->setText (QString::fromUtf8("<"));
@@ -363,11 +319,9 @@ void QTMToolbar::setLeftActVisible (bool v) {
     //mLeftBtn->setText (QString::fromUtf8(""));
     mLeftBtn->setStyleSheet ("color: transparent;");
   }
-#endif // QT_VERSION >= 0x050000
 }
 
 void QTMToolbar::updateNavButtons () {
-#if QT_VERSION >= 0x050000
   if (!mScrollArea || !mLeftBtn || !mRightBtn || !mLeftAct || !mRightAct) return;
 
   QWidget* content = mScrollArea->widget();
@@ -394,11 +348,9 @@ void QTMToolbar::updateNavButtons () {
 
   setLeftActVisible(!atLeft);
   setRightActVisible(!atRight);
-#endif // QT_VERSION >= 0x050000
 }
 
 bool QTMToolbar::eventFilter (QObject* watched, QEvent* event) {
-#if QT_VERSION >= 0x050000
   if (!tmapp()->useNewToolbar()) return false;
   if (!mScrollArea) return false;
 
@@ -476,6 +428,5 @@ bool QTMToolbar::eventFilter (QObject* watched, QEvent* event) {
       }
     }
   }
-#endif // QT_VERSION >= 0x050000
   return false;
 }

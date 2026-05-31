@@ -386,18 +386,6 @@ edit_interface_rep::mouse_adjust (SI x, SI y, int mods) {
       ox -= sx; oy -= sy;
       set_position (popup_win, wx+ ox+ x, wy+ oy+ y);
     }
-#else
-    SI wx, wy;
-    ::get_position (get_window (this), wx, wy);
-#if defined(AQUATEXMACS)
-    SI ox, oy, sx, sy;
-    get_position (this, ox, oy);
-    get_scroll_position (this, sx, sy);
-    ox -= sx; oy -= sy;
-    set_position (popup_win, wx+ ox+ x, wy+ oy+ y);
-#else
-    set_position (popup_win, wx+ x, wy+ y);
-#endif
 #endif
     set_visibility (popup_win, true);
     send_keyboard_focus (this);
@@ -886,8 +874,7 @@ as_scm_string (array<double> a) {
 static void
 delayed_call_mouse_event (string kind, SI x, SI y, SI m, time_t t,
                           array<double> d) {
-  // NOTE: interestingly, the (:idle 1) is not necessary for the Qt port
-  // but is required for appropriate updating when using the X11 port
+  // NOTE: preserve the historical idle delay for appropriate updating.
   string cmd=
     "(delayed (:idle 1) (mouse-event " * scm_quote (kind) * " " *
     as_string (x) * " " * as_string (y) * " " *

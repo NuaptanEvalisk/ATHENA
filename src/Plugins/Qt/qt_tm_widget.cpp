@@ -192,15 +192,7 @@ qt_tm_widget_rep::qt_tm_widget_rep(int mask, command _quit)
   mw->setWindowIcon(tmapp()->icon_manager().getIcon("ATHENA"));
 #endif
  
-  // there is a bug in the early implementation of toolbars in Qt 4.6
-  // which has been fixed in 4.6.2 (at least)
-  // this is why we change dimension of icons
-  
-#if (defined(Q_OS_MAC)&&(QT_VERSION>=QT_VERSION_CHECK(4,6,0))&&(QT_VERSION<QT_VERSION_CHECK(4,6,2)))
-  mw->setIconSize (QSize (22, 30));  
-#else
   mw->setIconSize (QSize (17, 17));
-#endif
   mw->setFocusPolicy (Qt::NoFocus);
   
   // status bar
@@ -241,20 +233,10 @@ qt_tm_widget_rep::qt_tm_widget_rep(int mask, command _quit)
   int min_h= (int) floor (28 * retina_scale);
   bar->setMinimumHeight (min_h);
 #else
-#if (QT_VERSION >= 0x050000)
   if (tm_style_sheet != "") {
     int min_h= (int) floor (28 * retina_scale);
     bar->setMinimumHeight (min_h);
   }
-#else
-  double status_scale=
-    (((double) retina_icons) > retina_scale? 1.5: retina_scale);
-  if (status_scale > 1.0) {
-    int std_h= (os_mingw ()? 28: 20);
-    int min_h= (int) floor (std_h * status_scale);
-    bar->setMinimumHeight (min_h);
-  }
-#endif
 #endif
 
   mw->setStatusBar (bar);
@@ -338,7 +320,6 @@ qt_tm_widget_rep::qt_tm_widget_rep(int mask, command _quit)
   //
   // NOTICE: setFixedHeight must be after setIconSize
   // TODO: the size of the toolbar should be calculated dynamically
-#if (QT_VERSION >= 0x050000)
 #if defined (Q_OS_MAC) || defined (Q_OS_WIN)
   int toolbarHeight= 30 * retina_icons;
   mainToolBar->setFixedHeight (toolbarHeight + 8 * retina_icons);
@@ -350,34 +331,11 @@ qt_tm_widget_rep::qt_tm_widget_rep(int mask, command _quit)
   modeToolBar->setFixedHeight (toolbarHeight + 4);
   focusToolBar->setFixedHeight (toolbarHeight);
 #  endif
-#else
-#  ifdef Q_OS_MAC
-  if (retina_icons > 1) {
-    int toolbarHeight= 30;
-    if (!use_unified_toolbar)
-      mainToolBar->setFixedHeight (toolbarHeight + 8);
-    modeToolBar->setFixedHeight (toolbarHeight + 4);
-    focusToolBar->setFixedHeight (toolbarHeight);
-  }
-#  else
-  int toolbarHeight= 30 * retina_icons;
-  mainToolBar->setFixedHeight (toolbarHeight + 8);
-  modeToolBar->setFixedHeight (toolbarHeight + 4);
-  focusToolBar->setFixedHeight (toolbarHeight);  
-#  endif
-#endif
   if (tm_style_sheet != "") {
     double scale= retina_scale;
-#if (QT_VERSION < 0x050000 && defined (Q_OS_MAC))
-    scale= max (scale, 0.6 * ((double) retina_icons));
-#endif
     int h1= (int) floor (38 * scale + 0.5);
     int h2= (int) floor (34 * scale + 0.5);
     int h3= (int) floor (30 * scale + 0.5);
-#if (QT_VERSION < 0x050000 && defined (Q_OS_MAC))
-    if (use_unified_toolbar && retina_icons == 2 && scale == 1.2) {
-      h1= 34; h2= 36; h3= 32; }
-#endif
     mainToolBar->setFixedHeight (h1);
     modeToolBar->setFixedHeight (h2);
     focusToolBar->setFixedHeight (h3);
@@ -901,9 +859,7 @@ qt_tm_widget_rep::send (slot s, blackbox val) {
       check_type<string>(val, s);
       string file = open_box<string> (val);
       if (DEBUG_QT_WIDGETS) debug_widgets << "\tFile: " << file << LF;
-#if (QT_VERSION >= 0x040400)
       mainwindow()->setWindowFilePath (utf8_to_qstring (file));
-#endif
       vault_explorer_track_file (url (file));
     }
       break;
@@ -1193,7 +1149,6 @@ qt_tm_widget_rep::write (slot s, blackbox index, widget w) {
       check_type_void (index, s);
     {
       bool can_update = true;
-#if (QT_VERSION >= 0x050000)
       // BUG:
       // there is a problem with updateActions  which apparently
       // reset a running input method in Qt5.
@@ -1206,7 +1161,6 @@ qt_tm_widget_rep::write (slot s, blackbox index, widget w) {
       // This seems enough since the other toolbars are not usually updated
       // while performing an input method keyboard sequence
       if (canvas()) can_update = !canvas()->isPreediting();
-#endif
       if (can_update) {
         focus_icons_widget = concrete (w);
         QList<QAction*>* list = focus_icons_widget->get_qactionlist();
@@ -1248,13 +1202,11 @@ qt_tm_widget_rep::write (slot s, blackbox index, widget w) {
       if (old_qwidget) old_qwidget->deleteLater();
       dynamic_cast<QScrollArea*>(sideTools->widget())->setWidget (new_qwidget);
       update_visibility();
-#if (QT_VERSION >= 0x050000)
       QList<QDockWidget*> l1;
       l1.append ((QDockWidget*) extraTools);
       QList<int> l2;
       l2.append (1);
       mainwindow()->resizeDocks (l1, l2, Qt::Horizontal);
-#endif
       new_qwidget->show();
 #endif
     }
@@ -1269,13 +1221,11 @@ qt_tm_widget_rep::write (slot s, blackbox index, widget w) {
       if (old_qwidget) old_qwidget->deleteLater();
       leftTools->setWidget (new_qwidget);
       update_visibility();
-#if (QT_VERSION >= 0x050000)
       QList<QDockWidget*> l1;
       l1.append ((QDockWidget*) extraTools);
       QList<int> l2;
       l2.append (1);
       mainwindow()->resizeDocks (l1, l2, Qt::Horizontal);
-#endif
       new_qwidget->show();
     }
       break;
@@ -1289,13 +1239,11 @@ qt_tm_widget_rep::write (slot s, blackbox index, widget w) {
       if (old_qwidget) old_qwidget->deleteLater();
       bottomTools->setWidget (new_qwidget);
       update_visibility();
-#if (QT_VERSION >= 0x050000)
       QList<QDockWidget*> l1;
       l1.append ((QDockWidget*) extraTools);
       QList<int> l2;
       l2.append (1);
       mainwindow()->resizeDocks (l1, l2, Qt::Vertical);
-#endif
       new_qwidget->show();
     }
       break;
@@ -1309,13 +1257,11 @@ qt_tm_widget_rep::write (slot s, blackbox index, widget w) {
       if (old_qwidget) old_qwidget->deleteLater();
       extraTools->setWidget (new_qwidget);
       update_visibility();
-#if (QT_VERSION >= 0x050000)
       QList<QDockWidget*> l1;
       l1.append ((QDockWidget*) extraTools);
       QList<int> l2;
       l2.append (1);
       mainwindow()->resizeDocks (l1, l2, Qt::Vertical);
-#endif
       new_qwidget->show();
     }
       break;

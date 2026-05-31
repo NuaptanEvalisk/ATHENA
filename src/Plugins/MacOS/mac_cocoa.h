@@ -1,4 +1,3 @@
-
 /******************************************************************************
 * MODULE     : mac_cocoa.hpp
 * DESCRIPTION: Header for Mac UI
@@ -12,17 +11,16 @@
 #ifndef MAC_COCOA_H
 #define MAC_COCOA_H
 
-// hacks to prevent symbol clash with Carbon and Cocoa headers
+// Hacks to prevent symbol clashes with Carbon and Cocoa headers.
 #define ID COCOA_ID
 #define outline COCOA_outline
-#undef EVENT_H 
-#define extend CARBON_extends 
+#undef EVENT_H
+#define extend CARBON_extends
 #define object COCOA_object
 #define OS_object OS_COCOA_object
 
 #include <Cocoa/Cocoa.h>
 
-// end of hacks
 #define EVENT_H
 #undef ID
 #undef outline

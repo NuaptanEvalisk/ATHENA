@@ -669,8 +669,7 @@ qt_renderer_rep::draw (int c, font_glyphs fng, SI x, SI y) {
       int nr_cols= std_shrinkf*std_shrinkf;
       if (nr_cols >= 64) nr_cols= 64;
 
-      // the following line is disabled because
-      // it causes a crash on Qt/X11 4.4.3
+      // The following line is disabled because it caused crashes in old Qt.
       //im->fill (Qt::transparent);
 
       for (j=0; j<h; j++)
@@ -731,7 +730,7 @@ the_qt_renderer (double pixel_ratio) {
  ******************************************************************************/
 
 /* Shadows are auxiliary renderers which allow double buffering and caching of
- * graphics. TeXmacs has explicit double buffering from the X11 port. Maybe
+ * graphics. TeXmacs has explicit double buffering. Maybe
  * it would be better to design a better API abstracting from the low level 
  * details but for the moment the following code and the qt_proxy_renderer_rep
  * and qt_shadow_renderer_rep classes are designed to solve two problems:

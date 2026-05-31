@@ -205,13 +205,12 @@
   <answer*|<TeXmacs> falls under the GNU public licence. >
 
   <\question>
-    <label|general-8>When will <TeXmacs> be based on Qt5 and Guile 2?
+    <label|general-8>Which Qt version does <TeXmacs> use?
   </question>
 
   <\answer*>
-    <TeXmacs> already works quite well with Qt5, but several issues remain to
-    be fixed. <TeXmacs> 2.1 will still be based on Qt4, but <TeXmacs> 2.2
-    will be based on Qt5.
+    <TeXmacs> currently uses the Qt5 interface. Compatibility work for Qt6 is
+    kept separate from removed legacy interfaces.
 
     As to <name|Guile>, please be aware that <name|Guile> 1 and <name|Guile>
     2 carry the same name, but that resemblances very much end there:

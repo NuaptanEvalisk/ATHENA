@@ -119,11 +119,7 @@ qt_font_rep::supports (string c) {
   if (ucs4.size () == 0) return false;
   if (family == "" || family == "emoji") return true;
   if (ucs4.size () != 1) return false;
-#if QT_VERSION >= 0x050000
   return qfm.inFontUcs4 (ucs4[0]);
-#else
-  return qs.length () == 1 && qfm.inFont (qs[0]);
-#endif
 }
 
 void

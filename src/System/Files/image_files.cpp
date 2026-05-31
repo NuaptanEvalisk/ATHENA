@@ -47,10 +47,6 @@
 #endif
 #endif
 
-#ifdef OS_WIN32
-#include <x11/xlib.h>
-#endif
-
 #ifdef USE_GS
 #include "Ghostscript/gs_utilities.hpp"
 #endif
