@@ -38,7 +38,25 @@
 #include <QSplitter>
 #include <QApplication>
 #include <QTreeView>
+#include <QIcon>
+#include <QStandardPaths>
 
+static bool
+athena_extract_language_flag_label (string& str, QIcon& icon) {
+  string prefix= "@ATHENA-LANGUAGE-FLAG:";
+  if (!starts (str, prefix)) return false;
+  int i= N(prefix), j= i;
+  while (j < N(str) && str[j] != '@') j++;
+  if (j >= N(str)) return false;
+  QString code= to_qstring (str (i, j));
+  str= str (j + 1, N(str));
+
+  QString path= QStandardPaths::locate (
+    QStandardPaths::GenericDataLocation,
+    QString ("circle-flags-svg/%1.svg").arg (code));
+  if (!path.isEmpty ()) icon= QIcon (path);
+  return true;
+}
 
 /******************************************************************************
  * Ad-hoc command_rep derivates for different UI elements in qt_ui_element_rep
@@ -563,6 +581,10 @@ qt_ui_element_rep::as_qaction () {
       //bool tsp   = x.x4;
 
       QTMAction* a = new QTMAction (NULL);
+      QIcon flag_icon;
+      if (athena_extract_language_flag_label (str, flag_icon) &&
+          !flag_icon.isNull ())
+        a->setIcon (flag_icon);
       a->set_text (str);
       a->setFont (to_qfont (style, a->font()));
       act = a;

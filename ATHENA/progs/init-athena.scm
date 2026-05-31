@@ -161,7 +161,8 @@
              (athena athena tm-files) (athena athena tm-print)
              (athena athena tm-vault))
 (define-secure-symbols heading-fold-toggle-tree heading-fold-toggle
-  heading-word-count-tree heading-word-count-path)
+  heading-word-count-tree heading-word-count-path
+  heading-word-count-schedule-refresh)
 (lazy-define (athena athena tm-files)
              buffer-missing-style? buffer-set-default-style)
 (use-modules (athena keyboard config-kbd))
@@ -490,7 +491,8 @@
 (lazy-keyboard (link link-kbd) with-linking-tool?)
 (lazy-define (link link-edit) create-unique-id)
 (lazy-define (link link-navigate) link-active-upwards link-active-ids
-             link-follow-ids link-mouse-ids)
+             link-follow-ids link-mouse-ids
+             heading-word-count-schedule-refresh)
 (lazy-define (link link-extern) get-constellation
              get-link-locations register-link-locations)
 (lazy-menu (link ref-menu) ref-menu)

@@ -32,6 +32,7 @@ protected:
   bool fold_view_rebuild;                  // recreate screen typesetter
   int  heading_word_count_cache_hash;       // source hash for cached counts
   array<heading_word_count_entry> heading_word_count_cache;
+  hashmap<path,int> heading_word_count_cache_map;
   edit_env env;                           // the environment for typesetting
   typesetter ttt;                         // the (not) yet typesetted document
 

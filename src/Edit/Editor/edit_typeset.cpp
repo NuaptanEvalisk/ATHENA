@@ -39,6 +39,7 @@ edit_typeset_rep::edit_typeset_rep ():
   stydef (UNINIT), pre (UNINIT), init (UNINIT), fin (UNINIT), grefs (UNINIT),
   folded_headings (), fold_view_active (false), fold_view_rebuild (false),
   heading_word_count_cache_hash (INT_MIN), heading_word_count_cache (),
+  heading_word_count_cache_map (0),
   env (drd, buf->buf->master,
        buf->data->ref, (buf->prj==NULL? grefs: buf->prj->data->ref),
        buf->data->aux, (buf->prj==NULL? buf->data->aux: buf->prj->data->aux),
@@ -1158,13 +1159,15 @@ edit_typeset_rep::heading_word_count_at (path p) {
   int h= hash (doc);
   if (h != heading_word_count_cache_hash) {
     heading_word_count_cache= athena_heading_word_count_entries (doc, rp);
+    heading_word_count_cache_map= hashmap<path,int> (0);
+    for (int i=0; i<N(heading_word_count_cache); i++)
+      heading_word_count_cache_map (
+        heading_word_count_cache[i].tree_path)=
+          heading_word_count_cache[i].words;
     heading_word_count_cache_hash= h;
   }
 
-  for (int i=0; i<N(heading_word_count_cache); i++)
-    if (heading_word_count_cache[i].tree_path == hp)
-      return heading_word_count_cache[i].words;
-  return 0;
+  return heading_word_count_cache_map[hp];
 }
 
 void
@@ -1304,6 +1307,7 @@ void
 edit_typeset_rep::typeset_invalidate_all () {
   //cout << "Invalidate all\n";
   heading_word_count_cache_hash= INT_MIN;
+  heading_word_count_cache_map= hashmap<path,int> (0);
   if (fold_view_active || N(folded_headings) != 0)
     fold_view_rebuild= true;
   notify_change (THE_ENVIRONMENT);

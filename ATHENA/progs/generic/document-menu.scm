@@ -788,10 +788,45 @@
 ;; Global and document language
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(tm-define (language-menu-flag-code lan)
+  (with flags '(("british" . "gb")
+                ("bulgarian" . "bg")
+                ("chinese" . "cn")
+                ("croatian" . "hr")
+                ("czech" . "cz")
+                ("danish" . "dk")
+                ("dutch" . "nl")
+                ("english" . "us")
+                ("esperanto" . "xx")
+                ("finnish" . "fi")
+                ("french" . "fr")
+                ("german" . "de")
+                ("greek" . "gr")
+                ("hungarian" . "hu")
+                ("italian" . "it")
+                ("japanese" . "jp")
+                ("korean" . "kr")
+                ("polish" . "pl")
+                ("portuguese" . "pt")
+                ("romanian" . "ro")
+                ("russian" . "ru")
+                ("slovak" . "sk")
+                ("slovene" . "si")
+                ("spanish" . "es")
+                ("swedish" . "se")
+                ("taiwanese" . "tw")
+                ("ukrainian" . "ua"))
+    (with entry (assoc lan flags)
+      (if entry (cdr entry) "xx"))))
+
+(tm-define (language-menu-label lan)
+  (string-append "@ATHENA-LANGUAGE-FLAG:" (language-menu-flag-code lan)
+                 "@" (upcase-first lan)))
+
 (menu-bind global-language-menu
   (for (lan supported-languages)
     (when (supported-language? lan)
-      ((check (eval (upcase-first lan)) "*"
+      ((check (eval (language-menu-label lan)) "*"
               (and (test-document-language? lan)
                    (== lan (get-output-language))))
        (set-document-language lan)
@@ -802,7 +837,7 @@
   ---
   (for (lan supported-languages)
     (when (supported-language? lan)
-      ((check (eval (upcase-first lan)) "*" (test-document-language? lan))
+      ((check (eval (language-menu-label lan)) "*" (test-document-language? lan))
        (set-document-language lan)))))
 
 (tm-define (current-language-icon)
