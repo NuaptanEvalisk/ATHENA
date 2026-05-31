@@ -33,6 +33,8 @@ bool   test_athena_path (url path, bool set_environment = true);
 scheme_tree plugin_list ();
 
 bool   has_user_preference (string var);
+void   register_user_preference (string var, string def, bool string_def);
+bool   user_preference_default_is_string (string var);
 string get_user_preference (string var, string def= "");
 void   set_user_preference (string var, string val);
 void   reset_user_preference (string var);

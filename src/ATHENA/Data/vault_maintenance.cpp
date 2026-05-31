@@ -46,6 +46,7 @@ static constexpr long long MANUAL_SAVE_RETENTION_UNLIMITED = -1;
 static void log_info (const std::string& message);
 static void log_error (const std::string& message);
 static bool read_file_bytes (const fs::path& path, std::string& text);
+static bool write_file_bytes (const fs::path& path, const std::string& text);
 
 struct RenamePlan {
   fs::path old_path;
@@ -294,6 +295,39 @@ parse_vaultfile_strings (const std::string& text) {
   return values;
 }
 
+static std::string
+scheme_quote_string (const std::string& text) {
+  std::string out = "\"";
+  for (char c: text) {
+    if (c == '\\' || c == '"') out.push_back ('\\');
+    out.push_back (c);
+  }
+  out.push_back ('"');
+  return out;
+}
+
+static std::string
+preferences_json_rel (const std::string& rel) {
+  if (rel.empty ()) return "vprefs.json";
+  if (ends_with (rel, ".json")) return rel;
+  if (ends_with (rel, ".scm")) return rel.substr (0, rel.size () - 4) + ".json";
+  return rel + ".json";
+}
+
+static bool
+write_vaultfile_preferences_path (const fs::path& vault_file,
+                                  const std::vector<std::string>& fields,
+                                  const std::string& prefs_rel) {
+  if (fields.size () < 2) return false;
+  std::string ns_rel = fields.size () >= 4 && !fields[3].empty ()
+                       ? fields[3] : "ns.sqlite";
+  std::string text = "(" + scheme_quote_string (fields[0]) +
+                     " " + scheme_quote_string (fields[1]) +
+                     " " + scheme_quote_string (prefs_rel) +
+                     " " + scheme_quote_string (ns_rel) + ")\n";
+  return write_file_bytes (vault_file, text);
+}
+
 static bool
 load_vault_preferences_if_enabled (const fs::path& root) {
   std::string requested = lower_copy (tm_to_std (
@@ -315,7 +349,23 @@ load_vault_preferences_if_enabled (const fs::path& root) {
 
   std::vector<std::string> fields = parse_vaultfile_strings (text);
   std::string prefs_rel = fields.size () >= 3 ? fields[2] : "";
-  fs::path prefs_path = root / (prefs_rel.empty () ? "vprefs.scm" : prefs_rel);
+  std::string json_rel = preferences_json_rel (prefs_rel);
+  std::string legacy_rel = prefs_rel.empty () ? "vprefs.scm" : prefs_rel;
+  fs::path prefs_path = root / json_rel;
+  fs::path legacy_path = root / legacy_rel;
+
+  if (fields.size () >= 2 && prefs_rel != json_rel) {
+    if (write_vaultfile_preferences_path (vault_file, fields, json_rel))
+      log_info ("preferences: updated Vaultfile preferences path to " +
+                json_rel);
+    else
+      log_error ("failed to update Vaultfile preferences path");
+  }
+
+  if (!fs::exists (prefs_path) && fs::exists (legacy_path)) {
+    load_user_preferences (url (legacy_path.string ().c_str ()));
+  }
+
   if (!fs::exists (prefs_path)) {
     log_info ("preferences: vault preferences enabled, but " +
               prefs_path.string () + " does not exist; using system preferences");

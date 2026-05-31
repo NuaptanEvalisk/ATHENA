@@ -21,10 +21,17 @@
 (define-public preferences-default (make-ahash-table))
 (define-public preferences-call-back (make-ahash-table))
 
+(define (preference->string x)
+  (if (string? x) x (object->string x)))
+
+(define-public (register-preference-default which value)
+  (cpp-register-preference which (preference->string value) (string? value))
+  (if (not (ahash-ref preferences-default which))
+      (ahash-set! preferences-default which value)))
+
 (define (define-preference x)
   (with (which value call-back) x
-    `(if (not (ahash-ref preferences-default ,which))
-         (ahash-set! preferences-default ,which ,value))))
+    `(register-preference-default ,which ,value)))
 
 (define (define-preference-call-back x)
   (with (which value call-back) x
@@ -53,7 +60,6 @@
   (with val (if (string? what) what (object->string what))
     (when (!= (get-preference which) val)
       (cpp-set-preference which val)
-      (notify-preference which)
       (save-preferences))))
 
 (define (test-no-preference? which)
@@ -65,7 +71,6 @@
   ;;(display* "reset-preference " which "\n")
   (when (cpp-has-preference? which)
     (cpp-reset-preference which)
-    (notify-preference which)
     (save-preferences)))
 
 (define (get-call-back what)
@@ -89,9 +94,8 @@
 
 (tm-define (get-preference which)
   (:synopsis "Get preference @which")
-  (let* ((def (or (ahash-ref preferences-default which) "default"))
-         (s? (string? def))
-         (r (cpp-get-preference which (if s? def (object->string def)))))
+  (let* ((s? (cpp-preference-default-string? which))
+         (r (cpp-get-preference which "default")))
     (if s? r (string->object r))))
 
 (tm-define (preference-on? which)

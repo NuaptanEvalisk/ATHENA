@@ -127,7 +127,7 @@
 (define vault-preferences-reloading? #f)
 
 (define (vault-system-preferences-file)
-  "$ATHENA_HOME_PATH/system/preferences.scm")
+  "$ATHENA_HOME_PATH/system/preferences.json")
 
 (define (vault-take-preferences?)
   (== (get-preference "vault take preferences with vault") "on"))
@@ -170,14 +170,28 @@
 (define (vault-preferences-url dir prefs-path)
   (url-append dir prefs-path))
 
+(define (vault-preferences-json-path prefs-path)
+  (cond ((string-null? prefs-path) "vprefs.json")
+        ((string-ends? prefs-path ".json") prefs-path)
+        ((string-ends? prefs-path ".scm")
+         (string-append
+          (substring prefs-path 0 (- (string-length prefs-path) 4))
+          ".json"))
+        (else (string-append prefs-path ".json"))))
+
 (define (vault-preferences-ensure-file dir vault-file data)
   (let* ((rel (vaultfile-preferences-path data))
-         (prefs-rel (if (string-null? rel) "vprefs.scm" rel))
-         (prefs-file (vault-preferences-url dir prefs-rel)))
-    (when (string-null? rel)
+         (prefs-rel (vault-preferences-json-path rel))
+         (prefs-file (vault-preferences-url dir prefs-rel))
+         (legacy-file (and (!= rel prefs-rel)
+                           (vault-preferences-url
+                            dir (if (string-null? rel) "vprefs.scm" rel)))))
+    (when (!= rel prefs-rel)
       (save-object vault-file (vaultfile-with-preferences data prefs-rel)))
     (when (not (url-exists? prefs-file))
-      (cpp-dump-preferences prefs-file))
+      (if (and legacy-file (url-exists? legacy-file))
+          (cpp-load-preferences legacy-file)
+          (cpp-dump-preferences prefs-file)))
     prefs-file))
 
 (define (vault-preferences-activate dir vault-file data)

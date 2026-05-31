@@ -101,6 +101,8 @@
 "protected-call"
 "notify-preferences-booted"
 "cpp-has-preference?"
+"cpp-register-preference"
+"cpp-preference-default-string?"
 "cpp-get-preference"
 "cpp-set-preference"
 "cpp-reset-preference"

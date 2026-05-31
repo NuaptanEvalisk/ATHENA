@@ -490,7 +490,7 @@ aofm_cache_preferences () {
         << string ("manual zealous invisible correct")
         << string ("vault preferred font");
   for (int i=0; i<N(prefs); i++) {
-    string val = as_string (call ("get-preference", prefs[i]));
+    string val = get_preference (prefs[i], "default");
     aofm_pref_cache (prefs[i]) = val;
     cout << "AOFM]   " << prefs[i] << " -> " << val << LF;
   }
@@ -510,8 +510,8 @@ notify_preferences_booted () {
 
 void
 set_preference (string var, string val) {
-  if (!preferences_ok) set_user_preference (var, val);
-  else (void) call ("set-preference", var, val);
+  set_user_preference (var, val);
+  if (preferences_ok) save_user_preferences ();
 }
 
 void
@@ -526,13 +526,8 @@ get_preference (string var, string def) {
     string pref = aofm_pref_cache[var];
     if (pref == "default") return def; else return pref;
   }
-  if (!preferences_ok)
-    return get_user_preference (var, def);
-  else {
-    // if (aofm_converter_mode) cout << "AOFM] (cache miss) " << var << endl;
-    string pref= as_string (call ("get-preference", var));
-    if (pref == "default") return def; else return pref;
-  }
+  string pref= get_user_preference (var, def);
+  if (pref == "default") return def; else return pref;
 }
 
 /******************************************************************************

@@ -17,18 +17,65 @@
 #include "merge_sort.hpp"
 #include "iterator.hpp"
 
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonParseError>
+#include <QJsonValue>
+#include <QString>
+
 /******************************************************************************
 * Changing the user preferences
 ******************************************************************************/
 
 bool user_prefs_modified= false;
 hashmap<string,string> user_prefs ("");
-url user_prefs_file= "$ATHENA_HOME_PATH/system/preferences.scm";
+hashmap<string,string> user_prefs_default ("");
+hashmap<string,bool> user_prefs_string_default (true);
+url user_prefs_file= "$ATHENA_HOME_PATH/system/preferences.json";
 void notify_preference (string var);
+
+static QString
+to_qstring (string s) {
+  return QString::fromUtf8 (as_charp (s), N(s));
+}
+
+static string
+from_qstring (const QString& s) {
+  QByteArray bytes= s.toUtf8 ();
+  return string (bytes.constData ());
+}
+
+static bool
+has_suffix (string s, string suf) {
+  return N(s) >= N(suf) && s (N(s) - N(suf), N(s)) == suf;
+}
+
+static url
+with_json_suffix (url u) {
+  string s= as_string (u);
+  if (has_suffix (s, ".json")) return u;
+  if (has_suffix (s, ".scm")) return url (s (0, N(s) - 4) * ".json");
+  return url (s * ".json");
+}
 
 bool
 has_user_preference (string var) {
   return user_prefs->contains (var);
+}
+
+void
+register_user_preference (string var, string def, bool string_def) {
+  if (!user_prefs_default->contains (var)) {
+    user_prefs_default (var)= def;
+    user_prefs_string_default (var)= string_def;
+  }
+}
+
+bool
+user_preference_default_is_string (string var) {
+  if (user_prefs_string_default->contains (var))
+    return user_prefs_string_default[var];
+  return true;
 }
 
 void
@@ -49,6 +96,7 @@ reset_user_preference (string var) {
 string
 get_user_preference (string var, string val) {
   if (user_prefs->contains (var)) return user_prefs[var];
+  if (user_prefs_default->contains (var)) return user_prefs_default[var];
   else return val;
 }
 
@@ -57,7 +105,7 @@ get_user_preference (string var, string val) {
 ******************************************************************************/
 
 static hashmap<string,string>
-read_user_preferences (url prefs_file) {
+read_scheme_user_preferences (url prefs_file) {
   hashmap<string,string> prefs ("");
   string s;
   tree p (TUPLE);
@@ -75,8 +123,42 @@ read_user_preferences (url prefs_file) {
   return prefs;
 }
 
+static hashmap<string,string>
+read_json_user_preferences (url prefs_file, bool& ok) {
+  ok= false;
+  hashmap<string,string> prefs ("");
+  string s;
+  if (load_string (prefs_file, s, false)) return prefs;
+
+  QJsonParseError error;
+  QJsonDocument doc= QJsonDocument::fromJson (QByteArray (as_charp (s), N(s)),
+                                              &error);
+  if (error.error != QJsonParseError::NoError || !doc.isObject ()) {
+    std_error << "Invalid preferences JSON in " << prefs_file << LF;
+    return prefs;
+  }
+
+  QJsonObject root= doc.object ();
+  if (root.value ("format").toString () != "athena-preferences" ||
+      root.value ("version").toInt () != 1 ||
+      !root.value ("preferences").isObject ()) {
+    std_error << "Unsupported preferences JSON in " << prefs_file << LF;
+    return prefs;
+  }
+
+  QJsonObject obj= root.value ("preferences").toObject ();
+  for (QJsonObject::const_iterator it= obj.constBegin ();
+       it != obj.constEnd (); ++it) {
+    if (!it.value ().isString ()) continue;
+    prefs (from_qstring (it.key ()))= from_qstring (it.value ().toString ());
+  }
+
+  ok= true;
+  return prefs;
+}
+
 static void
-write_user_preferences (url prefs_file) {
+write_scheme_user_preferences (url prefs_file) {
   iterator<string> it= iterate (user_prefs);
   array<string> a;
   while (it->busy ())
@@ -90,16 +172,88 @@ write_user_preferences (url prefs_file) {
     std_warning << "The user preferences could not be saved\n";
 }
 
+static void
+write_json_user_preferences (url prefs_file) {
+  iterator<string> it= iterate (user_prefs);
+  QJsonObject prefs;
+  while (it->busy ()) {
+    string key= it->next ();
+    prefs.insert (to_qstring (key), to_qstring (user_prefs[key]));
+  }
+
+  QJsonObject root;
+  root.insert ("format", "athena-preferences");
+  root.insert ("version", 1);
+  root.insert ("preferences", prefs);
+
+  QJsonDocument doc (root);
+  QByteArray bytes= doc.toJson (QJsonDocument::Indented);
+  if (save_string (prefs_file, string (bytes.constData ())))
+    std_warning << "The user preferences could not be saved\n";
+}
+
+static hashmap<string,string>
+read_user_preferences (url prefs_file, url& canonical_file) {
+  bool json_ok= false;
+  if (has_suffix (as_string (prefs_file), ".json")) {
+    bool json_exists= exists (prefs_file);
+    hashmap<string,string> prefs= read_json_user_preferences (prefs_file,
+                                                              json_ok);
+    canonical_file= prefs_file;
+    if (json_ok) return prefs;
+
+    url legacy_file= url (as_string (prefs_file) (0,
+                         N(as_string (prefs_file)) - 5) * ".scm");
+    if (exists (legacy_file)) {
+      if (json_exists)
+        std_warning << "preferences: falling back to legacy preferences file "
+                    << legacy_file << LF;
+      else
+        cout << "preferences: importing legacy preferences file "
+             << legacy_file << LF;
+      prefs= read_scheme_user_preferences (legacy_file);
+      if (!json_exists) {
+        user_prefs= prefs;
+        write_json_user_preferences (prefs_file);
+      }
+      return prefs;
+    }
+    return prefs;
+  }
+
+  canonical_file= with_json_suffix (prefs_file);
+  if (exists (canonical_file)) {
+    hashmap<string,string> prefs= read_json_user_preferences (canonical_file,
+                                                             json_ok);
+    if (json_ok) return prefs;
+    if (exists (prefs_file))
+      return read_scheme_user_preferences (prefs_file);
+    return prefs;
+  }
+
+  hashmap<string,string> prefs= read_scheme_user_preferences (prefs_file);
+  user_prefs= prefs;
+  write_json_user_preferences (canonical_file);
+  return prefs;
+}
+
+static void
+write_user_preferences (url prefs_file) {
+  if (has_suffix (as_string (prefs_file), ".scm"))
+    write_scheme_user_preferences (prefs_file);
+  else
+    write_json_user_preferences (prefs_file);
+}
+
 void
 load_user_preferences () {
-  load_user_preferences ("$ATHENA_HOME_PATH/system/preferences.scm");
+  load_user_preferences ("$ATHENA_HOME_PATH/system/preferences.json");
 }
 
 void
 load_user_preferences (url prefs_file) {
   save_user_preferences ();
-  user_prefs_file= prefs_file;
-  user_prefs= read_user_preferences (prefs_file);
+  user_prefs= read_user_preferences (prefs_file, user_prefs_file);
   user_prefs_modified= false;
 }
 

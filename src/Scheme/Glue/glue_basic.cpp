@@ -874,6 +874,36 @@ tmg_cpp_has_preferenceP (tmscm arg1) {
 }
 
 tmscm
+tmg_cpp_register_preference (tmscm arg1, tmscm arg2, tmscm arg3) {
+  TMSCM_ASSERT_STRING (arg1, TMSCM_ARG1, "cpp-register-preference");
+  TMSCM_ASSERT_STRING (arg2, TMSCM_ARG2, "cpp-register-preference");
+  TMSCM_ASSERT_BOOL (arg3, TMSCM_ARG3, "cpp-register-preference");
+
+  string in1= tmscm_to_string (arg1);
+  string in2= tmscm_to_string (arg2);
+  bool in3= tmscm_to_bool (arg3);
+
+  // TMSCM_DEFER_INTS;
+  register_user_preference (in1, in2, in3);
+  // TMSCM_ALLOW_INTS;
+
+  return TMSCM_UNSPECIFIED;
+}
+
+tmscm
+tmg_cpp_preference_default_stringP (tmscm arg1) {
+  TMSCM_ASSERT_STRING (arg1, TMSCM_ARG1, "cpp-preference-default-string?");
+
+  string in1= tmscm_to_string (arg1);
+
+  // TMSCM_DEFER_INTS;
+  bool out= user_preference_default_is_string (in1);
+  // TMSCM_ALLOW_INTS;
+
+  return bool_to_tmscm (out);
+}
+
+tmscm
 tmg_cpp_get_preference (tmscm arg1, tmscm arg2) {
   TMSCM_ASSERT_STRING (arg1, TMSCM_ARG1, "cpp-get-preference");
   TMSCM_ASSERT_STRING (arg2, TMSCM_ARG2, "cpp-get-preference");
@@ -11063,6 +11093,8 @@ initialize_glue_basic () {
   tmscm_install_procedure ("protected-call",  tmg_protected_call, 1, 0, 0);
   tmscm_install_procedure ("notify-preferences-booted",  tmg_notify_preferences_booted, 0, 0, 0);
   tmscm_install_procedure ("cpp-has-preference?",  tmg_cpp_has_preferenceP, 1, 0, 0);
+  tmscm_install_procedure ("cpp-register-preference",  tmg_cpp_register_preference, 3, 0, 0);
+  tmscm_install_procedure ("cpp-preference-default-string?",  tmg_cpp_preference_default_stringP, 1, 0, 0);
   tmscm_install_procedure ("cpp-get-preference",  tmg_cpp_get_preference, 2, 0, 0);
   tmscm_install_procedure ("cpp-set-preference",  tmg_cpp_set_preference, 2, 0, 0);
   tmscm_install_procedure ("cpp-reset-preference",  tmg_cpp_reset_preference, 1, 0, 0);
