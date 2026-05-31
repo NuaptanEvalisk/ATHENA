@@ -162,7 +162,8 @@
 (use-modules (athena athena tm-server) (athena athena tm-view)
              (athena athena tm-files) (athena athena tm-print)
              (athena athena tm-vault))
-(define-secure-symbols heading-fold-toggle-tree heading-fold-toggle)
+(define-secure-symbols heading-fold-toggle-tree heading-fold-toggle
+  heading-word-count-tree heading-word-count-path)
 (lazy-define (athena athena tm-files)
              buffer-missing-style? buffer-set-default-style)
 (use-modules (athena keyboard config-kbd))

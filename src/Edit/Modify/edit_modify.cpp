@@ -12,6 +12,7 @@
 #include "modification.hpp"
 #include "edit_modify.hpp"
 #include "tm_window.hpp"
+#include "scheme.hpp"
 #ifdef EXPERIMENTAL
 #include "../../Style/Memorizer/clean_copy.hpp"
 #endif
@@ -128,6 +129,8 @@ edit_modify_rep::post_notify (path p) {
   position_delete (cur_pos);
   cur_pos= nil_observer;
   go_to_correct (tp);
+  if (get_preference ("heading word counts", "off") == "on")
+    typeset_invalidate_all ();
   /*
   cout << "et= " << et << "\n";
   cout << "tp= " << tp << "\n\n";

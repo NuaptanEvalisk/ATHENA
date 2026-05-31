@@ -849,8 +849,17 @@
       (toggle (set-boolean-preference "prog:select brackets" answer)
               (get-boolean-preference "prog:select brackets")))))
 
+(define (notify-heading-word-counts var val)
+  (when (current-view) (notify-change 8)))
+
+(define-preferences
+  ("heading word counts" "off" notify-heading-word-counts))
+
 (tm-widget (editing-text-preferences-widget)
   (aligned
+    (item (text "Show heading word counts:")
+      (toggle (set-boolean-preference "heading word counts" answer)
+              (get-boolean-preference "heading word counts")))
     (item (text "Check spelling as you type:")
       (toggle (set-boolean-preference "live spell checking" answer)
               (get-boolean-preference "live spell checking")))

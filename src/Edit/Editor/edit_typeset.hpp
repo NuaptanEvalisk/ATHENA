@@ -15,6 +15,7 @@
 #include "typesetter.hpp"
 #include "editor.hpp"
 #include "hashset.hpp"
+#include "heading_word_count.hpp"
 
 class document_rep;
 class edit_typeset_rep: virtual public editor_rep {
@@ -29,6 +30,8 @@ protected:
   hashset<string> folded_headings;         // screen-only folded heading paths
   bool fold_view_active;                   // screen typesetter uses folded tree
   bool fold_view_rebuild;                  // recreate screen typesetter
+  int  heading_word_count_cache_hash;       // source hash for cached counts
+  array<heading_word_count_entry> heading_word_count_cache;
   edit_env env;                           // the environment for typesetting
   typesetter ttt;                         // the (not) yet typesetted document
 
@@ -142,6 +145,7 @@ public:
   bool     heading_unfold_current ();
   bool     heading_fold_toggle_at (string p);
   void     heading_unfold_all ();
+  int      heading_word_count_at (path p);
   void     typeset_sub (SI& x1, SI& y1, SI& x2, SI& y2);
   void     typeset (SI& x1, SI& y1, SI& x2, SI& y2);
   void     typeset_forced ();

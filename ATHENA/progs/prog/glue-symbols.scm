@@ -806,6 +806,7 @@
 "heading-fold-current"
 "heading-unfold-current"
 "heading-fold-toggle-path"
+"heading-word-count-path"
 "heading-unfold-all"
 "vault-backup-viewer-show"
 "image-remove-background"

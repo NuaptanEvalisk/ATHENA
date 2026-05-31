@@ -1460,6 +1460,15 @@ tmg_heading_fold_toggle_path (tmscm arg1) {
 }
 
 tmscm
+tmg_heading_word_count_path (tmscm arg1) {
+  TMSCM_ASSERT_PATH (arg1, TMSCM_ARG1, "heading-word-count-path");
+
+  path in1= tmscm_to_path (arg1);
+  int out= get_current_editor()->heading_word_count_at (in1);
+  return int_to_tmscm (out);
+}
+
+tmscm
 tmg_heading_unfold_all () {
   get_current_editor()->heading_unfold_all ();
   return TMSCM_UNSPECIFIED;
@@ -1696,6 +1705,8 @@ initialize_glue () {
                            tmg_heading_unfold_current, 0, 0, 0);
   tmscm_install_procedure ("heading-fold-toggle-path",
                            tmg_heading_fold_toggle_path, 1, 0, 0);
+  tmscm_install_procedure ("heading-word-count-path",
+                           tmg_heading_word_count_path, 1, 0, 0);
   tmscm_install_procedure ("heading-unfold-all",
                            tmg_heading_unfold_all, 0, 0, 0);
   tmscm_install_procedure ("native-info-dialog",

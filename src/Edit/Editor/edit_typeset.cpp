@@ -11,6 +11,7 @@
 
 #include <climits>
 #include "edit_typeset.hpp"
+#include "heading_word_count.hpp"
 #include "tm_buffer.hpp"
 #include "convert.hpp"
 #include "file.hpp"
@@ -37,6 +38,7 @@ edit_typeset_rep::edit_typeset_rep ():
   cur (hashmap<string,tree> (UNINIT)),
   stydef (UNINIT), pre (UNINIT), init (UNINIT), fin (UNINIT), grefs (UNINIT),
   folded_headings (), fold_view_active (false), fold_view_rebuild (false),
+  heading_word_count_cache_hash (INT_MIN), heading_word_count_cache (),
   env (drd, buf->buf->master,
        buf->data->ref, (buf->prj==NULL? grefs: buf->prj->data->ref),
        buf->data->aux, (buf->prj==NULL? buf->data->aux: buf->prj->data->aux),
@@ -971,19 +973,7 @@ edit_typeset_rep::init_default (string var) {
 
 static int
 heading_level (tree t) {
-  if (is_atomic (t) || N(t) != 1) return 0;
-  string s= as_string (L(t));
-  if (ends (s, "*")) s= s (0, N(s) - 1);
-  if (s == "part") return 1;
-  if (s == "chapter" || s == "appendix" ||
-      s == "prologue" || s == "epilogue")
-    return 2;
-  if (s == "section") return 3;
-  if (s == "subsection") return 4;
-  if (s == "subsubsection") return 5;
-  if (s == "paragraph") return 6;
-  if (s == "subparagraph") return 7;
-  return 0;
+  return athena_heading_level (t);
 }
 
 static bool
@@ -1149,6 +1139,34 @@ edit_typeset_rep::heading_fold_set_current (bool folded, bool toggle) {
   return true;
 }
 
+int
+edit_typeset_rep::heading_word_count_at (path p) {
+  if (!has_subtree (et, p)) return 0;
+
+  path hp= p;
+  if (heading_level (subtree (et, hp)) == 0)
+    hp= path_up (hp);
+  while (!is_nil (hp) &&
+         has_subtree (et, hp) &&
+         heading_level (subtree (et, hp)) == 0)
+    hp= path_up (hp);
+  if (is_nil (hp) || !has_subtree (et, hp) ||
+      heading_level (subtree (et, hp)) == 0)
+    return 0;
+
+  tree doc= subtree (et, rp);
+  int h= hash (doc);
+  if (h != heading_word_count_cache_hash) {
+    heading_word_count_cache= athena_heading_word_count_entries (doc, rp);
+    heading_word_count_cache_hash= h;
+  }
+
+  for (int i=0; i<N(heading_word_count_cache); i++)
+    if (heading_word_count_cache[i].tree_path == hp)
+      return heading_word_count_cache[i].words;
+  return 0;
+}
+
 void
 edit_typeset_rep::typeset_sub (SI& x1, SI& y1, SI& x2, SI& y2) {
   //time_t t1= texmacs_time ();
@@ -1159,12 +1177,14 @@ edit_typeset_rep::typeset_sub (SI& x1, SI& y1, SI& x2, SI& y2) {
 #ifdef USE_EXCEPTIONS
   try {
 #endif
-    bool folded_screen=
-      env->get_string (PAGE_PRINTED) != "true" && N(folded_headings) != 0;
+    bool printed= env->get_string (PAGE_PRINTED) == "true";
+    bool folded_screen= !printed && N(folded_headings) != 0;
     bool full_repaint= fold_view_rebuild ||
                        folded_screen != fold_view_active;
     if (full_repaint) {
-      tree doc= folded_screen? folded_screen_tree (): subtree (et, rp);
+      tree doc= subtree (et, rp);
+      if (folded_screen)
+        doc= heading_fold_screen_tree (doc, path (), folded_headings);
       ttt->screen_tree= folded_screen;
       ::notify_assign (ttt, path (), doc);
       fold_view_rebuild= false;
@@ -1283,6 +1303,7 @@ edit_typeset_rep::typeset_invalidate (path p) {
 void
 edit_typeset_rep::typeset_invalidate_all () {
   //cout << "Invalidate all\n";
+  heading_word_count_cache_hash= INT_MIN;
   if (fold_view_active || N(folded_headings) != 0)
     fold_view_rebuild= true;
   notify_change (THE_ENVIRONMENT);

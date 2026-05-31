@@ -10,6 +10,7 @@
 
 #include "QTMOutlinePane.hpp"
 #include "QTMMainTabWindow.hpp"
+#include "heading_word_count.hpp"
 #include "editor.hpp"
 #include "qt_utilities.hpp"
 
@@ -25,158 +26,6 @@
 
 static QTMOutlinePane* outline_pane_widget= nullptr;
 static ads::CDockWidget* outline_pane_dock= nullptr;
-
-static std::string
-tree_tag (const tree& t) {
-  if (!is_compound (t)) return "";
-  return std::string (as_charp (as_string (L(t))));
-}
-
-static int
-heading_level (const tree& t) {
-  std::string tag= tree_tag (t);
-  if (tag == "part") return 1;
-  if (tag == "chapter") return 1;
-  if (tag == "section") return 1;
-  if (tag == "subsection") return 2;
-  if (tag == "subsubsection") return 3;
-  if (tag == "paragraph") return 4;
-  if (tag == "subparagraph") return 5;
-  return 0;
-}
-
-static bool
-is_title_tree (const tree& t) {
-  std::string tag= tree_tag (t);
-  return tag == "title" || tag == "doc-title" ||
-         tag == "tmdoc-title" || tag == "tmweb-title";
-}
-
-static bool
-is_cjk (const QChar& ch) {
-  uint u= ch.unicode ();
-  return (u >= 0x3400 && u <= 0x9fff) ||
-         (u >= 0xf900 && u <= 0xfaff) ||
-         (u >= 0x3040 && u <= 0x30ff) ||
-         (u >= 0xac00 && u <= 0xd7af);
-}
-
-static int
-word_count_text (const QString& text) {
-  int count= 0;
-  bool inWord= false;
-  for (int i=0; i<text.size (); i++) {
-    QChar ch= text[i];
-    if (is_cjk (ch)) {
-      if (inWord) inWord= false;
-      count++;
-    }
-    else if (ch.isLetterOrNumber ()) {
-      if (!inWord) {
-        count++;
-        inWord= true;
-      }
-    }
-    else if (ch != '\'' && ch != QChar (0x2019)) {
-      inWord= false;
-    }
-  }
-  return count;
-}
-
-static void
-append_plain_text (const tree& t, QString& out) {
-  if (is_atomic (t)) {
-    QString s= to_qstring (t->label);
-    if (!s.trimmed ().isEmpty ()) {
-      if (!out.isEmpty ()) out += " ";
-      out += s;
-    }
-    return;
-  }
-  if (!is_compound (t)) return;
-
-  std::string tag= tree_tag (t);
-  if (tag == "label" || tag == "reference" || tag == "pageref" ||
-      tag == "image" || tag == "include" || tag == "bibliography")
-    return;
-
-  for (int i=0; i<N(t); i++) append_plain_text (t[i], out);
-}
-
-static QString
-plain_text (const tree& t) {
-  QString out;
-  append_plain_text (t, out);
-  return out.simplified ();
-}
-
-static QString
-heading_title (const tree& t) {
-  if (is_compound (t) && N(t) > 0) {
-    QString title= plain_text (t[0]);
-    if (!title.isEmpty ()) return title;
-  }
-  QString fallback= plain_text (t);
-  return fallback.isEmpty () ? QString ("Untitled") : fallback;
-}
-
-class OutlineBuilder {
-public:
-  OutlineBuilder (QVector<QTMOutlinePane::Entry>& entries2, path rootPath2)
-    : entries (entries2), rootPath (rootPath2) {}
-
-  void scan (const tree& t, path rel= path ()) {
-    if (is_atomic (t)) {
-      addWords (word_count_text (to_qstring (t->label)));
-      return;
-    }
-    if (!is_compound (t)) return;
-
-    if (is_title_tree (t)) {
-      QTMOutlinePane::Entry entry;
-      entry.level= 0;
-      entry.title= heading_title (t);
-      entry.words= 0;
-      entry.treePath= rootPath * rel;
-      entries.append (entry);
-      return;
-    }
-
-    int level= heading_level (t);
-    if (level > 0) {
-      while (!openIndexes.empty () &&
-             entries[openIndexes.back ()].level >= level)
-        openIndexes.pop_back ();
-
-      QTMOutlinePane::Entry entry;
-      entry.level= level;
-      entry.title= heading_title (t);
-      entry.words= 0;
-      entry.treePath= rootPath * rel;
-      entries.append (entry);
-      openIndexes.push_back (entries.size () - 1);
-      return;
-    }
-
-    std::string tag= tree_tag (t);
-    if (tag == "label" || tag == "reference" || tag == "pageref" ||
-        tag == "image" || tag == "include" || tag == "bibliography")
-      return;
-
-    for (int i=0; i<N(t); i++) scan (t[i], rel * i);
-  }
-
-private:
-  void addWords (int words) {
-    if (words <= 0) return;
-    for (int index: openIndexes) entries[index].words += words;
-  }
-
-  QVector<QTMOutlinePane::Entry>& entries;
-  QVector<int> openIndexes;
-  path rootPath;
-};
 
 QTMOutlinePane::QTMOutlinePane (QWidget* parent)
   : QWidget (parent), tree (new QTreeWidget (this)), timer (new QTimer (this)) {
@@ -218,8 +67,16 @@ QTMOutlinePane::refresh () {
   lastSignature= signature;
 
   entries.clear ();
-  OutlineBuilder builder (entries, ed->the_buffer_path ());
-  builder.scan (doc);
+  array<heading_word_count_entry> outline_entries=
+    athena_heading_word_count_entries (doc, ed->the_buffer_path ());
+  for (int i=0; i<N(outline_entries); i++) {
+    QTMOutlinePane::Entry entry;
+    entry.level= outline_entries[i].level;
+    entry.title= to_qstring (outline_entries[i].title);
+    entry.words= outline_entries[i].words;
+    entry.treePath= outline_entries[i].tree_path;
+    entries.append (entry);
+  }
 
   tree->clear ();
   QVector<QTreeWidgetItem*> parents;

@@ -25,7 +25,23 @@
         (heading-fold-toggle))
       #f))
 
-(define-secure-symbols heading-fold-toggle-tree heading-fold-toggle)
+(tm-define (heading-word-count-tree t)
+  (:type (-> tree tree))
+  (:synopsis "Render the live word count for the heading containing @t")
+  (:secure #t)
+  (if (and (get-boolean-preference "heading word counts")
+           (tree? t) (tree->path t))
+      (let ((n (heading-word-count-path (tree->path t))))
+        (if (> n 0)
+            `(with "font-size" "0.8" "color" "grey"
+               (rigid ,(string-append
+                         "  " (number->string n)
+                         (if (= n 1) " word" " words"))))
+            ""))
+      ""))
+
+(define-secure-symbols heading-fold-toggle-tree heading-fold-toggle
+  heading-word-count-tree heading-word-count-path)
 
 ; FIXME: remove these two and find a better way
 (define (escape-link-args s)

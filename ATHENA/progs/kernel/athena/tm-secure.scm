@@ -37,6 +37,7 @@
   texmacs-build-user texmacs-build-date texmacs-host-os
   texmacs-host-vendor texmacs-host-cpu texmacs-build-info
   heading-fold-toggle-tree heading-fold-toggle
+  heading-word-count-tree heading-word-count-path
   display display*
   refresh-now)
 

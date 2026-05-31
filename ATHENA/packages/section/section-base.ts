@@ -20,6 +20,8 @@
     </src-license>
   </src-title>>
 
+  <use-module|(link link-navigate)>
+
   <\active*>
     <\src-comment>
       Environment parameters.
@@ -67,7 +69,9 @@
 
   <assign|heading-fold-control|<macro|name|<style-with|src-compact|none|<action|<specific|screen*|<active*|<with|color|dark grey|<rigid|[+]>>>>|heading-fold-toggle-tree|<arg|name>>>>>
 
-  <assign|heading-fold-title|<macro|name|<surround||<right-flush><heading-fold-control|<arg|name>>|<arg|name>>>>
+  <assign|heading-word-count-control|<macro|name|<style-with|src-compact|none|<specific|screen*|<extern|heading-word-count-tree|<arg|name>>>>>>
+
+  <assign|heading-fold-title|<macro|name|<surround||<heading-word-count-control|<arg|name>><right-flush><heading-fold-control|<arg|name>>|<arg|name>>>>
 
   <assign|sectional-short|<macro|name|<no-indent><arg|name>>>
 
