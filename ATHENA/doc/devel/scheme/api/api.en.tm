@@ -18,8 +18,6 @@
 
     <branch|The URL system.|url.en.tm>
 
-    <branch|Notification and download of updates.|automatic-updates.en.tm>
-
     <branch|All glue symbols.|glue-auto-doc.en.tm>
   </traverse>
 

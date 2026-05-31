@@ -77,9 +77,6 @@
 /* Define to 1 if you have the <util.h> header file. */
 #cmakedefine HAVE_UTIL_H 1
 
-/* Link axel library with TeXmacs */
-#cmakedefine LINKED_AXEL 1
-
 /* Link cairo library with TeXmacs */
 #cmakedefine LINKED_CAIRO 1
 
@@ -139,9 +136,6 @@
 
 #cmakedefine TM_DYNAMIC_LINKING 1
 
-/* Use axel library */
-#cmakedefine USE_AXEL 1
-
 /* Use cairo library */
 #cmakedefine USE_CAIRO 1
 
@@ -155,8 +149,6 @@
 
 /* Use imlib2 library */
 #cmakedefine USE_IMLIB2 1
-
-#cmakedefine USE_SPARKLE 1
 
 #cmakedefine USE_SQLITE3 1
 

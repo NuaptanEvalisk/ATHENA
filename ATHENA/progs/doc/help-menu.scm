@@ -115,10 +115,6 @@
 	     (load-help-article "about/philosophy/philosophy"))
 	    ("The ATHENA authors"
 	     (load-help-article "about/authors/authors"))
-	    ---
-	    (when (and (updater-supported?) (not (updater-running?)))
-		  ("Check for updates"
-		   (updater-check-foreground)))
 	    (when (url-exists-in-help? "about/changes/changes-recent")
 		  ("What is new"
 		   (load-help-article "about/changes/changes-recent")))

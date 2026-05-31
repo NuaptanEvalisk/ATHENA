@@ -42,11 +42,6 @@
     are in the range 10-15.
   </explain>
 
-  <subsection|Auto-update system>
-
-  Please refer to <hlink|Notification and download of
-  updates|../../devel/scheme/api/automatic-updates.en.tm>.
-
   <subsection|Plugins>
 
   <\explain>

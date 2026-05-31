@@ -29,12 +29,6 @@
 (tm-define (all-glued-symbols) '( 
 "texmacs-version-release"
 "version-before?"
-"updater-supported?"
-"updater-running?"
-"updater-check-background"
-"updater-check-foreground"
-"updater-last-check"
-"updater-set-interval"
 "get-original-path"
 "os-win32?"
 "os-mingw?"

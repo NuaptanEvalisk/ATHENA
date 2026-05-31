@@ -35,54 +35,6 @@ source code.
   </explain>
 
   <\explain>
-    <scm|(updater-supported?)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|updater_supported> which returns
-    <scm|bool>.
-  </explain>
-
-  <\explain>
-    <scm|(updater-running?)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|updater_is_running> which returns
-    <scm|bool>.
-  </explain>
-
-  <\explain>
-    <scm|(updater-check-background)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|updater_check_background> which returns
-    <scm|bool>.
-  </explain>
-
-  <\explain>
-    <scm|(updater-check-foreground)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|updater_check_foreground> which returns
-    <scm|bool>.
-  </explain>
-
-  <\explain>
-    <scm|(updater-last-check)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|updater_last_check> which returns
-    <scm|long>.
-  </explain>
-
-  <\explain>
-    <scm|(updater-set-interval <scm-arg|int>)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|updater_set_interval> which returns
-    <scm|bool>.
-  </explain>
-
-  <\explain>
     <scm|(get-original-path)>
 <explain-synopsis|no synopsis>
   <|explain>

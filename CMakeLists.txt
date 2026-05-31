@@ -126,8 +126,6 @@ if (USE_IMLIB2)
   option (LINKED_IMLIB2 "linked Imlib2" ON)
 endif (USE_IMLIB2)
 
-option (USE_SPARKLE "use Sparkle" OFF)
-
 option (PDFHUMMUS_NO_TIFF "Disable TIFF in PDF Hummus" ON)
 
 set (USE_GMP ON CACHE BOOL "use GMP" FORCE)
@@ -323,8 +321,6 @@ find_package (JPEG REQUIRED)
 pkg_check_modules (ZSTD REQUIRED libzstd)
 pkg_check_modules (MAGICKWAND REQUIRED MagickWand)
 add_definitions (${MAGICKWAND_CFLAGS_OTHER})
-#FIND_PACKAGE(Axel)
-
 ### --------------------------------------------------------------------
 ###  Some Guile related adjustements
 ### --------------------------------------------------------------------
@@ -520,7 +516,6 @@ file (GLOB_RECURSE ATHENA_Base_SRCS CONFIGURE_DEPENDS
 )
 
 file (GLOB_RECURSE ATHENA_Std_Plugins_SRCS
-  "${ATHENA_SOURCE_DIR}/src/Plugins/Axel/*.cpp"
   "${ATHENA_SOURCE_DIR}/src/Plugins/Bibtex/*.cpp"
   "${ATHENA_SOURCE_DIR}/src/Plugins/Cairo/*.cpp"
   "${ATHENA_SOURCE_DIR}/src/Plugins/Database/*.cpp"
@@ -536,7 +531,6 @@ file (GLOB_RECURSE ATHENA_Std_Plugins_SRCS
   "${ATHENA_SOURCE_DIR}/src/Plugins/Mplayer/*.cpp"
   "${ATHENA_SOURCE_DIR}/src/Plugins/Openssl/*.cpp"
   "${ATHENA_SOURCE_DIR}/src/Plugins/Sqlite3/*.cpp"
-  "${ATHENA_SOURCE_DIR}/src/Plugins/Updater/*.cpp"
 )
 
 file (GLOB_RECURSE ATHENA_Style_SRCS
@@ -774,13 +768,6 @@ else ()
     "Legacy GUI backends have been removed; "
     "use ATHENA_GUI=Qt for Qt5 or ATHENA_GUI=Qt6.")
 endif ()
-
-if (APPLE AND USE_SPARKLE)
-  set (ATHENA_MacOS_SRCS
-    ${ATHENA_MacOS_SRCS}
-    ${ATHENA_SOURCE_DIR}/src/Plugins/Updater/tm_sparkle.mm
-  )
-endif (APPLE AND USE_SPARKLE)
 
 ### --------------------------------------------------------------------
 ### OS System selection

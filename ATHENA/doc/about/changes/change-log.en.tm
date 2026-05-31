@@ -238,8 +238,6 @@
 
     <item>Experimental pattern effects (1.99.10).
 
-    <item>Experimental <name|Sparkle> support under <name|MacOS> (1.99.10).
-
     <item>Experimental and partial support for <name|Git> as a versioning
     tool (1.99.10).
 

@@ -540,7 +540,6 @@ ensure_builtin_user_preferences () {
     PREF ("client connection timeout", "100", ""),
     PREF ("remote-file-browser:sort-field", "type", "notify-sort-change"),
     PREF ("remote-file-browser:sort-direction", "asc", "notify-sort-change"),
-    PREF ("updater:interval", "null", ""),
     PREF_KIND ("gpg executable", "", "notify-gpg-executable",
                PREF_GPG_EXECUTABLE),
     PREF ("experimental encryption", "off",

@@ -19,12 +19,6 @@
 
   (texmacs-version-release texmacs_version (string string))
   (version-before? version_inf (bool string string))
-  (updater-supported? updater_supported (bool))
-  (updater-running? updater_is_running (bool))
-  (updater-check-background updater_check_background (bool))
-  (updater-check-foreground updater_check_foreground (bool))
-  (updater-last-check updater_last_check (long))
-  (updater-set-interval updater_set_interval (bool int))
   (get-original-path get_original_path (string))
   (os-win32? os_win32 (bool))
   (os-mingw? os_mingw (bool))

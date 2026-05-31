@@ -642,10 +642,6 @@ QTMPreferencesDialog::buildGeneralPage () {
   add_toggle (basicForm, "Autosave by default:", "autosave default");
   add_toggle (basicForm, "Use case-insensitive search:",
               "case-insensitive-match");
-  if (scheme_bool ("updater-supported?"))
-    add_combo (basicForm, "Check for automatic updates:", "updater:interval",
-               {{"0", "Never"}, {"24", "Once a day"},
-                {"168", "Once a week"}, {"720", "Once a month"}});
   finish_page (basic);
 
   QWidget* appearance= make_page ();

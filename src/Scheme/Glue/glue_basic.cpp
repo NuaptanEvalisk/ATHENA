@@ -40,64 +40,6 @@ tmg_version_beforeP (tmscm arg1, tmscm arg2) {
 }
 
 tmscm
-tmg_updater_supportedP () {
-  // TMSCM_DEFER_INTS;
-  bool out= updater_supported ();
-  // TMSCM_ALLOW_INTS;
-
-  return bool_to_tmscm (out);
-}
-
-tmscm
-tmg_updater_runningP () {
-  // TMSCM_DEFER_INTS;
-  bool out= updater_is_running ();
-  // TMSCM_ALLOW_INTS;
-
-  return bool_to_tmscm (out);
-}
-
-tmscm
-tmg_updater_check_background () {
-  // TMSCM_DEFER_INTS;
-  bool out= updater_check_background ();
-  // TMSCM_ALLOW_INTS;
-
-  return bool_to_tmscm (out);
-}
-
-tmscm
-tmg_updater_check_foreground () {
-  // TMSCM_DEFER_INTS;
-  bool out= updater_check_foreground ();
-  // TMSCM_ALLOW_INTS;
-
-  return bool_to_tmscm (out);
-}
-
-tmscm
-tmg_updater_last_check () {
-  // TMSCM_DEFER_INTS;
-  long out= updater_last_check ();
-  // TMSCM_ALLOW_INTS;
-
-  return long_to_tmscm (out);
-}
-
-tmscm
-tmg_updater_set_interval (tmscm arg1) {
-  TMSCM_ASSERT_INT (arg1, TMSCM_ARG1, "updater-set-interval");
-
-  int in1= tmscm_to_int (arg1);
-
-  // TMSCM_DEFER_INTS;
-  bool out= updater_set_interval (in1);
-  // TMSCM_ALLOW_INTS;
-
-  return bool_to_tmscm (out);
-}
-
-tmscm
 tmg_get_original_path () {
   // TMSCM_DEFER_INTS;
   string out= get_original_path ();
@@ -11065,12 +11007,6 @@ initialize_glue_basic () {
   tmscm_install_procedure ("help-about",  tmg_help_about, 0, 0, 0);
   tmscm_install_procedure ("texmacs-version-release",  tmg_texmacs_version_release, 1, 0, 0);
   tmscm_install_procedure ("version-before?",  tmg_version_beforeP, 2, 0, 0);
-  tmscm_install_procedure ("updater-supported?",  tmg_updater_supportedP, 0, 0, 0);
-  tmscm_install_procedure ("updater-running?",  tmg_updater_runningP, 0, 0, 0);
-  tmscm_install_procedure ("updater-check-background",  tmg_updater_check_background, 0, 0, 0);
-  tmscm_install_procedure ("updater-check-foreground",  tmg_updater_check_foreground, 0, 0, 0);
-  tmscm_install_procedure ("updater-last-check",  tmg_updater_last_check, 0, 0, 0);
-  tmscm_install_procedure ("updater-set-interval",  tmg_updater_set_interval, 1, 0, 0);
   tmscm_install_procedure ("get-original-path",  tmg_get_original_path, 0, 0, 0);
   tmscm_install_procedure ("os-win32?",  tmg_os_win32P, 0, 0, 0);
   tmscm_install_procedure ("os-mingw?",  tmg_os_mingwP, 0, 0, 0);
