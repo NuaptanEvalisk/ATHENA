@@ -18,7 +18,7 @@
     { "key": "oc", "action": "#2103", "preview": "℃", "notation": "<#2103>", "description": "Celsius" },
     { "key": "-1", "action": "tree:inv", "preview": "^-1", "notation": "^{-1}", "description": "inverse superscript" },
     { "key": "op", "action": "tree:op", "preview": "^op", "notation": "^{op}", "description": "opposite superscript" },
-    { "key": "uconv", "action": "Rightarrow", "preview": "⇒", "notation": "<Rightarrow>", "description": "double right arrow" },
+    { "key": "uconv", "action": "rightrightarrows", "preview": "⇉", "notation": "<rightrightarrows>", "description": "uniform convergence arrow" },
     { "key": "ilim", "action": "tree:varinjlim", "preview": "inj lim", "notation": "\\varinjlim", "description": "injective limit" },
     { "key": "colim", "action": "tree:varinjlim", "preview": "colim", "notation": "\\varinjlim", "description": "colimit" },
     { "key": "plim", "action": "tree:varprojlim", "preview": "proj lim", "notation": "\\varprojlim", "description": "projective limit" },

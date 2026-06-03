@@ -79,6 +79,7 @@ private:
   void     openCurrentResult ();
   void     applyPreviewZoom ();
   void     installPreviewEventFilter (QWidget* root);
+  void     showFallbackPreview ();
   bool     isPreviewWatchedObject (QObject* watched) const;
   void     refreshPreviewLayout ();
   void     refreshPreviewLayoutNow ();

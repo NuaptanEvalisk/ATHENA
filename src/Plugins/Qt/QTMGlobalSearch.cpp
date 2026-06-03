@@ -428,30 +428,64 @@ QTMGlobalSearch::destroyPreviewWidget () {
 void
 QTMGlobalSearch::recreatePreviewWidget () {
   if (previewHostWidget == nullptr || previewRecreating) return;
-  previewRecreating= true;
+  struct flag_guard {
+    bool& flag;
+    flag_guard (bool& flag2) : flag (flag2) { flag= true; }
+    ~flag_guard () { flag= false; }
+  } guard (previewRecreating);
 
   destroyPreviewWidget ();
 
   tree style= compound ("style", tuple ("generic"));
   previewWidth= currentPreviewWidth ();
   previewZoom= currentPreviewZoom ();
-  previewWidget= texmacs_output_widget (
-    apply_vault_preferred_font_to_preview (previewBody), style, previewWidth,
-    previewZoom);
-  QWidget* qwid= concrete (previewWidget)->as_qwidget (previewHostWidget);
-  previewQtWidget= qwid;
-  previewTexmacsWidget= qobject_cast<QTMWidget*> (qwid);
-  if (previewTexmacsWidget == nullptr)
-    previewTexmacsWidget= qwid->findChild<QTMWidget*> ();
+  try {
+    previewWidget= texmacs_output_widget (
+      apply_vault_preferred_font_to_preview (previewBody), style, previewWidth,
+      previewZoom);
+    QWidget* qwid= concrete (previewWidget)->as_qwidget (previewHostWidget);
+    previewQtWidget= qwid;
+    previewTexmacsWidget= qobject_cast<QTMWidget*> (qwid);
+    if (previewTexmacsWidget == nullptr)
+      previewTexmacsWidget= qwid->findChild<QTMWidget*> ();
 
-  installPreviewEventFilter (qwid);
-  qwid->setSizePolicy (QSizePolicy::Expanding, QSizePolicy::Expanding);
-  if (previewHostWidget->layout () != nullptr)
-    previewHostWidget->layout ()->addWidget (qwid);
-  qwid->show ();
+    installPreviewEventFilter (qwid);
+    qwid->setSizePolicy (QSizePolicy::Expanding, QSizePolicy::Expanding);
+    if (previewHostWidget->layout () != nullptr)
+      previewHostWidget->layout ()->addWidget (qwid);
+    qwid->show ();
+  }
+  catch (string msg) {
+    std_error << "global search preview: failed to typeset preview: "
+              << msg << LF;
+    showFallbackPreview ();
+  }
+  catch (...) {
+    std_error << "global search preview: failed to typeset preview" << LF;
+    showFallbackPreview ();
+  }
 
-  previewRecreating= false;
   refreshPreviewLayout ();
+}
+
+void
+QTMGlobalSearch::showFallbackPreview () {
+  if (previewHostWidget == nullptr) return;
+  QLabel* label= new QLabel ("Preview unavailable.", previewHostWidget);
+  label->setAlignment (Qt::AlignCenter);
+  label->setWordWrap (true);
+  label->setFocusPolicy (Qt::NoFocus);
+  label->setContextMenuPolicy (Qt::NoContextMenu);
+  label->setSizePolicy (QSizePolicy::Expanding, QSizePolicy::Expanding);
+  if (previewHostWidget->layout () != nullptr)
+    previewHostWidget->layout ()->addWidget (label);
+  previewQtWidget= label;
+  previewTexmacsWidget= nullptr;
+  previewWidget= widget ();
+  previewWidth= currentPreviewWidth ();
+  previewZoom= currentPreviewZoom ();
+  installPreviewEventFilter (label);
+  label->show ();
 }
 
 void

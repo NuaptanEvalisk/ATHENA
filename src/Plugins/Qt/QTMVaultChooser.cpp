@@ -24,6 +24,7 @@
 #include "scheme.hpp"
 #include "server.hpp"
 #include "tm_buffer.hpp"
+#include "tm_ostream.hpp"
 #include "tm_window.hpp"
 #include "qt_utilities.hpp"
 #include "qt_gui.hpp"
@@ -36,6 +37,7 @@
 #include <QCompleter>
 #include <QEvent>
 #include <QHBoxLayout>
+#include <QLabel>
 #include <QMouseEvent>
 #include <QMessageBox>
 #include <QProgressBar>
@@ -850,6 +852,24 @@ private:
     return false;
   }
 
+  void showFallbackPreview (QWidget* parent) {
+    if (parent == nullptr) return;
+    QLabel* label= new QLabel ("Preview unavailable.", parent);
+    label->setAlignment (Qt::AlignCenter);
+    label->setWordWrap (true);
+    label->setFocusPolicy (Qt::NoFocus);
+    label->setContextMenuPolicy (Qt::NoContextMenu);
+    label->setSizePolicy (QSizePolicy::Expanding, QSizePolicy::Expanding);
+    if (parent->layout () != nullptr) parent->layout ()->addWidget (label);
+    previewQtWidget= label;
+    previewTexmacsWidget= nullptr;
+    previewWidget= widget ();
+    previewWidth= currentPreviewWidth ();
+    previewZoom= currentPreviewZoom ();
+    installPreviewEventFilter (label);
+    label->show ();
+  }
+
   SI currentPreviewWidth () const {
     if (previewParent == nullptr) return 0;
     int w= previewParent->contentsRect ().width ();
@@ -865,7 +885,11 @@ private:
   void recreatePreview () {
     QWidget* parent= previewParent;
     if (parent == nullptr || recreating) return;
-    recreating= true;
+    struct flag_guard {
+      bool& flag;
+      flag_guard (bool& flag2) : flag (flag2) { flag= true; }
+      ~flag_guard () { flag= false; }
+    } guard (recreating);
 
     if (previewQtWidget != nullptr) {
       if (previewQtWidget->parentWidget () != nullptr &&
@@ -886,20 +910,29 @@ private:
     tree style= compound ("style", tuple ("generic"));
     previewWidth= currentPreviewWidth ();
     previewZoom= currentPreviewZoom ();
-    previewWidget= texmacs_output_widget (
-      apply_vault_preferred_font_to_preview (previewBody), style,
-      previewWidth, previewZoom);
-    QWidget* qwid= concrete (previewWidget)->as_qwidget (parent);
-    previewQtWidget= qwid;
-    previewTexmacsWidget= qobject_cast<QTMWidget*> (qwid);
-    if (previewTexmacsWidget == nullptr)
-      previewTexmacsWidget= qwid->findChild<QTMWidget*> ();
+    try {
+      previewWidget= texmacs_output_widget (
+        apply_vault_preferred_font_to_preview (previewBody), style,
+        previewWidth, previewZoom);
+      QWidget* qwid= concrete (previewWidget)->as_qwidget (parent);
+      previewQtWidget= qwid;
+      previewTexmacsWidget= qobject_cast<QTMWidget*> (qwid);
+      if (previewTexmacsWidget == nullptr)
+        previewTexmacsWidget= qwid->findChild<QTMWidget*> ();
 
-    installPreviewEventFilter (qwid);
-    qwid->setSizePolicy (QSizePolicy::Expanding, QSizePolicy::Expanding);
-    if (parent->layout () != nullptr) parent->layout ()->addWidget (qwid);
-    qwid->show ();
-    recreating= false;
+      installPreviewEventFilter (qwid);
+      qwid->setSizePolicy (QSizePolicy::Expanding, QSizePolicy::Expanding);
+      if (parent->layout () != nullptr) parent->layout ()->addWidget (qwid);
+      qwid->show ();
+    }
+    catch (string msg) {
+      std_error << "vault preview: failed to typeset preview: " << msg << LF;
+      showFallbackPreview (parent);
+    }
+    catch (...) {
+      std_error << "vault preview: failed to typeset preview" << LF;
+      showFallbackPreview (parent);
+    }
     refreshLayout ();
   }
 
