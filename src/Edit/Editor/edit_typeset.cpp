@@ -466,38 +466,40 @@ edit_typeset_rep::typeset_exec_until (path p) {
     typeset_invalidate_env ();
   typeset_prepare ();
   if (enable_fastenv) {
-    if (!(rp < p)) {
+    if (!(rp <= p)) {
       failed_error << "Erroneous path " << p << "\n";
       FAILED ("invalid typesetting path");
     }
-    tree t= subtree (et, rp);
-    path q= path_up (p / rp);
-    while (!is_nil (q)) {
-      int i= q->item;
-      restricted_exec (env, t, i);
-      if (L(t) == TFORMAT && i == N(t) - 1) {
-        tree fm= tree (TFORMAT);
-        table_descend (t, q, fm);
-        if (!is_nil (q))
-          for (int k=0; k<N(fm); k++)
-            if (is_func (fm[k], CWITH, 2))
-              env->write (fm[k][0]->label, fm[k][1]);
-      }
-      else {
-        tree w= drd->get_env_child (t, i, tree (ATTR));
-        if (w == "") break;
-        //cout << "t= " << t << "\n";
-        //cout << "i= " << i << "\n";
-        //cout << "w= " << w << "\n";
-        tree ww (w, N(w));
-        for (int j=0; j<N(w); j+=2) {
-          //cout << w[j] << " := " << env->exec (w[j+1]) << "\n";
-          ww[j+1]= env->exec (w[j+1]);
+    if (rp < p) {
+      tree t= subtree (et, rp);
+      path q= path_up (p / rp);
+      while (!is_nil (q)) {
+        int i= q->item;
+        restricted_exec (env, t, i);
+        if (L(t) == TFORMAT && i == N(t) - 1) {
+          tree fm= tree (TFORMAT);
+          table_descend (t, q, fm);
+          if (!is_nil (q))
+            for (int k=0; k<N(fm); k++)
+              if (is_func (fm[k], CWITH, 2))
+                env->write (fm[k][0]->label, fm[k][1]);
         }
-        for (int j=0; j<N(w); j+=2)
-          env->write (w[j]->label, ww[j+1]);
-        t= t[i];
-        q= q->next;
+        else {
+          tree w= drd->get_env_child (t, i, tree (ATTR));
+          if (w == "") break;
+          //cout << "t= " << t << "\n";
+          //cout << "i= " << i << "\n";
+          //cout << "w= " << w << "\n";
+          tree ww (w, N(w));
+          for (int j=0; j<N(w); j+=2) {
+            //cout << w[j] << " := " << env->exec (w[j+1]) << "\n";
+            ww[j+1]= env->exec (w[j+1]);
+          }
+          for (int j=0; j<N(w); j+=2)
+            env->write (w[j]->label, ww[j+1]);
+          t= t[i];
+          q= q->next;
+        }
       }
     }
     if (env->read (PREAMBLE) == "true")

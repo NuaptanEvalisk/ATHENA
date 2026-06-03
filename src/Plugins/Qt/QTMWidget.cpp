@@ -67,6 +67,14 @@ QTMWidget::QTMWidget (QWidget* _parent, qt_widget _tmwid)
   grabGesture (Qt::PanGesture);
   grabGesture (Qt::PinchGesture);
   grabGesture (Qt::SwipeGesture);
+  connect (horizontalScrollBar (), &QScrollBar::actionTriggered,
+           this, [this] (int) { notifyUserScroll (); });
+  connect (verticalScrollBar (), &QScrollBar::actionTriggered,
+           this, [this] (int) { notifyUserScroll (); });
+  connect (horizontalScrollBar (), &QScrollBar::sliderMoved,
+           this, [this] (int) { notifyUserScroll (); });
+  connect (verticalScrollBar (), &QScrollBar::sliderMoved,
+           this, [this] (int) { notifyUserScroll (); });
 
 #if (QT_VERSION >= QT_VERSION_CHECK(5,9,0))
   surface ()->setTabletTracking (true);
@@ -97,6 +105,12 @@ QTMWidget::isEmbedded () const {
 qt_simple_widget_rep*
 QTMWidget::tm_widget () const { 
   return concrete_simple_widget (tmwid); 
+}
+
+void
+QTMWidget::notifyUserScroll () {
+  if (is_nil (tmwid)) return;
+  tm_widget ()->handle_user_scroll (texmacs_time ());
 }
 
 void 
@@ -900,6 +914,7 @@ QTMWidget::wheelEvent(QWheelEvent *event) {
 #endif
   }
   else {
+    notifyUserScroll ();
     if (get_user_preference("inertial scrolling") == "on") {
       QPoint numPixels = event->pixelDelta();
       QPoint numDegrees = event->angleDelta() / 8;

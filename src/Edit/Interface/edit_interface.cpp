@@ -78,7 +78,10 @@ edit_interface_rep::edit_interface_rep ():
   image_resize_rects (),
   oc (0, 0), temp_invalid_cursor (false),
   shadow (NULL), stored (NULL),
-  cur_sb (2), cur_wb (2)
+  cur_sb (2), cur_wb (2),
+  typewriter_manual_scroll_time (0),
+  typewriter_manual_scroll_x (0),
+  typewriter_manual_scroll_y (0)
 {
   input_mode= INPUT_NORMAL;
   gui_root_extents (cur_wx, cur_wy);
@@ -339,6 +342,11 @@ edit_interface_rep::set_extents (SI x1, SI y1, SI x2, SI y2) {
 
 static SI absval (SI x) { return max (x, -x); }
 
+static bool
+same_cursor_position (cursor cu, SI x, SI y) {
+  return cu->ox == x && cu->oy == y;
+}
+
 void
 edit_interface_rep::cursor_visible () {
   path sp= find_innermost_scroll (eb, tp);
@@ -359,6 +367,12 @@ edit_interface_rep::cursor_visible () {
       get_user_preference ("typewriter mode", "off") == "on" &&
       (medium == "papyrus" || medium == "automatic") &&
       !selection_scrolling;
+    if (typewriter && typewriter_manual_scroll_time != 0) {
+      if (same_cursor_position (cu, typewriter_manual_scroll_x,
+                                typewriter_manual_scroll_y))
+        return;
+      typewriter_manual_scroll_time= 0;
+    }
     if (typewriter && (vx2 - vx1 > 80*pixel) && (vy2 - vy1 > 80*pixel)) {
       SI cy= cu->oy + ((cu->y1 + cu->y2) >> 1);
       SI vc= (vy1 + vy2) >> 1;
@@ -1206,6 +1220,15 @@ edit_interface_rep::is_embedded_widget () {
   string name= as_string (buf->buf->name);
   return starts (name, "tmfs://aux/");
   // FIXME: could be made more robust: test should not be based on file name
+}
+
+void
+edit_interface_rep::handle_user_scroll (time_t t) {
+  if (is_nil (buf) || is_nil (eb)) return;
+  cursor cu= get_cursor ();
+  typewriter_manual_scroll_time= t;
+  typewriter_manual_scroll_x= cu->ox;
+  typewriter_manual_scroll_y= cu->oy;
 }
 
 void

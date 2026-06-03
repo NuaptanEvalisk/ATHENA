@@ -89,6 +89,9 @@ protected:
   int           cur_sb, cur_wb;
   SI            cur_wx, cur_wy;
   rectangles    keys_rects;
+  time_t        typewriter_manual_scroll_time;
+  SI            typewriter_manual_scroll_x;
+  SI            typewriter_manual_scroll_y;
 
 public:
   edit_interface_rep ();
@@ -233,6 +236,7 @@ public:
   void handle_notify_resize (SI w, SI h);
   void handle_keypress (string key, time_t t);
   void handle_keyboard_focus (bool has_focus, time_t t);
+  void handle_user_scroll (time_t t);
   void handle_mouse (string k, SI x, SI y, int m, time_t t, array<double> d);
   void handle_set_zoom_factor (double zoomf);
   void handle_clear (renderer win, SI x1, SI y1, SI x2, SI y2);

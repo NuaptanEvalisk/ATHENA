@@ -93,6 +93,7 @@ protected:
 
   virtual void wheelEvent(QWheelEvent *event) override;
   virtual QVariant inputMethodQuery (Qt::InputMethodQuery query) const override;
+  void notifyUserScroll ();
 
   void showEvent (QShowEvent *event) override;
   void closeEvent (QCloseEvent *event) override;
