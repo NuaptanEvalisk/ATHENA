@@ -487,7 +487,7 @@ edit_interface_rep::handle_repaint (renderer win, SI x1, SI y1, SI x2, SI y2) {
 
   // cout << "Repainting\n";
   draw_with_stored (win, rectangle (x1, y1, x2, y2) /magf);
-  if (last_change-last_update > 0)
+  if (pending_idle_menu_update)
     last_change = texmacs_time ();
   // cout << "Repainted\n";
 }

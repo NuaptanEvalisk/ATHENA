@@ -79,6 +79,7 @@ edit_interface_rep::edit_interface_rep ():
   oc (0, 0), temp_invalid_cursor (false),
   shadow (NULL), stored (NULL),
   cur_sb (2), cur_wb (2),
+  pending_idle_menu_update (true),
   typewriter_manual_scroll_time (0),
   typewriter_manual_scroll_path ()
 {
@@ -700,6 +701,7 @@ edit_interface_rep::update_menus () {
   if (!gui_interrupted ()) drd_update ();
   cache_memorize ();
   last_update= last_change;
+  pending_idle_menu_update= false;
   save_user_preferences ();
 }
 
@@ -769,7 +771,7 @@ edit_interface_rep::apply_changes () {
   }
   
   if (env_change == 0) {
-    if (last_change-last_update > 0 &&
+    if (pending_idle_menu_update &&
         idle_time (INTERRUPTED_EVENT) >= 1000/6)
       update_menus ();
     if (new_visible == last_visible) return;
@@ -1118,9 +1120,14 @@ edit_interface_rep::apply_changes () {
   // cout << "Applied changes\n";
   // time_t t2= texmacs_time ();
   // if (t2 - t1 >= 10) cout << "apply_changes took " << t2-t1 << "ms\n";
+  bool schedule_idle_menu_update=
+    (env_change & (THE_ENVIRONMENT | THE_SELECTION | THE_FOCUS | THE_MENUS)) !=
+    0 ||
+    ((env_change & THE_CURSOR) != 0 && (env_change & THE_TREE) == 0);
   env_change  = 0;
   last_change = texmacs_time ();
-  last_update = last_change-1;
+  pending_idle_menu_update= schedule_idle_menu_update;
+  last_update = schedule_idle_menu_update? last_change-1: last_change;
   last_visible= new_visible;
   manual_focus_release ();
 }

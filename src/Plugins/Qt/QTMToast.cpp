@@ -1,0 +1,147 @@
+/******************************************************************************
+* MODULE     : QTMToast.cpp
+* DESCRIPTION: Native Qt toast notifications for ATHENA
+* COPYRIGHT  : (C) 2026 Nuaptan Felix Evalisk
+*******************************************************************************
+* This software falls under the GNU general public license version 3 or later.
+* It comes WITHOUT ANY WARRANTY WHATSOEVER. For details, see the file LICENSE
+* in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
+******************************************************************************/
+
+#include "QTMToast.hpp"
+
+#include "qt_utilities.hpp"
+#include "scheme.hpp"
+
+#include <QApplication>
+#include <QFrame>
+#include <QHBoxLayout>
+#include <QLabel>
+#include <QPointer>
+#include <QTimer>
+#include <QVBoxLayout>
+
+namespace {
+
+static QPointer<QFrame> activeToast;
+
+static QWidget*
+toast_parent () {
+  QWidget* parent= QApplication::activeWindow ();
+  if (parent != nullptr && parent->isVisible ()) return parent;
+
+  const QWidgetList widgets= QApplication::topLevelWidgets ();
+  for (QWidget* widget: widgets)
+    if (widget != nullptr && widget->isVisible () && widget->isWindow ())
+      return widget;
+  return nullptr;
+}
+
+static QString
+to_qstring_toast (string s) {
+  return QString::fromUtf8 (as_charp (s), N(s));
+}
+
+static void
+position_toast (QFrame* toast, QWidget* parent) {
+  toast->adjustSize ();
+  const int margin= 18;
+  QSize size= toast->sizeHint ();
+  int x= parent->width () - size.width () - margin;
+  int y= margin;
+  if (x < margin) x= margin;
+  toast->setGeometry (x, y, size.width (), size.height ());
+}
+
+static bool
+light_theme () {
+  string theme= get_preference ("gui theme", "default");
+  return theme == "light" || theme == "native-light";
+}
+
+} // namespace
+
+bool
+qtm_show_toast (string left, string right) {
+  QWidget* parent= toast_parent ();
+  if (parent == nullptr) return false;
+
+  QString title= to_qstring_toast (right);
+  QString body = to_qstring_toast (left);
+  if (title.trimmed ().isEmpty () && body.trimmed ().isEmpty ()) return false;
+
+  if (activeToast) activeToast->close ();
+
+  QFrame* toast= new QFrame (parent);
+  activeToast= toast;
+  toast->setAttribute (Qt::WA_DeleteOnClose);
+  toast->setWindowFlags (Qt::FramelessWindowHint);
+  toast->setObjectName ("athenaToastNotification");
+  toast->setMinimumWidth (380);
+  toast->setMaximumWidth (560);
+  if (light_theme ())
+    toast->setStyleSheet (
+      "#athenaToastNotification {"
+      "background: rgba(248, 249, 252, 225);"
+      "border: 1px solid rgba(34, 40, 49, 45);"
+      "border-radius: 8px;"
+      "}"
+      "#athenaToastNotification QLabel {"
+      "color: rgba(24, 28, 35, 245);"
+      "background: transparent;"
+      "}"
+      "#athenaToastNotification QLabel#athenaToastTitle {"
+      "font-weight: 600;"
+      "}"
+      "#athenaToastNotification QLabel#athenaToastBody {"
+      "color: rgba(24, 28, 35, 210);"
+      "}");
+  else
+    toast->setStyleSheet (
+      "#athenaToastNotification {"
+      "background: rgba(31, 34, 40, 225);"
+      "border: 1px solid rgba(255, 255, 255, 45);"
+      "border-radius: 8px;"
+      "}"
+      "#athenaToastNotification QLabel {"
+      "color: rgba(255, 255, 255, 245);"
+      "background: transparent;"
+      "}"
+      "#athenaToastNotification QLabel#athenaToastTitle {"
+      "font-weight: 600;"
+      "}"
+      "#athenaToastNotification QLabel#athenaToastBody {"
+      "color: rgba(255, 255, 255, 210);"
+      "}");
+
+  QVBoxLayout* layout= new QVBoxLayout (toast);
+  layout->setContentsMargins (16, 12, 16, 12);
+  layout->setSpacing (4);
+
+  if (!title.trimmed ().isEmpty ()) {
+    QLabel* titleLabel= new QLabel (title, toast);
+    titleLabel->setObjectName ("athenaToastTitle");
+    titleLabel->setWordWrap (true);
+    titleLabel->setMinimumWidth (348);
+    titleLabel->setMaximumWidth (528);
+    layout->addWidget (titleLabel);
+  }
+
+  if (!body.trimmed ().isEmpty ()) {
+    QLabel* bodyLabel= new QLabel (body, toast);
+    bodyLabel->setObjectName ("athenaToastBody");
+    bodyLabel->setWordWrap (true);
+    bodyLabel->setMinimumWidth (348);
+    bodyLabel->setMaximumWidth (528);
+    layout->addWidget (bodyLabel);
+  }
+
+  position_toast (toast, parent);
+  toast->raise ();
+  toast->show ();
+
+  QTimer::singleShot (3600, toast, [toast] () {
+    if (toast != nullptr) toast->close ();
+  });
+  return true;
+}

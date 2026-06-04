@@ -15,6 +15,9 @@
 #include "dictionary.hpp"
 #include "tm_server.hpp"
 #include "server.hpp"
+#ifdef QTTEXMACS
+#include "QTMToast.hpp"
+#endif
 
 tree
 as_footer_tree (object obj) {
@@ -536,6 +539,20 @@ edit_interface_rep::set_footer () {
 void
 edit_interface_rep::set_message (tree l, tree r, bool temp) {
   eval ("(set-message-notify)");
+#ifdef QTTEXMACS
+  if ((l != "" || r != "") &&
+      get_preference ("use toast notifications", "off") == "on" &&
+      qtm_show_toast (translate (l), translate (r))) {
+    message_l= "";
+    message_r= "";
+    if (!temp) {
+      last_l= l;
+      last_r= r;
+    }
+    notify_change (THE_DECORATIONS);
+    return;
+  }
+#endif
   message_l= l;
   message_r= r;
   if (!temp) {

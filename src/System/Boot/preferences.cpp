@@ -169,6 +169,7 @@ ensure_builtin_user_preferences () {
     PREF ("open console on warnings", "on", ""),
     PREF ("gui:line-input:autocommit", "on", ""),
     PREF ("show font substitution warning", "on", ""),
+    PREF ("use toast notifications", "off", ""),
     PREF ("use native menubar", "off", ""),
     PREF ("use unified toolbar", "off", ""),
     PREF ("remember ads panes layout", "on", ""),

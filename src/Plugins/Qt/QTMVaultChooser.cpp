@@ -846,6 +846,22 @@ private:
     }
   }
 
+  void connectPreviewScrollbars (QTMWidget* tmWidget) {
+    if (tmWidget == nullptr) return;
+    auto repaintPreview= [tmWidget] (int) {
+      if (tmWidget == nullptr) return;
+      if (tmWidget->surface () != nullptr) tmWidget->surface ()->update ();
+      if (tmWidget->viewport () != nullptr) tmWidget->viewport ()->update ();
+      tmWidget->update ();
+    };
+    if (tmWidget->horizontalScrollBar () != nullptr)
+      QObject::connect (tmWidget->horizontalScrollBar (),
+                        &QScrollBar::valueChanged, tmWidget, repaintPreview);
+    if (tmWidget->verticalScrollBar () != nullptr)
+      QObject::connect (tmWidget->verticalScrollBar (),
+                        &QScrollBar::valueChanged, tmWidget, repaintPreview);
+  }
+
   bool isPreviewWatchedObject (QObject* watched) const {
     for (QObject* obj= watched; obj != nullptr; obj= obj->parent ())
       if (obj == previewQtWidget) return true;
@@ -919,6 +935,7 @@ private:
       previewTexmacsWidget= qobject_cast<QTMWidget*> (qwid);
       if (previewTexmacsWidget == nullptr)
         previewTexmacsWidget= qwid->findChild<QTMWidget*> ();
+      connectPreviewScrollbars (previewTexmacsWidget);
 
       installPreviewEventFilter (qwid);
       qwid->setSizePolicy (QSizePolicy::Expanding, QSizePolicy::Expanding);
