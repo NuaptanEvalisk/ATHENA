@@ -20,6 +20,8 @@
 #include <QList>
 #include <DockManager.h>
 
+bool athena_qt_is_closing ();
+
 /**
  * @brief A multi-document window that supports both Tabs and MDI.
  */

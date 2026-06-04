@@ -109,6 +109,7 @@ QTMWidget::tm_widget () const {
 
 void
 QTMWidget::notifyUserScroll () {
+  if (athena_qt_is_closing ()) return;
   if (is_nil (tmwid)) return;
   tm_widget ()->handle_user_scroll (texmacs_time ());
 }
@@ -116,6 +117,7 @@ QTMWidget::notifyUserScroll () {
 void 
 QTMWidget::scrollContentsBy (int dx, int dy) {
   QTMScrollView::scrollContentsBy (dx,dy);
+  if (athena_qt_is_closing ()) return;
   the_gui->force_update();
   // we force an update of the internal state to be in sync with the moving
   // scrollbars

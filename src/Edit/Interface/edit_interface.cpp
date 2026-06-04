@@ -80,8 +80,7 @@ edit_interface_rep::edit_interface_rep ():
   shadow (NULL), stored (NULL),
   cur_sb (2), cur_wb (2),
   typewriter_manual_scroll_time (0),
-  typewriter_manual_scroll_x (0),
-  typewriter_manual_scroll_y (0)
+  typewriter_manual_scroll_path ()
 {
   input_mode= INPUT_NORMAL;
   gui_root_extents (cur_wx, cur_wy);
@@ -342,11 +341,6 @@ edit_interface_rep::set_extents (SI x1, SI y1, SI x2, SI y2) {
 
 static SI absval (SI x) { return max (x, -x); }
 
-static bool
-same_cursor_position (cursor cu, SI x, SI y) {
-  return cu->ox == x && cu->oy == y;
-}
-
 void
 edit_interface_rep::cursor_visible () {
   path sp= find_innermost_scroll (eb, tp);
@@ -368,8 +362,7 @@ edit_interface_rep::cursor_visible () {
       (medium == "papyrus" || medium == "automatic") &&
       !selection_scrolling;
     if (typewriter && typewriter_manual_scroll_time != 0) {
-      if (same_cursor_position (cu, typewriter_manual_scroll_x,
-                                typewriter_manual_scroll_y))
+      if (tp == typewriter_manual_scroll_path)
         return;
       typewriter_manual_scroll_time= 0;
     }
@@ -1225,10 +1218,8 @@ edit_interface_rep::is_embedded_widget () {
 void
 edit_interface_rep::handle_user_scroll (time_t t) {
   if (is_nil (buf) || is_nil (eb)) return;
-  cursor cu= get_cursor ();
   typewriter_manual_scroll_time= t;
-  typewriter_manual_scroll_x= cu->ox;
-  typewriter_manual_scroll_y= cu->oy;
+  typewriter_manual_scroll_path= copy (tp);
 }
 
 void

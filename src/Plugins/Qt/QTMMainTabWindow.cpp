@@ -33,6 +33,23 @@
 QTMMainTabWindow *QTMMainTabWindow::gTopTabWindow = nullptr;
 static bool gNextWidgetFloating = false;
 static int gAdsDocumentDockCounter = 0;
+static bool gAthenaQtClosing = false;
+
+bool
+athena_qt_is_closing () {
+  return gAthenaQtClosing;
+}
+
+class AthenaQtClosingGuard {
+  bool old;
+public:
+  AthenaQtClosingGuard (): old (gAthenaQtClosing) {
+    gAthenaQtClosing= true;
+  }
+  ~AthenaQtClosingGuard () {
+    gAthenaQtClosing= old;
+  }
+};
 static const int ATHENA_ADS_LAYOUT_VERSION = 1;
 
 static bool
@@ -155,6 +172,7 @@ void QTMMainTabWindow::closeEvent(QCloseEvent *event) {
   saveAdsLayoutState();
   if (is_server_started()) {
     event->ignore();
+    AthenaQtClosingGuard guard;
     eval("(safely-quit-ATHENA)");
   } else {
     QMainWindow::closeEvent(event);
@@ -751,6 +769,7 @@ void QTMMainTabWindow::removeWidget(QWidget *widget) {
   
   if (nr_windows <= 1) {
     if (is_server_started()) {
+      AthenaQtClosingGuard guard;
       eval("(safely-quit-ATHENA)");
     } else {
       closeAndSetTopTabWindow();

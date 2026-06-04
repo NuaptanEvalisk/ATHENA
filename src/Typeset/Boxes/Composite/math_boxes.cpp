@@ -371,6 +371,16 @@ uses_emu_arrows_rubber_arrow (string s) {
          s == "<varleftrightarrow>";
 }
 
+static void
+accent_base_extents (box b, string s, SI& x1, SI& x2) {
+  x1= b->x1;
+  x2= b->x2;
+  if (s == "~" || s == "<tilde>") {
+    x1= min (b->x1, b->x3);
+    x2= max (b->x2, b->x4);
+  }
+}
+
 font
 emu_arrows_rubber_font (font fn) {
   int hdpi= (72 * fn->wpt + (PIXEL/2)) / PIXEL;
@@ -386,6 +396,8 @@ compute_wide_accent (path ip, box b, string s,
   bool stix= (fn->math_type == MATH_TYPE_STIX);
   bool tex_gyre= (fn->math_type == MATH_TYPE_TEX_GYRE);
   bool wide= (b->w() > (fn->wquad)) || request_wide;
+  SI ax1, ax2;
+  accent_base_extents (b, s, ax1, ax2);
   if (ends (s, "dot>") || (s == "<acute>") ||
       (s == "<grave>") || (s == "<abovering>")) wide= false;
   if (wide && !request_wide && b->wide_correction (0) != 0) wide= false;
@@ -396,7 +408,7 @@ compute_wide_accent (path ip, box b, string s,
       if (s == "^" || s == "<hat>" ||
           s == "~" || s == "<tilde>" ||
           s == "<check>")
-        very_wide= (b->w() >= ((8*fn->wfn) >> 2));
+        very_wide= request_wide || (b->w() >= ((8*fn->wfn) >> 2));
       else if (ends (s, "brace>") || ends (s, "brace*>")) {
         if (starts (s, "<sq"))
           very_wide= (b->w() >= ((11*fn->wfn) >> 2));
@@ -406,7 +418,7 @@ compute_wide_accent (path ip, box b, string s,
     }
     else if (!unicode) {
       if (s == "^" || s == "<hat>" || s == "~" || s == "<tilde>")
-        very_wide= (b->w() >= ((9*fn->wfn) >> 2));
+        very_wide= request_wide || (b->w() >= ((9*fn->wfn) >> 2));
       else very_wide= true;
     }
     else if (stix) very_wide= true;
@@ -429,7 +441,7 @@ compute_wide_accent (path ip, box b, string s,
     if (s == "<hat>" || s == "<tilde>" || s == "<check>" ||
         ends (s, "brace>") || ends (s, "brace*>")) {
       font rfn= rubber_font (fn);
-      SI width= b->x2- b->x1 - fn->wfn/4;
+      SI width= ax2- ax1 - fn->wfn/4;
       wideb= wide_stix_box (decorate_middle (ip),
                             "<rubber-" * s (1, N(s)-1) * ">",
                             rfn, pen, width);
@@ -451,36 +463,36 @@ compute_wide_accent (path ip, box b, string s,
     if (stix) w= (SI) (1.189 * w);
     pencil wpen= pen->set_width (w);
     if ((s == "^") || (s == "<hat>"))
-      wideb= wide_hat_box   (decorate_middle (ip), b->x1, b->x2, wpen);
+      wideb= wide_hat_box   (decorate_middle (ip), ax1, ax2, wpen);
     else if ((s == "~") || (s == "<tilde>"))
-      wideb= wide_tilda_box (decorate_middle (ip), b->x1, b->x2, wpen);
+      wideb= wide_tilda_box (decorate_middle (ip), ax1, ax2, wpen);
     else if (s == "<bar>")
-      wideb= wide_bar_box   (decorate_middle (ip), b->x1, b->x2, wpen);
+      wideb= wide_bar_box   (decorate_middle (ip), ax1, ax2, wpen);
     else if (s == "<vect>")
-      wideb= wide_vect_box  (decorate_middle (ip), b->x1, b->x2, wpen);
+      wideb= wide_vect_box  (decorate_middle (ip), ax1, ax2, wpen);
     else if (s == "<check>")
-      wideb= wide_check_box (decorate_middle (ip), b->x1, b->x2, wpen);
+      wideb= wide_check_box (decorate_middle (ip), ax1, ax2, wpen);
     else if (s == "<breve>" || s == "<punderbrace>" || s == "<punderbrace*>")
-      wideb= wide_breve_box (decorate_middle (ip), b->x1, b->x2, wpen);
+      wideb= wide_breve_box (decorate_middle (ip), ax1, ax2, wpen);
     else if (s == "<invbreve>" || s == "<poverbrace>" || s == "<poverbrace*>")
-      wideb= wide_invbreve_box(decorate_middle (ip), b->x1, b->x2, wpen);
+      wideb= wide_invbreve_box(decorate_middle (ip), ax1, ax2, wpen);
     else if (s == "<squnderbrace>" || s == "<squnderbrace*>")
-      wideb= wide_squbr_box (decorate_middle (ip), b->x1, b->x2, wpen);
+      wideb= wide_squbr_box (decorate_middle (ip), ax1, ax2, wpen);
     else if (s == "<sqoverbrace>" || s == "<sqoverbrace*>")
-      wideb= wide_sqobr_box (decorate_middle (ip), b->x1, b->x2, wpen);
+      wideb= wide_sqobr_box (decorate_middle (ip), ax1, ax2, wpen);
     else {
       font rfn= uses_emu_arrows_rubber_arrow (s)?
         emu_arrows_rubber_font (fn): fn;
       wideb= wide_box (decorate_middle (ip),
                        "<rubber-" * s (1, N(s)-1) * ">",
-                       rfn, pen, b->x2- b->x1);
+                       rfn, pen, ax2- ax1);
     }
     sep= fn->sep;
     if (stix || !unicode) sep= (SI) (1.5 * sep);
   }
   else if (wide && tex_gyre) {
     string ws= "<wide-" * s (1, N(s)-1) * ">";
-    SI width= b->x2- b->x1 - fn->wfn/4;
+    SI width= ax2- ax1 - fn->wfn/4;
     wideb= wide_box (decorate_middle (ip), ws, fn, pen, width);
     if (b->right_slope () != 0) {
       bool times= stix || (tex_gyre && occurs ("ermes", fn->res_name));
@@ -495,7 +507,7 @@ compute_wide_accent (path ip, box b, string s,
     if (ss == "^") ss= "hat";
     if (ss == "~") ss= "tilde";
     string ws= "<wide-" * ss * ">";
-    SI width= b->x2- b->x1 - fn->wfn/4;
+    SI width= ax2- ax1 - fn->wfn/4;
     wideb= wide_box (decorate_middle (ip), ws, fn, pen, width);
     if (b->right_slope () != 0) {
       double factor= (above? 0.5: 0.2);

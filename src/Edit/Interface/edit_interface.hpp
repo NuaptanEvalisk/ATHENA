@@ -90,8 +90,7 @@ protected:
   SI            cur_wx, cur_wy;
   rectangles    keys_rects;
   time_t        typewriter_manual_scroll_time;
-  SI            typewriter_manual_scroll_x;
-  SI            typewriter_manual_scroll_y;
+  path          typewriter_manual_scroll_path;
 
 public:
   edit_interface_rep ();

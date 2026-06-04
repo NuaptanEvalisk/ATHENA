@@ -2464,8 +2464,10 @@ latex_command_to_tree (tree t) {
     return tree (VAR_WIDE, l2e (t[1]), "~");
   if (is_tuple (t, "\\widehat", 1)) return tree (WIDE, l2e (t[1]), "^");
   if (is_tuple (t, "\\uwidehat", 1)) return tree (VAR_WIDE, l2e (t[1]), "^");
-  if (is_tuple (t, "\\widetilde", 1)) return tree (WIDE, l2e (t[1]), "~");
-  if (is_tuple (t, "\\uwidetilde", 1)) return tree (VAR_WIDE, l2e (t[1]), "~");
+  if (is_tuple (t, "\\widetilde", 1))
+    return tree (WIDE, l2e (t[1]), "<wide-tilde>");
+  if (is_tuple (t, "\\uwidetilde", 1))
+    return tree (VAR_WIDE, l2e (t[1]), "<wide-tilde>");
   if (is_tuple (t, "\\dot", 1) || is_tuple (t, "\\Dot", 1))
     return tree (WIDE, l2e (t[1]), "<dot>");
   if (is_tuple (t, "\\underdot", 1)) return tree (VAR_WIDE, l2e (t[1]), "<dot>");
