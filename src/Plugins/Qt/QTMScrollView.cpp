@@ -23,6 +23,18 @@
 #include <QScroller>
 #include <QScrollerProperties>
 
+namespace {
+struct scoped_internal_scroll_change {
+  bool& flag;
+  scoped_internal_scroll_change (bool& flag2): flag (flag2) {
+    flag= true;
+  }
+  ~scoped_internal_scroll_change () {
+    flag= false;
+  }
+};
+}
+
 /*! Provide automatic centering of the working area inside the viewport.
  
  The only purpose of this widget is to provide this centering. To support this
@@ -78,6 +90,7 @@ QTMScrollView::QTMScrollView (QWidget *_parent):
   QAbstractScrollArea (_parent),
   editor_flag (false),
   p_extents (QRect(0,0,0,0)),
+  p_internal_scroll_change (false),
   mInertiaVelocityX(0),
   mInertiaVelocityY(0),
   mInertiaFriction(0.90)
@@ -127,6 +140,7 @@ QTMScrollView::QTMScrollView (QWidget *_parent):
 
 void 
 QTMScrollView::setOrigin ( QPoint newOrigin ) {
+  scoped_internal_scroll_change guard (p_internal_scroll_change);
   if (newOrigin.x() != p_origin.x())
     QAbstractScrollArea::horizontalScrollBar()->setSliderPosition(newOrigin.x());
   if (newOrigin.y() != p_origin.y())
@@ -183,6 +197,7 @@ QTMScrollView::ensureVisible ( int cx, int cy, int mx, int my ) {
 /*! Scrollbar stabilization */
 void 
 QTMScrollView::updateScrollBars (void) {
+  scoped_internal_scroll_change guard (p_internal_scroll_change);
   QWidget *_viewport = QAbstractScrollArea::viewport();
   QScrollBar *_hScrollBar = QAbstractScrollArea::horizontalScrollBar();
   QScrollBar *_vScrollBar = QAbstractScrollArea::verticalScrollBar();

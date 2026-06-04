@@ -38,6 +38,7 @@ class QTMScrollView : public QAbstractScrollArea {
   QRect    p_extents;   // The size of the virtual area where things are drawn.
   QPoint    p_origin;   // The offset into that area
   QWidget* p_surface;   // Actual drawing area, centered (or not) in the scrollarea
+  bool     p_internal_scroll_change;
 
 public:
   // Inertial scrolling state
@@ -67,6 +68,7 @@ protected:
   void updateScrollBars();
   void scrollContentsBy (int dx, int dy);
   void onResizeEvent ();
+  bool internalScrollChange () const { return p_internal_scroll_change; }
   
   virtual void resizeEventBis ();
   virtual bool viewportEvent (QEvent *e);

@@ -288,11 +288,15 @@
 (define (persistent-fit-width?)
   (get-boolean-preference "persistent fit width"))
 
+(define (persistent-fit-width-applicable?)
+  (!= (get-init-page-rendering) "automatic"))
+
 (define (typewriter-mode?)
   (get-boolean-preference "typewriter mode"))
 
 (define persistent-fit-width-count 0)
 (define resize-editing-position-count 0)
+(define fit-width-editing-position-count 0)
 
 (define (restore-editing-position sx sy cx cy)
   (let ((dx (- cx sx))
@@ -303,13 +307,15 @@
   (let ((sx (get-scroll-x))
         (sy (get-scroll-y))
         (cx (get-cursor-x))
-        (cy (get-cursor-y)))
+        (cy (get-cursor-y))
+        (cp (cursor-path)))
     (set! resize-editing-position-count (+ resize-editing-position-count 1))
     (with current resize-editing-position-count
       (for-each
        (lambda (delay)
          (delayed (:idle delay)
-           (when (== current resize-editing-position-count)
+           (when (and (== current resize-editing-position-count)
+                      (== cp (cursor-path)))
              (restore-editing-position sx sy cx cy))))
        delays))))
 
@@ -320,24 +326,33 @@
 (define (fit-to-screen-width-preserve-editing-position)
   (with (sx sy cx cy) (list (get-scroll-x) (get-scroll-y)
                             (get-cursor-x) (get-cursor-y))
-    (fit-to-screen-width)
-    (for-each
-     (lambda (delay)
-       (delayed (:idle delay)
-         (restore-editing-position sx sy cx cy)))
-     '(1 25))))
+    (let ((cp (cursor-path)))
+      (set! fit-width-editing-position-count
+            (+ fit-width-editing-position-count 1))
+      (with current fit-width-editing-position-count
+        (fit-to-screen-width)
+        (for-each
+         (lambda (delay)
+           (delayed (:idle delay)
+             (when (and (== current fit-width-editing-position-count)
+                        (== cp (cursor-path)))
+               (restore-editing-position sx sy cx cy))))
+         '(1 25))))))
 
 (define (fit-persistent-to-screen-width)
-  (if (window-mdi?)
-      (for-each (lambda (win)
-                  (with-window win
-                    (fit-to-screen-width-preserve-editing-position)))
-                (window-list))
-      (fit-to-screen-width-preserve-editing-position)))
+  (when (persistent-fit-width-applicable?)
+    (if (window-mdi?)
+        (for-each (lambda (win)
+                    (with-window win
+                      (when (persistent-fit-width-applicable?)
+                        (fit-to-screen-width-preserve-editing-position))))
+                  (window-list))
+        (fit-to-screen-width-preserve-editing-position))))
 
 (tm-define (schedule-persistent-fit-width)
   (:synopsis "Schedule persistent fit to width")
-  (when (persistent-fit-width?)
+  (when (and (persistent-fit-width?)
+             (persistent-fit-width-applicable?))
     (set! persistent-fit-width-count (+ persistent-fit-width-count 1))
     (with current persistent-fit-width-count
       ;; Qt ADS pane widths and page metrics may settle after the first idle
@@ -346,15 +361,19 @@
        (lambda (delay)
          (delayed (:idle delay)
            (when (and (persistent-fit-width?)
+                      (persistent-fit-width-applicable?)
                       (== current persistent-fit-width-count))
              (fit-persistent-to-screen-width))))
        '(25 100 250 600)))))
 
 (tm-define (toggle-persistent-fit-width)
   (:synopsis "Toggle persistent fit to width")
-  (:check-mark "v" persistent-fit-width?)
+  (:check-mark "v" (lambda ()
+                     (and (persistent-fit-width?)
+                          (persistent-fit-width-applicable?))))
   (toggle-preference "persistent fit width")
-  (when (persistent-fit-width?)
+  (when (and (persistent-fit-width?)
+             (persistent-fit-width-applicable?))
     (fit-persistent-to-screen-width)
     (schedule-persistent-fit-width)))
 

@@ -1094,6 +1094,7 @@ public:
 class QTMVaultWikilinkWizard : public QWizard {
 public:
   QTMVaultWikilinkWizard (QWidget* parent= nullptr);
+  void showEvent (QShowEvent* event) override;
 
   tree getResult () const;
   void setResult (const QString& relPath, const QString& anchor,
@@ -1109,6 +1110,8 @@ public:
   QString selectedAnchor;
   QString anchorHint;
   QString displayText;
+  bool    filesLoaded;
+  bool    filesLoadScheduled;
   bool    resultAccepted;
 
   WikilinkModePage*   modePage;
@@ -1118,6 +1121,7 @@ public:
 
 private:
   void loadFiles ();
+  void scheduleLoadFiles ();
 };
 
 WikilinkModePage::WikilinkModePage (QWidget* parent)
@@ -1176,6 +1180,14 @@ WikilinkFilePage::updateList () {
   QTMVaultWikilinkWizard* w=
     static_cast<QTMVaultWikilinkWizard*> (wizard ());
   fileList->clear ();
+  if (!w->filesLoaded) {
+    QListWidgetItem* item= new QListWidgetItem ("Loading vault files...");
+    item->setFlags (Qt::NoItemFlags);
+    fileList->addItem (item);
+    searchEdit->setEnabled (false);
+    return;
+  }
+  searchEdit->setEnabled (true);
   string query= from_qstring (searchEdit->text ().trimmed ());
 
   std::vector<std::pair<int,int> > matches;
@@ -1256,6 +1268,11 @@ bool
 WikilinkFilePage::validatePage () {
   QTMVaultWikilinkWizard* w=
     static_cast<QTMVaultWikilinkWizard*> (wizard ());
+  if (!w->filesLoaded) {
+    QMessageBox::information (this, "Insert wikilink",
+                              "Vault files are still loading.");
+    return false;
+  }
   return w->selectFileFromPage ();
 }
 
@@ -1945,12 +1962,11 @@ WikilinkSearchPage::validatePage () {
 }
 
 QTMVaultWikilinkWizard::QTMVaultWikilinkWizard (QWidget* parent)
-  : QWizard (parent), resultAccepted (false) {
+  : QWizard (parent), filesLoaded (false), filesLoadScheduled (false),
+    resultAccepted (false) {
   setWindowTitle ("Insert Wikilink");
   resize (1220, 780);
   setOption (QWizard::NoBackButtonOnStartPage, true);
-
-  loadFiles ();
 
   modePage= new WikilinkModePage (this);
   filePage= new WikilinkFilePage (this);
@@ -1962,6 +1978,12 @@ QTMVaultWikilinkWizard::QTMVaultWikilinkWizard (QWidget* parent)
   setPage (WikilinkAnchorPageId, anchorPage);
   setPage (WikilinkSearchPageId, searchPage);
   setStartId (WikilinkModePageId);
+}
+
+void
+QTMVaultWikilinkWizard::showEvent (QShowEvent* event) {
+  QWizard::showEvent (event);
+  scheduleLoadFiles ();
 }
 
 void
@@ -1993,6 +2015,18 @@ QTMVaultWikilinkWizard::loadFiles () {
                if (a.mtime != b.mtime) return a.mtime > b.mtime;
                return a.relPath < b.relPath;
              });
+  filesLoaded= true;
+}
+
+void
+QTMVaultWikilinkWizard::scheduleLoadFiles () {
+  if (filesLoaded || filesLoadScheduled) return;
+  filesLoadScheduled= true;
+  QTimer::singleShot (350, this, [this] () {
+    if (filesLoaded) return;
+    loadFiles ();
+    if (filePage != nullptr) filePage->updateList ();
+  });
 }
 
 void
@@ -2200,6 +2234,7 @@ public:
 class QTMVaultTransclusionWizard : public QWizard {
 public:
   QTMVaultTransclusionWizard (QWidget* parent= nullptr);
+  void showEvent (QShowEvent* event) override;
 
   tree getResult () const;
   void setResult (const QString& relPath, const QString& anchorBegin,
@@ -2217,6 +2252,8 @@ public:
   int     selectedUpperIndex;
   QString selectedUpperAnchor;
   path    selectedUpperWhere;
+  bool    filesLoaded;
+  bool    filesLoadScheduled;
   bool    resultAccepted;
 
   TransclusionModePage* modePage;
@@ -2229,6 +2266,7 @@ public:
 
 private:
   void loadFiles ();
+  void scheduleLoadFiles ();
 };
 
 TransclusionModePage::TransclusionModePage (QWidget* parent)
@@ -2287,6 +2325,14 @@ TransclusionFilePage::updateList () {
   QTMVaultTransclusionWizard* w=
     static_cast<QTMVaultTransclusionWizard*> (wizard ());
   fileList->clear ();
+  if (!w->filesLoaded) {
+    QListWidgetItem* item= new QListWidgetItem ("Loading vault files...");
+    item->setFlags (Qt::NoItemFlags);
+    fileList->addItem (item);
+    searchEdit->setEnabled (false);
+    return;
+  }
+  searchEdit->setEnabled (true);
   string query= from_qstring (searchEdit->text ().trimmed ());
 
   std::vector<std::pair<int,int> > matches;
@@ -2367,6 +2413,11 @@ bool
 TransclusionFilePage::validatePage () {
   QTMVaultTransclusionWizard* w=
     static_cast<QTMVaultTransclusionWizard*> (wizard ());
+  if (!w->filesLoaded) {
+    QMessageBox::information (this, "Insert transclusion",
+                              "Vault files are still loading.");
+    return false;
+  }
   return w->selectFileFromPage ();
 }
 
@@ -3305,12 +3356,11 @@ TransclusionSearchPage::validatePage () {
 }
 
 QTMVaultTransclusionWizard::QTMVaultTransclusionWizard (QWidget* parent)
-  : QWizard (parent), selectedUpperIndex (-1), resultAccepted (false) {
+  : QWizard (parent), selectedUpperIndex (-1), filesLoaded (false),
+    filesLoadScheduled (false), resultAccepted (false) {
   setWindowTitle ("Insert Transclusion");
   resize (1220, 780);
   setOption (QWizard::NoBackButtonOnStartPage, true);
-
-  loadFiles ();
 
   modePage= new TransclusionModePage (this);
   filePage= new TransclusionFilePage (this);
@@ -3328,6 +3378,12 @@ QTMVaultTransclusionWizard::QTMVaultTransclusionWizard (QWidget* parent)
   setPage (TransclusionLowerPageId, lowerPage);
   setPage (TransclusionSearchPageId, searchPage);
   setStartId (TransclusionModePageId);
+}
+
+void
+QTMVaultTransclusionWizard::showEvent (QShowEvent* event) {
+  QWizard::showEvent (event);
+  scheduleLoadFiles ();
 }
 
 void
@@ -3359,6 +3415,18 @@ QTMVaultTransclusionWizard::loadFiles () {
                if (a.mtime != b.mtime) return a.mtime > b.mtime;
                return a.relPath < b.relPath;
              });
+  filesLoaded= true;
+}
+
+void
+QTMVaultTransclusionWizard::scheduleLoadFiles () {
+  if (filesLoaded || filesLoadScheduled) return;
+  filesLoadScheduled= true;
+  QTimer::singleShot (350, this, [this] () {
+    if (filesLoaded) return;
+    loadFiles ();
+    if (filePage != nullptr) filePage->updateList ();
+  });
 }
 
 void
