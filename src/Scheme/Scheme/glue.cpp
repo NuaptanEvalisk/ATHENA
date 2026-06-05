@@ -80,20 +80,6 @@ blackboxP (tmscm t) {
   return bool_to_tmscm (b);
 }
 
-#if 0
-template<class T> tmscm box_to_tmscm (T o) {
-  return blackbox_to_tmscm (close_box<T> (o)); }
-template<class T> T tmscm_to_box (tmscm obj) { 
-  return open_box<T>(tmscm_to_blackbox (obj));  }
-template<class T> tmscm cmp_box (tmscm o1, tmscm o2) { 
-  return bool_to_tmscm (tmscm_to_box<T> (o1) == tmscm_to_box<T> (o2)); }
-template<class T> tmscm boxP (tmscm t) {
-  bool b= tmscm_is_blackbox (t) && 
-          (type_box (blackboxvalue(t)) == type_helper<T>::id);
-  return bool_to_tmscm (b);
-}
-#endif
-
 /******************************************************************************
 * Miscellaneous routines for use by glue only
 ******************************************************************************/

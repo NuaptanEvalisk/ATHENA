@@ -9,9 +9,6 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 
-// NOTE: commented out after creation of cmdline_link.cpp
-// #ifndef QTTEXMACS
-
 #include "socket_notifier.hpp"
 #include "list.hpp"
 #include "iterator.hpp"
@@ -78,6 +75,3 @@ perform_select () {
   io_error << "perform_select is not implemented";
 #endif  
 }
-
-// NOTE: commented out after creation of cmdline_link.cpp
-// #endif

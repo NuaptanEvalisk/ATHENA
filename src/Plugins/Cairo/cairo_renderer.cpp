@@ -475,33 +475,6 @@ the_cairo_renderer () {
   }
 }
 
-#if 0
-renderer
-printer (url ps_file_name, int dpi, int nr_pages,
-         string page_type, bool landscape, double paper_w, double paper_h)
-{
-  cout << "PS output to file : " << as_string(ps_file_name) << LF;
-  int h = (dpi*PIXEL*paper_h)/2.54;
-  int w = (dpi*PIXEL*paper_w)/2.54;
-  cairo_renderer_rep *ren = tm_new<cairo_renderer_rep> (w,h);
-  c_string buf (as_string (ps_file_name));
-  cairo_surface_t* surface =
-    tm_cairo_ps_surface_create(buf, paper_w/2.54*72.0, paper_h/2.54*72.0);
-  cairo_t *context = tm_cairo_create (surface);
-  // tm_cairo_translate (context, 0,  paper_h/2.54*72.0);
-  // tm_cairo_scale(context, 1.0, -1.0);
-
-  ren->begin (context);
-  tm_cairo_destroy (context);
-  tm_cairo_surface_destroy (surface);
-  renderer r = ren;
-  r->set_pencil (black);
-  r->fill(0,-10000,10000,0);
-  r->next_page();
-  return r;
-}
-#endif
-
 #else // USE_CAIRO
 basic_renderer_rep*
 the_cairo_renderer () {

@@ -328,12 +328,6 @@ scm_to_long (SCM l) {
 /******************************************************************************
  * Floating point numbers
  ******************************************************************************/
-#if 0
-bool scm_is_double (scm o) {
-  return SCM_REALP(o);
-}
-#endif
-
 SCM
 double_to_scm (double i) {
   return scm_double2scm (i);
@@ -380,12 +374,6 @@ tmscm_to_string (tmscm s) {
 /******************************************************************************
  * Symbols
  ******************************************************************************/
-
-#if 0
-bool tmscm_is_symbol (tmscm s) {
-  return SCM_NFALSEP (scm_symbol_p (s));
-}
-#endif
 
 tmscm
 symbol_to_tmscm (string s) {

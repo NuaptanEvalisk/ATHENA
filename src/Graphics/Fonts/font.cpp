@@ -511,16 +511,6 @@ x_font (string family, int size, int dpi) {
   return font ();
 }
 
-#ifndef QTTEXMACS
-
-font
-qt_font (string family, int size, int dpi) {
-  (void) family; (void) size; (void) dpi;
-  return font ();
-}
-
-#endif
-
 /******************************************************************************
 * Miscellaneous
 ******************************************************************************/

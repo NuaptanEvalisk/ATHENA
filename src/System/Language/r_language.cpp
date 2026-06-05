@@ -414,25 +414,6 @@ r_language_rep::get_color (tree t, int start, int end) {
   string type;
   bool is_markup;
 
-#if 0
-  // There isn't much point to the following, because its only effet is pos and type, and both are reset below.
-  do {
-    do {
-      opos=pos;
-
-      parse_string (s, pos);
-      if (opos<pos) break;
-
-      if (inline_comment_parser.parse (s, pos)) {
-        type= "comment";
-        break;
-      }
-
-      pos++;
-    } while(false);
-  } while( pos<N(s) );
-#endif 
-
   pos=0;
   do {
     type= none;

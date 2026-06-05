@@ -295,8 +295,6 @@ simplify_date (string s) {
 
 string
 get_date (string lan, string fm) {
-//#ifdef OS_MINGW
-//  return win32::get_date(lan, fm);
   if (invalid_format (fm)) {
     if ((lan == "british") || (lan == "english") || (lan == "american"))
       fm= "%B %d, %Y";

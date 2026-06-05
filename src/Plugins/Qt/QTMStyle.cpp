@@ -417,17 +417,6 @@ QTMStyle::pixelMetric (PixelMetric metric, const QStyleOption *opt, const QWidge
 void
 QTMStyle::drawControl (ControlElement element, const QStyleOption* option, QPainter* painter, const QWidget* widget) const {
   switch (element) {
-#if 0
-    case CE_MenuItem:
-      if (const QStyleOptionMenuItem *mi =
-          qstyleoption_cast<const QStyleOptionMenuItem *> (option)) {
-        QStyleOptionMenuItem mi2(*mi);
-        mi2.text= QString ("pippo");
-        baseStyle()->drawControl (element, &mi2, painter, widget);
-        break;
-      }
-#endif
-
   case CE_ToolBar:
 #ifdef UNIFIED_TOOLBAR
     if (use_unified_toolbar &&

@@ -615,7 +615,6 @@ qt_tm_widget_rep::update_visibility () {
   }
 #endif
 
-//#if 0
 #ifdef UNIFIED_TOOLBAR
 
   // do modifications only if needed to reduce flicker

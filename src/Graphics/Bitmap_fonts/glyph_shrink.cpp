@@ -232,12 +232,5 @@ shrink (glyph gl, int xfactor, int yfactor, SI& xo, SI& yo,
   if (gl->artistic != 0) tx= ty= 0;
 
   glyph ret= shrink (gl, xfactor, yfactor, dx, dy, tx, ty, xo, yo);
-#ifndef QTTEXMACS
-  if (ret->status != 0) {
-    if (ret->status&1) ret->adjust_top ();
-    if (ret->status&2) ret->adjust_bot ();
-    ret->yoff= yo= 0;
-  }
-#endif
   return ret;
 }

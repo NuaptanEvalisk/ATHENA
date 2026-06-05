@@ -11,8 +11,6 @@
 
 #include "basic.hpp"
 
-//#if !(defined (QTTEXMACS) && (defined (OS_MINGW) || defined (QTPIPES)))
-
 #include "tm_link.hpp"
 #include "socket_notifier.hpp"
 #include "sys_utils.hpp"
@@ -395,5 +393,3 @@ void cmdline_callback (void *obj, void *info) {
   }
 #endif
 }
-
-//#endif // !(defined (QTTEXMACS) && defined (OS_MINGW))

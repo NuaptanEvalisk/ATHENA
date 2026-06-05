@@ -99,15 +99,6 @@ mac_handler_body (NSEvent *event) {
         if (nsmods &  NSAlternateKeyMask) modifs |= Qt::AltModifier;
         if (nsmods &  NSCommandKeyMask) modifs |= Qt::ControlModifier;
 
-#if 0 // DEBUGGING CODE
-        QString str;
-        if (key == NSBackTabCharacter) str.append("Shift+");
-        if (nsmods &  NSControlKeyMask) str.append("Ctrl+");
-        if (nsmods &  NSAlternateKeyMask) str.append("Alt+");
-        if (nsmods &  NSCommandKeyMask) str.append("Meta+");
-        str.append("Tab");
-        cout << from_qstring (str) << LF;
-#endif
         if (!headless_mode) {
           QKeyEvent *qe = new QKeyEvent(([event type] == NSKeyDown) ? 
                                         QEvent::KeyPress : QEvent::KeyRelease, 
@@ -159,44 +150,6 @@ mac_install_filter () {
 
 #endif // HACK
 #endif // QTTEXMACS
-
-#if 0
-
-// this code is not used. It was an hack. Maybe sometimes in the future we
-// should drop it
-
-void 
-cancel_tracking (NSMenu *menu) {
-  [menu cancelTracking];
-  for (NSMenuItem *item in [menu itemArray]) {
-    if ([item submenu]) {
-      cancel_tracking([item submenu]);
-    }
-  }
-}
-
-
-void 
-mac_cancel_menu_tracking () {
-#ifdef QT_MAC_USE_COCOA
-  NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
-  NSMenu *mainMenu = [  [NSApplication sharedApplication]
-                      mainMenu];
-  [mainMenu cancelTrackingWithoutAnimation];
-  {
-    NSString *nss = [NSString stringWithCString:"\x1b" encoding:NSASCIIStringEncoding];
-    NSEvent *ke = [NSEvent keyEventWithType: NSKeyDown location:NSMakePoint(0,0) modifierFlags:0 
-                                  timestamp:1 windowNumber:0 context:0 characters:nss 
-                charactersIgnoringModifiers:nss isARepeat:NO keyCode:0x1b];
-    [mainMenu performKeyEquivalent:ke];
-  }
-  cancel_tracking(mainMenu);
-  [pool release];
-#else
-  CancelMenuTracking(AcquireRootMenu(), true, 0);
-#endif
-}
-#endif
 
 /*********************/
 /* remote controller */

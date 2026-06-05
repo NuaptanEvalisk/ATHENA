@@ -351,9 +351,6 @@ connection_retrieve (string name, string session) {
   tree doc (DOCUMENT);
   while (true) {
     con->forced_eval= true;
-#ifndef QTTEXMACS
-    perform_select ();
-#endif
     con->forced_eval= false;
     tree next= connection_read (name, session);
     if (next == "");

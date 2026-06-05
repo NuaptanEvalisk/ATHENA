@@ -44,10 +44,6 @@ public:
   
   QStyle *baseStyle() const;
   
-#if (QT_VERSION < 0x046000)
-  const QStyle * proxy () const { return this; }
-#endif  
-  
   int layoutSpacing(QSizePolicy::ControlType control1,
                     QSizePolicy::ControlType control2,
                     Qt::Orientation orientation,

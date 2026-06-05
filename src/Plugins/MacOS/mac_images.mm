@@ -12,8 +12,7 @@
 #include "config.h"
 #include "MacOS/mac_images.h"
 
-#if !defined(QTTEXMACS) \
-    || !defined(AC_QT_MAJOR_VERSION) || AC_QT_MAJOR_VERSION < 6
+#if !defined(AC_QT_MAJOR_VERSION) || AC_QT_MAJOR_VERSION < 6
 
 #include "converter.hpp" // hack: remove as soon as possible
 #include "MacOS/mac_cocoa.h"
@@ -115,4 +114,4 @@ void mac_ps_to_pdf (url ps_file, url pdf_file)
   [pool release];
 }
 
-#endif // not QTTEXMACS
+#endif // Qt < 6

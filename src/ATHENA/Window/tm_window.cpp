@@ -186,10 +186,6 @@ texmacs_window_widget (widget wid, tree geom) {
   SI w= geometry_w, h= geometry_h;
   SI x= geometry_x, y= geometry_y;
   bool custom= is_tuple (geom) && N (geom) >= 2;
-#ifndef QTTEXMACS
-  if (use_side_tools) { w += 200; h += 100; }
-  if (use_left_tools) { w += 200; h += 100; }
-#endif
   if (custom) {
     w= as_int (geom[0]);
     h= as_int (geom[1]);

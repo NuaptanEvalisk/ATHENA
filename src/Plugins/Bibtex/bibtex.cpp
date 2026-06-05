@@ -185,10 +185,6 @@ bibtex_run (string bib, string style, url bib_file, tree bib_t) {
   bib_s << "\\bibdata{" << bib_name << "}\n";
   save_string ("$ATHENA_HOME_PATH/system/bib/temp.aux", bib_s);
 
-#ifdef OS_WIN32_LATER
-  c_string directory (dir);
-  RunBibtex (directory, "$ATHENA_HOME_PATH/system/bib", "temp");
-#else
   string cmdln= "cd $ATHENA_HOME_PATH/system/bib; ";
   cmdln << "BIBINPUTS=\"" << dir << "\":$BIBINPUTS "
 	<< "BSTINPUTS=\"" << dir << "\":$BSTINPUTS "
@@ -212,8 +208,6 @@ bibtex_run (string bib, string style, url bib_file, tree bib_t) {
       bibtex_warning << log (pos, end) << "\n";
     }
   }
-#endif
-
   return bibtex_load_bbl (bib, "$ATHENA_HOME_PATH/system/bib/temp.bbl");
   /*
   string result;
