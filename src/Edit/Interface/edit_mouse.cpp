@@ -16,6 +16,7 @@
 #include "analyze.hpp"
 #include "drd_mode.hpp"
 #include "message.hpp"
+#include "scheme.hpp"
 #include "window.hpp"
 
   // These are tm-defined in graphics-utils.scm (looks like they shouldn't)
@@ -29,6 +30,11 @@
 #define Mod5Mask    32768
 
 void disable_double_clicks ();
+
+static bool
+unix_primary_selection_disabled () {
+  return get_preference ("disable unix primary selection", "off") == "on";
+}
 
 static const int IMAGE_RESIZE_NONE   = 0;
 static const int IMAGE_RESIZE_RIGHT  = 1;
@@ -247,7 +253,8 @@ edit_interface_rep::mouse_extra_click (SI x, SI y) {
   if ((p1==p2) || path_less (tp, p1) || path_less (p2, tp)) select (tp, tp);
   select_enlarge ();
   if (selection_active_any ())
-    selection_set ("mouse", selection_get (), true);
+    if (!unix_primary_selection_disabled ())
+      selection_set ("mouse", selection_get (), true);
   return false;
 }
 
@@ -294,7 +301,8 @@ edit_interface_rep::mouse_adjust_selection (SI x, SI y, int mods) {
     selection_visible ();
     set_selection (p1, p2);
     notify_change (THE_SELECTION);
-    selection_set ("mouse", selection_get (), true);
+    if (!unix_primary_selection_disabled ())
+      selection_set ("mouse", selection_get (), true);
   }
 }
 
@@ -349,11 +357,13 @@ edit_interface_rep::mouse_select (SI x, SI y, int mods, bool drag) {
     notify_change (THE_SELECTION);
   }
   if (selection_active_any ())
-    selection_set ("mouse", selection_get (), true);
+    if (!unix_primary_selection_disabled ())
+      selection_set ("mouse", selection_get (), true);
 }
 
 void
 edit_interface_rep::mouse_paste (SI x, SI y) { (void) x; (void) y;
+  if (unix_primary_selection_disabled ()) return;
   if (mouse_message ("paste", x, y)) return;
   go_to (x, y);
   selection_paste ("mouse");
