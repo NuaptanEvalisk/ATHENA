@@ -35,7 +35,7 @@ vault_maintenance_run (string vault_dir) {
      vault_maintenance_pass_read_policy_preferences},
     {"normalize-images", "Normalize image filenames and references",
      vault_maintenance_pass_normalize_images},
-    {"anchor-enunciations", "Anchor enunciations",
+    {"anchor-structures", "Anchor structures",
      vault_maintenance_pass_anchor_enunciations},
     {"collect-orphans", "Collect orphan assets",
      vault_maintenance_pass_collect_orphans},

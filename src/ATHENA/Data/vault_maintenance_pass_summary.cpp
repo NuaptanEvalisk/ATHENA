@@ -34,7 +34,9 @@ vault_maintenance_pass_print_summary (VaultMaintenanceContext& ctx) {
             std::to_string (summary.health_files_failed));
   log_info ("summary: anchored " +
             std::to_string (summary.anchor_enunciations_wrapped) +
-            " enunciation(s) in " +
+            " enunciation(s) and " +
+            std::to_string (summary.anchor_headings_added) +
+            " heading(s) in " +
             std::to_string (summary.anchor_files_changed) + " of " +
             std::to_string (summary.anchor_files_scanned) +
             " .ath file(s); removed " +

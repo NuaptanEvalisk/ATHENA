@@ -1490,19 +1490,22 @@ tmg_native_info_dialog (tmscm arg1, tmscm arg2) {
 
 tmscm
 tmg_native_anchor_enunciations_confirm (tmscm arg1, tmscm arg2,
-                                        tmscm arg3) {
+                                        tmscm arg3, tmscm arg4) {
   TMSCM_ASSERT_STRING (arg1, TMSCM_ARG1,
                        "native-anchor-enunciations-confirm");
   TMSCM_ASSERT_STRING (arg2, TMSCM_ARG2,
                        "native-anchor-enunciations-confirm");
   TMSCM_ASSERT_STRING (arg3, TMSCM_ARG3,
                        "native-anchor-enunciations-confirm");
+  TMSCM_ASSERT_STRING (arg4, TMSCM_ARG4,
+                       "native-anchor-enunciations-confirm");
 
   if (headless_mode) return bool_to_tmscm (false);
 
   QString wraps= to_qstring (tmscm_to_string (arg1));
   QString dead = to_qstring (tmscm_to_string (arg2));
-  QString notes= to_qstring (tmscm_to_string (arg3));
+  QString headings= to_qstring (tmscm_to_string (arg3));
+  QString notes= to_qstring (tmscm_to_string (arg4));
 
   notes.replace ("<<<ATHENA-ANCHOR-ACTION>>>", "\n");
   notes.replace ("\\r\\n", "\n");
@@ -1533,6 +1536,7 @@ tmg_native_anchor_enunciations_confirm (tmscm arg1, tmscm arg2,
     for (int i=1; i<compact.size (); i++) {
       bool boundary=
         compact.mid (i).startsWith ("wrap ") ||
+        compact.mid (i).startsWith ("anchor heading: ") ||
         compact.mid (i).startsWith ("remove dead anchors: ");
       if (boundary && compact.at (i - 1).isSpace ()) {
         QString item= compact.mid (start, i - start).trimmed ();
@@ -1546,15 +1550,16 @@ tmg_native_anchor_enunciations_confirm (tmscm arg1, tmscm arg2,
   }
 
   QDialog dialog (QApplication::activeWindow ());
-  dialog.setWindowTitle ("Anchor enunciations");
+  dialog.setWindowTitle ("Anchor structures");
   dialog.resize (760, 480);
 
   QVBoxLayout* layout= new QVBoxLayout (&dialog);
 
   QLabel* intro= new QLabel (
-    QString ("ATHENA will wrap %1 enunciation(s) and remove %2 dead anchor "
-             "pair(s). Review the planned changes before applying them.")
-      .arg (wraps, dead),
+    QString ("ATHENA will wrap %1 enunciation(s), add %2 heading anchor(s), "
+             "and remove %3 dead anchor pair(s). Review the planned changes "
+             "before applying them.")
+      .arg (wraps, headings, dead),
     &dialog);
   intro->setWordWrap (true);
   layout->addWidget (intro);
@@ -1713,7 +1718,7 @@ initialize_glue () {
   tmscm_install_procedure ("native-info-dialog",
                            tmg_native_info_dialog, 2, 0, 0);
   tmscm_install_procedure ("native-anchor-enunciations-confirm",
-                           tmg_native_anchor_enunciations_confirm, 3, 0, 0);
+                           tmg_native_anchor_enunciations_confirm, 4, 0, 0);
   tmscm_install_procedure ("native-font-selector",
                            tmg_native_font_selector, 4, 0, 0);
   tmscm_install_procedure ("native-open-preferences",

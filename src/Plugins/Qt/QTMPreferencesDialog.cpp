@@ -1184,7 +1184,7 @@ QTMPreferencesDialog::buildVaultPage () {
   v->addRow (label ("Global preferred font for vault:"), vaultFont);
 
   QFormLayout* a= add_section (vault, "Anchors and Images");
-  add_toggle (a, "Auto anchor enunciations on manual save:",
+  add_toggle (a, "Auto anchor structures on manual save:",
               "vault auto anchor enunciations on save");
   add_toggle (a, "Auto copy images to vault:",
               "vault auto copy images to vault");

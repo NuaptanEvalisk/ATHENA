@@ -22,6 +22,14 @@
   '(definition notation convention axiom law remark note example warning
     disambiguation acknowledgments exercise problem solution answer quote-env))
 
+(define (vault-anchor-heading-level tag)
+  (cond ((or (eq? tag 'section) (eq? tag 'section*)) 1)
+        ((or (eq? tag 'subsection) (eq? tag 'subsection*)) 2)
+        ((or (eq? tag 'subsubsection) (eq? tag 'subsubsection*)) 3)
+        ((or (eq? tag 'paragraph) (eq? tag 'paragraph*)) 4)
+        ((or (eq? tag 'subparagraph) (eq? tag 'subparagraph*)) 5)
+        (else 0)))
+
 (define (vault-anchor-stree-func? t tag)
   (and (pair? t) (eq? (car t) tag)))
 
@@ -34,6 +42,12 @@
 (define (vault-anchor-enunciation? t)
   (and-with tag (vault-anchor-tree-tag t)
     (in? tag vault-anchor-enunciation-tags)))
+
+(define (vault-anchor-heading? t)
+  (and-with tag (vault-anchor-tree-tag t)
+    (and (> (vault-anchor-heading-level tag) 0)
+         (pair? (cdr t))
+         (!= (vault-anchor-heading-title t) ""))))
 
 (define (vault-anchor-label? t)
   (and (vault-anchor-stree-func? t 'label)
@@ -60,6 +74,11 @@
 (define (vault-anchor-lower-label? t)
   (and (vault-anchor-label? t)
        (string-contains? (vault-anchor-label-text t) "}")))
+
+(define (vault-anchor-heading-label? t level)
+  (and (vault-anchor-label? t)
+       (string-starts? (vault-anchor-label-text t)
+                       (string-append "H" (number->string level) " "))))
 
 (define (vault-anchor-ignorable? t)
   (and (string? t) (== (tm-string-trim-both t) "")))
@@ -142,6 +161,11 @@
         (else
          (vault-anchor-join-text (map vault-anchor-plain-text (cdr t))))))
 
+(define (vault-anchor-heading-title t)
+  (if (and (pair? t) (pair? (cdr t)))
+      (vault-anchor-collapse-whitespace (vault-anchor-plain-text (cadr t)))
+      ""))
+
 (define (vault-anchor-first-strong-text t)
   (cond ((not (pair? t)) #f)
         ((and (eq? (car t) 'strong) (pair? (cdr t)))
@@ -205,6 +229,12 @@
            (string-append prefix ":" sample))
           (else prefix))))
 
+(define (vault-anchor-id-for-heading t)
+  (let* ((tag (vault-anchor-tree-tag t))
+         (level (vault-anchor-heading-level tag))
+         (title (vault-anchor-heading-title t)))
+    (string-append "H" (number->string level) " " title)))
+
 (define (vault-anchor-register-existing-labels t counts)
   (cond ((vault-anchor-label? t)
          (let ((key (vault-anchor-label-key (vault-anchor-label-text t))))
@@ -226,6 +256,13 @@
 
 (define (vault-anchor-summary-note! summary message)
   (vector-set! summary 2 (append (vector-ref summary 2) (list message))))
+
+(define (vault-anchor-has-heading-anchor? previous current)
+  (and previous
+       (vault-anchor-heading? current)
+       (vault-anchor-heading-label?
+        previous
+        (vault-anchor-heading-level (vault-anchor-tree-tag current)))))
 
 (define (vault-anchor-has-wrapper? previous next)
   (and previous next
@@ -302,6 +339,21 @@
                               (cons lower
                                     (cons current
                                           (cons upper out)))))))))
+           ((vault-anchor-heading? current)
+            (if (vault-anchor-has-heading-anchor? previous current)
+                (loop tail current (cons current out))
+                (let* ((raw-id (vault-anchor-id-for-heading current))
+                       (id (vault-anchor-unique-id raw-id counts))
+                       (label `(label ,id)))
+                  (vault-anchor-summary-add! summary 3 1)
+                  (vault-anchor-summary-note!
+                   summary
+                   (string-append "anchor heading: " id))
+                  (if dry-run?
+                      (loop tail current (cons current out))
+                      (loop tail current
+                            (cons current
+                                  (cons label out)))))))
            (else
             (loop tail current (cons current out)))))))))
 
@@ -382,6 +434,20 @@
                           current
                           (cons (vector 'wrap parent path i upper lower)
                                 ops))))))
+           ((vault-anchor-heading? current)
+            (if (vault-anchor-has-heading-anchor? previous current)
+                (loop (+ i 1) current ops)
+                (let* ((raw-id (vault-anchor-id-for-heading current))
+                       (id (vault-anchor-unique-id raw-id counts))
+                       (label `(label ,id)))
+                  (vault-anchor-summary-add! summary 3 1)
+                  (vault-anchor-summary-note!
+                   summary
+                   (string-append "anchor heading: " id))
+                  (loop (+ i 1)
+                        current
+                        (cons (vector 'heading parent path i label)
+                              ops)))))
            (else
             (loop (+ i 1) current ops))))))))
 
@@ -408,7 +474,7 @@
 (define (vault-anchor-live-plan body)
   (let* ((stree (tree->stree body))
          (counts (make-ahash-table))
-         (summary (vector 0 0 '())))
+         (summary (vector 0 0 '() 0)))
     (vault-anchor-register-existing-labels stree counts)
     (let ((ops (vault-anchor-live-ops body '() counts summary)))
       (vector summary ops))))
@@ -418,7 +484,7 @@
 
 (define (vault-anchor-transform-stree st)
   (let* ((counts (make-ahash-table))
-         (summary (vector 0 0 '())))
+         (summary (vector 0 0 '() 0)))
     (vault-anchor-register-existing-labels st counts)
     (let ((new-st (vault-anchor-transform-tree st counts summary #f)))
       (list summary new-st))))
@@ -442,10 +508,11 @@
 (define (vault-anchor-tab-safe s)
   (string-replace (string-replace s "\t" " ") "\n" " "))
 
-(define (vault-anchor-maintenance-result status wraps dead changed message)
+(define (vault-anchor-maintenance-result status wraps dead headings changed message)
   (string-append status "\t"
                  (number->string wraps) "\t"
                  (number->string dead) "\t"
+                 (number->string headings) "\t"
                  (if changed "1" "0") "\t"
                  (vault-anchor-tab-safe message)))
 
@@ -454,21 +521,22 @@
     (lambda ()
       (let ((doc (tree-import u "texmacs")))
         (if (== doc (tm->tree "error"))
-            (vault-anchor-maintenance-result "error" 0 0 #f
+            (vault-anchor-maintenance-result "error" 0 0 0 #f
                                              "could not import document")
             (let* ((res (vault-anchor-transform-document doc))
                    (summary (car res))
                    (new-doc (cadr res))
                    (wraps (vector-ref summary 0))
-                   (dead (vector-ref summary 1)))
+                   (dead (vector-ref summary 1))
+                   (headings (vector-ref summary 3)))
               (if (vault-anchor-summary-empty? summary)
-                  (vault-anchor-maintenance-result "ok" 0 0 #f "")
+                  (vault-anchor-maintenance-result "ok" 0 0 0 #f "")
                   (if (tree-export new-doc u "texmacs")
-                      (vault-anchor-maintenance-result "error" wraps dead #f
+                      (vault-anchor-maintenance-result "error" wraps dead headings #f
                                                        "could not export document")
-                      (vault-anchor-maintenance-result "ok" wraps dead #t "")))))))
+                      (vault-anchor-maintenance-result "ok" wraps dead headings #t "")))))))
     (lambda args
-      (vault-anchor-maintenance-result "error" 0 0 #f
+      (vault-anchor-maintenance-result "error" 0 0 0 #f
                                        (object->string args)))))
 
 (define (vault-anchor-current-buffer? buf)
@@ -525,10 +593,14 @@
            (cond
              ((eq? kind 'remove)
               (tree-remove parent index (vector-ref op 4)))
-             ((eq? kind 'wrap)
+            ((eq? kind 'wrap)
               (tree-var-insert
                parent (+ index 1)
                (cons 'tuple (list (stree->tree (vector-ref op 5)))))
+              (tree-var-insert
+               parent index
+               (cons 'tuple (list (stree->tree (vector-ref op 4))))))
+             ((eq? kind 'heading)
               (tree-var-insert
                parent index
                (cons 'tuple (list (stree->tree (vector-ref op 4)))))))))
@@ -558,7 +630,8 @@
 
 (define (vault-anchor-summary-empty? summary)
   (and (== (vector-ref summary 0) 0)
-       (== (vector-ref summary 1) 0)))
+       (== (vector-ref summary 1) 0)
+       (== (vector-ref summary 3) 0)))
 
 (define (vault-anchor-truncate-line s limit)
   (if (<= (string-length s) limit)
@@ -566,11 +639,13 @@
       (string-append (substring s 0 (- limit 3)) "...")))
 
 (define (vault-anchor-summary-print summary)
-  (display* "ATHENA] anchor enunciations dry-run: wrap "
+  (display* "ATHENA] anchor structures dry-run: wrap "
             (number->string (vector-ref summary 0))
             " enunciation(s), remove "
             (number->string (vector-ref summary 1))
-            " dead anchor pair(s)\n")
+            " dead anchor pair(s), add "
+            (number->string (vector-ref summary 3))
+            " heading anchor(s)\n")
   (for-each (lambda (note)
               (display* "ATHENA]   " note "\n"))
             (vector-ref summary 2)))
@@ -578,10 +653,12 @@
 (define (vault-anchor-summary-message summary action)
   (let* ((wraps (number->string (vector-ref summary 0)))
          (dead (number->string (vector-ref summary 1)))
+         (headings (number->string (vector-ref summary 3)))
          (notes (map (cut vault-anchor-truncate-line <> 72)
                      (vector-ref summary 2)))
-         (head (string-append "Anchor enunciations dry-run\n\n"
+         (head (string-append "Anchor structures dry-run\n\n"
                               "Wrap enunciations: " wraps "\n"
+                              "Add heading anchors: " headings "\n"
                               "Remove dead anchor pairs: " dead))
          (tail (if (null? notes) ""
                    (string-append "\n\nExamples:\n- "
@@ -599,6 +676,7 @@
   (native-anchor-enunciations-confirm
    (number->string (vector-ref summary 0))
    (number->string (vector-ref summary 1))
+   (number->string (vector-ref summary 3))
    (vault-anchor-summary-notes-string summary)))
 
 (define (vault-anchor-current-buffer-supported? buf)
@@ -610,56 +688,60 @@
 (tm-define (vault-anchor-enunciations-confirmed buf cont)
   (if (not (buffer-exists? buf))
       (begin
-        (set-message "Buffer no longer exists" "Anchor enunciations")
+        (set-message "Buffer no longer exists" "Anchor structures")
         (when cont (cont)))
       (with-buffer buf
         (let ((summary (vault-anchor-apply! buf)))
           (cond ((vault-anchor-summary-empty? summary)
-                 (set-message "No enunciation anchors needed"
-                              "Anchor enunciations"))
+                 (set-message "No structural anchors needed"
+                              "Anchor structures"))
                 (else
                  (set-message
                   (string-append "Wrapped "
                                  (number->string (vector-ref summary 0))
-                                 " enunciation(s); removed "
+                                 " enunciation(s); added "
+                                 (number->string (vector-ref summary 3))
+                                 " heading anchor(s); removed "
                                  (number->string (vector-ref summary 1))
                                  " dead anchor pair(s)")
-                  "Anchor enunciations")))
+                  "Anchor structures")))
           (when cont (cont))))))
 
 (tm-define (vault-anchor-enunciations-confirmed-before-save buf cont)
   (if (not (buffer-exists? buf))
       (begin
-        (set-message "Buffer no longer exists" "Anchor enunciations")
+        (set-message "Buffer no longer exists" "Anchor structures")
         (when cont (cont)))
       (with-buffer buf
         (let ((summary (vault-anchor-apply-before-save! buf)))
           (cond ((vault-anchor-summary-empty? summary)
-                 (set-message "No enunciation anchors needed"
-                              "Anchor enunciations"))
+                 (set-message "No structural anchors needed"
+                              "Anchor structures"))
                 (else
                  (set-message
                   (string-append "Wrapped "
                                  (number->string (vector-ref summary 0))
-                                 " enunciation(s); removed "
+                                 " enunciation(s); added "
+                                 (number->string (vector-ref summary 3))
+                                 " heading anchor(s); removed "
                                  (number->string (vector-ref summary 1))
                                  " dead anchor pair(s)")
-                  "Anchor enunciations")))
+                  "Anchor structures")))
           (when cont (cont))))))
 
 (tm-define (vault-anchor-enunciations buf . maybe-cont)
   (:interactive #t)
   (let ((cont (and (pair? maybe-cont) (car maybe-cont))))
     (cond ((not (vault-anchor-current-buffer-supported? buf))
-           (set-message "Current buffer cannot be anchored" "Anchor enunciations")
+           (set-message "Current buffer cannot be anchored" "Anchor structures")
            (when cont (cont)))
           (else
            (let ((summary (vault-anchor-plan (buffer-get-body buf))))
              (vault-anchor-summary-print summary)
              (if (vault-anchor-summary-empty? summary)
                  (begin
-                   (set-message "No enunciation anchors needed"
-                                "Anchor enunciations")
+                   (set-message "No structural anchors needed"
+                                "Anchor structures")
                    (when cont (cont)))
                  (if (vault-anchor-confirm-native summary)
                      (vault-anchor-enunciations-confirmed buf cont)
@@ -671,15 +753,15 @@
 
 (tm-define (vault-anchor-enunciations-before-save buf cont)
   (cond ((not (vault-anchor-current-buffer-supported? buf))
-         (set-message "Current buffer cannot be anchored" "Anchor enunciations")
+         (set-message "Current buffer cannot be anchored" "Anchor structures")
          (when cont (cont)))
         (else
          (let ((summary (vault-anchor-plan (buffer-get-body buf))))
            (vault-anchor-summary-print summary)
            (if (vault-anchor-summary-empty? summary)
                (begin
-                 (set-message "No enunciation anchors needed"
-                              "Anchor enunciations")
+                 (set-message "No structural anchors needed"
+                              "Anchor structures")
                  (when cont (cont)))
                (if (vault-anchor-confirm-native summary)
                    (vault-anchor-enunciations-confirmed-before-save buf cont)
@@ -696,7 +778,7 @@
 
 (tm-widget (vault-anchor-preferences-widget)
   (aligned
-    (item (text "Auto anchor enunciations on manual save:")
+    (item (text "Auto anchor structures on manual save:")
       (toggle (set-preference "vault auto anchor enunciations on save"
                               (if answer "on" "off"))
               (equal? (get-preference

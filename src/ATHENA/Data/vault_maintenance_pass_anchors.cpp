@@ -39,14 +39,14 @@ parse_count (const std::string& text) {
 }
 
 static bool
-anchor_enunciations_in_vault (const fs::path& root, VaultMaintenanceSummary& summary) {
+anchor_structures_in_vault (const fs::path& root, VaultMaintenanceSummary& summary) {
   std::vector<fs::path> docs = scan_ath_documents (root);
   summary.anchor_files_scanned = docs.size ();
-  log_info ("anchor enunciations: scanning " + std::to_string (docs.size ()) +
+  log_info ("anchor structures: scanning " + std::to_string (docs.size ()) +
             " .ath files");
 
   for (size_t i=0; i<docs.size (); i++) {
-    print_progress (i + 1, docs.size (), "Anchoring enunciations",
+    print_progress (i + 1, docs.size (), "Anchoring structures",
                     docs[i].filename ().string ());
     std::string result;
     try {
@@ -56,29 +56,32 @@ anchor_enunciations_in_vault (const fs::path& root, VaultMaintenanceSummary& sum
     }
     catch (...) {
       finish_progress ();
-      log_error ("anchor enunciations: Scheme failure for " + docs[i].string ());
+      log_error ("anchor structures: Scheme failure for " + docs[i].string ());
       summary.anchor_failures++;
       return false;
     }
 
     std::vector<std::string> parts = split_tabs (result);
-    if (parts.size () < 5) {
+    if (parts.size () < 6) {
       finish_progress ();
-      log_error ("anchor enunciations: malformed result for " + docs[i].string ());
+      log_error ("anchor structures: malformed result for " + docs[i].string ());
       summary.anchor_failures++;
       return false;
     }
 
     size_t wrapped = parse_count (parts[1]);
     size_t removed = parse_count (parts[2]);
-    bool changed = parts[3] == "1";
+    size_t headings = parse_count (parts[3]);
+    bool changed = parts[4] == "1";
     if (parts[0] == "ok") {
       summary.anchor_enunciations_wrapped += wrapped;
+      summary.anchor_headings_added += headings;
       summary.anchor_dead_pairs_removed += removed;
       if (changed) {
         summary.anchor_files_changed++;
-        log_info ("anchor enunciations: updated " + docs[i].string () +
+        log_info ("anchor structures: updated " + docs[i].string () +
                   " (wrapped " + std::to_string (wrapped) +
+                  ", headings " + std::to_string (headings) +
                   ", removed " + std::to_string (removed) +
                   " dead pair(s))");
       }
@@ -86,21 +89,23 @@ anchor_enunciations_in_vault (const fs::path& root, VaultMaintenanceSummary& sum
     else {
       finish_progress ();
       summary.anchor_failures++;
-      log_error ("anchor enunciations: failed for " + docs[i].string () +
-                 (parts[4].empty () ? std::string () : (": " + parts[4])));
+      log_error ("anchor structures: failed for " + docs[i].string () +
+                 (parts[5].empty () ? std::string () : (": " + parts[5])));
       return false;
     }
   }
   finish_progress ();
 
-  log_info ("anchor enunciations: changed " +
+  log_info ("anchor structures: changed " +
             std::to_string (summary.anchor_files_changed) + " file(s), wrapped " +
             std::to_string (summary.anchor_enunciations_wrapped) +
-            " enunciation(s), removed " +
+            " enunciation(s), added " +
+            std::to_string (summary.anchor_headings_added) +
+            " heading anchor(s), removed " +
             std::to_string (summary.anchor_dead_pairs_removed) +
             " dead anchor pair(s)");
   if (summary.anchor_failures != 0)
-    log_info ("anchor enunciations: " +
+    log_info ("anchor structures: " +
               std::to_string (summary.anchor_failures) + " file(s) failed");
   return true;
 }
@@ -108,7 +113,7 @@ anchor_enunciations_in_vault (const fs::path& root, VaultMaintenanceSummary& sum
 
 VaultMaintenancePassResult
 vault_maintenance_pass_anchor_enunciations (VaultMaintenanceContext& ctx) {
-  if (anchor_enunciations_in_vault (ctx.root, ctx.summary))
+  if (anchor_structures_in_vault (ctx.root, ctx.summary))
     return VaultMaintenancePassResult::success ();
-  return VaultMaintenancePassResult::failure ("enunciation anchoring failed");
+  return VaultMaintenancePassResult::failure ("structural anchoring failed");
 }
