@@ -28,6 +28,10 @@ vault_maintenance_pass_print_summary (VaultMaintenanceContext& ctx) {
             " image file(s), updated " +
             std::to_string (summary.image_reference_updates) +
             " image reference(s)");
+  log_info ("summary: health-checked " +
+            std::to_string (summary.health_files_scanned) +
+            " .ath file(s); unreadable " +
+            std::to_string (summary.health_files_failed));
   log_info ("summary: anchored " +
             std::to_string (summary.anchor_enunciations_wrapped) +
             " enunciation(s) in " +

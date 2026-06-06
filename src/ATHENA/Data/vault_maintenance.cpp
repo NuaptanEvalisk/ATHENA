@@ -29,6 +29,8 @@ vault_maintenance_run (string vault_dir) {
      vault_maintenance_pass_load_preferences},
     {"full-backup", "Create full compressed backup",
      vault_maintenance_pass_create_backup},
+    {"health-check", "Check ATHENA document readability",
+     vault_maintenance_pass_health_check},
     {"read-policies", "Read maintenance policy preferences",
      vault_maintenance_pass_read_policy_preferences},
     {"normalize-images", "Normalize image filenames and references",

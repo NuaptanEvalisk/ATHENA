@@ -23,6 +23,8 @@ struct VaultMaintenanceSummary {
   size_t manual_save_histories_purged = 0;
   size_t image_renames = 0;
   size_t image_reference_updates = 0;
+  size_t health_files_scanned = 0;
+  size_t health_files_failed = 0;
   size_t anchor_files_scanned = 0;
   size_t anchor_files_changed = 0;
   size_t anchor_enunciations_wrapped = 0;
@@ -68,6 +70,8 @@ VaultMaintenancePassResult vault_maintenance_pass_validate_root (
 VaultMaintenancePassResult vault_maintenance_pass_load_preferences (
   VaultMaintenanceContext& ctx);
 VaultMaintenancePassResult vault_maintenance_pass_create_backup (
+  VaultMaintenanceContext& ctx);
+VaultMaintenancePassResult vault_maintenance_pass_health_check (
   VaultMaintenanceContext& ctx);
 VaultMaintenancePassResult vault_maintenance_pass_read_policy_preferences (
   VaultMaintenanceContext& ctx);
