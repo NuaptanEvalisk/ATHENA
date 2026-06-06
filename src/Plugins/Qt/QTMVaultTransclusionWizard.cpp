@@ -1,0 +1,1421 @@
+/******************************************************************************
+* MODULE     : QTMVaultTransclusionWizard.cpp
+* DESCRIPTION: Vault transclusion insertion wizard
+* COPYRIGHT  : (C) 2026 Felix
+*******************************************************************************
+* This software falls under the GNU general public license version 3 or later.
+* It comes WITHOUT ANY WARRANTY WHATSOEVER. For details, see the file LICENSE
+* in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
+******************************************************************************/
+
+#include "QTMVaultTransclusionWizard.hpp"
+#include "QTMVaultAnchorModel.hpp"
+#include "QTMVaultLinkModel.hpp"
+#include "QTMVaultPreviewBuilder.hpp"
+#include "QTMVaultPreviewWidget.hpp"
+#include "QTMVaultSearch.hpp"
+#include "drd_mode.hpp"
+#include "namespaces.hpp"
+#include "qt_utilities.hpp"
+#include "tree_search.hpp"
+#include "vault.hpp"
+#include <QApplication>
+#include <QComboBox>
+#include <QCompleter>
+#include <QEvent>
+#include <QHBoxLayout>
+#include <QKeyEvent>
+#include <QLabel>
+#include <QLineEdit>
+#include <QListWidget>
+#include <QMessageBox>
+#include <QProgressBar>
+#include <QPushButton>
+#include <QRadioButton>
+#include <QShowEvent>
+#include <QSizePolicy>
+#include <QSplitter>
+#include <QStringListModel>
+#include <QTimer>
+#include <QVariant>
+#include <QWizard>
+#include <QWizardPage>
+#include <algorithm>
+#include <set>
+#include <vector>
+
+namespace {
+
+enum TransclusionWizardPageId {
+  TransclusionModePageId= 10,
+  TransclusionFilePageId= 11,
+  TransclusionKindPageId= 12,
+  TransclusionEnunciationPageId= 13,
+  TransclusionUpperPageId= 14,
+  TransclusionLowerPageId= 15,
+  TransclusionSearchPageId= 16
+};
+
+class QTMVaultTransclusionWizard;
+
+class TransclusionModePage : public QWizardPage {
+public:
+  TransclusionModePage (QWidget* parent= nullptr);
+  int nextId () const override;
+
+  QRadioButton* fileFirstRadio;
+  QRadioButton* searchRadio;
+};
+
+class TransclusionFilePage : public QWizardPage {
+public:
+  TransclusionFilePage (QWidget* parent= nullptr);
+  void initializePage () override;
+  bool validatePage () override;
+  bool eventFilter (QObject* watched, QEvent* event) override;
+
+  void updateList ();
+  void moveSelection (int delta);
+  void completeFromSelection ();
+
+  QLineEdit*   searchEdit;
+  QListWidget* fileList;
+};
+
+class TransclusionKindPage : public QWizardPage {
+public:
+  TransclusionKindPage (QWidget* parent= nullptr);
+  int nextId () const override;
+
+  QRadioButton* enunciationRadio;
+  QRadioButton* arbitraryRadio;
+};
+
+class TransclusionEnunciationPage : public QWizardPage {
+public:
+  TransclusionEnunciationPage (QWidget* parent= nullptr);
+  int nextId () const override;
+  void initializePage () override;
+  bool validatePage () override;
+  bool eventFilter (QObject* watched, QEvent* event) override;
+  void showEvent (QShowEvent* event) override;
+
+  void updateList ();
+  void updatePreview ();
+  bool acceptCurrentPair ();
+
+  QLineEdit*   searchEdit;
+  QListWidget* pairList;
+  QLabel*      previewTitle;
+  QWidget*     previewHost;
+  WikilinkPreview preview;
+  tree fileBody;
+  std::vector<TransclusionAnchorPair> pairs;
+};
+
+class TransclusionUpperPage : public QWizardPage {
+public:
+  TransclusionUpperPage (QWidget* parent= nullptr);
+  int nextId () const override;
+  void initializePage () override;
+  bool validatePage () override;
+  bool eventFilter (QObject* watched, QEvent* event) override;
+  void showEvent (QShowEvent* event) override;
+
+  void updateList ();
+  void updatePreview ();
+
+  QLineEdit*   searchEdit;
+  QListWidget* anchorList;
+  QLabel*      previewTitle;
+  QWidget*     previewHost;
+  WikilinkPreview preview;
+  tree fileBody;
+  std::vector<WikilinkAnchorEntry> anchors;
+};
+
+class TransclusionLowerPage : public QWizardPage {
+public:
+  TransclusionLowerPage (QWidget* parent= nullptr);
+  int nextId () const override;
+  void initializePage () override;
+  bool validatePage () override;
+  bool eventFilter (QObject* watched, QEvent* event) override;
+  void showEvent (QShowEvent* event) override;
+
+  void updateList ();
+  void updatePreview ();
+
+  QLineEdit*   searchEdit;
+  QListWidget* anchorList;
+  QLabel*      previewTitle;
+  QWidget*     previewHost;
+  WikilinkPreview preview;
+  tree fileBody;
+  std::vector<WikilinkAnchorEntry> anchors;
+};
+
+class TransclusionSearchPage : public QWizardPage {
+public:
+  TransclusionSearchPage (QWidget* parent= nullptr);
+  int nextId () const override;
+  void initializePage () override;
+  bool validatePage () override;
+  void showEvent (QShowEvent* event) override;
+
+  void refreshNamespaces ();
+  QString selectedNamespace () const;
+  QString selectedEnunciation () const;
+  void startSearch ();
+  int  searchFile (url u, const tree& query,
+                   std::vector<TransclusionSearchResult>& hits) const;
+  void addResult (const TransclusionSearchResult& result);
+  void updatePreview (QListWidgetItem* current);
+  bool acceptCurrentResult ();
+
+  QLineEdit*   queryEdit;
+  QLineEdit*   namespaceEdit;
+  QStringListModel* namespaceModel;
+  QComboBox*   enunciationCombo;
+  QPushButton* searchButton;
+  QLabel*      statusLabel;
+  QProgressBar* progress;
+  QListWidget* resultList;
+  QLabel*      previewTitle;
+  QWidget*     previewHost;
+  WikilinkPreview preview;
+  std::vector<TransclusionSearchResult> results;
+};
+
+class QTMVaultTransclusionWizard : public QWizard {
+public:
+  QTMVaultTransclusionWizard (QWidget* parent= nullptr);
+  void showEvent (QShowEvent* event) override;
+
+  tree getResult () const;
+  void setResult (const QString& relPath, const QString& anchorBegin,
+                  const QString& anchorEnd, const QString& fileHint,
+                  const QString& anchorHint);
+  bool selectFileFromPage ();
+
+  std::vector<WikilinkFileEntry> files;
+  QString selectedRelPath;
+  url     selectedFileUrl;
+  QString fileHint;
+  QString selectedAnchorBegin;
+  QString selectedAnchorEnd;
+  QString anchorHint;
+  int     selectedUpperIndex;
+  QString selectedUpperAnchor;
+  path    selectedUpperWhere;
+  bool    filesLoaded;
+  bool    filesLoadScheduled;
+  bool    resultAccepted;
+
+  TransclusionModePage* modePage;
+  TransclusionFilePage* filePage;
+  TransclusionKindPage* kindPage;
+  TransclusionEnunciationPage* enunciationPage;
+  TransclusionUpperPage* upperPage;
+  TransclusionLowerPage* lowerPage;
+  TransclusionSearchPage* searchPage;
+
+private:
+  void loadFiles ();
+  void scheduleLoadFiles ();
+};
+
+TransclusionModePage::TransclusionModePage (QWidget* parent)
+  : QWizardPage (parent) {
+  setTitle ("Insert transclusion");
+  setSubTitle ("Choose how to locate the material to transclude.");
+
+  fileFirstRadio= new QRadioButton ("Locate a file first", this);
+  searchRadio= new QRadioButton ("Locate by search", this);
+  fileFirstRadio->setChecked (true);
+
+  QVBoxLayout* layout= new QVBoxLayout (this);
+  layout->addWidget (fileFirstRadio);
+  layout->addWidget (searchRadio);
+  layout->addStretch ();
+}
+
+int
+TransclusionModePage::nextId () const {
+  return searchRadio->isChecked () ? TransclusionSearchPageId :
+    TransclusionFilePageId;
+}
+
+TransclusionFilePage::TransclusionFilePage (QWidget* parent)
+  : QWizardPage (parent) {
+  setTitle ("Select a file");
+  setSubTitle ("Type to filter vault files, then press Enter or Next.");
+
+  searchEdit= new QLineEdit (this);
+  searchEdit->setPlaceholderText ("Search .ath and .tm files");
+  fileList= new QListWidget (this);
+  fileList->setAlternatingRowColors (true);
+
+  QVBoxLayout* layout= new QVBoxLayout (this);
+  layout->addWidget (searchEdit);
+  layout->addWidget (fileList, 1);
+
+  searchEdit->installEventFilter (this);
+  fileList->installEventFilter (this);
+
+  connect (searchEdit, &QLineEdit::textChanged,
+           this, [this] (const QString&) { updateList (); });
+  connect (fileList, &QListWidget::itemDoubleClicked,
+           this, [this] (QListWidgetItem*) { wizard ()->next (); });
+}
+
+void
+TransclusionFilePage::initializePage () {
+  QWizardPage::initializePage ();
+  updateList ();
+  searchEdit->setFocus ();
+}
+
+void
+TransclusionFilePage::updateList () {
+  QTMVaultTransclusionWizard* w=
+    static_cast<QTMVaultTransclusionWizard*> (wizard ());
+  fileList->clear ();
+  if (!w->filesLoaded) {
+    QListWidgetItem* item= new QListWidgetItem ("Loading vault files...");
+    item->setFlags (Qt::NoItemFlags);
+    fileList->addItem (item);
+    searchEdit->setEnabled (false);
+    return;
+  }
+  searchEdit->setEnabled (true);
+  string query= from_qstring (searchEdit->text ().trimmed ());
+
+  std::vector<std::pair<int,int> > matches;
+  for (int i=0; i<(int) w->files.size (); i++) {
+    int score= fuzzy_file_score (w->files[i], query);
+    if (score >= 0) matches.push_back (std::make_pair (-score, i));
+  }
+  std::sort (matches.begin (), matches.end (),
+             [&] (const std::pair<int,int>& a,
+                  const std::pair<int,int>& b) {
+               const WikilinkFileEntry& fa= w->files[a.second];
+               const WikilinkFileEntry& fb= w->files[b.second];
+               if (fa.isCurrent != fb.isCurrent) return fa.isCurrent;
+               if (a.first != b.first) return a.first < b.first;
+               if (fa.mtime != fb.mtime) return fa.mtime > fb.mtime;
+               return fa.relPath < fb.relPath;
+             });
+
+  const int limit= 200;
+  int count= 0;
+  for (auto m: matches) {
+    const WikilinkFileEntry& e= w->files[m.second];
+    QListWidgetItem* item= new QListWidgetItem (e.relPath);
+    item->setData (WikilinkPayloadRole, e.relPath);
+    item->setData (WikilinkIndexRole, m.second);
+    item->setData (WikilinkCompletionRole, strip_known_extension (e.relPath));
+    fileList->addItem (item);
+    if (++count >= limit) break;
+  }
+  if (fileList->count () > 0) fileList->setCurrentRow (0);
+}
+
+void
+TransclusionFilePage::moveSelection (int delta) {
+  int count= fileList->count ();
+  if (count <= 0) return;
+  int row= fileList->currentRow ();
+  if (row < 0) row= delta > 0 ? -1 : 0;
+  row= (row + delta + count) % count;
+  fileList->setCurrentRow (row);
+}
+
+void
+TransclusionFilePage::completeFromSelection () {
+  QListWidgetItem* item= fileList->currentItem ();
+  if (item == nullptr && fileList->count () > 0) item= fileList->item (0);
+  if (item == nullptr) return;
+  QString completion= item->data (WikilinkCompletionRole).toString ();
+  if (completion.isEmpty ()) return;
+  searchEdit->setText (completion);
+  searchEdit->setCursorPosition (completion.length ());
+}
+
+bool
+TransclusionFilePage::eventFilter (QObject* watched, QEvent* event) {
+  if ((watched == searchEdit || watched == fileList) &&
+      event->type () == QEvent::KeyPress) {
+    QKeyEvent* key= static_cast<QKeyEvent*> (event);
+    if (key->key () == Qt::Key_Up || key->key () == Qt::Key_Down) {
+      moveSelection (key->key () == Qt::Key_Up ? -1 : 1);
+      return true;
+    }
+    if (key->key () == Qt::Key_Return || key->key () == Qt::Key_Enter) {
+      wizard ()->next ();
+      return true;
+    }
+    if (key->key () == Qt::Key_Tab) {
+      if (key->modifiers () & Qt::ShiftModifier) return true;
+      completeFromSelection ();
+      return true;
+    }
+    if (key->key () == Qt::Key_Backtab) return true;
+  }
+  return QWizardPage::eventFilter (watched, event);
+}
+
+bool
+TransclusionFilePage::validatePage () {
+  QTMVaultTransclusionWizard* w=
+    static_cast<QTMVaultTransclusionWizard*> (wizard ());
+  if (!w->filesLoaded) {
+    QMessageBox::information (this, "Insert transclusion",
+                              "Vault files are still loading.");
+    return false;
+  }
+  return w->selectFileFromPage ();
+}
+
+TransclusionKindPage::TransclusionKindPage (QWidget* parent)
+  : QWizardPage (parent) {
+  setTitle ("Choose transclusion bounds");
+  setSubTitle ("Choose a complete enunciation or arbitrary anchor bounds.");
+
+  enunciationRadio= new QRadioButton ("Transclude an enunciation", this);
+  arbitraryRadio= new QRadioButton ("Transclude between arbitrary anchors", this);
+  enunciationRadio->setChecked (true);
+
+  QVBoxLayout* layout= new QVBoxLayout (this);
+  layout->addWidget (enunciationRadio);
+  layout->addWidget (arbitraryRadio);
+  layout->addStretch ();
+}
+
+int
+TransclusionKindPage::nextId () const {
+  return arbitraryRadio->isChecked () ? TransclusionUpperPageId :
+    TransclusionEnunciationPageId;
+}
+
+TransclusionEnunciationPage::TransclusionEnunciationPage (QWidget* parent)
+  : QWizardPage (parent) {
+  setFinalPage (true);
+  setTitle ("Choose an enunciation");
+  setSubTitle ("Only { anchors with a matching } anchor are listed.");
+
+  searchEdit= new QLineEdit (this);
+  searchEdit->setPlaceholderText ("Filter enunciation anchors");
+  pairList= new QListWidget (this);
+  pairList->setAlternatingRowColors (true);
+  pairList->setMinimumWidth (500);
+  previewTitle= new QLabel ("Select an enunciation to preview it.", this);
+  previewHost= new QWidget (this);
+  previewHost->setMinimumHeight (360);
+  previewHost->setSizePolicy (QSizePolicy::Expanding, QSizePolicy::Expanding);
+  QVBoxLayout* previewHostLayout= new QVBoxLayout (previewHost);
+  previewHostLayout->setContentsMargins (0, 0, 0, 0);
+
+  QWidget* left= new QWidget (this);
+  QVBoxLayout* leftLayout= new QVBoxLayout (left);
+  leftLayout->setContentsMargins (0, 0, 0, 0);
+  leftLayout->addWidget (new QLabel ("Enunciations:", this));
+  leftLayout->addWidget (searchEdit);
+  leftLayout->addWidget (pairList, 1);
+
+  QWidget* right= new QWidget (this);
+  QVBoxLayout* rightLayout= new QVBoxLayout (right);
+  rightLayout->setContentsMargins (0, 0, 0, 0);
+  rightLayout->addWidget (previewTitle);
+  rightLayout->addWidget (previewHost, 1);
+
+  QSplitter* splitter= new QSplitter (Qt::Horizontal, this);
+  splitter->addWidget (left);
+  splitter->addWidget (right);
+  splitter->setStretchFactor (0, 0);
+  splitter->setStretchFactor (1, 1);
+  splitter->setSizes (QList<int> () << 520 << 800);
+
+  QVBoxLayout* layout= new QVBoxLayout (this);
+  layout->addWidget (splitter, 1);
+
+  searchEdit->installEventFilter (this);
+  pairList->installEventFilter (this);
+  connect (searchEdit, &QLineEdit::textChanged,
+           this, [this] (const QString&) { updateList (); });
+  connect (pairList, &QListWidget::currentItemChanged,
+           this, [this] (QListWidgetItem*, QListWidgetItem*) {
+             updatePreview ();
+           });
+  connect (pairList, &QListWidget::itemDoubleClicked,
+           this, [this] (QListWidgetItem*) {
+             if (acceptCurrentPair ()) {
+               QTMVaultTransclusionWizard* w=
+                 static_cast<QTMVaultTransclusionWizard*> (wizard ());
+               QTimer::singleShot (0, w, [w] () { w->accept (); });
+             }
+           });
+}
+
+int
+TransclusionEnunciationPage::nextId () const {
+  return -1;
+}
+
+void
+TransclusionEnunciationPage::initializePage () {
+  QWizardPage::initializePage ();
+  QTMVaultTransclusionWizard* w=
+    static_cast<QTMVaultTransclusionWizard*> (wizard ());
+  setSubTitle ("Target file: " + w->selectedRelPath);
+  pairs.clear ();
+  fileBody= tree (DOCUMENT, "");
+  try {
+    fileBody= import_body_for_preview (w->selectedFileUrl);
+    std::vector<WikilinkAnchorEntry> anchors;
+    collect_anchors (fileBody, path (), anchors);
+    pairs= collect_transclusion_pairs (anchors);
+  }
+  catch (...) {
+    fileBody= tree (DOCUMENT, "Preview unavailable.");
+  }
+  updateList ();
+  QTimer::singleShot (0, this, [this] () {
+    preview.ensureCreated (previewHost);
+    updatePreview ();
+    preview.refresh ();
+  });
+  QTimer::singleShot (120, this, [this] () {
+    preview.ensureCreated (previewHost);
+    updatePreview ();
+    preview.refresh ();
+  });
+  searchEdit->setFocus ();
+}
+
+void
+TransclusionEnunciationPage::showEvent (QShowEvent* event) {
+  QWizardPage::showEvent (event);
+  QTimer::singleShot (0, this, [this] () {
+    preview.ensureCreated (previewHost);
+    updatePreview ();
+    preview.refresh ();
+  });
+}
+
+void
+TransclusionEnunciationPage::updateList () {
+  pairList->clear ();
+  QString query= searchEdit->text ().trimmed ().toLower ();
+  std::vector<std::pair<int,int> > matches;
+  for (int i=0; i<(int) pairs.size (); i++) {
+    int score= fuzzy_score (pairs[i].upper, query);
+    if (score >= 0) matches.push_back (std::make_pair (-score, i));
+  }
+  std::sort (matches.begin (), matches.end (),
+             [&] (const std::pair<int,int>& a,
+                  const std::pair<int,int>& b) {
+               if (a.first != b.first) return a.first < b.first;
+               return pairs[a.second].upper < pairs[b.second].upper;
+             });
+  for (auto m: matches) {
+    QListWidgetItem* item= new QListWidgetItem (pairs[m.second].upper);
+    item->setData (WikilinkIndexRole, m.second);
+    pairList->addItem (item);
+  }
+  if (pairList->count () > 0) pairList->setCurrentRow (0);
+  updatePreview ();
+}
+
+void
+TransclusionEnunciationPage::updatePreview () {
+  QTMVaultTransclusionWizard* w=
+    static_cast<QTMVaultTransclusionWizard*> (wizard ());
+  QListWidgetItem* item= pairList->currentItem ();
+  int index= item == nullptr ? -1 : item->data (WikilinkIndexRole).toInt ();
+  if (index < 0 || index >= (int) pairs.size ()) {
+    previewTitle->setText ("Select an enunciation to preview it.");
+    preview.ensureCreated (previewHost);
+    preview.setBody (tree (DOCUMENT, ""));
+    return;
+  }
+  const TransclusionAnchorPair& pair= pairs[index];
+  previewTitle->setText (w->selectedRelPath + "  --  " + pair.upper);
+  preview.ensureCreated (previewHost);
+  preview.setBody (build_preview_from_anchor_range (
+    fileBody, pair.upperWhere, pair.lowerWhere));
+}
+
+bool
+TransclusionEnunciationPage::acceptCurrentPair () {
+  QTMVaultTransclusionWizard* w=
+    static_cast<QTMVaultTransclusionWizard*> (wizard ());
+  QListWidgetItem* item= pairList->currentItem ();
+  if (item == nullptr) {
+    QMessageBox::information (this, "Insert transclusion",
+                              "Select an enunciation first.");
+    return false;
+  }
+  int index= item->data (WikilinkIndexRole).toInt ();
+  if (index < 0 || index >= (int) pairs.size ()) return false;
+  const TransclusionAnchorPair& pair= pairs[index];
+  w->setResult (w->selectedRelPath, pair.upper, pair.lower, w->fileHint,
+                pair.upper);
+  return true;
+}
+
+bool
+TransclusionEnunciationPage::eventFilter (QObject* watched, QEvent* event) {
+  if ((watched == searchEdit || watched == pairList) &&
+      event->type () == QEvent::KeyPress) {
+    QKeyEvent* key= static_cast<QKeyEvent*> (event);
+    if (key->key () == Qt::Key_Up || key->key () == Qt::Key_Down) {
+      int count= pairList->count ();
+      if (count <= 0) return true;
+      int row= pairList->currentRow ();
+      if (row < 0) row= key->key () == Qt::Key_Down ? -1 : 0;
+      row= (row + (key->key () == Qt::Key_Up ? -1 : 1) + count) % count;
+      pairList->setCurrentRow (row);
+      return true;
+    }
+  }
+  return QWizardPage::eventFilter (watched, event);
+}
+
+bool
+TransclusionEnunciationPage::validatePage () {
+  QTMVaultTransclusionWizard* w=
+    static_cast<QTMVaultTransclusionWizard*> (wizard ());
+  if (w->resultAccepted) return true;
+  return acceptCurrentPair ();
+}
+
+TransclusionUpperPage::TransclusionUpperPage (QWidget* parent)
+  : QWizardPage (parent) {
+  setTitle ("Choose upper bound");
+  setSubTitle ("Choose the first anchor in the transcluded range.");
+
+  searchEdit= new QLineEdit (this);
+  searchEdit->setPlaceholderText ("Filter anchors");
+  anchorList= new QListWidget (this);
+  anchorList->setAlternatingRowColors (true);
+  anchorList->setMinimumWidth (500);
+  previewTitle= new QLabel ("Select an anchor to preview it.", this);
+  previewHost= new QWidget (this);
+  previewHost->setMinimumHeight (360);
+  previewHost->setSizePolicy (QSizePolicy::Expanding, QSizePolicy::Expanding);
+  QVBoxLayout* previewHostLayout= new QVBoxLayout (previewHost);
+  previewHostLayout->setContentsMargins (0, 0, 0, 0);
+
+  QWidget* left= new QWidget (this);
+  QVBoxLayout* leftLayout= new QVBoxLayout (left);
+  leftLayout->setContentsMargins (0, 0, 0, 0);
+  leftLayout->addWidget (new QLabel ("Upper bound:", this));
+  leftLayout->addWidget (searchEdit);
+  leftLayout->addWidget (anchorList, 1);
+
+  QWidget* right= new QWidget (this);
+  QVBoxLayout* rightLayout= new QVBoxLayout (right);
+  rightLayout->setContentsMargins (0, 0, 0, 0);
+  rightLayout->addWidget (previewTitle);
+  rightLayout->addWidget (previewHost, 1);
+
+  QSplitter* splitter= new QSplitter (Qt::Horizontal, this);
+  splitter->addWidget (left);
+  splitter->addWidget (right);
+  splitter->setStretchFactor (0, 0);
+  splitter->setStretchFactor (1, 1);
+  splitter->setSizes (QList<int> () << 520 << 800);
+
+  QVBoxLayout* layout= new QVBoxLayout (this);
+  layout->addWidget (splitter, 1);
+
+  searchEdit->installEventFilter (this);
+  anchorList->installEventFilter (this);
+  connect (searchEdit, &QLineEdit::textChanged,
+           this, [this] (const QString&) { updateList (); });
+  connect (anchorList, &QListWidget::currentItemChanged,
+           this, [this] (QListWidgetItem*, QListWidgetItem*) {
+             updatePreview ();
+           });
+  connect (anchorList, &QListWidget::itemDoubleClicked,
+           this, [this] (QListWidgetItem*) { wizard ()->next (); });
+}
+
+int
+TransclusionUpperPage::nextId () const {
+  return TransclusionLowerPageId;
+}
+
+void
+TransclusionUpperPage::initializePage () {
+  QWizardPage::initializePage ();
+  QTMVaultTransclusionWizard* w=
+    static_cast<QTMVaultTransclusionWizard*> (wizard ());
+  setSubTitle ("Target file: " + w->selectedRelPath);
+  anchors.clear ();
+  fileBody= tree (DOCUMENT, "");
+  try {
+    fileBody= import_body_for_preview (w->selectedFileUrl);
+    collect_anchors (fileBody, path (), anchors);
+  }
+  catch (...) {
+    fileBody= tree (DOCUMENT, "Preview unavailable.");
+  }
+  updateList ();
+  QTimer::singleShot (0, this, [this] () {
+    preview.ensureCreated (previewHost);
+    updatePreview ();
+    preview.refresh ();
+  });
+  searchEdit->setFocus ();
+}
+
+void
+TransclusionUpperPage::showEvent (QShowEvent* event) {
+  QWizardPage::showEvent (event);
+  QTimer::singleShot (0, this, [this] () {
+    preview.ensureCreated (previewHost);
+    updatePreview ();
+    preview.refresh ();
+  });
+}
+
+void
+TransclusionUpperPage::updateList () {
+  anchorList->clear ();
+  QString query= searchEdit->text ().trimmed ().toLower ();
+  std::vector<std::pair<int,int> > matches;
+  for (int i=0; i<(int) anchors.size (); i++) {
+    int score= fuzzy_score (anchors[i].anchor, query);
+    if (score >= 0) matches.push_back (std::make_pair (-score, i));
+  }
+  std::sort (matches.begin (), matches.end (),
+             [&] (const std::pair<int,int>& a,
+                  const std::pair<int,int>& b) {
+               if (a.first != b.first) return a.first < b.first;
+               return anchors[a.second].anchor < anchors[b.second].anchor;
+             });
+  for (auto m: matches) {
+    QListWidgetItem* item= new QListWidgetItem (anchors[m.second].anchor);
+    item->setData (WikilinkIndexRole, m.second);
+    anchorList->addItem (item);
+  }
+  if (anchorList->count () > 0) anchorList->setCurrentRow (0);
+  updatePreview ();
+}
+
+void
+TransclusionUpperPage::updatePreview () {
+  QTMVaultTransclusionWizard* w=
+    static_cast<QTMVaultTransclusionWizard*> (wizard ());
+  QListWidgetItem* item= anchorList->currentItem ();
+  int index= item == nullptr ? -1 : item->data (WikilinkIndexRole).toInt ();
+  if (index < 0 || index >= (int) anchors.size ()) {
+    previewTitle->setText ("Select an anchor to preview it.");
+    preview.ensureCreated (previewHost);
+    preview.setBody (tree (DOCUMENT, ""));
+    return;
+  }
+  previewTitle->setText (w->selectedRelPath + "  --  " +
+                         anchors[index].anchor);
+  preview.ensureCreated (previewHost);
+  preview.setBody (build_preview_from_body (fileBody, anchors[index].where,
+                                            nullptr, nullptr));
+}
+
+bool
+TransclusionUpperPage::eventFilter (QObject* watched, QEvent* event) {
+  if ((watched == searchEdit || watched == anchorList) &&
+      event->type () == QEvent::KeyPress) {
+    QKeyEvent* key= static_cast<QKeyEvent*> (event);
+    if (key->key () == Qt::Key_Up || key->key () == Qt::Key_Down) {
+      int count= anchorList->count ();
+      if (count <= 0) return true;
+      int row= anchorList->currentRow ();
+      if (row < 0) row= key->key () == Qt::Key_Down ? -1 : 0;
+      row= (row + (key->key () == Qt::Key_Up ? -1 : 1) + count) % count;
+      anchorList->setCurrentRow (row);
+      return true;
+    }
+  }
+  return QWizardPage::eventFilter (watched, event);
+}
+
+bool
+TransclusionUpperPage::validatePage () {
+  QTMVaultTransclusionWizard* w=
+    static_cast<QTMVaultTransclusionWizard*> (wizard ());
+  QListWidgetItem* item= anchorList->currentItem ();
+  if (item == nullptr) {
+    QMessageBox::information (this, "Insert transclusion",
+                              "Select an upper bound first.");
+    return false;
+  }
+  int index= item->data (WikilinkIndexRole).toInt ();
+  if (index < 0 || index >= (int) anchors.size ()) return false;
+  w->selectedUpperIndex= index;
+  w->selectedUpperAnchor= anchors[index].anchor;
+  w->selectedUpperWhere= anchors[index].where;
+  return true;
+}
+
+TransclusionLowerPage::TransclusionLowerPage (QWidget* parent)
+  : QWizardPage (parent) {
+  setFinalPage (true);
+  setTitle ("Choose lower bound");
+  setSubTitle ("Choose the final anchor in the transcluded range.");
+
+  searchEdit= new QLineEdit (this);
+  searchEdit->setPlaceholderText ("Filter anchors below the upper bound");
+  anchorList= new QListWidget (this);
+  anchorList->setAlternatingRowColors (true);
+  anchorList->setMinimumWidth (500);
+  previewTitle= new QLabel ("Select a lower bound to preview the range.", this);
+  previewHost= new QWidget (this);
+  previewHost->setMinimumHeight (360);
+  previewHost->setSizePolicy (QSizePolicy::Expanding, QSizePolicy::Expanding);
+  QVBoxLayout* previewHostLayout= new QVBoxLayout (previewHost);
+  previewHostLayout->setContentsMargins (0, 0, 0, 0);
+
+  QWidget* left= new QWidget (this);
+  QVBoxLayout* leftLayout= new QVBoxLayout (left);
+  leftLayout->setContentsMargins (0, 0, 0, 0);
+  leftLayout->addWidget (new QLabel ("Lower bound:", this));
+  leftLayout->addWidget (searchEdit);
+  leftLayout->addWidget (anchorList, 1);
+
+  QWidget* right= new QWidget (this);
+  QVBoxLayout* rightLayout= new QVBoxLayout (right);
+  rightLayout->setContentsMargins (0, 0, 0, 0);
+  rightLayout->addWidget (previewTitle);
+  rightLayout->addWidget (previewHost, 1);
+
+  QSplitter* splitter= new QSplitter (Qt::Horizontal, this);
+  splitter->addWidget (left);
+  splitter->addWidget (right);
+  splitter->setStretchFactor (0, 0);
+  splitter->setStretchFactor (1, 1);
+  splitter->setSizes (QList<int> () << 520 << 800);
+
+  QVBoxLayout* layout= new QVBoxLayout (this);
+  layout->addWidget (splitter, 1);
+
+  searchEdit->installEventFilter (this);
+  anchorList->installEventFilter (this);
+  connect (searchEdit, &QLineEdit::textChanged,
+           this, [this] (const QString&) { updateList (); });
+  connect (anchorList, &QListWidget::currentItemChanged,
+           this, [this] (QListWidgetItem*, QListWidgetItem*) {
+             updatePreview ();
+           });
+  connect (anchorList, &QListWidget::itemDoubleClicked,
+           this, [this] (QListWidgetItem*) {
+             if (validatePage ()) {
+               QTMVaultTransclusionWizard* w=
+                 static_cast<QTMVaultTransclusionWizard*> (wizard ());
+               QTimer::singleShot (0, w, [w] () { w->accept (); });
+             }
+           });
+}
+
+int
+TransclusionLowerPage::nextId () const {
+  return -1;
+}
+
+void
+TransclusionLowerPage::initializePage () {
+  QWizardPage::initializePage ();
+  QTMVaultTransclusionWizard* w=
+    static_cast<QTMVaultTransclusionWizard*> (wizard ());
+  setSubTitle ("Upper bound: " + w->selectedUpperAnchor);
+  anchors.clear ();
+  fileBody= tree (DOCUMENT, "");
+  try {
+    fileBody= import_body_for_preview (w->selectedFileUrl);
+    std::vector<WikilinkAnchorEntry> all;
+    collect_anchors (fileBody, path (), all);
+    for (int i=0; i<(int) all.size (); i++)
+      if (path_less (w->selectedUpperWhere, all[i].where))
+        anchors.push_back (all[i]);
+  }
+  catch (...) {
+    fileBody= tree (DOCUMENT, "Preview unavailable.");
+  }
+  updateList ();
+  QTimer::singleShot (0, this, [this] () {
+    preview.ensureCreated (previewHost);
+    updatePreview ();
+    preview.refresh ();
+  });
+  searchEdit->setFocus ();
+}
+
+void
+TransclusionLowerPage::showEvent (QShowEvent* event) {
+  QWizardPage::showEvent (event);
+  QTimer::singleShot (0, this, [this] () {
+    preview.ensureCreated (previewHost);
+    updatePreview ();
+    preview.refresh ();
+  });
+}
+
+void
+TransclusionLowerPage::updateList () {
+  anchorList->clear ();
+  QString query= searchEdit->text ().trimmed ().toLower ();
+  std::vector<std::pair<int,int> > matches;
+  for (int i=0; i<(int) anchors.size (); i++) {
+    int score= fuzzy_score (anchors[i].anchor, query);
+    if (score >= 0) matches.push_back (std::make_pair (-score, i));
+  }
+  std::sort (matches.begin (), matches.end (),
+             [&] (const std::pair<int,int>& a,
+                  const std::pair<int,int>& b) {
+               if (a.first != b.first) return a.first < b.first;
+               return anchors[a.second].anchor < anchors[b.second].anchor;
+             });
+  for (auto m: matches) {
+    QListWidgetItem* item= new QListWidgetItem (anchors[m.second].anchor);
+    item->setData (WikilinkIndexRole, m.second);
+    anchorList->addItem (item);
+  }
+  if (anchorList->count () > 0) anchorList->setCurrentRow (0);
+  updatePreview ();
+}
+
+void
+TransclusionLowerPage::updatePreview () {
+  QTMVaultTransclusionWizard* w=
+    static_cast<QTMVaultTransclusionWizard*> (wizard ());
+  QListWidgetItem* item= anchorList->currentItem ();
+  int index= item == nullptr ? -1 : item->data (WikilinkIndexRole).toInt ();
+  if (index < 0 || index >= (int) anchors.size ()) {
+    previewTitle->setText ("Select a lower bound to preview the range.");
+    preview.ensureCreated (previewHost);
+    preview.setBody (tree (DOCUMENT, ""));
+    return;
+  }
+  previewTitle->setText (w->selectedUpperAnchor + "  ...  " +
+                         anchors[index].anchor);
+  preview.ensureCreated (previewHost);
+  preview.setBody (build_preview_from_anchor_range (
+    fileBody, w->selectedUpperWhere, anchors[index].where));
+}
+
+bool
+TransclusionLowerPage::eventFilter (QObject* watched, QEvent* event) {
+  if ((watched == searchEdit || watched == anchorList) &&
+      event->type () == QEvent::KeyPress) {
+    QKeyEvent* key= static_cast<QKeyEvent*> (event);
+    if (key->key () == Qt::Key_Up || key->key () == Qt::Key_Down) {
+      int count= anchorList->count ();
+      if (count <= 0) return true;
+      int row= anchorList->currentRow ();
+      if (row < 0) row= key->key () == Qt::Key_Down ? -1 : 0;
+      row= (row + (key->key () == Qt::Key_Up ? -1 : 1) + count) % count;
+      anchorList->setCurrentRow (row);
+      return true;
+    }
+  }
+  return QWizardPage::eventFilter (watched, event);
+}
+
+bool
+TransclusionLowerPage::validatePage () {
+  QTMVaultTransclusionWizard* w=
+    static_cast<QTMVaultTransclusionWizard*> (wizard ());
+  if (w->resultAccepted) return true;
+  QListWidgetItem* item= anchorList->currentItem ();
+  if (item == nullptr) {
+    QMessageBox::information (this, "Insert transclusion",
+                              "Select a lower bound first.");
+    return false;
+  }
+  int index= item->data (WikilinkIndexRole).toInt ();
+  if (index < 0 || index >= (int) anchors.size ()) return false;
+  if (!path_less (w->selectedUpperWhere, anchors[index].where)) {
+    QMessageBox::warning (
+      this, "Insert transclusion",
+      "The lower bound must occur after the upper bound in the document.");
+    return false;
+  }
+  w->setResult (w->selectedRelPath, w->selectedUpperAnchor,
+                anchors[index].anchor, w->fileHint, anchors[index].anchor);
+  return true;
+}
+
+TransclusionSearchPage::TransclusionSearchPage (QWidget* parent)
+  : QWizardPage (parent) {
+  setFinalPage (true);
+  setTitle ("Locate by search");
+  setSubTitle ("Search inside a kind of enunciation and transclude the selected result.");
+
+  queryEdit= new QLineEdit (this);
+  queryEdit->setPlaceholderText ("Search text");
+  namespaceEdit= new QLineEdit (this);
+  namespaceEdit->setPlaceholderText ("All namespaces");
+  namespaceEdit->setClearButtonEnabled (true);
+  namespaceEdit->setMinimumWidth (300);
+  namespaceModel= new QStringListModel (this);
+  QCompleter* namespaceCompleter= new QCompleter (namespaceModel, this);
+  namespaceCompleter->setCaseSensitivity (Qt::CaseInsensitive);
+  namespaceCompleter->setFilterMode (Qt::MatchContains);
+  namespaceEdit->setCompleter (namespaceCompleter);
+
+  enunciationCombo= new QComboBox (this);
+  for (const WikilinkEnunciationFilterEntry& entry: wikilink_enunciation_filters)
+    enunciationCombo->addItem (entry.label, entry.tag);
+  enunciationCombo->setMinimumWidth (190);
+
+  searchButton= new QPushButton ("Search", this);
+  statusLabel= new QLabel (this);
+  progress= new QProgressBar (this);
+  progress->setRange (0, 1);
+  progress->setValue (0);
+  resultList= new QListWidget (this);
+  resultList->setAlternatingRowColors (true);
+  previewTitle= new QLabel ("Select a search result to preview it.", this);
+  previewHost= new QWidget (this);
+  previewHost->setMinimumHeight (420);
+  previewHost->setSizePolicy (QSizePolicy::Expanding, QSizePolicy::Expanding);
+  QVBoxLayout* previewHostLayout= new QVBoxLayout (previewHost);
+  previewHostLayout->setContentsMargins (0, 0, 0, 0);
+
+  QHBoxLayout* searchRow= new QHBoxLayout ();
+  searchRow->addWidget (queryEdit, 1);
+  searchRow->addWidget (searchButton);
+
+  QHBoxLayout* filtersRow= new QHBoxLayout ();
+  filtersRow->addWidget (new QLabel ("Namespace:", this));
+  filtersRow->addWidget (namespaceEdit);
+  filtersRow->addSpacing (12);
+  filtersRow->addWidget (new QLabel ("Enunciation:", this));
+  filtersRow->addWidget (enunciationCombo);
+  filtersRow->addStretch ();
+
+  QWidget* left= new QWidget (this);
+  QVBoxLayout* leftLayout= new QVBoxLayout (left);
+  leftLayout->setContentsMargins (0, 0, 0, 0);
+  leftLayout->addWidget (new QLabel ("Enunciations:", this));
+  leftLayout->addWidget (resultList, 1);
+
+  QWidget* right= new QWidget (this);
+  QVBoxLayout* rightLayout= new QVBoxLayout (right);
+  rightLayout->setContentsMargins (0, 0, 0, 0);
+  rightLayout->addWidget (previewTitle);
+  rightLayout->addWidget (previewHost, 1);
+
+  QSplitter* splitter= new QSplitter (Qt::Horizontal, this);
+  splitter->addWidget (left);
+  splitter->addWidget (right);
+  splitter->setStretchFactor (0, 0);
+  splitter->setStretchFactor (1, 1);
+  splitter->setSizes (QList<int> () << 430 << 830);
+
+  QVBoxLayout* layout= new QVBoxLayout (this);
+  layout->addLayout (searchRow);
+  layout->addLayout (filtersRow);
+  layout->addWidget (statusLabel);
+  layout->addWidget (progress);
+  layout->addWidget (splitter, 1);
+
+  connect (searchButton, &QPushButton::clicked,
+           this, [this] () { startSearch (); });
+  connect (queryEdit, &QLineEdit::returnPressed,
+           this, [this] () { startSearch (); });
+  connect (resultList, &QListWidget::currentItemChanged,
+           this, [this] (QListWidgetItem* current, QListWidgetItem*) {
+             updatePreview (current);
+           });
+  connect (resultList, &QListWidget::itemDoubleClicked,
+           this, [this] (QListWidgetItem*) {
+             if (acceptCurrentResult ()) {
+               QTMVaultTransclusionWizard* w=
+                 static_cast<QTMVaultTransclusionWizard*> (wizard ());
+               QTimer::singleShot (0, w, [w] () { w->accept (); });
+             }
+           });
+}
+
+int
+TransclusionSearchPage::nextId () const {
+  return -1;
+}
+
+void
+TransclusionSearchPage::initializePage () {
+  QWizardPage::initializePage ();
+  refreshNamespaces ();
+  queryEdit->setFocus ();
+}
+
+void
+TransclusionSearchPage::showEvent (QShowEvent* event) {
+  QWizardPage::showEvent (event);
+  QTimer::singleShot (0, this, [this] () {
+    preview.ensureCreated (previewHost);
+    updatePreview (resultList->currentItem ());
+    preview.refresh ();
+  });
+  QTimer::singleShot (120, this, [this] () {
+    preview.ensureCreated (previewHost);
+    updatePreview (resultList->currentItem ());
+    preview.refresh ();
+  });
+}
+
+void
+TransclusionSearchPage::refreshNamespaces () {
+  QString current= namespaceEdit == nullptr ? QString () :
+    namespaceEdit->text ().trimmed ();
+  QStringList names;
+  string error;
+  athena_namespace_refresh_derived (error);
+  for (const athena_namespace_definition& ns: athena_namespaces_list ())
+    names << to_qstring (ns.name);
+  names.removeDuplicates ();
+  names.sort (Qt::CaseInsensitive);
+  namespaceModel->setStringList (names);
+  if (!current.isEmpty () && !names.contains (current, Qt::CaseSensitive))
+    namespaceEdit->setText (current);
+}
+
+QString
+TransclusionSearchPage::selectedNamespace () const {
+  return namespaceEdit == nullptr ? QString () : namespaceEdit->text ().trimmed ();
+}
+
+QString
+TransclusionSearchPage::selectedEnunciation () const {
+  return enunciationCombo == nullptr ? QString () :
+    enunciationCombo->currentData ().toString ().trimmed ();
+}
+
+int
+TransclusionSearchPage::searchFile (
+  url u, const tree& query, std::vector<TransclusionSearchResult>& hits) const
+{
+  try {
+    tree body= import_body_for_preview (u);
+    std::vector<WikilinkAnchorEntry> anchors;
+    collect_anchors (body, path (), anchors);
+    std::vector<TransclusionAnchorPair> pairs=
+      collect_transclusion_pairs (anchors);
+    QString tag= selectedEnunciation ();
+
+    int matched= 0;
+    int oldMode= set_access_mode (DRD_ACCESS_SOURCE);
+    try {
+      for (const TransclusionAnchorPair& pair: pairs) {
+        if (!anchor_pair_matches_enunciation (pair, tag)) continue;
+        tree range= build_preview_from_anchor_range (
+          body, pair.upperWhere, pair.lowerWhere);
+        range_set sels= search (range, query, path (), 1);
+        if (N(sels) <= 0) continue;
+
+        TransclusionSearchResult result;
+        result.file= u;
+        result.upper= pair.upper;
+        result.lower= pair.lower;
+        result.upperWhere= pair.upperWhere;
+        result.lowerWhere= pair.lowerWhere;
+        hits.push_back (result);
+        matched++;
+      }
+    }
+    catch (...) {
+      set_access_mode (oldMode);
+      throw;
+    }
+    set_access_mode (oldMode);
+
+    if (matched <= 0) return 0;
+    url root= vault_get_root ();
+    QString rel= to_qstring (as_unix_string (delta (root * url (""), u)));
+    for (int i=0; i<matched; i++) {
+      hits[hits.size () - matched + i].relPath= rel;
+      hits[hits.size () - matched + i].occurrence= i + 1;
+      hits[hits.size () - matched + i].fileHits= matched;
+    }
+    return matched;
+  }
+  catch (...) {
+    return 0;
+  }
+}
+
+void
+TransclusionSearchPage::startSearch () {
+  searchButton->setEnabled (false);
+  results.clear ();
+  resultList->clear ();
+  previewTitle->setText ("Select a search result to preview it.");
+  preview.ensureCreated (previewHost);
+  preview.setBody (tree (DOCUMENT, ""));
+  progress->setRange (0, 1);
+  progress->setValue (0);
+
+  QString queryText= queryEdit->text ().trimmed ();
+  if (queryText.isEmpty ()) {
+    statusLabel->setText ("Enter a non-empty search string.");
+    searchButton->setEnabled (true);
+    return;
+  }
+
+  tree query= tree (from_qstring (queryText));
+  std::vector<url> files;
+  refreshNamespaces ();
+  QString ns= selectedNamespace ();
+  if (ns.isEmpty ()) {
+    array<url> all= vault_get_all_files ();
+    for (int i=0; i<N(all); i++) {
+      string suf= suffix (all[i]);
+      if (suf == "ath" || suf == "tm") files.push_back (all[i]);
+    }
+  }
+  else {
+    string error;
+    athena_namespace_definition def;
+    if (!athena_namespace_get (from_qstring (ns), def)) {
+      QMessageBox::warning (this, "Insert transclusion",
+                            "Unknown namespace: " + ns);
+      searchButton->setEnabled (true);
+      return;
+    }
+    std::vector<athena_namespace_match> members=
+      athena_namespace_members (from_qstring (ns), error);
+    if (error != "")
+      QMessageBox::warning (this, "Insert transclusion",
+                            "Namespace warning: " + to_qstring (error));
+    std::set<std::string> seen;
+    for (const athena_namespace_match& m: members) {
+      string suf= suffix (m.file);
+      if (suf != "ath" && suf != "tm") continue;
+      std::string key= to_qstring (concretize (m.file)).toStdString ();
+      if (!seen.insert (key).second) continue;
+      files.push_back (m.file);
+    }
+  }
+
+  std::sort (files.begin (), files.end (),
+             [] (const url& a, const url& b) {
+               return as_unix_string (a) < as_unix_string (b);
+             });
+
+  int matchedFiles= 0;
+  progress->setRange (0, (int) files.size ());
+  progress->setValue (0);
+  int scanned= 0;
+  for (const url& file: files) {
+    std::vector<TransclusionSearchResult> fileHits;
+    if (searchFile (file, query, fileHits) > 0) {
+      matchedFiles++;
+      for (const TransclusionSearchResult& hit: fileHits)
+        addResult (hit);
+    }
+    scanned++;
+    progress->setValue (scanned);
+    statusLabel->setText (
+      QString ("Searching %1/%2 files; %3 enunciation(s) in %4 file(s).")
+        .arg (scanned)
+        .arg ((int) files.size ())
+        .arg ((int) results.size ())
+        .arg (matchedFiles));
+    if ((scanned % 8) == 0)
+      QApplication::processEvents (QEventLoop::ExcludeUserInputEvents);
+  }
+
+  statusLabel->setText (
+    QString ("%1 enunciation(s) in %2 file(s), out of %3 scanned file(s).")
+      .arg ((int) results.size ())
+      .arg (matchedFiles)
+      .arg ((int) files.size ()));
+  if (resultList->count () > 0) resultList->setCurrentRow (0);
+  searchButton->setEnabled (true);
+}
+
+void
+TransclusionSearchPage::addResult (const TransclusionSearchResult& result) {
+  results.push_back (result);
+  QListWidgetItem* item= new QListWidgetItem (
+    QString ("%1 (%2)  %3")
+      .arg (result.relPath)
+      .arg (result.occurrence)
+      .arg (clean_anchor_display (result.upper)));
+  item->setData (WikilinkIndexRole, (int) results.size () - 1);
+  item->setToolTip (
+    QString ("%1\nOccurrence %2 of %3\n%4 ... %5")
+      .arg (result.relPath)
+      .arg (result.occurrence)
+      .arg (result.fileHits)
+      .arg (result.upper)
+      .arg (result.lower));
+  resultList->addItem (item);
+}
+
+void
+TransclusionSearchPage::updatePreview (QListWidgetItem* current) {
+  if (current == nullptr) {
+    previewTitle->setText ("Select a search result to preview it.");
+    preview.ensureCreated (previewHost);
+    preview.setBody (tree (DOCUMENT, ""));
+    return;
+  }
+  int index= current->data (WikilinkIndexRole).toInt ();
+  if (index < 0 || index >= (int) results.size ()) return;
+  const TransclusionSearchResult& result= results[index];
+  previewTitle->setText (
+    QString ("%1  (%2 of %3)")
+      .arg (result.relPath)
+      .arg (result.occurrence)
+      .arg (result.fileHits));
+  try {
+    tree body= import_body_for_preview (result.file);
+    preview.ensureCreated (previewHost);
+    preview.setBody (build_preview_from_anchor_range (
+      body, result.upperWhere, result.lowerWhere));
+  }
+  catch (...) {
+    preview.ensureCreated (previewHost);
+    preview.setBody (tree (DOCUMENT, "Preview unavailable."));
+  }
+}
+
+bool
+TransclusionSearchPage::acceptCurrentResult () {
+  QTMVaultTransclusionWizard* w=
+    static_cast<QTMVaultTransclusionWizard*> (wizard ());
+  if (w->resultAccepted) return true;
+  QListWidgetItem* item= resultList->currentItem ();
+  if (item == nullptr) {
+    QMessageBox::information (this, "Insert transclusion",
+                              "Select a search result first.");
+    return false;
+  }
+  int index= item->data (WikilinkIndexRole).toInt ();
+  if (index < 0 || index >= (int) results.size ()) return false;
+  const TransclusionSearchResult& result= results[index];
+  w->setResult (result.relPath, result.upper, result.lower,
+                file_display_stem (result.relPath), result.upper);
+  return true;
+}
+
+bool
+TransclusionSearchPage::validatePage () {
+  QTMVaultTransclusionWizard* w=
+    static_cast<QTMVaultTransclusionWizard*> (wizard ());
+  if (w->resultAccepted) return true;
+  return acceptCurrentResult ();
+}
+
+QTMVaultTransclusionWizard::QTMVaultTransclusionWizard (QWidget* parent)
+  : QWizard (parent), selectedUpperIndex (-1), filesLoaded (false),
+    filesLoadScheduled (false), resultAccepted (false) {
+  setWindowTitle ("Insert Transclusion");
+  resize (1220, 780);
+  setOption (QWizard::NoBackButtonOnStartPage, true);
+
+  modePage= new TransclusionModePage (this);
+  filePage= new TransclusionFilePage (this);
+  kindPage= new TransclusionKindPage (this);
+  enunciationPage= new TransclusionEnunciationPage (this);
+  upperPage= new TransclusionUpperPage (this);
+  lowerPage= new TransclusionLowerPage (this);
+  searchPage= new TransclusionSearchPage (this);
+
+  setPage (TransclusionModePageId, modePage);
+  setPage (TransclusionFilePageId, filePage);
+  setPage (TransclusionKindPageId, kindPage);
+  setPage (TransclusionEnunciationPageId, enunciationPage);
+  setPage (TransclusionUpperPageId, upperPage);
+  setPage (TransclusionLowerPageId, lowerPage);
+  setPage (TransclusionSearchPageId, searchPage);
+  setStartId (TransclusionModePageId);
+}
+
+void
+QTMVaultTransclusionWizard::showEvent (QShowEvent* event) {
+  QWizard::showEvent (event);
+  scheduleLoadFiles ();
+}
+
+void
+QTMVaultTransclusionWizard::loadFiles () {
+  files= load_vault_link_files ();
+  filesLoaded= true;
+}
+
+void
+QTMVaultTransclusionWizard::scheduleLoadFiles () {
+  if (filesLoaded || filesLoadScheduled) return;
+  filesLoadScheduled= true;
+  QTimer::singleShot (350, this, [this] () {
+    if (filesLoaded) return;
+    loadFiles ();
+    if (filePage != nullptr) filePage->updateList ();
+  });
+}
+
+void
+QTMVaultTransclusionWizard::setResult (const QString& relPath,
+                                       const QString& anchorBegin,
+                                       const QString& anchorEnd,
+                                       const QString& fileHint2,
+                                       const QString& anchorHint2) {
+  selectedRelPath= relPath;
+  selectedAnchorBegin= anchorBegin;
+  selectedAnchorEnd= anchorEnd;
+  fileHint= fileHint2;
+  anchorHint= anchorHint2;
+  resultAccepted= true;
+}
+
+bool
+QTMVaultTransclusionWizard::selectFileFromPage () {
+  QListWidgetItem* item= filePage->fileList->currentItem ();
+  if (item == nullptr && filePage->fileList->count () > 0)
+    item= filePage->fileList->item (0);
+  if (item == nullptr) {
+    QMessageBox::information (this, "Insert transclusion",
+                              "Select a file first.");
+    return false;
+  }
+  int index= item->data (WikilinkIndexRole).toInt ();
+  if (index < 0 || index >= (int) files.size ()) return false;
+  selectedRelPath= files[index].relPath;
+  selectedFileUrl= files[index].file;
+  QString typed= filePage->searchEdit->text ().trimmed ();
+  fileHint= typed.isEmpty () ? files[index].stem : typed;
+  selectedAnchorBegin.clear ();
+  selectedAnchorEnd.clear ();
+  anchorHint.clear ();
+  selectedUpperIndex= -1;
+  selectedUpperAnchor.clear ();
+  selectedUpperWhere= path ();
+  resultAccepted= false;
+  return true;
+}
+
+tree
+QTMVaultTransclusionWizard::getResult () const {
+  if (!resultAccepted) return UNINIT;
+  tree res (TUPLE);
+  res << tree (from_qstring (selectedRelPath));
+  res << tree (from_qstring (selectedAnchorBegin));
+  res << tree (from_qstring (selectedAnchorEnd));
+  res << tree (from_qstring (fileHint));
+  res << tree (from_qstring (anchorHint));
+  return res;
+}
+
+} // namespace
+
+tree
+qtm_vault_choose_transclusion (QWidget* parent) {
+  QTMVaultTransclusionWizard wizard (parent);
+  if (wizard.exec () == QDialog::Accepted) return wizard.getResult ();
+  return UNINIT;
+}

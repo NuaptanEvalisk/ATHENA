@@ -1,6 +1,6 @@
 /******************************************************************************
-* MODULE     : QTMVaultChooser.hpp
-* DESCRIPTION: Qt vault link chooser facade
+* MODULE     : QTMVaultWikilinkWizard.hpp
+* DESCRIPTION: Vault wikilink insertion wizard
 * COPYRIGHT  : (C) 2026 Felix
 *******************************************************************************
 * This software falls under the GNU general public license version 3 or later.
@@ -8,11 +8,12 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 
-#ifndef QTMVAULTCHOOSER_HPP
-#define QTMVAULTCHOOSER_HPP
+#ifndef QTMVAULTWIKILINKWIZARD_HPP
+#define QTMVAULTWIKILINKWIZARD_HPP
 
 #include "tree.hpp"
+class QWidget;
 
-tree vault_choose_link (bool transcludeMode = false);
+tree qtm_vault_choose_wikilink (QWidget* parent);
 
-#endif // QTMVAULTCHOOSER_HPP
+#endif // QTMVAULTWIKILINKWIZARD_HPP
