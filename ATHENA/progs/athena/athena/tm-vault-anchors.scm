@@ -150,16 +150,37 @@
   (vault-anchor-collapse-whitespace
    (string-join (list-filter parts (lambda (s) (!= s ""))) " ")))
 
+(define (vault-anchor-last l)
+  (and (pair? l)
+       (if (null? (cdr l)) (car l) (vault-anchor-last (cdr l)))))
+
+(define (vault-anchor-format-wrapper? tag)
+  (in? tag '(with style-with)))
+
+(define (vault-anchor-visible-children t)
+  (let ((tag (vault-anchor-tree-tag t)))
+    (cond ((not tag) '())
+          ((vault-anchor-format-wrapper? tag)
+           (let ((children (cdr t)))
+             ;; Formatting wrappers store property/value pairs before the
+             ;; rendered body.  Anchor text must use only that body.
+             (if (>= (length children) 3)
+                 (list (vault-anchor-last children))
+                 '())))
+          ((and (eq? tag 'hlink) (pair? (cdr t)))
+           (list (cadr t)))
+          (else (cdr t)))))
+
 (define (vault-anchor-plain-text t)
   (cond ((string? t) t)
         ((not (pair? t)) "")
         ((in? (car t) '(label reference pageref image include bibliography
                         transclude TRANSCLUDE))
          "")
-        ((and (eq? (car t) 'hlink) (pair? (cdr t)))
-         (vault-anchor-plain-text (cadr t)))
         (else
-         (vault-anchor-join-text (map vault-anchor-plain-text (cdr t))))))
+         (vault-anchor-join-text
+          (map vault-anchor-plain-text
+               (vault-anchor-visible-children t))))))
 
 (define (vault-anchor-heading-title t)
   (if (and (pair? t) (pair? (cdr t)))
@@ -171,7 +192,7 @@
         ((and (eq? (car t) 'strong) (pair? (cdr t)))
          (vault-anchor-plain-text (cadr t)))
         (else
-         (let loop ((l (cdr t)))
+         (let loop ((l (vault-anchor-visible-children t)))
            (cond ((null? l) #f)
                  ((vault-anchor-first-strong-text (car l)) => identity)
                  (else (loop (cdr l))))))))

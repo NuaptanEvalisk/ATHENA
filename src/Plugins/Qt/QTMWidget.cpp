@@ -470,12 +470,79 @@ tablet_state (QTabletEvent* event, bool flag) {
   return i;
 }
 
+QScrollBar*
+QTMWidget::scrollBarAtGlobalPosition (const QPoint& globalPos) const {
+  QScrollBar* h= horizontalScrollBar ();
+  QScrollBar* v= verticalScrollBar ();
+  if (v != nullptr && v->isVisible () && v->isEnabled () &&
+      QRect (v->mapToGlobal (QPoint (0, 0)), v->size ()).contains (globalPos))
+    return v;
+  if (h != nullptr && h->isVisible () && h->isEnabled () &&
+      QRect (h->mapToGlobal (QPoint (0, 0)), h->size ()).contains (globalPos))
+    return h;
+  return nullptr;
+}
+
+bool
+QTMWidget::forwardTabletEventToScrollBar (QTabletEvent* event) {
+#if QT_VERSION >= 0x060000
+  QPointF globalPosF= event->globalPosition ();
+#elif QT_VERSION >= QT_VERSION_CHECK(5, 15, 0)
+  QPointF globalPosF= event->globalPosF ();
+#else
+  QPointF globalPosF (event->globalX (), event->globalY ());
+#endif
+  QPoint globalPos= globalPosF.toPoint ();
+  QScrollBar* target= tabletScrollBarTarget;
+  bool release= event->type () == QEvent::TabletRelease ||
+                (event->button () != Qt::NoButton && event->pressure () == 0);
+  if (target == nullptr)
+    target= scrollBarAtGlobalPosition (globalPos);
+  if (target == nullptr)
+    return false;
+
+  bool begin= event->type () == QEvent::TabletPress ||
+              (event->button () != Qt::NoButton && !release);
+  if (begin)
+    tabletScrollBarTarget= target;
+  else if (tabletScrollBarTarget == nullptr)
+    return false;
+
+  QEvent::Type type= QEvent::MouseMove;
+  if (begin) type= QEvent::MouseButtonPress;
+  else if (release) type= QEvent::MouseButtonRelease;
+
+  QPointF localPos= target->mapFromGlobal (globalPos);
+  Qt::MouseButton button= event->button ();
+  if (button == Qt::NoButton && (begin || release)) button= Qt::LeftButton;
+  Qt::MouseButtons buttons= event->buttons ();
+  if (begin) buttons |= button;
+  if (release) buttons &= ~button;
+
+#if QT_VERSION >= 0x060000
+  QMouseEvent mouseEvent (type, localPos, localPos, globalPosF, button,
+                          buttons, event->modifiers ());
+#elif QT_VERSION >= QT_VERSION_CHECK(5, 15, 0)
+  QMouseEvent mouseEvent (type, localPos, localPos, globalPosF, button,
+                          buttons, event->modifiers ());
+#else
+  QMouseEvent mouseEvent (type, localPos, globalPosF, button,
+                          buttons, event->modifiers ());
+#endif
+  QApplication::sendEvent (target, &mouseEvent);
+  event->accept ();
+  if (release)
+    tabletScrollBarTarget.clear ();
+  return true;
+}
+
 void
 QTMWidget::tabletEvent (QTabletEvent* event) {
 #if QT_VERSION >= 0x060000
   // for testing purposes
   // cout << "tablet name= " << from_qstring(event->pointingDevice ()->name ()) << "\n";
 #endif
+  if (forwardTabletEventToScrollBar (event)) return;
   if (is_nil (tmwid)) return;
   unsigned int mstate = tablet_state (event, true);
   string s= "move";

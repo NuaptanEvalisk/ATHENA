@@ -17,9 +17,11 @@
 #include <QLabel>
 #include <QGesture>
 #include <QGestureEvent>
+#include <QPointer>
 #include <QScreen>
 
 class qt_simple_widget_rep;
+class QScrollBar;
 
 /*! The underlying QWidget for a qt_simple_widget_rep handles drawing for a 
     texmacs canvas, as well as keypresses, international input methods, etc.
@@ -100,6 +102,10 @@ protected:
 
 private:
   qreal lastPixelRatio = 0.0;
+  QPointer<QScrollBar> tabletScrollBarTarget;
+
+  bool forwardTabletEventToScrollBar (QTabletEvent* event);
+  QScrollBar* scrollBarAtGlobalPosition (const QPoint& globalPos) const;
 
 };
 
