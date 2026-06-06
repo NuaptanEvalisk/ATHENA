@@ -195,6 +195,18 @@ set_global_search_area_height (ads::CDockWidget* dock) {
   splitter->setSizes (sizes);
 }
 
+static void
+update_global_search_floating_state (ads::CDockWidget* dock, bool floating) {
+  if (global_search_widget != nullptr)
+    global_search_widget->setFloatingResizeGripVisible (floating);
+  if (!floating || dock == nullptr) return;
+
+  QWidget* window= dock->window ();
+  if (window == nullptr) return;
+  window->setMinimumSize (760, 420);
+  window->resize (window->size ().expandedTo (QSize (960, 560)));
+}
+
 QTMGlobalSearch::QTMGlobalSearch (QWidget* parent)
   : QWidget (parent),
     queryUrl (url ("tmfs://aux/global-search")),
@@ -208,6 +220,9 @@ QTMGlobalSearch::QTMGlobalSearch (QWidget* parent)
     previewHostWidget (nullptr),
     previewQtWidget (nullptr),
     previewTexmacsWidget (nullptr) {
+  setSizePolicy (QSizePolicy::Expanding, QSizePolicy::Expanding);
+  setMinimumSize (760, 420);
+
   prompt= new QLabel ("Search the current vault", this);
   status= new QLabel (this);
   floatingSizeGrip= new QSizeGrip (this);
@@ -985,15 +1000,19 @@ global_search_show () {
     global_search_dock= new ads::CDockWidget (title);
     global_search_dock->setObjectName ("athena-global-search");
     global_search_dock->resize (1360, 720);
-    global_search_dock->setWidget (global_search_widget);
+    global_search_dock->setWidget (
+      global_search_widget, ads::CDockWidget::ForceNoScrollArea);
     global_search_dock->setFeature (
       ads::CDockWidget::DockWidgetDeleteOnClose, false);
     QTMGlobalSearch* pane= global_search_widget;
     ads::CDockWidget* dock= global_search_dock;
     QObject::connect (dock, &ads::CDockWidget::topLevelChanged,
-                      pane, [pane, dock] (bool) {
-                        pane->setFloatingResizeGripVisible (
-                          dock->isInFloatingContainer ());
+                      pane, [dock] (bool topLevel) {
+                        update_global_search_floating_state (dock, topLevel);
+                        if (topLevel)
+                          QTimer::singleShot (0, dock, [dock] () {
+                            update_global_search_floating_state (dock, true);
+                          });
                       });
     QObject::connect (global_search_dock, &QObject::destroyed, [] () {
       global_search_dock= nullptr;
@@ -1010,8 +1029,8 @@ global_search_show () {
   else win->showAdsDockWidget (global_search_dock, ads::BottomDockWidgetArea);
 
   global_search_dock->setWindowTitle (title);
-  global_search_widget->setFloatingResizeGripVisible (
-    global_search_dock->isInFloatingContainer ());
+  update_global_search_floating_state (
+    global_search_dock, global_search_dock->isInFloatingContainer ());
   set_global_search_area_height (global_search_dock);
   QTimer::singleShot (0, win, [] () {
     set_global_search_area_height (global_search_dock);

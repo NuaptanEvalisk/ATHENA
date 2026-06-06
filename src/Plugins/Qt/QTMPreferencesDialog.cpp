@@ -817,6 +817,8 @@ QTMPreferencesDialog::buildEditingPage () {
   add_toggle (t, "Check spelling as you type:", "live spell checking");
   add_toggle (t, "Disable UNIX primary selection:",
               "disable unix primary selection");
+  add_combo (t, "Document updates run:", "document update times",
+             {{"1", "Once"}, {"2", "Twice"}, {"3", "Three times"}});
   add_qstring_combo (t, "Custom dictionary language:",
                      "custom dictionary import language",
                      basic_language_choices ());
@@ -855,38 +857,44 @@ QTMPreferencesDialog::buildEditingPage () {
 
 QWidget*
 QTMPreferencesDialog::buildRenderingPage () {
-  QWidget* document= make_page ();
-  QFormLayout* d= add_section (document, "Document");
-  add_color_button (d, "Transclusion background:", "vault transclusion color",
-                    true);
-  add_combo (d, "Default CJK language:", "default cjk language",
-             {{"chinese", "Chinese"}, {"japanese", "Japanese"},
-              {"korean", "Korean"}, {"taiwanese", "Taiwanese"}});
-  add_toggle (d, "Render exercises in smaller font:",
-              "render solution in smaller font");
-  add_toggle (d, "Number solutions:", "number solutions");
-  add_color_button (d, "Cursor color:", "gui cursor color", false);
-  add_color_button (d, "Selection color:", "gui selection color", false);
-  add_color_button (d, "Focus box color:", "gui focus color", false);
-  add_combo (d, "Focus box border:", "gui focus border width",
-             {{"1", "1"}, {"2", "2"}, {"3", "3"}, {"4", "4"}, {"5", "5"},
-              {"6", "6"}}, "1");
-  add_color_button (d, "Unclicked link color:", "locus-color", false);
-  add_color_button (d, "Clicked link color:", "visited-color", false);
-  add_toggle (d, "Override white background:",
-              "override white document background");
-  add_color_button (d, "White background color:",
-                    "white document background override color", false);
-  add_combo (d, "Labels display:", "vault labels mode",
+  QWidget* components= make_page ();
+  QFormLayout* c= add_section (components, "Components and Layout");
+  add_combo (c, "Labels display:", "vault labels mode",
              {{"visible", "visible"}, {"small", "small"}, {"hidden", "hidden"}},
              "visible");
-  add_toggle (d, "Persistent fit width:", "persistent fit width");
-  add_toggle (d, "Alpha transparency:", "experimental alpha");
-  add_toggle (d, "New style page breaking:", "new style page breaking");
-  add_combo (d, "Document updates run:", "document update times",
-             {{"1", "Once"}, {"2", "Twice"}, {"3", "Three times"}});
-  add_toggle (d, "Fast environments:", "fast environments");
-  finish_page (document);
+  add_toggle (c, "New style page breaking:", "new style page breaking");
+  add_toggle (c, "Render exercises in smaller font:",
+              "render solution in smaller font");
+  add_toggle (c, "Number solutions:", "number solutions");
+  finish_page (components);
+
+  QWidget* documentColors= make_page ();
+  QFormLayout* dc= add_section (documentColors, "Document Colors");
+  add_color_button (dc, "Cursor color:", "gui cursor color", false);
+  add_color_button (dc, "Selection color:", "gui selection color", false);
+  add_color_button (dc, "Focus box color:", "gui focus color", false);
+  add_combo (dc, "Focus box border:", "gui focus border width",
+             {{"1", "1"}, {"2", "2"}, {"3", "3"}, {"4", "4"}, {"5", "5"},
+              {"6", "6"}}, "1");
+  add_color_button (dc, "Unclicked link color:", "locus-color", false);
+  add_color_button (dc, "Clicked link color:", "visited-color", false);
+  add_toggle (dc, "Override white background:",
+              "override white document background");
+  add_color_button (dc, "White background color:",
+                    "white document background override color", false);
+  add_color_button (dc, "Transclusion background:", "vault transclusion color",
+                    true);
+  add_toggle (dc, "Alpha transparency:", "experimental alpha");
+  finish_page (documentColors);
+
+  QWidget* misc= make_page ();
+  QFormLayout* m= add_section (misc, "Misc");
+  add_combo (m, "Default CJK language:", "default cjk language",
+             {{"chinese", "Chinese"}, {"japanese", "Japanese"},
+              {"korean", "Korean"}, {"taiwanese", "Taiwanese"}});
+  add_toggle (m, "Persistent fit width:", "persistent fit width");
+  add_toggle (m, "Fast environments:", "fast environments");
+  finish_page (misc);
 
   QWidget* colors= make_page ();
   QFormLayout* preset= add_section (colors, "Presets");
@@ -948,7 +956,10 @@ QTMPreferencesDialog::buildRenderingPage () {
                     true);
   finish_page (colors);
 
-  return tabbed ({{"Document", document}, {"Enunciation Colors", colors}});
+  return tabbed ({{"Components and Layout", components},
+                  {"Document Colors", documentColors},
+                  {"Misc", misc},
+                  {"Enunciation Colors", colors}});
 }
 
 QWidget*
@@ -1127,43 +1138,61 @@ QTMPreferencesDialog::buildConversionPage () {
 
 QWidget*
 QTMPreferencesDialog::buildVaultPage () {
-  QWidget* vault= make_page ();
-  QFormLayout* v= add_section (vault, "Vault");
-  add_combo (v, "Popup fuzzy search limit:", "vault fuzzy search limit",
-             {{"1", "1"}, {"2", "2"}, {"3", "3"}, {"5", "5"},
-              {"10", "10"}}, "3");
-  add_toggle (v, "Auto load last vault:", "vault auto load last");
-  add_toggle (v, "Report if last vault is unavailable:",
+  QWidget* general= make_page ();
+  QFormLayout* g= add_section (general, "General");
+  add_toggle (g, "Auto load last vault:", "vault auto load last");
+  add_toggle (g, "Report if last vault is unavailable:",
               "vault report missing last");
-  add_toggle (v, "Show vault welcome page on start:", "vault welcome page");
-  add_toggle (v, "Show vault explorer on startup:",
+  add_toggle (g, "Show vault welcome page on startup:", "vault welcome page");
+  add_toggle (g, "Show vault explorer on startup:",
               "vault explorer show on startup");
-  add_toggle (v, "Take preferences with vault:",
+  add_toggle (g, "Take preferences with vault:",
               "vault take preferences with vault");
-  add_toggle (v, "Track current file in vault explorer:",
+  finish_page (general);
+
+  QWidget* navigation= make_page ();
+  QFormLayout* n= add_section (navigation, "Navigation and Namespaces");
+  add_toggle (n, "Track current file in vault explorer:",
               "vault explorer track current file");
-  add_toggle (v, "Use system trash for safe deletion:",
+  add_toggle (n, "Use system trash for safe deletion:",
               "vault explorer use system trash");
-  add_toggle (v, "Namespace explorer shows file matches only for leaf namespaces:",
+  add_toggle (n, "Namespace explorer shows file matches only for leaf namespaces:",
               "vault namespace explorer leaf matches only");
-  add_toggle (v, "Simplify hierarchy graphs:",
+  add_toggle (n, "Simplify hierarchy graphs:",
               "vault simplify hierarchy graphs");
-  add_combo (v, "Max allowed number of full backups:",
+  add_toggle (n, "Consume %s aggressively in sub-product naming template suggestion:",
+              "vault subproduct consume string aggressively");
+  finish_page (navigation);
+
+  QWidget* maintenance= make_page ();
+  QFormLayout* mt= add_section (maintenance, "Maintenance");
+  add_combo (mt, "Max allowed number of full backups:",
              "vault max full backups",
              {{"Unlimited", "Unlimited"}, {"1", "1"}, {"2", "2"}, {"3", "3"},
               {"5", "5"}, {"10", "10"}, {"20", "20"}, {"50", "50"}},
              "Unlimited");
-  add_combo (v, "Preservation of pre-save histories for file:",
+  add_combo (mt, "Preservation of pre-save histories for file:",
              "vault pre-save history preservation",
              {{"Unlimited", "Unlimited"}, {"1 hour", "1 hour"},
               {"6 hours", "6 hours"}, {"1 day", "1 day"},
               {"3 days", "3 days"}, {"1 week", "1 week"},
               {"1 month", "1 month"}}, "1 week");
-  add_toggle (v, "Collect orphan assets during vault maintenance:",
+  add_toggle (mt, "Collect orphan assets during vault maintenance:",
               "vault collect orphan assets");
-  add_toggle (v, "Consume %s aggressively in sub-product naming template suggestion:",
-              "vault subproduct consume string aggressively");
+  finish_page (maintenance);
 
+  QWidget* anchors= make_page ();
+  QFormLayout* a= add_section (anchors, "Anchors and Images");
+  add_toggle (a, "Auto anchor structures on manual save:",
+              "vault auto anchor enunciations on save");
+  add_toggle (a, "Auto copy images to vault:",
+              "vault auto copy images to vault");
+  add_toggle (a, "Normalize image filename when inserting:",
+              "vault normalize image filename when inserting");
+  finish_page (anchors);
+
+  QWidget* info= make_page ();
+  QFormLayout* vi= add_section (info, "Vault Info");
   QComboBox* vaultFont= new QComboBox;
   QStringList vaultFonts;
   vaultFonts << "" << "roman" << "stix" << "bonum" << "pagella" << "schola"
@@ -1178,20 +1207,17 @@ QTMPreferencesDialog::buildVaultPage () {
   QObject::connect (vaultFont,
                     static_cast<void (QComboBox::*) (const QString&)> (
                       &QComboBox::currentTextChanged),
-                    [] (const QString& value) {
+    [] (const QString& value) {
     set_pref ("vault preferred font", value);
   });
-  v->addRow (label ("Global preferred font for vault:"), vaultFont);
+  vi->addRow (label ("Global preferred font for vault:"), vaultFont);
+  finish_page (info);
 
-  QFormLayout* a= add_section (vault, "Anchors and Images");
-  add_toggle (a, "Auto anchor structures on manual save:",
-              "vault auto anchor enunciations on save");
-  add_toggle (a, "Auto copy images to vault:",
-              "vault auto copy images to vault");
-  add_toggle (a, "Normalize image filename when inserting:",
-              "vault normalize image filename when inserting");
-  finish_page (vault);
-  return make_scroll_page (vault);
+  return tabbed ({{"General", general},
+                  {"Navigation and Namespaces", navigation},
+                  {"Maintenance", maintenance},
+                  {"Anchors and Images", anchors},
+                  {"Vault Info", info}});
 }
 
 QWidget*
