@@ -108,6 +108,125 @@ athena_word_count_tree (tree t) {
   return athena_word_count_text (text);
 }
 
+int
+athena_character_count_text (string s) {
+  string utf= strict_cork_to_utf8 (s);
+  int count= 0;
+  for (int i=0; i<N(utf); ) {
+    (void) decode_from_utf8 (utf, i);
+    count++;
+  }
+  return count;
+}
+
+static void
+athena_append_plain_text_lines (tree t, string& out) {
+  if (is_atomic (t)) {
+    if (N(t->label) != 0) {
+      if (N(out) != 0 && !ends (out, "\n")) out << " ";
+      out << t->label;
+    }
+    return;
+  }
+  if (!is_compound (t) || athena_heading_skip_text (t)) return;
+  if (is_func (t, DOCUMENT)) {
+    for (int i=0; i<N(t); i++) {
+      if (i != 0 && N(out) != 0 && !ends (out, "\n")) out << "\n";
+      athena_append_plain_text_lines (t[i], out);
+    }
+    return;
+  }
+  for (int i=0; i<N(t); i++) athena_append_plain_text_lines (t[i], out);
+}
+
+static int
+athena_line_count_text (string s) {
+  if (N(s) == 0) return 0;
+  int count= 1;
+  for (int i=0; i<N(s); i++)
+    if (s[i] == '\n') count++;
+  return count;
+}
+
+athena_document_statistics
+athena_document_statistics_tree (tree t) {
+  athena_document_statistics stats;
+  string words_text;
+  athena_append_plain_text (t, words_text);
+  stats.words= athena_word_count_text (words_text);
+  stats.characters= athena_character_count_text (words_text);
+  string lines_text;
+  athena_append_plain_text_lines (t, lines_text);
+  stats.lines= athena_line_count_text (lines_text);
+  return stats;
+}
+
+static bool
+athena_enunciation_tree (tree t) {
+  if (!is_compound (t)) return false;
+  string s= athena_tree_tag (t);
+  if (ends (s, "*")) s= s (0, N(s) - 1);
+  return s == "theorem" || s == "lemma" || s == "corollary" ||
+         s == "proposition" || s == "axiom" || s == "definition" ||
+         s == "notation" || s == "convention" || s == "conjecture" ||
+         s == "law" || s == "remark" || s == "note" ||
+         s == "example" || s == "warning" || s == "disambiguation" ||
+         s == "acknowledgments" || s == "exercise" ||
+         s == "problem" || s == "question" || s == "solution" ||
+         s == "answer" || s == "proof" || s == "proof-alternative" ||
+         s == "proof-standard" || s == "proof-of" || s == "quote-env";
+}
+
+static tree
+athena_enunciation_body (tree t) {
+  string s= athena_tree_tag (t);
+  if ((s == "proof-of" || s == "proof-of*") && N(t) >= 3) return t[2];
+  if (N(t) >= 2) return t[1];
+  return "";
+}
+
+int
+athena_enunciation_word_count_at (tree doc, path p) {
+  path q= p;
+  if (!has_subtree (doc, q)) q= path_up (q);
+  while (!is_nil (q) && has_subtree (doc, q)) {
+    tree t= subtree (doc, q);
+    if (athena_enunciation_tree (t))
+      return athena_word_count_tree (athena_enunciation_body (t));
+    q= path_up (q);
+  }
+  return 0;
+}
+
+static string
+athena_int_string (int i) {
+  return as_string (i);
+}
+
+string
+athena_expand_statistics_format (string format,
+  athena_document_statistics stats, int heading_words, int block_words) {
+  string out;
+  for (int i=0; i<N(format); i++) {
+    if (format[i] != '%' || i + 1 >= N(format)) {
+      out << format[i];
+      continue;
+    }
+    char c= format[++i];
+    if (c == '%') out << "%";
+    else if (c == 'w') out << athena_int_string (stats.words);
+    else if (c == 'c') out << athena_int_string (stats.characters);
+    else if (c == 'l') out << athena_int_string (stats.lines);
+    else if (c == 'h') out << athena_int_string (heading_words);
+    else if (c == 's') out << athena_int_string (block_words);
+    else {
+      out << "%";
+      out << c;
+    }
+  }
+  return out;
+}
+
 string
 athena_heading_title (tree t) {
   if (is_compound (t) && N(t) > 0) {

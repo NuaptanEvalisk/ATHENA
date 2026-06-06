@@ -22,11 +22,24 @@ struct heading_word_count_entry {
   path   tree_path;
 };
 
+struct athena_document_statistics {
+  int words;
+  int characters;
+  int lines;
+
+  athena_document_statistics () : words (0), characters (0), lines (0) {}
+};
+
 int   athena_heading_level (tree t);
 bool  athena_heading_title_tree (tree t);
 bool  athena_heading_skip_text (tree t);
 int   athena_word_count_text (string s);
 int   athena_word_count_tree (tree t);
+int   athena_character_count_text (string s);
+athena_document_statistics athena_document_statistics_tree (tree t);
+int   athena_enunciation_word_count_at (tree doc, path p);
+string athena_expand_statistics_format (string format,
+  athena_document_statistics stats, int heading_words, int block_words);
 string athena_heading_title (tree t);
 array<heading_word_count_entry> athena_heading_word_count_entries (
   tree doc, path root_path= path ());

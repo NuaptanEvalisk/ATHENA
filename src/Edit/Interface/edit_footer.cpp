@@ -15,6 +15,7 @@
 #include "dictionary.hpp"
 #include "tm_server.hpp"
 #include "server.hpp"
+#include "new_view.hpp"
 #ifdef QTTEXMACS
 #include "QTMToast.hpp"
 #endif
@@ -493,9 +494,36 @@ TM_DEBUG
 // defined in src/ATHENA/Server/tm_server.cpp
 bool is_server_started ();
 
+tree
+edit_interface_rep::live_statistics_footer () {
+  if (!has_current_view () || !has_subtree (et, rp)) return "";
+
+  string center= as_string (get_server () -> get_center_message ());
+  bool stats= get_preference ("gui:live-statistics", "off") == "on";
+  if (!stats || center != "")
+    return as_footer_tree (call ("center-footer-hook", object (center)));
+
+  string format= get_preference ("gui:live-statistics-format",
+                                 "Words: %w, Chars: %c, Lines: %l");
+  if (format == "") return "";
+
+  tree doc= subtree (et, rp);
+  int h= hash (doc);
+  if (h != live_statistics_cache_hash) {
+    live_statistics_cache= athena_document_statistics_tree (doc);
+    live_statistics_cache_hash= h;
+  }
+
+  int heading_words= heading_word_count_at (tp);
+  int block_words= athena_enunciation_word_count_at (et, tp);
+  return tree (athena_expand_statistics_format (
+    format, live_statistics_cache, heading_words, block_words));
+}
+
 void
 edit_interface_rep::set_footer () {
   if (!is_server_started ()) return;
+  if (!has_current_view ()) return;
   TM_DEBUG
   (
     cout << "--------------------------------------------------------------\n";
@@ -520,12 +548,12 @@ edit_interface_rep::set_footer () {
     if (set_hybrid_footer (st)) return;
     set_left_footer();
     set_right_footer();
-    set_center_footer (as_footer_tree (call ("center-footer-hook", object (as_string (get_server () -> get_center_message ())))));
+    set_center_footer (live_statistics_footer ());
   }
   else {
     if (message_l == "") set_left_footer ();
     else set_left_footer (message_l);
-    set_center_footer (as_footer_tree (call ("center-footer-hook", object (as_string (get_server () -> get_center_message ())))));
+    set_center_footer (live_statistics_footer ());
     if (message_r == "") set_right_footer ();
     else set_right_footer (message_r);
     message_l= message_r= "";

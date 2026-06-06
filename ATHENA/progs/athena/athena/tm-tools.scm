@@ -59,17 +59,7 @@
     (show-message (string-append "Line count: " (number->string nr)) "Statistics")))
 
 (tm-define (center-footer-hook s)
-  (let* ((s* (if (tree? s) (tree->string s) s))
-         (stats? (get-boolean-preference "gui:live-statistics")))
-    (if (and stats? (string-null? s*))
-        (with t (buffer-tree)
-          (with nr-c (count-characters t)
-            (with nr-w (count-words t)
-              (with nr-l (count-lines t)
-                (string-append "Words: " (number->string nr-w)
-                               ", Chars: " (number->string nr-c)
-                               ", Lines: " (number->string nr-l))))))
-        s*)))
+  (if (tree? s) (tree->string s) s))
 
 (define (save-aux-enabled?) (== (get-env "save-aux") "true"))
 (tm-define (toggle-save-aux)

@@ -12,6 +12,7 @@
 #ifndef EDIT_INTERFACE_H
 #define EDIT_INTERFACE_H
 #include "editor.hpp"
+#include "heading_word_count.hpp"
 #include "tm_timer.hpp"
 #include "widget.hpp"
 
@@ -92,6 +93,8 @@ protected:
   bool          pending_idle_menu_update;
   time_t        typewriter_manual_scroll_time;
   path          typewriter_manual_scroll_path;
+  int           live_statistics_cache_hash;
+  athena_document_statistics live_statistics_cache;
 
 public:
   edit_interface_rep ();
@@ -225,6 +228,7 @@ public:
   void set_center_footer (tree c);
   void set_right_footer (tree r);
   void set_right_footer ();
+  tree live_statistics_footer ();
   void set_footer ();
   void set_message (tree l, tree r= "", bool temp= false);
   void recall_message ();

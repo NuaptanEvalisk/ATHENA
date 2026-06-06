@@ -666,6 +666,9 @@ QTMPreferencesDialog::buildGeneralPage () {
               "gui:new bibliography dialogue");
   add_toggle (appearanceForm, "Show live statistics in central footer:",
               "gui:live-statistics");
+  add_line_edit (appearanceForm, "Live statistics format:",
+                 "gui:live-statistics-format",
+                 "Words: %w, Chars: %c, Lines: %l");
   add_toggle (appearanceForm, "Use toast notifications:",
               "use toast notifications");
   finish_page (appearance);

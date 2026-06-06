@@ -81,7 +81,9 @@ edit_interface_rep::edit_interface_rep ():
   cur_sb (2), cur_wb (2),
   pending_idle_menu_update (true),
   typewriter_manual_scroll_time (0),
-  typewriter_manual_scroll_path ()
+  typewriter_manual_scroll_path (),
+  live_statistics_cache_hash (-1),
+  live_statistics_cache ()
 {
   input_mode= INPUT_NORMAL;
   gui_root_extents (cur_wx, cur_wy);

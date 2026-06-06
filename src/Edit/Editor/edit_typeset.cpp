@@ -1009,6 +1009,15 @@ heading_path_starts_with (path p, path prefix) {
 }
 
 static bool
+heading_path_before_or_contains (path heading, path cursor) {
+  if (is_nil (heading)) return true;
+  if (is_nil (cursor)) return false;
+  if (heading->item < cursor->item) return true;
+  if (heading->item > cursor->item) return false;
+  return heading_path_before_or_contains (heading->next, cursor->next);
+}
+
+static bool
 heading_find_for_cursor (tree doc, path cursor, path& heading) {
   for (path p= cursor; !is_nil (p); p= path_up (p))
     if (has_subtree (doc, p) && heading_level (subtree (doc, p)) != 0) {
@@ -1021,7 +1030,7 @@ heading_find_for_cursor (tree doc, path cursor, path& heading) {
 
   bool found= false;
   for (int i=0; i<N(headings); i++)
-    if (path_less_eq (headings[i], cursor)) {
+    if (heading_path_before_or_contains (headings[i], cursor)) {
       heading= headings[i];
       found= true;
     }
@@ -1144,20 +1153,14 @@ edit_typeset_rep::heading_fold_set_current (bool folded, bool toggle) {
 
 int
 edit_typeset_rep::heading_word_count_at (path p) {
-  if (!has_subtree (et, p)) return 0;
-
-  path hp= p;
-  if (heading_level (subtree (et, hp)) == 0)
-    hp= path_up (hp);
-  while (!is_nil (hp) &&
-         has_subtree (et, hp) &&
-         heading_level (subtree (et, hp)) == 0)
-    hp= path_up (hp);
-  if (is_nil (hp) || !has_subtree (et, hp) ||
-      heading_level (subtree (et, hp)) == 0)
-    return 0;
-
+  if (!has_subtree (et, rp)) return 0;
   tree doc= subtree (et, rp);
+
+  if (!heading_path_starts_with (p, rp)) return 0;
+  path hp;
+  if (!heading_find_for_cursor (doc, p / rp, hp)) return 0;
+  hp= rp * hp;
+
   int h= hash (doc);
   if (h != heading_word_count_cache_hash) {
     heading_word_count_cache= athena_heading_word_count_entries (doc, rp);
