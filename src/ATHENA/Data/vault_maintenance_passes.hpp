@@ -14,6 +14,7 @@
 #include <cstddef>
 #include <filesystem>
 #include <string>
+#include <vector>
 
 struct VaultMaintenanceSummary {
   std::filesystem::path backup_archive;
@@ -36,10 +37,25 @@ struct VaultMaintenanceSummary {
   bool orphan_collection_enabled = false;
   size_t orphan_assets_collected = 0;
   std::filesystem::path orphan_dir;
+  bool generate_summary_page = false;
+  int summary_keep_count = -1;
+  std::filesystem::path summary_dir;
+  std::filesystem::path summary_file;
+  size_t summaries_purged = 0;
+};
+
+struct VaultMaintenancePassRecord {
+  std::string id;
+  std::string description;
+  bool ok = false;
+  std::string message;
 };
 
 struct VaultMaintenanceContext {
   std::filesystem::path root;
+  std::string vault_name;
+  std::vector<std::string> warnings;
+  std::vector<VaultMaintenancePassRecord> pass_records;
   VaultMaintenanceSummary summary;
 };
 
@@ -88,5 +104,8 @@ VaultMaintenancePassResult vault_maintenance_pass_purge_retained_data (
   VaultMaintenanceContext& ctx);
 VaultMaintenancePassResult vault_maintenance_pass_print_summary (
   VaultMaintenanceContext& ctx);
+bool vault_maintenance_write_summary_page (
+  VaultMaintenanceContext& ctx, bool success,
+  const std::string& failure_pass= "", const std::string& failure_message= "");
 
 #endif // VAULT_MAINTENANCE_PASSES_HPP

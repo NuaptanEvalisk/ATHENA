@@ -20,6 +20,7 @@ struct QTMVaultfileInfo {
   QString namespaceDbPath;
   QString startupPage;
   QString oneTimeStartupPage;
+  QString maintenanceSummaryPath;
 };
 
 bool    qtm_vault_info_available ();

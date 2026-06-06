@@ -241,6 +241,8 @@ ensure_builtin_user_preferences () {
     PREF ("vault max full backups", "Unlimited", ""),
     PREF ("vault pre-save history preservation", "1 week", ""),
     PREF ("vault collect orphan assets", "off", ""),
+    PREF ("vault generate maintenance summary page", "off", ""),
+    PREF ("vault maintenance summaries to keep", "All", ""),
     PREF ("vault subproduct consume string aggressively", "on", ""),
     PREF ("vault preferred font", "", ""),
     PREF ("vault labels mode", "visible", "notify-labels-mode"),

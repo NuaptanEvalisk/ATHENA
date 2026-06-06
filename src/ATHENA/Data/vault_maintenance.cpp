@@ -27,12 +27,12 @@ vault_maintenance_run (string vault_dir) {
      vault_maintenance_pass_validate_root},
     {"load-preferences", "Load vault maintenance preferences",
      vault_maintenance_pass_load_preferences},
+    {"read-policies", "Read maintenance policy preferences",
+     vault_maintenance_pass_read_policy_preferences},
     {"full-backup", "Create full compressed backup",
      vault_maintenance_pass_create_backup},
     {"health-check", "Check ATHENA document readability",
      vault_maintenance_pass_health_check},
-    {"read-policies", "Read maintenance policy preferences",
-     vault_maintenance_pass_read_policy_preferences},
     {"normalize-images", "Normalize image filenames and references",
      vault_maintenance_pass_normalize_images},
     {"anchor-structures", "Anchor structures",
@@ -49,9 +49,15 @@ vault_maintenance_run (string vault_dir) {
     log_info (std::string ("pass start: ") + pass.id + " (" +
               pass.description + ")");
     VaultMaintenancePassResult result = pass.run (ctx);
+    std::string message = result.message.empty () ? "ok" : result.message;
+    ctx.pass_records.push_back (
+      {pass.id, pass.description, result.ok, message});
     if (!result.ok) {
-      std::string message = result.message.empty () ? "failed" : result.message;
+      message = result.message.empty () ? "failed" : result.message;
       log_error (std::string ("pass failed: ") + pass.id + ": " + message);
+      if (std::string (pass.id) != "summary" &&
+          !vault_maintenance_write_summary_page (ctx, false, pass.id, message))
+        log_error ("summary: failed to write failure summary page");
       return false;
     }
     log_info (std::string ("pass success: ") + pass.id);

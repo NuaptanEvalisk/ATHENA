@@ -1196,6 +1196,13 @@ QTMPreferencesDialog::buildVaultPage () {
               {"1 month", "1 month"}}, "1 week");
   add_toggle (mt, "Collect orphan assets during vault maintenance:",
               "vault collect orphan assets");
+  add_toggle (mt, "Generate summary page for maintenance:",
+              "vault generate maintenance summary page");
+  add_combo (mt, "Maintenance summaries to keep:",
+             "vault maintenance summaries to keep",
+             {{"All", "All"}, {"1", "1"}, {"2", "2"}, {"3", "3"},
+              {"5", "5"}, {"10", "10"}, {"20", "20"}, {"50", "50"}},
+             "All");
   finish_page (maintenance);
 
   QWidget* anchors= make_page ();
@@ -1237,10 +1244,14 @@ QTMPreferencesDialog::buildVaultPage () {
     QLineEdit* oneTimeStartupPage= add_path_chooser_row (
       vi, "One-time startup page:", vaultInfo.oneTimeStartupPage,
       chooseOneTimeStartup);
+    QPushButton* chooseSummaryFolder= nullptr;
+    QLineEdit* maintenanceSummaryPath= add_path_chooser_row (
+      vi, "Maintenance summary folder:", vaultInfo.maintenanceSummaryPath,
+      chooseSummaryFolder);
 
     auto saveVaultfile= [info, vaultName, mapPath, preferencesPath,
                          namespacePath, startupPage,
-                         oneTimeStartupPage] () {
+                         oneTimeStartupPage, maintenanceSummaryPath] () {
       QTMVaultfileInfo next;
       next.name= vaultName->text ();
       next.mapPath= mapPath->text ();
@@ -1248,6 +1259,7 @@ QTMPreferencesDialog::buildVaultPage () {
       next.namespaceDbPath= namespacePath->text ();
       next.startupPage= startupPage->text ();
       next.oneTimeStartupPage= oneTimeStartupPage->text ();
+      next.maintenanceSummaryPath= maintenanceSummaryPath->text ();
       QString error;
       if (!qtm_vaultfile_write (next, &error)) {
         QMessageBox::warning (info, "Vault Info", error);
@@ -1261,6 +1273,8 @@ QTMPreferencesDialog::buildVaultPage () {
       startupPage->setText (qtm_clean_vault_target (next.startupPage));
       oneTimeStartupPage->setText (
         qtm_clean_vault_target (next.oneTimeStartupPage));
+      maintenanceSummaryPath->setText (
+        qtm_clean_vault_relative_path (next.maintenanceSummaryPath));
     };
 
     auto choosePath= [info, saveVaultfile] (QLineEdit* edit,
@@ -1286,6 +1300,25 @@ QTMPreferencesDialog::buildVaultPage () {
       saveVaultfile ();
     };
 
+    auto chooseFolder= [info, saveVaultfile] (QLineEdit* edit,
+                                             const QString& title) {
+      QString root= qtm_vault_root_path ();
+      QString initial= edit->text ().trimmed ().isEmpty ()
+        ? root : QDir (root).absoluteFilePath (edit->text ().trimmed ());
+      QString selected= QFileDialog::getExistingDirectory (info, title, initial);
+      if (selected.isEmpty ()) return;
+      QString rel= qtm_vault_relative_from_selected_path (selected);
+      if (!qtm_valid_optional_vault_relative_path (rel)) {
+        QMessageBox::warning (
+          info, "Vault Info",
+          "Selected folder must be inside the vault. The Vaultfile stores "
+          "paths relative to the vault root.");
+        return;
+      }
+      edit->setText (rel);
+      saveVaultfile ();
+    };
+
     QObject::connect (vaultName, &QLineEdit::editingFinished, saveVaultfile);
     QObject::connect (mapPath, &QLineEdit::editingFinished, saveVaultfile);
     QObject::connect (preferencesPath, &QLineEdit::editingFinished,
@@ -1295,6 +1328,8 @@ QTMPreferencesDialog::buildVaultPage () {
     QObject::connect (startupPage, &QLineEdit::editingFinished,
                       saveVaultfile);
     QObject::connect (oneTimeStartupPage, &QLineEdit::editingFinished,
+                      saveVaultfile);
+    QObject::connect (maintenanceSummaryPath, &QLineEdit::editingFinished,
                       saveVaultfile);
     QObject::connect (chooseMap, &QPushButton::clicked,
                       [=] () { choosePath (mapPath, "Choose map database",
@@ -1314,6 +1349,9 @@ QTMPreferencesDialog::buildVaultPage () {
                       [=] () { choosePath (oneTimeStartupPage,
                                            "Choose one-time startup page",
                                            true); });
+    QObject::connect (chooseSummaryFolder, &QPushButton::clicked,
+                      [=] () { chooseFolder (maintenanceSummaryPath,
+                                             "Choose maintenance summary folder"); });
   }
 
   QComboBox* vaultFont= new QComboBox;

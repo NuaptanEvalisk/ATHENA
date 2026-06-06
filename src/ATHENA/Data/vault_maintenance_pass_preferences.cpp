@@ -38,6 +38,29 @@ collect_orphan_assets_preference () {
   return get_preference ("vault collect orphan assets", "off") == "on";
 }
 
+static bool
+generate_summary_page_preference () {
+  return get_preference ("vault generate maintenance summary page", "off") ==
+         "on";
+}
+
+static int
+summary_keep_count_preference () {
+  std::string pref = trim_copy (tm_to_std (
+    get_preference ("vault maintenance summaries to keep", "All")));
+  std::string low = lower_copy (pref);
+  if (pref.empty () || low == "all") return -1;
+  try {
+    size_t pos = 0;
+    int value = std::stoi (pref, &pos);
+    if (pos == pref.size () && value >= 1) return value;
+  }
+  catch (...) {}
+  log_info ("invalid maintenance summary retention preference '" + pref +
+            "'; using All");
+  return -1;
+}
+
 static long long
 manual_save_retention_preference () {
   std::string pref = trim_copy (tm_to_std (
@@ -105,14 +128,58 @@ write_vaultfile_preferences_path (const fs::path& vault_file,
                        ? fields[3] : "ns.sqlite";
   std::string startup_page = fields.size () >= 5 ? fields[4] : "";
   std::string one_time_startup_page = fields.size () >= 6 ? fields[5] : "";
+  std::string summary_dir = fields.size () >= 7 ? fields[6] : "";
   std::string text = "(" + scheme_quote_string (fields[0]) +
                      " " + scheme_quote_string (fields[1]) +
                      " " + scheme_quote_string (prefs_rel) +
                      " " + scheme_quote_string (ns_rel) +
                      " " + scheme_quote_string (startup_page) +
                      " " + scheme_quote_string (one_time_startup_page) +
+                     " " + scheme_quote_string (summary_dir) +
                      ")\n";
   return write_file_bytes (vault_file, text);
+}
+
+static bool
+valid_vault_relative_path (const std::string& rel) {
+  if (rel.empty ()) return true;
+  fs::path p (rel);
+  if (p.is_absolute ()) return false;
+  for (const fs::path& part : p) {
+    if (part == "..") return false;
+  }
+  return true;
+}
+
+static void
+read_vaultfile_metadata (VaultMaintenanceContext& ctx) {
+  ctx.vault_name = ctx.root.filename ().string ();
+  ctx.summary.summary_dir.clear ();
+
+  std::string text;
+  fs::path vault_file = ctx.root / "Vaultfile";
+  if (!read_file_bytes (vault_file, text)) return;
+
+  std::vector<std::string> fields = parse_vaultfile_strings (text);
+  if (fields.size () >= 2 && fields.size () < 7) {
+    std::string prefs_rel = fields.size () >= 3 ? fields[2] : "";
+    if (write_vaultfile_preferences_path (vault_file, fields, prefs_rel))
+      log_info ("preferences: normalized Vaultfile to 7 fields");
+    else
+      log_error ("failed to normalize Vaultfile to 7 fields");
+  }
+  if (fields.size () >= 1 && !fields[0].empty ())
+    ctx.vault_name = fields[0];
+
+  std::string rel = fields.size () >= 7 ? trim_copy (fields[6]) : "";
+  if (rel.empty ()) return;
+  if (!valid_vault_relative_path (rel)) {
+    ctx.warnings.push_back (
+      "Vaultfile maintenance summary folder is not a vault-relative path; "
+      "using vault root for this summary.");
+    return;
+  }
+  ctx.summary.summary_dir = fs::path (rel);
 }
 
 static bool
@@ -179,5 +246,8 @@ vault_maintenance_pass_read_policy_preferences (VaultMaintenanceContext& ctx) {
   ctx.summary.manual_save_retention_seconds =
     manual_save_retention_preference ();
   ctx.summary.orphan_collection_enabled = collect_orphan_assets_preference ();
+  ctx.summary.generate_summary_page = generate_summary_page_preference ();
+  ctx.summary.summary_keep_count = summary_keep_count_preference ();
+  read_vaultfile_metadata (ctx);
   return VaultMaintenancePassResult::success ();
 }

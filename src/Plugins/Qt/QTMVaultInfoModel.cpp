@@ -148,6 +148,7 @@ qtm_vaultfile_read (QTMVaultfileInfo& info, QString* error) {
   info.namespaceDbPath= "ns.sqlite";
   info.startupPage= "";
   info.oneTimeStartupPage= "";
+  info.maintenanceSummaryPath= "";
 
   QFile file (qtm_vaultfile_path ());
   if (!file.open (QIODevice::ReadOnly | QIODevice::Text)) return true;
@@ -160,12 +161,15 @@ qtm_vaultfile_read (QTMVaultfileInfo& info, QString* error) {
     info.namespaceDbPath= fields[3];
   if (fields.size () >= 5) info.startupPage= fields[4];
   if (fields.size () >= 6) info.oneTimeStartupPage= fields[5];
+  if (fields.size () >= 7) info.maintenanceSummaryPath= fields[6];
 
   info.mapPath= qtm_clean_vault_relative_path (info.mapPath);
   info.preferencesPath= qtm_clean_vault_relative_path (info.preferencesPath);
   info.namespaceDbPath= qtm_clean_vault_relative_path (info.namespaceDbPath);
   info.startupPage= qtm_clean_vault_target (info.startupPage);
   info.oneTimeStartupPage= qtm_clean_vault_target (info.oneTimeStartupPage);
+  info.maintenanceSummaryPath=
+    qtm_clean_vault_relative_path (info.maintenanceSummaryPath);
   if (info.mapPath.isEmpty ()) info.mapPath= "map.tmdb";
   if (info.namespaceDbPath.isEmpty ()) info.namespaceDbPath= "ns.sqlite";
   return true;
@@ -183,6 +187,8 @@ qtm_vaultfile_write (const QTMVaultfileInfo& info, QString* error) {
   out.namespaceDbPath= qtm_clean_vault_relative_path (out.namespaceDbPath);
   out.startupPage= qtm_clean_vault_target (out.startupPage);
   out.oneTimeStartupPage= qtm_clean_vault_target (out.oneTimeStartupPage);
+  out.maintenanceSummaryPath=
+    qtm_clean_vault_relative_path (out.maintenanceSummaryPath);
 
   if (out.name.trimmed ().isEmpty ()) {
     if (error != nullptr) *error= "Vault name cannot be empty.";
@@ -192,7 +198,8 @@ qtm_vaultfile_write (const QTMVaultfileInfo& info, QString* error) {
       !qtm_valid_optional_vault_relative_path (out.preferencesPath) ||
       !qtm_valid_vault_relative_path (out.namespaceDbPath) ||
       !qtm_valid_optional_vault_target (out.startupPage) ||
-      !qtm_valid_optional_vault_target (out.oneTimeStartupPage)) {
+      !qtm_valid_optional_vault_target (out.oneTimeStartupPage) ||
+      !qtm_valid_optional_vault_relative_path (out.maintenanceSummaryPath)) {
     if (error != nullptr)
       *error= "Vaultfile paths must be relative paths inside the vault, "
               "tmfs:// links, or file:// links, without ./ or ../ prefixes.";
@@ -211,6 +218,7 @@ qtm_vaultfile_write (const QTMVaultfileInfo& info, QString* error) {
          << " " << qtm_scheme_quote_qstring (out.namespaceDbPath)
          << " " << qtm_scheme_quote_qstring (out.startupPage)
          << " " << qtm_scheme_quote_qstring (out.oneTimeStartupPage)
+         << " " << qtm_scheme_quote_qstring (out.maintenanceSummaryPath)
          << ")\n";
   file.close ();
 
