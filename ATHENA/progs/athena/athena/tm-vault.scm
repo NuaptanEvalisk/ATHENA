@@ -31,8 +31,9 @@
   (let ((val (get-preference key)))
     (if (string-null? val) def val)))
 
-(define-secure-symbols wikilink-repair-apply vault-jump-to-source 
-                       load-buffer load-vault-dir 
+(define-secure-symbols wikilink-repair-apply vault-transclude-repair
+                       vault-jump-to-source
+                       load-buffer load-vault-dir
                        string->url vault-load-latest-action
                        go-to-welcome-page
                        vault-show-explorer
@@ -403,6 +404,45 @@
                     (vault-set-node uuid rel-path anchor-b anchor-e)))
               (insert `(transclude ,uuid ,file-hint ,anchor-b ,anchor-e)))))))
 
+(define (vault-transclude-replace-in-buffer! buf uuid file-hint
+                                             anchor-b anchor-e)
+  (let ((changed? #f)
+        (t (buffer-get buf)))
+    (tree-search t
+      (lambda (node)
+        (when (and (tree-compound? node)
+                   (== (tree-label node) 'transclude)
+                   (>= (tree-arity node) 1)
+                   (== (tree->string (tree-ref node 0)) uuid))
+          (tree-set! node `(transclude ,uuid ,file-hint
+                                       ,anchor-b ,anchor-e))
+          (set! changed? #t))
+        #f))
+    changed?))
+
+(tm-define (vault-transclude-repair bad-uuid old-file-hint old-anchor-b
+                                    old-anchor-e)
+  (:interactive #t)
+  (if (not (vault-active?))
+      (set-message "No active vault. Please load a vault first." "Error")
+      (let ((res (vault-choose-link #t)))
+        (if (and (tree? res) (== (tree-label res) 'tuple))
+            (let* ((rel-path (tree->string (tree-ref res 0)))
+                   (anchor-b (tree->string (tree-ref res 1)))
+                   (anchor-e (tree->string (tree-ref res 2)))
+                   (file-hint (tree->string (tree-ref res 3))))
+              (vault-set-node bad-uuid rel-path anchor-b anchor-e)
+              (let ((changed 0))
+                (for (b (buffer-list))
+                  (when (vault-transclude-replace-in-buffer!
+                         b bad-uuid file-hint anchor-b anchor-e)
+                    (set! changed (+ changed 1))))
+                (if (> changed 0)
+                    (set-message "Transclusion repaired" "Vault")
+                    (set-message
+                     "Transclusion target repaired, but no open source node matched"
+                     "Vault"))))))))
+
 (kbd-commands
   ("=" "Insert Wikilink" (if (in-text?) (insert-wikilink)))
   ("+" "Insert Transclusion" (if (in-text?) (insert-transclude))))
@@ -602,9 +642,14 @@
         (if (pair? indices) (car indices) #f))))
 
 (define (vault-transclude-error uuid f-hint b-hint e-hint msg)
-  `(with "color" "red"
-     (concat (bold "Broken Transclusion: ") ,msg " "
-             (action "Repair" "(insert-transclude)"))))
+  (let ((cmd (string-append "(vault-transclude-repair "
+                            (object->string uuid) " "
+                            (object->string f-hint) " "
+                            (object->string b-hint) " "
+                            (object->string e-hint) ")")))
+    `(with "color" "red"
+       (concat (bold "Broken Transclusion: ") ,msg " "
+               (action "Repair" ,cmd)))))
 
 (tm-define (wikilink-repair-apply
  bad-uuid new-uuid path anchor-begin anchor-end)
