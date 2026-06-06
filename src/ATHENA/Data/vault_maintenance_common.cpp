@@ -112,6 +112,13 @@ path_key (const fs::path& path) {
   return absolute.lexically_normal ().generic_string ();
 }
 
+std::string
+compact_log_path (const fs::path& path, size_t limit) {
+  std::string text = path.generic_string ();
+  if (limit <= 3 || text.size () <= limit) return text;
+  return "..." + text.substr (text.size () - (limit - 3));
+}
+
 bool
 is_backup_path (const fs::path& root, const fs::path& path) {
   fs::path rel = path.lexically_relative (root);

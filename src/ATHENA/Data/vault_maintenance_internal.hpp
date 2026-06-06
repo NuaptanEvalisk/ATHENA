@@ -46,6 +46,8 @@ std::string trim_copy (const std::string& s);
 bool is_image_extension (const std::filesystem::path& path);
 bool has_canonical_image_name (const std::filesystem::path& path);
 std::string path_key (const std::filesystem::path& path);
+std::string compact_log_path (const std::filesystem::path& path,
+                              size_t limit = 64);
 bool is_backup_path (const std::filesystem::path& root,
                      const std::filesystem::path& path);
 bool is_orphan_collection_path (const std::filesystem::path& root,

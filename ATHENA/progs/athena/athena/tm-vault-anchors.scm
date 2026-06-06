@@ -12,8 +12,10 @@
 (define vault-anchor-enunciation-tags
   '(theorem lemma corollary proposition axiom definition notation convention
     conjecture law remark note example warning disambiguation acknowledgments
-    exercise problem question solution answer proof proof-alternative
-    proof-standard proof-of quote-env))
+    exercise problem question solution solution* answer proof proof-alternative
+    proof-standard proof-of quote-env render-theorem render-remark
+    render-exercise render-solution render-proof render-proof-alternative
+    render-proof-standard))
 
 (define vault-anchor-parenthesized-title-tags
   '(theorem lemma proposition corollary conjecture question))
@@ -21,6 +23,14 @@
 (define vault-anchor-direct-title-tags
   '(definition notation convention axiom law remark note example warning
     disambiguation acknowledgments exercise problem solution answer quote-env))
+
+(define vault-anchor-proof-tags
+  '(proof proof-alternative proof-standard proof-of solution solution* render-proof
+    render-proof-alternative render-proof-standard render-solution))
+
+(define vault-anchor-separated-proof-owner-tags
+  '(theorem lemma corollary proposition axiom definition conjecture remark
+    law example question render-theorem render-remark render-exercise))
 
 (define (vault-anchor-heading-level tag)
   (cond ((or (eq? tag 'section) (eq? tag 'section*)) 1)
@@ -38,6 +48,16 @@
 
 (define (vault-anchor-tree-tag t)
   (and (vault-anchor-stree-compound? t) (car t)))
+
+(define (vault-anchor-base-tag tag)
+  (cond ((eq? tag 'render-theorem) 'theorem)
+        ((eq? tag 'render-remark) 'remark)
+        ((eq? tag 'render-exercise) 'exercise)
+        ((eq? tag 'render-solution) 'solution)
+        ((eq? tag 'render-proof) 'proof)
+        ((eq? tag 'render-proof-alternative) 'proof-alternative)
+        ((eq? tag 'render-proof-standard) 'proof-standard)
+        (else tag)))
 
 (define (vault-anchor-enunciation? t)
   (and-with tag (vault-anchor-tree-tag t)
@@ -79,6 +99,16 @@
   (and (vault-anchor-label? t)
        (string-starts? (vault-anchor-label-text t)
                        (string-append "H" (number->string level) " "))))
+
+(define (vault-anchor-wrapper-key previous next)
+  (and previous next
+       (vault-anchor-upper-label? previous)
+       (vault-anchor-lower-label? next)
+       (let ((upper (vault-anchor-label-key
+                     (vault-anchor-label-text previous)))
+             (lower (vault-anchor-label-key
+                     (vault-anchor-label-text next))))
+         (if (== upper lower) upper #f))))
 
 (define (vault-anchor-ignorable? t)
   (and (string? t) (== (tm-string-trim-both t) "")))
@@ -157,6 +187,29 @@
 (define (vault-anchor-format-wrapper? tag)
   (in? tag '(with style-with)))
 
+(define (vault-anchor-name=? x name)
+  (cond ((string? x) (== x name))
+        ((symbol? x) (== (symbol->string x) name))
+        (else #f)))
+
+(define (vault-anchor-bold-value? x)
+  (or (vault-anchor-name=? x "bold")
+      (vault-anchor-name=? x "bold-series")))
+
+(define (vault-anchor-font-series-key? x)
+  (or (vault-anchor-name=? x "font-series")
+      (vault-anchor-name=? x "fontseries")))
+
+(define (vault-anchor-bold-format-wrapper? t)
+  (and (pair? t)
+       (vault-anchor-format-wrapper? (vault-anchor-tree-tag t))
+       (let loop ((l (cdr t)))
+         (cond ((or (null? l) (null? (cdr l))) #f)
+               ((and (vault-anchor-font-series-key? (car l))
+                     (vault-anchor-bold-value? (cadr l)))
+                #t)
+               (else (loop (cddr l)))))))
+
 (define (vault-anchor-visible-children t)
   (let ((tag (vault-anchor-tree-tag t)))
     (cond ((not tag) '())
@@ -191,6 +244,8 @@
   (cond ((not (pair? t)) #f)
         ((and (eq? (car t) 'strong) (pair? (cdr t)))
          (vault-anchor-plain-text (cadr t)))
+        ((vault-anchor-bold-format-wrapper? t)
+         (vault-anchor-plain-text (vault-anchor-last (cdr t))))
         (else
          (let loop ((l (vault-anchor-visible-children t)))
            (cond ((null? l) #f)
@@ -209,41 +264,124 @@
                 (else (loop (+ i 1)))))
         "")))
 
+(define (vault-anchor-parenthesized-title-from-tree t)
+  (let* ((strong (or (vault-anchor-first-strong-text t) ""))
+         (strong-parenthesized (vault-anchor-parenthesized-title strong)))
+    (if (!= strong-parenthesized "")
+        strong-parenthesized
+        (vault-anchor-parenthesized-title (vault-anchor-plain-text t)))))
+
 (define (vault-anchor-enunciation-body t)
-  (cond ((and (vault-anchor-stree-func? t 'proof-of) (>= (length t) 3))
+  (cond ((and (in? (vault-anchor-tree-tag t)
+                   '(render-theorem render-remark render-exercise
+                     render-solution render-proof render-proof-alternative
+                     render-proof-standard))
+              (>= (length t) 3))
+         (caddr t))
+        ((and (vault-anchor-stree-func? t 'proof-of) (>= (length t) 3))
          (caddr t))
         ((and (pair? t) (pair? (cdr t))) (cadr t))
         (else "")))
 
+(define (vault-anchor-render-title-tree t)
+  (if (and (in? (vault-anchor-tree-tag t)
+                '(render-theorem render-remark render-exercise
+                  render-solution render-proof render-proof-alternative
+                  render-proof-standard))
+           (>= (length t) 3))
+      (cadr t)
+      ""))
+
+(define (vault-anchor-render-title t)
+  (vault-anchor-sanitize-text
+   (vault-anchor-plain-text (vault-anchor-render-title-tree t)) 100))
+
 (define (vault-anchor-title-from-enunciation t)
-  (let* ((tag (vault-anchor-tree-tag t))
+  (let* ((tag (vault-anchor-base-tag (vault-anchor-tree-tag t)))
+         (render-title-tree (vault-anchor-render-title-tree t))
+         (render-title (vault-anchor-render-title t))
          (body (vault-anchor-enunciation-body t))
-         (strong (or (vault-anchor-first-strong-text body) "")))
+         (strong (or (vault-anchor-first-strong-text body) ""))
+         (render-parenthesized
+          (vault-anchor-parenthesized-title-from-tree render-title-tree))
+         (body-parenthesized
+          (vault-anchor-parenthesized-title-from-tree body))
+         (parenthesized (if (!= render-parenthesized "")
+                            render-parenthesized
+                            body-parenthesized))
+         (strong-title (if (or (== strong "")
+                               (vault-anchor-common-title-candidate? strong))
+                           ""
+                           (vault-anchor-sanitize-text strong 100))))
     (cond ((and (eq? tag 'proof-of) (>= (length t) 3))
            (vault-anchor-sanitize-text (vault-anchor-plain-text (cadr t)) 80))
           ((in? tag vault-anchor-parenthesized-title-tags)
-           (vault-anchor-sanitize-text
-            (vault-anchor-parenthesized-title strong) 100))
+           (if (!= parenthesized "")
+               (vault-anchor-sanitize-text parenthesized 100)
+               (if (!= strong-title "") strong-title render-title)))
+          ((!= render-title "")
+           render-title)
           ((in? tag vault-anchor-direct-title-tags)
-           (if (or (== strong "")
-                   (vault-anchor-common-title-candidate? strong))
-               ""
-               (vault-anchor-sanitize-text strong 100)))
+           strong-title)
           (else ""))))
 
 (define (vault-anchor-prefix tag title)
-  (cond ((eq? tag 'proof-of) (if (== title "") "proof" (string-append "proof:" title)))
-        (else (symbol->string tag))))
+  (let ((base (vault-anchor-base-tag tag)))
+    (cond ((eq? base 'proof-of)
+           (if (== title "") "proof" (string-append "proof:" title)))
+          (else (symbol->string base)))))
 
-(define (vault-anchor-id-for-enunciation t)
-  (let* ((tag (vault-anchor-tree-tag t))
+(define (vault-anchor-proof? t)
+  (and-with tag (vault-anchor-tree-tag t)
+    (in? tag vault-anchor-proof-tags)))
+
+(define (vault-anchor-separated-proof-owner? t)
+  (and-with tag (vault-anchor-tree-tag t)
+    (in? tag vault-anchor-separated-proof-owner-tags)))
+
+(define (vault-anchor-separated-proof-prefix t)
+  (let* ((tag (vault-anchor-base-tag (vault-anchor-tree-tag t)))
+         (title (vault-anchor-title-from-enunciation t)))
+    (cond ((or (eq? tag 'proof-alternative)
+               (eq? tag 'proof-standard))
+           (symbol->string tag))
+          ((or (eq? tag 'solution) (eq? tag 'solution*))
+           "solution")
+          ((eq? tag 'proof-of)
+           (if (== title "") "proof" (string-append "proof:" title)))
+          ((and (!= title "") (eq? tag 'proof))
+           (string-append "proof:" title))
+          (else "proof"))))
+
+(define (vault-anchor-enunciation-suffix id)
+  (let ((pos (string-search-forwards ":" 0 id)))
+    (if (>= pos 0)
+        (substring id (+ pos 1) (string-length id))
+        id)))
+
+(define (vault-anchor-proof-context-id proof context-id)
+  (string-append (vault-anchor-separated-proof-prefix proof)
+                 ":"
+                 (vault-anchor-enunciation-suffix context-id)))
+
+(define (vault-anchor-id-for-enunciation t . maybe-proof-context)
+  (let* ((tag (vault-anchor-base-tag (vault-anchor-tree-tag t)))
          (title (vault-anchor-title-from-enunciation t))
          (body (vault-anchor-enunciation-body t))
          (sample (vault-anchor-sanitize-text
                   (vault-anchor-plain-text body) 100))
-         (prefix (vault-anchor-prefix tag title)))
-    (cond ((and (!= title "") (not (eq? tag 'proof-of)))
+         (prefix (vault-anchor-prefix tag title))
+         (proof-context (and (pair? maybe-proof-context)
+                             (car maybe-proof-context))))
+    (cond ((and proof-context (vault-anchor-proof? t))
+           (vault-anchor-proof-context-id t proof-context))
+          ((and (!= title "") (not (vault-anchor-proof? t)))
            (string-append (symbol->string tag) ":" title))
+          ((and (vault-anchor-proof? t) (!= sample ""))
+           (let ((proof-prefix (vault-anchor-separated-proof-prefix t)))
+             (string-append proof-prefix
+                            (if (string-contains? proof-prefix ":") " " ":")
+                            sample)))
           ((and (eq? tag 'proof-of) (!= title "") (!= sample ""))
            (string-append prefix " " sample))
           ((!= sample "")
@@ -278,6 +416,20 @@
 (define (vault-anchor-summary-note! summary message)
   (vector-set! summary 2 (append (vector-ref summary 2) (list message))))
 
+(define (vault-anchor-summary-new)
+  (vector 0 0 '() 0 0 '()))
+
+(define (vault-anchor-summary-rename! summary old-label new-label)
+  (when (and (!= old-label "") (!= new-label "")
+             (!= old-label new-label))
+    (vector-set! summary 5
+                 (append (vector-ref summary 5)
+                         (list (list old-label new-label))))))
+
+(define (vault-anchor-summary-update! summary message)
+  (vault-anchor-summary-add! summary 4 1)
+  (vault-anchor-summary-note! summary message))
+
 (define (vault-anchor-has-heading-anchor? previous current)
   (and previous
        (vault-anchor-heading? current)
@@ -286,9 +438,64 @@
         (vault-anchor-heading-level (vault-anchor-tree-tag current)))))
 
 (define (vault-anchor-has-wrapper? previous next)
-  (and previous next
-       (vault-anchor-upper-label? previous)
-       (vault-anchor-lower-label? next)))
+  (and (vault-anchor-wrapper-key previous next) #t))
+
+(define (vault-anchor-replace-last-substantive out replacement)
+  (cond ((null? out) out)
+        ((vault-anchor-ignorable? (car out))
+         (cons (car out)
+               (vault-anchor-replace-last-substantive (cdr out)
+                                                      replacement)))
+        (else (cons replacement (cdr out)))))
+
+(define (vault-anchor-drop-through-next-substantive l)
+  (cond ((null? l) l)
+        ((vault-anchor-ignorable? (car l))
+         (vault-anchor-drop-through-next-substantive (cdr l)))
+        (else (cdr l))))
+
+(define (vault-anchor-existing-heading-label previous current)
+  (and (vault-anchor-has-heading-anchor? previous current)
+       (vault-anchor-label-text previous)))
+
+(define (vault-anchor-existing-wrapper-key previous next)
+  (vault-anchor-wrapper-key previous next))
+
+(define (vault-anchor-wrapper-label id suffix)
+  `(label ,(string-append id suffix)))
+
+(define (vault-anchor-decimal-string? s)
+  (and (> (string-length s) 0)
+       (let loop ((i 0))
+         (cond ((>= i (string-length s)) #t)
+               ((let* ((c (string-ref s i))
+                       (n (char->integer c)))
+                  (and (>= n (char->integer #\0))
+                       (<= n (char->integer #\9))))
+                (loop (+ i 1)))
+               (else #f)))))
+
+(define (vault-anchor-generated-suffix? existing raw)
+  (let* ((prefix (string-append raw " ("))
+         (prefix-n (string-length prefix))
+         (existing-n (string-length existing)))
+    (and (string-starts? existing prefix)
+         (> existing-n prefix-n)
+         (== (substring existing (- existing-n 1) existing-n) ")")
+         (vault-anchor-decimal-string?
+          (substring existing prefix-n (- existing-n 1))))))
+
+(define (vault-anchor-compatible-id? existing raw)
+  (or (== existing raw)
+      (vault-anchor-generated-suffix? existing raw)))
+
+(define (vault-anchor-rename-wrapper! summary old-id new-id)
+  (vault-anchor-summary-rename! summary
+                                (string-append old-id " {")
+                                (string-append new-id " {"))
+  (vault-anchor-summary-rename! summary
+                                (string-append old-id " }")
+                                (string-append new-id " }")))
 
 (define (vault-anchor-next-substantive l)
   (cond ((null? l) #f)
@@ -310,7 +517,7 @@
                     (cdr t))))))
 
 (define (vault-anchor-transform-document-children children counts summary dry-run?)
-  (let loop ((rest children) (previous #f) (out '()))
+  (let loop ((rest children) (previous #f) (proof-context-id #f) (out '()))
     (cond
       ((not (pair? rest))
        (reverse out))
@@ -319,14 +526,14 @@
              (tail (cdr rest)))
          (cond
            ((vault-anchor-ignorable? current)
-            (loop tail previous (cons current out)))
+            (loop tail previous proof-context-id (cons current out)))
            ((and (vault-anchor-upper-label? current)
                  (vault-anchor-lower-label?
                   (vault-anchor-next-substantive tail)))
             (let skip ((scan tail))
               (cond
                 ((not (pair? scan))
-                 (loop scan previous out))
+                 (loop scan previous proof-context-id out))
                 ((vault-anchor-ignorable? (car scan))
                  (skip (cdr scan)))
                 ((vault-anchor-lower-label? (car scan))
@@ -336,17 +543,65 @@
                   (string-append "remove dead anchors: "
                                  (vault-anchor-label-key
                                   (vault-anchor-label-text current))))
-                 (loop (cdr scan) previous out))
+                 (loop (cdr scan) previous proof-context-id out))
                 (else
-                 (loop tail current (cons current out))))))
+                 (loop tail current proof-context-id (cons current out))))))
+           ((vault-anchor-label? current)
+            (loop tail current proof-context-id (cons current out)))
            ((vault-anchor-enunciation? current)
-            (let ((next (vault-anchor-next-substantive tail)))
-              (if (vault-anchor-has-wrapper? previous next)
-                  (loop tail current (cons current out))
-                  (let* ((raw-id (vault-anchor-id-for-enunciation current))
+            (let* ((next (vault-anchor-next-substantive tail))
+                   (proof-context (and (vault-anchor-proof? current)
+                                       proof-context-id))
+                   (raw-id (if proof-context
+                               (vault-anchor-id-for-enunciation
+                                current proof-context)
+                               (vault-anchor-id-for-enunciation current)))
+                   (wrapper-id (vault-anchor-existing-wrapper-key
+                                previous next)))
+              (if wrapper-id
+                  (if (vault-anchor-compatible-id? wrapper-id raw-id)
+                      (let ((kept-owner-id
+                             (and (vault-anchor-separated-proof-owner? current)
+                                  wrapper-id)))
+                        (loop tail current
+                              (and (not (vault-anchor-proof? current))
+                                   kept-owner-id)
+                              (cons current out)))
+                      (let* ((id (vault-anchor-unique-id raw-id counts))
+                             (upper (vault-anchor-wrapper-label id " {"))
+                             (lower (vault-anchor-wrapper-label id " }"))
+                             (new-tail (vault-anchor-drop-through-next-substantive
+                                        tail))
+                             (new-out (vault-anchor-replace-last-substantive
+                                       out upper)))
+                        (vault-anchor-summary-update!
+                         summary
+                         (string-append "update "
+                                        (symbol->string
+                                         (vault-anchor-tree-tag current))
+                                        " anchor: "
+                                        wrapper-id " -> " id))
+                        (vault-anchor-rename-wrapper! summary wrapper-id id)
+                        (if dry-run?
+                            (loop tail current
+                                  (if (vault-anchor-separated-proof-owner? current)
+                                      id
+                                      #f)
+                                  (cons current out))
+                            (loop new-tail lower
+                                  (if (vault-anchor-separated-proof-owner? current)
+                                      id
+                                      #f)
+                                  (cons lower
+                                        (cons current new-out))))))
+                  (let* ((raw-id raw-id)
                          (id (vault-anchor-unique-id raw-id counts))
-                         (upper `(label ,(string-append id " {")))
-                         (lower `(label ,(string-append id " }"))))
+                         (upper (vault-anchor-wrapper-label id " {"))
+                         (lower (vault-anchor-wrapper-label id " }"))
+                         (new-owner-id (if (vault-anchor-separated-proof-owner?
+                                            current)
+                                           id
+                                           #f)))
                     (vault-anchor-summary-add! summary 0 1)
                     (vault-anchor-summary-note!
                      summary
@@ -355,157 +610,60 @@
                                      (vault-anchor-tree-tag current))
                                     ": " id))
                     (if dry-run?
-                        (loop tail current (cons current out))
+                        (loop tail current new-owner-id (cons current out))
                         (loop tail lower
+                              new-owner-id
                               (cons lower
                                     (cons current
                                           (cons upper out)))))))))
            ((vault-anchor-heading? current)
-            (if (vault-anchor-has-heading-anchor? previous current)
-                (loop tail current (cons current out))
-                (let* ((raw-id (vault-anchor-id-for-heading current))
-                       (id (vault-anchor-unique-id raw-id counts))
-                       (label `(label ,id)))
-                  (vault-anchor-summary-add! summary 3 1)
-                  (vault-anchor-summary-note!
-                   summary
-                   (string-append "anchor heading: " id))
-                  (if dry-run?
-                      (loop tail current (cons current out))
-                      (loop tail current
-                            (cons current
-                                  (cons label out)))))))
+            (let* ((raw-id (vault-anchor-id-for-heading current))
+                   (existing (vault-anchor-existing-heading-label previous
+                                                                   current)))
+              (cond ((and existing
+                          (vault-anchor-compatible-id? existing raw-id))
+                     (loop tail current #f (cons current out)))
+                    (existing
+                     (let* ((id (vault-anchor-unique-id raw-id counts))
+                            (label `(label ,id))
+                            (new-out (vault-anchor-replace-last-substantive
+                                      out label)))
+                       (vault-anchor-summary-update!
+                        summary
+                        (string-append "update heading anchor: "
+                                       existing " -> " id))
+                       (vault-anchor-summary-rename! summary existing id)
+                       (if dry-run?
+                           (loop tail current #f (cons current out))
+                           (loop tail current #f
+                                 (cons current new-out)))))
+                    (else
+                     (let* ((id (vault-anchor-unique-id raw-id counts))
+                            (label `(label ,id)))
+                       (vault-anchor-summary-add! summary 3 1)
+                       (vault-anchor-summary-note!
+                        summary
+                        (string-append "anchor heading: " id))
+                       (if dry-run?
+                           (loop tail current #f
+                                 (cons current out))
+                           (loop tail current #f
+                                 (cons current
+                                       (cons label out)))))))))
            (else
-            (loop tail current (cons current out)))))))))
-
-(define (vault-anchor-live-node-stree parent index)
-  (tree->stree (tree-child-ref parent index)))
-
-(define (vault-anchor-live-next-substantive-index parent start)
-  (let ((n (tree-arity parent)))
-    (let loop ((i start))
-      (cond ((>= i n) #f)
-            ((vault-anchor-ignorable?
-              (vault-anchor-live-node-stree parent i))
-             (loop (+ i 1)))
-            (else i)))))
-
-(define (vault-anchor-path-desc? p q)
-  (cond ((and (null? p) (null? q)) #f)
-        ((null? p) #f)
-        ((null? q) #t)
-        ((> (car p) (car q)) #t)
-        ((< (car p) (car q)) #f)
-        (else (vault-anchor-path-desc? (cdr p) (cdr q)))))
-
-(define (vault-anchor-op-before? a b)
-  (let ((pa (vector-ref a 2))
-        (pb (vector-ref b 2))
-        (ia (vector-ref a 3))
-        (ib (vector-ref b 3)))
-    (if (equal? pa pb)
-        (> ia ib)
-        (vault-anchor-path-desc? pa pb))))
-
-(define (vault-anchor-document-live-ops parent path counts summary)
-  (let loop ((i 0) (previous #f) (ops '()))
-    (cond
-      ((>= i (tree-arity parent)) ops)
-      (else
-       (let ((current (vault-anchor-live-node-stree parent i)))
-         (cond
-           ((vault-anchor-ignorable? current)
-            (loop (+ i 1) previous ops))
-           ((and (vault-anchor-upper-label? current)
-                 (and-with next-i
-                   (vault-anchor-live-next-substantive-index parent (+ i 1))
-                   (vault-anchor-lower-label?
-                    (vault-anchor-live-node-stree parent next-i))))
-            (let ((next-i (vault-anchor-live-next-substantive-index
-                           parent (+ i 1))))
-              (vault-anchor-summary-add! summary 1 1)
-              (vault-anchor-summary-note!
-               summary
-               (string-append "remove dead anchors: "
-                              (vault-anchor-label-key
-                               (vault-anchor-label-text current))))
-              (loop (+ next-i 1)
-                    previous
-                    (cons (vector 'remove parent path i (+ 1 (- next-i i)))
-                          ops))))
-           ((vault-anchor-enunciation? current)
-            (let ((next (and-with next-i
-                          (vault-anchor-live-next-substantive-index
-                           parent (+ i 1))
-                          (vault-anchor-live-node-stree parent next-i))))
-              (if (vault-anchor-has-wrapper? previous next)
-                  (loop (+ i 1) current ops)
-                  (let* ((raw-id (vault-anchor-id-for-enunciation current))
-                         (id (vault-anchor-unique-id raw-id counts))
-                         (upper `(label ,(string-append id " {")))
-                         (lower `(label ,(string-append id " }"))))
-                    (vault-anchor-summary-add! summary 0 1)
-                    (vault-anchor-summary-note!
-                     summary
-                     (string-append "wrap "
-                                    (symbol->string
-                                     (vault-anchor-tree-tag current))
-                                    ": " id))
-                    (loop (+ i 1)
-                          current
-                          (cons (vector 'wrap parent path i upper lower)
-                                ops))))))
-           ((vault-anchor-heading? current)
-            (if (vault-anchor-has-heading-anchor? previous current)
-                (loop (+ i 1) current ops)
-                (let* ((raw-id (vault-anchor-id-for-heading current))
-                       (id (vault-anchor-unique-id raw-id counts))
-                       (label `(label ,id)))
-                  (vault-anchor-summary-add! summary 3 1)
-                  (vault-anchor-summary-note!
-                   summary
-                   (string-append "anchor heading: " id))
-                  (loop (+ i 1)
-                        current
-                        (cons (vector 'heading parent path i label)
-                              ops)))))
-           (else
-            (loop (+ i 1) current ops))))))))
-
-(define (vault-anchor-live-ops node path counts summary)
-  (if (not (tree-compound? node))
-      '()
-      (let ((ops '()))
-        (let loop ((i 0))
-          (when (< i (tree-arity node))
-            (set! ops
-                  (append
-                   (vault-anchor-live-ops
-                    (tree-child-ref node i) (append path (list i))
-                    counts summary)
-                   ops))
-            (loop (+ i 1))))
-        (when (== (tree-label node) 'document)
-          (set! ops
-                (append
-                 (vault-anchor-document-live-ops node path counts summary)
-                 ops)))
-        ops)))
-
-(define (vault-anchor-live-plan body)
-  (let* ((stree (tree->stree body))
-         (counts (make-ahash-table))
-         (summary (vector 0 0 '() 0)))
-    (vault-anchor-register-existing-labels stree counts)
-    (let ((ops (vault-anchor-live-ops body '() counts summary)))
-      (vector summary ops))))
+            (loop tail current #f (cons current out)))))))))
 
 (define (vault-anchor-plan body)
-  (vector-ref (vault-anchor-live-plan body) 0))
+  (let* ((st (tree->stree body))
+         (counts (make-ahash-table))
+         (summary (vault-anchor-summary-new)))
+    (vault-anchor-register-existing-labels st counts)
+    (vault-anchor-transform-tree st counts summary #t)
+    summary))
 
 (define (vault-anchor-transform-stree st)
   (let* ((counts (make-ahash-table))
-         (summary (vector 0 0 '() 0)))
+         (summary (vault-anchor-summary-new)))
     (vault-anchor-register-existing-labels st counts)
     (let ((new-st (vault-anchor-transform-tree st counts summary #f)))
       (list summary new-st))))
@@ -529,40 +687,128 @@
 (define (vault-anchor-tab-safe s)
   (string-replace (string-replace s "\t" " ") "\n" " "))
 
-(define (vault-anchor-maintenance-result status wraps dead headings changed message)
+(define vault-anchor-rename-separator
+  (list->string (list (integer->char 30))))
+
+(define vault-anchor-rename-field-separator
+  (list->string (list (integer->char 31))))
+
+(define (vault-anchor-renames-string summary)
+  (string-join
+   (map (lambda (entry)
+          (string-append (vault-anchor-tab-safe (car entry))
+                         vault-anchor-rename-field-separator
+                         (vault-anchor-tab-safe (cadr entry))))
+        (vector-ref summary 5))
+   vault-anchor-rename-separator))
+
+(define (vault-anchor-maintenance-result status wraps dead headings updates
+                                         changed message renames)
   (string-append status "\t"
                  (number->string wraps) "\t"
                  (number->string dead) "\t"
                  (number->string headings) "\t"
+                 (number->string updates) "\t"
                  (if changed "1" "0") "\t"
-                 (vault-anchor-tab-safe message)))
+                 (vault-anchor-tab-safe message) "\t"
+                 renames))
 
 (tm-define (vault-anchor-maintenance-file u)
   (catch #t
     (lambda ()
       (let ((doc (tree-import u "texmacs")))
         (if (== doc (tm->tree "error"))
-            (vault-anchor-maintenance-result "error" 0 0 0 #f
-                                             "could not import document")
+            (vault-anchor-maintenance-result "error" 0 0 0 0 #f
+                                             "could not import document" "")
             (let* ((res (vault-anchor-transform-document doc))
                    (summary (car res))
                    (new-doc (cadr res))
                    (wraps (vector-ref summary 0))
                    (dead (vector-ref summary 1))
-                   (headings (vector-ref summary 3)))
+                   (headings (vector-ref summary 3))
+                   (updates (vector-ref summary 4))
+                   (renames (vault-anchor-renames-string summary)))
               (if (vault-anchor-summary-empty? summary)
-                  (vault-anchor-maintenance-result "ok" 0 0 0 #f "")
+                  (vault-anchor-maintenance-result "ok" 0 0 0 0 #f "" "")
                   (if (tree-export new-doc u "texmacs")
-                      (vault-anchor-maintenance-result "error" wraps dead headings #f
-                                                       "could not export document")
-                      (vault-anchor-maintenance-result "ok" wraps dead headings #t "")))))))
+                      (vault-anchor-maintenance-result
+                       "error" wraps dead headings updates #f
+                       "could not export document" "")
+                      (vault-anchor-maintenance-result
+                       "ok" wraps dead headings updates #t "" renames)))))))
     (lambda args
-      (vault-anchor-maintenance-result "error" 0 0 0 #f
-                                       (object->string args)))))
+      (vault-anchor-maintenance-result "error" 0 0 0 0 #f
+                                       (object->string args) ""))))
 
 (define (vault-anchor-current-buffer? buf)
   (and (current-buffer)
        (== (url->url (current-buffer)) (url->url buf))))
+
+(define (vault-anchor-map-rewrite-field! db rel-path field old-label new-label
+                                         now)
+  (let* ((ids (tmdb-query db
+                          (list (list "v-path" rel-path)
+                                (list field old-label))
+                          now 1000000 0)))
+    (for-each
+     (lambda (uuid)
+       (tmdb-set-field db uuid field (list new-label) now))
+     ids)
+    (length ids)))
+
+(define (vault-anchor-maintenance-parse-renames renames)
+  (if (string-null? renames) '()
+      (map (lambda (entry)
+             (let ((parts (string-tokenize-by-char
+                           entry (integer->char 31))))
+               (if (>= (length parts) 2)
+                   (list (car parts) (cadr parts))
+                   '())))
+           (string-tokenize-by-char renames (integer->char 30)))))
+
+(tm-define (vault-anchor-maintenance-rewrite-map db rel-path renames)
+  (catch #t
+    (lambda ()
+      (let ((changed 0)
+            (now (current-time)))
+        (for-each
+         (lambda (entry)
+           (when (and (pair? entry) (pair? (cdr entry)))
+             (let ((old-label (car entry))
+                   (new-label (cadr entry)))
+               (set! changed
+                     (+ changed
+                        (vault-anchor-map-rewrite-field!
+                         db rel-path "v-anchor-begin" old-label new-label now)
+                        (vault-anchor-map-rewrite-field!
+                         db rel-path "v-anchor-end" old-label new-label
+                         now))))))
+         (vault-anchor-maintenance-parse-renames renames))
+        (number->string changed)))
+    (lambda args "0")))
+
+(define (vault-anchor-update-map-for-buffer! buf summary)
+  (when (and (defined? 'vault-active?)
+             (vault-active?)
+             (not (null? (vector-ref summary 5))))
+    (catch #t
+      (lambda ()
+        (let* ((root (url-append (vault-get-root) ""))
+               (rel-path (url->unix (url-delta root buf)))
+               (db (url-append (vault-get-root) "map.tmdb")))
+          (when (and (url-exists? db)
+                     (not (string-starts? rel-path "../")))
+            (for-each
+             (lambda (entry)
+               (let ((old-label (car entry))
+                     (new-label (cadr entry)))
+                (let ((now (current-time)))
+                  (vault-anchor-map-rewrite-field!
+                   db rel-path "v-anchor-begin" old-label new-label now)
+                  (vault-anchor-map-rewrite-field!
+                   db rel-path "v-anchor-end" old-label new-label now))))
+             (vector-ref summary 5)))))
+      (lambda args (noop)))))
 
 (define (vault-anchor-prepare-live-edit! buf)
   (when (vault-anchor-current-buffer? buf)
@@ -601,35 +847,17 @@
          (sx (cadr restore))
          (sy (caddr restore))
          (body (buffer-get-body buf))
-         (plan (vault-anchor-live-plan body))
-         (summary (vector-ref plan 0))
-         (ops (sort (vector-ref plan 1) vault-anchor-op-before?)))
-    (when (not (null? ops))
-      (vault-anchor-prepare-live-edit! buf)
-      (for-each
-       (lambda (op)
-         (let ((kind (vector-ref op 0))
-               (parent (vector-ref op 1))
-               (index (vector-ref op 3)))
-           (cond
-             ((eq? kind 'remove)
-              (tree-remove parent index (vector-ref op 4)))
-            ((eq? kind 'wrap)
-              (tree-var-insert
-               parent (+ index 1)
-               (cons 'tuple (list (stree->tree (vector-ref op 5)))))
-              (tree-var-insert
-               parent index
-               (cons 'tuple (list (stree->tree (vector-ref op 4))))))
-             ((eq? kind 'heading)
-              (tree-var-insert
-               parent index
-               (cons 'tuple (list (stree->tree (vector-ref op 4)))))))))
-       ops))
-    (when (and pos (not (null? ops)))
-      (vault-anchor-schedule-restore! buf pos sx sy))
-    (when (and pos (null? ops))
-      (position-delete pos))
+         (res (vault-anchor-transform-stree (tree->stree body)))
+         (summary (car res))
+         (new-body (cadr res)))
+    (if (vault-anchor-summary-empty? summary)
+        (when pos (position-delete pos))
+        (begin
+          (vault-anchor-prepare-live-edit! buf)
+          (buffer-set-body buf (stree->tree new-body))
+          (vault-anchor-update-map-for-buffer! buf summary)
+          (when pos
+            (vault-anchor-schedule-restore! buf pos sx sy))))
     summary))
 
 (define (vault-anchor-apply-before-save! buf)
@@ -645,6 +873,7 @@
         (when pos (position-delete pos))
         (begin
           (buffer-set-body buf (stree->tree new-body))
+          (vault-anchor-update-map-for-buffer! buf summary)
           (when pos
             (vault-anchor-schedule-restore! buf pos sx sy))))
     summary))
@@ -652,7 +881,8 @@
 (define (vault-anchor-summary-empty? summary)
   (and (== (vector-ref summary 0) 0)
        (== (vector-ref summary 1) 0)
-       (== (vector-ref summary 3) 0)))
+       (== (vector-ref summary 3) 0)
+       (== (vector-ref summary 4) 0)))
 
 (define (vault-anchor-truncate-line s limit)
   (if (<= (string-length s) limit)
@@ -666,7 +896,9 @@
             (number->string (vector-ref summary 1))
             " dead anchor pair(s), add "
             (number->string (vector-ref summary 3))
-            " heading anchor(s)\n")
+            " heading anchor(s), update "
+            (number->string (vector-ref summary 4))
+            " stale anchor structure(s)\n")
   (for-each (lambda (note)
               (display* "ATHENA]   " note "\n"))
             (vector-ref summary 2)))
@@ -675,12 +907,14 @@
   (let* ((wraps (number->string (vector-ref summary 0)))
          (dead (number->string (vector-ref summary 1)))
          (headings (number->string (vector-ref summary 3)))
+         (updates (number->string (vector-ref summary 4)))
          (notes (map (cut vault-anchor-truncate-line <> 72)
                      (vector-ref summary 2)))
          (head (string-append "Anchor structures dry-run\n\n"
                               "Wrap enunciations: " wraps "\n"
                               "Add heading anchors: " headings "\n"
-                              "Remove dead anchor pairs: " dead))
+                              "Remove dead anchor pairs: " dead "\n"
+                              "Update stale anchors: " updates))
          (tail (if (null? notes) ""
                    (string-append "\n\nExamples:\n- "
                                   (string-join notes "\n- ")
@@ -724,7 +958,9 @@
                                  (number->string (vector-ref summary 3))
                                  " heading anchor(s); removed "
                                  (number->string (vector-ref summary 1))
-                                 " dead anchor pair(s)")
+                                 " dead anchor pair(s); updated "
+                                 (number->string (vector-ref summary 4))
+                                 " stale anchor structure(s)")
                   "Anchor structures")))
           (when cont (cont))))))
 
@@ -746,7 +982,9 @@
                                  (number->string (vector-ref summary 3))
                                  " heading anchor(s); removed "
                                  (number->string (vector-ref summary 1))
-                                 " dead anchor pair(s)")
+                                 " dead anchor pair(s); updated "
+                                 (number->string (vector-ref summary 4))
+                                 " stale anchor structure(s)")
                   "Anchor structures")))
           (when cont (cont))))))
 

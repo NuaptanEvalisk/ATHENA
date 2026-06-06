@@ -59,6 +59,11 @@ vault_refresh_window_titles () {
   }
 }
 
+static db_time
+vault_db_time () {
+  return (db_time) (raw_time () / 1000);
+}
+
 void
 vault_load (url root_dir, string name, string db_rel_path) {
   vault_load (root_dir, name, db_rel_path, "ns.sqlite");
@@ -98,14 +103,15 @@ void
 vault_set_node (string uuid, string path, string anchor_begin, string anchor_end) {
   if (!is_vault_active) return;
   url u = current_vault.db_url;
+  db_time now = vault_db_time ();
   
   strings s_path; s_path << path;
   strings s_begin; s_begin << anchor_begin;
   strings s_end; s_end << anchor_end;
 
-  set_field (u, uuid, "v-path", s_path, 0);
-  set_field (u, uuid, "v-anchor-begin", s_begin, 0);
-  set_field (u, uuid, "v-anchor-end", s_end, 0);
+  set_field (u, uuid, "v-path", s_path, now);
+  set_field (u, uuid, "v-anchor-begin", s_begin, now);
+  set_field (u, uuid, "v-anchor-end", s_end, now);
   
   sync_databases ();
 }
@@ -114,10 +120,11 @@ tree
 vault_get_node (string uuid) {
   if (!is_vault_active) return UNINIT;
   url u = current_vault.db_url;
+  db_time now = vault_db_time ();
   
-  strings p = get_field (u, uuid, "v-path", 0);
-  strings b = get_field (u, uuid, "v-anchor-begin", 0);
-  strings e = get_field (u, uuid, "v-anchor-end", 0);
+  strings p = get_field (u, uuid, "v-path", now);
+  strings b = get_field (u, uuid, "v-anchor-begin", now);
+  strings e = get_field (u, uuid, "v-anchor-end", now);
   
   if (N(p) == 0) return UNINIT;
   
@@ -132,14 +139,15 @@ void
 vault_remove_node (string uuid) {
   if (!is_vault_active) return;
   url u = current_vault.db_url;
-  remove_entry (u, uuid, 0);
+  remove_entry (u, uuid, vault_db_time ());
   sync_databases ();
 }
 
 bool
 vault_has_node (string uuid) {
   if (!is_vault_active) return false;
-  strings p = get_field (current_vault.db_url, uuid, "v-path", 0);
+  strings p = get_field (current_vault.db_url, uuid, "v-path",
+                         vault_db_time ());
   return N(p) > 0;
 }
 
@@ -217,7 +225,7 @@ vault_find_uuid (string path, string anchor_begin, string anchor_end) {
   ql << tuple ("v-anchor-begin", anchor_begin);
   ql << tuple ("v-anchor-end", anchor_end);
   
-  strings ids = query (u, ql, 0, 1, 0);
+  strings ids = query (u, ql, vault_db_time (), 1, 0);
   if (N(ids) > 0) return ids[0];
   return "";
 }

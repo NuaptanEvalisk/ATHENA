@@ -41,7 +41,11 @@ vault_maintenance_pass_print_summary (VaultMaintenanceContext& ctx) {
             std::to_string (summary.anchor_files_scanned) +
             " .ath file(s); removed " +
             std::to_string (summary.anchor_dead_pairs_removed) +
-            " dead anchor pair(s); failures " +
+            " dead anchor pair(s); updated " +
+            std::to_string (summary.anchor_stale_structures_updated) +
+            " stale anchor structure(s); rewrote " +
+            std::to_string (summary.anchor_map_references_updated) +
+            " map reference(s); failures " +
             std::to_string (summary.anchor_failures));
   if (summary.orphan_collection_enabled) {
     std::string where = summary.orphan_dir.empty ()

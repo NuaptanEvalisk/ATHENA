@@ -29,6 +29,8 @@ struct VaultMaintenanceSummary {
   size_t anchor_files_changed = 0;
   size_t anchor_enunciations_wrapped = 0;
   size_t anchor_headings_added = 0;
+  size_t anchor_stale_structures_updated = 0;
+  size_t anchor_map_references_updated = 0;
   size_t anchor_dead_pairs_removed = 0;
   size_t anchor_failures = 0;
   bool orphan_collection_enabled = false;
