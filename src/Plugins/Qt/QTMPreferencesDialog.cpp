@@ -9,6 +9,7 @@
 ******************************************************************************/
 
 #include "QTMPreferencesDialog.hpp"
+#include "QTMVaultInfoModel.hpp"
 
 #include "boot.hpp"
 #include "font.hpp"
@@ -20,6 +21,8 @@
 #include <QColorDialog>
 #include <QComboBox>
 #include <QDialogButtonBox>
+#include <QDir>
+#include <QFileDialog>
 #include <QFormLayout>
 #include <QFrame>
 #include <QGroupBox>
@@ -329,6 +332,20 @@ add_color_button (QFormLayout* form, const QString& title, const char* key,
     form->addRow (label (title), row);
   }
   return button;
+}
+
+static QLineEdit*
+add_path_chooser_row (QFormLayout* form, const QString& title,
+                      const QString& value, QPushButton*& choose) {
+  QWidget* row= new QWidget;
+  QHBoxLayout* layout= new QHBoxLayout (row);
+  layout->setContentsMargins (0, 0, 0, 0);
+  QLineEdit* edit= new QLineEdit (value, row);
+  choose= new QPushButton ("Choose...", row);
+  layout->addWidget (edit, 1);
+  layout->addWidget (choose);
+  form->addRow (label (title), row);
+  return edit;
 }
 
 static QWidget*
@@ -1193,6 +1210,82 @@ QTMPreferencesDialog::buildVaultPage () {
 
   QWidget* info= make_page ();
   QFormLayout* vi= add_section (info, "Vault Info");
+  QTMVaultfileInfo vaultInfo;
+  if (!qtm_vaultfile_read (vaultInfo)) {
+    QLabel* inactive= new QLabel ("No active vault.", info);
+    inactive->setWordWrap (true);
+    vi->addRow (inactive);
+  }
+  else {
+    QLineEdit* vaultName= new QLineEdit (vaultInfo.name, info);
+    vi->addRow (label ("Vault name:"), vaultName);
+
+    QPushButton* chooseMap= nullptr;
+    QLineEdit* mapPath= add_path_chooser_row (
+      vi, "Map database path:", vaultInfo.mapPath, chooseMap);
+    QPushButton* choosePrefs= nullptr;
+    QLineEdit* preferencesPath= add_path_chooser_row (
+      vi, "Local preferences path:", vaultInfo.preferencesPath, choosePrefs);
+    QPushButton* chooseNamespace= nullptr;
+    QLineEdit* namespacePath= add_path_chooser_row (
+      vi, "Namespace database path:", vaultInfo.namespaceDbPath,
+      chooseNamespace);
+
+    auto saveVaultfile= [info, vaultName, mapPath, preferencesPath,
+                         namespacePath] () {
+      QTMVaultfileInfo next;
+      next.name= vaultName->text ();
+      next.mapPath= mapPath->text ();
+      next.preferencesPath= preferencesPath->text ();
+      next.namespaceDbPath= namespacePath->text ();
+      QString error;
+      if (!qtm_vaultfile_write (next, &error)) {
+        QMessageBox::warning (info, "Vault Info", error);
+        return;
+      }
+      mapPath->setText (qtm_clean_vault_relative_path (next.mapPath));
+      preferencesPath->setText (
+        qtm_clean_vault_relative_path (next.preferencesPath));
+      namespacePath->setText (
+        qtm_clean_vault_relative_path (next.namespaceDbPath));
+    };
+
+    auto choosePath= [info, saveVaultfile] (QLineEdit* edit,
+                                           const QString& title) {
+      QString root= qtm_vault_root_path ();
+      QString initial= edit->text ().trimmed ().isEmpty ()
+        ? root : QDir (root).absoluteFilePath (edit->text ().trimmed ());
+      QString selected= QFileDialog::getSaveFileName (
+        info, title, initial, "All files (*)");
+      if (selected.isEmpty ()) return;
+      QString rel= qtm_vault_relative_from_selected_path (selected);
+      if (!qtm_valid_vault_relative_path (rel)) {
+        QMessageBox::warning (
+          info, "Vault Info",
+          "Selected file must be inside the vault. The Vaultfile stores "
+          "paths relative to the vault root.");
+        return;
+      }
+      edit->setText (rel);
+      saveVaultfile ();
+    };
+
+    QObject::connect (vaultName, &QLineEdit::editingFinished, saveVaultfile);
+    QObject::connect (mapPath, &QLineEdit::editingFinished, saveVaultfile);
+    QObject::connect (preferencesPath, &QLineEdit::editingFinished,
+                      saveVaultfile);
+    QObject::connect (namespacePath, &QLineEdit::editingFinished,
+                      saveVaultfile);
+    QObject::connect (chooseMap, &QPushButton::clicked,
+                      [=] () { choosePath (mapPath, "Choose map database"); });
+    QObject::connect (choosePrefs, &QPushButton::clicked,
+                      [=] () { choosePath (preferencesPath,
+                                           "Choose local preferences file"); });
+    QObject::connect (chooseNamespace, &QPushButton::clicked,
+                      [=] () { choosePath (namespacePath,
+                                           "Choose namespace database"); });
+  }
+
   QComboBox* vaultFont= new QComboBox;
   QStringList vaultFonts;
   vaultFonts << "" << "roman" << "stix" << "bonum" << "pagella" << "schola"

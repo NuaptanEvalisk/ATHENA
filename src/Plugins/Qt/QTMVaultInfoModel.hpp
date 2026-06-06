@@ -1,0 +1,33 @@
+/******************************************************************************
+* MODULE     : QTMVaultInfoModel.hpp
+* DESCRIPTION: Qt-side model for ATHENA Vaultfile metadata
+* COPYRIGHT  : (C) 2026 Nuaptan Felix Evalisk
+*******************************************************************************
+* This software falls under the GNU general public license version 3 or later.
+* It comes WITHOUT ANY WARRANTY WHATSOEVER. For details, see the file LICENSE
+* in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
+******************************************************************************/
+
+#ifndef QTMVAULTINFOMODEL_HPP
+#define QTMVAULTINFOMODEL_HPP
+
+#include <QString>
+
+struct QTMVaultfileInfo {
+  QString name;
+  QString mapPath;
+  QString preferencesPath;
+  QString namespaceDbPath;
+};
+
+bool    qtm_vault_info_available ();
+QString qtm_vault_root_path ();
+QString qtm_clean_vault_relative_path (const QString& path);
+bool    qtm_valid_vault_relative_path (const QString& path);
+bool    qtm_valid_optional_vault_relative_path (const QString& path);
+QString qtm_vault_relative_from_selected_path (const QString& selected);
+bool    qtm_vaultfile_read (QTMVaultfileInfo& info, QString* error= nullptr);
+bool    qtm_vaultfile_write (const QTMVaultfileInfo& info,
+                             QString* error= nullptr);
+
+#endif
