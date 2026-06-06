@@ -457,11 +457,11 @@ set (ATHENA_Include_Dirs
   ${ATHENA_SOURCE_DIR}/src/Kernel/Abstractions
   ${ATHENA_SOURCE_DIR}/src/Kernel/Containers
   ${ATHENA_SOURCE_DIR}/src/Kernel/Types
-  ${ATHENA_SOURCE_DIR}/src/Plugins
-  ${ATHENA_SOURCE_DIR}/src/Plugins/PEGLib
-  ${ATHENA_SOURCE_DIR}/src/Plugins/Pdf/LibAesgm
-  ${ATHENA_SOURCE_DIR}/src/Plugins/Gnutls
-  ${ATHENA_SOURCE_DIR}/src/Plugins/Qt
+  ${ATHENA_SOURCE_DIR}/src/Subsystems
+  ${ATHENA_SOURCE_DIR}/src/Subsystems/PEGLib
+  ${ATHENA_SOURCE_DIR}/src/Subsystems/Pdf/LibAesgm
+  ${ATHENA_SOURCE_DIR}/src/Subsystems/Gnutls
+  ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt
   ${ATHENA_SOURCE_DIR}/src/Scheme
   ${ATHENA_SOURCE_DIR}/src/Scheme/Guile
   ${ATHENA_SOURCE_DIR}/src/Scheme/Scheme
@@ -486,8 +486,8 @@ set (ATHENA_Include_Dirs
 
 if (WIN32)
   set (ATHENA_Include_Dirs ${ATHENA_Include_Dirs}
-    ${ATHENA_SOURCE_DIR}/src/Plugins/Windows
-    ${ATHENA_SOURCE_DIR}/src/Plugins/Windows/nowide
+    ${ATHENA_SOURCE_DIR}/src/Subsystems/Windows
+    ${ATHENA_SOURCE_DIR}/src/Subsystems/Windows/nowide
   )
 else (WIN32)
 endif (WIN32)
@@ -515,60 +515,60 @@ file (GLOB_RECURSE ATHENA_Base_SRCS CONFIGURE_DEPENDS
   "${ATHENA_SOURCE_DIR}/src/Typeset/*.cpp"
 )
 
-file (GLOB_RECURSE ATHENA_Std_Plugins_SRCS
-  "${ATHENA_SOURCE_DIR}/src/Plugins/Bibtex/*.cpp"
-  "${ATHENA_SOURCE_DIR}/src/Plugins/Cairo/*.cpp"
-  "${ATHENA_SOURCE_DIR}/src/Plugins/Database/*.cpp"
-  "${ATHENA_SOURCE_DIR}/src/Plugins/Freetype/*.cpp"
-  "${ATHENA_SOURCE_DIR}/src/Plugins/Gnutls/*.cpp"
-  "${ATHENA_SOURCE_DIR}/src/Plugins/Pdf/*.cpp"
-  "${ATHENA_SOURCE_DIR}/src/Plugins/Pdf/*.c"
-  "${ATHENA_SOURCE_DIR}/src/Plugins/Ghostscript/*.cpp"
-  "${ATHENA_SOURCE_DIR}/src/Plugins/Imlib2/*.cpp"
-  "${ATHENA_SOURCE_DIR}/src/Plugins/Ispell/*.cpp"
-  "${ATHENA_SOURCE_DIR}/src/Plugins/Metafont/*.cpp"
-  "${ATHENA_SOURCE_DIR}/src/Plugins/LaTeX_Preview/*.cpp"
-  "${ATHENA_SOURCE_DIR}/src/Plugins/Mplayer/*.cpp"
-  "${ATHENA_SOURCE_DIR}/src/Plugins/Openssl/*.cpp"
-  "${ATHENA_SOURCE_DIR}/src/Plugins/Sqlite3/*.cpp"
+file (GLOB_RECURSE ATHENA_Subsystems_SRCS
+  "${ATHENA_SOURCE_DIR}/src/Subsystems/Bibtex/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Subsystems/Cairo/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Subsystems/Database/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Subsystems/Freetype/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Subsystems/Gnutls/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Subsystems/Pdf/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Subsystems/Pdf/*.c"
+  "${ATHENA_SOURCE_DIR}/src/Subsystems/Ghostscript/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Subsystems/Imlib2/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Subsystems/Ispell/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Subsystems/Metafont/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Subsystems/LaTeX_Preview/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Subsystems/Mplayer/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Subsystems/Openssl/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Subsystems/Sqlite3/*.cpp"
 )
 
 file (GLOB_RECURSE ATHENA_Style_SRCS
   "${ATHENA_SOURCE_DIR}/src/Style/*.cpp"
 )
 
-set (ATHENA_All_SRCS ${ATHENA_Base_SRCS}  ${ATHENA_Std_Plugins_SRCS})
+set (ATHENA_All_SRCS ${ATHENA_Base_SRCS}  ${ATHENA_Subsystems_SRCS})
 
 ### --------------------------------------------------------------------
 ### GUI Interfaces
 ### --------------------------------------------------------------------
 
-file (GLOB_RECURSE ATHENA_Qt_SRCS CONFIGURE_DEPENDS "${ATHENA_SOURCE_DIR}/src/Plugins/Qt/*.cpp")
+file (GLOB_RECURSE ATHENA_Qt_SRCS CONFIGURE_DEPENDS "${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/*.cpp")
 
 set (ATHENA_Qt_Moc_HDRS
-  ${ATHENA_SOURCE_DIR}/src/Plugins/Qt/QTMApplication.hpp
-  ${ATHENA_SOURCE_DIR}/src/Plugins/Qt/QTMFileDialog.hpp
-  ${ATHENA_SOURCE_DIR}/src/Plugins/Qt/QTMGuiHelper.hpp
-  ${ATHENA_SOURCE_DIR}/src/Plugins/Qt/QTMInteractiveInputHelper.hpp
-  ${ATHENA_SOURCE_DIR}/src/Plugins/Qt/QTMInteractivePrompt.hpp
-  ${ATHENA_SOURCE_DIR}/src/Plugins/Qt/QTMMenuHelper.hpp
-  ${ATHENA_SOURCE_DIR}/src/Plugins/Qt/QTMPipeLink.hpp
-  ${ATHENA_SOURCE_DIR}/src/Plugins/Qt/QTMPrintDialog.hpp
-  ${ATHENA_SOURCE_DIR}/src/Plugins/Qt/QTMPrinterSettings.hpp
-  ${ATHENA_SOURCE_DIR}/src/Plugins/Qt/QTMScrollView.hpp
-  ${ATHENA_SOURCE_DIR}/src/Plugins/Qt/QTMSockets.hpp
-  ${ATHENA_SOURCE_DIR}/src/Plugins/Qt/QTMStyle.hpp
-  ${ATHENA_SOURCE_DIR}/src/Plugins/Qt/QTMTreeModel.hpp
-  ${ATHENA_SOURCE_DIR}/src/Plugins/Qt/QTMVaultChooser.hpp
-  ${ATHENA_SOURCE_DIR}/src/Plugins/Qt/QTMWidget.hpp
-  ${ATHENA_SOURCE_DIR}/src/Plugins/Qt/QTMWindow.hpp
+  ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMApplication.hpp
+  ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMFileDialog.hpp
+  ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMGuiHelper.hpp
+  ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMInteractiveInputHelper.hpp
+  ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMInteractivePrompt.hpp
+  ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMMenuHelper.hpp
+  ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMPipeLink.hpp
+  ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMPrintDialog.hpp
+  ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMPrinterSettings.hpp
+  ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMScrollView.hpp
+  ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMSockets.hpp
+  ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMStyle.hpp
+  ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMTreeModel.hpp
+  ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMVaultChooser.hpp
+  ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMWidget.hpp
+  ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMWindow.hpp
 )
 
 set (ATHENA_MacOS_SRCS
-  ${ATHENA_SOURCE_DIR}/src/Plugins/MacOS/HIDRemote.m
-  ${ATHENA_SOURCE_DIR}/src/Plugins/MacOS/mac_images.mm
-  ${ATHENA_SOURCE_DIR}/src/Plugins/MacOS/mac_spellservice.mm
-  ${ATHENA_SOURCE_DIR}/src/Plugins/MacOS/mac_utilities.mm
+  ${ATHENA_SOURCE_DIR}/src/Subsystems/MacOS/HIDRemote.m
+  ${ATHENA_SOURCE_DIR}/src/Subsystems/MacOS/mac_images.mm
+  ${ATHENA_SOURCE_DIR}/src/Subsystems/MacOS/mac_spellservice.mm
+  ${ATHENA_SOURCE_DIR}/src/Subsystems/MacOS/mac_utilities.mm
 )
 
 ### --------------------------------------------------------------------
@@ -774,9 +774,9 @@ endif ()
 ### --------------------------------------------------------------------
 
 if (WIN32)
-  file (GLOB_RECURSE ATHENA_System_SRCS "${ATHENA_SOURCE_DIR}/src/Plugins/Windows/*.cpp")
+  file (GLOB_RECURSE ATHENA_System_SRCS "${ATHENA_SOURCE_DIR}/src/Subsystems/Windows/*.cpp")
 else (WIN32)
-  file (GLOB_RECURSE ATHENA_System_SRCS "${ATHENA_SOURCE_DIR}/src/Plugins/Unix/*.cpp")
+  file (GLOB_RECURSE ATHENA_System_SRCS "${ATHENA_SOURCE_DIR}/src/Subsystems/Unix/*.cpp")
 endif (WIN32)
 
 set (ATHENA_All_SRCS ${ATHENA_All_SRCS} ${ATHENA_System_SRCS})

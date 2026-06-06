@@ -30,8 +30,8 @@ int  install_status   = 0;
 bool use_which        = false;
 bool use_locate       = false;
 
-extern void setup_tex (); // from Plugins/Metafont/tex_init.cpp
-extern void init_tex  (); // from Plugins/Metafont/tex_init.cpp
+extern void setup_tex (); // from Subsystems/Metafont/tex_init.cpp
+extern void init_tex  (); // from Subsystems/Metafont/tex_init.cpp
 
 /******************************************************************************
 * Subroutines for paths

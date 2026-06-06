@@ -1,5 +1,5 @@
 --- /tmp/nowide_standalone/nowide/cenv.hpp
-+++ /tmp/TeXmacs/src/Plugins/Windows/nowide/cenv.hpp
++++ /tmp/TeXmacs/src/Subsystems/Windows/nowide/cenv.hpp
 @@ -78,6 +78,15 @@
          wstackstring wval;
          if(!wval.convert(value))
@@ -39,7 +39,7 @@
              return 0;
          return -1;
 --- /tmp/nowide_standalone/nowide/cstdio.hpp
-+++ /tmp/TeXmacs/src/Plugins/Windows/nowide/cstdio.hpp
++++ /tmp/TeXmacs/src/Subsystems/Windows/nowide/cstdio.hpp
 @@ -7,6 +7,10 @@
  //
  #ifndef NOWIDE_CSTDIO_H_INCLUDED
