@@ -30,13 +30,14 @@ public:
 
   QSize sizeHint () const override;
   void  setFloatingResizeGripVisible (bool visible);
+  void  refreshNow (bool automatic= false);
 
 private:
   void updateConnectionStatus ();
   void connectGoogle ();
   void disconnectGoogle ();
-  void refreshLists ();
-  void refreshTasks ();
+  void refreshLists (bool automatic= false);
+  void refreshTasks (bool automatic= false);
   void newTask ();
   void completeSelectedTask ();
   QString selectedListId () const;
@@ -56,8 +57,10 @@ private:
   QPushButton* completeButton;
   QTreeWidget* taskTree;
   QSizeGrip*   floatingSizeGrip;
+  bool          refreshRunning;
 };
 
 void google_tasks_show ();
+void google_tasks_schedule_background_refresh ();
 
 #endif // QTMGOOGLETASKSPANE_HPP

@@ -45,6 +45,7 @@
 
 #ifdef QTTEXMACS
 #include "Qt/QTMApplication.hpp"
+#include "QTMGoogleTasksPane.hpp"
 #include "Qt/qt_utilities.hpp"
 #include <QDir>
 #endif
@@ -848,6 +849,9 @@ TeXmacs_main (int argc, char** argv) {
     if (N(extra_init_cmd) > 0)
       startup_progress (97, "Scheduling startup tasks");
     startup_progress (98, "Preparing editor");
+#ifdef QTTEXMACS
+    google_tasks_schedule_background_refresh ();
+#endif
     gui_start_loop ();
   
     if (DEBUG_STD) debug_boot << "Stopping server...\n";

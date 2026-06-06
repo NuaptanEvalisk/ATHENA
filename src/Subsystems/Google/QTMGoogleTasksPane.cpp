@@ -12,7 +12,9 @@
 
 #include "GoogleOAuth.hpp"
 #include "QTMMainTabWindow.hpp"
+#include "QTMToast.hpp"
 #include "boot.hpp"
+#include "qt_utilities.hpp"
 
 #include <DockAreaWidget.h>
 #include <DockSplitter.h>
@@ -27,7 +29,10 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QMessageBox>
+#include <QPointer>
 #include <QPushButton>
+#include <QSet>
+#include <QSharedPointer>
 #include <QSignalBlocker>
 #include <QSizeGrip>
 #include <QTimer>
@@ -37,6 +42,12 @@
 
 static QTMGoogleTasksPane* google_tasks_widget= nullptr;
 static ads::CDockWidget* google_tasks_dock= nullptr;
+static QTimer* google_tasks_refresh_timer= nullptr;
+static bool google_tasks_refresh_scheduled= false;
+static bool google_tasks_connection_toast_shown= false;
+static bool google_tasks_snapshot_ready= false;
+static bool google_tasks_monitor_running= false;
+static QSet<QString> google_tasks_known_ids;
 
 namespace {
 
@@ -63,10 +74,78 @@ update_google_tasks_floating_state (ads::CDockWidget* dock, bool floating) {
   if (floating && dock != nullptr) dock->resize (520, 680);
 }
 
+static void
+google_tasks_toast (const QString& title, const QString& body) {
+  qtm_show_toast (from_qstring (body), from_qstring (title));
+}
+
+struct GoogleTaskMonitorState {
+  int pending= 0;
+  int newCount= 0;
+  QString firstNewTitle;
+  QSet<QString> seen;
+};
+
+static void
+google_tasks_monitor_active_tasks () {
+  if (google_tasks_monitor_running ||
+      GoogleOAuth::instance ().clientId ().trimmed ().isEmpty () ||
+      !GoogleOAuth::instance ().hasRefreshToken ())
+    return;
+
+  google_tasks_monitor_running= true;
+  GoogleTasksClient::instance ().listTaskLists (
+    [] (const QVector<GoogleTaskList>& lists, const QString& error) {
+      if (!error.isEmpty () || lists.isEmpty ()) {
+        google_tasks_monitor_running= false;
+        if (!google_tasks_snapshot_ready) google_tasks_snapshot_ready= true;
+        return;
+      }
+
+      QSharedPointer<GoogleTaskMonitorState> state (
+        new GoogleTaskMonitorState);
+      state->pending= lists.size ();
+      for (const GoogleTaskList& list: lists) {
+        GoogleTasksClient::instance ().listTasks (
+          list.id, false,
+          [state] (const QVector<GoogleTask>& tasks, const QString&) {
+            for (const GoogleTask& task: tasks) {
+              if (task.id.isEmpty ()) continue;
+              state->seen.insert (task.id);
+              if (google_tasks_snapshot_ready &&
+                  !google_tasks_known_ids.contains (task.id)) {
+                state->newCount++;
+                if (state->firstNewTitle.isEmpty ())
+                  state->firstNewTitle= task.title;
+              }
+            }
+
+            state->pending--;
+            if (state->pending > 0) return;
+
+            google_tasks_known_ids= state->seen;
+            google_tasks_monitor_running= false;
+            if (!google_tasks_snapshot_ready) {
+              google_tasks_snapshot_ready= true;
+              return;
+            }
+
+            if (state->newCount == 1)
+              google_tasks_toast (
+                "Google Tasks", "New task: " + state->firstNewTitle);
+            else if (state->newCount > 1)
+              google_tasks_toast (
+                "Google Tasks",
+                QString ("%1 new tasks").arg (state->newCount));
+          });
+      }
+    });
+}
+
 } // namespace
 
 QTMGoogleTasksPane::QTMGoogleTasksPane (QWidget* parent)
-  : QWidget (parent) {
+  : QWidget (parent), refreshRunning (false) {
   QVBoxLayout* outer= new QVBoxLayout (this);
   outer->setContentsMargins (14, 12, 14, 12);
   outer->setSpacing (10);
@@ -123,13 +202,13 @@ QTMGoogleTasksPane::QTMGoogleTasksPane (QWidget* parent)
   connect (disconnectButton, &QPushButton::clicked,
            [this] () { disconnectGoogle (); });
   connect (refreshButton, &QPushButton::clicked,
-           [this] () { refreshLists (); });
+           [this] () { refreshLists (false); });
   connect (showCompletedCheck, &QCheckBox::toggled,
-           [this] () { refreshTasks (); });
+           [this] () { refreshTasks (false); });
   connect (taskListCombo,
            static_cast<void (QComboBox::*) (int)> (
              &QComboBox::currentIndexChanged),
-           [this] (int) { refreshTasks (); });
+           [this] (int) { refreshTasks (false); });
   connect (newButton, &QPushButton::clicked, [this] () { newTask (); });
   connect (completeButton, &QPushButton::clicked,
            [this] () { completeSelectedTask (); });
@@ -145,6 +224,11 @@ QTMGoogleTasksPane::sizeHint () const {
 void
 QTMGoogleTasksPane::setFloatingResizeGripVisible (bool visible) {
   if (floatingSizeGrip != nullptr) floatingSizeGrip->setVisible (visible);
+}
+
+void
+QTMGoogleTasksPane::refreshNow (bool automatic) {
+  refreshLists (automatic);
 }
 
 void
@@ -180,13 +264,20 @@ QTMGoogleTasksPane::connectGoogle () {
   GoogleOAuth::instance ().authorizeTasks (this, [this] (bool ok,
                                                         const QString& msg) {
     setBusy (false, msg);
-    if (ok) refreshLists ();
+    google_tasks_toast ("Google Tasks", msg);
+    if (ok) {
+      google_tasks_snapshot_ready= false;
+      google_tasks_known_ids.clear ();
+    }
+    if (ok) refreshLists (false);
   });
 }
 
 void
 QTMGoogleTasksPane::disconnectGoogle () {
   GoogleOAuth::instance ().forgetTokens ();
+  google_tasks_snapshot_ready= false;
+  google_tasks_known_ids.clear ();
   taskListCombo->clear ();
   taskTree->clear ();
   updateConnectionStatus ();
@@ -207,18 +298,31 @@ QTMGoogleTasksPane::selectedTaskId () const {
 }
 
 void
-QTMGoogleTasksPane::refreshLists () {
-  setBusy (true, "Loading Google task lists...");
+QTMGoogleTasksPane::refreshLists (bool automatic) {
+  if (refreshRunning) return;
+  if (GoogleOAuth::instance ().clientId ().trimmed ().isEmpty () ||
+      !GoogleOAuth::instance ().hasRefreshToken ()) {
+    if (!automatic) updateConnectionStatus ();
+    return;
+  }
+  refreshRunning= true;
+  if (!automatic) setBusy (true, "Loading Google task lists...");
+  QPointer<QTMGoogleTasksPane> self (this);
   GoogleTasksClient::instance ().listTaskLists (
-    [this] (const QVector<GoogleTaskList>& lists, const QString& error) {
+    [self, automatic] (const QVector<GoogleTaskList>& lists,
+                       const QString& error) {
+      if (self.isNull ()) return;
+      self->refreshRunning= false;
       if (!error.isEmpty ()) {
-        setBusy (false, error);
+        if (!automatic) self->setBusy (false, error);
+        else self->setStatus (error);
         return;
       }
-      populateLists (lists);
-      setBusy (false, lists.isEmpty ()? QString ("No task lists found."):
-                                      QString ("Task lists loaded."));
-      refreshTasks ();
+      self->populateLists (lists);
+      if (!automatic)
+        self->setBusy (false, lists.isEmpty ()? QString ("No task lists found."):
+                                               QString ("Task lists loaded."));
+      self->refreshTasks (automatic);
     });
 }
 
@@ -238,22 +342,26 @@ QTMGoogleTasksPane::populateLists (const QVector<GoogleTaskList>& lists) {
 }
 
 void
-QTMGoogleTasksPane::refreshTasks () {
+QTMGoogleTasksPane::refreshTasks (bool automatic) {
   QString listId= selectedListId ();
   if (listId.isEmpty ()) {
     taskTree->clear ();
     return;
   }
-  setBusy (true, "Loading tasks...");
+  if (!automatic) setBusy (true, "Loading tasks...");
+  QPointer<QTMGoogleTasksPane> self (this);
   GoogleTasksClient::instance ().listTasks (
     listId, showCompletedCheck->isChecked (),
-    [this] (const QVector<GoogleTask>& tasks, const QString& error) {
+    [self, automatic] (const QVector<GoogleTask>& tasks,
+                       const QString& error) {
+      if (self.isNull ()) return;
       if (!error.isEmpty ()) {
-        setBusy (false, error);
+        if (!automatic) self->setBusy (false, error);
+        else self->setStatus (error);
         return;
       }
-      populateTasks (tasks);
-      setBusy (false, QString ("%1 task(s) loaded.").arg (tasks.size ()));
+      self->populateTasks (tasks);
+      self->setBusy (false, QString ("%1 task(s) loaded.").arg (tasks.size ()));
     });
 }
 
@@ -353,4 +461,53 @@ google_tasks_show () {
     set_google_tasks_area_width (google_tasks_dock);
   });
   google_tasks_widget->setFocus ();
+}
+
+void
+google_tasks_schedule_background_refresh () {
+  if (headless_mode || google_tasks_refresh_scheduled) return;
+  QObject* context= QApplication::instance ();
+  if (context == nullptr) return;
+  google_tasks_refresh_scheduled= true;
+
+  auto refresh= [] () {
+    QString clientId= GoogleOAuth::instance ().clientId ().trimmed ();
+    bool hasToken= GoogleOAuth::instance ().hasRefreshToken ();
+    if (clientId.isEmpty () || !hasToken) {
+      if (!google_tasks_connection_toast_shown) {
+        google_tasks_connection_toast_shown= true;
+        google_tasks_toast (
+          "Google Tasks",
+          clientId.isEmpty ()?
+            "Not connected: configure the OAuth client ID in Preferences.":
+            "Not connected: sign in from Preferences or Tools -> Google Tasks.");
+      }
+      return;
+    }
+    GoogleOAuth::instance ().getAccessToken (
+      [] (const QString& token, const QString& error) {
+        if (!google_tasks_connection_toast_shown) {
+          google_tasks_connection_toast_shown= true;
+          google_tasks_toast (
+            "Google Tasks",
+            error.isEmpty () && !token.isEmpty ()?
+              "Connected and background refresh is enabled.":
+              "Not connected: " + error);
+        }
+        if (error.isEmpty () && !token.isEmpty ())
+          google_tasks_monitor_active_tasks ();
+      });
+    if (google_tasks_widget != nullptr)
+      google_tasks_widget->refreshNow (true);
+  };
+
+  QTimer::singleShot (8000, context, [refresh] () {
+    refresh ();
+    if (google_tasks_refresh_timer == nullptr) {
+      google_tasks_refresh_timer= new QTimer (QApplication::instance ());
+      QObject::connect (google_tasks_refresh_timer, &QTimer::timeout,
+                        [refresh] () { refresh (); });
+      google_tasks_refresh_timer->start (60000);
+    }
+  });
 }
