@@ -10,6 +10,7 @@
 
 #include "QTMPreferencesDialog.hpp"
 #include "QTMVaultInfoModel.hpp"
+#include "GoogleOAuth.hpp"
 
 #include "boot.hpp"
 #include "font.hpp"
@@ -1408,7 +1409,63 @@ QTMPreferencesDialog::buildOtherPage () {
   security->layout ()->addWidget (note);
   finish_page (security);
 
-  return tabbed ({{"AI", ai}, {"Security", security}});
+  QWidget* connectivity= make_page ();
+  QFormLayout* google= add_section (connectivity, "Google Tasks");
+  QLineEdit* clientId= add_line_edit (
+    google, "OAuth desktop client ID:", "google oauth client id", "");
+  QLineEdit* clientSecret= add_line_edit (
+    google, "OAuth desktop client secret:", "google oauth client secret", "",
+    true);
+  QLabel* googleStatus= new QLabel (connectivity);
+  googleStatus->setWordWrap (true);
+  auto refreshGoogleStatus= [googleStatus] () {
+    if (GoogleOAuth::instance ().clientId ().trimmed ().isEmpty ())
+      googleStatus->setText (
+        "Create a Google Cloud OAuth client of type Desktop app, then paste "
+        "its client ID here.");
+    else if (GoogleOAuth::instance ().hasRefreshToken ())
+      googleStatus->setText ("Google Tasks is connected.");
+    else
+      googleStatus->setText ("Google Tasks is not connected.");
+  };
+  QWidget* googleButtons= new QWidget (connectivity);
+  QHBoxLayout* googleButtonLayout= new QHBoxLayout (googleButtons);
+  googleButtonLayout->setContentsMargins (0, 0, 0, 0);
+  QPushButton* connectGoogle= new QPushButton ("Connect to Google", googleButtons);
+  QPushButton* disconnectGoogle= new QPushButton ("Disconnect", googleButtons);
+  googleButtonLayout->addWidget (connectGoogle);
+  googleButtonLayout->addWidget (disconnectGoogle);
+  googleButtonLayout->addStretch (1);
+  google->addRow (label ("Connection status:"), googleStatus);
+  google->addRow (label ("Google account:"), googleButtons);
+  QObject::connect (connectGoogle, &QPushButton::clicked,
+                    [clientId, clientSecret, googleStatus, connectGoogle,
+                     disconnectGoogle, refreshGoogleStatus] () {
+    GoogleOAuth::instance ().setClientId (clientId->text ());
+    GoogleOAuth::instance ().setClientSecret (clientSecret->text ());
+    connectGoogle->setEnabled (false);
+    disconnectGoogle->setEnabled (false);
+    googleStatus->setText ("Opening browser for Google authorization...");
+    GoogleOAuth::instance ().authorizeTasks (
+      connectGoogle, [googleStatus, connectGoogle, disconnectGoogle,
+                      refreshGoogleStatus] (bool, const QString& message) {
+        googleStatus->setText (message);
+        connectGoogle->setEnabled (true);
+        disconnectGoogle->setEnabled (true);
+        if (GoogleOAuth::instance ().hasRefreshToken ())
+          refreshGoogleStatus ();
+      });
+  });
+  QObject::connect (disconnectGoogle, &QPushButton::clicked,
+                    [refreshGoogleStatus] () {
+    GoogleOAuth::instance ().forgetTokens ();
+    refreshGoogleStatus ();
+  });
+  refreshGoogleStatus ();
+  finish_page (connectivity);
+
+  return tabbed ({{"AI", ai}, {"Connectivity", connectivity},
+                  {"Security", security}});
 }
 
 void

@@ -47,6 +47,7 @@
 #include "QTMESCSymbolPicker.hpp"
 #include "QTMFontSelector.hpp"
 #include "QTMPreferencesDialog.hpp"
+#include "QTMGoogleTasksPane.hpp"
 #include "ATHENA/Data/image_background.hpp"
 #include "boot.hpp"
 #include "qt_widget.hpp"
@@ -1733,6 +1734,8 @@ initialize_glue () {
                            ads_restore_visible_panes, 0, 0, 0);
   tmscm_install_procedure ("vault-backup-viewer-show",
                            vault_backup_viewer_show, 0, 0, 0);
+  tmscm_install_procedure ("google-tasks-show",
+                           google_tasks_show, 0, 0, 0);
   tmscm_install_procedure ("namespace-manager-show",
                            namespace_manager_show, 0, 0, 0);
   tmscm_install_procedure ("namespace-explorer-show",

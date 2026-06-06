@@ -19,6 +19,7 @@
 #include "boot.hpp"
 #include "drd_std.hpp"
 #include "ATHENA/Data/vault.hpp"
+#include "ATHENA/Data/new_view.hpp"
 
 int geometry_w= 800, geometry_h= 600;
 int geometry_x= 0  , geometry_y= 0;
@@ -98,7 +99,8 @@ notify_window_resize (string name, SI ww, SI hh) {
         resize_accept (as_int (old_w), as_int (old_h), w, h)) {
       set_user_preference ("width " * name, as_string (w));
       set_user_preference ("height " * name, as_string (h));
-      call ("window-resize-notifier", object (name));
+      if (!is_none (get_current_view_safe ()))
+        call ("window-resize-notifier", object (name));
     }
   }
 }

@@ -458,6 +458,7 @@ set (ATHENA_Include_Dirs
   ${ATHENA_SOURCE_DIR}/src/Kernel/Containers
   ${ATHENA_SOURCE_DIR}/src/Kernel/Types
   ${ATHENA_SOURCE_DIR}/src/Subsystems
+  ${ATHENA_SOURCE_DIR}/src/Subsystems/Google
   ${ATHENA_SOURCE_DIR}/src/Subsystems/PEGLib
   ${ATHENA_SOURCE_DIR}/src/Subsystems/Pdf/LibAesgm
   ${ATHENA_SOURCE_DIR}/src/Subsystems/Gnutls
@@ -520,6 +521,7 @@ file (GLOB_RECURSE ATHENA_Subsystems_SRCS
   "${ATHENA_SOURCE_DIR}/src/Subsystems/Cairo/*.cpp"
   "${ATHENA_SOURCE_DIR}/src/Subsystems/Database/*.cpp"
   "${ATHENA_SOURCE_DIR}/src/Subsystems/Freetype/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Subsystems/Google/*.cpp"
   "${ATHENA_SOURCE_DIR}/src/Subsystems/Gnutls/*.cpp"
   "${ATHENA_SOURCE_DIR}/src/Subsystems/Pdf/*.cpp"
   "${ATHENA_SOURCE_DIR}/src/Subsystems/Pdf/*.c"
@@ -660,15 +662,15 @@ if (ATHENA_GUI STREQUAL "Qt" OR ATHENA_GUI STREQUAL "Qt5" OR ATHENA_GUI STREQUAL
     endif ()
 
     if (APPLE)
-      find_package (Qt5 COMPONENTS Core Gui Widgets PrintSupport Svg MacExtras REQUIRED)
+      find_package (Qt5 COMPONENTS Core Gui Widgets PrintSupport Svg Network MacExtras REQUIRED)
     else (APPLE)
-      find_package (Qt5 COMPONENTS Core Gui Widgets PrintSupport Svg REQUIRED)
+      find_package (Qt5 COMPONENTS Core Gui Widgets PrintSupport Svg Network REQUIRED)
     endif ()
 
     if (APPLE)
-      set (QT_LIBRARIES Qt5::Core Qt5::Gui Qt5::Widgets Qt5::PrintSupport Qt5::Svg Qt5::MacExtras)
+      set (QT_LIBRARIES Qt5::Core Qt5::Gui Qt5::Widgets Qt5::PrintSupport Qt5::Svg Qt5::Network Qt5::MacExtras)
     else (APPLE)
-      set (QT_LIBRARIES Qt5::Core Qt5::Gui Qt5::Widgets Qt5::PrintSupport Qt5::Svg)
+      set (QT_LIBRARIES Qt5::Core Qt5::Gui Qt5::Widgets Qt5::PrintSupport Qt5::Svg Qt5::Network)
     endif (APPLE)
 
     set (ATHENA_Include_Dirs
@@ -678,6 +680,7 @@ if (ATHENA_GUI STREQUAL "Qt" OR ATHENA_GUI STREQUAL "Qt5" OR ATHENA_GUI STREQUAL
       ${Qt5Widgets_INCLUDE_DIRS}
       ${Qt5PrintSupport_INCLUDE_DIRS}
       ${Qt5Svg_INCLUDE_DIRS}
+      ${Qt5Network_INCLUDE_DIRS}
       ${Qt5MacExtras_INCLUDE_DIRS}
     )
 

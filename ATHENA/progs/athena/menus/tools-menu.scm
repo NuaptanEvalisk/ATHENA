@@ -46,6 +46,7 @@
   ("Vault backup viewer" (open-vault-backup-viewer))
   ("Vault Bugcheck" (vault-bugcheck))
   ("Vault maintenance" (vault-maintenance))
+  ("Google Tasks" (google-tasks-show))
   ("Shortcuts listing" (list-all-shortcuts))
   (-> "Speech"      ("Off" (reset-preference "speech"))
       ---
