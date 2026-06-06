@@ -45,16 +45,28 @@ vault_maintenance_run (string vault_dir) {
      vault_maintenance_pass_print_summary}
   };
 
-  for (const VaultMaintenancePass& pass : passes) {
+  size_t pass_count = sizeof (passes) / sizeof (passes[0]);
+  for (size_t i=0; i<pass_count; i++) {
+    const VaultMaintenancePass& pass = passes[i];
     log_info (std::string ("pass start: ") + pass.id + " (" +
               pass.description + ")");
+    size_t warning_count = ctx.warnings.size ();
     VaultMaintenancePassResult result = pass.run (ctx);
     std::string message = result.message.empty () ? "ok" : result.message;
-    ctx.pass_records.push_back (
-      {pass.id, pass.description, result.ok, message});
+    bool produced_warning = ctx.warnings.size () > warning_count;
+    if (std::string (pass.id) != "summary")
+      ctx.pass_records.push_back (
+        {pass.id, pass.description, result.ok ? "success" : "failed",
+         message, produced_warning});
     if (!result.ok) {
       message = result.message.empty () ? "failed" : result.message;
       log_error (std::string ("pass failed: ") + pass.id + ": " + message);
+      for (size_t j=i + 1; j<pass_count; j++) {
+        if (std::string (passes[j].id) == "summary") continue;
+        ctx.pass_records.push_back (
+          {passes[j].id, passes[j].description, "not-run",
+           "not run because an earlier pass failed", false});
+      }
       if (std::string (pass.id) != "summary" &&
           !vault_maintenance_write_summary_page (ctx, false, pass.id, message))
         log_error ("summary: failed to write failure summary page");

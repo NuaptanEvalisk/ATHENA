@@ -6,6 +6,9 @@
 
 #include "ATHENA/Data/vault_maintenance_internal.hpp"
 
+#include "boot.hpp"
+#include "scheme.hpp"
+
 #include <algorithm>
 #include <cctype>
 #include <filesystem>
@@ -51,6 +54,58 @@ tm_escape_text (const std::string& text) {
   return out;
 }
 
+static std::string
+tm_text (const std::string& text) {
+  return tm_escape_text (text);
+}
+
+static std::string
+tm_verbatim (const std::string& text) {
+  return "<verbatim|" + tm_escape_text (text) + ">";
+}
+
+static std::string
+tm_strong (const std::string& text) {
+  return "<strong|" + tm_escape_text (text) + ">";
+}
+
+static std::string
+tm_colored (const std::string& color, const std::string& body) {
+  return "<with|color|" + color + "|" + body + ">";
+}
+
+static std::string
+tm_cell (const std::string& body) {
+  return "<cell|" + body + ">";
+}
+
+static std::string
+tm_row (std::initializer_list<std::string> cells) {
+  std::string out = "<row";
+  for (const std::string& cell : cells)
+    out += "|" + tm_cell (cell);
+  out += ">";
+  return out;
+}
+
+static std::string
+tm_table (const std::vector<std::string>& rows) {
+  std::string out =
+    "<tabular|<tformat|<twith|table-width|1par>|"
+    "<twith|table-hmode|min>|"
+    "<cwith|1|1|1|-1|cell-background|#ececec>|"
+    "<cwith|1|1|1|-1|cell-bborder|1ln>|"
+    "<cwith|1|-1|1|-1|cell-hyphen|t>|"
+    "<cwith|1|-1|1|-1|cell-lsep|0.6em>|"
+    "<cwith|1|-1|1|-1|cell-rsep|0.6em>|"
+    "<cwith|1|-1|1|-1|cell-tsep|0.35em>|"
+    "<cwith|1|-1|1|-1|cell-bsep|0.35em>|<table";
+  for (const std::string& row : rows)
+    out += "|" + row;
+  out += ">>>";
+  return out;
+}
+
 static std::vector<std::string>
 parse_vaultfile_strings (const std::string& text) {
   std::vector<std::string> values;
@@ -81,6 +136,39 @@ scheme_quote_string (const std::string& text) {
   }
   out.push_back ('"');
   return out;
+}
+
+static bool
+read_vaultfile_fields (const fs::path& root,
+                       std::vector<std::string>& fields) {
+  std::string text;
+  if (!read_file_bytes (root / "Vaultfile", text)) return false;
+  fields = parse_vaultfile_strings (text);
+  if (fields.size () < 2) return false;
+  while (fields.size () < 7) {
+    if (fields.size () == 2) fields.push_back ("");
+    else if (fields.size () == 3) fields.push_back ("ns.sqlite");
+    else fields.push_back ("");
+  }
+  if (fields[3].empty ()) fields[3] = "ns.sqlite";
+  return true;
+}
+
+static std::string
+vault_startup_page_target (VaultMaintenanceContext& ctx,
+                           std::string& label) {
+  std::vector<std::string> fields;
+  if (read_vaultfile_fields (ctx.root, fields) && !trim_copy (fields[4]).empty ()) {
+    label = "Startup page";
+    std::string target = trim_copy (fields[4]);
+    if (starts_with (target, "tmfs://") || starts_with (target, "file://"))
+      return target;
+    fs::path p (target);
+    if (p.is_absolute ()) return p.generic_string ();
+    return (ctx.root / p).generic_string ();
+  }
+  label = "Homepage";
+  return "tmfs://welcome/home";
 }
 
 static bool
@@ -155,25 +243,12 @@ summary_relative_path (const VaultMaintenanceContext& ctx) {
 
 static bool
 write_one_time_startup_page (VaultMaintenanceContext& ctx) {
-  std::string text;
   fs::path vault_file = ctx.root / "Vaultfile";
-  if (!read_file_bytes (vault_file, text)) {
-    log_error ("summary: failed to read Vaultfile while setting one-time "
-               "startup page");
-    return false;
-  }
-
-  std::vector<std::string> fields = parse_vaultfile_strings (text);
-  if (fields.size () < 2) {
+  std::vector<std::string> fields;
+  if (!read_vaultfile_fields (ctx.root, fields)) {
     log_error ("summary: invalid Vaultfile while setting one-time startup page");
     return false;
   }
-  while (fields.size () < 7) {
-    if (fields.size () == 2) fields.push_back ("");
-    else if (fields.size () == 3) fields.push_back ("ns.sqlite");
-    else fields.push_back ("");
-  }
-  if (fields[3].empty ()) fields[3] = "ns.sqlite";
 
   std::string rel = summary_relative_path (ctx);
   fields[5] = rel;
@@ -247,14 +322,15 @@ purge_old_summary_files (VaultMaintenanceContext& ctx, const fs::path& dir,
   return true;
 }
 
-static void
-append_item (std::ostringstream& out, const std::string& text) {
-  out << "  <item>" << tm_escape_text (text) << "\n";
-}
-
-static void
-append_block_title (std::ostringstream& out, const std::string& text) {
-  out << "<strong|" << tm_escape_text (text) << ">\n\n";
+static std::string
+status_label (const VaultMaintenancePassRecord& record) {
+  if (record.status == "not-run")
+    return tm_colored ("#cc6600", tm_strong ("Did not run"));
+  if (record.status == "failed")
+    return tm_colored ("#c00000", tm_strong ("Failed"));
+  if (record.produced_warning)
+    return tm_colored ("#b58900", tm_strong ("Warning"));
+  return tm_colored ("#008000", tm_strong ("Success"));
 }
 
 static std::string
@@ -262,88 +338,130 @@ summary_document_text (VaultMaintenanceContext& ctx, bool success,
                        const std::string& failure_pass,
                        const std::string& failure_message) {
   VaultMaintenanceSummary& summary = ctx.summary;
+  std::vector<std::string> overview_rows = {
+    tm_row ({tm_strong ("Field"), tm_strong ("Value")}),
+    tm_row ({tm_text ("Vault"), tm_verbatim (ctx.vault_name)}),
+    tm_row ({tm_text ("Root"), tm_verbatim (ctx.root.string ())}),
+    tm_row ({tm_text ("Generated"), tm_verbatim (timestamp_string ())}),
+    tm_row ({tm_text ("Summary path"),
+             tm_verbatim (summary.summary_file.string ())}),
+    tm_row ({tm_text ("Status"),
+             success ? tm_colored ("#008000", tm_strong ("Success"))
+                     : tm_colored ("#c00000", tm_strong ("Failure"))}),
+    tm_row ({tm_text ("Summary retention"),
+             tm_verbatim (summary_retention_label (summary.summary_keep_count))}),
+    tm_row ({tm_text ("Old summaries purged"),
+             tm_verbatim (std::to_string (summary.summaries_purged))})
+  };
+  if (!success) {
+    overview_rows.push_back (
+      tm_row ({tm_text ("Failed pass"), tm_verbatim (failure_pass)}));
+    overview_rows.push_back (
+      tm_row ({tm_text ("Failure"), tm_text (failure_message)}));
+  }
+
+  std::vector<std::string> pass_rows = {
+    tm_row ({tm_strong ("Pass"), tm_strong ("Description"),
+             tm_strong ("Status"), tm_strong ("Message")})
+  };
+  for (const VaultMaintenancePassRecord& record : ctx.pass_records) {
+    pass_rows.push_back (
+      tm_row ({tm_verbatim (record.id), tm_text (record.description),
+               status_label (record),
+               record.message.empty () || record.message == "ok"
+                 ? tm_text ("")
+                 : tm_text (record.message)}));
+  }
+
+  std::vector<std::string> work_rows = {
+    tm_row ({tm_strong ("Area"), tm_strong ("Result")}),
+    tm_row ({tm_text ("Backup archive"),
+             tm_verbatim (summary.backup_archive.string ())}),
+    tm_row ({tm_text ("Full backup retention"),
+             tm_text (backup_retention_label (summary.backup_limit) +
+                      "; purged " + std::to_string (summary.backups_purged) +
+                      " old backup(s)")}),
+    tm_row ({tm_text ("Pre-save history retention"),
+             tm_text (manual_save_retention_label (
+                        summary.manual_save_retention_seconds) +
+                      "; purged " +
+                      std::to_string (summary.manual_save_histories_purged) +
+                      " old history folder(s)")}),
+    tm_row ({tm_text ("Image normalization"),
+             tm_text ("renamed " + std::to_string (summary.image_renames) +
+                      " image file(s), updated " +
+                      std::to_string (summary.image_reference_updates) +
+                      " image reference(s)")}),
+    tm_row ({tm_text ("Health check"),
+             tm_text ("scanned " +
+                      std::to_string (summary.health_files_scanned) +
+                      " .ath file(s), unreadable " +
+                      std::to_string (summary.health_files_failed))}),
+    tm_row ({tm_text ("Anchors"),
+             tm_text ("wrapped " +
+                      std::to_string (summary.anchor_enunciations_wrapped) +
+                      " enunciation(s), added " +
+                      std::to_string (summary.anchor_headings_added) +
+                      " heading anchor(s), updated " +
+                      std::to_string (summary.anchor_stale_structures_updated) +
+                      " stale structure(s), rewrote " +
+                      std::to_string (summary.anchor_map_references_updated) +
+                      " map reference(s), removed " +
+                      std::to_string (summary.anchor_dead_pairs_removed) +
+                      " dead pair(s), failures " +
+                      std::to_string (summary.anchor_failures))})
+  };
+  if (summary.orphan_collection_enabled)
+    work_rows.push_back (
+      tm_row ({tm_text ("Orphan assets"),
+               tm_text ("collected " +
+                        std::to_string (summary.orphan_assets_collected) +
+                        " asset(s) into ") +
+                 tm_verbatim (summary.orphan_dir.string ())}));
+  else
+    work_rows.push_back (
+      tm_row ({tm_text ("Orphan assets"), tm_text ("collection disabled")}));
+
+  std::string startup_label;
+  std::string startup_target = vault_startup_page_target (ctx, startup_label);
+
+  std::ostringstream body;
+  body << "  <section|Overview>\n\n";
+  body << "  " << tm_table (overview_rows) << "\n\n";
+
+  if (!ctx.warnings.empty ()) {
+    std::vector<std::string> warning_rows = {
+      tm_row ({tm_strong ("Warnings")})
+    };
+    for (const std::string& warning : ctx.warnings)
+      warning_rows.push_back (
+        tm_row ({tm_colored ("#b58900", tm_text (warning))}));
+    body << "  <section|Warnings>\n\n";
+    body << "  " << tm_table (warning_rows) << "\n\n";
+  }
+
+  body << "  <section|Passes>\n\n";
+  body << "  " << tm_table (pass_rows) << "\n\n";
+  body << "  <section|Work Performed>\n\n";
+  body << "  " << tm_table (work_rows) << "\n\n";
+  body << "  <section|Next Step>\n\n";
+  body << "  <cardlink|" << tm_escape_text (startup_label)
+       << "|" << tm_escape_text (startup_target) << ">\n\n";
+
+  std::string font = trim_copy (
+    tm_to_std (get_preference ("vault preferred font", "")));
+
   std::ostringstream out;
   out << "<TeXmacs|2.1.4>\n\n";
   out << "<style|generic>\n\n";
   out << "<\\body>\n";
-  out << "<strong|Vault Maintenance Summary>\n\n";
-
-  append_block_title (out, "Overview");
-  out << "<\\itemize>\n";
-  append_item (out, "Vault: " + ctx.vault_name);
-  append_item (out, "Root: " + ctx.root.string ());
-  append_item (out, "Generated: " + timestamp_string ());
-  append_item (out, "Status: " + std::string (success ? "Success" : "Failure"));
-  append_item (out, "Summary retention: " +
-                    summary_retention_label (summary.summary_keep_count));
-  append_item (out, "Old summaries purged: " +
-                    std::to_string (summary.summaries_purged));
-  if (!success) {
-    append_item (out, "Failed pass: " + failure_pass);
-    append_item (out, "Failure: " + failure_message);
+  out << "<doc-data|<doc-title|Vault Maintenance Summary>>\n\n";
+  if (!font.empty ()) {
+    out << "<\\with|font|" << tm_escape_text (font) << ">\n";
+    out << body.str ();
+    out << "</with>\n";
   }
-  out << "</itemize>\n\n";
-
-  if (!ctx.warnings.empty ()) {
-    append_block_title (out, "Warnings");
-    out << "<\\itemize>\n";
-    for (const std::string& warning : ctx.warnings) append_item (out, warning);
-    out << "</itemize>\n\n";
-  }
-
-  append_block_title (out, "Passes");
-  out << "<\\itemize>\n";
-  for (const VaultMaintenancePassRecord& record : ctx.pass_records) {
-    std::string line = record.id + " - " +
-                       (record.ok ? std::string ("success")
-                                  : std::string ("failure"));
-    if (!record.message.empty () && record.message != "ok")
-      line += ": " + record.message;
-    append_item (out, line);
-  }
-  out << "</itemize>\n\n";
-
-  append_block_title (out, "Work Performed");
-  out << "<\\itemize>\n";
-  append_item (out, "Backup archive: " + summary.backup_archive.string ());
-  append_item (out, "Full backup retention: " +
-                    backup_retention_label (summary.backup_limit) +
-                    "; purged " + std::to_string (summary.backups_purged) +
-                    " old backup(s)");
-  append_item (out, "Pre-save history retention: " +
-                    manual_save_retention_label (
-                      summary.manual_save_retention_seconds) +
-                    "; purged " +
-                    std::to_string (summary.manual_save_histories_purged) +
-                    " old history folder(s)");
-  append_item (out, "Image normalization: renamed " +
-                    std::to_string (summary.image_renames) +
-                    " image file(s), updated " +
-                    std::to_string (summary.image_reference_updates) +
-                    " image reference(s)");
-  append_item (out, "Health check: scanned " +
-                    std::to_string (summary.health_files_scanned) +
-                    " .ath file(s), unreadable " +
-                    std::to_string (summary.health_files_failed));
-  append_item (out, "Anchors: wrapped " +
-                    std::to_string (summary.anchor_enunciations_wrapped) +
-                    " enunciation(s), added " +
-                    std::to_string (summary.anchor_headings_added) +
-                    " heading anchor(s), updated " +
-                    std::to_string (summary.anchor_stale_structures_updated) +
-                    " stale structure(s), rewrote " +
-                    std::to_string (summary.anchor_map_references_updated) +
-                    " map reference(s), removed " +
-                    std::to_string (summary.anchor_dead_pairs_removed) +
-                    " dead pair(s), failures " +
-                    std::to_string (summary.anchor_failures));
-  if (summary.orphan_collection_enabled)
-    append_item (out, "Orphan assets: collected " +
-                      std::to_string (summary.orphan_assets_collected) +
-                      " asset(s) into " + summary.orphan_dir.string ());
-  else append_item (out, "Orphan assets: collection disabled");
-  out << "</itemize>\n\n";
-
+  else out << body.str ();
   out << "</body>\n";
   return out.str ();
 }

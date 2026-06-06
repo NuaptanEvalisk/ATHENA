@@ -47,8 +47,9 @@ struct VaultMaintenanceSummary {
 struct VaultMaintenancePassRecord {
   std::string id;
   std::string description;
-  bool ok = false;
+  std::string status;
   std::string message;
+  bool produced_warning = false;
 };
 
 struct VaultMaintenanceContext {
