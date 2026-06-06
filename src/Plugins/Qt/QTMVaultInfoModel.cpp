@@ -100,6 +100,13 @@ qtm_clean_vault_relative_path (const QString& path) {
   return p;
 }
 
+QString
+qtm_clean_vault_target (const QString& target) {
+  QString t= QDir::fromNativeSeparators (target.trimmed ());
+  if (t.startsWith ("tmfs://") || t.startsWith ("file://")) return t;
+  return qtm_clean_vault_relative_path (t);
+}
+
 bool
 qtm_valid_vault_relative_path (const QString& path) {
   if (path.isEmpty ()) return false;
@@ -110,6 +117,14 @@ qtm_valid_vault_relative_path (const QString& path) {
 bool
 qtm_valid_optional_vault_relative_path (const QString& path) {
   return path.isEmpty () || qtm_valid_vault_relative_path (path);
+}
+
+bool
+qtm_valid_optional_vault_target (const QString& target) {
+  if (target.isEmpty ()) return true;
+  if (target.startsWith ("tmfs://") || target.startsWith ("file://"))
+    return true;
+  return qtm_valid_vault_relative_path (target);
 }
 
 QString
@@ -131,6 +146,8 @@ qtm_vaultfile_read (QTMVaultfileInfo& info, QString* error) {
   info.mapPath= "map.tmdb";
   info.preferencesPath= "";
   info.namespaceDbPath= "ns.sqlite";
+  info.startupPage= "";
+  info.oneTimeStartupPage= "";
 
   QFile file (qtm_vaultfile_path ());
   if (!file.open (QIODevice::ReadOnly | QIODevice::Text)) return true;
@@ -141,10 +158,14 @@ qtm_vaultfile_read (QTMVaultfileInfo& info, QString* error) {
   if (fields.size () >= 3) info.preferencesPath= fields[2];
   if (fields.size () >= 4 && !fields[3].isEmpty ())
     info.namespaceDbPath= fields[3];
+  if (fields.size () >= 5) info.startupPage= fields[4];
+  if (fields.size () >= 6) info.oneTimeStartupPage= fields[5];
 
   info.mapPath= qtm_clean_vault_relative_path (info.mapPath);
   info.preferencesPath= qtm_clean_vault_relative_path (info.preferencesPath);
   info.namespaceDbPath= qtm_clean_vault_relative_path (info.namespaceDbPath);
+  info.startupPage= qtm_clean_vault_target (info.startupPage);
+  info.oneTimeStartupPage= qtm_clean_vault_target (info.oneTimeStartupPage);
   if (info.mapPath.isEmpty ()) info.mapPath= "map.tmdb";
   if (info.namespaceDbPath.isEmpty ()) info.namespaceDbPath= "ns.sqlite";
   return true;
@@ -160,6 +181,8 @@ qtm_vaultfile_write (const QTMVaultfileInfo& info, QString* error) {
   out.mapPath= qtm_clean_vault_relative_path (out.mapPath);
   out.preferencesPath= qtm_clean_vault_relative_path (out.preferencesPath);
   out.namespaceDbPath= qtm_clean_vault_relative_path (out.namespaceDbPath);
+  out.startupPage= qtm_clean_vault_target (out.startupPage);
+  out.oneTimeStartupPage= qtm_clean_vault_target (out.oneTimeStartupPage);
 
   if (out.name.trimmed ().isEmpty ()) {
     if (error != nullptr) *error= "Vault name cannot be empty.";
@@ -167,10 +190,12 @@ qtm_vaultfile_write (const QTMVaultfileInfo& info, QString* error) {
   }
   if (!qtm_valid_vault_relative_path (out.mapPath) ||
       !qtm_valid_optional_vault_relative_path (out.preferencesPath) ||
-      !qtm_valid_vault_relative_path (out.namespaceDbPath)) {
+      !qtm_valid_vault_relative_path (out.namespaceDbPath) ||
+      !qtm_valid_optional_vault_target (out.startupPage) ||
+      !qtm_valid_optional_vault_target (out.oneTimeStartupPage)) {
     if (error != nullptr)
       *error= "Vaultfile paths must be relative paths inside the vault, "
-              "without ./ or ../ prefixes.";
+              "tmfs:// links, or file:// links, without ./ or ../ prefixes.";
     return false;
   }
 
@@ -183,7 +208,10 @@ qtm_vaultfile_write (const QTMVaultfileInfo& info, QString* error) {
   stream << "(" << qtm_scheme_quote_qstring (out.name.trimmed ())
          << " " << qtm_scheme_quote_qstring (out.mapPath)
          << " " << qtm_scheme_quote_qstring (out.preferencesPath)
-         << " " << qtm_scheme_quote_qstring (out.namespaceDbPath) << ")\n";
+         << " " << qtm_scheme_quote_qstring (out.namespaceDbPath)
+         << " " << qtm_scheme_quote_qstring (out.startupPage)
+         << " " << qtm_scheme_quote_qstring (out.oneTimeStartupPage)
+         << ")\n";
   file.close ();
 
   vault_load (vault_get_root (), from_qstring_vault_info (out.name.trimmed ()),

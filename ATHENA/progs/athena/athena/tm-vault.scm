@@ -36,6 +36,7 @@
                        load-buffer load-vault-dir
                        string->url vault-load-latest-action
                        go-to-welcome-page
+                       go-to-vault-initial-page
                        vault-show-explorer
                        vault-show-explorer-and-track
                        vault-explorer-track-file
@@ -152,11 +153,23 @@
       (cadddr data)
       "ns.sqlite"))
 
+(define (vaultfile-startup-page data)
+  (if (and (list? data) (>= (length data) 5) (string? (list-ref data 4)))
+      (list-ref data 4)
+      ""))
+
+(define (vaultfile-one-time-startup-page data)
+  (if (and (list? data) (>= (length data) 6) (string? (list-ref data 5)))
+      (list-ref data 5)
+      ""))
+
 (define (vaultfile-normalized data)
   (list (car data)
         (cadr data)
         (vaultfile-preferences-path data)
-        (vaultfile-namespace-db-path data)))
+        (vaultfile-namespace-db-path data)
+        (vaultfile-startup-page data)
+        (vaultfile-one-time-startup-page data)))
 
 (define (vaultfile-normalize! vault-file data)
   (let ((normalized (vaultfile-normalized data)))
@@ -168,7 +181,9 @@
   (list (car data)
         (cadr data)
         prefs-path
-        (vaultfile-namespace-db-path data)))
+        (vaultfile-namespace-db-path data)
+        (vaultfile-startup-page data)
+        (vaultfile-one-time-startup-page data)))
 
 (define (vault-preferences-url dir prefs-path)
   (url-append dir prefs-path))
@@ -211,7 +226,8 @@
              (vault-file (url-append dir "Vaultfile"))
              (data (if (url-exists? vault-file) (load-object vault-file) '())))
         (if (and (list? data) (>= (length data) 2))
-            (vault-preferences-activate dir vault-file data)))))
+            (vault-preferences-activate
+             dir vault-file (vaultfile-normalize! vault-file data))))))
 
 (define (vault-preferences-deactivate)
   (when vault-preferences-active?
@@ -316,7 +332,7 @@
                  (let* ((vault-file (url-append dir "Vaultfile"))
                         (db-path "map.tmdb")
                         (ns-path "ns.sqlite")
-                        (data (list name db-path "" ns-path)))
+                        (data (list name db-path "" ns-path "" "")))
                    (save-object vault-file data)
                    (vault-load/namespace-db dir name db-path ns-path)
                    (if (vault-take-preferences?)

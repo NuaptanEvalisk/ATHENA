@@ -6,8 +6,80 @@
 (tm-define (vault-load-latest-action path-s)
   (load-vault-dir (string->url path-s)))
 
+(define (vault-welcome-default-page)
+  "tmfs://welcome/home")
+
+(define (vault-welcome-field data index default)
+  (if (and (list? data)
+           (> (length data) index)
+           (string? (list-ref data index)))
+      (list-ref data index)
+      default))
+
+(define (vault-welcome-startup-page data)
+  (vault-welcome-field data 4 ""))
+
+(define (vault-welcome-one-time-startup-page data)
+  (vault-welcome-field data 5 ""))
+
+(define (vault-welcome-normalized data)
+  (list (vault-welcome-field data 0 "")
+        (vault-welcome-field data 1 "map.tmdb")
+        (vault-welcome-field data 2 "")
+        (vault-welcome-field data 3 "ns.sqlite")
+        (vault-welcome-startup-page data)
+        (vault-welcome-one-time-startup-page data)))
+
+(define (vault-welcome-clear-one-time data)
+  (let ((normalized (vault-welcome-normalized data)))
+    (list (list-ref normalized 0)
+          (list-ref normalized 1)
+          (list-ref normalized 2)
+          (list-ref normalized 3)
+          (list-ref normalized 4)
+          "")))
+
+(define (vault-welcome-vaultfile)
+  (if (and (defined? 'vault-active?) (vault-active?))
+      (url-append (vault-get-root) "Vaultfile")
+      #f))
+
+(define (vault-welcome-read-vaultfile)
+  (let ((vault-file (vault-welcome-vaultfile)))
+    (if (and vault-file (url-exists? vault-file))
+        (load-object vault-file)
+        '())))
+
+(define (vault-welcome-target->buffer target)
+  (cond ((string-null? target) (vault-welcome-default-page))
+        ((or (string-starts? target "tmfs://")
+             (string-starts? target "file://"))
+         target)
+        ((and (defined? 'vault-active?) (vault-active?))
+         (url-append (vault-get-root) target))
+        (else target)))
+
+(define (vault-welcome-load-target target)
+  (load-buffer (vault-welcome-target->buffer target)))
+
 (tm-define (go-to-welcome-page)
-  (load-buffer "tmfs://welcome/home"))
+  (let* ((data (vault-welcome-read-vaultfile))
+         (startup-page (vault-welcome-startup-page data)))
+    (vault-welcome-load-target
+     (if (string-null? startup-page)
+         (vault-welcome-default-page)
+         startup-page))))
+
+(tm-define (go-to-vault-initial-page)
+  (let* ((vault-file (vault-welcome-vaultfile))
+         (data (vault-welcome-read-vaultfile))
+         (one-time-page (vault-welcome-one-time-startup-page data)))
+    (if (string-null? one-time-page)
+        (go-to-welcome-page)
+        (begin
+          (if vault-file
+              (save-object vault-file (vault-welcome-clear-one-time data)))
+          (vault-welcome-load-target one-time-page)))))
 
 (tmfs-load-handler (welcome name)
   (let* ((recent-files (recent-file-list 15))

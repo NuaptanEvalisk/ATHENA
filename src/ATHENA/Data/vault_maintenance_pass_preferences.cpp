@@ -103,10 +103,15 @@ write_vaultfile_preferences_path (const fs::path& vault_file,
   if (fields.size () < 2) return false;
   std::string ns_rel = fields.size () >= 4 && !fields[3].empty ()
                        ? fields[3] : "ns.sqlite";
+  std::string startup_page = fields.size () >= 5 ? fields[4] : "";
+  std::string one_time_startup_page = fields.size () >= 6 ? fields[5] : "";
   std::string text = "(" + scheme_quote_string (fields[0]) +
                      " " + scheme_quote_string (fields[1]) +
                      " " + scheme_quote_string (prefs_rel) +
-                     " " + scheme_quote_string (ns_rel) + ")\n";
+                     " " + scheme_quote_string (ns_rel) +
+                     " " + scheme_quote_string (startup_page) +
+                     " " + scheme_quote_string (one_time_startup_page) +
+                     ")\n";
   return write_file_bytes (vault_file, text);
 }
 

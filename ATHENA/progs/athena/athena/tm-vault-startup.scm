@@ -46,6 +46,7 @@
              (begin
                (load-vault-dir dir)
                (vault-startup-show-explorer)
-               (if (vault-startup-open-welcome?) (go-to-welcome-page)))
+               (if (vault-startup-open-welcome?)
+                   (go-to-vault-initial-page)))
              (if report-missing?
                  (vault-startup-unavailable-message latest-vault))))))))

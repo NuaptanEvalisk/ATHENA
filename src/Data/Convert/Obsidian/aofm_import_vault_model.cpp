@@ -57,7 +57,8 @@ write_vaultfile(const std::string& destination_root_path,
   if (!vaultfile.is_open()) return false;
   vaultfile << "(" << scheme_quote_string(vault_name)
             << " \"map.tmdb\" " << scheme_quote_string(prefs_path)
-            << " " << scheme_quote_string(namespace_db_path) << ")\n";
+            << " " << scheme_quote_string(namespace_db_path)
+            << " \"\" \"\")\n";
   return (bool) vaultfile;
 }
 

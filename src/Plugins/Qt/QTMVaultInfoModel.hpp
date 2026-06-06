@@ -18,13 +18,17 @@ struct QTMVaultfileInfo {
   QString mapPath;
   QString preferencesPath;
   QString namespaceDbPath;
+  QString startupPage;
+  QString oneTimeStartupPage;
 };
 
 bool    qtm_vault_info_available ();
 QString qtm_vault_root_path ();
 QString qtm_clean_vault_relative_path (const QString& path);
+QString qtm_clean_vault_target (const QString& target);
 bool    qtm_valid_vault_relative_path (const QString& path);
 bool    qtm_valid_optional_vault_relative_path (const QString& path);
+bool    qtm_valid_optional_vault_target (const QString& target);
 QString qtm_vault_relative_from_selected_path (const QString& selected);
 bool    qtm_vaultfile_read (QTMVaultfileInfo& info, QString* error= nullptr);
 bool    qtm_vaultfile_write (const QTMVaultfileInfo& info,

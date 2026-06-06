@@ -1230,14 +1230,24 @@ QTMPreferencesDialog::buildVaultPage () {
     QLineEdit* namespacePath= add_path_chooser_row (
       vi, "Namespace database path:", vaultInfo.namespaceDbPath,
       chooseNamespace);
+    QPushButton* chooseStartup= nullptr;
+    QLineEdit* startupPage= add_path_chooser_row (
+      vi, "Startup page:", vaultInfo.startupPage, chooseStartup);
+    QPushButton* chooseOneTimeStartup= nullptr;
+    QLineEdit* oneTimeStartupPage= add_path_chooser_row (
+      vi, "One-time startup page:", vaultInfo.oneTimeStartupPage,
+      chooseOneTimeStartup);
 
     auto saveVaultfile= [info, vaultName, mapPath, preferencesPath,
-                         namespacePath] () {
+                         namespacePath, startupPage,
+                         oneTimeStartupPage] () {
       QTMVaultfileInfo next;
       next.name= vaultName->text ();
       next.mapPath= mapPath->text ();
       next.preferencesPath= preferencesPath->text ();
       next.namespaceDbPath= namespacePath->text ();
+      next.startupPage= startupPage->text ();
+      next.oneTimeStartupPage= oneTimeStartupPage->text ();
       QString error;
       if (!qtm_vaultfile_write (next, &error)) {
         QMessageBox::warning (info, "Vault Info", error);
@@ -1248,15 +1258,21 @@ QTMPreferencesDialog::buildVaultPage () {
         qtm_clean_vault_relative_path (next.preferencesPath));
       namespacePath->setText (
         qtm_clean_vault_relative_path (next.namespaceDbPath));
+      startupPage->setText (qtm_clean_vault_target (next.startupPage));
+      oneTimeStartupPage->setText (
+        qtm_clean_vault_target (next.oneTimeStartupPage));
     };
 
     auto choosePath= [info, saveVaultfile] (QLineEdit* edit,
-                                           const QString& title) {
+                                           const QString& title,
+                                           bool existing) {
       QString root= qtm_vault_root_path ();
       QString initial= edit->text ().trimmed ().isEmpty ()
         ? root : QDir (root).absoluteFilePath (edit->text ().trimmed ());
-      QString selected= QFileDialog::getSaveFileName (
-        info, title, initial, "All files (*)");
+      QString selected= existing
+        ? QFileDialog::getOpenFileName (
+            info, title, initial, "ATHENA documents (*.ath *.tm);;All files (*)")
+        : QFileDialog::getSaveFileName (info, title, initial, "All files (*)");
       if (selected.isEmpty ()) return;
       QString rel= qtm_vault_relative_from_selected_path (selected);
       if (!qtm_valid_vault_relative_path (rel)) {
@@ -1276,14 +1292,28 @@ QTMPreferencesDialog::buildVaultPage () {
                       saveVaultfile);
     QObject::connect (namespacePath, &QLineEdit::editingFinished,
                       saveVaultfile);
+    QObject::connect (startupPage, &QLineEdit::editingFinished,
+                      saveVaultfile);
+    QObject::connect (oneTimeStartupPage, &QLineEdit::editingFinished,
+                      saveVaultfile);
     QObject::connect (chooseMap, &QPushButton::clicked,
-                      [=] () { choosePath (mapPath, "Choose map database"); });
+                      [=] () { choosePath (mapPath, "Choose map database",
+                                           false); });
     QObject::connect (choosePrefs, &QPushButton::clicked,
                       [=] () { choosePath (preferencesPath,
-                                           "Choose local preferences file"); });
+                                           "Choose local preferences file",
+                                           false); });
     QObject::connect (chooseNamespace, &QPushButton::clicked,
                       [=] () { choosePath (namespacePath,
-                                           "Choose namespace database"); });
+                                           "Choose namespace database",
+                                           false); });
+    QObject::connect (chooseStartup, &QPushButton::clicked,
+                      [=] () { choosePath (startupPage,
+                                           "Choose startup page", true); });
+    QObject::connect (chooseOneTimeStartup, &QPushButton::clicked,
+                      [=] () { choosePath (oneTimeStartupPage,
+                                           "Choose one-time startup page",
+                                           true); });
   }
 
   QComboBox* vaultFont= new QComboBox;
