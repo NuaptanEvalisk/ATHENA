@@ -15,10 +15,22 @@
 #include <QScrollBar>
 #include <QTimer>
 
+static bool
+is_window_backed_view (url view) {
+  return !is_none (view) && concrete_view (view) != NULL &&
+         !is_none (view_to_window (view));
+}
+
+static url
+active_view_or_recent_active (url view) {
+  if (is_window_backed_view (view)) return view;
+  return get_recent_view (url_none (), false, false, true, false);
+}
+
 TeXmacsFocusSnapshot
 capture_texmacs_focus_snapshot () {
   TeXmacsFocusSnapshot s;
-  s.view= get_current_view_safe ();
+  s.view= active_view_or_recent_active (get_current_view_safe ());
   s.widget= QTMWidget::getLastFocusedWidget ();
   s.hScroll= 0;
   s.vScroll= 0;
@@ -40,8 +52,8 @@ capture_texmacs_focus_snapshot () {
 void
 restore_texmacs_focus_snapshot (const TeXmacsFocusSnapshot& s,
                                 bool restoreScroll) {
-  if (!is_none (s.view) && concrete_view (s.view) != NULL)
-    set_current_view (s.view);
+  url view= active_view_or_recent_active (s.view);
+  if (is_window_backed_view (view)) set_current_view (view);
 
   if (s.widget.isNull ()) return;
   if (restoreScroll && s.hasScroll) {
