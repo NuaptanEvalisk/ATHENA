@@ -181,19 +181,15 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (menu-bind new-file-menu
-  (if (window-per-buffer?)
-      ("New window" (new-document)))
-  (if (not (window-per-buffer?))
-      ("New document" (new-document))
-      ("New window" (new-document*)))
+  ("New document" (new-document))
+  ("New window" (new-document*))
   ;;("Clone window" (clone-window))
   )
 
 (menu-bind load-menu
   ("Load" (open-document))
   ("Revert" (revert-buffer))
-  (if (not (window-per-buffer?))
-      ("Load in new window" (open-document*)))
+  ("Load in new window" (open-document*))
   ---
   (link import-top-menu)
   (if (nnull? (recent-file-list 1))
@@ -255,11 +251,8 @@
   ("Page setup" (open-page-setup)))
 
 (menu-bind close-menu
-  (if (window-per-buffer?)
-      ("Close window" (close-document)))
-  (if (not (window-per-buffer?))
-      ("Close document" (close-document))
-      ("Close window" (close-document*)))
+  ("Close document" (close-document))
+  ("Close window" (close-document*))
   ("Close ATHENA" (safely-quit-ATHENA)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -329,10 +322,7 @@
         (=> "Export selection as image"
             (link export-as-image-menu))))
   ---
-  (if (window-per-buffer?)
-      ("Close window" (close-document)))
-  (if (not (window-per-buffer?))
-      ("Close document" (close-document)))
+  ("Close document" (close-document))
   ("Close ATHENA" (safely-quit-ATHENA)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -348,36 +338,23 @@
     ("Forward" (cursor-history-forward)))
   ("Save position" (cursor-history-add (cursor-path)))
   ---
-  (if (not (window-per-buffer?))
-      (link buffer-go-menu)
-      (if (nnull? (linked-file-list))
+  (link buffer-go-menu)
+  (link buffer-windows-menu)
+  ---
+  (group "Buffer in this window")
+  (if (nnull? (buffer-invisible-list 25))
+      (-> "Hidden"
           ---
-          (link linked-file-menu))
-      (if (nnull? (recent-unloaded-file-list 1))
+          (link buffer-invisible-menu)))
+  (if (nnull? (linked-file-list))
+      (-> "Linked"
           ---
-          (link recent-unloaded-file-menu))
-      (if (nnull? (bookmarks-menu))
+          (link linked-file-menu)))
+  (if (nnull? (recent-unloaded-file-list 1))
+      (-> "Recent Files"
           ---
-          (link bookmarks-menu)))
-  (if (window-per-buffer?)
-      (group "Windows")
-      (link buffer-windows-menu)
-      ---
-      (group "Buffer in this window")
-      (if (nnull? (buffer-invisible-list 25))
-          (-> "Hidden"
-              ---
-              (link buffer-invisible-menu)))
-      (if (nnull? (linked-file-list))
-          (-> "Linked"
-              ---
-              (link linked-file-menu)))
-      (if (nnull? (recent-unloaded-file-list 1))
-          (-> "Recent Files"
-              ---
-              (link recent-unloaded-file-menu)))
-      (if (nnull? (bookmarks-menu))
-          (-> "Bookmarks"
-              ---
-              (link bookmarks-menu))))
-)
+          (link recent-unloaded-file-menu)))
+  (if (nnull? (bookmarks-menu))
+      (-> "Bookmarks"
+          ---
+          (link bookmarks-menu))))

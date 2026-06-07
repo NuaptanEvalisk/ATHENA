@@ -39,8 +39,6 @@ void notify_preference (string var);
 
 enum builtin_default_kind {
   PREF_STATIC,
-  PREF_BUFFER_MANAGEMENT,
-  PREF_INTERACTIVE_QUESTIONS,
   PREF_LANGUAGE,
   PREF_PRINTING_COMMAND,
   PREF_PAPER_TYPE,
@@ -54,16 +52,6 @@ struct builtin_preference {
   const char* callback;
   builtin_default_kind kind;
 };
-
-static string
-default_buffer_management () {
-  return (os_macos () || os_win32 ())? string ("separate"): string ("shared");
-}
-
-static string
-default_interactive_questions () {
-  return (os_macos () || os_win32 ())? string ("popup"): string ("footer");
-}
 
 static string
 default_gpg_executable () {
@@ -82,10 +70,6 @@ default_paper_type () {
 static string
 builtin_default_value (const builtin_preference& pref) {
   switch (pref.kind) {
-  case PREF_BUFFER_MANAGEMENT:
-    return default_buffer_management ();
-  case PREF_INTERACTIVE_QUESTIONS:
-    return default_interactive_questions ();
   case PREF_LANGUAGE:
     return get_locale_language ();
   case PREF_PRINTING_COMMAND:
@@ -114,14 +98,10 @@ ensure_builtin_user_preferences () {
     PREF ("look and feel", "default", "notify-look-and-feel"),
     PREF ("case sensitive shortcuts", "default", ""),
     PREF ("detailed menus", "detailed", ""),
-    PREF_KIND ("buffer management", "shared", "notify-buffer-management",
-               PREF_BUFFER_MANAGEMENT),
     PREF ("enable tab", "off", "notify-restart"),
     PREF ("new toolbar", "on", "notify-restart"),
     PREF ("disable texmacs window positioning", "off", ""),
     PREF ("complex actions", "popups", ""),
-    PREF_KIND ("interactive questions", "footer", "",
-               PREF_INTERACTIVE_QUESTIONS),
     PREF_KIND ("language", "english", "notify-language", PREF_LANGUAGE),
     PREF ("default cjk language", "chinese", ""),
     PREF ("render solution in smaller font", "on",

@@ -682,9 +682,7 @@
   (import-buffer-check-permissions name fm opts))
 
 (tm-define (import-buffer name fm . opts)
-  (if (window-per-buffer?)
-      (import-buffer-main name fm (cons :new-window opts))
-      (import-buffer-main name fm opts)))
+  (import-buffer-main name fm opts))
 
 (tm-define (buffer-importer fm)
   (lambda (s) (import-buffer s fm)))
@@ -697,32 +695,28 @@
   (choose-file load-buffer-in-new-window "Load file" ""))
 
 (tm-define (open-document)
-  (if (window-per-buffer?) (open-in-window) (open-buffer)))
+  (open-buffer))
 
 (tm-define (open-document*)
-  (if (window-per-buffer?) (open-buffer) (open-in-window)))
+  (open-in-window))
 
 (tm-define (load-document u)
   (:argument u smart-file "File name")
   (:default  u (propose-name-buffer))
   (when (not (url-none? u))
-    (if (window-per-buffer?) (load-buffer-in-new-window u) (load-buffer u))))
+    (load-buffer u)))
 
 (tm-define (load-document* u)
   (:argument u smart-file "File name")
   (:default  u (propose-name-buffer))
   (when (not (url-none? u))
-    (if (window-per-buffer?) (load-buffer u) (load-buffer-in-new-window u))))
+    (load-buffer-in-new-window u)))
 
 (tm-define (switch-document u)
   (:argument u smart-file "File name")
   (:default  u (propose-name-buffer))
   (when (not (url-none? u))
-    (if (window-per-buffer?)
-        (if (buffer->window u)
-            (noop) ;;(window-focus (buffer->window u))
-            (open-buffer-in-window u (buffer-get u) ""))
-        (load-buffer u))))
+    (load-buffer u)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Printing buffers

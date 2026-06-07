@@ -94,7 +94,7 @@
         (show-icon-bar n val))
     (when (and (os-macos?) (== n 0)
                (get-boolean-preference "use unified toolbar"))
-      (notify-now "Restart TeXmacs to avoid potential visual artefacts"))))
+      (notify-now "Restart ATHENA to avoid potential visual artefacts"))))
 
 (define saved-informative-flags "default")
 
@@ -319,13 +319,7 @@
 
 (define (fit-persistent-to-screen-width)
   (when (persistent-fit-width-applicable?)
-    (if (window-mdi?)
-        (for-each (lambda (win)
-                    (with-window win
-                      (when (persistent-fit-width-applicable?)
-                        (fit-to-screen-width-preserve-editing-position))))
-                  (window-list))
-        (fit-to-screen-width-preserve-editing-position))))
+    (fit-to-screen-width-preserve-editing-position)))
 
 (tm-define (schedule-persistent-fit-width)
   (:synopsis "Schedule persistent fit to width")

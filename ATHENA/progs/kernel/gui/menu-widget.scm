@@ -1269,7 +1269,7 @@
     (native-info-dialog (native-dialog-string message) "Notification")))
 
 (tm-define (notify-restart . args)
-  (notify-now "Restart TeXmacs in order to let changes take effect"))
+  (notify-now "Restart ATHENA in order to let changes take effect"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Widgets that have to be defined early on

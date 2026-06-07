@@ -101,7 +101,13 @@ set_bool_pref (const char* key, bool on) {
 
 static void
 notify_restart () {
-  (void) call ("notify-restart");
+  QWidget* parent= activePreferencesDialog?
+                   static_cast<QWidget*> (activePreferencesDialog.data ()):
+                   QApplication::activeWindow ();
+  QMessageBox::information (
+    parent, QObject::tr ("Restart ATHENA"),
+    QObject::tr ("Restart ATHENA in order to let the new setting take "
+                 "effect."));
 }
 
 static bool
@@ -659,15 +665,8 @@ QTMPreferencesDialog::buildGeneralPage () {
   add_combo (basicForm, "Complex actions:", "complex actions",
              {{"menus", "Through the menus"},
               {"popups", "Through popup windows"}});
-  add_combo (basicForm, "Interactive questions:", "interactive questions",
-             {{"footer", "On the footer"}, {"popup", "In popup windows"}});
   add_combo (basicForm, "Details in menus:", "detailed menus",
              {{"simple", "Simplified menus"}, {"detailed", "Detailed menus"}});
-  add_combo (basicForm, "Buffer management:", "buffer management",
-             {{"separate", "Documents in separate windows"},
-              {"shared", "Multiple documents share window"},
-              {"mdi", "Multiple documents in sub-windows (MDI)"},
-              {"ads", "Advanced Docking System"}});
   add_toggle (basicForm, "Remember panes layout:",
               "remember ads panes layout");
   add_combo (basicForm, "Automatically save:", "autosave",

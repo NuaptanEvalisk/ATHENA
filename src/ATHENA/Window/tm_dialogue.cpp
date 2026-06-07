@@ -191,51 +191,6 @@ get_proposals (scheme_tree p, int i) {
   return a;
 }
 
-class interactive_command_rep: public command_rep {
-  server_rep*   sv;   // the underlying server
-  tm_window     win;  // the underlying TeXmacs window
-  object        fun;  // the function which is applied to the arguments
-  scheme_tree   p;    // the interactive arguments
-  int           i;    // counter where we are
-  array<string> s;    // feedback from interaction with user
-
-public:
-  interactive_command_rep (
-    server_rep* sv2, tm_window win2, object fun2, scheme_tree p2):
-      sv (sv2), win (win2), fun (fun2), p (p2), i (0), s (N(p)) {}
-  void apply ();
-  tm_ostream& print (tm_ostream& out) {
-    return out << "<command interactive " << p << ">"; }
-};
-
-void
-interactive_command_rep::apply () {
-  if ((i>0) && (s[i-1] == "#f")) return;
-  if (i == N(p)) {
-    object learn= null_object ();
-    array<object> params (N(p));
-    for (i=N(p)-1; i>=0; i--) {
-      params[i]= string_to_object (s[i]);
-      if (get_type (p, i) == "password")
-        learn= cons (cons (object (as_string (i)), object ("")), learn);
-      else
-        learn= cons (cons (object (as_string (i)), params[i]), learn);
-    }
-    call ("learn-interactive", fun, learn);
-    string ret= object_to_string (call (fun, params));
-    if (ret != "" && ret != "<unspecified>" && ret != "#<unspecified>")
-      sv->set_message (verbatim (ret), "interactive command");
-  }
-  else {
-    s[i]= string ("");
-    string prompt= get_prompt (p, i);
-    string type  = get_type (p, i);
-    array<string> proposals= get_proposals (p, i);
-    win->interactive (prompt, type, proposals, s[i], this);
-    i++;
-  }
-}
-
 void
 tm_frame_rep::interactive (object fun, scheme_tree p) {
   ASSERT (is_tuple (p), "tuple expected");
@@ -244,10 +199,7 @@ tm_frame_rep::interactive (object fun, scheme_tree p) {
     if (ret != "" && ret != "<unspecified>" && ret != "#<unspecified>")
       set_message (verbatim (ret), "interactive command");
   }
-  else if (get_preference ("interactive questions") == "popup" ||
-           N(p) > 1 ||
-	   (is_aux_buffer (get_current_buffer_safe ()) &&
-            !is_rooted_tmfs (get_current_buffer_safe (), "part"))) {
+  else {
     int i, n= N(p);
     array<string> prompts (n);
     for (i=0; i<n; i++)
@@ -266,13 +218,5 @@ tm_frame_rep::interactive (object fun, scheme_tree p) {
     if (ends (prompts[0], "?")) title= translate ("Question");
     dialogue_start (title, wid);
     send_keyboard_focus (get_form_field (dialogue_wid, 0));
-  }
-  else {
-    if (concrete_window () -> get_interactive_mode ()) beep ();
-    else {
-      command interactive_cmd=
-        tm_new<interactive_command_rep> (this, concrete_window (), fun, p);
-      interactive_cmd ();
-    }
   }
 }

@@ -69,10 +69,7 @@
       (=> "Version" (link version-menu)))
   (=> "Interface" (link interface-menu))
   (=> "View" (link view-menu))
-  (if (window-mdi?)
-      (=> "Window" (link window-menu)))
-  (if (window-ads?)
-      (=> "Workspace" (link workspace-menu)))
+  (=> "Workspace" (link workspace-menu))
   (=> "Go" (link go-menu))
   (if (detailed-menus?) (=> "Tools" (link tools-menu)))
   (if (with-database-tool?)
@@ -104,20 +101,6 @@
     (begin
       (ads-prepare-floating)
       (load-buffer "tmfs://welcome/home" :new-window))))
-
-(menu-bind window-menu
-  ("New window" (new-document*))
-  ("Close window" (close-document*))
-  ---
-  ("Detach" (mdi-detach-interactive))
-  ("Attach" (mdi-attach-interactive))
-  (if (window-mdi?) ---)
-  (if (window-mdi?) ("Tile" (mdi-tile)))
-  (if (window-mdi?) ("Cascade" (mdi-cascade)))
-  (if (window-mdi?) ("Maximize" (mdi-maximize-active)))
-  (if (window-mdi?) ("Minimize" (mdi-minimize-active)))
-  ---
-  (link window-list-menu))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; The TeXmacs popup menus
@@ -185,12 +168,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (menu-bind texmacs-main-icons
-  (if (window-per-buffer?)
-      ((balloon (icon "tm_new.xpm") "Create a new document")
-       (new-document)))
-  (if (not (window-per-buffer?))
-      (=> (balloon (icon "tm_new.xpm") "Create a new document")
-          (link new-file-menu)))
+  (=> (balloon (icon "tm_new.xpm") "Create a new document")
+      (link new-file-menu))
   (=> (balloon (icon "tm_open.xpm") "Load a file") (link load-menu))
   (=> (balloon (icon "tm_save.xpm") "Save this buffer") (link save-menu))
   ((balloon (icon "tm_build.xpm") "Update this buffer")

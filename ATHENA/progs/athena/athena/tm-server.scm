@@ -20,20 +20,6 @@
 ;; Preferences
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define (get-default-interactive-questions)
-  (if (or (like-gnome?) (like-macos?) (like-windows?)) "popup" "footer"))
-
-(define (get-default-buffer-management)
-  (if (or (like-macos?) (like-windows?)) "separate" "shared"))
-
-(define (buffer-management-choices)
-  '("shared" "separate" "mdi" "ads"))
-
-(define (notify-buffer-management var val)
-  (when (== val (get-default-buffer-management))
-    (reset-preference "buffer management"))
-  (notify-restart))
-
 (define (get-default-enable-tab)
   "off")
 
@@ -118,22 +104,6 @@
 (define (notify-restart . args)
   (when athena-booted?
     (notify-now "Restart ATHENA in order to let the new setting take effect")))
-
-(tm-define (mdi-detach-interactive)
-  (:interactive #t)
-  (if (window-floating? (current-window))
-      (notify-now "The window is already detached.")
-      (mdi-detach)))
-
-(tm-define (ads-detach-interactive)
-  (:interactive #t)
-  (ads-detach))
-
-(tm-define (mdi-attach-interactive)
-  (:interactive #t)
-  (if (not (window-floating? (current-window)))
-      (notify-now "The window is already attached.")
-      (mdi-attach)))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -283,17 +253,17 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (tm-define (new-document)
-  (if (window-per-buffer?) (open-window) (new-buffer)))
+  (new-buffer))
 
 (tm-define (new-document*)
-  (if (window-per-buffer?) (new-buffer) (open-window)))
+  (open-window))
 
 (tm-define (close-document)
   (delayed (:idle 1)
-    (if (window-per-buffer?) (safely-kill-window) (safely-kill-buffer))))
+    (safely-kill-buffer)))
 
 (tm-define (close-document*)
-  (if (window-per-buffer?) (safely-kill-buffer) (safely-kill-window)))
+  (safely-kill-window))
 
 (register-preference-callback-procedures
-  (list notify-bibtex-command notify-buffer-management notify-enunciation-rendering notify-fast-environments notify-gui-theme notify-language notify-latex-command notify-look-and-feel notify-new-fonts notify-new-page-breaking notify-restart notify-scripting-language notify-security notify-tool))
+  (list notify-bibtex-command notify-enunciation-rendering notify-fast-environments notify-gui-theme notify-language notify-latex-command notify-look-and-feel notify-new-fonts notify-new-page-breaking notify-restart notify-scripting-language notify-security notify-tool))
