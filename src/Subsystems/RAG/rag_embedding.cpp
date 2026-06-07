@@ -20,6 +20,7 @@
 #include <thread>
 
 #include <ggml-backend.h>
+#include <common.h>
 #include <llama.h>
 
 namespace fs = std::filesystem;
@@ -38,6 +39,7 @@ ensure_llama_ready () {
   std::lock_guard<std::mutex> lock (llama_ready_mutex);
   if (llama_ready) return;
   ggml_backend_load_all ();
+  common_init ();
   llama_backend_init ();
   llama_ready= true;
 }
@@ -59,52 +61,35 @@ llama_log_bridge (ggml_log_level level, const char* text, void*) {
     std_warning << "rag llama.cpp: " << line.c_str ();
 }
 
-static float
-vector_norm (const std::vector<float>& xs) {
-  double sum= 0.0;
-  for (float x: xs) sum += double (x) * double (x);
-  return float (std::sqrt (sum));
-}
-
 } // namespace
 
 struct RagEmbedder::Impl {
-  llama_model* model= nullptr;
-  llama_context* ctx= nullptr;
+  common_init_result_ptr init;
   int dim= 0;
   std::string fingerprint;
+
+  llama_model* model () const {
+    return init? init->model (): nullptr;
+  }
+
+  llama_context* context () const {
+    return init? init->context (): nullptr;
+  }
 };
 
 static std::vector<llama_token>
-tokenize_text (llama_model* model, const std::string& text) {
-  const llama_vocab* vocab= llama_model_get_vocab (model);
-  if (vocab == nullptr) return {};
-  int n= -llama_tokenize (vocab, text.c_str (), int (text.size ()),
-                          nullptr, 0, true, false);
-  if (n <= 0) return {};
-  std::vector<llama_token> tokens ((size_t) n);
-  int got= llama_tokenize (vocab, text.c_str (), int (text.size ()),
-                           tokens.data (), n, true, false);
-  if (got <= 0) return {};
-  tokens.resize (size_t (got));
+tokenize_text (llama_context* ctx, const std::string& text) {
+  if (ctx == nullptr) return {};
+  std::vector<llama_token> tokens= common_tokenize (ctx, text, true, true);
   if (int (tokens.size ()) > embedding_context_tokens)
     tokens.resize (embedding_context_tokens);
   return tokens;
-}
-
-static void
-normalize_vector (std::vector<float>& xs) {
-  float norm= vector_norm (xs);
-  if (norm > 0.0f)
-    for (float& x: xs) x /= norm;
 }
 
 RagEmbedder::RagEmbedder ()
   : impl (new Impl) {}
 
 RagEmbedder::~RagEmbedder () {
-  if (impl->ctx != nullptr) llama_free (impl->ctx);
-  if (impl->model != nullptr) llama_model_free (impl->model);
   delete impl;
 }
 
@@ -113,7 +98,7 @@ RagEmbedder::open (const std::string& model_path,
                    const std::string& device_mode,
                    int threads) {
   if (model_path.empty ()) return false;
-  if (impl->model != nullptr) return true;
+  if (impl->model () != nullptr) return true;
   if (!fs::exists (model_path)) {
     std_warning << "rag embedding: model not found: "
                 << model_path.c_str () << "\n";
@@ -123,47 +108,43 @@ RagEmbedder::open (const std::string& model_path,
   ensure_llama_ready ();
   llama_log_set (llama_log_bridge, nullptr);
 
-  llama_model_params mparams= llama_model_default_params ();
-  bool cpu_only= device_mode == "cpu";
-  if (cpu_only) mparams.n_gpu_layers= 0;
-  impl->model= llama_model_load_from_file (model_path.c_str (), mparams);
-  if (impl->model == nullptr) {
-    std_warning << "rag embedding: failed to load GGUF model "
-                << model_path.c_str () << "\n";
-    return false;
-  }
+  common_params params;
+  params.model.path= model_path;
+  params.embedding= true;
+  params.n_ctx= embedding_context_tokens;
+  params.n_batch= embedding_context_tokens;
+  params.n_ubatch= embedding_context_tokens;
+  params.n_parallel= embedding_max_sequences;
+  params.pooling_type= LLAMA_POOLING_TYPE_UNSPECIFIED;
+  params.attention_type= LLAMA_ATTENTION_TYPE_UNSPECIFIED;
+  params.flash_attn_type= LLAMA_FLASH_ATTN_TYPE_DISABLED;
+  params.embd_normalize= 2;
+  params.warmup= false;
 
-  llama_context_params cparams= llama_context_default_params ();
-  cparams.n_ctx= embedding_context_tokens * embedding_max_sequences;
-  cparams.n_batch= embedding_context_tokens;
-  cparams.n_ubatch= embedding_context_tokens;
-  cparams.n_seq_max= embedding_max_sequences;
+  bool cpu_only= device_mode == "cpu";
+  if (cpu_only) params.n_gpu_layers= 0;
+  else params.n_gpu_layers= 99;
+
   unsigned hw= std::max (1u, std::thread::hardware_concurrency ());
   if (threads > 0) {
-    cparams.n_threads= threads;
-    cparams.n_threads_batch= threads;
+    params.cpuparams.n_threads= threads;
+    params.cpuparams_batch.n_threads= threads;
   }
   else {
-    cparams.n_threads= std::max (1u, hw / 2);
-    cparams.n_threads_batch= hw;
+    params.cpuparams.n_threads= std::max (1u, hw / 2);
+    params.cpuparams_batch.n_threads= hw;
   }
-  cparams.embeddings= true;
-  cparams.pooling_type= LLAMA_POOLING_TYPE_UNSPECIFIED;
-  cparams.attention_type= LLAMA_ATTENTION_TYPE_UNSPECIFIED;
-  if (cpu_only) {
-    cparams.offload_kqv= false;
-    cparams.op_offload= false;
-  }
-  impl->ctx= llama_init_from_model (impl->model, cparams);
-  if (impl->ctx == nullptr) {
+
+  llama_numa_init (params.numa);
+  impl->init= common_init_from_params (params);
+  if (!impl->init || impl->model () == nullptr || impl->context () == nullptr) {
     std_warning << "rag embedding: failed to initialize context for "
                 << model_path.c_str () << "\n";
-    llama_model_free (impl->model);
-    impl->model= nullptr;
+    impl->init.reset ();
     return false;
   }
 
-  impl->dim= llama_model_n_embd (impl->model);
+  impl->dim= llama_model_n_embd_out (impl->model ());
   std::error_code ec;
   fs::file_time_type mt= fs::last_write_time (model_path, ec);
   uintmax_t size= fs::file_size (model_path, ec);
@@ -179,7 +160,8 @@ RagEmbedder::open (const std::string& model_path,
 
 bool
 RagEmbedder::available () const {
-  return impl->model != nullptr && impl->ctx != nullptr && impl->dim > 0;
+  return impl->model () != nullptr && impl->context () != nullptr &&
+         impl->dim > 0;
 }
 
 int
@@ -210,7 +192,7 @@ RagEmbedder::embed_many (
     if (texts[i].empty ()) continue;
     std::string clipped= texts[i];
     if (clipped.size () > 12000) clipped.resize (12000);
-    tokenized[i]= tokenize_text (impl->model, clipped);
+    tokenized[i]= tokenize_text (impl->context (), clipped);
   }
 
   size_t cursor_text= 0;
@@ -248,29 +230,20 @@ RagEmbedder::embed_many (
     }
     if (total_tokens <= 0) break;
 
-    llama_batch batch= llama_batch_init (total_tokens, 0, 1);
-    batch.n_tokens= total_tokens;
+    llama_batch batch= llama_batch_init (embedding_context_tokens, 0, 1);
     std::vector<int> last_index (selected.size (), -1);
-    int cursor= 0;
     for (size_t k=0; k<selected.size (); k++) {
       size_t i= selected[k];
       const std::vector<llama_token>& toks= tokenized[i];
       llama_seq_id seq= llama_seq_id (k);
       for (size_t j=0; j<toks.size (); j++) {
-        batch.token[cursor]= toks[j];
-        batch.pos[cursor]= llama_pos (j);
-        batch.n_seq_id[cursor]= 1;
-        batch.seq_id[cursor][0]= seq;
-        batch.logits[cursor]= 1;
-        last_index[k]= cursor;
-        cursor++;
+        common_batch_add (batch, toks[j], llama_pos (j), { seq }, true);
+        last_index[k]= batch.n_tokens - 1;
       }
     }
-    batch.n_tokens= cursor;
 
-    int rc= llama_model_has_encoder (impl->model)
-      ? llama_encode (impl->ctx, batch)
-      : llama_decode (impl->ctx, batch);
+    llama_memory_clear (llama_get_memory (impl->context ()), true);
+    int rc= llama_decode (impl->context (), batch);
     if (rc != 0) {
       std_warning << "rag embedding: llama batch evaluation failed rc="
                   << rc << "\n";
@@ -281,16 +254,16 @@ RagEmbedder::embed_many (
       continue;
     }
 
-    llama_synchronize (impl->ctx);
+    llama_synchronize (impl->context ());
     for (size_t k=0; k<selected.size (); k++) {
       size_t i= selected[k];
       llama_seq_id seq= llama_seq_id (k);
-      float* raw= llama_get_embeddings_seq (impl->ctx, seq);
+      const float* raw= llama_get_embeddings_seq (impl->context (), seq);
       if (raw == nullptr && last_index[k] >= 0)
-        raw= llama_get_embeddings_ith (impl->ctx, last_index[k]);
+        raw= llama_get_embeddings_ith (impl->context (), last_index[k]);
       if (raw == nullptr) continue;
-      out[i]= std::vector<float> (raw, raw + impl->dim);
-      normalize_vector (out[i]);
+      out[i].assign ((size_t) impl->dim, 0.0f);
+      common_embd_normalize (raw, out[i].data (), impl->dim, 2);
     }
     llama_batch_free (batch);
     done_texts += selected.size ();

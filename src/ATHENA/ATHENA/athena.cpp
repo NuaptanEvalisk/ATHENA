@@ -83,6 +83,7 @@ bool disable_error_recovery= false;
 bool start_server_flag= false;
 bool headless_mode= false;
 bool no_splash_screen= false;
+bool skip_fonts_cache= false;
 std::string aofm_convert_file;
 string aofm_convert_vault_source;
 string aofm_convert_vault_destination;
@@ -481,9 +482,12 @@ ATHENA_warm_font_menu_probe_cache () {
 }
 
 void ATHENA_init_font() {
-  tt_font_cache_warmup ();
-  startup_progress (67, "Preparing font menus");
-  ATHENA_warm_font_menu_probe_cache ();
+  tt_font_cache_set_warmup_disabled (skip_fonts_cache);
+  if (!skip_fonts_cache) {
+    tt_font_cache_warmup ();
+    startup_progress (67, "Preparing font menus");
+    ATHENA_warm_font_menu_probe_cache ();
+  }
   font_database_load ();
 #if defined(QTTEXMACS) && defined(qt_no_fontconfig)
   string default_font_dir = get_env ("ATHENA_PATH") * "/fonts/truetype/stix";
@@ -707,6 +711,9 @@ set_global_options  (int argc, char** argv)  {
       else if (s == "-rag-reindex") {
         // Handled in texmacs_entrypoint
       }
+      else if (s == "-skip-fonts-cache") {
+        // Handled in texmacs_entrypoint
+      }
       else if (s == "-ignore-nonempty-dest") {
         // Handled in texmacs_entrypoint
       }
@@ -868,6 +875,7 @@ set_global_options  (int argc, char** argv)  {
         cout << "  --rag-server [dir]          Start a Continuous RAG MCP server\n";
         cout << "  --rag-embedding-device [auto|cpu]  Select RAG embedding device mode\n";
         cout << "  --rag-index-jobs [n]        Parallelize initial RAG indexing with n processes\n";
+        cout << "  --skip-fonts-cache         Skip font file and font menu cache warmup\n";
         cout << "  --insert-build-warning     Insert ATHENA experimental build warnings during AOFM conversion\n";
         cout << "  --model-vault [dir]        Reuse a model vault for AOFM namespace/style conversion\n";
         cout << "  -W [i] [o] Recursively convert directory into website\n";
@@ -1032,7 +1040,7 @@ TeXmacs_main (int argc, char** argv) {
       io_info << "rag mcp: bearer token "
               << options.bearer_token.c_str () << "\n";
 #ifdef QTTEXMACS
-      QApplication::exec ();
+      QCoreApplication::exec ();
 #endif
       exit (0);
     }
@@ -1503,6 +1511,9 @@ texmacs_entrypoint (int argc, char** argv) {
     if (s == "-rag-reindex") {
       rag_server_reindex= true;
     }
+    if (s == "-skip-fonts-cache") {
+      skip_fonts_cache= true;
+    }
     if (s == "-ignore-nonempty-dest") {
       aofm_ignore_nonempty_dest = true;
     }
@@ -1521,7 +1532,10 @@ texmacs_entrypoint (int argc, char** argv) {
 #ifdef QTTEXMACS
   reject_unsupported_qt_platforms (argc, argv);
   bool rag_server_mode= rag_server_dir != "";
-  if (!headless_mode || rag_server_mode) {
+  if (headless_mode && rag_server_mode) {
+    new QTMCoreApplication (argc, argv);
+  }
+  else if (!headless_mode) {
 #if QT_VERSION >= 0x060000
     QGuiApplication::setHighDpiScaleFactorRoundingPolicy
       (Qt::HighDpiScaleFactorRoundingPolicy::Round);

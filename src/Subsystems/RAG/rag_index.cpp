@@ -44,13 +44,23 @@ namespace {
 
 class RagProgressDisplay {
 public:
+  void update_file (size_t current, size_t total, const std::string& phase,
+                    const std::string& item) {
+    update_slot (file_, current, total, phase, item);
+  }
+
+  void update_chunks (size_t current, size_t total, const std::string& phase,
+                      const std::string& item) {
+    update_slot (chunks_, current, total, phase, item);
+  }
+
   void update (size_t current, size_t total, const std::string& phase,
                const std::string& item) {
-    if (total == 0) total= 1;
-    current_= current;
-    total_= total;
-    phase_= phase;
-    item_= item;
+    update_chunks (current, total, phase, item);
+  }
+
+  void clear_chunks () {
+    chunks_.shown= false;
     draw ();
   }
 
@@ -72,15 +82,36 @@ public:
     if (!active_) return;
     std::cout << std::endl;
     active_= false;
+    lines_drawn_= 0;
   }
 
 private:
-  void draw () {
+  struct Slot {
+    bool shown= false;
+    size_t current= 0;
+    size_t total= 1;
+    std::string phase;
+    std::string item;
+  };
+
+  void update_slot (Slot& slot, size_t current, size_t total,
+                    const std::string& phase, const std::string& item) {
+    if (total == 0) total= 1;
+    slot.shown= true;
+    slot.current= current;
+    slot.total= total;
+    slot.phase= phase;
+    slot.item= item;
+    draw ();
+  }
+
+  std::string make_line (const Slot& slot) {
     int bar_width= 30;
-    double progress= std::min (1.0, (double) current_ / (double) total_);
+    double progress= std::min (1.0, (double) slot.current /
+                                    (double) slot.total);
     int pos= (int) (bar_width * progress);
 
-    std::string shown= item_;
+    std::string shown= slot.item;
     if (shown.size () > 44) shown= "..." + shown.substr (shown.size () - 41);
 
     std::ostringstream line;
@@ -91,25 +122,55 @@ private:
       else line << " ";
     }
     line << "] " << (int) (progress * 100.0) << "% "
-         << "[" << current_ << "/" << total_ << "] "
-         << phase_ << ": " << shown;
-    last_width_= line.str ().size ();
-    std::cout << "\r" << line.str () << std::flush;
+         << "[" << slot.current << "/" << slot.total << "] "
+         << slot.phase << ": " << shown;
+    return line.str ();
+  }
+
+  std::vector<std::string> lines () {
+    std::vector<std::string> out;
+    if (file_.shown) out.push_back (make_line (file_));
+    if (chunks_.shown) out.push_back (make_line (chunks_));
+    return out;
+  }
+
+  void draw () {
+    clear ();
+    std::vector<std::string> next= lines ();
+    if (next.empty ()) return;
+    last_width_= 0;
+    for (size_t i=0; i<next.size (); i++) {
+      if (i != 0) std::cout << "\n";
+      std::cout << next[i];
+      last_width_= std::max (last_width_, next[i].size ());
+    }
+    std::cout << std::flush;
     active_= true;
+    lines_drawn_= next.size ();
   }
 
   void clear () {
     if (!active_) return;
-    std::cout << "\r" << std::string (last_width_ + 8, ' ') << "\r"
-              << std::flush;
+    if (lines_drawn_ > 1) {
+      for (size_t i=1; i<lines_drawn_; i++) std::cout << "\r\033[1A";
+    }
+    for (size_t i=0; i<lines_drawn_; i++) {
+      std::cout << "\r" << std::string (last_width_ + 8, ' ') << "\r";
+      if (i + 1 < lines_drawn_) std::cout << "\033[1B";
+    }
+    if (lines_drawn_ > 1) {
+      for (size_t i=1; i<lines_drawn_; i++) std::cout << "\r\033[1A";
+    }
+    std::cout << std::flush;
+    active_= false;
+    lines_drawn_= 0;
   }
 
   bool active_= false;
-  size_t current_= 0;
-  size_t total_= 1;
+  size_t lines_drawn_= 0;
   size_t last_width_= 0;
-  std::string phase_;
-  std::string item_;
+  Slot file_;
+  Slot chunks_;
 };
 
 static RagProgressDisplay rag_progress;
@@ -990,14 +1051,17 @@ RagIndex::scan_once () {
       return;
     }
     if (impl->config.progress)
-      rag_progress.update (done, total, "Embedding RAG chunks", rel);
+      rag_progress.update_chunks (done, total, "Embedding RAG chunks", rel);
   };
 
   for (size_t i=0; i<work_files.size (); i++) {
     const fs::path& file= work_files[i];
     std::string rel= relative_path (impl->config.vault_root, file);
-    if (impl->config.progress)
-      rag_progress.update (i + 1, work_files.size (), "Indexing RAG", rel);
+    if (impl->config.progress) {
+      rag_progress.clear_chunks ();
+      rag_progress.update_file (i + 1, work_files.size (),
+                                "Indexing RAG files", rel);
+    }
     live.insert (rel);
     std::string text;
     if (!read_bytes (file, text)) {
@@ -1184,8 +1248,8 @@ RagIndex::parallel_reindex (int jobs) {
       }
       size_t total_for_bar= known_chunks == 0 ? embedded_chunks + 1 :
                             known_chunks;
-      rag_progress.update (embedded_chunks, total_for_bar,
-                           "Embedding RAG chunks", rel);
+      rag_progress.update_chunks (embedded_chunks, total_for_bar,
+                                  "Embedding RAG chunks", rel);
     }
   };
   while (completed < jobs) {
@@ -1241,17 +1305,16 @@ RagIndex::parallel_reindex (int jobs) {
       now - start).count ();
     if (processed_files > total_files) processed_files= total_files;
     if (known_chunks > 0)
-      rag_progress.update (embedded_chunks, known_chunks,
-                           "Parallel RAG embedding",
-                           std::to_string (jobs - completed) +
-                           " workers active, " +
-                           std::to_string (elapsed) + "s elapsed");
-    else
-      rag_progress.update (processed_files, total_files,
-                           "Parallel RAG indexing",
-                           std::to_string (jobs - completed) +
-                           " workers active, " +
-                           std::to_string (elapsed) + "s elapsed");
+      rag_progress.update_chunks (embedded_chunks, known_chunks,
+                                  "Parallel RAG embedding",
+                                  std::to_string (jobs - completed) +
+                                  " workers active, " +
+                                  std::to_string (elapsed) + "s elapsed");
+    rag_progress.update_file (processed_files, total_files,
+                              "Parallel RAG files",
+                              std::to_string (jobs - completed) +
+                              " workers active, " +
+                              std::to_string (elapsed) + "s elapsed");
   }
   rag_progress.finish ();
   for (int fd: progress_reads)

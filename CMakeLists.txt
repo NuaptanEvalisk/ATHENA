@@ -161,6 +161,29 @@ include (CheckCSourceCompiles)
 
 pkg_check_modules (SPDLOG REQUIRED IMPORTED_TARGET spdlog)
 pkg_check_modules (LLAMA REQUIRED IMPORTED_TARGET llama)
+set (LLAMA_CPP_SOURCE_DIR "" CACHE PATH
+  "llama.cpp source tree, needed for common/common.h")
+if (LLAMA_CPP_SOURCE_DIR STREQUAL "" AND DEFINED ENV{LLAMA_CPP_SOURCE_DIR})
+  set (LLAMA_CPP_SOURCE_DIR "$ENV{LLAMA_CPP_SOURCE_DIR}")
+endif ()
+find_path (LLAMA_COMMON_INCLUDE_DIR common.h
+  HINTS
+    ${LLAMA_CPP_SOURCE_DIR}
+  PATH_SUFFIXES common)
+find_library (LLAMA_COMMON_LIBRARY
+  NAMES llama-common common
+  HINTS
+    ${LLAMA_LIBRARY_DIRS}
+    ${LLAMA_CPP_SOURCE_DIR}
+  PATH_SUFFIXES lib lib64 build/common build/bin)
+if (NOT LLAMA_COMMON_INCLUDE_DIR OR NOT LLAMA_COMMON_LIBRARY)
+  message (FATAL_ERROR
+    "llama.cpp common support is required for ATHENA RAG embeddings. "
+    "Install/build llama.cpp common, or configure with "
+    "-DLLAMA_CPP_SOURCE_DIR=/path/to/llama.cpp. "
+    "Found common.h='${LLAMA_COMMON_INCLUDE_DIR}', "
+    "library='${LLAMA_COMMON_LIBRARY}'.")
+endif ()
 
 find_path (RESVGQT_INCLUDE_DIR ResvgQt.h)
 find_library (RESVG_LIBRARY resvg)
@@ -500,6 +523,7 @@ set (ATHENA_Include_Dirs ${ATHENA_Include_Dirs}
   ${Guile_INCLUDE_DIRS} ${FREETYPE_INCLUDE_DIRS} ${Cairo_INCLUDE_DIRS}
   ${IMLIB2_INCLUDE_DIR} ${GMP_INCLUDES} ${GNUTLS_INCLUDE_DIRS}
   ${TCC_INCLUDE_DIR} ${SQLITE3_INCLUDE_DIRS} ${ICONV_INCLUDE_DIR}
+  ${LLAMA_COMMON_INCLUDE_DIR}
 )
 
 ### --------------------------------------------------------------------

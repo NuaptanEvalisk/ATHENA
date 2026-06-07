@@ -29,6 +29,7 @@ static hashmap<string,string> tt_fonts ("no");
 
 static bool tt_font_file_index_ready= false;
 static bool tt_font_file_index_building= false;
+static bool tt_font_file_index_warmup_disabled= false;
 
 static tree
 tt_font_cache_signature (string xtt, string ximp) {
@@ -202,7 +203,13 @@ tt_font_path () {
 }
 
 void
+tt_font_cache_set_warmup_disabled (bool disabled) {
+  tt_font_file_index_warmup_disabled= disabled;
+}
+
+void
 tt_font_cache_warmup () {
+  if (tt_font_file_index_warmup_disabled) return;
   if (tt_font_file_index_ready || tt_font_file_index_building) return;
   tt_font_file_index_building= true;
 
