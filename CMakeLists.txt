@@ -160,6 +160,7 @@ include (FindPkgConfig)
 include (CheckCSourceCompiles)
 
 pkg_check_modules (SPDLOG REQUIRED IMPORTED_TARGET spdlog)
+pkg_check_modules (LLAMA REQUIRED IMPORTED_TARGET llama)
 
 find_path (RESVGQT_INCLUDE_DIR ResvgQt.h)
 find_library (RESVG_LIBRARY resvg)

@@ -868,6 +868,11 @@ QTMPreferencesDialog::buildEditingPage () {
               "latex->texmacs:parse-bbbi-as-mathi");
   add_toggle (i, "Recognize operator names disguised as text:",
               "latex->texmacs:text-operators");
+  add_toggle (i, "Run intelligent formula cleaner when importing LaTeX formulas:",
+              "latex->texmacs:intelligent-formula-cleaner");
+  add_line_edit (i, "Formula cleaner GGUF model:",
+                 "latex->texmacs:intelligent-formula-cleaner-model",
+                 "$ATHENA_PATH/tools/formula-cleaner/formula-cleaner.gguf");
   finish_page (importer);
 
   return tabbed ({{"Maths", math}, {"Programming", programming},
