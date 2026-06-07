@@ -122,7 +122,6 @@
                  (kernel old-gui old-gui-factory)
                  (kernel old-gui old-gui-form)
                  (kernel old-gui old-gui-test))
-(lazy-define (kernel gui menu-convert) make-menu-widget**)
 ;(display* "time: " (- (athena-time) boot-start) "\n")
 ;(display* "memory: " (athena-memory) " bytes\n")
 

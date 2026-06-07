@@ -114,24 +114,7 @@
     ("Set keyboard" (set-custom-keyboard (tm->tree (selection-tree)))))
   (when (not (tm-equal? (get-custom-keyboard) ""))
     ("Reset keyboard" (set-custom-keyboard (tm->tree ""))))
-  (assuming (side-tools?)
-    ---
-    (group "Experimental side tools")
-    ("Reset left" (close-tools :left))
-    ("Reset right" (close-tools :right))
-    ("Buffer left" (tool-select :left 'buffer-tool))
-    ("Buffer right" (tool-select :right 'buffer-tool))
-    ("Context" (tool-select :right 'context-tool))
-    ("Invalid" (tool-toggle :right 'invalid-tool))
-    (-> "Test"
-        ("Sections" (tool-select :right 'sections-tool))
-        ("Subsections" (tool-select :right 'subsections-tool)))
-    ;;(-> "Color"
-    ;;    ("Color" (tool-select :right '(color-tool "Background color")))
-    ;;    ("Pattern" (tool-select :right '(pattern-tool "Background pattern")))
-    ;;    ("Gradient" (tool-select :right '(gradient-tool "Background gradient")))
-    ;;    ("Picture" (tool-select :right '(picture-tool "Background picture"))))
-    ))
+  )
 
 (register-preference-callback-procedures
   (list notify-keyboard-tool))

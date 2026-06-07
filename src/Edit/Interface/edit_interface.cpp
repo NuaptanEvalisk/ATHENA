@@ -128,12 +128,8 @@ edit_interface_rep::resume () {
   array<url> a= buffer_to_windows (buf->buf->name);
   if (N(a) > 0) {
     string win = "(string->url \"" * as_string (a[0]) * "\")";
-    string ldyn= "(dynamic (texmacs-left-tools " * win * "))";
-    string rdyn= "(dynamic (texmacs-side-tools " * win * "))";
     string bdyn= "(dynamic (texmacs-bottom-tools " * win * "))";
     string xdyn= "(dynamic (texmacs-extra-tools " * win * "))";
-    SERVER (side_tools (1, "(vertical " * ldyn * ")"));
-    SERVER (side_tools (0, "(vertical " * rdyn * ")"));
     SERVER (bottom_tools (0, "(vertical " * bdyn * ")"));
     SERVER (bottom_tools (1, "(vertical " * xdyn * ")"));
   }
@@ -681,12 +677,8 @@ edit_interface_rep::update_menus () {
   array<url> a= buffer_to_windows (buf->buf->name);
   if (N(a) > 0) {
     string win = "(string->url \"" * as_string (a[0]) * "\")";
-    string ldyn= "(dynamic (texmacs-left-tools " * win * "))";
-    string rdyn= "(dynamic (texmacs-side-tools " * win * "))";
     string bdyn= "(dynamic (texmacs-bottom-tools " * win * "))";
     string xdyn= "(dynamic (texmacs-extra-tools " * win * "))";
-    SERVER (side_tools (1, "(vertical " * ldyn * ")"));
-    SERVER (side_tools (0, "(vertical " * rdyn * ")"));
     SERVER (bottom_tools (0, "(vertical " * bdyn * ")"));
     SERVER (bottom_tools (1, "(vertical " * xdyn * ")"));
   }

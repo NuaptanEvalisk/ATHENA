@@ -1094,9 +1094,7 @@
 
 (tm-define (make-menu-widget* p style . opt-size)
   (set! global-resize #f)
-  (if (has-markup-gui?)
-      (apply make-menu-widget** (cons* p style opt-size))
-      (make-menu-widget p style)))
+  (make-menu-widget p style))
 
 (define (decode-options opts)
   (let* ((bufs (list))
@@ -1293,7 +1291,7 @@
   (ahash-set! global-key-table (cDr key-val) (cAr key-val)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Attaching side tools to windows
+;; Attaching tools to windows
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define window-tools-table (make-ahash-table))
@@ -1342,10 +1340,6 @@
 (tm-define (tool-side? tool win)
   (not (tool-bottom? tool win)))
 
-(define (notify-side-tools n show?)
-  (when (!= show? (visible-side-tools? n))
-    (show-side-tools n show?)))
-
 (define (notify-bottom-tools n show?)
   (when (!= show? (visible-bottom-tools? n))
     (show-bottom-tools n show?)))
@@ -1367,12 +1361,8 @@
 (tm-define (set-window-tools win pos l)
   (apply lazy-tool-force l)
   (ahash-set! window-tools-table (list win pos) l)
-  (let* ((l0 (window->tools win :transient-right :right :bottom-right))
-         (l1 (window->tools win :transient-left :left :bottom-left)))
-    (notify-side-tools 0 (nnull? l0))
-    (notify-side-tools 1 (nnull? l1))
-    (notify-bottom-tools 0 (has-bottom-tools? win))
-    (keyboard-focus-on "canvas")))
+  (notify-bottom-tools 0 (has-bottom-tools? win))
+  (keyboard-focus-on "canvas"))
 
 (tm-define (set-window-tool win pos tool)
   (set-window-tools win pos (list tool)))
@@ -1447,7 +1437,7 @@
     (set-window-tools win pos (list))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Defining side tools
+;; Defining tool panes
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (tm-widget (texmacs-side-tool win tool . opts)

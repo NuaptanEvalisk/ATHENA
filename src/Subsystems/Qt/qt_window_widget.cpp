@@ -70,8 +70,7 @@ qt_window_widget_rep::qt_window_widget_rep (QWidget* _wid, string name,
   qwid->setProperty ("texmacs_window_widget",
                      QVariant::fromValue ((void*) this));
   
-    // Try to connect only if the QWidget has a closed() signal
-    // We need this for the QDockWidgets we use in side tools (see qt_tm_widget_rep)
+    // Try to connect only if the QWidget has a closed() signal.
   if (qwid->metaObject() -> 
       indexOfSignal (QMetaObject::normalizedSignature ("closed()").constData ()) != -1) {
     QTMCommand* qtmcmd = new QTMCommand (qwid, quit);
@@ -81,7 +80,7 @@ qt_window_widget_rep::qt_window_widget_rep (QWidget* _wid, string name,
   if (!has_resizable_children (_wid))
     qwid->setFixedSize (qwid->sizeHint());
   
-    // HACK: don't increment window count for side tools or any other fake windows
+    // HACK: don't increment window count for fake windows.
   if (!fake) win_id = ++nr_windows;
   
   if (DEBUG_QT)

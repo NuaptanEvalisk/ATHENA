@@ -36,13 +36,6 @@
 (define (notify-status-bar var val)
   (show-footer (== val "on")))
 
-(define (notify-side-tools var val)
-  (when (== val "off")
-    (cond ((== var "side tools")
-           (show-side-tools 0 (== val "on")))
-          ((== var "left tools")
-           (show-side-tools 1 (== val "on"))))))
-
 (define (notify-bottom-tools var val)
   (cond ((== var "bottom tools")
          (show-bottom-tools 0 (== val "on")))
@@ -79,15 +72,6 @@
         (set-boolean-preference "status bar" val)
         (show-footer val))))
 
-(tm-define (toggle-visible-side-tools n)
-  (:synopsis "Toggle the visibility of the @n-th side tools")
-  (:check-mark "v" has-side-tools?)
-  (with val (not (has-side-tools? n))
-    (with var (if (== n 0) "side tools" "left tools")
-      (if (and (== (windows-number) 1) (in? n (list 0 1)))
-          (set-boolean-preference var val)
-          (show-side-tools n val)))))
-
 (tm-define (toggle-visible-bottom-tools n)
   (:synopsis "Toggle the visibility of the bottom tools")
   (:check-mark "v" visible-bottom-tools?)
@@ -111,12 +95,6 @@
     (when (and (os-macos?) (== n 0)
                (get-boolean-preference "use unified toolbar"))
       (notify-now "Restart TeXmacs to avoid potential visual artefacts"))))
-
-(tm-define (toggle-markup-gui)
-  (:synopsis "Toggle graphical user interface through TeXmacs markup")
-  (:check-mark "v" has-markup-gui?)
-  (with val (not (has-markup-gui?))
-    (set-boolean-preference "markup gui" val)))
 
 (define saved-informative-flags "default")
 
@@ -386,4 +364,4 @@
   (schedule-persistent-fit-width))
 
 (register-preference-callback-procedures
-  (list notify-header notify-icon-bar notify-remote-control notify-side-tools notify-status-bar notify-zoom-factor))
+  (list notify-header notify-icon-bar notify-remote-control notify-status-bar notify-zoom-factor))

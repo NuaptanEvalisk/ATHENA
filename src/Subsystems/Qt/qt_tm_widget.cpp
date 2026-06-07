@@ -152,8 +152,8 @@ qt_tm_widget_rep::qt_tm_widget_rep(int mask, command _quit)
   visibility[3] = (mask & 8)   == 8;   // focus
   visibility[4] = (mask & 16)  == 16;  // user
   visibility[5] = (mask & 32)  == 32;  // footer
-  visibility[6] = (mask & 64)  == 64;  // right side tools
-  visibility[7] = (mask & 128) == 128; // left side tools
+  visibility[6] = false;               // legacy right side tools removed
+  visibility[7] = false;               // legacy left side tools removed
   visibility[8] = (mask & 256) == 256; // bottom tools
   visibility[9] = (mask & 512) == 512; // extra bottom tools
 
@@ -259,29 +259,6 @@ qt_tm_widget_rep::qt_tm_widget_rep(int mask, command _quit)
 
   bottomTools   = new QDockWidget ("bottom tools", mw);
   extraTools    = new QDockWidget ("extra tools", mw);
-  sideTools     = new QDockWidget ("side tools", mw);
-  leftTools     = new QDockWidget ("left tools", mw);
-
-#if QT_VERSION >= 0x060000
-  {
-    // scrollable side tools
-    QScrollArea *sa = new QScrollArea(mw);
-	  sa->setObjectName ("SideToolScrollArea");
-	  sa->setWidgetResizable (true);
-	  sa->setVerticalScrollBarPolicy (Qt::ScrollBarAlwaysOff);
-	  sa->setHorizontalScrollBarPolicy (Qt::ScrollBarAlwaysOff);
-	  sa->setFrameStyle (QFrame::NoFrame);
-	  sa->show ();
-    sideTools->setWidget (sa);
-  }
-#endif
-
-    // HACK: Wrap the dock in a "fake" window widget (last parameter = true) to
-    // have clicks report the right position.
-  static int cnt=0;
-  string dock_name = "dock:" * as_string(cnt++);
-  dock_window_widget = tm_new<qt_window_widget_rep> (sideTools, dock_name,
-                                                     command(), true);
   
   if (tm_style_sheet == "") {
     if (!tmapp()->useNewToolbar()) {
@@ -290,8 +267,6 @@ qt_tm_widget_rep::qt_tm_widget_rep(int mask, command _quit)
       focusToolBar->setStyle (qtmstyle ());
       userToolBar->setStyle (qtmstyle ());
     }
-    sideTools->setStyle (qtmstyle ());
-    leftTools->setStyle (qtmstyle ());
     bottomTools->setStyle (qtmstyle ());
     extraTools->setStyle (qtmstyle ());
   }
@@ -362,8 +337,6 @@ qt_tm_widget_rep::qt_tm_widget_rep(int mask, command _quit)
   userToolBar->setObjectName ("userToolBar");
   bottomTools->setObjectName ("bottomTools");
   extraTools->setObjectName ("extraTools");
-  sideTools->setObjectName ("sideTools");
-  leftTools->setObjectName ("leftTools");
 
 #if !DISABLE_QTMTOOLBAR
   if (tmapp()->useNewToolbar() && !use_native_menubar) {
@@ -443,20 +416,6 @@ qt_tm_widget_rep::qt_tm_widget_rep(int mask, command _quit)
   mw->addToolBarBreak ();
 #endif
 
-  sideTools->setAllowedAreas (Qt::AllDockWidgetAreas);
-  sideTools->setFeatures (QDockWidget::DockWidgetMovable |
-                         QDockWidget::DockWidgetFloatable);
-  sideTools->setFloating (false);
-  sideTools->setTitleBarWidget (new QWidget()); // Disables title bar
-  mw->addDockWidget (Qt::RightDockWidgetArea, sideTools);
-
-  leftTools->setAllowedAreas (Qt::AllDockWidgetAreas);
-  leftTools->setFeatures (QDockWidget::DockWidgetMovable |
-                         QDockWidget::DockWidgetFloatable);
-  leftTools->setFloating (false);
-  leftTools->setTitleBarWidget (new QWidget()); // Disables title bar
-  mw->addDockWidget (Qt::LeftDockWidgetArea, leftTools);
-
   bottomTools->setAllowedAreas (Qt::BottomDockWidgetArea);
   bottomTools->setFeatures (QDockWidget::NoDockWidgetFeatures);
   bottomTools->setFloating (false);
@@ -473,12 +432,6 @@ qt_tm_widget_rep::qt_tm_widget_rep(int mask, command _quit)
   extraTools->setContentsMargins (3, 6, 3, -2);  // Hacks hacks hacks... :(
   mw->addDockWidget (Qt::BottomDockWidgetArea, extraTools);
 
-    // FIXME? add DockWidgetClosable and connect the close signal
-    // to the scheme code
-    //  QObject::connect(sideDock, SIGNAL(closeEvent()), 
-    //                   someHelper, SLOT(call_scheme_hide_side_tools()));  
-
-  
   // handles visibility
   // at this point all the toolbars are empty so we avoid showing them
   // same for the menu bar if we are not on the Mac (where we do not have
@@ -488,8 +441,6 @@ qt_tm_widget_rep::qt_tm_widget_rep(int mask, command _quit)
   modeToolBar->setVisible (false);
   focusToolBar->setVisible (false);
   userToolBar->setVisible (false);
-  sideTools->setVisible (false);
-  leftTools->setVisible (false);
   bottomTools->setVisible (false);
   extraTools->setVisible (false);
   mainwindow()->statusBar()->setVisible (true);
@@ -570,8 +521,6 @@ qt_tm_widget_rep::update_visibility () {
   bool old_modeVisibility = modeToolBar->isVisible();
   bool old_focusVisibility = focusToolBar->isVisible();
   bool old_userVisibility = userToolBar->isVisible();
-  bool old_sideVisibility = sideTools->isVisible();
-  bool old_leftVisibility = leftTools->isVisible();
   bool old_bottomVisibility = bottomTools->isVisible();
   bool old_extraVisibility = extraTools->isVisible();
   bool old_statusVisibility = mainwindow()->statusBar()->isVisible();
@@ -581,8 +530,6 @@ qt_tm_widget_rep::update_visibility () {
   bool new_focusVisibility = visibility[3] && visibility[0];
   bool new_userVisibility = visibility[4] && visibility[0];
   bool new_statusVisibility = visibility[5];
-  bool new_sideVisibility = visibility[6];
-  bool new_leftVisibility = visibility[7];
   bool new_bottomVisibility = visibility[8];
   bool new_extraVisibility = visibility[9];
   
@@ -594,10 +541,6 @@ qt_tm_widget_rep::update_visibility () {
     focusToolBar->setVisible (new_focusVisibility);
   if ( XOR(old_userVisibility,  new_userVisibility) )
     userToolBar->setVisible (new_userVisibility);
-  if ( XOR(old_sideVisibility,  new_sideVisibility) )
-    sideTools->setVisible (new_sideVisibility);
-  if ( XOR(old_leftVisibility,  new_leftVisibility) )
-    leftTools->setVisible (new_leftVisibility);
   if ( XOR(old_bottomVisibility,  new_bottomVisibility) )
     bottomTools->setVisible (new_bottomVisibility);
   if ( XOR(old_extraVisibility,  new_extraVisibility) )
@@ -771,15 +714,11 @@ qt_tm_widget_rep::send (slot s, blackbox val) {
     case SLOT_SIDE_TOOLS_VISIBILITY:
     {
       check_type<bool>(val, s);
-      visibility[6] = open_box<bool> (val);
-      update_visibility();
     }
       break;
     case SLOT_LEFT_TOOLS_VISIBILITY:
     {
       check_type<bool>(val, s);
-      visibility[7] = open_box<bool> (val);
-      update_visibility();
     }
       break;
     case SLOT_BOTTOM_TOOLS_VISIBILITY:
@@ -942,11 +881,11 @@ qt_tm_widget_rep::query (slot s, int type_id) {
 
     case SLOT_SIDE_TOOLS_VISIBILITY:
       check_type_id<bool> (type_id, s);
-      return close_box<bool> (visibility[6]);
+      return close_box<bool> (false);
 
     case SLOT_LEFT_TOOLS_VISIBILITY:
       check_type_id<bool> (type_id, s);
-      return close_box<bool> (visibility[7]);
+      return close_box<bool> (false);
 
     case SLOT_BOTTOM_TOOLS_VISIBILITY:
       check_type_id<bool> (type_id, s);
@@ -1193,40 +1132,10 @@ qt_tm_widget_rep::write (slot s, blackbox index, widget w) {
       
     case SLOT_SIDE_TOOLS:
       check_type_void (index, s);
-    {
-#if QT_VERSION >= 0x060000
-      side_tools_widget = concrete (w);
-      QWidget* new_qwidget = side_tools_widget->as_qwidget(mainwindow());
-      QWidget* old_qwidget = dynamic_cast<QScrollArea*>(sideTools->widget())->widget();
-      if (old_qwidget) old_qwidget->deleteLater();
-      dynamic_cast<QScrollArea*>(sideTools->widget())->setWidget (new_qwidget);
-      update_visibility();
-      QList<QDockWidget*> l1;
-      l1.append ((QDockWidget*) extraTools);
-      QList<int> l2;
-      l2.append (1);
-      mainwindow()->resizeDocks (l1, l2, Qt::Horizontal);
-      new_qwidget->show();
-#endif
-    }
       break;
 
     case SLOT_LEFT_TOOLS:
       check_type_void (index, s);
-    {
-      left_tools_widget = concrete (w);
-      QWidget* new_qwidget = left_tools_widget->as_qwidget(mainwindow());
-      QWidget* old_qwidget = leftTools->widget();
-      if (old_qwidget) old_qwidget->deleteLater();
-      leftTools->setWidget (new_qwidget);
-      update_visibility();
-      QList<QDockWidget*> l1;
-      l1.append ((QDockWidget*) extraTools);
-      QList<int> l2;
-      l2.append (1);
-      mainwindow()->resizeDocks (l1, l2, Qt::Horizontal);
-      new_qwidget->show();
-    }
       break;
 
     case SLOT_BOTTOM_TOOLS:

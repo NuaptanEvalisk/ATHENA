@@ -72,8 +72,6 @@ class qt_tm_widget_rep: public qt_window_widget_rep {
   QToolBar*     focusToolBar;
   QToolBar*      userToolBar;
 #endif
-  QDockWidget*   sideTools;
-  QDockWidget*   leftTools;
   QDockWidget* bottomTools;
   QDockWidget*  extraTools;
 
@@ -100,8 +98,6 @@ class qt_tm_widget_rep: public qt_window_widget_rep {
   qt_widget mode_icons_widget;
   qt_widget focus_icons_widget;
   qt_widget user_icons_widget;
-  qt_widget side_tools_widget;
-  qt_widget left_tools_widget;
   qt_widget bottom_tools_widget;
   qt_widget extra_tools_widget;
   qt_widget dock_window_widget;   // trick to return correct widget position

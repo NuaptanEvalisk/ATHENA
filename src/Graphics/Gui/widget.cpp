@@ -229,14 +229,6 @@ get_default_styled_font (int style) {
   return get_default_font (tt, mini, bold);
 }
 
-#ifdef QTTEXMACS
-bool use_side_tools= false;
-bool use_left_tools= false;
-#else
-bool use_side_tools= false;
-bool use_left_tools= false;
-#endif
-
 array<SI>
 get_widget_size (widget w) {
   // FIXME: this does not work yet.

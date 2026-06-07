@@ -100,21 +100,13 @@
   (== (get-preference "database tool") "on"))
 
 (define-public (side-tools?)
-  (and (== (get-preference "side tools") "on")
-       (== (get-preference "developer tool") "on")))
+  #f)
 
 (define-public (left-tools?)
-  (and (== (get-preference "left tools") "on")
-       (== (get-preference "developer tool") "on")))
+  #f)
 
 (define-public (has-side-tools? n)
-  (cond ((== n 0) (side-tools?))
-        ((== n 1) (left-tools?))
-        (else #f)))
-
-(define-public (has-markup-gui?)
-  (and (== (get-preference "markup gui") "on")
-       (== (get-preference "developer tool") "on")))
+  #f)
 
 (define-public (has-chatgpt?)
   (!= (get-preference "openai api key" "") ""))
