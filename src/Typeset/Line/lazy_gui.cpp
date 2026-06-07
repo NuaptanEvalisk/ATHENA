@@ -181,18 +181,22 @@ stack_page_items (path ip, array<page_item> l, int start, int end) {
   int n= end - start + 1;
   array<box> lines_bx (n);
   array<SI> lines_ht (n);
+  brush block_bg= l[start]->block_bg;
   for (int i=0; i<n; i++) {
     box b= l[start + i]->b;
     lines_bx[i]= resize_box (b->ip, b, b->x1, min (b->y1, b->y3),
                               b->x2, max (b->y2, b->y4));
     lines_ht[i]= l[start + i]->spc->def;
+    if (l[start + i]->block_bg != block_bg) block_bg= brush (false);
   }
   box b= stack_box (ip, lines_bx, lines_ht);
   SI dy= n == 0? 0: b[0]->y2;
   b= move_box (decorate (ip), b, 0, dy);
   page_item last= l[end];
-  return page_item (PAGE_LINE_ITEM, b, space (0), last->penalty,
-                    last->fl, last->nr_cols, last->t);
+  page_item item= page_item (PAGE_LINE_ITEM, b, space (0), last->penalty,
+                             last->fl, last->nr_cols, last->t);
+  item->block_bg= block_bg;
+  return item;
 }
 
 static SI
@@ -247,6 +251,50 @@ mark_block_background (array<page_item>& l, brush bg, SI dx) {
     }
 }
 
+static void
+materialize_block_background_runs (
+  path ip, array<page_item>& l, SI body_x1, SI body_x2)
+{
+  array<page_item> r;
+  for (int i=0; i<N(l); ) {
+    if (l[i]->type != PAGE_LINE_ITEM ||
+        l[i]->block_bg->get_type () == brush_none) {
+      r << l[i++];
+      continue;
+    }
+
+    int start= i;
+    while (i+1<N(l) && l[i+1]->type == PAGE_LINE_ITEM &&
+           l[i+1]->block_bg == l[start]->block_bg)
+      i++;
+
+    int n= i - start + 1;
+    array<box> lines_bx (n);
+    array<SI> lines_ht (n);
+    for (int j=0; j<n; j++) {
+      box b= l[start + j]->b;
+      lines_bx[j]= resize_box (b->ip, b, b->x1, min (b->y1, b->y3),
+                                b->x2, max (b->y2, b->y4));
+      lines_ht[j]= j+1<n? l[start + j]->spc->def: 0;
+    }
+    box b= stack_box (ip, lines_bx, lines_ht);
+    array<rectangle> rs;
+    array<brush> bg;
+    rs << rectangle (body_x1, b->sy1 (n-1), body_x2, b->sy2 (0));
+    bg << l[start]->block_bg;
+    b= block_background_box (decorate (b->ip), b, rs, bg);
+    SI dy= n == 0? 0: b[0]->y2;
+    b= move_box (decorate (ip), b, 0, dy);
+    page_item last= l[i];
+    page_item item= page_item (PAGE_LINE_ITEM, b, last->spc, last->penalty,
+                               last->fl, last->nr_cols, last->t);
+    item->block_bg= brush (false);
+    r << item;
+    i++;
+  }
+  l= r;
+}
+
 format
 lazy_ornament_rep::query (lazy_type request, format fm) {
   if ((request == LAZY_BOX) && (fm->type == QUERY_VSTREAM_WIDTH)) {
@@ -296,9 +344,18 @@ lazy_ornament_rep::produce (lazy_type request, format fm) {
         body_x2= max (body_x2, l[i]->b->x2);
       }
 
+    materialize_block_background_runs (ip, l, body_x1, body_x2);
+    first= last= -1;
+    for (int i=0; i<N(l); i++)
+      if (l[i]->type == PAGE_LINE_ITEM) {
+        if (first < 0) first= i;
+        last= i;
+      }
+
     for (int i=first; i<=last; i++)
       if (l[i]->type == PAGE_LINE_ITEM) {
         page_item item= copy (l[i]);
+        SI item_spc= item->spc->def;
         ornament_parameters ps_i= copy (ps);
         box xb_i= (i == first? xb: box ());
         if (i != first) {
@@ -310,7 +367,7 @@ lazy_ornament_rep::produce (lazy_type request, format fm) {
         if (i != last) {
           ps_i->bw= 0;
           ps_i->bext= 0.0;
-          ps_i->bpad += item->spc->def;
+          ps_i->bpad += item_spc;
           ps_i->bcor= 0;
           item->spc= space (0);
         }
