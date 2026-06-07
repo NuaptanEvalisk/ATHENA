@@ -21,6 +21,11 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstdio>
+#include <fstream>
+#include <filesystem>
+#include <iomanip>
+#include <random>
+#include <sstream>
 #include <vector>
 #ifndef OS_MINGW
 #include <dirent.h>
@@ -42,11 +47,13 @@
 #include "convert.hpp"
 #include "Freetype/tt_file.hpp"
 #include "ATHENA/Data/vault_maintenance.hpp"
+#include "MCP/mcp_rag_server.hpp"
 
 #ifdef QTTEXMACS
 #include "Qt/QTMApplication.hpp"
 #include "QTMGoogleTasksPane.hpp"
 #include "Qt/qt_utilities.hpp"
+#include <QApplication>
 #include <QDir>
 #endif
 
@@ -81,11 +88,161 @@ string aofm_convert_vault_source;
 string aofm_convert_vault_destination;
 string aofm_convert_vault_model_vault;
 string vault_maintenance_dir;
+string rag_server_dir;
+string rag_embedding_model;
+string rag_embedding_device= "auto";
+int    rag_server_port = 8765;
+bool   rag_server_port_set = false;
+bool   rag_server_reindex = false;
+int    rag_index_jobs = 0;
 bool   aofm_ignore_nonempty_dest = false;
 int    aofm_convert_vault_parallelism = 0;
 string extra_init_cmd;
 bool exec_exit= true;
 void server_start ();
+static std::string athena_to_std_string (const string& s);
+
+static bool
+std_ends_with (const std::string& s, const std::string& suffix) {
+  return s.size () >= suffix.size () &&
+         s.compare (s.size () - suffix.size (), suffix.size (), suffix) == 0;
+}
+
+static std::vector<std::string>
+parse_vaultfile_strings_for_boot (const std::string& text) {
+  std::vector<std::string> values;
+  for (size_t i=0; i<text.size (); i++) {
+    if (text[i] != '"') continue;
+    i++;
+    std::string value;
+    while (i < text.size ()) {
+      char c= text[i++];
+      if (c == '\\' && i < text.size ()) {
+        value.push_back (text[i++]);
+        continue;
+      }
+      if (c == '"') break;
+      value.push_back (c);
+    }
+    values.push_back (value);
+  }
+  return values;
+}
+
+static std::string
+scheme_quote_for_boot (const std::string& text) {
+  std::string out= "\"";
+  for (char c: text) {
+    if (c == '\\' || c == '"') out.push_back ('\\');
+    out.push_back (c);
+  }
+  out.push_back ('"');
+  return out;
+}
+
+static bool
+valid_vault_relative_path_for_boot (const std::string& rel) {
+  if (rel.empty ()) return true;
+  std::filesystem::path p (rel);
+  if (p.is_absolute ()) return false;
+  for (const std::filesystem::path& part: p)
+    if (part == "..") return false;
+  return true;
+}
+
+static std::string
+vault_preferences_json_path_for_boot (const std::string& rel) {
+  if (rel.empty ()) return "vprefs.json";
+  if (std_ends_with (rel, ".json")) return rel;
+  if (std_ends_with (rel, ".scm"))
+    return rel.substr (0, rel.size () - 4) + ".json";
+  return rel + ".json";
+}
+
+static bool
+write_vault_preferences_path_for_boot (
+  const std::filesystem::path& vault_file,
+  const std::vector<std::string>& fields,
+  const std::string& prefs_rel)
+{
+  if (fields.size () < 2) return false;
+  std::string map_rel= fields.size () >= 2 && !fields[1].empty ()
+                       ? fields[1] : "map.tmdb";
+  std::string ns_rel= fields.size () >= 4 && !fields[3].empty ()
+                      ? fields[3] : "ns.sqlite";
+  std::string startup_page= fields.size () >= 5 ? fields[4] : "";
+  std::string one_time_startup_page= fields.size () >= 6 ? fields[5] : "";
+  std::string summary_dir= fields.size () >= 7 ? fields[6] : "";
+  std::string rag_index= fields.size () >= 8 && !fields[7].empty ()
+                         ? fields[7] : "rag.sqlite";
+  std::string text= "(" + scheme_quote_for_boot (fields[0]) +
+                    " " + scheme_quote_for_boot (map_rel) +
+                    " " + scheme_quote_for_boot (prefs_rel) +
+                    " " + scheme_quote_for_boot (ns_rel) +
+                    " " + scheme_quote_for_boot (startup_page) +
+                    " " + scheme_quote_for_boot (one_time_startup_page) +
+                    " " + scheme_quote_for_boot (summary_dir) +
+                    " " + scheme_quote_for_boot (rag_index) + ")\n";
+  std::ofstream file (vault_file, std::ios::binary | std::ios::trunc);
+  if (!file) return false;
+  file << text;
+  return true;
+}
+
+static void
+load_vault_preferences_for_rag_if_enabled (
+  const std::filesystem::path& vault_root)
+{
+  if (get_preference ("vault take preferences with vault", "off") != "on")
+    return;
+
+  std::filesystem::path vault_file= vault_root / "Vaultfile";
+  std::ifstream file (vault_file, std::ios::binary);
+  if (!file) {
+    std_warning << "Continuous RAG: vault preferences enabled, but Vaultfile "
+                << "cannot be read; using system preferences" << LF;
+    return;
+  }
+  std::ostringstream buffer;
+  buffer << file.rdbuf ();
+  std::vector<std::string> fields=
+    parse_vaultfile_strings_for_boot (buffer.str ());
+  if (fields.size () < 2) {
+    std_warning << "Continuous RAG: invalid Vaultfile; using system preferences"
+                << LF;
+    return;
+  }
+
+  std::string prefs_rel= fields.size () >= 3 ? fields[2] : "";
+  std::string json_rel= vault_preferences_json_path_for_boot (prefs_rel);
+  if (!valid_vault_relative_path_for_boot (json_rel)) {
+    std_warning << "Continuous RAG: Vaultfile preferences path is not "
+                << "vault-relative; using system preferences" << LF;
+    return;
+  }
+
+  if (prefs_rel != json_rel &&
+      !write_vault_preferences_path_for_boot (vault_file, fields, json_rel))
+    std_warning << "Continuous RAG: failed to normalize Vaultfile preferences "
+                << "path" << LF;
+
+  std::filesystem::path prefs_path= vault_root / json_rel;
+  std::filesystem::path legacy_path= vault_root /
+    (prefs_rel.empty () ? std::string ("vprefs.scm") : prefs_rel);
+
+  if (!std::filesystem::exists (prefs_path) &&
+      std::filesystem::exists (legacy_path)) {
+    load_user_preferences (url (legacy_path.string ().c_str ()));
+    return;
+  }
+  if (!std::filesystem::exists (prefs_path)) {
+    std_warning << "Continuous RAG: vault preferences enabled, but "
+                << prefs_path.string ().c_str ()
+                << " does not exist; using system preferences" << LF;
+    return;
+  }
+  load_user_preferences (url (prefs_path.string ().c_str ()));
+}
 
 static bool
 is_positive_integer_arg (string s) {
@@ -186,6 +343,22 @@ reject_unsupported_qt_platforms (int argc, char** argv) {
 static int
 as_positive_integer_arg (string s) {
   return is_positive_integer_arg (s) ? as_int (s) : 0;
+}
+
+static std::string
+random_hex_token (int bytes) {
+  static const char* hex= "0123456789abcdef";
+  std::random_device rd;
+  std::mt19937 gen (rd ());
+  std::uniform_int_distribution<int> dist (0, 255);
+  std::string out;
+  out.reserve (size_t (bytes) * 2);
+  for (int i=0; i<bytes; i++) {
+    int value= dist (gen);
+    out.push_back (hex[(value >> 4) & 15]);
+    out.push_back (hex[value & 15]);
+  }
+  return out;
 }
 
 #ifdef QTTEXMACS
@@ -516,6 +689,24 @@ set_global_options  (int argc, char** argv)  {
       else if (s == "-vault-maintenance") {
         i++;
       }
+      else if (s == "-rag-server") {
+        i++;
+      }
+      else if (s == "-rag-port") {
+        i++;
+      }
+      else if (s == "-rag-embedding-model") {
+        i++;
+      }
+      else if (s == "-rag-embedding-device") {
+        i++;
+      }
+      else if (s == "-rag-index-jobs") {
+        i++;
+      }
+      else if (s == "-rag-reindex") {
+        // Handled in texmacs_entrypoint
+      }
       else if (s == "-ignore-nonempty-dest") {
         // Handled in texmacs_entrypoint
       }
@@ -674,6 +865,9 @@ set_global_options  (int argc, char** argv)  {
         cout << "  --vault-maintenance [dir]  Maintain an ATHENA vault headlessly\n";
         cout << "  --aofm-convert-file [file]  Convert one AOFM Markdown file headlessly\n";
         cout << "  --aofm-convert-vault [src] [dest] [jobs]  Convert an AOFM vault headlessly\n";
+        cout << "  --rag-server [dir]          Start a Continuous RAG MCP server\n";
+        cout << "  --rag-embedding-device [auto|cpu]  Select RAG embedding device mode\n";
+        cout << "  --rag-index-jobs [n]        Parallelize initial RAG indexing with n processes\n";
         cout << "  --insert-build-warning     Insert ATHENA experimental build warnings during AOFM conversion\n";
         cout << "  --model-vault [dir]        Reuse a model vault for AOFM namespace/style conversion\n";
         cout << "  -W [i] [o] Recursively convert directory into website\n";
@@ -791,6 +985,56 @@ TeXmacs_main (int argc, char** argv) {
       string cmd= "(load-buffer " * b * " " * where * ")";
       where= " :new-window";
       extra_init_cmd << cmd;
+    }
+
+    if (rag_server_dir != "") {
+      athena::mcp::RagServerOptions options;
+      options.vault_root= std::filesystem::path (
+        athena_to_std_string (rag_server_dir));
+      load_vault_preferences_for_rag_if_enabled (options.vault_root);
+      if (!rag_server_port_set) {
+        string port_pref= get_user_preference ("rag mcp port", "8765");
+        if (is_positive_integer_arg (port_pref))
+          rag_server_port= as_positive_integer_arg (port_pref);
+      }
+      options.port= rag_server_port;
+      if (rag_embedding_model != "")
+        options.embedding_model= std::filesystem::path (
+          athena_to_std_string (rag_embedding_model));
+      else {
+        string pref_model= get_user_preference ("rag embedding model", "");
+        if (pref_model != "")
+          options.embedding_model= std::filesystem::path (
+            athena_to_std_string (pref_model));
+      }
+      string pref_device= get_user_preference ("rag embedding device", "auto");
+      if (rag_embedding_device == "auto" && pref_device != "")
+        rag_embedding_device= pref_device;
+      if (rag_embedding_device != "cpu") rag_embedding_device= "auto";
+      options.embedding_device= athena_to_std_string (rag_embedding_device);
+      options.index_jobs= rag_index_jobs;
+      options.force_reindex= rag_server_reindex;
+      string token_pref= get_user_preference ("rag mcp bearer token", "");
+      if (token_pref == "") {
+        std::string token= random_hex_token (32);
+        set_user_preference ("rag mcp bearer token", string (token.c_str ()));
+        save_user_preferences ();
+        options.bearer_token= token;
+      }
+      else options.bearer_token= athena_to_std_string (token_pref);
+
+      bool ok= athena::mcp::start_rag_server (options);
+      if (!ok) exit (1);
+      texmacs_started= true;
+      if (!disable_error_recovery) signal (SIGSEGV, clean_exit_on_segfault);
+      signal (SIGTERM, clean_exit_on_sigterm);
+      release_boot_lock ();
+      io_info << "rag mcp: bearer token "
+              << options.bearer_token.c_str () << "\n";
+#ifdef QTTEXMACS
+      QApplication::exec ();
+#endif
+      exit (0);
     }
   
     if (number_buffers () == 0) {
@@ -1225,6 +1469,40 @@ texmacs_entrypoint (int argc, char** argv) {
         headless_mode= true;
       }
     }
+    if (s == "-rag-server") {
+      i++;
+      if (i < argc) {
+        rag_server_dir= argv[i];
+        headless_mode= true;
+        exec_exit= false;
+      }
+    }
+    if (s == "-rag-port") {
+      i++;
+      if (i < argc && is_positive_integer_arg (string (argv[i]))) {
+        rag_server_port= as_positive_integer_arg (string (argv[i]));
+        rag_server_port_set= true;
+      }
+    }
+    if (s == "-rag-embedding-model") {
+      i++;
+      if (i < argc) rag_embedding_model= argv[i];
+    }
+    if (s == "-rag-embedding-device") {
+      i++;
+      if (i < argc) {
+        string device= argv[i];
+        rag_embedding_device= device == "cpu"? "cpu": "auto";
+      }
+    }
+    if (s == "-rag-index-jobs") {
+      i++;
+      if (i < argc && is_positive_integer_arg (string (argv[i])))
+        rag_index_jobs= as_positive_integer_arg (string (argv[i]));
+    }
+    if (s == "-rag-reindex") {
+      rag_server_reindex= true;
+    }
     if (s == "-ignore-nonempty-dest") {
       aofm_ignore_nonempty_dest = true;
     }
@@ -1242,7 +1520,8 @@ texmacs_entrypoint (int argc, char** argv) {
   ATHENA_init_paths (argc, argv);
 #ifdef QTTEXMACS
   reject_unsupported_qt_platforms (argc, argv);
-  if (!headless_mode) {
+  bool rag_server_mode= rag_server_dir != "";
+  if (!headless_mode || rag_server_mode) {
 #if QT_VERSION >= 0x060000
     QGuiApplication::setHighDpiScaleFactorRoundingPolicy
       (Qt::HighDpiScaleFactorRoundingPolicy::Round);
@@ -1254,7 +1533,7 @@ texmacs_entrypoint (int argc, char** argv) {
     QCoreApplication::setAttribute(Qt::AA_UseHighDpiPixmaps);
 #endif
     qtmapp= new QTMApplication (argc, argv);
-    if (!no_splash_screen) tmapp()->show_splash ();
+    if (!headless_mode && !no_splash_screen) tmapp()->show_splash ();
     startup_progress (5, "Application created");
   }
 #endif

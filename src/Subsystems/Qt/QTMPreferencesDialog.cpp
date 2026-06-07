@@ -20,6 +20,7 @@
 
 #include <QApplication>
 #include <QCheckBox>
+#include <QClipboard>
 #include <QColorDialog>
 #include <QComboBox>
 #include <QDialogButtonBox>
@@ -36,6 +37,7 @@
 #include <QMessageBox>
 #include <QPointer>
 #include <QPushButton>
+#include <QRandomGenerator>
 #include <QScrollArea>
 #include <QSignalBlocker>
 #include <QStackedWidget>
@@ -124,6 +126,19 @@ preferred_fonts () {
   for (list<string> it= xs; !is_nil (it); it= it->next)
     result << to_qstring_pref (it->item);
   return result;
+}
+
+static QString
+random_hex_token (int bytes) {
+  static const char* hex= "0123456789abcdef";
+  QString out;
+  out.reserve (bytes * 2);
+  for (int i=0; i<bytes; i++) {
+    int value= QRandomGenerator::global ()->bounded (256);
+    out.append (QChar (hex[(value >> 4) & 15]));
+    out.append (QChar (hex[value & 15]));
+  }
+  return out;
 }
 
 static void
@@ -1255,10 +1270,15 @@ QTMPreferencesDialog::buildVaultPage () {
     QLineEdit* maintenanceSummaryPath= add_path_chooser_row (
       vi, "Maintenance summary folder:", vaultInfo.maintenanceSummaryPath,
       chooseSummaryFolder);
+    QPushButton* chooseRagIndex= nullptr;
+    QLineEdit* ragIndexPath= add_path_chooser_row (
+      vi, "RAG index database path:", vaultInfo.ragIndexPath,
+      chooseRagIndex);
 
     auto saveVaultfile= [info, vaultName, mapPath, preferencesPath,
                          namespacePath, startupPage,
-                         oneTimeStartupPage, maintenanceSummaryPath] () {
+                         oneTimeStartupPage, maintenanceSummaryPath,
+                         ragIndexPath] () {
       QTMVaultfileInfo next;
       next.name= vaultName->text ();
       next.mapPath= mapPath->text ();
@@ -1267,6 +1287,7 @@ QTMPreferencesDialog::buildVaultPage () {
       next.startupPage= startupPage->text ();
       next.oneTimeStartupPage= oneTimeStartupPage->text ();
       next.maintenanceSummaryPath= maintenanceSummaryPath->text ();
+      next.ragIndexPath= ragIndexPath->text ();
       QString error;
       if (!qtm_vaultfile_write (next, &error)) {
         QMessageBox::warning (info, "Vault Info", error);
@@ -1282,6 +1303,8 @@ QTMPreferencesDialog::buildVaultPage () {
         qtm_clean_vault_target (next.oneTimeStartupPage));
       maintenanceSummaryPath->setText (
         qtm_clean_vault_relative_path (next.maintenanceSummaryPath));
+      ragIndexPath->setText (
+        qtm_clean_vault_relative_path (next.ragIndexPath));
     };
 
     auto choosePath= [info, saveVaultfile] (QLineEdit* edit,
@@ -1338,6 +1361,8 @@ QTMPreferencesDialog::buildVaultPage () {
                       saveVaultfile);
     QObject::connect (maintenanceSummaryPath, &QLineEdit::editingFinished,
                       saveVaultfile);
+    QObject::connect (ragIndexPath, &QLineEdit::editingFinished,
+                      saveVaultfile);
     QObject::connect (chooseMap, &QPushButton::clicked,
                       [=] () { choosePath (mapPath, "Choose map database",
                                            false); });
@@ -1359,6 +1384,10 @@ QTMPreferencesDialog::buildVaultPage () {
     QObject::connect (chooseSummaryFolder, &QPushButton::clicked,
                       [=] () { chooseFolder (maintenanceSummaryPath,
                                              "Choose maintenance summary folder"); });
+    QObject::connect (chooseRagIndex, &QPushButton::clicked,
+                      [=] () { choosePath (ragIndexPath,
+                                           "Choose RAG index database",
+                                           false); });
   }
 
   QComboBox* vaultFont= new QComboBox;
@@ -1508,6 +1537,56 @@ QTMPreferencesDialog::buildOtherPage () {
     refreshGoogleStatus ();
   });
   refreshGoogleStatus ();
+
+  QFormLayout* rag= add_section (connectivity, "Continuous RAG");
+  add_line_edit (rag, "MCP port:", "rag mcp port", "8765");
+  QPushButton* chooseEmbedding= nullptr;
+  QLineEdit* embeddingModel= add_path_chooser_row (
+    rag, "Embedding model path:", pref ("rag embedding model", ""),
+    chooseEmbedding);
+  QObject::connect (embeddingModel, &QLineEdit::editingFinished,
+                    [embeddingModel] () {
+    set_pref ("rag embedding model", embeddingModel->text ().trimmed ());
+  });
+  QObject::connect (chooseEmbedding, &QPushButton::clicked,
+                    [connectivity, embeddingModel] () {
+    QString selected= QFileDialog::getOpenFileName (
+      connectivity, "Choose embedding GGUF model",
+      embeddingModel->text ().trimmed (),
+      "GGUF models (*.gguf);;All files (*)");
+    if (selected.isEmpty ()) return;
+    embeddingModel->setText (selected);
+    set_pref ("rag embedding model", selected);
+  });
+  add_combo (rag, "Embedding device:", "rag embedding device",
+             {{"auto", "Auto"}, {"cpu", "CPU only"}}, "auto");
+  QLineEdit* bearerToken= add_line_edit (
+    rag, "MCP bearer token:", "rag mcp bearer token", "", false);
+  QWidget* tokenButtons= new QWidget (connectivity);
+  QHBoxLayout* tokenLayout= new QHBoxLayout (tokenButtons);
+  tokenLayout->setContentsMargins (0, 0, 0, 0);
+  QPushButton* generateToken= new QPushButton ("Generate token", tokenButtons);
+  QPushButton* copyToken= new QPushButton ("Copy token", tokenButtons);
+  tokenLayout->addWidget (generateToken);
+  tokenLayout->addWidget (copyToken);
+  tokenLayout->addStretch (1);
+  rag->addRow (label ("Token management:"), tokenButtons);
+  QObject::connect (generateToken, &QPushButton::clicked,
+                    [bearerToken] () {
+    QString token= random_hex_token (32);
+    bearerToken->setText (token);
+    set_pref ("rag mcp bearer token", token);
+  });
+  QObject::connect (copyToken, &QPushButton::clicked,
+                    [bearerToken] () {
+    QApplication::clipboard ()->setText (bearerToken->text ());
+  });
+  QLabel* ragNote= new QLabel (
+    "Start the local read-only MCP server with ATHENA.bin -H --rag-server "
+    "<vault-root>. The endpoint is http://127.0.0.1:<port>/mcp and requires "
+    "the bearer token above.");
+  ragNote->setWordWrap (true);
+  connectivity->layout ()->addWidget (ragNote);
   finish_page (connectivity);
 
   return tabbed ({{"AI", ai}, {"Connectivity", connectivity},

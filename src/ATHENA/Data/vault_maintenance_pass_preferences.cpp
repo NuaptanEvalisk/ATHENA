@@ -129,6 +129,8 @@ write_vaultfile_preferences_path (const fs::path& vault_file,
   std::string startup_page = fields.size () >= 5 ? fields[4] : "";
   std::string one_time_startup_page = fields.size () >= 6 ? fields[5] : "";
   std::string summary_dir = fields.size () >= 7 ? fields[6] : "";
+  std::string rag_index = fields.size () >= 8 && !fields[7].empty ()
+                          ? fields[7] : "rag.sqlite";
   std::string text = "(" + scheme_quote_string (fields[0]) +
                      " " + scheme_quote_string (fields[1]) +
                      " " + scheme_quote_string (prefs_rel) +
@@ -136,6 +138,7 @@ write_vaultfile_preferences_path (const fs::path& vault_file,
                      " " + scheme_quote_string (startup_page) +
                      " " + scheme_quote_string (one_time_startup_page) +
                      " " + scheme_quote_string (summary_dir) +
+                     " " + scheme_quote_string (rag_index) +
                      ")\n";
   return write_file_bytes (vault_file, text);
 }
@@ -161,12 +164,12 @@ read_vaultfile_metadata (VaultMaintenanceContext& ctx) {
   if (!read_file_bytes (vault_file, text)) return;
 
   std::vector<std::string> fields = parse_vaultfile_strings (text);
-  if (fields.size () >= 2 && fields.size () < 7) {
+  if (fields.size () >= 2 && fields.size () < 8) {
     std::string prefs_rel = fields.size () >= 3 ? fields[2] : "";
     if (write_vaultfile_preferences_path (vault_file, fields, prefs_rel))
-      log_info ("preferences: normalized Vaultfile to 7 fields");
+      log_info ("preferences: normalized Vaultfile to 8 fields");
     else
-      log_error ("failed to normalize Vaultfile to 7 fields");
+      log_error ("failed to normalize Vaultfile to 8 fields");
   }
   if (fields.size () >= 1 && !fields[0].empty ())
     ctx.vault_name = fields[0];

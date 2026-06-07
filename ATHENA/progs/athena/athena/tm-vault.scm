@@ -168,6 +168,12 @@
       (list-ref data 6)
       ""))
 
+(define (vaultfile-rag-index-path data)
+  (if (and (list? data) (>= (length data) 8) (string? (list-ref data 7))
+           (not (string-null? (list-ref data 7))))
+      (list-ref data 7)
+      "rag.sqlite"))
+
 (define (vaultfile-normalized data)
   (list (car data)
         (cadr data)
@@ -175,7 +181,8 @@
         (vaultfile-namespace-db-path data)
         (vaultfile-startup-page data)
         (vaultfile-one-time-startup-page data)
-        (vaultfile-maintenance-summary-path data)))
+        (vaultfile-maintenance-summary-path data)
+        (vaultfile-rag-index-path data)))
 
 (define (vaultfile-normalize! vault-file data)
   (let ((normalized (vaultfile-normalized data)))
@@ -190,7 +197,8 @@
         (vaultfile-namespace-db-path data)
         (vaultfile-startup-page data)
         (vaultfile-one-time-startup-page data)
-        (vaultfile-maintenance-summary-path data)))
+        (vaultfile-maintenance-summary-path data)
+        (vaultfile-rag-index-path data)))
 
 (define (vault-preferences-url dir prefs-path)
   (url-append dir prefs-path))
@@ -339,7 +347,8 @@
                  (let* ((vault-file (url-append dir "Vaultfile"))
                         (db-path "map.tmdb")
                         (ns-path "ns.sqlite")
-                        (data (list name db-path "" ns-path "" "" "")))
+                        (data (list name db-path "" ns-path "" "" ""
+                                    "rag.sqlite")))
                    (save-object vault-file data)
                    (vault-load/namespace-db dir name db-path ns-path)
                    (if (vault-take-preferences?)

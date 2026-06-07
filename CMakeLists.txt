@@ -463,7 +463,9 @@ set (ATHENA_Include_Dirs
   ${ATHENA_SOURCE_DIR}/src/Subsystems/PEGLib
   ${ATHENA_SOURCE_DIR}/src/Subsystems/Pdf/LibAesgm
   ${ATHENA_SOURCE_DIR}/src/Subsystems/Gnutls
+  ${ATHENA_SOURCE_DIR}/src/Subsystems/MCP
   ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt
+  ${ATHENA_SOURCE_DIR}/src/Subsystems/RAG
   ${ATHENA_SOURCE_DIR}/src/Scheme
   ${ATHENA_SOURCE_DIR}/src/Scheme/Guile
   ${ATHENA_SOURCE_DIR}/src/Scheme/Scheme
@@ -531,8 +533,10 @@ file (GLOB_RECURSE ATHENA_Subsystems_SRCS CONFIGURE_DEPENDS
   "${ATHENA_SOURCE_DIR}/src/Subsystems/Ispell/*.cpp"
   "${ATHENA_SOURCE_DIR}/src/Subsystems/Metafont/*.cpp"
   "${ATHENA_SOURCE_DIR}/src/Subsystems/LaTeX_Preview/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Subsystems/MCP/*.cpp"
   "${ATHENA_SOURCE_DIR}/src/Subsystems/Mplayer/*.cpp"
   "${ATHENA_SOURCE_DIR}/src/Subsystems/Openssl/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Subsystems/RAG/*.cpp"
   "${ATHENA_SOURCE_DIR}/src/Subsystems/Sqlite3/*.cpp"
 )
 

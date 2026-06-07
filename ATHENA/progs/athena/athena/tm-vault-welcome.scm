@@ -25,6 +25,9 @@
 (define (vault-welcome-maintenance-summary-path data)
   (vault-welcome-field data 6 ""))
 
+(define (vault-welcome-rag-index-path data)
+  (vault-welcome-field data 7 "rag.sqlite"))
+
 (define (vault-welcome-normalized data)
   (list (vault-welcome-field data 0 "")
         (vault-welcome-field data 1 "map.tmdb")
@@ -32,7 +35,8 @@
         (vault-welcome-field data 3 "ns.sqlite")
         (vault-welcome-startup-page data)
         (vault-welcome-one-time-startup-page data)
-        (vault-welcome-maintenance-summary-path data)))
+        (vault-welcome-maintenance-summary-path data)
+        (vault-welcome-rag-index-path data)))
 
 (define (vault-welcome-clear-one-time data)
   (let ((normalized (vault-welcome-normalized data)))
@@ -42,7 +46,8 @@
           (list-ref normalized 3)
           (list-ref normalized 4)
           ""
-          (list-ref normalized 6))))
+          (list-ref normalized 6)
+          (list-ref normalized 7))))
 
 (define (vault-welcome-vaultfile)
   (if (and (defined? 'vault-active?) (vault-active?))

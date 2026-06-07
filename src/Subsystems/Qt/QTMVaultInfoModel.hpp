@@ -21,6 +21,7 @@ struct QTMVaultfileInfo {
   QString startupPage;
   QString oneTimeStartupPage;
   QString maintenanceSummaryPath;
+  QString ragIndexPath;
 };
 
 bool    qtm_vault_info_available ();
