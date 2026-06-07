@@ -188,8 +188,13 @@ stack_page_items (path ip, array<page_item> l, int start, int end) {
                     last->fl, last->nr_cols, last->t);
 }
 
+static SI
+page_item_group_height (page_item item) {
+  return item->b->h () + item->spc->def;
+}
+
 static void
-group_highlight_runs (path ip, array<page_item>& l) {
+group_highlight_runs (path ip, array<page_item>& l, SI max_group_height) {
   array<page_item> r;
   for (int i=0; i<N(l); ) {
     if (l[i]->type != PAGE_LINE_ITEM || !contains_highlight_box (l[i]->b)) {
@@ -200,7 +205,14 @@ group_highlight_runs (path ip, array<page_item>& l) {
     while (i+1<N(l) && l[i+1]->type == PAGE_LINE_ITEM &&
            contains_highlight_box (l[i+1]->b))
       i++;
-    if (i == start) r << l[start];
+    // Keep page breaks available: stacking a multi-page highlight run
+    // produces one unbreakable page item.
+    SI run_height= 0;
+    for (int j=start; j<=i; j++) run_height += page_item_group_height (l[j]);
+    if (max_group_height <= 0 || run_height > max_group_height) {
+      for (int j=start; j<=i; j++) r << l[j];
+    }
+    else if (i == start) r << l[start];
     else r << stack_page_items (ip, l, start, i);
     i++;
   }
@@ -329,9 +341,9 @@ bridge_ornament_rep::my_typeset (int desired_status) {
   array<page_item> l2;
   stack_border sb2;
   typeset_ornament_stack (desired_status, l2, sb2);
-  group_highlight_runs (ip, l2);
   SI body_w, d1, d2, d3, d4, d5, d6, d7;
   env->get_page_pars (body_w, d1, d2, d3, d4, d5, d6, d7);
+  group_highlight_runs (ip, l2, 3 * env->fn->yx);
   SI body_x1= l;
   SI body_x2= max (body_x1, body_w - r);
 

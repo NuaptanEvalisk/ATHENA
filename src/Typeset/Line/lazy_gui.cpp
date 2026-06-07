@@ -195,8 +195,13 @@ stack_page_items (path ip, array<page_item> l, int start, int end) {
                     last->fl, last->nr_cols, last->t);
 }
 
+static SI
+page_item_group_height (page_item item) {
+  return item->b->h () + item->spc->def;
+}
+
 static void
-group_highlight_runs (path ip, array<page_item>& l) {
+group_highlight_runs (path ip, array<page_item>& l, SI max_group_height) {
   array<page_item> r;
   for (int i=0; i<N(l); ) {
     if (l[i]->type != PAGE_LINE_ITEM || !contains_highlight_box (l[i]->b)) {
@@ -207,7 +212,14 @@ group_highlight_runs (path ip, array<page_item>& l) {
     while (i+1<N(l) && l[i+1]->type == PAGE_LINE_ITEM &&
            contains_highlight_box (l[i+1]->b))
       i++;
-    if (i == start) r << l[start];
+    // Keep page breaks available: stacking a multi-page highlight run
+    // produces one unbreakable page item.
+    SI run_height= 0;
+    for (int j=start; j<=i; j++) run_height += page_item_group_height (l[j]);
+    if (max_group_height <= 0 || run_height > max_group_height) {
+      for (int j=start; j<=i; j++) r << l[j];
+    }
+    else if (i == start) r << l[start];
     else r << stack_page_items (ip, l, start, i);
     i++;
   }
@@ -235,7 +247,7 @@ lazy_ornament_rep::produce (lazy_type request, format fm) {
     lazy body= par->produce (LAZY_VSTREAM, bfm);
     lazy_vstream body_vs= (lazy_vstream) body;
     array<page_item> l= body_vs->l;
-    group_highlight_runs (ip, l);
+    group_highlight_runs (ip, l, 3 * env->fn->yx);
     SI body_x1= 0;
     SI body_x2= max (body_x1, fvs->width - dw);
 
