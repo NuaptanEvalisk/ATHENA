@@ -48,6 +48,7 @@
 #include "QTMFontSelector.hpp"
 #include "QTMPreferencesDialog.hpp"
 #include "QTMGoogleTasksPane.hpp"
+#include "GoogleCloudTodo.hpp"
 #include "ATHENA/Data/image_background.hpp"
 #include "boot.hpp"
 #include "qt_widget.hpp"
@@ -1636,6 +1637,29 @@ tmg_escape_symbol_picker () {
 }
 
 tmscm
+tmg_google_cloud_todo_sync_buffer (tmscm arg1) {
+  TMSCM_ASSERT_URL (arg1, TMSCM_ARG1, "google-cloud-todo-sync-buffer");
+
+  google_cloud_todo_sync_buffer (tmscm_to_url (arg1), true);
+  return TMSCM_UNSPECIFIED;
+}
+
+tmscm
+tmg_google_cloud_todo_sync_open_buffers () {
+  google_cloud_todo_sync_open_buffers (false);
+  return TMSCM_UNSPECIFIED;
+}
+
+tmscm
+tmg_google_cloud_todo_push_item (tmscm arg1, tmscm arg2) {
+  TMSCM_ASSERT_TREE (arg1, TMSCM_ARG1, "google-cloud-todo-push-item");
+  TMSCM_ASSERT_BOOL (arg2, TMSCM_ARG2, "google-cloud-todo-push-item");
+
+  google_cloud_todo_push_item (tmscm_to_tree (arg1), tmscm_to_bool (arg2));
+  return TMSCM_UNSPECIFIED;
+}
+
+tmscm
 tmg_vault_load_with_ns (tmscm arg1, tmscm arg2, tmscm arg3, tmscm arg4) {
   TMSCM_ASSERT_URL (arg1, TMSCM_ARG1, "vault-load-with-ns");
   TMSCM_ASSERT_STRING (arg2, TMSCM_ARG2, "vault-load-with-ns");
@@ -1736,6 +1760,12 @@ initialize_glue () {
                            vault_backup_viewer_show, 0, 0, 0);
   tmscm_install_procedure ("google-tasks-show",
                            google_tasks_show, 0, 0, 0);
+  tmscm_install_procedure ("google-cloud-todo-sync-buffer",
+                           tmg_google_cloud_todo_sync_buffer, 1, 0, 0);
+  tmscm_install_procedure ("google-cloud-todo-sync-open-buffers",
+                           tmg_google_cloud_todo_sync_open_buffers, 0, 0, 0);
+  tmscm_install_procedure ("google-cloud-todo-push-item",
+                           tmg_google_cloud_todo_push_item, 2, 0, 0);
   tmscm_install_procedure ("namespace-manager-show",
                            namespace_manager_show, 0, 0, 0);
   tmscm_install_procedure ("namespace-explorer-show",

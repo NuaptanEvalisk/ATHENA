@@ -18,6 +18,7 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QSharedPointer>
 #include <QUrl>
 #include <QUrlQuery>
 
@@ -101,13 +102,26 @@ GoogleTasksClient::listTasks (const QString& taskListId, bool showCompleted,
     return;
   }
   authorizedRequest ([=] (const QString& token) {
+    QSharedPointer<QVector<GoogleTask>> accumulated (
+      new QVector<GoogleTask>);
+    listTasksPage (taskListId, showCompleted, QString (), token, accumulated,
+                   callback);
+  }, [=] (bool, const QString& error) { callback ({}, error); });
+}
+
+void
+GoogleTasksClient::listTasksPage (
+  const QString& taskListId, bool showCompleted, const QString& pageToken,
+  const QString& token, QSharedPointer<QVector<GoogleTask>> accumulated,
+  TasksCallback callback) {
     QUrl url ("https://tasks.googleapis.com/tasks/v1/lists/" +
               QString::fromLatin1 (QUrl::toPercentEncoding (taskListId)) +
               "/tasks");
     QUrlQuery query;
     query.addQueryItem ("showCompleted", showCompleted? "true": "false");
-    query.addQueryItem ("showHidden", "false");
+    query.addQueryItem ("showHidden", showCompleted? "true": "false");
     query.addQueryItem ("maxResults", "100");
+    if (!pageToken.isEmpty ()) query.addQueryItem ("pageToken", pageToken);
     url.setQuery (query);
     QNetworkReply* reply= manager->get (jsonRequest (url, token));
     QObject::connect (reply, &QNetworkReply::finished, this, [=] () {
@@ -118,9 +132,8 @@ GoogleTasksClient::listTasks (const QString& taskListId, bool showCompleted,
         callback ({}, error);
         return;
       }
-      QVector<GoogleTask> tasks;
-      QJsonArray items= QJsonDocument::fromJson (body).object ()
-                          .value ("items").toArray ();
+      QJsonObject root= QJsonDocument::fromJson (body).object ();
+      QJsonArray items= root.value ("items").toArray ();
       for (const QJsonValue& value: items) {
         QJsonObject item= value.toObject ();
         GoogleTask task;
@@ -129,20 +142,37 @@ GoogleTasksClient::listTasks (const QString& taskListId, bool showCompleted,
         task.notes= item.value ("notes").toString ();
         task.status= item.value ("status").toString ();
         task.due= item.value ("due").toString ();
-        if (!task.id.isEmpty ()) tasks << task;
+        if (!task.id.isEmpty ()) accumulated->append (task);
+      }
+      QString next= root.value ("nextPageToken").toString ();
+      if (!next.isEmpty ()) {
+        reply->deleteLater ();
+        listTasksPage (taskListId, showCompleted, next, token, accumulated,
+                       callback);
+        return;
       }
       reply->deleteLater ();
-      callback (tasks, QString ());
+      callback (*accumulated, QString ());
     });
-  }, [=] (bool, const QString& error) { callback ({}, error); });
 }
 
 void
 GoogleTasksClient::insertTask (const QString& taskListId, const QString& title,
                                DoneCallback callback) {
+  insertTaskDetailed (
+    taskListId, title,
+    [callback] (bool ok, const GoogleTask&, const QString& message) {
+      callback (ok, message);
+    });
+}
+
+void
+GoogleTasksClient::insertTaskDetailed (const QString& taskListId,
+                                       const QString& title,
+                                       InsertCallback callback) {
   QString trimmed= title.trimmed ();
   if (taskListId.isEmpty () || trimmed.isEmpty ()) {
-    callback (false, "Task list and title are required.");
+    callback (false, GoogleTask (), "Task list and title are required.");
     return;
   }
   authorizedRequest ([=] (const QString& token) {
@@ -158,16 +188,34 @@ GoogleTasksClient::insertTask (const QString& taskListId, const QString& title,
       bool ok= reply->error () == QNetworkReply::NoError;
       QString error= ok? QString (): replyError (reply, body,
                                                  reply->errorString ());
+      GoogleTask task;
+      if (ok) {
+        QJsonObject item= QJsonDocument::fromJson (body).object ();
+        task.id= item.value ("id").toString ();
+        task.title= item.value ("title").toString ();
+        task.notes= item.value ("notes").toString ();
+        task.status= item.value ("status").toString ();
+        task.due= item.value ("due").toString ();
+      }
       reply->deleteLater ();
-      callback (ok, ok? QString ("Task created."): error);
+      callback (ok, task, ok? QString ("Task created."): error);
     });
-  }, callback);
+  }, [=] (bool, const QString& error) {
+    callback (false, GoogleTask (), error);
+  });
 }
 
 void
 GoogleTasksClient::completeTask (const QString& taskListId,
                                  const QString& taskId,
                                  DoneCallback callback) {
+  setTaskCompleted (taskListId, taskId, true, callback);
+}
+
+void
+GoogleTasksClient::setTaskCompleted (const QString& taskListId,
+                                     const QString& taskId, bool completed,
+                                     DoneCallback callback) {
   if (taskListId.isEmpty () || taskId.isEmpty ()) {
     callback (false, "Task list and task are required.");
     return;
@@ -178,7 +226,8 @@ GoogleTasksClient::completeTask (const QString& taskListId,
               "/tasks/" +
               QString::fromLatin1 (QUrl::toPercentEncoding (taskId)));
     QJsonObject payload;
-    payload["status"]= "completed";
+    payload["status"]= completed? "completed": "needsAction";
+    if (!completed) payload["completed"]= QJsonValue ();
     QNetworkReply* reply= manager->sendCustomRequest (
       jsonRequest (url, token), "PATCH", QJsonDocument (payload).toJson ());
     QObject::connect (reply, &QNetworkReply::finished, this, [=] () {
@@ -187,7 +236,8 @@ GoogleTasksClient::completeTask (const QString& taskListId,
       QString error= ok? QString (): replyError (reply, body,
                                                  reply->errorString ());
       reply->deleteLater ();
-      callback (ok, ok? QString ("Task completed."): error);
+      callback (ok, ok? (completed? QString ("Task completed."):
+                                    QString ("Task reopened.")): error);
     });
   }, callback);
 }

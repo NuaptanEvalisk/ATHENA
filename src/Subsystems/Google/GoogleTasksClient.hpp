@@ -14,6 +14,7 @@
 #include <QObject>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QSharedPointer>
 #include <QString>
 #include <QVector>
 #include <functional>
@@ -40,6 +41,8 @@ public:
   using TasksCallback= std::function<void(const QVector<GoogleTask>&,
                                           const QString&)>;
   using DoneCallback= std::function<void(bool, const QString&)>;
+  using InsertCallback= std::function<void(bool, const GoogleTask&,
+                                           const QString&)>;
 
   static GoogleTasksClient& instance ();
 
@@ -48,14 +51,22 @@ public:
                   TasksCallback callback);
   void insertTask (const QString& taskListId, const QString& title,
                    DoneCallback callback);
+  void insertTaskDetailed (const QString& taskListId, const QString& title,
+                           InsertCallback callback);
   void completeTask (const QString& taskListId, const QString& taskId,
                      DoneCallback callback);
+  void setTaskCompleted (const QString& taskListId, const QString& taskId,
+                         bool completed, DoneCallback callback);
 
 private:
   GoogleTasksClient ();
 
   void authorizedRequest (std::function<void(const QString&)> body,
                           DoneCallback errorCallback);
+  void listTasksPage (const QString& taskListId, bool showCompleted,
+                      const QString& pageToken, const QString& token,
+                      QSharedPointer<QVector<GoogleTask>> accumulated,
+                      TasksCallback callback);
   QNetworkRequest jsonRequest (const QUrl& url, const QString& token) const;
   QString replyError (QNetworkReply* reply, const QByteArray& body,
                       const QString& fallback) const;

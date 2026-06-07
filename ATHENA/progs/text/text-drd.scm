@@ -88,7 +88,7 @@
   itemize itemize-minus itemize-dot itemize-arrow)
 
 (define-group todo-tag
-  todo-list)
+  todo-list cloud-todo-list)
 
 (define-group enumerate-tag
   enumerate enumerate-numeric enumerate-roman

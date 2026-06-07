@@ -433,6 +433,7 @@ ensure_builtin_user_preferences () {
 
     PREF ("ollama server", "localhost", ""),
     PREF ("ollama port", "11434", ""),
+    PREF ("google tasks cloud todo list id", "", ""),
     PREF ("llama3 model", "llama3", ""),
     PREF ("llama4 model", "llama4", ""),
     PREF ("chatgpt-text-input", "on", ""),

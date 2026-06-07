@@ -516,7 +516,7 @@ file (GLOB_RECURSE ATHENA_Base_SRCS CONFIGURE_DEPENDS
   "${ATHENA_SOURCE_DIR}/src/Typeset/*.cpp"
 )
 
-file (GLOB_RECURSE ATHENA_Subsystems_SRCS
+file (GLOB_RECURSE ATHENA_Subsystems_SRCS CONFIGURE_DEPENDS
   "${ATHENA_SOURCE_DIR}/src/Subsystems/Bibtex/*.cpp"
   "${ATHENA_SOURCE_DIR}/src/Subsystems/Cairo/*.cpp"
   "${ATHENA_SOURCE_DIR}/src/Subsystems/Database/*.cpp"

@@ -11,6 +11,7 @@
 #include "QTMPreferencesDialog.hpp"
 #include "QTMVaultInfoModel.hpp"
 #include "GoogleOAuth.hpp"
+#include "GoogleTasksClient.hpp"
 
 #include "boot.hpp"
 #include "font.hpp"
@@ -1416,9 +1417,47 @@ QTMPreferencesDialog::buildOtherPage () {
   QLineEdit* clientSecret= add_line_edit (
     google, "OAuth desktop client secret:", "google oauth client secret", "",
     true);
+  QComboBox* cloudTodoList= new QComboBox (connectivity);
+  cloudTodoList->addItem ("Default task list", "");
+  google->addRow (label ("Cloud todo task list:"), cloudTodoList);
   QLabel* googleStatus= new QLabel (connectivity);
   googleStatus->setWordWrap (true);
-  auto refreshGoogleStatus= [googleStatus] () {
+  auto refreshCloudTodoLists= [cloudTodoList] () {
+    QString selected= to_qstring_pref (
+      get_preference ("google tasks cloud todo list id", ""));
+    QSignalBlocker initialBlocker (cloudTodoList);
+    cloudTodoList->clear ();
+    cloudTodoList->addItem ("Default task list", "");
+    if (!GoogleOAuth::instance ().hasRefreshToken ()) {
+      cloudTodoList->setCurrentIndex (0);
+      return;
+    }
+    QPointer<QComboBox> combo (cloudTodoList);
+    GoogleTasksClient::instance ().listTaskLists (
+      [combo, selected] (const QVector<GoogleTaskList>& lists,
+                         const QString&) {
+        if (combo.isNull ()) return;
+        QSignalBlocker blocker (combo);
+        int restore= 0;
+        for (const GoogleTaskList& list: lists) {
+          int index= combo->count ();
+          combo->addItem (
+            list.title.isEmpty ()? list.id: list.title, list.id);
+          if (list.id == selected) restore= index;
+        }
+        combo->setCurrentIndex (restore);
+      });
+  };
+  QObject::connect (cloudTodoList,
+                    static_cast<void (QComboBox::*) (int)> (
+                      &QComboBox::currentIndexChanged),
+                    [cloudTodoList] (int index) {
+    if (index < 0) return;
+    set_preference ("google tasks cloud todo list id",
+                    from_qstring_pref (
+                      cloudTodoList->itemData (index).toString ()));
+  });
+  auto refreshGoogleStatus= [googleStatus, refreshCloudTodoLists] () {
     if (GoogleOAuth::instance ().clientId ().trimmed ().isEmpty ())
       googleStatus->setText (
         "Create a Google Cloud OAuth client of type Desktop app, then paste "
@@ -1427,6 +1466,7 @@ QTMPreferencesDialog::buildOtherPage () {
       googleStatus->setText ("Google Tasks is connected.");
     else
       googleStatus->setText ("Google Tasks is not connected.");
+    refreshCloudTodoLists ();
   };
   QWidget* googleButtons= new QWidget (connectivity);
   QHBoxLayout* googleButtonLayout= new QHBoxLayout (googleButtons);
@@ -1459,6 +1499,7 @@ QTMPreferencesDialog::buildOtherPage () {
   QObject::connect (disconnectGoogle, &QPushButton::clicked,
                     [refreshGoogleStatus] () {
     GoogleOAuth::instance ().forgetTokens ();
+    set_preference ("google tasks cloud todo list id", "");
     refreshGoogleStatus ();
   });
   refreshGoogleStatus ();

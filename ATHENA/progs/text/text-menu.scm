@@ -437,7 +437,8 @@
   ("Bullets" (make-tmlist 'itemize-dot))
   ("Dashes" (make-tmlist 'itemize-minus))
   ("Arrows" (make-tmlist 'itemize-arrow))
-  ("Todo list" (make-tmlist 'todo-list)))
+  ("Todo list" (make-tmlist 'todo-list))
+  ("Cloud todo list" (make-tmlist 'cloud-todo-list)))
 
 (menu-bind enumerate-menu
   ("Default" (make-tmlist 'enumerate))
@@ -464,6 +465,7 @@
   ("Dashes" (make-tmlist 'itemize-minus))
   ("Arrows" (make-tmlist 'itemize-arrow))
   ("Todo list" (make-tmlist 'todo-list))
+  ("Cloud todo list" (make-tmlist 'cloud-todo-list))
   ---
   ("Enumerate" (make-tmlist 'enumerate))
   ---
@@ -893,6 +895,11 @@
   (:require (todo-list-item-context? t))
   ---
   ("Toggle todo item" (todo-toggle-current)))
+
+(tm-menu (focus-extra-menu t)
+  (:require (cloud-todo-list-item-context? t))
+  ---
+  ("Toggle cloud todo item" (cloud-todo-toggle-current)))
 
 (tm-menu (focus-extra-icons t)
   (:require (section-context? t))

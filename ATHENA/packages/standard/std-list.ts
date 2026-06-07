@@ -268,11 +268,23 @@
 
   <assign|todo-checked-box|<macro|<action|<todo-checked-box-render>|mouse-toggle-todo-item|<todo-checked-box-render>>>>
 
+  <assign|cloud-todo-cloud-icon|<macro|<image|<find-file|$ATHENA_PATH/misc/pixmaps/light|$ATHENA_PATH/misc/pixmaps/modern/24x24/main|$ATHENA_PATH/misc/pixmaps/modern/16x16/focus|tm_cloud.svg>||0.85em||-0.2ex>>>
+
+  <assign|cloud-todo-box|<macro|<action|<concat|<todo-box-render><hspace|0.18em><cloud-todo-cloud-icon>>|mouse-toggle-cloud-todo-item|<concat|<todo-box-render><hspace|0.18em><cloud-todo-cloud-icon>>>>>
+
+  <assign|cloud-todo-checked-box|<macro|<action|<concat|<todo-checked-box-render><hspace|0.18em><cloud-todo-cloud-icon>>|mouse-toggle-cloud-todo-item|<concat|<todo-checked-box-render><hspace|0.18em><cloud-todo-cloud-icon>>>>>
+
   <assign|todo-item|<macro|<next-item><assign|last-item-nr|<value|item-nr>><render-item|<todo-box>>>>
 
   <assign|done-item|<macro|<next-item><assign|last-item-nr|<value|item-nr>><render-item|<todo-checked-box>>>>
 
+  <assign|cloud-todo-item|<macro|<next-item><assign|last-item-nr|<value|item-nr>><render-item|<cloud-todo-box>>>>
+
+  <assign|cloud-done-item|<macro|<next-item><assign|last-item-nr|<value|item-nr>><render-item|<cloud-todo-checked-box>>>>
+
   <new-list|todo-list|<value|aligned-space-item>|<macro|name|<todo-box>>>
+
+  <new-list|cloud-todo-list|<value|aligned-space-item>|<macro|name|<cloud-todo-box>>>
 
   <new-list|enumerate-numeric|<value|aligned-dot-item>|<value|identity>>
 

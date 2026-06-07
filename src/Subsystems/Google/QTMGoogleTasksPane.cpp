@@ -11,6 +11,7 @@
 #include "QTMGoogleTasksPane.hpp"
 
 #include "GoogleOAuth.hpp"
+#include "GoogleCloudTodo.hpp"
 #include "QTMMainTabWindow.hpp"
 #include "QTMToast.hpp"
 #include "boot.hpp"
@@ -494,8 +495,10 @@ google_tasks_schedule_background_refresh () {
               "Connected and background refresh is enabled.":
               "Not connected: " + error);
         }
-        if (error.isEmpty () && !token.isEmpty ())
+        if (error.isEmpty () && !token.isEmpty ()) {
           google_tasks_monitor_active_tasks ();
+          google_cloud_todo_sync_open_buffers (false);
+        }
       });
     if (google_tasks_widget != nullptr)
       google_tasks_widget->refreshNow (true);

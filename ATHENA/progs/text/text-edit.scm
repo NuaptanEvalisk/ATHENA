@@ -379,11 +379,31 @@
       (and (tree-is? t 'item)
            (tree-innermost 'todo-list #t))))
 
+(tm-define (cloud-todo-list-item-context? t)
+  (or (tree-is? t 'cloud-todo-item)
+      (tree-is? t 'cloud-done-item)
+      (and (tree-innermost 'cloud-todo-list #t)
+           (or (tree-innermost 'cloud-todo-item #t)
+               (tree-innermost 'cloud-done-item #t)
+               (tree-is? t 'item)))))
+
 (define (todo-current-item)
   (or (tree-innermost 'todo-item #t)
       (tree-innermost 'done-item #t)
       (and (tree-innermost 'todo-list #t)
            (tree-innermost 'item #t))))
+
+(define (cloud-todo-current-marker)
+  (or (tree-innermost 'cloud-todo-item #t)
+      (tree-innermost 'cloud-done-item #t)
+      (and (tree-innermost 'cloud-todo-list #t)
+           (tree-innermost 'item #t))))
+
+(define (cloud-todo-current-row)
+  (and-with marker (cloud-todo-current-marker)
+    (or (and-with p (tree-up marker)
+          (and (tree? p) p))
+        marker)))
 
 (tm-define (make-tmlist l)
   (with flag? (and (selection-active-non-small?)
@@ -416,6 +436,17 @@
                                'todo-item
                                'done-item)))))
 
+(tm-define (cloud-todo-toggle-current)
+  (let ((t (cloud-todo-current-marker)))
+    (when t
+      (let* ((done? (tree-is? t 'cloud-todo-item))
+             (row (cloud-todo-current-row)))
+        (tree-assign-node! t (if done?
+                                 'cloud-done-item
+                                 'cloud-todo-item))
+        (when (and row (defined? 'google-cloud-todo-push-item))
+          (google-cloud-todo-push-item row done?))))))
+
 (tm-define (mouse-toggle-todo-item t)
   (:type (-> tree void))
   (:synopsis "Toggle a todo-list item using the mouse")
@@ -423,6 +454,14 @@
   (when (and (tree? t) (tree->path t))
     (tree-go-to t :start))
   (todo-toggle-current))
+
+(tm-define (mouse-toggle-cloud-todo-item t)
+  (:type (-> tree void))
+  (:synopsis "Toggle a cloud todo-list item using the mouse")
+  (:secure #t)
+  (when (and (tree? t) (tree->path t))
+    (tree-go-to t :start))
+  (cloud-todo-toggle-current))
 
 (tm-define (focus-label t)
   (:require (or (list-context? t) (tree-is? t 'bib-list)))
