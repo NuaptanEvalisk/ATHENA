@@ -226,6 +226,27 @@ group_highlight_runs (path ip, array<page_item>& l, SI max_group_height) {
   l= r;
 }
 
+static bool
+is_block_background_ornament (ornament_parameters ps, box xb) {
+  return is_nil (xb) &&
+         ps->bg->get_type () != brush_none &&
+         ps->shape == "rectangular" &&
+         ps->lw == 0 && ps->bw == 0 && ps->rw == 0 && ps->tw == 0;
+}
+
+static void
+mark_block_background (array<page_item>& l, brush bg, SI dx) {
+  for (int i=0; i<N(l); i++)
+    if (l[i]->type == PAGE_LINE_ITEM) {
+      page_item item= copy (l[i]);
+      if (item->block_bg->get_type () == brush_none)
+        item->block_bg= bg;
+      if (dx != 0)
+        item->b= move_box (decorate (item->b->ip), item->b, dx, 0);
+      l[i]= item;
+    }
+}
+
 format
 lazy_ornament_rep::query (lazy_type request, format fm) {
   if ((request == LAZY_BOX) && (fm->type == QUERY_VSTREAM_WIDTH)) {
@@ -247,6 +268,10 @@ lazy_ornament_rep::produce (lazy_type request, format fm) {
     lazy body= par->produce (LAZY_VSTREAM, bfm);
     lazy_vstream body_vs= (lazy_vstream) body;
     array<page_item> l= body_vs->l;
+    if (is_block_background_ornament (ps, xb)) {
+      mark_block_background (l, ps->bg, ps->lpad);
+      return lazy_vstream (ip, "", l, body_vs->sb);
+    }
     group_highlight_runs (ip, l, 3 * env->fn->yx);
     SI body_x1= 0;
     SI body_x2= max (body_x1, fvs->width - dw);

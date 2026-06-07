@@ -26,6 +26,31 @@ box page_box (path ip, box b, tree page, int page_nr, brush bgc,
               SI width, SI height, SI left, SI top,
 	      SI bot, box header, box footer, SI head_sep, SI foot_sep);
 
+static box
+apply_block_backgrounds (path ip, box b, array<brush> bg, SI width) {
+  array<rectangle> rs;
+  array<brush> bs;
+  int n= min (N(bg), b->subnr ());
+  for (int i=0; i<n; ) {
+    if (bg[i]->get_type () == brush_none) {
+      i++;
+      continue;
+    }
+    int start= i;
+    while (i+1<n && bg[i+1] == bg[start]) i++;
+    SI x1= min ((SI) 0, b->x1);
+    SI x2= max (width, b->x2);
+    SI y1= b->sy1 (i);
+    SI y2= b->sy2 (start);
+    if (x2 > x1 && y2 > y1) {
+      rs << rectangle (x1, y1, x2, y2);
+      bs << bg[start];
+    }
+    i++;
+  }
+  return block_background_box (ip, b, rs, bs);
+}
+
 box
 pager_rep::pages_format (array<page_item> l, SI ht, SI tcor, SI bcor) {
   // cout << "Formatting insertion of height " << ht << LF;
@@ -33,6 +58,7 @@ pager_rep::pages_format (array<page_item> l, SI ht, SI tcor, SI bcor) {
   int i, n= N(l);
   array<box>   bs;
   array<space> spc;
+  array<brush> bg;
   for (i=0; i<n; i++) {
     page_item item= l[i];
     if (item->type == PAGE_CONTROL_ITEM) {
@@ -48,6 +74,7 @@ pager_rep::pages_format (array<page_item> l, SI ht, SI tcor, SI bcor) {
     else {
       bs  << item->b;
       spc << item->spc;
+      bg  << item->block_bg;
     }
   }
   if (N(bs) == 0) {
@@ -56,6 +83,7 @@ pager_rep::pages_format (array<page_item> l, SI ht, SI tcor, SI bcor) {
   }
   else {
     box b= format_stack (ip, bs, spc, ht, true);
+    b= apply_block_backgrounds (ip, b, bg, text_width);
     return vcorrect_box (b->ip, b, tcor, bcor);
   }
 }

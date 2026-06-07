@@ -13,6 +13,31 @@
 #include "Boxes/construct.hpp"
 #include "scheme.hpp"
 
+static box
+apply_block_backgrounds (path ip, box b, array<brush> bg) {
+  array<rectangle> rs;
+  array<brush> bs;
+  int n= min (N(bg), b->subnr ());
+  for (int i=0; i<n; ) {
+    if (bg[i]->get_type () == brush_none) {
+      i++;
+      continue;
+    }
+    int start= i;
+    while (i+1<n && bg[i+1] == bg[start]) i++;
+    SI x1= min ((SI) 0, b->x1);
+    SI x2= b->x2;
+    SI y1= b->sy1 (i);
+    SI y2= b->sy2 (start);
+    if (x2 > x1 && y2 > y1) {
+      rs << rectangle (x1, y1, x2, y2);
+      bs << bg[start];
+    }
+    i++;
+  }
+  return block_background_box (ip, b, rs, bs);
+}
+
 bool
 is_pure_white (tree t) {
   if (is_atomic (t)) {
@@ -390,12 +415,14 @@ bridge_rep::typeset (int desired_status) {
       int first=-1, last=-1;
       array<box> bs;
       array<SI>  spc;
+      array<brush> bg;
       array<page_item> special_l;
       for (i=0; i<n; i++)
 	if (l[i]->type != PAGE_CONTROL_ITEM) {
 	  if (first == -1 && l[i]->type == PAGE_LINE_ITEM) first= N(bs);
 	  bs  << l[i]->b;
 	  spc << l[i]->spc->def;
+	  bg  << l[i]->block_bg;
 	  last= i;
 	}
         else if (is_tuple (l[i]->t, "env_page") &&
@@ -404,6 +431,7 @@ bridge_rep::typeset (int desired_status) {
                   l[i]->t[1] == PAGE_THIS_BG_COLOR))
           special_l << l[i];
       box lb= stack_box (path (ip), bs, spc);
+      lb= apply_block_backgrounds (path (ip), lb, bg);
       if (first != -1) lb= move_box (path (ip), lb, 0, bs[first]->y2);
       array<page_item> new_l (1);
       new_l[0]= page_item (lb);

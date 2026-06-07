@@ -219,6 +219,25 @@ group_highlight_runs (path ip, array<page_item>& l, SI max_group_height) {
   l= r;
 }
 
+static bool
+is_block_background_ornament (ornament_parameters ps, box xb) {
+  return is_nil (xb) &&
+         ps->bg->get_type () != brush_none &&
+         ps->shape == "rectangular" &&
+         ps->lw == 0 && ps->bw == 0 && ps->rw == 0 && ps->tw == 0;
+}
+
+static void
+mark_block_background (array<page_item>& l, brush bg) {
+  for (int i=0; i<N(l); i++)
+    if (l[i]->type == PAGE_LINE_ITEM) {
+      page_item item= copy (l[i]);
+      if (item->block_bg->get_type () == brush_none)
+        item->block_bg= bg;
+      l[i]= item;
+    }
+}
+
 box
 bridge_ornamented_rep::typeset_ornament (int desired_status) {
   array<page_item> l2;
@@ -341,6 +360,11 @@ bridge_ornament_rep::my_typeset (int desired_status) {
   array<page_item> l2;
   stack_border sb2;
   typeset_ornament_stack (desired_status, l2, sb2);
+  if (is_block_background_ornament (ps, xb)) {
+    mark_block_background (l2, ps->bg);
+    ttt->insert_stack (l2, sb2);
+    return;
+  }
   SI body_w, d1, d2, d3, d4, d5, d6, d7;
   env->get_page_pars (body_w, d1, d2, d3, d4, d5, d6, d7);
   group_highlight_runs (ip, l2, 3 * env->fn->yx);

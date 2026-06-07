@@ -28,6 +28,7 @@ public:
   box          b;       // the box
   space        spc;     // separation space
   int          penalty; // penalty for a linebreak after this page_item
+  brush        block_bg;// block background paint metadata
 
   array<lazy>  fl;      // floating objects attached to this item
   int          nr_cols; // number of columns

@@ -640,6 +640,65 @@ cell_box_rep::post_display (renderer& ren) {
 }
 
 /******************************************************************************
+* Block background boxes
+******************************************************************************/
+
+struct block_background_box_rep: public change_box_rep {
+  array<rectangle> rs;
+  array<brush> bg;
+  block_background_box_rep (path ip, box b, array<rectangle> rs2,
+                            array<brush> bg2);
+  operator tree () { return tree (TUPLE, "block-background", (tree) bs[0]); }
+  box adjust_kerning (int mode, double factor);
+  box expand_glyphs (int mode, double factor);
+  void pre_display (renderer& ren);
+};
+
+block_background_box_rep::block_background_box_rep (
+  path ip, box b, array<rectangle> rs2, array<brush> bg2):
+    change_box_rep (ip, true), rs (rs2), bg (bg2)
+{
+  insert (b, 0, 0);
+  position ();
+  for (int i=0; i<N(rs); i++) {
+    x3= min (x3, rs[i]->x1);
+    y3= min (y3, rs[i]->y1);
+    x4= max (x4, rs[i]->x2);
+    y4= max (y4, rs[i]->y2);
+  }
+  finalize ();
+}
+
+box
+block_background_box_rep::adjust_kerning (int mode, double factor) {
+  box nb= bs[0]->adjust_kerning (mode, factor);
+  return block_background_box (ip, nb, rs, bg);
+}
+
+box
+block_background_box_rep::expand_glyphs (int mode, double factor) {
+  box nb= bs[0]->expand_glyphs (mode, factor);
+  return block_background_box (ip, nb, rs, bg);
+}
+
+void
+block_background_box_rep::pre_display (renderer& ren) {
+  brush old_bg= ren->get_background ();
+  for (int i=0; i<N(rs) && i<N(bg); i++)
+    if (bg[i]->get_type () != brush_none) {
+      ren->set_background (bg[i]);
+      ren->clear_pattern (rs[i]->x1, rs[i]->y1, rs[i]->x2, rs[i]->y2);
+    }
+  ren->set_background (old_bg);
+}
+
+box
+block_background_box (path ip, box b, array<rectangle> rs, array<brush> bg) {
+  if (N(rs) == 0 || N(bg) == 0) return b;
+  return tm_new<block_background_box_rep> (ip, b, rs, bg);
+}
+
+/******************************************************************************
 * Remember boxes
 ******************************************************************************/
 

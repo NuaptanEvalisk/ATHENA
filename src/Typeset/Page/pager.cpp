@@ -58,6 +58,31 @@ pager_rep::pager_rep (path ip2, edit_env env2, array<page_item> l2):
 * Subroutines
 ******************************************************************************/
 
+static box
+apply_block_backgrounds (path ip, box b, array<brush> bg) {
+  array<rectangle> rs;
+  array<brush> bs;
+  int n= min (N(bg), b->subnr ());
+  for (int i=0; i<n; ) {
+    if (bg[i]->get_type () == brush_none) {
+      i++;
+      continue;
+    }
+    int start= i;
+    while (i+1<n && bg[i+1] == bg[start]) i++;
+    SI x1= min ((SI) 0, b->x1);
+    SI x2= b->x2;
+    SI y1= b->sy1 (i);
+    SI y2= b->sy2 (start);
+    if (x2 > x1 && y2 > y1) {
+      rs << rectangle (x1, y1, x2, y2);
+      bs << bg[start];
+    }
+    i++;
+  }
+  return block_background_box (ip, b, rs, bs);
+}
+
 box
 format_stack (path ip, array<box> bx, array<space> ht) {
   int i, n= N(bx);
@@ -108,12 +133,17 @@ format_stack (path ip, array<page_item> l) {
   int i, n= N(l);
   array<box> bs  (n);
   array<SI>  spc (n);
+  array<brush> bg (n);
   for (i=0; i<n-1; i++) {
     bs [i]= l[i]->b;
     spc[i]= l[i]->spc->def;
+    bg [i]= l[i]->block_bg;
   }
-  if (i<n) bs [i]= l[i]->b;
-  return stack_box (ip, bs, spc);  
+  if (i<n) {
+    bs [i]= l[i]->b;
+    bg [i]= l[i]->block_bg;
+  }
+  return apply_block_backgrounds (ip, stack_box (ip, bs, spc), bg);
 }
 
 box
@@ -121,12 +151,18 @@ format_stack (path ip, array<page_item> l, SI height, bool may_stretch) {
   int i, n= N(l);
   array<box>   bs  (n);
   array<space> spc (n);
+  array<brush> bg  (n);
   for (i=0; i<n-1; i++) {
     bs [i]= l[i]->b;
     spc[i]= l[i]->spc;
+    bg [i]= l[i]->block_bg;
   }
-  if (i<n) bs [i]= l[i]->b;
-  return format_stack (ip, bs, spc, height, may_stretch);
+  if (i<n) {
+    bs [i]= l[i]->b;
+    bg [i]= l[i]->block_bg;
+  }
+  return apply_block_backgrounds (ip, format_stack (ip, bs, spc, height,
+                                                    may_stretch), bg);
 }
 
 box
