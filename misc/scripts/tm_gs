@@ -1,8 +1,0 @@
-#!/bin/sh
-# Under Cygwin, prevent the X version of gs to be shadowed by a non-X version.
-if [ -f /usr/bin/cygwin1.dll ] ; then
-  ATHENA_GS=/usr/X11R6/bin/gs
-else
-  ATHENA_GS=gs
-fi
-exec $ATHENA_GS -q -sDEVICE=x11alpha -dBATCH -dNOPAUSE -dSAFER -dNOEPS "$@"

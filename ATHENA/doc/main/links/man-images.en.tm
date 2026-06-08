@@ -34,12 +34,6 @@
     <math|y>-offset will vertically align the image at its center.
   </itemize>
 
-  We also included a script to convert <name|Xfig> pictures, with optional
-  <LaTeX> formulas in it, into encapsulated postscript. In order to include a
-  <LaTeX> formula in an <verbatim|xfig> picture, we recall you should enter
-  the formula as text, while selecting a <LaTeX> font and setting the special
-  flag in the text flags.
-
   <\remark>
     For the support of certain formats, <TeXmacs> may rely on external
     converters to more standard formats such as <name|Ghostscript>,

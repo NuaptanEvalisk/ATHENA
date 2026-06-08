@@ -868,15 +868,6 @@ add_subdirectory (ATHENA)
 ### Installation
 ### --------------------------------------------------------------------
 
-if (NOT WIN32)
-  install (FILES ${ATHENA_BINARY_DIR}/misc/scripts/athena
-                 ${ATHENA_BINARY_DIR}/misc/scripts/fig2ps
-                 misc/scripts/tm_gs
-          DESTINATION bin
-          PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ
-                      GROUP_EXECUTE GROUP_READ WORLD_EXECUTE WORLD_READ)
-endif (NOT WIN32)
-
 ### include/
 install (DIRECTORY ATHENA/include DESTINATION ${CMAKE_INSTALL_PREFIX}
   FILE_PERMISSIONS OWNER_READ GROUP_READ WORLD_READ)

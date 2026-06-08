@@ -33,9 +33,7 @@ bool gs_check (url doc);
 string pdf_version (url image);
 string pdf_version ();
 string default_pdf_version ();
-void tm_gs (url image);
 
 #endif // USE_GS
 
 #endif // GS_UTILITIES_HPP
-

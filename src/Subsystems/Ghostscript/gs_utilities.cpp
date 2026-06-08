@@ -491,14 +491,6 @@ gs_to_ps (url doc, url ps, bool landscape, double paper_h, double paper_w) {
     << "ps generated? " << exists (ps) << LF;
 }
 
-void
-tm_gs (url image) {
-  string cmd= gs_prefix ();
-  cmd << "-q -sDEVICE=x11alpha -dBATCH -dNOPAUSE -dSAFER -dNOEPS ";
-  cmd << sys_concretize (image);
-  system (cmd);
-}
-
 bool
 gs_check (url doc) {
   if (!exists (gs_executable ()) && !exists_in_path (gs_executable ())) return true;
