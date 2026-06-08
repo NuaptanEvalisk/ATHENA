@@ -45,3 +45,21 @@ boundaries, do not patch from intuition. Debug from evidence.
 - Treat user fury plus concrete evidence as signal. If the user supplies a
   minimal case, exact output, or a layer-specific question, follow that evidence
   immediately.
+
+## Strict Commit Message Protocol
+
+- Before creating or amending any commit, read the full recent commit messages
+  with bodies, not only one-line subjects, and follow the established project
+  style.
+- Commit messages must use the current project format:
+  - a concise subject of the form `type: imperative summary`, where `type` is
+    consistent with recent history, such as `fix`, `new`, `remove`, or
+    `improve`;
+  - a blank line after the subject;
+  - concrete bullet points describing the actual changes and affected behavior.
+- Do not create bare one-line commits for nontrivial code changes.
+- Do not use a misleading type. For example, use `improve:` for improvements,
+  `new:` for new features, `fix:` only for bug fixes, and `remove:` for removals.
+- The commit body must mention the important functional surface of the change,
+  not just a vague cleanup summary.
+- If a commit message is wrong, amend it immediately before reporting success.

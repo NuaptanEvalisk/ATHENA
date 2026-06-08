@@ -538,18 +538,11 @@
 
 (tm-define (open-document-page-format-window)
   (:interactive #t)
-  (let* ((u  (current-buffer))
-         (st (embedded-style-list "macro-editor")))
-    (apply dialogue-window
-           (cons* (document-page-formatter u st)
-                  noop "Document page format"
-                  (header-buffers)))))
+  (page-properties-pane-show))
 
 (tm-define (open-document-page-format)
   (:interactive #t)
-  (if (side-tools?)
-      (tool-select :right 'document-page-tool)
-      (open-document-page-format-window)))
+  (page-properties-pane-show))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Document -> Metadata
