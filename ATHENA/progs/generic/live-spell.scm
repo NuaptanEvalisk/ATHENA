@@ -49,11 +49,7 @@
            (== (string-length key) 1))))
 
 (define (spell-live-buffer-supported? buf)
-  (and buf
-       (not (buffer-aux? buf))
-       (not (url-scratch? buf))
-       (not (string-starts? (url->string buf) "tmfs://"))
-       (in? (url-suffix buf) '("ath" "tm" "ts" "tp" "stm" "tmml" ""))))
+  (and buf #t))
 
 (define (spell-live-active-context?)
   (and (spell-live-enabled?)
@@ -141,16 +137,16 @@
                          "spell check"))))))
 
 (tm-menu (spell-live-popup-menu)
-  (:require (spell-live-current-word))
   (let* ((sel (spell-live-current-selection))
          (word (and sel (spell-live-selection->string sel)))
          (suggestions (or (and sel (spell-live-suggestions sel)) (list))))
-    (for (s suggestions)
-      ((eval s) (spell-live-replace-current-word s)))
-    (if (nnull? suggestions) ---)
-    ((eval (string-append "Add '" word "' to dictionary"))
-     (spell-live-insert-current-word))
-    ---))
+    (assuming word
+      (for (s suggestions)
+        ((eval s) (spell-live-replace-current-word s)))
+      (if (nnull? suggestions) ---)
+      ((eval (string-append "Add '" word "' to dictionary"))
+       (spell-live-insert-current-word))
+      ---)))
 
 (define (spell-live-dictionary-lines port)
   (let loop ((out '()))
