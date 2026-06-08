@@ -70,6 +70,11 @@ tm_strong (const std::string& text) {
 }
 
 static std::string
+tm_hlink (const std::string& label, const std::string& target) {
+  return "<hlink|" + tm_escape_text (label) + "|" + tm_escape_text (target) + ">";
+}
+
+static std::string
 tm_colored (const std::string& color, const std::string& body) {
   return "<with|color|" + color + "|" + body + ">";
 }
@@ -425,6 +430,20 @@ summary_document_text (VaultMaintenanceContext& ctx, bool success,
     work_rows.push_back (
       tm_row ({tm_text ("Orphan assets"), tm_text ("collection disabled")}));
 
+  std::vector<std::string> orphan_rows;
+  if (!summary.collected_orphans.empty ()) {
+    orphan_rows.push_back (
+      tm_row ({tm_strong ("Collected orphan"), tm_strong ("Original path")}));
+    for (const VaultMaintenanceCollectedOrphan& orphan:
+         summary.collected_orphans) {
+      std::string collected = orphan.collected_path.string ();
+      orphan_rows.push_back (
+        tm_row ({tm_hlink (orphan.collected_path.filename ().string (),
+                           collected),
+                 tm_verbatim (orphan.original_path.string ())}));
+    }
+  }
+
   std::string startup_label;
   std::string startup_target = vault_startup_page_target (ctx, startup_label);
 
@@ -447,6 +466,10 @@ summary_document_text (VaultMaintenanceContext& ctx, bool success,
   body << "  " << tm_table (pass_rows) << "\n\n";
   body << "  <section|Work Performed>\n\n";
   body << "  " << tm_table (work_rows) << "\n\n";
+  if (!orphan_rows.empty ()) {
+    body << "  <section|Collected Orphans>\n\n";
+    body << "  " << tm_table (orphan_rows) << "\n\n";
+  }
   body << "  <section|Next Step>\n\n";
   body << "  <cardlink|" << tm_escape_text (startup_label)
        << "|" << tm_escape_text (startup_target) << ">\n\n";

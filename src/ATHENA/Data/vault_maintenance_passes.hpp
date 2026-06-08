@@ -16,6 +16,11 @@
 #include <string>
 #include <vector>
 
+struct VaultMaintenanceCollectedOrphan {
+  std::filesystem::path collected_path;
+  std::filesystem::path original_path;
+};
+
 struct VaultMaintenanceSummary {
   std::filesystem::path backup_archive;
   int backup_limit = -1;
@@ -37,6 +42,7 @@ struct VaultMaintenanceSummary {
   bool orphan_collection_enabled = false;
   size_t orphan_assets_collected = 0;
   std::filesystem::path orphan_dir;
+  std::vector<VaultMaintenanceCollectedOrphan> collected_orphans;
   bool generate_summary_page = false;
   int summary_keep_count = -1;
   std::filesystem::path summary_dir;

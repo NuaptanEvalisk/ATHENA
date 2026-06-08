@@ -14,6 +14,8 @@
 
 namespace fs = std::filesystem;
 
+static const char* orphan_manifest_name = "orphans.lst";
+
 static bool
 collect_used_asset_refs_from_document (const fs::path& doc_path,
                                        std::unordered_set<std::string>& used) {
@@ -45,13 +47,39 @@ collect_used_asset_refs_from_document (const fs::path& doc_path,
   return true;
 }
 
+static bool
+existing_orphan_collection (const fs::path& dir) {
+  std::error_code ec;
+  return fs::is_directory (dir, ec) &&
+         fs::is_regular_file (dir / orphan_manifest_name, ec);
+}
+
 static fs::path
-next_orphan_directory (const fs::path& root) {
+choose_orphan_directory (const fs::path& root, bool& append) {
   fs::path candidate = root / "orphan";
+  append = false;
+  if (existing_orphan_collection (candidate)) {
+    append = true;
+    return candidate;
+  }
   if (!fs::exists (candidate)) return candidate;
   for (int i=1; ; i++) {
     candidate = root / ("orphan (" + std::to_string (i) + ")");
+    if (existing_orphan_collection (candidate)) {
+      append = true;
+      return candidate;
+    }
     if (!fs::exists (candidate)) return candidate;
+  }
+}
+
+static std::string
+next_orphan_name (const fs::path& orphan_dir, size_t& index,
+                  const fs::path& source) {
+  std::string ext = canonical_extension (source);
+  while (true) {
+    std::string name = "orphan-" + std::to_string (index++) + ext;
+    if (!fs::exists (orphan_dir / name)) return name;
   }
 }
 
@@ -69,9 +97,12 @@ move_or_copy_file (const fs::path& from, const fs::path& to) {
 }
 
 static bool
-collect_orphan_assets (const fs::path& root, size_t& moved, fs::path& orphan_dir) {
+collect_orphan_assets (const fs::path& root, size_t& moved,
+                       fs::path& orphan_dir,
+                       std::vector<VaultMaintenanceCollectedOrphan>& collected) {
   moved = 0;
   orphan_dir.clear ();
+  collected.clear ();
 
   std::vector<fs::path> docs = scan_ath_documents (root);
   log_info ("orphan assets: scanning " + std::to_string (docs.size ()) +
@@ -98,7 +129,8 @@ collect_orphan_assets (const fs::path& root, size_t& moved, fs::path& orphan_dir
             " orphan asset(s)");
   if (orphans.empty ()) return true;
 
-  orphan_dir = next_orphan_directory (root);
+  bool append_manifest = false;
+  orphan_dir = choose_orphan_directory (root, append_manifest);
   std::error_code ec;
   fs::create_directories (orphan_dir, ec);
   if (ec) {
@@ -107,36 +139,41 @@ collect_orphan_assets (const fs::path& root, size_t& moved, fs::path& orphan_dir
     return false;
   }
 
-  std::ofstream manifest (orphan_dir / "orphans.lst",
-                          std::ios::binary | std::ios::trunc);
+  fs::path manifest_path = orphan_dir / orphan_manifest_name;
+  bool write_header = !append_manifest ||
+                      !fs::exists (manifest_path) ||
+                      fs::file_size (manifest_path, ec) == 0;
+  ec.clear ();
+  std::ios::openmode mode = std::ios::binary |
+                            (append_manifest ? std::ios::app : std::ios::trunc);
+  std::ofstream manifest (manifest_path, mode);
   if (!manifest) {
-    log_error ("failed to create orphan manifest " +
-               (orphan_dir / "orphans.lst").string ());
+    log_error ("failed to open orphan manifest " + manifest_path.string ());
     return false;
   }
-  manifest << "Renamed orphan\tOriginal full path\n";
+  if (write_header) manifest << "Renamed orphan\tOriginal full path\n";
 
+  size_t orphan_index = 1;
   for (size_t i=0; i<orphans.size (); i++) {
     fs::path source = orphans[i];
-    std::string name = "orphan-" + std::to_string (i + 1) +
-                       canonical_extension (source);
+    std::string name = next_orphan_name (orphan_dir, orphan_index, source);
     fs::path target = orphan_dir / name;
     print_progress (i + 1, orphans.size (), "Collecting orphans",
                     source.filename ().string ());
-    manifest << name << "\t" << path_key (source) << "\n";
     if (!move_or_copy_file (source, target)) {
       finish_progress ();
       log_error ("failed to move orphan asset " + source.string () +
                  " -> " + target.string ());
       return false;
     }
+    manifest << name << "\t" << path_key (source) << "\n";
+    collected.push_back ({target, source});
     moved++;
   }
   finish_progress ();
   manifest.close ();
   if (!manifest) {
-    log_error ("failed to finalize orphan manifest " +
-               (orphan_dir / "orphans.lst").string ());
+    log_error ("failed to finalize orphan manifest " + manifest_path.string ());
     return false;
   }
 
@@ -153,7 +190,8 @@ vault_maintenance_pass_collect_orphans (VaultMaintenanceContext& ctx) {
     return VaultMaintenancePassResult::success ();
   }
   if (collect_orphan_assets (ctx.root, ctx.summary.orphan_assets_collected,
-                             ctx.summary.orphan_dir))
+                             ctx.summary.orphan_dir,
+                             ctx.summary.collected_orphans))
     return VaultMaintenancePassResult::success ();
   return VaultMaintenancePassResult::failure ("orphan asset collection failed");
 }
