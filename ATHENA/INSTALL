@@ -43,9 +43,9 @@ For example:
 Notes
 -------------------------------------------------------------------------------
 
-ATHENA is currently developed and tested on Linux. The build tree still contains
-inherited Windows and macOS code paths, but this runtime setup has not been
-tested on Windows or macOS.
+ATHENA is currently developed and tested on Linux with Qt. Legacy non-Qt GUI
+backends have been removed from the maintained path, and this runtime setup has
+not been tested on Windows or macOS.
 
 If the program starts but input methods do not work, make sure fcitx is running
 in your desktop session. If the interface scale is wrong, adjust `QT_FONT_DPI`

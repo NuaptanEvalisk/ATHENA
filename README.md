@@ -8,8 +8,9 @@
 
 ATHENA is a mathematics-centered knowledge work environment built from GNU
 TeXmacs. It combines high-quality structured WYSIWYG typesetting with vaults,
-wikilinks, transclusions, namespaces, fast search, and import tooling for
-large Obsidian-style mathematical note collections.
+wikilinks, transclusions, namespaces, fast search, cloud task sync, continuous
+RAG, and import tooling for large Obsidian-style mathematical note
+collections.
 
 ![ATHENA screenshot](screenshot.png)
 
@@ -52,7 +53,11 @@ ATHENA vaults are self-contained mathematical knowledge bases.
 - Load and track a current vault through `Vaultfile`.
 - Use `.ath` as the primary ATHENA document format.
 - Keep vault-scoped preferences in addition to global preferences.
-- Open recent vaults and optionally auto-open the startup vault/buffer.
+- Open recent vaults and optionally auto-open vault startup pages or one-time
+  startup pages.
+- Edit Vaultfile metadata, map database paths, namespace database paths, local
+  preference paths, startup pages, maintenance summary folders, and RAG index
+  paths from Preferences.
 - Browse vault contents in native Qt ADS panes.
 - Use a vault quick switcher, command palette, outline pane, backup viewer, and
   error messages pane.
@@ -69,6 +74,8 @@ documents.
 - Preview target context using an embedded rendered ATHENA preview.
 - Filter link search by namespace and enunciation type.
 - Repair and resolve links when filenames or anchors move.
+- Repair broken transclusions by updating the UUID anchor map instead of
+  reinserting content.
 - Render card links for files, PDFs, external links, and TMFS destinations.
 
 ### Transclusions
@@ -80,10 +87,7 @@ ATHENA can embed content from another document into the current one.
 - Use preview-backed Qt insertion workflows.
 - Jump from a transclusion back to its source.
 - Detect cycles to avoid recursive rendering failures.
-
-The arbitrary-anchor transclusion path currently has a documented known issue:
-in some cases closing the preview wizard can produce a nonfatal segmentation
-fault popup after the transclusion has already inserted correctly.
+- Preserve source enunciation colors inside transclusion boxes.
 
 ### Namespaces
 
@@ -127,6 +131,7 @@ ATHENA has a rendered, occurrence-level global search pane.
 - Preview hit neighborhoods in a rendered read-only ATHENA buffer.
 - Navigate by double-clicking an occurrence.
 - Preserve preview width, document zoom, and ADS pane behavior.
+- Pop out the search pane and resize it like other ADS panes.
 - Use improved fuzzy ranking for vault and namespace search workflows.
 
 ### Editing Workflow
@@ -134,8 +139,14 @@ ATHENA has a rendered, occurrence-level global search pane.
 ATHENA adds editing modes and feedback aimed at large mathematical notes.
 
 - Live spell checking.
+- Spell-check correction suggestions in the context menu.
+- Optional live heading word counts beside headings.
+- Configurable live footer statistics with placeholders for document words,
+  characters, lines, current heading words, and current enunciation/block
+  words.
 - Typewriter mode for reflow-oriented editing.
 - Configurable editor focus boxes and marked-space rendering.
+- Optional disabling of the UNIX primary-selection middle-click paste behavior.
 - Scroll and cursor preservation across resize and automatic anchoring.
 - Unsaved-buffer listing before quit.
 
@@ -164,6 +175,8 @@ ATHENA heavily customizes the math typing experience.
 - ESC aliases for Greek letters, blackboard symbols, operators, arrows,
   brackets, norm bars, math fonts, limits, group names, and common snippets.
 - Additional backslash aliases for theorem-like environments.
+- Optional local llama.cpp formula-cleaner hook for LaTeX formula import when a
+  suitable GGUF model is installed.
 - Extended textual math operators, including algebra/category/geometry names
   such as `Hom`, `Aut`, `Spec`, `coker`, `rank`, `trdeg`, and `rel`.
 - Correct support for symbols such as `varinjlim`, `varprojlim`, degree,
@@ -177,10 +190,16 @@ ATHENA treats theorem-like environments as first-class document structure.
   conjecture, axiom, question, example, remark, caution, disambiguation,
   solution, proof, alternative proof, and more.
 - Configurable rendering colors and presets.
+- Block-level enunciation background painting across page, scroll, reflow, and
+  PDF rendering.
 - Solution rendering fixed to behave like remarks/proofs rather than exercise
   indentation.
 - CJK line breaking in solution and enunciation contexts.
-- Automatic enunciation anchoring on save or during maintenance.
+- Automatic enunciation and heading anchoring on save or during maintenance.
+- Anchor updating when enunciation or heading titles change, while preserving
+  UUID-backed link and transclusion reachability.
+- Title extraction compatible with AOFM-style enunciations, including titled
+  theorem/proposition starts and proofs paired with preceding enunciations.
 - Native confirmation dialog for planned enunciation anchor changes.
 - Display-first enunciation titles are kept left-aligned while display
   formulas remain centered.
@@ -217,6 +236,8 @@ ATHENA can generate richer PDF output than plain converted notes.
   vault.
 - Correct PDF destination emission for labels, wikilinks, tables of contents,
   and exported namespace documents.
+- Page-breaking fixes for highlighted ornaments, long proofs, enunciations,
+  theorem-style backgrounds, and TeX-flavor page breaking.
 - Optional build warnings and automatic table of contents for converted
   documents.
 - Reverse-video mode is confined to document rendering, including pictures,
@@ -224,57 +245,115 @@ ATHENA can generate richer PDF output than plain converted notes.
 
 ### Vault Maintenance
 
-ATHENA has headless vault maintenance support.
+ATHENA has modular headless vault maintenance support.
 
+- Run an ordered stop-on-failure pass pipeline with per-pass reporting.
+- Validate all `.ath` files before mutation and support `--check-only` health
+  checks.
 - Create zstd-compressed full backups.
 - Limit the number of retained full backups.
 - Preserve or purge pre-save histories by configured duration.
-- Collect orphan assets into an `orphan/` directory with an `orphans.lst` map.
-- Run enunciation anchoring across the whole vault.
-- Report progress and maintenance summaries.
+- Normalize image filenames and references while preserving referenced assets.
+- Collect orphan assets into reusable `orphan/` directories with an
+  `orphans.lst` map and hlinks in generated summaries.
+- Anchor enunciations and headings across the whole vault.
+- Update stale anchors when titles change and preserve UUID-backed
+  `map.tmdb` reachability for wikilinks and transclusions.
+- Parallelize read-only anchoring checks using a configurable reader process
+  count and a sequential writer.
+- Generate optional ATHENA maintenance summary pages and use them as one-time
+  vault startup pages.
+
+### Google Tasks And Cloud Todos
+
+ATHENA can connect local documents to Google Tasks.
+
+- Configure OAuth and token storage from Preferences -> Other -> Connectivity.
+- View, create, and complete tasks in the Google Tasks ADS pane.
+- Refresh tasks in the background and report connection/task updates through
+  Qt toast notifications.
+- Insert cloud todo lists in documents; items synchronize by normalized text
+  with the configured Google Tasks list.
+- Marking a cloud todo complete or incomplete in the document updates Google
+  Tasks, and background refreshes reflect remote completion state back into the
+  document.
+
+### Continuous RAG
+
+ATHENA can run a separate headless continuous RAG server for a vault.
+
+- Start a read-only MCP Streamable HTTP server with
+  `ATHENA.bin -H --rag-server <vault-root>`.
+- Store the vault-local index in SQLite with FTS and optional vector
+  embeddings.
+- Parse `.ath` documents through ATHENA tree import rather than plain string
+  scraping.
+- Chunk by headings, enunciations, proofs, anchors, links, transclusions, and
+  namespace context.
+- Use llama.cpp embedding models for local embeddings and retrieval, with CPU
+  mode and process-level parallel indexing options.
+- Expose MCP tools and resources for status, search, chunk/document reads,
+  related chunks, and backlinks.
+- Support `--skip-fonts-cache` for headless server runs that do not need GUI
+  font menu preparation.
 
 ### UI And Native Qt Work
 
 ATHENA has moved much of the knowledge-work interface into native Qt.
 
 - Qt Advanced Docking System panes.
+- Native Qt Preferences window with category sidebar.
 - Vault Explorer.
 - Namespace Manager.
 - Namespace Explorer.
 - Reverse Hierarchy Graph pane.
 - Global Search.
+- Page Properties pane.
+- Paragraph pane.
+- Metadata pane.
 - Error Messages pane.
 - Custom Styles Manager.
 - Backup Viewer.
 - Command Palette.
 - Visual Studio-style buffer switcher.
+- Google Tasks pane.
 - Native Qt dialogs for file selection, color picking, information messages,
-  font selection, wikilink insertion, transclusion insertion, and namespace
-  workflows.
+  font selection, wikilink insertion, transclusion insertion, page properties,
+  paragraph properties, metadata, and namespace workflows.
+- Native Qt toast notifications.
+- Desktop icon theme integration for toolbar icons.
 - Startup splash progress reporting from real startup phases.
 - Reliable text toolbar dropdowns for document style, theme, font, and font
   size.
+- Removal of legacy side tools, GUI-through-markup, old page/paragraph/metadata
+  Scheme dialogs, and obsolete non-Qt GUI backends.
 
 ### Performance And Stability Work
 
 Recent ATHENA work includes substantial low-level engineering:
 
 - mimalloc integration and global allocation overrides.
+- spdlog-backed structured console and file logging.
 - Ref-counting and tree/string/list performance improvements.
 - Move semantics for core tree/string structures.
 - Large-document stack and parser fixes.
 - Font discovery caching.
 - Startup warming for font-menu probes to avoid first-open font dropdown lag.
+- Headless `--skip-fonts-cache` startup path for non-GUI RAG runs.
 - Cache invalidation when Scheme/package sources change.
 - Shared-memory backed runtime temporary files.
 - PDF/export fallback font safety.
+- Large-enunciation typing responsiveness fixes.
+- Resize, reflow, typewriter-mode, preview-scrollbar, and stylus-scrollbar
+  stability fixes.
 - Resizable and reopenable ADS panes.
 - Crash reporting through native dialogs.
 
 ## Build And Run
 
-ATHENA development is currently tested on Linux. The inherited Windows and
-macOS paths exist, but the ATHENA build process is not tested there.
+ATHENA development is currently tested on Linux with Qt. Legacy non-Qt GUI
+backends, Cairo rendering, Xfig support, and obsolete optional font-rendering
+fallbacks have been removed from the maintained code path.
 
 See [COMPILE](./COMPILE) for dependency installation and build instructions.
 The recommended compiler is Intel oneAPI `icpx`.
@@ -296,7 +375,7 @@ features are used, the document may become ATHENA-specific.
 
 ## Status
 
-ATHENA 0.2 is an active experimental system. It is powerful, opinionated, and
+ATHENA 0.3 is an active experimental system. It is powerful, opinionated, and
 still changing quickly. Expect rough edges. Expect features to be deeper than
 their polish. Expect the best experience on the developer's Linux setup.
 

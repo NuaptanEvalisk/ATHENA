@@ -4,7 +4,7 @@
 
 <\body>
   <\tmdoc-title>
-    Welcome to <ATHENA> version 0.2
+    Welcome to <ATHENA> version 0.3
   </tmdoc-title>
 
   Thank you for using <ATHENA>.
@@ -13,7 +13,8 @@
   for Notes and Archives>. It is a mathematics-centered knowledge work
   environment built from GNU <TeXmacs>, combining structured WYSIWYG
   typesetting with vaults, wikilinks, transclusions, namespaces, rendered
-  search, and import tooling for large mathematical note collections.
+  search, cloud task sync, continuous RAG, and import tooling for large
+  mathematical note collections.
 
   <\description>
     <item*|Warning: not for everyone>
@@ -68,16 +69,26 @@
 
     <item*|Maintenance and export>
 
-    Vault maintenance can create zstd backups, purge old full backups and
-    pre-save histories, collect orphan assets, and anchor enunciations across
-    the whole vault. PDF export can optionally generate temporary DataArt
-    cover images.
+    Vault maintenance is now a modular pass pipeline. It can health-check
+    documents, create zstd backups, purge old full backups and pre-save
+    histories, normalize images, collect orphan assets, anchor enunciations and
+    headings, update stale anchors while preserving UUID maps, run read-only
+    anchoring checks in parallel, and generate <ATHENA> maintenance summary
+    pages. PDF export can optionally generate temporary DataArt cover images.
+
+    <item*|Google Tasks and continuous RAG>
+
+    <ATHENA> can connect to Google Tasks, synchronize cloud todo lists in
+    documents, show task updates through toast notifications, and expose a
+    headless continuous RAG MCP server for vault search and retrieval.
 
     <item*|Native Qt interface>
 
-    <ATHENA> uses native Qt panes and dialogs for vault exploration,
-    namespaces, global search, error messages, custom styles, wikilinks,
-    transclusions, command palette, font selection, and color selection.
+    <ATHENA> uses native Qt panes and dialogs for preferences, vault
+    exploration, namespaces, global search, page properties, paragraph
+    properties, metadata, error messages, custom styles, wikilinks,
+    transclusions, Google Tasks, command palette, font selection, and color
+    selection.
 
     <item*|Foundations and divergence>
 
@@ -93,10 +104,10 @@
 
     <item*|Development status>
 
-    <ATHENA> 0.2 is active experimental software. Expect rough edges. Expect
+    <ATHENA> 0.3 is active experimental software. Expect rough edges. Expect
     features to be deeper than their polish. The current build and runtime
-    workflow is tested on Linux; inherited Windows and macOS code paths have
-    not been tested for <ATHENA>.
+    workflow is tested on Linux with Qt; legacy non-Qt GUI backends have been
+    removed from the maintained path.
   </description>
 
   For new users, we recommend \P<hlink|Getting started with
