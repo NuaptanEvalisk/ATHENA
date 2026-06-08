@@ -39,6 +39,7 @@ struct VaultMaintenanceSummary {
   size_t anchor_map_references_updated = 0;
   size_t anchor_dead_pairs_removed = 0;
   size_t anchor_failures = 0;
+  int anchor_reader_processes = -1;
   bool orphan_collection_enabled = false;
   size_t orphan_assets_collected = 0;
   std::filesystem::path orphan_dir;

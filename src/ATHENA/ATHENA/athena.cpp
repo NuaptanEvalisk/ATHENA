@@ -89,6 +89,7 @@ string aofm_convert_vault_source;
 string aofm_convert_vault_destination;
 string aofm_convert_vault_model_vault;
 string vault_maintenance_dir;
+bool   vault_maintenance_check_only = false;
 string rag_server_dir;
 string rag_embedding_model;
 string rag_embedding_device= "auto";
@@ -693,6 +694,9 @@ set_global_options  (int argc, char** argv)  {
       else if (s == "-vault-maintenance") {
         i++;
       }
+      else if (s == "-check-only") {
+        // Handled in texmacs_entrypoint
+      }
       else if (s == "-rag-server") {
         i++;
       }
@@ -870,6 +874,7 @@ set_global_options  (int argc, char** argv)  {
         cout << "  -V         Show some informative messages\n";
         cout << "  --no-splash-screen       Start without showing the splash screen\n";
         cout << "  --vault-maintenance [dir]  Maintain an ATHENA vault headlessly\n";
+        cout << "  --check-only               With --vault-maintenance, run only the document health check\n";
         cout << "  --aofm-convert-file [file]  Convert one AOFM Markdown file headlessly\n";
         cout << "  --aofm-convert-vault [src] [dest] [jobs]  Convert an AOFM vault headlessly\n";
         cout << "  --rag-server [dir]          Start a Continuous RAG MCP server\n";
@@ -1076,7 +1081,8 @@ TeXmacs_main (int argc, char** argv) {
     }
     if (vault_maintenance_dir != "") {
       eval ("(lazy-initialize-force)");
-      bool ok= vault_maintenance_run (vault_maintenance_dir);
+      bool ok= vault_maintenance_run (vault_maintenance_dir,
+                                      vault_maintenance_check_only);
       exit (ok ? 0 : 1);
     }
 
@@ -1476,6 +1482,9 @@ texmacs_entrypoint (int argc, char** argv) {
         vault_maintenance_dir= argv[i];
         headless_mode= true;
       }
+    }
+    if (s == "-check-only") {
+      vault_maintenance_check_only= true;
     }
     if (s == "-rag-server") {
       i++;

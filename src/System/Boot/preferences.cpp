@@ -217,6 +217,7 @@ ensure_builtin_user_preferences () {
     PREF ("vault simplify hierarchy graphs", "off", ""),
     PREF ("vault max full backups", "Unlimited", ""),
     PREF ("vault pre-save history preservation", "1 week", ""),
+    PREF ("vault maintenance anchor reader processes", "Unlimited", ""),
     PREF ("vault collect orphan assets", "off", ""),
     PREF ("vault generate maintenance summary page", "off", ""),
     PREF ("vault maintenance summaries to keep", "All", ""),

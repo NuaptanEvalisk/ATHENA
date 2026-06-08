@@ -79,6 +79,23 @@ manual_save_retention_preference () {
   return VAULT_MANUAL_SAVE_RETENTION_UNLIMITED;
 }
 
+static int
+anchor_reader_processes_preference () {
+  std::string pref = trim_copy (tm_to_std (
+    get_preference ("vault maintenance anchor reader processes", "Unlimited")));
+  std::string low = lower_copy (pref);
+  if (pref.empty () || low == "unlimited") return -1;
+  try {
+    size_t pos = 0;
+    int value = std::stoi (pref, &pos);
+    if (pos == pref.size () && value >= 1) return value;
+  }
+  catch (...) {}
+  log_info ("invalid anchor reader process preference '" + pref +
+            "'; using Unlimited");
+  return -1;
+}
+
 static std::vector<std::string>
 parse_vaultfile_strings (const std::string& text) {
   std::vector<std::string> values;
@@ -248,6 +265,7 @@ vault_maintenance_pass_read_policy_preferences (VaultMaintenanceContext& ctx) {
   ctx.summary.backup_limit = backup_limit_preference ();
   ctx.summary.manual_save_retention_seconds =
     manual_save_retention_preference ();
+  ctx.summary.anchor_reader_processes = anchor_reader_processes_preference ();
   ctx.summary.orphan_collection_enabled = collect_orphan_assets_preference ();
   ctx.summary.generate_summary_page = generate_summary_page_preference ();
   ctx.summary.summary_keep_count = summary_keep_count_preference ();

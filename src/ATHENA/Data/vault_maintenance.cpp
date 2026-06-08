@@ -18,7 +18,7 @@
 namespace fs = std::filesystem;
 
 bool
-vault_maintenance_run (string vault_dir) {
+vault_maintenance_run (string vault_dir, bool check_only) {
   VaultMaintenanceContext ctx;
   ctx.root = normalize_root (fs::path (tm_to_std (vault_dir)));
 
@@ -45,9 +45,23 @@ vault_maintenance_run (string vault_dir) {
      vault_maintenance_pass_print_summary}
   };
 
-  size_t pass_count = sizeof (passes) / sizeof (passes[0]);
+  static const VaultMaintenancePass check_only_passes[] = {
+    {"validate-root", "Validate vault root",
+     vault_maintenance_pass_validate_root},
+    {"health-check", "Check ATHENA document readability",
+     vault_maintenance_pass_health_check}
+  };
+
+  const VaultMaintenancePass* active_passes =
+    check_only ? check_only_passes : passes;
+  size_t pass_count =
+    check_only ? sizeof (check_only_passes) / sizeof (check_only_passes[0])
+               : sizeof (passes) / sizeof (passes[0]);
+  if (check_only)
+    log_info ("check-only mode: running health check without backup, "
+              "mutation, preference loading, or summary generation");
   for (size_t i=0; i<pass_count; i++) {
-    const VaultMaintenancePass& pass = passes[i];
+    const VaultMaintenancePass& pass = active_passes[i];
     log_info (std::string ("pass start: ") + pass.id + " (" +
               pass.description + ")");
     size_t warning_count = ctx.warnings.size ();
@@ -62,12 +76,12 @@ vault_maintenance_run (string vault_dir) {
       message = result.message.empty () ? "failed" : result.message;
       log_error (std::string ("pass failed: ") + pass.id + ": " + message);
       for (size_t j=i + 1; j<pass_count; j++) {
-        if (std::string (passes[j].id) == "summary") continue;
+        if (std::string (active_passes[j].id) == "summary") continue;
         ctx.pass_records.push_back (
-          {passes[j].id, passes[j].description, "not-run",
+          {active_passes[j].id, active_passes[j].description, "not-run",
            "not run because an earlier pass failed", false});
       }
-      if (std::string (pass.id) != "summary" &&
+      if (!check_only && std::string (pass.id) != "summary" &&
           !vault_maintenance_write_summary_page (ctx, false, pass.id, message))
         log_error ("summary: failed to write failure summary page");
       return false;

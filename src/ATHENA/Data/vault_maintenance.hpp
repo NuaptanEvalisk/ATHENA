@@ -13,6 +13,6 @@
 
 #include "string.hpp"
 
-bool vault_maintenance_run (string vault_dir);
+bool vault_maintenance_run (string vault_dir, bool check_only = false);
 
 #endif // VAULT_MAINTENANCE_HPP

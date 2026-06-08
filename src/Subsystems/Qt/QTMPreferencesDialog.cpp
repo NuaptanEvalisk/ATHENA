@@ -1215,6 +1215,12 @@ QTMPreferencesDialog::buildVaultPage () {
               {"6 hours", "6 hours"}, {"1 day", "1 day"},
               {"3 days", "3 days"}, {"1 week", "1 week"},
               {"1 month", "1 month"}}, "1 week");
+  add_combo (mt, "Anchor reader processes:",
+             "vault maintenance anchor reader processes",
+             {{"Unlimited", "Unlimited"}, {"1", "1"}, {"2", "2"},
+              {"4", "4"}, {"8", "8"}, {"12", "12"}, {"16", "16"},
+              {"20", "20"}},
+             "Unlimited");
   add_toggle (mt, "Collect orphan assets during vault maintenance:",
               "vault collect orphan assets");
   add_toggle (mt, "Generate summary page for maintenance:",

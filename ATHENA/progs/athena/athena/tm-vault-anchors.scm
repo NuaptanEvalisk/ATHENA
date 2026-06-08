@@ -740,6 +740,26 @@
       (vault-anchor-maintenance-result "error" 0 0 0 0 #f
                                        (object->string args) ""))))
 
+(tm-define (vault-anchor-maintenance-check-file u)
+  (catch #t
+    (lambda ()
+      (let ((doc (tree-import u "texmacs")))
+        (if (== doc (tm->tree "error"))
+            (vault-anchor-maintenance-result "error" 0 0 0 0 #f
+                                             "could not import document" "")
+            (let* ((res (vault-anchor-transform-document doc))
+                   (summary (car res))
+                   (wraps (vector-ref summary 0))
+                   (dead (vector-ref summary 1))
+                   (headings (vector-ref summary 3))
+                   (updates (vector-ref summary 4)))
+              (vault-anchor-maintenance-result
+               "ok" wraps dead headings updates
+               (not (vault-anchor-summary-empty? summary)) "" "")))))
+    (lambda args
+      (vault-anchor-maintenance-result "error" 0 0 0 0 #f
+                                       (object->string args) ""))))
+
 (define (vault-anchor-current-buffer? buf)
   (and (current-buffer)
        (== (url->url (current-buffer)) (url->url buf))))
