@@ -17,6 +17,27 @@
 tree insert_at (tree, path, tree);
 tree remove_at (tree, path, int);
 
+static bool
+athena_enunciation_surround_body_edit (tree st, path p) {
+  if (!athena_is_enunciation_surround (st) || is_nil (p) ||
+      is_nil (p->next))
+    return false;
+  int d= athena_enunciation_surround_delta (st);
+  return p->item == d + 2;
+}
+
+static bool
+athena_enunciation_surround_display (edit_env env, tree st) {
+  if (!athena_is_enunciation_surround (st)) return false;
+  int d= athena_enunciation_surround_delta (st);
+  return athena_enunciation_starts_display (env, st[d + 2]);
+}
+
+static path
+athena_enunciation_surround_body_path (bool display, path p) {
+  return path (display? 1: 2, p->next);
+}
+
 class bridge_compound_rep: public bridge_rep {
 protected:
   bool   valid;
@@ -69,8 +90,20 @@ bridge_compound_rep::notify_assign (path p, tree u) {
   // cout << "Assign " << p << ", " << u << " in " << st << "\n";
   ASSERT (!is_nil (p) || L(u) >= START_EXTENSIONS, "nil path");
   if (athena_is_enunciation_surround (st)) {
-    st= substitute (st, p, u);
-    valid= false;
+    bool old_display= athena_enunciation_surround_display (env, st);
+    tree new_st= substitute (st, p, u);
+    bool new_display= athena_enunciation_surround_display (env, new_st);
+    if (valid && old_display == new_display &&
+        athena_enunciation_surround_body_edit (st, p)) {
+      body->notify_assign (
+        athena_enunciation_surround_body_path (old_display, p), u);
+      st = new_st;
+      fun= athena_enunciation_surround_rewrite (env, st);
+    }
+    else {
+      st= new_st;
+      valid= false;
+    }
     status= CORRUPTED;
     return;
   }
@@ -95,8 +128,20 @@ bridge_compound_rep::notify_insert (path p, tree u) {
   // cout << "Insert " << p << ", " << u << " in " << st << "\n";
   ASSERT (!is_nil (p), "nil path");
   if (athena_is_enunciation_surround (st)) {
-    st= insert_at (st, p, u);
-    valid= false;
+    bool old_display= athena_enunciation_surround_display (env, st);
+    tree new_st= insert_at (st, p, u);
+    bool new_display= athena_enunciation_surround_display (env, new_st);
+    if (valid && old_display == new_display &&
+        athena_enunciation_surround_body_edit (st, p)) {
+      body->notify_insert (
+        athena_enunciation_surround_body_path (old_display, p), u);
+      st = new_st;
+      fun= athena_enunciation_surround_rewrite (env, st);
+    }
+    else {
+      st= new_st;
+      valid= false;
+    }
     status= CORRUPTED;
     return;
   }
@@ -118,8 +163,20 @@ bridge_compound_rep::notify_remove (path p, int nr) {
   // cout << "Remove " << p << ", " << nr << " in " << st << "\n";
   ASSERT (!is_nil (p), "nil path");
   if (athena_is_enunciation_surround (st)) {
-    st= remove_at (st, p, nr);
-    valid= false;
+    bool old_display= athena_enunciation_surround_display (env, st);
+    tree new_st= remove_at (st, p, nr);
+    bool new_display= athena_enunciation_surround_display (env, new_st);
+    if (valid && old_display == new_display &&
+        athena_enunciation_surround_body_edit (st, p)) {
+      body->notify_remove (
+        athena_enunciation_surround_body_path (old_display, p), nr);
+      st = new_st;
+      fun= athena_enunciation_surround_rewrite (env, st);
+    }
+    else {
+      st= new_st;
+      valid= false;
+    }
     status= CORRUPTED;
     return;
   }
@@ -148,10 +205,18 @@ bridge_compound_rep::notify_macro (
 
   bool flag;
   if (athena_is_enunciation_surround (st)) {
-    (void) type; (void) var; (void) l; (void) p; (void) u;
+    int d= athena_enunciation_surround_delta (st);
+    bool body_dep= env->depends (st[d + 2], var, l);
+    bool wrapper_dep=
+      env->depends (st[d], var, l) || env->depends (st[d + 1], var, l);
+    if (valid && body_dep && !wrapper_dep && !is_nil (body)) {
+      flag= body->notify_macro (type, var, l, p, u);
+      status= CORRUPTED;
+      return flag || body_dep;
+    }
     valid= false;
     status= CORRUPTED;
-    return true;
+    return body_dep || wrapper_dep;
   }
   if (valid) {
     int i, n=N(fun)-1, m=N(st);
