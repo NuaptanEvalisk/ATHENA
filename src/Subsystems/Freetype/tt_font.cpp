@@ -9,13 +9,10 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 
-#include "config.h"
 #include "font.hpp"
 #include "Freetype/free_type.hpp"
 #include "Freetype/tt_file.hpp"
 #include "Freetype/tt_face.hpp"
-
-#ifdef USE_FREETYPE
 
 #define std_dpi 600
 #define std_pixel (std_shrinkf*256)
@@ -241,15 +238,3 @@ font
 tt_font (string family, int size, int dpi) {
   return tt_font (family, size, dpi, dpi);
 }
-
-#else
-
-font
-tt_font (string family, int size, int dpi) {
-  string name= "tt:" * family * as_string (size) * "@" * as_string (dpi);
-  failed_error << "Font name= " << name << "\n";
-  FAILED ("true type support was disabled");
-  return font ();
-}
-
-#endif

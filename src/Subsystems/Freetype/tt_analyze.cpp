@@ -9,12 +9,9 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 
-#include "config.h"
 #include "tt_face.hpp"
 #include "font.hpp"
 #include "analyze.hpp"
-
-#ifdef USE_FREETYPE
 
 array<int> build_range (int start, int end);
 string height_trace (font_metric fnm, array<int> cs);
@@ -575,24 +572,3 @@ tt_analyze (string family) {
   cout << r << " " << family << "\n";
   return r;
 }
-
-#else
-
-array<string>
-tt_analyze (string family) {
-  (void) family;
-  array<string> r;
-  return r;
-}
-
-double trace_distance (string v1, string v2, double m) { return 0; }
-string find_attribute_value (array<string> a, string s) { return ""; }
-int characteristic_distance (array<string> a, array<string> s) { return 0; }
-
-double get_M_width (array<string> a) { return 0.0; }
-double get_lo_pen_width  (array<string> a) { return 0.0; }
-double get_lo_pen_height (array<string> a) { return 0.0; }
-double get_up_pen_width  (array<string> a) { return 0.0; }
-double get_up_pen_height (array<string> a) { return 0.0; }
-
-#endif // USE_FREETYPE

@@ -9,11 +9,8 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 
-#include "config.h"
 #include "font.hpp"
 #include "converter.hpp"
-
-#ifdef USE_FREETYPE
 
 /******************************************************************************
 * True Type fonts
@@ -609,15 +606,3 @@ rubber_stix_font (font base) {
   string name= "rubberstix[" * base->res_name * "]";
   return make (font, name, tm_new<rubber_stix_font_rep> (name, base));
 }
-
-#else
-
-font
-rubber_stix_font (font base) {
-  string name= "rubberstix[" * base->res_name * "]";
-  failed_error << "Font name= " << name << "\n";
-  FAILED ("true type support was disabled");
-  return font ();
-}
-
-#endif

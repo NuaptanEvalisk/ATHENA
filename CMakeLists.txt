@@ -110,15 +110,7 @@ add_custom_command (
 add_custom_target (athena-data-art-python ALL
   DEPENDS ${ATHENA_DATA_ART_VENV_STAMP})
 
-set (USE_FREETYPE ON CACHE BOOL "use Freetype" FORCE)
 find_package (Freetype REQUIRED)
-set (LINKED_FREETYPE ON CACHE BOOL "linked Freetype" FORCE)
-
-option (USE_CAIRO "use Cairo" OFF)
-if (USE_CAIRO)
-  find_package(Cairo)
-  option (LINKED_CAIRO "linked Cairo" ON)
-endif (USE_CAIRO)
 
 option (USE_IMLIB2 "use Imlib2" OFF)
 if (USE_IMLIB2)
@@ -520,7 +512,7 @@ else (WIN32)
 endif (WIN32)
 
 set (ATHENA_Include_Dirs ${ATHENA_Include_Dirs}
-  ${Guile_INCLUDE_DIRS} ${FREETYPE_INCLUDE_DIRS} ${Cairo_INCLUDE_DIRS}
+  ${Guile_INCLUDE_DIRS} ${FREETYPE_INCLUDE_DIRS}
   ${IMLIB2_INCLUDE_DIR} ${GMP_INCLUDES} ${GNUTLS_INCLUDE_DIRS}
   ${TCC_INCLUDE_DIR} ${SQLITE3_INCLUDE_DIRS} ${ICONV_INCLUDE_DIR}
   ${LLAMA_COMMON_INCLUDE_DIR}
@@ -545,7 +537,6 @@ file (GLOB_RECURSE ATHENA_Base_SRCS CONFIGURE_DEPENDS
 
 file (GLOB_RECURSE ATHENA_Subsystems_SRCS CONFIGURE_DEPENDS
   "${ATHENA_SOURCE_DIR}/src/Subsystems/Bibtex/*.cpp"
-  "${ATHENA_SOURCE_DIR}/src/Subsystems/Cairo/*.cpp"
   "${ATHENA_SOURCE_DIR}/src/Subsystems/Database/*.cpp"
   "${ATHENA_SOURCE_DIR}/src/Subsystems/Freetype/*.cpp"
   "${ATHENA_SOURCE_DIR}/src/Subsystems/Google/*.cpp"
@@ -623,17 +614,11 @@ set (ATHENA_Libraries
   -lpthread
 )
 
-if (LINKED_CAIRO)
-  set (ATHENA_Libraries ${ATHENA_Libraries} ${CAIRO_LIBRARIES})
-endif (LINKED_CAIRO)
-
 if (LINKED_SQLITE3)
   set (ATHENA_Libraries ${ATHENA_Libraries} ${SQLITE3_LIBRARIES})
 endif (LINKED_SQLITE3)
 
-if (LINKED_FREETYPE)
-  set (ATHENA_Libraries ${ATHENA_Libraries} ${FREETYPE_LIBRARIES})
-endif (LINKED_FREETYPE)
+set (ATHENA_Libraries ${ATHENA_Libraries} ${FREETYPE_LIBRARIES})
 
 set (ATHENA_Libraries ${ATHENA_Libraries} ${GMP_LIBRARIES})
 

@@ -194,7 +194,6 @@ try_pk (string family, int size, int dpi, int dsize,
 	tex_font_metric& tfm, font_glyphs& pk)
 {
   // cout << "Try pk " << family << size << " at " << dpi << " dpi\n";
-#ifdef USE_FREETYPE
   // Substitute by True Type font ?
   int tt_size= size<333? size: (size+50)/100;
   int tt_dpi = size<333? dpi : (size * dpi) / (100 * tt_size);
@@ -205,7 +204,6 @@ try_pk (string family, int size, int dpi, int dsize,
     else pk= tt_font_glyphs (tt_name, tt_size, tt_dpi, tt_dpi);
     return true;
   }
-#endif // USE_FREETYPE
 
   // Open regular pk font
   string name_pk= family * as_string (size) * "." * as_string (dpi) * "pk";

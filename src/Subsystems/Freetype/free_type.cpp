@@ -9,11 +9,7 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 
-#include "config.h"
 #include "free_type.hpp"
-#include "dyn_link.hpp"
-
-#ifdef USE_FREETYPE
 
 static bool ft_initialized= false;
 static bool ft_error      = true;
@@ -57,7 +53,6 @@ bool
 ft_initialize () {
   if (ft_initialized) return ft_error;
   ft_initialized= true;
-#ifdef LINKED_FREETYPE
   ft_init_freetype = FT_Init_FreeType;
   ft_new_face      = FT_New_Face;
   ft_new_memory_face = FT_New_Memory_Face;
@@ -69,43 +64,6 @@ ft_initialize () {
   ft_get_kerning   = FT_Get_Kerning;
   ft_done_face     = FT_Done_Face;
   if (ft_init_freetype (&ft_library)) return true;
-  if (DEBUG_AUTO) debug_automatic << "With linked TrueType support\n";
-#else
-  int status= debug_off ();
-  (void) symbol_install ("/usr/lib/libfreetype.so", "FT_Init_FreeType" ,
-			 (pointer&) ft_init_freetype);
-  if (ft_init_freetype == NULL) return true;
-  (void) symbol_install ("/usr/lib/libfreetype.so", "FT_New_Face"      ,
-			 (pointer&) ft_new_face);
-  if (ft_new_face == NULL) return true;
-  (void) symbol_install ("/usr/lib/libfreetype.so", "FT_New_Memory_Face",
-       (pointer&) ft_new_memory_face);
-  if (ft_new_memory_face == NULL) return true;
-  (void) symbol_install ("/usr/lib/libfreetype.so", "FT_Select_Charmap",
-			 (pointer&) ft_select_charmap);
-  if (ft_select_charmap == NULL) return true;
-  (void) symbol_install ("/usr/lib/libfreetype.so", "FT_Set_Char_Size" ,
-			 (pointer&) ft_set_char_size);
-  if (ft_set_char_size == NULL) return true;
-  (void) symbol_install ("/usr/lib/libfreetype.so", "FT_Get_Char_Index",
-			 (pointer&) ft_get_char_index);
-  if (ft_get_char_index == NULL) return true;
-  (void) symbol_install ("/usr/lib/libfreetype.so", "FT_Load_Glyph"    ,
-			 (pointer&) ft_load_glyph);
-  if (ft_load_glyph == NULL) return true;
-  (void) symbol_install ("/usr/lib/libfreetype.so", "FT_Render_Glyph"  ,
-			 (pointer&) ft_render_glyph);
-  if (ft_render_glyph == NULL) return true;
-  (void) symbol_install ("/usr/lib/libfreetype.so", "FT_Get_Kerning"   ,
-       (pointer&) ft_get_kerning);
-  if (ft_get_kerning == NULL) return true;
-  (void) symbol_install ("/usr/lib/libfreetype.so", "FT_Done_Face"     ,
-       (pointer&) ft_done_face);
-  if (ft_done_face == NULL) return true;
-  debug_on (status);
-  if (ft_init_freetype (&ft_library)) return true;
-  if (DEBUG_AUTO) debug_automatic << "Installed TrueType support\n";
-#endif
   ft_error= false;
   return false;
 }
@@ -114,10 +72,3 @@ bool
 ft_present () {
   return !ft_initialize ();
 }
-
-#else
-
-bool ft_initialize () { return true; }
-bool ft_present () { return false; }
-
-#endif

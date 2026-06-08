@@ -481,8 +481,6 @@
 
         <item>Automatic detection of simple ornaments (arrows, dots).
 
-        <item>Cairo plug-in for nicer looking graphics.
-
         <item>Graphical macros and constraint-based drawings.
 
         <item>Documentation, reference guide (markup specification) and

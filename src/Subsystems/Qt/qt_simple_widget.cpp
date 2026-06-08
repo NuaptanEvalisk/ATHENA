@@ -25,11 +25,6 @@
 #include "QTMImpressIconEngine.hpp"
 #endif
 
-#ifdef USE_CAIRO
-#include "Cairo/cairo_renderer.hpp"
-#include "Cairo/tm_cairo.hpp"
-#endif // USE_CAIRO
-
 
 
 qt_simple_widget_rep::qt_simple_widget_rep ()
@@ -496,24 +491,8 @@ basic_renderer
 qt_simple_widget_rep::get_renderer() {
   ASSERT (backingPixmap != NULL,
 	  "internal error in qt_simple_widget_rep::get_renderer");
-#ifdef USE_CAIRO
-#  if defined (Q_OS_MAC)
-  cairo_renderer_rep *ren = the_cairo_renderer ();
-  cairo_surface_t *surf;
-  surf = tm_cairo_quartz_surface_create_for_cg_context
-    ((CGContextRef)(this->macCGHandle()), width(), height());
-  cairo_t *ct = tm_cairo_create (surf);
-  ren->begin (ct);
-  tm_cairo_surface_destroy (surf);
-  tm_cairo_destroy (ct);
-#  else
   qt_renderer_rep * ren = the_qt_renderer (device_pixel_ratio ());
   ren->begin ((void*) backingPixmap);
-#  endif
-#else
-  qt_renderer_rep * ren = the_qt_renderer (device_pixel_ratio ());
-  ren->begin ((void*) backingPixmap);
-#endif
   return ren;
 }
 

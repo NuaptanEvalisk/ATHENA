@@ -16,7 +16,6 @@
 bool ft_initialize ();
 bool ft_present ();
 
-#ifdef USE_FREETYPE
 #include <ft2build.h>
 #include FT_FREETYPE_H 
 
@@ -51,7 +50,5 @@ extern FT_Error (*ft_get_kerning)    (FT_Face        face,
                                       FT_UInt        kern_mode,
                                       FT_Vector      *akerning);
 extern FT_Error (*ft_done_face)      (FT_Face        face);
-
-#endif
 
 #endif // FREE_TYPE_H

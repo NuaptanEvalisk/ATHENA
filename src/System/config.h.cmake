@@ -77,12 +77,6 @@
 /* Define to 1 if you have the <util.h> header file. */
 #cmakedefine HAVE_UTIL_H 1
 
-/* Link cairo library with TeXmacs */
-#cmakedefine LINKED_CAIRO 1
-
-/* Link freetype library with TeXmacs */
-#cmakedefine LINKED_FREETYPE 1
-
 /* Link imlib2 library with TeXmacs */
 #cmakedefine LINKED_IMLIB2 1
 
@@ -135,12 +129,6 @@
 #cmakedefine ATHENA_REVISION "@ATHENA_REVISION@"
 
 #cmakedefine TM_DYNAMIC_LINKING 1
-
-/* Use cairo library */
-#cmakedefine USE_CAIRO 1
-
-/* Use freetype library */
-#cmakedefine USE_FREETYPE 1
 
 #cmakedefine USE_GS 1
 

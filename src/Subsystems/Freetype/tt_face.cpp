@@ -9,14 +9,11 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 
-#include "config.h"
 #include "font.hpp"
 #include "tt_face.hpp"
 #include "tt_file.hpp"
 #include "tm_timer.hpp"
 #include "sys_utils.hpp"
-
-#ifdef USE_FREETYPE
 
 RESOURCE_CODE(tt_face);
 
@@ -246,5 +243,3 @@ tt_font_glyphs (string family, int size, int hdpi, int vdpi) {
   return make (font_glyphs, name,
 	       tm_new<tt_font_glyphs_rep> (name, family, size, hdpi, vdpi));
 }
-
-#endif // USE_FREETYPE
