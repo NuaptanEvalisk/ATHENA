@@ -569,33 +569,12 @@
   (section-tabs ,gui-make-section-tabs))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Basic color pickers
+;; Native color picker hooks
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define (standard-color-list)
-  '("dark red" "dark magenta" "dark blue" "dark cyan"
-    "dark green" "dark yellow" "dark orange" "dark brown"
-    "red" "magenta" "blue" "cyan"
-    "green" "yellow" "orange" "brown"
-    "#faa" "#faf" "#aaf" "#aff"
-    "#afa" "#ffa" "#fa6" "#a66"
-    "pastel red" "pastel magenta" "pastel blue" "pastel cyan"
-    "pastel green" "pastel yellow" "pastel orange" "pastel brown"))
-
-(define (standard-grey-list)
-  '("black" "darker grey" "dark grey" "#a0a0a0"
-    "light grey" "pastel grey" "#f0f0f0" "white"))
-
-(tm-menu (standard-color-menu cmd)
-  (tile 8
-    (for (col (append (standard-color-list) (standard-grey-list)))
-      (explicit-buttons
-        ((color col #f #f 32 24)
-         (cmd col))))))
-
 (define (gui-make-pick-color x)
-  `(menu-dynamic
-     (dynamic (standard-color-menu (lambda (answer) ,@(cdr x))))))
+  `($> ,(translate "Choose color...")
+       (interactive-color (lambda (answer) ,@(cdr x)) '())))
 
 (extend-table gui-make-table
   (pick-color ,gui-make-pick-color))
@@ -624,13 +603,20 @@
       (set-preference type r))))
 
 (define-public (tm-pattern name . args)
-  (cond ((url-exists? (url-append "$ATHENA_PATTERN_PATH" (url-tail name)))
-         `(pattern ,(url->unix (url-tail name)) ,@args))
-        ((string-starts? (url->unix (url->delta-unix name)) "../")
-         (when (url? name) (set! name (url->system name)))
-         `(pattern ,name ,@args))
-        (else
-         `(pattern ,(url->unix (url->delta-unix name)) ,@args))))
+  (let* ((s (if (url? name) (url->unix name) name))
+         (pattern-dir (url->unix "$ATHENA_PATH/misc/patterns"))
+         (pattern-url (url-append "$ATHENA_PATTERN_PATH" (unix->url s))))
+    (cond ((or (string-starts? s pattern-dir)
+               (string-starts? s "$ATHENA_PATH/misc/patterns")
+               (string-starts? s "$ATHENA_PATTERN_PATH"))
+           `(pattern ,s ,@args))
+          ((and (not (url-rooted? (unix->url s))) (url-exists? pattern-url))
+           `(pattern ,(url->unix pattern-url) ,@args))
+          ((string-starts? (url->unix (url->delta-unix name)) "../")
+           (when (url? name) (set! name (url->system name)))
+           `(pattern ,name ,@args))
+          (else
+           `(pattern ,(url->unix (url->delta-unix name)) ,@args)))))
 
 (tm-menu (my-pattern-menu cmd)
   (tile 8
@@ -684,7 +670,8 @@
 
 (define (gui-make-pick-background x)
   `(menu-dynamic
-     (dynamic (standard-color-menu (lambda (answer) ,@(cddr x))))
+     ("Choose color..."
+      (interactive-background (lambda (answer) ,@(cddr x)) '()))
      ---
      (dynamic (standard-pattern-menu (lambda (answer) ,@(cddr x))
                                      "$ATHENA_PATH/misc/patterns/vintage"
@@ -703,42 +690,6 @@
 
 (tm-define (allow-pattern-colors?)
   (qt-gui?))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Extra RGB color picker
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(define (rgb-color-name r g b)
-  (string-append "#"
-    (integer->padded-hexadecimal r 2)
-    (integer->padded-hexadecimal g 2)
-    (integer->padded-hexadecimal b 2)))
-
-(tm-menu (rgb-palette cmd r1 r2 g1 g2 b1 b2 n)
-  (for (rr (.. r1 r2))
-    (for (gg (.. g1 g2))
-      (for (bb (.. b1 b2))
-        (let* ((r (/ (* 255 rr) (- n 1)))
-               (g (/ (* 255 gg) (- n 1)))
-               (b (/ (* 255 bb) (- n 1)))
-               (col (rgb-color-name r g b)))
-          (explicit-buttons
-            ((color col #f #f 24 24)
-             (cmd col))))))))
-
-(tm-menu (rgb-color-picker cmd)
-  (tile 18
-    (dynamic (rgb-palette cmd 0 6 0 3 0 6 6)))
-  (tile 18
-    (dynamic (rgb-palette cmd 0 6 3 6 0 6 6)))
-  ---
-  (glue #f #f 0 3)
-  (hlist
-    (glue #t #f 0 17)
-    (explicit-buttons
-      ("Cancel" (cmd #f)))
-    (glue #f #f 3 0))
-  (glue #f #f 0 3))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Deprecated functionality

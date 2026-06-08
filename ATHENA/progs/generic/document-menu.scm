@@ -763,22 +763,16 @@
 (menu-bind document-foreground-color-menu
   ("Default" (init-default "color"))
   ---
-  (pick-color (init-env "color" answer))
-  ---
-  ("Palette" (interactive-color
-              (lambda (col) (init-env "color" col)) '()))
-  ("Other" (init-interactive-env "color")))
+  ("Other" (interactive-color
+            (lambda (col) (init-env "color" col)) '())))
 
 (menu-bind document-background-color-menu
   ("Default" (init-default "bg-color"))
   ---
-  (pick-background "" (init-env-tree "bg-color" answer))
-  ---
-  ("Palette" (interactive-background set-background '()))
+  ("Other" (interactive-background set-background '()))
   ("Pattern" (open-pattern-selector set-background "1cm"))
   ("Gradient" (open-gradient-selector set-background))
-  ("Picture" (open-background-picture-selector set-background))
-  ("Other" (init-interactive-env "bg-color")))
+  ("Picture" (open-background-picture-selector set-background)))
 
 (menu-bind document-colors-menu
   (-> "Background" (link document-background-color-menu))

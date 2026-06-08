@@ -27,8 +27,10 @@
          (a (url->unix "$ATHENA_PATH/misc"))
          (p* (url-append (unix->url p) "dummy"))
          (a* (url-append (unix->url a) "dummy")))
-    (cond ((string-starts? name p)
-           (url->unix (url-delta p* (unix->url name))))
+    (cond ((or (string-starts? name p)
+               (string-starts? name "$ATHENA_PATH/misc/patterns")
+               (string-starts? name "$ATHENA_PATTERN_PATH"))
+           name)
           ((and (string-starts? name a)
                 (string-starts? t "thumbnail-"))
            (let* ((t* (string-drop t 10))
@@ -59,7 +61,8 @@
 
 (define global-picture? #f)
 (define global-gradient? #f)
-(define global-pattern-color `(pattern "neutral-pattern.png" "1cm" "100@"))
+(define global-pattern-color
+  `(pattern "$ATHENA_PATH/misc/patterns/neutral-pattern.png" "1cm" "100@"))
 
 (define (set-color col)
   (set! global-pattern-color col)
@@ -292,7 +295,7 @@
        (interactive-color set-gradient-foreground (list (or fg "black"))))
       >>)))
 
-(tm-widget ((pattern-selector u) cmd)
+(tm-widget ((pattern-selector) cmd)
   (padded
     (hlist
       (vlist
@@ -384,33 +387,35 @@
 (tm-define (open-pattern-selector cmd w)
   (:interactive #t)
   (when (or global-picture? global-gradient?
-            (== (get-name) "neutral-pattern.png"))
+            (== (url->unix (url-tail (get-name))) "neutral-pattern.png"))
     (set! global-picture? #f)
     (set! global-gradient? #f)
-    (set! global-pattern-color `(pattern "neutral-pattern.png" ,w "100@")))
-  (with u (current-buffer)
-    (dialogue-window (pattern-selector u) cmd "Pattern selector")))
+    (set! global-pattern-color
+          `(pattern "$ATHENA_PATH/misc/patterns/neutral-pattern.png" ,w "100@")))
+  (dialogue-window (pattern-selector) cmd "Pattern selector"))
 
 (tm-define (open-gradient-selector cmd . opt-old)
   (:interactive #t)
   (when (or global-picture? (not global-gradient?)
-            (== (get-name) "neutral-pattern.png"))
+            (== (url->unix (url-tail (get-name))) "neutral-pattern.png"))
     (set! global-picture? #f)
     (set! global-gradient? #t)
-    (set! global-pattern-color `(pattern "vertical-white-black.png" "100%" "100%")))
+    (set! global-pattern-color
+          `(pattern "$ATHENA_PATH/misc/pictures/gradients/vertical-white-black.png"
+                    "100%" "100%")))
   (when (nnull? opt-old)
     (set! global-pattern-color (car opt-old)))
-  (with u (current-buffer)
-    (dialogue-window (pattern-selector u) cmd "Gradient selector")))
+  (dialogue-window (pattern-selector) cmd "Gradient selector"))
 
 (tm-define (open-background-picture-selector cmd . opt-old)
   (:interactive #t)
   (when (or (not global-picture?) global-gradient?
-            (== (get-name) "neutral-pattern.png"))
+            (== (url->unix (url-tail (get-name))) "neutral-pattern.png"))
     (set! global-picture? #t)
     (set! global-gradient? #f)
-    (set! global-pattern-color `(pattern "neutral-pattern.png" "100%" "100%")))
+    (set! global-pattern-color
+          `(pattern "$ATHENA_PATH/misc/patterns/neutral-pattern.png"
+                    "100%" "100%")))
   (when (nnull? opt-old)
     (set! global-pattern-color (car opt-old)))
-  (with u (current-buffer)
-    (dialogue-window (pattern-selector u) cmd "Background picture selector")))
+  (dialogue-window (pattern-selector) cmd "Background picture selector"))

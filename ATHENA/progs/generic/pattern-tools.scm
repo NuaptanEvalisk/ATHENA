@@ -27,8 +27,10 @@
          (a (url->unix "$ATHENA_PATH/misc"))
          (p* (url-append (unix->url p) "dummy"))
          (a* (url-append (unix->url a) "dummy")))
-    (cond ((string-starts? name p)
-           (url->unix (url-delta p* (unix->url name))))
+    (cond ((or (string-starts? name p)
+               (string-starts? name "$ATHENA_PATH/misc/patterns")
+               (string-starts? name "$ATHENA_PATTERN_PATH"))
+           name)
           ((and (string-starts? name a)
                 (string-starts? t "thumbnail-"))
            (let* ((t* (string-drop t 10))
@@ -72,13 +74,15 @@
 (define (get-color key)
   (or (ahash-ref global-pattern-color key)
       (cond ((pattern? key)
-             `(pattern "neutral-pattern.png" "1cm" "100@"))
+             `(pattern "$ATHENA_PATH/misc/patterns/neutral-pattern.png" "1cm" "100@"))
             ((gradient? key)
-             `(pattern "vertical-white-black.png" "100%" "100%"))
+             `(pattern "$ATHENA_PATH/misc/pictures/gradients/vertical-white-black.png"
+                       "100%" "100%"))
             ((picture? key)
-             `(pattern "neutral-pattern.png" "100%" "100%"))
+             `(pattern "$ATHENA_PATH/misc/patterns/neutral-pattern.png"
+                       "100%" "100%"))
             (else
-             `(pattern "neutral-pattern.png" "1cm" "100@")))))
+             `(pattern "$ATHENA_PATH/misc/patterns/neutral-pattern.png" "1cm" "100@")))))
 
 (define (set-name key name)
   (with enc (encode-pattern-name key name)
@@ -308,7 +312,7 @@
                         (list (or (get-gradient-foreground key) "black"))))
     >>))
 
-(tm-widget (pattern-sample key u)
+(tm-widget (pattern-sample key)
   (refreshable "pattern-sample"
     (resize "400px" "250px"
       (texmacs-output
@@ -323,7 +327,7 @@
             (table (row (cell ""))))))
        `(style (tuple "generic"))))))
 
-(tm-widget (pattern-options key u)
+(tm-widget (pattern-options key)
   (refreshable "pattern-options"
     (assuming (pattern? key)
       (aligned
@@ -386,15 +390,15 @@
 ;; Interface for stand-alone windows
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(tm-widget ((pattern-selector key u) cmd)
+(tm-widget ((pattern-selector key) cmd)
   (padded
     (hlist
       (vlist
-        (dynamic (pattern-sample key u)))
+        (dynamic (pattern-sample key)))
       // // //
       (explicit-buttons
         (vlist
-          (dynamic (pattern-options key u))
+          (dynamic (pattern-options key))
           ======
           (glue #f #t 0 0))))
     ======
@@ -410,25 +414,21 @@
 (tm-define (open-pattern-selector cmd w)
   (:interactive #t)
   (with key (list :pattern)
-    (with u (current-buffer)
-      (dialogue-window (pattern-selector key u) cmd "Pattern selector"))))
+    (dialogue-window (pattern-selector key) cmd "Pattern selector")))
 
 (tm-define (open-gradient-selector cmd . opt-old)
   (:interactive #t)
   (with key (list :gradient)
     (when (nnull? opt-old)
       (ahash-set! global-pattern-color key (car opt-old)))
-    (with u (current-buffer)
-      (dialogue-window (pattern-selector key u) cmd "Gradient selector"))))
+    (dialogue-window (pattern-selector key) cmd "Gradient selector")))
 
 (tm-define (open-background-picture-selector cmd . opt-old)
   (:interactive #t)
   (with key (list :picture)
     (when (nnull? opt-old)
       (ahash-set! global-pattern-color key (car opt-old)))
-    (with u (current-buffer)
-      (dialogue-window (pattern-selector key u) cmd
-                       "Background picture selector"))))
+    (dialogue-window (pattern-selector key) cmd "Background picture selector")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Interface for side-tools
@@ -440,9 +440,9 @@
     (color-input noop #f (list))))
 
 (tm-widget (pattern-selector-tool key u)
-  (dynamic (pattern-sample key u))
+  (dynamic (pattern-sample key))
   ======
-  (dynamic (pattern-options key u))
+  (dynamic (pattern-options key))
   ;;======
   ;;(hlist
   ;;  >>>

@@ -1192,29 +1192,20 @@
   (with p (lambda (com) (widget-printer com u))
     (interactive-window p done "Print document")))
 
-(tm-define (interactive-rgb-picker cmd l)
-  (:interactive #t)
-  (with cmd* (lambda (col) (when col (cmd col)))
-    (dialogue-window rgb-color-picker cmd* "Choose color")))
-
 (tm-define (interactive-color cmd proposals)
   (:interactive #t)
   (set! proposals (map tm->tree proposals))
-  (if (not (qt-gui?))
-      (interactive-rgb-picker cmd proposals)
-      (with p (lambda (com) (widget-color-picker com #f proposals))
-        (with cmd* (lambda (t) (when t (cmd (tm->stree t))))
-          (interactive-window p cmd* "Choose color")))))
+  (with p (lambda (com) (widget-color-picker com #f proposals))
+    (with cmd* (lambda (t) (when t (cmd (tm->stree t))))
+      (interactive-window p cmd* "Choose color"))))
 
 (tm-define (interactive-background cmd proposals)
   (:interactive #t)
   (set! proposals (map tm->tree proposals))
-  (if (not (qt-gui?))
-      (interactive-rgb-picker cmd proposals)
-      ;;(with p (lambda (com) (widget-color-picker com #t proposals))
-      (with p (lambda (com) (widget-color-picker com #f proposals))
-        (with cmd* (lambda (t) (when t (cmd (tm->stree t))))
-          (interactive-window p cmd* "Choose background")))))
+  ;;(with p (lambda (com) (widget-color-picker com #t proposals))
+  (with p (lambda (com) (widget-color-picker com #f proposals))
+    (with cmd* (lambda (t) (when t (cmd (tm->stree t))))
+      (interactive-window p cmd* "Choose background"))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Reporting errors of system commands
