@@ -723,13 +723,15 @@ QTMPagePropertiesPane::applyHeaders () {
 
 void
 QTMPagePropertiesPane::insertHeaderTab () {
-  try { eval ("(when (editing-headers?) (make-htab \"5mm\"))"); }
+  if (!is_header_aux_buffer (get_current_buffer_safe ())) return;
+  try { eval ("(make-htab \"5mm\")"); }
   catch (...) {}
 }
 
 void
 QTMPagePropertiesPane::insertHeaderPageNumber () {
-  try { eval ("(when (editing-headers?) (make 'page-the-page))"); }
+  if (!is_header_aux_buffer (get_current_buffer_safe ())) return;
+  try { eval ("(make 'page-the-page)"); }
   catch (...) {}
 }
 
