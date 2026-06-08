@@ -6,12 +6,25 @@
 
 #include "ATHENA/Data/vault_maintenance_internal.hpp"
 
+#include "convert.hpp"
+
 #include <filesystem>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
 namespace fs = std::filesystem;
+
+static bool
+legible_ath_text (const std::string& text) {
+  try {
+    tree doc = texmacs_document_to_tree (std_to_tm (text));
+    return !is_func (doc, _ERROR);
+  }
+  catch (...) {
+    return false;
+  }
+}
 
 static std::vector<RenamePlan>
 build_rename_plan (const std::vector<fs::path>& images) {
@@ -73,17 +86,18 @@ rewrite_document_image_refs (
 
   std::string out;
   out.reserve (text.size ());
-  size_t cursor = 0;
+  size_t scan_cursor = 0;
+  size_t emit_cursor = 0;
   bool changed = false;
   size_t document_replacements = 0;
 
   while (true) {
-    size_t pos = text.find ("<image|", cursor);
+    size_t pos = text.find ("<image|", scan_cursor);
     if (pos == std::string::npos) break;
 
     ImageRef ref;
     if (!parse_image_ref_at (text, pos, ref)) {
-      cursor = pos + 1;
+      scan_cursor = pos + 1;
       continue;
     }
 
@@ -91,29 +105,35 @@ rewrite_document_image_refs (
     std::string stem = stem_from_reference (unescaped);
     auto hit = plans_by_stem.find (stem);
     if (hit == plans_by_stem.end () || !is_probably_local_path (unescaped)) {
-      cursor = ref.end;
+      scan_cursor = ref.end;
       continue;
     }
 
     std::string ref_key = path_key (resolve_reference_path (doc_path, unescaped));
     auto key_hit = rename_path_by_old_path.find (ref_key);
     if (key_hit == rename_path_by_old_path.end ()) {
-      cursor = ref.end;
+      scan_cursor = ref.end;
       continue;
     }
 
     std::string new_ref =
       reference_for_replacement (doc_path, key_hit->second, unescaped);
-    out.append (text, cursor, ref.begin - cursor);
+    out.append (text, emit_cursor, ref.begin - emit_cursor);
     out += tm_escape_path (new_ref);
-    cursor = ref.end;
+    emit_cursor = ref.end;
+    scan_cursor = ref.end;
     changed = true;
     replacements++;
     document_replacements++;
   }
 
   if (!changed) return true;
-  out.append (text, cursor, std::string::npos);
+  out.append (text, emit_cursor, std::string::npos);
+  if (!legible_ath_text (out)) {
+    log_error ("refusing to write malformed document after image reference "
+               "rewrite: " + doc_path.string ());
+    return false;
+  }
   if (!write_file_bytes (doc_path, out)) {
     log_error ("failed to write document " + doc_path.string ());
     return false;

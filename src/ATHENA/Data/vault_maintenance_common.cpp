@@ -72,7 +72,7 @@ is_hex_digit (char c) {
 }
 
 bool
-is_uuid_v4 (const std::string& s) {
+is_uuid_like (const std::string& s) {
   if (s.size () != 36) return false;
   for (size_t i=0; i<s.size (); i++) {
     if (i == 8 || i == 13 || i == 18 || i == 23) {
@@ -80,9 +80,7 @@ is_uuid_v4 (const std::string& s) {
     }
     else if (!is_hex_digit (s[i])) return false;
   }
-  if (s[14] != '4') return false;
-  char variant = (char) std::tolower ((unsigned char) s[19]);
-  return variant == '8' || variant == '9' || variant == 'a' || variant == 'b';
+  return true;
 }
 
 bool
@@ -101,7 +99,7 @@ has_canonical_image_name (const fs::path& path) {
   if (!is_image_extension (path)) return false;
   std::string stem = path.stem ().string ();
   if (!starts_with (stem, "figure-")) return false;
-  return is_uuid_v4 (stem.substr (7));
+  return is_uuid_like (stem.substr (7));
 }
 
 std::string
@@ -437,7 +435,35 @@ tm_unescape_path (const std::string& s) {
     }
     else out.push_back (s[i]);
   }
-  return out;
+
+  std::string normalized;
+  normalized.reserve (out.size ());
+  for (size_t i=0; i<out.size (); i++) {
+    if (out[i] != '\n' && out[i] != '\r') {
+      normalized.push_back (out[i]);
+      continue;
+    }
+
+    if (out[i] == '\r' && i + 1 < out.size () && out[i + 1] == '\n')
+      i++;
+
+    size_t next = i + 1;
+    while (next < out.size () && (out[next] == ' ' || out[next] == '\t'))
+      next++;
+
+    char before = normalized.empty () ? '\0' : normalized.back ();
+    char after = next < out.size () ? out[next] : '\0';
+    bool joins_path_separator =
+      before == '/' || before == '\\' || after == '/' || after == '\\';
+    bool already_spaced =
+      before == '\0' || before == ' ' || before == '\t';
+
+    if (after != '\0' && !joins_path_separator && !already_spaced)
+      normalized.push_back (' ');
+
+    i = next == 0 ? i : next - 1;
+  }
+  return normalized;
 }
 
 std::string
