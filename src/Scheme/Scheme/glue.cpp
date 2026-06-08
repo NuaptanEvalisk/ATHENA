@@ -48,6 +48,8 @@
 #include "QTMFontSelector.hpp"
 #include "QTMPreferencesDialog.hpp"
 #include "QTMPagePropertiesPane.hpp"
+#include "QTMParagraphPropertiesPane.hpp"
+#include "QTMMetadataPropertiesPane.hpp"
 #include "QTMGoogleTasksPane.hpp"
 #include "GoogleCloudTodo.hpp"
 #include "ATHENA/Data/image_background.hpp"
@@ -1755,6 +1757,10 @@ initialize_glue () {
                            tmg_native_open_page_setup, 0, 0, 0);
   tmscm_install_procedure ("page-properties-pane-show",
                            page_properties_pane_show, 0, 0, 0);
+  tmscm_install_procedure ("paragraph-properties-pane-show",
+                           paragraph_properties_pane_show, 0, 0, 0);
+  tmscm_install_procedure ("metadata-properties-pane-show",
+                           metadata_properties_pane_show, 0, 0, 0);
   tmscm_install_procedure ("escape-symbol-picker",
                            tmg_escape_symbol_picker, 0, 0, 0);
   tmscm_install_procedure ("ads-restore-visible-panes",

@@ -107,19 +107,9 @@
 ;; Document -> Paragraph
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(tm-define (open-document-paragraph-format-window)
-  (:interactive #t)
-  (let* ((old (get-init-table paragraph-parameters))
-         (new (get-init-table paragraph-parameters))
-         (u   (current-buffer)))
-    (dialogue-window (paragraph-formatter old new init-multi u #t)
-                     noop "Document paragraph format")))
-
 (tm-define (open-document-paragraph-format)
   (:interactive #t)
-  (if (side-tools?)
-      (tool-select :right 'document-paragraph-tool)
-      (open-document-paragraph-format-window)))
+  (paragraph-properties-pane-show))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Document -> Page
@@ -133,55 +123,9 @@
   (:interactive #t)
   (page-properties-pane-show))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Document -> Metadata
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(tm-widget ((document-metadata-editor u) quit)
-  (padded
-    (refreshable "document-metadata"
-      (aligned
-        (item (text "Title:")
-          (input (initial-set u "global-title" answer) "string"
-                 (list (buffer-get-metadata u "title")) "24em"))
-        (item (text "Author:")
-          (input (initial-set u "global-author" answer) "string"
-                 (list (buffer-get-metadata u "author")) "24em"))
-        (item (text "Subject:")
-          (input (initial-set u "global-subject" answer) "string"
-                 (list (buffer-get-metadata u "subject")) "24em"))
-        (item (text "Created Time:")
-          (input (initial-set u "global-created-time" answer) "string"
-                 (list (buffer-get-metadata u "created-time")) "24em"))
-        (item (text "Modified Time:")
-          (input (initial-set u "global-modified-time" answer) "string"
-                 (list (buffer-get-metadata u "modified-time")) "24em"))
-        (item (text "Content Hash:")
-          (input (initial-set u "global-content-hash" answer) "string"
-                 (list (buffer-get-metadata u "content-hash")) "24em"))))
-    ======
-    (explicit-buttons
-      (hlist
-        >>>
-        ("Reset"
-         (initial-default u
-                          "global-title" "global-author" "global-subject"
-                          "global-created-time" "global-modified-time"
-                          "global-content-hash")
-         (refresh-now "document-metadata"))
-        // //
-        ("Ok" (quit))))))
-
-(tm-define (open-document-metadata-window)
-  (:interactive #t)
-  (let* ((u (current-buffer)))
-    (dialogue-window (document-metadata-editor u) noop "Document metadata")))
-
 (tm-define (open-document-metadata)
   (:interactive #t)
-  (if (side-tools?)
-      (tool-select :right 'document-metadata-tool)
-      (open-document-metadata-window)))
+  (metadata-properties-pane-show))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Document -> Color

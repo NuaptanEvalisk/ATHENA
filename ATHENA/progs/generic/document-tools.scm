@@ -24,12 +24,6 @@
     (dynamic ((source-tree-preferences-editor u)
               (tool-quit 'source-tree-preferences-tool #f win)))))
 
-(tm-tool* (document-metadata-tool win)
-  (:name "Document metadata")
-  (with u (current-buffer)
-    (dynamic ((document-metadata-editor u)
-              (tool-quit 'document-metadata-tool #f win)))))
-
 (tm-tool* (document-colors-tool win)
   (:name "Document colors")
   (with u (current-buffer)

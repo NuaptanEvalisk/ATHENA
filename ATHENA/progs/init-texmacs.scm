@@ -224,11 +224,11 @@
              open-document-metadata open-document-colors)
 (lazy-tool (generic format-tools)
            format-paragraph-tool format-page-tool
-           document-paragraph-tool document-page-tool
+           document-page-tool
            sections-tool subsections-tool)
 (lazy-tool (generic document-tools)
            source-tree-preferences-tool
-           document-metadata-tool document-colors-tool)
+           document-colors-tool)
 (lazy-tool (generic pattern-tools)
            color-tool pattern-tool gradient-tool picture-tool)
 (tm-property (open-search) (:interactive #t))

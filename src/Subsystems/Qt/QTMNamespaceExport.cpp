@@ -806,7 +806,6 @@ build_export_context (const QString& root, ExportContext& cx, QString& error) {
     if (!kids.isEmpty ()) cx.children.insert (parent, kids);
   }
 
-  QMap<QString,QStringList> fileNamespaces;
   QMap<QString,std::vector<FileMatch> > directFiles;
   for (auto it= cx.namespaces.begin (); it != cx.namespaces.end (); ++it) {
     const QString name= it.key ();
@@ -821,14 +820,8 @@ build_export_context (const QString& root, ExportContext& cx, QString& error) {
       fm.file= m.file;
       fm.stem= to_qstring (m.stem);
       directFiles[name].push_back (fm);
-      fileNamespaces[file_key (m.file)] << name;
     }
   }
-  for (auto it= fileNamespaces.begin (); it != fileNamespaces.end (); ++it)
-    if (it.value ().size () > 1)
-      warn_export ("File matches multiple namespaces and will appear multiple times: " +
-                   it.key () + " -> " + it.value ().join (", "));
-
   ExportGraph graph;
   graph.root= root;
   for (auto it= cx.namespaces.begin (); it != cx.namespaces.end (); ++it) {

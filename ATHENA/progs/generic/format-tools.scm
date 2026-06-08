@@ -616,10 +616,6 @@
   (:name "This paragraph format")
   (dynamic (paragraph-basic-tool win :paragraph)))
 
-(tm-tool (document-paragraph-tool win)
-  (:name "Global paragraph format")
-  (dynamic (paragraph-basic-tool win :global)))
-
 (tm-tool* (document-page-tool win)
   (:name "Global page format")
   (section-tabs "document-page-tabs" win
