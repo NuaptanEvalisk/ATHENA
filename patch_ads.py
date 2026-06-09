@@ -102,6 +102,44 @@ athenaSnapFloatingContainerToScreenEdge(QWidget* widget)
     else:
         print(f"No changes needed for {path}")
 
+def patch_ads_qt6_private_gui(base_dir):
+    path = os.path.join(base_dir, 'src/CMakeLists.txt')
+    if not os.path.exists(path):
+        print(f"File not found: {path}")
+        return
+
+    with open(path, 'r') as f:
+        content = f.read()
+
+    original_content = content
+    content = content.replace(
+        'find_package(Qt${QT_VERSION_MAJOR} COMPONENTS Core Gui Widgets REQUIRED)\n',
+        '''if(QT_VERSION_MAJOR STREQUAL "6")
+  find_package(Qt6 COMPONENTS Core Gui Widgets GuiPrivate REQUIRED)
+else()
+  find_package(Qt${QT_VERSION_MAJOR} COMPONENTS Core Gui Widgets REQUIRED)
+endif()
+''')
+    content = content.replace(
+        '''target_link_libraries(${library_name} PUBLIC Qt${QT_VERSION_MAJOR}::Core 
+                                               Qt${QT_VERSION_MAJOR}::Gui 
+                                               Qt${QT_VERSION_MAJOR}::Widgets)
+''',
+        '''target_link_libraries(${library_name} PUBLIC Qt${QT_VERSION_MAJOR}::Core 
+                                               Qt${QT_VERSION_MAJOR}::Gui 
+                                               Qt${QT_VERSION_MAJOR}::Widgets)
+if(QT_VERSION_MAJOR STREQUAL "6")
+    target_link_libraries(${library_name} PRIVATE Qt6::GuiPrivate)
+endif()
+''')
+
+    if content != original_content:
+        with open(path, 'w') as f:
+            f.write(content)
+        print(f"Patched {path}")
+    else:
+        print(f"No changes needed for {path}")
+
 # If run from CMake, the first argument is the source directory
 base_dir = sys.argv[1] if len(sys.argv) > 1 else "."
 
@@ -129,3 +167,4 @@ for css in css_files:
     patch_file(path, ['qproperty-iconSize: 16px 16px;', 'qproperty-iconSize: 24px 24px;'], 'qproperty-iconSize: 32px 32px;')
 
 patch_ads_floating_windows(base_dir)
+patch_ads_qt6_private_gui(base_dir)

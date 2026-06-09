@@ -83,4 +83,3 @@ void help_about_qt () {
   QTMAbout about (NULL);
   about.exec ();
 }
-#include "moc_QTMAbout.cpp"

@@ -293,6 +293,24 @@ qt_chooser_selected_local_file (KFileWidget* file_widget) {
   return QString ();
 }
 
+static void
+qt_chooser_set_kde_filter (KFileWidget* file_widget, const QString& filter) {
+  if (file_widget == nullptr || filter.isEmpty ()) return;
+#if QT_VERSION >= 0x060000
+  QList<KFileFilter> filters;
+  for (const QString& entry : filter.split ('\n', Qt::SkipEmptyParts)) {
+    QStringList parts= entry.split ('|');
+    QString patterns= parts.value (0).trimmed ();
+    QString label= parts.value (1, patterns).trimmed ();
+    filters << KFileFilter (label, patterns.split (' ', Qt::SkipEmptyParts),
+                            QStringList ());
+  }
+  file_widget->setFilters (filters);
+#else
+  file_widget->setFilter (filter);
+#endif
+}
+
 void
 qt_chooser_widget_rep::perform_dialog_with_kfiledialog() {
   QString caption= to_qstring (win_title);
@@ -317,8 +335,7 @@ qt_chooser_widget_rep::perform_dialog_with_kfiledialog() {
     file_widget->setMode (KFile::File | KFile::LocalOnly);
 
   QString filter= qt_chooser_kde_filter (type);
-  if (!filter.isEmpty ())
-    file_widget->setFilter (filter);
+  qt_chooser_set_kde_filter (file_widget, filter);
   if (prompt != "")
     file_widget->setConfirmOverwrite (true);
 

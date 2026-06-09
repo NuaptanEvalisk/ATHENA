@@ -94,6 +94,24 @@ namespace_selected_local_file (KFileWidget* file_widget) {
   return selected_url.isLocalFile () ? selected_url.toLocalFile () : QString ();
 }
 
+static void
+namespace_set_file_filter (KFileWidget* file_widget, const QString& filter) {
+  if (file_widget == nullptr || filter.isEmpty ()) return;
+#if QT_VERSION >= 0x060000
+  QList<KFileFilter> filters;
+  for (const QString& entry : filter.split ('\n', Qt::SkipEmptyParts)) {
+    QStringList parts= entry.split ('|');
+    QString patterns= parts.value (0).trimmed ();
+    QString label= parts.value (1, patterns).trimmed ();
+    filters << KFileFilter (label, patterns.split (' ', Qt::SkipEmptyParts),
+                            QStringList ());
+  }
+  file_widget->setFilters (filters);
+#else
+  file_widget->setFilter (filter);
+#endif
+}
+
 static QString
 namespace_vault_root_path () {
   return QFileInfo (to_qstring (concretize (vault_get_root ())))
@@ -133,7 +151,7 @@ namespace_choose_file (QWidget* parent, QLineEdit* edit,
 
   KFileWidget* file_widget= dialog.fileWidget ();
   file_widget->setMode (KFile::File | KFile::ExistingOnly | KFile::LocalOnly);
-  if (!filter.isEmpty ()) file_widget->setFilter (filter);
+  namespace_set_file_filter (file_widget, filter);
 
   QRect r;
   QSize dialog_size= dialog.sizeHint ();
@@ -161,7 +179,7 @@ namespace_choose_homepage_target (QWidget* parent, QLineEdit* edit) {
 
   KFileWidget* file_widget= dialog.fileWidget ();
   file_widget->setMode (KFile::File | KFile::LocalOnly);
-  file_widget->setFilter ("*.ath|ATHENA documents");
+  namespace_set_file_filter (file_widget, "*.ath|ATHENA documents");
 
   QRect r;
   QSize dialog_size= dialog.sizeHint ();

@@ -491,7 +491,7 @@ bool QTMMainTabWindow::eventFilterTabBar(QObject *obj, QEvent *event) {
     targetTabWindow = nullptr;
     for (QWidget *topWidget : QApplication::topLevelWidgets()) {
       tabWindow = qobject_cast<QTMMainTabWindow *>(topWidget);
-      if (tabWindow == nullptr || tabWindow->tmapp()->useMdi()) continue;
+      if (tabWindow == nullptr || tmapp()->useMdi()) continue;
 
       QPoint globalPos = mouseEvent->globalPosition().toPoint();
       QPoint localPos = tabWindow->mapFromGlobal(globalPos);

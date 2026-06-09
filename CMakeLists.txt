@@ -568,6 +568,7 @@ set (ATHENA_All_SRCS ${ATHENA_Base_SRCS}  ${ATHENA_Subsystems_SRCS})
 file (GLOB_RECURSE ATHENA_Qt_SRCS CONFIGURE_DEPENDS "${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/*.cpp")
 
 set (ATHENA_Qt_Moc_HDRS
+  ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMAbout.hpp
   ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMApplication.hpp
   ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMFileDialog.hpp
   ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMGuiHelper.hpp
@@ -651,6 +652,42 @@ if (ATHENA_GUI STREQUAL "Qt" OR ATHENA_GUI STREQUAL "Qt5" OR ATHENA_GUI STREQUAL
     if (Qt6_POSITION_INDEPENDENT_CODE)
       set (CMAKE_POSITION_INDEPENDENT_CODE ON)
     endif (Qt6_POSITION_INDEPENDENT_CODE)
+
+    if (UNIX AND NOT APPLE)
+      find_package (KF6KIO REQUIRED)
+      find_package (KF6ConfigWidgets REQUIRED)
+      get_target_property (KF6_KIO_CORE_INCLUDE_DIRS
+                           KF6::KIOCore
+                           INTERFACE_INCLUDE_DIRECTORIES)
+      get_target_property (KF6_KIO_GUI_INCLUDE_DIRS
+                           KF6::KIOGui
+                           INTERFACE_INCLUDE_DIRECTORIES)
+      get_target_property (KF6_KIO_FILE_WIDGETS_INCLUDE_DIRS
+                           KF6::KIOFileWidgets
+                           INTERFACE_INCLUDE_DIRECTORIES)
+      get_target_property (KF6_KIO_WIDGETS_INCLUDE_DIRS
+                           KF6::KIOWidgets
+                           INTERFACE_INCLUDE_DIRECTORIES)
+      get_target_property (KF6_CONFIG_WIDGETS_INCLUDE_DIRS
+                           KF6::ConfigWidgets
+                           INTERFACE_INCLUDE_DIRECTORIES)
+      list (GET KF6_KIO_FILE_WIDGETS_INCLUDE_DIRS 0
+            KF6_KIO_FILE_WIDGETS_INCLUDE_DIR)
+      get_filename_component (KF6_INCLUDE_ROOT
+                              "${KF6_KIO_FILE_WIDGETS_INCLUDE_DIR}/.."
+                              ABSOLUTE)
+      add_definitions ("-DUSE_KF5_KIO")
+      set (ATHENA_Include_Dirs ${ATHENA_Include_Dirs}
+           ${KF6_INCLUDE_ROOT}
+           ${KF6_KIO_CORE_INCLUDE_DIRS}
+           ${KF6_KIO_GUI_INCLUDE_DIRS}
+           ${KF6_KIO_FILE_WIDGETS_INCLUDE_DIRS}
+           ${KF6_KIO_WIDGETS_INCLUDE_DIRS}
+           ${KF6_CONFIG_WIDGETS_INCLUDE_DIRS})
+      set (ATHENA_Libraries ${ATHENA_Libraries}
+           KF6::KIOFileWidgets
+           KF6::ConfigWidgets)
+    endif ()
   else ()
     # Homebrew installs Qt5 in /usr/local/opt/qt5
     if (APPLE AND EXISTS /usr/local/opt/qt5)

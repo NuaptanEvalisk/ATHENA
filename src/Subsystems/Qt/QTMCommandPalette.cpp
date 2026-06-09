@@ -215,8 +215,9 @@ command_palette_show () {
     if (action != nullptr && action->menu () != nullptr)
       force_lazy_menu_tree (action->menu (), seen);
 
-  KCommandBar palette (win);
-  QVector<KCommandBar::ActionGroup> groups;
+  KCommandBar* palette= new KCommandBar (win);
+  palette->setAttribute (Qt::WA_DeleteOnClose);
+  QList<KCommandBar::ActionGroup> groups;
   for (QAction* action : topActions) {
     if (action == nullptr || action->menu () == nullptr) continue;
 
@@ -224,7 +225,7 @@ command_palette_show () {
     if (groupName.isEmpty ()) continue;
 
     QList<QAction*> entries;
-    collect_menu_actions (action->menu (), &palette, groupName,
+    collect_menu_actions (action->menu (), palette, groupName,
                           QStringList (), entries);
     if (!entries.isEmpty ()) {
       KCommandBar::ActionGroup group;
@@ -234,6 +235,6 @@ command_palette_show () {
     }
   }
 
-  palette.setActions (groups);
-  palette.exec ();
+  palette->setActions (groups);
+  palette->show ();
 }
