@@ -145,7 +145,7 @@ edit_interface_rep::resume () {
   }
   the_drd= old_drd;
   if (!headless_mode)
-    invalidate_all ();
+    reset_all ();
 }
 
 void

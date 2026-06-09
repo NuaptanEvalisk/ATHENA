@@ -226,6 +226,7 @@ qt_simple_widget_rep::send (slot s, blackbox val) {
       check_type<double> (val, s);
       double new_zoom = open_box<double> (val);
       canvas()->tm_widget()->handle_set_zoom_factor (new_zoom);
+      reset_all ();
     }
       break;
       

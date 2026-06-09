@@ -94,6 +94,7 @@ public:
   static void repaint_all (); // called by qt_gui_rep::update()
 
   void reset_all() {
+    if (backingPixmap == NULL) return;
     backing_pos = QPoint(); // reset the origin
     *backingPixmap = QPixmap(); // reset the backing store
     invalidate_all(); // invalidate the whole canvas

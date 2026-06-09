@@ -238,6 +238,50 @@ mark_block_background (array<page_item>& l, brush bg) {
     }
 }
 
+static void
+materialize_block_background_runs (
+  path ip, array<page_item>& l, SI body_x1, SI body_x2)
+{
+  array<page_item> r;
+  for (int i=0; i<N(l); ) {
+    if (l[i]->type != PAGE_LINE_ITEM ||
+        l[i]->block_bg->get_type () == brush_none) {
+      r << l[i++];
+      continue;
+    }
+
+    int start= i;
+    while (i+1<N(l) && l[i+1]->type == PAGE_LINE_ITEM &&
+           l[i+1]->block_bg == l[start]->block_bg)
+      i++;
+
+    int n= i - start + 1;
+    array<box> lines_bx (n);
+    array<SI> lines_ht (n);
+    for (int j=0; j<n; j++) {
+      box b= l[start + j]->b;
+      lines_bx[j]= resize_box (b->ip, b, b->x1, min (b->y1, b->y3),
+                                b->x2, max (b->y2, b->y4));
+      lines_ht[j]= j+1<n? l[start + j]->spc->def: 0;
+    }
+    box b= stack_box (ip, lines_bx, lines_ht);
+    array<rectangle> rs;
+    array<brush> bg;
+    rs << rectangle (body_x1, b->sy1 (n-1), body_x2, b->sy2 (0));
+    bg << l[start]->block_bg;
+    b= block_background_box (decorate (b->ip), b, rs, bg);
+    SI dy= n == 0? 0: b[0]->y2;
+    b= move_box (decorate (ip), b, 0, dy);
+    page_item last= l[i];
+    page_item item= page_item (PAGE_LINE_ITEM, b, last->spc, last->penalty,
+                               last->fl, last->nr_cols, last->t);
+    item->block_bg= brush (false);
+    r << item;
+    i++;
+  }
+  l= r;
+}
+
 box
 bridge_ornamented_rep::typeset_ornament (int desired_status) {
   array<page_item> l2;
@@ -388,6 +432,14 @@ bridge_ornament_rep::my_typeset (int desired_status) {
     if (l2[i]->type == PAGE_LINE_ITEM) {
       body_x1= min (body_x1, l2[i]->b->x1);
       body_x2= max (body_x2, l2[i]->b->x2);
+    }
+
+  materialize_block_background_runs (ip, l2, body_x1, body_x2);
+  first= last= -1;
+  for (int i=0; i<N(l2); i++)
+    if (l2[i]->type == PAGE_LINE_ITEM) {
+      if (first < 0) first= i;
+      last= i;
     }
 
   for (int i=first; i<=last; i++)

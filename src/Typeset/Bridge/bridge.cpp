@@ -98,6 +98,7 @@ bridge bridge_locus (typesetter, tree, path);
 bridge bridge_ornament (typesetter, tree, path);
 bridge bridge_art_box (typesetter, tree, path);
 bridge bridge_canvas (typesetter, tree, path);
+bridge bridge_transclude (typesetter, tree, path);
 
 bridge nil_bridge;
 
@@ -175,6 +176,8 @@ make_bridge (typesetter ttt, tree st, path ip) {
     return bridge_rewrite (ttt, st, ip);
   case INCLUDE:
     return bridge_compound (ttt, st, ip);
+  case TRANSCLUDE:
+    return bridge_transclude (ttt, st, ip);
   case STYLE_ONLY:
   case VAR_STYLE_ONLY:
   case ACTIVE:
