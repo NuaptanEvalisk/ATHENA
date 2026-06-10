@@ -1,0 +1,43 @@
+diff --git a/src/dbusinterface.cpp b/src/dbusinterface.cpp
+index 3468da5..f56b61e 100644
+--- a/src/dbusinterface.cpp
++++ b/src/dbusinterface.cpp
+@@ -81,6 +81,11 @@ QString DBusInterface::activeOutputName()
+     return Workspace::self()->activeOutput()->name();
+ }
+ 
++QString DBusInterface::athenaPing()
++{
++    return QStringLiteral("ATHENA modified KWin 6.6.5");
++}
++
+ int DBusInterface::currentDesktop()
+ {
+     return VirtualDesktopManager::self()->current();
+diff --git a/src/dbusinterface.h b/src/dbusinterface.h
+index b128e22..35dd9f1 100644
+--- a/src/dbusinterface.h
++++ b/src/dbusinterface.h
+@@ -57,6 +57,7 @@ public Q_SLOTS: // METHODS
+     bool setCurrentDesktop(int desktop);
+     QString supportInformation();
+     QString activeOutputName();
++    QString athenaPing();
+     Q_NOREPLY void showDebugConsole();
+ 
+     /**
+diff --git a/src/org.kde.KWin.xml b/src/org.kde.KWin.xml
+index b073a71..b6b88f7 100644
+--- a/src/org.kde.KWin.xml
++++ b/src/org.kde.KWin.xml
+@@ -24,6 +24,9 @@
+     <method name="activeOutputName">
+         <arg type="s" direction="out"/>
+     </method>
++    <method name="athenaPing">
++        <arg type="s" direction="out"/>
++    </method>
+     <method name="showDebugConsole"/>
+     <method name="replace"/>
+     <method name="queryWindowInfo">
+
