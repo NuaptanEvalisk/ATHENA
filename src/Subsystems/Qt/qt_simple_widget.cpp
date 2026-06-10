@@ -441,6 +441,15 @@ qt_simple_widget_rep::as_qaction () {
  ******************************************************************************/
 
 #if QT_VERSION >= 0x060000
+static QRect
+physical_rect_to_logical_qrect (rectangle r, double pixel_ratio) {
+  int x1= (int) floor (((double) r->x1) / pixel_ratio);
+  int y1= (int) floor (((double) r->y1) / pixel_ratio);
+  int x2= (int) ceil  (((double) r->x2) / pixel_ratio);
+  int y2= (int) ceil  (((double) r->y2) / pixel_ratio);
+  return QRect (x1, y1, max (0, x2 - x1), max (0, y2 - y1));
+}
+
 void
 qt_simple_widget_rep::invalidate_rect (int x1, int y1, int x2, int y2) {
   // Because of accumulated rounding error on screen with a dpr > 1, 
@@ -617,6 +626,7 @@ qt_simple_widget_rep::repaint_invalid_regions () {
   }
   
   // repaint invalid rectangles
+  bool repaint_interrupted= false;
   {
     rectangles new_regions;
     if (!is_nil (invalid_regions)) {
@@ -636,10 +646,7 @@ qt_simple_widget_rep::repaint_invalid_regions () {
       while (!is_nil (rects)) {
         rectangle r = copy (rects->item);
         rectangle r0 = rects->item;
-	QRect qr = QRect (r->x1 / pixel_ratio,
-			  r->y1 / pixel_ratio,
-                          (r->x2 - r->x1) / pixel_ratio,
-                          (r->y2 - r->y1) / pixel_ratio);
+	QRect qr = physical_rect_to_logical_qrect (r, pixel_ratio);
         //cout << "repainting " << r0 << "\n";
         ren->set_origin (ox, oy);
         ren->encode (r->x1, r->y1);
@@ -652,8 +659,11 @@ qt_simple_widget_rep::repaint_invalid_regions () {
           //ren->line (r->x1, r->y1, r->x2, r->y2);
           //ren->line (r->x1, r->y2, r->x2, r->y1);
           invalidate_rect (r0->x1, r0->y1, r0->x2, r0->y2);
+          repaint_interrupted= true;
         }
-        qrgn += qr;
+        else {
+          qrgn += qr;
+        }
         rects = rects->next;
       }
       ren->end();
@@ -661,7 +671,7 @@ qt_simple_widget_rep::repaint_invalid_regions () {
   }
   
   // propagate immediately the changes to the screen
-  if (!qrgn.isEmpty ()) {
+  if (!qrgn.isEmpty () && !repaint_interrupted) {
     canvas()->surface()->repaint (qrgn);
     backing_valid= true;
   }
