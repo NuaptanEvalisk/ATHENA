@@ -805,7 +805,7 @@ if (ATHENA_GUI STREQUAL "Qt" OR ATHENA_GUI STREQUAL "Qt5" OR ATHENA_GUI STREQUAL
     ads
     GIT_REPOSITORY https://github.com/githubuser0xFFFF/Qt-Advanced-Docking-System.git
     GIT_TAG        4.3.1
-    PATCH_COMMAND  ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/patch_ads.py <SOURCE_DIR>
+    PATCH_COMMAND  ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/patch_ads.py <SOURCE_DIR> ${QT_VERSION_MAJOR}
   )
   set(BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
   FetchContent_MakeAvailable(ads)

@@ -140,31 +140,37 @@ endif()
     else:
         print(f"No changes needed for {path}")
 
-# If run from CMake, the first argument is the source directory
+# If run from CMake, the first argument is the source directory and the second
+# one is the Qt major version used for this build.
 base_dir = sys.argv[1] if len(sys.argv) > 1 else "."
+qt_major = sys.argv[2] if len(sys.argv) > 2 else "5"
 
-# Patch C++ files
-cpp_files = [
-    'src/DockAreaTitleBar.cpp',
-    'src/DockManager.cpp',
-    'src/DockWidget.cpp'
-]
+if qt_major != "6":
+    # Qt5 HiDPI handling undersizes ADS controls on ATHENA's target desktops.
+    # Qt6 scales these controls correctly; inflating them there makes window
+    # controls visibly oversized.
+    cpp_files = [
+        'src/DockAreaTitleBar.cpp',
+        'src/DockManager.cpp',
+        'src/DockWidget.cpp'
+    ]
 
-for cpp in cpp_files:
-    path = os.path.join(base_dir, cpp)
-    patch_file(path, ['QSize(16, 16)', 'QSize(24, 24)'], 'QSize(32, 32)')
+    for cpp in cpp_files:
+        path = os.path.join(base_dir, cpp)
+        patch_file(path, ['QSize(16, 16)', 'QSize(24, 24)'], 'QSize(32, 32)')
 
-# Patch Stylesheets
-css_files = [
-    'src/stylesheets/default.css',
-    'src/stylesheets/default_linux.css',
-    'src/stylesheets/default_windows.css'
-]
+    css_files = [
+        'src/stylesheets/default.css',
+        'src/stylesheets/default_linux.css',
+        'src/stylesheets/default_windows.css'
+    ]
 
-for css in css_files:
-    path = os.path.join(base_dir, css)
-    patch_file(path, ['qproperty-iconSize: 16px;', 'qproperty-iconSize: 24px;'], 'qproperty-iconSize: 32px;')
-    patch_file(path, ['qproperty-iconSize: 16px 16px;', 'qproperty-iconSize: 24px 24px;'], 'qproperty-iconSize: 32px 32px;')
+    for css in css_files:
+        path = os.path.join(base_dir, css)
+        patch_file(path, ['qproperty-iconSize: 16px;', 'qproperty-iconSize: 24px;'], 'qproperty-iconSize: 32px;')
+        patch_file(path, ['qproperty-iconSize: 16px 16px;', 'qproperty-iconSize: 24px 24px;'], 'qproperty-iconSize: 32px 32px;')
+else:
+    print("Skipping ADS HiDPI size inflation for Qt6")
 
 patch_ads_floating_windows(base_dir)
 patch_ads_qt6_private_gui(base_dir)

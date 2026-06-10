@@ -902,6 +902,32 @@ void QTMMainTabWindow::closeAndSetTopTabWindow() {
 }
 
 void QTMMainTabWindow::setDefaultStyle() {
+#if QT_VERSION >= 0x060000
+  QString adsStyle =
+    "ads--CDockAreaTitleBar { "
+    "   min-height: 26px !important; "
+    "   max-height: 26px !important; "
+    "} "
+    "ads--CDockWidgetTab { "
+    "   min-height: 26px !important; "
+    "   max-height: 26px !important; "
+    "   padding: 0 8px !important; "
+    "} "
+    "ads--CTitleBarButton, "
+    "ads--CDockAreaWidget QToolButton, "
+    "#tabsMenuButton, #dockAreaCloseButton, #detachGroupButton, "
+    "#tabCloseButton, #floatingTitleCloseButton, #floatingTitleMaximizeButton { "
+    "   qproperty-iconSize: 16px 16px !important; "
+    "   min-width: 22px !important; "
+    "   min-height: 22px !important; "
+    "   max-width: 22px !important; "
+    "   max-height: 22px !important; "
+    "   width: 22px !important; "
+    "   height: 22px !important; "
+    "   padding: 0px !important; "
+    "   margin: 0px !important; "
+    "} ";
+#else
   QString adsStyle =
     "ads--CDockAreaTitleBar { "
     "   min-height: 38px !important; "
@@ -922,6 +948,7 @@ void QTMMainTabWindow::setDefaultStyle() {
     "   padding: 0px !important; "
     "   margin: 0px !important; "
     "} ";
+#endif
   
   this->setStyleSheet(adsStyle);
 
