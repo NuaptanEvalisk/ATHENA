@@ -638,6 +638,10 @@ if (ATHENA_GUI STREQUAL "Qt" OR ATHENA_GUI STREQUAL "Qt5" OR ATHENA_GUI STREQUAL
   if (ATHENA_GUI STREQUAL "Qt6")
     find_package (Qt6 COMPONENTS Core Gui Widgets PrintSupport Svg Network Core5Compat REQUIRED)
     set (QT_LIBRARIES Qt6::Core Qt6::Gui Qt6::Widgets Qt6::PrintSupport Qt6::Svg Qt6::Network Qt6::Core5Compat)
+    if (UNIX AND NOT APPLE)
+      find_package (Qt6 COMPONENTS DBus REQUIRED)
+      set (QT_LIBRARIES ${QT_LIBRARIES} Qt6::DBus)
+    endif ()
 
     set (ATHENA_Include_Dirs
       ${ATHENA_Include_Dirs}
@@ -648,6 +652,7 @@ if (ATHENA_GUI STREQUAL "Qt" OR ATHENA_GUI STREQUAL "Qt5" OR ATHENA_GUI STREQUAL
       ${Qt6Svg_INCLUDE_DIRS}
       ${Qt6Network_INCLUDE_DIRS}
       ${Qt6Core5Compat_INCLUDE_DIRS}
+      ${Qt6DBus_INCLUDE_DIRS}
     )
     if (Qt6_POSITION_INDEPENDENT_CODE)
       set (CMAKE_POSITION_INDEPENDENT_CODE ON)
@@ -717,12 +722,18 @@ if (ATHENA_GUI STREQUAL "Qt" OR ATHENA_GUI STREQUAL "Qt5" OR ATHENA_GUI STREQUAL
     else (APPLE)
       find_package (Qt5 COMPONENTS Core Gui Widgets PrintSupport Svg Network REQUIRED)
     endif ()
+    if (UNIX AND NOT APPLE)
+      find_package (Qt5 COMPONENTS DBus REQUIRED)
+    endif ()
 
     if (APPLE)
       set (QT_LIBRARIES Qt5::Core Qt5::Gui Qt5::Widgets Qt5::PrintSupport Qt5::Svg Qt5::Network Qt5::MacExtras)
     else (APPLE)
       set (QT_LIBRARIES Qt5::Core Qt5::Gui Qt5::Widgets Qt5::PrintSupport Qt5::Svg Qt5::Network)
     endif (APPLE)
+    if (UNIX AND NOT APPLE)
+      set (QT_LIBRARIES ${QT_LIBRARIES} Qt5::DBus)
+    endif ()
 
     set (ATHENA_Include_Dirs
       ${ATHENA_Include_Dirs}
@@ -733,6 +744,7 @@ if (ATHENA_GUI STREQUAL "Qt" OR ATHENA_GUI STREQUAL "Qt5" OR ATHENA_GUI STREQUAL
       ${Qt5Svg_INCLUDE_DIRS}
       ${Qt5Network_INCLUDE_DIRS}
       ${Qt5MacExtras_INCLUDE_DIRS}
+      ${Qt5DBus_INCLUDE_DIRS}
     )
 
     if (Qt5_POSITION_INDEPENDENT_CODE)

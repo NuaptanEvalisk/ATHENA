@@ -55,6 +55,11 @@
 #include "Qt/qt_utilities.hpp"
 #include <QApplication>
 #include <QDir>
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
+#include <QDBusConnection>
+#include <QDBusInterface>
+#include <QDBusReply>
+#endif
 #endif
 
 #ifdef MACOSX_EXTENSIONS
@@ -78,6 +83,39 @@ extern void aofm_debug_dump(const std::string& file_path);
 extern bool aofm_import_vault(string source_dir, string destination_dir,
                               bool ignore_nonempty, int parallelism,
                               string model_vault);
+
+#ifdef QTTEXMACS
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
+static bool
+athena_using_modified_kwin_wayland () {
+  if (QApplication::platformName () != "wayland")
+    return false;
+
+  QDBusInterface kwin (QStringLiteral ("org.kde.KWin"),
+                       QStringLiteral ("/KWin"),
+                       QStringLiteral ("org.kde.KWin"),
+                       QDBusConnection::sessionBus ());
+  if (!kwin.isValid ())
+    return false;
+
+  QDBusReply<QString> ping= kwin.call (QStringLiteral ("athenaPing"));
+  return ping.isValid () &&
+         ping.value ().startsWith (QStringLiteral ("ATHENA modified KWin"));
+}
+
+static void
+athena_warn_unmodified_wayland_compositor () {
+  if (QApplication::platformName () != "wayland")
+    return;
+  if (athena_using_modified_kwin_wayland ())
+    return;
+
+  std_warning << "ATHENA Wayland docking: Qt is using the native Wayland "
+              << "platform, but the compositor is not ATHENA modified KWin; "
+              << "falling back to standard ADS docking behavior" << LF;
+}
+#endif
+#endif
 
 bool disable_error_recovery= false;
 bool start_server_flag= false;
@@ -1556,6 +1594,9 @@ texmacs_entrypoint (int argc, char** argv) {
     QCoreApplication::setAttribute(Qt::AA_UseHighDpiPixmaps);
 #endif
     qtmapp= new QTMApplication (argc, argv);
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
+    athena_warn_unmodified_wayland_compositor ();
+#endif
     if (!headless_mode && !no_splash_screen) tmapp()->show_splash ();
     startup_progress (5, "Application created");
   }
