@@ -25,8 +25,6 @@
 #include "QTMImpressIconEngine.hpp"
 #endif
 
-
-
 qt_simple_widget_rep::qt_simple_widget_rep ()
   : qt_widget_rep (simple_widget),  sequencer (0) {
   backingPixmap= headless_mode ? NULL : new QPixmap ();
@@ -567,7 +565,9 @@ qt_simple_widget_rep::repaint_invalid_regions () {
     }
     
     QSize sz = backingPixmap->size();
-    
+    QSize surface_logical_size = canvas()->surface()->size();
+    QRect full_surface_logical_rect (QPoint (0, 0), surface_logical_size);
+
     invalid_regions= invalid & rectangles (rectangle (0,0,
                                                       sz.width(),sz.height()));
 
@@ -591,7 +591,10 @@ qt_simple_widget_rep::repaint_invalid_regions () {
     //the_gui->update();
     //  QAbstractScrollArea::viewport()->scroll (-dx,-dy);
     // QAbstractScrollArea::viewport()->update();
-    qrgn += QRect (QPoint (0,0),sz);
+    // QWidget repaint regions are in logical coordinates.  `sz` is the
+    // physical backing-store size; adding it here makes the next paint event
+    // interpret physical pixels as logical pixels on high-DPI Wayland.
+    qrgn += full_surface_logical_rect;
   }
   
   // Check if the window has been resized. If so, we need to resize the backing

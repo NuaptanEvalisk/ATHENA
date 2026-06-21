@@ -17,7 +17,6 @@
 
 int    std_shrinkf  = 5;
 
-#if QT_VERSION < 0x060000
 bool   retina_manual= false;
 bool   retina_iman  = false;
 int    retina_factor= 1;
@@ -28,24 +27,6 @@ void   set_retina_factor (int f) { retina_factor= f; }
 void   set_retina_zoom (int z) { retina_zoom= z; }
 void   set_retina_icons (int i) { retina_icons= i; }
 void   set_retina_scale (double s) { retina_scale= s; }
-#else
-void   set_retina_factor (int f) {
-  (void) f;
-  cerr << "Unexpected call to set_retina_factor" << LF;
-}
-void   set_retina_zoom (int z) {
-  (void) z;
-  cerr << "Unexpected call to set_retina_zoom" << LF;
-}
-void   set_retina_icons (int i) {
-  (void) i;
-  cerr << "Unexpected call to set_retina_icons" << LF;
-}
-void   set_retina_scale (double s) {
-  (void) s;
-  cerr << "Unexpected call to set_retina_scale" << LF;
-}
-#endif
 int    get_retina_factor () { return retina_factor; }
 int    get_retina_zoom () { return retina_zoom; }
 int    get_retina_icons () { return retina_icons; }

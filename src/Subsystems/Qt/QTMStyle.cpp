@@ -23,9 +23,6 @@
 
 int
 qt_zoom (int sz) {
-#if QT_VERSION >= 0x060000
-  int retina_scale = 1;
-#endif
   return (int) (retina_scale * ((double) sz));
 }
 
@@ -35,6 +32,15 @@ qtmstyle () {
   if (!qtmstyle)
     qtmstyle = new QTMStyle (qApp->style());
   return qtmstyle;
+}
+
+static bool
+qtmstyle_use_system_wayland_metrics () {
+#if QT_VERSION >= 0x060000
+  return QApplication::platformName ().startsWith (QStringLiteral ("wayland"));
+#else
+  return false;
+#endif
 }
 
 /******************************************************************************
@@ -389,7 +395,10 @@ QTMStyle::sizeFromContents (ContentsType type, const QStyleOption* option, const
       break;
       
     case CT_ToolButton:
-      sz = QSize(sz.width() + 4, sz.height() + 6);
+      if (qtmstyle_use_system_wayland_metrics ())
+        sz = baseStyle()->sizeFromContents(type, option, contentsSize, widget);
+      else
+        sz = QSize(sz.width() + 4, sz.height() + 6);
       break;
       
     default:
@@ -403,8 +412,12 @@ int
 QTMStyle::pixelMetric (PixelMetric metric, const QStyleOption *opt, const QWidget *widget) const {
   switch (metric) {
     case PM_ToolBarItemSpacing:
+      if (qtmstyle_use_system_wayland_metrics ())
+        return baseStyle()->pixelMetric(metric,opt,widget);
       return 0;
     case PM_ToolBarIconSize:
+      if (qtmstyle_use_system_wayland_metrics ())
+        return baseStyle()->pixelMetric(metric,opt,widget);
       return 17;
   //  case PM_ToolBarFrameWidth:
   //    return 2;

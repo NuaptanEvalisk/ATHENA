@@ -138,6 +138,11 @@ get_preferred_size (string name, SI& ww, SI& hh) {
 
 static int tm_window_serial= 0;
 
+static double
+window_zoom_scale () {
+  return retina_zoom * retina_scale;
+}
+
 tm_window_rep::tm_window_rep (widget wid2, tree geom):
   win (texmacs_window_widget (wid2, geom)),
   wid (wid2), id (create_window_id ()),
@@ -145,7 +150,7 @@ tm_window_rep::tm_window_rep (widget wid2, tree geom):
   menu_current (object ()), menu_cache (widget ()),
   text_ptr (NULL), cur_url (url_none ())
 {
-  zoomf= retina_zoom * get_server () -> get_default_zoom_factor ();
+  zoomf= window_zoom_scale () * get_server () -> get_default_zoom_factor ();
 }
 
 double
@@ -169,9 +174,9 @@ tm_window_rep::tm_window_rep (tree doc, command quit):
   menu_current (object ()), menu_cache (widget ()),
   text_ptr (NULL), cur_url (url_none ())
 {
-  zoomf= retina_zoom * get_doc_zoom_factor (doc);
+  zoomf= window_zoom_scale () * get_doc_zoom_factor (doc);
   if (zoomf < 0.0)
-    zoomf= retina_zoom * get_server () -> get_default_zoom_factor ();
+    zoomf= window_zoom_scale () * get_server () -> get_default_zoom_factor ();
 }
 
 tm_window_rep::~tm_window_rep () {
@@ -193,8 +198,8 @@ texmacs_window_widget (widget wid, tree geom) {
     h= as_int (geom[1]);
   }
   if (w == 800 && h == 600) {
-    w *= retina_zoom;
-    h *= retina_zoom;
+    w= (SI) floor (((double) w) * window_zoom_scale () + 0.5);
+    h= (SI) floor (((double) h) * window_zoom_scale () + 0.5);
   }
   gui_root_extents (W, H); W /= PIXEL; H /= PIXEL;
   if (x < 0) x= W + x + 1 - w;
@@ -542,13 +547,13 @@ tm_window_rep::get_bottom_tools_flag (int which) {
 
 void
 tm_window_rep::set_window_zoom_factor (double zoom) {
-  zoomf= retina_zoom * zoom;
+  zoomf= window_zoom_scale () * zoom;
   ::set_zoom_factor (wid, zoomf);
 }
 
 double
 tm_window_rep::get_window_zoom_factor () {
-  return zoomf / retina_zoom;
+  return zoomf / window_zoom_scale ();
 }
 
 void

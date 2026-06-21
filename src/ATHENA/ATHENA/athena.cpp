@@ -21,6 +21,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <fstream>
 #include <filesystem>
 #include <iomanip>
@@ -341,6 +342,65 @@ reject_unsupported_qt_platforms (int argc, char** argv) {
     }
   }
 }
+
+#ifdef QTTEXMACS
+static string
+qt_platform_from_arguments (int argc, char** argv) {
+  for (int i=1; i<argc; i++) {
+    string arg= argv[i];
+    if (starts (arg, "--platform=") || starts (arg, "-platform=")) {
+      int start= starts (arg, "--platform=")? 11: 10;
+      return arg (start, N(arg));
+    }
+    if ((arg == "--platform" || arg == "-platform") && i+1 < argc)
+      return argv[i+1];
+  }
+  return "";
+}
+
+static bool
+qt_platform_is_wayland (string value) {
+  string platform= qt_platform_name (locase_all (value));
+  return starts (platform, "wayland");
+}
+
+static bool
+requested_wayland_qt_platform (int argc, char** argv) {
+  string arg_platform= qt_platform_from_arguments (argc, argv);
+  if (!is_empty (arg_platform)) return qt_platform_is_wayland (arg_platform);
+
+  string env_platform= get_env ("QT_QPA_PLATFORM");
+  if (!is_empty (env_platform)) return qt_platform_is_wayland (env_platform);
+
+  string session_type= locase_all (get_env ("XDG_SESSION_TYPE"));
+  return session_type == "wayland" || get_env ("WAYLAND_DISPLAY") != "";
+}
+
+static void
+normalize_wayland_qt_scaling (int argc, char** argv) {
+#if QT_VERSION >= 0x060000
+  if (!requested_wayland_qt_platform (argc, argv)) return;
+
+  string value= get_env ("QT_AUTO_SCREEN_SCALE_FACTOR");
+  if (value != "" && value != "0")
+    set_env ("QT_AUTO_SCREEN_SCALE_FACTOR", "0");
+
+  // QtWayland already receives fractional scaling through wp_fractional_scale.
+  // A process-level QT_SCALE_FACTOR multiplies that again, leaving top-level
+  // widgets and xdg-popup positioners in different effective coordinate spaces.
+  if (get_env ("QT_SCALE_FACTOR") != "")
+    unsetenv ("QT_SCALE_FACTOR");
+  if (get_env ("QT_SCREEN_SCALE_FACTORS") != "")
+    unsetenv ("QT_SCREEN_SCALE_FACTORS");
+  if (get_env ("QT_FONT_DPI") != "")
+    unsetenv ("QT_FONT_DPI");
+  if (get_env ("QT_SCALE_FACTOR_ROUNDING_POLICY") != "")
+    unsetenv ("QT_SCALE_FACTOR_ROUNDING_POLICY");
+#else
+  (void) argc; (void) argv;
+#endif
+}
+#endif
 
 static int
 as_positive_integer_arg (string s) {
@@ -1540,6 +1600,7 @@ texmacs_entrypoint (int argc, char** argv) {
   ATHENA_init_paths (argc, argv);
 #ifdef QTTEXMACS
   reject_unsupported_qt_platforms (argc, argv);
+  normalize_wayland_qt_scaling (argc, argv);
   bool rag_server_mode= rag_server_dir != "";
   if (headless_mode && rag_server_mode) {
     new QTMCoreApplication (argc, argv);
@@ -1547,9 +1608,12 @@ texmacs_entrypoint (int argc, char** argv) {
   else if (!headless_mode) {
 #if QT_VERSION >= 0x060000
     QGuiApplication::setHighDpiScaleFactorRoundingPolicy
-      (Qt::HighDpiScaleFactorRoundingPolicy::Round);
+      (requested_wayland_qt_platform (argc, argv) ?
+       Qt::HighDpiScaleFactorRoundingPolicy::PassThrough :
+       Qt::HighDpiScaleFactorRoundingPolicy::Round);
 #if defined(OS_GNULINUX) || defined(OS_FREEBSD)
-    QApplication::setStyle("fusion");
+    if (!requested_wayland_qt_platform (argc, argv))
+      QApplication::setStyle("fusion");
 #endif
 #elif QT_VERSION >= 0x050600
     QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);

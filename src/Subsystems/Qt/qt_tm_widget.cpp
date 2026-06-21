@@ -13,6 +13,7 @@
 #include <QToolButton>
 #include <QPushButton>
 #include <QLabel>
+#include <QApplication>
 #include <QDialog>
 #include <QComboBox>
 #include <QStatusBar>
@@ -166,11 +167,6 @@ qt_tm_widget_rep::qt_tm_widget_rep(int mask, command _quit)
       mw->menuBar()->setStyle (qtmstyle ());
   }
 
-#if QT_VERSION >= 0x060000
-  int retina_scale = 1;
-  int retina_icons = 1;
-#endif
-
   if (!tmapp()->useNewToolbar()) {
 #ifdef Q_OS_MAC
     if (!use_native_menubar) {
@@ -295,17 +291,13 @@ qt_tm_widget_rep::qt_tm_widget_rep(int mask, command _quit)
   //
   // NOTICE: setFixedHeight must be after setIconSize
   // TODO: the size of the toolbar should be calculated dynamically
-#if defined (Q_OS_MAC) || defined (Q_OS_WIN)
-  int toolbarHeight= 30 * retina_icons;
-  mainToolBar->setFixedHeight (toolbarHeight + 8 * retina_icons);
-  modeToolBar->setFixedHeight (toolbarHeight + 4 * retina_icons);
+  double toolbarScale= retina_scale;
+  int toolbarHeight= (int) floor (30 * toolbarScale + 0.5);
+  mainToolBar->setFixedHeight (
+    toolbarHeight + (int) floor (8 * toolbarScale + 0.5));
+  modeToolBar->setFixedHeight (
+    toolbarHeight + (int) floor (4 * toolbarScale + 0.5));
   focusToolBar->setFixedHeight (toolbarHeight);
-#  else
-  int toolbarHeight= 30;
-  mainToolBar->setFixedHeight (toolbarHeight + 8);
-  modeToolBar->setFixedHeight (toolbarHeight + 4);
-  focusToolBar->setFixedHeight (toolbarHeight);
-#  endif
   if (tm_style_sheet != "") {
     double scale= retina_scale;
     int h1= (int) floor (38 * scale + 0.5);
@@ -498,7 +490,6 @@ qt_tm_widget_rep::tweak_iconbar_size (QSize& sz) {
     sz.setHeight (sz.height () + 2);
   }
 #endif
-  //sz.setHeight ((int) floor (sz.height () * retina_scale + 0.5));
 }
 
 
@@ -960,7 +951,7 @@ qt_tm_widget_rep::install_main_menu () {
                           the_gui->gui_helper, &QTMGuiHelper::aboutToShowMainMenu);
         QObject::connect (a->menu(), &QMenu::aboutToHide,
                           the_gui->gui_helper, &QTMGuiHelper::aboutToHideMainMenu);
-  #endif
+#endif
       }
     }
 

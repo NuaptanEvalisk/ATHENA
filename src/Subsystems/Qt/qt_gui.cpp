@@ -69,6 +69,10 @@
 #include <QImage>
 #include <QUrl>
 #include <QApplication>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QProcess>
 
 #include "QTMGuiHelper.hpp"
 #include "QTMWidget.hpp"
@@ -134,6 +138,70 @@ tm_sleep () {
 }
 #endif
 
+static double
+athena_kde_output_scale () {
+#if QT_VERSION >= 0x060000
+  if (!QApplication::platformName ().startsWith (QStringLiteral ("wayland")))
+    return 1.0;
+
+  QString screen_name;
+  if (QScreen* screen= QGuiApplication::primaryScreen ())
+    screen_name= screen->name ();
+
+  QProcess proc;
+  proc.start (QStringLiteral ("kscreen-doctor"),
+              QStringList () << QStringLiteral ("--json"));
+  if (!proc.waitForFinished (1000) ||
+      proc.exitStatus () != QProcess::NormalExit ||
+      proc.exitCode () != 0)
+    return 1.0;
+
+  QJsonParseError error;
+  QJsonDocument doc= QJsonDocument::fromJson (proc.readAllStandardOutput (),
+                                              &error);
+  if (error.error != QJsonParseError::NoError || !doc.isObject ())
+    return 1.0;
+
+  QJsonArray outputs= doc.object ().value (QStringLiteral ("outputs")).toArray ();
+  double fallback= 1.0;
+  for (const QJsonValue& value: outputs) {
+    QJsonObject output= value.toObject ();
+    if (!output.value (QStringLiteral ("enabled")).toBool () ||
+        !output.value (QStringLiteral ("connected")).toBool ())
+      continue;
+
+    double scale= output.value (QStringLiteral ("scale")).toDouble (1.0);
+    if (scale < 0.5 || scale > 4.0) continue;
+    if (fallback == 1.0) fallback= scale;
+
+    QString name= output.value (QStringLiteral ("name")).toString ();
+    if (!screen_name.isEmpty () && name == screen_name)
+      return scale;
+  }
+  return fallback;
+#else
+  return 1.0;
+#endif
+}
+
+static void
+athena_apply_logical_ui_scale (double scale) {
+#if QT_VERSION >= 0x060000
+  static double applied_scale= 1.0;
+  if (scale <= 1.0 || applied_scale != 1.0 || qApp == nullptr) return;
+
+  QFont font= qApp->font ();
+  if (font.pixelSize () > 0)
+    font.setPixelSize ((int) floor (font.pixelSize () * scale + 0.5));
+  else if (font.pointSizeF () > 0)
+    font.setPointSizeF (font.pointSizeF () * scale);
+  qApp->setFont (font);
+  applied_scale= scale;
+#else
+  (void) scale;
+#endif
+}
+
 /******************************************************************************
 * Constructor and geometry
 ******************************************************************************/
@@ -170,7 +238,6 @@ needing_update (false)
 #endif
   // (void) default_font ();
 
-#if QT_VERSION < 0x060000
   if (!retina_manual) {
     retina_manual= true;
 #  ifdef MACOSX_EXTENSIONS
@@ -189,6 +256,37 @@ needing_update (false)
     if (DEBUG_STD)
       debug_boot << "Device pixel ratio: " << dpr << "\n";
 
+#    if QT_VERSION >= 0x060000
+    if (dpr > 1.0) {
+      // QtWayland reports the physical buffer DPR, which is rounded up on
+      // fractional-scale KDE sessions.  Use KScreen's output scale for
+      // ATHENA's logical UI metrics instead.
+      double output_scale= athena_kde_output_scale ();
+      retina_factor= (int) ceil (dpr);
+      retina_zoom  = 1;
+      retina_scale = output_scale;
+      athena_apply_logical_ui_scale (retina_scale);
+      if (!retina_iman) {
+        retina_iman  = true;
+        retina_icons = 1;
+      }
+    }
+    else {
+      SI w, h;
+      get_extents (w, h);
+      if (DEBUG_STD)
+        debug_boot << "Screen extents: " << w/PIXEL << " x " << h/PIXEL << "\n";
+      if (min (w, h) >= 1440 * PIXEL) {
+        retina_zoom  = 1;
+        retina_scale = athena_kde_output_scale ();
+        athena_apply_logical_ui_scale (retina_scale);
+        if (!retina_iman) {
+          retina_iman  = true;
+          retina_icons = 1;
+        }
+      }
+    }
+#    else
     if (dpr > 1.0) {
       retina_factor = (int) ceil (dpr);
       retina_zoom = 1; 
@@ -211,6 +309,7 @@ needing_update (false)
         }
       }
     }
+#    endif
 #  endif
   }
   if (has_user_preference ("retina-factor"))
@@ -221,7 +320,6 @@ needing_update (false)
     retina_icons= get_user_preference ("retina-icons") == "on"? 2: 1;
   if (has_user_preference ("retina-scale"))
     retina_scale= as_double (get_user_preference ("retina-scale"));
-#endif
 }
 
 /* important routines */

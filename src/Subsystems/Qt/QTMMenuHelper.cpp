@@ -71,9 +71,13 @@ QTMAction::QTMAction (QObject *parent) : QAction (parent) {
   QObject::connect (_timer, &QTimer::timeout,
                     this,     &QTMAction::doShowToolTip);
 #endif
-  if (tm_style_sheet == "" && !use_mini_bars) {
+#if QT_VERSION >= 0x060000
+  bool use_system_action_font= QApplication::platformName ().startsWith (QStringLiteral ("wayland"));
+#else
+  bool use_system_action_font= false;
+#endif
+  if (!use_system_action_font && tm_style_sheet == "" && !use_mini_bars) {
     int sz= 14;
-    //int sz= (int) floor (14 * retina_scale + 0.5);
 #ifdef Q_OS_MAC
     QFont fn ("Lucida Grande", sz);
 #else

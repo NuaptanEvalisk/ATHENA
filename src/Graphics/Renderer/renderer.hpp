@@ -153,21 +153,12 @@ void abs_outer_round (SI& x1, SI& y1, SI& x2, SI& y2);
 extern bool reverse_colors;
 void reverse (int& r, int& g, int& b);
 
-#if QT_VERSION >= 0x060000
-const bool   retina_manual= false;
-const bool   retina_iman  = false;
-const int    retina_factor= 1;
-const int    retina_zoom  = 1;
-const int    retina_icons = 1;
-const double retina_scale = 1.0;
-#else
 extern bool   retina_manual;
 extern bool   retina_iman;
 extern int    retina_factor;
 extern int    retina_zoom;
 extern int    retina_icons;
 extern double retina_scale;
-#endif
 int    get_retina_factor ();   // MacOS style
 int    get_retina_zoom ();     // GNU/Linux and Windows style
 int    get_retina_icons ();
