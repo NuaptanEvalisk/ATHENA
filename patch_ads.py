@@ -1194,6 +1194,68 @@ endif()
     write_if_changed(path, content, original_content)
 
 
+def patch_ads_wayland_focus_hiding(base_dir):
+    path = os.path.join(base_dir, 'src/DockManager.cpp')
+    if not os.path.exists(path):
+        print(f"File not found: {path}")
+        return
+
+    with open(path, 'r') as f:
+        content = f.read()
+
+    original_content = content
+    content = content.replace(
+        '''            if(QGuiApplication::platformName() == QLatin1String("xcb"))
+\t\t\t{
+\t\t\t\tinternal::xcb_update_prop(true, _window->window()->winId(),
+                    "_NET_WM_STATE", "_NET_WM_STATE_ABOVE", "_NET_WM_STATE_STAYS_ON_TOP");
+\t\t\t}
+\t\t\telse
+\t\t\t{
+                    _window->setWindowFlag(Qt::WindowStaysOnTopHint, true);
+\t\t\t}
+''',
+        '''            if(QGuiApplication::platformName() == QLatin1String("xcb"))
+\t\t\t{
+\t\t\t\tinternal::xcb_update_prop(true, _window->window()->winId(),
+                    "_NET_WM_STATE", "_NET_WM_STATE_ABOVE", "_NET_WM_STATE_STAYS_ON_TOP");
+\t\t\t}
+''',
+        1)
+    content = content.replace(
+        '''            if(QGuiApplication::platformName() == QLatin1String("xcb"))
+\t\t\t{
+\t\t\t\tinternal::xcb_update_prop(false, _window->window()->winId(),
+                    "_NET_WM_STATE", "_NET_WM_STATE_ABOVE", "_NET_WM_STATE_STAYS_ON_TOP");
+\t\t\t}
+            else
+\t\t\t{
+\t\t\t\t_window->setWindowFlag(Qt::WindowStaysOnTopHint, false);
+\t\t\t}
+\t\t\t_window->raise();
+''',
+        '''            if(QGuiApplication::platformName() == QLatin1String("xcb"))
+\t\t\t{
+\t\t\t\tinternal::xcb_update_prop(false, _window->window()->winId(),
+                    "_NET_WM_STATE", "_NET_WM_STATE_ABOVE", "_NET_WM_STATE_STAYS_ON_TOP");
+\t\t\t\t_window->raise();
+\t\t\t}
+''',
+        1)
+    content = content.replace(
+        '''\t// Window always on top of the MainWindow.
+\tif (e->type() == QEvent::WindowActivate)
+''',
+        '''\t// Window always on top of the MainWindow. Keep this emulation XCB-only:
+\t// changing Qt window flags on native Wayland remaps/hides floating panes
+\t// when focus moves between the main window and a floated dock container.
+\tif (e->type() == QEvent::WindowActivate)
+''',
+        1)
+
+    write_if_changed(path, content, original_content)
+
+
 # If run from CMake, the first argument is the source directory and the second
 # one is the Qt major version used for this build.
 base_dir = sys.argv[1] if len(sys.argv) > 1 else "."
@@ -1228,4 +1290,5 @@ else:
 
 patch_ads_floating_windows(base_dir)
 patch_ads_initial_wayland_drag(base_dir)
+patch_ads_wayland_focus_hiding(base_dir)
 patch_ads_qt6_private_gui(base_dir)
