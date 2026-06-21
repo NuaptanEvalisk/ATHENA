@@ -1,19 +1,20 @@
-
 import os
+import re
 import sys
+
 
 def patch_file(file_path, old_patterns, new):
     if not os.path.exists(file_path):
         print(f"File not found: {file_path}")
         return
-    
+
     with open(file_path, 'r') as f:
         content = f.read()
-    
+
     original_content = content
     for old in old_patterns:
         content = content.replace(old, new)
-    
+
     if content != original_content:
         with open(file_path, 'w') as f:
             f.write(content)
@@ -21,10 +22,353 @@ def patch_file(file_path, old_patterns, new):
     else:
         print(f"No changes needed for {file_path}")
 
+
+def write_if_changed(path, content, original_content):
+    if content != original_content:
+        with open(path, 'w') as f:
+            f.write(content)
+        print(f"Patched {path}")
+    else:
+        print(f"No changes needed for {path}")
+
+
+def patch_ads_floating_header(base_dir):
+    path = os.path.join(base_dir, 'src/FloatingDockContainer.h')
+    if not os.path.exists(path):
+        print(f"File not found: {path}")
+        return
+
+    with open(path, 'r') as f:
+        content = f.read()
+
+    original_content = content
+    content = content.replace('#include <QRubberBand>\n#include <QVariantMap>\n',
+                              '#include <QRubberBand>\n')
+    if 'class QObject;\nclass QEvent;\n' not in content:
+        content = content.replace('#include <QRubberBand>\n',
+                                  '#include <QRubberBand>\n\nclass QObject;\nclass QEvent;\n')
+    content = content.replace('class AthenaAdsWaylandDockDragFilter;\n\nnamespace ads\n',
+                              'namespace ads\n')
+    if 'class CFloatingWidgetTitleBar;\nclass CDockingStateReader;\nclass AthenaAdsWaylandDockDragFilter;\n' not in content:
+        content = content.replace('class CFloatingWidgetTitleBar;\nclass CDockingStateReader;\n',
+                                  'class CFloatingWidgetTitleBar;\nclass CDockingStateReader;\nclass AthenaAdsWaylandDockDragFilter;\n',
+                                  1)
+
+    content = content.replace('\tQ_CLASSINFO("D-Bus Interface", "org.athena.KWinDockDragSink")\n', '')
+    content = re.sub(
+        r'\n\tbool athenaTryStartKWinDockDrag\(const QPoint& hotSpot\);\n'
+        r'\tbool athenaKWinDockDragActive\(\) const;\n'
+        r'\tvoid athenaFinishKWinDockDrag\(const QVariantMap& state, bool dropped\);\n',
+        '\n\tbool athenaTryStartWaylandDockDrag(const QPoint& hotSpot, QWidget* sourceWidget);\n'
+        '\tbool athenaWaylandDockDragActive() const;\n'
+        '\tbool athenaWaylandDockDragStarted() const;\n'
+        '\tvoid athenaUpdateWaylandDockDrag(const QPoint& globalPos);\n'
+        '\tbool athenaHasWaylandDockTarget() const;\n'
+        '\tbool athenaFinishWaylandDockDrag(bool dropped);\n'
+        '\tvoid athenaHideWaylandDockOverlays();\n',
+        content)
+    content = content.replace('bool athenaTryStartWaylandDockDrag(const QPoint& hotSpot);',
+                              'bool athenaTryStartWaylandDockDrag(const QPoint& hotSpot, QWidget* sourceWidget);')
+    if 'athenaTryStartWaylandDockDrag' not in content:
+        content = content.replace(
+            'private:\n\tFloatingDockContainerPrivate* d; ///< private data (pimpl)\n',
+            'private:\n\tFloatingDockContainerPrivate* d; ///< private data (pimpl)\n'
+            '\tbool athenaTryStartWaylandDockDrag(const QPoint& hotSpot, QWidget* sourceWidget);\n'
+            '\tbool athenaWaylandDockDragActive() const;\n'
+            '\tbool athenaWaylandDockDragStarted() const;\n'
+            '\tvoid athenaUpdateWaylandDockDrag(const QPoint& globalPos);\n'
+            '\tbool athenaHasWaylandDockTarget() const;\n'
+            '\tbool athenaFinishWaylandDockDrag(bool dropped);\n'
+            '\tvoid athenaHideWaylandDockOverlays();\n',
+            1)
+    if ('bool athenaWaylandDockDragActive() const;\n'
+            '\tbool athenaWaylandDockDragStarted() const;') not in content:
+        content = content.replace('bool athenaWaylandDockDragActive() const;\n',
+                                  'bool athenaWaylandDockDragActive() const;\n'
+                                  '\tbool athenaWaylandDockDragStarted() const;\n')
+
+    content = re.sub(
+        r'\npublic Q_SLOTS:\n'
+        r'\tvoid dockDragMoved\(const QVariantMap& state\);\n'
+        r'\tvoid dockDragDropped\(const QVariantMap& state\);\n'
+        r'\tvoid dockDragCancelled\(const QVariantMap& state\);\n',
+        '\n',
+        content)
+    if 'friend class AthenaAdsWaylandDockDragFilter;' not in content:
+        content = content.replace('    friend class CFloatingWidgetTitleBar;\n',
+                                  '    friend class CFloatingWidgetTitleBar;\n'
+                                  '\tfriend class AthenaAdsWaylandDockDragFilter;\n',
+                                  1)
+
+    write_if_changed(path, content, original_content)
+
+
+WAYLAND_INITIAL_DOCK_DRAG_HELPER = '''#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+static bool
+athenaUseWaylandToplevelDragForInitialFloating()
+{
+\treturn QApplication::platformName().startsWith(QStringLiteral("wayland"));
+}
+#endif
+
+'''
+
+
+def patch_ads_initial_wayland_drag(base_dir):
+    tab_path = os.path.join(base_dir, 'src/DockWidgetTab.cpp')
+    if os.path.exists(tab_path):
+        with open(tab_path, 'r') as f:
+            content = f.read()
+
+        original_content = content
+        if '#include <QPointer>' not in content:
+            content = content.replace('#include <QMenu>\n',
+                                      '#include <QMenu>\n#include <QPointer>\n')
+        if 'athenaUseWaylandToplevelDragForInitialFloating' not in content:
+            content = content.replace('namespace ads\n{\n',
+                                      'namespace ads\n{\n' + WAYLAND_INITIAL_DOCK_DRAG_HELPER,
+                                      1)
+        tab_create_container_block = '''#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+\tbool UseWaylandToplevelDrag = false;
+\tif (!CreateContainer && athenaUseWaylandToplevelDragForInitialFloating())
+\t{
+\t\tCreateContainer = true;
+\t\tUseWaylandToplevelDrag = true;
+\t}
+#else
+\tconst bool UseWaylandToplevelDrag = false;
+#endif
+'''
+        content = re.sub(
+            r'\tbool CreateContainer = \(DraggingFloatingWidget != DraggingState\);\n'
+            r'(?:(?:#if defined\(Q_OS_UNIX\) && !defined\(Q_OS_MACOS\) && '
+            r'\(QT_VERSION >= QT_VERSION_CHECK\(6, 0, 0\)\)\n'
+            r'\tbool UseWaylandToplevelDrag = false;\n'
+            r'\tif \(!CreateContainer && athenaUseWaylandToplevelDragForInitialFloating\(\)\)\n'
+            r'\t\{\n'
+            r'\t\tCreateContainer = true;\n'
+            r'\t\tUseWaylandToplevelDrag = true;\n'
+            r'\t\}\n'
+            r'#else\n'
+            r'\tconst bool UseWaylandToplevelDrag = false;\n'
+            r'#endif\n)+)?',
+            '\tbool CreateContainer = (DraggingFloatingWidget != DraggingState);\n'
+            + tab_create_container_block,
+            content,
+            count=1)
+        content = content.replace(
+            '''    if (DraggingFloatingWidget == DraggingState)
+    {
+        FloatingWidget->startFloating(DragStartMousePosition, Size, DraggingFloatingWidget, _this);
+        auto DockManager = DockWidget->dockManager();
+''',
+            '''    if (DraggingFloatingWidget == DraggingState)
+    {
+\t\tQPointer<CFloatingDockContainer> WaylandFloatingDockContainer =
+\t\t\tdynamic_cast<CFloatingDockContainer*>(FloatingWidget);
+        FloatingWidget->startFloating(DragStartMousePosition, Size, DraggingFloatingWidget, _this);
+\t\tif (UseWaylandToplevelDrag
+\t\t    && (!WaylandFloatingDockContainer
+\t\t        || WaylandFloatingDockContainer->athenaWaylandDockDragStarted()))
+\t\t{
+\t\t\tDragState = DraggingInactive;
+\t\t\tthis->FloatingWidget = nullptr;
+\t\t\treturn true;
+\t\t}
+        auto DockManager = DockWidget->dockManager();
+''',
+            1)
+        if 'A single dock in a floating container is already floating.' not in content:
+            content = re.sub(
+                r'\t// if this is the last dock widget inside of this floating widget,\n'
+                r'\t// then it does not make any sense, to make it floating because\n'
+                r'\t// it is already floating\n'
+                r'\t if \(dockContainer->isFloating\(\)\n'
+                r'\t && \(dockContainer->visibleDockAreaCount\(\) == 1\)\n'
+                r'\t && \(DockWidget->dockAreaWidget\(\)->dockWidgetsCount\(\) == 1\)\)\n'
+                r'\t\{\n'
+                r'\t\treturn false;\n'
+                r'\t\}\n',
+                '''\t// A single dock in a floating container is already floating. On
+\t// Wayland it can still start an xdg-toplevel-drag redocking session
+\t// from the app-owned tab, while the system title bar remains a normal
+\t// window move handle.
+\t if (dockContainer->isFloating()
+\t && (dockContainer->visibleDockAreaCount() == 1)
+\t && (DockWidget->dockAreaWidget()->dockWidgetsCount() == 1))
+\t{
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+\t\tif (athenaUseWaylandToplevelDragForInitialFloating())
+\t\t{
+\t\t\tif (auto* FloatingContainer = dockContainer->floatingWidget())
+\t\t\t{
+\t\t\t\tQPoint HotSpot = FloatingContainer->mapFromGlobal(GlobalDragStartMousePosition);
+\t\t\t\tFloatingContainer->startDragging(HotSpot, FloatingContainer->size(), _this);
+\t\t\t\tDragState = DraggingInactive;
+\t\t\t\treturn FloatingContainer->athenaWaylandDockDragStarted();
+\t\t\t}
+\t\t}
+#endif
+\t\treturn false;
+\t}\n''',
+                content,
+                count=1)
+        if 'A single dock tab in a floating container is already floating.' not in content:
+            content = re.sub(
+                r'\t\t// If this is the last dock area in a dock container with only\n'
+                r'\s*// one single dock widget it does not make  sense to move it to a new\n'
+                r'\s*// floating widget and leave this one empty\n'
+                r'\t\tif \(d->DockArea->dockContainer\(\)->isFloating\(\)\n'
+                r'\t\t && d->DockArea->openDockWidgetsCount\(\) == 1\n'
+                r'\t\t && d->DockArea->dockContainer\(\)->visibleDockAreaCount\(\) == 1\)\n'
+                r'\t\t\{\n'
+                r'\t\t\treturn;\n'
+                r'\t\t\}\n',
+                '''		// A single dock tab in a floating container is already floating.
+		// On Wayland, dragging the app-owned tab is the redocking gesture.
+		if (d->DockArea->dockContainer()->isFloating()
+		 && d->DockArea->openDockWidgetsCount() == 1
+		 && d->DockArea->dockContainer()->visibleDockAreaCount() == 1)
+		{
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+			if (athenaUseWaylandToplevelDragForInitialFloating())
+			{
+				if (auto* FloatingContainer = d->DockArea->dockContainer()->floatingWidget())
+				{
+					QPoint HotSpot = FloatingContainer->mapFromGlobal(d->GlobalDragStartMousePosition);
+					FloatingContainer->startDragging(HotSpot, FloatingContainer->size(), this);
+					d->DragState = DraggingInactive;
+				}
+			}
+#endif
+			return;
+		}
+''',
+                content,
+                count=1)
+        write_if_changed(tab_path, content, original_content)
+    else:
+        print(f"File not found: {tab_path}")
+
+    title_path = os.path.join(base_dir, 'src/DockAreaTitleBar.cpp')
+    if os.path.exists(title_path):
+        with open(title_path, 'r') as f:
+            content = f.read()
+
+        original_content = content
+        if 'athenaUseWaylandToplevelDragForInitialFloating' not in content:
+            content = content.replace('namespace ads\n{\n',
+                                      'namespace ads\n{\n' + WAYLAND_INITIAL_DOCK_DRAG_HELPER,
+                                      1)
+        title_create_container_block = '''#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+\tbool UseWaylandToplevelDrag = false;
+\tif (!CreateFloatingDockContainer && athenaUseWaylandToplevelDragForInitialFloating())
+\t{
+\t\tCreateFloatingDockContainer = true;
+\t\tUseWaylandToplevelDrag = true;
+\t}
+#else
+\tconst bool UseWaylandToplevelDrag = false;
+#endif
+'''
+        content = re.sub(
+            r'\tbool CreateFloatingDockContainer = \(DraggingFloatingWidget != DragState\);\n'
+            r'(?:(?:#if defined\(Q_OS_UNIX\) && !defined\(Q_OS_MACOS\) && '
+            r'\(QT_VERSION >= QT_VERSION_CHECK\(6, 0, 0\)\)\n'
+            r'\tbool UseWaylandToplevelDrag = false;\n'
+            r'\tif \(!CreateFloatingDockContainer && athenaUseWaylandToplevelDragForInitialFloating\(\)\)\n'
+            r'\t\{\n'
+            r'\t\tCreateFloatingDockContainer = true;\n'
+            r'\t\tUseWaylandToplevelDrag = true;\n'
+            r'\t\}\n'
+            r'#else\n'
+            r'\tconst bool UseWaylandToplevelDrag = false;\n'
+            r'#endif\n)+)?',
+            '\tbool CreateFloatingDockContainer = (DraggingFloatingWidget != DragState);\n'
+            + title_create_container_block,
+            content,
+            count=1)
+        title_start_block = '''\tQPointer<CFloatingDockContainer> WaylandFloatingDockContainer = FloatingDockContainer;
+    FloatingWidget->startFloating(Offset, Size, DragState, nullptr);
+\tif (UseWaylandToplevelDrag
+\t    && (!WaylandFloatingDockContainer
+\t        || WaylandFloatingDockContainer->athenaWaylandDockDragStarted()))
+\t{
+\t\tthis->DragState = DraggingInactive;
+\t\treturn nullptr;
+\t}
+    if (FloatingDockContainer)
+    {
+'''
+        content = re.sub(
+            r'(?:\tQPointer<CFloatingDockContainer> WaylandFloatingDockContainer = FloatingDockContainer;\n)?'
+            r'\s*FloatingWidget->startFloating\(Offset, Size, DragState, nullptr\);\n'
+            r'.*?^\s*if \(FloatingDockContainer\)\n\s*\{\n',
+            title_start_block,
+            content,
+            count=1,
+            flags=re.S | re.M)
+        content = content.replace(
+            '''\tFloatingWidget = makeAreaFloating(Offset, DraggingFloatingWidget);
+\tqApp->postEvent(DockArea, new QEvent((QEvent::Type)internal::DockedWidgetDragStartEvent));
+''',
+            '''\tFloatingWidget = makeAreaFloating(Offset, DraggingFloatingWidget);
+\tif (FloatingWidget)
+\t{
+\t\tqApp->postEvent(DockArea, new QEvent((QEvent::Type)internal::DockedWidgetDragStartEvent));
+\t}
+''',
+            1)
+        if 'A single dock area in a floating container is already floating.' not in content:
+            content = re.sub(
+                r'\t// If this is the last dock area in a floating dock container it does not make\n'
+                r'\t// sense to move it to a new floating widget and leave this one\n'
+                r'\t// empty\n'
+                r'\tif \(d->DockArea->dockContainer\(\)->isFloating\(\)\n'
+                r'\t && d->DockArea->dockContainer\(\)->visibleDockAreaCount\(\) == 1 \n'
+                r'     && !d->DockArea->isAutoHide\(\)\)\n'
+                r'\t\{\n'
+                r'\t\treturn;\n'
+                r'\t\}\n',
+                '''\t// A single dock area in a floating container is already floating.
+\t// On Wayland, use the app-owned area title bar as the redocking drag
+\t// handle and keep the compositor title bar for normal window movement.
+\tif (d->DockArea->dockContainer()->isFloating()
+\t && d->DockArea->dockContainer()->visibleDockAreaCount() == 1
+     && !d->DockArea->isAutoHide())
+\t{
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+\t\tif (athenaUseWaylandToplevelDragForInitialFloating())
+\t\t{
+\t\t\tif (auto* FloatingContainer = d->DockArea->dockContainer()->floatingWidget())
+\t\t\t{
+\t\t\t\tQPoint GlobalPressPos = mapToGlobal(d->DragStartMousePos);
+\t\t\t\tQPoint HotSpot = FloatingContainer->mapFromGlobal(GlobalPressPos);
+\t\t\t\tFloatingContainer->startDragging(HotSpot, FloatingContainer->size(), this);
+\t\t\t\td->DragState = DraggingInactive;
+\t\t\t\td->FloatingWidget = nullptr;
+\t\t\t\treturn;
+\t\t\t}
+\t\t}
+#endif
+\t\treturn;
+\t}\n''',
+                content,
+                count=1)
+        content = content.replace(
+            '\t && d->DockArea->dockContainer()->visibleDockAreaCount() == 1 \n',
+            '\t && d->DockArea->dockContainer()->visibleDockAreaCount() == 1\n')
+        write_if_changed(title_path, content, original_content)
+    else:
+        print(f"File not found: {title_path}")
+
+
 def patch_ads_floating_windows(base_dir):
-    # ATHENA keeps ADS' custom floating title bar on KDE because native KWin
-    # title bars do not provide the live move events ADS needs for redocking.
-    # Add side-edge snapping to the ADS drag-release path instead.
+    # ATHENA keeps floating docks as normal desktop windows. Redocking on native
+    # Wayland is driven by app-owned ADS tab/title-bar drags through Qt's
+    # xdg-toplevel-drag path.
+    patch_ads_floating_header(base_dir)
+
     path = os.path.join(base_dir, 'src/FloatingDockContainer.cpp')
     if not os.path.exists(path):
         print(f"File not found: {path}")
@@ -34,9 +378,34 @@ def patch_ads_floating_windows(base_dir):
         content = f.read()
 
     original_content = content
+
+    for include in ('#include <QDBusConnection>\n',
+                    '#include <QDBusInterface>\n',
+                    '#include <QDBusReply>\n'):
+        content = content.replace(include, '')
     if '#include <QScreen>' not in content:
         content = content.replace('#include <QTime>\n',
                                   '#include <QTime>\n#include <QScreen>\n')
+    for include in [
+        '#include <QByteArray>',
+        '#include <QDataStream>',
+        '#include <QDrag>',
+        '#include <QDragEnterEvent>',
+        '#include <QDragLeaveEvent>',
+        '#include <QDropEvent>',
+        '#include <QMimeData>',
+        '#include <QVector>',
+        '#include <QWindow>',
+        '#include <fstream>',
+        '#include <iostream>',
+        '#include <sstream>',
+        '#include <string>',
+    ]:
+        if include not in content:
+            content = content.replace('#include <QScreen>\n',
+                                      '#include <QScreen>\n' + include + '\n',
+                                      1)
+
     if 'athenaSnapFloatingContainerToScreenEdge' not in content:
         content = content.replace(
             'namespace ads\n{\n',
@@ -86,6 +455,174 @@ athenaSnapFloatingContainerToScreenEdge(QWidget* widget)
 
 ''',
             1)
+
+    content = re.sub(
+        r'\n\s*if \(native_window\)\n'
+        r'\s*\{\n'
+        r'\s*// Native windows do not work if wayland is used\..*?'
+        r'\n\s*\}\n'
+        r'\s*\n(?=\tif \(native_window\))',
+        '\n',
+        content,
+        flags=re.S)
+
+    if 'athenaKWinDockingAvailable' in content:
+        content = re.sub(
+            r'\nstatic QRect\nathenaVariantMapToRect\(const QVariantMap& map\).*?'
+            r'static QString\nathenaFindKWinWindowId\(QWidget\* widget\)\n\{.*?\n\}\n#endif\n',
+            '\n#endif\n',
+            content,
+            flags=re.S)
+    content = content.replace(
+        '    QString AthenaKWinDockDragId;\n    QString AthenaKWinDockCallbackPath;\n',
+        '')
+
+    if 'static const char* const AthenaAdsFloatingDockMime' in content:
+        content = re.sub(
+            r'#if defined\(Q_OS_UNIX\) && !defined\(Q_OS_MACOS\) && '
+            r'\(QT_VERSION >= QT_VERSION_CHECK\(6, 0, 0\)\)\n'
+            r'static const char\* const AthenaAdsFloatingDockMime.*?'
+            r'#endif\n\s*static unsigned int zOrderCounterFloating = 0;\n',
+            WAYLAND_DOCK_DRAG_HELPERS + '\n\nstatic unsigned int zOrderCounterFloating = 0;\n',
+            content,
+            flags=re.S)
+    else:
+        content = content.replace(
+            'static unsigned int zOrderCounterFloating = 0;\n',
+            WAYLAND_DOCK_DRAG_HELPERS + '\nstatic unsigned int zOrderCounterFloating = 0;\n',
+            1)
+
+    if 'bool AthenaWaylandDockDragStarted = false;' not in content:
+        content = content.replace('''
+\teDragState DraggingState = DraggingInactive;
+\tQPoint DragStartMousePosition;
+''',
+                                  '''
+\teDragState DraggingState = DraggingInactive;
+\tbool AthenaWaylandDockDragStarted = false;
+\tQPoint DragStartMousePosition;
+''',
+                                  1)
+
+    if 'athenaKWinDockDragActive' in content:
+        content = re.sub(
+            r'bool CFloatingDockContainer::athenaKWinDockDragActive\(\) const\n\{.*?'
+            r'\nvoid CFloatingDockContainer::startFloating',
+            WAYLAND_DOCK_DRAG_METHODS + 'void CFloatingDockContainer::startFloating',
+            content,
+            flags=re.S)
+    elif 'athenaWaylandDockDragActive' in content:
+        content = re.sub(
+            r'bool CFloatingDockContainer::athenaWaylandDockDragActive\(\) const\n\{.*?'
+            r'\nvoid CFloatingDockContainer::startFloating',
+            WAYLAND_DOCK_DRAG_METHODS + 'void CFloatingDockContainer::startFloating',
+            content,
+            flags=re.S)
+    else:
+        content = content.replace('void CFloatingDockContainer::startFloating',
+                                  WAYLAND_DOCK_DRAG_METHODS + 'void CFloatingDockContainer::startFloating',
+                                  1)
+
+    content = content.replace('athenaTryStartKWinDockDrag', 'athenaTryStartWaylandDockDrag')
+    content = content.replace('athenaKWinDockDragActive', 'athenaWaylandDockDragActive')
+    content = content.replace('athenaTryStartWaylandDockDrag(DragStartMousePos)',
+                              'athenaTryStartWaylandDockDrag(DragStartMousePos, MouseEventHandler)')
+    content = content.replace(
+        '''#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
+\t\t\tif (d->DraggingState == DraggingFloatingWidget)
+\t\t\t{
+\t\t\t\td->titleMouseReleaseEvent();
+\t\t\t\td->DraggingState = DraggingInactive;
+\t\t\t}
+#endif
+''',
+        '''#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
+\t\t\tif (d->DraggingState == DraggingFloatingWidget
+#if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+\t\t\t    && !athenaIsNativeWaylandPlatform()
+#endif
+\t\t\t)
+\t\t\t{
+\t\t\t\td->titleMouseReleaseEvent();
+\t\t\t\td->DraggingState = DraggingInactive;
+\t\t\t}
+#endif
+''',
+        1)
+    content = content.replace(
+        '''    if (!d->IsResizing && event->spontaneous() && d->MousePressed)
+\t{
+        d->setState(DraggingFloatingWidget);
+\t\td->updateDropOverlays(QCursor::pos());
+\t}
+''',
+        '''    if (!d->IsResizing && event->spontaneous() && d->MousePressed
+#if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+        && !athenaIsNativeWaylandPlatform()
+#endif
+        )
+\t{
+        d->setState(DraggingFloatingWidget);
+\t\td->updateDropOverlays(QCursor::pos());
+\t}
+''',
+        1)
+    content = content.replace(
+        '''\tcase QEvent::WindowDeactivate:
+        d->MousePressed = true;
+\t\tbreak;
+''',
+        '''\tcase QEvent::WindowDeactivate:
+#if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+        d->MousePressed = !athenaIsNativeWaylandPlatform();
+#else
+        d->MousePressed = true;
+#endif
+\t\tbreak;
+''',
+        1)
+    if 'athenaTryStartWaylandDockDrag(DragStartMousePos, MouseEventHandler)' not in content:
+        content = content.replace(
+            '''\tif (DraggingFloatingWidget == DragState)
+\t{
+\t\tshow();
+\t\td->MouseEventHandler = MouseEventHandler;
+''',
+            '''\tif (DraggingFloatingWidget == DragState)
+\t{
+\t\tshow();
+\t\tif (athenaTryStartWaylandDockDrag(DragStartMousePos, MouseEventHandler))
+\t\t{
+\t\t\treturn;
+\t\t}
+\t\td->MouseEventHandler = MouseEventHandler;
+''',
+            1)
+
+    content = content.replace(
+        '''void CFloatingDockContainer::show()
+{
+\t// Prevent this window from showing in the taskbar and pager (alt+tab)
+\tinternal::xcb_add_prop(true, winId(), "_NET_WM_STATE", "_NET_WM_STATE_SKIP_TASKBAR");
+\tinternal::xcb_add_prop(true, winId(), "_NET_WM_STATE", "_NET_WM_STATE_SKIP_PAGER");
+\tSuper::show();
+}
+''',
+        '''void CFloatingDockContainer::show()
+{
+\t// These XCB properties are X11-only. Calling winId() here on native
+\t// Wayland forces Qt to create native child surfaces while ADS is
+\t// reparenting the dock tree.
+\tif (QApplication::platformName() == QLatin1String("xcb"))
+\t{
+\t\tinternal::xcb_add_prop(true, winId(), "_NET_WM_STATE", "_NET_WM_STATE_SKIP_TASKBAR");
+\t\tinternal::xcb_add_prop(true, winId(), "_NET_WM_STATE", "_NET_WM_STATE_SKIP_PAGER");
+\t}
+\tSuper::show();
+}
+''',
+        1)
+
     content = content.replace(
         '''\td->titleMouseReleaseEvent();
 }''',
@@ -95,12 +632,535 @@ athenaSnapFloatingContainerToScreenEdge(QWidget* widget)
 #endif
 }''')
 
-    if content != original_content:
-        with open(path, 'w') as f:
-            f.write(content)
-        print(f"Patched {path}")
-    else:
-        print(f"No changes needed for {path}")
+    write_if_changed(path, content, original_content)
+
+
+WAYLAND_DOCK_DRAG_HELPERS = '''#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+static const char* const AthenaAdsFloatingDockMime = "application/x-athena-ads-floating-dock";
+static const char* const AthenaQtMainWindowDragWindowMime = "application/x-qt-mainwindowdrag-window";
+static const char* const AthenaQtMainWindowDragPositionMime = "application/x-qt-mainwindowdrag-position";
+
+static QPointer<CFloatingDockContainer> AthenaActiveWaylandDockDrag;
+
+struct AthenaDropTargetState
+{
+\tQPointer<QWidget> Widget;
+\tbool AcceptDrops = false;
+};
+
+static QVector<AthenaDropTargetState> AthenaDropTargetStates;
+
+static bool
+athenaIsNativeWaylandPlatform()
+{
+\treturn QApplication::platformName().startsWith(QStringLiteral("wayland"));
+}
+
+static bool
+athenaAdsWaylandDebugEnabled()
+{
+\tstatic const bool enabled = qEnvironmentVariableIsSet("ATHENA_SCALE_DEBUG")
+\t                         || qEnvironmentVariableIsSet("ATHENA_ADS_WAYLAND_DEBUG");
+\treturn enabled;
+}
+
+static void
+athenaAdsGiantLog(const std::string& line)
+{
+\tstatic bool initialized = false;
+\tstd::ofstream out;
+\tif (!initialized)
+\t{
+\t\tout.open("/tmp/athena-ads-giant-rendering.log",
+\t\t         std::ios::out | std::ios::trunc);
+\t\tinitialized = true;
+\t\tout << "ATHENA_GIANT_LOG start" << std::endl;
+\t}
+\telse
+\t{
+\t\tout.open("/tmp/athena-ads-giant-rendering.log",
+\t\t         std::ios::out | std::ios::app);
+\t}
+\tout << line << std::endl;
+}
+
+static std::string
+athenaAdsSizeText(const QSize& size)
+{
+\treturn std::to_string(size.width()) + "x" + std::to_string(size.height());
+}
+
+static std::string
+athenaAdsRectText(const QRect& rect)
+{
+\treturn std::to_string(rect.x()) + "," + std::to_string(rect.y())
+\t     + " " + std::to_string(rect.width()) + "x" + std::to_string(rect.height());
+}
+
+static void
+athenaLogWindowSurface(const char* label, QWidget* widget)
+{
+\tQWindow* window = widget == nullptr ? nullptr : widget->windowHandle();
+\tstd::ostringstream line;
+\tline << "ATHENA_GIANT " << label
+\t     << " widget=" << widget
+\t     << " widgetClass=" << (widget == nullptr ? "" : widget->metaObject()->className())
+\t     << " object=" << (widget == nullptr ? std::string() : widget->objectName().toStdString())
+\t     << " title=" << (widget == nullptr ? std::string() : widget->windowTitle().toStdString())
+\t     << " isWindow=" << (widget != nullptr && widget->isWindow())
+\t     << " visible=" << (widget != nullptr && widget->isVisible())
+\t     << " active=" << (widget != nullptr && widget->isActiveWindow())
+\t     << " size=" << athenaAdsSizeText(widget == nullptr ? QSize() : widget->size())
+\t     << " geometry=" << athenaAdsRectText(widget == nullptr ? QRect() : widget->geometry())
+\t     << " frame=" << athenaAdsRectText(widget == nullptr ? QRect() : widget->frameGeometry())
+\t     << " widgetDpr=" << (widget == nullptr ? 0.0 : widget->devicePixelRatioF())
+\t     << " win=" << window
+\t     << " winVisible=" << (window != nullptr && window->isVisible())
+\t     << " winSize=" << athenaAdsSizeText(window == nullptr ? QSize() : window->size())
+\t     << " winGeometry=" << athenaAdsRectText(window == nullptr ? QRect() : window->geometry())
+\t     << " winDpr=" << (window == nullptr ? 0.0 : window->devicePixelRatio());
+\tathenaAdsGiantLog(line.str());
+\tif (athenaAdsWaylandDebugEnabled())
+\t{
+\t\tstd::cerr << line.str() << std::endl;
+\t}
+}
+
+static void
+athenaLogTopLevelWindows(const char* label)
+{
+\tconst auto windows = QGuiApplication::topLevelWindows();
+\t{
+\t\tstd::ostringstream line;
+\t\tline << "ATHENA_GIANT " << label
+\t\t     << " topLevelWindowCount=" << windows.size()
+\t\t     << " topLevelWidgetCount=" << QApplication::topLevelWidgets().size();
+\t\tathenaAdsGiantLog(line.str());
+\t\tif (athenaAdsWaylandDebugEnabled())
+\t\t{
+\t\t\tstd::cerr << line.str() << std::endl;
+\t\t}
+\t}
+\tfor (QWindow* window : windows)
+\t{
+\t\tstd::ostringstream line;
+\t\tline << "ATHENA_GIANT top-level-window"
+\t\t     << " label=" << label
+\t\t     << " win=" << window
+\t\t     << " class=" << (window == nullptr ? "" : window->metaObject()->className())
+\t\t     << " title=" << (window == nullptr ? std::string() : window->title().toStdString())
+\t\t     << " visible=" << (window != nullptr && window->isVisible())
+\t\t     << " size=" << athenaAdsSizeText(window == nullptr ? QSize() : window->size())
+\t\t     << " geometry=" << athenaAdsRectText(window == nullptr ? QRect() : window->geometry())
+\t\t     << " dpr=" << (window == nullptr ? 0.0 : window->devicePixelRatio());
+\t\tathenaAdsGiantLog(line.str());
+\t\tif (athenaAdsWaylandDebugEnabled())
+\t\t{
+\t\t\tstd::cerr << line.str() << std::endl;
+\t\t}
+\t}
+\tfor (QWidget* widget : QApplication::topLevelWidgets())
+\t{
+\t\tathenaLogWindowSurface("top-level-widget", widget);
+\t}
+}
+
+static QByteArray
+athenaDataStreamPayload(qintptr value)
+{
+\tQByteArray data;
+\tQDataStream stream(&data, QIODevice::WriteOnly);
+\tstream << value;
+\treturn data;
+}
+
+static QByteArray
+athenaDataStreamPayload(const QPoint& value)
+{
+\tQByteArray data;
+\tQDataStream stream(&data, QIODevice::WriteOnly);
+\tstream << value;
+\treturn data;
+}
+
+static void
+athenaRememberDropTarget(QWidget* widget)
+{
+\tif (widget == nullptr)
+\t{
+\t\treturn;
+\t}
+\tfor (const auto& state : AthenaDropTargetStates)
+\t{
+\t\tif (state.Widget == widget)
+\t\t{
+\t\t\treturn;
+\t\t}
+\t}
+\tAthenaDropTargetStates.push_back({widget, widget->acceptDrops()});
+\twidget->setAcceptDrops(true);
+}
+
+static void
+athenaPrepareWaylandDockDropTargets(CDockManager* dockManager,
+                                    CFloatingDockContainer* activeFloatingContainer)
+{
+\tAthenaDropTargetStates.clear();
+\tif (dockManager != nullptr)
+\t{
+\t\tfor (CDockContainerWidget* container : dockManager->dockContainers())
+\t\t{
+\t\t\tif (activeFloatingContainer != nullptr
+\t\t\t    && container == activeFloatingContainer->dockContainer())
+\t\t\t{
+\t\t\t\tcontinue;
+\t\t\t}
+\t\t\tathenaRememberDropTarget(container);
+\t\t\tathenaRememberDropTarget(container->window());
+\t\t}
+\t}
+}
+
+static void
+athenaRestoreWaylandDockDropTargets()
+{
+\tfor (const auto& state : AthenaDropTargetStates)
+\t{
+\t\tif (state.Widget)
+\t\t{
+\t\t\tstate.Widget->setAcceptDrops(state.AcceptDrops);
+\t\t}
+\t}
+\tAthenaDropTargetStates.clear();
+}
+
+static const QMimeData*
+athenaDockDragMimeData(QEvent* event)
+{
+\tswitch (event->type())
+\t{
+\tcase QEvent::DragEnter:
+\t\treturn static_cast<QDragEnterEvent*>(event)->mimeData();
+\tcase QEvent::DragMove:
+\t\treturn static_cast<QDragMoveEvent*>(event)->mimeData();
+\tcase QEvent::Drop:
+\t\treturn static_cast<QDropEvent*>(event)->mimeData();
+\tdefault:
+\t\treturn nullptr;
+\t}
+}
+
+static QPoint
+athenaDockDragGlobalPosition(QObject* target, QEvent* event)
+{
+\tQWidget* widget = qobject_cast<QWidget*>(target);
+\tif (widget == nullptr)
+\t{
+\t\treturn QCursor::pos();
+\t}
+
+\tif (event->type() == QEvent::Drop)
+\t{
+\t\treturn widget->mapToGlobal(static_cast<QDropEvent*>(event)->position().toPoint());
+\t}
+\treturn widget->mapToGlobal(static_cast<QDragMoveEvent*>(event)->position().toPoint());
+}
+
+class AthenaAdsWaylandDockDragFilter : public QObject
+{
+public:
+\tbool eventFilter(QObject* target, QEvent* event) override
+\t{
+\t\tif (!AthenaActiveWaylandDockDrag)
+\t\t{
+\t\t\treturn QObject::eventFilter(target, event);
+\t\t}
+
+\t\tif (athenaAdsWaylandDebugEnabled())
+\t\t{
+\t\t\tconst QEvent::Type type = event->type();
+\t\t\tif (type == QEvent::Show || type == QEvent::Hide || type == QEvent::Resize
+\t\t\t    || type == QEvent::Move || type == QEvent::Expose || type == QEvent::Paint)
+\t\t\t{
+\t\t\t\tif (auto* window = qobject_cast<QWindow*>(target))
+\t\t\t\t{
+\t\t\t\t\tqDebug() << "ATHENA_ADS_WAYLAND event-window"
+\t\t\t\t\t         << "type" << int(type)
+\t\t\t\t\t         << "target" << window
+\t\t\t\t\t         << "class" << window->metaObject()->className()
+\t\t\t\t\t         << "title" << window->title()
+\t\t\t\t\t         << "visible" << window->isVisible()
+\t\t\t\t\t         << "size" << window->size()
+\t\t\t\t\t         << "geometry" << window->geometry()
+\t\t\t\t\t         << "dpr" << window->devicePixelRatio();
+\t\t\t\t}
+\t\t\t\telse if (auto* widget = qobject_cast<QWidget*>(target))
+\t\t\t\t{
+\t\t\t\t\tif (widget->isWindow() || widget->window() == AthenaActiveWaylandDockDrag)
+\t\t\t\t\t{
+\t\t\t\t\t\tqDebug() << "ATHENA_ADS_WAYLAND event-widget"
+\t\t\t\t\t\t         << "type" << int(type)
+\t\t\t\t\t\t         << "target" << widget
+\t\t\t\t\t\t         << "class" << widget->metaObject()->className()
+\t\t\t\t\t\t         << "object" << widget->objectName()
+\t\t\t\t\t\t         << "title" << widget->windowTitle()
+\t\t\t\t\t\t         << "visible" << widget->isVisible()
+\t\t\t\t\t\t         << "size" << widget->size()
+\t\t\t\t\t\t         << "geometry" << widget->geometry()
+\t\t\t\t\t\t         << "frame" << widget->frameGeometry();
+\t\t\t\t\t}
+\t\t\t\t}
+\t\t\t}
+\t\t}
+
+\t\tif (event->type() == QEvent::DragLeave)
+\t\t{
+\t\t\tAthenaActiveWaylandDockDrag->athenaHideWaylandDockOverlays();
+\t\t\treturn QObject::eventFilter(target, event);
+\t\t}
+
+\t\tconst QMimeData* mimeData = athenaDockDragMimeData(event);
+\t\tif (mimeData == nullptr || !mimeData->hasFormat(AthenaAdsFloatingDockMime))
+\t\t{
+\t\t\treturn QObject::eventFilter(target, event);
+\t\t}
+
+\t\tconst QPoint globalPos = athenaDockDragGlobalPosition(target, event);
+\t\tAthenaActiveWaylandDockDrag->athenaUpdateWaylandDockDrag(globalPos);
+
+\t\tswitch (event->type())
+\t\t{
+\t\tcase QEvent::DragEnter:
+\t\t{
+\t\t\tauto* dragEvent = static_cast<QDragEnterEvent*>(event);
+\t\t\tdragEvent->setDropAction(Qt::MoveAction);
+\t\t\tdragEvent->accept();
+\t\t\treturn true;
+\t\t}
+\t\tcase QEvent::DragMove:
+\t\t{
+\t\t\tauto* dragEvent = static_cast<QDragMoveEvent*>(event);
+\t\t\tdragEvent->setDropAction(Qt::MoveAction);
+\t\t\tdragEvent->accept();
+\t\t\treturn true;
+\t\t}
+\t\tcase QEvent::Drop:
+\t\t{
+\t\t\tauto* dropEvent = static_cast<QDropEvent*>(event);
+\t\t\tconst bool docked = AthenaActiveWaylandDockDrag->athenaFinishWaylandDockDrag(true);
+\t\t\tif (docked)
+\t\t\t{
+\t\t\t\tdropEvent->setDropAction(Qt::MoveAction);
+\t\t\t\tdropEvent->accept();
+\t\t\t}
+\t\t\telse
+\t\t\t{
+\t\t\t\tdropEvent->ignore();
+\t\t\t}
+\t\t\treturn true;
+\t\t}
+\t\tdefault:
+\t\t\tbreak;
+\t\t}
+\t\treturn QObject::eventFilter(target, event);
+\t}
+};
+
+static AthenaAdsWaylandDockDragFilter*
+athenaWaylandDockDragFilter()
+{
+\tstatic auto* filter = new AthenaAdsWaylandDockDragFilter();
+\treturn filter;
+}
+#endif
+'''
+
+
+WAYLAND_DOCK_DRAG_METHODS = '''bool CFloatingDockContainer::athenaWaylandDockDragActive() const
+{
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+\treturn AthenaActiveWaylandDockDrag == this;
+#else
+\treturn false;
+#endif
+}
+
+bool CFloatingDockContainer::athenaWaylandDockDragStarted() const
+{
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+\treturn d->AthenaWaylandDockDragStarted;
+#else
+\treturn false;
+#endif
+}
+
+bool CFloatingDockContainer::athenaTryStartWaylandDockDrag(const QPoint& hotSpot, QWidget* sourceWidget)
+{
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+\td->AthenaWaylandDockDragStarted = false;
+\tif (!athenaIsNativeWaylandPlatform())
+\t{
+\t\treturn false;
+\t}
+
+\tathenaLogWindowSurface("try-start-entry", this);
+\tathenaLogWindowSurface("try-start-source-widget", sourceWidget);
+\tathenaLogTopLevelWindows("before-floating-show");
+
+\tif (!isVisible())
+\t{
+\t\tshow();
+\t}
+\tathenaLogWindowSurface("after-floating-show", this);
+\tQWindow* floatingWindow = windowHandle();
+\tif (floatingWindow == nullptr)
+\t{
+\t\treturn false;
+\t}
+
+\t// Match Qt's own QMainWindow platform drag contract: the QDrag source is
+\t// the detached top-level that is named in the private MIME payload.  Using
+\t// the main window as the source while asking QtWayland to move this floating
+\t// toplevel puts the main window into the drag's Qt-side surface path.
+\tQWidget* dragSource = this;
+\tathenaLogWindowSurface("drag-source", dragSource);
+\tif (dragSource == nullptr)
+\t{
+\t\treturn false;
+\t}
+
+\tQDrag drag(dragSource);
+\t{
+\t\tstd::ostringstream line;
+\t\tline << "ATHENA_GIANT qdrag-created"
+\t\t     << " dragSource=" << dragSource
+\t\t     << " dragSourceWindow=" << dragSource->window()
+\t\t     << " floating=" << this
+\t\t     << " floatingWindow=" << floatingWindow
+\t\t     << " hotSpot=" << hotSpot.x() << "," << hotSpot.y()
+\t\t     << " dragPixmapNull=" << drag.pixmap().isNull()
+\t\t     << " dragPixmapSize=" << athenaAdsSizeText(drag.pixmap().size())
+\t\t     << " dragPixmapDpr=" << drag.pixmap().devicePixelRatio()
+\t\t     << " floatingWindowSize=" << athenaAdsSizeText(floatingWindow->size())
+\t\t     << " floatingWindowGeometry=" << athenaAdsRectText(floatingWindow->geometry())
+\t\t     << " floatingWindowDpr=" << floatingWindow->devicePixelRatio();
+\t\tathenaAdsGiantLog(line.str());
+\t}
+\tif (athenaAdsWaylandDebugEnabled())
+\t{
+\t\tstd::cerr << "ATHENA_ADS_WAYLAND qdrag-created"
+\t\t          << " dragSource=" << dragSource
+\t\t          << " dragSourceWindow=" << dragSource->window()
+\t\t          << " floating=" << this
+\t\t          << " floatingWindow=" << floatingWindow
+\t\t          << " hotSpot=" << hotSpot.x() << "," << hotSpot.y()
+\t\t          << " dragPixmapNull=" << drag.pixmap().isNull()
+\t\t          << " dragPixmapSize=" << athenaAdsSizeText(drag.pixmap().size())
+\t\t          << " dragPixmapDpr=" << drag.pixmap().devicePixelRatio()
+\t\t          << " floatingWindowSize=" << athenaAdsSizeText(floatingWindow->size())
+\t\t          << " floatingWindowGeometry=" << athenaAdsRectText(floatingWindow->geometry())
+\t\t          << " floatingWindowDpr=" << floatingWindow->devicePixelRatio()
+\t\t          << std::endl;
+\t}
+\tauto* mimeData = new QMimeData();
+\tmimeData->setData(AthenaAdsFloatingDockMime, QByteArrayLiteral("1"));
+\tmimeData->setData(AthenaQtMainWindowDragWindowMime,
+\t                  athenaDataStreamPayload(reinterpret_cast<qintptr>(floatingWindow)));
+\tmimeData->setData(AthenaQtMainWindowDragPositionMime,
+\t                  athenaDataStreamPayload(hotSpot));
+\tdrag.setMimeData(mimeData);
+
+\tAthenaActiveWaylandDockDrag = this;
+\td->AthenaWaylandDockDragStarted = true;
+\tathenaPrepareWaylandDockDropTargets(d->DockManager, this);
+\tqApp->installEventFilter(athenaWaylandDockDragFilter());
+\tathenaLogTopLevelWindows("before-qdrag-exec");
+\tdrag.exec(Qt::MoveAction, Qt::MoveAction);
+\tathenaLogTopLevelWindows("after-qdrag-exec");
+\tathenaLogWindowSurface("after-qdrag-floating", this);
+\tif (athenaWaylandDockDragActive())
+\t{
+\t\tathenaFinishWaylandDockDrag(false);
+\t}
+\tqApp->removeEventFilter(athenaWaylandDockDragFilter());
+\tathenaRestoreWaylandDockDropTargets();
+\treturn true;
+#else
+\tQ_UNUSED(hotSpot)
+\tQ_UNUSED(sourceWidget)
+\treturn false;
+#endif
+}
+
+void CFloatingDockContainer::athenaUpdateWaylandDockDrag(const QPoint& globalPos)
+{
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+\tif (athenaWaylandDockDragActive())
+\t{
+\t\td->updateDropOverlays(globalPos);
+\t}
+#else
+\tQ_UNUSED(globalPos)
+#endif
+}
+
+bool CFloatingDockContainer::athenaHasWaylandDockTarget() const
+{
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+\tif (!d->DockManager || d->DropContainer == nullptr)
+\t{
+\t\treturn false;
+\t}
+\treturn d->DockManager->dockAreaOverlay()->dropAreaUnderCursor() != InvalidDockWidgetArea
+\t    || d->DockManager->containerOverlay()->dropAreaUnderCursor() != InvalidDockWidgetArea;
+#else
+\treturn false;
+#endif
+}
+
+bool CFloatingDockContainer::athenaFinishWaylandDockDrag(bool dropped)
+{
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+\tif (!athenaWaylandDockDragActive())
+\t{
+\t\treturn false;
+\t}
+
+\tconst bool shouldDock = dropped && athenaHasWaylandDockTarget();
+\tif (shouldDock)
+\t{
+\t\td->titleMouseReleaseEvent();
+\t}
+\telse
+\t{
+\t\td->setState(DraggingInactive);
+\t\tathenaHideWaylandDockOverlays();
+\t}
+\tif (AthenaActiveWaylandDockDrag == this)
+\t{
+\t\tAthenaActiveWaylandDockDrag.clear();
+\t}
+\treturn shouldDock;
+#else
+\tQ_UNUSED(dropped)
+\treturn false;
+#endif
+}
+
+void CFloatingDockContainer::athenaHideWaylandDockOverlays()
+{
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+\tif (d->DockManager)
+\t{
+\t\td->DockManager->containerOverlay()->hideOverlay();
+\t\td->DockManager->dockAreaOverlay()->hideOverlay();
+\t}
+\td->DropContainer = nullptr;
+#endif
+}
+
+'''
+
 
 def patch_ads_qt6_private_gui(base_dir):
     path = os.path.join(base_dir, 'src/CMakeLists.txt')
@@ -121,555 +1181,18 @@ else()
 endif()
 ''')
     content = content.replace(
-        '''target_link_libraries(${library_name} PUBLIC Qt${QT_VERSION_MAJOR}::Core 
-                                               Qt${QT_VERSION_MAJOR}::Gui 
-                                               Qt${QT_VERSION_MAJOR}::Widgets)
-''',
-        '''target_link_libraries(${library_name} PUBLIC Qt${QT_VERSION_MAJOR}::Core 
-                                               Qt${QT_VERSION_MAJOR}::Gui 
-                                               Qt${QT_VERSION_MAJOR}::Widgets)
-if(QT_VERSION_MAJOR STREQUAL "6")
-    target_link_libraries(${library_name} PRIVATE Qt6::GuiPrivate)
-endif()
-''')
+        'target_link_libraries(${library_name} PUBLIC Qt${QT_VERSION_MAJOR}::Core \n'
+        '                                               Qt${QT_VERSION_MAJOR}::Gui \n'
+        '                                               Qt${QT_VERSION_MAJOR}::Widgets)\n',
+        'target_link_libraries(${library_name} PUBLIC Qt${QT_VERSION_MAJOR}::Core \n'
+        '                                               Qt${QT_VERSION_MAJOR}::Gui \n'
+        '                                               Qt${QT_VERSION_MAJOR}::Widgets)\n'
+        'if(QT_VERSION_MAJOR STREQUAL "6")\n'
+        '    target_link_libraries(${library_name} PRIVATE Qt6::GuiPrivate)\n'
+        'endif()\n')
 
-    if content != original_content:
-        with open(path, 'w') as f:
-            f.write(content)
-        print(f"Patched {path}")
-    else:
-        print(f"No changes needed for {path}")
+    write_if_changed(path, content, original_content)
 
-def patch_ads_kwin_wayland_docking(base_dir):
-    cmake_path = os.path.join(base_dir, 'src/CMakeLists.txt')
-    if os.path.exists(cmake_path):
-        with open(cmake_path, 'r') as f:
-            content = f.read()
-        original_content = content
-        content = content.replace(
-            'find_package(Qt6 COMPONENTS Core Gui Widgets GuiPrivate REQUIRED)\n',
-            'find_package(Qt6 COMPONENTS Core Gui Widgets GuiPrivate DBus REQUIRED)\n')
-        content = content.replace(
-            'find_package(Qt${QT_VERSION_MAJOR} COMPONENTS Core Gui Widgets REQUIRED)\n',
-            'find_package(Qt${QT_VERSION_MAJOR} COMPONENTS Core Gui Widgets DBus REQUIRED)\n')
-        content = content.replace(
-            'target_link_libraries(${library_name} PUBLIC Qt${QT_VERSION_MAJOR}::Core \n'
-            '                                               Qt${QT_VERSION_MAJOR}::Gui \n'
-            '                                               Qt${QT_VERSION_MAJOR}::Widgets)\n',
-            'target_link_libraries(${library_name} PUBLIC Qt${QT_VERSION_MAJOR}::Core \n'
-            '                                               Qt${QT_VERSION_MAJOR}::Gui \n'
-            '                                               Qt${QT_VERSION_MAJOR}::Widgets\n'
-            '                                               Qt${QT_VERSION_MAJOR}::DBus)\n')
-        if content != original_content:
-            with open(cmake_path, 'w') as f:
-                f.write(content)
-            print(f"Patched {cmake_path}")
-        else:
-            print(f"No changes needed for {cmake_path}")
-    else:
-        print(f"File not found: {cmake_path}")
-
-    header_path = os.path.join(base_dir, 'src/FloatingDockContainer.h')
-    if os.path.exists(header_path):
-        with open(header_path, 'r') as f:
-            content = f.read()
-        original_content = content
-        if '#include <QVariantMap>' not in content:
-            content = content.replace('#include <QRubberBand>\n',
-                                      '#include <QRubberBand>\n#include <QVariantMap>\n')
-        if 'org.athena.KWinDockDragSink' not in content:
-            content = content.replace(
-                '''class ADS_EXPORT CFloatingDockContainer : public tFloatingWidgetBase, public IFloatingWidget
-{
-\tQ_OBJECT
-''',
-                '''class ADS_EXPORT CFloatingDockContainer : public tFloatingWidgetBase, public IFloatingWidget
-{
-\tQ_OBJECT
-\tQ_CLASSINFO("D-Bus Interface", "org.athena.KWinDockDragSink")
-''')
-        if 'dockDragMoved(const QVariantMap& state)' not in content:
-            content = content.replace(
-                '''private Q_SLOTS:
-\tvoid onDockAreasAddedOrRemoved();
-\tvoid onDockAreaCurrentChanged(int Index);
-''',
-                '''private Q_SLOTS:
-\tvoid onDockAreasAddedOrRemoved();
-\tvoid onDockAreaCurrentChanged(int Index);
-
-public Q_SLOTS:
-\tvoid dockDragMoved(const QVariantMap& state);
-\tvoid dockDragDropped(const QVariantMap& state);
-\tvoid dockDragCancelled(const QVariantMap& state);
-''')
-        if 'athenaTryStartKWinDockDrag' not in content:
-            content = content.replace(
-                '''private:
-\tFloatingDockContainerPrivate* d; ///< private data (pimpl)
-''',
-                '''private:
-\tFloatingDockContainerPrivate* d; ///< private data (pimpl)
-\tbool athenaTryStartKWinDockDrag(const QPoint& hotSpot);
-\tbool athenaKWinDockDragActive() const;
-\tvoid athenaFinishKWinDockDrag(const QVariantMap& state, bool dropped);
-''')
-        if content != original_content:
-            with open(header_path, 'w') as f:
-                f.write(content)
-            print(f"Patched {header_path}")
-        else:
-            print(f"No changes needed for {header_path}")
-    else:
-        print(f"File not found: {header_path}")
-
-    cpp_path = os.path.join(base_dir, 'src/FloatingDockContainer.cpp')
-    if not os.path.exists(cpp_path):
-        print(f"File not found: {cpp_path}")
-        return
-
-    with open(cpp_path, 'r') as f:
-        content = f.read()
-    original_content = content
-
-    if '#include <QDBusConnection>' not in content:
-        content = content.replace(
-            '#include <QScreen>\n',
-            '''#include <QScreen>
-#include <QDBusConnection>
-#include <QDBusInterface>
-#include <QDBusReply>
-#include <climits>
-''')
-
-    if 'athenaVariantMapToRect' not in content:
-        content = content.replace(
-            '#endif\n\n#ifdef Q_OS_WIN\n',
-            '''static QRect
-athenaVariantMapToRect(const QVariantMap& map)
-{
-    return QRect(
-        QPoint(qRound(map.value(QStringLiteral("x")).toDouble()),
-               qRound(map.value(QStringLiteral("y")).toDouble())),
-        QSize(qRound(map.value(QStringLiteral("width")).toDouble()),
-              qRound(map.value(QStringLiteral("height")).toDouble())));
-}
-
-static QPoint
-athenaVariantMapToPoint(const QVariantMap& map)
-{
-    return QPoint(qRound(map.value(QStringLiteral("x")).toDouble()),
-                  qRound(map.value(QStringLiteral("y")).toDouble()));
-}
-
-static bool
-athenaKWinDockingAvailable()
-{
-    static int cachedAvailable = -1;
-    if (cachedAvailable >= 0)
-    {
-        return cachedAvailable == 1;
-    }
-
-    if (QApplication::platformName() != QStringLiteral("wayland"))
-    {
-        cachedAvailable = 0;
-        return false;
-    }
-
-    QDBusInterface kwin(QStringLiteral("org.kde.KWin"),
-                        QStringLiteral("/KWin"),
-                        QStringLiteral("org.kde.KWin"),
-                        QDBusConnection::sessionBus());
-    if (!kwin.isValid())
-    {
-        cachedAvailable = 0;
-        return false;
-    }
-
-    QDBusReply<QString> ping = kwin.call(QStringLiteral("athenaPing"));
-    cachedAvailable = ping.isValid() &&
-                      ping.value().startsWith(QStringLiteral("ATHENA modified KWin")) ? 1 : 0;
-    return cachedAvailable == 1;
-}
-
-static QString
-athenaFindKWinWindowId(QWidget* widget)
-{
-    if (widget == nullptr)
-    {
-        return QString();
-    }
-
-    QDBusInterface kwin(QStringLiteral("org.kde.KWin"),
-                        QStringLiteral("/KWin"),
-                        QStringLiteral("org.kde.KWin"),
-                        QDBusConnection::sessionBus());
-    QDBusReply<QVariantList> reply = kwin.call(QStringLiteral("athenaListWindows"));
-    if (!reply.isValid())
-    {
-        return QString();
-    }
-
-    const QString title = widget->windowTitle();
-    const QRect frame = widget->frameGeometry();
-    const QPoint frameCenter = frame.center();
-    QString bestId;
-    int bestScore = INT_MAX;
-
-    const QVariantList windows = reply.value();
-    for (const QVariant& item : windows)
-    {
-        const QVariantMap window = item.toMap();
-        const QString id = window.value(QStringLiteral("windowId")).toString();
-        if (id.isEmpty())
-        {
-            continue;
-        }
-
-        const QString caption = window.value(QStringLiteral("caption")).toString();
-        const QRect candidateFrame = athenaVariantMapToRect(
-            window.value(QStringLiteral("frameGeometry")).toMap());
-        if (!title.isEmpty() && !caption.isEmpty() && caption != title)
-        {
-            const QPoint cursor = QCursor::pos();
-            if (!candidateFrame.contains(cursor))
-            {
-                continue;
-            }
-        }
-
-        const QPoint delta = candidateFrame.center() - frameCenter;
-        int score = qAbs(delta.x()) + qAbs(delta.y())
-                  + qAbs(candidateFrame.width() - frame.width())
-                  + qAbs(candidateFrame.height() - frame.height());
-        if (caption == title)
-        {
-            score -= 100000;
-        }
-        if (candidateFrame.contains(QCursor::pos()))
-        {
-            score -= 10000;
-        }
-        if (score < bestScore)
-        {
-            bestScore = score;
-            bestId = id;
-        }
-    }
-
-    return bestId;
-}
-#endif
-
-#ifdef Q_OS_WIN
-''')
-    content = content.replace(
-        'if (qgetenv("XDG_SESSION_TYPE").toLower() != "wayland")',
-        'if (QApplication::platformName() != QStringLiteral("wayland"))')
-    content = content.replace(
-        '''athenaKWinDockingAvailable()
-{
-    if (QApplication::platformName() != QStringLiteral("wayland"))
-    {
-        return false;
-    }
-''',
-        '''athenaKWinDockingAvailable()
-{
-    static int cachedAvailable = -1;
-    if (cachedAvailable >= 0)
-    {
-        return cachedAvailable == 1;
-    }
-
-    if (QApplication::platformName() != QStringLiteral("wayland"))
-    {
-        cachedAvailable = 0;
-        return false;
-    }
-''')
-    content = content.replace(
-        '''    if (!kwin.isValid())
-    {
-        return false;
-    }
-
-    QDBusReply<QString> ping = kwin.call(QStringLiteral("athenaPing"));
-    return ping.isValid() && ping.value().startsWith(QStringLiteral("ATHENA modified KWin"));
-}
-''',
-        '''    if (!kwin.isValid())
-    {
-        cachedAvailable = 0;
-        return false;
-    }
-
-    QDBusReply<QString> ping = kwin.call(QStringLiteral("athenaPing"));
-    cachedAvailable = ping.isValid() &&
-                      ping.value().startsWith(QStringLiteral("ATHENA modified KWin")) ? 1 : 0;
-    return cachedAvailable == 1;
-}
-''')
-
-    if 'QString AthenaKWinDockDragId' not in content:
-        new_content = content.replace(
-            '''\tbool IsResizing = false;
-    bool MousePressed = false;
-#endif
-''',
-            '''\tbool IsResizing = false;
-    bool MousePressed = false;
-    QString AthenaKWinDockDragId;
-    QString AthenaKWinDockCallbackPath;
-#endif
-''')
-        if new_content == content:
-            new_content = content.replace(
-                '''    bool IsResizing = false;
-    bool MousePressed = false;
-#endif
-''',
-                '''    bool IsResizing = false;
-    bool MousePressed = false;
-    QString AthenaKWinDockDragId;
-    QString AthenaKWinDockCallbackPath;
-#endif
-''')
-        content = new_content
-
-    if 'athenaTryStartKWinDockDrag' not in content:
-        content = content.replace(
-            '''void CFloatingDockContainer::startFloating(const QPoint &DragStartMousePos,
-    const QSize &Size, eDragState DragState, QWidget *MouseEventHandler)
-''',
-            '''bool CFloatingDockContainer::athenaKWinDockDragActive() const
-{
-#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
-    return !d->AthenaKWinDockDragId.isEmpty();
-#else
-    return false;
-#endif
-}
-
-bool CFloatingDockContainer::athenaTryStartKWinDockDrag(const QPoint& hotSpot)
-{
-#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
-    if (!athenaKWinDockingAvailable())
-    {
-        return false;
-    }
-
-    const QString windowId = athenaFindKWinWindowId(this);
-    if (windowId.isEmpty())
-    {
-        return false;
-    }
-
-    const QString objectPath = QStringLiteral("/org/athena/ADS/FloatingDockContainer/%1")
-        .arg(reinterpret_cast<quintptr>(this), 0, 16);
-    QDBusConnection bus = QDBusConnection::sessionBus();
-    bus.unregisterObject(objectPath);
-    if (!bus.registerObject(objectPath, this, QDBusConnection::ExportAllSlots))
-    {
-        return false;
-    }
-
-    QDBusInterface kwin(QStringLiteral("org.kde.KWin"),
-                        QStringLiteral("/KWin"),
-                        QStringLiteral("org.kde.KWin"),
-                        bus);
-    QDBusReply<QString> reply = kwin.call(QStringLiteral("athenaBeginDockDrag"),
-                                          windowId,
-                                          objectPath,
-                                          hotSpot.x(),
-                                          hotSpot.y());
-    if (!reply.isValid() || reply.value().isEmpty())
-    {
-        bus.unregisterObject(objectPath);
-        return false;
-    }
-
-    d->AthenaKWinDockDragId = reply.value();
-    d->AthenaKWinDockCallbackPath = objectPath;
-    return true;
-#else
-    Q_UNUSED(hotSpot)
-    return false;
-#endif
-}
-
-void CFloatingDockContainer::athenaFinishKWinDockDrag(const QVariantMap& state, bool dropped)
-{
-#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
-    const QString dragId = state.value(QStringLiteral("dragId")).toString();
-    if (d->AthenaKWinDockDragId.isEmpty() || dragId != d->AthenaKWinDockDragId)
-    {
-        return;
-    }
-
-    const QPoint globalPos = athenaVariantMapToPoint(
-        state.value(QStringLiteral("pointerGlobal")).toMap());
-    if (!globalPos.isNull())
-    {
-        d->updateDropOverlays(globalPos);
-    }
-
-    const QString objectPath = d->AthenaKWinDockCallbackPath;
-    d->AthenaKWinDockDragId.clear();
-    d->AthenaKWinDockCallbackPath.clear();
-    if (!objectPath.isEmpty())
-    {
-        QDBusConnection::sessionBus().unregisterObject(objectPath);
-    }
-
-    if (dropped)
-    {
-        d->titleMouseReleaseEvent();
-    }
-    else
-    {
-        d->handleEscapeKey();
-    }
-#else
-    Q_UNUSED(state)
-    Q_UNUSED(dropped)
-#endif
-}
-
-void CFloatingDockContainer::dockDragMoved(const QVariantMap& state)
-{
-#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
-    if (state.value(QStringLiteral("dragId")).toString() != d->AthenaKWinDockDragId)
-    {
-        return;
-    }
-    const QPoint globalPos = athenaVariantMapToPoint(
-        state.value(QStringLiteral("pointerGlobal")).toMap());
-    if (!globalPos.isNull())
-    {
-        d->updateDropOverlays(globalPos);
-    }
-#else
-    Q_UNUSED(state)
-#endif
-}
-
-void CFloatingDockContainer::dockDragDropped(const QVariantMap& state)
-{
-    athenaFinishKWinDockDrag(state, true);
-}
-
-void CFloatingDockContainer::dockDragCancelled(const QVariantMap& state)
-{
-    athenaFinishKWinDockDrag(state, false);
-}
-
-void CFloatingDockContainer::startFloating(const QPoint &DragStartMousePos,
-    const QSize &Size, eDragState DragState, QWidget *MouseEventHandler)
-''')
-
-    content = content.replace(
-        '''\td->setState(DragState);
-\tif (DraggingFloatingWidget == DragState)
-\t{
-\t\td->MouseEventHandler = MouseEventHandler;
-\t\tif (d->MouseEventHandler)
-\t\t{
-\t\t\td->MouseEventHandler->grabMouse();
-\t\t}
-\t}
-
-\tif (!isMaximized())
-\t{
-\t\tmoveFloating();
-\t}
-\tshow();
-''',
-        '''\td->setState(DragState);
-\tif (DraggingFloatingWidget == DragState)
-\t{
-\t\tshow();
-\t\tif (athenaTryStartKWinDockDrag(DragStartMousePos))
-\t\t{
-\t\t\treturn;
-\t\t}
-\t\td->MouseEventHandler = MouseEventHandler;
-\t\tif (d->MouseEventHandler)
-\t\t{
-\t\t\td->MouseEventHandler->grabMouse();
-\t\t}
-\t}
-
-\tif (!isMaximized())
-\t{
-\t\tmoveFloating();
-\t}
-\tshow();
-''')
-
-    content = content.replace(
-        '''void CFloatingDockContainer::moveFloating()
-{
-\tint BorderSize = (frameSize().width() - size().width()) / 2;
-''',
-        '''void CFloatingDockContainer::moveFloating()
-{
-\tif (athenaKWinDockDragActive())
-\t{
-\t\treturn;
-\t}
-\tint BorderSize = (frameSize().width() - size().width()) / 2;
-''')
-
-    content = content.replace(
-        '''void CFloatingDockContainer::finishDragging()
-{
-\tADS_PRINT("CFloatingDockContainer::finishDragging");
-#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
-\tsetWindowOpacity(1);
-\tactivateWindow();
-\tif (d->MouseEventHandler)
-\t{
-\t   d->MouseEventHandler->releaseMouse();
-\t   d->MouseEventHandler = nullptr;
-\t}
-#endif
-\td->titleMouseReleaseEvent();
-#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
-\tathenaSnapFloatingContainerToScreenEdge(this);
-#endif
-}
-''',
-        '''void CFloatingDockContainer::finishDragging()
-{
-\tADS_PRINT("CFloatingDockContainer::finishDragging");
-#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
-\tsetWindowOpacity(1);
-\tactivateWindow();
-\tif (d->MouseEventHandler)
-\t{
-\t   d->MouseEventHandler->releaseMouse();
-\t   d->MouseEventHandler = nullptr;
-\t}
-\tif (athenaKWinDockDragActive())
-\t{
-\t\treturn;
-\t}
-#endif
-\td->titleMouseReleaseEvent();
-#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
-\tathenaSnapFloatingContainerToScreenEdge(this);
-#endif
-}
-''')
-
-    if content != original_content:
-        with open(cpp_path, 'w') as f:
-            f.write(content)
-        print(f"Patched {cpp_path}")
-    else:
-        print(f"No changes needed for {cpp_path}")
 
 # If run from CMake, the first argument is the source directory and the second
 # one is the Qt major version used for this build.
@@ -704,5 +1227,5 @@ else:
     print("Skipping ADS HiDPI size inflation for Qt6")
 
 patch_ads_floating_windows(base_dir)
+patch_ads_initial_wayland_drag(base_dir)
 patch_ads_qt6_private_gui(base_dir)
-patch_ads_kwin_wayland_docking(base_dir)

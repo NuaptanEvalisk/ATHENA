@@ -96,11 +96,11 @@
        (switch-to-window win)))))
 
 (menu-bind workspace-menu
-  ("New window" (load-buffer "tmfs://welcome/home" :new-window))
+  ("New window" (new-document*))
   ("New floating window" 
     (begin
       (ads-prepare-floating)
-      (load-buffer "tmfs://welcome/home" :new-window))))
+      (new-document*))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; The TeXmacs popup menus

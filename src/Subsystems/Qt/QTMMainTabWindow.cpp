@@ -20,6 +20,7 @@
 #include <QTabBar>
 #include <QApplication>
 #include <QMdiSubWindow>
+#include <QByteArray>
 #include <QCloseEvent>
 #include <QToolButton>
 #include <QDir>
@@ -60,6 +61,17 @@ isPersistentAdsPane (const QString& name) {
          name == "athena-global-search" ||
          name == "athena-vault-backup-viewer" ||
          name == "athena-error-messages";
+}
+
+static QByteArray
+adsStateForInspection (const QByteArray& state) {
+  QByteArray uncompressed= qUncompress (state);
+  return uncompressed.isEmpty()? state: uncompressed;
+}
+
+static bool
+adsStateMentionsDocumentDocks (const QByteArray& state) {
+  return adsStateForInspection (state).contains ("athena-document-");
 }
 
 bool isMovingTab = false;
@@ -120,12 +132,22 @@ QTMMainTabWindow::QTMMainTabWindow() {
   mMdiArea = new QMdiArea(mStackedWidget);
   mMdiArea->setViewMode (QMdiArea::SubWindowView);
 
-  // ATHENA is primarily developed on KDE/KWin. Native floating ADS windows
-  // participate in KWin edge snapping, but KWin does not deliver the live move
-  // events ADS needs for redocking. Keep the ADS title bar and emulate side
-  // snapping in the ADS drag path instead.
-  ads::CDockManager::setConfigFlag (
-    ads::CDockManager::FloatingContainerForceQWidgetTitleBar, true);
+#if QT_VERSION >= 0x060000
+  if (QApplication::platformName().startsWith(QStringLiteral("wayland"))) {
+    // Keep Wayland floating docks as normal desktop windows. Redocking is
+    // started from app-owned ADS tabs/title bars via xdg-toplevel-drag, not
+    // from the compositor title bar itself.
+    ads::CDockManager::setConfigFlag (
+      ads::CDockManager::FloatingContainerForceNativeTitleBar, true);
+  }
+  else
+#endif
+  {
+    // Preserve the existing ADS mouse-grab drag path on Qt5, XCB, XWayland,
+    // and other non-native-Wayland platforms.
+    ads::CDockManager::setConfigFlag (
+      ads::CDockManager::FloatingContainerForceQWidgetTitleBar, true);
+  }
   mDockManager = new ads::CDockManager(mStackedWidget);
   connect(mDockManager, &ads::CDockManager::focusedDockWidgetChanged,
           this, [this](ads::CDockWidget*, ads::CDockWidget* now) {
@@ -292,19 +314,25 @@ void QTMMainTabWindow::saveAdsLayoutState() {
     return;
   }
 
-  QSaveFile file (path);
-  if (!file.open (QIODevice::WriteOnly)) {
-    std_warning << "could not save ADS layout state to "
-                << from_qstring (path) << ": "
-                << from_qstring (file.errorString()) << LF;
-    return;
+  QByteArray state= mDockManager->saveState (ATHENA_ADS_LAYOUT_VERSION);
+  if (adsStateMentionsDocumentDocks (state)) {
+    QFile::remove (path);
   }
+  else {
+    QSaveFile file (path);
+    if (!file.open (QIODevice::WriteOnly)) {
+      std_warning << "could not save ADS layout state to "
+                  << from_qstring (path) << ": "
+                  << from_qstring (file.errorString()) << LF;
+      return;
+    }
 
-  file.write (mDockManager->saveState (ATHENA_ADS_LAYOUT_VERSION));
-  if (!file.commit()) {
-    std_warning << "could not commit ADS layout state to "
-                << from_qstring (path) << ": "
-                << from_qstring (file.errorString()) << LF;
+    file.write (state);
+    if (!file.commit()) {
+      std_warning << "could not commit ADS layout state to "
+                  << from_qstring (path) << ": "
+                  << from_qstring (file.errorString()) << LF;
+    }
   }
 
   QString panesPath= adsVisiblePanesStatePath();
@@ -350,6 +378,13 @@ void QTMMainTabWindow::restoreAdsLayoutState() {
   }
 
   QByteArray state= file.readAll();
+  if (adsStateMentionsDocumentDocks (state)) {
+    file.close();
+    QFile::remove (path);
+    std_warning << "ignored ADS layout state containing document docks: "
+                << from_qstring (path) << LF;
+    return;
+  }
   if (!state.isEmpty() &&
       !mDockManager->restoreState (state, ATHENA_ADS_LAYOUT_VERSION)) {
     std_warning << "ignored incompatible ADS layout state: "
@@ -411,7 +446,8 @@ bool QTMMainTabWindow::eventFilterWindow(QObject *obj, QEvent *event) {
     onWindowActivated();
   }
 
-  if (event->type() == QEvent::MouseButtonPress && !tmapp()->useMdi()) {
+  if (event->type() == QEvent::MouseButtonPress &&
+      !tmapp()->useAds() && !tmapp()->useMdi()) {
     if (DEBUG_QT_WIDGETS) cout << "TabWindow: MouseButtonPress" << LF;
     QMouseEvent *mouseEvent = static_cast<QMouseEvent *>(event);
     int x = mouseEvent->position().toPoint().x();

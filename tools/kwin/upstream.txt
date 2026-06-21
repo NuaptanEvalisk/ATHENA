@@ -1,8 +1,0 @@
-KWin upstream: https://invent.kde.org/plasma/kwin.git
-Target tag: v6.6.5
-Tag object: 1b035282ff05101a3441113648a93f57fe0351c1
-Target commit: b04d59c03749484a8a0ed5a8d4cda515a267c59b
-
-ATHENA keeps only patches and build helpers in this repository. Clone KWin into
-an external workspace before applying ATHENA patches.
-
