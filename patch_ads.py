@@ -363,6 +363,62 @@ def patch_ads_initial_wayland_drag(base_dir):
         print(f"File not found: {title_path}")
 
 
+def patch_ads_wayland_single_floating_tabbar(base_dir):
+    path = os.path.join(base_dir, 'src/DockAreaWidget.cpp')
+    if not os.path.exists(path):
+        print(f"File not found: {path}")
+        return
+
+    with open(path, 'r') as f:
+        content = f.read()
+
+    original_content = content
+    if '#include <QApplication>' not in content:
+        content = content.replace('#include <QList>\n',
+                                  '#include <QList>\n#include <QApplication>\n',
+                                  1)
+
+    helper = '''#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+static bool
+athenaUseWaylandSingleFloatingTabBar()
+{
+\treturn QApplication::platformName().startsWith(QStringLiteral("wayland"));
+}
+#endif
+
+'''
+    if 'athenaUseWaylandSingleFloatingTabBar' not in content:
+        content = content.replace('namespace ads\n{\n',
+                                  'namespace ads\n{\n' + helper,
+                                  1)
+
+    content = content.replace(
+        '''\t\tbool Hidden = Container->hasTopLevelDockWidget() && (Container->isFloating()
+\t\t\t|| CDockManager::testConfigFlag(CDockManager::HideSingleCentralWidgetTitleBar));
+\t\tHidden |= (d->Flags.testFlag(HideSingleWidgetTitleBar) && openDockWidgetsCount() == 1);
+\t\tHidden &= !IsAutoHide; // Titlebar must always be visible when auto hidden so it can be dragged
+\t\td->TitleBar->setVisible(!Hidden);
+''',
+        '''\t\tbool ForceWaylandFloatingTitleBar = false;
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+\t\tForceWaylandFloatingTitleBar =
+\t\t\tContainer->isFloating() && athenaUseWaylandSingleFloatingTabBar();
+#endif
+\t\tbool Hidden = Container->hasTopLevelDockWidget() && (Container->isFloating()
+\t\t\t|| CDockManager::testConfigFlag(CDockManager::HideSingleCentralWidgetTitleBar));
+\t\tHidden |= (d->Flags.testFlag(HideSingleWidgetTitleBar) && openDockWidgetsCount() == 1);
+\t\tif (ForceWaylandFloatingTitleBar)
+\t\t{
+\t\t\tHidden = false;
+\t\t}
+\t\tHidden &= !IsAutoHide; // Titlebar must always be visible when auto hidden so it can be dragged
+\t\td->TitleBar->setVisible(!Hidden);
+''',
+        1)
+
+    write_if_changed(path, content, original_content)
+
+
 def patch_ads_floating_windows(base_dir):
     # ATHENA keeps floating docks as normal desktop windows. Redocking on native
     # Wayland is driven by app-owned ADS tab/title-bar drags through Qt's
@@ -405,6 +461,9 @@ def patch_ads_floating_windows(base_dir):
             content = content.replace('#include <QScreen>\n',
                                       '#include <QScreen>\n' + include + '\n',
                                       1)
+
+    content = content.replace('CDockContainerWidget *DropContainer = nullptr;',
+                              'QPointer<CDockContainerWidget> DropContainer;')
 
     if 'athenaSnapFloatingContainerToScreenEdge' not in content:
         content = content.replace(
@@ -802,6 +861,21 @@ athenaRememberDropTarget(QWidget* widget)
 }
 
 static void
+athenaRememberDropTargetTree(QWidget* widget)
+{
+\tif (widget == nullptr)
+\t{
+\t\treturn;
+\t}
+\tathenaRememberDropTarget(widget);
+\tconst auto children = widget->findChildren<QWidget*>();
+\tfor (QWidget* child : children)
+\t{
+\t\tathenaRememberDropTarget(child);
+\t}
+}
+
+static void
 athenaPrepareWaylandDockDropTargets(CDockManager* dockManager,
                                     CFloatingDockContainer* activeFloatingContainer)
 {
@@ -815,8 +889,8 @@ athenaPrepareWaylandDockDropTargets(CDockManager* dockManager,
 \t\t\t{
 \t\t\t\tcontinue;
 \t\t\t}
-\t\t\tathenaRememberDropTarget(container);
-\t\t\tathenaRememberDropTarget(container->window());
+\t\t\tathenaRememberDropTargetTree(container);
+\t\t\tathenaRememberDropTargetTree(container->window());
 \t\t}
 \t}
 }
@@ -1127,19 +1201,38 @@ bool CFloatingDockContainer::athenaFinishWaylandDockDrag(bool dropped)
 \t}
 
 \tconst bool shouldDock = dropped && athenaHasWaylandDockTarget();
-\tif (shouldDock)
-\t{
-\t\td->titleMouseReleaseEvent();
-\t}
-\telse
-\t{
-\t\td->setState(DraggingInactive);
-\t\tathenaHideWaylandDockOverlays();
-\t}
+\tQPointer<CDockManager> dockManager = d->DockManager;
+\tQPointer<CDockContainerWidget> dropContainer = d->DropContainer;
+\tconst QPoint dropPos = QCursor::pos();
+\td->setState(DraggingInactive);
 \tif (AthenaActiveWaylandDockDrag == this)
 \t{
 \t\tAthenaActiveWaylandDockDrag.clear();
 \t}
+\tif (shouldDock)
+\t{
+\t\tif (!dropContainer)
+\t\t{
+\t\t\tif (dockManager)
+\t\t\t{
+\t\t\t\tdockManager->containerOverlay()->hideOverlay();
+\t\t\t\tdockManager->dockAreaOverlay()->hideOverlay();
+\t\t\t}
+\t\t\td->DropContainer = nullptr;
+\t\t\treturn false;
+\t\t}
+\t\tdropContainer->dropFloatingWidget(this, dropPos);
+\t}
+\telse
+\t{
+\t\tathenaHideWaylandDockOverlays();
+\t}
+\tif (dockManager)
+\t{
+\t\tdockManager->containerOverlay()->hideOverlay();
+\t\tdockManager->dockAreaOverlay()->hideOverlay();
+\t}
+\td->DropContainer = nullptr;
 \treturn shouldDock;
 #else
 \tQ_UNUSED(dropped)
@@ -1290,5 +1383,6 @@ else:
 
 patch_ads_floating_windows(base_dir)
 patch_ads_initial_wayland_drag(base_dir)
+patch_ads_wayland_single_floating_tabbar(base_dir)
 patch_ads_wayland_focus_hiding(base_dir)
 patch_ads_qt6_private_gui(base_dir)
