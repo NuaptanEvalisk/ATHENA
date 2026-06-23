@@ -419,6 +419,165 @@ athenaUseWaylandSingleFloatingTabBar()
     write_if_changed(path, content, original_content)
 
 
+def patch_ads_wayland_overlay_position(base_dir):
+    path = os.path.join(base_dir, 'src/DockOverlay.cpp')
+    if not os.path.exists(path):
+        print(f"File not found: {path}")
+        return
+
+    with open(path, 'r') as f:
+        content = f.read()
+
+    original_content = content
+    helper = '''static const int InvalidTabIndex = -2;
+
+static bool AthenaWaylandDockOverlayPositionActive = false;
+static QPoint AthenaWaylandDockOverlayPosition;
+
+void athenaSetWaylandDockOverlayCursorPosition(const QPoint& globalPos)
+{
+\tAthenaWaylandDockOverlayPosition = globalPos;
+\tAthenaWaylandDockOverlayPositionActive = true;
+}
+
+void athenaClearWaylandDockOverlayCursorPosition()
+{
+\tAthenaWaylandDockOverlayPositionActive = false;
+}
+
+static QPoint athenaDockOverlayCursorPosition()
+{
+\treturn AthenaWaylandDockOverlayPositionActive
+\t\t? AthenaWaylandDockOverlayPosition
+\t\t: QCursor::pos();
+}
+'''
+    if 'athenaSetWaylandDockOverlayCursorPosition' not in content:
+        content = content.replace('static const int InvalidTabIndex = -2;\n',
+                                  helper,
+                                  1)
+
+    edge_helper = '''static DockWidgetArea
+athenaWaylandContainerEdgeArea(const DockOverlayPrivate* overlay)
+{
+\tif (!AthenaWaylandDockOverlayPositionActive
+\t    || overlay == nullptr
+\t    || overlay->Mode != CDockOverlay::ModeContainerOverlay)
+\t{
+\t\treturn InvalidDockWidgetArea;
+\t}
+
+\tQWidget* target = overlay->TargetWidget.data();
+\tauto* container = qobject_cast<CDockContainerWidget*>(target);
+\tif (target == nullptr || container == nullptr || container->isFloating())
+\t{
+\t\treturn InvalidDockWidgetArea;
+\t}
+
+\tconst QRect rect = target->rect();
+\tconst QPoint pos = target->mapFromGlobal(athenaDockOverlayCursorPosition());
+\tif (!rect.contains(pos))
+\t{
+\t\treturn InvalidDockWidgetArea;
+\t}
+
+\tconst int marginX = qMin(qMax(rect.width() / 8, 48), 160);
+\tconst int marginY = qMin(qMax(rect.height() / 8, 48), 160);
+\tDockWidgetArea bestArea = InvalidDockWidgetArea;
+\tint bestDistance = 1 << 30;
+\tauto consider = [&](DockWidgetArea area, int distance, int margin) {
+\t\tif (distance <= margin
+\t\t    && distance < bestDistance
+\t\t    && overlay->AllowedAreas.testFlag(area))
+\t\t{
+\t\t\tbestArea = area;
+\t\t\tbestDistance = distance;
+\t\t}
+\t};
+
+\tconsider(LeftDockWidgetArea, pos.x() - rect.left(), marginX);
+\tconsider(RightDockWidgetArea, rect.right() - pos.x(), marginX);
+\tconsider(TopDockWidgetArea, pos.y() - rect.top(), marginY);
+\tconsider(BottomDockWidgetArea, rect.bottom() - pos.y(), marginY);
+\treturn bestArea;
+}
+
+'''
+    if 'static DockWidgetArea\nathenaWaylandContainerEdgeArea' not in content:
+        content = content.replace('};\n\n\t/**\n\t * Private data of CDockOverlayCross class',
+                                  '};\n\n' + edge_helper
+                                  + '\t/**\n\t * Private data of CDockOverlayCross class',
+                                  1)
+        content = content.replace('};\n\n/**\n * Private data of CDockOverlayCross class',
+                                  '};\n\n' + edge_helper
+                                  + '/**\n * Private data of CDockOverlayCross class',
+                                  1)
+    content = content.replace(
+        '''\tQWidget* target = overlay->TargetWidget.data();
+\tif (target == nullptr || qobject_cast<CDockContainerWidget*>(target) == nullptr)
+\t{
+\t\treturn InvalidDockWidgetArea;
+\t}
+''',
+        '''\tQWidget* target = overlay->TargetWidget.data();
+\tauto* container = qobject_cast<CDockContainerWidget*>(target);
+\tif (target == nullptr || container == nullptr || container->isFloating())
+\t{
+\t\treturn InvalidDockWidgetArea;
+\t}
+''')
+
+    content = content.replace('auto CursorPos = QCursor::pos();',
+                              'auto CursorPos = athenaDockOverlayCursorPosition();')
+    content = content.replace('const QPoint pos = mapFromGlobal(QCursor::pos());',
+                              'const QPoint pos = mapFromGlobal(athenaDockOverlayCursorPosition());')
+
+    if 'Result = athenaWaylandContainerEdgeArea(d);' not in content:
+        content = content.replace(
+            '''\tif (Result != InvalidDockWidgetArea)
+\t{
+\t\treturn Result;
+\t}
+
+\tauto CursorPos = athenaDockOverlayCursorPosition();
+''',
+            '''\tif (Result != InvalidDockWidgetArea)
+\t{
+\t\treturn Result;
+\t}
+
+\tResult = athenaWaylandContainerEdgeArea(d);
+\tif (Result != InvalidDockWidgetArea)
+\t{
+\t\treturn Result;
+\t}
+
+\tauto CursorPos = athenaDockOverlayCursorPosition();
+''',
+            1)
+    content = content.replace(
+        '''\tResult = athenaWaylandContainerEdgeArea(d);
+\tif (Result != InvalidDockWidgetArea)
+\t{
+\t\treturn Result;
+\t}
+
+\tResult = athenaWaylandContainerEdgeArea(d);
+\tif (Result != InvalidDockWidgetArea)
+\t{
+\t\treturn Result;
+\t}
+''',
+        '''\tResult = athenaWaylandContainerEdgeArea(d);
+\tif (Result != InvalidDockWidgetArea)
+\t{
+\t\treturn Result;
+\t}
+''')
+
+    write_if_changed(path, content, original_content)
+
+
 def patch_ads_floating_windows(base_dir):
     # ATHENA keeps floating docks as normal desktop windows. Redocking on native
     # Wayland is driven by app-owned ADS tab/title-bar drags through Qt's
@@ -463,7 +622,40 @@ def patch_ads_floating_windows(base_dir):
                                       1)
 
     content = content.replace('CDockContainerWidget *DropContainer = nullptr;',
-                              'QPointer<CDockContainerWidget> DropContainer;')
+                              'QPointer<CDockContainerWidget> DropContainer;\n'
+                              '\t\tQPoint AthenaWaylandLastGlobalPos;\n'
+                              '\t\tbool AthenaWaylandHasLastGlobalPos = false;')
+    content = content.replace('QPointer<CDockContainerWidget> DropContainer;\n\t\tCDockAreaWidget *SingleDockArea',
+                              'QPointer<CDockContainerWidget> DropContainer;\n'
+                              '\t\tQPoint AthenaWaylandLastGlobalPos;\n'
+                              '\t\tbool AthenaWaylandHasLastGlobalPos = false;\n'
+                              '\t\tCDockAreaWidget *SingleDockArea')
+    content = content.replace('QPointer<CDockContainerWidget> DropContainer;\n\tCDockAreaWidget *SingleDockArea',
+                              'QPointer<CDockContainerWidget> DropContainer;\n'
+                              '\tQPoint AthenaWaylandLastGlobalPos;\n'
+                              '\tbool AthenaWaylandHasLastGlobalPos = false;\n'
+                              '\tCDockAreaWidget *SingleDockArea')
+    content = content.replace(
+        '''\t\tif (DockContainer == ContainerWidget)
+\t\t{
+\t\t\tcontinue;
+\t\t}
+
+\t\tQPoint MappedPos = ContainerWidget->mapFromGlobal(GlobalPos);
+''',
+        '''\t\tif (DockContainer == ContainerWidget)
+\t\t{
+\t\t\tcontinue;
+\t\t}
+
+\t\tif (athenaIsNativeWaylandPlatform() && ContainerWidget->isFloating())
+\t\t{
+\t\t\tcontinue;
+\t\t}
+
+\t\tQPoint MappedPos = ContainerWidget->mapFromGlobal(GlobalPos);
+''',
+        1)
 
     if 'athenaSnapFloatingContainerToScreenEdge' not in content:
         content = content.replace(
@@ -701,6 +893,9 @@ static const char* const AthenaQtMainWindowDragPositionMime = "application/x-qt-
 
 static QPointer<CFloatingDockContainer> AthenaActiveWaylandDockDrag;
 
+void athenaSetWaylandDockOverlayCursorPosition(const QPoint& globalPos);
+void athenaClearWaylandDockOverlayCursorPosition();
+
 struct AthenaDropTargetState
 {
 \tQPointer<QWidget> Widget;
@@ -743,6 +938,19 @@ athenaAdsGiantLog(const std::string& line)
 \tout << line << std::endl;
 }
 
+static void
+athenaAdsDockLog(const std::string& line, bool reset = false)
+{
+\tstd::ofstream out;
+\tout.open("/tmp/athena-ads-wayland-dock.log",
+\t         reset ? std::ios::out : (std::ios::out | std::ios::app));
+\tout << line << std::endl;
+\tif (athenaAdsWaylandDebugEnabled())
+\t{
+\t\tstd::cerr << line << std::endl;
+\t}
+}
+
 static std::string
 athenaAdsSizeText(const QSize& size)
 {
@@ -754,6 +962,38 @@ athenaAdsRectText(const QRect& rect)
 {
 \treturn std::to_string(rect.x()) + "," + std::to_string(rect.y())
 \t     + " " + std::to_string(rect.width()) + "x" + std::to_string(rect.height());
+}
+
+static const char*
+athenaDockAreaName(DockWidgetArea area)
+{
+\tswitch (area)
+\t{
+\tcase TopDockWidgetArea: return "Top";
+\tcase RightDockWidgetArea: return "Right";
+\tcase BottomDockWidgetArea: return "Bottom";
+\tcase LeftDockWidgetArea: return "Left";
+\tcase CenterDockWidgetArea: return "Center";
+\tcase LeftAutoHideArea: return "LeftAutoHide";
+\tcase RightAutoHideArea: return "RightAutoHide";
+\tcase TopAutoHideArea: return "TopAutoHide";
+\tcase BottomAutoHideArea: return "BottomAutoHide";
+\tcase InvalidDockWidgetArea: return "Invalid";
+\tdefault: return "Other";
+\t}
+}
+
+static const char*
+athenaEventTypeName(QEvent::Type type)
+{
+\tswitch (type)
+\t{
+\tcase QEvent::DragEnter: return "DragEnter";
+\tcase QEvent::DragMove: return "DragMove";
+\tcase QEvent::DragLeave: return "DragLeave";
+\tcase QEvent::Drop: return "Drop";
+\tdefault: return "Other";
+\t}
 }
 
 static void
@@ -925,19 +1165,83 @@ athenaDockDragMimeData(QEvent* event)
 }
 
 static QPoint
-athenaDockDragGlobalPosition(QObject* target, QEvent* event)
+athenaDockDragEventPosition(QEvent* event)
 {
-\tQWidget* widget = qobject_cast<QWidget*>(target);
-\tif (widget == nullptr)
+\tswitch (event->type())
 \t{
+\tcase QEvent::DragEnter:
+\t\treturn static_cast<QDragEnterEvent*>(event)->position().toPoint();
+\tcase QEvent::DragMove:
+\t\treturn static_cast<QDragMoveEvent*>(event)->position().toPoint();
+\tcase QEvent::Drop:
+\t\treturn static_cast<QDropEvent*>(event)->position().toPoint();
+\tdefault:
 \t\treturn QCursor::pos();
 \t}
+}
 
-\tif (event->type() == QEvent::Drop)
+static QPoint
+athenaDockDragGlobalPosition(QObject* target, QEvent* event)
+{
+\tconst QPoint localPos = athenaDockDragEventPosition(event);
+\tconst QPoint cursorPos = QCursor::pos();
+\tQPoint globalPos = cursorPos;
+\tconst char* source = "cursor-fallback";
+
+\tif (QWidget* widget = qobject_cast<QWidget*>(target))
 \t{
-\t\treturn widget->mapToGlobal(static_cast<QDropEvent*>(event)->position().toPoint());
+\t\tglobalPos = widget->mapToGlobal(localPos);
+\t\tsource = "widget";
+\t\tstd::ostringstream line;
+\t\tline << "ATHENA_DOCK_POS"
+\t\t     << " event=" << athenaEventTypeName(event->type())
+\t\t     << " source=" << source
+\t\t     << " target=" << target
+\t\t     << " class=" << widget->metaObject()->className()
+\t\t     << " object=" << widget->objectName().toStdString()
+\t\t     << " local=" << localPos.x() << "," << localPos.y()
+\t\t     << " global=" << globalPos.x() << "," << globalPos.y()
+\t\t     << " cursor=" << cursorPos.x() << "," << cursorPos.y()
+\t\t     << " widgetGeom=" << athenaAdsRectText(widget->geometry())
+\t\t     << " widgetFrame=" << athenaAdsRectText(widget->frameGeometry())
+\t\t     << " windowGeom=" << athenaAdsRectText(widget->window()->geometry())
+\t\t     << " windowFrame=" << athenaAdsRectText(widget->window()->frameGeometry());
+\t\tathenaAdsDockLog(line.str());
+\t\treturn globalPos;
 \t}
-\treturn widget->mapToGlobal(static_cast<QDragMoveEvent*>(event)->position().toPoint());
+
+\tif (QWindow* window = qobject_cast<QWindow*>(target))
+\t{
+\t\tglobalPos = window->mapToGlobal(localPos);
+\t\tsource = "window";
+\t\tstd::ostringstream line;
+\t\tline << "ATHENA_DOCK_POS"
+\t\t     << " event=" << athenaEventTypeName(event->type())
+\t\t     << " source=" << source
+\t\t     << " target=" << target
+\t\t     << " class=" << window->metaObject()->className()
+\t\t     << " title=" << window->title().toStdString()
+\t\t     << " local=" << localPos.x() << "," << localPos.y()
+\t\t     << " global=" << globalPos.x() << "," << globalPos.y()
+\t\t     << " cursor=" << cursorPos.x() << "," << cursorPos.y()
+\t\t     << " winGeom=" << athenaAdsRectText(window->geometry())
+\t\t     << " winSize=" << athenaAdsSizeText(window->size())
+\t\t     << " dpr=" << window->devicePixelRatio();
+\t\tathenaAdsDockLog(line.str());
+\t\treturn globalPos;
+\t}
+
+\tstd::ostringstream line;
+\tline << "ATHENA_DOCK_POS"
+\t     << " event=" << athenaEventTypeName(event->type())
+\t     << " source=" << source
+\t     << " target=" << target
+\t     << " targetClass=" << (target == nullptr ? "" : target->metaObject()->className())
+\t     << " local=" << localPos.x() << "," << localPos.y()
+\t     << " global=" << globalPos.x() << "," << globalPos.y()
+\t     << " cursor=" << cursorPos.x() << "," << cursorPos.y();
+\tathenaAdsDockLog(line.str());
+\treturn globalPos;
 }
 
 class AthenaAdsWaylandDockDragFilter : public QObject
@@ -1000,6 +1304,16 @@ public:
 \t\t}
 
 \t\tconst QPoint globalPos = athenaDockDragGlobalPosition(target, event);
+\t\t{
+\t\t\tstd::ostringstream line;
+\t\t\tline << "ATHENA_DOCK_EVENT"
+\t\t\t     << " event=" << athenaEventTypeName(event->type())
+\t\t\t     << " target=" << target
+\t\t\t     << " targetClass=" << (target == nullptr ? "" : target->metaObject()->className())
+\t\t\t     << " global=" << globalPos.x() << "," << globalPos.y()
+\t\t\t     << " cursor=" << QCursor::pos().x() << "," << QCursor::pos().y();
+\t\t\tathenaAdsDockLog(line.str());
+\t\t}
 \t\tAthenaActiveWaylandDockDrag->athenaUpdateWaylandDockDrag(globalPos);
 
 \t\tswitch (event->type())
@@ -1077,6 +1391,16 @@ bool CFloatingDockContainer::athenaTryStartWaylandDockDrag(const QPoint& hotSpot
 \t\treturn false;
 \t}
 
+\t{
+\t\tstd::ostringstream line;
+\t\tline << "ATHENA_DOCK_START"
+\t\t     << " floating=" << this
+\t\t     << " sourceWidget=" << sourceWidget
+\t\t     << " hotSpot=" << hotSpot.x() << "," << hotSpot.y()
+\t\t     << " cursor=" << QCursor::pos().x() << "," << QCursor::pos().y();
+\t\tathenaAdsDockLog(line.str(), true);
+\t}
+
 \tathenaLogWindowSurface("try-start-entry", this);
 \tathenaLogWindowSurface("try-start-source-widget", sourceWidget);
 \tathenaLogTopLevelWindows("before-floating-show");
@@ -1146,6 +1470,8 @@ bool CFloatingDockContainer::athenaTryStartWaylandDockDrag(const QPoint& hotSpot
 
 \tAthenaActiveWaylandDockDrag = this;
 \td->AthenaWaylandDockDragStarted = true;
+\td->AthenaWaylandHasLastGlobalPos = false;
+\tathenaClearWaylandDockOverlayCursorPosition();
 \tathenaPrepareWaylandDockDropTargets(d->DockManager, this);
 \tqApp->installEventFilter(athenaWaylandDockDragFilter());
 \tathenaLogTopLevelWindows("before-qdrag-exec");
@@ -1158,6 +1484,7 @@ bool CFloatingDockContainer::athenaTryStartWaylandDockDrag(const QPoint& hotSpot
 \t}
 \tqApp->removeEventFilter(athenaWaylandDockDragFilter());
 \tathenaRestoreWaylandDockDropTargets();
+\tathenaClearWaylandDockOverlayCursorPosition();
 \treturn true;
 #else
 \tQ_UNUSED(hotSpot)
@@ -1171,7 +1498,37 @@ void CFloatingDockContainer::athenaUpdateWaylandDockDrag(const QPoint& globalPos
 #if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
 \tif (athenaWaylandDockDragActive())
 \t{
+\t\td->AthenaWaylandLastGlobalPos = globalPos;
+\t\td->AthenaWaylandHasLastGlobalPos = true;
+\t\tathenaSetWaylandDockOverlayCursorPosition(globalPos);
 \t\td->updateDropOverlays(globalPos);
+\t\tif (d->DockManager)
+\t\t{
+\t\t\tDockWidgetArea containerArea =
+\t\t\t\td->DockManager->containerOverlay()->dropAreaUnderCursor();
+\t\t\tDockWidgetArea dockArea =
+\t\t\t\td->DockManager->dockAreaOverlay()->dropAreaUnderCursor();
+\t\t\tQWidget* dropWidget = d->DropContainer;
+\t\t\tQPoint localPos = dropWidget == nullptr
+\t\t\t\t? QPoint()
+\t\t\t\t: dropWidget->mapFromGlobal(globalPos);
+\t\t\tstd::ostringstream line;
+\t\t\tline << "ATHENA_DOCK_OVERLAY"
+\t\t\t     << " global=" << globalPos.x() << "," << globalPos.y()
+\t\t\t     << " cursor=" << QCursor::pos().x() << "," << QCursor::pos().y()
+\t\t\t     << " dropContainer=" << dropWidget
+\t\t\t     << " dropClass=" << (dropWidget == nullptr ? "" : dropWidget->metaObject()->className())
+\t\t\t     << " dropObject=" << (dropWidget == nullptr ? std::string() : dropWidget->objectName().toStdString())
+\t\t\t     << " dropIsFloating=" << (d->DropContainer && d->DropContainer->isFloating())
+\t\t\t     << " dropGeom=" << athenaAdsRectText(dropWidget == nullptr ? QRect() : dropWidget->geometry())
+\t\t\t     << " dropFrame=" << athenaAdsRectText(dropWidget == nullptr ? QRect() : dropWidget->frameGeometry())
+\t\t\t     << " local=" << localPos.x() << "," << localPos.y()
+\t\t\t     << " containerArea=" << athenaDockAreaName(containerArea)
+\t\t\t     << "(" << int(containerArea) << ")"
+\t\t\t     << " dockArea=" << athenaDockAreaName(dockArea)
+\t\t\t     << "(" << int(dockArea) << ")";
+\t\t\tathenaAdsDockLog(line.str());
+\t\t}
 \t}
 #else
 \tQ_UNUSED(globalPos)
@@ -1200,10 +1557,38 @@ bool CFloatingDockContainer::athenaFinishWaylandDockDrag(bool dropped)
 \t\treturn false;
 \t}
 
+\tconst QPoint dropPos = d->AthenaWaylandHasLastGlobalPos
+\t\t? d->AthenaWaylandLastGlobalPos
+\t\t: QCursor::pos();
+\tathenaSetWaylandDockOverlayCursorPosition(dropPos);
 \tconst bool shouldDock = dropped && athenaHasWaylandDockTarget();
 \tQPointer<CDockManager> dockManager = d->DockManager;
 \tQPointer<CDockContainerWidget> dropContainer = d->DropContainer;
-\tconst QPoint dropPos = QCursor::pos();
+\t{
+\t\tDockWidgetArea containerArea = dockManager
+\t\t\t? dockManager->containerOverlay()->dropAreaUnderCursor()
+\t\t\t: InvalidDockWidgetArea;
+\t\tDockWidgetArea dockArea = dockManager
+\t\t\t? dockManager->dockAreaOverlay()->dropAreaUnderCursor()
+\t\t\t: InvalidDockWidgetArea;
+\t\tQPoint localPos = dropContainer
+\t\t\t? dropContainer->mapFromGlobal(dropPos)
+\t\t\t: QPoint();
+\t\tstd::ostringstream line;
+\t\tline << "ATHENA_DOCK_FINISH"
+\t\t     << " dropped=" << dropped
+\t\t     << " shouldDock=" << shouldDock
+\t\t     << " dropPos=" << dropPos.x() << "," << dropPos.y()
+\t\t     << " cursor=" << QCursor::pos().x() << "," << QCursor::pos().y()
+\t\t     << " dropContainer=" << dropContainer.data()
+\t\t     << " dropIsFloating=" << (dropContainer && dropContainer->isFloating())
+\t\t     << " local=" << localPos.x() << "," << localPos.y()
+\t\t     << " containerArea=" << athenaDockAreaName(containerArea)
+\t\t     << "(" << int(containerArea) << ")"
+\t\t     << " dockArea=" << athenaDockAreaName(dockArea)
+\t\t     << "(" << int(dockArea) << ")";
+\t\tathenaAdsDockLog(line.str());
+\t}
 \td->setState(DraggingInactive);
 \tif (AthenaActiveWaylandDockDrag == this)
 \t{
@@ -1219,6 +1604,8 @@ bool CFloatingDockContainer::athenaFinishWaylandDockDrag(bool dropped)
 \t\t\t\tdockManager->dockAreaOverlay()->hideOverlay();
 \t\t\t}
 \t\t\td->DropContainer = nullptr;
+\t\t\td->AthenaWaylandHasLastGlobalPos = false;
+\t\t\tathenaClearWaylandDockOverlayCursorPosition();
 \t\t\treturn false;
 \t\t}
 \t\tdropContainer->dropFloatingWidget(this, dropPos);
@@ -1233,6 +1620,8 @@ bool CFloatingDockContainer::athenaFinishWaylandDockDrag(bool dropped)
 \t\tdockManager->dockAreaOverlay()->hideOverlay();
 \t}
 \td->DropContainer = nullptr;
+\td->AthenaWaylandHasLastGlobalPos = false;
+\tathenaClearWaylandDockOverlayCursorPosition();
 \treturn shouldDock;
 #else
 \tQ_UNUSED(dropped)
@@ -1249,6 +1638,8 @@ void CFloatingDockContainer::athenaHideWaylandDockOverlays()
 \t\td->DockManager->dockAreaOverlay()->hideOverlay();
 \t}
 \td->DropContainer = nullptr;
+\td->AthenaWaylandHasLastGlobalPos = false;
+\tathenaClearWaylandDockOverlayCursorPosition();
 #endif
 }
 
@@ -1384,5 +1775,6 @@ else:
 patch_ads_floating_windows(base_dir)
 patch_ads_initial_wayland_drag(base_dir)
 patch_ads_wayland_single_floating_tabbar(base_dir)
+patch_ads_wayland_overlay_position(base_dir)
 patch_ads_wayland_focus_hiding(base_dir)
 patch_ads_qt6_private_gui(base_dir)
