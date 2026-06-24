@@ -469,7 +469,7 @@ athenaWaylandContainerEdgeArea(const DockOverlayPrivate* overlay)
 
 \tQWidget* target = overlay->TargetWidget.data();
 \tauto* container = qobject_cast<CDockContainerWidget*>(target);
-\tif (target == nullptr || container == nullptr || container->isFloating())
+\tif (target == nullptr || container == nullptr)
 \t{
 \t\treturn InvalidDockWidgetArea;
 \t}
@@ -519,9 +519,24 @@ athenaWaylandContainerEdgeArea(const DockOverlayPrivate* overlay)
 \t\treturn InvalidDockWidgetArea;
 \t}
 ''',
+'''\tQWidget* target = overlay->TargetWidget.data();
+\tauto* container = qobject_cast<CDockContainerWidget*>(target);
+\tif (target == nullptr || container == nullptr)
+\t{
+\t\treturn InvalidDockWidgetArea;
+\t}
+''')
+    content = content.replace(
         '''\tQWidget* target = overlay->TargetWidget.data();
 \tauto* container = qobject_cast<CDockContainerWidget*>(target);
 \tif (target == nullptr || container == nullptr || container->isFloating())
+\t{
+\t\treturn InvalidDockWidgetArea;
+\t}
+''',
+        '''\tQWidget* target = overlay->TargetWidget.data();
+\tauto* container = qobject_cast<CDockContainerWidget*>(target);
+\tif (target == nullptr || container == nullptr)
 \t{
 \t\treturn InvalidDockWidgetArea;
 \t}
@@ -641,14 +656,14 @@ def patch_ads_floating_windows(base_dir):
 \t\t\tcontinue;
 \t\t}
 
-\t\tQPoint MappedPos = ContainerWidget->mapFromGlobal(GlobalPos);
-''',
-        '''\t\tif (DockContainer == ContainerWidget)
+\t\tif (athenaIsNativeWaylandPlatform() && ContainerWidget->isFloating())
 \t\t{
 \t\t\tcontinue;
 \t\t}
 
-\t\tif (athenaIsNativeWaylandPlatform() && ContainerWidget->isFloating())
+\t\tQPoint MappedPos = ContainerWidget->mapFromGlobal(GlobalPos);
+''',
+        '''\t\tif (DockContainer == ContainerWidget)
 \t\t{
 \t\t\tcontinue;
 \t\t}
@@ -706,6 +721,37 @@ athenaSnapFloatingContainerToScreenEdge(QWidget* widget)
 
 ''',
             1)
+
+    if 'athenaFloatingContainerParent' not in content:
+        content = content.replace(
+            'namespace ads\n{\n',
+            '''namespace ads
+{
+static QWidget*
+athenaFloatingContainerParent(CDockManager* dockManager)
+{
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+\tif (QApplication::platformName().startsWith(QStringLiteral("wayland")))
+\t{
+\t\treturn nullptr;
+\t}
+#endif
+\treturn dockManager;
+}
+
+''',
+            1)
+
+    content = content.replace(
+        '''CFloatingDockContainer::CFloatingDockContainer(CDockManager *DockManager) :
+\ttFloatingWidgetBase(DockManager),
+''',
+        '''CFloatingDockContainer::CFloatingDockContainer(CDockManager *DockManager) :
+\ttFloatingWidgetBase(athenaFloatingContainerParent(DockManager)),
+''')
+    content = content.replace(
+        'setWindowFlags(Qt::Window | Qt::WindowMaximizeButtonHint | Qt::CustomizeWindowHint | Qt::WindowCloseButtonHint);',
+        'setWindowFlags(Qt::Window | Qt::WindowMinimizeButtonHint | Qt::WindowMaximizeButtonHint | Qt::CustomizeWindowHint | Qt::WindowCloseButtonHint);')
 
     content = re.sub(
         r'\n\s*if \(native_window\)\n'
