@@ -45,6 +45,10 @@ boundaries, do not patch from intuition. Debug from evidence.
 - Treat user fury plus concrete evidence as signal. If the user supplies a
   minimal case, exact output, or a layer-specific question, follow that evidence
   immediately.
+- If three consecutive attempts at the same bug fail to produce observable
+  improvement, stop patching from local hypotheses. Proactively tell the user
+  that the issue should be escalated to the Pro model, and prepare a prompt plus
+  a source/log archive with all relevant context before making further fixes.
 
 ## Strict Commit Message Protocol
 
