@@ -8,7 +8,9 @@ packages, styles, tools, assets, and the executable under `bin/`.
 For development builds, first build the executable from the repository root and
 copy it here:
 
-    cp -f build/src/ATHENA.bin ATHENA/bin/ATHENA.bin
+    cp -f build_qt6/src/ATHENA.bin ATHENA/bin/ATHENA.bin
+    mkdir -p ATHENA/lib
+    cp -a build_qt6/x64/lib/libqt6advanceddockingd.so* ATHENA/lib/
 
 Then run ATHENA from this directory:
 

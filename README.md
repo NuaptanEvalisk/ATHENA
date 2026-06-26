@@ -361,7 +361,9 @@ The recommended compiler is Intel oneAPI `icpx`.
 After building, copy the executable into the runtime tree before running:
 
 ```bash
-cp -f build/src/ATHENA.bin ATHENA/bin/ATHENA.bin
+cp -f build_qt6/src/ATHENA.bin ATHENA/bin/ATHENA.bin
+mkdir -p ATHENA/lib
+cp -a build_qt6/x64/lib/libqt6advanceddockingd.so* ATHENA/lib/
 cd ATHENA
 ./StartATHENA.sh
 ```

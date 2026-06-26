@@ -16,7 +16,7 @@ Dependencies
 ATHENA intentionally assumes a modern desktop development environment. The
 CMake configuration currently requires, among others:
 
-  CMake, a C/C++ compiler, pkg-config, Qt 5, Guile 1.8, mimalloc, SQLite3,
+  CMake, a C/C++ compiler, pkg-config, Qt 6, Guile 1.8, mimalloc, SQLite3,
   Python 3, uv, FreeType, PNG, JPEG, zlib, zstd, ImageMagick/MagickWand,
   Iconv, GnuTLS, GMP, Ghostscript, resvg with ResvgQt.h, libtcc, and patchelf.
 
@@ -25,7 +25,8 @@ dependencies:
 
   sudo zypper install \
     git cmake ninja pkgconf-pkg-config patchelf \
-    libqt5-qtbase-devel libqt5-qtsvg-devel \
+    qt6-base-devel qt6-svg-devel qt6-wayland-devel qt6-qt5compat-devel \
+    kf6-kio-devel kf6-kconfigwidgets-devel \
     mimalloc-devel sqlite3-devel \
     python3 python313-uv \
     freetype2-devel libpng16-devel libjpeg8-devel zlib-devel \
@@ -110,15 +111,17 @@ From the repository root:
   source /opt/intel/oneapi/setvars.sh
   export PKG_CONFIG_PATH="$HOME/opt/guile18/lib64/pkgconfig:$PKG_CONFIG_PATH"
 
-  CC=icx CXX=icpx cmake -S . -B build_rel -G Ninja \
-    -DCMAKE_BUILD_TYPE=RelWithDebInfo
+  CC=icx CXX=icpx cmake -S . -B build_qt6 \
+    -DATHENA_GUI=Qt6 \
+    -DCMAKE_BUILD_TYPE=Debug
 
-  CCACHE_DISABLE=1 cmake --build build_rel -j "$(nproc)"
+  CCACHE_DISABLE=1 cmake --build build_qt6 -j "$(nproc)"
 
 Using all available processor cores is recommended; `nproc` is the preferred
 way to pick the parallelism level.
 
-If you are not using Ninja, omit `-G Ninja` and use your chosen CMake generator.
+Pass `-G Ninja` if you prefer Ninja; the currently used local Qt6 build
+directory was configured with CMake's default Unix Makefiles generator.
 
 CMake patches the built executable with:
 
@@ -131,17 +134,12 @@ ATHENA/lib without manually running patchelf.
 Run from the source runtime tree
 -------------------------------------------------------------------------------
 
-For ATHENA development, do not run the executable directly from build_rel/src.
+For ATHENA development, do not run the executable directly from build_qt6/src.
 Copy the build output into the ATHENA runtime tree first:
 
-  cp -f build_rel/src/ATHENA.bin ATHENA/bin/ATHENA.bin
+  cp -f build_qt6/src/ATHENA.bin ATHENA/bin/ATHENA.bin
   mkdir -p ATHENA/lib
-  cp -f build_rel/x64/lib/libqt5advanceddocking.so.4.3.1 \
-    ATHENA/lib/libqt5advanceddocking.so.4.3.1
-  ln -sf libqt5advanceddocking.so.4.3.1 \
-    ATHENA/lib/libqt5advanceddocking.so
-  ln -sf libqt5advanceddocking.so.4.3.1 \
-    ATHENA/lib/libqt5advanceddocking.so.4
+  cp -a build_qt6/x64/lib/libqt6advanceddockingd.so* ATHENA/lib/
 
 Then run:
 
@@ -160,23 +158,18 @@ To prepare the runtime directory that will later be packaged:
   mkdir -p release
   rsync -a ATHENA/ release/ATHENA/
 
-  install -m 755 build_rel/src/ATHENA.bin release/ATHENA/bin/ATHENA.bin
+  install -m 755 build_qt6/src/ATHENA.bin release/ATHENA/bin/ATHENA.bin
   mkdir -p release/ATHENA/lib
-  rm -f release/ATHENA/lib/libqt5advanceddockingd.so*
-  install -m 755 build_rel/x64/lib/libqt5advanceddocking.so.4.3.1 \
-    release/ATHENA/lib/libqt5advanceddocking.so.4.3.1
-  ln -sf libqt5advanceddocking.so.4.3.1 \
-    release/ATHENA/lib/libqt5advanceddocking.so
-  ln -sf libqt5advanceddocking.so.4.3.1 \
-    release/ATHENA/lib/libqt5advanceddocking.so.4
+  rm -f release/ATHENA/lib/libqt*advanceddocking*.so*
+  cp -a build_qt6/x64/lib/libqt6advanceddockingd.so* release/ATHENA/lib/
 
 Useful checks:
 
   readelf -d release/ATHENA/bin/ATHENA.bin | \
-    grep -E 'RUNPATH|RPATH|qt5advanced'
-  readelf -d release/ATHENA/lib/libqt5advanceddocking.so.4.3.1 | \
+    grep -E 'RUNPATH|RPATH|qt6advanced'
+  readelf -d release/ATHENA/lib/libqt6advanceddockingd.so.4.3.1 | \
     grep -E 'RUNPATH|RPATH|SONAME'
-  ldd release/ATHENA/bin/ATHENA.bin | grep qt5advanceddocking
+  ldd release/ATHENA/bin/ATHENA.bin | grep qt6advanceddocking
 
 The ADS library should resolve from release/ATHENA/lib. The executable should
 have RUNPATH $ORIGIN/../lib. The ADS library itself should not carry an
@@ -192,14 +185,15 @@ Install
 
 For a system install, use the usual CMake install workflow:
 
-  cmake --install build_rel
+  cmake --install build_qt6
 
 Set a custom prefix at configure time if needed:
 
   source /opt/intel/oneapi/setvars.sh
   export PKG_CONFIG_PATH="$HOME/opt/guile18/lib64/pkgconfig:$PKG_CONFIG_PATH"
-  CC=icx CXX=icpx cmake -S . -B build_rel -G Ninja \
-    -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+  CC=icx CXX=icpx cmake -S . -B build_qt6 \
+    -DATHENA_GUI=Qt6 \
+    -DCMAKE_BUILD_TYPE=Debug \
     -DCMAKE_INSTALL_PREFIX=/opt/athena
 
 The primary tested workflow is the ATHENA runtime tree described above; use
@@ -218,9 +212,10 @@ PKG_CONFIG_PATH and verify:
 If generated files or Scheme cache entries interfere with a local development
 build, remove the build directory and ATHENA cache, then configure again:
 
-  rm -rf build_rel
+  rm -rf build_qt6
   rm -rf ~/.ATHENA/system/cache
   source /opt/intel/oneapi/setvars.sh
   export PKG_CONFIG_PATH="$HOME/opt/guile18/lib64/pkgconfig:$PKG_CONFIG_PATH"
-  CC=icx CXX=icpx cmake -S . -B build_rel -G Ninja \
-    -DCMAKE_BUILD_TYPE=RelWithDebInfo
+  CC=icx CXX=icpx cmake -S . -B build_qt6 \
+    -DATHENA_GUI=Qt6 \
+    -DCMAKE_BUILD_TYPE=Debug
