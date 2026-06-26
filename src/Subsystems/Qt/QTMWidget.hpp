@@ -48,7 +48,7 @@ public:
   virtual QSize	sizeHint () const override;
   virtual void scrollContentsBy (int dx, int dy) override;
 
-  void setCursorPos (QPoint pos) { cursor_pos = pos; }
+  void setCursorPos (QPoint pos);
   QPoint cursorGlobalPos () const {
     QPoint p = contentsToViewport (cursor_pos);
     return viewport ()->mapToGlobal (p + QPoint (0, 22));
@@ -104,6 +104,7 @@ private:
   qreal lastPixelRatio = 0.0;
   QPointer<QScrollBar> tabletScrollBarTarget;
 
+  void updateInputMethodCursorRectangle () const;
   bool forwardTabletEventToScrollBar (QTabletEvent* event);
   QScrollBar* scrollBarAtGlobalPosition (const QPoint& globalPos) const;
 

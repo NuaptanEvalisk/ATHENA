@@ -37,6 +37,7 @@
 #include <QFocusEvent>
 #include <QPainter>
 #include <QApplication>
+#include <QInputMethod>
 #include <QScrollBar>
 
 #include <QBuffer>
@@ -114,9 +115,10 @@ QTMWidget::notifyUserScroll () {
   tm_widget ()->handle_user_scroll (texmacs_time ());
 }
 
-void 
+void
 QTMWidget::scrollContentsBy (int dx, int dy) {
   QTMScrollView::scrollContentsBy (dx,dy);
+  updateInputMethodCursorRectangle ();
   if (athena_qt_is_closing ()) return;
   if (internalScrollChange ()) return;
   the_gui->force_update();
@@ -149,6 +151,7 @@ void
 QTMWidget::resizeEventBis () {
   coord2 s = from_qsize (surface()->size());
   the_gui -> process_resize (tm_widget(), s.x1, s.x2);
+  updateInputMethodCursorRectangle ();
 }
 
 /*!
@@ -245,6 +248,21 @@ QTMWidget::paintEvent (QPaintEvent* event) {
 #endif
 
 #endif
+
+void
+QTMWidget::setCursorPos (QPoint pos) {
+  if (cursor_pos == pos) return;
+  cursor_pos= pos;
+  updateInputMethodCursorRectangle ();
+}
+
+void
+QTMWidget::updateInputMethodCursorRectangle () const {
+  if (!hasFocus ()) return;
+  QInputMethod* im= QApplication::inputMethod ();
+  if (im == nullptr) return;
+  im->update (Qt::ImCursorRectangle);
+}
 
 void
 setShiftPreference (int key_code, char shifted) {
@@ -725,6 +743,7 @@ QTMWidget::focusInEvent (QFocusEvent * event) {
     the_gui->process_keyboard_focus (tm_widget(), true, texmacs_time());
   }
   QTMScrollView::focusInEvent (event);
+  updateInputMethodCursorRectangle ();
   // part 2/2 of the fix for bug 43373.
   if (!isEmbedded ()) {
     if (!isActiveWindow() && QApplication::platformName() != "wayland") activateWindow();
