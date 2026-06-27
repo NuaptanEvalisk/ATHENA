@@ -41,7 +41,7 @@
 	(-> "Configuration"
 	    ("Browse" (load-help-buffer "main/config/man-configuration"))
 	    ---
-	    ("User preferences"
+	    ("Preferences"
 	     (load-help-article "main/config/man-preferences"))
 	    ("Keyboard configuration"
 	     (load-help-article "main/config/man-config-keyboard"))
@@ -52,6 +52,9 @@
   (when (url-exists-in-help? "main/man-manual.en.tm")
 	(-> "Manual"
 	    ("Browse" (load-help-buffer "main/man-manual"))
+	    ---
+	    ("Preferences"
+	     (load-help-article "main/config/man-preferences"))
 	    ---
 	    ("Getting started"
 	     (load-help-article "main/start/man-getting-started"))

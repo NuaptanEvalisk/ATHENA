@@ -6,6 +6,8 @@
   <tmdoc-title|The <ATHENA> manual>
 
   <\traverse>
+    <branch|Preferences|config/man-preferences.en.tm>
+
     <branch|Getting started|start/man-getting-started.en.tm>
 
     <branch|Writing simple documents|text/man-text.en.tm>

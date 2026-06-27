@@ -6,7 +6,7 @@
   <tmdoc-title|Configuration of <TeXmacs>>
 
   <\traverse>
-    <branch|User preferences|man-preferences.en.tm>
+    <branch|Preferences|man-preferences.en.tm>
 
     <branch|Keyboard configuration|man-config-keyboard.en.tm>
 
