@@ -83,11 +83,6 @@
     (-> "AI Translate"
         (link ai-translate-menu)))
   ---
-  ("Create web site" (open-website-builder))
-  ;;(-> "Web"
-  ;;    ("Create web site" (tmweb-interactive-build))
-  ;;    ("Update web site" (tmweb-interactive-update)))
-  ---
   ("Clear undo history" (clear-undo-history))
   ("Save auxiliary data" (toggle-save-aux))
   ("Show key presses" (toggle-show-kbd))

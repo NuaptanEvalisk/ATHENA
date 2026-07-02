@@ -29,13 +29,6 @@
   image files. You may also force arbitrary content to be exported as an
   image using <menu|Format|Specific|Image>.
 
-  <TeXmacs> also provides a facility for the creation of entire websites. For
-  this, you just have to regroup the files for your website into a single
-  directory. Using <menu|Tools|Web|Create website> you may now convert all
-  <TeXmacs> files in this directory to <name|Html> files in a new directory.
-  The conversion procedure recursively traverses all subdirectories and all
-  non-<TeXmacs> files are simply copied.
-
   <paragraph|Customized <name|Html> generation>
 
   The following <TeXmacs> environment variables can be used to customize the

@@ -930,19 +930,6 @@ set_global_options  (int argc, char** argv)  {
       else if (s == "-reset-admin-password") {
         set_reset_admin_password (true);
       }
-      else if (s == "-W" || s == "-build-website" ||
-	       s == "-U" || s == "-update-website") {
-        i+=2;
-        if (i<argc) {
-	  string cmd= "tmweb-convert-dir";
-	  if (s == "-U" || s == "-update-website") cmd = "tmweb-update-dir";
-          url in  ("$PWD", argv[i-1]);
-          url out ("$PWD", argv[ i ]);
-          my_init_cmds= my_init_cmds * " " *
-            "(" * cmd * " " * scm_quote (as_string (in)) *
-            " " * scm_quote (as_string (out)) * ")";
-        }
-      }
       else if (s == "-log-file") i++;
       else if ((s == "-Oc") || (s == "-no-char-clipping")) char_clip= false;
       else if ((s == "+Oc") || (s == "-char-clipping")) char_clip= true;
@@ -997,7 +984,6 @@ set_global_options  (int argc, char** argv)  {
         cout << "  --skip-fonts-cache         Skip font file and font menu cache warmup\n";
         cout << "  --insert-build-warning     Insert ATHENA experimental build warnings during AOFM conversion\n";
         cout << "  --model-vault [dir]        Reuse a model vault for AOFM namespace/style conversion\n";
-        cout << "  -W [i] [o] Recursively convert directory into website\n";
         cout << "  -x [cmd]   Execute scheme command\n";
         cout << "  -Oc        TeX characters bitmap clipping off\n";
         cout << "  +Oc        TeX characters bitmap clipping on (default)\n";
@@ -1329,9 +1315,7 @@ immediate_options (int argc, char** argv) {
       system ("rm -rf", url ("$ATHENA_HOME_PATH/users"));
     }
 #ifdef QTTEXMACS
-    else if (s == "-headless" || s == "-H" || s == "-C" ||
-	     s == "-build-website" || s == "-W" ||
-	     s == "-update-website" || s == "-U")
+    else if (s == "-headless" || s == "-H" || s == "-C")
       headless_mode= true;
 #endif
     else if (s == "-log-file" && i + 1 < argc) {
@@ -1646,9 +1630,7 @@ texmacs_entrypoint (int argc, char** argv) {
     if (s == "-no-splash-screen") {
       no_splash_screen= true;
     }
-    if (s == "-headless" || s == "-H" || s == "-C" ||
-	     s == "-build-website" || s == "-W" ||
-	     s == "-update-website" || s == "-U")
+    if (s == "-headless" || s == "-H" || s == "-C")
       headless_mode= true;
   }
   ATHENA_init_paths (argc, argv);
