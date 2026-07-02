@@ -168,6 +168,17 @@ find_library (LLAMA_COMMON_LIBRARY
     ${LLAMA_LIBRARY_DIRS}
     ${LLAMA_CPP_SOURCE_DIR}
   PATH_SUFFIXES lib lib64 build/common build/bin)
+find_library (LLAMA_CPP_LIBRARY
+  NAMES llama
+  HINTS
+    ${LLAMA_CPP_SOURCE_DIR}
+  PATH_SUFFIXES lib lib64 build/bin)
+set (ATHENA_LLAMA_LIBRARIES
+  PkgConfig::LLAMA
+  ${LLAMA_COMMON_LIBRARY})
+if (LLAMA_CPP_LIBRARY)
+  list (APPEND ATHENA_LLAMA_LIBRARIES ${LLAMA_CPP_LIBRARY})
+endif ()
 if (NOT LLAMA_COMMON_INCLUDE_DIR OR NOT LLAMA_COMMON_LIBRARY)
   message (FATAL_ERROR
     "llama.cpp common support is required for ATHENA RAG embeddings. "
@@ -429,7 +440,11 @@ configure_file (${ATHENA_SOURCE_DIR}/src/System/tm_configure.hpp.cmake ${ATHENA_
 
 set (CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -include ${ATHENA_BINARY_DIR}/src/System/config.h")
 
-if (CMAKE_CXX_COMPILER_ID STREQUAL "IntelLLVM")
+option (ATHENA_INTEL_NATIVE_OPTIMIZATION
+        "Use native CPU tuning when building with IntelLLVM" ON)
+
+if (CMAKE_CXX_COMPILER_ID STREQUAL "IntelLLVM" AND
+    ATHENA_INTEL_NATIVE_OPTIMIZATION)
   message(STATUS "Detected IntelLLVM compiler, adding aggressive optimization flags")
   # Modern optimization: O3, native architecture, AVX2, loop unrolling, and ThinLTO
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -march=native -mavx2 -funroll-loops -flto=thin -fp-model fast")
@@ -654,39 +669,43 @@ if (ATHENA_GUI STREQUAL "Qt" OR ATHENA_GUI STREQUAL "Qt5" OR ATHENA_GUI STREQUAL
     endif (Qt6_POSITION_INDEPENDENT_CODE)
 
     if (UNIX AND NOT APPLE)
-      find_package (KF6KIO REQUIRED)
-      find_package (KF6ConfigWidgets REQUIRED)
-      get_target_property (KF6_KIO_CORE_INCLUDE_DIRS
-                           KF6::KIOCore
-                           INTERFACE_INCLUDE_DIRECTORIES)
-      get_target_property (KF6_KIO_GUI_INCLUDE_DIRS
-                           KF6::KIOGui
-                           INTERFACE_INCLUDE_DIRECTORIES)
-      get_target_property (KF6_KIO_FILE_WIDGETS_INCLUDE_DIRS
-                           KF6::KIOFileWidgets
-                           INTERFACE_INCLUDE_DIRECTORIES)
-      get_target_property (KF6_KIO_WIDGETS_INCLUDE_DIRS
-                           KF6::KIOWidgets
-                           INTERFACE_INCLUDE_DIRECTORIES)
-      get_target_property (KF6_CONFIG_WIDGETS_INCLUDE_DIRS
-                           KF6::ConfigWidgets
-                           INTERFACE_INCLUDE_DIRECTORIES)
-      list (GET KF6_KIO_FILE_WIDGETS_INCLUDE_DIRS 0
-            KF6_KIO_FILE_WIDGETS_INCLUDE_DIR)
-      get_filename_component (KF6_INCLUDE_ROOT
-                              "${KF6_KIO_FILE_WIDGETS_INCLUDE_DIR}/.."
-                              ABSOLUTE)
-      add_definitions ("-DUSE_KF5_KIO")
-      set (ATHENA_Include_Dirs ${ATHENA_Include_Dirs}
-           ${KF6_INCLUDE_ROOT}
-           ${KF6_KIO_CORE_INCLUDE_DIRS}
-           ${KF6_KIO_GUI_INCLUDE_DIRS}
-           ${KF6_KIO_FILE_WIDGETS_INCLUDE_DIRS}
-           ${KF6_KIO_WIDGETS_INCLUDE_DIRS}
-           ${KF6_CONFIG_WIDGETS_INCLUDE_DIRS})
-      set (ATHENA_Libraries ${ATHENA_Libraries}
-           KF6::KIOFileWidgets
-           KF6::ConfigWidgets)
+      option (USE_KF6_KIO_FILE_DIALOGS
+              "Use KDE Frameworks KIO file dialogs for Qt6 builds" ON)
+      if (USE_KF6_KIO_FILE_DIALOGS)
+        find_package (KF6KIO REQUIRED)
+        find_package (KF6ConfigWidgets REQUIRED)
+        get_target_property (KF6_KIO_CORE_INCLUDE_DIRS
+                             KF6::KIOCore
+                             INTERFACE_INCLUDE_DIRECTORIES)
+        get_target_property (KF6_KIO_GUI_INCLUDE_DIRS
+                             KF6::KIOGui
+                             INTERFACE_INCLUDE_DIRECTORIES)
+        get_target_property (KF6_KIO_FILE_WIDGETS_INCLUDE_DIRS
+                             KF6::KIOFileWidgets
+                             INTERFACE_INCLUDE_DIRECTORIES)
+        get_target_property (KF6_KIO_WIDGETS_INCLUDE_DIRS
+                             KF6::KIOWidgets
+                             INTERFACE_INCLUDE_DIRECTORIES)
+        get_target_property (KF6_CONFIG_WIDGETS_INCLUDE_DIRS
+                             KF6::ConfigWidgets
+                             INTERFACE_INCLUDE_DIRECTORIES)
+        list (GET KF6_KIO_FILE_WIDGETS_INCLUDE_DIRS 0
+              KF6_KIO_FILE_WIDGETS_INCLUDE_DIR)
+        get_filename_component (KF6_INCLUDE_ROOT
+                                "${KF6_KIO_FILE_WIDGETS_INCLUDE_DIR}/.."
+                                ABSOLUTE)
+        add_definitions ("-DUSE_KF5_KIO")
+        set (ATHENA_Include_Dirs ${ATHENA_Include_Dirs}
+             ${KF6_INCLUDE_ROOT}
+             ${KF6_KIO_CORE_INCLUDE_DIRS}
+             ${KF6_KIO_GUI_INCLUDE_DIRS}
+             ${KF6_KIO_FILE_WIDGETS_INCLUDE_DIRS}
+             ${KF6_KIO_WIDGETS_INCLUDE_DIRS}
+             ${KF6_CONFIG_WIDGETS_INCLUDE_DIRS})
+        set (ATHENA_Libraries ${ATHENA_Libraries}
+             KF6::KIOFileWidgets
+             KF6::ConfigWidgets)
+      endif ()
     endif ()
   else ()
     # Homebrew installs Qt5 in /usr/local/opt/qt5

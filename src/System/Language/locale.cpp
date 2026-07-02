@@ -14,6 +14,7 @@
 #ifndef OS_MINGW
 #include <langinfo.h>
 #include <locale>
+#include <stdexcept>
 #else
 #include <winnls.h>
 #endif
@@ -215,10 +216,16 @@ get_locale_charset () {
 #elif OS_HAIKU
   return "UTF-8";
 #else
-  std::locale previous= std::locale::global (std::locale(""));
-  string charset= string (nl_langinfo (CODESET));
-  std::locale::global (previous);
-  return charset;
+  try {
+    std::locale previous= std::locale::global (std::locale(""));
+    string charset= string (nl_langinfo (CODESET));
+    std::locale::global (previous);
+    return charset;
+  }
+  catch (std::runtime_error&) {
+    std_warning << "system locale is not available; assuming UTF-8\n";
+    return "UTF-8";
+  }
 #endif
 }
 

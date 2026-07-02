@@ -27,6 +27,7 @@
 #include <iomanip>
 #include <random>
 #include <sstream>
+#include <string>
 #include <vector>
 #ifndef OS_MINGW
 #include <dirent.h>
@@ -104,6 +105,54 @@ string extra_init_cmd;
 bool exec_exit= true;
 void server_start ();
 static std::string athena_to_std_string (const string& s);
+
+#ifdef OS_MINGW
+#ifndef CP_UTF8
+#define CP_UTF8 65001
+#endif
+extern "C" __declspec(dllimport) unsigned long __stdcall
+GetModuleFileNameW (void* hModule, wchar_t* lpFilename, unsigned long nSize);
+extern "C" __declspec(dllimport) int __stdcall
+WideCharToMultiByte (unsigned int CodePage, unsigned long dwFlags,
+                     const wchar_t* lpWideCharStr, int cchWideChar,
+                     char* lpMultiByteStr, int cbMultiByte,
+                     const char* lpDefaultChar, int* lpUsedDefaultChar);
+
+static string
+athena_windows_module_directory (bool strip_bin) {
+  std::vector<wchar_t> wide_path (32768);
+  unsigned long n=
+    GetModuleFileNameW (nullptr, wide_path.data (),
+                        (unsigned long) wide_path.size ());
+  if (n == 0 || n >= wide_path.size ()) return "";
+
+  std::wstring path (wide_path.data (), n);
+  for (wchar_t& c : path)
+    if (c == L'\\') c= L'/';
+
+  size_t slash= path.find_last_of (L'/');
+  if (slash == std::wstring::npos) return "";
+  path.resize (slash);
+
+  if (strip_bin) {
+    size_t parent= path.find_last_of (L'/');
+    if (parent != std::wstring::npos) {
+      std::wstring leaf= path.substr (parent + 1);
+      if (leaf == L"bin" || leaf == L"Bin" || leaf == L"BIN")
+        path.resize (parent);
+    }
+  }
+
+  int bytes= WideCharToMultiByte (CP_UTF8, 0, path.c_str (),
+                                  (int) path.size (), nullptr, 0,
+                                  nullptr, nullptr);
+  if (bytes <= 0) return "";
+  std::string utf8 ((size_t) bytes, '\0');
+  WideCharToMultiByte (CP_UTF8, 0, path.c_str (), (int) path.size (),
+                       utf8.data (), bytes, nullptr, nullptr);
+  return string (utf8.data (), utf8.size ());
+}
+#endif
 
 static bool
 std_ends_with (const std::string& s, const std::string& suffix) {
@@ -619,15 +668,20 @@ ATHENA_init_paths (int& argc, char** argv) {
   // PWD is set to HOME
   // if PWD is lacking, then the path resolution machinery may not work
   
-  if (is_empty (current_athena_path))
-    set_env ("ATHENA_PATH", as_string (exedir * ".."));
+  if (is_empty (current_athena_path)) {
+    string module_root= athena_windows_module_directory (true);
+    if (!is_empty (module_root)) set_env ("ATHENA_PATH", module_root);
+    else set_env ("ATHENA_PATH", as_string (exedir * ".."));
+  }
   // if (get_env ("HOME") == "") //now set in immediate_options otherwise --setup option fails
   //   set_env ("HOME", get_env("USERPROFILE"));
   // HACK
   // In WINE the variable PWD is already in the outer Unix environment 
   // so we need to override it to have a correct behaviour
   if ((get_env ("PWD") == "") || (get_env ("PWD")[0] == '/'))  {
-    set_env ("PWD", as_string (exedir));
+    string module_bin= athena_windows_module_directory (false);
+    if (!is_empty (module_bin)) set_env ("PWD", module_bin);
+    else set_env ("PWD", as_string (exedir));
     // set_env ("PWD", get_env("HOME"));
   }
   // system("set");

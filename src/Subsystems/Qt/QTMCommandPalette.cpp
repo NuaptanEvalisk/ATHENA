@@ -12,12 +12,19 @@
 #include "QTMMainTabWindow.hpp"
 #include "QTMMenuHelper.hpp"
 
+#ifdef USE_KF5_KIO
 #include <KCommandBar>
+#endif
 
 #include <QAction>
+#include <QAbstractItemView>
 #include <QApplication>
+#include <QDialog>
 #include <QIcon>
+#include <QLineEdit>
 #include <QList>
+#include <QListWidget>
+#include <QListWidgetItem>
 #include <QMainWindow>
 #include <QMenu>
 #include <QMenuBar>
@@ -26,6 +33,8 @@
 #include <QString>
 #include <QToolBar>
 #include <QToolButton>
+#include <QVariant>
+#include <QVBoxLayout>
 #include <QVector>
 #include <QWidgetAction>
 
@@ -65,7 +74,7 @@ force_lazy_menu_tree (QMenu* menu, QSet<QMenu*>& seen) {
 }
 
 static QAction*
-make_palette_action (KCommandBar* palette, QAction* original,
+make_palette_action (QObject* palette, QAction* original,
                      const QString& label, const QString& fullPath) {
   QAction* copy= new QAction (original->icon (), label, palette);
   copy->setEnabled (original->isEnabled ());
@@ -85,7 +94,7 @@ make_palette_action (KCommandBar* palette, QAction* original,
 }
 
 static void
-collect_menu_actions (QMenu* menu, KCommandBar* palette,
+collect_menu_actions (QMenu* menu, QObject* palette,
                       const QString& groupName, const QStringList& parents,
                       QList<QAction*>& out) {
   if (menu == nullptr) return;
@@ -115,6 +124,101 @@ collect_menu_actions (QMenu* menu, KCommandBar* palette,
     out.append (make_palette_action (palette, action, label, fullPath));
   }
 }
+
+static QString menu_group_name (QAction* action);
+
+#ifndef USE_KF5_KIO
+static QAction*
+action_for_item (QListWidgetItem* item) {
+  if (item == nullptr) return nullptr;
+  quintptr ptr= item->data (Qt::UserRole).value<quintptr> ();
+  return reinterpret_cast<QAction*> (ptr);
+}
+
+static void
+select_first_visible (QListWidget* list) {
+  if (list == nullptr) return;
+
+  for (int i=0; i < list->count (); ++i) {
+    QListWidgetItem* item= list->item (i);
+    if (item != nullptr && !item->isHidden ()) {
+      list->setCurrentItem (item);
+      return;
+    }
+  }
+  list->setCurrentItem (nullptr);
+}
+
+static void
+show_qt_command_palette (QTMMainTabWindow* win, const QList<QAction*>& topActions) {
+  QDialog* palette= new QDialog (win);
+  palette->setAttribute (Qt::WA_DeleteOnClose);
+  palette->setWindowTitle (QObject::tr ("Command palette"));
+
+  QVBoxLayout* layout= new QVBoxLayout (palette);
+  QLineEdit* filter= new QLineEdit (palette);
+  QListWidget* list= new QListWidget (palette);
+  filter->setPlaceholderText (QObject::tr ("Search commands"));
+  list->setSelectionMode (QAbstractItemView::SingleSelection);
+  layout->addWidget (filter);
+  layout->addWidget (list);
+
+  for (QAction* action : topActions) {
+    if (action == nullptr || action->menu () == nullptr) continue;
+
+    QString groupName= menu_group_name (action);
+    if (groupName.isEmpty ()) continue;
+
+    QList<QAction*> entries;
+    collect_menu_actions (action->menu (), palette, groupName,
+                          QStringList (), entries);
+    for (QAction* entry : entries) {
+      QListWidgetItem* item=
+        new QListWidgetItem (entry->icon (), entry->text (), list);
+      item->setToolTip (entry->toolTip ());
+      item->setData (Qt::UserRole,
+                     QVariant::fromValue<quintptr> (
+                       reinterpret_cast<quintptr> (entry)));
+    }
+  }
+
+  QObject::connect (filter, &QLineEdit::textChanged, list,
+                    [list] (const QString& text) {
+    for (int i=0; i < list->count (); ++i) {
+      QListWidgetItem* item= list->item (i);
+      if (item == nullptr) continue;
+      bool matched= text.isEmpty () ||
+        item->text ().contains (text, Qt::CaseInsensitive) ||
+        item->toolTip ().contains (text, Qt::CaseInsensitive);
+      item->setHidden (!matched);
+    }
+    select_first_visible (list);
+  });
+
+  auto trigger_current= [palette, list] () {
+    QAction* action= action_for_item (list->currentItem ());
+    if (action != nullptr) {
+      action->trigger ();
+      palette->close ();
+    }
+  };
+  QObject::connect (list, &QListWidget::itemActivated, palette,
+                    [palette] (QListWidgetItem* item) {
+    QAction* action= action_for_item (item);
+    if (action != nullptr) {
+      action->trigger ();
+      palette->close ();
+    }
+  });
+  QObject::connect (filter, &QLineEdit::returnPressed,
+                    palette, trigger_current);
+
+  select_first_visible (list);
+  palette->resize (640, 480);
+  palette->show ();
+  filter->setFocus ();
+}
+#endif
 
 static void
 append_action_once (QList<QAction*>& result, QSet<QMenu*>& menus,
@@ -215,9 +319,10 @@ command_palette_show () {
     if (action != nullptr && action->menu () != nullptr)
       force_lazy_menu_tree (action->menu (), seen);
 
+#ifdef USE_KF5_KIO
   KCommandBar* palette= new KCommandBar (win);
   palette->setAttribute (Qt::WA_DeleteOnClose);
-  QList<KCommandBar::ActionGroup> groups;
+  QVector<KCommandBar::ActionGroup> groups;
   for (QAction* action : topActions) {
     if (action == nullptr || action->menu () == nullptr) continue;
 
@@ -237,4 +342,7 @@ command_palette_show () {
 
   palette->setActions (groups);
   palette->show ();
+#else
+  show_qt_command_palette (win, topActions);
+#endif
 }

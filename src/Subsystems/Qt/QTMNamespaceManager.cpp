@@ -18,8 +18,10 @@
 #include "vault.hpp"
 
 #include <DockWidget.h>
+#ifdef USE_KF5_KIO
 #include <KIOFileWidgets/KFileCustomDialog>
 #include <KIOFileWidgets/KFileWidget>
+#endif
 #include <QAbstractItemView>
 #include <QAction>
 #include <QApplication>
@@ -28,6 +30,7 @@
 #include <QDialog>
 #include <QDir>
 #include <QFile>
+#include <QFileDialog>
 #include <QFileInfo>
 #include <QFormLayout>
 #include <QHeaderView>
@@ -86,6 +89,7 @@ qlist_contains (QListWidget* list, const QString& text) {
   return !list->findItems (text, Qt::MatchExactly).isEmpty ();
 }
 
+#ifdef USE_KF5_KIO
 static QString
 namespace_selected_local_file (KFileWidget* file_widget) {
   QString selected= file_widget->selectedFile ();
@@ -110,6 +114,21 @@ namespace_set_file_filter (KFileWidget* file_widget, const QString& filter) {
 #else
   file_widget->setFilter (filter);
 #endif
+}
+#endif
+
+static QString
+namespace_qt_file_filter (const QString& filter) {
+  if (filter.isEmpty ()) return QString ();
+  QStringList out;
+  for (const QString& entry: filter.split ('\n', Qt::SkipEmptyParts)) {
+    QStringList parts= entry.split ('|');
+    QString patterns= parts.value (0).trimmed ();
+    QString label= parts.value (1, patterns).trimmed ();
+    if (patterns.isEmpty ()) continue;
+    out << label + " (" + patterns + ")";
+  }
+  return out.join (";;");
 }
 
 static QString
@@ -145,6 +164,7 @@ namespace_choose_file (QWidget* parent, QLineEdit* edit,
   QFileInfo start_info (start_path);
   if (!start_info.exists ()) start_path= start_info.absolutePath ();
 
+#ifdef USE_KF5_KIO
   KFileCustomDialog dialog (QUrl::fromLocalFile (start_path), parent);
   dialog.setWindowTitle (title);
   dialog.setOperationMode (KFileWidget::Opening);
@@ -163,6 +183,10 @@ namespace_choose_file (QWidget* parent, QLineEdit* edit,
 
   if (dialog.exec () != QDialog::Accepted) return QString ();
   QString selected= namespace_selected_local_file (file_widget);
+#else
+  QString selected= QFileDialog::getOpenFileName (
+    parent, title, start_path, namespace_qt_file_filter (filter));
+#endif
   return selected.isEmpty () ? QString () :
     namespace_relative_path_if_possible (selected);
 }
@@ -173,6 +197,7 @@ namespace_choose_homepage_target (QWidget* parent, QLineEdit* edit) {
   QFileInfo start_info (start_path);
   if (!start_info.exists ()) start_path= start_info.absolutePath ();
 
+#ifdef USE_KF5_KIO
   KFileCustomDialog dialog (QUrl::fromLocalFile (start_path), parent);
   dialog.setWindowTitle ("Create Namespace Homepage");
   dialog.setOperationMode (KFileWidget::Saving);
@@ -191,6 +216,11 @@ namespace_choose_homepage_target (QWidget* parent, QLineEdit* edit) {
 
   if (dialog.exec () != QDialog::Accepted) return QString ();
   QString selected= namespace_selected_local_file (file_widget);
+#else
+  QString selected= QFileDialog::getSaveFileName (
+    parent, "Create Namespace Homepage", start_path,
+    namespace_qt_file_filter ("*.ath|ATHENA documents"));
+#endif
   if (selected.isEmpty ()) return QString ();
   if (QFileInfo (selected).suffix ().isEmpty ()) selected += ".ath";
   return namespace_relative_path_if_possible (selected);

@@ -438,7 +438,6 @@ qt_simple_widget_rep::as_qaction () {
  * Backing store management
  ******************************************************************************/
 
-#if QT_VERSION >= 0x060000
 static QRect
 physical_rect_to_logical_qrect (rectangle r, double pixel_ratio) {
   int x1= (int) floor (((double) r->x1) / pixel_ratio);
@@ -448,6 +447,7 @@ physical_rect_to_logical_qrect (rectangle r, double pixel_ratio) {
   return QRect (x1, y1, max (0, x2 - x1), max (0, y2 - y1));
 }
 
+#if QT_VERSION >= 0x060000
 void
 qt_simple_widget_rep::invalidate_rect (int x1, int y1, int x2, int y2) {
   // Because of accumulated rounding error on screen with a dpr > 1, 

@@ -17,8 +17,7 @@ target_compile_definitions(athena_body PRIVATE
 target_link_libraries (athena_body
   PUBLIC
   PkgConfig::SPDLOG
-  PkgConfig::LLAMA
-  ${LLAMA_COMMON_LIBRARY}
+  ${ATHENA_LLAMA_LIBRARIES}
   PRIVATE
   ${ADS_LIBRARIES}
 )
@@ -40,8 +39,7 @@ target_link_libraries (${ATHENA_binary_name}
   athena_body
   mimalloc
   PkgConfig::SPDLOG
-  PkgConfig::LLAMA
-  ${LLAMA_COMMON_LIBRARY}
+  ${ATHENA_LLAMA_LIBRARIES}
   ${ADS_LIBRARIES}
   ${ATHENA_Libraries}
 )
