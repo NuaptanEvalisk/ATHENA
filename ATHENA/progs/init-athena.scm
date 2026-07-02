@@ -96,7 +96,7 @@
 ;; (set! primitive-load new-primitive-load)
 
 ;(display "Booting ATHENA kernel functionality\n")
-(load (url-concretize "$ATHENA_PATH/progs/kernel/boot/boot.scm"))
+(primitive-load (url-concretize "$ATHENA_PATH/progs/kernel/boot/boot.scm"))
 (inherit-modules (kernel boot compat) (kernel boot abbrevs)
                  (kernel boot debug) (kernel boot srfi)
                  (kernel boot ahash-table) (kernel boot prologue))
