@@ -114,7 +114,8 @@ hashmap_rep<T,U>::reset (const T& x) {
   list<hashentry<T,U> > *l= &(a [hv & (n-1)]);
   while (!is_nil (*l)) {
     if ((*l)->item.code == hv && (*l)->item.key == x) {
-      *l= (*l)->next;
+      list<hashentry<T,U> > next= (*l)->next;
+      *l= next;
       size --;
       if (size < (n>>1) * max) resize (n>>1);
       return;
