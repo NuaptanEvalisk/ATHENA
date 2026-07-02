@@ -20,6 +20,7 @@
 #include "QTMMenuHelper.hpp"
 #include <QPixmap>
 #include <QLayout>
+#include <cmath>
 
 #if QT_VERSION >= 0x060000
 #include "QTMImpressIconEngine.hpp"
@@ -447,6 +448,11 @@ physical_rect_to_logical_qrect (rectangle r, double pixel_ratio) {
   return QRect (x1, y1, max (0, x2 - x1), max (0, y2 - y1));
 }
 
+static bool
+fractional_pixel_ratio (double pixel_ratio) {
+  return fabs (pixel_ratio - floor (pixel_ratio + 0.5)) > 0.001;
+}
+
 #if QT_VERSION >= 0x060000
 void
 qt_simple_widget_rep::invalidate_rect (int x1, int y1, int x2, int y2) {
@@ -540,49 +546,58 @@ qt_simple_widget_rep::repaint_invalid_regions () {
   QRegion qrgn;
   QPoint origin = canvas()->origin();
   if (backing_pos != origin && !(backingPixmap->size().isNull())) {
-    int dx =  pixel_ratio * (origin.x() - backing_pos.x());
-    int dy =  pixel_ratio * (origin.y() - backing_pos.y());
-    backing_pos = origin;
-
-    QPixmap newBackingPixmap (backingPixmap->size());
-    QPainter p (&newBackingPixmap);
-    //p.fillRect(0, 0, backingPixmap->size().width(),
-    //           backingPixmap->size().height(),Qt::red);
- 
-    p.drawPixmap (-dx,-dy,*backingPixmap);
-    p.end();
-    *backingPixmap = newBackingPixmap;
-    //cout << "SCROLL CONTENTS BY " << dx << " " << dy << LF;
-    
-    rectangles invalid;
-    while (!is_nil (invalid_regions)) {
-      rectangle r = invalid_regions->item ;
-      //      rectangle q = rectangle (r->x1+dx,r->y1-dy,r->x2+dx,r->y2-dy);
-      rectangle q = rectangle (r->x1-dx,r->y1-dy,r->x2-dx,r->y2-dy);
-      invalid = rectangles (q, invalid);
-      //cout << r << " ---> " << q << LF;
-      invalid_regions = invalid_regions->next;
-    }
-    
     QSize sz = backingPixmap->size();
     QSize surface_logical_size = canvas()->surface()->size();
     QRect full_surface_logical_rect (QPoint (0, 0), surface_logical_size);
 
-    invalid_regions= invalid & rectangles (rectangle (0,0,
-                                                      sz.width(),sz.height()));
-
-    if (!backing_valid) {
+    if (fractional_pixel_ratio (pixel_ratio)) {
+      // Qt paint events are in logical coordinates, but the backing pixmap is
+      // in physical pixels.  With fractional Wayland scales, a logical scroll
+      // delta cannot be represented by an exact integer pixmap move; repeated
+      // rounded copies leave stale rows or columns in the backing store.
+      backing_pos= origin;
       invalidate_rect (0, 0, sz.width(), sz.height());
     } else {
-      if (dy<0)
-	invalidate_rect (0,0,sz.width(),min (sz.height(),-dy));
-      else if (dy>0)
-	invalidate_rect (0,max (0,sz.height()-dy),sz.width(),sz.height());
-      
-      if (dx<0)
-	invalidate_rect (0,0,min (-dx,sz.width()),sz.height());
-      else if (dx>0)
-	invalidate_rect (max (0,sz.width()-dx),0,sz.width(),sz.height());
+      int dx =  pixel_ratio * (origin.x() - backing_pos.x());
+      int dy =  pixel_ratio * (origin.y() - backing_pos.y());
+      backing_pos = origin;
+
+      QPixmap newBackingPixmap (backingPixmap->size());
+      QPainter p (&newBackingPixmap);
+      //p.fillRect(0, 0, backingPixmap->size().width(),
+      //           backingPixmap->size().height(),Qt::red);
+
+      p.drawPixmap (-dx,-dy,*backingPixmap);
+      p.end();
+      *backingPixmap = newBackingPixmap;
+      //cout << "SCROLL CONTENTS BY " << dx << " " << dy << LF;
+
+      rectangles invalid;
+      while (!is_nil (invalid_regions)) {
+        rectangle r = invalid_regions->item ;
+        //      rectangle q = rectangle (r->x1+dx,r->y1-dy,r->x2+dx,r->y2-dy);
+        rectangle q = rectangle (r->x1-dx,r->y1-dy,r->x2-dx,r->y2-dy);
+        invalid = rectangles (q, invalid);
+        //cout << r << " ---> " << q << LF;
+        invalid_regions = invalid_regions->next;
+      }
+
+      invalid_regions= invalid & rectangles (rectangle (0,0,
+                                                        sz.width(),sz.height()));
+
+      if (!backing_valid) {
+        invalidate_rect (0, 0, sz.width(), sz.height());
+      } else {
+        if (dy<0)
+          invalidate_rect (0,0,sz.width(),min (sz.height(),-dy));
+        else if (dy>0)
+          invalidate_rect (0,max (0,sz.height()-dy),sz.width(),sz.height());
+
+        if (dx<0)
+          invalidate_rect (0,0,min (-dx,sz.width()),sz.height());
+        else if (dx>0)
+          invalidate_rect (max (0,sz.width()-dx),0,sz.width(),sz.height());
+      }
     }
     // we call update now to allow repainting of invalid regions
     // this cannot be done directly since interpose_handler needs
