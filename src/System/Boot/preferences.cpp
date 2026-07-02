@@ -153,6 +153,7 @@ ensure_builtin_user_preferences () {
     PREF ("use native menubar", "off", ""),
     PREF ("use unified toolbar", "off", ""),
     PREF ("remember ads panes layout", "on", ""),
+    PREF ("middle click closes ads tab", "on", ""),
 
     PREF ("header", "on", "notify-header"),
     PREF ("main icon bar", "on", "notify-icon-bar"),

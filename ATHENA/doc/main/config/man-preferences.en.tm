@@ -34,6 +34,10 @@
     <item*|Remember panes layout>When enabled, <ATHENA> remembers the
     Advanced Docking System pane layout and restores it on startup.
 
+    <item*|Middle-click closes ADS tabs>When enabled, clicking an Advanced
+    Docking System tab with the middle mouse button closes that tab, using the
+    same safe close path as the tab close button.
+
     <item*|Automatically save>Sets the autosave interval. Choosing
     <menu|Disable> turns periodic autosave off.
 

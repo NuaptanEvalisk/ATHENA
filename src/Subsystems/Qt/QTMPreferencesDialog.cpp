@@ -9,6 +9,7 @@
 ******************************************************************************/
 
 #include "QTMPreferencesDialog.hpp"
+#include "QTMMainTabWindow.hpp"
 #include "QTMVaultInfoModel.hpp"
 #include "GoogleOAuth.hpp"
 #include "GoogleTasksClient.hpp"
@@ -819,6 +820,11 @@ QTMPreferencesDialog::buildGeneralPage () {
              {{"simple", "Simplified menus"}, {"detailed", "Detailed menus"}});
   add_toggle (basicForm, "Remember panes layout:",
               "remember ads panes layout");
+  QCheckBox* middleClickAdsTabs=
+    add_toggle (basicForm, "Middle-click closes ADS tabs:",
+                "middle click closes ads tab");
+  QObject::connect (middleClickAdsTabs, &QCheckBox::toggled,
+                    [] () { qtm_apply_ads_tab_close_preferences (); });
   add_combo (basicForm, "Automatically save:", "autosave",
              {{"5", "5 sec"}, {"30", "30 sec"}, {"120", "120 sec"},
               {"300", "300 sec"}, {"0", "Disable"}});

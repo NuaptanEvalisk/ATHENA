@@ -21,6 +21,7 @@
 #include <DockManager.h>
 
 bool athena_qt_is_closing ();
+void qtm_apply_ads_tab_close_preferences ();
 
 /**
  * @brief A multi-document window that supports both Tabs and MDI.

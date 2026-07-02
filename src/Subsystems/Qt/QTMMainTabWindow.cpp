@@ -41,6 +41,13 @@ athena_qt_is_closing () {
   return gAthenaQtClosing;
 }
 
+void
+qtm_apply_ads_tab_close_preferences () {
+  ads::CDockManager::setConfigFlag (
+    ads::CDockManager::MiddleMouseButtonClosesTab,
+    get_preference ("middle click closes ads tab", "on") == "on");
+}
+
 class AthenaQtClosingGuard {
   bool old;
 public:
@@ -132,6 +139,7 @@ QTMMainTabWindow::QTMMainTabWindow() {
   mMdiArea = new QMdiArea(mStackedWidget);
   mMdiArea->setViewMode (QMdiArea::SubWindowView);
 
+  qtm_apply_ads_tab_close_preferences ();
 #if QT_VERSION >= 0x060000
   if (QApplication::platformName().startsWith(QStringLiteral("wayland"))) {
     // Keep Wayland floating docks as normal desktop windows. Redocking is
