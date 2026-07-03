@@ -12,7 +12,6 @@
 #include "server_log.hpp"
 #include "language.hpp"
 #include "locale.hpp"
-#include "client_server.hpp"
 #include <unistd.h>
 
 namespace wlog {
@@ -51,30 +50,5 @@ server_log_write (int level, string m) {
   static const string prefix= "pid=" * pid * ", uid=" * uid * ", ";
   string msg= prefix * m;
   string date= get_date (get_locale_language (), "yyyy-MM-dd, HH:mm:ss");
-  if (!is_server ()) {
-    server_get_stream (level) << date << ", " << msg << "\n";
-    return;
-  }
-  static bool warned= false;
-  if (tmlog == NULL) {
-    if (!warned) {
-      io_warning << "server log is not active" << LF;
-      warned= true;
-    }
-    io_warning << "server, " << date << ", " << msg << "\n";
-  }
-  else {
-    const c_string _msg (msg);
-    const char* _vmsg= _msg;
-    wlog::WORD type;
-    if (level <= 3) type= EVENTLOG_ERROR_TYPE;
-    else if (level == 4) type= EVENTLOG_WARNING_TYPE;
-    else if (level <= 6) type= EVENTLOG_INFORMATION_TYPE;
-    else type= EVENTLOG_SUCCESS;
-    if (!wlog::ReportEventA (tmlog, type, 0, 0,
-			     NULL, 1, 0, &_vmsg, NULL))
-      io_warning << "server log failed for message, "
-                 << date << ", " << msg << "\n";
-  }
-  server_get_stream (level) << "server, " << date << ", " << msg << "\n";
+  server_get_stream (level) << date << ", " << msg << "\n";
 }

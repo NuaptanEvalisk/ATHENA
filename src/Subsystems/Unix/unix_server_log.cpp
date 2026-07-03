@@ -13,7 +13,6 @@
 #include "server_log.hpp"
 #include "language.hpp"
 #include "locale.hpp"
-#include "client_server.hpp"
 #include <unistd.h>
 #include <syslog.h>
 
@@ -51,23 +50,7 @@ server_log_write (int level, string m) {
   static const string prefix= "pid=" * pid * ", uid=" * uid * ", ";
   string msg= prefix * m;
   string date= get_date (get_locale_language (), "yyyy-MM-dd, HH:mm:ss");
-  if (!is_server ()) {
-    server_get_stream (level) << date << ", " << msg << "\n";
-    return;
-  }
-  static syslog_handler handler;
-  server_log_ensure_initialized ();
-  c_string s (msg);
-  c_string d (date);
-  static bool warned= false;
-  if (!server_log_active && !warned) {
-    io_warning << "server log is not active";
-    warned= true;
-  }
-  if (server_log_active && !isatty (fileno (stdout)))
-    syslog (level, "%s", (char*) s);
-  else
-    server_get_stream (level) << date << ", " << msg << "\n";
+  server_get_stream (level) << date << ", " << msg << "\n";
 }
 #endif
 
@@ -75,7 +58,6 @@ server_log_write (int level, string m) {
 #include "server_log.hpp"
 #include "language.hpp"
 #include "locale.hpp"
-#include "client_server.hpp"
 #include <unistd.h>
 #include <os/log.h>
 
@@ -102,24 +84,6 @@ server_log_write (int level, string m) {
   static const string prefix= "pid=" * pid * ", uid=" * uid * ", ";
   string msg= prefix * m;
   string date= get_date (get_locale_language (), "yyyy-MM-dd, HH:mm:ss");
-  if (!is_server ()) {
-    server_get_stream (level) << date << ", " << msg << "\n";
-    return;
-  }
-  bool warned= false;
-  if (!server_log_active && !warned) {
-    io_warning << "server log is not active";
-    warned= true;
-  }
-  c_string s (msg);
-  c_string d (date);
-  if (server_log_active && !isatty (fileno (stdout))) {
-    if (level >= 5)
-      os_log (_os_log, "%{public}s", (char*) s);
-    else
-      os_log_error (_os_log, "%{public}s", (char*) s);
-  } else {
-    server_get_stream (level) << date << ", " << msg << "\n";
-  }
+  server_get_stream (level) << date << ", " << msg << "\n";
 }
 #endif

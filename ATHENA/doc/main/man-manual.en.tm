@@ -36,9 +36,6 @@
     <branch|Customizing <TeXmacs>|scheme/man-scheme.en.tm>
 
     <branch|The <TeXmacs> plug-in system|../devel/plugin/plugins.en.tm>
-
-    <branch|Remote tools and collaborative
-    editing|remote/man-collaborative.en.tm>
   </traverse>
 
   <tmdoc-copyright|1998\U2002|Joris van der Hoeven>

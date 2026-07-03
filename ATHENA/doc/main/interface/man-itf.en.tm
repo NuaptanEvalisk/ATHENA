@@ -25,8 +25,6 @@
     <branch|Scripting languages|man-scripting-language.en.tm>
 
     <branch|Spreadsheets|man-spreadsheet.en.tm>
-
-    <branch|Remote plug-ins|man-remote-plugins.en.tm>
   </traverse>
 
   <tmdoc-copyright|1998--2002|Joris van der Hoeven>

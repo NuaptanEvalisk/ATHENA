@@ -75,7 +75,7 @@ remove_buffer (tm_buffer buf) {
     if (bufs[nr] == buf) {
       for (int i=0; i<N(buf->vws); i++)
         delete_view (abstract_view (buf->vws[i]));
-      if (n == 1 && number_of_servers () == 0)
+      if (n == 1)
         get_server () -> quit ();
       for (int i=nr; i<n-1; i++)
         bufs[i]= bufs[i+1];

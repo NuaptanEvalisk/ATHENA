@@ -305,8 +305,7 @@ kill_window (url wname) {
       return;
     }
   }
-  if (number_of_servers () == 0) get_server () -> quit ();
-  else delete_window (wname);
+  get_server () -> quit ();
 }
 
 void

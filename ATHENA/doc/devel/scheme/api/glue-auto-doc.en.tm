@@ -4707,118 +4707,6 @@ source code.
   </explain>
 
   <\explain>
-    <scm|(server-define-error-codes)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|server_define_error_codes> which returns
-    <scm|void>.
-  </explain>
-
-  <\explain>
-    <scm|(server-start)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|server_start> which returns
-    <scm|void>.
-  </explain>
-
-  <\explain>
-    <scm|(server-stop)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|server_stop> which returns
-    <scm|void>.
-  </explain>
-
-  <\explain>
-    <scm|(server-read <scm-arg|int>)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|server_read> which returns
-    <scm|string>.
-  </explain>
-
-  <\explain>
-    <scm|(server-write <scm-arg|int> <scm-arg|string>)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|server_write> which returns
-    <scm|void>.
-  </explain>
-
-  <\explain>
-    <scm|(server-started?)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|server_started> which returns
-    <scm|bool>.
-  </explain>
-
-  <\explain>
-    <scm|(server-port-in-use)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|server_port_in_use> which returns
-    <scm|int>.
-  </explain>
-
-  <\explain>
-    <scm|(legacy-client-start <scm-arg|string> <scm-arg|int>)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|legacy_client_start> which returns
-    <scm|int>.
-  </explain>
-
-  <\explain>
-    <scm|(client-stop <scm-arg|int>)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|client_stop> which returns
-    <scm|void>.
-  </explain>
-
-  <\explain>
-    <scm|(client-read <scm-arg|int>)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|client_read> which returns
-    <scm|string>.
-  </explain>
-
-  <\explain>
-    <scm|(client-write <scm-arg|int> <scm-arg|string>)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|client_write> which returns
-    <scm|int>.
-  </explain>
-
-  <\explain>
-    <scm|(enter-secure-mode <scm-arg|int>)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|enter_secure_mode> which returns
-    <scm|void>.
-  </explain>
-
-  <\explain>
-    <scm|(server-client-address <scm-arg|int>)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|server_client_address> which returns
-    <scm|string>.
-  </explain>
-
-  <\explain>
-    <scm|(server-log-write-int <scm-arg|int> <scm-arg|string>)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|server_log_write> which returns
-    <scm|void>.
-  </explain>
-
-  <\explain>
     <scm|(supports-gnutls?)>
 <explain-synopsis|no synopsis>
   <|explain>
@@ -4831,14 +4719,6 @@ source code.
 <explain-synopsis|no synopsis>
   <|explain>
     Calls the <c++> function <cpp|gnutls_random_int> which returns
-    <scm|int>.
-  </explain>
-
-  <\explain>
-    <scm|(tls-client-start <scm-arg|string> <scm-arg|int> <scm-arg|scheme_tree>)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|tls_client_start> which returns
     <scm|int>.
   </explain>
 

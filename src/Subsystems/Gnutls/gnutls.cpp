@@ -26,7 +26,8 @@
 #include <gnutls/x509.h>
 #include <gnutls/abstract.h>
 #include <gnutls/crypto.h>
-#include "client_server.hpp"
+
+static const int TM_NET_SESSION_INACTIVE= -1024;
 
 
 /******************************************************************************

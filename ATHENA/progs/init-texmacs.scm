@@ -19,7 +19,6 @@
        (debug-set! stack 1000000)))
 
 (define boot-start (texmacs-time))
-(define remote-client-list (list))
 
 (if (not (defined? 'texmacs-compat-version))
     (define-public (texmacs-compat-version) "2.1.4"))
@@ -456,21 +455,6 @@
 
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 ;(display* "memory: " (texmacs-memory) " bytes\n")
-
-;(display "Booting remote facilities\n")
-(lazy-define (client client-base) client-login-then)
-(lazy-define (client client-tmfs) remote-home-directory)
-(lazy-menu (server server-menu) server-start-menu server-menu)
-(lazy-menu (client client-menu) client-start-menu client-menu
-           remote-menu remote-icons)
-(lazy-tmfs-handler (client client-tmfs) remote-file)
-;(display* "time: " (- (texmacs-time) boot-start) "\n")
-;(display* "memory: " (texmacs-memory) " bytes\n")
-(lazy-define (client client-notifications)
-             notifiable-icon notifiable-entry notif-count-label
-             client-sync-remote-notifications)
-(lazy-define (notification notification-base)
-             has-notifications? add-notification notification-count)
 
 ;(display "Booting linking facilities\n")
 (lazy-menu (link link-menu) link-menu)

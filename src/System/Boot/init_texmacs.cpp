@@ -252,7 +252,6 @@ init_user_dirs () {
   make_dir ("$ATHENA_HOME_PATH/packages");
   make_dir ("$ATHENA_HOME_PATH/plugins");
   make_dir ("$ATHENA_HOME_PATH/progs");
-  make_dir ("$ATHENA_HOME_PATH/server");
   make_dir ("$ATHENA_HOME_PATH/styles");
   make_dir ("$ATHENA_HOME_PATH/system");
   make_dir ("$ATHENA_HOME_PATH/system/bib");
@@ -265,7 +264,6 @@ init_user_dirs () {
   init_main_tmp_dir ();
   make_dir ("$ATHENA_HOME_PATH/texts");
   make_dir ("$ATHENA_HOME_PATH/users");
-  change_mode ("$ATHENA_HOME_PATH/server", 7 << 6);
   change_mode ("$ATHENA_HOME_PATH/system", 7 << 6);
   change_mode ("$ATHENA_HOME_PATH/users", 7 << 6);
   clean_temp_dirs ();

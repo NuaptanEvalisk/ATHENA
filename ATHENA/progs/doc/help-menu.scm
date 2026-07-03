@@ -79,8 +79,6 @@
 	     (load-help-article "main/beamer/man-beamer"))
 	    ("ATHENA as an interface"
 	     (load-help-article "main/interface/man-itf"))
-	    ("Remote tools and collaborative editing"
-	     (load-help-article "main/remote/man-collaborative"))
             ---
 	    ("Writing your own style files"
 	     (load-help-article "devel/style/style"))

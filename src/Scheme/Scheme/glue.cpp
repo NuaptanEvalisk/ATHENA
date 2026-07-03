@@ -63,6 +63,7 @@
 #include "Freetype/tt_tools.hpp"
 #include "Database/database.hpp"
 #include "Sqlite3/sqlite3.hpp"
+#include "Gnutls/gnutls.hpp"
 
 #include <DockWidget.h>
 #include <QApplication>
@@ -1380,7 +1381,6 @@ tmscm_to_list_tree (tmscm p) {
 #include "image_files.hpp"
 #include "web_files.hpp"
 #include "sys_utils.hpp"
-#include "client_server.hpp"
 #include "analyze.hpp"
 #include "wencoding.hpp"
 #include "base64.hpp"

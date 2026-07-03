@@ -44,7 +44,6 @@
 #include "tm_timer.hpp"
 #include "data_cache.hpp"
 #include "tm_window.hpp"
-#include "client_server.hpp"
 #include "scheme.hpp"
 #include "convert.hpp"
 #include "Freetype/tt_file.hpp"
@@ -106,7 +105,6 @@ bool   aofm_ignore_nonempty_dest = false;
 int    aofm_convert_vault_parallelism = 0;
 string extra_init_cmd;
 bool exec_exit= true;
-void server_start ();
 static std::string athena_to_std_string (const string& s);
 
 #ifdef OS_MINGW
@@ -925,20 +923,6 @@ set_global_options  (int argc, char** argv)  {
       else if ((s == "-X")) {
         exec_exit= false;
       }
-      else if (s == "-server") set_server ();
-      else if (s == "-port") {
-        i++;
-        if (i<argc) {
-          string port_str = argv[i];
-          set_server_port (as_int (port_str));
-        }
-      }
-      else if (s == "-reset-server-preferences") {
-        set_reset_preferences (true);
-      }
-      else if (s == "-reset-admin-password") {
-        set_reset_admin_password (true);
-      }
       else if (s == "-log-file") i++;
       else if ((s == "-Oc") || (s == "-no-char-clipping")) char_clip= false;
       else if ((s == "+Oc") || (s == "-char-clipping")) char_clip= true;
@@ -946,7 +930,7 @@ set_global_options  (int argc, char** argv)  {
                (s == "-delete-cache") || (s == "-delete-font-cache") ||
                (s == "-delete-style-cache") || (s == "-delete-file-cache") ||
                (s == "-delete-doc-cache") || (s == "-delete-plugin-cache") ||
-               (s == "-delete-server-data") || (s == "-delete-databases") ||
+               (s == "-delete-databases") ||
 	       (s == "-headless") || (s == "-H"));
       else if (s == "-build-manual") {
         if ((++i)<argc)
@@ -1016,7 +1000,7 @@ set_global_options  (int argc, char** argv)  {
   // End parse command line options
 
   // in headless mode quit after processing of the command line
-  if (headless_mode && exec_exit && !is_server ()) my_init_cmds= my_init_cmds * " (quit-TeXmacs)";
+  if (headless_mode && exec_exit) my_init_cmds= my_init_cmds * " (quit-TeXmacs)";
 
   // Further options via environment variables
 #if QT_VERSION < 0x060000
@@ -1217,9 +1201,6 @@ TeXmacs_main (int argc, char** argv) {
 
     // allow docker stop to work
     signal (SIGTERM, clean_exit_on_sigterm);
-    if (is_server () && server_can_start ()) {
-      server_start ();
-    }
     release_boot_lock ();
     
     // inject scheme commands 
@@ -1328,8 +1309,6 @@ immediate_options (int argc, char** argv) {
     }
     else if (s == "-delete-plugin-cache")
       remove (url ("$ATHENA_HOME_PATH/system/cache/plugin_cache.scm"));
-    else if (s == "-delete-server-data")
-      system ("rm -rf", url ("$ATHENA_HOME_PATH/server"));
     else if (s == "-delete-databases") {
       system ("rm -rf", url ("$ATHENA_HOME_PATH/system/database"));
       system ("rm -rf", url ("$ATHENA_HOME_PATH/users"));

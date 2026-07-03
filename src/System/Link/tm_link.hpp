@@ -86,6 +86,5 @@ void close_all_pipes ();
 void process_all_pipes ();
 void close_all_sockets ();
 void close_all_servers ();
-int  number_of_servers ();
 
 #endif // TM_LINK_H

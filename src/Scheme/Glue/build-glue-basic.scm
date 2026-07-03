@@ -671,28 +671,9 @@
   (sql-exec sql_exec (scheme_tree url string))
   (sql-quote sql_quote (string string))
 
-  ;; TeXmacs servers and clients
-  (server-define-error-codes server_define_error_codes (void))
-  (server-start server_start (void))
-  (server-stop server_stop (void))
-  (server-read server_read (string int))
-  (server-write server_write (void int string))
-  (server-started? server_started (bool))
-  (server-port-in-use server_port_in_use (int))
-  (legacy-client-start legacy_client_start (int string int))
-  (client-stop client_stop (void int))
-  (client-read client_read (string int))
-  (client-write client_write (int int string))
-  (enter-secure-mode enter_secure_mode (void int))
-  (server-client-address server_client_address (string int))
-
-  ;; TeXmacs servers logs
-  (server-log-write-int server_log_write (void int string))
-
-  ;; TeXmacs secure clients
+  ;; GnuTLS helpers
   (supports-gnutls? gnutls_present (bool))
   (gnutls-random-number gnutls_random_int (int uint))
-  (tls-client-start tls_client_start (int string int scheme_tree))
   (gnutls-generate-salt gnutls_generate_salt (string))
   (hash-password-pbkdf2 hash_password_pbkdf2 (string string string))
 

@@ -74,8 +74,6 @@
   (if (detailed-menus?) (=> "Tools" (link tools-menu)))
   (if (with-database-tool?)
       (=> "Data" (link db-menu)))
-  (if (with-remote-tool?)
-      (=> "Remote" (link remote-menu)))
   (if (with-debugging-tool?)
       (=> "Debug" (link debug-menu)))
   (if (with-developer-tool?)
@@ -151,7 +149,6 @@
   (-> "Go" (link go-menu))
   (if (detailed-menus?) (-> "Tools" (link tools-menu)))
   (if (with-database-tool?) (-> "Data" (link db-menu)))
-  (if (with-remote-tool?) (-> "Remote" (link remote-menu)))
   (if (with-debugging-tool?) (-> "Debug" (link debug-menu)))
   (if (nnull? (test-menu)) (-> "Test" (link test-menu)))
   ---
@@ -213,9 +210,6 @@
   (if (in-presentation?)
     /
     (link dynamic-icons))
-  (if (with-remote-tool?)
-    /
-    (link remote-icons))
 )
 
 (tm-widget (texmacs-bottom-tools win)

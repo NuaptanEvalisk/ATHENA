@@ -8165,176 +8165,6 @@ tmg_sql_quote (tmscm arg1) {
 }
 
 tmscm
-tmg_server_define_error_codes () {
-  // TMSCM_DEFER_INTS;
-  server_define_error_codes ();
-  // TMSCM_ALLOW_INTS;
-
-  return TMSCM_UNSPECIFIED;
-}
-
-tmscm
-tmg_server_start () {
-  // TMSCM_DEFER_INTS;
-  server_start ();
-  // TMSCM_ALLOW_INTS;
-
-  return TMSCM_UNSPECIFIED;
-}
-
-tmscm
-tmg_server_stop () {
-  // TMSCM_DEFER_INTS;
-  server_stop ();
-  // TMSCM_ALLOW_INTS;
-
-  return TMSCM_UNSPECIFIED;
-}
-
-tmscm
-tmg_server_read (tmscm arg1) {
-  TMSCM_ASSERT_INT (arg1, TMSCM_ARG1, "server-read");
-
-  int in1= tmscm_to_int (arg1);
-
-  // TMSCM_DEFER_INTS;
-  string out= server_read (in1);
-  // TMSCM_ALLOW_INTS;
-
-  return string_to_tmscm (out);
-}
-
-tmscm
-tmg_server_write (tmscm arg1, tmscm arg2) {
-  TMSCM_ASSERT_INT (arg1, TMSCM_ARG1, "server-write");
-  TMSCM_ASSERT_STRING (arg2, TMSCM_ARG2, "server-write");
-
-  int in1= tmscm_to_int (arg1);
-  string in2= tmscm_to_string (arg2);
-
-  // TMSCM_DEFER_INTS;
-  server_write (in1, in2);
-  // TMSCM_ALLOW_INTS;
-
-  return TMSCM_UNSPECIFIED;
-}
-
-tmscm
-tmg_server_startedP () {
-  // TMSCM_DEFER_INTS;
-  bool out= server_started ();
-  // TMSCM_ALLOW_INTS;
-
-  return bool_to_tmscm (out);
-}
-
-tmscm
-tmg_server_port_in_use () {
-  // TMSCM_DEFER_INTS;
-  int out= server_port_in_use ();
-  // TMSCM_ALLOW_INTS;
-
-  return int_to_tmscm (out);
-}
-
-tmscm
-tmg_legacy_client_start (tmscm arg1, tmscm arg2) {
-  TMSCM_ASSERT_STRING (arg1, TMSCM_ARG1, "legacy-client-start");
-  TMSCM_ASSERT_INT (arg2, TMSCM_ARG2, "legacy-client-start");
-
-  string in1= tmscm_to_string (arg1);
-  int in2= tmscm_to_int (arg2);
-
-  // TMSCM_DEFER_INTS;
-  int out= legacy_client_start (in1, in2);
-  // TMSCM_ALLOW_INTS;
-
-  return int_to_tmscm (out);
-}
-
-tmscm
-tmg_client_stop (tmscm arg1) {
-  TMSCM_ASSERT_INT (arg1, TMSCM_ARG1, "client-stop");
-
-  int in1= tmscm_to_int (arg1);
-
-  // TMSCM_DEFER_INTS;
-  client_stop (in1);
-  // TMSCM_ALLOW_INTS;
-
-  return TMSCM_UNSPECIFIED;
-}
-
-tmscm
-tmg_client_read (tmscm arg1) {
-  TMSCM_ASSERT_INT (arg1, TMSCM_ARG1, "client-read");
-
-  int in1= tmscm_to_int (arg1);
-
-  // TMSCM_DEFER_INTS;
-  string out= client_read (in1);
-  // TMSCM_ALLOW_INTS;
-
-  return string_to_tmscm (out);
-}
-
-tmscm
-tmg_client_write (tmscm arg1, tmscm arg2) {
-  TMSCM_ASSERT_INT (arg1, TMSCM_ARG1, "client-write");
-  TMSCM_ASSERT_STRING (arg2, TMSCM_ARG2, "client-write");
-
-  int in1= tmscm_to_int (arg1);
-  string in2= tmscm_to_string (arg2);
-
-  // TMSCM_DEFER_INTS;
-  int out= client_write (in1, in2);
-  // TMSCM_ALLOW_INTS;
-
-  return int_to_tmscm (out);
-}
-
-tmscm
-tmg_enter_secure_mode (tmscm arg1) {
-  TMSCM_ASSERT_INT (arg1, TMSCM_ARG1, "enter-secure-mode");
-
-  int in1= tmscm_to_int (arg1);
-
-  // TMSCM_DEFER_INTS;
-  enter_secure_mode (in1);
-  // TMSCM_ALLOW_INTS;
-
-  return TMSCM_UNSPECIFIED;
-}
-
-tmscm
-tmg_server_client_address (tmscm arg1) {
-  TMSCM_ASSERT_INT (arg1, TMSCM_ARG1, "server-client-address");
-
-  int in1= tmscm_to_int (arg1);
-
-  // TMSCM_DEFER_INTS;
-  string out= server_client_address (in1);
-  // TMSCM_ALLOW_INTS;
-
-  return string_to_tmscm (out);
-}
-
-tmscm
-tmg_server_log_write_int (tmscm arg1, tmscm arg2) {
-  TMSCM_ASSERT_INT (arg1, TMSCM_ARG1, "server-log-write-int");
-  TMSCM_ASSERT_STRING (arg2, TMSCM_ARG2, "server-log-write-int");
-
-  int in1= tmscm_to_int (arg1);
-  string in2= tmscm_to_string (arg2);
-
-  // TMSCM_DEFER_INTS;
-  server_log_write (in1, in2);
-  // TMSCM_ALLOW_INTS;
-
-  return TMSCM_UNSPECIFIED;
-}
-
-tmscm
 tmg_supports_gnutlsP () {
   // TMSCM_DEFER_INTS;
   bool out= gnutls_present ();
@@ -8351,23 +8181,6 @@ tmg_gnutls_random_number (tmscm arg1) {
 
   // TMSCM_DEFER_INTS;
   int out= gnutls_random_int (in1);
-  // TMSCM_ALLOW_INTS;
-
-  return int_to_tmscm (out);
-}
-
-tmscm
-tmg_tls_client_start (tmscm arg1, tmscm arg2, tmscm arg3) {
-  TMSCM_ASSERT_STRING (arg1, TMSCM_ARG1, "tls-client-start");
-  TMSCM_ASSERT_INT (arg2, TMSCM_ARG2, "tls-client-start");
-  TMSCM_ASSERT_SCHEME_TREE (arg3, TMSCM_ARG3, "tls-client-start");
-
-  string in1= tmscm_to_string (arg1);
-  int in2= tmscm_to_int (arg2);
-  scheme_tree in3= tmscm_to_scheme_tree (arg3);
-
-  // TMSCM_DEFER_INTS;
-  int out= tls_client_start (in1, in2, in3);
   // TMSCM_ALLOW_INTS;
 
   return int_to_tmscm (out);
@@ -11602,23 +11415,8 @@ initialize_glue_basic () {
   tmscm_install_procedure ("supports-sql?",  tmg_supports_sqlP, 0, 0, 0);
   tmscm_install_procedure ("sql-exec",  tmg_sql_exec, 2, 0, 0);
   tmscm_install_procedure ("sql-quote",  tmg_sql_quote, 1, 0, 0);
-  tmscm_install_procedure ("server-define-error-codes",  tmg_server_define_error_codes, 0, 0, 0);
-  tmscm_install_procedure ("server-start",  tmg_server_start, 0, 0, 0);
-  tmscm_install_procedure ("server-stop",  tmg_server_stop, 0, 0, 0);
-  tmscm_install_procedure ("server-read",  tmg_server_read, 1, 0, 0);
-  tmscm_install_procedure ("server-write",  tmg_server_write, 2, 0, 0);
-  tmscm_install_procedure ("server-started?",  tmg_server_startedP, 0, 0, 0);
-  tmscm_install_procedure ("server-port-in-use",  tmg_server_port_in_use, 0, 0, 0);
-  tmscm_install_procedure ("legacy-client-start",  tmg_legacy_client_start, 2, 0, 0);
-  tmscm_install_procedure ("client-stop",  tmg_client_stop, 1, 0, 0);
-  tmscm_install_procedure ("client-read",  tmg_client_read, 1, 0, 0);
-  tmscm_install_procedure ("client-write",  tmg_client_write, 2, 0, 0);
-  tmscm_install_procedure ("enter-secure-mode",  tmg_enter_secure_mode, 1, 0, 0);
-  tmscm_install_procedure ("server-client-address",  tmg_server_client_address, 1, 0, 0);
-  tmscm_install_procedure ("server-log-write-int",  tmg_server_log_write_int, 2, 0, 0);
   tmscm_install_procedure ("supports-gnutls?",  tmg_supports_gnutlsP, 0, 0, 0);
   tmscm_install_procedure ("gnutls-random-number",  tmg_gnutls_random_number, 1, 0, 0);
-  tmscm_install_procedure ("tls-client-start",  tmg_tls_client_start, 3, 0, 0);
   tmscm_install_procedure ("gnutls-generate-salt",  tmg_gnutls_generate_salt, 0, 0, 0);
   tmscm_install_procedure ("hash-password-pbkdf2",  tmg_hash_password_pbkdf2, 2, 0, 0);
   tmscm_install_procedure ("generate-self-signed-certificate",  tmg_generate_self_signed_certificate, 3, 0, 0);

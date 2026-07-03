@@ -594,7 +594,6 @@ set (ATHENA_Qt_Moc_HDRS
   ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMPrintDialog.hpp
   ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMPrinterSettings.hpp
   ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMScrollView.hpp
-  ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMSockets.hpp
   ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMStyle.hpp
   ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMTreeModel.hpp
   ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMVaultChooser.hpp
