@@ -570,12 +570,22 @@
                       (list c))
                   (tmtex-text-list (cdr l))))))))
 
+(define (tmtex-mathjax-native-operator? op)
+  (in? op '("arccos" "arcsin" "arctan" "arg" "cos" "cosh" "cot" "coth"
+            "csc" "deg" "det" "dim" "exp" "gcd" "hom" "inf" "ker" "lg"
+            "lim" "liminf" "limsup" "ln" "log" "max" "min" "Pr" "sec"
+            "sin" "sinh" "sup" "tan" "tanh")))
+
 (define (tmtex-math-operator l)
   (receive (p q) (list-break l (lambda (c) (not (char-alphabetic? c))))
     (let* ((op (tmtex-textual (list->string p)))
            (tail (tmtex-math-list q)))
       (if (logic-in? (string->symbol op) latex-operator%)
-          (cons (list '!symbol (tex-apply (string->symbol op))) tail)
+          (cons (if (or (not tmtex-mathjax?)
+                        (tmtex-mathjax-native-operator? op))
+                    (list '!symbol (tex-apply (string->symbol op)))
+                    (list 'operatorname op))
+                tail)
           (cons (post-process-math-text (tex-apply 'tmop op)) tail)))))
 
 (define (tmtex-math-list l)
@@ -910,6 +920,12 @@
 
 (define (pre-scripts l)
   (cond ((or (null? l) (null? (cdr l))) l)
+        ((and (tmtex-math-mode?)
+              (pair? (car l))
+              (in? (caar l) '(above below))
+              (pair? (cadr l))
+              (in? (caadr l) '(rsub rsup rprime)))
+         (pre-scripts (cons `(!group ,(car l)) (cdr l))))
         ((check-double-script? (cdr l) #f #f)
          (if (== (== (caadr l) 'rsub) (== (caaddr l) 'rsub))
              (pre-scripts (cons `(!group (concat ,(car l) ,(cadr l)))
@@ -1499,8 +1515,12 @@
     (if props
         (let* ((env (if (tmtex-math-mode?) "array" "tabular"))
                (env* (if wide? (list "tabularx" "1.0\\textwidth") (list env)))
-               (before (car props))
-               (after (caddr props))
+               (before (if (and tmtex-mathjax? (== key 'rcl-table))
+                           ""
+                           (car props)))
+               (after (if (and tmtex-mathjax? (== key 'rcl-table))
+                          ""
+                          (caddr props)))
                (defaults (append (tmtable-cell-halign (cadr props))
                                  (tmtable-block-borders (cadddr props))))
                (p (tmtable-parser `(tformat ,@defaults ,x)))

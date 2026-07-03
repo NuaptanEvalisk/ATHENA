@@ -42,6 +42,7 @@
 #include "QTMNamespaceExplorer.hpp"
 #include "QTMNamespaceNewFile.hpp"
 #include "QTMNamespaceExport.hpp"
+#include "QTMWebsitesManager.hpp"
 #include "QTMReverseHierarchyGraph.hpp"
 #include "QTMAbout.hpp"
 #include "QTMESCSymbolPicker.hpp"
@@ -1794,6 +1795,8 @@ initialize_glue () {
     tmg_namespace_create_file_with_optional_initializer, 1, 0, 0);
   tmscm_install_procedure ("namespace-export-show",
                            namespace_export_show, 0, 0, 0);
+  tmscm_install_procedure ("websites-manager-show",
+                           websites_manager_show, 0, 0, 0);
   tmscm_install_procedure ("vault-load-with-ns",
                            tmg_vault_load_with_ns, 4, 0, 0);
   tmscm_install_procedure ("image-remove-background",

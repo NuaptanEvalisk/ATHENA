@@ -707,15 +707,17 @@ rag_read_vault_db_path (const fs::path& vault_root) {
   std::string text;
   if (!read_bytes (vault_root / "Vaultfile", text)) return "rag.sqlite";
   std::vector<std::string> fields= parse_vaultfile_strings (text);
-  if (fields.size () >= 2 && fields.size () < 8) {
-    while (fields.size () < 8) {
+  if (fields.size () >= 2 && fields.size () < 9) {
+    while (fields.size () < 9) {
       if (fields.size () == 2) fields.push_back ("");
       else if (fields.size () == 3) fields.push_back ("ns.sqlite");
       else if (fields.size () == 7) fields.push_back ("rag.sqlite");
+      else if (fields.size () == 8) fields.push_back ("websites.json");
       else fields.push_back ("");
     }
     if (fields[3].empty ()) fields[3]= "ns.sqlite";
     if (fields[7].empty ()) fields[7]= "rag.sqlite";
+    if (fields[8].empty ()) fields[8]= "websites.json";
     std::string out= "(";
     for (size_t i=0; i<fields.size (); i++) {
       if (i != 0) out += " ";

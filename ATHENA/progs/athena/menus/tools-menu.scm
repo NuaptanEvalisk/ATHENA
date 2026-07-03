@@ -15,6 +15,7 @@
   (:use (athena athena tm-tools)
         (athena athena tm-vault)
         (athena athena tm-vault-namespaces)
+        (athena athena tm-websites)
         (athena tools shortcut-listing)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -42,6 +43,7 @@
   ("Namespace Explorer" (open-namespace-explorer))
   ("Namespace Manager" (open-namespace-manager))
   ("Export namespace" (namespace-export-show))
+  ("Websites manager" (open-websites-manager))
   ("Custom styles manager" (custom-styles-manager-show))
   ("Vault backup viewer" (open-vault-backup-viewer))
   ("Vault Bugcheck" (vault-bugcheck))

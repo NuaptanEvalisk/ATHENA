@@ -174,6 +174,12 @@
       (list-ref data 7)
       "rag.sqlite"))
 
+(define (vaultfile-websites-path data)
+  (if (and (list? data) (>= (length data) 9) (string? (list-ref data 8))
+           (not (string-null? (list-ref data 8))))
+      (list-ref data 8)
+      "websites.json"))
+
 (define (vaultfile-normalized data)
   (list (car data)
         (cadr data)
@@ -182,7 +188,8 @@
         (vaultfile-startup-page data)
         (vaultfile-one-time-startup-page data)
         (vaultfile-maintenance-summary-path data)
-        (vaultfile-rag-index-path data)))
+        (vaultfile-rag-index-path data)
+        (vaultfile-websites-path data)))
 
 (define (vaultfile-normalize! vault-file data)
   (let ((normalized (vaultfile-normalized data)))
@@ -198,7 +205,8 @@
         (vaultfile-startup-page data)
         (vaultfile-one-time-startup-page data)
         (vaultfile-maintenance-summary-path data)
-        (vaultfile-rag-index-path data)))
+        (vaultfile-rag-index-path data)
+        (vaultfile-websites-path data)))
 
 (define (vault-preferences-url dir prefs-path)
   (url-append dir prefs-path))
@@ -348,7 +356,7 @@
                         (db-path "map.tmdb")
                         (ns-path "ns.sqlite")
                         (data (list name db-path "" ns-path "" "" ""
-                                    "rag.sqlite")))
+                                    "rag.sqlite" "websites.json")))
                    (save-object vault-file data)
                    (vault-load/namespace-db dir name db-path ns-path)
                    (if (vault-take-preferences?)
@@ -631,10 +639,18 @@
       (if (null? l) '()
           (vault-list-tail (cdr l) (- k 1)))))
 
+(define (vault-stree-children->trees st)
+  (if (and (pair? st) (== (car st) 'document))
+      (map stree->tree (cdr st))
+      (list (stree->tree st))))
+
 (define (vault-extract-whole t)
-  (if (and (tree-compound? t) (== (tree-label t) 'document))
-      (tree-children t)
-      (list t)))
+  (let* ((st (tree->stree t))
+         (body (and (tmfile? st) (tmfile-extract st 'body))))
+    (cond (body (vault-stree-children->trees body))
+          ((and (tree-compound? t) (== (tree-label t) 'document))
+           (tree-children t))
+          (else (list t)))))
 
 (define (vault-extract-range t b e)
   (if (and (string-null? b) (string-null? e))

@@ -1435,11 +1435,15 @@ QTMPreferencesDialog::buildVaultPage () {
     QLineEdit* ragIndexPath= add_path_chooser_row (
       vi, "RAG index database path:", vaultInfo.ragIndexPath,
       chooseRagIndex);
+    QPushButton* chooseWebsites= nullptr;
+    QLineEdit* websitesPath= add_path_chooser_row (
+      vi, "Website registry path:", vaultInfo.websitesPath,
+      chooseWebsites);
 
     auto saveVaultfile= [info, vaultName, mapPath, preferencesPath,
                          namespacePath, startupPage,
                          oneTimeStartupPage, maintenanceSummaryPath,
-                         ragIndexPath] () {
+                         ragIndexPath, websitesPath] () {
       QTMVaultfileInfo next;
       next.name= vaultName->text ();
       next.mapPath= mapPath->text ();
@@ -1449,6 +1453,7 @@ QTMPreferencesDialog::buildVaultPage () {
       next.oneTimeStartupPage= oneTimeStartupPage->text ();
       next.maintenanceSummaryPath= maintenanceSummaryPath->text ();
       next.ragIndexPath= ragIndexPath->text ();
+      next.websitesPath= websitesPath->text ();
       QString error;
       if (!qtm_vaultfile_write (next, &error)) {
         QMessageBox::warning (info, "Vault Info", error);
@@ -1466,6 +1471,8 @@ QTMPreferencesDialog::buildVaultPage () {
         qtm_clean_vault_relative_path (next.maintenanceSummaryPath));
       ragIndexPath->setText (
         qtm_clean_vault_relative_path (next.ragIndexPath));
+      websitesPath->setText (
+        qtm_clean_vault_relative_path (next.websitesPath));
     };
 
     auto choosePath= [info, saveVaultfile] (QLineEdit* edit,
@@ -1524,6 +1531,8 @@ QTMPreferencesDialog::buildVaultPage () {
                       saveVaultfile);
     QObject::connect (ragIndexPath, &QLineEdit::editingFinished,
                       saveVaultfile);
+    QObject::connect (websitesPath, &QLineEdit::editingFinished,
+                      saveVaultfile);
     QObject::connect (chooseMap, &QPushButton::clicked,
                       [=] () { choosePath (mapPath, "Choose map database",
                                            false); });
@@ -1548,6 +1557,10 @@ QTMPreferencesDialog::buildVaultPage () {
     QObject::connect (chooseRagIndex, &QPushButton::clicked,
                       [=] () { choosePath (ragIndexPath,
                                            "Choose RAG index database",
+                                           false); });
+    QObject::connect (chooseWebsites, &QPushButton::clicked,
+                      [=] () { choosePath (websitesPath,
+                                           "Choose website registry",
                                            false); });
   }
 

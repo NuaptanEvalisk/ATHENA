@@ -110,6 +110,8 @@ VaultMaintenancePassResult vault_maintenance_pass_collect_orphans (
   VaultMaintenanceContext& ctx);
 VaultMaintenancePassResult vault_maintenance_pass_purge_retained_data (
   VaultMaintenanceContext& ctx);
+VaultMaintenancePassResult vault_maintenance_pass_generate_websites (
+  VaultMaintenanceContext& ctx);
 VaultMaintenancePassResult vault_maintenance_pass_print_summary (
   VaultMaintenanceContext& ctx);
 bool vault_maintenance_write_summary_page (

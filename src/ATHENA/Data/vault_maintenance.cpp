@@ -41,6 +41,8 @@ vault_maintenance_run (string vault_dir, bool check_only) {
      vault_maintenance_pass_collect_orphans},
     {"purge-retained-data", "Purge old retained data",
      vault_maintenance_pass_purge_retained_data},
+    {"generate-websites", "Generate maintenance websites",
+     vault_maintenance_pass_generate_websites},
     {"summary", "Print maintenance summary",
      vault_maintenance_pass_print_summary}
   };

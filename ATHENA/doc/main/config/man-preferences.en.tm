@@ -686,6 +686,11 @@
     <item*|RAG index database path>Vault-relative path to the RAG index
     database.
 
+    <item*|Website registry path>Vault-relative path to the website registry
+    used by <menu|Tools|Websites manager>. Existing eight-field
+    <verbatim|Vaultfile> files are still accepted and default to
+    <verbatim|websites.json>.
+
     <item*|Global preferred font for vault>Preferred font family for vault
     documents and vault export operations.
   </description>

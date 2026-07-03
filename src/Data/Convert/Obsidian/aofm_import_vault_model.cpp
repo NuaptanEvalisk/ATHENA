@@ -58,7 +58,7 @@ write_vaultfile(const std::string& destination_root_path,
   vaultfile << "(" << scheme_quote_string(vault_name)
             << " \"map.tmdb\" " << scheme_quote_string(prefs_path)
             << " " << scheme_quote_string(namespace_db_path)
-            << " \"\" \"\" \"\" \"rag.sqlite\")\n";
+            << " \"\" \"\" \"\" \"rag.sqlite\" \"websites.json\")\n";
   return (bool) vaultfile;
 }
 

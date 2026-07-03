@@ -168,11 +168,19 @@
           ".balloon-anchor: hover [hidden] { position: absolute; left: 1em;"
 	  " top: 2em; z-index: 99; margin-left: 0;"
 	  " width: 500px; display: inline-block; } "
-          ".balloon-body { } "
-	  ".ornament { border-width: 1px; border-style: solid;"
-	  " border-color: black; display: inline-block; padding: 0.2em; } "
-	  ".right-tab { float: right; position: relative; top: -1em; } "
-	  ".no-breaks { white-space: nowrap; } "
+	          ".balloon-body { } "
+		  ".ornament { border-width: 1px; border-style: solid;"
+		  " border-color: black; display: inline-block; padding: 0.2em; } "
+                  ".enunciation { margin: 0.8em 0; padding: 0.55em 0.75em;"
+                  " border: 1px solid #888888; } "
+                  ".enunciation-title { font-weight: bold; margin-bottom: 0.25em; } "
+                  ".enunciation p { margin-top: 0.25em; margin-bottom: 0.25em; } "
+                  ".figure { margin: 0.8em 0; text-align: center; } "
+                  ".figure-body { text-align: center; } "
+                  ".figure img { max-width: 100%; height: auto; } "
+                  ".figure-caption { margin-top: 0.35em; font-size: 90%; } "
+		  ".right-tab { float: right; position: relative; top: -1em; } "
+		  ".no-breaks { white-space: nowrap; } "
 	  ".underline { text-decoration: underline; } "
 	  ".overline { text-decoration: overline; } "
 	  ".strike-through { text-decoration: line-through; } "
@@ -1578,13 +1586,40 @@
                          (h:td (@ (align "right"))
                                "(" ,@(tmhtml (cadr l)) ")"))))))))
 
+(define (tmhtml-eqnarray l)
+  (if (null? l) '()
+      (tmhtml (ext-tmhtml-eqnarray* (car l)))))
+
+(define (tmhtml-source-display-math? x)
+  (cond ((func? x 'with 1)
+         (tmhtml-source-display-math? (cadr x)))
+        ((and (func? x 'with 3)
+              (== (cadr x) "math-display")
+              (== (caddr x) "true"))
+         #t)
+        (else #f)))
+
+(define (tmhtml-inline-math l)
+  (if (null? l) '()
+      (let* ((body (if (null? (cdr l)) (car l) (cons 'concat l))))
+        (if (tmhtml-source-display-math? body)
+            `((h:div (@ (style "text-align: center"))
+                     ,@(ahash-with tmhtml-env :math #t
+                         (ahash-with tmhtml-env :math-display #t
+                           (tmhtml body)))))
+            (ahash-with tmhtml-env :math #t
+              (ahash-with tmhtml-env :math-display #f
+                (tmhtml body)))))))
+
 (define (tmhtml-mathjax-formula* x)
   ;;(display* "x= " x "\n")
   (let* ((opts (list (cons "texmacs->latex:mathjax" "on")))
          (s (serialize-latex (texmacs->latex x opts)))
          (display? (ahash-ref tmhtml-env :math-display))
          (style (if display? "\\displaystyle " ""))
-         (mj (string-append "\\(" style s "\\)")))
+         (mj (if display?
+                 (string-append "\\[" style s "\\]")
+                 (string-append "\\(" s "\\)"))))
     (when (and (string-starts? mj "\\(\\displaystyle \\begin{array}{rcl}")
                (string-ends?   mj "\\end{array}\\)"))
       (set! mj (string-append "\\begin{eqnarray*}"
@@ -1651,7 +1686,58 @@
                     (res `(cx-table (tformat (table ,row2)))))
                res))
             (else
-              `(rclx-table ,(rewrite-eqnarray* body))))))
+	              `(rclx-table ,(rewrite-eqnarray* body))))))
+
+(define (tmhtml-source-heading tag l)
+  (if (null? l) '()
+      `((,tag ,@(tmhtml (car l))))))
+
+(define (tmhtml-color-valid? color)
+  (and color (!= color "") (!= color "none")))
+
+(define (tmhtml-pref-color key fallback)
+  (let ((color (get-preference key)))
+    (if (tmhtml-color-valid? color) color fallback)))
+
+(define (tmhtml-enunciation-color kind group fallback)
+  (let* ((specific (get-preference (string-append "vault " kind " color")))
+         (group-key (string-append "vault " group " color"))
+         (group-color (get-preference group-key)))
+    (cond ((tmhtml-color-valid? specific) specific)
+          ((tmhtml-color-valid? group-color) group-color)
+          (else fallback))))
+
+(define (tmhtml-enunciation-body l)
+  (cond ((null? l) '(document ""))
+        ((null? (cdr l)) (car l))
+        (else (cons 'document l))))
+
+(define (tmhtml-source-enunciation kind group title fallback l)
+  (let* ((color (tmhtml-enunciation-color kind group fallback))
+         (class (string-append "enunciation enunciation-" kind
+                               " enunciation-" group))
+         (style (string-append "background-color:" color))
+         (body (tmhtml (tmhtml-enunciation-body l))))
+    `((h:div (@ (class ,class) (style ,style))
+             (h:div (@ (class "enunciation-title")) ,title)
+             ,@body))))
+
+(define (tmhtml-source-figure kind l)
+  (let* ((class (string-append "figure figure-" kind))
+         (body (if (null? l) '(document "") (car l)))
+         (caption (if (or (null? l) (null? (cdr l))) #f (cadr l)))
+         (body-html (tmhtml body))
+         (caption-html (if caption (tmhtml caption) '())))
+    `((h:div (@ (class ,class))
+             (h:div (@ (class "figure-body")) ,@body-html)
+             ,@(if (nnull? caption-html)
+                   `((h:div (@ (class "figure-caption")) ,@caption-html))
+                   '())))))
+
+(define (tmhtml-render-figure kind l)
+  (if (>= (length l) 4)
+      (tmhtml-source-figure kind (list (caddr l) (cadddr l)))
+      (tmhtml-source-figure kind l)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Tags for customized html generation
@@ -1966,6 +2052,7 @@
   (table tmhtml-table)
   (tformat tmhtml-tformat)
   ((:or twith cwith tmarker row cell sub-table) tmhtml-noop)
+  (math tmhtml-inline-math)
 
   (assign tmhtml-noop)
   (with tmhtml-with)
@@ -2010,7 +2097,7 @@
   ((:or point line arc bezier) tmhtml-noop)
   (image tmhtml-image)
 
-  (ornament tmhtml-ornament)
+  ((:or ornament ornamented) tmhtml-ornament)
 
   (format tmhtml-noop)
   ((:or tag meaning) tmhtml-noop)
@@ -2035,6 +2122,14 @@
   (subsubsection-title (h:h4))
   (paragraph-title (h:h5))
   (subparagraph-title (h:h6))
+  ((:or chapter chapter*) ,(lambda (l) (tmhtml-source-heading 'h:h1 l)))
+  ((:or section section*) ,(lambda (l) (tmhtml-source-heading 'h:h2 l)))
+  ((:or subsection subsection*) ,(lambda (l) (tmhtml-source-heading 'h:h3 l)))
+  ((:or subsubsection subsubsection*) ,(lambda (l) (tmhtml-source-heading 'h:h4 l)))
+  ((:or paragraph paragraph*) ,(lambda (l) (tmhtml-source-heading 'h:h5 l)))
+  ((:or subparagraph subparagraph*) ,(lambda (l) (tmhtml-source-heading 'h:h6 l)))
+  (doc-title ,(lambda (l) (tmhtml-source-heading 'h:h1 l)))
+  (doc-subtitle ,(lambda (l) (tmhtml-source-heading 'h:h2 l)))
   ;; Lists
   ((:or itemize itemize-minus itemize-dot itemize-arrow)
    ,tmhtml-itemize)
@@ -2070,9 +2165,66 @@
   (shown ,tmhtml-shown)
   (hidden-title ,tmhtml-noop)
   (doc-title-block ,tmhtml-doc-title-block)
+  ((:or eqnarray eqnarray*) ,tmhtml-eqnarray)
   (equation* ,tmhtml-equation*)
   (equation-lab ,tmhtml-equation-lab)
   (equations-base ,tmhtml-equation*)
+  (theorem ,(lambda (l) (tmhtml-source-enunciation
+                         "theorem" "theorem" "Theorem" "#e5e9f0" l)))
+  (proposition ,(lambda (l) (tmhtml-source-enunciation
+                             "proposition" "theorem" "Proposition" "#e5e9f0" l)))
+  (lemma ,(lambda (l) (tmhtml-source-enunciation
+                       "lemma" "theorem" "Lemma" "#e5e9f0" l)))
+  (corollary ,(lambda (l) (tmhtml-source-enunciation
+                           "corollary" "theorem" "Corollary" "#e5e9f0" l)))
+  (axiom ,(lambda (l) (tmhtml-source-enunciation
+                       "axiom" "theorem" "Axiom" "#e5e9f0" l)))
+  (conjecture ,(lambda (l) (tmhtml-source-enunciation
+                            "conjecture" "theorem" "Conjecture" "#e5e9f0" l)))
+  (law ,(lambda (l) (tmhtml-source-enunciation
+                     "law" "theorem" "Law" "#e5e9f0" l)))
+  (definition ,(lambda (l) (tmhtml-source-enunciation
+                            "definition" "definition" "Definition" "#f0e4d8" l)))
+  (notation ,(lambda (l) (tmhtml-source-enunciation
+                          "notation" "definition" "Notation" "#f0e4d8" l)))
+  (convention ,(lambda (l) (tmhtml-source-enunciation
+                            "convention" "definition" "Convention" "#f0e4d8" l)))
+  (remark ,(lambda (l) (tmhtml-source-enunciation
+                        "remark" "remark" "Remark" "#e8eadc" l)))
+  (note ,(lambda (l) (tmhtml-source-enunciation
+                      "note" "remark" "Note" "#e8eadc" l)))
+  (example ,(lambda (l) (tmhtml-source-enunciation
+                         "example" "remark" "Example" "#e8eadc" l)))
+  (warning ,(lambda (l) (tmhtml-source-enunciation
+                         "warning" "remark" "Warning" "#e8eadc" l)))
+  (disambiguation ,(lambda (l) (tmhtml-source-enunciation
+                                "disambiguation" "remark" "Disambiguation" "#e8eadc" l)))
+  (acknowledgments ,(lambda (l) (tmhtml-source-enunciation
+                                 "acknowledgments" "remark" "Acknowledgments" "#e8eadc" l)))
+  (exercise ,(lambda (l) (tmhtml-source-enunciation
+                          "exercise" "exercise" "Exercise" "#dfece0" l)))
+  (problem ,(lambda (l) (tmhtml-source-enunciation
+                         "problem" "exercise" "Problem" "#dfece0" l)))
+  (question ,(lambda (l) (tmhtml-source-enunciation
+                          "question" "exercise" "Question" "#dfece0" l)))
+  (solution ,(lambda (l) (tmhtml-source-enunciation
+                          "solution" "exercise" "Solution" "#dfece0" l)))
+  (answer ,(lambda (l) (tmhtml-source-enunciation
+                        "answer" "exercise" "Answer" "#dfece0" l)))
+  (proof ,(lambda (l) (tmhtml-source-enunciation
+                       "proof" "exercise" "Proof" "#dfece0" l)))
+  (proof-alternative ,(lambda (l) (tmhtml-source-enunciation
+                                   "proof-alternative" "exercise" "Proof (Alternative)" "#dfece0" l)))
+  (proof-standard ,(lambda (l) (tmhtml-source-enunciation
+                                "proof-standard" "exercise" "Proof (Standard)" "#dfece0" l)))
+  ((:or big-figure small-figure)
+   ,(lambda (l) (tmhtml-source-figure "figure" l)))
+  ((:or big-table small-table)
+   ,(lambda (l) (tmhtml-source-figure "table" l)))
+  ((:or render-big-figure render-small-figure)
+   ,(lambda (l) (tmhtml-render-figure "figure" l)))
+  ((:or render-big-table render-small-table)
+   ,(lambda (l) (tmhtml-render-figure "table" l)))
   (wide-float ,tmhtml-float)
   (draw-over ,tmhtml-draw-over)
   (draw-under ,tmhtml-draw-under)
@@ -2139,9 +2291,20 @@
   (("font" "roman") (h:class (@ (style "font-family: Times New Roman"))))
   (("font" "times") (h:class (@ (style "font-family: Times New Roman"))))
   (("font" "helvetica") (h:class (@ (style "font-family: Helvetica"))))
-  (("font" "courier") (h:class (@ (style "font-family: Coutier"))))
+  (("font" "courier") (h:class (@ (style "font-family: Courier New, Courier, monospace"))))
+  (("font" "bonum") (h:class (@ (style "font-family: TeX Gyre Bonum, Bookman Old Style, Georgia, serif"))))
+  (("font" "pagella") (h:class (@ (style "font-family: TeX Gyre Pagella, Palatino Linotype, Palatino, Georgia, serif"))))
+  (("font" "schola") (h:class (@ (style "font-family: TeX Gyre Schola, Century Schoolbook, Georgia, serif"))))
+  (("font" "termes") (h:class (@ (style "font-family: TeX Gyre Termes, Times New Roman, Times, serif"))))
+  (("font" "stix") (h:class (@ (style "font-family: STIX Two Text, STIXGeneral, Times New Roman, serif"))))
+  (("font" "dejavu") (h:class (@ (style "font-family: DejaVu Serif, Georgia, serif"))))
   (("math-font" "cal") (h:class (@ (style "font-family: Flemish Script"))))
   (("math-font" "frak") (h:class (@ (style "font-family: Bernhard Modern"))))
+  (("math-font" "math-bonum") (h:class (@ (style "font-family: TeX Gyre Bonum Math, TeX Gyre Bonum, serif"))))
+  (("math-font" "math-pagella") (h:class (@ (style "font-family: TeX Gyre Pagella Math, TeX Gyre Pagella, serif"))))
+  (("math-font" "math-schola") (h:class (@ (style "font-family: TeX Gyre Schola Math, TeX Gyre Schola, serif"))))
+  (("math-font" "math-termes") (h:class (@ (style "font-family: TeX Gyre Termes Math, TeX Gyre Termes, serif"))))
+  (("math-font" "math-stix") (h:class (@ (style "font-family: STIX Two Math, STIXGeneral, serif"))))
   (("font-series" "medium") (h:class (@ (style "font-weight: normal"))))
   (("font-shape" "right") (h:class (@ (style "font-style: normal"))))
   (("font-shape" "small-caps")
@@ -2163,12 +2326,28 @@
 ;; Interface
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(define (tmhtml-with-file-init-one body var val)
+  (if (and val (!= val ""))
+      `(with ,var ,val ,body)
+      body))
+
+(define (tmhtml-with-file-initials doc body)
+  (let* ((font (tmfile-init doc "font" #t))
+         (math-font (tmfile-init doc "math-font" #t))
+         (font-family (tmfile-init doc "font-family" #t)))
+    (tmhtml-with-file-init-one
+      (tmhtml-with-file-init-one
+        (tmhtml-with-file-init-one body "font" font)
+        "math-font" math-font)
+      "font-family" font-family)))
+
 (tm-define (texmacs->html x opts)
   (if (tmfile? x)
       (let* ((body (tmfile-extract x 'body))
 	     (style* (tmfile-extract x 'style))
 	     (style (if (list? style*) style* (list style*)))
 	     (lan (tmfile-language x))
+             (body (tmhtml-with-file-initials x body))
 	     (doc (list '!file body style lan
                         (url->string (get-texmacs-path)))))
 	(texmacs->html doc opts))

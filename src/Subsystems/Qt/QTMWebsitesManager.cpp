@@ -1,0 +1,750 @@
+/******************************************************************************
+* MODULE     : QTMWebsitesManager.cpp
+* DESCRIPTION: Qt websites manager pane for ATHENA vaults
+* COPYRIGHT  : (C) 2026 Nuaptan Felix Evalisk
+*******************************************************************************
+* This software falls under the GNU general public license version 3 or later.
+* It comes WITHOUT ANY WARRANTY WHATSOEVER. For details, see the file LICENSE
+* in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
+******************************************************************************/
+
+#include "QTMWebsitesManager.hpp"
+
+#include "ATHENA/Data/websites.hpp"
+#include "QTMMainTabWindow.hpp"
+#include "namespaces.hpp"
+#include "qt_utilities.hpp"
+#include "vault.hpp"
+
+#include <DockWidget.h>
+#include <QApplication>
+#include <QCheckBox>
+#include <QComboBox>
+#include <QCoreApplication>
+#include <QDesktopServices>
+#include <QDir>
+#include <QFileDialog>
+#include <QFileInfo>
+#include <QFormLayout>
+#include <QHBoxLayout>
+#include <QInputDialog>
+#include <QLabel>
+#include <QLineEdit>
+#include <QListWidget>
+#include <QMessageBox>
+#include <QPlainTextEdit>
+#include <QProcess>
+#include <QProgressBar>
+#include <QPushButton>
+#include <QRadioButton>
+#include <QRegularExpression>
+#include <QTextEdit>
+#include <QTimer>
+#include <QUrl>
+#include <QVBoxLayout>
+#include <QWizard>
+#include <QWizardPage>
+
+#include <algorithm>
+#include <set>
+
+static QWidget* websites_manager_widget= nullptr;
+static ads::CDockWidget* websites_manager_dock= nullptr;
+
+namespace {
+
+static QString
+qss (const std::string& s) {
+  return QString::fromUtf8 (s.c_str ());
+}
+
+static std::string
+qstd (const QString& s) {
+  QByteArray bytes= s.toUtf8 ();
+  return std::string (bytes.constData (), (size_t) bytes.size ());
+}
+
+static QString
+vault_root_qstring () {
+  if (!vault_active ()) return QString ();
+  return to_qstring (concretize (vault_get_root ()));
+}
+
+static std::string
+vault_root_std () {
+  return qstd (vault_root_qstring ());
+}
+
+static QString
+selector_summary (const athena_website_selector& selector) {
+  return qss (athena_website_selector_summary (selector));
+}
+
+static QStringList
+namespace_names () {
+  QStringList out;
+  for (const athena_namespace_definition& ns: athena_namespaces_list ())
+    out << to_qstring (ns.name);
+  out.sort ();
+  out.removeDuplicates ();
+  return out;
+}
+
+static QStringList
+document_paths_for_selector (const athena_website_selector& selector) {
+  std::vector<std::string> files;
+  std::string error;
+  QStringList out;
+  if (!athena_website_selector_files (vault_root_std (), selector, files,
+                                      error))
+    return out;
+  for (const std::string& file: files) out << qss (file);
+  return out;
+}
+
+static QString
+destination_path (const athena_website_entry& website) {
+  QString dest= qss (website.destination);
+  if (dest.isEmpty ()) dest= qss (website.name);
+  if (QDir::isAbsolutePath (dest)) return QDir::cleanPath (dest);
+  return QDir (vault_root_qstring ()).absoluteFilePath (dest);
+}
+
+static QString
+unique_website_id (const std::vector<athena_website_entry>& websites,
+                   const QString& name) {
+  QString base= name.toLower ().trimmed ();
+  base.replace (QRegularExpression ("[^a-z0-9_-]+"), "-");
+  while (base.startsWith ('-')) base.remove (0, 1);
+  while (base.endsWith ('-')) base.chop (1);
+  if (base.isEmpty ()) base= "website";
+  std::set<QString> used;
+  for (const athena_website_entry& website: websites)
+    used.insert (qss (website.id));
+  QString candidate= base;
+  int suffix= 2;
+  while (used.count (candidate) != 0)
+    candidate= base + "-" + QString::number (suffix++);
+  return candidate;
+}
+
+static bool
+website_name_taken (const std::vector<athena_website_entry>& websites,
+                    const QString& name, const std::string& except_id) {
+  for (const athena_website_entry& website: websites) {
+    if (website.id == except_id) continue;
+    if (qss (website.name).compare (name, Qt::CaseInsensitive) == 0)
+      return true;
+  }
+  return false;
+}
+
+class SelectorPage : public QWizardPage {
+public:
+  SelectorPage (QWidget* parent= nullptr): QWizardPage (parent) {
+    setTitle ("Selector");
+    setSubTitle ("Build the document set from paths, namespaces, and boolean operators.");
+
+    summary= new QTextEdit;
+    summary->setReadOnly (true);
+    summary->setMinimumHeight (120);
+
+    op= new QComboBox;
+    op->addItem ("OR", "or");
+    op->addItem ("AND", "and");
+    op->addItem ("XOR", "xor");
+    op->addItem ("NAND", "nand");
+    op->addItem ("NOR", "nor");
+
+    QPushButton* addPath= new QPushButton ("Add path");
+    QPushButton* addNamespace= new QPushButton ("Add namespace");
+    QPushButton* wrapNot= new QPushButton ("Wrap NOT");
+    QPushButton* clear= new QPushButton ("Clear");
+
+    QHBoxLayout* controls= new QHBoxLayout;
+    controls->addWidget (new QLabel ("Combine:"));
+    controls->addWidget (op);
+    controls->addWidget (addPath);
+    controls->addWidget (addNamespace);
+    controls->addWidget (wrapNot);
+    controls->addWidget (clear);
+    controls->addStretch ();
+
+    QVBoxLayout* layout= new QVBoxLayout;
+    layout->addWidget (summary);
+    layout->addLayout (controls);
+    setLayout (layout);
+
+    connect (addPath, &QPushButton::clicked, this, [this] () {
+      QString root= vault_root_qstring ();
+      QString selected= QFileDialog::getExistingDirectory (
+        this, "Choose vault folder", root);
+      if (selected.isEmpty ()) {
+        selected= QFileDialog::getOpenFileName (
+          this, "Choose vault document", root,
+          "ATHENA documents (*.ath *.tm);;All files (*)");
+      }
+      if (selected.isEmpty ()) return;
+      QString rel= QDir (root).relativeFilePath (selected);
+      rel= QDir::cleanPath (rel);
+      if (rel == "." || rel.startsWith ("../") || QDir::isAbsolutePath (rel)) {
+        QMessageBox::warning (this, "Websites manager",
+                              "Selected path must be inside the active vault.");
+        return;
+      }
+      athena_website_selector leaf;
+      leaf.op= "path";
+      leaf.value= qstd (rel);
+      combine (leaf);
+    });
+
+    connect (addNamespace, &QPushButton::clicked, this, [this] () {
+      QStringList names= namespace_names ();
+      if (names.isEmpty ()) {
+        QMessageBox::warning (this, "Websites manager",
+                              "No namespaces are available in this vault.");
+        return;
+      }
+      bool ok= false;
+      QString name= QInputDialog::getItem (this, "Choose namespace",
+                                           "Namespace:", names, 0, false, &ok);
+      if (!ok || name.isEmpty ()) return;
+      athena_website_selector leaf;
+      leaf.op= "namespace";
+      leaf.value= qstd (name);
+      combine (leaf);
+    });
+
+    connect (wrapNot, &QPushButton::clicked, this, [this] () {
+      if (athena_website_selector_empty (selector)) return;
+      athena_website_selector wrapped;
+      wrapped.op= "not";
+      wrapped.children.push_back (selector);
+      selector= wrapped;
+      refresh ();
+    });
+
+    connect (clear, &QPushButton::clicked, this, [this] () {
+      selector= athena_website_selector ();
+      refresh ();
+    });
+    refresh ();
+  }
+
+  void setSelector (const athena_website_selector& next) {
+    selector= next;
+    refresh ();
+  }
+
+  athena_website_selector currentSelector () const {
+    return selector;
+  }
+
+  bool isComplete () const override {
+    return !athena_website_selector_empty (selector);
+  }
+
+private:
+  QTextEdit* summary;
+  QComboBox* op;
+  athena_website_selector selector;
+
+  void combine (const athena_website_selector& leaf) {
+    if (athena_website_selector_empty (selector)) {
+      selector= leaf;
+    }
+    else {
+      athena_website_selector combined;
+      combined.op= qstd (op->currentData ().toString ());
+      combined.children.push_back (selector);
+      combined.children.push_back (leaf);
+      selector= combined;
+    }
+    refresh ();
+  }
+
+  void refresh () {
+    summary->setPlainText (selector_summary (selector));
+    emit completeChanged ();
+  }
+};
+
+class WebsiteWizard : public QWizard {
+public:
+  WebsiteWizard (const std::vector<athena_website_entry>& existing,
+                 const athena_website_entry* initial,
+                 QWidget* parent= nullptr):
+    QWizard (parent), websites (existing) {
+    setWindowTitle (initial == nullptr ? "Create website" :
+                                      "Configure website");
+
+    namePage= new QWizardPage;
+    namePage->setTitle ("Name");
+    nameEdit= new QLineEdit;
+    QFormLayout* nameLayout= new QFormLayout;
+    nameLayout->addRow ("Website name:", nameEdit);
+    namePage->setLayout (nameLayout);
+    addPage (namePage);
+
+    selectorPage= new SelectorPage;
+    addPage (selectorPage);
+
+    publishPage= new QWizardPage;
+    publishPage->setTitle ("Destination");
+    destinationEdit= new QLineEdit;
+    QPushButton* browseDestination= new QPushButton ("Browse...");
+    QHBoxLayout* destRow= new QHBoxLayout;
+    destRow->addWidget (destinationEdit);
+    destRow->addWidget (browseDestination);
+    regenerateCombo= new QComboBox;
+    regenerateCombo->addItem ("Manual", "manual");
+    regenerateCombo->addItem ("Vault maintenance", "maintenance");
+    postEnabled= new QCheckBox ("Run command after generation");
+    postProgram= new QLineEdit;
+    QPushButton* browseProgram= new QPushButton ("Browse...");
+    QHBoxLayout* postProgramRow= new QHBoxLayout;
+    postProgramRow->addWidget (postProgram);
+    postProgramRow->addWidget (browseProgram);
+    postArguments= new QLineEdit;
+    QFormLayout* publishLayout= new QFormLayout;
+    publishLayout->addRow ("Destination folder:", destRow);
+    publishLayout->addRow ("Regenerate:", regenerateCombo);
+    publishLayout->addRow ("Post command:", postEnabled);
+    publishLayout->addRow ("Program:", postProgramRow);
+    publishLayout->addRow ("Arguments:", postArguments);
+    publishPage->setLayout (publishLayout);
+    addPage (publishPage);
+
+    entryPage= new QWizardPage;
+    entryPage->setTitle ("Entrypoint");
+    fileEntry= new QRadioButton ("Document");
+    namespaceEntry= new QRadioButton ("Namespace homepage");
+    fileEntry->setChecked (true);
+    entryFile= new QComboBox;
+    entryNamespace= new QComboBox;
+    QFormLayout* entryLayout= new QFormLayout;
+    entryLayout->addRow (fileEntry);
+    entryLayout->addRow ("Document:", entryFile);
+    entryLayout->addRow (namespaceEntry);
+    entryLayout->addRow ("Namespace:", entryNamespace);
+    entryPage->setLayout (entryLayout);
+    addPage (entryPage);
+
+    confirmPage= new QWizardPage;
+    confirmPage->setTitle ("Confirm");
+    confirmation= new QTextEdit;
+    confirmation->setReadOnly (true);
+    QVBoxLayout* confirmLayout= new QVBoxLayout;
+    confirmLayout->addWidget (confirmation);
+    confirmPage->setLayout (confirmLayout);
+    addPage (confirmPage);
+
+    connect (browseDestination, &QPushButton::clicked, this, [this] () {
+      QString initial= destinationEdit->text ().trimmed ().isEmpty ()
+        ? vault_root_qstring () : destinationEdit->text ().trimmed ();
+      QString selected= QFileDialog::getExistingDirectory (
+        this, "Choose website destination", initial);
+      if (!selected.isEmpty ()) destinationEdit->setText (selected);
+    });
+    connect (browseProgram, &QPushButton::clicked, this, [this] () {
+      QString selected= QFileDialog::getOpenFileName (
+        this, "Choose post-generation program", vault_root_qstring ());
+      if (!selected.isEmpty ()) postProgram->setText (selected);
+    });
+    connect (selectorPage, &QWizardPage::completeChanged, this,
+             [this] () { refreshEntrypoints (); refreshSummary (); });
+    connect (nameEdit, &QLineEdit::textChanged, this,
+             [this] () { refreshSummary (); });
+    connect (destinationEdit, &QLineEdit::textChanged, this,
+             [this] () { refreshSummary (); });
+    connect (regenerateCombo, qOverload<int> (&QComboBox::currentIndexChanged),
+             this,
+             [this] () { refreshSummary (); });
+
+    if (initial != nullptr) {
+      editingId= initial->id;
+      nameEdit->setText (qss (initial->name));
+      selectorPage->setSelector (initial->selector);
+      destinationEdit->setText (qss (initial->destination));
+      int regen= regenerateCombo->findData (qss (initial->regenerate));
+      if (regen >= 0) regenerateCombo->setCurrentIndex (regen);
+      postEnabled->setChecked (initial->post_command.enabled);
+      postProgram->setText (qss (initial->post_command.program));
+      postArguments->setText (qss (initial->post_command.arguments));
+      initialEntrypointKind= qss (initial->entrypoint_kind);
+      initialEntrypointValue= qss (initial->entrypoint_value);
+    }
+    else {
+      destinationEdit->setText ("website");
+    }
+    refreshEntrypoints ();
+    refreshSummary ();
+  }
+
+  bool validateCurrentPage () override {
+    if (currentPage () == namePage) {
+      QString name= nameEdit->text ().trimmed ();
+      if (name.isEmpty ()) {
+        QMessageBox::warning (this, "Websites manager",
+                              "Website name cannot be empty.");
+        return false;
+      }
+      if (website_name_taken (websites, name, editingId)) {
+        QMessageBox::warning (this, "Websites manager",
+                              "Website name must be unique in this vault.");
+        return false;
+      }
+    }
+    if (currentPage () == selectorPage &&
+        athena_website_selector_empty (selectorPage->currentSelector ())) {
+      QMessageBox::warning (this, "Websites manager",
+                            "Website selector cannot be empty.");
+      return false;
+    }
+    return QWizard::validateCurrentPage ();
+  }
+
+  athena_website_entry resultEntry () const {
+    athena_website_entry out;
+    out.id= editingId.empty () ? qstd (unique_website_id (
+      websites, nameEdit->text ().trimmed ())) : editingId;
+    out.name= qstd (nameEdit->text ().trimmed ());
+    out.selector= selectorPage->currentSelector ();
+    out.destination= qstd (destinationEdit->text ().trimmed ());
+    out.regenerate= qstd (regenerateCombo->currentData ().toString ());
+    if (namespaceEntry->isChecked ()) {
+      out.entrypoint_kind= "namespace";
+      out.entrypoint_value= qstd (entryNamespace->currentText ());
+    }
+    else {
+      out.entrypoint_kind= "file";
+      out.entrypoint_value= qstd (entryFile->currentText ());
+    }
+    out.post_command.enabled= postEnabled->isChecked ();
+    out.post_command.program= qstd (postProgram->text ().trimmed ());
+    out.post_command.arguments= qstd (postArguments->text ().trimmed ());
+    return out;
+  }
+
+private:
+  std::vector<athena_website_entry> websites;
+  std::string editingId;
+  QString initialEntrypointKind;
+  QString initialEntrypointValue;
+
+  QWizardPage* namePage;
+  SelectorPage* selectorPage;
+  QWizardPage* publishPage;
+  QWizardPage* entryPage;
+  QWizardPage* confirmPage;
+  QLineEdit* nameEdit;
+  QLineEdit* destinationEdit;
+  QComboBox* regenerateCombo;
+  QCheckBox* postEnabled;
+  QLineEdit* postProgram;
+  QLineEdit* postArguments;
+  QRadioButton* fileEntry;
+  QRadioButton* namespaceEntry;
+  QComboBox* entryFile;
+  QComboBox* entryNamespace;
+  QTextEdit* confirmation;
+
+  void refreshEntrypoints () {
+    QString previousFile= entryFile->currentText ();
+    QString previousNamespace= entryNamespace->currentText ();
+    entryFile->clear ();
+    entryFile->addItems (document_paths_for_selector (
+      selectorPage->currentSelector ()));
+    entryNamespace->clear ();
+    entryNamespace->addItems (namespace_names ());
+    if (!initialEntrypointValue.isEmpty ()) {
+      if (initialEntrypointKind == "namespace") {
+        namespaceEntry->setChecked (true);
+        entryNamespace->setCurrentText (initialEntrypointValue);
+      }
+      else {
+        fileEntry->setChecked (true);
+        entryFile->setCurrentText (initialEntrypointValue);
+      }
+      initialEntrypointValue.clear ();
+    }
+    else {
+      if (!previousFile.isEmpty ()) entryFile->setCurrentText (previousFile);
+      if (!previousNamespace.isEmpty ())
+        entryNamespace->setCurrentText (previousNamespace);
+    }
+  }
+
+  void refreshSummary () {
+    confirmation->setPlainText (
+      QString ("Name: ") + nameEdit->text ().trimmed () + "\n" +
+      "Selector: " + selector_summary (selectorPage->currentSelector ()) +
+      "\nDestination: " + destinationEdit->text ().trimmed () +
+      "\nRegenerate: " + regenerateCombo->currentText () + "\n");
+  }
+};
+
+class WebsitesManagerPane : public QWidget {
+public:
+  WebsitesManagerPane () {
+    list= new QListWidget;
+    QPushButton* create= new QPushButton ("Create");
+    QPushButton* remove= new QPushButton ("Delete");
+    QPushButton* rename= new QPushButton ("Rename");
+    QPushButton* inspect= new QPushButton ("Inspect");
+    QPushButton* configure= new QPushButton ("Configure");
+    QPushButton* generate= new QPushButton ("Generate now");
+    log= new QPlainTextEdit;
+    log->setReadOnly (true);
+    log->setMaximumHeight (120);
+
+    QHBoxLayout* buttons= new QHBoxLayout;
+    buttons->addWidget (create);
+    buttons->addWidget (remove);
+    buttons->addWidget (rename);
+    buttons->addWidget (inspect);
+    buttons->addWidget (configure);
+    buttons->addWidget (generate);
+    buttons->addStretch ();
+
+    QVBoxLayout* layout= new QVBoxLayout;
+    layout->addWidget (list);
+    layout->addLayout (buttons);
+    layout->addWidget (log);
+    setLayout (layout);
+
+    connect (create, &QPushButton::clicked, this,
+             [this] () { createWebsite (); });
+    connect (remove, &QPushButton::clicked, this,
+             [this] () { deleteWebsite (); });
+    connect (rename, &QPushButton::clicked, this,
+             [this] () { renameWebsite (); });
+    connect (inspect, &QPushButton::clicked, this,
+             [this] () { inspectWebsite (); });
+    connect (configure, &QPushButton::clicked, this,
+             [this] () { configureWebsite (); });
+    connect (generate, &QPushButton::clicked, this,
+             [this] () { generateWebsite (); });
+    connect (list, &QListWidget::itemDoubleClicked, this,
+             [this] () { configureWebsite (); });
+    refresh ();
+  }
+
+  void refresh () {
+    std::string error;
+    websites.clear ();
+    list->clear ();
+    if (!athena_websites_load (vault_root_std (), websites, error)) {
+      log->appendPlainText ("Error: " + qss (error));
+      return;
+    }
+    for (const athena_website_entry& website: websites) {
+      QListWidgetItem* item= new QListWidgetItem (qss (website.name));
+      item->setData (Qt::UserRole, qss (website.id));
+      item->setToolTip (selector_summary (website.selector));
+      list->addItem (item);
+    }
+  }
+
+private:
+  QListWidget* list;
+  QPlainTextEdit* log;
+  std::vector<athena_website_entry> websites;
+
+  int currentIndex () const {
+    QListWidgetItem* item= list->currentItem ();
+    if (item == nullptr) return -1;
+    QString id= item->data (Qt::UserRole).toString ();
+    for (size_t i=0; i<websites.size (); i++)
+      if (qss (websites[i].id) == id) return (int) i;
+    return -1;
+  }
+
+  bool save () {
+    std::string error;
+    if (!athena_websites_save (vault_root_std (), websites, error)) {
+      QMessageBox::warning (this, "Websites manager", qss (error));
+      return false;
+    }
+    refresh ();
+    return true;
+  }
+
+  void createWebsite () {
+    WebsiteWizard wizard (websites, nullptr, this);
+    if (wizard.exec () != QDialog::Accepted) return;
+    websites.push_back (wizard.resultEntry ());
+    save ();
+  }
+
+  void configureWebsite () {
+    int index= currentIndex ();
+    if (index < 0) return;
+    WebsiteWizard wizard (websites, &websites[(size_t) index], this);
+    if (wizard.exec () != QDialog::Accepted) return;
+    websites[(size_t) index]= wizard.resultEntry ();
+    save ();
+  }
+
+  void deleteWebsite () {
+    int index= currentIndex ();
+    if (index < 0) return;
+    QMessageBox box (QMessageBox::Question, "Delete website",
+                     "Delete this website definition?",
+                     QMessageBox::Yes | QMessageBox::No, this);
+    QCheckBox* removeArtifacts= new QCheckBox (
+      "Also remove generated destination folder");
+    box.setCheckBox (removeArtifacts);
+    if (box.exec () != QMessageBox::Yes) return;
+    QString dest= destination_path (websites[(size_t) index]);
+    websites.erase (websites.begin () + index);
+    if (!save ()) return;
+    if (removeArtifacts->isChecked ())
+      QDir (dest).removeRecursively ();
+  }
+
+  void renameWebsite () {
+    int index= currentIndex ();
+    if (index < 0) return;
+    bool ok= false;
+    QString name= QInputDialog::getText (
+      this, "Rename website", "Name:", QLineEdit::Normal,
+      qss (websites[(size_t) index].name), &ok).trimmed ();
+    if (!ok || name.isEmpty ()) return;
+    if (website_name_taken (websites, name, websites[(size_t) index].id)) {
+      QMessageBox::warning (this, "Websites manager",
+                            "Website name must be unique in this vault.");
+      return;
+    }
+    websites[(size_t) index].name= qstd (name);
+    save ();
+  }
+
+  void inspectWebsite () {
+    int index= currentIndex ();
+    if (index < 0) return;
+    QDesktopServices::openUrl (
+      QUrl::fromLocalFile (destination_path (websites[(size_t) index])));
+  }
+
+  void generateWebsite () {
+    int index= currentIndex ();
+    if (index < 0) return;
+    showGenerationPane (websites[(size_t) index]);
+  }
+
+  void showGenerationPane (const athena_website_entry& website) {
+    QTMMainTabWindow* win= QTMMainTabWindow::topTabWindow ();
+    if (win == nullptr || win->dockManager () == nullptr) return;
+
+    QWidget* pane= new QWidget;
+    QVBoxLayout* layout= new QVBoxLayout;
+    QLabel* status= new QLabel ("Starting website generation...");
+    QProgressBar* progress= new QProgressBar;
+    progress->setRange (0, 0);
+    QPlainTextEdit* output= new QPlainTextEdit;
+    output->setReadOnly (true);
+    layout->addWidget (status);
+    layout->addWidget (progress);
+    layout->addWidget (output);
+    pane->setLayout (layout);
+
+    ads::CDockWidget* dock= new ads::CDockWidget (
+      "Generate website: " + qss (website.name));
+    dock->setWidget (pane, ads::CDockWidget::ForceNoScrollArea);
+    dock->setFeature (ads::CDockWidget::DockWidgetDeleteOnClose, true);
+    win->dockManager ()->addDockWidgetFloating (dock);
+    dock->resize (760, 420);
+    dock->show ();
+
+    QProcess* process= new QProcess (pane);
+    process->setProgram (QCoreApplication::applicationFilePath ());
+    process->setArguments (
+      QStringList () << "--generate-website" << vault_root_qstring ()
+                     << qss (website.id));
+    process->setProcessChannelMode (QProcess::MergedChannels);
+    connect (process, &QProcess::readyRead, pane, [=] () {
+      QString text= QString::fromUtf8 (process->readAll ());
+      for (const QString& raw: text.split ('\n')) {
+        QString line= raw.trimmed ();
+        if (line.isEmpty ()) continue;
+        if (line.startsWith ("ATHENA_WEBSITE_PROGRESS ")) {
+          QStringList parts= line.split (' ');
+          if (parts.size () >= 4) {
+            bool ok1= false, ok2= false;
+            int current= parts[1].toInt (&ok1);
+            int total= parts[2].toInt (&ok2);
+            if (ok1 && ok2 && total > 0) {
+              progress->setRange (0, total);
+              progress->setValue (current);
+            }
+            status->setText (line.section (' ', 3));
+          }
+        }
+        else if (line.startsWith ("ATHENA_WEBSITE_LOG ")) {
+          output->appendPlainText (line.mid (19));
+        }
+        else output->appendPlainText (line);
+      }
+    });
+    connect (process,
+             qOverload<int,QProcess::ExitStatus> (&QProcess::finished),
+             pane,
+             [=] (int code, QProcess::ExitStatus exitStatus) {
+      progress->setRange (0, 1);
+      progress->setValue (exitStatus == QProcess::NormalExit && code == 0
+                          ? 1 : 0);
+      status->setText (code == 0 && exitStatus == QProcess::NormalExit
+                       ? "Generation complete" : "Generation failed");
+    });
+    process->start ();
+  }
+};
+
+} // namespace
+
+void
+websites_manager_show () {
+  if (!vault_active ()) {
+    QMessageBox::warning (QApplication::activeWindow (), "Websites manager",
+                          "No active vault. Please load a vault first.");
+    return;
+  }
+
+  QTMMainTabWindow* win= QTMMainTabWindow::topTabWindow ();
+  if (win == nullptr || win->dockManager () == nullptr) {
+    QMessageBox::warning (QApplication::activeWindow (), "Websites manager",
+                          "No active ATHENA window.");
+    return;
+  }
+
+  bool freshDock= websites_manager_dock == nullptr;
+  if (websites_manager_widget == nullptr) {
+    websites_manager_widget= new WebsitesManagerPane;
+    websites_manager_widget->resize (900, 520);
+    QObject::connect (websites_manager_widget, &QObject::destroyed, [] () {
+      websites_manager_widget= nullptr;
+      websites_manager_dock= nullptr;
+    });
+  }
+  else if (WebsitesManagerPane* pane=
+             dynamic_cast<WebsitesManagerPane*> (websites_manager_widget))
+    pane->refresh ();
+
+  if (freshDock) {
+    websites_manager_dock= new ads::CDockWidget ("Websites manager");
+    websites_manager_dock->setObjectName ("athena-websites-manager");
+    websites_manager_dock->resize (900, 520);
+    websites_manager_dock->setWidget (
+      websites_manager_widget, ads::CDockWidget::ForceNoScrollArea);
+    websites_manager_dock->setFeature (
+      ads::CDockWidget::DockWidgetDeleteOnClose, false);
+    QObject::connect (websites_manager_dock, &QObject::destroyed, [] () {
+      websites_manager_dock= nullptr;
+    });
+  }
+
+  win->showAdsDockWidget (websites_manager_dock, ads::RightDockWidgetArea);
+  websites_manager_dock->show ();
+  websites_manager_dock->raise ();
+}

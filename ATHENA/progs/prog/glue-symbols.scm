@@ -792,6 +792,7 @@
 "vault-explorer-track-file"
 "namespace-explorer-show"
 "namespace-export-show"
+"websites-manager-show"
 "global-search-show"
 "outline-pane-show"
 "error-messages-show"

@@ -49,6 +49,7 @@
 #include "convert.hpp"
 #include "Freetype/tt_file.hpp"
 #include "ATHENA/Data/vault_maintenance.hpp"
+#include "ATHENA/Data/websites.hpp"
 #include "MCP/mcp_rag_server.hpp"
 
 #ifdef QTTEXMACS
@@ -99,6 +100,8 @@ int    rag_server_port = 8765;
 bool   rag_server_port_set = false;
 bool   rag_server_reindex = false;
 int    rag_index_jobs = 0;
+string website_generate_dir;
+string website_generate_id;
 bool   aofm_ignore_nonempty_dest = false;
 int    aofm_convert_vault_parallelism = 0;
 string extra_init_cmd;
@@ -227,6 +230,8 @@ write_vault_preferences_path_for_boot (
   std::string summary_dir= fields.size () >= 7 ? fields[6] : "";
   std::string rag_index= fields.size () >= 8 && !fields[7].empty ()
                          ? fields[7] : "rag.sqlite";
+  std::string websites= fields.size () >= 9 && !fields[8].empty ()
+                        ? fields[8] : "websites.json";
   std::string text= "(" + scheme_quote_for_boot (fields[0]) +
                     " " + scheme_quote_for_boot (map_rel) +
                     " " + scheme_quote_for_boot (prefs_rel) +
@@ -234,7 +239,8 @@ write_vault_preferences_path_for_boot (
                     " " + scheme_quote_for_boot (startup_page) +
                     " " + scheme_quote_for_boot (one_time_startup_page) +
                     " " + scheme_quote_for_boot (summary_dir) +
-                    " " + scheme_quote_for_boot (rag_index) + ")\n";
+                    " " + scheme_quote_for_boot (rag_index) +
+                    " " + scheme_quote_for_boot (websites) + ")\n";
   std::ofstream file (vault_file, std::ios::binary | std::ios::trunc);
   if (!file) return false;
   file << text;
@@ -808,6 +814,9 @@ set_global_options  (int argc, char** argv)  {
       else if (s == "-vault-maintenance") {
         i++;
       }
+      else if (s == "-generate-website") {
+        i += 2;
+      }
       else if (s == "-check-only") {
         // Handled in texmacs_entrypoint
       }
@@ -975,6 +984,7 @@ set_global_options  (int argc, char** argv)  {
         cout << "  -V         Show some informative messages\n";
         cout << "  --no-splash-screen       Start without showing the splash screen\n";
         cout << "  --vault-maintenance [dir]  Maintain an ATHENA vault headlessly\n";
+        cout << "  --generate-website [dir] [id]  Generate a vault website headlessly\n";
         cout << "  --check-only               With --vault-maintenance, run only the document health check\n";
         cout << "  --aofm-convert-file [file]  Convert one AOFM Markdown file headlessly\n";
         cout << "  --aofm-convert-vault [src] [dest] [jobs]  Convert an AOFM vault headlessly\n";
@@ -1183,6 +1193,16 @@ TeXmacs_main (int argc, char** argv) {
       eval ("(lazy-initialize-force)");
       bool ok= vault_maintenance_run (vault_maintenance_dir,
                                       vault_maintenance_check_only);
+      exit (ok ? 0 : 1);
+    }
+    if (website_generate_dir != "" && website_generate_id != "") {
+      eval ("(lazy-initialize-force)");
+      std::string error;
+      bool ok= athena_generate_website (
+        athena_to_std_string (website_generate_dir),
+        athena_to_std_string (website_generate_id), error);
+      if (!ok) std_error << "website generation failed: "
+                         << error.c_str () << LF;
       exit (ok ? 0 : 1);
     }
 
@@ -1578,6 +1598,15 @@ texmacs_entrypoint (int argc, char** argv) {
       i++;
       if (i < argc) {
         vault_maintenance_dir= argv[i];
+        headless_mode= true;
+      }
+    }
+    if (s == "-generate-website") {
+      i++;
+      if (i < argc) website_generate_dir= argv[i];
+      i++;
+      if (i < argc) {
+        website_generate_id= argv[i];
         headless_mode= true;
       }
     }
