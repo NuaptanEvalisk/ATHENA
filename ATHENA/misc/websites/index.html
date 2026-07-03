@@ -1,0 +1,20 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<title>{{TITLE}}</title>
+<link rel="icon" href="css/favicon.png">
+<link rel="stylesheet" href="css/site.css">
+<script src="js/site-data.js"></script>
+<script src="js/window-manager.js"></script>
+<script src="js/explorers.js"></script>
+<script src="js/search.js"></script>
+<script src="js/quick-switcher.js"></script>
+<script src="js/app.js"></script>
+</head><body>
+<div class="desktop">
+<div id="vault" class="win" style="left:16px;top:16px;width:320px;height:380px"><div class="title"><span class="caption">Vault Explorer</span><span class="buttons"><button class="ctrl min" aria-label="Minimize"></button><button class="ctrl max" aria-label="Maximize"></button><button class="ctrl restore" aria-label="Restore"></button><button class="ctrl close" aria-label="Close"></button></span></div><div id="vault-content" class="content"></div><div class="resize"></div></div>
+<div id="namespaces" class="win" style="left:360px;top:16px;width:320px;height:300px"><div class="title"><span class="caption">Namespace Explorer</span><span class="buttons"><button class="ctrl min" aria-label="Minimize"></button><button class="ctrl max" aria-label="Maximize"></button><button class="ctrl restore" aria-label="Restore"></button><button class="ctrl close" aria-label="Close"></button></span></div><div id="namespace-content" class="content"></div><div class="resize"></div></div>
+<div id="global-search" class="win" style="left:704px;top:16px;width:420px;height:300px"><div class="title"><span class="caption">Global Search</span><span class="buttons"><button class="ctrl min" aria-label="Minimize"></button><button class="ctrl max" aria-label="Maximize"></button><button class="ctrl restore" aria-label="Restore"></button><button class="ctrl close" aria-label="Close"></button></span></div><div class="content"><div class="pane-tools"><input id="global-search-input" placeholder="Search exported documents"></div><div id="global-search-results"></div></div><div class="resize"></div></div>
+<div id="quick-switcher" class="win" style="left:1148px;top:16px;width:360px;height:300px"><div class="title"><span class="caption">Quick Switcher</span><span class="buttons"><button class="ctrl min" aria-label="Minimize"></button><button class="ctrl max" aria-label="Maximize"></button><button class="ctrl restore" aria-label="Restore"></button><button class="ctrl close" aria-label="Close"></button></span></div><div class="content"><div class="pane-tools"><input id="quick-switcher-input" placeholder="Jump to file or namespace"></div><div id="quick-switcher-results"></div></div><div class="resize"></div></div>
+<div id="viewer" class="win" style="left:40px;top:340px;width:calc(100% - 80px);height:calc(100% - 370px)"><div class="title"><span class="title-left"><span id="viewer-title" class="caption">Document</span><span class="doc-nav"><button id="doc-back" class="ctrl back" aria-label="Back"></button><button id="doc-forward" class="ctrl forward" aria-label="Forward"></button></span></span><span class="buttons"><button class="ctrl min" aria-label="Minimize"></button><button class="ctrl max" aria-label="Maximize"></button><button class="ctrl restore" aria-label="Restore"></button><button class="ctrl close" aria-label="Close"></button></span></div><div class="content"><iframe id="docframe"></iframe></div><div class="resize"></div></div>
+<div id="missing-modal" class="modal"><strong>ATHENA</strong><p id="missing-text"></p><button onclick="closeMissing()">OK</button></div>
+</div><div id="taskbar" class="taskbar"></div></body></html>

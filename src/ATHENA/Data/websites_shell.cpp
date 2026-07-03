@@ -1,0 +1,146 @@
+/******************************************************************************
+* MODULE     : websites_shell.cpp
+* DESCRIPTION: Static website shell writer
+* COPYRIGHT  : (C) 2026 Nuaptan Felix Evalisk
+*******************************************************************************
+* This software falls under the GNU general public license version 3 or later.
+* It comes WITHOUT ANY WARRANTY WHATSOEVER. For details, see the file LICENSE
+* in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
+******************************************************************************/
+
+#include "ATHENA/Data/websites_internal.hpp"
+
+namespace athena_websites {
+
+namespace {
+
+void
+replace_all (std::string& text, const std::string& from,
+             const std::string& to) {
+  if (from.empty ()) return;
+  size_t pos = 0;
+  while ((pos = text.find (from, pos)) != std::string::npos) {
+    text.replace (pos, from.size (), to);
+    pos += to.size ();
+  }
+}
+
+bool
+write_template_file (const fs::path& target, const std::string& name) {
+  std::string text;
+  if (!website_template_text (name, text)) return false;
+  return write_file_bytes (target, text);
+}
+
+} // namespace
+
+QJsonObject
+site_manifest (const athena_website_entry& website,
+               const GenerationContext& cx) {
+  QJsonObject root;
+  root["title"] = qs (website.name);
+
+  QJsonArray files;
+  for (const std::string& rel: cx.selected_files) {
+    QJsonObject file;
+    file["path"] = qs (rel);
+    file["html"] = qs (cx.html_paths.at (rel));
+    auto title = cx.titles.find (rel);
+    file["title"] = title == cx.titles.end () ? qs (rel) : qs (title->second);
+    auto search = cx.search_texts.find (rel);
+    file["searchText"] = search == cx.search_texts.end () ? QString () :
+                                                    qs (search->second);
+    files.append (file);
+  }
+  root["files"] = files;
+
+  QJsonArray namespaces;
+  for (const auto& item: cx.namespace_homepages) {
+    QJsonObject ns;
+    ns["name"] = qs (item.first);
+    ns["homepage"] = qs (item.second);
+    namespaces.append (ns);
+  }
+  root["namespaces"] = namespaces;
+  root["storageKey"] = qs ("athena-website:" + website.id);
+
+  std::string entry = "about:blank";
+  if (website.entrypoint_kind == "namespace") {
+    auto it = cx.namespace_homepages.find (website.entrypoint_value);
+    if (it != cx.namespace_homepages.end ()) entry = it->second;
+  }
+  else if (cx.selected_files.count (website.entrypoint_value) != 0)
+    entry = cx.html_paths.at (website.entrypoint_value);
+  else if (!cx.selected_files.empty ())
+    entry = cx.html_paths.at (*cx.selected_files.begin ());
+  root["entry"] = qs (entry);
+  return root;
+}
+
+std::string
+site_data_js (const QJsonObject& manifest) {
+  std::string data = ss (QJsonDocument (manifest).toJson (
+    QJsonDocument::Compact));
+  return std::string ("window.ATHENA_SITE_DATA=") + data + ";\n";
+}
+
+bool
+copy_favicon (const fs::path& dest) {
+  fs::path src = fs::path (tm_to_std (get_env ("ATHENA_PATH"))) /
+                 "misc" / "images" / "ATHENA-512.png";
+  std::error_code ec;
+  if (!fs::exists (src)) return true;
+  fs::create_directories (dest.parent_path (), ec);
+  fs::copy_file (src, dest, fs::copy_options::overwrite_existing, ec);
+  return !ec;
+}
+
+bool
+write_site_shell (const athena_website_entry& website,
+                  const GenerationContext& cx, std::string& error) {
+  std::error_code ec;
+  fs::create_directories (cx.destination / "js", ec);
+  fs::create_directories (cx.destination / "css", ec);
+  if (ec) {
+    error = "Could not create website support folders: " + ec.message ();
+    return false;
+  }
+
+  std::string index;
+  if (!website_template_text ("index.html", index)) {
+    error = "Could not read website template index.html.";
+    return false;
+  }
+  replace_all (index, "{{TITLE}}", website.name);
+
+  if (!write_template_file (cx.destination / "css" / "site.css",
+                            "site.css") ||
+      !write_file_bytes (cx.destination / "js" / "site-data.js",
+                         site_data_js (site_manifest (website, cx))) ||
+      !write_template_file (cx.destination / "js" / "window-manager.js",
+                            "window-manager.js") ||
+      !write_template_file (cx.destination / "js" / "explorers.js",
+                            "explorers.js") ||
+      !write_template_file (cx.destination / "js" / "search.js",
+                            "search.js") ||
+      !write_template_file (cx.destination / "js" / "quick-switcher.js",
+                            "quick-switcher.js") ||
+      !write_template_file (cx.destination / "js" / "app.js", "app.js") ||
+      !write_file_bytes (cx.destination / "index.html", index)) {
+    error = "Could not write website shell files.";
+    return false;
+  }
+  copy_favicon (cx.destination / "css" / "favicon.png");
+  return true;
+}
+
+bool
+export_namespace_homepage (const std::string& name, bool technical,
+                           const fs::path& target, std::string& error) {
+  std::string tmfs = technical ? "!" + name : name;
+  tree doc = athena_namespace_info_page (std_to_tm (tmfs));
+  return export_document_html (doc, fs::path ("tmfs://ns/" + tmfs), target,
+                               error);
+}
+
+} // namespace athena_websites
