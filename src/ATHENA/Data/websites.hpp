@@ -32,6 +32,7 @@ struct athena_website_entry {
   athena_website_selector selector;
   std::string destination;
   std::string public_url;
+  std::string description;
   bool generate_sitemap = false;
   std::string regenerate;
   std::string entrypoint_kind;

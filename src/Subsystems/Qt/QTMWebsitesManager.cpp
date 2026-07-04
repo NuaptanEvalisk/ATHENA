@@ -330,10 +330,14 @@ public:
     generateSitemap= new QCheckBox ("Generate sitemap.xml");
     publicUrlEdit= new QLineEdit;
     publicUrlEdit->setPlaceholderText ("https://example.org/athena/");
+    descriptionEdit= new QLineEdit;
+    descriptionEdit->setPlaceholderText (
+      "Short description for search results");
     publicUrlEdit->setEnabled (false);
     QFormLayout* sitemapLayout= new QFormLayout;
     sitemapLayout->addRow (generateSitemap);
     sitemapLayout->addRow ("Website base URL:", publicUrlEdit);
+    sitemapLayout->addRow ("Description:", descriptionEdit);
     sitemapPage->setLayout (sitemapLayout);
     addPage (sitemapPage);
 
@@ -386,6 +390,8 @@ public:
              });
     connect (publicUrlEdit, &QLineEdit::textChanged, this,
              [this] () { refreshSummary (); });
+    connect (descriptionEdit, &QLineEdit::textChanged, this,
+             [this] () { refreshSummary (); });
     connect (regenerateCombo, qOverload<int> (&QComboBox::currentIndexChanged),
              this,
              [this] () { refreshSummary (); });
@@ -397,6 +403,7 @@ public:
       destinationEdit->setText (qss (initial->destination));
       generateSitemap->setChecked (initial->generate_sitemap);
       publicUrlEdit->setText (qss (initial->public_url));
+      descriptionEdit->setText (qss (initial->description));
       int regen= regenerateCombo->findData (qss (initial->regenerate));
       if (regen >= 0) regenerateCombo->setCurrentIndex (regen);
       postEnabled->setChecked (initial->post_command.enabled);
@@ -451,6 +458,7 @@ public:
     out.selector= selectorPage->currentSelector ();
     out.destination= qstd (destinationEdit->text ().trimmed ());
     out.public_url= qstd (publicUrlEdit->text ().trimmed ());
+    out.description= qstd (descriptionEdit->text ().trimmed ());
     out.generate_sitemap= generateSitemap->isChecked ();
     out.regenerate= qstd (regenerateCombo->currentData ().toString ());
     if (namespaceEntry->isChecked ()) {
@@ -483,6 +491,7 @@ private:
   QLineEdit* destinationEdit;
   QCheckBox* generateSitemap;
   QLineEdit* publicUrlEdit;
+  QLineEdit* descriptionEdit;
   QComboBox* regenerateCombo;
   QCheckBox* postEnabled;
   QLineEdit* postProgram;
@@ -529,6 +538,9 @@ private:
       "\nWebsite base URL: " +
       (publicUrlEdit->text ().trimmed ().isEmpty () ?
        "(none)" : publicUrlEdit->text ().trimmed ()) +
+      "\nDescription: " +
+      (descriptionEdit->text ().trimmed ().isEmpty () ?
+       "(none)" : descriptionEdit->text ().trimmed ()) +
       "\nRegenerate: " + regenerateCombo->currentText () + "\n");
   }
 };

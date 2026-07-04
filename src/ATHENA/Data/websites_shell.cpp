@@ -49,7 +49,7 @@ xml_escape (const std::string& text) {
 }
 
 bool
-public_sitemap_base (const std::string& raw, QUrl& base) {
+public_site_base (const std::string& raw, QUrl& base) {
   QString text = qs (raw).trimmed ();
   if (text.isEmpty ()) return false;
   QUrl url (text);
@@ -68,11 +68,31 @@ public_sitemap_base (const std::string& raw, QUrl& base) {
 }
 
 std::string
+url_string (const QUrl& url) {
+  return ss (url.toString (QUrl::FullyEncoded));
+}
+
+std::string
 sitemap_loc (const QUrl& base, const std::string& page) {
   QString encoded = QString::fromLatin1 (
     QUrl::toPercentEncoding (qs (page), "/"));
   QUrl url = base.resolved (QUrl (encoded));
-  return ss (url.toString (QUrl::FullyEncoded));
+  return url_string (url);
+}
+
+std::string
+canonical_link (const athena_website_entry& website) {
+  QUrl base;
+  if (!public_site_base (website.public_url, base)) return "";
+  return "<link rel=\"canonical\" href=\"" + xml_escape (url_string (base)) +
+         "\">\n";
+}
+
+std::string
+description_meta (const athena_website_entry& website) {
+  if (website.description.empty ()) return "";
+  return "<meta name=\"description\" content=\"" +
+         xml_escape (website.description) + "\">\n";
 }
 
 bool
@@ -86,7 +106,7 @@ write_sitemap (const athena_website_entry& website,
   }
 
   QUrl base;
-  if (!public_sitemap_base (website.public_url, base)) {
+  if (!public_site_base (website.public_url, base)) {
     error = "Website base URL must be an absolute http(s) URL to write "
             "sitemap.xml.";
     return false;
@@ -102,6 +122,8 @@ write_sitemap (const athena_website_entry& website,
   std::ostringstream out;
   out << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
       << "<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n";
+  out << "  <url><loc>" << xml_escape (url_string (base))
+      << "</loc></url>\n";
   for (const std::string& page: pages)
     out << "  <url><loc>" << xml_escape (sitemap_loc (base, page))
         << "</loc></url>\n";
@@ -149,6 +171,7 @@ site_manifest (const athena_website_entry& website,
   root["namespaces"] = namespaces;
   root["storageKey"] = qs ("athena-website:" + website.id);
   root["publicUrl"] = qs (website.public_url);
+  root["description"] = qs (website.description);
   root["generateSitemap"] = website.generate_sitemap;
 
   std::string entry = "about:blank";
@@ -199,6 +222,8 @@ write_site_shell (const athena_website_entry& website,
     return false;
   }
   replace_all (index, "{{TITLE}}", website.name);
+  replace_all (index, "{{CANONICAL}}", canonical_link (website));
+  replace_all (index, "{{DESCRIPTION_META}}", description_meta (website));
 
   if (!write_template_file (cx.destination / "css" / "site.css",
                             "site.css") ||
