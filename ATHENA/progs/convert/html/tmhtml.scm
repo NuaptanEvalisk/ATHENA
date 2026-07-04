@@ -170,11 +170,26 @@
 		(if title title
 		    (tmhtml-find-title (cdr doc)))))))
 
+(define (tmhtml-preference-color key fallback)
+  (with color (get-preference key)
+    (if (or (== color "") (== color "default")) fallback color)))
+
 (define (tmhtml-css-header)
   ;; TODO: return only used CSS properties
-  (let ((html
+  (let* ((link-color (tmcolor->htmlcolor
+                      (tmhtml-preference-color "locus-color" "#404080")))
+         (visited-color (tmcolor->htmlcolor
+                         (tmhtml-preference-color "visited-color" "#702070")))
+         (selection-color (tmcolor->htmlcolor
+                           (tmhtml-preference-color "gui selection color"
+                                                    "red")))
+         (html
 	 (string-append
 	  "body { text-align: justify } "
+          "::selection { background: " selection-color "; } "
+          "::-moz-selection { background: " selection-color "; } "
+          "a:link { color: " link-color "; } "
+          "a:visited { color: " visited-color "; } "
 	  "h5 { display: inline; padding-right: 1em } "
 	  "h6 { display: inline; padding-right: 1em } "
 	  "table { border-collapse: collapse } "

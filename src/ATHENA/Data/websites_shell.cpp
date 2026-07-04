@@ -153,6 +153,8 @@ write_site_shell (const athena_website_entry& website,
 
   if (!write_template_file (cx.destination / "css" / "site.css",
                             "site.css") ||
+      !write_file_bytes (cx.destination / "css" / "theme.css",
+                         site_theme_css ()) ||
       !write_file_bytes (cx.destination / "js" / "site-data.js",
                          site_data_js (site_manifest (website, cx))) ||
       !write_template_file (cx.destination / "js" / "window-manager.js",

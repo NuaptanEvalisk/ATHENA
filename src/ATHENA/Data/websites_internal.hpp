@@ -24,6 +24,7 @@
 #include "tm_ostream.hpp"
 #include "url.hpp"
 #include "vault.hpp"
+#include "colors.hpp"
 
 #include <QDir>
 #include <QFile>
@@ -78,6 +79,7 @@ std::string clean_relative (const std::string& path);
 bool is_doc_path (const fs::path& path);
 std::string scheme_quote (const std::string& text);
 std::string json_script_string (const std::string& text);
+std::string site_theme_css ();
 bool website_template_text (const std::string& name, std::string& text);
 
 bool read_vaultfile (const fs::path& root, VaultfileWebsiteInfo& info,

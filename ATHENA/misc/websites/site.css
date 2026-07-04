@@ -1,3 +1,6 @@
+:root{--athena-link-color:#004c99;--athena-visited-color:#702070;--athena-selection-color:red}
+::selection{background:var(--athena-selection-color)}
+::-moz-selection{background:var(--athena-selection-color)}
 html,body{height:100%;margin:0;background:#b7b7b7;color:#111;font:14px 'Courier New',monospace}
 button,input,select{font:inherit}
 .desktop{position:relative;height:calc(100% - 28px);overflow:hidden;background:#9aa0a6}
@@ -32,7 +35,8 @@ button,input,select{font:inherit}
 .tree{list-style:none;margin:0;padding:8px}
 .tree .tree{padding:0 0 0 18px}
 .tree li{margin:2px 0}
-.tree a{color:#004c99;text-decoration:none}
+.tree a{color:var(--athena-link-color);text-decoration:none}
+.tree a:visited{color:var(--athena-visited-color)}
 .tree a:hover{text-decoration:underline}
 .tree-row{display:flex;align-items:center;min-height:20px;gap:4px;white-space:nowrap}
 .tree-toggle,.tree-spacer{width:14px;height:14px;flex:0 0 14px}
@@ -45,7 +49,8 @@ button,input,select{font:inherit}
 .tree-doc a:before{content:'';display:inline-block;width:9px;height:12px;margin-right:6px;border:1px solid #666;background:white;vertical-align:-2px}
 .outline-list{list-style:none;margin:0;padding:8px}
 .outline-list li{margin:2px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.outline-list a{color:#004c99;text-decoration:none}
+.outline-list a{color:var(--athena-link-color);text-decoration:none}
+.outline-list a:visited{color:var(--athena-visited-color)}
 .outline-list a:hover{text-decoration:underline}
 .outline-level-1{padding-left:0;font-weight:bold}
 .outline-level-2{padding-left:8px;font-weight:bold}

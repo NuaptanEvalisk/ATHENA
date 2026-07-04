@@ -627,12 +627,41 @@ document_bridge_script () {
          "\n/* ATHENA_WEBSITE_BRIDGE_END */\n</script>\n";
 }
 
+std::string
+document_theme_style () {
+  return "<style data-athena-website-theme=\"1\">\n" +
+         site_theme_css () +
+         "a:link{color:var(--athena-link-color)}\n"
+         "a:visited{color:var(--athena-visited-color)}\n"
+         "</style>\n";
+}
+
+void
+inject_or_replace_document_theme (std::string& html) {
+  std::string marker = "data-athena-website-theme=\"1\"";
+  size_t old_marker = html.find (marker);
+  std::string style = document_theme_style ();
+  if (old_marker != std::string::npos) {
+    size_t style_begin = html.rfind ("<style", old_marker);
+    size_t style_end = html.find ("</style>", old_marker);
+    if (style_begin != std::string::npos && style_end != std::string::npos) {
+      style_end += 8;
+      html.replace (style_begin, style_end - style_begin, style);
+      return;
+    }
+  }
+  size_t head = html.find ("</head>");
+  if (head != std::string::npos) html.insert (head, style);
+  else html.insert (0, style);
+}
+
 bool
 inject_document_bridge (const fs::path& target) {
   std::string html;
   if (!read_file_bytes (target, html)) return false;
   std::string script = document_bridge_script ();
   if (script.empty ()) return false;
+  inject_or_replace_document_theme (html);
   std::string begin = "/* ATHENA_WEBSITE_BRIDGE_BEGIN */";
   std::string end = "/* ATHENA_WEBSITE_BRIDGE_END */";
   size_t old_begin = html.find (begin);
@@ -700,6 +729,12 @@ export_document_html (tree doc, const fs::path& source,
 
   if (!fs::is_regular_file (target, ec)) {
     error = "HTML export failed for " + source.string ();
+    return false;
+  }
+  std::string exported_html;
+  if (!read_file_bytes (target, exported_html) ||
+      exported_html.find_first_not_of (" \t\r\n") == std::string::npos) {
+    error = "HTML export produced an empty page for " + source.string ();
     return false;
   }
   if (!inject_document_bridge (target)) {

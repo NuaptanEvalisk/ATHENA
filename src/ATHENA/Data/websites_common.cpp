@@ -67,6 +67,26 @@ json_script_string (const std::string& text) {
   return ss (compact);
 }
 
+std::string
+website_css_color_preference (const char* key, const char* fallback) {
+  string pref = get_preference (string (key), string (fallback));
+  return tm_to_std (get_hex_color (pref));
+}
+
+std::string
+site_theme_css () {
+  std::string link = website_css_color_preference ("locus-color", "#404080");
+  std::string visited =
+    website_css_color_preference ("visited-color", "#702070");
+  std::string selection =
+    website_css_color_preference ("gui selection color", "red");
+  return ":root{--athena-link-color:" + link +
+         ";--athena-visited-color:" + visited +
+         ";--athena-selection-color:" + selection + "}\n"
+         "::selection{background:var(--athena-selection-color)}\n"
+         "::-moz-selection{background:var(--athena-selection-color)}\n";
+}
+
 std::vector<std::string>
 parse_vaultfile_strings (const std::string& text) {
   std::vector<std::string> values;

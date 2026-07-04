@@ -246,8 +246,8 @@ write_vault_preferences_path_for_boot (
 }
 
 static void
-load_vault_preferences_for_rag_if_enabled (
-  const std::filesystem::path& vault_root)
+load_vault_preferences_if_enabled (const std::filesystem::path& vault_root,
+                                   const char* context)
 {
   if (get_preference ("vault take preferences with vault", "off") != "on")
     return;
@@ -255,7 +255,7 @@ load_vault_preferences_for_rag_if_enabled (
   std::filesystem::path vault_file= vault_root / "Vaultfile";
   std::ifstream file (vault_file, std::ios::binary);
   if (!file) {
-    std_warning << "Continuous RAG: vault preferences enabled, but Vaultfile "
+    std_warning << context << ": vault preferences enabled, but Vaultfile "
                 << "cannot be read; using system preferences" << LF;
     return;
   }
@@ -264,7 +264,7 @@ load_vault_preferences_for_rag_if_enabled (
   std::vector<std::string> fields=
     parse_vaultfile_strings_for_boot (buffer.str ());
   if (fields.size () < 2) {
-    std_warning << "Continuous RAG: invalid Vaultfile; using system preferences"
+    std_warning << context << ": invalid Vaultfile; using system preferences"
                 << LF;
     return;
   }
@@ -272,14 +272,14 @@ load_vault_preferences_for_rag_if_enabled (
   std::string prefs_rel= fields.size () >= 3 ? fields[2] : "";
   std::string json_rel= vault_preferences_json_path_for_boot (prefs_rel);
   if (!valid_vault_relative_path_for_boot (json_rel)) {
-    std_warning << "Continuous RAG: Vaultfile preferences path is not "
+    std_warning << context << ": Vaultfile preferences path is not "
                 << "vault-relative; using system preferences" << LF;
     return;
   }
 
   if (prefs_rel != json_rel &&
       !write_vault_preferences_path_for_boot (vault_file, fields, json_rel))
-    std_warning << "Continuous RAG: failed to normalize Vaultfile preferences "
+    std_warning << context << ": failed to normalize Vaultfile preferences "
                 << "path" << LF;
 
   std::filesystem::path prefs_path= vault_root / json_rel;
@@ -292,7 +292,7 @@ load_vault_preferences_for_rag_if_enabled (
     return;
   }
   if (!std::filesystem::exists (prefs_path)) {
-    std_warning << "Continuous RAG: vault preferences enabled, but "
+    std_warning << context << ": vault preferences enabled, but "
                 << prefs_path.string ().c_str ()
                 << " does not exist; using system preferences" << LF;
     return;
@@ -1098,7 +1098,8 @@ TeXmacs_main (int argc, char** argv) {
       athena::mcp::RagServerOptions options;
       options.vault_root= std::filesystem::path (
         athena_to_std_string (rag_server_dir));
-      load_vault_preferences_for_rag_if_enabled (options.vault_root);
+      load_vault_preferences_if_enabled (options.vault_root,
+                                         "Continuous RAG");
       if (!rag_server_port_set) {
         string port_pref= get_user_preference ("rag mcp port", "8765");
         if (is_positive_integer_arg (port_pref))
@@ -1181,6 +1182,9 @@ TeXmacs_main (int argc, char** argv) {
     }
     if (website_generate_dir != "" && website_generate_id != "") {
       eval ("(lazy-initialize-force)");
+      load_vault_preferences_if_enabled (
+        std::filesystem::path (athena_to_std_string (website_generate_dir)),
+        "Website generation");
       std::string error;
       bool ok= athena_generate_website (
         athena_to_std_string (website_generate_dir),
