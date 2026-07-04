@@ -107,10 +107,11 @@ generate_website_entry (const fs::path& root,
   for (const std::string& ns: namespaces) {
     std::string normal = "homepages/" + safe_namespace_file (ns, false);
     std::string technical = "homepages/" + safe_namespace_file (ns, true);
-    if (!export_namespace_homepage (ns, false, cx.destination / normal, error))
+    if (!export_namespace_homepage (ns, false, normal, cx.destination / normal,
+                                    cx, error))
       return false;
-    if (!export_namespace_homepage (ns, true, cx.destination / technical,
-                                    error))
+    if (!export_namespace_homepage (ns, true, technical,
+                                    cx.destination / technical, cx, error))
       return false;
     cx.namespace_homepages[ns] = normal;
   }

@@ -2,7 +2,8 @@
 function quickItems(query){
   query=query.toLowerCase().trim();
   var files=(window.ATHENA_SITE_DATA.files||[]).map(function(f){
-    return {title:f.title||f.path,path:f.path,html:f.html,kind:'file'};
+    return {title:f.stemTitle||athenaVaultBasename(f.path)||f.path,
+      path:f.path,html:f.html,kind:'file'};
   });
   var namespaces=(window.ATHENA_SITE_DATA.namespaces||[]).map(function(n){
     return {title:n.name,path:n.name,html:n.homepage,kind:'namespace'};

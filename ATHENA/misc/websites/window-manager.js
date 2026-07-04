@@ -126,7 +126,9 @@ function athenaDocStem(path){
   var data=window.ATHENA_SITE_DATA || {};
   var files=data.files || [];
   for(var i=0;i<files.length;i++){
-    if(files[i].html===clean) return files[i].title || athenaDocStem(files[i].path);
+    if(files[i].html===clean)
+      return files[i].displayTitle || files[i].title ||
+        files[i].stemTitle || athenaDocStem(files[i].path);
   }
   var name=clean.substring(clean.lastIndexOf('/')+1);
   var dot=name.lastIndexOf('.');

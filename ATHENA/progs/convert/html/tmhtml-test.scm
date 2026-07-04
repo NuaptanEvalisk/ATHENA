@@ -108,6 +108,32 @@
   (regression-test-group
    "tmhtml, logical markup, basic" "logical"
    tmhtml-root list
+   ;; Names
+   (test "TeXmacs" '(TeXmacs)
+         '((h:span (@ (class "texmacs-logo") (style "white-space: nowrap"))
+                   "T" (h:sub (@ (style "font-size: 70%; line-height: 0")) "E")
+                   "X" (h:sub (@ (style "font-size: 70%; line-height: 0; font-variant: small-caps")) "macs"))))
+   (test "LaTeX" '(LaTeX)
+         '((h:span (@ (class "latex-logo") (style "white-space: nowrap"))
+                   "L" (h:sup (@ (style "font-size: 70%; line-height: 0")) "A")
+                   "T" (h:sub (@ (style "font-size: 70%; line-height: 0")) "E")
+                   "X")))
+   (test "ATHENA" '(ATHENA)
+         '((h:span (@ (class "athena-logo")
+                   (style "white-space: nowrap; font-weight: bold"))
+                   "A"
+                   (h:span (@ (style "vertical-align: 0.25em")) "T")
+                   "H"
+                   (h:span (@ (style "vertical-align: -0.25em")) "E")
+                   "NA")))
+   (test "athena" '(athena)
+         '((h:span (@ (class "athena-logo")
+                   (style "white-space: nowrap; font-weight: bold"))
+                   "A"
+                   (h:span (@ (style "vertical-align: 0.25em")) "T")
+                   "H"
+                   (h:span (@ (style "vertical-align: -0.25em")) "E")
+                   "NA")))
    ;; Phrase elements
    (test "strong" '(strong "aaa") '(h:strong "aaa"))
    (test "em" '(em "aaa") '(h:em "aaa"))

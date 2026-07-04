@@ -29,7 +29,7 @@
   ;; FIXME: we should use the DRD here
   `(collection
     ,@(map tmhtml-env-macro
-	   '(TeXmacs TeX LaTeX shown hrule item
+	   '(TeXmacs TeX LaTeX ATHENA athena shown hrule item
 	     chapter-title section-title subsection-title subsubsection-title
 	     paragraph-title subparagraph-title
 	     itemize itemize-minus itemize-dot itemize-arrow
@@ -41,6 +41,7 @@
 	     verbatim code tt underline overline strike-through
 	     deleted marked fill-out
 	     hidden-title doc-title-block
+             ornament ornamented
 	     equation* equation-lab equations-base
              wide-float draw-over draw-under
              html-tag html-attr
@@ -51,7 +52,10 @@
 	     hlink action hyper-link
              mouse-over-balloon mouse-over-balloon*
              hover-balloon hover-balloon*
-             popup-balloon popup-balloon*))
+             popup-balloon popup-balloon*
+             big-figure small-figure big-table small-table
+             render-big-figure render-small-figure
+             render-big-table render-small-table))
     ;; FIXME: should apply 'filter_style' to the environment
     ;; in an appropriate way to avoid adding the primitives below
     ,@(map tmhtml-env-macro

@@ -79,8 +79,12 @@ site_manifest (const athena_website_entry& website,
     QJsonObject file;
     file["path"] = qs (rel);
     file["html"] = qs (cx.html_paths.at (rel));
+    QString stem_title = qs (fs::path (rel).stem ().string ());
+    file["stemTitle"] = stem_title;
     auto title = cx.titles.find (rel);
-    file["title"] = title == cx.titles.end () ? qs (rel) : qs (title->second);
+    file["displayTitle"] = title == cx.titles.end () ?
+      stem_title : qs (title->second);
+    file["title"] = file["displayTitle"];
     auto search = cx.search_texts.find (rel);
     file["searchText"] = search == cx.search_texts.end () ? QString () :
                                                     qs (search->second);
@@ -173,11 +177,15 @@ write_site_shell (const athena_website_entry& website,
 
 bool
 export_namespace_homepage (const std::string& name, bool technical,
-                           const fs::path& target, std::string& error) {
+                           const std::string& output_rel,
+                           const fs::path& target,
+                           const GenerationContext& cx,
+                           std::string& error) {
   std::string tmfs = technical ? "!" + name : name;
   tree doc = athena_namespace_info_page (std_to_tm (tmfs));
-  return export_document_html (doc, fs::path ("tmfs://ns/" + tmfs), target,
-                               error);
+  tree rewritten = rewrite_static_links (doc, "", output_rel, cx);
+  return export_document_html (rewritten, fs::path ("tmfs://ns/" + tmfs),
+                               target, error);
 }
 
 } // namespace athena_websites

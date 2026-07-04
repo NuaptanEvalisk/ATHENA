@@ -69,6 +69,39 @@
 
 (define (tmhtml-noop l) '())
 
+(define (tmhtml-logo-sub x)
+  `(h:sub (@ (style "font-size: 70%; line-height: 0")) ,x))
+
+(define (tmhtml-logo-sup x)
+  `(h:sup (@ (style "font-size: 70%; line-height: 0")) ,x))
+
+(define (tmhtml-logo-smallcaps-sub x)
+  `(h:sub (@ (style "font-size: 70%; line-height: 0; font-variant: small-caps")) ,x))
+
+(define (tmhtml-tex-logo l)
+  `((h:span (@ (class "tex-logo") (style "white-space: nowrap"))
+            "T" ,(tmhtml-logo-sub "E") "X")))
+
+(define (tmhtml-latex-logo l)
+  `((h:span (@ (class "latex-logo") (style "white-space: nowrap"))
+            "L" ,(tmhtml-logo-sup "A")
+            "T" ,(tmhtml-logo-sub "E")
+            "X")))
+
+(define (tmhtml-texmacs-logo l)
+  `((h:span (@ (class "texmacs-logo") (style "white-space: nowrap"))
+            "T" ,(tmhtml-logo-sub "E")
+            "X" ,(tmhtml-logo-smallcaps-sub "macs"))))
+
+(define (tmhtml-athena-logo l)
+  '((h:span (@ (class "athena-logo")
+               (style "white-space: nowrap; font-weight: bold"))
+            "A"
+            (h:span (@ (style "vertical-align: 0.25em")) "T")
+            "H"
+            (h:span (@ (style "vertical-align: -0.25em")) "E")
+            "NA")))
+
 (define (cork->html s)
   (utf8->html (cork->utf8 s)))
 
@@ -2158,9 +2191,11 @@
   (tt (h:tt))
   (hrule (h:hr))
   ;; Names
-  (TeXmacs ,(lambda x '("TeXmacs")))
-  (TeX ,(lambda x '("TeX")))
-  (LaTeX ,(lambda x '("LaTeX")))
+  (TeXmacs ,tmhtml-texmacs-logo)
+  (TeX ,tmhtml-tex-logo)
+  (LaTeX ,tmhtml-latex-logo)
+  (ATHENA ,tmhtml-athena-logo)
+  (athena ,tmhtml-athena-logo)
   ;; additional tags
   (shown ,tmhtml-shown)
   (hidden-title ,tmhtml-noop)

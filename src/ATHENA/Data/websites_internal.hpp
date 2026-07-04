@@ -117,7 +117,9 @@ bool write_site_shell (const athena_website_entry& website,
                        const GenerationContext& cx,
                        std::string& error);
 bool export_namespace_homepage (const std::string& name, bool technical,
+                                const std::string& output_rel,
                                 const fs::path& target,
+                                const GenerationContext& cx,
                                 std::string& error);
 bool generate_website_entry (const fs::path& root,
                              const athena_website_entry& website,

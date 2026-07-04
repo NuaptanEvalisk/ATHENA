@@ -10,6 +10,8 @@
 
 #include "ATHENA/Data/websites_internal.hpp"
 
+#include <QTemporaryDir>
+
 namespace athena_websites {
 
 namespace {
@@ -230,6 +232,44 @@ tree_string (tree t) {
   return tm_to_std (tree_as_string (t));
 }
 
+bool
+append_document_title_text (tree t, std::string& out) {
+  if (is_atomic (t)) {
+    out += tm_to_std (t->label);
+    return true;
+  }
+
+  struct MacroName {
+    const char* name;
+    const char* text;
+  };
+  static const MacroName macros[] = {
+    {"ATHENA", "ATHENA"},
+    {"athena", "ATHENA"},
+    {"TeXmacs", "TeXmacs"},
+    {"LaTeX", "LaTeX"},
+    {"TeX", "TeX"}
+  };
+  for (const MacroName& macro: macros) {
+    if (is_compound (t, macro.name, 0)) {
+      out += macro.text;
+      return true;
+    }
+  }
+
+  bool appended = false;
+  for (int i=0; i<N(t); i++)
+    appended = append_document_title_text (t[i], out) || appended;
+  return appended;
+}
+
+std::string
+document_title_text (tree t) {
+  std::string out;
+  append_document_title_text (t, out);
+  return out;
+}
+
 void
 append_plain_text (tree t, std::string& out, size_t limit) {
   if (out.size () >= limit) return;
@@ -259,7 +299,7 @@ document_title (tree t, const std::string& fallback) {
        is_compound (t, "title", 1) ||
        is_compound (t, "tmdoc-title", 1) ||
        is_compound (t, "tmweb-title", 1)) && N(t) >= 1) {
-    std::string title = tree_string (t[0]);
+    std::string title = document_title_text (t[0]);
     if (!title.empty ()) return title;
   }
   for (int i=0; i<N(t); i++) {
@@ -429,6 +469,7 @@ modal_href (const std::string& label) {
 bool
 local_document_target (const std::string& destination,
                        const std::string& current_rel,
+                       const GenerationContext& cx,
                        std::string& rel_path,
                        std::string& anchor) {
   if (starts_with (destination, "http:") ||
@@ -447,8 +488,27 @@ local_document_target (const std::string& destination,
   }
   if (!(ends_with (target, ".ath") || ends_with (target, ".tm"))) return false;
 
-  fs::path current_dir = fs::path (current_rel).parent_path ();
-  rel_path = clean_relative (generic_path (current_dir / target));
+  if (starts_with (lower_copy (target), "file:")) {
+    QUrl url (qs (target));
+    if (url.isLocalFile ()) target = ss (url.toLocalFile ());
+  }
+
+  fs::path target_path (target);
+  if (target_path.is_absolute ()) {
+    fs::path root = cx.root.lexically_normal ();
+    fs::path absolute = target_path.lexically_normal ();
+    std::error_code ec;
+    fs::path rel = fs::relative (absolute, root, ec);
+    if (!ec && !rel.empty () && !rel.is_absolute () &&
+        !path_begins_with_parent (rel))
+      rel_path = clean_relative (generic_path (rel));
+    else
+      rel_path = generic_path (absolute);
+  }
+  else {
+    fs::path current_dir = fs::path (current_rel).parent_path ();
+    rel_path = clean_relative (generic_path (current_dir / target_path));
+  }
   return true;
 }
 
@@ -467,7 +527,8 @@ rewrite_link_like (tree t, const std::string& source_rel,
   std::string anchor;
   bool handled = decode_wikilink_target (destination, rel_path, anchor);
   if (!handled)
-    handled = local_document_target (destination, source_rel, rel_path, anchor);
+    handled = local_document_target (destination, source_rel, cx, rel_path,
+                                     anchor);
 
   std::string next = destination;
   if (handled) {
@@ -613,7 +674,31 @@ export_document_html (tree doc, const fs::path& source,
   }
   set_current_save_urls (source, target);
   HtmlExportPreferenceScope html_scope;
-  if (export_tree (doc, url_system (std_to_tm (target.string ())), "html")) {
+
+  QTemporaryDir temp_dir;
+  if (!temp_dir.isValid ()) {
+    error = "Could not create temporary HTML export directory.";
+    return false;
+  }
+
+  fs::path temp_source = fs::path (ss (temp_dir.path ())) / "document.ath";
+  if (export_tree (doc, url_system (std_to_tm (temp_source.string ())),
+                   "texmacs")) {
+    error = "Could not prepare temporary TeXmacs source for " +
+            source.string ();
+    return false;
+  }
+
+  fs::remove (target, ec);
+  std::string command =
+    "(begin "
+    "(load-buffer (string->url " + scheme_quote (temp_source.string ()) +
+    ") :strict) "
+    "(export-buffer (string->url " + scheme_quote (target.string ()) + ")) "
+    "(buffer-close (current-buffer)))";
+  eval (std_to_tm (command));
+
+  if (!fs::is_regular_file (target, ec)) {
     error = "HTML export failed for " + source.string ();
     return false;
   }
