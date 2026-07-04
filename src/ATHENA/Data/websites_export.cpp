@@ -629,8 +629,16 @@ document_bridge_script () {
 
 std::string
 document_theme_style () {
+  std::string background_css;
+  if (get_preference ("override white document background", "off") == "on") {
+    string pref = get_preference ("white document background override color",
+                                  "#f7f3e8");
+    std::string color = tm_to_std (get_hex_color (pref));
+    background_css = "html,body{background:" + color + "}\n";
+  }
   return "<style data-athena-website-theme=\"1\">\n" +
          site_theme_css () +
+         background_css +
          "a:link{color:var(--athena-link-color)}\n"
          "a:visited{color:var(--athena-visited-color)}\n"
          "</style>\n";

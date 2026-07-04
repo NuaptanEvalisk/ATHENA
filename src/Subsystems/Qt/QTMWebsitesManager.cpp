@@ -80,6 +80,16 @@ selector_summary (const athena_website_selector& selector) {
   return qss (athena_website_selector_summary (selector));
 }
 
+static bool
+valid_public_site_url (const QString& raw) {
+  QString text= raw.trimmed ();
+  if (text.isEmpty ()) return false;
+  QUrl url (text);
+  QString scheme= url.scheme ().toLower ();
+  return url.isValid () && !url.isRelative () &&
+         (scheme == "http" || scheme == "https") && !url.host ().isEmpty ();
+}
+
 static QStringList
 namespace_names () {
   QStringList out;
@@ -315,6 +325,18 @@ public:
     publishPage->setLayout (publishLayout);
     addPage (publishPage);
 
+    sitemapPage= new QWizardPage;
+    sitemapPage->setTitle ("Sitemap");
+    generateSitemap= new QCheckBox ("Generate sitemap.xml");
+    publicUrlEdit= new QLineEdit;
+    publicUrlEdit->setPlaceholderText ("https://example.org/athena/");
+    publicUrlEdit->setEnabled (false);
+    QFormLayout* sitemapLayout= new QFormLayout;
+    sitemapLayout->addRow (generateSitemap);
+    sitemapLayout->addRow ("Website base URL:", publicUrlEdit);
+    sitemapPage->setLayout (sitemapLayout);
+    addPage (sitemapPage);
+
     entryPage= new QWizardPage;
     entryPage->setTitle ("Entrypoint");
     fileEntry= new QRadioButton ("Document");
@@ -357,6 +379,13 @@ public:
              [this] () { refreshSummary (); });
     connect (destinationEdit, &QLineEdit::textChanged, this,
              [this] () { refreshSummary (); });
+    connect (generateSitemap, &QCheckBox::toggled, this,
+             [this] (bool enabled) {
+               publicUrlEdit->setEnabled (enabled);
+               refreshSummary ();
+             });
+    connect (publicUrlEdit, &QLineEdit::textChanged, this,
+             [this] () { refreshSummary (); });
     connect (regenerateCombo, qOverload<int> (&QComboBox::currentIndexChanged),
              this,
              [this] () { refreshSummary (); });
@@ -366,6 +395,8 @@ public:
       nameEdit->setText (qss (initial->name));
       selectorPage->setSelector (initial->selector);
       destinationEdit->setText (qss (initial->destination));
+      generateSitemap->setChecked (initial->generate_sitemap);
+      publicUrlEdit->setText (qss (initial->public_url));
       int regen= regenerateCombo->findData (qss (initial->regenerate));
       if (regen >= 0) regenerateCombo->setCurrentIndex (regen);
       postEnabled->setChecked (initial->post_command.enabled);
@@ -401,6 +432,14 @@ public:
                             "Website selector cannot be empty.");
       return false;
     }
+    if (currentPage () == sitemapPage && generateSitemap->isChecked () &&
+        !valid_public_site_url (publicUrlEdit->text ())) {
+      QMessageBox::warning (
+        this, "Websites manager",
+        "Website base URL must be an absolute http(s) URL when sitemap "
+        "generation is enabled.");
+      return false;
+    }
     return QWizard::validateCurrentPage ();
   }
 
@@ -411,6 +450,8 @@ public:
     out.name= qstd (nameEdit->text ().trimmed ());
     out.selector= selectorPage->currentSelector ();
     out.destination= qstd (destinationEdit->text ().trimmed ());
+    out.public_url= qstd (publicUrlEdit->text ().trimmed ());
+    out.generate_sitemap= generateSitemap->isChecked ();
     out.regenerate= qstd (regenerateCombo->currentData ().toString ());
     if (namespaceEntry->isChecked ()) {
       out.entrypoint_kind= "namespace";
@@ -435,10 +476,13 @@ private:
   QWizardPage* namePage;
   SelectorPage* selectorPage;
   QWizardPage* publishPage;
+  QWizardPage* sitemapPage;
   QWizardPage* entryPage;
   QWizardPage* confirmPage;
   QLineEdit* nameEdit;
   QLineEdit* destinationEdit;
+  QCheckBox* generateSitemap;
+  QLineEdit* publicUrlEdit;
   QComboBox* regenerateCombo;
   QCheckBox* postEnabled;
   QLineEdit* postProgram;
@@ -480,6 +524,11 @@ private:
       QString ("Name: ") + nameEdit->text ().trimmed () + "\n" +
       "Selector: " + selector_summary (selectorPage->currentSelector ()) +
       "\nDestination: " + destinationEdit->text ().trimmed () +
+      "\nSitemap: " +
+      (generateSitemap->isChecked () ? "enabled" : "disabled") +
+      "\nWebsite base URL: " +
+      (publicUrlEdit->text ().trimmed ().isEmpty () ?
+       "(none)" : publicUrlEdit->text ().trimmed ()) +
       "\nRegenerate: " + regenerateCombo->currentText () + "\n");
   }
 };

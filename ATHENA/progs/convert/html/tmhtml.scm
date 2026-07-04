@@ -183,9 +183,19 @@
          (selection-color (tmcolor->htmlcolor
                            (tmhtml-preference-color "gui selection color"
                                                     "red")))
+         (document-background
+          (tmcolor->htmlcolor
+           (tmhtml-preference-color "white document background override color"
+                                    "#f7f3e8")))
+         (document-background-css
+          (if (== (get-preference "override white document background") "on")
+              (string-append "html, body { background: "
+                             document-background "; } ")
+              ""))
          (html
 	 (string-append
 	  "body { text-align: justify } "
+          document-background-css
           "::selection { background: " selection-color "; } "
           "::-moz-selection { background: " selection-color "; } "
           "a:link { color: " link-color "; } "

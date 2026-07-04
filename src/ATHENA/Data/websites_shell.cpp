@@ -49,7 +49,49 @@ xml_escape (const std::string& text) {
 }
 
 bool
-write_sitemap (const GenerationContext& cx) {
+public_sitemap_base (const std::string& raw, QUrl& base) {
+  QString text = qs (raw).trimmed ();
+  if (text.isEmpty ()) return false;
+  QUrl url (text);
+  QString scheme = url.scheme ().toLower ();
+  if (!url.isValid () || url.isRelative () ||
+      (scheme != "http" && scheme != "https") || url.host ().isEmpty ())
+    return false;
+  url.setQuery (QString ());
+  url.setFragment (QString ());
+  QString path = url.path ();
+  if (path.isEmpty ()) path = "/";
+  if (!path.endsWith ('/')) path += "/";
+  url.setPath (path);
+  base = url;
+  return true;
+}
+
+std::string
+sitemap_loc (const QUrl& base, const std::string& page) {
+  QString encoded = QString::fromLatin1 (
+    QUrl::toPercentEncoding (qs (page), "/"));
+  QUrl url = base.resolved (QUrl (encoded));
+  return ss (url.toString (QUrl::FullyEncoded));
+}
+
+bool
+write_sitemap (const athena_website_entry& website,
+               const GenerationContext& cx, std::string& error) {
+  fs::path target = cx.destination / "sitemap.xml";
+  if (!website.generate_sitemap) {
+    std::error_code ec;
+    fs::remove (target, ec);
+    return true;
+  }
+
+  QUrl base;
+  if (!public_sitemap_base (website.public_url, base)) {
+    error = "Website base URL must be an absolute http(s) URL to write "
+            "sitemap.xml.";
+    return false;
+  }
+
   std::set<std::string> pages;
   pages.insert ("index.html");
   for (const auto& item: cx.html_paths)
@@ -61,9 +103,14 @@ write_sitemap (const GenerationContext& cx) {
   out << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
       << "<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n";
   for (const std::string& page: pages)
-    out << "  <url><loc>" << xml_escape (page) << "</loc></url>\n";
+    out << "  <url><loc>" << xml_escape (sitemap_loc (base, page))
+        << "</loc></url>\n";
   out << "</urlset>\n";
-  return write_file_bytes (cx.destination / "sitemap.xml", out.str ());
+  if (!write_file_bytes (target, out.str ())) {
+    error = "Could not write sitemap.xml.";
+    return false;
+  }
+  return true;
 }
 
 } // namespace
@@ -101,6 +148,8 @@ site_manifest (const athena_website_entry& website,
   }
   root["namespaces"] = namespaces;
   root["storageKey"] = qs ("athena-website:" + website.id);
+  root["publicUrl"] = qs (website.public_url);
+  root["generateSitemap"] = website.generate_sitemap;
 
   std::string entry = "about:blank";
   if (website.entrypoint_kind == "namespace") {
@@ -166,13 +215,13 @@ write_site_shell (const athena_website_entry& website,
       !write_template_file (cx.destination / "js" / "search.js",
                             "search.js") ||
       !write_template_file (cx.destination / "js" / "quick-switcher.js",
-	                            "quick-switcher.js") ||
-	      !write_template_file (cx.destination / "js" / "app.js", "app.js") ||
-	      !write_file_bytes (cx.destination / "index.html", index) ||
-	      !write_sitemap (cx)) {
-	    error = "Could not write website shell files.";
-	    return false;
-	  }
+                            "quick-switcher.js") ||
+      !write_template_file (cx.destination / "js" / "app.js", "app.js") ||
+      !write_file_bytes (cx.destination / "index.html", index)) {
+    error = "Could not write website shell files.";
+    return false;
+  }
+  if (!write_sitemap (website, cx, error)) return false;
   copy_favicon (cx.destination / "css" / "favicon.png");
   return true;
 }

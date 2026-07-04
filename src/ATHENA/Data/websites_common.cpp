@@ -187,6 +187,8 @@ website_to_json (const athena_website_entry& website) {
   obj["name"] = qs (website.name);
   obj["selector"] = selector_to_json (website.selector);
   obj["destination"] = qs (website.destination);
+  obj["publicUrl"] = qs (website.public_url);
+  obj["generateSitemap"] = website.generate_sitemap;
   obj["regenerate"] = qs (website.regenerate.empty () ? "manual" :
                                                  website.regenerate);
   QJsonObject entrypoint;
@@ -211,6 +213,11 @@ website_from_json (const QJsonObject& obj) {
   website.selector = selector_from_json (
     obj.value ("selector").toObject ());
   website.destination = ss (obj.value ("destination").toString ());
+  website.public_url = ss (obj.value ("publicUrl").toString (
+    obj.value ("baseUrl").toString ()));
+  website.generate_sitemap = obj.contains ("generateSitemap") ?
+    obj.value ("generateSitemap").toBool (false) :
+    !website.public_url.empty ();
   website.regenerate = ss (obj.value ("regenerate").toString ("manual"));
   QJsonObject entrypoint = obj.value ("entrypoint").toObject ();
   website.entrypoint_kind = ss (entrypoint.value ("kind").toString ());
