@@ -461,7 +461,16 @@ qt_simple_widget_rep::invalidate_rect (int x1, int y1, int x2, int y2) {
   // todo : the solution would be to use a float for the coordinates
   // and sizes in the whole code.
   qreal dpr = canvas()->devicePixelRatio();
-  int padding = dpr * 8;
+  int padding = (int) ceil (dpr * 8.0);
+  if (fractional_pixel_ratio (dpr) && canvas()->surface()) {
+    // Centered and right-aligned paragraphs can shift the old glyph positions
+    // horizontally when the text changes.  On fractional Wayland scales, a
+    // narrow physical invalidation band may then repaint only the new glyphs,
+    // leaving stale pixels from the old line position in the backing pixmap.
+    QSize sz= canvas()->surface()->size();
+    x1= 0;
+    x2= (int) ceil (dpr * sz.width());
+  }
   rectangle r = rectangle (x1-padding, y1-padding, x2+padding, y2+padding);
   invalid_regions = invalid_regions | rectangles (r);  
 }
