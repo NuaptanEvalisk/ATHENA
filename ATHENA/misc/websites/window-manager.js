@@ -9,6 +9,12 @@ function athenaTaskId(id){return 'task-'+id;}
 function athenaTaskFor(id){
   return byId(athenaTaskId(id));
 }
+function athenaManagedWindows(){
+  return ['vault','namespaces','outline','global-search','quick-switcher','viewer'];
+}
+function athenaAuxiliaryWindows(){
+  return ['vault','namespaces','outline','global-search','quick-switcher'];
+}
 function athenaStorageKey(){
   var data=window.ATHENA_SITE_DATA || {};
   return data.storageKey || ('athena-website:'+location.pathname);
@@ -35,7 +41,7 @@ function athenaWindowState(win){
 function athenaSaveState(){
   if(athenaBooting || athenaRestoringState) return;
   var windows={};
-  ['vault','namespaces','global-search','quick-switcher','viewer'].forEach(function(id){
+  athenaManagedWindows().forEach(function(id){
     var win=byId(id);
     if(win) windows[id]=athenaWindowState(win);
   });
@@ -72,13 +78,18 @@ function athenaApplySavedState(state){
   Object.keys(state.windows).forEach(function(id){
     athenaApplyWindowState(id,state.windows[id]);
   });
+  athenaAuxiliaryWindows().forEach(function(id){
+    if(state.windows[id]) return;
+    var win=byId(id);
+    if(win && win.athenaClose) win.athenaClose({silent:true});
+  });
   athenaDocHistory=Array.isArray(state.docHistory) ? state.docHistory.slice() : [];
   athenaDocIndex=typeof state.docIndex==='number' ? state.docIndex : -1;
   athenaRestoringState=false;
   return true;
 }
 function athenaDefaultLayout(){
-  ['vault','namespaces','global-search','quick-switcher'].forEach(function(id){
+  athenaAuxiliaryWindows().forEach(function(id){
     var win=byId(id);
     if(win && win.athenaClose) win.athenaClose({silent:true});
   });
@@ -131,9 +142,15 @@ function athenaSetDocTitle(path){
 }
 function athenaUpdateDocNav(){
   var back=byId('doc-back'), forward=byId('doc-forward');
+  var standalone=byId('doc-standalone');
   if(back) back.disabled=athenaDocIndex<=0;
   if(forward) forward.disabled=athenaDocIndex<0 ||
     athenaDocIndex>=athenaDocHistory.length-1;
+  if(standalone){
+    var current=athenaDocIndex>=0 ? athenaDocHistory[athenaDocIndex] :
+      (byId('docframe') ? byId('docframe').getAttribute('src') : '');
+    standalone.disabled=!current || current==='about:blank';
+  }
 }
 function openDoc(path, options){
   options=options||{};
@@ -161,6 +178,13 @@ function openDoc(path, options){
   athenaSaveState();
 }
 function athenaOpenDoc(path){openDoc(path);}
+function athenaOpenStandaloneDoc(){
+  var path=athenaDocIndex>=0 ? athenaDocHistory[athenaDocIndex] :
+    (byId('docframe') ? byId('docframe').getAttribute('src') : '');
+  if(!path || path==='about:blank') return;
+  var tab=window.open(path,'_blank','noopener');
+  if(tab) tab.opener=null;
+}
 function athenaDocBack(){
   if(athenaDocIndex<=0) return;
   athenaDocIndex-=1;
@@ -182,6 +206,7 @@ window.addEventListener('message',function(ev){
   var data=ev.data || {};
   if(data.type==='athena-missing-target') athenaMissingTarget(data.target || '');
   else if(data.type==='athena-open-doc') athenaOpenDoc(data.path || 'about:blank');
+  else if(data.type==='athena-outline') athenaReceiveOutline(data.headings || []);
 });
 function installWindow(id){
   var win=byId(id), title=win.querySelector('.title'), resizing=false, moving=false;

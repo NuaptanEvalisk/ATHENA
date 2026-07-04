@@ -32,6 +32,40 @@ write_template_file (const fs::path& target, const std::string& name) {
   return write_file_bytes (target, text);
 }
 
+std::string
+xml_escape (const std::string& text) {
+  std::string out;
+  for (char c: text) {
+    switch (c) {
+    case '&': out += "&amp;"; break;
+    case '<': out += "&lt;"; break;
+    case '>': out += "&gt;"; break;
+    case '"': out += "&quot;"; break;
+    case '\'': out += "&apos;"; break;
+    default: out += c; break;
+    }
+  }
+  return out;
+}
+
+bool
+write_sitemap (const GenerationContext& cx) {
+  std::set<std::string> pages;
+  pages.insert ("index.html");
+  for (const auto& item: cx.html_paths)
+    pages.insert (item.second);
+  for (const auto& item: cx.namespace_homepages)
+    pages.insert (item.second);
+
+  std::ostringstream out;
+  out << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+      << "<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n";
+  for (const std::string& page: pages)
+    out << "  <url><loc>" << xml_escape (page) << "</loc></url>\n";
+  out << "</urlset>\n";
+  return write_file_bytes (cx.destination / "sitemap.xml", out.str ());
+}
+
 } // namespace
 
 QJsonObject
@@ -121,15 +155,18 @@ write_site_shell (const athena_website_entry& website,
                             "window-manager.js") ||
       !write_template_file (cx.destination / "js" / "explorers.js",
                             "explorers.js") ||
+      !write_template_file (cx.destination / "js" / "outline.js",
+                            "outline.js") ||
       !write_template_file (cx.destination / "js" / "search.js",
                             "search.js") ||
       !write_template_file (cx.destination / "js" / "quick-switcher.js",
-                            "quick-switcher.js") ||
-      !write_template_file (cx.destination / "js" / "app.js", "app.js") ||
-      !write_file_bytes (cx.destination / "index.html", index)) {
-    error = "Could not write website shell files.";
-    return false;
-  }
+	                            "quick-switcher.js") ||
+	      !write_template_file (cx.destination / "js" / "app.js", "app.js") ||
+	      !write_file_bytes (cx.destination / "index.html", index) ||
+	      !write_sitemap (cx)) {
+	    error = "Could not write website shell files.";
+	    return false;
+	  }
   copy_favicon (cx.destination / "css" / "favicon.png");
   return true;
 }

@@ -561,7 +561,9 @@ std::string
 document_bridge_script () {
   std::string js;
   if (!website_template_text ("document-bridge.js", js)) return "";
-  return "<script>\n" + js + "\n</script>\n";
+  return "<script data-athena-website-bridge=\"2\">\n"
+         "/* ATHENA_WEBSITE_BRIDGE_BEGIN */\n" + js +
+         "\n/* ATHENA_WEBSITE_BRIDGE_END */\n</script>\n";
 }
 
 bool
@@ -570,8 +572,21 @@ inject_document_bridge (const fs::path& target) {
   if (!read_file_bytes (target, html)) return false;
   std::string script = document_bridge_script ();
   if (script.empty ()) return false;
-  if (html.find ("athena-missing-target") != std::string::npos)
-    return true;
+  std::string begin = "/* ATHENA_WEBSITE_BRIDGE_BEGIN */";
+  std::string end = "/* ATHENA_WEBSITE_BRIDGE_END */";
+  size_t old_begin = html.find (begin);
+  if (old_begin != std::string::npos) {
+    size_t script_begin = html.rfind ("<script", old_begin);
+    size_t old_end = html.find (end, old_begin);
+    if (script_begin != std::string::npos && old_end != std::string::npos) {
+      size_t script_end = html.find ("</script>", old_end);
+      if (script_end != std::string::npos) {
+        script_end += 9;
+        html.replace (script_begin, script_end - script_begin, script);
+        return write_file_bytes (target, html);
+      }
+    }
+  }
   size_t head = html.find ("</head>");
   if (head != std::string::npos)
     html.insert (head, script);
