@@ -212,6 +212,9 @@
                   ".figure-body { text-align: center; } "
                   ".figure img { max-width: 100%; height: auto; } "
                   ".figure-caption { margin-top: 0.35em; font-size: 90%; } "
+                  ".verbatim, tt, code, kbd, samp, pre { font-family: "
+                  "TeX Gyre Cursor, Courier New, Courier, monospace; "
+                  "font-size: 100%; } "
 		  ".right-tab { float: right; position: relative; top: -1em; } "
 		  ".no-breaks { white-space: nowrap; } "
 	  ".underline { text-decoration: underline; } "
@@ -1750,10 +1753,21 @@
          (class (string-append "enunciation enunciation-" kind
                                " enunciation-" group))
          (style (string-append "background-color:" color))
+         (title-html (if (string? title) (list title) (tmhtml title)))
          (body (tmhtml (tmhtml-enunciation-body l))))
     `((h:div (@ (class ,class) (style ,style))
-             (h:div (@ (class "enunciation-title")) ,title)
+             (h:div (@ (class "enunciation-title")) ,@title-html)
              ,@body))))
+
+(define (tmhtml-render-enunciation kind group fallback-title fallback l)
+  (let* ((raw-title (if (null? l) fallback-title (car l)))
+         (title (if (and (string? raw-title) (== raw-title ""))
+                    fallback-title
+                    raw-title))
+         (body (if (and (pair? l) (pair? (cdr l)))
+                   (cadr l)
+                   (tmhtml-enunciation-body l))))
+    (tmhtml-source-enunciation kind group title fallback (list body))))
 
 (define (tmhtml-source-figure kind l)
   (let* ((class (string-append "figure figure-" kind))
@@ -2204,54 +2218,72 @@
   (equation* ,tmhtml-equation*)
   (equation-lab ,tmhtml-equation-lab)
   (equations-base ,tmhtml-equation*)
-  (theorem ,(lambda (l) (tmhtml-source-enunciation
-                         "theorem" "theorem" "Theorem" "#e5e9f0" l)))
-  (proposition ,(lambda (l) (tmhtml-source-enunciation
-                             "proposition" "theorem" "Proposition" "#e5e9f0" l)))
-  (lemma ,(lambda (l) (tmhtml-source-enunciation
-                       "lemma" "theorem" "Lemma" "#e5e9f0" l)))
-  (corollary ,(lambda (l) (tmhtml-source-enunciation
-                           "corollary" "theorem" "Corollary" "#e5e9f0" l)))
-  (axiom ,(lambda (l) (tmhtml-source-enunciation
-                       "axiom" "theorem" "Axiom" "#e5e9f0" l)))
-  (conjecture ,(lambda (l) (tmhtml-source-enunciation
-                            "conjecture" "theorem" "Conjecture" "#e5e9f0" l)))
-  (law ,(lambda (l) (tmhtml-source-enunciation
-                     "law" "theorem" "Law" "#e5e9f0" l)))
-  (definition ,(lambda (l) (tmhtml-source-enunciation
-                            "definition" "definition" "Definition" "#f0e4d8" l)))
-  (notation ,(lambda (l) (tmhtml-source-enunciation
-                          "notation" "definition" "Notation" "#f0e4d8" l)))
-  (convention ,(lambda (l) (tmhtml-source-enunciation
-                            "convention" "definition" "Convention" "#f0e4d8" l)))
-  (remark ,(lambda (l) (tmhtml-source-enunciation
-                        "remark" "remark" "Remark" "#e8eadc" l)))
-  (note ,(lambda (l) (tmhtml-source-enunciation
-                      "note" "remark" "Note" "#e8eadc" l)))
-  (example ,(lambda (l) (tmhtml-source-enunciation
-                         "example" "remark" "Example" "#e8eadc" l)))
-  (warning ,(lambda (l) (tmhtml-source-enunciation
-                         "warning" "remark" "Warning" "#e8eadc" l)))
-  (disambiguation ,(lambda (l) (tmhtml-source-enunciation
-                                "disambiguation" "remark" "Disambiguation" "#e8eadc" l)))
-  (acknowledgments ,(lambda (l) (tmhtml-source-enunciation
-                                 "acknowledgments" "remark" "Acknowledgments" "#e8eadc" l)))
-  (exercise ,(lambda (l) (tmhtml-source-enunciation
-                          "exercise" "exercise" "Exercise" "#dfece0" l)))
-  (problem ,(lambda (l) (tmhtml-source-enunciation
-                         "problem" "exercise" "Problem" "#dfece0" l)))
-  (question ,(lambda (l) (tmhtml-source-enunciation
-                          "question" "exercise" "Question" "#dfece0" l)))
-  (solution ,(lambda (l) (tmhtml-source-enunciation
-                          "solution" "exercise" "Solution" "#dfece0" l)))
-  (answer ,(lambda (l) (tmhtml-source-enunciation
-                        "answer" "exercise" "Answer" "#dfece0" l)))
+  ((:or theorem theorem*) ,(lambda (l) (tmhtml-source-enunciation
+                                        "theorem" "theorem" "Theorem" "#e5e9f0" l)))
+  ((:or proposition proposition*) ,(lambda (l) (tmhtml-source-enunciation
+                                                "proposition" "theorem" "Proposition" "#e5e9f0" l)))
+  ((:or lemma lemma*) ,(lambda (l) (tmhtml-source-enunciation
+                                    "lemma" "theorem" "Lemma" "#e5e9f0" l)))
+  ((:or corollary corollary*) ,(lambda (l) (tmhtml-source-enunciation
+                                            "corollary" "theorem" "Corollary" "#e5e9f0" l)))
+  ((:or axiom axiom*) ,(lambda (l) (tmhtml-source-enunciation
+                                    "axiom" "theorem" "Axiom" "#e5e9f0" l)))
+  ((:or conjecture conjecture*) ,(lambda (l) (tmhtml-source-enunciation
+                                              "conjecture" "theorem" "Conjecture" "#e5e9f0" l)))
+  ((:or law law*) ,(lambda (l) (tmhtml-source-enunciation
+                                "law" "theorem" "Law" "#e5e9f0" l)))
+  ((:or definition definition*) ,(lambda (l) (tmhtml-source-enunciation
+                                              "definition" "definition" "Definition" "#f0e4d8" l)))
+  ((:or notation notation*) ,(lambda (l) (tmhtml-source-enunciation
+                                          "notation" "definition" "Notation" "#f0e4d8" l)))
+  ((:or convention convention*) ,(lambda (l) (tmhtml-source-enunciation
+                                              "convention" "definition" "Convention" "#f0e4d8" l)))
+  ((:or remark remark*) ,(lambda (l) (tmhtml-source-enunciation
+                                      "remark" "remark" "Remark" "#e8eadc" l)))
+  ((:or note note*) ,(lambda (l) (tmhtml-source-enunciation
+                                  "note" "remark" "Note" "#e8eadc" l)))
+  ((:or example example*) ,(lambda (l) (tmhtml-source-enunciation
+                                        "example" "remark" "Example" "#e8eadc" l)))
+  ((:or warning warning*) ,(lambda (l) (tmhtml-source-enunciation
+                                        "warning" "remark" "Warning" "#e8eadc" l)))
+  ((:or disambiguation disambiguation*) ,(lambda (l) (tmhtml-source-enunciation
+                                                      "disambiguation" "remark" "Disambiguation" "#e8eadc" l)))
+  ((:or acknowledgments acknowledgments*) ,(lambda (l) (tmhtml-source-enunciation
+                                                       "acknowledgments" "remark" "Acknowledgments" "#e8eadc" l)))
+  ((:or exercise exercise*) ,(lambda (l) (tmhtml-source-enunciation
+                                          "exercise" "exercise" "Exercise" "#dfece0" l)))
+  ((:or problem problem*) ,(lambda (l) (tmhtml-source-enunciation
+                                        "problem" "exercise" "Problem" "#dfece0" l)))
+  ((:or question question*) ,(lambda (l) (tmhtml-source-enunciation
+                                          "question" "exercise" "Question" "#dfece0" l)))
+  ((:or solution solution*) ,(lambda (l) (tmhtml-source-enunciation
+                                          "solution" "exercise" "Solution" "#dfece0" l)))
+  ((:or answer answer*) ,(lambda (l) (tmhtml-source-enunciation
+                                      "answer" "exercise" "Answer" "#dfece0" l)))
   (proof ,(lambda (l) (tmhtml-source-enunciation
                        "proof" "exercise" "Proof" "#dfece0" l)))
   (proof-alternative ,(lambda (l) (tmhtml-source-enunciation
                                    "proof-alternative" "exercise" "Proof (Alternative)" "#dfece0" l)))
   (proof-standard ,(lambda (l) (tmhtml-source-enunciation
                                 "proof-standard" "exercise" "Proof (Standard)" "#dfece0" l)))
+  (proof-of ,(lambda (l) (tmhtml-render-enunciation
+                          "proof" "exercise" "Proof" "#dfece0" l)))
+  (quote-env ,(lambda (l) (tmhtml-source-enunciation
+                           "quote" "remark" "Quote" "#e8eadc" l)))
+  (render-theorem ,(lambda (l) (tmhtml-render-enunciation
+                                "theorem" "theorem" "Theorem" "#e5e9f0" l)))
+  (render-remark ,(lambda (l) (tmhtml-render-enunciation
+                               "remark" "remark" "Remark" "#e8eadc" l)))
+  (render-exercise ,(lambda (l) (tmhtml-render-enunciation
+                                 "exercise" "exercise" "Exercise" "#dfece0" l)))
+  (render-solution ,(lambda (l) (tmhtml-render-enunciation
+                                 "solution" "exercise" "Solution" "#dfece0" l)))
+  (render-proof ,(lambda (l) (tmhtml-render-enunciation
+                              "proof" "exercise" "Proof" "#dfece0" l)))
+  (render-proof-alternative ,(lambda (l) (tmhtml-render-enunciation
+                                          "proof-alternative" "exercise" "Proof (Alternative)" "#dfece0" l)))
+  (render-proof-standard ,(lambda (l) (tmhtml-render-enunciation
+                                       "proof-standard" "exercise" "Proof (Standard)" "#dfece0" l)))
   ((:or big-figure small-figure)
    ,(lambda (l) (tmhtml-source-figure "figure" l)))
   ((:or big-table small-table)

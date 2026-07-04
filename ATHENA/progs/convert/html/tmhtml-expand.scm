@@ -55,7 +55,17 @@
              popup-balloon popup-balloon*
              big-figure small-figure big-table small-table
              render-big-figure render-small-figure
-             render-big-table render-small-table))
+             render-big-table render-small-table
+             theorem theorem* proposition proposition* lemma lemma*
+             corollary corollary* axiom axiom* conjecture conjecture*
+             law law* definition definition* notation notation*
+             convention convention* remark remark* note note* example
+             example* warning warning* disambiguation disambiguation*
+             acknowledgments acknowledgments* exercise exercise* problem
+             problem* question question* solution solution* answer answer*
+             proof proof-alternative proof-standard proof-of
+             render-theorem render-remark render-exercise render-solution
+             render-proof render-proof-alternative render-proof-standard))
     ;; FIXME: should apply 'filter_style' to the environment
     ;; in an appropriate way to avoid adding the primitives below
     ,@(map tmhtml-env-macro
