@@ -25,6 +25,7 @@
 #include <QDir>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QFontDatabase>
 #include <QFormLayout>
 #include <QHBoxLayout>
 #include <QInputDialog>
@@ -39,6 +40,8 @@
 #include <QRadioButton>
 #include <QRegularExpression>
 #include <QTextEdit>
+#include <QTextCharFormat>
+#include <QTextCursor>
 #include <QTimer>
 #include <QUrl>
 #include <QVBoxLayout>
@@ -52,6 +55,125 @@ static QWidget* websites_manager_widget= nullptr;
 static ads::CDockWidget* websites_manager_dock= nullptr;
 
 namespace {
+
+class QAnsiTextEdit : public QTextEdit {
+public:
+  explicit QAnsiTextEdit (QWidget* parent= nullptr)
+    : QTextEdit (parent), currentFormat (baseFormat ()) {
+    setReadOnly (true);
+    setAcceptRichText (false);
+    setLineWrapMode (QTextEdit::NoWrap);
+    setFont (QFontDatabase::systemFont (QFontDatabase::FixedFont));
+  }
+
+  void appendAnsiText (const QString& text) {
+    QTextCursor cursor= textCursor ();
+    cursor.movePosition (QTextCursor::End);
+    for (int i=0; i<text.size (); ) {
+      QChar ch= text[i];
+      if (ch == QChar (0x1b)) {
+        if (handleEscape (text, i, cursor)) continue;
+        i++;
+        continue;
+      }
+      if (ch == '\r') {
+        clearCurrentLine (cursor);
+        i++;
+        continue;
+      }
+      if (ch == '\b') {
+        cursor.deletePreviousChar ();
+        i++;
+        continue;
+      }
+      if (ch == '\n') {
+        cursor.insertBlock ();
+        i++;
+        continue;
+      }
+
+      int start= i;
+      while (i<text.size () && text[i] != QChar (0x1b) &&
+             text[i] != '\r' && text[i] != '\b' && text[i] != '\n')
+        i++;
+      cursor.insertText (text.mid (start, i - start), currentFormat);
+    }
+    setTextCursor (cursor);
+    ensureCursorVisible ();
+  }
+
+private:
+  QTextCharFormat currentFormat;
+
+  QTextCharFormat baseFormat () const {
+    QTextCharFormat format;
+    format.setFont (QFontDatabase::systemFont (QFontDatabase::FixedFont));
+    return format;
+  }
+
+  void clearCurrentLine (QTextCursor& cursor) {
+    cursor.movePosition (QTextCursor::StartOfBlock);
+    cursor.movePosition (QTextCursor::EndOfBlock, QTextCursor::KeepAnchor);
+    cursor.removeSelectedText ();
+  }
+
+  bool handleEscape (const QString& text, int& i, QTextCursor& cursor) {
+    if (i + 1 >= text.size () || text[i + 1] != '[') return false;
+
+    int j= i + 2;
+    while (j<text.size () &&
+           ((text[j] >= '0' && text[j] <= '9') || text[j] == ';' ||
+            text[j] == '?' || text[j] == ':' || text[j] == ' '))
+      j++;
+    if (j >= text.size ()) return false;
+
+    QString params= text.mid (i + 2, j - i - 2).trimmed ();
+    QChar command= text[j];
+    if (command == 'm') applySgr (params);
+    else if (command == 'K') clearCurrentLine (cursor);
+    i= j + 1;
+    return true;
+  }
+
+  void applySgr (const QString& params) {
+    QStringList parts= params.isEmpty () ? QStringList ("0") :
+                       params.split (';', Qt::KeepEmptyParts);
+    for (int i=0; i<parts.size (); i++) {
+      bool ok= false;
+      int code= parts[i].isEmpty () ? 0 : parts[i].toInt (&ok);
+      if (!ok) continue;
+      if (code == 0) currentFormat= baseFormat ();
+      else if (code == 1) currentFormat.setFontWeight (QFont::Bold);
+      else if (code == 3) currentFormat.setFontItalic (true);
+      else if (code == 4) currentFormat.setFontUnderline (true);
+      else if (code == 22) currentFormat.setFontWeight (QFont::Normal);
+      else if (code == 23) currentFormat.setFontItalic (false);
+      else if (code == 24) currentFormat.setFontUnderline (false);
+      else if (code == 39) currentFormat.clearForeground ();
+      else if (code == 49) currentFormat.clearBackground ();
+      else if ((code >= 30 && code <= 37) || (code >= 90 && code <= 97))
+        currentFormat.setForeground (ansiColor (code));
+      else if ((code >= 40 && code <= 47) || (code >= 100 && code <= 107))
+        currentFormat.setBackground (ansiColor (code - 10));
+    }
+  }
+
+  QColor ansiColor (int code) const {
+    static const QColor normal[]= {
+      QColor (0, 0, 0), QColor (170, 0, 0), QColor (0, 170, 0),
+      QColor (170, 85, 0), QColor (0, 0, 170), QColor (170, 0, 170),
+      QColor (0, 170, 170), QColor (170, 170, 170)
+    };
+    static const QColor bright[]= {
+      QColor (85, 85, 85), QColor (255, 85, 85), QColor (85, 255, 85),
+      QColor (255, 255, 85), QColor (85, 85, 255),
+      QColor (255, 85, 255), QColor (85, 255, 255),
+      QColor (255, 255, 255)
+    };
+    if (code >= 90 && code <= 97) return bright[code - 90];
+    return normal[code - 30];
+  }
+};
 
 static QString
 qss (const std::string& s) {
@@ -703,8 +825,7 @@ private:
     QLabel* status= new QLabel ("Starting website generation...");
     QProgressBar* progress= new QProgressBar;
     progress->setRange (0, 0);
-    QPlainTextEdit* output= new QPlainTextEdit;
-    output->setReadOnly (true);
+    QAnsiTextEdit* output= new QAnsiTextEdit;
     layout->addWidget (status);
     layout->addWidget (progress);
     layout->addWidget (output);
@@ -727,6 +848,7 @@ private:
     connect (process, &QProcess::readyRead, pane, [=] () {
       QString text= QString::fromUtf8 (process->readAll ());
       for (const QString& raw: text.split ('\n')) {
+        QString displayLine= raw;
         QString line= raw.trimmed ();
         if (line.isEmpty ()) continue;
         if (line.startsWith ("ATHENA_WEBSITE_PROGRESS ")) {
@@ -743,9 +865,9 @@ private:
           }
         }
         else if (line.startsWith ("ATHENA_WEBSITE_LOG ")) {
-          output->appendPlainText (line.mid (19));
+          output->appendAnsiText (line.mid (19) + "\n");
         }
-        else output->appendPlainText (line);
+        else output->appendAnsiText (displayLine + "\n");
       }
     });
     connect (process,
