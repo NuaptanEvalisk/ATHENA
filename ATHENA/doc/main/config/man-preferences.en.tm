@@ -31,6 +31,10 @@
     <item*|Details in menus>Chooses between simplified menus and detailed
     menus. Detailed menus expose more commands and advanced entries.
 
+    <item*|Check for updates on startup>When enabled, <ATHENA> checks the
+    <name|GitHub> releases page shortly after startup and shows a toast
+    notification if a newer release is available.
+
     <item*|Remember panes layout>When enabled, <ATHENA> remembers the
     Advanced Docking System pane layout and restores it on startup.
 
