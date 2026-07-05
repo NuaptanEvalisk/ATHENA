@@ -28,11 +28,13 @@
 class QStringList;
 #endif
 class QKeySequence;
+class QWidget;
 
 typedef quartet<SI,SI,SI,SI> coord4;
 typedef pair<SI,SI> coord2;
 
 void qt_dump (QObject* obj, int indent=0);
+void qt_sync_wayland_logical_widget_font (QWidget* widget);
 
 /******************************************************************************
  * Conversion of data types

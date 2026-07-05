@@ -178,6 +178,13 @@ void QTMApplication::set_window_icon (string icon_path) {
 bool QTMApplication::notify (QObject* receiver, QEvent* event)
 {
   try {
+#if QT_VERSION >= 0x060000
+    if (receiver != NULL && event != NULL &&
+        (event->type () == QEvent::Polish ||
+         event->type () == QEvent::Show ||
+         event->type () == QEvent::FontChange))
+      qt_sync_wayland_logical_widget_font (qobject_cast<QWidget*> (receiver));
+#endif
     return QApplication::notify (receiver, event);
   }
   catch (string s) {

@@ -74,6 +74,23 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QProcess>
+#include <QCheckBox>
+#include <QComboBox>
+#include <QDialog>
+#include <QDockWidget>
+#include <QGroupBox>
+#include <QLabel>
+#include <QLineEdit>
+#include <QMainWindow>
+#include <QMenu>
+#include <QMenuBar>
+#include <QPushButton>
+#include <QRadioButton>
+#include <QStatusBar>
+#include <QTabBar>
+#include <QTabWidget>
+#include <QToolBar>
+#include <QToolButton>
 
 #include "QTMGuiHelper.hpp"
 #include "QTMWidget.hpp"
@@ -186,10 +203,64 @@ athena_kde_output_scale () {
 }
 
 static void
+athena_sync_logical_ui_font (const QFont& font) {
+#if QT_VERSION >= 0x060000
+  if (qApp == nullptr) return;
+
+  const char* class_names[]= {
+    "QWidget",
+    "QMainWindow",
+    "QDialog",
+    "QMenuBar",
+    "QMenu",
+    "QToolBar",
+    "QToolButton",
+    "QTabBar",
+    "QTabWidget",
+    "QStatusBar",
+    "QDockWidget",
+    "QComboBox",
+    "QLineEdit",
+    "QPushButton",
+    "QCheckBox",
+    "QRadioButton",
+    "QLabel",
+    "QGroupBox"
+  };
+  for (const char* class_name: class_names)
+    qApp->setFont (font, class_name);
+
+  for (QWidget* widget: QApplication::allWidgets ()) {
+    if (qobject_cast<QMainWindow*> (widget) ||
+        qobject_cast<QDialog*> (widget) ||
+        qobject_cast<QMenuBar*> (widget) ||
+        qobject_cast<QMenu*> (widget) ||
+        qobject_cast<QToolBar*> (widget) ||
+        qobject_cast<QToolButton*> (widget) ||
+        qobject_cast<QTabBar*> (widget) ||
+        qobject_cast<QTabWidget*> (widget) ||
+        qobject_cast<QStatusBar*> (widget) ||
+        qobject_cast<QDockWidget*> (widget) ||
+        qobject_cast<QComboBox*> (widget) ||
+        qobject_cast<QLineEdit*> (widget) ||
+        qobject_cast<QPushButton*> (widget) ||
+        qobject_cast<QCheckBox*> (widget) ||
+        qobject_cast<QRadioButton*> (widget) ||
+        qobject_cast<QLabel*> (widget) ||
+        qobject_cast<QGroupBox*> (widget))
+      widget->setFont (font);
+  }
+#else
+  (void) font;
+#endif
+}
+
+static void
 athena_apply_logical_ui_scale (double scale) {
 #if QT_VERSION >= 0x060000
   static double applied_scale= 1.0;
-  if (scale <= 1.0 || applied_scale != 1.0 || qApp == nullptr) return;
+  if (scale <= 1.0 || applied_scale != 1.0 || qApp == nullptr)
+    return;
 
   QFont font= qApp->font ();
   QFontInfo info (font);
@@ -203,9 +274,64 @@ athena_apply_logical_ui_scale (double scale) {
   else if (font.pointSizeF () > 0)
     font.setPointSize (max (1, (int) floor (font.pointSizeF () * scale + 0.5)));
   qApp->setFont (font);
+  athena_sync_logical_ui_font (font);
   applied_scale= scale;
 #else
   (void) scale;
+#endif
+}
+
+void
+athena_initialize_wayland_ui_scale () {
+#if QT_VERSION >= 0x060000
+  if (qApp == nullptr ||
+      !QApplication::platformName ().startsWith (QStringLiteral ("wayland")) ||
+      retina_manual)
+    return;
+
+  double dpr= 1.0;
+  QSize geometry;
+  if (QScreen* screen= QGuiApplication::primaryScreen ()) {
+    dpr= screen->devicePixelRatio ();
+    geometry= screen->geometry ().size ();
+  }
+
+  double output_scale= 1.0;
+  bool enable_logical_scale= false;
+  if (dpr > 1.0) {
+    output_scale= athena_kde_output_scale ();
+    retina_factor= (int) ceil (dpr);
+    retina_zoom= 1;
+    retina_scale= output_scale;
+    enable_logical_scale= true;
+  }
+  else if (!geometry.isEmpty () &&
+           min (geometry.width (), geometry.height ()) >= 1440) {
+    output_scale= athena_kde_output_scale ();
+    retina_zoom= 1;
+    retina_scale= output_scale;
+    enable_logical_scale= true;
+  }
+
+  if (enable_logical_scale) {
+    retina_manual= true;
+    if (!retina_iman) {
+      retina_iman= true;
+      retina_icons= 1;
+    }
+  }
+
+  if (has_user_preference ("retina-factor"))
+    retina_factor= get_user_preference ("retina-factor") == "on"? 2: 1;
+  if (has_user_preference ("retina-zoom"))
+    retina_zoom= get_user_preference ("retina-zoom") == "on"? 2: 1;
+  if (has_user_preference ("retina-icons"))
+    retina_icons= get_user_preference ("retina-icons") == "on"? 2: 1;
+  if (has_user_preference ("retina-scale"))
+    retina_scale= as_double (get_user_preference ("retina-scale"));
+
+  if (enable_logical_scale)
+    athena_apply_logical_ui_scale (retina_scale);
 #endif
 }
 

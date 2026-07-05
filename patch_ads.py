@@ -124,6 +124,18 @@ def patch_ads_initial_wayland_drag(base_dir):
         if '#include <QPointer>' not in content:
             content = content.replace('#include <QMenu>\n',
                                       '#include <QMenu>\n#include <QPointer>\n')
+        content = content.replace(
+            'TitleLabel->setObjectName("dockWidgetTabLabel");\n'
+            '\tTitleLabel->setAlignment(Qt::AlignCenter);\n',
+            'TitleLabel->setObjectName("dockWidgetTabLabel");\n'
+            '#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))\n'
+            '\tif (QApplication::platformName().startsWith(QStringLiteral("wayland")))\n'
+            '\t{\n'
+            '\t\tTitleLabel->setFont(qApp->font());\n'
+            '\t\t_this->setFont(qApp->font());\n'
+            '\t}\n'
+            '#endif\n'
+            '\tTitleLabel->setAlignment(Qt::AlignCenter);\n')
         if 'athenaUseWaylandToplevelDragForInitialFloating' not in content:
             content = content.replace('namespace ads\n{\n',
                                       'namespace ads\n{\n' + WAYLAND_INITIAL_DOCK_DRAG_HELPER,

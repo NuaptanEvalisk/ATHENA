@@ -21,6 +21,7 @@
 #include <QEvent>
 #include <QScroller>
 #include <QScrollerProperties>
+#include <QApplication>
 
 #define QTMTOOLBAR_MARGIN 4
 
@@ -185,6 +186,11 @@ void QTMToolbar::addRightSpacer () {
 void QTMToolbar::addAction (QAction* action) {
   // create the tool button
   QWidget *actionWidget = nullptr;
+
+#if QT_VERSION >= 0x060000
+  if (QApplication::platformName ().startsWith (QStringLiteral ("wayland")))
+    action->setFont (qApp->font ());
+#endif
   
   if (action->isSeparator()) {
     addSeparator();
@@ -195,6 +201,11 @@ void QTMToolbar::addAction (QAction* action) {
 
   if (qobject_cast<QWidgetAction*> (action)) {
     actionWidget = qobject_cast<QWidgetAction*> (action)->requestWidget(this);
+#if QT_VERSION >= 0x060000
+    if (actionWidget &&
+        QApplication::platformName ().startsWith (QStringLiteral ("wayland")))
+      actionWidget->setFont (qApp->font ());
+#endif
   }
 
   if (!actionWidget) {
@@ -204,6 +215,10 @@ void QTMToolbar::addAction (QAction* action) {
 
   QToolButton* button = qobject_cast<QToolButton*> (actionWidget);
   if (button) {
+#if QT_VERSION >= 0x060000
+    if (QApplication::platformName ().startsWith (QStringLiteral ("wayland")))
+      button->setFont (qApp->font ());
+#endif
 
     // if the action contains a icon, set a fixed icon size
     if (!action->icon().isNull()) {

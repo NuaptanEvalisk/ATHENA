@@ -53,6 +53,7 @@
 
 #ifdef QTTEXMACS
 #include "Qt/QTMApplication.hpp"
+#include "Qt/qt_gui.hpp"
 #include "QTMGoogleTasksPane.hpp"
 #include "Qt/qt_utilities.hpp"
 #include <QApplication>
@@ -1718,6 +1719,7 @@ texmacs_entrypoint (int argc, char** argv) {
     qtmcoreapp= new QTMCoreApplication (argc, argv);
   else {
     startup_progress (42, "Initializing interface");
+    athena_initialize_wayland_ui_scale ();
     ((QTMApplication*)qtmapp)->load();
     startup_progress (50, "Interface initialized");
   }

@@ -29,6 +29,7 @@
 #include <QPrintDialog>
 #include <QImageReader>
 #include <QApplication>
+#include <QWidget>
 
 #if QT_VERSION >= 0x060000
 #include <QNetworkAccessManager>
@@ -74,6 +75,42 @@ tm_ostream&
 operator << (tm_ostream& out, QRect rect) {
   return out << "(" << rect.x() << "," << rect.y() << ","
   << rect.width() << "," << rect.height() << ")";
+}
+
+void
+qt_sync_wayland_logical_widget_font (QWidget* widget) {
+#if QT_VERSION >= 0x060000
+  if (widget == NULL || qApp == NULL ||
+      !QApplication::platformName ().startsWith (QStringLiteral ("wayland")))
+    return;
+
+  static bool syncing= false;
+  if (syncing) return;
+
+  QFont app_font= qApp->font ();
+  QFontInfo app_info (app_font);
+  int app_pixel= app_font.pixelSize () > 0 ? app_font.pixelSize ()
+                                           : app_info.pixelSize ();
+  if (app_pixel <= 0) return;
+
+  QFont widget_font= widget->font ();
+  QFontInfo widget_info (widget_font);
+  int widget_pixel= widget_font.pixelSize () > 0 ? widget_font.pixelSize ()
+                                                 : widget_info.pixelSize ();
+  if (widget_pixel <= 0 || widget_pixel >= app_pixel) return;
+
+  QFont scaled= app_font;
+  if (widget_info.bold ()) scaled.setBold (true);
+  if (widget_info.italic ()) scaled.setItalic (true);
+  if (widget_info.underline ()) scaled.setUnderline (true);
+  if (widget_info.strikeOut ()) scaled.setStrikeOut (true);
+
+  syncing= true;
+  widget->setFont (scaled);
+  syncing= false;
+#else
+  (void) widget;
+#endif
 }
 
 /******************************************************************************
@@ -1131,7 +1168,8 @@ init_style_sheet (QApplication* app) {
     if (!use_unified_toolbar ||
         get_preference ("main icon bar", "off") != "off")
       ss= replace (ss, "Nounim", "");
-    ss= scale_px (strip_wayland_font_sizes (ss));
+    ss= strip_wayland_font_sizes (ss);
+    ss= scale_px (ss);
     current_style_sheet= ss;
     app->setStyleSheet (to_qstring (current_style_sheet));
   }

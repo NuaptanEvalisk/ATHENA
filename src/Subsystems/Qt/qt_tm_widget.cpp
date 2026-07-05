@@ -929,6 +929,8 @@ qt_tm_widget_rep::install_main_menu () {
     QList<QAction*>* src = main_menu_widget->get_fresh_qactionlist();
     if (!src) return;
     QMenuBar* dest = mainwindow()->menuBar();
+    if (QApplication::platformName ().startsWith (QStringLiteral ("wayland")))
+      dest->setFont (qApp->font ());
     dest->clear();
     clear_main_menu_actions ();
     main_menu_actions= *src;
@@ -985,7 +987,7 @@ qt_tm_widget_rep::install_main_menu () {
                           the_gui->gui_helper, &QTMGuiHelper::aboutToShowMainMenu);
         QObject::connect (a->menu(), &QMenu::aboutToHide,
                           the_gui->gui_helper, &QTMGuiHelper::aboutToHideMainMenu);
-  #endif
+#endif
       }
     }
     dest->addRightSpacer();

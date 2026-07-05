@@ -89,6 +89,10 @@ QTMAction::QTMAction (QObject *parent) : QAction (parent) {
 #endif
     setFont (fn);
   }
+#if QT_VERSION >= 0x060000
+  else if (use_system_action_font)
+    setFont (qApp->font ());
+#endif
 }
 
 QTMAction::~QTMAction() { 
@@ -364,6 +368,10 @@ QTMMenuWidget::paintEvent(QPaintEvent* e) {
 
 QTMLazyMenu::QTMLazyMenu (promise<widget> _pm, QWidget* p, bool right)
 : QMenu (p), promise_widget (_pm), show_right (right) {
+#if QT_VERSION >= 0x060000
+  if (QApplication::platformName ().startsWith (QStringLiteral ("wayland")))
+    setFont (qApp->font ());
+#endif
 #if QT_VERSION < 0x060000
   QObject::connect (this, SIGNAL (aboutToShow ()), this, SLOT (force ()));
 #else
@@ -400,6 +408,10 @@ QTMLazyMenu::attachTo (QAction* a) {
 void
 QTMLazyMenu::transferActions (QList<QAction*>* from) {
   if (from == NULL) return;
+#if QT_VERSION >= 0x060000
+  if (QApplication::platformName ().startsWith (QStringLiteral ("wayland")))
+    setFont (qApp->font ());
+#endif
   QList<QAction*> list = actions();
   while (!list.isEmpty()) {
     QAction* a = list.takeFirst();
@@ -407,6 +419,10 @@ QTMLazyMenu::transferActions (QList<QAction*>* from) {
   }
   while (!from->isEmpty()) {
     QAction* a = from->takeFirst();
+#if QT_VERSION >= 0x060000
+    if (QApplication::platformName ().startsWith (QStringLiteral ("wayland")))
+      a->setFont (qApp->font ());
+#endif
     addAction (a);
   }
 }
