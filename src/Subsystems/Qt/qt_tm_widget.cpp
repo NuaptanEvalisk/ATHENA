@@ -611,7 +611,7 @@ qt_tm_widget_rep::update_visibility () {
   if (tm_style_sheet == "" && use_mini_bars) {
     QFont f = leftLabel->font();
     int fs = as_int (get_preference ("gui:mini-fontsize", QTM_MINI_FONTSIZE));
-    f.setPointSize (qt_zoom (fs > 0 ? fs : QTM_MINI_FONTSIZE));
+    qt_set_font_size (f, qt_zoom (fs > 0 ? fs : QTM_MINI_FONTSIZE));
     leftLabel->setFont(f);
     centerLabel->setFont(f);
     rightSpacer->setFont(f);

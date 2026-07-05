@@ -54,6 +54,7 @@ QSize    to_qsize (const SI& w, const SI& h);
 coord2 from_qsize (const QSize & s);
 
 QFont         to_qfont (int style, QFont font);
+void          qt_set_font_size (QFont& font, int point_size);
 void qt_apply_tm_style (QWidget* qwid, int style);
 void qt_apply_tm_style (QWidget* qwid, int style, color c);
 

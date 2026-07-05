@@ -27,8 +27,11 @@
 
 #include <QToolTip>
 #include <QCompleter>
+#include <QFontMetricsF>
 #include <QKeyEvent>
 #include <QApplication>
+
+#include <cmath>
 
 /******************************************************************************
  * QTMCommand
@@ -143,7 +146,7 @@ END_SLOT
 void
 QTMAction::doShowToolTip() {
 BEGIN_SLOT
-  static int step = QApplication::font().pointSize();
+  static int step = (int) ceil (QFontMetricsF (qApp->font()).height());
   _timer->stop();
   if ((QCursor::pos() - _pos).manhattanLength() < step)  // Hideous HACK
     QToolTip::showText (QCursor::pos(), toolTip());
@@ -283,7 +286,7 @@ QTMMinibarAction::createWidget (QWidget* parent) {
       if (use_mini_bars) {
         QFont f = tb->font();
         int fs = as_int (get_preference ("gui:mini-fontsize", QTM_MINI_FONTSIZE));
-        f.setPointSize (qt_zoom (fs > 0 ? fs : QTM_MINI_FONTSIZE));
+        qt_set_font_size (f, qt_zoom (fs > 0 ? fs : QTM_MINI_FONTSIZE));
         tb->setFont(f);
       }
       l->addWidget (tb);

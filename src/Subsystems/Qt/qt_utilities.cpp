@@ -12,11 +12,13 @@
 #include "QTMStyle.hpp"
 #include "qt_utilities.hpp"
 #include <time.h>
+#include <cmath>
 
 #include <QImage>
 #include <QPrinter>
 #include <QPainter>
 #include <QCoreApplication>
+#include <QFontInfo>
 #include <QLocale>
 #include <QDateTime>
 #include <QHash>
@@ -78,12 +80,30 @@ operator << (tm_ostream& out, QRect rect) {
  * Conversion of data types
  ******************************************************************************/
 
+void
+qt_set_font_size (QFont& font, int point_size) {
+  point_size= max (1, point_size);
+  if (font.pixelSize () > 0) {
+    QFontInfo info (font);
+    int pixel_size= info.pixelSize ();
+    double current_point_size= info.pointSizeF ();
+    if (pixel_size > 0 && current_point_size > 0)
+      font.setPixelSize (max (1, (int) floor (pixel_size *
+                                              ((double) point_size) /
+                                              current_point_size + 0.5)));
+    else
+      font.setPixelSize (point_size);
+  }
+  else
+    font.setPointSize (point_size);
+}
+
 QFont
 to_qfont (int style, QFont font) {
   if ((style & WIDGET_STYLE_MINI) && tm_style_sheet == "" && use_mini_bars) {
     // Use smaller text font
     int fs = as_int (get_preference ("gui:mini-fontsize", QTM_MINI_FONTSIZE));
-    font.setPointSize (qt_zoom (fs > 0 ? fs : QTM_MINI_FONTSIZE));
+    qt_set_font_size (font, qt_zoom (fs > 0 ? fs : QTM_MINI_FONTSIZE));
   }
   if (style & WIDGET_STYLE_MONOSPACED) {  // Use monospaced font
     font.setFixedPitch (true);        //FIXME: ignored for fonts in QActions

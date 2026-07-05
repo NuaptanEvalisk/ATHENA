@@ -18,6 +18,7 @@
 #include "font.hpp"
 #include "scheme.hpp"
 #include "tm_ostream.hpp"
+#include "qt_utilities.hpp"
 
 #include <QApplication>
 #include <QCheckBox>
@@ -27,6 +28,7 @@
 #include <QDialogButtonBox>
 #include <QDir>
 #include <QFileDialog>
+#include <QFontInfo>
 #include <QFormLayout>
 #include <QFrame>
 #include <QGroupBox>
@@ -47,6 +49,7 @@
 #include <QToolButton>
 #include <QVBoxLayout>
 
+#include <cmath>
 #include <functional>
 #include <utility>
 #include <vector>
@@ -751,7 +754,8 @@ QTMPreferencesDialog::QTMPreferencesDialog (QWidget* parent)
   headerLayout->setContentsMargins (20, 16, 20, 12);
   QLabel* title= new QLabel ("Preferences", header);
   QFont f= title->font ();
-  f.setPointSize (f.pointSize () + 4);
+  QFontInfo titleInfo (f);
+  qt_set_font_size (f, max (1, (int) floor (titleInfo.pointSizeF () + 4.5)));
   f.setBold (true);
   title->setFont (f);
   headerLayout->addWidget (title);
