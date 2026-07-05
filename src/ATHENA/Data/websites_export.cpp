@@ -88,6 +88,22 @@ is_remote_or_special_path (const std::string& path) {
 }
 
 std::string
+html_escape (const std::string& text) {
+  std::string out;
+  for (char c: text) {
+    switch (c) {
+    case '&': out += "&amp;"; break;
+    case '<': out += "&lt;"; break;
+    case '>': out += "&gt;"; break;
+    case '"': out += "&quot;"; break;
+    case '\'': out += "&#39;"; break;
+    default: out.push_back (c); break;
+    }
+  }
+  return out;
+}
+
+std::string
 decode_file_path_text (const std::string& path) {
   QString decoded = QUrl::fromPercentEncoding (qs (path).toUtf8 ());
   return ss (decoded);
@@ -224,6 +240,36 @@ document_shell_href (const std::string& html_rel,
   std::string target = html_rel;
   if (!anchor.empty ()) target += "#" + anchor;
   return shell_call_href ("athenaOpenDoc", target);
+}
+
+void
+inject_or_replace_document_title (std::string& html, const std::string& title) {
+  std::string escaped = html_escape (title.empty () ? "Document" : title);
+  std::string next = "<title>" + escaped + "</title>";
+  size_t begin = html.find ("<title>");
+  size_t end = begin == std::string::npos ? std::string::npos :
+                                            html.find ("</title>", begin);
+  if (begin != std::string::npos && end != std::string::npos) {
+    end += 8;
+    html.replace (begin, end - begin, next);
+    return;
+  }
+  size_t head = html.find ("</head>");
+  if (head != std::string::npos) html.insert (head, next + "\n");
+  else html.insert (0, next + "\n");
+}
+
+void
+inject_document_favicon (std::string& html, const std::string& output_rel) {
+  if (html.find ("rel=\"icon\"") != std::string::npos ||
+      html.find ("rel='icon'") != std::string::npos)
+    return;
+  std::string href = relative_href (output_rel, "css/favicon.png");
+  std::string link = "<link rel=\"icon\" href=\"" + html_escape (href) +
+                     "\"></link>\n";
+  size_t head = html.find ("</head>");
+  if (head != std::string::npos) html.insert (head, link);
+  else html.insert (0, link);
 }
 
 std::string
@@ -664,11 +710,14 @@ inject_or_replace_document_theme (std::string& html) {
 }
 
 bool
-inject_document_bridge (const fs::path& target) {
+inject_document_bridge (const fs::path& target, const std::string& output_rel,
+                        const std::string& title) {
   std::string html;
   if (!read_file_bytes (target, html)) return false;
   std::string script = document_bridge_script ();
   if (script.empty ()) return false;
+  inject_or_replace_document_title (html, title);
+  inject_document_favicon (html, output_rel);
   inject_or_replace_document_theme (html);
   std::string begin = "/* ATHENA_WEBSITE_BRIDGE_BEGIN */";
   std::string end = "/* ATHENA_WEBSITE_BRIDGE_END */";
@@ -701,7 +750,8 @@ inject_document_bridge (const fs::path& target) {
 }
 bool
 export_document_html (tree doc, const fs::path& source,
-                      const fs::path& target, std::string& error) {
+                      const fs::path& target, const std::string& output_rel,
+                      const std::string& title, std::string& error) {
   std::error_code ec;
   fs::create_directories (target.parent_path (), ec);
   if (ec) {
@@ -745,7 +795,7 @@ export_document_html (tree doc, const fs::path& source,
     error = "HTML export produced an empty page for " + source.string ();
     return false;
   }
-  if (!inject_document_bridge (target)) {
+  if (!inject_document_bridge (target, output_rel, title)) {
     error = "Could not inject website bridge into " + target.string ();
     return false;
   }

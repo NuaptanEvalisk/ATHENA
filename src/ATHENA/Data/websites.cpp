@@ -95,7 +95,8 @@ generate_website_entry (const fs::path& root,
     cx.titles[rel] = document_title (doc, fs::path (rel).stem ().string ());
     cx.search_texts[rel] = document_search_text (doc);
     tree rewritten = rewrite_static_links (doc, rel, rel, cx);
-    if (!export_document_html (rewritten, source, target, error))
+    if (!export_document_html (rewritten, source, target, cx.html_paths[rel],
+                               cx.titles[rel], error))
       return false;
   }
 

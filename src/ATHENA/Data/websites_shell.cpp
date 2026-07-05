@@ -260,8 +260,10 @@ export_namespace_homepage (const std::string& name, bool technical,
   std::string tmfs = technical ? "!" + name : name;
   tree doc = athena_namespace_info_page (std_to_tm (tmfs));
   tree rewritten = rewrite_static_links (doc, "", output_rel, cx);
+  std::string title = technical ? "Namespace technical summary: " + name :
+                                  "Namespace homepage: " + name;
   return export_document_html (rewritten, fs::path ("tmfs://ns/" + tmfs),
-                               target, error);
+                               target, output_rel, title, error);
 }
 
 } // namespace athena_websites

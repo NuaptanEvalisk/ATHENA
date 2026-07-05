@@ -113,7 +113,10 @@ tree rewrite_static_links (tree t, const std::string& source_rel,
                            const std::string& output_rel,
                            const GenerationContext& cx);
 bool export_document_html (tree doc, const fs::path& source,
-                           const fs::path& target, std::string& error);
+                           const fs::path& target,
+                           const std::string& output_rel,
+                           const std::string& title,
+                           std::string& error);
 
 bool write_site_shell (const athena_website_entry& website,
                        const GenerationContext& cx,
