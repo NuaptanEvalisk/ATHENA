@@ -17,7 +17,12 @@ function athenaAuxiliaryWindows(){
 }
 function athenaStorageKey(){
   var data=window.ATHENA_SITE_DATA || {};
-  return data.storageKey || ('athena-website:'+location.pathname);
+  var mode=athenaIsMobileLayout() ? ':mobile' : ':desktop';
+  return (data.storageKey || ('athena-website:'+location.pathname)) + mode;
+}
+function athenaIsMobileLayout(){
+  return window.matchMedia &&
+    window.matchMedia('(max-width:720px), (pointer:coarse)').matches;
 }
 function athenaLoadState(){
   try{
