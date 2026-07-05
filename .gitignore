@@ -5,8 +5,10 @@
 *.pyc
 bin/
 build
+build*/
 build_windows/
 container_build/
+CMakeFiles/
 .kdev4
 *.kdev4
 *.py[cod]
@@ -36,4 +38,5 @@ CMakeLists.txt.user
 misc/benchmark/gbench
 
 TeXmacs/progs/ice-9
-release/windows/
+release/
+ATHENA/lib/

@@ -1,0 +1,96 @@
+FROM registry.opensuse.org/opensuse/leap:15.6
+
+SHELL ["/bin/bash", "-lc"]
+
+RUN set -e; \
+    zypper --non-interactive mr -d \
+      repo-backports-update \
+      repo-sle-update \
+      repo-update \
+      repo-update-non-oss \
+      repo-openh264 || true; \
+    zypper --non-interactive --gpg-auto-import-keys refresh; \
+    zypper --non-interactive --gpg-auto-import-keys install \
+      --force-resolution --replacefiles -y \
+      ImageMagick-devel \
+      Mesa-libGL-devel \
+      autoconf \
+      automake \
+      bash \
+      binutils \
+      bzip2 \
+      ca-certificates \
+      cargo-c \
+      ccache \
+      cmake \
+      coreutils \
+      curl \
+      diffutils \
+      file \
+      findutils \
+      fontconfig-devel \
+      freetype2-devel \
+      gawk \
+      gcc \
+      gcc-c++ \
+      gcc13 \
+      gcc13-c++ \
+      git \
+      glibc-devel \
+      gmp-devel \
+      ghostscript \
+      graphviz \
+      graphviz-devel \
+      grep \
+      gzip \
+      harfbuzz-devel \
+      hostname \
+      iproute2 \
+      libgnutls-devel \
+      libjpeg8-devel \
+      libpng16-devel \
+      libstdc++-devel \
+      libstdc++6-devel-gcc13 \
+      libtool \
+      libxcb-devel \
+      libxcb-cursor0 \
+      libxcb-icccm4 \
+      libxcb-image0 \
+      libxcb-keysyms1 \
+      libxcb-render-util0 \
+      libxcb-util1 \
+      libxcb-xinerama0 \
+      libxcb-xinput0 \
+      libxkbcommon-devel \
+      libxkbcommon-x11-0 \
+      libzstd-devel \
+      m4 \
+      make \
+      mimalloc-devel \
+      ncurses-devel \
+      ninja \
+      patchelf \
+      pkg-config \
+      procps \
+      python311 \
+      python311-pip \
+      rsync \
+      rustup \
+      sed \
+      shadow \
+      spdlog-devel \
+      sqlite3-devel \
+      sudo \
+      squashfs \
+      tar \
+      makeinfo \
+      unzip \
+      util-linux \
+      wayland-devel \
+      wget \
+      which \
+      xz \
+      zip; \
+    zypper clean --all
+
+ENV PATH="/opt/intel/oneapi/compiler/latest/bin:/usr/local/bin:/usr/bin:/bin"
