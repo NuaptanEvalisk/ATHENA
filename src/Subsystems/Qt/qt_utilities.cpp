@@ -1032,6 +1032,49 @@ scale_px (string s) {
   return r;
 }
 
+static bool
+qt6_wayland_platform () {
+#if QT_VERSION >= 0x060000
+  return QApplication::platformName ().startsWith (QStringLiteral ("wayland"));
+#else
+  return false;
+#endif
+}
+
+static string
+strip_wayland_font_sizes (string s) {
+  if (!qt6_wayland_platform ()) return s;
+
+  // The application font is already converted to an integer size from KWin's
+  // logical output scale.  Letting Qt style sheets override it with font-size
+  // declarations reintroduces the poor CMU Typewriter metrics which occur on
+  // QtWayland fractional-scale sessions.
+  string r;
+  for (int i=0; i<N(s); ) {
+    int start= i;
+    while (start>0 && s[start-1] != '{' && s[start-1] != ';')
+      start--;
+    int p= start;
+    while (p<i && (s[p] == ' ' || s[p] == '\n' || s[p] == '\t' ||
+                   s[p] == '\r'))
+      p++;
+    if (test (s, p, "font-size")) {
+      int q= p + 9;
+      while (q<N(s) && (s[q] == ' ' || s[q] == '\n' || s[q] == '\t' ||
+                        s[q] == '\r'))
+        q++;
+      if (q<N(s) && s[q] == ':') {
+        while (q<N(s) && s[q] != ';' && s[q] != '}') q++;
+        if (q<N(s) && s[q] == ';') q++;
+        i= q;
+        continue;
+      }
+    }
+    r << s[i++];
+  }
+  return r;
+}
+
 void
 init_style_sheet (QApplication* app) {
   string ss;
@@ -1068,7 +1111,7 @@ init_style_sheet (QApplication* app) {
     if (!use_unified_toolbar ||
         get_preference ("main icon bar", "off") != "off")
       ss= replace (ss, "Nounim", "");
-    ss= scale_px (ss);
+    ss= scale_px (strip_wayland_font_sizes (ss));
     current_style_sheet= ss;
     app->setStyleSheet (to_qstring (current_style_sheet));
   }

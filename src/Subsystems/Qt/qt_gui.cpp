@@ -192,16 +192,18 @@ athena_apply_logical_ui_scale (double scale) {
   if (scale <= 1.0 || applied_scale != 1.0 || qApp == nullptr) return;
 
   QFont font= qApp->font ();
-  QFontInfo info (font);
-  int pixel_size= font.pixelSize () > 0 ? font.pixelSize () : info.pixelSize ();
-  if (pixel_size > 0) {
-    font.setPixelSize (max (1, (int) floor (pixel_size * scale + 0.5)));
-  }
-  else if (font.pointSizeF () > 0) {
-    // Last-resort fallback for unusual platform fonts.  Prefer pixel sizes
-    // above: fractional point sizes cause poor metrics for some CFF fonts
-    // such as CMU Typewriter Text on QtWayland.
+  if (font.pointSizeF () > 0) {
+    // Keep a valid point size for Qt and ATHENA code which derives title
+    // fonts from QFont::pointSize().  Round to an integer point size to avoid
+    // the poor fractional metrics seen with CMU Typewriter on QtWayland.
     font.setPointSize (max (1, (int) floor (font.pointSizeF () * scale + 0.5)));
+  }
+  else {
+    QFontInfo info (font);
+    int pixel_size= font.pixelSize () > 0 ? font.pixelSize () :
+                                            info.pixelSize ();
+    if (pixel_size > 0)
+      font.setPixelSize (max (1, (int) floor (pixel_size * scale + 0.5)));
   }
   qApp->setFont (font);
   applied_scale= scale;
