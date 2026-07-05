@@ -14,7 +14,8 @@
 (texmacs-module (athena athena tm-reverse-hierarchy-graph)
   (:use (kernel athena tm-secure)))
 
-(define-secure-symbols reverse-hierarchy-graph-render)
+(define-secure-symbols reverse-hierarchy-graph-render
+                       global-hierarchy-graph-show)
 
 (tm-define (open-reverse-hierarchy-graph)
   (:synopsis "Open the reverse namespace hierarchy graph for the current file")
@@ -27,3 +28,7 @@
 (tm-define (open-direct-hierarchy-graph)
   (:synopsis "Open the direct namespace hierarchy graph for the current namespace")
   (direct-hierarchy-graph-show))
+
+(tm-define (open-global-hierarchy-graph)
+  (:synopsis "Open the direct namespace hierarchy graph for the vault root namespace")
+  (global-hierarchy-graph-show))

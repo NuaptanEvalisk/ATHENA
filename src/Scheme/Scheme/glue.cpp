@@ -44,6 +44,7 @@
 #include "QTMNamespaceExport.hpp"
 #include "QTMWebsitesManager.hpp"
 #include "QTMReverseHierarchyGraph.hpp"
+#include "QTMVaultInfoModel.hpp"
 #include "QTMAbout.hpp"
 #include "QTMESCSymbolPicker.hpp"
 #include "QTMFontSelector.hpp"
@@ -1700,6 +1701,19 @@ tmg_direct_hierarchy_graph_show_namespace (tmscm arg1) {
 }
 
 tmscm
+tmg_vault_validate_root_namespace () {
+  QTMVaultfileInfo info;
+  if (!qtm_vaultfile_read (info)) return string_to_tmscm ("");
+  if (info.rootNamespace.isEmpty ()) return string_to_tmscm ("");
+
+  athena_namespace_definition ns;
+  string root= from_qstring (info.rootNamespace);
+  if (athena_namespace_get (root, ns)) return string_to_tmscm ("");
+  return string_to_tmscm (
+    "Root namespace in Vaultfile is not a valid namespace: " * root);
+}
+
+tmscm
 tmg_namespace_new_file_wizard () {
   if (headless_mode) return string_to_tmscm ("");
   return string_to_tmscm (namespace_new_file_wizard ());
@@ -1798,6 +1812,10 @@ initialize_glue () {
                            direct_hierarchy_graph_show, 0, 0, 0);
   tmscm_install_procedure ("direct-hierarchy-graph-show-namespace",
                            tmg_direct_hierarchy_graph_show_namespace, 1, 0, 0);
+  tmscm_install_procedure ("global-hierarchy-graph-show",
+                           global_hierarchy_graph_show, 0, 0, 0);
+  tmscm_install_procedure ("vault-validate-root-namespace",
+                           tmg_vault_validate_root_namespace, 0, 0, 0);
   tmscm_install_procedure ("namespace-info-page",
                            tmg_namespace_info_page, 1, 0, 0);
   tmscm_install_procedure ("namespace-new-file-wizard",

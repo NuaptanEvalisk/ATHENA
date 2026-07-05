@@ -151,6 +151,7 @@ qtm_vaultfile_read (QTMVaultfileInfo& info, QString* error) {
   info.maintenanceSummaryPath= "";
   info.ragIndexPath= "rag.sqlite";
   info.websitesPath= "websites.json";
+  info.rootNamespace= "";
 
   QFile file (qtm_vaultfile_path ());
   if (!file.open (QIODevice::ReadOnly | QIODevice::Text)) return true;
@@ -168,6 +169,7 @@ qtm_vaultfile_read (QTMVaultfileInfo& info, QString* error) {
     info.ragIndexPath= fields[7];
   if (fields.size () >= 9 && !fields[8].isEmpty ())
     info.websitesPath= fields[8];
+  if (fields.size () >= 10) info.rootNamespace= fields[9];
 
   info.mapPath= qtm_clean_vault_relative_path (info.mapPath);
   info.preferencesPath= qtm_clean_vault_relative_path (info.preferencesPath);
@@ -178,6 +180,7 @@ qtm_vaultfile_read (QTMVaultfileInfo& info, QString* error) {
     qtm_clean_vault_relative_path (info.maintenanceSummaryPath);
   info.ragIndexPath= qtm_clean_vault_relative_path (info.ragIndexPath);
   info.websitesPath= qtm_clean_vault_relative_path (info.websitesPath);
+  info.rootNamespace= info.rootNamespace.trimmed ();
   if (info.mapPath.isEmpty ()) info.mapPath= "map.tmdb";
   if (info.namespaceDbPath.isEmpty ()) info.namespaceDbPath= "ns.sqlite";
   if (info.ragIndexPath.isEmpty ()) info.ragIndexPath= "rag.sqlite";
@@ -201,6 +204,7 @@ qtm_vaultfile_write (const QTMVaultfileInfo& info, QString* error) {
     qtm_clean_vault_relative_path (out.maintenanceSummaryPath);
   out.ragIndexPath= qtm_clean_vault_relative_path (out.ragIndexPath);
   out.websitesPath= qtm_clean_vault_relative_path (out.websitesPath);
+  out.rootNamespace= out.rootNamespace.trimmed ();
   if (out.ragIndexPath.isEmpty ()) out.ragIndexPath= "rag.sqlite";
   if (out.websitesPath.isEmpty ()) out.websitesPath= "websites.json";
 
@@ -237,6 +241,7 @@ qtm_vaultfile_write (const QTMVaultfileInfo& info, QString* error) {
          << " " << qtm_scheme_quote_qstring (out.maintenanceSummaryPath)
          << " " << qtm_scheme_quote_qstring (out.ragIndexPath)
          << " " << qtm_scheme_quote_qstring (out.websitesPath)
+         << " " << qtm_scheme_quote_qstring (out.rootNamespace)
          << ")\n";
   file.close ();
 

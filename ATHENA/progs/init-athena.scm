@@ -181,8 +181,10 @@
 (lazy-define (athena menus file-menu) recent-file-list recent-directory-list)
 (lazy-define (athena menus view-menu) set-bottom-bar test-bottom-bar?)
 (lazy-define (athena athena tm-reverse-hierarchy-graph)
-             open-reverse-hierarchy-graph insert-reverse-hierarchy-graph)
-(define-secure-symbols reverse-hierarchy-graph-render)
+             open-reverse-hierarchy-graph insert-reverse-hierarchy-graph
+             open-direct-hierarchy-graph open-global-hierarchy-graph)
+(define-secure-symbols reverse-hierarchy-graph-render
+                       global-hierarchy-graph-show)
 (lazy-tool (athena menus view-tools) retina-settings-tool)
 (tm-define (notify-set-attachment name key val) (noop))
 ;(display* "time: " (- (athena-time) boot-start) "\n")

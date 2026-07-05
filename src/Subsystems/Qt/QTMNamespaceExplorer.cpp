@@ -12,6 +12,7 @@
 
 #include "QTMMainTabWindow.hpp"
 #include "QTMReverseHierarchyGraph.hpp"
+#include "QTMVaultInfoModel.hpp"
 #include "boot.hpp"
 #include "namespaces.hpp"
 #include "qt_utilities.hpp"
@@ -78,6 +79,19 @@ static bool
 namespace_explorer_leaf_matches_only () {
   return get_preference ("vault namespace explorer leaf matches only", "off")
          == "on";
+}
+
+static bool
+namespace_explorer_from_root_namespace () {
+  return get_preference ("vault namespace explorer from root namespace", "off")
+         == "on";
+}
+
+static QString
+namespace_explorer_root_namespace () {
+  QTMVaultfileInfo info;
+  return qtm_vaultfile_read (info) ? info.rootNamespace.trimmed ()
+                                   : QString ();
 }
 
 static QIcon
@@ -169,6 +183,7 @@ QTMNamespaceExplorer::QTMNamespaceExplorer (QWidget* parent)
   : QWidget (parent),
     tree (new QTreeWidget (this)),
     leafMatchesOnlyAction (nullptr),
+    fromRootNamespaceAction (nullptr),
     floatingSizeGrip (new QSizeGrip (this)) {
   tree->setColumnCount (1);
   tree->setHeaderHidden (true);
@@ -196,6 +211,19 @@ QTMNamespaceExplorer::QTMNamespaceExplorer (QWidget* parent)
   connect (leafMatchesOnlyAction, &QAction::toggled, this,
            [this] (bool checked) {
              set_preference ("vault namespace explorer leaf matches only",
+                             checked ? "on" : "off");
+             refresh ();
+           });
+  fromRootNamespaceAction= toolbar->addAction (
+    namespace_explorer_icon ("go-home", QStyle::SP_DirHomeIcon),
+    "From root namespace");
+  fromRootNamespaceAction->setCheckable (true);
+  fromRootNamespaceAction->setChecked (namespace_explorer_from_root_namespace ());
+  fromRootNamespaceAction->setToolTip (
+    "Show only the configured root namespace at the explorer root level");
+  connect (fromRootNamespaceAction, &QAction::toggled, this,
+           [this] (bool checked) {
+             set_preference ("vault namespace explorer from root namespace",
                              checked ? "on" : "off");
              refresh ();
            });
@@ -259,6 +287,11 @@ QTMNamespaceExplorer::refresh () {
     QSignalBlocker blocker (leafMatchesOnlyAction);
     leafMatchesOnlyAction->setChecked (namespace_explorer_leaf_matches_only ());
   }
+  if (fromRootNamespaceAction != nullptr) {
+    QSignalBlocker blocker (fromRootNamespaceAction);
+    fromRootNamespaceAction->setChecked (
+      namespace_explorer_from_root_namespace ());
+  }
 
   string error;
   if (!athena_namespace_refresh_derived (error) && error != "")
@@ -271,6 +304,18 @@ QTMNamespaceExplorer::refresh () {
     names << name;
   }
   names.sort ();
+
+  if (namespace_explorer_from_root_namespace ()) {
+    QString rootNamespace= namespace_explorer_root_namespace ();
+    if (!rootNamespace.isEmpty ()) {
+      if (names.contains (rootNamespace)) names= QStringList () << rootNamespace;
+      else {
+        names.clear ();
+        showError ("Root namespace in Vaultfile is not a valid namespace: " +
+                   rootNamespace);
+      }
+    }
+  }
 
   for (const QString& name: names)
     addNamespaceItem (nullptr, name, QStringList () << name);

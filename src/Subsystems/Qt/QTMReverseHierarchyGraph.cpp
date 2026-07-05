@@ -18,6 +18,7 @@
 #include <boost/random/linear_congruential.hpp>
 
 #include "QTMMainTabWindow.hpp"
+#include "QTMVaultInfoModel.hpp"
 #include "analyze.hpp"
 #include "editor.hpp"
 #include "namespaces.hpp"
@@ -96,6 +97,8 @@ static ReverseHierarchyGraphPane* reverse_hierarchy_graph_widget= nullptr;
 static ads::CDockWidget* direct_hierarchy_graph_dock= nullptr;
 class DirectHierarchyGraphPane;
 static DirectHierarchyGraphPane* direct_hierarchy_graph_widget= nullptr;
+static ads::CDockWidget* global_hierarchy_graph_dock= nullptr;
+static DirectHierarchyGraphPane* global_hierarchy_graph_widget= nullptr;
 constexpr double pi= 3.14159265358979323846;
 constexpr const char* default_graph_size= "14cm";
 constexpr int graph_item_url_role= 1;
@@ -975,8 +978,14 @@ private:
 
 class DirectHierarchyGraphPane: public QWidget {
 public:
-  DirectHierarchyGraphPane (QWidget* parent = nullptr)
+  DirectHierarchyGraphPane (ads::CDockWidget** dockRef,
+                             const QString& defaultTitle,
+                             bool allowFollow,
+                             QWidget* parent = nullptr)
     : QWidget (parent),
+      dockRef (dockRef),
+      defaultTitle (defaultTitle),
+      allowFollow (allowFollow),
       view (new ReverseHierarchyGraphView (new QGraphicsScene (), this)),
       zoomSlider (new QSlider (Qt::Horizontal, this)),
       zoomLabel (new QLabel ("100%", this)),
@@ -1007,9 +1016,10 @@ public:
     zoomSlider->setPageStep (25);
     zoomSlider->setFixedWidth (160);
     zoomLabel->setMinimumWidth (44);
-    followCheck->setChecked (true);
+    followCheck->setChecked (allowFollow);
     followCheck->setToolTip (
       "Rebuild the graph when the active namespace page changes");
+    followCheck->setVisible (allowFollow);
     simplifyCheck->setChecked (reverse_hierarchy_simplify_graphs ());
     simplifyCheck->setToolTip (
       "Remove transitive containment edges such as A -> C when A -> B -> C exists");
@@ -1072,25 +1082,37 @@ public:
 
   bool refreshFromCurrentDocument (QString* errorOut = nullptr) {
     fixedNamespace.clear ();
+    fixedTitleOverride.clear ();
     return rebuildFromCurrentDocument (errorOut);
   }
 
   bool refreshFromNamespace (const QString& name,
-                             QString* errorOut = nullptr) {
+                             QString* errorOut = nullptr,
+                             const QString& titleOverride = QString ()) {
     fixedNamespace= name;
+    fixedTitleOverride= titleOverride;
     followCheck->setChecked (false);
-    return rebuildFromNamespace (name, errorOut);
+    return rebuildFromNamespace (name, errorOut, titleOverride);
+  }
+
+  void showMessage (const QString& message) {
+    fixedNamespace.clear ();
+    fixedTitleOverride.clear ();
+    followCheck->setChecked (false);
+    showMessageScene (message);
   }
 
 private:
   bool simplify () const { return simplifyCheck->isChecked (); }
 
-  void setGraphScene (const RHGraph& graph) {
+  void setGraphScene (const RHGraph& graph,
+                      const QString& titleOverride = QString ()) {
     currentPath= graph.filePath;
     view->setOwnedScene (create_scene (graph));
     QTimer::singleShot (0, view, [this] () { view->resetViewport (); });
-    if (direct_hierarchy_graph_dock != nullptr)
-      direct_hierarchy_graph_dock->setWindowTitle (graph.title);
+    if (dockRef != nullptr && *dockRef != nullptr)
+      (*dockRef)->setWindowTitle (
+        titleOverride.isEmpty () ? graph.title : titleOverride);
   }
 
   bool rebuildFromCurrentDocument (QString* errorOut = nullptr) {
@@ -1111,7 +1133,8 @@ private:
   }
 
   bool rebuildFromNamespace (const QString& name,
-                             QString* errorOut = nullptr) {
+                             QString* errorOut = nullptr,
+                             const QString& titleOverride = QString ()) {
     RHGraph graph;
     QString error;
     if (!build_named_direct_hierarchy_graph (graph, name, simplify (), error)) {
@@ -1124,14 +1147,14 @@ private:
       showMessageScene (error);
       return false;
     }
-    setGraphScene (graph);
+    setGraphScene (graph, titleOverride);
     return true;
   }
 
   void refreshUsingCurrentMode () {
     if (followCheck->isChecked () || fixedNamespace.isEmpty ())
       refreshFromCurrentDocument ();
-    else rebuildFromNamespace (fixedNamespace);
+    else rebuildFromNamespace (fixedNamespace, nullptr, fixedTitleOverride);
   }
 
   void showMessageScene (const QString& message) {
@@ -1144,17 +1167,20 @@ private:
     scene->setSceneRect (0, 0, 500, 160);
     view->setOwnedScene (scene);
     currentPath= current_buffer_identity ();
-    if (direct_hierarchy_graph_dock != nullptr)
-      direct_hierarchy_graph_dock->setWindowTitle ("Direct Hierarchy Graph");
+    if (dockRef != nullptr && *dockRef != nullptr)
+      (*dockRef)->setWindowTitle (defaultTitle);
   }
 
   void refreshIfActiveDocumentChanged () {
-    if (!followCheck->isChecked ()) return;
+    if (!allowFollow || !followCheck->isChecked ()) return;
     QString path= current_buffer_identity ();
     if (path.isEmpty () || path == currentPath) return;
     rebuildFromCurrentDocument ();
   }
 
+  ads::CDockWidget** dockRef;
+  QString defaultTitle;
+  bool allowFollow;
   ReverseHierarchyGraphView* view;
   QSlider* zoomSlider;
   QLabel* zoomLabel;
@@ -1164,6 +1190,7 @@ private:
   QTimer* refreshTimer;
   QString currentPath;
   QString fixedNamespace;
+  QString fixedTitleOverride;
 };
 
 static bool
@@ -1306,7 +1333,8 @@ ensure_direct_hierarchy_graph_pane (QString& error) {
   }
 
   if (direct_hierarchy_graph_widget == nullptr) {
-    direct_hierarchy_graph_widget= new DirectHierarchyGraphPane ();
+    direct_hierarchy_graph_widget= new DirectHierarchyGraphPane (
+      &direct_hierarchy_graph_dock, "Direct Hierarchy Graph", true);
     direct_hierarchy_graph_widget->resize (620, 520);
     QObject::connect (direct_hierarchy_graph_widget, &QObject::destroyed, [] () {
       direct_hierarchy_graph_widget= nullptr;
@@ -1353,6 +1381,64 @@ ensure_direct_hierarchy_graph_pane (QString& error) {
   return true;
 }
 
+static bool
+ensure_global_hierarchy_graph_pane (QString& error) {
+  QTMMainTabWindow* win= QTMMainTabWindow::topTabWindow ();
+  if (win == nullptr || win->dockManager () == nullptr) {
+    error= "No active ATHENA window.";
+    return false;
+  }
+
+  if (global_hierarchy_graph_widget == nullptr) {
+    global_hierarchy_graph_widget= new DirectHierarchyGraphPane (
+      &global_hierarchy_graph_dock, "Global Hierarchy Graph", false);
+    global_hierarchy_graph_widget->resize (620, 520);
+    QObject::connect (global_hierarchy_graph_widget, &QObject::destroyed, [] () {
+      global_hierarchy_graph_widget= nullptr;
+      global_hierarchy_graph_dock= nullptr;
+    });
+  }
+
+  if (global_hierarchy_graph_dock == nullptr) {
+    global_hierarchy_graph_dock= new ads::CDockWidget (
+      "Global Hierarchy Graph");
+    global_hierarchy_graph_dock->setObjectName (
+      "athena-global-hierarchy-graph");
+    global_hierarchy_graph_dock->resize (640, 560);
+    global_hierarchy_graph_dock->setWidget (
+      global_hierarchy_graph_widget, ads::CDockWidget::ForceNoScrollArea);
+    global_hierarchy_graph_dock->setFeature (
+      ads::CDockWidget::DockWidgetDeleteOnClose, false);
+    QObject::connect (global_hierarchy_graph_dock,
+                      &ads::CDockWidget::topLevelChanged,
+                      global_hierarchy_graph_widget,
+                      [] (bool topLevel) {
+                        if (global_hierarchy_graph_widget != nullptr)
+                          global_hierarchy_graph_widget->
+                            setFloatingResizeGripVisible (topLevel);
+                      });
+    QObject::connect (global_hierarchy_graph_dock, &QObject::destroyed, [] () {
+      global_hierarchy_graph_dock= nullptr;
+      global_hierarchy_graph_widget= nullptr;
+    });
+    win->dockManager ()->addDockWidgetFloating (global_hierarchy_graph_dock);
+    global_hierarchy_graph_dock->toggleView (true);
+    global_hierarchy_graph_dock->show ();
+    global_hierarchy_graph_dock->raise ();
+  }
+  else {
+    if (global_hierarchy_graph_dock->widget () !=
+        global_hierarchy_graph_widget)
+      global_hierarchy_graph_dock->setWidget (
+        global_hierarchy_graph_widget, ads::CDockWidget::ForceNoScrollArea);
+    win->showAdsDockWidget (global_hierarchy_graph_dock,
+                            ads::RightDockWidgetArea);
+  }
+  global_hierarchy_graph_widget->setFloatingResizeGripVisible (
+    global_hierarchy_graph_dock->isInFloatingContainer ());
+  return true;
+}
+
 void
 direct_hierarchy_graph_show () {
   QString error;
@@ -1371,4 +1457,27 @@ direct_hierarchy_graph_show_namespace (string name) {
     return;
   }
   direct_hierarchy_graph_widget->refreshFromNamespace (to_qstring (name));
+}
+
+void
+global_hierarchy_graph_show () {
+  QString error;
+  if (!ensure_global_hierarchy_graph_pane (error)) {
+    show_error (error);
+    return;
+  }
+
+  QTMVaultfileInfo info;
+  if (!qtm_vaultfile_read (info) || info.rootNamespace.trimmed ().isEmpty ()) {
+    global_hierarchy_graph_widget->showMessage (
+      "Set a root namespace in Preferences / Vault / Vault Info first.");
+    return;
+  }
+
+  QString rootNamespace= info.rootNamespace.trimmed ();
+  if (!global_hierarchy_graph_widget->refreshFromNamespace (
+        rootNamespace, &error, "Global Hierarchy Graph - " + rootNamespace)) {
+    show_error (error);
+    return;
+  }
 }

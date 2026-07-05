@@ -707,8 +707,8 @@ rag_read_vault_db_path (const fs::path& vault_root) {
   std::string text;
   if (!read_bytes (vault_root / "Vaultfile", text)) return "rag.sqlite";
   std::vector<std::string> fields= parse_vaultfile_strings (text);
-  if (fields.size () >= 2 && fields.size () < 9) {
-    while (fields.size () < 9) {
+  if (fields.size () >= 2 && fields.size () < 10) {
+    while (fields.size () < 10) {
       if (fields.size () == 2) fields.push_back ("");
       else if (fields.size () == 3) fields.push_back ("ns.sqlite");
       else if (fields.size () == 7) fields.push_back ("rag.sqlite");

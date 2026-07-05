@@ -231,6 +231,7 @@ write_vault_preferences_path_for_boot (
                          ? fields[7] : "rag.sqlite";
   std::string websites= fields.size () >= 9 && !fields[8].empty ()
                         ? fields[8] : "websites.json";
+  std::string root_namespace= fields.size () >= 10 ? fields[9] : "";
   std::string text= "(" + scheme_quote_for_boot (fields[0]) +
                     " " + scheme_quote_for_boot (map_rel) +
                     " " + scheme_quote_for_boot (prefs_rel) +
@@ -239,7 +240,8 @@ write_vault_preferences_path_for_boot (
                     " " + scheme_quote_for_boot (one_time_startup_page) +
                     " " + scheme_quote_for_boot (summary_dir) +
                     " " + scheme_quote_for_boot (rag_index) +
-                    " " + scheme_quote_for_boot (websites) + ")\n";
+                    " " + scheme_quote_for_boot (websites) +
+                    " " + scheme_quote_for_boot (root_namespace) + ")\n";
   std::ofstream file (vault_file, std::ios::binary | std::ios::trunc);
   if (!file) return false;
   file << text;

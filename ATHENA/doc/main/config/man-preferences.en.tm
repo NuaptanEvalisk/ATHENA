@@ -621,6 +621,11 @@
     <item*|Namespace explorer shows file matches only for leaf namespaces>When
     searching namespace relations, restricts file matches to leaf namespaces.
 
+    <item*|Namespace explorer starts from root namespace>When enabled and the
+    active vault has a root namespace, the namespace explorer shows only that
+    namespace at the top level. Expanding the root namespace still shows its
+    namespace children and matching files.
+
     <item*|Simplify hierarchy graphs>Reduces visual complexity in hierarchy
     graphs.
 
@@ -694,6 +699,13 @@
     used by <menu|Tools|Websites manager>. Existing eight-field
     <verbatim|Vaultfile> files are still accepted and default to
     <verbatim|websites.json>.
+
+    <item*|Root namespace>Optional root namespace for the vault. It is stored
+    in the <verbatim|Vaultfile>, not in the preferences file, so it remains
+    attached to the vault even when preferences are not taken with the vault.
+    <ATHENA> reports an error on startup if this field names a namespace that
+    no longer exists. The namespace explorer and
+    <menu|View|Graphs|Global hierarchy graph> use this field.
 
     <item*|Global preferred font for vault>Preferred font family for vault
     documents and vault export operations.

@@ -60,6 +60,7 @@ private:
 
   QTreeWidget* tree;
   QAction*     leafMatchesOnlyAction;
+  QAction*     fromRootNamespaceAction;
   QSizeGrip*   floatingSizeGrip;
   QString      rootPath;
   QMap<QString, athena_namespace_definition> namespaces;

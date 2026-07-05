@@ -16,6 +16,7 @@
 
 #include "boot.hpp"
 #include "font.hpp"
+#include "namespaces.hpp"
 #include "scheme.hpp"
 #include "tm_ostream.hpp"
 #include "qt_utilities.hpp"
@@ -86,6 +87,16 @@ static QString
 pref (const char* key, const QString& def) {
   return to_qstring_pref (get_preference (string (key),
                                           from_qstring_pref (def)));
+}
+
+static QStringList
+namespace_names_pref () {
+  QStringList names;
+  for (const athena_namespace_definition& ns: athena_namespaces_list ())
+    names << to_qstring_pref (ns.name);
+  names.removeDuplicates ();
+  names.sort (Qt::CaseInsensitive);
+  return names;
 }
 
 static bool
@@ -1358,6 +1369,8 @@ QTMPreferencesDialog::buildVaultPage () {
               "vault explorer use system trash");
   add_toggle (n, "Namespace explorer shows file matches only for leaf namespaces:",
               "vault namespace explorer leaf matches only");
+  add_toggle (n, "Namespace explorer starts from root namespace:",
+              "vault namespace explorer from root namespace");
   add_toggle (n, "Simplify hierarchy graphs:",
               "vault simplify hierarchy graphs");
   add_toggle (n, "Consume %s aggressively in sub-product naming template suggestion:",
@@ -1445,11 +1458,24 @@ QTMPreferencesDialog::buildVaultPage () {
     QLineEdit* websitesPath= add_path_chooser_row (
       vi, "Website registry path:", vaultInfo.websitesPath,
       chooseWebsites);
+    QComboBox* rootNamespace= new QComboBox (info);
+    rootNamespace->addItem ("None", "");
+    QStringList namespaceNames= namespace_names_pref ();
+    for (const QString& name: namespaceNames)
+      rootNamespace->addItem (name, name);
+    if (!vaultInfo.rootNamespace.isEmpty () &&
+        !namespaceNames.contains (vaultInfo.rootNamespace)) {
+      rootNamespace->addItem (
+        vaultInfo.rootNamespace + " (missing)", vaultInfo.rootNamespace);
+    }
+    int rootIndex= rootNamespace->findData (vaultInfo.rootNamespace);
+    if (rootIndex >= 0) rootNamespace->setCurrentIndex (rootIndex);
+    vi->addRow (label ("Root namespace:"), rootNamespace);
 
     auto saveVaultfile= [info, vaultName, mapPath, preferencesPath,
                          namespacePath, startupPage,
                          oneTimeStartupPage, maintenanceSummaryPath,
-                         ragIndexPath, websitesPath] () {
+                         ragIndexPath, websitesPath, rootNamespace] () {
       QTMVaultfileInfo next;
       next.name= vaultName->text ();
       next.mapPath= mapPath->text ();
@@ -1460,6 +1486,7 @@ QTMPreferencesDialog::buildVaultPage () {
       next.maintenanceSummaryPath= maintenanceSummaryPath->text ();
       next.ragIndexPath= ragIndexPath->text ();
       next.websitesPath= websitesPath->text ();
+      next.rootNamespace= rootNamespace->currentData ().toString ();
       QString error;
       if (!qtm_vaultfile_write (next, &error)) {
         QMessageBox::warning (info, "Vault Info", error);
@@ -1539,6 +1566,9 @@ QTMPreferencesDialog::buildVaultPage () {
                       saveVaultfile);
     QObject::connect (websitesPath, &QLineEdit::editingFinished,
                       saveVaultfile);
+    QObject::connect (
+      rootNamespace, QOverload<int>::of (&QComboBox::currentIndexChanged),
+      [saveVaultfile] (int) { saveVaultfile (); });
     QObject::connect (chooseMap, &QPushButton::clicked,
                       [=] () { choosePath (mapPath, "Choose map database",
                                            false); });

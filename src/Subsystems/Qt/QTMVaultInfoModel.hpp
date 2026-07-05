@@ -23,6 +23,7 @@ struct QTMVaultfileInfo {
   QString maintenanceSummaryPath;
   QString ragIndexPath;
   QString websitesPath;
+  QString rootNamespace;
 };
 
 bool    qtm_vault_info_available ();

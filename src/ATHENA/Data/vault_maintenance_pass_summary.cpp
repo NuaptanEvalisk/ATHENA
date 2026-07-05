@@ -150,7 +150,7 @@ read_vaultfile_fields (const fs::path& root,
   if (!read_file_bytes (root / "Vaultfile", text)) return false;
   fields = parse_vaultfile_strings (text);
   if (fields.size () < 2) return false;
-  while (fields.size () < 9) {
+  while (fields.size () < 10) {
     if (fields.size () == 2) fields.push_back ("");
     else if (fields.size () == 3) fields.push_back ("ns.sqlite");
     else if (fields.size () == 7) fields.push_back ("rag.sqlite");
@@ -271,6 +271,7 @@ write_one_time_startup_page (VaultMaintenanceContext& ctx) {
                     " " + scheme_quote_string (fields[6]) +
                     " " + scheme_quote_string (fields[7]) +
                     " " + scheme_quote_string (fields[8]) +
+                    " " + scheme_quote_string (fields[9]) +
                     ")\n";
   if (!write_file_bytes (vault_file, out)) {
     log_error ("summary: failed to write Vaultfile while setting one-time "

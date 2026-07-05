@@ -35,6 +35,7 @@
                        vault-jump-to-source
                        load-buffer load-vault-dir
                        string->url vault-load-latest-action
+                       vault-validate-root-namespace
                        go-to-welcome-page
                        go-to-vault-initial-page
                        vault-show-explorer
@@ -180,6 +181,11 @@
       (list-ref data 8)
       "websites.json"))
 
+(define (vaultfile-root-namespace data)
+  (if (and (list? data) (>= (length data) 10) (string? (list-ref data 9)))
+      (list-ref data 9)
+      ""))
+
 (define (vaultfile-normalized data)
   (list (car data)
         (cadr data)
@@ -189,7 +195,8 @@
         (vaultfile-one-time-startup-page data)
         (vaultfile-maintenance-summary-path data)
         (vaultfile-rag-index-path data)
-        (vaultfile-websites-path data)))
+        (vaultfile-websites-path data)
+        (vaultfile-root-namespace data)))
 
 (define (vaultfile-normalize! vault-file data)
   (let ((normalized (vaultfile-normalized data)))
@@ -206,7 +213,8 @@
         (vaultfile-one-time-startup-page data)
         (vaultfile-maintenance-summary-path data)
         (vaultfile-rag-index-path data)
-        (vaultfile-websites-path data)))
+        (vaultfile-websites-path data)
+        (vaultfile-root-namespace data)))
 
 (define (vault-preferences-url dir prefs-path)
   (url-append dir prefs-path))
@@ -350,19 +358,26 @@
       (vault-load-with-ns dir name db-path ns-path)
       (vault-load dir name db-path)))
 
+(define (vault-report-root-namespace-error)
+  (when (defined? 'vault-validate-root-namespace)
+    (let ((err (vault-validate-root-namespace)))
+      (when (and (string? err) (!= err ""))
+        (show-message err "Vault")))))
+
 (tm-define (interactive-new-vault dir)
   (interactive (lambda (name)
                  (let* ((vault-file (url-append dir "Vaultfile"))
                         (db-path "map.tmdb")
                         (ns-path "ns.sqlite")
                         (data (list name db-path "" ns-path "" "" ""
-                                    "rag.sqlite" "websites.json")))
+                                    "rag.sqlite" "websites.json" "")))
                    (save-object vault-file data)
                    (vault-load/namespace-db dir name db-path ns-path)
                    (if (vault-take-preferences?)
                        (vault-preferences-activate dir vault-file
                                                    data))
-                   (set-message (string-append "Created vault: " name) "Vault")))
+                   (set-message (string-append "Created vault: " name) "Vault")
+                   (vault-report-root-namespace-error)))
                '("Vault name" "string")))
 
 (tm-define (load-vault-dir dir)
@@ -378,7 +393,8 @@
                 (if take-prefs?
                     (vault-preferences-activate dir vault-file data))
                 (add-recent-vault dir)
-                (set-message (string-append "Loaded vault: " (car data)) "Vault"))
+                (set-message (string-append "Loaded vault: " (car data)) "Vault")
+                (vault-report-root-namespace-error))
               (set-message "Invalid Vaultfile" "Error")))
         (interactive-new-vault dir))))
 
