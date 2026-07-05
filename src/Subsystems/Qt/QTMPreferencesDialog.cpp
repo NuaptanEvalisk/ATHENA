@@ -822,6 +822,8 @@ QTMPreferencesDialog::buildGeneralPage () {
               {"popups", "Through popup windows"}});
   add_combo (basicForm, "Details in menus:", "detailed menus",
              {{"simple", "Simplified menus"}, {"detailed", "Detailed menus"}});
+  add_toggle (basicForm, "Check for updates on startup:",
+              "check for updates");
   add_toggle (basicForm, "Remember panes layout:",
               "remember ads panes layout");
   QCheckBox* middleClickAdsTabs=

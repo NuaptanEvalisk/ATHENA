@@ -1,4 +1,5 @@
 #include "QTMApplication.hpp"
+#include "QTMUpdateChecker.hpp"
 #include "qt_utilities.hpp"
   
 QTMApplication::QTMApplication (int& argc, char** argv) :
@@ -149,6 +150,7 @@ void QTMApplication::load() {
   init_theme ();
 
   if (mUseTabWindow) new QTMMainTabWindow();
+  qtm_schedule_update_check ();
 }
   
 

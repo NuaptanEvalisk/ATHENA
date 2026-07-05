@@ -149,6 +149,7 @@ ensure_builtin_user_preferences () {
     PREF ("gui:line-input:autocommit", "on", ""),
     PREF ("show font substitution warning", "on", ""),
     PREF ("use toast notifications", "off", ""),
+    PREF ("check for updates", "on", ""),
     PREF ("use native menubar", "off", ""),
     PREF ("use unified toolbar", "off", ""),
     PREF ("remember ads panes layout", "on", ""),
