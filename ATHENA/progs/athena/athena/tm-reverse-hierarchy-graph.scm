@@ -23,3 +23,7 @@
 (tm-define (insert-reverse-hierarchy-graph)
   (:synopsis "Insert the reverse namespace hierarchy graph for the current file")
   (reverse-hierarchy-graph-insert))
+
+(tm-define (open-direct-hierarchy-graph)
+  (:synopsis "Open the direct namespace hierarchy graph for the current namespace")
+  (direct-hierarchy-graph-show))

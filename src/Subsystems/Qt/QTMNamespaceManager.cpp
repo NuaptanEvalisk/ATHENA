@@ -11,6 +11,7 @@
 #include "QTMNamespaceManager.hpp"
 
 #include "QTMMainTabWindow.hpp"
+#include "QTMReverseHierarchyGraph.hpp"
 #include "boot.hpp"
 #include "namespaces.hpp"
 #include "qt_utilities.hpp"
@@ -39,6 +40,7 @@
 #include <QLineEdit>
 #include <QListWidget>
 #include <QListWidgetItem>
+#include <QMenu>
 #include <QMessageBox>
 #include <QPlainTextEdit>
 #include <QPushButton>
@@ -940,6 +942,7 @@ QTMNamespaceManager::QTMNamespaceManager (QWidget* parent)
 
   namespaceList->setSelectionMode (QAbstractItemView::ExtendedSelection);
   namespaceList->setUniformItemSizes (true);
+  namespaceList->setContextMenuPolicy (Qt::CustomContextMenu);
   explicitParentsList->setSelectionMode (QAbstractItemView::ExtendedSelection);
   explicitParentsList->setUniformItemSizes (true);
   explicitParentsList->setMinimumHeight (84);
@@ -1100,6 +1103,10 @@ QTMNamespaceManager::QTMNamespaceManager (QWidget* parent)
     QListWidgetItem* item= namespaceList->currentItem ();
     if (item != nullptr) loadNamespace (item);
   });
+  connect (namespaceList, &QListWidget::customContextMenuRequested,
+           this, [this] (const QPoint& pos) {
+             showNamespaceContextMenu (pos);
+           });
   connect (relationsTree, &QTreeWidget::itemSelectionChanged, this, [this] () {
     QTreeWidgetItem* item= relationsTree->currentItem ();
     if (item == nullptr) return;
@@ -1400,6 +1407,19 @@ QTMNamespaceManager::selectedNamespaceNames () const {
   if (names.isEmpty () && namespaceList->currentItem () != nullptr)
     names << namespaceList->currentItem ()->text ();
   return names;
+}
+
+void
+QTMNamespaceManager::showNamespaceContextMenu (const QPoint& pos) {
+  QListWidgetItem* item= namespaceList->itemAt (pos);
+  if (item == nullptr) return;
+  namespaceList->setCurrentItem (item);
+
+  QMenu menu (this);
+  menu.addAction ("Open direct hierarchy graph", this, [item] () {
+    direct_hierarchy_graph_show_namespace (from_qstring (item->text ()));
+  });
+  menu.exec (namespaceList->viewport ()->mapToGlobal (pos));
 }
 
 void

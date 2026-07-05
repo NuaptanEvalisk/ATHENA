@@ -125,7 +125,8 @@
       ("Small" (set-preference "vault labels mode" "small"))
       ("Hidden" (set-preference "vault labels mode" "hidden")))
   (-> "Graph"
-      ("Reverse Hierarchy" (open-reverse-hierarchy-graph)))
+      ("Reverse hierarchy graph" (open-reverse-hierarchy-graph))
+      ("Direct hierarchy graph" (open-direct-hierarchy-graph)))
   ;;("Fit to screen height" (fit-to-screen-height))
   ("Zoom in" (zoom-in (sqrt (sqrt 2.0))))
   ("Zoom out" (zoom-out (sqrt (sqrt 2.0))))

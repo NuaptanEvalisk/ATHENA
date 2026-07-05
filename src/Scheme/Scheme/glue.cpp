@@ -1692,6 +1692,14 @@ tmg_reverse_hierarchy_graph_render (tmscm arg1) {
 }
 
 tmscm
+tmg_direct_hierarchy_graph_show_namespace (tmscm arg1) {
+  TMSCM_ASSERT_STRING (arg1, TMSCM_ARG1,
+                       "direct-hierarchy-graph-show-namespace");
+  direct_hierarchy_graph_show_namespace (tmscm_to_string (arg1));
+  return TMSCM_UNSPECIFIED;
+}
+
+tmscm
 tmg_namespace_new_file_wizard () {
   if (headless_mode) return string_to_tmscm ("");
   return string_to_tmscm (namespace_new_file_wizard ());
@@ -1786,6 +1794,10 @@ initialize_glue () {
                            reverse_hierarchy_graph_insert, 0, 0, 0);
   tmscm_install_procedure ("reverse-hierarchy-graph-render",
                            tmg_reverse_hierarchy_graph_render, 1, 0, 0);
+  tmscm_install_procedure ("direct-hierarchy-graph-show",
+                           direct_hierarchy_graph_show, 0, 0, 0);
+  tmscm_install_procedure ("direct-hierarchy-graph-show-namespace",
+                           tmg_direct_hierarchy_graph_show_namespace, 1, 0, 0);
   tmscm_install_procedure ("namespace-info-page",
                            tmg_namespace_info_page, 1, 0, 0);
   tmscm_install_procedure ("namespace-new-file-wizard",

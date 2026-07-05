@@ -17,5 +17,7 @@
 void reverse_hierarchy_graph_show ();
 void reverse_hierarchy_graph_insert ();
 tree reverse_hierarchy_graph_render (string size);
+void direct_hierarchy_graph_show ();
+void direct_hierarchy_graph_show_namespace (string name);
 
 #endif // QTMREVERSEHIERARCHYGRAPH_HPP

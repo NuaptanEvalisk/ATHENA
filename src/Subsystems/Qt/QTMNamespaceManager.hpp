@@ -21,6 +21,7 @@ class QLabel;
 class QLineEdit;
 class QListWidget;
 class QListWidgetItem;
+class QPoint;
 class QAction;
 class QPushButton;
 class QTreeWidget;
@@ -56,6 +57,7 @@ private:
   void setSelectedRelationDecision (const QString& decision);
   QStringList selectedRelationKeys () const;
   QStringList selectedNamespaceNames () const;
+  void showNamespaceContextMenu (const QPoint& pos);
 
   QListWidget* namespaceList;
   QLineEdit*   nameEdit;

@@ -73,6 +73,7 @@ if (NOT ATHENA_GUI)
 endif (NOT ATHENA_GUI)
 
 find_package (mimalloc REQUIRED)
+find_package (Boost REQUIRED)
 
 option (QTPIPES "use Qt pipes" ON)
 
@@ -401,8 +402,6 @@ set (GS_EXE ${GS_EXECUTABLE})
 set (GS_FONTS ../share/ghostscript/fonts:/usr/share/fonts:)
 set (GS_LIB ../share/ghostscript/9.06/lib:)
 
-find_program (GRAPHVIZ_FDP_EXECUTABLE NAMES fdp REQUIRED)
-
 set (GUILE_NUM 1)
 set (PDF_RENDERER 1)
 set (SIZEOF_VOID_P 8)
@@ -636,6 +635,8 @@ endif (LINKED_SQLITE3)
 set (ATHENA_Libraries ${ATHENA_Libraries} ${FREETYPE_LIBRARIES})
 
 set (ATHENA_Libraries ${ATHENA_Libraries} ${GMP_LIBRARIES})
+
+set (ATHENA_Include_Dirs ${ATHENA_Include_Dirs} ${Boost_INCLUDE_DIRS})
 
 if (LINKED_GNUTLS)
   set (ATHENA_Libraries ${ATHENA_Libraries} ${GNUTLS_LIBRARIES})

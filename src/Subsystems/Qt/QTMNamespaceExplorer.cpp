@@ -11,6 +11,7 @@
 #include "QTMNamespaceExplorer.hpp"
 
 #include "QTMMainTabWindow.hpp"
+#include "QTMReverseHierarchyGraph.hpp"
 #include "boot.hpp"
 #include "namespaces.hpp"
 #include "qt_utilities.hpp"
@@ -591,6 +592,10 @@ QTMNamespaceExplorer::showContextMenu (const QPoint& pos) {
                     [this, item] () {
                       openNamespaceTechnicalSummary (item);
                     });
+    menu.addAction ("Direct hierarchy graph", this, [item] () {
+      QString name= item->data (0, NamespaceNameRole).toString ();
+      direct_hierarchy_graph_show_namespace (from_qstring (name));
+    });
   }
   else if (type == FileItem) {
     menu.addAction ("Load file", this, [this, item] () { openFile (item); });

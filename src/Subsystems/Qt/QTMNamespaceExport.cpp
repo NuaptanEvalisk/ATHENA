@@ -10,6 +10,13 @@
 
 #include "QTMNamespaceExport.hpp"
 
+#include <boost/graph/adjacency_list.hpp>
+#include <boost/graph/fruchterman_reingold.hpp>
+#include <boost/graph/random_layout.hpp>
+#include <boost/graph/topology.hpp>
+#include <boost/property_map/property_map.hpp>
+#include <boost/random/linear_congruential.hpp>
+
 #include "analyze.hpp"
 #include "convert.hpp"
 #include "file.hpp"
@@ -51,7 +58,6 @@
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPen>
-#include <QProcess>
 #include <QPushButton>
 #include <QScrollBar>
 #include <QSet>
@@ -67,10 +73,6 @@
 #include <map>
 #include <set>
 #include <vector>
-
-#ifndef ATHENA_GRAPHVIZ_FDP_EXECUTABLE
-#define ATHENA_GRAPHVIZ_FDP_EXECUTABLE "fdp"
-#endif
 
 namespace {
 
@@ -154,18 +156,6 @@ static void
 show_export_render_wait () {
   system_wait ("Rendering namespace export", "please wait");
   QApplication::processEvents ();
-}
-
-static QString
-dot_escape (const QString& s) {
-  QString out;
-  for (QChar ch: s) {
-    if (ch == '\\') out += "\\\\";
-    else if (ch == '"') out += "\\\"";
-    else if (ch == '\n' || ch == '\r') out += " ";
-    else out += ch;
-  }
-  return out;
 }
 
 static QString
@@ -352,81 +342,8 @@ rect_boundary_point (const QRectF& rect, QPointF toward) {
   return center + QPointF (dx * s, dy * s);
 }
 
-static QStringList
-plain_tokens (const QString& line) {
-  QStringList out;
-  QString current;
-  bool quote= false;
-  bool escape= false;
-  for (QChar ch: line) {
-    if (escape) {
-      current += ch;
-      escape= false;
-    }
-    else if (ch == '\\' && quote) escape= true;
-    else if (ch == '"') quote= !quote;
-    else if (ch.isSpace () && !quote) {
-      if (!current.isEmpty ()) {
-        out << current;
-        current.clear ();
-      }
-    }
-    else current += ch;
-  }
-  if (!current.isEmpty ()) out << current;
-  return out;
-}
-
 static void adjust_node_sizes_for_text (ExportGraph& graph);
-
-static QString
-dot_for_graph (const ExportGraph& graph) {
-  QString dot= "digraph namespace_export {\n"
-               "  graph [layout=fdp, overlap=false, splines=true, "
-               "sep=\"+1.4\", esep=\"+0.8\", nodesep=0.18, ranksep=0.20, K=0.16, "
-               "maxiter=3000, margin=0];\n"
-               "  node [shape=box, style=\"rounded,filled\", "
-               "fontname=\"Alegreya Sans\", fontsize=12, margin=\"0.08,0.04\"];\n"
-               "  edge [color=\"#666666\", arrowsize=0.8];\n";
-  for (const ExportNode& n: graph.nodes) {
-    QString fill= n.extra ? "#e0e0e0" :
-                  n.kind == "terminal" ? "#e9f3ff" :
-                  n.kind == "abstract" ? "#f2ecff" :
-                  n.kind == "semi-concrete" ? "#fff5df" : "#eaf7ea";
-    dot += QString ("  \"%1\" [label=\"%2\", width=%3, height=%4, "
-                    "fillcolor=\"%5\"];\n")
-             .arg (dot_escape (n.id), dot_escape (n.label))
-             .arg (n.size.width (), 0, 'f', 2)
-             .arg (n.size.height (), 0, 'f', 2)
-             .arg (fill);
-  }
-  for (const ExportEdge& e: graph.edges)
-    dot += QString ("  \"%1\" -> \"%2\";\n")
-             .arg (dot_escape (e.from), dot_escape (e.to));
-  dot += "}\n";
-  return dot;
-}
-
-static QSizeF
-node_text_size_pixels (const ExportNode& n) {
-  QGraphicsTextItem text (n.label);
-  QFont font= text.font ();
-  font.setPointSize (10);
-  font.setBold (n.kind == "terminal");
-  text.setFont (font);
-  text.setTextWidth (220.0);
-  QRectF br= text.boundingRect ();
-  return QSizeF (qMax (150.0, br.width () + 26.0),
-                 qMax (52.0, br.height () + 20.0));
-}
-
-static void
-prepare_node_sizes_for_layout (ExportGraph& graph) {
-  for (ExportNode& n: graph.nodes) {
-    QSizeF pixels= node_text_size_pixels (n);
-    n.size= QSizeF (pixels.width () / 110.0, pixels.height () / 110.0);
-  }
-}
+static void compact_graph_positions (ExportGraph& graph);
 
 static QRectF
 padded_node_rect (const ExportNode& n, double padding) {
@@ -478,47 +395,58 @@ compact_graph_positions (ExportGraph& graph) {
 }
 
 static bool
-layout_with_graphviz (ExportGraph& graph, QString& error) {
-  prepare_node_sizes_for_layout (graph);
-
-  QProcess proc;
-  proc.start (QString::fromUtf8 (ATHENA_GRAPHVIZ_FDP_EXECUTABLE),
-              QStringList () << "-Tplain");
-  if (!proc.waitForStarted (5000)) {
-    error= "Could not start Graphviz fdp.";
-    return false;
-  }
-  proc.write (dot_for_graph (graph).toUtf8 ());
-  proc.closeWriteChannel ();
-  if (!proc.waitForFinished (15000)) {
-    proc.kill ();
-    error= "Graphviz fdp did not finish.";
-    return false;
-  }
-  if (proc.exitStatus () != QProcess::NormalExit || proc.exitCode () != 0) {
-    error= "Graphviz fdp failed: " + QString::fromUtf8 (proc.readAllStandardError ());
+layout_with_boost_force_directed (ExportGraph& graph, QString& error) {
+  if (graph.nodes.empty ()) {
+    error= "Graph has no nodes.";
     return false;
   }
 
-  QMap<QString,ExportNode*> byId;
-  for (ExportNode& n: graph.nodes) byId.insert (n.id, &n);
-
-  QString text= QString::fromUtf8 (proc.readAllStandardOutput ());
-  for (const QString& raw: text.split ('\n')) {
-    QStringList toks= plain_tokens (raw.trimmed ());
-    if (toks.size () < 6 || toks[0] != "node") continue;
-    ExportNode* n= byId.value (toks[1], nullptr);
-    if (n == nullptr) continue;
-    bool ok1=false, ok2=false, ok3=false, ok4=false;
-    double x= toks[2].toDouble (&ok1);
-    double y= toks[3].toDouble (&ok2);
-    double w= toks[4].toDouble (&ok3);
-    double h= toks[5].toDouble (&ok4);
-    if (ok1 && ok2) n->pos= QPointF (x * 110.0, -y * 110.0);
-    if (ok3 && ok4) n->size= QSizeF (qMax (w * 110.0, 120.0),
-                                     qMax (h * 110.0, 46.0));
-  }
   adjust_node_sizes_for_text (graph);
+
+  using BoostGraph= boost::adjacency_list<boost::vecS, boost::vecS,
+                                          boost::undirectedS>;
+  using Topology= boost::rectangle_topology<boost::minstd_rand>;
+  using Point= Topology::point_type;
+
+  BoostGraph boostGraph (graph.nodes.size ());
+  QMap<QString,int> indexById;
+  for (int i=0; i<(int) graph.nodes.size (); i++)
+    indexById.insert (graph.nodes[i].id, i);
+
+  for (const ExportEdge& edge: graph.edges) {
+    if (!indexById.contains (edge.from) || !indexById.contains (edge.to))
+      continue;
+    boost::add_edge (indexById.value (edge.from),
+                     indexById.value (edge.to), boostGraph);
+  }
+
+  double maxWidth= 0.0;
+  double maxHeight= 0.0;
+  for (const ExportNode& node: graph.nodes) {
+    maxWidth= std::max (maxWidth, node.size.width ());
+    maxHeight= std::max (maxHeight, node.size.height ());
+  }
+
+  double n= std::max (1.0, (double) graph.nodes.size ());
+  double extent= std::sqrt (n);
+  double width= std::max (1000.0, extent * std::max (260.0, maxWidth * 1.8));
+  double height= std::max (700.0, extent * std::max (180.0, maxHeight * 3.5));
+
+  boost::minstd_rand rng (5489u);
+  Topology topology (rng, 0.0, 0.0, width, height);
+  std::vector<Point> positions (graph.nodes.size ());
+  auto positionMap= boost::make_iterator_property_map (
+    positions.begin (), boost::get (boost::vertex_index, boostGraph));
+
+  boost::random_graph_layout (boostGraph, positionMap, topology);
+  boost::fruchterman_reingold_force_directed_layout (
+    boostGraph, positionMap, topology,
+    boost::cooling (boost::linear_cooling<double> (
+      std::max<std::size_t> (220, graph.nodes.size () * 9))));
+
+  for (int i=0; i<(int) graph.nodes.size (); i++)
+    graph.nodes[i].pos= QPointF (positions[i][0], positions[i][1]);
+
   compact_graph_positions (graph);
   return true;
 }
@@ -873,7 +801,7 @@ build_export_context (const QString& root, ExportContext& cx, QString& error) {
       warn_export ("Terminal namespace has no files: " + name);
   }
 
-  if (!layout_with_graphviz (graph, error)) return false;
+  if (!layout_with_boost_force_directed (graph, error)) return false;
   cx.graph= graph;
   return true;
 }
@@ -1360,7 +1288,7 @@ render_hierarchy_diagram (const ExportContext& cx,
     add_reverse_hierarchy_to_diagram (graph, cx, selected);
 
   QString error;
-  if (!layout_with_graphviz (graph, error))
+  if (!layout_with_boost_force_directed (graph, error))
     warn_export ("Could not lay out exported hierarchy diagram: " + error);
 
   QGraphicsScene* scene= create_scene (graph, false);

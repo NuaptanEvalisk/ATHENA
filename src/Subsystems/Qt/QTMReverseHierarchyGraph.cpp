@@ -10,6 +10,13 @@
 
 #include "QTMReverseHierarchyGraph.hpp"
 
+#include <boost/graph/adjacency_list.hpp>
+#include <boost/graph/fruchterman_reingold.hpp>
+#include <boost/graph/random_layout.hpp>
+#include <boost/graph/topology.hpp>
+#include <boost/property_map/property_map.hpp>
+#include <boost/random/linear_congruential.hpp>
+
 #include "QTMMainTabWindow.hpp"
 #include "analyze.hpp"
 #include "editor.hpp"
@@ -42,7 +49,6 @@
 #include <QMessageBox>
 #include <QMouseEvent>
 #include <QPainter>
-#include <QProcess>
 #include <QScrollBar>
 #include <QSet>
 #include <QSizeGrip>
@@ -61,10 +67,6 @@
 #include <map>
 #include <set>
 #include <vector>
-
-#ifndef ATHENA_GRAPHVIZ_FDP_EXECUTABLE
-#define ATHENA_GRAPHVIZ_FDP_EXECUTABLE "fdp"
-#endif
 
 namespace {
 
@@ -91,6 +93,9 @@ struct RHGraph {
 static ads::CDockWidget* reverse_hierarchy_graph_dock= nullptr;
 class ReverseHierarchyGraphPane;
 static ReverseHierarchyGraphPane* reverse_hierarchy_graph_widget= nullptr;
+static ads::CDockWidget* direct_hierarchy_graph_dock= nullptr;
+class DirectHierarchyGraphPane;
+static DirectHierarchyGraphPane* direct_hierarchy_graph_widget= nullptr;
 constexpr double pi= 3.14159265358979323846;
 constexpr const char* default_graph_size= "14cm";
 constexpr int graph_item_url_role= 1;
@@ -235,10 +240,31 @@ collect_parent_namespaces (const QString& name,
 }
 
 static bool
+namespace_has_parent (const athena_namespace_definition& ns,
+                      const QString& parent) {
+  return has_string_qt (ns.parents, parent) ||
+         has_string_qt (ns.derived_parents, parent);
+}
+
+static void
+collect_child_namespaces (const QString& name,
+                          const QMap<QString,athena_namespace_definition>& all,
+                          QSet<QString>& included,
+                          std::vector<RHEdge>& edges) {
+  for (auto it= all.constBegin (); it != all.constEnd (); ++it) {
+    QString child= it.key ();
+    if (!namespace_has_parent (it.value (), name)) continue;
+    included.insert (child);
+    add_unique_edge (edges, "ns:" + name, "ns:" + child);
+    collect_child_namespaces (child, all, included, edges);
+  }
+}
+
+static bool
 finish_namespace_graph (RHGraph& graph,
                         const QMap<QString,athena_namespace_definition>& all,
-                        QSet<QString>& included) {
-  if (reverse_hierarchy_simplify_graphs ())
+                        QSet<QString>& included, bool simplify) {
+  if (simplify)
     simplify_transitive_edges (graph.edges);
 
   for (auto it= all.constBegin (); it != all.constEnd (); ++it) {
@@ -287,7 +313,8 @@ build_file_reverse_hierarchy_graph (RHGraph& graph,
     add_unique_edge (graph.edges, "ns:" + ns, "file");
     collect_parent_namespaces (ns, all, included, graph.edges);
   }
-  finish_namespace_graph (graph, all, included);
+  finish_namespace_graph (graph, all, included,
+                          reverse_hierarchy_simplify_graphs ());
 
   RHNode file;
   file.id= "file";
@@ -332,7 +359,8 @@ build_namespace_reverse_hierarchy_graph (
   graph.filePath= identity;
   graph.title= "Reverse Hierarchy - Namespace " + name;
   collect_parent_namespaces (name, all, included, graph.edges);
-  if (!finish_namespace_graph (graph, all, included)) {
+  if (!finish_namespace_graph (graph, all, included,
+                               reverse_hierarchy_simplify_graphs ())) {
     error= "Could not build namespace hierarchy graph.";
     return false;
   }
@@ -363,118 +391,156 @@ build_current_reverse_hierarchy_graph (RHGraph& graph, QString& error) {
 }
 
 static QString
-dot_escape (const QString& s) {
-  QString out;
-  for (QChar ch: s) {
-    if (ch == '\\') out += "\\\\";
-    else if (ch == '"') out += "\\\"";
-    else if (ch == '\n' || ch == '\r') out += " ";
-    else out += ch;
-  }
-  return out;
+namespace_path_to_file (const QString& path) {
+  if (path.trimmed ().isEmpty ()) return QString ();
+  QFileInfo info (path);
+  if (info.isAbsolute ()) return QDir::cleanPath (path);
+  return QDir::cleanPath (
+    to_qstring (concretize (vault_get_root ())) + "/" + path);
 }
 
 static QString
-dot_for_graph (const RHGraph& graph) {
-  QString dot= "digraph reverse_hierarchy {\n"
-               "  graph [layout=fdp, overlap=prism, splines=true, "
-               "sep=\"+2\", nodesep=0.12, ranksep=0.16, K=0.12, "
-               "maxiter=3000, margin=0];\n"
-               "  node [shape=box, style=\"rounded,filled\", "
-               "fontname=\"Alegreya Sans\", fontsize=12, margin=\"0.08,0.04\"];\n"
-               "  edge [color=\"#555555\", arrowsize=0.8];\n";
-  for (const RHNode& n: graph.nodes) {
-    QString fill= n.kind == "file" ? "#e9f3ff" :
-                  n.kind == "abstract" ? "#f2ecff" :
-                  n.kind == "semi-concrete" ? "#fff5df" : "#eaf7ea";
-    dot += QString ("  \"%1\" [label=\"%2\", width=%3, height=%4, "
-                    "fillcolor=\"%5\"];\n")
-             .arg (dot_escape (n.id), dot_escape (n.label))
-             .arg (n.size.width (), 0, 'f', 2)
-             .arg (n.size.height (), 0, 'f', 2)
-             .arg (fill);
-  }
-  for (const RHEdge& e: graph.edges)
-    dot += QString ("  \"%1\" -> \"%2\";\n")
-             .arg (dot_escape (e.from), dot_escape (e.to));
-  dot += "}\n";
-  return dot;
+canonical_or_clean_path (const QString& path) {
+  QFileInfo info (path);
+  QString canonical= info.canonicalFilePath ();
+  return canonical.isEmpty () ? QDir::cleanPath (path) : canonical;
 }
 
-static QStringList
-plain_tokens (const QString& line) {
-  QStringList out;
-  QString current;
-  bool quote= false;
-  bool escape= false;
-  for (QChar ch: line) {
-    if (escape) {
-      current += ch;
-      escape= false;
+static bool
+namespace_for_current_homepage (
+  const QMap<QString,athena_namespace_definition>& all, QString& name) {
+  QString path;
+  if (!current_physical_file_path (path)) return false;
+  QString current= canonical_or_clean_path (path);
+  for (auto it= all.constBegin (); it != all.constEnd (); ++it) {
+    QString homepage= to_qstring (it.value ().homepage_path);
+    if (homepage.trimmed ().isEmpty ()) continue;
+    if (canonical_or_clean_path (namespace_path_to_file (homepage)) == current) {
+      name= it.key ();
+      return true;
     }
-    else if (ch == '\\' && quote) escape= true;
-    else if (ch == '"') quote= !quote;
-    else if (ch.isSpace () && !quote) {
-      if (!current.isEmpty ()) {
-        out << current;
-        current.clear ();
-      }
-    }
-    else current += ch;
   }
-  if (!current.isEmpty ()) out << current;
-  return out;
+  return false;
+}
+
+static bool
+build_namespace_direct_hierarchy_graph (
+  RHGraph& graph, const QMap<QString,athena_namespace_definition>& all,
+  const QString& identity, const QString& name, bool simplify,
+  QString& error) {
+  if (name.isEmpty ()) {
+    error= "select a namespace to view direct hierarchy graph";
+    return false;
+  }
+  if (!all.contains (name)) {
+    error= "Unknown namespace: " + name;
+    return false;
+  }
+
+  QSet<QString> included;
+  included.insert (name);
+  graph= RHGraph ();
+  graph.filePath= identity.isEmpty () ? namespace_url (name) : identity;
+  graph.title= "Direct Hierarchy - Namespace " + name;
+  collect_child_namespaces (name, all, included, graph.edges);
+  if (!finish_namespace_graph (graph, all, included, simplify)) {
+    error= "Could not build namespace hierarchy graph.";
+    return false;
+  }
+  return true;
+}
+
+static bool
+build_current_direct_hierarchy_graph (RHGraph& graph, bool simplify,
+                                      QString& error) {
+  if (!vault_active ()) {
+    error= "No active vault.";
+    return false;
+  }
+
+  QString identity= current_buffer_identity ();
+  QMap<QString,athena_namespace_definition> all= namespace_map ();
+  QStringList ns_path= parse_namespace_tmfs_path (identity);
+  if (!ns_path.isEmpty ())
+    return build_namespace_direct_hierarchy_graph (
+      graph, all, identity, ns_path.last (), simplify, error);
+
+  QString homepageName;
+  if (namespace_for_current_homepage (all, homepageName))
+    return build_namespace_direct_hierarchy_graph (
+      graph, all, identity, homepageName, simplify, error);
+
+  error= "select a namespace to view direct hierarchy graph";
+  return false;
+}
+
+static bool
+build_named_direct_hierarchy_graph (RHGraph& graph, const QString& name,
+                                    bool simplify, QString& error) {
+  if (!vault_active ()) {
+    error= "No active vault.";
+    return false;
+  }
+  return build_namespace_direct_hierarchy_graph (
+    graph, namespace_map (), namespace_url (name), name, simplify, error);
 }
 
 static void compact_graph_positions (RHGraph& graph);
+static void resize_nodes_for_text (RHGraph& graph);
 
 static bool
-layout_with_graphviz (RHGraph& graph, QString& error) {
-  QProcess proc;
-  proc.start (QString::fromUtf8 (ATHENA_GRAPHVIZ_FDP_EXECUTABLE),
-              QStringList () << "-Tplain");
-  if (!proc.waitForStarted (5000)) {
-    error= "Could not start Graphviz fdp.";
-    return false;
-  }
-  QByteArray dot= dot_for_graph (graph).toUtf8 ();
-  proc.write (dot);
-  proc.closeWriteChannel ();
-  if (!proc.waitForFinished (15000)) {
-    proc.kill ();
-    error= "Graphviz fdp did not finish.";
-    return false;
-  }
-  if (proc.exitStatus () != QProcess::NormalExit || proc.exitCode () != 0) {
-    error= "Graphviz fdp failed: " + QString::fromUtf8 (proc.readAllStandardError ());
+layout_with_boost_force_directed (RHGraph& graph, QString& error) {
+  if (graph.nodes.empty ()) {
+    error= "Graph has no nodes.";
     return false;
   }
 
-  QMap<QString,RHNode*> byId;
-  for (RHNode& n: graph.nodes) byId.insert (n.id, &n);
+  resize_nodes_for_text (graph);
 
-  double maxY= 0.0;
-  QString plain= QString::fromUtf8 (proc.readAllStandardOutput ());
-  for (const QString& line: plain.split ('\n')) {
-    QStringList tok= plain_tokens (line);
-    if (tok.size () < 6 || tok[0] != "node") continue;
-    maxY= std::max (maxY, tok[3].toDouble ());
+  using BoostGraph= boost::adjacency_list<boost::vecS, boost::vecS,
+                                          boost::undirectedS>;
+  using Topology= boost::rectangle_topology<boost::minstd_rand>;
+  using Point= Topology::point_type;
+
+  BoostGraph boostGraph (graph.nodes.size ());
+  QMap<QString,int> indexById;
+  for (int i=0; i<(int) graph.nodes.size (); i++)
+    indexById.insert (graph.nodes[i].id, i);
+
+  for (const RHEdge& edge: graph.edges) {
+    if (!indexById.contains (edge.from) || !indexById.contains (edge.to))
+      continue;
+    boost::add_edge (indexById.value (edge.from),
+                     indexById.value (edge.to), boostGraph);
   }
 
-  for (const QString& line: plain.split ('\n')) {
-    QStringList tok= plain_tokens (line);
-    if (tok.size () < 6 || tok[0] != "node") continue;
-    QString id= tok[1];
-    if (!byId.contains (id)) continue;
-    RHNode* n= byId[id];
-    double x= tok[2].toDouble ();
-    double y= tok[3].toDouble ();
-    double w= tok[4].toDouble ();
-    double h= tok[5].toDouble ();
-    n->pos= QPointF (x * 42.0, (maxY - y) * 42.0);
-    n->size= QSizeF (std::max (w * 92.0, 100.0),
-                     std::max (h * 92.0, 42.0));
+  double maxWidth= 0.0;
+  double maxHeight= 0.0;
+  for (const RHNode& node: graph.nodes) {
+    maxWidth= std::max (maxWidth, node.size.width ());
+    maxHeight= std::max (maxHeight, node.size.height ());
   }
+
+  double n= std::max (1.0, (double) graph.nodes.size ());
+  double extent= std::sqrt (n);
+  double width= std::max (900.0, extent * std::max (220.0, maxWidth * 1.8));
+  double height= std::max (620.0, extent * std::max (150.0, maxHeight * 4.0));
+
+  boost::minstd_rand rng (5489u);
+  Topology topology (rng, 0.0, 0.0, width, height);
+  std::vector<Point> positions (graph.nodes.size ());
+  auto positionMap= boost::make_iterator_property_map (
+    positions.begin (), boost::get (boost::vertex_index, boostGraph));
+
+  boost::random_graph_layout (boostGraph, positionMap, topology);
+  boost::fruchterman_reingold_force_directed_layout (
+    boostGraph, positionMap, topology,
+    boost::cooling (boost::linear_cooling<double> (
+      std::max<std::size_t> (200, graph.nodes.size () * 8))));
+
+  for (int i=0; i<(int) graph.nodes.size (); i++)
+    graph.nodes[i].pos= QPointF (positions[i][0], positions[i][1]);
+
   compact_graph_positions (graph);
   return true;
 }
@@ -487,7 +553,7 @@ find_node_const (const RHGraph& graph, const QString& id) {
 }
 
 static void
-adjust_node_sizes_for_text (RHGraph& graph) {
+resize_nodes_for_text (RHGraph& graph) {
   QFont font;
   font.setPointSize (10);
   for (RHNode& n: graph.nodes) {
@@ -496,11 +562,23 @@ adjust_node_sizes_for_text (RHGraph& graph) {
 
     QGraphicsTextItem text (n.label);
     text.setFont (nodeFont);
+    QRectF natural= text.boundingRect ();
+    double requiredWidth= std::min (std::max (natural.width () + 24.0,
+                                             n.size.width ()),
+                                    420.0);
+    if (requiredWidth > n.size.width ()) n.size.setWidth (requiredWidth);
+
     text.setTextWidth (std::max (n.size.width () - 12.0, 40.0));
     QRectF br= text.boundingRect ();
     double required= br.height () + 12.0;
     if (required > n.size.height ()) n.size.setHeight (required);
   }
+}
+
+static void
+adjust_node_sizes_for_text (RHGraph& graph) {
+  resize_nodes_for_text (graph);
+  compact_graph_positions (graph);
 }
 
 static QRectF
@@ -895,6 +973,199 @@ private:
   QString currentPath;
 };
 
+class DirectHierarchyGraphPane: public QWidget {
+public:
+  DirectHierarchyGraphPane (QWidget* parent = nullptr)
+    : QWidget (parent),
+      view (new ReverseHierarchyGraphView (new QGraphicsScene (), this)),
+      zoomSlider (new QSlider (Qt::Horizontal, this)),
+      zoomLabel (new QLabel ("100%", this)),
+      followCheck (new QCheckBox ("Follow viewport", this)),
+      simplifyCheck (new QCheckBox ("Simplify", this)),
+      floatingSizeGrip (new QSizeGrip (this)),
+      refreshTimer (new QTimer (this)) {
+    view->scene ()->setParent (view);
+    view->setZoomChangedCallback ([this] (int percent) {
+      QSignalBlocker blocker (zoomSlider);
+      zoomSlider->setValue (percent);
+      zoomLabel->setText (QString::number (percent) + "%");
+    });
+
+    QToolButton* zoomOut= new QToolButton (this);
+    zoomOut->setIcon (style ()->standardIcon (QStyle::SP_ArrowDown));
+    zoomOut->setToolTip ("Zoom out");
+    QToolButton* zoomIn= new QToolButton (this);
+    zoomIn->setIcon (style ()->standardIcon (QStyle::SP_ArrowUp));
+    zoomIn->setToolTip ("Zoom in");
+    QToolButton* reset= new QToolButton (this);
+    reset->setIcon (style ()->standardIcon (QStyle::SP_BrowserReload));
+    reset->setToolTip ("Reset viewport");
+
+    zoomSlider->setRange (25, 300);
+    zoomSlider->setValue (100);
+    zoomSlider->setSingleStep (5);
+    zoomSlider->setPageStep (25);
+    zoomSlider->setFixedWidth (160);
+    zoomLabel->setMinimumWidth (44);
+    followCheck->setChecked (true);
+    followCheck->setToolTip (
+      "Rebuild the graph when the active namespace page changes");
+    simplifyCheck->setChecked (reverse_hierarchy_simplify_graphs ());
+    simplifyCheck->setToolTip (
+      "Remove transitive containment edges such as A -> C when A -> B -> C exists");
+
+    connect (zoomOut, &QToolButton::clicked, this, [this] () {
+      view->setZoomPercent (zoomSlider->value () - 10);
+    });
+    connect (zoomIn, &QToolButton::clicked, this, [this] () {
+      view->setZoomPercent (zoomSlider->value () + 10);
+    });
+    connect (reset, &QToolButton::clicked,
+             this, [this] () { view->resetViewport (); });
+    connect (zoomSlider, &QSlider::valueChanged,
+             this, [this] (int value) { view->setZoomPercent (value); });
+    connect (simplifyCheck, &QCheckBox::toggled, this, [this] (bool checked) {
+      set_preference ("vault simplify hierarchy graphs",
+                      checked ? "on" : "off");
+      refreshUsingCurrentMode ();
+    });
+    connect (followCheck, &QCheckBox::toggled, this, [this] (bool checked) {
+      if (checked) refreshFromCurrentDocument ();
+    });
+
+    QHBoxLayout* controls= new QHBoxLayout ();
+    controls->setContentsMargins (4, 3, 4, 3);
+    controls->addWidget (zoomOut);
+    controls->addWidget (zoomSlider);
+    controls->addWidget (zoomIn);
+    controls->addWidget (zoomLabel);
+    controls->addSpacing (8);
+    controls->addWidget (reset);
+    controls->addStretch ();
+    controls->addWidget (followCheck);
+    controls->addWidget (simplifyCheck);
+
+    floatingSizeGrip->hide ();
+
+    QHBoxLayout* gripRow= new QHBoxLayout ();
+    gripRow->setContentsMargins (0, 0, 0, 0);
+    gripRow->addStretch ();
+    gripRow->addWidget (floatingSizeGrip, 0, Qt::AlignRight | Qt::AlignBottom);
+
+    QVBoxLayout* layout= new QVBoxLayout (this);
+    layout->setContentsMargins (0, 0, 0, 0);
+    layout->addLayout (controls);
+    layout->addWidget (view, 1);
+    layout->addLayout (gripRow);
+
+    refreshTimer->setInterval (700);
+    connect (refreshTimer, &QTimer::timeout,
+             this, [this] () { refreshIfActiveDocumentChanged (); });
+    refreshTimer->start ();
+  }
+
+  QSize sizeHint () const override { return QSize (620, 520); }
+
+  void setFloatingResizeGripVisible (bool visible) {
+    floatingSizeGrip->setVisible (visible);
+  }
+
+  bool refreshFromCurrentDocument (QString* errorOut = nullptr) {
+    fixedNamespace.clear ();
+    return rebuildFromCurrentDocument (errorOut);
+  }
+
+  bool refreshFromNamespace (const QString& name,
+                             QString* errorOut = nullptr) {
+    fixedNamespace= name;
+    followCheck->setChecked (false);
+    return rebuildFromNamespace (name, errorOut);
+  }
+
+private:
+  bool simplify () const { return simplifyCheck->isChecked (); }
+
+  void setGraphScene (const RHGraph& graph) {
+    currentPath= graph.filePath;
+    view->setOwnedScene (create_scene (graph));
+    QTimer::singleShot (0, view, [this] () { view->resetViewport (); });
+    if (direct_hierarchy_graph_dock != nullptr)
+      direct_hierarchy_graph_dock->setWindowTitle (graph.title);
+  }
+
+  bool rebuildFromCurrentDocument (QString* errorOut = nullptr) {
+    RHGraph graph;
+    QString error;
+    if (!build_current_direct_hierarchy_graph (graph, simplify (), error)) {
+      if (errorOut != nullptr) *errorOut= error;
+      showMessageScene (error);
+      return false;
+    }
+    if (!layout_with_boost_force_directed (graph, error)) {
+      if (errorOut != nullptr) *errorOut= error;
+      showMessageScene (error);
+      return false;
+    }
+    setGraphScene (graph);
+    return true;
+  }
+
+  bool rebuildFromNamespace (const QString& name,
+                             QString* errorOut = nullptr) {
+    RHGraph graph;
+    QString error;
+    if (!build_named_direct_hierarchy_graph (graph, name, simplify (), error)) {
+      if (errorOut != nullptr) *errorOut= error;
+      showMessageScene (error);
+      return false;
+    }
+    if (!layout_with_boost_force_directed (graph, error)) {
+      if (errorOut != nullptr) *errorOut= error;
+      showMessageScene (error);
+      return false;
+    }
+    setGraphScene (graph);
+    return true;
+  }
+
+  void refreshUsingCurrentMode () {
+    if (followCheck->isChecked () || fixedNamespace.isEmpty ())
+      refreshFromCurrentDocument ();
+    else rebuildFromNamespace (fixedNamespace);
+  }
+
+  void showMessageScene (const QString& message) {
+    QGraphicsScene* scene= new QGraphicsScene ();
+    scene->setBackgroundBrush (QColor ("#fbfbfb"));
+    QGraphicsTextItem* text= scene->addText (message);
+    text->setDefaultTextColor (QColor ("#444444"));
+    text->setTextWidth (420);
+    text->setPos (20, 20);
+    scene->setSceneRect (0, 0, 500, 160);
+    view->setOwnedScene (scene);
+    currentPath= current_buffer_identity ();
+    if (direct_hierarchy_graph_dock != nullptr)
+      direct_hierarchy_graph_dock->setWindowTitle ("Direct Hierarchy Graph");
+  }
+
+  void refreshIfActiveDocumentChanged () {
+    if (!followCheck->isChecked ()) return;
+    QString path= current_buffer_identity ();
+    if (path.isEmpty () || path == currentPath) return;
+    rebuildFromCurrentDocument ();
+  }
+
+  ReverseHierarchyGraphView* view;
+  QSlider* zoomSlider;
+  QLabel* zoomLabel;
+  QCheckBox* followCheck;
+  QCheckBox* simplifyCheck;
+  QSizeGrip* floatingSizeGrip;
+  QTimer* refreshTimer;
+  QString currentPath;
+  QString fixedNamespace;
+};
+
 static bool
 build_layout_graph (RHGraph& graph, QString& error) {
   QString warning;
@@ -902,7 +1173,7 @@ build_layout_graph (RHGraph& graph, QString& error) {
     error= warning;
     return false;
   }
-  if (!layout_with_graphviz (graph, error)) return false;
+  if (!layout_with_boost_force_directed (graph, error)) return false;
   if (!warning.isEmpty ()) std_warning << from_qstring (warning) << LF;
   return true;
 }
@@ -1024,4 +1295,80 @@ reverse_hierarchy_graph_render (string size) {
   if (!build_layout_graph (graph, error)) return graph_error_tree (error);
   if (size == "") size= default_graph_size;
   return graph_image_tree (render_graph_image (graph), size);
+}
+
+static bool
+ensure_direct_hierarchy_graph_pane (QString& error) {
+  QTMMainTabWindow* win= QTMMainTabWindow::topTabWindow ();
+  if (win == nullptr || win->dockManager () == nullptr) {
+    error= "No active ATHENA window.";
+    return false;
+  }
+
+  if (direct_hierarchy_graph_widget == nullptr) {
+    direct_hierarchy_graph_widget= new DirectHierarchyGraphPane ();
+    direct_hierarchy_graph_widget->resize (620, 520);
+    QObject::connect (direct_hierarchy_graph_widget, &QObject::destroyed, [] () {
+      direct_hierarchy_graph_widget= nullptr;
+      direct_hierarchy_graph_dock= nullptr;
+    });
+  }
+
+  if (direct_hierarchy_graph_dock == nullptr) {
+    direct_hierarchy_graph_dock= new ads::CDockWidget (
+      "Direct Hierarchy Graph");
+    direct_hierarchy_graph_dock->setObjectName (
+      "athena-direct-hierarchy-graph");
+    direct_hierarchy_graph_dock->resize (640, 560);
+    direct_hierarchy_graph_dock->setWidget (
+      direct_hierarchy_graph_widget, ads::CDockWidget::ForceNoScrollArea);
+    direct_hierarchy_graph_dock->setFeature (
+      ads::CDockWidget::DockWidgetDeleteOnClose, false);
+    QObject::connect (direct_hierarchy_graph_dock,
+                      &ads::CDockWidget::topLevelChanged,
+                      direct_hierarchy_graph_widget,
+                      [] (bool topLevel) {
+                        if (direct_hierarchy_graph_widget != nullptr)
+                          direct_hierarchy_graph_widget->
+                            setFloatingResizeGripVisible (topLevel);
+                      });
+    QObject::connect (direct_hierarchy_graph_dock, &QObject::destroyed, [] () {
+      direct_hierarchy_graph_dock= nullptr;
+      direct_hierarchy_graph_widget= nullptr;
+    });
+    win->dockManager ()->addDockWidgetFloating (direct_hierarchy_graph_dock);
+    direct_hierarchy_graph_dock->toggleView (true);
+    direct_hierarchy_graph_dock->show ();
+    direct_hierarchy_graph_dock->raise ();
+  }
+  else {
+    if (direct_hierarchy_graph_dock->widget () != direct_hierarchy_graph_widget)
+      direct_hierarchy_graph_dock->setWidget (
+        direct_hierarchy_graph_widget, ads::CDockWidget::ForceNoScrollArea);
+    win->showAdsDockWidget (direct_hierarchy_graph_dock,
+                            ads::RightDockWidgetArea);
+  }
+  direct_hierarchy_graph_widget->setFloatingResizeGripVisible (
+    direct_hierarchy_graph_dock->isInFloatingContainer ());
+  return true;
+}
+
+void
+direct_hierarchy_graph_show () {
+  QString error;
+  if (!ensure_direct_hierarchy_graph_pane (error)) {
+    show_error (error);
+    return;
+  }
+  direct_hierarchy_graph_widget->refreshFromCurrentDocument ();
+}
+
+void
+direct_hierarchy_graph_show_namespace (string name) {
+  QString error;
+  if (!ensure_direct_hierarchy_graph_pane (error)) {
+    show_error (error);
+    return;
+  }
+  direct_hierarchy_graph_widget->refreshFromNamespace (to_qstring (name));
 }
