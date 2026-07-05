@@ -7,6 +7,7 @@ QTMApplication::QTMApplication (int& argc, char** argv) :
 #include <QPixmap>
 #include <QPainter>
 #include <QScreen>
+#include <QFontMetrics>
 #include <algorithm>
 
 class ATHENASplashScreen: public QSplashScreen {
@@ -27,8 +28,16 @@ protected:
 
     QRect r= rect ();
     int margin= std::max (12, r.width () / 28);
-    int bar_h= std::max (10, r.height () / 38);
-    int panel_h= bar_h + 38;
+
+    QFont f= qApp != NULL ? qApp->font () : painter->font ();
+    if (f.pixelSize () <= 0 && f.pointSizeF () > 0)
+      f.setPointSize (std::max (11, (int) (f.pointSizeF () + 0.5)));
+    painter->setFont (f);
+    QFontMetrics fm (f);
+
+    int text_h= fm.height ();
+    int bar_h= std::max (10, text_h * 2 / 3);
+    int panel_h= std::max (bar_h + text_h + 22, r.height () / 7);
     QRect panel (margin, r.height () - panel_h - margin,
                  r.width () - 2 * margin, panel_h);
     QRect bar (panel.left () + 12, panel.bottom () - bar_h - 10,
@@ -41,11 +50,8 @@ protected:
     painter->drawRoundedRect (panel, 5, 5);
 
     painter->setPen (QColor (45, 52, 62));
-    QFont f= painter->font ();
-    f.setPointSize (std::max (9, f.pointSize ()));
-    painter->setFont (f);
     QString label= status + QString ("  %1%").arg (progress);
-    painter->drawText (panel.adjusted (12, 7, -12, -bar_h - 14),
+    painter->drawText (panel.adjusted (12, 6, -12, -bar_h - 14),
                        Qt::AlignLeft | Qt::AlignVCenter, label);
 
     painter->setPen (QColor (170, 176, 184));
