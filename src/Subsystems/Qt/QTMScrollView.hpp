@@ -39,6 +39,8 @@ class QTMScrollView : public QAbstractScrollArea {
   QPoint    p_origin;   // The offset into that area
   QWidget* p_surface;   // Actual drawing area, centered (or not) in the scrollarea
   bool     p_internal_scroll_change;
+  bool     p_pending_origin_after_extents;
+  QPoint   p_pending_origin;
 
 public:
   // Inertial scrolling state
@@ -54,6 +56,7 @@ public:
   
   QRect   extents () { return p_extents; }
   void setExtents (QRect newExtents);
+  void setPendingOriginAfterNextExtents (QPoint newOrigin);
 
   QWidget* surface () const { return p_surface; }
   

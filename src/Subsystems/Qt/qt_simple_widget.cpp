@@ -701,6 +701,9 @@ qt_simple_widget_rep::repaint_invalid_regions () {
   if (!qrgn.isEmpty () && !repaint_interrupted) {
     canvas()->surface()->repaint (qrgn);
     backing_valid= true;
+#if QT_VERSION >= 0x060000
+    canvas()->finishGestureZoomCommitPreview ();
+#endif
   }
 }
 

@@ -18,10 +18,13 @@
 #include <QGesture>
 #include <QGestureEvent>
 #include <QPointer>
+#include <QPixmap>
 #include <QScreen>
 
 class qt_simple_widget_rep;
 class QScrollBar;
+class QNativeGestureEvent;
+class QPainter;
 
 /*! The underlying QWidget for a qt_simple_widget_rep handles drawing for a 
     texmacs canvas, as well as keypresses, international input methods, etc.
@@ -54,6 +57,9 @@ public:
     return viewport ()->mapToGlobal (p + QPoint (0, 22));
   }
   qt_simple_widget_rep* tm_widget () const;
+#if QT_VERSION >= 0x060000
+  void finishGestureZoomCommitPreview ();
+#endif
 
 signals:
   void closed ();
@@ -103,10 +109,37 @@ protected:
 private:
   qreal lastPixelRatio = 0.0;
   QPointer<QScrollBar> tabletScrollBarTarget;
+#if QT_VERSION >= 0x060000
+  bool viewPinchActive = false;
+  bool viewPinchCommitPending = false;
+  bool nativeLegacyPinchActive = false;
+  double nativeLegacyPinchScale = 1.0;
+  double viewPinchStartZoom = 1.0;
+  double viewPinchScale = 1.0;
+  double viewPinchCommittedScale = 1.0;
+  qreal viewPinchPixelRatio = 1.0;
+  QPointF viewPinchFocal;
+  QPoint viewPinchStartOrigin;
+  QPixmap viewPinchPreview;
+#endif
 
   void updateInputMethodCursorRectangle () const;
   bool forwardTabletEventToScrollBar (QTabletEvent* event);
   QScrollBar* scrollBarAtGlobalPosition (const QPoint& globalPos) const;
+#if QT_VERSION >= 0x060000
+  bool gesturesSupportedForViewZoom () const;
+  bool inActiveGraphicsMode () const;
+  bool gestureDebugEnabled () const;
+  void logGesture (const char* phase, const char* route, double scale,
+                   const QPointF& focal) const;
+  void beginViewPinchZoom (const QPointF& focal, const char* source);
+  void updateViewPinchZoom (double scale, const QPointF& focal,
+                            const char* source);
+  void finishViewPinchZoom (bool commit, const char* source);
+  bool handleNativeGestureEvent (QNativeGestureEvent* event);
+  bool handlePinchGestureForViewZoom (QPinchGesture* pinch);
+  void drawViewPinchPreview (QPainter& p) const;
+#endif
 
 };
 

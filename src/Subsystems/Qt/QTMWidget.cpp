@@ -22,6 +22,7 @@
 #include "ATHENA/Data/vault_image_insertion.hpp"
 #include "editor.hpp"
 #include "Interface/edit_graphics.hpp"
+#include "renderer.hpp"
 #include "qt_renderer.hpp"
 #include "QTMApplication.hpp"
 #include "QTMKeyboardEvent.hpp"
@@ -38,6 +39,7 @@
 #include <QPainter>
 #include <QApplication>
 #include <QInputMethod>
+#include <QNativeGestureEvent>
 #include <QScrollBar>
 
 #include <QBuffer>
@@ -47,6 +49,7 @@
 #include <QUrl>
 #include <QFileInfo>
 
+#include <cmath>
 
 static long int QTMWcounter = 0; // debugging hack
 
@@ -64,6 +67,11 @@ QTMWidget::QTMWidget (QWidget* _parent, qt_widget _tmwid)
   setAttribute (Qt::WA_InputMethodEnabled);
   surface ()->setMouseTracking (true);
   surface ()->setAcceptDrops (true);
+#if QT_VERSION >= 0x060000
+  setAttribute (Qt::WA_AcceptTouchEvents);
+  viewport ()->setAttribute (Qt::WA_AcceptTouchEvents);
+  surface ()->setAttribute (Qt::WA_AcceptTouchEvents);
+#endif
 
   grabGesture (Qt::PanGesture);
   grabGesture (Qt::PinchGesture);
@@ -168,6 +176,11 @@ QTMWidget::surfacePaintEvent (QPaintEvent *event, QWidget *surfaceWidget) {
   (void) surfaceWidget;
   if (checkDprChange()) return;
   QPainter p (surface());
+  if ((viewPinchActive || viewPinchCommitPending) &&
+      !viewPinchPreview.isNull()) {
+    drawViewPinchPreview (p);
+    return;
+  }
   qreal pixel_ratio= lastPixelRatio;
   QRegion reg= event->region();
   QRegion::const_iterator it;
@@ -213,6 +226,231 @@ QTMWidget::devicePixelRatioChanged () {
       break;
     }
   }
+}
+
+static double
+athena_clamp_view_zoom (double zoom) {
+  if (zoom < 0.04) return 0.04;
+  if (zoom > 25.0) return 25.0;
+  return zoom;
+}
+
+bool
+QTMWidget::gesturesSupportedForViewZoom () const {
+#ifdef Q_OS_WIN
+  return true;
+#else
+  return QApplication::platformName().startsWith ("wayland");
+#endif
+}
+
+bool
+QTMWidget::inActiveGraphicsMode () const {
+  try {
+    if (!as_bool (call ("defined?", symbol_object ("in-active-graphics?"))))
+      return false;
+    return as_bool (call ("in-active-graphics?"));
+  }
+  catch (...) {
+    return false;
+  }
+}
+
+bool
+QTMWidget::gestureDebugEnabled () const {
+  QByteArray value= qgetenv ("ATHENA_GESTURE_DEBUG");
+  return !value.isEmpty () && value != "0";
+}
+
+void
+QTMWidget::logGesture (const char* phase, const char* route, double scale,
+                       const QPointF& focal) const {
+  if (!gestureDebugEnabled ()) return;
+  cout << "[gesture] " << phase << " route=" << route
+       << " platform=" << from_qstring (QApplication::platformName())
+       << " focal=(" << as_string ((double) focal.x()) << ","
+       << as_string ((double) focal.y()) << ") scale="
+       << as_string (scale) << " zoom0="
+       << as_string (viewPinchStartZoom) << LF;
+}
+
+void
+QTMWidget::beginViewPinchZoom (const QPointF& focal, const char* source) {
+  if (is_nil (tmwid) || tm_widget()->backingPixmap == NULL) return;
+  viewPinchActive= true;
+  viewPinchCommitPending= false;
+  viewPinchStartZoom= athena_clamp_view_zoom (
+    as_double (call ("get-window-zoom-factor")));
+  viewPinchScale= 1.0;
+  viewPinchCommittedScale= 1.0;
+  viewPinchPixelRatio= surface()->devicePixelRatio();
+  viewPinchFocal= focal;
+  viewPinchStartOrigin= origin();
+  viewPinchPreview= *(tm_widget()->backingPixmap);
+  logGesture ("begin", source, viewPinchScale, viewPinchFocal);
+}
+
+void
+QTMWidget::updateViewPinchZoom (double scale, const QPointF& focal,
+                                const char* source) {
+  if (!viewPinchActive)
+    beginViewPinchZoom (focal, source);
+  if (!viewPinchActive) return;
+  double minScale= 0.04 / viewPinchStartZoom;
+  double maxScale= 25.0 / viewPinchStartZoom;
+  if (scale < minScale) scale= minScale;
+  if (scale > maxScale) scale= maxScale;
+  viewPinchScale= scale;
+  viewPinchFocal= focal;
+  logGesture ("update", source, viewPinchScale, viewPinchFocal);
+  surface()->update();
+}
+
+void
+QTMWidget::finishViewPinchZoom (bool commit, const char* source) {
+  if (!viewPinchActive) return;
+  double finalZoom= athena_clamp_view_zoom (
+    normal_zoom (athena_clamp_view_zoom (viewPinchStartZoom *
+                                         viewPinchScale)));
+  double appliedScale= finalZoom / viewPinchStartZoom;
+  bool shouldCommit= commit && std::fabs (appliedScale - 1.0) > 0.001;
+  logGesture (shouldCommit ? "commit" : "cancel", source, appliedScale,
+              viewPinchFocal);
+  viewPinchActive= false;
+  if (!shouldCommit) {
+    viewPinchCommitPending= false;
+    viewPinchPreview= QPixmap();
+    surface()->update();
+    return;
+  }
+
+  QPoint newOrigin (
+    qRound ((viewPinchStartOrigin.x() + viewPinchFocal.x()) *
+            appliedScale - viewPinchFocal.x()),
+    qRound ((viewPinchStartOrigin.y() + viewPinchFocal.y()) *
+            appliedScale - viewPinchFocal.y()));
+  viewPinchCommitPending= true;
+  viewPinchCommittedScale= appliedScale;
+  setPendingOriginAfterNextExtents (newOrigin);
+  call ("change-zoom-factor", object (finalZoom));
+}
+
+bool
+QTMWidget::handleNativeGestureEvent (QNativeGestureEvent* event) {
+  if (!gesturesSupportedForViewZoom () || is_nil (tmwid)) return false;
+  QPointF focal= surface()->mapFromGlobal (
+    event->globalPosition().toPoint());
+  if (inActiveGraphicsMode ()) {
+    coord2 pt= from_qpoint (focal.toPoint() + origin());
+    array<double> data;
+    if (event->gestureType() == Qt::BeginNativeGesture) {
+      the_gui->process_mouse (tm_widget(), "pinch-start", pt.x1, pt.x2, 0,
+                              texmacs_time (), data);
+      nativeLegacyPinchActive= true;
+      nativeLegacyPinchScale= 1.0;
+      logGesture ("begin", "native-graphics", 1.0, focal);
+      event->accept();
+      return true;
+    }
+    if (event->gestureType() == Qt::ZoomNativeGesture) {
+      if (!nativeLegacyPinchActive) {
+        the_gui->process_mouse (tm_widget(), "pinch-start", pt.x1, pt.x2, 0,
+                                texmacs_time (), data);
+        nativeLegacyPinchActive= true;
+        nativeLegacyPinchScale= 1.0;
+      }
+      nativeLegacyPinchScale *= 1.0 + event->value();
+      data << nativeLegacyPinchScale;
+      the_gui->process_mouse (tm_widget(), "scale", pt.x1, pt.x2, 0,
+                              texmacs_time (), data);
+      logGesture ("update", "native-graphics", nativeLegacyPinchScale, focal);
+      event->accept();
+      return true;
+    }
+    if (event->gestureType() == Qt::EndNativeGesture &&
+        nativeLegacyPinchActive) {
+      the_gui->process_mouse (tm_widget(), "pinch-end", pt.x1, pt.x2, 0,
+                              texmacs_time (), data);
+      nativeLegacyPinchActive= false;
+      nativeLegacyPinchScale= 1.0;
+      logGesture ("end", "native-graphics", 1.0, focal);
+      event->accept();
+      return true;
+    }
+    return false;
+  }
+
+  switch (event->gestureType()) {
+    case Qt::BeginNativeGesture:
+      beginViewPinchZoom (focal, "native-view");
+      event->accept();
+      return true;
+    case Qt::ZoomNativeGesture:
+      updateViewPinchZoom (viewPinchScale * (1.0 + event->value()), focal,
+                           "native-view");
+      event->accept();
+      return true;
+    case Qt::EndNativeGesture:
+      finishViewPinchZoom (true, "native-view");
+      event->accept();
+      return true;
+    default:
+      return false;
+  }
+}
+
+bool
+QTMWidget::handlePinchGestureForViewZoom (QPinchGesture* pinch) {
+  if (!gesturesSupportedForViewZoom () || inActiveGraphicsMode ()) return false;
+  QPointF focal= pinch->hasHotSpot()
+    ? surface()->mapFromGlobal (pinch->hotSpot().toPoint())
+    : QPointF (surface()->width() / 2.0, surface()->height() / 2.0);
+  if (pinch->state() == Qt::GestureStarted) {
+    beginViewPinchZoom (focal, "qt-pinch-view");
+    return true;
+  }
+  if (pinch->state() == Qt::GestureCanceled) {
+    finishViewPinchZoom (false, "qt-pinch-view");
+    return true;
+  }
+  if (pinch->state() == Qt::GestureFinished) {
+    updateViewPinchZoom ((double) pinch->totalScaleFactor(), focal,
+                         "qt-pinch-view");
+    finishViewPinchZoom (true, "qt-pinch-view");
+    return true;
+  }
+  if (pinch->changeFlags() & QPinchGesture::ScaleFactorChanged) {
+    updateViewPinchZoom ((double) pinch->totalScaleFactor(), focal,
+                         "qt-pinch-view");
+    return true;
+  }
+  return false;
+}
+
+void
+QTMWidget::drawViewPinchPreview (QPainter& p) const {
+  if (viewPinchPreview.isNull()) return;
+  double scale= viewPinchCommitPending
+    ? viewPinchCommittedScale : viewPinchScale;
+  p.fillRect (surface()->rect(), surface()->palette().brush (QPalette::Base));
+  p.setRenderHint (QPainter::SmoothPixmapTransform, true);
+  QRectF target (0.0, 0.0,
+                 viewPinchPreview.width() / viewPinchPixelRatio,
+                 viewPinchPreview.height() / viewPinchPixelRatio);
+  QRectF source (0.0, 0.0,
+                 viewPinchPreview.width(), viewPinchPreview.height());
+  p.translate (viewPinchFocal);
+  p.scale (scale, scale);
+  p.translate (-viewPinchFocal);
+  p.drawPixmap (target, viewPinchPreview, source);
+}
+
+void
+QTMWidget::finishGestureZoomCommitPreview () {
+  if (!viewPinchCommitPending) return;
+  viewPinchCommitPending= false;
+  viewPinchPreview= QPixmap();
+  surface()->update();
 }
 
 #else
@@ -651,6 +889,12 @@ QTMWidget::gestureEvent (QGestureEvent* event) {
   }
   else if (QGesture *pinch_gesture = event->gesture(Qt::PinchGesture)) {
     QPinchGesture *pinch= static_cast<QPinchGesture *> (pinch_gesture);
+#if QT_VERSION >= 0x060000
+    if (handlePinchGestureForViewZoom (pinch)) {
+      event->accept (pinch);
+      return;
+    }
+#endif
     s= "pinch";
     hotspot = pinch->hotSpot ();
     QPinchGesture::ChangeFlags changeFlags = pinch->changeFlags();
@@ -704,6 +948,11 @@ QTMWidget::event (QEvent* event) {
     event->accept();
     return true;
   }
+#if QT_VERSION >= 0x060000
+  if (event->type() == QEvent::NativeGesture &&
+      handleNativeGestureEvent (static_cast<QNativeGestureEvent*>(event)))
+    return true;
+#endif
   if (event->type() == QEvent::Gesture) {
     gestureEvent(static_cast<QGestureEvent*>(event));
     return true;

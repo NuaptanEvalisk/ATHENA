@@ -91,6 +91,7 @@ QTMScrollView::QTMScrollView (QWidget *_parent):
   editor_flag (false),
   p_extents (QRect(0,0,0,0)),
   p_internal_scroll_change (false),
+  p_pending_origin_after_extents (false),
   mInertiaVelocityX(0),
   mInertiaVelocityY(0),
   mInertiaFriction(0.90)
@@ -158,6 +159,17 @@ QTMScrollView::setExtents ( QRect newExtents ) {
     p_extents = newExtents;
     updateScrollBars();
   }
+  if (p_pending_origin_after_extents) {
+    QPoint newOrigin= p_pending_origin;
+    p_pending_origin_after_extents= false;
+    setOrigin (newOrigin);
+  }
+}
+
+void
+QTMScrollView::setPendingOriginAfterNextExtents (QPoint newOrigin) {
+  p_pending_origin_after_extents= true;
+  p_pending_origin= newOrigin;
 }
 
 /*! Scrolls contents so that the given point is visible. */
@@ -271,6 +283,10 @@ QTMScrollView::viewportEvent(QEvent *e)
     case QEvent::GestureOverride:
       return event(e);
 #endif
+#if QT_VERSION >= 0x060000
+    case QEvent::NativeGesture:
+      return event(e);
+#endif
 #if QT_VERSION < 0x060000
     case QEvent::Show:
 #endif
@@ -305,6 +321,10 @@ QTMScrollView::surfaceEvent(QEvent *e)
 #ifndef QT_NO_GESTURES
     case QEvent::Gesture:
     case QEvent::GestureOverride:
+      return event(e);
+#endif
+#if QT_VERSION >= 0x060000
+    case QEvent::NativeGesture:
       return event(e);
 #endif
     default:
