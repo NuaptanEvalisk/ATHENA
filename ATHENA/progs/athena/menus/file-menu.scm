@@ -330,7 +330,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (menu-bind go-menu
-  ("Welcome page" (go-to-welcome-page))
+  ("Welcome (System)" (go-to-system-welcome-page))
+  ("Welcome (Vault)" (go-to-welcome-page))
   ---
   (when (cursor-has-history?)
     ("Back" (cursor-history-backward)))

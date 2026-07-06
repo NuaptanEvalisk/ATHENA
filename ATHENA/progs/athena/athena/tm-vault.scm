@@ -36,8 +36,11 @@
                        load-buffer load-vault-dir
                        string->url vault-load-latest-action
                        vault-validate-root-namespace
+                       go-to-system-welcome-page
                        go-to-welcome-page
                        go-to-vault-initial-page
+                       load-help-article
+                       load-help-buffer
                        vault-show-explorer
                        vault-show-explorer-and-track
                        vault-explorer-track-file

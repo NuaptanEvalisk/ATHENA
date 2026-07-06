@@ -74,6 +74,9 @@
 (define (vault-welcome-load-target target)
   (load-buffer (vault-welcome-target->buffer target)))
 
+(tm-define (go-to-system-welcome-page)
+  (load-buffer (vault-welcome-default-page)))
+
 (tm-define (go-to-welcome-page)
   (let* ((data (vault-welcome-read-vaultfile))
          (startup-page (vault-welcome-startup-page data)))
@@ -93,6 +96,14 @@
                                (vault-welcome-clear-one-time data)))
           (vault-welcome-load-target one-time-page)))))
 
+(define (vault-welcome-help-links)
+  `(concat
+     (action "Welcome" "(load-help-article \"about/welcome/new-welcome\")")
+     "    "
+     (action "Get Started" "(load-help-article \"about/welcome/start\")")
+     "    "
+     (action "Manual" "(load-help-buffer \"main/man-manual\")")))
+
 (tmfs-load-handler (welcome name)
   (let* ((recent-files (recent-file-list 15))
          (recent-vaults (get-recent-vaults))
@@ -102,40 +113,86 @@
          (TeXmacs ,(texmacs-compat-version))
          (style (tuple "generic"))
          (body (document
-           (with "par-mode" "center"
-             (document
-               (with "font-size" "2" "font-series" "bold"
-                 (concat "Welcome to " (ATHENA)))
-               (with "font-size" "1.2" "font-shape" "italic"
-                 "Advanced Typesetting and Hypertext Environment for Notes and Archives")))
-           (vspace "2fn")
-
-           (section* "Quick Start")
-           (enumerate (document
-             (concat (item) (action "Open Blank Buffer" "(new-document)"))
-             ,@(if latest-vault
-                   `((concat (item) (action ,(string-append "Load Latest Vault (" (url->system (url-tail (string->url latest-vault))) ")")
-                                            ,(string-append "(vault-load-latest-action " (object->string latest-vault) ")"))))
-                   '())))
-
-           (vspace "1fn")
-           (section* "Recent Files")
-           (enumerate (document
-             ,@(map (lambda (u)
-                    `(concat (item) (action ,(url->system u) ,(string-append "(load-buffer " (object->string (url->string u)) ")"))))
-                  recent-files)))
-
-           (vspace "2fn")
-           (with "font-size" "0.8" "color" "grey"
+           (with "font" "pagella" "font-family" "rm"
              (document
                (with "par-mode" "center"
                  (document
-                   "ATHENA is a fork based on GNU TeXmacs."
-                   (concat "Copyright " (copyright) " 1999-2026 Joris van der Hoeven and others.")
-                   (concat "Copyright " (copyright) " 2026 Nuaptan F. Evalisk.")
-                   "Released under the GNU General Public License version 3 or later."))))
+                   (with "font-size" "2.4" "font-series" "bold"
+                     (concat "Welcome to " (ATHENA)))
+                   (with "font-size" "1.15" "color" "#555555"
+                     "Advanced typesetting and hypertext for mathematical notes and archives.")
+                   (vspace "0.6fn")
+                   ,(vault-welcome-help-links)))
+               (vspace "1.5fn")
+
+               (section* "Start here")
+               (enumerate (document
+                 (concat (item) (action "Open a blank document" "(new-document)"))
+                 ,@(if latest-vault
+                       `((concat (item)
+                          (action ,(string-append "Load latest vault ("
+                                                  (url->system (url-tail (string->url latest-vault)))
+                                                  ")")
+                                  ,(string-append "(vault-load-latest-action "
+                                                  (object->string latest-vault) ")"))))
+                       '())))
+
+               (vspace "1fn")
+               (section* "Learn ATHENA")
+               (enumerate (document
+                 (concat (item)
+                         (action "Welcome"
+                                 "(load-help-article \"about/welcome/new-welcome\")")
+                         " explains the project and its interface.")
+                 (concat (item)
+                         (action "Get Started"
+                                 "(load-help-article \"about/welcome/start\")")
+                         " introduces the basic editing workflow.")
+                 (concat (item)
+                         (action "Manual"
+                                 "(load-help-buffer \"main/man-manual\")")
+                         " opens the complete help manual.")))
+
+               (vspace "1fn")
+               (section* "Recent Vaults")
+               (enumerate (document
+                 ,@(if (null? recent-vaults)
+                       '((concat (item) "No recent vaults yet."))
+                       (map (lambda (path-s)
+                              `(concat (item)
+                                       (action ,(url->system (url-tail (string->url path-s)))
+                                               ,(string-append "(vault-load-latest-action "
+                                                               (object->string path-s) ")"))
+                                       "  "
+                                       (with "font-size" "0.85" "color" "grey" ,path-s)))
+                            recent-vaults))))
+
+               (vspace "1fn")
+               (section* "Recent Files")
+               (enumerate (document
+                 ,@(if (null? recent-files)
+                       '((concat (item) "No recent files yet."))
+                       (map (lambda (u)
+                              `(concat (item)
+                                       (action ,(url->system u)
+                                               ,(string-append "(load-buffer "
+                                                               (object->string (url->string u))
+                                                               ")"))))
+                            recent-files))))
+
+               (vspace "2fn")
+               (with "font-size" "0.8" "color" "grey"
+                 (document
+                   (with "par-mode" "center"
+                     (document
+                       "ATHENA is a fork based on GNU TeXmacs."
+                       (concat "Copyright " (copyright) " 1999-2026 Joris van der Hoeven and others.")
+                       (concat "Copyright " (copyright) " 2026 Nuaptan F. Evalisk.")
+                       "Released under the GNU General Public License version 3 or later."))))
+               ))
            ))
          (initial (collection
-           (associate "font-base-size" "7")
-           (associate "font-family" "tt")
+           (associate "font" "pagella")
+           (associate "font-base-size" "10")
+           (associate "font-family" "rm")
            (associate "page-medium" "automatic")))))))
