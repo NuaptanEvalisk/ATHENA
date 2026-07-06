@@ -189,6 +189,18 @@
     symbols that look similar but have different meanings.
   </description>
 
+  <subsubsection|Quick symbol inserter>
+
+  <\description>
+    <item*|ESC quick inserter>Opens a table editor for the quick symbol
+    inserter used by the <key|escape> key in mathematical input. The table
+    edits the user configuration file
+    <verbatim|$ATHENA_HOME_PATH/misc/input/escape-symbol-picker.json> and uses
+    the bundled symbol list as the default source when no user configuration
+    exists. Each row defines a typed key, inserted action, preview, notation,
+    and description.
+  </description>
+
   <subsubsection|Math hints and semantics>
 
   <\description>

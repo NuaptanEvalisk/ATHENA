@@ -9,6 +9,7 @@
 ******************************************************************************/
 
 #include "QTMPreferencesDialog.hpp"
+#include "QTMESCSymbolPicker.hpp"
 #include "QTMMainTabWindow.hpp"
 #include "QTMVaultInfoModel.hpp"
 #include "GoogleOAuth.hpp"
@@ -1002,6 +1003,12 @@ QTMPreferencesDialog::buildEditingPage () {
   add_toggle (mk, "Use shortcuts for missing invisible operators:",
               "manual insert missing invisible");
   add_toggle (mk, "Homoglyph substitutions:", "manual homoglyph correct");
+  QFormLayout* qs= add_section (math, "Quick symbol inserter");
+  QPushButton* editEscSymbols= new QPushButton ("Edit symbols");
+  QObject::connect (editEscSymbols, &QPushButton::clicked, [] () {
+    escape_symbol_configurator_show ();
+  });
+  qs->addRow (label ("ESC quick inserter:"), editEscSymbols);
   QFormLayout* mh= add_section (math, "Math hints and semantics");
   add_toggle (mh, "Semantic editing:", "semantic editing");
   add_toggle (mh, "Semantic selections:", "semantic selections");

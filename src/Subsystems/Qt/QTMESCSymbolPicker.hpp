@@ -15,5 +15,6 @@
 
 void initialize_escape_symbol_picker_data ();
 string escape_symbol_picker_dialog ();
+void escape_symbol_configurator_show ();
 
 #endif // QTMESC_SYMBOL_PICKER_HPP
