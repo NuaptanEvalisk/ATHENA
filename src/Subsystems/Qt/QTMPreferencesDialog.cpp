@@ -1532,7 +1532,7 @@ QTMPreferencesDialog::buildVaultPage () {
       if (!qtm_valid_vault_relative_path (rel)) {
         QMessageBox::warning (
           info, "Vault Info",
-          "Selected file must be inside the vault. The Vaultfile stores "
+          "Selected file must be inside the vault. Vaultfile.json stores "
           "paths relative to the vault root.");
         return;
       }
@@ -1551,7 +1551,7 @@ QTMPreferencesDialog::buildVaultPage () {
       if (!qtm_valid_optional_vault_relative_path (rel)) {
         QMessageBox::warning (
           info, "Vault Info",
-          "Selected folder must be inside the vault. The Vaultfile stores "
+          "Selected folder must be inside the vault. Vaultfile.json stores "
           "paths relative to the vault root.");
         return;
       }

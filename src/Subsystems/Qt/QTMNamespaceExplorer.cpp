@@ -339,7 +339,7 @@ QTMNamespaceExplorer::refresh () {
       if (names.contains (rootNamespace)) names= QStringList () << rootNamespace;
       else {
         names.clear ();
-        showError ("Root namespace in Vaultfile is not a valid namespace: " +
+        showError ("Root namespace in Vaultfile.json is not a valid namespace: " +
                    rootNamespace);
       }
     }

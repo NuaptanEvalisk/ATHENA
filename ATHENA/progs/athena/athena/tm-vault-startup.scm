@@ -8,7 +8,7 @@
    "Vault unavailable"))
 
 (define (vault-startup-available? dir)
-  (url-exists? (url-append dir "Vaultfile")))
+  (vaultfile-present? dir))
 
 (define (vault-startup-open-welcome?)
   (== (get-preference "vault welcome page") "on"))

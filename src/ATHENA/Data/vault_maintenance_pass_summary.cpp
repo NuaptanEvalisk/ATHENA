@@ -6,6 +6,7 @@
 
 #include "ATHENA/Data/vault_maintenance_internal.hpp"
 
+#include "ATHENA/Data/vaultfile_json.hpp"
 #include "boot.hpp"
 #include "scheme.hpp"
 
@@ -111,65 +112,15 @@ tm_table (const std::vector<std::string>& rows) {
   return out;
 }
 
-static std::vector<std::string>
-parse_vaultfile_strings (const std::string& text) {
-  std::vector<std::string> values;
-  for (size_t i=0; i<text.size (); i++) {
-    if (text[i] != '"') continue;
-    i++;
-    std::string value;
-    while (i < text.size ()) {
-      char c = text[i++];
-      if (c == '\\' && i < text.size ()) {
-        value.push_back (text[i++]);
-        continue;
-      }
-      if (c == '"') break;
-      value.push_back (c);
-    }
-    values.push_back (value);
-  }
-  return values;
-}
-
-static std::string
-scheme_quote_string (const std::string& text) {
-  std::string out = "\"";
-  for (char c: text) {
-    if (c == '\\' || c == '"') out.push_back ('\\');
-    out.push_back (c);
-  }
-  out.push_back ('"');
-  return out;
-}
-
-static bool
-read_vaultfile_fields (const fs::path& root,
-                       std::vector<std::string>& fields) {
-  std::string text;
-  if (!read_file_bytes (root / "Vaultfile", text)) return false;
-  fields = parse_vaultfile_strings (text);
-  if (fields.size () < 2) return false;
-  while (fields.size () < 10) {
-    if (fields.size () == 2) fields.push_back ("");
-    else if (fields.size () == 3) fields.push_back ("ns.sqlite");
-    else if (fields.size () == 7) fields.push_back ("rag.sqlite");
-    else if (fields.size () == 8) fields.push_back ("websites.json");
-    else fields.push_back ("");
-  }
-  if (fields[3].empty ()) fields[3] = "ns.sqlite";
-  if (fields[7].empty ()) fields[7] = "rag.sqlite";
-  if (fields[8].empty ()) fields[8] = "websites.json";
-  return true;
-}
-
 static std::string
 vault_startup_page_target (VaultMaintenanceContext& ctx,
                            std::string& label) {
-  std::vector<std::string> fields;
-  if (read_vaultfile_fields (ctx.root, fields) && !trim_copy (fields[4]).empty ()) {
+  AthenaVaultfileInfo info;
+  std::string error;
+  if (athena_vaultfile_read (ctx.root, info, error) &&
+      !trim_copy (info.startup_page).empty ()) {
     label = "Startup page";
-    std::string target = trim_copy (fields[4]);
+    std::string target = trim_copy (info.startup_page);
     if (starts_with (target, "tmfs://") || starts_with (target, "file://"))
       return target;
     fs::path p (target);
@@ -252,30 +203,20 @@ summary_relative_path (const VaultMaintenanceContext& ctx) {
 
 static bool
 write_one_time_startup_page (VaultMaintenanceContext& ctx) {
-  fs::path vault_file = ctx.root / "Vaultfile";
-  std::vector<std::string> fields;
-  if (!read_vaultfile_fields (ctx.root, fields)) {
-    log_error ("summary: invalid Vaultfile while setting one-time startup page");
+  AthenaVaultfileInfo info;
+  std::string error;
+  if (!athena_vaultfile_read (ctx.root, info, error)) {
+    log_error ("summary: invalid Vaultfile.json while setting one-time "
+               "startup page: " + error);
     return false;
   }
 
   std::string rel = summary_relative_path (ctx);
-  fields[5] = rel;
+  info.one_time_startup_page = rel;
 
-  std::string out = "(" + scheme_quote_string (fields[0]) +
-                    " " + scheme_quote_string (fields[1]) +
-                    " " + scheme_quote_string (fields[2]) +
-                    " " + scheme_quote_string (fields[3]) +
-                    " " + scheme_quote_string (fields[4]) +
-                    " " + scheme_quote_string (fields[5]) +
-                    " " + scheme_quote_string (fields[6]) +
-                    " " + scheme_quote_string (fields[7]) +
-                    " " + scheme_quote_string (fields[8]) +
-                    " " + scheme_quote_string (fields[9]) +
-                    ")\n";
-  if (!write_file_bytes (vault_file, out)) {
-    log_error ("summary: failed to write Vaultfile while setting one-time "
-               "startup page");
+  if (!athena_vaultfile_write (ctx.root, info, error)) {
+    log_error ("summary: failed to write Vaultfile.json while setting "
+               "one-time startup page: " + error);
     return false;
   }
   log_info ("summary: set one-time startup page to " + rel);

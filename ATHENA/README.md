@@ -50,12 +50,12 @@ of work by Joris van der Hoeven and the GNU TeXmacs contributors.
 
 ATHENA vaults are self-contained mathematical knowledge bases.
 
-- Load and track a current vault through `Vaultfile`.
+- Load and track a current vault through `Vaultfile.json`.
 - Use `.ath` as the primary ATHENA document format.
 - Keep vault-scoped preferences in addition to global preferences.
 - Open recent vaults and optionally auto-open vault startup pages or one-time
   startup pages.
-- Edit Vaultfile metadata, map database paths, namespace database paths, local
+- Edit `Vaultfile.json` metadata, map database paths, namespace database paths, local
   preference paths, startup pages, maintenance summary folders, and RAG index
   paths from Preferences.
 - Browse vault contents in native Qt ADS panes.
@@ -105,7 +105,7 @@ Namespace support includes:
 - Concrete namespace style paths and initial-content templates.
 - Namespace manager ADS pane with wizard-based creation/editing.
 - Namespace explorer ADS pane.
-- Optional vault root namespace stored in `Vaultfile`, with startup validation
+- Optional vault root namespace stored in `Vaultfile.json`, with startup validation
   and a namespace explorer mode that shows only that root at the top level.
 - Optional namespace explorer simplification that folds redundant descendants
   under an ellipsis branch when a shorter containment path is already visible.
@@ -224,7 +224,7 @@ ATHENA includes a converter for importing Obsidian-style mathematical vaults.
 The converter supports:
 
 - AOFM single-file and vault conversion command-line modes.
-- Vaultfile generation.
+- `Vaultfile.json` generation.
 - Model vault import for preferences and namespace data.
 - Wikilink and transclusion conversion.
 - Anchor generation and proof pairing.

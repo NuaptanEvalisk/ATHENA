@@ -10,12 +10,12 @@
 
 #include "QTMVaultInfoModel.hpp"
 
+#include "ATHENA/Data/vaultfile_json.hpp"
 #include "convert.hpp"
 #include "vault.hpp"
 
 #include <QDir>
-#include <QFile>
-#include <QTextStream>
+#include <filesystem>
 
 static QString
 to_qstring_vault_info (string s) {
@@ -28,6 +28,12 @@ from_qstring_vault_info (const QString& s) {
   return string (bytes.constData ());
 }
 
+static std::string
+qtm_utf8_std_string (const QString& s) {
+  QByteArray bytes= s.toUtf8 ();
+  return std::string (bytes.constData (), (size_t) bytes.size ());
+}
+
 bool
 qtm_vault_info_available () {
   return vault_active ();
@@ -37,57 +43,6 @@ QString
 qtm_vault_root_path () {
   if (!qtm_vault_info_available ()) return QString ();
   return to_qstring_vault_info (concretize (vault_get_root ()));
-}
-
-static QString
-qtm_vaultfile_path () {
-  QString root= qtm_vault_root_path ();
-  if (root.isEmpty ()) return QString ();
-  return QDir (root).filePath ("Vaultfile");
-}
-
-static QStringList
-qtm_vaultfile_quoted_strings (const QString& text) {
-  QStringList out;
-  bool in= false;
-  bool esc= false;
-  QString cur;
-  for (QChar c: text) {
-    if (!in) {
-      if (c == '"') {
-        in= true;
-        cur.clear ();
-      }
-      continue;
-    }
-    if (esc) {
-      cur.append (c);
-      esc= false;
-      continue;
-    }
-    if (c == '\\') {
-      esc= true;
-      continue;
-    }
-    if (c == '"') {
-      out << cur;
-      in= false;
-      continue;
-    }
-    cur.append (c);
-  }
-  return out;
-}
-
-static QString
-qtm_scheme_quote_qstring (const QString& text) {
-  QString out= "\"";
-  for (QChar c: text) {
-    if (c == '\\' || c == '"') out.append ('\\');
-    out.append (c);
-  }
-  out.append ('"');
-  return out;
 }
 
 QString
@@ -153,23 +108,27 @@ qtm_vaultfile_read (QTMVaultfileInfo& info, QString* error) {
   info.websitesPath= "websites.json";
   info.rootNamespace= "";
 
-  QFile file (qtm_vaultfile_path ());
-  if (!file.open (QIODevice::ReadOnly | QIODevice::Text)) return true;
-  QTextStream in (&file);
-  QStringList fields= qtm_vaultfile_quoted_strings (in.readAll ());
-  if (fields.size () >= 1) info.name= fields[0];
-  if (fields.size () >= 2) info.mapPath= fields[1];
-  if (fields.size () >= 3) info.preferencesPath= fields[2];
-  if (fields.size () >= 4 && !fields[3].isEmpty ())
-    info.namespaceDbPath= fields[3];
-  if (fields.size () >= 5) info.startupPage= fields[4];
-  if (fields.size () >= 6) info.oneTimeStartupPage= fields[5];
-  if (fields.size () >= 7) info.maintenanceSummaryPath= fields[6];
-  if (fields.size () >= 8 && !fields[7].isEmpty ())
-    info.ragIndexPath= fields[7];
-  if (fields.size () >= 9 && !fields[8].isEmpty ())
-    info.websitesPath= fields[8];
-  if (fields.size () >= 10) info.rootNamespace= fields[9];
+  std::string read_error;
+  AthenaVaultfileInfo vault_info;
+  if (!athena_vaultfile_read (
+        std::filesystem::path (qtm_utf8_std_string (qtm_vault_root_path ())),
+        vault_info, read_error)) {
+    if (error != nullptr) *error= QString::fromStdString (read_error);
+    return false;
+  }
+
+  info.name= QString::fromStdString (vault_info.name);
+  info.mapPath= QString::fromStdString (vault_info.map_path);
+  info.preferencesPath= QString::fromStdString (vault_info.preferences_path);
+  info.namespaceDbPath= QString::fromStdString (vault_info.namespace_db_path);
+  info.startupPage= QString::fromStdString (vault_info.startup_page);
+  info.oneTimeStartupPage=
+    QString::fromStdString (vault_info.one_time_startup_page);
+  info.maintenanceSummaryPath=
+    QString::fromStdString (vault_info.maintenance_summary_path);
+  info.ragIndexPath= QString::fromStdString (vault_info.rag_index_path);
+  info.websitesPath= QString::fromStdString (vault_info.websites_path);
+  info.rootNamespace= QString::fromStdString (vault_info.root_namespace);
 
   info.mapPath= qtm_clean_vault_relative_path (info.mapPath);
   info.preferencesPath= qtm_clean_vault_relative_path (info.preferencesPath);
@@ -226,24 +185,27 @@ qtm_vaultfile_write (const QTMVaultfileInfo& info, QString* error) {
     return false;
   }
 
-  QFile file (qtm_vaultfile_path ());
-  if (!file.open (QIODevice::WriteOnly | QIODevice::Text)) {
-    if (error != nullptr) *error= "Could not write " + qtm_vaultfile_path ();
+  AthenaVaultfileInfo vault_info;
+  vault_info.name= qtm_utf8_std_string (out.name.trimmed ());
+  vault_info.map_path= qtm_utf8_std_string (out.mapPath);
+  vault_info.preferences_path= qtm_utf8_std_string (out.preferencesPath);
+  vault_info.namespace_db_path= qtm_utf8_std_string (out.namespaceDbPath);
+  vault_info.startup_page= qtm_utf8_std_string (out.startupPage);
+  vault_info.one_time_startup_page=
+    qtm_utf8_std_string (out.oneTimeStartupPage);
+  vault_info.maintenance_summary_path=
+    qtm_utf8_std_string (out.maintenanceSummaryPath);
+  vault_info.rag_index_path= qtm_utf8_std_string (out.ragIndexPath);
+  vault_info.websites_path= qtm_utf8_std_string (out.websitesPath);
+  vault_info.root_namespace= qtm_utf8_std_string (out.rootNamespace);
+
+  std::string write_error;
+  if (!athena_vaultfile_write (
+        std::filesystem::path (qtm_utf8_std_string (qtm_vault_root_path ())),
+        vault_info, write_error)) {
+    if (error != nullptr) *error= QString::fromStdString (write_error);
     return false;
   }
-  QTextStream stream (&file);
-  stream << "(" << qtm_scheme_quote_qstring (out.name.trimmed ())
-         << " " << qtm_scheme_quote_qstring (out.mapPath)
-         << " " << qtm_scheme_quote_qstring (out.preferencesPath)
-         << " " << qtm_scheme_quote_qstring (out.namespaceDbPath)
-         << " " << qtm_scheme_quote_qstring (out.startupPage)
-         << " " << qtm_scheme_quote_qstring (out.oneTimeStartupPage)
-         << " " << qtm_scheme_quote_qstring (out.maintenanceSummaryPath)
-         << " " << qtm_scheme_quote_qstring (out.ragIndexPath)
-         << " " << qtm_scheme_quote_qstring (out.websitesPath)
-         << " " << qtm_scheme_quote_qstring (out.rootNamespace)
-         << ")\n";
-  file.close ();
 
   vault_load (vault_get_root (), from_qstring_vault_info (out.name.trimmed ()),
               from_qstring_vault_info (out.mapPath),

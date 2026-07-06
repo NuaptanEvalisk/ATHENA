@@ -187,8 +187,9 @@
 
   Use <menu|Tools|Websites manager> to define static websites for the active
   vault. Website definitions are stored in the vault registry named by the
-  ninth field of the <verbatim|Vaultfile>; by default this is
-  <verbatim|websites.json>. Normal HTML export remains available separately.
+  <verbatim|websites_path> field of <verbatim|Vaultfile.json>; by default
+  this is <verbatim|websites.json>. Normal HTML export remains available
+  separately.
   The removed legacy <em|Create web site> command is not used by this system.
 
   A website definition has a name, a selector, a destination folder, optional

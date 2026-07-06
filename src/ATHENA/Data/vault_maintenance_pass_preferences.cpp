@@ -6,6 +6,7 @@
 
 #include "ATHENA/Data/vault_maintenance_internal.hpp"
 
+#include "ATHENA/Data/vaultfile_json.hpp"
 #include "boot.hpp"
 #include "scheme.hpp"
 #include "sys_utils.hpp"
@@ -96,73 +97,12 @@ anchor_reader_processes_preference () {
   return -1;
 }
 
-static std::vector<std::string>
-parse_vaultfile_strings (const std::string& text) {
-  std::vector<std::string> values;
-  for (size_t i=0; i<text.size (); i++) {
-    if (text[i] != '"') continue;
-    i++;
-    std::string value;
-    while (i < text.size ()) {
-      char c = text[i++];
-      if (c == '\\' && i < text.size ()) {
-        value.push_back (text[i++]);
-        continue;
-      }
-      if (c == '"') break;
-      value.push_back (c);
-    }
-    values.push_back (value);
-  }
-  return values;
-}
-
-static std::string
-scheme_quote_string (const std::string& text) {
-  std::string out = "\"";
-  for (char c: text) {
-    if (c == '\\' || c == '"') out.push_back ('\\');
-    out.push_back (c);
-  }
-  out.push_back ('"');
-  return out;
-}
-
 static std::string
 preferences_json_rel (const std::string& rel) {
   if (rel.empty ()) return "vprefs.json";
   if (ends_with (rel, ".json")) return rel;
   if (ends_with (rel, ".scm")) return rel.substr (0, rel.size () - 4) + ".json";
   return rel + ".json";
-}
-
-static bool
-write_vaultfile_preferences_path (const fs::path& vault_file,
-                                  const std::vector<std::string>& fields,
-                                  const std::string& prefs_rel) {
-  if (fields.size () < 2) return false;
-  std::string ns_rel = fields.size () >= 4 && !fields[3].empty ()
-                       ? fields[3] : "ns.sqlite";
-  std::string startup_page = fields.size () >= 5 ? fields[4] : "";
-  std::string one_time_startup_page = fields.size () >= 6 ? fields[5] : "";
-  std::string summary_dir = fields.size () >= 7 ? fields[6] : "";
-  std::string rag_index = fields.size () >= 8 && !fields[7].empty ()
-                          ? fields[7] : "rag.sqlite";
-  std::string websites = fields.size () >= 9 && !fields[8].empty ()
-                         ? fields[8] : "websites.json";
-  std::string root_namespace = fields.size () >= 10 ? fields[9] : "";
-  std::string text = "(" + scheme_quote_string (fields[0]) +
-                     " " + scheme_quote_string (fields[1]) +
-                     " " + scheme_quote_string (prefs_rel) +
-                     " " + scheme_quote_string (ns_rel) +
-                     " " + scheme_quote_string (startup_page) +
-                     " " + scheme_quote_string (one_time_startup_page) +
-                     " " + scheme_quote_string (summary_dir) +
-                     " " + scheme_quote_string (rag_index) +
-                     " " + scheme_quote_string (websites) +
-                     " " + scheme_quote_string (root_namespace) +
-                     ")\n";
-  return write_file_bytes (vault_file, text);
 }
 
 static bool
@@ -181,22 +121,15 @@ read_vaultfile_metadata (VaultMaintenanceContext& ctx) {
   ctx.vault_name = ctx.root.filename ().string ();
   ctx.summary.summary_dir.clear ();
 
-  std::string text;
-  fs::path vault_file = ctx.root / "Vaultfile";
-  if (!read_file_bytes (vault_file, text)) return;
-
-  std::vector<std::string> fields = parse_vaultfile_strings (text);
-  if (fields.size () >= 2 && fields.size () < 10) {
-    std::string prefs_rel = fields.size () >= 3 ? fields[2] : "";
-    if (write_vaultfile_preferences_path (vault_file, fields, prefs_rel))
-      log_info ("preferences: normalized Vaultfile to 10 fields");
-    else
-      log_error ("failed to normalize Vaultfile to 10 fields");
+  AthenaVaultfileInfo info;
+  std::string error;
+  if (!athena_vaultfile_read (ctx.root, info, error)) {
+    log_error ("preferences: " + error);
+    return;
   }
-  if (fields.size () >= 1 && !fields[0].empty ())
-    ctx.vault_name = fields[0];
+  if (!info.name.empty ()) ctx.vault_name = info.name;
 
-  std::string rel = fields.size () >= 7 ? trim_copy (fields[6]) : "";
+  std::string rel = trim_copy (info.maintenance_summary_path);
   if (rel.empty ()) return;
   if (!valid_vault_relative_path (rel)) {
     ctx.warnings.push_back (
@@ -219,26 +152,28 @@ load_vault_preferences_if_enabled (const fs::path& root) {
     return true;
   }
 
-  std::string text;
-  fs::path vault_file = root / "Vaultfile";
-  if (!read_file_bytes (vault_file, text)) {
-    log_error ("failed to read Vaultfile for vault preferences");
+  AthenaVaultfileInfo info;
+  std::string vaultfile_error;
+  if (!athena_vaultfile_read (root, info, vaultfile_error)) {
+    log_error ("failed to read Vaultfile.json for vault preferences: " +
+               vaultfile_error);
     return false;
   }
 
-  std::vector<std::string> fields = parse_vaultfile_strings (text);
-  std::string prefs_rel = fields.size () >= 3 ? fields[2] : "";
+  std::string prefs_rel = info.preferences_path;
   std::string json_rel = preferences_json_rel (prefs_rel);
   std::string legacy_rel = prefs_rel.empty () ? "vprefs.scm" : prefs_rel;
   fs::path prefs_path = root / json_rel;
   fs::path legacy_path = root / legacy_rel;
 
-  if (fields.size () >= 2 && prefs_rel != json_rel) {
-    if (write_vaultfile_preferences_path (vault_file, fields, json_rel))
-      log_info ("preferences: updated Vaultfile preferences path to " +
+  if (prefs_rel != json_rel) {
+    info.preferences_path = json_rel;
+    if (athena_vaultfile_write (root, info, vaultfile_error))
+      log_info ("preferences: updated Vaultfile.json preferences path to " +
                 json_rel);
     else
-      log_error ("failed to update Vaultfile preferences path");
+      log_error ("failed to update Vaultfile.json preferences path: " +
+                 vaultfile_error);
   }
 
   if (!fs::exists (prefs_path) && fs::exists (legacy_path)) {

@@ -27,6 +27,7 @@
 #include "vault.hpp"
 #include "namespaces.hpp"
 #include "ATHENA/Data/vault_backup.hpp"
+#include "ATHENA/Data/vaultfile_json.hpp"
 #include "QTMMainTabWindow.hpp"
 #include "QTMVaultChooser.hpp"
 #include "QTMQuickSwitcher.hpp"
@@ -80,6 +81,7 @@
 #include <QVBoxLayout>
 #include <QWidget>
 #include <map>
+#include <filesystem>
 #include <string>
 
 tmscm 
@@ -1676,6 +1678,70 @@ tmg_vault_load_with_ns (tmscm arg1, tmscm arg2, tmscm arg3, tmscm arg4) {
   return TMSCM_UNSPECIFIED;
 }
 
+static std::filesystem::path
+tmg_vault_root_path (tmscm arg) {
+  string s= concretize (tmscm_to_url (arg));
+  return std::filesystem::path (std::string (as_charp (s), N(s)));
+}
+
+static array<string>
+tmg_vaultfile_fields_to_array (const std::vector<std::string>& fields) {
+  array<string> out;
+  for (const std::string& field: fields)
+    out << string (field.c_str (), field.size ());
+  return out;
+}
+
+static AthenaVaultfileInfo
+tmg_vaultfile_info_from_array (array<string> fields) {
+  std::vector<std::string> values;
+  for (int i=0; i<N(fields); i++)
+    values.push_back (std::string (as_charp (fields[i]), N(fields[i])));
+  return athena_vaultfile_from_fields (values);
+}
+
+tmscm
+tmg_vaultfile_presentP (tmscm arg1) {
+  TMSCM_ASSERT_URL (arg1, TMSCM_ARG1, "vaultfile-present?");
+
+  return bool_to_tmscm (athena_vaultfile_present (tmg_vault_root_path (arg1)));
+}
+
+tmscm
+tmg_vaultfile_read (tmscm arg1) {
+  TMSCM_ASSERT_URL (arg1, TMSCM_ARG1, "vaultfile-read");
+
+  AthenaVaultfileInfo info;
+  std::string error;
+  if (!athena_vaultfile_read (tmg_vault_root_path (arg1), info, error))
+    return array_string_to_tmscm (array<string> ());
+  return array_string_to_tmscm (
+    tmg_vaultfile_fields_to_array (athena_vaultfile_to_fields (info)));
+}
+
+tmscm
+tmg_vaultfile_write (tmscm arg1, tmscm arg2) {
+  TMSCM_ASSERT_URL (arg1, TMSCM_ARG1, "vaultfile-write");
+  TMSCM_ASSERT_ARRAY_STRING (arg2, TMSCM_ARG2, "vaultfile-write");
+
+  std::string error;
+  AthenaVaultfileInfo info=
+    tmg_vaultfile_info_from_array (tmscm_to_array_string (arg2));
+  if (athena_vaultfile_write (tmg_vault_root_path (arg1), info, error))
+    return string_to_tmscm ("");
+  return string_to_tmscm (string (error.c_str (), error.size ()));
+}
+
+tmscm
+tmg_vaultfile_ensure_json (tmscm arg1) {
+  TMSCM_ASSERT_URL (arg1, TMSCM_ARG1, "vaultfile-ensure-json");
+
+  std::string error;
+  if (athena_vaultfile_ensure_json (tmg_vault_root_path (arg1), error))
+    return string_to_tmscm ("");
+  return string_to_tmscm (string (error.c_str (), error.size ()));
+}
+
 tmscm
 tmg_namespace_info_page (tmscm arg1) {
   TMSCM_ASSERT_STRING (arg1, TMSCM_ARG1, "namespace-info-page");
@@ -1710,7 +1776,7 @@ tmg_vault_validate_root_namespace () {
   string root= from_qstring (info.rootNamespace);
   if (athena_namespace_get (root, ns)) return string_to_tmscm ("");
   return string_to_tmscm (
-    "Root namespace in Vaultfile is not a valid namespace: " * root);
+    "Root namespace in Vaultfile.json is not a valid namespace: " * root);
 }
 
 tmscm
@@ -1829,6 +1895,14 @@ initialize_glue () {
                            websites_manager_show, 0, 0, 0);
   tmscm_install_procedure ("vault-load-with-ns",
                            tmg_vault_load_with_ns, 4, 0, 0);
+  tmscm_install_procedure ("vaultfile-present?",
+                           tmg_vaultfile_presentP, 1, 0, 0);
+  tmscm_install_procedure ("vaultfile-read",
+                           tmg_vaultfile_read, 1, 0, 0);
+  tmscm_install_procedure ("vaultfile-write",
+                           tmg_vaultfile_write, 2, 0, 0);
+  tmscm_install_procedure ("vaultfile-ensure-json",
+                           tmg_vaultfile_ensure_json, 1, 0, 0);
   tmscm_install_procedure ("image-remove-background",
                            image_remove_background_current, 1, 0, 0);
   

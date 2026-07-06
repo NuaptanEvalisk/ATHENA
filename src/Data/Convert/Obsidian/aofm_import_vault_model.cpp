@@ -4,6 +4,7 @@
 #include <fstream>
 #include <system_error>
 
+#include "ATHENA/Data/vaultfile_json.hpp"
 #include "file.hpp"
 #include "namespaces_private.hpp"
 #include <sqlite3.h>
@@ -52,14 +53,18 @@ write_vaultfile(const std::string& destination_root_path,
                 const std::string& vault_name,
                 const std::string& prefs_path,
                 const std::string& namespace_db_path) {
-  std::string vaultfile_path = join_unix_paths(destination_root_path, "Vaultfile");
-  std::ofstream vaultfile(vaultfile_path);
-  if (!vaultfile.is_open()) return false;
-  vaultfile << "(" << scheme_quote_string(vault_name)
-            << " \"map.tmdb\" " << scheme_quote_string(prefs_path)
-            << " " << scheme_quote_string(namespace_db_path)
-            << " \"\" \"\" \"\" \"rag.sqlite\" \"websites.json\" \"\")\n";
-  return (bool) vaultfile;
+  AthenaVaultfileInfo info;
+  info.name = vault_name;
+  info.map_path = "map.tmdb";
+  info.preferences_path = prefs_path;
+  info.namespace_db_path = namespace_db_path.empty () ? "ns.sqlite" :
+                                                     namespace_db_path;
+  std::string error;
+  if (athena_vaultfile_write (std::filesystem::path (destination_root_path),
+                              info, error))
+    return true;
+  report_import_error ("failed to write Vaultfile.json: " + error);
+  return false;
 }
 
 std::vector<std::string>
@@ -206,16 +211,15 @@ load_model_vault_info(const std::string& model_vault,
 
   info.active = true;
   info.root = root.string();
-  std::string vaultfile_path = (root / "Vaultfile").string();
-  std::string vaultfile_text;
-  if (std::filesystem::exists(vaultfile_path)) {
-    std::ifstream in(vaultfile_path);
-    std::stringstream buffer;
-    buffer << in.rdbuf();
-    vaultfile_text = buffer.str();
-    std::vector<std::string> parts = scan_quoted_strings(vaultfile_text);
-    if (parts.size() >= 3) info.prefs_rel = parts[2];
-    if (parts.size() >= 4 && !parts[3].empty()) info.namespace_db_rel = parts[3];
+  if (athena_vaultfile_present (root)) {
+    AthenaVaultfileInfo vault_info;
+    std::string error;
+    if (!athena_vaultfile_read (root, vault_info, error)) {
+      report_import_error ("failed to read model Vaultfile.json: " + error);
+      return false;
+    }
+    info.prefs_rel = vault_info.preferences_path;
+    info.namespace_db_rel = vault_info.namespace_db_path;
   }
 
   if (!info.prefs_rel.empty()) {

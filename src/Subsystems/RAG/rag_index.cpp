@@ -11,6 +11,7 @@
 #include "rag_index.hpp"
 #include "rag_embedding.hpp"
 
+#include "ATHENA/Data/vaultfile_json.hpp"
 #include "convert.hpp"
 #include "tm_ostream.hpp"
 
@@ -254,38 +255,6 @@ static bool
 ends_with (const std::string& s, const std::string& p) {
   return s.size () >= p.size () &&
          s.compare (s.size () - p.size (), p.size (), p) == 0;
-}
-
-static std::vector<std::string>
-parse_vaultfile_strings (const std::string& text) {
-  std::vector<std::string> values;
-  for (size_t i=0; i<text.size (); i++) {
-    if (text[i] != '"') continue;
-    i++;
-    std::string value;
-    while (i < text.size ()) {
-      char c= text[i++];
-      if (c == '\\' && i < text.size ()) {
-        value.push_back (text[i++]);
-        continue;
-      }
-      if (c == '"') break;
-      value.push_back (c);
-    }
-    values.push_back (value);
-  }
-  return values;
-}
-
-static std::string
-scheme_quote (const std::string& text) {
-  std::string out= "\"";
-  for (char c: text) {
-    if (c == '\\' || c == '"') out.push_back ('\\');
-    out.push_back (c);
-  }
-  out.push_back ('"');
-  return out;
 }
 
 static std::string
@@ -704,32 +673,12 @@ RagIndex::vault_root () const {
 
 std::string
 rag_read_vault_db_path (const fs::path& vault_root) {
-  std::string text;
-  if (!read_bytes (vault_root / "Vaultfile", text)) return "rag.sqlite";
-  std::vector<std::string> fields= parse_vaultfile_strings (text);
-  if (fields.size () >= 2 && fields.size () < 10) {
-    while (fields.size () < 10) {
-      if (fields.size () == 2) fields.push_back ("");
-      else if (fields.size () == 3) fields.push_back ("ns.sqlite");
-      else if (fields.size () == 7) fields.push_back ("rag.sqlite");
-      else if (fields.size () == 8) fields.push_back ("websites.json");
-      else fields.push_back ("");
-    }
-    if (fields[3].empty ()) fields[3]= "ns.sqlite";
-    if (fields[7].empty ()) fields[7]= "rag.sqlite";
-    if (fields[8].empty ()) fields[8]= "websites.json";
-    std::string out= "(";
-    for (size_t i=0; i<fields.size (); i++) {
-      if (i != 0) out += " ";
-      out += scheme_quote (fields[i]);
-    }
-    out += ")\n";
-    std::ofstream file (vault_root / "Vaultfile", std::ios::binary |
-                                                 std::ios::trunc);
-    if (file) file << out;
-  }
-  if (fields.size () >= 8 && valid_vault_relative_path (fields[7]))
-    return fields[7].empty ()? "rag.sqlite": fields[7];
+  AthenaVaultfileInfo info;
+  std::string error;
+  if (!athena_vaultfile_read (vault_root, info, error))
+    return "rag.sqlite";
+  if (valid_vault_relative_path (info.rag_index_path))
+    return info.rag_index_path.empty ()? "rag.sqlite": info.rag_index_path;
   return "rag.sqlite";
 }
 

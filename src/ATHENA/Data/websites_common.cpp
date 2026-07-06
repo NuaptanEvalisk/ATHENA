@@ -9,6 +9,7 @@
 ******************************************************************************/
 
 #include "ATHENA/Data/websites_internal.hpp"
+#include "ATHENA/Data/vaultfile_json.hpp"
 
 namespace athena_websites {
 
@@ -87,55 +88,22 @@ site_theme_css () {
          "::-moz-selection{background:var(--athena-selection-color)}\n";
 }
 
-std::vector<std::string>
-parse_vaultfile_strings (const std::string& text) {
-  std::vector<std::string> values;
-  for (size_t i=0; i<text.size (); i++) {
-    if (text[i] != '"') continue;
-    i++;
-    std::string value;
-    while (i<text.size ()) {
-      char c = text[i++];
-      if (c == '\\' && i<text.size ()) {
-        value.push_back (text[i++]);
-        continue;
-      }
-      if (c == '"') break;
-      value.push_back (c);
-    }
-    values.push_back (value);
-  }
-  return values;
-}
-
 bool
 read_vaultfile (const fs::path& root, VaultfileWebsiteInfo& info,
                 std::string& error) {
-  fs::path vault_file = root / "Vaultfile";
-  std::string text;
-  if (!read_file_bytes (vault_file, text)) {
-    error = "Could not read Vaultfile in " + root.string ();
+  AthenaVaultfileInfo vault_info;
+  if (!athena_vaultfile_read (root, vault_info, error))
     return false;
-  }
 
-  std::vector<std::string> fields = parse_vaultfile_strings (text);
-  if (fields.size () < 2) {
-    error = "Invalid Vaultfile in " + root.string ();
-    return false;
-  }
-
-  info.name = fields[0].empty () ? "Vault" : fields[0];
-  info.map_path = fields[1].empty () ? "map.tmdb" : fields[1];
-  if (fields.size () >= 3) info.preferences_path = fields[2];
-  if (fields.size () >= 4 && !fields[3].empty ())
-    info.namespace_db_path = fields[3];
-  if (fields.size () >= 5) info.startup_page = fields[4];
-  if (fields.size () >= 6) info.one_time_startup_page = fields[5];
-  if (fields.size () >= 7) info.maintenance_summary_path = fields[6];
-  if (fields.size () >= 8 && !fields[7].empty ())
-    info.rag_index_path = fields[7];
-  if (fields.size () >= 9 && !fields[8].empty ())
-    info.websites_path = fields[8];
+  info.name = vault_info.name;
+  info.map_path = vault_info.map_path;
+  info.preferences_path = vault_info.preferences_path;
+  info.namespace_db_path = vault_info.namespace_db_path;
+  info.startup_page = vault_info.startup_page;
+  info.one_time_startup_page = vault_info.one_time_startup_page;
+  info.maintenance_summary_path = vault_info.maintenance_summary_path;
+  info.rag_index_path = vault_info.rag_index_path;
+  info.websites_path = vault_info.websites_path;
   return true;
 }
 

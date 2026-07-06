@@ -689,7 +689,9 @@
   <subsection|Vault Info>
 
   If no vault is active, this tab reports <em|No active vault>. When a vault
-  is active, it edits fields stored in the vault's <verbatim|Vaultfile>.
+  is active, it edits fields stored in the vault's <verbatim|Vaultfile.json>.
+  Legacy <verbatim|Vaultfile> files are migrated to this JSON file when the
+  vault is opened.
 
   <\description>
     <item*|Vault name>Name stored for the active vault.
@@ -714,12 +716,12 @@
     database.
 
     <item*|Website registry path>Vault-relative path to the website registry
-    used by <menu|Tools|Websites manager>. Existing eight-field
-    <verbatim|Vaultfile> files are still accepted and default to
+    used by <menu|Tools|Websites manager>. Legacy <verbatim|Vaultfile>
+    files are accepted only for startup migration; the JSON field defaults to
     <verbatim|websites.json>.
 
     <item*|Root namespace>Optional root namespace for the vault. It is stored
-    in the <verbatim|Vaultfile>, not in the preferences file, so it remains
+    in <verbatim|Vaultfile.json>, not in the preferences file, so it remains
     attached to the vault even when preferences are not taken with the vault.
     <ATHENA> reports an error on startup if this field names a namespace that
     no longer exists. The namespace explorer and

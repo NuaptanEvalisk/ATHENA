@@ -48,6 +48,7 @@
 #include "convert.hpp"
 #include "Freetype/tt_file.hpp"
 #include "ATHENA/Data/vault_maintenance.hpp"
+#include "ATHENA/Data/vaultfile_json.hpp"
 #include "ATHENA/Data/websites.hpp"
 #include "MCP/mcp_rag_server.hpp"
 
@@ -162,38 +163,6 @@ std_ends_with (const std::string& s, const std::string& suffix) {
          s.compare (s.size () - suffix.size (), suffix.size (), suffix) == 0;
 }
 
-static std::vector<std::string>
-parse_vaultfile_strings_for_boot (const std::string& text) {
-  std::vector<std::string> values;
-  for (size_t i=0; i<text.size (); i++) {
-    if (text[i] != '"') continue;
-    i++;
-    std::string value;
-    while (i < text.size ()) {
-      char c= text[i++];
-      if (c == '\\' && i < text.size ()) {
-        value.push_back (text[i++]);
-        continue;
-      }
-      if (c == '"') break;
-      value.push_back (c);
-    }
-    values.push_back (value);
-  }
-  return values;
-}
-
-static std::string
-scheme_quote_for_boot (const std::string& text) {
-  std::string out= "\"";
-  for (char c: text) {
-    if (c == '\\' || c == '"') out.push_back ('\\');
-    out.push_back (c);
-  }
-  out.push_back ('"');
-  return out;
-}
-
 static bool
 valid_vault_relative_path_for_boot (const std::string& rel) {
   if (rel.empty ()) return true;
@@ -213,41 +182,6 @@ vault_preferences_json_path_for_boot (const std::string& rel) {
   return rel + ".json";
 }
 
-static bool
-write_vault_preferences_path_for_boot (
-  const std::filesystem::path& vault_file,
-  const std::vector<std::string>& fields,
-  const std::string& prefs_rel)
-{
-  if (fields.size () < 2) return false;
-  std::string map_rel= fields.size () >= 2 && !fields[1].empty ()
-                       ? fields[1] : "map.tmdb";
-  std::string ns_rel= fields.size () >= 4 && !fields[3].empty ()
-                      ? fields[3] : "ns.sqlite";
-  std::string startup_page= fields.size () >= 5 ? fields[4] : "";
-  std::string one_time_startup_page= fields.size () >= 6 ? fields[5] : "";
-  std::string summary_dir= fields.size () >= 7 ? fields[6] : "";
-  std::string rag_index= fields.size () >= 8 && !fields[7].empty ()
-                         ? fields[7] : "rag.sqlite";
-  std::string websites= fields.size () >= 9 && !fields[8].empty ()
-                        ? fields[8] : "websites.json";
-  std::string root_namespace= fields.size () >= 10 ? fields[9] : "";
-  std::string text= "(" + scheme_quote_for_boot (fields[0]) +
-                    " " + scheme_quote_for_boot (map_rel) +
-                    " " + scheme_quote_for_boot (prefs_rel) +
-                    " " + scheme_quote_for_boot (ns_rel) +
-                    " " + scheme_quote_for_boot (startup_page) +
-                    " " + scheme_quote_for_boot (one_time_startup_page) +
-                    " " + scheme_quote_for_boot (summary_dir) +
-                    " " + scheme_quote_for_boot (rag_index) +
-                    " " + scheme_quote_for_boot (websites) +
-                    " " + scheme_quote_for_boot (root_namespace) + ")\n";
-  std::ofstream file (vault_file, std::ios::binary | std::ios::trunc);
-  if (!file) return false;
-  file << text;
-  return true;
-}
-
 static void
 load_vault_preferences_if_enabled (const std::filesystem::path& vault_root,
                                    const char* context)
@@ -255,35 +189,29 @@ load_vault_preferences_if_enabled (const std::filesystem::path& vault_root,
   if (get_preference ("vault take preferences with vault", "off") != "on")
     return;
 
-  std::filesystem::path vault_file= vault_root / "Vaultfile";
-  std::ifstream file (vault_file, std::ios::binary);
-  if (!file) {
-    std_warning << context << ": vault preferences enabled, but Vaultfile "
-                << "cannot be read; using system preferences" << LF;
-    return;
-  }
-  std::ostringstream buffer;
-  buffer << file.rdbuf ();
-  std::vector<std::string> fields=
-    parse_vaultfile_strings_for_boot (buffer.str ());
-  if (fields.size () < 2) {
-    std_warning << context << ": invalid Vaultfile; using system preferences"
-                << LF;
+  std::string vaultfile_error;
+  AthenaVaultfileInfo info;
+  if (!athena_vaultfile_read (vault_root, info, vaultfile_error)) {
+    std_warning << context << ": vault preferences enabled, but "
+                << vaultfile_error.c_str ()
+                << "; using system preferences" << LF;
     return;
   }
 
-  std::string prefs_rel= fields.size () >= 3 ? fields[2] : "";
+  std::string prefs_rel= info.preferences_path;
   std::string json_rel= vault_preferences_json_path_for_boot (prefs_rel);
   if (!valid_vault_relative_path_for_boot (json_rel)) {
-    std_warning << context << ": Vaultfile preferences path is not "
+    std_warning << context << ": Vaultfile.json preferences path is not "
                 << "vault-relative; using system preferences" << LF;
     return;
   }
 
-  if (prefs_rel != json_rel &&
-      !write_vault_preferences_path_for_boot (vault_file, fields, json_rel))
-    std_warning << context << ": failed to normalize Vaultfile preferences "
-                << "path" << LF;
+  if (prefs_rel != json_rel) {
+    info.preferences_path= json_rel;
+    if (!athena_vaultfile_write (vault_root, info, vaultfile_error))
+      std_warning << context << ": failed to normalize Vaultfile.json "
+                  << "preferences path: " << vaultfile_error.c_str () << LF;
+  }
 
   std::filesystem::path prefs_path= vault_root / json_rel;
   std::filesystem::path legacy_path= vault_root /

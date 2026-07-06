@@ -6,6 +6,8 @@
 
 #include "ATHENA/Data/vault_maintenance_internal.hpp"
 
+#include "ATHENA/Data/vaultfile_json.hpp"
+
 #include <filesystem>
 
 namespace fs = std::filesystem;
@@ -18,8 +20,10 @@ vault_maintenance_pass_validate_root (VaultMaintenanceContext& ctx) {
     log_error ("vault root is not a directory");
     return VaultMaintenancePassResult::failure ("vault root is not a directory");
   }
-  if (!fs::exists (ctx.root / "Vaultfile")) {
-    std::string message = "missing Vaultfile in " + ctx.root.string ();
+  std::string error;
+  if (!athena_vaultfile_ensure_json (ctx.root, error)) {
+    std::string message = "invalid or missing Vaultfile.json in " +
+                          ctx.root.string () + ": " + error;
     log_error (message);
     return VaultMaintenancePassResult::failure (message);
   }

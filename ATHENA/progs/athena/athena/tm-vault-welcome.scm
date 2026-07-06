@@ -40,7 +40,8 @@
         (vault-welcome-one-time-startup-page data)
         (vault-welcome-maintenance-summary-path data)
         (vault-welcome-rag-index-path data)
-        (vault-welcome-websites-path data)))
+        (vault-welcome-websites-path data)
+        (vault-welcome-field data 9 "")))
 
 (define (vault-welcome-clear-one-time data)
   (let ((normalized (vault-welcome-normalized data)))
@@ -52,18 +53,14 @@
           ""
           (list-ref normalized 6)
           (list-ref normalized 7)
-          (list-ref normalized 8))))
-
-(define (vault-welcome-vaultfile)
-  (if (and (defined? 'vault-active?) (vault-active?))
-      (url-append (vault-get-root) "Vaultfile")
-      #f))
+          (list-ref normalized 8)
+          (list-ref normalized 9))))
 
 (define (vault-welcome-read-vaultfile)
-  (let ((vault-file (vault-welcome-vaultfile)))
-    (if (and vault-file (url-exists? vault-file))
-        (load-object vault-file)
-        '())))
+  (if (and (defined? 'vault-active?) (vault-active?)
+           (vaultfile-present? (vault-get-root)))
+      (vaultfile-read (vault-get-root))
+      '()))
 
 (define (vault-welcome-target->buffer target)
   (cond ((string-null? target) (vault-welcome-default-page))
@@ -86,14 +83,14 @@
          startup-page))))
 
 (tm-define (go-to-vault-initial-page)
-  (let* ((vault-file (vault-welcome-vaultfile))
-         (data (vault-welcome-read-vaultfile))
+  (let* ((data (vault-welcome-read-vaultfile))
          (one-time-page (vault-welcome-one-time-startup-page data)))
     (if (string-null? one-time-page)
         (go-to-welcome-page)
         (begin
-          (if vault-file
-              (save-object vault-file (vault-welcome-clear-one-time data)))
+          (if (and (defined? 'vault-active?) (vault-active?))
+              (vaultfile-write (vault-get-root)
+                               (vault-welcome-clear-one-time data)))
           (vault-welcome-load-target one-time-page)))))
 
 (tmfs-load-handler (welcome name)
