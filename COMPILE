@@ -5,9 +5,12 @@ Building ATHENA
 ATHENA is built with CMake. The inherited GNU autotools files are not maintained
 for ATHENA.
 
-The supported and tested development path is Linux. The tree still contains
-inherited Windows and macOS branches, but the ATHENA build process has not been
-tested on Windows or macOS.
+The primary supported development path is Linux with Qt 6. Native KDE/Wayland
+is the most tested desktop configuration.
+
+ATHENA also has scripted packaging paths for redistributable Linux AppImages and
+an experimental native Windows x86_64 cross build. Those paths are intentionally
+separate from the ordinary local development build.
 
 -------------------------------------------------------------------------------
 Dependencies
@@ -16,9 +19,10 @@ Dependencies
 ATHENA intentionally assumes a modern desktop development environment. The
 CMake configuration currently requires, among others:
 
-  CMake, a C/C++ compiler, pkg-config, Qt 6, Guile 1.8, mimalloc, SQLite3,
-  Python 3, uv, FreeType, PNG, JPEG, zlib, zstd, ImageMagick/MagickWand,
-  Iconv, GnuTLS, GMP, Ghostscript, resvg with ResvgQt.h, libtcc, and patchelf.
+  CMake, a C/C++ compiler, pkg-config, Qt 6, Guile 1.8, Boost headers,
+  mimalloc, SQLite3, Python 3, uv, FreeType, PNG, JPEG, zlib, zstd,
+  ImageMagick/MagickWand, Iconv, GnuTLS, GMP, Ghostscript, resvg with
+  ResvgQt.h, libtcc, and patchelf.
 
 On openSUSE, this is a useful zypper baseline for the ordinary system
 dependencies:
@@ -27,6 +31,7 @@ dependencies:
     git cmake ninja pkgconf-pkg-config patchelf \
     qt6-base-devel qt6-svg-devel qt6-wayland-devel qt6-qt5compat-devel \
     kf6-kio-devel kf6-kconfigwidgets-devel \
+    boost-devel \
     mimalloc-devel sqlite3-devel \
     python3 python313-uv \
     freetype2-devel libpng16-devel libjpeg8-devel zlib-devel \
@@ -37,6 +42,10 @@ Package names vary by distribution and repository. If CMake reports that
 ResvgQt.h or libtcc is missing, install the corresponding development package
 from your distribution or a local package/source build. ATHENA uses libtcc for
 namespace sorter support.
+
+ATHENA no longer uses Graphviz for namespace hierarchy graph layout. Reverse,
+direct, global, and export hierarchy diagrams are laid out through Boost graph
+algorithms in the application.
 
 -------------------------------------------------------------------------------
 Guile 1.8
@@ -115,13 +124,15 @@ From the repository root:
     -DATHENA_GUI=Qt6 \
     -DCMAKE_BUILD_TYPE=Debug
 
+  python3 patch_ads.py build_qt6/_deps/ads-src 6
   CCACHE_DISABLE=1 cmake --build build_qt6 -j "$(nproc)"
 
 Using all available processor cores is recommended; `nproc` is the preferred
 way to pick the parallelism level.
 
-Pass `-G Ninja` if you prefer Ninja; the currently used local Qt6 build
-directory was configured with CMake's default Unix Makefiles generator.
+Pass `-G Ninja` if you prefer Ninja. The ADS patch script is the source of
+truth for ATHENA's Qt Advanced Docking System changes, including Qt6/Wayland
+native toplevel drag and single-tab floating pane behavior.
 
 CMake patches the built executable with:
 
@@ -129,6 +140,18 @@ CMake patches the built executable with:
 
 This lets a copied ATHENA/bin/ATHENA.bin resolve bundled libraries from
 ATHENA/lib without manually running patchelf.
+
+For a local release-mode binary, use a separate build directory:
+
+  source /opt/intel/oneapi/setvars.sh
+  export PKG_CONFIG_PATH="$HOME/opt/guile18/lib64/pkgconfig:$PKG_CONFIG_PATH"
+
+  CC=icx CXX=icpx cmake -S . -B build_rel \
+    -DATHENA_GUI=Qt6 \
+    -DCMAKE_BUILD_TYPE=RelWithDebInfo
+
+  python3 patch_ads.py build_rel/_deps/ads-src 6
+  CCACHE_DISABLE=1 cmake --build build_rel -j "$(nproc)"
 
 -------------------------------------------------------------------------------
 Run from the source runtime tree
@@ -139,7 +162,7 @@ Copy the build output into the ATHENA runtime tree first:
 
   cp -f build_qt6/src/ATHENA.bin ATHENA/bin/ATHENA.bin
   mkdir -p ATHENA/lib
-  cp -a build_qt6/x64/lib/libqt6advanceddockingd.so* ATHENA/lib/
+  cp -a build_qt6/x64/lib/libqt6advanceddocking*.so* ATHENA/lib/
 
 Then run:
 
@@ -147,6 +170,15 @@ Then run:
 
 This matters because ATHENA expects its Scheme code, packages, tools, assets,
 and runtime paths to be arranged under the ATHENA tree.
+
+`StartATHENA.sh`, `StartATHENA.qt6.sh`, and `StartATHENA.qt6.wayland.sh`
+currently use native Wayland. They clear Qt scale override variables, avoid
+forcing fcitx input modules, prepend `ATHENA/lib` to `LD_LIBRARY_PATH`, and run:
+
+  ./bin/ATHENA.bin --platform wayland
+
+For XCB experiments, run the binary manually with the platform and input-method
+environment you want to test. XCB is no longer the default runtime path.
 
 -------------------------------------------------------------------------------
 Assemble a binary release tree
@@ -158,10 +190,10 @@ To prepare the runtime directory that will later be packaged:
   mkdir -p release
   rsync -a ATHENA/ release/ATHENA/
 
-  install -m 755 build_qt6/src/ATHENA.bin release/ATHENA/bin/ATHENA.bin
+  install -m 755 build_rel/src/ATHENA.bin release/ATHENA/bin/ATHENA.bin
   mkdir -p release/ATHENA/lib
   rm -f release/ATHENA/lib/libqt*advanceddocking*.so*
-  cp -a build_qt6/x64/lib/libqt6advanceddockingd.so* release/ATHENA/lib/
+  cp -a build_rel/x64/lib/libqt6advanceddocking*.so* release/ATHENA/lib/
 
 Useful checks:
 
@@ -178,6 +210,68 @@ absolute build rpath.
 Run the release tree with:
 
   ./release/ATHENA/StartATHENA.sh
+
+The large formula-cleaner GGUF model is not part of the default release runtime
+archive. Package it separately if you want to distribute the optional local
+formula-cleaner model. Likewise, do not include formula-cleaner virtual
+environments or safetensors conversion artifacts in the main runtime archive.
+
+-------------------------------------------------------------------------------
+Container AppImage release builds
+-------------------------------------------------------------------------------
+
+For redistributable Linux bundles, use the scripted container workflow under
+`tools/container-build`:
+
+  tools/container-build/build-athena-container.sh
+
+The workflow builds in an openSUSE Leap 15.6 container, uses Qt 6, builds Guile
+1.8 from a source tree, prefers Intel `icx`/`icpx` when available, and produces:
+
+  container_build/ATHENA-dev/
+  container_build/ATHENA-rel/
+  container_build/ATHENA-dev.AppImage
+  container_build/ATHENA-rel.AppImage
+
+It can also validate the AppImages in an Ubuntu container:
+
+  tools/container-build/validate-appimages-ubuntu.sh
+
+Useful knobs:
+
+  ATHENA_GUILE18_SOURCE=/path/to/guile-1.8.8
+  ATHENA_BUILD_JOBS=16
+  ATHENA_SKIP_UBUNTU_VALIDATE=1
+  ATHENA_ALLOW_SYSTEM_COMPILER=1
+
+`ATHENA_GUILE18_SOURCE` must point to a Guile 1.8 source tree. Do not replace
+Guile 1.8 with Guile 2 or Guile 3 for ATHENA.
+
+The AppImage launcher defaults to Wayland and follows the same scale/input
+policy as `StartATHENA.qt6.wayland.sh`.
+
+-------------------------------------------------------------------------------
+Windows x86_64 cross build
+-------------------------------------------------------------------------------
+
+Native Windows support is experimental and is built from Linux through
+MinGW-w64. Use the dedicated helper tree:
+
+  tools/windows-deps/build-athena-win64-release.sh
+
+The script uses a Windows target prefix under `build_windows/prefix`, configures
+an isolated `build_windows` tree, and assembles:
+
+  release/windows/ATHENA
+
+The Windows build must use target libraries from the Windows prefix, including
+Qt6, Guile 1.8.8, mimalloc, ADS, libtcc, resvg, llama.cpp, and the other
+runtime DLLs. It must not consume Linux host Qt or host pkg-config metadata.
+See `tools/windows-deps/README.md` for dependency preparation details.
+
+The CMake Windows configuration distinguishes 64-bit MinGW with `OS_MINGW64`
+and uses the `src/Subsystems/Windows64` system layer. This is required for the
+Windows LLP64 ABI and Guile smob pointer/tag handling.
 
 -------------------------------------------------------------------------------
 Install
@@ -196,8 +290,9 @@ Set a custom prefix at configure time if needed:
     -DCMAKE_BUILD_TYPE=Debug \
     -DCMAKE_INSTALL_PREFIX=/opt/athena
 
-The primary tested workflow is the ATHENA runtime tree described above; use
-CMake install only if you intentionally want a system-style installation.
+The primary tested workflow is the ATHENA runtime tree and release packaging
+described above; use CMake install only if you intentionally want a system-style
+installation.
 
 -------------------------------------------------------------------------------
 Troubleshooting

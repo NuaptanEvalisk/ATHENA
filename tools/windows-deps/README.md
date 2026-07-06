@@ -67,6 +67,15 @@ The script checks the prefix, configures and builds `ATHENA.exe`, copies the
 main `ATHENA/` runtime tree to the release directory, and installs the generated
 executable, ADS DLL, runtime DLLs, and Qt plugins into `release/windows/ATHENA`.
 
+The generated CMake configuration must define `OS_MINGW64` for x86_64 MinGW
+builds. This selects the `src/Subsystems/Windows64` system layer instead of the
+old 32-bit Windows compatibility layer, which is required for Windows' LLP64
+ABI and for correct Guile smob pointer/tag handling.
+
+The release script excludes optional formula-cleaner model artifacts such as
+`.gguf`, `.safetensors`, and formula-cleaner virtual environments from the main
+Windows runtime tree. Package those artifacts separately if they are needed.
+
 For non-default paths:
 
 ```sh
