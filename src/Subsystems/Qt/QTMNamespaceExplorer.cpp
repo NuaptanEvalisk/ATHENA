@@ -11,6 +11,7 @@
 #include "QTMNamespaceExplorer.hpp"
 
 #include "QTMMainTabWindow.hpp"
+#include "QTMNamespaceManager.hpp"
 #include "QTMReverseHierarchyGraph.hpp"
 #include "QTMVaultInfoModel.hpp"
 #include "boot.hpp"
@@ -319,6 +320,39 @@ QTMNamespaceExplorer::refresh () {
 
   for (const QString& name: names)
     addNamespaceItem (nullptr, name, QStringList () << name);
+}
+
+bool
+QTMNamespaceExplorer::selectNamespace (const QString& name) {
+  if (name.trimmed ().isEmpty ()) return false;
+  refresh ();
+  for (int i=0; i<tree->topLevelItemCount (); i++)
+    if (selectNamespaceInItem (tree->topLevelItem (i), name)) {
+      tree->setFocus ();
+      return true;
+    }
+  return false;
+}
+
+bool
+QTMNamespaceExplorer::selectNamespaceInItem (QTreeWidgetItem* item,
+                                            const QString& name) {
+  if (item == nullptr) return false;
+  if (item->data (0, TypeRole).toInt () != NamespaceItem) return false;
+
+  if (item->data (0, NamespaceNameRole).toString () == name) {
+    tree->setCurrentItem (item);
+    tree->scrollToItem (item, QAbstractItemView::PositionAtCenter);
+    return true;
+  }
+
+  populateNamespaceItem (item);
+  for (int i=0; i<item->childCount (); i++)
+    if (selectNamespaceInItem (item->child (i), name)) {
+      item->setExpanded (true);
+      return true;
+    }
+  return false;
 }
 
 void
@@ -641,6 +675,11 @@ QTMNamespaceExplorer::showContextMenu (const QPoint& pos) {
       QString name= item->data (0, NamespaceNameRole).toString ();
       direct_hierarchy_graph_show_namespace (from_qstring (name));
     });
+    menu.addSeparator ();
+    menu.addAction ("Show in namespace manager", this, [item] () {
+      QString name= item->data (0, NamespaceNameRole).toString ();
+      namespace_manager_show_namespace (from_qstring (name));
+    });
   }
   else if (type == FileItem) {
     menu.addAction ("Load file", this, [this, item] () { openFile (item); });
@@ -721,4 +760,18 @@ namespace_explorer_show () {
                                        namespace_explorer_dock);
   });
   namespace_explorer_widget->setFocus ();
+}
+
+void
+namespace_explorer_show_namespace (string name) {
+  namespace_explorer_show ();
+  if (namespace_explorer_widget == nullptr) return;
+
+  QString qname= to_qstring (name);
+  if (!namespace_explorer_widget->selectNamespace (qname)) {
+    QMessageBox::warning (
+      QApplication::activeWindow (), "Namespace Explorer",
+      QString ("Namespace \"%1\" is not visible in the namespace explorer.")
+        .arg (qname));
+  }
 }

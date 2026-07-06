@@ -32,8 +32,10 @@ public:
   QSize sizeHint () const override;
   void refresh ();
   void setFloatingResizeGripVisible (bool visible);
+  bool selectNamespace (const QString& name);
 
 private:
+  bool selectNamespaceInItem (QTreeWidgetItem* item, const QString& name);
   void populateNamespaceItem (QTreeWidgetItem* item);
   void addNamespaceItem (QTreeWidgetItem* parent, const QString& name,
                          const QStringList& path);
@@ -67,5 +69,6 @@ private:
 };
 
 void namespace_explorer_show ();
+void namespace_explorer_show_namespace (string name);
 
 #endif // QTMNAMESPACEEXPLORER_HPP

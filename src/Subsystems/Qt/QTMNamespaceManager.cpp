@@ -11,6 +11,7 @@
 #include "QTMNamespaceManager.hpp"
 
 #include "QTMMainTabWindow.hpp"
+#include "QTMNamespaceExplorer.hpp"
 #include "QTMReverseHierarchyGraph.hpp"
 #include "boot.hpp"
 #include "namespaces.hpp"
@@ -1160,6 +1161,21 @@ QTMNamespaceManager::refreshAll () {
   refreshMembers ();
 }
 
+bool
+QTMNamespaceManager::selectNamespace (const QString& name) {
+  if (name.trimmed ().isEmpty ()) return false;
+  refreshAll ();
+  QList<QListWidgetItem*> matches=
+    namespaceList->findItems (name, Qt::MatchExactly);
+  if (matches.isEmpty ()) return false;
+  namespaceList->setCurrentItem (matches.first ());
+  namespaceList->scrollToItem (matches.first (),
+                               QAbstractItemView::PositionAtCenter);
+  loadNamespace (matches.first ());
+  namespaceList->setFocus ();
+  return true;
+}
+
 void
 QTMNamespaceManager::refreshNamespaces () {
   string error;
@@ -1393,7 +1409,6 @@ QTMNamespaceManager::deleteNamespace () {
     QMessageBox::warning (this, "Namespace Manager", to_qstring (error));
     return;
   }
-  newNamespace ();
   refreshAll ();
   statusLabel->setText ("Namespace deleted.");
 }
@@ -1419,6 +1434,18 @@ QTMNamespaceManager::showNamespaceContextMenu (const QPoint& pos) {
   menu.addAction ("Open direct hierarchy graph", this, [item] () {
     direct_hierarchy_graph_show_namespace (from_qstring (item->text ()));
   });
+  menu.addAction ("Show in namespace explorer", this, [item] () {
+    namespace_explorer_show_namespace (from_qstring (item->text ()));
+  });
+  menu.addSeparator ();
+  menu.addAction ("Update namespace", this, [this] () {
+    saveNamespace ();
+  })->setEnabled (!loadedName.isEmpty ());
+  menu.addAction ("Delete namespace", this, [this] () {
+    deleteNamespace ();
+  })->setEnabled (!loadedName.isEmpty ());
+  menu.addSeparator ();
+  menu.addAction ("Refresh", this, [this] () { refreshAll (); });
   menu.exec (namespaceList->viewport ()->mapToGlobal (pos));
 }
 
@@ -1835,4 +1862,18 @@ namespace_manager_show () {
 
   namespace_manager_dock->setWindowTitle (title);
   namespace_manager_widget->setFocus ();
+}
+
+void
+namespace_manager_show_namespace (string name) {
+  namespace_manager_show ();
+  if (namespace_manager_widget == nullptr) return;
+
+  QString qname= to_qstring (name);
+  if (!namespace_manager_widget->selectNamespace (qname)) {
+    QMessageBox::warning (
+      QApplication::activeWindow (), "Namespace Manager",
+      QString ("Namespace \"%1\" is not visible in the namespace manager.")
+        .arg (qname));
+  }
 }

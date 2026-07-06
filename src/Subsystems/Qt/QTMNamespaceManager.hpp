@@ -11,6 +11,8 @@
 #ifndef QTMNAMESPACEMANAGER_HPP
 #define QTMNAMESPACEMANAGER_HPP
 
+#include "string.hpp"
+
 #include <QSize>
 #include <QString>
 #include <QWidget>
@@ -33,6 +35,7 @@ public:
   QSize sizeHint () const override;
 
   void refreshAll ();
+  bool selectNamespace (const QString& name);
 
 private:
   void refreshNamespaces ();
@@ -90,5 +93,6 @@ private:
 };
 
 void namespace_manager_show ();
+void namespace_manager_show_namespace (string name);
 
 #endif // QTMNAMESPACEMANAGER_HPP
