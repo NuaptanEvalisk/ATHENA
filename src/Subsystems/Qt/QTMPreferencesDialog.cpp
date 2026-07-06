@@ -1378,6 +1378,8 @@ QTMPreferencesDialog::buildVaultPage () {
               "vault namespace explorer leaf matches only");
   add_toggle (n, "Namespace explorer starts from root namespace:",
               "vault namespace explorer from root namespace");
+  add_toggle (n, "Namespace explorer simplifies redundant child namespaces:",
+              "vault namespace explorer simplify hierarchy");
   add_toggle (n, "Simplify hierarchy graphs:",
               "vault simplify hierarchy graphs");
   add_toggle (n, "Consume %s aggressively in sub-product naming template suggestion:",

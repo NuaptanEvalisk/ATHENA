@@ -533,6 +533,17 @@ vault_show_explorer () {
 }
 
 void
+vault_explorer_show_path (const QString& path) {
+  vault_show_explorer ();
+  if (vault_explorer_widget == nullptr) return;
+  vault_explorer_widget->revealPath (path);
+  QTimer::singleShot (0, vault_explorer_widget, [path] () {
+    if (vault_explorer_widget != nullptr)
+      vault_explorer_widget->revealPath (path);
+  });
+}
+
+void
 vault_explorer_track_file (url file) {
   if (get_preference ("vault explorer track current file", "off") != "on")
     return;

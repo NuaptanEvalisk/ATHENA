@@ -60,6 +60,7 @@ private:
 };
 
 void vault_show_explorer ();
+void vault_explorer_show_path (const QString& path);
 void vault_explorer_track_file (url file);
 
 #endif // QTMVAULTEXPLORER_HPP

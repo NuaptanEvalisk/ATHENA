@@ -13,6 +13,7 @@
 #include "QTMMainTabWindow.hpp"
 #include "QTMNamespaceManager.hpp"
 #include "QTMReverseHierarchyGraph.hpp"
+#include "QTMVaultExplorer.hpp"
 #include "QTMVaultInfoModel.hpp"
 #include "boot.hpp"
 #include "namespaces.hpp"
@@ -85,6 +86,12 @@ namespace_explorer_leaf_matches_only () {
 static bool
 namespace_explorer_from_root_namespace () {
   return get_preference ("vault namespace explorer from root namespace", "off")
+         == "on";
+}
+
+static bool
+namespace_explorer_simplify_hierarchy () {
+  return get_preference ("vault namespace explorer simplify hierarchy", "off")
          == "on";
 }
 
@@ -185,6 +192,7 @@ QTMNamespaceExplorer::QTMNamespaceExplorer (QWidget* parent)
     tree (new QTreeWidget (this)),
     leafMatchesOnlyAction (nullptr),
     fromRootNamespaceAction (nullptr),
+    simplifyHierarchyAction (nullptr),
     floatingSizeGrip (new QSizeGrip (this)) {
   tree->setColumnCount (1);
   tree->setHeaderHidden (true);
@@ -225,6 +233,20 @@ QTMNamespaceExplorer::QTMNamespaceExplorer (QWidget* parent)
   connect (fromRootNamespaceAction, &QAction::toggled, this,
            [this] (bool checked) {
              set_preference ("vault namespace explorer from root namespace",
+                             checked ? "on" : "off");
+             refresh ();
+           });
+  simplifyHierarchyAction= toolbar->addAction (
+    namespace_explorer_icon ("view-list-tree",
+                             QStyle::SP_FileDialogDetailedView),
+    "Simplify hierarchy");
+  simplifyHierarchyAction->setCheckable (true);
+  simplifyHierarchyAction->setChecked (namespace_explorer_simplify_hierarchy ());
+  simplifyHierarchyAction->setToolTip (
+    "Fold redundant namespace children into a separate ellipsis branch");
+  connect (simplifyHierarchyAction, &QAction::toggled, this,
+           [this] (bool checked) {
+             set_preference ("vault namespace explorer simplify hierarchy",
                              checked ? "on" : "off");
              refresh ();
            });
@@ -293,6 +315,11 @@ QTMNamespaceExplorer::refresh () {
     fromRootNamespaceAction->setChecked (
       namespace_explorer_from_root_namespace ());
   }
+  if (simplifyHierarchyAction != nullptr) {
+    QSignalBlocker blocker (simplifyHierarchyAction);
+    simplifyHierarchyAction->setChecked (
+      namespace_explorer_simplify_hierarchy ());
+  }
 
   string error;
   if (!athena_namespace_refresh_derived (error) && error != "")
@@ -338,7 +365,17 @@ bool
 QTMNamespaceExplorer::selectNamespaceInItem (QTreeWidgetItem* item,
                                             const QString& name) {
   if (item == nullptr) return false;
-  if (item->data (0, TypeRole).toInt () != NamespaceItem) return false;
+  int type= item->data (0, TypeRole).toInt ();
+  if (type != NamespaceItem && type != PlaceholderItem) return false;
+
+  if (type == PlaceholderItem) {
+    for (int i=0; i<item->childCount (); i++)
+      if (selectNamespaceInItem (item->child (i), name)) {
+        item->setExpanded (true);
+        return true;
+      }
+    return false;
+  }
 
   if (item->data (0, NamespaceNameRole).toString () == name) {
     tree->setCurrentItem (item);
@@ -355,6 +392,73 @@ QTMNamespaceExplorer::selectNamespaceInItem (QTreeWidgetItem* item,
   return false;
 }
 
+QStringList
+QTMNamespaceExplorer::directChildNames (const QString& name,
+                                        const QStringList& path) const {
+  QStringList childNames;
+  for (auto it= namespaces.constBegin (); it != namespaces.constEnd (); ++it) {
+    const athena_namespace_definition& ns= it.value ();
+    bool child= false;
+    for (int i=0; i<N(ns.parents); i++)
+      if (to_qstring (ns.parents[i]) == name) child= true;
+    for (int i=0; i<N(ns.derived_parents); i++)
+      if (to_qstring (ns.derived_parents[i]) == name) child= true;
+    if (child && !path.contains (it.key ()) && !childNames.contains (it.key ()))
+      childNames << it.key ();
+  }
+  childNames.sort ();
+  return childNames;
+}
+
+bool
+QTMNamespaceExplorer::namespaceContainsNamespace (const QString& start,
+                                                 const QString& target,
+                                                 QSet<QString>& seen) const {
+  if (start == target) return true;
+  if (seen.contains (start)) return false;
+  seen.insert (start);
+
+  QStringList path;
+  path << start;
+  QStringList children= directChildNames (start, path);
+  for (const QString& child: children) {
+    if (child == target) return true;
+    if (namespaceContainsNamespace (child, target, seen)) return true;
+  }
+  return false;
+}
+
+void
+QTMNamespaceExplorer::simplifyChildNames (const QString& parent,
+                                          const QStringList& path,
+                                          const QStringList& childNames,
+                                          QStringList& visibleNames,
+                                          QStringList& foldedNames) const {
+  (void) parent;
+  (void) path;
+  visibleNames.clear ();
+  foldedNames.clear ();
+
+  if (!namespace_explorer_simplify_hierarchy ()) {
+    visibleNames= childNames;
+    return;
+  }
+
+  for (const QString& child: childNames) {
+    bool folded= false;
+    for (const QString& sibling: childNames) {
+      if (sibling == child) continue;
+      QSet<QString> seen;
+      if (namespaceContainsNamespace (sibling, child, seen)) {
+        folded= true;
+        break;
+      }
+    }
+    if (folded) foldedNames << child;
+    else visibleNames << child;
+  }
+}
+
 void
 QTMNamespaceExplorer::addNamespaceItem (QTreeWidgetItem* parent,
                                         const QString& name,
@@ -369,6 +473,27 @@ QTMNamespaceExplorer::addNamespaceItem (QTreeWidgetItem* parent,
   item->setData (0, PopulatedRole, false);
   item->setChildIndicatorPolicy (QTreeWidgetItem::ShowIndicator);
   item->setToolTip (0, "Namespace: " + name);
+}
+
+void
+QTMNamespaceExplorer::addFoldedNamespaceItem (QTreeWidgetItem* parent,
+                                             const QStringList& names,
+                                             const QStringList& path) {
+  if (parent == nullptr || names.isEmpty ()) return;
+
+  QTreeWidgetItem* item= new QTreeWidgetItem (parent);
+  item->setText (0, "...");
+  item->setIcon (0, namespace_explorer_icon ("view-more-horizontal",
+                                             QStyle::SP_ArrowRight));
+  item->setData (0, TypeRole, PlaceholderItem);
+  item->setData (0, PopulatedRole, true);
+  item->setToolTip (0, "Namespaces also reachable through another child");
+
+  for (const QString& child: names) {
+    QStringList childPath= path;
+    childPath << child;
+    addNamespaceItem (item, child, childPath);
+  }
 }
 
 void
@@ -396,23 +521,17 @@ QTMNamespaceExplorer::populateNamespaceItem (QTreeWidgetItem* item) {
   QString name= item->data (0, NamespaceNameRole).toString ();
   QStringList path= item->data (0, NamespacePathRole).toStringList ();
 
-  QStringList childNames;
-  for (auto it= namespaces.constBegin (); it != namespaces.constEnd (); ++it) {
-    const athena_namespace_definition& ns= it.value ();
-    bool child= false;
-    for (int i=0; i<N(ns.parents); i++)
-      if (to_qstring (ns.parents[i]) == name) child= true;
-    for (int i=0; i<N(ns.derived_parents); i++)
-      if (to_qstring (ns.derived_parents[i]) == name) child= true;
-    if (child && !path.contains (it.key ()) && !childNames.contains (it.key ()))
-      childNames << it.key ();
-  }
-  childNames.sort ();
-  for (const QString& child: childNames) {
+  QStringList childNames= directChildNames (name, path);
+  QStringList visibleNames;
+  QStringList foldedNames;
+  simplifyChildNames (name, path, childNames, visibleNames, foldedNames);
+
+  for (const QString& child: visibleNames) {
     QStringList childPath= path;
     childPath << child;
     addNamespaceItem (item, child, childPath);
   }
+  addFoldedNamespaceItem (item, foldedNames, path);
 
   if (!namespace_explorer_leaf_matches_only () || childNames.isEmpty ()) {
     string error;
@@ -438,6 +557,10 @@ QTMNamespaceExplorer::loadItem (QTreeWidgetItem* item) {
   if (item == nullptr) return;
   int type= item->data (0, TypeRole).toInt ();
   if (type == NamespaceItem) {
+    item->setExpanded (!item->isExpanded ());
+    return;
+  }
+  if (type == PlaceholderItem) {
     item->setExpanded (!item->isExpanded ());
     return;
   }
@@ -684,15 +807,14 @@ QTMNamespaceExplorer::showContextMenu (const QPoint& pos) {
   else if (type == FileItem) {
     menu.addAction ("Load file", this, [this, item] () { openFile (item); });
     menu.addSeparator ();
-    menu.addAction ("New file", this, [this] () { newFileNearSelected (); });
-    menu.addAction ("New folder", this, [this] () { newFolderNearSelected (); });
-    menu.addSeparator ();
-    menu.addAction ("Rename", this, [this] () { renameSelectedFile (); });
     menu.addAction ("Copy", this, [this] () { copySelectedFile (); });
     menu.addAction ("Paste", this, [this] () { pasteNearSelected (); })
         ->setEnabled (!namespace_explorer_clipboard_path.isEmpty ());
     menu.addAction ("Delete", this, [this] () { deleteSelectedFile (); });
     menu.addSeparator ();
+    menu.addAction ("Show in vault explorer", this, [this] () {
+      vault_explorer_show_path (selectedFilePath ());
+    });
     menu.addAction ("Open in system file manager", this,
                     [this] () { openSelectedFileInFileManager (); });
     menu.addAction ("Refresh", this, [this] () { refresh (); });

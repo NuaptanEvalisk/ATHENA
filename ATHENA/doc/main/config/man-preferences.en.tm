@@ -638,6 +638,12 @@
     namespace at the top level. Expanding the root namespace still shows its
     namespace children and matching files.
 
+    <item*|Namespace explorer simplifies redundant child namespaces>When
+    enabled, the namespace explorer hides a direct child namespace under an
+    ellipsis branch when the same child is also reachable through another
+    direct child. This keeps expanding a namespace focused on the shortest
+    visible hierarchy while preserving access to the folded namespaces.
+
     <item*|Simplify hierarchy graphs>Reduces visual complexity in hierarchy
     graphs.
 

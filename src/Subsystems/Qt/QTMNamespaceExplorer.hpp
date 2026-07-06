@@ -14,6 +14,7 @@
 #include "namespaces.hpp"
 
 #include <QMap>
+#include <QSet>
 #include <QSize>
 #include <QString>
 #include <QStringList>
@@ -35,10 +36,23 @@ public:
   bool selectNamespace (const QString& name);
 
 private:
+  QStringList directChildNames (const QString& name,
+                                const QStringList& path) const;
+  bool namespaceContainsNamespace (const QString& start,
+                                   const QString& target,
+                                   QSet<QString>& seen) const;
+  void simplifyChildNames (const QString& parent,
+                           const QStringList& path,
+                           const QStringList& childNames,
+                           QStringList& visibleNames,
+                           QStringList& foldedNames) const;
   bool selectNamespaceInItem (QTreeWidgetItem* item, const QString& name);
   void populateNamespaceItem (QTreeWidgetItem* item);
   void addNamespaceItem (QTreeWidgetItem* parent, const QString& name,
                          const QStringList& path);
+  void addFoldedNamespaceItem (QTreeWidgetItem* parent,
+                               const QStringList& names,
+                               const QStringList& path);
   void addFileItem (QTreeWidgetItem* parent, const QString& display,
                     const QString& path, const QString& tooltip);
   void loadItem (QTreeWidgetItem* item);
@@ -63,6 +77,7 @@ private:
   QTreeWidget* tree;
   QAction*     leafMatchesOnlyAction;
   QAction*     fromRootNamespaceAction;
+  QAction*     simplifyHierarchyAction;
   QSizeGrip*   floatingSizeGrip;
   QString      rootPath;
   QMap<QString, athena_namespace_definition> namespaces;

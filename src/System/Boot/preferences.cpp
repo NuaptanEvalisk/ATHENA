@@ -216,6 +216,7 @@ ensure_builtin_user_preferences () {
     PREF ("vault explorer use system trash", "off", ""),
     PREF ("vault namespace explorer leaf matches only", "off", ""),
     PREF ("vault namespace explorer from root namespace", "off", ""),
+    PREF ("vault namespace explorer simplify hierarchy", "off", ""),
     PREF ("vault simplify hierarchy graphs", "off", ""),
     PREF ("vault max full backups", "Unlimited", ""),
     PREF ("vault pre-save history preservation", "1 week", ""),
