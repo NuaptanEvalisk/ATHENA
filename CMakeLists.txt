@@ -55,7 +55,7 @@ set (VERSION_MAJOR "2")
 set (VERSION_MINOR "1")
 set (VERSION_BUILD "4")
 set (TEXMACS_COMPAT_VERSION ${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_BUILD})
-set (ATHENA_APP_VERSION "0.3")
+set (ATHENA_APP_VERSION "0.4")
 set (ATHENA_VERSION ${ATHENA_APP_VERSION})
 
 set (DEVEL_VERSION ${ATHENA_VERSION})
@@ -130,6 +130,9 @@ set (LINKED_GNUTLS ON CACHE BOOL "Use Linked GnuTLS" FORCE)
 
 if (WIN32)
   option (OS_MINGW "Using OS MINGW" ON)
+  if (CMAKE_SIZEOF_VOID_P EQUAL 8)
+    set (OS_MINGW64 1)
+  endif ()
 else (WIN32)
   option (OS_MINGW "Using OS MINGW" OFF)
 endif (WIN32)
@@ -518,10 +521,16 @@ set (ATHENA_Include_Dirs
 )
 
 if (WIN32)
-  set (ATHENA_Include_Dirs ${ATHENA_Include_Dirs}
-    ${ATHENA_SOURCE_DIR}/src/Subsystems/Windows
-    ${ATHENA_SOURCE_DIR}/src/Subsystems/Windows/nowide
-  )
+  if (OS_MINGW64)
+    set (ATHENA_Include_Dirs ${ATHENA_Include_Dirs}
+      ${ATHENA_SOURCE_DIR}/src/Subsystems/Windows64
+    )
+  else ()
+    set (ATHENA_Include_Dirs ${ATHENA_Include_Dirs}
+      ${ATHENA_SOURCE_DIR}/src/Subsystems/Windows
+      ${ATHENA_SOURCE_DIR}/src/Subsystems/Windows/nowide
+    )
+  endif ()
 else (WIN32)
 endif (WIN32)
 
@@ -847,7 +856,11 @@ endif ()
 ### --------------------------------------------------------------------
 
 if (WIN32)
-  file (GLOB_RECURSE ATHENA_System_SRCS "${ATHENA_SOURCE_DIR}/src/Subsystems/Windows/*.cpp")
+  if (OS_MINGW64)
+    file (GLOB_RECURSE ATHENA_System_SRCS "${ATHENA_SOURCE_DIR}/src/Subsystems/Windows64/*.cpp")
+  else ()
+    file (GLOB_RECURSE ATHENA_System_SRCS "${ATHENA_SOURCE_DIR}/src/Subsystems/Windows/*.cpp")
+  endif ()
 else (WIN32)
   file (GLOB_RECURSE ATHENA_System_SRCS "${ATHENA_SOURCE_DIR}/src/Subsystems/Unix/*.cpp")
 endif (WIN32)

@@ -346,6 +346,8 @@ copy_runtime_tree () {
     --exclude 'bin/ATHENA.bin' \
     --exclude 'lib/*' \
     --exclude 'tools/formula-cleaner/*.gguf' \
+    --exclude 'tools/formula-cleaner/.venv/' \
+    --exclude '*.safetensors' \
     "$repo_root/ATHENA/" "$out_dir/"
 
   install -Dm755 "$build_dir/src/ATHENA.bin" "$out_dir/bin/ATHENA.bin"

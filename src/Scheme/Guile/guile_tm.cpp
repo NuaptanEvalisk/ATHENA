@@ -273,12 +273,14 @@ scheme_dialect () {
 
 #if (defined(GUILE_C) || defined(GUILE_D))
 #define SET_SMOB(smob,data,type)   \
-SCM_NEWSMOB (smob, SCM_UNPACK (type), data);
+SCM_NEWSMOB (smob, type, data);
+#define GET_SMOB_DATA(smob) ((void*) SCM_SMOB_DATA (smob))
 #else
 #define SET_SMOB(smob,data,type)   \
 SCM_NEWCELL (smob);              \
 SCM_SETCAR (smob, (SCM) (type)); \
 SCM_SETCDR (smob, (SCM) (data));
+#define GET_SMOB_DATA(smob) ((void*) SCM_CDR (smob))
 #endif
 
 
@@ -399,7 +401,10 @@ tmscm_to_symbol (tmscm s) {
  * Blackbox
  ******************************************************************************/
 
-#if defined(SIZEOF_ENT) && SIZEOF_ENT == SCM_SIZEOF_LONG_LONG
+#if (defined(GUILE_C) || defined(GUILE_D))
+static scm_t_bits blackbox_tag;
+#define SCM_BLACKBOXP(t) SCM_SMOB_PREDICATE (blackbox_tag, t)
+#elif defined(SIZEOF_ENT) && SIZEOF_ENT == SCM_SIZEOF_LONG_LONG
 static long long blackbox_tag;
 #define SCM_BLACKBOXP(t) (SCM_NIMP (t) && (((long long) SCM_CAR (t)) == blackbox_tag))
 #else
@@ -415,13 +420,13 @@ tmscm_is_blackbox (tmscm t) {
 tmscm
 blackbox_to_tmscm (blackbox b) {
   SCM blackbox_smob;
-  SET_SMOB (blackbox_smob, (void*) (tm_new<blackbox> (b)), (SCM) blackbox_tag);
+  SET_SMOB (blackbox_smob, (void*) (tm_new<blackbox> (b)), blackbox_tag);
   return blackbox_smob;
 }
 
 blackbox
 tmscm_to_blackbox (tmscm blackbox_smob) {
-  return *((blackbox*) SCM_CDR (blackbox_smob));
+  return *((blackbox*) GET_SMOB_DATA (blackbox_smob));
 }
 
 static SCM
@@ -432,7 +437,7 @@ mark_blackbox (SCM blackbox_smob) {
 
 static scm_sizet
 free_blackbox (SCM blackbox_smob) {
-  blackbox *ptr = (blackbox *) SCM_CDR (blackbox_smob);
+  blackbox *ptr = (blackbox *) GET_SMOB_DATA (blackbox_smob);
 #ifdef DEBUG_ON
   scm_busy= true;
 #endif

@@ -134,7 +134,7 @@
   (recall-message-after len))
 
 (define-public (texmacs-banner)
-  (with tmv "ATHENA 0.3"
+  (with tmv (string-append "ATHENA " (texmacs-version))
     (delayed
      (set-message "Welcome to ATHENA" tmv)
      (delayed

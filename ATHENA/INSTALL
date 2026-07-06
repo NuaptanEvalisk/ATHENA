@@ -2,53 +2,159 @@
 Running ATHENA from this tree
 -------------------------------------------------------------------------------
 
-This directory is the ATHENA runtime tree. It contains the Scheme programs,
+This directory is the ATHENA runtime tree.  It contains Scheme programs,
 packages, styles, tools, assets, and the executable under `bin/`.
 
-For development builds, first build the executable from the repository root and
-copy it here:
-
-    cp -f build_qt6/src/ATHENA.bin ATHENA/bin/ATHENA.bin
-    mkdir -p ATHENA/lib
-    cp -a build_qt6/x64/lib/libqt6advanceddockingd.so* ATHENA/lib/
-
-Then run ATHENA from this directory:
+ATHENA is currently maintained on Linux with Qt 6.  The default local launcher
+uses native Wayland:
 
     cd ATHENA
     ./StartATHENA.sh
 
-The launcher currently uses the runtime settings that are known to work well on
-the Linux Qt/xcb development setup:
+`StartATHENA.sh`, `StartATHENA.qt6.sh`, and `StartATHENA.qt6.wayland.sh` are
+currently equivalent.  They run:
 
-    QT_QPA_PLATFORM=xcb
-    QT_IM_MODULE=fcitx
-    GTK_IM_MODULE=fcitx
-    XMODIFIERS=@im=fcitx
-    SDL_VIDEODRIVER=x11
-    QT_FONT_DPI=180
-    QT_AUTO_SCREEN_SCALE_FACTOR=0
-    QT_SCALE_FACTOR=1
-    QT_ENABLE_HIDPI_SCALING=1
+    ./bin/ATHENA.bin --platform wayland
 
-It then starts:
-
-    ./bin/ATHENA.bin --platform xcb
-
-Any arguments passed to `StartATHENA.sh` are forwarded to `ATHENA.bin`.
-
-For example:
+Any arguments passed to the launcher are forwarded to `ATHENA.bin`:
 
     ./StartATHENA.sh --no-splash-screen
     ./StartATHENA.sh /path/to/document.ath
 
+The Wayland launcher deliberately does not force fcitx or Qt scale override
+environment variables.  Qt should use its native Wayland input context, and
+KDE/KWin should provide the output scale.  The launcher clears the common Qt
+scale override knobs that previously caused wrong HiDPI behavior:
+
+    unset QT_IM_MODULE
+    unset GTK_IM_MODULE
+    unset XMODIFIERS
+    export QT_AUTO_SCREEN_SCALE_FACTOR=0
+    unset QT_SCALE_FACTOR
+    unset QT_SCREEN_SCALE_FACTORS
+    unset QT_FONT_DPI
+    unset QT_SCALE_FACTOR_ROUNDING_POLICY
+
+It also prepends the local runtime library directory:
+
+    export LD_LIBRARY_PATH="$script_dir/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+
 -------------------------------------------------------------------------------
-Notes
+Local development builds
 -------------------------------------------------------------------------------
 
-ATHENA is currently developed and tested on Linux with Qt. Legacy non-Qt GUI
-backends have been removed from the maintained path, and this runtime setup has
-not been tested on Windows or macOS.
+From the repository root, configure a Qt 6 build.  A typical debug build uses
+`build_qt6/`:
 
-If the program starts but input methods do not work, make sure fcitx is running
-in your desktop session. If the interface scale is wrong, adjust `QT_FONT_DPI`
-or `QT_SCALE_FACTOR` in `StartATHENA.sh`.
+    cmake -S . -B build_qt6 -G Ninja \
+      -DATHENA_GUI=Qt6 \
+      -DCMAKE_BUILD_TYPE=Debug
+
+If you build against a local Guile 1.8 prefix, make sure pkg-config can see it,
+for example:
+
+    export PKG_CONFIG_PATH="$HOME/opt/guile18/lib64/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+
+ATHENA patches Qt Advanced Docking System through `patch_ads.py`.  Reapply the
+ADS patch after configuring or refreshing the dependency tree:
+
+    python3 patch_ads.py build_qt6/_deps/ads-src 6
+
+Build and install the local development binary into this runtime tree:
+
+    cmake --build build_qt6 -j"$(nproc)"
+    cp -f build_qt6/src/ATHENA.bin ATHENA/bin/ATHENA.bin
+    mkdir -p ATHENA/lib
+    cp -a build_qt6/x64/lib/libqt6advanceddocking*.so* ATHENA/lib/
+
+For debug ADS builds the library name may contain a `d` suffix, such as
+`libqt6advanceddockingd.so`.
+
+-------------------------------------------------------------------------------
+Release builds
+-------------------------------------------------------------------------------
+
+For a release build, use a separate build directory such as `build_rel/` and
+configure it explicitly for Qt 6.  The current local release workflow uses Intel
+oneAPI when available:
+
+    export PKG_CONFIG_PATH="$HOME/opt/guile18/lib64/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+    cmake -S . -B build_rel -G Ninja \
+      -DATHENA_GUI=Qt6 \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DCMAKE_C_COMPILER=/opt/intel/oneapi/compiler/latest/bin/icx \
+      -DCMAKE_CXX_COMPILER=/opt/intel/oneapi/compiler/latest/bin/icpx
+
+Pass any local dependency paths required by your machine, such as llama.cpp,
+resvg, or KIO options.  Reapply the ADS patch and build:
+
+    python3 patch_ads.py build_rel/_deps/ads-src 6
+    cmake --build build_rel -j"$(nproc)"
+
+To assemble a release runtime directory from the checked-in `ATHENA/` tree:
+
+    rm -rf release/ATHENA
+    mkdir -p release
+    rsync -a ATHENA/ release/ATHENA/
+    cp -f build_rel/src/ATHENA.bin release/ATHENA/bin/ATHENA.bin
+    mkdir -p release/ATHENA/lib
+    rm -f release/ATHENA/lib/libqt6advanceddocking*.so*
+    cp -a build_rel/x64/lib/libqt6advanceddocking*.so* release/ATHENA/lib/
+
+This produces `release/ATHENA/`.  It is a runtime directory, not necessarily a
+fully portable bundle: libraries already present in `ATHENA/lib` are copied, and
+other libraries may still be resolved from the target system unless you package
+them separately.
+
+-------------------------------------------------------------------------------
+Container and AppImage builds
+-------------------------------------------------------------------------------
+
+For redistributable Linux builds, use the scripted container build:
+
+    tools/container-build/build-athena-container.sh
+
+The script builds inside an openSUSE Leap 15.6 distrobox/podman environment,
+uses Qt 6, builds Guile 1.8 from source, prefers Intel icx/icpx when available,
+and produces:
+
+    container_build/ATHENA-dev/
+    container_build/ATHENA-rel/
+    container_build/ATHENA-dev.AppImage
+    container_build/ATHENA-rel.AppImage
+    container_build/ATHENA-dev.AppImage.sha256
+    container_build/ATHENA-rel.AppImage.sha256
+
+By default it also validates both AppImages in an Ubuntu 24.04 container:
+
+    tools/container-build/validate-appimages-ubuntu.sh
+
+The AppImage launch path defaults to Wayland in the same spirit as
+`StartATHENA.qt6.wayland.sh`.
+
+Useful environment variables for the container build include:
+
+    ATHENA_GUILE18_SOURCE=/path/to/guile-1.8.8
+    ATHENA_BUILD_JOBS=16
+    ATHENA_SKIP_UBUNTU_VALIDATE=1
+    ATHENA_ALLOW_SYSTEM_COMPILER=1
+
+`ATHENA_GUILE18_SOURCE` must point to a Guile 1.8 source tree.  ATHENA still
+requires Guile 1.8; do not substitute Guile 2 or Guile 3.
+
+-------------------------------------------------------------------------------
+Platform status
+-------------------------------------------------------------------------------
+
+Linux with Qt 6 and native Wayland is the primary maintained configuration.
+KDE/Wayland is the most tested desktop path.
+
+WSL2/WSLg can run the Linux AppImage or runtime tree when the required Linux
+libraries and graphics stack are available.  Treat WSLg as a Linux/Wayland
+environment, not as a native Win32 port.
+
+Native Windows support is experimental and uses the separate tooling under
+`tools/windows-deps/`.
+
+Legacy non-Qt GUI backends have been removed from the maintained path.  The old
+XCB launcher settings are no longer the default runtime configuration.

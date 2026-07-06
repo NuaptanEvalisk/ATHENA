@@ -4,7 +4,7 @@
 
 <\body>
   <\tmdoc-title>
-    Welcome to <ATHENA> version 0.3
+    Welcome to <ATHENA> version <texmacs-version>
   </tmdoc-title>
 
   Thank you for using <ATHENA>.
@@ -104,7 +104,7 @@
 
     <item*|Development status>
 
-    <ATHENA> 0.3 is active experimental software. Expect rough edges. Expect
+    <ATHENA> <texmacs-version> is active experimental software. Expect rough edges. Expect
     features to be deeper than their polish. The current build and runtime
     workflow is tested on Linux with Qt; legacy non-Qt GUI backends have been
     removed from the maintained path.

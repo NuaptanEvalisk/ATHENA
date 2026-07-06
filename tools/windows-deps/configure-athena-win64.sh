@@ -133,10 +133,26 @@ export PKG_CONFIG_LIBDIR="${prefix}/lib/pkgconfig:${prefix}/lib64/pkgconfig:${pr
 export PKG_CONFIG_SYSROOT_DIR="${prefix}"
 export PKG_CONFIG_PATH=
 
+boost_include_dir="${ATHENA_WIN64_BOOST_INCLUDE_DIR:-}"
+if [[ -z "${boost_include_dir}" ]]; then
+  if [[ -d "${prefix}/include/boost" ]]; then
+    boost_include_dir="${prefix}/include"
+  elif [[ -d "/usr/include/boost" ]]; then
+    echo "staging Boost headers into Windows prefix"
+    rsync -a /usr/include/boost "${prefix}/include/"
+    boost_include_dir="${prefix}/include"
+  fi
+fi
+if [[ ! -f "${boost_include_dir}/boost/version.hpp" ]]; then
+  echo "missing Boost headers: ${boost_include_dir}/boost/version.hpp" >&2
+  echo "set ATHENA_WIN64_BOOST_INCLUDE_DIR or install/copy Boost headers" >&2
+  exit 1
+fi
+
 win64_c_flags="-Drandom=rand -Dsrandom=srand -DGNUTLS_STATIC -include ${prefix}/include/athena-win64-compat.h"
 win64_cxx_flags="${win64_c_flags} -fpermissive"
 win64_linker_flags="-static-libstdc++ -static-libgcc"
-win64_standard_libraries="-Wl,--start-group ${prefix}/lib/ggml-cpu.a ${prefix}/lib/libhogweed.a ${prefix}/lib/libnettle.a ${prefix}/lib/libtasn1.a ${prefix}/lib/libgmp.a -latomic -lcrypt32 -lncrypt -lbcrypt -ladvapi32 -ldbghelp -lucrt -Wl,--end-group -lkernel32 -luser32 -lgdi32 -lwinspool -lshell32 -lole32 -loleaut32 -luuid -lcomdlg32 -ladvapi32"
+win64_standard_libraries="-Wl,--start-group ${prefix}/lib/ggml-cpu.a ${prefix}/lib/libhogweed.a ${prefix}/lib/libnettle.a ${prefix}/lib/libtasn1.a ${prefix}/lib/libgmp.a -latomic -lcrypt32 -lncrypt -lbcrypt -ladvapi32 -lsecur32 -ldbghelp -lucrt -Wl,--end-group -lkernel32 -luser32 -lgdi32 -lwinspool -lshell32 -lole32 -loleaut32 -luuid -lcomdlg32 -ladvapi32 -lsecur32"
 
 cmake -S "${repo_root}" -B "${build_dir}" -G Ninja \
   -DCMAKE_TOOLCHAIN_FILE="${script_dir}/athena-win64-mingw-toolchain.cmake" \
@@ -147,6 +163,7 @@ cmake -S "${repo_root}" -B "${build_dir}" -G Ninja \
   -DCMAKE_SHARED_LINKER_FLAGS="${win64_linker_flags}" \
   -DCMAKE_C_STANDARD_LIBRARIES="${win64_standard_libraries}" \
   -DCMAKE_CXX_STANDARD_LIBRARIES="${win64_standard_libraries}" \
+  -DBoost_INCLUDE_DIR="${boost_include_dir}" \
   -DATHENA_GUI=Qt6 \
   -DUSE_KF6_KIO_FILE_DIALOGS=OFF \
   -DCMAKE_BUILD_TYPE=Release

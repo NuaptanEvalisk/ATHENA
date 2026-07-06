@@ -119,6 +119,7 @@ mkdir -p "${release_dir}" "${release_dir}/bin"
 
 rsync -a --delete \
   --exclude='*.gguf' \
+  --exclude='*.safetensors' \
   --exclude='.venv/' \
   --exclude='.uv-cache/' \
   --exclude='/bin/ATHENA.bin' \

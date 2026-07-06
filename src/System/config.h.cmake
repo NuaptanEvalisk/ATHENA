@@ -90,6 +90,8 @@
 
 #cmakedefine OS_MINGW 1
 
+#cmakedefine OS_MINGW64 1
+
 #cmakedefine PDFHUMMUS_NO_TIFF 1
 
 /* Disable fast memory allocator */
