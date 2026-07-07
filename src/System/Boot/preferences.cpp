@@ -457,7 +457,7 @@ ensure_builtin_user_preferences () {
           "converter-set-option"),
     PREF ("texmacs->latex:indirect-bib", "off", "converter-set-option"),
     PREF ("texmacs->latex:use-macros", "on", "converter-set-option"),
-    PREF ("texmacs->latex:encoding", "ascii", "converter-set-option"),
+    PREF ("texmacs->latex:encoding", "utf-8", "converter-set-option"),
     PREF ("latex->texmacs:matrix-recognition", "on", ""),
     PREF ("latex->texmacs:aligned-to-eqnarray", "on", ""),
     PREF ("latex->texmacs:align-to-aligned", "on", ""),

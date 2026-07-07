@@ -1249,8 +1249,9 @@ QTMPreferencesDialog::buildConversionPage () {
   add_toggle (l2, "Allow for macro definitions in preamble:",
               "texmacs->latex:use-macros");
   add_combo (l2, "Character encoding:", "texmacs->latex:encoding",
-             {{"ascii", "Ascii"}, {"cork", "Cork with catcodes"},
-              {"utf-8", "Utf-8 with inputenc"}});
+             {{"utf-8", "UTF-8 with inputenc"},
+              {"cork", "Cork with catcodes"},
+              {"ascii", "Legacy ASCII (exports as UTF-8)"}});
   QFormLayout* l3= add_section (latex, "Conservative conversion options");
   QCheckBox* sourceTracking= new QCheckBox;
   sourceTracking->setChecked (pref_on ("latex->texmacs:source-tracking") ||

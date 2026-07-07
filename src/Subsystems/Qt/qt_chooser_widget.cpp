@@ -26,6 +26,8 @@
 #include <QString>
 #include <QStringList>
 #include <QFileDialog>
+#include <QCheckBox>
+#include <QGridLayout>
 #include <QByteArray>
 #include <QUrl>
 
@@ -416,6 +418,7 @@ qt_chooser_widget_rep::perform_dialog () {
   QFileDialog* native_dialog = 0;
   QTMFileDialog* custom_dialog = 0;
   QTMImageDialog* img_dialog = 0;
+  QCheckBox* portable_latex = 0;
   
   if (type == "image") {
     custom_dialog = img_dialog = new QTMImageDialog (NULL, caption, path);
@@ -424,6 +427,18 @@ qt_chooser_widget_rep::perform_dialog () {
   }
 
   QFileDialog* file_ptr = native_dialog ? native_dialog : custom_dialog->get_qfiledialog();
+
+  if (native_dialog && type == "latex" && prompt != "") {
+    file_ptr->setOption (QFileDialog::DontUseNativeDialog, true);
+    portable_latex =
+      new QCheckBox (to_qstring (translate ("Make converted file portable")),
+                     file_ptr);
+    portable_latex->setChecked (false);
+    QGridLayout* layout = qobject_cast<QGridLayout*> (file_ptr->layout ());
+    if (layout != 0)
+      layout->addWidget (portable_latex, layout->rowCount (), 0, 1,
+                         layout->columnCount ());
+  }
 
   file_ptr->setViewMode (QFileDialog::Detail);
   if (type == "directory")
@@ -476,6 +491,9 @@ qt_chooser_widget_rep::perform_dialog () {
           }
       string imname    = from_qstring_utf8 (imqstring);
       file = "(system->url " * scm_quote (imname) * ")";
+      if (portable_latex != 0)
+        file = "(list " * file * " " *
+               scm_quote (portable_latex->isChecked () ? "on" : "off") * ")";
       if (type == "image") {
         if (img_dialog) {
           file = "(list " * file * img_dialog->getParamsAsString () * ")"; //set image size from preview

@@ -16,6 +16,7 @@
         (athena athena tm-view)
         (athena athena tm-print)
         (athena athena tm-vault-anchors)
+        (kernel athena tm-convert)
         (kernel athena tm-dialogue)
         (utils library cursor)))
 (use-modules (kernel athena tm-preferences))
@@ -325,7 +326,12 @@
 (define (export-buffer-export name to fm opts)
   ;;(display* "export-buffer-export " name ", " to ", " fm "\n")
   (with vto `(verbatim ,(url->system to))
-    (if (buffer-export name to fm)
+    (if (if (and (== fm "latex") (in? :latex-portable opts))
+            (with-converter-option
+             "texmacs-stree" "latex-document"
+             "texmacs->latex:portable" "on"
+             (lambda () (buffer-export name to fm)))
+            (buffer-export name to fm))
         (set-message `(concat "Could not save " ,vto) "Export file")
         (set-message `(concat "Exported to " ,vto) "Export file"))))
 
@@ -341,6 +347,10 @@
 
 (tm-define (export-buffer-main name to fm opts)
   ;;(display* "export-buffer-main " name ", " to ", " fm "\n")
+  (when (and (pair? to) (url? (car to)))
+    (when (and (nnull? (cdr to)) (== (cadr to) "on"))
+      (set! opts (cons :latex-portable opts)))
+    (set! to (car to)))
   (when (string? to)
     (set! to (string-replace to ":" "-"))
     (set! to (string-replace to ";" "-"))

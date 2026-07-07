@@ -229,6 +229,18 @@
 (define-public (std-converter-options from to)
   (or (ahash-ref converter-options (list from to)) '()))
 
+(define-public (with-converter-option from to option val thunk)
+  (lazy-format-force)
+  (let* ((key (list from to))
+         (old (ahash-ref converter-options key)))
+    (dynamic-wind
+      (lambda () (converter-change-option from to option val))
+      thunk
+      (lambda ()
+        (if old
+            (ahash-set! converter-options key old)
+            (ahash-remove! converter-options key))))))
+
 (define (convert-via what from path options)
   ;;(display* "convert-via " what ", " from ", " path ", " options "\n")
   (if (null? path)

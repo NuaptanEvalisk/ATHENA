@@ -41,6 +41,10 @@
 (define tmtex-ref-cnt 1)
 (define tmtex-auto-produce 0)
 (define tmtex-auto-consume 0)
+(define tmtex-athena-data-serial 0)
+(define tmtex-portable? #f)
+(define tmtex-portable-image-copies '())
+(define tmtex-portable-image-used '())
 (define tmtex-image-root-url (unix->url "image"))
 (define tmtex-image-root-string "image")
 (define tmtex-appendices? #f)
@@ -111,6 +115,35 @@
 
 (tm-define (tmtex-style-preprocess doc) doc)
 
+(define tmtex-drop-marker '(!athena-drop))
+
+(define (tmtex-drop-marker? x)
+  (== x tmtex-drop-marker))
+
+(define (tmtex-tree-contains-string? t what)
+  (cond ((string? t) (string-occurs? what t))
+        ((list? t)
+         (list-or
+          (map (lambda (x) (tmtex-tree-contains-string? x what)) t)))
+        (else #f)))
+
+(define (tmtex-experimental-build-warning? t)
+  (or (func? t 'experimental-build-warning)
+      (and (func? t 'note)
+           (tmtex-tree-contains-string? t
+             "This document was typeset")
+           (tmtex-tree-contains-string? t
+             "currently experimental")
+           (tmtex-tree-contains-string? t
+             "GitHub Issues"))))
+
+(define (tmtex-discard-experimental-build-warning t)
+  (cond ((tmtex-experimental-build-warning? t) tmtex-drop-marker)
+        ((list? t)
+         (list-filter (map tmtex-discard-experimental-build-warning t)
+                      (lambda (x) (not (tmtex-drop-marker? x)))))
+        (else t)))
+
 (define (import-tmtex-styles)
   (cond ((elsevier-style?) (import-from (convert latex tmtex-elsevier)))
         ((acm-style?)      (import-from (convert latex tmtex-acm)))
@@ -134,9 +167,14 @@
   (set! tmtex-macros (make-ahash-table))
   (set! tmtex-dynamic (make-ahash-table))
   (set! tmtex-serial 0)
+  (set! tmtex-athena-data-serial 0)
   (set! tmtex-auto-produce 0)
   (set! tmtex-auto-consume 0)
   (set! tmtex-mathjax? #f)
+  (set! tmtex-portable?
+        (== (assoc-ref opts "texmacs->latex:portable") "on"))
+  (set! tmtex-portable-image-copies '())
+  (set! tmtex-portable-image-used '())
   (if (== (url-suffix current-save-target) "tex")
       (begin
         (set! tmtex-image-root-url (url-unglue current-save-target 4))
@@ -161,7 +199,8 @@
     (tmtex-env-set "mode" "math")
     (set! tmtex-mathjax? #t))
   (with charset (assoc-ref opts "texmacs->latex:encoding")
-    (if tmtex-cjk-document? (set! charset "utf-8"))
+    (if (or tmtex-cjk-document? (not charset) (== charset "ascii"))
+        (set! charset "utf-8"))
     (cond ((== charset "utf-8")
            (set! tmtex-use-catcodes? #f)
            (set! tmtex-use-ascii?    #f)
@@ -570,21 +609,24 @@
                       (list c))
                   (tmtex-text-list (cdr l))))))))
 
-(define (tmtex-mathjax-native-operator? op)
+(define (tmtex-latex-native-operator? op)
   (in? op '("arccos" "arcsin" "arctan" "arg" "cos" "cosh" "cot" "coth"
-            "csc" "deg" "det" "dim" "exp" "gcd" "hom" "inf" "ker" "lg"
+            "csc" "deg" "det" "dim" "exp" "gcd" "inf" "ker" "lg"
             "lim" "liminf" "limsup" "ln" "log" "max" "min" "Pr" "sec"
             "sin" "sinh" "sup" "tan" "tanh")))
+
+(define (tmtex-operatorname op)
+  (latex-add-extra "amsmath")
+  (list 'operatorname op))
 
 (define (tmtex-math-operator l)
   (receive (p q) (list-break l (lambda (c) (not (char-alphabetic? c))))
     (let* ((op (tmtex-textual (list->string p)))
            (tail (tmtex-math-list q)))
       (if (logic-in? (string->symbol op) latex-operator%)
-          (cons (if (or (not tmtex-mathjax?)
-                        (tmtex-mathjax-native-operator? op))
+          (cons (if (tmtex-latex-native-operator? op)
                     (list '!symbol (tex-apply (string->symbol op)))
-                    (list 'operatorname op))
+                    (tmtex-operatorname op))
                 tail)
           (cons (post-process-math-text (tex-apply 'tmop op)) tail)))))
 
@@ -1774,20 +1816,23 @@
       (list 'custombinding (force-string (cAr l)))
       ""))
 
+(define (tmtex-latex-id s)
+  (tmtex-string (force-string s)))
+
 (define (tmtex-label l)
-  (list 'label (force-string (car l))))
+  (list 'label (tmtex-latex-id (car l))))
 
 (define (tmtex-reference l)
-  (list 'ref (force-string (car l))))
+  (list 'ref (tmtex-latex-id (car l))))
 
 (define (tmtex-pageref l)
-  (list 'pageref (force-string (car l))))
+  (list 'pageref (tmtex-latex-id (car l))))
 
 (define (tmtex-eqref s l)
-  (list 'eqref (force-string (car l))))
+  (list 'eqref (tmtex-latex-id (car l))))
 
 (define (tmtex-smart-ref s l)
-  (let* ((ss (map force-string l))
+  (let* ((ss (map tmtex-latex-id l))
          (key (string-recompose ss ",")))
     (list 'Cref key)))
 
@@ -1840,15 +1885,83 @@
 (define (tmtex-graphics l)
   (tmtex-eps (cons 'graphics l)))
 
+(define (tmtex-clean-includegraphics-name name)
+  (let ((p (url->string "$ATHENA_PATH")))
+    (set! name (string-replace name "$ATHENA_PATH" p))
+    (set! name (string-replace name "file://" ""))
+    name))
+
+(define (tmtex-resolve-image-url name)
+  (let* ((un (unix->url name))
+         (target (url-relative current-save-target un))
+         (source (url-relative current-save-source un)))
+    (cond ((url-exists? target) target)
+          ((url-exists? source) source)
+          ((url-exists? un) un)
+          (else target))))
+
+(define (tmtex-numbered-file-name name nr)
+  (if (== nr 0) name
+      (let* ((suffix (url-suffix (unix->url name)))
+             (stem (if (== suffix "") name
+                       (string-drop-right name
+                                          (+ (string-length suffix) 1)))))
+        (string-append stem "-" (number->string nr)
+                       (if (== suffix "") ""
+                           (string-append "." suffix))))))
+
+(define (tmtex-portable-image-dir-url)
+  (url-head current-save-target))
+
+(define (tmtex-portable-image-conflict? source file-name)
+  (let ((dest (url-append (url-expand (tmtex-portable-image-dir-url))
+                          file-name)))
+    (and (url-exists? dest)
+         (!= (url->system source) (url->system dest)))))
+
+(define (tmtex-portable-image-fresh-name source tail)
+  (let loop ((nr 0))
+    (let ((candidate (tmtex-numbered-file-name tail nr)))
+      (if (or (in? candidate tmtex-portable-image-used)
+              (tmtex-portable-image-conflict? source candidate))
+          (loop (+ nr 1))
+          candidate))))
+
+(define (tmtex-portable-image-copy source)
+  (let* ((key (url->system source))
+         (old (assoc-ref tmtex-portable-image-copies key)))
+    (if old old
+        (let* ((tail (url->system (url-tail source)))
+               (file-name (tmtex-portable-image-fresh-name source tail))
+               (dir-url (url-expand (tmtex-portable-image-dir-url)))
+               (dest (url-append dir-url file-name))
+               (rel file-name))
+          (system-mkdir dir-url)
+          (when (!= (url->system source) (url->system dest))
+            (system-copy source dest))
+          (set! tmtex-portable-image-used
+                (cons file-name tmtex-portable-image-used))
+          (set! tmtex-portable-image-copies
+                (acons key rel tmtex-portable-image-copies))
+          rel))))
+
+(define (tmtex-include-image-file name source)
+  (let ((include-name
+         (if tmtex-portable?
+             (tmtex-portable-image-copy source)
+             (tmtex-clean-includegraphics-name
+              (if (url-exists? (url-relative current-save-target
+                                             (unix->url name)))
+                  name
+                  (url->system source))))))
+    (list 'includegraphics include-name)))
+
 (define (tmtex-as-eps name)
-  (let* ((u (url-relative current-save-target (unix->url name)))
+  (let* ((u (tmtex-resolve-image-url name))
          (suffix (url-suffix u))
          (fm (string-append (format-from-suffix suffix) "-file")))
-    (if (and (url-exists? u) (in? suffix (list "eps" "pdf" "png" "jpg")))
-        (with p (url->string "$ATHENA_PATH")
-          (set! name (string-replace name "$ATHENA_PATH" p))
-          (set! name (string-replace name "file://" ""))
-          (list 'includegraphics name))
+    (if (url-exists? u)
+        (tmtex-include-image-file name u)
         (receive (name-url name-string) (tmtex-eps-names)
           (when (string-starts? name "..")
             (set! u (url-relative current-save-source (unix->url name))))
@@ -2766,6 +2879,71 @@
       (set! lst `(!indent (!paragraph ,@(cdr lst)))))
     `(!document (,tag ,arg ,lan ,lst))))
 
+(define (tmtex-athena-data-record cmd vals)
+  (string-append
+   "ATHENA-DATA cmd=\"" cmd "\" val=("
+   (apply string-append
+          (list-intersperse
+           (map (lambda (x) (string-append "\"" x "\"")) vals)
+           ", "))
+   ")"))
+
+(define (tmtex-athena-data-inline records)
+  `(!athena-data-inline ,records))
+
+(define (tmtex-athena-data-next-id)
+  (set! tmtex-athena-data-serial (+ tmtex-athena-data-serial 1))
+  (number->string tmtex-athena-data-serial))
+
+(define (tmtex-athena-data-object st)
+  (let* ((payload (string-replace
+                   (encode-base64 (serialize-texmacs-snippet (stree->tree st)))
+                   "\n" ""))
+         (len (number->string (string-length payload))))
+    (tmtex-athena-data-record "object" (list len payload))))
+
+(define (tmtex-latex-empty? x)
+  (cond ((== x "") #t)
+        ((func? x '!concat)
+         (list-and (map tmtex-latex-empty? (cdr x))))
+        ((func? x '!document)
+         (list-and (map tmtex-latex-empty? (cdr x))))
+        (else #f)))
+
+(define (tmtex-drop-leading-latex-empties l)
+  (cond ((null? l) l)
+        ((tmtex-latex-empty? (car l))
+         (tmtex-drop-leading-latex-empties (cdr l)))
+        (else l)))
+
+(define (tmtex-trim-latex-empties l)
+  (reverse
+   (tmtex-drop-leading-latex-empties
+    (reverse (tmtex-drop-leading-latex-empties l)))))
+
+(define (tmtex-clean-athena-data-fallback fallback)
+  (cond ((func? fallback '!document)
+         (with body (tmtex-trim-latex-empties (cdr fallback))
+           (if (null? body) "" `(!document ,@body))))
+        ((func? fallback '!concat)
+         (with body (tmtex-trim-latex-empties (cdr fallback))
+           (if (null? body) "" `(!concat ,@body))))
+        (else fallback)))
+
+(define (tmtex-athena-data-wrap st fallback)
+  (let ((id (tmtex-athena-data-next-id))
+        (fallback (tmtex-clean-athena-data-fallback fallback)))
+    `(!concat
+      ,(tmtex-athena-data-inline
+        (list (tmtex-athena-data-object st)
+              (tmtex-athena-data-record "skip_begin" (list id))))
+      ,fallback
+      ,(tmtex-athena-data-inline
+        (list (tmtex-athena-data-record "skip_end" (list id)))))))
+
+(define (tmtex-athena-wikilink? h)
+  (and (string? h) (string-starts? h "tmfs://wikilink/")))
+
 (define (escape-hyperref-url l)
   (cond ((string? l)
          (let* ((r1 (string-replace l "\\" "\\\\"))
@@ -2781,9 +2959,49 @@
 (define (tmtex-hlink s l)
   (let* ((h (cadr l))
          (d (tmtex (car l))))
-    (if (and (string? h) (string-starts? h "#"))
-        (list 'hyperref `(!option ,(string-drop h 1)) d)
-        (list 'href (tmtex-hyperref h) d))))
+    (cond ((tmtex-athena-wikilink? h)
+           (tmtex-athena-data-wrap
+            `(hlink ,@l)
+            (tmtex `(underline ,(car l)))))
+          ((and (string? h) (string-starts? h "#"))
+           (list 'hyperref `(!option ,(string-drop h 1)) d))
+          (else
+           (list 'href (tmtex-hyperref h) d)))))
+
+(define (tmtex-cardlink-empty-body? body)
+  (or (== body "")
+      (and (string? body) (string-null? body))))
+
+(define (tmtex-cardlink-default-body destination)
+  (if (and (defined? 'cardlink-default-link-body)
+           (defined? 'stree->tree))
+      (cardlink-default-link-body (stree->tree destination))
+      destination))
+
+(define (tmtex-cardlink s l)
+  (let* ((body (car l))
+         (destination (cadr l))
+         (display (if (tmtex-cardlink-empty-body? body)
+                      (tmtex-cardlink-default-body destination)
+                      body)))
+    (tmtex-athena-data-wrap
+     `(cardlink ,@l)
+     (tmtex `(hlink ,display ,destination)))))
+
+(define (tmtex-transclude-fallback l)
+  (if (defined? 'vault-resolve-transclude-content)
+      (let ((content (vault-resolve-transclude-content
+                      (stree->tree (car l))
+                      (stree->tree (cadr l))
+                      (stree->tree (caddr l))
+                      (stree->tree (cadddr l)))))
+        (tmtex content))
+      (tmtex `(strong "Broken Transclusion: vault resolver unavailable."))))
+
+(define (tmtex-transclude s l)
+  (tmtex-athena-data-wrap
+   `(transclude ,@l)
+   (tmtex-transclude-fallback l)))
 
 (define (tmtex-href s l)
   (list 'url (tmtex-verb-string (car l))))
@@ -3058,6 +3276,7 @@
   (quote-value tmtex-noop)
   ((:or quote-value drd-props arg quote-arg) tmtex-noop)
   (compound tmtex-compound)
+  (experimental-build-warning tmtex-noop)
   ((:or xmacro get-label get-arity map-args eval-args mark eval) tmtex-noop)
   ;; quote missing
   (quasi tmtex-noop)
@@ -3299,6 +3518,8 @@
   (hrule (,tmtex-hrule 0))
   (frac* (,tmtex-frac* 2))
   (hlink (,tmtex-hlink 2))
+  (cardlink (,tmtex-cardlink 2))
+  (transclude (,tmtex-transclude 4))
   (action (,tmtex-action -1))
   (href (,tmtex-href 1))
   (slink (,tmtex-href 1))
@@ -3560,7 +3781,8 @@
 (tm-define (texmacs->latex x opts)
   ;;(display* "texmacs->latex [" opts "], " x "\n")
   (if (tmfile? x)
-      (let* ((body (tmfile-extract x 'body))
+      (let* ((body (tmtex-discard-experimental-build-warning
+                    (tmfile-extract x 'body)))
              (style (tmtex-get-style (tmfile-extract x 'style)))
              (main-style (or (tmtex-transform-style (car style)) "article"))
              (lan (tmfile-language x))
@@ -3585,10 +3807,12 @@
           (set! tmtex-style "generic")
           (set! tmtex-packages '())
           result))
-      (let* ((x2 (tree->stree (tmtm-eqnumber->nonumber (stree->tree x))))
+      (let* ((x0 (tmtex-discard-experimental-build-warning x))
+             (x2 (tree->stree (tmtm-eqnumber->nonumber (stree->tree x0))))
              (x3 (tmtm-match-brackets x2)))
         (tmtex-initialize opts)
-        (with r (tmtex (tmpre-produce x3))
+        (with r (tmtex (tmtex-discard-experimental-build-warning
+                        (tmpre-produce x3)))
           (if tmtex-mathjax?
               (set! r (latex-mathjax-pre r)))
           (if (not tmtex-use-macros?)

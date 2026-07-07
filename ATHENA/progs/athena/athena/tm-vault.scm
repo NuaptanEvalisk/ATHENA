@@ -599,6 +599,62 @@
                     (map (cut vault-transclude-rebase-images <> source-dir)
                          (cdr st))))))
 
+(tm-define (vault-resolve-transclude-content uuid f-hint b-hint e-hint)
+  (let* ((uuid-str (tree->string uuid))
+         (f-hint-str (tree->string f-hint))
+         (b-hint-str (tree->string b-hint))
+         (e-hint-str (tree->string e-hint)))
+    (if (member uuid-str active-transclusions)
+        `(document (with "color" "red"
+                    (concat (bold "Broken Transclusion: ")
+                            "Cyclic transclusion detected (" ,f-hint-str ").")))
+        (let ((res #f))
+          (catch #t
+            (lambda ()
+              (set! active-transclusions (cons uuid-str active-transclusions))
+              (let* ((node (vault-get-node uuid-str)))
+                (set! res
+                      (if (and (tree? node) (== (tree-label node) 'tuple))
+                          (let* ((rel-path (tree->string (tree-ref node 0)))
+                                 (a-begin (tree->string (tree-ref node 1)))
+                                 (a-end (tree->string (tree-ref node 2)))
+                                 (abs-url (url-append (vault-get-root)
+                                                      (unix->url rel-path)))
+                                 (source-dir (url-head abs-url)))
+                            (if (url-exists? abs-url)
+                                (let* ((t (tree-import abs-url "texmacs"))
+                                       (content (vault-extract-range
+                                                 t a-begin a-end)))
+                                  (if (null? content)
+                                      `(document ,(vault-transclude-error
+                                                   uuid-str f-hint-str
+                                                   b-hint-str e-hint-str
+                                                   "Anchors not found in target."))
+                                      `(document
+                                         ,@(map
+                                            (lambda (st)
+                                              (vault-transclude-rebase-images
+                                               (vault-strip-labels st)
+                                               source-dir))
+                                            (map tree->stree content)))))
+                                `(document ,(vault-transclude-error
+                                             uuid-str f-hint-str
+                                             b-hint-str e-hint-str
+                                             "Target file missing."))))
+                          `(document ,(vault-transclude-error
+                                       uuid-str f-hint-str
+                                       b-hint-str e-hint-str
+                                       "UUID not in database."))))))
+            (lambda (key . args)
+              (display* "Transclude export error: " key " " args "\n")
+              (set! res
+                    `(document ,(vault-transclude-error
+                                 uuid-str f-hint-str b-hint-str e-hint-str
+                                 "Internal error.")))))
+          (set! active-transclusions
+                (list-difference active-transclusions (list uuid-str)))
+          res))))
+
 (tm-define (vault-resolve-transclude uuid f-hint b-hint e-hint)
   (let* ((uuid-str (tree->string uuid))
          (f-hint-str (tree->string f-hint))

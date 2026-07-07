@@ -82,6 +82,14 @@
         ((list>0? t) (map-in-order detach-macros t))
         (else t)))
 
+(tm-define (texout-athena-header)
+  (output-verbatim "% IMPORTANT: This LaTeX file is exported by ATHENA. Please do NOT change ANY ATHENA-DATA record to avoid loss of ATHENA interoperability.\n")
+  (output-verbatim "% ATHENA is free software. To learn more about ATHENA please visit https://athena.evalisk.org/\n")
+  (output-verbatim "% ATHENA-DATA cmd=\"version\" val=(\"" (texmacs-version) "\")\n"))
+
+(tm-define (texout-athena-inline-comment-definition)
+  (output-verbatim "\\long\\def\\INLINE_COMMENT#1{}\n"))
+
 (define (texout-file l)
   (let* ((doc-body (car l))
          (has-preamble? (latex-stree-contains? doc-body "\\begin{document}"))
@@ -107,9 +115,11 @@
         (receive
             (tm-style-options tm-uses tm-init tm-preamble)
             (latex-preamble doc-misc style lan init colors colormaps)
+          (texout-athena-header)
           (output-verbatim "\\documentclass")
           (output-verbatim tm-style-options)
           (output-verbatim "{" style* "}\n")
+          (texout-athena-inline-comment-definition)
           (with main-lang (cAr lan)
             (cond ((== main-lang "korean")
                    (output-verbatim "\\usepackage{hangul}\n"))
@@ -159,7 +169,8 @@
         (output-tex "\\begin{document}")
         (output-lf)
         (output-tex post-begin)
-        (output-lf)))
+        (output-lf))
+      (texout-athena-header))
     (texout doc-body)
     (if (not has-end?)
       (begin
@@ -183,6 +194,15 @@
     (texout l)
     (set-output-comment #f)
     (output-lf))
+
+(tm-define (texout-athena-data l)
+  (output-verbatim "% " l "\n"))
+
+(tm-define (texout-athena-data-inline l)
+  (output-flush)
+  (for-each (lambda (x)
+              (output-verbatim "\\INLINE_COMMENT{" x "}"))
+            l))
 
 (tm-define (texout-preamble l)
   (output-verbatim l))
@@ -458,6 +478,9 @@
         ((== (car x) '!widechar) (output-tex (symbol->string (cadr x))))
         ((== (car x) '!file) (texout-file (cdr x)))
         ((== (car x) '!preamble) (texout-preamble (cadr x)))
+        ((== (car x) '!athena-data) (texout-athena-data (cadr x)))
+        ((== (car x) '!athena-data-inline)
+         (texout-athena-data-inline (cadr x)))
         ((== (car x) '!comment) (texout-comment (cadr x)))
         ((== (car x) '!document) (texout-document (cdr x)))
         ((== (car x) '!paragraph) (texout-paragraph (cdr x)))
@@ -494,4 +517,3 @@
 (tm-define (serialize-latex x)
   (texout x)
   (output-produce))
-

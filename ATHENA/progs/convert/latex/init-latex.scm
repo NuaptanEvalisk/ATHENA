@@ -60,7 +60,8 @@
   (:option "texmacs->latex:expand-user-macros" "off")
   (:option "texmacs->latex:indirect-bib" "off")
   (:option "texmacs->latex:use-macros" "on")
-  (:option "texmacs->latex:encoding" "ascii"))
+  (:option "texmacs->latex:encoding" "utf-8")
+  (:option "texmacs->latex:portable" "off"))
 
 (converter latex-stree latex-document
   (:function serialize-latex))
@@ -83,7 +84,8 @@
   (:option "texmacs->latex:expand-user-macros" "off")
   (:option "texmacs->latex:indirect-bib" "off")
   (:option "texmacs->latex:use-macros" "on")
-  (:option "texmacs->latex:encoding" "ascii"))
+  (:option "texmacs->latex:encoding" "utf-8")
+  (:option "texmacs->latex:portable" "off"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; LaTeX -> TeXmacs
