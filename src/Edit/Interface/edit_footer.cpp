@@ -26,6 +26,19 @@ as_footer_tree (object obj) {
   return as_tree (obj);
 }
 
+static bool
+is_startup_banner_message (tree l, tree r) {
+  if (!is_atomic (l) || !is_atomic (r)) return false;
+  string left= as_string (l);
+  string right= as_string (r);
+  if (!starts (right, "ATHENA ")) return false;
+  return left == "Welcome to ATHENA" ||
+         left == "ATHENA is a fork of GNU TeXmacs" ||
+         left == "ATHENA falls under the GNU general public license" ||
+         left == "ATHENA comes without any form of legal warranty" ||
+         left == "More information about ATHENA can be found in the Help->About menu";
+}
+
 /******************************************************************************
 * Set left footer with information about environment variables
 ******************************************************************************/
@@ -569,6 +582,7 @@ edit_interface_rep::set_message (tree l, tree r, bool temp) {
   eval ("(set-message-notify)");
 #ifdef QTTEXMACS
   if ((l != "" || r != "") &&
+      !is_startup_banner_message (l, r) &&
       get_preference ("use toast notifications", "off") == "on" &&
       qtm_show_toast (translate (l), translate (r))) {
     message_l= "";
