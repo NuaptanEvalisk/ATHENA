@@ -62,8 +62,9 @@ QToolBar#userToolBar {
 
 QToolBar::separator {
     background: rgba(128,128,128,50%);
-    width: 0px;
-    margin: 4px 8px;
+    width: 1px;
+    margin: 0px;
+    padding: 0px;
 }
 
 QStatusBar {
@@ -339,4 +340,43 @@ MingwQComboBox::drop_down {
 
 MingwQComboBox::down_arrow {
     border-image: url("$ATHENA_PATH/misc/pixmaps/modern/16x16/focus/tm_similar_next_x4.png") 7 7 7 7 stretch stretch;
+}
+
+/****************************************************************************
+* Compact ATHENA menu and toolbars
+****************************************************************************/
+
+QMenuBar {
+    padding: 0px;
+    margin: 0px;
+    spacing: 0px;
+}
+
+QMenuBar::item {
+    padding: 0px 8px;
+    margin: 0px;
+}
+
+#mainToolBar, #modeToolBar, #focusToolBar, #userToolBar, #menuToolBar,
+#mainToolBar QWidget, #modeToolBar QWidget, #focusToolBar QWidget,
+#userToolBar QWidget, #menuToolBar QWidget,
+#mainToolBar QToolButton, #modeToolBar QToolButton,
+#focusToolBar QToolButton, #userToolBar QToolButton,
+#menuToolBar QToolButton {
+    padding: 0px;
+    margin: 0px;
+}
+
+#mainToolBar QToolButton, #modeToolBar QToolButton,
+#focusToolBar QToolButton, #userToolBar QToolButton,
+#menuToolBar QToolButton {
+    border: 0px;
+}
+
+#mainToolBar::separator, #modeToolBar::separator,
+#focusToolBar::separator, #userToolBar::separator,
+#menuToolBar::separator, #toolbarSeparator {
+    padding: 0px;
+    margin: 0px;
+    width: 1px;
 }

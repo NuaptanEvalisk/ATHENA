@@ -11,6 +11,7 @@
 
 #include "QTMToolbar.hpp"
 #include <QToolButton>
+#include <QToolBar>
 #include <QPushButton>
 #include <QLabel>
 #include <QApplication>
@@ -18,6 +19,9 @@
 #include <QComboBox>
 #include <QStatusBar>
 #include <QDockWidget>
+#include <QFile>
+#include <QLayout>
+#include <QTextStream>
 #include <QMainWindow>
 #include <QMenuBar>
 #include <QLayoutItem>
@@ -47,7 +51,90 @@
 int menu_count = 0;  // zero if no menu is currently being displayed
 list<qt_tm_widget_rep*> waiting_widgets;
 
+static QSize
+athena_toolbar_icon_size () {
+  return QSize (32, 32);
+}
+
 #if DISABLE_QTMTOOLBAR
+static void
+athena_configure_toolbar (QToolBar* toolbar, const QSize& iconSize) {
+  if (!toolbar || !iconSize.isValid ()) return;
+
+  toolbar->setIconSize (iconSize);
+  toolbar->setToolButtonStyle (Qt::ToolButtonIconOnly);
+  toolbar->setContentsMargins (0, 0, 0, 0);
+  toolbar->setMinimumHeight (iconSize.height ());
+  toolbar->setMaximumHeight (iconSize.height ());
+  if (QLayout* layout= toolbar->layout ()) {
+    layout->setContentsMargins (0, 0, 0, 0);
+    layout->setSpacing (0);
+  }
+}
+
+static bool
+athena_toolbar_icon_debug_enabled () {
+  static bool enabled= qEnvironmentVariableIsSet ("ATHENA_TOOLBAR_ICON_DEBUG");
+  return enabled;
+}
+
+static void
+athena_toolbar_icon_debug (const QString& line) {
+  if (!athena_toolbar_icon_debug_enabled ()) return;
+  QFile file (QStringLiteral ("/tmp/athena-toolbar-icon-debug.log"));
+  if (!file.open (QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text))
+    return;
+  QTextStream out (&file);
+  out << line << Qt::endl;
+}
+
+static void
+athena_configure_toolbar_button (QToolBar* toolbar, QToolButton* button,
+                                 const QSize& iconSize) {
+  if (!button) return;
+
+  QAction* action= button->defaultAction ();
+  if (!action && button->icon ().isNull ()) return;
+
+  button->setPopupMode (QToolButton::InstantPopup);
+
+  if (action && action->icon ().isNull () && !action->text ().isEmpty ()) {
+    button->setToolButtonStyle (Qt::ToolButtonTextOnly);
+    button->setSizePolicy (QSizePolicy::Minimum, QSizePolicy::Preferred);
+    button->setMinimumWidth (button->sizeHint ().width ());
+  }
+  else if (iconSize.isValid ()) {
+    button->setToolButtonStyle (Qt::ToolButtonIconOnly);
+    button->setAutoRaise (true);
+    button->setContentsMargins (0, 0, 0, 0);
+    button->setIconSize (iconSize);
+    button->setSizePolicy (QSizePolicy::Fixed, QSizePolicy::Fixed);
+    button->setFixedSize (iconSize);
+    button->updateGeometry ();
+  }
+
+  if (tm_style_sheet == "")
+    button->setStyle (qtmstyle());
+
+  if (athena_toolbar_icon_debug_enabled ()) {
+    QSize actual= button->icon ().actualSize (iconSize);
+    athena_toolbar_icon_debug (
+      QStringLiteral ("legacy-toolbar toolbar=%1 toolbarIcon=%2x%3 "
+                      "buttonIcon=%4x%5 actual=%6x%7 "
+                      "sizeHint=%8x%9 size=%10x%11 min=%12x%13 "
+                      "max=%14x%15 text='%16'")
+        .arg (toolbar ? toolbar->objectName () : QString ())
+        .arg (iconSize.width ()).arg (iconSize.height ())
+        .arg (button->iconSize ().width ()).arg (button->iconSize ().height ())
+        .arg (actual.width ()).arg (actual.height ())
+        .arg (button->sizeHint ().width ()).arg (button->sizeHint ().height ())
+        .arg (button->size ().width ()).arg (button->size ().height ())
+        .arg (button->minimumSize ().width ()).arg (button->minimumSize ().height ())
+        .arg (button->maximumSize ().width ()).arg (button->maximumSize ().height ())
+        .arg (button->text ()));
+  }
+}
+
 static void
 replaceActions (QWidget* dest,  QList<QAction*>* src) {
   //NOTE: the parent hierarchy of the actions is not modified while installing
@@ -72,6 +159,9 @@ static void
 replaceButtons (QToolBar* dest, QList<QAction*>* src) {
   if (src == NULL || dest == NULL)
     FAILED ("replaceButtons expects valid objects");
+
+  const QSize iconSize= athena_toolbar_icon_size ();
+  athena_configure_toolbar (dest, iconSize);
   dest->setUpdatesEnabled (false);
   bool visible = dest->isVisible();
   if (visible) dest->hide(); //TRICK: to avoid flicker of the dest widget
@@ -100,21 +190,11 @@ replaceButtons (QToolBar* dest, QList<QAction*>* src) {
       dest->addAction (a);
     }
   }
-  QList<QObject*> list = dest->children();
-  for (int i = 0; i < list.count(); ++i) {
-    QToolButton* button = qobject_cast<QToolButton*> (list[i]);
-    if (button) {
-      button->setPopupMode (QToolButton::InstantPopup);
-      QAction* action= button->defaultAction ();
-      if (action && action->icon ().isNull () && !action->text ().isEmpty ()) {
-        button->setToolButtonStyle (Qt::ToolButtonTextOnly);
-        button->setSizePolicy (QSizePolicy::Minimum, QSizePolicy::Preferred);
-        button->setMinimumWidth (button->sizeHint ().width ());
-      }
-      if (tm_style_sheet == "")
-        button->setStyle (qtmstyle());
-    }
-  }
+
+  athena_configure_toolbar (dest, iconSize);
+  for (QToolButton* button: dest->findChildren<QToolButton*> ())
+    athena_configure_toolbar_button (dest, button, iconSize);
+
   if (visible) dest->show(); //TRICK: see above
   dest->setUpdatesEnabled (true);
 }
@@ -188,7 +268,7 @@ qt_tm_widget_rep::qt_tm_widget_rep(int mask, command _quit)
   mw->setWindowIcon(tmapp()->icon_manager().getIcon("ATHENA"));
 #endif
  
-  mw->setIconSize (QSize (17, 17));
+  mw->setIconSize (athena_toolbar_icon_size ());
   mw->setFocusPolicy (Qt::NoFocus);
   
   // status bar
@@ -268,19 +348,12 @@ qt_tm_widget_rep::qt_tm_widget_rep(int mask, command _quit)
   }
     
   {
-    // set proper sizes for icons
-    QImage *pxm = xpm_image ("tm_new.xpm");
-    QSize sz = (pxm ? pxm->size() : QSize (24, 24));
-    tweak_iconbar_size (sz);
+    // Toolbar icon size is a UI metric, not an input-pixmap metric.
+    QSize sz= athena_toolbar_icon_size ();
     mainToolBar->setIconSize (sz);
-    pxm = xpm_image ("tm_section.xpm");
-    sz = (pxm ? pxm->size() : QSize (20, 20));
-    tweak_iconbar_size (sz);
     modeToolBar->setIconSize (sz);
-    pxm = xpm_image ("tm_add.xpm");
-    sz = (pxm ? pxm->size() : QSize (16, 16));
-    tweak_iconbar_size (sz);
     focusToolBar->setIconSize (sz);
+    userToolBar->setIconSize (sz);
   }
 
   // Why we need fixed height:
@@ -291,22 +364,11 @@ qt_tm_widget_rep::qt_tm_widget_rep(int mask, command _quit)
   //
   // NOTICE: setFixedHeight must be after setIconSize
   // TODO: the size of the toolbar should be calculated dynamically
-  double toolbarScale= retina_scale;
-  int toolbarHeight= (int) floor (30 * toolbarScale + 0.5);
-  mainToolBar->setFixedHeight (
-    toolbarHeight + (int) floor (8 * toolbarScale + 0.5));
-  modeToolBar->setFixedHeight (
-    toolbarHeight + (int) floor (4 * toolbarScale + 0.5));
+  int toolbarHeight= athena_toolbar_icon_size ().height ();
+  mainToolBar->setFixedHeight (toolbarHeight);
+  modeToolBar->setFixedHeight (toolbarHeight);
   focusToolBar->setFixedHeight (toolbarHeight);
-  if (tm_style_sheet != "") {
-    double scale= retina_scale;
-    int h1= (int) floor (38 * scale + 0.5);
-    int h2= (int) floor (34 * scale + 0.5);
-    int h3= (int) floor (30 * scale + 0.5);
-    mainToolBar->setFixedHeight (h1);
-    modeToolBar->setFixedHeight (h2);
-    focusToolBar->setFixedHeight (h3);
-  }
+  userToolBar->setFixedHeight (toolbarHeight);
   
   QWidget *cw= new QWidget(mw);
   cw->setObjectName("centralWidget");  // this is important for styling toolbars.

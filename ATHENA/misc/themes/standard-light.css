@@ -7,7 +7,6 @@ QWidget {
     background: #E8E8E8;
     color: #000000;
     font-size: 14px;
-    icon-size: 16px;
 }
 
 QAbstractScrollArea, QWidget#centralWidget {
@@ -39,12 +38,15 @@ QMenuBar, QMenuBar QWidget, #menuToolBar, #menuToolBar QWidget {
 }
 
 QMenuBar {
-    padding-top: 5px;
-    spacing: 10px;
+    padding: 0px;
+    margin: 0px;
+    spacing: 0px;
 }
 
 QMenuBar::item {
     background: #C0C0C0;
+    padding: 0px 8px;
+    margin: 0px;
 }
 
 MacosQMenuBar::item {
@@ -83,8 +85,9 @@ QToolBar, #mainToolBar QWidget, QStatusBar QWidget, #mainToolBar QToolButton {
 
 QToolBar::separator {
     background: rgba(128,128,128,50%);
-    width: 0px;
-    margin: 4px 8px;
+    width: 1px;
+    margin: 0px;
+    padding: 0px;
 }
 
 QStatusBar {
@@ -317,8 +320,8 @@ QPushButton:focus {
 QToolButton,
 #mainToolBar QToolButton,
 #modeToolBar QToolButton {
-    padding-left: 0px;
-    padding-right: 0px;
+    padding: 0px;
+    margin: 0px;
 }
 
 Qt4QToolButton {
@@ -499,4 +502,43 @@ QDockWidget#leftTools QWidget#discrete QPushButton:pressed,
 QDockWidget#sideTools QWidget#discrete QPushButton:pressed {
     background: #D0D0D0;
     border: none;
+}
+
+/****************************************************************************
+* Compact ATHENA menu and toolbars
+****************************************************************************/
+
+QMenuBar {
+    padding: 0px;
+    margin: 0px;
+    spacing: 0px;
+}
+
+QMenuBar::item {
+    padding: 0px 8px;
+    margin: 0px;
+}
+
+#mainToolBar, #modeToolBar, #focusToolBar, #userToolBar, #menuToolBar,
+#mainToolBar QWidget, #modeToolBar QWidget, #focusToolBar QWidget,
+#userToolBar QWidget, #menuToolBar QWidget,
+#mainToolBar QToolButton, #modeToolBar QToolButton,
+#focusToolBar QToolButton, #userToolBar QToolButton,
+#menuToolBar QToolButton {
+    padding: 0px;
+    margin: 0px;
+}
+
+#mainToolBar QToolButton, #modeToolBar QToolButton,
+#focusToolBar QToolButton, #userToolBar QToolButton,
+#menuToolBar QToolButton {
+    border: 0px;
+}
+
+#mainToolBar::separator, #modeToolBar::separator,
+#focusToolBar::separator, #userToolBar::separator,
+#menuToolBar::separator, #toolbarSeparator {
+    padding: 0px;
+    margin: 0px;
+    width: 1px;
 }

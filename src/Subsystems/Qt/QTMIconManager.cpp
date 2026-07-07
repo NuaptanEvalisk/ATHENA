@@ -198,12 +198,9 @@ QTMIconManager::getIcon (url file_name) {
   }
 
   load_icon_map ();
-  QTMIconMapping mapping= icon_map.value (icon_key (file_name));
-  for (const QString& name: mapping.theme_names)
-    if (load_theme_icon (name, icon)) {
-      icon_cache ()[cache_key]= icon;
-      return icon;
-    }
+  QString key= icon_key (file_name);
+  QTMIconMapping mapping= icon_map.value (key);
+
   for (const QString& path: mapping.libreoffice_paths)
     if (load_libreoffice_icon (path, icon)) {
       icon_cache ()[cache_key]= icon;
@@ -212,6 +209,19 @@ QTMIconManager::getIcon (url file_name) {
 
   string suf= suffix (file_name);
   url name= N(suf) == 0 ? file_name : unglue (file_name, N(suf)+1);
+  if (key.startsWith ("tm_") &&
+      (load_svg (glue (name, ".svg"), icon) ||
+       load_pixmap (file_name, icon))) {
+    icon_cache ()[cache_key]= icon;
+    return icon;
+  }
+
+  for (const QString& name: mapping.theme_names)
+    if (load_theme_icon (name, icon)) {
+      icon_cache ()[cache_key]= icon;
+      return icon;
+    }
+
   if (load_svg (glue (name, ".svg"), icon) ||
       load_pixmap (file_name, icon)) {
     icon_cache ()[cache_key]= icon;

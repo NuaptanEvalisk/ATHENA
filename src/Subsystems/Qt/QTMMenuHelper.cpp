@@ -30,6 +30,7 @@
 #include <QFontMetricsF>
 #include <QKeyEvent>
 #include <QApplication>
+#include <QToolBar>
 
 #include <cmath>
 
@@ -241,6 +242,42 @@ QTMTileAction::createWidget (QWidget* parent)
  * QTMMinibarAction
  ******************************************************************************/
 
+static QSize
+minibar_icon_size (QWidget* parent) {
+  for (QWidget* p= parent; p != NULL; p= p->parentWidget ()) {
+    QToolBar* toolbar= qobject_cast<QToolBar*> (p);
+    if (toolbar && toolbar->iconSize ().isValid ())
+      return toolbar->iconSize ();
+  }
+
+  static QImage* pxm= xpm_image ("tm_add.xpm"); // See qt_tm_widget.cpp
+  QSize sz= pxm ? pxm->size () : QSize (16, 16);
+  qt_tm_widget_rep::tweak_iconbar_size (sz);
+  return sz;
+}
+
+static void
+configure_minibar_tool_button (QToolButton* tb, const QSize& sz) {
+  if (!tb || !sz.isValid ()) return;
+  if (tb->icon ().isNull ()) return;
+
+  tb->setAutoRaise (true);
+  tb->setIconSize (sz);
+  tb->setToolButtonStyle (Qt::ToolButtonIconOnly);
+  tb->setContentsMargins (0, 0, 0, 0);
+  tb->setSizePolicy (QSizePolicy::Fixed, QSizePolicy::Fixed);
+  tb->setFixedSize (sz);
+  tb->updateGeometry ();
+}
+
+static void
+configure_minibar_widget_buttons (QWidget* widget, const QSize& sz) {
+  if (!widget) return;
+  configure_minibar_tool_button (qobject_cast<QToolButton*> (widget), sz);
+  for (QToolButton* child: widget->findChildren<QToolButton*> ())
+    configure_minibar_tool_button (child, sz);
+}
+
 QTMMinibarAction::QTMMinibarAction (array<widget>& arr, QObject* parent)
 : QWidgetAction (parent)
 {
@@ -255,9 +292,7 @@ QTMMinibarAction::QTMMinibarAction (array<widget>& arr, QObject* parent)
 
 QWidget*
 QTMMinibarAction::createWidget (QWidget* parent) {
-  static QImage* pxm = xpm_image ("tm_add.xpm"); // See qt_tm_widget.cpp 
-  QSize sz = pxm ? pxm->size() : QSize (16, 16);
-  qt_tm_widget_rep::tweak_iconbar_size (sz);
+  QSize sz= minibar_icon_size (parent);
   
   if (DEBUG_QT_WIDGETS) debug_widgets << "QTMMinibarAction::createWidget\n";
   QWidget* wid= new QWidget (parent);
@@ -270,6 +305,7 @@ QTMMinibarAction::createWidget (QWidget* parent) {
     QAction* sa= actions[i];
     if (QWidgetAction * wa = qobject_cast<QWidgetAction*> (sa)) {
       QWidget *w = wa->requestWidget (wid);
+      configure_minibar_widget_buttons (w, sz);
       l->addWidget(w);
     } else if (sa->text().isNull() && sa->icon().isNull()) {
       l->addSpacing(8);
@@ -281,12 +317,10 @@ QTMMinibarAction::createWidget (QWidget* parent) {
       sa->setChecked (sa->isCheckable());
       
       tb->setDefaultAction (sa);
-      tb->setAutoRaise (true);
       tb->setPopupMode (QToolButton::InstantPopup);
-      if (tm_style_sheet == "") {
+      if (tm_style_sheet == "")
         tb->setStyle (qtmstyle());
-        tb->setIconSize (sz);
-      }
+      configure_minibar_tool_button (tb, sz);
       if (use_mini_bars) {
         QFont f = tb->font();
         int fs = as_int (get_preference ("gui:mini-fontsize", QTM_MINI_FONTSIZE));

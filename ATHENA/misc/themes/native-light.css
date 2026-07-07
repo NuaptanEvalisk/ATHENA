@@ -5,7 +5,6 @@
 
 QWidget {
     font-size: 14px;
-    icon-size: 16px;
 }
 
 QFileDialog {
@@ -14,8 +13,9 @@ QFileDialog {
 }
 
 QMenuBar {
-    padding-top: 5px;
-    spacing: 10px;
+    padding: 0px;
+    margin: 0px;
+    spacing: 0px;
 }
 
 QMenu::item:disabled {
@@ -246,4 +246,43 @@ QDockWidget#leftTools QWidget#discrete QPushButton:pressed,
 QDockWidget#sideTools QWidget#discrete QPushButton:pressed {
     background: #D0D0D0;
     border: none;
+}
+
+/****************************************************************************
+* Compact ATHENA menu and toolbars
+****************************************************************************/
+
+QMenuBar {
+    padding: 0px;
+    margin: 0px;
+    spacing: 0px;
+}
+
+QMenuBar::item {
+    padding: 0px 8px;
+    margin: 0px;
+}
+
+#mainToolBar, #modeToolBar, #focusToolBar, #userToolBar, #menuToolBar,
+#mainToolBar QWidget, #modeToolBar QWidget, #focusToolBar QWidget,
+#userToolBar QWidget, #menuToolBar QWidget,
+#mainToolBar QToolButton, #modeToolBar QToolButton,
+#focusToolBar QToolButton, #userToolBar QToolButton,
+#menuToolBar QToolButton {
+    padding: 0px;
+    margin: 0px;
+}
+
+#mainToolBar QToolButton, #modeToolBar QToolButton,
+#focusToolBar QToolButton, #userToolBar QToolButton,
+#menuToolBar QToolButton {
+    border: 0px;
+}
+
+#mainToolBar::separator, #modeToolBar::separator,
+#focusToolBar::separator, #userToolBar::separator,
+#menuToolBar::separator, #toolbarSeparator {
+    padding: 0px;
+    margin: 0px;
+    width: 1px;
 }

@@ -174,6 +174,79 @@
         "cmd/32/underline.svg"
       ]
     },
+    "tm_left": {
+      "theme": [
+        "format-justify-left"
+      ],
+      "libreoffice": [
+        "cmd/32/alignleft.svg"
+      ]
+    },
+    "tm_center": {
+      "theme": [
+        "format-justify-center"
+      ],
+      "libreoffice": [
+        "cmd/32/aligncenter.svg"
+      ]
+    },
+    "tm_right": {
+      "theme": [
+        "format-justify-right"
+      ],
+      "libreoffice": [
+        "cmd/32/alignright.svg"
+      ]
+    },
+    "tm_justify": {
+      "theme": [
+        "format-justify-fill"
+      ],
+      "libreoffice": [
+        "cmd/32/alignblock.svg"
+      ]
+    },
+    "tm_itemize": {
+      "theme": [
+        "format-list-unordered"
+      ],
+      "libreoffice": [
+        "cmd/32/bullet.svg"
+      ]
+    },
+    "tm_enumerate": {
+      "theme": [
+        "format-list-ordered"
+      ],
+      "libreoffice": [
+        "cmd/32/defaultnumbering.svg"
+      ]
+    },
+    "tm_sansserif": {
+      "theme": [
+        "format-text-rich"
+      ],
+      "libreoffice": [
+        "cmd/32/text.svg"
+      ]
+    },
+    "tm_typewriter": {
+      "theme": [
+        "format-text-monospace"
+      ],
+      "libreoffice": [
+        "cmd/32/text.svg"
+      ]
+    },
+    "tm_color": {
+      "theme": [
+        "format-fill-color",
+        "color-management"
+      ],
+      "libreoffice": [
+        "cmd/32/color.svg"
+      ]
+    },
     "tm_table": {
       "theme": [
         "x-office-spreadsheet",
@@ -215,12 +288,30 @@
         "cmd/32/alignblock.svg"
       ]
     },
+    "tm_insert_up": {
+      "theme": [
+        "list-add"
+      ],
+      "libreoffice": [
+        "cmd/32/insertrowsbefore.svg",
+        "cmd/32/insertrowsafter.svg"
+      ]
+    },
     "tm_insert_down": {
       "theme": [
         "list-add"
       ],
       "libreoffice": [
         "cmd/32/insertrowsafter.svg"
+      ]
+    },
+    "tm_insert_left": {
+      "theme": [
+        "list-add"
+      ],
+      "libreoffice": [
+        "cmd/32/insertcolumnsbefore.svg",
+        "cmd/32/insertcolumnsafter.svg"
       ]
     },
     "tm_insert_right": {
@@ -231,11 +322,29 @@
         "cmd/32/insertcolumnsafter.svg"
       ]
     },
+    "tm_delete_up": {
+      "theme": [
+        "list-remove"
+      ],
+      "libreoffice": [
+        "cmd/32/deleterows.svg",
+        "cmd/32/deletetable.svg"
+      ]
+    },
     "tm_delete_down": {
       "theme": [
         "list-remove"
       ],
       "libreoffice": [
+        "cmd/32/deletetable.svg"
+      ]
+    },
+    "tm_delete_left": {
+      "theme": [
+        "list-remove"
+      ],
+      "libreoffice": [
+        "cmd/32/deletecolumns.svg",
         "cmd/32/deletetable.svg"
       ]
     },
@@ -270,6 +379,42 @@
       ],
       "libreoffice": [
         "cmd/32/insertmath.svg"
+      ]
+    },
+    "tm_fraction": {
+      "theme": [
+        "insert-math-expression"
+      ],
+      "libreoffice": [
+        "cmd/32/insertmath.svg"
+      ]
+    },
+    "tm_subsup": {
+      "theme": [
+        "insert-math-expression"
+      ],
+      "libreoffice": [
+        "cmd/32/superscript.svg",
+        "cmd/32/subscript.svg"
+      ]
+    },
+    "tm_add": {
+      "theme": [
+        "list-add",
+        "document-new"
+      ],
+      "libreoffice": [
+        "cmd/32/adddirect.svg",
+        "cmd/32/insert.svg"
+      ]
+    },
+    "tm_remove": {
+      "theme": [
+        "list-remove",
+        "edit-delete"
+      ],
+      "libreoffice": [
+        "cmd/32/delete.svg"
       ]
     },
     "tm_image": {
@@ -339,6 +484,1544 @@
       ],
       "libreoffice": [
         "cmd/32/closedoc.svg"
+      ]
+    },
+    "tm_focus_prefs": {
+      "theme": [
+        "preferences-system",
+        "configure"
+      ],
+      "libreoffice": [
+        "cmd/32/optionstreedialog.svg"
+      ]
+    },
+    "tm_focus_help": {
+      "theme": [
+        "help-contents",
+        "help-about"
+      ],
+      "libreoffice": [
+        "cmd/32/helpindex.svg"
+      ]
+    },
+    "tm_focus_search": {
+      "theme": [
+        "edit-find",
+        "system-search"
+      ],
+      "libreoffice": [
+        "cmd/32/searchdialog.svg"
+      ]
+    },
+    "tm_focus_load": {
+      "theme": [
+        "document-open"
+      ],
+      "libreoffice": [
+        "cmd/32/open.svg"
+      ]
+    },
+    "tm_focus_save": {
+      "theme": [
+        "document-save"
+      ],
+      "libreoffice": [
+        "cmd/32/save.svg"
+      ]
+    },
+    "tm_activate": {
+      "libreoffice": [
+        "cmd/32/show.svg"
+      ]
+    },
+    "tm_acute": {
+      "libreoffice": [
+        "cmd/32/insertsymbol.svg",
+        "cmd/32/charmapcontrol.svg"
+      ]
+    },
+    "tm_add_2": {
+      "libreoffice": [
+        "cmd/32/adddirect.svg",
+        "cmd/32/insert.svg"
+      ]
+    },
+    "tm_alternate_both": {
+      "libreoffice": [
+        "cmd/32/connectorarrows.svg"
+      ]
+    },
+    "tm_alternate_first": {
+      "libreoffice": [
+        "cmd/32/arrowshapes.left-arrow.svg",
+        "cmd/32/backward.svg"
+      ]
+    },
+    "tm_alternate_second": {
+      "libreoffice": [
+        "cmd/32/arrowshapes.right-arrow.svg",
+        "cmd/32/forward.svg"
+      ]
+    },
+    "tm_anchor": {
+      "libreoffice": [
+        "cmd/32/toggleanchortype.svg",
+        "cmd/32/insertbookmark.svg"
+      ]
+    },
+    "tm_and": {
+      "libreoffice": [
+        "cmd/32/insertmath.svg",
+        "cmd/32/insertsymbol.svg"
+      ]
+    },
+    "tm_anim_bump": {
+      "libreoffice": [
+        "cmd/32/animationeffects.svg",
+        "cmd/32/animationmode.svg",
+        "cmd/32/avmediaplayer.svg"
+      ]
+    },
+    "tm_anim_fade_in": {
+      "libreoffice": [
+        "cmd/32/animationeffects.svg",
+        "cmd/32/animationmode.svg",
+        "cmd/32/avmediaplayer.svg"
+      ]
+    },
+    "tm_anim_fade_out": {
+      "libreoffice": [
+        "cmd/32/animationeffects.svg",
+        "cmd/32/animationmode.svg",
+        "cmd/32/avmediaplayer.svg"
+      ]
+    },
+    "tm_anim_faded": {
+      "libreoffice": [
+        "cmd/32/animationeffects.svg",
+        "cmd/32/animationmode.svg",
+        "cmd/32/avmediaplayer.svg"
+      ]
+    },
+    "tm_anim_normal": {
+      "libreoffice": [
+        "cmd/32/animationeffects.svg",
+        "cmd/32/animationmode.svg",
+        "cmd/32/avmediaplayer.svg"
+      ]
+    },
+    "tm_anim_reverse": {
+      "libreoffice": [
+        "cmd/32/animationeffects.svg",
+        "cmd/32/animationmode.svg",
+        "cmd/32/avmediaplayer.svg"
+      ]
+    },
+    "tm_anim_reverse_bump": {
+      "libreoffice": [
+        "cmd/32/animationeffects.svg",
+        "cmd/32/animationmode.svg",
+        "cmd/32/avmediaplayer.svg"
+      ]
+    },
+    "tm_anim_reverse_fade_in": {
+      "libreoffice": [
+        "cmd/32/animationeffects.svg",
+        "cmd/32/animationmode.svg",
+        "cmd/32/avmediaplayer.svg"
+      ]
+    },
+    "tm_anim_reverse_fade_out": {
+      "libreoffice": [
+        "cmd/32/animationeffects.svg",
+        "cmd/32/animationmode.svg",
+        "cmd/32/avmediaplayer.svg"
+      ]
+    },
+    "tm_anim_reverse_faded": {
+      "libreoffice": [
+        "cmd/32/animationeffects.svg",
+        "cmd/32/animationmode.svg",
+        "cmd/32/avmediaplayer.svg"
+      ]
+    },
+    "tm_animate": {
+      "libreoffice": [
+        "cmd/32/animationeffects.svg",
+        "cmd/32/animationmode.svg",
+        "cmd/32/avmediaplayer.svg"
+      ]
+    },
+    "tm_answer": {
+      "libreoffice": [
+        "cmd/32/checkbox.svg"
+      ]
+    },
+    "tm_arc_mode": {
+      "libreoffice": [
+        "cmd/32/arc.svg",
+        "cmd/32/circlearc.svg"
+      ]
+    },
+    "tm_arrow": {
+      "libreoffice": [
+        "cmd/32/arrowshapes.svg"
+      ]
+    },
+    "tm_assign": {
+      "libreoffice": [
+        "cmd/32/assignmacro.svg"
+      ]
+    },
+    "tm_bar": {
+      "libreoffice": [
+        "cmd/32/insertsymbol.svg",
+        "cmd/32/charmapcontrol.svg"
+      ]
+    },
+    "tm_bbb": {
+      "libreoffice": [
+        "cmd/32/insertmath.svg",
+        "cmd/32/insertsymbol.svg"
+      ]
+    },
+    "tm_bigaround": {
+      "libreoffice": [
+        "cmd/32/insertmath.svg",
+        "cmd/32/insertsymbol.svg"
+      ]
+    },
+    "tm_bigop": {
+      "libreoffice": [
+        "cmd/32/insertmath.svg",
+        "cmd/32/insertsymbol.svg"
+      ]
+    },
+    "tm_binop": {
+      "libreoffice": [
+        "cmd/32/insertmath.svg",
+        "cmd/32/insertsymbol.svg"
+      ]
+    },
+    "tm_binrel": {
+      "libreoffice": [
+        "cmd/32/insertmath.svg",
+        "cmd/32/insertsymbol.svg"
+      ]
+    },
+    "tm_block": {
+      "libreoffice": [
+        "cmd/32/insertmath.svg",
+        "cmd/32/insertsymbol.svg"
+      ]
+    },
+    "tm_border_b": {
+      "libreoffice": [
+        "cmd/32/setborderstyle.svg",
+        "cmd/32/borderdialog.svg"
+      ]
+    },
+    "tm_border_l": {
+      "libreoffice": [
+        "cmd/32/setborderstyle.svg",
+        "cmd/32/borderdialog.svg"
+      ]
+    },
+    "tm_border_lb": {
+      "libreoffice": [
+        "cmd/32/setborderstyle.svg",
+        "cmd/32/borderdialog.svg"
+      ]
+    },
+    "tm_border_lr": {
+      "libreoffice": [
+        "cmd/32/setborderstyle.svg",
+        "cmd/32/borderdialog.svg"
+      ]
+    },
+    "tm_border_lrb": {
+      "libreoffice": [
+        "cmd/32/setborderstyle.svg",
+        "cmd/32/borderdialog.svg"
+      ]
+    },
+    "tm_border_lrt": {
+      "libreoffice": [
+        "cmd/32/setborderstyle.svg",
+        "cmd/32/borderdialog.svg"
+      ]
+    },
+    "tm_border_lrtb": {
+      "libreoffice": [
+        "cmd/32/setborderstyle.svg",
+        "cmd/32/borderdialog.svg"
+      ]
+    },
+    "tm_border_lt": {
+      "libreoffice": [
+        "cmd/32/setborderstyle.svg",
+        "cmd/32/borderdialog.svg"
+      ]
+    },
+    "tm_border_ltb": {
+      "libreoffice": [
+        "cmd/32/setborderstyle.svg",
+        "cmd/32/borderdialog.svg"
+      ]
+    },
+    "tm_border_none": {
+      "libreoffice": [
+        "cmd/32/setborderstyle.svg",
+        "cmd/32/borderdialog.svg"
+      ]
+    },
+    "tm_border_r": {
+      "libreoffice": [
+        "cmd/32/setborderstyle.svg",
+        "cmd/32/borderdialog.svg"
+      ]
+    },
+    "tm_border_rb": {
+      "libreoffice": [
+        "cmd/32/setborderstyle.svg",
+        "cmd/32/borderdialog.svg"
+      ]
+    },
+    "tm_border_rt": {
+      "libreoffice": [
+        "cmd/32/setborderstyle.svg",
+        "cmd/32/borderdialog.svg"
+      ]
+    },
+    "tm_border_rtb": {
+      "libreoffice": [
+        "cmd/32/setborderstyle.svg",
+        "cmd/32/borderdialog.svg"
+      ]
+    },
+    "tm_border_t": {
+      "libreoffice": [
+        "cmd/32/setborderstyle.svg",
+        "cmd/32/borderdialog.svg"
+      ]
+    },
+    "tm_border_tb": {
+      "libreoffice": [
+        "cmd/32/setborderstyle.svg",
+        "cmd/32/borderdialog.svg"
+      ]
+    },
+    "tm_both_h": {
+      "libreoffice": [
+        "cmd/32/setborderstyle.svg",
+        "cmd/32/borderdialog.svg"
+      ]
+    },
+    "tm_both_hv": {
+      "libreoffice": [
+        "cmd/32/setborderstyle.svg",
+        "cmd/32/borderdialog.svg"
+      ]
+    },
+    "tm_both_none": {
+      "libreoffice": [
+        "cmd/32/setborderstyle.svg",
+        "cmd/32/borderdialog.svg"
+      ]
+    },
+    "tm_both_v": {
+      "libreoffice": [
+        "cmd/32/setborderstyle.svg",
+        "cmd/32/borderdialog.svg"
+      ]
+    },
+    "tm_breve": {
+      "libreoffice": [
+        "cmd/32/insertsymbol.svg",
+        "cmd/32/charmapcontrol.svg"
+      ]
+    },
+    "tm_cal": {
+      "libreoffice": [
+        "cmd/32/insertmath.svg",
+        "cmd/32/insertsymbol.svg"
+      ]
+    },
+    "tm_camera": {
+      "libreoffice": [
+        "cmd/32/capturepoint.svg",
+        "cmd/32/graphic.svg"
+      ]
+    },
+    "tm_carc_mode": {
+      "libreoffice": [
+        "cmd/32/circlearc.svg",
+        "cmd/32/arc.svg"
+      ]
+    },
+    "tm_cell_background": {
+      "libreoffice": [
+        "cmd/32/backcolor.svg",
+        "cmd/32/backgroundcolor.svg"
+      ]
+    },
+    "tm_cell_border": {
+      "libreoffice": [
+        "cmd/32/setborderstyle.svg"
+      ]
+    },
+    "tm_cell_bottom": {
+      "libreoffice": [
+        "cmd/32/alignbottom.svg",
+        "cmd/32/formatcelldialog.svg"
+      ]
+    },
+    "tm_cell_by_cell": {
+      "libreoffice": [
+        "cmd/32/formatcelldialog.svg",
+        "cmd/32/inserttable.svg"
+      ]
+    },
+    "tm_cell_by_column": {
+      "libreoffice": [
+        "cmd/32/formatcelldialog.svg",
+        "cmd/32/inserttable.svg"
+      ]
+    },
+    "tm_cell_by_row": {
+      "libreoffice": [
+        "cmd/32/formatcelldialog.svg",
+        "cmd/32/inserttable.svg"
+      ]
+    },
+    "tm_cell_by_table": {
+      "libreoffice": [
+        "cmd/32/formatcelldialog.svg",
+        "cmd/32/inserttable.svg"
+      ]
+    },
+    "tm_cell_center": {
+      "libreoffice": [
+        "cmd/32/aligncenter.svg",
+        "cmd/32/formatcelldialog.svg"
+      ]
+    },
+    "tm_cell_dot": {
+      "libreoffice": [
+        "cmd/32/formatcelldialog.svg",
+        "cmd/32/inserttable.svg"
+      ]
+    },
+    "tm_cell_hbase": {
+      "libreoffice": [
+        "cmd/32/alignleft.svg",
+        "cmd/32/formatcelldialog.svg"
+      ]
+    },
+    "tm_cell_hcenter": {
+      "libreoffice": [
+        "cmd/32/aligncenter.svg",
+        "cmd/32/formatcelldialog.svg"
+      ]
+    },
+    "tm_cell_hcomma": {
+      "libreoffice": [
+        "cmd/32/formatcelldialog.svg",
+        "cmd/32/inserttable.svg"
+      ]
+    },
+    "tm_cell_hdot": {
+      "libreoffice": [
+        "cmd/32/formatcelldialog.svg",
+        "cmd/32/inserttable.svg"
+      ]
+    },
+    "tm_cell_height": {
+      "libreoffice": [
+        "cmd/32/setoptimalrowheight.svg",
+        "cmd/32/equalizeheight.svg"
+      ]
+    },
+    "tm_cell_hexact": {
+      "libreoffice": [
+        "cmd/32/formatcelldialog.svg",
+        "cmd/32/inserttable.svg"
+      ]
+    },
+    "tm_cell_hmax": {
+      "libreoffice": [
+        "cmd/32/alignright.svg",
+        "cmd/32/formatcelldialog.svg"
+      ]
+    },
+    "tm_cell_hmin": {
+      "libreoffice": [
+        "cmd/32/alignleft.svg",
+        "cmd/32/formatcelldialog.svg"
+      ]
+    },
+    "tm_cell_join": {
+      "libreoffice": [
+        "cmd/32/mergecells.svg"
+      ]
+    },
+    "tm_cell_left": {
+      "libreoffice": [
+        "cmd/32/alignleft.svg",
+        "cmd/32/formatcelldialog.svg"
+      ]
+    },
+    "tm_cell_right": {
+      "libreoffice": [
+        "cmd/32/alignright.svg",
+        "cmd/32/formatcelldialog.svg"
+      ]
+    },
+    "tm_cell_size_var": {
+      "libreoffice": [
+        "cmd/32/formatcelldialog.svg",
+        "cmd/32/inserttable.svg"
+      ]
+    },
+    "tm_cell_special": {
+      "libreoffice": [
+        "cmd/32/formatcelldialog.svg",
+        "cmd/32/inserttable.svg"
+      ]
+    },
+    "tm_cell_split": {
+      "libreoffice": [
+        "cmd/32/splitcell.svg"
+      ]
+    },
+    "tm_cell_subtable": {
+      "libreoffice": [
+        "cmd/32/formatcelldialog.svg",
+        "cmd/32/inserttable.svg"
+      ]
+    },
+    "tm_cell_top": {
+      "libreoffice": [
+        "cmd/32/aligntop.svg",
+        "cmd/32/formatcelldialog.svg"
+      ]
+    },
+    "tm_cell_var_subtable": {
+      "libreoffice": [
+        "cmd/32/formatcelldialog.svg",
+        "cmd/32/inserttable.svg"
+      ]
+    },
+    "tm_cell_vbase": {
+      "libreoffice": [
+        "cmd/32/formatcelldialog.svg",
+        "cmd/32/inserttable.svg"
+      ]
+    },
+    "tm_cell_vcenter": {
+      "libreoffice": [
+        "cmd/32/aligncenter.svg",
+        "cmd/32/formatcelldialog.svg"
+      ]
+    },
+    "tm_cell_vexact": {
+      "libreoffice": [
+        "cmd/32/formatcelldialog.svg",
+        "cmd/32/inserttable.svg"
+      ]
+    },
+    "tm_cell_vmax": {
+      "libreoffice": [
+        "cmd/32/aligntop.svg",
+        "cmd/32/formatcelldialog.svg"
+      ]
+    },
+    "tm_cell_vmin": {
+      "libreoffice": [
+        "cmd/32/alignbottom.svg",
+        "cmd/32/formatcelldialog.svg"
+      ]
+    },
+    "tm_cell_width": {
+      "libreoffice": [
+        "cmd/32/setoptimalcolumnwidth.svg",
+        "cmd/32/equalizewidth.svg"
+      ]
+    },
+    "tm_cell_wrap": {
+      "libreoffice": [
+        "cmd/32/wraptext.svg"
+      ]
+    },
+    "tm_chapter": {
+      "libreoffice": [
+        "cmd/32/chapternumberingdialog.svg",
+        "cmd/32/heading1parastyle.svg"
+      ]
+    },
+    "tm_check": {
+      "libreoffice": [
+        "cmd/32/checkbox.svg"
+      ]
+    },
+    "tm_cline_mode": {
+      "libreoffice": [
+        "cmd/32/connectorline.svg"
+      ]
+    },
+    "tm_close_tool": {
+      "libreoffice": [
+        "cmd/32/closedoc.svg"
+      ]
+    },
+    "tm_clsession": {
+      "libreoffice": [
+        "cmd/32/scriptorganizer.svg"
+      ]
+    },
+    "tm_compact": {
+      "libreoffice": [
+        "cmd/32/sectionshrink.svg"
+      ]
+    },
+    "tm_compress_tool": {
+      "libreoffice": [
+        "cmd/32/sectionshrink.svg"
+      ]
+    },
+    "tm_copy_after": {
+      "libreoffice": [
+        "cmd/32/copy.svg"
+      ]
+    },
+    "tm_copy_before": {
+      "libreoffice": [
+        "cmd/32/copy.svg"
+      ]
+    },
+    "tm_copy_both": {
+      "libreoffice": [
+        "cmd/32/copy.svg"
+      ]
+    },
+    "tm_cspline_mode": {
+      "libreoffice": [
+        "cmd/32/connectorcurve.svg"
+      ]
+    },
+    "tm_ctrl_flow": {
+      "libreoffice": [
+        "cmd/32/connectorlines.svg"
+      ]
+    },
+    "tm_cursor_none": {
+      "libreoffice": [
+        "cmd/32/hide.svg"
+      ]
+    },
+    "tm_customized": {
+      "libreoffice": [
+        "cmd/32/configuredialog.svg"
+      ]
+    },
+    "tm_ddot": {
+      "libreoffice": [
+        "cmd/32/insertsymbol.svg",
+        "cmd/32/charmapcontrol.svg"
+      ]
+    },
+    "tm_decorate_down": {
+      "libreoffice": [
+        "cmd/32/extrusiontiltdown.svg",
+        "cmd/32/movedown.svg"
+      ]
+    },
+    "tm_decorate_left": {
+      "libreoffice": [
+        "cmd/32/extrusiontiltleft.svg",
+        "cmd/32/alignleft.svg"
+      ]
+    },
+    "tm_decorate_right": {
+      "libreoffice": [
+        "cmd/32/extrusiontiltright.svg",
+        "cmd/32/alignright.svg"
+      ]
+    },
+    "tm_decorate_up": {
+      "libreoffice": [
+        "cmd/32/extrusiontiltup.svg",
+        "cmd/32/moveup.svg"
+      ]
+    },
+    "tm_delete_after": {
+      "libreoffice": [
+        "cmd/32/delete.svg"
+      ]
+    },
+    "tm_delete_before": {
+      "libreoffice": [
+        "cmd/32/delete.svg"
+      ]
+    },
+    "tm_document_at": {
+      "libreoffice": [
+        "cmd/32/setdocumentproperties.svg",
+        "cmd/32/editdoc.svg"
+      ]
+    },
+    "tm_dot": {
+      "libreoffice": [
+        "cmd/32/insertsymbol.svg",
+        "cmd/32/charmapcontrol.svg"
+      ]
+    },
+    "tm_down": {
+      "libreoffice": [
+        "cmd/32/movedown.svg",
+        "cmd/32/arrowshapes.down-arrow.svg"
+      ]
+    },
+    "tm_edit_props": {
+      "libreoffice": [
+        "cmd/32/controlproperties.svg",
+        "cmd/32/setdocumentproperties.svg"
+      ]
+    },
+    "tm_empty": {
+      "libreoffice": [
+        "cmd/32/delete.svg"
+      ]
+    },
+    "tm_entry_add": {
+      "libreoffice": [
+        "cmd/32/adddirect.svg",
+        "cmd/32/insert.svg"
+      ]
+    },
+    "tm_entry_confirm": {
+      "libreoffice": [
+        "cmd/32/checkbox.svg"
+      ]
+    },
+    "tm_entry_remove": {
+      "libreoffice": [
+        "cmd/32/delete.svg",
+        "cmd/32/remove.svg"
+      ]
+    },
+    "tm_equal": {
+      "libreoffice": [
+        "cmd/32/insertmath.svg",
+        "cmd/32/insertsymbol.svg"
+      ]
+    },
+    "tm_exit_left": {
+      "libreoffice": [
+        "cmd/32/insertobject.svg"
+      ]
+    },
+    "tm_exit_right": {
+      "libreoffice": [
+        "cmd/32/insertobject.svg"
+      ]
+    },
+    "tm_expand_tool": {
+      "libreoffice": [
+        "cmd/32/insertobject.svg"
+      ]
+    },
+    "tm_explain": {
+      "libreoffice": [
+        "cmd/32/helpindex.svg"
+      ]
+    },
+    "tm_filter": {
+      "libreoffice": [
+        "cmd/32/datafilterstandardfilter.svg"
+      ]
+    },
+    "tm_floating": {
+      "libreoffice": [
+        "cmd/32/insertobjectfloatingframe.svg"
+      ]
+    },
+    "tm_focus_delete": {
+      "libreoffice": [
+        "cmd/32/delete.svg"
+      ]
+    },
+    "tm_footnote": {
+      "libreoffice": [
+        "cmd/32/insertfootnote.svg",
+        "cmd/32/footnotedialog.svg"
+      ]
+    },
+    "tm_frak": {
+      "libreoffice": [
+        "cmd/32/insertmath.svg",
+        "cmd/32/insertsymbol.svg"
+      ]
+    },
+    "tm_gap": {
+      "libreoffice": [
+        "cmd/32/insertmath.svg",
+        "cmd/32/insertsymbol.svg"
+      ]
+    },
+    "tm_gnu1b": {
+      "libreoffice": [
+        "cmd/32/insertmath.svg"
+      ]
+    },
+    "tm_gnu2b": {
+      "libreoffice": [
+        "cmd/32/insertmath.svg"
+      ]
+    },
+    "tm_go": {
+      "libreoffice": [
+        "cmd/32/forward.svg"
+      ]
+    },
+    "tm_graphics_geometry": {
+      "libreoffice": [
+        "cmd/32/objectposition.svg"
+      ]
+    },
+    "tm_graphics_grid": {
+      "libreoffice": [
+        "cmd/32/gridvisible.svg"
+      ]
+    },
+    "tm_grave": {
+      "libreoffice": [
+        "cmd/32/insertsymbol.svg",
+        "cmd/32/charmapcontrol.svg"
+      ]
+    },
+    "tm_greek_char": {
+      "libreoffice": [
+        "cmd/32/insertmath.svg",
+        "cmd/32/insertsymbol.svg"
+      ]
+    },
+    "tm_group_group": {
+      "libreoffice": [
+        "cmd/32/group.svg"
+      ]
+    },
+    "tm_group_move": {
+      "libreoffice": [
+        "cmd/32/objectposition.svg"
+      ]
+    },
+    "tm_group_rotate": {
+      "libreoffice": [
+        "cmd/32/rotateleft.svg",
+        "cmd/32/rotateright.svg"
+      ]
+    },
+    "tm_group_zoom": {
+      "libreoffice": [
+        "cmd/32/zoomobjects.svg",
+        "cmd/32/zoomin.svg"
+      ]
+    },
+    "tm_gui": {
+      "libreoffice": [
+        "cmd/32/displaymode.svg"
+      ]
+    },
+    "tm_hat": {
+      "libreoffice": [
+        "cmd/32/insertsymbol.svg",
+        "cmd/32/charmapcontrol.svg"
+      ]
+    },
+    "tm_index": {
+      "libreoffice": [
+        "cmd/32/insertindexesentry.svg",
+        "cmd/32/editcurindex.svg"
+      ]
+    },
+    "tm_ink_mode": {
+      "libreoffice": [
+        "cmd/32/freeline.svg"
+      ]
+    },
+    "tm_invbreve": {
+      "libreoffice": [
+        "cmd/32/insertsymbol.svg",
+        "cmd/32/charmapcontrol.svg"
+      ]
+    },
+    "tm_junior": {
+      "libreoffice": [
+        "cmd/32/defaultcharstyle.svg"
+      ]
+    },
+    "tm_lambda": {
+      "libreoffice": [
+        "cmd/32/insertmath.svg"
+      ]
+    },
+    "tm_landscape": {
+      "libreoffice": [
+        "cmd/32/pagedialog.svg",
+        "cmd/32/pagesetup.svg"
+      ]
+    },
+    "tm_landscape_1col": {
+      "libreoffice": [
+        "cmd/32/pagedialog.svg",
+        "cmd/32/pagesetup.svg"
+      ]
+    },
+    "tm_landscape_2col": {
+      "libreoffice": [
+        "cmd/32/pagedialog.svg",
+        "cmd/32/pagesetup.svg"
+      ]
+    },
+    "tm_language": {
+      "libreoffice": [
+        "cmd/32/charmapcontrol.svg"
+      ]
+    },
+    "tm_large_around": {
+      "libreoffice": [
+        "cmd/32/insertmath.svg",
+        "cmd/32/insertsymbol.svg"
+      ]
+    },
+    "tm_larrow": {
+      "libreoffice": [
+        "cmd/32/arrowshapes.left-arrow.svg",
+        "cmd/32/backward.svg"
+      ]
+    },
+    "tm_larrow_bar": {
+      "libreoffice": [
+        "cmd/32/firstrecord.svg",
+        "cmd/32/backward.svg"
+      ]
+    },
+    "tm_larrow_double": {
+      "libreoffice": [
+        "cmd/32/backward.svg"
+      ]
+    },
+    "tm_left_down": {
+      "libreoffice": [
+        "cmd/32/arrowshapes.down-arrow.svg",
+        "cmd/32/alignleft.svg"
+      ]
+    },
+    "tm_left_up": {
+      "libreoffice": [
+        "cmd/32/arrowshapes.up-arrow.svg",
+        "cmd/32/alignleft.svg"
+      ]
+    },
+    "tm_line_mode": {
+      "libreoffice": [
+        "cmd/32/line.svg"
+      ]
+    },
+    "tm_list": {
+      "libreoffice": [
+        "cmd/32/bulletsandnumberingdialog.svg",
+        "cmd/32/bullet.svg"
+      ]
+    },
+    "tm_lock_closed": {
+      "libreoffice": [
+        "cmd/32/protect.svg"
+      ]
+    },
+    "tm_lock_open": {
+      "libreoffice": [
+        "cmd/32/protectbookmarks.svg"
+      ]
+    },
+    "tm_margin": {
+      "libreoffice": [
+        "cmd/32/pagemargin.svg"
+      ]
+    },
+    "tm_mask_none": {
+      "libreoffice": [
+        "cmd/32/hide.svg"
+      ]
+    },
+    "tm_math_preferences": {
+      "libreoffice": [
+        "cmd/32/insertmath.svg"
+      ]
+    },
+    "tm_math_style": {
+      "libreoffice": [
+        "cmd/32/insertmath.svg"
+      ]
+    },
+    "tm_math_syntax": {
+      "libreoffice": [
+        "cmd/32/insertmath.svg"
+      ]
+    },
+    "tm_mathbold": {
+      "libreoffice": [
+        "cmd/32/bold.svg",
+        "cmd/32/insertmath.svg"
+      ]
+    },
+    "tm_mc": {
+      "libreoffice": [
+        "cmd/32/insertmath.svg"
+      ]
+    },
+    "tm_minus": {
+      "libreoffice": [
+        "cmd/32/remove.svg",
+        "cmd/32/delete.svg"
+      ]
+    },
+    "tm_miscsymb": {
+      "libreoffice": [
+        "cmd/32/insertsymbol.svg",
+        "cmd/32/charmapcontrol.svg"
+      ]
+    },
+    "tm_multicol": {
+      "libreoffice": [
+        "cmd/32/pagecolumntype.svg",
+        "cmd/32/pagedialog.svg"
+      ]
+    },
+    "tm_name": {
+      "libreoffice": [
+        "cmd/32/objecttitledescription.svg"
+      ]
+    },
+    "tm_name_bis": {
+      "libreoffice": [
+        "cmd/32/objecttitledescription.svg"
+      ]
+    },
+    "tm_numbered": {
+      "libreoffice": [
+        "cmd/32/defaultnumbering.svg"
+      ]
+    },
+    "tm_op": {
+      "libreoffice": [
+        "cmd/32/insertmath.svg",
+        "cmd/32/insertsymbol.svg"
+      ]
+    },
+    "tm_outwards": {
+      "libreoffice": [
+        "cmd/32/objectposition.svg"
+      ]
+    },
+    "tm_overlays": {
+      "libreoffice": [
+        "cmd/32/displaymasterobjects.svg"
+      ]
+    },
+    "tm_pageins": {
+      "libreoffice": [
+        "cmd/32/insertpage.svg"
+      ]
+    },
+    "tm_parindent": {
+      "libreoffice": [
+        "cmd/32/incrementindent.svg"
+      ]
+    },
+    "tm_parstyle": {
+      "libreoffice": [
+        "cmd/32/paragraphdialog.svg"
+      ]
+    },
+    "tm_plugin_input": {
+      "libreoffice": [
+        "cmd/32/insertplugin.svg"
+      ]
+    },
+    "tm_plugin_output": {
+      "libreoffice": [
+        "cmd/32/insertplugin.svg"
+      ]
+    },
+    "tm_plus": {
+      "libreoffice": [
+        "cmd/32/adddirect.svg",
+        "cmd/32/insert.svg"
+      ]
+    },
+    "tm_point_mode": {
+      "libreoffice": [
+        "cmd/32/capturepoint.svg"
+      ]
+    },
+    "tm_portrait": {
+      "libreoffice": [
+        "cmd/32/pagedialog.svg",
+        "cmd/32/pagesetup.svg"
+      ]
+    },
+    "tm_portrait_1col": {
+      "libreoffice": [
+        "cmd/32/pagedialog.svg",
+        "cmd/32/pagesetup.svg"
+      ]
+    },
+    "tm_portrait_2col": {
+      "libreoffice": [
+        "cmd/32/pagedialog.svg",
+        "cmd/32/pagesetup.svg"
+      ]
+    },
+    "tm_position_float": {
+      "libreoffice": [
+        "cmd/32/insertobjectfloatingframe.svg",
+        "cmd/32/objectposition.svg"
+      ]
+    },
+    "tm_prefs_convert": {
+      "libreoffice": [
+        "cmd/32/configuredialog.svg"
+      ]
+    },
+    "tm_prefs_general": {
+      "libreoffice": [
+        "cmd/32/configuredialog.svg"
+      ]
+    },
+    "tm_prefs_keyboard": {
+      "libreoffice": [
+        "cmd/32/configuredialog.svg"
+      ]
+    },
+    "tm_prefs_other": {
+      "libreoffice": [
+        "cmd/32/configuredialog.svg"
+      ]
+    },
+    "tm_prime": {
+      "libreoffice": [
+        "cmd/32/insertsymbol.svg",
+        "cmd/32/charmapcontrol.svg"
+      ]
+    },
+    "tm_program": {
+      "libreoffice": [
+        "cmd/32/scriptorganizer.svg",
+        "cmd/32/text.svg"
+      ]
+    },
+    "tm_prominent": {
+      "libreoffice": [
+        "cmd/32/strongemphasischarstyle.svg"
+      ]
+    },
+    "tm_question": {
+      "libreoffice": [
+        "cmd/32/helpindex.svg"
+      ]
+    },
+    "tm_rarrow": {
+      "libreoffice": [
+        "cmd/32/arrowshapes.right-arrow.svg",
+        "cmd/32/forward.svg"
+      ]
+    },
+    "tm_rarrow_bar": {
+      "libreoffice": [
+        "cmd/32/lastrecord.svg",
+        "cmd/32/forward.svg"
+      ]
+    },
+    "tm_rarrow_double": {
+      "libreoffice": [
+        "cmd/32/forward.svg"
+      ]
+    },
+    "tm_replace_all": {
+      "libreoffice": [
+        "cmd/32/searchdialog.svg"
+      ]
+    },
+    "tm_replace_one": {
+      "libreoffice": [
+        "cmd/32/searchdialog.svg"
+      ]
+    },
+    "tm_reset": {
+      "libreoffice": [
+        "cmd/32/reload.svg"
+      ]
+    },
+    "tm_right_down": {
+      "libreoffice": [
+        "cmd/32/arrowshapes.down-arrow.svg",
+        "cmd/32/alignright.svg"
+      ]
+    },
+    "tm_right_up": {
+      "libreoffice": [
+        "cmd/32/arrowshapes.up-arrow.svg",
+        "cmd/32/alignright.svg"
+      ]
+    },
+    "tm_root": {
+      "libreoffice": [
+        "cmd/32/insertmath.svg"
+      ]
+    },
+    "tm_root_index": {
+      "libreoffice": [
+        "cmd/32/insertmath.svg"
+      ]
+    },
+    "tm_search_first": {
+      "libreoffice": [
+        "cmd/32/firstrecord.svg",
+        "cmd/32/upsearch.svg"
+      ]
+    },
+    "tm_search_last": {
+      "libreoffice": [
+        "cmd/32/lastrecord.svg",
+        "cmd/32/downsearch.svg"
+      ]
+    },
+    "tm_search_next": {
+      "libreoffice": [
+        "cmd/32/downsearch.svg",
+        "cmd/32/forward.svg"
+      ]
+    },
+    "tm_search_previous": {
+      "libreoffice": [
+        "cmd/32/upsearch.svg",
+        "cmd/32/backward.svg"
+      ]
+    },
+    "tm_section": {
+      "libreoffice": [
+        "cmd/32/insertsection.svg",
+        "cmd/32/heading2parastyle.svg"
+      ]
+    },
+    "tm_session_session": {
+      "libreoffice": [
+        "cmd/32/scriptorganizer.svg"
+      ]
+    },
+    "tm_set_properties": {
+      "libreoffice": [
+        "cmd/32/controlproperties.svg",
+        "cmd/32/setdocumentproperties.svg"
+      ]
+    },
+    "tm_show_hidden": {
+      "libreoffice": [
+        "cmd/32/show.svg",
+        "cmd/32/hide.svg"
+      ]
+    },
+    "tm_similar_first": {
+      "libreoffice": [
+        "cmd/32/firstrecord.svg"
+      ]
+    },
+    "tm_similar_last": {
+      "libreoffice": [
+        "cmd/32/lastrecord.svg"
+      ]
+    },
+    "tm_similar_next": {
+      "libreoffice": [
+        "cmd/32/forward.svg"
+      ]
+    },
+    "tm_similar_previous": {
+      "libreoffice": [
+        "cmd/32/backward.svg"
+      ]
+    },
+    "tm_small_textual": {
+      "libreoffice": [
+        "cmd/32/text.svg"
+      ]
+    },
+    "tm_smallcaps": {
+      "libreoffice": [
+        "cmd/32/smallcaps.svg"
+      ]
+    },
+    "tm_snap_curve": {
+      "libreoffice": [
+        "cmd/32/connectorcurve.svg"
+      ]
+    },
+    "tm_snap_curve_intersection": {
+      "libreoffice": [
+        "cmd/32/connectorcurve.svg"
+      ]
+    },
+    "tm_snap_grid": {
+      "libreoffice": [
+        "cmd/32/griduse.svg"
+      ]
+    },
+    "tm_snap_grid_curve": {
+      "libreoffice": [
+        "cmd/32/gridvisible.svg"
+      ]
+    },
+    "tm_snap_grid_intersection": {
+      "libreoffice": [
+        "cmd/32/gridvisible.svg"
+      ]
+    },
+    "tm_snap_text_border": {
+      "libreoffice": [
+        "cmd/32/snapborder.svg"
+      ]
+    },
+    "tm_snap_text_deco": {
+      "libreoffice": [
+        "cmd/32/snapframe.svg"
+      ]
+    },
+    "tm_specified": {
+      "libreoffice": [
+        "cmd/32/checkbox.svg"
+      ]
+    },
+    "tm_spline_mode": {
+      "libreoffice": [
+        "cmd/32/connectorcurve.svg"
+      ]
+    },
+    "tm_stateless": {
+      "libreoffice": [
+        "cmd/32/checkbox.svg"
+      ]
+    },
+    "tm_stop": {
+      "libreoffice": [
+        "cmd/32/basicstop.svg",
+        "cmd/32/cancel.svg"
+      ]
+    },
+    "tm_stretch": {
+      "libreoffice": [
+        "cmd/32/grow.svg"
+      ]
+    },
+    "tm_style": {
+      "libreoffice": [
+        "cmd/32/editstyle.svg",
+        "cmd/32/styleapply.svg"
+      ]
+    },
+    "tm_table_arow": {
+      "libreoffice": [
+        "cmd/32/insertrowsbefore.svg"
+      ]
+    },
+    "tm_table_bbottom": {
+      "libreoffice": [
+        "cmd/32/alignbottom.svg"
+      ]
+    },
+    "tm_table_bhcenter": {
+      "libreoffice": [
+        "cmd/32/aligncenter.svg"
+      ]
+    },
+    "tm_table_bleft": {
+      "libreoffice": [
+        "cmd/32/alignleft.svg"
+      ]
+    },
+    "tm_table_bottom": {
+      "libreoffice": [
+        "cmd/32/alignbottom.svg"
+      ]
+    },
+    "tm_table_bright": {
+      "libreoffice": [
+        "cmd/32/alignright.svg"
+      ]
+    },
+    "tm_table_brow": {
+      "libreoffice": [
+        "cmd/32/insertrowsafter.svg"
+      ]
+    },
+    "tm_table_btop": {
+      "libreoffice": [
+        "cmd/32/aligntop.svg"
+      ]
+    },
+    "tm_table_bvcenter": {
+      "libreoffice": [
+        "cmd/32/aligncenter.svg"
+      ]
+    },
+    "tm_table_dcol": {
+      "libreoffice": [
+        "cmd/32/deletecolumns.svg"
+      ]
+    },
+    "tm_table_drow": {
+      "libreoffice": [
+        "cmd/32/deleterows.svg"
+      ]
+    },
+    "tm_table_hbase": {
+      "libreoffice": [
+        "cmd/32/inserttable.svg",
+        "cmd/32/tabledialog.svg"
+      ]
+    },
+    "tm_table_lcol": {
+      "libreoffice": [
+        "cmd/32/insertcolumnsbefore.svg"
+      ]
+    },
+    "tm_table_rcol": {
+      "libreoffice": [
+        "cmd/32/insertcolumnsafter.svg"
+      ]
+    },
+    "tm_table_top": {
+      "libreoffice": [
+        "cmd/32/aligntop.svg"
+      ]
+    },
+    "tm_table_vbase": {
+      "libreoffice": [
+        "cmd/32/inserttable.svg",
+        "cmd/32/tabledialog.svg"
+      ]
+    },
+    "tm_table_vcenter": {
+      "libreoffice": [
+        "cmd/32/aligncenter.svg"
+      ]
+    },
+    "tm_table_vfrac": {
+      "libreoffice": [
+        "cmd/32/inserttable.svg",
+        "cmd/32/tabledialog.svg"
+      ]
+    },
+    "tm_textat_mode": {
+      "libreoffice": [
+        "cmd/32/doubleclicktextedit.svg",
+        "cmd/32/text.svg"
+      ]
+    },
+    "tm_theme": {
+      "libreoffice": [
+        "cmd/32/colorsettings.svg"
+      ]
+    },
+    "tm_theorem": {
+      "libreoffice": [
+        "cmd/32/insertmath.svg",
+        "cmd/32/text.svg"
+      ]
+    },
+    "tm_three": {
+      "libreoffice": [
+        "cmd/32/text.svg"
+      ]
+    },
+    "tm_tilda": {
+      "libreoffice": [
+        "cmd/32/insertsymbol.svg",
+        "cmd/32/charmapcontrol.svg"
+      ]
+    },
+    "tm_title": {
+      "libreoffice": [
+        "cmd/32/titleparastyle.svg"
+      ]
+    },
+    "tm_tmdoc_annotate": {
+      "libreoffice": [
+        "cmd/32/editannotation.svg"
+      ]
+    },
+    "tm_traverse": {
+      "libreoffice": [
+        "cmd/32/forward.svg"
+      ]
+    },
+    "tm_tuple": {
+      "libreoffice": [
+        "cmd/32/insertmath.svg"
+      ]
+    },
+    "tm_unequal": {
+      "libreoffice": [
+        "cmd/32/insertmath.svg",
+        "cmd/32/insertsymbol.svg"
+      ]
+    },
+    "tm_up": {
+      "libreoffice": [
+        "cmd/32/moveup.svg",
+        "cmd/32/arrowshapes.up-arrow.svg"
+      ]
+    },
+    "tm_var_prominent": {
+      "libreoffice": [
+        "cmd/32/strongemphasischarstyle.svg"
+      ]
+    },
+    "tm_vect": {
+      "libreoffice": [
+        "cmd/32/insertmath.svg"
+      ]
+    },
+    "tm_verbatim": {
+      "libreoffice": [
+        "cmd/32/preformattedparastyle.svg"
+      ]
+    },
+    "tm_view": {
+      "libreoffice": [
+        "cmd/32/browseview.svg"
+      ]
+    },
+    "tm_von": {
+      "libreoffice": [
+        "cmd/32/text.svg"
+      ]
+    },
+    "tm_wide": {
+      "libreoffice": [
+        "cmd/32/grow.svg"
+      ]
+    },
+    "tm_wide_float": {
+      "libreoffice": [
+        "cmd/32/insertobjectfloatingframe.svg"
+      ]
+    },
+    "tm_wide_under": {
+      "libreoffice": [
+        "cmd/32/underlinedouble.svg",
+        "cmd/32/underline.svg"
       ]
     }
   }

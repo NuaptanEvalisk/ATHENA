@@ -7,7 +7,6 @@ QWidget {
     background: #404040;
     color: #e0e0e0;
     font-size: 14px;
-    icon-size: 16px;
 }
 
 QAbstractScrollArea, QTableView {
@@ -39,8 +38,9 @@ QMenuBar, QMenuBar QWidget, #menuToolBar, #menuToolBar QWidget {
 }
 
 QMenuBar, #menuToolBar {
-    padding-top: 5px;
-    spacing: 10px;
+    padding: 0px;
+    margin: 0px;
+    spacing: 0px;
 }
 
 QMenuBar::item {
@@ -83,8 +83,9 @@ QToolBar, #mainToolBar QWidget, #mainToolBar QToolButton {
 
 QToolBar::separator {
     background: rgba(128,128,128,50%);
-    width: 0px;
-    margin: 4px 8px;
+    width: 1px;
+    margin: 0px;
+    padding: 0px;
 }
 
 QStatusBar {
@@ -317,8 +318,8 @@ QPushButton:focus {
 QToolButton,
 #mainToolBar QToolButton,
 #modeToolBar QToolButton {
-    padding-left: 0px;
-    padding-right: 0px;
+    padding: 0px;
+    margin: 0px;
 }
 
 Qt4QToolButton {
@@ -668,4 +669,43 @@ QDockWidget#sideTools QWidget#section-tabs QWidget#section-active-tab QPushButto
     border-top-right-radius: 5px;
     padding: 5px 8px;
     margin: 0px;
+}
+
+/****************************************************************************
+* Compact ATHENA menu and toolbars
+****************************************************************************/
+
+QMenuBar {
+    padding: 0px;
+    margin: 0px;
+    spacing: 0px;
+}
+
+QMenuBar::item {
+    padding: 0px 8px;
+    margin: 0px;
+}
+
+#mainToolBar, #modeToolBar, #focusToolBar, #userToolBar, #menuToolBar,
+#mainToolBar QWidget, #modeToolBar QWidget, #focusToolBar QWidget,
+#userToolBar QWidget, #menuToolBar QWidget,
+#mainToolBar QToolButton, #modeToolBar QToolButton,
+#focusToolBar QToolButton, #userToolBar QToolButton,
+#menuToolBar QToolButton {
+    padding: 0px;
+    margin: 0px;
+}
+
+#mainToolBar QToolButton, #modeToolBar QToolButton,
+#focusToolBar QToolButton, #userToolBar QToolButton,
+#menuToolBar QToolButton {
+    border: 0px;
+}
+
+#mainToolBar::separator, #modeToolBar::separator,
+#focusToolBar::separator, #userToolBar::separator,
+#menuToolBar::separator, #toolbarSeparator {
+    padding: 0px;
+    margin: 0px;
+    width: 1px;
 }

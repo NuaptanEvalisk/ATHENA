@@ -357,8 +357,7 @@ QTMStyle::drawComplexControl (ComplexControl cc, const QStyleOptionComplex* opt,
         }
         QStyleOptionToolButton label = *toolbutton;
         label.state = bflags;
-        int fw = proxy()->pixelMetric(PM_DefaultFrameWidth, opt, widget);
-        label.rect = button.adjusted(fw, fw, -fw, -fw);
+        label.rect = button;
         proxy()->drawControl(CE_ToolButtonLabel, &label, p, widget);
         
         if (toolbutton->subControls & SC_ToolButtonMenu) {
@@ -395,10 +394,7 @@ QTMStyle::sizeFromContents (ContentsType type, const QStyleOption* option, const
       break;
       
     case CT_ToolButton:
-      if (qtmstyle_use_system_wayland_metrics ())
-        sz = baseStyle()->sizeFromContents(type, option, contentsSize, widget);
-      else
-        sz = QSize(sz.width() + 4, sz.height() + 6);
+      sz = contentsSize;
       break;
       
     default:
@@ -416,11 +412,11 @@ QTMStyle::pixelMetric (PixelMetric metric, const QStyleOption *opt, const QWidge
         return baseStyle()->pixelMetric(metric,opt,widget);
       return 0;
     case PM_ToolBarIconSize:
-      if (qtmstyle_use_system_wayland_metrics ())
-        return baseStyle()->pixelMetric(metric,opt,widget);
-      return 17;
-  //  case PM_ToolBarFrameWidth:
-  //    return 2;
+      return 32;
+    case PM_ToolBarFrameWidth:
+    case PM_ToolBarHandleExtent:
+    case PM_ToolBarItemMargin:
+      return 0;
     default:
       ;
   }

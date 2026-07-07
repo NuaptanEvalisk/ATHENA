@@ -67,3 +67,24 @@ boundaries, do not patch from intuition. Debug from evidence.
 - The commit body must mention the important functional surface of the change,
   not just a vague cleanup summary.
 - If a commit message is wrong, amend it immediately before reporting success.
+
+## Layer Ownership And Source-Of-Truth Fixes
+
+- When evidence identifies the broken layer, fix that layer's source of truth
+  first. Do not cover a bad theme, configuration, resource map, generated file,
+  or preference value by adding compensating code in a lower or unrelated layer.
+- UI styling bugs whose cause is CSS or theme data must be fixed in the theme
+  CSS. C++ widget code may set structural invariants, but must not become a pile
+  of local style overrides for values that are authored in shipped theme files.
+- Resource selection bugs must be fixed in the resource map or packaged
+  resources before adding fallback logic. Loader changes are acceptable only
+  when the loader policy itself is wrong.
+- Before patching around a symptom, search for existing declarative sources
+  such as CSS, JSON maps, Scheme preferences, generated dependency patches, and
+  startup scripts. If one of them owns the value, edit it directly.
+- Avoid duplicate truth. If a value is changed in a source file, remove stale
+  compensating overrides that were added while debugging, unless they protect a
+  distinct invariant and are documented by code structure.
+- Treat "I found the source but patched elsewhere" as a failed debugging
+  transition. Revert that direction, move the fix to the source layer, and then
+  retest.
