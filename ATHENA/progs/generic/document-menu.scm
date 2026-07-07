@@ -633,6 +633,12 @@
   ("Panorama" (init-page-rendering "panorama"))
   ("Slideshow" (init-page-rendering "slideshow")))
 
+(define (page-rendering-name s)
+  (cond ((== s "automatic") "Reflow")
+        ((== s "papyrus") "Scroll")
+        ((== s "beamer") "Slides")
+        (else (upcase-first s))))
+
 (menu-bind page-layout-menu
   ("Margins as on paper" (toggle-page-screen-margin))
   ("Reduced margins" (toggle-reduced-margins))
@@ -1003,7 +1009,7 @@
       (link document-page-size-menu))
   (-> (eval (string-append (get-init "font-base-size") " pt"))
       (link document-font-base-size-menu))
-  (-> (eval (upcase-first (get-init-page-rendering)))
+  (-> (eval (page-rendering-name (get-init-page-rendering)))
       (link page-rendering-menu))
   (-> (eval (upcase-first (get-init "page-orientation")))
       ("Portrait" (init-page-orientation "portrait"))

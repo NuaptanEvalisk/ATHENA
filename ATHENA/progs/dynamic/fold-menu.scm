@@ -435,7 +435,7 @@
   (inert ((eval (focus-tag-name (tree-label t))) (noop) (noop)))
   (-> (eval (upcase-first (get-init "page-type")))
       (link document-page-size-menu))
-  (-> (eval (upcase-first (get-init-page-rendering)))
+  (-> (eval (page-rendering-name (get-init-page-rendering)))
       (link page-rendering-menu))
   (-> "Preferences"
       (dynamic (focus-preferences-menu t)))

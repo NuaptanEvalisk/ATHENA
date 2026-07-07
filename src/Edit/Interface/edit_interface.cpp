@@ -787,11 +787,21 @@ edit_interface_rep::apply_changes () {
     if (get_init_string (PAGE_MEDIUM) == "automatic")
     {
       SI wx, wy;
+      bool visible_size= false;
       if (cvw == NULL) ::get_size (get_window (this), wx, wy);
-      else ::get_size (widget (cvw), wx, wy);
+      else {
+        ::get_size (widget (cvw), wx, wy);
+        SI ax1, ay1, ax2, ay2;
+        SERVER (get_visible (ax1, ay1, ax2, ay2));
+        if (ax2 > ax1 && ay2 > ay1) {
+          wx= ax2 - ax1;
+          wy= ay2 - ay1;
+          visible_size= true;
+        }
+      }
       if (get_init_string (SCROLL_BARS) == "false") sb= 0;
       if (get_server () -> in_full_screen_mode ()) sb= 0;
-      if (sb) wx -= scrollbar_width();
+      if (sb && !visible_size) wx -= scrollbar_width();
       if (wx != cur_wx || wy != cur_wy || new_zoom != old_zoom) {
         cur_wx= wx; cur_wy= wy;
         init_env (PAGE_SCREEN_WIDTH, as_string ((SI) (wx/magf)) * "tmpt");
@@ -888,10 +898,20 @@ edit_interface_rep::apply_changes () {
     abs_round (ex1, ey1);
     abs_round (ex2, ey2);
     SI w, h;
+    bool visible_size= false;
     widget me= ::get_canvas (widget (cvw));
     ::get_size (me, w, h);
-    if (cur_sb && ey2 - ey1 > h) w -= scrollbar_width ();
-    if (cur_sb && ex2 - ex1 > w) h -= scrollbar_width ();
+    if (medium == "automatic") {
+      SI ax1, ay1, ax2, ay2;
+      SERVER (get_visible (ax1, ay1, ax2, ay2));
+      if (ax2 > ax1 && ay2 > ay1) {
+        w= ax2 - ax1;
+        h= ay2 - ay1;
+        visible_size= true;
+      }
+    }
+    if (!visible_size && cur_sb && ey2 - ey1 > h) w -= scrollbar_width ();
+    if (!visible_size && cur_sb && ex2 - ex1 > w) h -= scrollbar_width ();
     if (ex2 - ex1 <= w + 2*PIXEL) {
       if (medium == "automatic")
         ex2= ex1 + w;

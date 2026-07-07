@@ -213,8 +213,20 @@
 (tm-define (zoom-out x)
   (zoom-in (/ 1.0 x)))
 
+(define (fit-screen-zoom-scale)
+  (max 0.0001 (* (get-retina-zoom) (get-retina-scale))))
+
+(define (change-fit-zoom-factor f)
+  ;; Fit formulas operate in editor/canvas zoom space.  ATHENA stores the
+  ;; user-visible window zoom without the HiDPI window scale, so convert back
+  ;; before committing the fitted value.
+  (change-zoom-factor (/ (- f 0.0001) (fit-screen-zoom-scale))))
+
+(define (fit-canvas-zoom-factor)
+  (* (get-window-zoom-factor) (fit-screen-zoom-scale)))
+
 (tm-define (fit-all-to-screen)
-  (let* ((zf (get-window-zoom-factor))
+  (let* ((zf (fit-canvas-zoom-factor))
          (ww (get-window-width))
          (tw (get-total-width #f))
          (dw (- (get-total-width #t) tw))
@@ -224,10 +236,10 @@
          (dh (- (get-total-height #t) th))
          (hf (/ (- wh (* zf dh)) th))
          (f (min wf hf)))
-    (change-zoom-factor (- f 0.0001))))
+    (change-fit-zoom-factor f)))
 
 (tm-define (fit-to-screen)
-  (let* ((zf (get-window-zoom-factor))
+  (let* ((zf (fit-canvas-zoom-factor))
          (ww (get-window-width))
          (pw (get-pages-width #f))
          (dw (- (get-pages-width #t) pw))
@@ -237,23 +249,23 @@
          (dh (- (get-page-height #t) ph))
          (hf (/ (- wh (* zf dh)) ph))
          (f (min wf hf)))
-    (change-zoom-factor (- f 0.0001))))
+    (change-fit-zoom-factor f)))
 
 (tm-define (fit-to-screen-width)
-  (let* ((zf (get-window-zoom-factor))
+  (let* ((zf (fit-canvas-zoom-factor))
          (ww (get-window-width))
          (pw (get-pages-width #f))
          (dw (- (get-pages-width #t) pw))
          (f (/ (- ww (* zf dw)) pw)))
-    (change-zoom-factor (- f 0.0001))))
+    (change-fit-zoom-factor f)))
 
 (tm-define (fit-to-screen-height)
-  (let* ((zf (get-window-zoom-factor))
+  (let* ((zf (fit-canvas-zoom-factor))
          (wh (get-window-height))
          (ph (get-page-height #f))
          (dh (- (get-page-height #t) ph))
          (f (/ (- wh (* zf dh)) ph)))
-    (change-zoom-factor (- f 0.0001))))
+    (change-fit-zoom-factor f)))
 
 (define (snap-to-pages?)
   (get-boolean-preference "snap to pages"))
