@@ -138,7 +138,8 @@
              "GitHub Issues"))))
 
 (define (tmtex-discard-experimental-build-warning t)
-  (cond ((tmtex-experimental-build-warning? t) tmtex-drop-marker)
+  (cond ((tmtex-experimental-build-warning? t)
+         `(athena-preserved-object ,t))
         ((list? t)
          (list-filter (map tmtex-discard-experimental-build-warning t)
                       (lambda (x) (not (tmtex-drop-marker? x)))))
@@ -771,13 +772,15 @@
 
 (define (tmtex-filter-body l)
   (cond ((or (nlist? l) (null? l)) l)
-        ((== (car l) 'assign) "")
-        ((== (car l) 'hide-preamble) "")
+        ((== (car l) 'assign) `(athena-preserved-object ,l))
+        ((== (car l) 'hide-preamble) `(athena-preserved-object ,l))
         ((in? (car l) '(concat document))
-         (with a (list-filter (cdr l) tmtex-non-preamble-statement?)
+         (with a (list-filter
+                  (map tmtex-filter-body (cdr l))
+                  (lambda (x) (!= x "")))
            (if (null? a)
                (if (== (car l) 'concat) "" '(document ""))
-               (cons (car l) (map tmtex-filter-body a)))))
+               (cons (car l) a))))
         (else (cons (car l) (map tmtex-filter-body (cdr l))))))
 
 (define (tmtex-filter-duplicates* l t)
@@ -869,11 +872,41 @@
 (define (tmtex-default s l) (cons (string->symbol s) (tmtex-list l)))
 (define (tmtex-id l) (tmtex (car l)))
 (define (tmtex-first l) (tmtex (car l)))
-(define (tmtex-style-first s l) (tmtex (car l)))
+(define (tmtex-style-first s l)
+  (tmtex-preserve-lossy
+   (cons (string->symbol s) l)
+   (if (pair? l) (tmtex (car l)) "")))
 (define (tmtex-second l) (tmtex (cadr l)))
-(define (tmtex-style-second s l) (tmtex (cadr l)))
-(define (tmtex-hide-part s l) "")
-(define (tmtex-show-part s l) (tmtex (cadr l)))
+(define (tmtex-style-second s l)
+  (tmtex-preserve-lossy
+   (cons (string->symbol s) l)
+   (if (and (pair? l) (pair? (cdr l))) (tmtex (cadr l)) "")))
+(define (tmtex-hide-part s l)
+  (tmtex-preserve-object (cons (string->symbol s) l)))
+(define (tmtex-show-part s l)
+  (tmtex-preserve-lossy
+   (cons (string->symbol s) l)
+   (if (and (pair? l) (pair? (cdr l))) (tmtex (cadr l)) "")))
+
+(define (tmtex-preserve-object st)
+  (tmtex-athena-data-inline
+   (list (tmtex-athena-data-object st))))
+
+(define (tmtex-athena-preserved-object l)
+  (if (pair? l) (tmtex-preserve-object (car l)) ""))
+
+(define (tmtex-preserve-lossy st fallback)
+  (if (tmtex-latex-empty? fallback)
+      (tmtex-preserve-object st)
+      (tmtex-athena-data-wrap st fallback)))
+
+(define (tmtex-lossy-visible key args which)
+  (let ((fallback
+         (cond ((and (== which 1) (pair? args)) (tmtex (car args)))
+               ((and (== which 2) (pair? args) (pair? (cdr args)))
+                (tmtex (cadr args)))
+               (else ""))))
+    (tmtex-preserve-lossy (cons key args) fallback)))
 
 (define (tmtex-error l)
   (display* "ATHENA] error in conversion: " l "\n")
@@ -1828,7 +1861,7 @@
 (define (tmtex-hidden-binding l)
   (if (and (== (length l) 2) (string->number (force-string (cAr l))))
       (list 'custombinding (force-string (cAr l)))
-      ""))
+      (tmtex-preserve-object `(hidden-binding ,@l))))
 
 (define (tmtex-latex-id s)
   (tmtex-string (force-string s)))
@@ -1886,7 +1919,7 @@
         ((== (car l) "printer") (tmtex (cadr l)))
         ((== (car l) "odd") `(ifthispageodd ,(tmtex (cadr l)) ""))
         ((== (car l) "even") `(ifthispageodd "" ,(tmtex (cadr l))))
-        (else "")))
+        (else (tmtex-preserve-object `(specific ,@l)))))
 
 (define (tmtex-eps-names)
   (set! tmtex-serial (+ tmtex-serial 1))
@@ -3224,11 +3257,25 @@
     (if (in? key '(quote quasiquote unquote)) (set! r tmtex-noop))
     (cond ((== r 'environment)
            (tmtex-std-env (symbol->string key) args))
+          ((eq? r tmtex-noop)
+           (tmtex-preserve-object (cons key args)))
+          ((eq? r tmtex-id)
+           (tmtex-lossy-visible key args 1))
+          ((eq? r tmtex-first)
+           (tmtex-lossy-visible key args 1))
+          ((eq? r tmtex-second)
+           (tmtex-lossy-visible key args 2))
+          ((eq? r tmtex-error)
+           (begin
+             (display* "ATHENA] error in conversion: " (cons key args) "\n")
+             (tmtex-preserve-object (cons key args))))
           (r (r args))
           (else
             (let ((p (logic-ref tmtex-tmstyle% key)))
               (cond ((and p (or (= (cadr p) -1) (= (cadr p) n)))
-                     ((car p) (symbol->string key) args))
+                     (if (eq? (car p) tmtex-noop)
+                         (tmtex-preserve-object (cons key args))
+                         ((car p) (symbol->string key) args)))
                     ((and p (= (cadr p) -2)) ((car p) `(,key ,@args)))
                     ((and (= n 1)
                           (or (func? (car args) 'tformat)
@@ -3244,7 +3291,7 @@
   (if (== (string-ref (symbol->string f) 0) #\!)
       (cons f (map-in-order tmtex l))
       (let ((v (tmtex-var-name (symbol->string f))))
-        (if (== v "") ""
+        (if (== v "") (tmtex-preserve-object (cons f l))
             (apply tex-apply
                    (cons (string->symbol v)
                          (map-in-order tmtex l)))))))
@@ -3252,7 +3299,7 @@
 (define (tmtex-compound l)
   (if (string? (car l))
       (tmtex-apply (string->symbol (car l)) (cdr l))
-      ""))
+      (tmtex-preserve-object `(compound ,@l))))
 
 (define (tmtex-list l)
   (map-in-order tmtex l))
@@ -3269,6 +3316,7 @@
 (logic-dispatcher tmtex-primitives%
   ((:or unknown uninit error raw-data) tmtex-error)
   (document tmtex-document)
+  (athena-preserved-object tmtex-athena-preserved-object)
   (para tmtex-para)
   (surround tmtex-surround)
   (concat tmtex-concat)
