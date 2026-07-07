@@ -1009,6 +1009,17 @@
 (define (tmtex-new-line l)
   (if (tmtex-math-mode?) (tmtex-next-line l) (tex-apply '!newline)))
 
+(define (tmtex-px-length? len)
+  (with tmlen (string->tmlength (force-string len))
+    (and (tmlength? tmlen) (== (tmlength-unit tmlen) 'px))))
+
+(define (tmtex-px-length->pt len)
+  (with tmlen (string->tmlength (force-string len))
+    (and (tmlength? tmlen)
+         (== (tmlength-unit tmlen) 'px)
+         (string-append
+          (number->string (* 0.75 (tmlength-value tmlen))) "pt"))))
+
 (tm-define (tmtex-decode-length len)
   ;; FIXME: should be completed
   (with s (force-string len)
@@ -1018,7 +1029,9 @@
           ((string-ends? s "sep")  (string-replace s "sep"  "ex"))
           ((string-ends? s "par")  (string-replace s "par"  "\\columnwidth"))
           ((string-ends? s "pag")  (string-replace s "pag"  "\\textheight"))
-          (else s))))
+          (else
+           (with px (tmtex-px-length->pt s)
+             (if px px s))))))
 
 (define (tmtex-hrule s l) (list 'hrulefill))
 
@@ -1819,8 +1832,38 @@
 (define (tmtex-latex-id s)
   (tmtex-string (force-string s)))
 
+(define (tmtex-decimal-char? c)
+  (let ((n (char->integer c)))
+    (and (>= n (char->integer #\0))
+         (<= n (char->integer #\9)))))
+
+(define (tmtex-athena-heading-anchor-label? s)
+  (let ((n (string-length s)))
+    (and (>= n 3)
+         (== (string-ref s 0) #\H)
+         (tmtex-decimal-char? (string-ref s 1))
+         (let loop ((i 2))
+           (cond ((>= i n) #f)
+                 ((== (string-ref s i) #\space) #t)
+                 ((tmtex-decimal-char? (string-ref s i)) (loop (+ i 1)))
+                 (else #f))))))
+
+(define (tmtex-athena-wrapper-anchor-label? s)
+  (let ((n (string-length s)))
+    (and (>= n 3)
+         (or (== (substring s (- n 2) n) " {")
+             (== (substring s (- n 2) n) " }")))))
+
+(define (tmtex-athena-anchor-label? s)
+  (or (tmtex-athena-heading-anchor-label? s)
+      (tmtex-athena-wrapper-anchor-label? s)))
+
 (define (tmtex-label l)
-  (list 'label (tmtex-latex-id (car l))))
+  (let ((id (force-string (car l))))
+    (if (tmtex-athena-anchor-label? id)
+        (tmtex-athena-data-inline
+         (list (tmtex-athena-data-object (cons 'label l))))
+        (list 'label (tmtex-latex-id id)))))
 
 (define (tmtex-reference l)
   (list 'ref (tmtex-latex-id (car l))))
@@ -1854,6 +1897,7 @@
 
 (define (tmtex-eps x)
   (if (tmtex-math-mode?) (set! x `(with "mode" "math" ,x)))
+  (latex-add-extra "graphicx")
   (receive (name-url name-string) (tmtex-eps-names)
     (let* ((extents (print-snippet name-url x #t))
            (unit (* (/ 1.0 60984.0) (/ 600.0 (tenth extents))))
@@ -1872,7 +1916,9 @@
            (opt `(!option ,(string-append "width=" ww ",height=" hh)))
            (rat (/ y3 (- y4 y3)))
            (dy `(!concat ,(number->string rat) (height)))
-           (rb `(raisebox ,dy (includegraphics ,opt ,name-string))))
+           (rb `(raisebox ,dy
+                  (includegraphics ,opt
+                    ,(tmtex-quote-includegraphics-name name-string)))))
       ;; TODO: top and bottom margins
       ;;(display* name-url ": " x1 ", " y1 "; " x2 ", " y2 "\n")
       ;;(display* name-url ": " x3 ", " y3 "; " x4 ", " y4 "\n")
@@ -1890,6 +1936,9 @@
     (set! name (string-replace name "$ATHENA_PATH" p))
     (set! name (string-replace name "file://" ""))
     name))
+
+(define (tmtex-quote-includegraphics-name name)
+  (string-append "\"" name "\""))
 
 (define (tmtex-resolve-image-url name)
   (let* ((un (unix->url name))
@@ -1946,6 +1995,7 @@
           rel))))
 
 (define (tmtex-include-image-file name source)
+  (latex-add-extra "graphicx")
   (let ((include-name
          (if tmtex-portable?
              (tmtex-portable-image-copy source)
@@ -1954,7 +2004,7 @@
                                              (unix->url name)))
                   name
                   (url->system source))))))
-    (list 'includegraphics include-name)))
+    (list 'includegraphics (tmtex-quote-includegraphics-name include-name))))
 
 (define (tmtex-as-eps name)
   (let* ((u (tmtex-resolve-image-url name))
@@ -1968,7 +2018,9 @@
           (with nfm (if (== (url-suffix name-url) "pdf") "pdf-file"
                         "postscript-file")
             (convert-to-file u fm nfm name-url))
-          (list 'includegraphics name-string)))))
+          (latex-add-extra "graphicx")
+          (list 'includegraphics
+                (tmtex-quote-includegraphics-name name-string))))))
 
 (define (tmtex-image-length len)
   (let* ((s (force-string len))
@@ -1989,19 +2041,41 @@
           ((in? unit '("w" "h")) (or val 0))
           (else #f))))
 
+(define (tmtex-image-size-aux width height)
+  (let ((width (force-string width))
+        (height (force-string height)))
+    (if (or (tmtex-px-length? width) (tmtex-px-length? height))
+        (tmtex-athena-data-inline
+         (list (tmtex-athena-data-record
+                "aux" (list "img_size" "width" width "height" height))))
+        "")))
+
+(define (tmtex-image-with-aux width height body)
+  (let ((aux (tmtex-image-size-aux width height)))
+    (if (== aux "") body `(!concat ,aux ,body))))
+
 (define (tmtex-image l)
   (if (nstring? (car l))
       (tmtex-eps (cons 'image l))
-      (let* ((fig (tmtex-as-eps (force-string (car l))))
-             (hor (tmtex-image-length (cadr l)))
-             (ver (tmtex-image-length (caddr l)))
-             (mhor (tmtex-image-mag (cadr l)))
-             (mver (tmtex-image-mag (caddr l))))
-        (cond ((or (not mhor) (not mver)) (list 'resizebox hor ver fig))
-              ((and (== mhor 0.0) (== mver 0.0)) fig)
-              ((or (== mhor 1.0) (== mver 1.0)) fig)
-              ((== mhor 0.0) (list 'scalebox (number->string mver) fig))
-              (else (list 'scalebox (number->string mhor) fig))))))
+      (begin
+        (latex-add-extra "graphicx")
+        (let* ((width (cadr l))
+               (height (caddr l))
+               (fig (tmtex-as-eps (force-string (car l))))
+               (hor (tmtex-image-length width))
+               (ver (tmtex-image-length height))
+               (mhor (tmtex-image-mag width))
+               (mver (tmtex-image-mag height))
+               (body
+                (cond ((or (not mhor) (not mver))
+                       (list 'resizebox hor ver fig))
+                      ((and (== mhor 0.0) (== mver 0.0)) fig)
+                      ((or (== mhor 1.0) (== mver 1.0)) fig)
+                      ((== mhor 0.0)
+                       (list 'scalebox (number->string mver) fig))
+                      (else
+                       (list 'scalebox (number->string mhor) fig)))))
+          (tmtex-image-with-aux width height body)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Metadata for documents
@@ -2334,7 +2408,7 @@
   (let* ((lab (find-label (car l)))
          (tit (if lab (remove-labels (car l)) (car l)))
          (sec (list (string->symbol s) (tmtex tit))))
-    (if lab (list '!concat sec lab) sec)))
+    (if lab (list '!concat sec (tmtex lab)) sec)))
 
 (define (tmtex-appendix s l)
   (with app (list (if (latex-book-style?) 'chapter 'section) (tmtex (car l)))
