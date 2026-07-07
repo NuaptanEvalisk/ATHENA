@@ -1,9 +1,44 @@
 #include "QTMApplication.hpp"
 #include "QTMUpdateChecker.hpp"
 #include "qt_utilities.hpp"
+
+#include <QTouchEvent>
+#include <QNativeGestureEvent>
   
 QTMApplication::QTMApplication (int& argc, char** argv) :
   QApplication (argc, argv), mSplash (NULL) { }
+
+namespace {
+
+static string
+gestureEventTypeName (QEvent::Type type) {
+  if (type == QEvent::TouchBegin) return "TouchBegin";
+  if (type == QEvent::TouchUpdate) return "TouchUpdate";
+  if (type == QEvent::TouchEnd) return "TouchEnd";
+  if (type == QEvent::TouchCancel) return "TouchCancel";
+  if (type == QEvent::NativeGesture) return "NativeGesture";
+  if (type == QEvent::Gesture) return "Gesture";
+  if (type == QEvent::GestureOverride) return "GestureOverride";
+  return "type_" * as_string ((int) type);
+}
+
+static string
+nativeGestureTypeName (Qt::NativeGestureType type) {
+  if (type == Qt::BeginNativeGesture) return "BeginNativeGesture";
+  if (type == Qt::EndNativeGesture) return "EndNativeGesture";
+  if (type == Qt::ZoomNativeGesture) return "ZoomNativeGesture";
+  if (type == Qt::RotateNativeGesture) return "RotateNativeGesture";
+  if (type == Qt::SwipeNativeGesture) return "SwipeNativeGesture";
+  if (type == Qt::SmartZoomNativeGesture) return "SmartZoomNativeGesture";
+  return "native-type_" * as_string ((int) type);
+}
+
+static bool gestureDebugEnabled () {
+  QByteArray value= qgetenv ("ATHENA_GESTURE_DEBUG");
+  return !value.isEmpty () && value != "0";
+}
+
+}
 
 #include <QPixmap>
 #include <QPainter>
@@ -192,6 +227,46 @@ bool QTMApplication::notify (QObject* receiver, QEvent* event)
          event->type () == QEvent::Show ||
          event->type () == QEvent::FontChange))
       qt_sync_wayland_logical_widget_font (qobject_cast<QWidget*> (receiver));
+
+    if (gestureDebugEnabled () && event != NULL && (
+          event->type () == QEvent::TouchBegin ||
+          event->type () == QEvent::TouchUpdate ||
+          event->type () == QEvent::TouchEnd ||
+          event->type () == QEvent::TouchCancel ||
+          event->type () == QEvent::NativeGesture ||
+          event->type () == QEvent::Gesture ||
+          event->type () == QEvent::GestureOverride)) {
+      string receiver_name = "(null)";
+      string receiver_class = "(null)";
+      if (receiver != NULL) {
+        if (!receiver->objectName().isEmpty ())
+          receiver_name = from_qstring (receiver->objectName ());
+        if (receiver->metaObject() != NULL)
+          receiver_class= receiver->metaObject()->className ();
+      }
+
+      cout << "[gesture-app] type=" << gestureEventTypeName (event->type ())
+           << " receiver=" << receiver_class << "/" << receiver_name
+           << " accepted=" << (event->isAccepted () ? "yes" : "no");
+
+      if (event->type () == QEvent::NativeGesture) {
+        QNativeGestureEvent* native_event = static_cast<QNativeGestureEvent*> (event);
+        cout << " native-type="
+             << nativeGestureTypeName (native_event->gestureType ())
+             << " fingers=" << native_event->fingerCount ()
+             << " value=" << as_string ((double) native_event->value ())
+             << " delta=" << as_string ((double) native_event->delta ().x ())
+             << "," << as_string ((double) native_event->delta ().y ());
+      }
+      if (event->type () == QEvent::TouchBegin ||
+          event->type () == QEvent::TouchUpdate ||
+          event->type () == QEvent::TouchEnd ||
+          event->type () == QEvent::TouchCancel) {
+        QTouchEvent* touch_event = static_cast<QTouchEvent*> (event);
+        cout << " points=" << touch_event->points ().size ();
+      }
+      cout << LF;
+    }
 #endif
     return QApplication::notify (receiver, event);
   }

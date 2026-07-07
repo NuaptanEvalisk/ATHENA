@@ -268,6 +268,7 @@ QTMScrollView::viewportEvent(QEvent *e)
     case QEvent::TouchBegin:
     case QEvent::TouchUpdate:
     case QEvent::TouchEnd:
+    case QEvent::TouchCancel:
     case QEvent::MouseMove:
     case QEvent::ContextMenu:
     case QEvent::Wheel:
@@ -309,6 +310,7 @@ QTMScrollView::surfaceEvent(QEvent *e)
     case QEvent::TouchBegin:
     case QEvent::TouchUpdate:
     case QEvent::TouchEnd:
+    case QEvent::TouchCancel:
     case QEvent::MouseMove:
     case QEvent::ContextMenu:
     case QEvent::Wheel:

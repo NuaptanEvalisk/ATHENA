@@ -272,6 +272,53 @@
   corresponding vault file. The parent navigation entry shows parents of the
   current namespace when moving upward through the hierarchy.
 
+  <section|Neighborhoods and gestures>
+
+  A document neighborhood is a local ordering of <verbatim|.ath> files around
+  the current note. <ATHENA> currently builds two kinds of natural
+  neighborhoods.
+
+  <\itemize>
+    <item>The <em|Path> neighborhood contains the <verbatim|.ath> files in the
+    same directory as the current note, sorted alphabetically.
+
+    <item>An <em|NS: name> neighborhood contains the files in a direct
+    namespace containing the current note. A containing namespace is direct
+    when no more specific containing namespace lies between it and the note.
+    Namespace neighborhoods use the namespace's sorter.
+  </itemize>
+
+  Use <menu|View|Neighborhoods> to open the neighborhoods viewer. It is an ADS
+  pane, floating by default. Each row is one neighborhood. The cells in a row
+  are files, and the cells representing the current note are aligned in one
+  highlighted column. Selecting a row chooses the active neighborhood for the
+  current note; double-clicking a file cell opens that note in the current
+  viewport. The viewer follows the current viewport.
+
+  On platforms where Qt delivers gestures, such as native Wayland and Windows,
+  neighborhood navigation is available from the document editor. Swiping left
+  opens the left neighbor and swiping right opens the right neighbor. If the
+  current note is already at the edge, nothing happens.
+
+  Some desktops deliver horizontal touchpad movement as ordinary horizontal
+  scrolling when the document has a bottom scrollbar. In that case, hold
+  <key|Shift> while swiping horizontally: <key|Shift>+swipe left opens the
+  left neighbor and <key|Shift>+swipe right opens the right neighbor, without
+  horizontally scrolling the document. The keyboard equivalents are
+  <key|Ctrl+Alt+Left> and <key|Ctrl+Alt+Right>.
+
+  A three-finger tap cycles the selected neighborhood and shows a toast with
+  the new selection. On KDE, three-finger tap may be delivered as a middle
+  mouse click; when <menu|Edit|Preferences|Editing|Text|Disable UNIX primary
+  selection> is enabled, middle-clicking in the document editor has the same
+  cycle-neighborhood effect. These gestures and shortcuts operate only on
+  ordinary vault <verbatim|.ath> documents; system pages, namespace homepages,
+  and other non-file buffers do nothing.
+
+  The initial selected neighborhood is controlled by
+  <menu|Edit|Preferences|Vault|Navigation and Namespaces|Preferred initial
+  neighborhood>.
+
   <section|Namespace export>
 
   Use <menu|Tools|Export namespace> to export a namespace as a document. <ATHENA>

@@ -113,6 +113,7 @@
   ("Show panorama" (toggle-panorama-mode))
   ("Show all slides" (toggle-slideshow-mode))
   ("Show outline" (outline-pane-show))
+  ("Neighborhoods" (neighborhoods-pane-show))
   ("Error messages" (error-messages-show))
   (-> "Headings"
       ("Unfold all" (heading-unfold-all)))

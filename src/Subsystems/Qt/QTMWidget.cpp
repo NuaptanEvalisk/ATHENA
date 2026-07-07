@@ -26,6 +26,7 @@
 #include "qt_renderer.hpp"
 #include "QTMApplication.hpp"
 #include "QTMKeyboardEvent.hpp"
+#include "QTMNeighborhoodsPane.hpp"
 
 #include "config.h"
 
@@ -41,6 +42,7 @@
 #include <QInputMethod>
 #include <QNativeGestureEvent>
 #include <QScrollBar>
+#include <QTouchEvent>
 
 #include <QBuffer>
 #include <QMimeData>
@@ -52,6 +54,18 @@
 #include <cmath>
 
 static long int QTMWcounter = 0; // debugging hack
+
+static string
+gestureEventTypeName (QEvent::Type type) {
+  if (type == QEvent::TouchBegin) return "TouchBegin";
+  if (type == QEvent::TouchEnd) return "TouchEnd";
+  if (type == QEvent::TouchUpdate) return "TouchUpdate";
+  if (type == QEvent::TouchCancel) return "TouchCancel";
+  if (type == QEvent::NativeGesture) return "NativeGesture";
+  if (type == QEvent::Gesture) return "Gesture";
+  if (type == QEvent::GestureOverride) return "GestureOverride";
+  return "type_" * as_string ((int) type);
+}
 
 /*! Constructor.
  
@@ -337,9 +351,25 @@ QTMWidget::finishViewPinchZoom (bool commit, const char* source) {
 
 bool
 QTMWidget::handleNativeGestureEvent (QNativeGestureEvent* event) {
-  if (!gesturesSupportedForViewZoom () || is_nil (tmwid)) return false;
+  if (!gesturesSupportedForViewZoom () || is_nil (tmwid)) {
+    if (gestureDebugEnabled ()) {
+      cout << "[gesture] native-event route=dispatch ignored "
+           << "supported=" << (gesturesSupportedForViewZoom () ? "yes" : "no")
+           << " widget=" << (is_nil (tmwid) ? "nil" : "ok")
+           << LF;
+    }
+    return false;
+  }
   QPointF focal= surface()->mapFromGlobal (
     event->globalPosition().toPoint());
+  if (gestureDebugEnabled ()) {
+    cout << "[gesture] native-event route=dispatch type="
+         << gestureEventTypeName (static_cast<QEvent::Type> (event->gestureType ()))
+         << " value=" << as_string (event->value())
+         << " finger-count=" << event->fingerCount () << " focal=("
+         << as_string ((double) focal.x()) << ","
+         << as_string ((double) focal.y()) << ")" << LF;
+  }
   if (inActiveGraphicsMode ()) {
     coord2 pt= from_qpoint (focal.toPoint() + origin());
     array<double> data;
@@ -381,10 +411,37 @@ QTMWidget::handleNativeGestureEvent (QNativeGestureEvent* event) {
   }
 
   switch (event->gestureType()) {
-    case Qt::BeginNativeGesture:
-      beginViewPinchZoom (focal, "native-view");
+    case Qt::SwipeNativeGesture: {
+      QPointF delta= event->delta();
+      double dx= delta.x();
+      if (std::fabs (dx) < 0.001) dx= event->value();
+      if (std::fabs (dx) < 0.001) {
+        logGesture ("native-swipe-ignored", "neighborhood", dx, focal);
+        event->accept();
+        return true;
+      }
+      int direction= dx < 0.0 ? -1 : 1;
+      logGesture (direction < 0 ? "swipe-left" : "swipe-right",
+                  "native-neighborhood", dx, focal);
+      neighborhoods_open_neighbor (direction);
       event->accept();
       return true;
+    }
+    case Qt::SmartZoomNativeGesture:
+      if (event->fingerCount() == 3) {
+        logGesture ("tap-cycle", "native-neighborhood", event->value(),
+                    focal);
+        neighborhoods_cycle_selected ();
+        event->accept();
+        return true;
+      }
+      if (gestureDebugEnabled ())
+        logGesture ("smart-zoom-ignored", "neighborhood", event->value(),
+                    focal);
+      return false;
+    case Qt::BeginNativeGesture:
+      logGesture ("native-begin", "native-view", event->value(), focal);
+      return false;
     case Qt::ZoomNativeGesture:
       updateViewPinchZoom (viewPinchScale * (1.0 + event->value()), focal,
                            "native-view");
@@ -395,6 +452,8 @@ QTMWidget::handleNativeGestureEvent (QNativeGestureEvent* event) {
       event->accept();
       return true;
     default:
+      if (gestureDebugEnabled ())
+        logGesture ("native-ignored", "native-unknown", 1.0, focal);
       return false;
   }
 }
@@ -425,6 +484,171 @@ QTMWidget::handlePinchGestureForViewZoom (QPinchGesture* pinch) {
     return true;
   }
   return false;
+}
+
+bool
+QTMWidget::handleNeighborhoodTouchTap (QEvent* event) {
+  if (!gesturesSupportedForViewZoom () || inActiveGraphicsMode ()) {
+    if (gestureDebugEnabled ()) {
+      cout << "[gesture] touch-ignored route=touch-neighborhood "
+           << "reason="
+           << (!gesturesSupportedForViewZoom () ? "unsupported-platform" : "active-graphics")
+           << LF;
+    }
+    return false;
+  }
+  QTouchEvent* touch= static_cast<QTouchEvent*> (event);
+  const QList<QEventPoint> points= touch->points ();
+  if (gestureDebugEnabled ()) {
+    cout << "[gesture] touch-input route=touch-neighborhood type="
+         << gestureEventTypeName (event->type())
+         << " points=" << points.size () << " candidate="
+         << (neighborhoodTapCandidate ? "true" : "false")
+         << " supported=" << (gesturesSupportedForViewZoom () ? "yes" : "no")
+         << " active-graphics=" << (inActiveGraphicsMode () ? "yes" : "no")
+         << LF;
+  }
+  if (event->type() == QEvent::TouchBegin) {
+    neighborhoodTapCandidate= points.size () == 3;
+    if (gestureDebugEnabled ()) {
+      logGesture (neighborhoodTapCandidate ? "touch-begin" : "touch-begin-ignored",
+                  "touch-neighborhood", 1.0,
+                  points.isEmpty () ? QPointF () : points.front ().position ());
+    }
+    if (!neighborhoodTapCandidate) return false;
+    QPointF center;
+    for (const QEventPoint& point: points) center += point.position ();
+    neighborhoodTapStartCenter= center / 3.0;
+    neighborhoodTapTimer.restart ();
+    event->accept ();
+    return true;
+  }
+
+  if (!neighborhoodTapCandidate) return false;
+  if (event->type() == QEvent::TouchUpdate) {
+    if (gestureDebugEnabled ()) {
+      logGesture ("touch-update", "touch-neighborhood", 1.0,
+                  points.isEmpty () ? QPointF () : points.front ().position ());
+    }
+    if (points.size () != 3) {
+      neighborhoodTapCandidate= false;
+      if (gestureDebugEnabled ())
+        logGesture ("touch-update-ignored", "touch-neighborhood", 1.0,
+                    points.isEmpty () ? QPointF () : points.front ().position ());
+      return false;
+    }
+    QPointF center;
+    for (const QEventPoint& point: points) center += point.position ();
+    center /= 3.0;
+    if ((center - neighborhoodTapStartCenter).manhattanLength () > 28.0)
+      neighborhoodTapCandidate= false;
+    event->accept ();
+    return true;
+  }
+
+  if (event->type() == QEvent::TouchEnd ||
+      event->type() == QEvent::TouchCancel) {
+    if (gestureDebugEnabled ()) {
+      logGesture ("touch-end", "touch-neighborhood", 1.0,
+                  neighborhoodTapStartCenter);
+    }
+    bool trigger= event->type() == QEvent::TouchEnd &&
+                  neighborhoodTapTimer.isValid () &&
+                  neighborhoodTapTimer.elapsed () < 650;
+    neighborhoodTapCandidate= false;
+    if (trigger) {
+      logGesture ("tap-cycle", "touch-neighborhood", 1.0,
+                  neighborhoodTapStartCenter);
+      neighborhoods_cycle_selected ();
+      event->accept ();
+      return true;
+    }
+  }
+  return false;
+}
+
+bool
+QTMWidget::handleNeighborhoodMiddleClick (QMouseEvent* event) {
+  if (!gesturesSupportedForViewZoom () || inActiveGraphicsMode ()) return false;
+  if (event->button () != Qt::MiddleButton) return false;
+  if (get_preference ("disable unix primary selection", "off") != "on")
+    return false;
+
+  QPointF focal= event->position ();
+  logGesture ("tap-cycle", "middle-click-neighborhood", 1.0, focal);
+  neighborhoods_cycle_selected ();
+  event->accept ();
+  return true;
+}
+
+bool
+QTMWidget::handleNeighborhoodKeyShortcut (QKeyEvent* event) {
+  if (is_nil (tmwid) || inActiveGraphicsMode ()) return false;
+  Qt::KeyboardModifiers mods= event->modifiers ();
+  Qt::KeyboardModifiers wanted= Qt::ControlModifier | Qt::AltModifier;
+  Qt::KeyboardModifiers extras= Qt::ShiftModifier | Qt::MetaModifier;
+  if ((mods & wanted) != wanted || (mods & extras) != Qt::NoModifier)
+    return false;
+
+  int direction= 0;
+  if (event->key () == Qt::Key_Left) direction= -1;
+  else if (event->key () == Qt::Key_Right) direction= 1;
+  else return false;
+
+  logGesture (direction < 0 ? "shortcut-left" : "shortcut-right",
+              "keyboard-neighborhood", direction, QPointF ());
+  neighborhoods_open_neighbor (direction);
+  event->accept ();
+  return true;
+}
+
+bool
+QTMWidget::handleNeighborhoodWheelSwipe (QWheelEvent* event) {
+  if (!gesturesSupportedForViewZoom () || inActiveGraphicsMode ()) return false;
+
+  Qt::KeyboardModifiers mods= event->modifiers ();
+  if ((mods & Qt::ShiftModifier) == 0 ||
+      (mods & (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier)) != 0) {
+    neighborhoodWheelSwipeAccum= 0.0;
+    return false;
+  }
+
+  QPoint pixels= event->pixelDelta ();
+  QPoint angles= event->angleDelta ();
+  bool pixelBased= !pixels.isNull ();
+  double dx= pixelBased ? (double) pixels.x () : ((double) angles.x ()) / 8.0;
+  double dy= pixelBased ? (double) pixels.y () : ((double) angles.y ()) / 8.0;
+
+  if (std::fabs (dx) < 0.001) return false;
+  if (std::fabs (dx) < std::fabs (dy)) return false;
+
+  if (neighborhoodWheelSwipeCooldown.isValid () &&
+      neighborhoodWheelSwipeCooldown.elapsed () < 450) {
+    event->accept ();
+    return true;
+  }
+
+  neighborhoodWheelSwipeAccum += dx;
+  double threshold= pixelBased ? 80.0 : 15.0;
+  if (gestureDebugEnabled ()) {
+    cout << "[gesture] shift-wheel route=wheel-neighborhood dx="
+         << as_string (dx) << " dy=" << as_string (dy)
+         << " accum=" << as_string (neighborhoodWheelSwipeAccum)
+         << " threshold=" << as_string (threshold) << LF;
+  }
+
+  if (std::fabs (neighborhoodWheelSwipeAccum) >= threshold) {
+    int direction= neighborhoodWheelSwipeAccum < 0.0 ? -1 : 1;
+    logGesture (direction < 0 ? "swipe-left" : "swipe-right",
+                "shift-wheel-neighborhood", neighborhoodWheelSwipeAccum,
+                event->position ());
+    neighborhoods_open_neighbor (direction);
+    neighborhoodWheelSwipeAccum= 0.0;
+    neighborhoodWheelSwipeCooldown.restart ();
+  }
+
+  event->accept ();
+  return true;
 }
 
 void
@@ -519,6 +743,9 @@ getShiftPreference (char key_code) {
 
 void
 QTMWidget::keyPressEvent (QKeyEvent* event) {
+#if QT_VERSION >= 0x060000
+  if (handleNeighborhoodKeyShortcut (event)) return;
+#endif
   QTMKeyboardEvent ke (tmapp()->keyboard(), *event);
   string r = ke.texmacsKeyCombination();
   if (r == "") {
@@ -675,6 +902,9 @@ QTMWidget::inputMethodQuery (Qt::InputMethodQuery query) const {
 void
 QTMWidget::mousePressEvent (QMouseEvent* event) {
   if (is_nil (tmwid)) return;
+#if QT_VERSION >= 0x060000
+  if (handleNeighborhoodMiddleClick (event)) return;
+#endif
   QPoint point = event->pos() + origin();
   coord2 pt = from_qpoint(point);
   unsigned int mstate= mouse_state (event, false);
@@ -863,6 +1093,35 @@ QTMWidget::gestureEvent (QGestureEvent* event) {
   QPointF hotspot;
   if (QGesture *swipe_gesture = event->gesture(Qt::SwipeGesture)) {
     QSwipeGesture *swipe= static_cast<QSwipeGesture *> (swipe_gesture);
+#if QT_VERSION >= 0x060000
+    if (gesturesSupportedForViewZoom () && !inActiveGraphicsMode ()) {
+      if (swipe->state() != Qt::GestureFinished) {
+        event->accept (swipe);
+        return;
+      }
+      int direction= 0;
+      if (swipe->horizontalDirection() == QSwipeGesture::Left)
+        direction= -1;
+      else if (swipe->horizontalDirection() == QSwipeGesture::Right)
+        direction= 1;
+      if (direction != 0) {
+        QPointF focal= swipe->hasHotSpot()
+          ? surface()->mapFromGlobal (swipe->hotSpot().toPoint())
+          : QPointF (surface()->width() / 2.0, surface()->height() / 2.0);
+        logGesture (direction < 0 ? "swipe-left" : "swipe-right",
+                    "qt-neighborhood", direction, focal);
+        neighborhoods_open_neighbor (direction);
+        event->accept (swipe);
+        return;
+      }
+      if (gestureDebugEnabled ())
+        logGesture ("swipe-ignored", "qt-neighborhood", 1.0,
+                    swipe->hasHotSpot () ? swipe->hotSpot().toPoint ()
+                                         : QPointF ());
+      event->accept (swipe);
+      return;
+    }
+#endif
     s= "swipe";
     hotspot = swipe->hotSpot ();
     if (swipe->state() == Qt::GestureFinished) {
@@ -919,7 +1178,12 @@ QTMWidget::gestureEvent (QGestureEvent* event) {
       data << ((double) scale);
     }
   }
-  else return;
+  else {
+    if (gestureDebugEnabled ())
+      cout << "[gesture] qt-gesture route=none platform="
+           << from_qstring (QApplication::platformName ()) << LF;
+    return;
+  }
   QPoint point (hotspot.x(), hotspot.y());
   coord2 pt = from_qpoint (point);
   //cout << s << ", " << pt.x1 << ", " << pt.x2 << LF;
@@ -949,12 +1213,38 @@ QTMWidget::event (QEvent* event) {
     return true;
   }
 #if QT_VERSION >= 0x060000
-  if (event->type() == QEvent::NativeGesture &&
-      handleNativeGestureEvent (static_cast<QNativeGestureEvent*>(event)))
-    return true;
+  if (event->type() == QEvent::TouchBegin ||
+      event->type() == QEvent::TouchUpdate ||
+      event->type() == QEvent::TouchEnd ||
+      event->type() == QEvent::TouchCancel) {
+    QTouchEvent* touch_event= static_cast<QTouchEvent*> (event);
+    bool handled= handleNeighborhoodTouchTap (event);
+    if (gestureDebugEnabled ()) {
+      cout << "[gesture] event type="
+           << gestureEventTypeName (event->type())
+           << " route=touch handled=" << (handled ? "yes" : "no")
+           << " points=" << touch_event->points ().size () << " platform="
+           << from_qstring (QApplication::platformName ()) << LF;
+    }
+    if (handled) return true;
+  }
+  if (event->type() == QEvent::NativeGesture) {
+    QNativeGestureEvent* native_event= static_cast<QNativeGestureEvent*> (event);
+    bool handled= handleNativeGestureEvent (native_event);
+    if (gestureDebugEnabled ()) {
+      cout << "[gesture] event type=NativeGesture route=native captured="
+           << (handled ? "yes" : "no") << " gesture-type="
+           << gestureEventTypeName (static_cast<QEvent::Type> (native_event->gestureType()))
+           << " fingers=" << native_event->fingerCount () << " value="
+           << as_string (native_event->value ()) << LF;
+    }
+    if (handled) return true;
+  }
 #endif
   if (event->type() == QEvent::Gesture) {
     gestureEvent(static_cast<QGestureEvent*>(event));
+    if (gestureDebugEnabled ())
+      cout << "[gesture] event type=Gesture route=qt accepted" << LF;
     return true;
   }
   return QTMScrollView::event (event);
@@ -993,6 +1283,7 @@ QTMWidget::focusInEvent (QFocusEvent * event) {
   }
   QTMScrollView::focusInEvent (event);
   updateInputMethodCursorRectangle ();
+  neighborhoods_pane_refresh ();
   // part 2/2 of the fix for bug 43373.
   if (!isEmbedded ()) {
     if (!isActiveWindow() && QApplication::platformName() != "wayland") activateWindow();
@@ -1203,6 +1494,9 @@ wheel_state (QWheelEvent* event) {
 void
 QTMWidget::wheelEvent(QWheelEvent *event) {
   if (is_nil (tmwid)) return; 
+#if QT_VERSION >= 0x060000
+  if (handleNeighborhoodWheelSwipe (event)) return;
+#endif
   if (as_bool (call ("wheel-capture?"))) {
 #if QT_VERSION >= QT_VERSION_CHECK(5, 15, 0)
     QPointF pos  = event->position();

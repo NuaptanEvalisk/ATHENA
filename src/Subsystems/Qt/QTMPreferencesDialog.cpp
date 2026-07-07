@@ -1382,6 +1382,11 @@ QTMPreferencesDialog::buildVaultPage () {
               "vault namespace explorer simplify hierarchy");
   add_toggle (n, "Simplify hierarchy graphs:",
               "vault simplify hierarchy graphs");
+  add_combo (n, "Preferred initial neighborhood:",
+             "vault preferred initial neighborhood",
+             {{"First direct namespace-based neighborhood", "namespace"},
+              {"Path-based neighborhood", "path"}},
+             "namespace");
   add_toggle (n, "Consume %s aggressively in sub-product naming template suggestion:",
               "vault subproduct consume string aggressively");
   finish_page (navigation);

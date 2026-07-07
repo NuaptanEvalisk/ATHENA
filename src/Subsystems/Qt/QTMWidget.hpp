@@ -20,6 +20,7 @@
 #include <QPointer>
 #include <QPixmap>
 #include <QScreen>
+#include <QElapsedTimer>
 
 class qt_simple_widget_rep;
 class QScrollBar;
@@ -121,6 +122,11 @@ private:
   QPointF viewPinchFocal;
   QPoint viewPinchStartOrigin;
   QPixmap viewPinchPreview;
+  bool neighborhoodTapCandidate = false;
+  QElapsedTimer neighborhoodTapTimer;
+  QPointF neighborhoodTapStartCenter;
+  double neighborhoodWheelSwipeAccum = 0.0;
+  QElapsedTimer neighborhoodWheelSwipeCooldown;
 #endif
 
   void updateInputMethodCursorRectangle () const;
@@ -138,6 +144,10 @@ private:
   void finishViewPinchZoom (bool commit, const char* source);
   bool handleNativeGestureEvent (QNativeGestureEvent* event);
   bool handlePinchGestureForViewZoom (QPinchGesture* pinch);
+  bool handleNeighborhoodTouchTap (QEvent* event);
+  bool handleNeighborhoodMiddleClick (QMouseEvent* event);
+  bool handleNeighborhoodKeyShortcut (QKeyEvent* event);
+  bool handleNeighborhoodWheelSwipe (QWheelEvent* event);
   void drawViewPinchPreview (QPainter& p) const;
 #endif
 

@@ -117,6 +117,10 @@ Namespace support includes:
 - Namespace-aware quick switcher.
 - Namespace-aware global search.
 - Namespace-aware file creation.
+- Neighborhood viewer for path-based and direct namespace-based navigation,
+  with current-note alignment across neighborhoods.
+- Wayland and Windows gestures for switching to neighboring notes and cycling
+  the selected neighborhood.
 - Custom C sorters compiled with libtcc.
 - Built-in trivial sorting behavior.
 - Generated sub-product namespaces and product sorters.
@@ -342,6 +346,7 @@ ATHENA has moved much of the knowledge-work interface into native Qt.
 - Vault Explorer.
 - Namespace Manager.
 - Namespace Explorer.
+- Neighborhoods pane.
 - Reverse Hierarchy Graph pane.
 - Global Search.
 - Page Properties pane.

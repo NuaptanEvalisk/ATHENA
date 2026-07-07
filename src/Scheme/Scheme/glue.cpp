@@ -41,6 +41,7 @@
 #include "QTMCustomStylesManager.hpp"
 #include "QTMNamespaceManager.hpp"
 #include "QTMNamespaceExplorer.hpp"
+#include "QTMNeighborhoodsPane.hpp"
 #include "QTMNamespaceNewFile.hpp"
 #include "QTMNamespaceExport.hpp"
 #include "QTMWebsitesManager.hpp"
@@ -1810,6 +1811,8 @@ initialize_glue () {
   tmscm_install_procedure ("blackbox?", blackboxP, 1, 0, 0);
   tmscm_install_procedure ("run-proof-pipeline", run_proof_pipeline, 0, 0, 0);
   tmscm_install_procedure ("outline-pane-show", outline_pane_show, 0, 0, 0);
+  tmscm_install_procedure ("neighborhoods-pane-show",
+                           neighborhoods_pane_show, 0, 0, 0);
   tmscm_install_procedure ("error-messages-show",
                            error_messages_show, 0, 0, 0);
   tmscm_install_procedure ("command-palette-show",

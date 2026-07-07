@@ -647,6 +647,11 @@
     <item*|Simplify hierarchy graphs>Reduces visual complexity in hierarchy
     graphs.
 
+    <item*|Preferred initial neighborhood>Chooses the first selected row for a
+    document in the neighborhoods viewer. The default is the first direct
+    namespace-based neighborhood; the alternative is the path-based
+    neighborhood made from files in the same directory.
+
     <item*|Consume %s aggressively in sub-product naming template suggestion>Uses
     the <verbatim|%s> part of sub-product naming templates more aggressively
     when suggesting names.
