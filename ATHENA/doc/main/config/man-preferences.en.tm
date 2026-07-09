@@ -652,6 +652,15 @@
     namespace-based neighborhood; the alternative is the path-based
     neighborhood made from files in the same directory.
 
+    <item*|Wikilink inserter uses case-insensitive search>When enabled, the
+    search page of the wikilink insertion wizard matches text without regard
+    to letter case. This does not affect the file-first page of the wizard.
+
+    <item*|Transclusion inserter uses case-insensitive search>When enabled, the
+    search page of the transclusion insertion wizard matches text without
+    regard to letter case. This does not affect the file-first page of the
+    wizard.
+
     <item*|Consume %s aggressively in sub-product naming template suggestion>Uses
     the <verbatim|%s> part of sub-product naming templates more aggressively
     when suggesting names.

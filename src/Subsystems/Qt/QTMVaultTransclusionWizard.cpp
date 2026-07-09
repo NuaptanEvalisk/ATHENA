@@ -17,9 +17,11 @@
 #include "drd_mode.hpp"
 #include "namespaces.hpp"
 #include "qt_utilities.hpp"
+#include "scheme.hpp"
 #include "tree_search.hpp"
 #include "vault.hpp"
 #include <QApplication>
+#include <QCheckBox>
 #include <QComboBox>
 #include <QCompleter>
 #include <QEvent>
@@ -45,6 +47,9 @@
 #include <vector>
 
 namespace {
+
+static constexpr const char* transclusion_search_case_pref=
+  "vault transclusion inserter case insensitive search";
 
 enum TransclusionWizardPageId {
   TransclusionModePageId= 10,
@@ -166,6 +171,7 @@ public:
   void refreshNamespaces ();
   QString selectedNamespace () const;
   QString selectedEnunciation () const;
+  bool caseInsensitiveSearch () const;
   void startSearch ();
   int  searchFile (url u, const tree& query,
                    std::vector<TransclusionSearchResult>& hits) const;
@@ -177,6 +183,7 @@ public:
   QLineEdit*   namespaceEdit;
   QStringListModel* namespaceModel;
   QComboBox*   enunciationCombo;
+  QCheckBox*   caseInsensitiveCheck;
   QPushButton* searchButton;
   QLabel*      statusLabel;
   QProgressBar* progress;
@@ -969,6 +976,9 @@ TransclusionSearchPage::TransclusionSearchPage (QWidget* parent)
   for (const WikilinkEnunciationFilterEntry& entry: wikilink_enunciation_filters)
     enunciationCombo->addItem (entry.label, entry.tag);
   enunciationCombo->setMinimumWidth (190);
+  caseInsensitiveCheck= new QCheckBox ("Case-insensitive", this);
+  caseInsensitiveCheck->setChecked (
+    get_preference (transclusion_search_case_pref, "off") == "on");
 
   searchButton= new QPushButton ("Search", this);
   statusLabel= new QLabel (this);
@@ -994,6 +1004,8 @@ TransclusionSearchPage::TransclusionSearchPage (QWidget* parent)
   filtersRow->addSpacing (12);
   filtersRow->addWidget (new QLabel ("Enunciation:", this));
   filtersRow->addWidget (enunciationCombo);
+  filtersRow->addSpacing (12);
+  filtersRow->addWidget (caseInsensitiveCheck);
   filtersRow->addStretch ();
 
   QWidget* left= new QWidget (this);
@@ -1026,6 +1038,11 @@ TransclusionSearchPage::TransclusionSearchPage (QWidget* parent)
            this, [this] () { startSearch (); });
   connect (queryEdit, &QLineEdit::returnPressed,
            this, [this] () { startSearch (); });
+  connect (caseInsensitiveCheck, &QCheckBox::toggled,
+           this, [] (bool on) {
+             set_preference (transclusion_search_case_pref,
+                             on ? string ("on") : string ("off"));
+           });
   connect (resultList, &QListWidget::currentItemChanged,
            this, [this] (QListWidgetItem* current, QListWidgetItem*) {
              updatePreview (current);
@@ -1049,6 +1066,8 @@ void
 TransclusionSearchPage::initializePage () {
   QWizardPage::initializePage ();
   refreshNamespaces ();
+  caseInsensitiveCheck->setChecked (
+    get_preference (transclusion_search_case_pref, "off") == "on");
   queryEdit->setFocus ();
 }
 
@@ -1094,6 +1113,11 @@ TransclusionSearchPage::selectedEnunciation () const {
     enunciationCombo->currentData ().toString ().trimmed ();
 }
 
+bool
+TransclusionSearchPage::caseInsensitiveSearch () const {
+  return caseInsensitiveCheck != nullptr && caseInsensitiveCheck->isChecked ();
+}
+
 int
 TransclusionSearchPage::searchFile (
   url u, const tree& query, std::vector<TransclusionSearchResult>& hits) const
@@ -1109,11 +1133,12 @@ TransclusionSearchPage::searchFile (
     int matched= 0;
     int oldMode= set_access_mode (DRD_ACCESS_SOURCE);
     try {
+      bool caseInsensitive= caseInsensitiveSearch ();
       for (const TransclusionAnchorPair& pair: pairs) {
         if (!anchor_pair_matches_enunciation (pair, tag)) continue;
         tree range= build_preview_from_anchor_range (
           body, pair.upperWhere, pair.lowerWhere);
-        range_set sels= search (range, query, path (), 1);
+        range_set sels= search (range, query, path (), caseInsensitive, 1);
         if (N(sels) <= 0) continue;
 
         TransclusionSearchResult result;

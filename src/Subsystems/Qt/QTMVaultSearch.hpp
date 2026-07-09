@@ -42,8 +42,10 @@ struct TransclusionSearchResult {
 int fuzzy_score (const QString& text, const QString& query);
 int fuzzy_file_score (const WikilinkFileEntry& file, string query);
 void append_search_hits (std::vector<range_set>& out, tree t, tree query,
-                         path base, int limit);
+                         path base, int limit,
+                         bool case_insensitive= false);
 void collect_enunciation_hits (std::vector<range_set>& out, tree t, tree query,
-                               const string& tag, path base, int limit);
+                               const string& tag, path base, int limit,
+                               bool case_insensitive= false);
 
 #endif // QTMVAULTSEARCH_HPP

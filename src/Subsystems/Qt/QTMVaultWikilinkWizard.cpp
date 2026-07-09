@@ -17,9 +17,11 @@
 #include "drd_mode.hpp"
 #include "namespaces.hpp"
 #include "qt_utilities.hpp"
+#include "scheme.hpp"
 #include "tree_search.hpp"
 #include "vault.hpp"
 #include <QApplication>
+#include <QCheckBox>
 #include <QComboBox>
 #include <QCompleter>
 #include <QEvent>
@@ -45,6 +47,9 @@
 #include <vector>
 
 namespace {
+
+static constexpr const char* wikilink_search_case_pref=
+  "vault wikilink inserter case insensitive search";
 
 static int
 path_top_index (path p) {
@@ -121,6 +126,7 @@ public:
   void refreshNamespaces ();
   QString selectedNamespace () const;
   QString selectedEnunciation () const;
+  bool caseInsensitiveSearch () const;
   void startSearch ();
   int  searchFile (url u, const tree& query,
                    std::vector<WikilinkSearchResult>& hits) const;
@@ -134,6 +140,7 @@ public:
   QLineEdit*   namespaceEdit;
   QStringListModel* namespaceModel;
   QComboBox*   enunciationCombo;
+  QCheckBox*   caseInsensitiveCheck;
   QPushButton* searchButton;
   QLabel*      statusLabel;
   QProgressBar* progress;
@@ -594,6 +601,9 @@ WikilinkSearchPage::WikilinkSearchPage (QWidget* parent)
   for (const WikilinkEnunciationFilterEntry& entry: wikilink_enunciation_filters)
     enunciationCombo->addItem (entry.label, entry.tag);
   enunciationCombo->setMinimumWidth (190);
+  caseInsensitiveCheck= new QCheckBox ("Case-insensitive", this);
+  caseInsensitiveCheck->setChecked (
+    get_preference (wikilink_search_case_pref, "off") == "on");
 
   searchButton= new QPushButton ("Search", this);
   statusLabel= new QLabel (this);
@@ -625,6 +635,8 @@ WikilinkSearchPage::WikilinkSearchPage (QWidget* parent)
   filtersRow->addSpacing (12);
   filtersRow->addWidget (new QLabel ("Enunciation:", this));
   filtersRow->addWidget (enunciationCombo);
+  filtersRow->addSpacing (12);
+  filtersRow->addWidget (caseInsensitiveCheck);
   filtersRow->addStretch ();
 
   QWidget* left= new QWidget (this);
@@ -660,7 +672,8 @@ WikilinkSearchPage::WikilinkSearchPage (QWidget* parent)
   setTabOrder (queryEdit, searchButton);
   setTabOrder (searchButton, namespaceEdit);
   setTabOrder (namespaceEdit, enunciationCombo);
-  setTabOrder (enunciationCombo, resultList);
+  setTabOrder (enunciationCombo, caseInsensitiveCheck);
+  setTabOrder (caseInsensitiveCheck, resultList);
   setTabOrder (resultList, anchorList);
   setTabOrder (anchorList, displayEdit);
   setTabOrder (displayEdit, insertButton);
@@ -669,6 +682,11 @@ WikilinkSearchPage::WikilinkSearchPage (QWidget* parent)
            this, [this] () { startSearch (); });
   connect (queryEdit, &QLineEdit::returnPressed,
            this, [this] () { startSearch (); });
+  connect (caseInsensitiveCheck, &QCheckBox::toggled,
+           this, [] (bool on) {
+             set_preference (wikilink_search_case_pref,
+                             on ? string ("on") : string ("off"));
+           });
   connect (resultList, &QListWidget::currentItemChanged,
            this, [this] (QListWidgetItem* current, QListWidgetItem*) {
              updatePreview (current);
@@ -696,6 +714,8 @@ void
 WikilinkSearchPage::initializePage () {
   QWizardPage::initializePage ();
   refreshNamespaces ();
+  caseInsensitiveCheck->setChecked (
+    get_preference (wikilink_search_case_pref, "off") == "on");
   queryEdit->setFocus ();
 }
 
@@ -743,6 +763,11 @@ WikilinkSearchPage::selectedEnunciation () const {
   return enunciationCombo->currentData ().toString ().trimmed ();
 }
 
+bool
+WikilinkSearchPage::caseInsensitiveSearch () const {
+  return caseInsensitiveCheck != nullptr && caseInsensitiveCheck->isChecked ();
+}
+
 int
 WikilinkSearchPage::searchFile (url u, const tree& query,
                                 std::vector<WikilinkSearchResult>& hits) const {
@@ -752,11 +777,14 @@ WikilinkSearchPage::searchFile (url u, const tree& query,
     std::vector<range_set> hitRanges;
     try {
       QString enunciation= selectedEnunciation ();
+      bool caseInsensitive= caseInsensitiveSearch ();
       if (enunciation.isEmpty ())
-        append_search_hits (hitRanges, body, query, path (), 200);
+        append_search_hits (hitRanges, body, query, path (), 200,
+                            caseInsensitive);
       else
         collect_enunciation_hits (hitRanges, body, query,
-                                  from_qstring (enunciation), path (), 200);
+                                  from_qstring (enunciation), path (), 200,
+                                  caseInsensitive);
     }
     catch (...) {
       set_access_mode (oldMode);

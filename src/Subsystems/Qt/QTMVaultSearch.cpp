@@ -48,19 +48,20 @@ fuzzy_file_score (const WikilinkFileEntry& file, string query) {
 
 void
 append_search_hits (std::vector<range_set>& out, tree t, tree query,
-                    path base, int limit) {
+                    path base, int limit, bool case_insensitive) {
   if (limit <= 0) return;
-  range_set sels= search (t, query, base, limit);
+  range_set sels= search (t, query, base, case_insensitive, limit);
   if (N(sels) > 0) out.push_back (sels);
 }
 
 void
 collect_enunciation_hits (std::vector<range_set>& out, tree t, tree query,
-                          const string& tag, path base, int limit) {
+                          const string& tag, path base, int limit,
+                          bool case_insensitive) {
   if (limit <= 0 || is_atomic (t)) return;
 
   if (is_compound (t, tag)) {
-    append_search_hits (out, t, query, base, limit);
+    append_search_hits (out, t, query, base, limit, case_insensitive);
     return;
   }
 
@@ -69,6 +70,6 @@ collect_enunciation_hits (std::vector<range_set>& out, tree t, tree query,
     for (const range_set& sels: out) found += N(sels) / 2;
     if (found >= limit) return;
     collect_enunciation_hits (out, t[i], query, tag, base * i,
-                              limit - found);
+                              limit - found, case_insensitive);
   }
 }

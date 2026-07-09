@@ -273,6 +273,8 @@ ensure_builtin_user_preferences () {
     PREF ("allow-injective-match", "on", ""),
     PREF ("allow-cascaded-match", "on", ""),
     PREF ("case-insensitive-match", "off", ""),
+    PREF ("vault wikilink inserter case insensitive search", "off", ""),
+    PREF ("vault transclusion inserter case insensitive search", "off", ""),
     PREF ("allow-blank-replace", "off", ""),
     PREF ("allow-initial-replace", "off", ""),
     PREF ("allow-partial-replace", "off", ""),

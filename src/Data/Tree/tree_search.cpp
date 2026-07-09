@@ -62,6 +62,11 @@ initialize_search () {
   }
 }
 
+static string
+normalize_for_search (string s) {
+  return case_insensitive_match_flag ? locase_all (s) : s;
+}
+
 static void
 merge (range_set& sel, range_set ssel) {
   for (int i=0; i+1<N(ssel); i+=2)
@@ -84,6 +89,7 @@ is_accessible_for_search (tree t, int i) {
 
 bool
 match_atomic (string s, tree what, int pos, int i, int& start, int& end) {
+  string source= normalize_for_search (s);
   if (i == 0) start= pos;
   if (i >= N(what)) {
     end= pos;
@@ -91,7 +97,8 @@ match_atomic (string s, tree what, int pos, int i, int& start, int& end) {
     return pos == N(s);
   }
   if (is_atomic (what[i])) {
-    if (test (s, pos, what[i]->label) &&
+    string needle= normalize_for_search (what[i]->label);
+    if (test (source, pos, needle) &&
         match_atomic (s, what, pos + N(what[i]->label), i+1, start, end))
       return true;
     if (i == 0 &&
@@ -110,7 +117,8 @@ match_atomic (string s, tree what, int pos, int i, int& start, int& end) {
       return match_atomic (s, what, pos, i+1, start, end);
     if (!is_atomic (what[i+1])) return false;
     while (pos < N(s)) {
-      pos= tm_search_forwards (what[i+1]->label, pos, s);
+      string needle= normalize_for_search (what[i+1]->label);
+      pos= tm_search_forwards (needle, pos, source);
       if (pos < 0) return false;
       if (match_atomic (s, what, pos, i+1, start, end)) return true;
       if (pos < N(s)) tm_char_forwards (s, pos);
@@ -145,14 +153,16 @@ match (tree t, tree what) {
       return match_atomic (t->label, what, 0, 0, start, end);
     }
     if (!is_atomic (what)) return false;
+    string source= normalize_for_search (t->label);
+    string needle= normalize_for_search (what->label);
     if (partial_match_flag) {
       int pos= 0;
-      return tm_search_forwards (what->label, pos, t->label) != -1;
+      return tm_search_forwards (needle, pos, source) != -1;
     }
     else if (initial_match_flag)
-      return starts (t->label, what->label);
+      return starts (source, needle);
     else
-      return t->label == what->label;
+      return source == needle;
   }
   else if (injective_match_flag) {
     if (L(t) != L(what)) return false;
@@ -253,10 +263,10 @@ search_concat (tree t, tree what, int pos, int i,
 
 void
 search_string (range_set& sel, string s, tree what, path p) {
-  string source= (case_insensitive_match_flag)? locase_all (s): s;
+  string source= normalize_for_search (s);
 
   if (is_atomic (what)) {
-    string w= what->label;
+    string w= normalize_for_search (what->label);
     int pos= 0;
     while (pos < N(s)) {
       int next= tm_search_forwards (w, pos, source);
@@ -476,6 +486,18 @@ search (tree t, tree what, path p, int limit) {
 }
 
 range_set
+search (tree t, tree what, path p, bool case_insensitive, int limit) {
+  search_max_hits= limit;
+  initialize_search ();
+  case_insensitive_match_flag= case_insensitive;
+  range_set sel;
+  if (contains_select_region (what)) select (sel, t, what, p);
+  else search (sel, t, what, p);
+  search_max_hits= 1000000;
+  return sel;
+}
+
+range_set
 search (tree t, tree what, path p, path pos, int limit) {
   search_max_hits= limit;
   initialize_search ();
@@ -484,6 +506,19 @@ search (tree t, tree what, path p, path pos, int limit) {
   if (contains_select_region (what)) select (sel, t, what, p);
   else search (sel, t, what, p, pos);
   //cout << "Selected " << sel << "\n";
+  search_max_hits= 1000000;
+  return sel;
+}
+
+range_set
+search (tree t, tree what, path p, path pos,
+        bool case_insensitive, int limit) {
+  search_max_hits= limit;
+  initialize_search ();
+  case_insensitive_match_flag= case_insensitive;
+  range_set sel;
+  if (contains_select_region (what)) select (sel, t, what, p);
+  else search (sel, t, what, p, pos);
   search_max_hits= 1000000;
   return sel;
 }

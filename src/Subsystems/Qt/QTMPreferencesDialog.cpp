@@ -1400,6 +1400,10 @@ QTMPreferencesDialog::buildVaultPage () {
              {{"First direct namespace-based neighborhood", "namespace"},
               {"Path-based neighborhood", "path"}},
              "namespace");
+  add_toggle (n, "Wikilink inserter uses case-insensitive search:",
+              "vault wikilink inserter case insensitive search");
+  add_toggle (n, "Transclusion inserter uses case-insensitive search:",
+              "vault transclusion inserter case insensitive search");
   add_toggle (n, "Consume %s aggressively in sub-product naming template suggestion:",
               "vault subproduct consume string aggressively");
   finish_page (navigation);
