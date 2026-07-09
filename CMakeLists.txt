@@ -350,6 +350,7 @@ set (USE_ICONV ON CACHE BOOL "Use Iconv" FORCE)
 find_package (ZLIB REQUIRED)
 find_package (JPEG REQUIRED)
 pkg_check_modules (ZSTD REQUIRED libzstd)
+pkg_check_modules (LIBSODIUM REQUIRED libsodium)
 pkg_check_modules (MAGICKWAND REQUIRED MagickWand)
 add_definitions (${MAGICKWAND_CFLAGS_OTHER})
 ### --------------------------------------------------------------------
@@ -630,6 +631,7 @@ set (ATHENA_Libraries
   ${JPEG_LIBRARIES}
   ${PNG_LIBRARIES}
   ${ZSTD_LIBRARIES}
+  ${LIBSODIUM_LIBRARIES}
   ${MAGICKWAND_LIBRARIES}
   ${ICONV_LIBRARIES}
   ${TCC_LIBRARY}
@@ -893,6 +895,7 @@ endif (APPLE)
 
 include_directories (${ATHENA_Include_Dirs})
 include_directories (${ZSTD_INCLUDE_DIRS})
+include_directories (${LIBSODIUM_INCLUDE_DIRS})
 include_directories (${MAGICKWAND_INCLUDE_DIRS})
 link_directories (${MAGICKWAND_LIBRARY_DIRS})
 
@@ -914,6 +917,9 @@ link_directories (${MAGICKWAND_LIBRARY_DIRS})
 ### --------------------------------------------------------------------
 
 add_subdirectory (src)
+if (UNIX AND NOT APPLE)
+  add_subdirectory (tools/rag-transmitter)
+endif ()
 add_subdirectory (plugins)
 add_subdirectory (misc)
 add_subdirectory (ATHENA)

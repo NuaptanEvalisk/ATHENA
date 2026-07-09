@@ -1369,7 +1369,7 @@ RagIndex::search (const std::string& query, int limit) {
       impl->db,
       "SELECT c.chunk_id, c.rel_path, c.kind, c.tree_path, c.anchor, "
       "c.title, c.heading_path, c.text, c.source, bm25(chunks_fts), "
-      "c.embedding, c.embedding_dim "
+      "c.embedding, c.embedding_dim, c.embedding_model "
       "FROM chunks_fts JOIN chunks c ON c.chunk_id=chunks_fts.chunk_id "
       "WHERE chunks_fts MATCH ? ORDER BY bm25(chunks_fts) LIMIT ?");
     bind_text (st.get (), 1, q);
@@ -1380,7 +1380,12 @@ RagIndex::search (const std::string& query, int limit) {
       c.score= -bm25;
       std::vector<float> emb= blob_to_vector (st.get (), 10,
                                               sqlite3_column_int (st.get (), 11));
-      if (!qemb.empty () && !emb.empty ()) c.score += dot (qemb, emb);
+      const unsigned char* model_text= sqlite3_column_text (st.get (), 12);
+      std::string model= model_text == nullptr ? std::string ():
+        std::string (reinterpret_cast<const char*> (model_text));
+      if (!qemb.empty () && !emb.empty () &&
+          model == impl->embedder.model_fingerprint ())
+        c.score += dot (qemb, emb);
       out.push_back (c);
     }
   }

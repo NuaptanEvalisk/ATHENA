@@ -12,10 +12,13 @@
 
 #include "tm_ostream.hpp"
 
+#include <sodium.h>
+
 #include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <filesystem>
+#include <fstream>
 #include <mutex>
 #include <thread>
 
@@ -42,6 +45,34 @@ ensure_llama_ready () {
   common_init ();
   llama_backend_init ();
   llama_ready= true;
+}
+
+static std::string
+stable_file_fingerprint (const std::string& model_path) {
+  if (sodium_init () < 0) return model_path;
+  std::ifstream in (model_path, std::ios::binary);
+  if (!in) return model_path;
+  crypto_generichash_state state;
+  crypto_generichash_init (&state, nullptr, 0, crypto_generichash_BYTES);
+  std::vector<char> buffer (1024 * 1024);
+  while (in) {
+    in.read (buffer.data (), std::streamsize (buffer.size ()));
+    std::streamsize got= in.gcount ();
+    if (got > 0)
+      crypto_generichash_update (
+        &state, reinterpret_cast<const unsigned char*> (buffer.data ()),
+        size_t (got));
+  }
+  unsigned char digest[crypto_generichash_BYTES];
+  crypto_generichash_final (&state, digest, sizeof (digest));
+  static const char* hex= "0123456789abcdef";
+  std::string out= "blake2b:";
+  out.reserve (out.size () + sizeof (digest) * 2);
+  for (unsigned char c: digest) {
+    out.push_back (hex[(c >> 4) & 15]);
+    out.push_back (hex[c & 15]);
+  }
+  return out;
 }
 
 static void
@@ -145,14 +176,7 @@ RagEmbedder::open (const std::string& model_path,
   }
 
   impl->dim= llama_model_n_embd_out (impl->model ());
-  std::error_code ec;
-  fs::file_time_type mt= fs::last_write_time (model_path, ec);
-  uintmax_t size= fs::file_size (model_path, ec);
-  impl->fingerprint= model_path + ":" + std::to_string (size) + ":" +
-                     std::to_string (
-                       ec? 0:
-                       std::chrono::duration_cast<std::chrono::nanoseconds> (
-                         mt.time_since_epoch ()).count ());
+  impl->fingerprint= stable_file_fingerprint (model_path);
   io_info << "rag embedding: loaded " << model_path.c_str () << " dim="
           << impl->dim << "\n";
   return true;

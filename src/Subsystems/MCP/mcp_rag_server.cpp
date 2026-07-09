@@ -10,11 +10,14 @@
 
 #include "mcp_rag_server.hpp"
 
+#include "rag_delegation_crypto.hpp"
+#include "rag_delegation_patch.hpp"
 #include "rag_index.hpp"
 
 #include "tm_ostream.hpp"
 
 #include <QByteArray>
+#include <QDateTime>
 #include <QHostAddress>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -30,6 +33,7 @@
 #include <algorithm>
 #include <memory>
 #include <sstream>
+#include <fstream>
 #include <unordered_map>
 
 namespace athena::mcp {
@@ -46,6 +50,9 @@ static std::unique_ptr<QTcpServer> server;
 static std::unique_ptr<QTimer> scan_timer;
 static std::unique_ptr<athena::rag::RagIndex> indexer;
 static std::string bearer_token;
+static RagServerOptions active_options;
+static athena::rag::delegation::KeyPair delegation_keypair;
+static bool delegation_ready= false;
 
 static QByteArray
 lower (QByteArray s) {
@@ -76,6 +83,14 @@ write_response (QTcpSocket* socket, int status, const QByteArray& type,
   out += body;
   socket->write (out);
   socket->disconnectFromHost ();
+}
+
+static QJsonObject
+jsonrpc_error_object (const QString& message) {
+  QJsonObject o;
+  o["ok"]= false;
+  o["error"]= message;
+  return o;
 }
 
 static QJsonObject
@@ -411,6 +426,238 @@ authorized_bearer (const HttpRequest& req) {
   return it->second == expected;
 }
 
+static std::filesystem::path
+default_delegation_key_dir () {
+  const char* home= getenv ("HOME");
+  std::filesystem::path base= home == nullptr ? std::filesystem::path (".") :
+                                               std::filesystem::path (home);
+  return base / ".config" / "ATHENA" / "rag-delegation";
+}
+
+static bool
+load_public_key_list (const std::filesystem::path& path,
+                      std::vector<std::string>& keys,
+                      std::string& error) {
+  keys.clear ();
+  if (path.empty ()) return true;
+  std::ifstream in (path, std::ios::binary);
+  if (!in) return true;
+  QByteArray bytes;
+  std::ostringstream ss;
+  ss << in.rdbuf ();
+  bytes= QByteArray::fromStdString (ss.str ());
+  QJsonParseError parse;
+  QJsonDocument doc= QJsonDocument::fromJson (bytes, &parse);
+  if (parse.error != QJsonParseError::NoError || !doc.isObject ()) {
+    error= "invalid accepted clients JSON";
+    return false;
+  }
+  QJsonArray arr= doc.object ().value ("accepted").toArray ();
+  for (const QJsonValue& value: arr) {
+    std::string decoded;
+    std::string local_error;
+    if (athena::rag::delegation::base64_decode (
+          value.toString ().toStdString (), decoded, local_error))
+      keys.push_back (decoded);
+  }
+  return true;
+}
+
+static bool
+public_key_accepted (const std::string& public_key) {
+  std::vector<std::string> keys;
+  std::string error;
+  if (!load_public_key_list (active_options.delegation_accepted_clients,
+                             keys, error))
+    return false;
+  for (const std::string& key: keys)
+    if (key == public_key) return true;
+  return false;
+}
+
+static bool
+append_pending_client (const std::string& public_key, std::string& error) {
+  std::filesystem::path dir= active_options.delegation_key_dir.empty ()?
+    default_delegation_key_dir (): active_options.delegation_key_dir;
+  std::filesystem::path path= dir / "pending-clients.json";
+  QJsonArray pending;
+  {
+    std::ifstream in (path, std::ios::binary);
+    if (in) {
+      std::ostringstream ss;
+      ss << in.rdbuf ();
+      QJsonDocument doc= QJsonDocument::fromJson (
+        QByteArray::fromStdString (ss.str ()));
+      pending= doc.object ().value ("pending").toArray ();
+    }
+  }
+  QString key64= QString::fromStdString (
+    athena::rag::delegation::base64_encode (public_key));
+  for (const QJsonValue& value: pending) {
+    if (value.isString () && value.toString () == key64)
+      return true;
+    if (value.isObject () &&
+        value.toObject ().value ("public_key").toString () == key64)
+      return true;
+  }
+  QJsonObject item;
+  item["public_key"]= key64;
+  item["fingerprint"]= QString::fromStdString (
+    athena::rag::delegation::fingerprint_for_public_key (public_key));
+  item["requested_at"]= QDateTime::currentDateTimeUtc ().toString (Qt::ISODate);
+  pending.append (item);
+  QJsonObject root;
+  root["pending"]= pending;
+  std::error_code ec;
+  std::filesystem::create_directories (path.parent_path (), ec);
+  std::ofstream out (path, std::ios::binary | std::ios::trunc);
+  if (!out) {
+    error= "failed to write pending clients";
+    return false;
+  }
+  QByteArray bytes= QJsonDocument (root).toJson (QJsonDocument::Indented);
+  out.write (bytes.constData (), bytes.size ());
+  return true;
+}
+
+static QJsonObject
+identity_result () {
+  QJsonObject o;
+  o["name"]= "ATHENA RAG Server";
+  o["kind"]= "backend";
+  o["protocol"]= 1;
+  o["public_key"]= QString::fromStdString (
+    athena::rag::delegation::base64_encode (
+      delegation_keypair.public_key));
+  o["fingerprint"]= QString::fromStdString (
+    athena::rag::delegation::fingerprint_for_public_key (
+      delegation_keypair.public_key));
+  QJsonArray caps;
+  caps.append ("rag-delegation-v1");
+  caps.append ("embedding-patch");
+  caps.append ("pending-enrollment");
+  o["capabilities"]= caps;
+  return o;
+}
+
+static QJsonObject
+handle_delegation_plain_rpc (const QJsonObject& request,
+                             const std::string& sender_public_key) {
+  QString method= request.value ("method").toString ();
+  QJsonObject params= request.value ("params").toObject ();
+  if (method == "rag.enroll") {
+    std::string error;
+    if (!append_pending_client (sender_public_key, error))
+      return jsonrpc_error_object (QString::fromStdString (error));
+    QJsonObject result;
+    result["ok"]= true;
+    result["status"]= public_key_accepted (sender_public_key)?
+      "accepted": "pending";
+    result["fingerprint"]= QString::fromStdString (
+      athena::rag::delegation::fingerprint_for_public_key (
+        sender_public_key));
+    return result;
+  }
+  if (method == "rag.auth.check") {
+    QJsonObject result;
+    result["ok"]= true;
+    result["status"]= public_key_accepted (sender_public_key)?
+      "accepted": "pending";
+    return result;
+  }
+  if (!public_key_accepted (sender_public_key))
+    return jsonrpc_error_object ("client public key is not accepted");
+  if (method == "rag.embedding.build_patch") {
+    QByteArray jobBytes= QByteArray::fromBase64 (
+      params.value ("job").toString ().toUtf8 ());
+    QJsonParseError parse;
+    QJsonDocument jobDoc= QJsonDocument::fromJson (jobBytes, &parse);
+    if (parse.error != QJsonParseError::NoError || !jobDoc.isObject ())
+      return jsonrpc_error_object ("invalid delegation job");
+    QJsonObject jobRoot= jobDoc.object ();
+    athena::rag::delegation::DelegatedJob job;
+    for (const QJsonValue& value: jobRoot.value ("files").toArray ()) {
+      QJsonObject obj= value.toObject ();
+      athena::rag::delegation::DelegatedFile file;
+      file.rel_path= obj.value ("rel_path").toString ().toStdString ();
+      file.content= QByteArray::fromBase64 (
+        obj.value ("content").toString ().toUtf8 ()).toStdString ();
+      file.size= qint64 (obj.value ("size").toDouble ());
+      file.mtime_ns= qint64 (obj.value ("mtime_ns").toDouble ());
+      file.content_hash= obj.value ("content_hash").toString ().toStdString ();
+      job.files.push_back (std::move (file));
+    }
+    for (const QJsonValue& value: jobRoot.value ("deleted").toArray ())
+      job.deleted.push_back (value.toString ().toStdString ());
+
+    std::filesystem::path temp= std::filesystem::temp_directory_path ();
+    std::filesystem::path patch= temp /
+      ("athena-rag-patch-" +
+       athena::rag::delegation::random_hex_id (12) + ".sqlite");
+    athena::rag::RagConfig config;
+    config.embedding_model= active_options.embedding_model;
+    config.embedding_device= active_options.embedding_device;
+    config.force_reindex= true;
+    config.progress= false;
+    std::string error;
+    bool ok= athena::rag::delegation::build_patch_for_job (
+      job, patch, temp, config, error);
+    if (!ok) return jsonrpc_error_object (QString::fromStdString (error));
+    std::string patchBytes;
+    if (!athena::rag::delegation::read_file_bytes (patch, patchBytes)) {
+      std::filesystem::remove (patch);
+      return jsonrpc_error_object ("failed to read delegated patch");
+    }
+    std::filesystem::remove (patch);
+    QJsonObject result;
+    result["ok"]= true;
+    result["patch"]= QString::fromLatin1 (
+      QByteArray::fromStdString (patchBytes).toBase64 ());
+    QJsonArray deleted;
+    for (const std::string& rel: job.deleted)
+      deleted.append (QString::fromStdString (rel));
+    result["deleted"]= deleted;
+    return result;
+  }
+  return jsonrpc_error_object ("unknown delegation method");
+}
+
+static QJsonObject
+handle_delegation_envelope (const QJsonObject& envelope) {
+  std::string sender64= envelope.value ("sender").toString ().toStdString ();
+  std::string sender;
+  std::string error;
+  if (!athena::rag::delegation::base64_decode (sender64, sender, error))
+    return jsonrpc_error_object (QString::fromStdString (error));
+  std::string plain;
+  if (!athena::rag::delegation::decrypt_payload (
+        delegation_keypair, sender,
+        envelope.value ("nonce").toString ().toStdString (),
+        envelope.value ("ciphertext").toString ().toStdString (),
+        plain, error))
+    return jsonrpc_error_object (QString::fromStdString (error));
+  QJsonParseError parse;
+  QJsonDocument doc= QJsonDocument::fromJson (
+    QByteArray::fromStdString (plain), &parse);
+  if (parse.error != QJsonParseError::NoError || !doc.isObject ())
+    return jsonrpc_error_object ("invalid encrypted JSON-RPC");
+  QJsonObject result= handle_delegation_plain_rpc (doc.object (), sender);
+  QByteArray resultBytes= QJsonDocument (result).toJson (QJsonDocument::Compact);
+  std::string nonce64, cipher64;
+  if (!athena::rag::delegation::encrypt_payload (
+        delegation_keypair, sender, resultBytes.toStdString (),
+        nonce64, cipher64, error))
+    return jsonrpc_error_object (QString::fromStdString (error));
+  QJsonObject out;
+  out["ok"]= true;
+  out["sender"]= QString::fromStdString (
+    athena::rag::delegation::base64_encode (
+      delegation_keypair.public_key));
+  out["nonce"]= QString::fromStdString (nonce64);
+  out["ciphertext"]= QString::fromStdString (cipher64);
+  return out;
+}
+
 static void
 handle_socket (QTcpSocket* socket) {
   QByteArray* buffer= new QByteArray;
@@ -430,6 +677,35 @@ handle_socket (QTcpSocket* socket) {
     HttpRequest req;
     if (!parse_request (*buffer, req)) {
       write_response (socket, 400, "text/plain", "Bad request");
+      delete buffer;
+      return;
+    }
+    if (req.path == "/athena-rag/v1/identity") {
+      if (req.method != "GET") {
+        write_response (socket, 405, "text/plain", "Method not allowed");
+        delete buffer;
+        return;
+      }
+      write_response (socket, 200, "application/json",
+                      json_bytes (identity_result ()));
+      delete buffer;
+      return;
+    }
+    if (req.path == "/athena-rag/v1/rpc") {
+      if (req.method != "POST") {
+        write_response (socket, 405, "text/plain", "Method not allowed");
+        delete buffer;
+        return;
+      }
+      QJsonParseError parse;
+      QJsonDocument doc= QJsonDocument::fromJson (req.body, &parse);
+      if (parse.error != QJsonParseError::NoError || !doc.isObject ())
+        write_response (socket, 400, "application/json",
+                        json_bytes (jsonrpc_error_object ("invalid JSON")));
+      else
+        write_response (
+          socket, 200, "application/json",
+          json_bytes (handle_delegation_envelope (doc.object ())));
       delete buffer;
       return;
     }
@@ -496,6 +772,33 @@ start_rag_server (const RagServerOptions& options) {
     return false;
   }
 
+  active_options= options;
+  if (active_options.listen_address.empty ())
+    active_options.listen_address= "127.0.0.1";
+  if (active_options.delegation_key_dir.empty ())
+    active_options.delegation_key_dir= default_delegation_key_dir ();
+  if (active_options.delegation_accepted_clients.empty ())
+    active_options.delegation_accepted_clients=
+      active_options.delegation_key_dir / "accepted-clients.json";
+
+  bool generated= false;
+  std::string key_error;
+  if (!athena::rag::delegation::ensure_keypair (
+        active_options.delegation_key_dir, "server",
+        delegation_keypair, &generated, key_error)) {
+    std_error << "rag delegation: failed to load server keypair: "
+              << key_error.c_str () << "\n";
+    return false;
+  }
+  delegation_ready= true;
+  if (generated)
+    io_info << "rag delegation: generated server keypair in "
+            << active_options.delegation_key_dir.generic_string ().c_str ()
+            << "\n";
+  io_info << "rag delegation: server fingerprint "
+          << athena::rag::delegation::fingerprint_for_public_key (
+               delegation_keypair.public_key).c_str () << "\n";
+
   indexer.reset (new athena::rag::RagIndex);
   athena::rag::RagConfig config;
   config.vault_root= options.vault_root;
@@ -521,9 +824,13 @@ start_rag_server (const RagServerOptions& options) {
 
   bearer_token= options.bearer_token;
   server.reset (new QTcpServer);
-  if (!server->listen (QHostAddress::LocalHost, quint16 (options.port))) {
+  QHostAddress listen (QString::fromStdString (active_options.listen_address));
+  if (listen.isNull ()) listen= QHostAddress::LocalHost;
+  if (!server->listen (listen, quint16 (options.port))) {
     QByteArray error= server->errorString ().toUtf8 ();
-    std_error << "rag mcp: failed to listen on 127.0.0.1:" << options.port
+    std_error << "rag mcp: failed to listen on "
+              << active_options.listen_address.c_str () << ":"
+              << options.port
               << ": " << error.constData () << "\n";
     return false;
   }
@@ -540,7 +847,8 @@ start_rag_server (const RagServerOptions& options) {
                     scan_timer.get (), [] () { indexer->scan_once (); });
   scan_timer->start ();
 
-  io_info << "rag mcp: listening on http://127.0.0.1:" << options.port
+  io_info << "rag mcp: listening on http://"
+          << active_options.listen_address.c_str () << ":" << options.port
           << "/mcp" << "\n";
   return true;
 }

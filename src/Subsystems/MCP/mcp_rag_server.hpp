@@ -24,6 +24,9 @@ struct RagServerOptions {
   int index_jobs= 0;
   bool force_reindex= false;
   std::string bearer_token;
+  std::string listen_address= "127.0.0.1";
+  std::filesystem::path delegation_key_dir;
+  std::filesystem::path delegation_accepted_clients;
 };
 
 bool start_rag_server (const RagServerOptions& options);

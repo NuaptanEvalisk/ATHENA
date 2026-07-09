@@ -51,6 +51,7 @@
 #include "ATHENA/Data/vaultfile_json.hpp"
 #include "ATHENA/Data/websites.hpp"
 #include "MCP/mcp_rag_server.hpp"
+#include "rag_delegation_crypto.hpp"
 
 #ifdef QTTEXMACS
 #include "Qt/QTMApplication.hpp"
@@ -101,6 +102,10 @@ int    rag_server_port = 8765;
 bool   rag_server_port_set = false;
 bool   rag_server_reindex = false;
 int    rag_index_jobs = 0;
+string rag_listen_address = "127.0.0.1";
+string rag_delegation_key_dir;
+string rag_delegation_accepted_clients;
+bool   rag_generate_server_keypair = false;
 string website_generate_dir;
 string website_generate_id;
 bool   aofm_ignore_nonempty_dest = false;
@@ -767,6 +772,18 @@ set_global_options  (int argc, char** argv)  {
       else if (s == "-rag-reindex") {
         // Handled in texmacs_entrypoint
       }
+      else if (s == "-rag-listen-address") {
+        i++;
+      }
+      else if (s == "-rag-key-dir") {
+        i++;
+      }
+      else if (s == "-rag-accepted-clients") {
+        i++;
+      }
+      else if (s == "-generate-server-keypair") {
+        // Handled in texmacs_entrypoint
+      }
       else if (s == "-skip-fonts-cache") {
         // Handled in texmacs_entrypoint
       }
@@ -906,6 +923,10 @@ set_global_options  (int argc, char** argv)  {
         cout << "  --rag-server [dir]          Start a Continuous RAG MCP server\n";
         cout << "  --rag-embedding-device [auto|cpu]  Select RAG embedding device mode\n";
         cout << "  --rag-index-jobs [n]        Parallelize initial RAG indexing with n processes\n";
+        cout << "  --rag-listen-address [addr] Listen address for RAG server endpoints\n";
+        cout << "  --rag-key-dir [dir]         RAG delegation server key directory\n";
+        cout << "  --rag-accepted-clients [json]  Accepted RAG delegation client keys\n";
+        cout << "  --generate-server-keypair   Generate a RAG delegation server keypair\n";
         cout << "  --skip-fonts-cache         Skip font file and font menu cache warmup\n";
         cout << "  --insert-build-warning     Insert ATHENA experimental build warnings during AOFM conversion\n";
         cout << "  --model-vault [dir]        Reuse a model vault for AOFM namespace/style conversion\n";
@@ -1053,6 +1074,13 @@ TeXmacs_main (int argc, char** argv) {
       options.embedding_device= athena_to_std_string (rag_embedding_device);
       options.index_jobs= rag_index_jobs;
       options.force_reindex= rag_server_reindex;
+      options.listen_address= athena_to_std_string (rag_listen_address);
+      if (rag_delegation_key_dir != "")
+        options.delegation_key_dir= std::filesystem::path (
+          athena_to_std_string (rag_delegation_key_dir));
+      if (rag_delegation_accepted_clients != "")
+        options.delegation_accepted_clients= std::filesystem::path (
+          athena_to_std_string (rag_delegation_accepted_clients));
       string token_pref= get_user_preference ("rag mcp bearer token", "");
       if (token_pref == "") {
         std::string token= random_hex_token (32);
@@ -1273,6 +1301,46 @@ athena_to_std_string (const string& s) {
   std::string r (c, N(s));
   tm_delete_array (c);
   return r;
+}
+
+static std::filesystem::path
+athena_default_rag_delegation_key_dir () {
+  const char* home= getenv ("HOME");
+  std::filesystem::path base=
+    home == nullptr || home[0] == '\0' ? std::filesystem::path ("."):
+                                         std::filesystem::path (home);
+  return base / ".config" / "ATHENA" / "rag-delegation";
+}
+
+static void
+handle_rag_server_keypair_generation () {
+  if (!rag_generate_server_keypair) return;
+  std::filesystem::path key_dir=
+    rag_delegation_key_dir == "" ?
+      athena_default_rag_delegation_key_dir ():
+      std::filesystem::path (athena_to_std_string (rag_delegation_key_dir));
+  athena::rag::delegation::KeyPair keypair;
+  bool generated= false;
+  std::string error;
+  if (!athena::rag::delegation::ensure_keypair (
+        key_dir, "server", keypair, &generated, error)) {
+    std::fprintf (stderr,
+                  "ATHENA RAG delegation: failed to create server keypair: %s\n",
+                  error.c_str ());
+    exit (1);
+  }
+  std::printf ("ATHENA RAG delegation server keypair %s in %s\n",
+               generated ? "generated": "already exists",
+               key_dir.generic_string ().c_str ());
+  std::printf ("Public key: %s\n",
+               athena::rag::delegation::base64_encode (
+                 keypair.public_key).c_str ());
+  std::printf ("Fingerprint: %s\n",
+               athena::rag::delegation::fingerprint_for_public_key (
+                 keypair.public_key).c_str ());
+  std::printf ("Accepted clients file: %s\n",
+               (key_dir / "accepted-clients.json").generic_string ().c_str ());
+  if (rag_server_dir == "") exit (0);
 }
 
 static void
@@ -1561,6 +1629,22 @@ texmacs_entrypoint (int argc, char** argv) {
     if (s == "-rag-reindex") {
       rag_server_reindex= true;
     }
+    if (s == "-rag-listen-address") {
+      i++;
+      if (i < argc) rag_listen_address= argv[i];
+    }
+    if (s == "-rag-key-dir") {
+      i++;
+      if (i < argc) rag_delegation_key_dir= argv[i];
+    }
+    if (s == "-rag-accepted-clients") {
+      i++;
+      if (i < argc) rag_delegation_accepted_clients= argv[i];
+    }
+    if (s == "-generate-server-keypair") {
+      rag_generate_server_keypair= true;
+      headless_mode= true;
+    }
     if (s == "-skip-fonts-cache") {
       skip_fonts_cache= true;
     }
@@ -1577,6 +1661,7 @@ texmacs_entrypoint (int argc, char** argv) {
       headless_mode= true;
   }
   ATHENA_init_paths (argc, argv);
+  handle_rag_server_keypair_generation ();
 #ifdef QTTEXMACS
   reject_unsupported_qt_platforms (argc, argv);
   normalize_wayland_qt_scaling (argc, argv);
