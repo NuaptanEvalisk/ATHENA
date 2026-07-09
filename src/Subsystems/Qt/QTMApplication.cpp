@@ -1,7 +1,9 @@
 #include "QTMApplication.hpp"
+#include "QTMCommandPalette.hpp"
 #include "QTMUpdateChecker.hpp"
 #include "qt_utilities.hpp"
 
+#include <QKeyEvent>
 #include <QTouchEvent>
 #include <QNativeGestureEvent>
   
@@ -221,6 +223,22 @@ void QTMApplication::set_window_icon (string icon_path) {
 bool QTMApplication::notify (QObject* receiver, QEvent* event)
 {
   try {
+    if (receiver != NULL && event != NULL &&
+        event->type () == QEvent::KeyPress) {
+      QKeyEvent* keyEvent= static_cast<QKeyEvent*> (event);
+      Qt::KeyboardModifiers modifiers= keyEvent->modifiers ();
+      bool commandPaletteShortcut=
+        keyEvent->key () == Qt::Key_P &&
+        (modifiers & Qt::ControlModifier) != 0 &&
+        (modifiers & Qt::ShiftModifier) != 0 &&
+        (modifiers & (Qt::AltModifier | Qt::MetaModifier)) == 0;
+      if (commandPaletteShortcut) {
+        command_palette_show ();
+        event->accept ();
+        return true;
+      }
+    }
+
 #if QT_VERSION >= 0x060000
     if (receiver != NULL && event != NULL &&
         (event->type () == QEvent::Polish ||
