@@ -87,6 +87,33 @@
   (output-verbatim "% ATHENA is free software. To learn more about ATHENA please visit https://athena.evalisk.org/\n")
   (output-verbatim "% ATHENA-DATA cmd=\"version\" val=(\"" (texmacs-version) "\")\n"))
 
+(define (texout-athena-data-record cmd vals)
+  (string-append
+   "ATHENA-DATA cmd=\"" cmd "\" val=("
+   (apply string-append
+          (list-intersperse
+           (map (lambda (x) (string-append "\"" x "\"")) vals)
+           ", "))
+   ")"))
+
+(define (texout-athena-data-encoded-tree key st)
+  (when st
+    (let* ((payload (string-replace
+                     (encode-base64
+                      (serialize-texmacs-snippet (stree->tree st)))
+                     "\n" ""))
+           (len (number->string (string-length payload))))
+      (output-verbatim
+       "% "
+       (texout-athena-data-record "aux" (list key len payload))
+       "\n"))))
+
+(define (texout-athena-file-metadata metadata)
+  (when (and (list? metadata)
+             (func? metadata '!athena-file-metadata 2))
+    (texout-athena-data-encoded-tree "document_style" (cadr metadata))
+    (texout-athena-data-encoded-tree "document_initial" (caddr metadata))))
+
 (tm-define (texout-athena-inline-comment-definition)
   (output-verbatim "\\long\\def\\INLINE_COMMENT#1{}\n"))
 
@@ -105,7 +132,11 @@
          (init (collection->ahash-table (cadddr l)))
          (doc-preamble (car (cddddr l)))
          (doc-misc (append '(!concat) doc-preamble (list doc-body)))
-         (doc-src (cdr (cddddr l)))
+         (doc-src* (cdr (cddddr l)))
+         (metadata (and (nnull? doc-src*)
+                        (func? (car doc-src*) '!athena-file-metadata 2)
+                        (car doc-src*)))
+         (doc-src (if metadata (cdr doc-src*) doc-src*))
          (post-begin "")
          (pre-end    ""))
 
@@ -116,6 +147,7 @@
             (tm-style-options tm-uses tm-init tm-preamble)
             (latex-preamble doc-misc style lan init colors colormaps)
           (texout-athena-header)
+          (texout-athena-file-metadata metadata)
           (output-verbatim "\\documentclass")
           (output-verbatim tm-style-options)
           (output-verbatim "{" style* "}\n")

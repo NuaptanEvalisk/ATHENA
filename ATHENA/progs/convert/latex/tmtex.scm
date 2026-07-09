@@ -120,6 +120,35 @@
 (define (tmtex-drop-marker? x)
   (== x tmtex-drop-marker))
 
+(define (tmtex-experimental-build-warning-name? x)
+  (or (== x "experimental-build-warning")
+      (== x 'experimental-build-warning)))
+
+(define tmtex-athena-object-placeholders '())
+(define tmtex-athena-object-placeholder-serial 0)
+(define tmtex-athena-export-depth 0)
+
+(define (tmtex-reset-athena-object-placeholders)
+  (set! tmtex-athena-object-placeholders '())
+  (set! tmtex-athena-object-placeholder-serial 0))
+
+(define (tmtex-athena-object-placeholder st)
+  (let* ((marker (string-append "ATHENAEXPORTOBJECT"
+                                (number->string
+                                 tmtex-athena-object-placeholder-serial)
+                                "X"))
+         (object (tmtex-athena-data-inline
+                  (list (tmtex-athena-data-object st)))))
+    (set! tmtex-athena-object-placeholder-serial
+          (+ tmtex-athena-object-placeholder-serial 1))
+    (set! tmtex-athena-object-placeholders
+          (cons (cons marker object) tmtex-athena-object-placeholders))
+    marker))
+
+(define (tmtex-athena-object-placeholder-ref s)
+  (with entry (assoc s tmtex-athena-object-placeholders)
+    (and entry (cdr entry))))
+
 (define (tmtex-tree-contains-string? t what)
   (cond ((string? t) (string-occurs? what t))
         ((list? t)
@@ -129,6 +158,12 @@
 
 (define (tmtex-experimental-build-warning? t)
   (or (func? t 'experimental-build-warning)
+      (and (func? t 'compound)
+           (nnull? (cdr t))
+           (tmtex-experimental-build-warning-name? (cadr t)))
+      (and (func? t 'error)
+           (tmtex-tree-contains-string? t
+             "compound experimental-build-warning"))
       (and (func? t 'note)
            (tmtex-tree-contains-string? t
              "This document was typeset")
@@ -139,7 +174,14 @@
 
 (define (tmtex-discard-experimental-build-warning t)
   (cond ((tmtex-experimental-build-warning? t)
-         `(athena-preserved-object ,t))
+         (tmtex-athena-object-placeholder
+          (if (func? t 'experimental-build-warning)
+              t
+              '(experimental-build-warning))))
+        ((func? t '!athena-data-inline)
+         t)
+        ((func? t 'athena-preserved-object)
+         t)
         ((list? t)
          (list-filter (map tmtex-discard-experimental-build-warning t)
                       (lambda (x) (not (tmtex-drop-marker? x)))))
@@ -821,6 +863,11 @@
          (styles (cadr l))
          (init* (cadddr l))
          (init (or (and (!= init* "#f") init*) '(collection)))
+         (style-meta (if (> (length l) 6)
+                         (list-ref l 6)
+                         (if (list-1? styles) (car styles)
+                             `(tuple ,@styles))))
+         (init-meta (if (> (length l) 7) (list-ref l 7) init))
          (init-bis (if (list>1? init)
                      (map (lambda (x) (cons (cadr x) (caddr x))) (cdr init))
                      '()))
@@ -845,7 +892,8 @@
              (body* (tmtex-postprocess-body (tmtex doc-body)))
              (body** (tmtex-clean-body body*))
              (needs (list tmtex-languages tmtex-colors tmtex-colormaps)))
-        (list '!file body** styles** needs init preamble*)))))
+        (list '!file body** styles** needs init preamble*
+              `(!athena-file-metadata ,style-meta ,init-meta))))))
 
 (define (convert-charset t)
   (cond ((string? t) (unescape-angles (utf8->cork t)))
@@ -890,10 +938,18 @@
 
 (define (tmtex-preserve-object st)
   (tmtex-athena-data-inline
-   (list (tmtex-athena-data-object st))))
+   (list (tmtex-athena-data-object
+          (if (and (func? st 'compound)
+                   (nnull? (cdr st))
+                   (tmtex-experimental-build-warning-name? (cadr st)))
+              '(experimental-build-warning)
+              st)))))
 
 (define (tmtex-athena-preserved-object l)
   (if (pair? l) (tmtex-preserve-object (car l)) ""))
+
+(define (tmtex-athena-data-inline-output l)
+  `(!athena-data-inline ,(car l)))
 
 (define (tmtex-preserve-lossy st fallback)
   (if (tmtex-latex-empty? fallback)
@@ -2075,26 +2131,22 @@
           ((in? unit '("w" "h")) (or val 0))
           (else #f))))
 
-(define (tmtex-image-size-aux width height)
+(define (tmtex-image-size-aux-record width height)
   (let ((width (force-string width))
         (height (force-string height)))
     (if (or (tmtex-px-length? width) (tmtex-px-length? height))
-        (tmtex-athena-data-inline
-         (list (tmtex-athena-data-record
-                "aux" (list "img_size" "width" width "height" height))))
-        "")))
-
-(define (tmtex-image-with-aux width height body)
-  (let ((aux (tmtex-image-size-aux width height)))
-    (if (== aux "") body `(!concat ,aux ,body))))
+        (tmtex-athena-data-record
+         "aux" (list "img_size" "width" width "height" height))
+        #f)))
 
 (define (tmtex-image l)
   (if (nstring? (car l))
-      (tmtex-eps (cons 'image l))
+      (tmtex-athena-data-wrap `(image ,@l) (tmtex-eps (cons 'image l)))
       (begin
         (latex-add-extra "graphicx")
         (let* ((width (cadr l))
                (height (caddr l))
+               (aux (tmtex-image-size-aux-record width height))
                (fig (tmtex-as-eps (force-string (car l))))
                (hor (tmtex-image-length width))
                (ver (tmtex-image-length height))
@@ -2109,7 +2161,8 @@
                        (list 'scalebox (number->string mver) fig))
                       (else
                        (list 'scalebox (number->string mhor) fig)))))
-          (tmtex-image-with-aux width height body)))))
+          (tmtex-athena-data-wrap-with-records
+           `(image ,@l) (if aux (list aux) '()) body)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Metadata for documents
@@ -2324,7 +2377,7 @@
   `(!document
      ,@(tmtex-make-title titles subtitles notes miscs tr)
      ,@(tmtex-append-authors authors)
-     ,@dates
+     ,@(if (null? dates) '((date "")) dates)
      (maketitle)))
 
 (tm-define (tmtex-get-title-option l)
@@ -2599,7 +2652,11 @@
     (else (tmtex (car l)))))
 
 (define (tmtex-frame s l)
-  `(fbox ,(car l)))
+  (if (tmtex-math-mode?)
+      (begin
+        (latex-add-extra "amsmath")
+        `(boxed ,(tmtex (car l))))
+      `(fbox ,(tmtex (car l)))))
 
 (define (tmtex-colored-frame s l)
   `(colorbox ,(tmtex-decode-color (car l)) ,(tmtex (cadr l))))
@@ -2878,6 +2935,40 @@
 (define (tmtex-render-proof s l)
   (list (list '!begin "proof*" (tmtex (car l))) (tmtex (cadr l))))
 
+(define (tmtex-proof-with-title st title body)
+  (tmtex-athena-data-wrap st
+    (list (list '!begin "proof*" title) body)))
+
+(define (tmtex-proof-alternative s l)
+  (tmtex-proof-with-title
+   (cons (string->symbol s) l)
+   "Proof (Alternative)"
+   (tmtex (car l))))
+
+(define (tmtex-proof-standard s l)
+  (tmtex-proof-with-title
+   (cons (string->symbol s) l)
+   "Proof (Standard)"
+   (tmtex (car l))))
+
+(define (tmtex-proof-of s l)
+  (tmtex-proof-with-title
+   (cons (string->symbol s) l)
+   `(!concat "Proof " ,(tmtex (car l)))
+   (tmtex (cadr l))))
+
+(define (tmtex-render-proof-alternative s l)
+  (tmtex-proof-with-title
+   (cons (string->symbol s) l)
+   (tmtex (car l))
+   (tmtex (cadr l))))
+
+(define (tmtex-render-proof-standard s l)
+  (tmtex-proof-with-title
+   (cons (string->symbol s) l)
+   (tmtex (car l))
+   (tmtex (cadr l))))
+
 (define (tmtex-nbsp s l)
   '(!nbsp))
 
@@ -3004,6 +3095,10 @@
   (number->string tmtex-athena-data-serial))
 
 (define (tmtex-athena-data-object st)
+  (set! st
+        (if (tmtex-experimental-build-warning? st)
+            '(experimental-build-warning)
+            st))
   (let* ((payload (string-replace
                    (encode-base64 (serialize-texmacs-snippet (stree->tree st)))
                    "\n" ""))
@@ -3038,16 +3133,20 @@
            (if (null? body) "" `(!concat ,@body))))
         (else fallback)))
 
-(define (tmtex-athena-data-wrap st fallback)
+(define (tmtex-athena-data-wrap-with-records st records fallback)
   (let ((id (tmtex-athena-data-next-id))
         (fallback (tmtex-clean-athena-data-fallback fallback)))
     `(!concat
       ,(tmtex-athena-data-inline
-        (list (tmtex-athena-data-object st)
-              (tmtex-athena-data-record "skip_begin" (list id))))
+        (append (list (tmtex-athena-data-object st))
+                records
+                (list (tmtex-athena-data-record "skip_begin" (list id)))))
       ,fallback
       ,(tmtex-athena-data-inline
         (list (tmtex-athena-data-record "skip_end" (list id)))))))
+
+(define (tmtex-athena-data-wrap st fallback)
+  (tmtex-athena-data-wrap-with-records st '() fallback))
 
 (define (tmtex-athena-wikilink? h)
   (and (string? h) (string-starts? h "tmfs://wikilink/")))
@@ -3297,15 +3396,20 @@
                          (map-in-order tmtex l)))))))
 
 (define (tmtex-compound l)
-  (if (string? (car l))
-      (tmtex-apply (string->symbol (car l)) (cdr l))
-      (tmtex-preserve-object `(compound ,@l))))
+  (cond ((tmtex-experimental-build-warning-name? (car l))
+         (tmtex-preserve-object '(experimental-build-warning)))
+        ((string? (car l))
+         (tmtex-apply (string->symbol (car l)) (cdr l)))
+        (else
+         (tmtex-preserve-object `(compound ,@l)))))
 
 (define (tmtex-list l)
   (map-in-order tmtex l))
 
 (tm-define (tmtex x)
-  (cond ((string? x) (tmtex-string x))
+  (cond ((and (string? x) (tmtex-athena-object-placeholder-ref x))
+         (tmtex-athena-object-placeholder-ref x))
+        ((string? x) (tmtex-string x))
         ((list>0? x) (tmtex-apply (car x) (cdr x)))
         (else "")))
 
@@ -3317,6 +3421,7 @@
   ((:or unknown uninit error raw-data) tmtex-error)
   (document tmtex-document)
   (athena-preserved-object tmtex-athena-preserved-object)
+  (!athena-data-inline tmtex-athena-data-inline-output)
   (para tmtex-para)
   (surround tmtex-surround)
   (concat tmtex-concat)
@@ -3488,6 +3593,9 @@
   ((:or doc-title-options author-data) (,tmtex-default -1))
   (appendix (,tmtex-appendix 1))
   (appendix* (,tmtex-appendix* 1))
+  (proof-alternative (,tmtex-proof-alternative 1))
+  (proof-standard (,tmtex-proof-standard 1))
+  (proof-of (,tmtex-proof-of 2))
   ((:or theorem proposition lemma corollary proof axiom definition
         notation conjecture remark note example convention warning
         acknowledgments
@@ -3636,6 +3744,8 @@
   (item (,tmtex-item 0))
   (item* (,tmtex-item-arg 1))
   (render-proof (,tmtex-render-proof 2))
+  (render-proof-alternative (,tmtex-render-proof-alternative 2))
+  (render-proof-standard (,tmtex-render-proof-standard 2))
   (nbsp (,tmtex-nbsp 0))
   (nbhyph (,tmtex-nbhyph 0))
   (hrule (,tmtex-hrule 0))
@@ -3903,43 +4013,52 @@
 
 (tm-define (texmacs->latex x opts)
   ;;(display* "texmacs->latex [" opts "], " x "\n")
-  (if (tmfile? x)
-      (let* ((body (tmtex-discard-experimental-build-warning
-                    (tmfile-extract x 'body)))
-             (style (tmtex-get-style (tmfile-extract x 'style)))
-             (main-style (or (tmtex-transform-style (car style)) "article"))
-             (lan (tmfile-language x))
-             (init (tmfile-extract x 'initial))
-             (att (tmfile-extract x 'attachments))
-             (doc (list '!file body style lan init att
-                        (url->string (get-texmacs-path)))))
-        (set! tmtex-cjk-document?
-              (in? lan '("chinese" "chineset" "japanese" "korean")))
-        (latex-set-style main-style)
-        (latex-set-packages '())
-        (latex-set-extra '())
-        (set! tmtex-style (car style))
-        (set! tmtex-packages (cdr style))
-        (set! tmtex-languages (list lan))
-        (set! tmtex-colors '())
-        (set! tmtex-colormaps '())
-        (import-tmtex-styles)
-        (tmtex-style-init body)
-        (set! doc (tmtex-style-preprocess doc))
-        (with result (tmtex-postprocess (texmacs->latex doc opts))
-          (set! tmtex-style "generic")
-          (set! tmtex-packages '())
-          result))
-      (let* ((x0 (tmtex-discard-experimental-build-warning x))
-             (x2 (tree->stree (tmtm-eqnumber->nonumber (stree->tree x0))))
-             (x3 (tmtm-match-brackets x2)))
-        (tmtex-initialize opts)
-        (with r (tmtex (tmtex-discard-experimental-build-warning
-                        (tmpre-produce x3)))
-          (if tmtex-mathjax?
-              (set! r (latex-mathjax-pre r)))
-          (if (not tmtex-use-macros?)
-              (set! r (latex-expand-macros r)))
-          (if tmtex-mathjax?
-              (set! r (latex-mathjax r)))
-          r))))
+  (let ((outer? (= tmtex-athena-export-depth 0)))
+    (when outer? (tmtex-reset-athena-object-placeholders))
+    (set! tmtex-athena-export-depth (+ tmtex-athena-export-depth 1))
+    (with result
+      (if (tmfile? x)
+          (let* ((body (tmtex-discard-experimental-build-warning
+                        (tmfile-extract x 'body)))
+                 (style-meta (tmfile-extract x 'style))
+                 (style (tmtex-get-style style-meta))
+                 (main-style (or (tmtex-transform-style (car style)) "article"))
+                 (lan (tmfile-language x))
+                 (init (tmfile-extract x 'initial))
+                 (att (tmfile-extract x 'attachments))
+                 (doc (list '!file body style lan init att
+                            (url->string (get-texmacs-path))
+                            style-meta init)))
+            (set! tmtex-cjk-document?
+                  (in? lan '("chinese" "chineset" "japanese" "korean")))
+            (latex-set-style main-style)
+            (latex-set-packages '())
+            (latex-set-extra '())
+            (set! tmtex-style (car style))
+            (set! tmtex-packages (cdr style))
+            (set! tmtex-languages (list lan))
+            (set! tmtex-colors '())
+            (set! tmtex-colormaps '())
+            (import-tmtex-styles)
+            (tmtex-style-init body)
+            (set! doc (tmtex-style-preprocess doc))
+            (with result (tmtex-postprocess (texmacs->latex doc opts))
+              (set! tmtex-style "generic")
+              (set! tmtex-packages '())
+              result))
+          (let* ((x0 (tmtex-discard-experimental-build-warning x))
+                 (x2 (tree->stree (tmtm-eqnumber->nonumber (stree->tree x0))))
+                 (x3 (tmtm-match-brackets x2))
+                 (x4 (tmtex-discard-experimental-build-warning
+                      (tmpre-produce x3))))
+            (tmtex-initialize opts)
+            (with r (tmtex x4)
+              (if tmtex-mathjax?
+                  (set! r (latex-mathjax-pre r)))
+              (if (not tmtex-use-macros?)
+                  (set! r (latex-expand-macros r)))
+              (if tmtex-mathjax?
+                  (set! r (latex-mathjax r)))
+              r)))
+      (set! tmtex-athena-export-depth (- tmtex-athena-export-depth 1))
+      result)))

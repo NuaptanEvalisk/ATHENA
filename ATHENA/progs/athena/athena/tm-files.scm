@@ -665,13 +665,26 @@
 ;; Importing buffers
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define (import-buffer-import name fm opts)
+(define (latex-import-format? fm)
+  (or (== fm "latex")
+      (== fm "tex")
+      (== fm "latex-document")))
+
+(define (import-buffer-import-sub name fm opts)
   ;;(display* "import-buffer-import " name ", " fm "\n")
   (if (== fm (url-format name))
       (apply load-buffer-main (cons name opts))
       (let* ((s (url->tmfs-string name))
              (u (string-append "tmfs://import/" fm "/" s)))
         (apply load-buffer-main (cons u opts)))))
+
+(define (import-buffer-import name fm opts)
+  (if (latex-import-format? fm)
+      (dynamic-wind
+        (lambda () (system-wait "Importing LaTeX" "please wait"))
+        (lambda () (import-buffer-import-sub name fm opts))
+        (lambda () (system-wait "" "")))
+      (import-buffer-import-sub name fm opts)))
 
 (define (import-buffer-check-permissions name fm opts)
   ;;(display* "import-buffer-check-permissions " name ", " fm "\n")
