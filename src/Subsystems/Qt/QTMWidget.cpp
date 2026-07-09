@@ -902,6 +902,9 @@ QTMWidget::inputMethodQuery (Qt::InputMethodQuery query) const {
 void
 QTMWidget::mousePressEvent (QMouseEvent* event) {
   if (is_nil (tmwid)) return;
+  if (focusPolicy () != Qt::NoFocus) {
+    if (!hasFocus ()) setFocus (Qt::MouseFocusReason);
+  }
 #if QT_VERSION >= 0x060000
   if (handleNeighborhoodMiddleClick (event)) return;
 #endif

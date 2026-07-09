@@ -50,6 +50,7 @@
 #include <QMouseEvent>
 #include <QProgressBar>
 #include <QPushButton>
+#include <QPointer>
 #include <QSize>
 #include <QSizeGrip>
 #include <QSizePolicy>
@@ -62,6 +63,27 @@
 
 static QTMGlobalSearch* global_search_widget= nullptr;
 static ads::CDockWidget* global_search_dock= nullptr;
+static widget global_search_content_widget;
+static widget global_search_pane_window;
+
+class qt_adopted_qwidget_rep : public qt_widget_rep {
+  QPointer<QWidget> adopted;
+
+public:
+  qt_adopted_qwidget_rep (QWidget* w)
+    : qt_widget_rep (qt_widget_rep::division_widget), adopted (w) {}
+
+  QWidget* as_qwidget (QWidget* parent_widget) override {
+    if (adopted == nullptr) {
+      qwid= new QWidget (parent_widget);
+      return qwid;
+    }
+
+    adopted->setParent (parent_widget);
+    qwid= adopted;
+    return adopted;
+  }
+};
 
 struct enunciation_filter_entry {
   const char* label;
@@ -207,6 +229,30 @@ update_global_search_floating_state (ads::CDockWidget* dock, bool floating) {
   window->resize (window->size ().expandedTo (QSize (960, 560)));
 }
 
+static QWidget*
+global_search_dock_widget () {
+  if (global_search_widget == nullptr) return nullptr;
+
+  if (is_nil (global_search_content_widget))
+    global_search_content_widget=
+      tm_new<qt_adopted_qwidget_rep> (global_search_widget);
+
+  if (is_nil (global_search_pane_window))
+    global_search_pane_window=
+      plain_window_widget (global_search_content_widget,
+                           "athena-global-search", command ());
+
+  qt_widget pane= concrete (global_search_pane_window);
+  QWidget* paneWidget= pane->qwid;
+  if (paneWidget != nullptr) {
+    paneWidget->setWindowTitle ("Global search");
+    paneWidget->setProperty ("athena-document-widget", false);
+    paneWidget->setFocusPolicy (Qt::StrongFocus);
+    paneWidget->setFocusProxy (global_search_widget);
+  }
+  return paneWidget;
+}
+
 QTMGlobalSearch::QTMGlobalSearch (QWidget* parent)
   : QWidget (parent),
     queryUrl (url ("tmfs://aux/global-search")),
@@ -217,6 +263,7 @@ QTMGlobalSearch::QTMGlobalSearch (QWidget* parent)
     previewWidth (0),
     previewZoom (0.0),
     previewRecreating (false),
+    queryTexmacsWidget (nullptr),
     previewHostWidget (nullptr),
     previewQtWidget (nullptr),
     previewTexmacsWidget (nullptr) {
@@ -229,7 +276,6 @@ QTMGlobalSearch::QTMGlobalSearch (QWidget* parent)
 
   QWidget* query= createQueryWidget ();
   query->setMinimumHeight (88);
-  setFocusProxy (query);
 
   searchButton= new QPushButton ("Search", this);
   cancelButton= new QPushButton ("Cancel", this);
@@ -402,6 +448,16 @@ QTMGlobalSearch::createQueryWidget () {
   tree style= compound ("style", tuple ("generic"));
   queryWidget= texmacs_input_widget (doc, style, queryUrl);
   QWidget* qwid= concrete (queryWidget)->as_qwidget (this);
+  queryTexmacsWidget= qobject_cast<QTMWidget*> (qwid);
+  if (queryTexmacsWidget == nullptr)
+    queryTexmacsWidget= qwid->findChild<QTMWidget*> ();
+  if (queryTexmacsWidget != nullptr) {
+    queryTexmacsWidget->setObjectName (
+      "global-search-query-texmacs-widget");
+    queryTexmacsWidget->setFocusPolicy (Qt::StrongFocus);
+    setFocusProxy (queryTexmacsWidget);
+  }
+  else setFocusProxy (qwid);
   qwid->setSizePolicy (QSizePolicy::Expanding, QSizePolicy::Fixed);
   return qwid;
 }
@@ -506,6 +562,16 @@ QTMGlobalSearch::showFallbackPreview () {
 void
 QTMGlobalSearch::applyPreviewZoom () {
   refreshPreviewLayout ();
+}
+
+void
+QTMGlobalSearch::focusQueryEditor () {
+  if (queryTexmacsWidget == nullptr) return;
+  if (window () != nullptr) {
+    window ()->raise ();
+    window ()->activateWindow ();
+  }
+  queryTexmacsWidget->setFocus (Qt::OtherFocusReason);
 }
 
 void
@@ -988,11 +1054,16 @@ global_search_show () {
     QObject::connect (global_search_widget, &QObject::destroyed, [] () {
       global_search_widget= nullptr;
       global_search_dock= nullptr;
+      global_search_content_widget= widget ();
+      global_search_pane_window= widget ();
     });
   }
   global_search_widget->refreshNamespaces ();
   global_search_widget->setPreviewZoomFactor (
     get_server ()->get_window_zoom_factor ());
+
+  QWidget* paneWidget= global_search_dock_widget ();
+  if (paneWidget == nullptr) return;
 
   QString title= "Global search";
   bool freshDock= global_search_dock == nullptr;
@@ -1001,7 +1072,7 @@ global_search_show () {
     global_search_dock->setObjectName ("athena-global-search");
     global_search_dock->resize (1360, 720);
     global_search_dock->setWidget (
-      global_search_widget, ads::CDockWidget::ForceNoScrollArea);
+      paneWidget, ads::CDockWidget::ForceNoScrollArea);
     global_search_dock->setFeature (
       ads::CDockWidget::DockWidgetDeleteOnClose, false);
     QTMGlobalSearch* pane= global_search_widget;
@@ -1035,5 +1106,8 @@ global_search_show () {
   QTimer::singleShot (0, win, [] () {
     set_global_search_area_height (global_search_dock);
   });
-  global_search_widget->setFocus ();
+  QTimer::singleShot (0, global_search_widget, [] () {
+    if (global_search_widget != nullptr)
+      global_search_widget->focusQueryEditor ();
+  });
 }

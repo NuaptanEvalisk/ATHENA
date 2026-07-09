@@ -46,6 +46,7 @@ public:
   void setPreviewZoomFactor (double zoom);
   void setFloatingResizeGripVisible (bool visible);
   void refreshNamespaces ();
+  void focusQueryEditor ();
 
 private:
   struct Result {
@@ -114,6 +115,7 @@ private:
   QSizeGrip*    floatingSizeGrip;
   QProgressBar* progress;
   QListWidget*  resultList;
+  QTMWidget*    queryTexmacsWidget;
   QWidget*      previewHostWidget;
   QWidget*      previewQtWidget;
   QTMWidget*    previewTexmacsWidget;

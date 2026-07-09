@@ -95,11 +95,12 @@ static bool widgetOrChildHasFocus(QWidget* widget) {
   return widget && (focus == widget || widget->isAncestorOf(focus));
 }
 
+static const char* kAthenaDocumentWidgetProperty= "athena-document-widget";
+
 static bool
 isDocumentWidget(QWidget* widget) {
   return widget != nullptr &&
-         (qobject_cast<QTMWidget*> (widget) != nullptr ||
-          widget->findChild<QTMWidget*> () != nullptr);
+         widget->property (kAthenaDocumentWidgetProperty).toBool ();
 }
 
 static ads::CDockWidget*
@@ -519,8 +520,9 @@ bool QTMMainTabWindow::eventFilterTabBar(QObject *obj, QEvent *event) {
         x < -dist || y < -dist) {
       newTabWindow = new QTMMainTabWindow();
       QWidget *widgetToMove = mTabWidget->widget(movingTabIndex);
+      bool wasDocument = isDocumentWidget(widgetToMove);
       mTabWidget->removeTab(movingTabIndex);
-      newTabWindow->showWidget(widgetToMove);
+      newTabWindow->showWidget(widgetToMove, wasDocument);
       isMovingTab = false;
       isMovingWindow = true;
       movingTabIndex = 0;
@@ -561,8 +563,9 @@ bool QTMMainTabWindow::eventFilterTabBar(QObject *obj, QEvent *event) {
     isMovingTab = false;
     if (targetTabWindow != nullptr) {
       QWidget *widgetToMove = mTabWidget->widget(movingTabIndex);
+      bool wasDocument = isDocumentWidget(widgetToMove);
       mTabWidget->removeTab(movingTabIndex);
-      targetTabWindow->showWidget(widgetToMove);
+      targetTabWindow->showWidget(widgetToMove, wasDocument);
       targetTabWindow->setDefaultStyle();
       targetTabWindow->activateWindow();
       targetTabWindow = nullptr;
@@ -620,6 +623,8 @@ bool QTMMainTabWindow::eventFilter(QObject *obj, QEvent *event) {
 }
 
 void QTMMainTabWindow::showWidget(QWidget *widget, bool isDocument) {
+  if (widget != nullptr)
+    widget->setProperty (kAthenaDocumentWidgetProperty, isDocument);
   if (isDocument) widget->installEventFilter(this);
   if (isDocument) buffer_switcher_note_widget (widget);
   if (tmapp()->useAds()) {
