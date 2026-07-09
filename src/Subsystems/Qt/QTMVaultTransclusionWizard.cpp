@@ -185,6 +185,7 @@ public:
   QComboBox*   enunciationCombo;
   QCheckBox*   caseInsensitiveCheck;
   QPushButton* searchButton;
+  QPushButton* stopButton;
   QLabel*      statusLabel;
   QProgressBar* progress;
   QListWidget* resultList;
@@ -192,6 +193,7 @@ public:
   QWidget*     previewHost;
   WikilinkPreview preview;
   std::vector<TransclusionSearchResult> results;
+  bool        searchStopRequested;
 };
 
 class QTMVaultTransclusionWizard : public QWizard {
@@ -955,7 +957,7 @@ TransclusionLowerPage::validatePage () {
 }
 
 TransclusionSearchPage::TransclusionSearchPage (QWidget* parent)
-  : QWizardPage (parent) {
+  : QWizardPage (parent), searchStopRequested (false) {
   setFinalPage (true);
   setTitle ("Locate by search");
   setSubTitle ("Search inside a kind of enunciation and transclude the selected result.");
@@ -981,6 +983,8 @@ TransclusionSearchPage::TransclusionSearchPage (QWidget* parent)
     get_preference (transclusion_search_case_pref, "off") == "on");
 
   searchButton= new QPushButton ("Search", this);
+  stopButton= new QPushButton ("Stop", this);
+  stopButton->setEnabled (false);
   statusLabel= new QLabel (this);
   progress= new QProgressBar (this);
   progress->setRange (0, 1);
@@ -997,6 +1001,7 @@ TransclusionSearchPage::TransclusionSearchPage (QWidget* parent)
   QHBoxLayout* searchRow= new QHBoxLayout ();
   searchRow->addWidget (queryEdit, 1);
   searchRow->addWidget (searchButton);
+  searchRow->addWidget (stopButton);
 
   QHBoxLayout* filtersRow= new QHBoxLayout ();
   filtersRow->addWidget (new QLabel ("Namespace:", this));
@@ -1036,6 +1041,12 @@ TransclusionSearchPage::TransclusionSearchPage (QWidget* parent)
 
   connect (searchButton, &QPushButton::clicked,
            this, [this] () { startSearch (); });
+  connect (stopButton, &QPushButton::clicked,
+           this, [this] () {
+             searchStopRequested= true;
+             stopButton->setEnabled (false);
+             statusLabel->setText ("Stopping search...");
+           });
   connect (queryEdit, &QLineEdit::returnPressed,
            this, [this] () { startSearch (); });
   connect (caseInsensitiveCheck, &QCheckBox::toggled,
@@ -1174,7 +1185,14 @@ TransclusionSearchPage::searchFile (
 
 void
 TransclusionSearchPage::startSearch () {
+  if (!searchButton->isEnabled ()) return;
+  searchStopRequested= false;
   searchButton->setEnabled (false);
+  stopButton->setEnabled (true);
+  auto finishSearch= [this] () {
+    stopButton->setEnabled (false);
+    searchButton->setEnabled (true);
+  };
   results.clear ();
   resultList->clear ();
   previewTitle->setText ("Select a search result to preview it.");
@@ -1186,7 +1204,7 @@ TransclusionSearchPage::startSearch () {
   QString queryText= queryEdit->text ().trimmed ();
   if (queryText.isEmpty ()) {
     statusLabel->setText ("Enter a non-empty search string.");
-    searchButton->setEnabled (true);
+    finishSearch ();
     return;
   }
 
@@ -1207,7 +1225,7 @@ TransclusionSearchPage::startSearch () {
     if (!athena_namespace_get (from_qstring (ns), def)) {
       QMessageBox::warning (this, "Insert transclusion",
                             "Unknown namespace: " + ns);
-      searchButton->setEnabled (true);
+      finishSearch ();
       return;
     }
     std::vector<athena_namespace_match> members=
@@ -1235,6 +1253,7 @@ TransclusionSearchPage::startSearch () {
   progress->setValue (0);
   int scanned= 0;
   for (const url& file: files) {
+    if (searchStopRequested) break;
     std::vector<TransclusionSearchResult> fileHits;
     if (searchFile (file, query, fileHits) > 0) {
       matchedFiles++;
@@ -1250,16 +1269,24 @@ TransclusionSearchPage::startSearch () {
         .arg ((int) results.size ())
         .arg (matchedFiles));
     if ((scanned % 8) == 0)
-      QApplication::processEvents (QEventLoop::ExcludeUserInputEvents);
+      QApplication::processEvents ();
   }
 
-  statusLabel->setText (
-    QString ("%1 enunciation(s) in %2 file(s), out of %3 scanned file(s).")
-      .arg ((int) results.size ())
-      .arg (matchedFiles)
-      .arg ((int) files.size ()));
+  if (searchStopRequested)
+    statusLabel->setText (
+      QString ("Search stopped after %1/%2 files; %3 enunciation(s) in %4 file(s).")
+        .arg (scanned)
+        .arg ((int) files.size ())
+        .arg ((int) results.size ())
+        .arg (matchedFiles));
+  else
+    statusLabel->setText (
+      QString ("%1 enunciation(s) in %2 file(s), out of %3 scanned file(s).")
+        .arg ((int) results.size ())
+        .arg (matchedFiles)
+        .arg ((int) files.size ()));
   if (resultList->count () > 0) resultList->setCurrentRow (0);
-  searchButton->setEnabled (true);
+  finishSearch ();
 }
 
 void

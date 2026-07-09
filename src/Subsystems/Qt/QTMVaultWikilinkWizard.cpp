@@ -189,6 +189,64 @@ default_wikilink_display_text (const QString& relPath,
   return clean_anchor_display (anchor);
 }
 
+static bool
+is_heading_anchor_key (const QString& key) {
+  static const QRegularExpression headingRe ("^H[1-6]\\s+.+$");
+  return headingRe.match (key).hasMatch ();
+}
+
+static bool
+is_aofm_paragraph_anchor_pair (const TransclusionAnchorPair& pair) {
+  QString key= anchor_pair_key (pair.upper);
+  if (key.isEmpty ()) return false;
+  if (is_heading_anchor_key (key)) return false;
+  return !key.contains (":");
+}
+
+static int
+range_hit_count (const range_set& sels) {
+  return N(sels) / 2;
+}
+
+static void
+collect_aofm_paragraph_hits (std::vector<range_set>& out, tree body,
+                             tree query, path base, int limit,
+                             bool case_insensitive) {
+  if (limit <= 0 || is_atomic (body)) return;
+  if (!is_func (body, DOCUMENT)) {
+    append_search_hits (out, body, query, base, limit, case_insensitive);
+    return;
+  }
+
+  std::vector<WikilinkAnchorEntry> anchors;
+  collect_anchors (body, base, anchors);
+  std::vector<TransclusionAnchorPair> pairs=
+    collect_transclusion_pairs (anchors);
+
+  int found= 0;
+  for (const TransclusionAnchorPair& pair: pairs) {
+    if (found >= limit) return;
+    if (!is_aofm_paragraph_anchor_pair (pair)) continue;
+
+    int first= path_top_index (pair.upperWhere) + 1;
+    int last = path_top_index (pair.lowerWhere);
+    if (first < 0) first= 0;
+    if (last > N(body)) last= N(body);
+    if (first >= last) continue;
+
+    range_set paragraphHits;
+    for (int i= first; i<last; i++) {
+      if (found >= limit) break;
+      range_set sels= search (body[i], query, base * i,
+                              case_insensitive, limit - found);
+      if (N(sels) <= 0) continue;
+      found += range_hit_count (sels);
+      paragraphHits << sels;
+    }
+    if (N(paragraphHits) > 0) out.push_back (paragraphHits);
+  }
+}
+
 enum WikilinkWizardPageId {
   WikilinkModePageId= 0,
   WikilinkFilePageId= 1,
@@ -274,6 +332,7 @@ public:
   QComboBox*   enunciationCombo;
   QCheckBox*   caseInsensitiveCheck;
   QPushButton* searchButton;
+  QPushButton* stopButton;
   QLabel*      statusLabel;
   QProgressBar* progress;
   QListWidget* resultList;
@@ -286,6 +345,7 @@ public:
   std::vector<WikilinkSearchResult> results;
   std::vector<WikilinkAnchorEntry> currentAnchors;
   bool        displayTouched;
+  bool        searchStopRequested;
 };
 
 class QTMVaultWikilinkWizard : public QWizard {
@@ -710,7 +770,7 @@ WikilinkAnchorPage::validatePage () {
 }
 
 WikilinkSearchPage::WikilinkSearchPage (QWidget* parent)
-  : QWizardPage (parent), displayTouched (false) {
+  : QWizardPage (parent), displayTouched (false), searchStopRequested (false) {
   setFinalPage (true);
   setTitle ("Locate by search");
   setSubTitle ("Search the vault, then click a usable { anchor from the preview.");
@@ -728,7 +788,8 @@ WikilinkSearchPage::WikilinkSearchPage (QWidget* parent)
   namespaceEdit->setCompleter (namespaceCompleter);
 
   enunciationCombo= new QComboBox (this);
-  enunciationCombo->addItem ("Not required", "");
+  enunciationCombo->addItem ("Any", "");
+  enunciationCombo->addItem ("Paragraph", "__athena_paragraph__");
   for (const WikilinkEnunciationFilterEntry& entry: wikilink_enunciation_filters)
     enunciationCombo->addItem (entry.label, entry.tag);
   enunciationCombo->setMinimumWidth (190);
@@ -737,6 +798,8 @@ WikilinkSearchPage::WikilinkSearchPage (QWidget* parent)
     get_preference (wikilink_search_case_pref, "off") == "on");
 
   searchButton= new QPushButton ("Search", this);
+  stopButton= new QPushButton ("Stop", this);
+  stopButton->setEnabled (false);
   statusLabel= new QLabel (this);
   progress= new QProgressBar (this);
   progress->setRange (0, 1);
@@ -759,6 +822,7 @@ WikilinkSearchPage::WikilinkSearchPage (QWidget* parent)
   QHBoxLayout* searchRow= new QHBoxLayout ();
   searchRow->addWidget (queryEdit, 1);
   searchRow->addWidget (searchButton);
+  searchRow->addWidget (stopButton);
 
   QHBoxLayout* filtersRow= new QHBoxLayout ();
   filtersRow->addWidget (new QLabel ("Namespace:", this));
@@ -811,6 +875,12 @@ WikilinkSearchPage::WikilinkSearchPage (QWidget* parent)
 
   connect (searchButton, &QPushButton::clicked,
            this, [this] () { startSearch (); });
+  connect (stopButton, &QPushButton::clicked,
+           this, [this] () {
+             searchStopRequested= true;
+             stopButton->setEnabled (false);
+             statusLabel->setText ("Stopping search...");
+           });
   connect (queryEdit, &QLineEdit::returnPressed,
            this, [this] () { startSearch (); });
   connect (caseInsensitiveCheck, &QCheckBox::toggled,
@@ -912,6 +982,9 @@ WikilinkSearchPage::searchFile (url u, const tree& query,
       if (enunciation.isEmpty ())
         append_search_hits (hitRanges, body, query, path (), 200,
                             caseInsensitive);
+      else if (enunciation == "__athena_paragraph__")
+        collect_aofm_paragraph_hits (hitRanges, body, query, path (), 200,
+                                     caseInsensitive);
       else
         collect_enunciation_hits (hitRanges, body, query,
                                   from_qstring (enunciation), path (), 200,
@@ -952,7 +1025,14 @@ WikilinkSearchPage::searchFile (url u, const tree& query,
 
 void
 WikilinkSearchPage::startSearch () {
+  if (!searchButton->isEnabled ()) return;
+  searchStopRequested= false;
   searchButton->setEnabled (false);
+  stopButton->setEnabled (true);
+  auto finishSearch= [this] () {
+    stopButton->setEnabled (false);
+    searchButton->setEnabled (true);
+  };
   results.clear ();
   currentAnchors.clear ();
   resultList->clear ();
@@ -968,7 +1048,7 @@ WikilinkSearchPage::startSearch () {
   QString queryText= queryEdit->text ().trimmed ();
   if (queryText.isEmpty ()) {
     statusLabel->setText ("Enter a non-empty search string.");
-    searchButton->setEnabled (true);
+    finishSearch ();
     return;
   }
 
@@ -989,7 +1069,7 @@ WikilinkSearchPage::startSearch () {
     if (!athena_namespace_get (from_qstring (ns), def)) {
       QMessageBox::warning (this, "Insert wikilink",
                             "Unknown namespace: " + ns);
-      searchButton->setEnabled (true);
+      finishSearch ();
       return;
     }
     std::vector<athena_namespace_match> members=
@@ -1017,6 +1097,7 @@ WikilinkSearchPage::startSearch () {
   progress->setValue (0);
   int scanned= 0;
   for (const url& file: files) {
+    if (searchStopRequested) break;
     std::vector<WikilinkSearchResult> fileHits;
     if (searchFile (file, query, fileHits) > 0) {
       matchedFiles++;
@@ -1032,16 +1113,24 @@ WikilinkSearchPage::startSearch () {
         .arg ((int) results.size ())
         .arg (matchedFiles));
     if ((scanned % 8) == 0)
-      QApplication::processEvents (QEventLoop::ExcludeUserInputEvents);
+      QApplication::processEvents ();
   }
 
-  statusLabel->setText (
-    QString ("%1 occurrence(s) in %2 file(s), out of %3 scanned file(s). Click a { anchor below to insert.")
-      .arg ((int) results.size ())
-      .arg (matchedFiles)
-      .arg ((int) files.size ()));
+  if (searchStopRequested)
+    statusLabel->setText (
+      QString ("Search stopped after %1/%2 files; %3 occurrence(s) in %4 file(s).")
+        .arg (scanned)
+        .arg ((int) files.size ())
+        .arg ((int) results.size ())
+        .arg (matchedFiles));
+  else
+    statusLabel->setText (
+      QString ("%1 occurrence(s) in %2 file(s), out of %3 scanned file(s). Click a { anchor below to insert.")
+        .arg ((int) results.size ())
+        .arg (matchedFiles)
+        .arg ((int) files.size ()));
   if (resultList->count () > 0) resultList->setCurrentRow (0);
-  searchButton->setEnabled (true);
+  finishSearch ();
 }
 
 void
