@@ -621,7 +621,7 @@
     with the active vault instead of using only the global preferences file.
   </description>
 
-  <subsection|Navigation and Namespaces>
+  <subsection|Navigation>
 
   <\description>
     <item*|Track current file in vault explorer>Keeps the vault explorer
@@ -630,6 +630,15 @@
     <item*|Use system trash for safe deletion>Moves deleted vault files to the
     system trash when possible.
 
+    <item*|Preferred initial neighborhood>Chooses the first selected row for a
+    document in the neighborhoods viewer. The default is the first direct
+    namespace-based neighborhood; the alternative is the path-based
+    neighborhood made from files in the same directory.
+  </description>
+
+  <subsection|Namespaces>
+
+  <\description>
     <item*|Namespace explorer shows file matches only for leaf namespaces>When
     searching namespace relations, restricts file matches to leaf namespaces.
 
@@ -647,11 +656,14 @@
     <item*|Simplify hierarchy graphs>Reduces visual complexity in hierarchy
     graphs.
 
-    <item*|Preferred initial neighborhood>Chooses the first selected row for a
-    document in the neighborhoods viewer. The default is the first direct
-    namespace-based neighborhood; the alternative is the path-based
-    neighborhood made from files in the same directory.
+    <item*|Consume %s aggressively in sub-product naming template suggestion>Uses
+    the <verbatim|%s> part of sub-product naming templates more aggressively
+    when suggesting names.
+  </description>
 
+  <subsection|Wikilinks and Transclusion>
+
+  <\description>
     <item*|Wikilink inserter uses case-insensitive search>When enabled, the
     search page of the wikilink insertion wizard matches text without regard
     to letter case. This does not affect the file-first page of the wizard.
@@ -661,10 +673,27 @@
     regard to letter case. This does not affect the file-first page of the
     wizard.
 
-    <item*|Consume %s aggressively in sub-product naming template suggestion>Uses
-    the <verbatim|%s> part of sub-product naming templates more aggressively
-    when suggesting names.
+    <item*|Wikilink default display text for files>Template used to fill the
+    display text field when a wikilink targets a whole file. The default is
+    <verbatim|%f>.
+
+    <item*|Wikilink default display text for headings>Template used to fill the
+    display text field when a wikilink targets a heading anchor such as
+    <verbatim|H1 Introduction>. The default is <verbatim|%c>.
+
+    <item*|Wikilink default display text for anchors>Template used to fill the
+    display text field when a wikilink targets a non-heading anchor. The
+    default is <verbatim|%c>.
   </description>
+
+  Display text templates use a small <name|printf>-style vocabulary:
+  <verbatim|%t> inserts the target type, <verbatim|%T> inserts the type with
+  its first character capitalized, <verbatim|%f> inserts the file stem,
+  <verbatim|%F> inserts the path relative to the vault root,
+  <verbatim|%p> inserts the absolute path, <verbatim|%c> inserts the heading
+  content or anchor display text, <verbatim|%C> capitalizes the first character
+  of that content, and <verbatim|%s> lowercases the first character of that
+  content.
 
   <subsection|Maintenance>
 

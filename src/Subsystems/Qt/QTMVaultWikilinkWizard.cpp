@@ -24,6 +24,7 @@
 #include <QCheckBox>
 #include <QComboBox>
 #include <QCompleter>
+#include <QDir>
 #include <QEvent>
 #include <QHBoxLayout>
 #include <QKeyEvent>
@@ -34,6 +35,7 @@
 #include <QProgressBar>
 #include <QPushButton>
 #include <QRadioButton>
+#include <QRegularExpression>
 #include <QShowEvent>
 #include <QSizePolicy>
 #include <QSplitter>
@@ -50,11 +52,141 @@ namespace {
 
 static constexpr const char* wikilink_search_case_pref=
   "vault wikilink inserter case insensitive search";
+static constexpr const char* wikilink_display_template_file_pref=
+  "vault wikilink display template file";
+static constexpr const char* wikilink_display_template_heading_pref=
+  "vault wikilink display template heading";
+static constexpr const char* wikilink_display_template_anchor_pref=
+  "vault wikilink display template anchor";
+
+struct WikilinkDisplayContext {
+  QString kind;
+  QString type;
+  QString content;
+  QString relPath;
+  QString stem;
+  QString absolutePath;
+};
 
 static int
 path_top_index (path p) {
   if (is_nil (p)) return 0;
   return p->item;
+}
+
+static QString
+titlecase_first (QString s) {
+  if (s.isEmpty ()) return s;
+  s[0]= s[0].toUpper ();
+  return s;
+}
+
+static QString
+locase_first (QString s) {
+  if (s.isEmpty ()) return s;
+  s[0]= s[0].toLower ();
+  return s;
+}
+
+static QString
+absolute_vault_path (const QString& relPath) {
+  QString root= to_qstring (concretize (vault_get_root ()));
+  if (root.isEmpty ()) return relPath;
+  return QDir (root).absoluteFilePath (relPath);
+}
+
+static WikilinkDisplayContext
+wikilink_display_context (const QString& relPath, const QString& anchor) {
+  WikilinkDisplayContext c;
+  c.kind= "anchor";
+  c.type= "anchor";
+  c.relPath= relPath;
+  c.stem= file_display_stem (relPath);
+  c.absolutePath= absolute_vault_path (relPath);
+
+  QString key= anchor_pair_key (anchor);
+  if (anchor.trimmed ().isEmpty ()) {
+    c.kind= "file";
+    c.type= "file";
+    c.content= c.stem;
+    return c;
+  }
+
+  QRegularExpression headingRe ("^H([1-5])\\s+(.+)$");
+  QRegularExpressionMatch headingMatch= headingRe.match (key);
+  if (headingMatch.hasMatch ()) {
+    c.kind= "heading";
+    c.type= "H" + headingMatch.captured (1);
+    c.content= headingMatch.captured (2).trimmed ();
+    return c;
+  }
+
+  int colon= key.indexOf (":");
+  if (colon >= 0) {
+    c.type= key.left (colon).trimmed ().toLower ();
+    c.content= key.mid (colon + 1).trimmed ();
+  }
+  else {
+    c.content= key.trimmed ();
+  }
+  if (c.content.isEmpty ()) c.content= clean_anchor_display (anchor);
+  return c;
+}
+
+static QString
+wikilink_display_template_for_kind (const QString& kind) {
+  const char* key= wikilink_display_template_anchor_pref;
+  const char* fallback= "%c";
+  if (kind == "file") {
+    key= wikilink_display_template_file_pref;
+    fallback= "%f";
+  }
+  else if (kind == "heading") {
+    key= wikilink_display_template_heading_pref;
+    fallback= "%c";
+  }
+  return to_qstring (get_preference (key, fallback));
+}
+
+static QString
+apply_wikilink_display_template (const QString& templ,
+                                 const WikilinkDisplayContext& c) {
+  QString out;
+  out.reserve (templ.size () + c.content.size ());
+  for (int i=0; i<templ.size (); i++) {
+    QChar ch= templ[i];
+    if (ch != '%' || i + 1 >= templ.size ()) {
+      out += ch;
+      continue;
+    }
+    QChar code= templ[++i];
+    if (code == '%') out += '%';
+    else if (code == 't') out += c.type;
+    else if (code == 'T') out += titlecase_first (c.type);
+    else if (code == 'f') out += c.stem;
+    else if (code == 'F') out += c.relPath;
+    else if (code == 'p') out += c.absolutePath;
+    else if (code == 'c') out += c.content;
+    else if (code == 'C') out += titlecase_first (c.content);
+    else if (code == 's') out += locase_first (c.content);
+    else {
+      out += '%';
+      out += code;
+    }
+  }
+  return out.trimmed ();
+}
+
+static QString
+default_wikilink_display_text (const QString& relPath,
+                               const QString& anchor) {
+  WikilinkDisplayContext c= wikilink_display_context (relPath, anchor);
+  QString text= apply_wikilink_display_template (
+    wikilink_display_template_for_kind (c.kind), c);
+  if (!text.isEmpty ()) return text;
+  if (c.kind == "file") return c.stem;
+  if (!c.content.isEmpty ()) return c.content;
+  return clean_anchor_display (anchor);
 }
 
 enum WikilinkWizardPageId {
@@ -522,9 +654,8 @@ WikilinkAnchorPage::updateDefaultDisplayText () {
   QListWidgetItem* item= anchorList->currentItem ();
   QString anchor= item == nullptr ? QString () :
     item->data (WikilinkPayloadRole).toString ();
-  QString text= anchor.isEmpty () ? file_display_stem (w->selectedRelPath) :
-    clean_anchor_display (anchor);
-  displayEdit->setText (text);
+  displayEdit->setText (
+    default_wikilink_display_text (w->selectedRelPath, anchor));
 }
 
 void
@@ -999,8 +1130,13 @@ WikilinkSearchPage::updateDefaultDisplayText () {
     displayEdit->clear ();
     return;
   }
-  QString text= clean_anchor_display (currentAnchors[anchorIndex].anchor);
-  if (text.isEmpty ()) text= currentAnchors[anchorIndex].anchor;
+  QListWidgetItem* resultItem= resultList->currentItem ();
+  int resultIndex= resultItem == nullptr ? -1 :
+    resultItem->data (WikilinkIndexRole).toInt ();
+  QString relPath= resultIndex >= 0 && resultIndex < (int) results.size ()
+    ? results[resultIndex].relPath : QString ();
+  QString text= default_wikilink_display_text (
+    relPath, currentAnchors[anchorIndex].anchor);
   displayEdit->setText (text);
 }
 
@@ -1018,7 +1154,8 @@ WikilinkSearchPage::chooseAnchorItem (QListWidgetItem* item) {
   const WikilinkSearchResult& result= results[resultIndex];
   QString anchor= currentAnchors[anchorIndex].anchor;
   QString text= displayEdit->text ().trimmed ();
-  if (text.isEmpty ()) text= clean_anchor_display (anchor);
+  if (text.isEmpty ())
+    text= default_wikilink_display_text (result.relPath, anchor);
   if (text.isEmpty ()) text= anchor;
 
   QTMVaultWikilinkWizard* w=
@@ -1140,8 +1277,7 @@ QTMVaultWikilinkWizard::finishFileFirst () {
   QString hint= anchor.isEmpty () ? typedAnchor : anchor;
   QString text= anchorPage->displayEdit->text ().trimmed ();
   if (text.isEmpty ())
-    text= anchor.isEmpty () ? file_display_stem (selectedRelPath) :
-      clean_anchor_display (anchor);
+    text= default_wikilink_display_text (selectedRelPath, anchor);
   if (text.isEmpty ()) text= anchor;
 
   setResult (selectedRelPath, anchor, fileHint, hint, text);

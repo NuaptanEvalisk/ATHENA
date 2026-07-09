@@ -1382,11 +1382,20 @@ QTMPreferencesDialog::buildVaultPage () {
   finish_page (general);
 
   QWidget* navigation= make_page ();
-  QFormLayout* n= add_section (navigation, "Navigation and Namespaces");
-  add_toggle (n, "Track current file in vault explorer:",
+  QFormLayout* nav= add_section (navigation, "Navigation");
+  add_toggle (nav, "Track current file in vault explorer:",
               "vault explorer track current file");
-  add_toggle (n, "Use system trash for safe deletion:",
+  add_toggle (nav, "Use system trash for safe deletion:",
               "vault explorer use system trash");
+  add_combo (nav, "Preferred initial neighborhood:",
+             "vault preferred initial neighborhood",
+             {{"First direct namespace-based neighborhood", "namespace"},
+              {"Path-based neighborhood", "path"}},
+             "namespace");
+  finish_page (navigation);
+
+  QWidget* namespaces= make_page ();
+  QFormLayout* n= add_section (namespaces, "Namespaces");
   add_toggle (n, "Namespace explorer shows file matches only for leaf namespaces:",
               "vault namespace explorer leaf matches only");
   add_toggle (n, "Namespace explorer starts from root namespace:",
@@ -1395,18 +1404,23 @@ QTMPreferencesDialog::buildVaultPage () {
               "vault namespace explorer simplify hierarchy");
   add_toggle (n, "Simplify hierarchy graphs:",
               "vault simplify hierarchy graphs");
-  add_combo (n, "Preferred initial neighborhood:",
-             "vault preferred initial neighborhood",
-             {{"First direct namespace-based neighborhood", "namespace"},
-              {"Path-based neighborhood", "path"}},
-             "namespace");
-  add_toggle (n, "Wikilink inserter uses case-insensitive search:",
-              "vault wikilink inserter case insensitive search");
-  add_toggle (n, "Transclusion inserter uses case-insensitive search:",
-              "vault transclusion inserter case insensitive search");
   add_toggle (n, "Consume %s aggressively in sub-product naming template suggestion:",
               "vault subproduct consume string aggressively");
-  finish_page (navigation);
+  finish_page (namespaces);
+
+  QWidget* wikilinks= make_page ();
+  QFormLayout* wt= add_section (wikilinks, "Wikilinks and Transclusion");
+  add_toggle (wt, "Wikilink inserter uses case-insensitive search:",
+              "vault wikilink inserter case insensitive search");
+  add_toggle (wt, "Transclusion inserter uses case-insensitive search:",
+              "vault transclusion inserter case insensitive search");
+  add_line_edit (wt, "Wikilink default display text for files:",
+                 "vault wikilink display template file", "%f");
+  add_line_edit (wt, "Wikilink default display text for headings:",
+                 "vault wikilink display template heading", "%c");
+  add_line_edit (wt, "Wikilink default display text for anchors:",
+                 "vault wikilink display template anchor", "%c");
+  finish_page (wikilinks);
 
   QWidget* maintenance= make_page ();
   QFormLayout* mt= add_section (maintenance, "Maintenance");
@@ -1652,7 +1666,9 @@ QTMPreferencesDialog::buildVaultPage () {
   finish_page (info);
 
   return tabbed ({{"General", general},
-                  {"Navigation and Namespaces", navigation},
+                  {"Navigation", navigation},
+                  {"Namespaces", namespaces},
+                  {"Wikilinks and Transclusion", wikilinks},
                   {"Maintenance", maintenance},
                   {"Anchors and Images", anchors},
                   {"Vault Info", info}});
