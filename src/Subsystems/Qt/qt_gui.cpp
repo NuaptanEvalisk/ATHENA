@@ -220,6 +220,9 @@ athena_sync_logical_ui_font (const QFont& font) {
     "QStatusBar",
     "QDockWidget",
     "QComboBox",
+    // QComboMenuDelegate reads this private registry entry instead of the
+    // popup view font when painting non-native combo box menus.
+    "QComboMenuItem",
     "QLineEdit",
     "QPushButton",
     "QCheckBox",
@@ -252,6 +255,17 @@ athena_sync_logical_ui_font (const QFont& font) {
   }
 #else
   (void) font;
+#endif
+}
+
+void
+athena_resync_wayland_ui_fonts () {
+#if QT_VERSION >= 0x060000
+  if (qApp == nullptr ||
+      !QApplication::platformName ().startsWith (QStringLiteral ("wayland")) ||
+      retina_scale <= 1.0)
+    return;
+  athena_sync_logical_ui_font (qApp->font ());
 #endif
 }
 

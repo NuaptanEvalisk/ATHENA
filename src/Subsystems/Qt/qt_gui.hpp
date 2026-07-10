@@ -31,6 +31,7 @@ typedef class qt_gui_rep* qt_gui;
 extern qt_gui the_gui;
 
 void athena_initialize_wayland_ui_scale ();
+void athena_resync_wayland_ui_fonts ();
 
 /******************************************************************************
  * Event queue

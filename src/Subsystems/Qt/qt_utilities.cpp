@@ -1173,6 +1173,7 @@ init_style_sheet (QApplication* app) {
     current_style_sheet= ss;
     app->setStyleSheet (to_qstring (current_style_sheet));
   }
+  athena_resync_wayland_ui_fonts ();
 }
 
 void
