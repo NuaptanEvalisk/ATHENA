@@ -57,30 +57,3 @@
         (clipboard-cut "primary")
         (with r (cpp-ai-translate t from into model)
           (insert r))))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Copy and paste while compressing non natural language text
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(tm-define (ai-copy)
-  (when (selection-active-any?)
-    (clipboard-set "primary" (compress-html (selection-tree) 1))))
-
-(tm-define (ai-cut)
-  (when (selection-active-any?)
-    (ai-copy)
-    (clipboard-cut "dummy")))
-
-(define (clipboard-get* key)
-  (with t (clipboard-get key)
-    (cond ((not (tm-func? t 'tuple)) t)
-          ((< (tm-arity t) 2) t)
-          ((tm-equal? (tm-ref t 0) "texmacs")
-           (tm->string (tm-ref t 1)))
-          ((tm-equal? (tm-ref t 0) "extern")
-           (tm->string (tm-ref t 1)))
-          (else t))))
-
-(tm-define (ai-paste)
-  (with t (decompress-html (clipboard-get* "extern") 1)
-    (insert t)))
