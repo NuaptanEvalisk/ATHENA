@@ -346,6 +346,15 @@
     <item*|Fast environments>Uses faster environment handling when possible.
   </description>
 
+  <subsubsection|Graphs>
+
+  <\description>
+    <item*|Use interactive elastic graphs>Lets nodes in Reverse, Direct, and
+    Global hierarchy graph panes be dragged. Connected nodes react while a
+    node is dragged and the graph settles into a balanced layout after it is
+    released. Disabling this option restores static hierarchy graph panes.
+  </description>
+
   <subsection|Enunciation Colors>
 
   <subsubsection|Presets>

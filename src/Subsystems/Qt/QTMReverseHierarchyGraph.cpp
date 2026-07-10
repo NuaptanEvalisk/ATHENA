@@ -30,6 +30,7 @@
 
 #include <DockWidget.h>
 #include <QApplication>
+#include <QBasicTimer>
 #include <QByteArray>
 #include <QBuffer>
 #include <QCheckBox>
@@ -41,6 +42,7 @@
 #include <QGraphicsPolygonItem>
 #include <QGraphicsRectItem>
 #include <QGraphicsScene>
+#include <QGraphicsSceneMouseEvent>
 #include <QGraphicsTextItem>
 #include <QGraphicsView>
 #include <QImage>
@@ -58,6 +60,7 @@
 #include <QStringList>
 #include <QStyle>
 #include <QTimer>
+#include <QTimerEvent>
 #include <QToolButton>
 #include <QHBoxLayout>
 #include <QVBoxLayout>
@@ -183,6 +186,11 @@ add_unique_edge (std::vector<RHEdge>& edges, const QString& from,
 static bool
 reverse_hierarchy_simplify_graphs () {
   return get_preference ("vault simplify hierarchy graphs", "off") == "on";
+}
+
+static bool
+interactive_elastic_graphs () {
+  return get_preference ("interactive elastic graphs", "on") == "on";
 }
 
 static bool
@@ -674,6 +682,340 @@ add_arrow (QGraphicsScene* scene, QPointF from, QPointF to, const QPen& pen) {
   arrowItem->setZValue (4);
 }
 
+class ElasticHierarchyScene;
+class ElasticHierarchyEdgeItem;
+
+class ElasticHierarchyNodeItem: public QGraphicsItem {
+public:
+  enum { Type = UserType + 101 };
+
+  ElasticHierarchyNodeItem (const RHNode& node, const QString& target)
+    : nodeId (node.id), nodeSize (node.size), nodeKind (node.kind),
+      textItem (new QGraphicsTextItem (node.label, this)), pressed (false) {
+    setFlag (ItemIsMovable, true);
+    setFlag (ItemSendsGeometryChanges, true);
+    setCacheMode (DeviceCoordinateCache);
+    setCursor (Qt::OpenHandCursor);
+    setZValue (2);
+    setData (graph_item_url_role, target);
+    setToolTip ("Double click to open");
+
+    QFont font= textItem->font ();
+    font.setPointSize (10);
+    font.setBold (node.kind == "file");
+    textItem->setFont (font);
+    textItem->setDefaultTextColor (QColor ("#111111"));
+    textItem->setTextWidth (node.size.width () - 12.0);
+    QRectF br= textItem->boundingRect ();
+    textItem->setPos (-br.width () / 2.0, -br.height () / 2.0);
+    textItem->setZValue (3);
+    textItem->setAcceptedMouseButtons (Qt::NoButton);
+    textItem->setData (graph_item_url_role, target);
+    textItem->setToolTip ("Double click to open");
+  }
+
+  int type () const override { return Type; }
+  QRectF boundingRect () const override {
+    return QRectF (-nodeSize.width () / 2.0, -nodeSize.height () / 2.0,
+                   nodeSize.width (), nodeSize.height ());
+  }
+
+  void paint (QPainter* painter, const QStyleOptionGraphicsItem*,
+              QWidget*) override {
+    QColor fill= nodeKind == "file" ? QColor ("#e9f3ff") :
+                 nodeKind == "abstract" ? QColor ("#f2ecff") :
+                 nodeKind == "semi-concrete" ? QColor ("#fff5df") :
+                 QColor ("#eaf7ea");
+    if (pressed) fill= fill.darker (106);
+    painter->setPen (QPen (QColor ("#333333"), 1.4));
+    painter->setBrush (fill);
+    painter->drawRect (boundingRect ());
+  }
+
+  void addEdge (ElasticHierarchyEdgeItem* edge) { edges << edge; }
+  const QList<ElasticHierarchyEdgeItem*>& edgeItems () const { return edges; }
+  QSizeF size () const { return nodeSize; }
+
+protected:
+  QVariant itemChange (GraphicsItemChange change,
+                       const QVariant& value) override;
+  void mousePressEvent (QGraphicsSceneMouseEvent* event) override {
+    pressed= true;
+    setCursor (Qt::ClosedHandCursor);
+    update ();
+    QGraphicsItem::mousePressEvent (event);
+  }
+  void mouseReleaseEvent (QGraphicsSceneMouseEvent* event) override;
+
+private:
+  QString nodeId;
+  QSizeF nodeSize;
+  QString nodeKind;
+  QGraphicsTextItem* textItem;
+  QList<ElasticHierarchyEdgeItem*> edges;
+  bool pressed;
+};
+
+class ElasticHierarchyEdgeItem: public QGraphicsItem {
+public:
+  enum { Type = UserType + 102 };
+
+  ElasticHierarchyEdgeItem (ElasticHierarchyNodeItem* source,
+                            ElasticHierarchyNodeItem* destination)
+    : source (source), destination (destination), arrowSize (10.0) {
+    setAcceptedMouseButtons (Qt::NoButton);
+    setZValue (1);
+    source->addEdge (this);
+    destination->addEdge (this);
+    adjust ();
+  }
+
+  int type () const override { return Type; }
+  ElasticHierarchyNodeItem* sourceNode () const { return source; }
+  ElasticHierarchyNodeItem* destinationNode () const { return destination; }
+
+  void adjust () {
+    if (source == nullptr || destination == nullptr) return;
+    QRectF sourceRect= source->mapRectToScene (source->boundingRect ());
+    QRectF destinationRect=
+      destination->mapRectToScene (destination->boundingRect ());
+    QPointF sourcePointScene=
+      rect_boundary_point (sourceRect, destinationRect.center ());
+    QPointF destinationPointScene=
+      rect_boundary_point (destinationRect, sourceRect.center ());
+    prepareGeometryChange ();
+    sourcePoint= mapFromScene (sourcePointScene);
+    destinationPoint= mapFromScene (destinationPointScene);
+  }
+
+  QRectF boundingRect () const override {
+    double extra= arrowSize + 3.0;
+    return QRectF (sourcePoint, destinationPoint).normalized ().adjusted (
+      -extra, -extra, extra, extra);
+  }
+
+  void paint (QPainter* painter, const QStyleOptionGraphicsItem*,
+              QWidget*) override {
+    QLineF line (sourcePoint, destinationPoint);
+    if (line.length () < 1.0) return;
+
+    QPen pen (QColor ("#555555"), 1.6, Qt::SolidLine,
+              Qt::RoundCap, Qt::RoundJoin);
+    painter->setPen (pen);
+    painter->setBrush (pen.color ());
+    painter->drawLine (line);
+
+    double angle= std::atan2 (line.dy (), line.dx ());
+    QPointF p1= destinationPoint -
+      QPointF (std::cos (angle - pi / 6.0) * arrowSize,
+               std::sin (angle - pi / 6.0) * arrowSize);
+    QPointF p2= destinationPoint -
+      QPointF (std::cos (angle + pi / 6.0) * arrowSize,
+               std::sin (angle + pi / 6.0) * arrowSize);
+    painter->drawPolygon (QPolygonF () << destinationPoint << p1 << p2);
+  }
+
+private:
+  ElasticHierarchyNodeItem* source;
+  ElasticHierarchyNodeItem* destination;
+  QPointF sourcePoint;
+  QPointF destinationPoint;
+  double arrowSize;
+};
+
+class ElasticHierarchyScene: public QGraphicsScene {
+public:
+  explicit ElasticHierarchyScene (const RHGraph& graph)
+    : building (true), stableTicks (0) {
+    setBackgroundBrush (QColor ("#fbfbfb"));
+    setItemIndexMethod (QGraphicsScene::NoIndex);
+
+    RHGraph adjusted= graph;
+    adjust_node_sizes_for_text (adjusted);
+    for (const RHNode& node: adjusted.nodes) {
+      QString target= node.kind == "file" ? graph.filePath :
+                      namespace_url (node.label);
+      ElasticHierarchyNodeItem* item=
+        new ElasticHierarchyNodeItem (node, target);
+      addItem (item);
+      item->setPos (node.pos);
+      nodes << item;
+      nodesById.insert (node.id, item);
+      velocities.insert (item, QPointF ());
+    }
+
+    for (const RHEdge& edge: adjusted.edges) {
+      ElasticHierarchyNodeItem* source= nodesById.value (edge.from, nullptr);
+      ElasticHierarchyNodeItem* destination=
+        nodesById.value (edge.to, nullptr);
+      if (source == nullptr || destination == nullptr) continue;
+      ElasticHierarchyEdgeItem* item=
+        new ElasticHierarchyEdgeItem (source, destination);
+      addItem (item);
+      edges << item;
+    }
+
+    QPointF sum;
+    for (ElasticHierarchyNodeItem* node: nodes) sum += node->pos ();
+    center= nodes.isEmpty () ? QPointF () : sum / nodes.size ();
+    building= false;
+    expandSceneRect ();
+    startSimulation ();
+  }
+
+  void nodeMoved () {
+    if (building) return;
+    expandSceneRect ();
+    startSimulation ();
+  }
+
+  void nodeReleased () {
+    stableTicks= 0;
+    startSimulation ();
+  }
+
+protected:
+  void timerEvent (QTimerEvent* event) override {
+    if (event->timerId () != timer.timerId ()) {
+      QGraphicsScene::timerEvent (event);
+      return;
+    }
+    advanceSimulation ();
+  }
+
+private:
+  void startSimulation () {
+    stableTicks= 0;
+    if (!timer.isActive ()) timer.start (40, this);
+  }
+
+  void expandSceneRect () {
+    QRectF needed= itemsBoundingRect ().adjusted (-80, -80, 80, 80);
+    if (sceneRect ().isNull ()) setSceneRect (needed);
+    else if (!sceneRect ().contains (needed))
+      setSceneRect (sceneRect ().united (needed));
+  }
+
+  void advanceSimulation () {
+    if (nodes.isEmpty ()) {
+      timer.stop ();
+      return;
+    }
+
+    QHash<ElasticHierarchyNodeItem*, QPointF> forces;
+    for (ElasticHierarchyNodeItem* node: nodes)
+      forces.insert (node, QPointF ());
+
+    for (int i=0; i<nodes.size (); ++i) {
+      ElasticHierarchyNodeItem* a= nodes[i];
+      for (int j=i+1; j<nodes.size (); ++j) {
+        ElasticHierarchyNodeItem* b= nodes[j];
+        QPointF delta= b->pos () - a->pos ();
+        double distance= std::hypot (delta.x (), delta.y ());
+        if (distance < 0.01) {
+          delta= QPointF ((i & 1) ? -1.0 : 1.0,
+                         (j & 1) ? -1.0 : 1.0);
+          distance= std::hypot (delta.x (), delta.y ());
+        }
+        QPointF direction= delta / distance;
+
+        double overlapX= (a->size ().width () + b->size ().width ()) / 2.0 +
+                         24.0 - std::abs (delta.x ());
+        double overlapY= (a->size ().height () + b->size ().height ()) / 2.0 +
+                         24.0 - std::abs (delta.y ());
+        double magnitude;
+        if (overlapX > 0.0 && overlapY > 0.0) {
+          if (overlapX < overlapY)
+            direction= QPointF (delta.x () < 0.0 ? -1.0 : 1.0, 0.0);
+          else
+            direction= QPointF (0.0, delta.y () < 0.0 ? -1.0 : 1.0);
+          magnitude= 4.0 + std::min (24.0,
+            std::min (overlapX, overlapY) * 0.35);
+        }
+        else
+          magnitude= 9000.0 / std::max (400.0, distance * distance);
+
+        QPointF force= direction * magnitude;
+        forces[a] -= force;
+        forces[b] += force;
+      }
+    }
+
+    for (ElasticHierarchyEdgeItem* edge: edges) {
+      ElasticHierarchyNodeItem* source= edge->sourceNode ();
+      ElasticHierarchyNodeItem* destination= edge->destinationNode ();
+      QPointF delta= destination->pos () - source->pos ();
+      double distance= std::hypot (delta.x (), delta.y ());
+      if (distance < 0.01) continue;
+      double sourceRadius= std::hypot (source->size ().width (),
+                                      source->size ().height ()) / 2.0;
+      double destinationRadius=
+        std::hypot (destination->size ().width (),
+                    destination->size ().height ()) / 2.0;
+      double ideal= sourceRadius + destinationRadius + 70.0;
+      QPointF force= (delta / distance) * ((distance - ideal) * 0.012);
+      forces[source] += force;
+      forces[destination] -= force;
+    }
+
+    double maximumMovement= 0.0;
+    QGraphicsItem* grabbed= mouseGrabberItem ();
+    for (ElasticHierarchyNodeItem* node: nodes) {
+      if (grabbed == node) {
+        velocities[node]= QPointF ();
+        continue;
+      }
+
+      QPointF force= forces.value (node) + (center - node->pos ()) * 0.0015;
+      QPointF velocity= (velocities.value (node) + force) * 0.72;
+      double speed= std::hypot (velocity.x (), velocity.y ());
+      if (speed > 14.0) velocity *= 14.0 / speed;
+      else if (speed < 0.05) velocity= QPointF ();
+      velocities[node]= velocity;
+      maximumMovement= std::max (
+        maximumMovement, std::hypot (velocity.x (), velocity.y ()));
+      if (!velocity.isNull ()) node->setPos (node->pos () + velocity);
+    }
+
+    expandSceneRect ();
+    if (maximumMovement < 0.12) stableTicks++;
+    else stableTicks= 0;
+    if (stableTicks >= 6) timer.stop ();
+  }
+
+  QList<ElasticHierarchyNodeItem*> nodes;
+  QList<ElasticHierarchyEdgeItem*> edges;
+  QMap<QString, ElasticHierarchyNodeItem*> nodesById;
+  QHash<ElasticHierarchyNodeItem*, QPointF> velocities;
+  QBasicTimer timer;
+  QPointF center;
+  bool building;
+  int stableTicks;
+};
+
+QVariant
+ElasticHierarchyNodeItem::itemChange (GraphicsItemChange change,
+                                      const QVariant& value) {
+  if (change == ItemPositionHasChanged) {
+    for (ElasticHierarchyEdgeItem* edge: edges) edge->adjust ();
+    if (ElasticHierarchyScene* elasticScene=
+          dynamic_cast<ElasticHierarchyScene*> (scene ()))
+      elasticScene->nodeMoved ();
+  }
+  return QGraphicsItem::itemChange (change, value);
+}
+
+void
+ElasticHierarchyNodeItem::mouseReleaseEvent (QGraphicsSceneMouseEvent* event) {
+  pressed= false;
+  setCursor (Qt::OpenHandCursor);
+  update ();
+  QGraphicsItem::mouseReleaseEvent (event);
+  if (ElasticHierarchyScene* elasticScene=
+        dynamic_cast<ElasticHierarchyScene*> (scene ()))
+    elasticScene->nodeReleased ();
+}
+
 static QGraphicsScene*
 create_scene (const RHGraph& graph) {
   RHGraph adjusted= graph;
@@ -728,6 +1070,13 @@ create_scene (const RHGraph& graph) {
   return scene;
 }
 
+static QGraphicsScene*
+create_pane_scene (const RHGraph& graph) {
+  if (interactive_elastic_graphs ())
+    return new ElasticHierarchyScene (graph);
+  return create_scene (graph);
+}
+
 class ReverseHierarchyGraphView: public QGraphicsView {
 public:
   ReverseHierarchyGraphView (QGraphicsScene* scene, QWidget* parent = nullptr)
@@ -776,6 +1125,17 @@ protected:
   }
 
   void mousePressEvent (QMouseEvent* event) override {
+    if (event->button () == Qt::LeftButton) {
+      QGraphicsItem* item= itemAt (event->pos ());
+      while (item != nullptr &&
+             !(item->flags () & QGraphicsItem::ItemIsMovable))
+        item= item->parentItem ();
+      if (item != nullptr) {
+        dragging= false;
+        QGraphicsView::mousePressEvent (event);
+        return;
+      }
+    }
     if (event->button () == Qt::LeftButton ||
         event->button () == Qt::MiddleButton) {
       dragging= true;
@@ -939,15 +1299,25 @@ public:
       return false;
     }
 
-    currentPath= graph.filePath;
-    view->setOwnedScene (create_scene (graph));
-    QTimer::singleShot (0, view, [this] () { view->resetViewport (); });
+    setGraphScene (graph);
     if (reverse_hierarchy_graph_dock != nullptr)
       reverse_hierarchy_graph_dock->setWindowTitle (graph.title);
     return true;
   }
 
+  void interactionPreferenceChanged () {
+    if (hasCurrentGraph) setGraphScene (currentGraph);
+  }
+
 private:
+  void setGraphScene (const RHGraph& graph) {
+    currentGraph= graph;
+    hasCurrentGraph= true;
+    currentPath= graph.filePath;
+    view->setOwnedScene (create_pane_scene (currentGraph));
+    QTimer::singleShot (0, view, [this] () { view->resetViewport (); });
+  }
+
   void showMessageScene (const QString& message) {
     QGraphicsScene* scene= new QGraphicsScene ();
     scene->setBackgroundBrush (QColor ("#fbfbfb"));
@@ -957,6 +1327,7 @@ private:
     text->setPos (20, 20);
     scene->setSceneRect (0, 0, 500, 160);
     view->setOwnedScene (scene);
+    hasCurrentGraph= false;
     currentPath= current_buffer_identity ();
   }
 
@@ -974,6 +1345,8 @@ private:
   QSizeGrip* floatingSizeGrip;
   QTimer* refreshTimer;
   QString currentPath;
+  RHGraph currentGraph;
+  bool hasCurrentGraph= false;
 };
 
 class DirectHierarchyGraphPane: public QWidget {
@@ -1102,13 +1475,21 @@ public:
     showMessageScene (message);
   }
 
+  void interactionPreferenceChanged () {
+    if (hasCurrentGraph)
+      setGraphScene (currentGraph, currentTitleOverride);
+  }
+
 private:
   bool simplify () const { return simplifyCheck->isChecked (); }
 
   void setGraphScene (const RHGraph& graph,
                       const QString& titleOverride = QString ()) {
+    currentGraph= graph;
+    currentTitleOverride= titleOverride;
+    hasCurrentGraph= true;
     currentPath= graph.filePath;
-    view->setOwnedScene (create_scene (graph));
+    view->setOwnedScene (create_pane_scene (currentGraph));
     QTimer::singleShot (0, view, [this] () { view->resetViewport (); });
     if (dockRef != nullptr && *dockRef != nullptr)
       (*dockRef)->setWindowTitle (
@@ -1166,6 +1547,7 @@ private:
     text->setPos (20, 20);
     scene->setSceneRect (0, 0, 500, 160);
     view->setOwnedScene (scene);
+    hasCurrentGraph= false;
     currentPath= current_buffer_identity ();
     if (dockRef != nullptr && *dockRef != nullptr)
       (*dockRef)->setWindowTitle (defaultTitle);
@@ -1191,6 +1573,9 @@ private:
   QString currentPath;
   QString fixedNamespace;
   QString fixedTitleOverride;
+  RHGraph currentGraph;
+  QString currentTitleOverride;
+  bool hasCurrentGraph= false;
 };
 
 static bool
@@ -1249,6 +1634,16 @@ graph_image_tree (const QImage& image, string size) {
 }
 
 } // namespace
+
+void
+hierarchy_graph_interactivity_changed () {
+  if (reverse_hierarchy_graph_widget != nullptr)
+    reverse_hierarchy_graph_widget->interactionPreferenceChanged ();
+  if (direct_hierarchy_graph_widget != nullptr)
+    direct_hierarchy_graph_widget->interactionPreferenceChanged ();
+  if (global_hierarchy_graph_widget != nullptr)
+    global_hierarchy_graph_widget->interactionPreferenceChanged ();
+}
 
 void
 reverse_hierarchy_graph_show () {

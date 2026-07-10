@@ -11,6 +11,7 @@
 #include "QTMPreferencesDialog.hpp"
 #include "QTMESCSymbolPicker.hpp"
 #include "QTMMainTabWindow.hpp"
+#include "QTMReverseHierarchyGraph.hpp"
 #include "QTMVaultInfoModel.hpp"
 #include "QTMRagDelegationClient.hpp"
 #include "GoogleOAuth.hpp"
@@ -1124,6 +1125,12 @@ QTMPreferencesDialog::buildRenderingPage () {
               {"korean", "Korean"}, {"taiwanese", "Taiwanese"}});
   add_toggle (m, "Persistent fit width:", "persistent fit width");
   add_toggle (m, "Fast environments:", "fast environments");
+  QFormLayout* graphs= add_section (misc, "Graphs");
+  QCheckBox* elasticGraphs= add_toggle (
+    graphs, "Use interactive elastic graphs:", "interactive elastic graphs");
+  QObject::connect (elasticGraphs, &QCheckBox::toggled, [] () {
+    hierarchy_graph_interactivity_changed ();
+  });
   finish_page (misc);
 
   QWidget* colors= make_page ();

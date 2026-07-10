@@ -183,6 +183,12 @@
   dense, use the hierarchy simplification preference before inserting the graph
   into a document.
 
+  When <menu|Edit|Preferences|Rendering|Misc|Graphs|Use interactive elastic
+  graphs> is enabled, nodes in the Reverse, Direct, and Global hierarchy graph
+  panes can be dragged. Connected nodes react during the drag and continue to
+  rebalance briefly after release. Drag empty graph background to pan the
+  viewport. Hierarchy graphs inserted into documents remain static images.
+
   <section|Websites manager>
 
   Use <menu|Tools|Websites manager> to define static websites for the active
