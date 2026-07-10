@@ -9,6 +9,7 @@
 ******************************************************************************/
 
 #include "QTMVaultExplorer.hpp"
+#include "QTMVaultSafeRename.hpp"
 #include "QTMMainTabWindow.hpp"
 #include "boot.hpp"
 #include "scheme.hpp"
@@ -352,8 +353,11 @@ QTMVaultExplorer::renameSelected () {
   }
 
   QString target= QDir (info.absolutePath ()).filePath (name);
-  if (QFileInfo::exists (target) || !QFile::rename (path, target))
-    showError ("Could not rename item.");
+  if (QFileInfo::exists (target)) {
+    showError ("Could not rename item: destination already exists.");
+    return;
+  }
+  if (qtm_safe_rename_vault_item (this, path, target)) refresh ();
 }
 
 void

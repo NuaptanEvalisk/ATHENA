@@ -10,12 +10,19 @@
 #include <QTemporaryDir>
 
 #include "vault_map_sqlite.hpp"
+#include "vault_safe_rename.hpp"
 #include "vaultfile_json.hpp"
+#include "vault.hpp"
 #include "Database/database.hpp"
 #include "tm_timer.hpp"
 #include "url.hpp"
 
 #include <filesystem>
+#include <fstream>
+#include <iterator>
+
+bool headless_mode= true;
+bool is_headless () { return true; }
 
 class TestVaultMapSqlite: public QObject {
   Q_OBJECT
@@ -25,6 +32,9 @@ private slots:
   void rewriteAnchorsTransactionally ();
   void migrateCurrentTmdbSnapshot ();
   void migrateRealMapCopy ();
+  void pathRenamePreservesIdentityAndBoundaries ();
+  void structuralRewritePreservesRelativePathsAndHints ();
+  void recoversInterruptedDirectoryRename ();
 };
 
 void
@@ -157,6 +167,132 @@ TestVaultMapSqlite::migrateRealMapCopy () {
   std::vector<AthenaVaultMapNode> nodes;
   QVERIFY2 (map.read_all (nodes, error), error.c_str ());
   QVERIFY (!nodes.empty ());
+}
+
+void
+TestVaultMapSqlite::pathRenamePreservesIdentityAndBoundaries () {
+  QTemporaryDir temporary;
+  QVERIFY (temporary.isValid ());
+  std::filesystem::path db= std::filesystem::path (
+    temporary.path ().toStdString ()) / "map.sqlite";
+  AthenaVaultMapSqlite map;
+  std::string error;
+  QVERIFY2 (map.open (db, true, error), error.c_str ());
+  QVERIFY2 (map.set_node ({"a", "Old/A.ath", "begin", "end"}, error),
+            error.c_str ());
+  QVERIFY2 (map.set_node ({"b", "Old/Sub/B.ath", "", "anchor"}, error),
+            error.c_str ());
+  QVERIFY2 (map.set_node ({"c", "Oldish/C.ath", "", ""}, error),
+            error.c_str ());
+  size_t count= 0;
+  QVERIFY2 (map.count_path_rename ("Old", true, count, error), error.c_str ());
+  QCOMPARE (count, (size_t) 2);
+  AthenaVaultMapRenameOperation operation;
+  operation.operation_id= "rename-test";
+  operation.old_path= "Old";
+  operation.new_path= "New";
+  operation.is_directory= true;
+  operation.phase= "prepared";
+  QVERIFY2 (map.prepare_path_rename (operation, error), error.c_str ());
+  size_t changed= 0;
+  QVERIFY2 (map.apply_path_rename (operation.operation_id, changed, error),
+            error.c_str ());
+  QCOMPARE (changed, (size_t) 2);
+  AthenaVaultMapNode node;
+  bool found= false;
+  QVERIFY2 (map.get_node ("a", node, found, error), error.c_str ());
+  QCOMPARE (node.path, std::string ("New/A.ath"));
+  QCOMPARE (node.anchor_begin, std::string ("begin"));
+  QCOMPARE (node.anchor_end, std::string ("end"));
+  QVERIFY2 (map.get_node ("c", node, found, error), error.c_str ());
+  QCOMPARE (node.path, std::string ("Oldish/C.ath"));
+  QVERIFY2 (map.finish_path_rename (operation.operation_id, error),
+            error.c_str ());
+}
+
+void
+TestVaultMapSqlite::structuralRewritePreservesRelativePathsAndHints () {
+  QTemporaryDir temporary;
+  QVERIFY (temporary.isValid ());
+  std::filesystem::path root (temporary.path ().toStdString ());
+  std::filesystem::create_directories (root / "Old/assets");
+  tree image (IMAGE);
+  image << tree ("Old/assets/pic.png") << tree ("") << tree ("")
+        << tree ("") << tree ("");
+  tree link (HLINK);
+  link << tree ("hint") << tree ("tmfs://wikilink/uuid/Old/");
+  tree document (DOCUMENT);
+  document << image << link;
+  size_t replacements= 0;
+  tree rewritten= vault_safe_rename_rewrite_tree (
+    document, root / "Outside.ath", root / "Outside.ath", root / "Old",
+    root / "New", replacements);
+  QCOMPARE (replacements, (size_t) 1);
+  QCOMPARE (std::string (as_charp (tree_as_string (rewritten[0][0]))),
+            std::string ("New/assets/pic.png"));
+  QCOMPARE (std::string (as_charp (tree_as_string (rewritten[1][1]))),
+            std::string ("tmfs://wikilink/uuid/Old/"));
+
+  tree internal_image (IMAGE);
+  internal_image << tree ("assets/pic.png") << tree ("") << tree ("")
+                 << tree ("") << tree ("");
+  replacements= 0;
+  tree internal= vault_safe_rename_rewrite_tree (
+    internal_image, root / "Old/Inside.ath", root / "New/Inside.ath",
+    root / "Old", root / "New", replacements);
+  QCOMPARE (replacements, (size_t) 0);
+  QCOMPARE (std::string (as_charp (tree_as_string (internal[0]))),
+            std::string ("assets/pic.png"));
+}
+
+void
+TestVaultMapSqlite::recoversInterruptedDirectoryRename () {
+  QTemporaryDir temporary;
+  QVERIFY (temporary.isValid ());
+  std::filesystem::path root (temporary.path ().toStdString ());
+  std::filesystem::create_directories (root / "Old");
+  {
+    std::ofstream original (root / "Old/Note.ath");
+    original << "original";
+    std::ofstream stage (
+      root / "Old/Note.ath.athena-safe-rename-recovery.tmp");
+    stage << "rewritten";
+  }
+
+  AthenaVaultMapSqlite map;
+  std::string error;
+  QVERIFY2 (map.open (root / "map.sqlite", true, error), error.c_str ());
+  QVERIFY2 (map.set_node ({"note", "Old/Note.ath", "", ""}, error),
+            error.c_str ());
+  AthenaVaultMapRenameOperation operation;
+  operation.operation_id= "recovery";
+  operation.old_path= "Old";
+  operation.new_path= "New";
+  operation.is_directory= true;
+  operation.phase= "prepared";
+  QVERIFY2 (map.prepare_path_rename (operation, error), error.c_str ());
+  map.close ();
+  std::filesystem::rename (root / "Old", root / "New");
+
+  QVERIFY2 (vault_safe_rename_recover (root, "map.sqlite", error),
+            error.c_str ());
+  std::ifstream result (root / "New/Note.ath");
+  QCOMPARE (std::string (std::istreambuf_iterator<char> (result), {}),
+            std::string ("rewritten"));
+  QVERIFY (!std::filesystem::exists (
+    root / "New/Note.ath.athena-safe-rename-recovery.tmp"));
+
+  QVERIFY2 (map.open (root / "map.sqlite", false, error), error.c_str ());
+  AthenaVaultMapNode node;
+  bool found= false;
+  QVERIFY2 (map.get_node ("note", node, found, error), error.c_str ());
+  QVERIFY (found);
+  QCOMPARE (node.path, std::string ("New/Note.ath"));
+  std::vector<AthenaVaultMapRenameOperation> pending;
+  QVERIFY2 (map.pending_path_renames (pending, error), error.c_str ());
+  QVERIFY (pending.empty ());
+  QVERIFY (std::filesystem::exists (
+    root / ".backup/safe-rename/recovery/New/Note.ath"));
 }
 
 QTEST_MAIN(TestVaultMapSqlite)

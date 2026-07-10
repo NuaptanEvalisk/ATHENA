@@ -147,6 +147,15 @@
   near the selected file: load, new file, new folder, rename, copy, paste,
   delete, open in the system file manager, and refresh.
 
+  Rename uses <ATHENA>'s safe Vault rename operation. Before changing the
+  filesystem, <ATHENA> shows how many files, UUID map rows, candidate documents,
+  and local path references will be affected. Renaming a directory or a
+  referenced asset first performs a fast textual candidate scan, then parses
+  only those candidate documents and structurally updates image, ordinary link,
+  include, and media paths. Relative references remain relative. UUID wikilink
+  and transclusion hints, the RAG index, and recent-file entries are auxiliary
+  data and are not rewritten by this operation.
+
   <section|Namespace homepages>
 
   A namespace may have an <ATHENA> homepage document. The homepage is configured

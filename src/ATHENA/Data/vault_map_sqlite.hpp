@@ -22,6 +22,14 @@ struct AthenaVaultMapNode {
   std::string anchor_end;
 };
 
+struct AthenaVaultMapRenameOperation {
+  std::string operation_id;
+  std::string old_path;
+  std::string new_path;
+  bool is_directory= false;
+  std::string phase;
+};
+
 class AthenaVaultMapSqlite {
 public:
   AthenaVaultMapSqlite ();
@@ -57,6 +65,17 @@ public:
                              std::string& error);
   bool migration_source (std::string& relative_path,
                          std::string& error) const;
+  bool count_path_rename (const std::string& old_path, bool is_directory,
+                          size_t& count, std::string& error) const;
+  bool prepare_path_rename (const AthenaVaultMapRenameOperation& operation,
+                            std::string& error);
+  bool apply_path_rename (const std::string& operation_id, size_t& changed,
+                          std::string& error);
+  bool finish_path_rename (const std::string& operation_id,
+                           std::string& error);
+  bool pending_path_renames (
+    std::vector<AthenaVaultMapRenameOperation>& operations,
+    std::string& error) const;
 
 private:
   struct Impl;

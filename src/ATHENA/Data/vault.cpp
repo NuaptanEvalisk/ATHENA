@@ -18,6 +18,7 @@
 #include "ATHENA/Data/new_buffer.hpp"
 #include "ATHENA/Data/new_window.hpp"
 #include "ATHENA/Data/vault_map_sqlite.hpp"
+#include "ATHENA/Data/vault_safe_rename.hpp"
 #include "ATHENA/tm_window.hpp"
 
 #include <filesystem>
@@ -90,6 +91,8 @@ vault_load (url root_dir, string name, string db_rel_path,
   std::string error;
   if (!athena_vault_map_prepare (root, vault_std_string (db_rel_path),
                                  resolved, error))
+    return vault_tm_string (error);
+  if (!vault_safe_rename_recover (root, resolved, error))
     return vault_tm_string (error);
 
   std::unique_ptr<AthenaVaultMapSqlite> map (new AthenaVaultMapSqlite);
