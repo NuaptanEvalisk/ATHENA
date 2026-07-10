@@ -232,8 +232,8 @@ cache_memorize () {
   cache_save ("dir_cache.scm");
   cache_save ("stat_cache.scm");
   cache_save ("font_cache.scm");
-  cache_save ("font_path_cache.scm");
-  cache_save ("font_file_index.scm");
+  cache_save ("font_path_cache_v2.scm");
+  cache_save ("font_file_index_v2.scm");
   cache_save ("validate_cache.scm");
 }
 
@@ -246,8 +246,8 @@ cache_refresh () {
   cache_load ("dir_cache.scm");
   cache_load ("stat_cache.scm");
   cache_load ("font_cache.scm");
-  cache_load ("font_path_cache.scm");
-  cache_load ("font_file_index.scm");
+  cache_load ("font_path_cache_v2.scm");
+  cache_load ("font_file_index_v2.scm");
   cache_load ("validate_cache.scm");
 }
 
@@ -265,7 +265,11 @@ cache_initialize () {
   texmacs_home_path_string = concretize (texmacs_home_path);
   texmacs_doc_path_string = concretize (texmacs_doc_path);
   texmacs_font_path_string = concretize (texmacs_home_path * "fonts/");
-   
+
+  // Version 1 used structural keys before tree labels were initialized.
+  remove (texmacs_home_path * "system/cache/font_path_cache.scm");
+  remove (texmacs_home_path * "system/cache/font_file_index.scm");
+
   cache_refresh ();
   if (is_recursively_up_to_date (texmacs_path * "fonts/type1") &&
       is_recursively_up_to_date (texmacs_path * "fonts/truetype") &&

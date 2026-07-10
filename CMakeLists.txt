@@ -157,6 +157,10 @@ include (CheckCSourceCompiles)
 
 pkg_check_modules (SPDLOG REQUIRED IMPORTED_TARGET spdlog)
 pkg_check_modules (LLAMA REQUIRED IMPORTED_TARGET llama)
+if (UNIX AND NOT APPLE)
+  pkg_check_modules (FONTCONFIG REQUIRED IMPORTED_TARGET fontconfig)
+  add_definitions (-DUSE_FONTCONFIG)
+endif ()
 set (LLAMA_CPP_SOURCE_DIR "" CACHE PATH
   "llama.cpp source tree, needed for common/common.h")
 if (LLAMA_CPP_SOURCE_DIR STREQUAL "" AND DEFINED ENV{LLAMA_CPP_SOURCE_DIR})
@@ -644,6 +648,10 @@ if (LINKED_SQLITE3)
 endif (LINKED_SQLITE3)
 
 set (ATHENA_Libraries ${ATHENA_Libraries} ${FREETYPE_LIBRARIES})
+
+if (UNIX AND NOT APPLE)
+  set (ATHENA_Libraries ${ATHENA_Libraries} PkgConfig::FONTCONFIG)
+endif ()
 
 set (ATHENA_Libraries ${ATHENA_Libraries} ${GMP_LIBRARIES})
 

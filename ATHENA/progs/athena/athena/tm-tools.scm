@@ -80,6 +80,8 @@
       "$ATHENA_HOME_PATH/system/cache/font_cache.scm"
       "$ATHENA_HOME_PATH/system/cache/font_path_cache.scm"
       "$ATHENA_HOME_PATH/system/cache/font_file_index.scm"
+      "$ATHENA_HOME_PATH/system/cache/font_path_cache_v2.scm"
+      "$ATHENA_HOME_PATH/system/cache/font_file_index_v2.scm"
       "$ATHENA_HOME_PATH/fonts/font-database.scm"
       "$ATHENA_HOME_PATH/fonts/font-features.scm"
       "$ATHENA_HOME_PATH/fonts/font-characteristics.scm")))

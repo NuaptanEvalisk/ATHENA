@@ -21,25 +21,42 @@
 #include "scheme.hpp"
 #include "sys_utils.hpp"
 
+#ifdef USE_FONTCONFIG
+#include <fontconfig/fontconfig.h>
+#endif
+
 static hashmap<string,string> tt_fonts ("no");
 
-#define TT_FONT_PATH_CACHE "font_path_cache.scm"
-#define TT_FONT_FILE_INDEX_CACHE "font_file_index.scm"
-#define TT_FONT_CACHE_VERSION "1"
+#define TT_FONT_PATH_CACHE "font_path_cache_v2.scm"
+#define TT_FONT_FILE_INDEX_CACHE "font_file_index_v2.scm"
+#define TT_FONT_CACHE_VERSION "2"
 
 static bool tt_font_file_index_ready= false;
 static bool tt_font_file_index_building= false;
 static bool tt_font_file_index_warmup_disabled= false;
 
-static tree
-tt_font_cache_signature (string xtt, string ximp) {
-  return tuple (TT_FONT_CACHE_VERSION, xtt, ximp);
+static string
+tt_font_cache_component (string s) {
+  return as_string (N(s)) * ":" * s;
 }
 
-static tree
+static string
+tt_font_cache_signature (string xtt, string ximp) {
+  return string (TT_FONT_CACHE_VERSION) * ":" *
+         tt_font_cache_component (xtt) *
+         tt_font_cache_component (ximp);
+}
+
+static string
 tt_font_cache_signature () {
   return tt_font_cache_signature (get_env ("ATHENA_FONT_PATH"),
                                   get_preference ("imported fonts", ""));
+}
+
+static string
+tt_font_cache_key (string kind, string signature, string name= "") {
+  return kind * ":" * tt_font_cache_component (signature) *
+         tt_font_cache_component (name);
 }
 
 static bool
@@ -67,31 +84,8 @@ tt_extend_font_path (url u) {
     url dirs= add_to_path (url_unix (old), u);
     set_preference ("imported fonts", as_unix_string (dirs));
   }
-}
-
-static url
-tt_fontconfig_path () {
-#if defined OS_MINGW || defined OS_MACOS
-  return url_none ();
-#else
-  static url cached_path= url_none ();
-  static bool initialized= false;
-  if (initialized) return cached_path;
-  initialized= true;
-
-  string out= eval_system ("fc-list --format='%{file}\\n' 2> /dev/null");
-  int i= 0;
-  string line;
-  while (read_line (out, i, line)) {
-    line= trim_spaces (line);
-    if (line == "") continue;
-    url file= url_system (line);
-    if (exists (file))
-      cached_path= add_to_path (cached_path, head (file));
-    if (i >= N(out)) break;
-  }
-  return cached_path;
-#endif
+  tt_fonts= hashmap<string,string> ("no");
+  tt_font_file_index_ready= false;
 }
 
 static void
@@ -127,6 +121,179 @@ tt_font_path_decode (string s) {
   return r;
 }
 
+static url
+tt_private_font_roots (string xtt, string ximp) {
+  url roots= url_none ();
+  if (xtt != "") roots= roots | url_unix (xtt);
+  if (ximp != "") roots= roots | url_unix (ximp);
+  roots=
+    roots |
+    url ("$ATHENA_HOME_PATH/fonts/truetype") |
+    url ("$ATHENA_PATH/fonts/truetype");
+#if defined OS_MINGW
+  roots= roots | url ("$windir/Fonts");
+#elif defined OS_MACOS
+  roots=
+    roots |
+    url ("$HOME/Library/Fonts") |
+    url ("/Library/Fonts") |
+    url ("/Library/Application Support/Apple/Fonts/iLife") |
+    url ("/Library/Application Support/Apple/Fonts/iWork") |
+    url ("/System/Library/Fonts") |
+    url ("/System/Library/PrivateFrameworks/FontServices.framework/Versions/A/Resources/Fonts/ApplicationSupport") |
+    url ("/opt/local/share/texmf-texlive/fonts/opentype") |
+    url ("/opt/local/share/texmf-texlive/fonts/truetype") |
+    url ("/opt/local/share/texmf-texlive-dist/fonts/opentype") |
+    url ("/opt/local/share/texmf-texlive-dist/fonts/truetype");
+#else
+  roots=
+    roots |
+    url ("/usr/local/texlive/2020/texmf-dist/opentype") |
+    url ("/usr/local/texlive/2020/texmf-dist/truetype") |
+    url ("/usr/local/texlive/2021/texmf-dist/opentype") |
+    url ("/usr/local/texlive/2021/texmf-dist/truetype") |
+    url ("/usr/local/texlive/2022/texmf-dist/opentype") |
+    url ("/usr/local/texlive/2022/texmf-dist/truetype");
+#endif
+  return roots;
+}
+
+#ifdef USE_FONTCONFIG
+static hashmap<string,string> tt_platform_fonts ("");
+static url tt_platform_dirs= url_none ();
+static string tt_platform_signature;
+static bool tt_platform_initialized= false;
+
+static string
+tt_font_basename (string path) {
+  int pos= N(path);
+  while (pos > 0 && path[pos-1] != '/' && path[pos-1] != '\\') pos--;
+  return path (pos, N(path));
+}
+
+static string
+tt_font_strip_extension (string name) {
+  string lower= locase_all (name);
+  if (ends (lower, ".dfont")) return name (0, N(name) - 6);
+  if (ends (lower, ".ttf") || ends (lower, ".ttc") ||
+      ends (lower, ".otf") || ends (lower, ".pfb"))
+    return name (0, N(name) - 4);
+  return name;
+}
+
+static void
+tt_platform_add_name (string name, string path) {
+  if (name != "" && !tt_platform_fonts->contains (name))
+    tt_platform_fonts (name)= path;
+}
+
+static void
+tt_platform_add_pattern_names (FcPattern* pattern, const char* field,
+                               string path) {
+  for (int i=0; ; i++) {
+    FcChar8* value= nullptr;
+    if (FcPatternGetString (pattern, field, i, &value) != FcResultMatch) break;
+    tt_platform_add_name (string ((const char*) value), path);
+  }
+}
+
+static void
+tt_platform_collect_set (FcFontSet* set) {
+  if (set == nullptr) return;
+  for (int i=0; i<set->nfont; i++) {
+    FcChar8* file= nullptr;
+    FcPattern* pattern= set->fonts[i];
+    if (FcPatternGetString (pattern, FC_FILE, 0, &file) != FcResultMatch)
+      continue;
+    string path ((const char*) file);
+    string base= tt_font_basename (path);
+    tt_platform_add_name (base, path);
+    tt_platform_add_name (tt_font_strip_extension (base), path);
+    tt_platform_add_pattern_names (pattern, FC_FAMILY, path);
+    tt_platform_add_pattern_names (pattern, FC_FULLNAME, path);
+    tt_platform_add_pattern_names (pattern, FC_POSTSCRIPT_NAME, path);
+  }
+}
+
+static void
+tt_fontconfig_add_dir (FcConfig* config, url u) {
+  if (is_none (u)) return;
+  if (is_or (u)) {
+    tt_fontconfig_add_dir (config, u[1]);
+    tt_fontconfig_add_dir (config, u[2]);
+    return;
+  }
+  if (!is_directory (u)) return;
+  string path= concretize (u);
+  FcConfigAppFontAddDir (config, (const FcChar8*) &path[0]);
+}
+
+static void
+tt_platform_font_catalog () {
+  string signature= tt_font_cache_signature ();
+  if (tt_platform_initialized && signature == tt_platform_signature) return;
+
+  bench_start ("platform font catalog");
+  tt_platform_fonts= hashmap<string,string> ("");
+  tt_platform_dirs= url_none ();
+
+  FcConfig* config= FcInitLoadConfigAndFonts ();
+  if (config != nullptr) {
+    string xtt= get_env ("ATHENA_FONT_PATH");
+    string ximp= get_preference ("imported fonts", "");
+    tt_fontconfig_add_dir (config, tt_private_font_roots (xtt, ximp));
+
+    // Prefer bundled and imported fonts over an older system duplicate.
+    tt_platform_collect_set (FcConfigGetFonts (config, FcSetApplication));
+    tt_platform_collect_set (FcConfigGetFonts (config, FcSetSystem));
+
+    FcStrList* dirs= FcConfigGetFontDirs (config);
+    if (dirs != nullptr) {
+      const FcChar8* dir;
+      while ((dir= FcStrListNext (dirs)) != nullptr)
+        tt_platform_dirs= add_to_path (
+          tt_platform_dirs, url_system (string ((const char*) dir)));
+      FcStrListDone (dirs);
+    }
+    FcConfigDestroy (config);
+  }
+
+  tt_platform_signature= signature;
+  tt_platform_initialized= true;
+  bench_cumul ("platform font catalog");
+}
+
+static url
+tt_platform_font_find (string name) {
+  tt_platform_font_catalog ();
+  if (!tt_platform_fonts->contains (name)) return url_none ();
+  url u= url_system (tt_platform_fonts[name]);
+  return exists (u)? u: url_none ();
+}
+
+static url
+tt_platform_font_path () {
+  tt_platform_font_catalog ();
+  return tt_platform_dirs;
+}
+#else
+static url
+tt_platform_font_find (string name) {
+  (void) name;
+  return url_none ();
+}
+
+static url
+tt_platform_font_path () {
+  return url_none ();
+}
+#endif
+
+static url
+tt_fontconfig_path () {
+  return tt_platform_font_path ();
+}
+
 url
 tt_font_path () {
   static bool initialized= false;
@@ -138,7 +305,7 @@ tt_font_path () {
   if (initialized && xtt == cached_xtt && ximp == cached_imported)
     return cached_path;
 
-  tree key= tuple ("path", tt_font_cache_signature (xtt, ximp));
+  string key= tt_font_cache_key ("path", tt_font_cache_signature (xtt, ximp));
   if (is_cached (TT_FONT_PATH_CACHE, key)) {
     url cached= tt_font_path_decode (cache_get (TT_FONT_PATH_CACHE, key)->label);
     if (!is_none (cached)) {
@@ -151,6 +318,10 @@ tt_font_path () {
   }
 
   bench_start ("tt font path");
+#ifdef USE_FONTCONFIG
+  cached_path= tt_platform_font_path () |
+               search_sub_dirs (tt_private_font_roots (xtt, ximp));
+#else
   url xu= url_none ();
   if (xtt != "") xu= search_sub_dirs (xtt);
   if (ximp != "") xu= xu | search_sub_dirs (url_unix (ximp));
@@ -194,6 +365,7 @@ tt_font_path () {
     search_sub_dirs ("/usr/local/texlive/2022/texmf-dist/fonts/opentype") |
     search_sub_dirs ("/usr/local/texlive/2022/texmf-dist/fonts/truetype");
 #endif
+#endif
   bench_cumul ("tt font path");
   cache_set (TT_FONT_PATH_CACHE, key, tt_font_path_encode (cached_path));
   cached_xtt= xtt;
@@ -213,8 +385,8 @@ tt_font_cache_warmup () {
   if (tt_font_file_index_ready || tt_font_file_index_building) return;
   tt_font_file_index_building= true;
 
-  tree sig= tt_font_cache_signature ();
-  tree ready_key= tuple ("ready", sig);
+  string sig= tt_font_cache_signature ();
+  string ready_key= tt_font_cache_key ("ready", sig);
   if (is_cached (TT_FONT_FILE_INDEX_CACHE, ready_key) &&
       cache_get (TT_FONT_FILE_INDEX_CACHE, ready_key)->label == "yes") {
     tt_font_file_index_ready= true;
@@ -223,7 +395,9 @@ tt_font_cache_warmup () {
   }
 
   bench_start ("tt font file index");
-  url font_path= tt_font_path ();
+  string xtt= get_env ("ATHENA_FONT_PATH");
+  string ximp= get_preference ("imported fonts", "");
+  url font_path= search_sub_dirs (tt_private_font_roots (xtt, ximp));
   array<url> dirs;
   tt_collect_font_dirs (font_path, dirs);
   int indexed= 0;
@@ -233,7 +407,7 @@ tt_font_cache_warmup () {
     if (error) continue;
     for (int j=0; j<N(files); j++) {
       if (!tt_font_file_extension (files[j])) continue;
-      tree key= tuple ("file", sig, files[j]);
+      string key= tt_font_cache_key ("file", sig, files[j]);
       if (!is_cached (TT_FONT_FILE_INDEX_CACHE, key)) {
         cache_set (TT_FONT_FILE_INDEX_CACHE, key,
                    concretize (dirs[i] * url (files[j])));
@@ -258,7 +432,7 @@ tt_font_index_find (string name) {
   if (!tt_font_file_index_ready && !tt_font_file_index_building)
     tt_font_cache_warmup ();
 
-  tree key= tuple ("file", tt_font_cache_signature (), name);
+  string key= tt_font_cache_key ("file", tt_font_cache_signature (), name);
   if (!is_cached (TT_FONT_FILE_INDEX_CACHE, key)) return url_none ();
   url u= url_system (cache_get (TT_FONT_FILE_INDEX_CACHE, key)->label);
   if (exists (u)) return u;
@@ -285,7 +459,10 @@ tt_locate (string name) {
     //cout << "tt_locate: " << name << " -> " << u << "\n";
     if (!is_none (u)) return u;
   }
-  else if (use_locate &&
+  url platform= tt_platform_font_find (name);
+  if (!is_none (platform)) return platform;
+
+  if (use_locate &&
 	   // NOTE: avoiding unnecessary locates can greatly improve timings
 	   !starts (name, "ec") &&
 	   !starts (name, "la") &&
@@ -313,8 +490,11 @@ tt_locate (string name) {
 
   url indexed= tt_font_index_find (name);
   if (!is_none (indexed)) return indexed;
+  if (!tt_font_file_index_warmup_disabled) return url_none ();
 
-  url tt_path= tt_font_path ();
+  string xtt= get_env ("ATHENA_FONT_PATH");
+  string ximp= get_preference ("imported fonts", "");
+  url tt_path= search_sub_dirs (tt_private_font_roots (xtt, ximp));
   //cout << "Resolve " << name << " in " << tt_path << "\n";
   return resolve (tt_path * name);
 }
@@ -341,6 +521,9 @@ tt_font_find_sub (string name) {
 
 url
 tt_font_find (string name) {
+  url platform= tt_platform_font_find (name);
+  if (!is_none (platform)) return platform;
+
   string s= "ttf:" * name;
   if (is_cached ("font_cache.scm", s)) {
     string r= cache_get ("font_cache.scm", s) -> label;
