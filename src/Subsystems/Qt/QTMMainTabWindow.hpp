@@ -21,6 +21,7 @@
 #include <DockManager.h>
 
 bool athena_qt_is_closing ();
+bool athena_has_open_ads_panes ();
 void qtm_apply_ads_tab_close_preferences ();
 
 /**
@@ -51,6 +52,7 @@ public:
   void restoreAdsVisiblePanes();
 
   QList<QWidget*> documentWidgets() const;
+  bool hasOpenAdsPanes() const;
   QWidget* currentDocumentWidget() const;
   QString documentWidgetTitle(QWidget* widget) const;
   void activateDocumentWidget(QWidget* widget);

@@ -204,24 +204,30 @@
              (when answ (buffer-close (current-buffer))))))
         (else (buffer-close (current-buffer)))))
 
+(define (close-buffer-after-window buf)
+  ;; Keep one passive buffer while ADS panes are the only remaining UI.
+  ;; Several core paths assume that TeXmacs never has zero buffers.
+  (when (or (> (windows-number) 0) (not (ads-open-panes?)))
+    (buffer-close buf)))
+
 (define (do-kill-window)
   (with buf (current-buffer)
     (kill-window (current-window))
     (delayed
       (:idle 100)
-      (buffer-close buf))))
+      (close-buffer-after-window buf))))
 
 (define (do-kill-window* u)
  (with buf (window->buffer u)
    (kill-window u)
    (delayed
      (:idle 100)
-     (buffer-close buf))))
+     (close-buffer-after-window buf))))
 
 (tm-define (safely-kill-window . opt-name)
   (cond ((and (buffer-embedded? (current-buffer)) (null? opt-name))
          (alt-windows-delete (alt-window-search (current-buffer))))
-        ((<= (windows-number) 1)
+        ((and (<= (windows-number) 1) (not (ads-open-panes?)))
          (safely-quit-ATHENA))        ((nnull? opt-name)
          (with buf (window->buffer (car opt-name))
            (if (and buf (buffer-modified? buf))

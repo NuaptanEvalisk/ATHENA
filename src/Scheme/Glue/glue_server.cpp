@@ -624,6 +624,15 @@ tmg_ads_prepare_floating () {
 }
 
 tmscm
+tmg_ads_open_panesP () {
+  // TMSCM_DEFER_INTS;
+  bool out= get_server()->ads_open_panes ();
+  // TMSCM_ALLOW_INTS;
+
+  return bool_to_tmscm (out);
+}
+
+tmscm
 tmg_mdi_attach () {
   // TMSCM_DEFER_INTS;
   get_server()->mdi_attach ();
@@ -715,6 +724,7 @@ initialize_glue_server () {
   tmscm_install_procedure ("mdi-detach",  tmg_mdi_detach, 0, 0, 0);
   tmscm_install_procedure ("ads-detach",  tmg_ads_detach, 0, 0, 0);
   tmscm_install_procedure ("ads-prepare-floating",  tmg_ads_prepare_floating, 0, 0, 0);
+  tmscm_install_procedure ("ads-open-panes?",  tmg_ads_open_panesP, 0, 0, 0);
   tmscm_install_procedure ("mdi-attach",  tmg_mdi_attach, 0, 0, 0);
   tmscm_install_procedure ("recall-message",  tmg_recall_message, 0, 0, 0);
   tmscm_install_procedure ("yes?",  tmg_yesP, 1, 0, 0);

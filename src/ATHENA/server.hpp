@@ -120,6 +120,7 @@ public:
   virtual void   mdi_attach () = 0;
   virtual void   ads_detach () = 0;
   virtual void   ads_prepare_floating () = 0;
+  virtual bool   ads_open_panes () = 0;
   };class server {
   ABSTRACT(server);
   server ();

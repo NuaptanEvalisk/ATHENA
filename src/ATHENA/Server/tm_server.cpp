@@ -228,6 +228,15 @@ tm_server_rep::ads_prepare_floating () {
 #endif
 }
 
+bool
+tm_server_rep::ads_open_panes () {
+#ifdef QTTEXMACS
+  return athena_has_open_ads_panes ();
+#else
+  return false;
+#endif
+}
+
 void
 tm_server_rep::mdi_attach () {
 #ifdef QTTEXMACS

@@ -70,6 +70,7 @@
   (mdi-detach mdi_detach (void))
   (ads-detach ads_detach (void))
   (ads-prepare-floating ads_prepare_floating (void))
+  (ads-open-panes? ads_open_panes (bool))
   (mdi-attach mdi_attach (void))
   (recall-message recall_message (void))
   (yes? is_yes (bool string))

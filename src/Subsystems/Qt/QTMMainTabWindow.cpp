@@ -42,6 +42,17 @@ athena_qt_is_closing () {
   return gAthenaQtClosing;
 }
 
+bool
+athena_has_open_ads_panes () {
+  if (qApp == nullptr || !tmapp()->useAds ()) return false;
+
+  for (QWidget* widget: QApplication::topLevelWidgets ()) {
+    QTMMainTabWindow* window= qobject_cast<QTMMainTabWindow*> (widget);
+    if (window != nullptr && window->hasOpenAdsPanes ()) return true;
+  }
+  return false;
+}
+
 void
 qtm_apply_ads_tab_close_preferences () {
   ads::CDockManager::setConfigFlag (
@@ -743,6 +754,20 @@ QTMMainTabWindow::documentWidgets() const {
   return out;
 }
 
+bool
+QTMMainTabWindow::hasOpenAdsPanes() const {
+  if (!tmapp()->useAds () || mDockManager == nullptr) return false;
+
+  QMap<QString, ads::CDockWidget*> docks= mDockManager->dockWidgetsMap ();
+  for (auto it= docks.constBegin (); it != docks.constEnd (); ++it) {
+    ads::CDockWidget* dock= it.value ();
+    if (dock != nullptr && (!dock->isClosed () || dock->isVisible ()) &&
+        !isDocumentWidget (dock->widget ()))
+      return true;
+  }
+  return false;
+}
+
 QWidget*
 QTMMainTabWindow::currentDocumentWidget() const {
   QWidget* current= nullptr;
@@ -820,7 +845,7 @@ void QTMMainTabWindow::removeWidget(QWidget *widget) {
     mTabWidget->removeTab(mTabWidget->indexOf(widget));
   }
   
-  if (nr_windows <= 1) {
+  if (nr_windows <= 1 && !hasOpenAdsPanes ()) {
     if (is_server_started()) {
       AthenaQtClosingGuard guard;
       eval("(safely-quit-ATHENA)");

@@ -46,6 +46,7 @@ public:
   void   mdi_attach ();
   void   ads_detach ();
   void   ads_prepare_floating ();
+  bool   ads_open_panes ();
 
   /* Miscellaneous routines */
   void   style_clear_cache ();

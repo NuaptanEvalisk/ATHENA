@@ -305,6 +305,10 @@ kill_window (url wname) {
       return;
     }
   }
+  if (get_server () -> ads_open_panes ()) {
+    delete_window (wname);
+    return;
+  }
   get_server () -> quit ();
 }
 
