@@ -105,9 +105,20 @@
   <section|Namespace Manager>
 
   Use <menu|Tools|Namespace Manager> to create and maintain namespaces in the
-  active vault. The manager opens as a dock pane. It contains the namespace list,
-  editable namespace fields, parent relation controls, and matched-file
-  diagnostics.
+  active vault. The manager opens as a dock pane. Its namespace list remains
+  visible on the left, while the editor on the right is divided into five tabs:
+  <em|Definition> contains the name, kind, filename template, and sorter;
+  <em|Documents> contains the style, initial content, and homepage;
+  <em|Hierarchy> contains explicit and derived parents; <em|Matched Files>
+  shows the files selected by the saved template and sorter; and
+  <em|Relation Decisions> edits the vault-wide allow and deny decisions used
+  while deriving the hierarchy.
+
+  The toolbar remains available on every tab. <em|Update namespace> saves all
+  fields, including fields on tabs other than the visible one. When a namespace
+  has unsaved changes, selecting another namespace asks whether to save,
+  discard, or cancel the switch. A validation error selects the tab and field
+  that need attention.
 
   To create a namespace, press <em|New namespace...>, choose whether it is
   abstract, semi-concrete, or concrete, then fill the relevant fields. Names

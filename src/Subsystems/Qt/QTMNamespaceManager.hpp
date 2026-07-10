@@ -28,6 +28,7 @@ class QAction;
 class QPushButton;
 class QTreeWidget;
 class QTreeWidgetItem;
+class QTabWidget;
 
 class QTMNamespaceManager : public QWidget {
 public:
@@ -43,7 +44,7 @@ private:
   void refreshRelations ();
   void loadNamespace (QListWidgetItem* item);
   void newNamespace ();
-  void saveNamespace ();
+  bool saveNamespace ();
   void deleteNamespace ();
   void generateSubproducts ();
   void updateModeUi ();
@@ -58,6 +59,11 @@ private:
   void saveRelation ();
   void deleteSelectedRelation ();
   void setSelectedRelationDecision (const QString& decision);
+  void markDirty ();
+  void switchToNamespace (const QString& name);
+  void restoreLoadedSelection ();
+  void showValidationError (QWidget* tab, QWidget* field,
+                            const QString& message);
   QStringList selectedRelationKeys () const;
   QStringList selectedNamespaceNames () const;
   void showNamespaceContextMenu (const QPoint& pos);
@@ -89,7 +95,15 @@ private:
   QLineEdit*   relationChildEdit;
   QComboBox*   relationDecisionCombo;
   QLabel*      statusLabel;
+  QTabWidget*  editorTabs;
+  QWidget*     definitionTab;
+  QWidget*     documentsTab;
+  QWidget*     hierarchyTab;
+  QWidget*     matchedFilesTab;
+  QWidget*     relationDecisionsTab;
   QString      loadedName;
+  bool         loadingUi;
+  bool         dirty;
 };
 
 void namespace_manager_show ();

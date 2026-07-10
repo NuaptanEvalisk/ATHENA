@@ -46,8 +46,11 @@
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QRadioButton>
+#include <QScrollArea>
+#include <QSignalBlocker>
 #include <QSplitter>
 #include <QStyle>
+#include <QTabWidget>
 #include <QToolBar>
 #include <QTreeWidget>
 #include <QTreeWidgetItem>
@@ -936,7 +939,15 @@ QTMNamespaceManager::QTMNamespaceManager (QWidget* parent)
     relationParentEdit (new QLineEdit (this)),
     relationChildEdit (new QLineEdit (this)),
     relationDecisionCombo (new QComboBox (this)),
-    statusLabel (new QLabel (this)) {
+    statusLabel (new QLabel (this)),
+    editorTabs (new QTabWidget (this)),
+    definitionTab (nullptr),
+    documentsTab (nullptr),
+    hierarchyTab (nullptr),
+    matchedFilesTab (nullptr),
+    relationDecisionsTab (nullptr),
+    loadingUi (false),
+    dirty (false) {
   kindCombo->addItems (QStringList () << "concrete" << "semi-concrete"
                                       << "abstract");
   relationDecisionCombo->addItems (QStringList () << "allow" << "deny");
@@ -944,6 +955,7 @@ QTMNamespaceManager::QTMNamespaceManager (QWidget* parent)
   namespaceList->setSelectionMode (QAbstractItemView::ExtendedSelection);
   namespaceList->setUniformItemSizes (true);
   namespaceList->setContextMenuPolicy (Qt::CustomContextMenu);
+  namespaceList->setMinimumWidth (260);
   explicitParentsList->setSelectionMode (QAbstractItemView::ExtendedSelection);
   explicitParentsList->setUniformItemSizes (true);
   explicitParentsList->setMinimumHeight (84);
@@ -1000,11 +1012,21 @@ QTMNamespaceManager::QTMNamespaceManager (QWidget* parent)
                       "Refresh", this, [this] () { refreshAll (); })
           ->setToolTip ("Refresh");
 
-  QFormLayout* form= new QFormLayout ();
-  form->setFieldGrowthPolicy (QFormLayout::ExpandingFieldsGrow);
-  form->addRow ("Name", nameEdit);
-  form->addRow ("Kind", kindCombo);
-  form->addRow ("Template", templateEdit);
+  auto scrollableTab= [this] (QWidget* content) {
+    QScrollArea* area= new QScrollArea (this);
+    area->setWidgetResizable (true);
+    area->setFrameShape (QFrame::NoFrame);
+    area->setWidget (content);
+    return area;
+  };
+
+  QWidget* definitionContent= new QWidget (this);
+  QFormLayout* definitionForm= new QFormLayout (definitionContent);
+  definitionForm->setContentsMargins (12, 12, 12, 12);
+  definitionForm->setFieldGrowthPolicy (QFormLayout::ExpandingFieldsGrow);
+  definitionForm->addRow ("Name", nameEdit);
+  definitionForm->addRow ("Kind", kindCombo);
+  definitionForm->addRow ("Filename template", templateEdit);
   QWidget* sorterWidget= new QWidget (this);
   QVBoxLayout* sorterLayout= new QVBoxLayout (sorterWidget);
   sorterLayout->setContentsMargins (0, 0, 0, 0);
@@ -1016,21 +1038,29 @@ QTMNamespaceManager::QTMNamespaceManager (QWidget* parent)
   sorterPathLayout->addWidget (sorterBrowseButton);
   sorterLayout->addLayout (sorterPathLayout);
   sorterLayout->addWidget (trivialSorterCheck);
-  form->addRow ("Sorter .c path", sorterWidget);
+  definitionForm->addRow ("Sorter .c path", sorterWidget);
+  definitionForm->addItem (new QSpacerItem (0, 0, QSizePolicy::Minimum,
+                                             QSizePolicy::Expanding));
+  definitionTab= scrollableTab (definitionContent);
+
+  QWidget* documentsContent= new QWidget (this);
+  QFormLayout* documentsForm= new QFormLayout (documentsContent);
+  documentsForm->setContentsMargins (12, 12, 12, 12);
+  documentsForm->setFieldGrowthPolicy (QFormLayout::ExpandingFieldsGrow);
   QWidget* styleWidget= new QWidget (this);
   QHBoxLayout* styleLayout= new QHBoxLayout (styleWidget);
   styleLayout->setContentsMargins (0, 0, 0, 0);
   styleLayout->setSpacing (4);
   styleLayout->addWidget (styleEdit, 1);
   styleLayout->addWidget (styleBrowseButton);
-  form->addRow ("Style path", styleWidget);
+  documentsForm->addRow ("Style path", styleWidget);
   QWidget* initialContentWidget= new QWidget (this);
   QHBoxLayout* initialContentLayout= new QHBoxLayout (initialContentWidget);
   initialContentLayout->setContentsMargins (0, 0, 0, 0);
   initialContentLayout->setSpacing (4);
   initialContentLayout->addWidget (initialContentEdit, 1);
   initialContentLayout->addWidget (initialContentBrowseButton);
-  form->addRow ("Initial content", initialContentWidget);
+  documentsForm->addRow ("Initial content", initialContentWidget);
   QWidget* homepageWidget= new QWidget (this);
   QHBoxLayout* homepageLayout= new QHBoxLayout (homepageWidget);
   homepageLayout->setContentsMargins (0, 0, 0, 0);
@@ -1039,7 +1069,20 @@ QTMNamespaceManager::QTMNamespaceManager (QWidget* parent)
   homepageLayout->addWidget (homepageBrowseButton);
   homepageLayout->addWidget (homepageCreateButton);
   homepageLayout->addWidget (homepageEditButton);
-  form->addRow ("Homepage", homepageWidget);
+  documentsForm->addRow ("Homepage", homepageWidget);
+  documentsForm->addItem (new QSpacerItem (0, 0, QSizePolicy::Minimum,
+                                            QSizePolicy::Expanding));
+  documentsTab= scrollableTab (documentsContent);
+
+  hierarchyTab= new QWidget (this);
+  QHBoxLayout* hierarchyLayout= new QHBoxLayout (hierarchyTab);
+  hierarchyLayout->setContentsMargins (12, 12, 12, 12);
+  QSplitter* hierarchySplitter= new QSplitter (Qt::Horizontal, hierarchyTab);
+  QWidget* explicitParentsPane= new QWidget (hierarchySplitter);
+  QVBoxLayout* explicitPaneLayout= new QVBoxLayout (explicitParentsPane);
+  explicitPaneLayout->setContentsMargins (0, 0, 6, 0);
+  explicitPaneLayout->addWidget (new QLabel ("Explicit parents",
+                                             explicitParentsPane));
   QWidget* explicitParentsWidget= new QWidget (this);
   QVBoxLayout* explicitParentsLayout= new QVBoxLayout (explicitParentsWidget);
   explicitParentsLayout->setContentsMargins (0, 0, 0, 0);
@@ -1054,55 +1097,82 @@ QTMNamespaceManager::QTMNamespaceManager (QWidget* parent)
   explicitParentControls->addWidget (addParent);
   explicitParentControls->addWidget (removeParent);
   explicitParentsLayout->addLayout (explicitParentControls);
-  form->addRow ("Explicit parents", explicitParentsWidget);
-  form->addRow ("Derived parents", derivedParentsList);
+  explicitPaneLayout->addWidget (explicitParentsWidget, 1);
+  QWidget* derivedParentsPane= new QWidget (hierarchySplitter);
+  QVBoxLayout* derivedPaneLayout= new QVBoxLayout (derivedParentsPane);
+  derivedPaneLayout->setContentsMargins (6, 0, 0, 0);
+  derivedPaneLayout->addWidget (new QLabel ("Derived parents",
+                                            derivedParentsPane));
+  derivedPaneLayout->addWidget (derivedParentsList, 1);
+  hierarchySplitter->addWidget (explicitParentsPane);
+  hierarchySplitter->addWidget (derivedParentsPane);
+  hierarchySplitter->setStretchFactor (0, 1);
+  hierarchySplitter->setStretchFactor (1, 1);
+  hierarchyLayout->addWidget (hierarchySplitter);
 
-  QHBoxLayout* relationEditLayout= new QHBoxLayout ();
-  relationEditLayout->addWidget (new QLabel ("Parent", this));
-  relationEditLayout->addWidget (relationParentEdit, 2);
-  relationEditLayout->addWidget (new QLabel ("Child", this));
-  relationEditLayout->addWidget (relationChildEdit, 2);
-  relationEditLayout->addWidget (relationDecisionCombo);
+  matchedFilesTab= new QWidget (this);
+  QVBoxLayout* matchedFilesLayout= new QVBoxLayout (matchedFilesTab);
+  matchedFilesLayout->setContentsMargins (8, 8, 8, 8);
+  matchedFilesLayout->addWidget (membersTree);
+
+  relationDecisionsTab= new QWidget (this);
+  QVBoxLayout* relationLayout= new QVBoxLayout (relationDecisionsTab);
+  relationLayout->setContentsMargins (8, 8, 8, 8);
+  relationLayout->addWidget (relationsTree, 1);
+  QFormLayout* relationForm= new QFormLayout ();
+  relationForm->setFieldGrowthPolicy (QFormLayout::ExpandingFieldsGrow);
+  relationForm->addRow ("Parent", relationParentEdit);
+  relationForm->addRow ("Child", relationChildEdit);
+  relationForm->addRow ("Decision", relationDecisionCombo);
+  relationLayout->addLayout (relationForm);
+  QHBoxLayout* relationCommands= new QHBoxLayout ();
   QPushButton* saveRel= new QPushButton ("Save relation", this);
   QPushButton* allowRel= new QPushButton ("Allow selected", this);
   QPushButton* denyRel= new QPushButton ("Deny selected", this);
   QPushButton* delRel= new QPushButton ("Delete selected", this);
-  relationEditLayout->addWidget (saveRel);
-  relationEditLayout->addWidget (allowRel);
-  relationEditLayout->addWidget (denyRel);
-  relationEditLayout->addWidget (delRel);
+  relationCommands->addWidget (saveRel);
+  relationCommands->addWidget (allowRel);
+  relationCommands->addWidget (denyRel);
+  relationCommands->addWidget (delRel);
+  relationCommands->addStretch (1);
+  relationLayout->addLayout (relationCommands);
+
+  editorTabs->addTab (definitionTab, "Definition");
+  editorTabs->addTab (documentsTab, "Documents");
+  editorTabs->addTab (hierarchyTab, "Hierarchy");
+  editorTabs->addTab (matchedFilesTab, "Matched Files");
+  editorTabs->addTab (relationDecisionsTab, "Relation Decisions");
 
   QWidget* editor= new QWidget (this);
   QVBoxLayout* editorLayout= new QVBoxLayout (editor);
   editorLayout->setContentsMargins (8, 0, 0, 0);
   modeLabel->setTextFormat (Qt::PlainText);
   editorLayout->addWidget (modeLabel);
-  editorLayout->addLayout (form);
-  editorLayout->addWidget (new QLabel ("Matched files", this));
-  editorLayout->addWidget (membersTree, 3);
-  editorLayout->addWidget (new QLabel ("Cached hierarchy decisions", this));
-  editorLayout->addWidget (relationsTree, 2);
-  editorLayout->addLayout (relationEditLayout);
+  editorLayout->addWidget (editorTabs, 1);
 
   QSplitter* splitter= new QSplitter (Qt::Horizontal, this);
   splitter->addWidget (namespaceList);
   splitter->addWidget (editor);
-  splitter->setStretchFactor (0, 1);
-  splitter->setStretchFactor (1, 4);
-  splitter->setSizes (QList<int> () << 260 << 900);
+  splitter->setCollapsible (0, false);
+  splitter->setStretchFactor (0, 0);
+  splitter->setStretchFactor (1, 1);
+  splitter->setSizes (QList<int> () << 300 << 880);
 
   statusLabel->setTextFormat (Qt::PlainText);
   statusLabel->setWordWrap (true);
+  statusLabel->setSizePolicy (QSizePolicy::Preferred, QSizePolicy::Maximum);
+  statusLabel->setAlignment (Qt::AlignLeft | Qt::AlignVCenter);
 
   QVBoxLayout* layout= new QVBoxLayout (this);
   layout->setContentsMargins (0, 0, 0, 0);
   layout->addWidget (toolbar);
-  layout->addWidget (splitter);
+  layout->addWidget (splitter, 1);
   layout->addWidget (statusLabel);
 
   connect (namespaceList, &QListWidget::itemSelectionChanged, this, [this] () {
+    if (loadingUi) return;
     QListWidgetItem* item= namespaceList->currentItem ();
-    if (item != nullptr) loadNamespace (item);
+    if (item != nullptr) switchToNamespace (item->text ());
   });
   connect (namespaceList, &QListWidget::customContextMenuRequested,
            this, [this] (const QPoint& pos) {
@@ -1135,7 +1205,7 @@ QTMNamespaceManager::QTMNamespaceManager (QWidget* parent)
   connect (homepageEditButton, &QPushButton::clicked, this,
            [this] () { editHomepage (); });
   connect (kindCombo, &QComboBox::currentTextChanged, this,
-           [this] () { updateModeUi (); });
+           [this] () { updateModeUi (); markDirty (); });
   connect (addParent, &QPushButton::clicked, this,
            [this] () { addExplicitParent (); });
   connect (removeParent, &QPushButton::clicked, this,
@@ -1143,15 +1213,78 @@ QTMNamespaceManager::QTMNamespaceManager (QWidget* parent)
   connect (explicitParentCombo->lineEdit (), &QLineEdit::returnPressed, this,
            [this] () { addExplicitParent (); });
   connect (trivialSorterCheck, &QCheckBox::toggled, this,
-           [this] () { updateModeUi (); });
+           [this] () { updateModeUi (); markDirty (); });
   connect (homepageEdit, &QLineEdit::textChanged, this,
-           [this] () { updateModeUi (); });
+           [this] () { updateModeUi (); markDirty (); });
+  for (QLineEdit* edit: { nameEdit, templateEdit, sorterEdit, styleEdit,
+                          initialContentEdit })
+    connect (edit, &QLineEdit::textChanged, this,
+             [this] () { markDirty (); });
   updateModeUi ();
 }
 
 QSize
 QTMNamespaceManager::sizeHint () const {
   return QSize (1180, 760);
+}
+
+void
+QTMNamespaceManager::markDirty () {
+  if (loadingUi || dirty) return;
+  dirty= true;
+  updateModeUi ();
+}
+
+void
+QTMNamespaceManager::restoreLoadedSelection () {
+  QSignalBlocker blocker (namespaceList);
+  QList<QListWidgetItem*> matches=
+    namespaceList->findItems (loadedName, Qt::MatchExactly);
+  if (!matches.isEmpty ()) namespaceList->setCurrentItem (matches.first ());
+  else namespaceList->clearSelection ();
+}
+
+void
+QTMNamespaceManager::switchToNamespace (const QString& name) {
+  if (name.isEmpty () || name == loadedName) return;
+  if (dirty && !loadedName.isEmpty ()) {
+    QMessageBox prompt (QMessageBox::Warning, "Unsaved Namespace Changes",
+      QString ("Save changes to namespace \"%1\" before selecting \"%2\"?")
+        .arg (loadedName, name), QMessageBox::NoButton, this);
+    QPushButton* save= prompt.addButton ("Save", QMessageBox::AcceptRole);
+    QPushButton* discard=
+      prompt.addButton ("Discard", QMessageBox::DestructiveRole);
+    prompt.addButton (QMessageBox::Cancel);
+    prompt.setDefaultButton (save);
+    prompt.exec ();
+    if (prompt.clickedButton () == save) {
+      if (!saveNamespace ()) {
+        restoreLoadedSelection ();
+        return;
+      }
+    }
+    else if (prompt.clickedButton () != discard) {
+      restoreLoadedSelection ();
+      return;
+    }
+  }
+
+  QList<QListWidgetItem*> matches=
+    namespaceList->findItems (name, Qt::MatchExactly);
+  if (matches.isEmpty ()) return;
+  {
+    QSignalBlocker blocker (namespaceList);
+    namespaceList->setCurrentItem (matches.first ());
+  }
+  loadNamespace (matches.first ());
+}
+
+void
+QTMNamespaceManager::showValidationError (QWidget* tab, QWidget* field,
+                                           const QString& message) {
+  editorTabs->setCurrentWidget (tab);
+  field->setFocus (Qt::OtherFocusReason);
+  QMessageBox::warning (this, "Namespace Manager", message);
 }
 
 void
@@ -1168,10 +1301,9 @@ QTMNamespaceManager::selectNamespace (const QString& name) {
   QList<QListWidgetItem*> matches=
     namespaceList->findItems (name, Qt::MatchExactly);
   if (matches.isEmpty ()) return false;
-  namespaceList->setCurrentItem (matches.first ());
+  switchToNamespace (name);
   namespaceList->scrollToItem (matches.first (),
                                QAbstractItemView::PositionAtCenter);
-  loadNamespace (matches.first ());
   namespaceList->setFocus ();
   return true;
 }
@@ -1183,8 +1315,11 @@ QTMNamespaceManager::refreshNamespaces () {
     statusLabel->setText ("Derived parent refresh failed: " +
                           to_qstring (error));
 
-  QString selected= namespaceList->currentItem () == nullptr
-    ? loadedName : namespaceList->currentItem ()->text ();
+  QString selected= loadedName;
+  if (selected.isEmpty () && namespaceList->currentItem () != nullptr)
+    selected= namespaceList->currentItem ()->text ();
+  bool previousLoading= loadingUi;
+  loadingUi= true;
   namespaceList->clear ();
   QString comboSelected= explicitParentCombo->currentText ();
   explicitParentCombo->clear ();
@@ -1199,13 +1334,36 @@ QTMNamespaceManager::refreshNamespaces () {
     namespaceList->findItems (selected, Qt::MatchExactly);
   if (!matches.isEmpty ()) namespaceList->setCurrentItem (matches.first ());
   else if (namespaceList->count () > 0) namespaceList->setCurrentRow (0);
+  else {
+    loadedName.clear ();
+    nameEdit->clear ();
+    kindCombo->setCurrentText ("concrete");
+    templateEdit->clear ();
+    trivialSorterCheck->setChecked (false);
+    sorterEdit->clear ();
+    styleEdit->clear ();
+    initialContentEdit->clear ();
+    homepageEdit->clear ();
+    explicitParentsList->clear ();
+    derivedParentsList->clear ();
+    dirty= false;
+  }
+  loadingUi= previousLoading;
+  if (!previousLoading && !dirty && namespaceList->currentItem () != nullptr)
+    loadNamespace (namespaceList->currentItem ());
+  else if (namespaceList->currentItem () == nullptr)
+    updateModeUi ();
 }
 
 void
 QTMNamespaceManager::refreshMembers () {
   membersTree->clear ();
   QString name= nameEdit->text ().trimmed ();
-  if (name.isEmpty ()) return;
+  if (name.isEmpty ()) {
+    int index= editorTabs->indexOf (matchedFilesTab);
+    if (index >= 0) editorTabs->setTabText (index, "Matched Files (0)");
+    return;
+  }
 
   string error;
   std::vector<athena_namespace_match> members=
@@ -1222,6 +1380,10 @@ QTMNamespaceManager::refreshMembers () {
     item->setText (3, to_qstring (concretize (m.file)));
     membersTree->addTopLevelItem (item);
   }
+  int index= editorTabs->indexOf (matchedFilesTab);
+  if (index >= 0)
+    editorTabs->setTabText (index,
+                            QString ("Matched Files (%1)").arg (members.size ()));
   if (error == "")
     statusLabel->setText (QString ("%1 matched file(s).").arg (members.size ()));
   else
@@ -1233,7 +1395,9 @@ QTMNamespaceManager::refreshMembers () {
 void
 QTMNamespaceManager::refreshRelations () {
   relationsTree->clear ();
-  for (const athena_namespace_relation& rel: athena_namespace_relations_list ()) {
+  std::vector<athena_namespace_relation> relations=
+    athena_namespace_relations_list ();
+  for (const athena_namespace_relation& rel: relations) {
     QTreeWidgetItem* item= new QTreeWidgetItem ();
     item->setText (0, to_qstring (rel.parent));
     item->setText (1, to_qstring (rel.child));
@@ -1241,6 +1405,10 @@ QTMNamespaceManager::refreshRelations () {
     item->setText (3, to_qstring (rel.source));
     relationsTree->addTopLevelItem (item);
   }
+  int index= editorTabs->indexOf (relationDecisionsTab);
+  if (index >= 0)
+    editorTabs->setTabText (
+      index, QString ("Relation Decisions (%1)").arg (relations.size ()));
 }
 
 void
@@ -1249,6 +1417,8 @@ QTMNamespaceManager::loadNamespace (QListWidgetItem* item) {
   athena_namespace_definition ns;
   if (!athena_namespace_get (from_qstring (item->text ()), ns)) return;
 
+  bool previousLoading= loadingUi;
+  loadingUi= true;
   loadedName= item->text ();
   nameEdit->setText (to_qstring (ns.name));
   kindCombo->setCurrentText (to_qstring (ns.kind));
@@ -1262,12 +1432,32 @@ QTMNamespaceManager::loadNamespace (QListWidgetItem* item) {
   homepageEdit->setText (to_qstring (ns.homepage_path));
   set_qlist_strings (explicitParentsList, ns.parents);
   set_qlist_strings (derivedParentsList, ns.derived_parents);
+  dirty= false;
+  loadingUi= previousLoading;
   updateModeUi ();
   refreshMembers ();
 }
 
 void
 QTMNamespaceManager::newNamespace () {
+  if (dirty && !loadedName.isEmpty ()) {
+    QMessageBox prompt (
+      QMessageBox::Warning, "Unsaved Namespace Changes",
+      QString ("Save changes to namespace \"%1\" before creating another "
+               "namespace?").arg (loadedName),
+      QMessageBox::NoButton, this);
+    QPushButton* save= prompt.addButton ("Save", QMessageBox::AcceptRole);
+    QPushButton* discard=
+      prompt.addButton ("Discard", QMessageBox::DestructiveRole);
+    prompt.addButton (QMessageBox::Cancel);
+    prompt.setDefaultButton (save);
+    prompt.exec ();
+    if (prompt.clickedButton () == save) {
+      if (!saveNamespace ()) return;
+    }
+    else if (prompt.clickedButton () != discard) return;
+  }
+
   QWizard wizard (this);
   wizard.setWindowTitle ("New Namespace");
   wizard.setWizardStyle (QWizard::ModernStyle);
@@ -1301,14 +1491,20 @@ QTMNamespaceManager::newNamespace () {
   }
 
   loadedName= to_qstring (ns.name);
+  dirty= false;
+  bool previousLoading= loadingUi;
+  loadingUi= true;
   refreshNamespaces ();
   refreshRelations ();
-  refreshMembers ();
+  loadingUi= previousLoading;
+  QList<QListWidgetItem*> created=
+    namespaceList->findItems (loadedName, Qt::MatchExactly);
+  if (!created.isEmpty ()) loadNamespace (created.first ());
   updateModeUi ();
   statusLabel->setText ("Namespace created.");
 }
 
-void
+bool
 QTMNamespaceManager::saveNamespace () {
   bool creating= loadedName.isEmpty ();
   athena_namespace_definition ns;
@@ -1339,26 +1535,43 @@ QTMNamespaceManager::saveNamespace () {
   }
 
   if (ns.name == "") {
-    QMessageBox::warning (this, "Namespace Manager",
-                          "Namespace name cannot be empty.");
-    return;
+    showValidationError (definitionTab, nameEdit,
+                         "Namespace name cannot be empty.");
+    return false;
   }
   if (std::string (as_charp (ns.name)).find ('!') != std::string::npos) {
-    QMessageBox::warning (this, "Namespace Manager",
-                          "Namespace name cannot contain '!'.");
-    return;
+    showValidationError (definitionTab, nameEdit,
+                         "Namespace name cannot contain '!'.");
+    return false;
+  }
+  if (ns.kind != "abstract" && ns.templ == "") {
+    showValidationError (
+      definitionTab, templateEdit,
+      "Concrete and semi-concrete namespaces need a filename template.");
+    return false;
+  }
+  if (ns.kind != "abstract" && !ns.sorter_trivial && ns.sorter_path == "") {
+    showValidationError (
+      definitionTab, sorterEdit,
+      "Choose a sorter C file or enable the trivial sorting algorithm.");
+    return false;
+  }
+  QString targetName= to_qstring (ns.name);
+  if (qlist_contains (explicitParentsList, targetName)) {
+    showValidationError (hierarchyTab, explicitParentCombo,
+                         "A namespace cannot be its own parent.");
+    return false;
   }
 
   athena_namespace_definition existing;
   bool targetExists= athena_namespace_get (ns.name, existing);
-  QString targetName= to_qstring (ns.name);
   if (creating && targetExists) {
     if (QMessageBox::question (
           this, "Update Namespace",
           QString ("Namespace \"%1\" already exists. Update it instead?")
             .arg (targetName),
           QMessageBox::Yes | QMessageBox::No) != QMessageBox::Yes)
-      return;
+      return false;
   }
   else if (!creating && loadedName != targetName) {
     if (targetExists) {
@@ -1367,36 +1580,42 @@ QTMNamespaceManager::saveNamespace () {
         QString ("Cannot rename to \"%1\" because that namespace already "
                  "exists. Select it from the list to edit it.")
           .arg (targetName));
-      return;
+      return false;
     }
     if (QMessageBox::question (
           this, "Rename Namespace",
           QString ("Rename namespace \"%1\" to \"%2\"?")
             .arg (loadedName, targetName),
           QMessageBox::Yes | QMessageBox::No) != QMessageBox::Yes)
-      return;
+      return false;
   }
 
   string error;
   if (!athena_namespace_save (ns, error)) {
+    editorTabs->setCurrentWidget (definitionTab);
     QMessageBox::warning (this, "Namespace Manager", to_qstring (error));
-    return;
+    return false;
   }
   if (!loadedName.isEmpty () && loadedName != to_qstring (ns.name)) {
     string ignored;
     athena_namespace_remove (from_qstring (loadedName), ignored);
   }
   loadedName= to_qstring (ns.name);
+  dirty= false;
+  bool previousLoading= loadingUi;
+  loadingUi= true;
   refreshNamespaces ();
   refreshRelations ();
+  loadingUi= previousLoading;
   refreshMembers ();
   updateModeUi ();
   statusLabel->setText (creating ? "Namespace created." : "Namespace updated.");
+  return true;
 }
 
 void
 QTMNamespaceManager::deleteNamespace () {
-  QString name= nameEdit->text ().trimmed ();
+  QString name= loadedName;
   if (name.isEmpty ()) return;
   if (QMessageBox::question (this, "Delete Namespace",
                              QString ("Delete namespace \"%1\"?").arg (name),
@@ -1409,6 +1628,8 @@ QTMNamespaceManager::deleteNamespace () {
     QMessageBox::warning (this, "Namespace Manager", to_qstring (error));
     return;
   }
+  loadedName.clear ();
+  dirty= false;
   refreshAll ();
   statusLabel->setText ("Namespace deleted.");
 }
@@ -1429,6 +1650,7 @@ QTMNamespaceManager::showNamespaceContextMenu (const QPoint& pos) {
   QListWidgetItem* item= namespaceList->itemAt (pos);
   if (item == nullptr) return;
   namespaceList->setCurrentItem (item);
+  if (loadedName != item->text ()) return;
 
   QMenu menu (this);
   menu.addAction ("Open direct hierarchy graph", this, [item] () {
@@ -1657,8 +1879,9 @@ QTMNamespaceManager::updateModeUi () {
       "Use New namespace... to create a namespace");
   }
   else {
-    modeLabel->setText (QString ("Mode: editing namespace \"%1\"")
-                        .arg (loadedName));
+    modeLabel->setText (
+      QString ("Mode: editing namespace \"%1\"%2")
+        .arg (loadedName, dirty ? QString (" (modified)") : QString ()));
     saveNamespaceAction->setText ("Update namespace");
     saveNamespaceAction->setToolTip (
       "Update the selected namespace using the current form fields");
@@ -1763,13 +1986,16 @@ QTMNamespaceManager::addExplicitParent () {
   }
   if (qlist_contains (explicitParentsList, parent)) return;
   explicitParentsList->addItem (parent);
+  markDirty ();
 }
 
 void
 QTMNamespaceManager::removeSelectedExplicitParents () {
   QList<QListWidgetItem*> items= explicitParentsList->selectedItems ();
+  if (items.isEmpty ()) return;
   for (QListWidgetItem* item: items)
     delete explicitParentsList->takeItem (explicitParentsList->row (item));
+  markDirty ();
 }
 
 void
