@@ -13,5 +13,5 @@
 
 (plugin-configure pnambic
   (:require (url-exists-in-path? "pnambic"))
-  (:launch "pnambic ~/.TeXmacs/plugins/pnambic/in ~/.TeXmacs/plugins/pnambic/out")
+  (:launch "pnambic $ATHENA_HOME_PATH/plugins/pnambic/in $ATHENA_HOME_PATH/plugins/pnambic/out")
   (:session "Pnambic"))

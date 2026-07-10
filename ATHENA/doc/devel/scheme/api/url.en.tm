@@ -28,7 +28,7 @@
   <\itemize-dot>
     <item>System format: the usual format on your operating system. On unix
     systems "/usr/bin:/usr/local/bin" would be a valid url representing a
-    path and on windows systems "c:\\windows;c:\\TeXmacs" would be OK.
+    path and on windows systems "c:\\windows;c:\\ATHENA" would be OK.
 
     <item>Unix format: this format forces unix-like notation even for other
     systems like Windows. This is convenient for url's in the source code.

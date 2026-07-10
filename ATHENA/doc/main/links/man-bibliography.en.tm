@@ -68,7 +68,7 @@
   </itemize>
 
   Notice that additional BiB<TeX> styles should be put in the directory
-  <verbatim|~/.TeXmacs/system/bib>.
+  <verbatim|~/.ATHENA/system/bib>.
 
   <tmdoc-copyright|2015|Joris van der Hoeven>
 

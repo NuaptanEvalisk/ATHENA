@@ -47,18 +47,18 @@
 #endif
 
 void setup_athena_path () {
-  /*string environment_texmacs_path;
-  if (texmacs_getenv ("ATHENA_PATH", environment_texmacs_path)) {
+  string environment_athena_path;
+  if (texmacs_getenv ("ATHENA_PATH", environment_athena_path)) {
     cout << "ATHENA_PATH is set to: " 
-         << environment_texmacs_path << LF;
+         << environment_athena_path << LF;
     return;
-  }*/
+  }
   url exedir = texmacs_get_application_directory ();
   cout << "Executable directory is: " 
        << exedir << LF;
-    if (test_athena_path (exedir * "TeXmacs")) {
+  if (test_athena_path (exedir * "ATHENA")) {
       cout << "ATHENA_PATH is autoset to: " 
-           << exedir * "TeXmacs" << LF;
+           << exedir * "ATHENA" << LF;
     return;
   }
   if (test_athena_path (exedir * "..")) {
@@ -71,10 +71,10 @@ void setup_athena_path () {
 
 void setup_athena_home_path () {
   url appdata_path = url_system(get_local_appdata_path());
-  url texmacs_home_path = appdata_path * "TeXmacs";
+  url athena_home_path = appdata_path * "ATHENA";
   cout << "ATHENA_HOME_PATH is autoset to: " 
-       << texmacs_home_path << LF;
-  texmacs_setenv("ATHENA_HOME_PATH", concretize(texmacs_home_path));
+       << athena_home_path << LF;
+  texmacs_setenv("ATHENA_HOME_PATH", concretize(athena_home_path));
 }
 
 int WINAPI CommonMain() {

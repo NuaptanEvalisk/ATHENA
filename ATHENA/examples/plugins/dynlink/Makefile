@@ -8,13 +8,13 @@
 # in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ###############################################################################
 
-tmsrc = /home/felix/data/Software/TeXmacs/texmacs/TeXmacs
+ATHENA_PATH ?= ../../..
 CXX = g++
 LD  = g++
 RM  = rm -f
 
 lib/libtmdynlink.so: src/dynlink.cpp
-	$(CXX) -I$(tmsrc)/include -c src/dynlink.cpp -o src/dynlink.o
+	$(CXX) -I$(ATHENA_PATH)/include -c src/dynlink.cpp -o src/dynlink.o
 	$(LD) -shared -o lib/libtmdynlink.so src/dynlink.o
 
 clean:

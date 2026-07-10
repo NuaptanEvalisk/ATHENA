@@ -8,7 +8,7 @@
   <section|Installation>
 
   Recursively copy the <verbatim|pnambic> directory to
-  <code*|~/.TeXmacs/plugins> and do
+  <code*|~/.ATHENA/plugins> and do
 
   <\shell-fragment>
     make
@@ -53,7 +53,7 @@
   Then we do
 
   <\shell-fragment>
-    cat out \| ~/.TeXmacs/plugins/pnambic/bin/p_out
+    cat out \| ~/.ATHENA/plugins/pnambic/bin/p_out
   </shell-fragment>
 
   This <code*|xterm> window will show us all bytes which <code*|extprog>
@@ -78,7 +78,7 @@
   You can simplify this process. Just run
 
   <\shell-fragment>
-    extprog --texmacs \| ~/.TeXmacs/plugins/pnambic/bin/p_out
+    extprog --texmacs \| ~/.ATHENA/plugins/pnambic/bin/p_out
   </shell-fragment>
 
   You see all characters you send to <code*|extprog>; you also see all bytes
@@ -91,7 +91,7 @@
 
   <\enumerate-numeric>
     <item>In an <code*|xterm> window, go to
-    <code*|~/.TeXmacs/plugins/pnambic> and say
+    <code*|~/.ATHENA/plugins/pnambic> and say
 
     <\shell-fragment>
       cat out
@@ -100,7 +100,7 @@
     <item>Start a <code*|Pnambic> session in <TeXmacs>
 
     <item>In another <code*|xterm> window, go to
-    <code*|~/.TeXmacs/plugins/pnambic> and say
+    <code*|~/.ATHENA/plugins/pnambic> and say
 
     <\shell-fragment>
       bin/p_in in

@@ -19,7 +19,7 @@
   </verbatim>
 
   where <verbatim|myplugin> is the name of your plugin. Here we recall that
-  <verbatim|$ATHENA_HOME_PATH> is bound to <verbatim|~/.TeXmacs>, by
+  <verbatim|$ATHENA_HOME_PATH> is bound to <verbatim|~/.ATHENA>, by
   default. In the directory <verbatim|$ATHENA_PATH/plugins> you can find all
   standard plugins, which are shipped with your <TeXmacs> distribution. These
   provide good examples which you may imitate.

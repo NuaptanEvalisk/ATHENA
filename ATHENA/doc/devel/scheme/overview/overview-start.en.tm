@@ -17,8 +17,8 @@
   or both of the initialization files
 
   <\verbatim>
-    \ \ \ \ ~/.TeXmacs/progs/my-init-texmacs.scm<new-line>
-    \ \ \ ~/.TeXmacs/progs/my-init-buffer.scm
+    \ \ \ \ ~/.ATHENA/progs/my-init-texmacs.scm<new-line>
+    \ \ \ ~/.ATHENA/progs/my-init-buffer.scm
   </verbatim>
 
   The file <verbatim|my-init-texmacs.scm> is loaded when booting <TeXmacs>
@@ -119,9 +119,9 @@
   additional <scheme> functionality is to create two directories and a file
 
   <\verbatim>
-    \ \ \ \ ~/.TeXmacs/plugins/<em|name><new-line>
-    \ \ \ ~/.TeXmacs/plugins/<em|name>/progs<new-line>
-    \ \ \ ~/.TeXmacs/plugins/<em|name>/progs/init-<em|name>.scm
+    \ \ \ \ ~/.ATHENA/plugins/<em|name><new-line>
+    \ \ \ ~/.ATHENA/plugins/<em|name>/progs<new-line>
+    \ \ \ ~/.ATHENA/plugins/<em|name>/progs/init-<em|name>.scm
   </verbatim>
 
   Furthermore, the file <verbatim|init-<em|name>.scm> should a piece of
@@ -146,7 +146,7 @@
   modules in the directory
 
   <\verbatim>
-    \ \ \ \ ~/.TeXmacs/plugins/<em|name>/progs
+    \ \ \ \ ~/.ATHENA/plugins/<em|name>/progs
   </verbatim>
 
   The initialization file <verbatim|init-<em|name>.scm> should then be kept

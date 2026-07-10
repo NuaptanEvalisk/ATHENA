@@ -30,7 +30,7 @@
     If you did not install <TeXmacs> yourself, or if you do not have write
     access to <verbatim|$ATHENA_PATH>, then you may also unpack the tarball
     in <verbatim|$ATHENA_HOME_PATH/plugins>. Here we recall that
-    <verbatim|$ATHENA_HOME_PATH> defaults to <verbatim|$HOME/.TeXmacs>. When
+    <verbatim|$ATHENA_HOME_PATH> defaults to <verbatim|$HOME/.ATHENA>. When
     starting <TeXmacs>, your plug-in should again be automatically
     recognized.
   </remark>

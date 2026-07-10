@@ -31,17 +31,18 @@
 #define EXPERIMENTAL_REEXEC_DETACHED 0
 
 void setup_athena_path () {
-  string environment_texmacs_path;
-  if (texmacs_getenv ("ATHENA_PATH", environment_texmacs_path)) return;
+  string environment_athena_path;
+  if (texmacs_getenv ("ATHENA_PATH", environment_athena_path)) return;
   url exedir = texmacs_get_application_directory ();
-  if (test_athena_path (exedir * "TeXmacs")) return;
+  if (test_athena_path (exedir * "ATHENA")) return;
   if (test_athena_path (exedir * "..")) return;
-  
-  if (test_athena_path (exedir * "usr/share/TeXmacs")) return;
-  if (test_athena_path (exedir * "usr/local/share/TeXmacs")) return;
-  if (test_athena_path (exedir * "../usr/share/TeXmacs")) return;
-  if (test_athena_path ("/usr/share/TeXmacs")) return;
-  if (test_athena_path ("/usr/local/share/TeXmacs")) return;
+
+  if (test_athena_path (exedir * "../share/ATHENA")) return;
+  if (test_athena_path (exedir * "usr/share/ATHENA")) return;
+  if (test_athena_path (exedir * "usr/local/share/ATHENA")) return;
+  if (test_athena_path (exedir * "../usr/share/ATHENA")) return;
+  if (test_athena_path ("/usr/share/ATHENA")) return;
+  if (test_athena_path ("/usr/local/share/ATHENA")) return;
 }
 
 #if EXPERIMENTAL_REEXEC_DETACHED

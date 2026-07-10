@@ -15,7 +15,7 @@
     <\unfolded-io|Shell] >
       echo $ATHENA_PATH
     <|unfolded-io>
-      /usr/share/TeXmacs
+      /usr/share/ATHENA
     </unfolded-io>
 
     <\unfolded-io|Shell] >

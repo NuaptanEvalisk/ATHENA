@@ -498,7 +498,7 @@ ATHENA_init_paths (int& argc, char** argv) {
   // to the bundle package. I still do not have a reliable solution
   // so just allow everything that is reachable.
         
-  // plugins need to be installed in TeXmacs.app/Contents/Plugins        
+  // Plugins need to be installed in ATHENA.app/Contents/Plugins.
   string plugins_path = concretize (exedir * "../Plugins");
   QCoreApplication::addLibraryPath(QString::fromUtf8(&plugins_path[0], N(plugins_path)));
   // cout << from_qstring ( QCoreApplication::libraryPaths () .join("\n") ) << LF;

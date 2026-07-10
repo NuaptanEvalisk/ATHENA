@@ -8,7 +8,7 @@ Pour avoir accès aux sessions TeXgraph à l'intérieur de TeXmacs, il vous faut
 
 1. Installer TeXgraph 1.94-beta (voir http://texgraph.forumpro.fr/forum.htm).
 
-2. Décompresser l'archive dans le dossier ~/.TeXmacs/plugins/.
+2. Décompresser l'archive dans le dossier ~/.ATHENA/plugins/.
 
 3. Copier le fichier texgraph_macros_texmacs.mac dans votre dossier TeXgraphMac ou bien dans le dossier d’installation TeXgraph/macros (pour pouvoir bénéficier des constructions détaillées supplémentaires)
 

@@ -241,11 +241,11 @@
         texmacs --setup
       </shell-code>
 
-      <item>Rename your <verbatim|~/.TeXmacs> directory (you may also delete
+      <item>Rename your <verbatim|~/.ATHENA> directory (you may also delete
       it, but that will irrevocably destroy all your preferences) and
       relaunch the editor. If you use Windows, then we note that you have no
-      <hgroup|<verbatim|~/.TeXmacs>> directory, but the hidden
-      <verbatim|AppData\\Roaming\\TeXmacs> subdirectory of your home
+      <hgroup|<verbatim|~/.ATHENA>> directory, but the hidden
+      <verbatim|AppData\\Roaming\\ATHENA> subdirectory of your home
       directory plays the same role.
 
       <item>Try reinstalling <TeXmacs>, preferably the latest version that

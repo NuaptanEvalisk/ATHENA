@@ -10,7 +10,7 @@
 
 CC = gcc
 
-ATHENA_HOME_PATH ?= $(HOME)/.TeXmacs
+ATHENA_HOME_PATH ?= $(HOME)/.ATHENA
 ATHENA_MAPLE_BIN ?= $(shell which maple)
 ATHENA_MAPLE_DIR ?= $(shell echo 'printf(kernelopts(mapledir));' | $(ATHENA_MAPLE_BIN) -q)
 MAPLE_SYS_BIN     ?= $(shell echo 'printf(kernelopts(bindir));' | $(ATHENA_MAPLE_BIN) -q)

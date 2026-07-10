@@ -125,7 +125,7 @@
     <\framed-fragment>
       <\with|par-par-sep|0fn>
         <\verbatim>
-          tmsrc = /home/vdhoeven/texmacs/src/TeXmacs
+          ATHENA_PATH ?= ../../..
 
           CXX = g++
 
@@ -135,7 +135,7 @@
 
           lib/libtmdynlink.so: src/dynlink.cpp
 
-          \ \ \ \ \ \ \ \ $(CXX) -I$(tmsrc)/include -c src/dynlink.cpp -o
+          \ \ \ \ \ \ \ \ $(CXX) -I$(ATHENA_PATH)/include -c src/dynlink.cpp -o
           src/dynlink.o
 
           \ \ \ \ \ \ \ \ $(LD) -shared -o lib/libtmdynlink.so src/dynlink.o

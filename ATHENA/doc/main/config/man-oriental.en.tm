@@ -25,7 +25,7 @@
   <verbatim|ipamp.ttf>, <verbatim|ipagm.ttf> and <verbatim|ipagui.ttf> and
   copy them to
 
-  <verbatim| \ \ \ ~/.TeXmacs/fonts/truetype>
+  <verbatim| \ \ \ ~/.ATHENA/fonts/truetype>
 
   After doing this, you may launch <TeXmacs> using
 

@@ -10,24 +10,24 @@
   <tmstyle|source> document style using <menu|Document|Style|source>. Now
   save your empty style package in your personal style package directory
 
-  <verbatim| \ \ \ $HOME/.TeXmacs/packages>
+  <verbatim| \ \ \ $HOME/.ATHENA/packages>
 
   Notice that the button <menu|Texts> in the file browser corresponds to the
   directory
 
-  <verbatim| \ \ \ $HOME/.TeXmacs/texts>
+  <verbatim| \ \ \ $HOME/.ATHENA/texts>
 
   Consequently, you can go to the style package directory from there, by
   double clicking on <verbatim|..> and next on <verbatim|packages>.
   Similarly, the directory
 
-  <verbatim| \ \ \ $HOME/.TeXmacs/styles>
+  <verbatim| \ \ \ $HOME/.ATHENA/styles>
 
   contains your personal style files. After saving your empty style package,
   it should automatically appear in the <menu|Document|Package> menu. Notice
   that style files must be saved using the <verbatim|.ts> file extension. If
   you save the style file in a subdirectory of
-  <verbatim|$HOME/.TeXmacs/packages>, then it will automatically appear in
+  <verbatim|$HOME/.ATHENA/packages>, then it will automatically appear in
   the corresponding submenu of <menu|Document|Package>.
 
   Let us now create a simple macro <markup|hi> which displays ``Hello

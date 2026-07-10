@@ -15,7 +15,7 @@
 
     <item><verbatim|$ATHENA_HOME_PATH> is the main user path for
     <apply|TeXmacs> files (documents, styles or programs). By default, this
-    path is set to <verbatim|~/.TeXmacs>.
+    path is set to <verbatim|~/.ATHENA>.
 
     <item><verbatim|$ATHENA_STYLE_ROOT> the root directories for style
     files. By default, this path contains <verbatim|$ATHENA_PATH/styles> and

@@ -29,13 +29,13 @@ plugins should be implemented in Scheme(Guile).
 For GNU TeXmacs 1.99.12 on macOS, we have to install the missing .octaverc via
 
 ``` bash
-wget https://github.com/texmacs/plugins/raw/master/octave/octave/.octaverc -O /Applications/TeXmacs-1.99.12.app/Contents/Resources/share/TeXmacs/plugins/octave/octave/.octaverc
+wget https://github.com/texmacs/plugins/raw/master/octave/octave/.octaverc -O /Applications/ATHENA.app/Contents/Resources/share/ATHENA/plugins/octave/octave/.octaverc
 ```
 
 or (It is a pity that Github is not always available for some areas)
 
 ``` bash
-wget https://gitee.com/texmacs/plugins/raw/master/octave/octave/.octaverc -O /Applications/TeXmacs-1.99.12.app/Contents/Resources/share/TeXmacs/plugins/octave/octave/.octaverc
+wget https://gitee.com/texmacs/plugins/raw/master/octave/octave/.octaverc -O /Applications/ATHENA.app/Contents/Resources/share/ATHENA/plugins/octave/octave/.octaverc
 ```
 
 ### PariGP

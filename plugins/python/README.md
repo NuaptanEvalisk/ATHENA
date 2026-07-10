@@ -7,10 +7,10 @@ under the `$ATHENA_HOME_PATH`:
 
 ``` bash
 # For GNU/Linux or macOS:
-git clone git@github.com:texmacs/python.git $HOME/.TeXmacs/plugins/python
+git clone git@github.com:texmacs/python.git $HOME/.ATHENA/plugins/python
 
 # For Windows:
-git clone git@github.com:texmacs/python.git %APPDATA%\TeXmacs\plugins\python
+git clone git@github.com:texmacs/python.git %APPDATA%\ATHENA\plugins\python
 ```
 ## Change the Python Interpreter
 Install the Python plugin to `$ATHENA_HOME_PATH/plugins` and then change

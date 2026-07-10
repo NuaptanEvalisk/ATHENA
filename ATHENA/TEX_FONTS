@@ -10,29 +10,30 @@ Using TeX fonts
    Furthermore, it provides the utility kpsepath,
    for finding the different directories where TeX fonts have been installed.
 
-2. When starting GNU TeXmacs for the first time, the program examines
-   the way your TeX system has been installed. The result of this
-   examination is written the file $ATHENA_HOME_PATH/system/TEX_PATHS.
-   By default, $ATHENA_HOME_PATH contains ~/.TeXmacs.
-   Whenever you change your TeX system, or if you add new fonts,
-   it may be a good idea to remove this file in order to recreate it.
+2. On first startup, ATHENA records the available TeX helper programs in
+   $ATHENA_HOME_PATH/system/sys_state.json. By default,
+   $ATHENA_HOME_PATH is ~/.ATHENA. ATHENA does not persist expanded TeX
+   directory lists: it resolves installed TeX fonts on demand using
+   kpsewhich, or falls back lazily to kpsepath and conventional directories.
+   Run ATHENA with --setup after changing the available TeX helper programs.
    In the directory $ATHENA_HOME_PATH/fonts/error, you also find
-   a trace of all fonts which GNU TeXmacs failed to create.
+   a trace of all fonts which ATHENA failed to create.
    When adding new fonts, you should remove all files in this directory.
 
 3. If the user did not install the TeTeX distribution or
    no TeX distribution at all, we provide by default
-   a limited set of compiled fonts in $ATHENA_PATH/data/tfm and
-   $ATHENA_PATH/data/pk. The user may also specify his own paths
+   a limited set of compiled fonts in $ATHENA_PATH/fonts/tfm and
+   $ATHENA_PATH/fonts/pk. The user may also specify custom paths through
    TEX_TFM_PATH and TEX_PK_PATH for .tfm and .pk files
    respectively. GNU TeXmacs uses the following algorithm to find fonts:
 
     - Look whether the font is in one of directories specified by
       the user paths TEX_TFM_PATH or TEX_PK_PATH.
     - Look whether the font is installed by default in
-      $ATHENA_PATH/data/tfm or $ATHENA_PATH/data/pk. 
-    - Look whether the font was already generated in
-      the TeTeX distribution (using kpsepath). 
+      $ATHENA_PATH/fonts/tfm or $ATHENA_PATH/fonts/pk.
+    - Ask kpsewhich for a font installed by the TeX distribution.
+    - Without kpsewhich, load kpsepath or conventional TeX directories only
+      when a requested font was not found through the normal paths.
     - Automatically generate the font using
       MakeTeXTFM and/or MakeTeXPK.
 

@@ -38,14 +38,14 @@
     # For GNU/Linux or macOS
 
     git clone https://github.com/texmacs/octave.git
-    $HOME/.TeXmacs/plugins/octave
+    $HOME/.ATHENA/plugins/octave
 
     \;
 
     # For Windows
 
     git clone https://github.com/texmacs/octave.git
-    %APPDATA%\\TeXmacs\\plugins\\octave
+    %APPDATA%\\ATHENA\\plugins\\octave
   </shell-code>
 
   For users who does not know about Git, please download the zip from Github

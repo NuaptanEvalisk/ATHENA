@@ -18,8 +18,8 @@
   </verbatim>
 
   if it exists. By default, the path <verbatim|$ATHENA_HOME_PATH> equals
-  <verbatim|%appdata%\\TeXmacs> on <name|Windows> or
-  <verbatim|$HOME/.TeXmacs> on <name|GNU>/<name|Linux> and <name|macOS>.
+  <verbatim|%appdata%\\ATHENA> on <name|Windows> or
+  <verbatim|$HOME/.ATHENA> on <name|GNU>/<name|Linux> and <name|macOS>.
   Similarly, each time you create a new buffer (either by creating a new file
   or opening an already existing one), the file
 

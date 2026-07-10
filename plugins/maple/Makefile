@@ -11,6 +11,7 @@
 CC = gcc
 CXX = g++
 RM = rm -f
+ATHENA_HOME_PATH ?= $(HOME)/.ATHENA
 
 all: bin/tm_maple_5
 
@@ -21,5 +22,5 @@ clean:
 	$(RM) *~
 	$(RM) */*~
 	$(RM) bin/tm_maple_5
-	$(RM) $(HOME)/.TeXmacs/bin/tm_maple_9.sh
-	$(RM) $(HOME)/.TeXmacs/bin/tm_maple_9
+	$(RM) $(ATHENA_HOME_PATH)/bin/tm_maple_9.sh
+	$(RM) $(ATHENA_HOME_PATH)/bin/tm_maple_9

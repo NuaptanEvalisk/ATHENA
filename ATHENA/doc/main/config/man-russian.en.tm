@@ -112,7 +112,7 @@
   type <key|s / h>. Of course, the choice of \Poptimal\Q mapping of Latin
   letters to Russian ones in not unique. You can investigate the mapping
   supplied with <TeXmacs> and, if you don't like something, override it in
-  your <verbatim|~/.TeXmacs/progs/my-init-texmacs.scm>.
+  your <verbatim|~/.ATHENA/progs/my-init-texmacs.scm>.
 
   If you select <verbatim|jcuken> instead of <verbatim|translit>, you get the
   \Pofficial\Q Russian typewriter layout. It is so called because the keys

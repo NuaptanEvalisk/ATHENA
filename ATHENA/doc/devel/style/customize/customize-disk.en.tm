@@ -36,7 +36,7 @@
   More precisely, the <markup|use-package> package sequentially includes the
   style packages corresponding to its arguments. The packages should be in
   <verbatim|$ATHENA_PACKAGE_PATH>, which contains <verbatim|.>,
-  <verbatim|~/.TeXmacs/packages> and <verbatim|$ATHENA_PATH/packages> by
+  <verbatim|~/.ATHENA/packages> and <verbatim|$ATHENA_PATH/packages> by
   default. Furthermore rendering information for the source code like
   <markup|style-with> tags are discarded before evaluation of the files.
 

@@ -13,7 +13,7 @@
   </verbatim>
 
   where to put all your files (recall that <verbatim|$ATHENA_HOME_PATH>
-  defaults to <verbatim|$HOME/.TeXmacs>). In addition, you may create the
+  defaults to <verbatim|$HOME/.ATHENA>). In addition, you may create the
   following subdirectories (when needed):
 
   <\description-dash>

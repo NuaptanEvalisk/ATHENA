@@ -7,8 +7,8 @@ under the `$ATHENA_HOME_PATH`:
 
 ``` bash
 For GNU/Linux and macOS:
-git clone git@github.com:texmacs/maxima.git $HOME/.TeXmacs/plugins/maxima
+git clone git@github.com:texmacs/maxima.git $HOME/.ATHENA/plugins/maxima
 
 For Windows:
-git clone git@github.com:texmacs/maxima.git %APPDATA%\TeXmacs\plugins/maxima
+git clone git@github.com:texmacs/maxima.git %APPDATA%\ATHENA\plugins/maxima
 ```
