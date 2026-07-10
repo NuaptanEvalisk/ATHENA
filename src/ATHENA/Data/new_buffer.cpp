@@ -278,6 +278,9 @@ set_buffer_tree (url name, tree doc) {
       buf->prj= concrete_buffer_insist (prj_name);
     }
   }
+  if (is_rooted_tmfs (name))
+    buf->buf->read_only=
+      !as_bool (call ("tmfs-permission?", object (name), object ("write")));
   pretend_buffer_saved (name);
 }
 

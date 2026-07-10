@@ -355,7 +355,8 @@ athena_initialize_wayland_ui_scale () {
 ******************************************************************************/
 
 qt_gui_rep::qt_gui_rep (int &argc, char **argv):
-interrupted (false), waitWindow (NULL), popup_wid_time (0), q_translator (0),
+interrupted (false), waitWindow (NULL), popup_wid_time (0),
+clipboard_text_cache_valid (false), q_translator (0),
 time_credit (100), do_check_events (false), updating (false),
 needing_update (false)
 {
@@ -364,6 +365,15 @@ needing_update (false)
   
   gui_helper = new QTMGuiHelper (this);
   qApp->installEventFilter (gui_helper);
+
+  QClipboard* clipboard= QApplication::clipboard ();
+  QObject::connect (clipboard, &QClipboard::dataChanged, gui_helper,
+                    [this] () {
+                      if (!headless_mode) refresh_external_clipboard_cache ();
+                    });
+  if (!headless_mode)
+    QTimer::singleShot (0, gui_helper,
+                        [this] () { refresh_external_clipboard_cache (); });
   
 #if defined(QT_MAC_USE_COCOA) \
   || (defined(OS_MACOS) && QT_VERSION >= 0x060000)
@@ -498,6 +508,17 @@ qt_gui_rep::~qt_gui_rep()  {
  * interclient communication
  ******************************************************************************/
 
+void
+qt_gui_rep::refresh_external_clipboard_cache () {
+  QClipboard* clipboard= QApplication::clipboard ();
+  const QMimeData* data= clipboard->mimeData (QClipboard::Clipboard);
+  if (data == nullptr || data->formats ().isEmpty ()) return;
+  if (!data->hasText ()) return;
+
+  clipboard_text_cache= data->text ().toUtf8 ();
+  clipboard_text_cache_valid= true;
+}
+
 bool
 qt_gui_rep::get_selection (string key, tree& t, string& s, string format) {
   QClipboard *cb = QApplication::clipboard ();
@@ -508,6 +529,9 @@ qt_gui_rep::get_selection (string key, tree& t, string& s, string format) {
     if (key == "mouse") mode = QClipboard::Selection;
   
   const QMimeData *md = cb->mimeData (mode);
+  bool empty_offer= md == nullptr || md->formats ().isEmpty ();
+  if (!empty_offer && mode == QClipboard::Clipboard)
+    refresh_external_clipboard_cache ();
   QByteArray buf;
   string input_format;
   
@@ -517,7 +541,8 @@ qt_gui_rep::get_selection (string key, tree& t, string& s, string format) {
   bool owns = (format != "temp" && format != "wrapbuf" && key != "primary") &&
   !(key == "mouse" && cb->supportsSelection ());
   
-  if (!owns && md->hasFormat ("application/x-texmacs-pid")) {
+  if (!owns && md != nullptr &&
+      md->hasFormat ("application/x-texmacs-pid")) {
     buf = md->data ("application/x-texmacs-pid");
     if (!(buf.isEmpty())) {
       owns = string (buf.constData(), buf.size())
@@ -534,9 +559,14 @@ qt_gui_rep::get_selection (string key, tree& t, string& s, string format) {
   
   if (DEBUG_QT)
     debug_qt << "get_selection format: ["  << format << "] mime-types: [" 
-             << from_qstring(md->formats().join(",")) << "]" << LF;
+             << (md == nullptr ? string ("<null>") :
+                 from_qstring(md->formats().join(","))) << "]" << LF;
 
-  if (format == "default") {
+  if (empty_offer && clipboard_text_cache_valid) {
+    buf= clipboard_text_cache;
+    if (format == "default") input_format= "verbatim-snippet";
+  }
+  else if (format == "default") {
     if (md->hasFormat ("application/x-texmacs-clipboard")) {
       buf = md->data ("application/x-texmacs-clipboard");
       input_format = "texmacs-snippet";
@@ -729,6 +759,10 @@ qt_gui_rep::clear_selection (string key) {
   const QMimeData *md = cb->mimeData (mode);
   if (md) owns = md->hasFormat ("application/x-texmacs-clipboard");
   if (owns) cb->clear (mode);
+  if (mode == QClipboard::Clipboard) {
+    clipboard_text_cache.clear ();
+    clipboard_text_cache_valid= false;
+  }
 }
 
 /******************************************************************************

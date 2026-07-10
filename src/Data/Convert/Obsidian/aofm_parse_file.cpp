@@ -135,8 +135,8 @@ aofm_apply_preferred_font(new_data& data) {
     if (math_font != "") data->init("math-font") = tree(math_font);
 }
 
-std::shared_ptr<peg::Ast>
-aofm_parse_file(const std::string& file_path) {
+static std::shared_ptr<peg::Ast>
+aofm_parse_source(const std::string& raw, const std::string& source_name) {
     peg::parser parser(aofm_grammar);
     if (!parser) {
         report_aofm_error("failed to initialize A-OFM grammar");
@@ -144,19 +144,11 @@ aofm_parse_file(const std::string& file_path) {
     }
 
     parser.enable_ast();
-    parser.set_logger([file_path](size_t line, size_t col, const std::string& msg,
-                                  const std::string& rule) {
-        report_aofm_parse_error(file_path, line, col, msg, rule);
+    parser.set_logger([source_name](size_t line, size_t col,
+                                    const std::string& msg,
+                                    const std::string& rule) {
+        report_aofm_parse_error(source_name, line, col, msg, rule);
     });
-
-    std::ifstream ifs(file_path, std::ios::in | std::ios::binary);
-    if (!ifs.is_open()) {
-        report_aofm_error("could not open file: " + file_path);
-        return nullptr;
-    }
-
-    std::string raw((std::istreambuf_iterator<char>(ifs)),
-                    std::istreambuf_iterator<char>());
     
     aofm_content = normalize_markdown_lines(raw);
     aofm_content = normalize_transclusion_lines(aofm_content);
@@ -169,12 +161,25 @@ aofm_parse_file(const std::string& file_path) {
     }
 
     std::shared_ptr<peg::Ast> ast;
-    if (parser.parse(aofm_content, ast, file_path.c_str())) {
+    if (parser.parse(aofm_content, ast, source_name.c_str())) {
         return ast;
     }
 
-    report_aofm_error("parsing failed for file: " + file_path);
+    report_aofm_error("parsing failed for: " + source_name);
     return nullptr;
+}
+
+std::shared_ptr<peg::Ast>
+aofm_parse_file(const std::string& file_path) {
+    std::ifstream ifs(file_path, std::ios::in | std::ios::binary);
+    if (!ifs.is_open()) {
+        report_aofm_error("could not open file: " + file_path);
+        return nullptr;
+    }
+
+    std::string raw((std::istreambuf_iterator<char>(ifs)),
+                    std::istreambuf_iterator<char>());
+    return aofm_parse_source(raw, file_path);
 }
 
 tree
@@ -247,6 +252,19 @@ aofm_convert_tree(string file_path, tree& document, bool materialize_anchor_lite
         document = materialize_aofm_anchor_literals(document);
     }
     return true;
+}
+
+tree
+aofm_markdown_to_tree(string source) {
+    std::string raw(as_charp(source), N(source));
+    auto ast = aofm_parse_source(raw, "<clipboard>");
+    if (!ast) return "";
+
+    tree body = convert_block(ast);
+    body = sanitize_proof_trees(body);
+    if (!is_document(body)) body = document(body);
+    body = simplify_correct(materialize_aofm_anchor_literals(body));
+    return is_empty(body) ? tree("") : body;
 }
 
 void

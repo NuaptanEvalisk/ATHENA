@@ -17,6 +17,7 @@
 #include <QLabel>
 #include <QSplashScreen>
 #include <QList>
+#include <QByteArray>
 
 #include "qt_simple_widget.hpp"
 #include "tm_timer.hpp"
@@ -129,6 +130,8 @@ class qt_gui_rep {
   
   hashmap<string,tree>   selection_t;
   hashmap<string,string> selection_s;
+  QByteArray clipboard_text_cache;
+  bool clipboard_text_cache_valid;
   
   QTranslator* q_translator;
   
@@ -163,6 +166,7 @@ public:
   virtual bool set_selection (string key, tree t, string s, string sv,
                               string sh, string format);
   virtual void clear_selection (string key);
+  void refresh_external_clipboard_cache ();
   bool put_graphics_on_clipboard (url file);
 
   /* miscellaneous */

@@ -55,6 +55,7 @@ QTMGuiHelper::eventFilter (QObject *obj, QEvent *event) {
 void
 QTMGuiHelper::aboutToShowMainMenu() {
 BEGIN_SLOT
+  gui->refresh_external_clipboard_cache ();
   //cout << "Show :" << menu_count << LF;
   menu_count++;
 END_SLOT

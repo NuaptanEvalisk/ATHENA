@@ -143,8 +143,14 @@ convert_latex_math_display(const std::string& latex_source) {
 
 tree
 convert_math_block(const AstPtr& ast) {
-  return convert_latex_math_display(
-      extract_fenced_body(ast_source(ast), "$$"));
+  std::string raw = ast_source(ast);
+  if (raw.compare(0, 2, "\\[") == 0) {
+    size_t close = raw.rfind("\\]");
+    std::string body = close == std::string::npos || close < 2
+      ? raw.substr(2) : raw.substr(2, close - 2);
+    return convert_latex_math_display(trim_copy(body));
+  }
+  return convert_latex_math_display(extract_fenced_body(raw, "$$"));
 }
 
 } // namespace aofm

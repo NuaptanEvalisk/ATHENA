@@ -143,7 +143,19 @@ convert_inline_from_raw(const std::string& raw) {
   };
 
   while (i < raw.size()) {
-    // 1. Escaped characters
+    // 1. LaTeX-style inline math
+    if (raw.compare(i, 2, "\\(") == 0) {
+      size_t close = raw.find("\\)", i + 2);
+      if (close != std::string::npos && close > i + 2) {
+        flush_text();
+        append_concat(out, convert_latex_math_inline(
+          raw.substr(i + 2, close - i - 2)));
+        i = close + 2;
+        continue;
+      }
+    }
+
+    // 2. Escaped characters
     if (raw[i] == '\\' && i + 1 < raw.size()) {
       char next = raw[i + 1];
       if (next == '$' || next == '*' || next == '_' || next == '`' ||
@@ -155,7 +167,7 @@ convert_inline_from_raw(const std::string& raw) {
       }
     }
 
-    // 2. Inline Anchors (at the end of content)
+    // 3. Inline Anchors (at the end of content)
     if (raw[i] == ' ' && i + 2 < raw.size() && raw[i + 1] == '^') {
       size_t j = i + 2;
       while (j < raw.size() && !isspace(raw[j])) ++j;
@@ -167,7 +179,7 @@ convert_inline_from_raw(const std::string& raw) {
       }
     }
 
-    // 3. Formatting (Bold, Italic, Highlight)
+    // 4. Formatting (Bold, Italic, Highlight)
     if (raw.compare(i, 2, "==") == 0) {
       size_t close = raw.find("==", i + 2);
       if (close != std::string::npos && close > i + 2) {
@@ -207,7 +219,7 @@ convert_inline_from_raw(const std::string& raw) {
       }
     }
 
-    // 4. Inline Code
+    // 5. Inline Code
     if (raw[i] == '`') {
       size_t close = raw.find('`', i + 1);
       if (close != std::string::npos) {
@@ -218,7 +230,7 @@ convert_inline_from_raw(const std::string& raw) {
       }
     }
 
-    // 5. Inline Math (Robust Multi-line)
+    // 6. Inline Math (Robust Multi-line)
     if (raw[i] == '$') {
       size_t j = i + 1;
       while (j < raw.size()) {
@@ -233,7 +245,7 @@ convert_inline_from_raw(const std::string& raw) {
       }
     }
 
-    // 6. Images, Transclusions, and Wikilinks
+    // 7. Images, Transclusions, and Wikilinks
     bool is_trans = (raw.compare(i, 3, "![[") == 0);
     bool is_wiki = (raw.compare(i, 2, "[[") == 0);
     if (is_trans || is_wiki) {
@@ -269,7 +281,7 @@ convert_inline_from_raw(const std::string& raw) {
       }
     }
 
-    // 7. External Links
+    // 8. External Links
     if (raw[i] == '[') {
       std::string label, destination;
       size_t end = 0;
@@ -353,7 +365,10 @@ convert_inline(const AstPtr& ast) {
   }
 
   if (ast_is(ast, "InlineMath")) {
-    return convert_latex_math_inline(strip_wrapping(ast_source(ast), 1, 1));
+    std::string raw = ast_source(ast);
+    size_t delimiter = raw.compare(0, 2, "\\(") == 0 ? 2 : 1;
+    return convert_latex_math_inline(
+      strip_wrapping(raw, delimiter, delimiter));
   }
 
   if (ast_is(ast, "InlineAnchor")) {

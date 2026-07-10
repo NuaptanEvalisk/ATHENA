@@ -132,6 +132,7 @@ tree vernac_document_to_tree (string s);
 
 /*** Obsidian ***/
 extern bool aofm_insert_build_warning;
+tree aofm_markdown_to_tree (string source);
 bool aofm_convert_tree (string file_path, tree& document,
                         bool materialize_anchor_literals=true);
 bool aofm_import_vault (string source_dir, string destination_dir,

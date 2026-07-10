@@ -15,6 +15,7 @@
 #include "packrat.hpp"
 #include "tree_select.hpp"
 #include "drd_mode.hpp"
+#include "tm_buffer.hpp"
 
 /******************************************************************************
 * Internationalization
@@ -655,6 +656,12 @@ edit_select_rep::selection_get (string key) {
 
 void
 edit_select_rep::selection_paste (string key) {
+  bool read_only= !is_nil (buf) && buf->buf->read_only;
+  if (read_only) {
+    set_message ("This view is read-only", "paste");
+    return;
+  }
+
   tree t; string s;
   (void) ::get_selection (key, t, s, selection_import);
   if (inside_active_graphics ()) {
@@ -683,7 +690,7 @@ edit_select_rep::selection_paste (string key) {
     tree doc= generic_to_tree (s, fm);
     if (is_func (doc, DOCUMENT, 1)) doc= doc[0]; // temporary fix
     if (mode == "math" && is_compound (doc, "math", 1)) doc= doc[0];
-    insert_tree (doc);
+    if (!is_empty (doc)) insert_tree (doc);
   }
   if (is_tuple (t, "texmacs", 3)) {
     string mode= get_env_string (MODE);
