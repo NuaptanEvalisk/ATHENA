@@ -5,6 +5,7 @@
 ******************************************************************************/
 
 #include "ATHENA/Data/vault_maintenance_internal.hpp"
+#include "ATHENA/Data/vault_map_sqlite.hpp"
 
 #include "Database/database.hpp"
 #include "scheme.hpp"
@@ -89,24 +90,29 @@ static size_t
 rewrite_map_anchor_references (const fs::path& root, const fs::path& doc,
                                const std::string& renames) {
   if (renames.empty ()) return 0;
-
-  fs::path db_path = root / "map.tmdb";
-  if (!fs::exists (db_path)) return 0;
-
   std::string rel_path = doc.lexically_relative (root).generic_string ();
-  try {
-    std::string result = tm_to_std (as_string (
-      call ("vault-anchor-maintenance-rewrite-map",
-            object (url_system (std_to_tm (db_path.string ()))),
-            object (std_to_tm (rel_path)),
-            object (std_to_tm (renames)))));
-    size_t changed = parse_count (result);
-    if (changed != 0) sync_databases ();
-    return changed;
+  std::vector<std::pair<std::string, std::string>> parsed;
+  size_t begin = 0;
+  while (begin <= renames.size ()) {
+    size_t end = renames.find ((char) 30, begin);
+    std::string entry = renames.substr (
+      begin, end == std::string::npos ? std::string::npos : end - begin);
+    size_t separator = entry.find ((char) 31);
+    if (separator != std::string::npos)
+      parsed.emplace_back (entry.substr (0, separator),
+                           entry.substr (separator + 1));
+    if (end == std::string::npos) break;
+    begin = end + 1;
   }
-  catch (...) {
+  size_t changed = 0;
+  std::string error;
+  if (!athena_vault_map_rewrite_at_root (root, rel_path, parsed, changed,
+                                         error)) {
+    log_error ("anchor structures: could not rewrite Vault map for " +
+               compact_log_path (doc) + ": " + error);
     return 0;
   }
+  return changed;
 }
 
 static bool

@@ -399,7 +399,7 @@ aofm_import_vault(string source_dir, string destination_dir,
 
   if (!write_vault_database(destination_root, file_map, anchor_map, heading_map)) {
     std::cout << std::endl;
-    report_import_error("failed to write vault database map.tmdb");
+    report_import_error("failed to write vault database map.sqlite");
     return false;
   }
 

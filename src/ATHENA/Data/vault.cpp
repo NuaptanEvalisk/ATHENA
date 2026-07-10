@@ -17,10 +17,18 @@
 #include "sys_utils.hpp"
 #include "ATHENA/Data/new_buffer.hpp"
 #include "ATHENA/Data/new_window.hpp"
+#include "ATHENA/Data/vault_map_sqlite.hpp"
 #include "ATHENA/tm_window.hpp"
+
+#include <filesystem>
+#include <memory>
+#include <string>
+#include <utility>
+#include <vector>
 
 bool       is_vault_active = false;
 vault_info current_vault;
+static std::unique_ptr<AthenaVaultMapSqlite> current_vault_map;
 
 bool
 vault_active () {
@@ -59,38 +67,50 @@ vault_refresh_window_titles () {
   }
 }
 
-static db_time
-vault_db_time () {
-  return (db_time) (raw_time () / 1000);
+static std::string
+vault_std_string (string value) {
+  return std::string (as_charp (value), (size_t) N(value));
 }
 
-void
+static string
+vault_tm_string (const std::string& value) {
+  return string (value.data (), (int) value.size ());
+}
+
+string
 vault_load (url root_dir, string name, string db_rel_path) {
-  vault_load (root_dir, name, db_rel_path, "ns.sqlite");
+  return vault_load (root_dir, name, db_rel_path, "ns.sqlite");
 }
 
-void
+string
 vault_load (url root_dir, string name, string db_rel_path,
             string ns_db_rel_path) {
+  std::filesystem::path root (vault_std_string (concretize (root_dir)));
+  std::string resolved;
+  std::string error;
+  if (!athena_vault_map_prepare (root, vault_std_string (db_rel_path),
+                                 resolved, error))
+    return vault_tm_string (error);
+
+  std::unique_ptr<AthenaVaultMapSqlite> map (new AthenaVaultMapSqlite);
+  if (!map->open (root / resolved, true, error))
+    return vault_tm_string (error);
+
+  if (is_vault_active) vault_close ();
   current_vault.root   = root_dir;
   current_vault.name   = name;
-  current_vault.db_url = root_dir * url (db_rel_path);
+  current_vault.db_url = root_dir * url (vault_tm_string (resolved));
   current_vault.ns_db_url = root_dir * url (ns_db_rel_path);
-  
-  // Ensure a previously loaded TMDB is refreshed after external conversion.
-  sync_databases ();
-  // Trigger TMDB loading
-  (void) get_database (current_vault.db_url);
-  
+  current_vault_map = std::move (map);
   is_vault_active = true;
   vault_refresh_window_titles ();
+  return "";
 }
 
 void
 vault_close () {
-  if (is_vault_active) {
-    sync_databases ();
-  }
+  if (is_vault_active) sync_databases ();
+  current_vault_map.reset ();
   is_vault_active = false;
   current_vault.root = url_none ();
   current_vault.name = "";
@@ -101,54 +121,46 @@ vault_close () {
 
 void
 vault_set_node (string uuid, string path, string anchor_begin, string anchor_end) {
-  if (!is_vault_active) return;
-  url u = current_vault.db_url;
-  db_time now = vault_db_time ();
-  
-  strings s_path; s_path << path;
-  strings s_begin; s_begin << anchor_begin;
-  strings s_end; s_end << anchor_end;
-
-  set_field (u, uuid, "v-path", s_path, now);
-  set_field (u, uuid, "v-anchor-begin", s_begin, now);
-  set_field (u, uuid, "v-anchor-end", s_end, now);
-  
-  sync_databases ();
+  if (!is_vault_active || current_vault_map == nullptr) return;
+  AthenaVaultMapNode node {vault_std_string (uuid), vault_std_string (path),
+                           vault_std_string (anchor_begin),
+                           vault_std_string (anchor_end)};
+  std::string error;
+  if (!current_vault_map->set_node (node, error))
+    std_warning << "Could not update Vault map: " << error.c_str () << LF;
 }
 
 tree
 vault_get_node (string uuid) {
-  if (!is_vault_active) return UNINIT;
-  url u = current_vault.db_url;
-  db_time now = vault_db_time ();
-  
-  strings p = get_field (u, uuid, "v-path", now);
-  strings b = get_field (u, uuid, "v-anchor-begin", now);
-  strings e = get_field (u, uuid, "v-anchor-end", now);
-  
-  if (N(p) == 0) return UNINIT;
-  
+  if (!is_vault_active || current_vault_map == nullptr) return UNINIT;
+  AthenaVaultMapNode node;
+  bool found = false;
+  std::string error;
+  if (!current_vault_map->get_node (vault_std_string (uuid), node, found,
+                                    error) || !found)
+    return UNINIT;
   tree res (TUPLE);
-  res << tree (p[0]);
-  res << tree (N(b) > 0 ? b[0] : "");
-  res << tree (N(e) > 0 ? e[0] : "");
+  res << tree (vault_tm_string (node.path));
+  res << tree (vault_tm_string (node.anchor_begin));
+  res << tree (vault_tm_string (node.anchor_end));
   return res;
 }
 
 void
 vault_remove_node (string uuid) {
-  if (!is_vault_active) return;
-  url u = current_vault.db_url;
-  remove_entry (u, uuid, vault_db_time ());
-  sync_databases ();
+  if (!is_vault_active || current_vault_map == nullptr) return;
+  std::string error;
+  if (!current_vault_map->remove_node (vault_std_string (uuid), error))
+    std_warning << "Could not remove Vault map node: " << error.c_str () << LF;
 }
 
 bool
 vault_has_node (string uuid) {
-  if (!is_vault_active) return false;
-  strings p = get_field (current_vault.db_url, uuid, "v-path",
-                         vault_db_time ());
-  return N(p) > 0;
+  if (!is_vault_active || current_vault_map == nullptr) return false;
+  bool found = false;
+  std::string error;
+  return current_vault_map->has_node (vault_std_string (uuid), found, error) &&
+         found;
 }
 
 static void
@@ -217,17 +229,42 @@ vault_get_mtime (url u) {
 
 string
 vault_find_uuid (string path, string anchor_begin, string anchor_end) {
-  if (!is_vault_active) return "";
-  url u = current_vault.db_url;
-  
-  tree ql (TUPLE);
-  ql << tuple ("v-path", path);
-  ql << tuple ("v-anchor-begin", anchor_begin);
-  ql << tuple ("v-anchor-end", anchor_end);
-  
-  strings ids = query (u, ql, vault_db_time (), 1, 0);
-  if (N(ids) > 0) return ids[0];
-  return "";
+  if (!is_vault_active || current_vault_map == nullptr) return "";
+  std::string uuid;
+  std::string error;
+  if (!current_vault_map->find_uuid (
+        vault_std_string (path), vault_std_string (anchor_begin),
+        vault_std_string (anchor_end), uuid, error))
+    return "";
+  return vault_tm_string (uuid);
+}
+
+size_t
+vault_rewrite_anchor_references (string path, string encoded_renames) {
+  if (!is_vault_active || current_vault_map == nullptr) return 0;
+  std::string encoded = vault_std_string (encoded_renames);
+  std::vector<std::pair<std::string, std::string>> renames;
+  size_t begin = 0;
+  while (begin <= encoded.size ()) {
+    size_t end = encoded.find ((char) 30, begin);
+    std::string entry = encoded.substr (
+      begin, end == std::string::npos ? std::string::npos : end - begin);
+    size_t separator = entry.find ((char) 31);
+    if (separator != std::string::npos)
+      renames.emplace_back (entry.substr (0, separator),
+                            entry.substr (separator + 1));
+    if (end == std::string::npos) break;
+    begin = end + 1;
+  }
+  size_t changed = 0;
+  std::string error;
+  if (!current_vault_map->rewrite_anchors (vault_std_string (path), renames,
+                                            changed, error)) {
+    std_warning << "Could not rewrite Vault map anchors: " << error.c_str ()
+                << LF;
+    return 0;
+  }
+  return changed;
 }
 
 string

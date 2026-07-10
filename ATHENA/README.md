@@ -275,7 +275,8 @@ ATHENA has modular headless vault maintenance support.
   `orphans.lst` map and hlinks in generated summaries.
 - Anchor enunciations and headings across the whole vault.
 - Update stale anchors when titles change and preserve UUID-backed
-  `map.tmdb` reachability for wikilinks and transclusions.
+  `map.sqlite` reachability for wikilinks and transclusions. Legacy `map.tmdb`
+  files are migrated automatically because Vault maps do not need history.
 - Parallelize read-only anchoring checks using a configurable reader process
   count and a sequential writer.
 - Generate optional ATHENA maintenance summary pages and use them as one-time

@@ -33,7 +33,7 @@
 
 (define (vault-welcome-normalized data)
   (list (vault-welcome-field data 0 "")
-        (vault-welcome-field data 1 "map.tmdb")
+        (vault-welcome-field data 1 "map.sqlite")
         (vault-welcome-field data 2 "")
         (vault-welcome-field data 3 "ns.sqlite")
         (vault-welcome-startup-page data)

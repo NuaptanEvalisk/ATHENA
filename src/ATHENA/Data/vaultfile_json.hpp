@@ -17,7 +17,7 @@
 
 struct AthenaVaultfileInfo {
   std::string name= "Vault";
-  std::string map_path= "map.tmdb";
+  std::string map_path= "map.sqlite";
   std::string preferences_path;
   std::string namespace_db_path= "ns.sqlite";
   std::string startup_page;

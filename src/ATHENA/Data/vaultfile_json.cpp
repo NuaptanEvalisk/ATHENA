@@ -111,7 +111,7 @@ read_json_file (const std::filesystem::path& path, AthenaVaultfileInfo& info,
   }
   QJsonObject obj= doc.object ();
   info.name= json_string (obj, "name", "Vault");
-  info.map_path= json_string (obj, "map_path", "map.tmdb");
+  info.map_path= json_string (obj, "map_path", "map.sqlite");
   info.preferences_path= json_string (obj, "preferences_path");
   info.namespace_db_path= json_string (obj, "namespace_db_path",
                                       "ns.sqlite");
@@ -181,7 +181,7 @@ AthenaVaultfileInfo
 athena_vaultfile_normalize (const AthenaVaultfileInfo& info) {
   AthenaVaultfileInfo out= info;
   if (out.name.empty ()) out.name= "Vault";
-  if (out.map_path.empty ()) out.map_path= "map.tmdb";
+  if (out.map_path.empty ()) out.map_path= "map.sqlite";
   if (out.namespace_db_path.empty ()) out.namespace_db_path= "ns.sqlite";
   if (out.rag_index_path.empty ()) out.rag_index_path= "rag.sqlite";
   if (out.websites_path.empty ()) out.websites_path= "websites.json";

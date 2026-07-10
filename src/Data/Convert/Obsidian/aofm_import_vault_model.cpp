@@ -5,6 +5,7 @@
 #include <system_error>
 
 #include "ATHENA/Data/vaultfile_json.hpp"
+#include "ATHENA/Data/vault_map_sqlite.hpp"
 #include "file.hpp"
 #include "namespaces_private.hpp"
 #include <sqlite3.h>
@@ -55,7 +56,7 @@ write_vaultfile(const std::string& destination_root_path,
                 const std::string& namespace_db_path) {
   AthenaVaultfileInfo info;
   info.name = vault_name;
-  info.map_path = "map.tmdb";
+  info.map_path = "map.sqlite";
   info.preferences_path = prefs_path;
   info.namespace_db_path = namespace_db_path.empty () ? "ns.sqlite" :
                                                      namespace_db_path;
@@ -289,53 +290,46 @@ apply_model_namespace_style(tree doc, const AofmModelVaultInfo& model,
   return change_doc_attr(doc, "style", tuple(style_name));
 }
 
-void
-set_vault_db_node(url db_url, const std::string& uuid, const std::string& path,
-                  const std::string& anchor_begin,
-                  const std::string& anchor_end) {
-  strings s_path;
-  s_path << aofm::std_to_tm_string(path);
-  strings s_begin;
-  s_begin << aofm::std_to_tm_string(anchor_begin);
-  strings s_end;
-  s_end << aofm::std_to_tm_string(anchor_end);
-
-  set_field(db_url, aofm::std_to_tm_string(uuid), "v-path", s_path, 0);
-  set_field(db_url, aofm::std_to_tm_string(uuid), "v-anchor-begin", s_begin, 0);
-  set_field(db_url, aofm::std_to_tm_string(uuid), "v-anchor-end", s_end, 0);
-}
-
 bool
 write_vault_database(url destination_root, const FileIndexMap& file_map,
                      const AnchorMap& anchor_map,
                      const HeadingMap& heading_map) {
-  url db_url = destination_root * url("map.tmdb");
+  std::vector<AthenaVaultMapNode> nodes;
 
   for (const auto& entry : file_map) {
     const AofmVaultFileInfo& info = entry.second;
-    set_vault_db_node(db_url, info.uuid, info.relative_ath_path, "", "");
+    nodes.push_back ({info.uuid, info.relative_ath_path, "", ""});
   }
 
   for (const auto& entry : anchor_map) {
     const AofmVaultAnchorInfo& info = entry.second;
-    set_vault_db_node(db_url, info.uuid, info.path, "", info.anchor_1);
+    nodes.push_back ({info.uuid, info.path, "", info.anchor_1});
     if (!info.transclusion_uuid.empty() && !info.anchor_2.empty()) {
-      set_vault_db_node(db_url, info.transclusion_uuid, info.path,
-                        info.anchor_1, info.anchor_2);
+      nodes.push_back ({info.transclusion_uuid, info.path,
+                        info.anchor_1, info.anchor_2});
     }
   }
 
   for (const auto& entry : heading_map) {
     const AofmVaultHeadingInfo& info = entry.second;
-    set_vault_db_node(db_url, info.uuid, info.path, "", info.label);
+    nodes.push_back ({info.uuid, info.path, "", info.label});
     if (!info.transclusion_uuid.empty()) {
-      set_vault_db_node(db_url, info.transclusion_uuid, info.path,
-                        info.label, info.end_label);
+      nodes.push_back ({info.transclusion_uuid, info.path,
+                        info.label, info.end_label});
     }
   }
 
-  sync_databases();
-  return exists(db_url);
+  std::filesystem::path root (std::string (as_charp (concretize (
+    destination_root))));
+  AthenaVaultMapSqlite map;
+  std::string error;
+  if (!map.open (root / "map.sqlite", true, error) ||
+      !map.replace_all (nodes, error)) {
+    report_import_error ("failed to write vault database map.sqlite: " +
+                         error);
+    return false;
+  }
+  return true;
 }
 
 

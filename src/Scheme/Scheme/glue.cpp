@@ -1674,9 +1674,20 @@ tmg_vault_load_with_ns (tmscm arg1, tmscm arg2, tmscm arg3, tmscm arg4) {
   TMSCM_ASSERT_STRING (arg3, TMSCM_ARG3, "vault-load-with-ns");
   TMSCM_ASSERT_STRING (arg4, TMSCM_ARG4, "vault-load-with-ns");
 
-  vault_load (tmscm_to_url (arg1), tmscm_to_string (arg2),
-              tmscm_to_string (arg3), tmscm_to_string (arg4));
-  return TMSCM_UNSPECIFIED;
+  string error= vault_load (tmscm_to_url (arg1), tmscm_to_string (arg2),
+                            tmscm_to_string (arg3), tmscm_to_string (arg4));
+  return string_to_tmscm (error);
+}
+
+tmscm
+tmg_vault_rewrite_anchor_references (tmscm arg1, tmscm arg2) {
+  TMSCM_ASSERT_STRING (arg1, TMSCM_ARG1,
+                       "vault-rewrite-anchor-references");
+  TMSCM_ASSERT_STRING (arg2, TMSCM_ARG2,
+                       "vault-rewrite-anchor-references");
+  size_t changed= vault_rewrite_anchor_references (tmscm_to_string (arg1),
+                                                    tmscm_to_string (arg2));
+  return int_to_tmscm ((int) changed);
 }
 
 static std::filesystem::path
@@ -1898,6 +1909,8 @@ initialize_glue () {
                            websites_manager_show, 0, 0, 0);
   tmscm_install_procedure ("vault-load-with-ns",
                            tmg_vault_load_with_ns, 4, 0, 0);
+  tmscm_install_procedure ("vault-rewrite-anchor-references",
+                           tmg_vault_rewrite_anchor_references, 2, 0, 0);
   tmscm_install_procedure ("vaultfile-present?",
                            tmg_vaultfile_presentP, 1, 0, 0);
   tmscm_install_procedure ("vaultfile-read",

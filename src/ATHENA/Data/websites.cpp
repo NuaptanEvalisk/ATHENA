@@ -199,10 +199,14 @@ athena_website_selector_files (const std::string& vault_root,
   fs::path root = normalize_root (fs::path (vault_root));
   VaultfileWebsiteInfo info;
   if (!read_vaultfile (root, info, error)) return false;
-  vault_load (url_system (std_to_tm (root.string ())),
-              std_to_tm (info.name),
-              std_to_tm (info.map_path),
-              std_to_tm (info.namespace_db_path));
+  string load_error= vault_load (url_system (std_to_tm (root.string ())),
+                                  std_to_tm (info.name),
+                                  std_to_tm (info.map_path),
+                                  std_to_tm (info.namespace_db_path));
+  if (load_error != "") {
+    error= tm_to_std (load_error);
+    return false;
+  }
   std::set<std::string> universe = all_document_rels (root);
   std::set<std::string> selected = eval_selector (selector, root, universe);
   files.assign (selected.begin (), selected.end ());
@@ -232,10 +236,14 @@ athena_generate_website (const std::string& vault_root,
   fs::path root = normalize_root (fs::path (vault_root));
   VaultfileWebsiteInfo info;
   if (!read_vaultfile (root, info, error)) return false;
-  vault_load (url_system (std_to_tm (root.string ())),
-              std_to_tm (info.name),
-              std_to_tm (info.map_path),
-              std_to_tm (info.namespace_db_path));
+  string load_error= vault_load (url_system (std_to_tm (root.string ())),
+                                  std_to_tm (info.name),
+                                  std_to_tm (info.map_path),
+                                  std_to_tm (info.namespace_db_path));
+  if (load_error != "") {
+    error= tm_to_std (load_error);
+    return false;
+  }
 
   std::vector<athena_website_entry> websites;
   if (!athena_websites_load (root.string (), websites, error)) return false;

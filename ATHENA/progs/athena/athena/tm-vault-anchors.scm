@@ -764,49 +764,6 @@
   (and (current-buffer)
        (== (url->url (current-buffer)) (url->url buf))))
 
-(define (vault-anchor-map-rewrite-field! db rel-path field old-label new-label
-                                         now)
-  (let* ((ids (tmdb-query db
-                          (list (list "v-path" rel-path)
-                                (list field old-label))
-                          now 1000000 0)))
-    (for-each
-     (lambda (uuid)
-       (tmdb-set-field db uuid field (list new-label) now))
-     ids)
-    (length ids)))
-
-(define (vault-anchor-maintenance-parse-renames renames)
-  (if (string-null? renames) '()
-      (map (lambda (entry)
-             (let ((parts (string-tokenize-by-char
-                           entry (integer->char 31))))
-               (if (>= (length parts) 2)
-                   (list (car parts) (cadr parts))
-                   '())))
-           (string-tokenize-by-char renames (integer->char 30)))))
-
-(tm-define (vault-anchor-maintenance-rewrite-map db rel-path renames)
-  (catch #t
-    (lambda ()
-      (let ((changed 0)
-            (now (current-time)))
-        (for-each
-         (lambda (entry)
-           (when (and (pair? entry) (pair? (cdr entry)))
-             (let ((old-label (car entry))
-                   (new-label (cadr entry)))
-               (set! changed
-                     (+ changed
-                        (vault-anchor-map-rewrite-field!
-                         db rel-path "v-anchor-begin" old-label new-label now)
-                        (vault-anchor-map-rewrite-field!
-                         db rel-path "v-anchor-end" old-label new-label
-                         now))))))
-         (vault-anchor-maintenance-parse-renames renames))
-        (number->string changed)))
-    (lambda args "0")))
-
 (define (vault-anchor-update-map-for-buffer! buf summary)
   (when (and (defined? 'vault-active?)
              (vault-active?)
@@ -815,19 +772,9 @@
       (lambda ()
         (let* ((root (url-append (vault-get-root) ""))
                (rel-path (url->unix (url-delta root buf)))
-               (db (url-append (vault-get-root) "map.tmdb")))
-          (when (and (url-exists? db)
-                     (not (string-starts? rel-path "../")))
-            (for-each
-             (lambda (entry)
-               (let ((old-label (car entry))
-                     (new-label (cadr entry)))
-                (let ((now (current-time)))
-                  (vault-anchor-map-rewrite-field!
-                   db rel-path "v-anchor-begin" old-label new-label now)
-                  (vault-anchor-map-rewrite-field!
-                   db rel-path "v-anchor-end" old-label new-label now))))
-             (vector-ref summary 5)))))
+               (renames (vault-anchor-renames-string summary)))
+          (when (not (string-starts? rel-path "../"))
+            (vault-rewrite-anchor-references rel-path renames))))
       (lambda args (noop)))))
 
 (define (vault-anchor-prepare-live-edit! buf)

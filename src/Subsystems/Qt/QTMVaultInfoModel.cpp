@@ -98,7 +98,7 @@ qtm_vaultfile_read (QTMVaultfileInfo& info, QString* error) {
     return false;
   }
   info.name= to_qstring_vault_info (vault_get_name ());
-  info.mapPath= "map.tmdb";
+  info.mapPath= "map.sqlite";
   info.preferencesPath= "";
   info.namespaceDbPath= "ns.sqlite";
   info.startupPage= "";
@@ -140,7 +140,7 @@ qtm_vaultfile_read (QTMVaultfileInfo& info, QString* error) {
   info.ragIndexPath= qtm_clean_vault_relative_path (info.ragIndexPath);
   info.websitesPath= qtm_clean_vault_relative_path (info.websitesPath);
   info.rootNamespace= info.rootNamespace.trimmed ();
-  if (info.mapPath.isEmpty ()) info.mapPath= "map.tmdb";
+  if (info.mapPath.isEmpty ()) info.mapPath= "map.sqlite";
   if (info.namespaceDbPath.isEmpty ()) info.namespaceDbPath= "ns.sqlite";
   if (info.ragIndexPath.isEmpty ()) info.ragIndexPath= "rag.sqlite";
   if (info.websitesPath.isEmpty ()) info.websitesPath= "websites.json";
@@ -171,6 +171,10 @@ qtm_vaultfile_write (const QTMVaultfileInfo& info, QString* error) {
     if (error != nullptr) *error= "Vault name cannot be empty.";
     return false;
   }
+  if (!out.mapPath.endsWith (".sqlite", Qt::CaseInsensitive)) {
+    if (error != nullptr) *error= "Vault map database must be a .sqlite file.";
+    return false;
+  }
   if (!qtm_valid_vault_relative_path (out.mapPath) ||
       !qtm_valid_optional_vault_relative_path (out.preferencesPath) ||
       !qtm_valid_vault_relative_path (out.namespaceDbPath) ||
@@ -182,6 +186,15 @@ qtm_vaultfile_write (const QTMVaultfileInfo& info, QString* error) {
     if (error != nullptr)
       *error= "Vaultfile paths must be relative paths inside the vault, "
               "tmfs:// links, or file:// links, without ./ or ../ prefixes.";
+    return false;
+  }
+
+  AthenaVaultfileInfo previous_info;
+  std::string read_error;
+  if (!athena_vaultfile_read (
+        std::filesystem::path (qtm_utf8_std_string (qtm_vault_root_path ())),
+        previous_info, read_error)) {
+    if (error != nullptr) *error= QString::fromStdString (read_error);
     return false;
   }
 
@@ -207,8 +220,17 @@ qtm_vaultfile_write (const QTMVaultfileInfo& info, QString* error) {
     return false;
   }
 
-  vault_load (vault_get_root (), from_qstring_vault_info (out.name.trimmed ()),
-              from_qstring_vault_info (out.mapPath),
-              from_qstring_vault_info (out.namespaceDbPath));
+  string load_error= vault_load (
+    vault_get_root (), from_qstring_vault_info (out.name.trimmed ()),
+    from_qstring_vault_info (out.mapPath),
+    from_qstring_vault_info (out.namespaceDbPath));
+  if (load_error != "") {
+    std::string rollback_error;
+    athena_vaultfile_write (
+      std::filesystem::path (qtm_utf8_std_string (qtm_vault_root_path ())),
+      previous_info, rollback_error);
+    if (error != nullptr) *error= to_qstring_vault_info (load_error);
+    return false;
+  }
   return true;
 }

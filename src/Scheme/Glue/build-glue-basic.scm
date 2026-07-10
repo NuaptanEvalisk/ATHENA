@@ -835,7 +835,7 @@
   (project-get project_get (url))
 
   ;; vault management
-  (vault-load vault_load (void url string string))
+  (vault-load vault_load (string url string string))
   (vault-close vault_close (void))
   (vault-active? vault_active (bool))
   (vault-get-root vault_get_root (url))

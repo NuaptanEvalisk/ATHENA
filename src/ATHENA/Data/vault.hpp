@@ -15,6 +15,8 @@
 #include "url.hpp"
 #include "Database/database.hpp"
 
+#include <cstddef>
+
 /* Vault metadata */
 struct vault_info {
   string name;
@@ -32,9 +34,9 @@ bool vault_active ();
 string vault_get_name ();
 url  vault_get_root ();
 url  vault_get_namespace_db ();
-void vault_load (url root_dir, string name, string db_rel_path);
-void vault_load (url root_dir, string name, string db_rel_path,
-                 string ns_db_rel_path);
+string vault_load (url root_dir, string name, string db_rel_path);
+string vault_load (url root_dir, string name, string db_rel_path,
+                   string ns_db_rel_path);
 void vault_close ();
 
 /* CRUD for Wikilink/Transclusion Map */
@@ -43,6 +45,7 @@ tree    vault_get_node (string uuid); // Returns a tuple (path, begin, end) or U
 void    vault_remove_node (string uuid);
 bool    vault_has_node (string uuid);
 string  vault_find_uuid (string path, string anchor_begin, string anchor_end);
+size_t  vault_rewrite_anchor_references (string path, string renames);
 string  vault_generate_uuid ();
 
 /* Vault scanning */

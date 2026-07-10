@@ -10146,10 +10146,10 @@ tmg_vault_load (tmscm arg1, tmscm arg2, tmscm arg3) {
   string in3= tmscm_to_string (arg3);
 
   // TMSCM_DEFER_INTS;
-  vault_load (in1, in2, in3);
+  string out= vault_load (in1, in2, in3);
   // TMSCM_ALLOW_INTS;
 
-  return TMSCM_UNSPECIFIED;
+  return string_to_tmscm (out);
 }
 
 tmscm

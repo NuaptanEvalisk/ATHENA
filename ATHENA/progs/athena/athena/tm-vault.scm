@@ -373,18 +373,22 @@
 
 (tm-define (interactive-new-vault dir)
   (interactive (lambda (name)
-                 (let* ((db-path "map.tmdb")
+                 (let* ((db-path "map.sqlite")
                         (ns-path "ns.sqlite")
                         (data (list name db-path "" ns-path "" "" ""
                                     "rag.sqlite" "websites.json" "")))
                    (if (vaultfile-write! dir data)
-                       (begin
-                         (vault-load/namespace-db dir name db-path ns-path)
-                         (if (vault-take-preferences?)
-                             (vault-preferences-activate dir data))
-                         (set-message (string-append "Created vault: " name)
-                                      "Vault")
-                         (vault-report-root-namespace-error)))))
+                       (let ((err (vault-load/namespace-db
+                                   dir name db-path ns-path)))
+                         (if (and (string? err) (!= err ""))
+                             (show-message err "Vault")
+                             (begin
+                               (if (vault-take-preferences?)
+                                   (vault-preferences-activate dir data))
+                               (set-message
+                                (string-append "Created vault: " name)
+                                "Vault")
+                               (vault-report-root-namespace-error)))))))
                '("Vault name" "string")))
 
 (tm-define (load-vault-dir dir)
@@ -396,15 +400,23 @@
               (if (and (list? data) (>= (length data) 2))
                   (let* ((data (vaultfile-normalize! dir data))
                          (take-prefs? (vault-take-preferences?)))
-                    (vault-preferences-deactivate)
-                    (vault-load/namespace-db dir (car data) (cadr data)
-                                             (vaultfile-namespace-db-path data))
-                    (if take-prefs?
-                        (vault-preferences-activate dir data))
-                    (add-recent-vault dir)
-                    (set-message (string-append "Loaded vault: " (car data))
-                                 "Vault")
-                    (vault-report-root-namespace-error))
+                    (when vault-preferences-active? (save-preferences))
+                    (let ((err (vault-load/namespace-db
+                                dir (car data) (cadr data)
+                                (vaultfile-namespace-db-path data))))
+                      (if (and (string? err) (!= err ""))
+                          (show-message err "Vault")
+                          (let ((loaded-data (vaultfile-read dir)))
+                            (vault-preferences-deactivate)
+                            (if take-prefs?
+                                (vault-preferences-activate
+                                 dir loaded-data))
+                            (add-recent-vault dir)
+                            (set-message
+                             (string-append "Loaded vault: "
+                                            (car loaded-data))
+                             "Vault")
+                            (vault-report-root-namespace-error)))))
                   (set-message "Invalid Vaultfile.json" "Error")))))
       (interactive-new-vault dir)))
 
