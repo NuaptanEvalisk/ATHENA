@@ -141,7 +141,7 @@ init_upgrade () {
   debug_boot << HRULE;
 
   url old_settings= "$ATHENA_HOME_PATH/system" * url_wildcard ("TEX_PATHS*");
-  url new_settings= "$ATHENA_HOME_PATH/system/settings.scm";
+  url new_settings= "$ATHENA_HOME_PATH/system/sys_state.json";
   remove (old_settings);
   remove (new_settings);
 

@@ -22,6 +22,61 @@
 static url the_tfm_path= url_none ();
 static url the_pk_path = url_none ();
 static url the_pfb_path= url_none ();
+static bool tfm_fallback_loaded= false;
+static bool pk_fallback_loaded = false;
+static bool pfb_fallback_loaded= false;
+
+static url get_kpsepath (string s);
+
+static url
+legacy_tex_roots (string kind) {
+#ifdef OS_WIN32
+  return search_sub_dirs (url ("$TEX_HOME/fonts") * kind);
+#else
+  static const char* roots[]= {
+    "/opt/local/share/texmf-texlive-dist/fonts",
+    "/usr/lib/tetex/fonts",
+    "/usr/lib/texmf/fonts",
+    "/usr/local/lib/texmf/fonts",
+    "/usr/share/texmf/fonts",
+    "/usr/TeX/lib/texmf/fonts",
+    "/var/texfonts",
+    "/var/tmp/texfonts"
+  };
+  url result= url_none ();
+  for (unsigned int i=0; i<sizeof (roots) / sizeof (roots[0]); i++) {
+    url root= url (roots[i]) * kind;
+    if (exists (root)) result= search_sub_dirs (root) | result;
+  }
+  return result;
+#endif
+}
+
+static void
+load_tfm_fallback () {
+  if (tfm_fallback_loaded) return;
+  tfm_fallback_loaded= true;
+  url fallback= get_kpsepath ("tfm");
+  if (is_none (fallback)) fallback= legacy_tex_roots ("tfm");
+  the_tfm_path= expand (factor (the_tfm_path | fallback));
+}
+
+static void
+load_pk_fallback () {
+  if (pk_fallback_loaded) return;
+  pk_fallback_loaded= true;
+  url fallback= get_kpsepath ("pk");
+  if (is_none (fallback)) fallback= legacy_tex_roots ("pk");
+  the_pk_path= expand (factor (the_pk_path | fallback));
+}
+
+static void
+load_pfb_fallback () {
+  if (pfb_fallback_loaded) return;
+  pfb_fallback_loaded= true;
+  the_pfb_path= expand (factor (the_pfb_path |
+                                legacy_tex_roots ("type1")));
+}
 
 /******************************************************************************
 * Finding a TeX font
@@ -44,6 +99,10 @@ resolve_tfm (url name) {
     if ((which!="") && exists (url_system (which))) return url_system (which);
     // cout << "Missed " << name << "\n";
   }
+  else {
+    load_tfm_fallback ();
+    r= resolve (the_tfm_path * name);
+  }
   return r;
 }
 
@@ -58,6 +117,14 @@ resolve_pk (url name) {
     // cout << "Missed " << name << "\n";
   }
 #endif
+  bool need_fallback= get_setting ("KPSEWHICH") != "true";
+#ifdef OS_WIN32
+  need_fallback= true;
+#endif
+  if (need_fallback) {
+    load_pk_fallback ();
+    r= resolve (the_pk_path * name);
+  }
   return r;
 }
 
@@ -72,6 +139,14 @@ resolve_pfb (url name) {
     // cout << "Missed " << name << "\n";
   }
 #endif
+  bool need_fallback= get_setting ("KPSEWHICH") != "true";
+#ifdef OS_WIN32
+  need_fallback= true;
+#endif
+  if (need_fallback) {
+    load_pfb_fallback ();
+    r= resolve (the_pfb_path * name);
+  }
   return r;
 }
 
@@ -220,46 +295,33 @@ get_kpsepath (string s) {
 
 void
 reset_tfm_path (bool rehash) { (void) rehash;
-  // if (rehash && (get_setting ("TEXHASH") == "true")) system ("texhash");
-  string tfm= get_setting ("TFM");
+  tfm_fallback_loaded= false;
   the_tfm_path=
     url_here () |
     search_sub_dirs ("$ATHENA_HOME_PATH/fonts/tfm") |
     search_sub_dirs ("$ATHENA_PATH/fonts/tfm") |
-    "$TEX_TFM_PATH" |
-    ((tfm == "" || tfm == "{}") ? url_none () : tfm);
-  if ((get_setting ("MAKETFM") != "false") ||
-      (get_setting ("TEXHASH") == "true"))
-    if (get_setting ("KPSEWHICH") != "true")
-      the_tfm_path= the_tfm_path | get_kpsepath ("tfm");
+    "$TEX_TFM_PATH";
   the_tfm_path= expand (factor (the_tfm_path));
 }
 
 void
 reset_pk_path (bool rehash) { (void) rehash;
-  // if (rehash && (get_setting ("TEXHASH") == "true")) system ("texhash");
-  string pk= get_setting ("PK");
+  pk_fallback_loaded= false;
   the_pk_path=
     url_here () |
     search_sub_dirs ("$ATHENA_HOME_PATH/fonts/pk") |
     search_sub_dirs ("$ATHENA_PATH/fonts/pk") |
-    "$TEX_PK_PATH" |
-    (pk == ""? url_none (): pk);
-  if ((get_setting ("MAKEPK") != "false") ||
-      (get_setting ("TEXHASH") == "true"))
-    if (get_setting ("KPSEWHICH") != "true")
-      the_pk_path= the_pk_path | get_kpsepath ("pk");
+    "$TEX_PK_PATH";
   the_pk_path= expand (factor (the_pk_path));
 }
 
 void
 reset_pfb_path () {
-  string pfb= get_setting ("PFB");
+  pfb_fallback_loaded= false;
   the_pfb_path=
     url_here () |
     search_sub_dirs ("$ATHENA_HOME_PATH/fonts/type1") |
     search_sub_dirs ("$ATHENA_PATH/fonts/type1") |
-    "$TEX_PFB_PATH" |
-    (pfb == ""? url_none (): url_system (pfb));
+    "$TEX_PFB_PATH";
   the_pfb_path= expand (factor (the_pfb_path));
 }

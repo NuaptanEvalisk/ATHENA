@@ -1174,6 +1174,7 @@ immediate_options (int argc, char** argv) {
     string s= argv[i];
     if ((N(s)>=2) && (s(0,2)=="--")) s= s (1, N(s));
     if ((s == "-S") || (s == "-setup")) {
+      remove (url ("$ATHENA_HOME_PATH/system/sys_state.json"));
       remove (url ("$ATHENA_HOME_PATH/system/settings.scm"));
       remove (url ("$ATHENA_HOME_PATH/system/setup.scm"));
       remove (url ("$ATHENA_HOME_PATH/system/cache") * url_wildcard ("*"));
@@ -1659,6 +1660,7 @@ texmacs_entrypoint (int argc, char** argv) {
   // Reset TeXmacs if Alt is pressed during startup
   if (mac_alternate_startup()) {
     cout << "ATHENA] Performing setup (Alt on startup)" << LF; 
+    remove (url ("$ATHENA_HOME_PATH/system/sys_state.json"));
     remove (url ("$ATHENA_HOME_PATH/system/settings.scm"));
     remove (url ("$ATHENA_HOME_PATH/system/setup.scm"));
     remove (url ("$ATHENA_HOME_PATH/system/cache") * url_wildcard ("*"));

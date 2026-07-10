@@ -17,6 +17,11 @@
 #include "merge_sort.hpp"
 #include "drd_std.hpp"
 #include "language.hpp"
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonParseError>
+#include <QJsonValue>
+#include <QByteArray>
 #include <errno.h>
 #include <signal.h>
 #include <unistd.h>
@@ -278,7 +283,6 @@ acquire_boot_lock () {
   //cout << "Acquire lock\n";
   url lock_file= "$ATHENA_HOME_PATH/system/boot_lock";
   if (exists (lock_file)) {
-    remove (url ("$ATHENA_HOME_PATH/system/settings.scm"));
     remove (url ("$ATHENA_HOME_PATH/system/setup.scm"));
     remove (url ("$ATHENA_HOME_PATH/system/cache") * url_wildcard ("*"));
     remove (url ("$ATHENA_HOME_PATH/fonts/error") * url_wildcard ("*"));    
@@ -461,7 +465,7 @@ init_deprecated () {
 }
 
 /******************************************************************************
-* Subroutines for the TeXmacs settings
+* Persistent machine capability state
 ******************************************************************************/
 
 string
@@ -485,26 +489,147 @@ set_setting (string var, string val) {
   athena_settings << tuple (var, scm_quote (val));
 }
 
+static url
+system_state_file () {
+  return "$ATHENA_HOME_PATH/system/sys_state.json";
+}
+
+static url
+legacy_system_state_file () {
+  return "$ATHENA_HOME_PATH/system/settings.scm";
+}
+
+static QString
+system_state_to_qstring (string s) {
+  return QString::fromUtf8 (as_charp (s), N(s));
+}
+
+static string
+system_state_from_qstring (const QString& s) {
+  QByteArray bytes= s.toUtf8 ();
+  return string (bytes.constData ());
+}
+
+static void
+set_bool_setting (string var, const QJsonValue& val) {
+  set_setting (var, val.toBool (false)? "true": "false");
+}
+
+static bool
+load_system_state_json () {
+  string s;
+  url state_file= system_state_file ();
+  if (load_string (state_file, s, false)) return false;
+
+  QJsonParseError error;
+  QJsonDocument doc= QJsonDocument::fromJson (QByteArray (as_charp (s), N(s)),
+                                              &error);
+  if (error.error != QJsonParseError::NoError || !doc.isObject ()) {
+    std_error << "Invalid system state JSON in " << state_file << LF;
+    return false;
+  }
+
+  QJsonObject root= doc.object ();
+  if (root.value ("format").toString () != "athena-system-state" ||
+      root.value ("version").toInt () != 1 ||
+      !root.value ("tex").isObject ()) {
+    std_error << "Unsupported system state JSON in " << state_file << LF;
+    return false;
+  }
+
+  athena_settings= tuple ();
+  set_setting ("VERSION",
+               system_state_from_qstring (
+                 root.value ("compatibility_version").toString ()));
+  QJsonObject tex= root.value ("tex").toObject ();
+  set_bool_setting ("KPSEPATH", tex.value ("kpsepath"));
+  set_bool_setting ("KPSEWHICH", tex.value ("kpsewhich"));
+  set_setting ("MAKETFM", system_state_from_qstring (
+                 tex.value ("make_tfm").toString ("false")));
+  set_setting ("MAKEPK", system_state_from_qstring (
+                 tex.value ("make_pk").toString ("false")));
+  set_setting ("DPI", as_string (tex.value ("design_dpi").toInt (600)));
+  return true;
+}
+
+static bool
+save_system_state_json () {
+  QJsonObject tex;
+  tex.insert ("kpsepath", get_setting ("KPSEPATH") == "true");
+  tex.insert ("kpsewhich", get_setting ("KPSEWHICH") == "true");
+  tex.insert ("make_tfm", system_state_to_qstring (
+                get_setting ("MAKETFM", "false")));
+  tex.insert ("make_pk", system_state_to_qstring (
+                get_setting ("MAKEPK", "false")));
+  tex.insert ("design_dpi", as_int (get_setting ("DPI", "600")));
+
+  QJsonObject root;
+  root.insert ("format", "athena-system-state");
+  root.insert ("version", 1);
+  root.insert ("compatibility_version", system_state_to_qstring (
+                 get_setting ("VERSION")));
+  root.insert ("tex", tex);
+
+  QByteArray bytes= QJsonDocument (root).toJson (QJsonDocument::Indented);
+  return !save_string (system_state_file (), string (bytes.constData ()));
+}
+
+static void
+backup_legacy_system_state () {
+  url legacy= legacy_system_state_file ();
+  if (!exists (legacy)) return;
+  url backup= "$ATHENA_HOME_PATH/system/settings.scm.old.bak";
+  if (exists (backup)) {
+    int suffix= 1;
+    do {
+      backup= url ("$ATHENA_HOME_PATH/system/settings.scm.old.bak." *
+                   as_string (suffix++));
+    } while (exists (backup));
+  }
+  move (legacy, backup);
+}
+
+static bool
+migrate_legacy_system_state () {
+  string s;
+  if (load_string (legacy_system_state_file (), s, false)) return false;
+  tree legacy= block_to_scheme_tree (s);
+  athena_settings= legacy;
+  string version= get_setting ("VERSION");
+  string kpsepath= get_setting ("KPSEPATH", "false");
+  string kpsewhich= get_setting ("KPSEWHICH", "false");
+  string make_tfm= get_setting ("MAKETFM", "false");
+  string make_pk= get_setting ("MAKEPK", "false");
+  string dpi= get_setting ("DPI", "600");
+  athena_settings= tuple ();
+  set_setting ("VERSION", version);
+  set_setting ("KPSEPATH", kpsepath);
+  set_setting ("KPSEWHICH", kpsewhich);
+  set_setting ("MAKETFM", make_tfm);
+  set_setting ("MAKEPK", make_pk);
+  set_setting ("DPI", dpi);
+  if (!save_system_state_json ()) return false;
+  backup_legacy_system_state ();
+  cout << "Migrated legacy TeX setup state to " << system_state_file () << LF;
+  return true;
+}
+
 /******************************************************************************
 * First installation
 ******************************************************************************/
 
 void
 setup_athena () {
-  url settings_file= "$ATHENA_HOME_PATH/system/settings.scm";
   debug_boot << "Welcome to ATHENA " ATHENA_APP_VERSION "\n";
   debug_boot << HRULE;
 
   set_setting ("VERSION", TEXMACS_COMPAT_VERSION);
   setup_tex ();
 
-  string s= scheme_tree_to_block (athena_settings);
-  //cout << "settings_t= " << athena_settings << "\n";
-  //cout << "settings_s= " << s << "\n";
-  if (save_string (settings_file, s) || load_string (settings_file, s, false)) {
+  if (!save_system_state_json ()) {
     failed_error << HRULE;
     failed_error << "I could not save or reload the file\n\n";
-    failed_error << "\t" << settings_file << "\n\n";
+    failed_error << "\t" << system_state_file () << "\n\n";
     failed_error << "Please give me full access control over this file and\n";
     failed_error << "rerun 'ATHENA'.\n";
     failed_error << HRULE;    FAILED ("unable to write settings");
@@ -550,18 +675,23 @@ init_athena () {
 void
 init_plugins () {
   url old_settings= "$ATHENA_HOME_PATH/system/TEX_PATHS";
-  url new_settings= "$ATHENA_HOME_PATH/system/settings.scm";
 
   install_status= 0;
   string s;
-  if (load_string (new_settings, s, false)) {
-    if (load_string (old_settings, s, false)) {
-      setup_athena ();
-      install_status= 1;
+  if (!load_system_state_json ()) {
+    if (!migrate_legacy_system_state ()) {
+      if (load_string (old_settings, s, false)) {
+        setup_athena ();
+        install_status= 1;
+      }
+      else {
+        get_old_settings (s);
+        set_setting ("VERSION", TEXMACS_COMPAT_VERSION);
+        setup_tex ();
+        save_system_state_json ();
+      }
     }
-    else get_old_settings (s);
   }
-  else athena_settings= block_to_scheme_tree (s);
 
   if (get_setting ("VERSION") != TEXMACS_COMPAT_VERSION) {
     init_upgrade ();

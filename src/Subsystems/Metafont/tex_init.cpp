@@ -62,74 +62,7 @@ init_helper_binaries () {
   } 	 
   else set_setting ("MAKEPK", "false");
 
-  if (exists_in_path ("texhash")) { 	 
-    debug_boot << "texhash works with your TeX distribution\n"; 	 
-    set_setting ("TEXHASH", "true"); 	 
-  } 	 
-  else set_setting ("TEXHASH", "false");
-  
   set_setting ("DPI", "600");
-}
-
-/******************************************************************************
-* Heuristic determination of path with TeX files
-******************************************************************************/
-
-static void
-search_sub_dirs_sub (url base, url u, url& tfm, url& pk, url& pfb, int status) {
-  if (is_concat (u)) {
-    if (u[1] == "tfm") status= 1;
-    if (u[1] == "pk" ) status= 2;
-    if (u[1] == "pfb" || u[1] == "type1") status= 3;
-    search_sub_dirs_sub (base * u[1], u[2], tfm, pk, pfb, status);
-  }
-  if (is_or (u)) {
-    search_sub_dirs_sub (base, u[2], tfm, pk, pfb, status);
-    search_sub_dirs_sub (base, u[1], tfm, pk, pfb, status);
-  }
-  if ((status == 1) || (u == "tfm")) tfm= (base * u) | tfm;
-  if ((status == 2) || (u == "pk" )) pk = (base * u) | pk;
-  if ((status == 3) || (u == "pfb") || (u == "pfb")) pfb = (base * u) | pfb;
-}
-
-static void
-search_sub_dirs (url root, url& tfm, url& pk, url& pfb) {
-  url dirs= search_sub_dirs (root);
-  if (!is_none (dirs)) {
-    debug_boot << "TeX Probing: found TeX fonts at " << root << "\n";
-    search_sub_dirs_sub (url_here (), dirs, tfm, pk, pfb, 0);
-  }
-}
-
-static void
-init_heuristic_tex_paths () {
-  url tfm= url_none (), pk= url_none (), pfb= url_none ();
-
-  // Try some 'standard' directories
-#ifdef OS_WIN32
-  tfm= search_sub_dirs ("$TEX_HOME/fonts/tfm");
-  pk = search_sub_dirs ("$TEX_HOME/fonts/pk");
-  pfb= search_sub_dirs ("$TEX_HOME/fonts/type1");
-#else
-  search_sub_dirs ("/opt/local/share/texmf-texlive-dist/fonts", tfm, pk, pfb);
-  search_sub_dirs ("/usr/lib/tetex/fonts", tfm, pk, pfb);
-  search_sub_dirs ("/usr/lib/texmf/fonts", tfm, pk, pfb);
-  search_sub_dirs ("/usr/local/lib/texmf/fonts", tfm, pk, pfb);
-  search_sub_dirs ("/usr/share/texmf/fonts", tfm, pk, pfb);
-  search_sub_dirs ("/usr/TeX/lib/texmf/fonts", tfm, pk, pfb);
-  search_sub_dirs ("/var/texfonts", tfm, pk, pfb);
-  search_sub_dirs ("/var/tmp/texfonts", tfm, pk, pfb);
-#endif
-
-#ifdef OS_WIN32
-  set_setting ("TFM", as_string (tfm));
-  set_setting ("PK" , as_string (pk ));
-  set_setting ("PFB", as_string (pfb));
-#else
-  set_setting ("TFM", as_string (expand (factor (tfm))));
-  set_setting ("PK" , as_string (expand (factor (pk ))));
-  set_setting ("PFB", as_string (expand (factor (pfb))));
-#endif
 }
 
 /******************************************************************************
@@ -140,7 +73,6 @@ void
 setup_tex () {
   remove ("$ATHENA_HOME_PATH/fonts/font-index.scm");
   init_helper_binaries ();
-  init_heuristic_tex_paths ();
 }
 
 void
