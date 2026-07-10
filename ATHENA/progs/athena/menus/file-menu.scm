@@ -286,6 +286,7 @@
   ("Load Vault" (open-vault))
   ("Unload Vault" (unload-vault))
   ("Revert" (revert-buffer))
+  ("Compare two files" (athena-diff-show))
   (when (buffer-is-real-file?)
     ("Open in text editor" (open-in-text-editor)))
   (when (buffer-is-real-file?)

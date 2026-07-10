@@ -824,6 +824,32 @@ QTMMainTabWindow::activateDocumentWidget(QWidget* widget) {
     focusTarget->setFocus(Qt::OtherFocusReason);
 }
 
+bool
+QTMMainTabWindow::placeDocumentWidgetsSideBySide(QWidget* left,
+                                                 QWidget* right) {
+  if (left == nullptr || right == nullptr || left == right) return false;
+
+  if (tmapp()->useAds()) {
+    ads::CDockWidget* leftDock= adsDockWidgetFor (left);
+    ads::CDockWidget* rightDock= adsDockWidgetFor (right);
+    if (leftDock == nullptr || rightDock == nullptr ||
+        leftDock->dockAreaWidget () == nullptr)
+      return false;
+    leftDock->toggleView (true);
+    rightDock->toggleView (true);
+    mDockManager->addDockWidget (ads::RightDockWidgetArea, rightDock,
+                                 leftDock->dockAreaWidget ());
+    mDockManager->setDockWidgetFocused (leftDock);
+    return true;
+  }
+
+  if (tmapp()->useMdi()) {
+    tileSubWindows ();
+    return true;
+  }
+  return false;
+}
+
 void QTMMainTabWindow::removeWidget(QWidget *widget) {
   if (tmapp()->useAds()) {
     QWidget* p = widget->parentWidget();

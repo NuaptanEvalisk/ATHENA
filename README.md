@@ -59,6 +59,8 @@ ATHENA vaults are self-contained mathematical knowledge bases.
   preference paths, startup pages, maintenance summary folders, and RAG index
   paths from Preferences.
 - Browse vault contents in native Qt ADS panes.
+- Compare two `.ath` files side by side using a tree-aware structural diff
+  with character-level highlighting inside corresponding text nodes.
 - Safely rename vault files and directories with an operation preview,
   crash-recoverable UUID map updates, and structural rewriting of affected
   local asset references while preserving relative paths.

@@ -35,6 +35,7 @@
 #include "QTMVaultExplorer.hpp"
 #include "QTMVaultBackupViewer.hpp"
 #include "QTMGlobalSearch.hpp"
+#include "QTMATHENADiff.hpp"
 #include "QTMOutlinePane.hpp"
 #include "QTMErrorMessagesPane.hpp"
 #include "QTMCommandPalette.hpp"

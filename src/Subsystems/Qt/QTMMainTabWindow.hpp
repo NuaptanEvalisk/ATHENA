@@ -56,6 +56,7 @@ public:
   QWidget* currentDocumentWidget() const;
   QString documentWidgetTitle(QWidget* widget) const;
   void activateDocumentWidget(QWidget* widget);
+  bool placeDocumentWidgetsSideBySide(QWidget* left, QWidget* right);
 
   void tileSubWindows();
   void cascadeSubWindows();

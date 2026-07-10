@@ -849,6 +849,8 @@ edit_interface_rep::apply_changes () {
         invalidate (alt_selection_rects[i] & visible);
       range_set alt_sel= append (get_alt_selection ("alternate"),
                                  get_alt_selection ("brackets"));
+      alt_sel << get_alt_selection ("athena-diff-left");
+      alt_sel << get_alt_selection ("athena-diff-right");
       if (is_empty (alt_sel))
         alt_selection_rects= array<rectangles> ();
     }
@@ -1035,6 +1037,8 @@ edit_interface_rep::apply_changes () {
   if ((env_change & THE_SELECTION) || new_visible != last_visible) {
     range_set alt_sel= append (get_alt_selection ("alternate"),
                                get_alt_selection ("brackets"));
+    alt_sel << get_alt_selection ("athena-diff-left");
+    alt_sel << get_alt_selection ("athena-diff-right");
     if (!is_empty (alt_sel)) {
       alt_selection_rects= array<rectangles> (); int b= 0, e= N(alt_sel);
       if (e - b >= 200) {

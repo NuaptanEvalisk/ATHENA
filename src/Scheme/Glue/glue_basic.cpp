@@ -10334,6 +10334,15 @@ tmg_global_search_show () {
 }
 
 tmscm
+tmg_athena_diff_show () {
+  // TMSCM_DEFER_INTS;
+  athena_diff_show ();
+  // TMSCM_ALLOW_INTS;
+
+  return TMSCM_UNSPECIFIED;
+}
+
+tmscm
 tmg_alt_window_handle () {
   // TMSCM_DEFER_INTS;
   int out= window_handle ();
@@ -11587,6 +11596,7 @@ initialize_glue_basic () {
   tmscm_install_procedure ("vault-show-explorer",  tmg_vault_show_explorer, 0, 0, 0);
   tmscm_install_procedure ("vault-explorer-track-file",  tmg_vault_explorer_track_file, 1, 0, 0);
   tmscm_install_procedure ("global-search-show",  tmg_global_search_show, 0, 0, 0);
+  tmscm_install_procedure ("athena-diff-show",  tmg_athena_diff_show, 0, 0, 0);
   tmscm_install_procedure ("alt-window-handle",  tmg_alt_window_handle, 0, 0, 0);
   tmscm_install_procedure ("alt-window-create-quit",  tmg_alt_window_create_quit, 4, 0, 0);
   tmscm_install_procedure ("alt-window-create-plain",  tmg_alt_window_create_plain, 3, 0, 0);

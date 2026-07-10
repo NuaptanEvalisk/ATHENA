@@ -30,6 +30,13 @@
   edit several documents in the same window using <TeXmacs>; you can switch
   between different <em|buffers> using <menu|Go>.
 
+  <menu|File|Compare two files> opens two <verbatim|.ath> documents side by
+  side and highlights their differences. ATHENA compares the document trees
+  structurally: inserted, removed, or changed structures are matched as tree
+  nodes, while text inside corresponding atomic nodes is compared at character
+  level. The comparison opens ordinary editable buffers, but its highlights
+  are view-only and are not saved into either document.
+
   <tmdoc-copyright|1998--2010|Joris van der Hoeven>
 
   <tmdoc-license|Permission is granted to copy, distribute and/or modify this
