@@ -34,10 +34,10 @@
 #include <QProgressBar>
 #include <QPushButton>
 #include <QRadioButton>
+#include <QShortcut>
 #include <QShowEvent>
 #include <QSizePolicy>
 #include <QSplitter>
-#include <QStringListModel>
 #include <QTimer>
 #include <QVariant>
 #include <QWizard>
@@ -183,8 +183,7 @@ public:
   bool acceptCurrentResult ();
 
   QLineEdit*   queryEdit;
-  QLineEdit*   namespaceEdit;
-  QStringListModel* namespaceModel;
+  QComboBox*   namespaceCombo;
   QComboBox*   enunciationCombo;
   QCheckBox*   caseInsensitiveCheck;
   QCheckBox*   fuzzyCheck;
@@ -968,15 +967,14 @@ TransclusionSearchPage::TransclusionSearchPage (QWidget* parent)
 
   queryEdit= new QLineEdit (this);
   queryEdit->setPlaceholderText ("Search text");
-  namespaceEdit= new QLineEdit (this);
-  namespaceEdit->setPlaceholderText ("All namespaces");
-  namespaceEdit->setClearButtonEnabled (true);
-  namespaceEdit->setMinimumWidth (300);
-  namespaceModel= new QStringListModel (this);
-  QCompleter* namespaceCompleter= new QCompleter (namespaceModel, this);
-  namespaceCompleter->setCaseSensitivity (Qt::CaseInsensitive);
-  namespaceCompleter->setFilterMode (Qt::MatchContains);
-  namespaceEdit->setCompleter (namespaceCompleter);
+  namespaceCombo= new QComboBox (this);
+  namespaceCombo->setEditable (true);
+  namespaceCombo->setInsertPolicy (QComboBox::NoInsert);
+  namespaceCombo->setMinimumWidth (300);
+  namespaceCombo->lineEdit ()->setPlaceholderText ("All namespaces");
+  namespaceCombo->lineEdit ()->setClearButtonEnabled (true);
+  namespaceCombo->completer ()->setCaseSensitivity (Qt::CaseInsensitive);
+  namespaceCombo->completer ()->setFilterMode (Qt::MatchContains);
 
   enunciationCombo= new QComboBox (this);
   for (const WikilinkEnunciationFilterEntry& entry: wikilink_enunciation_filters)
@@ -1011,8 +1009,8 @@ TransclusionSearchPage::TransclusionSearchPage (QWidget* parent)
   searchRow->addWidget (stopButton);
 
   QHBoxLayout* filtersRow= new QHBoxLayout ();
-  filtersRow->addWidget (new QLabel ("Namespace:", this));
-  filtersRow->addWidget (namespaceEdit);
+  filtersRow->addWidget (new QLabel ("Within namespace:", this));
+  filtersRow->addWidget (namespaceCombo);
   filtersRow->addSpacing (12);
   filtersRow->addWidget (new QLabel ("Enunciation:", this));
   filtersRow->addWidget (enunciationCombo);
@@ -1047,6 +1045,12 @@ TransclusionSearchPage::TransclusionSearchPage (QWidget* parent)
   layout->addWidget (statusLabel);
   layout->addWidget (progress);
   layout->addWidget (splitter, 1);
+  setTabOrder (queryEdit, searchButton);
+  setTabOrder (searchButton, namespaceCombo);
+  setTabOrder (namespaceCombo, enunciationCombo);
+  setTabOrder (enunciationCombo, caseInsensitiveCheck);
+  setTabOrder (caseInsensitiveCheck, fuzzyCheck);
+  setTabOrder (fuzzyCheck, resultList);
 
   connect (searchButton, &QPushButton::clicked,
            this, [this] () { startSearch (); });
@@ -1056,8 +1060,32 @@ TransclusionSearchPage::TransclusionSearchPage (QWidget* parent)
              stopButton->setEnabled (false);
              statusLabel->setText ("Stopping search...");
            });
-  connect (queryEdit, &QLineEdit::returnPressed,
+  QShortcut* searchShortcut= new QShortcut (QKeySequence ("Alt+S"), this);
+  searchShortcut->setContext (Qt::WidgetWithChildrenShortcut);
+  connect (searchShortcut, &QShortcut::activated,
            this, [this] () { startSearch (); });
+  QShortcut* stopShortcut= new QShortcut (QKeySequence ("Alt+T"), this);
+  stopShortcut->setContext (Qt::WidgetWithChildrenShortcut);
+  connect (stopShortcut, &QShortcut::activated,
+           this, [this] () {
+             if (stopButton->isEnabled ()) stopButton->click ();
+           });
+  auto insertCurrent= [this] () {
+    if (resultList->currentItem () == nullptr) return;
+    if (acceptCurrentResult ()) {
+      QTMVaultTransclusionWizard* w=
+        static_cast<QTMVaultTransclusionWizard*> (wizard ());
+      QTimer::singleShot (0, w, [w] () { w->accept (); });
+    }
+  };
+  QShortcut* insertShortcut= new QShortcut (QKeySequence (Qt::Key_Return),
+                                             this);
+  insertShortcut->setContext (Qt::WidgetWithChildrenShortcut);
+  connect (insertShortcut, &QShortcut::activated, this, insertCurrent);
+  QShortcut* keypadInsertShortcut=
+    new QShortcut (QKeySequence (Qt::Key_Enter), this);
+  keypadInsertShortcut->setContext (Qt::WidgetWithChildrenShortcut);
+  connect (keypadInsertShortcut, &QShortcut::activated, this, insertCurrent);
   connect (caseInsensitiveCheck, &QCheckBox::toggled,
            this, [] (bool on) {
              set_preference (transclusion_search_case_pref,
@@ -1115,8 +1143,8 @@ TransclusionSearchPage::showEvent (QShowEvent* event) {
 
 void
 TransclusionSearchPage::refreshNamespaces () {
-  QString current= namespaceEdit == nullptr ? QString () :
-    namespaceEdit->text ().trimmed ();
+  QString current= namespaceCombo == nullptr ? QString () :
+    namespaceCombo->currentText ().trimmed ();
   QStringList names;
   string error;
   athena_namespace_refresh_derived (error);
@@ -1124,14 +1152,16 @@ TransclusionSearchPage::refreshNamespaces () {
     names << to_qstring (ns.name);
   names.removeDuplicates ();
   names.sort (Qt::CaseInsensitive);
-  namespaceModel->setStringList (names);
-  if (!current.isEmpty () && !names.contains (current, Qt::CaseSensitive))
-    namespaceEdit->setText (current);
+  namespaceCombo->clear ();
+  namespaceCombo->addItem (QString ());
+  namespaceCombo->addItems (names);
+  namespaceCombo->setCurrentText (current);
 }
 
 QString
 TransclusionSearchPage::selectedNamespace () const {
-  return namespaceEdit == nullptr ? QString () : namespaceEdit->text ().trimmed ();
+  return namespaceCombo == nullptr ? QString () :
+    namespaceCombo->currentText ().trimmed ();
 }
 
 QString
@@ -1325,7 +1355,11 @@ TransclusionSearchPage::startSearch () {
       return path_less (a.upperWhere, b.upperWhere);
     });
   for (const TransclusionSearchResult& hit: collected) addResult (hit);
-  if (resultList->count () > 0) resultList->setCurrentRow (0);
+  if (resultList->count () > 0) {
+    resultList->setCurrentRow (0);
+    resultList->setFocus ();
+  }
+  else queryEdit->setFocus ();
   finishSearch ();
 }
 

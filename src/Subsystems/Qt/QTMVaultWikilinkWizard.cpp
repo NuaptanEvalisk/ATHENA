@@ -36,10 +36,10 @@
 #include <QPushButton>
 #include <QRadioButton>
 #include <QRegularExpression>
+#include <QShortcut>
 #include <QShowEvent>
 #include <QSizePolicy>
 #include <QSplitter>
-#include <QStringListModel>
 #include <QTimer>
 #include <QVariant>
 #include <QWizard>
@@ -323,8 +323,7 @@ public:
   void acceptAnchorItem (QListWidgetItem* item);
 
   QLineEdit*   queryEdit;
-  QLineEdit*   namespaceEdit;
-  QStringListModel* namespaceModel;
+  QComboBox*   namespaceCombo;
   QComboBox*   enunciationCombo;
   QCheckBox*   caseInsensitiveCheck;
   QCheckBox*   fuzzyCheck;
@@ -774,15 +773,14 @@ WikilinkSearchPage::WikilinkSearchPage (QWidget* parent)
 
   queryEdit= new QLineEdit (this);
   queryEdit->setPlaceholderText ("Search text");
-  namespaceEdit= new QLineEdit (this);
-  namespaceEdit->setPlaceholderText ("All namespaces");
-  namespaceEdit->setClearButtonEnabled (true);
-  namespaceEdit->setMinimumWidth (300);
-  namespaceModel= new QStringListModel (this);
-  QCompleter* namespaceCompleter= new QCompleter (namespaceModel, this);
-  namespaceCompleter->setCaseSensitivity (Qt::CaseInsensitive);
-  namespaceCompleter->setFilterMode (Qt::MatchContains);
-  namespaceEdit->setCompleter (namespaceCompleter);
+  namespaceCombo= new QComboBox (this);
+  namespaceCombo->setEditable (true);
+  namespaceCombo->setInsertPolicy (QComboBox::NoInsert);
+  namespaceCombo->setMinimumWidth (300);
+  namespaceCombo->lineEdit ()->setPlaceholderText ("All namespaces");
+  namespaceCombo->lineEdit ()->setClearButtonEnabled (true);
+  namespaceCombo->completer ()->setCaseSensitivity (Qt::CaseInsensitive);
+  namespaceCombo->completer ()->setFilterMode (Qt::MatchContains);
 
   enunciationCombo= new QComboBox (this);
   enunciationCombo->addItem ("Any", "");
@@ -825,8 +823,8 @@ WikilinkSearchPage::WikilinkSearchPage (QWidget* parent)
   searchRow->addWidget (stopButton);
 
   QHBoxLayout* filtersRow= new QHBoxLayout ();
-  filtersRow->addWidget (new QLabel ("Namespace:", this));
-  filtersRow->addWidget (namespaceEdit);
+  filtersRow->addWidget (new QLabel ("Within namespace:", this));
+  filtersRow->addWidget (namespaceCombo);
   filtersRow->addSpacing (12);
   filtersRow->addWidget (new QLabel ("Enunciation:", this));
   filtersRow->addWidget (enunciationCombo);
@@ -867,8 +865,8 @@ WikilinkSearchPage::WikilinkSearchPage (QWidget* parent)
   layout->addWidget (progress);
   layout->addWidget (splitter, 1);
   setTabOrder (queryEdit, searchButton);
-  setTabOrder (searchButton, namespaceEdit);
-  setTabOrder (namespaceEdit, enunciationCombo);
+  setTabOrder (searchButton, namespaceCombo);
+  setTabOrder (namespaceCombo, enunciationCombo);
   setTabOrder (enunciationCombo, caseInsensitiveCheck);
   setTabOrder (caseInsensitiveCheck, fuzzyCheck);
   setTabOrder (fuzzyCheck, resultList);
@@ -884,8 +882,28 @@ WikilinkSearchPage::WikilinkSearchPage (QWidget* parent)
              stopButton->setEnabled (false);
              statusLabel->setText ("Stopping search...");
            });
-  connect (queryEdit, &QLineEdit::returnPressed,
+  QShortcut* searchShortcut= new QShortcut (QKeySequence ("Alt+S"), this);
+  searchShortcut->setContext (Qt::WidgetWithChildrenShortcut);
+  connect (searchShortcut, &QShortcut::activated,
            this, [this] () { startSearch (); });
+  QShortcut* stopShortcut= new QShortcut (QKeySequence ("Alt+T"), this);
+  stopShortcut->setContext (Qt::WidgetWithChildrenShortcut);
+  connect (stopShortcut, &QShortcut::activated,
+           this, [this] () {
+             if (stopButton->isEnabled ()) stopButton->click ();
+           });
+  auto insertCurrent= [this] () {
+    if (anchorList->currentItem () != nullptr)
+      acceptAnchorItem (anchorList->currentItem ());
+  };
+  QShortcut* insertShortcut= new QShortcut (QKeySequence (Qt::Key_Return),
+                                             this);
+  insertShortcut->setContext (Qt::WidgetWithChildrenShortcut);
+  connect (insertShortcut, &QShortcut::activated, this, insertCurrent);
+  QShortcut* keypadInsertShortcut=
+    new QShortcut (QKeySequence (Qt::Key_Enter), this);
+  keypadInsertShortcut->setContext (Qt::WidgetWithChildrenShortcut);
+  connect (keypadInsertShortcut, &QShortcut::activated, this, insertCurrent);
   connect (caseInsensitiveCheck, &QCheckBox::toggled,
            this, [] (bool on) {
              set_preference (wikilink_search_case_pref,
@@ -947,8 +965,8 @@ WikilinkSearchPage::showEvent (QShowEvent* event) {
 
 void
 WikilinkSearchPage::refreshNamespaces () {
-  QString current= namespaceEdit == nullptr ? QString () :
-    namespaceEdit->text ().trimmed ();
+  QString current= namespaceCombo == nullptr ? QString () :
+    namespaceCombo->currentText ().trimmed ();
 
   QStringList names;
   string error;
@@ -957,15 +975,16 @@ WikilinkSearchPage::refreshNamespaces () {
     names << to_qstring (ns.name);
   names.removeDuplicates ();
   names.sort (Qt::CaseInsensitive);
-  namespaceModel->setStringList (names);
-
-  if (!current.isEmpty () && !names.contains (current, Qt::CaseSensitive))
-    namespaceEdit->setText (current);
+  namespaceCombo->clear ();
+  namespaceCombo->addItem (QString ());
+  namespaceCombo->addItems (names);
+  namespaceCombo->setCurrentText (current);
 }
 
 QString
 WikilinkSearchPage::selectedNamespace () const {
-  return namespaceEdit == nullptr ? QString () : namespaceEdit->text ().trimmed ();
+  return namespaceCombo == nullptr ? QString () :
+    namespaceCombo->currentText ().trimmed ();
 }
 
 QString
@@ -1156,7 +1175,11 @@ WikilinkSearchPage::startSearch () {
       return path_less (a.hitStart, b.hitStart);
     });
   for (const WikilinkSearchResult& hit: collected) addResult (hit);
-  if (resultList->count () > 0) resultList->setCurrentRow (0);
+  if (resultList->count () > 0) {
+    resultList->setCurrentRow (0);
+    resultList->setFocus ();
+  }
+  else queryEdit->setFocus ();
   finishSearch ();
 }
 
