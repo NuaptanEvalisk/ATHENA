@@ -50,6 +50,8 @@ namespace {
 
 static constexpr const char* transclusion_search_case_pref=
   "vault transclusion inserter case insensitive search";
+static constexpr const char* transclusion_search_fuzzy_pref=
+  "vault transclusion inserter fuzzy search";
 
 enum TransclusionWizardPageId {
   TransclusionModePageId= 10,
@@ -172,6 +174,7 @@ public:
   QString selectedNamespace () const;
   QString selectedEnunciation () const;
   bool caseInsensitiveSearch () const;
+  bool fuzzySearch () const;
   void startSearch ();
   int  searchFile (url u, const tree& query,
                    std::vector<TransclusionSearchResult>& hits) const;
@@ -184,6 +187,7 @@ public:
   QStringListModel* namespaceModel;
   QComboBox*   enunciationCombo;
   QCheckBox*   caseInsensitiveCheck;
+  QCheckBox*   fuzzyCheck;
   QPushButton* searchButton;
   QPushButton* stopButton;
   QLabel*      statusLabel;
@@ -981,6 +985,9 @@ TransclusionSearchPage::TransclusionSearchPage (QWidget* parent)
   caseInsensitiveCheck= new QCheckBox ("Case-insensitive", this);
   caseInsensitiveCheck->setChecked (
     get_preference (transclusion_search_case_pref, "off") == "on");
+  fuzzyCheck= new QCheckBox ("Fuzzy", this);
+  fuzzyCheck->setChecked (
+    get_preference (transclusion_search_fuzzy_pref, "off") == "on");
 
   searchButton= new QPushButton ("Search", this);
   stopButton= new QPushButton ("Stop", this);
@@ -1011,6 +1018,8 @@ TransclusionSearchPage::TransclusionSearchPage (QWidget* parent)
   filtersRow->addWidget (enunciationCombo);
   filtersRow->addSpacing (12);
   filtersRow->addWidget (caseInsensitiveCheck);
+  filtersRow->addSpacing (12);
+  filtersRow->addWidget (fuzzyCheck);
   filtersRow->addStretch ();
 
   QWidget* left= new QWidget (this);
@@ -1054,6 +1063,11 @@ TransclusionSearchPage::TransclusionSearchPage (QWidget* parent)
              set_preference (transclusion_search_case_pref,
                              on ? string ("on") : string ("off"));
            });
+  connect (fuzzyCheck, &QCheckBox::toggled,
+           this, [] (bool on) {
+             set_preference (transclusion_search_fuzzy_pref,
+                             on ? string ("on") : string ("off"));
+           });
   connect (resultList, &QListWidget::currentItemChanged,
            this, [this] (QListWidgetItem* current, QListWidgetItem*) {
              updatePreview (current);
@@ -1079,6 +1093,8 @@ TransclusionSearchPage::initializePage () {
   refreshNamespaces ();
   caseInsensitiveCheck->setChecked (
     get_preference (transclusion_search_case_pref, "off") == "on");
+  fuzzyCheck->setChecked (
+    get_preference (transclusion_search_fuzzy_pref, "off") == "on");
   queryEdit->setFocus ();
 }
 
@@ -1129,6 +1145,11 @@ TransclusionSearchPage::caseInsensitiveSearch () const {
   return caseInsensitiveCheck != nullptr && caseInsensitiveCheck->isChecked ();
 }
 
+bool
+TransclusionSearchPage::fuzzySearch () const {
+  return fuzzyCheck != nullptr && fuzzyCheck->isChecked ();
+}
+
 int
 TransclusionSearchPage::searchFile (
   url u, const tree& query, std::vector<TransclusionSearchResult>& hits) const
@@ -1145,12 +1166,15 @@ TransclusionSearchPage::searchFile (
     int oldMode= set_access_mode (DRD_ACCESS_SOURCE);
     try {
       bool caseInsensitive= caseInsensitiveSearch ();
+      bool fuzzy= fuzzySearch ();
       for (const TransclusionAnchorPair& pair: pairs) {
         if (!anchor_pair_matches_enunciation (pair, tag)) continue;
         tree range= build_preview_from_anchor_range (
           body, pair.upperWhere, pair.lowerWhere);
-        range_set sels= search (range, query, path (), caseInsensitive, 1);
-        if (N(sels) <= 0) continue;
+        std::vector<VaultContentMatch> matches;
+        append_content_matches (matches, range, query, path (), 1,
+                                caseInsensitive, fuzzy);
+        if (matches.empty ()) continue;
 
         TransclusionSearchResult result;
         result.file= u;
@@ -1158,6 +1182,8 @@ TransclusionSearchPage::searchFile (
         result.lower= pair.lower;
         result.upperWhere= pair.upperWhere;
         result.lowerWhere= pair.lowerWhere;
+        result.exact= matches[0].exact;
+        result.score= matches[0].score;
         hits.push_back (result);
         matched++;
       }
@@ -1249,6 +1275,7 @@ TransclusionSearchPage::startSearch () {
              });
 
   int matchedFiles= 0;
+  std::vector<TransclusionSearchResult> collected;
   progress->setRange (0, (int) files.size ());
   progress->setValue (0);
   int scanned= 0;
@@ -1258,7 +1285,7 @@ TransclusionSearchPage::startSearch () {
     if (searchFile (file, query, fileHits) > 0) {
       matchedFiles++;
       for (const TransclusionSearchResult& hit: fileHits)
-        addResult (hit);
+        collected.push_back (hit);
     }
     scanned++;
     progress->setValue (scanned);
@@ -1266,7 +1293,7 @@ TransclusionSearchPage::startSearch () {
       QString ("Searching %1/%2 files; %3 enunciation(s) in %4 file(s).")
         .arg (scanned)
         .arg ((int) files.size ())
-        .arg ((int) results.size ())
+        .arg ((int) collected.size ())
         .arg (matchedFiles));
     if ((scanned % 8) == 0)
       QApplication::processEvents ();
@@ -1277,14 +1304,27 @@ TransclusionSearchPage::startSearch () {
       QString ("Search stopped after %1/%2 files; %3 enunciation(s) in %4 file(s).")
         .arg (scanned)
         .arg ((int) files.size ())
-        .arg ((int) results.size ())
+        .arg ((int) collected.size ())
         .arg (matchedFiles));
   else
     statusLabel->setText (
       QString ("%1 enunciation(s) in %2 file(s), out of %3 scanned file(s).")
-        .arg ((int) results.size ())
+        .arg ((int) collected.size ())
         .arg (matchedFiles)
         .arg ((int) files.size ()));
+  std::stable_sort (
+    collected.begin (), collected.end (),
+    [] (const TransclusionSearchResult& a,
+        const TransclusionSearchResult& b) {
+      if (a.exact != b.exact) return a.exact;
+      if (a.exact) return false;
+      if (a.score != b.score) return a.score > b.score;
+      int pathOrder= QString::compare (a.relPath, b.relPath,
+                                      Qt::CaseSensitive);
+      if (pathOrder != 0) return pathOrder < 0;
+      return path_less (a.upperWhere, b.upperWhere);
+    });
+  for (const TransclusionSearchResult& hit: collected) addResult (hit);
   if (resultList->count () > 0) resultList->setCurrentRow (0);
   finishSearch ();
 }
@@ -1298,13 +1338,15 @@ TransclusionSearchPage::addResult (const TransclusionSearchResult& result) {
       .arg (result.occurrence)
       .arg (clean_anchor_display (result.upper)));
   item->setData (WikilinkIndexRole, (int) results.size () - 1);
-  item->setToolTip (
-    QString ("%1\nOccurrence %2 of %3\n%4 ... %5")
+  QString tooltip= QString ("%1\nOccurrence %2 of %3\n%4 ... %5")
       .arg (result.relPath)
       .arg (result.occurrence)
       .arg (result.fileHits)
       .arg (result.upper)
-      .arg (result.lower));
+      .arg (result.lower);
+  if (!result.exact)
+    tooltip += QString ("\nFuzzy match: %1%").arg (result.score, 0, 'f', 1);
+  item->setToolTip (tooltip);
   resultList->addItem (item);
 }
 

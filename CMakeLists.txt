@@ -829,6 +829,18 @@ if (ATHENA_GUI STREQUAL "Qt" OR ATHENA_GUI STREQUAL "Qt5" OR ATHENA_GUI STREQUAL
 
   include(FetchContent)
   ### --------------------------------------------------------------------
+  ### RapidFuzz C++
+  ### --------------------------------------------------------------------
+  FetchContent_Declare(
+    rapidfuzz
+    GIT_REPOSITORY https://github.com/rapidfuzz/rapidfuzz-cpp.git
+    GIT_TAG        v3.3.3
+  )
+  set(RAPIDFUZZ_BUILD_TESTING OFF CACHE BOOL "" FORCE)
+  set(RAPIDFUZZ_BUILD_BENCHMARKS OFF CACHE BOOL "" FORCE)
+  FetchContent_MakeAvailable(rapidfuzz)
+
+  ### --------------------------------------------------------------------
   ### Qt Advanced Docking System
   ### --------------------------------------------------------------------
   FetchContent_Declare(
@@ -968,7 +980,13 @@ option (BUILD_TESTS "Build unit tests" OFF)
 
 if (BUILD_TESTS)
   include (CTest)
-  find_package(Qt5Test REQUIRED)
+  if (QT_VERSION_MAJOR EQUAL 6)
+    find_package(Qt6 COMPONENTS Test REQUIRED)
+    set(ATHENA_QT_TEST_LIBRARY Qt6::Test)
+  else ()
+    find_package(Qt5 COMPONENTS Test REQUIRED)
+    set(ATHENA_QT_TEST_LIBRARY Qt5::Test)
+  endif ()
   enable_testing ()
   add_subdirectory (tests)
   # add_subdirectory (misc/benchmark)

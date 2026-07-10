@@ -8,8 +8,12 @@ foreach (_test_file ${TEST_SRC_FILES})
   )
   target_link_libraries (${_test_name}
     athena_body
+    mimalloc
+    PkgConfig::SPDLOG
+    ${ATHENA_LLAMA_LIBRARIES}
+    ${ADS_LIBRARIES}
     ${ATHENA_Libraries}
-    Qt5::Test
+    ${ATHENA_QT_TEST_LIBRARY}
   )
   add_test (${_test_name} ${_test_name})
   set_tests_properties (${_test_name} PROPERTIES TIMEOUT 5)

@@ -20,6 +20,7 @@ target_link_libraries (athena_body
   ${ATHENA_LLAMA_LIBRARIES}
   PRIVATE
   ${ADS_LIBRARIES}
+  rapidfuzz::rapidfuzz
 )
 
 if (WIN32)

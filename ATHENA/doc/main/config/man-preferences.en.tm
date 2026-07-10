@@ -682,6 +682,16 @@
     regard to letter case. This does not affect the file-first page of the
     wizard.
 
+    <item*|Wikilink inserter uses fuzzy search>When enabled, the search page of
+    the wikilink insertion wizard also finds sufficiently similar text when
+    the exact query is absent or misspelled. Exact matches are listed first.
+    This does not affect the file-first page of the wizard.
+
+    <item*|Transclusion inserter uses fuzzy search>When enabled, the search
+    page of the transclusion insertion wizard also finds sufficiently similar
+    text inside eligible enunciations. Exact matches are listed first. This
+    does not affect the file-first page of the wizard.
+
     <item*|Wikilink default display text for files>Template used to fill the
     display text field when a wikilink targets a whole file. The default is
     <verbatim|%f>.

@@ -26,6 +26,8 @@ struct WikilinkSearchResult {
   int     fileHits;
   path    hitStart;
   path    hitEnd;
+  bool    exact;
+  double  score;
 };
 
 struct TransclusionSearchResult {
@@ -37,15 +39,25 @@ struct TransclusionSearchResult {
   path    lowerWhere;
   int     occurrence;
   int     fileHits;
+  bool    exact;
+  double  score;
+};
+
+struct VaultContentMatch {
+  path   start;
+  path   end;
+  bool   exact;
+  double score;
 };
 
 int fuzzy_score (const QString& text, const QString& query);
 int fuzzy_file_score (const WikilinkFileEntry& file, string query);
-void append_search_hits (std::vector<range_set>& out, tree t, tree query,
-                         path base, int limit,
-                         bool case_insensitive= false);
-void collect_enunciation_hits (std::vector<range_set>& out, tree t, tree query,
-                               const string& tag, path base, int limit,
-                               bool case_insensitive= false);
+void append_content_matches (std::vector<VaultContentMatch>& out, tree t,
+                             tree query, path base, int limit,
+                             bool case_insensitive, bool fuzzy);
+void collect_enunciation_matches (std::vector<VaultContentMatch>& out, tree t,
+                                   tree query, const string& tag, path base,
+                                   int limit, bool case_insensitive,
+                                   bool fuzzy);
 
 #endif // QTMVAULTSEARCH_HPP

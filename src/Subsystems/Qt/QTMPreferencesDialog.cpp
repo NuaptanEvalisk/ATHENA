@@ -1421,6 +1421,10 @@ QTMPreferencesDialog::buildVaultPage () {
               "vault wikilink inserter case insensitive search");
   add_toggle (wt, "Transclusion inserter uses case-insensitive search:",
               "vault transclusion inserter case insensitive search");
+  add_toggle (wt, "Wikilink inserter uses fuzzy search:",
+              "vault wikilink inserter fuzzy search");
+  add_toggle (wt, "Transclusion inserter uses fuzzy search:",
+              "vault transclusion inserter fuzzy search");
   add_line_edit (wt, "Wikilink default display text for files:",
                  "vault wikilink display template file", "%f");
   add_line_edit (wt, "Wikilink default display text for headings:",

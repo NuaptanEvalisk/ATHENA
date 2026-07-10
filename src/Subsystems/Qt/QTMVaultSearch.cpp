@@ -9,7 +9,17 @@
 ******************************************************************************/
 
 #include "QTMVaultSearch.hpp"
+#include "analyze.hpp"
+#include "drd_mode.hpp"
 #include "fuzzy_rank.hpp"
+#include "qt_utilities.hpp"
+#include <rapidfuzz/distance/Levenshtein.hpp>
+#include <rapidfuzz/fuzz.hpp>
+#include <algorithm>
+#include <cstddef>
+#include <cstdint>
+#include <deque>
+#include <utility>
 
 static int
 fuzzy_subsequence_score (const QString& text, const QString& query) {
@@ -46,30 +56,225 @@ fuzzy_file_score (const WikilinkFileEntry& file, string query) {
   return result.matched ? result.score : -1;
 }
 
+namespace {
+
+struct FuzzyAtomicText {
+  std::u32string text;
+  std::vector<int> starts;
+  std::vector<int> ends;
+};
+
+static void
+append_normalized_character (FuzzyAtomicText& out, const QString& value,
+                             int byteStart, int byteEnd,
+                             bool caseInsensitive) {
+  QString normalized= caseInsensitive ? value.toCaseFolded () : value;
+  QList<uint> codepoints= normalized.toUcs4 ();
+  for (uint codepoint: codepoints) {
+    out.text.push_back ((char32_t) codepoint);
+    out.starts.push_back (byteStart);
+    out.ends.push_back (byteEnd);
+  }
+}
+
+static FuzzyAtomicText
+normalize_atomic_text (const string& source, bool caseInsensitive) {
+  FuzzyAtomicText out;
+  for (int start=0; start<N(source); ) {
+    int end= tm_char_next (source, start);
+    append_normalized_character (
+      out, to_qstring (source (start, end)), start, end, caseInsensitive);
+    start= end;
+  }
+  return out;
+}
+
+static std::u32string
+normalize_query (const string& source, bool caseInsensitive) {
+  return normalize_atomic_text (source, caseInsensitive).text;
+}
+
+static bool
+same_atomic_path (path position, path atom) {
+  return !is_nil (position) && path_up (position) == atom;
+}
+
+static std::vector<std::pair<size_t,size_t>>
+unblocked_regions (const FuzzyAtomicText& text, path atom,
+                   const std::vector<VaultContentMatch>& exact) {
+  std::vector<std::pair<size_t,size_t>> blocked;
+  for (const VaultContentMatch& match: exact) {
+    if (!match.exact || !same_atomic_path (match.start, atom) ||
+        !same_atomic_path (match.end, atom))
+      continue;
+    int byteStart= last_item (match.start);
+    int byteEnd= last_item (match.end);
+    size_t first= 0;
+    while (first < text.ends.size () && text.ends[first] <= byteStart) first++;
+    size_t last= first;
+    while (last < text.starts.size () && text.starts[last] < byteEnd) last++;
+    if (first < last) blocked.push_back ({first, last});
+  }
+  std::sort (blocked.begin (), blocked.end ());
+
+  std::vector<std::pair<size_t,size_t>> regions;
+  size_t cursor= 0;
+  for (const auto& interval: blocked) {
+    size_t first= std::max (cursor, interval.first);
+    size_t last= std::max (first, interval.second);
+    if (cursor < first) regions.push_back ({cursor, first});
+    cursor= std::max (cursor, last);
+  }
+  if (cursor < text.text.size ()) regions.push_back ({cursor, text.text.size ()});
+  return regions;
+}
+
+static void
+append_fuzzy_atomic_matches (
+  std::vector<VaultContentMatch>& out, const FuzzyAtomicText& text,
+  const std::u32string& query, path atom, int limit, double cutoff,
+  const rapidfuzz::fuzz::CachedPartialRatio<char32_t>& scorer,
+  const std::vector<VaultContentMatch>& exact)
+{
+  if (limit <= 0 || text.text.empty ()) return;
+  std::deque<std::pair<size_t,size_t>> pending;
+  for (const auto& region: unblocked_regions (text, atom, exact))
+    pending.push_back (region);
+
+  while (!pending.empty () && limit > 0) {
+    auto region= pending.front ();
+    pending.pop_front ();
+    if (region.second <= region.first) continue;
+
+    auto first= text.text.begin () + (std::ptrdiff_t) region.first;
+    auto last= text.text.begin () + (std::ptrdiff_t) region.second;
+    double quick= scorer.similarity (first, last, cutoff);
+    if (quick < cutoff) continue;
+    rapidfuzz::ScoreAlignment<double> alignment=
+      rapidfuzz::fuzz::partial_ratio_alignment (
+        query.begin (), query.end (), first, last, cutoff);
+    size_t alignedStart= region.first + alignment.dest_start;
+    size_t radius= std::max<size_t> (
+      1, (query.size () * (size_t) (100.0 - cutoff) + 99) / 100);
+    size_t startFirst= alignedStart > radius ? alignedStart - radius : region.first;
+    startFirst= std::max (startFirst, region.first);
+    size_t startLast= std::min (region.second, alignedStart + radius + 1);
+    size_t lengthFirst= query.size () > radius ? query.size () - radius : 1;
+    size_t lengthLast= query.size () + radius;
+
+    size_t matchStart= 0;
+    size_t matchEnd= 0;
+    double matchScore= 0.0;
+    size_t bestLengthDifference= (size_t) -1;
+    for (size_t candidateStart=startFirst; candidateStart<startLast;
+         candidateStart++) {
+      for (size_t length=lengthFirst; length<=lengthLast; length++) {
+        size_t candidateEnd= candidateStart + length;
+        if (candidateEnd > region.second) break;
+        double score= 100.0 * rapidfuzz::levenshtein_normalized_similarity (
+          query.begin (), query.end (),
+          text.text.begin () + (std::ptrdiff_t) candidateStart,
+          text.text.begin () + (std::ptrdiff_t) candidateEnd,
+          rapidfuzz::LevenshteinWeightTable {1, 1, 1}, cutoff / 100.0);
+        size_t difference= length > query.size () ? length - query.size () :
+          query.size () - length;
+        if (score > matchScore ||
+            (score == matchScore && difference < bestLengthDifference)) {
+          matchScore= score;
+          matchStart= candidateStart;
+          matchEnd= candidateEnd;
+          bestLengthDifference= difference;
+        }
+      }
+    }
+    if (matchScore < cutoff || matchStart >= matchEnd ||
+        matchEnd > text.text.size ())
+      continue;
+
+    VaultContentMatch match;
+    match.start= atom * text.starts[matchStart];
+    match.end= atom * text.ends[matchEnd - 1];
+    match.exact= false;
+    match.score= matchScore;
+    out.push_back (match);
+    limit--;
+
+    if (region.first < matchStart)
+      pending.push_back ({region.first, matchStart});
+    if (matchEnd < region.second)
+      pending.push_back ({matchEnd, region.second});
+  }
+}
+
+static void
+collect_fuzzy_atomic_matches (
+  std::vector<VaultContentMatch>& out, tree t, path base,
+  const std::u32string& query, int& remaining, double cutoff,
+  bool caseInsensitive,
+  const rapidfuzz::fuzz::CachedPartialRatio<char32_t>& scorer,
+  const std::vector<VaultContentMatch>& exact)
+{
+  if (remaining <= 0) return;
+  if (is_atomic (t)) {
+    size_t before= out.size ();
+    append_fuzzy_atomic_matches (
+      out, normalize_atomic_text (t->label, caseInsensitive), query, base,
+      remaining, cutoff, scorer, exact);
+    remaining -= (int) (out.size () - before);
+    return;
+  }
+  if (is_func (t, RAW_DATA)) return;
+  for (int i=0; i<N(t) && remaining>0; i++)
+    collect_fuzzy_atomic_matches (out, t[i], base * i, query, remaining,
+                                  cutoff, caseInsensitive, scorer, exact);
+}
+
+} // namespace
+
 void
-append_search_hits (std::vector<range_set>& out, tree t, tree query,
-                    path base, int limit, bool case_insensitive) {
+append_content_matches (std::vector<VaultContentMatch>& out, tree t,
+                        tree query, path base, int limit,
+                        bool caseInsensitive, bool fuzzy) {
   if (limit <= 0) return;
-  range_set sels= search (t, query, base, case_insensitive, limit);
-  if (N(sels) > 0) out.push_back (sels);
+  range_set exactRanges= search (t, query, base, caseInsensitive, limit);
+  std::vector<VaultContentMatch> exact;
+  for (int i=0; i+1<N(exactRanges); i+=2) {
+    VaultContentMatch match;
+    match.start= exactRanges[i];
+    match.end= exactRanges[i + 1];
+    match.exact= true;
+    match.score= 100.0;
+    exact.push_back (match);
+    out.push_back (match);
+  }
+  if (!fuzzy || !is_atomic (query) || (int) exact.size () >= limit) return;
+
+  std::u32string normalizedQuery=
+    normalize_query (query->label, caseInsensitive);
+  if (normalizedQuery.size () < 4) return;
+  double cutoff= normalizedQuery.size () <= 5 ? 75.0 : 80.0;
+  int remaining= limit - (int) exact.size ();
+  rapidfuzz::fuzz::CachedPartialRatio<char32_t> scorer (normalizedQuery);
+  collect_fuzzy_atomic_matches (out, t, base, normalizedQuery, remaining,
+                                cutoff, caseInsensitive, scorer, exact);
 }
 
 void
-collect_enunciation_hits (std::vector<range_set>& out, tree t, tree query,
-                          const string& tag, path base, int limit,
-                          bool case_insensitive) {
+collect_enunciation_matches (std::vector<VaultContentMatch>& out, tree t,
+                             tree query, const string& tag, path base,
+                             int limit, bool caseInsensitive, bool fuzzy) {
   if (limit <= 0 || is_atomic (t)) return;
-
   if (is_compound (t, tag)) {
-    append_search_hits (out, t, query, base, limit, case_insensitive);
+    append_content_matches (out, t, query, base, limit,
+                            caseInsensitive, fuzzy);
     return;
   }
-
+  size_t initialSize= out.size ();
   for (int i=0; i<N(t); i++) {
-    int found= 0;
-    for (const range_set& sels: out) found += N(sels) / 2;
-    if (found >= limit) return;
-    collect_enunciation_hits (out, t[i], query, tag, base * i,
-                              limit - found, case_insensitive);
+    int found= (int) (out.size () - initialSize);
+    int remaining= limit - found;
+    if (remaining <= 0) return;
+    collect_enunciation_matches (out, t[i], query, tag, base * i, remaining,
+                                  caseInsensitive, fuzzy);
   }
 }

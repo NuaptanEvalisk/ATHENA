@@ -52,6 +52,8 @@ namespace {
 
 static constexpr const char* wikilink_search_case_pref=
   "vault wikilink inserter case insensitive search";
+static constexpr const char* wikilink_search_fuzzy_pref=
+  "vault wikilink inserter fuzzy search";
 static constexpr const char* wikilink_display_template_file_pref=
   "vault wikilink display template file";
 static constexpr const char* wikilink_display_template_heading_pref=
@@ -203,18 +205,14 @@ is_aofm_paragraph_anchor_pair (const TransclusionAnchorPair& pair) {
   return !key.contains (":");
 }
 
-static int
-range_hit_count (const range_set& sels) {
-  return N(sels) / 2;
-}
-
 static void
-collect_aofm_paragraph_hits (std::vector<range_set>& out, tree body,
-                             tree query, path base, int limit,
-                             bool case_insensitive) {
+collect_aofm_paragraph_matches (std::vector<VaultContentMatch>& out, tree body,
+                                tree query, path base, int limit,
+                                bool caseInsensitive, bool fuzzy) {
   if (limit <= 0 || is_atomic (body)) return;
   if (!is_func (body, DOCUMENT)) {
-    append_search_hits (out, body, query, base, limit, case_insensitive);
+    append_content_matches (out, body, query, base, limit,
+                            caseInsensitive, fuzzy);
     return;
   }
 
@@ -234,16 +232,13 @@ collect_aofm_paragraph_hits (std::vector<range_set>& out, tree body,
     if (last > N(body)) last= N(body);
     if (first >= last) continue;
 
-    range_set paragraphHits;
     for (int i= first; i<last; i++) {
       if (found >= limit) break;
-      range_set sels= search (body[i], query, base * i,
-                              case_insensitive, limit - found);
-      if (N(sels) <= 0) continue;
-      found += range_hit_count (sels);
-      paragraphHits << sels;
+      size_t before= out.size ();
+      append_content_matches (out, body[i], query, base * i, limit - found,
+                              caseInsensitive, fuzzy);
+      found += (int) (out.size () - before);
     }
-    if (N(paragraphHits) > 0) out.push_back (paragraphHits);
   }
 }
 
@@ -317,6 +312,7 @@ public:
   QString selectedNamespace () const;
   QString selectedEnunciation () const;
   bool caseInsensitiveSearch () const;
+  bool fuzzySearch () const;
   void startSearch ();
   int  searchFile (url u, const tree& query,
                    std::vector<WikilinkSearchResult>& hits) const;
@@ -331,6 +327,7 @@ public:
   QStringListModel* namespaceModel;
   QComboBox*   enunciationCombo;
   QCheckBox*   caseInsensitiveCheck;
+  QCheckBox*   fuzzyCheck;
   QPushButton* searchButton;
   QPushButton* stopButton;
   QLabel*      statusLabel;
@@ -796,6 +793,9 @@ WikilinkSearchPage::WikilinkSearchPage (QWidget* parent)
   caseInsensitiveCheck= new QCheckBox ("Case-insensitive", this);
   caseInsensitiveCheck->setChecked (
     get_preference (wikilink_search_case_pref, "off") == "on");
+  fuzzyCheck= new QCheckBox ("Fuzzy", this);
+  fuzzyCheck->setChecked (
+    get_preference (wikilink_search_fuzzy_pref, "off") == "on");
 
   searchButton= new QPushButton ("Search", this);
   stopButton= new QPushButton ("Stop", this);
@@ -832,6 +832,8 @@ WikilinkSearchPage::WikilinkSearchPage (QWidget* parent)
   filtersRow->addWidget (enunciationCombo);
   filtersRow->addSpacing (12);
   filtersRow->addWidget (caseInsensitiveCheck);
+  filtersRow->addSpacing (12);
+  filtersRow->addWidget (fuzzyCheck);
   filtersRow->addStretch ();
 
   QWidget* left= new QWidget (this);
@@ -868,7 +870,8 @@ WikilinkSearchPage::WikilinkSearchPage (QWidget* parent)
   setTabOrder (searchButton, namespaceEdit);
   setTabOrder (namespaceEdit, enunciationCombo);
   setTabOrder (enunciationCombo, caseInsensitiveCheck);
-  setTabOrder (caseInsensitiveCheck, resultList);
+  setTabOrder (caseInsensitiveCheck, fuzzyCheck);
+  setTabOrder (fuzzyCheck, resultList);
   setTabOrder (resultList, anchorList);
   setTabOrder (anchorList, displayEdit);
   setTabOrder (displayEdit, insertButton);
@@ -886,6 +889,11 @@ WikilinkSearchPage::WikilinkSearchPage (QWidget* parent)
   connect (caseInsensitiveCheck, &QCheckBox::toggled,
            this, [] (bool on) {
              set_preference (wikilink_search_case_pref,
+                             on ? string ("on") : string ("off"));
+           });
+  connect (fuzzyCheck, &QCheckBox::toggled,
+           this, [] (bool on) {
+             set_preference (wikilink_search_fuzzy_pref,
                              on ? string ("on") : string ("off"));
            });
   connect (resultList, &QListWidget::currentItemChanged,
@@ -917,6 +925,8 @@ WikilinkSearchPage::initializePage () {
   refreshNamespaces ();
   caseInsensitiveCheck->setChecked (
     get_preference (wikilink_search_case_pref, "off") == "on");
+  fuzzyCheck->setChecked (
+    get_preference (wikilink_search_fuzzy_pref, "off") == "on");
   queryEdit->setFocus ();
 }
 
@@ -969,26 +979,32 @@ WikilinkSearchPage::caseInsensitiveSearch () const {
   return caseInsensitiveCheck != nullptr && caseInsensitiveCheck->isChecked ();
 }
 
+bool
+WikilinkSearchPage::fuzzySearch () const {
+  return fuzzyCheck != nullptr && fuzzyCheck->isChecked ();
+}
+
 int
 WikilinkSearchPage::searchFile (url u, const tree& query,
                                 std::vector<WikilinkSearchResult>& hits) const {
   try {
     tree body= import_body_for_preview (u);
     int oldMode= set_access_mode (DRD_ACCESS_SOURCE);
-    std::vector<range_set> hitRanges;
+    std::vector<VaultContentMatch> matches;
     try {
       QString enunciation= selectedEnunciation ();
       bool caseInsensitive= caseInsensitiveSearch ();
+      bool fuzzy= fuzzySearch ();
       if (enunciation.isEmpty ())
-        append_search_hits (hitRanges, body, query, path (), 200,
-                            caseInsensitive);
+        append_content_matches (matches, body, query, path (), 200,
+                                caseInsensitive, fuzzy);
       else if (enunciation == "__athena_paragraph__")
-        collect_aofm_paragraph_hits (hitRanges, body, query, path (), 200,
-                                     caseInsensitive);
+        collect_aofm_paragraph_matches (matches, body, query, path (), 200,
+                                        caseInsensitive, fuzzy);
       else
-        collect_enunciation_hits (hitRanges, body, query,
-                                  from_qstring (enunciation), path (), 200,
-                                  caseInsensitive);
+        collect_enunciation_matches (matches, body, query,
+                                     from_qstring (enunciation), path (), 200,
+                                     caseInsensitive, fuzzy);
     }
     catch (...) {
       set_access_mode (oldMode);
@@ -996,25 +1012,23 @@ WikilinkSearchPage::searchFile (url u, const tree& query,
     }
     set_access_mode (oldMode);
 
-    int hitCount= 0;
-    for (const range_set& sels: hitRanges) hitCount += N(sels) / 2;
+    int hitCount= (int) matches.size ();
     if (hitCount <= 0) return 0;
 
     url root= vault_get_root ();
     QString rel= to_qstring (as_unix_string (delta (root * url (""), u)));
     int occurrence= 1;
-    for (const range_set& sels: hitRanges) {
-      int rangeHits= N(sels) / 2;
-      for (int i=0; i<rangeHits; i++) {
-        WikilinkSearchResult result;
-        result.relPath= rel;
-        result.file= u;
-        result.occurrence= occurrence++;
-        result.fileHits= hitCount;
-        result.hitStart= sels[2*i];
-        result.hitEnd= sels[2*i + 1];
-        hits.push_back (result);
-      }
+    for (const VaultContentMatch& match: matches) {
+      WikilinkSearchResult result;
+      result.relPath= rel;
+      result.file= u;
+      result.occurrence= occurrence++;
+      result.fileHits= hitCount;
+      result.hitStart= match.start;
+      result.hitEnd= match.end;
+      result.exact= match.exact;
+      result.score= match.score;
+      hits.push_back (result);
     }
     return hitCount;
   }
@@ -1093,6 +1107,7 @@ WikilinkSearchPage::startSearch () {
              });
 
   int matchedFiles= 0;
+  std::vector<WikilinkSearchResult> collected;
   progress->setRange (0, (int) files.size ());
   progress->setValue (0);
   int scanned= 0;
@@ -1102,7 +1117,7 @@ WikilinkSearchPage::startSearch () {
     if (searchFile (file, query, fileHits) > 0) {
       matchedFiles++;
       for (const WikilinkSearchResult& hit: fileHits)
-        addResult (hit);
+        collected.push_back (hit);
     }
     scanned++;
     progress->setValue (scanned);
@@ -1110,7 +1125,7 @@ WikilinkSearchPage::startSearch () {
       QString ("Searching %1/%2 files; %3 occurrence(s) in %4 file(s).")
         .arg (scanned)
         .arg ((int) files.size ())
-        .arg ((int) results.size ())
+        .arg ((int) collected.size ())
         .arg (matchedFiles));
     if ((scanned % 8) == 0)
       QApplication::processEvents ();
@@ -1121,14 +1136,26 @@ WikilinkSearchPage::startSearch () {
       QString ("Search stopped after %1/%2 files; %3 occurrence(s) in %4 file(s).")
         .arg (scanned)
         .arg ((int) files.size ())
-        .arg ((int) results.size ())
+        .arg ((int) collected.size ())
         .arg (matchedFiles));
   else
     statusLabel->setText (
       QString ("%1 occurrence(s) in %2 file(s), out of %3 scanned file(s). Click a { anchor below to insert.")
-        .arg ((int) results.size ())
+        .arg ((int) collected.size ())
         .arg (matchedFiles)
         .arg ((int) files.size ()));
+  std::stable_sort (
+    collected.begin (), collected.end (),
+    [] (const WikilinkSearchResult& a, const WikilinkSearchResult& b) {
+      if (a.exact != b.exact) return a.exact;
+      if (a.exact) return false;
+      if (a.score != b.score) return a.score > b.score;
+      int pathOrder= QString::compare (a.relPath, b.relPath,
+                                      Qt::CaseSensitive);
+      if (pathOrder != 0) return pathOrder < 0;
+      return path_less (a.hitStart, b.hitStart);
+    });
+  for (const WikilinkSearchResult& hit: collected) addResult (hit);
   if (resultList->count () > 0) resultList->setCurrentRow (0);
   finishSearch ();
 }
@@ -1139,11 +1166,13 @@ WikilinkSearchPage::addResult (const WikilinkSearchResult& result) {
   QListWidgetItem* item= new QListWidgetItem (
     QString ("%1 (%2)").arg (result.relPath).arg (result.occurrence));
   item->setData (WikilinkIndexRole, (int) results.size () - 1);
-  item->setToolTip (
-    QString ("%1\nOccurrence %2 of %3")
+  QString tooltip= QString ("%1\nOccurrence %2 of %3")
       .arg (result.relPath)
       .arg (result.occurrence)
-      .arg (result.fileHits));
+      .arg (result.fileHits);
+  if (!result.exact)
+    tooltip += QString ("\nFuzzy match: %1%").arg (result.score, 0, 'f', 1);
+  item->setToolTip (tooltip);
   resultList->addItem (item);
 }
 
