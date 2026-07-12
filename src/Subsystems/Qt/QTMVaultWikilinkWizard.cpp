@@ -290,6 +290,8 @@ public:
   void moveFieldFocus (bool backward);
 
   QLineEdit*   searchEdit;
+  QCheckBox*   caseInsensitiveCheck;
+  QCheckBox*   fuzzyCheck;
   QListWidget* anchorList;
   QLineEdit*   displayEdit;
   QLabel*      previewTitle;
@@ -537,6 +539,12 @@ WikilinkAnchorPage::WikilinkAnchorPage (QWidget* parent)
 
   searchEdit= new QLineEdit (this);
   searchEdit->setPlaceholderText ("Filter anchors; leave empty for the whole file");
+  caseInsensitiveCheck= new QCheckBox ("Case-insensitive", this);
+  fuzzyCheck= new QCheckBox ("Fuzzy", this);
+  caseInsensitiveCheck->setChecked (
+    get_preference (wikilink_search_case_pref, "off") == "on");
+  fuzzyCheck->setChecked (
+    get_preference (wikilink_search_fuzzy_pref, "off") == "on");
   anchorList= new QListWidget (this);
   anchorList->setAlternatingRowColors (true);
   anchorList->setTabKeyNavigation (false);
@@ -554,6 +562,11 @@ WikilinkAnchorPage::WikilinkAnchorPage (QWidget* parent)
   leftLayout->setContentsMargins (0, 0, 0, 0);
   leftLayout->addWidget (new QLabel ("Anchor:", this));
   leftLayout->addWidget (searchEdit);
+  QHBoxLayout* filters= new QHBoxLayout ();
+  filters->addWidget (caseInsensitiveCheck);
+  filters->addWidget (fuzzyCheck);
+  filters->addStretch ();
+  leftLayout->addLayout (filters);
   leftLayout->addWidget (anchorList, 1);
   leftLayout->addWidget (new QLabel ("Display text:", this));
   leftLayout->addWidget (displayEdit);
@@ -582,6 +595,18 @@ WikilinkAnchorPage::WikilinkAnchorPage (QWidget* parent)
 
   connect (searchEdit, &QLineEdit::textChanged,
            this, [this] (const QString&) { updateList (); });
+  connect (caseInsensitiveCheck, &QCheckBox::toggled,
+           this, [this] (bool enabled) {
+             set_preference (wikilink_search_case_pref,
+                             enabled ? "on" : "off");
+             updateList ();
+           });
+  connect (fuzzyCheck, &QCheckBox::toggled,
+           this, [this] (bool enabled) {
+             set_preference (wikilink_search_fuzzy_pref,
+                             enabled ? "on" : "off");
+             updateList ();
+           });
   connect (displayEdit, &QLineEdit::textEdited,
            this, [this] (const QString&) { displayTouched= true; });
   connect (anchorList, &QListWidget::currentItemChanged,
@@ -655,16 +680,30 @@ WikilinkAnchorPage::showEvent (QShowEvent* event) {
 void
 WikilinkAnchorPage::updateList () {
   anchorList->clear ();
-  QString query= searchEdit->text ().trimmed ().toLower ();
+  QString query= searchEdit->text ().trimmed ();
 
   QListWidgetItem* whole= new QListWidgetItem ("(whole file)");
   whole->setData (WikilinkIndexRole, -1);
   whole->setData (WikilinkPayloadRole, QString ());
   anchorList->addItem (whole);
 
+  std::set<int> pairedLower;
+  std::set<int> enunciationUpper;
+  for (const TransclusionAnchorPair& pair:
+       collect_transclusion_pairs (anchors)) {
+    if (!anchor_pair_is_enunciation (pair)) continue;
+    pairedLower.insert (pair.lowerIndex);
+    enunciationUpper.insert (pair.upperIndex);
+  }
+
   std::vector<std::pair<int,int> > matches;
   for (int i=0; i<(int) anchors.size (); i++) {
-    int score= fuzzy_score (anchors[i].anchor, query);
+    if (pairedLower.count (i) != 0) continue;
+    QString text= enunciationUpper.count (i) != 0 ?
+      anchor_pair_key (anchors[i].anchor) : anchors[i].anchor;
+    int score= list_filter_score (text, query,
+                                  caseInsensitiveCheck->isChecked (),
+                                  fuzzyCheck->isChecked ());
     if (score >= 0) matches.push_back (std::make_pair (-score, i));
   }
   std::sort (matches.begin (), matches.end (),
@@ -675,7 +714,9 @@ WikilinkAnchorPage::updateList () {
              });
 
   for (auto m: matches) {
-    QListWidgetItem* item= new QListWidgetItem (anchors[m.second].anchor);
+    QString text= enunciationUpper.count (m.second) != 0 ?
+      anchor_pair_key (anchors[m.second].anchor) : anchors[m.second].anchor;
+    QListWidgetItem* item= new QListWidgetItem (text);
     item->setData (WikilinkIndexRole, m.second);
     item->setData (WikilinkPayloadRole, anchors[m.second].anchor);
     anchorList->addItem (item);

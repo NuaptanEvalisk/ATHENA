@@ -9,6 +9,7 @@
 ******************************************************************************/
 
 #include <QtTest/QtTest>
+#include "Qt/QTMVaultAnchorModel.hpp"
 #include "Qt/QTMVaultSearch.hpp"
 #include "Qt/qt_utilities.hpp"
 
@@ -22,6 +23,8 @@ private slots:
   void exactPrecedesAndDoesNotOverlapFuzzy ();
   void caseInsensitiveExactMatch ();
   void unicodeOffsetsMapToTeXmacsBytes ();
+  void listFilteringRespectsOptions ();
+  void recognizesEnunciationAnchorPairs ();
 };
 
 static std::vector<VaultContentMatch>
@@ -90,6 +93,31 @@ TestVaultSearch::unicodeOffsetsMapToTeXmacsBytes () {
   int start= last_item (matches[0].start);
   int end= last_item (matches[0].end);
   QCOMPARE (to_qstring (source (start, end)), QString::fromUtf8 ("数学知识"));
+}
+
+void
+TestVaultSearch::listFilteringRespectsOptions () {
+  QCOMPARE (list_filter_score ("Definition: Compactness", "definition",
+                               false, false), -1);
+  QVERIFY (list_filter_score ("Definition: Compactness", "definition",
+                              true, false) >= 0);
+  QCOMPARE (list_filter_score ("Definition: Compactness", "Defnition",
+                               false, false), -1);
+  QVERIFY (list_filter_score ("Definition: Compactness", "Defnition",
+                              false, true) >= 0);
+}
+
+void
+TestVaultSearch::recognizesEnunciationAnchorPairs () {
+  TransclusionAnchorPair theorem;
+  theorem.upper= "theorem:Banach fixed point {";
+  theorem.lower= "theorem:Banach fixed point }";
+  QVERIFY (anchor_pair_is_enunciation (theorem));
+
+  TransclusionAnchorPair paragraph;
+  paragraph.upper= "A paragraph anchor {";
+  paragraph.lower= "A paragraph anchor }";
+  QVERIFY (!anchor_pair_is_enunciation (paragraph));
 }
 
 QTEST_MAIN(TestVaultSearch)

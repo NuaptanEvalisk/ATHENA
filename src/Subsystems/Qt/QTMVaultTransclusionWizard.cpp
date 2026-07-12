@@ -112,6 +112,8 @@ public:
   bool acceptCurrentPair ();
 
   QLineEdit*   searchEdit;
+  QCheckBox*   caseInsensitiveCheck;
+  QCheckBox*   fuzzyCheck;
   QListWidget* pairList;
   QLabel*      previewTitle;
   QWidget*     previewHost;
@@ -133,6 +135,8 @@ public:
   void updatePreview ();
 
   QLineEdit*   searchEdit;
+  QCheckBox*   caseInsensitiveCheck;
+  QCheckBox*   fuzzyCheck;
   QListWidget* anchorList;
   QLabel*      previewTitle;
   QWidget*     previewHost;
@@ -154,6 +158,8 @@ public:
   void updatePreview ();
 
   QLineEdit*   searchEdit;
+  QCheckBox*   caseInsensitiveCheck;
+  QCheckBox*   fuzzyCheck;
   QListWidget* anchorList;
   QLabel*      previewTitle;
   QWidget*     previewHost;
@@ -418,6 +424,12 @@ TransclusionEnunciationPage::TransclusionEnunciationPage (QWidget* parent)
 
   searchEdit= new QLineEdit (this);
   searchEdit->setPlaceholderText ("Filter enunciation anchors");
+  caseInsensitiveCheck= new QCheckBox ("Case-insensitive", this);
+  fuzzyCheck= new QCheckBox ("Fuzzy", this);
+  caseInsensitiveCheck->setChecked (
+    get_preference (transclusion_search_case_pref, "off") == "on");
+  fuzzyCheck->setChecked (
+    get_preference (transclusion_search_fuzzy_pref, "off") == "on");
   pairList= new QListWidget (this);
   pairList->setAlternatingRowColors (true);
   pairList->setMinimumWidth (500);
@@ -433,6 +445,11 @@ TransclusionEnunciationPage::TransclusionEnunciationPage (QWidget* parent)
   leftLayout->setContentsMargins (0, 0, 0, 0);
   leftLayout->addWidget (new QLabel ("Enunciations:", this));
   leftLayout->addWidget (searchEdit);
+  QHBoxLayout* filters= new QHBoxLayout ();
+  filters->addWidget (caseInsensitiveCheck);
+  filters->addWidget (fuzzyCheck);
+  filters->addStretch ();
+  leftLayout->addLayout (filters);
   leftLayout->addWidget (pairList, 1);
 
   QWidget* right= new QWidget (this);
@@ -455,6 +472,18 @@ TransclusionEnunciationPage::TransclusionEnunciationPage (QWidget* parent)
   pairList->installEventFilter (this);
   connect (searchEdit, &QLineEdit::textChanged,
            this, [this] (const QString&) { updateList (); });
+  connect (caseInsensitiveCheck, &QCheckBox::toggled,
+           this, [this] (bool enabled) {
+             set_preference (transclusion_search_case_pref,
+                             enabled ? "on" : "off");
+             updateList ();
+           });
+  connect (fuzzyCheck, &QCheckBox::toggled,
+           this, [this] (bool enabled) {
+             set_preference (transclusion_search_fuzzy_pref,
+                             enabled ? "on" : "off");
+             updateList ();
+           });
   connect (pairList, &QListWidget::currentItemChanged,
            this, [this] (QListWidgetItem*, QListWidgetItem*) {
              updatePreview ();
@@ -518,10 +547,13 @@ TransclusionEnunciationPage::showEvent (QShowEvent* event) {
 void
 TransclusionEnunciationPage::updateList () {
   pairList->clear ();
-  QString query= searchEdit->text ().trimmed ().toLower ();
+  QString query= searchEdit->text ().trimmed ();
   std::vector<std::pair<int,int> > matches;
   for (int i=0; i<(int) pairs.size (); i++) {
-    int score= fuzzy_score (pairs[i].upper, query);
+    QString text= anchor_pair_key (pairs[i].upper);
+    int score= list_filter_score (text, query,
+                                  caseInsensitiveCheck->isChecked (),
+                                  fuzzyCheck->isChecked ());
     if (score >= 0) matches.push_back (std::make_pair (-score, i));
   }
   std::sort (matches.begin (), matches.end (),
@@ -531,7 +563,8 @@ TransclusionEnunciationPage::updateList () {
                return pairs[a.second].upper < pairs[b.second].upper;
              });
   for (auto m: matches) {
-    QListWidgetItem* item= new QListWidgetItem (pairs[m.second].upper);
+    QListWidgetItem* item= new QListWidgetItem (
+      anchor_pair_key (pairs[m.second].upper));
     item->setData (WikilinkIndexRole, m.second);
     pairList->addItem (item);
   }
@@ -609,6 +642,12 @@ TransclusionUpperPage::TransclusionUpperPage (QWidget* parent)
 
   searchEdit= new QLineEdit (this);
   searchEdit->setPlaceholderText ("Filter anchors");
+  caseInsensitiveCheck= new QCheckBox ("Case-insensitive", this);
+  fuzzyCheck= new QCheckBox ("Fuzzy", this);
+  caseInsensitiveCheck->setChecked (
+    get_preference (transclusion_search_case_pref, "off") == "on");
+  fuzzyCheck->setChecked (
+    get_preference (transclusion_search_fuzzy_pref, "off") == "on");
   anchorList= new QListWidget (this);
   anchorList->setAlternatingRowColors (true);
   anchorList->setMinimumWidth (500);
@@ -624,6 +663,11 @@ TransclusionUpperPage::TransclusionUpperPage (QWidget* parent)
   leftLayout->setContentsMargins (0, 0, 0, 0);
   leftLayout->addWidget (new QLabel ("Upper bound:", this));
   leftLayout->addWidget (searchEdit);
+  QHBoxLayout* filters= new QHBoxLayout ();
+  filters->addWidget (caseInsensitiveCheck);
+  filters->addWidget (fuzzyCheck);
+  filters->addStretch ();
+  leftLayout->addLayout (filters);
   leftLayout->addWidget (anchorList, 1);
 
   QWidget* right= new QWidget (this);
@@ -646,6 +690,18 @@ TransclusionUpperPage::TransclusionUpperPage (QWidget* parent)
   anchorList->installEventFilter (this);
   connect (searchEdit, &QLineEdit::textChanged,
            this, [this] (const QString&) { updateList (); });
+  connect (caseInsensitiveCheck, &QCheckBox::toggled,
+           this, [this] (bool enabled) {
+             set_preference (transclusion_search_case_pref,
+                             enabled ? "on" : "off");
+             updateList ();
+           });
+  connect (fuzzyCheck, &QCheckBox::toggled,
+           this, [this] (bool enabled) {
+             set_preference (transclusion_search_fuzzy_pref,
+                             enabled ? "on" : "off");
+             updateList ();
+           });
   connect (anchorList, &QListWidget::currentItemChanged,
            this, [this] (QListWidgetItem*, QListWidgetItem*) {
              updatePreview ();
@@ -696,10 +752,12 @@ TransclusionUpperPage::showEvent (QShowEvent* event) {
 void
 TransclusionUpperPage::updateList () {
   anchorList->clear ();
-  QString query= searchEdit->text ().trimmed ().toLower ();
+  QString query= searchEdit->text ().trimmed ();
   std::vector<std::pair<int,int> > matches;
   for (int i=0; i<(int) anchors.size (); i++) {
-    int score= fuzzy_score (anchors[i].anchor, query);
+    int score= list_filter_score (anchors[i].anchor, query,
+                                  caseInsensitiveCheck->isChecked (),
+                                  fuzzyCheck->isChecked ());
     if (score >= 0) matches.push_back (std::make_pair (-score, i));
   }
   std::sort (matches.begin (), matches.end (),
@@ -780,6 +838,12 @@ TransclusionLowerPage::TransclusionLowerPage (QWidget* parent)
 
   searchEdit= new QLineEdit (this);
   searchEdit->setPlaceholderText ("Filter anchors below the upper bound");
+  caseInsensitiveCheck= new QCheckBox ("Case-insensitive", this);
+  fuzzyCheck= new QCheckBox ("Fuzzy", this);
+  caseInsensitiveCheck->setChecked (
+    get_preference (transclusion_search_case_pref, "off") == "on");
+  fuzzyCheck->setChecked (
+    get_preference (transclusion_search_fuzzy_pref, "off") == "on");
   anchorList= new QListWidget (this);
   anchorList->setAlternatingRowColors (true);
   anchorList->setMinimumWidth (500);
@@ -795,6 +859,11 @@ TransclusionLowerPage::TransclusionLowerPage (QWidget* parent)
   leftLayout->setContentsMargins (0, 0, 0, 0);
   leftLayout->addWidget (new QLabel ("Lower bound:", this));
   leftLayout->addWidget (searchEdit);
+  QHBoxLayout* filters= new QHBoxLayout ();
+  filters->addWidget (caseInsensitiveCheck);
+  filters->addWidget (fuzzyCheck);
+  filters->addStretch ();
+  leftLayout->addLayout (filters);
   leftLayout->addWidget (anchorList, 1);
 
   QWidget* right= new QWidget (this);
@@ -817,6 +886,18 @@ TransclusionLowerPage::TransclusionLowerPage (QWidget* parent)
   anchorList->installEventFilter (this);
   connect (searchEdit, &QLineEdit::textChanged,
            this, [this] (const QString&) { updateList (); });
+  connect (caseInsensitiveCheck, &QCheckBox::toggled,
+           this, [this] (bool enabled) {
+             set_preference (transclusion_search_case_pref,
+                             enabled ? "on" : "off");
+             updateList ();
+           });
+  connect (fuzzyCheck, &QCheckBox::toggled,
+           this, [this] (bool enabled) {
+             set_preference (transclusion_search_fuzzy_pref,
+                             enabled ? "on" : "off");
+             updateList ();
+           });
   connect (anchorList, &QListWidget::currentItemChanged,
            this, [this] (QListWidgetItem*, QListWidgetItem*) {
              updatePreview ();
@@ -877,10 +958,12 @@ TransclusionLowerPage::showEvent (QShowEvent* event) {
 void
 TransclusionLowerPage::updateList () {
   anchorList->clear ();
-  QString query= searchEdit->text ().trimmed ().toLower ();
+  QString query= searchEdit->text ().trimmed ();
   std::vector<std::pair<int,int> > matches;
   for (int i=0; i<(int) anchors.size (); i++) {
-    int score= fuzzy_score (anchors[i].anchor, query);
+    int score= list_filter_score (anchors[i].anchor, query,
+                                  caseInsensitiveCheck->isChecked (),
+                                  fuzzyCheck->isChecked ());
     if (score >= 0) matches.push_back (std::make_pair (-score, i));
   }
   std::sort (matches.begin (), matches.end (),

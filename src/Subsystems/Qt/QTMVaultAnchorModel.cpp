@@ -85,6 +85,15 @@ anchor_pair_matches_enunciation (const TransclusionAnchorPair& pair,
   return anchor_pair_tag (pair.upper) == normalized;
 }
 
+bool
+anchor_pair_is_enunciation (const TransclusionAnchorPair& pair) {
+  QString tag= anchor_pair_tag (pair.upper);
+  for (const WikilinkEnunciationFilterEntry& entry:
+       wikilink_enunciation_filters)
+    if (tag == normalized_enunciation_tag (entry.tag)) return true;
+  return false;
+}
+
 void
 collect_anchors (tree t, path base, std::vector<WikilinkAnchorEntry>& out) {
   if (is_atomic (t)) return;

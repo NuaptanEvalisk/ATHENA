@@ -46,6 +46,7 @@ QString anchor_pair_tag (QString anchor);
 QString normalized_enunciation_tag (QString tag);
 bool anchor_pair_matches_enunciation (const TransclusionAnchorPair& pair,
                                        const QString& tag);
+bool anchor_pair_is_enunciation (const TransclusionAnchorPair& pair);
 void collect_anchors (tree t, path base, std::vector<WikilinkAnchorEntry>& out);
 std::vector<TransclusionAnchorPair> collect_transclusion_pairs (
   const std::vector<WikilinkAnchorEntry>& anchors);

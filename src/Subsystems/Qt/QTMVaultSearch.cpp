@@ -48,6 +48,19 @@ fuzzy_score (const QString& text, const QString& query) {
 }
 
 int
+list_filter_score (const QString& text, const QString& query,
+                   bool caseInsensitive, bool fuzzy) {
+  QString haystack= caseInsensitive ? text.toCaseFolded () : text;
+  QString needle= caseInsensitive ? query.toCaseFolded () : query;
+  if (needle.isEmpty ()) return 0;
+  if (haystack == needle) return 100000;
+  if (haystack.startsWith (needle)) return 90000 - haystack.length ();
+  if (haystack.contains (needle)) return 80000 - haystack.length ();
+  if (!fuzzy) return -1;
+  return fuzzy_subsequence_score (haystack, needle);
+}
+
+int
 fuzzy_file_score (const WikilinkFileEntry& file, string query) {
   array<fuzzy_rank_field> fields;
   fields << fuzzy_rank_field (file.searchStem, 100);

@@ -51,6 +51,8 @@ struct VaultContentMatch {
 };
 
 int fuzzy_score (const QString& text, const QString& query);
+int list_filter_score (const QString& text, const QString& query,
+                       bool case_insensitive, bool fuzzy);
 int fuzzy_file_score (const WikilinkFileEntry& file, string query);
 void append_content_matches (std::vector<VaultContentMatch>& out, tree t,
                              tree query, path base, int limit,
