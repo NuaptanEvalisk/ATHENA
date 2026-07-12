@@ -40,6 +40,12 @@ struct VaultMaintenanceSummary {
   size_t anchor_dead_pairs_removed = 0;
   size_t anchor_failures = 0;
   int anchor_reader_processes = -1;
+  bool toc_update_enabled = false;
+  size_t toc_files_scanned = 0;
+  size_t toc_files_containing_toc = 0;
+  size_t toc_files_updated = 0;
+  size_t toc_failures = 0;
+  int toc_worker_processes = 0;
   bool orphan_collection_enabled = false;
   size_t orphan_assets_collected = 0;
   std::filesystem::path orphan_dir;
@@ -105,6 +111,8 @@ VaultMaintenancePassResult vault_maintenance_pass_read_policy_preferences (
 VaultMaintenancePassResult vault_maintenance_pass_normalize_images (
   VaultMaintenanceContext& ctx);
 VaultMaintenancePassResult vault_maintenance_pass_anchor_enunciations (
+  VaultMaintenanceContext& ctx);
+VaultMaintenancePassResult vault_maintenance_pass_update_tables_of_contents (
   VaultMaintenanceContext& ctx);
 VaultMaintenancePassResult vault_maintenance_pass_collect_orphans (
   VaultMaintenanceContext& ctx);

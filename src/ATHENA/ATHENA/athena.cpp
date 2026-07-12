@@ -43,6 +43,8 @@
 #include "server.hpp"
 #include "tm_timer.hpp"
 #include "data_cache.hpp"
+#include "new_buffer.hpp"
+#include "new_view.hpp"
 #include "tm_window.hpp"
 #include "scheme.hpp"
 #include "convert.hpp"
@@ -95,6 +97,8 @@ string aofm_convert_vault_destination;
 string aofm_convert_vault_model_vault;
 string vault_maintenance_dir;
 bool   vault_maintenance_check_only = false;
+string vault_maintenance_toc_worker_file;
+string vault_maintenance_toc_worker_marker;
 string rag_server_dir;
 string rag_embedding_model;
 string rag_embedding_device= "auto";
@@ -684,6 +688,9 @@ set_global_options  (int argc, char** argv)  {
       else if (s == "-vault-maintenance") {
         i++;
       }
+      else if (s == "-vault-maintenance-toc-worker") {
+        i += 2;
+      }
       else if (s == "-generate-website") {
         i += 2;
       }
@@ -852,6 +859,7 @@ set_global_options  (int argc, char** argv)  {
         cout << "  -V         Show some informative messages\n";
         cout << "  --no-splash-screen       Start without showing the splash screen\n";
         cout << "  --vault-maintenance [dir]  Maintain an ATHENA vault headlessly\n";
+        cout << "  --vault-maintenance-toc-worker [file] [marker]  Internal ToC maintenance worker\n";
         cout << "  --generate-website [dir] [id]  Generate a vault website headlessly\n";
         cout << "  --check-only               With --vault-maintenance, run only the document health check\n";
         cout << "  --aofm-convert-file [file]  Convert one AOFM Markdown file headlessly\n";
@@ -1071,9 +1079,31 @@ TeXmacs_main (int argc, char** argv) {
     }
     if (vault_maintenance_dir != "") {
       eval ("(lazy-initialize-force)");
+      release_boot_lock ();
       bool ok= vault_maintenance_run (vault_maintenance_dir,
                                       vault_maintenance_check_only);
       exit (ok ? 0 : 1);
+    }
+    if (vault_maintenance_toc_worker_file != "" &&
+        vault_maintenance_toc_worker_marker != "") {
+      eval ("(lazy-initialize-force)");
+      string cmd= "(load-buffer (system->url " *
+                  scm_quote (vault_maintenance_toc_worker_file) * ") :strict)";
+      eval (cmd);
+      bool failed= true;
+      try {
+        get_current_editor ()->generate_aux ("table-of-contents");
+        url document= url_system (vault_maintenance_toc_worker_file);
+        failed= buffer_save (document);
+      }
+      catch (...) {
+        failed= true;
+      }
+      std::ofstream marker (athena_to_std_string (
+        vault_maintenance_toc_worker_marker), std::ios::binary);
+      if (marker) marker << (failed ? "save-failed" : "ok");
+      marker.close ();
+      exit (failed ? 1 : 0);
     }
     if (website_generate_dir != "" && website_generate_id != "") {
       eval ("(lazy-initialize-force)");
@@ -1519,6 +1549,15 @@ texmacs_entrypoint (int argc, char** argv) {
       i++;
       if (i < argc) {
         vault_maintenance_dir= argv[i];
+        headless_mode= true;
+      }
+    }
+    if (s == "-vault-maintenance-toc-worker") {
+      if (i + 2 < argc) {
+        i++;
+        vault_maintenance_toc_worker_file= argv[i];
+        i++;
+        vault_maintenance_toc_worker_marker= argv[i];
         headless_mode= true;
       }
     }

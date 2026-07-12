@@ -40,6 +40,12 @@ collect_orphan_assets_preference () {
 }
 
 static bool
+update_tables_of_contents_preference () {
+  return get_preference ("vault maintenance update table of contents", "off") ==
+         "on";
+}
+
+static bool
 generate_summary_page_preference () {
   return get_preference ("vault generate maintenance summary page", "off") ==
          "on";
@@ -206,6 +212,7 @@ vault_maintenance_pass_read_policy_preferences (VaultMaintenanceContext& ctx) {
   ctx.summary.manual_save_retention_seconds =
     manual_save_retention_preference ();
   ctx.summary.anchor_reader_processes = anchor_reader_processes_preference ();
+  ctx.summary.toc_update_enabled = update_tables_of_contents_preference ();
   ctx.summary.orphan_collection_enabled = collect_orphan_assets_preference ();
   ctx.summary.generate_summary_page = generate_summary_page_preference ();
   ctx.summary.summary_keep_count = summary_keep_count_preference ();

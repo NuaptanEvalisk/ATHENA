@@ -37,6 +37,8 @@ vault_maintenance_run (string vault_dir, bool check_only) {
      vault_maintenance_pass_normalize_images},
     {"anchor-structures", "Anchor structures",
      vault_maintenance_pass_anchor_enunciations},
+    {"update-tocs", "Update tables of contents",
+     vault_maintenance_pass_update_tables_of_contents},
     {"collect-orphans", "Collect orphan assets",
      vault_maintenance_pass_collect_orphans},
     {"purge-retained-data", "Purge old retained data",

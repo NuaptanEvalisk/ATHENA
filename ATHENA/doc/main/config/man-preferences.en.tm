@@ -735,6 +735,12 @@
     <item*|Anchor reader processes>Limits the number of reader processes used
     while scanning anchors during maintenance.
 
+    <item*|Update all tables of contents during vault maintenance>Runs the
+    same table-of-contents generation used by
+    <menu|Document|Update|Table of contents> for every vault document that
+    contains a ToC. Documents are processed by a bounded pool of independent
+    ATHENA worker processes.
+
     <item*|Collect orphan assets during vault maintenance>Finds and collects
     assets that are no longer referenced by vault documents.
 

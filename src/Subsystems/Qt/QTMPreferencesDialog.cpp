@@ -1455,6 +1455,8 @@ QTMPreferencesDialog::buildVaultPage () {
               {"4", "4"}, {"8", "8"}, {"12", "12"}, {"16", "16"},
               {"20", "20"}},
              "Unlimited");
+  add_toggle (mt, "Update all tables of contents during vault maintenance:",
+              "vault maintenance update table of contents");
   add_toggle (mt, "Collect orphan assets during vault maintenance:",
               "vault collect orphan assets");
   add_toggle (mt, "Generate summary page for maintenance:",
