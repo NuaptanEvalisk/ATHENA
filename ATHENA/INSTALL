@@ -124,10 +124,18 @@ and produces:
     container_build/ATHENA-rel.AppImage
     container_build/ATHENA-dev.AppImage.sha256
     container_build/ATHENA-rel.AppImage.sha256
+    container_build/packages/*.deb
+    container_build/packages/*-opensuse-x86_64.rpm
+    container_build/packages/*-rhel-x86_64.rpm
 
 By default it also validates both AppImages in an Ubuntu 24.04 container:
 
     tools/container-build/validate-appimages-ubuntu.sh
+
+The native package validator checks archive contents only and never installs an
+RPM or DEB on the build host:
+
+    tools/container-build/validate-native-packages.sh
 
 The AppImage launch path defaults to Wayland in the same spirit as
 `StartATHENA.qt6.wayland.sh`.

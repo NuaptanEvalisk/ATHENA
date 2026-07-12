@@ -17,6 +17,7 @@ tools_dir="$container_build_dir/tools"
 jobs="${ATHENA_BUILD_JOBS:-$(nproc)}"
 git_timeout="${ATHENA_GIT_TIMEOUT:-300}"
 qt_version="${ATHENA_QT_VERSION:-6.11.1}"
+athena_version="$(sed -n 's/.*set *(ATHENA_APP_VERSION *"\([^"]*\)".*/\1/p' "$repo_root/CMakeLists.txt" | head -n1)"
 qt_root="$deps_dir/qt"
 qt_prefix="$qt_root/$qt_version/gcc_64"
 ads_patched_src="$deps_dir/ads-patched/qt6"
@@ -347,6 +348,9 @@ copy_runtime_tree () {
     --exclude 'lib/*' \
     --exclude 'tools/formula-cleaner/*.gguf' \
     --exclude 'tools/formula-cleaner/.venv/' \
+    --exclude '.venv/' \
+    --exclude '.uv-cache/' \
+    --exclude '__pycache__/' \
     --exclude '*.safetensors' \
     "$repo_root/ATHENA/" "$out_dir/"
 
@@ -418,6 +422,12 @@ build_athena_flavor () {
     "$tools_dir/appimagetool-x86_64.AppImage"
   sha256sum "$container_build_dir/ATHENA-$label.AppImage" \
     > "$container_build_dir/ATHENA-$label.AppImage.sha256"
+
+  "$repo_root/tools/container-build/package_native.py" \
+    "$container_build_dir/appimage/ATHENA-$label.AppDir" \
+    "$container_build_dir/packages" \
+    "$label" \
+    "$athena_version"
 }
 
 download_appimagetool () {
@@ -443,3 +453,4 @@ build_athena_flavor rel RelWithDebInfo
 
 find "$container_build_dir" -maxdepth 1 \
   \( -name 'ATHENA-dev*' -o -name 'ATHENA-rel*' \) -print | sort
+find "$container_build_dir/packages" -maxdepth 1 -type f -print | sort

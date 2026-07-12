@@ -27,6 +27,7 @@ RUN set -e; \
       coreutils \
       curl \
       diffutils \
+      dpkg \
       file \
       findutils \
       fontconfig-devel \
@@ -76,6 +77,7 @@ RUN set -e; \
       python311 \
       python311-pip \
       rsync \
+      rpm-build \
       rustup \
       sed \
       shadow \

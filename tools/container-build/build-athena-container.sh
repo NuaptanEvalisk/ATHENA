@@ -51,3 +51,6 @@ if [ "${ATHENA_SKIP_UBUNTU_VALIDATE:-0}" != "1" ]; then
   "$script_dir/validate-appimages-ubuntu.sh" "$repo_root" \
     2>&1 | tee "$container_build_dir/logs/ubuntu-validate.log"
 fi
+
+"$script_dir/validate-native-packages.sh" "$repo_root" \
+  2>&1 | tee "$container_build_dir/logs/native-package-validate.log"
