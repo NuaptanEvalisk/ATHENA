@@ -203,6 +203,13 @@ ATHENA heavily customizes the math typing experience.
   such as `Hom`, `Aut`, `Spec`, `coker`, `rank`, `trdeg`, and `rel`.
 - Correct support for symbols such as `varinjlim`, `varprojlim`, degree,
   `mathscr`, upright `mathrm`, and boldsymbol-style input.
+- Native commutative diagrams with formula vertices, editable arrows, Quiver-
+  inspired geometry and styling, and vector output in PDF and HTML. Insert one
+  from `Insert -> Mathematics -> Commutative diagram` or type `\\cd` and Enter.
+
+The commutative-diagram interaction and styling model is inspired by
+[Quiver](https://github.com/varkor/quiver), which is distributed under the MIT
+license. ATHENA's implementation is independent Scheme/native graphics code.
 
 ### Enunciations
 

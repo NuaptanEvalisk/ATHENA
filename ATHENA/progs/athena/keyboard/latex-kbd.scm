@@ -124,6 +124,7 @@
   "dagger" "ddagger" "boxbar" "checked" "obar" "kreuz")
 
 (kbd-commands
+  ("cd" "Insert a commutative diagram" (make-cd))
   ("#" "Insert sharp" (insert "#"))
   ("$" "Insert dollar" (insert "$"))
   ("(" "Insert formula" (make-with "mode" "math"))

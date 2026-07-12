@@ -132,8 +132,7 @@
   (when (selection-active-small?)
     ("Draw over selection" (make-graphics-over-selection)))
   ("Ink here" (make-graphics-over))
-  (if (in-math?)
-      ("Commutative diagram" (make-cd))))
+  )
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; The main Insert menu

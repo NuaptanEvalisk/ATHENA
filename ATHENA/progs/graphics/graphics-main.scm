@@ -293,14 +293,15 @@
       (graphics-set-grid-color 'axes "#e0e0ff"))))
 
 (tm-define (make-cd)
-  (make-graphics)
+  (import-from (graphics graphics-markup))
+  (insert-go-to '(cd-graphics "8.1" "3.1" (document "")) '(2 0 0))
   (delayed
     (:idle 1)
-    (graphics-set-extents "8.1cm" "3.1cm")
-    (graphics-set-text-at-halign "center")
-    (graphics-set-arrow-end "<gtr>")
-    (graphics-set-mode '(edit math-at))
-    (graphics-set-notebook-grid)))
+    (when (in-active-graphics?)
+      (graphics-set-text-at-halign "center")
+      (graphics-set-arrow-end "<gtr>")
+      (graphics-set-mode '(edit cd-vertex))
+      (graphics-set-notebook-grid))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; 3D transformations

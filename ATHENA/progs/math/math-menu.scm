@@ -67,6 +67,7 @@
   (if (style-has? "env-math-dtd")
       ("Displayed formula" (make-equation*))
       ("Several equations" (make-eqnarray*)))
+  ("Commutative diagram" (make-cd))
   ---
   ("LaTeX formula" (open-latex-formula-dialog)))
 

@@ -82,6 +82,18 @@
 
   <drd-props|arrow-with-text*|arity|3|accessible|2>
 
+  <assign|cd-graphics|<macro|width|height|body|<concat|<specific|texmacs|<extern|cd-graphics-render|<arg|width>|<arg|height>|<quote-arg|body>>>|<specific|html*|<extern|cd-graphics-html-tree|<arg|width>|<arg|height>|<quote-arg|body>>>>>>
+
+  <assign|cd-vertex|<macro|p|t|id|<extern|cd-vertex|<arg|p>|<quote-arg|t>|<arg|id>>>>
+
+  <assign|cd-arrow|<macro|p1|p2|t|opts|<extern|cd-arrow|<arg|p1>|<arg|p2>|<quote-arg|t>|<quote-arg|opts>>>>
+
+  <drd-props|cd-graphics|arity|3|accessible|2>
+
+  <drd-props|cd-vertex|arity|3|accessible|1>
+
+  <drd-props|cd-arrow|arity|4|accessible|2>
+
   <\active*>
     <\src-comment>
       Transformations

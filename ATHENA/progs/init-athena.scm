@@ -343,8 +343,12 @@
              graphics-dragging-left graphics-end-drag-left)
 (lazy-define (graphics graphics-main) graphics-update-proviso
              graphics-get-proviso graphics-set-proviso)
-(lazy-define (graphics graphics-markup) arrow-with-text arrow-with-text*)
-(define-secure-symbols arrow-with-text arrow-with-text*)
+(lazy-define (graphics graphics-markup)
+             arrow-with-text arrow-with-text* cd-graphics-render
+             cd-graphics-html-source cd-graphics-html-tree cd-vertex cd-arrow)
+(define-secure-symbols
+  arrow-with-text arrow-with-text* cd-graphics-render
+  cd-graphics-html-source cd-graphics-html-tree cd-vertex cd-arrow)
 ;(display* "time: " (- (athena-time) boot-start) "\n")
 ;(display* "memory: " (athena-memory) " bytes\n")
 
