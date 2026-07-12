@@ -17,5 +17,11 @@
   (:name "Markdown")
   (:suffix "md"))
 
+(define-format chatgpt
+  (:name "ChatGPT"))
+
 (converter markdown-snippet texmacs-tree
   (:function aofm-markdown->texmacs))
+
+(converter chatgpt-snippet texmacs-tree
+  (:function aofm-chatgpt->texmacs))
