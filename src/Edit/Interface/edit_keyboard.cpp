@@ -414,12 +414,13 @@ void drag_right_reset ();
 void
 edit_interface_rep::handle_keyboard_focus (bool has_focus, time_t t) {
   if (is_nil (buf)) return;
-  if (has_focus && !is_attached (this)) {
-    // QTMWidget posts a synthetic FocusIn from its constructor.  During
-    // startup, the event loop may process that event before window_set_view()
-    // attaches the editor to a tm_window, especially when another application
-    // steals focus from the splash screen.  Do not let such an early focus
-    // event make a passive view current.
+  if (has_focus && (!is_attached (this) || !editor_has_window (this))) {
+    // Qt may deliver either the synthetic constructor FocusIn or a real mouse
+    // FocusIn after the widget has a native window but before attach_view()
+    // has connected its tm_view to a tm_window.  Such a passive view must
+    // never become the global current view.
+    if (DEBUG_KEYBOARD)
+      debug_keyboard << "Ignoring focus for a view without a tm_window\n";
     got_focus= false;
     return;
   }

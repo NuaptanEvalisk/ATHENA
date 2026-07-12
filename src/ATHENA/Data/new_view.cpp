@@ -424,7 +424,8 @@ focus_on_editor (editor ed) {
   for (int i=0; i<N(bufs); i++) {
     array<url> vs= buffer_to_views (bufs[i]);
     for (int j=0; j<N(vs); j++)
-      if (concrete_view (vs[j]) != NULL && view_to_editor (vs[j]) == ed) {
+      if (concrete_view (vs[j]) != NULL && view_to_editor (vs[j]) == ed &&
+          !is_none (view_to_window (vs[j]))) {
         set_current_view (vs[j]);
         return;
       }
@@ -440,10 +441,23 @@ focus_on_editor (editor ed) {
     }
   */
 
-  std_warning << "Warning: editor no longer exists, "
-              << "may indicate synchronization error\n";
+  std_warning << "Warning: editor has no window-backed view, "
+              << "ignoring focus request\n";
   //failed_error << "Name of buffer: " << ed->buf->buf->name << "\n";
   //FAILED ("invalid situation");
+}
+
+bool
+editor_has_window (editor ed) {
+  array<url> bufs= get_all_buffers ();
+  for (int i=0; i<N(bufs); i++) {
+    array<url> vs= buffer_to_views (bufs[i]);
+    for (int j=0; j<N(vs); j++) {
+      tm_view vw= concrete_view (vs[j]);
+      if (vw != NULL && vw->ed == ed && vw->win != NULL) return true;
+    }
+  }
+  return false;
 }
 
 bool

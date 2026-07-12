@@ -36,6 +36,7 @@ void notify_rename_after (url new_name);
 void window_set_view (url win, url new_u, bool focus);
 void switch_to_buffer (url name);
 void focus_on_editor (editor ed);
+bool editor_has_window (editor ed);
 bool focus_on_buffer (url name);
 bool var_focus_on_buffer (url name);
 
