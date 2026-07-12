@@ -108,6 +108,27 @@
   (for (which (cpp-preference-callbacks))
     (notify-preference which)))
 
+(tm-define (ext-fold-toc-in-reflow?)
+  (:secure #t)
+  (if (== (get-preference "fold table of contents in reflow") "on")
+      "true"
+      "false"))
+
+(tm-define (toc-fold-tree t)
+  (:secure #t)
+  (when (and (tree? t) (tree->path t)
+             (toc-fold-set-path (tree->path t) #t))
+    (noop)))
+
+(tm-define (toc-unfold-tree t)
+  (:secure #t)
+  (when (and (tree? t) (tree->path t)
+             (toc-fold-set-path (tree->path t) #f))
+    (noop)))
+
+(define (notify-fold-table-of-contents name val)
+  (refresh-window))
+
 (tm-define (load-preferences-from file)
   (:synopsis "Load user preferences from @file")
   (cpp-load-preferences file)

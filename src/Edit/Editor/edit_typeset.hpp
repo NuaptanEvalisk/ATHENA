@@ -28,6 +28,8 @@ protected:
   hashmap<string,tree> fin;               // environment changes w.r.t. doc
   hashmap<string,tree> grefs;             // global references
   hashset<string> folded_headings;         // screen-only folded heading paths
+  hashset<string> folded_tocs;             // explicit screen-only ToC states
+  hashset<string> unfolded_tocs;
   bool fold_view_active;                   // screen typesetter uses folded tree
   bool fold_view_rebuild;                  // recreate screen typesetter
   int  heading_word_count_cache_hash;       // source hash for cached counts
@@ -147,6 +149,7 @@ public:
   bool     heading_fold_toggle_at (string p);
   void     heading_unfold_all ();
   int      heading_word_count_at (path p);
+  bool     toc_fold_set_at (path p, bool folded);
   void     typeset_sub (SI& x1, SI& y1, SI& x2, SI& y2);
   void     typeset (SI& x1, SI& y1, SI& x2, SI& y2);
   void     typeset_forced ();

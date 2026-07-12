@@ -791,6 +791,7 @@
 "heading-fold-toggle-path"
 "heading-word-count-path"
 "heading-unfold-all"
+"toc-fold-set-path"
 "vault-backup-viewer-show"
 "image-remove-background"
 "ads-show-tool-pane"

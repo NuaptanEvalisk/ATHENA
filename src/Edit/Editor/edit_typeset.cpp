@@ -37,7 +37,8 @@ edit_typeset_rep::edit_typeset_rep ():
   the_style (TUPLE),
   cur (hashmap<string,tree> (UNINIT)),
   stydef (UNINIT), pre (UNINIT), init (UNINIT), fin (UNINIT), grefs (UNINIT),
-  folded_headings (), fold_view_active (false), fold_view_rebuild (false),
+  folded_headings (), folded_tocs (), unfolded_tocs (),
+  fold_view_active (false), fold_view_rebuild (false),
   heading_word_count_cache_hash (INT_MIN), heading_word_count_cache (),
   heading_word_count_cache_map (0),
   env (drd, buf->buf->master,
@@ -1045,9 +1046,31 @@ heading_fold_hidden () {
   return compound ("folded-hidden");
 }
 
+static bool toc_fold_node (tree t);
+
 static tree
-heading_fold_screen_tree (tree t, path p, hashset<string> folded) {
+heading_fold_screen_tree (tree t, path p, hashset<string> folded,
+                          hashset<string> folded_tocs,
+                          hashset<string> unfolded_tocs) {
   if (is_atomic (t)) return t;
+  if (toc_fold_node (t)) {
+    string key= as_string (p);
+    tree_label label= L(t);
+    if (folded_tocs->contains (key))
+      label= make_tree_label (is_compound (t, "table-of-contents*")
+                               ? "screen-folded-table-of-contents*"
+                               : "screen-folded-table-of-contents");
+    else if (unfolded_tocs->contains (key))
+      label= make_tree_label (is_compound (t, "table-of-contents*")
+                               ? "screen-unfolded-table-of-contents*"
+                               : "screen-unfolded-table-of-contents");
+    if (label != L(t)) {
+      tree r (label, N(t));
+      for (int i=0; i<N(t); i++) r[i]= t[i];
+      return r;
+    }
+    return t;
+  }
   if (!heading_fold_container (t)) return t;
 
   tree r (t, N(t));
@@ -1065,7 +1088,8 @@ heading_fold_screen_tree (tree t, path p, hashset<string> folded) {
       }
     }
 
-    r[i]= heading_fold_screen_tree (t[i], cp, folded);
+    r[i]= heading_fold_screen_tree (t[i], cp, folded,
+                                    folded_tocs, unfolded_tocs);
     if (folded_here)
       folded_level= level;
   }
@@ -1075,7 +1099,8 @@ heading_fold_screen_tree (tree t, path p, hashset<string> folded) {
 tree
 edit_typeset_rep::folded_screen_tree () {
   tree doc= subtree (et, rp);
-  return heading_fold_screen_tree (doc, path (), folded_headings);
+  return heading_fold_screen_tree (doc, path (), folded_headings,
+                                   folded_tocs, unfolded_tocs);
 }
 
 bool
@@ -1151,6 +1176,47 @@ edit_typeset_rep::heading_fold_set_current (bool folded, bool toggle) {
   return true;
 }
 
+static bool
+toc_fold_node (tree t) {
+  return is_compound (t, "table-of-contents") ||
+         is_compound (t, "table-of-contents*");
+}
+
+static bool
+toc_fold_find_for_path (tree doc, path p, path& toc) {
+  for (path q= p; !is_nil (q); q= path_up (q))
+    if (has_subtree (doc, q) && toc_fold_node (subtree (doc, q))) {
+      toc= q;
+      return true;
+    }
+  if (!toc_fold_node (doc)) return false;
+  toc= path ();
+  return true;
+}
+
+bool
+edit_typeset_rep::toc_fold_set_at (path p, bool folded) {
+  tree doc= subtree (et, rp);
+  if (!heading_path_starts_with (p, rp)) return false;
+  path toc;
+  if (!toc_fold_find_for_path (doc, p / rp, toc)) return false;
+  string key= as_string (toc);
+  if (folded) {
+    folded_tocs->insert (key);
+    unfolded_tocs->remove (key);
+  }
+  else {
+    unfolded_tocs->insert (key);
+    folded_tocs->remove (key);
+  }
+  fold_view_rebuild= true;
+  typeset_invalidate_all ();
+  invalidate_all ();
+  set_message (folded? "Table of contents folded":
+                        "Table of contents unfolded", "");
+  return true;
+}
+
 int
 edit_typeset_rep::heading_word_count_at (path p) {
   if (!has_subtree (et, rp)) return 0;
@@ -1186,13 +1252,16 @@ edit_typeset_rep::typeset_sub (SI& x1, SI& y1, SI& x2, SI& y2) {
   try {
 #endif
     bool printed= env->get_string (PAGE_PRINTED) == "true";
-    bool folded_screen= !printed && N(folded_headings) != 0;
+    bool folded_screen= !printed &&
+      (N(folded_headings) != 0 || N(folded_tocs) != 0 ||
+       N(unfolded_tocs) != 0);
     bool full_repaint= fold_view_rebuild ||
                        folded_screen != fold_view_active;
     if (full_repaint) {
       tree doc= subtree (et, rp);
       if (folded_screen)
-        doc= heading_fold_screen_tree (doc, path (), folded_headings);
+        doc= heading_fold_screen_tree (doc, path (), folded_headings,
+                                      folded_tocs, unfolded_tocs);
       ttt->screen_tree= folded_screen;
       ::notify_assign (ttt, path (), doc);
       fold_view_rebuild= false;
@@ -1313,7 +1382,8 @@ edit_typeset_rep::typeset_invalidate_all () {
   //cout << "Invalidate all\n";
   heading_word_count_cache_hash= INT_MIN;
   heading_word_count_cache_map= hashmap<path,int> (0);
-  if (fold_view_active || N(folded_headings) != 0)
+  if (fold_view_active || N(folded_headings) != 0 ||
+      N(folded_tocs) != 0 || N(unfolded_tocs) != 0)
     fold_view_rebuild= true;
   notify_change (THE_ENVIRONMENT);
   typeset_preamble ();

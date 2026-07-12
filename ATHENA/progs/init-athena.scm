@@ -349,6 +349,7 @@
 (define-secure-symbols
   arrow-with-text arrow-with-text* cd-graphics-render
   cd-graphics-html-source cd-graphics-html-tree cd-vertex cd-arrow)
+(define-secure-symbols ext-fold-toc-in-reflow? toc-fold-tree toc-unfold-tree)
 ;(display* "time: " (- (athena-time) boot-start) "\n")
 ;(display* "memory: " (athena-memory) " bytes\n")
 

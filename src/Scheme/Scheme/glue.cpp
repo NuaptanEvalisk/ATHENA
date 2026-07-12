@@ -1470,6 +1470,15 @@ tmg_heading_unfold_all () {
 }
 
 tmscm
+tmg_toc_fold_set_path (tmscm arg1, tmscm arg2) {
+  TMSCM_ASSERT_PATH (arg1, TMSCM_ARG1, "toc-fold-set-path");
+  TMSCM_ASSERT_BOOL (arg2, TMSCM_ARG2, "toc-fold-set-path");
+  bool out= get_current_editor()->toc_fold_set_at (
+    tmscm_to_path (arg1), tmscm_to_bool (arg2));
+  return bool_to_tmscm (out);
+}
+
+tmscm
 tmg_native_info_dialog (tmscm arg1, tmscm arg2) {
   TMSCM_ASSERT_STRING (arg1, TMSCM_ARG1, "native-info-dialog");
   TMSCM_ASSERT_STRING (arg2, TMSCM_ARG2, "native-info-dialog");
@@ -1847,6 +1856,8 @@ initialize_glue () {
                            tmg_heading_word_count_path, 1, 0, 0);
   tmscm_install_procedure ("heading-unfold-all",
                            tmg_heading_unfold_all, 0, 0, 0);
+  tmscm_install_procedure ("toc-fold-set-path",
+                           tmg_toc_fold_set_path, 2, 0, 0);
   tmscm_install_procedure ("native-info-dialog",
                            tmg_native_info_dialog, 2, 0, 0);
   tmscm_install_procedure ("native-anchor-enunciations-confirm",

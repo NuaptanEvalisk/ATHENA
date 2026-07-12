@@ -346,6 +346,15 @@
     <item*|Fast environments>Uses faster environment handling when possible.
   </description>
 
+  <subsubsection|Table of Contents>
+
+  <\description>
+    <item*|Fold by default in Reflow>Makes generated tables of contents start
+    folded when the document uses the Reflow page medium. The title remains
+    visible and can be unfolded on screen; tables of contents in other page
+    media start unfolded but remain foldable.
+  </description>
+
   <subsubsection|Graphs>
 
   <\description>

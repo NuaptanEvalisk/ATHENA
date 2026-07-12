@@ -1125,6 +1125,9 @@ QTMPreferencesDialog::buildRenderingPage () {
               {"korean", "Korean"}, {"taiwanese", "Taiwanese"}});
   add_toggle (m, "Persistent fit width:", "persistent fit width");
   add_toggle (m, "Fast environments:", "fast environments");
+  QFormLayout* toc= add_section (misc, "Table of Contents");
+  add_toggle (toc, "Fold by default in Reflow:",
+              "fold table of contents in reflow");
   QFormLayout* graphs= add_section (misc, "Graphs");
   QCheckBox* elasticGraphs= add_toggle (
     graphs, "Use interactive elastic graphs:", "interactive elastic graphs");

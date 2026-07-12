@@ -347,6 +347,7 @@ public:
   virtual bool     heading_fold_toggle_at (string p) = 0;
   virtual void     heading_unfold_all () = 0;
   virtual int      heading_word_count_at (path p) = 0;
+  virtual bool     toc_fold_set_at (path p, bool folded) = 0;
 
   /* public routines from edit_modify */
   virtual void notify_assign (path p, tree u) = 0;
