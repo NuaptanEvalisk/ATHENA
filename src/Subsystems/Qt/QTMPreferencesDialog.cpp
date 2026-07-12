@@ -1457,6 +1457,33 @@ QTMPreferencesDialog::buildVaultPage () {
              "Unlimited");
   add_toggle (mt, "Update all tables of contents during vault maintenance:",
               "vault maintenance update table of contents");
+  add_toggle (mt, "Update Continuous RAG during vault maintenance:",
+              "vault maintenance continuous rag");
+  QComboBox* maintenanceRagServer= new QComboBox (maintenance);
+  maintenanceRagServer->addItem ("First configured server", "");
+  for (const QTMRagDelegationServer& server: qtm_rag_delegation_servers ())
+    maintenanceRagServer->addItem (server.name + " - " + server.url,
+                                   server.url);
+  QString configuredRagServer= pref ("vault maintenance rag server", "");
+  int configuredRagServerIndex=
+    maintenanceRagServer->findData (configuredRagServer);
+  if (configuredRagServerIndex >= 0)
+    maintenanceRagServer->setCurrentIndex (configuredRagServerIndex);
+  QObject::connect (maintenanceRagServer,
+                    static_cast<void (QComboBox::*) (int)> (
+                      &QComboBox::currentIndexChanged),
+                    [maintenanceRagServer] (int index) {
+    if (index >= 0)
+      set_pref ("vault maintenance rag server",
+                maintenanceRagServer->itemData (index).toString ());
+  });
+  mt->addRow (label ("Delegated maintenance server:"), maintenanceRagServer);
+  add_combo (mt, "If delegated RAG is unavailable:",
+             "vault maintenance rag delegation fallback",
+             {{"fail-maintenance", "Fail maintenance"},
+              {"continue", "Continue without RAG"},
+              {"local", "Run embedding locally"}},
+             "continue");
   add_toggle (mt, "Collect orphan assets during vault maintenance:",
               "vault collect orphan assets");
   add_toggle (mt, "Generate summary page for maintenance:",

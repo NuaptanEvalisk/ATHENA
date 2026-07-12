@@ -46,6 +46,18 @@ struct VaultMaintenanceSummary {
   size_t toc_files_updated = 0;
   size_t toc_failures = 0;
   int toc_worker_processes = 0;
+  bool rag_update_enabled = false;
+  bool rag_delegation_enabled = false;
+  bool rag_delegation_attempted = false;
+  bool rag_delegation_succeeded = false;
+  bool rag_local_fallback_used = false;
+  std::string rag_fallback_policy = "continue";
+  std::string rag_server;
+  std::string rag_result;
+  int rag_documents_before = 0;
+  int rag_documents_after = 0;
+  int rag_chunks_before = 0;
+  int rag_chunks_after = 0;
   bool orphan_collection_enabled = false;
   size_t orphan_assets_collected = 0;
   std::filesystem::path orphan_dir;
@@ -113,6 +125,8 @@ VaultMaintenancePassResult vault_maintenance_pass_normalize_images (
 VaultMaintenancePassResult vault_maintenance_pass_anchor_enunciations (
   VaultMaintenanceContext& ctx);
 VaultMaintenancePassResult vault_maintenance_pass_update_tables_of_contents (
+  VaultMaintenanceContext& ctx);
+VaultMaintenancePassResult vault_maintenance_pass_continuous_rag (
   VaultMaintenanceContext& ctx);
 VaultMaintenancePassResult vault_maintenance_pass_collect_orphans (
   VaultMaintenanceContext& ctx);

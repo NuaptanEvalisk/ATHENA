@@ -45,6 +45,17 @@ update_tables_of_contents_preference () {
          "on";
 }
 
+static std::string
+rag_fallback_preference () {
+  std::string value= lower_copy (trim_copy (tm_to_std (get_preference (
+    "vault maintenance rag delegation fallback", "continue"))));
+  if (value == "fail-maintenance" || value == "continue" || value == "local")
+    return value;
+  log_info ("invalid RAG delegation fallback preference '" + value +
+            "'; using continue");
+  return "continue";
+}
+
 static bool
 generate_summary_page_preference () {
   return get_preference ("vault generate maintenance summary page", "off") ==
@@ -213,6 +224,13 @@ vault_maintenance_pass_read_policy_preferences (VaultMaintenanceContext& ctx) {
     manual_save_retention_preference ();
   ctx.summary.anchor_reader_processes = anchor_reader_processes_preference ();
   ctx.summary.toc_update_enabled = update_tables_of_contents_preference ();
+  ctx.summary.rag_update_enabled =
+    get_preference ("vault maintenance continuous rag", "off") == "on";
+  ctx.summary.rag_delegation_enabled =
+    get_preference ("rag delegation enabled", "off") == "on";
+  ctx.summary.rag_fallback_policy = rag_fallback_preference ();
+  ctx.summary.rag_server = trim_copy (tm_to_std (
+    get_preference ("vault maintenance rag server", "")));
   ctx.summary.orphan_collection_enabled = collect_orphan_assets_preference ();
   ctx.summary.generate_summary_page = generate_summary_page_preference ();
   ctx.summary.summary_keep_count = summary_keep_count_preference ();

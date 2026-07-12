@@ -10,7 +10,11 @@
 
 #include "ATHENA/Data/vault_maintenance_internal.hpp"
 
+#include "QTMRagDelegationClient.hpp"
+#include "boot.hpp"
 #include "convert.hpp"
+#include "rag_index.hpp"
+#include "scheme.hpp"
 
 #include <algorithm>
 #include <filesystem>
@@ -285,4 +289,164 @@ vault_maintenance_pass_update_tables_of_contents (VaultMaintenanceContext& ctx) 
   return VaultMaintenancePassResult::failure (
     "parallel table-of-contents maintenance is unavailable on this platform");
 #endif
+}
+
+static athena::rag::RagStatus
+rag_database_status (const fs::path& root) {
+  athena::rag::RagConfig config;
+  config.vault_root= root;
+  config.db_path= fs::path (athena::rag::rag_default_db_path (root));
+  config.load_embedding_model= false;
+  config.progress= false;
+  athena::rag::RagIndex index;
+  if (!index.open (config)) return {};
+  return index.status ();
+}
+
+static bool
+run_local_rag_update (VaultMaintenanceContext& ctx, std::string& error) {
+  athena::rag::RagConfig config;
+  config.vault_root= ctx.root;
+  config.db_path= fs::path (athena::rag::rag_default_db_path (ctx.root));
+  config.embedding_model= fs::path (tm_to_std (
+    get_preference ("rag embedding model", "")));
+  config.embedding_device= tm_to_std (
+    get_preference ("rag embedding device", "auto"));
+  config.force_reindex= false;
+  config.progress= true;
+
+  athena::rag::RagIndex index;
+  if (!index.open (config)) {
+    error= index.status ().last_error.empty ()
+             ? "could not open the local RAG index"
+             : index.status ().last_error;
+    return false;
+  }
+  athena::rag::RagStatus before= index.status ();
+  ctx.summary.rag_documents_before= before.document_count;
+  ctx.summary.rag_chunks_before= before.chunk_count;
+  if (!index.scan_once ()) {
+    error= index.status ().last_error.empty ()
+             ? "local incremental RAG scan failed"
+             : index.status ().last_error;
+    return false;
+  }
+  athena::rag::RagStatus after= index.status ();
+  ctx.summary.rag_documents_after= after.document_count;
+  ctx.summary.rag_chunks_after= after.chunk_count;
+  if (!after.embedding_warning.empty ())
+    ctx.warnings.push_back ("Continuous RAG: " + after.embedding_warning);
+  ctx.summary.rag_result= "local incremental indexing succeeded";
+  return true;
+}
+
+static bool
+selected_rag_server (const std::string& configured,
+                     QTMRagDelegationServer& selected) {
+  QVector<QTMRagDelegationServer> servers= qtm_rag_delegation_servers ();
+  if (servers.isEmpty ()) return false;
+  if (!configured.empty ())
+    for (const QTMRagDelegationServer& server: servers)
+      if (server.url.toStdString () == configured) {
+        selected= server;
+        return true;
+      }
+  selected= servers.first ();
+  return true;
+}
+
+static bool
+run_delegated_rag_update (VaultMaintenanceContext& ctx, std::string& error) {
+  athena::rag::RagStatus before= rag_database_status (ctx.root);
+  ctx.summary.rag_documents_before= before.document_count;
+  ctx.summary.rag_documents_after= before.document_count;
+  ctx.summary.rag_chunks_before= before.chunk_count;
+  ctx.summary.rag_chunks_after= before.chunk_count;
+
+  QTMRagDelegationServer server;
+  if (!selected_rag_server (ctx.summary.rag_server, server)) {
+    error= "no configured RAG delegation server";
+    return false;
+  }
+  ctx.summary.rag_server= server.url.toStdString ();
+  QString auth_status;
+  QString qerror;
+  if (!qtm_rag_delegation_check_auth (server, &auth_status, &qerror)) {
+    error= qerror.isEmpty () ? "authentication check failed"
+                             : qerror.toStdString ();
+    return false;
+  }
+  if (auth_status != "accepted") {
+    error= "server has not accepted this client public key (status: " +
+           auth_status.toStdString () + ")";
+    return false;
+  }
+
+  QString delegated_summary;
+  if (!qtm_rag_delegation_run_embedding (
+        server, QString::fromStdString (ctx.root.string ()),
+        QString::fromStdString (athena::rag::rag_default_db_path (ctx.root)),
+        QString::fromStdString (tm_to_std (
+          get_preference ("rag embedding model", ""))),
+        QString::fromStdString (tm_to_std (
+          get_preference ("rag embedding device", "auto"))),
+        &delegated_summary, &qerror)) {
+    error= qerror.isEmpty () ? "delegated embedding failed"
+                             : qerror.toStdString ();
+    return false;
+  }
+  athena::rag::RagStatus after= rag_database_status (ctx.root);
+  ctx.summary.rag_documents_after= after.document_count;
+  ctx.summary.rag_chunks_after= after.chunk_count;
+  ctx.summary.rag_result= delegated_summary.toStdString ();
+  return true;
+}
+
+VaultMaintenancePassResult
+vault_maintenance_pass_continuous_rag (VaultMaintenanceContext& ctx) {
+  if (!ctx.summary.rag_update_enabled) {
+    log_info ("continuous RAG: disabled by preference");
+    ctx.summary.rag_result= "disabled";
+    return VaultMaintenancePassResult::success ("disabled by preference");
+  }
+
+  std::string error;
+  if (!ctx.summary.rag_delegation_enabled) {
+    log_info ("continuous RAG: running incremental local indexing");
+    if (run_local_rag_update (ctx, error))
+      return VaultMaintenancePassResult::success (ctx.summary.rag_result);
+    ctx.summary.rag_result= error;
+    return VaultMaintenancePassResult::failure (error);
+  }
+
+  ctx.summary.rag_delegation_attempted= true;
+  log_info ("continuous RAG: attempting delegated incremental embedding");
+  if (run_delegated_rag_update (ctx, error)) {
+    ctx.summary.rag_delegation_succeeded= true;
+    return VaultMaintenancePassResult::success (ctx.summary.rag_result);
+  }
+
+  std::string delegated_error= "delegated RAG failed: " + error;
+  ctx.summary.rag_result= delegated_error;
+  if (ctx.summary.rag_fallback_policy == "fail-maintenance")
+    return VaultMaintenancePassResult::failure (delegated_error);
+  if (ctx.summary.rag_fallback_policy == "continue") {
+    ctx.warnings.push_back (delegated_error + "; maintenance continued");
+    log_info (delegated_error + "; continuing without RAG update");
+    return VaultMaintenancePassResult::success (
+      delegated_error + "; continued by policy");
+  }
+
+  ctx.summary.rag_local_fallback_used= true;
+  ctx.warnings.push_back (delegated_error + "; using local fallback");
+  log_info (delegated_error + "; running local fallback");
+  std::string local_error;
+  if (run_local_rag_update (ctx, local_error)) {
+    ctx.summary.rag_result= delegated_error + "; local fallback succeeded";
+    return VaultMaintenancePassResult::success (
+      ctx.summary.rag_result);
+  }
+  ctx.summary.rag_result= delegated_error + "; local fallback failed: " +
+                          local_error;
+  return VaultMaintenancePassResult::failure (ctx.summary.rag_result);
 }

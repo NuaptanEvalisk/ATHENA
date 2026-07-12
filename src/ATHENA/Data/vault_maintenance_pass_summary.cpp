@@ -381,6 +381,26 @@ summary_document_text (VaultMaintenanceContext& ctx, bool success,
     work_rows.push_back (
       tm_row ({tm_text ("Tables of contents"),
                tm_text ("update disabled")}));
+  if (summary.rag_update_enabled) {
+    std::string mode= summary.rag_delegation_succeeded
+                        ? "delegated"
+                        : (summary.rag_local_fallback_used
+                             ? "local fallback":
+                             (summary.rag_delegation_attempted
+                                ? "delegation unavailable": "local"));
+    work_rows.push_back (
+      tm_row ({tm_text ("Continuous RAG"),
+               tm_text ("mode " + mode + ", documents " +
+                        std::to_string (summary.rag_documents_before) + " -> " +
+                        std::to_string (summary.rag_documents_after) +
+                        ", chunks " +
+                        std::to_string (summary.rag_chunks_before) + " -> " +
+                        std::to_string (summary.rag_chunks_after) +
+                        ", result: " + summary.rag_result)}));
+  }
+  else
+    work_rows.push_back (
+      tm_row ({tm_text ("Continuous RAG"), tm_text ("update disabled")}));
   if (summary.orphan_collection_enabled)
     work_rows.push_back (
       tm_row ({tm_text ("Orphan assets"),
@@ -539,6 +559,22 @@ vault_maintenance_pass_print_summary (VaultMaintenanceContext& ctx) {
               ", worker processes " +
               std::to_string (summary.toc_worker_processes));
   else log_info ("summary: table-of-contents update disabled");
+  if (summary.rag_update_enabled) {
+    std::string mode= summary.rag_delegation_succeeded
+                        ? "delegated"
+                        : (summary.rag_local_fallback_used
+                             ? "local fallback":
+                             (summary.rag_delegation_attempted
+                                ? "delegation unavailable": "local"));
+    log_info ("summary: Continuous RAG mode " + mode +
+              ", documents " +
+              std::to_string (summary.rag_documents_before) + " -> " +
+              std::to_string (summary.rag_documents_after) + ", chunks " +
+              std::to_string (summary.rag_chunks_before) + " -> " +
+              std::to_string (summary.rag_chunks_after) + ", result: " +
+              summary.rag_result);
+  }
+  else log_info ("summary: Continuous RAG update disabled");
   if (summary.orphan_collection_enabled) {
     std::string where = summary.orphan_dir.empty ()
                         ? std::string ("")

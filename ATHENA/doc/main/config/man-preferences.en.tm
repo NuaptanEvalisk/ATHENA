@@ -741,6 +741,21 @@
     contains a ToC. Documents are processed by a bounded pool of independent
     ATHENA worker processes.
 
+    <item*|Update Continuous RAG during vault maintenance>Runs one incremental
+    Continuous RAG indexing pass after document maintenance. With RAG
+    Delegation enabled, the pass sends only changed <verbatim|.ath> documents
+    to the selected configured server and applies the returned SQLite patch;
+    otherwise it updates <verbatim|rag.sqlite> locally.
+
+    <item*|Delegated maintenance server>Selects the RAG server used by the
+    maintenance pass. <menu|First configured server> uses the first server in
+    the user-profile RAG Delegation list.
+
+    <item*|If delegated RAG is unavailable>Controls failure handling when the
+    selected delegation server is unreachable, refuses authentication, or
+    returns invalid data: fail the entire maintenance operation, continue and
+    report a warning, or run the incremental embedding pass locally.
+
     <item*|Collect orphan assets during vault maintenance>Finds and collects
     assets that are no longer referenced by vault documents.
 
