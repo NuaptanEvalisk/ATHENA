@@ -400,10 +400,11 @@
 
 (define-public (tmfs-document t)
   (with doc (tm->stree t)
-    (if (and (tm-func? doc 'document)
-             (not (tm-func? (tm-ref doc 0) 'TeXmacs)))
-        `(document (TeXmacs ,(texmacs-compat-version)) ,@(cdr doc))
-        doc)))
+    (cond ((tm-func? doc 'error) doc)
+          ((and (tm-func? doc 'document)
+                (not (tm-func? (tm-ref doc 0) 'TeXmacs)))
+           `(document (TeXmacs ,(texmacs-compat-version)) ,@(cdr doc)))
+          (else doc))))
 
 (tmfs-load-handler (import name)
   (if (and (tmfs-pair? name) (tmfs-pair? (tmfs-cdr name)))

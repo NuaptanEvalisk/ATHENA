@@ -530,6 +530,91 @@
                                 (raw-quote (url->system u)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Choosing how links to non-native local files are opened
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(tm-widget (linked-file-convertible-open-widget name cmd)
+  (padded
+    (vertical
+      (text `(concat "How should ATHENA open "
+                     (verbatim ,(url->system name)) "?"))
+      ===
+      (bottom-buttons
+        ("Convert to ATHENA document" (cmd "convert"))
+        // //
+        ("Edit as plain text" (cmd "plain"))
+        // //
+        ("Open with system application" (cmd "system"))
+        // //
+        ("Cancel" (cmd "cancel"))))))
+
+(tm-widget (linked-file-unknown-open-widget name cmd)
+  (padded
+    (vertical
+      (text `(concat "How should ATHENA open "
+                     (verbatim ,(url->system name)) "?"))
+      ===
+      (bottom-buttons
+        ("Edit as plain text" (cmd "plain"))
+        // //
+        ("Open with system application" (cmd "system"))
+        // //
+        ("Cancel" (cmd "cancel"))))))
+
+(define (linked-file-format name)
+  (format-from-suffix (locase-all (url-suffix name))))
+
+(define (linked-file-convertible? name)
+  (let* ((fm (linked-file-format name))
+         (from (string-append fm "-document")))
+    (and (!= fm "generic")
+         (converter-search from "texmacs-tree"))))
+
+(define (linked-file-opened name after-open)
+  (when (and after-open (buffer-exists? name)) (after-open)))
+
+(define (linked-file-load-native name after-open)
+  (load-buffer name)
+  (linked-file-opened name after-open))
+
+(define (linked-file-edit-plain name after-open)
+  (if (buffer-exists? name)
+      (begin
+        (switch-to-buffer name)
+        (linked-file-opened name after-open))
+      (if (buffer-import name name "verbatim")
+          (set-message
+            `(concat "Could not open " (verbatim ,(url->system name))
+                     " as plain text")
+            "Open file")
+          (begin
+            (load-buffer-open name '())
+            (linked-file-opened name after-open)))))
+
+(define (linked-file-convert name after-open)
+  (let* ((fm (linked-file-format name))
+         (s (url->tmfs-string name))
+         (converted (string->url
+                      (string-append "tmfs://import/" fm "/" s))))
+    (load-buffer converted)
+    (linked-file-opened converted after-open)))
+
+(define (linked-file-open-choice name after-open)
+  (let ((convertible? (linked-file-convertible? name)))
+    (dialogue-window
+      (lambda (cmd)
+        (if convertible?
+            (linked-file-convertible-open-widget name cmd)
+            (linked-file-unknown-open-widget name cmd)))
+      (lambda (answer)
+        (cond ((== answer "convert")
+               (linked-file-convert name after-open))
+              ((== answer "plain")
+               (linked-file-edit-plain name after-open))
+              ((== answer "system") (load-external name))))
+      "Open linked file")))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Loading buffers
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -624,13 +709,27 @@
       (noop) ;;(window-focus (buffer->window name))
       (apply load-buffer-main (cons name (cons :new-window opts)))))
 
-(tm-define (load-browse-buffer name)
+(tm-define (load-browse-buffer name . opt-after-open)
   (:synopsis "Load a buffer or switch to it if already open")
-  (cond ((url-rooted-protocol? name "mailto") (load-external name))
-        ((buffer-exists? name) (switch-to-buffer name))
-        ((buffer-external? name) (load-external name))
-        ((url-rooted-web? (current-buffer)) (load-buffer name))
-        (else (load-buffer name))))
+  (let ((after-open (and (pair? opt-after-open) (car opt-after-open))))
+    (cond ((url-rooted-protocol? name "mailto") (load-external name))
+          ((buffer-exists? name)
+           (switch-to-buffer name)
+           (linked-file-opened name after-open))
+          ((and (not (url-rooted? name)) (current-buffer))
+           (apply load-browse-buffer
+                  (cons (url-relative (current-buffer) name) opt-after-open)))
+          ((or (url-rooted-web? name) (url-rooted-tmfs? name))
+           (linked-file-load-native name after-open))
+          ((or (file-of-format? name "image")
+               (file-of-format? name "pdf")
+               (file-of-format? name "postscript"))
+           (load-external name))
+          ((== (file-format name) "texmacs-file")
+           (linked-file-load-native name after-open))
+          ((url-test? name "f")
+           (linked-file-open-choice name after-open))
+          (else (linked-file-load-native name after-open)))))
 
 (tm-define (open-buffer)
   (:synopsis "Open a new file")

@@ -23,5 +23,8 @@
 (converter markdown-snippet texmacs-tree
   (:function aofm-markdown->texmacs))
 
+(converter markdown-document texmacs-tree
+  (:function aofm-markdown->texmacs))
+
 (converter chatgpt-snippet texmacs-tree
   (:function aofm-chatgpt->texmacs))
