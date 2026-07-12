@@ -52,6 +52,7 @@ private:
   void loadNamespaces ();
   void updateList ();
   void updateRawList ();
+  void updateRecentList ();
   void updateStructuredList ();
   void acceptOpen ();
   void acceptCreate ();
@@ -74,9 +75,11 @@ private:
   QTabWidget*  tabs;
   QListWidget* rawList;
   QListWidget* structuredList;
+  QListWidget* recentList;
 
   std::vector<Entry> entries;
   std::vector<int>   recentIndices;
+  std::vector<int>   rawDefaultIndices;
   std::vector<athena_namespace_definition> namespaces;
   QStringList structuredPath;
   bool        structuredParentChoice;

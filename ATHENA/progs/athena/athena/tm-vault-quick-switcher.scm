@@ -5,29 +5,13 @@
         (athena athena tm-vault-namespaces)
         (athena menus file-menu)))
 
-(define (vault-quick-switcher-root-base)
-  (url-append (vault-get-root) ""))
-
-(define (vault-quick-switcher-url-in-current-vault? u)
-  (and (url? u)
-       (url-descends? u (vault-quick-switcher-root-base))))
-
-(define (vault-quick-switcher-rel-path u)
-  (url->unix (url-delta (vault-quick-switcher-root-base) u)))
-
 (define (vault-recent-ath-files)
-  (let ((res '())
-        (cur (current-buffer)))
-    (if (and (vault-quick-switcher-url-in-current-vault? cur)
-             (url-exists? cur)
-             (== (url-suffix cur) "ath"))
-        (set! res (list (vault-quick-switcher-rel-path cur))))
+  (let ((res '()))
     (for (u (recent-file-list 200))
-      (if (and (vault-quick-switcher-url-in-current-vault? u)
-               (url-exists? u)
-               (== (url-suffix u) "ath")
-               (not (in? (vault-quick-switcher-rel-path u) res)))
-          (set! res (append res (list (vault-quick-switcher-rel-path u))))))
+      (if (and (url? u) (== (url-suffix u) "ath"))
+          (let ((path (url->unix u)))
+            (if (not (in? path res))
+                (set! res (append res (list path)))))))
     res))
 
 (define (vault-unsafe-path? path)
@@ -41,7 +25,7 @@
 
 (define (vault-current-file-directory)
   (let ((buf (current-buffer)))
-    (if (and (vault-quick-switcher-url-in-current-vault? buf)
+    (if (and (url-descends? buf (url-append (vault-get-root) ""))
              (== (url-suffix buf) "ath"))
         (url-head buf)
         (vault-get-root))))

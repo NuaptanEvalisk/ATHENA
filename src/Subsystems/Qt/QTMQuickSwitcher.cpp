@@ -12,7 +12,10 @@
 #include "vault.hpp"
 #include "qt_utilities.hpp"
 #include <QApplication>
+#include <QDir>
 #include <QEvent>
+#include <QFileInfo>
+#include <QHash>
 #include <QKeyEvent>
 #include <QShowEvent>
 #include <QVariant>
@@ -55,13 +58,16 @@ QTMQuickSwitcher::QTMQuickSwitcher (QWidget* parent, array<string> recentFiles)
   tabs= new QTabWidget (this);
   rawList= new QListWidget (this);
   structuredList= new QListWidget (this);
+  recentList= new QListWidget (this);
   tabs->addTab (rawList, "Raw");
   tabs->addTab (structuredList, "Structured");
+  tabs->addTab (recentList, "Recents");
   layout->addWidget (tabs);
 
   searchEdit->installEventFilter (this);
   rawList->installEventFilter (this);
   structuredList->installEventFilter (this);
+  recentList->installEventFilter (this);
 
   loadFiles (recentFiles);
   loadNamespaces ();
@@ -75,6 +81,8 @@ QTMQuickSwitcher::QTMQuickSwitcher (QWidget* parent, array<string> recentFiles)
            this, [this] (QListWidgetItem*) { acceptOpen (); });
   connect (structuredList, &QListWidget::itemDoubleClicked,
            this, [this] (QListWidgetItem*) { acceptStructuredOpen (); });
+  connect (recentList, &QListWidget::itemDoubleClicked,
+           this, [this] (QListWidgetItem*) { acceptOpen (); });
 
   searchEdit->setFocus ();
 }
@@ -95,6 +103,7 @@ void
 QTMQuickSwitcher::loadFiles (array<string> recentFiles) {
   url root= vault_get_root ();
   array<url> files= vault_get_all_files ();
+  QHash<QString, int> entryByCanonicalPath;
 
   for (int i=0; i<N(files); i++) {
     url rel= delta (root * url (""), files[i]);
@@ -112,29 +121,36 @@ QTMQuickSwitcher::loadFiles (array<string> recentFiles) {
     e.searchBase= from_qstring (base);
     e.mtime= vault_get_mtime (files[i]);
     entries.push_back (e);
+    QString absolutePath= to_qstring (concretize (files[i]));
+    QString canonicalPath= QFileInfo (absolutePath).canonicalFilePath ();
+    if (canonicalPath.isEmpty ())
+      canonicalPath= QDir::cleanPath (QFileInfo (absolutePath).absoluteFilePath ());
+    entryByCanonicalPath.insert (canonicalPath, (int) entries.size () - 1);
   }
 
   for (int i=0; i<N(recentFiles); i++) {
-    QString recent= to_qstring (recentFiles[i]);
-    for (int j=0; j<(int) entries.size (); j++) {
-      if (entries[j].relPath == recent &&
-          std::find (recentIndices.begin (), recentIndices.end (), j) ==
-            recentIndices.end ()) {
-        recentIndices.push_back (j);
-        break;
-      }
-    }
+    QString recentPath= to_qstring (recentFiles[i]);
+    QString canonicalPath= QFileInfo (recentPath).canonicalFilePath ();
+    if (canonicalPath.isEmpty ()) continue;
+    auto found= entryByCanonicalPath.constFind (canonicalPath);
+    if (found == entryByCanonicalPath.constEnd ()) continue;
+    int index= found.value ();
+    if (std::find (recentIndices.begin (), recentIndices.end (), index) ==
+        recentIndices.end ())
+      recentIndices.push_back (index);
   }
+
+  rawDefaultIndices= recentIndices;
 
   std::vector<std::pair<int,int> > byMtime;
   for (int i=0; i<(int) entries.size (); i++) {
-    if (std::find (recentIndices.begin (), recentIndices.end (), i) ==
-        recentIndices.end ())
+    if (std::find (rawDefaultIndices.begin (), rawDefaultIndices.end (), i) ==
+        rawDefaultIndices.end ())
       byMtime.push_back (std::make_pair (-entries[i].mtime, i));
   }
   std::sort (byMtime.begin (), byMtime.end ());
   for (auto p : byMtime)
-    recentIndices.push_back (p.second);
+    rawDefaultIndices.push_back (p.second);
 }
 
 void
@@ -164,7 +180,8 @@ QTMQuickSwitcher::fuzzyScore (string text, string query) const {
 void
 QTMQuickSwitcher::updateList () {
   if (tabs->currentIndex () == 0) updateRawList ();
-  else updateStructuredList ();
+  else if (tabs->currentIndex () == 1) updateStructuredList ();
+  else updateRecentList ();
 }
 
 void
@@ -176,7 +193,7 @@ QTMQuickSwitcher::updateRawList () {
   if (queryText.isEmpty ()) {
     prompt->setText ("Recent ATHENA vault files");
     int n= 0;
-    for (int index : recentIndices) {
+    for (int index : rawDefaultIndices) {
       QListWidgetItem* item= new QListWidgetItem (entries[index].relPath);
       item->setData (QuickTypeRole, QuickFile);
       item->setData (QuickPayloadRole, entries[index].relPath);
@@ -206,6 +223,46 @@ QTMQuickSwitcher::updateRawList () {
   }
 
   if (rawList->count () > 0) rawList->setCurrentRow (0);
+}
+
+void
+QTMQuickSwitcher::updateRecentList () {
+  recentList->clear ();
+  prompt->setText ("Recently opened ATHENA vault files");
+  QString queryText= searchEdit->text ().trimmed ();
+  string query= from_qstring (queryText);
+
+  int n= 0;
+  if (queryText.isEmpty ()) {
+    for (int index: recentIndices) {
+      QListWidgetItem* item= new QListWidgetItem (entries[index].relPath);
+      item->setData (QuickTypeRole, QuickFile);
+      item->setData (QuickPayloadRole, entries[index].relPath);
+      item->setData (QuickCompletionRole, entries[index].relPath);
+      recentList->addItem (item);
+      if (++n >= quick_switcher_limit) break;
+    }
+  }
+  else {
+    std::vector<std::pair<int,int> > matches;
+    for (int order=0; order<(int) recentIndices.size (); order++) {
+      int index= recentIndices[order];
+      int score= fuzzyScore (entries[index], query);
+      if (score >= 0) matches.push_back (std::make_pair (-score, order));
+    }
+    std::sort (matches.begin (), matches.end ());
+    for (auto match: matches) {
+      int index= recentIndices[match.second];
+      QListWidgetItem* item= new QListWidgetItem (entries[index].relPath);
+      item->setData (QuickTypeRole, QuickFile);
+      item->setData (QuickPayloadRole, entries[index].relPath);
+      item->setData (QuickCompletionRole, entries[index].relPath);
+      recentList->addItem (item);
+      if (++n >= quick_switcher_limit) break;
+    }
+  }
+
+  if (recentList->count () > 0) recentList->setCurrentRow (0);
 }
 
 QString
@@ -374,13 +431,14 @@ QTMQuickSwitcher::updateStructuredList () {
 
 void
 QTMQuickSwitcher::acceptOpen () {
-  if (tabs->currentIndex () != 0) {
+  if (tabs->currentIndex () == 1) {
     acceptStructuredOpen ();
     return;
   }
 
-  QListWidgetItem* item= rawList->currentItem ();
-  if (item == nullptr && rawList->count () > 0) item= rawList->item (0);
+  QListWidget* list= tabs->currentIndex () == 2 ? recentList : rawList;
+  QListWidgetItem* item= list->currentItem ();
+  if (item == nullptr && list->count () > 0) item= list->item (0);
   if (item == nullptr) return;
 
   action= "open";
@@ -473,12 +531,14 @@ QTMQuickSwitcher::descendStructuredNamespace (QListWidgetItem* item) {
 
 QListWidget*
 QTMQuickSwitcher::activeList () const {
-  return tabs->currentIndex () == 0 ? rawList : structuredList;
+  if (tabs->currentIndex () == 0) return rawList;
+  if (tabs->currentIndex () == 1) return structuredList;
+  return recentList;
 }
 
 void
 QTMQuickSwitcher::switchTab () {
-  tabs->setCurrentIndex (tabs->currentIndex () == 0 ? 1 : 0);
+  tabs->setCurrentIndex ((tabs->currentIndex () + 1) % tabs->count ());
 }
 
 void
@@ -514,7 +574,7 @@ QTMQuickSwitcher::eventFilter (QObject* watched, QEvent* event) {
     QKeyEvent* key= static_cast<QKeyEvent*> (event);
     if (key->key () == Qt::Key_Up || key->key () == Qt::Key_Down) {
       if (watched == searchEdit || watched == rawList ||
-          watched == structuredList) {
+          watched == structuredList || watched == recentList) {
         moveSelection (key->key () == Qt::Key_Up ? -1 : 1);
         return true;
       }
