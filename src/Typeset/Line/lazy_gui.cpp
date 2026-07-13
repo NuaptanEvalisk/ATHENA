@@ -187,7 +187,8 @@ stack_page_items (path ip, array<page_item> l, int start, int end) {
     lines_bx[i]= resize_box (b->ip, b, b->x1, min (b->y1, b->y3),
                               b->x2, max (b->y2, b->y4));
     lines_ht[i]= l[start + i]->spc->def;
-    if (l[start + i]->block_bg != block_bg) block_bg= brush (false);
+    if (!same_brush_instance (l[start + i]->block_bg, block_bg))
+      block_bg= brush (false);
   }
   box b= stack_box (ip, lines_bx, lines_ht);
   SI dy= n == 0? 0: b[0]->y2;
@@ -265,7 +266,7 @@ materialize_block_background_runs (
 
     int start= i;
     while (i+1<N(l) && l[i+1]->type == PAGE_LINE_ITEM &&
-           l[i+1]->block_bg == l[start]->block_bg)
+           same_brush_instance (l[i+1]->block_bg, l[start]->block_bg))
       i++;
 
     int n= i - start + 1;

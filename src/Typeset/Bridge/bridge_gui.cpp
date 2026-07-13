@@ -252,7 +252,7 @@ materialize_block_background_runs (
 
     int start= i;
     while (i+1<N(l) && l[i+1]->type == PAGE_LINE_ITEM &&
-           l[i+1]->block_bg == l[start]->block_bg)
+           same_brush_instance (l[i+1]->block_bg, l[start]->block_bg))
       i++;
 
     int n= i - start + 1;

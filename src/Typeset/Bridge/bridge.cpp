@@ -24,7 +24,7 @@ apply_block_backgrounds (path ip, box b, array<brush> bg) {
       continue;
     }
     int start= i;
-    while (i+1<n && bg[i+1] == bg[start]) i++;
+    while (i+1<n && same_brush_instance (bg[i+1], bg[start])) i++;
     SI x1= min ((SI) 0, b->x1);
     SI x2= b->x2;
     SI y1= b->sy1 (i);

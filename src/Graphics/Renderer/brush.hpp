@@ -42,11 +42,16 @@ ABSTRACT_NULL(brush);
   brush (color c);
   brush (tree p, int a= 255);
   friend bool operator == (const brush& a, const brush& b);
+  friend bool same_brush_instance (const brush& a, const brush& b);
 };
 ABSTRACT_NULL_CODE(brush);
 
 bool operator == (const brush& a, const brush& b);
 inline bool operator != (const brush& a, const brush& b) { return !(a == b); }
+// Paint equality must not erase boundaries between separate block ornaments.
+inline bool same_brush_instance (const brush& a, const brush& b) {
+  return a.rep == b.rep;
+}
 
 brush mix (brush b1, double a1, brush b2, double a2);
 

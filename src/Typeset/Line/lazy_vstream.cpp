@@ -67,7 +67,8 @@ format_vstream_as_box (
       continue;
     }
     int start= i;
-    while (i+1<n && lines_bg[i+1] == lines_bg[start]) i++;
+    while (i+1<n && same_brush_instance (lines_bg[i+1], lines_bg[start]))
+      i++;
     SI x1= min ((SI) 0, b->x1);
     SI x2= b->x2;
     SI y1= b->sy1 (i);
