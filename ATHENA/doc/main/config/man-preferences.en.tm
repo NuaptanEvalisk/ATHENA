@@ -63,6 +63,11 @@
     <item*|User interface theme>Chooses the interface theme: default, bright,
     dark, native, or legacy. This setting requires restart.
 
+    <item*|Use text toolbars instead of icon toolbars>Replaces toolbar icons
+    with concise command labels. This applies to the main, mode-dependent,
+    focus-dependent, and user toolbars; popup menus and ordinary dialog
+    buttons are unchanged.
+
     <item*|Use inertial scrolling>Enables continued scrolling after a scroll
     gesture, similar to touchpad momentum.
 

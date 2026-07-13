@@ -108,6 +108,7 @@ ensure_builtin_user_preferences () {
           "notify-enunciation-rendering"),
     PREF ("number solutions", "on", "notify-enunciation-rendering"),
     PREF ("gui theme", "default", "notify-gui-theme"),
+    PREF ("text toolbar", "off", "notify-toolbar-presentation"),
     PREF ("page medium", "paper", ""),
     PREF ("fast environments", "on", "notify-fast-environments"),
     PREF ("show full context", "on", ""),

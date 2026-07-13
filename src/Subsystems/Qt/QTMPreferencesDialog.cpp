@@ -873,6 +873,8 @@ QTMPreferencesDialog::buildGeneralPage () {
   add_combo (appearanceForm, "User interface theme:", "gui theme",
              {{"default", "Default"}, {"light", "Bright"}, {"dark", "Dark"},
               {"native-light", "Native"}, {"", "Legacy"}}, "default", true);
+  add_toggle (appearanceForm, "Use text toolbars instead of icon toolbars:",
+              "text toolbar");
   add_toggle (appearanceForm, "Use inertial scrolling:", "inertial scrolling");
   add_line_edit (appearanceForm, "Inertial momentum (0.80-0.99):",
                  "inertial scrolling friction", "0.95");

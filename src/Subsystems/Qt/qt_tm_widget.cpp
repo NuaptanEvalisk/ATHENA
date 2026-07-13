@@ -56,13 +56,28 @@ athena_toolbar_icon_size () {
   return QSize (32, 32);
 }
 
+static bool
+athena_text_toolbar_enabled () {
+  return get_preference ("text toolbar", "off") == "on";
+}
+
+static QString
+athena_toolbar_button_text (QToolButton* button, QAction* action) {
+  QString text= action ? action->text () : QString ();
+  if (text.isEmpty () && action) text= action->toolTip ();
+  if (text.isEmpty () && button) text= button->text ();
+  return text;
+}
+
 #if DISABLE_QTMTOOLBAR
 static void
 athena_configure_toolbar (QToolBar* toolbar, const QSize& iconSize) {
   if (!toolbar || !iconSize.isValid ()) return;
 
   toolbar->setIconSize (iconSize);
-  toolbar->setToolButtonStyle (Qt::ToolButtonIconOnly);
+  toolbar->setToolButtonStyle (athena_text_toolbar_enabled () ?
+                               Qt::ToolButtonTextOnly :
+                               Qt::ToolButtonIconOnly);
   toolbar->setContentsMargins (0, 0, 0, 0);
   toolbar->setMinimumHeight (iconSize.height ());
   toolbar->setMaximumHeight (iconSize.height ());
@@ -98,7 +113,21 @@ athena_configure_toolbar_button (QToolBar* toolbar, QToolButton* button,
 
   button->setPopupMode (QToolButton::InstantPopup);
 
-  if (action && action->icon ().isNull () && !action->text ().isEmpty ()) {
+  QString text= athena_toolbar_button_text (button, action);
+  if (athena_text_toolbar_enabled () && !text.isEmpty ()) {
+    button->setText (text);
+    button->setToolButtonStyle (Qt::ToolButtonTextOnly);
+    button->setAutoRaise (true);
+    button->setContentsMargins (4, 0, 4, 0);
+    button->setIconSize (iconSize);
+    button->setSizePolicy (QSizePolicy::Minimum, QSizePolicy::Fixed);
+    button->setMinimumSize (0, iconSize.height ());
+    button->setMaximumSize (QWIDGETSIZE_MAX, iconSize.height ());
+    button->updateGeometry ();
+  }
+
+  else if (action && action->icon ().isNull () &&
+           !action->text ().isEmpty ()) {
     button->setToolButtonStyle (Qt::ToolButtonTextOnly);
     button->setSizePolicy (QSizePolicy::Minimum, QSizePolicy::Preferred);
     button->setMinimumWidth (button->sizeHint ().width ());

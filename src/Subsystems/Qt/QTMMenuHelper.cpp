@@ -259,6 +259,24 @@ minibar_icon_size (QWidget* parent) {
 static void
 configure_minibar_tool_button (QToolButton* tb, const QSize& sz) {
   if (!tb || !sz.isValid ()) return;
+
+  QAction* action= tb->defaultAction ();
+  QString text= action ? action->text () : QString ();
+  if (text.isEmpty () && action) text= action->toolTip ();
+  if (text.isEmpty ()) text= tb->text ();
+
+  if (get_preference ("text toolbar", "off") == "on" && !text.isEmpty ()) {
+    tb->setText (text);
+    tb->setAutoRaise (true);
+    tb->setToolButtonStyle (Qt::ToolButtonTextOnly);
+    tb->setContentsMargins (4, 0, 4, 0);
+    tb->setSizePolicy (QSizePolicy::Minimum, QSizePolicy::Fixed);
+    tb->setMinimumSize (0, sz.height ());
+    tb->setMaximumSize (QWIDGETSIZE_MAX, sz.height ());
+    tb->updateGeometry ();
+    return;
+  }
+
   if (tb->icon ().isNull ()) return;
 
   tb->setAutoRaise (true);

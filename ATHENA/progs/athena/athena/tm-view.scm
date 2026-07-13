@@ -33,6 +33,10 @@
         ((== var "user provided icons")
          (show-icon-bar 3 (== val "on")))))
 
+(define (notify-toolbar-presentation var val)
+  (when (current-view)
+    (notify-change 256)))
+
 (define (notify-status-bar var val)
   (show-footer (== val "on")))
 
