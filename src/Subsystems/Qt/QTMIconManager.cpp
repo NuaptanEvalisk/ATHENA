@@ -93,6 +93,10 @@ QTMIconManager::load_icon_map () {
         mapping.libreoffice_paths.isEmpty ()) continue;
     icon_map[it.key ()]= mapping;
   }
+
+  for (const QString& key: json_string_list (doc.object (),
+                                              "prefer_bundled"))
+    prefer_bundled_icons.insert (key);
 }
 
 static bool
@@ -184,6 +188,15 @@ load_pixmap (url file_name, QIcon& icon) {
          load_pixmap (file_name, icon, 1.0);
 }
 
+static bool
+load_bundled_icon (url file_name, const QString& key, QIcon& icon) {
+  if (!key.startsWith ("tm_")) return false;
+  string suf= suffix (file_name);
+  url name= N(suf) == 0 ? file_name : unglue (file_name, N(suf)+1);
+  return load_svg (glue (name, ".svg"), icon) ||
+         load_pixmap (file_name, icon);
+}
+
 QIcon
 QTMIconManager::getIcon (url file_name) {
   QIcon icon;
@@ -201,17 +214,19 @@ QTMIconManager::getIcon (url file_name) {
   QString key= icon_key (file_name);
   QTMIconMapping mapping= icon_map.value (key);
 
+  if (prefer_bundled_icons.contains (key) &&
+      load_bundled_icon (file_name, key, icon)) {
+    icon_cache ()[cache_key]= icon;
+    return icon;
+  }
+
   for (const QString& path: mapping.libreoffice_paths)
     if (load_libreoffice_icon (path, icon)) {
       icon_cache ()[cache_key]= icon;
       return icon;
     }
 
-  string suf= suffix (file_name);
-  url name= N(suf) == 0 ? file_name : unglue (file_name, N(suf)+1);
-  if (key.startsWith ("tm_") &&
-      (load_svg (glue (name, ".svg"), icon) ||
-       load_pixmap (file_name, icon))) {
+  if (load_bundled_icon (file_name, key, icon)) {
     icon_cache ()[cache_key]= icon;
     return icon;
   }
@@ -222,6 +237,8 @@ QTMIconManager::getIcon (url file_name) {
       return icon;
     }
 
+  string suf= suffix (file_name);
+  url name= N(suf) == 0 ? file_name : unglue (file_name, N(suf)+1);
   if (load_svg (glue (name, ".svg"), icon) ||
       load_pixmap (file_name, icon)) {
     icon_cache ()[cache_key]= icon;

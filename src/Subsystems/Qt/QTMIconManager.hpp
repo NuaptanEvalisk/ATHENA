@@ -16,6 +16,7 @@
 
 #include <QIcon>
 #include <QMap>
+#include <QSet>
 #include <QStringList>
 #include "url.hpp"
 #include "gui.hpp"
@@ -38,6 +39,7 @@ public:
 private:
   QMap<QString, QIcon> icon_table, dark_icon_table;
   QMap<QString, QTMIconMapping> icon_map;
+  QSet<QString> prefer_bundled_icons;
   bool icon_map_loaded= false;
   bool icon_map_warned= false;
   
