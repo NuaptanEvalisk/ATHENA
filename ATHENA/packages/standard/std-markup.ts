@@ -79,6 +79,10 @@
 
   <drd-props|graph-rev-hierarchy|arity|1|border|no>
 
+  <assign|cd-vertex|<macro|id|x|y|formula|<arg|formula>>>
+
+  <assign|cd-arrow|<macro|id|source|target|formula|options|<arg|formula>>>
+
   <assign|tm-made|<macro|<with|ornament-color||ornament-shadow-color|<value|color>|ornament-sunny-color|<value|color>|ornament-border|1ln|ornament-shape|rounded|ornament-hpadding|0.5spc|ornament-vpadding|0.5spc|<ornament|<math|\<Backsigma\>>>>>>
 
   <assign|TeX|<macro|<active*|T<rsub|<space|-0.4spc><move|<resize|<with|math-level|0|E>||||0.5fn>|0fn|-0.1fn>><space|-0.4spc>X>>>

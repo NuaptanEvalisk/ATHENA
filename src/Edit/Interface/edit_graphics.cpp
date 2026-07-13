@@ -180,10 +180,18 @@ edit_graphics_rep::graphics_path () {
 
 bool
 edit_graphics_rep::inside_graphics (bool b) {
+  try {
+    if (as_bool (call ("defined?",
+                       symbol_object ("in-commutative-diagram?"))) &&
+        as_bool (call ("in-commutative-diagram?")))
+      return false;
+  }
+  catch (...) {}
   path p   = path_up (tp);
   bool flag= false;
   tree st  = et;
   while (!is_nil (p)) {
+    if (is_compound (st, "commutative-diagram")) return false;
     if (is_func (st, GRAPHICS)) flag= true;
     if (b && is_graphical_text (st)) flag= false;
     if (is_atomic (st) || p->item < 0 || p->item >= N(st)) break;

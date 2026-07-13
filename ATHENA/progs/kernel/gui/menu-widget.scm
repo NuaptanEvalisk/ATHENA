@@ -1146,8 +1146,7 @@
       (alt-window-create-quit win wid (translate name) qui)
       (alt-window-show win))))
 
-(tm-define (ads-tool-pane menu-promise cmd name . opts)
-  (:interactive #t)
+(define (ads-tool-pane* menu-promise cmd name floating? opts)
   (with (bufs qqq) (decode-options opts)
     (let* ((id name)
            (del (make-ads-pane-deleter id bufs))
@@ -1159,7 +1158,15 @@
            (men (menu-promise lbd))
            (scm (list 'vertical men))
            (wid (make-menu-widget* scm 0)))
-      (ads-show-tool-pane wid id (translate name) qui))))
+      (ads-show-tool-pane wid id (translate name) qui floating?))))
+
+(tm-define (ads-tool-pane menu-promise cmd name . opts)
+  (:interactive #t)
+  (ads-tool-pane* menu-promise cmd name #f opts))
+
+(tm-define (ads-floating-tool-pane menu-promise cmd name . opts)
+  (:interactive #t)
+  (ads-tool-pane* menu-promise cmd name #t opts))
 
 (tm-define (dialogue-window menu-promise cmd name . opts)
   (:interactive #t)

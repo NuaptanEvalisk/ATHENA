@@ -755,7 +755,34 @@ edit_interface_rep::mouse_any (string type, SI x, SI y, int mods, time_t t,
   if (type == "scale") eval ("(pinch-scale " * as_string (data[0]) * ")");
   if (type == "rotate") eval ("(pinch-rotate " * as_string (-data[0]) * ")");
 
-  if (inside_graphics ()) {
+  if ((type == "press-left" || type == "start-drag-left") &&
+      mouse_message ("click", x, y)) {
+    start_x= x;
+    start_y= y;
+    send_mouse_grab (this, true);
+    return;
+  }
+  if (type == "dragging-left" && mouse_message ("drag", x, y)) return;
+  if ((type == "release-left" || type == "end-drag-left") &&
+      mouse_message ("select", x, y)) {
+    send_mouse_grab (this, false);
+    return;
+  }
+
+  path mouse_tree_path= tree_path (path (), x, y, 0);
+  bool over_commutative_diagram= false;
+  tree mouse_tree= et;
+  for (path p= mouse_tree_path; !is_nil (p); p= p->next) {
+    if (is_compound (mouse_tree, "commutative-diagram")) {
+      over_commutative_diagram= true;
+      break;
+    }
+    if (is_atomic (mouse_tree) || p->item < 0 || p->item >= N(mouse_tree))
+      break;
+    mouse_tree= mouse_tree[p->item];
+  }
+
+  if (inside_graphics () && !over_commutative_diagram) {
     path gp= search_upwards (GRAPHICS);
     bool b= inside_graphics (type != "release-left");
     if (!is_nil (gp) && gp != previous_gp) {

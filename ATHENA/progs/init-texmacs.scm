@@ -334,12 +334,15 @@
              graphics-dragging-left graphics-end-drag-left)
 (lazy-define (graphics graphics-main) graphics-update-proviso
              graphics-get-proviso graphics-set-proviso)
-(lazy-define (graphics graphics-markup)
-             arrow-with-text arrow-with-text* cd-graphics-render
-             cd-graphics-html-source cd-graphics-html-tree cd-vertex cd-arrow)
-(define-secure-symbols
-  arrow-with-text arrow-with-text* cd-graphics-render
-  cd-graphics-html-source cd-graphics-html-tree cd-vertex cd-arrow)
+(lazy-define (graphics graphics-markup) arrow-with-text arrow-with-text*)
+(define-secure-symbols arrow-with-text arrow-with-text*)
+(lazy-define (athena athena commutative-diagram)
+             make-cd in-commutative-diagram? commutative-diagram-layout
+             commutative-diagram-handle commutative-diagram-context-menu?)
+(lazy-menu (athena athena commutative-diagram)
+           commutative-diagram-popup-menu)
+(define-secure-symbols commutative-diagram-layout
+  commutative-diagram-handle)
 (define-secure-symbols ext-fold-toc-in-reflow? toc-fold-tree toc-unfold-tree)
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 ;(display* "memory: " (texmacs-memory) " bytes\n")

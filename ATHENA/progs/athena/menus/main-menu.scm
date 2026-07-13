@@ -38,11 +38,11 @@
 (menu-bind texmacs-menu
   (=> "&File" (link file-menu))
   (=> "Edit" (link edit-menu))
-  (if (in-graphics?)
+  (if (and (in-graphics?) (not (in-commutative-diagram?)))
       (=> "Insert" (link graphics-insert-menu))
       (link texmacs-extra-menu)
       (=> "Focus" (link graphics-focus-menu)))
-  (if (not (in-graphics?))
+  (if (or (not (in-graphics?)) (in-commutative-diagram?))
       (=> "Insert" (link insert-menu))
       (if (in-manual?)
           (=> "Manual" (link tmdoc-menu)))
@@ -111,6 +111,9 @@
   ("Remote control" (toggle-remote-control-mode)))
 
 (menu-bind texmacs-popup-menu
+  (if (commutative-diagram-context-menu?)
+      (link commutative-diagram-popup-menu))
+  (if (commutative-diagram-context-menu?) ---)
   (link spell-live-popup-menu)
   (link focus-menu))
 
@@ -123,10 +126,10 @@
 (menu-bind texmacs-alternative-popup-menu
   (-> "File" (link file-menu))
   (-> "Edit" (link edit-menu))
-  (if (in-graphics?)
+  (if (and (in-graphics?) (not (in-commutative-diagram?)))
       (-> "Insert" (link graphics-insert-menu))
       (-> "Focus" (link graphics-focus-menu)))
-  (if (not (in-graphics?))
+  (if (or (not (in-graphics?)) (in-commutative-diagram?))
       (-> "Insert" (link insert-menu))
       (if (in-manual?)
           (-> "Manual" (link tmdoc-menu)))
@@ -258,5 +261,6 @@
   (if (in-text?) (link text-icons))
   (if (in-math?) (link math-icons))
   (if (in-prog?) (link prog-icons))
-  (if (in-graphics?) (link graphics-icons))
+  (if (and (in-graphics?) (not (in-commutative-diagram?)))
+      (link graphics-icons))
   (link help-icons))

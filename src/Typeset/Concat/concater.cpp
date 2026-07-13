@@ -790,6 +790,9 @@ concater_rep::typeset (tree t, path ip) {
     typeset_sound (t, ip);
     break;
 
+  case COMMUTATIVE_DIAGRAM:
+    typeset_commutative_diagram (t, ip);
+    break;
   case GRAPHICS:
     typeset_graphics (t, ip);
     break;

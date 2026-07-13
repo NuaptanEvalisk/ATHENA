@@ -292,17 +292,6 @@
       (:idle 1)
       (graphics-set-grid-color 'axes "#e0e0ff"))))
 
-(tm-define (make-cd)
-  (import-from (graphics graphics-markup))
-  (insert-go-to '(cd-graphics "8.1" "3.1" (document "")) '(2 0 0))
-  (delayed
-    (:idle 1)
-    (when (in-active-graphics?)
-      (graphics-set-text-at-halign "center")
-      (graphics-set-arrow-end "<gtr>")
-      (graphics-set-mode '(edit cd-vertex))
-      (graphics-set-notebook-grid))))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; 3D transformations
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

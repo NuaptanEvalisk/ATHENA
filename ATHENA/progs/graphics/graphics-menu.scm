@@ -17,149 +17,6 @@
         (graphics graphics-edit)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Commutative diagram arrow properties
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(define cd-property-arrow-path #f)
-
-(define (cd-arrow-at-path p)
-  (and p
-       (let loop ((q p))
-         (if (null? q) #f
-             (with t (path->tree q)
-               (if (and (tree? t) (tree-is? t 'cd-arrow)) t
-                   (loop (cDr q))))))))
-
-(define (cd-selected-arrow)
-  (or (cd-arrow-at-path current-path)
-      (and cd-property-arrow-path (path->tree cd-property-arrow-path))))
-
-(define (cd-select-arrow-for-properties)
-  (with t (cd-arrow-at-path current-path)
-    (when t (set! cd-property-arrow-path (tree->path t)))
-    t))
-
-(define (cd-menu-option key fallback)
-  (and-with t (cd-selected-arrow)
-    (with opts (tree-ref t 4)
-      (let loop ((i 0))
-        (cond ((>= (+ i 1) (tree-arity opts)) fallback)
-              ((== (tree->string (tree-ref opts i)) key)
-               (tree->string (tree-ref opts (+ i 1))))
-              (else (loop (+ i 2))))))))
-
-(define (cd-apply-arrow-properties vals)
-  (when (and (list? vals) (= (length vals) 18))
-    (and-with t (cd-selected-arrow)
-      (tree-set t 4
-        `(tuple "shape" ,(list-ref vals 0)
-                "curve" ,(list-ref vals 1)
-                "offset" ,(list-ref vals 2)
-                "shorten-source" ,(list-ref vals 3)
-                "shorten-target" ,(list-ref vals 4)
-                "level" ,(list-ref vals 5)
-                "label-alignment" ,(list-ref vals 6)
-                "label-position" ,(list-ref vals 7)
-                "color" ,(list-ref vals 8)
-                "label-color" ,(list-ref vals 9)
-                "tail" ,(list-ref vals 10)
-                "body" ,(list-ref vals 11)
-                "head" ,(list-ref vals 12)
-                "edge-type" ,(list-ref vals 13)
-                "loop-radius" ,(list-ref vals 14)
-                "loop-angle" ,(list-ref vals 15)
-                "source-alignment" ,(list-ref vals 16)
-                "target-alignment" ,(list-ref vals 17)))
-      (notify-change 'commutative-diagram))))
-
-(tm-widget (cd-arrow-properties-widget cmd)
-  (resize "34em" "34em"
-    (padded
-      (vertical
-        (bold (text "Arrow geometry"))
-        (aligned
-          (item (text "Shape")
-            (form-enum "shape" '("bezier" "arc" "loop")
-                       (cd-menu-option "shape" "bezier") "12em"))
-          (item (text "Curve height")
-            (form-input "curve" "string"
-                        (list (cd-menu-option "curve" "0")) "12em"))
-          (item (text "Parallel offset")
-            (form-input "offset" "string"
-                        (list (cd-menu-option "offset" "0")) "12em"))
-          (item (text "Shorten source")
-            (form-input "shorten-source" "string"
-              (list (cd-menu-option "shorten-source" "0")) "12em"))
-          (item (text "Shorten target")
-            (form-input "shorten-target" "string"
-              (list (cd-menu-option "shorten-target" "0")) "12em"))
-          (item (text "Cell level")
-            (form-enum "level" '("1" "2" "3" "4")
-                       (cd-menu-option "level" "1") "12em")))
-        ===
-        (bold (text "Label"))
-        (aligned
-          (item (text "Alignment")
-            (form-enum "label-alignment" '("left" "right" "centre" "over")
-                       (cd-menu-option "label-alignment" "left") "12em"))
-          (item (text "Position (0..1)")
-            (form-input "label-position" "string"
-              (list (cd-menu-option "label-position" "0.5")) "12em"))
-          (item (text "Edge color")
-            (form-input "color" "string"
-              (list (cd-menu-option "color" "black")) "12em"))
-          (item (text "Label color")
-            (form-input "label-color" "string"
-              (list (cd-menu-option "label-color" "black")) "12em")))
-        ===
-        (bold (text "Appearance"))
-        (aligned
-          (item (text "Tail")
-            (form-enum "tail"
-              '("none" "mono" "maps-to" "hook-top" "hook-bottom" "reverse")
-              (cd-menu-option "tail" "none") "14em"))
-          (item (text "Body")
-            (form-enum "body"
-              '("solid" "none" "dashed" "dotted" "squiggly" "barred"
-                "double-barred" "double" "bullet" "hollow-bullet")
-              (cd-menu-option "body" "solid") "14em"))
-          (item (text "Head")
-            (form-enum "head"
-              '("arrowhead" "none" "epi" "double" "harpoon-top"
-                "harpoon-bottom") (cd-menu-option "head" "arrowhead") "14em"))
-          (item (text "Edge type")
-            (form-enum "edge-type"
-              '("arrow" "adjunction" "pullback" "pushout"
-                "pullback-inverse" "pushout-inverse")
-              (cd-menu-option "edge-type" "arrow") "14em")))
-        ===
-        (bold (text "Loops and higher cells"))
-        (aligned
-          (item (text "Loop radius")
-            (form-input "loop-radius" "string"
-              (list (cd-menu-option "loop-radius" "0.8")) "12em"))
-          (item (text "Loop angle")
-            (form-input "loop-angle" "string"
-              (list (cd-menu-option "loop-angle" "90")) "12em"))
-          (item (text "Source alignment")
-            (form-enum "source-alignment" '("centre" "left" "right")
-                       (cd-menu-option "source-alignment" "centre") "12em"))
-          (item (text "Target alignment")
-            (form-enum "target-alignment" '("centre" "left" "right")
-                       (cd-menu-option "target-alignment" "centre") "12em")))
-        ===
-        (bottom-buttons
-          ("Close" (cmd)) >>
-          ("Apply" (cd-apply-arrow-properties (form-values))))))))
-
-(tm-define (open-cd-arrow-properties)
-  (:interactive #t)
-  (if (cd-select-arrow-for-properties)
-      (ads-tool-pane cd-arrow-properties-widget noop "Arrow Properties")
-      (set-message "Select a commutative-diagram arrow first"
-                   "Arrow Properties")))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Submenus
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -416,10 +273,6 @@
   (link graphics-visual-grid-menu))
 
 (menu-bind graphics-mode-menu
-  ("Diagram vertex" (graphics-set-mode '(edit cd-vertex)))
-  ("Diagram arrow" (graphics-set-mode '(edit cd-arrow)))
-  ("Arrow Properties" (open-cd-arrow-properties))
-  ---
   ("Point" (graphics-set-mode '(edit point)))
   ("Line" (graphics-set-mode '(edit line)))
   ("Polygon" (graphics-set-mode '(edit cline)))
@@ -805,10 +658,6 @@
       (link graphics-mode-menu))
   (if (inside-graphical-over-under?)
       ("Exit graphics" (graphics-exit-right)))
-  (when (inside? 'graphics)
-    ("Insert diagram vertex" (graphics-set-mode '(edit cd-vertex)))
-    ("Draw diagram arrow" (graphics-set-mode '(edit cd-arrow)))
-    ("Arrow Properties" (open-cd-arrow-properties)))
   (assuming (nnot (tree-innermost overlays-context?))
     (link graphics-focus-overlays-menu))
   (assuming (nnull? (graphics-mode-attributes (graphics-mode)))

@@ -669,6 +669,27 @@ init_std_drd () {
   init (SOUND, "sound",
         fixed (1) -> url_type (0));
 
+  init (COMMUTATIVE_DIAGRAM, "commutative-diagram",
+        fixed (3, 0, DETAILED) ->
+        regular (0) -> name (0, "width") ->
+        regular (1) -> name (1, "height") ->
+        accessible (2) -> name (2, "body"));
+  init (make_tree_label ("cd-body"), "cd-body",
+        repeat (1, 1) -> inner_border () -> accessible (0));
+  init (make_tree_label ("cd-vertex"), "cd-vertex",
+        fixed (4, 0, DETAILED) -> inner_border () ->
+        regular (0) -> name (0, "id") ->
+        regular (1) -> name (1, "x") ->
+        regular (2) -> name (2, "y") ->
+        accessible (3) -> name (3, "formula"));
+  init (make_tree_label ("cd-arrow"), "cd-arrow",
+        fixed (5, 0, DETAILED) -> inner_border () ->
+        regular (0) -> name (0, "id") ->
+        regular (1) -> name (1, "source") ->
+        regular (2) -> name (2, "target") ->
+        accessible (3) -> name (3, "formula") ->
+        regular (4) -> name (4, "options"));
+
   init (GRAPHICS, "graphics",
         repeat (1, 1) -> accessible (0) -> graphical (0));
   init (SUPERPOSE, "superpose",

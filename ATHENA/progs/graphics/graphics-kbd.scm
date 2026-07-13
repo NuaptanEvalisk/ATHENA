@@ -23,7 +23,9 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define (in-active-graphics?)
-  (and (in-graphics?) (== (get-env "preamble") "false")))
+  (and (in-graphics?)
+       (not (in-commutative-diagram?))
+       (== (get-env "preamble") "false")))
 
 (define (in-beamer-graphics?)
   (and (in-active-graphics?) (in-screens?)))

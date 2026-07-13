@@ -723,19 +723,21 @@ tmg_command_apply (tmscm arg1, tmscm arg2) {
 }
 
 tmscm
-tmg_ads_show_tool_pane (tmscm arg1, tmscm arg2, tmscm arg3, tmscm arg4) {
+tmg_ads_show_tool_pane (tmscm arg1, tmscm arg2, tmscm arg3, tmscm arg4, tmscm arg5) {
   TMSCM_ASSERT_WIDGET (arg1, TMSCM_ARG1, "ads-show-tool-pane");
   TMSCM_ASSERT_STRING (arg2, TMSCM_ARG2, "ads-show-tool-pane");
   TMSCM_ASSERT_STRING (arg3, TMSCM_ARG3, "ads-show-tool-pane");
   TMSCM_ASSERT_COMMAND (arg4, TMSCM_ARG4, "ads-show-tool-pane");
+  TMSCM_ASSERT_BOOL (arg5, TMSCM_ARG5, "ads-show-tool-pane");
 
   widget in1= tmscm_to_widget (arg1);
   string in2= tmscm_to_string (arg2);
   string in3= tmscm_to_string (arg3);
   command in4= tmscm_to_command (arg4);
+  bool in5= tmscm_to_bool (arg5);
 
   // TMSCM_DEFER_INTS;
-  ads_show_tool_pane (in1, in2, in3, in4);
+  ads_show_tool_pane (in1, in2, in3, in4, in5);
   // TMSCM_ALLOW_INTS;
 
   return TMSCM_UNSPECIFIED;
@@ -10916,7 +10918,7 @@ initialize_glue_basic () {
   tmscm_install_procedure ("object->command",  tmg_object_2command, 1, 0, 0);
   tmscm_install_procedure ("command-eval",  tmg_command_eval, 1, 0, 0);
   tmscm_install_procedure ("command-apply",  tmg_command_apply, 2, 0, 0);
-  tmscm_install_procedure ("ads-show-tool-pane",  tmg_ads_show_tool_pane, 4, 0, 0);
+  tmscm_install_procedure ("ads-show-tool-pane",  tmg_ads_show_tool_pane, 5, 0, 0);
   tmscm_install_procedure ("ads-close-tool-pane",  tmg_ads_close_tool_pane, 1, 0, 0);
   tmscm_install_procedure ("exec-delayed",  tmg_exec_delayed, 1, 0, 0);
   tmscm_install_procedure ("exec-delayed-pause",  tmg_exec_delayed_pause, 1, 0, 0);

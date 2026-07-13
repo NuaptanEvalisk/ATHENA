@@ -144,6 +144,9 @@ box stack_box (path ip, array<box> bs, array<SI> spc);
 box composite_box (path ip, array<box> bs, bool bfl= true);
 box composite_box (path ip, array<box> bs, array<SI> x, array<SI> y,
 		   bool bfl= true);
+box commutative_diagram_box (path ip, array<box> bs,
+                             array<SI> x, array<SI> y,
+                             frame fr, SI width, SI height);
 box table_box (path ip, array<box> bs, array<SI> x, array<SI> y,
                array<string> halign, int cols);
 box superpose_box (path ip, array<box> bs, bool bfl= true);

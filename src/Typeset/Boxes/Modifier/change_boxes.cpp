@@ -1010,13 +1010,36 @@ relay_box_rep::operator tree () {
   return r;
 }
 
+static bool
+relay_find_frame (box b, SI ox, SI oy, frame& result) {
+  frame f= b->get_frame ();
+  if (!is_nil (f)) {
+    result= scaling (1.0, point (ox, oy)) * f;
+    return true;
+  }
+  for (int i=0; i<b->subnr (); i++)
+    if (relay_find_frame (b->subbox (i), ox + b->sx (i), oy + b->sy (i),
+                          result))
+      return true;
+  return false;
+}
+
 tree
 relay_box_rep::message (tree type, SI x, SI y, rectangles& rs) {
   if (N(args) == 0 || args[0] == "" || !is_atomic (args[0])) return "";
+  bool framed= args[0] == "relay-with-frame" && N(args) >= 2 &&
+               is_atomic (args[1]);
+  int callback= framed? 1: 0;
   array<object> objs;
-  objs << symbol_object (args[0]->label);
-  objs << object (type) << object ((int) x) << object ((int) y);
-  for (int i=1; i<N(args); i++) objs << object (args[i]);
+  objs << symbol_object (args[callback]->label);
+  objs << object (type);
+  frame f;
+  if (framed && relay_find_frame (bs[0], sx(0), sy(0), f)) {
+    point p= f [point (x, y)];
+    objs << object (p[0]) << object (p[1]);
+  }
+  else objs << object ((int) x) << object ((int) y);
+  for (int i=callback+1; i<N(args); i++) objs << object (args[i]);
   object cmd= as_list_object (objs);
   object r= call ("secure-eval", cmd);
   if (!is_bool (r) || as_bool (r))

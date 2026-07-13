@@ -156,9 +156,6 @@
 
 (tm-define (graphics-enter-mode old-mode new-mode)
   (:state graphics-state)
-  (when (and (inside? 'cd-graphics)
-             (not (== old-mode new-mode)))
-    (graphics-set-notebook-grid))
   (if (and (graphics-group-mode? old-mode)
 	   (not (graphics-group-mode? new-mode)))
       (graphics-reset-state))
@@ -236,10 +233,7 @@
 (tm-define (graphics-release-right x y)
   ;;(display* "Graphics] Release-right " x ", " y "\n")  
   (when (not (inside-graphical-text?))
-    (if (and current-obj (pair? current-obj)
-             (== (car current-obj) 'cd-arrow))
-        (open-cd-arrow-properties)
-        (edit_right-button (car (graphics-mode)) x y))))
+    (edit_right-button (car (graphics-mode)) x y)))
 
 (tm-define (graphics-start-drag-left x y t p)
   ;;(display* "Graphics] Start-drag-left " x ", " y ", " t ", " p "\n")

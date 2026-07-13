@@ -149,7 +149,8 @@ ads_close_tool_pane (string id) {
 }
 
 void
-ads_show_tool_pane (widget wid, string id, string title, command close) {
+ads_show_tool_pane (widget wid, string id, string title, command close,
+                    bool floating) {
   std::string key= ads_tool_key (id);
   ads_destroy_tool_pane (key, false);
 
@@ -187,8 +188,13 @@ ads_show_tool_pane (widget wid, string id, string title, command close) {
       ads_destroy_tool_pane (key, true);
   });
 
-  win->dockManager ()->addDockWidget (ads::BottomDockWidgetArea, dock);
-  win->restoreAdsLayoutState ();
+  if (floating)
+    win->dockManager ()->addDockWidgetFloating (dock);
+  else {
+    win->dockManager ()->addDockWidget (ads::BottomDockWidgetArea, dock);
+    win->restoreAdsLayoutState ();
+  }
+  dock->toggleView (true);
   dock->show ();
   dock->raise ();
   pane_widget->setFocus ();
