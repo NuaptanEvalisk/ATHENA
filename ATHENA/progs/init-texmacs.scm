@@ -338,9 +338,11 @@
 (define-secure-symbols arrow-with-text arrow-with-text*)
 (lazy-define (athena athena commutative-diagram)
              make-cd in-commutative-diagram? commutative-diagram-layout
-             commutative-diagram-handle commutative-diagram-context-menu?)
+             commutative-diagram-handle commutative-diagram-context-menu?
+             commutative-diagram-show-hidden commutative-diagram-describe)
 (lazy-menu (athena athena commutative-diagram)
-           commutative-diagram-popup-menu)
+           commutative-diagram-popup-menu commutative-diagram-focus-menu
+           commutative-diagram-focus-icons)
 (define-secure-symbols commutative-diagram-layout
   commutative-diagram-handle)
 (define-secure-symbols ext-fold-toc-in-reflow? toc-fold-tree toc-unfold-tree)

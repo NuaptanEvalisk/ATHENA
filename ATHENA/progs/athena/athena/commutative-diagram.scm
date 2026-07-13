@@ -47,6 +47,22 @@
 (tm-define (in-commutative-diagram?)
   (cd-path-inside? (cDr (cursor-path)) 'commutative-diagram))
 
+(define (cd-current-diagram)
+  (tree-innermost 'commutative-diagram #t))
+
+(tm-define (commutative-diagram-show-hidden)
+  (:interactive #t)
+  (and-with diagram (cd-current-diagram)
+    (tree-select diagram)
+    (inactive-toggle diagram)))
+
+(tm-define (commutative-diagram-describe)
+  (:interactive #t)
+  (and-with diagram (cd-current-diagram)
+    ;; Contextual help evaluates focus-tree while constructing the help page.
+    (tree-select diagram)
+    (focus-help)))
+
 (define (cd-string t)
   (if (tm-atomic? t) (tm->string t) ""))
 
@@ -744,6 +760,20 @@
   ("Trim" (cd-trim))
   ("Enlarge horizontally" (cd-enlarge #t))
   ("Enlarge vertically" (cd-enlarge #f)))
+
+(tm-menu (commutative-diagram-focus-menu)
+  (group "Commutative diagram")
+  ((check "Show hidden" "v" #f) (commutative-diagram-show-hidden))
+  ("Describe" (commutative-diagram-describe)))
+
+(tm-menu (commutative-diagram-focus-icons)
+  ((balloon (icon "tm_show_hidden.xpm")
+            "Show commutative diagram structure")
+   (commutative-diagram-show-hidden))
+  ((balloon (icon "tm_focus_help.xpm")
+            "Describe commutative diagram")
+   (commutative-diagram-describe))
+  //)
 
 (define (cd-handle-adjust body x y)
   (cd-begin-session body)
