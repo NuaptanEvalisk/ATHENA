@@ -658,6 +658,12 @@ edit_dynamic_rep::make_return_after () {
     q= path_up (q);
     if (!(rp < q)) return false;
   }
+  tree doc= subtree (et, path_up (q));
+  if (last_item (q) == N(doc)) {
+    if (N(doc) == 0) return false;
+    go_to (end (et, path_dec (q)));
+    return insert_return ();
+  }
   if (tp == start (et, q)) return false;
   return insert_return ();
 }

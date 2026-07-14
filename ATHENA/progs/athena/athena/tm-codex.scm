@@ -99,16 +99,15 @@
               (go-to end)
               (selection-cancel)
               (make-return-after)
-              (insert-go-to
-                '(with "color" "red" "font-series" "bold" "Thinking...")
-                '(4 11))
-              (let ((buffer (current-buffer))
-                    (placeholder (tree-up (cursor-tree))))
-                (update-current-buffer)
-                (codex-run-completion-async
-                  bridge (codex-home-path)
-                  (url->system input) (url->system output)
-                  (object->command
-                    (lambda ()
-                      (codex-finish-completion
-                        buffer placeholder input output))))))))))
+              (let ((placeholder (cursor-tree)))
+                (tree-set! placeholder '(athena-codex-thinking))
+                (tree-go-to placeholder :end)
+                (let ((buffer (current-buffer)))
+                  (update-current-buffer)
+                  (codex-run-completion-async
+                    bridge (codex-home-path)
+                    (url->system input) (url->system output)
+                    (object->command
+                      (lambda ()
+                        (codex-finish-completion
+                          buffer placeholder input output)))))))))))

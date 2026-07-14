@@ -75,6 +75,10 @@
     </note>
   </macro>>
 
+  <assign|athena-codex-thinking|<macro|<with|color|red|font-series|bold|Thinking...>>>
+
+  <drd-props|athena-codex-thinking|arity|0|border|no>
+
   <assign|graph-rev-hierarchy|<macro|size|<extern|reverse-hierarchy-graph-render|<arg|size>>>>
 
   <drd-props|graph-rev-hierarchy|arity|1|border|no>
