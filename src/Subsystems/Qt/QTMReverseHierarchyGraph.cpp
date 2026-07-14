@@ -19,6 +19,7 @@
 
 #include "QTMMainTabWindow.hpp"
 #include "QTMVaultInfoModel.hpp"
+#include "ATHENA/Data/reference_graph_cache.hpp"
 #include "analyze.hpp"
 #include "editor.hpp"
 #include "namespaces.hpp"
@@ -35,7 +36,9 @@
 #include <QBuffer>
 #include <QCheckBox>
 #include <QContextMenuEvent>
+#include <QDateTime>
 #include <QDir>
+#include <QEventLoop>
 #include <QFile>
 #include <QFileInfo>
 #include <QGraphicsItem>
@@ -52,11 +55,13 @@
 #include <QMessageBox>
 #include <QMouseEvent>
 #include <QPainter>
+#include <QPushButton>
 #include <QScrollBar>
 #include <QSet>
 #include <QSizeGrip>
 #include <QSignalBlocker>
 #include <QSlider>
+#include <QSpinBox>
 #include <QStringList>
 #include <QStyle>
 #include <QTimer>
@@ -68,6 +73,7 @@
 #include <algorithm>
 #include <cmath>
 #include <functional>
+#include <filesystem>
 #include <map>
 #include <set>
 #include <vector>
@@ -80,6 +86,7 @@ struct RHNode {
   QString kind;
   QPointF pos;
   QSizeF size;
+  QString target;
 };
 
 struct RHEdge {
@@ -102,9 +109,17 @@ class DirectHierarchyGraphPane;
 static DirectHierarchyGraphPane* direct_hierarchy_graph_widget= nullptr;
 static ads::CDockWidget* global_hierarchy_graph_dock= nullptr;
 static DirectHierarchyGraphPane* global_hierarchy_graph_widget= nullptr;
+static ads::CDockWidget* local_reference_graph_dock= nullptr;
+static ads::CDockWidget* reference_graph_dock= nullptr;
+class ReferenceGraphPane;
+static ReferenceGraphPane* local_reference_graph_widget= nullptr;
+static ReferenceGraphPane* reference_graph_widget= nullptr;
 constexpr double pi= 3.14159265358979323846;
 constexpr const char* default_graph_size= "14cm";
 constexpr int graph_item_url_role= 1;
+constexpr int unlimited_reference_depth= 0;
+constexpr int local_reference_depth= 1;
+constexpr int default_reference_depth= 2;
 
 static QString
 current_buffer_identity () {
@@ -165,6 +180,19 @@ has_string_qt (const strings& xs, const QString& s) {
 static QString
 namespace_url (const QString& name) {
   return QString ("tmfs://ns/") + name;
+}
+
+static QString
+graph_node_target (const RHNode& node, const RHGraph& graph) {
+  if (!node.target.isEmpty ()) return node.target;
+  if (node.kind == "file" || node.kind == "current-file")
+    return graph.filePath;
+  return namespace_url (node.label);
+}
+
+static bool
+file_node_kind (const QString& kind) {
+  return kind == "file" || kind == "current-file";
 }
 
 static void
@@ -496,6 +524,101 @@ build_named_direct_hierarchy_graph (RHGraph& graph, const QString& name,
     graph, namespace_map (), namespace_url (name), name, simplify, error);
 }
 
+static QString
+reference_absolute_path (const QString& vaultRoot, const QString& path) {
+  QFileInfo info (path);
+  return QDir::cleanPath (info.isAbsolute () ? path :
+    QDir (vaultRoot).absoluteFilePath (path));
+}
+
+static bool
+current_reference_source (QString& absolute, QString& relative,
+                          QString& error) {
+  if (!vault_active ()) {
+    error= "No active vault.";
+    return false;
+  }
+  if (!current_physical_file_path (absolute) ||
+      QFileInfo (absolute).suffix ().compare ("ath", Qt::CaseInsensitive) != 0) {
+    error= "Select a saved .ath note to view its reference graph.";
+    return false;
+  }
+
+  std::error_code ec;
+  std::filesystem::path root= std::filesystem::weakly_canonical (
+    std::filesystem::path (
+      to_qstring (concretize (vault_get_root ())).toStdString ()), ec);
+  if (ec) {
+    error= "Could not resolve the active vault root.";
+    return false;
+  }
+  std::filesystem::path source= std::filesystem::weakly_canonical (
+    std::filesystem::path (absolute.toStdString ()), ec);
+  if (ec) {
+    error= "Could not resolve the current note path.";
+    return false;
+  }
+  std::filesystem::path rel= std::filesystem::relative (source, root, ec);
+  if (ec || rel.empty () || rel.is_absolute () ||
+      (*rel.begin () == "..")) {
+    error= "The current note is outside the active vault.";
+    return false;
+  }
+  absolute= QString::fromStdString (source.string ());
+  relative= QString::fromStdString (rel.generic_string ());
+  return true;
+}
+
+static bool
+build_reference_graph (
+  RHGraph& graph, int maxDepth, bool localGraph,
+  const std::function<void(size_t,size_t)>& progress, QString& error)
+{
+  QString currentAbsolute;
+  QString currentRelative;
+  if (!current_reference_source (currentAbsolute, currentRelative, error))
+    return false;
+
+  std::vector<AthenaReferenceGraphEdge> cachedEdges;
+  std::string cacheError;
+  if (!athena_reference_graph_query (currentRelative.toStdString (), maxDepth,
+                                     cachedEdges, progress, cacheError)) {
+    error= QString::fromStdString (cacheError);
+    return false;
+  }
+
+  graph= RHGraph ();
+  graph.filePath= currentAbsolute;
+  graph.title= QString (localGraph ? "Local Reference Graph - " :
+                                  "Reference Graph - ") +
+               file_stem (currentAbsolute);
+  QString root= to_qstring (concretize (vault_get_root ()));
+
+  QMap<QString,QString> ids;
+  auto ensureNode= [&] (const QString& relativePath) {
+    if (ids.contains (relativePath)) return ids.value (relativePath);
+    QString id= "ref:" + relativePath;
+    RHNode node;
+    node.id= id;
+    node.label= file_stem (relativePath);
+    node.kind= relativePath == currentRelative ? "current-file" : "file";
+    node.size= QSizeF (2.1, 0.7);
+    node.target= reference_absolute_path (root, relativePath);
+    graph.nodes.push_back (node);
+    ids.insert (relativePath, id);
+    return id;
+  };
+
+  ensureNode (currentRelative);
+  for (const AthenaReferenceGraphEdge& cached: cachedEdges) {
+    QString referenced= QString::fromStdString (cached.referenced_path);
+    QString referencing= QString::fromStdString (cached.referencing_path);
+    add_unique_edge (graph.edges, ensureNode (referenced),
+                     ensureNode (referencing));
+  }
+  return true;
+}
+
 static void compact_graph_positions (RHGraph& graph);
 static void resize_nodes_for_text (RHGraph& graph);
 
@@ -569,7 +692,7 @@ resize_nodes_for_text (RHGraph& graph) {
   font.setPointSize (10);
   for (RHNode& n: graph.nodes) {
     QFont nodeFont= font;
-    nodeFont.setBold (n.kind == "file");
+    nodeFont.setBold (file_node_kind (n.kind));
 
     QGraphicsTextItem text (n.label);
     text.setFont (nodeFont);
@@ -698,11 +821,12 @@ public:
     setCursor (Qt::OpenHandCursor);
     setZValue (2);
     setData (graph_item_url_role, target);
-    setToolTip ("Double click to open");
+    setToolTip (target.isEmpty () ? "Double click to open" :
+                "Double click to open\n" + target);
 
     QFont font= textItem->font ();
     font.setPointSize (10);
-    font.setBold (node.kind == "file");
+    font.setBold (file_node_kind (node.kind));
     textItem->setFont (font);
     textItem->setDefaultTextColor (QColor ("#111111"));
     textItem->setTextWidth (node.size.width () - 12.0);
@@ -711,7 +835,7 @@ public:
     textItem->setZValue (3);
     textItem->setAcceptedMouseButtons (Qt::NoButton);
     textItem->setData (graph_item_url_role, target);
-    textItem->setToolTip ("Double click to open");
+    textItem->setToolTip (toolTip ());
   }
 
   int type () const override { return Type; }
@@ -722,7 +846,8 @@ public:
 
   void paint (QPainter* painter, const QStyleOptionGraphicsItem*,
               QWidget*) override {
-    QColor fill= nodeKind == "file" ? QColor ("#e9f3ff") :
+    QColor fill= nodeKind == "current-file" ? QColor ("#cfe5ff") :
+                 nodeKind == "file" ? QColor ("#e9f3ff") :
                  nodeKind == "abstract" ? QColor ("#f2ecff") :
                  nodeKind == "semi-concrete" ? QColor ("#fff5df") :
                  QColor ("#eaf7ea");
@@ -833,8 +958,7 @@ public:
     RHGraph adjusted= graph;
     adjust_node_sizes_for_text (adjusted);
     for (const RHNode& node: adjusted.nodes) {
-      QString target= node.kind == "file" ? graph.filePath :
-                      namespace_url (node.label);
+      QString target= graph_node_target (node, graph);
       ElasticHierarchyNodeItem* item=
         new ElasticHierarchyNodeItem (node, target);
       addItem (item);
@@ -1039,20 +1163,22 @@ create_scene (const RHGraph& graph) {
 
   for (const RHNode& n: adjusted.nodes) {
     QRectF rect= node_rect (n);
-    QColor fill= n.kind == "file" ? QColor ("#e9f3ff") :
+    QColor fill= n.kind == "current-file" ? QColor ("#cfe5ff") :
+                 n.kind == "file" ? QColor ("#e9f3ff") :
                  n.kind == "abstract" ? QColor ("#f2ecff") :
                  n.kind == "semi-concrete" ? QColor ("#fff5df") :
                  QColor ("#eaf7ea");
     QGraphicsRectItem* box= scene->addRect (
       rect, QPen (QColor ("#333333"), 1.4), QBrush (fill));
     box->setZValue (2);
-    box->setData (graph_item_url_role,
-                  n.kind == "file" ? graph.filePath : namespace_url (n.label));
-    box->setToolTip ("Double click to open");
+    box->setData (graph_item_url_role, graph_node_target (n, graph));
+    QString target= graph_node_target (n, graph);
+    box->setToolTip (target.isEmpty () ? "Double click to open" :
+                     "Double click to open\n" + target);
     QGraphicsTextItem* text= scene->addText (n.label);
     QFont font= text->font ();
     font.setPointSize (10);
-    font.setBold (n.kind == "file");
+    font.setBold (file_node_kind (n.kind));
     text->setFont (font);
     text->setDefaultTextColor (QColor ("#111111"));
     text->setTextWidth (rect.width () - 12.0);
@@ -1060,9 +1186,8 @@ create_scene (const RHGraph& graph) {
     text->setPos (rect.center ().x () - br.width () / 2.0,
                   rect.center ().y () - br.height () / 2.0);
     text->setZValue (5);
-    text->setData (graph_item_url_role,
-                   n.kind == "file" ? graph.filePath : namespace_url (n.label));
-    text->setToolTip ("Double click to open");
+    text->setData (graph_item_url_role, graph_node_target (n, graph));
+    text->setToolTip (box->toolTip ());
   }
 
   QRectF r= scene->itemsBoundingRect ().adjusted (-24, -24, 24, 24);
@@ -1578,6 +1703,235 @@ private:
   bool hasCurrentGraph= false;
 };
 
+class ReferenceGraphPane: public QWidget {
+public:
+  ReferenceGraphPane (ads::CDockWidget** dockRef, bool depthSelectable,
+                      const QString& defaultTitle, QWidget* parent = nullptr)
+    : QWidget (parent), dockRef (dockRef),
+      depthSelectable (depthSelectable),
+      defaultTitle (defaultTitle),
+      view (new ReverseHierarchyGraphView (new QGraphicsScene (), this)),
+      zoomSlider (new QSlider (Qt::Horizontal, this)),
+      zoomLabel (new QLabel ("100%", this)),
+      depthSpin (new QSpinBox (this)),
+      unlimitedCheck (new QCheckBox ("Unlimited", this)),
+      followCheck (new QCheckBox ("Follow viewport", this)),
+      statusLabel (new QLabel (this)), floatingSizeGrip (new QSizeGrip (this)),
+      refreshTimer (new QTimer (this)) {
+    view->scene ()->setParent (view);
+    view->setZoomChangedCallback ([this] (int percent) {
+      QSignalBlocker blocker (zoomSlider);
+      zoomSlider->setValue (percent);
+      zoomLabel->setText (QString::number (percent) + "%");
+    });
+
+    QToolButton* zoomOut= new QToolButton (this);
+    zoomOut->setIcon (style ()->standardIcon (QStyle::SP_ArrowDown));
+    zoomOut->setToolTip ("Zoom out");
+    QToolButton* zoomIn= new QToolButton (this);
+    zoomIn->setIcon (style ()->standardIcon (QStyle::SP_ArrowUp));
+    zoomIn->setToolTip ("Zoom in");
+    QToolButton* reset= new QToolButton (this);
+    reset->setIcon (style ()->standardIcon (QStyle::SP_BrowserReload));
+    reset->setToolTip ("Reset viewport");
+    QPushButton* refresh= new QPushButton ("Refresh", this);
+
+    zoomSlider->setRange (25, 300);
+    zoomSlider->setValue (100);
+    zoomSlider->setSingleStep (5);
+    zoomSlider->setPageStep (25);
+    zoomSlider->setFixedWidth (160);
+    zoomLabel->setMinimumWidth (44);
+    depthSpin->setRange (local_reference_depth, 99);
+    depthSpin->setValue (depthSelectable ? default_reference_depth :
+                                           local_reference_depth);
+    depthSpin->setToolTip (
+      "Maximum number of reference levels expanded from the current note");
+    unlimitedCheck->setChecked (false);
+    unlimitedCheck->setToolTip (
+      "Follow references without a backtracking depth limit");
+    followCheck->setChecked (true);
+    followCheck->setToolTip (
+      "Rebuild the graph when the active .ath note changes");
+    statusLabel->setText ("Ready");
+
+    connect (zoomOut, &QToolButton::clicked, this, [this] () {
+      view->setZoomPercent (zoomSlider->value () - 10);
+    });
+    connect (zoomIn, &QToolButton::clicked, this, [this] () {
+      view->setZoomPercent (zoomSlider->value () + 10);
+    });
+    connect (reset, &QToolButton::clicked,
+             this, [this] () { view->resetViewport (); });
+    connect (zoomSlider, &QSlider::valueChanged,
+             this, [this] (int value) { view->setZoomPercent (value); });
+    connect (refresh, &QPushButton::clicked,
+             this, [this] () { refreshFromCurrentDocument (); });
+    connect (depthSpin, QOverload<int>::of (&QSpinBox::valueChanged),
+             this, [this] (int) {
+      if (this->depthSelectable) refreshFromCurrentDocument ();
+    });
+    connect (unlimitedCheck, &QCheckBox::toggled,
+             this, [this] (bool unlimited) {
+      depthSpin->setEnabled (!unlimited);
+      if (this->depthSelectable) refreshFromCurrentDocument ();
+    });
+    connect (followCheck, &QCheckBox::toggled, this, [this] (bool checked) {
+      if (checked) refreshFromCurrentDocument ();
+    });
+
+    QHBoxLayout* controls= new QHBoxLayout ();
+    controls->setContentsMargins (4, 3, 4, 3);
+    controls->addWidget (zoomOut);
+    controls->addWidget (zoomSlider);
+    controls->addWidget (zoomIn);
+    controls->addWidget (zoomLabel);
+    controls->addSpacing (8);
+    controls->addWidget (reset);
+    controls->addWidget (refresh);
+    controls->addStretch ();
+    controls->addWidget (followCheck);
+
+    QWidget* depthControls= new QWidget (this);
+    QHBoxLayout* depthLayout= new QHBoxLayout (depthControls);
+    depthLayout->setContentsMargins (6, 0, 6, 2);
+    QLabel* depthLabel= new QLabel ("Backtracking level:", this);
+    depthLabel->setBuddy (depthSpin);
+    depthLayout->addWidget (depthLabel);
+    depthLayout->addWidget (depthSpin);
+    depthLayout->addWidget (unlimitedCheck);
+    depthLayout->addStretch ();
+    depthControls->setVisible (depthSelectable);
+
+    floatingSizeGrip->hide ();
+    QHBoxLayout* statusRow= new QHBoxLayout ();
+    statusRow->setContentsMargins (6, 2, 0, 0);
+    statusRow->addWidget (statusLabel);
+    statusRow->addStretch ();
+    statusRow->addWidget (floatingSizeGrip, 0,
+                          Qt::AlignRight | Qt::AlignBottom);
+
+    QVBoxLayout* layout= new QVBoxLayout (this);
+    layout->setContentsMargins (0, 0, 0, 0);
+    layout->addLayout (controls);
+    layout->addWidget (depthControls);
+    layout->addWidget (view, 1);
+    layout->addLayout (statusRow);
+
+    refreshTimer->setInterval (700);
+    connect (refreshTimer, &QTimer::timeout,
+             this, [this] () { refreshIfActiveDocumentChanged (); });
+    refreshTimer->start ();
+  }
+
+  QSize sizeHint () const override { return QSize (680, 560); }
+
+  void setFloatingResizeGripVisible (bool visible) {
+    floatingSizeGrip->setVisible (visible);
+  }
+
+  bool refreshFromCurrentDocument (QString* errorOut = nullptr) {
+    if (refreshing) return false;
+    refreshing= true;
+    statusLabel->setText ("Checking reference cache...");
+    QApplication::processEvents (QEventLoop::ExcludeUserInputEvents);
+
+    RHGraph graph;
+    QString error;
+    size_t lastDone= 0;
+    bool built= build_reference_graph (
+      graph, selectedDepth (), !depthSelectable,
+      [this, &lastDone] (size_t done, size_t total) {
+        if (done == lastDone) return;
+        lastDone= done;
+        statusLabel->setText (
+          QString ("Indexing .ath notes: %1 / %2").arg (done).arg (total));
+        if (done == total || done % 25 == 0)
+          QApplication::processEvents (QEventLoop::ExcludeUserInputEvents);
+      }, error);
+    if (built) built= layout_with_boost_force_directed (graph, error);
+
+    currentIdentity= current_buffer_identity ();
+    QString currentPath;
+    currentModified= current_physical_file_path (currentPath) ?
+      QFileInfo (currentPath).lastModified () : QDateTime ();
+    if (!built) {
+      if (errorOut != nullptr) *errorOut= error;
+      showMessageScene (error);
+      refreshing= false;
+      return false;
+    }
+
+    currentGraph= graph;
+    hasCurrentGraph= true;
+    view->setOwnedScene (create_pane_scene (currentGraph));
+    QTimer::singleShot (0, view, [this] () { view->resetViewport (); });
+    if (dockRef != nullptr && *dockRef != nullptr)
+      (*dockRef)->setWindowTitle (graph.title);
+    statusLabel->setText (
+      QString ("%1 note(s), %2 reference(s)")
+        .arg (graph.nodes.size ()).arg (graph.edges.size ()));
+    refreshing= false;
+    return true;
+  }
+
+  void interactionPreferenceChanged () {
+    if (!hasCurrentGraph) return;
+    view->setOwnedScene (create_pane_scene (currentGraph));
+    QTimer::singleShot (0, view, [this] () { view->resetViewport (); });
+  }
+
+private:
+  int selectedDepth () const {
+    if (!depthSelectable) return local_reference_depth;
+    return unlimitedCheck->isChecked () ? unlimited_reference_depth :
+                                          depthSpin->value ();
+  }
+
+  void showMessageScene (const QString& message) {
+    QGraphicsScene* scene= new QGraphicsScene ();
+    scene->setBackgroundBrush (QColor ("#fbfbfb"));
+    QGraphicsTextItem* text= scene->addText (message);
+    text->setDefaultTextColor (QColor ("#884444"));
+    text->setTextWidth (440);
+    text->setPos (20, 20);
+    scene->setSceneRect (0, 0, 520, 160);
+    view->setOwnedScene (scene);
+    hasCurrentGraph= false;
+    statusLabel->setText (message);
+    if (dockRef != nullptr && *dockRef != nullptr)
+      (*dockRef)->setWindowTitle (defaultTitle);
+  }
+
+  void refreshIfActiveDocumentChanged () {
+    if (refreshing || !followCheck->isChecked ()) return;
+    QString identity= current_buffer_identity ();
+    QString path;
+    QDateTime modified= current_physical_file_path (path) ?
+      QFileInfo (path).lastModified () : QDateTime ();
+    if (identity == currentIdentity && modified == currentModified) return;
+    refreshFromCurrentDocument ();
+  }
+
+  ads::CDockWidget** dockRef;
+  bool depthSelectable;
+  QString defaultTitle;
+  ReverseHierarchyGraphView* view;
+  QSlider* zoomSlider;
+  QLabel* zoomLabel;
+  QSpinBox* depthSpin;
+  QCheckBox* unlimitedCheck;
+  QCheckBox* followCheck;
+  QLabel* statusLabel;
+  QSizeGrip* floatingSizeGrip;
+  QTimer* refreshTimer;
+  QString currentIdentity;
+  QDateTime currentModified;
+  RHGraph currentGraph;
+  bool hasCurrentGraph= false;
+  bool refreshing= false;
+};
+
 static bool
 build_layout_graph (RHGraph& graph, QString& error) {
   QString warning;
@@ -1591,9 +1945,10 @@ build_layout_graph (RHGraph& graph, QString& error) {
 }
 
 static void
-show_error (const QString& error) {
+show_error (const QString& error,
+            const QString& title = "Hierarchy Graph") {
   QMessageBox::warning (QApplication::activeWindow (),
-                        "Reverse Hierarchy Graph", error);
+                        title, error);
 }
 
 static QImage
@@ -1643,6 +1998,10 @@ hierarchy_graph_interactivity_changed () {
     direct_hierarchy_graph_widget->interactionPreferenceChanged ();
   if (global_hierarchy_graph_widget != nullptr)
     global_hierarchy_graph_widget->interactionPreferenceChanged ();
+  if (local_reference_graph_widget != nullptr)
+    local_reference_graph_widget->interactionPreferenceChanged ();
+  if (reference_graph_widget != nullptr)
+    reference_graph_widget->interactionPreferenceChanged ();
 }
 
 void
@@ -1701,7 +2060,7 @@ reverse_hierarchy_graph_show () {
 
   QString error;
   if (!reverse_hierarchy_graph_widget->refreshFromCurrentDocument (&error))
-    show_error (error);
+    show_error (error, "Reverse Hierarchy Graph");
 }
 
 void
@@ -1717,6 +2076,59 @@ reverse_hierarchy_graph_render (string size) {
   if (!build_layout_graph (graph, error)) return graph_error_tree (error);
   if (size == "") size= default_graph_size;
   return graph_image_tree (render_graph_image (graph), size);
+}
+
+static bool
+ensure_reference_graph_pane (
+  bool depthSelectable, ads::CDockWidget*& dock, ReferenceGraphPane*& widget,
+  const QString& title, const QString& objectName, QString& error)
+{
+  QTMMainTabWindow* win= QTMMainTabWindow::topTabWindow ();
+  if (win == nullptr || win->dockManager () == nullptr) {
+    error= "No active ATHENA window.";
+    return false;
+  }
+
+  ads::CDockWidget** dockSlot= &dock;
+  ReferenceGraphPane** widgetSlot= &widget;
+  if (widget == nullptr) {
+    widget= new ReferenceGraphPane (dockSlot, depthSelectable, title);
+    widget->resize (680, 560);
+    QObject::connect (widget, &QObject::destroyed,
+                      [dockSlot, widgetSlot] () {
+      *widgetSlot= nullptr;
+      *dockSlot= nullptr;
+    });
+  }
+
+  if (dock == nullptr) {
+    dock= new ads::CDockWidget (title);
+    dock->setObjectName (objectName);
+    dock->resize (700, 600);
+    dock->setWidget (widget, ads::CDockWidget::ForceNoScrollArea);
+    dock->setFeature (ads::CDockWidget::DockWidgetDeleteOnClose, false);
+    QObject::connect (dock, &ads::CDockWidget::topLevelChanged, widget,
+                      [widgetSlot] (bool topLevel) {
+      if (*widgetSlot != nullptr)
+        (*widgetSlot)->setFloatingResizeGripVisible (topLevel);
+    });
+    QObject::connect (dock, &QObject::destroyed,
+                      [dockSlot, widgetSlot] () {
+      *dockSlot= nullptr;
+      *widgetSlot= nullptr;
+    });
+    win->dockManager ()->addDockWidgetFloating (dock);
+    dock->toggleView (true);
+    dock->show ();
+    dock->raise ();
+  }
+  else {
+    if (dock->widget () != widget)
+      dock->setWidget (widget, ads::CDockWidget::ForceNoScrollArea);
+    win->showAdsDockWidget (dock, ads::RightDockWidgetArea);
+  }
+  widget->setFloatingResizeGripVisible (dock->isInFloatingContainer ());
+  return true;
 }
 
 static bool
@@ -1838,7 +2250,7 @@ void
 direct_hierarchy_graph_show () {
   QString error;
   if (!ensure_direct_hierarchy_graph_pane (error)) {
-    show_error (error);
+    show_error (error, "Direct Hierarchy Graph");
     return;
   }
   direct_hierarchy_graph_widget->refreshFromCurrentDocument ();
@@ -1848,7 +2260,7 @@ void
 direct_hierarchy_graph_show_namespace (string name) {
   QString error;
   if (!ensure_direct_hierarchy_graph_pane (error)) {
-    show_error (error);
+    show_error (error, "Direct Hierarchy Graph");
     return;
   }
   direct_hierarchy_graph_widget->refreshFromNamespace (to_qstring (name));
@@ -1858,7 +2270,7 @@ void
 global_hierarchy_graph_show () {
   QString error;
   if (!ensure_global_hierarchy_graph_pane (error)) {
-    show_error (error);
+    show_error (error, "Global Hierarchy Graph");
     return;
   }
 
@@ -1875,4 +2287,30 @@ global_hierarchy_graph_show () {
     show_error (error);
     return;
   }
+}
+
+void
+local_reference_graph_show () {
+  QString error;
+  if (!ensure_reference_graph_pane (
+        false, local_reference_graph_dock, local_reference_graph_widget,
+        "Local Reference Graph", "athena-local-reference-graph", error)) {
+    show_error (error, "Local Reference Graph");
+    return;
+  }
+  if (!local_reference_graph_widget->refreshFromCurrentDocument (&error))
+    show_error (error, "Local Reference Graph");
+}
+
+void
+reference_graph_show () {
+  QString error;
+  if (!ensure_reference_graph_pane (
+        true, reference_graph_dock, reference_graph_widget,
+        "Reference Graph", "athena-reference-graph", error)) {
+    show_error (error, "Reference Graph");
+    return;
+  }
+  if (!reference_graph_widget->refreshFromCurrentDocument (&error))
+    show_error (error, "Reference Graph");
 }

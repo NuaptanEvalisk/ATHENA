@@ -32,3 +32,11 @@
 (tm-define (open-global-hierarchy-graph)
   (:synopsis "Open the direct namespace hierarchy graph for the vault root namespace")
   (global-hierarchy-graph-show))
+
+(tm-define (open-local-reference-graph)
+  (:synopsis "Open direct references of the current ATHENA note")
+  (local-reference-graph-show))
+
+(tm-define (open-reference-graph)
+  (:synopsis "Open recursive references of the current ATHENA note")
+  (reference-graph-show))

@@ -209,6 +209,31 @@
   rebalance briefly after release. Drag empty graph background to pan the
   viewport. Hierarchy graphs inserted into documents remain static images.
 
+  <section|Document reference graphs>
+
+  For a saved <verbatim|.ath> note, use <menu|View|Graphs|Local reference
+  graph> to inspect its immediate document dependencies. If note <math|A>
+  contains a wikilink to <math|B>, or transcludes content from <math|B>, the
+  graph contains the directed edge <math|B\longrightarrow A>. The highlighted
+  node is the note whose graph is being shown. Double-click any node to open
+  that note.
+
+  <menu|View|Graphs|Reference graph> follows the same relation for a bounded
+  number of levels. Its <em|Backtracking level> stepper defaults to <verbatim|2>:
+  level <verbatim|1> is equivalent to the Local Reference Graph, while level
+  <verbatim|2> also expands references made by the first-level notes. Enable
+  <em|Unlimited> to compute the full recursive closure, which was the original
+  Reference Graph behavior. Both panes follow the active viewport by default
+  and provide a Refresh button.
+
+  Reference targets are resolved exclusively through the UUID map configured
+  by <verbatim|Vaultfile.json> (<verbatim|map.sqlite> by default). Optional file
+  and anchor hints stored in wikilink or transclusion tags are never treated as
+  authoritative. <ATHENA> maintains the rebuildable cache
+  <verbatim|.athena/reference-graph.sqlite> so unchanged documents do not need
+  to be parsed again. Changes to the configured UUID map invalidate cached
+  target paths automatically.
+
   <section|Websites manager>
 
   Use <menu|Tools|Websites manager> to define static websites for the active

@@ -10,9 +10,12 @@
 #include <QTemporaryDir>
 
 #include "vault_map_sqlite.hpp"
+#include "reference_graph_cache.hpp"
 #include "vault_safe_rename.hpp"
 #include "vaultfile_json.hpp"
 #include "vault.hpp"
+#include "convert.hpp"
+#include "file.hpp"
 #include "Database/database.hpp"
 #include "tm_timer.hpp"
 #include "url.hpp"
@@ -35,6 +38,8 @@ private slots:
   void pathRenamePreservesIdentityAndBoundaries ();
   void structuralRewritePreservesRelativePathsAndHints ();
   void recoversInterruptedDirectoryRename ();
+  void extractsDocumentReferencesWithoutHints ();
+  void cachesBoundedAndUnlimitedReferenceGraphs ();
 };
 
 void
@@ -293,6 +298,140 @@ TestVaultMapSqlite::recoversInterruptedDirectoryRename () {
   QVERIFY (pending.empty ());
   QVERIFY (std::filesystem::exists (
     root / ".backup/safe-rename/recovery/New/Note.ath"));
+}
+
+void
+TestVaultMapSqlite::extractsDocumentReferencesWithoutHints () {
+  tree wikilink (HLINK);
+  wikilink << tree ("visible")
+           << tree ("tmfs://wikilink/uuid%20one/ignored/file/hints");
+  tree cardlink (make_tree_label ("cardlink"));
+  cardlink << tree ("card") << tree ("tmfs://wikilink/uuid-two/");
+  tree transclusion (TRANSCLUDE);
+  transclusion << tree ("uuid-three") << tree ("ignored path hint")
+               << tree ("ignored anchor hint");
+  tree external (HLINK);
+  external << tree ("web") << tree ("https://example.com/uuid-four");
+  tree document (DOCUMENT);
+  document << wikilink << cardlink << transclusion << external;
+  QVERIFY (is_func (wikilink, HLINK));
+  QVERIFY (is_compound (cardlink, "cardlink"));
+  QVERIFY (is_func (transclusion, TRANSCLUDE));
+
+  std::vector<AthenaDocumentReference> references=
+    athena_collect_document_references (document);
+  QCOMPARE (references.size (), (size_t) 3);
+  QCOMPARE (references[0].uuid, std::string ("uuid one"));
+  QCOMPARE (references[0].kind, std::string ("wikilink"));
+  QCOMPARE (references[1].uuid, std::string ("uuid-three"));
+  QCOMPARE (references[1].kind, std::string ("transclusion"));
+  QCOMPARE (references[2].uuid, std::string ("uuid-two"));
+  QCOMPARE (references[2].kind, std::string ("wikilink"));
+}
+
+void
+TestVaultMapSqlite::cachesBoundedAndUnlimitedReferenceGraphs () {
+  QTemporaryDir temporary;
+  QVERIFY (temporary.isValid ());
+  std::filesystem::path root (temporary.path ().toStdString ());
+
+  auto write_document= [&] (const std::string& name, tree body) {
+    tree content (DOCUMENT);
+    content << body;
+    tree document (DOCUMENT);
+    document << compound ("TeXmacs", "2.1.4")
+             << compound ("style", tuple ("generic"))
+             << compound ("body", content);
+    return !save_string (
+      url_system (string ((root / name).string ().c_str ())),
+      tree_to_texmacs (document));
+  };
+  auto wikilink= [] (const char* uuid) {
+    tree link (make_tree_label ("hlink"));
+    link << tree ("display")
+         << tree (string ("tmfs://wikilink/") * string (uuid) * "/hint");
+    return link;
+  };
+  auto transclusion= [] (const char* uuid) {
+    tree link (make_tree_label ("transclude"));
+    link << tree (uuid) << tree ("wrong/file/hint.ath") << tree ("hint");
+    return link;
+  };
+
+  tree a_body (CONCAT);
+  a_body << wikilink ("uuid-b") << transclusion ("uuid-c");
+  QVERIFY (write_document ("A.ath", a_body));
+  QVERIFY (write_document ("B.ath", wikilink ("uuid-c")));
+  QVERIFY (write_document ("C.ath", wikilink ("uuid-d")));
+  QVERIFY (write_document ("D.ath", wikilink ("uuid-e")));
+  QVERIFY (write_document ("E.ath", tree ("E")));
+
+  string serialized;
+  QVERIFY (!load_string (
+    url_system (string ((root / "A.ath").string ().c_str ())), serialized,
+    false));
+  std::vector<AthenaDocumentReference> parsedReferences=
+    athena_collect_document_references (texmacs_document_to_tree (serialized));
+  QCOMPARE (parsedReferences.size (), (size_t) 2);
+
+  string load_error= vault_load (
+    url_system (string (root.string ().c_str ())), "Reference test",
+    "maps.sqlite");
+  QVERIFY2 (load_error == "", as_charp (load_error));
+  vault_set_node ("uuid-b", "B.ath", "", "");
+  vault_set_node ("uuid-c", "C.ath", "", "");
+  vault_set_node ("uuid-d", "D.ath", "", "");
+  vault_set_node ("uuid-e", "E.ath", "", "");
+
+  std::vector<AthenaReferenceGraphEdge> edges;
+  std::string error;
+  QVERIFY2 (athena_reference_graph_query (
+    "A.ath", 1, edges, {}, error), error.c_str ());
+  QCOMPARE (edges.size (), (size_t) 2);
+  QCOMPARE (edges[0].referenced_path, std::string ("B.ath"));
+  QCOMPARE (edges[0].referencing_path, std::string ("A.ath"));
+  QCOMPARE (edges[1].referenced_path, std::string ("C.ath"));
+  QCOMPARE (edges[1].referencing_path, std::string ("A.ath"));
+
+  edges.clear ();
+  QVERIFY2 (athena_reference_graph_query (
+    "A.ath", 2, edges, {}, error), error.c_str ());
+  QCOMPARE (edges.size (), (size_t) 4);
+  QVERIFY (std::any_of (edges.begin (), edges.end (), [] (const auto& edge) {
+    return edge.referenced_path == "C.ath" &&
+           edge.referencing_path == "B.ath";
+  }));
+  QVERIFY (std::any_of (edges.begin (), edges.end (), [] (const auto& edge) {
+    return edge.referenced_path == "D.ath" &&
+           edge.referencing_path == "C.ath";
+  }));
+  QVERIFY (!std::any_of (edges.begin (), edges.end (), [] (const auto& edge) {
+    return edge.referenced_path == "E.ath";
+  }));
+
+  edges.clear ();
+  QVERIFY2 (athena_reference_graph_query (
+    "A.ath", 0, edges, {}, error), error.c_str ());
+  QCOMPARE (edges.size (), (size_t) 5);
+  QVERIFY (std::any_of (edges.begin (), edges.end (), [] (const auto& edge) {
+    return edge.referenced_path == "E.ath" &&
+           edge.referencing_path == "D.ath";
+  }));
+  QVERIFY (std::filesystem::exists (
+    root / ".athena/reference-graph.sqlite"));
+
+  // Changing only the authoritative map must redirect the cached edge even
+  // though the source document and its optional hints are unchanged.
+  vault_set_node ("uuid-b", "D.ath", "", "");
+  edges.clear ();
+  QVERIFY2 (athena_reference_graph_query (
+    "A.ath", 1, edges, {}, error), error.c_str ());
+  QCOMPARE (edges.size (), (size_t) 2);
+  QVERIFY (std::any_of (edges.begin (), edges.end (), [] (const auto& edge) {
+    return edge.referenced_path == "D.ath" &&
+           edge.referencing_path == "A.ath";
+  }));
+  vault_close ();
 }
 
 QTEST_MAIN(TestVaultMapSqlite)

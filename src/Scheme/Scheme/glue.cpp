@@ -1961,6 +1961,10 @@ initialize_glue () {
                            tmg_direct_hierarchy_graph_show_namespace, 1, 0, 0);
   tmscm_install_procedure ("global-hierarchy-graph-show",
                            global_hierarchy_graph_show, 0, 0, 0);
+  tmscm_install_procedure ("local-reference-graph-show",
+                           local_reference_graph_show, 0, 0, 0);
+  tmscm_install_procedure ("reference-graph-show",
+                           reference_graph_show, 0, 0, 0);
   tmscm_install_procedure ("formula-ast-show",
                            formula_ast_show, 0, 0, 0);
   tmscm_install_procedure ("vault-validate-root-namespace",
