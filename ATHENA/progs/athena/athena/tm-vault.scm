@@ -525,6 +525,39 @@
   ("=" "Insert Wikilink" (if (in-text?) (insert-wikilink)))
   ("+" "Insert Transclusion" (if (in-text?) (insert-transclude))))
 
+(define (vault-focused-transclusion)
+  (let ((focused (focus-tree)))
+    (if (and (tree? focused) (tree-is? focused 'transclude)) focused
+        (tree-innermost 'transclude #t))))
+
+(define (vault-go-outside-tree t forwards?)
+  (and-let* ((parent (tree-up t))
+             (index (tree-index t)))
+    (cond ((and forwards? (< (+ index 1) (tree-arity parent)))
+           (tree-go-to parent (+ index 1) :start))
+          ((and (not forwards?) (> index 0))
+           (tree-go-to parent (- index 1) :end))
+          (else (vault-go-outside-tree parent forwards?)))))
+
+(define (vault-go-before-transclusion)
+  (and-with t (vault-focused-transclusion)
+    (selection-cancel)
+    (vault-go-outside-tree t #f)))
+
+(define (vault-go-after-transclusion)
+  (and-with t (vault-focused-transclusion)
+    (selection-cancel)
+    (vault-go-outside-tree t #t)))
+
+(define (vault-select-transclusion)
+  (and-with t (vault-focused-transclusion)
+    (tree-select t)))
+
+(tm-menu (vault-transclusion-focus-menu)
+  ("Move before transclusion" (vault-go-before-transclusion))
+  ("Select transclusion" (vault-select-transclusion))
+  ("Move after transclusion" (vault-go-after-transclusion)))
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Fuzzy Search Logic

@@ -198,6 +198,7 @@
 (lazy-keyboard (generic generic-speech-en) always?)
 (lazy-keyboard (generic generic-speech-fr) always?)
 (lazy-menu (generic generic-menu) focus-menu athena-focus-icons)
+(lazy-menu (athena athena tm-vault) vault-transclusion-focus-menu)
 (lazy-menu (generic format-menu) format-menu
            font-size-menu color-menu horizontal-space-menu
            transform-menu specific-menu

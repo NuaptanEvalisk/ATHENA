@@ -31,6 +31,12 @@
 (menu-bind help-icons (if (in-session?) (link session-help-icons)))
 (menu-bind comment-menu)
 
+(tm-menu (athena-focus-menu)
+  (link focus-menu)
+  (if (tree-innermost 'transclude #t)
+    ---
+    (link vault-transclusion-focus-menu)))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; The TeXmacs main menu
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -61,7 +67,7 @@
       (if (in-commutative-diagram?)
           (=> "Focus" (link commutative-diagram-focus-menu)))
       (if (not (in-commutative-diagram?))
-          (=> "Focus" (link focus-menu)))
+          (=> "Focus" (link athena-focus-menu)))
       (=> "Format" (link format-menu)))
   (=> "Document" (link document-menu))
   (if (and (not (project-attached?))
@@ -121,7 +127,7 @@
     ("Inspect AST" (formula-ast-show))
     ---)
   (link spell-live-popup-menu)
-  (link focus-menu))
+  (link athena-focus-menu))
 
 (tm-menu (texmacs-popup-menu)
   (:require (full-screen?))
@@ -150,7 +156,7 @@
       (if (in-commutative-diagram?)
           (-> "Focus" (link commutative-diagram-focus-menu)))
       (if (not (in-commutative-diagram?))
-          (-> "Focus" (link focus-menu)))
+          (-> "Focus" (link athena-focus-menu)))
       (-> "Format" (link format-menu)))
   (-> "Document" (link document-menu))
   (if (== (get-init-tree "sectional-short-style") (tree 'macro "false"))
