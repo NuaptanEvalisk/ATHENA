@@ -423,12 +423,13 @@ focus_on_editor (editor ed) {
   array<url> bufs= get_all_buffers ();
   for (int i=0; i<N(bufs); i++) {
     array<url> vs= buffer_to_views (bufs[i]);
-    for (int j=0; j<N(vs); j++)
-      if (concrete_view (vs[j]) != NULL && view_to_editor (vs[j]) == ed &&
-          !is_none (view_to_window (vs[j]))) {
+    for (int j=0; j<N(vs); j++) {
+      tm_view vw= concrete_view (vs[j]);
+      if (vw != NULL && vw->ed == ed && vw->win != NULL) {
         set_current_view (vs[j]);
         return;
       }
+    }
   }
 
   /* FIXME: directly using get_all_views produces synchronization error
