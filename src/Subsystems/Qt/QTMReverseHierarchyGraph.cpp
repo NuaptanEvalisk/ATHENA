@@ -45,10 +45,12 @@
 #include <QGraphicsPolygonItem>
 #include <QGraphicsRectItem>
 #include <QGraphicsScene>
+#include <QGraphicsSceneHoverEvent>
 #include <QGraphicsSceneMouseEvent>
 #include <QGraphicsTextItem>
 #include <QGraphicsView>
 #include <QImage>
+#include <QKeyEvent>
 #include <QLabel>
 #include <QMenu>
 #include <QMap>
@@ -811,14 +813,18 @@ class ElasticHierarchyEdgeItem;
 class ElasticHierarchyNodeItem: public QGraphicsItem {
 public:
   enum { Type = UserType + 101 };
+  enum HighlightState { NormalHighlight, RelatedHighlight, HoverHighlight };
 
-  ElasticHierarchyNodeItem (const RHNode& node, const QString& target)
+  ElasticHierarchyNodeItem (const RHNode& node, const QString& target,
+                            bool movable)
     : nodeId (node.id), nodeSize (node.size), nodeKind (node.kind),
-      textItem (new QGraphicsTextItem (node.label, this)), pressed (false) {
-    setFlag (ItemIsMovable, true);
+      textItem (new QGraphicsTextItem (node.label, this)), movable (movable),
+      highlightState (NormalHighlight), pressed (false) {
+    setFlag (ItemIsMovable, movable);
     setFlag (ItemSendsGeometryChanges, true);
+    setAcceptHoverEvents (true);
     setCacheMode (DeviceCoordinateCache);
-    setCursor (Qt::OpenHandCursor);
+    setCursor (movable ? Qt::OpenHandCursor : Qt::ArrowCursor);
     setZValue (2);
     setData (graph_item_url_role, target);
     setToolTip (target.isEmpty () ? "Double click to open" :
@@ -851,8 +857,14 @@ public:
                  nodeKind == "abstract" ? QColor ("#f2ecff") :
                  nodeKind == "semi-concrete" ? QColor ("#fff5df") :
                  QColor ("#eaf7ea");
+    if (highlightState == RelatedHighlight) fill= fill.lighter (106);
+    if (highlightState == HoverHighlight) fill= QColor ("#fff1b8");
     if (pressed) fill= fill.darker (106);
-    painter->setPen (QPen (QColor ("#333333"), 1.4));
+    QColor border= highlightState == HoverHighlight ? QColor ("#c06b00") :
+                   highlightState == RelatedHighlight ? QColor ("#1466b8") :
+                   QColor ("#333333");
+    double width= highlightState == NormalHighlight ? 1.4 : 2.6;
+    painter->setPen (QPen (border, width));
     painter->setBrush (fill);
     painter->drawRect (boundingRect ());
   }
@@ -860,6 +872,11 @@ public:
   void addEdge (ElasticHierarchyEdgeItem* edge) { edges << edge; }
   const QList<ElasticHierarchyEdgeItem*>& edgeItems () const { return edges; }
   QSizeF size () const { return nodeSize; }
+  void setHighlightState (HighlightState state, bool dimmed) {
+    highlightState= state;
+    setOpacity (dimmed ? 0.22 : 1.0);
+    update ();
+  }
 
 protected:
   QVariant itemChange (GraphicsItemChange change,
@@ -871,6 +888,9 @@ protected:
     QGraphicsItem::mousePressEvent (event);
   }
   void mouseReleaseEvent (QGraphicsSceneMouseEvent* event) override;
+  void hoverEnterEvent (QGraphicsSceneHoverEvent* event) override;
+  void hoverMoveEvent (QGraphicsSceneHoverEvent* event) override;
+  void hoverLeaveEvent (QGraphicsSceneHoverEvent* event) override;
 
 private:
   QString nodeId;
@@ -878,6 +898,8 @@ private:
   QString nodeKind;
   QGraphicsTextItem* textItem;
   QList<ElasticHierarchyEdgeItem*> edges;
+  bool movable;
+  HighlightState highlightState;
   bool pressed;
 };
 
@@ -898,6 +920,12 @@ public:
   int type () const override { return Type; }
   ElasticHierarchyNodeItem* sourceNode () const { return source; }
   ElasticHierarchyNodeItem* destinationNode () const { return destination; }
+  void setHighlighted (bool value, bool dimmed) {
+    highlighted= value;
+    setOpacity (dimmed ? 0.16 : 1.0);
+    setZValue (highlighted ? 1.5 : 1.0);
+    update ();
+  }
 
   void adjust () {
     if (source == nullptr || destination == nullptr) return;
@@ -924,7 +952,8 @@ public:
     QLineF line (sourcePoint, destinationPoint);
     if (line.length () < 1.0) return;
 
-    QPen pen (QColor ("#555555"), 1.6, Qt::SolidLine,
+    QPen pen (highlighted ? QColor ("#1466b8") : QColor ("#555555"),
+              highlighted ? 3.0 : 1.6, Qt::SolidLine,
               Qt::RoundCap, Qt::RoundJoin);
     painter->setPen (pen);
     painter->setBrush (pen.color ());
@@ -946,12 +975,15 @@ private:
   QPointF sourcePoint;
   QPointF destinationPoint;
   double arrowSize;
+  bool highlighted= false;
 };
 
 class ElasticHierarchyScene: public QGraphicsScene {
 public:
-  explicit ElasticHierarchyScene (const RHGraph& graph)
-    : building (true), stableTicks (0) {
+  explicit ElasticHierarchyScene (const RHGraph& graph, bool elastic,
+                                  bool referenceHover)
+    : elastic (elastic), referenceHover (referenceHover), building (true),
+      stableTicks (0), hoveredNode (nullptr) {
     setBackgroundBrush (QColor ("#fbfbfb"));
     setItemIndexMethod (QGraphicsScene::NoIndex);
 
@@ -960,7 +992,7 @@ public:
     for (const RHNode& node: adjusted.nodes) {
       QString target= graph_node_target (node, graph);
       ElasticHierarchyNodeItem* item=
-        new ElasticHierarchyNodeItem (node, target);
+        new ElasticHierarchyNodeItem (node, target, elastic);
       addItem (item);
       item->setPos (node.pos);
       nodes << item;
@@ -984,18 +1016,34 @@ public:
     center= nodes.isEmpty () ? QPointF () : sum / nodes.size ();
     building= false;
     expandSceneRect ();
-    startSimulation ();
   }
 
   void nodeMoved () {
     if (building) return;
     expandSceneRect ();
-    startSimulation ();
+    if (elastic && mouseGrabberItem () != nullptr) startSimulation ();
   }
 
   void nodeReleased () {
-    stableTicks= 0;
-    startSimulation ();
+    stopSimulation ();
+  }
+
+  void referenceHoverChanged (ElasticHierarchyNodeItem* node,
+                              Qt::KeyboardModifiers modifiers) {
+    if (!referenceHover) return;
+    hoveredNode= node;
+    applyReferenceHighlight (modifiers.testFlag (Qt::ShiftModifier));
+  }
+
+  void referenceHoverLeft (ElasticHierarchyNodeItem* node) {
+    if (!referenceHover || hoveredNode != node) return;
+    hoveredNode= nullptr;
+    clearReferenceHighlight ();
+  }
+
+  void referenceShiftChanged (bool pressed) {
+    if (referenceHover && hoveredNode != nullptr)
+      applyReferenceHighlight (pressed);
   }
 
 protected:
@@ -1007,10 +1055,73 @@ protected:
     advanceSimulation ();
   }
 
+  void keyPressEvent (QKeyEvent* event) override {
+    if (event->key () == Qt::Key_Shift) referenceShiftChanged (true);
+    QGraphicsScene::keyPressEvent (event);
+  }
+
+  void keyReleaseEvent (QKeyEvent* event) override {
+    if (event->key () == Qt::Key_Shift) referenceShiftChanged (false);
+    QGraphicsScene::keyReleaseEvent (event);
+  }
+
 private:
   void startSimulation () {
     stableTicks= 0;
     if (!timer.isActive ()) timer.start (40, this);
+  }
+
+  void stopSimulation () {
+    timer.stop ();
+    stableTicks= 0;
+    for (ElasticHierarchyNodeItem* node: nodes)
+      velocities[node]= QPointF ();
+  }
+
+  void clearReferenceHighlight () {
+    for (ElasticHierarchyNodeItem* node: nodes)
+      node->setHighlightState (
+        ElasticHierarchyNodeItem::NormalHighlight, false);
+    for (ElasticHierarchyEdgeItem* edge: edges)
+      edge->setHighlighted (false, false);
+  }
+
+  void applyReferenceHighlight (bool recursive) {
+    if (hoveredNode == nullptr) {
+      clearReferenceHighlight ();
+      return;
+    }
+
+    QSet<ElasticHierarchyNodeItem*> selectedNodes;
+    QSet<ElasticHierarchyEdgeItem*> selectedEdges;
+    QList<ElasticHierarchyNodeItem*> pending;
+    selectedNodes.insert (hoveredNode);
+    pending << hoveredNode;
+    while (!pending.isEmpty ()) {
+      ElasticHierarchyNodeItem* destination= pending.takeFirst ();
+      for (ElasticHierarchyEdgeItem* edge: edges) {
+        if (edge->destinationNode () != destination) continue;
+        selectedEdges.insert (edge);
+        ElasticHierarchyNodeItem* source= edge->sourceNode ();
+        if (selectedNodes.contains (source)) continue;
+        selectedNodes.insert (source);
+        if (recursive) pending << source;
+      }
+      if (!recursive) break;
+    }
+
+    for (ElasticHierarchyNodeItem* node: nodes) {
+      bool selected= selectedNodes.contains (node);
+      ElasticHierarchyNodeItem::HighlightState state=
+        node == hoveredNode ? ElasticHierarchyNodeItem::HoverHighlight :
+        selected ? ElasticHierarchyNodeItem::RelatedHighlight :
+                   ElasticHierarchyNodeItem::NormalHighlight;
+      node->setHighlightState (state, !selected);
+    }
+    for (ElasticHierarchyEdgeItem* edge: edges) {
+      bool selected= selectedEdges.contains (edge);
+      edge->setHighlighted (selected, !selected);
+    }
   }
 
   void expandSceneRect () {
@@ -1113,8 +1224,11 @@ private:
   QHash<ElasticHierarchyNodeItem*, QPointF> velocities;
   QBasicTimer timer;
   QPointF center;
+  bool elastic;
+  bool referenceHover;
   bool building;
   int stableTicks;
+  ElasticHierarchyNodeItem* hoveredNode;
 };
 
 QVariant
@@ -1138,6 +1252,30 @@ ElasticHierarchyNodeItem::mouseReleaseEvent (QGraphicsSceneMouseEvent* event) {
   if (ElasticHierarchyScene* elasticScene=
         dynamic_cast<ElasticHierarchyScene*> (scene ()))
     elasticScene->nodeReleased ();
+}
+
+void
+ElasticHierarchyNodeItem::hoverEnterEvent (QGraphicsSceneHoverEvent* event) {
+  if (ElasticHierarchyScene* elasticScene=
+        dynamic_cast<ElasticHierarchyScene*> (scene ()))
+    elasticScene->referenceHoverChanged (this, event->modifiers ());
+  QGraphicsItem::hoverEnterEvent (event);
+}
+
+void
+ElasticHierarchyNodeItem::hoverMoveEvent (QGraphicsSceneHoverEvent* event) {
+  if (ElasticHierarchyScene* elasticScene=
+        dynamic_cast<ElasticHierarchyScene*> (scene ()))
+    elasticScene->referenceHoverChanged (this, event->modifiers ());
+  QGraphicsItem::hoverMoveEvent (event);
+}
+
+void
+ElasticHierarchyNodeItem::hoverLeaveEvent (QGraphicsSceneHoverEvent* event) {
+  if (ElasticHierarchyScene* elasticScene=
+        dynamic_cast<ElasticHierarchyScene*> (scene ()))
+    elasticScene->referenceHoverLeft (this);
+  QGraphicsItem::hoverLeaveEvent (event);
 }
 
 static QGraphicsScene*
@@ -1196,9 +1334,10 @@ create_scene (const RHGraph& graph) {
 }
 
 static QGraphicsScene*
-create_pane_scene (const RHGraph& graph) {
-  if (interactive_elastic_graphs ())
-    return new ElasticHierarchyScene (graph);
+create_pane_scene (const RHGraph& graph, bool referenceHover = false) {
+  bool elastic= interactive_elastic_graphs ();
+  if (elastic || referenceHover)
+    return new ElasticHierarchyScene (graph, elastic, referenceHover);
   return create_scene (graph);
 }
 
@@ -1241,6 +1380,24 @@ public:
   }
 
 protected:
+  void keyPressEvent (QKeyEvent* event) override {
+    if (event->key () == Qt::Key_Shift) {
+      if (ElasticHierarchyScene* elasticScene=
+            dynamic_cast<ElasticHierarchyScene*> (scene ()))
+        elasticScene->referenceShiftChanged (true);
+    }
+    QGraphicsView::keyPressEvent (event);
+  }
+
+  void keyReleaseEvent (QKeyEvent* event) override {
+    if (event->key () == Qt::Key_Shift) {
+      if (ElasticHierarchyScene* elasticScene=
+            dynamic_cast<ElasticHierarchyScene*> (scene ()))
+        elasticScene->referenceShiftChanged (false);
+    }
+    QGraphicsView::keyReleaseEvent (event);
+  }
+
   void wheelEvent (QWheelEvent* event) override {
     const double factor= event->angleDelta ().y () > 0 ? 1.15 : 1.0 / 1.15;
     scale (factor, factor);
@@ -1864,7 +2021,7 @@ public:
 
     currentGraph= graph;
     hasCurrentGraph= true;
-    view->setOwnedScene (create_pane_scene (currentGraph));
+    view->setOwnedScene (create_pane_scene (currentGraph, true));
     QTimer::singleShot (0, view, [this] () { view->resetViewport (); });
     if (dockRef != nullptr && *dockRef != nullptr)
       (*dockRef)->setWindowTitle (graph.title);
@@ -1877,7 +2034,7 @@ public:
 
   void interactionPreferenceChanged () {
     if (!hasCurrentGraph) return;
-    view->setOwnedScene (create_pane_scene (currentGraph));
+    view->setOwnedScene (create_pane_scene (currentGraph, true));
     QTimer::singleShot (0, view, [this] () { view->resetViewport (); });
   }
 

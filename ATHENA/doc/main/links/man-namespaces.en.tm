@@ -205,9 +205,10 @@
 
   When <menu|Edit|Preferences|Rendering|Misc|Graphs|Use interactive elastic
   graphs> is enabled, nodes in the Reverse, Direct, and Global hierarchy graph
-  panes can be dragged. Connected nodes react during the drag and continue to
-  rebalance briefly after release. Drag empty graph background to pan the
-  viewport. Hierarchy graphs inserted into documents remain static images.
+  panes can be dragged. Connected nodes react only while a node is being
+  dragged; the graph remains stationary before a drag and immediately after
+  release. Drag empty graph background to pan the viewport. Hierarchy graphs
+  inserted into documents remain static images.
 
   <section|Document reference graphs>
 
@@ -224,7 +225,10 @@
   <verbatim|2> also expands references made by the first-level notes. Enable
   <em|Unlimited> to compute the full recursive closure, which was the original
   Reference Graph behavior. Both panes follow the active viewport by default
-  and provide a Refresh button.
+  and provide a Refresh button. Hover a node to highlight every direct
+  reference arrow pointing to it and the source nodes of those arrows. Hold
+  <key|Shift> while hovering to recursively highlight the complete subgraph
+  that leads to the node.
 
   Reference targets are resolved exclusively through the UUID map configured
   by <verbatim|Vaultfile.json> (<verbatim|map.sqlite> by default). Optional file
