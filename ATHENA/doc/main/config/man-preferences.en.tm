@@ -777,6 +777,11 @@
     <item*|Auto anchor structures on manual save>Automatically anchors
     enunciation-like structures when a document is manually saved.
 
+    <item*|Automatically approve anchor changes on manual save>Applies the
+    structural-anchor dry run without opening the confirmation dialog. This
+    affects only automatic anchoring during manual save; the explicit
+    <menu|Document|Anchor enunciations> command still asks for confirmation.
+
     <item*|Auto copy images to vault>Copies inserted images into the vault.
 
     <item*|Normalize image filename when inserting>Normalizes image file names

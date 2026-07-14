@@ -1499,8 +1499,15 @@ QTMPreferencesDialog::buildVaultPage () {
 
   QWidget* anchors= make_page ();
   QFormLayout* a= add_section (anchors, "Anchors and Images");
-  add_toggle (a, "Auto anchor structures on manual save:",
-              "vault auto anchor enunciations on save");
+  QCheckBox* autoAnchor= add_toggle (
+    a, "Auto anchor structures on manual save:",
+    "vault auto anchor enunciations on save");
+  QCheckBox* autoApproveAnchors= add_toggle (
+    a, "Automatically approve anchor changes on manual save:",
+    "vault auto approve anchor changes");
+  autoApproveAnchors->setEnabled (autoAnchor->isChecked ());
+  QObject::connect (autoAnchor, &QCheckBox::toggled,
+                    autoApproveAnchors, &QWidget::setEnabled);
   add_toggle (a, "Auto copy images to vault:",
               "vault auto copy images to vault");
   add_toggle (a, "Normalize image filename when inserting:",

@@ -989,7 +989,9 @@
                  (set-message "No structural anchors needed"
                               "Anchor structures")
                  (when cont (cont)))
-               (if (vault-anchor-confirm-native summary)
+               (if (or (== (get-preference
+                             "vault auto approve anchor changes") "on")
+                       (vault-anchor-confirm-native summary))
                    (vault-anchor-enunciations-confirmed-before-save buf cont)
                    (when cont (cont))))))))
 
@@ -1009,4 +1011,10 @@
                               (if answer "on" "off"))
               (equal? (get-preference
                        "vault auto anchor enunciations on save")
+                      "on")))
+    (item (text "Automatically approve anchor changes on manual save:")
+      (toggle (set-preference "vault auto approve anchor changes"
+                              (if answer "on" "off"))
+              (equal? (get-preference
+                       "vault auto approve anchor changes")
                       "on")))))
