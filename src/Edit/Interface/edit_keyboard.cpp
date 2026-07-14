@@ -446,3 +446,24 @@ edit_interface_rep::handle_keyboard_focus (bool has_focus, time_t t) {
     if (as_bool (call ("defined?", symbol_object ("db-show-toolbar"))))
       call ("db-show-toolbar");
 }
+
+void
+edit_interface_rep::handle_cursor_blink (bool visible) {
+  if (cursor_blink_visible == visible) return;
+  cursor_blink_visible= visible;
+  if (is_nil (eb) || !got_focus || inside_active_graphics ()) return;
+
+  SI dw= 0;
+  if (tremble_count > 3)
+    dw= (1 + min (tremble_count - 3, 25)) * 2 * pixel;
+  SI p2= 2 * zpixel;
+  SI p3= 3 * zpixel;
+  cursor cu= get_cursor ();
+  rectangle region (
+    cu->ox + ((SI) ((cu->y1 - dw) * cu->slope)) - p3 - dw,
+    cu->oy + cu->y1 - dw - p3,
+    cu->ox + ((SI) ((cu->y2 + dw) * cu->slope)) + p2 + dw,
+    cu->oy + cu->y2 + dw + p3);
+  copy_always= rectangles (region, copy_always);
+  invalidate (region->x1, region->y1, region->x2, region->y2);
+}

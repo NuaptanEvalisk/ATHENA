@@ -11,6 +11,7 @@
 #include "QTMPreferencesDialog.hpp"
 #include "QTMESCSymbolPicker.hpp"
 #include "QTMMainTabWindow.hpp"
+#include "QTMWidget.hpp"
 #include "QTMReverseHierarchyGraph.hpp"
 #include "QTMVaultInfoModel.hpp"
 #include "QTMRagDelegationClient.hpp"
@@ -968,6 +969,11 @@ QTMPreferencesDialog::buildGeneralPage () {
               {"native-light", "Native"}, {"", "Legacy"}}, "default", true);
   add_toggle (appearanceForm, "Use text toolbars instead of icon toolbars:",
               "text toolbar");
+  QCheckBox* blinkingCursor=
+    add_toggle (appearanceForm, "Blink the editing cursor:",
+                "blinking cursor");
+  QObject::connect (blinkingCursor, &QCheckBox::toggled,
+                    [] () { QTMWidget::refreshAllCursorBlinking (); });
   add_toggle (appearanceForm, "Use inertial scrolling:", "inertial scrolling");
   add_line_edit (appearanceForm, "Inertial momentum (0.80-0.99):",
                  "inertial scrolling friction", "0.95");

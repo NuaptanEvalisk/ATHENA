@@ -94,6 +94,11 @@ qt_simple_widget_rep::handle_keyboard_focus (bool has_focus, time_t t) {
 }
 
 void
+qt_simple_widget_rep::handle_cursor_blink (bool visible) {
+  (void) visible;
+}
+
+void
 qt_simple_widget_rep::handle_user_scroll (time_t t) {
   (void) t;
 }

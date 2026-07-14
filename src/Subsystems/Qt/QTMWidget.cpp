@@ -41,6 +41,7 @@
 #include <QApplication>
 #include <QInputMethod>
 #include <QNativeGestureEvent>
+#include <QStyleHints>
 #include <QScrollBar>
 #include <QTouchEvent>
 
@@ -98,6 +99,19 @@ QTMWidget::QTMWidget (QWidget* _parent, qt_widget _tmwid)
            this, [this] (int) { notifyUserScroll (); });
   connect (verticalScrollBar (), &QScrollBar::sliderMoved,
            this, [this] (int) { notifyUserScroll (); });
+  cursorBlinkTimer.setTimerType (Qt::CoarseTimer);
+  connect (&cursorBlinkTimer, &QTimer::timeout, this, [this] () {
+    if (get_preference ("blinking cursor", "on") != "on" ||
+        !hasFocus () || is_nil (tmwid) || !tm_widget ()->is_editor_widget ()) {
+      refreshCursorBlinking (false);
+      return;
+    }
+    setCursorBlinkVisible (!cursorBlinkVisible);
+  });
+  QStyleHints* hints= QGuiApplication::styleHints ();
+  if (hints != nullptr)
+    connect (hints, &QStyleHints::cursorFlashTimeChanged, this,
+             [this] (int) { refreshCursorBlinking (true); });
 
 #if (QT_VERSION >= QT_VERSION_CHECK(5,9,0))
   surface ()->setTabletTracking (true);
@@ -118,6 +132,43 @@ QTMWidget::~QTMWidget () {
   if (DEBUG_QT)
     debug_qt << "Destroying " << from_qstring(objectName()) << " of widget "
              << (tm_widget() ? tm_widget()->type_as_string() : "NULL") << LF;
+}
+
+void
+QTMWidget::setCursorBlinkVisible (bool visible) {
+  if (cursorBlinkVisible == visible) return;
+  cursorBlinkVisible= visible;
+  if (athena_qt_is_closing () || is_nil (tmwid)) return;
+  tm_widget ()->handle_cursor_blink (visible);
+  the_gui->need_update ();
+}
+
+void
+QTMWidget::refreshCursorBlinking (bool restart) {
+  bool enabled= get_preference ("blinking cursor", "on") == "on" &&
+                hasFocus () && !is_nil (tmwid) &&
+                tm_widget ()->is_editor_widget ();
+  QStyleHints* hints= QGuiApplication::styleHints ();
+  int flashTime= hints == nullptr ? 0 : hints->cursorFlashTime ();
+  if (!enabled || flashTime <= 0) {
+    cursorBlinkTimer.stop ();
+    setCursorBlinkVisible (true);
+    return;
+  }
+  cursorBlinkTimer.setInterval (std::max (1, flashTime / 2));
+  if (restart || !cursorBlinkTimer.isActive ()) {
+    cursorBlinkTimer.stop ();
+    setCursorBlinkVisible (true);
+    cursorBlinkTimer.start ();
+  }
+}
+
+void
+QTMWidget::refreshAllCursorBlinking () {
+  const auto widgets= QApplication::allWidgets ();
+  for (QWidget* widget: widgets)
+    if (QTMWidget* canvas= qobject_cast<QTMWidget*> (widget))
+      canvas->refreshCursorBlinking (true);
 }
 
 bool
@@ -715,6 +766,7 @@ void
 QTMWidget::setCursorPos (QPoint pos) {
   if (cursor_pos == pos) return;
   cursor_pos= pos;
+  refreshCursorBlinking (true);
   updateInputMethodCursorRectangle ();
 }
 
@@ -743,6 +795,7 @@ getShiftPreference (char key_code) {
 
 void
 QTMWidget::keyPressEvent (QKeyEvent* event) {
+  refreshCursorBlinking (true);
 #if QT_VERSION >= 0x060000
   if (handleNeighborhoodKeyShortcut (event)) return;
 #endif
@@ -808,6 +861,7 @@ QTMWidget::kbdEvent (int key, Qt::KeyboardModifiers mods, const QString& s) {
 
 void
 QTMWidget::inputMethodEvent (QInputMethodEvent* event) {
+  refreshCursorBlinking (true);
   QString const & preedit_string = event->preeditString();
   QString const & commit_string = event->commitString();
   
@@ -902,6 +956,7 @@ QTMWidget::inputMethodQuery (Qt::InputMethodQuery query) const {
 void
 QTMWidget::mousePressEvent (QMouseEvent* event) {
   if (is_nil (tmwid)) return;
+  refreshCursorBlinking (true);
   if (focusPolicy () != Qt::NoFocus) {
     if (!hasFocus ()) setFocus (Qt::MouseFocusReason);
   }
@@ -1285,6 +1340,7 @@ QTMWidget::focusInEvent (QFocusEvent * event) {
     the_gui->process_keyboard_focus (tm_widget(), true, texmacs_time());
   }
   QTMScrollView::focusInEvent (event);
+  refreshCursorBlinking (true);
   updateInputMethodCursorRectangle ();
   neighborhoods_pane_refresh ();
   // part 2/2 of the fix for bug 43373.
@@ -1303,6 +1359,8 @@ QTMWidget::focusOutEvent (QFocusEvent * event) {
   if (DEBUG_QT)
     debug_qt << "FOCUSOUT: " << tm_widget()->type_as_string() << LF;
 
+  cursorBlinkTimer.stop ();
+  setCursorBlinkVisible (true);
   the_gui -> process_keyboard_focus (tm_widget(), false, texmacs_time());
   
   QTMScrollView::focusOutEvent (event);

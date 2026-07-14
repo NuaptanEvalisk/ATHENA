@@ -57,7 +57,7 @@ edit_interface_rep::edit_interface_rep ():
   last_change (texmacs_time()), last_update (last_change-1),
   last_event (texmacs_time()),
   anim_next (1.0e12),
-  full_screen (false), got_focus (false),
+  full_screen (false), got_focus (false), cursor_blink_visible (true),
   sh_s (""), sh_mark (0),
   pre_edit_skip (false), pre_edit_s (""), pre_edit_mark (0),
   popup_win (),

@@ -33,6 +33,7 @@ protected:
   double        anim_next;     // time for next animation
   bool          full_screen;   // full screen mode ?
   bool          got_focus;     // do we have keyboard focus ?
+  bool          cursor_blink_visible;
   string        sh_s;          // current string for shortcuts
   double        sh_mark;       // 0 or mark for undoing shortcut
   bool          pre_edit_skip; // temporarily disabled pre-edit mechanism
@@ -240,6 +241,7 @@ public:
   void handle_notify_resize (SI w, SI h);
   void handle_keypress (string key, time_t t);
   void handle_keyboard_focus (bool has_focus, time_t t);
+  void handle_cursor_blink (bool visible);
   void handle_user_scroll (time_t t);
   void handle_mouse (string k, SI x, SI y, int m, time_t t, array<double> d);
   void handle_set_zoom_factor (double zoomf);

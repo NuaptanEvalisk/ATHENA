@@ -68,6 +68,10 @@
     focus-dependent, and user toolbars; popup menus and ordinary dialog
     buttons are unchanged.
 
+    <item*|Blink the editing cursor>Uses the desktop's Qt cursor flash time for
+    the document editing cursor. Disabling this option keeps the cursor
+    continuously visible.
+
     <item*|Use inertial scrolling>Enables continued scrolling after a scroll
     gesture, similar to touchpad momentum.
 

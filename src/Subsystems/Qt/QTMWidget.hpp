@@ -21,6 +21,7 @@
 #include <QPixmap>
 #include <QScreen>
 #include <QElapsedTimer>
+#include <QTimer>
 
 class qt_simple_widget_rep;
 class QScrollBar;
@@ -69,6 +70,7 @@ public:
   bool isPreediting () { return preediting; }
   static QTMWidget *getLastFocusedWidget();
   static void setFocusToLast();
+  static void refreshAllCursorBlinking ();
 #if QT_VERSION >= 0x060000
 protected slots:
   void devicePixelRatioChanged ();
@@ -110,6 +112,8 @@ protected:
 private:
   qreal lastPixelRatio = 0.0;
   QPointer<QScrollBar> tabletScrollBarTarget;
+  QTimer cursorBlinkTimer;
+  bool cursorBlinkVisible= true;
 #if QT_VERSION >= 0x060000
   bool viewPinchActive = false;
   bool viewPinchCommitPending = false;
@@ -130,6 +134,8 @@ private:
 #endif
 
   void updateInputMethodCursorRectangle () const;
+  void setCursorBlinkVisible (bool visible);
+  void refreshCursorBlinking (bool restart);
   bool forwardTabletEventToScrollBar (QTabletEvent* event);
   QScrollBar* scrollBarAtGlobalPosition (const QPoint& globalPos) const;
 #if QT_VERSION >= 0x060000
