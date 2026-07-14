@@ -570,24 +570,14 @@
       (notify-change 68)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Search widget
+;; Search and replace widget
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
 
 (tm-define (toggle-search-preference which)
   (:synopsis "Toggle the search preference @which")
   (:check-mark "v" preference-on?)
   (toggle-preference which)
   (perform-search*))
-
-(menu-bind search-preferences-menu
-  ("Allow blank matches" (toggle-search-preference "allow-blank-match"))
-  ("Allow initial matches" (toggle-search-preference "allow-initial-match"))
-  ("Allow partial matches" (toggle-search-preference "allow-partial-match"))
-  ("Allow injective matches" (toggle-search-preference "allow-injective-match"))
-  ("Allow cascaded matches" (toggle-search-preference "allow-cascaded-match"))
-  ("Disable case sensitivity"
-   (toggle-search-preference "case-insensitive-match")))
 
 (define (search-input-wrapper? t)
   (and (tree-is? t 'with)
@@ -602,84 +592,6 @@
   (if (buffer-exists? (search-buffer))
       (search-plain-document (buffer-get-body (search-buffer)))
       `(document "")))
-
-(tm-widget ((search-widget u style init aux) quit)
-  (padded
-    (resize '("600px" "900px" "2400px") '("120px" "140px" "220px")
-      (texmacs-input `(with ,@init ,(search-document))
-                     `(style (tuple ,@style)) aux))
-    ===
-    (hlist
-      ((balloon (icon "tm_search_first.xpm") "First occurrence")
-       (search-extreme-match #f))
-      ((balloon (icon "tm_search_previous.xpm") "Previous occurrence")
-       (search-next-match #f))
-      ((balloon (icon "tm_search_next.xpm") "Next occurrence")
-       (search-next-match #t))
-      ((balloon (icon "tm_search_last.xpm") "Last occurrence")
-       (search-extreme-match #t))
-      >>>
-      (=> (balloon (icon "tm_preferences.xpm") "Search preferences")
-          (link search-preferences-menu))
-      ((check (balloon (icon "tm_filter.xpm") "Only show paragraphs with hits")
-              "v" (search-filter-enabled?))
-       (search-toggle-filter))
-      ((balloon (icon "tm_compress_tool.xpm") "Compress into toolbar")
-       (set-boolean-preference "toolbar search" #t)
-       (quit)
-       (toolbar-search-start))
-      ((balloon (icon "tm_close_tool.xpm") "Close search tool")
-       (quit)))))
-
-(tm-tool* (search-tool win u style init aux)
-  (:name "Search")
-  (:quit ((search-cancel u)))
-  ===
-  (horizontal
-    //
-    (vertical
-      (resize "360px" "60px"
-        (texmacs-input `(with ,@init ,(search-document))
-                       `(style (tuple ,@style)) aux))
-      ===
-      (hlist
-        ((balloon (icon "tm_search_first.xpm") "First occurrence")
-         (search-extreme-match #f))
-        ((balloon (icon "tm_search_previous.xpm") "Previous occurrence")
-         (search-next-match #f))
-        ((balloon (icon "tm_search_next.xpm") "Next occurrence")
-         (search-next-match #t))
-        ((balloon (icon "tm_search_last.xpm") "Last occurrence")
-         (search-extreme-match #t))
-        >>>
-        (=> (balloon (icon "tm_preferences.xpm") "Search preferences")
-            (link search-preferences-menu))
-        ((check (balloon (icon "tm_filter.xpm")
-                         "Only show paragraphs with hits")
-                "v" (search-filter-enabled?))
-         (search-toggle-filter)))
-      ===)
-    //))
-
-(tm-define (open-search)
-  (:interactive #t)
-  (when (not (inside-search-buffer?))
-    (let* ((u (current-buffer))
-           (st (search-input-style))
-           (init (search-input-init))
-           (aux (search-buffer)))
-      (buffer-set-master aux u)
-      (set! search-window (current-window))
-      (set-search-reference (cursor-path))
-      (set-search-filter)
-      (set! search-filter-out? #f)
-      (ads-tool-pane (search-widget u st init aux)
-                     (search-cancel u)
-                     "Search" aux))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Search and replace widget
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
 (menu-bind replace-preferences-menu
@@ -814,10 +726,10 @@
       (global-search-show)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Search toolbar
+;; Search field used by the replace toolbar
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define (search-toolbar-search what)
+(define (replace-toolbar-search what)
   (let* ((u (current-buffer))
          (aux (search-buffer))
          (what-case (if (get-boolean-preference "case-insensitive-match")
@@ -829,7 +741,7 @@
     (set! search-window (current-window))
     (perform-search)))
 
-(tm-define (search-toolbar-keypress what r?)
+(tm-define (replace-search-keypress what)
   (with key (and (pair? what) (cadr what))
     (if (pair? what) (set! what (car what)))
     (set! current-search what)
@@ -845,67 +757,16 @@
            (search-next-match #f))
           ((in? key '("C-f" "A-f" "M-f" "C-g" "A-g" "M-g" "C-s" "A-s" "M-s"))
            (search-next-match #t))
-          ((and r? (in? key (list "tab" "S-tab" "return")))
-           (search-toolbar-search what)
+          ((in? key (list "tab" "S-tab" "return"))
+           (replace-toolbar-search what)
            (keyboard-focus-on "replace-by"))
-          ((== key "return") (search-rotate-match))
-          ((== key "escape") (toolbar-search-end))
-          ((string? what) (search-toolbar-search what))
+          ((== key "escape") (toolbar-replace-end))
+          ((string? what) (replace-toolbar-search what))
           (else (cancel-alt-selection "alternate")))))
 
-(tm-widget (search-toolbar)
-  ===
-  (hlist
-    //
-    (text "Search: ") //
-    ;;(resize "0.5w" "24px"
-    ;;  (texmacs-input `(document "")
-    ;;                 `(style (tuple "generic"))
-    ;;                 (search-buffer)))
-    (input (search-toolbar-keypress answer #f) "search"
-           (list (or current-search pending-key-strokes)) "25em")
-    // //
-    ((balloon (icon "tm_search_first.xpm") "First occurrence")
-     (search-extreme-match #f))
-    ((balloon (icon "tm_search_previous.xpm") "Previous occurrence")
-     (search-next-match #f))
-    ((balloon (icon "tm_search_next.xpm") "Next occurrence")
-     (search-next-match #t))
-    ((balloon (icon "tm_search_last.xpm") "Last occurrence")
-     (search-extreme-match #t))
-    >>>
-    ((check (balloon (icon "tm_filter.xpm") "Only show paragraphs with hits")
-            "v" (search-filter-enabled?))
-     (search-toggle-filter))
-    ((balloon (icon "tm_expand_tool.xpm") "Open search pane")
-     (toolbar-search-end)
-     (open-search))
-    ((balloon (icon "tm_close_tool.xpm") "Close search tool")
-     (toolbar-search-end))
-    //)
-  ===)
-
-(tm-define (toolbar-search-start)
-  (:interactive #t)
-  (search-show-all)
-  (set! search-filter-out? #f)
-  (set! toolbar-search-active? #t)
-  (set! toolbar-replace-active? #f)
-  (update-bottom-tools)
-  (search-toolbar-search "")
-  (wait-for-toolbar)
-  (notify-bar-change)
-  (delayed
-    (:idle 250)
-    (keyboard-focus-on "search")
-    (search-toolbar-search (or current-search pending-key-strokes))
-    (notify-bar-change)
-    (stop-waiting-for-toolbar)))
-
-(tm-define (toolbar-search-end)
+(tm-define (toolbar-replace-end)
   (cancel-alt-selection "alternate")
   (search-show-all)
-  (set! toolbar-search-active? #f)
   (set! toolbar-replace-active? #f)
   (update-bottom-tools)
   (set! search-serial (+ search-serial 1))
@@ -949,7 +810,7 @@
           ((== key "return") (replace-toolbar-replace by))
           ((== key "S-return") (undo 0) (perform-search*))
           ((== key "C-return") (replace-all))
-          ((== key "escape") (toolbar-search-end))
+          ((== key "escape") (toolbar-replace-end))
           (else (perform-search*)))))
 
 (tm-widget (replace-toolbar)
@@ -957,7 +818,7 @@
   (hlist
     //
     (text "Replace: ") //
-    (input (search-toolbar-keypress answer #t) "replace-what"
+    (input (replace-search-keypress answer) "replace-what"
            (list (or current-search pending-key-strokes)) "15em")
     //
     (text " by: ")
@@ -983,10 +844,10 @@
             "v" (search-filter-enabled?))
      (search-toggle-filter))
     ((balloon (icon "tm_expand_tool.xpm") "Open search and replace pane")
-     (toolbar-search-end)
+     (toolbar-replace-end)
      (open-replace))
     ((balloon (icon "tm_close_tool.xpm") "Close replace tool")
-     (toolbar-search-end))
+     (toolbar-replace-end))
     //)
   ===)
 
@@ -994,16 +855,15 @@
   (:interactive #t)
   (search-show-all)
   (set! search-filter-out? #f)
-  (set! toolbar-search-active? #f)
   (set! toolbar-replace-active? #t)
   (update-bottom-tools)
-  (search-toolbar-search "")
+  (replace-toolbar-search "")
   (wait-for-toolbar)
   (notify-bar-change)
   (delayed
     (:idle 250)
     (keyboard-focus-on "replace-what")
-    (search-toolbar-search pending-key-strokes)
+    (replace-toolbar-search pending-key-strokes)
     (notify-bar-change)
     (stop-waiting-for-toolbar)))
 
@@ -1088,13 +948,6 @@
 ;; Master routines
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-
-(tm-define (interactive-search)
-  (:interactive #t)
-  (set-boolean-preference "search-and-replace" #f)
-  (if (not (buffer-aux? (current-buffer)))
-      (toolbar-search-start)
-      (open-search)))
 
 (tm-define (interactive-replace)
   (:interactive #t)

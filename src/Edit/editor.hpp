@@ -578,6 +578,11 @@ public:
   virtual void search_start (bool forward= true) = 0;
   virtual void search_button_next () = 0;
   virtual bool search_keypress (string s) = 0;
+  virtual int document_search (tree what, bool case_insensitive) = 0;
+  virtual bool document_search_navigate (bool forward, bool extreme) = 0;
+  virtual void document_search_clear () = 0;
+  virtual int document_search_current () = 0;
+  virtual int document_search_total () = 0;
   virtual void replace_start (tree what, tree by, bool forward= true) = 0;
   virtual bool replace_keypress (string s) = 0;
   virtual void spell_start () = 0;

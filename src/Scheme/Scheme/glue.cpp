@@ -48,6 +48,7 @@
 #include "QTMWebsitesManager.hpp"
 #include "QTMReverseHierarchyGraph.hpp"
 #include "QTMFormulaAstViewer.hpp"
+#include "QTMDocumentSearchBar.hpp"
 #include "QTMVaultInfoModel.hpp"
 #include "QTMAbout.hpp"
 #include "QTMESCSymbolPicker.hpp"
@@ -1872,6 +1873,25 @@ tmg_namespace_create_file_with_optional_initializer (tmscm arg1) {
   return string_to_tmscm (error);
 }
 
+tmscm
+tmg_document_search_open () {
+  document_search_open ();
+  return TMSCM_UNSPECIFIED;
+}
+
+tmscm
+tmg_document_search_next (tmscm arg1) {
+  TMSCM_ASSERT_BOOL (arg1, TMSCM_ARG1, "document-search-next");
+  document_search_next (tmscm_to_bool (arg1));
+  return TMSCM_UNSPECIFIED;
+}
+
+tmscm
+tmg_document_search_close () {
+  document_search_close ();
+  return TMSCM_UNSPECIFIED;
+}
+
 void
 initialize_glue () {
   initialize_escape_symbol_picker_data ();
@@ -1945,6 +1965,12 @@ initialize_glue () {
                            tmg_google_cloud_todo_push_item, 2, 0, 0);
   tmscm_install_procedure ("codex-run-completion-async",
                            tmg_codex_run_completion_async, 5, 0, 0);
+  tmscm_install_procedure ("document-search-open",
+                           tmg_document_search_open, 0, 0, 0);
+  tmscm_install_procedure ("document-search-next",
+                           tmg_document_search_next, 1, 0, 0);
+  tmscm_install_procedure ("document-search-close",
+                           tmg_document_search_close, 0, 0, 0);
   tmscm_install_procedure ("namespace-manager-show",
                            namespace_manager_show, 0, 0, 0);
   tmscm_install_procedure ("namespace-explorer-show",

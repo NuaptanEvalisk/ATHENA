@@ -23,73 +23,56 @@
 ;; Extra toolbars at the bottom
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(tm-define toolbar-search-active? #f)
 (tm-define toolbar-replace-active? #f)
 (tm-define toolbar-spell-active? #f)
 (tm-define toolbar-db-active? #f)
 (tm-define toolbar-animate-active? #f)
 
 (tm-define (extra-bottom-tools?)
-  (or toolbar-search-active?
-      toolbar-replace-active?
+  (or toolbar-replace-active?
       toolbar-spell-active?
       toolbar-db-active?
       toolbar-animate-active?))
 
 (tm-widget (texmacs-bottom-toolbars)
-  (if toolbar-search-active?
-      (link search-toolbar))
-  (if (and toolbar-replace-active?
-           (not toolbar-search-active?))
+  (if toolbar-replace-active?
       (link replace-toolbar))
   (if (and toolbar-spell-active?
-           (not toolbar-search-active?)
            (not toolbar-replace-active?))
       (link spell-toolbar))
   (if (and toolbar-db-active?
-           (not toolbar-search-active?)
            (not toolbar-replace-active?)
            (not toolbar-spell-active?))
       (link db-toolbar))
   (if (and toolbar-animate-active?
-           (not toolbar-search-active?)
            (not toolbar-replace-active?)
            (not toolbar-spell-active?)
            (not toolbar-db-active?))
       (link animate-toolbar)))
 
 (tm-define (test-bottom-bar? which)
-  (cond ((== which "search")
-         toolbar-search-active?)
-        ((== which "replace")
-         (and toolbar-replace-active?
-              (not toolbar-search-active?)))
+  (cond ((== which "replace")
+         toolbar-replace-active?)
         ((== which "spell")
          (and toolbar-spell-active?
-              (not toolbar-search-active?)
               (not toolbar-replace-active?)))
         ((== which "database")
          (and toolbar-db-active?
-              (not toolbar-search-active?)
               (not toolbar-replace-active?)
               (not toolbar-spell-active?)))
         ((== which "animate")
          (and toolbar-animate-active?
-              (not toolbar-search-active?)
               (not toolbar-replace-active?)
               (not toolbar-spell-active?)
               (not toolbar-db-active?)))
         (else #f)))
 
 (tm-define (set-bottom-bar which val)
-  (set! toolbar-search-active? #f)
   (set! toolbar-replace-active? #f)
   (set! toolbar-spell-active? #f)
   (set! toolbar-db-active? #f)
   (set! toolbar-animate-active? #f)
-  (cond ((== which "search")
-         (set! toolbar-search-active? val))
-        ((== which "replace")
+  (cond ((== which "replace")
          (set! toolbar-replace-active? val))
         ((== which "spell")
          (set! toolbar-spell-active? val))

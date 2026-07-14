@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "QTMWidget.hpp"
+#include "QTMDocumentSearchBar.hpp"
 #include "qt_gui.hpp"
 #include "tm_window.hpp"
 #include "qt_utilities.hpp"
@@ -796,6 +797,11 @@ getShiftPreference (char key_code) {
 void
 QTMWidget::keyPressEvent (QKeyEvent* event) {
   refreshCursorBlinking (true);
+  if (event->key () == Qt::Key_F &&
+      event->modifiers ().testFlag (Qt::ControlModifier)) {
+    document_search_open ();
+    return;
+  }
 #if QT_VERSION >= 0x060000
   if (handleNeighborhoodKeyShortcut (event)) return;
 #endif

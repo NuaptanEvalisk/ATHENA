@@ -25,6 +25,9 @@ protected:
   tree        what_stack;    // last search trees
   tree        replace_by;    // replace tree
   int         nr_replaced;   // number of replaced occurrences
+  range_set   document_search_sels;
+  path        document_search_reference;
+  int         document_search_index;
 
   path        spell_end_p;   // spell check until here
   string      spell_s;       // the word being checked
@@ -66,6 +69,11 @@ public:
   void search_stop ();
   void search_button_next ();
   bool search_keypress (string s);
+  int document_search (tree what, bool case_insensitive);
+  bool document_search_navigate (bool forward, bool extreme);
+  void document_search_clear ();
+  int document_search_current ();
+  int document_search_total ();
   void replace_start (tree what, tree by, bool forward= true);
   void replace_next ();
   bool replace_keypress (string s);

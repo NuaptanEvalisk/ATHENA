@@ -201,7 +201,7 @@
   ((balloon (icon "tm_paste.xpm") "Paste text")
    (kbd-paste))
   ((balloon (icon "tm_find.xpm") "Find text")
-   (interactive-search))
+   (document-search-open))
   ((balloon (icon "tm_replace.xpm") "Query replace")
    (interactive-replace))
   (if (not (in-math?))

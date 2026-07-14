@@ -73,7 +73,7 @@
   (if (detailed-menus?)
       ("Clear" (kbd-cancel)))
   ---
-  ("Search" (interactive-search))
+  ("Search" (document-search-open))
   ("Global search" (open-global-search))
   ("Replace" (interactive-replace))
   (if (not (in-math?))

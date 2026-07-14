@@ -54,9 +54,9 @@
   ("preuve" (speech-proof))
   ("démonstration" (speech-proof))
 
-  ("chercher" (interactive-search))
-  ("résultat précédent" (search-next-match #f))
-  ("résultat suivant" (search-next-match #t))
+  ("chercher" (document-search-open))
+  ("résultat précédent" (document-search-next #f))
+  ("résultat suivant" (document-search-next #t))
   ("orthographe" (interactive-spell))
   ("remplacer" (interactive-replace))
   )

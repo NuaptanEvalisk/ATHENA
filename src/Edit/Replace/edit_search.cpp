@@ -14,12 +14,14 @@
 #include "drd_std.hpp"
 #include "drd_mode.hpp"
 #include "analyze.hpp"
+#include "tree_search.hpp"
 
 /******************************************************************************
 * Constructor and destructor
 ******************************************************************************/
 
-edit_replace_rep::edit_replace_rep () {}
+edit_replace_rep::edit_replace_rep ():
+  document_search_index (0) {}
 edit_replace_rep::~edit_replace_rep () {}
 
 /******************************************************************************
@@ -489,6 +491,100 @@ edit_replace_rep::search_keypress (string s) {
     }
   }
   return true;
+}
+
+/******************************************************************************
+* Native document search
+******************************************************************************/
+
+static int
+document_search_result_index (range_set sels, path start) {
+  for (int i=0; i+1<N(sels); i+=2)
+    if (sels[i] == start) return (i / 2) + 1;
+  return 0;
+}
+
+int
+edit_replace_rep::document_search (tree what, bool case_insensitive) {
+  if (document_search_reference == path ())
+    document_search_reference= copy (tp);
+
+  selection_cancel ();
+  if (is_empty (what)) {
+    cancel_alt_selection ("alternate");
+    document_search_sels= range_set ();
+    document_search_index= 0;
+    go_to (copy (document_search_reference));
+    return 0;
+  }
+
+  document_search_sels=
+    search (subtree (et, rp), what, rp, case_insensitive, 1000000);
+  set_alt_selection ("alternate", document_search_sels);
+  document_search_index= 0;
+  if (N(document_search_sels) < 2) {
+    go_to (copy (document_search_reference));
+    return 0;
+  }
+
+  range_set hit= next_search_hit (document_search_sels,
+                                  document_search_reference, false);
+  if (N(hit) < 2) hit= range (document_search_sels, 0, 2);
+  selection_set_range_set (hit);
+  go_to (copy (hit[0]));
+  document_search_index=
+    document_search_result_index (document_search_sels, hit[0]);
+  return N(document_search_sels) / 2;
+}
+
+bool
+edit_replace_rep::document_search_navigate (bool forward, bool extreme) {
+  if (N(document_search_sels) < 2) return false;
+  path current= document_search_index > 0
+    ? document_search_sels[2 * (document_search_index - 1)]
+    : document_search_reference;
+  range_set hit;
+  if (extreme)
+    hit= forward
+      ? range (document_search_sels, N(document_search_sels) - 2,
+               N(document_search_sels))
+      : range (document_search_sels, 0, 2);
+  else
+    hit= forward
+      ? next_search_hit (document_search_sels, current, true)
+      : previous_search_hit (document_search_sels, current, true);
+  if (N(hit) < 2)
+    hit= forward
+      ? range (document_search_sels, 0, 2)
+      : range (document_search_sels, N(document_search_sels) - 2,
+               N(document_search_sels));
+
+  selection_set_range_set (hit);
+  go_to (copy (hit[0]));
+  document_search_index=
+    document_search_result_index (document_search_sels, hit[0]);
+  return true;
+}
+
+void
+edit_replace_rep::document_search_clear () {
+  cancel_alt_selection ("alternate");
+  selection_cancel ();
+  document_search_sels= range_set ();
+  document_search_index= 0;
+  document_search_reference= path ();
+  set_message ("", "", true);
+  recall_message ();
+}
+
+int
+edit_replace_rep::document_search_current () {
+  return document_search_index;
+}
+
+int
+edit_replace_rep::document_search_total () {
+  return N(document_search_sels) / 2;
 }
 
 /******************************************************************************

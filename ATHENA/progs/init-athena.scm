@@ -217,8 +217,7 @@
 (lazy-define (generic generic-edit) notify-activated notify-disactivated
              wheel-capture?)
 (lazy-define (generic generic-doc) focus-help)
-(lazy-define (generic search-widgets) search-toolbar replace-toolbar
-             open-search toolbar-search-start interactive-search
+(lazy-define (generic search-widgets) replace-toolbar
              open-replace toolbar-replace-start interactive-replace
              search-next-match open-global-search)
 (lazy-define (generic spell-widgets) spell-toolbar
@@ -238,7 +237,6 @@
            document-colors-tool)
 (lazy-tool (generic pattern-tools)
            color-tool pattern-tool gradient-tool picture-tool)
-(tm-property (open-search) (:interactive #t))
 (tm-property (open-replace) (:interactive #t))
 (tm-property (open-paragraph-format) (:interactive #t))
 (tm-property (open-page-format) (:interactive #t)

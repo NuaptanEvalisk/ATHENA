@@ -278,9 +278,9 @@
   ("cut" (noop) (kbd-cut))
   ("paste" (noop) (kbd-paste))
   ("copy" (noop) (kbd-copy))
-  ("find" (noop) (interactive-search))
-  ("search find" (search-next-match #t))
-  ("search again" (search-next-match #t))
+  ("find" (noop) (document-search-open))
+  ("search find" (document-search-next #t))
+  ("search again" (document-search-next #t))
 
   ("copyto 1" (noop) (clipboard-copy "primary"))
   ("copyto 2" (clipboard-copy "secondary"))
@@ -347,8 +347,8 @@
   ("emacs n" (kbd-down))
   ("emacs p" (kbd-up))
   ("emacs q" (make 'symbol))
-  ("emacs r" (interactive-search))
-  ("emacs s" (interactive-search))
+  ("emacs r" (document-search-open))
+  ("emacs s" (document-search-open))
   ("emacs v" (kbd-page-down))
   ("emacs w" (kbd-cut))
   ("emacs y" (kbd-paste))
@@ -375,8 +375,8 @@
   ("emacs:prefix C-s" (save-buffer-manual))
   ("emacs:prefix C-w" (interactive save-buffer-as))
 
-  ("search emacs s" (search-next-match #t))
-  ("search emacs r" (search-next-match #f))
+  ("search emacs s" (document-search-next #t))
+  ("search emacs r" (document-search-next #f))
 
   ;; not implemented
   ;;("emacs h ..." (help ...))
@@ -496,7 +496,7 @@
   ("std a" (select-all))
   ("std b" (toggle-bold))
   ("std c" (kbd-copy))
-  ("std f" (interactive-search))
+  ("std f" (document-search-open))
   ("std F" (open-global-search))
   ("std i" (toggle-italic))
   ("std n" (new-document))
@@ -528,7 +528,7 @@
   ("std 7" (fit-all-to-screen))
   ("std 8" (fit-to-screen))
   ("std 9" (fit-to-screen-width))  
-  ("search std f" (search-next-match #t))
+  ("search std f" (document-search-next #t))
   ("search std F" (open-global-search)))
 
 (kbd-map
@@ -576,10 +576,10 @@
   ("A-left" (cursor-history-backward))
   ("A-right" (cursor-history-forward))
 
-  ("search F3" (search-next-match #t))
-  ("search S-F3" (search-next-match #f))
-  ("search gnome g" (search-next-match #t))
-  ("search gnome G" (search-next-match #f))
+  ("search F3" (document-search-next #t))
+  ("search S-F3" (document-search-next #f))
+  ("search gnome g" (document-search-next #t))
+  ("search gnome G" (document-search-next #f))
 
   ;; not yet implemented
   ;;("gnome delete" (delete-end-word))
@@ -641,8 +641,8 @@
   ("A-left" (cursor-history-backward))
   ("A-right" (cursor-history-forward))
 
-  ("search F3" (search-next-match #t))
-  ("search S-F3" (search-next-match #f))
+  ("search F3" (document-search-next #t))
+  ("search S-F3" (document-search-next #f))
 
   ;; not yet implemented
   ;;("kde N" (add-tab))
@@ -698,8 +698,8 @@
   ("macos S-up" (kbd-select go-start))
   ("macos S-down" (kbd-select go-end))
 
-  ("search macos g" (search-next-match #t))
-  ("search macos G" (search-next-match #f))
+  ("search macos g" (document-search-next #t))
+  ("search macos G" (document-search-next #f))
 
   ;; not yet supported
   ;;("macos :" (display-spelling-window))
@@ -806,10 +806,10 @@
   ("A-left" (cursor-history-backward))
   ("A-right" (cursor-history-forward))
 
-  ("search windows g" (search-next-match #t))
-  ("search windows G" (search-next-match #f))
-  ("search F3" (search-next-match #t))
-  ("search S-F3" (search-next-match #f))
+  ("search windows g" (document-search-next #t))
+  ("search windows G" (document-search-next #f))
+  ("search F3" (document-search-next #t))
+  ("search S-F3" (document-search-next #f))
 
   ;; not yet implemented
   ;;("F4" (go-to-different-folder))
