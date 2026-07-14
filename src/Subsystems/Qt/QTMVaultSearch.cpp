@@ -13,6 +13,7 @@
 #include "drd_mode.hpp"
 #include "fuzzy_rank.hpp"
 #include "qt_utilities.hpp"
+#include <QFile>
 #include <rapidfuzz/distance/Levenshtein.hpp>
 #include <rapidfuzz/fuzz.hpp>
 #include <algorithm>
@@ -20,6 +21,52 @@
 #include <cstdint>
 #include <deque>
 #include <utility>
+
+static QByteArray
+longest_ascii_word (const QString& query) {
+  QByteArray best;
+  QByteArray current;
+  for (QChar ch: query) {
+    ushort code= ch.unicode ();
+    bool word= (code >= '0' && code <= '9') ||
+               (code >= 'A' && code <= 'Z') ||
+               (code >= 'a' && code <= 'z') || code == '_';
+    if (word) current.append ((char) code);
+    else {
+      if (current.size () > best.size ()) best= current;
+      current.clear ();
+    }
+  }
+  if (current.size () > best.size ()) best= current;
+  return best;
+}
+
+VaultRawSearchPrefilter::VaultRawSearchPrefilter (
+  const QString& query, bool case_insensitive, bool fuzzy)
+  : caseInsensitive (case_insensitive)
+{
+  // Approximate structural matches need not preserve any particular query
+  // token.  Parsing every file in fuzzy mode is therefore the only
+  // false-negative-free policy for this raw-source prefilter.
+  if (!fuzzy) needle= longest_ascii_word (query);
+  if (caseInsensitive) needle= needle.toLower ();
+}
+
+bool
+VaultRawSearchPrefilter::isEffective () const {
+  return !needle.isEmpty ();
+}
+
+bool
+VaultRawSearchPrefilter::fileMayMatch (url file) const {
+  if (!isEffective ()) return true;
+  QFile input (to_qstring (concretize (file)));
+  if (!input.open (QIODevice::ReadOnly)) return true;
+  QByteArray source= input.readAll ();
+  if (input.error () != QFileDevice::NoError) return true;
+  if (caseInsensitive) source= source.toLower ();
+  return source.contains (needle);
+}
 
 static int
 fuzzy_subsequence_score (const QString& text, const QString& query) {

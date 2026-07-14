@@ -9,6 +9,7 @@
 ******************************************************************************/
 
 #include <QtTest/QtTest>
+#include <QTemporaryFile>
 #include "Qt/QTMVaultAnchorModel.hpp"
 #include "Qt/QTMVaultSearch.hpp"
 #include "Qt/qt_utilities.hpp"
@@ -25,6 +26,9 @@ private slots:
   void unicodeOffsetsMapToTeXmacsBytes ();
   void listFilteringRespectsOptions ();
   void recognizesEnunciationAnchorPairs ();
+  void rawPrefilterRejectsUnrelatedFiles ();
+  void rawPrefilterRespectsCaseOption ();
+  void rawPrefilterIsConservative ();
 };
 
 static std::vector<VaultContentMatch>
@@ -118,6 +122,55 @@ TestVaultSearch::recognizesEnunciationAnchorPairs () {
   paragraph.upper= "A paragraph anchor {";
   paragraph.lower= "A paragraph anchor }";
   QVERIFY (!anchor_pair_is_enunciation (paragraph));
+}
+
+static url
+temporarySource (QTemporaryFile& file, const QByteArray& source) {
+  if (!file.open ()) qFatal ("Unable to open temporary source file");
+  if (file.write (source) != source.size ())
+    qFatal ("Unable to write temporary source file");
+  if (!file.flush ()) qFatal ("Unable to flush temporary source file");
+  return url_system (from_qstring (file.fileName ()));
+}
+
+void
+TestVaultSearch::rawPrefilterRejectsUnrelatedFiles () {
+  QTemporaryFile matching;
+  QTemporaryFile unrelated;
+  url matchingUrl= temporarySource (
+    matching, "<\\body>The Banach fixed point theorem</body>");
+  url unrelatedUrl= temporarySource (
+    unrelated, "<\\body>A compactness argument</body>");
+  VaultRawSearchPrefilter filter ("Banach fixed point", false, false);
+  QVERIFY (filter.isEffective ());
+  QVERIFY (filter.fileMayMatch (matchingUrl));
+  QVERIFY (!filter.fileMayMatch (unrelatedUrl));
+}
+
+void
+TestVaultSearch::rawPrefilterRespectsCaseOption () {
+  QTemporaryFile file;
+  url source= temporarySource (file, "<\\body>BANACH theorem</body>");
+  VaultRawSearchPrefilter sensitive ("banach", false, false);
+  VaultRawSearchPrefilter insensitive ("banach", true, false);
+  QVERIFY (!sensitive.fileMayMatch (source));
+  QVERIFY (insensitive.fileMayMatch (source));
+}
+
+void
+TestVaultSearch::rawPrefilterIsConservative () {
+  QTemporaryFile file;
+  url source= temporarySource (file, "<\\body>unrelated source</body>");
+  VaultRawSearchPrefilter fuzzy ("misspeled query", false, true);
+  VaultRawSearchPrefilter unicode (QString::fromUtf8 ("数学知识"), false,
+                                  false);
+  QVERIFY (!fuzzy.isEffective ());
+  QVERIFY (fuzzy.fileMayMatch (source));
+  QVERIFY (!unicode.isEffective ());
+  QVERIFY (unicode.fileMayMatch (source));
+  VaultRawSearchPrefilter exact ("definitely absent", false, false);
+  QVERIFY (exact.fileMayMatch (
+    url_system (from_qstring (file.fileName () + ".missing"))));
 }
 
 QTEST_MAIN(TestVaultSearch)

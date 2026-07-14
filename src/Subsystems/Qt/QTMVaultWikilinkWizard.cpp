@@ -1177,12 +1177,31 @@ WikilinkSearchPage::startSearch () {
                return as_unix_string (a) < as_unix_string (b);
              });
 
-  int matchedFiles= 0;
-  std::vector<WikilinkSearchResult> collected;
+  VaultRawSearchPrefilter prefilter (
+    queryText, caseInsensitiveSearch (), fuzzySearch ());
+  std::vector<url> candidates;
+  int prefiltered= 0;
   progress->setRange (0, (int) files.size ());
   progress->setValue (0);
-  int scanned= 0;
   for (const url& file: files) {
+    if (searchStopRequested) break;
+    if (prefilter.fileMayMatch (file)) candidates.push_back (file);
+    prefiltered++;
+    progress->setValue (prefiltered);
+    statusLabel->setText (
+      QString ("Prefiltering source %1/%2; %3 candidate file(s).")
+        .arg (prefiltered)
+        .arg ((int) files.size ())
+        .arg ((int) candidates.size ()));
+    if ((prefiltered % 16) == 0) QApplication::processEvents ();
+  }
+
+  int matchedFiles= 0;
+  std::vector<WikilinkSearchResult> collected;
+  progress->setRange (0, (int) candidates.size ());
+  progress->setValue (0);
+  int scanned= 0;
+  for (const url& file: candidates) {
     if (searchStopRequested) break;
     std::vector<WikilinkSearchResult> fileHits;
     if (searchFile (file, query, fileHits) > 0) {
@@ -1193,9 +1212,9 @@ WikilinkSearchPage::startSearch () {
     scanned++;
     progress->setValue (scanned);
     statusLabel->setText (
-      QString ("Searching %1/%2 files; %3 occurrence(s) in %4 file(s).")
+      QString ("Inspecting %1/%2 candidate files; %3 occurrence(s) in %4 file(s).")
         .arg (scanned)
-        .arg ((int) files.size ())
+        .arg ((int) candidates.size ())
         .arg ((int) collected.size ())
         .arg (matchedFiles));
     if ((scanned % 8) == 0)
@@ -1204,16 +1223,17 @@ WikilinkSearchPage::startSearch () {
 
   if (searchStopRequested)
     statusLabel->setText (
-      QString ("Search stopped after %1/%2 files; %3 occurrence(s) in %4 file(s).")
+      QString ("Search stopped after %1/%2 candidate files; %3 occurrence(s) in %4 file(s).")
         .arg (scanned)
-        .arg ((int) files.size ())
+        .arg ((int) candidates.size ())
         .arg ((int) collected.size ())
         .arg (matchedFiles));
   else
     statusLabel->setText (
-      QString ("%1 occurrence(s) in %2 file(s), out of %3 scanned file(s). Click a { anchor below to insert.")
+      QString ("%1 occurrence(s) in %2 file(s); structurally inspected %3 of %4 source files. Click a { anchor below to insert.")
         .arg ((int) collected.size ())
         .arg (matchedFiles)
+        .arg ((int) candidates.size ())
         .arg ((int) files.size ()));
   std::stable_sort (
     collected.begin (), collected.end (),

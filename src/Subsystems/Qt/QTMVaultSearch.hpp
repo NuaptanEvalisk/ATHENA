@@ -16,6 +16,7 @@
 #include "tree.hpp"
 #include "tree_search.hpp"
 #include "url.hpp"
+#include <QByteArray>
 #include <QString>
 #include <vector>
 
@@ -48,6 +49,18 @@ struct VaultContentMatch {
   path   end;
   bool   exact;
   double score;
+};
+
+class VaultRawSearchPrefilter {
+  QByteArray needle;
+  bool       caseInsensitive;
+
+public:
+  VaultRawSearchPrefilter (const QString& query, bool case_insensitive,
+                           bool fuzzy);
+
+  bool isEffective () const;
+  bool fileMayMatch (url file) const;
 };
 
 int fuzzy_score (const QString& text, const QString& query);
