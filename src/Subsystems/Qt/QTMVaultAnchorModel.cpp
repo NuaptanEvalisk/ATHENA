@@ -131,3 +131,17 @@ collect_transclusion_pairs (const std::vector<WikilinkAnchorEntry>& anchors) {
   }
   return pairs;
 }
+
+int
+enclosing_anchor_pair_index (
+  const std::vector<TransclusionAnchorPair>& pairs, path where) {
+  int best= -1;
+  for (int i=0; i<(int) pairs.size (); i++) {
+    if (!path_less (pairs[i].upperWhere, where) ||
+        !path_less (where, pairs[i].lowerWhere))
+      continue;
+    if (best < 0 || path_less (pairs[best].upperWhere, pairs[i].upperWhere))
+      best= i;
+  }
+  return best;
+}

@@ -1303,9 +1303,25 @@ WikilinkSearchPage::updatePreview (QListWidgetItem* current) {
 
     std::vector<WikilinkAnchorEntry> allAnchors;
     collect_anchors (body, path (), allAnchors);
+    std::vector<TransclusionAnchorPair> pairs=
+      collect_transclusion_pairs (allAnchors);
+    int enclosing= enclosing_anchor_pair_index (pairs, result.hitStart);
+    if (enclosing >= 0) {
+      int upper= pairs[enclosing].upperIndex;
+      if (upper >= 0 && upper < (int) allAnchors.size () &&
+          is_wikilink_anchor (allAnchors[upper].anchor))
+        currentAnchors.push_back (allAnchors[upper]);
+    }
     for (const WikilinkAnchorEntry& a: allAnchors) {
       int top= path_top_index (a.where);
-      if (top >= first && top < last && is_wikilink_anchor (a.anchor))
+      bool duplicate= false;
+      for (const WikilinkAnchorEntry& current: currentAnchors)
+        if (current.where == a.where) {
+          duplicate= true;
+          break;
+        }
+      if (!duplicate && top >= first && top < last &&
+          is_wikilink_anchor (a.anchor))
         currentAnchors.push_back (a);
     }
   }

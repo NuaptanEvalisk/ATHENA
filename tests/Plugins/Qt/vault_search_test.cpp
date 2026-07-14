@@ -26,6 +26,7 @@ private slots:
   void unicodeOffsetsMapToTeXmacsBytes ();
   void listFilteringRespectsOptions ();
   void recognizesEnunciationAnchorPairs ();
+  void findsInnermostEnclosingAnchorPair ();
   void rawPrefilterRejectsUnrelatedFiles ();
   void rawPrefilterRespectsCaseOption ();
   void rawPrefilterIsConservative ();
@@ -122,6 +123,21 @@ TestVaultSearch::recognizesEnunciationAnchorPairs () {
   paragraph.upper= "A paragraph anchor {";
   paragraph.lower= "A paragraph anchor }";
   QVERIFY (!anchor_pair_is_enunciation (paragraph));
+}
+
+void
+TestVaultSearch::findsInnermostEnclosingAnchorPair () {
+  TransclusionAnchorPair outer;
+  outer.upperWhere= path (1);
+  outer.lowerWhere= path (8);
+  TransclusionAnchorPair inner;
+  inner.upperWhere= path (3);
+  inner.lowerWhere= path (6);
+  std::vector<TransclusionAnchorPair> pairs= { outer, inner };
+
+  QCOMPARE (enclosing_anchor_pair_index (pairs, path (4)), 1);
+  QCOMPARE (enclosing_anchor_pair_index (pairs, path (7)), 0);
+  QCOMPARE (enclosing_anchor_pair_index (pairs, path (9)), -1);
 }
 
 static url

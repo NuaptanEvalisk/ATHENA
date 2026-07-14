@@ -449,7 +449,7 @@ TransclusionEnunciationPage::TransclusionEnunciationPage (QWidget* parent)
   QWidget* left= new QWidget (this);
   QVBoxLayout* leftLayout= new QVBoxLayout (left);
   leftLayout->setContentsMargins (0, 0, 0, 0);
-  leftLayout->addWidget (new QLabel ("Enunciations:", this));
+  leftLayout->addWidget (new QLabel ("Anchored ranges:", this));
   leftLayout->addWidget (searchEdit);
   QHBoxLayout* filters= new QHBoxLayout ();
   filters->addWidget (caseInsensitiveCheck);
@@ -1069,6 +1069,7 @@ TransclusionSearchPage::TransclusionSearchPage (QWidget* parent)
   namespaceCombo->completer ()->setFilterMode (Qt::MatchContains);
 
   enunciationCombo= new QComboBox (this);
+  enunciationCombo->addItem ("Any", "");
   for (const WikilinkEnunciationFilterEntry& entry: wikilink_enunciation_filters)
     enunciationCombo->addItem (entry.label, entry.tag);
   enunciationCombo->setMinimumWidth (190);
@@ -1296,7 +1297,9 @@ TransclusionSearchPage::searchFile (
       bool caseInsensitive= caseInsensitiveSearch ();
       bool fuzzy= fuzzySearch ();
       for (const TransclusionAnchorPair& pair: pairs) {
-        if (!anchor_pair_matches_enunciation (pair, tag)) continue;
+        if (!tag.isEmpty () &&
+            !anchor_pair_matches_enunciation (pair, tag))
+          continue;
         tree range= build_preview_from_anchor_range (
           body, pair.upperWhere, pair.lowerWhere);
         std::vector<VaultContentMatch> matches;
@@ -1437,7 +1440,7 @@ TransclusionSearchPage::startSearch () {
     scanned++;
     progress->setValue (scanned);
     statusLabel->setText (
-      QString ("Inspecting %1/%2 candidate files; %3 enunciation(s) in %4 file(s).")
+      QString ("Inspecting %1/%2 candidate files; %3 range(s) in %4 file(s).")
         .arg (scanned)
         .arg ((int) candidates.size ())
         .arg ((int) collected.size ())
@@ -1448,14 +1451,14 @@ TransclusionSearchPage::startSearch () {
 
   if (searchStopRequested)
     statusLabel->setText (
-      QString ("Search stopped after %1/%2 candidate files; %3 enunciation(s) in %4 file(s).")
+      QString ("Search stopped after %1/%2 candidate files; %3 range(s) in %4 file(s).")
         .arg (scanned)
         .arg ((int) candidates.size ())
         .arg ((int) collected.size ())
         .arg (matchedFiles));
   else
     statusLabel->setText (
-      QString ("%1 enunciation(s) in %2 file(s); structurally inspected %3 of %4 source files.")
+      QString ("%1 range(s) in %2 file(s); structurally inspected %3 of %4 source files.")
         .arg ((int) collected.size ())
         .arg (matchedFiles)
         .arg ((int) candidates.size ())
