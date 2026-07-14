@@ -1209,6 +1209,7 @@ edit_typeset_rep::toc_fold_set_at (path p, bool folded) {
     unfolded_tocs->insert (key);
     folded_tocs->remove (key);
   }
+  notify_change (THE_FREEZE);
   fold_view_rebuild= true;
   typeset_invalidate_all ();
   invalidate_all ();
