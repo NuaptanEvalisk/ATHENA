@@ -14,6 +14,7 @@
 #include "drd_std.hpp"
 #include "drd_mode.hpp"
 #include "analyze.hpp"
+#include "tm_data.hpp"
 #include "tree_search.hpp"
 
 /******************************************************************************
@@ -573,8 +574,8 @@ edit_replace_rep::document_search_clear () {
   document_search_sels= range_set ();
   document_search_index= 0;
   document_search_reference= path ();
-  set_message ("", "", true);
-  recall_message ();
+  set_message ("", "");
+  set_center_message ("");
 }
 
 int
