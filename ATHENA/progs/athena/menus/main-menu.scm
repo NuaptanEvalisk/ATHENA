@@ -117,6 +117,9 @@
   (if (commutative-diagram-context-menu?)
       (link commutative-diagram-popup-menu))
   (if (commutative-diagram-context-menu?) ---)
+  (when (in-math?)
+    ("Inspect AST" (formula-ast-show))
+    ---)
   (link spell-live-popup-menu)
   (link focus-menu))
 

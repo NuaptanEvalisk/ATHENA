@@ -774,6 +774,7 @@
 "websites-manager-show"
 "global-search-show"
 "outline-pane-show"
+"formula-ast-show"
 "neighborhoods-pane-show"
 "error-messages-show"
 "command-palette-show"

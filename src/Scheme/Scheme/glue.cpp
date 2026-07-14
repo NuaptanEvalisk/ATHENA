@@ -47,6 +47,7 @@
 #include "QTMNamespaceExport.hpp"
 #include "QTMWebsitesManager.hpp"
 #include "QTMReverseHierarchyGraph.hpp"
+#include "QTMFormulaAstViewer.hpp"
 #include "QTMVaultInfoModel.hpp"
 #include "QTMAbout.hpp"
 #include "QTMESCSymbolPicker.hpp"
@@ -1960,6 +1961,8 @@ initialize_glue () {
                            tmg_direct_hierarchy_graph_show_namespace, 1, 0, 0);
   tmscm_install_procedure ("global-hierarchy-graph-show",
                            global_hierarchy_graph_show, 0, 0, 0);
+  tmscm_install_procedure ("formula-ast-show",
+                           formula_ast_show, 0, 0, 0);
   tmscm_install_procedure ("vault-validate-root-namespace",
                            tmg_vault_validate_root_namespace, 0, 0, 0);
   tmscm_install_procedure ("namespace-info-page",
