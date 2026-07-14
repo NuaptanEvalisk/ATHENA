@@ -10,6 +10,7 @@ window.onload=function(){
   installWindow('global-search');
   installWindow('quick-switcher');
   installWindow('viewer');
+  athenaInitShellMenus();
   byId('doc-back').onclick=athenaDocBack;
   byId('doc-forward').onclick=athenaDocForward;
   byId('doc-standalone').onclick=athenaOpenStandaloneDoc;

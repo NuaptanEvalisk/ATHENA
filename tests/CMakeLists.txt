@@ -6,6 +6,9 @@ foreach (_test_file ${TEST_SRC_FILES})
   add_executable (${_test_name}
     ${_test_file}
   )
+  target_include_directories (${_test_name} PRIVATE
+    ${ATHENA_SOURCE_DIR}/src
+  )
   target_link_libraries (${_test_name}
     athena_body
     mimalloc

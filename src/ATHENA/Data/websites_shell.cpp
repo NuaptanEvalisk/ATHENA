@@ -10,6 +10,8 @@
 
 #include "ATHENA/Data/websites_internal.hpp"
 
+#include <QCryptographicHash>
+
 namespace athena_websites {
 
 namespace {
@@ -25,11 +27,31 @@ replace_all (std::string& text, const std::string& from,
   }
 }
 
-bool
-write_template_file (const fs::path& target, const std::string& name) {
-  std::string text;
-  if (!website_template_text (name, text)) return false;
-  return write_file_bytes (target, text);
+struct ShellAsset {
+  std::string path;
+  std::string content;
+};
+
+std::string
+shell_asset_version (const std::string& index,
+                     const std::vector<ShellAsset>& assets) {
+  QCryptographicHash hash (QCryptographicHash::Sha256);
+  hash.addData (QByteArray::fromStdString (index));
+  for (const ShellAsset& asset: assets) {
+    hash.addData (QByteArray (1, '\0'));
+    hash.addData (QByteArray::fromStdString (asset.path));
+    hash.addData (QByteArray (1, '\0'));
+    hash.addData (QByteArray::fromStdString (asset.content));
+  }
+  return hash.result ().toHex ().left (16).toStdString ();
+}
+
+fs::path
+versioned_asset_path (const std::string& path, const std::string& version) {
+  fs::path source (path);
+  std::string filename = source.stem ().string () + "." + version +
+                         source.extension ().string ();
+  return source.parent_path () / filename;
 }
 
 std::string
@@ -221,28 +243,41 @@ write_site_shell (const athena_website_entry& website,
     error = "Could not read website template index.html.";
     return false;
   }
+
+  std::vector<ShellAsset> assets;
+  assets.push_back ({"css/site.css", ""});
+  if (!website_template_text ("site.css", assets.back ().content)) {
+    error = "Could not read website template site.css.";
+    return false;
+  }
+  assets.push_back ({"css/theme.css", site_theme_css ()});
+  assets.push_back ({"js/site-data.js",
+                     site_data_js (site_manifest (website, cx))});
+  for (const std::string& name: {
+         "window-manager.js", "explorers.js", "outline.js", "search.js",
+         "quick-switcher.js", "app.js"}) {
+    ShellAsset asset {"js/" + name, ""};
+    if (!website_template_text (name, asset.content)) {
+      error = "Could not read website template " + name + ".";
+      return false;
+    }
+    assets.push_back (std::move (asset));
+  }
+
+  std::string asset_version = shell_asset_version (index, assets);
   replace_all (index, "{{TITLE}}", website.name);
   replace_all (index, "{{CANONICAL}}", canonical_link (website));
   replace_all (index, "{{DESCRIPTION_META}}", description_meta (website));
+  replace_all (index, "{{ASSET_VERSION}}", asset_version);
 
-  if (!write_template_file (cx.destination / "css" / "site.css",
-                            "site.css") ||
-      !write_file_bytes (cx.destination / "css" / "theme.css",
-                         site_theme_css ()) ||
-      !write_file_bytes (cx.destination / "js" / "site-data.js",
-                         site_data_js (site_manifest (website, cx))) ||
-      !write_template_file (cx.destination / "js" / "window-manager.js",
-                            "window-manager.js") ||
-      !write_template_file (cx.destination / "js" / "explorers.js",
-                            "explorers.js") ||
-      !write_template_file (cx.destination / "js" / "outline.js",
-                            "outline.js") ||
-      !write_template_file (cx.destination / "js" / "search.js",
-                            "search.js") ||
-      !write_template_file (cx.destination / "js" / "quick-switcher.js",
-                            "quick-switcher.js") ||
-      !write_template_file (cx.destination / "js" / "app.js", "app.js") ||
-      !write_file_bytes (cx.destination / "index.html", index)) {
+  for (const ShellAsset& asset: assets)
+    if (!write_file_bytes (cx.destination /
+                           versioned_asset_path (asset.path, asset_version),
+                           asset.content)) {
+      error = "Could not write website shell asset " + asset.path + ".";
+      return false;
+    }
+  if (!write_file_bytes (cx.destination / "index.html", index)) {
     error = "Could not write website shell files.";
     return false;
   }

@@ -6,7 +6,12 @@ function renderResults(container, items){
     var li=document.createElement('li');
     if(index===0) li.className='active';
     li.tabIndex=0;
-    li.onclick=function(){athenaOpenDoc(item.html||item.homepage);};
+    var href=item.html||item.homepage;
+    li.onclick=function(){athenaOpenDoc(href);};
+    li.onkeydown=function(ev){
+      if(ev.key==='Enter' || ev.key===' '){li.click();ev.preventDefault();}
+    };
+    athenaInstallDocumentContext(li,href);
     var title=document.createElement('div'); title.className='result-title';
     title.textContent=item.title||item.name||item.path;
     var path=document.createElement('div'); path.className='result-path';

@@ -52,12 +52,16 @@ function athenaRenderOutline(headings){
     var li=document.createElement('li');
     li.className='outline-level-'+item.level;
     var a=document.createElement('a');
-    a.href='#';
+    var frame=byId('docframe');
+    var current=frame ? frame.getAttribute('src') : '';
+    var href=(current||'').split('#')[0]+'#'+encodeURIComponent(item.id);
+    a.href=href;
     a.textContent=item.text;
     a.onclick=function(ev){
       ev.preventDefault();
       athenaScrollDocumentToHeading(item.id);
     };
+    athenaInstallDocumentContext(a,href);
     li.appendChild(a);
     ul.appendChild(li);
   });

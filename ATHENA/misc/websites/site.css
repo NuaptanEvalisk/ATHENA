@@ -4,10 +4,23 @@
 *{box-sizing:border-box}
 html,body{height:100%;margin:0;background:#b7b7b7;color:#111;font:14px 'Courier New',monospace}
 button,input,select{font:inherit}
+[hidden]{display:none!important}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+:focus-visible{outline:3px solid #ffbf00;outline-offset:2px}
 .desktop{position:relative;height:calc(100% - 28px);overflow:hidden;background:#9aa0a6}
-.taskbar{height:27px;display:flex;gap:4px;align-items:center;background:#c8c8c8;border-top:1px solid #777;padding:0 6px;overflow:hidden}
+.taskbar{position:relative;height:27px;display:flex;gap:4px;align-items:center;background:#c8c8c8;border-top:1px solid #777;padding:0 6px;overflow:visible}
+.task-buttons{display:flex;gap:4px;align-items:center;min-width:0;flex:1;overflow:hidden}
+.start-button{height:22px;min-width:74px;border:2px outset #eee;background:#ddd;color:#111;padding:0 10px;font-weight:bold;cursor:pointer}
+.start-button[aria-expanded="true"]{border-style:inset;background:#f2f2f2}
 .task{height:21px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border:2px outset #eee;background:#ddd;color:#111;padding:0 8px;cursor:pointer}
 .task.active{border-style:inset;background:#f2f2f2}
+.popup-menu{z-index:15000;min-width:210px;background:#eee;border:2px outset #fff;box-shadow:3px 3px 0 #555;padding:3px}
+.start-menu{position:absolute;left:5px;bottom:27px}
+.context-menu{position:fixed}
+.menu-item{display:block;width:100%;min-height:28px;border:0;background:transparent;color:#111;padding:4px 18px 4px 8px;text-align:left;cursor:pointer}
+.menu-item:hover,.menu-item:focus{background:#0a246a;color:#fff;outline:none}
+.menu-item:disabled{color:#777;background:transparent;cursor:default}
+.menu-separator{height:1px;margin:3px 4px;background:#888;border-bottom:1px solid #fff}
 .win{position:absolute;background:#eee;border:2px solid #333;box-shadow:4px 4px 0 #666;min-width:220px;min-height:120px}
 .win.minimized,.win.closed{display:none}
 .win.maximized{box-shadow:none}
@@ -72,12 +85,27 @@ button,input,select{font:inherit}
 #viewer .content{overflow:hidden}
 .resize{position:absolute;right:0;bottom:0;width:12px;height:12px;background:#555;cursor:nwse-resize}
 .modal{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:#f0f0f0;border:2px solid #222;box-shadow:4px 4px 0 #555;padding:14px;z-index:9999;display:none;max-width:420px}
+.modal:not([hidden]){display:block}
 .modal button{float:right;margin-top:10px}
+
+@media (prefers-reduced-motion:reduce) {
+*{scroll-behavior:auto!important}
+}
+
+@media (prefers-contrast:more) {
+.win,.popup-menu,.modal{border-color:#000;box-shadow:none}
+.title,.menu-item:hover,.menu-item:focus{background:#000;color:#fff}
+}
 
 @media (max-width:720px), (pointer:coarse) {
 html,body{font-size:15px;overflow:hidden}
 .desktop{height:calc(100% - 58px);overflow:hidden}
-.taskbar{height:58px;gap:6px;padding:6px;overflow-x:auto;overflow-y:hidden;align-items:stretch;scrollbar-width:thin}
+.taskbar{height:58px;gap:6px;padding:6px;align-items:stretch}
+.task-buttons{overflow-x:auto;overflow-y:hidden;scrollbar-width:thin}
+.start-button{height:44px;min-width:82px;padding:0 12px}
+.start-menu{left:6px;bottom:58px;max-width:calc(100vw - 12px)}
+.popup-menu{min-width:240px}
+.menu-item{min-height:42px;padding:8px 14px}
 .task{height:44px;min-width:108px;max-width:160px;padding:0 10px;font-size:14px;text-align:left;white-space:normal;line-height:17px}
 .win,.win.maximized{position:absolute;left:0!important;top:0!important;width:100%!important;height:100%!important;min-width:0;min-height:0;border:2px solid #333;box-shadow:none}
 .title{height:42px;padding:0 8px;cursor:default}

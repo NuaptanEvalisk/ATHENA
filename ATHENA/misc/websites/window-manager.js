@@ -4,16 +4,20 @@ var athenaDocHistory=[];
 var athenaDocIndex=-1;
 var athenaBooting=true;
 var athenaRestoringState=false;
+var athenaPopupReturnFocus=null;
+
 function byId(id){return document.getElementById(id);}
 function athenaTaskId(id){return 'task-'+id;}
-function athenaTaskFor(id){
-  return byId(athenaTaskId(id));
-}
+function athenaTaskFor(id){return byId(athenaTaskId(id));}
 function athenaManagedWindows(){
   return ['vault','namespaces','outline','global-search','quick-switcher','viewer'];
 }
 function athenaAuxiliaryWindows(){
   return ['vault','namespaces','outline','global-search','quick-switcher'];
+}
+function athenaWindowLabel(id){
+  var win=byId(id), caption=win&&win.querySelector('.caption');
+  return caption ? caption.textContent : id;
 }
 function athenaStorageKey(){
   var data=window.ATHENA_SITE_DATA || {};
@@ -54,7 +58,7 @@ function athenaSaveState(){
     (byId('docframe') ? byId('docframe').getAttribute('src') : '');
   try{
     localStorage.setItem(athenaStorageKey(),JSON.stringify({
-      version:1,
+      version:2,
       currentDoc:current || '',
       docHistory:athenaDocHistory,
       docIndex:athenaDocIndex,
@@ -63,6 +67,53 @@ function athenaSaveState(){
     }));
   }
   catch(e){}
+}
+function athenaSetWindowVisibility(win){
+  if(!win) return;
+  var unavailable=win.classList.contains('closed') ||
+    win.classList.contains('minimized');
+  win.setAttribute('aria-hidden',unavailable ? 'true' : 'false');
+}
+function athenaSyncTask(id){
+  var win=byId(id), tasks=byId('task-buttons');
+  if(!win || !tasks) return null;
+  var task=athenaTaskFor(id);
+  if(win.classList.contains('closed')){
+    if(task) task.remove();
+    athenaSetWindowVisibility(win);
+    return null;
+  }
+  if(!task){
+    task=document.createElement('button');
+    task.type='button';
+    task.id=athenaTaskId(id);
+    task.className='task';
+    task.setAttribute('aria-controls',id);
+    task.onclick=function(){
+      if(win.classList.contains('minimized')) win.athenaShow();
+      else athenaFocusWindow(win);
+    };
+    task.oncontextmenu=function(ev){
+      ev.preventDefault();
+      athenaShowWindowContext(id,ev.clientX,ev.clientY,task);
+    };
+    task.onkeydown=function(ev){
+      if(ev.key==='ContextMenu' || (ev.shiftKey && ev.key==='F10')){
+        var rect=task.getBoundingClientRect();
+        athenaShowWindowContext(id,rect.left,rect.top,task);
+        ev.preventDefault();
+      }
+    };
+    tasks.appendChild(task);
+  }
+  task.textContent=athenaWindowLabel(id);
+  task.setAttribute('aria-label',athenaWindowLabel(id));
+  task.classList.toggle('active',!win.classList.contains('minimized') &&
+    Number(win.style.zIndex||0)===athenaTopZ);
+  task.setAttribute('aria-pressed',task.classList.contains('active') ?
+    'true' : 'false');
+  athenaSetWindowVisibility(win);
+  return task;
 }
 function athenaApplyWindowState(id,state){
   var win=byId(id);
@@ -73,8 +124,7 @@ function athenaApplyWindowState(id,state){
   win.classList.toggle('closed',!!state.closed);
   win.classList.toggle('minimized',!!state.minimized);
   win.classList.toggle('maximized',!!state.maximized);
-  var task=athenaTaskFor(id);
-  if(task) task.classList.toggle('active',!state.closed && !state.minimized);
+  athenaSyncTask(id);
 }
 function athenaApplySavedState(state){
   if(!state || !state.windows) return false;
@@ -94,6 +144,10 @@ function athenaApplySavedState(state){
   return true;
 }
 function athenaDefaultLayout(){
+  athenaManagedWindows().forEach(function(id){
+    var win=byId(id);
+    if(win && win.athenaReset) win.athenaReset({silent:true});
+  });
   athenaAuxiliaryWindows().forEach(function(id){
     var win=byId(id);
     if(win && win.athenaClose) win.athenaClose({silent:true});
@@ -101,6 +155,10 @@ function athenaDefaultLayout(){
   var viewer=byId('viewer');
   if(viewer && viewer.athenaMaximize) viewer.athenaMaximize({silent:true});
   athenaFocusWindow(viewer);
+}
+function athenaResetLayout(){
+  athenaDefaultLayout();
+  athenaSaveState();
 }
 function athenaOpenInitialDoc(path,state){
   if(state && Array.isArray(state.docHistory) && state.docHistory.length){
@@ -117,14 +175,22 @@ function athenaOpenInitialDoc(path,state){
   else openDoc(path || 'about:blank');
 }
 function athenaFocusWindow(win){
-  if(!win || win.classList.contains('closed')) return;
+  if(!win || win.classList.contains('closed') ||
+     win.classList.contains('minimized')) return;
   athenaTopZ+=1;
   win.style.zIndex=athenaTopZ;
-  document.querySelectorAll('.task').forEach(function(t){t.classList.remove('active');});
-  var task=athenaTaskFor(win.id);
-  if(task) task.classList.add('active');
+  document.querySelectorAll('.task').forEach(function(task){
+    task.classList.remove('active');
+    task.setAttribute('aria-pressed','false');
+  });
+  var task=athenaSyncTask(win.id);
+  if(task){
+    task.classList.add('active');
+    task.setAttribute('aria-pressed','true');
+  }
   athenaSaveState();
 }
+
 function athenaDocStem(path){
   if(!path || path==='about:blank') return 'Document';
   var clean=String(path).split('#')[0].split('?')[0];
@@ -144,8 +210,7 @@ function athenaSetDocTitle(path){
   var title=athenaDocStem(path);
   var cap=byId('viewer-title');
   if(cap) cap.textContent=title;
-  var task=athenaTaskFor('viewer');
-  if(task) task.textContent=title;
+  athenaSyncTask('viewer');
 }
 function athenaUpdateDocNav(){
   var back=byId('doc-back'), forward=byId('doc-forward');
@@ -159,7 +224,7 @@ function athenaUpdateDocNav(){
     standalone.disabled=!current || current==='about:blank';
   }
 }
-function openDoc(path, options){
+function openDoc(path,options){
   options=options||{};
   byId('docframe').src=path;
   if(!options.noHistory){
@@ -173,24 +238,20 @@ function openDoc(path, options){
   athenaSetDocTitle(path);
   athenaUpdateDocNav();
   var viewer=byId('viewer');
-  if(!options.preserveViewerState){
-    if(viewer){
-      viewer.classList.remove('closed');
-      viewer.classList.remove('minimized');
-      var task=athenaTaskFor('viewer');
-      if(task) task.classList.add('active');
-    }
-    athenaFocusWindow(viewer);
-  }
+  if(!options.preserveViewerState && viewer && viewer.athenaShow)
+    viewer.athenaShow();
   athenaSaveState();
 }
 function athenaOpenDoc(path){openDoc(path);}
-function athenaOpenStandaloneDoc(){
-  var path=athenaDocIndex>=0 ? athenaDocHistory[athenaDocIndex] :
-    (byId('docframe') ? byId('docframe').getAttribute('src') : '');
+function athenaOpenPathInNewTab(path){
   if(!path || path==='about:blank') return;
   var tab=window.open(path,'_blank','noopener');
   if(tab) tab.opener=null;
+}
+function athenaOpenStandaloneDoc(){
+  var path=athenaDocIndex>=0 ? athenaDocHistory[athenaDocIndex] :
+    (byId('docframe') ? byId('docframe').getAttribute('src') : '');
+  athenaOpenPathInNewTab(path);
 }
 function athenaDocBack(){
   if(athenaDocIndex<=0) return;
@@ -203,20 +264,170 @@ function athenaDocForward(){
   openDoc(athenaDocHistory[athenaDocIndex],{noHistory:true});
 }
 function athenaMissingTarget(target){
-  var m=byId('missing-modal');
+  var modal=byId('missing-modal');
   byId('missing-text').textContent='Destination is not in the exported site: '+target;
-  m.style.display='block';
-  m.style.zIndex=++athenaTopZ;
+  modal.hidden=false;
+  modal.style.zIndex=++athenaTopZ;
+  var button=modal.querySelector('button');
+  if(button) button.focus();
 }
-function closeMissing(){byId('missing-modal').style.display='none';}
+function closeMissing(){byId('missing-modal').hidden=true;}
+
+function athenaHidePopup(menu,restoreFocus){
+  if(!menu || menu.hidden) return;
+  menu.hidden=true;
+  menu.innerHTML='';
+  if(restoreFocus && athenaPopupReturnFocus && athenaPopupReturnFocus.focus)
+    athenaPopupReturnFocus.focus();
+  athenaPopupReturnFocus=null;
+  var start=byId('start-button');
+  if(start) start.setAttribute('aria-expanded','false');
+}
+function athenaHideMenus(restoreFocus){
+  athenaHidePopup(byId('start-menu'),restoreFocus);
+  athenaHidePopup(byId('context-menu'),restoreFocus);
+}
+function athenaMenuButton(item,menu){
+  if(item.separator){
+    var separator=document.createElement('div');
+    separator.className='menu-separator';
+    separator.setAttribute('role','separator');
+    return separator;
+  }
+  var button=document.createElement('button');
+  button.type='button';
+  button.className='menu-item';
+  button.setAttribute('role','menuitem');
+  button.textContent=item.label;
+  button.disabled=!!item.disabled;
+  button.onclick=function(){
+    athenaHidePopup(menu,false);
+    item.action();
+  };
+  return button;
+}
+function athenaPopulateMenu(menu,items){
+  menu.innerHTML='';
+  items.forEach(function(item){menu.appendChild(athenaMenuButton(item,menu));});
+  menu.onkeydown=function(ev){
+    var buttons=Array.prototype.slice.call(menu.querySelectorAll('.menu-item:not(:disabled)'));
+    var index=buttons.indexOf(document.activeElement);
+    if(ev.key==='ArrowDown' && buttons.length){
+      buttons[(index+1+buttons.length)%buttons.length].focus(); ev.preventDefault();
+    }
+    else if(ev.key==='ArrowUp' && buttons.length){
+      buttons[(index-1+buttons.length)%buttons.length].focus(); ev.preventDefault();
+    }
+    else if(ev.key==='Home' && buttons.length){buttons[0].focus();ev.preventDefault();}
+    else if(ev.key==='End' && buttons.length){buttons[buttons.length-1].focus();ev.preventDefault();}
+    else if(ev.key==='Escape'){athenaHidePopup(menu,true);ev.preventDefault();}
+  };
+}
+function athenaShowPopup(menu,items,x,y,opener){
+  athenaHideMenus(false);
+  athenaPopupReturnFocus=opener || document.activeElement;
+  athenaPopulateMenu(menu,items);
+  menu.hidden=false;
+  if(typeof x==='number'){
+    menu.style.left=Math.max(4,Math.min(x,window.innerWidth-menu.offsetWidth-4))+'px';
+    menu.style.top=Math.max(4,Math.min(y,window.innerHeight-menu.offsetHeight-4))+'px';
+  }
+  var first=menu.querySelector('.menu-item:not(:disabled)');
+  if(first) first.focus();
+}
+function athenaWindowMenuItems(id){
+  var win=byId(id), closed=win.classList.contains('closed');
+  var minimized=win.classList.contains('minimized');
+  var maximized=win.classList.contains('maximized');
+  return [
+    {label:'Open',disabled:!closed&&!minimized,action:function(){win.athenaShow();}},
+    {label:'Restore',disabled:closed||!maximized,action:function(){win.athenaRestore();}},
+    {label:'Minimize',disabled:closed||minimized,action:function(){win.athenaMinimize();}},
+    {label:'Maximize',disabled:closed||maximized,action:function(){win.athenaMaximize();}},
+    {separator:true},
+    {label:'Close',disabled:closed,action:function(){win.athenaClose();}}
+  ];
+}
+function athenaShowWindowContext(id,x,y,opener){
+  athenaShowPopup(byId('context-menu'),athenaWindowMenuItems(id),x,y,opener);
+}
+function athenaShowDocumentContext(path,x,y,opener){
+  athenaShowPopup(byId('context-menu'),[
+    {label:'Open',action:function(){athenaOpenDoc(path);}},
+    {label:'Open in new tab',action:function(){athenaOpenPathInNewTab(path);}}
+  ],x,y,opener);
+}
+function athenaInstallDocumentContext(element,path){
+  if(!element || !path) return;
+  element.setAttribute('data-athena-document',path);
+  element.oncontextmenu=function(ev){
+    ev.preventDefault();
+    athenaShowDocumentContext(path,ev.clientX,ev.clientY,element);
+  };
+  element.addEventListener('keydown',function(ev){
+    if(ev.key==='ContextMenu' || (ev.shiftKey && ev.key==='F10')){
+      var rect=element.getBoundingClientRect();
+      athenaShowDocumentContext(path,rect.left,rect.bottom,element);
+      ev.preventDefault();
+    }
+  });
+}
+function athenaStartItems(){
+  var items=athenaManagedWindows().map(function(id){
+    return {label:athenaWindowLabel(id),action:function(){byId(id).athenaShow();}};
+  });
+  items.push({separator:true});
+  items.push({label:'Reset window layout',action:athenaResetLayout});
+  return items;
+}
+function athenaShowStartMenu(){
+  var menu=byId('start-menu'), start=byId('start-button');
+  if(!menu.hidden){athenaHidePopup(menu,true);return;}
+  athenaShowPopup(menu,athenaStartItems(),null,null,start);
+  start.setAttribute('aria-expanded','true');
+}
+function athenaShowDesktopContext(x,y,opener){
+  athenaShowPopup(byId('context-menu'),athenaStartItems(),x,y,opener);
+}
+function athenaInitShellMenus(){
+  var start=byId('start-button'), desktop=byId('desktop');
+  start.onclick=athenaShowStartMenu;
+  start.onkeydown=function(ev){
+    if(ev.key==='ArrowUp' || ev.key==='ArrowDown'){
+      athenaShowStartMenu(); ev.preventDefault();
+    }
+  };
+  desktop.oncontextmenu=function(ev){
+    if(ev.target!==desktop) return;
+    ev.preventDefault();
+    athenaShowDesktopContext(ev.clientX,ev.clientY,desktop);
+  };
+  desktop.onkeydown=function(ev){
+    if(ev.target===desktop && (ev.key==='ContextMenu' ||
+       (ev.shiftKey && ev.key==='F10'))){
+      athenaShowDesktopContext(12,window.innerHeight-220,desktop);
+      ev.preventDefault();
+    }
+  };
+  document.addEventListener('mousedown',function(ev){
+    if(!ev.target.closest('.popup-menu') && ev.target!==start)
+      athenaHideMenus(false);
+  });
+  document.addEventListener('keydown',function(ev){
+    if(ev.key==='Escape') athenaHideMenus(true);
+  });
+}
+
 window.addEventListener('message',function(ev){
   var data=ev.data || {};
   if(data.type==='athena-missing-target') athenaMissingTarget(data.target || '');
   else if(data.type==='athena-open-doc') athenaOpenDoc(data.path || 'about:blank');
   else if(data.type==='athena-outline') athenaReceiveOutline(data.headings || []);
 });
+
 function installWindow(id){
-  var win=byId(id), title=win.querySelector('.title'), resizing=false, moving=false;
+  var win=byId(id), title=win.querySelector('.title');
+  var resizing=false, moving=false;
   var sx=0, sy=0, ox=0, oy=0, ow=0, oh=0, restore=null;
   var defaultRect={
     left:win.style.left,
@@ -224,21 +435,16 @@ function installWindow(id){
     width:win.style.width,
     height:win.style.height
   };
-  function taskButton(){
-    var bar=byId('taskbar'), btn=byId('task-'+id);
-    if(btn) return btn;
-    btn=document.createElement('button');
-    btn.id='task-'+id; btn.className='task active';
-    btn.textContent=title.querySelector('.caption').textContent;
-    btn.onclick=function(){restoreWindow();};
-    bar.appendChild(btn);
-    return btn;
-  }
-  function activateTask(active){taskButton().classList.toggle('active',active);}
-  function restoreWindow(){
+  function showWindow(options){
+    options=options||{};
     win.classList.remove('closed');
     win.classList.remove('minimized');
-    activateTask(true);
+    athenaSyncTask(id);
+    athenaFocusWindow(win);
+    if(!options.silent) athenaSaveState();
+  }
+  function restoreWindow(options){
+    options=options||{};
     if(win.classList.contains('maximized')){
       var rect=restore || defaultRect;
       win.classList.remove('maximized');
@@ -246,61 +452,99 @@ function installWindow(id){
       win.style.width=rect.width; win.style.height=rect.height;
       restore=null;
     }
-    athenaFocusWindow(win);
-    athenaSaveState();
+    showWindow(options);
   }
   function maximizeWindow(options){
     options=options||{};
-    if(win.classList.contains('maximized')) return;
-    restore={left:win.style.left,top:win.style.top,width:win.style.width,height:win.style.height};
-    win.classList.add('maximized'); win.classList.remove('minimized');
-    win.classList.remove('closed');
-    win.style.left='8px'; win.style.top='8px';
-    win.style.width='calc(100% - 24px)'; win.style.height='calc(100% - 24px)';
-    activateTask(true);
-    athenaFocusWindow(win);
-    if(!options.silent) athenaSaveState();
+    if(!win.classList.contains('maximized')){
+      restore={left:win.style.left,top:win.style.top,
+        width:win.style.width,height:win.style.height};
+      win.classList.add('maximized');
+      win.style.left='8px'; win.style.top='8px';
+      win.style.width='calc(100% - 24px)';
+      win.style.height='calc(100% - 24px)';
+    }
+    showWindow(options);
   }
-  function minimizeWindow(){
+  function minimizeWindow(options){
+    options=options||{};
+    if(win.classList.contains('closed')) return;
     win.classList.add('minimized');
-    activateTask(false);
-    athenaSaveState();
+    athenaSyncTask(id);
+    if(!options.silent) athenaSaveState();
   }
   function closeWindow(options){
     options=options||{};
     win.classList.add('closed');
     win.classList.remove('minimized');
-    activateTask(false);
+    athenaSyncTask(id);
     if(!options.silent) athenaSaveState();
   }
+  function resetWindow(options){
+    options=options||{};
+    win.classList.remove('maximized','minimized','closed');
+    win.style.left=defaultRect.left; win.style.top=defaultRect.top;
+    win.style.width=defaultRect.width; win.style.height=defaultRect.height;
+    restore=null;
+    athenaSyncTask(id);
+    if(!options.silent) athenaSaveState();
+  }
+  win.athenaShow=showWindow;
   win.athenaRestore=restoreWindow;
   win.athenaMaximize=maximizeWindow;
   win.athenaMinimize=minimizeWindow;
   win.athenaClose=closeWindow;
-  title.onmousedown=function(e){
-    if(e.target.closest('button')) return;
-    if(win.classList.contains('maximized')) return;
+  win.athenaReset=resetWindow;
+  title.onmousedown=function(ev){
+    if(ev.target.closest('button') || win.classList.contains('maximized')) return;
     athenaFocusWindow(win);
-    moving=true;sx=e.clientX;sy=e.clientY;ox=win.offsetLeft;oy=win.offsetTop;e.preventDefault();
+    moving=true; sx=ev.clientX; sy=ev.clientY;
+    ox=win.offsetLeft; oy=win.offsetTop; ev.preventDefault();
+  };
+  title.ondblclick=function(ev){
+    if(ev.target.closest('button')) return;
+    if(win.classList.contains('maximized')) restoreWindow();
+    else maximizeWindow();
+  };
+  title.oncontextmenu=function(ev){
+    ev.preventDefault();
+    athenaShowWindowContext(id,ev.clientX,ev.clientY,title);
+  };
+  title.onkeydown=function(ev){
+    if(ev.key==='Enter' || ev.key===' '){athenaFocusWindow(win);ev.preventDefault();}
+    else if(ev.key==='ContextMenu' || (ev.shiftKey && ev.key==='F10')){
+      var rect=title.getBoundingClientRect();
+      athenaShowWindowContext(id,rect.left,rect.bottom,title);
+      ev.preventDefault();
+    }
   };
   win.onmousedown=function(){athenaFocusWindow(win);};
-  win.querySelector('.min').onclick=minimizeWindow;
-  win.querySelector('.max').onclick=maximizeWindow;
-  win.querySelector('.restore').onclick=restoreWindow;
-  win.querySelector('.close').onclick=closeWindow;
-  win.querySelector('.resize').onmousedown=function(e){
+  win.querySelector('.min').onclick=function(){minimizeWindow();};
+  win.querySelector('.max').onclick=function(){maximizeWindow();};
+  win.querySelector('.restore').onclick=function(){restoreWindow();};
+  win.querySelector('.close').onclick=function(){closeWindow();};
+  win.querySelectorAll('button[aria-label]').forEach(function(button){
+    button.title=button.getAttribute('aria-label');
+  });
+  win.querySelector('.resize').onmousedown=function(ev){
     if(win.classList.contains('maximized')) return;
     athenaFocusWindow(win);
-    resizing=true;sx=e.clientX;sy=e.clientY;ow=win.offsetWidth;oh=win.offsetHeight;e.preventDefault();
+    resizing=true; sx=ev.clientX; sy=ev.clientY;
+    ow=win.offsetWidth; oh=win.offsetHeight; ev.preventDefault();
   };
-  taskButton();
-  athenaFocusWindow(win);
-  document.addEventListener('mousemove',function(e){
-    if(moving){win.style.left=(ox+e.clientX-sx)+'px';win.style.top=(oy+e.clientY-sy)+'px';}
-    if(resizing){win.style.width=Math.max(220,ow+e.clientX-sx)+'px';win.style.height=Math.max(120,oh+e.clientY-sy)+'px';}
+  athenaSyncTask(id);
+  document.addEventListener('mousemove',function(ev){
+    if(moving){
+      win.style.left=(ox+ev.clientX-sx)+'px';
+      win.style.top=(oy+ev.clientY-sy)+'px';
+    }
+    if(resizing){
+      win.style.width=Math.max(220,ow+ev.clientX-sx)+'px';
+      win.style.height=Math.max(120,oh+ev.clientY-sy)+'px';
+    }
   });
   document.addEventListener('mouseup',function(){
     if(moving || resizing) athenaSaveState();
-    moving=false;resizing=false;
+    moving=false; resizing=false;
   });
 }

@@ -3,8 +3,10 @@ function athenaSimpleTreeList(items, makeHref){
   var ul=document.createElement('ul'); ul.className='tree';
   items.forEach(function(item){
     var li=document.createElement('li'); var a=document.createElement('a');
-    a.href='#'; a.textContent=item.title||item.name||item.path;
-    a.onclick=function(ev){ev.preventDefault(); athenaOpenDoc(makeHref(item));};
+    var href=makeHref(item);
+    a.href=href; a.textContent=item.title||item.name||item.path;
+    a.onclick=function(ev){ev.preventDefault(); athenaOpenDoc(href);};
+    athenaInstallDocumentContext(a,href);
     li.appendChild(a); ul.appendChild(li);
   });
   return ul;
@@ -75,11 +77,12 @@ function athenaRenderVaultNode(node){
     var row=document.createElement('div'); row.className='tree-row';
     var spacer=document.createElement('span'); spacer.className='tree-spacer';
     var a=document.createElement('a');
-    a.href='#';
+    a.href=file.html;
     a.textContent=athenaVaultBasename(file.path);
     a.title=(file.title&&file.title!==file.path) ? file.title+' - '+file.path :
       file.path;
     a.onclick=function(ev){ev.preventDefault(); athenaOpenDoc(file.html);};
+    athenaInstallDocumentContext(a,file.html);
     row.appendChild(spacer);
     row.appendChild(a);
     li.appendChild(row);
