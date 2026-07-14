@@ -18,7 +18,9 @@
 #include <boost/random/linear_congruential.hpp>
 
 #include "QTMMainTabWindow.hpp"
+#include "QTMGraphTopology.hpp"
 #include "QTMVaultInfoModel.hpp"
+#include "QTMVaultPreviewWidget.hpp"
 #include "ATHENA/Data/reference_graph_cache.hpp"
 #include "analyze.hpp"
 #include "editor.hpp"
@@ -102,6 +104,59 @@ struct RHGraph {
   std::vector<RHNode> nodes;
   std::vector<RHEdge> edges;
 };
+
+static tree
+graph_topology_formula (const QTMGraphTopologySummary& summary,
+                        bool homology) {
+  tree formula (CONCAT);
+  if (homology) {
+    formula << tree ("H") << tree (RSUB, "1") << tree ("(G; ")
+            << tree ("<bbb-Z>") << tree (") <cong> ")
+            << tree ("<bbb-Z>")
+            << tree (RSUP, as_string (summary.firstBettiNumber));
+    return compound ("math", formula);
+  }
+
+  if (summary.components <= 1) {
+    formula << tree ("<pi>") << tree (RSUB, "1") << tree ("(G) <cong> F")
+            << tree (RSUB, as_string (summary.firstBettiNumber));
+    return compound ("math", formula);
+  }
+
+  for (int i=0; i<(int) summary.componentRanks.size (); i++) {
+    if (i > 0) formula << tree (",   ");
+    formula << tree ("<pi>") << tree (RSUB, "1") << tree ("(G")
+            << tree (RSUB, as_string (i + 1)) << tree (") <cong> F")
+            << tree (RSUB, as_string (summary.componentRanks[i]));
+  }
+  return compound ("math", formula);
+}
+
+static tree
+graph_topology_summary_tree (const RHGraph& graph) {
+  std::vector<QString> vertices;
+  std::vector<std::pair<QString,QString>> edges;
+  vertices.reserve (graph.nodes.size ());
+  edges.reserve (graph.edges.size ());
+  for (const RHNode& node: graph.nodes) vertices.push_back (node.id);
+  for (const RHEdge& edge: graph.edges)
+    edges.push_back ({ edge.from, edge.to });
+  QTMGraphTopologySummary summary= qtm_graph_topology (vertices, edges);
+
+  tree body (DOCUMENT);
+  body << compound ("strong", tree ("Underlying undirected graph"));
+  if (summary.vertices == 0) {
+    body << tree ("No vertices.");
+    return body;
+  }
+  body << graph_topology_formula (summary, true);
+  if (summary.components > 1)
+    body << tree (from_qstring (
+      QString ("%1 connected components; fundamental groups are componentwise:")
+        .arg (summary.components)));
+  body << graph_topology_formula (summary, false);
+  return body;
+}
 
 static ads::CDockWidget* reverse_hierarchy_graph_dock= nullptr;
 class ReverseHierarchyGraphPane;
@@ -1873,7 +1928,9 @@ public:
       depthSpin (new QSpinBox (this)),
       unlimitedCheck (new QCheckBox ("Unlimited", this)),
       followCheck (new QCheckBox ("Follow viewport", this)),
-      statusLabel (new QLabel (this)), floatingSizeGrip (new QSizeGrip (this)),
+      statusLabel (new QLabel (this)), topologyPreview (this),
+      topologyHost (new QWidget (this)),
+      floatingSizeGrip (new QSizeGrip (this)),
       refreshTimer (new QTimer (this)) {
     view->scene ()->setParent (view);
     view->setZoomChangedCallback ([this] (int percent) {
@@ -1911,6 +1968,11 @@ public:
     followCheck->setToolTip (
       "Rebuild the graph when the active .ath note changes");
     statusLabel->setText ("Ready");
+    topologyHost->setMinimumHeight (100);
+    topologyHost->setMaximumHeight (150);
+    topologyHost->setSizePolicy (QSizePolicy::Expanding, QSizePolicy::Preferred);
+    QVBoxLayout* topologyLayout= new QVBoxLayout (topologyHost);
+    topologyLayout->setContentsMargins (0, 0, 0, 0);
 
     connect (zoomOut, &QToolButton::clicked, this, [this] () {
       view->setZoomPercent (zoomSlider->value () - 10);
@@ -1973,7 +2035,13 @@ public:
     layout->addLayout (controls);
     layout->addWidget (depthControls);
     layout->addWidget (view, 1);
+    layout->addWidget (topologyHost);
     layout->addLayout (statusRow);
+
+    QTimer::singleShot (0, this, [this] () {
+      topologyPreview.ensureCreated (topologyHost);
+      topologyPreview.refresh ();
+    });
 
     refreshTimer->setInterval (700);
     connect (refreshTimer, &QTimer::timeout,
@@ -2022,6 +2090,9 @@ public:
     currentGraph= graph;
     hasCurrentGraph= true;
     view->setOwnedScene (create_pane_scene (currentGraph, true));
+    topologyPreview.ensureCreated (topologyHost);
+    topologyPreview.setBody (graph_topology_summary_tree (currentGraph));
+    topologyPreview.refresh ();
     QTimer::singleShot (0, view, [this] () { view->resetViewport (); });
     if (dockRef != nullptr && *dockRef != nullptr)
       (*dockRef)->setWindowTitle (graph.title);
@@ -2055,6 +2126,9 @@ private:
     scene->setSceneRect (0, 0, 520, 160);
     view->setOwnedScene (scene);
     hasCurrentGraph= false;
+    topologyPreview.ensureCreated (topologyHost);
+    topologyPreview.setBody (tree (DOCUMENT, ""));
+    topologyPreview.refresh ();
     statusLabel->setText (message);
     if (dockRef != nullptr && *dockRef != nullptr)
       (*dockRef)->setWindowTitle (defaultTitle);
@@ -2080,6 +2154,8 @@ private:
   QCheckBox* unlimitedCheck;
   QCheckBox* followCheck;
   QLabel* statusLabel;
+  WikilinkPreview topologyPreview;
+  QWidget* topologyHost;
   QSizeGrip* floatingSizeGrip;
   QTimer* refreshTimer;
   QString currentIdentity;
