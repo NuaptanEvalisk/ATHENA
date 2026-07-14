@@ -9,6 +9,7 @@
 ******************************************************************************/
 
 #include "QTMVaultWikilinkWizard.hpp"
+#include "QTMCompletingComboBox.hpp"
 #include "QTMVaultAnchorModel.hpp"
 #include "QTMVaultLinkModel.hpp"
 #include "QTMVaultPreviewBuilder.hpp"
@@ -26,6 +27,7 @@
 #include <QCompleter>
 #include <QDir>
 #include <QEvent>
+#include <QGridLayout>
 #include <QHBoxLayout>
 #include <QKeyEvent>
 #include <QLabel>
@@ -60,6 +62,11 @@ static constexpr const char* wikilink_display_template_heading_pref=
   "vault wikilink display template heading";
 static constexpr const char* wikilink_display_template_anchor_pref=
   "vault wikilink display template anchor";
+
+static void
+preserveCheckboxLabel (QCheckBox* checkbox) {
+  checkbox->setSizePolicy (QSizePolicy::Minimum, QSizePolicy::Preferred);
+}
 
 struct WikilinkDisplayContext {
   QString kind;
@@ -269,7 +276,7 @@ public:
 
   void updateList ();
   void moveSelection (int delta);
-  void completeFromSelection ();
+  bool completeFromSelection ();
 
   QLineEdit*   searchEdit;
   QListWidget* fileList;
@@ -403,7 +410,8 @@ WikilinkModePage::nextId () const {
 WikilinkFilePage::WikilinkFilePage (QWidget* parent)
   : QWizardPage (parent) {
   setTitle ("Select a file");
-  setSubTitle ("Type to filter vault files, then press Enter or Next.");
+  setSubTitle ("Type to filter vault files; Tab or Enter completes the "
+               "selected result, and Enter again continues.");
 
   searchEdit= new QLineEdit (this);
   searchEdit->setPlaceholderText ("Search .ath and .tm files");
@@ -485,15 +493,10 @@ WikilinkFilePage::moveSelection (int delta) {
   fileList->setCurrentRow (row);
 }
 
-void
+bool
 WikilinkFilePage::completeFromSelection () {
-  QListWidgetItem* item= fileList->currentItem ();
-  if (item == nullptr && fileList->count () > 0) item= fileList->item (0);
-  if (item == nullptr) return;
-  QString completion= item->data (WikilinkCompletionRole).toString ();
-  if (completion.isEmpty ()) return;
-  searchEdit->setText (completion);
-  searchEdit->setCursorPosition (completion.length ());
+  return qtm_commit_list_completion (searchEdit, fileList,
+                                     WikilinkCompletionRole);
 }
 
 bool
@@ -505,16 +508,17 @@ WikilinkFilePage::eventFilter (QObject* watched, QEvent* event) {
       moveSelection (key->key () == Qt::Key_Up ? -1 : 1);
       return true;
     }
+    if ((key->key () == Qt::Key_Return || key->key () == Qt::Key_Enter) &&
+        watched == searchEdit && completeFromSelection ())
+      return true;
     if (key->key () == Qt::Key_Return || key->key () == Qt::Key_Enter) {
       wizard ()->next ();
       return true;
     }
-    if (key->key () == Qt::Key_Tab) {
-      if (key->modifiers () & Qt::ShiftModifier) return true;
-      completeFromSelection ();
+    if (key->key () == Qt::Key_Tab && watched == searchEdit &&
+        !(key->modifiers () & Qt::ShiftModifier) &&
+        completeFromSelection ())
       return true;
-    }
-    if (key->key () == Qt::Key_Backtab) return true;
   }
   return QWizardPage::eventFilter (watched, event);
 }
@@ -541,6 +545,8 @@ WikilinkAnchorPage::WikilinkAnchorPage (QWidget* parent)
   searchEdit->setPlaceholderText ("Filter anchors; leave empty for the whole file");
   caseInsensitiveCheck= new QCheckBox ("Case-insensitive", this);
   fuzzyCheck= new QCheckBox ("Fuzzy", this);
+  preserveCheckboxLabel (caseInsensitiveCheck);
+  preserveCheckboxLabel (fuzzyCheck);
   caseInsensitiveCheck->setChecked (
     get_preference (wikilink_search_case_pref, "off") == "on");
   fuzzyCheck->setChecked (
@@ -814,8 +820,7 @@ WikilinkSearchPage::WikilinkSearchPage (QWidget* parent)
 
   queryEdit= new QLineEdit (this);
   queryEdit->setPlaceholderText ("Search text");
-  namespaceCombo= new QComboBox (this);
-  namespaceCombo->setEditable (true);
+  namespaceCombo= new QTMCompletingComboBox (this);
   namespaceCombo->setInsertPolicy (QComboBox::NoInsert);
   namespaceCombo->setMinimumWidth (300);
   namespaceCombo->lineEdit ()->setPlaceholderText ("All namespaces");
@@ -833,6 +838,8 @@ WikilinkSearchPage::WikilinkSearchPage (QWidget* parent)
   caseInsensitiveCheck->setChecked (
     get_preference (wikilink_search_case_pref, "off") == "on");
   fuzzyCheck= new QCheckBox ("Fuzzy", this);
+  preserveCheckboxLabel (caseInsensitiveCheck);
+  preserveCheckboxLabel (fuzzyCheck);
   fuzzyCheck->setChecked (
     get_preference (wikilink_search_fuzzy_pref, "off") == "on");
 
@@ -863,17 +870,21 @@ WikilinkSearchPage::WikilinkSearchPage (QWidget* parent)
   searchRow->addWidget (searchButton);
   searchRow->addWidget (stopButton);
 
-  QHBoxLayout* filtersRow= new QHBoxLayout ();
-  filtersRow->addWidget (new QLabel ("Within namespace:", this));
-  filtersRow->addWidget (namespaceCombo);
-  filtersRow->addSpacing (12);
-  filtersRow->addWidget (new QLabel ("Enunciation:", this));
-  filtersRow->addWidget (enunciationCombo);
-  filtersRow->addSpacing (12);
-  filtersRow->addWidget (caseInsensitiveCheck);
-  filtersRow->addSpacing (12);
-  filtersRow->addWidget (fuzzyCheck);
-  filtersRow->addStretch ();
+  QGridLayout* filters= new QGridLayout ();
+  filters->setColumnStretch (1, 1);
+  filters->setColumnStretch (3, 1);
+  filters->addWidget (new QLabel ("Within namespace:", this), 0, 0);
+  filters->addWidget (namespaceCombo, 0, 1);
+  filters->addWidget (new QLabel ("Enunciation:", this), 0, 2);
+  filters->addWidget (enunciationCombo, 0, 3);
+  filters->addWidget (new QLabel ("Matching:", this), 1, 0);
+  QHBoxLayout* matching= new QHBoxLayout ();
+  matching->setContentsMargins (0, 0, 0, 0);
+  matching->addWidget (caseInsensitiveCheck);
+  matching->addSpacing (12);
+  matching->addWidget (fuzzyCheck);
+  matching->addStretch ();
+  filters->addLayout (matching, 1, 1, 1, 3);
 
   QWidget* left= new QWidget (this);
   QVBoxLayout* leftLayout= new QVBoxLayout (left);
@@ -901,7 +912,7 @@ WikilinkSearchPage::WikilinkSearchPage (QWidget* parent)
 
   QVBoxLayout* layout= new QVBoxLayout (this);
   layout->addLayout (searchRow);
-  layout->addLayout (filtersRow);
+  layout->addLayout (filters);
   layout->addWidget (statusLabel);
   layout->addWidget (progress);
   layout->addWidget (splitter, 1);
