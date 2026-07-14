@@ -142,17 +142,10 @@ bool aofm_import_vault (string source_dir, string destination_dir,
                         string model_vault= "");
 void aofm_debug_dump (const std::string& file_path);
 
-/*** AI tools ***/
+/*** Tree compression ***/
 tree compress_tree (tree t);
 tree decompress_tree (tree t);
 string compress_html (tree t, int mode= 0);
 tree decompress_html (string s, int mode= 0);
-string ai_command (string s, string model, string chat= "");
-string ai_output (string s, string model, string chat= "");
-string ai_latex_command (string s, string model, string chat= "");
-tree   ai_latex_output (string s, string model, string chat= "");
-string ai_chat (string s, string model, string chat= "");
-tree ai_translate (tree t, string from, string into, string m, string c= "");
-tree ai_correct (tree t, string lan, string model, string chat= "");
 
 #endif // defined CONVERT_H

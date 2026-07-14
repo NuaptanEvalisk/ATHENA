@@ -85,6 +85,23 @@ find_package (Boost REQUIRED)
 
 option (QTPIPES "use Qt pipes" ON)
 
+option (ATHENA_BUNDLE_CODEX
+  "Bundle a redistributable Codex executable with ATHENA" OFF)
+set (ATHENA_CODEX_BINARY "" CACHE FILEPATH
+  "Codex executable to bundle when ATHENA_BUNDLE_CODEX is enabled")
+set (ATHENA_CODEX_LICENSE_FILE "" CACHE FILEPATH
+  "Codex license file to bundle when ATHENA_BUNDLE_CODEX is enabled")
+if (ATHENA_BUNDLE_CODEX)
+  if (NOT EXISTS "${ATHENA_CODEX_BINARY}")
+    message (FATAL_ERROR
+      "ATHENA_BUNDLE_CODEX requires ATHENA_CODEX_BINARY")
+  endif ()
+  if (NOT EXISTS "${ATHENA_CODEX_LICENSE_FILE}")
+    message (FATAL_ERROR
+      "ATHENA_BUNDLE_CODEX requires ATHENA_CODEX_LICENSE_FILE")
+  endif ()
+endif ()
+
 find_package (SQLite3 REQUIRED)
 set (USE_SQLITE3 ON CACHE BOOL "Use SQLite3" FORCE)
 set (LINKED_SQLITE3 ON CACHE BOOL "Use Linked SQLite3" FORCE)
@@ -962,6 +979,7 @@ link_directories (${MAGICKWAND_LIBRARY_DIRS})
 ### --------------------------------------------------------------------
 
 add_subdirectory (src)
+add_subdirectory (tools/codex-bridge)
 if (UNIX AND NOT APPLE)
   add_subdirectory (tools/rag-transmitter)
 endif ()
@@ -1021,6 +1039,13 @@ if (BUILD_TESTS)
     set(ATHENA_QT_TEST_LIBRARY Qt5::Test)
   endif ()
   enable_testing ()
+  if (NOT WIN32)
+    add_test(NAME codex_bridge_protocol
+      COMMAND ${Python3_EXECUTABLE}
+              ${CMAKE_SOURCE_DIR}/tools/codex-bridge/tests/test_bridge.py
+              $<TARGET_FILE:athena-codex-bridge>
+              ${CMAKE_SOURCE_DIR}/tools/codex-bridge/tests/fake_codex.py)
+  endif ()
   add_subdirectory (tests)
   # add_subdirectory (misc/benchmark)
 endif (BUILD_TESTS)

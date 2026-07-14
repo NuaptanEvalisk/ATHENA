@@ -13,7 +13,8 @@
 
 (texmacs-module (athena menus edit-menu)
   (:use (utils library cursor)
-	(utils edit selections)))
+	(utils edit selections)
+        (athena athena tm-codex)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Dynamic menus
@@ -79,6 +80,9 @@
       ("Spell" (interactive-spell)))
   (if (in-math?)
       (=> "Correct" (link math-correct-menu)))
+  (when (selection-active-any?)
+    (-> "AI"
+        ("AI completion" (codex-ai-completion))))
   (if (detailed-menus?)
       ---
       (when (selection-active-any?)

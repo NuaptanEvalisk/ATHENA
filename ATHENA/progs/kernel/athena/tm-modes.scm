@@ -108,17 +108,6 @@
 (define-public (has-side-tools? n)
   #f)
 
-(define-public (has-chatgpt?)
-  (!= (get-preference "openai api key" "") ""))
-
-(define-public (has-gemini?)
-  (!= (get-preference "gemini api key" "") ""))
-
-(define-public (has-llama?) #t)
-
-(define-public (has-mistral-7b?)
-  (!= (get-preference "mistral api key" "") ""))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Mode related
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

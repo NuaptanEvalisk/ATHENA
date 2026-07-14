@@ -64,6 +64,7 @@ Build and install the local development binary into this runtime tree:
 
     cmake --build build_qt6 -j"$(nproc)"
     cp -f build_qt6/src/ATHENA.bin ATHENA/bin/ATHENA.bin
+    cp -f build_qt6/src/athena-codex-bridge ATHENA/bin/athena-codex-bridge
     mkdir -p ATHENA/lib
     cp -a build_qt6/x64/lib/libqt6advanceddocking*.so* ATHENA/lib/
 
@@ -97,6 +98,8 @@ To assemble a release runtime directory from the checked-in `ATHENA/` tree:
     mkdir -p release
     rsync -a ATHENA/ release/ATHENA/
     cp -f build_rel/src/ATHENA.bin release/ATHENA/bin/ATHENA.bin
+    cp -f build_rel/src/athena-codex-bridge \
+      release/ATHENA/bin/athena-codex-bridge
     mkdir -p release/ATHENA/lib
     rm -f release/ATHENA/lib/libqt6advanceddocking*.so*
     cp -a build_rel/x64/lib/libqt6advanceddocking*.so* release/ATHENA/lib/
@@ -105,6 +108,19 @@ This produces `release/ATHENA/`.  It is a runtime directory, not necessarily a
 fully portable bundle: libraries already present in `ATHENA/lib` are copied, and
 other libraries may still be resolved from the target system unless you package
 them separately.
+
+OpenAI Codex integration always builds the lightweight
+`athena-codex-bridge`.  It normally discovers a system `codex` executable.  A
+redistributable Codex binary may instead be bundled explicitly:
+
+    -DATHENA_BUNDLE_CODEX=ON \
+    -DATHENA_CODEX_BINARY=/path/to/codex \
+    -DATHENA_CODEX_LICENSE_FILE=/path/to/Codex/LICENSE
+
+CMake refuses bundled-Codex builds without both the executable and its license.
+The executable is installed beside ATHENA's binaries and the license is placed
+under `licenses/codex/`.  Packagers remain responsible for verifying that the
+selected Codex artifact and accompanying notices permit redistribution.
 
 -------------------------------------------------------------------------------
 Container and AppImage builds

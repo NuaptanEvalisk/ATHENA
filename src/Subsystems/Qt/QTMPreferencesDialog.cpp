@@ -31,9 +31,12 @@
 #include <QClipboard>
 #include <QColorDialog>
 #include <QComboBox>
+#include <QCoreApplication>
 #include <QDialogButtonBox>
 #include <QDir>
 #include <QFileDialog>
+#include <QFileInfo>
+#include <QFontDatabase>
 #include <QFontInfo>
 #include <QFormLayout>
 #include <QFrame>
@@ -45,13 +48,17 @@
 #include <QListWidget>
 #include <QMessageBox>
 #include <QPointer>
+#include <QProcess>
 #include <QPushButton>
 #include <QRandomGenerator>
 #include <QScrollArea>
 #include <QSignalBlocker>
 #include <QStackedWidget>
+#include <QStandardPaths>
 #include <QStyle>
 #include <QTabWidget>
+#include <QTextEdit>
+#include <QTextCursor>
 #include <QToolButton>
 #include <QUrl>
 #include <QVBoxLayout>
@@ -131,6 +138,92 @@ notify_restart () {
     parent, QObject::tr ("Restart ATHENA"),
     QObject::tr ("Restart ATHENA in order to let the new setting take "
                  "effect."));
+}
+
+static QString
+codex_home_path () {
+  QString configured= pref ("codex home", "");
+  if (!configured.isEmpty ()) return QDir::cleanPath (configured);
+  QString athenaHome= qEnvironmentVariable ("ATHENA_HOME_PATH");
+  if (athenaHome.isEmpty ())
+    athenaHome= QDir::home ().filePath (".ATHENA");
+  return QDir (athenaHome).filePath ("codex");
+}
+
+static QString
+codex_executable () {
+#ifdef Q_OS_WIN
+  const QString name= "codex.exe";
+#else
+  const QString name= "codex";
+#endif
+  QString bundled= QDir (QCoreApplication::applicationDirPath ())
+                     .filePath (name);
+  if (QFileInfo (bundled).isExecutable ()) return bundled;
+  return QStandardPaths::findExecutable (name);
+}
+
+static QProcessEnvironment
+codex_environment (const QString& home) {
+  QProcessEnvironment env= QProcessEnvironment::systemEnvironment ();
+  env.insert ("CODEX_HOME", home);
+  return env;
+}
+
+static void
+show_codex_login (QWidget* parent, const QString& home,
+                  const std::function<void ()>& finished) {
+  const QString executable= codex_executable ();
+  if (executable.isEmpty ()) {
+    QMessageBox::warning (parent, QObject::tr ("OpenAI Codex login"),
+                          QObject::tr ("The Codex executable was not found."));
+    return;
+  }
+  QDir ().mkpath (home);
+  QDialog* dialog= new QDialog (parent);
+  dialog->setAttribute (Qt::WA_DeleteOnClose);
+  dialog->setWindowTitle (QObject::tr ("OpenAI Codex login"));
+  dialog->resize (680, 420);
+  QVBoxLayout* layout= new QVBoxLayout (dialog);
+  QLabel* status= new QLabel (
+    QObject::tr ("Codex will open the OpenAI sign-in page in your browser."),
+    dialog);
+  status->setWordWrap (true);
+  QTextEdit* output= new QTextEdit (dialog);
+  output->setReadOnly (true);
+  output->setFont (QFontDatabase::systemFont (QFontDatabase::FixedFont));
+  QDialogButtonBox* buttons= new QDialogButtonBox (
+    QDialogButtonBox::Cancel, dialog);
+  layout->addWidget (status);
+  layout->addWidget (output, 1);
+  layout->addWidget (buttons);
+
+  QProcess* process= new QProcess (dialog);
+  process->setProcessEnvironment (codex_environment (home));
+  process->setProcessChannelMode (QProcess::MergedChannels);
+  QObject::connect (process, &QProcess::readyRead, dialog, [=] () {
+    output->moveCursor (QTextCursor::End);
+    output->insertPlainText (QString::fromUtf8 (process->readAll ()));
+    output->moveCursor (QTextCursor::End);
+  });
+  QObject::connect (buttons, &QDialogButtonBox::rejected, dialog, [=] () {
+    if (process->state () != QProcess::NotRunning) process->kill ();
+    dialog->reject ();
+  });
+  QObject::connect (
+    process, qOverload<int,QProcess::ExitStatus> (&QProcess::finished), dialog,
+    [=] (int code, QProcess::ExitStatus exitStatus) {
+      const bool ok= exitStatus == QProcess::NormalExit && code == 0;
+      status->setText (ok? QObject::tr ("OpenAI Codex login completed."):
+                            QObject::tr ("OpenAI Codex login failed."));
+      buttons->setStandardButtons (QDialogButtonBox::Close);
+      QObject::disconnect (buttons, nullptr, dialog, nullptr);
+      QObject::connect (buttons, &QDialogButtonBox::rejected,
+                        dialog, &QDialog::accept);
+      if (finished) finished ();
+    });
+  process->start (executable, {"login"});
+  dialog->show ();
 }
 
 static QString
@@ -1730,13 +1823,73 @@ QWidget*
 QTMPreferencesDialog::buildOtherPage () {
   QWidget* ai= make_page ();
   QFormLayout* a= add_section (ai, "AI");
-  add_combo (a, "AI engine:", "ai",
-             {{"off", "off"}, {"chatgpt", "chatgpt"},
-              {"gemini", "gemini"}, {"llama", "llama"},
-              {"open-mistral-7b", "open-mistral-7b"}}, "off");
-  add_line_edit (a, "OpenAI API key:", "openai api key", "", true);
-  add_line_edit (a, "Gemini API key:", "gemini api key", "", true);
-  add_line_edit (a, "Mistral API key:", "mistral api key", "", true);
+  QLineEdit* codexHome= new QLineEdit (codex_home_path (), ai);
+  QPushButton* chooseCodexHome= new QPushButton ("Browse...", ai);
+  QWidget* codexHomeRow= new QWidget (ai);
+  QHBoxLayout* codexHomeLayout= new QHBoxLayout (codexHomeRow);
+  codexHomeLayout->setContentsMargins (0, 0, 0, 0);
+  codexHomeLayout->addWidget (codexHome, 1);
+  codexHomeLayout->addWidget (chooseCodexHome);
+  a->addRow (label ("Codex home:"), codexHomeRow);
+
+  QLabel* codexStatus= new QLabel (ai);
+  codexStatus->setWordWrap (true);
+  auto refreshCodexStatus= [codexStatus] () {
+    QString executable= codex_executable ();
+    codexStatus->setText (
+      executable.isEmpty ()?
+        "Codex executable not found. Install Codex or use a build that bundles it.":
+        QString ("Codex executable: %1").arg (executable));
+  };
+  refreshCodexStatus ();
+  a->addRow (label ("Status:"), codexStatus);
+
+  QWidget* codexButtons= new QWidget (ai);
+  QHBoxLayout* codexButtonLayout= new QHBoxLayout (codexButtons);
+  codexButtonLayout->setContentsMargins (0, 0, 0, 0);
+  QPushButton* codexLogin= new QPushButton ("OpenAI Codex login", ai);
+  QPushButton* codexLoginStatus= new QPushButton ("Check login status", ai);
+  codexButtonLayout->addWidget (codexLogin);
+  codexButtonLayout->addWidget (codexLoginStatus);
+  codexButtonLayout->addStretch (1);
+  a->addRow (label ("Authentication:"), codexButtons);
+
+  QObject::connect (codexHome, &QLineEdit::editingFinished, [=] () {
+    QString value= QDir::cleanPath (codexHome->text ().trimmed ());
+    codexHome->setText (value);
+    set_pref ("codex home", value);
+  });
+  QObject::connect (chooseCodexHome, &QPushButton::clicked, [=] () {
+    QString selected= QFileDialog::getExistingDirectory (
+      ai, "Choose Codex home", codexHome->text ());
+    if (selected.isEmpty ()) return;
+    codexHome->setText (QDir::cleanPath (selected));
+    set_pref ("codex home", codexHome->text ());
+  });
+  QObject::connect (codexLogin, &QPushButton::clicked, [=] () {
+    set_pref ("codex home", codexHome->text ());
+    show_codex_login (ai, codexHome->text (), refreshCodexStatus);
+  });
+  QObject::connect (codexLoginStatus, &QPushButton::clicked, [=] () {
+    QString executable= codex_executable ();
+    if (executable.isEmpty ()) {
+      codexStatus->setText ("Codex executable not found.");
+      return;
+    }
+    QProcess process;
+    process.setProcessEnvironment (codex_environment (codexHome->text ()));
+    process.setProcessChannelMode (QProcess::MergedChannels);
+    process.start (executable, {"login", "status"});
+    if (!process.waitForFinished (10000)) {
+      process.kill ();
+      codexStatus->setText ("Timed out while checking Codex login status.");
+      return;
+    }
+    QString result= QString::fromUtf8 (process.readAll ()).trimmed ();
+    codexStatus->setText (result.isEmpty ()?
+      QString ("Codex login status exited with code %1.")
+        .arg (process.exitCode ()): result);
+  });
   finish_page (ai);
 
   QWidget* security= make_page ();

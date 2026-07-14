@@ -78,12 +78,14 @@
 #include <QListWidget>
 #include <QMessageBox>
 #include <QPointer>
+#include <QProcess>
 #include <QPushButton>
 #include <QSpacerItem>
 #include <QVBoxLayout>
 #include <QWidget>
 #include <map>
 #include <filesystem>
+#include <memory>
 #include <string>
 
 tmscm 
@@ -1684,6 +1686,50 @@ tmg_google_cloud_todo_push_item (tmscm arg1, tmscm arg2) {
 }
 
 tmscm
+tmg_codex_run_completion_async (tmscm arg1, tmscm arg2, tmscm arg3,
+                                tmscm arg4, tmscm arg5) {
+  TMSCM_ASSERT_STRING (arg1, TMSCM_ARG1, "codex-run-completion-async");
+  TMSCM_ASSERT_STRING (arg2, TMSCM_ARG2, "codex-run-completion-async");
+  TMSCM_ASSERT_STRING (arg3, TMSCM_ARG3, "codex-run-completion-async");
+  TMSCM_ASSERT_STRING (arg4, TMSCM_ARG4, "codex-run-completion-async");
+  TMSCM_ASSERT_COMMAND (arg5, TMSCM_ARG5, "codex-run-completion-async");
+
+  QString bridge= to_qstring (tmscm_to_string (arg1));
+  QString home= to_qstring (tmscm_to_string (arg2));
+  QString input= to_qstring (tmscm_to_string (arg3));
+  QString output= to_qstring (tmscm_to_string (arg4));
+  command callback= tmscm_to_command (arg5);
+
+  QProcess* process= new QProcess (QApplication::instance ());
+  process->setProcessChannelMode (QProcess::MergedChannels);
+  auto completed= std::make_shared<bool> (false);
+  auto complete= [process, callback, completed] () {
+    if (*completed) return;
+    *completed= true;
+    QByteArray diagnostics= process->readAll ();
+    if (!diagnostics.isEmpty () &&
+        (process->exitStatus () != QProcess::NormalExit ||
+         process->exitCode () != 0))
+      std_warning << "Codex completion bridge: "
+                  << from_qstring (QString::fromUtf8 (diagnostics)) << LF;
+    eval (callback);
+    process->deleteLater ();
+  };
+  QObject::connect (
+    process, qOverload<int,QProcess::ExitStatus> (&QProcess::finished),
+    process, [complete] (int, QProcess::ExitStatus) { complete (); });
+  QObject::connect (
+    process, &QProcess::errorOccurred, process,
+    [complete] (QProcess::ProcessError error) {
+      if (error == QProcess::FailedToStart) complete ();
+    });
+  process->start (bridge,
+                  {"--one-shot", "--codex-home", home,
+                   "--input", input, "--output", output});
+  return TMSCM_UNSPECIFIED;
+}
+
+tmscm
 tmg_vault_load_with_ns (tmscm arg1, tmscm arg2, tmscm arg3, tmscm arg4) {
   TMSCM_ASSERT_URL (arg1, TMSCM_ARG1, "vault-load-with-ns");
   TMSCM_ASSERT_STRING (arg2, TMSCM_ARG2, "vault-load-with-ns");
@@ -1896,6 +1942,8 @@ initialize_glue () {
                            tmg_google_cloud_todo_sync_open_buffers, 0, 0, 0);
   tmscm_install_procedure ("google-cloud-todo-push-item",
                            tmg_google_cloud_todo_push_item, 2, 0, 0);
+  tmscm_install_procedure ("codex-run-completion-async",
+                           tmg_codex_run_completion_async, 5, 0, 0);
   tmscm_install_procedure ("namespace-manager-show",
                            namespace_manager_show, 0, 0, 0);
   tmscm_install_procedure ("namespace-explorer-show",

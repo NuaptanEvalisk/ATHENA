@@ -841,17 +841,13 @@
   <subsection|AI>
 
   <\description>
-    <item*|AI engine>Chooses the default AI backend, or turns AI integration
-    off.
+    <item*|Codex home>Stores Codex authentication and configuration separately
+    from the normal Codex command-line home. By default ATHENA uses the
+    <verbatim|codex> directory inside the ATHENA user home.
 
-    <item*|OpenAI API key>API key used by OpenAI-backed commands. The field
-    is password-hidden.
-
-    <item*|Gemini API key>API key used by Gemini-backed commands. The field
-    is password-hidden.
-
-    <item*|Mistral API key>API key used by Mistral-backed commands. The field
-    is password-hidden.
+    <item*|OpenAI Codex login>Starts the official Codex login flow using the
+    selected Codex home. The adjacent status command checks whether that Codex
+    home is authenticated. ATHENA does not store OpenAI API keys itself.
   </description>
 
   <subsection|Connectivity>

@@ -3819,62 +3819,6 @@ source code.
   </explain>
 
   <\explain>
-    <scm|(cpp-ai-command <scm-arg|string> <scm-arg|string>)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|ai_command> which returns
-    <scm|string>.
-  </explain>
-
-  <\explain>
-    <scm|(cpp-ai-output <scm-arg|string> <scm-arg|string>)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|ai_output> which returns
-    <scm|string>.
-  </explain>
-
-  <\explain>
-    <scm|(cpp-ai-latex-command <scm-arg|string> <scm-arg|string> <scm-arg|string>)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|ai_latex_command> which returns
-    <scm|string>.
-  </explain>
-
-  <\explain>
-    <scm|(cpp-ai-latex-output <scm-arg|string> <scm-arg|string> <scm-arg|string>)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|ai_latex_output> which returns
-    <scm|tree>.
-  </explain>
-
-  <\explain>
-    <scm|(cpp-ai-chat <scm-arg|string> <scm-arg|string>)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|ai_chat> which returns
-    <scm|string>.
-  </explain>
-
-  <\explain>
-    <scm|(cpp-ai-correct <scm-arg|content> <scm-arg|string> <scm-arg|string>)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|ai_correct> which returns
-    <scm|tree>.
-  </explain>
-
-  <\explain>
-    <scm|(cpp-ai-translate <scm-arg|content> <scm-arg|string> <scm-arg|string> <scm-arg|string>)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|ai_translate> which returns
-    <scm|tree>.
-  </explain>
-
-  <\explain>
     <scm|(url-\<gtr\>url <scm-arg|url>)>
 <explain-synopsis|no synopsis>
   <|explain>

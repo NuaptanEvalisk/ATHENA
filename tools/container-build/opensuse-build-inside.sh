@@ -355,6 +355,15 @@ copy_runtime_tree () {
     "$repo_root/ATHENA/" "$out_dir/"
 
   install -Dm755 "$build_dir/src/ATHENA.bin" "$out_dir/bin/ATHENA.bin"
+  install -Dm755 "$build_dir/src/athena-codex-bridge" \
+    "$out_dir/bin/athena-codex-bridge"
+  if [ -x "$build_dir/src/codex" ]; then
+    install -Dm755 "$build_dir/src/codex" "$out_dir/bin/codex"
+  fi
+  if [ -f "$build_dir/src/codex-LICENSE" ]; then
+    install -Dm644 "$build_dir/src/codex-LICENSE" \
+      "$out_dir/licenses/codex/LICENSE"
+  fi
   if compgen -G "$build_dir/x64/lib/libqt6advanceddocking*.so*" >/dev/null; then
     cp -a "$build_dir"/x64/lib/libqt6advanceddocking*.so* "$out_dir/lib/"
   fi

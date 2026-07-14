@@ -19,13 +19,8 @@
         (athena tools shortcut-listing)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Dynamic menus for formats, languages, and AI
+;; Dynamic menus
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(menu-bind ai-translate-menu
-  (for (lan supported-languages)
-    ((eval (upcase-first lan))
-     (ai-translate lan (get-preference "ai")))))
 
 (tm-define (run-proof-pipeline-menu-action)
   (run-proof-pipeline))
@@ -78,12 +73,6 @@
       ("Count words" (show-word-count))
       ("Count lines" (show-line-count)))
   ("Run proof pipeline" (run-proof-pipeline-menu-action))
-  ---
-  (when (and (!= (get-preference "ai") "off")
-             (selection-active-any?))
-    ("AI Correct" (ai-correct (get-preference "ai")))
-    (-> "AI Translate"
-        (link ai-translate-menu)))
   ---
   ("Clear undo history" (clear-undo-history))
   ("Save auxiliary data" (toggle-save-aux))
