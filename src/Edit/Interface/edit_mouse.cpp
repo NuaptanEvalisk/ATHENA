@@ -822,6 +822,10 @@ edit_interface_rep::mouse_any (string type, SI x, SI y, int mods, time_t t,
       image_resize_finish ();
       return;
     }
+    // Wayland may coalesce the last motion before release.  Finish the
+    // selection at the release coordinates instead of the last move event.
+    if (type == "end-drag-left" && mouse_adjusting == 0)
+      mouse_drag (x, y);
     if (!(mouse_adjusting & ShiftMask))
       mouse_select (x, y, mods, type == "end-drag-left");
     mouse_adjusting &= ~mouse_adjusting;
