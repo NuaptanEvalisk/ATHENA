@@ -107,6 +107,12 @@ bridge_compound_rep::notify_assign (path p, tree u) {
     status= CORRUPTED;
     return;
   }
+  if (athena_is_proof_qed_layout (st)) {
+    st= substitute (st, p, u);
+    valid= false;
+    status= CORRUPTED;
+    return;
+  }
   if (is_nil (p) || (p->item == 0) || is_nil (body)) {
     st= substitute (st, p, u);
     valid= false;
@@ -145,6 +151,12 @@ bridge_compound_rep::notify_insert (path p, tree u) {
     status= CORRUPTED;
     return;
   }
+  if (athena_is_proof_qed_layout (st)) {
+    st= insert_at (st, p, u);
+    valid= false;
+    status= CORRUPTED;
+    return;
+  }
   if (is_atom (p) || is_nil (body)) bridge_rep::notify_insert (p, u);
   else {
     // bool mp_flag= is_multi_paragraph (st);
@@ -177,6 +189,12 @@ bridge_compound_rep::notify_remove (path p, int nr) {
       st= new_st;
       valid= false;
     }
+    status= CORRUPTED;
+    return;
+  }
+  if (athena_is_proof_qed_layout (st)) {
+    st= remove_at (st, p, nr);
+    valid= false;
     status= CORRUPTED;
     return;
   }
@@ -217,6 +235,16 @@ bridge_compound_rep::notify_macro (
     valid= false;
     status= CORRUPTED;
     return body_dep || wrapper_dep;
+  }
+  if (athena_is_proof_qed_layout (st)) {
+    int d= athena_proof_qed_layout_delta (st);
+    bool dep= env->depends (st[d], var, l) ||
+              env->depends (st[d + 1], var, l) ||
+              env->depends (st[d + 2], var, l) ||
+              env->depends (st[d + 3], var, l);
+    valid= false;
+    status= CORRUPTED;
+    return dep;
   }
   if (valid) {
     int i, n=N(fun)-1, m=N(st);
@@ -269,6 +297,14 @@ void
 bridge_compound_rep::my_typeset (int desired_status) {
   if (athena_is_enunciation_surround (st)) {
     tree r= athena_enunciation_surround_rewrite (env, st);
+    initialize (r, 0, r);
+    if (!the_drd->is_child_enforcing (st))
+      ttt->insert_marker (st, ip);
+    body->typeset (desired_status);
+    return;
+  }
+  if (athena_is_proof_qed_layout (st)) {
+    tree r= athena_proof_qed_layout_rewrite (env, st);
     initialize (r, 0, r);
     if (!the_drd->is_child_enforcing (st))
       ttt->insert_marker (st, ip);

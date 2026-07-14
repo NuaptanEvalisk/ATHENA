@@ -362,6 +362,9 @@ make_lazy_compound (edit_env env, tree t, path ip) {
   if (athena_is_enunciation_surround (t))
     return make_lazy (
       env, attach_right (athena_enunciation_surround_rewrite (env, t), ip));
+  if (athena_is_proof_qed_layout (t))
+    return make_lazy (
+      env, attach_right (athena_proof_qed_layout_rewrite (env, t), ip));
 
   int d; tree f;
   if (L(t) == COMPOUND) {

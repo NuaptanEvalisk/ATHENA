@@ -108,6 +108,10 @@ concater_rep::typeset_compound (tree t, path ip) {
     typeset (athena_enunciation_surround_rewrite (env, t), ip);
     return;
   }
+  if (athena_is_proof_qed_layout (t)) {
+    typeset (athena_proof_qed_layout_rewrite (env, t), ip);
+    return;
+  }
 
   int d; tree f;
   if (L(t) == COMPOUND) {

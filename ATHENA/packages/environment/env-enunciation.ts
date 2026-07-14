@@ -124,12 +124,10 @@
   \;
 
   <assign|render-proof|<\macro|which|body>
-    <\surround||<if|<occurs-inside|<quote|<qed>>|body>||<tab-qed>>>
-      <\render-remark|<arg|which>>
-        <arg|body>
-      </render-remark>
-    </surround>
+    <proof-qed-layout|render-remark|<arg|which>|<if|<occurs-inside|<quote|<qed>>|body>||<tab-qed>>|<arg|body>>
   </macro>>
+
+  <drd-props|proof-qed-layout|arity|4|accessible|3>
 
   <assign|render-proof-alternative|<value|render-proof>>
 
