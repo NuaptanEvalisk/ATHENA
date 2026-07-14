@@ -90,6 +90,7 @@ protected:
   list<string>  focus_ids;
   int           cur_sb, cur_wb;
   SI            cur_wx, cur_wy;
+  SI            resize_wx, resize_wy;
   rectangles    keys_rects;
   bool          pending_idle_menu_update;
   time_t        typewriter_manual_scroll_time;

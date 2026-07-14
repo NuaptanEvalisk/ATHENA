@@ -79,6 +79,7 @@ edit_interface_rep::edit_interface_rep ():
   oc (0, 0), temp_invalid_cursor (false),
   shadow (NULL), stored (NULL),
   cur_sb (2), cur_wb (2),
+  resize_wx (0), resize_wy (0),
   pending_idle_menu_update (true),
   typewriter_manual_scroll_time (0),
   typewriter_manual_scroll_path (),
@@ -87,6 +88,8 @@ edit_interface_rep::edit_interface_rep ():
 {
   input_mode= INPUT_NORMAL;
   gui_root_extents (cur_wx, cur_wy);
+  resize_wx= cur_wx;
+  resize_wy= cur_wy;
 }
 
 edit_interface_rep::~edit_interface_rep () {
@@ -802,12 +805,13 @@ edit_interface_rep::apply_changes () {
       if (get_init_string (SCROLL_BARS) == "false") sb= 0;
       if (get_server () -> in_full_screen_mode ()) sb= 0;
       if (sb && !visible_size) wx -= scrollbar_width();
-      if (wx != cur_wx || wy != cur_wy || new_zoom != old_zoom) {
+      bool layout_changed= wx != cur_wx || new_zoom != old_zoom;
+      if (layout_changed) {
         cur_wx= wx; cur_wy= wy;
         init_env (PAGE_SCREEN_WIDTH, as_string ((SI) (wx/magf)) * "tmpt");
         init_env (PAGE_SCREEN_HEIGHT, as_string ((SI) (wy/magf)) * "tmpt");
-        notify_change (THE_ENVIRONMENT);
       }
+      else cur_wy= wy;
     }
   }  
   if (get_init_string (PAGE_MEDIUM) == "beamer" && full_screen) sb= 0;
@@ -1245,10 +1249,15 @@ edit_interface_rep::handle_get_size_hint (SI& w, SI& h) {
 
 void
 edit_interface_rep::handle_notify_resize (SI w, SI h) {
-  (void) w; (void) h;
   if (is_nil (buf)) return;
-  notify_change (THE_TREE+THE_FREEZE);
-  if (as_bool (call ("defined?",
+  bool width_changed= w != resize_wx;
+  bool height_changed= h != resize_wy;
+  resize_wx= w;
+  resize_wy= h;
+  if (!width_changed && !height_changed) return;
+  notify_change ((width_changed ? THE_TREE : THE_EXTENTS) + THE_FREEZE);
+  if (width_changed &&
+      as_bool (call ("defined?",
                      symbol_object ("schedule-persistent-fit-width"))))
     call ("schedule-persistent-fit-width");
   if (!is_embedded_widget () &&
