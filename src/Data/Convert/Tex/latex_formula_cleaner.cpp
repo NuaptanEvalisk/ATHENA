@@ -10,12 +10,12 @@
 
 #include "latex_formula_cleaner.hpp"
 
+#include "ATHENA/Data/llama_runtime.hpp"
 #include "boot.hpp"
 #include "file.hpp"
 #include "Scheme/scheme.hpp"
 #include "tm_ostream.hpp"
 
-#include <ggml-backend.h>
 #include <llama.h>
 
 #include <algorithm>
@@ -106,13 +106,6 @@ configured_model_path () {
   return path;
 }
 
-void
-llama_log_bridge (enum ggml_log_level level, const char* text, void*) {
-  if (text == nullptr || text[0] == '\0') return;
-  if (level >= GGML_LOG_LEVEL_WARN)
-    std_warning << "formula cleaner llama.cpp: " << text;
-}
-
 std::vector<llama_token>
 tokenize (const llama_vocab* vocab, const std::string& text, bool add_special) {
   int32_t n= llama_tokenize (vocab, text.c_str (), (int32_t) text.size (),
@@ -148,7 +141,6 @@ public:
     if (sampler != nullptr) llama_sampler_free (sampler);
     if (ctx != nullptr) llama_free (ctx);
     if (model != nullptr) llama_model_free (model);
-    if (backend_initialized) llama_backend_free ();
   }
 
   std::string clean (const std::string& latex) {
@@ -224,12 +216,7 @@ private:
       return false;
     }
 
-    if (!backend_initialized) {
-      llama_log_set (llama_log_bridge, nullptr);
-      ggml_backend_load_all ();
-      llama_backend_init ();
-      backend_initialized= true;
-    }
+    athena_llama_runtime_initialize ();
 
     llama_model_params mparams= llama_model_default_params ();
     mparams.n_gpu_layers= 0;
@@ -290,7 +277,6 @@ private:
   llama_model* model= nullptr;
   llama_context* ctx= nullptr;
   llama_sampler* sampler= nullptr;
-  bool backend_initialized= false;
 };
 
 FormulaCleaner&

@@ -364,6 +364,21 @@ summary_document_text (VaultMaintenanceContext& ctx, bool success,
                       " dead pair(s), failures " +
                       std::to_string (summary.anchor_failures))})
   };
+  work_rows.push_back (
+    tm_row ({tm_text ("Artifacts"),
+             tm_text ("examined " +
+                      std::to_string (summary.artifact_documents_seen) +
+                      " document(s), rebuilt " +
+                      std::to_string (summary.artifact_documents_changed) +
+                      ", removed " +
+                      std::to_string (summary.artifact_documents_deleted) +
+                      ", indexed " +
+                      std::to_string (summary.artifacts_indexed) +
+                      " artifact(s): " +
+                      std::to_string (summary.artifact_enunciations) +
+                      " enunciation(s), " +
+                      std::to_string (summary.artifact_bold_texts) +
+                      " bold-text definition(s)")}));
   if (summary.toc_update_enabled)
     work_rows.push_back (
       tm_row ({tm_text ("Tables of contents"),
@@ -549,6 +564,18 @@ vault_maintenance_pass_print_summary (VaultMaintenanceContext& ctx) {
             std::to_string (summary.anchor_map_references_updated) +
             " map reference(s); failures " +
             std::to_string (summary.anchor_failures));
+  log_info ("summary: artifacts examined " +
+            std::to_string (summary.artifact_documents_seen) +
+            " document(s), rebuilt " +
+            std::to_string (summary.artifact_documents_changed) +
+            ", removed " +
+            std::to_string (summary.artifact_documents_deleted) +
+            ", indexed " +
+            std::to_string (summary.artifacts_indexed) + " artifact(s): " +
+            std::to_string (summary.artifact_enunciations) +
+            " enunciation(s), " +
+            std::to_string (summary.artifact_bold_texts) +
+            " bold-text definition(s)");
   if (summary.toc_update_enabled)
     log_info ("summary: updated tables of contents in " +
               std::to_string (summary.toc_files_updated) + " of " +

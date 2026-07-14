@@ -50,6 +50,7 @@
 #include "convert.hpp"
 #include "Freetype/tt_file.hpp"
 #include "ATHENA/Data/vault_maintenance.hpp"
+#include "ATHENA/Data/artifacts.hpp"
 #include "ATHENA/Data/vaultfile_json.hpp"
 #include "ATHENA/Data/websites.hpp"
 #include "MCP/mcp_rag_server.hpp"
@@ -99,6 +100,8 @@ string vault_maintenance_dir;
 bool   vault_maintenance_check_only = false;
 string vault_maintenance_toc_worker_file;
 string vault_maintenance_toc_worker_marker;
+string artifact_extract_worker_manifest;
+string artifact_extract_worker_output;
 string rag_server_dir;
 string rag_embedding_model;
 string rag_embedding_device= "auto";
@@ -1561,6 +1564,15 @@ texmacs_entrypoint (int argc, char** argv) {
         headless_mode= true;
       }
     }
+    if (s == "-artifact-extract-worker") {
+      if (i + 2 < argc) {
+        i++;
+        artifact_extract_worker_manifest= argv[i];
+        i++;
+        artifact_extract_worker_output= argv[i];
+        headless_mode= true;
+      }
+    }
     if (s == "-generate-website") {
       i++;
       if (i < argc) website_generate_dir= argv[i];
@@ -1639,6 +1651,17 @@ texmacs_entrypoint (int argc, char** argv) {
       headless_mode= true;
   }
   ATHENA_init_paths (argc, argv);
+  if (artifact_extract_worker_manifest != "" &&
+      artifact_extract_worker_output != "") {
+    std::string error;
+    bool ok= athena_artifacts_run_extract_worker (
+      std::filesystem::path (athena_to_std_string (
+        artifact_extract_worker_manifest)),
+      std::filesystem::path (athena_to_std_string (
+        artifact_extract_worker_output)), error);
+    if (!ok) std::cerr << "artifact extraction worker: " << error << '\n';
+    return ok ? 0 : 1;
+  }
   handle_rag_server_keypair_generation ();
 #ifdef QTTEXMACS
   reject_unsupported_qt_platforms (argc, argv);

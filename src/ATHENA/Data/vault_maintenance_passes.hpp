@@ -40,6 +40,12 @@ struct VaultMaintenanceSummary {
   size_t anchor_dead_pairs_removed = 0;
   size_t anchor_failures = 0;
   int anchor_reader_processes = -1;
+  size_t artifact_documents_seen = 0;
+  size_t artifact_documents_changed = 0;
+  size_t artifact_documents_deleted = 0;
+  size_t artifact_enunciations = 0;
+  size_t artifact_bold_texts = 0;
+  size_t artifacts_indexed = 0;
   bool toc_update_enabled = false;
   size_t toc_files_scanned = 0;
   size_t toc_files_containing_toc = 0;
@@ -123,6 +129,8 @@ VaultMaintenancePassResult vault_maintenance_pass_read_policy_preferences (
 VaultMaintenancePassResult vault_maintenance_pass_normalize_images (
   VaultMaintenanceContext& ctx);
 VaultMaintenancePassResult vault_maintenance_pass_anchor_enunciations (
+  VaultMaintenanceContext& ctx);
+VaultMaintenancePassResult vault_maintenance_pass_build_artifacts (
   VaultMaintenanceContext& ctx);
 VaultMaintenancePassResult vault_maintenance_pass_update_tables_of_contents (
   VaultMaintenanceContext& ctx);

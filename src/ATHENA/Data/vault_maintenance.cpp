@@ -37,6 +37,8 @@ vault_maintenance_run (string vault_dir, bool check_only) {
      vault_maintenance_pass_normalize_images},
     {"anchor-structures", "Anchor structures",
      vault_maintenance_pass_anchor_enunciations},
+    {"build-artifacts", "Build semantic artifact indexes",
+     vault_maintenance_pass_build_artifacts},
     {"update-tocs", "Update tables of contents",
      vault_maintenance_pass_update_tables_of_contents},
     {"continuous-rag", "Update Continuous RAG index",

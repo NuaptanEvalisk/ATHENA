@@ -26,6 +26,9 @@ struct AthenaVaultfileInfo {
   std::string rag_index_path= "rag.sqlite";
   std::string websites_path= "websites.json";
   std::string root_namespace;
+  std::string artifacts_path= "artifacts.db";
+  std::string enunciations_path= "enunciations.db";
+  std::string bold_text_path= "bold-text.db";
 };
 
 std::filesystem::path athena_vaultfile_json_path (

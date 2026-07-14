@@ -1,0 +1,325 @@
+/******************************************************************************
+* MODULE     : QTMArtifactsPane.cpp
+* DESCRIPTION: Artifact browser and build commands
+* COPYRIGHT  : (C) 2026 Nuaptan Felix Evalisk
+******************************************************************************/
+
+#include "QTMArtifactsPane.hpp"
+
+#include "QTMMainTabWindow.hpp"
+#include "ATHENA/Data/new_buffer.hpp"
+#include "ATHENA/Data/namespaces.hpp"
+#include "ATHENA/Data/vault.hpp"
+#include "convert.hpp"
+#include "drd_mode.hpp"
+#include "scheme.hpp"
+#include "tree_search.hpp"
+#include "qt_utilities.hpp"
+
+#include <DockWidget.h>
+#include <QApplication>
+#include <QComboBox>
+#include <QDialog>
+#include <QDialogButtonBox>
+#include <QHeaderView>
+#include <QHBoxLayout>
+#include <QLabel>
+#include <QLineEdit>
+#include <QMessageBox>
+#include <QProgressBar>
+#include <QPushButton>
+#include <QTableWidget>
+#include <QTimer>
+#include <QVBoxLayout>
+
+#include <filesystem>
+#include <set>
+
+namespace fs= std::filesystem;
+
+namespace {
+
+QTMArtifactsPane* artifacts_widget= nullptr;
+ads::CDockWidget* artifacts_dock= nullptr;
+
+std::string std_string (string value) {
+  return std::string (as_charp (value), (size_t) N(value));
+}
+
+QString qstr (const std::string& value) {
+  return QString::fromUtf8 (value.data (), (qsizetype) value.size ());
+}
+
+string tmstr (const std::string& value) {
+  return string (value.data (), (int) value.size ());
+}
+
+fs::path active_root () {
+  return vault_active () ? fs::path (std_string (concretize (vault_get_root ())))
+                         : fs::path ();
+}
+
+void execute_open (const AthenaArtifactRecord& record) {
+  fs::path absolute= active_root () / fs::path (record.relative_path);
+  url file= url_system (tmstr (absolute.string ()));
+  if (record.origin == "enunciation" && !record.anchor_stem.empty ()) {
+    array<object> cmd;
+    cmd << symbol_object ("vault-jump-to-source") << object (file)
+        << object (tmstr (record.anchor_stem));
+    exec_delayed (scheme_cmd (as_list_object (cmd)));
+    return;
+  }
+
+  try {
+    tree document= import_tree (file, "texmacs");
+    tree body= extract (document, "body");
+    if (is_empty (body)) body= document;
+    tree query= texmacs_to_tree (tmstr (record.keyword_tree));
+    int old_mode= set_access_mode (DRD_ACCESS_SOURCE);
+    range_set hits;
+    try { hits= search (body, query, path (), 5000); }
+    catch (...) { set_access_mode (old_mode); throw; }
+    set_access_mode (old_mode);
+    int index= std::max (0, record.keyword_occurrence - 1);
+    if (2 * index + 1 < N(hits)) {
+      array<object> cmd;
+      cmd << symbol_object ("global-search-open-occurrence") << object (file)
+          << list_object (symbol_object ("quote"), object (hits[2*index]))
+          << list_object (symbol_object ("quote"), object (hits[2*index+1]));
+      exec_delayed (scheme_cmd (as_list_object (cmd)));
+      return;
+    }
+  }
+  catch (...) {}
+  array<object> cmd;
+  cmd << symbol_object ("load-buffer") << object (file);
+  exec_delayed (scheme_cmd (as_list_object (cmd)));
+}
+
+void build_with_dialog (bool current_only) {
+  if (!vault_active ()) {
+    QMessageBox::warning (QApplication::activeWindow (), "Build artifacts",
+                          "No active vault. Please load a vault first.");
+    return;
+  }
+  QDialog dialog (QApplication::activeWindow ());
+  dialog.setWindowTitle (current_only ? "Build artifacts for current document"
+                                      : "Build artifacts for entire vault");
+  dialog.setModal (true);
+  QVBoxLayout* layout= new QVBoxLayout (&dialog);
+  QLabel* status= new QLabel ("Preparing artifact databases...", &dialog);
+  QProgressBar* progress= new QProgressBar (&dialog);
+  progress->setRange (0, 1);
+  progress->setValue (0);
+  QPushButton* cancel= new QPushButton ("Cancel", &dialog);
+  layout->addWidget (status);
+  layout->addWidget (progress);
+  layout->addWidget (cancel, 0, Qt::AlignRight);
+  bool cancelled= false;
+  QObject::connect (cancel, &QPushButton::clicked, [&] () { cancelled= true; });
+  dialog.resize (620, dialog.sizeHint ().height ());
+  dialog.show ();
+  QApplication::processEvents ();
+
+  AthenaArtifactsBuildResult result;
+  std::string error;
+  bool ok= athena_artifacts_build_active_vault (
+    current_only,
+    [&] (size_t done, size_t total, const std::string& path) {
+      progress->setRange (0, std::max (1, (int) total));
+      progress->setValue ((int) done);
+      status->setText (path.empty () ? "Finalizing artifact databases..."
+                                     : QString ("Indexing %1").arg (qstr (path)));
+      QApplication::processEvents (QEventLoop::AllEvents, 50);
+      return !cancelled;
+    }, result, error);
+  dialog.close ();
+  if (!ok) {
+    if (!cancelled)
+      QMessageBox::critical (QApplication::activeWindow (), "Build artifacts",
+                             qstr (error));
+    return;
+  }
+  if (artifacts_widget) artifacts_widget->refresh ();
+  QMessageBox::information (
+    QApplication::activeWindow (), "Build artifacts",
+    QString ("Indexed %1 artifact(s): %2 enunciation(s) and %3 bold-text "
+             "definition(s). Rebuilt %4 document(s); purged %5 deleted "
+             "document(s).")
+      .arg ((qulonglong) result.artifacts)
+      .arg ((qulonglong) result.enunciations)
+      .arg ((qulonglong) result.bold_texts)
+      .arg ((qulonglong) result.documents_changed)
+      .arg ((qulonglong) result.documents_deleted));
+}
+
+} // namespace
+
+QTMArtifactsPane::QTMArtifactsPane (QWidget* parent): QWidget (parent) {
+  QVBoxLayout* outer= new QVBoxLayout (this);
+  QHBoxLayout* controls= new QHBoxLayout;
+  scope= new QComboBox (this);
+  scope->addItems ({"Current document", "Entire vault", "Within namespace"});
+  namespaceSelector= new QComboBox (this);
+  namespaceSelector->setEnabled (false);
+  search= new QLineEdit (this);
+  search->setPlaceholderText ("Search artifacts");
+  controls->addWidget (new QLabel ("Show:", this));
+  controls->addWidget (scope);
+  controls->addWidget (namespaceSelector, 1);
+  controls->addWidget (search, 2);
+  outer->addLayout (controls);
+
+  table= new QTableWidget (0, 4, this);
+  table->setHorizontalHeaderLabels ({"Type", "Origin", "Artifact", "File"});
+  table->setSelectionBehavior (QAbstractItemView::SelectRows);
+  table->setSelectionMode (QAbstractItemView::SingleSelection);
+  table->setEditTriggers (QAbstractItemView::NoEditTriggers);
+  table->verticalHeader ()->hide ();
+  table->horizontalHeader ()->setSectionResizeMode (0, QHeaderView::ResizeToContents);
+  table->horizontalHeader ()->setSectionResizeMode (1, QHeaderView::ResizeToContents);
+  table->horizontalHeader ()->setSectionResizeMode (2, QHeaderView::Stretch);
+  table->horizontalHeader ()->setSectionResizeMode (3, QHeaderView::Stretch);
+  outer->addWidget (table, 1);
+
+  connect (scope, &QComboBox::currentIndexChanged, this, [this] (int index) {
+    namespaceSelector->setEnabled (index == 2);
+    applyFilter ();
+  });
+  connect (namespaceSelector, &QComboBox::currentIndexChanged,
+           this, [this] { applyFilter (); });
+  connect (search, &QLineEdit::textChanged, this, [this] { applyFilter (); });
+  connect (table, &QTableWidget::cellDoubleClicked,
+           this, [this] (int row, int) { openRow (row); });
+
+  currentWatcher= new QTimer (this);
+  currentWatcher->setInterval (500);
+  connect (currentWatcher, &QTimer::timeout, this, [this] {
+    QString current= currentRelativePath ();
+    if (current != lastCurrentPath) {
+      lastCurrentPath= current;
+      if (scope->currentIndex () == 0) applyFilter ();
+    }
+  });
+  currentWatcher->start ();
+  refresh ();
+}
+
+QString
+QTMArtifactsPane::currentRelativePath () const {
+  if (!vault_active ()) return {};
+  fs::path root= active_root ();
+  fs::path current (std_string (concretize (get_current_buffer_safe ())));
+  std::error_code ec;
+  fs::path rel= fs::relative (current, root, ec);
+  if (ec || rel.string ().rfind ("..", 0) == 0) return {};
+  return qstr (rel.generic_string ());
+}
+
+void
+QTMArtifactsPane::refreshNamespaces () {
+  QString selected= namespaceSelector->currentText ();
+  namespaceSelector->blockSignals (true);
+  namespaceSelector->clear ();
+  for (const athena_namespace_definition& ns: athena_namespaces_list ())
+    namespaceSelector->addItem (to_qstring (ns.name));
+  int index= namespaceSelector->findText (selected);
+  if (index >= 0) namespaceSelector->setCurrentIndex (index);
+  namespaceSelector->blockSignals (false);
+}
+
+void
+QTMArtifactsPane::refresh () {
+  records.clear ();
+  if (vault_active ()) {
+    std::string error;
+    if (!athena_artifacts_query (active_root (), records, error))
+      QMessageBox::warning (this, "Artifacts", qstr (error));
+  }
+  refreshNamespaces ();
+  lastCurrentPath= currentRelativePath ();
+  applyFilter ();
+}
+
+void
+QTMArtifactsPane::applyFilter () {
+  std::set<std::string> namespaceFiles;
+  if (scope->currentIndex () == 2 && !namespaceSelector->currentText ().isEmpty ()) {
+    string error;
+    std::vector<athena_namespace_match> members= athena_namespace_members (
+      from_qstring (namespaceSelector->currentText ()), error);
+    fs::path root= active_root ();
+    for (const athena_namespace_match& member: members) {
+      fs::path path (std_string (concretize (member.file)));
+      std::error_code ec;
+      fs::path rel= fs::relative (path, root, ec);
+      if (!ec) namespaceFiles.insert (rel.generic_string ());
+    }
+  }
+  QString query= search->text ().trimmed ();
+  QString current= currentRelativePath ();
+  table->setRowCount (0);
+  for (size_t index=0; index<records.size (); index++) {
+    const AthenaArtifactRecord& record= records[index];
+    if (scope->currentIndex () == 0 && qstr (record.relative_path) != current)
+      continue;
+    if (scope->currentIndex () == 2 &&
+        !namespaceFiles.count (record.relative_path)) continue;
+    QString haystack= qstr (record.display_text + " " + record.type + " " +
+                            record.relative_path);
+    if (!query.isEmpty () && !haystack.contains (query, Qt::CaseInsensitive))
+      continue;
+    int row= table->rowCount ();
+    table->insertRow (row);
+    QString origin= record.origin == "bold-text" ? "Bold text" : "Enunciation";
+    QString display= qstr (record.display_text);
+    if (display.isEmpty ()) display= qstr (record.anchor_stem);
+    QStringList values= {qstr (record.type), origin, display,
+                          qstr (record.relative_path)};
+    for (int column=0; column<4; column++) {
+      QTableWidgetItem* item= new QTableWidgetItem (values[column]);
+      item->setData (Qt::UserRole, (qulonglong) index);
+      table->setItem (row, column, item);
+    }
+  }
+}
+
+void
+QTMArtifactsPane::openRow (int row) {
+  QTableWidgetItem* item= table->item (row, 0);
+  if (!item) return;
+  size_t index= (size_t) item->data (Qt::UserRole).toULongLong ();
+  if (index < records.size ()) execute_open (records[index]);
+}
+
+void
+artifacts_pane_show () {
+  if (!vault_active ()) {
+    QMessageBox::warning (QApplication::activeWindow (), "Artifacts",
+                          "No active vault. Please load a vault first.");
+    return;
+  }
+  QTMMainTabWindow* window= QTMMainTabWindow::topTabWindow ();
+  if (!window || !window->dockManager ()) return;
+  if (!artifacts_widget) {
+    artifacts_widget= new QTMArtifactsPane;
+    QObject::connect (artifacts_widget, &QObject::destroyed, [] {
+      artifacts_widget= nullptr; artifacts_dock= nullptr;
+    });
+  }
+  artifacts_widget->refresh ();
+  if (!artifacts_dock) {
+    artifacts_dock= new ads::CDockWidget ("Artifacts");
+    artifacts_dock->setObjectName ("athena-artifacts");
+    artifacts_dock->setWidget (artifacts_widget,
+                               ads::CDockWidget::ForceNoScrollArea);
+    artifacts_dock->setFeature (ads::CDockWidget::DockWidgetDeleteOnClose,
+                                false);
+    QObject::connect (artifacts_dock, &QObject::destroyed,
+                      [] { artifacts_dock= nullptr; });
+  }
+  window->showAdsDockWidget (artifacts_dock, ads::RightDockWidgetArea);
+}
+
+void artifacts_build_entire_vault () { build_with_dialog (false); }
+void artifacts_build_current_document () { build_with_dialog (true); }

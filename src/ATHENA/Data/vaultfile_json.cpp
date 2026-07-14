@@ -122,6 +122,10 @@ read_json_file (const std::filesystem::path& path, AthenaVaultfileInfo& info,
   info.rag_index_path= json_string (obj, "rag_index_path", "rag.sqlite");
   info.websites_path= json_string (obj, "websites_path", "websites.json");
   info.root_namespace= json_string (obj, "root_namespace");
+  info.artifacts_path= json_string (obj, "artifacts_path", "artifacts.db");
+  info.enunciations_path= json_string (obj, "enunciations_path",
+                                      "enunciations.db");
+  info.bold_text_path= json_string (obj, "bold_text_path", "bold-text.db");
   info= athena_vaultfile_normalize (info);
   return true;
 }
@@ -185,6 +189,9 @@ athena_vaultfile_normalize (const AthenaVaultfileInfo& info) {
   if (out.namespace_db_path.empty ()) out.namespace_db_path= "ns.sqlite";
   if (out.rag_index_path.empty ()) out.rag_index_path= "rag.sqlite";
   if (out.websites_path.empty ()) out.websites_path= "websites.json";
+  if (out.artifacts_path.empty ()) out.artifacts_path= "artifacts.db";
+  if (out.enunciations_path.empty ()) out.enunciations_path= "enunciations.db";
+  if (out.bold_text_path.empty ()) out.bold_text_path= "bold-text.db";
   return out;
 }
 
@@ -201,6 +208,9 @@ athena_vaultfile_from_fields (const std::vector<std::string>& fields) {
   if (fields.size () >= 8) info.rag_index_path= fields[7];
   if (fields.size () >= 9) info.websites_path= fields[8];
   if (fields.size () >= 10) info.root_namespace= fields[9];
+  if (fields.size () >= 11) info.artifacts_path= fields[10];
+  if (fields.size () >= 12) info.enunciations_path= fields[11];
+  if (fields.size () >= 13) info.bold_text_path= fields[12];
   return athena_vaultfile_normalize (info);
 }
 
@@ -216,7 +226,10 @@ athena_vaultfile_to_fields (const AthenaVaultfileInfo& info) {
            out.maintenance_summary_path,
            out.rag_index_path,
            out.websites_path,
-           out.root_namespace };
+           out.root_namespace,
+           out.artifacts_path,
+           out.enunciations_path,
+           out.bold_text_path };
 }
 
 bool
@@ -243,6 +256,9 @@ athena_vaultfile_write (const std::filesystem::path& root,
   obj["rag_index_path"]= qs (out.rag_index_path);
   obj["websites_path"]= qs (out.websites_path);
   obj["root_namespace"]= qs (out.root_namespace);
+  obj["artifacts_path"]= qs (out.artifacts_path);
+  obj["enunciations_path"]= qs (out.enunciations_path);
+  obj["bold_text_path"]= qs (out.bold_text_path);
   QJsonDocument doc (obj);
   std::string text= ss (QString::fromUtf8 (
     doc.toJson (QJsonDocument::Indented)));

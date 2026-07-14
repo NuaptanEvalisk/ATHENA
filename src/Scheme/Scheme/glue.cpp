@@ -49,6 +49,7 @@
 #include "QTMReverseHierarchyGraph.hpp"
 #include "QTMFormulaAstViewer.hpp"
 #include "QTMDocumentSearchBar.hpp"
+#include "QTMArtifactsPane.hpp"
 #include "QTMVaultInfoModel.hpp"
 #include "QTMAbout.hpp"
 #include "QTMESCSymbolPicker.hpp"
@@ -1971,6 +1972,12 @@ initialize_glue () {
                            tmg_document_search_next, 1, 0, 0);
   tmscm_install_procedure ("document-search-close",
                            tmg_document_search_close, 0, 0, 0);
+  tmscm_install_procedure ("artifacts-pane-show",
+                           artifacts_pane_show, 0, 0, 0);
+  tmscm_install_procedure ("artifacts-build-entire-vault",
+                           artifacts_build_entire_vault, 0, 0, 0);
+  tmscm_install_procedure ("artifacts-build-current-document",
+                           artifacts_build_current_document, 0, 0, 0);
   tmscm_install_procedure ("namespace-manager-show",
                            namespace_manager_show, 0, 0, 0);
   tmscm_install_procedure ("namespace-explorer-show",

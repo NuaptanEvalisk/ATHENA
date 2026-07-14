@@ -98,6 +98,7 @@
   ("Show outline" (outline-pane-show))
   ("Neighborhoods" (neighborhoods-pane-show))
   ("Error messages" (error-messages-show))
+  ("Artifacts" (artifacts-pane-show))
   (-> "Headings"
       ("Unfold all" (heading-unfold-all)))
   ---

@@ -189,6 +189,24 @@
       (list-ref data 9)
       ""))
 
+(define (vaultfile-artifacts-path data)
+  (if (and (list? data) (>= (length data) 11) (string? (list-ref data 10))
+           (not (string-null? (list-ref data 10))))
+      (list-ref data 10)
+      "artifacts.db"))
+
+(define (vaultfile-enunciations-path data)
+  (if (and (list? data) (>= (length data) 12) (string? (list-ref data 11))
+           (not (string-null? (list-ref data 11))))
+      (list-ref data 11)
+      "enunciations.db"))
+
+(define (vaultfile-bold-text-path data)
+  (if (and (list? data) (>= (length data) 13) (string? (list-ref data 12))
+           (not (string-null? (list-ref data 12))))
+      (list-ref data 12)
+      "bold-text.db"))
+
 (define (vaultfile-normalized data)
   (list (car data)
         (cadr data)
@@ -199,7 +217,10 @@
         (vaultfile-maintenance-summary-path data)
         (vaultfile-rag-index-path data)
         (vaultfile-websites-path data)
-        (vaultfile-root-namespace data)))
+        (vaultfile-root-namespace data)
+        (vaultfile-artifacts-path data)
+        (vaultfile-enunciations-path data)
+        (vaultfile-bold-text-path data)))
 
 (define (vaultfile-write! dir data)
   (let ((err (vaultfile-write dir (vaultfile-normalized data))))
@@ -223,7 +244,10 @@
         (vaultfile-maintenance-summary-path data)
         (vaultfile-rag-index-path data)
         (vaultfile-websites-path data)
-        (vaultfile-root-namespace data)))
+        (vaultfile-root-namespace data)
+        (vaultfile-artifacts-path data)
+        (vaultfile-enunciations-path data)
+        (vaultfile-bold-text-path data)))
 
 (define (vault-preferences-url dir prefs-path)
   (url-append dir prefs-path))

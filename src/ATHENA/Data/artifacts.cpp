@@ -1,0 +1,1085 @@
+/******************************************************************************
+* MODULE     : artifacts.cpp
+* DESCRIPTION: Semantic mathematical artifact index for ATHENA vaults
+* COPYRIGHT  : (C) 2026 Nuaptan Felix Evalisk
+*******************************************************************************
+* This software falls under the GNU general public license version 3 or later.
+******************************************************************************/
+
+#include "ATHENA/Data/artifacts.hpp"
+
+#include "ATHENA/Data/artifact_range_llm.hpp"
+#include "ATHENA/Data/new_buffer.hpp"
+#include "ATHENA/Data/vault.hpp"
+#include "ATHENA/Data/vault_maintenance_internal.hpp"
+#include "ATHENA/Data/vaultfile_json.hpp"
+#include "convert.hpp"
+#include "file.hpp"
+#include "scheme.hpp"
+
+#include <sqlite3.h>
+
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+
+#include <algorithm>
+#include <cctype>
+#include <chrono>
+#include <cerrno>
+#include <cstdlib>
+#include <filesystem>
+#include <fstream>
+#include <iterator>
+#include <map>
+#include <set>
+#include <sstream>
+#include <unordered_map>
+#include <thread>
+
+#if defined(__unix__) || defined(__APPLE__)
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>
+#endif
+
+namespace fs= std::filesystem;
+
+namespace {
+
+struct SqliteDb {
+  sqlite3* db= nullptr;
+  ~SqliteDb () { if (db) sqlite3_close (db); }
+};
+
+struct Statement {
+  sqlite3_stmt* st= nullptr;
+  ~Statement () { if (st) sqlite3_finalize (st); }
+};
+
+std::string to_std (string s) {
+  return std::string (as_charp (s), (size_t) N(s));
+}
+
+string to_tm (const std::string& s) { return string (s.data (), (int) s.size ()); }
+
+QString qstr (const std::string& s) {
+  return QString::fromUtf8 (s.data (), (qsizetype) s.size ());
+}
+
+std::string tag_name (const tree& t) {
+  return is_compound (t) ? to_std (as_string (L(t))) : std::string ();
+}
+
+bool exec_sql (sqlite3* db, const std::string& sql, std::string& error) {
+  char* message= nullptr;
+  int rc= sqlite3_exec (db, sql.c_str (), nullptr, nullptr, &message);
+  if (rc == SQLITE_OK) return true;
+  error= message ? message : sqlite3_errmsg (db);
+  sqlite3_free (message);
+  return false;
+}
+
+bool prepare (sqlite3* db, const char* sql, Statement& out,
+              std::string& error) {
+  if (sqlite3_prepare_v2 (db, sql, -1, &out.st, nullptr) == SQLITE_OK)
+    return true;
+  error= sqlite3_errmsg (db);
+  return false;
+}
+
+bool bind_text (sqlite3_stmt* st, int index, const std::string& value) {
+  return sqlite3_bind_text (st, index, value.data (), (int) value.size (),
+                            SQLITE_TRANSIENT) == SQLITE_OK;
+}
+
+std::string column_text (sqlite3_stmt* st, int column) {
+  const unsigned char* value= sqlite3_column_text (st, column);
+  int n= sqlite3_column_bytes (st, column);
+  return value ? std::string ((const char*) value, (size_t) n) : std::string ();
+}
+
+bool safe_relative_database (const std::string& value) {
+  fs::path path (value);
+  if (value.empty () || path.is_absolute ()) return false;
+  for (const fs::path& part: path)
+    if (part == "..") return false;
+  return true;
+}
+
+std::string sql_quote (sqlite3* db, const fs::path& path) {
+  char* value= sqlite3_mprintf ("%Q", path.string ().c_str ());
+  std::string out= value ? value : "''";
+  sqlite3_free (value);
+  (void) db;
+  return out;
+}
+
+bool open_databases (const fs::path& root, SqliteDb& holder,
+                     AthenaVaultfileInfo& info, std::string& error) {
+  if (!athena_vaultfile_read (root, info, error)) return false;
+  if (!safe_relative_database (info.artifacts_path) ||
+      !safe_relative_database (info.enunciations_path) ||
+      !safe_relative_database (info.bold_text_path)) {
+    error= "Artifact database paths in Vaultfile.json must be relative paths";
+    return false;
+  }
+  for (const std::string* relative:
+       {&info.artifacts_path, &info.enunciations_path, &info.bold_text_path}) {
+    fs::path parent= (root / *relative).parent_path ();
+    std::error_code ec;
+    fs::create_directories (parent, ec);
+    if (ec) {
+      error= "Could not create artifact database directory " +
+             parent.string () + ": " + ec.message ();
+      return false;
+    }
+  }
+  if (sqlite3_open_v2 ((root / info.artifacts_path).string ().c_str (),
+                       &holder.db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE,
+                       nullptr) != SQLITE_OK) {
+    error= holder.db ? sqlite3_errmsg (holder.db) : "Could not open artifacts.db";
+    return false;
+  }
+  sqlite3_busy_timeout (holder.db, 5000);
+  std::string attach=
+    "ATTACH DATABASE " + sql_quote (holder.db, root / info.enunciations_path) +
+    " AS enunciations; ATTACH DATABASE " +
+    sql_quote (holder.db, root / info.bold_text_path) + " AS bold_text;";
+  if (!exec_sql (holder.db, attach, error)) return false;
+  const char* schema=
+    "PRAGMA foreign_keys=ON;"
+    "CREATE TABLE IF NOT EXISTS documents("
+    " path TEXT PRIMARY KEY,mtime_ns INTEGER NOT NULL,size INTEGER NOT NULL);"
+    "CREATE TABLE IF NOT EXISTS enunciations.entries("
+    " uuid TEXT PRIMARY KEY,path TEXT NOT NULL,anchor_stem TEXT NOT NULL,"
+    " tag TEXT NOT NULL,display_text TEXT NOT NULL,document_order INTEGER NOT NULL,"
+    " UNIQUE(path,anchor_stem,document_order));"
+    "CREATE INDEX IF NOT EXISTS enunciations.entries_path_idx ON entries(path);"
+    "CREATE TABLE IF NOT EXISTS bold_text.entries("
+    " uuid TEXT PRIMARY KEY,path TEXT NOT NULL,keyword_tree TEXT NOT NULL,"
+    " keyword_display TEXT NOT NULL,occurrence INTEGER NOT NULL,"
+    " paragraph_offsets TEXT NOT NULL,document_order INTEGER NOT NULL,"
+    " UNIQUE(path,keyword_tree,occurrence));"
+    "CREATE INDEX IF NOT EXISTS bold_text.entries_path_idx ON entries(path);"
+    "CREATE TABLE IF NOT EXISTS artifacts("
+    " uuid TEXT PRIMARY KEY,type TEXT NOT NULL,origin TEXT NOT NULL,"
+    " content_uuid TEXT NOT NULL,proof_uuid TEXT,path TEXT NOT NULL,"
+    " anchor_stem TEXT NOT NULL,display_text TEXT NOT NULL,"
+    " document_order INTEGER NOT NULL,"
+    " UNIQUE(origin,content_uuid));"
+    "CREATE INDEX IF NOT EXISTS artifacts_path_idx ON artifacts(path);"
+    "CREATE INDEX IF NOT EXISTS artifacts_search_idx ON artifacts(display_text);";
+  return exec_sql (holder.db, schema, error);
+}
+
+std::string collapse_spaces (const std::string& value) {
+  std::string out;
+  bool pending= false;
+  for (unsigned char c: value) {
+    if (std::isspace (c)) { pending= !out.empty (); continue; }
+    if (pending) out.push_back (' ');
+    pending= false;
+    out.push_back ((char) c);
+  }
+  return out;
+}
+
+bool formatting_wrapper (const std::string& tag) {
+  return tag == "with" || tag == "style-with";
+}
+
+bool bold_wrapper (const tree& t) {
+  std::string tag= tag_name (t);
+  if (tag == "strong") return N(t) >= 1;
+  if (!formatting_wrapper (tag) || N(t) < 3) return false;
+  for (int i=0; i+1<N(t)-1; i += 2) {
+    std::string key= is_atomic (t[i]) ? to_std (t[i]->label) : "";
+    std::string value= is_atomic (t[i+1]) ? to_std (t[i+1]->label) : "";
+    if ((key == "font-series" || key == "fontseries") &&
+        (value == "bold" || value == "bold-series")) return true;
+  }
+  return false;
+}
+
+tree visible_body (const tree& t) {
+  std::string tag= tag_name (t);
+  if (tag == "strong" && N(t) >= 1) return t[0];
+  if (formatting_wrapper (tag) && N(t) >= 1) return t[N(t)-1];
+  return t;
+}
+
+std::string plain_text (const tree& t) {
+  if (is_atomic (t)) return to_std (t->label);
+  std::string tag= tag_name (t);
+  if (tag == "label" || tag == "image" || tag == "include" ||
+      tag == "bibliography") return "";
+  if (formatting_wrapper (tag) && N(t) >= 1) return plain_text (t[N(t)-1]);
+  std::string out;
+  for (int i=0; i<N(t); i++) {
+    std::string part= plain_text (t[i]);
+    if (part.empty ()) continue;
+    if (!out.empty ()) out += " ";
+    out += part;
+  }
+  return collapse_spaces (out);
+}
+
+std::string normalized_word (std::string value) {
+  value= collapse_spaces (value);
+  while (!value.empty () && std::ispunct ((unsigned char) value.front ()))
+    value.erase (value.begin ());
+  while (!value.empty () && std::ispunct ((unsigned char) value.back ()))
+    value.pop_back ();
+  std::transform (value.begin (), value.end (), value.begin (),
+                  [] (unsigned char c) { return (char) std::tolower (c); });
+  return value;
+}
+
+bool excluded_bold_keyword (const std::string& value) {
+  static const std::set<std::string> excluded= {
+    "not", "is", "is not", "cannot", "can not", "can't", "however",
+    "but", "impossible", "possible", "should not", "must not", "no",
+    "yes", "therefore", "thus", "hence"
+  };
+  std::string normalized= normalized_word (value);
+  return normalized.empty () || excluded.count (normalized) != 0;
+}
+
+std::string enunciation_type (const std::string& original,
+                              std::string& base_tag) {
+  static const std::map<std::string,std::pair<std::string,std::string>> tags= {
+    {"definition", {"definition", "definition"}},
+    {"axiom", {"axiom", "axiom"}},
+    {"theorem", {"provable", "theorem"}},
+    {"lemma", {"provable", "lemma"}},
+    {"corollary", {"provable", "corollary"}},
+    {"proposition", {"provable", "proposition"}},
+    {"conjecture", {"provable", "conjecture"}},
+    {"question", {"provable", "question"}},
+    {"example", {"provable", "example"}},
+    {"proof", {"completion", "proof"}},
+    {"proof-alternative", {"completion", "proof-alternative"}},
+    {"alternative-proof", {"completion", "proof-alternative"}},
+    {"proof-standard", {"completion", "proof-standard"}},
+    {"standard-proof", {"completion", "proof-standard"}},
+    {"solution", {"completion", "solution"}},
+    {"solution*", {"completion", "solution*"}},
+    {"render-proof", {"completion", "proof"}},
+    {"render-proof-alternative", {"completion", "proof-alternative"}},
+    {"render-proof-standard", {"completion", "proof-standard"}},
+    {"render-solution", {"completion", "solution"}},
+    {"render-theorem", {"provable", "theorem"}}
+  };
+  auto found= tags.find (original);
+  if (found == tags.end ()) return "";
+  base_tag= found->second.second;
+  return found->second.first;
+}
+
+bool ignorable (const tree& t) {
+  return is_atomic (t) && collapse_spaces (to_std (t->label)).empty ();
+}
+
+std::string label_text (const tree& t) {
+  return tag_name (t) == "label" && N(t) >= 1 ? plain_text (t[0]) : "";
+}
+
+std::string anchor_stem (std::string value) {
+  value= collapse_spaces (value);
+  while (!value.empty () &&
+         (value.back () == '{' || value.back () == '}' ||
+          std::isspace ((unsigned char) value.back ()))) value.pop_back ();
+  while (!value.empty () &&
+         (value.front () == '{' || value.front () == '}' ||
+          std::isspace ((unsigned char) value.front ()))) value.erase (value.begin ());
+  return value;
+}
+
+tree document_body (const tree& document) {
+  if (!is_compound (document)) return document;
+  for (int i=0; i<N(document); i++)
+    if (tag_name (document[i]) == "body" && N(document[i]) >= 1)
+      return document[i][0];
+  return document;
+}
+
+bool standalone_attachment (const tree& t) {
+  static const std::set<std::string> tags= {
+    "equation", "equation*", "eqnarray", "eqnarray*", "align", "align*",
+    "table", "tabular", "tabular*", "big-figure", "commutative-diagram"
+  };
+  return tags.count (tag_name (t)) != 0;
+}
+
+std::string latex_for_tree (const tree& t) {
+  try {
+    return to_std (as_string (call ("convert", t, "texmacs-tree",
+                                    "latex-snippet")));
+  }
+  catch (...) { return to_std (tree_to_texmacs (t)); }
+}
+
+void select_definition_range (AthenaArtifactRecord& record) {
+  if (!athena_artifact_range_model_available ()) {
+    record.paragraph_offsets= {0};
+    return;
+  }
+  std::vector<std::pair<int,std::string>> latex_candidates;
+  latex_candidates.reserve (record.definition_candidates.size ());
+  for (const auto& candidate: record.definition_candidates)
+    latex_candidates.push_back (
+      {candidate.first, latex_for_tree (
+                          texmacs_to_tree (to_tm (candidate.second)))});
+  record.keyword_latex= latex_for_tree (
+    texmacs_to_tree (to_tm (record.keyword_tree)));
+  record.paragraph_offsets= athena_artifact_select_definition_range (
+    record.keyword_latex, latex_candidates);
+}
+
+struct Paragraph {
+  tree value;
+  int segment= 0;
+};
+
+void find_bold (const tree& t, std::vector<tree>& found) {
+  if (!is_compound (t)) return;
+  std::string base;
+  if (!enunciation_type (tag_name (t), base).empty ()) return;
+  if (bold_wrapper (t)) {
+    found.push_back (t);
+    return;
+  }
+  for (int i=0; i<N(t); i++) find_bold (t[i], found);
+}
+
+struct ExtractedDocument {
+  std::vector<AthenaArtifactRecord> records;
+};
+
+void scan_enunciations (const tree& parent, const std::string& rel,
+                        std::vector<AthenaArtifactRecord>& out, int& order) {
+  if (!is_compound (parent)) return;
+  for (int i=0; i<N(parent); i++) {
+    const tree& child= parent[i];
+    std::string base;
+    std::string type= enunciation_type (tag_name (child), base);
+    if (!type.empty ()) {
+      std::string anchor;
+      for (int j=i-1; j>=0; j--) {
+        if (ignorable (parent[j])) continue;
+        anchor= anchor_stem (label_text (parent[j]));
+        break;
+      }
+      if (anchor.empty ()) {
+        for (int j=i+1; j<N(parent); j++) {
+          if (ignorable (parent[j])) continue;
+          anchor= anchor_stem (label_text (parent[j]));
+          break;
+        }
+      }
+      AthenaArtifactRecord record;
+      record.type= type;
+      record.origin= "enunciation";
+      record.relative_path= rel;
+      record.anchor_stem= anchor;
+      record.display_text= plain_text (child);
+      if (record.display_text.size () > 300)
+        record.display_text.resize (300);
+      record.keyword_tree= base;
+      record.document_order= order++;
+      if (type == "provable") {
+        for (int j=i+1; j<N(parent); j++) {
+          if (ignorable (parent[j]) || tag_name (parent[j]) == "label")
+            continue;
+          std::string next_base;
+          if (enunciation_type (tag_name (parent[j]), next_base) ==
+              "completion")
+            record.proof_uuid= "@order:" + std::to_string (order);
+          break;
+        }
+      }
+      out.push_back (record);
+      continue;
+    }
+    scan_enunciations (child, rel, out, order);
+  }
+}
+
+void collect_paragraphs (const tree& body, std::vector<Paragraph>& paragraphs) {
+  if (!is_compound (body)) return;
+  int segment= 0;
+  for (int i=0; i<N(body); i++) {
+    const tree& child= body[i];
+    std::string base;
+    if (!enunciation_type (tag_name (child), base).empty ()) {
+      segment++;
+      continue;
+    }
+    if (tag_name (child) == "label" || ignorable (child)) continue;
+    if (standalone_attachment (child) && !paragraphs.empty () &&
+        paragraphs.back ().segment == segment) {
+      tree joined (CONCAT);
+      joined << paragraphs.back ().value << child;
+      paragraphs.back ().value= joined;
+      continue;
+    }
+    paragraphs.push_back ({child, segment});
+  }
+}
+
+std::string offsets_text (const std::vector<int>& offsets) {
+  std::ostringstream out;
+  for (size_t i=0; i<offsets.size (); i++) {
+    if (i) out << ',';
+    out << offsets[i];
+  }
+  return out.str ();
+}
+
+std::vector<int> parse_offsets (const std::string& text) {
+  std::vector<int> out;
+  std::istringstream in (text);
+  std::string part;
+  while (std::getline (in, part, ',')) {
+    try { out.push_back (std::stoi (part)); } catch (...) {}
+  }
+  return out;
+}
+
+bool extract (const tree& document, const std::string& rel,
+              ExtractedDocument& extracted, std::string& error,
+              bool select_ranges= true) {
+  tree body= document_body (document);
+  if (!is_compound (body)) {
+    error= "Document has no structural body";
+    return false;
+  }
+  int order= 0;
+  scan_enunciations (body, rel, extracted.records, order);
+
+  std::vector<Paragraph> paragraphs;
+  collect_paragraphs (body, paragraphs);
+  std::unordered_map<std::string,int> occurrences;
+  for (size_t paragraph_index=0; paragraph_index<paragraphs.size ();
+       paragraph_index++) {
+    std::vector<tree> bolds;
+    find_bold (paragraphs[paragraph_index].value, bolds);
+    for (const tree& keyword: bolds) {
+      std::string display= plain_text (visible_body (keyword));
+      if (excluded_bold_keyword (display)) continue;
+      std::string serialized= to_std (tree_to_texmacs (keyword));
+      int occurrence= ++occurrences[serialized];
+      std::vector<std::pair<int,std::string>> candidates;
+      for (int offset=-5; offset<=5; offset++) {
+        long index= (long) paragraph_index + offset;
+        if (index < 0 || index >= (long) paragraphs.size ()) continue;
+        if (paragraphs[(size_t) index].segment !=
+            paragraphs[paragraph_index].segment) continue;
+        candidates.push_back ({offset,
+          to_std (tree_to_texmacs (paragraphs[(size_t) index].value))});
+      }
+      AthenaArtifactRecord record;
+      record.type= "definition";
+      record.origin= "bold-text";
+      record.relative_path= rel;
+      record.display_text= display;
+      record.keyword_tree= serialized;
+      record.keyword_occurrence= occurrence;
+      record.definition_candidates= candidates;
+      record.paragraph_offsets= {0};
+      if (select_ranges) select_definition_range (record);
+      record.document_order= order++;
+      extracted.records.push_back (record);
+    }
+  }
+  return true;
+}
+
+QJsonObject record_json (const AthenaArtifactRecord& record) {
+  QJsonObject object;
+  object["type"]= qstr (record.type);
+  object["origin"]= qstr (record.origin);
+  object["proof"]= qstr (record.proof_uuid);
+  object["path"]= qstr (record.relative_path);
+  object["anchor"]= qstr (record.anchor_stem);
+  object["display"]= qstr (record.display_text);
+  object["keyword"]= qstr (record.keyword_tree);
+  object["occurrence"]= record.keyword_occurrence;
+  object["order"]= record.document_order;
+  object["keyword_latex"]= qstr (record.keyword_latex);
+  QJsonArray candidates;
+  for (const auto& candidate: record.definition_candidates) {
+    QJsonObject item;
+    item["offset"]= candidate.first;
+    item["source"]= qstr (candidate.second);
+    candidates.append (item);
+  }
+  object["candidates"]= candidates;
+  return object;
+}
+
+AthenaArtifactRecord record_from_json (const QJsonObject& object) {
+  AthenaArtifactRecord record;
+  auto s= [&] (const char* key) {
+    QByteArray value= object.value (key).toString ().toUtf8 ();
+    return std::string (value.constData (), (size_t) value.size ());
+  };
+  record.type= s ("type");
+  record.origin= s ("origin");
+  record.proof_uuid= s ("proof");
+  record.relative_path= s ("path");
+  record.anchor_stem= s ("anchor");
+  record.display_text= s ("display");
+  record.keyword_tree= s ("keyword");
+  record.keyword_occurrence= object.value ("occurrence").toInt ();
+  record.document_order= object.value ("order").toInt ();
+  record.keyword_latex= s ("keyword_latex");
+  for (const QJsonValue& value: object.value ("candidates").toArray ()) {
+    QJsonObject item= value.toObject ();
+    QByteArray source= item.value ("source").toString ().toUtf8 ();
+    record.definition_candidates.push_back (
+      {item.value ("offset").toInt (),
+       std::string (source.constData (), (size_t) source.size ())});
+  }
+  return record;
+}
+
+struct DocumentWork {
+  fs::path path;
+  std::string rel;
+  long long modified= 0;
+  long long size= 0;
+};
+
+bool read_document (const fs::path& path, tree& document, std::string& error);
+
+bool extract_serial (const std::vector<DocumentWork>& work,
+                     std::map<std::string,ExtractedDocument>& extracted,
+                     const AthenaArtifactsProgress& progress,
+                     std::string& error, bool defer_ranges) {
+  for (size_t i=0; i<work.size (); i++) {
+    if (progress && !progress (i, work.size (), work[i].rel)) {
+      error= "Artifact build cancelled";
+      return false;
+    }
+    tree document;
+    if (!read_document (work[i].path, document, error)) return false;
+    if (!extract (document, work[i].rel, extracted[work[i].rel], error,
+                  !defer_ranges)) return false;
+  }
+  return true;
+}
+
+bool select_definition_ranges (
+  std::map<std::string,ExtractedDocument>& extracted,
+  const AthenaArtifactsProgress& progress, size_t total,
+  std::string& error) {
+  for (auto& document: extracted)
+    for (AthenaArtifactRecord& record: document.second.records)
+      if (record.origin == "bold-text") {
+        if (progress && !progress (total, total, document.first)) {
+          error= "Artifact build cancelled";
+          return false;
+        }
+        select_definition_range (record);
+      }
+  return true;
+}
+
+#if defined(__unix__) || defined(__APPLE__)
+fs::path current_executable_path () {
+#if defined(__linux__)
+  std::vector<char> buffer (4096);
+  ssize_t size= readlink ("/proc/self/exe", buffer.data (), buffer.size () - 1);
+  if (size > 0) {
+    buffer[(size_t) size]= '\0';
+    return fs::path (buffer.data ());
+  }
+#endif
+  return {};
+}
+
+pid_t start_extract_worker (const fs::path& executable,
+                            const fs::path& manifest,
+                            const fs::path& output) {
+  std::string exe= executable.string ();
+  std::string input= manifest.string ();
+  std::string result= output.string ();
+  pid_t pid= fork ();
+  if (pid != 0) return pid;
+  execl (exe.c_str (), exe.c_str (), "-H", "--skip-fonts-cache",
+         "--artifact-extract-worker", input.c_str (), result.c_str (),
+         (char*) nullptr);
+  _exit (127);
+}
+
+bool extract_parallel (const std::vector<DocumentWork>& work,
+                       std::map<std::string,ExtractedDocument>& extracted,
+                       const AthenaArtifactsProgress& progress,
+                       std::string& error) {
+  if (work.size () < 2) {
+    if (!extract_serial (work, extracted, progress, error, true)) return false;
+    return select_definition_ranges (extracted, progress, work.size (), error);
+  }
+  const char* configured= std::getenv ("ATHENA_ARTIFACT_WORKER_EXECUTABLE");
+  fs::path executable= configured && *configured ? fs::path (configured)
+                                                  : current_executable_path ();
+  if (executable.empty () || !fs::exists (executable)) {
+    if (!extract_serial (work, extracted, progress, error, true)) return false;
+    return select_definition_ranges (extracted, progress, work.size (), error);
+  }
+  unsigned hardware= std::max (1u, std::thread::hardware_concurrency ());
+  int jobs= (int) std::min<size_t> (work.size (), hardware);
+  fs::path temp= fs::temp_directory_path () /
+    ("athena-artifact-workers-" + generate_uuid_v4 ());
+  std::error_code ec;
+  fs::create_directories (temp, ec);
+  if (ec) { error= "Could not create artifact worker directory"; return false; }
+  std::vector<pid_t> pids;
+  for (int worker=0; worker<jobs; worker++) {
+    QJsonArray documents;
+    for (size_t index=(size_t) worker; index<work.size (); index += jobs) {
+      QJsonObject item;
+      item["file"]= qstr (work[index].path.string ());
+      item["path"]= qstr (work[index].rel);
+      documents.append (item);
+    }
+    fs::path manifest= temp / (std::to_string (worker) + ".manifest.json");
+    fs::path output= temp / (std::to_string (worker) + ".result.json");
+    QByteArray bytes= QJsonDocument (documents).toJson (QJsonDocument::Compact);
+    std::ofstream stream (manifest, std::ios::binary | std::ios::trunc);
+    stream.write (bytes.constData (), bytes.size ());
+    stream.close ();
+    if (!stream.good ()) {
+      error= "Could not write artifact worker manifest";
+      break;
+    }
+    pid_t pid= start_extract_worker (executable, manifest, output);
+    if (pid < 0) { error= "Could not start artifact reader process"; break; }
+    pids.push_back (pid);
+  }
+  bool ok= error.empty ();
+  size_t completed= 0;
+  for (size_t worker=0; worker<pids.size (); worker++) {
+    int status= 0;
+    while (waitpid (pids[worker], &status, 0) < 0 && errno == EINTR) {}
+    if (!WIFEXITED (status) || WEXITSTATUS (status) != 0) ok= false;
+    std::ifstream input (temp / (std::to_string (worker) + ".result.json"),
+                         std::ios::binary);
+    std::string bytes ((std::istreambuf_iterator<char> (input)), {});
+    QJsonDocument json= QJsonDocument::fromJson (
+      QByteArray (bytes.data (), (qsizetype) bytes.size ()));
+    QJsonObject root= json.object ();
+    std::string child_error= root.value ("error").toString ().toStdString ();
+    if (!child_error.empty ()) { error= child_error; ok= false; }
+    for (const QJsonValue& value: root.value ("documents").toArray ()) {
+      QJsonObject item= value.toObject ();
+      std::string rel= item.value ("path").toString ().toStdString ();
+      ExtractedDocument result;
+      for (const QJsonValue& record: item.value ("records").toArray ())
+        result.records.push_back (record_from_json (record.toObject ()));
+      extracted[rel]= std::move (result);
+      completed++;
+      if (progress && !progress (completed, work.size (), rel)) {
+        error= "Artifact build cancelled"; ok= false;
+      }
+    }
+  }
+  fs::remove_all (temp, ec);
+  if (!ok && error.empty ()) error= "An artifact reader process failed";
+  if (!ok) return false;
+  // The parent owns one model instance and performs all semantic range choices.
+  return select_definition_ranges (extracted, progress, work.size (), error);
+}
+#endif
+
+bool extract_documents (const std::vector<DocumentWork>& work,
+                        std::map<std::string,ExtractedDocument>& extracted,
+                        const AthenaArtifactsProgress& progress,
+                        std::string& error) {
+#if defined(__unix__) || defined(__APPLE__)
+  return extract_parallel (work, extracted, progress, error);
+#else
+  if (!extract_serial (work, extracted, progress, error, true)) return false;
+  return select_definition_ranges (extracted, progress, work.size (), error);
+#endif
+}
+
+long long mtime_ns (const fs::path& path) {
+  return (long long) fs::last_write_time (path).time_since_epoch ().count ();
+}
+
+std::string relative_key (const fs::path& root, const fs::path& path) {
+  std::error_code ec;
+  fs::path rel= fs::relative (path, root, ec);
+  return ec ? path.filename ().generic_string () : rel.generic_string ();
+}
+
+bool read_document (const fs::path& path, tree& document, std::string& error) {
+  std::string bytes;
+  if (!read_file_bytes (path, bytes)) {
+    error= "Could not read " + path.string ();
+    return false;
+  }
+  try { document= texmacs_document_to_tree (to_tm (bytes)); }
+  catch (...) { error= "Could not parse " + path.string (); return false; }
+  if (is_func (document, _ERROR)) {
+    error= "Malformed ATHENA document: " + path.string ();
+    return false;
+  }
+  return true;
+}
+
+std::map<std::string,std::string> existing_ids (
+  sqlite3* db, const char* sql, const std::string& path, std::string& error) {
+  std::map<std::string,std::string> out;
+  Statement st;
+  if (!prepare (db, sql, st, error)) return out;
+  bind_text (st.st, 1, path);
+  while (sqlite3_step (st.st) == SQLITE_ROW)
+    out[column_text (st.st, 0)]= column_text (st.st, 1);
+  return out;
+}
+
+bool replace_document (sqlite3* db, const std::string& rel,
+                       ExtractedDocument& extracted, long long modified,
+                       long long size, std::string& error) {
+  auto enunciation_ids= existing_ids (
+    db, "SELECT CASE WHEN anchor_stem='' THEN '#order:'||document_order "
+        "ELSE anchor_stem END,uuid FROM "
+        "enunciations.entries WHERE path=?1;", rel, error);
+  auto bold_ids= existing_ids (
+    db, "SELECT keyword_tree||char(31)||occurrence,uuid FROM bold_text.entries "
+        "WHERE path=?1;", rel, error);
+  auto artifact_ids= existing_ids (
+    db, "SELECT origin||char(31)||content_uuid,uuid FROM artifacts WHERE path=?1;",
+    rel, error);
+  if (!error.empty ()) return false;
+
+  Statement del_artifacts, del_enunciations, del_bold;
+  if (!prepare (db, "DELETE FROM artifacts WHERE path=?1;", del_artifacts, error) ||
+      !prepare (db, "DELETE FROM enunciations.entries WHERE path=?1;",
+                del_enunciations, error) ||
+      !prepare (db, "DELETE FROM bold_text.entries WHERE path=?1;", del_bold,
+                error)) return false;
+  for (Statement* st: {&del_artifacts, &del_enunciations, &del_bold}) {
+    bind_text (st->st, 1, rel);
+    if (sqlite3_step (st->st) != SQLITE_DONE) {
+      error= sqlite3_errmsg (db); return false;
+    }
+  }
+
+  Statement insert_enun, insert_bold, insert_artifact;
+  if (!prepare (db,
+      "INSERT INTO enunciations.entries(uuid,path,anchor_stem,tag,display_text,"
+      "document_order) VALUES(?1,?2,?3,?4,?5,?6);", insert_enun, error) ||
+      !prepare (db,
+      "INSERT INTO bold_text.entries(uuid,path,keyword_tree,keyword_display,"
+      "occurrence,paragraph_offsets,document_order) "
+      "VALUES(?1,?2,?3,?4,?5,?6,?7);", insert_bold, error) ||
+      !prepare (db,
+      "INSERT INTO artifacts(uuid,type,origin,content_uuid,proof_uuid,path,"
+      "anchor_stem,display_text,document_order) "
+      "VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9);", insert_artifact, error))
+    return false;
+
+  std::map<int,std::string> enunciation_order_ids;
+  for (AthenaArtifactRecord& record: extracted.records) {
+    if (record.origin == "enunciation") {
+      std::string key= record.anchor_stem.empty ()
+                        ? "#order:" + std::to_string (record.document_order)
+                        : record.anchor_stem;
+      record.content_uuid= enunciation_ids.count (key) ? enunciation_ids[key]
+                                                       : generate_uuid_v4 ();
+      sqlite3_reset (insert_enun.st); sqlite3_clear_bindings (insert_enun.st);
+      bind_text (insert_enun.st, 1, record.content_uuid);
+      bind_text (insert_enun.st, 2, rel);
+      bind_text (insert_enun.st, 3, record.anchor_stem);
+      bind_text (insert_enun.st, 4, record.keyword_tree);
+      bind_text (insert_enun.st, 5, record.display_text);
+      sqlite3_bind_int (insert_enun.st, 6, record.document_order);
+      if (sqlite3_step (insert_enun.st) != SQLITE_DONE) {
+        error= sqlite3_errmsg (db); return false;
+      }
+      enunciation_order_ids[record.document_order]= record.content_uuid;
+    }
+    else {
+      std::string key= record.keyword_tree + char (31) +
+                       std::to_string (record.keyword_occurrence);
+      record.content_uuid= bold_ids.count (key) ? bold_ids[key]
+                                                : generate_uuid_v4 ();
+      sqlite3_reset (insert_bold.st); sqlite3_clear_bindings (insert_bold.st);
+      bind_text (insert_bold.st, 1, record.content_uuid);
+      bind_text (insert_bold.st, 2, rel);
+      bind_text (insert_bold.st, 3, record.keyword_tree);
+      bind_text (insert_bold.st, 4, record.display_text);
+      sqlite3_bind_int (insert_bold.st, 5, record.keyword_occurrence);
+      bind_text (insert_bold.st, 6, offsets_text (record.paragraph_offsets));
+      sqlite3_bind_int (insert_bold.st, 7, record.document_order);
+      if (sqlite3_step (insert_bold.st) != SQLITE_DONE) {
+        error= sqlite3_errmsg (db); return false;
+      }
+    }
+  }
+
+  for (AthenaArtifactRecord& record: extracted.records) {
+    if (record.proof_uuid.rfind ("@order:", 0) == 0) {
+      int order= std::stoi (record.proof_uuid.substr (7));
+      record.proof_uuid= enunciation_order_ids[order];
+    }
+    std::string artifact_key= record.origin + char (31) + record.content_uuid;
+    record.uuid= artifact_ids.count (artifact_key) ? artifact_ids[artifact_key]
+                                                   : generate_uuid_v4 ();
+    sqlite3_reset (insert_artifact.st);
+    sqlite3_clear_bindings (insert_artifact.st);
+    bind_text (insert_artifact.st, 1, record.uuid);
+    bind_text (insert_artifact.st, 2, record.type);
+    bind_text (insert_artifact.st, 3, record.origin);
+    bind_text (insert_artifact.st, 4, record.content_uuid);
+    if (record.proof_uuid.empty ()) sqlite3_bind_null (insert_artifact.st, 5);
+    else bind_text (insert_artifact.st, 5, record.proof_uuid);
+    bind_text (insert_artifact.st, 6, rel);
+    bind_text (insert_artifact.st, 7, record.anchor_stem);
+    bind_text (insert_artifact.st, 8, record.display_text);
+    sqlite3_bind_int (insert_artifact.st, 9, record.document_order);
+    if (sqlite3_step (insert_artifact.st) != SQLITE_DONE) {
+      error= sqlite3_errmsg (db); return false;
+    }
+  }
+
+  Statement doc;
+  if (!prepare (db,
+      "INSERT INTO documents(path,mtime_ns,size) VALUES(?1,?2,?3) "
+      "ON CONFLICT(path) DO UPDATE SET mtime_ns=excluded.mtime_ns,"
+      "size=excluded.size;", doc, error)) return false;
+  bind_text (doc.st, 1, rel);
+  sqlite3_bind_int64 (doc.st, 2, modified);
+  sqlite3_bind_int64 (doc.st, 3, size);
+  if (sqlite3_step (doc.st) != SQLITE_DONE) {
+    error= sqlite3_errmsg (db); return false;
+  }
+  return true;
+}
+
+bool delete_document (sqlite3* db, const std::string& rel,
+                      std::string& error) {
+  for (const char* sql: {
+      "DELETE FROM artifacts WHERE path=?1;",
+      "DELETE FROM enunciations.entries WHERE path=?1;",
+      "DELETE FROM bold_text.entries WHERE path=?1;",
+      "DELETE FROM documents WHERE path=?1;"}) {
+    Statement st;
+    if (!prepare (db, sql, st, error)) return false;
+    bind_text (st.st, 1, rel);
+    if (sqlite3_step (st.st) != SQLITE_DONE) {
+      error= sqlite3_errmsg (db); return false;
+    }
+  }
+  return true;
+}
+
+bool is_current_fingerprint (sqlite3* db, const std::string& rel,
+                             long long modified, long long size,
+                             std::string& error) {
+  Statement st;
+  if (!prepare (db, "SELECT mtime_ns,size FROM documents WHERE path=?1;",
+                st, error)) return false;
+  bind_text (st.st, 1, rel);
+  int rc= sqlite3_step (st.st);
+  return rc == SQLITE_ROW && sqlite3_column_int64 (st.st, 0) == modified &&
+         sqlite3_column_int64 (st.st, 1) == size;
+}
+
+} // namespace
+
+bool
+athena_artifacts_run_extract_worker (const fs::path& manifest,
+                                     const fs::path& output,
+                                     std::string& error) {
+  std::ifstream input (manifest, std::ios::binary);
+  std::string bytes ((std::istreambuf_iterator<char> (input)), {});
+  QJsonDocument request= QJsonDocument::fromJson (
+    QByteArray (bytes.data (), (qsizetype) bytes.size ()));
+  if (!input.good () && !input.eof ()) error= "Could not read worker manifest";
+  else if (!request.isArray ()) error= "Invalid artifact worker manifest";
+
+  QJsonArray documents;
+  if (error.empty ()) {
+    for (const QJsonValue& value: request.array ()) {
+      QJsonObject source= value.toObject ();
+      fs::path file (source.value ("file").toString ().toStdString ());
+      std::string rel= source.value ("path").toString ().toStdString ();
+      tree document;
+      ExtractedDocument extracted;
+      if (!read_document (file, document, error) ||
+          !extract (document, rel, extracted, error, false)) break;
+      QJsonArray records;
+      for (const AthenaArtifactRecord& record: extracted.records)
+        records.append (record_json (record));
+      QJsonObject item;
+      item["path"]= qstr (rel);
+      item["records"]= records;
+      documents.append (item);
+    }
+  }
+
+  QJsonObject result;
+  result["error"]= qstr (error);
+  result["documents"]= documents;
+  QByteArray encoded= QJsonDocument (result).toJson (QJsonDocument::Compact);
+  std::ofstream stream (output, std::ios::binary | std::ios::trunc);
+  stream.write (encoded.constData (), encoded.size ());
+  stream.close ();
+  if (!stream.good () && error.empty ()) error= "Could not write worker output";
+  return error.empty ();
+}
+
+bool
+athena_artifacts_extract_document (
+  const tree& document, const std::string& relative_path,
+  std::vector<AthenaArtifactRecord>& records, std::string& error) {
+  ExtractedDocument extracted;
+  if (!extract (document, relative_path, extracted, error)) return false;
+  records= std::move (extracted.records);
+  return true;
+}
+
+bool
+athena_artifacts_build (
+  const fs::path& vault_root,
+  const std::vector<fs::path>& requested_documents, bool full_vault,
+  const AthenaArtifactsProgress& progress, AthenaArtifactsBuildResult& result,
+  std::string& error) {
+  result= AthenaArtifactsBuildResult ();
+  fs::path root= normalize_root (vault_root);
+  SqliteDb holder;
+  AthenaVaultfileInfo info;
+  if (!open_databases (root, holder, info, error)) return false;
+
+  std::vector<fs::path> documents= full_vault ? scan_ath_documents (root)
+                                               : requested_documents;
+  std::sort (documents.begin (), documents.end ());
+  result.documents_seen= documents.size ();
+  std::vector<std::string> deleted;
+  if (full_vault) {
+    std::set<std::string> live;
+    for (const fs::path& path: documents) live.insert (relative_key (root, path));
+    Statement st;
+    if (!prepare (holder.db, "SELECT path FROM documents;", st, error))
+      return false;
+    while (sqlite3_step (st.st) == SQLITE_ROW) {
+      std::string rel= column_text (st.st, 0);
+      if (!live.count (rel)) deleted.push_back (rel);
+    }
+  }
+
+  std::vector<DocumentWork> work;
+  for (const fs::path& path: documents) {
+    if (!fs::exists (path)) continue;
+    std::string rel= relative_key (root, path);
+    long long modified= mtime_ns (path);
+    long long size= (long long) fs::file_size (path);
+    if (full_vault && is_current_fingerprint (holder.db, rel, modified, size,
+                                              error)) continue;
+    if (!error.empty ()) return false;
+    work.push_back ({path, rel, modified, size});
+  }
+
+  std::map<std::string,ExtractedDocument> extracted;
+  if (!extract_documents (work, extracted, progress, error)) return false;
+
+  if (!exec_sql (holder.db, "BEGIN IMMEDIATE;", error)) return false;
+  bool committed= false;
+  auto rollback= [&] () {
+    if (!committed) {
+      std::string ignored;
+      exec_sql (holder.db, "ROLLBACK;", ignored);
+    }
+  };
+  for (const std::string& rel: deleted) {
+    if (!delete_document (holder.db, rel, error)) { rollback (); return false; }
+    result.documents_deleted++;
+  }
+  for (const DocumentWork& item: work) {
+    auto found= extracted.find (item.rel);
+    if (found == extracted.end ()) {
+      error= "Artifact reader returned no result for " + item.rel;
+      rollback ();
+      return false;
+    }
+    if (!replace_document (holder.db, item.rel, found->second, item.modified,
+                           item.size, error)) {
+      rollback ();
+      return false;
+    }
+    result.documents_changed++;
+    for (const AthenaArtifactRecord& record: found->second.records) {
+      if (record.origin == "enunciation") result.enunciations++;
+      else result.bold_texts++;
+      result.artifacts++;
+    }
+  }
+  if (progress) progress (work.size (), work.size (), "");
+  if (!exec_sql (holder.db, "COMMIT;", error)) { rollback (); return false; }
+  committed= true;
+  return true;
+}
+
+bool
+athena_artifacts_build_active_vault (
+  bool current_document_only, const AthenaArtifactsProgress& progress,
+  AthenaArtifactsBuildResult& result, std::string& error) {
+  if (!vault_active ()) { error= "No active vault"; return false; }
+  fs::path root (to_std (concretize (vault_get_root ())));
+  std::vector<fs::path> documents;
+  if (current_document_only) {
+    fs::path current (to_std (concretize (get_current_buffer_safe ())));
+    std::error_code ec;
+    fs::path rel= fs::relative (current, root, ec);
+    if (ec || rel.empty () || rel.string ().rfind ("..", 0) == 0 ||
+        current.extension () != ".ath") {
+      error= "The current buffer is not an .ath document in the active vault";
+      return false;
+    }
+    documents.push_back (current);
+  }
+  return athena_artifacts_build (root, documents, !current_document_only,
+                                 progress, result, error);
+}
+
+bool
+athena_artifacts_query (const fs::path& vault_root,
+                        std::vector<AthenaArtifactRecord>& records,
+                        std::string& error) {
+  records.clear ();
+  SqliteDb holder;
+  AthenaVaultfileInfo info;
+  if (!open_databases (vault_root, holder, info, error)) return false;
+  Statement st;
+  if (!prepare (holder.db,
+      "SELECT a.uuid,a.type,a.origin,a.content_uuid,COALESCE(a.proof_uuid,''),"
+      "a.path,a.anchor_stem,a.display_text,a.document_order,"
+      "COALESCE(b.keyword_tree,''),COALESCE(b.occurrence,0),"
+      "COALESCE(b.paragraph_offsets,'') FROM artifacts a "
+      "LEFT JOIN bold_text.entries b ON a.origin='bold-text' AND "
+      "b.uuid=a.content_uuid ORDER BY a.path,a.document_order;", st, error))
+    return false;
+  while (sqlite3_step (st.st) == SQLITE_ROW) {
+    AthenaArtifactRecord record;
+    record.uuid= column_text (st.st, 0);
+    record.type= column_text (st.st, 1);
+    record.origin= column_text (st.st, 2);
+    record.content_uuid= column_text (st.st, 3);
+    record.proof_uuid= column_text (st.st, 4);
+    record.relative_path= column_text (st.st, 5);
+    record.anchor_stem= column_text (st.st, 6);
+    record.display_text= column_text (st.st, 7);
+    record.document_order= sqlite3_column_int (st.st, 8);
+    record.keyword_tree= column_text (st.st, 9);
+    record.keyword_occurrence= sqlite3_column_int (st.st, 10);
+    record.paragraph_offsets= parse_offsets (column_text (st.st, 11));
+    records.push_back (record);
+  }
+  return true;
+}

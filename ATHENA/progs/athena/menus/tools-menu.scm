@@ -43,6 +43,9 @@
   ("Vault backup viewer" (open-vault-backup-viewer))
   ("Vault Bugcheck" (vault-bugcheck))
   ("Vault maintenance" (vault-maintenance))
+  (-> "Artifacts"
+      ("Build for entire vault" (artifacts-build-entire-vault))
+      ("Build for current document" (artifacts-build-current-document)))
   ("Google Tasks" (google-tasks-show))
   ("Shortcuts listing" (list-all-shortcuts))
   (-> "Speech"      ("Off" (reset-preference "speech"))
