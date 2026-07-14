@@ -34,6 +34,7 @@
   ("dsfont" 110)
   ("euscript" 120)
   ("multicol" 130)
+  ("tikz-cd" 135)
   ("hyperref" 140)
   ("mathtools" 150)
   ("cleveref" 160))
@@ -58,6 +59,7 @@
 
   (begin-tabularx "tabularx")
   (begin-longtable "longtable")
+  (begin-tikzcd "tikz-cd")
 
   (geometry "geometry")
   (epsfig "epsfig")

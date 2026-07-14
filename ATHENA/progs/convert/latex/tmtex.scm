@@ -3148,6 +3148,221 @@
 (define (tmtex-athena-data-wrap st fallback)
   (tmtex-athena-data-wrap-with-records st '() fallback))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Native commutative diagrams
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(define (tmtex-cd-raw s)
+  `(!athena-latex-raw ,s))
+
+(define (tmtex-cd-body-items body)
+  (if (or (func? body 'cd-body) (func? body 'document))
+      (cdr body)
+      '()))
+
+(define (tmtex-cd-number x fallback)
+  (cond ((number? x) x)
+        ((string? x) (or (string->number x) fallback))
+        (else fallback)))
+
+(define (tmtex-cd-slot x)
+  (inexact->exact (round (* 2.0 (tmtex-cd-number x 0.0)))))
+
+(define (tmtex-cd-vertices body)
+  (list-filter (tmtex-cd-body-items body)
+               (lambda (x) (func? x 'cd-vertex 4))))
+
+(define (tmtex-cd-arrows body)
+  (list-filter (tmtex-cd-body-items body)
+               (lambda (x) (func? x 'cd-arrow 5))))
+
+(define (tmtex-cd-vertex-id vertex)
+  (if (string? (cadr vertex)) (cadr vertex) ""))
+
+(define (tmtex-cd-vertex-record vertex)
+  (list vertex (tmtex-cd-slot (caddr vertex))
+               (tmtex-cd-slot (cadddr vertex))))
+
+(define (tmtex-cd-find-vertex records id)
+  (list-find records
+    (lambda (record) (== (tmtex-cd-vertex-id (car record)) id))))
+
+(define (tmtex-cd-option arrow key fallback)
+  (let ((options (list-ref arrow 5)))
+    (if (not (func? options 'tuple)) fallback
+        (let loop ((items (cdr options)))
+          (cond ((or (null? items) (null? (cdr items))) fallback)
+                ((and (string? (car items)) (== (car items) key))
+                 (if (string? (cadr items)) (cadr items) fallback))
+                (else (loop (cddr items))))))))
+
+(define (tmtex-cd-repeat s n)
+  (if (<= n 0) "" (string-append s (tmtex-cd-repeat s (- n 1)))))
+
+(define (tmtex-cd-direction source target)
+  (let ((dx (- (cadr target) (cadr source)))
+        (dy (- (caddr target) (caddr source))))
+    (string-append
+      (tmtex-cd-repeat (if (>= dy 0) "u" "d") (abs dy))
+      (tmtex-cd-repeat (if (>= dx 0) "r" "l") (abs dx)))))
+
+(define (tmtex-cd-loop-option arrow)
+  (let* ((angle (tmtex-cd-number
+                  (tmtex-cd-option arrow "loop-angle" "0") 0.0))
+         (normalized
+          (- angle (* 360.0 (floor (/ (+ angle 180.0) 360.0))))))
+    (cond ((and (>= normalized -45.0) (< normalized 45.0)) "loop right")
+          ((and (>= normalized 45.0) (< normalized 135.0)) "loop above")
+          ((or (>= normalized 135.0) (< normalized -135.0)) "loop left")
+          (else "loop below"))))
+
+(define (tmtex-cd-color-option color)
+  (let ((color (if (== color "grey") "gray" color))
+        (known '("black" "white" "red" "green" "blue" "cyan"
+                 "magenta" "yellow" "gray" "darkgray" "lightgray"
+                 "brown" "lime" "olive" "orange" "pink" "purple"
+                 "teal" "violet")))
+    (and (in? color known) (string-append "draw=" color))))
+
+(define (tmtex-cd-static-arrow-options arrow direction self?)
+  (let* ((tail (tmtex-cd-option arrow "tail" "none"))
+         (body (tmtex-cd-option arrow "body" "solid"))
+         (head (tmtex-cd-option arrow "head" "arrowhead"))
+         (level (tmtex-cd-number
+                 (tmtex-cd-option arrow "level" "1") 1.0))
+         (curve (tmtex-cd-number
+                 (tmtex-cd-option arrow "curve" "0") 0.0))
+         (offset (tmtex-cd-number
+                  (tmtex-cd-option arrow "offset" "0") 0.0))
+         (color (tmtex-cd-color-option
+                 (tmtex-cd-option arrow "color" "black")))
+         (result (if self? (list (tmtex-cd-loop-option arrow))
+                     (if (== direction "") '() (list direction)))))
+    (when (and (> level 1.0) (== tail "none") (== head "arrowhead"))
+      (set! result (append result (list "Rightarrow"))))
+    (cond ((== tail "maps-to")
+           (set! result (append result (list "maps to"))))
+          ((== tail "top-hook")
+           (set! result (append result (list "hook"))))
+          ((== tail "bottom-hook")
+           (set! result (append result (list "hook'"))))
+          ((or (== tail "mono") (== tail "arrowhead"))
+           (set! result (append result (list "tail")))))
+    (cond ((== head "none")
+           (set! result (append result (list "no head"))))
+          ((== head "epi")
+           (set! result (append result (list "two heads"))))
+          ((== head "top-harpoon")
+           (set! result (append result (list "harpoon"))))
+          ((== head "bottom-harpoon")
+           (set! result (append result (list "harpoon'")))))
+    (cond ((== body "dashed")
+           (set! result (append result (list "dashed"))))
+          ((== body "dotted")
+           (set! result (append result (list "dotted")))))
+    (when (and (not self?) (not (= curve 0.0)))
+      (set! result
+        (append result
+          (list (string-append
+                  (if (> curve 0.0) "bend left=" "bend right=")
+                  (number->string (abs (* curve 10.0))))))))
+    (when (and (not self?) (not (= offset 0.0)))
+      (set! result
+        (append result
+          (list (string-append
+                  (if (> offset 0.0) "shift left=" "shift right=")
+                  (number->string (abs (* offset 0.4))) "ex")))))
+    (when color (set! result (append result (list color))))
+    result))
+
+(define (tmtex-cd-formula-content formula)
+  (if (func? formula 'math 1) (cadr formula) formula))
+
+(define (tmtex-cd-convert-formula formula)
+  (tmtex-env-set "mode" "math")
+  (let ((result (tmtex (tmtex-cd-formula-content formula))))
+    (tmtex-env-reset "mode")
+    result))
+
+(define (tmtex-cd-arrow-output arrow source target)
+  (let* ((self? (== (caddr arrow) (cadddr arrow)))
+         (direction (tmtex-cd-direction source target))
+         (options (tmtex-cd-static-arrow-options arrow direction self?))
+         (label (tmtex-cd-convert-formula (list-ref arrow 4)))
+         (alignment (tmtex-cd-option arrow "label-alignment" "left"))
+         (prefix (string-append
+                  "\\arrow["
+                  (apply string-append (list-intersperse options ", "))))
+         (label-suffix
+          (cond ((== alignment "right") "\"'")
+                ((or (== alignment "centre") (== alignment "over"))
+                 "\" description")
+                (else "\""))))
+    (if (tmtex-latex-empty? label)
+        `(!concat ,(tmtex-cd-raw prefix) ,(tmtex-cd-raw "]"))
+        `(!concat ,(tmtex-cd-raw (string-append prefix ", \""))
+                  ,label
+                  ,(tmtex-cd-raw (string-append label-suffix "]"))))))
+
+(define (tmtex-cd-cell record records arrows)
+  (if (not record) ""
+      (let* ((vertex (car record))
+             (id (tmtex-cd-vertex-id vertex))
+             (outgoing (list-filter arrows
+                         (lambda (arrow) (== (caddr arrow) id))))
+             (commands
+              (list-filter
+                (map (lambda (arrow)
+                       (let ((target
+                              (tmtex-cd-find-vertex records
+                                                    (cadddr arrow))))
+                         (and target
+                              (tmtex-cd-arrow-output arrow record target))))
+                     outgoing)
+                identity)))
+        `(!concat ,(tmtex-cd-convert-formula (list-ref vertex 4))
+                  ,@commands))))
+
+(define (tmtex-cd-range first last step)
+  (if (if (> step 0) (> first last) (< first last)) '()
+      (cons first (tmtex-cd-range (+ first step) last step))))
+
+(define (tmtex-cd-matrix records arrows)
+  (if (null? records) ""
+      (let* ((xs (map cadr records))
+             (ys (map caddr records))
+             (columns (tmtex-cd-range (apply min xs) (apply max xs) 1))
+             (rows (tmtex-cd-range (apply max ys) (apply min ys) -1))
+             (row-trees
+              (map (lambda (y)
+                     (let ((cells
+                       (map (lambda (x)
+                              (tmtex-cd-cell
+                                (list-find records
+                                  (lambda (record)
+                                    (and (= (cadr record) x)
+                                         (= (caddr record) y))))
+                                records arrows))
+                            columns)))
+                       `(!concat
+                         ,@(list-intersperse cells (tmtex-cd-raw " & ")))))
+                   rows)))
+        `(!concat
+          ,@(list-intersperse
+              row-trees
+              (tmtex-cd-raw (string-append " \\\\" "\n")))))))
+
+(define (tmtex-commutative-diagram l)
+  (let* ((st `(commutative-diagram ,@l))
+         (body (and (= (length l) 3) (caddr l))))
+    (if (not body) (tmtex-preserve-object st)
+        (let* ((records (map tmtex-cd-vertex-record
+                             (tmtex-cd-vertices body)))
+               (arrows (tmtex-cd-arrows body))
+               (matrix (tmtex-cd-matrix records arrows))
+               (fallback `((!begin "tikzcd") ,matrix)))
+          (tmtex-athena-data-wrap st fallback)))))
+
 (define (tmtex-athena-wikilink? h)
   (and (string? h) (string-starts? h "tmfs://wikilink/")))
 
@@ -3552,6 +3767,7 @@
         anim-translate anim-progressive video sound) tmtex-noop)
 
   (graphics tmtex-graphics)
+  (commutative-diagram tmtex-commutative-diagram)
   (superpose tmtex-noop)
   ((:or gr-group gr-transform
         text-at cline arc carc spline spine* cspline fill) tmtex-noop)

@@ -236,6 +236,9 @@
               (output-verbatim "\\INLINE_COMMENT{" x "}"))
             l))
 
+(tm-define (texout-athena-latex-raw s)
+  (output-verbatim s))
+
 (tm-define (texout-preamble l)
   (output-verbatim l))
 
@@ -513,6 +516,8 @@
         ((== (car x) '!athena-data) (texout-athena-data (cadr x)))
         ((== (car x) '!athena-data-inline)
          (texout-athena-data-inline (cadr x)))
+        ((== (car x) '!athena-latex-raw)
+         (texout-athena-latex-raw (cadr x)))
         ((== (car x) '!comment) (texout-comment (cadr x)))
         ((== (car x) '!document) (texout-document (cdr x)))
         ((== (car x) '!paragraph) (texout-paragraph (cdr x)))
