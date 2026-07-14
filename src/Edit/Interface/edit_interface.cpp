@@ -314,6 +314,7 @@ void
 edit_interface_rep::scroll_to (SI x, SI y) {
   stored_rects= rectangles ();
   copy_always = rectangles ();
+  notify_change (THE_FREEZE);
   SERVER (scroll_to ((SI) (x * magf), ((SI) (y * magf))));
 }
 
@@ -349,6 +350,11 @@ edit_interface_rep::cursor_visible () {
   cursor cu= get_cursor ();
   if (is_nil (sp)) {
     update_visible ();
+    if (selection_active_any ()) {
+      path p1, p2;
+      selection_get (p1, p2);
+      if (p1 == start (et, rp) && p2 == end (et, rp)) return;
+    }
     cu->y1 -= 2*pixel; cu->y2 += 2*pixel;
     bool must_update=
       (cu->ox+ ((SI) (cu->y1 * cu->slope)) <  vx1) ||
@@ -943,8 +949,7 @@ edit_interface_rep::apply_changes () {
     if ((env_change & (THE_TREE+THE_ENVIRONMENT+
                        THE_CURSOR+THE_SELECTION+THE_FOCUS)) != 0)
       if (!inside_active_graphics ())
-        if ((env_change & THE_FREEZE) == 0 ||
-            (env_change & THE_SELECTION) != 0)
+        if ((env_change & THE_FREEZE) == 0)
           cursor_visible ();
 
     SI dw= 0;

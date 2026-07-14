@@ -777,11 +777,12 @@
             (vault-rewrite-anchor-references rel-path renames))))
       (lambda args (noop)))))
 
-(define (vault-anchor-prepare-live-edit! buf)
+(define (vault-anchor-prepare-live-edit! buf sx sy)
   (when (vault-anchor-current-buffer? buf)
     (when (selection-active-any?)
       (selection-cancel))
-    (go-start)))
+    (go-start)
+    (set-scroll sx sy)))
 
 (define (vault-anchor-restore-position! buf pos sx sy)
   (when (and pos (vault-anchor-current-buffer? buf))
@@ -820,7 +821,7 @@
     (if (vault-anchor-summary-empty? summary)
         (when pos (position-delete pos))
         (begin
-          (vault-anchor-prepare-live-edit! buf)
+          (vault-anchor-prepare-live-edit! buf sx sy)
           (buffer-set-body buf (stree->tree new-body))
           (vault-anchor-update-map-for-buffer! buf summary)
           (when pos
