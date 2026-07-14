@@ -64,6 +64,14 @@ set (STABLE_VERSION ${ATHENA_VERSION})
 set (STABLE_RELEASE "1")
 set (ATHENA_REVISION ${ATHENA_VERSION})
 
+if (CMAKE_BUILD_TYPE STREQUAL "")
+  set (ATHENA_BUILD_TYPE "Default")
+else ()
+  set (ATHENA_BUILD_TYPE "${CMAKE_BUILD_TYPE}")
+endif ()
+set (ATHENA_COMPILER
+  "${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}")
+
 
 ### --------------------------------------------------------------------
 ### Options
@@ -444,6 +452,23 @@ set (STACK_SIZE 0x8000000)
 
 configure_file (${ATHENA_SOURCE_DIR}/src/System/config.h.cmake ${ATHENA_BINARY_DIR}/src/System/config.h)
 configure_file (${ATHENA_SOURCE_DIR}/src/System/tm_configure.hpp.cmake ${ATHENA_BINARY_DIR}/src/System/tm_configure.hpp)
+
+set (ATHENA_BUILD_INFO_HEADER
+  "${ATHENA_BINARY_DIR}/src/System/athena_build_info.hpp")
+set (ATHENA_BUILD_INFO_COMMAND
+  ${CMAKE_COMMAND}
+  "-DATHENA_SOURCE_DIR=${ATHENA_SOURCE_DIR}"
+  "-DATHENA_OUTPUT=${ATHENA_BUILD_INFO_HEADER}"
+  "-DATHENA_APP_VERSION=${ATHENA_APP_VERSION}"
+  "-DATHENA_BUILD_TYPE=${ATHENA_BUILD_TYPE}"
+  "-DATHENA_COMPILER=${ATHENA_COMPILER}"
+  -P "${ATHENA_SOURCE_DIR}/cmake/GenerateAthenaBuildInfo.cmake")
+execute_process (COMMAND ${ATHENA_BUILD_INFO_COMMAND})
+add_custom_target (athena_build_info
+  COMMAND ${ATHENA_BUILD_INFO_COMMAND}
+  BYPRODUCTS "${ATHENA_BUILD_INFO_HEADER}"
+  COMMENT "Refreshing ATHENA build identity"
+  VERBATIM)
 
 set (CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -include ${ATHENA_BINARY_DIR}/src/System/config.h")
 

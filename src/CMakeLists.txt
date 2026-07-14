@@ -11,6 +11,7 @@ else (APPLE)
 endif (APPLE)
 
 add_library(athena_body STATIC ${ATHENA_All_SRCS})
+add_dependencies(athena_body athena_build_info)
 target_compile_definitions(athena_body PRIVATE
   $<$<CONFIG:Debug>:ATHENA_DEBUG_BUILD=1>
 )

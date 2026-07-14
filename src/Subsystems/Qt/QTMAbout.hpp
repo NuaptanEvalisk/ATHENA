@@ -15,6 +15,8 @@
 #include <QVBoxLayout>
 #include <QLabel>
 #include <QPushButton>
+#include <QPlainTextEdit>
+#include <QTabWidget>
 
 class QTMAbout : public QDialog {
   Q_OBJECT
@@ -27,6 +29,8 @@ private:
   QVBoxLayout* layout;
   QLabel*      logoLabel;
   QLabel*      infoLabel;
+  QPlainTextEdit* technicalInfo;
+  QPushButton* copyButton;
   QPushButton* closeButton;
 };
 
