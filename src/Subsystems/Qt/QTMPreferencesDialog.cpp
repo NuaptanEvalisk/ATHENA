@@ -13,6 +13,7 @@
 #include "QTMMainTabWindow.hpp"
 #include "QTMWidget.hpp"
 #include "QTMReverseHierarchyGraph.hpp"
+#include "qt_tm_widget.hpp"
 #include "QTMVaultInfoModel.hpp"
 #include "QTMRagDelegationClient.hpp"
 #include "GoogleOAuth.hpp"
@@ -969,6 +970,13 @@ QTMPreferencesDialog::buildGeneralPage () {
               {"native-light", "Native"}, {"", "Legacy"}}, "default", true);
   add_toggle (appearanceForm, "Use text toolbars instead of icon toolbars:",
               "text toolbar");
+  QCheckBox* hideToolbars=
+    add_toggle (appearanceForm, "Hide toolbars when not using them:",
+                "hide toolbars when not using them");
+  QObject::connect (hideToolbars, &QCheckBox::toggled,
+                    [] () {
+                      qt_tm_widget_rep::refreshAllToolbarPreferences ();
+                    });
   QCheckBox* blinkingCursor=
     add_toggle (appearanceForm, "Blink the editing cursor:",
                 "blinking cursor");

@@ -47,9 +47,13 @@
 #include "QTMInteractivePrompt.hpp"
 #include "QTMInteractiveInputHelper.hpp"
 #include "QTMVaultExplorer.hpp"
+#include "QTMToolbarController.hpp"
+
+#include <QSet>
 
 int menu_count = 0;  // zero if no menu is currently being displayed
 list<qt_tm_widget_rep*> waiting_widgets;
+static QSet<qt_tm_widget_rep*> all_tm_widgets;
 
 static QSize
 athena_toolbar_icon_size () {
@@ -248,8 +252,9 @@ QTMInteractiveInputHelper::commit (int result) {
 ******************************************************************************/
 
 qt_tm_widget_rep::qt_tm_widget_rep(int mask, command _quit)
- : qt_window_widget_rep (new QTMWindow (0), "popup", _quit), helper (this),
-   prompt (NULL), full_screen (false)
+ : qt_window_widget_rep (new QTMWindow (0), "popup", _quit),
+   toolbarController (nullptr), helper (this), prompt (NULL),
+   full_screen (false)
 {
   type = texmacs_widget;
 
@@ -499,6 +504,13 @@ qt_tm_widget_rep::qt_tm_widget_rep(int mask, command _quit)
   mw->addToolBarBreak ();
 #endif
 
+#ifdef Q_OS_MAC
+  if (!use_unified_toolbar)
+#endif
+    toolbarController= new QTMToolbarController (
+      mw, mainToolBar, modeToolBar, focusToolBar, userToolBar);
+  all_tm_widgets.insert (this);
+
   bottomTools->setAllowedAreas (Qt::BottomDockWidgetArea);
   bottomTools->setFeatures (QDockWidget::NoDockWidgetFeatures);
   bottomTools->setFloating (false);
@@ -544,7 +556,15 @@ qt_tm_widget_rep::~qt_tm_widget_rep () {
   
     // clear any residual waiting menu installation
   waiting_widgets = remove(waiting_widgets, this);
+  all_tm_widgets.remove (this);
   clear_main_menu_actions ();
+}
+
+void
+qt_tm_widget_rep::refreshAllToolbarPreferences () {
+  for (qt_tm_widget_rep* widget: all_tm_widgets)
+    if (widget != nullptr && widget->toolbarController != nullptr)
+      widget->toolbarController->refreshPreference ();
 }
 
 void
@@ -615,14 +635,20 @@ qt_tm_widget_rep::update_visibility () {
   bool new_bottomVisibility = visibility[8];
   bool new_extraVisibility = visibility[9];
   
-  if ( XOR(old_mainVisibility,  new_mainVisibility) )
-    mainToolBar->setVisible (new_mainVisibility);
-  if ( XOR(old_modeVisibility,  new_modeVisibility) )
-    modeToolBar->setVisible (new_modeVisibility);
-  if ( XOR(old_focusVisibility,  new_focusVisibility) )
-    focusToolBar->setVisible (new_focusVisibility);
-  if ( XOR(old_userVisibility,  new_userVisibility) )
-    userToolBar->setVisible (new_userVisibility);
+  if (toolbarController != nullptr)
+    toolbarController->setRequestedVisibility (
+      new_mainVisibility, new_modeVisibility,
+      new_focusVisibility, new_userVisibility);
+  else {
+    if ( XOR(old_mainVisibility,  new_mainVisibility) )
+      mainToolBar->setVisible (new_mainVisibility);
+    if ( XOR(old_modeVisibility,  new_modeVisibility) )
+      modeToolBar->setVisible (new_modeVisibility);
+    if ( XOR(old_focusVisibility,  new_focusVisibility) )
+      focusToolBar->setVisible (new_focusVisibility);
+    if ( XOR(old_userVisibility,  new_userVisibility) )
+      userToolBar->setVisible (new_userVisibility);
+  }
   if ( XOR(old_bottomVisibility,  new_bottomVisibility) )
     bottomTools->setVisible (new_bottomVisibility);
   if ( XOR(old_extraVisibility,  new_extraVisibility) )

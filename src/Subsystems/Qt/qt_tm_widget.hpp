@@ -33,6 +33,7 @@
 class QLabel; 
 class QAction;
 class QTMInteractivePrompt;
+class QTMToolbarController;
 
 /*! Models one main window with toolbars, an associated view, etc.
  
@@ -74,6 +75,7 @@ class qt_tm_widget_rep: public qt_window_widget_rep {
 #endif
   QDockWidget* bottomTools;
   QDockWidget*  extraTools;
+  QTMToolbarController* toolbarController;
 
 #ifdef Q_OS_MAC
   QToolBar*      dumbToolBar;
@@ -116,6 +118,7 @@ public:
     
   void set_full_screen (bool flag);
   void update_visibility();
+  static void refreshAllToolbarPreferences ();
   void install_main_menu ();
   void clear_main_menu_actions ();
   static void tweak_iconbar_size (QSize& sz);

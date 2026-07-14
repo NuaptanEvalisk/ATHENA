@@ -374,4 +374,5 @@
   (schedule-persistent-fit-width))
 
 (register-preference-callback-procedures
-  (list notify-header notify-icon-bar notify-remote-control notify-status-bar notify-zoom-factor))
+  (list notify-header notify-icon-bar notify-toolbar-presentation
+        notify-remote-control notify-status-bar notify-zoom-factor))

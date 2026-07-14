@@ -68,6 +68,12 @@
     focus-dependent, and user toolbars; popup menus and ordinary dialog
     buttons are unchanged.
 
+    <item*|Hide toolbars when not using them>Collapses the main,
+    mode-dependent, focus-dependent, and user toolbars into a thin centered
+    <verbatim|...> strip. Hovering over the strip with a pointer or stylus
+    reveals the toolbars; moving away collapses them again. The document is
+    not re-typeset when the toolbar area changes height.
+
     <item*|Blink the editing cursor>Uses the desktop's Qt cursor flash time for
     the document editing cursor. Disabling this option keeps the cursor
     continuously visible.
