@@ -318,8 +318,23 @@ edit_cursor_rep::go_left () {
   if (has_changed (THE_TREE+THE_ENVIRONMENT)) return;
   path old_tp= copy (tp);
   go_left_physical ();
-  if (tp != old_tp && inside_contiguous_document (et, old_tp, tp)) return;
-  path p= previous_valid (et, old_tp);
+  if (tp != old_tp && is_accessible_cursor (et, tp) &&
+      inside_contiguous_document (et, old_tp, tp)) return;
+  path parent= path_up (old_tp);
+  if (!in_source () && rp <= parent) {
+    tree st= subtree (et, parent);
+    bool has_accessible_child= false;
+    for (int i=0; i<N(st); ++i)
+      has_accessible_child |= drd->is_accessible_child (st, i);
+    path left_border= parent * 0;
+    if (!has_accessible_child && old_tp == parent * right_index (st) &&
+        is_accessible_cursor (et, left_border)) {
+      go_to (left_border);
+      select_from_cursor_if_active ();
+      return;
+    }
+  }
+  path p= make_cursor_accessible (previous_valid (et, old_tp), false);
   if (rp < p) go_to (p);
   select_from_cursor_if_active ();
 }
@@ -329,8 +344,23 @@ edit_cursor_rep::go_right () {
   if (has_changed (THE_TREE+THE_ENVIRONMENT)) return;
   path old_tp= copy (tp);
   go_right_physical ();
-  if (tp != old_tp && inside_contiguous_document (et, old_tp, tp)) return;
-  path p= next_valid (et, old_tp);
+  if (tp != old_tp && is_accessible_cursor (et, tp) &&
+      inside_contiguous_document (et, old_tp, tp)) return;
+  path parent= path_up (old_tp);
+  if (!in_source () && rp <= parent) {
+    tree st= subtree (et, parent);
+    bool has_accessible_child= false;
+    for (int i=0; i<N(st); ++i)
+      has_accessible_child |= drd->is_accessible_child (st, i);
+    path right_border= parent * right_index (st);
+    if (!has_accessible_child && old_tp == parent * 0 &&
+        is_accessible_cursor (et, right_border)) {
+      go_to (right_border);
+      select_from_cursor_if_active ();
+      return;
+    }
+  }
+  path p= make_cursor_accessible (next_valid (et, old_tp), true);
   if (rp < p) go_to (p);
   select_from_cursor_if_active ();
 }
