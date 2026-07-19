@@ -4,6 +4,8 @@ set -euo pipefail
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="${1:-$(cd -- "$script_dir/../.." && pwd)}"
 packages="$repo_root/container_build/packages"
+work="$(mktemp -d)"
+trap 'rm -rf "$work"' EXIT
 
 for flavor in dev rel; do
   deb=("$packages"/ATHENA-*-$flavor-linux-x86_64.deb)
@@ -14,9 +16,20 @@ for flavor in dev rel; do
     exit 1
   }
   dpkg-deb --info "${deb[0]}" >/dev/null
-  dpkg-deb --contents "${deb[0]}" | grep -q './opt/ATHENA/AppRun'
-  rpm -qpl "${opensuse[0]}" | grep -q '/opt/ATHENA/AppRun'
-  rpm -qpl "${rhel[0]}" | grep -q '/opt/ATHENA/AppRun'
+  dpkg-deb --contents "${deb[0]}" >"$work/$flavor.deb.list"
+  rpm -qpl "${opensuse[0]}" >"$work/$flavor.opensuse.list"
+  rpm -qpl "${rhel[0]}" >"$work/$flavor.rhel.list"
+
+  for listing in "$work/$flavor.deb.list" \
+                 "$work/$flavor.opensuse.list" \
+                 "$work/$flavor.rhel.list"; do
+    grep -q '/opt/ATHENA/AppRun' "$listing"
+    if grep -E 'ATHENA\.bin\.before-|formula-cleaner/.*\.gguf|\.safetensors|/\.venv/' \
+        "$listing"; then
+      echo "excluded release artifact found in $listing" >&2
+      exit 1
+    fi
+  done
 done
 
 echo "ATHENA native package structure validated."

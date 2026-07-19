@@ -128,6 +128,25 @@ rsync -a --delete \
   --exclude='/lib/*.so.*' \
   "${repo_root}/ATHENA/" "${release_dir}/"
 
+# ZIP extractors on Windows do not reliably recreate Unix symbolic links.
+# Keep one real model file under the runtime name instead of archiving both
+# the descriptive target and a dereferenced artifact-range-model.gguf link.
+artifact_model="${release_dir}/tools/artifacts/artifact-range-model.gguf"
+if [[ -L "${artifact_model}" ]]; then
+  artifact_target="$(readlink "${artifact_model}")"
+  if [[ "${artifact_target}" = /* ]]; then
+    resolved_artifact_target="${artifact_target}"
+  else
+    resolved_artifact_target="$(dirname -- "${artifact_model}")/${artifact_target}"
+  fi
+  if [[ ! -f "${resolved_artifact_target}" ]]; then
+    echo "artifact model link target is missing: ${resolved_artifact_target}" >&2
+    exit 1
+  fi
+  rm -f "${artifact_model}"
+  mv -f "${resolved_artifact_target}" "${artifact_model}"
+fi
+
 cp -f "${build_dir}/src/ATHENA.exe" "${release_dir}/bin/ATHENA.exe"
 copy_if_present "${build_dir}/src/athena-codex-bridge.exe" "${release_dir}/bin"
 cp -f "${build_dir}/x64/bin/libqt6advanceddocking.dll" "${release_dir}/bin/"

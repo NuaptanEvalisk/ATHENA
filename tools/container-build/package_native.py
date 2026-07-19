@@ -119,7 +119,9 @@ cp -a %{{_sourcedir}}/payload/. %{{buildroot}}/
         "--define", f"_topdir {topdir}",
         "--define", f"_sourcedir {sourcedir}",
         "--define", f"_rpmdir {topdir / 'RPMS'}",
-        "--define", "_binary_payload w9.xzdio",
+        # The bundled model is already compressed. zstd avoids spending many
+        # minutes recompressing it with the much slower xz payload compressor.
+        "--define", "_binary_payload w7.zstdio",
     ])
     built = list((topdir / "RPMS").rglob("*.rpm"))
     if len(built) != 1:

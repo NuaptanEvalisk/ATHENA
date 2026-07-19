@@ -17,17 +17,17 @@ for image in "$repo_root/container_build/ATHENA-dev.AppImage" \
 done
 
 podman run --rm \
-  --env HTTP_PROXY= \
-  --env HTTPS_PROXY= \
-  --env ALL_PROXY= \
-  --env http_proxy= \
-  --env https_proxy= \
-  --env all_proxy= \
+  --network host \
+  --env HTTP_PROXY \
+  --env HTTPS_PROXY \
+  --env ALL_PROXY \
+  --env http_proxy \
+  --env https_proxy \
+  --env all_proxy \
   -v "$repo_root/container_build:/work:ro" \
   docker.io/library/ubuntu:24.04 \
   bash -lc '
     set -euo pipefail
-    unset HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy
     apt-get update >/dev/null
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
       binutils ca-certificates file fontconfig libegl1 libgl1 libglx0 \

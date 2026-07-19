@@ -17,10 +17,14 @@ tools_dir="$container_build_dir/tools"
 jobs="${ATHENA_BUILD_JOBS:-$(nproc)}"
 git_timeout="${ATHENA_GIT_TIMEOUT:-300}"
 qt_version="${ATHENA_QT_VERSION:-6.11.1}"
+boost_version="${ATHENA_BOOST_VERSION:-1.87.0}"
+boost_version_underscore="${boost_version//./_}"
 athena_version="$(sed -n 's/.*set *(ATHENA_APP_VERSION *"\([^"]*\)".*/\1/p' "$repo_root/CMakeLists.txt" | head -n1)"
 qt_root="$deps_dir/qt"
 qt_prefix="$qt_root/$qt_version/gcc_64"
 ads_patched_src="$deps_dir/ads-patched/qt6"
+rapidfuzz_src="$src_dir/rapidfuzz-cpp"
+boost_src="$src_dir/boost_$boost_version_underscore"
 guile18_source="${ATHENA_GUILE18_SOURCE:-$HOME/data/Software/TeXmacs/obs/guile-1.8.8}"
 guile18_prefix="$deps_dir/guile18"
 
@@ -340,6 +344,59 @@ ensure_ads () {
   python3 "$repo_root/patch_ads.py" "$ads_patched_src" 6
 }
 
+rapidfuzz_source_complete () {
+  local dir="$1"
+  [ -f "$dir/CMakeLists.txt" ] &&
+    [ -f "$dir/rapidfuzz/fuzz.hpp" ]
+}
+
+ensure_rapidfuzz () {
+  if rapidfuzz_source_complete "$rapidfuzz_src"; then
+    return
+  fi
+
+  local cached_rapidfuzz
+  for cached_rapidfuzz in \
+    "$container_build_dir/build-dev/_deps/rapidfuzz-src" \
+    "$container_build_dir/build-rel/_deps/rapidfuzz-src" \
+    "$repo_root/build_qt6/_deps/rapidfuzz-src" \
+    "$repo_root/build_rel/_deps/rapidfuzz-src"; do
+    if rapidfuzz_source_complete "$cached_rapidfuzz"; then
+      echo "Using cached RapidFuzz source: $cached_rapidfuzz"
+      mkdir -p "$rapidfuzz_src"
+      rsync -a --delete --exclude '.git' \
+        "$cached_rapidfuzz/" "$rapidfuzz_src/"
+      return
+    fi
+  done
+
+  git_clone_retry "$rapidfuzz_src" --depth 1 --branch v3.3.3 \
+    "${RAPIDFUZZ_REPO:-https://github.com/rapidfuzz/rapidfuzz-cpp.git}"
+}
+
+ensure_boost_headers () {
+  if [ -f "$boost_src/boost/json.hpp" ] &&
+     [ -f "$boost_src/boost/graph/fruchterman_reingold.hpp" ]; then
+    return
+  fi
+
+  local download_dir="$deps_dir/downloads"
+  local archive="$download_dir/boost_$boost_version_underscore.tar.bz2"
+  mkdir -p "$download_dir"
+  if [ ! -f "$archive" ]; then
+    curl -fL --retry 3 --retry-delay 5 \
+      "https://archives.boost.io/release/$boost_version/source/boost_$boost_version_underscore.tar.bz2" \
+      -o "$archive"
+  fi
+
+  rm -rf "$boost_src"
+  tar -xf "$archive" -C "$src_dir"
+  if [ ! -f "$boost_src/boost/json.hpp" ]; then
+    echo "Boost $boost_version archive does not contain Boost.JSON." >&2
+    exit 1
+  fi
+}
+
 copy_runtime_tree () {
   local build_dir="$1"
   local out_dir="$2"
@@ -348,6 +405,7 @@ copy_runtime_tree () {
   mkdir -p "$out_dir/bin" "$out_dir/lib"
   rsync -a --delete \
     --exclude 'bin/ATHENA.bin' \
+    --exclude 'bin/ATHENA.bin.before-*' \
     --exclude 'lib/*' \
     --exclude 'tools/formula-cleaner/*.gguf' \
     --exclude 'tools/formula-cleaner/.venv/' \
@@ -408,6 +466,10 @@ build_athena_flavor () {
     -DATHENA_INTEL_NATIVE_OPTIMIZATION=OFF \
     -DADS_VERSION=4.3.1 \
     -DFETCHCONTENT_SOURCE_DIR_ADS="$ads_patched_src" \
+    -DFETCHCONTENT_SOURCE_DIR_RAPIDFUZZ="$rapidfuzz_src" \
+    -DBOOST_ROOT="$boost_src" \
+    -DBoost_INCLUDE_DIR="$boost_src" \
+    -DBoost_NO_SYSTEM_PATHS=ON \
     -DUSE_KF6_KIO_FILE_DIALOGS=OFF \
     -DPython3_EXECUTABLE=/usr/bin/python3.11 \
     -DLLAMA_CPP_SOURCE_DIR="$src_dir/llama.cpp" \
@@ -462,10 +524,21 @@ ensure_tcc
 ensure_resvg
 ensure_llama
 ensure_ads
+ensure_rapidfuzz
+ensure_boost_headers
 download_appimagetool
 
-build_athena_flavor dev Debug
-build_athena_flavor rel RelWithDebInfo
+build_flavors="${ATHENA_BUILD_FLAVORS:-dev rel}"
+for flavor in $build_flavors; do
+  case "$flavor" in
+    dev) build_athena_flavor dev Debug ;;
+    rel) build_athena_flavor rel RelWithDebInfo ;;
+    *)
+      echo "Unknown ATHENA build flavor: $flavor" >&2
+      exit 2
+      ;;
+  esac
+done
 
 find "$container_build_dir" -maxdepth 1 \
   \( -name 'ATHENA-dev*' -o -name 'ATHENA-rel*' \) -print | sort
