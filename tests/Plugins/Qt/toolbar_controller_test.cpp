@@ -13,6 +13,7 @@
 
 #include <QMainWindow>
 #include <QToolBar>
+#include <QWidget>
 
 class TestToolbarController: public QObject {
   Q_OBJECT
@@ -21,6 +22,8 @@ private slots:
   void mergesWhenWidthAllows ();
   void wrapsWhenWidthIsInsufficient ();
   void collapsesToRevealBar ();
+  void overlayKeepsViewportGeometryStable ();
+  void disablingAutoHideRestoresNativeToolbars ();
   void reloadsAutoHidePreference ();
 };
 
@@ -33,6 +36,8 @@ add_actions (QToolBar* toolbar, int count) {
 static QTMToolbarController*
 make_controller (QMainWindow& window, QToolBar*& main, QToolBar*& mode,
                  QToolBar*& focus, QToolBar*& user) {
+  if (window.centralWidget () == nullptr)
+    window.setCentralWidget (new QWidget (&window));
   main= window.addToolBar ("main");
   window.addToolBarBreak ();
   mode= window.addToolBar ("mode");
@@ -87,7 +92,58 @@ TestToolbarController::collapsesToRevealBar () {
   controller->expand ();
   QVERIFY (!controller->isCollapsed ());
   QVERIFY (!main->isHidden ());
+  QVERIFY (!controller->revealToolbar ()->isHidden ());
+  QVERIFY (!controller->overlayWidget ()->isHidden ());
+}
+
+void
+TestToolbarController::overlayKeepsViewportGeometryStable () {
+  QMainWindow window;
+  QToolBar *main, *mode, *focus, *user;
+  QTMToolbarController* controller=
+    make_controller (window, main, mode, focus, user);
+  window.resize (1000, 600);
+  window.show ();
+  controller->setRequestedVisibility (true, true, true, false);
+  controller->setAutoHideEnabled (true);
+  QCoreApplication::processEvents ();
+
+  QRect collapsedGeometry= window.centralWidget ()->geometry ();
+  controller->expand ();
+  QCoreApplication::processEvents ();
+  QCOMPARE (window.centralWidget ()->geometry (), collapsedGeometry);
+  QCOMPARE (controller->overlayWidget ()->parentWidget (),
+            window.centralWidget ());
+  QCOMPARE (controller->overlayWidget ()->pos (), QPoint (0, 0));
+  QVERIFY (controller->overlayWidget ()->height () > 0);
+  QCOMPARE (main->x (), 0);
+  QCOMPARE (mode->x (), main->width ());
+  QVERIFY (mode->geometry ().right () < controller->overlayWidget ()->width ());
+  QVERIFY (main->actions ().last ()->isSeparator ());
+  QVERIFY (main->actions ().last ()->isVisible ());
+
+  controller->collapse ();
+  QCoreApplication::processEvents ();
+  QCOMPARE (window.centralWidget ()->geometry (), collapsedGeometry);
+}
+
+void
+TestToolbarController::disablingAutoHideRestoresNativeToolbars () {
+  QMainWindow window;
+  QToolBar *main, *mode, *focus, *user;
+  QTMToolbarController* controller=
+    make_controller (window, main, mode, focus, user);
+  controller->setRequestedVisibility (true, true, true, false);
+  controller->setAutoHideEnabled (true);
+  controller->expand ();
+  QCOMPARE (main->parentWidget (), controller->overlayWidget ());
+
+  controller->setAutoHideEnabled (false);
+  QCOMPARE (main->parentWidget (), &window);
+  QCOMPARE (mode->parentWidget (), &window);
+  QVERIFY (controller->overlayWidget ()->isHidden ());
   QVERIFY (controller->revealToolbar ()->isHidden ());
+  QVERIFY (!main->isHidden ());
 }
 
 void

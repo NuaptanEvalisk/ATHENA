@@ -14,8 +14,10 @@
 #include <QTimer>
 
 class QAction;
+class QLabel;
 class QMainWindow;
 class QToolBar;
+class QWidget;
 
 class QTMToolbarController: public QObject {
 public:
@@ -34,6 +36,7 @@ public:
   bool isCollapsed () const { return collapsed; }
   bool isModeMerged () const { return modeMerged; }
   QToolBar* revealToolbar () const { return reveal; }
+  QWidget* overlayWidget () const { return overlay; }
 
 protected:
   bool eventFilter (QObject* watched, QEvent* event) override;
@@ -43,6 +46,10 @@ private:
   void scheduleCollapseCheck ();
   bool pointerOverToolbar () const;
   void ensureJoinSeparator ();
+  void enterOverlayMode ();
+  void leaveOverlayMode ();
+  void positionOverlay ();
+  int positionOverlayToolbar (QToolBar* toolbar, int y, int width);
 
 private:
   QPointer<QMainWindow> window;
@@ -51,6 +58,8 @@ private:
   QPointer<QToolBar> focusToolbar;
   QPointer<QToolBar> userToolbar;
   QPointer<QToolBar> reveal;
+  QPointer<QWidget> overlay;
+  QPointer<QLabel> dots;
   QPointer<QAction> joinSeparator;
   QTimer collapseTimer;
   bool requestedMain= false;
@@ -60,6 +69,7 @@ private:
   bool autoHide= false;
   bool collapsed= false;
   bool modeMerged= false;
+  bool overlayMode= false;
   bool applying= false;
 };
 

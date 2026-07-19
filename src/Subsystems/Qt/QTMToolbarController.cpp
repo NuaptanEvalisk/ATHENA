@@ -16,8 +16,10 @@
 #include <QEvent>
 #include <QLabel>
 #include <QMainWindow>
+#include <QPalette>
 #include <QSizePolicy>
 #include <QToolBar>
+#include <QWidget>
 
 namespace {
 
@@ -51,7 +53,7 @@ QTMToolbarController::QTMToolbarController (
   reveal->setFixedHeight (16);
   reveal->setContentsMargins (0, 0, 0, 0);
   reveal->addWidget (toolbar_stretch (reveal));
-  QLabel* dots= new QLabel (QStringLiteral ("..."), reveal);
+  dots= new QLabel (QStringLiteral ("..."), reveal);
   QFont dotsFont= dots->font ();
   dotsFont.setPixelSize (9);
   dots->setFont (dotsFont);
@@ -61,6 +63,15 @@ QTMToolbarController::QTMToolbarController (
   reveal->addWidget (dots);
   reveal->addWidget (toolbar_stretch (reveal));
   _window->insertToolBar (_mainToolbar, reveal);
+
+  QWidget* overlayParent= _window->centralWidget ();
+  if (overlayParent == nullptr) overlayParent= _window;
+  overlay= new QWidget (overlayParent);
+  overlay->setObjectName ("toolbarOverlay");
+  overlay->setAutoFillBackground (true);
+  overlay->setBackgroundRole (QPalette::Window);
+  overlay->setPalette (_mainToolbar->palette ());
+  overlay->hide ();
 
   joinSeparator= _mainToolbar->addSeparator ();
   collapseTimer.setSingleShot (true);
@@ -80,6 +91,8 @@ QTMToolbarController::QTMToolbarController (
                           static_cast<QObject*> (_focusToolbar),
                           static_cast<QObject*> (_userToolbar),
                           static_cast<QObject*> (reveal.data ()),
+                          static_cast<QObject*> (overlay.data ()),
+                          static_cast<QObject*> (overlayParent),
                           static_cast<QObject*> (dots) }) {
     object->installEventFilter (this);
   }
@@ -111,7 +124,11 @@ QTMToolbarController::setAutoHideEnabled (bool enabled) {
   }
   autoHide= enabled;
   collapsed= enabled;
-  if (!enabled) collapseTimer.stop ();
+  if (enabled) enterOverlayMode ();
+  else {
+    collapseTimer.stop ();
+    leaveOverlayMode ();
+  }
   applyVisibility ();
 }
 
@@ -154,9 +171,13 @@ QTMToolbarController::applyVisibility () {
   modeToolbar->setVisible (showTools && requestedMode);
   focusToolbar->setVisible (showTools && requestedFocus);
   userToolbar->setVisible (showTools && requestedUser);
-  reveal->setVisible (autoHide && collapsed && anyRequested);
+  reveal->setVisible (autoHide && anyRequested);
+  if (dots != nullptr) dots->setVisible (autoHide && collapsed && anyRequested);
+  if (overlay != nullptr)
+    overlay->setVisible (autoHide && !collapsed && anyRequested);
 
   refreshLayout ();
+  if (overlay != nullptr && overlay->isVisible ()) overlay->raise ();
   applying= false;
 }
 
@@ -166,16 +187,90 @@ QTMToolbarController::refreshLayout () {
     return;
   ensureJoinSeparator ();
 
-  bool canMerge= (!autoHide || !collapsed) && requestedMain && requestedMode;
+  bool canMerge= requestedMain && requestedMode;
   if (canMerge) {
     const int required= mainToolbar->sizeHint ().width () +
                         modeToolbar->sizeHint ().width () + 8;
-    canMerge= required <= window->width ();
+    QWidget* available= overlayMode && overlay != nullptr ?
+      overlay->parentWidget () : window.data ();
+    canMerge= available != nullptr && required <= available->width ();
   }
   modeMerged= canMerge;
-  if (canMerge) window->removeToolBarBreak (modeToolbar);
+  if (overlayMode) positionOverlay ();
+  else if (canMerge) window->removeToolBarBreak (modeToolbar);
   else window->insertToolBarBreak (modeToolbar);
   if (joinSeparator != nullptr) joinSeparator->setVisible (canMerge);
+}
+
+void
+QTMToolbarController::enterOverlayMode () {
+  if (overlayMode || window == nullptr || overlay == nullptr) return;
+  overlayMode= true;
+  for (QToolBar* toolbar: { mainToolbar.data (), modeToolbar.data (),
+                           focusToolbar.data (), userToolbar.data () }) {
+    if (toolbar == nullptr) continue;
+    window->removeToolBar (toolbar);
+    toolbar->setParent (overlay);
+  }
+  positionOverlay ();
+}
+
+void
+QTMToolbarController::leaveOverlayMode () {
+  if (!overlayMode || window == nullptr) return;
+  if (overlay != nullptr) overlay->hide ();
+  for (QToolBar* toolbar: { mainToolbar.data (), modeToolbar.data (),
+                           focusToolbar.data (), userToolbar.data () }) {
+    if (toolbar == nullptr) continue;
+    toolbar->hide ();
+    toolbar->setParent (window);
+    window->addToolBar (Qt::TopToolBarArea, toolbar);
+  }
+  if (modeToolbar != nullptr) window->insertToolBarBreak (modeToolbar);
+  if (focusToolbar != nullptr) window->insertToolBarBreak (focusToolbar);
+  if (userToolbar != nullptr) window->insertToolBarBreak (userToolbar);
+  overlayMode= false;
+}
+
+int
+QTMToolbarController::positionOverlayToolbar (QToolBar* toolbar, int y,
+                                              int width) {
+  if (toolbar == nullptr || !toolbar->isVisible ()) return y;
+  int height= toolbar->height ();
+  if (height <= 0) height= toolbar->sizeHint ().height ();
+  toolbar->setGeometry (0, y, width, height);
+  return y + height;
+}
+
+void
+QTMToolbarController::positionOverlay () {
+  if (!overlayMode || overlay == nullptr || overlay->parentWidget () == nullptr)
+    return;
+
+  int width= overlay->parentWidget ()->width ();
+  int y= 0;
+  if (mainToolbar != nullptr && mainToolbar->isVisible () &&
+      modeToolbar != nullptr && modeToolbar->isVisible () && modeMerged) {
+    int mainWidth= qMin (mainToolbar->sizeHint ().width (), width);
+    int modeWidth= qMin (modeToolbar->sizeHint ().width (),
+                         qMax (0, width - mainWidth));
+    int height= qMax (mainToolbar->height (), modeToolbar->height ());
+    if (height <= 0)
+      height= qMax (mainToolbar->sizeHint ().height (),
+                    modeToolbar->sizeHint ().height ());
+    mainToolbar->setGeometry (0, y, mainWidth, height);
+    modeToolbar->setGeometry (mainWidth, y, modeWidth, height);
+    y += height;
+  }
+  else {
+    y= positionOverlayToolbar (mainToolbar, y, width);
+    y= positionOverlayToolbar (modeToolbar, y, width);
+  }
+  y= positionOverlayToolbar (focusToolbar, y, width);
+  y= positionOverlayToolbar (userToolbar, y, width);
+
+  overlay->setGeometry (0, 0, width, y);
+  if (overlay->isVisible ()) overlay->raise ();
 }
 
 void
@@ -190,12 +285,15 @@ QTMToolbarController::pointerOverToolbar () const {
          contains_global_point (modeToolbar, point) ||
          contains_global_point (focusToolbar, point) ||
          contains_global_point (userToolbar, point) ||
+         contains_global_point (overlay, point) ||
          contains_global_point (reveal, point);
 }
 
 bool
 QTMToolbarController::eventFilter (QObject* watched, QEvent* event) {
-  if (watched == window && event->type () == QEvent::Resize) {
+  if ((watched == window || (overlay != nullptr &&
+       watched == overlay->parentWidget ())) &&
+      event->type () == QEvent::Resize) {
     QTimer::singleShot (0, this, [this] () { refreshLayout (); });
   }
   else if ((watched == reveal || (reveal != nullptr &&
@@ -210,6 +308,11 @@ QTMToolbarController::eventFilter (QObject* watched, QEvent* event) {
   }
   else if (watched != window && event->type () == QEvent::Leave) {
     scheduleCollapseCheck ();
+  }
+  else if (overlayMode &&
+           (event->type () == QEvent::LayoutRequest ||
+            event->type () == QEvent::Show || event->type () == QEvent::Hide)) {
+    QTimer::singleShot (0, this, [this] () { positionOverlay (); });
   }
   return QObject::eventFilter (watched, event);
 }
