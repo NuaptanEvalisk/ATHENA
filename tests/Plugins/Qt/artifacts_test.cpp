@@ -75,15 +75,23 @@ TestArtifacts::selectsDefinitionRangeWithConfiguredModel () {
         "disjoint union of sets mapped homeomorphically onto it."},
     {2, "The identity map is an example."}
   };
-  std::vector<int> selected= athena_artifact_select_definition_range (
-    "covering map", paragraphs);
-  std::vector<int> selectedFromCachedPrefix=
+  std::vector<AthenaArtifactRangeRequest> requests= {
+    {"covering map", paragraphs}, {"covering map", paragraphs}
+  };
+  std::atomic<size_t> completed (0);
+  auto batched= athena_artifact_select_definition_ranges (
+    requests, athena_artifact_range_model_path (), nullptr, &completed);
+  QCOMPARE (batched.size (), (size_t) 2);
+  QCOMPARE (completed.load (), (size_t) 2);
+  std::vector<int> selected= batched[0];
+  QCOMPARE (batched[1], selected);
+  std::vector<int> selectedAfterBatch=
     athena_artifact_select_definition_range ("covering map", paragraphs);
   athena_artifact_range_model_release ();
   QVERIFY (std::find (selected.begin (), selected.end (), 0) != selected.end ());
   QVERIFY (std::find (selected.begin (), selected.end (), 1) != selected.end ());
   for (int offset: selected) QVERIFY (offset >= -1 && offset <= 2);
-  QCOMPARE (selectedFromCachedPrefix, selected);
+  QCOMPARE (selectedAfterBatch, selected);
 }
 
 static tree

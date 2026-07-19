@@ -8,9 +8,15 @@
 #define ATHENA_ARTIFACT_RANGE_LLM_HPP
 
 #include <atomic>
+#include <cstddef>
 #include <string>
 #include <utility>
 #include <vector>
+
+struct AthenaArtifactRangeRequest {
+  std::string keyword_latex;
+  std::vector<std::pair<int,std::string>> paragraphs;
+};
 
 bool athena_artifact_range_model_available ();
 
@@ -19,6 +25,13 @@ std::string athena_artifact_range_model_path ();
 bool athena_artifact_range_model_available (const std::string& model_path);
 
 void athena_artifact_range_model_release ();
+
+int athena_artifact_range_batch_size ();
+
+std::vector<std::vector<int>> athena_artifact_select_definition_ranges (
+  const std::vector<AthenaArtifactRangeRequest>& requests,
+  const std::string& model_path, const std::atomic<bool>* cancelled,
+  std::atomic<size_t>* completed);
 
 std::vector<int> athena_artifact_select_definition_range (
   const std::string& keyword_latex,
