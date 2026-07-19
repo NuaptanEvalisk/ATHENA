@@ -51,6 +51,7 @@ RUN set -e; \
       libgnutls-devel \
       libjpeg8-devel \
       libpng16-devel \
+      libsodium-devel \
       libstdc++-devel \
       libstdc++6-devel-gcc13 \
       libtool \

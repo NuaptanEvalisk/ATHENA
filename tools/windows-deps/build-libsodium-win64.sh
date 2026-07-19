@@ -28,6 +28,7 @@ pushd "${build_dir}" >/dev/null
 "${source_dir}/configure" \
   --host=x86_64-w64-mingw32 \
   --prefix="${prefix}" \
+  --libdir="${prefix}/lib" \
   --enable-shared \
   --enable-static
 make -j"$(nproc)"
@@ -35,9 +36,6 @@ make install
 popd >/dev/null
 
 test -f "${prefix}/include/sodium.h"
-test -f "${prefix}/lib/pkgconfig/libsodium.pc" -o \
-     -f "${prefix}/lib64/pkgconfig/libsodium.pc"
+test -f "${prefix}/lib/pkgconfig/libsodium.pc"
 test -e "${prefix}/lib/libsodium.dll.a" -o \
-     -e "${prefix}/lib/libsodium.a" -o \
-     -e "${prefix}/lib64/libsodium.dll.a" -o \
-     -e "${prefix}/lib64/libsodium.a"
+     -e "${prefix}/lib/libsodium.a"

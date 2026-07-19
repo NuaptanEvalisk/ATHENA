@@ -129,6 +129,7 @@ rsync -a --delete \
   "${repo_root}/ATHENA/" "${release_dir}/"
 
 cp -f "${build_dir}/src/ATHENA.exe" "${release_dir}/bin/ATHENA.exe"
+copy_if_present "${build_dir}/src/athena-codex-bridge.exe" "${release_dir}/bin"
 cp -f "${build_dir}/x64/bin/libqt6advanceddocking.dll" "${release_dir}/bin/"
 cp -f "${prefix}/bin/"*.dll "${release_dir}/bin/"
 
