@@ -22,7 +22,6 @@ vault_choose_link (bool transcludeMode) {
   tree result= transcludeMode ?
     qtm_vault_choose_transclusion (QApplication::activeWindow ()) :
     qtm_vault_choose_wikilink (QApplication::activeWindow ());
-  restore_texmacs_focus_snapshot (focusSnapshot, true);
   restore_texmacs_focus_snapshot_later (focusSnapshot);
   return result;
 }

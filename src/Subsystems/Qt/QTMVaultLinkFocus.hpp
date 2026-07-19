@@ -24,8 +24,6 @@ struct TeXmacsFocusSnapshot {
 };
 
 TeXmacsFocusSnapshot capture_texmacs_focus_snapshot ();
-void restore_texmacs_focus_snapshot (const TeXmacsFocusSnapshot& s,
-                                     bool restoreScroll);
 void restore_texmacs_focus_snapshot_later (const TeXmacsFocusSnapshot& s);
 
 #endif // QTMVAULTLINKFOCUS_HPP

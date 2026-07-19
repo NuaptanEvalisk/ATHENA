@@ -10,8 +10,7 @@
 
 #include "QTMVaultLinkFocus.hpp"
 #include "new_view.hpp"
-#include "qt_gui.hpp"
-#include "tm_timer.hpp"
+#include <QApplication>
 #include <QScrollBar>
 #include <QTimer>
 
@@ -49,7 +48,7 @@ capture_texmacs_focus_snapshot () {
   return s;
 }
 
-void
+static void
 restore_texmacs_focus_snapshot (const TeXmacsFocusSnapshot& s,
                                 bool restoreScroll) {
   url view= active_view_or_recent_active (s.view);
@@ -64,11 +63,6 @@ restore_texmacs_focus_snapshot (const TeXmacsFocusSnapshot& s,
   }
 
   s.widget->setFocus (Qt::OtherFocusReason);
-  if (the_gui != nullptr && s.widget->tm_widget () != nullptr) {
-    the_gui->process_keyboard_focus (s.widget->tm_widget (), true,
-                                     texmacs_time ());
-    the_gui->process_queued_events (4);
-  }
 
   if (restoreScroll && s.hasScroll) {
     if (s.widget->horizontalScrollBar () != nullptr)
@@ -80,13 +74,10 @@ restore_texmacs_focus_snapshot (const TeXmacsFocusSnapshot& s,
 
 void
 restore_texmacs_focus_snapshot_later (const TeXmacsFocusSnapshot& s) {
-  QTimer::singleShot (0, [s] () {
+  // Let the modal key event finish before changing the active editor.  Doing
+  // this synchronously from QDialog::exec()'s Escape path can repaint while
+  // the editor still has pending tree and cursor changes.
+  QTimer::singleShot (0, qApp, [s] () {
     restore_texmacs_focus_snapshot (s, true);
-    QTimer::singleShot (80, [s] () {
-      restore_texmacs_focus_snapshot (s, true);
-      QTimer::singleShot (220, [s] () {
-        restore_texmacs_focus_snapshot (s, true);
-      });
-    });
   });
 }
