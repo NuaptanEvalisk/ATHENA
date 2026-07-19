@@ -88,3 +88,11 @@ boundaries, do not patch from intuition. Debug from evidence.
 - Treat "I found the source but patched elsewhere" as a failed debugging
   transition. Revert that direction, move the fix to the source layer, and then
   retest.
+
+## Filesystem Search Safety
+
+- Never run `find` from `/` or `/home/felix`. Large mounted drives are reachable
+  below those roots and an unrestricted traversal can exhaust the Codex session.
+- Restrict filesystem searches to the known repository or an explicitly named
+  data directory. When the user supplies an exact path, operate on that path
+  directly instead of searching a broader parent.
