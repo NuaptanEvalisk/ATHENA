@@ -199,7 +199,32 @@ athena_make_logger (bool error_stream, bool console_sink,
   }
 }
 
+std::shared_ptr<spdlog::logger>
+athena_get_worker_logger () {
+  static std::shared_ptr<spdlog::logger> logger=
+    athena_make_logger (false, true, nullptr);
+  return logger;
+}
+
 } // namespace
+
+void
+athena_spdlog_info (const std::string& message) {
+  std::shared_ptr<spdlog::logger> logger= athena_get_worker_logger ();
+  if (logger) athena_log_line (logger, spdlog::level::info, message);
+}
+
+void
+athena_spdlog_warning (const std::string& message) {
+  std::shared_ptr<spdlog::logger> logger= athena_get_worker_logger ();
+  if (logger) athena_log_line (logger, spdlog::level::warn, message);
+}
+
+void
+athena_spdlog_error (const std::string& message) {
+  std::shared_ptr<spdlog::logger> logger= athena_get_worker_logger ();
+  if (logger) athena_log_line (logger, spdlog::level::err, message);
+}
 
 void
 athena_enable_emergency_logging () {

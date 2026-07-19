@@ -31,6 +31,14 @@ namespace {
 constexpr int context_tokens= 4096;
 constexpr int output_tokens= 48;
 
+void range_log (const std::string& message) {
+  athena_spdlog_info ("artifacts: " + message);
+}
+
+void range_warning (const std::string& message) {
+  athena_spdlog_warning ("artifacts: " + message);
+}
+
 std::string tm_std (string s) {
   return std::string (as_charp (s), (size_t) N(s));
 }
@@ -161,9 +169,10 @@ public:
     std::vector<llama_token> input= tokenize (vocab, prompt);
     if (input.empty () || (int) input.size () + output_tokens >= context_tokens)
       return {0};
-    cout << "[artifacts] definition-range inference: keyword=\""
-         << keyword.c_str () << "\", candidate-paragraphs="
-         << paragraphs.size () << ", input-tokens=" << input.size () << LF;
+    range_log ("definition-range inference: keyword=\"" + keyword +
+               "\", candidate-paragraphs=" +
+               std::to_string (paragraphs.size ()) + ", input-tokens=" +
+               std::to_string (input.size ()));
     llama_set_abort_callback (
       ctx,
       [] (void* data) {
@@ -189,8 +198,7 @@ public:
       if (llama_decode (ctx, next) != 0) break;
       if (answer.find (']') != std::string::npos) break;
     }
-    cout << "[artifacts] definition-range model output: "
-         << trim (answer).c_str () << LF;
+    range_log ("definition-range model output: " + trim (answer));
     return parse_result (answer, paragraphs);
   }
 
@@ -200,23 +208,20 @@ private:
     unload ();
     if (!exists (url_system (std_tm (path)))) {
       if (warned_path != path) {
-        std_warning << "artifacts: definition-range GGUF model not found at "
-                    << path.c_str () << "; bold artifacts will use paragraph 0"
-                    << LF;
+        range_warning ("definition-range GGUF model not found at " + path +
+                       "; bold artifacts will use paragraph 0");
         warned_path= path;
       }
       return false;
     }
     auto started= std::chrono::steady_clock::now ();
-    cout << "[artifacts] loading definition-range model: "
-         << path.c_str () << LF;
+    range_log ("loading definition-range model: " + path);
     athena_llama_runtime_initialize ();
     llama_model_params mp= llama_model_default_params ();
     mp.n_gpu_layers= 0;
     model= llama_model_load_from_file (path.c_str (), mp);
     if (!model) {
-      std_warning << "artifacts: could not load definition-range model "
-                  << path.c_str () << LF;
+      range_warning ("could not load definition-range model " + path);
       return false;
     }
     llama_context_params cp= llama_context_default_params ();
@@ -231,8 +236,8 @@ private:
     loaded_path= path;
     auto elapsed= std::chrono::duration_cast<std::chrono::milliseconds> (
       std::chrono::steady_clock::now () - started).count ();
-    cout << "[artifacts] definition-range model ready in " << elapsed
-         << " ms" << LF;
+    range_log ("definition-range model ready in " +
+               std::to_string (elapsed) + " ms");
     return true;
   }
 
@@ -273,9 +278,8 @@ athena_artifact_range_model_available (const std::string& path) {
   if (!available) {
     std::lock_guard<std::mutex> guard (warning_mutex);
     if (warned_path != path) {
-      std_warning << "artifacts: definition-range GGUF model not found at "
-                  << path.c_str () << "; bold artifacts will use paragraph 0"
-                  << LF;
+      range_warning ("definition-range GGUF model not found at " + path +
+                     "; bold artifacts will use paragraph 0");
       warned_path= path;
     }
   }

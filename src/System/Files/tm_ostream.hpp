@@ -149,6 +149,12 @@ extern tm_ostream std_bench;
 
 void athena_enable_emergency_logging ();
 
+// Direct spdlog entry points for worker threads.  Unlike debug_ostream, these
+// functions never enter the Scheme-backed in-application debugging console.
+void athena_spdlog_info (const std::string& message);
+void athena_spdlog_warning (const std::string& message);
+void athena_spdlog_error (const std::string& message);
+
 tm_ostream string_ostream (string& buf);
 
 #endif // defined OUT_STREAM_HPP

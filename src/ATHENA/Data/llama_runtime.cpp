@@ -15,6 +15,7 @@
 
 #include <cctype>
 #include <mutex>
+#include <string>
 
 namespace {
 
@@ -27,8 +28,12 @@ athena_llama_log (enum ggml_log_level level, const char* message, void*) {
     if (*p != '.' && std::isspace (*p) == 0) {
       progress_only= false;
       break;
-    }
-  if (!progress_only) std_warning << "llama.cpp: " << message;
+  }
+  if (progress_only) return;
+  std::string text (message);
+  while (!text.empty () && (text.back () == '\n' || text.back () == '\r'))
+    text.pop_back ();
+  athena_spdlog_warning ("llama.cpp: " + text);
 }
 
 } // namespace

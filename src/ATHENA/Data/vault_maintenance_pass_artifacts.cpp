@@ -7,13 +7,24 @@
 #include "ATHENA/Data/vault_maintenance_internal.hpp"
 #include "ATHENA/Data/artifacts.hpp"
 
+#include <limits>
+
 VaultMaintenancePassResult
 vault_maintenance_pass_build_artifacts (VaultMaintenanceContext& ctx) {
   AthenaArtifactsBuildResult built;
   std::string error;
+  bool have_progress= false;
+  AthenaArtifactsBuildPhase last_phase= AthenaArtifactsBuildPhase::Preparing;
+  size_t last_current= std::numeric_limits<size_t>::max ();
+  size_t last_total= std::numeric_limits<size_t>::max ();
+  std::string last_path;
   bool ok= athena_artifacts_build (
     ctx.root, {}, true,
-    [] (const AthenaArtifactsProgressEvent& event) {
+    [&] (const AthenaArtifactsProgressEvent& event) {
+      bool changed= !have_progress || event.phase != last_phase ||
+                    event.current != last_current || event.total != last_total ||
+                    event.path != last_path;
+      if (!changed) return true;
       std::string phase;
       switch (event.phase) {
       case AthenaArtifactsBuildPhase::Preparing: phase= "Preparing artifacts"; break;
@@ -25,6 +36,11 @@ vault_maintenance_pass_build_artifacts (VaultMaintenanceContext& ctx) {
       case AthenaArtifactsBuildPhase::Complete: phase= "Building artifacts"; break;
       }
       print_progress (event.current, event.total, phase, event.path);
+      have_progress= true;
+      last_phase= event.phase;
+      last_current= event.current;
+      last_total= event.total;
+      last_path= event.path;
       return true;
     }, built, error);
   finish_progress ();
