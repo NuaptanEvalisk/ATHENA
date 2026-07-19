@@ -74,5 +74,8 @@ void collect_enunciation_matches (std::vector<VaultContentMatch>& out, tree t,
                                    tree query, const string& tag, path base,
                                    int limit, bool case_insensitive,
                                    bool fuzzy);
+void append_heading_matches (std::vector<VaultContentMatch>& out, tree t,
+                             tree query, path base, int limit,
+                             bool case_insensitive, bool fuzzy);
 
 #endif // QTMVAULTSEARCH_HPP

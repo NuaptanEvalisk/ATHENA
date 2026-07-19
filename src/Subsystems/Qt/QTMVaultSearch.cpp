@@ -9,6 +9,7 @@
 ******************************************************************************/
 
 #include "QTMVaultSearch.hpp"
+#include "QTMVaultAnchorModel.hpp"
 #include "analyze.hpp"
 #include "drd_mode.hpp"
 #include "fuzzy_rank.hpp"
@@ -336,5 +337,74 @@ collect_enunciation_matches (std::vector<VaultContentMatch>& out, tree t,
     if (remaining <= 0) return;
     collect_enunciation_matches (out, t[i], query, tag, base * i, remaining,
                                   caseInsensitive, fuzzy);
+  }
+}
+
+namespace {
+
+static tree
+subtree_at_path (tree t, path where) {
+  while (!is_nil (where)) {
+    int index= where->item;
+    if (is_atomic (t) || index < 0 || index >= N(t)) return tree ();
+    t= t[index];
+    where= where->next;
+  }
+  return t;
+}
+
+static void
+append_atomic_descendant_matches (
+  std::vector<VaultContentMatch>& out, tree t, tree query, path base,
+  int& remaining, bool caseInsensitive, bool fuzzy)
+{
+  if (remaining <= 0) return;
+  if (is_atomic (t)) {
+    size_t before= out.size ();
+    append_content_matches (out, t, query, base, remaining,
+                            caseInsensitive, fuzzy);
+    remaining -= (int) (out.size () - before);
+    return;
+  }
+  if (is_func (t, RAW_DATA)) return;
+  for (int i=0; i<N(t) && remaining>0; i++)
+    append_atomic_descendant_matches (out, t[i], query, base * i, remaining,
+                                      caseInsensitive, fuzzy);
+}
+
+static bool
+same_match_range (const VaultContentMatch& a, const VaultContentMatch& b) {
+  return a.start == b.start && a.end == b.end;
+}
+
+} // namespace
+
+void
+append_heading_matches (std::vector<VaultContentMatch>& out, tree t,
+                        tree query, path base, int limit,
+                        bool caseInsensitive, bool fuzzy) {
+  if (limit <= 0) return;
+  std::vector<TransclusionAnchorPair> headings=
+    collect_heading_anchor_targets (t, base);
+  std::vector<VaultContentMatch> additions;
+  int remaining= limit;
+  for (const TransclusionAnchorPair& heading: headings) {
+    if (remaining <= 0) break;
+    path relative= heading.lowerWhere;
+    for (int i=0; i<N(base) && !is_nil (relative); i++)
+      relative= relative->next;
+    tree node= subtree_at_path (t, relative);
+    append_atomic_descendant_matches (additions, node, query,
+                                      heading.lowerWhere, remaining,
+                                      caseInsensitive, fuzzy);
+  }
+  for (const VaultContentMatch& addition: additions) {
+    bool duplicate= false;
+    for (const VaultContentMatch& current: out)
+      if (same_match_range (current, addition)) {
+        duplicate= true;
+        break;
+      }
+    if (!duplicate) out.push_back (addition);
   }
 }

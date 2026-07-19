@@ -1290,6 +1290,11 @@ TransclusionSearchPage::searchFile (
     std::vector<TransclusionAnchorPair> pairs=
       collect_transclusion_pairs (anchors);
     QString tag= selectedEnunciation ();
+    if (tag.isEmpty ()) {
+      std::vector<TransclusionAnchorPair> headings=
+        collect_heading_anchor_targets (body, path ());
+      pairs.insert (pairs.end (), headings.begin (), headings.end ());
+    }
 
     int matched= 0;
     int oldMode= set_access_mode (DRD_ACCESS_SOURCE);
@@ -1305,6 +1310,9 @@ TransclusionSearchPage::searchFile (
         std::vector<VaultContentMatch> matches;
         append_content_matches (matches, range, query, path (), 1,
                                 caseInsensitive, fuzzy);
+        if (matches.empty () && tag.isEmpty ())
+          append_heading_matches (matches, range, query, path (), 1,
+                                  caseInsensitive, fuzzy);
         if (matches.empty ()) continue;
 
         TransclusionSearchResult result;

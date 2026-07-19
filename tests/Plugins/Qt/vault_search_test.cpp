@@ -27,6 +27,7 @@ private slots:
   void listFilteringRespectsOptions ();
   void recognizesEnunciationAnchorPairs ();
   void findsInnermostEnclosingAnchorPair ();
+  void recognizesHeadingAnchorTargets ();
   void rawPrefilterRejectsUnrelatedFiles ();
   void rawPrefilterRespectsCaseOption ();
   void rawPrefilterIsConservative ();
@@ -138,6 +139,39 @@ TestVaultSearch::findsInnermostEnclosingAnchorPair () {
   QCOMPARE (enclosing_anchor_pair_index (pairs, path (4)), 1);
   QCOMPARE (enclosing_anchor_pair_index (pairs, path (7)), 0);
   QCOMPARE (enclosing_anchor_pair_index (pairs, path (9)), -1);
+}
+
+void
+TestVaultSearch::recognizesHeadingAnchorTargets () {
+  tree body (DOCUMENT);
+  body << tree (LABEL, "H1 Overview");
+  body << compound ("section", "Overview");
+  body << tree ("Body text");
+  body << tree (LABEL, "theorem:Result {");
+  body << compound ("theorem", "Result");
+  body << tree (LABEL, "theorem:Result }");
+
+  std::vector<TransclusionAnchorPair> headings=
+    collect_heading_anchor_targets (body, path ());
+  QCOMPARE ((int) headings.size (), 1);
+  QCOMPARE (headings[0].upper, QString ("H1 Overview"));
+  QCOMPARE (headings[0].lower, QString ("H1 Overview"));
+  QCOMPARE (headings[0].upperWhere, path (0));
+  QCOMPARE (headings[0].lowerWhere, path (1));
+  QCOMPARE (heading_anchor_target_index (headings, path (1, 0)), 0);
+  QCOMPARE (heading_anchor_target_index (headings, path (2, 0)), -1);
+  QVERIFY (is_wikilink_anchor ("H1 Overview"));
+
+  std::vector<VaultContentMatch> matches;
+  append_content_matches (matches, body, tree ("Overview"), path (), 200,
+                          false, false);
+  append_heading_matches (matches, body, tree ("Overview"), path (),
+                          200 - (int) matches.size (), false, false);
+  bool foundHeadingText= false;
+  for (const VaultContentMatch& match: matches)
+    if (heading_anchor_target_index (headings, match.start) == 0)
+      foundHeadingText= true;
+  QVERIFY (foundHeadingText);
 }
 
 static url

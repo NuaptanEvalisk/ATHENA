@@ -1066,9 +1066,13 @@ WikilinkSearchPage::searchFile (url u, const tree& query,
       QString enunciation= selectedEnunciation ();
       bool caseInsensitive= caseInsensitiveSearch ();
       bool fuzzy= fuzzySearch ();
-      if (enunciation.isEmpty ())
+      if (enunciation.isEmpty ()) {
         append_content_matches (matches, body, query, path (), 200,
                                 caseInsensitive, fuzzy);
+        append_heading_matches (matches, body, query, path (),
+                                200 - (int) matches.size (),
+                                caseInsensitive, fuzzy);
+      }
       else if (enunciation == "__athena_paragraph__")
         collect_aofm_paragraph_matches (matches, body, query, path (), 200,
                                         caseInsensitive, fuzzy);
@@ -1311,6 +1315,15 @@ WikilinkSearchPage::updatePreview (QListWidgetItem* current) {
       if (upper >= 0 && upper < (int) allAnchors.size () &&
           is_wikilink_anchor (allAnchors[upper].anchor))
         currentAnchors.push_back (allAnchors[upper]);
+    }
+    std::vector<TransclusionAnchorPair> headings=
+      collect_heading_anchor_targets (body, path ());
+    int heading= heading_anchor_target_index (headings, result.hitStart);
+    if (heading >= 0) {
+      WikilinkAnchorEntry anchor;
+      anchor.anchor= headings[heading].upper;
+      anchor.where= headings[heading].upperWhere;
+      currentAnchors.push_back (anchor);
     }
     for (const WikilinkAnchorEntry& a: allAnchors) {
       int top= path_top_index (a.where);

@@ -50,7 +50,11 @@ bool anchor_pair_is_enunciation (const TransclusionAnchorPair& pair);
 void collect_anchors (tree t, path base, std::vector<WikilinkAnchorEntry>& out);
 std::vector<TransclusionAnchorPair> collect_transclusion_pairs (
   const std::vector<WikilinkAnchorEntry>& anchors);
+std::vector<TransclusionAnchorPair> collect_heading_anchor_targets (
+  tree body, path base);
 int enclosing_anchor_pair_index (
   const std::vector<TransclusionAnchorPair>& pairs, path where);
+int heading_anchor_target_index (
+  const std::vector<TransclusionAnchorPair>& targets, path where);
 
 #endif // QTMVAULTANCHORMODEL_HPP
