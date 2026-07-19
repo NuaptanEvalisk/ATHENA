@@ -17,6 +17,8 @@
 #include <llama.h>
 
 #include <algorithm>
+#include <atomic>
+#include <chrono>
 #include <cctype>
 #include <cstdlib>
 #include <mutex>
@@ -149,20 +151,37 @@ public:
 
   std::vector<int> select (
     const std::string& keyword,
-    const std::vector<std::pair<int,std::string>>& paragraphs) {
+    const std::vector<std::pair<int,std::string>>& paragraphs,
+    const std::string& model_path, const std::atomic<bool>* cancelled) {
     std::lock_guard<std::mutex> guard (mutex);
-    if (!load ()) return {0};
+    if (cancelled && cancelled->load ()) return {0};
+    if (!load (model_path)) return {0};
     std::string prompt= make_prompt (keyword, paragraphs);
     const llama_vocab* vocab= llama_model_get_vocab (model);
     std::vector<llama_token> input= tokenize (vocab, prompt);
     if (input.empty () || (int) input.size () + output_tokens >= context_tokens)
       return {0};
+    cout << "[artifacts] definition-range inference: keyword=\""
+         << keyword.c_str () << "\", candidate-paragraphs="
+         << paragraphs.size () << ", input-tokens=" << input.size () << LF;
+    llama_set_abort_callback (
+      ctx,
+      [] (void* data) {
+        const std::atomic<bool>* flag=
+          static_cast<const std::atomic<bool>*> (data);
+        return flag && flag->load ();
+      }, const_cast<std::atomic<bool>*> (cancelled));
+    struct AbortReset {
+      llama_context* context;
+      ~AbortReset () { llama_set_abort_callback (context, nullptr, nullptr); }
+    } reset {ctx};
     llama_memory_clear (llama_get_memory (ctx), true);
     llama_sampler_reset (sampler);
     llama_batch batch= llama_batch_get_one (input.data (), (int32_t) input.size ());
     if (llama_decode (ctx, batch) != 0) return {0};
     std::string answer;
     for (int i=0; i<output_tokens; i++) {
+      if (cancelled && cancelled->load ()) return {0};
       llama_token token= llama_sampler_sample (sampler, ctx, -1);
       if (llama_vocab_is_eog (vocab, token)) break;
       answer += token_piece (vocab, token);
@@ -170,12 +189,13 @@ public:
       if (llama_decode (ctx, next) != 0) break;
       if (answer.find (']') != std::string::npos) break;
     }
+    cout << "[artifacts] definition-range model output: "
+         << trim (answer).c_str () << LF;
     return parse_result (answer, paragraphs);
   }
 
 private:
-  bool load () {
-    std::string path= configured_model ();
+  bool load (const std::string& path) {
     if (model && path == loaded_path) return true;
     unload ();
     if (!exists (url_system (std_tm (path)))) {
@@ -187,11 +207,18 @@ private:
       }
       return false;
     }
+    auto started= std::chrono::steady_clock::now ();
+    cout << "[artifacts] loading definition-range model: "
+         << path.c_str () << LF;
     athena_llama_runtime_initialize ();
     llama_model_params mp= llama_model_default_params ();
     mp.n_gpu_layers= 0;
     model= llama_model_load_from_file (path.c_str (), mp);
-    if (!model) return false;
+    if (!model) {
+      std_warning << "artifacts: could not load definition-range model "
+                  << path.c_str () << LF;
+      return false;
+    }
     llama_context_params cp= llama_context_default_params ();
     cp.n_ctx= context_tokens;
     cp.n_batch= context_tokens;
@@ -202,6 +229,10 @@ private:
     sampler= llama_sampler_chain_init (llama_sampler_chain_default_params ());
     llama_sampler_chain_add (sampler, llama_sampler_init_greedy ());
     loaded_path= path;
+    auto elapsed= std::chrono::duration_cast<std::chrono::milliseconds> (
+      std::chrono::steady_clock::now () - started).count ();
+    cout << "[artifacts] definition-range model ready in " << elapsed
+         << " ms" << LF;
     return true;
   }
 
@@ -226,9 +257,18 @@ RangeModel& range_model () { static RangeModel model; return model; }
 
 bool
 athena_artifact_range_model_available () {
+  return athena_artifact_range_model_available (configured_model ());
+}
+
+std::string
+athena_artifact_range_model_path () {
+  return configured_model ();
+}
+
+bool
+athena_artifact_range_model_available (const std::string& path) {
   static std::mutex warning_mutex;
   static std::string warned_path;
-  std::string path= configured_model ();
   bool available= exists (url_system (std_tm (path)));
   if (!available) {
     std::lock_guard<std::mutex> guard (warning_mutex);
@@ -246,5 +286,15 @@ std::vector<int>
 athena_artifact_select_definition_range (
   const std::string& keyword_latex,
   const std::vector<std::pair<int,std::string>>& paragraphs) {
-  return range_model ().select (keyword_latex, paragraphs);
+  return range_model ().select (keyword_latex, paragraphs, configured_model (),
+                                nullptr);
+}
+
+std::vector<int>
+athena_artifact_select_definition_range (
+  const std::string& keyword_latex,
+  const std::vector<std::pair<int,std::string>>& paragraphs,
+  const std::string& model_path, const std::atomic<bool>* cancelled) {
+  return range_model ().select (keyword_latex, paragraphs, model_path,
+                                cancelled);
 }

@@ -13,8 +13,18 @@ vault_maintenance_pass_build_artifacts (VaultMaintenanceContext& ctx) {
   std::string error;
   bool ok= athena_artifacts_build (
     ctx.root, {}, true,
-    [] (size_t current, size_t total, const std::string& path) {
-      print_progress (current, total, "Building artifacts", path);
+    [] (const AthenaArtifactsProgressEvent& event) {
+      std::string phase;
+      switch (event.phase) {
+      case AthenaArtifactsBuildPhase::Preparing: phase= "Preparing artifacts"; break;
+      case AthenaArtifactsBuildPhase::Extracting: phase= "Extracting artifacts"; break;
+      case AthenaArtifactsBuildPhase::SelectingDefinitionRanges:
+        phase= "Selecting artifact ranges"; break;
+      case AthenaArtifactsBuildPhase::WritingDatabase:
+        phase= "Writing artifacts"; break;
+      case AthenaArtifactsBuildPhase::Complete: phase= "Building artifacts"; break;
+      }
+      print_progress (event.current, event.total, phase, event.path);
       return true;
     }, built, error);
   finish_progress ();

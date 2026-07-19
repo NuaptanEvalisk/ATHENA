@@ -31,6 +31,7 @@ private slots:
   void boundsBoldDefinitionCandidatesAtEnunciations ();
   void doesNotLinkNonAdjacentProof ();
   void buildsIncrementallyAndPurgesDeletedDocuments ();
+  void reportsBuildPhasesInOrder ();
 };
 
 class MissingRangeModel {
@@ -244,6 +245,40 @@ TestArtifacts::buildsIncrementallyAndPurgesDeletedDocuments () {
   QCOMPARE (records.size (), (size_t) 3);
   for (const AthenaArtifactRecord& record: records)
     QCOMPARE (record.relative_path, std::string ("A.ath"));
+}
+
+void
+TestArtifacts::reportsBuildPhasesInOrder () {
+  MissingRangeModel noModel;
+  QTemporaryDir temporary;
+  QVERIFY (temporary.isValid ());
+  fs::path root (temporary.path ().toStdString ());
+  AthenaVaultfileInfo info;
+  std::string error;
+  QVERIFY2 (athena_vaultfile_write (root, info, error), error.c_str ());
+  write_document (root / "A.ath", artifact_test_document ("compact operator"));
+
+  std::vector<AthenaArtifactsBuildPhase> phases;
+  AthenaArtifactsBuildResult result;
+  QVERIFY2 (athena_artifacts_build (
+              root, {}, true,
+              [&] (const AthenaArtifactsProgressEvent& event) {
+                phases.push_back (event.phase);
+                return true;
+              }, result, error), error.c_str ());
+  QVERIFY (!phases.empty ());
+  QCOMPARE (phases.front (), AthenaArtifactsBuildPhase::Preparing);
+  QCOMPARE (phases.back (), AthenaArtifactsBuildPhase::Complete);
+  QVERIFY (std::find (phases.begin (), phases.end (),
+                      AthenaArtifactsBuildPhase::Extracting) != phases.end ());
+  QVERIFY (std::find (
+             phases.begin (), phases.end (),
+             AthenaArtifactsBuildPhase::SelectingDefinitionRanges) !=
+           phases.end ());
+  QVERIFY (std::find (phases.begin (), phases.end (),
+                      AthenaArtifactsBuildPhase::WritingDatabase) != phases.end ());
+  QCOMPARE (std::count (phases.begin (), phases.end (),
+                        AthenaArtifactsBuildPhase::Complete), 1);
 }
 
 QTEST_MAIN (TestArtifacts)

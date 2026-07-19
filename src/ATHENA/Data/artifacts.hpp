@@ -44,8 +44,24 @@ struct AthenaArtifactsBuildResult {
   size_t artifacts= 0;
 };
 
+enum class AthenaArtifactsBuildPhase {
+  Preparing,
+  Extracting,
+  SelectingDefinitionRanges,
+  WritingDatabase,
+  Complete
+};
+
+struct AthenaArtifactsProgressEvent {
+  AthenaArtifactsBuildPhase phase= AthenaArtifactsBuildPhase::Preparing;
+  size_t current= 0;
+  size_t total= 0;
+  std::string path;
+  std::string detail;
+};
+
 using AthenaArtifactsProgress=
-  std::function<bool(size_t current, size_t total, const std::string& path)>;
+  std::function<bool(const AthenaArtifactsProgressEvent& event)>;
 
 bool athena_artifacts_build (
   const std::filesystem::path& vault_root,

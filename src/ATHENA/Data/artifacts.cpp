@@ -24,13 +24,16 @@
 #include <QJsonObject>
 
 #include <algorithm>
+#include <atomic>
 #include <cctype>
 #include <chrono>
 #include <cerrno>
 #include <cstdlib>
 #include <filesystem>
+#include <future>
 #include <fstream>
 #include <iterator>
+#include <iostream>
 #include <map>
 #include <set>
 #include <sstream>
@@ -46,6 +49,18 @@
 namespace fs= std::filesystem;
 
 namespace {
+
+void artifact_log (const std::string& message) {
+  std::cout << "[artifacts] " << message << std::endl;
+}
+
+bool report_progress (const AthenaArtifactsProgress& progress,
+                      AthenaArtifactsBuildPhase phase, size_t current,
+                      size_t total, const std::string& path= {},
+                      const std::string& detail= {}) {
+  if (!progress) return true;
+  return progress ({phase, current, total, path, detail});
+}
 
 struct SqliteDb {
   sqlite3* db= nullptr;
@@ -320,10 +335,13 @@ std::string latex_for_tree (const tree& t) {
   catch (...) { return to_std (tree_to_texmacs (t)); }
 }
 
-void select_definition_range (AthenaArtifactRecord& record) {
-  if (!athena_artifact_range_model_available ()) {
+bool select_definition_range (AthenaArtifactRecord& record,
+                              const std::function<bool()>& heartbeat,
+                              std::string& error) {
+  std::string model_path= athena_artifact_range_model_path ();
+  if (!athena_artifact_range_model_available (model_path)) {
     record.paragraph_offsets= {0};
-    return;
+    return true;
   }
   std::vector<std::pair<int,std::string>> latex_candidates;
   latex_candidates.reserve (record.definition_candidates.size ());
@@ -333,8 +351,35 @@ void select_definition_range (AthenaArtifactRecord& record) {
                           texmacs_to_tree (to_tm (candidate.second)))});
   record.keyword_latex= latex_for_tree (
     texmacs_to_tree (to_tm (record.keyword_tree)));
-  record.paragraph_offsets= athena_artifact_select_definition_range (
-    record.keyword_latex, latex_candidates);
+  std::atomic<bool> cancelled (false);
+  auto started= std::chrono::steady_clock::now ();
+  std::future<std::vector<int>> inference= std::async (
+    std::launch::async,
+    [keyword= record.keyword_latex, candidates= std::move (latex_candidates),
+     model_path, &cancelled] () {
+      return athena_artifact_select_definition_range (
+        keyword, candidates, model_path, &cancelled);
+    });
+  while (inference.wait_for (std::chrono::milliseconds (40)) !=
+         std::future_status::ready) {
+    if (heartbeat && !heartbeat ()) cancelled.store (true);
+  }
+  record.paragraph_offsets= inference.get ();
+  if (cancelled.load ()) {
+    error= "Artifact build cancelled";
+    return false;
+  }
+  auto elapsed= std::chrono::duration_cast<std::chrono::milliseconds> (
+    std::chrono::steady_clock::now () - started).count ();
+  std::ostringstream offsets;
+  for (size_t i=0; i<record.paragraph_offsets.size (); i++) {
+    if (i) offsets << ',';
+    offsets << record.paragraph_offsets[i];
+  }
+  artifact_log ("definition range selected for \"" + record.display_text +
+                "\" in " + record.relative_path + ": [" + offsets.str () +
+                "] in " + std::to_string (elapsed) + " ms");
+  return true;
 }
 
 struct Paragraph {
@@ -488,7 +533,8 @@ bool extract (const tree& document, const std::string& rel,
       record.keyword_occurrence= occurrence;
       record.definition_candidates= candidates;
       record.paragraph_offsets= {0};
-      if (select_ranges) select_definition_range (record);
+      if (select_ranges && !select_definition_range (record, {}, error))
+        return false;
       record.document_order= order++;
       extracted.records.push_back (record);
     }
@@ -559,7 +605,8 @@ bool extract_serial (const std::vector<DocumentWork>& work,
                      const AthenaArtifactsProgress& progress,
                      std::string& error, bool defer_ranges) {
   for (size_t i=0; i<work.size (); i++) {
-    if (progress && !progress (i, work.size (), work[i].rel)) {
+    if (!report_progress (progress, AthenaArtifactsBuildPhase::Extracting,
+                          i, work.size (), work[i].rel)) {
       error= "Artifact build cancelled";
       return false;
     }
@@ -567,23 +614,59 @@ bool extract_serial (const std::vector<DocumentWork>& work,
     if (!read_document (work[i].path, document, error)) return false;
     if (!extract (document, work[i].rel, extracted[work[i].rel], error,
                   !defer_ranges)) return false;
+    artifact_log ("extracted " + work[i].rel + ": " +
+                  std::to_string (extracted[work[i].rel].records.size ()) +
+                  " artifact candidate(s)");
   }
   return true;
 }
 
 bool select_definition_ranges (
   std::map<std::string,ExtractedDocument>& extracted,
-  const AthenaArtifactsProgress& progress, size_t total,
+  const AthenaArtifactsProgress& progress, size_t,
   std::string& error) {
+  size_t range_total= 0;
+  for (const auto& document: extracted)
+    for (const AthenaArtifactRecord& record: document.second.records)
+      if (record.origin == "bold-text") range_total++;
+  artifact_log ("definition-range phase: " + std::to_string (range_total) +
+                " bold-text artifact(s) require semantic range selection");
+  size_t current= 0;
   for (auto& document: extracted)
     for (AthenaArtifactRecord& record: document.second.records)
       if (record.origin == "bold-text") {
-        if (progress && !progress (total, total, document.first)) {
+        auto heartbeat= [&] () {
+          return report_progress (
+            progress, AthenaArtifactsBuildPhase::SelectingDefinitionRanges,
+            current, range_total, document.first, record.display_text);
+        };
+        if (!heartbeat ()) {
           error= "Artifact build cancelled";
           return false;
         }
-        select_definition_range (record);
+        artifact_log ("selecting definition range " +
+                      std::to_string (current + 1) + "/" +
+                      std::to_string (range_total) + " in " + document.first +
+                      ": \"" + record.display_text + "\" (" +
+                      std::to_string (record.definition_candidates.size ()) +
+                      " candidate paragraph(s))");
+        if (!select_definition_range (record, heartbeat, error)) return false;
+        current++;
+        if (!report_progress (
+              progress,
+              AthenaArtifactsBuildPhase::SelectingDefinitionRanges,
+              current, range_total, document.first, record.display_text)) {
+          error= "Artifact build cancelled";
+          return false;
+        }
       }
+  if (range_total == 0 &&
+      !report_progress (
+        progress, AthenaArtifactsBuildPhase::SelectingDefinitionRanges,
+        1, 1)) {
+    error= "Artifact build cancelled";
+    return false;
+  }
   return true;
 }
 
@@ -679,9 +762,14 @@ bool extract_parallel (const std::vector<DocumentWork>& work,
       ExtractedDocument result;
       for (const QJsonValue& record: item.value ("records").toArray ())
         result.records.push_back (record_from_json (record.toObject ()));
+      size_t record_count= result.records.size ();
       extracted[rel]= std::move (result);
       completed++;
-      if (progress && !progress (completed, work.size (), rel)) {
+      artifact_log ("extracted " + rel + ": " +
+                    std::to_string (record_count) +
+                    " artifact candidate(s)");
+      if (!report_progress (progress, AthenaArtifactsBuildPhase::Extracting,
+                            completed, work.size (), rel)) {
         error= "Artifact build cancelled"; ok= false;
       }
     }
@@ -953,14 +1041,28 @@ athena_artifacts_build (
   std::string& error) {
   result= AthenaArtifactsBuildResult ();
   fs::path root= normalize_root (vault_root);
+  artifact_log ("build started: root=" + root.string () +
+                (full_vault ? ", scope=entire vault" :
+                              ", scope=requested document(s)"));
+  if (!report_progress (progress, AthenaArtifactsBuildPhase::Preparing, 0, 0,
+                        root.string ())) {
+    error= "Artifact build cancelled";
+    return false;
+  }
   SqliteDb holder;
   AthenaVaultfileInfo info;
   if (!open_databases (root, holder, info, error)) return false;
+  artifact_log ("databases: artifacts=" + (root / info.artifacts_path).string () +
+                ", enunciations=" +
+                (root / info.enunciations_path).string () +
+                ", bold-text=" + (root / info.bold_text_path).string ());
 
   std::vector<fs::path> documents= full_vault ? scan_ath_documents (root)
                                                : requested_documents;
   std::sort (documents.begin (), documents.end ());
   result.documents_seen= documents.size ();
+  artifact_log ("discovered " + std::to_string (documents.size ()) +
+                " .ath document(s)");
   std::vector<std::string> deleted;
   if (full_vault) {
     std::set<std::string> live;
@@ -985,6 +1087,9 @@ athena_artifacts_build (
     if (!error.empty ()) return false;
     work.push_back ({path, rel, modified, size});
   }
+  artifact_log ("incremental plan: rebuild " + std::to_string (work.size ()) +
+                " document(s), purge " + std::to_string (deleted.size ()) +
+                " deleted document(s)");
 
   std::map<std::string,ExtractedDocument> extracted;
   if (!extract_documents (work, extracted, progress, error)) return false;
@@ -997,9 +1102,23 @@ athena_artifacts_build (
       exec_sql (holder.db, "ROLLBACK;", ignored);
     }
   };
+  size_t write_total= deleted.size () + work.size ();
+  size_t written= 0;
+  if (!report_progress (progress,
+                        AthenaArtifactsBuildPhase::WritingDatabase,
+                        written, write_total)) {
+    error= "Artifact build cancelled"; rollback (); return false;
+  }
   for (const std::string& rel: deleted) {
     if (!delete_document (holder.db, rel, error)) { rollback (); return false; }
     result.documents_deleted++;
+    written++;
+    artifact_log ("purged deleted document from artifact databases: " + rel);
+    if (!report_progress (progress,
+                          AthenaArtifactsBuildPhase::WritingDatabase,
+                          written, write_total, rel)) {
+      error= "Artifact build cancelled"; rollback (); return false;
+    }
   }
   for (const DocumentWork& item: work) {
     auto found= extracted.find (item.rel);
@@ -1019,10 +1138,27 @@ athena_artifacts_build (
       else result.bold_texts++;
       result.artifacts++;
     }
+    written++;
+    artifact_log ("wrote " + item.rel + ": " +
+                  std::to_string (found->second.records.size ()) +
+                  " artifact(s)");
+    if (!report_progress (progress,
+                          AthenaArtifactsBuildPhase::WritingDatabase,
+                          written, write_total, item.rel)) {
+      error= "Artifact build cancelled"; rollback (); return false;
+    }
   }
-  if (progress) progress (work.size (), work.size (), "");
   if (!exec_sql (holder.db, "COMMIT;", error)) { rollback (); return false; }
   committed= true;
+  report_progress (progress, AthenaArtifactsBuildPhase::Complete, 1, 1);
+  artifact_log ("build complete: " + std::to_string (result.artifacts) +
+                " artifact(s), " + std::to_string (result.enunciations) +
+                " enunciation(s), " + std::to_string (result.bold_texts) +
+                " bold-text definition(s), " +
+                std::to_string (result.documents_changed) +
+                " rebuilt document(s), " +
+                std::to_string (result.documents_deleted) +
+                " purged document(s)");
   return true;
 }
 

@@ -125,11 +125,35 @@ void build_with_dialog (bool current_only) {
   std::string error;
   bool ok= athena_artifacts_build_active_vault (
     current_only,
-    [&] (size_t done, size_t total, const std::string& path) {
-      progress->setRange (0, std::max (1, (int) total));
-      progress->setValue ((int) done);
-      status->setText (path.empty () ? "Finalizing artifact databases..."
-                                     : QString ("Indexing %1").arg (qstr (path)));
+    [&] (const AthenaArtifactsProgressEvent& event) {
+      if (event.total == 0) progress->setRange (0, 0);
+      else {
+        progress->setRange (0, std::max (1, (int) event.total));
+        progress->setValue ((int) event.current);
+      }
+      QString path= qstr (event.path);
+      QString detail= qstr (event.detail);
+      switch (event.phase) {
+      case AthenaArtifactsBuildPhase::Preparing:
+        status->setText ("Preparing artifact databases..."); break;
+      case AthenaArtifactsBuildPhase::Extracting:
+        status->setText (path.isEmpty () ? "Extracting document structures..."
+                                        : QString ("Extracting %1").arg (path));
+        break;
+      case AthenaArtifactsBuildPhase::SelectingDefinitionRanges:
+        status->setText (
+          detail.isEmpty ()
+            ? "Selecting semantic definition ranges..."
+            : QString ("Selecting definition range for %1 in %2")
+                .arg (detail, path));
+        break;
+      case AthenaArtifactsBuildPhase::WritingDatabase:
+        status->setText (path.isEmpty () ? "Writing artifact databases..."
+                                        : QString ("Writing %1").arg (path));
+        break;
+      case AthenaArtifactsBuildPhase::Complete:
+        status->setText ("Artifact generation complete"); break;
+      }
       QApplication::processEvents (QEventLoop::AllEvents, 50);
       return !cancelled;
     }, result, error);
