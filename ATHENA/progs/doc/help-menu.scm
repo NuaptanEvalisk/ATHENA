@@ -58,6 +58,8 @@
 	    ---
 	    ("Getting started"
 	     (load-help-article "main/start/man-getting-started"))
+	    ("ATHENA knowledge workflows"
+	     (load-help-article "main/start/man-athena-workflows"))
 	    ("Typing simple texts"
 	     (load-help-article "main/text/man-text"))
 	    ("Mathematical formulas"

@@ -10,6 +10,8 @@
 
     <branch|Getting started|start/man-getting-started.en.tm>
 
+    <branch|ATHENA knowledge workflows|start/man-athena-workflows.en.tm>
+
     <branch|Writing simple documents|text/man-text.en.tm>
 
     <branch|Mathematical formulas|math/man-math.en.tm>

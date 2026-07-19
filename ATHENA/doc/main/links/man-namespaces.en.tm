@@ -187,7 +187,7 @@
 
   <section|Reverse hierarchy graphs>
 
-  Use <menu|View|Graph|Reverse Hierarchy Graph> to open a docked reverse
+  Use <menu|View|Graphs|Reverse hierarchy graph> to open a docked reverse
   hierarchy graph. Use <menu|Insert|Graph|Reverse Hierarchy> to insert such a
   graph into the current document. The command
   <verbatim|graph-rev-hierarchy> inserts the same graph from the keyboard
@@ -229,6 +229,12 @@
   reference arrow pointing to it and the source nodes of those arrows. Hold
   <key|Shift> while hovering to recursively highlight the complete subgraph
   that leads to the node.
+
+  The information area computes topological invariants of the graph currently
+  displayed. It reports connected components and, component by component, the
+  first integral homology group and free fundamental group of the underlying
+  undirected one-complex. Loops and independent cycles contribute generators;
+  opposite directed edges do not create duplicate undirected edges.
 
   Reference targets are resolved exclusively through the UUID map configured
   by <verbatim|Vaultfile.json> (<verbatim|map.sqlite> by default). Optional file
@@ -371,7 +377,7 @@
   and other non-file buffers do nothing.
 
   The initial selected neighborhood is controlled by
-  <menu|Edit|Preferences|Vault|Navigation and Namespaces|Preferred initial
+  <menu|Edit|Preferences|Vault|Navigation|Preferred initial
   neighborhood>.
 
   <section|Namespace export>

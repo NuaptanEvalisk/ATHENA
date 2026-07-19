@@ -897,6 +897,12 @@
     <item*|MCP port>Port for the local read-only MCP server used by
     continuous RAG.
 
+    <item*|Enable RAG Delegation>Allows bulk document and chunk embedding to
+    be computed by a configured remote RAG server. The local vault still owns
+    <verbatim|rag.sqlite>, query embedding, and search. Enabling this option
+    also activates the RAG Delegation controls under
+    <menu|Other|Security>.
+
     <item*|Embedding model path>Path to the GGUF embedding model.
 
     <item*|Embedding device>Chooses automatic device selection or CPU-only
@@ -914,6 +920,8 @@
 
   <subsection|Security>
 
+  <subsubsection|General>
+
   <\description>
     <item*|Script execution>Controls whether document scripts are rejected,
     allowed after prompting, or accepted without prompting.
@@ -923,6 +931,35 @@
 
   Wallet and <name|GnuPG> maintenance remain available through their
   dedicated commands while the native Preferences dialog is being completed.
+
+  <subsubsection|RAG Delegation>
+
+  These controls are active only when
+  <menu|Other|Connectivity|Continuous RAG|Enable RAG Delegation> is enabled.
+  Server trust records and client private keys are stored in the user profile,
+  not in a vault or vault-local preferences.
+
+  <\description>
+    <item*|RAG servers>Lists pinned ATHENA RAG backends and transmitters. A
+    server entry shows its address and keeps the public-key fingerprint used
+    to detect later identity changes.
+
+    <item*|Add server>Contacts the entered address, verifies that it exposes
+    the ATHENA RAG protocol, displays its fingerprint for approval, generates
+    a local client key pair, and submits the client public key for enrollment.
+    Enrollment leaves the key pending until the server administrator accepts
+    it.
+
+    <item*|Delete>Removes the selected local server configuration.
+
+    <item*|Check authentication>Asks the selected server whether the local
+    client public key is accepted, pending, or rejected.
+
+    <item*|Run delegated embedding>Sends changed <verbatim|.ath> documents and
+    deleted-document records to the selected server and transactionally merges
+    the returned SQLite patch. The job excludes assets, backups, preferences,
+    UUID maps, model files, and existing vault databases.
+  </description>
 
   <tmdoc-copyright|2026|Nuaptan Felix Evalisk>
 

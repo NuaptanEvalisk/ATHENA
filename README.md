@@ -51,6 +51,9 @@ of work by Joris van der Hoeven and the GNU TeXmacs contributors.
 ATHENA vaults are self-contained mathematical knowledge bases.
 
 - Load and track a current vault through `Vaultfile.json`.
+- Resolve document and anchor UUIDs through the non-temporal `map.sqlite`
+  database, with automatic migration from legacy `Vaultfile` and `map.tmdb`
+  data.
 - Use `.ath` as the primary ATHENA document format.
 - Keep vault-scoped preferences in addition to global preferences.
 - Open recent vaults and optionally auto-open vault startup pages or one-time
@@ -79,7 +82,11 @@ documents.
 - Insert wikilinks through a Qt wizard.
 - Locate targets by choosing a file first or by vault-wide search.
 - Preview target context using an embedded rendered ATHENA preview.
-- Filter link search by namespace and enunciation type.
+- Filter link search by namespace and target kind, including headings,
+  paragraphs, and enunciations; optionally use case-insensitive and fuzzy
+  matching.
+- Configure default wikilink display text templates separately for files,
+  headings, and anchors.
 - Repair and resolve links when filenames or anchors move.
 - Repair broken transclusions by updating the UUID anchor map instead of
   reinserting content.
@@ -131,6 +138,10 @@ Namespace support includes:
 - Generated sub-product namespaces and product sorters.
 - Reverse, direct, and global hierarchy graph panes using ATHENA's native graph
   renderer and Boost force-directed layouts rather than Graphviz.
+- Drag nodes in interactive elastic hierarchy graphs, when enabled.
+- Inspect local and recursively backtracked document reference graphs, trace
+  incoming subgraphs on hover, and view their connected components, first
+  homology, and free fundamental groups.
 - Insertable reverse hierarchy diagrams and namespace export hierarchy
   diagrams.
 - Context actions for moving between namespace explorer, namespace manager, and
@@ -145,14 +156,17 @@ Namespace support includes:
 ATHENA has a rendered, occurrence-level global search pane.
 
 - Search entire vaults or restrict to a namespace.
-- Restrict hits to a chosen enunciation type, or search without that
-  requirement.
+- Restrict hits to a chosen enunciation type, or use Any to include headings,
+  paragraphs, and enunciations.
+- Toggle case-insensitive and RapidFuzz-backed fuzzy matching while retaining
+  exact-first result ordering.
 - Show individual occurrences rather than just filenames.
 - Preview hit neighborhoods in a rendered read-only ATHENA buffer.
 - Navigate by double-clicking an occurrence.
 - Preserve preview width, document zoom, and ADS pane behavior.
 - Pop out the search pane and resize it like other ADS panes.
-- Use improved fuzzy ranking for vault and namespace search workflows.
+- Use a dedicated Recents tab in the Quick Switcher for `.ath` files actually
+  opened in the active vault.
 
 ### Editing Workflow
 
@@ -169,6 +183,9 @@ ATHENA adds editing modes and feedback aimed at large mathematical notes.
 - Optional disabling of the UNIX primary-selection middle-click paste behavior.
 - Scroll and cursor preservation across resize and automatic anchoring.
 - Unsaved-buffer listing before quit.
+- Paste structured content from Markdown or ChatGPT through the AOFM parser,
+  including repaired inline/display mathematics and multiline math
+  environments.
 
 ### Mathematical Input
 
@@ -208,6 +225,7 @@ ATHENA heavily customizes the math typing experience.
   create a vertex, or drag from one vertex to another to create an arrow.
   Insert one from `Insert -> Mathematics -> Commutative diagram` or type
   `\\cd` and Enter.
+- Inspect a formula's native tree in a reusable AST graph pane.
 
 The commutative-diagram interaction and styling model is inspired by
 [Quiver](https://github.com/varkor/quiver), which is distributed under the MIT
@@ -256,6 +274,24 @@ The converter supports:
   textual operator recognition, matrices, cases, aligned equations, integrals,
   limits, and delimiter cleanup.
 
+### LaTeX Interoperability
+
+ATHENA's LaTeX path preserves ATHENA structure while still producing useful,
+portable LaTeX.
+
+- Export Unicode LaTeX, native PNG and other image files, quoted image paths,
+  converted dimensions, and centered big figures without legacy EPS-only
+  conversion.
+- Optionally copy referenced images beside the exported file for a portable
+  result.
+- Preserve wikilinks, card links, transclusions, anchors, document metadata,
+  styles, images, commutative diagrams, and otherwise lossy trees through
+  versioned `ATHENA-DATA` records.
+- Re-import `ATHENA-DATA` object, auxiliary, and skip records, warning when an
+  export came from a newer ATHENA version.
+- Export native commutative diagrams as `tikz-cd` while retaining the exact
+  ATHENA diagram AST for round trips.
+
 ### PDF Export And Covers
 
 ATHENA can generate richer PDF output than plain converted notes.
@@ -290,9 +326,11 @@ ATHENA has modular headless vault maintenance support.
   `orphans.lst` map and hlinks in generated summaries.
 - Anchor enunciations and headings across the whole vault.
 - Update stale anchors when titles change and preserve UUID-backed
-  `map.tmdb` reachability for wikilinks and transclusions.
+  `map.sqlite` reachability for wikilinks and transclusions.
 - Parallelize read-only anchoring checks using a configurable reader process
   count and a sequential writer.
+- Optionally refresh tables of contents, Continuous RAG, and semantic artifact
+  indexes as maintenance passes.
 - Generate optional ATHENA maintenance summary pages and use them as one-time
   vault startup pages.
 
@@ -302,9 +340,9 @@ ATHENA can generate a static website from a vault.
 
 - Manage vault-scoped website definitions in the native Websites manager.
 - Select exported documents and namespaces from the current vault.
-- Generate an iframe-based desktop shell with Vault Explorer, Namespace
-  Explorer, Outline, Global Search, Quick Switcher, window controls, and saved
-  browser-side layout state.
+- Generate an iframe-based desktop shell with a Start menu, Vault Explorer,
+  Namespace Explorer, Outline, Global Search, Quick Switcher, accessible window
+  controls, and saved browser-side layout state.
 - Generate standalone document pages with document titles, favicons, canonical
   links, descriptions, and extensionless HTTP URLs.
 - Preserve mathematical structure, enunciations, transclusions, figures,
@@ -347,6 +385,23 @@ ATHENA can run a separate headless continuous RAG server for a vault.
   related chunks, and backlinks.
 - Support `--skip-fonts-cache` for headless server runs that do not need GUI
   font menu preparation.
+- Delegate changed `.ath` document embedding to an authenticated remote ATHENA
+  backend or standalone `rag-transmitter` through encrypted libsodium
+  envelopes; only returned SQLite row patches are merged locally.
+- Keep vault assets, backups, preferences, maps, and existing databases out of
+  delegated jobs.
+
+### Artifacts
+
+ATHENA can build a semantic inventory of mathematical objects in a vault.
+
+- Incrementally index enunciations, their proofs, and bold-text definitions in
+  vault-local SQLite databases with stable UUIDs.
+- Browse, filter, and open indexed objects in the Artifacts ADS pane.
+- Build the whole vault or the current document from the Tools menu or as a
+  vault-maintenance pass.
+- Use a small local llama.cpp model to select definition paragraph ranges when
+  installed, with a deterministic structural fallback when it is absent.
 
 ### UI And Native Qt Work
 
@@ -362,7 +417,8 @@ ATHENA has moved much of the knowledge-work interface into native Qt.
 - Namespace Manager.
 - Namespace Explorer.
 - Neighborhoods pane.
-- Reverse Hierarchy Graph pane.
+- Reverse, Direct, Global, Local Reference, and Reference Graph panes.
+- Artifacts pane and formula AST inspector.
 - Global Search.
 - Page Properties pane.
 - Paragraph pane.
@@ -384,6 +440,10 @@ ATHENA has moved much of the knowledge-work interface into native Qt.
   repaint fixes for Qt 6.
 - Reliable text toolbar dropdowns for document style, theme, font, and font
   size.
+- Optional text toolbars and overlay-based auto-hidden toolbars that do not
+  resize the document viewport.
+- Pinch view zoom on native Wayland and Windows, plus keyboard and touchpad
+  neighborhood navigation.
 - Removal of legacy side tools, GUI-through-markup, old page/paragraph/metadata
   Scheme dialogs, and obsolete non-Qt GUI backends.
 
@@ -398,8 +458,10 @@ Recent ATHENA work includes substantial low-level engineering:
 - Ref-counting and tree/string/list performance improvements.
 - Move semantics for core tree/string structures.
 - Large-document stack and parser fixes.
-- Font discovery caching.
-- Startup warming for font-menu probes to avoid first-open font dropdown lag.
+- Fontconfig-backed system font discovery with persistent string-keyed caches
+  and lazy font-menu construction.
+- Compact `sys_state.json` machine state and lazy TeX font probing without
+  persisted expanded TeX directory lists.
 - Headless `--skip-fonts-cache` startup path for non-GUI RAG runs.
 - Cache invalidation when Scheme/package sources change.
 - Shared-memory backed runtime temporary files.
@@ -447,7 +509,7 @@ features are used, the document may become ATHENA-specific.
 
 ## Status
 
-ATHENA 0.4 is an active experimental system. It is powerful, opinionated, and
+ATHENA 0.5 is an active experimental system. It is powerful, opinionated, and
 still changing quickly. Expect rough edges. Expect features to be deeper than
 their polish. Expect the best experience on the developer's Linux setup.
 
