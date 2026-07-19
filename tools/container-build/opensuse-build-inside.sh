@@ -139,7 +139,10 @@ if [[ "$cxx_bin" == *icpx ]] &&
   compiler_base_flags="--gcc-toolchain=/usr $compiler_base_flags"
 fi
 
-python3.11 -m pip install --user --upgrade uv aqtinstall >/dev/null
+if ! command -v uv >/dev/null 2>&1 ||
+   ! python3.11 -c 'import aqt' >/dev/null 2>&1; then
+  python3.11 -m pip install --user uv aqtinstall >/dev/null
+fi
 
 git_clone_retry () {
   local dest="$1"
