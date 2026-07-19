@@ -168,6 +168,14 @@
                 (save-buffer-manual buf)))
             buffers))
 
+(define (save-selected-unsaved-buffers-and-exit buffers)
+  ;; The button invokes its dialogue-window quit command after this schedules
+  ;; the save.  Run on the next idle turn, after Qt has restored the document
+  ;; window as the active top-level and its editor is window-backed again.
+  (delayed (:idle 1)
+    (save-selected-unsaved-buffers buffers)
+    (quit-TeXmacs)))
+
 (tm-widget ((unsaved-buffers-dialog buffers) quit)
   (let ((selected buffers))
     (padded
@@ -187,8 +195,7 @@
                 >>)))))
       ===
       (bottom-buttons
-        ("Save and exit" (save-selected-unsaved-buffers selected)
-                         (quit-TeXmacs)
+        ("Save and exit" (save-selected-unsaved-buffers-and-exit selected)
                          (quit))
         // //
         ("Exit" (quit-TeXmacs) (quit))
