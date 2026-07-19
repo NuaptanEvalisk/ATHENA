@@ -150,8 +150,8 @@ select_first_visible (QListWidget* list) {
 }
 
 static void
-show_qt_command_palette (QTMMainTabWindow* win, const QList<QAction*>& topActions) {
-  QDialog* palette= new QDialog (win);
+show_qt_command_palette (QWidget* host, const QList<QAction*>& topActions) {
+  QDialog* palette= new QDialog (host);
   palette->setAttribute (Qt::WA_DeleteOnClose);
   palette->setWindowTitle (QObject::tr ("Command palette"));
 
@@ -307,6 +307,8 @@ void
 command_palette_show () {
   QTMMainTabWindow* win= QTMMainTabWindow::topTabWindow ();
   if (win == nullptr) return;
+  QWidget* host= QApplication::activeWindow ();
+  if (host == nullptr) host= win;
 
   QList<QAction*> topActions;
   for (QMainWindow* candidate : candidate_menu_windows (win)) {
@@ -320,7 +322,7 @@ command_palette_show () {
       force_lazy_menu_tree (action->menu (), seen);
 
 #ifdef USE_KF5_KIO
-  KCommandBar* palette= new KCommandBar (win);
+  KCommandBar* palette= new KCommandBar (host);
   palette->setAttribute (Qt::WA_DeleteOnClose);
   QVector<KCommandBar::ActionGroup> groups;
   for (QAction* action : topActions) {
@@ -343,6 +345,6 @@ command_palette_show () {
   palette->setActions (groups);
   palette->show ();
 #else
-  show_qt_command_palette (win, topActions);
+  show_qt_command_palette (host, topActions);
 #endif
 }

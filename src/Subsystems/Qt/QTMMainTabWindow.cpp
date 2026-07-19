@@ -31,6 +31,9 @@
 #include <QSaveFile>
 #include <QTimer>
 #include <QStringList>
+#include <DockAreaWidget.h>
+#include <DockContainerWidget.h>
+#include <FloatingDockContainer.h>
 
 QTMMainTabWindow *QTMMainTabWindow::gTopTabWindow = nullptr;
 static bool gNextWidgetFloating = false;
@@ -315,12 +318,73 @@ void QTMMainTabWindow::showAdsDockWidget(ads::CDockWidget* dock,
                                          ads::DockWidgetArea area) {
   if (dock == nullptr || mDockManager == nullptr) return;
 
-  if (dock->dockAreaWidget () == nullptr || dock->dockContainer () == nullptr)
-    mDockManager->addDockWidget (area, dock);
+  ads::CDockContainerWidget* targetContainer= activeAdsDockContainer ();
+  ads::CDockAreaWidget* targetArea= activeAdsDockArea (targetContainer);
+  bool isUnplaced= dock->dockAreaWidget () == nullptr ||
+                   dock->dockContainer () == nullptr;
+  bool isInOtherWindow= targetContainer != nullptr &&
+                        dock->dockContainer () != targetContainer;
+
+  if (isUnplaced || isInOtherWindow) {
+    if (targetArea != nullptr)
+      mDockManager->addDockWidget (area, dock, targetArea);
+    else if (targetContainer != nullptr && targetContainer != mDockManager)
+      mDockManager->addDockWidgetToContainer (area, dock, targetContainer);
+    else
+      mDockManager->addDockWidget (area, dock);
+  }
 
   dock->toggleView (true);
   dock->show ();
   dock->raise ();
+}
+
+ads::CDockContainerWidget*
+QTMMainTabWindow::activeAdsDockContainer() const {
+  if (mDockManager == nullptr) return nullptr;
+
+  QWidget* active= QApplication::activeWindow ();
+  for (QWidget* widget= active; widget != nullptr;
+       widget= widget->parentWidget ()) {
+    if (ads::CFloatingDockContainer* floating=
+          qobject_cast<ads::CFloatingDockContainer*> (widget)) {
+      ads::CDockContainerWidget* container= floating->dockContainer ();
+      if (container != nullptr && container->dockManager () == mDockManager)
+        return container;
+    }
+    if (widget == this) return mDockManager;
+  }
+
+  if (ads::CDockWidget* focused=
+        adsDockWidgetFor (QApplication::focusWidget ()))
+    if (focused->dockManager () == mDockManager &&
+        focused->dockContainer () != nullptr)
+      return focused->dockContainer ();
+
+  if (ads::CDockWidget* focused= mDockManager->focusedDockWidget ())
+    if (focused->dockContainer () != nullptr)
+      return focused->dockContainer ();
+
+  return mDockManager;
+}
+
+ads::CDockAreaWidget*
+QTMMainTabWindow::activeAdsDockArea(
+  ads::CDockContainerWidget* container) const {
+  if (container == nullptr || mDockManager == nullptr) return nullptr;
+
+  if (ads::CDockWidget* focused=
+        adsDockWidgetFor (QApplication::focusWidget ()))
+    if (focused->dockManager () == mDockManager &&
+        focused->dockContainer () == container)
+      return focused->dockAreaWidget ();
+
+  if (ads::CDockWidget* focused= mDockManager->focusedDockWidget ())
+    if (focused->dockContainer () == container)
+      return focused->dockAreaWidget ();
+
+  QList<ads::CDockAreaWidget*> areas= container->openedDockAreas ();
+  return areas.isEmpty () ? nullptr : areas.first ();
 }
 
 void QTMMainTabWindow::saveAdsLayoutState() {

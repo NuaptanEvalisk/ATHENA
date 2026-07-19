@@ -196,8 +196,9 @@ ads_show_tool_pane (widget wid, string id, string title, command close,
   if (floating)
     win->dockManager ()->addDockWidgetFloating (dock);
   else {
-    win->dockManager ()->addDockWidget (ads::BottomDockWidgetArea, dock);
+    win->showAdsDockWidget (dock, ads::BottomDockWidgetArea);
     win->restoreAdsLayoutState ();
+    win->showAdsDockWidget (dock, ads::BottomDockWidgetArea);
   }
   dock->toggleView (true);
   dock->show ();

@@ -20,6 +20,11 @@
 #include <QList>
 #include <DockManager.h>
 
+namespace ads {
+class CDockAreaWidget;
+class CDockContainerWidget;
+}
+
 bool athena_qt_is_closing ();
 bool athena_has_open_ads_panes ();
 void qtm_apply_ads_tab_close_preferences ();
@@ -83,6 +88,9 @@ protected:
   QString adsLayoutStatePath() const;
   QString adsVisiblePanesStatePath() const;
   void scheduleAdsLayoutRestore();
+  ads::CDockContainerWidget* activeAdsDockContainer() const;
+  ads::CDockAreaWidget* activeAdsDockArea(
+    ads::CDockContainerWidget* container) const;
 
 public slots:
   void closeTab(int index);
