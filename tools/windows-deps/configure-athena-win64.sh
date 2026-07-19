@@ -154,7 +154,7 @@ win64_cxx_flags="${win64_c_flags} -fpermissive"
 win64_linker_flags="-static-libstdc++ -static-libgcc"
 win64_standard_libraries="-Wl,--start-group ${prefix}/lib/ggml-cpu.a ${prefix}/lib/libhogweed.a ${prefix}/lib/libnettle.a ${prefix}/lib/libtasn1.a ${prefix}/lib/libgmp.a -latomic -lcrypt32 -lncrypt -lbcrypt -ladvapi32 -lsecur32 -ldbghelp -lucrt -Wl,--end-group -lkernel32 -luser32 -lgdi32 -lwinspool -lshell32 -lole32 -loleaut32 -luuid -lcomdlg32 -ladvapi32 -lsecur32"
 
-cmake -S "${repo_root}" -B "${build_dir}" -G Ninja \
+cmake -U 'LIBSODIUM_*' -S "${repo_root}" -B "${build_dir}" -G Ninja \
   -DCMAKE_TOOLCHAIN_FILE="${script_dir}/athena-win64-mingw-toolchain.cmake" \
   -DATHENA_WIN64_PREFIX="${prefix}" \
   -DCMAKE_C_FLAGS="${win64_c_flags}" \

@@ -44,6 +44,7 @@ require_path "llama-common library" "lib/libllama-common*"
 require_pkg "spdlog"
 require_pkg "llama"
 require_pkg "libzstd"
+require_pkg "libsodium"
 require_pkg "MagickWand"
 
 require_pkg "guile-1.8"

@@ -29,6 +29,7 @@ ATHENA's current CMake configuration requires at least:
 - CMake packages: `Qt6`, `mimalloc`, `SQLite3`, `Freetype`, `GMP`, `GnuTLS`,
   `PNG`, `Iconv`, `ZLIB`, `JPEG`
 - pkg-config modules: `spdlog`, `llama`, `libzstd`, `MagickWand`, `guile-1.8`
+  and `libsodium`
 - headers/libraries found directly: `common.h` plus `llama-common`/`common`,
   `ResvgQt.h` plus `resvg`, and `libtcc.h` plus `tcc`/`libtcc`
 - Qt6 modules: `Core`, `Gui`, `Widgets`, `PrintSupport`, `Svg`, `Network`,
@@ -100,6 +101,7 @@ tools/windows-deps/build-libpng-win64.sh "$ATHENA_WIN64_PREFIX"
 tools/windows-deps/build-libiconv-win64.sh "$ATHENA_WIN64_PREFIX"
 tools/windows-deps/build-libjpeg-turbo-win64.sh "$ATHENA_WIN64_PREFIX"
 tools/windows-deps/build-zstd-win64.sh "$ATHENA_WIN64_PREFIX"
+tools/windows-deps/build-libsodium-win64.sh "$ATHENA_WIN64_PREFIX"
 tools/windows-deps/build-imagemagick-win64.sh "$ATHENA_WIN64_PREFIX"
 tools/windows-deps/build-freetype-win64.sh "$ATHENA_WIN64_PREFIX"
 tools/windows-deps/build-gmp-win64.sh "$ATHENA_WIN64_PREFIX"
