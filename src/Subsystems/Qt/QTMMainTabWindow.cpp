@@ -125,6 +125,46 @@ adsDockWidgetFor(QWidget* widget) {
   return nullptr;
 }
 
+bool
+qtm_close_focused_ads_tool_pane (QWidget* eventReceiver) {
+  if (qApp == nullptr || !tmapp()->useAds ()) return false;
+
+  ads::CDockWidget* dock= adsDockWidgetFor (QApplication::focusWidget ());
+  if (dock == nullptr) dock= adsDockWidgetFor (eventReceiver);
+  if (dock == nullptr) {
+    QTMMainTabWindow* window= QTMMainTabWindow::topTabWindow ();
+    if (window != nullptr && window->dockManager () != nullptr)
+      dock= window->dockManager ()->focusedDockWidget ();
+  }
+
+  if (dock == nullptr || isDocumentWidget (dock->widget ())) return false;
+  if (!dock->features ().testFlag (ads::CDockWidget::DockWidgetClosable))
+    return false;
+
+  QTMMainTabWindow* owner= nullptr;
+  for (QWidget* widget: QApplication::topLevelWidgets ()) {
+    QTMMainTabWindow* window= qobject_cast<QTMMainTabWindow*> (widget);
+    if (window != nullptr && window->dockManager () == dock->dockManager ()) {
+      owner= window;
+      break;
+    }
+  }
+  QPointer<ads::CDockWidget> guardedDock= dock;
+  QPointer<QTMMainTabWindow> guardedOwner= owner;
+  QPointer<QWidget> document=
+    owner == nullptr ? nullptr : owner->currentDocumentWidget ();
+  QTimer::singleShot (0, dock, [guardedDock, guardedOwner, document] () {
+    if (guardedDock == nullptr) return;
+    guardedDock->requestCloseDockWidget ();
+    if (guardedOwner != nullptr && document != nullptr)
+      QTimer::singleShot (0, guardedOwner, [guardedOwner, document] () {
+        if (guardedOwner != nullptr && document != nullptr)
+          guardedOwner->activateDocumentWidget (document);
+      });
+  });
+  return true;
+}
+
 static QWidget*
 documentFocusTarget(QWidget* widget) {
   if (widget == nullptr) return nullptr;
@@ -144,7 +184,8 @@ athenaMainWindowBaseTitle() {
 #endif
 }
 
-QTMMainTabWindow::QTMMainTabWindow() {
+QTMMainTabWindow::QTMMainTabWindow()
+  : mLastFocusedDocumentWidget (nullptr) {
   mStackedWidget = new QStackedWidget(this);
   setCentralWidget (mStackedWidget);
   setWindowTitle (athenaMainWindowBaseTitle());
@@ -176,7 +217,11 @@ QTMMainTabWindow::QTMMainTabWindow() {
   mDockManager = new ads::CDockManager(mStackedWidget);
   connect(mDockManager, &ads::CDockManager::focusedDockWidgetChanged,
           this, [this](ads::CDockWidget*, ads::CDockWidget* now) {
-            if (now) setMainTitle(now->windowTitle());
+            if (now) {
+              if (isDocumentWidget (now->widget ()))
+                mLastFocusedDocumentWidget= now->widget ();
+              setMainTitle(now->windowTitle());
+            }
             else setMainTitle("");
           });
   connect(qApp, &QCoreApplication::aboutToQuit,
@@ -700,6 +745,7 @@ bool QTMMainTabWindow::eventFilter(QObject *obj, QEvent *event) {
 void QTMMainTabWindow::showWidget(QWidget *widget, bool isDocument) {
   if (widget != nullptr)
     widget->setProperty (kAthenaDocumentWidgetProperty, isDocument);
+  if (isDocument) mLastFocusedDocumentWidget= widget;
   if (isDocument) widget->installEventFilter(this);
   if (isDocument) buffer_switcher_note_widget (widget);
   if (tmapp()->useAds()) {
@@ -838,6 +884,11 @@ QTMMainTabWindow::currentDocumentWidget() const {
   if (tmapp()->useAds()) {
     if (ads::CDockWidget* dockWidget= mDockManager->focusedDockWidget ())
       current= dockWidget->widget ();
+    if (!isDocumentWidget (current)) {
+      if (mLastFocusedDocumentWidget != nullptr &&
+          documentWidgets ().contains (mLastFocusedDocumentWidget))
+        current= mLastFocusedDocumentWidget;
+    }
     if (!isDocumentWidget (current)) {
       QTMWidget* last= QTMWidget::getLastFocusedWidget ();
       for (QWidget* widget : documentWidgets ())

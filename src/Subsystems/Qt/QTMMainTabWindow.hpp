@@ -18,6 +18,7 @@
 #include <QMdiArea>
 #include <QStackedWidget>
 #include <QList>
+#include <QPointer>
 #include <DockManager.h>
 
 namespace ads {
@@ -27,6 +28,7 @@ class CDockContainerWidget;
 
 bool athena_qt_is_closing ();
 bool athena_has_open_ads_panes ();
+bool qtm_close_focused_ads_tool_pane (QWidget* eventReceiver= nullptr);
 void qtm_apply_ads_tab_close_preferences ();
 
 /**
@@ -103,6 +105,7 @@ private:
   QTabWidget* mTabWidget;
   QMdiArea* mMdiArea;
   ads::CDockManager* mDockManager;
+  QPointer<QWidget> mLastFocusedDocumentWidget;
 };
 
 #endif // QTMMAINTABWINDOW_HPP

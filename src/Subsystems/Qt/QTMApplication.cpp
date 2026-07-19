@@ -227,6 +227,16 @@ bool QTMApplication::notify (QObject* receiver, QEvent* event)
         event->type () == QEvent::KeyPress) {
       QKeyEvent* keyEvent= static_cast<QKeyEvent*> (event);
       Qt::KeyboardModifiers modifiers= keyEvent->modifiers ();
+      bool closePaneShortcut=
+        keyEvent->key () == Qt::Key_W &&
+        (modifiers & Qt::ControlModifier) != 0 &&
+        (modifiers & (Qt::ShiftModifier | Qt::AltModifier |
+                      Qt::MetaModifier)) == 0;
+      if (closePaneShortcut && qtm_close_focused_ads_tool_pane (
+            qobject_cast<QWidget*> (receiver))) {
+        event->accept ();
+        return true;
+      }
       bool commandPaletteShortcut=
         keyEvent->key () == Qt::Key_P &&
         (modifiers & Qt::ControlModifier) != 0 &&

@@ -797,8 +797,11 @@ getShiftPreference (char key_code) {
 void
 QTMWidget::keyPressEvent (QKeyEvent* event) {
   refreshCursorBlinking (true);
+  Qt::KeyboardModifiers commandModifiers=
+    event->modifiers () & (Qt::ControlModifier | Qt::ShiftModifier |
+                           Qt::AltModifier | Qt::MetaModifier);
   if (event->key () == Qt::Key_F &&
-      event->modifiers ().testFlag (Qt::ControlModifier)) {
+      commandModifiers == Qt::ControlModifier) {
     document_search_open ();
     return;
   }
