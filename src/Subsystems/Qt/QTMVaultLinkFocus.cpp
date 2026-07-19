@@ -11,8 +11,11 @@
 #include "QTMVaultLinkFocus.hpp"
 #include "new_view.hpp"
 #include <QApplication>
+#include <QEvent>
+#include <QPointer>
 #include <QScrollBar>
 #include <QTimer>
+#include <QWidget>
 
 static bool
 is_window_backed_view (url view) {
@@ -72,12 +75,47 @@ restore_texmacs_focus_snapshot (const TeXmacsFocusSnapshot& s,
   }
 }
 
+class TeXmacsFocusRestorer final: public QObject {
+  TeXmacsFocusSnapshot snapshot;
+  QPointer<QWidget>    targetWindow;
+  bool                 restoreScheduled;
+
+  void scheduleRestore () {
+    if (restoreScheduled) return;
+    restoreScheduled= true;
+    QTimer::singleShot (0, this, [this] () {
+      restoreScheduled= false;
+      if (!targetWindow.isNull () && !targetWindow->isActiveWindow ()) return;
+      if (!targetWindow.isNull ()) targetWindow->removeEventFilter (this);
+      restore_texmacs_focus_snapshot (snapshot, true);
+      deleteLater ();
+    });
+  }
+
+public:
+  explicit TeXmacsFocusRestorer (const TeXmacsFocusSnapshot& s)
+    : QObject (qApp), snapshot (s), restoreScheduled (false) {
+    if (!snapshot.widget.isNull ()) targetWindow= snapshot.widget->window ();
+    if (targetWindow.isNull ()) {
+      scheduleRestore ();
+      return;
+    }
+    targetWindow->installEventFilter (this);
+    connect (targetWindow, &QObject::destroyed, this, &QObject::deleteLater);
+    if (targetWindow->isActiveWindow ()) scheduleRestore ();
+  }
+
+  bool eventFilter (QObject* watched, QEvent* event) override {
+    if (watched == targetWindow && event->type () == QEvent::WindowActivate)
+      scheduleRestore ();
+    return QObject::eventFilter (watched, event);
+  }
+};
+
 void
 restore_texmacs_focus_snapshot_later (const TeXmacsFocusSnapshot& s) {
-  // Let the modal key event finish before changing the active editor.  Doing
-  // this synchronously from QDialog::exec()'s Escape path can repaint while
-  // the editor still has pending tree and cursor changes.
-  QTimer::singleShot (0, qApp, [s] () {
-    restore_texmacs_focus_snapshot (s, true);
-  });
+  // Native Wayland titlebar closure can return from the modal loop before the
+  // compositor reactivates ATHENA's document window.  Wait for that activation
+  // boundary instead of repainting the editor during the focus transition.
+  new TeXmacsFocusRestorer (s);
 }

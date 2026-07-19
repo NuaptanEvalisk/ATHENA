@@ -26,6 +26,7 @@
 #include <QComboBox>
 #include <QCompleter>
 #include <QEvent>
+#include <QFontMetrics>
 #include <QGridLayout>
 #include <QHBoxLayout>
 #include <QKeyEvent>
@@ -58,6 +59,25 @@ static constexpr const char* transclusion_search_fuzzy_pref=
 static void
 preserveCheckboxLabel (QCheckBox* checkbox) {
   checkbox->setSizePolicy (QSizePolicy::Minimum, QSizePolicy::Preferred);
+}
+
+static void
+configurePreviewTitle (QLabel* label) {
+  label->setWordWrap (true);
+  label->setSizePolicy (QSizePolicy::Ignored, QSizePolicy::Preferred);
+}
+
+static void
+setBoundedSubTitle (QWizardPage* page, const QString& prefix,
+                    const QString& value) {
+  QString full= prefix + value;
+  int windowWidth= page->window () == nullptr ? 0 : page->window ()->width ();
+  int available= std::clamp (windowWidth - 160, 480, 900);
+  QFontMetrics metrics (page->font ());
+  int valueWidth= std::max (160, available - metrics.horizontalAdvance (prefix));
+  page->setSubTitle (prefix + metrics.elidedText (
+    value, Qt::ElideMiddle, valueWidth));
+  page->setToolTip (full);
 }
 
 enum TransclusionWizardPageId {
@@ -440,9 +460,10 @@ TransclusionEnunciationPage::TransclusionEnunciationPage (QWidget* parent)
   pairList->setAlternatingRowColors (true);
   pairList->setMinimumWidth (500);
   previewTitle= new QLabel ("Select an enunciation to preview it.", this);
+  configurePreviewTitle (previewTitle);
   previewHost= new QWidget (this);
   previewHost->setMinimumHeight (360);
-  previewHost->setSizePolicy (QSizePolicy::Expanding, QSizePolicy::Expanding);
+  previewHost->setSizePolicy (QSizePolicy::Ignored, QSizePolicy::Expanding);
   QVBoxLayout* previewHostLayout= new QVBoxLayout (previewHost);
   previewHostLayout->setContentsMargins (0, 0, 0, 0);
 
@@ -459,6 +480,7 @@ TransclusionEnunciationPage::TransclusionEnunciationPage (QWidget* parent)
   leftLayout->addWidget (pairList, 1);
 
   QWidget* right= new QWidget (this);
+  right->setSizePolicy (QSizePolicy::Ignored, QSizePolicy::Expanding);
   QVBoxLayout* rightLayout= new QVBoxLayout (right);
   rightLayout->setContentsMargins (0, 0, 0, 0);
   rightLayout->addWidget (previewTitle);
@@ -514,7 +536,7 @@ TransclusionEnunciationPage::initializePage () {
   QWizardPage::initializePage ();
   QTMVaultTransclusionWizard* w=
     static_cast<QTMVaultTransclusionWizard*> (wizard ());
-  setSubTitle ("Target file: " + w->selectedRelPath);
+  setBoundedSubTitle (this, "Target file: ", w->selectedRelPath);
   pairs.clear ();
   fileBody= tree (DOCUMENT, "");
   try {
@@ -660,9 +682,10 @@ TransclusionUpperPage::TransclusionUpperPage (QWidget* parent)
   anchorList->setAlternatingRowColors (true);
   anchorList->setMinimumWidth (500);
   previewTitle= new QLabel ("Select an anchor to preview it.", this);
+  configurePreviewTitle (previewTitle);
   previewHost= new QWidget (this);
   previewHost->setMinimumHeight (360);
-  previewHost->setSizePolicy (QSizePolicy::Expanding, QSizePolicy::Expanding);
+  previewHost->setSizePolicy (QSizePolicy::Ignored, QSizePolicy::Expanding);
   QVBoxLayout* previewHostLayout= new QVBoxLayout (previewHost);
   previewHostLayout->setContentsMargins (0, 0, 0, 0);
 
@@ -679,6 +702,7 @@ TransclusionUpperPage::TransclusionUpperPage (QWidget* parent)
   leftLayout->addWidget (anchorList, 1);
 
   QWidget* right= new QWidget (this);
+  right->setSizePolicy (QSizePolicy::Ignored, QSizePolicy::Expanding);
   QVBoxLayout* rightLayout= new QVBoxLayout (right);
   rightLayout->setContentsMargins (0, 0, 0, 0);
   rightLayout->addWidget (previewTitle);
@@ -728,7 +752,7 @@ TransclusionUpperPage::initializePage () {
   QWizardPage::initializePage ();
   QTMVaultTransclusionWizard* w=
     static_cast<QTMVaultTransclusionWizard*> (wizard ());
-  setSubTitle ("Target file: " + w->selectedRelPath);
+  setBoundedSubTitle (this, "Target file: ", w->selectedRelPath);
   anchors.clear ();
   fileBody= tree (DOCUMENT, "");
   try {
@@ -858,9 +882,10 @@ TransclusionLowerPage::TransclusionLowerPage (QWidget* parent)
   anchorList->setAlternatingRowColors (true);
   anchorList->setMinimumWidth (500);
   previewTitle= new QLabel ("Select a lower bound to preview the range.", this);
+  configurePreviewTitle (previewTitle);
   previewHost= new QWidget (this);
   previewHost->setMinimumHeight (360);
-  previewHost->setSizePolicy (QSizePolicy::Expanding, QSizePolicy::Expanding);
+  previewHost->setSizePolicy (QSizePolicy::Ignored, QSizePolicy::Expanding);
   QVBoxLayout* previewHostLayout= new QVBoxLayout (previewHost);
   previewHostLayout->setContentsMargins (0, 0, 0, 0);
 
@@ -877,6 +902,7 @@ TransclusionLowerPage::TransclusionLowerPage (QWidget* parent)
   leftLayout->addWidget (anchorList, 1);
 
   QWidget* right= new QWidget (this);
+  right->setSizePolicy (QSizePolicy::Ignored, QSizePolicy::Expanding);
   QVBoxLayout* rightLayout= new QVBoxLayout (right);
   rightLayout->setContentsMargins (0, 0, 0, 0);
   rightLayout->addWidget (previewTitle);
@@ -932,7 +958,7 @@ TransclusionLowerPage::initializePage () {
   QWizardPage::initializePage ();
   QTMVaultTransclusionWizard* w=
     static_cast<QTMVaultTransclusionWizard*> (wizard ());
-  setSubTitle ("Upper bound: " + w->selectedUpperAnchor);
+  setBoundedSubTitle (this, "Upper bound: ", w->selectedUpperAnchor);
   anchors.clear ();
   fileBody= tree (DOCUMENT, "");
   try {
@@ -1092,9 +1118,10 @@ TransclusionSearchPage::TransclusionSearchPage (QWidget* parent)
   resultList= new QListWidget (this);
   resultList->setAlternatingRowColors (true);
   previewTitle= new QLabel ("Select a search result to preview it.", this);
+  configurePreviewTitle (previewTitle);
   previewHost= new QWidget (this);
   previewHost->setMinimumHeight (420);
-  previewHost->setSizePolicy (QSizePolicy::Expanding, QSizePolicy::Expanding);
+  previewHost->setSizePolicy (QSizePolicy::Ignored, QSizePolicy::Expanding);
   QVBoxLayout* previewHostLayout= new QVBoxLayout (previewHost);
   previewHostLayout->setContentsMargins (0, 0, 0, 0);
 
@@ -1126,6 +1153,7 @@ TransclusionSearchPage::TransclusionSearchPage (QWidget* parent)
   leftLayout->addWidget (resultList, 1);
 
   QWidget* right= new QWidget (this);
+  right->setSizePolicy (QSizePolicy::Ignored, QSizePolicy::Expanding);
   QVBoxLayout* rightLayout= new QVBoxLayout (right);
   rightLayout->setContentsMargins (0, 0, 0, 0);
   rightLayout->addWidget (previewTitle);

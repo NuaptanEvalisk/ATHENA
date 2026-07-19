@@ -27,6 +27,7 @@
 #include <QCompleter>
 #include <QDir>
 #include <QEvent>
+#include <QFontMetrics>
 #include <QGridLayout>
 #include <QHBoxLayout>
 #include <QKeyEvent>
@@ -66,6 +67,25 @@ static constexpr const char* wikilink_display_template_anchor_pref=
 static void
 preserveCheckboxLabel (QCheckBox* checkbox) {
   checkbox->setSizePolicy (QSizePolicy::Minimum, QSizePolicy::Preferred);
+}
+
+static void
+configurePreviewTitle (QLabel* label) {
+  label->setWordWrap (true);
+  label->setSizePolicy (QSizePolicy::Ignored, QSizePolicy::Preferred);
+}
+
+static void
+setBoundedSubTitle (QWizardPage* page, const QString& prefix,
+                    const QString& value) {
+  QString full= prefix + value;
+  int windowWidth= page->window () == nullptr ? 0 : page->window ()->width ();
+  int available= std::clamp (windowWidth - 160, 480, 900);
+  QFontMetrics metrics (page->font ());
+  int valueWidth= std::max (160, available - metrics.horizontalAdvance (prefix));
+  page->setSubTitle (prefix + metrics.elidedText (
+    value, Qt::ElideMiddle, valueWidth));
+  page->setToolTip (full);
 }
 
 struct WikilinkDisplayContext {
@@ -557,9 +577,10 @@ WikilinkAnchorPage::WikilinkAnchorPage (QWidget* parent)
   anchorList->setMinimumWidth (500);
   displayEdit= new QLineEdit (this);
   previewTitle= new QLabel ("Select an anchor to preview it.", this);
+  configurePreviewTitle (previewTitle);
   previewHost= new QWidget (this);
   previewHost->setMinimumHeight (360);
-  previewHost->setSizePolicy (QSizePolicy::Expanding, QSizePolicy::Expanding);
+  previewHost->setSizePolicy (QSizePolicy::Ignored, QSizePolicy::Expanding);
   QVBoxLayout* previewHostLayout= new QVBoxLayout (previewHost);
   previewHostLayout->setContentsMargins (0, 0, 0, 0);
 
@@ -578,6 +599,7 @@ WikilinkAnchorPage::WikilinkAnchorPage (QWidget* parent)
   leftLayout->addWidget (displayEdit);
 
   QWidget* right= new QWidget (this);
+  right->setSizePolicy (QSizePolicy::Ignored, QSizePolicy::Expanding);
   QVBoxLayout* rightLayout= new QVBoxLayout (right);
   rightLayout->setContentsMargins (0, 0, 0, 0);
   rightLayout->addWidget (previewTitle);
@@ -639,7 +661,7 @@ WikilinkAnchorPage::initializePage () {
   QWizardPage::initializePage ();
   QTMVaultWikilinkWizard* w=
     static_cast<QTMVaultWikilinkWizard*> (wizard ());
-  setSubTitle ("Target file: " + w->selectedRelPath);
+  setBoundedSubTitle (this, "Target file: ", w->selectedRelPath);
 
   anchors.clear ();
   fileBody= tree (DOCUMENT, "");
@@ -859,9 +881,10 @@ WikilinkSearchPage::WikilinkSearchPage (QWidget* parent)
   displayEdit= new QLineEdit (this);
   insertButton= new QPushButton ("Insert selected anchor", this);
   previewTitle= new QLabel ("Select a search result to preview it.", this);
+  configurePreviewTitle (previewTitle);
   previewHost= new QWidget (this);
   previewHost->setMinimumHeight (360);
-  previewHost->setSizePolicy (QSizePolicy::Expanding, QSizePolicy::Expanding);
+  previewHost->setSizePolicy (QSizePolicy::Ignored, QSizePolicy::Expanding);
   QVBoxLayout* previewHostLayout= new QVBoxLayout (previewHost);
   previewHostLayout->setContentsMargins (0, 0, 0, 0);
 
@@ -898,6 +921,7 @@ WikilinkSearchPage::WikilinkSearchPage (QWidget* parent)
   leftLayout->addWidget (insertButton);
 
   QWidget* right= new QWidget (this);
+  right->setSizePolicy (QSizePolicy::Ignored, QSizePolicy::Expanding);
   QVBoxLayout* rightLayout= new QVBoxLayout (right);
   rightLayout->setContentsMargins (0, 0, 0, 0);
   rightLayout->addWidget (previewTitle);
