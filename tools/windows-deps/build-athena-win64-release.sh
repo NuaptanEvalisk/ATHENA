@@ -118,7 +118,7 @@ rm -rf "${release_dir}"
 mkdir -p "${release_dir}" "${release_dir}/bin"
 
 rsync -a --delete \
-  --exclude='*.gguf' \
+  --exclude='tools/formula-cleaner/*.gguf' \
   --exclude='*.safetensors' \
   --exclude='.venv/' \
   --exclude='.uv-cache/' \
