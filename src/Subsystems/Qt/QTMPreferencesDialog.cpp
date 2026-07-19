@@ -1506,6 +1506,10 @@ QTMPreferencesDialog::buildVaultPage () {
               "vault explorer track current file");
   add_toggle (nav, "Use system trash for safe deletion:",
               "vault explorer use system trash");
+  add_toggle (nav, "Global Search uses case-insensitive search:",
+              "vault global search case insensitive search");
+  add_toggle (nav, "Global Search uses fuzzy search:",
+              "vault global search fuzzy search");
   add_combo (nav, "Preferred initial neighborhood:",
              "vault preferred initial neighborhood",
              {{"First direct namespace-based neighborhood", "namespace"},

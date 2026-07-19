@@ -10,6 +10,7 @@
 
 #include "QTMGlobalSearch.hpp"
 #include "QTMMainTabWindow.hpp"
+#include "QTMVaultSearch.hpp"
 #include "QTMWidget.hpp"
 #include "convert.hpp"
 #include "converter.hpp"
@@ -38,6 +39,7 @@
 #include <QAbstractScrollArea>
 #include <QApplication>
 #include <QCompleter>
+#include <QCheckBox>
 #include <QComboBox>
 #include <QEvent>
 #include <QHBoxLayout>
@@ -65,6 +67,11 @@ static QTMGlobalSearch* global_search_widget= nullptr;
 static ads::CDockWidget* global_search_dock= nullptr;
 static widget global_search_content_widget;
 static widget global_search_pane_window;
+
+static constexpr const char* global_search_case_insensitive_pref=
+  "vault global search case insensitive search";
+static constexpr const char* global_search_fuzzy_pref=
+  "vault global search fuzzy search";
 
 class qt_adopted_qwidget_rep : public qt_widget_rep {
   QPointer<QWidget> adopted;
@@ -110,37 +117,6 @@ static const enunciation_filter_entry enunciation_filter_entries[]= {
   { "Alternative proof", "proof-alternative" },
   { "Standard proof", "proof-standard" }
 };
-
-static bool
-is_tree_tag (tree t, const string& tag) {
-  return is_compound (t, tag);
-}
-
-static void
-append_search_hits (std::vector<range_set>& out, tree t, tree query,
-                    path base, int limit) {
-  if (limit <= 0) return;
-  range_set sels= search (t, query, base, limit);
-  if (N(sels) > 0) out.push_back (sels);
-}
-
-static void
-collect_enunciation_hits (std::vector<range_set>& out, tree t, tree query,
-                          const string& tag, path base, int limit) {
-  if (limit <= 0 || is_atomic (t)) return;
-
-  if (is_tree_tag (t, tag)) {
-    append_search_hits (out, t, query, base, limit);
-    return;
-  }
-
-  for (int i=0; i<N(t); i++) {
-    int found= 0;
-    for (const range_set& sels: out) found += N(sels) / 2;
-    if (found >= limit) return;
-    collect_enunciation_hits (out, t[i], query, tag, base * i, limit - found);
-  }
-}
 
 static QString
 qstring_from_tm (string s) {
@@ -311,6 +287,10 @@ QTMGlobalSearch::QTMGlobalSearch (QWidget* parent)
     enunciationCombo->addItem (entry.label, entry.tag);
   enunciationCombo->setMinimumWidth (220);
 
+  caseInsensitiveCheck= new QCheckBox ("Case-insensitive", this);
+  fuzzyCheck= new QCheckBox ("Fuzzy", this);
+  refreshSearchOptions ();
+
   QWidget* leftPane= new QWidget (this);
   leftPane->setMinimumWidth (500);
   QVBoxLayout* leftLayout= new QVBoxLayout (leftPane);
@@ -340,6 +320,9 @@ QTMGlobalSearch::QTMGlobalSearch (QWidget* parent)
   buttons->addWidget (new QLabel ("Enunciation:", this));
   buttons->addWidget (enunciationCombo);
   buttons->addSpacing (12);
+  buttons->addWidget (caseInsensitiveCheck);
+  buttons->addWidget (fuzzyCheck);
+  buttons->addSpacing (12);
   buttons->addWidget (searchButton);
   buttons->addWidget (cancelButton);
   buttons->addStretch ();
@@ -364,6 +347,16 @@ QTMGlobalSearch::QTMGlobalSearch (QWidget* parent)
            this, [this] () { startSearch (); });
   connect (cancelButton, &QPushButton::clicked,
            this, [this] () { cancelSearch (); });
+  connect (caseInsensitiveCheck, &QCheckBox::toggled,
+           this, [] (bool checked) {
+             set_preference (global_search_case_insensitive_pref,
+                             checked ? "on" : "off");
+           });
+  connect (fuzzyCheck, &QCheckBox::toggled,
+           this, [] (bool checked) {
+             set_preference (global_search_fuzzy_pref,
+                             checked ? "on" : "off");
+           });
   connect (scanTimer, &QTimer::timeout,
            this, [this] () { scanChunk (); });
   connect (resultList, &QListWidget::itemDoubleClicked,
@@ -400,6 +393,16 @@ QTMGlobalSearch::setPreviewZoomFactor (double zoom) {
 void
 QTMGlobalSearch::setFloatingResizeGripVisible (bool visible) {
   floatingSizeGrip->setVisible (visible);
+}
+
+void
+QTMGlobalSearch::refreshSearchOptions () {
+  if (caseInsensitiveCheck != nullptr)
+    caseInsensitiveCheck->setChecked (
+      get_preference (global_search_case_insensitive_pref, "off") == "on");
+  if (fuzzyCheck != nullptr)
+    fuzzyCheck->setChecked (
+      get_preference (global_search_fuzzy_pref, "off") == "on");
 }
 
 bool
@@ -840,14 +843,19 @@ QTMGlobalSearch::searchFile (url u, std::vector<Result>& hits) const {
     if (is_empty (body)) body= t;
 
     int oldMode= set_access_mode (DRD_ACCESS_SOURCE);
-    std::vector<range_set> hitRanges;
+    std::vector<VaultContentMatch> matches;
     try {
       QString enunciation= selectedEnunciation ();
+      bool caseInsensitive= caseInsensitiveCheck != nullptr &&
+                            caseInsensitiveCheck->isChecked ();
+      bool fuzzy= fuzzyCheck != nullptr && fuzzyCheck->isChecked ();
       if (enunciation.isEmpty ())
-        append_search_hits (hitRanges, body, queryTree, path (), 200);
+        append_content_matches (matches, body, queryTree, path (), 200,
+                                caseInsensitive, fuzzy);
       else
-        collect_enunciation_hits (hitRanges, body, queryTree,
-                                  from_qstring (enunciation), path (), 200);
+        collect_enunciation_matches (matches, body, queryTree,
+                                     from_qstring (enunciation), path (), 200,
+                                     caseInsensitive, fuzzy);
     }
     catch (...) {
       set_access_mode (oldMode);
@@ -855,24 +863,30 @@ QTMGlobalSearch::searchFile (url u, std::vector<Result>& hits) const {
     }
     set_access_mode (oldMode);
 
-    int hitCount= 0;
-    for (const range_set& sels: hitRanges) hitCount += N(sels) / 2;
+    std::stable_sort (
+      matches.begin (), matches.end (),
+      [] (const VaultContentMatch& a, const VaultContentMatch& b) {
+        if (a.exact != b.exact) return a.exact;
+        if (!a.exact && a.score != b.score) return a.score > b.score;
+        return path_less (a.start, b.start);
+      });
+
+    int hitCount= (int) matches.size ();
     if (hitCount <= 0) return 0;
 
     QString rel= relativePath (u);
     int occurrence= 1;
-    for (const range_set& sels: hitRanges) {
-      int rangeHits= N(sels) / 2;
-      for (int i=0; i<rangeHits; i++) {
-        Result result;
-        result.relPath= rel;
-        result.file= u;
-        result.occurrence= occurrence++;
-        result.fileHits= hitCount;
-        result.hitStart= sels[2*i];
-        result.hitEnd= sels[2*i + 1];
-        hits.push_back (result);
-      }
+    for (const VaultContentMatch& match: matches) {
+      Result result;
+      result.relPath= rel;
+      result.file= u;
+      result.occurrence= occurrence++;
+      result.fileHits= hitCount;
+      result.hitStart= match.start;
+      result.hitEnd= match.end;
+      result.exact= match.exact;
+      result.score= match.score;
+      hits.push_back (result);
     }
     return hitCount;
   }
@@ -927,12 +941,15 @@ QTMGlobalSearch::addResult (const Result& result) {
     QString ("%1 (%2)")
       .arg (result.relPath)
       .arg (result.occurrence));
-  item->setToolTip (
+  QString tooltip=
     QString ("%1\nOccurrence %2 of %3\nHit path: %4")
       .arg (result.relPath)
       .arg (result.occurrence)
       .arg (result.fileHits)
-      .arg (qstring_from_tm (as_string (result.hitStart))));
+      .arg (qstring_from_tm (as_string (result.hitStart)));
+  if (!result.exact)
+    tooltip += QString ("\nFuzzy match: %1%").arg (result.score, 0, 'f', 1);
+  item->setToolTip (tooltip);
   item->setData (Qt::UserRole, (int) results.size () - 1);
   resultList->addItem (item);
   if (resultList->count () == 1) resultList->setCurrentRow (0);
@@ -1059,6 +1076,7 @@ global_search_show () {
     });
   }
   global_search_widget->refreshNamespaces ();
+  global_search_widget->refreshSearchOptions ();
   global_search_widget->setPreviewZoomFactor (
     get_server ()->get_window_zoom_factor ());
 

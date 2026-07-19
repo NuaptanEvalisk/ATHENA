@@ -663,6 +663,15 @@
     <item*|Use system trash for safe deletion>Moves deleted vault files to the
     system trash when possible.
 
+    <item*|Global Search uses case-insensitive search>Sets the initial
+    Case-insensitive toggle in Global Search. When enabled, letter case is
+    ignored for both unrestricted searches and searches limited to an
+    enunciation type.
+
+    <item*|Global Search uses fuzzy search>Sets the initial Fuzzy toggle in
+    Global Search. When enabled, approximate matches are included after exact
+    matches. Queries shorter than four characters remain exact-only.
+
     <item*|Preferred initial neighborhood>Chooses the first selected row for a
     document in the neighborhoods viewer. The default is the first direct
     namespace-based neighborhood; the alternative is the path-based

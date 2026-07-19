@@ -24,6 +24,7 @@
 
 class QLabel;
 class QEvent;
+class QCheckBox;
 class QComboBox;
 class QListWidget;
 class QListWidgetItem;
@@ -46,6 +47,7 @@ public:
   void setPreviewZoomFactor (double zoom);
   void setFloatingResizeGripVisible (bool visible);
   void refreshNamespaces ();
+  void refreshSearchOptions ();
   void focusQueryEditor ();
 
 private:
@@ -56,6 +58,8 @@ private:
     int     fileHits;
     path    hitStart;
     path    hitEnd;
+    bool    exact;
+    double  score;
   };
 
   QWidget* createQueryWidget ();
@@ -108,6 +112,8 @@ private:
   QLabel*       status;
   QLabel*       previewTitle;
   QComboBox*    enunciationCombo;
+  QCheckBox*    caseInsensitiveCheck;
+  QCheckBox*    fuzzyCheck;
   QLineEdit*    namespaceEdit;
   QStringListModel* namespaceModel;
   QPushButton*  searchButton;
