@@ -625,6 +625,9 @@ bool select_definition_ranges (
   std::map<std::string,ExtractedDocument>& extracted,
   const AthenaArtifactsProgress& progress, size_t,
   std::string& error) {
+  struct ReleaseRangeModel {
+    ~ReleaseRangeModel () { athena_artifact_range_model_release (); }
+  } release_range_model;
   size_t range_total= 0;
   for (const auto& document: extracted)
     for (const AthenaArtifactRecord& record: document.second.records)
@@ -1028,7 +1031,9 @@ athena_artifacts_extract_document (
   const tree& document, const std::string& relative_path,
   std::vector<AthenaArtifactRecord>& records, std::string& error) {
   ExtractedDocument extracted;
-  if (!extract (document, relative_path, extracted, error)) return false;
+  bool ok= extract (document, relative_path, extracted, error);
+  athena_artifact_range_model_release ();
+  if (!ok) return false;
   records= std::move (extracted.records);
   return true;
 }

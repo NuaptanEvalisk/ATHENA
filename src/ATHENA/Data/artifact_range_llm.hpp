@@ -18,6 +18,8 @@ std::string athena_artifact_range_model_path ();
 
 bool athena_artifact_range_model_available (const std::string& model_path);
 
+void athena_artifact_range_model_release ();
+
 std::vector<int> athena_artifact_select_definition_range (
   const std::string& keyword_latex,
   const std::vector<std::pair<int,std::string>>& paragraphs);

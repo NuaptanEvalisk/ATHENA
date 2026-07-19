@@ -30,6 +30,7 @@ namespace {
 
 constexpr int context_tokens= 4096;
 constexpr int output_tokens= 48;
+constexpr int artifact_threads= 6;
 
 void range_log (const std::string& message) {
   athena_spdlog_info ("artifacts: " + message);
@@ -69,14 +70,15 @@ std::string configured_model () {
 }
 
 std::vector<llama_token> tokenize (const llama_vocab* vocab,
-                                   const std::string& text) {
+                                   const std::string& text,
+                                   bool add_special= true) {
   int32_t n= llama_tokenize (vocab, text.data (), (int32_t) text.size (),
-                             nullptr, 0, true, true);
+                             nullptr, 0, add_special, true);
   if (n == 0) return {};
   if (n < 0) n= -n;
   std::vector<llama_token> out ((size_t) n);
   n= llama_tokenize (vocab, text.data (), (int32_t) text.size (), out.data (),
-                     n, true, true);
+                     n, add_special, true);
   if (n < 0) n= -n;
   out.resize ((size_t) n);
   return out;
@@ -93,11 +95,9 @@ std::string token_piece (const llama_vocab* vocab, llama_token token) {
   return n > 0 ? std::string (large.data (), (size_t) n) : std::string ();
 }
 
-std::string make_prompt (
-  const std::string& keyword,
-  const std::vector<std::pair<int,std::string>>& paragraphs) {
-  std::ostringstream out;
-  out << "You select which nearby paragraphs constitute the mathematical "
+const std::string& prompt_prefix () {
+  static const std::string value=
+         "You select which nearby paragraphs constitute the mathematical "
          "definition of a bold keyword in an ATHENA note.\n"
          "Return ONLY one bracketed comma-separated list of paragraph integers, "
          "for example [-1, 0, 1]. Do not explain, reason, use prose, or emit "
@@ -121,7 +121,15 @@ std::string make_prompt (
          "=== BEGIN PARAGRAPH 1 ===\nEvery x\\in X has an open neighborhood U "
          "whose inverse image is a disjoint union of open sets mapped "
          "homeomorphically onto U.\n=== END PARAGRAPH 1 ===\nAnswer: [0, 1]\n\n"
-      << "Keyword (LaTeX): " << keyword << "\n";
+         ;
+  return value;
+}
+
+std::string make_prompt_suffix (
+  const std::string& keyword,
+  const std::vector<std::pair<int,std::string>>& paragraphs) {
+  std::ostringstream out;
+  out << "Keyword (LaTeX): " << keyword << "\n";
   for (const auto& paragraph: paragraphs)
     out << "=== BEGIN PARAGRAPH " << paragraph.first << " ===\n"
         << paragraph.second << "\n=== END PARAGRAPH " << paragraph.first
@@ -164,15 +172,10 @@ public:
     std::lock_guard<std::mutex> guard (mutex);
     if (cancelled && cancelled->load ()) return {0};
     if (!load (model_path)) return {0};
-    std::string prompt= make_prompt (keyword, paragraphs);
     const llama_vocab* vocab= llama_model_get_vocab (model);
-    std::vector<llama_token> input= tokenize (vocab, prompt);
-    if (input.empty () || (int) input.size () + output_tokens >= context_tokens)
-      return {0};
-    range_log ("definition-range inference: keyword=\"" + keyword +
-               "\", candidate-paragraphs=" +
-               std::to_string (paragraphs.size ()) + ", input-tokens=" +
-               std::to_string (input.size ()));
+    std::vector<llama_token> suffix=
+      tokenize (vocab, make_prompt_suffix (keyword, paragraphs), false);
+    if (suffix.empty ()) return {0};
     llama_set_abort_callback (
       ctx,
       [] (void* data) {
@@ -184,25 +187,80 @@ public:
       llama_context* context;
       ~AbortReset () { llama_set_abort_callback (context, nullptr, nullptr); }
     } reset {ctx};
-    llama_memory_clear (llama_get_memory (ctx), true);
+    if (!prepare_prefix_cache ()) return {0};
+    if (prefix_tokens + (int) suffix.size () + output_tokens >= context_tokens)
+      return {0};
+    range_log ("definition-range inference: keyword=\"" + keyword +
+               "\", candidate-paragraphs=" +
+               std::to_string (paragraphs.size ()) + ", input-tokens=" +
+               std::to_string (prefix_tokens + suffix.size ()) +
+               ", cached-prefix-tokens=" + std::to_string (prefix_tokens) +
+               ", dynamic-tokens=" + std::to_string (suffix.size ()));
     llama_sampler_reset (sampler);
-    llama_batch batch= llama_batch_get_one (input.data (), (int32_t) input.size ());
+    llama_batch batch=
+      llama_batch_get_one (suffix.data (), (int32_t) suffix.size ());
+    auto prompt_started= std::chrono::steady_clock::now ();
     if (llama_decode (ctx, batch) != 0) return {0};
+    auto prompt_ms= std::chrono::duration_cast<std::chrono::milliseconds> (
+      std::chrono::steady_clock::now () - prompt_started).count ();
+    range_log ("definition-range dynamic prompt evaluated: cached-prefix-tokens=" +
+               std::to_string (prefix_tokens) + ", evaluated-tokens=" +
+               std::to_string (suffix.size ()) + ", elapsed-ms=" +
+               std::to_string (prompt_ms));
     std::string answer;
+    int generated_tokens= 0;
+    auto generation_started= std::chrono::steady_clock::now ();
     for (int i=0; i<output_tokens; i++) {
       if (cancelled && cancelled->load ()) return {0};
       llama_token token= llama_sampler_sample (sampler, ctx, -1);
       if (llama_vocab_is_eog (vocab, token)) break;
+      generated_tokens++;
       answer += token_piece (vocab, token);
       llama_batch next= llama_batch_get_one (&token, 1);
       if (llama_decode (ctx, next) != 0) break;
       if (answer.find (']') != std::string::npos) break;
     }
-    range_log ("definition-range model output: " + trim (answer));
+    auto generation_ms= std::chrono::duration_cast<std::chrono::milliseconds> (
+      std::chrono::steady_clock::now () - generation_started).count ();
+    range_log ("definition-range model output: " + trim (answer) +
+               "; generated-tokens=" + std::to_string (generated_tokens) +
+               ", elapsed-ms=" + std::to_string (generation_ms));
     return parse_result (answer, paragraphs);
   }
 
 private:
+  friend void ::athena_artifact_range_model_release ();
+
+  bool prepare_prefix_cache () {
+    llama_memory_t memory= llama_get_memory (ctx);
+    if (prefix_cached) {
+      if (llama_memory_seq_rm (memory, 0, prefix_tokens, -1)) return true;
+      range_warning ("could not trim dynamic definition-range KV cache; "
+                     "rebuilding its fixed prompt prefix");
+      prefix_cached= false;
+    }
+    llama_memory_clear (memory, true);
+    const llama_vocab* vocab= llama_model_get_vocab (model);
+    std::vector<llama_token> tokens= tokenize (vocab, prompt_prefix ());
+    if (tokens.empty () || (int) tokens.size () + output_tokens >= context_tokens)
+      return false;
+    auto started= std::chrono::steady_clock::now ();
+    llama_batch batch=
+      llama_batch_get_one (tokens.data (), (int32_t) tokens.size ());
+    if (llama_decode (ctx, batch) != 0) {
+      llama_memory_clear (memory, true);
+      return false;
+    }
+    prefix_tokens= (int) tokens.size ();
+    prefix_cached= true;
+    auto elapsed= std::chrono::duration_cast<std::chrono::milliseconds> (
+      std::chrono::steady_clock::now () - started).count ();
+    range_log ("definition-range fixed prompt cached: tokens=" +
+               std::to_string (prefix_tokens) + ", elapsed-ms=" +
+               std::to_string (elapsed));
+    return true;
+  }
+
   bool load (const std::string& path) {
     if (model && path == loaded_path) return true;
     unload ();
@@ -218,7 +276,7 @@ private:
     range_log ("loading definition-range model: " + path);
     athena_llama_runtime_initialize ();
     llama_model_params mp= llama_model_default_params ();
-    mp.n_gpu_layers= 0;
+    mp.n_gpu_layers= -1;
     model= llama_model_load_from_file (path.c_str (), mp);
     if (!model) {
       range_warning ("could not load definition-range model " + path);
@@ -227,8 +285,12 @@ private:
     llama_context_params cp= llama_context_default_params ();
     cp.n_ctx= context_tokens;
     cp.n_batch= context_tokens;
-    cp.n_threads= std::max (1u, std::thread::hardware_concurrency ());
+    cp.n_threads= std::min (
+      artifact_threads,
+      std::max (1, (int) std::thread::hardware_concurrency ()));
     cp.n_threads_batch= cp.n_threads;
+    range_log ("definition-range runtime: gpu-layers=all, threads=" +
+               std::to_string (cp.n_threads));
     ctx= llama_init_from_model (model, cp);
     if (!ctx) { unload (); return false; }
     sampler= llama_sampler_chain_init (llama_sampler_chain_default_params ());
@@ -246,6 +308,8 @@ private:
     if (ctx) llama_free (ctx);
     if (model) llama_model_free (model);
     sampler= nullptr; ctx= nullptr; model= nullptr; loaded_path.clear ();
+    prefix_cached= false;
+    prefix_tokens= 0;
   }
 
   std::mutex mutex;
@@ -254,6 +318,8 @@ private:
   llama_sampler* sampler= nullptr;
   std::string loaded_path;
   std::string warned_path;
+  bool prefix_cached= false;
+  int prefix_tokens= 0;
 };
 
 RangeModel& range_model () { static RangeModel model; return model; }
@@ -284,6 +350,13 @@ athena_artifact_range_model_available (const std::string& path) {
     }
   }
   return available;
+}
+
+void
+athena_artifact_range_model_release () {
+  RangeModel& model= range_model ();
+  std::lock_guard<std::mutex> guard (model.mutex);
+  model.unload ();
 }
 
 std::vector<int>

@@ -19,4 +19,17 @@ unset QT_FONT_DPI
 unset QT_SCALE_FACTOR_ROUNDING_POLICY
 export LD_LIBRARY_PATH="$script_dir/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 
+# A locally installed SYCL-enabled llama.cpp needs the matching oneAPI runtime.
+# Generic release builds do not ship libggml-sycl and skip this block.
+if [[ -e "$script_dir/lib/libggml-sycl.so.0" ]]; then
+  for oneapi_setup in /opt/intel/oneapi/setvars.sh "$HOME/intel/oneapi/setvars.sh"; do
+    if [[ -r "$oneapi_setup" ]]; then
+      set +u
+      source "$oneapi_setup" >/dev/null 2>&1
+      set -u
+      break
+    fi
+  done
+fi
+
 exec ./bin/ATHENA.bin --platform wayland "$@"

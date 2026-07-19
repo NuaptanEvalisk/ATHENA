@@ -77,9 +77,13 @@ TestArtifacts::selectsDefinitionRangeWithConfiguredModel () {
   };
   std::vector<int> selected= athena_artifact_select_definition_range (
     "covering map", paragraphs);
+  std::vector<int> selectedFromCachedPrefix=
+    athena_artifact_select_definition_range ("covering map", paragraphs);
+  athena_artifact_range_model_release ();
   QVERIFY (std::find (selected.begin (), selected.end (), 0) != selected.end ());
   QVERIFY (std::find (selected.begin (), selected.end (), 1) != selected.end ());
   for (int offset: selected) QVERIFY (offset >= -1 && offset <= 2);
+  QCOMPARE (selectedFromCachedPrefix, selected);
 }
 
 static tree

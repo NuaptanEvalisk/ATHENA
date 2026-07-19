@@ -181,7 +181,7 @@ include (FindPkgConfig)
 include (CheckCSourceCompiles)
 
 pkg_check_modules (SPDLOG REQUIRED IMPORTED_TARGET spdlog)
-pkg_check_modules (LLAMA REQUIRED IMPORTED_TARGET llama)
+pkg_check_modules (LLAMA QUIET IMPORTED_TARGET llama)
 if (UNIX AND NOT APPLE)
   pkg_check_modules (FONTCONFIG REQUIRED IMPORTED_TARGET fontconfig)
   add_definitions (-DUSE_FONTCONFIG)
@@ -195,6 +195,11 @@ find_path (LLAMA_COMMON_INCLUDE_DIR common.h
   HINTS
     ${LLAMA_CPP_SOURCE_DIR}
   PATH_SUFFIXES common)
+find_path (LLAMA_CPP_INCLUDE_DIR llama.h
+  HINTS
+    ${LLAMA_CPP_SOURCE_DIR}
+  PATH_SUFFIXES include
+  NO_DEFAULT_PATH)
 find_library (LLAMA_COMMON_LIBRARY
   NAMES llama-common common
   HINTS
@@ -205,12 +210,58 @@ find_library (LLAMA_CPP_LIBRARY
   NAMES llama
   HINTS
     ${LLAMA_CPP_SOURCE_DIR}
-  PATH_SUFFIXES lib lib64 build/bin)
-set (ATHENA_LLAMA_LIBRARIES
-  PkgConfig::LLAMA
-  ${LLAMA_COMMON_LIBRARY})
-if (LLAMA_CPP_LIBRARY)
-  list (APPEND ATHENA_LLAMA_LIBRARIES ${LLAMA_CPP_LIBRARY})
+  PATH_SUFFIXES lib lib64 build/bin
+  NO_DEFAULT_PATH)
+find_library (LLAMA_GGML_LIBRARY
+  NAMES ggml
+  HINTS ${LLAMA_CPP_SOURCE_DIR}
+  PATH_SUFFIXES lib lib64 build/bin
+  NO_DEFAULT_PATH)
+find_library (LLAMA_GGML_BASE_LIBRARY
+  NAMES ggml-base
+  HINTS ${LLAMA_CPP_SOURCE_DIR}
+  PATH_SUFFIXES lib lib64 build/bin
+  NO_DEFAULT_PATH)
+find_library (LLAMA_GGML_CPU_LIBRARY
+  NAMES ggml-cpu
+  HINTS ${LLAMA_CPP_SOURCE_DIR}
+  PATH_SUFFIXES lib lib64 build/bin
+  NO_DEFAULT_PATH)
+find_library (LLAMA_GGML_SYCL_LIBRARY
+  NAMES ggml-sycl
+  HINTS ${LLAMA_CPP_SOURCE_DIR}
+  PATH_SUFFIXES lib lib64 build/bin
+  NO_DEFAULT_PATH)
+if (NOT LLAMA_CPP_SOURCE_DIR STREQUAL "" AND
+    LLAMA_CPP_LIBRARY AND LLAMA_CPP_INCLUDE_DIR)
+  # Keep llama.h, common.a, and libllama from one source tree. Mixing the
+  # pkg-config runtime with a source-tree common library is ABI-unsafe and also
+  # prevents source-tree GPU backends such as SYCL from being used at runtime.
+  if (NOT LLAMA_GGML_LIBRARY OR NOT LLAMA_GGML_BASE_LIBRARY)
+    message (FATAL_ERROR
+      "The selected llama.cpp source build has no matching ggml runtime.")
+  endif ()
+  set (ATHENA_LLAMA_LIBRARIES
+    ${LLAMA_COMMON_LIBRARY}
+    ${LLAMA_CPP_LIBRARY}
+    ${LLAMA_GGML_LIBRARY})
+  if (LLAMA_GGML_CPU_LIBRARY)
+    list (APPEND ATHENA_LLAMA_LIBRARIES ${LLAMA_GGML_CPU_LIBRARY})
+  endif ()
+  if (LLAMA_GGML_SYCL_LIBRARY)
+    list (APPEND ATHENA_LLAMA_LIBRARIES ${LLAMA_GGML_SYCL_LIBRARY})
+  endif ()
+  list (APPEND ATHENA_LLAMA_LIBRARIES ${LLAMA_GGML_BASE_LIBRARY})
+  set (ATHENA_LLAMA_INCLUDE_DIR ${LLAMA_CPP_INCLUDE_DIR})
+elseif (LLAMA_FOUND)
+  set (ATHENA_LLAMA_LIBRARIES
+    PkgConfig::LLAMA
+    ${LLAMA_COMMON_LIBRARY})
+  set (ATHENA_LLAMA_INCLUDE_DIR "")
+else ()
+  message (FATAL_ERROR
+    "llama.cpp is required. Provide a coherent source build through "
+    "-DLLAMA_CPP_SOURCE_DIR or install its pkg-config package.")
 endif ()
 if (NOT LLAMA_COMMON_INCLUDE_DIR OR NOT LLAMA_COMMON_LIBRARY)
   message (FATAL_ERROR
@@ -585,7 +636,7 @@ set (ATHENA_Include_Dirs ${ATHENA_Include_Dirs}
   ${Guile_INCLUDE_DIRS} ${FREETYPE_INCLUDE_DIRS}
   ${IMLIB2_INCLUDE_DIR} ${GMP_INCLUDES} ${GNUTLS_INCLUDE_DIRS}
   ${TCC_INCLUDE_DIR} ${SQLITE3_INCLUDE_DIRS} ${ICONV_INCLUDE_DIR}
-  ${LLAMA_COMMON_INCLUDE_DIR}
+  ${ATHENA_LLAMA_INCLUDE_DIR} ${LLAMA_COMMON_INCLUDE_DIR}
 )
 
 ### --------------------------------------------------------------------
