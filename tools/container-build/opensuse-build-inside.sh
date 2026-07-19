@@ -412,6 +412,10 @@ build_athena_flavor () {
     -DPython3_EXECUTABLE=/usr/bin/python3.11 \
     -DLLAMA_CPP_SOURCE_DIR="$src_dir/llama.cpp" \
     -DLLAMA_COMMON_LIBRARY="$common_lib" \
+    -DLLAMA_CPP_LIBRARY="$prefix/lib64/libllama.so" \
+    -DLLAMA_GGML_LIBRARY="$prefix/lib64/libggml.so" \
+    -DLLAMA_GGML_BASE_LIBRARY="$prefix/lib64/libggml-base.so" \
+    -DLLAMA_GGML_CPU_LIBRARY="$prefix/lib64/libggml-cpu.so" \
     -DRESVGQT_INCLUDE_DIR="$prefix/include" \
     -DRESVG_LIBRARY="$prefix/lib64/libresvg.so" \
     -DTCC_INCLUDE_DIR="$prefix/include" \
