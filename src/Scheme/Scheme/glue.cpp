@@ -54,6 +54,7 @@
 #include "QTMAbout.hpp"
 #include "QTMESCSymbolPicker.hpp"
 #include "QTMFontSelector.hpp"
+#include "QTMCodexCompletion.hpp"
 #include "QTMPreferencesDialog.hpp"
 #include "QTMPagePropertiesPane.hpp"
 #include "QTMParagraphPropertiesPane.hpp"
@@ -1690,19 +1691,48 @@ tmg_google_cloud_todo_push_item (tmscm arg1, tmscm arg2) {
 }
 
 tmscm
+tmg_codex_initialize_models (tmscm arg1, tmscm arg2) {
+  TMSCM_ASSERT_STRING (arg1, TMSCM_ARG1, "codex-initialize-models");
+  TMSCM_ASSERT_STRING (arg2, TMSCM_ARG2, "codex-initialize-models");
+  if (!headless_mode)
+    qtm_codex_initialize_models (tmscm_to_string (arg1),
+                                 tmscm_to_string (arg2));
+  return TMSCM_UNSPECIFIED;
+}
+
+tmscm
+tmg_codex_completion_options (tmscm arg1, tmscm arg2) {
+  TMSCM_ASSERT_STRING (arg1, TMSCM_ARG1, "codex-completion-options");
+  TMSCM_ASSERT_STRING (arg2, TMSCM_ARG2, "codex-completion-options");
+  if (headless_mode) return tmscm_null ();
+  return array_string_to_tmscm (
+    qtm_codex_completion_options (tmscm_to_string (arg1),
+                                  tmscm_to_string (arg2)));
+}
+
+tmscm
 tmg_codex_run_completion_async (tmscm arg1, tmscm arg2, tmscm arg3,
-                                tmscm arg4, tmscm arg5) {
+                                tmscm arg4, tmscm arg5, tmscm arg6,
+                                tmscm arg7, tmscm arg8, tmscm arg9) {
   TMSCM_ASSERT_STRING (arg1, TMSCM_ARG1, "codex-run-completion-async");
   TMSCM_ASSERT_STRING (arg2, TMSCM_ARG2, "codex-run-completion-async");
   TMSCM_ASSERT_STRING (arg3, TMSCM_ARG3, "codex-run-completion-async");
   TMSCM_ASSERT_STRING (arg4, TMSCM_ARG4, "codex-run-completion-async");
-  TMSCM_ASSERT_COMMAND (arg5, TMSCM_ARG5, "codex-run-completion-async");
+  TMSCM_ASSERT_STRING (arg5, TMSCM_ARG5, "codex-run-completion-async");
+  TMSCM_ASSERT_STRING (arg6, TMSCM_ARG6, "codex-run-completion-async");
+  TMSCM_ASSERT_STRING (arg7, TMSCM_ARG7, "codex-run-completion-async");
+  TMSCM_ASSERT_STRING (arg8, TMSCM_ARG8, "codex-run-completion-async");
+  TMSCM_ASSERT_COMMAND (arg9, TMSCM_ARG9, "codex-run-completion-async");
 
   QString bridge= to_qstring (tmscm_to_string (arg1));
   QString home= to_qstring (tmscm_to_string (arg2));
   QString input= to_qstring (tmscm_to_string (arg3));
   QString output= to_qstring (tmscm_to_string (arg4));
-  command callback= tmscm_to_command (arg5);
+  QString model= to_qstring (tmscm_to_string (arg5));
+  QString effort= to_qstring (tmscm_to_string (arg6));
+  QString serviceTier= to_qstring (tmscm_to_string (arg7));
+  QString webSearch= to_qstring (tmscm_to_string (arg8));
+  command callback= tmscm_to_command (arg9);
 
   QProcess* process= new QProcess (QApplication::instance ());
   process->setProcessChannelMode (QProcess::MergedChannels);
@@ -1727,9 +1757,15 @@ tmg_codex_run_completion_async (tmscm arg1, tmscm arg2, tmscm arg3,
     [complete] (QProcess::ProcessError error) {
       if (error == QProcess::FailedToStart) complete ();
     });
-  process->start (bridge,
-                  {"--one-shot", "--codex-home", home,
-                   "--input", input, "--output", output});
+  QStringList arguments {"--one-shot", "--codex-home", home,
+                         "--input", input, "--output", output};
+  if (!model.isEmpty ()) arguments << "--model" << model;
+  if (!effort.isEmpty ()) arguments << "--effort" << effort;
+  if (!serviceTier.isEmpty ())
+    arguments << "--service-tier" << serviceTier;
+  if (webSearch == "live") arguments << "--web-search";
+  else if (webSearch == "disabled") arguments << "--no-web-search";
+  process->start (bridge, arguments);
   return TMSCM_UNSPECIFIED;
 }
 
@@ -1965,8 +2001,12 @@ initialize_glue () {
                            tmg_google_cloud_todo_sync_open_buffers, 0, 0, 0);
   tmscm_install_procedure ("google-cloud-todo-push-item",
                            tmg_google_cloud_todo_push_item, 2, 0, 0);
+  tmscm_install_procedure ("codex-initialize-models",
+                           tmg_codex_initialize_models, 2, 0, 0);
+  tmscm_install_procedure ("codex-completion-options",
+                           tmg_codex_completion_options, 2, 0, 0);
   tmscm_install_procedure ("codex-run-completion-async",
-                           tmg_codex_run_completion_async, 5, 0, 0);
+                           tmg_codex_run_completion_async, 9, 0, 0);
   tmscm_install_procedure ("document-search-open",
                            tmg_document_search_open, 0, 0, 0);
   tmscm_install_procedure ("document-search-next",

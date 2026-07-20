@@ -93,21 +93,49 @@ public:
     return true;
   }
 
-  bool startThread (const QString& cwd, QString& threadId,
-                    QString& error) {
+  bool listModels (QJsonArray& models, QString& error) {
+    QString cursor;
+    do {
+      QJsonObject params {{"includeHidden", false}};
+      if (!cursor.isEmpty ()) params.insert ("cursor", cursor);
+      QJsonObject response;
+      if (!request ("model/list", params, response, error)) return false;
+      QJsonObject result= response.value ("result").toObject ();
+      for (const QJsonValue& value: result.value ("data").toArray ())
+        models.append (value);
+      cursor= result.value ("nextCursor").toString ();
+    } while (!cursor.isEmpty ());
+    return true;
+  }
+
+  bool startThread (const QString& cwd, const QString& model,
+                    const QString& serviceTier,
+                    bool webSearchConfigured, bool webSearch,
+                    QString& threadId, QString& error) {
     QDir ().mkpath (cwd);
+    QString instructions=
+      "You are ChatGPT embedded in ATHENA, an IDE for mathematical "
+      "knowledge organization and writing. Answer the user's questions "
+      "directly. Do not modify files. Use readable plain text and LaTeX "
+      "notation when useful. ";
+    instructions += webSearch?
+      "You may use web search when it is useful, but do not invoke other "
+      "tools.": "Do not invoke tools.";
+    QJsonObject params {
+      {"cwd", QDir (cwd).absolutePath ()},
+      {"approvalPolicy", "never"},
+      {"sandbox", "read-only"},
+      {"ephemeral", true},
+      {"baseInstructions", instructions}
+    };
+    if (!model.isEmpty ()) params.insert ("model", model);
+    if (!serviceTier.isEmpty ()) params.insert ("serviceTier", serviceTier);
+    if (webSearchConfigured)
+      params.insert ("config", QJsonObject {
+        {"web_search", webSearch? "live": "disabled"}
+      });
     QJsonObject response;
-    if (!request ("thread/start", QJsonObject {
-          {"cwd", QDir (cwd).absolutePath ()},
-          {"approvalPolicy", "never"},
-          {"sandbox", "read-only"},
-          {"ephemeral", true},
-          {"baseInstructions",
-           "You are ChatGPT embedded in ATHENA, an IDE for mathematical "
-           "knowledge organization and writing. Answer the user's questions "
-           "directly. Do not invoke tools or modify files. Use readable plain "
-           "text and LaTeX notation when useful."}
-        }, response, error)) return false;
+    if (!request ("thread/start", params, response, error)) return false;
     threadId= response.value ("result").toObject ()
                     .value ("thread").toObject ().value ("id").toString ();
     if (threadId.isEmpty ()) {
@@ -118,13 +146,16 @@ public:
   }
 
   bool turn (const QString& threadId, const QString& prompt,
+             const QString& effort,
              QString& answer, QString& error) {
+    QJsonObject params {
+      {"threadId", threadId},
+      {"input", QJsonArray {QJsonObject {
+        {"type", "text"}, {"text", prompt}}}}
+    };
+    if (!effort.isEmpty ()) params.insert ("effort", effort);
     QJsonObject response;
-    if (!request ("turn/start", QJsonObject {
-          {"threadId", threadId},
-          {"input", QJsonArray {QJsonObject {
-            {"type", "text"}, {"text", prompt}}}}
-        }, response, error)) return false;
+    if (!request ("turn/start", params, response, error)) return false;
     const QString turnId= response.value ("result").toObject ()
                            .value ("turn").toObject ().value ("id").toString ();
     if (turnId.isEmpty ()) {
@@ -276,7 +307,7 @@ runSession (AppServer& server, const QString& threadId) {
     if (prompt.isEmpty ()) continue;
     QString answer;
     QString error;
-    if (server.turn (threadId, prompt, answer, error))
+    if (server.turn (threadId, prompt, QString (), answer, error))
       emitVerbatim (answer);
     else
       emitVerbatim (QString ("Codex error: %1").arg (error));
@@ -297,10 +328,19 @@ main (int argc, char** argv) {
   QCommandLineOption homeOption ("codex-home", "Codex home", "path");
   QCommandLineOption cwdOption ("cwd", "Conversation working directory", "path");
   QCommandLineOption oneShotOption ("one-shot", "Run one prompt and exit");
+  QCommandLineOption listModelsOption ("list-models", "List available models");
   QCommandLineOption inputOption ("input", "Prompt input file", "path");
   QCommandLineOption outputOption ("output", "Response output file", "path");
+  QCommandLineOption modelOption ("model", "Model id", "model");
+  QCommandLineOption effortOption ("effort", "Reasoning effort", "effort");
+  QCommandLineOption serviceTierOption ("service-tier", "Service tier id",
+                                        "tier");
+  QCommandLineOption webSearchOption ("web-search", "Allow live web search");
+  QCommandLineOption noWebSearchOption ("no-web-search", "Disable web search");
   parser.addOptions ({codexOption, homeOption, cwdOption, oneShotOption,
-                      inputOption, outputOption});
+                      listModelsOption, inputOption, outputOption,
+                      modelOption, effortOption, serviceTierOption,
+                      webSearchOption, noWebSearchOption});
   parser.process (app);
 
   QString codex= resolveCodex (parser.value (codexOption));
@@ -319,8 +359,27 @@ main (int argc, char** argv) {
     std::fprintf (stderr, "%s\n", qPrintable (error));
     return 3;
   }
+  if (parser.isSet (listModelsOption)) {
+    QJsonArray models;
+    if (!server.listModels (models, error)) {
+      std::fprintf (stderr, "%s\n", qPrintable (error));
+      return 4;
+    }
+    QByteArray json= QJsonDocument (models).toJson (QJsonDocument::Compact);
+    std::fwrite (json.constData (), 1, json.size (), stdout);
+    std::fputc ('\n', stdout);
+    return 0;
+  }
+  if (parser.isSet (webSearchOption) && parser.isSet (noWebSearchOption)) {
+    std::fprintf (stderr, "--web-search and --no-web-search are exclusive\n");
+    return 4;
+  }
   QString threadId;
-  if (!server.startThread (cwd, threadId, error)) {
+  const bool webSearchConfigured=
+    parser.isSet (webSearchOption) || parser.isSet (noWebSearchOption);
+  if (!server.startThread (cwd, parser.value (modelOption),
+                           parser.value (serviceTierOption), webSearchConfigured,
+                           parser.isSet (webSearchOption), threadId, error)) {
     std::fprintf (stderr, "%s\n", qPrintable (error));
     return 4;
   }
@@ -334,6 +393,7 @@ main (int argc, char** argv) {
   }
   QString answer;
   if (!server.turn (threadId, QString::fromUtf8 (input.readAll ()),
+                    parser.value (effortOption),
                     answer, error)) {
     std::fprintf (stderr, "%s\n", qPrintable (error));
     return 6;

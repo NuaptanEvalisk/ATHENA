@@ -35,6 +35,13 @@
       (url-concretize
         (url-resolve-in-path "athena-codex-bridge"))))
 
+(define (codex-initialize-model-catalog)
+  (let ((bridge (codex-bridge-path)))
+    (when (!= bridge "")
+      (codex-initialize-models bridge (codex-home-path)))))
+
+(delayed (:idle 100) (codex-initialize-model-catalog))
+
 (define (codex-remove-completion-files input output)
   (when (url-exists? input) (url-remove input))
   (when (url-exists? output) (url-remove output)))
@@ -81,7 +88,7 @@
                      "AI completion")))
   (codex-remove-completion-files input output))
 
-(tm-define (codex-ai-completion)
+(define (codex-ai-completion-with-options model effort service-tier web-search)
   (if (not (selection-active-any?))
       (set-message "Select text to continue with Codex" "AI completion")
       (let* ((selection (selection-tree))
@@ -107,7 +114,25 @@
                   (codex-run-completion-async
                     bridge (codex-home-path)
                     (url->system input) (url->system output)
+                    model effort service-tier web-search
                     (object->command
                       (lambda ()
                         (codex-finish-completion
                           buffer placeholder input output)))))))))))
+
+(tm-define (codex-ai-completion)
+  (codex-ai-completion-with-options "" "" "" ""))
+
+(tm-define (codex-ai-completion-custom)
+  (if (not (selection-active-any?))
+      (set-message "Select text to continue with Codex" "AI completion")
+      (let ((options
+              (codex-completion-options
+                (codex-bridge-path) (codex-home-path))))
+        (when (and (list? options) (= (length options) 4))
+          (codex-ai-completion-with-options
+            (list-ref options 0)
+            (list-ref options 1)
+            (list-ref options 2)
+            (if (== (list-ref options 3) "on")
+                "live" "disabled"))))))

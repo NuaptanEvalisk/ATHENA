@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import json
+import os
 import sys
 
 
@@ -15,10 +16,34 @@ for line in sys.stdin:
         send({"jsonrpc": "2.0", "id": request_id, "result": {
             "codexHome": "/tmp/fake-codex", "platformFamily": "unix",
             "platformOs": "linux", "userAgent": "fake-codex"}})
+    elif method == "model/list":
+        send({"jsonrpc": "2.0", "id": request_id, "result": {
+            "data": [{
+                "id": "gpt-test", "model": "gpt-test",
+                "displayName": "GPT Test", "description": "Test model",
+                "hidden": False, "isDefault": True,
+                "defaultReasoningEffort": "medium",
+                "supportedReasoningEfforts": [
+                    {"reasoningEffort": "low", "description": "Low"},
+                    {"reasoningEffort": "medium", "description": "Medium"}],
+                "serviceTiers": [{"id": "priority", "name": "Fast",
+                                  "description": "Fast tier"}]
+            }], "nextCursor": None}})
     elif method == "thread/start":
+        params = message.get("params", {})
+        if os.environ.get("ATHENA_FAKE_EXPECT_CUSTOM") == "1":
+            assert params.get("model") == "gpt-test"
+            assert params.get("serviceTier") == "priority"
+            assert params.get("config", {}).get("web_search") == "live"
+        else:
+            assert "model" not in params
+            assert "serviceTier" not in params
+            assert "config" not in params
         send({"jsonrpc": "2.0", "id": request_id,
               "result": {"thread": {"id": "thread-1"}}})
     elif method == "turn/start":
+        if os.environ.get("ATHENA_FAKE_EXPECT_CUSTOM") == "1":
+            assert message.get("params", {}).get("effort") == "low"
         send({"jsonrpc": "2.0", "id": request_id,
               "result": {"turn": {"id": "turn-1"}}})
         send({"jsonrpc": "2.0", "method": "item/agentMessage/delta",

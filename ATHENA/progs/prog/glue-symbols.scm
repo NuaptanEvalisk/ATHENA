@@ -78,6 +78,8 @@
 "bench-print"
 "bench-print-all"
 "system-wait"
+"codex-initialize-models"
+"codex-completion-options"
 "codex-run-completion-async"
 "get-show-kbd"
 "set-show-kbd"

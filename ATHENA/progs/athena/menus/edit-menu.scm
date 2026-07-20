@@ -82,7 +82,8 @@
       (=> "Correct" (link math-correct-menu)))
   (when (selection-active-any?)
     (-> "AI"
-        ("AI completion" (codex-ai-completion))))
+        ("AI completion" (codex-ai-completion))
+        ("AI completion (custom)" (codex-ai-completion-custom))))
   (if (detailed-menus?)
       ---
       (when (selection-active-any?)

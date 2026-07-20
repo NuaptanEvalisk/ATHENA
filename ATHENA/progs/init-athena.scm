@@ -156,7 +156,7 @@
 ;(display "Booting main ATHENA functionality\n")
 (use-modules (athena athena tm-server) (athena athena tm-view)
              (athena athena tm-files) (athena athena tm-print)
-             (athena athena tm-vault))
+             (athena athena tm-vault) (athena athena tm-codex))
 (define-secure-symbols heading-fold-toggle-tree heading-fold-toggle
   heading-word-count-tree heading-word-count-path
   heading-word-count-schedule-refresh)
