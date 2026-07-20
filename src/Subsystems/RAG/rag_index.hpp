@@ -12,11 +12,15 @@
 #define RAG_INDEX_HPP
 
 #include <filesystem>
+#include <memory>
 #include <optional>
 #include <string>
 #include <vector>
 
 namespace athena::rag {
+
+bool rag_text_requires_embedding (const std::string& text);
+class RagEmbedder;
 
 struct RagConfig {
   std::filesystem::path vault_root;
@@ -24,6 +28,7 @@ struct RagConfig {
   std::filesystem::path embedding_model;
   std::string embedding_device= "auto";
   int embedding_threads= 0;
+  std::shared_ptr<RagEmbedder> embedding_runtime;
   bool force_reindex= false;
   bool load_embedding_model= true;
   int shard_index= 0;

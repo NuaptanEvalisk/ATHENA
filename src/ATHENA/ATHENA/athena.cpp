@@ -98,6 +98,7 @@ string aofm_convert_vault_destination;
 string aofm_convert_vault_model_vault;
 string vault_maintenance_dir;
 bool   vault_maintenance_check_only = false;
+string rag_delegated_embedding_dir;
 string vault_maintenance_toc_worker_file;
 string vault_maintenance_toc_worker_marker;
 string artifact_extract_worker_manifest;
@@ -471,6 +472,10 @@ clean_exit_on_segfault (int sig_num) {
 void
 clean_exit_on_sigterm (int sig_num) {
   (void) sig_num;
+  // Headless services can receive SIGTERM while Qt, SQLite, or an embedding
+  // runtime is active.  Running C++ global destructors from a signal handler
+  // is not async-signal-safe; let the operating system reclaim the process.
+  if (headless_mode) _exit (0);
 #ifdef ADVANCED_DEVELOPER_MODE
   exit (0);
 #else
@@ -691,6 +696,9 @@ set_global_options  (int argc, char** argv)  {
       else if (s == "-vault-maintenance") {
         i++;
       }
+      else if (s == "-rag-delegated-embedding") {
+        i++;
+      }
       else if (s == "-vault-maintenance-toc-worker") {
         i += 2;
       }
@@ -862,6 +870,7 @@ set_global_options  (int argc, char** argv)  {
         cout << "  -V         Show some informative messages\n";
         cout << "  --no-splash-screen       Start without showing the splash screen\n";
         cout << "  --vault-maintenance [dir]  Maintain an ATHENA vault headlessly\n";
+        cout << "  --rag-delegated-embedding [dir]  Run only delegated incremental embedding\n";
         cout << "  --vault-maintenance-toc-worker [file] [marker]  Internal ToC maintenance worker\n";
         cout << "  --generate-website [dir] [id]  Generate a vault website headlessly\n";
         cout << "  --check-only               With --vault-maintenance, run only the document health check\n";
@@ -1044,11 +1053,17 @@ TeXmacs_main (int argc, char** argv) {
       signal (SIGTERM, clean_exit_on_sigterm);
       release_boot_lock ();
       io_info << "rag mcp: bearer token "
-              << options.bearer_token.c_str () << "\n";
+              << "configured" << "\n";
 #ifdef QTTEXMACS
       QCoreApplication::exec ();
 #endif
       exit (0);
+    }
+
+    if (rag_delegated_embedding_dir != "") {
+      release_boot_lock ();
+      bool ok= vault_rag_delegation_run (rag_delegated_embedding_dir);
+      exit (ok ? 0 : 1);
     }
   
     if (number_buffers () == 0) {
@@ -1553,6 +1568,19 @@ texmacs_entrypoint (int argc, char** argv) {
       if (i < argc) {
         vault_maintenance_dir= argv[i];
         headless_mode= true;
+        // This mode owns its synchronous lifetime and exits after all passes.
+        // A queued Scheme quit would be consumed by nested Qt event loops,
+        // such as the RAG delegation network request, and end maintenance
+        // before the request completes.
+        exec_exit= false;
+      }
+    }
+    if (s == "-rag-delegated-embedding") {
+      i++;
+      if (i < argc) {
+        rag_delegated_embedding_dir= argv[i];
+        headless_mode= true;
+        exec_exit= false;
       }
     }
     if (s == "-vault-maintenance-toc-worker") {
@@ -1668,7 +1696,7 @@ texmacs_entrypoint (int argc, char** argv) {
   normalize_wayland_qt_scaling (argc, argv);
   bool rag_server_mode= rag_server_dir != "";
   if (headless_mode && rag_server_mode) {
-    new QTMCoreApplication (argc, argv);
+    qtmcoreapp= new QTMCoreApplication (argc, argv);
   }
   else if (!headless_mode) {
 #if QT_VERSION >= 0x060000
@@ -1732,8 +1760,10 @@ texmacs_entrypoint (int argc, char** argv) {
 
 #ifdef QTTEXMACS
   // initialize the Qt application infrastructure
-  if (headless_mode)
-    qtmcoreapp= new QTMCoreApplication (argc, argv);
+  if (headless_mode) {
+    if (qtmcoreapp == NULL)
+      qtmcoreapp= new QTMCoreApplication (argc, argv);
+  }
   else {
     startup_progress (42, "Initializing interface");
     athena_initialize_wayland_ui_scale ();

@@ -42,8 +42,15 @@ bool read_file_bytes (const std::filesystem::path& file, std::string& bytes);
 int64_t file_mtime_ns (const std::filesystem::path& file);
 std::string content_hash (const std::string& bytes);
 
+bool cached_embedding_model_fingerprint (
+  const std::filesystem::path& local_db,
+  const std::filesystem::path& embedding_model,
+  std::string& fingerprint,
+  std::string& error);
+
 bool collect_delegated_job (const std::filesystem::path& vault_root,
                             const std::filesystem::path& local_db,
+                            const std::string& expected_embedding_model,
                             DelegatedJob& job,
                             std::string& error);
 

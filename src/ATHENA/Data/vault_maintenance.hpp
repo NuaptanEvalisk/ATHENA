@@ -14,5 +14,6 @@
 #include "string.hpp"
 
 bool vault_maintenance_run (string vault_dir, bool check_only = false);
+bool vault_rag_delegation_run (string vault_dir);
 
 #endif // VAULT_MAINTENANCE_HPP

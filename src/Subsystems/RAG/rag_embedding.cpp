@@ -198,6 +198,12 @@ RagEmbedder::model_fingerprint () const {
   return impl->fingerprint;
 }
 
+std::string
+rag_embedding_model_fingerprint (const std::string& model_path) {
+  if (model_path.empty () || !fs::exists (model_path)) return "";
+  return stable_file_fingerprint (model_path);
+}
+
 std::vector<float>
 RagEmbedder::embed (const std::string& text) {
   std::vector<std::vector<float>> many= embed_many ({ text });

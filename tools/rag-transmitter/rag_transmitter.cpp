@@ -18,10 +18,13 @@
 #include <signal.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
+#include <atomic>
 #include <cerrno>
 #include <chrono>
+#include <cstdint>
 #include <cstdlib>
 #include <cctype>
 #include <cstring>
@@ -77,6 +80,8 @@ struct ParsedUrl {
 
 static Config config;
 static crypto::KeyPair transmitter_keypair;
+static std::atomic<uint64_t> forward_generation {0};
+static std::atomic<uint64_t> active_forwards {0};
 
 std::string
 read_file (const fs::path& path) {
@@ -558,11 +563,57 @@ run_script (const std::string& command, const std::string& phase,
             const std::string& client_public_key) {
   if (command.empty ()) return 0;
   std::string fp= crypto::fingerprint_for_public_key (client_public_key);
-  ::setenv ("ATHENA_RAG_TRANSMITTER_PHASE", phase.c_str (), 1);
-  ::setenv ("ATHENA_RAG_CLIENT_FINGERPRINT", fp.c_str (), 1);
-  ::setenv ("ATHENA_RAG_UPSTREAM", config.upstream_url.c_str (), 1);
-  return std::system (command.c_str ());
+  pid_t pid= ::fork ();
+  if (pid < 0) return 127;
+  if (pid == 0) {
+    ::setenv ("ATHENA_RAG_TRANSMITTER_PHASE", phase.c_str (), 1);
+    ::setenv ("ATHENA_RAG_CLIENT_FINGERPRINT", fp.c_str (), 1);
+    ::setenv ("ATHENA_RAG_UPSTREAM", config.upstream_url.c_str (), 1);
+    ::execl ("/bin/sh", "sh", "-c", command.c_str (), nullptr);
+    ::_exit (127);
+  }
+  int status= 0;
+  while (::waitpid (pid, &status, 0) < 0)
+    if (errno != EINTR) return 127;
+  if (WIFEXITED (status)) return WEXITSTATUS (status);
+  if (WIFSIGNALED (status)) return 128 + WTERMSIG (status);
+  return 127;
 }
+
+void
+schedule_post_forward (uint64_t generation,
+                       const std::string& client_public_key) {
+  if (config.post_forward_script.empty ()) return;
+  int idle_seconds= std::max (0, config.idle_shutdown_seconds);
+  std::thread ([generation, idle_seconds, client_public_key] () {
+    if (idle_seconds > 0)
+      std::this_thread::sleep_for (std::chrono::seconds (idle_seconds));
+    if (forward_generation.load () != generation ||
+        active_forwards.load () != 0) return;
+    int rc= run_script (config.post_forward_script, "post",
+                        client_public_key);
+    if (rc != 0)
+      std::cerr << "post-forward script failed with status " << rc << "\n";
+  }).detach ();
+}
+
+class ForwardActivity {
+  std::string client_public_key;
+
+public:
+  explicit ForwardActivity (const std::string& key)
+    : client_public_key (key) {
+    ++forward_generation;
+    ++active_forwards;
+  }
+
+  ~ForwardActivity () {
+    uint64_t remaining= --active_forwards;
+    uint64_t generation= ++forward_generation;
+    if (remaining == 0)
+      schedule_post_forward (generation, client_public_key);
+  }
+};
 
 json::object
 wrap_encrypted_json (const std::string& recipient_public_key,
@@ -583,6 +634,7 @@ std::string
 forward_plain_rpc (const std::string& plain_json,
                    const std::string& client_public_key,
                    std::string& error) {
+  ForwardActivity activity (client_public_key);
   int pre_rc= run_script (config.pre_forward_script, "pre",
                           client_public_key);
   if (pre_rc != 0) {
@@ -635,14 +687,6 @@ forward_plain_rpc (const std::string& plain_json,
         json_string (reply, "ciphertext"), plain_reply, error))
     return "";
 
-  if (config.idle_shutdown_seconds > 0)
-    std::this_thread::sleep_for (
-      std::chrono::seconds (config.idle_shutdown_seconds));
-  int post_rc= run_script (config.post_forward_script, "post",
-                           client_public_key);
-  if (post_rc != 0)
-    std::cerr << "post-forward script failed with status "
-              << post_rc << "\n";
   return plain_reply;
 }
 

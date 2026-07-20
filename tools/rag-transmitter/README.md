@@ -74,3 +74,42 @@ Enrollment writes pending clients as:
 
 The transmitter never logs document bodies. Job payloads are visible in memory
 to the transmitter because it is a trusted hop-by-hop proxy.
+
+## Service deployment
+
+`deploy/` contains the systemd units used by the reference deployment and an
+optional XClarity Controller Redfish power hook. The hook deliberately uses
+`GracefulShutdown` and never falls back to `ForceOff`.
+
+Install `xcc-power-hook.sh` as the transmitter's pre- and post-forward script.
+The pre hook powers on the backend when necessary and waits for its ATHENA RAG
+identity endpoint. The post hook requests a graceful shutdown. Configure a
+positive `idle_shutdown_seconds`; post-forward work is scheduled in the
+background, so the local ATHENA response is not delayed. A later job cancels a
+pending idle shutdown, and shutdown is never attempted while a forward request
+is active.
+
+The power hook records an ephemeral ownership marker only when it observes the
+server powered off and successfully sends the power-on request itself. It may
+shut down only a server for which that marker remains present. If the server was
+already on, it is treated as externally managed and is never shut down by the
+transmitter. The marker lives below the service runtime directory, so a service
+restart deliberately loses ownership rather than risking an incorrect shutdown.
+
+Keep XCC credentials outside `config.json`. Install `xcc.env.example` as
+`/etc/athena-rag-transmitter/xcc.env`, and provision the netrc data using the
+unit's `LoadCredentialEncrypted` entry and `systemd-creds`. The decrypted
+credential exists only in the service's private runtime credential directory.
+Do not commit deployed configuration or credential files.
+
+The optional `cloudflared-athena-rag.service` keeps a dedicated Cloudflare
+Tunnel connected to the transmitter. Its dependency on the transmitter is a
+`Wants`, not a `Requires`: restarting the transmitter must not stop the tunnel.
+The tunnel configuration and DNS route remain deployment-specific and are not
+stored in this repository.
+
+The backend unit is a user service. Enable lingering for its service account so
+the backend starts without an interactive login. The reference runtime keeps
+only compatibility libraries that are absent from the host in `backend-lib`;
+do not prepend a complete bundled desktop runtime because its OpenSSL libraries
+may conflict with the host networking stack.

@@ -10,6 +10,7 @@
 
 #include "rag_delegation_patch.hpp"
 #include "rag_delegation_crypto.hpp"
+#include "rag_embedding.hpp"
 
 #include <sqlite3.h>
 
@@ -73,6 +74,7 @@ ensure_schema (sqlite3* db, std::string& error) {
     "  kind TEXT NOT NULL, tree_path TEXT NOT NULL, anchor TEXT,"
     "  title TEXT, heading_path TEXT, text TEXT NOT NULL, source TEXT,"
     "  embedding BLOB, embedding_dim INTEGER, embedding_model TEXT);"
+    "CREATE INDEX IF NOT EXISTS chunks_rel_path_idx ON chunks(rel_path);"
     "CREATE TABLE IF NOT EXISTS edges ("
     "  src_chunk TEXT NOT NULL, relation TEXT NOT NULL,"
     "  target TEXT NOT NULL, label TEXT);"
@@ -84,16 +86,17 @@ ensure_schema (sqlite3* db, std::string& error) {
 bool
 document_current_in_db (sqlite3* db, const std::string& rel,
                         int64_t size, int64_t mtime,
-                        const std::string& hash) {
-  Statement st (db, "SELECT size, mtime_ns, content_hash, status "
+                        bool embeddings_current) {
+  Statement st (db, "SELECT size, mtime_ns, status "
                     "FROM documents WHERE rel_path=?");
   if (st.get () == nullptr) return false;
   bind_text (st.get (), 1, rel);
   if (sqlite3_step (st.get ()) != SQLITE_ROW) return false;
-  return sqlite3_column_int64 (st.get (), 0) == size &&
-         sqlite3_column_int64 (st.get (), 1) == mtime &&
-         hash == text_col (st.get (), 2) &&
-         std::string (text_col (st.get (), 3)) == "ok";
+  bool metadata_current=
+    sqlite3_column_int64 (st.get (), 0) == size &&
+    sqlite3_column_int64 (st.get (), 1) == mtime &&
+    std::string (text_col (st.get (), 2)) == "ok";
+  return metadata_current && embeddings_current;
 }
 
 bool
@@ -106,8 +109,95 @@ read_local_documents (sqlite3* db, std::set<std::string>& docs) {
 }
 
 bool
+read_stale_embedding_documents (sqlite3* db,
+                                const std::string& expected_model,
+                                std::set<std::string>& stale) {
+  if (expected_model.empty ()) return true;
+  Statement st (db, "SELECT rel_path, text, embedding, embedding_model "
+                    "FROM chunks");
+  if (st.get () == nullptr) return false;
+  while (sqlite3_step (st.get ()) == SQLITE_ROW) {
+    std::string text= text_col (st.get (), 1);
+    if (!athena::rag::rag_text_requires_embedding (text)) continue;
+    if (sqlite3_column_bytes (st.get (), 2) == 0 ||
+        expected_model != text_col (st.get (), 3))
+      stale.insert (text_col (st.get (), 0));
+  }
+  return true;
+}
+
+bool
+read_meta (sqlite3* db, const std::string& key, std::string& value) {
+  Statement st (db, "SELECT value FROM meta WHERE key=?");
+  if (st.get () == nullptr) return false;
+  bind_text (st.get (), 1, key);
+  if (sqlite3_step (st.get ()) != SQLITE_ROW) return false;
+  value= text_col (st.get (), 0);
+  return true;
+}
+
+bool
+write_meta (sqlite3* db, const std::string& key, const std::string& value,
+            std::string& error) {
+  Statement st (db, "INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)");
+  if (st.get () == nullptr) {
+    error= sqlite3_errmsg (db);
+    return false;
+  }
+  bind_text (st.get (), 1, key);
+  bind_text (st.get (), 2, value);
+  if (sqlite3_step (st.get ()) == SQLITE_DONE) return true;
+  error= sqlite3_errmsg (db);
+  return false;
+}
+
+bool
+restore_job_document_metadata (const fs::path& patch_db,
+                               const DelegatedJob& job,
+                               std::string& error) {
+  sqlite3* db= nullptr;
+  if (sqlite3_open (patch_db.string ().c_str (), &db) != SQLITE_OK) {
+    error= db == nullptr ? "failed to reopen delegated patch database":
+                           sqlite3_errmsg (db);
+    if (db != nullptr) sqlite3_close (db);
+    return false;
+  }
+  bool ok= true;
+  {
+    Statement update (db, "UPDATE documents SET size=?, mtime_ns=?, "
+                          "content_hash=? WHERE rel_path=?");
+    if (update.get () == nullptr) {
+      error= sqlite3_errmsg (db);
+      ok= false;
+    }
+    for (const DelegatedFile& file: job.files) {
+      if (!ok) break;
+      sqlite3_reset (update.get ());
+      sqlite3_clear_bindings (update.get ());
+      sqlite3_bind_int64 (update.get (), 1, file.size);
+      sqlite3_bind_int64 (update.get (), 2, file.mtime_ns);
+      bind_text (update.get (), 3, file.content_hash);
+      bind_text (update.get (), 4, file.rel_path);
+      if (sqlite3_step (update.get ()) != SQLITE_DONE ||
+          sqlite3_changes (db) != 1) {
+        error= "failed to restore delegated metadata for " + file.rel_path;
+        ok= false;
+      }
+    }
+  }
+  sqlite3_close (db);
+  return ok;
+}
+
+bool
 delete_document_rows (sqlite3* db, const std::string& rel,
                       std::string& error) {
+  Statement fts (db, "DELETE FROM chunks_fts WHERE rel_path=?");
+  bind_text (fts.get (), 1, rel);
+  if (sqlite3_step (fts.get ()) != SQLITE_DONE) {
+    error= sqlite3_errmsg (db);
+    return false;
+  }
   Statement d1 (db, "DELETE FROM chunks WHERE rel_path=?");
   bind_text (d1.get (), 1, rel);
   if (sqlite3_step (d1.get ()) != SQLITE_DONE) {
@@ -121,16 +211,6 @@ delete_document_rows (sqlite3* db, const std::string& rel,
     return false;
   }
   return true;
-}
-
-bool
-rebuild_fts (sqlite3* db, std::string& error) {
-  if (!exec_sql (db, "DELETE FROM chunks_fts", error)) return false;
-  return exec_sql (db,
-    "INSERT INTO chunks_fts "
-    "(chunk_id, rel_path, title, heading_path, text) "
-    "SELECT chunk_id, rel_path, title, heading_path, text FROM chunks",
-    error);
 }
 
 bool
@@ -185,6 +265,26 @@ copy_patch_chunks (sqlite3* local, sqlite3* patch, std::string& error) {
     else sqlite3_bind_null (dst.get (), 10);
     sqlite3_bind_int (dst.get (), 11, sqlite3_column_int (src.get (), 10));
     bind_text (dst.get (), 12, text_col (src.get (), 11));
+    if (sqlite3_step (dst.get ()) != SQLITE_DONE) {
+      error= sqlite3_errmsg (local);
+      return false;
+    }
+  }
+  return true;
+}
+
+bool
+copy_patch_fts (sqlite3* local, sqlite3* patch, std::string& error) {
+  Statement src (patch, "SELECT chunk_id, rel_path, title, heading_path, text "
+                        "FROM chunks");
+  Statement dst (local, "INSERT INTO chunks_fts "
+                       "(chunk_id, rel_path, title, heading_path, text) "
+                       "VALUES (?, ?, ?, ?, ?)");
+  while (sqlite3_step (src.get ()) == SQLITE_ROW) {
+    sqlite3_reset (dst.get ());
+    sqlite3_clear_bindings (dst.get ());
+    for (int i=0; i<5; i++)
+      bind_text (dst.get (), i + 1, text_col (src.get (), i));
     if (sqlite3_step (dst.get ()) != SQLITE_DONE) {
       error= sqlite3_errmsg (local);
       return false;
@@ -295,7 +395,66 @@ content_hash (const std::string& bytes) {
 }
 
 bool
+cached_embedding_model_fingerprint (const fs::path& local_db,
+                                    const fs::path& embedding_model,
+                                    std::string& fingerprint,
+                                    std::string& error) {
+  fingerprint.clear ();
+  if (embedding_model.empty ()) return true;
+  std::error_code ec;
+  if (!fs::is_regular_file (embedding_model, ec)) return true;
+  int64_t size= int64_t (fs::file_size (embedding_model, ec));
+  if (ec) {
+    error= "failed to inspect embedding model: " + ec.message ();
+    return false;
+  }
+  int64_t mtime= file_mtime_ns (embedding_model);
+  std::string path= embedding_model.generic_string ();
+  std::string cached_path, cached_size, cached_mtime, cached_fingerprint;
+
+  sqlite3* db= nullptr;
+  if (sqlite3_open (local_db.string ().c_str (), &db) != SQLITE_OK) {
+    error= db == nullptr ? "failed to open local RAG database":
+                           sqlite3_errmsg (db);
+    if (db != nullptr) sqlite3_close (db);
+    return false;
+  }
+  bool schema_ok= ensure_schema (db, error);
+  bool cache_hit= schema_ok &&
+    read_meta (db, "delegation_model_path", cached_path) &&
+    read_meta (db, "delegation_model_size", cached_size) &&
+    read_meta (db, "delegation_model_mtime_ns", cached_mtime) &&
+    read_meta (db, "delegation_model_fingerprint", cached_fingerprint) &&
+    cached_path == path && cached_size == std::to_string (size) &&
+    cached_mtime == std::to_string (mtime) && !cached_fingerprint.empty ();
+  if (!schema_ok) {
+    sqlite3_close (db);
+    return false;
+  }
+  if (cache_hit) {
+    fingerprint= cached_fingerprint;
+    sqlite3_close (db);
+    return true;
+  }
+
+  fingerprint= athena::rag::rag_embedding_model_fingerprint (path);
+  if (fingerprint.empty ()) {
+    error= "failed to fingerprint embedding model " + path;
+    sqlite3_close (db);
+    return false;
+  }
+  bool ok=
+    write_meta (db, "delegation_model_path", path, error) &&
+    write_meta (db, "delegation_model_size", std::to_string (size), error) &&
+    write_meta (db, "delegation_model_mtime_ns", std::to_string (mtime), error) &&
+    write_meta (db, "delegation_model_fingerprint", fingerprint, error);
+  sqlite3_close (db);
+  return ok;
+}
+
+bool
 collect_delegated_job (const fs::path& vault_root, const fs::path& local_db,
+                       const std::string& expected_embedding_model,
                        DelegatedJob& job, std::string& error) {
   job= DelegatedJob ();
   sqlite3* db= nullptr;
@@ -303,11 +462,32 @@ collect_delegated_job (const fs::path& vault_root, const fs::path& local_db,
   if (have_db) ensure_schema (db, error);
   std::set<std::string> known;
   if (have_db) read_local_documents (db, known);
+  std::set<std::string> staleEmbeddings;
+  if (have_db && !read_stale_embedding_documents (
+        db, expected_embedding_model, staleEmbeddings)) {
+    error= sqlite3_errmsg (db);
+    sqlite3_close (db);
+    return false;
+  }
   std::set<std::string> live;
 
   for (const fs::path& file: scan_delegation_ath_files (vault_root)) {
     std::string rel= relative_vault_path (vault_root, file);
     live.insert (rel);
+    std::error_code ec;
+    int64_t observedSize= int64_t (fs::file_size (file, ec));
+    if (ec) {
+      error= "failed to inspect " + file.generic_string () + ": " +
+             ec.message ();
+      if (db != nullptr) sqlite3_close (db);
+      return false;
+    }
+    int64_t observedMtime= file_mtime_ns (file);
+    if (have_db && document_current_in_db (
+          db, rel, observedSize, observedMtime,
+          staleEmbeddings.count (rel) == 0))
+      continue;
+
     std::string bytes;
     if (!read_file_bytes (file, bytes)) {
       error= "failed to read " + file.generic_string ();
@@ -317,8 +497,6 @@ collect_delegated_job (const fs::path& vault_root, const fs::path& local_db,
     int64_t size= int64_t (bytes.size ());
     int64_t mt= file_mtime_ns (file);
     std::string hash= content_hash (bytes);
-    if (have_db && document_current_in_db (db, rel, size, mt, hash))
-      continue;
     DelegatedFile f;
     f.rel_path= rel;
     f.content= std::move (bytes);
@@ -374,14 +552,20 @@ build_patch_for_job (const DelegatedJob& job, const fs::path& patch_db,
   patch_config.db_path= patch_db;
   patch_config.force_reindex= true;
   patch_config.progress= false;
-  RagIndex index;
-  if (!index.open (patch_config)) {
-    error= "failed to open delegated patch index";
-    cleanup ();
-    return false;
+  {
+    RagIndex index;
+    if (!index.open (patch_config)) {
+      error= "failed to open delegated patch index";
+      cleanup ();
+      return false;
+    }
+    if (!index.scan_once ()) {
+      error= "failed to build delegated patch index";
+      cleanup ();
+      return false;
+    }
   }
-  if (!index.scan_once ()) {
-    error= "failed to build delegated patch index";
+  if (!restore_job_document_metadata (patch_db, job, error)) {
     cleanup ();
     return false;
   }
@@ -446,7 +630,7 @@ apply_patch_database (const fs::path& vault_root, const fs::path& local_db,
       !copy_patch_documents (local, patch, vault_root, error) ||
       !copy_patch_chunks (local, patch, error) ||
       !copy_patch_edges (local, patch, error) ||
-      !rebuild_fts (local, error)) {
+      !copy_patch_fts (local, patch, error)) {
     exec_sql (local, "ROLLBACK", error);
     sqlite3_close (patch);
     sqlite3_close (local);

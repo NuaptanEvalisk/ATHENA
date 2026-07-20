@@ -651,11 +651,21 @@ dot (const std::vector<float>& a, const std::vector<float>& b) {
 
 } // namespace
 
+bool
+rag_text_requires_embedding (const std::string& text) {
+  return should_embed_text (text);
+}
+
 struct RagIndex::Impl {
   RagConfig config;
   sqlite3* db= nullptr;
-  RagEmbedder embedder;
+  RagEmbedder owned_embedder;
+  std::shared_ptr<RagEmbedder> shared_embedder;
   RagStatus status;
+
+  RagEmbedder& embedder () {
+    return shared_embedder ? *shared_embedder : owned_embedder;
+  }
 };
 
 RagIndex::RagIndex ()
@@ -690,6 +700,7 @@ rag_default_db_path (const fs::path& vault_root) {
 bool
 RagIndex::open (const RagConfig& config) {
   impl->config= config;
+  impl->shared_embedder= config.embedding_runtime;
   impl->status= RagStatus ();
   impl->status.vault_root= config.vault_root.generic_string ();
   impl->status.db_path= config.db_path.generic_string ();
@@ -721,6 +732,7 @@ RagIndex::open (const RagConfig& config) {
     "  kind TEXT NOT NULL, tree_path TEXT NOT NULL, anchor TEXT,"
     "  title TEXT, heading_path TEXT, text TEXT NOT NULL, source TEXT,"
     "  embedding BLOB, embedding_dim INTEGER, embedding_model TEXT);"
+    "CREATE INDEX IF NOT EXISTS chunks_rel_path_idx ON chunks(rel_path);"
     "CREATE TABLE IF NOT EXISTS edges ("
     "  src_chunk TEXT NOT NULL, relation TEXT NOT NULL,"
     "  target TEXT NOT NULL, label TEXT);"
@@ -740,9 +752,10 @@ RagIndex::open (const RagConfig& config) {
   }
 
   if (config.load_embedding_model && !config.embedding_model.empty ()) {
-    if (impl->embedder.open (config.embedding_model.string (),
-                             config.embedding_device,
-                             config.embedding_threads)) {
+    if (impl->embedder ().available () ||
+        impl->embedder ().open (config.embedding_model.string (),
+                                config.embedding_device,
+                                config.embedding_threads)) {
       impl->status.embeddings_enabled= true;
     }
     else {
@@ -1038,7 +1051,7 @@ RagIndex::scan_once () {
       tree doc= texmacs_document_to_tree (to_tm (text));
       std::vector<ChunkBuild> chunks= chunk_document (rel, doc);
       std::vector<std::vector<float>> embeddings (chunks.size ());
-      if (impl->embedder.available ()) {
+      if (impl->embedder ().available ()) {
         std::vector<std::string> texts;
         texts.reserve (chunks.size ());
         std::vector<size_t> map;
@@ -1048,7 +1061,7 @@ RagIndex::scan_once () {
             texts.push_back (chunks[j].chunk.text);
             map.push_back (j);
           }
-        std::vector<std::vector<float>> batch= impl->embedder.embed_many (
+        std::vector<std::vector<float>> batch= impl->embedder ().embed_many (
           texts,
           [&progress_chunks, &rel] (size_t done, size_t total) {
             progress_chunks (rel, done, total);
@@ -1058,7 +1071,7 @@ RagIndex::scan_once () {
       }
       for (size_t j=0; j<chunks.size (); j++) {
         insert_chunk (impl->db, chunks[j], embeddings[j],
-                      impl->embedder.model_fingerprint ());
+                      impl->embedder ().model_fingerprint ());
       }
       upsert_document (impl->db, rel, file, size, mt, hash, "ok", "");
       size_t embedded= 0;
@@ -1361,7 +1374,7 @@ RagIndex::search (const std::string& query, int limit) {
   limit= std::max (1, std::min (limit, 50));
   std::string q= fts_query (query);
   std::vector<float> qemb;
-  if (impl->embedder.available ()) qemb= impl->embedder.embed (query);
+  if (impl->embedder ().available ()) qemb= impl->embedder ().embed (query);
 
   std::vector<RagChunk> out;
   if (!q.empty ()) {
@@ -1384,7 +1397,7 @@ RagIndex::search (const std::string& query, int limit) {
       std::string model= model_text == nullptr ? std::string ():
         std::string (reinterpret_cast<const char*> (model_text));
       if (!qemb.empty () && !emb.empty () &&
-          model == impl->embedder.model_fingerprint ())
+          model == impl->embedder ().model_fingerprint ())
         c.score += dot (qemb, emb);
       out.push_back (c);
     }

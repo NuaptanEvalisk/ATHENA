@@ -1,0 +1,25 @@
+[Unit]
+Description=ATHENA RAG Transmitter
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=athena-rag-transmitter
+Group=athena-rag-transmitter
+Environment=LD_LIBRARY_PATH=/opt/athena-rag-transmitter/lib
+Environment=ATHENA_RAG_XCC_CONFIG=/etc/athena-rag-transmitter/xcc.env
+LoadCredentialEncrypted=xcc.netrc:/etc/credstore.encrypted/athena-rag-xcc.netrc
+ExecStart=/opt/athena-rag-transmitter/bin/rag-transmitter --config /etc/athena-rag-transmitter/config.json
+Restart=on-failure
+RestartSec=5
+RuntimeDirectory=athena-rag-transmitter
+RuntimeDirectoryMode=0700
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/athena-rag-transmitter
+
+[Install]
+WantedBy=multi-user.target

@@ -99,3 +99,49 @@ vault_maintenance_run (string vault_dir, bool check_only) {
 
   return true;
 }
+
+bool
+vault_rag_delegation_run (string vault_dir) {
+  VaultMaintenanceContext ctx;
+  ctx.root = normalize_root (fs::path (tm_to_std (vault_dir)));
+
+  static const VaultMaintenancePass setup_passes[] = {
+    {"validate-root", "Validate vault root",
+     vault_maintenance_pass_validate_root},
+    {"load-preferences", "Load vault maintenance preferences",
+     vault_maintenance_pass_load_preferences},
+    {"read-policies", "Read maintenance policy preferences",
+     vault_maintenance_pass_read_policy_preferences}
+  };
+
+  log_info ("delegated RAG: running embedding-only maintenance");
+  for (const VaultMaintenancePass& pass: setup_passes) {
+    log_info (std::string ("pass start: ") + pass.id + " (" +
+              pass.description + ")");
+    VaultMaintenancePassResult result = pass.run (ctx);
+    if (!result.ok) {
+      std::string message = result.message.empty () ? "failed" : result.message;
+      log_error (std::string ("pass failed: ") + pass.id + ": " + message);
+      return false;
+    }
+    log_info (std::string ("pass success: ") + pass.id);
+  }
+
+  // This explicit command never performs local embedding as a fallback. It is
+  // intended for unattended delegation tests and server-side deployments.
+  ctx.summary.rag_update_enabled = true;
+  ctx.summary.rag_delegation_enabled = true;
+  ctx.summary.rag_fallback_policy = "fail-maintenance";
+
+  log_info ("pass start: continuous-rag (Delegate incremental embedding)");
+  VaultMaintenancePassResult result =
+    vault_maintenance_pass_continuous_rag (ctx);
+  if (!result.ok) {
+    std::string message = result.message.empty () ? "failed" : result.message;
+    log_error ("pass failed: continuous-rag: " + message);
+    return false;
+  }
+  log_info ("pass success: continuous-rag: " +
+            (result.message.empty () ? std::string ("ok") : result.message));
+  return true;
+}

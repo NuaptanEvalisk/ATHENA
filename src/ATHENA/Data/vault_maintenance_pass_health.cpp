@@ -369,19 +369,7 @@ run_delegated_rag_update (VaultMaintenanceContext& ctx, std::string& error) {
     return false;
   }
   ctx.summary.rag_server= server.url.toStdString ();
-  QString auth_status;
   QString qerror;
-  if (!qtm_rag_delegation_check_auth (server, &auth_status, &qerror)) {
-    error= qerror.isEmpty () ? "authentication check failed"
-                             : qerror.toStdString ();
-    return false;
-  }
-  if (auth_status != "accepted") {
-    error= "server has not accepted this client public key (status: " +
-           auth_status.toStdString () + ")";
-    return false;
-  }
-
   QString delegated_summary;
   if (!qtm_rag_delegation_run_embedding (
         server, QString::fromStdString (ctx.root.string ()),

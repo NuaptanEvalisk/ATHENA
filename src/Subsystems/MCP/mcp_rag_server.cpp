@@ -12,6 +12,7 @@
 
 #include "rag_delegation_crypto.hpp"
 #include "rag_delegation_patch.hpp"
+#include "rag_embedding.hpp"
 #include "rag_index.hpp"
 
 #include "tm_ostream.hpp"
@@ -49,6 +50,7 @@ struct HttpRequest {
 static std::unique_ptr<QTcpServer> server;
 static std::unique_ptr<QTimer> scan_timer;
 static std::unique_ptr<athena::rag::RagIndex> indexer;
+static std::shared_ptr<athena::rag::RagEmbedder> embedding_runtime;
 static std::string bearer_token;
 static RagServerOptions active_options;
 static athena::rag::delegation::KeyPair delegation_keypair;
@@ -582,8 +584,13 @@ handle_delegation_plain_rpc (const QJsonObject& request,
       file.rel_path= obj.value ("rel_path").toString ().toStdString ();
       file.content= QByteArray::fromBase64 (
         obj.value ("content").toString ().toUtf8 ()).toStdString ();
-      file.size= qint64 (obj.value ("size").toDouble ());
-      file.mtime_ns= qint64 (obj.value ("mtime_ns").toDouble ());
+      QJsonValue sizeValue= obj.value ("size");
+      QJsonValue mtimeValue= obj.value ("mtime_ns");
+      file.size= sizeValue.isString () ? sizeValue.toString ().toLongLong ():
+                                        qint64 (sizeValue.toDouble ());
+      file.mtime_ns= mtimeValue.isString () ?
+        mtimeValue.toString ().toLongLong ():
+        qint64 (mtimeValue.toDouble ());
       file.content_hash= obj.value ("content_hash").toString ().toStdString ();
       job.files.push_back (std::move (file));
     }
@@ -597,6 +604,7 @@ handle_delegation_plain_rpc (const QJsonObject& request,
     athena::rag::RagConfig config;
     config.embedding_model= active_options.embedding_model;
     config.embedding_device= active_options.embedding_device;
+    config.embedding_runtime= embedding_runtime;
     config.force_reindex= true;
     config.progress= false;
     std::string error;
@@ -609,10 +617,22 @@ handle_delegation_plain_rpc (const QJsonObject& request,
       return jsonrpc_error_object ("failed to read delegated patch");
     }
     std::filesystem::remove (patch);
+    QByteArray rawPatch= QByteArray::fromStdString (patchBytes);
+    QByteArray compressedPatch= qCompress (rawPatch, 1);
+    bool useCompression= !compressedPatch.isEmpty () &&
+                         compressedPatch.size () < rawPatch.size ();
+    const QByteArray& wirePatch= useCompression ? compressedPatch: rawPatch;
+    io_info << "rag delegation: patch transport raw-bytes="
+            << rawPatch.size () << " wire-bytes=" << wirePatch.size ()
+            << " encoding=" << (useCompression ? "qcompress": "raw")
+            << "\n";
     QJsonObject result;
     result["ok"]= true;
     result["patch"]= QString::fromLatin1 (
-      QByteArray::fromStdString (patchBytes).toBase64 ());
+      wirePatch.toBase64 ());
+    result["patch_encoding"]= useCompression ? "qcompress": "raw";
+    result["patch_uncompressed_bytes"]= QString::number (rawPatch.size ());
+    result["patch_wire_bytes"]= QString::number (wirePatch.size ());
     QJsonArray deleted;
     for (const std::string& rel: job.deleted)
       deleted.append (QString::fromStdString (rel));
@@ -800,12 +820,14 @@ start_rag_server (const RagServerOptions& options) {
                delegation_keypair.public_key).c_str () << "\n";
 
   indexer.reset (new athena::rag::RagIndex);
+  embedding_runtime= std::make_shared<athena::rag::RagEmbedder> ();
   athena::rag::RagConfig config;
   config.vault_root= options.vault_root;
   config.db_path= options.vault_root /
                   athena::rag::rag_read_vault_db_path (options.vault_root);
   config.embedding_model= options.embedding_model;
   config.embedding_device= options.embedding_device;
+  config.embedding_runtime= embedding_runtime;
   config.force_reindex= options.force_reindex;
 
   if (options.index_jobs > 1) {

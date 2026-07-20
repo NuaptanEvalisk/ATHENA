@@ -17,6 +17,8 @@
 
 namespace athena::rag {
 
+std::string rag_embedding_model_fingerprint (const std::string& model_path);
+
 class RagEmbedder {
 public:
   RagEmbedder ();
