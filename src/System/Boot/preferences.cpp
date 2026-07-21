@@ -231,7 +231,7 @@ ensure_builtin_user_preferences () {
     PREF ("vault maintenance anchor reader processes", "Unlimited", ""),
     PREF ("vault maintenance update table of contents", "off", ""),
     PREF ("vault maintenance continuous rag", "off", ""),
-    PREF ("vault maintenance rag server", "", ""),
+    PREF ("delegation server", "", ""),
     PREF ("vault maintenance rag delegation fallback", "continue", ""),
     PREF ("vault collect orphan assets", "off", ""),
     PREF ("vault generate maintenance summary page", "off", ""),
@@ -440,6 +440,7 @@ ensure_builtin_user_preferences () {
     PREF ("rag embedding model", "", ""),
     PREF ("rag embedding device", "auto", ""),
     PREF ("rag delegation enabled", "off", ""),
+    PREF ("artifact definition span delegation enabled", "off", ""),
     PREF ("rag mcp bearer token", "", ""),
 
     PREF ("w increase", "0.05", ""),

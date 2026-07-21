@@ -51,6 +51,7 @@
 #include "Freetype/tt_file.hpp"
 #include "ATHENA/Data/vault_maintenance.hpp"
 #include "ATHENA/Data/artifacts.hpp"
+#include "ATHENA/Data/artifact_range_llm.hpp"
 #include "ATHENA/Data/vaultfile_json.hpp"
 #include "ATHENA/Data/websites.hpp"
 #include "MCP/mcp_rag_server.hpp"
@@ -111,9 +112,13 @@ bool   rag_server_port_set = false;
 bool   rag_server_reindex = false;
 int    rag_index_jobs = 0;
 string rag_listen_address = "127.0.0.1";
-string rag_delegation_key_dir;
-string rag_delegation_accepted_clients;
+string delegation_key_dir;
+string delegation_accepted_clients;
 bool   rag_generate_server_keypair = false;
+string artifact_range_model;
+int    artifact_range_batch_size = 16;
+int    artifact_queue_limit = 4096;
+int    artifact_queue_bytes = 32 * 1024 * 1024;
 string website_generate_dir;
 string website_generate_id;
 bool   aofm_ignore_nonempty_dest = false;
@@ -729,12 +734,16 @@ set_global_options  (int argc, char** argv)  {
       else if (s == "-rag-listen-address") {
         i++;
       }
-      else if (s == "-rag-key-dir") {
+      else if (s == "-delegation-key-dir") {
         i++;
       }
-      else if (s == "-rag-accepted-clients") {
+      else if (s == "-delegation-accepted-clients") {
         i++;
       }
+      else if (s == "-artifact-range-model" ||
+               s == "-artifact-range-batch-size" ||
+               s == "-artifact-queue-limit" ||
+               s == "-artifact-queue-bytes") i++;
       else if (s == "-generate-server-keypair") {
         // Handled in texmacs_entrypoint
       }
@@ -880,9 +889,13 @@ set_global_options  (int argc, char** argv)  {
         cout << "  --rag-embedding-device [auto|cpu]  Select RAG embedding device mode\n";
         cout << "  --rag-index-jobs [n]        Parallelize initial RAG indexing with n processes\n";
         cout << "  --rag-listen-address [addr] Listen address for RAG server endpoints\n";
-        cout << "  --rag-key-dir [dir]         RAG delegation server key directory\n";
-        cout << "  --rag-accepted-clients [json]  Accepted RAG delegation client keys\n";
-        cout << "  --generate-server-keypair   Generate a RAG delegation server keypair\n";
+        cout << "  --delegation-key-dir [dir]  ATHENA delegation server key directory\n";
+        cout << "  --delegation-accepted-clients [json]  Accepted delegation client keys\n";
+        cout << "  --artifact-range-model [gguf]  Artifact definition-span model\n";
+        cout << "  --artifact-range-batch-size [n]  Artifact model microbatch size\n";
+        cout << "  --artifact-queue-limit [n]  Maximum queued artifact requests\n";
+        cout << "  --artifact-queue-bytes [n]  Maximum artifact queue plaintext bytes\n";
+        cout << "  --generate-server-keypair   Generate an ATHENA delegation server keypair\n";
         cout << "  --skip-fonts-cache         Skip the private font file cache\n";
         cout << "  --insert-build-warning     Insert ATHENA experimental build warnings during AOFM conversion\n";
         cout << "  --model-vault [dir]        Reuse a model vault for AOFM namespace/style conversion\n";
@@ -1031,12 +1044,18 @@ TeXmacs_main (int argc, char** argv) {
       options.index_jobs= rag_index_jobs;
       options.force_reindex= rag_server_reindex;
       options.listen_address= athena_to_std_string (rag_listen_address);
-      if (rag_delegation_key_dir != "")
+      if (delegation_key_dir != "")
         options.delegation_key_dir= std::filesystem::path (
-          athena_to_std_string (rag_delegation_key_dir));
-      if (rag_delegation_accepted_clients != "")
+          athena_to_std_string (delegation_key_dir));
+      if (delegation_accepted_clients != "")
         options.delegation_accepted_clients= std::filesystem::path (
-          athena_to_std_string (rag_delegation_accepted_clients));
+          athena_to_std_string (delegation_accepted_clients));
+      options.artifact_range_model= artifact_range_model == "" ?
+        std::filesystem::path (athena_artifact_range_model_path ()):
+        std::filesystem::path (athena_to_std_string (artifact_range_model));
+      options.artifact_range_batch_size= artifact_range_batch_size;
+      options.artifact_queue_limit= artifact_queue_limit;
+      options.artifact_queue_bytes= artifact_queue_bytes;
       string token_pref= get_user_preference ("rag mcp bearer token", "");
       if (token_pref == "") {
         std::string token= random_hex_token (32);
@@ -1291,32 +1310,40 @@ athena_to_std_string (const string& s) {
 }
 
 static std::filesystem::path
-athena_default_rag_delegation_key_dir () {
+athena_default_delegation_key_dir () {
+  const char* xdg= getenv ("XDG_CONFIG_HOME");
   const char* home= getenv ("HOME");
   std::filesystem::path base=
-    home == nullptr || home[0] == '\0' ? std::filesystem::path ("."):
-                                         std::filesystem::path (home);
-  return base / ".config" / "ATHENA" / "rag-delegation";
+    xdg != nullptr && xdg[0] != '\0' ? std::filesystem::path (xdg):
+    (home == nullptr || home[0] == '\0' ? std::filesystem::path ("."):
+      std::filesystem::path (home) / ".config");
+  std::filesystem::path current= base / "ATHENA" / "delegation";
+  std::filesystem::path legacy= base / "ATHENA" / "rag-delegation";
+  std::error_code ec;
+  if (!std::filesystem::exists (current) &&
+      std::filesystem::exists (legacy))
+    std::filesystem::rename (legacy, current, ec);
+  return current;
 }
 
 static void
 handle_rag_server_keypair_generation () {
   if (!rag_generate_server_keypair) return;
   std::filesystem::path key_dir=
-    rag_delegation_key_dir == "" ?
-      athena_default_rag_delegation_key_dir ():
-      std::filesystem::path (athena_to_std_string (rag_delegation_key_dir));
+    delegation_key_dir == "" ?
+      athena_default_delegation_key_dir ():
+      std::filesystem::path (athena_to_std_string (delegation_key_dir));
   athena::rag::delegation::KeyPair keypair;
   bool generated= false;
   std::string error;
   if (!athena::rag::delegation::ensure_keypair (
         key_dir, "server", keypair, &generated, error)) {
     std::fprintf (stderr,
-                  "ATHENA RAG delegation: failed to create server keypair: %s\n",
+                  "ATHENA delegation: failed to create server keypair: %s\n",
                   error.c_str ());
     exit (1);
   }
-  std::printf ("ATHENA RAG delegation server keypair %s in %s\n",
+  std::printf ("ATHENA delegation server keypair %s in %s\n",
                generated ? "generated": "already exists",
                key_dir.generic_string ().c_str ());
   std::printf ("Public key: %s\n",
@@ -1651,13 +1678,33 @@ texmacs_entrypoint (int argc, char** argv) {
       i++;
       if (i < argc) rag_listen_address= argv[i];
     }
-    if (s == "-rag-key-dir") {
+    if (s == "-delegation-key-dir") {
       i++;
-      if (i < argc) rag_delegation_key_dir= argv[i];
+      if (i < argc) delegation_key_dir= argv[i];
     }
-    if (s == "-rag-accepted-clients") {
+    if (s == "-delegation-accepted-clients") {
       i++;
-      if (i < argc) rag_delegation_accepted_clients= argv[i];
+      if (i < argc) delegation_accepted_clients= argv[i];
+    }
+    if (s == "-artifact-range-model") {
+      i++;
+      if (i < argc) artifact_range_model= argv[i];
+    }
+    if (s == "-artifact-range-batch-size") {
+      i++;
+      if (i < argc && is_positive_integer_arg (string (argv[i])))
+        artifact_range_batch_size= std::clamp (
+          as_positive_integer_arg (string (argv[i])), 1, 16);
+    }
+    if (s == "-artifact-queue-limit") {
+      i++;
+      if (i < argc && is_positive_integer_arg (string (argv[i])))
+        artifact_queue_limit= as_positive_integer_arg (string (argv[i]));
+    }
+    if (s == "-artifact-queue-bytes") {
+      i++;
+      if (i < argc && is_positive_integer_arg (string (argv[i])))
+        artifact_queue_bytes= as_positive_integer_arg (string (argv[i]));
     }
     if (s == "-generate-server-keypair") {
       rag_generate_server_keypair= true;

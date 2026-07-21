@@ -12,6 +12,7 @@
 #define ATHENA_ARTIFACTS_HPP
 
 #include "tree.hpp"
+#include "ATHENA/Data/artifact_range_llm.hpp"
 
 #include <filesystem>
 #include <functional>
@@ -58,20 +59,37 @@ struct AthenaArtifactsProgressEvent {
   size_t total= 0;
   std::string path;
   std::string detail;
+  size_t delegated_queued= 0;
+  size_t delegated_running= 0;
 };
 
 using AthenaArtifactsProgress=
   std::function<bool(const AthenaArtifactsProgressEvent& event)>;
 
+using AthenaArtifactRangeSelectionProgress=
+  std::function<bool(size_t completed, size_t total,
+                     size_t queued, size_t running)>;
+using AthenaArtifactRangeSelector= std::function<bool (
+  const std::vector<AthenaArtifactRangeRequest>& requests,
+  std::vector<std::vector<int>>& results,
+  const AthenaArtifactRangeSelectionProgress& progress,
+  std::string& error)>;
+
+struct AthenaArtifactsBuildOptions {
+  AthenaArtifactRangeSelector range_selector;
+};
+
 bool athena_artifacts_build (
   const std::filesystem::path& vault_root,
   const std::vector<std::filesystem::path>& requested_documents,
   bool full_vault, const AthenaArtifactsProgress& progress,
-  AthenaArtifactsBuildResult& result, std::string& error);
+  AthenaArtifactsBuildResult& result, std::string& error,
+  const AthenaArtifactsBuildOptions& options= {});
 
 bool athena_artifacts_build_active_vault (
   bool current_document_only, const AthenaArtifactsProgress& progress,
-  AthenaArtifactsBuildResult& result, std::string& error);
+  AthenaArtifactsBuildResult& result, std::string& error,
+  const AthenaArtifactsBuildOptions& options= {});
 
 bool athena_artifacts_query (const std::filesystem::path& vault_root,
                              std::vector<AthenaArtifactRecord>& records,

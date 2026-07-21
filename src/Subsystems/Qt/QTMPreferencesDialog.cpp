@@ -15,7 +15,7 @@
 #include "QTMReverseHierarchyGraph.hpp"
 #include "qt_tm_widget.hpp"
 #include "QTMVaultInfoModel.hpp"
-#include "QTMRagDelegationClient.hpp"
+#include "QTMDelegationClient.hpp"
 #include "GoogleOAuth.hpp"
 #include "GoogleTasksClient.hpp"
 
@@ -1572,25 +1572,6 @@ QTMPreferencesDialog::buildVaultPage () {
               "vault maintenance update table of contents");
   add_toggle (mt, "Update Continuous RAG during vault maintenance:",
               "vault maintenance continuous rag");
-  QComboBox* maintenanceRagServer= new QComboBox (maintenance);
-  maintenanceRagServer->addItem ("First configured server", "");
-  for (const QTMRagDelegationServer& server: qtm_rag_delegation_servers ())
-    maintenanceRagServer->addItem (server.name + " - " + server.url,
-                                   server.url);
-  QString configuredRagServer= pref ("vault maintenance rag server", "");
-  int configuredRagServerIndex=
-    maintenanceRagServer->findData (configuredRagServer);
-  if (configuredRagServerIndex >= 0)
-    maintenanceRagServer->setCurrentIndex (configuredRagServerIndex);
-  QObject::connect (maintenanceRagServer,
-                    static_cast<void (QComboBox::*) (int)> (
-                      &QComboBox::currentIndexChanged),
-                    [maintenanceRagServer] (int index) {
-    if (index >= 0)
-      set_pref ("vault maintenance rag server",
-                maintenanceRagServer->itemData (index).toString ());
-  });
-  mt->addRow (label ("Delegated maintenance server:"), maintenanceRagServer);
   add_combo (mt, "If delegated RAG is unavailable:",
              "vault maintenance rag delegation fallback",
              {{"fail-maintenance", "Fail maintenance"},
@@ -1923,21 +1904,32 @@ QTMPreferencesDialog::buildOtherPage () {
   note->setWordWrap (true);
   security->layout ()->addWidget (note);
 
-  QFormLayout* rd= add_section (security, "RAG Delegation");
+  QFormLayout* rd= add_section (security, "ATHENA Delegation");
   QListWidget* ragServers= new QListWidget (security);
   ragServers->setMinimumHeight (120);
   auto reloadRagServers= [ragServers] () {
     ragServers->clear ();
-    QVector<QTMRagDelegationServer> servers= qtm_rag_delegation_servers ();
-    for (const QTMRagDelegationServer& server: servers) {
+    QVector<QTMDelegationServer> servers= qtm_delegation_servers ();
+    QString configured= pref ("delegation server", "");
+    int selected= -1;
+    for (const QTMDelegationServer& server: servers) {
       QListWidgetItem* item= new QListWidgetItem (
         server.name + " - " + server.url, ragServers);
       item->setData (Qt::UserRole, server.url);
       item->setToolTip ("Fingerprint: " + server.fingerprint);
+      if (server.url == configured) selected= ragServers->count () - 1;
     }
+    if (selected < 0 && ragServers->count () > 0) selected= 0;
+    if (selected >= 0) ragServers->setCurrentRow (selected);
   };
   reloadRagServers ();
-  rd->addRow (label ("RAG servers:"), ragServers);
+  rd->addRow (label ("Delegation servers:"), ragServers);
+  QObject::connect (ragServers, &QListWidget::currentItemChanged,
+                    [] (QListWidgetItem* current) {
+    if (current != nullptr)
+      set_pref ("delegation server",
+                current->data (Qt::UserRole).toString ());
+  });
   QWidget* ragServerButtons= new QWidget (security);
   QHBoxLayout* ragServerButtonLayout= new QHBoxLayout (ragServerButtons);
   ragServerButtonLayout->setContentsMargins (0, 0, 0, 0);
@@ -1954,8 +1946,8 @@ QTMPreferencesDialog::buildOtherPage () {
   ragServerButtonLayout->addStretch (1);
   rd->addRow (label ("Server management:"), ragServerButtons);
   QLabel* ragDelegationNote= new QLabel (
-    "RAG delegation stores server trust and local private keys in " +
-    qtm_rag_delegation_config_dir () +
+    "ATHENA Delegation stores server trust and local private keys in " +
+    qtm_delegation_config_dir () +
     ". Server enrollment creates a pending client key; the server "
     "administrator still has to accept it.");
   ragDelegationNote->setWordWrap (true);
@@ -1963,13 +1955,15 @@ QTMPreferencesDialog::buildOtherPage () {
   QGroupBox* ragDelegationBox= qobject_cast<QGroupBox*> (rd->parentWidget ());
   auto refreshRagDelegationEnabled= [ragDelegationBox] () {
     if (ragDelegationBox)
-      ragDelegationBox->setEnabled (pref_on ("rag delegation enabled"));
+      ragDelegationBox->setEnabled (
+        pref_on ("rag delegation enabled") ||
+        pref_on ("artifact definition span delegation enabled"));
   };
   refreshRagDelegationEnabled ();
   QObject::connect (addRagServer, &QPushButton::clicked,
                     [security, reloadRagServers] () {
     QDialog dialog (security);
-    dialog.setWindowTitle ("Add RAG Server");
+    dialog.setWindowTitle ("Add ATHENA Delegation Server");
     QFormLayout form (&dialog);
     QLineEdit address;
     address.setPlaceholderText ("https://example.org or 192.168.1.2");
@@ -1991,38 +1985,38 @@ QTMPreferencesDialog::buildOtherPage () {
     QUrl url (base);
     if (!port.text ().trimmed ().isEmpty ())
       url.setPort (port.text ().trimmed ().toInt ());
-    QTMRagDelegationServer server;
+    QTMDelegationServer server;
     QString error;
-    if (!qtm_rag_delegation_fetch_identity (url.toString (), server,
+    if (!qtm_delegation_fetch_identity (url.toString (), server,
                                             &error)) {
-      QMessageBox::warning (security, "RAG Server", error);
+      QMessageBox::warning (security, "ATHENA Delegation", error);
       return;
     }
     QMessageBox::StandardButton trust= QMessageBox::question (
-      security, "Trust RAG Server",
-      "ATHENA RAG Server fingerprint:\n\n" + server.fingerprint +
+      security, "Trust ATHENA Delegation Server",
+      "ATHENA Delegation Server fingerprint:\n\n" + server.fingerprint +
       "\n\nTrust and pin this server key?");
     if (trust != QMessageBox::Yes) return;
     QString status;
-    if (!qtm_rag_delegation_enroll (server, &status, &error)) {
-      QMessageBox::warning (security, "RAG Server", error);
+    if (!qtm_delegation_enroll (server, &status, &error)) {
+      QMessageBox::warning (security, "ATHENA Delegation", error);
       return;
     }
-    QVector<QTMRagDelegationServer> servers= qtm_rag_delegation_servers ();
+    QVector<QTMDelegationServer> servers= qtm_delegation_servers ();
     bool replaced= false;
-    for (QTMRagDelegationServer& existing: servers)
+    for (QTMDelegationServer& existing: servers)
       if (existing.url == server.url) {
         existing= server;
         replaced= true;
       }
     if (!replaced) servers << server;
-    if (!qtm_rag_delegation_save_servers (servers, &error)) {
-      QMessageBox::warning (security, "RAG Server", error);
+    if (!qtm_delegation_save_servers (servers, &error)) {
+      QMessageBox::warning (security, "ATHENA Delegation", error);
       return;
     }
     reloadRagServers ();
     QMessageBox::information (
-      security, "RAG Server",
+      security, "ATHENA Delegation",
       "Enrollment submitted. Server authentication status: " + status + ".");
   });
   QObject::connect (deleteRagServer, &QPushButton::clicked,
@@ -2030,24 +2024,24 @@ QTMPreferencesDialog::buildOtherPage () {
     QListWidgetItem* item= ragServers->currentItem ();
     if (item == nullptr) return;
     QString url= item->data (Qt::UserRole).toString ();
-    QVector<QTMRagDelegationServer> servers= qtm_rag_delegation_servers ();
+    QVector<QTMDelegationServer> servers= qtm_delegation_servers ();
     servers.erase (std::remove_if (
       servers.begin (), servers.end (),
-      [url] (const QTMRagDelegationServer& s) { return s.url == url; }),
+      [url] (const QTMDelegationServer& s) { return s.url == url; }),
       servers.end ());
     QString error;
-    if (!qtm_rag_delegation_save_servers (servers, &error)) {
-      QMessageBox::warning (security, "RAG Server", error);
+    if (!qtm_delegation_save_servers (servers, &error)) {
+      QMessageBox::warning (security, "ATHENA Delegation", error);
       return;
     }
     reloadRagServers ();
   });
   auto selectedRagServer= [ragServers] (
-    QTMRagDelegationServer& out) -> bool {
+    QTMDelegationServer& out) -> bool {
     QListWidgetItem* item= ragServers->currentItem ();
     if (item == nullptr) return false;
     QString url= item->data (Qt::UserRole).toString ();
-    for (const QTMRagDelegationServer& server: qtm_rag_delegation_servers ())
+    for (const QTMDelegationServer& server: qtm_delegation_servers ())
       if (server.url == url) {
         out= server;
         return true;
@@ -2056,20 +2050,20 @@ QTMPreferencesDialog::buildOtherPage () {
   };
   QObject::connect (checkRagAuth, &QPushButton::clicked,
                     [security, selectedRagServer] () {
-    QTMRagDelegationServer server;
+    QTMDelegationServer server;
     if (!selectedRagServer (server)) return;
     QString status, error;
-    if (!qtm_rag_delegation_check_auth (server, &status, &error)) {
-      QMessageBox::warning (security, "RAG Delegation", error);
+    if (!qtm_delegation_check_auth (server, &status, &error)) {
+      QMessageBox::warning (security, "ATHENA Delegation", error);
       return;
     }
     QMessageBox::information (
-      security, "RAG Delegation",
+      security, "ATHENA Delegation",
       "Server authentication status: " + status + ".");
   });
   QObject::connect (runRagDelegation, &QPushButton::clicked,
                     [security, selectedRagServer] () {
-    QTMRagDelegationServer server;
+    QTMDelegationServer server;
     if (!selectedRagServer (server)) return;
     QString root= current_vault_root_qstring ();
     if (root.isEmpty ()) {
@@ -2080,7 +2074,7 @@ QTMPreferencesDialog::buildOtherPage () {
     QString dbPath= QString::fromStdString (
       athena::rag::rag_default_db_path (root.toStdString ()));
     QString summary, error;
-    if (!qtm_rag_delegation_run_embedding (
+    if (!qtm_delegation_run_embedding (
           server, root, dbPath, pref ("rag embedding model", ""),
           pref ("rag embedding device", "auto"), &summary, &error)) {
       QMessageBox::warning (security, "RAG Delegation", error);
@@ -2189,6 +2183,15 @@ QTMPreferencesDialog::buildOtherPage () {
   QCheckBox* delegationEnabled= add_toggle (
     rag, "Enable RAG Delegation:", "rag delegation enabled");
   QObject::connect (delegationEnabled, &QCheckBox::toggled,
+                    [refreshRagDelegationEnabled] () {
+    refreshRagDelegationEnabled ();
+  });
+  QFormLayout* artifactDelegation= add_section (
+    connectivity, "Artifact Generation");
+  QCheckBox* artifactDelegationEnabled= add_toggle (
+    artifactDelegation, "Enable Artifact Definition Span Delegation:",
+    "artifact definition span delegation enabled");
+  QObject::connect (artifactDelegationEnabled, &QCheckBox::toggled,
                     [refreshRagDelegationEnabled] () {
     refreshRagDelegationEnabled ();
   });

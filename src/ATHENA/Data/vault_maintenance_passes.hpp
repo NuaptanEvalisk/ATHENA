@@ -46,6 +46,9 @@ struct VaultMaintenanceSummary {
   size_t artifact_enunciations = 0;
   size_t artifact_bold_texts = 0;
   size_t artifacts_indexed = 0;
+  bool artifact_delegation_enabled = false;
+  bool artifact_delegation_attempted = false;
+  bool artifact_delegation_succeeded = false;
   bool toc_update_enabled = false;
   size_t toc_files_scanned = 0;
   size_t toc_files_containing_toc = 0;
@@ -58,7 +61,7 @@ struct VaultMaintenanceSummary {
   bool rag_delegation_succeeded = false;
   bool rag_local_fallback_used = false;
   std::string rag_fallback_policy = "continue";
-  std::string rag_server;
+  std::string delegation_server;
   std::string rag_result;
   int rag_documents_before = 0;
   int rag_documents_after = 0;

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-config="${ATHENA_RAG_XCC_CONFIG:-/etc/athena-rag-transmitter/xcc.env}"
+config="${ATHENA_TRANSMITTER_XCC_CONFIG:-/etc/athena-transmitter/xcc.env}"
 if [[ ! -r "$config" ]]; then
-  echo "ATHENA RAG XCC configuration is not readable: $config" >&2
+  echo "ATHENA Transmitter XCC configuration is not readable: $config" >&2
   exit 1
 fi
 # shellcheck source=/dev/null
@@ -12,23 +12,23 @@ source "$config"
 : "${XCC_URL:?XCC_URL is required}"
 : "${XCC_SYSTEM_URI:?XCC_SYSTEM_URI is required}"
 : "${XCC_NETRC:?XCC_NETRC is required}"
-: "${ATHENA_RAG_BACKEND_IDENTITY_URL:?ATHENA_RAG_BACKEND_IDENTITY_URL is required}"
+: "${ATHENA_BACKEND_IDENTITY_URL:?ATHENA_BACKEND_IDENTITY_URL is required}"
 XCC_WAKE_TIMEOUT_SECONDS="${XCC_WAKE_TIMEOUT_SECONDS:-900}"
 XCC_WAKE_POLL_SECONDS="${XCC_WAKE_POLL_SECONDS:-5}"
 XCC_SHUTDOWN_TIMEOUT_SECONDS="${XCC_SHUTDOWN_TIMEOUT_SECONDS:-300}"
 XCC_SHUTDOWN_POLL_SECONDS="${XCC_SHUTDOWN_POLL_SECONDS:-5}"
-XCC_RUNTIME_DIR="${XCC_RUNTIME_DIR:-/run/athena-rag-transmitter}"
+XCC_RUNTIME_DIR="${XCC_RUNTIME_DIR:-/run/athena-transmitter}"
 XCC_OWNERSHIP_FILE="${XCC_OWNERSHIP_FILE:-$XCC_RUNTIME_DIR/xcc-power-owned}"
 XCC_LOCK_FILE="${XCC_LOCK_FILE:-$XCC_RUNTIME_DIR/xcc-power.lock}"
 
 if [[ ! -r "$XCC_NETRC" ]]; then
-  echo "ATHENA RAG XCC credential file is not readable: $XCC_NETRC" >&2
+  echo "ATHENA Transmitter XCC credential file is not readable: $XCC_NETRC" >&2
   exit 1
 fi
 
 log() {
-  logger -t athena-rag-xcc -- "$*"
-  printf '%s\n' "athena-rag-xcc: $*"
+  logger -t athena-xcc -- "$*"
+  printf '%s\n' "athena-xcc: $*"
 }
 
 xcc_get_system() {
@@ -56,7 +56,7 @@ xcc_reset() {
 
 backend_ready() {
   curl --fail --silent --show-error --max-time 3 \
-    "$ATHENA_RAG_BACKEND_IDENTITY_URL" >/dev/null 2>&1
+    "$ATHENA_BACKEND_IDENTITY_URL" >/dev/null 2>&1
 }
 
 mkdir -p "$XCC_RUNTIME_DIR"
@@ -69,7 +69,7 @@ record_power_ownership() {
   mv -f "$temporary" "$XCC_OWNERSHIP_FILE"
 }
 
-phase="${1:-${ATHENA_RAG_TRANSMITTER_PHASE:-}}"
+phase="${1:-${ATHENA_DELEGATION_TRANSMITTER_PHASE:-}}"
 case "$phase" in
   pre)
     flock 9
@@ -97,7 +97,7 @@ case "$phase" in
     deadline=$((SECONDS + XCC_WAKE_TIMEOUT_SECONDS))
     until backend_ready; do
       if (( SECONDS >= deadline )); then
-        echo "ATHENA RAG backend did not become ready before timeout" >&2
+        echo "ATHENA delegation backend did not become ready before timeout" >&2
         exit 1
       fi
       sleep "$XCC_WAKE_POLL_SECONDS"

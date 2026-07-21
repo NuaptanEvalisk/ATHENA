@@ -6,6 +6,7 @@
 
 #include "ATHENA/Data/vault_maintenance_internal.hpp"
 #include "ATHENA/Data/artifacts.hpp"
+#include "QTMDelegationClient.hpp"
 
 #include <limits>
 
@@ -18,6 +19,30 @@ vault_maintenance_pass_build_artifacts (VaultMaintenanceContext& ctx) {
   size_t last_current= std::numeric_limits<size_t>::max ();
   size_t last_total= std::numeric_limits<size_t>::max ();
   std::string last_path;
+  AthenaArtifactsBuildOptions options;
+  if (ctx.summary.artifact_delegation_enabled) {
+    ctx.summary.artifact_delegation_attempted= true;
+    QTMDelegationServer server;
+    if (!qtm_delegation_selected_server (
+          QString::fromStdString (ctx.summary.delegation_server), server))
+      return VaultMaintenancePassResult::failure (
+        "artifact delegation is enabled, but no server is configured");
+    ctx.summary.delegation_server= server.url.toStdString ();
+    options.range_selector=
+      [server] (const std::vector<AthenaArtifactRangeRequest>& requests,
+                std::vector<std::vector<int>>& results,
+                const AthenaArtifactRangeSelectionProgress& update,
+                std::string& selectorError) {
+        QString qerror;
+        bool ok= qtm_delegation_select_artifact_ranges (
+          server, requests, results,
+          [&] (size_t completed, size_t total, size_t queued, size_t running) {
+            return !update || update (completed, total, queued, running);
+          }, &qerror);
+        if (!ok) selectorError= qerror.toStdString ();
+        return ok;
+      };
+  }
   bool ok= athena_artifacts_build (
     ctx.root, {}, true,
     [&] (const AthenaArtifactsProgressEvent& event) {
@@ -42,9 +67,11 @@ vault_maintenance_pass_build_artifacts (VaultMaintenanceContext& ctx) {
       last_total= event.total;
       last_path= event.path;
       return true;
-    }, built, error);
+    }, built, error, options);
   finish_progress ();
   if (!ok) return VaultMaintenancePassResult::failure (error);
+  if (ctx.summary.artifact_delegation_attempted)
+    ctx.summary.artifact_delegation_succeeded= true;
   ctx.summary.artifact_documents_seen= built.documents_seen;
   ctx.summary.artifact_documents_changed= built.documents_changed;
   ctx.summary.artifact_documents_deleted= built.documents_deleted;

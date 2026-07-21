@@ -228,9 +228,12 @@ vault_maintenance_pass_read_policy_preferences (VaultMaintenanceContext& ctx) {
     get_preference ("vault maintenance continuous rag", "off") == "on";
   ctx.summary.rag_delegation_enabled =
     get_preference ("rag delegation enabled", "off") == "on";
+  ctx.summary.artifact_delegation_enabled =
+    get_preference ("artifact definition span delegation enabled", "off") ==
+    "on";
   ctx.summary.rag_fallback_policy = rag_fallback_preference ();
-  ctx.summary.rag_server = trim_copy (tm_to_std (
-    get_preference ("vault maintenance rag server", "")));
+  ctx.summary.delegation_server = trim_copy (tm_to_std (
+    get_preference ("delegation server", "")));
   ctx.summary.orphan_collection_enabled = collect_orphan_assets_preference ();
   ctx.summary.generate_summary_page = generate_summary_page_preference ();
   ctx.summary.summary_keep_count = summary_keep_count_preference ();

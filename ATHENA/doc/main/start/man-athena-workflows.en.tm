@@ -111,6 +111,14 @@
   model is installed, llama.cpp selects the paragraph range belonging to a
   bold definition; otherwise a deterministic structural fallback is used.
 
+  Artifact Definition Span Delegation moves only that model decision to an
+  authenticated ATHENA backend. Candidate paragraphs are deduplicated and
+  submitted to an asynchronous FIFO queue; the backend combines work into
+  microbatches while local progress reports queued, running, and completed
+  items. Local ATHENA validates every request identifier and paragraph range
+  before beginning its SQLite transaction. A failed, incomplete, or cancelled
+  remote job leaves the existing Artifact databases unchanged.
+
   <ATHENA> integrates the official OpenAI Codex AppServer for authenticated
   document completion. Completion inserts a non-editable Thinking marker in a
   new paragraph while work runs asynchronously, then replaces it with normal
@@ -120,7 +128,7 @@
   Continuous RAG keeps search data in the vault-local <verbatim|rag.sqlite>
   database and can serve it through a read-only MCP endpoint. Optional RAG
   Delegation encrypts changed <verbatim|.ath> documents for a trusted remote
-  ATHENA backend or <verbatim|rag-transmitter>. Assets, backups, preferences,
+  ATHENA backend or <verbatim|athena-transmitter>. Assets, backups, preferences,
   UUID maps, and existing databases are not sent. The local client merges only
   the returned embedding-row patch and continues to perform local search.
 

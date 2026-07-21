@@ -1,0 +1,25 @@
+[Unit]
+Description=ATHENA Delegation Transmitter
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=athena-transmitter
+Group=athena-transmitter
+Environment=LD_LIBRARY_PATH=/opt/athena-transmitter/lib
+Environment=ATHENA_TRANSMITTER_XCC_CONFIG=/etc/athena-transmitter/xcc.env
+LoadCredentialEncrypted=xcc.netrc:/etc/credstore.encrypted/athena-xcc.netrc
+ExecStart=/opt/athena-transmitter/bin/athena-transmitter --config /etc/athena-transmitter/config.json
+Restart=on-failure
+RestartSec=5
+RuntimeDirectory=athena-transmitter
+RuntimeDirectoryMode=0700
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/athena-transmitter
+
+[Install]
+WantedBy=multi-user.target

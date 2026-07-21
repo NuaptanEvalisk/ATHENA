@@ -6,10 +6,12 @@
 
 #include "QTMArtifactsPane.hpp"
 
+#include "QTMDelegationClient.hpp"
 #include "QTMMainTabWindow.hpp"
 #include "ATHENA/Data/new_buffer.hpp"
 #include "ATHENA/Data/namespaces.hpp"
 #include "ATHENA/Data/vault.hpp"
+#include "boot.hpp"
 #include "convert.hpp"
 #include "drd_mode.hpp"
 #include "scheme.hpp"
@@ -112,8 +114,12 @@ void build_with_dialog (bool current_only) {
   progress->setRange (0, 1);
   progress->setValue (0);
   QPushButton* cancel= new QPushButton ("Cancel", &dialog);
+  QLabel* delegatedState= new QLabel (&dialog);
+  delegatedState->setTextFormat (Qt::RichText);
+  delegatedState->hide ();
   layout->addWidget (status);
   layout->addWidget (progress);
+  layout->addWidget (delegatedState);
   layout->addWidget (cancel, 0, Qt::AlignRight);
   bool cancelled= false;
   QObject::connect (cancel, &QPushButton::clicked, [&] () { cancelled= true; });
@@ -123,6 +129,35 @@ void build_with_dialog (bool current_only) {
 
   AthenaArtifactsBuildResult result;
   std::string error;
+  AthenaArtifactsBuildOptions options;
+  if (get_preference ("artifact definition span delegation enabled", "off") ==
+      "on") {
+    QTMDelegationServer server;
+    QString configured= qstr (std_string (
+      get_preference ("delegation server", "")));
+    if (!qtm_delegation_selected_server (configured, server)) {
+      dialog.close ();
+      QMessageBox::critical (
+        QApplication::activeWindow (), "Build artifacts",
+        "Artifact delegation is enabled, but no delegation server is "
+        "configured.");
+      return;
+    }
+    options.range_selector=
+      [server] (const std::vector<AthenaArtifactRangeRequest>& requests,
+                std::vector<std::vector<int>>& results,
+                const AthenaArtifactRangeSelectionProgress& update,
+                std::string& selectorError) {
+        QString qerror;
+        bool ok= qtm_delegation_select_artifact_ranges (
+          server, requests, results,
+          [&] (size_t completed, size_t total, size_t queued, size_t running) {
+            return !update || update (completed, total, queued, running);
+          }, &qerror);
+        if (!ok) selectorError= qerror.toStdString ();
+        return ok;
+      };
+  }
   bool ok= athena_artifacts_build_active_vault (
     current_only,
     [&] (const AthenaArtifactsProgressEvent& event) {
@@ -154,9 +189,19 @@ void build_with_dialog (bool current_only) {
       case AthenaArtifactsBuildPhase::Complete:
         status->setText ("Artifact generation complete"); break;
       }
+      if (event.delegated_queued || event.delegated_running) {
+        delegatedState->setText (
+          QString ("<span style='color:#7b7b7b'>Queued %1</span> &nbsp; "
+                   "<span style='color:#b36b00'>Running %2</span> &nbsp; "
+                   "<span style='color:#15803d'>Completed %3</span>")
+            .arg ((qulonglong) event.delegated_queued)
+            .arg ((qulonglong) event.delegated_running)
+            .arg ((qulonglong) event.current));
+        delegatedState->show ();
+      }
       QApplication::processEvents (QEventLoop::AllEvents, 50);
       return !cancelled;
-    }, result, error);
+    }, result, error, options);
   dialog.close ();
   if (!ok) {
     if (!cancelled)

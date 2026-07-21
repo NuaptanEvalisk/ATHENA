@@ -1,6 +1,6 @@
 /******************************************************************************
-* MODULE     : QTMRagDelegationClient.cpp
-* DESCRIPTION: Qt client helpers for ATHENA RAG delegation
+* MODULE     : QTMDelegationClient.cpp
+* DESCRIPTION: Qt client helpers for authenticated ATHENA delegation
 * COPYRIGHT  : (C) 2026 Nuaptan Felix Evalisk
 *******************************************************************************
 * This software falls under the GNU general public license version 3 or later.
@@ -8,7 +8,7 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 
-#include "QTMRagDelegationClient.hpp"
+#include "QTMDelegationClient.hpp"
 
 #include "rag_delegation_crypto.hpp"
 #include "rag_delegation_patch.hpp"
@@ -22,6 +22,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QHash>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
@@ -30,10 +31,12 @@
 #include <QThread>
 #include <QTimer>
 #include <QUrl>
+#include <QUuid>
 
 #include <algorithm>
 #include <filesystem>
 #include <limits>
+#include <set>
 #include <vector>
 
 namespace fs = std::filesystem;
@@ -51,10 +54,33 @@ normalize_base_url (QString url) {
 
 QString
 config_dir () {
-  QString dir= QStandardPaths::writableLocation (
-    QStandardPaths::AppConfigLocation);
-  if (dir.isEmpty ()) dir= QDir::homePath () + "/.config/ATHENA";
-  return QDir (dir).filePath ("rag-delegation");
+  QString override= QString::fromUtf8 (
+    qgetenv ("ATHENA_DELEGATION_CONFIG_DIR")).trimmed ();
+  if (!override.isEmpty ()) return QDir::cleanPath (override);
+
+  QString generic= QStandardPaths::writableLocation (
+    QStandardPaths::GenericConfigLocation);
+  if (generic.isEmpty ()) generic= QDir::homePath () + "/.config";
+  QString athena= QDir (generic).filePath ("ATHENA");
+  QString current= QDir (athena).filePath ("delegation");
+  static bool migrated= false;
+  if (!migrated) {
+    migrated= true;
+    QString app= QStandardPaths::writableLocation (
+      QStandardPaths::AppConfigLocation);
+    QStringList legacy;
+    legacy << QDir (athena).filePath ("rag-delegation");
+    if (!app.isEmpty ()) {
+      legacy << QDir (app).filePath ("delegation");
+      legacy << QDir (app).filePath ("rag-delegation");
+    }
+    for (const QString& path: legacy)
+      if (!QFileInfo::exists (current) && QFileInfo::exists (path)) {
+        QDir ().mkpath (athena);
+        QDir ().rename (path, current);
+      }
+  }
+  return current;
 }
 
 QString
@@ -79,12 +105,12 @@ write_json_file (const QString& path, const QJsonObject& root,
                  QString* error) {
   QDir dir= QFileInfo (path).absoluteDir ();
   if (!dir.exists () && !dir.mkpath (".")) {
-    if (error) *error= "Could not create RAG delegation config directory.";
+    if (error) *error= "Could not create ATHENA delegation config directory.";
     return false;
   }
   QFile f (path);
   if (!f.open (QIODevice::WriteOnly | QIODevice::Truncate)) {
-    if (error) *error= "Could not write RAG delegation server list.";
+    if (error) *error= "Could not write ATHENA delegation server list.";
     return false;
   }
   f.write (QJsonDocument (root).toJson (QJsonDocument::Indented));
@@ -93,20 +119,38 @@ write_json_file (const QString& path, const QJsonObject& root,
 
 QByteArray
 sync_request (const QNetworkRequest& request, const QByteArray& body,
-              bool post, QString* error, int timeoutMs= 30000) {
+              bool post, QString* error, int timeoutMs= 30000,
+              const std::function<bool ()>& keepGoing= {}) {
   QNetworkAccessManager manager;
   QNetworkReply* reply= post ? manager.post (request, body):
                               manager.get (request);
   QEventLoop loop;
   QTimer timer;
+  QTimer cancellation;
   timer.setSingleShot (true);
   QObject::connect (reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
   QObject::connect (&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
+  if (keepGoing) {
+    cancellation.setInterval (50);
+    QObject::connect (&cancellation, &QTimer::timeout, &loop, [&] () {
+      if (!keepGoing ()) {
+        reply->abort ();
+        loop.quit ();
+      }
+    });
+    cancellation.start ();
+  }
   timer.start (timeoutMs);
   loop.exec ();
+  cancellation.stop ();
+  if (keepGoing && !keepGoing ()) {
+    if (error) *error= "ATHENA delegation request cancelled.";
+    reply->deleteLater ();
+    return QByteArray ();
+  }
   if (!timer.isActive ()) {
     reply->abort ();
-    if (error) *error= "RAG delegation request timed out.";
+    if (error) *error= "ATHENA delegation request timed out.";
     reply->deleteLater ();
     return QByteArray ();
   }
@@ -134,9 +178,10 @@ local_keypair (athena::rag::delegation::KeyPair& keys, QString* error) {
 }
 
 bool
-call_rpc (const QTMRagDelegationServer& server, const QString& method,
+call_rpc (const QTMDelegationServer& server, const QString& method,
           const QJsonObject& params, QJsonObject& result, QString* error,
-          int timeoutMs= 30000) {
+          int timeoutMs= 30000,
+          const std::function<bool ()>& keepGoing= {}) {
   athena::rag::delegation::KeyPair client;
   if (!local_keypair (client, error)) return false;
   std::string serverPublic;
@@ -164,22 +209,23 @@ call_rpc (const QTMRagDelegationServer& server, const QString& method,
   env["ciphertext"]= QString::fromStdString (cipher);
 
   QNetworkRequest req (QUrl (normalize_base_url (server.url) +
-                             "/athena-rag/v1/rpc"));
+                             "/athena-delegation/v1/rpc"));
   req.setHeader (QNetworkRequest::ContentTypeHeader,
                  "application/json; charset=utf-8");
   QByteArray replyBytes= sync_request (
     req, QJsonDocument (env).toJson (QJsonDocument::Compact), true, error,
-    timeoutMs);
+    timeoutMs, keepGoing);
   if (replyBytes.isEmpty ()) return false;
   QJsonParseError parse;
   QJsonDocument replyDoc= QJsonDocument::fromJson (replyBytes, &parse);
   if (parse.error != QJsonParseError::NoError || !replyDoc.isObject ()) {
-    if (error) *error= "Invalid RAG delegation response.";
+    if (error) *error= "Invalid ATHENA delegation response.";
     return false;
   }
   QJsonObject reply= replyDoc.object ();
   if (!reply.value ("ok").toBool ()) {
-    if (error) *error= reply.value ("error").toString ("RAG delegation failed.");
+    if (error)
+      *error= reply.value ("error").toString ("ATHENA delegation failed.");
     return false;
   }
 
@@ -190,7 +236,7 @@ call_rpc (const QTMRagDelegationServer& server, const QString& method,
     return false;
   }
   if (sender != serverPublic) {
-    if (error) *error= "RAG delegation server key does not match the pinned "
+    if (error) *error= "ATHENA delegation server key does not match the pinned "
                        "fingerprint.";
     return false;
   }
@@ -205,7 +251,7 @@ call_rpc (const QTMRagDelegationServer& server, const QString& method,
   QJsonDocument payload= QJsonDocument::fromJson (
     QByteArray::fromStdString (plainReply), &parse);
   if (parse.error != QJsonParseError::NoError || !payload.isObject ()) {
-    if (error) *error= "Invalid encrypted RAG delegation payload.";
+    if (error) *error= "Invalid encrypted ATHENA delegation payload.";
     return false;
   }
   result= payload.object ();
@@ -235,14 +281,14 @@ transport_window_too_large (const QString& message) {
 }
 
 bool
-wait_for_server_reconnect (const QTMRagDelegationServer& server,
+wait_for_server_reconnect (const QTMDelegationServer& server,
                            QString* error) {
   QElapsedTimer total;
   total.start ();
   QString lastError;
   while (total.elapsed () < 15 * 60 * 1000) {
     QNetworkRequest req (QUrl (normalize_base_url (server.url) +
-                               "/athena-rag/v1/identity"));
+                               "/athena-delegation/v1/identity"));
     QByteArray bytes= sync_request (req, QByteArray (), false, &lastError,
                                     10 * 1000);
     if (!bytes.isEmpty ()) {
@@ -251,12 +297,12 @@ wait_for_server_reconnect (const QTMRagDelegationServer& server,
       if (parse.error == QJsonParseError::NoError && doc.isObject () &&
           doc.object ().value ("public_key").toString () == server.publicKey)
         return true;
-      lastError= "RAG delegation endpoint identity changed while reconnecting.";
+      lastError= "ATHENA delegation endpoint identity changed while reconnecting.";
     }
     QThread::msleep (2000);
   }
   if (error)
-    *error= lastError.isEmpty () ? "RAG delegation server did not reconnect.":
+    *error= lastError.isEmpty () ? "ATHENA delegation server did not reconnect.":
                                   lastError;
   return false;
 }
@@ -264,37 +310,74 @@ wait_for_server_reconnect (const QTMRagDelegationServer& server,
 } // namespace
 
 QString
-qtm_rag_delegation_config_dir () {
+qtm_delegation_config_dir () {
   return config_dir ();
 }
 
-QVector<QTMRagDelegationServer>
-qtm_rag_delegation_servers () {
-  QVector<QTMRagDelegationServer> out;
+QVector<QTMDelegationServer>
+qtm_delegation_servers () {
+  QVector<QTMDelegationServer> out;
   QJsonObject root;
   if (!read_json_file (servers_path (), root)) return out;
   for (const QJsonValue& value: root.value ("servers").toArray ()) {
     QJsonObject obj= value.toObject ();
-    QTMRagDelegationServer server;
+    QTMDelegationServer server;
     server.name= obj.value ("name").toString ();
     server.url= obj.value ("url").toString ();
     server.publicKey= obj.value ("public_key").toString ();
     server.fingerprint= obj.value ("fingerprint").toString ();
+    for (const QJsonValue& capability: obj.value ("capabilities").toArray ())
+      server.capabilities << capability.toString ();
+    QJsonObject artifactLimits=
+      obj.value ("limits").toObject ().value ("artifact_definition_span")
+         .toObject ();
+    server.artifactMaxRequests=
+      artifactLimits.value ("max_requests_per_job").toInt (
+        obj.value ("artifact_max_requests").toInt (512));
+    server.artifactMaxPlaintextBytes=
+      artifactLimits.value ("max_plaintext_bytes").toInt (
+        obj.value ("artifact_max_plaintext_bytes").toInt (8 * 1024 * 1024));
     if (!server.url.isEmpty ()) out << server;
   }
   return out;
 }
 
 bool
-qtm_rag_delegation_save_servers (
-  const QVector<QTMRagDelegationServer>& servers, QString* error) {
+qtm_delegation_selected_server (
+  const QString& configuredUrl, QTMDelegationServer& selected) {
+  QVector<QTMDelegationServer> servers= qtm_delegation_servers ();
+  if (servers.isEmpty ()) return false;
+  if (!configuredUrl.trimmed ().isEmpty ())
+    for (const QTMDelegationServer& server: servers)
+      if (server.url == configuredUrl.trimmed ()) {
+        selected= server;
+        return true;
+      }
+  selected= servers.first ();
+  return true;
+}
+
+bool
+qtm_delegation_save_servers (
+  const QVector<QTMDelegationServer>& servers, QString* error) {
   QJsonArray arr;
-  for (const QTMRagDelegationServer& server: servers) {
+  for (const QTMDelegationServer& server: servers) {
     QJsonObject obj;
     obj["name"]= server.name;
     obj["url"]= server.url;
     obj["public_key"]= server.publicKey;
     obj["fingerprint"]= server.fingerprint;
+    QJsonArray capabilities;
+    for (const QString& capability: server.capabilities)
+      capabilities.append (capability);
+    obj["capabilities"]= capabilities;
+    QJsonObject artifactLimits;
+    artifactLimits["max_requests_per_job"]= server.artifactMaxRequests;
+    artifactLimits["max_plaintext_bytes"]=
+      server.artifactMaxPlaintextBytes;
+    QJsonObject limits;
+    limits["artifact_definition_span"]= artifactLimits;
+    obj["limits"]= limits;
     arr.append (obj);
   }
   QJsonObject root;
@@ -303,26 +386,26 @@ qtm_rag_delegation_save_servers (
 }
 
 bool
-qtm_rag_delegation_fetch_identity (
-  const QString& baseUrl, QTMRagDelegationServer& server, QString* error) {
+qtm_delegation_fetch_identity (
+  const QString& baseUrl, QTMDelegationServer& server, QString* error) {
   QString url= normalize_base_url (baseUrl);
-  QNetworkRequest req (QUrl (url + "/athena-rag/v1/identity"));
+  QNetworkRequest req (QUrl (url + "/athena-delegation/v1/identity"));
   QByteArray bytes= sync_request (req, QByteArray (), false, error);
   if (bytes.isEmpty ()) return false;
   QJsonParseError parse;
   QJsonDocument doc= QJsonDocument::fromJson (bytes, &parse);
   if (parse.error != QJsonParseError::NoError || !doc.isObject ()) {
-    if (error) *error= "RAG server identity response is not valid JSON.";
+    if (error) *error= "ATHENA delegation identity response is not valid JSON.";
     return false;
   }
   QJsonObject obj= doc.object ();
   if (obj.value ("protocol").toInt () != 1 ||
       obj.value ("public_key").toString ().isEmpty ()) {
-    if (error) *error= "This endpoint is not an ATHENA RAG Server.";
+    if (error) *error= "This endpoint is not an ATHENA Delegation Server.";
     return false;
   }
   server.url= url;
-  server.name= obj.value ("name").toString ("ATHENA RAG Server");
+  server.name= obj.value ("name").toString ("ATHENA Delegation Server");
   server.publicKey= obj.value ("public_key").toString ();
   server.fingerprint= obj.value ("fingerprint").toString ();
   std::string publicKey;
@@ -335,18 +418,27 @@ qtm_rag_delegation_fetch_identity (
   if (QString::fromStdString (
         athena::rag::delegation::fingerprint_for_public_key (publicKey)) !=
       server.fingerprint) {
-    if (error) *error= "RAG server identity fingerprint does not match its "
+    if (error) *error= "ATHENA delegation identity fingerprint does not match its "
                        "public key.";
     return false;
   }
+  for (const QJsonValue& capability: obj.value ("capabilities").toArray ())
+    server.capabilities << capability.toString ();
+  QJsonObject artifactLimits=
+    obj.value ("limits").toObject ().value ("artifact_definition_span")
+       .toObject ();
+  server.artifactMaxRequests=
+    artifactLimits.value ("max_requests_per_job").toInt (512);
+  server.artifactMaxPlaintextBytes=
+    artifactLimits.value ("max_plaintext_bytes").toInt (8 * 1024 * 1024);
   return true;
 }
 
 bool
-qtm_rag_delegation_enroll (
-  const QTMRagDelegationServer& server, QString* status, QString* error) {
+qtm_delegation_enroll (
+  const QTMDelegationServer& server, QString* status, QString* error) {
   QJsonObject result;
-  if (!call_rpc (server, "rag.enroll", QJsonObject (), result, error))
+  if (!call_rpc (server, "auth.enroll", QJsonObject (), result, error))
     return false;
   if (!result.value ("ok").toBool ()) {
     if (error) *error= result.value ("error").toString ();
@@ -357,10 +449,10 @@ qtm_rag_delegation_enroll (
 }
 
 bool
-qtm_rag_delegation_check_auth (
-  const QTMRagDelegationServer& server, QString* status, QString* error) {
+qtm_delegation_check_auth (
+  const QTMDelegationServer& server, QString* status, QString* error) {
   QJsonObject result;
-  if (!call_rpc (server, "rag.auth.check", QJsonObject (), result, error))
+  if (!call_rpc (server, "auth.check", QJsonObject (), result, error))
     return false;
   if (!result.value ("ok").toBool ()) {
     if (error) *error= result.value ("error").toString ();
@@ -371,8 +463,8 @@ qtm_rag_delegation_check_auth (
 }
 
 bool
-qtm_rag_delegation_run_embedding (
-  const QTMRagDelegationServer& server, const QString& vaultRoot,
+qtm_delegation_run_embedding (
+  const QTMDelegationServer& server, const QString& vaultRoot,
   const QString& dbPath, const QString& embeddingModel,
   const QString& embeddingDevice, QString* summary, QString* error) {
   athena::rag::delegation::DelegatedJob job;
@@ -421,7 +513,8 @@ qtm_rag_delegation_run_embedding (
     return current;
   };
 
-  auto jobParams= [&] (const athena::rag::delegation::DelegatedJob& current) {
+  auto jobParams= [&] (const athena::rag::delegation::DelegatedJob& current,
+                       const QString& requestId) {
     QJsonArray files;
     for (const auto& file: current.files) {
       QJsonObject obj;
@@ -441,6 +534,7 @@ qtm_rag_delegation_run_embedding (
     jobRoot["files"]= files;
     jobRoot["deleted"]= deleted;
     QJsonObject params;
+    params["request_id"]= requestId;
     params["job"]= QString::fromLatin1 (
       QJsonDocument (jobRoot).toJson (QJsonDocument::Compact).toBase64 ());
     params["embedding_model"]= embeddingModel;
@@ -455,6 +549,8 @@ qtm_rag_delegation_run_embedding (
     unsigned retryCount= 0;
     QJsonObject result;
     qint64 rpcMilliseconds= 0;
+    QString requestId= QUuid::createUuid ().toString (
+      QUuid::WithoutBraces);
     while (true) {
       retryCount++;
       io_info << "rag delegation: submitting batch " << (batchNumber + 1)
@@ -464,7 +560,7 @@ qtm_rag_delegation_run_embedding (
       QElapsedTimer requestTimer;
       requestTimer.start ();
       QString batchError;
-      QJsonObject params= jobParams (current);
+      QJsonObject params= jobParams (current, requestId);
       if (call_rpc (server, "rag.embedding.build_patch", params, result,
                     &batchError, 85 * 1000)) {
         rpcMilliseconds= requestTimer.elapsed ();
@@ -492,6 +588,7 @@ qtm_rag_delegation_run_embedding (
         currentBytes= 0;
         for (const auto& file: current.files)
           currentBytes += file.content.size ();
+        requestId= QUuid::createUuid ().toString (QUuid::WithoutBraces);
         retryCount= 0;
         io_info << "rag delegation: reconnected; reduced pending batch to "
                 << current.files.size () << " files / " << currentBytes
@@ -508,6 +605,10 @@ qtm_rag_delegation_run_embedding (
     }
     if (!result.value ("ok").toBool ()) {
       if (error) *error= result.value ("error").toString ();
+      return false;
+    }
+    if (result.value ("request_id").toString () != requestId) {
+      if (error) *error= "Delegation server returned a mismatched RAG request id.";
       return false;
     }
     QByteArray patchBytes= QByteArray::fromBase64 (
@@ -596,4 +697,289 @@ qtm_rag_delegation_run_embedding (
     *summary= QString ("Delegated %1 changed .ath files and %2 deletions.")
                 .arg (completedFiles).arg (completedDeleted);
   return true;
+}
+
+bool
+qtm_delegation_select_artifact_ranges (
+  const QTMDelegationServer& configuredServer,
+  const std::vector<AthenaArtifactRangeRequest>& requests,
+  std::vector<std::vector<int>>& results,
+  const QTMArtifactDelegationProgress& progress, QString* error) {
+  results.assign (requests.size (), {});
+  if (requests.empty ()) return true;
+
+  QTMDelegationServer server;
+  QString identityError;
+  if (!qtm_delegation_fetch_identity (configuredServer.url, server,
+                                      &identityError)) {
+    if (error) *error= identityError;
+    return false;
+  }
+  if (server.publicKey != configuredServer.publicKey ||
+      server.fingerprint != configuredServer.fingerprint) {
+    if (error) *error= "ATHENA delegation endpoint identity changed.";
+    return false;
+  }
+  if (!server.capabilities.contains ("artifact-definition-span-v1")) {
+    if (error) *error= "The selected server does not support artifact "
+                       "definition-span delegation.";
+    return false;
+  }
+
+  struct Payload {
+    QJsonObject params;
+    std::vector<size_t> indexes;
+  };
+  std::vector<Payload> payloads;
+  size_t next= 0;
+  int maxRequests= std::clamp (server.artifactMaxRequests, 1, 512);
+  int maxBytes= std::clamp (server.artifactMaxPlaintextBytes,
+                            64 * 1024, 8 * 1024 * 1024);
+  QString buildId= QUuid::createUuid ().toString (QUuid::WithoutBraces);
+  while (next < requests.size ()) {
+    QJsonArray catalog;
+    QHash<QString,int> catalogIndexes;
+    QJsonArray requestArray;
+    Payload payload;
+    size_t start= next;
+    while (next < requests.size () &&
+           requestArray.size () < maxRequests) {
+      const AthenaArtifactRangeRequest& request= requests[next];
+      QJsonObject object;
+      object["id"]= QString ("r%1").arg ((qulonglong) next);
+      object["keyword_latex"]= QString::fromStdString (request.keyword_latex);
+      QJsonArray candidates;
+      for (const auto& paragraph: request.paragraphs) {
+        QString text= QString::fromStdString (paragraph.second);
+        int catalogIndex= catalogIndexes.value (text, -1);
+        if (catalogIndex < 0) {
+          catalogIndex= catalog.size ();
+          catalogIndexes.insert (text, catalogIndex);
+          catalog.append (text);
+        }
+        QJsonObject candidate;
+        candidate["offset"]= paragraph.first;
+        candidate["catalog"]= catalogIndex;
+        candidates.append (candidate);
+      }
+      object["candidates"]= candidates;
+      requestArray.append (object);
+      QJsonObject probe;
+      probe["submission_id"]= QString ("%1-%2")
+        .arg (buildId).arg ((qulonglong) payloads.size ());
+      probe["catalog"]= catalog;
+      probe["requests"]= requestArray;
+      if (QJsonDocument (probe).toJson (QJsonDocument::Compact).size () >
+            maxBytes && requestArray.size () > 1) {
+        requestArray.removeLast ();
+        // Rebuild the catalog without the rejected request.
+        catalog= QJsonArray ();
+        catalogIndexes.clear ();
+        QJsonArray rebuiltRequests;
+        for (size_t acceptedIndex: payload.indexes) {
+          QJsonObject acceptedObject;
+          acceptedObject["id"]= QString ("r%1").arg (
+            (qulonglong) acceptedIndex);
+          acceptedObject["keyword_latex"]= QString::fromStdString (
+            requests[acceptedIndex].keyword_latex);
+          QJsonArray rebuilt;
+          for (const auto& paragraph: requests[acceptedIndex].paragraphs) {
+            QString text= QString::fromStdString (paragraph.second);
+            int catalogIndex= catalogIndexes.value (text, -1);
+            if (catalogIndex < 0) {
+              catalogIndex= catalog.size ();
+              catalogIndexes.insert (text, catalogIndex);
+              catalog.append (text);
+            }
+            QJsonObject candidate;
+            candidate["offset"]= paragraph.first;
+            candidate["catalog"]= catalogIndex;
+            rebuilt.append (candidate);
+          }
+          acceptedObject["candidates"]= rebuilt;
+          rebuiltRequests.append (acceptedObject);
+        }
+        requestArray= rebuiltRequests;
+        break;
+      }
+      payload.indexes.push_back (next);
+      next++;
+    }
+    if (next == start) {
+      if (error) *error= "One artifact definition-span request exceeds the "
+                         "server plaintext limit.";
+      return false;
+    }
+    payload.params["submission_id"]= QString ("%1-%2")
+      .arg (buildId).arg ((qulonglong) payloads.size ());
+    payload.params["catalog"]= catalog;
+    payload.params["requests"]= requestArray;
+    if (QJsonDocument (payload.params).toJson (QJsonDocument::Compact).size () >
+        maxBytes) {
+      if (error) *error= "One artifact definition-span request exceeds the "
+                         "server plaintext limit.";
+      return false;
+    }
+    payloads.push_back (std::move (payload));
+  }
+
+  struct ActiveJob {
+    size_t payload= 0;
+    QString id;
+    int cursor= 0;
+    int queued= 0;
+    int running= 0;
+  };
+  std::vector<ActiveJob> active;
+  std::vector<bool> received (requests.size (), false);
+  size_t completed= 0;
+  size_t nextPayload= 0;
+
+  auto keepGoing= [&] () {
+    size_t queued= 0, running= 0;
+    for (const ActiveJob& job: active) {
+      queued += (size_t) std::max (0, job.queued);
+      running += (size_t) std::max (0, job.running);
+    }
+    return !progress || progress (completed, requests.size (), queued, running);
+  };
+  auto rpc= [&] (const QString& method, const QJsonObject& params,
+                 QJsonObject& result, int timeout) {
+    QString lastError;
+    for (int attempt=0; attempt<3; attempt++) {
+      if (call_rpc (server, method, params, result, &lastError, timeout,
+                    keepGoing)) return true;
+      if (lastError.contains ("cancelled", Qt::CaseInsensitive)) break;
+      if (!retryable_transport_failure (lastError)) break;
+      QString reconnectError;
+      if (!wait_for_server_reconnect (server, &reconnectError)) {
+        lastError= reconnectError;
+        break;
+      }
+    }
+    if (error) *error= lastError;
+    return false;
+  };
+  auto cancelActive= [&] () {
+    for (const ActiveJob& job: active) {
+      QJsonObject params;
+      params["job_id"]= job.id;
+      QJsonObject ignored;
+      QString ignoredError;
+      call_rpc (server, "artifact.definition_span.cancel", params, ignored,
+                &ignoredError, 10000);
+    }
+  };
+  auto submitOne= [&] (size_t index) {
+    QJsonObject response;
+    if (!rpc ("artifact.definition_span.submit", payloads[index].params,
+              response, 30000)) return false;
+    if (!response.value ("ok").toBool () ||
+        response.value ("job_id").toString ().isEmpty ()) {
+      if (error) *error= response.value ("error").toString (
+        "Artifact delegation did not return a job id.");
+      return false;
+    }
+    ActiveJob job;
+    job.payload= index;
+    job.id= response.value ("job_id").toString ();
+    job.queued= (int) payloads[index].indexes.size ();
+    active.push_back (std::move (job));
+    return true;
+  };
+
+  while (nextPayload < payloads.size () && active.size () < 4)
+    if (!submitOne (nextPayload++)) { cancelActive (); return false; }
+
+  size_t activeIndex= 0;
+  while (!active.empty ()) {
+    if (!keepGoing ()) {
+      cancelActive ();
+      if (error) *error= "Artifact build cancelled";
+      return false;
+    }
+    if (activeIndex >= active.size ()) activeIndex= 0;
+    ActiveJob& job= active[activeIndex];
+    QJsonObject params;
+    params["job_id"]= job.id;
+    params["cursor"]= job.cursor;
+    params["wait_ms"]= 20000;
+    QJsonObject response;
+    if (!rpc ("artifact.definition_span.wait", params, response, 25000)) {
+      cancelActive ();
+      return false;
+    }
+    if (!response.value ("ok").toBool ()) {
+      if (error) *error= response.value ("error").toString ();
+      cancelActive ();
+      return false;
+    }
+    QJsonObject counts= response.value ("counts").toObject ();
+    job.queued= counts.value ("queued").toInt ();
+    job.running= counts.value ("running").toInt ();
+    job.cursor= response.value ("cursor").toInt (job.cursor);
+    for (const QJsonValue& value: response.value ("results").toArray ()) {
+      QJsonObject item= value.toObject ();
+      QString id= item.value ("id").toString ();
+      bool idOk= false;
+      size_t index= id.mid (1).toULongLong (&idOk);
+      if (!id.startsWith ('r') || !idOk || index >= requests.size () ||
+          received[index]) {
+        if (error) *error= "Artifact delegation returned an invalid request id.";
+        cancelActive ();
+        return false;
+      }
+      std::vector<int> offsets;
+      for (const QJsonValue& offset: item.value ("offsets").toArray ())
+        offsets.push_back (offset.toInt ());
+      std::set<int> allowed;
+      for (const auto& candidate: requests[index].paragraphs)
+        allowed.insert (candidate.first);
+      bool valid= !offsets.empty () &&
+        std::find (offsets.begin (), offsets.end (), 0) != offsets.end () &&
+        std::is_sorted (offsets.begin (), offsets.end ()) &&
+        std::adjacent_find (offsets.begin (), offsets.end ()) == offsets.end ();
+      for (size_t i=0; valid && i<offsets.size (); i++)
+        valid= allowed.count (offsets[i]) &&
+               (i == 0 || offsets[i] == offsets[i - 1] + 1);
+      if (!valid) {
+        if (error) *error= "Artifact delegation returned invalid offsets.";
+        cancelActive ();
+        return false;
+      }
+      results[index]= std::move (offsets);
+      received[index]= true;
+      completed++;
+    }
+    QString state= response.value ("state").toString ();
+    if (state == "failed" || state == "cancelled") {
+      if (error) *error= response.value ("error").toString (
+        "Artifact definition-span job failed.");
+      cancelActive ();
+      return false;
+    }
+    if (state == "complete") {
+      for (size_t index: payloads[job.payload].indexes)
+        if (!received[index]) {
+          if (error) *error= "Artifact definition-span job returned an "
+                             "incomplete result.";
+          cancelActive ();
+          return false;
+        }
+      QJsonObject ackParams;
+      ackParams["job_id"]= job.id;
+      QJsonObject ack;
+      if (!rpc ("artifact.definition_span.ack", ackParams, ack, 10000)) {
+        cancelActive ();
+        return false;
+      }
+      active.erase (active.begin () + (ptrdiff_t) activeIndex);
+      if (nextPayload < payloads.size () && !submitOne (nextPayload++)) {
+        cancelActive ();
+        return false;
+      }
+    }
+    else activeIndex++;
+  }
+  return completed == requests.size ();
 }

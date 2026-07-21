@@ -10,7 +10,7 @@
 
 #include "ATHENA/Data/vault_maintenance_internal.hpp"
 
-#include "QTMRagDelegationClient.hpp"
+#include "QTMDelegationClient.hpp"
 #include "boot.hpp"
 #include "convert.hpp"
 #include "rag_index.hpp"
@@ -341,21 +341,6 @@ run_local_rag_update (VaultMaintenanceContext& ctx, std::string& error) {
 }
 
 static bool
-selected_rag_server (const std::string& configured,
-                     QTMRagDelegationServer& selected) {
-  QVector<QTMRagDelegationServer> servers= qtm_rag_delegation_servers ();
-  if (servers.isEmpty ()) return false;
-  if (!configured.empty ())
-    for (const QTMRagDelegationServer& server: servers)
-      if (server.url.toStdString () == configured) {
-        selected= server;
-        return true;
-      }
-  selected= servers.first ();
-  return true;
-}
-
-static bool
 run_delegated_rag_update (VaultMaintenanceContext& ctx, std::string& error) {
   athena::rag::RagStatus before= rag_database_status (ctx.root);
   ctx.summary.rag_documents_before= before.document_count;
@@ -363,15 +348,16 @@ run_delegated_rag_update (VaultMaintenanceContext& ctx, std::string& error) {
   ctx.summary.rag_chunks_before= before.chunk_count;
   ctx.summary.rag_chunks_after= before.chunk_count;
 
-  QTMRagDelegationServer server;
-  if (!selected_rag_server (ctx.summary.rag_server, server)) {
+  QTMDelegationServer server;
+  if (!qtm_delegation_selected_server (
+        QString::fromStdString (ctx.summary.delegation_server), server)) {
     error= "no configured RAG delegation server";
     return false;
   }
-  ctx.summary.rag_server= server.url.toStdString ();
+  ctx.summary.delegation_server= server.url.toStdString ();
   QString qerror;
   QString delegated_summary;
-  if (!qtm_rag_delegation_run_embedding (
+  if (!qtm_delegation_run_embedding (
         server, QString::fromStdString (ctx.root.string ()),
         QString::fromStdString (athena::rag::rag_default_db_path (ctx.root)),
         QString::fromStdString (tm_to_std (

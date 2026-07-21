@@ -16,6 +16,7 @@
 #include "convert.hpp"
 #include "file.hpp"
 #include "scheme.hpp"
+#include "System/Boot/boot.hpp"
 
 #include <sqlite3.h>
 
@@ -57,9 +58,10 @@ void artifact_log (const std::string& message) {
 bool report_progress (const AthenaArtifactsProgress& progress,
                       AthenaArtifactsBuildPhase phase, size_t current,
                       size_t total, const std::string& path= {},
-                      const std::string& detail= {}) {
+                      const std::string& detail= {}, size_t queued= 0,
+                      size_t running= 0) {
   if (!progress) return true;
-  return progress ({phase, current, total, path, detail});
+  return progress ({phase, current, total, path, detail, queued, running});
 }
 
 struct SqliteDb {
@@ -328,6 +330,10 @@ bool standalone_attachment (const tree& t) {
 }
 
 std::string latex_for_tree (const tree& t) {
+  // Standalone artifact readers and unit tests do not boot Guile.  Their range
+  // selectors only need a stable textual representation; the full ATHENA
+  // process continues to use the normal LaTeX converter below.
+  if (headless_mode) return to_std (tree_to_texmacs (t));
   try {
     return to_std (as_string (call ("convert", t, "texmacs-tree",
                                     "latex-snippet")));
@@ -574,7 +580,7 @@ bool extract_serial (const std::vector<DocumentWork>& work,
 bool select_definition_ranges (
   std::map<std::string,ExtractedDocument>& extracted,
   const AthenaArtifactsProgress& progress, size_t,
-  std::string& error) {
+  std::string& error, const AthenaArtifactRangeSelector& selector= {}) {
   struct ReleaseRangeModel {
     ~ReleaseRangeModel () { athena_artifact_range_model_release (); }
   } release_range_model;
@@ -601,7 +607,7 @@ bool select_definition_ranges (
   }
 
   std::string model_path= athena_artifact_range_model_path ();
-  if (!athena_artifact_range_model_available (model_path)) {
+  if (!selector && !athena_artifact_range_model_available (model_path)) {
     for (const RangeWork& item: work) item.record->paragraph_offsets= {0};
     if (!report_progress (
           progress, AthenaArtifactsBuildPhase::SelectingDefinitionRanges,
@@ -641,34 +647,49 @@ bool select_definition_ranges (
     requests.push_back (std::move (request));
   }
 
-  std::atomic<bool> cancelled (false);
-  std::atomic<size_t> completed (0);
   auto started= std::chrono::steady_clock::now ();
-  std::future<std::vector<std::vector<int>>> inference= std::async (
-    std::launch::async,
-    [requests= std::move (requests), model_path, &cancelled, &completed] () {
-      return athena_artifact_select_definition_ranges (
-        requests, model_path, &cancelled, &completed);
-    });
-  while (inference.wait_for (std::chrono::milliseconds (40)) !=
-         std::future_status::ready) {
-    size_t current= std::min (completed.load (), range_total);
-    size_t index= std::min (current, range_total - 1);
-    if (!report_progress (
-          progress, AthenaArtifactsBuildPhase::SelectingDefinitionRanges,
-          current, range_total, work[index].path,
-          work[index].record->display_text))
-      cancelled.store (true);
-  }
   std::vector<std::vector<int>> selected;
-  try { selected= inference.get (); }
-  catch (const std::exception& exception) {
-    error= std::string ("Artifact range inference failed: ") + exception.what ();
-    return false;
+  if (selector) {
+    bool ok= selector (
+      requests, selected,
+      [&] (size_t current, size_t total, size_t queued, size_t running) {
+        size_t index= std::min (current, range_total - 1);
+        return report_progress (
+          progress, AthenaArtifactsBuildPhase::SelectingDefinitionRanges,
+          current, total, work[index].path,
+          work[index].record->display_text, queued, running);
+      }, error);
+    if (!ok) return false;
   }
-  if (cancelled.load ()) {
-    error= "Artifact build cancelled";
-    return false;
+  else {
+    std::atomic<bool> cancelled (false);
+    std::atomic<size_t> completed (0);
+    std::future<std::vector<std::vector<int>>> inference= std::async (
+      std::launch::async,
+      [requests, model_path, &cancelled, &completed] () {
+        return athena_artifact_select_definition_ranges (
+          requests, model_path, &cancelled, &completed);
+      });
+    while (inference.wait_for (std::chrono::milliseconds (40)) !=
+           std::future_status::ready) {
+      size_t current= std::min (completed.load (), range_total);
+      size_t index= std::min (current, range_total - 1);
+      if (!report_progress (
+            progress, AthenaArtifactsBuildPhase::SelectingDefinitionRanges,
+            current, range_total, work[index].path,
+            work[index].record->display_text))
+        cancelled.store (true);
+    }
+    try { selected= inference.get (); }
+    catch (const std::exception& exception) {
+      error= std::string ("Artifact range inference failed: ") +
+             exception.what ();
+      return false;
+    }
+    if (cancelled.load ()) {
+      error= "Artifact build cancelled";
+      return false;
+    }
   }
   if (selected.size () != work.size ()) {
     error= "Artifact range inference returned an incomplete result";
@@ -732,17 +753,20 @@ pid_t start_extract_worker (const fs::path& executable,
 bool extract_parallel (const std::vector<DocumentWork>& work,
                        std::map<std::string,ExtractedDocument>& extracted,
                        const AthenaArtifactsProgress& progress,
+                       const AthenaArtifactRangeSelector& selector,
                        std::string& error) {
   if (work.size () < 2) {
     if (!extract_serial (work, extracted, progress, error)) return false;
-    return select_definition_ranges (extracted, progress, work.size (), error);
+    return select_definition_ranges (
+      extracted, progress, work.size (), error, selector);
   }
   const char* configured= std::getenv ("ATHENA_ARTIFACT_WORKER_EXECUTABLE");
   fs::path executable= configured && *configured ? fs::path (configured)
                                                   : current_executable_path ();
   if (executable.empty () || !fs::exists (executable)) {
     if (!extract_serial (work, extracted, progress, error)) return false;
-    return select_definition_ranges (extracted, progress, work.size (), error);
+    return select_definition_ranges (
+      extracted, progress, work.size (), error, selector);
   }
   unsigned hardware= std::max (1u, std::thread::hardware_concurrency ());
   int jobs= (int) std::min<size_t> (work.size (), hardware);
@@ -810,19 +834,22 @@ bool extract_parallel (const std::vector<DocumentWork>& work,
   if (!ok && error.empty ()) error= "An artifact reader process failed";
   if (!ok) return false;
   // The parent owns one model instance and performs all semantic range choices.
-  return select_definition_ranges (extracted, progress, work.size (), error);
+  return select_definition_ranges (
+    extracted, progress, work.size (), error, selector);
 }
 #endif
 
 bool extract_documents (const std::vector<DocumentWork>& work,
                         std::map<std::string,ExtractedDocument>& extracted,
                         const AthenaArtifactsProgress& progress,
+                        const AthenaArtifactRangeSelector& selector,
                         std::string& error) {
 #if defined(__unix__) || defined(__APPLE__)
-  return extract_parallel (work, extracted, progress, error);
+  return extract_parallel (work, extracted, progress, selector, error);
 #else
   if (!extract_serial (work, extracted, progress, error)) return false;
-  return select_definition_ranges (extracted, progress, work.size (), error);
+  return select_definition_ranges (
+    extracted, progress, work.size (), error, selector);
 #endif
 }
 
@@ -1072,7 +1099,7 @@ athena_artifacts_build (
   const fs::path& vault_root,
   const std::vector<fs::path>& requested_documents, bool full_vault,
   const AthenaArtifactsProgress& progress, AthenaArtifactsBuildResult& result,
-  std::string& error) {
+  std::string& error, const AthenaArtifactsBuildOptions& options) {
   result= AthenaArtifactsBuildResult ();
   fs::path root= normalize_root (vault_root);
   artifact_log ("build started: root=" + root.string () +
@@ -1126,7 +1153,8 @@ athena_artifacts_build (
                 " deleted document(s)");
 
   std::map<std::string,ExtractedDocument> extracted;
-  if (!extract_documents (work, extracted, progress, error)) return false;
+  if (!extract_documents (
+        work, extracted, progress, options.range_selector, error)) return false;
 
   if (!exec_sql (holder.db, "BEGIN IMMEDIATE;", error)) return false;
   bool committed= false;
@@ -1199,7 +1227,8 @@ athena_artifacts_build (
 bool
 athena_artifacts_build_active_vault (
   bool current_document_only, const AthenaArtifactsProgress& progress,
-  AthenaArtifactsBuildResult& result, std::string& error) {
+  AthenaArtifactsBuildResult& result, std::string& error,
+  const AthenaArtifactsBuildOptions& options) {
   if (!vault_active ()) { error= "No active vault"; return false; }
   fs::path root (to_std (concretize (vault_get_root ())));
   std::vector<fs::path> documents;
@@ -1215,7 +1244,7 @@ athena_artifacts_build_active_vault (
     documents.push_back (current);
   }
   return athena_artifacts_build (root, documents, !current_document_only,
-                                 progress, result, error);
+                                 progress, result, error, options);
 }
 
 bool

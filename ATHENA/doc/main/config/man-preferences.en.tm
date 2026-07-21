@@ -771,10 +771,6 @@
     to the selected configured server and applies the returned SQLite patch;
     otherwise it updates <verbatim|rag.sqlite> locally.
 
-    <item*|Delegated maintenance server>Selects the RAG server used by the
-    maintenance pass. <menu|First configured server> uses the first server in
-    the user-profile RAG Delegation list.
-
     <item*|If delegated RAG is unavailable>Controls failure handling when the
     selected delegation server is unreachable, refuses authentication, or
     returns invalid data: fail the entire maintenance operation, continue and
@@ -918,6 +914,20 @@
   <verbatim|ATHENA.bin -H --rag-server VAULT_ROOT>. The endpoint is
   <verbatim|http://127.0.0.1:PORT/mcp> and requires the bearer token above.
 
+  <subsubsection|Artifact Generation>
+
+  <description>
+    <item*|Enable Artifact Definition Span Delegation>Delegates only the LLM
+    decision that selects which candidate paragraphs belong to a bold-text
+    definition. ATHENA still performs incremental detection, AST extraction,
+    candidate generation, and all Artifact SQLite writes locally. Remote
+    requests contain only the keyword and candidate paragraphs as LaTeX; they
+    contain no file path, <verbatim|.ath> source, Vaultfile, asset, or database.
+    A remote error aborts the entire Artifact build before its database
+    transaction begins; it never silently falls back to paragraph zero or the
+    local model.
+  </description>
+
   <subsection|Security>
 
   <subsubsection|General>
@@ -932,21 +942,23 @@
   Wallet and <name|GnuPG> maintenance remain available through their
   dedicated commands while the native Preferences dialog is being completed.
 
-  <subsubsection|RAG Delegation>
+  <subsubsection|ATHENA Delegation>
 
-  These controls are active only when
-  <menu|Other|Connectivity|Continuous RAG|Enable RAG Delegation> is enabled.
+  These controls are active when either RAG Delegation or Artifact Definition
+  Span Delegation is enabled.
   Server trust records and client private keys are stored in the user profile,
   not in a vault or vault-local preferences.
 
   <\description>
-    <item*|RAG servers>Lists pinned ATHENA RAG backends and transmitters. A
-    server entry shows its address and keeps the public-key fingerprint used
-    to detect later identity changes.
+    <item*|Delegation servers>Lists pinned ATHENA backends and transmitters.
+    The selected row is the server shared by delegated RAG embedding and
+    Artifact definition-span selection. Each entry keeps the public-key
+    fingerprint used to detect later identity changes.
 
     <item*|Add server>Contacts the entered address, verifies that it exposes
-    the ATHENA RAG protocol, displays its fingerprint for approval, generates
-    a local client key pair, and submits the client public key for enrollment.
+    the ATHENA Delegation protocol, displays its fingerprint for approval,
+    generates a local client key pair, and submits the client public key for
+    enrollment.
     Enrollment leaves the key pending until the server administrator accepts
     it.
 

@@ -87,9 +87,9 @@ llama_log_bridge (ggml_log_level level, const char* text, void*) {
     }
   if (progress_dots) return;
   if (level >= GGML_LOG_LEVEL_ERROR)
-    std_error << "rag llama.cpp: " << line.c_str ();
+    athena_spdlog_error ("rag llama.cpp: " + line);
   else if (level >= GGML_LOG_LEVEL_WARN)
-    std_warning << "rag llama.cpp: " << line.c_str ();
+    athena_spdlog_warning ("rag llama.cpp: " + line);
 }
 
 } // namespace
@@ -131,8 +131,7 @@ RagEmbedder::open (const std::string& model_path,
   if (model_path.empty ()) return false;
   if (impl->model () != nullptr) return true;
   if (!fs::exists (model_path)) {
-    std_warning << "rag embedding: model not found: "
-                << model_path.c_str () << "\n";
+    athena_spdlog_warning ("rag embedding: model not found: " + model_path);
     return false;
   }
 
@@ -169,16 +168,17 @@ RagEmbedder::open (const std::string& model_path,
   llama_numa_init (params.numa);
   impl->init= common_init_from_params (params);
   if (!impl->init || impl->model () == nullptr || impl->context () == nullptr) {
-    std_warning << "rag embedding: failed to initialize context for "
-                << model_path.c_str () << "\n";
+    athena_spdlog_warning (
+      "rag embedding: failed to initialize context for " + model_path);
     impl->init.reset ();
     return false;
   }
 
   impl->dim= llama_model_n_embd_out (impl->model ());
   impl->fingerprint= stable_file_fingerprint (model_path);
-  io_info << "rag embedding: loaded " << model_path.c_str () << " dim="
-          << impl->dim << "\n";
+  athena_spdlog_info (
+    "rag embedding: loaded " + model_path +
+    " dim=" + std::to_string (impl->dim));
   return true;
 }
 
@@ -275,8 +275,9 @@ RagEmbedder::embed_many (
     llama_memory_clear (llama_get_memory (impl->context ()), true);
     int rc= llama_decode (impl->context (), batch);
     if (rc != 0) {
-      std_warning << "rag embedding: llama batch evaluation failed rc="
-                  << rc << "\n";
+      athena_spdlog_warning (
+        "rag embedding: llama batch evaluation failed rc=" +
+        std::to_string (rc));
       llama_batch_free (batch);
       done_texts += selected.size ();
       if (progress) progress (done_texts, texts.size ());

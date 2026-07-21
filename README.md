@@ -386,7 +386,7 @@ ATHENA can run a separate headless continuous RAG server for a vault.
 - Support `--skip-fonts-cache` for headless server runs that do not need GUI
   font menu preparation.
 - Delegate changed `.ath` document embedding to an authenticated remote ATHENA
-  backend or standalone `rag-transmitter` through encrypted libsodium
+  backend or standalone `athena-transmitter` through encrypted libsodium
   envelopes; only returned SQLite row patches are merged locally.
 - Keep vault assets, backups, preferences, maps, and existing databases out of
   delegated jobs.
@@ -402,6 +402,9 @@ ATHENA can build a semantic inventory of mathematical objects in a vault.
   vault-maintenance pass.
 - Use a small local llama.cpp model to select definition paragraph ranges when
   installed, with a deterministic structural fallback when it is absent.
+- Optionally delegate definition-span selection through ATHENA Delegation's
+  authenticated asynchronous FIFO and batched backend while keeping extraction
+  and SQLite transactions local.
 
 ### UI And Native Qt Work
 

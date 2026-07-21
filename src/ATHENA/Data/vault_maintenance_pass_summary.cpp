@@ -378,7 +378,12 @@ summary_document_text (VaultMaintenanceContext& ctx, bool success,
                       std::to_string (summary.artifact_enunciations) +
                       " enunciation(s), " +
                       std::to_string (summary.artifact_bold_texts) +
-                      " bold-text definition(s)")}));
+                      " bold-text definition(s)" +
+                      (summary.artifact_delegation_attempted ?
+                        (summary.artifact_delegation_succeeded ?
+                          ", delegated range selection succeeded":
+                          ", delegated range selection failed"):
+                        ", local range selection"))}));
   if (summary.toc_update_enabled)
     work_rows.push_back (
       tm_row ({tm_text ("Tables of contents"),
@@ -575,7 +580,11 @@ vault_maintenance_pass_print_summary (VaultMaintenanceContext& ctx) {
             std::to_string (summary.artifact_enunciations) +
             " enunciation(s), " +
             std::to_string (summary.artifact_bold_texts) +
-            " bold-text definition(s)");
+            " bold-text definition(s), range selection " +
+            (summary.artifact_delegation_attempted ?
+              (summary.artifact_delegation_succeeded ? "delegated":
+                                                        "delegation failed"):
+              "local"));
   if (summary.toc_update_enabled)
     log_info ("summary: updated tables of contents in " +
               std::to_string (summary.toc_files_updated) + " of " +

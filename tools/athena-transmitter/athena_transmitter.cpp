@@ -1,6 +1,6 @@
 /******************************************************************************
-* MODULE     : rag_transmitter.cpp
-* DESCRIPTION: Standalone ATHENA RAG delegation transmitter
+* MODULE     : athena_transmitter.cpp
+* DESCRIPTION: Standalone ATHENA delegation transmitter
 * COPYRIGHT  : (C) 2026 Nuaptan Felix Evalisk
 *******************************************************************************
 * This software falls under the GNU general public license version 3 or later.
@@ -33,6 +33,7 @@
 #include <fstream>
 #include <iostream>
 #include <map>
+#include <mutex>
 #include <optional>
 #include <sstream>
 #include <string>
@@ -82,6 +83,10 @@ static Config config;
 static crypto::KeyPair transmitter_keypair;
 static std::atomic<uint64_t> forward_generation {0};
 static std::atomic<uint64_t> active_forwards {0};
+static std::mutex artifact_lease_mutex;
+static std::map<std::string,std::chrono::steady_clock::time_point>
+  artifact_leases;
+constexpr int artifact_lease_seconds= 15 * 60;
 
 std::string
 read_file (const fs::path& path) {
@@ -157,6 +162,21 @@ json_int (const json::object& obj, const char* key, int def) {
   return def;
 }
 
+bool
+json_bool (const json::object& obj, const char* key, bool def) {
+  auto it= obj.find (key);
+  if (it == obj.end ()) return def;
+  const json::value& v= it->value ();
+  if (v.is_bool ()) return v.as_bool ();
+  if (v.is_string ()) {
+    std::string text (v.as_string ().data (), v.as_string ().size ());
+    text= lower (text);
+    if (text == "true" || text == "1" || text == "yes") return true;
+    if (text == "false" || text == "0" || text == "no") return false;
+  }
+  return def;
+}
+
 json::object
 parse_json_object (const std::string& text, std::string& error) {
   boost::system::error_code ec;
@@ -180,10 +200,17 @@ now_iso_utc () {
 
 fs::path
 default_key_dir () {
+  const char* xdg= std::getenv ("XDG_CONFIG_HOME");
   const char* home= std::getenv ("HOME");
-  fs::path base= home == nullptr || home[0] == '\0' ? fs::path ("."):
-                                                      fs::path (home);
-  return base / ".config" / "ATHENA" / "rag-transmitter";
+  fs::path base= xdg != nullptr && xdg[0] != '\0' ? fs::path (xdg):
+    (home == nullptr || home[0] == '\0' ? fs::path ("."):
+                                           fs::path (home) / ".config");
+  fs::path current= base / "ATHENA" / "delegation" / "transmitter";
+  fs::path legacy= base / "ATHENA" / "rag-transmitter";
+  std::error_code ec;
+  if (!fs::exists (current) && fs::exists (legacy))
+    fs::rename (legacy, current, ec);
+  return current;
 }
 
 bool
@@ -239,18 +266,29 @@ error_object (const std::string& message) {
 json::object
 identity_object () {
   json::object o;
-  o["name"]= "ATHENA RAG Transmitter";
+  o["name"]= "ATHENA Delegation Transmitter";
   o["kind"]= "transmitter";
   o["protocol"]= 1;
   o["public_key"]= crypto::base64_encode (transmitter_keypair.public_key);
   o["fingerprint"]=
     crypto::fingerprint_for_public_key (transmitter_keypair.public_key);
   json::array caps;
-  caps.emplace_back ("rag-delegation-v1");
-  caps.emplace_back ("embedding-patch");
+  caps.emplace_back ("athena-delegation-v1");
+  caps.emplace_back ("rag-embedding-v1");
+  caps.emplace_back ("artifact-definition-span-v1");
   caps.emplace_back ("pending-enrollment");
   caps.emplace_back ("pre-post-forward-scripts");
   o["capabilities"]= caps;
+  json::object artifact_limits;
+  artifact_limits["max_requests_per_job"]= 512;
+  artifact_limits["max_plaintext_bytes"]= 8 * 1024 * 1024;
+  artifact_limits["max_queued_items"]= 4096;
+  artifact_limits["max_stored_bytes"]= 32 * 1024 * 1024;
+  artifact_limits["long_poll_ms"]= 20000;
+  artifact_limits["max_in_flight_jobs"]= 4;
+  json::object limits;
+  limits["artifact_definition_span"]= artifact_limits;
+  o["limits"]= limits;
   return o;
 }
 
@@ -264,12 +302,16 @@ load_public_key_list (const fs::path& path, std::vector<std::string>& keys,
   auto it= root.find ("accepted");
   if (it == root.end () || !it->value ().is_array ()) return true;
   for (const json::value& v: it->value ().as_array ()) {
-    if (!v.is_string ()) continue;
-    json::string_view sv= v.as_string ();
+    std::string encoded;
+    if (v.is_string ()) {
+      json::string_view sv= v.as_string ();
+      encoded.assign (sv.data (), sv.size ());
+    }
+    else if (v.is_object ()) encoded= json_string (v.as_object (), "public_key");
+    if (encoded.empty ()) continue;
     std::string decoded;
     std::string local_error;
-    if (crypto::base64_decode (std::string (sv.data (), sv.size ()),
-                               decoded, local_error))
+    if (crypto::base64_decode (encoded, decoded, local_error))
       keys.push_back (decoded);
   }
   return true;
@@ -520,8 +562,10 @@ http_request (const std::string& method, const std::string& url,
 }
 
 bool
-get_upstream_public_key (std::string& public_key, std::string& error) {
-  if (!config.upstream_public_key.empty ()) {
+get_upstream_public_key (std::string& public_key, std::string& error,
+                         const std::string& required_capability= "",
+                         bool verify_identity= false) {
+  if (!verify_identity && !config.upstream_public_key.empty ()) {
     if (!crypto::base64_decode (config.upstream_public_key, public_key, error))
       return false;
     if (!config.upstream_fingerprint.empty () &&
@@ -534,7 +578,7 @@ get_upstream_public_key (std::string& public_key, std::string& error) {
   }
 
   HttpResponse res= http_request (
-    "GET", join_url (config.upstream_url, "/athena-rag/v1/identity"),
+    "GET", join_url (config.upstream_url, "/athena-delegation/v1/identity"),
     "", error);
   if (!error.empty ()) return false;
   if (res.status != 200) {
@@ -544,7 +588,7 @@ get_upstream_public_key (std::string& public_key, std::string& error) {
   json::object id= parse_json_object (res.body, error);
   if (!error.empty ()) return false;
   if (json_int (id, "protocol", 0) != 1) {
-    error= "upstream is not an ATHENA RAG delegation v1 server";
+    error= "upstream is not an ATHENA delegation v1 server";
     return false;
   }
   std::string public64= json_string (id, "public_key");
@@ -555,7 +599,96 @@ get_upstream_public_key (std::string& public_key, std::string& error) {
     error= "upstream public key does not match pinned fingerprint";
     return false;
   }
+  if (!config.upstream_public_key.empty ()) {
+    std::string configured;
+    if (!crypto::base64_decode (
+          config.upstream_public_key, configured, error)) return false;
+    if (configured != public_key) {
+      error= "upstream identity key does not match configured public key";
+      return false;
+    }
+  }
+  if (!required_capability.empty ()) {
+    bool found= false;
+    auto capabilities= id.find ("capabilities");
+    if (capabilities != id.end () && capabilities->value ().is_array ())
+      for (const json::value& value: capabilities->value ().as_array ())
+        if (value.is_string ()) {
+          json::string_view text= value.as_string ();
+          if (std::string (text.data (), text.size ()) ==
+              required_capability) {
+            found= true;
+            break;
+          }
+        }
+    if (!found) {
+      error= "upstream does not advertise required capability " +
+             required_capability;
+      return false;
+    }
+  }
   return true;
+}
+
+long long
+json_count (const json::object& object, const char* key) {
+  auto found= object.find (key);
+  if (found == object.end ()) return 0;
+  const json::value& value= found->value ();
+  if (value.is_int64 ()) return value.as_int64 ();
+  if (value.is_uint64 ()) return (long long) value.as_uint64 ();
+  if (value.is_string ()) {
+    json::string_view text= value.as_string ();
+    try { return std::stoll (std::string (text.data (), text.size ())); }
+    catch (...) { return 0; }
+  }
+  return 0;
+}
+
+bool
+upstream_artifact_queue_busy (std::string& error) {
+  std::string upstream_public_key;
+  if (!get_upstream_public_key (upstream_public_key, error)) return true;
+  json::object request;
+  request["method"]= "delegation.queue.status";
+  request["params"]= json::object ();
+  std::string nonce64, cipher64;
+  if (!crypto::encrypt_payload (
+        transmitter_keypair, upstream_public_key, json::serialize (request),
+        nonce64, cipher64, error)) return true;
+  json::object envelope;
+  envelope["sender"]= crypto::base64_encode (transmitter_keypair.public_key);
+  envelope["nonce"]= nonce64;
+  envelope["ciphertext"]= cipher64;
+  HttpResponse response= http_request (
+    "POST", join_url (config.upstream_url, "/athena-delegation/v1/rpc"),
+    json::serialize (envelope), error);
+  if (!error.empty () || response.status != 200) {
+    if (error.empty ())
+      error= "upstream queue status returned HTTP " +
+             std::to_string (response.status);
+    return true;
+  }
+  json::object outer= parse_json_object (response.body, error);
+  if (!error.empty () || !json_bool (outer, "ok", false)) return true;
+  std::string sender;
+  if (!crypto::base64_decode (json_string (outer, "sender"), sender, error) ||
+      sender != upstream_public_key) {
+    if (error.empty ()) error= "upstream queue status key mismatch";
+    return true;
+  }
+  std::string plain;
+  if (!crypto::decrypt_payload (
+        transmitter_keypair, sender, json_string (outer, "nonce"),
+        json_string (outer, "ciphertext"), plain, error)) return true;
+  json::object result= parse_json_object (plain, error);
+  if (!error.empty () || !json_bool (result, "ok", false)) return true;
+  auto artifact= result.find ("artifact");
+  if (artifact == result.end () || !artifact->value ().is_object ())
+    return false;
+  const json::object& counts= artifact->value ().as_object ();
+  return json_count (counts, "queued") > 0 ||
+         json_count (counts, "running") > 0;
 }
 
 int
@@ -566,9 +699,9 @@ run_script (const std::string& command, const std::string& phase,
   pid_t pid= ::fork ();
   if (pid < 0) return 127;
   if (pid == 0) {
-    ::setenv ("ATHENA_RAG_TRANSMITTER_PHASE", phase.c_str (), 1);
-    ::setenv ("ATHENA_RAG_CLIENT_FINGERPRINT", fp.c_str (), 1);
-    ::setenv ("ATHENA_RAG_UPSTREAM", config.upstream_url.c_str (), 1);
+    ::setenv ("ATHENA_DELEGATION_TRANSMITTER_PHASE", phase.c_str (), 1);
+    ::setenv ("ATHENA_DELEGATION_CLIENT_FINGERPRINT", fp.c_str (), 1);
+    ::setenv ("ATHENA_DELEGATION_UPSTREAM", config.upstream_url.c_str (), 1);
     ::execl ("/bin/sh", "sh", "-c", command.c_str (), nullptr);
     ::_exit (127);
   }
@@ -586,8 +719,29 @@ schedule_post_forward (uint64_t generation,
   if (config.post_forward_script.empty ()) return;
   int idle_seconds= std::max (0, config.idle_shutdown_seconds);
   std::thread ([generation, idle_seconds, client_public_key] () {
-    if (idle_seconds > 0)
-      std::this_thread::sleep_for (std::chrono::seconds (idle_seconds));
+    while (true) {
+      if (idle_seconds > 0)
+        std::this_thread::sleep_for (std::chrono::seconds (idle_seconds));
+      if (forward_generation.load () != generation ||
+          active_forwards.load () != 0) return;
+      bool have_leases= false;
+      {
+        std::lock_guard<std::mutex> guard (artifact_lease_mutex);
+        auto now= std::chrono::steady_clock::now ();
+        for (auto it= artifact_leases.begin (); it != artifact_leases.end ();) {
+          if (it->second <= now) it= artifact_leases.erase (it);
+          else { have_leases= true; ++it; }
+        }
+      }
+      if (!have_leases) {
+        std::string queue_error;
+        if (!upstream_artifact_queue_busy (queue_error)) break;
+        if (!queue_error.empty ())
+          std::cerr << "delaying post-forward: " << queue_error << "\n";
+      }
+      if (idle_seconds == 0)
+        std::this_thread::sleep_for (std::chrono::seconds (1));
+    }
     if (forward_generation.load () != generation ||
         active_forwards.load () != 0) return;
     int rc= run_script (config.post_forward_script, "post",
@@ -633,18 +787,22 @@ wrap_encrypted_json (const std::string& recipient_public_key,
 std::string
 forward_plain_rpc (const std::string& plain_json,
                    const std::string& client_public_key,
-                   std::string& error) {
+                   std::string& error, bool run_pre= true,
+                   const std::string& required_capability= "") {
   ForwardActivity activity (client_public_key);
-  int pre_rc= run_script (config.pre_forward_script, "pre",
-                          client_public_key);
-  if (pre_rc != 0) {
-    error= "pre-forward script failed with status " +
-           std::to_string (pre_rc);
-    return "";
+  if (run_pre) {
+    int pre_rc= run_script (config.pre_forward_script, "pre",
+                            client_public_key);
+    if (pre_rc != 0) {
+      error= "pre-forward script failed with status " +
+             std::to_string (pre_rc);
+      return "";
+    }
   }
 
   std::string upstream_public_key;
-  if (!get_upstream_public_key (upstream_public_key, error)) return "";
+  if (!get_upstream_public_key (upstream_public_key, error,
+                                required_capability, run_pre)) return "";
 
   std::string nonce64, cipher64;
   if (!crypto::encrypt_payload (transmitter_keypair, upstream_public_key,
@@ -656,7 +814,7 @@ forward_plain_rpc (const std::string& plain_json,
   env["ciphertext"]= cipher64;
 
   HttpResponse res= http_request (
-    "POST", join_url (config.upstream_url, "/athena-rag/v1/rpc"),
+    "POST", join_url (config.upstream_url, "/athena-delegation/v1/rpc"),
     json::serialize (env), error);
   if (!error.empty ()) return "";
   if (res.status != 200) {
@@ -694,7 +852,7 @@ json::object
 handle_plain_rpc (const json::object& plain,
                   const std::string& sender_public_key) {
   std::string method= json_string (plain, "method");
-  if (method == "rag.enroll") {
+  if (method == "auth.enroll") {
     std::string error;
     if (!append_pending_client (sender_public_key, error))
       return error_object (error);
@@ -706,7 +864,7 @@ handle_plain_rpc (const json::object& plain,
       sender_public_key);
     return result;
   }
-  if (method == "rag.auth.check") {
+  if (method == "auth.check") {
     json::object result;
     result["ok"]= true;
     result["status"]= public_key_accepted (sender_public_key)?
@@ -715,14 +873,60 @@ handle_plain_rpc (const json::object& plain,
   }
   if (!public_key_accepted (sender_public_key))
     return error_object ("client public key is not accepted");
-  if (method == "rag.embedding.build_patch") {
+  if (method == "rag.embedding.build_patch" ||
+      method == "artifact.definition_span.submit" ||
+      method == "artifact.definition_span.wait" ||
+      method == "artifact.definition_span.cancel" ||
+      method == "artifact.definition_span.ack") {
+    json::object forwarded_request= plain;
+    forwarded_request["_delegation_principal"]=
+      crypto::fingerprint_for_public_key (sender_public_key);
+    std::string lease_key=
+      crypto::fingerprint_for_public_key (sender_public_key) + ":";
+    std::string artifact_job;
+    bool active_lease= false;
+    auto params_it= plain.find ("params");
+    if (params_it != plain.end () && params_it->value ().is_object ()) {
+      const json::object& params= params_it->value ().as_object ();
+      artifact_job= json_string (params, "job_id");
+      lease_key += artifact_job;
+    }
+    if (method.rfind ("artifact.definition_span.", 0) == 0 &&
+        method != "artifact.definition_span.submit") {
+      std::lock_guard<std::mutex> guard (artifact_lease_mutex);
+      auto found= artifact_leases.find (lease_key);
+      active_lease= found != artifact_leases.end () &&
+                    found->second > std::chrono::steady_clock::now ();
+    }
     std::string error;
-    std::string reply= forward_plain_rpc (json::serialize (plain),
-                                          sender_public_key, error);
+    std::string requiredCapability=
+      method == "rag.embedding.build_patch" ? "rag-embedding-v1":
+                                               "artifact-definition-span-v1";
+    std::string reply= forward_plain_rpc (json::serialize (forwarded_request),
+                                          sender_public_key, error,
+                                          !active_lease,
+                                          requiredCapability);
     if (!error.empty ()) return error_object (error);
     std::string parse_error;
     json::object forwarded= parse_json_object (reply, parse_error);
     if (!parse_error.empty ()) return error_object (parse_error);
+    if (method.rfind ("artifact.definition_span.", 0) == 0) {
+      if (params_it != plain.end () && params_it->value ().is_object ()) {
+        if (artifact_job.empty ()) {
+          artifact_job= json_string (forwarded, "job_id");
+          lease_key += artifact_job;
+        }
+      }
+      if (!artifact_job.empty ()) {
+        std::lock_guard<std::mutex> guard (artifact_lease_mutex);
+        if (method == "artifact.definition_span.ack" ||
+            method == "artifact.definition_span.cancel")
+          artifact_leases.erase (lease_key);
+        else
+          artifact_leases[lease_key]= std::chrono::steady_clock::now () +
+            std::chrono::seconds (artifact_lease_seconds);
+      }
+    }
     return forwarded;
   }
   return error_object ("unknown delegation method");
@@ -762,7 +966,7 @@ handle_connection (int fd) {
     return;
   }
   const HttpRequest& req= *maybe_req;
-  if (req.path == "/athena-rag/v1/identity") {
+  if (req.path == "/athena-delegation/v1/identity") {
     if (req.method != "GET")
       write_response (fd, 405, "text/plain", "Method not allowed");
     else
@@ -770,7 +974,7 @@ handle_connection (int fd) {
                       json::serialize (identity_object ()));
     return;
   }
-  if (req.path == "/athena-rag/v1/rpc") {
+  if (req.path == "/athena-delegation/v1/rpc") {
     if (req.method != "POST")
       write_response (fd, 405, "text/plain", "Method not allowed");
     else
@@ -816,7 +1020,7 @@ listen_socket (std::string& error) {
 void
 usage () {
   std::cerr
-    << "Usage: rag-transmitter --config config.json "
+    << "Usage: athena-transmitter --config config.json "
     << "[--generate-keypair]\n";
 }
 
@@ -844,17 +1048,17 @@ main (int argc, char** argv) {
 
   std::string error;
   if (!load_config (config_path, config, error)) {
-    std::cerr << "rag-transmitter: " << error << "\n";
+    std::cerr << "athena-transmitter: " << error << "\n";
     return 1;
   }
   bool generated= false;
   if (!crypto::ensure_keypair (config.key_dir, "server",
                                transmitter_keypair, &generated, error)) {
-    std::cerr << "rag-transmitter: " << error << "\n";
+    std::cerr << "athena-transmitter: " << error << "\n";
     return 1;
   }
   if (generated || generate_keypair) {
-    std::cout << "ATHENA RAG transmitter keypair "
+    std::cout << "ATHENA delegation transmitter keypair "
               << (generated ? "generated": "already exists")
               << " in " << config.key_dir.generic_string () << "\n"
               << "Public key: "
@@ -872,22 +1076,24 @@ main (int argc, char** argv) {
   ::signal (SIGPIPE, SIG_IGN);
   int fd= listen_socket (error);
   if (fd < 0) {
-    std::cerr << "rag-transmitter: " << error << "\n";
+    std::cerr << "athena-transmitter: " << error << "\n";
     return 1;
   }
-  std::cout << "rag-transmitter: listening on http://"
+  std::cout << "athena-transmitter: listening on http://"
             << config.listen_address << ":" << config.port
-            << "/athena-rag/v1/identity\n";
+            << "/athena-delegation/v1/identity\n";
   while (true) {
     int client= ::accept (fd, nullptr, nullptr);
     if (client < 0) {
       if (errno == EINTR) continue;
-      std::cerr << "rag-transmitter: accept failed: "
+      std::cerr << "athena-transmitter: accept failed: "
                 << std::strerror (errno) << "\n";
       continue;
     }
-    handle_connection (client);
-    ::close (client);
+    std::thread ([client] () {
+      handle_connection (client);
+      ::close (client);
+    }).detach ();
   }
   return 0;
 }

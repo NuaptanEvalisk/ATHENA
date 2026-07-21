@@ -32,6 +32,7 @@ private slots:
   void doesNotLinkNonAdjacentProof ();
   void buildsIncrementallyAndPurgesDeletedDocuments ();
   void reportsBuildPhasesInOrder ();
+  void delegatedFailureLeavesDatabaseUnchanged ();
 };
 
 class MissingRangeModel {
@@ -291,6 +292,48 @@ TestArtifacts::reportsBuildPhasesInOrder () {
                       AthenaArtifactsBuildPhase::WritingDatabase) != phases.end ());
   QCOMPARE (std::count (phases.begin (), phases.end (),
                         AthenaArtifactsBuildPhase::Complete), 1);
+}
+
+void
+TestArtifacts::delegatedFailureLeavesDatabaseUnchanged () {
+  MissingRangeModel noModel;
+  QTemporaryDir temporary;
+  QVERIFY (temporary.isValid ());
+  fs::path root (temporary.path ().toStdString ());
+  AthenaVaultfileInfo info;
+  std::string error;
+  QVERIFY2 (athena_vaultfile_write (root, info, error), error.c_str ());
+  write_document (root / "A.ath", artifact_test_document ("original term"));
+  AthenaArtifactsBuildResult initial;
+  QVERIFY2 (athena_artifacts_build (root, {}, true, {}, initial, error),
+            error.c_str ());
+
+  std::vector<AthenaArtifactRecord> before;
+  QVERIFY2 (athena_artifacts_query (root, before, error), error.c_str ());
+  write_document (root / "A.ath", artifact_test_document ("changed term"));
+  AthenaArtifactsBuildOptions options;
+  options.range_selector=
+    [] (const std::vector<AthenaArtifactRangeRequest>&,
+        std::vector<std::vector<int>>&,
+        const AthenaArtifactRangeSelectionProgress&,
+        std::string& selectorError) {
+      selectorError= "simulated delegation failure";
+      return false;
+    };
+  AthenaArtifactsBuildResult failed;
+  error.clear ();
+  QVERIFY (!athena_artifacts_build (
+    root, {}, true, {}, failed, error, options));
+  QCOMPARE (error, std::string ("simulated delegation failure"));
+
+  std::vector<AthenaArtifactRecord> after;
+  error.clear ();
+  QVERIFY2 (athena_artifacts_query (root, after, error), error.c_str ());
+  QCOMPARE (after.size (), before.size ());
+  for (size_t i=0; i<before.size (); i++) {
+    QCOMPARE (after[i].display_text, before[i].display_text);
+    QCOMPARE (after[i].content_uuid, before[i].content_uuid);
+  }
 }
 
 QTEST_MAIN (TestArtifacts)

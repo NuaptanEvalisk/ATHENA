@@ -31,7 +31,7 @@ int athena_artifact_range_batch_size ();
 std::vector<std::vector<int>> athena_artifact_select_definition_ranges (
   const std::vector<AthenaArtifactRangeRequest>& requests,
   const std::string& model_path, const std::atomic<bool>* cancelled,
-  std::atomic<size_t>* completed);
+  std::atomic<size_t>* completed, bool fallback_to_paragraph_zero= true);
 
 std::vector<int> athena_artifact_select_definition_range (
   const std::string& keyword_latex,

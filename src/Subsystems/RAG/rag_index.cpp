@@ -68,14 +68,14 @@ public:
   void log_info (const std::string& message) {
     bool was_active= active_;
     clear ();
-    io_info << message.c_str () << "\n";
+    athena_spdlog_info (message);
     if (was_active) draw ();
   }
 
   void log_warning (const std::string& message) {
     bool was_active= active_;
     clear ();
-    std_warning << message.c_str () << "\n";
+    athena_spdlog_warning (message);
     if (was_active) draw ();
   }
 
@@ -711,9 +711,9 @@ RagIndex::open (const RagConfig& config) {
   if (sqlite3_open (config.db_path.string ().c_str (), &impl->db) !=
       SQLITE_OK) {
     impl->status.last_error= sqlite3_errmsg (impl->db);
-    std_error << "rag index: failed to open "
-              << impl->status.db_path.c_str ()
-              << ": " << impl->status.last_error.c_str () << "\n";
+    athena_spdlog_error (
+      "rag index: failed to open " + impl->status.db_path + ": " +
+      impl->status.last_error);
     return false;
   }
 
@@ -740,8 +740,8 @@ RagIndex::open (const RagConfig& config) {
     "  chunk_id UNINDEXED, rel_path, title, heading_path, text);";
   if (!exec_sql (impl->db, schema, error)) {
     impl->status.last_error= error;
-    std_error << "rag index: schema initialization failed: "
-              << error.c_str () << "\n";
+    athena_spdlog_error (
+      "rag index: schema initialization failed: " + error);
     return false;
   }
 
@@ -1134,7 +1134,8 @@ RagIndex::parallel_reindex (int jobs) {
   for (int i=0; i<jobs; i++) {
     int fds[2]= { -1, -1 };
     if (pipe (fds) != 0) {
-      std_warning << "rag index: failed to create worker progress pipe" << "\n";
+      athena_spdlog_warning (
+        "rag index: failed to create worker progress pipe");
       return false;
     }
     pid_t pid= fork ();
@@ -1161,7 +1162,7 @@ RagIndex::parallel_reindex (int jobs) {
     close (fds[1]);
     if (pid < 0) {
       close (fds[0]);
-      std_warning << "rag index: failed to fork worker" << "\n";
+      athena_spdlog_warning ("rag index: failed to fork worker");
       return false;
     }
     pids.push_back (pid);
@@ -1292,8 +1293,8 @@ RagIndex::parallel_reindex (int jobs) {
   for (const std::string& path: temp_dbs) {
     if (!merge_worker_database (impl->db, path, error)) {
       exec_sql (impl->db, "ROLLBACK", error);
-      std_warning << "rag index: failed to merge worker database: "
-                  << error.c_str () << "\n";
+      athena_spdlog_warning (
+        "rag index: failed to merge worker database: " + error);
       return false;
     }
   }
@@ -1308,8 +1309,9 @@ RagIndex::parallel_reindex (int jobs) {
   }
   return true;
 #else
-  std_warning << "rag index: process parallelization is unavailable on this "
-              << "platform; using serial indexing" << "\n";
+  athena_spdlog_warning (
+    "rag index: process parallelization is unavailable on this platform; "
+    "using serial indexing");
   return scan_once ();
 #endif
 }

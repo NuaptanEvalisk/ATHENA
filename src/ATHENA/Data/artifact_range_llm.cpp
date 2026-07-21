@@ -220,13 +220,15 @@ std::string make_shared_prompt_suffix (
 
 std::vector<int> parse_result (
   const std::string& text,
-  const std::vector<std::pair<int,std::string>>& paragraphs) {
+  const std::vector<std::pair<int,std::string>>& paragraphs,
+  bool fallback_to_paragraph_zero) {
   std::vector<int> allowed;
   for (const auto& p: paragraphs) allowed.push_back (p.first);
   std::vector<int> out;
   std::smatch match;
   if (!std::regex_search (text, match, std::regex ("\\[([^\\]]*)\\]")))
-    return {0};
+    return fallback_to_paragraph_zero ? std::vector<int> {0}:
+                                        std::vector<int> {};
   std::regex integer ("-?[0-9]+");
   std::string body= match[1].str ();
   for (std::sregex_iterator it (body.begin (), body.end (), integer), end;
@@ -236,7 +238,9 @@ std::vector<int> parse_result (
         std::find (out.begin (), out.end (), value) == out.end ())
       out.push_back (value);
   }
-  if (std::find (out.begin (), out.end (), 0) == out.end ()) return {0};
+  if (std::find (out.begin (), out.end (), 0) == out.end ())
+    return fallback_to_paragraph_zero ? std::vector<int> {0}:
+                                        std::vector<int> {};
   std::sort (out.begin (), out.end ());
   return out;
 }
@@ -248,9 +252,12 @@ public:
   std::vector<std::vector<int>> select_many (
     const std::vector<AthenaArtifactRangeRequest>& requests,
     const std::string& model_path, int requested_parallelism,
-    const std::atomic<bool>* cancelled, std::atomic<size_t>* completed) {
+    const std::atomic<bool>* cancelled, std::atomic<size_t>* completed,
+    bool fallback_to_paragraph_zero) {
     std::lock_guard<std::mutex> guard (mutex);
-    std::vector<std::vector<int>> results (requests.size (), {0});
+    std::vector<std::vector<int>> results (requests.size ());
+    if (fallback_to_paragraph_zero)
+      for (std::vector<int>& result: results) result= {0};
     if (completed) completed->store (0);
     if (requests.empty () || (cancelled && cancelled->load ())) return results;
     int parallelism= std::clamp (
@@ -517,12 +524,20 @@ public:
       for (State& state: states) {
         if (!state.done) finish (state);
         const AthenaArtifactRangeRequest& request= requests[state.request];
-        results[state.request]= parse_result (state.answer, request.paragraphs);
-        range_log ("definition-range model output: request=" +
-                   std::to_string (state.request + 1) + ", keyword=\"" +
-                   request.keyword_latex + "\", answer=" +
-                   trim (state.answer) + ", generated-tokens=" +
-                   std::to_string (state.generated));
+        results[state.request]= parse_result (
+          state.answer, request.paragraphs, fallback_to_paragraph_zero);
+        std::string output_log= "definition-range model output: request=" +
+          std::to_string (state.request + 1);
+        if (fallback_to_paragraph_zero)
+          output_log += ", keyword=\"" + request.keyword_latex +
+                        "\", answer=" + trim (state.answer);
+        else
+          output_log += ", valid=" +
+                        std::string (results[state.request].empty () ?
+                                     "false": "true");
+        output_log += ", generated-tokens=" +
+                      std::to_string (state.generated);
+        range_log (output_log);
       }
       range_log ("definition-range generation batch complete: requests=" +
                  std::to_string (count) + ", elapsed-ms=" +
@@ -741,9 +756,10 @@ std::vector<std::vector<int>>
 athena_artifact_select_definition_ranges (
   const std::vector<AthenaArtifactRangeRequest>& requests,
   const std::string& model_path, const std::atomic<bool>* cancelled,
-  std::atomic<size_t>* completed) {
+  std::atomic<size_t>* completed, bool fallback_to_paragraph_zero) {
   return range_model ().select_many (
-    requests, model_path, configured_batch_size (), cancelled, completed);
+    requests, model_path, configured_batch_size (), cancelled, completed,
+    fallback_to_paragraph_zero);
 }
 
 std::vector<int>
@@ -752,7 +768,7 @@ athena_artifact_select_definition_range (
   const std::vector<std::pair<int,std::string>>& paragraphs) {
   AthenaArtifactRangeRequest request {keyword_latex, paragraphs};
   auto results= range_model ().select_many (
-    {request}, configured_model (), 1, nullptr, nullptr);
+    {request}, configured_model (), 1, nullptr, nullptr, true);
   return results.empty () ? std::vector<int> {0} : results[0];
 }
 
@@ -763,6 +779,6 @@ athena_artifact_select_definition_range (
   const std::string& model_path, const std::atomic<bool>* cancelled) {
   AthenaArtifactRangeRequest request {keyword_latex, paragraphs};
   auto results= range_model ().select_many (
-    {request}, model_path, 1, cancelled, nullptr);
+    {request}, model_path, 1, cancelled, nullptr, true);
   return results.empty () ? std::vector<int> {0} : results[0];
 }

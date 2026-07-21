@@ -9,6 +9,7 @@
 ******************************************************************************/
 
 #include "mcp_rag_server.hpp"
+#include "artifact_delegation_queue.hpp"
 
 #include "rag_delegation_crypto.hpp"
 #include "rag_delegation_patch.hpp"
@@ -18,6 +19,7 @@
 #include "tm_ostream.hpp"
 
 #include <QByteArray>
+#include <QCoreApplication>
 #include <QDateTime>
 #include <QHostAddress>
 #include <QJsonArray>
@@ -32,9 +34,12 @@
 #include <QUrlQuery>
 
 #include <algorithm>
+#include <chrono>
+#include <mutex>
 #include <memory>
 #include <sstream>
 #include <fstream>
+#include <thread>
 #include <unordered_map>
 
 namespace athena::mcp {
@@ -51,6 +56,13 @@ static std::unique_ptr<QTcpServer> server;
 static std::unique_ptr<QTimer> scan_timer;
 static std::unique_ptr<athena::rag::RagIndex> indexer;
 static std::shared_ptr<athena::rag::RagEmbedder> embedding_runtime;
+static std::unique_ptr<ArtifactDelegationQueue> artifact_queue;
+static std::mutex rag_delegation_mutex;
+struct RagPatchCacheEntry {
+  QJsonObject result;
+  std::chrono::steady_clock::time_point completed_at;
+};
+static std::unordered_map<std::string,RagPatchCacheEntry> rag_patch_cache;
 static std::string bearer_token;
 static RagServerOptions active_options;
 static athena::rag::delegation::KeyPair delegation_keypair;
@@ -430,15 +442,29 @@ authorized_bearer (const HttpRequest& req) {
 
 static std::filesystem::path
 default_delegation_key_dir () {
+  const char* xdg= getenv ("XDG_CONFIG_HOME");
   const char* home= getenv ("HOME");
-  std::filesystem::path base= home == nullptr ? std::filesystem::path (".") :
-                                               std::filesystem::path (home);
-  return base / ".config" / "ATHENA" / "rag-delegation";
+  std::filesystem::path base=
+    xdg != nullptr && xdg[0] != '\0' ? std::filesystem::path (xdg):
+    (home == nullptr || home[0] == '\0' ? std::filesystem::path ("."):
+      std::filesystem::path (home) / ".config");
+  std::filesystem::path current= base / "ATHENA" / "delegation";
+  std::filesystem::path legacy= base / "ATHENA" / "rag-delegation";
+  std::error_code ec;
+  if (!std::filesystem::exists (current) &&
+      std::filesystem::exists (legacy))
+    std::filesystem::rename (legacy, current, ec);
+  return current;
 }
+
+struct AcceptedClient {
+  std::string key;
+  std::string role= "client";
+};
 
 static bool
 load_public_key_list (const std::filesystem::path& path,
-                      std::vector<std::string>& keys,
+                      std::vector<AcceptedClient>& keys,
                       std::string& error) {
   keys.clear ();
   if (path.empty ()) return true;
@@ -456,25 +482,37 @@ load_public_key_list (const std::filesystem::path& path,
   }
   QJsonArray arr= doc.object ().value ("accepted").toArray ();
   for (const QJsonValue& value: arr) {
+    QString encoded;
+    QString role= "client";
+    if (value.isString ()) encoded= value.toString ();
+    else if (value.isObject ()) {
+      encoded= value.toObject ().value ("public_key").toString ();
+      role= value.toObject ().value ("role").toString ("client");
+    }
     std::string decoded;
     std::string local_error;
     if (athena::rag::delegation::base64_decode (
-          value.toString ().toStdString (), decoded, local_error))
-      keys.push_back (decoded);
+          encoded.toStdString (), decoded, local_error))
+      keys.push_back ({decoded, role.toStdString ()});
   }
   return true;
 }
 
-static bool
-public_key_accepted (const std::string& public_key) {
-  std::vector<std::string> keys;
+static std::string
+accepted_public_key_role (const std::string& public_key) {
+  std::vector<AcceptedClient> keys;
   std::string error;
   if (!load_public_key_list (active_options.delegation_accepted_clients,
                              keys, error))
-    return false;
-  for (const std::string& key: keys)
-    if (key == public_key) return true;
-  return false;
+    return "";
+  for (const AcceptedClient& client: keys)
+    if (client.key == public_key) return client.role;
+  return "";
+}
+
+static bool
+public_key_accepted (const std::string& public_key) {
+  return !accepted_public_key_role (public_key).empty ();
 }
 
 static bool
@@ -525,7 +563,7 @@ append_pending_client (const std::string& public_key, std::string& error) {
 static QJsonObject
 identity_result () {
   QJsonObject o;
-  o["name"]= "ATHENA RAG Server";
+  o["name"]= "ATHENA Delegation Server";
   o["kind"]= "backend";
   o["protocol"]= 1;
   o["public_key"]= QString::fromStdString (
@@ -535,10 +573,16 @@ identity_result () {
     athena::rag::delegation::fingerprint_for_public_key (
       delegation_keypair.public_key));
   QJsonArray caps;
-  caps.append ("rag-delegation-v1");
-  caps.append ("embedding-patch");
+  caps.append ("athena-delegation-v1");
+  caps.append ("rag-embedding-v1");
+  if (artifact_queue && artifact_queue->available ())
+    caps.append ("artifact-definition-span-v1");
   caps.append ("pending-enrollment");
   o["capabilities"]= caps;
+  QJsonObject limits;
+  if (artifact_queue)
+    limits["artifact_definition_span"]= artifact_queue->limits ();
+  o["limits"]= limits;
   return o;
 }
 
@@ -547,7 +591,7 @@ handle_delegation_plain_rpc (const QJsonObject& request,
                              const std::string& sender_public_key) {
   QString method= request.value ("method").toString ();
   QJsonObject params= request.value ("params").toObject ();
-  if (method == "rag.enroll") {
+  if (method == "auth.enroll") {
     std::string error;
     if (!append_pending_client (sender_public_key, error))
       return jsonrpc_error_object (QString::fromStdString (error));
@@ -560,16 +604,65 @@ handle_delegation_plain_rpc (const QJsonObject& request,
         sender_public_key));
     return result;
   }
-  if (method == "rag.auth.check") {
+  if (method == "auth.check") {
     QJsonObject result;
     result["ok"]= true;
     result["status"]= public_key_accepted (sender_public_key)?
       "accepted": "pending";
     return result;
   }
-  if (!public_key_accepted (sender_public_key))
+  std::string sender_role= accepted_public_key_role (sender_public_key);
+  if (sender_role.empty ())
     return jsonrpc_error_object ("client public key is not accepted");
+  std::string principal=
+    athena::rag::delegation::fingerprint_for_public_key (sender_public_key);
+  if (sender_role == "proxy") {
+    QString forwarded= request.value ("_delegation_principal").toString ();
+    if (!forwarded.isEmpty ()) principal= forwarded.toStdString ();
+  }
+  if (method == "artifact.definition_span.submit") {
+    if (!artifact_queue || !artifact_queue->available ())
+      return jsonrpc_error_object ("artifact definition-span model is unavailable");
+    return artifact_queue->submit (principal, params);
+  }
+  if (method == "artifact.definition_span.wait") {
+    if (!artifact_queue) return jsonrpc_error_object ("artifact queue is unavailable");
+    return artifact_queue->wait (principal, params);
+  }
+  if (method == "artifact.definition_span.cancel") {
+    if (!artifact_queue) return jsonrpc_error_object ("artifact queue is unavailable");
+    return artifact_queue->cancel (principal, params);
+  }
+  if (method == "artifact.definition_span.ack") {
+    if (!artifact_queue) return jsonrpc_error_object ("artifact queue is unavailable");
+    return artifact_queue->acknowledge (principal, params);
+  }
+  if (method == "delegation.queue.status") {
+    if (sender_role != "proxy")
+      return jsonrpc_error_object ("queue status is restricted to proxies");
+    QJsonObject result;
+    result["ok"]= true;
+    result["artifact"]= artifact_queue ? artifact_queue->counts ():
+                                         QJsonObject ();
+    return result;
+  }
   if (method == "rag.embedding.build_patch") {
+    std::lock_guard<std::mutex> rag_guard (rag_delegation_mutex);
+    QString requestId= params.value ("request_id").toString ();
+    if (requestId.isEmpty () || requestId.size () > 128)
+      return jsonrpc_error_object ("invalid RAG request id");
+    const auto now= std::chrono::steady_clock::now ();
+    const auto ttl= std::chrono::minutes (15);
+    for (auto it= rag_patch_cache.begin (); it != rag_patch_cache.end ();)
+      if (now - it->second.completed_at > ttl)
+        it= rag_patch_cache.erase (it);
+      else ++it;
+    std::string cacheKey= principal + "\n" + requestId.toStdString ();
+    auto cached= rag_patch_cache.find (cacheKey);
+    if (cached != rag_patch_cache.end ()) {
+      athena_spdlog_info ("rag delegation: returning cached patch for retry");
+      return cached->second.result;
+    }
     QByteArray jobBytes= QByteArray::fromBase64 (
       params.value ("job").toString ().toUtf8 ());
     QJsonParseError parse;
@@ -622,10 +715,11 @@ handle_delegation_plain_rpc (const QJsonObject& request,
     bool useCompression= !compressedPatch.isEmpty () &&
                          compressedPatch.size () < rawPatch.size ();
     const QByteArray& wirePatch= useCompression ? compressedPatch: rawPatch;
-    io_info << "rag delegation: patch transport raw-bytes="
-            << rawPatch.size () << " wire-bytes=" << wirePatch.size ()
-            << " encoding=" << (useCompression ? "qcompress": "raw")
-            << "\n";
+    athena_spdlog_info (
+      "rag delegation: patch transport raw-bytes=" +
+      std::to_string (rawPatch.size ()) +
+      " wire-bytes=" + std::to_string (wirePatch.size ()) +
+      " encoding=" + (useCompression ? "qcompress": "raw"));
     QJsonObject result;
     result["ok"]= true;
     result["patch"]= QString::fromLatin1 (
@@ -633,10 +727,21 @@ handle_delegation_plain_rpc (const QJsonObject& request,
     result["patch_encoding"]= useCompression ? "qcompress": "raw";
     result["patch_uncompressed_bytes"]= QString::number (rawPatch.size ());
     result["patch_wire_bytes"]= QString::number (wirePatch.size ());
+    result["request_id"]= requestId;
     QJsonArray deleted;
     for (const std::string& rel: job.deleted)
       deleted.append (QString::fromStdString (rel));
     result["deleted"]= deleted;
+    rag_patch_cache[cacheKey]= {result, std::chrono::steady_clock::now ()};
+    while (rag_patch_cache.size () > 4) {
+      auto oldest= std::min_element (
+        rag_patch_cache.begin (), rag_patch_cache.end (),
+        [] (const auto& a, const auto& b) {
+          return a.second.completed_at < b.second.completed_at;
+        });
+      if (oldest == rag_patch_cache.end ()) break;
+      rag_patch_cache.erase (oldest);
+    }
     return result;
   }
   return jsonrpc_error_object ("unknown delegation method");
@@ -700,7 +805,7 @@ handle_socket (QTcpSocket* socket) {
       delete buffer;
       return;
     }
-    if (req.path == "/athena-rag/v1/identity") {
+    if (req.path == "/athena-delegation/v1/identity") {
       if (req.method != "GET") {
         write_response (socket, 405, "text/plain", "Method not allowed");
         delete buffer;
@@ -711,7 +816,7 @@ handle_socket (QTcpSocket* socket) {
       delete buffer;
       return;
     }
-    if (req.path == "/athena-rag/v1/rpc") {
+    if (req.path == "/athena-delegation/v1/rpc") {
       if (req.method != "POST") {
         write_response (socket, 405, "text/plain", "Method not allowed");
         delete buffer;
@@ -722,10 +827,19 @@ handle_socket (QTcpSocket* socket) {
       if (parse.error != QJsonParseError::NoError || !doc.isObject ())
         write_response (socket, 400, "application/json",
                         json_bytes (jsonrpc_error_object ("invalid JSON")));
-      else
-        write_response (
-          socket, 200, "application/json",
-          json_bytes (handle_delegation_envelope (doc.object ())));
+      else {
+        QPointer<QTcpSocket> guarded (socket);
+        QJsonObject envelope= doc.object ();
+        std::thread ([guarded, envelope] () {
+          QJsonObject response= handle_delegation_envelope (envelope);
+          QMetaObject::invokeMethod (
+            QCoreApplication::instance (), [guarded, response] () {
+              if (guarded)
+                write_response (guarded, 200, "application/json",
+                                json_bytes (response));
+            }, Qt::QueuedConnection);
+        }).detach ();
+      }
       delete buffer;
       return;
     }
@@ -818,6 +932,17 @@ start_rag_server (const RagServerOptions& options) {
   io_info << "rag delegation: server fingerprint "
           << athena::rag::delegation::fingerprint_for_public_key (
                delegation_keypair.public_key).c_str () << "\n";
+
+  ArtifactDelegationQueueOptions artifact_options;
+  artifact_options.model_path= active_options.artifact_range_model;
+  artifact_options.batch_size=
+    std::clamp (active_options.artifact_range_batch_size, 1, 16);
+  artifact_options.max_queued_items=
+    std::max (1, active_options.artifact_queue_limit);
+  artifact_options.max_stored_bytes=
+    std::max (1024 * 1024, active_options.artifact_queue_bytes);
+  artifact_queue= std::make_unique<ArtifactDelegationQueue> (
+    std::move (artifact_options));
 
   indexer.reset (new athena::rag::RagIndex);
   embedding_runtime= std::make_shared<athena::rag::RagEmbedder> ();

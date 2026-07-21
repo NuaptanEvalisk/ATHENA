@@ -1,0 +1,20 @@
+[Unit]
+Description=ATHENA Delegation Backend
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/felix/data/Software/ATHENA-rag-runtime
+Environment=LD_LIBRARY_PATH=/home/felix/data/Software/ATHENA-rag-runtime/backend-lib:/home/felix/opt/guile18/lib64:/home/felix/opt/llama-p100-rag/lib64:/home/felix/opt/resvg/lib64:/home/felix/data/Software/ATHENA-delegation-current/build_p100/x64/lib
+ExecStart=/home/felix/data/Software/ATHENA-rag-runtime/bin/ATHENA.bin -H --rag-server /home/felix/.local/share/athena-rag-backend/vault --rag-port 8765 --rag-listen-address 100.103.71.75 --delegation-key-dir /home/felix/.local/share/athena-rag-backend/keys --delegation-accepted-clients /home/felix/.local/share/athena-rag-backend/keys/accepted-clients.json --rag-embedding-model /home/felix/data/Software/embedding/bge-m3-FP16.gguf --rag-embedding-device auto --artifact-range-model /home/felix/data/Software/ATHENA-rag-runtime/models/artifact-range-model.gguf --artifact-range-batch-size 16 --skip-fonts-cache
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=90
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/home/felix/.local/share/athena-rag-backend
+
+[Install]
+WantedBy=default.target

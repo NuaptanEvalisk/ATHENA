@@ -27,6 +27,10 @@ struct RagServerOptions {
   std::string listen_address= "127.0.0.1";
   std::filesystem::path delegation_key_dir;
   std::filesystem::path delegation_accepted_clients;
+  std::filesystem::path artifact_range_model;
+  int artifact_range_batch_size= 16;
+  int artifact_queue_limit= 4096;
+  int artifact_queue_bytes= 32 * 1024 * 1024;
 };
 
 bool start_rag_server (const RagServerOptions& options);
