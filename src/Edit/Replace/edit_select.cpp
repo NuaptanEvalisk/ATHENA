@@ -895,7 +895,21 @@ edit_select_rep::selection_cut (string key) {
       selection_get (p1, p2);
       go_to (p2);
       if (p2 == p1) return;
-      observer pos= position_new (p1);
+      path p= common (p1, p2);
+      bool stable_right_boundary= false;
+      if (N(p1) > N(p) && N(p2) > N(p)) {
+        tree t= subtree (et, p);
+        int i1= p1[N(p)], i2= p2[N(p)];
+        stable_right_boundary=
+          (is_document (t) || is_concat (t)) && i1 < i2 &&
+          p1 == p * i1 * 0 && p2 == p * i2 * 0;
+      }
+
+      // Normally the left boundary follows a partially retained prefix.  For
+      // a half-open range of complete children, however, that boundary is
+      // deleted and may reattach to the wrong side of an adjacent math
+      // operator.  Its right boundary belongs to the first surviving child.
+      observer pos= position_new (stable_right_boundary? p2: p1);
       if (key != "none") {
         tree sel= selection_compute (et, p1, p2);
         selection_set (key, simplify_correct (sel));
