@@ -1891,6 +1891,24 @@ QTMPreferencesDialog::buildOtherPage () {
   });
   finish_page (ai);
 
+  QWidget* debugging= make_page ();
+  QFormLayout* performance= add_section (debugging, "Rendering Performance");
+  QCheckBox* performanceMonitor= add_toggle (
+    performance, "Show rendering FPS and editing latency HUD:",
+    "rendering performance monitor");
+  QObject::connect (performanceMonitor, &QCheckBox::toggled,
+                    [] () {
+                      QTMWidget::refreshAllPerformanceMonitors ();
+                    });
+  QLabel* performanceNote= new QLabel (
+    "The semi-transparent HUD is shown at the lower-left of every document "
+    "editor. FPS counts completed canvas paints; editing latency measures "
+    "from keyboard or input-method delivery to the next completed paint. "
+    "HUD-only refreshes are excluded from both measurements.", debugging);
+  performanceNote->setWordWrap (true);
+  debugging->layout ()->addWidget (performanceNote);
+  finish_page (debugging);
+
   QWidget* security= make_page ();
   QFormLayout* s= add_section (security, "Security");
   add_combo (s, "Script execution:", "security",
@@ -2245,7 +2263,7 @@ QTMPreferencesDialog::buildOtherPage () {
   finish_page (connectivity);
 
   return tabbed ({{"AI", ai}, {"Connectivity", connectivity},
-                  {"Security", security}});
+                  {"Security", security}, {"Debugging", debugging}});
 }
 
 void

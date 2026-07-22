@@ -178,6 +178,7 @@ ensure_builtin_user_preferences () {
     PREF ("ir-menu", ".", "notify-remote-control"),
     PREF ("draw cursor", "on", ""),
     PREF ("blinking cursor", "on", ""),
+    PREF ("rendering performance monitor", "off", ""),
 
     PREF ("native pdf", "on", ""),
     PREF ("native postscript", "on", ""),

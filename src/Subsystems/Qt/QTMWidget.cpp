@@ -53,6 +53,7 @@
 #include <QUrl>
 #include <QFileInfo>
 
+#include <algorithm>
 #include <cmath>
 
 static long int QTMWcounter = 0; // debugging hack
@@ -76,7 +77,7 @@ gestureEventTypeName (QEvent::Type type) {
  */
 QTMWidget::QTMWidget (QWidget* _parent, qt_widget _tmwid)
 : QTMScrollView (_parent), tmwid (_tmwid),  imwidget (NULL),
-  preediting (false)
+  preediting (false), performanceMonitor (this)
 {
   setObjectName (to_qstring ("QTMWidget" * as_string (QTMWcounter++)));// What is this for? (maybe only debugging?)
   setFocusPolicy (Qt::StrongFocus);
@@ -113,6 +114,8 @@ QTMWidget::QTMWidget (QWidget* _parent, qt_widget _tmwid)
   if (hints != nullptr)
     connect (hints, &QStyleHints::cursorFlashTimeChanged, this,
              [this] (int) { refreshCursorBlinking (true); });
+
+  performanceMonitor.refresh ();
 
 #if (QT_VERSION >= QT_VERSION_CHECK(5,9,0))
   surface ()->setTabletTracking (true);
@@ -170,6 +173,14 @@ QTMWidget::refreshAllCursorBlinking () {
   for (QWidget* widget: widgets)
     if (QTMWidget* canvas= qobject_cast<QTMWidget*> (widget))
       canvas->refreshCursorBlinking (true);
+}
+
+void
+QTMWidget::refreshAllPerformanceMonitors () {
+  const auto widgets= QApplication::allWidgets ();
+  for (QWidget* widget: widgets)
+    if (QTMWidget* canvas= qobject_cast<QTMWidget*> (widget))
+      canvas->performanceMonitor.refresh ();
 }
 
 bool
@@ -245,20 +256,22 @@ QTMWidget::surfacePaintEvent (QPaintEvent *event, QWidget *surfaceWidget) {
   if ((viewPinchActive || viewPinchCommitPending) &&
       !viewPinchPreview.isNull()) {
     drawViewPinchPreview (p);
-    return;
   }
-  qreal pixel_ratio= lastPixelRatio;
-  QRegion reg= event->region();
-  QRegion::const_iterator it;
-  QRectF qr;
-  for (it= reg.begin (); it != reg.end (); ++it) {
-    qr= *it;
-    p.drawPixmap (qr, *(tm_widget()->backingPixmap),
-		  QRectF (pixel_ratio * qr.x(),
-			  pixel_ratio * qr.y(),
-			  pixel_ratio * qr.width(),
-			  pixel_ratio * qr.height()));
+  else {
+    qreal pixel_ratio= lastPixelRatio;
+    QRegion reg= event->region();
+    QRegion::const_iterator it;
+    QRectF qr;
+    for (it= reg.begin (); it != reg.end (); ++it) {
+      qr= *it;
+      p.drawPixmap (qr, *(tm_widget()->backingPixmap),
+		    QRectF (pixel_ratio * qr.x(),
+			    pixel_ratio * qr.y(),
+			    pixel_ratio * qr.width(),
+			    pixel_ratio * qr.height()));
+    }
   }
+  performanceMonitor.finishPaint (event, p);
 }
 
 bool
@@ -742,6 +755,7 @@ QTMWidget::paintEvent (QPaintEvent* event) {
                 *(tm_widget()->backingPixmap),
                 QRect (0, 0, (int) (surface()->width()  * dpr),
                              (int) (surface()->height() * dpr)));
+  performanceMonitor.finishPaint (event, p);
 }
 #else
 void
@@ -758,6 +772,7 @@ QTMWidget::paintEvent (QPaintEvent* event) {
                          (int) (dpr * qr.width()),
                          (int) (dpr * qr.height())));
   }
+  performanceMonitor.finishPaint (event, p);
 }
 #endif
 
@@ -815,6 +830,8 @@ QTMWidget::keyPressEvent (QKeyEvent* event) {
     return;
   }
   if (DEBUG_QT && DEBUG_KEYBOARD) debug_qt << "key press: " << r << LF;
+  if (!performanceMonitor.inputBatchActive ())
+    performanceMonitor.recordEditingInput ();
   the_gui->process_keypress (tm_widget(), r, texmacs_time());
 
 }
@@ -873,6 +890,10 @@ QTMWidget::inputMethodEvent (QInputMethodEvent* event) {
   refreshCursorBlinking (true);
   QString const & preedit_string = event->preeditString();
   QString const & commit_string = event->commitString();
+  bool visibleInput= !commit_string.isEmpty () ||
+                     !preedit_string.isEmpty () || preediting;
+  if (visibleInput) performanceMonitor.recordEditingInput ();
+  performanceMonitor.setInputBatchActive (visibleInput);
   
   if (!commit_string.isEmpty()) {
     bool done= false;
@@ -937,8 +958,9 @@ QTMWidget::inputMethodEvent (QInputMethodEvent* event) {
     the_gui->process_keypress (tm_widget(), r, texmacs_time());
   }
 
+  performanceMonitor.setInputBatchActive (false);
   event->accept();
-}  
+}
 
 QVariant 
 QTMWidget::inputMethodQuery (Qt::InputMethodQuery query) const {

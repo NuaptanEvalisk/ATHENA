@@ -865,6 +865,21 @@
     home is authenticated. ATHENA does not store OpenAI API keys itself.
   </description>
 
+  <subsection|Debugging>
+
+  <subsubsection|Rendering Performance>
+
+  <\description>
+    <item*|Show rendering FPS and editing latency HUD>Shows a
+    semi-transparent monitor at the lower-left of every document editor. FPS
+    is sampled from completed canvas paints over a one-second window. Editing
+    latency measures the time from a keyboard action or input-method update to
+    the next completed canvas paint; the HUD shows the latest value and the
+    95th percentile over the last five seconds. Its own periodic refreshes are
+    excluded from both measurements, so an idle editor falls to zero FPS
+    instead of measuring the monitor itself.
+  </description>
+
   <subsection|Connectivity>
 
   <subsubsection|Google Tasks>

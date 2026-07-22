@@ -14,6 +14,7 @@
 
 #include "qt_widget.hpp"
 #include "QTMScrollView.hpp"
+#include "QTMPerformanceMonitor.hpp"
 #include <QLabel>
 #include <QGesture>
 #include <QGestureEvent>
@@ -71,6 +72,7 @@ public:
   static QTMWidget *getLastFocusedWidget();
   static void setFocusToLast();
   static void refreshAllCursorBlinking ();
+  static void refreshAllPerformanceMonitors ();
 #if QT_VERSION >= 0x060000
 protected slots:
   void devicePixelRatioChanged ();
@@ -110,10 +112,13 @@ protected:
   void closeEvent (QCloseEvent *event) override;
 
 private:
+  friend class QTMPerformanceMonitor;
+
   qreal lastPixelRatio = 0.0;
   QPointer<QScrollBar> tabletScrollBarTarget;
   QTimer cursorBlinkTimer;
   bool cursorBlinkVisible= true;
+  QTMPerformanceMonitor performanceMonitor;
 #if QT_VERSION >= 0x060000
   bool viewPinchActive = false;
   bool viewPinchCommitPending = false;
