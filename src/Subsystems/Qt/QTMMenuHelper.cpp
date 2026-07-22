@@ -230,6 +230,13 @@ QTMTileAction::createWidget (QWidget* parent)
 #endif
     if (tm_style_sheet == "")
       tb->setStyle (qtmstyle ());
+#if QT_VERSION >= 0x060000
+    if (retina_scale > 1.0) {
+      QSize hint= tb->sizeHint ();
+      tb->setMinimumSize ((int) ceil (hint.width () * retina_scale),
+                          (int) ceil (hint.height () * retina_scale));
+    }
+#endif
     l->addWidget (tb, row, col);
     col++;
     if (col >= cols) { col = 0; row++; }
@@ -394,7 +401,11 @@ QTMMenuButton::paintEvent (QPaintEvent* e) {
     // draw the control background as a menu item
   style()->drawControl (QStyle::CE_MenuItem, &option, &p, this);
     // draw the icon with a bit of inset.
-  r.adjust (2, 2, -2, -2);  
+  int inset= 2;
+#if QT_VERSION >= 0x060000
+  inset= max (inset, (int) ceil (inset * retina_scale));
+#endif
+  r.adjust (inset, inset, -inset, -inset);
   defaultAction()->icon().paint (&p, r);
 }
 
