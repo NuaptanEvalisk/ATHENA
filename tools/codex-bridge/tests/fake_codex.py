@@ -42,8 +42,21 @@ for line in sys.stdin:
         send({"jsonrpc": "2.0", "id": request_id,
               "result": {"thread": {"id": "thread-1"}}})
     elif method == "turn/start":
+        params = message.get("params", {})
         if os.environ.get("ATHENA_FAKE_EXPECT_CUSTOM") == "1":
-            assert message.get("params", {}).get("effort") == "low"
+            assert params.get("effort") == "low"
+        expected_image = os.environ.get("ATHENA_FAKE_EXPECT_IMAGE")
+        if expected_image:
+            image_name = os.path.basename(expected_image)
+            assert params.get("input") == [
+                {"type": "text", "text": "Continue $x$"},
+                {"type": "text",
+                 "text": f"Attached asset <{image_name}>:"},
+                {"type": "localImage", "path": expected_image},
+            ]
+        else:
+            assert params.get("input") == [
+                {"type": "text", "text": "Continue $x$"}]
         send({"jsonrpc": "2.0", "id": request_id,
               "result": {"turn": {"id": "turn-1"}}})
         send({"jsonrpc": "2.0", "method": "item/agentMessage/delta",

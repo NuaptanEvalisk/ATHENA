@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import base64
 import json
 import os
 import pathlib
@@ -15,12 +16,20 @@ with tempfile.TemporaryDirectory(prefix="athena-codex-test-") as directory:
     root = pathlib.Path(directory)
     prompt = root / "prompt.txt"
     output = root / "output.txt"
+    image = root / "codex-fig-12345678-1234-1234-1234-123456789abc-1.png"
     prompt.write_text("Continue $x$", encoding="utf-8")
+    image.write_bytes(base64.b64decode(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk"
+        "/w8AAusB9Wl2nJ8AAAAASUVORK5CYII="))
+    image_env = os.environ.copy()
+    image_env["ATHENA_FAKE_EXPECT_IMAGE"] = str(image.resolve())
     result = subprocess.run(
         [str(bridge), "--codex", str(fake_codex),
          "--codex-home", str(root / "home"), "--cwd", str(root / "work"),
-         "--one-shot", "--input", str(prompt), "--output", str(output)],
-        text=True, capture_output=True, timeout=10, check=False)
+         "--one-shot", "--input", str(prompt), "--output", str(output),
+         "--image", str(image)],
+        text=True, capture_output=True, timeout=10, check=False,
+        env=image_env)
     if result.returncode != 0:
         raise SystemExit(
             f"bridge failed ({result.returncode}): {result.stderr}")

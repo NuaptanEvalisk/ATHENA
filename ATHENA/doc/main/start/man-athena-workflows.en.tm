@@ -122,8 +122,12 @@
   <ATHENA> integrates the official OpenAI Codex AppServer for authenticated
   document completion. Completion inserts a non-editable Thinking marker in a
   new paragraph while work runs asynchronously, then replaces it with normal
-  editable document content. Authentication lives in a dedicated Codex home
-  configured under <menu|Edit|Preferences|Other|AI>.
+  editable document content. If the selection contains images, native graphics,
+  or commutative diagrams, <ATHENA> renders temporary PNG assets, substitutes
+  stable figure placeholders in the LaTeX prompt, and supplies the matching
+  images through Codex's multimodal input. Temporary prompt, response, and
+  image files are removed when the request finishes. Authentication lives in a
+  dedicated Codex home configured under <menu|Edit|Preferences|Other|AI>.
 
   Continuous RAG keeps search data in the vault-local <verbatim|rag.sqlite>
   database and can serve it through a read-only MCP endpoint. Optional RAG

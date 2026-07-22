@@ -146,12 +146,21 @@ public:
   }
 
   bool turn (const QString& threadId, const QString& prompt,
+             const QStringList& imagePaths,
              const QString& effort,
              QString& answer, QString& error) {
+    QJsonArray input {QJsonObject {{"type", "text"}, {"text", prompt}}};
+    for (const QString& imagePath: imagePaths) {
+      const QString filename= QFileInfo (imagePath).fileName ();
+      input.append (QJsonObject {
+        {"type", "text"},
+        {"text", QString ("Attached asset <%1>:").arg (filename)}});
+      input.append (QJsonObject {
+        {"type", "localImage"}, {"path", imagePath}});
+    }
     QJsonObject params {
       {"threadId", threadId},
-      {"input", QJsonArray {QJsonObject {
-        {"type", "text"}, {"text", prompt}}}}
+      {"input", input}
     };
     if (!effort.isEmpty ()) params.insert ("effort", effort);
     QJsonObject response;
@@ -307,7 +316,8 @@ runSession (AppServer& server, const QString& threadId) {
     if (prompt.isEmpty ()) continue;
     QString answer;
     QString error;
-    if (server.turn (threadId, prompt, QString (), answer, error))
+    if (server.turn (threadId, prompt, QStringList (), QString (),
+                     answer, error))
       emitVerbatim (answer);
     else
       emitVerbatim (QString ("Codex error: %1").arg (error));
@@ -331,6 +341,7 @@ main (int argc, char** argv) {
   QCommandLineOption listModelsOption ("list-models", "List available models");
   QCommandLineOption inputOption ("input", "Prompt input file", "path");
   QCommandLineOption outputOption ("output", "Response output file", "path");
+  QCommandLineOption imageOption ("image", "Attach a local image", "path");
   QCommandLineOption modelOption ("model", "Model id", "model");
   QCommandLineOption effortOption ("effort", "Reasoning effort", "effort");
   QCommandLineOption serviceTierOption ("service-tier", "Service tier id",
@@ -339,6 +350,7 @@ main (int argc, char** argv) {
   QCommandLineOption noWebSearchOption ("no-web-search", "Disable web search");
   parser.addOptions ({codexOption, homeOption, cwdOption, oneShotOption,
                       listModelsOption, inputOption, outputOption,
+                      imageOption,
                       modelOption, effortOption, serviceTierOption,
                       webSearchOption, noWebSearchOption});
   parser.process (app);
@@ -352,6 +364,16 @@ main (int argc, char** argv) {
   if (home.isEmpty ()) home= QDir::home ().filePath (".ATHENA/codex");
   QString cwd= parser.value (cwdOption);
   if (cwd.isEmpty ()) cwd= QDir (home).filePath ("workspace");
+  QStringList imagePaths;
+  for (const QString& requestedPath: parser.values (imageOption)) {
+    QFileInfo image (requestedPath);
+    if (!image.isFile () || !image.isReadable ()) {
+      std::fprintf (stderr, "Image is not a readable file: %s\n",
+                    qPrintable (requestedPath));
+      return 2;
+    }
+    imagePaths << image.absoluteFilePath ();
+  }
 
   AppServer server;
   QString error;
@@ -392,7 +414,7 @@ main (int argc, char** argv) {
     return 5;
   }
   QString answer;
-  if (!server.turn (threadId, QString::fromUtf8 (input.readAll ()),
+  if (!server.turn (threadId, QString::fromUtf8 (input.readAll ()), imagePaths,
                     parser.value (effortOption),
                     answer, error)) {
     std::fprintf (stderr, "%s\n", qPrintable (error));

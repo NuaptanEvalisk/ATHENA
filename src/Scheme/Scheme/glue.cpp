@@ -1713,7 +1713,8 @@ tmg_codex_completion_options (tmscm arg1, tmscm arg2) {
 tmscm
 tmg_codex_run_completion_async (tmscm arg1, tmscm arg2, tmscm arg3,
                                 tmscm arg4, tmscm arg5, tmscm arg6,
-                                tmscm arg7, tmscm arg8, tmscm arg9) {
+                                tmscm arg7, tmscm arg8, tmscm arg9,
+                                tmscm arg10) {
   TMSCM_ASSERT_STRING (arg1, TMSCM_ARG1, "codex-run-completion-async");
   TMSCM_ASSERT_STRING (arg2, TMSCM_ARG2, "codex-run-completion-async");
   TMSCM_ASSERT_STRING (arg3, TMSCM_ARG3, "codex-run-completion-async");
@@ -1722,7 +1723,9 @@ tmg_codex_run_completion_async (tmscm arg1, tmscm arg2, tmscm arg3,
   TMSCM_ASSERT_STRING (arg6, TMSCM_ARG6, "codex-run-completion-async");
   TMSCM_ASSERT_STRING (arg7, TMSCM_ARG7, "codex-run-completion-async");
   TMSCM_ASSERT_STRING (arg8, TMSCM_ARG8, "codex-run-completion-async");
-  TMSCM_ASSERT_COMMAND (arg9, TMSCM_ARG9, "codex-run-completion-async");
+  TMSCM_ASSERT_ARRAY_STRING (arg9, TMSCM_ARG9,
+                             "codex-run-completion-async");
+  TMSCM_ASSERT_COMMAND (arg10, TMSCM_ARG10, "codex-run-completion-async");
 
   QString bridge= to_qstring (tmscm_to_string (arg1));
   QString home= to_qstring (tmscm_to_string (arg2));
@@ -1732,7 +1735,8 @@ tmg_codex_run_completion_async (tmscm arg1, tmscm arg2, tmscm arg3,
   QString effort= to_qstring (tmscm_to_string (arg6));
   QString serviceTier= to_qstring (tmscm_to_string (arg7));
   QString webSearch= to_qstring (tmscm_to_string (arg8));
-  command callback= tmscm_to_command (arg9);
+  array<string> imagePaths= tmscm_to_array_string (arg9);
+  command callback= tmscm_to_command (arg10);
 
   QProcess* process= new QProcess (QApplication::instance ());
   process->setProcessChannelMode (QProcess::MergedChannels);
@@ -1765,6 +1769,8 @@ tmg_codex_run_completion_async (tmscm arg1, tmscm arg2, tmscm arg3,
     arguments << "--service-tier" << serviceTier;
   if (webSearch == "live") arguments << "--web-search";
   else if (webSearch == "disabled") arguments << "--no-web-search";
+  for (int i= 0; i < N(imagePaths); ++i)
+    arguments << "--image" << to_qstring (imagePaths[i]);
   process->start (bridge, arguments);
   return TMSCM_UNSPECIFIED;
 }
@@ -2006,7 +2012,7 @@ initialize_glue () {
   tmscm_install_procedure ("codex-completion-options",
                            tmg_codex_completion_options, 2, 0, 0);
   tmscm_install_procedure ("codex-run-completion-async",
-                           tmg_codex_run_completion_async, 9, 0, 0);
+                           tmg_codex_run_completion_async, 10, 0, 0);
   tmscm_install_procedure ("document-search-open",
                            tmg_document_search_open, 0, 0, 0);
   tmscm_install_procedure ("document-search-next",
