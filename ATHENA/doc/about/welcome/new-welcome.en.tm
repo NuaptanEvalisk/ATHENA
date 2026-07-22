@@ -71,7 +71,7 @@
 
     Vault maintenance is now a modular pass pipeline. It can health-check
     documents, create zstd backups, purge old full backups and pre-save
-    histories, normalize images, collect orphan assets, anchor enunciations and
+    histories, normalize referenced assets, collect orphan assets, anchor enunciations and
     headings, update stale anchors while preserving UUID maps, run read-only
     anchoring checks in parallel, and generate <ATHENA> maintenance summary
     pages. PDF export can optionally generate temporary DataArt cover images.

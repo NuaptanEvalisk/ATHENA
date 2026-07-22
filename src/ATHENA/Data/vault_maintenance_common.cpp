@@ -5,6 +5,7 @@
 ******************************************************************************/
 
 #include "ATHENA/Data/vault_maintenance_internal.hpp"
+#include "ATHENA/Data/vaultfile_json.hpp"
 
 #include "tm_ostream.hpp"
 
@@ -95,11 +96,17 @@ is_image_extension (const fs::path& path) {
 }
 
 bool
-has_canonical_image_name (const fs::path& path) {
-  if (!is_image_extension (path)) return false;
-  std::string stem = path.stem ().string ();
-  if (!starts_with (stem, "figure-")) return false;
-  return is_uuid_like (stem.substr (7));
+has_canonical_asset_name (const fs::path& path) {
+  std::string name= path.filename ().string ();
+  auto matches= [&] (const std::string& prefix) {
+    if (!starts_with (name, prefix) || name.size () < prefix.size () + 36)
+      return false;
+    if (!is_uuid_like (name.substr (prefix.size (), 36))) return false;
+    size_t suffix= prefix.size () + 36;
+    return suffix == name.size () || name[suffix] == '.';
+  };
+  if (matches ("asset-") || matches ("figure-")) return true;
+  return false;
 }
 
 std::string
@@ -147,6 +154,39 @@ is_orphan_collection_path (const fs::path& root, const fs::path& path) {
   auto it = rel.begin ();
   if (it == rel.end ()) return false;
   return is_orphan_dir_name ((*it).string ());
+}
+
+bool
+collect_vault_infrastructure_paths (const fs::path& root,
+                                    std::unordered_set<std::string>& paths,
+                                    std::string& error) {
+  paths.clear ();
+  auto add= [&] (const std::string& value) {
+    if (!value.empty ()) paths.insert (path_key (root / value));
+  };
+  add ("Vaultfile");
+  add ("Vaultfile.json");
+  add ("map.sqlite");
+  add ("maps.sqlite");
+  add ("ns.sqlite");
+  add ("rag.sqlite");
+  add ("artifacts.db");
+  add ("enunciations.db");
+  add ("bold-text.db");
+  add ("websites.json");
+  if (!fs::exists (root / "Vaultfile.json")) return true;
+
+  AthenaVaultfileInfo info;
+  if (!athena_vaultfile_read (root, info, error)) return false;
+  add (info.map_path);
+  add (info.preferences_path);
+  add (info.namespace_db_path);
+  add (info.rag_index_path);
+  add (info.websites_path);
+  add (info.artifacts_path);
+  add (info.enunciations_path);
+  add (info.bold_text_path);
+  return true;
 }
 
 
@@ -280,42 +320,17 @@ generate_uuid_v4 () {
 
 std::string
 canonical_extension (const fs::path& path) {
-  std::string ext = lower_copy (path.extension ().string ());
-  return ext.empty () ? ext : ext;
+  std::string name= lower_copy (path.filename ().string ());
+  static const std::vector<std::string> compound_extensions= {
+    ".tar.gz", ".tar.bz2", ".tar.xz", ".tar.zst"};
+  for (const std::string& extension: compound_extensions)
+    if (ends_with (name, extension)) return extension;
+  return lower_copy (path.extension ().string ());
 }
 
 void
 finish_progress () {
   progress_display.finish ();
-}
-
-std::vector<fs::path>
-scan_noncanonical_images (const fs::path& root) {
-  std::vector<fs::path> images;
-  std::error_code ec;
-  fs::recursive_directory_iterator it (
-    root, fs::directory_options::skip_permission_denied, ec);
-  fs::recursive_directory_iterator end;
-
-  for (; !ec && it != end; it.increment (ec)) {
-    const fs::path path = it->path ();
-    if (it->is_directory (ec)) {
-      if (path.filename () == ".backup" ||
-          is_orphan_collection_path (root, path))
-        it.disable_recursion_pending ();
-      continue;
-    }
-    if (!it->is_regular_file (ec)) continue;
-    if (is_backup_path (root, path)) continue;
-    if (is_orphan_collection_path (root, path)) continue;
-    if (!is_image_extension (path)) continue;
-    if (!has_canonical_image_name (path)) images.push_back (path);
-  }
-
-  if (ec)
-    log_info ("scan warning: " + ec.message ());
-  std::sort (images.begin (), images.end ());
-  return images;
 }
 
 std::vector<fs::path>
@@ -333,7 +348,10 @@ scan_documents (const fs::path& root) {
   for (; !ec && it != end; it.increment (ec)) {
     const fs::path path = it->path ();
     if (it->is_directory (ec)) {
-      if (path.filename () == ".backup") it.disable_recursion_pending ();
+      if (path.filename () == ".backup" || path.filename () == ".athena" ||
+          path.filename () == ".git" ||
+          is_orphan_collection_path (root, path))
+        it.disable_recursion_pending ();
       continue;
     }
     if (!it->is_regular_file (ec)) continue;
@@ -360,7 +378,8 @@ scan_ath_documents (const fs::path& root) {
   for (; !ec && it != end; it.increment (ec)) {
     const fs::path path = it->path ();
     if (it->is_directory (ec)) {
-      if (path.filename () == ".backup" ||
+      if (path.filename () == ".backup" || path.filename () == ".athena" ||
+          path.filename () == ".git" ||
           is_orphan_collection_path (root, path))
         it.disable_recursion_pending ();
       continue;
@@ -389,7 +408,8 @@ scan_asset_files (const fs::path& root) {
   for (; !ec && it != end; it.increment (ec)) {
     const fs::path path = it->path ();
     if (it->is_directory (ec)) {
-      if (path.filename () == ".backup" ||
+      if (path.filename () == ".backup" || path.filename () == ".athena" ||
+          path.filename () == ".git" ||
           is_orphan_collection_path (root, path))
         it.disable_recursion_pending ();
       continue;
@@ -397,7 +417,8 @@ scan_asset_files (const fs::path& root) {
     if (!it->is_regular_file (ec)) continue;
     if (is_backup_path (root, path)) continue;
     if (is_orphan_collection_path (root, path)) continue;
-    if (is_image_extension (path)) assets.push_back (path);
+    if (is_image_extension (path) || has_canonical_asset_name (path))
+      assets.push_back (path);
   }
 
   if (ec)
@@ -423,122 +444,6 @@ write_file_bytes (const fs::path& path, const std::string& text) {
   out.write (text.data (), (std::streamsize) text.size ());
   return (bool) out;
 }
-
-std::string
-tm_unescape_path (const std::string& s) {
-  std::string out;
-  out.reserve (s.size ());
-  for (size_t i=0; i<s.size (); i++) {
-    if (s[i] == '\\' && i + 1 < s.size ()) {
-      i++;
-      out.push_back (s[i]);
-    }
-    else out.push_back (s[i]);
-  }
-
-  std::string normalized;
-  normalized.reserve (out.size ());
-  for (size_t i=0; i<out.size (); i++) {
-    if (out[i] != '\n' && out[i] != '\r') {
-      normalized.push_back (out[i]);
-      continue;
-    }
-
-    if (out[i] == '\r' && i + 1 < out.size () && out[i + 1] == '\n')
-      i++;
-
-    size_t next = i + 1;
-    while (next < out.size () && (out[next] == ' ' || out[next] == '\t'))
-      next++;
-
-    char before = normalized.empty () ? '\0' : normalized.back ();
-    char after = next < out.size () ? out[next] : '\0';
-    bool joins_path_separator =
-      before == '/' || before == '\\' || after == '/' || after == '\\';
-    bool already_spaced =
-      before == '\0' || before == ' ' || before == '\t';
-
-    if (after != '\0' && !joins_path_separator && !already_spaced)
-      normalized.push_back (' ');
-
-    i = next == 0 ? i : next - 1;
-  }
-  return normalized;
-}
-
-std::string
-tm_escape_path (const std::string& s) {
-  std::string out;
-  out.reserve (s.size ());
-  for (char c : s) {
-    if (c == '\\' || c == '|' || c == '<' || c == '>') out.push_back ('\\');
-    out.push_back (c);
-  }
-  return out;
-}
-
-bool
-parse_image_ref_at (const std::string& text, size_t pos, ImageRef& ref) {
-  static const std::string marker = "<image|";
-  if (text.compare (pos, marker.size (), marker) != 0) return false;
-
-  size_t begin = pos + marker.size ();
-  size_t i = begin;
-  while (i < text.size ()) {
-    if (text[i] == '\\' && i + 1 < text.size ()) {
-      i += 2;
-      continue;
-    }
-    if (text[i] == '|' || text[i] == '>') break;
-    i++;
-  }
-  if (i >= text.size () || text[i] != '|') return false;
-
-  ref.begin = begin;
-  ref.end = i;
-  ref.raw_path = text.substr (begin, i - begin);
-  return true;
-}
-
-bool
-is_probably_local_path (const std::string& path) {
-  if (path.empty ()) return false;
-  if (starts_with (path, "http://") || starts_with (path, "https://") ||
-      starts_with (path, "tmfs://") || starts_with (path, "$"))
-    return false;
-  return true;
-}
-
-fs::path
-resolve_reference_path (const fs::path& doc_path, const std::string& ref) {
-  if (starts_with (ref, "file://")) {
-    std::string local = ref.substr (7);
-    return fs::path (local);
-  }
-  fs::path ref_path (ref);
-  if (ref_path.is_absolute ()) return ref_path;
-  return doc_path.parent_path () / ref_path;
-}
-
-std::string
-reference_for_replacement (const fs::path& doc_path, const fs::path& target,
-                           const std::string& old_ref) {
-  bool absolute = starts_with (old_ref, "file://") || fs::path (old_ref).is_absolute ();
-  if (starts_with (old_ref, "file://"))
-    return "file://" + target.generic_string ();
-  if (absolute) return target.generic_string ();
-
-  std::error_code ec;
-  fs::path rel = fs::relative (target, doc_path.parent_path (), ec);
-  if (ec || rel.empty ()) return target.generic_string ();
-  return rel.generic_string ();
-}
-
-std::string
-stem_from_reference (const std::string& ref) {
-  return fs::path (ref).stem ().string ();
-}
-
 
 fs::path
 normalize_root (const fs::path& input) {

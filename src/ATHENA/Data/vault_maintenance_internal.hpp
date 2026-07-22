@@ -26,15 +26,7 @@ inline constexpr long long VAULT_MANUAL_SAVE_RETENTION_UNLIMITED = -1;
 struct RenamePlan {
   std::filesystem::path old_path;
   std::filesystem::path new_path;
-  std::string old_key;
-  std::string old_stem;
   std::string old_name;
-};
-
-struct ImageRef {
-  size_t begin = 0;
-  size_t end = 0;
-  std::string raw_path;
 };
 
 std::string tm_to_std (string s);
@@ -44,7 +36,7 @@ bool starts_with (const std::string& s, const std::string& prefix);
 bool ends_with (const std::string& s, const std::string& suffix);
 std::string trim_copy (const std::string& s);
 bool is_image_extension (const std::filesystem::path& path);
-bool has_canonical_image_name (const std::filesystem::path& path);
+bool has_canonical_asset_name (const std::filesystem::path& path);
 std::string path_key (const std::filesystem::path& path);
 std::string compact_log_path (const std::filesystem::path& path,
                               size_t limit = 64);
@@ -52,6 +44,10 @@ bool is_backup_path (const std::filesystem::path& root,
                      const std::filesystem::path& path);
 bool is_orphan_collection_path (const std::filesystem::path& root,
                                 const std::filesystem::path& path);
+bool is_orphan_dir_name (const std::string& name);
+bool collect_vault_infrastructure_paths (
+  const std::filesystem::path& root,
+  std::unordered_set<std::string>& paths, std::string& error);
 std::string manual_save_retention_label (long long seconds);
 std::string timestamp_string ();
 void log_info (const std::string& message);
@@ -61,8 +57,6 @@ void print_progress (size_t current, size_t total, const std::string& action,
 void finish_progress ();
 std::string generate_uuid_v4 ();
 std::string canonical_extension (const std::filesystem::path& path);
-std::vector<std::filesystem::path> scan_noncanonical_images (
-  const std::filesystem::path& root);
 std::vector<std::filesystem::path> scan_documents (
   const std::filesystem::path& root);
 std::vector<std::filesystem::path> scan_ath_documents (
@@ -72,16 +66,6 @@ std::vector<std::filesystem::path> scan_asset_files (
 bool read_file_bytes (const std::filesystem::path& path, std::string& text);
 bool write_file_bytes (const std::filesystem::path& path,
                        const std::string& text);
-std::string tm_unescape_path (const std::string& text);
-std::string tm_escape_path (const std::string& text);
-bool parse_image_ref_at (const std::string& text, size_t pos, ImageRef& ref);
-bool is_probably_local_path (const std::string& path);
-std::filesystem::path resolve_reference_path (const std::filesystem::path& doc_path,
-                                             const std::string& ref);
-std::string reference_for_replacement (const std::filesystem::path& doc_path,
-                                       const std::filesystem::path& target,
-                                       const std::string& old_ref);
-std::string stem_from_reference (const std::string& ref);
 std::filesystem::path normalize_root (const std::filesystem::path& input);
 
 #endif // VAULT_MAINTENANCE_INTERNAL_HPP

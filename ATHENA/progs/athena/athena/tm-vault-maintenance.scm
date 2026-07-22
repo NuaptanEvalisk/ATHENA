@@ -33,7 +33,7 @@
                       "Vault maintenance"))
         (else
          (user-confirm
-          "Vault maintenance will save open documents, quit ATHENA, back up the vault, and normalize image names. Continue?"
+          "Vault maintenance will save open documents, quit ATHENA, back up the vault, and normalize referenced asset names. Continue?"
           #f
           (lambda (answ)
             (when answ

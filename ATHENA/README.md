@@ -280,9 +280,13 @@ ATHENA has modular headless vault maintenance support.
 - Create zstd-compressed full backups.
 - Limit the number of retained full backups.
 - Preserve or purge pre-save histories by configured duration.
-- Normalize image filenames and references while preserving referenced assets.
-- Collect orphan assets into reusable `orphan/` directories with an
-  `orphans.lst` map and hlinks in generated summaries.
+- Normalize known image/PDF assets and every structurally referenced in-vault
+  asset to an `asset-UUID` name. Update image, hyperlink, card-link, include,
+  sound, video, and animation references transactionally. Existing canonical
+  `figure-UUID` names remain valid.
+- Collect unreferenced managed assets of any file type into reusable `orphan/`
+  directories with an `orphans.lst` map and hlinks in generated summaries.
+  Ordinary files that ATHENA has never managed are left alone.
 - Anchor enunciations and headings across the whole vault.
 - Update stale anchors when titles change and preserve UUID-backed
   `map.sqlite` reachability for wikilinks and transclusions. Legacy `map.tmdb`

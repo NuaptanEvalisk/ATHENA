@@ -340,11 +340,11 @@ summary_document_text (VaultMaintenanceContext& ctx, bool success,
                       "; purged " +
                       std::to_string (summary.manual_save_histories_purged) +
                       " old history folder(s)")}),
-    tm_row ({tm_text ("Image normalization"),
-             tm_text ("renamed " + std::to_string (summary.image_renames) +
-                      " image file(s), updated " +
-                      std::to_string (summary.image_reference_updates) +
-                      " image reference(s)")}),
+    tm_row ({tm_text ("Asset normalization"),
+             tm_text ("renamed " + std::to_string (summary.asset_renames) +
+                      " asset file(s), updated " +
+                      std::to_string (summary.asset_reference_updates) +
+                      " asset reference(s)")}),
     tm_row ({tm_text ("Health check"),
              tm_text ("scanned " +
                       std::to_string (summary.health_files_scanned) +
@@ -546,10 +546,10 @@ vault_maintenance_pass_print_summary (VaultMaintenanceContext& ctx) {
             "; purged " +
             std::to_string (summary.manual_save_histories_purged) +
             " old history folder(s)");
-  log_info ("summary: renamed " + std::to_string (summary.image_renames) +
-            " image file(s), updated " +
-            std::to_string (summary.image_reference_updates) +
-            " image reference(s)");
+  log_info ("summary: renamed " + std::to_string (summary.asset_renames) +
+            " asset file(s), updated " +
+            std::to_string (summary.asset_reference_updates) +
+            " asset reference(s)");
   log_info ("summary: health-checked " +
             std::to_string (summary.health_files_scanned) +
             " .ath file(s); unreadable " +

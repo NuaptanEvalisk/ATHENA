@@ -10,6 +10,7 @@
 
 #include "ATHENA/Data/new_buffer.hpp"
 #include "ATHENA/Data/vault.hpp"
+#include "ATHENA/Data/vault_file_references.hpp"
 #include "ATHENA/Data/vault_map_sqlite.hpp"
 #include "ATHENA/Data/vaultfile_json.hpp"
 #include "analyze.hpp"
@@ -101,84 +102,6 @@ bool raw_file_contains (const fs::path& path,
   return false;
 }
 
-bool local_reference (const std::string& value) {
-  if (value.empty () || value[0] == '#' || value[0] == '$') return false;
-  size_t scheme= value.find ("://");
-  if (scheme != std::string::npos && value.compare (0, 7, "file://") != 0)
-    return false;
-  return value.compare (0, 7, "tmfs://") != 0 &&
-         value.compare (0, 7, "http://") != 0 &&
-         value.compare (0, 8, "https://") != 0 &&
-         value.compare (0, 7, "mailto:") != 0;
-}
-
-bool rewrite_path_value (const std::string& value, const fs::path& source_old,
-                         const fs::path& source_new,
-                         const fs::path& renamed_old,
-                         const fs::path& renamed_new, std::string& result) {
-  if (!local_reference (value)) return false;
-  bool file_url= value.compare (0, 7, "file://") == 0;
-  std::string path_text= file_url ? value.substr (7) : value;
-  fs::path written (path_text);
-  bool relative= written.is_relative ();
-  fs::path target_old= relative ? source_old.parent_path () / written : written;
-  target_old= normalized_absolute (target_old);
-  if (!path_at_or_below (target_old, renamed_old)) return false;
-  fs::path target_new= replace_prefix (target_old, renamed_old, renamed_new);
-  fs::path output;
-  if (relative) {
-    std::error_code ec;
-    output= fs::relative (target_new, source_new.parent_path (), ec);
-    if (ec) output= target_new.lexically_relative (source_new.parent_path ());
-    if (output.empty ()) output= ".";
-  }
-  else output= target_new;
-  std::string next= output.generic_string ();
-  if (relative && path_text.rfind ("./", 0) == 0 && next.rfind ("./", 0) != 0)
-    next= "./" + next;
-  result= file_url ? "file://" + next : next;
-  return result != value;
-}
-
-bool path_argument (tree t, int& index) {
-  if ((is_func (t, IMAGE) || is_compound (t, "image")) && N(t) >= 1)
-    { index= 0; return true; }
-  if ((is_func (t, HLINK) || is_compound (t, "hlink")) && N(t) >= 2)
-    { index= 1; return true; }
-  if (is_compound (t, "cardlink") && N(t) >= 2)
-    { index= 1; return true; }
-  if ((is_func (t, INCLUDE) || is_compound (t, "include")) && N(t) >= 1)
-    { index= 0; return true; }
-  if ((is_compound (t, "sound") || is_compound (t, "video") ||
-       is_compound (t, "animation")) && N(t) >= 1)
-    { index= 0; return true; }
-  return false;
-}
-
-tree rewrite_paths (tree t, const fs::path& source_old,
-                    const fs::path& source_new, const fs::path& renamed_old,
-                    const fs::path& renamed_new, size_t& replacements) {
-  if (is_atomic (t)) return copy (t);
-  tree result (L(t));
-  int path_index= -1;
-  bool has_path= path_argument (t, path_index);
-  for (int i=0; i<N(t); ++i) {
-    if (has_path && i == path_index && is_atomic (t[i])) {
-      std::string old_value= tm_std (tree_as_string (t[i]));
-      std::string new_value;
-      if (rewrite_path_value (old_value, source_old, source_new, renamed_old,
-                              renamed_new, new_value)) {
-        result << tree (std_tm (new_value));
-        ++replacements;
-        continue;
-      }
-    }
-    result << rewrite_paths (t[i], source_old, source_new, renamed_old,
-                             renamed_new, replacements);
-  }
-  return result;
-}
-
 std::string operation_id () {
   auto now= std::chrono::high_resolution_clock::now ().time_since_epoch ();
   return std::to_string (
@@ -227,10 +150,9 @@ vault_safe_rename_rewrite_tree (tree document, const fs::path& source_before,
                                 const fs::path& renamed_after,
                                 size_t& replacements) {
   replacements= 0;
-  return rewrite_paths (document, normalized_absolute (source_before),
-                        normalized_absolute (source_after),
-                        normalized_absolute (renamed_before),
-                        normalized_absolute (renamed_after), replacements);
+  return athena_vault_rewrite_file_references (
+    document, source_before, source_after, renamed_before, renamed_after,
+    replacements);
 }
 
 bool

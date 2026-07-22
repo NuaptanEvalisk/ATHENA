@@ -777,7 +777,13 @@
     report a warning, or run the incremental embedding pass locally.
 
     <item*|Collect orphan assets during vault maintenance>Finds and collects
-    assets that are no longer referenced by vault documents.
+    managed assets that are no longer referenced by vault documents. Vault
+    maintenance recognizes structural image, hyperlink, card-link, include,
+    sound, video, and animation references. Known image/PDF assets and
+    referenced files of every ordinary asset type are normalized to stable
+    <verbatim|asset-UUID> names; existing
+    <verbatim|figure-UUID> names remain valid. Ordinary files that ATHENA has
+    never managed are not collected.
 
     <item*|Generate summary page for maintenance>Writes a summary page after
     maintenance.

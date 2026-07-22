@@ -27,8 +27,8 @@ struct VaultMaintenanceSummary {
   size_t backups_purged = 0;
   long long manual_save_retention_seconds = -1;
   size_t manual_save_histories_purged = 0;
-  size_t image_renames = 0;
-  size_t image_reference_updates = 0;
+  size_t asset_renames = 0;
+  size_t asset_reference_updates = 0;
   size_t health_files_scanned = 0;
   size_t health_files_failed = 0;
   size_t anchor_files_scanned = 0;
@@ -129,7 +129,7 @@ VaultMaintenancePassResult vault_maintenance_pass_health_check (
   VaultMaintenanceContext& ctx);
 VaultMaintenancePassResult vault_maintenance_pass_read_policy_preferences (
   VaultMaintenanceContext& ctx);
-VaultMaintenancePassResult vault_maintenance_pass_normalize_images (
+VaultMaintenancePassResult vault_maintenance_pass_normalize_assets (
   VaultMaintenanceContext& ctx);
 VaultMaintenancePassResult vault_maintenance_pass_anchor_enunciations (
   VaultMaintenanceContext& ctx);

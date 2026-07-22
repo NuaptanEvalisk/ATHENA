@@ -5,6 +5,9 @@
 ******************************************************************************/
 
 #include "ATHENA/Data/vault_maintenance_internal.hpp"
+#include "ATHENA/Data/vault_file_references.hpp"
+
+#include "convert.hpp"
 
 #include <filesystem>
 #include <fstream>
@@ -25,24 +28,19 @@ collect_used_asset_refs_from_document (const fs::path& doc_path,
     return false;
   }
 
-  size_t cursor = 0;
-  while (true) {
-    size_t pos = text.find ("<image|", cursor);
-    if (pos == std::string::npos) break;
-
-    ImageRef ref;
-    if (!parse_image_ref_at (text, pos, ref)) {
-      cursor = pos + 1;
-      continue;
-    }
-
-    std::string unescaped = tm_unescape_path (ref.raw_path);
-    if (is_probably_local_path (unescaped)) {
-      fs::path resolved = resolve_reference_path (doc_path, unescaped);
-      if (is_image_extension (resolved)) used.insert (path_key (resolved));
-    }
-    cursor = ref.end;
+  tree document;
+  try { document= texmacs_document_to_tree (std_to_tm (text)); }
+  catch (...) { document= tree (_ERROR, "parse failed"); }
+  if (is_func (document, _ERROR)) {
+    log_error ("failed to parse document while collecting used assets: " +
+               doc_path.string ());
+    return false;
   }
+
+  std::vector<AthenaVaultFileReference> references;
+  athena_vault_collect_file_references (document, doc_path, references);
+  for (const AthenaVaultFileReference& reference: references)
+    used.insert (reference.resolved_path.generic_string ());
 
   return true;
 }
@@ -104,9 +102,9 @@ collect_orphan_assets (const fs::path& root, size_t& moved,
   orphan_dir.clear ();
   collected.clear ();
 
-  std::vector<fs::path> docs = scan_ath_documents (root);
+  std::vector<fs::path> docs = scan_documents (root);
   log_info ("orphan assets: scanning " + std::to_string (docs.size ()) +
-            " .ath files for asset references");
+            " document files for structural asset references");
 
   std::unordered_set<std::string> used_assets;
   for (size_t i=0; i<docs.size (); i++) {
@@ -120,9 +118,18 @@ collect_orphan_assets (const fs::path& root, size_t& moved,
   finish_progress ();
 
   std::vector<fs::path> assets = scan_asset_files (root);
+  std::unordered_set<std::string> infrastructure;
+  std::string infrastructure_error;
+  if (!collect_vault_infrastructure_paths (
+        root, infrastructure, infrastructure_error)) {
+    log_error ("could not read Vaultfile infrastructure paths: " +
+               infrastructure_error);
+    return false;
+  }
   std::vector<fs::path> orphans;
   for (const fs::path& asset : assets)
-    if (used_assets.find (path_key (asset)) == used_assets.end ())
+    if (infrastructure.find (path_key (asset)) == infrastructure.end () &&
+        used_assets.find (path_key (asset)) == used_assets.end ())
       orphans.push_back (asset);
 
   log_info ("orphan assets: found " + std::to_string (orphans.size ()) +

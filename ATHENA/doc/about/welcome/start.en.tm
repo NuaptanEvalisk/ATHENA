@@ -122,8 +122,8 @@
   titles, and table of contents.
 
   Vault Maintenance can create compressed backups, purge old backups and
-  pre-save histories, collect orphan assets, and anchor enunciations across
-  the whole vault.
+  pre-save histories, normalize structurally referenced assets of any file
+  type, collect orphan assets, and anchor enunciations across the whole vault.
 
   <section|Where to continue>
 
