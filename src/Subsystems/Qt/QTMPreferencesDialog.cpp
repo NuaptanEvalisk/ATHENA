@@ -1892,6 +1892,67 @@ QTMPreferencesDialog::buildOtherPage () {
   finish_page (ai);
 
   QWidget* debugging= make_page ();
+  QFormLayout* debugGeneral= add_section (debugging, "General");
+  add_toggle (debugGeneral, "Show the Debug menu:", "debugging tool");
+  add_toggle (debugGeneral, "Include Guile backtraces in Scheme errors:",
+              "debug scheme backtraces");
+  add_toggle (debugGeneral, "Show live memory usage in the status bar:",
+              "debug show memory in status bar");
+
+  QFormLayout* console= add_section (debugging, "Debug Console");
+  add_toggle (console, "Open the error console automatically on errors:",
+              "open console on errors");
+  add_toggle (console, "Open the error console automatically on warnings:",
+              "open console on warnings");
+  add_combo (console, "Message details:", "console details",
+             {{"normal", "Normal"}, {"detailed", "Detailed"}}, "normal");
+  add_combo (console, "Messages retained:", "console size",
+             {{"25", "Last 25"}, {"100", "Last 100"},
+              {"250", "Last 250"}, {"1000", "Last 1000"},
+              {"1000000", "All"}}, "100");
+
+  QFormLayout* logging= add_section (debugging, "Diagnostic Logging");
+  std::vector<QCheckBox*> debugChannels;
+  auto addDebugChannel= [&] (const QString& title, const char* key) {
+    debugChannels.push_back (add_toggle (logging, title, key));
+  };
+  addDebugChannel ("Startup and automatic configuration:",
+                   "debug channel auto");
+  addDebugChannel ("Verbose subsystem diagnostics:",
+                   "debug channel verbose");
+  addDebugChannel ("GUI event dispatch:", "debug channel events");
+  addDebugChannel ("Core and Scheme operations:", "debug channel std");
+  addDebugChannel ("Files, processes, and input/output:",
+                   "debug channel io");
+  addDebugChannel ("TLS transport:", "debug channel gnutls");
+  addDebugChannel ("Performance benchmarks:", "debug channel bench");
+  addDebugChannel ("Document history:", "debug channel history");
+  addDebugChannel ("Qt integration:", "debug channel qt");
+  addDebugChannel ("Qt widget construction and layout:",
+                   "debug channel qt-widgets");
+  addDebugChannel ("Keyboard and input translation:",
+                   "debug channel keyboard");
+  addDebugChannel ("Packrat parsing:", "debug channel packrat");
+  addDebugChannel ("Parser flattening:", "debug channel flatten");
+  addDebugChannel ("Language parsers:", "debug channel parser");
+  addDebugChannel ("Document correction:", "debug channel correct");
+  addDebugChannel ("Document and image conversion:",
+                   "debug channel convert");
+  addDebugChannel ("Live relations:", "debug channel live");
+  QPushButton* resetDebugChannels= new QPushButton (
+    "Disable all diagnostic logging", debugging);
+  QObject::connect (resetDebugChannels, &QPushButton::clicked,
+                    [debugChannels] () {
+    for (QCheckBox* channel: debugChannels) channel->setChecked (false);
+  });
+  logging->addRow (new QLabel, resetDebugChannels);
+  QLabel* loggingNote= new QLabel (
+    "Diagnostic channels are saved and restored at startup. Some channels "
+    "produce substantial output or reduce performance; enable only those "
+    "needed for the current investigation.", debugging);
+  loggingNote->setWordWrap (true);
+  debugging->layout ()->addWidget (loggingNote);
+
   QFormLayout* performance= add_section (debugging, "Rendering Performance");
   QCheckBox* performanceMonitor= add_toggle (
     performance, "Show rendering FPS and editing latency HUD:",

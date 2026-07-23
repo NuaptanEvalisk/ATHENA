@@ -60,7 +60,6 @@ debug_set (string s, bool on) {
   else if (s == "events") debug_set (DEBUG_FLAG_EVENTS, on);
   else if (s == "std") debug_set (DEBUG_FLAG_STD, on);
   else if (s == "io") debug_set (DEBUG_FLAG_IO, on);
-  else if (s == "sockets") debug_set (DEBUG_FLAG_SOCKETS, on);
   else if (s == "gnutls") debug_set (DEBUG_FLAG_GNUTLS, on);
   else if (s == "bench") debug_set (DEBUG_FLAG_BENCH, on);
   else if (s == "history") debug_set (DEBUG_FLAG_HISTORY, on);
@@ -72,7 +71,6 @@ debug_set (string s, bool on) {
   else if (s == "parser") debug_set (DEBUG_FLAG_PARSER, on);
   else if (s == "correct") debug_set (DEBUG_FLAG_CORRECT, on);
   else if (s == "convert") debug_set (DEBUG_FLAG_CONVERT, on);
-  else if (s == "remote") debug_set (DEBUG_FLAG_REMOTE, on);
   else if (s == "live") debug_set (DEBUG_FLAG_LIVE, on);
 }
 
@@ -88,7 +86,6 @@ debug_get (string s) {
   else if (s == "events") return debug_get (DEBUG_FLAG_EVENTS);
   else if (s == "std") return debug_get (DEBUG_FLAG_STD);
   else if (s == "io") return debug_get (DEBUG_FLAG_IO);
-  else if (s == "sockets") return debug_get (DEBUG_FLAG_SOCKETS);
   else if (s == "gnutls") return debug_get (DEBUG_FLAG_GNUTLS);
   else if (s == "bench") return debug_get (DEBUG_FLAG_BENCH);
   else if (s == "history") return debug_get (DEBUG_FLAG_HISTORY);
@@ -99,7 +96,6 @@ debug_get (string s) {
   else if (s == "flatten") return debug_get (DEBUG_FLAG_FLATTEN);
   else if (s == "correct") return debug_get (DEBUG_FLAG_CORRECT);
   else if (s == "convert") return debug_get (DEBUG_FLAG_CONVERT);
-  else if (s == "remote") return debug_get (DEBUG_FLAG_REMOTE);
   else if (s == "live") return debug_get (DEBUG_FLAG_LIVE);
   else return false;
 }

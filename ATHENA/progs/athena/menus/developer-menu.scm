@@ -83,6 +83,9 @@
 ;; The developer menu
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(menu-bind provoke-error-menu
+  (xxx))
+
 (menu-bind developer-menu
   (group "Scheme")
   (link scheme-menu)
@@ -95,6 +98,9 @@
   ---
   (group "Crash Test")
   ("Trigger segfault" (cpp-error))
+  ("Trigger Scheme error" (oops))
+  (-> "Trigger menu error"
+      (link provoke-error-menu))
   ---
   (group "Configuration")
   ((replace "Open %1" (verbatim "my-init-texmacs.scm"))

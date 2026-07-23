@@ -163,6 +163,25 @@
 (tm-define (get-boolean-preference which)
   (== (get-preference which) "on"))
 
+(define (notify-debug-backtrace name val)
+  (if (== val "on")
+      (when (not (in? 'backtrace (debug-options)))
+        (debug-enable 'backtrace 'debug))
+      (when (in? 'backtrace (debug-options))
+        (debug-disable 'backtrace 'debug))))
+
+(define (debug-memory-footer t)
+  (let* ((s (tree->stree t))
+         (a `(concat ,s " [" ,(number->string (texmacs-memory)) " bytes]")))
+    (stree->tree a)))
+
+(define (notify-debug-memory-footer name val)
+  (set! footer-hook
+        (if (== val "on") debug-memory-footer (lambda (s) s))))
+
+(register-preference-callback-procedures
+  (list notify-debug-backtrace notify-debug-memory-footer))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Look and feel
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

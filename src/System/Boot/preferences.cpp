@@ -147,6 +147,26 @@ ensure_builtin_user_preferences () {
     PREF ("new style page breaking", "on", "notify-new-page-breaking"),
     PREF ("open console on errors", "on", ""),
     PREF ("open console on warnings", "on", ""),
+    PREF ("debug scheme backtraces", "off", "notify-debug-backtrace"),
+    PREF ("debug show memory in status bar", "off",
+          "notify-debug-memory-footer"),
+    PREF ("debug channel auto", "off", ""),
+    PREF ("debug channel verbose", "off", ""),
+    PREF ("debug channel events", "off", ""),
+    PREF ("debug channel std", "off", ""),
+    PREF ("debug channel io", "off", ""),
+    PREF ("debug channel gnutls", "off", ""),
+    PREF ("debug channel bench", "off", ""),
+    PREF ("debug channel history", "off", ""),
+    PREF ("debug channel qt", "off", ""),
+    PREF ("debug channel qt-widgets", "off", ""),
+    PREF ("debug channel keyboard", "off", ""),
+    PREF ("debug channel packrat", "off", ""),
+    PREF ("debug channel flatten", "off", ""),
+    PREF ("debug channel parser", "off", ""),
+    PREF ("debug channel correct", "off", ""),
+    PREF ("debug channel convert", "off", ""),
+    PREF ("debug channel live", "off", ""),
     PREF ("gui:line-input:autocommit", "on", ""),
     PREF ("show font substitution warning", "on", ""),
     PREF ("use toast notifications", "off", ""),
@@ -539,6 +559,48 @@ to_qstring (string s) {
   return QString::fromUtf8 (as_charp (s), N(s));
 }
 
+struct debug_preference {
+  const char* key;
+  const char* channel;
+};
+
+static const debug_preference debug_preferences[]= {
+  {"debug channel auto", "auto"},
+  {"debug channel verbose", "verbose"},
+  {"debug channel events", "events"},
+  {"debug channel std", "std"},
+  {"debug channel io", "io"},
+  {"debug channel gnutls", "gnutls"},
+  {"debug channel bench", "bench"},
+  {"debug channel history", "history"},
+  {"debug channel qt", "qt"},
+  {"debug channel qt-widgets", "qt-widgets"},
+  {"debug channel keyboard", "keyboard"},
+  {"debug channel packrat", "packrat"},
+  {"debug channel flatten", "flatten"},
+  {"debug channel parser", "parser"},
+  {"debug channel correct", "correct"},
+  {"debug channel convert", "convert"},
+  {"debug channel live", "live"}
+};
+
+static bool
+apply_debug_preference (string key, string value) {
+  for (const debug_preference& pref: debug_preferences)
+    if (key == pref.key) {
+      debug_set (pref.channel, value == "on");
+      return true;
+    }
+  return false;
+}
+
+static void
+apply_debug_preferences () {
+  for (const debug_preference& pref: debug_preferences)
+    debug_set (pref.channel,
+      get_user_preference (pref.key, "off") == "on");
+}
+
 static string
 from_qstring (const QString& s) {
   QByteArray bytes= s.toUtf8 ();
@@ -623,6 +685,7 @@ set_user_preference (string var, string val) {
   if (val == "default") user_prefs->reset (var);
   else user_prefs (var)= val;
   user_prefs_modified= true;
+  apply_debug_preference (var, get_user_preference (var, "off"));
   notify_preference (var);
 }
 
@@ -631,6 +694,7 @@ reset_user_preference (string var) {
   ensure_builtin_user_preferences ();
   user_prefs->reset (var);
   user_prefs_modified= true;
+  apply_debug_preference (var, get_user_preference (var, "off"));
   notify_preference (var);
 }
 
@@ -797,6 +861,7 @@ load_user_preferences (url prefs_file) {
   ensure_builtin_user_preferences ();
   save_user_preferences ();
   user_prefs= read_user_preferences (prefs_file, user_prefs_file);
+  apply_debug_preferences ();
   user_prefs_modified= false;
 }
 

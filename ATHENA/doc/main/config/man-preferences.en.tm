@@ -873,6 +873,91 @@
 
   <subsection|Debugging>
 
+  <subsubsection|General>
+
+  <\description>
+    <item*|Show the Debug menu>Shows the command-oriented Debug menu. The
+    menu contains consoles, editor-state inspection commands, timing and
+    memory reports, garbage collection, and other immediate debugging
+    operations. Diagnostic logging is configured separately below.
+
+    <item*|Include Guile backtraces in Scheme errors>Includes a Guile stack
+    backtrace when Scheme code reports an error.
+
+    <item*|Show live memory usage in the status bar>Appends ATHENA's current
+    memory usage to status-bar messages. Disabling the option immediately
+    restores the normal status bar.
+  </description>
+
+  <subsubsection|Debug Console>
+
+  <\description>
+    <item*|Open the error console automatically on errors>Opens the error
+    messages pane when ATHENA records an error.
+
+    <item*|Open the error console automatically on warnings>Opens the error
+    messages pane when ATHENA records a warning.
+
+    <item*|Message details>Selects normal messages or detailed messages with
+    their associated diagnostic context.
+
+    <item*|Messages retained>Limits how many recent messages the debugging
+    consoles display. <em|All> uses a large practical upper bound.
+  </description>
+
+  <subsubsection|Diagnostic Logging>
+
+  The diagnostic logging switches enable persistent internal logging
+  channels. They take effect immediately and are restored on the next ATHENA
+  startup. Some channels produce substantial output or reduce performance;
+  <menu|Disable all diagnostic logging> resets all channels together.
+
+  <\description>
+    <item*|Startup and automatic configuration>Reports startup discovery,
+    fonts, images, and automatic subsystem configuration.
+
+    <item*|Verbose subsystem diagnostics>Enables additional verbose output
+    from subsystems which support it.
+
+    <item*|GUI event dispatch>Reports GUI event scheduling and dispatch.
+
+    <item*|Core and Scheme operations>Reports core startup and Scheme
+    evaluation activity.
+
+    <item*|Files, processes, and input/output>Reports file operations,
+    process launching, and other I/O activity.
+
+    <item*|TLS transport>Reports GnuTLS connection activity.
+
+    <item*|Performance benchmarks>Collects and reports internal benchmark
+    timings.
+
+    <item*|Document history>Reports document-history and archiving activity.
+
+    <item*|Qt integration>Reports Qt platform and event integration.
+
+    <item*|Qt widget construction and layout>Reports detailed Qt widget
+    creation and layout activity.
+
+    <item*|Keyboard and input translation>Reports keyboard-event translation
+    and editor input handling.
+
+    <item*|Packrat parsing>Reports packrat parser activity.
+
+    <item*|Parser flattening>Reports flattening stages used by parsers.
+
+    <item*|Language parsers>Reports language parser activity.
+
+    <item*|Document correction>Reports document upgrade and structural
+    correction activity. Enabling it also makes the mathematics status
+    reports available from the Debug menu.
+
+    <item*|Document and image conversion>Reports import, export, image, PDF,
+    and other conversion operations.
+
+    <item*|Live relations>Reports live-view and live-relation updates.
+  </description>
+
   <subsubsection|Rendering Performance>
 
   <\description>
