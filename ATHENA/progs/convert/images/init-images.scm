@@ -184,7 +184,7 @@
   (:shell "pdf2svg" from to))
 
 (converter svg-file postscript-document
-  (:require (qt5-or-later-gui?))
+  (:require (qt6-gui?))
   (:function image->psdoc))
  
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

@@ -37,7 +37,6 @@
    So we force widgets to be created on the same screen as the main
    TeXmacs window. */
 
-#if QT_VERSION >= 0x060000
 static QPoint
 ensure_visible_position (const QPoint& p,
 			 const QScreen* screen, const QSize& s) {
@@ -52,7 +51,6 @@ ensure_visible_position (const QPoint& p,
   //	    << "within" << g << "returns" << r;
   return r.topLeft ();
 }
-#endif
 
 /*! Construct a qt_window_widget_rep around an already compiled widget.
  
@@ -88,15 +86,9 @@ qt_window_widget_rep::qt_window_widget_rep (QWidget* _wid, string name,
 
   if (tm_style_sheet == "") {
     QPalette pal;
-#if QT_VERSION >= 0x060000
     QColor winbg = pal.color (QPalette::Window);
     if (winbg.red() + winbg.green() + winbg.blue () < 255)
       pal.setColor (QPalette::Window, QColor (240, 240, 240));
-#else
-    QColor winbg = pal.color (QPalette::Background);
-    if (winbg.red() + winbg.green() + winbg.blue () < 255)
-      pal.setColor (QPalette::Background, QColor (240, 240, 240));
-#endif
     _wid->setPalette (pal);
   }
 }
@@ -199,13 +191,7 @@ qt_window_widget_rep::send (slot s, blackbox val) {
       coord2 p = open_box<coord2> (val);
       if (qwid) {
         QPoint pt = to_qpoint (p);
-#if defined(OS_MACOS) && QT_VERSION < 0x060000
-	// to avoid window under menu bar on MAC when moving at (0,0)
-        pt.ry() = (pt.y() <= 40) ? 40 : pt.y();
-#endif
-#if QT_VERSION >= 0x060000
 	pt= ensure_visible_position (pt, qwid->screen (), qwid->size ());
-#endif
         if (qwid->windowFlags() & Qt::Popup && QApplication::platformName() == "wayland")
           qwid->move (QCursor::pos ());
         else
@@ -379,11 +365,7 @@ qt_popup_widget_rep::qt_popup_widget_rep (widget wid, command _quit)
   if (qwid->metaObject() ->
       indexOfSignal (QMetaObject::normalizedSignature ("closed()").constData ()) != -1) {
   QTMCommand* qtmcmd = new QTMCommand(qwid, quit);
-#if QT_VERSION < 0x060000
-  QObject::connect(qobject_cast<QTMPopupWidget*>(qwid), SIGNAL (closed()), qtmcmd, SLOT (apply()));
-#else
   QObject::connect(qobject_cast<QTMPopupWidget*>(qwid), &QTMPopupWidget::closed, qtmcmd, &QTMCommand::apply);
-#endif
   }
 }
 
@@ -429,9 +411,7 @@ qt_popup_widget_rep::send (slot s, blackbox val) {
         break;
       }
       QPoint pos= to_qpoint (open_box<coord2> (val));
-#if QT_VERSION >= 0x060000
       pos= ensure_visible_position (pos, qwid->screen (), qwid->size());
-#endif
       qwid->move (pos);
     }
       break;

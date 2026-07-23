@@ -36,11 +36,7 @@ qtmstyle () {
 
 static bool
 qtmstyle_use_system_wayland_metrics () {
-#if QT_VERSION >= 0x060000
   return QApplication::platformName ().startsWith (QStringLiteral ("wayland"));
-#else
-  return false;
-#endif
 }
 
 /******************************************************************************
@@ -290,10 +286,6 @@ void
 QTMStyle::drawPrimitive (PrimitiveElement element, const QStyleOption *opt, QPainter *p, const QWidget *widget) const {
   //  if (element == QStyle::PE_FrameStatusBarItem) return;
   switch (element) {
-#if QT_VERSION < 0x060000
-    case PE_FrameStatusBar : 
-      return;
-#endif
     case PE_PanelButtonTool:
       if ((opt->state & (State_Sunken | State_On))) {
         qtmDrawShadeRoundPanel(p, opt->rect,  QPalette(opt->palette.color(QPalette::Mid)),//opt->palette,
@@ -431,7 +423,7 @@ QTMStyle::drawControl (ControlElement element, const QStyleOption* option, QPain
     if (use_unified_toolbar &&
         (widget) && (widget->windowTitle() == "main toolbar"))
       break;
-#endif // UNIFIED_TOOLBAR
+#endif
 
     if ((widget) && (widget->windowTitle() == "main toolbar"))
       painter->fillRect(option->rect, QColor (208, 208, 208));

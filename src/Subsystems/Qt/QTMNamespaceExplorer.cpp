@@ -761,12 +761,7 @@ QTMNamespaceExplorer::deleteSelectedFile () {
 
   bool ok= false;
   if (useTrash) {
-#if QT_VERSION >= QT_VERSION_CHECK(5, 15, 0)
     ok= QFile::moveToTrash (path);
-#else
-    showError ("System trash requires Qt 5.15 or newer.");
-    return;
-#endif
   }
   else ok= QFile::remove (path);
 

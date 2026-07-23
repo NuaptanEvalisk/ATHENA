@@ -58,7 +58,7 @@ for example:
 ATHENA patches Qt Advanced Docking System through `patch_ads.py`.  Reapply the
 ADS patch after configuring or refreshing the dependency tree:
 
-    python3 patch_ads.py build_qt6/_deps/ads-src 6
+    python3 patch_ads.py build_qt6/_deps/ads-src
 
 Build and install the local development binary into this runtime tree:
 
@@ -89,7 +89,7 @@ oneAPI when available:
 Pass any local dependency paths required by your machine, such as llama.cpp,
 resvg, or KIO options.  Reapply the ADS patch and build:
 
-    python3 patch_ads.py build_rel/_deps/ads-src 6
+    python3 patch_ads.py build_rel/_deps/ads-src
     cmake --build build_rel -j"$(nproc)"
 
 To assemble a release runtime directory from the checked-in `ATHENA/` tree:

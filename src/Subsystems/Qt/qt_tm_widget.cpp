@@ -1199,7 +1199,7 @@ qt_tm_widget_rep::write (slot s, blackbox index, widget w) {
       bool can_update = true;
       // BUG:
       // there is a problem with updateActions  which apparently
-      // reset a running input method in Qt5.
+      // reset a running input method.
       //
       // This is (probably) also relate to
       // bug #47338 [CJK] input disappears immediately

@@ -14,7 +14,6 @@
 
 #include <QApplication>
 
-#if QT_VERSION >= 0x060000
 
 #include <QIconEngine>
 
@@ -89,6 +88,5 @@ private:
   QSize iconSize;
 };
 
-#endif
 
 #endif

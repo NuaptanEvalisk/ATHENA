@@ -33,9 +33,6 @@
 #include "qt_window_widget.hpp"
 #include "QTMApplication.hpp"
 
-#if QT_VERSION < 0x060000
-#include <QDesktopWidget>
-#endif
 
 #include <QDialog>
 #include <QHBoxLayout>
@@ -159,7 +156,6 @@ tm_sleep () {
 
 static double
 athena_kde_output_scale () {
-#if QT_VERSION >= 0x060000
   if (!QApplication::platformName ().startsWith (QStringLiteral ("wayland")))
     return 1.0;
 
@@ -198,14 +194,10 @@ athena_kde_output_scale () {
       return scale;
   }
   return fallback;
-#else
-  return 1.0;
-#endif
 }
 
 static void
 athena_sync_logical_ui_font (const QFont& font) {
-#if QT_VERSION >= 0x060000
   if (qApp == nullptr) return;
 
   const char* class_names[]= {
@@ -254,25 +246,19 @@ athena_sync_logical_ui_font (const QFont& font) {
         qobject_cast<QGroupBox*> (widget))
       widget->setFont (font);
   }
-#else
-  (void) font;
-#endif
 }
 
 void
 athena_resync_wayland_ui_fonts () {
-#if QT_VERSION >= 0x060000
   if (qApp == nullptr ||
       !QApplication::platformName ().startsWith (QStringLiteral ("wayland")) ||
       retina_scale <= 1.0)
     return;
   athena_sync_logical_ui_font (qApp->font ());
-#endif
 }
 
 static void
 athena_apply_logical_ui_scale (double scale) {
-#if QT_VERSION >= 0x060000
   static double applied_scale= 1.0;
   if (scale <= 1.0 || applied_scale != 1.0 || qApp == nullptr)
     return;
@@ -291,14 +277,10 @@ athena_apply_logical_ui_scale (double scale) {
   qApp->setFont (font);
   athena_sync_logical_ui_font (font);
   applied_scale= scale;
-#else
-  (void) scale;
-#endif
 }
 
 void
 athena_initialize_wayland_ui_scale () {
-#if QT_VERSION >= 0x060000
   if (qApp == nullptr ||
       !QApplication::platformName ().startsWith (QStringLiteral ("wayland")) ||
       retina_manual)
@@ -347,7 +329,6 @@ athena_initialize_wayland_ui_scale () {
 
   if (enable_logical_scale)
     athena_apply_logical_ui_scale (retina_scale);
-#endif
 }
 
 /******************************************************************************
@@ -387,13 +368,8 @@ needing_update (false)
   
   updatetimer = new QTimer (gui_helper);
   updatetimer->setSingleShot (true);
-#if QT_VERSION < 0x060000
-  QObject::connect (updatetimer, SIGNAL (timeout()),
-                    gui_helper, SLOT (doUpdate()));
-#else
   QObject::connect (updatetimer, &QTimer::timeout,
                     gui_helper, &QTMGuiHelper::doUpdate);
-#endif
   // (void) default_font ();
 
   if (!retina_manual) {
@@ -407,14 +383,13 @@ needing_update (false)
       if (DEBUG_STD) debug_boot << "Setting up HiDPI mode\n";
       retina_factor= 2;      
     }
-#  else
+#else
     double dpr = 1.0;
     if (QGuiApplication::primaryScreen())
       dpr = QGuiApplication::primaryScreen()->devicePixelRatio();
     if (DEBUG_STD)
       debug_boot << "Device pixel ratio: " << dpr << "\n";
 
-#    if QT_VERSION >= 0x060000
     if (dpr > 1.0) {
       // QtWayland reports the physical buffer DPR, which is rounded up on
       // fractional-scale KDE sessions.  Use KScreen's output scale for
@@ -444,31 +419,7 @@ needing_update (false)
         }
       }
     }
-#    else
-    if (dpr > 1.0) {
-      retina_factor = (int) ceil (dpr);
-      retina_zoom = 1; 
-      retina_scale = 1.0;
-      if (!retina_iman) {
-        retina_iman  = true;
-        retina_icons = (int) ceil (dpr);
-      }
-    } else {
-      SI w, h;
-      get_extents (w, h);
-      if (DEBUG_STD)
-        debug_boot << "Screen extents: " << w/PIXEL << " x " << h/PIXEL << "\n";
-      if (min (w, h) >= 1440 * PIXEL) {
-        retina_zoom = 2;
-        retina_scale= (tm_style_sheet == ""? 1.0: 1.6666);
-        if (!retina_iman) {
-          retina_iman  = true;
-          retina_icons = 2;
-        }
-      }
-    }
-#    endif
-#  endif
+#endif
   }
   if (has_user_preference ("retina-factor"))
     retina_factor= get_user_preference ("retina-factor") == "on"? 2: 1;
@@ -484,11 +435,7 @@ needing_update (false)
 void
 qt_gui_rep::get_extents (SI& width, SI& height) {
   coord2 size = headless_mode ? coord2 (480, 320)
-#if QT_VERSION < 0x060000
-    : from_qsize (QApplication::desktop()->size());
-#else
     : from_qsize (QGuiApplication::primaryScreen()->size()); // todo : improve this
-#endif
   width  = size.x1;
   height = size.x2;
 }
@@ -911,10 +858,8 @@ gui_open (int& argc, char** argv) {
   // QApplication, QGuiApplication or QCoreApplication to reset the locale
   // that is used for number formatting to "C"-locale.
   // See https://doc.qt.io/qt-5/qcoreapplication.html#locale-settings
-#if QT_VERSION >= 0x060000
   if (!headless_mode)
     init_style_sheet (tmapp());
-#endif
 }
 
 void
@@ -959,11 +904,7 @@ gui_refresh () {
 
 string
 gui_version () {
-#if (QT_VERSION >= 0x060000)
   return "qt6";
-#else
-  return "qt5";
-#endif
 }
 
 static QIcon

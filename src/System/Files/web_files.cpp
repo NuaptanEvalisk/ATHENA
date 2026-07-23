@@ -69,24 +69,6 @@ web_cache_invalidate (url name) {
 * Web files
 ******************************************************************************/
 
-#if QT_VERSION < 0x060000
-// not used
-static string
-web_encode (string s) {
-  return tm_decode (s);
-}
-
-static string
-fetch_tool () {
-  static bool done= false;
-  static string tool= "";
-  if (done) return tool;
-  if (tool == "" && exists_in_path ("wget")) tool= "wget";
-  if (tool == "" && exists_in_path ("curl")) tool= "curl";
-  done= true;
-  return tool;
-}
-#endif
 
 url
 get_from_web (url name) {
@@ -98,7 +80,7 @@ get_from_web (url name) {
   url res= get_cache (name);
   if (!is_none (res)) return res;
 
-#if defined(QTTEXMACS) && QT_VERSION >= 0x060000
+#if defined(QTTEXMACS)
   url tmp= url_temp ();
   string tmp_s= concretize (tmp);
   string name_s= as_string (name);
@@ -127,7 +109,7 @@ get_from_web (url name) {
   //cout << cmd << LF;
   system (cmd);
   //cout << "got " << name << " as " << tmp << LF;
-#endif // QTTEXMACS, Qt >= 6.0
+#endif
 
   if (file_size (url_system (tmp_s)) <= 0) {
     remove (tmp);

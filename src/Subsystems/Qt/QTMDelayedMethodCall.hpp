@@ -11,7 +11,6 @@
 #ifndef QTMDELAYEDMETHODCALL_HPP
 #define QTMDELAYEDMETHODCALL_HPP
 
-#if QT_VERSION >= 0x060000
 
 #include "qt_utilities.hpp"
 
@@ -70,11 +69,5 @@ private:
 #define QTM_CALL_DELAYED(Method) \
     delayed##Method()
 
-#else
-
-#define QTM_DECL_DELAYED(Method)
-#define QTM_CALL_DELAYED(Method) Method()
 
 #endif
-
-#endif // QTMDELAYEDMETHODCALL_HPP

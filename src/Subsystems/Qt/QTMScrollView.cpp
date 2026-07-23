@@ -53,7 +53,6 @@ public:
     QTMSurface(QWidget* p, QTMScrollView* _sv) : QWidget (p), sv (_sv) { }
     
 protected:
-#if QT_VERSION >= 0x060000
     bool event(QEvent *event) override {
         // if this is a paint event, we want to handle it ourselves
         if (event->type() == QEvent::Paint) {
@@ -67,11 +66,6 @@ protected:
     void paintEvent (QPaintEvent* event) override {
       sv->surfacePaintEvent (event, this);
     }
-#else
-    virtual bool event(QEvent *event) {
-        return sv->surfaceEvent(event) ? true : QWidget::event(event);
-    }  
-#endif
 };
 
 /*! Constructor.
@@ -120,9 +114,6 @@ QTMScrollView::QTMScrollView (QWidget *_parent):
   p_surface = new QTMSurface (_viewport, this);
   p_surface->setAttribute(Qt::WA_NoSystemBackground);
   p_surface->setAttribute(Qt::WA_StaticContents); 
-#if QT_VERSION < 0x060000
-  p_surface->setAttribute(Qt::WA_MacNoClickThrough);
-#endif
   p_surface->setAutoFillBackground(false);
   p_surface->setBackgroundRole(QPalette::NoRole);
   p_surface->setAttribute(Qt::WA_OpaquePaintEvent);
@@ -284,13 +275,8 @@ QTMScrollView::viewportEvent(QEvent *e)
     case QEvent::GestureOverride:
       return event(e);
 #endif
-#if QT_VERSION >= 0x060000
     case QEvent::NativeGesture:
       return event(e);
-#endif
-#if QT_VERSION < 0x060000
-    case QEvent::Show:
-#endif
       
     default:
       break;
@@ -325,10 +311,8 @@ QTMScrollView::surfaceEvent(QEvent *e)
     case QEvent::GestureOverride:
       return event(e);
 #endif
-#if QT_VERSION >= 0x060000
     case QEvent::NativeGesture:
       return event(e);
-#endif
     default:
       break;
   }

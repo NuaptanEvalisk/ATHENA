@@ -36,12 +36,7 @@ make_qt_font (string family, int size) {
   QFont qfn;
   if (family == "emoji") {
     QString noto= "Noto Color Emoji";
-#if QT_VERSION >= 0x060000
     QStringList families= QFontDatabase::families ();
-#else
-    QFontDatabase db;
-    QStringList families= db.families ();
-#endif
     if (families.contains (noto, Qt::CaseInsensitive))
       qfn.setFamily (noto);
   }
@@ -126,11 +121,7 @@ void
 qt_font_rep::get_extents (string s, metric& ex) {
   QString qs  = utf8_to_qstring (cork_to_utf8 (s));
   QRectF  rect= qfm.tightBoundingRect (qs);
-#if QT_VERSION >= 0x060000
   qreal   w   = qfm.horizontalAdvance (qs);
-#else
-  qreal   w   = qfm.width (qs);
-#endif
   ex->x1= 0;
   ex->x2= ROUND (w);
   ex->y1= FLOOR (-rect.bottom ());
@@ -162,11 +153,7 @@ qt_font_rep::draw_fixed (renderer ren, string s, SI x, SI y) {
       pqfn.setPixelSize (max (1, (int) ceil (((double) size) * scale)));
       QFontMetricsF pqfm (pqfn);
       QRectF rect= pqfm.tightBoundingRect (qs);
-#if QT_VERSION >= 0x060000
       qreal advance= pqfm.horizontalAdvance (qs);
-#else
-      qreal advance= pqfm.width (qs);
-#endif
       qreal left  = min ((qreal) 0.0, rect.left ());
       qreal right = max (advance, rect.right ());
       qreal top   = rect.top ();

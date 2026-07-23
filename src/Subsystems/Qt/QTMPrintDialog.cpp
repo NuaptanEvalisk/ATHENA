@@ -26,17 +26,10 @@ QTMPrintDialog::QTMPrintDialog(QTMPrinterSettings* s, QDialog* parent)
     
   setupUi(this);
 
-#if QT_VERSION < 0x060000
-  QObject::connect(_settings, SIGNAL(doneReading()), 
-                   this, SLOT(updatePrinterCapabilities()));
-  QObject::connect(printerCombo, SIGNAL(currentTextChanged(const QString)),
-                   _settings, SLOT(startReadingSystemConfig(const QString&)));
-#else
   QObject::connect(_settings, &QTMPrinterSettings::doneReading, 
                    this, &QTMPrintDialog::updatePrinterCapabilities);
   QObject::connect(printerCombo, &QComboBox::currentTextChanged,
                    _settings, &QTMPrinterSettings::startReadingSystemConfig);
-#endif
     
 }
 

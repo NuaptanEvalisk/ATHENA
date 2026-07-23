@@ -48,7 +48,7 @@
 
 (tm-widget (retina-settings-widget cmd)
   (centered
-    (assuming (and (os-macos?) (qt5-or-later-gui?))
+    (assuming (and (os-macos?) (qt6-gui?))
       (centered
         (aligned
 	  (item (text "Use retina fonts:")

@@ -124,7 +124,7 @@ From the repository root:
     -DATHENA_GUI=Qt6 \
     -DCMAKE_BUILD_TYPE=Debug
 
-  python3 patch_ads.py build_qt6/_deps/ads-src 6
+  python3 patch_ads.py build_qt6/_deps/ads-src
   CCACHE_DISABLE=1 cmake --build build_qt6 -j "$(nproc)"
 
 Using all available processor cores is recommended; `nproc` is the preferred
@@ -150,7 +150,7 @@ For a local release-mode binary, use a separate build directory:
     -DATHENA_GUI=Qt6 \
     -DCMAKE_BUILD_TYPE=RelWithDebInfo
 
-  python3 patch_ads.py build_rel/_deps/ads-src 6
+  python3 patch_ads.py build_rel/_deps/ads-src
   CCACHE_DISABLE=1 cmake --build build_rel -j "$(nproc)"
 
 -------------------------------------------------------------------------------

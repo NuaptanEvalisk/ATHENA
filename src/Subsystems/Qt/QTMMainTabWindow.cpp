@@ -198,7 +198,6 @@ QTMMainTabWindow::QTMMainTabWindow()
   mMdiArea->setViewMode (QMdiArea::SubWindowView);
 
   qtm_apply_ads_tab_close_preferences ();
-#if QT_VERSION >= 0x060000
   if (QApplication::platformName().startsWith(QStringLiteral("wayland"))) {
     // Keep Wayland floating docks as normal desktop windows. Redocking is
     // started from app-owned ADS tabs/title bars via xdg-toplevel-drag, not
@@ -207,10 +206,9 @@ QTMMainTabWindow::QTMMainTabWindow()
       ads::CDockManager::FloatingContainerForceNativeTitleBar, true);
   }
   else
-#endif
   {
-    // Preserve the existing ADS mouse-grab drag path on Qt5, XCB, XWayland,
-    // and other non-native-Wayland platforms.
+    // Preserve the existing ADS mouse-grab drag path on XCB, XWayland, and
+    // other non-native-Wayland platforms.
     ads::CDockManager::setConfigFlag (
       ads::CDockManager::FloatingContainerForceQWidgetTitleBar, true);
   }
@@ -246,10 +244,8 @@ QTMMainTabWindow::QTMMainTabWindow()
   connect(mTabWidget, SIGNAL(tabCloseRequested(int)), this, SLOT(closeTab(int)));
   connect(mMdiArea, SIGNAL(subWindowActivated(QMdiSubWindow*)), this, SLOT(onSubWindowActivated(QMdiSubWindow*)));
 
-#if QT_VERSION >= 0x060000
   installEventFilter(this);
   mTabWidget->tabBar()->installEventFilter(this);
-#endif
 
   gTopTabWindow = this;
 }
@@ -332,10 +328,8 @@ void QTMMainTabWindow::setMainTitleFromWidget(QWidget* widget) {
 void QTMMainTabWindow::showAfterContentReady(QWidget* focusWidget) {
   if (!isVisible()) {
     show();
-#if QT_VERSION >= 0x060000
     QRect screenGeometry = QApplication::screens().at(0)->geometry();
     move(screenGeometry.center() - rect().center());
-#endif
     raise();
     activateWindow();
   }
@@ -572,7 +566,6 @@ void QTMMainTabWindow::setNextWidgetFloating() {
 }
 
 bool QTMMainTabWindow::eventFilterWindow(QObject *obj, QEvent *event) {
-#if QT_VERSION >= 0x060000
   // if the window is a top level window
   if (event->type() == QEvent::WindowActivate) {
     if (DEBUG_QT_WIDGETS) cout << "TabWindow: WindowActivated" << LF;
@@ -595,14 +588,9 @@ bool QTMMainTabWindow::eventFilterWindow(QObject *obj, QEvent *event) {
   }
 
   return QMainWindow::eventFilter(obj, event);
-#else
-  (void) obj; (void) event;
-  return false;
-#endif
 }
 
 bool QTMMainTabWindow::eventFilterTabBar(QObject *obj, QEvent *event) {
-#if QT_VERSION >= 0x060000
   if (tmapp()->useMdi()) return QMainWindow::eventFilter(obj, event);
 
   if (event->type() == QEvent::MouseButtonPress) {
@@ -695,10 +683,6 @@ bool QTMMainTabWindow::eventFilterTabBar(QObject *obj, QEvent *event) {
     }
   }
   return QMainWindow::eventFilter(obj, event);
-#else
-  (void) obj; (void) event;
-  return false;
-#endif
 }
 
 bool QTMMainTabWindow::eventFilter(QObject *obj, QEvent *event) {
@@ -722,11 +706,7 @@ bool QTMMainTabWindow::eventFilter(QObject *obj, QEvent *event) {
       if (mouseEvent->button() == Qt::MiddleButton) {
         // Detect if click is in the title bar area
         int titleBarHeight = sub->style()->pixelMetric(QStyle::PM_TitleBarHeight);
-#if QT_VERSION >= 0x060000
         int y = mouseEvent->position().toPoint().y();
-#else
-        int y = mouseEvent->pos().y();
-#endif
         if (y >= 0 && y < titleBarHeight) {
           if (QWidget* inner = sub->widget()) {
             if (inner->metaObject()->indexOfSignal("closed()") != -1) {
@@ -1121,7 +1101,6 @@ void QTMMainTabWindow::closeAndSetTopTabWindow() {
 }
 
 void QTMMainTabWindow::setDefaultStyle() {
-#if QT_VERSION >= 0x060000
   QString adsStyle =
     "ads--CDockAreaTitleBar { "
     "   min-height: 26px !important; "
@@ -1146,28 +1125,6 @@ void QTMMainTabWindow::setDefaultStyle() {
     "   padding: 0px !important; "
     "   margin: 0px !important; "
     "} ";
-#else
-  QString adsStyle =
-    "ads--CDockAreaTitleBar { "
-    "   min-height: 38px !important; "
-    "} "
-    "ads--CDockWidgetTab { "
-    "   min-height: 38px !important; "
-    "   padding: 0 15px !important; "
-    "} "
-    "ads--CTitleBarButton, "
-    "ads--CDockAreaTitleBar QToolButton, "
-    "#tabsMenuButton, #dockAreaCloseButton, #detachGroupButton, "
-    "#tabCloseButton, #floatingTitleCloseButton, #floatingTitleMaximizeButton { "
-    "   qproperty-iconSize: 24px 24px !important; "
-    "   min-width: 32px !important; "
-    "   min-height: 32px !important; "
-    "   width: 32px !important; "
-    "   height: 32px !important; "
-    "   padding: 0px !important; "
-    "   margin: 0px !important; "
-    "} ";
-#endif
   
   this->setStyleSheet(adsStyle);
 

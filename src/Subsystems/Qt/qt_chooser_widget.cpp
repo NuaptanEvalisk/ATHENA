@@ -298,7 +298,6 @@ qt_chooser_selected_local_file (KFileWidget* file_widget) {
 static void
 qt_chooser_set_kde_filter (KFileWidget* file_widget, const QString& filter) {
   if (file_widget == nullptr || filter.isEmpty ()) return;
-#if QT_VERSION >= 0x060000
   QList<KFileFilter> filters;
   for (const QString& entry : filter.split ('\n', Qt::SkipEmptyParts)) {
     QStringList parts= entry.split ('|');
@@ -308,9 +307,6 @@ qt_chooser_set_kde_filter (KFileWidget* file_widget, const QString& filter) {
                             QStringList ());
   }
   file_widget->setFilters (filters);
-#else
-  file_widget->setFilter (filter);
-#endif
 }
 
 void

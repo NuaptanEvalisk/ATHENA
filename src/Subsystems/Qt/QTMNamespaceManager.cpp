@@ -107,7 +107,6 @@ namespace_selected_local_file (KFileWidget* file_widget) {
 static void
 namespace_set_file_filter (KFileWidget* file_widget, const QString& filter) {
   if (file_widget == nullptr || filter.isEmpty ()) return;
-#if QT_VERSION >= 0x060000
   QList<KFileFilter> filters;
   for (const QString& entry : filter.split ('\n', Qt::SkipEmptyParts)) {
     QStringList parts= entry.split ('|');
@@ -117,9 +116,6 @@ namespace_set_file_filter (KFileWidget* file_widget, const QString& filter) {
                             QStringList ());
   }
   file_widget->setFilters (filters);
-#else
-  file_widget->setFilter (filter);
-#endif
 }
 #endif
 

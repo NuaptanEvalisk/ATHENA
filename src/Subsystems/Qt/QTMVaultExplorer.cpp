@@ -56,12 +56,7 @@ vault_explorer_use_system_trash () {
 
 static bool
 vault_explorer_move_to_trash (const QString& path) {
-#if QT_VERSION >= QT_VERSION_CHECK(5, 15, 0)
   return QFile::moveToTrash (path);
-#else
-  (void) path;
-  return false;
-#endif
 }
 
 static QIcon
@@ -421,12 +416,8 @@ QTMVaultExplorer::deleteSelected () {
     return;
 
   if (useTrash) {
-#if QT_VERSION >= QT_VERSION_CHECK(5, 15, 0)
     if (!vault_explorer_move_to_trash (path))
       showError ("Could not move item to system trash.");
-#else
-    showError ("System trash requires Qt 5.15 or newer.");
-#endif
     return;
   }
 

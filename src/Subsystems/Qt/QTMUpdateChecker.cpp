@@ -180,9 +180,7 @@ check_updates_now () {
     QUrl ("https://api.github.com/repos/NuaptanEvalisk/ATHENA/releases"));
   request.setRawHeader ("Accept", "application/vnd.github+json");
   request.setRawHeader ("User-Agent", "ATHENA Update Checker");
-#if QT_VERSION >= QT_VERSION_CHECK(5, 15, 0)
   request.setTransferTimeout (10000);
-#endif
 
   QNetworkReply* reply= manager->get (request);
   QObject::connect (reply, &QNetworkReply::finished, reply, [reply] () {

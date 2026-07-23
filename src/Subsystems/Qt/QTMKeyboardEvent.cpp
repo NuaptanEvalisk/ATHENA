@@ -17,28 +17,17 @@
 #include "analyze.hpp"
 #include "basic.hpp"
 
-#if QT_VERSION < 0x060000
-inline bool inputMethodIsNotAnyTerritory() {
-  return QApplication::inputMethod()->locale().country() 
-         != QLocale::AnyCountry;
-}
-#else
 inline bool inputMethodIsNotAnyTerritory() {
   return QApplication::inputMethod()->locale().territory()
          != QLocale::AnyTerritory;
 }
-#endif
 
 void QTMKeyboardEvent::printDebugInformations() const {
   debug_qt << "keypressed" << LF;
   int key = mEvent.key();
   debug_qt << "key  : " << key << LF;
   debug_qt << "text : " << mEvent.text().toUtf8().data() << LF;
-#if QT_VERSION >= 0x060000      
   debug_qt << "count: " << mEvent.text().size() << LF;
-#else
-  debug_qt << "count: " << mEvent.text().count() << LF;
-#endif
   QVector<uint> ucs4= mEvent.text().toUcs4 ();
   debug_qt << "unic : " << (ucs4.size () == 0 ? 0 : ucs4[0]) << LF;
 
@@ -153,9 +142,7 @@ void QTMKeyboardEvent::computeUnicodeToCork() {
 
 void QTMKeyboardEvent::patchForMac() {
   bool modifiersAlt = isAlt();
-#if QT_VERSION >= 0x060000
   modifiersAlt = modifiersAlt && inputMethodIsNotAnyTerritory();
-#endif
   if (!modifiersAlt) {
     return;
   }
@@ -166,10 +153,6 @@ void QTMKeyboardEvent::patchForMac() {
                       || ((int) (unsigned char) mTexmacsKeyCombination[0]) >= 128
                    );
   // todo : check commit 14560
-#if QT_VERSION < 0x060000
-  mustAlter = mustAlter 
-            && ((mModifiers & (Qt::MetaModifier + Qt::ControlModifier)) == 0);
-#endif
   if (mustAlter) {
     if (!isShift() && isUpcase()) {
       toLower();
@@ -217,7 +200,7 @@ void QTMKeyboardEvent::computeModifiers() {
   if (isShift()) {
     mTexmacsKeyCombination= "S-" * mTexmacsKeyCombination;
   }
-#if defined(Q_OS_MAC) && QT_VERSION >= 0x060000
+#if defined(Q_OS_MAC)
   if (inputMethodIsNotAnyTerritory()) {
     if (isAlt()) {
       mTexmacsKeyCombination= "A-" * mTexmacsKeyCombination;
@@ -279,7 +262,7 @@ bool QTMKeyboardEvent::handleQtKeyMap () {
     return false;
   }
   mTexmacsKeyCombination = mKeyboard.keymap()[mKey];
-#if defined(OS_MINGW) && QT_VERSION >= 0x060000
+#if defined(OS_MINGW)
   // e.g. azerty keyboard: AltGr tilde followed by Space
   if (mKey == 32 && mEvent.text() != " ") {
     QByteArray buf = mEvent.text().toUtf8();

@@ -89,11 +89,7 @@ mac_handler_body (NSEvent *event) {
       unichar key = [nss characterAtIndex:0];
       if ((key == NSTabCharacter) || (key == NSBackTabCharacter) ) {
         NSUInteger nsmods = [event modifierFlags];
-#if QT_VERSION < 0x060000
-        Qt::KeyboardModifiers modifs = 0;
-#else
         Qt::KeyboardModifiers modifs = Qt::NoModifier;
-#endif
         if (key == NSBackTabCharacter) modifs |= Qt::ShiftModifier;
         if (nsmods &  NSControlKeyMask) modifs |= Qt::MetaModifier;
         if (nsmods &  NSAlternateKeyMask) modifs |= Qt::AltModifier;
@@ -109,11 +105,7 @@ mac_handler_body (NSEvent *event) {
       }
       if (key == 0x0051 || key == 0x0071) {
         NSUInteger nsmods = [event modifierFlags];
-#if QT_VERSION < 0x060000
-        Qt::KeyboardModifiers modifs = 0;
-#else
         Qt::KeyboardModifiers modifs = Qt::NoModifier;
-#endif
         if (key == NSBackTabCharacter) modifs |= Qt::ShiftModifier;
         if (nsmods &  NSControlKeyMask) modifs |= Qt::MetaModifier;
         if (nsmods &  NSAlternateKeyMask) modifs |= Qt::AltModifier;
@@ -148,8 +140,8 @@ mac_install_filter () {
 #endif
 }
 
-#endif // HACK
-#endif // QTTEXMACS
+#endif
+#endif
 
 /*********************/
 /* remote controller */
@@ -308,49 +300,6 @@ fromHardwareWithAttributes:(NSMutableDictionary *)attributes
 				remoteModeName = @"exclusive (auto)";
         break;
 		}
-#if QT_VERSION < 0x060000   
-		// Check whether the installation of Candelair is required to reliably operate in this mode
-		if ([HIDRemote isCandelairInstallationRequiredForRemoteMode:remoteMode])
-		{
-			// Reliable usage of the remote in this mode under this operating system version
-			// requires the Candelair driver to be installed. Tell the user about it.
-			NSAlert *alert;
-			
-			if ((alert = [NSAlert alertWithMessageText:NSLocalizedString(@"Candelair driver installation necessary", @"")
-			                             defaultButton:NSLocalizedString(@"Download", @"")
-                                 alternateButton:NSLocalizedString(@"More information", @"")
-                                     otherButton:NSLocalizedString(@"Cancel", @"")
-                       informativeTextWithFormat:NSLocalizedString(@"An additional driver needs to be installed before %@ can reliably access the remote under the OS version installed on your computer.", @""), [[NSBundle mainBundle] objectForInfoDictionaryKey:(id)kCFBundleNameKey]]) != nil)
-			{
-				switch ([alert runModal])
-				{
-					case NSAlertDefaultReturn:
-						[[NSWorkspace sharedWorkspace] openURL:[NSURL URLWithString:@"http://www.candelair.com/download/"]];
-            break;
-            
-					case NSAlertAlternateReturn:
-						[[NSWorkspace sharedWorkspace] openURL:[NSURL URLWithString:@"http://www.candelair.com/"]];
-            break;
-				}
-			}
-		}	
-		else
-		{
-			// Candelair is either already installed or not required under this OS release => proceed!
-			if ([hidRemote startRemoteControl:remoteMode])
-			{
-				// Start was successful, perform UI changes and log it.
-//				[self appendToLog:[NSString stringWithFormat:@"-- Starting HID Remote in %@ mode successful --", remoteModeName]];
-//				[startStopButton setTitle:@"Stop"];
-//				[modeButton setEnabled:NO];
-			}
-			else
-			{
-				// Start failed. Log about it
-//				[self appendToLog:[NSString stringWithFormat:@"Starting HID Remote in %@ mode failed", remoteModeName]];
-			}
-		}
-#endif
 	}
 }
 
@@ -394,21 +343,8 @@ MAC_OS_X_VERSION_MAX_ALLOWED < MAC_OS_X_VERSION_10_7
 - (CGFloat)backingScaleFactor;
 @end
 
-#endif  // 10.7
-
-#if QT_VERSION < 0x060000
-double
-mac_screen_scale_factor() {
-  CGFloat scale;
-  NSScreen *screen = [NSScreen mainScreen];
-    
-  if ([screen respondsToSelector:@selector(backingScaleFactor)])
-      scale = [screen backingScaleFactor];
-  else
-      scale = [screen userSpaceScaleFactor];
-  return scale;
-}
 #endif
+
 
 // end scale factor detection
 
@@ -444,7 +380,7 @@ mac_fix_yosemite_bug() {
       setenv (name, val, 0); // restore name=val
     }
   }
-#endif   // defined (MAC_OS_X_VERSION_10_10)
+#endif
 #endif
 }
 

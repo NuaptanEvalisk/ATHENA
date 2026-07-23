@@ -11,7 +11,6 @@
 
 #include "QTMImpressIconEngine.hpp"
 
-#if QT_VERSION >= 0x060000
 #include "qt_simple_widget.hpp"
 #include "qt_renderer.hpp"
 #include "qt_gui.hpp"
@@ -84,5 +83,3 @@ QIconEngine*
 QTMImpressIconEngine::clone () const {
   return new QTMImpressIconEngine (wid);
 }
-
-#endif

@@ -88,16 +88,12 @@ public:
       return;
     }
     if (DEBUG_QT) debug_qt << "shortcut: " << ks << LF;
-#if QT_VERSION >= 0x060000
 	array<string> v= tokenize (ks, " ");
 	for (int i= 0; i < N(v); i++) {
 	  string tmp= trim_spaces (v[i]);
 	  if (N(tmp) > 0)
 	    the_gui->process_keypress (w->tm_widget(), tmp, texmacs_time());
 	}
-#else
-    the_gui->process_keypress (w->tm_widget(), ks, texmacs_time());
-#endif    
   }
   
   tm_ostream& print (tm_ostream& out) { return out << "<command qt_key>"; }
@@ -502,10 +498,8 @@ qt_ui_element_rep::as_qaction () {
          */
       const QKeySequence& qks = to_qkeysequence (ks);
       if (!qks.isEmpty()) {
-#if QT_VERSION >= 0x060000
 	act->setShortcutVisibleInContextMenu(true);
-#endif
-#if defined (Q_OS_MAC) && QT_VERSION >= 0x060000
+#if defined (Q_OS_MAC)
 	if (use_native_menubar &&
 	    QApplication::inputMethod()->locale().territory()
 	    != QLocale::UnitedStates) {
@@ -528,11 +522,7 @@ qt_ui_element_rep::as_qaction () {
         
       // NOTE: this used to be a Qt::QueuedConnection, but the slot would not
       // be called if in a contextual menu
-#if QT_VERSION < 0x060000
-      QObject::connect (act, SIGNAL (triggered()), c, SLOT (apply()));
-#else
       QObject::connect (act, &QAction::triggered, c, &QTMCommand::apply);
-#endif
   
       bool ok = (style & WIDGET_STYLE_INERT) == 0;
       act->setEnabled (ok? true: false);
@@ -954,11 +944,7 @@ qt_ui_element_rep::as_qwidget (QWidget* parent_widget) {
       } else { // text_widget
         QPushButton*     b = new QPushButton(parent_widget);
         QTMCommand* qtmcmd = new QTMCommand (b, cmd);
-#if QT_VERSION < 0x060000
-        QObject::connect (b, SIGNAL (clicked ()), qtmcmd, SLOT (apply ()));
-#else
         QObject::connect (b, &QPushButton::clicked, qtmcmd, &QTMCommand::apply);
-#endif
         if (qtw->type == text_widget) {
           typedef quartet<string, int, color, bool> T1;
           b->setText (to_qstring (open_box<T1> (get_payload (qtw)).x1));
@@ -1045,9 +1031,7 @@ qt_ui_element_rep::as_qwidget (QWidget* parent_widget) {
       
       command tcmd = tm_new<qt_toggle_command_rep> (w, cmd);
       QTMCommand* c = new QTMCommand (w, tcmd);
-#if QT_VERSION < 0x060000
-      QObject::connect (w, SIGNAL (stateChanged(int)), c, SLOT (apply()));
-#elif QT_VERSION >= QT_VERSION_CHECK(6, 7, 0)
+#if QT_VERSION >= QT_VERSION_CHECK(6, 7, 0)
       QObject::connect (w, &QCheckBox::checkStateChanged, c, &QTMCommand::apply);
 #else
       QObject::connect (w, &QCheckBox::stateChanged, c, &QTMCommand::apply);
@@ -1084,12 +1068,8 @@ qt_ui_element_rep::as_qwidget (QWidget* parent_widget) {
       command  ecmd = tm_new<qt_enum_command_rep> (w, cmd);
       QTMCommand* c = new QTMCommand (w, ecmd);
       // NOTE: with QueuedConnections, the slots are sometimes not invoked.
-#if QT_VERSION < 0x060000
-      QObject::connect (w, SIGNAL (currentIndexChanged(int)), c, SLOT (apply()));
-#else
       QObject::connect (w, QOverload<int>::of(&QComboBox::currentIndexChanged),
                         c, &QTMCommand::apply);
-#endif
       
       qwid = w;
     }
@@ -1120,13 +1100,8 @@ qt_ui_element_rep::as_qwidget (QWidget* parent_widget) {
                                                    false, true, true, 0, qwid);
 
       QTMLineEdit* lineEdit = new QTMLineEdit (qwid, "string", "1w");
-#if QT_VERSION < 0x060000
-      QObject::connect (lineEdit, SIGNAL (textChanged (const QString&)),
-                        choiceWidget, SLOT (setFilterRegularExpression (const QString&)));
-#else
       QObject::connect (lineEdit, &QLineEdit::textChanged,
                         choiceWidget, &QTMListView::setFilterRegularExpression);
-#endif
       lineEdit->setText (to_qstring (filter));
       lineEdit->setFocusPolicy (Qt::StrongFocus);
 

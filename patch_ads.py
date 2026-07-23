@@ -103,7 +103,7 @@ def patch_ads_floating_header(base_dir):
     write_if_changed(path, content, original_content)
 
 
-WAYLAND_INITIAL_DOCK_DRAG_HELPER = '''#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+WAYLAND_INITIAL_DOCK_DRAG_HELPER = '''#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
 static bool
 athenaUseWaylandToplevelDragForInitialFloating()
 {
@@ -128,7 +128,7 @@ def patch_ads_initial_wayland_drag(base_dir):
             'TitleLabel->setObjectName("dockWidgetTabLabel");\n'
             '\tTitleLabel->setAlignment(Qt::AlignCenter);\n',
             'TitleLabel->setObjectName("dockWidgetTabLabel");\n'
-            '#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))\n'
+            '#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)\n'
             '\tif (QApplication::platformName().startsWith(QStringLiteral("wayland")))\n'
             '\t{\n'
             '\t\tTitleLabel->setFont(qApp->font());\n'
@@ -140,7 +140,7 @@ def patch_ads_initial_wayland_drag(base_dir):
             content = content.replace('namespace ads\n{\n',
                                       'namespace ads\n{\n' + WAYLAND_INITIAL_DOCK_DRAG_HELPER,
                                       1)
-        tab_create_container_block = '''#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+        tab_create_container_block = '''#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
 \tbool UseWaylandToplevelDrag = false;
 \tif (!CreateContainer && athenaUseWaylandToplevelDragForInitialFloating())
 \t{
@@ -153,8 +153,8 @@ def patch_ads_initial_wayland_drag(base_dir):
 '''
         content = re.sub(
             r'\tbool CreateContainer = \(DraggingFloatingWidget != DraggingState\);\n'
-            r'(?:(?:#if defined\(Q_OS_UNIX\) && !defined\(Q_OS_MACOS\) && '
-            r'\(QT_VERSION >= QT_VERSION_CHECK\(6, 0, 0\)\)\n'
+            r'(?:(?:#if defined\(Q_OS_UNIX\) && !defined\(Q_OS_MACOS\)'
+            r'(?: && \(QT_VERSION >= QT_VERSION_CHECK\(6, 0, 0\)\))?\n'
             r'\tbool UseWaylandToplevelDrag = false;\n'
             r'\tif \(!CreateContainer && athenaUseWaylandToplevelDragForInitialFloating\(\)\)\n'
             r'\t\{\n'
@@ -209,7 +209,7 @@ def patch_ads_initial_wayland_drag(base_dir):
 \t && (dockContainer->visibleDockAreaCount() == 1)
 \t && (DockWidget->dockAreaWidget()->dockWidgetsCount() == 1))
 \t{
-#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
 \t\tif (athenaUseWaylandToplevelDragForInitialFloating())
 \t\t{
 \t\t\tif (auto* FloatingContainer = dockContainer->floatingWidget())
@@ -242,7 +242,7 @@ def patch_ads_initial_wayland_drag(base_dir):
 		 && d->DockArea->openDockWidgetsCount() == 1
 		 && d->DockArea->dockContainer()->visibleDockAreaCount() == 1)
 		{
-#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
 			if (athenaUseWaylandToplevelDragForInitialFloating())
 			{
 				if (auto* FloatingContainer = d->DockArea->dockContainer()->floatingWidget())
@@ -272,7 +272,7 @@ def patch_ads_initial_wayland_drag(base_dir):
             content = content.replace('namespace ads\n{\n',
                                       'namespace ads\n{\n' + WAYLAND_INITIAL_DOCK_DRAG_HELPER,
                                       1)
-        title_create_container_block = '''#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+        title_create_container_block = '''#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
 \tbool UseWaylandToplevelDrag = false;
 \tif (!CreateFloatingDockContainer && athenaUseWaylandToplevelDragForInitialFloating())
 \t{
@@ -285,8 +285,8 @@ def patch_ads_initial_wayland_drag(base_dir):
 '''
         content = re.sub(
             r'\tbool CreateFloatingDockContainer = \(DraggingFloatingWidget != DragState\);\n'
-            r'(?:(?:#if defined\(Q_OS_UNIX\) && !defined\(Q_OS_MACOS\) && '
-            r'\(QT_VERSION >= QT_VERSION_CHECK\(6, 0, 0\)\)\n'
+            r'(?:(?:#if defined\(Q_OS_UNIX\) && !defined\(Q_OS_MACOS\)'
+            r'(?: && \(QT_VERSION >= QT_VERSION_CHECK\(6, 0, 0\)\))?\n'
             r'\tbool UseWaylandToplevelDrag = false;\n'
             r'\tif \(!CreateFloatingDockContainer && athenaUseWaylandToplevelDragForInitialFloating\(\)\)\n'
             r'\t\{\n'
@@ -349,7 +349,7 @@ def patch_ads_initial_wayland_drag(base_dir):
 \t && d->DockArea->dockContainer()->visibleDockAreaCount() == 1
      && !d->DockArea->isAutoHide())
 \t{
-#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
 \t\tif (athenaUseWaylandToplevelDragForInitialFloating())
 \t\t{
 \t\t\tif (auto* FloatingContainer = d->DockArea->dockContainer()->floatingWidget())
@@ -390,7 +390,7 @@ def patch_ads_wayland_single_floating_tabbar(base_dir):
                                   '#include <QList>\n#include <QApplication>\n',
                                   1)
 
-    helper = '''#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+    helper = '''#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
 static bool
 athenaUseWaylandSingleFloatingTabBar()
 {
@@ -412,7 +412,7 @@ athenaUseWaylandSingleFloatingTabBar()
 \t\td->TitleBar->setVisible(!Hidden);
 ''',
         '''\t\tbool ForceWaylandFloatingTitleBar = false;
-#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
 \t\tForceWaylandFloatingTitleBar =
 \t\t\tContainer->isFloating() && athenaUseWaylandSingleFloatingTabBar();
 #endif
@@ -742,7 +742,7 @@ athenaSnapFloatingContainerToScreenEdge(QWidget* widget)
 static QWidget*
 athenaFloatingContainerParent(CDockManager* dockManager)
 {
-#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
 \tif (QApplication::platformName().startsWith(QStringLiteral("wayland")))
 \t{
 \t\treturn nullptr;
@@ -847,9 +847,7 @@ athenaFloatingContainerParent(CDockManager* dockManager)
 ''',
         '''#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
 \t\t\tif (d->DraggingState == DraggingFloatingWidget
-#if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
 \t\t\t    && !athenaIsNativeWaylandPlatform()
-#endif
 \t\t\t)
 \t\t\t{
 \t\t\t\td->titleMouseReleaseEvent();
@@ -866,9 +864,7 @@ athenaFloatingContainerParent(CDockManager* dockManager)
 \t}
 ''',
         '''    if (!d->IsResizing && event->spontaneous() && d->MousePressed
-#if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
         && !athenaIsNativeWaylandPlatform()
-#endif
         )
 \t{
         d->setState(DraggingFloatingWidget);
@@ -882,11 +878,7 @@ athenaFloatingContainerParent(CDockManager* dockManager)
 \t\tbreak;
 ''',
         '''\tcase QEvent::WindowDeactivate:
-#if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
         d->MousePressed = !athenaIsNativeWaylandPlatform();
-#else
-        d->MousePressed = true;
-#endif
 \t\tbreak;
 ''',
         1)
@@ -944,7 +936,7 @@ athenaFloatingContainerParent(CDockManager* dockManager)
     write_if_changed(path, content, original_content)
 
 
-WAYLAND_DOCK_DRAG_HELPERS = '''#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+WAYLAND_DOCK_DRAG_HELPERS = '''#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
 static const char* const AthenaAdsFloatingDockMime = "application/x-athena-ads-floating-dock";
 static const char* const AthenaQtMainWindowDragWindowMime = "application/x-qt-mainwindowdrag-window";
 static const char* const AthenaQtMainWindowDragPositionMime = "application/x-qt-mainwindowdrag-position";
@@ -1424,7 +1416,7 @@ athenaWaylandDockDragFilter()
 
 WAYLAND_DOCK_DRAG_METHODS = '''bool CFloatingDockContainer::athenaWaylandDockDragActive() const
 {
-#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
 \treturn AthenaActiveWaylandDockDrag == this;
 #else
 \treturn false;
@@ -1433,7 +1425,7 @@ WAYLAND_DOCK_DRAG_METHODS = '''bool CFloatingDockContainer::athenaWaylandDockDra
 
 bool CFloatingDockContainer::athenaWaylandDockDragStarted() const
 {
-#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
 \treturn d->AthenaWaylandDockDragStarted;
 #else
 \treturn false;
@@ -1442,7 +1434,7 @@ bool CFloatingDockContainer::athenaWaylandDockDragStarted() const
 
 bool CFloatingDockContainer::athenaTryStartWaylandDockDrag(const QPoint& hotSpot, QWidget* sourceWidget)
 {
-#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
 \td->AthenaWaylandDockDragStarted = false;
 \tif (!athenaIsNativeWaylandPlatform())
 \t{
@@ -1553,7 +1545,7 @@ bool CFloatingDockContainer::athenaTryStartWaylandDockDrag(const QPoint& hotSpot
 
 void CFloatingDockContainer::athenaUpdateWaylandDockDrag(const QPoint& globalPos)
 {
-#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
 \tif (athenaWaylandDockDragActive())
 \t{
 \t\td->AthenaWaylandLastGlobalPos = globalPos;
@@ -1595,7 +1587,7 @@ void CFloatingDockContainer::athenaUpdateWaylandDockDrag(const QPoint& globalPos
 
 bool CFloatingDockContainer::athenaHasWaylandDockTarget() const
 {
-#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
 \tif (!d->DockManager || d->DropContainer == nullptr)
 \t{
 \t\treturn false;
@@ -1609,7 +1601,7 @@ bool CFloatingDockContainer::athenaHasWaylandDockTarget() const
 
 bool CFloatingDockContainer::athenaFinishWaylandDockDrag(bool dropped)
 {
-#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
 \tif (!athenaWaylandDockDragActive())
 \t{
 \t\treturn false;
@@ -1689,7 +1681,7 @@ bool CFloatingDockContainer::athenaFinishWaylandDockDrag(bool dropped)
 
 void CFloatingDockContainer::athenaHideWaylandDockOverlays()
 {
-#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS) && (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+#if defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)
 \tif (d->DockManager)
 \t{
 \t\td->DockManager->containerOverlay()->hideOverlay();
@@ -1716,22 +1708,13 @@ def patch_ads_qt6_private_gui(base_dir):
     original_content = content
     content = content.replace(
         'find_package(Qt${QT_VERSION_MAJOR} COMPONENTS Core Gui Widgets REQUIRED)\n',
-        '''if(QT_VERSION_MAJOR STREQUAL "6")
-  find_package(Qt6 COMPONENTS Core Gui Widgets GuiPrivate REQUIRED)
-else()
-  find_package(Qt${QT_VERSION_MAJOR} COMPONENTS Core Gui Widgets REQUIRED)
-endif()
-''')
+        'find_package(Qt6 COMPONENTS Core Gui Widgets GuiPrivate REQUIRED)\n')
     content = content.replace(
         'target_link_libraries(${library_name} PUBLIC Qt${QT_VERSION_MAJOR}::Core \n'
         '                                               Qt${QT_VERSION_MAJOR}::Gui \n'
         '                                               Qt${QT_VERSION_MAJOR}::Widgets)\n',
-        'target_link_libraries(${library_name} PUBLIC Qt${QT_VERSION_MAJOR}::Core \n'
-        '                                               Qt${QT_VERSION_MAJOR}::Gui \n'
-        '                                               Qt${QT_VERSION_MAJOR}::Widgets)\n'
-        'if(QT_VERSION_MAJOR STREQUAL "6")\n'
-        '    target_link_libraries(${library_name} PRIVATE Qt6::GuiPrivate)\n'
-        'endif()\n')
+        'target_link_libraries(${library_name} PUBLIC Qt6::Core Qt6::Gui '
+        'Qt6::Widgets PRIVATE Qt6::GuiPrivate)\n')
 
     write_if_changed(path, content, original_content)
 
@@ -1798,37 +1781,8 @@ def patch_ads_wayland_focus_hiding(base_dir):
     write_if_changed(path, content, original_content)
 
 
-# If run from CMake, the first argument is the source directory and the second
-# one is the Qt major version used for this build.
+# If run from CMake, the first argument is the ADS source directory.
 base_dir = sys.argv[1] if len(sys.argv) > 1 else "."
-qt_major = sys.argv[2] if len(sys.argv) > 2 else "5"
-
-if qt_major != "6":
-    # Qt5 HiDPI handling undersizes ADS controls on ATHENA's target desktops.
-    # Qt6 scales these controls correctly; inflating them there makes window
-    # controls visibly oversized.
-    cpp_files = [
-        'src/DockAreaTitleBar.cpp',
-        'src/DockManager.cpp',
-        'src/DockWidget.cpp'
-    ]
-
-    for cpp in cpp_files:
-        path = os.path.join(base_dir, cpp)
-        patch_file(path, ['QSize(16, 16)', 'QSize(24, 24)'], 'QSize(32, 32)')
-
-    css_files = [
-        'src/stylesheets/default.css',
-        'src/stylesheets/default_linux.css',
-        'src/stylesheets/default_windows.css'
-    ]
-
-    for css in css_files:
-        path = os.path.join(base_dir, css)
-        patch_file(path, ['qproperty-iconSize: 16px;', 'qproperty-iconSize: 24px;'], 'qproperty-iconSize: 32px;')
-        patch_file(path, ['qproperty-iconSize: 16px 16px;', 'qproperty-iconSize: 24px 24px;'], 'qproperty-iconSize: 32px 32px;')
-else:
-    print("Skipping ADS HiDPI size inflation for Qt6")
 
 patch_ads_floating_windows(base_dir)
 patch_ads_initial_wayland_drag(base_dir)

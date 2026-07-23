@@ -42,11 +42,7 @@ public:
 
   void set_clipping (SI x1, SI y1, SI x2, SI y2, bool restore = false);
 
-#if QT_VERSION >= 0x060000
   void  clear_device (SI x1, SI y1, SI x2, SI y2);
-#else
-  inline void  clear_device (SI x1, SI y1, SI x2, SI y2) { (void)x1; (void)y1; (void)x2; (void)y2; }
-#endif
   void  draw_bis (int char_code, font_glyphs fn, SI x, SI y);
   void  draw (int char_code, font_glyphs fn, SI x, SI y);
   void  draw (const QFont& qfn, const QString& s, SI x, SI y, double zoom);
@@ -101,4 +97,4 @@ public:
   void get_shadow (renderer ren, SI x1, SI y1, SI x2, SI y2);
 };
 
-#endif // defined QT_RENDERER_HPP
+#endif

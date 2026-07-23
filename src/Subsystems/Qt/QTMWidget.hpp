@@ -60,9 +60,7 @@ public:
     return viewport ()->mapToGlobal (p + QPoint (0, 22));
   }
   qt_simple_widget_rep* tm_widget () const;
-#if QT_VERSION >= 0x060000
   void finishGestureZoomCommitPreview ();
-#endif
 
 signals:
   void closed ();
@@ -73,21 +71,15 @@ public:
   static void setFocusToLast();
   static void refreshAllCursorBlinking ();
   static void refreshAllPerformanceMonitors ();
-#if QT_VERSION >= 0x060000
 protected slots:
   void devicePixelRatioChanged ();
-#endif
 
 protected:
 
   virtual bool event (QEvent *event) override;
 
-#if QT_VERSION >= 0x060000
   void surfacePaintEvent (QPaintEvent *e, QWidget *surface) override;
   bool checkDprChange();
-#else
-  virtual void paintEvent (QPaintEvent* event) override;
-#endif
   virtual void focusInEvent (QFocusEvent* event) override;
   virtual void focusOutEvent (QFocusEvent* event) override;
   virtual void keyPressEvent (QKeyEvent* event) override;
@@ -119,7 +111,6 @@ private:
   QTimer cursorBlinkTimer;
   bool cursorBlinkVisible= true;
   QTMPerformanceMonitor performanceMonitor;
-#if QT_VERSION >= 0x060000
   bool viewPinchActive = false;
   bool viewPinchCommitPending = false;
   bool nativeLegacyPinchActive = false;
@@ -136,14 +127,12 @@ private:
   QPointF neighborhoodTapStartCenter;
   double neighborhoodWheelSwipeAccum = 0.0;
   QElapsedTimer neighborhoodWheelSwipeCooldown;
-#endif
 
   void updateInputMethodCursorRectangle () const;
   void setCursorBlinkVisible (bool visible);
   void refreshCursorBlinking (bool restart);
   bool forwardTabletEventToScrollBar (QTabletEvent* event);
   QScrollBar* scrollBarAtGlobalPosition (const QPoint& globalPos) const;
-#if QT_VERSION >= 0x060000
   bool gesturesSupportedForViewZoom () const;
   bool inActiveGraphicsMode () const;
   bool gestureDebugEnabled () const;
@@ -160,8 +149,7 @@ private:
   bool handleNeighborhoodKeyShortcut (QKeyEvent* event);
   bool handleNeighborhoodWheelSwipe (QWheelEvent* event);
   void drawViewPinchPreview (QPainter& p) const;
-#endif
 
 };
 
-#endif // QTMWIDGET_HPP
+#endif

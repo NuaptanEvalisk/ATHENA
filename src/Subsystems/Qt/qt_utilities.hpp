@@ -22,11 +22,7 @@
 #include <QUrl>
 
 
-#if QT_VERSION >= 0x060000
 #include <QStringList>
-#else
-class QStringList;
-#endif
 class QKeySequence;
 class QWidget;
 
@@ -169,4 +165,4 @@ tm_ostream& operator << (tm_ostream& out, coord2 c);
 
 int qt_download_file(string _urlStr, string _outputFile);
 
-#endif  // QT_UTILITIES_HPP
+#endif

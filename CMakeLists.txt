@@ -77,8 +77,13 @@ set (ATHENA_COMPILER
 ### Options
 ### --------------------------------------------------------------------
 if (NOT ATHENA_GUI)
-  set (ATHENA_GUI "Qt" CACHE STRING "ATHENA Gui (Qt or Qt6)")
+  set (ATHENA_GUI "Qt" CACHE STRING "ATHENA GUI (Qt6)")
 endif (NOT ATHENA_GUI)
+if (NOT (ATHENA_GUI STREQUAL "Qt" OR ATHENA_GUI STREQUAL "Qt6"))
+  message (FATAL_ERROR
+    "Unsupported ATHENA_GUI='${ATHENA_GUI}'. "
+    "ATHENA requires Qt6; use ATHENA_GUI=Qt or ATHENA_GUI=Qt6.")
+endif ()
 
 find_package (mimalloc REQUIRED)
 find_package (Boost REQUIRED)
@@ -760,142 +765,62 @@ endif (LINKED_GNUTLS)
 
 set (GUI_TYPE) # nothing or WIN32, MACOSX bundles are treated independetly
 
-if (ATHENA_GUI STREQUAL "Qt" OR ATHENA_GUI STREQUAL "Qt5" OR ATHENA_GUI STREQUAL "Qt6")
+if (ATHENA_GUI STREQUAL "Qt" OR ATHENA_GUI STREQUAL "Qt6")
+  find_package (Qt6 COMPONENTS Core Gui Widgets PrintSupport Svg Network Core5Compat REQUIRED)
+  set (QT_LIBRARIES Qt6::Core Qt6::Gui Qt6::Widgets Qt6::PrintSupport Qt6::Svg Qt6::Network Qt6::Core5Compat)
 
-  if (ATHENA_GUI STREQUAL "Qt6")
-    find_package (Qt6 COMPONENTS Core Gui Widgets PrintSupport Svg Network Core5Compat REQUIRED)
-    set (QT_LIBRARIES Qt6::Core Qt6::Gui Qt6::Widgets Qt6::PrintSupport Qt6::Svg Qt6::Network Qt6::Core5Compat)
+  set (ATHENA_Include_Dirs
+    ${ATHENA_Include_Dirs}
+    ${Qt6Core_INCLUDE_DIRS}
+    ${Qt6Gui_INCLUDE_DIRS}
+    ${Qt6Widgets_INCLUDE_DIRS}
+    ${Qt6PrintSupport_INCLUDE_DIRS}
+    ${Qt6Svg_INCLUDE_DIRS}
+    ${Qt6Network_INCLUDE_DIRS}
+    ${Qt6Core5Compat_INCLUDE_DIRS}
+  )
+  if (Qt6_POSITION_INDEPENDENT_CODE)
+    set (CMAKE_POSITION_INDEPENDENT_CODE ON)
+  endif ()
 
-    set (ATHENA_Include_Dirs
-      ${ATHENA_Include_Dirs}
-      ${Qt6Core_INCLUDE_DIRS}
-      ${Qt6Gui_INCLUDE_DIRS}
-      ${Qt6Widgets_INCLUDE_DIRS}
-      ${Qt6PrintSupport_INCLUDE_DIRS}
-      ${Qt6Svg_INCLUDE_DIRS}
-      ${Qt6Network_INCLUDE_DIRS}
-      ${Qt6Core5Compat_INCLUDE_DIRS}
-    )
-    if (Qt6_POSITION_INDEPENDENT_CODE)
-      set (CMAKE_POSITION_INDEPENDENT_CODE ON)
-    endif (Qt6_POSITION_INDEPENDENT_CODE)
-
-    if (UNIX AND NOT APPLE)
-      option (USE_KF6_KIO_FILE_DIALOGS
-              "Use KDE Frameworks KIO file dialogs for Qt6 builds" ON)
-      if (USE_KF6_KIO_FILE_DIALOGS)
-        find_package (KF6KIO REQUIRED)
-        find_package (KF6ConfigWidgets REQUIRED)
-        get_target_property (KF6_KIO_CORE_INCLUDE_DIRS
-                             KF6::KIOCore
-                             INTERFACE_INCLUDE_DIRECTORIES)
-        get_target_property (KF6_KIO_GUI_INCLUDE_DIRS
-                             KF6::KIOGui
-                             INTERFACE_INCLUDE_DIRECTORIES)
-        get_target_property (KF6_KIO_FILE_WIDGETS_INCLUDE_DIRS
-                             KF6::KIOFileWidgets
-                             INTERFACE_INCLUDE_DIRECTORIES)
-        get_target_property (KF6_KIO_WIDGETS_INCLUDE_DIRS
-                             KF6::KIOWidgets
-                             INTERFACE_INCLUDE_DIRECTORIES)
-        get_target_property (KF6_CONFIG_WIDGETS_INCLUDE_DIRS
-                             KF6::ConfigWidgets
-                             INTERFACE_INCLUDE_DIRECTORIES)
-        list (GET KF6_KIO_FILE_WIDGETS_INCLUDE_DIRS 0
-              KF6_KIO_FILE_WIDGETS_INCLUDE_DIR)
-        get_filename_component (KF6_INCLUDE_ROOT
-                                "${KF6_KIO_FILE_WIDGETS_INCLUDE_DIR}/.."
-                                ABSOLUTE)
-        add_definitions ("-DUSE_KF5_KIO")
-        set (ATHENA_Include_Dirs ${ATHENA_Include_Dirs}
-             ${KF6_INCLUDE_ROOT}
-             ${KF6_KIO_CORE_INCLUDE_DIRS}
-             ${KF6_KIO_GUI_INCLUDE_DIRS}
-             ${KF6_KIO_FILE_WIDGETS_INCLUDE_DIRS}
-             ${KF6_KIO_WIDGETS_INCLUDE_DIRS}
-             ${KF6_CONFIG_WIDGETS_INCLUDE_DIRS})
-        set (ATHENA_Libraries ${ATHENA_Libraries}
-             KF6::KIOFileWidgets
-             KF6::ConfigWidgets)
-      endif ()
+  if (UNIX AND NOT APPLE)
+    option (USE_KF6_KIO_FILE_DIALOGS
+            "Use KDE Frameworks KIO file dialogs" ON)
+    if (USE_KF6_KIO_FILE_DIALOGS)
+      find_package (KF6KIO REQUIRED)
+      find_package (KF6ConfigWidgets REQUIRED)
+      get_target_property (KF6_KIO_CORE_INCLUDE_DIRS
+                           KF6::KIOCore
+                           INTERFACE_INCLUDE_DIRECTORIES)
+      get_target_property (KF6_KIO_GUI_INCLUDE_DIRS
+                           KF6::KIOGui
+                           INTERFACE_INCLUDE_DIRECTORIES)
+      get_target_property (KF6_KIO_FILE_WIDGETS_INCLUDE_DIRS
+                           KF6::KIOFileWidgets
+                           INTERFACE_INCLUDE_DIRECTORIES)
+      get_target_property (KF6_KIO_WIDGETS_INCLUDE_DIRS
+                           KF6::KIOWidgets
+                           INTERFACE_INCLUDE_DIRECTORIES)
+      get_target_property (KF6_CONFIG_WIDGETS_INCLUDE_DIRS
+                           KF6::ConfigWidgets
+                           INTERFACE_INCLUDE_DIRECTORIES)
+      list (GET KF6_KIO_FILE_WIDGETS_INCLUDE_DIRS 0
+            KF6_KIO_FILE_WIDGETS_INCLUDE_DIR)
+      get_filename_component (KF6_INCLUDE_ROOT
+                              "${KF6_KIO_FILE_WIDGETS_INCLUDE_DIR}/.."
+                              ABSOLUTE)
+      add_definitions ("-DUSE_KF5_KIO")
+      set (ATHENA_Include_Dirs ${ATHENA_Include_Dirs}
+           ${KF6_INCLUDE_ROOT}
+           ${KF6_KIO_CORE_INCLUDE_DIRS}
+           ${KF6_KIO_GUI_INCLUDE_DIRS}
+           ${KF6_KIO_FILE_WIDGETS_INCLUDE_DIRS}
+           ${KF6_KIO_WIDGETS_INCLUDE_DIRS}
+           ${KF6_CONFIG_WIDGETS_INCLUDE_DIRS})
+      set (ATHENA_Libraries ${ATHENA_Libraries}
+           KF6::KIOFileWidgets
+           KF6::ConfigWidgets)
     endif ()
-  else ()
-    # Homebrew installs Qt5 in /usr/local/opt/qt5
-    if (APPLE AND EXISTS /usr/local/opt/qt5)
-      list (APPEND CMAKE_PREFIX_PATH "/usr/local/opt/qt5")
-    endif ()
-
-    if (APPLE AND EXISTS /opt/homebrew/opt/qt5/)
-      list (APPEND CMAKE_PREFIX_PATH "/opt/homebrew/opt/qt5/")
-    endif ()
-
-    if (WIN32 AND EXISTS ${QT_CMAKE_DIR})
-      set (Qt5Core_DIR "${QT_CMAKE_DIR}/Qt5Core")
-      set (Qt5Gui_DIR "${QT_CMAKE_DIR}/Qt5Gui")
-      set (Qt5EventDispatcherSupport_DIR "${QT_CMAKE_DIR}/Qt5EventDispatcherSupport")
-      set (Qt5FontDatabaseSupport_DIR "${QT_CMAKE_DIR}/Qt5FontDatabaseSupport")
-      set (Qt5Svg_DIR "${QT_CMAKE_DIR}/Qt5Svg")
-      set (Qt5Widgets_DIR "${QT_CMAKE_DIR}/Qt5Widgets")
-      set (Qt5Network_DIR "${QT_CMAKE_DIR}/Qt5Network")
-      set (Qt5ThemeSupport_DIR "${QT_CMAKE_DIR}/Qt5ThemeSupport")
-      set (Qt5AccessibilitySupport_DIR "${QT_CMAKE_DIR}/Qt5AccessibilitySupport")
-      set (Qt5WindowsUIAutomationSupport_DIR "${QT_CMAKE_DIR}/Qt5WindowsUIAutomationSupport")
-      set (Qt5PrintSupport_DIR "${QT_CMAKE_DIR}/Qt5PrintSupport")
-    endif ()
-
-    if (APPLE)
-      find_package (Qt5 COMPONENTS Core Gui Widgets PrintSupport Svg Network MacExtras REQUIRED)
-    else (APPLE)
-      find_package (Qt5 COMPONENTS Core Gui Widgets PrintSupport Svg Network REQUIRED)
-    endif ()
-
-    if (APPLE)
-      set (QT_LIBRARIES Qt5::Core Qt5::Gui Qt5::Widgets Qt5::PrintSupport Qt5::Svg Qt5::Network Qt5::MacExtras)
-    else (APPLE)
-      set (QT_LIBRARIES Qt5::Core Qt5::Gui Qt5::Widgets Qt5::PrintSupport Qt5::Svg Qt5::Network)
-    endif (APPLE)
-
-    set (ATHENA_Include_Dirs
-      ${ATHENA_Include_Dirs}
-      ${Qt5Core_INCLUDE_DIRS}
-      ${Qt5Gui_INCLUDE_DIRS}
-      ${Qt5Widgets_INCLUDE_DIRS}
-      ${Qt5PrintSupport_INCLUDE_DIRS}
-      ${Qt5Svg_INCLUDE_DIRS}
-      ${Qt5Network_INCLUDE_DIRS}
-      ${Qt5MacExtras_INCLUDE_DIRS}
-    )
-
-    if (Qt5_POSITION_INDEPENDENT_CODE)
-      set (CMAKE_POSITION_INDEPENDENT_CODE ON)
-    endif (Qt5_POSITION_INDEPENDENT_CODE)
-
-    if (UNIX AND NOT APPLE)
-      option (USE_KF5_KIO_FILE_DIALOGS
-              "Use KDE Frameworks KIO file dialogs for Qt5 builds" ON)
-      if (USE_KF5_KIO_FILE_DIALOGS)
-        find_package (KF5KIO REQUIRED)
-        find_package (KF5ConfigWidgets REQUIRED)
-        get_target_property (KF5_KIO_FILE_WIDGETS_INCLUDE_DIRS
-                             KF5::KIOFileWidgets
-                             INTERFACE_INCLUDE_DIRECTORIES)
-        get_target_property (KF5_KIO_WIDGETS_INCLUDE_DIRS
-                             KF5::KIOWidgets
-                             INTERFACE_INCLUDE_DIRECTORIES)
-        get_target_property (KF5_CONFIG_WIDGETS_INCLUDE_DIRS
-                             KF5::ConfigWidgets
-                             INTERFACE_INCLUDE_DIRECTORIES)
-        add_definitions ("-DUSE_KF5_KIO")
-        set (ATHENA_Include_Dirs ${ATHENA_Include_Dirs}
-             ${KF5_KIO_FILE_WIDGETS_INCLUDE_DIRS}
-             ${KF5_KIO_WIDGETS_INCLUDE_DIRS}
-             ${KF5_CONFIG_WIDGETS_INCLUDE_DIRS})
-        set (ATHENA_Libraries ${ATHENA_Libraries}
-             KF5::KIOFileWidgets
-             KF5::ConfigWidgets)
-      endif ()
-    endif ()
-
   endif ()
 
   add_definitions (${QT_DEFINITIONS})
@@ -922,12 +847,6 @@ if (ATHENA_GUI STREQUAL "Qt" OR ATHENA_GUI STREQUAL "Qt5" OR ATHENA_GUI STREQUAL
   set (CONFIG_QT "Qt")
   message (STATUS "Enabling Qt port")
 
-  if (Qt6_FOUND)
-    set(QT_VERSION_MAJOR 6)
-  elseif (Qt5_FOUND)
-    set(QT_VERSION_MAJOR 5)
-  endif()
-
   include(FetchContent)
   ### --------------------------------------------------------------------
   ### RapidFuzz C++
@@ -948,22 +867,17 @@ if (ATHENA_GUI STREQUAL "Qt" OR ATHENA_GUI STREQUAL "Qt5" OR ATHENA_GUI STREQUAL
     ads
     GIT_REPOSITORY https://github.com/githubuser0xFFFF/Qt-Advanced-Docking-System.git
     GIT_TAG        4.3.1
-    PATCH_COMMAND  ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/patch_ads.py <SOURCE_DIR> ${QT_VERSION_MAJOR}
+    PATCH_COMMAND  ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/patch_ads.py <SOURCE_DIR>
   )
   set(BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
   FetchContent_MakeAvailable(ads)
-  set(ADS_LIBRARIES "qt${QT_VERSION_MAJOR}advanceddocking")
+  set(ADS_LIBRARIES qt6advanceddocking)
   if (NOT APPLE AND NOT WIN32)
     set_target_properties (${ADS_LIBRARIES} PROPERTIES
       SKIP_BUILD_RPATH TRUE
       BUILD_RPATH ""
       INSTALL_RPATH "")
   endif ()
-else ()
-  message (FATAL_ERROR
-    "Unsupported ATHENA_GUI='${ATHENA_GUI}'. "
-    "Legacy GUI backends have been removed; "
-    "use ATHENA_GUI=Qt for Qt5 or ATHENA_GUI=Qt6.")
 endif ()
 
 ### --------------------------------------------------------------------
@@ -1082,13 +996,8 @@ option (BUILD_TESTS "Build unit tests" OFF)
 
 if (BUILD_TESTS)
   include (CTest)
-  if (QT_VERSION_MAJOR EQUAL 6)
-    find_package(Qt6 COMPONENTS Test REQUIRED)
-    set(ATHENA_QT_TEST_LIBRARY Qt6::Test)
-  else ()
-    find_package(Qt5 COMPONENTS Test REQUIRED)
-    set(ATHENA_QT_TEST_LIBRARY Qt5::Test)
-  endif ()
+  find_package(Qt6 COMPONENTS Test REQUIRED)
+  set(ATHENA_QT_TEST_LIBRARY Qt6::Test)
   enable_testing ()
   if (NOT WIN32)
     add_test(NAME codex_bridge_protocol

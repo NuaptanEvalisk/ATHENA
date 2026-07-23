@@ -60,26 +60,12 @@ END_SLOT
  ******************************************************************************/
 
 QTMAction::QTMAction (QObject *parent) : QAction (parent) {
-#if QT_VERSION < 0x060000
-  QObject::connect (the_gui->gui_helper, SIGNAL (refresh()),
-                    this,                  SLOT (doRefresh()));
-#else
   QObject::connect (the_gui->gui_helper, &QTMGuiHelper::refresh,
                     this,                  &QTMAction::doRefresh);
-#endif
   _timer = new QTimer (this);
-#if QT_VERSION < 0x060000
-  QObject::connect (_timer, SIGNAL (timeout()),
-                    this,     SLOT (doShowToolTip()));
-#else
   QObject::connect (_timer, &QTimer::timeout,
                     this,     &QTMAction::doShowToolTip);
-#endif
-#if QT_VERSION >= 0x060000
   bool use_system_action_font= QApplication::platformName ().startsWith (QStringLiteral ("wayland"));
-#else
-  bool use_system_action_font= false;
-#endif
   if (!use_system_action_font && tm_style_sheet == "" && !use_mini_bars) {
     int sz= 14;
 #ifdef Q_OS_MAC
@@ -90,10 +76,8 @@ QTMAction::QTMAction (QObject *parent) : QAction (parent) {
 #endif
     setFont (fn);
   }
-#if QT_VERSION >= 0x060000
   else if (use_system_action_font)
     setFont (qApp->font ());
-#endif
 }
 
 QTMAction::~QTMAction() { 
@@ -167,13 +151,8 @@ END_SLOT
 
 QTMWidgetAction::QTMWidgetAction (widget _wid, QObject *parent)
 : QWidgetAction (parent), wid (_wid) {
-#if QT_VERSION < 0x060000
-  QObject::connect (the_gui->gui_helper, SIGNAL (refresh()),
-                    this,                  SLOT (doRefresh()));
-#else
   QObject::connect (the_gui->gui_helper, &QTMGuiHelper::refresh,
                     this,                  &QTMWidgetAction::doRefresh);
-#endif
 }
 
 QWidget *
@@ -209,34 +188,22 @@ QTMTileAction::createWidget (QWidget* parent)
     // wid->setBackgroundRole (QPalette::Base);
   wid->setLayout (l);
   l->setSizeConstraint (QLayout::SetFixedSize);
-#if QT_VERSION >= 0x060000
   l->setHorizontalSpacing (0);
   l->setVerticalSpacing (0);
   l->setContentsMargins (0, 0, 0, 0);
-#else
-  l->setHorizontalSpacing (2);
-  l->setVerticalSpacing (2);
-  l->setContentsMargins (4, 0, 4, 0);
-#endif
   int row = 0, col = 0;
   for (int    i = 0; i < actions.count(); i++) {
     QAction* sa = actions[i];
     QToolButton* tb= new QTMMenuButton (wid);
     tb->setDefaultAction (sa);
-#if QT_VERSION < 0x060000
-    QObject::connect (tb, SIGNAL (released()), this, SLOT (trigger()));
-#else
     QObject::connect (tb, &QToolButton::released, this, &QTMTileAction::trigger);
-#endif
     if (tm_style_sheet == "")
       tb->setStyle (qtmstyle ());
-#if QT_VERSION >= 0x060000
     if (retina_scale > 1.0) {
       QSize hint= tb->sizeHint ();
       tb->setMinimumSize ((int) ceil (hint.width () * retina_scale),
                           (int) ceil (hint.height () * retina_scale));
     }
-#endif
     l->addWidget (tb, row, col);
     col++;
     if (col >= cols) { col = 0; row++; }
@@ -402,9 +369,7 @@ QTMMenuButton::paintEvent (QPaintEvent* e) {
   style()->drawControl (QStyle::CE_MenuItem, &option, &p, this);
     // draw the icon with a bit of inset.
   int inset= 2;
-#if QT_VERSION >= 0x060000
   inset= max (inset, (int) ceil (inset * retina_scale));
-#endif
   r.adjust (inset, inset, -inset, -inset);
   defaultAction()->icon().paint (&p, r);
 }
@@ -431,15 +396,9 @@ QTMMenuWidget::paintEvent(QPaintEvent* e) {
 
 QTMLazyMenu::QTMLazyMenu (promise<widget> _pm, QWidget* p, bool right)
 : QMenu (p), promise_widget (_pm), show_right (right) {
-#if QT_VERSION >= 0x060000
   if (QApplication::platformName ().startsWith (QStringLiteral ("wayland")))
     setFont (qApp->font ());
-#endif
-#if QT_VERSION < 0x060000
-  QObject::connect (this, SIGNAL (aboutToShow ()), this, SLOT (force ()));
-#else
   QObject::connect (this, &QMenu::aboutToShow, this, &QTMLazyMenu::force);
-#endif
 }
 
 void
@@ -458,23 +417,16 @@ QTMLazyMenu::showEvent (QShowEvent* e)
  depend on that of the latter. */
 void
 QTMLazyMenu::attachTo (QAction* a) {
-#if QT_VERSION < 0x060000
-  QObject::connect (a,  SIGNAL (destroyed (QObject*)),
-                    this, SLOT (destroy (QObject*)));
-#else
   QObject::connect (a,  &QAction::destroyed,
                     this, &QTMLazyMenu::destroy);
-#endif
   a->setMenu (this);
 }
 
 void
 QTMLazyMenu::transferActions (QList<QAction*>* from) {
   if (from == NULL) return;
-#if QT_VERSION >= 0x060000
   if (QApplication::platformName ().startsWith (QStringLiteral ("wayland")))
     setFont (qApp->font ());
-#endif
   QList<QAction*> list = actions();
   while (!list.isEmpty()) {
     QAction* a = list.takeFirst();
@@ -482,10 +434,8 @@ QTMLazyMenu::transferActions (QList<QAction*>* from) {
   }
   while (!from->isEmpty()) {
     QAction* a = from->takeFirst();
-#if QT_VERSION >= 0x060000
     if (QApplication::platformName ().startsWith (QStringLiteral ("wayland")))
       a->setFont (qApp->font ());
-#endif
     addAction (a);
   }
 }
@@ -514,14 +464,8 @@ QTMInputTextWidgetHelper::QTMInputTextWidgetHelper (qt_widget _wid, bool _cac): 
   QTMLineEdit* le = qobject_cast<QTMLineEdit*>(wid()->qwid);
   setParent(le);
   ASSERT (le != NULL, "QTMInputTextWidgetHelper: expecting valid QTMLineEdit");
-#if QT_VERSION < 0x060000
-  QObject::connect (le, SIGNAL (returnPressed ()), this, SLOT (commit ()));
-  QObject::connect (le, SIGNAL (focusOut (Qt::FocusReason)),
-                    this, SLOT (leave (Qt::FocusReason)));
-#else
   QObject::connect (le, &QTMLineEdit::returnPressed, this, &QTMInputTextWidgetHelper::commit);
   QObject::connect (le, &QTMLineEdit::focusOut, this, &QTMInputTextWidgetHelper::leave);
-#endif
 }
 
 /*! Executed when the enter key is pressed. */
@@ -550,24 +494,14 @@ END_SLOT
 QTMFieldWidgetHelper::QTMFieldWidgetHelper (qt_widget _wid, QComboBox* cb)
 : QObject (cb), wid (_wid), done (false) {
   ASSERT (cb != NULL, "QTMFieldWidgetHelper: expecting valid QComboBox");
-#if QT_VERSION < 0x060000
-  QObject::connect (cb, SIGNAL (editTextChanged (const QString&)),
-                    this, SLOT (commit (const QString&)));
-#else
   QObject::connect (cb, &QComboBox::editTextChanged,
                     this, &QTMFieldWidgetHelper::commit);
-#endif
 }
 QTMFieldWidgetHelper::QTMFieldWidgetHelper (qt_widget _wid, QLineEdit* cb)
 : QObject (cb), wid (_wid), done (false) {
   ASSERT (cb != NULL, "QTMFieldWidgetHelper: expecting valid QLineEdit");
-#if QT_VERSION < 0x060000
-  QObject::connect (cb, SIGNAL (textChanged (const QString&)),
-                    this, SLOT (commit (const QString&)));
-#else
   QObject::connect (cb, &QLineEdit::textChanged,
                     this, &QTMFieldWidgetHelper::commit);
-#endif
 }
 
 void
@@ -915,11 +849,7 @@ QTMLineEdit::focusOutEvent (QFocusEvent* ev)
  ******************************************************************************/
 
 QTMTabWidget::QTMTabWidget (QWidget *p) : QTabWidget(p) {
-#if QT_VERSION < 0x060000
-  QObject::connect (this, SIGNAL (currentChanged (int)), this, SLOT (resizeOthers (int)));
-#else
   QObject::connect (this, &QTabWidget::currentChanged, this, &QTMTabWidget::resizeOthers);
-#endif
 }
 
 /*! Resizes the widget to the size of the tab given by the index.
@@ -968,18 +898,10 @@ QTMRefreshWidget::QTMRefreshWidget (qt_widget _tmwid, string _strwid, string _ki
 : QWidget (), strwid (_strwid), kind (_kind),
   curobj (false), cur (), tmwid (_tmwid), qwid (NULL), cache (widget ())
 {   
-#if QT_VERSION < 0x060000
-  QObject::connect (the_gui->gui_helper, SIGNAL (tmSlotRefresh (string)),
-                   this, SLOT (doRefresh (string)));
-#else
   QObject::connect (the_gui->gui_helper, &QTMGuiHelper::tmSlotRefresh,
                    this, &QTMRefreshWidget::doRefresh);
-#endif
   QVBoxLayout* l = new QVBoxLayout (this);
   l->setContentsMargins (0, 0, 0, 0);
-#if QT_VERSION < 0x060000
-  l->setMargin (0);
-#endif
   setLayout (l);
   
   doRefresh ("init");
@@ -1064,18 +986,10 @@ QTMRefreshableWidget::QTMRefreshableWidget (qt_widget _tmwid, object _prom, stri
 : QWidget (), prom (_prom), kind (_kind),
   curobj (false), cur (), tmwid (_tmwid), qwid (NULL)
 {
-#if QT_VERSION < 0x060000   
-  QObject::connect (the_gui->gui_helper, SIGNAL (tmSlotRefresh (string)),
-                   this, SLOT (doRefresh (string)));
-#else
   QObject::connect (the_gui->gui_helper, &QTMGuiHelper::tmSlotRefresh,
                    this, &QTMRefreshableWidget::doRefresh);
-#endif
   QVBoxLayout* l = new QVBoxLayout (this);
   l->setContentsMargins (0, 0, 0, 0);
-#if QT_VERSION < 0x060000
-  l->setMargin (0);
-#endif
   setLayout (l);
   
   doRefresh ("init");
@@ -1177,11 +1091,7 @@ QTMComboBox::addItemsAndResize (const QStringList& texts, string ww, string hh) 
   QComboBox::addItems (texts);
   
     ///// Calculate the minimal contents size:
-#if QT_VERSION >= 0x060000
   calcSize = sizeHint ();
-#else
-  calcSize = QApplication::globalStrut ();
-#endif
   const QFontMetrics& fm = fontMetrics ();
   
   for (int i = 0; i < count(); ++i) {
@@ -1239,13 +1149,8 @@ QTMScrollArea::setWidgetAndConnect (QWidget* w) {
   listViews = w->findChildren<QTMListView*>();
   for (ListViewsIterator it = listViews.begin(); it != listViews.end(); ++it) {
     if (! (*it)->isScrollable())
-#if QT_VERSION < 0x060000
-      QObject::connect (*it, SIGNAL (selectionHasChanged (const QItemSelection&)),
-                        this,  SLOT (scrollToSelection (const QItemSelection&)));
-#else
       QObject::connect (*it, &QTMListView::selectionHasChanged,
                         this, &QTMScrollArea::scrollToSelection);
-#endif
   }
 }
 
@@ -1337,17 +1242,10 @@ QTMListView::QTMListView (const command& cmd,
 
   command     ecmd = tm_new<qt_choice_command_rep> (this, cmd, multiple, filtered);
   QTMCommand* qcmd = new QTMCommand (this, ecmd);
-#if QT_VERSION < 0x060000
-  QObject::connect (selectionModel(),
-                    SIGNAL (selectionChanged (const QItemSelection&, const QItemSelection&)),
-                    qcmd,
-                    SLOT (apply()));
-#else
   QObject::connect (selectionModel(),
                     &QItemSelectionModel::selectionChanged,
                     qcmd,
                     &QTMCommand::apply);
-#endif
 }
 
 /*! Reimplemented from QListView.
@@ -1372,13 +1270,8 @@ QTMTreeView::QTMTreeView (command cmd, tree data, const tree& roles, QWidget* p)
   setModel (QTMTreeModel::instance (_t, roles));
   setUniformRowHeights (true);  // assuming we display only text.
   setHeaderHidden (true);       // for now...
-#if QT_VERSION < 0x060000
-  QObject::connect (this, SIGNAL (pressed (const QModelIndex&)),
-                    this,   SLOT (callOnChangeWithMouse (const QModelIndex&)));
-#else
   QObject::connect (this, &QTreeView::pressed,
                     this, &QTMTreeView::callOnChangeWithMouse);
-#endif
 }
 
 void
@@ -1397,21 +1290,13 @@ BEGIN_SLOT
     // docs state the index is valid, no need to check
     // If there's no CommandRole, we return the subtree by default
   QVariant d = tmModel()->data (index, QTMTreeModel::CommandRole);
-#if QT_VERSION >= 0x060000
   if (!d.isValid() || !d.canConvert (QMetaType(QMetaType::QString)))
-#else
-  if (!d.isValid() || !d.canConvert (QVariant::String))
-#endif
     arguments = cons (tmModel()->item_from_index (index), arguments);
   else
     arguments = cons (from_qstring (d.toString()), arguments);
   int cnt = QTMTreeModel::TMUserRole;
   d = tmModel()->data (index, cnt);
-#if QT_VERSION >= 0x060000
   while (d.isValid() && d.canConvert (QMetaType(QMetaType::QString))) {
-#else
-  while (d.isValid() && d.canConvert (QVariant::String)) {
-#endif
     arguments = cons (from_qstring (d.toString()), arguments);
     d = tmModel()->data (index, ++cnt);
   }

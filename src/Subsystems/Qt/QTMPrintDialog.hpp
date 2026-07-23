@@ -336,7 +336,7 @@ public:
     resolutionLabel->setBuddy(resolutionCombo);
     label_5->setBuddy(pagesPerSideCombo);
     label_6->setBuddy(orderPagesCombo);
-#endif // QT_NO_SHORTCUT
+#endif
     QWidget::setTabOrder(printerCombo, copiesInput);
     QWidget::setTabOrder(copiesInput, allPagesRadio);
     QWidget::setTabOrder(allPagesRadio, rangePagesRadio);
@@ -356,13 +356,8 @@ public:
     QWidget::setTabOrder(blackWhiteCheck, buttonBox);
     
     retranslateUi(QTMPrintDialog);
-#if QT_VERSION < 0x060000
-    QObject::connect(buttonBox, SIGNAL(accepted()), QTMPrintDialog, SLOT(accept()));
-    QObject::connect(buttonBox, SIGNAL(rejected()), QTMPrintDialog, SLOT(reject()));
-#else
     QObject::connect(buttonBox, &QDialogButtonBox::accepted, QTMPrintDialog, &QDialog::accept);
     QObject::connect(buttonBox, &QDialogButtonBox::rejected, QTMPrintDialog, &QDialog::reject);
-#endif
     
     QMetaObject::connectSlotsByName(QTMPrintDialog);
   } // setupUi
@@ -408,7 +403,7 @@ namespace Ui {
 
 QT_END_NAMESPACE
 
-#endif // UI_QTMPRINTDIALOG_H
+#endif
 
 
 #ifndef QTMPRINTDIALOG_HPP
@@ -454,4 +449,4 @@ protected:
   QTMPrinterSettings* _settings;
 };
 
-#endif // QTMPRINTDIALOG_HPP
+#endif

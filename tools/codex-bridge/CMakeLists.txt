@@ -1,10 +1,6 @@
 add_executable(athena-codex-bridge athena_codex_bridge.cpp)
 
-if (TARGET Qt6::Core)
-  target_link_libraries(athena-codex-bridge PRIVATE Qt6::Core)
-elseif (TARGET Qt5::Core)
-  target_link_libraries(athena-codex-bridge PRIVATE Qt5::Core)
-endif ()
+target_link_libraries(athena-codex-bridge PRIVATE Qt6::Core)
 
 target_compile_definitions(athena-codex-bridge PRIVATE
   ATHENA_CODEX_CLIENT_VERSION="${DEVEL_VERSION}")

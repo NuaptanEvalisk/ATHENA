@@ -215,7 +215,6 @@ QTMVaultBackupViewer::removeSelectedBackups () {
       QMessageBox::Yes)
     return;
 
-#if QT_VERSION >= QT_VERSION_CHECK(5, 15, 0)
   QStringList failures;
   for (QTreeWidgetItem* item: items) {
     QString path= backupPath (item);
@@ -226,10 +225,6 @@ QTMVaultBackupViewer::removeSelectedBackups () {
   if (!failures.isEmpty ())
     QMessageBox::warning (this, "Remove Backup",
                           "Some backups could not be moved to system trash.");
-#else
-  QMessageBox::warning (this, "Remove Backup",
-                        "System trash requires Qt 5.15 or newer.");
-#endif
 }
 
 void

@@ -84,11 +84,9 @@ QTMWidget::QTMWidget (QWidget* _parent, qt_widget _tmwid)
   setAttribute (Qt::WA_InputMethodEnabled);
   surface ()->setMouseTracking (true);
   surface ()->setAcceptDrops (true);
-#if QT_VERSION >= 0x060000
   setAttribute (Qt::WA_AcceptTouchEvents);
   viewport ()->setAttribute (Qt::WA_AcceptTouchEvents);
   surface ()->setAttribute (Qt::WA_AcceptTouchEvents);
-#endif
 
   grabGesture (Qt::PanGesture);
   grabGesture (Qt::PinchGesture);
@@ -117,12 +115,10 @@ QTMWidget::QTMWidget (QWidget* _parent, qt_widget _tmwid)
 
   performanceMonitor.refresh ();
 
-#if (QT_VERSION >= QT_VERSION_CHECK(5,9,0))
   surface ()->setTabletTracking (true);
   for (QWidget *parent = surface()->parentWidget();
        parent != nullptr; parent = parent->parentWidget())
     parent->setTabletTracking(true);
-#endif
 
   if (DEBUG_QT)
     debug_qt << "Creating " << from_qstring(objectName()) << " of widget "
@@ -214,9 +210,7 @@ QTMWidget::scrollContentsBy (int dx, int dy) {
 void 
 QTMWidget::resizeEvent (QResizeEvent* event) {
   (void) event;
-#if QT_VERSION >= 0x060000
   checkDprChange();
-#endif
   // Is this ok?
   //coord2 s = from_qsize (event->size());
   //the_gui -> process_resize (tm_widget(), s.x1, s.x2);
@@ -247,7 +241,6 @@ QTMWidget::resizeEventBis () {
  CHECK: Maybe just putting onscreen all the region bounding rectangles might 
  be less expensive.
 */
-#if QT_VERSION >= 0x060000
 void
 QTMWidget::surfacePaintEvent (QPaintEvent *event, QWidget *surfaceWidget) {
   (void) surfaceWidget;
@@ -742,41 +735,6 @@ QTMWidget::finishGestureZoomCommitPreview () {
   surface()->update();
 }
 
-#else
-
-#define REDRAW_EVERYTHING 1
-
-#if REDRAW_EVERYTHING
-void
-QTMWidget::paintEvent (QPaintEvent* event) {
-  QPainter p (surface());
-  double dpr = surface()->devicePixelRatio();
-  p.drawPixmap (QRect (0, 0, surface()->width(), surface()->height()),
-                *(tm_widget()->backingPixmap),
-                QRect (0, 0, (int) (surface()->width()  * dpr),
-                             (int) (surface()->height() * dpr)));
-  performanceMonitor.finishPaint (event, p);
-}
-#else
-void
-QTMWidget::paintEvent (QPaintEvent* event) {
-  QPainter p (surface());
-  double dpr = surface()->devicePixelRatio();
-  QVector<QRect> rects = event->region().rects();
-  for (int i = 0; i < rects.count(); ++i) {
-    QRect qr = rects.at (i);
-    p.drawPixmap (QRect (qr.x(), qr.y(), qr.width(), qr.height()),
-                  *(tm_widget()->backingPixmap),
-                  QRect ((int) (dpr * qr.x()),
-                         (int) (dpr * qr.y()),
-                         (int) (dpr * qr.width()),
-                         (int) (dpr * qr.height())));
-  }
-  performanceMonitor.finishPaint (event, p);
-}
-#endif
-
-#endif
 
 void
 QTMWidget::setCursorPos (QPoint pos) {
@@ -820,9 +778,7 @@ QTMWidget::keyPressEvent (QKeyEvent* event) {
     document_search_open ();
     return;
   }
-#if QT_VERSION >= 0x060000
   if (handleNeighborhoodKeyShortcut (event)) return;
-#endif
   QTMKeyboardEvent ke (tmapp()->keyboard(), *event);
   string r = ke.texmacsKeyCombination();
   if (r == "") {
@@ -844,11 +800,7 @@ mouse_state (QMouseEvent* event, bool flag) {
   Qt::KeyboardModifiers kstate= event->modifiers ();
   if (flag) bstate= bstate | tstate;
   if ((bstate & Qt::LeftButton     ) != 0) i += 1;
-#if QT_VERSION < 0x060000
-    if ((bstate & Qt::MidButton      ) != 0) i += 2;
-#else
     if ((bstate & Qt::MiddleButton   ) != 0) i += 2;
-#endif
   if ((bstate & Qt::RightButton    ) != 0) i += 4;
   if ((bstate & Qt::XButton1       ) != 0) i += 8;
   if ((bstate & Qt::XButton2       ) != 0) i += 16;
@@ -931,11 +883,7 @@ QTMWidget::inputMethodEvent (QInputMethodEvent* event) {
     // find selection in the preedit string
     int sel_start = 0;
     int sel_length = 0;
-#if QT_VERSION >= 0x060000
     if (pos <  preedit_string.size()) {
-#else	
-    if (pos <  preedit_string.count()) {
-#endif
       for (int i=0; i< attrs.count(); i++)
         if ((attrs[i].type == QInputMethodEvent::TextFormat) &&
             (attrs[i].start <= pos) &&
@@ -965,12 +913,6 @@ QTMWidget::inputMethodEvent (QInputMethodEvent* event) {
 QVariant 
 QTMWidget::inputMethodQuery (Qt::InputMethodQuery query) const {
   switch (query) {
-#if QT_VERSION < 0x060000
-    case Qt::ImMicroFocus : {
-      const QPoint &topleft= cursor_pos - tm_widget()->backing_pos + surface()->geometry().topLeft();
-      return QVariant (QRect (topleft, QSize (5, 5)));
-    }
-#else
     case Qt::ImEnabled : {
       return QVariant (true);
     }
@@ -978,7 +920,6 @@ QTMWidget::inputMethodQuery (Qt::InputMethodQuery query) const {
       const QPoint &topleft= cursor_pos - tm_widget()->backing_pos + surface()->geometry().topLeft();
       return QVariant (QRect (topleft, QSize (5, 5)));
     }
-#endif // TODO : Correctly implement input methods
     default:
       return QWidget::inputMethodQuery (query);
   }
@@ -991,9 +932,7 @@ QTMWidget::mousePressEvent (QMouseEvent* event) {
   if (focusPolicy () != Qt::NoFocus) {
     if (!hasFocus ()) setFocus (Qt::MouseFocusReason);
   }
-#if QT_VERSION >= 0x060000
   if (handleNeighborhoodMiddleClick (event)) return;
-#endif
   QPoint point = event->pos() + origin();
   coord2 pt = from_qpoint(point);
   unsigned int mstate= mouse_state (event, false);
@@ -1034,11 +973,7 @@ tablet_state (QTabletEvent* event, bool flag) {
   Qt::MouseButton  tstate= event->button ();
   if (flag) bstate= bstate | tstate;
   if ((bstate & Qt::LeftButton     ) != 0) i += 1;
-#if QT_VERSION < 0x060000
-  if ((bstate & Qt::MidButton      ) != 0) i += 2;
-#else
   if ((bstate & Qt::MiddleButton   ) != 0) i += 2;
-#endif
   if ((bstate & Qt::RightButton    ) != 0) i += 4;
   if ((bstate & Qt::XButton1       ) != 0) i += 8;
   if ((bstate & Qt::XButton2       ) != 0) i += 16;
@@ -1060,13 +995,7 @@ QTMWidget::scrollBarAtGlobalPosition (const QPoint& globalPos) const {
 
 bool
 QTMWidget::forwardTabletEventToScrollBar (QTabletEvent* event) {
-#if QT_VERSION >= 0x060000
   QPointF globalPosF= event->globalPosition ();
-#elif QT_VERSION >= QT_VERSION_CHECK(5, 15, 0)
-  QPointF globalPosF= event->globalPosF ();
-#else
-  QPointF globalPosF (event->globalX (), event->globalY ());
-#endif
   QPoint globalPos= globalPosF.toPoint ();
   QScrollBar* target= tabletScrollBarTarget;
   bool release= event->type () == QEvent::TabletRelease ||
@@ -1094,16 +1023,8 @@ QTMWidget::forwardTabletEventToScrollBar (QTabletEvent* event) {
   if (begin) buttons |= button;
   if (release) buttons &= ~button;
 
-#if QT_VERSION >= 0x060000
   QMouseEvent mouseEvent (type, localPos, localPos, globalPosF, button,
                           buttons, event->modifiers ());
-#elif QT_VERSION >= QT_VERSION_CHECK(5, 15, 0)
-  QMouseEvent mouseEvent (type, localPos, localPos, globalPosF, button,
-                          buttons, event->modifiers ());
-#else
-  QMouseEvent mouseEvent (type, localPos, globalPosF, button,
-                          buttons, event->modifiers ());
-#endif
   QApplication::sendEvent (target, &mouseEvent);
   event->accept ();
   if (release)
@@ -1113,10 +1034,8 @@ QTMWidget::forwardTabletEventToScrollBar (QTabletEvent* event) {
 
 void
 QTMWidget::tabletEvent (QTabletEvent* event) {
-#if QT_VERSION >= 0x060000
   // for testing purposes
   // cout << "tablet name= " << from_qstring(event->pointingDevice ()->name ()) << "\n";
-#endif
   if (forwardTabletEventToScrollBar (event)) return;
   if (is_nil (tmwid)) return;
   unsigned int mstate = tablet_state (event, true);
@@ -1126,19 +1045,9 @@ QTMWidget::tabletEvent (QTabletEvent* event) {
     else s= "press-" * mouse_decode (mstate);
   }
   if ((mstate & 4) == 0 || s == "press-right") {
-#if QT_VERSION >= 0x060000
     QPoint point = event->position().toPoint() + origin() - surface()->pos();
     double x= point.x();
     double y= point.y();
-#elif QT_VERSION >= QT_VERSION_CHECK(5, 15, 0)
-    QPoint point = event->pos() + origin() - surface()->pos();
-    double x= point.x() + event->globalPosF().x() - event->globalX();
-    double y= point.y() + event->globalPosF().y() - event->globalY();
-#else
-    QPoint point = event->pos() + origin() - surface()->pos();
-    double x= point.x() + event->hiResGlobalX() - event->globalX();
-    double y= point.y() + event->hiResGlobalY() - event->globalY();
-#endif
     coord2 pt= coord2 ((SI) (x * PIXEL), (SI) (-y * PIXEL));
     array<double> data;
     data << ((double) event->pressure())
@@ -1182,7 +1091,6 @@ QTMWidget::gestureEvent (QGestureEvent* event) {
   QPointF hotspot;
   if (QGesture *swipe_gesture = event->gesture(Qt::SwipeGesture)) {
     QSwipeGesture *swipe= static_cast<QSwipeGesture *> (swipe_gesture);
-#if QT_VERSION >= 0x060000
     if (gesturesSupportedForViewZoom () && !inActiveGraphicsMode ()) {
       if (swipe->state() != Qt::GestureFinished) {
         event->accept (swipe);
@@ -1210,7 +1118,6 @@ QTMWidget::gestureEvent (QGestureEvent* event) {
       event->accept (swipe);
       return;
     }
-#endif
     s= "swipe";
     hotspot = swipe->hotSpot ();
     if (swipe->state() == Qt::GestureFinished) {
@@ -1237,12 +1144,10 @@ QTMWidget::gestureEvent (QGestureEvent* event) {
   }
   else if (QGesture *pinch_gesture = event->gesture(Qt::PinchGesture)) {
     QPinchGesture *pinch= static_cast<QPinchGesture *> (pinch_gesture);
-#if QT_VERSION >= 0x060000
     if (handlePinchGestureForViewZoom (pinch)) {
       event->accept (pinch);
       return;
     }
-#endif
     s= "pinch";
     hotspot = pinch->hotSpot ();
     QPinchGesture::ChangeFlags changeFlags = pinch->changeFlags();
@@ -1301,7 +1206,6 @@ QTMWidget::event (QEvent* event) {
     event->accept();
     return true;
   }
-#if QT_VERSION >= 0x060000
   if (event->type() == QEvent::TouchBegin ||
       event->type() == QEvent::TouchUpdate ||
       event->type() == QEvent::TouchEnd ||
@@ -1329,7 +1233,6 @@ QTMWidget::event (QEvent* event) {
     }
     if (handled) return true;
   }
-#endif
   if (event->type() == QEvent::Gesture) {
     gestureEvent(static_cast<QGestureEvent*>(event));
     if (gestureDebugEnabled ())
@@ -1429,11 +1332,7 @@ void
 QTMWidget::dropEvent (QDropEvent *event) {
   if (is_nil (tmwid)) return;
 
-#if QT_VERSION >= 0x060000
   QPoint point = event->position ().toPoint () + origin ();
-#else
-  QPoint point = event->pos () + origin ();
-#endif
   coord2 pt= from_qpoint (point);
 
   tree doc (CONCAT);
@@ -1559,11 +1458,7 @@ wheel_state (QWheelEvent* event) {
   Qt::MouseButtons bstate= event->buttons ();
   Qt::KeyboardModifiers kstate= event->modifiers ();
   if ((bstate & Qt::LeftButton     ) != 0) i += 1;
-#if QT_VERSION < 0x060000
-  if ((bstate & Qt::MidButton      ) != 0) i += 2;
-#else
   if ((bstate & Qt::MiddleButton   ) != 0) i += 2;
-#endif
   if ((bstate & Qt::RightButton    ) != 0) i += 4;
   if ((bstate & Qt::XButton1       ) != 0) i += 8;
   if ((bstate & Qt::XButton2       ) != 0) i += 16;
@@ -1586,16 +1481,10 @@ wheel_state (QWheelEvent* event) {
 void
 QTMWidget::wheelEvent(QWheelEvent *event) {
   if (is_nil (tmwid)) return; 
-#if QT_VERSION >= 0x060000
   if (handleNeighborhoodWheelSwipe (event)) return;
-#endif
   if (as_bool (call ("wheel-capture?"))) {
-#if QT_VERSION >= QT_VERSION_CHECK(5, 15, 0)
     QPointF pos  = event->position();
     QPoint  point= QPointF (pos.x(), pos.y()).toPoint () + origin();
-#else
-    QPoint  point= event->pos() + origin();
-#endif
     QPoint  wheel= event->pixelDelta();
     coord2 pt = from_qpoint (point);
     coord2 wh = from_qpoint (wheel);
@@ -1605,7 +1494,6 @@ QTMWidget::wheelEvent(QWheelEvent *event) {
                               mstate, texmacs_time (), data);
   }
   else if (QApplication::keyboardModifiers() == Qt::ControlModifier) {
-#if QT_VERSION >= 0x060000
     QPoint numPixels = event->pixelDelta();
     QPoint numDegrees = event->angleDelta() / 8;
     
@@ -1624,18 +1512,6 @@ QTMWidget::wheelEvent(QWheelEvent *event) {
         call ("zoom-out", object (sqrt (sqrt (sqrt (sqrt (-numDegrees.y()))))));
       }
     }
-#else
-    if (event->delta() > 0) {
-      //double x= exp (((double) event->delta ()) / 500.0);
-      //call ("zoom-in", object (x));
-      call ("zoom-in", object (sqrt (sqrt (sqrt (sqrt (2.0))))));
-    }
-    else {
-      //double x= exp (-((double) event->delta ()) / 500.0);
-      //call ("zoom-out", object (x));
-      call ("zoom-out", object (sqrt (sqrt (sqrt (sqrt (2.0))))));
-    }
-#endif
   }
   else {
     notifyUserScroll ();

@@ -32,16 +32,8 @@ void init_style_sheet (QApplication* app);
 void set_standard_style_sheet (QWidget *w);
 bool is_server_started ();
 
-#if defined(Q_OS_MAC) && QT_VERSION < 0x060000 
-#include "QTMMacPasteboardMimePDF.hpp"
-#endif
-
 class QTMApplication: public QApplication {
   Q_OBJECT
-
-#if defined(Q_OS_MAC) && QT_VERSION < 0x060000 
-  QMacPasteboardMimePDF mac_pasteboard_mime_pdf;
-#endif
   
 public:
   
@@ -131,4 +123,4 @@ public:
   }
 };
 
-#endif   // QTMAPPLICATION_HPP
+#endif

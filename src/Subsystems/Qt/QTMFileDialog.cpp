@@ -21,10 +21,8 @@
 #include <QDragEnterEvent>
 #include <QDragLeaveEvent>
 #include <QDropEvent>
-#if QT_VERSION >= 0x060000
 #include <QRegularExpression>
 #include <QRegularExpressionValidator>
-#endif
 #include "file.hpp"
 #include "sys_utils.hpp"
 #include "qt_utilities.hpp"
@@ -129,19 +127,11 @@ format_scaled_length (double value, const QString& unit) {
 QTMImagePreview::QTMImagePreview (QWidget* parent)
   : QWidget (parent), wid_slider (NULL), hei_slider (NULL),
     updating_dims (false), natural_width_pt (0), natural_height_pt (0) {
-#if QT_VERSION >= 0x060000
   QRegularExpression rxpos("^[+]?([0-9]*[.])?[0-9]+([a-z]*|%)$");
   //we could explicitly list all accepted lengths...
   QValidator *validator1 = new QRegularExpressionValidator(rxpos, this);
   QRegularExpression rx("^[+-]?([0-9]*[.])?[0-9]+([a-z]*|%)$");
   QValidator *validator2 = new QRegularExpressionValidator(rx, this);
-#else
-  QRegExp rxpos("^[+]?([0-9]*[.])?[0-9]+([a-z]*|%)$");
-  //we could explicitly list all accepted lengths...
-  QValidator *validator1 = new QRegExpValidator(rxpos, this);
-  QRegExp rx("^[+-]?([0-9]*[.])?[0-9]+([a-z]*|%)$");
-  QValidator *validator2 = new QRegExpValidator(rx, this);
-#endif
   QHBoxLayout* hbox= new QHBoxLayout (this);
   hbox->setContentsMargins (8, 8, 8, 8);
   hbox->setSpacing (12);

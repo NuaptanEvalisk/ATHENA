@@ -31,13 +31,11 @@
 #include <QApplication>
 #include <QWidget>
 
-#if QT_VERSION >= 0x060000
 #include <QNetworkAccessManager>
 #include <QNetworkRequest>
 #include <QNetworkReply>
 #include <QFile>
 #include <QGuiApplication>
-#endif
 
 #include "colors.hpp"
 
@@ -79,7 +77,6 @@ operator << (tm_ostream& out, QRect rect) {
 
 void
 qt_sync_wayland_logical_widget_font (QWidget* widget) {
-#if QT_VERSION >= 0x060000
   if (widget == NULL || qApp == NULL ||
       !QApplication::platformName ().startsWith (QStringLiteral ("wayland")))
     return;
@@ -108,9 +105,6 @@ qt_sync_wayland_logical_widget_font (QWidget* widget) {
   syncing= true;
   widget->setFont (scaled);
   syncing= false;
-#else
-  (void) widget;
-#endif
 }
 
 /******************************************************************************
@@ -225,10 +219,8 @@ qt_decode_length (string width, string height,
 static string
 conv_sub (const string& ks) {
   string r(ks);
-#if QT_VERSION >= 0x060000
   r = replace (r, "hat", "^");
   r = replace (r, "&", u8"﹠");
-#endif
   r = replace (r, "pageup", "pgup");
   r = replace (r, "pagedown", "pgdown");
   r = replace (r, "S-", "Shift+");
@@ -544,14 +536,9 @@ qt_image_to_pdf (url image, url outfile, int w_pt, int h_pt, int dpi) {
 // or the actual dpi will be lower
   if (DEBUG_CONVERT) debug_convert << "qt_image_to_eps_or_pdf " << image << " -> "<<outfile<<LF;
   QPrinter printer;
-#if QT_VERSION < 0x060000
-  printer.setOrientation(QPrinter::Portrait);
-#else
   printer.setPageOrientation(QPageLayout::Portrait);
-#endif
   if (suffix(outfile)=="eps") {
-    //note that PostScriptFormat is gone in Qt5. a substitute?: http://soft.proindependent.com/eps/
-    cout << "ATHENA] warning: PostScript format no longer supported in Qt5\n";
+    cout << "ATHENA] warning: PostScript output is not supported by Qt\n";
     printer.setOutputFormat(QPrinter::PdfFormat);
   }
   else printer.setOutputFormat(QPrinter::PdfFormat);
@@ -572,11 +559,7 @@ qt_image_to_pdf (url image, url outfile, int w_pt, int h_pt, int dpi) {
 */
     if (dpi > 0 && w_pt > 0 && h_pt > 0) {
 
-#if QT_VERSION < QT_VERSION_CHECK(5, 15, 0)
-	    printer.setPaperSize(QSizeF(w_pt, h_pt), QPrinter::Point); // in points
-#else
       printer.setPageSize(QPageSize(QSizeF(w_pt, h_pt), QPageSize::Point));
-#endif
 
       // w_pt and h_pt are dimensions in points (and there are 72 points per inch)
       int ww = w_pt * dpi / 72;
@@ -587,11 +570,7 @@ qt_image_to_pdf (url image, url outfile, int w_pt, int h_pt, int dpi) {
         printer.setResolution((int) (dpi*im.width())/(double)ww);
       if (DEBUG_CONVERT) debug_convert << "dpi asked: "<< dpi <<" ; actual dpi set: " << printer.resolution() <<LF;
 	  }
-#if QT_VERSION < QT_VERSION_CHECK(5, 15, 0)
-	  else printer.setPaperSize(QSizeF(im.width (), im.height ()), QPrinter::DevicePixel);
-#else
     else printer.setPageSize(QPageSize(QSizeF(im.width (), im.height ()), QPageSize::Point));
-#endif
     QPainter p;
     p.begin(&printer);
     p.drawImage(0, 0, im);
@@ -836,22 +815,14 @@ qt_get_date (string lan, string fm) {
 
 string
 qt_pretty_time (int t) {
-#if QT_VERSION >= 0x060000
   QDateTime dt= QDateTime::fromSecsSinceEpoch (t);
-#else
-  QDateTime dt= QDateTime::fromTime_t (t);
-#endif
   QString s= dt.toString ();
   return from_qstring (s);
 }
 
 string
 qt_pretty_date (int t, string fm) {
-#if QT_VERSION >= 0x060000
   QDateTime dt= QDateTime::fromSecsSinceEpoch (t);
-#else
-  QDateTime dt= QDateTime::fromTime_t (t);
-#endif
 
   QLocale loc = QLocale (to_qstring (get_locale_language ()));
   QString s ("");
@@ -867,7 +838,6 @@ qt_pretty_date (int t, string fm) {
 
 #ifndef _MBD_EXPERIMENTAL_PRINTER_WIDGET  // this is in qt_printer_widget
 
-#if QT_VERSION >= 0x060000
 #define PAPER(fmt)  case QPageSize::fmt : return "fmt"
 static string 
 qt_papersize_to_string (QPageSize::PageSizeId sz) {
@@ -898,38 +868,6 @@ qt_papersize_to_string (QPageSize::PageSizeId sz) {
       return "A4";
   }
 }
-#else
-#define PAPER(fmt)  case QPrinter::fmt : return "fmt"
-static string 
-qt_papersize_to_string (QPrinter::PaperSize sz) {
-  switch (sz) {
-      PAPER (A0) ;
-      PAPER (A1) ;
-      PAPER (A2) ;
-      PAPER (A3) ;
-      PAPER (A4) ;
-      PAPER (A5) ;
-      PAPER (A6) ;
-      PAPER (A7) ;
-      PAPER (A8) ;
-      PAPER (A9) ;
-      PAPER (B0) ;
-      PAPER (B1) ;
-      PAPER (B2) ;
-      PAPER (B3) ;
-      PAPER (B4) ;
-      PAPER (B5) ;
-      PAPER (B6) ;
-      PAPER (B7) ;
-      PAPER (B8) ;
-      PAPER (B9) ;
-      PAPER (B10) ;      
-      PAPER (Letter) ;
-    default:
-      return "A4";
-  }
-}
-#endif
 #undef PAPER
 
 bool 
@@ -944,13 +882,8 @@ qt_print (bool& to_file, bool& landscape, string& pname, url& filename,
     to_file = !(qprinter->outputFileName().isNull());
     pname = from_qstring( qprinter->printerName() );
     filename = from_qstring( qprinter->outputFileName() );
-#if QT_VERSION >= 0x060000
     landscape = (qprinter->pageLayout().orientation() == QPageLayout::Landscape);
     paper_type = qt_papersize_to_string(qprinter->pageLayout().pageSize().id());
-#else
-    landscape = (qprinter->orientation() == QPrinter::Landscape);
-    paper_type = qt_papersize_to_string(qprinter->paperSize());
-#endif
     if (qprinter->printRange() == QPrinter::PageRange) {
       first = qprinter->fromPage(); 
       last = qprinter->toPage(); 
@@ -962,7 +895,7 @@ qt_print (bool& to_file, bool& landscape, string& pname, url& filename,
   return false;
 }
 
-#endif //(not defined) _MBD_EXPERIMENTAL_PRINTER_WIDGET
+#endif
 
 
 #ifdef OS_MACOS
@@ -1016,7 +949,7 @@ QString fromNSUrl(const QUrl &url) {
   }
   return localFileQString;
 }
-#endif // OS_MACOS
+#endif
 
 /******************************************************************************
 * Style sheets
@@ -1091,11 +1024,7 @@ scale_px (string s) {
 
 static bool
 qt6_wayland_platform () {
-#if QT_VERSION >= 0x060000
   return QApplication::platformName ().startsWith (QStringLiteral ("wayland"));
-#else
-  return false;
-#endif
 }
 
 static string
@@ -1182,7 +1111,6 @@ set_standard_style_sheet (QWidget* w) {
     w->setStyleSheet (to_qstring (current_style_sheet));
 }
 
-#if QT_VERSION >= 0x060000
 int
 qt_download_file(string _urlStr, string _outputFile) {
 
@@ -1225,4 +1153,3 @@ qt_download_file(string _urlStr, string _outputFile) {
   reply->deleteLater();
   return 0;
 }
-#endif

@@ -105,9 +105,6 @@ qt_renderer_rep::qt_renderer_rep (QPainter *_painter, double pixel_ratio2,
 				  int w2, int h2):
   basic_renderer_rep (true, pixel_ratio2, w2, h2), painter(_painter),
   zoom_multiplier (1) {
-#if QT_VERSION < 0x060000
-  reset_zoom_factor();
-#endif
 }
 
 qt_renderer_rep::~qt_renderer_rep () {}
@@ -119,9 +116,7 @@ qt_renderer_rep::get_handle () {
 
 void
 qt_renderer_rep::begin (void* handle) {
-#if QT_VERSION >= 0x060000
   basic_renderer_rep::begin (handle);
-#endif
   QPaintDevice *device = static_cast<QPaintDevice*>(handle);
   if (!painter->begin (device) && DEBUG_QT) {
     if (headless_mode)
@@ -140,9 +135,7 @@ qt_renderer_rep::begin (void* handle) {
 void
 qt_renderer_rep::end () {
   painter->end ();
-#if QT_VERSION >= 0x060000
   basic_renderer_rep::end ();
-#endif
 }
 
 void 
@@ -156,12 +149,7 @@ qt_renderer_rep::get_extents (SI& w2, SI& h2) {
 
 void
 qt_renderer_rep::set_zoom_factor (double zoom, bool safe) {
-#if QT_VERSION >= 0x060000
   basic_renderer_rep::set_zoom_factor (zoom_multiplier * zoom, safe);
-#else
-  renderer_rep::set_zoom_factor (pixel_ratio * zoom, safe);
-  retina_pixel= pixel * pixel_ratio;
-#endif
 }
 
 /******************************************************************************
@@ -232,7 +220,6 @@ get_pattern_image (brush br, SI pixel) {
   return pm;
 }
 
-#if QT_VERSION >= 0x060000
 void
 qt_renderer_rep::clear_device (SI x1, SI y1, SI x2, SI y2) {
   static bool first_time= true;
@@ -257,7 +244,6 @@ qt_renderer_rep::clear_device (SI x1, SI y1, SI x2, SI y2) {
   br.setTransform (QTransform (1, 0, 0, 1, x1 % w, y2 % h));
   painter->fillRect (r, br);
 }
-#endif
 
 void
 qt_renderer_rep::set_pencil (pencil np) {
@@ -376,11 +362,7 @@ qt_renderer_rep::clear (SI x1, SI y1, SI x2, SI y2) {
   decode (x2, y2);
   if ((x1>=x2) || (y1<=y2)) return;
   QBrush br (to_render_qcolor (bg_brush->get_color ()));
-#if QT_VERSION < 0x060000
-  painter->setRenderHints (0);
-#else
   painter->setRenderHints (QPainter::Antialiasing, false); 
-#endif
   painter->fillRect (x1, y2, x2-x1, y1-y2, br);       
 }
 
@@ -405,11 +387,7 @@ qt_renderer_rep::fill (SI x1, SI y1, SI x2, SI y2) {
   decode (x2, y2);
 
   QBrush br (to_render_qcolor (pen->get_color ()));
-#if QT_VERSION < 0x060000
-  painter->setRenderHints (0);
-#else
   painter->setRenderHints (QPainter::Antialiasing, false); 
-#endif
   painter->fillRect (x1, y2, x2-x1, y1-y2, br);       
 }
 
@@ -426,11 +404,7 @@ qt_renderer_rep::draw_selection (rectangles rs) {
   auto fill_rectangles = [this] (rectangles rects, const QColor& col) {
     rectangles it= ::simplify (rects);
     QBrush br (col);
-#if QT_VERSION < 0x060000
-    painter->setRenderHints (0);
-#else
     painter->setRenderHints (QPainter::Antialiasing, false);
-#endif
     while (!is_nil (it)) {
       SI x1= it->item->x1, y1= it->item->y1;
       SI x2= it->item->x2, y2= it->item->y2;
@@ -544,11 +518,7 @@ qt_renderer_rep::draw_clipped (QImage *im, int w, int h, SI x, SI y) {
   decode (x2, y2);
   y--; // top-left origin to bottom-left origin conversion
        // clear(x1,y1,x2,y2);
-#if QT_VERSION < 0x060000
-  painter->setRenderHints (0);
-#else
   painter->setRenderHints (QPainter::Antialiasing, false); 
-#endif
   painter->drawImage (x, y, *im);
 }
 
@@ -561,11 +531,7 @@ qt_renderer_rep::draw_clipped (QTMPixmapOrImage *im, int w, int h, SI x, SI y) {
   decode (x , y );
   y--; // top-left origin to bottom-left origin conversion
   // clear(x1,y1,x2,y2);
-#if QT_VERSION < 0x060000
-  painter->setRenderHints (0);
-#else
   painter->setRenderHints (QPainter::Antialiasing, false); 
-#endif
   painter->drawPixmap (x, y, w, h, *(im->QPixmap_ptr ()));
 }
 

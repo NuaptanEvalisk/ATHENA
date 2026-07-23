@@ -231,12 +231,6 @@ int main (int argc, char** argv) {
     set_env ("PATH", get_env ("PATH") * ":" * as_string (usr_bin) * ":" * as_string (usr_local_bin));
   }
 #if !defined (OS_MACOS) 
-#if QT_VERSION < 0x060000
-  if (get_env ("WAYLAND_DISPLAY") == "") {
-    set_env ("QT_QPA_PLATFORM", "xcb"); // todo : remove ?
-    set_env ("XDG_SESSION_TYPE", "x11");
-  }
-#endif
   // workaround for bug #66718 (Copy/paste not functioning in GNOME (Wayland))
   //if (get_env ("WAYLAND_DISPLAY") != ""
   //    && occurs("GNOME",get_env ("XDG_CURRENT_DESKTOP")))

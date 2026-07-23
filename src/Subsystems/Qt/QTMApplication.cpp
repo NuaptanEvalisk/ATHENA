@@ -176,11 +176,7 @@ void QTMApplication::load() {
   mUseAds = true;
   mUseTabWindow = true;
 
-#if QT_VERSION >= 0x060000
   mUseNewToolbar = get_user_preference ("new toolbar") != "off";
-#else
-  mUseNewToolbar = false;
-#endif
 
   mPixmapManagerInitialized = false;
 
@@ -192,9 +188,9 @@ void QTMApplication::load() {
   
 
 void QTMApplication::init_theme () {
-#if defined(OS_MINGW64) && QT_VERSION >= 0x060000
+#if defined(OS_MINGW64)
   setStyle(QStyleFactory::create("Windows"));
-#endif    
+#endif
   string theme= get_user_preference ("gui theme", "default");
   if (theme == "default") 
     theme = get_default_theme ();
@@ -249,7 +245,6 @@ bool QTMApplication::notify (QObject* receiver, QEvent* event)
       }
     }
 
-#if QT_VERSION >= 0x060000
     if (receiver != NULL && event != NULL &&
         (event->type () == QEvent::Polish ||
          event->type () == QEvent::Show ||
@@ -295,7 +290,6 @@ bool QTMApplication::notify (QObject* receiver, QEvent* event)
       }
       cout << LF;
     }
-#endif
     return QApplication::notify (receiver, event);
   }
   catch (string s) {

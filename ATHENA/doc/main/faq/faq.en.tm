@@ -27,8 +27,8 @@
 
       <item><hlink|Is it free Software|#general-6>?
 
-      <item><hlink|When will <TeXmacs> be based on Qt5 and Guile
-      2|#general-8>?
+      <item><hlink|Which Qt and Guile versions does <TeXmacs>
+      use|#general-8>?
     </itemize-minus>
 
     <item>Troubleshooting
@@ -209,8 +209,8 @@
   </question>
 
   <\answer*>
-    <TeXmacs> currently uses the Qt5 interface. Compatibility work for Qt6 is
-    kept separate from removed legacy interfaces.
+    <TeXmacs> currently uses the Qt6 interface. Older Qt interfaces are no
+    longer supported by ATHENA.
 
     As to <name|Guile>, please be aware that <name|Guile> 1 and <name|Guile>
     2 carry the same name, but that resemblances very much end there:

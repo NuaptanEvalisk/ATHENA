@@ -404,11 +404,7 @@ public:
 
 public slots:
   inline void setFilterRegularExpression (const QString& pattern) {
-#if QT_VERSION < 0x060000
-    filterModel->setFilterRegExp (pattern);
-#else
     filterModel->setFilterRegularExpression (pattern);
-#endif
   }
 
 signals:
@@ -484,4 +480,4 @@ public slots:
   void scrollToSelection (const QItemSelection& selected);
 };
 
-#endif // QTMMENUHELPER_HPP
+#endif

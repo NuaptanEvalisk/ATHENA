@@ -327,7 +327,7 @@ ensure_ads () {
         rm -rf "$ads_patched_src"
         mkdir -p "$(dirname "$ads_patched_src")"
         rsync -a --delete --exclude '.git' "$cached_ads/" "$ads_patched_src/"
-        python3 "$repo_root/patch_ads.py" "$ads_patched_src" 6
+        python3 "$repo_root/patch_ads.py" "$ads_patched_src"
         return
       fi
     done
@@ -341,7 +341,7 @@ ensure_ads () {
   rm -rf "$ads_patched_src"
   mkdir -p "$(dirname "$ads_patched_src")"
   rsync -a --delete --exclude '.git' "$ads_src/" "$ads_patched_src/"
-  python3 "$repo_root/patch_ads.py" "$ads_patched_src" 6
+  python3 "$repo_root/patch_ads.py" "$ads_patched_src"
 }
 
 rapidfuzz_source_complete () {

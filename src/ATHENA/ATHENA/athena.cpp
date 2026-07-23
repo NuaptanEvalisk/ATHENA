@@ -380,7 +380,6 @@ requested_wayland_qt_platform (int argc, char** argv) {
 
 static void
 normalize_wayland_qt_scaling (int argc, char** argv) {
-#if QT_VERSION >= 0x060000
   if (!requested_wayland_qt_platform (argc, argv)) return;
 
   string value= get_env ("QT_AUTO_SCREEN_SCALE_FACTOR");
@@ -398,9 +397,6 @@ normalize_wayland_qt_scaling (int argc, char** argv) {
     unsetenv ("QT_FONT_DPI");
   if (get_env ("QT_SCALE_FACTOR_ROUNDING_POLICY") != "")
     unsetenv ("QT_SCALE_FACTOR_ROUNDING_POLICY");
-#else
-  (void) argc; (void) argv;
-#endif
 }
 #endif
 
@@ -785,36 +781,6 @@ set_global_options  (int argc, char** argv)  {
         my_init_cmds= my_init_cmds * " (quit-TeXmacs)";
       else if ((s == "-r") || (s == "-reverse"))
         set_reverse_colors (true);
-#if QT_VERSION < 0x060000
-      else if (s == "-no-retina") {
-        retina_manual= true;
-        retina_factor= 1;
-        retina_zoom  = 1;
-        retina_icons = 1;
-        retina_scale = 1.0;
-      }
-      else if ((s == "-R") || (s == "-retina")) {
-        retina_manual= true;
-#  ifdef MACOSX_EXTENSIONS
-        retina_factor= 2;
-        retina_zoom  = 1;
-        retina_scale = 1.4;
-#  else
-        retina_factor= 1;
-        retina_zoom  = 2;
-        retina_scale = (tm_style_sheet == ""? 1.0: 1.6666);
-#  endif
-        retina_icons = 2;
-      }
-      else if (s == "-no-retina-icons") {
-        retina_iman  = true;
-        retina_icons = 1;
-      }
-      else if (s == "-retina-icons") {
-        retina_iman  = true;
-        retina_icons = 2;
-      }
-#endif
       else if ((s == "-c") || (s == "-convert") || (s == "-C")) {
         i+=2;
         if (i<argc) {
@@ -922,35 +888,6 @@ set_global_options  (int argc, char** argv)  {
   if (headless_mode && exec_exit) my_init_cmds= my_init_cmds * " (quit-TeXmacs)";
 
   // Further options via environment variables
-#if QT_VERSION < 0x060000
-  if (get_env ("ATHENA_RETINA") == "off") {
-    retina_manual= true;
-    retina_factor= 1;
-    retina_icons = 1;
-    retina_scale = 1.0;
-  }
-  if (get_env ("ATHENA_RETINA") == "on") {
-    retina_manual= true;
-#ifdef MACOSX_EXTENSIONS
-    retina_factor= 2;
-    retina_zoom  = 1;
-    retina_scale = 1.4;
-#else
-    retina_factor= 1;
-    retina_zoom  = 2;
-    retina_scale = (tm_style_sheet == ""? 1.0: 1.6666);
-#endif
-    retina_icons = 2;
-  }
-  if (get_env ("ATHENA_RETINA_ICONS") == "off") {
-    retina_iman  = true;
-    retina_icons = 1;
-  }
-  if (get_env ("ATHENA_RETINA_ICONS") == "on") {
-    retina_iman  = true;
-    retina_icons = 2;
-  }
-#endif
   // End options via environment variables
 
   // Further user preferences
@@ -958,7 +895,7 @@ set_global_options  (int argc, char** argv)  {
   string unify = "off";
   string mini  = (os_macos ()? string ("off"): string ("on"));
   if (tm_style_sheet != "") mini= "off";
-#if (defined(OS_MACOS) && QT_VERSION < 0x060000) || defined(qt_no_fontconfig)
+#if defined(qt_no_fontconfig)
   use_native_menubar = get_preference ("use native menubar", native) == "force";
 #else
   use_native_menubar = get_preference ("use native menubar", native) == "on" || get_preference ("use native menubar", native) == "force";
@@ -1744,7 +1681,6 @@ texmacs_entrypoint (int argc, char** argv) {
     qtmcoreapp= new QTMCoreApplication (argc, argv);
   }
   else if (!headless_mode) {
-#if QT_VERSION >= 0x060000
     QGuiApplication::setHighDpiScaleFactorRoundingPolicy
       (requested_wayland_qt_platform (argc, argv) ?
        Qt::HighDpiScaleFactorRoundingPolicy::PassThrough :
@@ -1752,10 +1688,6 @@ texmacs_entrypoint (int argc, char** argv) {
 #if defined(OS_GNULINUX) || defined(OS_FREEBSD)
     if (!requested_wayland_qt_platform (argc, argv))
       QApplication::setStyle("fusion");
-#endif
-#elif QT_VERSION >= 0x050600
-    QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
-    QCoreApplication::setAttribute(Qt::AA_UseHighDpiPixmaps);
 #endif
     qtmapp= new QTMApplication (argc, argv);
     if (!headless_mode && !no_splash_screen) tmapp()->show_splash ();
@@ -1801,7 +1733,7 @@ texmacs_entrypoint (int argc, char** argv) {
     remove (url ("$ATHENA_HOME_PATH/system/cache") * url_wildcard ("*"));
     remove (url ("$ATHENA_HOME_PATH/fonts/error") * url_wildcard ("*"));    
   }
-#endif 
+#endif
 
 #ifdef QTTEXMACS
   // initialize the Qt application infrastructure
@@ -1825,13 +1757,9 @@ texmacs_entrypoint (int argc, char** argv) {
   startup_progress (70, "Fonts ready");
 #ifdef QTTEXMACS
   if (!headless_mode) {
-#  if QT_VERSION >= 0x060000
 #    ifndef OS_MACOS
     tmapp()->set_window_icon("/misc/images/ATHENA.svg");
-#    endif
-#  else
-    tmapp()->set_window_icon("/misc/images/ATHENA-512.png");
-#  endif
+#endif
 #endif
   }
   startup_progress (74, "Window icon ready");
