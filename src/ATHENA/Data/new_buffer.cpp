@@ -441,6 +441,13 @@ attach_subformat (tree t, url u, string fm) {
 tree
 import_loaded_tree (string s, url u, string fm) {
   set_file_focus (u);
+  if (s == "" && suffix (u) == "ath") {
+    tree doc (DOCUMENT);
+    doc << compound ("TeXmacs", TEXMACS_COMPAT_VERSION)
+        << compound ("style", "generic")
+        << compound ("body", tree (DOCUMENT, ""));
+    return doc;
+  }
   if (fm == "generic" && suffix (u) == "txt") fm= "verbatim";
   if (fm == "generic") fm= get_format (s, suffix (u));
   if (fm == "texmacs" && starts (s, "(document (TeXmacs")) fm= "stm";
