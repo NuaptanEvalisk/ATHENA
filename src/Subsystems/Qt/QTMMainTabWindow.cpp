@@ -9,6 +9,7 @@
 #include "QTMVaultBackupViewer.hpp"
 #include "QTMVaultExplorer.hpp"
 #include "QTMNamespaceExplorer.hpp"
+#include "QTMPersonsExplorer.hpp"
 #include "QTMNeighborhoodsPane.hpp"
 #include "qt_window_widget.hpp"
 #include "qt_utilities.hpp"
@@ -80,6 +81,7 @@ isPersistentAdsPane (const QString& name) {
   return name == "athena-outline-pane" ||
          name == "athena-vault-explorer" ||
          name == "athena-namespace-explorer" ||
+         name == "athena-persons-explorer" ||
          name == "athena-neighborhoods-pane" ||
          name == "athena-global-search" ||
          name == "athena-vault-backup-viewer" ||
@@ -540,6 +542,8 @@ void QTMMainTabWindow::restoreAdsVisiblePanes() {
       vault_show_explorer ();
     else if (vault_active() && name == "athena-namespace-explorer")
       namespace_explorer_show ();
+    else if (vault_active() && name == "athena-persons-explorer")
+      persons_explorer_show ();
     else if (vault_active() && name == "athena-neighborhoods-pane")
       neighborhoods_pane_show ();
     else if (vault_active() && name == "athena-global-search")

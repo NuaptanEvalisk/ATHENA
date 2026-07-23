@@ -70,6 +70,7 @@ private:
   tree     normalizeQuery (tree t) const;
   QString  selectedNamespace () const;
   QString  selectedEnunciation () const;
+  QString  selectedPerson () const;
   void     startSearch ();
   void     cancelSearch ();
   void     scanChunk ();
@@ -112,6 +113,7 @@ private:
   QLabel*       status;
   QLabel*       previewTitle;
   QComboBox*    enunciationCombo;
+  QComboBox*    personCombo;
   QCheckBox*    caseInsensitiveCheck;
   QCheckBox*    fuzzyCheck;
   QLineEdit*    namespaceEdit;

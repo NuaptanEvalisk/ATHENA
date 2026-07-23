@@ -2726,6 +2726,19 @@ tmg_tree_as_string (tmscm arg1) {
 }
 
 tmscm
+tmg_athena_normalize_person_names (tmscm arg1) {
+  TMSCM_ASSERT_TREE (arg1, TMSCM_ARG1, "athena-normalize-person-names");
+
+  tree in1= tmscm_to_tree (arg1);
+
+  // TMSCM_DEFER_INTS;
+  tree out= athena_normalize_person_names_for_scheme (in1);
+  // TMSCM_ALLOW_INTS;
+
+  return tree_to_tmscm (out);
+}
+
+tmscm
 tmg_tree_extents (tmscm arg1) {
   TMSCM_ASSERT_CONTENT (arg1, TMSCM_ARG1, "tree-extents");
 
@@ -10212,6 +10225,15 @@ tmg_vault_show_explorer () {
 }
 
 tmscm
+tmg_persons_explorer_show () {
+  // TMSCM_DEFER_INTS;
+  persons_explorer_show ();
+  // TMSCM_ALLOW_INTS;
+
+  return TMSCM_UNSPECIFIED;
+}
+
+tmscm
 tmg_vault_explorer_track_file (tmscm arg1) {
   TMSCM_ASSERT_URL (arg1, TMSCM_ARG1, "vault-explorer-track-file");
 
@@ -10954,6 +10976,7 @@ initialize_glue_basic () {
   tmscm_install_procedure ("tree-descendant-env",  tmg_tree_descendant_env, 4, 0, 0);
   tmscm_install_procedure ("tree-load-inclusion",  tmg_tree_load_inclusion, 1, 0, 0);
   tmscm_install_procedure ("tree-as-string",  tmg_tree_as_string, 1, 0, 0);
+  tmscm_install_procedure ("athena-normalize-person-names",  tmg_athena_normalize_person_names, 1, 0, 0);
   tmscm_install_procedure ("tree-extents",  tmg_tree_extents, 1, 0, 0);
   tmscm_install_procedure ("tree-empty?",  tmg_tree_emptyP, 1, 0, 0);
   tmscm_install_procedure ("tree-multi-line?",  tmg_tree_multi_lineP, 1, 0, 0);
@@ -11488,6 +11511,7 @@ initialize_glue_basic () {
   tmscm_install_procedure ("vault-choose-link",  tmg_vault_choose_link, 1, 0, 0);
   tmscm_install_procedure ("vault-quick-switcher",  tmg_vault_quick_switcher, 1, 0, 0);
   tmscm_install_procedure ("vault-show-explorer",  tmg_vault_show_explorer, 0, 0, 0);
+  tmscm_install_procedure ("persons-explorer-show",  tmg_persons_explorer_show, 0, 0, 0);
   tmscm_install_procedure ("vault-explorer-track-file",  tmg_vault_explorer_track_file, 1, 0, 0);
   tmscm_install_procedure ("global-search-show",  tmg_global_search_show, 0, 0, 0);
   tmscm_install_procedure ("athena-diff-show",  tmg_athena_diff_show, 0, 0, 0);

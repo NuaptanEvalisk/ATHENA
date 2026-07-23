@@ -35,6 +35,8 @@ vault_maintenance_run (string vault_dir, bool check_only) {
      vault_maintenance_pass_health_check},
     {"normalize-assets", "Normalize referenced asset names and references",
      vault_maintenance_pass_normalize_assets},
+    {"normalize-person-names", "Tag recognized person names",
+     vault_maintenance_pass_normalize_person_names},
     {"anchor-structures", "Anchor structures",
      vault_maintenance_pass_anchor_enunciations},
     {"build-artifacts", "Build semantic artifact indexes",

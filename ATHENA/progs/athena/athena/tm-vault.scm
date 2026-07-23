@@ -14,6 +14,7 @@
         (athena athena tm-vault-anchors)
         (athena athena tm-vault-maintenance)
         (athena athena tm-vault-namespaces)
+        (athena athena tm-vault-persons)
         (athena athena tm-vault-quick-switcher)
         (athena athena tm-vault-recents)
         (athena athena tm-vault-startup)

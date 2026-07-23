@@ -10,6 +10,7 @@
 
 #include "QTMGlobalSearch.hpp"
 #include "QTMMainTabWindow.hpp"
+#include "QTMPersonsExplorer.hpp"
 #include "QTMVaultSearch.hpp"
 #include "QTMWidget.hpp"
 #include "convert.hpp"
@@ -32,6 +33,7 @@
 #include "tm_window.hpp"
 #include "tree_search.hpp"
 #include "vault.hpp"
+#include "ATHENA/Data/person_names.hpp"
 
 #include <DockAreaWidget.h>
 #include <DockSplitter.h>
@@ -287,6 +289,12 @@ QTMGlobalSearch::QTMGlobalSearch (QWidget* parent)
     enunciationCombo->addItem (entry.label, entry.tag);
   enunciationCombo->setMinimumWidth (220);
 
+  personCombo= new QComboBox (this);
+  personCombo->setEditable (true);
+  personCombo->setInsertPolicy (QComboBox::NoInsert);
+  personCombo->setMinimumWidth (220);
+  personCombo->lineEdit ()->setPlaceholderText ("Any person");
+
   caseInsensitiveCheck= new QCheckBox ("Case-insensitive", this);
   fuzzyCheck= new QCheckBox ("Fuzzy", this);
   refreshSearchOptions ();
@@ -319,6 +327,9 @@ QTMGlobalSearch::QTMGlobalSearch (QWidget* parent)
   buttons->addSpacing (12);
   buttons->addWidget (new QLabel ("Enunciation:", this));
   buttons->addWidget (enunciationCombo);
+  buttons->addSpacing (12);
+  buttons->addWidget (new QLabel ("Person:", this));
+  buttons->addWidget (personCombo);
   buttons->addSpacing (12);
   buttons->addWidget (caseInsensitiveCheck);
   buttons->addWidget (fuzzyCheck);
@@ -710,6 +721,14 @@ QTMGlobalSearch::refreshNamespaces () {
 
   if (!current.isEmpty () && !names.contains (current, Qt::CaseSensitive))
     namespaceEdit->setText (current);
+
+  if (personCombo != nullptr) {
+    QString person= personCombo->currentText ().trimmed ();
+    personCombo->clear ();
+    personCombo->addItem ("", "");
+    personCombo->addItems (qtm_vault_person_names ());
+    personCombo->setCurrentText (person);
+  }
 }
 
 QString
@@ -721,6 +740,12 @@ QString
 QTMGlobalSearch::selectedEnunciation () const {
   if (enunciationCombo == nullptr) return QString ();
   return enunciationCombo->currentData ().toString ().trimmed ();
+}
+
+QString
+QTMGlobalSearch::selectedPerson () const {
+  return personCombo == nullptr ? QString () :
+    personCombo->currentText ().trimmed ();
 }
 
 void
@@ -738,10 +763,14 @@ QTMGlobalSearch::setRunningStatus () {
     QString ("namespace %1").arg (ns);
   QString kind= enunciation.isEmpty () ? QString () :
     QString (" inside <%1>").arg (enunciation);
-  status->setText (QString ("Searching %1 file(s) in %2%3...")
+  QString person= selectedPerson ();
+  QString personScope= person.isEmpty () ? QString () :
+    QString (" mentioning %1").arg (person);
+  status->setText (QString ("Searching %1 file(s) in %2%3%4...")
                    .arg ((int) scanFiles.size ())
                    .arg (scope)
-                   .arg (kind));
+                   .arg (kind)
+                   .arg (personScope));
   progress->setRange (0, (int) scanFiles.size ());
   progress->setValue (0);
 }
@@ -841,6 +870,10 @@ QTMGlobalSearch::searchFile (url u, std::vector<Result>& hits) const {
     tree t= import_tree (u, "texmacs");
     tree body= extract (t, "body");
     if (is_empty (body)) body= t;
+    QString person= selectedPerson ();
+    if (!person.isEmpty () &&
+        !athena_tree_contains_person_text (body, from_qstring (person)))
+      return 0;
 
     int oldMode= set_access_mode (DRD_ACCESS_SOURCE);
     std::vector<VaultContentMatch> matches;

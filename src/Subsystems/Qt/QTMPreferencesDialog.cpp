@@ -1549,6 +1549,12 @@ QTMPreferencesDialog::buildVaultPage () {
                  "vault wikilink display template anchor", "%c");
   finish_page (wikilinks);
 
+  QWidget* persons= make_page ();
+  QFormLayout* pn= add_section (persons, "Persons");
+  add_toggle (pn, "Automatically tag recognized person names on save:",
+              "vault normalize person names on save");
+  finish_page (persons);
+
   QWidget* maintenance= make_page ();
   QFormLayout* mt= add_section (maintenance, "Maintenance");
   add_combo (mt, "Max allowed number of full backups:",
@@ -1813,6 +1819,7 @@ QTMPreferencesDialog::buildVaultPage () {
                   {"Navigation", navigation},
                   {"Namespaces", namespaces},
                   {"Wikilinks and Transclusion", wikilinks},
+                  {"Persons", persons},
                   {"Maintenance", maintenance},
                   {"Anchors and Images", anchors},
                   {"Vault Info", info}});

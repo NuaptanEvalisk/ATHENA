@@ -350,6 +350,13 @@ summary_document_text (VaultMaintenanceContext& ctx, bool success,
                       std::to_string (summary.health_files_scanned) +
                       " .ath file(s), unreadable " +
                       std::to_string (summary.health_files_failed))}),
+    tm_row ({tm_text ("Person names"),
+             tm_text ("wrapped " +
+                      std::to_string (summary.person_names_wrapped) +
+                      " occurrence(s) in " +
+                      std::to_string (summary.person_files_changed) + " of " +
+                      std::to_string (summary.person_files_scanned) +
+                      " .ath file(s)")}),
     tm_row ({tm_text ("Anchors"),
              tm_text ("wrapped " +
                       std::to_string (summary.anchor_enunciations_wrapped) +
@@ -554,6 +561,11 @@ vault_maintenance_pass_print_summary (VaultMaintenanceContext& ctx) {
             std::to_string (summary.health_files_scanned) +
             " .ath file(s); unreadable " +
             std::to_string (summary.health_files_failed));
+  log_info ("summary: wrapped " +
+            std::to_string (summary.person_names_wrapped) +
+            " person-name occurrence(s) in " +
+            std::to_string (summary.person_files_changed) + " of " +
+            std::to_string (summary.person_files_scanned) + " .ath file(s)");
   log_info ("summary: anchored " +
             std::to_string (summary.anchor_enunciations_wrapped) +
             " enunciation(s) and " +

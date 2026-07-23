@@ -16,6 +16,7 @@
         (athena athena tm-view)
         (athena athena tm-print)
         (athena athena tm-vault-anchors)
+        (athena athena tm-vault-persons)
         (kernel athena tm-convert)
         (kernel athena tm-dialogue)
         (utils library cursor)))
@@ -202,11 +203,14 @@
           (save-buffer-post name opts)))))
 
 (define (save-buffer-save name opts)
-  (if (in? :manual opts)
-      (vault-anchor-before-manual-save
-       name
-       (lambda () (save-buffer-save-now name opts)))
-      (save-buffer-save-now name opts)))
+  (vault-person-before-save
+   name
+   (lambda ()
+     (if (in? :manual opts)
+         (vault-anchor-before-manual-save
+          name
+          (lambda () (save-buffer-save-now name opts)))
+         (save-buffer-save-now name opts)))))
 
 (define (save-buffer-check-faithful name opts)
   ;;(display* "save-buffer-check-faithful " name "\n")

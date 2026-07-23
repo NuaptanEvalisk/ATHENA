@@ -10,6 +10,7 @@
 
 #include "QTMVaultWikilinkWizard.hpp"
 #include "QTMCompletingComboBox.hpp"
+#include "QTMPersonsExplorer.hpp"
 #include "QTMVaultAnchorModel.hpp"
 #include "QTMVaultLinkModel.hpp"
 #include "QTMVaultPreviewBuilder.hpp"
@@ -21,6 +22,7 @@
 #include "scheme.hpp"
 #include "tree_search.hpp"
 #include "vault.hpp"
+#include "ATHENA/Data/person_names.hpp"
 #include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
@@ -340,6 +342,7 @@ public:
   void refreshNamespaces ();
   QString selectedNamespace () const;
   QString selectedEnunciation () const;
+  QString selectedPerson () const;
   bool caseInsensitiveSearch () const;
   bool fuzzySearch () const;
   void startSearch ();
@@ -354,6 +357,7 @@ public:
   QLineEdit*   queryEdit;
   QComboBox*   namespaceCombo;
   QComboBox*   enunciationCombo;
+  QComboBox*   personCombo;
   QCheckBox*   caseInsensitiveCheck;
   QCheckBox*   fuzzyCheck;
   QPushButton* searchButton;
@@ -856,6 +860,10 @@ WikilinkSearchPage::WikilinkSearchPage (QWidget* parent)
   for (const WikilinkEnunciationFilterEntry& entry: wikilink_enunciation_filters)
     enunciationCombo->addItem (entry.label, entry.tag);
   enunciationCombo->setMinimumWidth (190);
+  personCombo= new QComboBox (this);
+  personCombo->setEditable (true);
+  personCombo->setInsertPolicy (QComboBox::NoInsert);
+  personCombo->lineEdit ()->setPlaceholderText ("Any person");
   caseInsensitiveCheck= new QCheckBox ("Case-insensitive", this);
   caseInsensitiveCheck->setChecked (
     get_preference (wikilink_search_case_pref, "off") == "on");
@@ -900,14 +908,16 @@ WikilinkSearchPage::WikilinkSearchPage (QWidget* parent)
   filters->addWidget (namespaceCombo, 0, 1);
   filters->addWidget (new QLabel ("Enunciation:", this), 0, 2);
   filters->addWidget (enunciationCombo, 0, 3);
-  filters->addWidget (new QLabel ("Matching:", this), 1, 0);
+  filters->addWidget (new QLabel ("Person:", this), 1, 0);
+  filters->addWidget (personCombo, 1, 1);
+  filters->addWidget (new QLabel ("Matching:", this), 2, 0);
   QHBoxLayout* matching= new QHBoxLayout ();
   matching->setContentsMargins (0, 0, 0, 0);
   matching->addWidget (caseInsensitiveCheck);
   matching->addSpacing (12);
   matching->addWidget (fuzzyCheck);
   matching->addStretch ();
-  filters->addLayout (matching, 1, 1, 1, 3);
+  filters->addLayout (matching, 2, 1, 1, 3);
 
   QWidget* left= new QWidget (this);
   QVBoxLayout* leftLayout= new QVBoxLayout (left);
@@ -943,7 +953,8 @@ WikilinkSearchPage::WikilinkSearchPage (QWidget* parent)
   setTabOrder (queryEdit, searchButton);
   setTabOrder (searchButton, namespaceCombo);
   setTabOrder (namespaceCombo, enunciationCombo);
-  setTabOrder (enunciationCombo, caseInsensitiveCheck);
+  setTabOrder (enunciationCombo, personCombo);
+  setTabOrder (personCombo, caseInsensitiveCheck);
   setTabOrder (caseInsensitiveCheck, fuzzyCheck);
   setTabOrder (fuzzyCheck, resultList);
   setTabOrder (resultList, anchorList);
@@ -1055,6 +1066,12 @@ WikilinkSearchPage::refreshNamespaces () {
   namespaceCombo->addItem (QString ());
   namespaceCombo->addItems (names);
   namespaceCombo->setCurrentText (current);
+
+  QString person= personCombo->currentText ().trimmed ();
+  personCombo->clear ();
+  personCombo->addItem (QString ());
+  personCombo->addItems (qtm_vault_person_names ());
+  personCombo->setCurrentText (person);
 }
 
 QString
@@ -1067,6 +1084,12 @@ QString
 WikilinkSearchPage::selectedEnunciation () const {
   if (enunciationCombo == nullptr) return QString ();
   return enunciationCombo->currentData ().toString ().trimmed ();
+}
+
+QString
+WikilinkSearchPage::selectedPerson () const {
+  return personCombo == nullptr ? QString () :
+    personCombo->currentText ().trimmed ();
 }
 
 bool
@@ -1084,6 +1107,10 @@ WikilinkSearchPage::searchFile (url u, const tree& query,
                                 std::vector<WikilinkSearchResult>& hits) const {
   try {
     tree body= import_body_for_preview (u);
+    QString person= selectedPerson ();
+    if (!person.isEmpty () &&
+        !athena_tree_contains_person_text (body, from_qstring (person)))
+      return 0;
     int oldMode= set_access_mode (DRD_ACCESS_SOURCE);
     std::vector<VaultContentMatch> matches;
     try {

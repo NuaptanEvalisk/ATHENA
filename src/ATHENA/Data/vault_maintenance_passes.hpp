@@ -31,6 +31,9 @@ struct VaultMaintenanceSummary {
   size_t asset_reference_updates = 0;
   size_t health_files_scanned = 0;
   size_t health_files_failed = 0;
+  size_t person_files_scanned = 0;
+  size_t person_files_changed = 0;
+  size_t person_names_wrapped = 0;
   size_t anchor_files_scanned = 0;
   size_t anchor_files_changed = 0;
   size_t anchor_enunciations_wrapped = 0;
@@ -130,6 +133,8 @@ VaultMaintenancePassResult vault_maintenance_pass_health_check (
 VaultMaintenancePassResult vault_maintenance_pass_read_policy_preferences (
   VaultMaintenanceContext& ctx);
 VaultMaintenancePassResult vault_maintenance_pass_normalize_assets (
+  VaultMaintenanceContext& ctx);
+VaultMaintenancePassResult vault_maintenance_pass_normalize_person_names (
   VaultMaintenanceContext& ctx);
 VaultMaintenancePassResult vault_maintenance_pass_anchor_enunciations (
   VaultMaintenanceContext& ctx);
