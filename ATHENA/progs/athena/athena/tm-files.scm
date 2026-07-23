@@ -170,6 +170,12 @@
 (define (has-faithful-format? name)
   (in? (url-suffix name) '("ath" "tm" "ts" "tp" "stm" "tmml" "scm" "")))
 
+(define (save-buffer-preserve-current-viewport name)
+  (when (and (current-view)
+             (== (url->url name) (url->url (current-buffer))))
+    ;; THE_FREEZE: apply save-related tree updates without scrolling the cursor.
+    (notify-change 512)))
+
 (define (save-buffer-post name opts)
   ;;(display* "save-buffer-post " name "\n")
   (cond ((in? :update opts)
@@ -182,6 +188,7 @@
 (define (save-buffer-save-now name opts)
   ;;(display* "save-buffer-save " name "\n")
   (with vname `(verbatim ,(utf8->cork (url->system name)))
+    (save-buffer-preserve-current-viewport name)
     (vault-backup-pre-save name)
     (if (buffer-save name)
         (begin
@@ -224,6 +231,7 @@
 
 (define (save-buffer-check-permissions name opts)
   ;;(display* "save-buffer-check-permissions " name "\n")
+  (save-buffer-preserve-current-viewport name)
   (set! current-save-source name)
   (set! current-save-target name)
   (with vname `(verbatim ,(url->system name))
