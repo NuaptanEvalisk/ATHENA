@@ -1,0 +1,14 @@
+[Unit]
+Description=Reconcile ATHENA Web rootless Podman namespace
+Requires=user-runtime-dir@1100.service
+After=local-fs.target user-runtime-dir@1100.service
+Before=user@1100.service
+
+[Service]
+Type=oneshot
+ExecStartPre=/usr/bin/install -d -o root -g root -m 0755 /usr/local/libexec/athena-web
+ExecStartPre=/usr/bin/install -o root -g root -m 04755 /usr/bin/newuidmap /usr/local/libexec/athena-web/newuidmap
+ExecStartPre=/usr/bin/install -o root -g root -m 04755 /usr/bin/newgidmap /usr/local/libexec/athena-web/newgidmap
+ExecStartPre=/usr/sbin/restorecon -RF /usr/local/libexec/athena-web
+ExecStart=/usr/sbin/runuser -u athena-web -- /bin/sh -c "cd /var/lib/athena-web && exec /usr/bin/env -u DBUS_SESSION_BUS_ADDRESS HOME=/var/lib/athena-web USER=athena-web LOGNAME=athena-web XDG_RUNTIME_DIR=/run/user/1100 PATH=/usr/local/libexec/athena-web:/usr/bin:/bin /usr/bin/podman system migrate"
+RemainAfterExit=yes

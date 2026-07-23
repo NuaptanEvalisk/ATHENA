@@ -1,0 +1,54 @@
+<domain type='kvm'>
+  <name>athena-web-isolation</name>
+  <memory unit='MiB'>5120</memory>
+  <currentMemory unit='MiB'>5120</currentMemory>
+  <vcpu placement='static'>3</vcpu>
+  <os>
+    <type arch='x86_64' machine='q35'>hvm</type>
+    <loader readonly='yes' secure='no' type='pflash'>/usr/share/qemu/ovmf-x86_64-opensuse-4m-code.bin</loader>
+    <nvram template='/usr/share/qemu/ovmf-x86_64-opensuse-4m-vars.bin'>@NVRAM@</nvram>
+    <boot dev='hd'/>
+  </os>
+  <features>
+    <acpi/>
+    <apic/>
+  </features>
+  <cpu mode='host-passthrough' check='none' migratable='off'/>
+  <clock offset='utc'/>
+  <on_poweroff>destroy</on_poweroff>
+  <on_reboot>restart</on_reboot>
+  <on_crash>destroy</on_crash>
+  <devices>
+    <emulator>/usr/bin/qemu-system-x86_64</emulator>
+    <disk type='file' device='disk'>
+      <driver name='qemu' type='qcow2' cache='none' io='native' discard='unmap'/>
+      <source file='@VM_DISK@'/>
+      <target dev='vda' bus='virtio'/>
+    </disk>
+    <disk type='file' device='cdrom'>
+      <driver name='qemu' type='raw'/>
+      <source file='@SEED_ISO@'/>
+      <target dev='sda' bus='sata'/>
+      <readonly/>
+    </disk>
+    <controller type='sata' index='0'/>
+    <controller type='pci' index='0' model='pcie-root'/>
+    <interface type='user'>
+      <mac address='52:54:00:41:54:48'/>
+      <model type='virtio'/>
+      <backend type='passt' hostname='athena-web-isolation'/>
+      <portForward proto='tcp' address='127.0.0.1'>
+        <range start='18022' to='22'/>
+        <range start='18090' to='8090'/>
+      </portForward>
+    </interface>
+    <serial type='pty'>
+      <target type='isa-serial' port='0'/>
+    </serial>
+    <console type='pty'>
+      <target type='serial' port='0'/>
+    </console>
+    <controller type='usb' model='none'/>
+    <memballoon model='none'/>
+  </devices>
+</domain>

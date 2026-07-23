@@ -309,6 +309,30 @@ and uses the `src/Subsystems/Windows64` system layer. This is required for the
 Windows LLP64 ABI and Guile smob pointer/tag handling.
 
 -------------------------------------------------------------------------------
+Web-Accessible ATHENA
+-------------------------------------------------------------------------------
+
+The optional `athena-web-server` binary exposes isolated native-Wayland ATHENA
+sessions through WebRTC. It requires rootless Podman and a purpose-built
+openSUSE image containing Weston, GStreamer, ATHENA, a file browser, a terminal,
+and basic fonts:
+
+  tools/athena-web-server/build-image.sh \
+    --runtime container_build/ATHENA-rel
+
+Build and run the broker:
+
+  cmake --build build_qt6 --target athena-web-server
+  build_qt6/tools/athena-web-server/athena-web-server \
+    --listen-address 127.0.0.1 --port 8090
+
+The broker handles plain HTTP and WebSocket signaling. Production deployments
+should terminate TLS in Nginx, Cloudflare Tunnel, or another reverse proxy, and
+provide TURN when direct WebRTC media connectivity is unavailable. See
+`tools/athena-web-server/README.md` for the isolation model, image build,
+network requirements, lifecycle controls, and verification procedure.
+
+-------------------------------------------------------------------------------
 Install
 -------------------------------------------------------------------------------
 

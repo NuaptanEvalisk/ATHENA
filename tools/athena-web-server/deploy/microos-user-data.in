@@ -1,0 +1,79 @@
+#cloud-config
+hostname: athena-web-isolation
+manage_etc_hosts: true
+preserve_hostname: false
+disable_root: false
+ssh_pwauth: false
+growpart:
+  mode: auto
+  devices:
+    - /
+resize_rootfs: true
+
+users:
+  - name: root
+    lock_passwd: true
+    ssh_authorized_keys:
+      - @SSH_PUBLIC_KEY@
+  - name: athena-web
+    uid: 1100
+    gecos: ATHENA Web Runtime
+    homedir: /var/lib/athena-web
+    shell: /usr/sbin/nologin
+    lock_passwd: true
+
+write_files:
+  - path: /etc/sysctl.d/90-athena-web.conf
+    owner: root:root
+    permissions: "0644"
+    content: |
+      kernel.unprivileged_userns_clone = 1
+  - path: /etc/systemd/system/user-1100.slice.d/50-athena-web.conf
+    owner: root:root
+    permissions: "0644"
+    content: |
+      [Slice]
+      MemoryAccounting=yes
+      MemoryMax=4608M
+      TasksMax=4096
+  - path: /etc/systemd/system/user@1100.service.d/90-athena-web-delegation.conf
+    owner: root:root
+    permissions: "0644"
+    content: |
+      [Unit]
+      Requires=athena-web-podman-migrate.service
+      After=athena-web-podman-migrate.service
+
+      [Service]
+      Delegate=pids memory cpu
+      MemoryAccounting=yes
+      CPUAccounting=yes
+  - path: /etc/systemd/system/athena-web-podman-migrate.service
+    owner: root:root
+    permissions: "0644"
+    content: |
+      [Unit]
+      Description=Reconcile ATHENA Web rootless Podman namespace
+      Requires=user-runtime-dir@1100.service
+      After=local-fs.target user-runtime-dir@1100.service
+      Before=user@1100.service
+
+      [Service]
+      Type=oneshot
+      ExecStartPre=/usr/bin/install -d -o root -g root -m 0755 /usr/local/libexec/athena-web
+      ExecStartPre=/usr/bin/install -o root -g root -m 04755 /usr/bin/newuidmap /usr/local/libexec/athena-web/newuidmap
+      ExecStartPre=/usr/bin/install -o root -g root -m 04755 /usr/bin/newgidmap /usr/local/libexec/athena-web/newgidmap
+      ExecStartPre=/usr/sbin/restorecon -RF /usr/local/libexec/athena-web
+      ExecStart=/usr/sbin/runuser -u athena-web -- /bin/sh -c "cd /var/lib/athena-web && exec /usr/bin/env -u DBUS_SESSION_BUS_ADDRESS HOME=/var/lib/athena-web USER=athena-web LOGNAME=athena-web XDG_RUNTIME_DIR=/run/user/1100 PATH=/usr/local/libexec/athena-web:/usr/bin:/bin /usr/bin/podman system migrate"
+      RemainAfterExit=yes
+
+runcmd:
+  - [usermod, --add-subuids, "100000-165535", --add-subgids, "100000-165535", athena-web]
+  - [install, -d, -m, "0700", -o, athena-web, -g, athena-web, /var/lib/athena-web]
+  - [loginctl, enable-linger, athena-web]
+  - [systemctl, daemon-reload]
+  - [systemctl, enable, --now, sshd.service]
+  - [systemctl, enable, --now, podman-auto-update.timer]
+  - [sh, -c, "sysctl --system >/dev/null"]
+
+final_message: "ATHENA Web isolation VM provisioning complete"

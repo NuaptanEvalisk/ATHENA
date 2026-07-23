@@ -1,0 +1,139 @@
+FROM opensuse/tumbleweed:latest AS weston-builder
+
+ARG WESTON_VERSION=15.0.1
+ARG WESTON_SHA256=dbcedc27f880d1f10a9edc010a9ea044a6a2861269f2aa3c8647cc557a3fd73a
+
+RUN zypper --non-interactive refresh && \
+    zypper --non-interactive install --no-recommends \
+      ca-certificates curl gcc gcc-c++ git gzip meson ninja patch pkgconf \
+      tar \
+      Mesa-libEGL-devel Mesa-libGLESv2-devel cairo-devel dbus-1-devel \
+      libdrm-devel libevdev-devel libinput-devel libjpeg8-devel \
+      libnettle-devel libpng16-devel seatd-devel libudev-devel \
+      libxkbcommon-devel pam-devel pango-devel libpixman-1-0-devel \
+      wayland-devel wayland-protocols-devel zlib-devel
+RUN zypper --non-interactive install --no-recommends libdisplay-info-devel
+
+WORKDIR /tmp/weston-build-context
+RUN curl --fail --location --retry 3 \
+      "https://gitlab.freedesktop.org/wayland/weston/-/archive/${WESTON_VERSION}/weston-${WESTON_VERSION}.tar.gz" \
+      --output weston.tar.gz && \
+    echo "${WESTON_SHA256}  weston.tar.gz" | sha256sum --check && \
+    mkdir source && \
+    tar --extract --gzip --file weston.tar.gz --directory source \
+      --strip-components=1
+
+COPY weston-vnc-private-bridge.patch /tmp/weston-build-context/
+RUN cd /tmp/weston-build-context/source && \
+    patch --strip=1 < /tmp/weston-build-context/weston-vnc-private-bridge.patch
+
+RUN meson setup /tmp/weston-build /tmp/weston-build-context/source \
+      --prefix=/opt/weston \
+      --buildtype=release \
+      --force-fallback-for=neatvnc,aml \
+      -Dbackend-drm=false \
+      -Ddeprecated-backend-drm-screencast-vaapi=false \
+      -Dbackend-headless=true \
+      -Dbackend-pipewire=false \
+      -Dbackend-rdp=false \
+      -Dbackend-vnc=true \
+      -Dbackend-wayland=false \
+      -Dbackend-x11=false \
+      -Dbackend-default=headless \
+      -Ddeprecated-screenshare=false \
+      -Drenderer-gl=false \
+      -Drenderer-vulkan=false \
+      -Dxwayland=false \
+      -Dsystemd=false \
+      -Dremoting=false \
+      -Dpipewire=false \
+      -Dshell-desktop=true \
+      -Ddeprecated-shell-fullscreen=false \
+      -Dshell-ivi=false \
+      -Dshell-kiosk=false \
+      -Dshell-lua=false \
+      -Dcolor-management-lcms=false \
+      -Dimage-webp=false \
+      -Dtools=[] \
+      -Ddemo-clients=false \
+      -Dsimple-clients=[] \
+      -Dresize-pool=false \
+      -Dwcap-decode=false \
+      -Dtests=false \
+      -Dtest-junit-xml=false \
+      -Ddoc=false \
+      -Dneatvnc:jpeg=enabled \
+      -Dneatvnc:tls=disabled \
+      -Dneatvnc:nettle=enabled \
+      -Dneatvnc:gbm=disabled \
+      -Dneatvnc:h264=disabled && \
+    meson compile -C /tmp/weston-build && \
+    meson install -C /tmp/weston-build
+
+FROM opensuse/tumbleweed:latest
+
+RUN zypper --non-interactive refresh && \
+    zypper --non-interactive install --no-recommends \
+      bash ca-certificates dbus-1 dbus-1-daemon foot gzip python313 shadow socat \
+      tar thunar \
+      Mesa-libEGL1 Mesa-libGL1 libcairo2 libdrm2 libevdev2 libinput10 \
+      libjpeg8 libnettle8 libpng16-16 libseat1 libudev1 libxkbcommon0 \
+      libxkbcommon-x11-0 pam libpango-1_0-0 libpixman-1-0 \
+      libwayland-client0 libwayland-cursor0 libwayland-egl1 \
+      libwayland-server0 libz1 \
+      gstreamer gstreamer-utils gstreamer-plugins-base gstreamer-plugins-good \
+      gstreamer-plugins-bad gstreamer-plugins-rs gstreamer-libnice \
+      adwaita-icon-theme hicolor-icon-theme shared-mime-info \
+      dejavu-fonts liberation-fonts google-noto-sans-fonts \
+      google-noto-sans-cjk-fonts google-noto-coloremoji-fonts which && \
+    zypper clean --all && \
+    useradd --uid 1000 --create-home --shell /bin/bash ATHENA-User && \
+    passwd --lock root && \
+      if test -e /usr/bin/su; then chmod u-s /usr/bin/su; fi
+
+# The custom Weston VNC backend links libturbojpeg from the builder stage.
+RUN zypper --non-interactive refresh && \
+    zypper --non-interactive install --no-recommends libturbojpeg0 && \
+    zypper clean --all
+
+RUN mkdir -p /usr/share/athena-web && \
+    mv /home/ATHENA-User /usr/share/athena-web/home-template && \
+    mkdir /session-home && \
+    chmod 1777 /session-home && \
+    ln -s /session-home/home /home/ATHENA-User
+
+COPY --from=weston-builder /opt/weston /opt/weston
+COPY runtime/ /opt/ATHENA/
+COPY container-entrypoint.sh /usr/local/bin/athena-web-container
+COPY start-athena.sh /usr/local/bin/start-athena
+COPY session-helper.py /usr/local/bin/athena-web-session-helper
+
+# Qt loads OpenSSL at runtime. Use libssl and libcrypto from the same immutable
+# container snapshot instead of mixing the system libssl with an AppImage
+# libcrypto that was copied without its matching libssl.
+RUN cp -L /usr/lib64/libcrypto.so.3 /opt/ATHENA/lib/libcrypto.so.3.web && \
+    cp -L /usr/lib64/libssl.so.3 /opt/ATHENA/lib/libssl.so.3.web && \
+    ln -sfn libcrypto.so.3.web /opt/ATHENA/lib/libcrypto.so.3 && \
+    ln -sfn libssl.so.3.web /opt/ATHENA/lib/libssl.so.3
+
+RUN chmod 0755 \
+      /usr/local/bin/athena-web-container \
+      /usr/local/bin/start-athena \
+      /usr/local/bin/athena-web-session-helper \
+      /opt/ATHENA/bin/ATHENA.bin && \
+    test -x /opt/weston/bin/weston && \
+    test -x /opt/ATHENA/bin/ATHENA.bin && \
+    gst-inspect-1.0 rfbsrc >/dev/null && \
+    gst-inspect-1.0 nicesrc >/dev/null && \
+    gst-inspect-1.0 nicesink >/dev/null && \
+    gst-inspect-1.0 webrtcsink >/dev/null
+
+ENV HOME=/home/ATHENA-User
+ENV USER=ATHENA-User
+ENV LOGNAME=ATHENA-User
+ENV PATH=/opt/weston/bin:/usr/local/bin:/usr/bin:/bin
+ENV LD_LIBRARY_PATH=/opt/weston/lib64:/opt/weston/lib
+
+USER 1000:1000
+WORKDIR /
+ENTRYPOINT ["/usr/local/bin/athena-web-container"]

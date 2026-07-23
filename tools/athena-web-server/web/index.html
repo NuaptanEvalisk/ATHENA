@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Web-Accessible ATHENA</title>
+  <link rel="icon" type="image/png" href="/athena-icon.png">
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <main id="application">
+    <header class="toolbar">
+      <div class="identity">
+        <img src="/athena-icon.png" alt="">
+        <strong>ATHENA</strong>
+        <span id="connection-label">Preparing private workspace</span>
+      </div>
+      <div class="session-controls">
+        <span id="timer" aria-live="polite">--:--</span>
+        <button id="extend-button" type="button" hidden>Extend 60 min</button>
+        <button id="upload-button" type="button">Upload</button>
+        <button id="downloads-button" type="button">Downloads</button>
+        <button id="fullscreen-button" type="button" title="Full screen">Full screen</button>
+      </div>
+    </header>
+
+    <section id="desktop-stage" aria-label="Remote ATHENA desktop">
+      <video id="desktop-video" autoplay playsinline muted></video>
+      <div id="startup-panel" class="center-panel">
+        <div class="spinner" aria-hidden="true"></div>
+        <h1>Starting ATHENA</h1>
+        <p>A fresh native Wayland workspace is being created.</p>
+      </div>
+      <div id="drop-overlay" hidden>
+        <strong>Upload to Desktop/Upload</strong>
+      </div>
+    </section>
+
+    <aside id="downloads-panel" hidden aria-label="Session downloads">
+      <div class="panel-heading">
+        <strong>Desktop/Download</strong>
+        <button id="refresh-downloads" type="button">Refresh</button>
+        <button id="download-all" type="button">Download all</button>
+        <button id="close-downloads" type="button" aria-label="Close">Close</button>
+      </div>
+      <p id="downloads-empty">No downloadable files yet.</p>
+      <ul id="downloads-list"></ul>
+    </aside>
+
+    <section id="message-screen" hidden>
+      <div class="message-content">
+        <img src="/athena-icon.png" alt="">
+        <h1 id="message-title">ATHENA is unavailable</h1>
+        <p id="message-text"></p>
+        <div class="message-actions">
+          <button id="retry-button" type="button">Try again</button>
+          <button id="expired-download-button" type="button" hidden>
+            Download session files
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <input id="file-input" type="file" multiple hidden>
+    <div id="toast-region" aria-live="polite" aria-atomic="true"></div>
+  </main>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

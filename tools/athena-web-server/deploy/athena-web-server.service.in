@@ -1,0 +1,32 @@
+[Unit]
+Description=Web-Accessible ATHENA broker
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+Environment=PATH=/usr/local/libexec/athena-web:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin
+ExecStart=/var/lib/athena-web/bin/athena-web-server \
+  --listen-address 0.0.0.0 \
+  --port 8090 \
+  --web-root /var/lib/athena-web/share/web \
+  --image localhost/athena-web:latest \
+  --max-connections 1 \
+  --max-memory 3GiB \
+  --storage-limit 1GiB \
+  --session-seconds 3600 \
+  --warning-seconds 300 \
+  --expired-retention 900 \
+  --heartbeat-timeout 45 \
+  --width 1600 \
+  --height 1000 \
+  --framerate 30 \
+  --cloudflare-turn-key-id @TURN_KEY_ID@ \
+  --cloudflare-turn-token-file /var/lib/athena-web/secrets/cloudflare-turn-token \
+  --state-dir /var/lib/athena-web/state
+Restart=on-failure
+RestartSec=5
+UMask=0077
+
+[Install]
+WantedBy=default.target

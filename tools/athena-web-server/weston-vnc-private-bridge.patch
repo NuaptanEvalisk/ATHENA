@@ -1,0 +1,25 @@
+--- a/libweston/backend-vnc/vnc.c
++++ b/libweston/backend-vnc/vnc.c
+@@ -1333,5 +1333,17 @@
+-		ret = nvnc_enable_auth(backend->server, NVNC_AUTH_REQUIRE_AUTH,
+-				       vnc_handle_auth, NULL);
+-		if (ret) {
+-			weston_log("Failed to enable authentication\n");
+-			goto err_nvnc;
++		const char *private_bridge =
++			getenv("ATHENA_WEB_PRIVATE_VNC_BRIDGE");
++
++		/*
++		 * GStreamer's rfbsrc does not implement neatvnc's username-based
++		 * authentication. Web-Accessible ATHENA binds this listener to
++		 * loopback in a network-disabled sandbox and exports it only over
++		 * a mode-0600, per-session Unix socket mounted into the trusted
++		 * streamer. The socket mount is the capability boundary.
++		 */
++		if (!private_bridge || strcmp(private_bridge, "1") != 0) {
++			ret = nvnc_enable_auth(backend->server, NVNC_AUTH_REQUIRE_AUTH,
++					       vnc_handle_auth, NULL);
++			if (ret) {
++				weston_log("Failed to enable authentication\n");
++				goto err_nvnc;
++			}

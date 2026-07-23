@@ -480,6 +480,21 @@ Recent ATHENA work includes substantial low-level engineering:
 - Resizable and reopenable ADS panes.
 - Crash reporting through native dialogs.
 
+### Web-Accessible ATHENA
+
+ATHENA can be demonstrated remotely without becoming a web application.
+
+- Serve a normal native-Wayland ATHENA desktop over WebRTC with the standalone
+  `athena-web-server` broker.
+- Give every browser tab a dedicated, non-persistent rootless Podman sandbox
+  running Weston, ATHENA, Thunar, and foot on openSUSE.
+- Keep the untrusted desktop off the network and away from host files and
+  devices, while a separate trusted GStreamer container handles WebRTC.
+- Exchange files only through browser upload and download controls mapped to
+  the sandbox's `Desktop/Upload` and `Desktop/Download` directories.
+- Enforce configurable memory, storage, connection, and session-time limits,
+  with extension warnings and final download preservation on timed expiry.
+
 ## Build And Run
 
 ATHENA development is currently centered on Linux with Qt 6. Native

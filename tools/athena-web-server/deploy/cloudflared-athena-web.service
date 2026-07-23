@@ -1,0 +1,14 @@
+[Unit]
+Description=Cloudflare Tunnel for Web-Accessible ATHENA
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/cloudflared --no-autoupdate --config /etc/cloudflared/athena-web.yml tunnel run
+Restart=on-failure
+RestartSec=5
+RestartPreventExitStatus=SIGTERM
+
+[Install]
+WantedBy=multi-user.target

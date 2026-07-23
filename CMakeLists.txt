@@ -943,10 +943,17 @@ link_directories (${MAGICKWAND_LIBRARY_DIRS})
 ### Compile sources
 ### --------------------------------------------------------------------
 
+option (BUILD_TESTS "Build unit tests" OFF)
+if (BUILD_TESTS)
+  include (CTest)
+  enable_testing ()
+endif ()
+
 add_subdirectory (src)
 add_subdirectory (tools/codex-bridge)
 if (UNIX AND NOT APPLE)
   add_subdirectory (tools/athena-transmitter)
+  add_subdirectory (tools/athena-web-server)
 endif ()
 add_subdirectory (plugins)
 add_subdirectory (misc)
@@ -992,13 +999,9 @@ endforeach ()
 ### Testing
 ### --------------------------------------------------------------------
 
-option (BUILD_TESTS "Build unit tests" OFF)
-
 if (BUILD_TESTS)
-  include (CTest)
   find_package(Qt6 COMPONENTS Test REQUIRED)
   set(ATHENA_QT_TEST_LIBRARY Qt6::Test)
-  enable_testing ()
   if (NOT WIN32)
     add_test(NAME codex_bridge_protocol
       COMMAND ${Python3_EXECUTABLE}

@@ -1,0 +1,6 @@
+tunnel: @TUNNEL_ID@
+credentials-file: /root/.cloudflared/@TUNNEL_ID@.json
+ingress:
+  - hostname: athweb.evalisk.org
+    service: http://127.0.0.1:18090
+  - service: http_status:404

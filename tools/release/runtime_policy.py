@@ -43,12 +43,15 @@ def distribution_forbidden_reason(relative: Path, is_directory: bool) -> str | N
 
 
 def source_only_reason(
-    relative: Path, is_directory: bool, keep_source_libraries: bool
+    relative: Path,
+    is_directory: bool,
+    keep_source_libraries: bool,
+    keep_athena_binary: bool,
 ) -> str | None:
     if is_directory:
         return None
     rel = _normalized_relative(relative)
-    if rel == PurePosixPath("bin/ATHENA.bin"):
+    if rel == PurePosixPath("bin/ATHENA.bin") and not keep_athena_binary:
         return "development executable"
     if (len(rel.parts) == 2 and rel.parts[0] == "bin" and
             rel.name.startswith("ATHENA.bin.before-")):
@@ -58,7 +61,9 @@ def source_only_reason(
     return None
 
 
-def _copy_ignore(source: Path, keep_source_libraries: bool):
+def _copy_ignore(
+    source: Path, keep_source_libraries: bool, keep_athena_binary: bool
+):
     def ignore(directory: str, names: list[str]) -> set[str]:
         base = Path(directory)
         ignored: set[str] = set()
@@ -68,7 +73,10 @@ def _copy_ignore(source: Path, keep_source_libraries: bool):
             is_directory = candidate.is_dir() and not candidate.is_symlink()
             if (distribution_forbidden_reason(relative, is_directory) or
                     source_only_reason(
-                        relative, is_directory, keep_source_libraries
+                        relative,
+                        is_directory,
+                        keep_source_libraries,
+                        keep_athena_binary,
                     )):
                 ignored.add(name)
         return ignored
@@ -77,7 +85,10 @@ def _copy_ignore(source: Path, keep_source_libraries: bool):
 
 
 def copy_runtime(
-    source: Path, destination: Path, keep_source_libraries: bool = False
+    source: Path,
+    destination: Path,
+    keep_source_libraries: bool = False,
+    keep_athena_binary: bool = False,
 ) -> None:
     source = source.resolve()
     destination = destination.resolve()
@@ -96,7 +107,9 @@ def copy_runtime(
             source,
             temporary,
             symlinks=True,
-            ignore=_copy_ignore(source, keep_source_libraries),
+            ignore=_copy_ignore(
+                source, keep_source_libraries, keep_athena_binary
+            ),
         )
         if destination.exists():
             shutil.rmtree(destination)
@@ -159,6 +172,11 @@ def main(argv: list[str]) -> int:
         action="store_true",
         help="retain ATHENA/lib for the host-native release tree",
     )
+    copy_parser.add_argument(
+        "--keep-athena-binary",
+        action="store_true",
+        help="retain bin/ATHENA.bin for an executable runtime image",
+    )
 
     verify_parser = subparsers.add_parser(
         "verify", help="reject model weights and generated Python state"
@@ -172,6 +190,7 @@ def main(argv: list[str]) -> int:
                 args.source,
                 args.destination,
                 keep_source_libraries=args.keep_source_libraries,
+                keep_athena_binary=args.keep_athena_binary,
             )
             verify_runtime(args.destination)
         else:

@@ -74,6 +74,26 @@ class RuntimePolicyTest(unittest.TestCase):
             binary.write_text("executable")
             verify_runtime(runtime)
 
+    def test_copy_can_retain_an_executable_runtime(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / "source"
+            destination = root / "destination"
+            (source / "bin").mkdir(parents=True)
+            (source / "lib").mkdir()
+            (source / "bin/ATHENA.bin").write_text("executable")
+            (source / "lib/libathena.so").write_text("library")
+
+            copy_runtime(
+                source,
+                destination,
+                keep_source_libraries=True,
+                keep_athena_binary=True,
+            )
+
+            self.assertTrue((destination / "bin/ATHENA.bin").is_file())
+            self.assertTrue((destination / "lib/libathena.so").is_file())
+
 
 if __name__ == "__main__":
     unittest.main()
