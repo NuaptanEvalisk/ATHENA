@@ -401,19 +401,9 @@ copy_runtime_tree () {
   local build_dir="$1"
   local out_dir="$2"
 
-  rm -rf "$out_dir"
+  python3 "$repo_root/tools/release/runtime_policy.py" copy \
+    "$repo_root/ATHENA" "$out_dir"
   mkdir -p "$out_dir/bin" "$out_dir/lib"
-  rsync -a --delete \
-    --exclude 'bin/ATHENA.bin' \
-    --exclude 'bin/ATHENA.bin.before-*' \
-    --exclude 'lib/*' \
-    --exclude 'tools/formula-cleaner/*.gguf' \
-    --exclude 'tools/formula-cleaner/.venv/' \
-    --exclude '.venv/' \
-    --exclude '.uv-cache/' \
-    --exclude '__pycache__/' \
-    --exclude '*.safetensors' \
-    "$repo_root/ATHENA/" "$out_dir/"
 
   install -Dm755 "$build_dir/src/ATHENA.bin" "$out_dir/bin/ATHENA.bin"
   install -Dm755 "$build_dir/src/athena-codex-bridge" \
@@ -437,6 +427,7 @@ copy_runtime_tree () {
   if compgen -G "$prefix/lib64/libggml*.so*" >/dev/null; then
     cp -a "$prefix"/lib64/libggml*.so* "$out_dir/lib/"
   fi
+  python3 "$repo_root/tools/release/runtime_policy.py" verify "$out_dir"
 }
 
 build_athena_flavor () {

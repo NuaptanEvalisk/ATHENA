@@ -184,16 +184,34 @@ environment you want to test. XCB is no longer the default runtime path.
 Assemble a binary release tree
 -------------------------------------------------------------------------------
 
-To prepare the runtime directory that will later be packaged:
+The complete release workflow is scripted and idempotent:
 
-  rm -rf release/ATHENA
-  mkdir -p release
-  rsync -a ATHENA/ release/ATHENA/
+  tools/release/build-all.sh
 
-  install -m 755 build_rel/src/ATHENA.bin release/ATHENA/bin/ATHENA.bin
-  mkdir -p release/ATHENA/lib
-  rm -f release/ATHENA/lib/libqt*advanceddocking*.so*
-  cp -a build_rel/x64/lib/libqt6advanceddocking*.so* release/ATHENA/lib/
+It configures and builds the native Linux release, assembles the tarball, runs
+the container AppImage/DEB/openSUSE RPM/RHEL RPM workflow, cross-builds the
+Windows runtime, smoke-tests it with Wine, creates the ZIP, and writes SHA-256
+files. It only creates local artifacts; it does not tag, upload, or publish a
+GitHub release.
+
+Useful options include:
+
+  tools/release/build-all.sh --dry-run
+  tools/release/build-all.sh --skip-windows
+  tools/release/build-all.sh --skip-container
+  tools/release/build-all.sh --cmake-arg=-DUSE_KF6_KIO_FILE_DIALOGS=OFF
+
+For a native Linux-only build:
+
+  tools/release/build-all.sh --skip-container --skip-windows
+
+All release runtime trees must be assembled through
+`tools/release/runtime_policy.py`. It keeps runtime code and documentation but
+excludes model weights (`.gguf`, `.safetensors`, `.onnx`, `.pt`, `.pth`,
+`.ckpt`, and model `.bin` files), Python virtual environments and generated
+caches. Formula cleaner, embedding, and artifact classification models are
+optional local resources and are never included directly in the main ATHENA
+release packages.
 
 Useful checks:
 
@@ -211,10 +229,8 @@ Run the release tree with:
 
   ./release/ATHENA/StartATHENA.sh
 
-The large formula-cleaner GGUF model is not part of the default release runtime
-archive. Package it separately if you want to distribute the optional local
-formula-cleaner model. Likewise, do not include formula-cleaner virtual
-environments or safetensors conversion artifacts in the main runtime archive.
+Do not construct a release tree with a raw `cp` or `rsync` of `ATHENA/`.
+`runtime_policy.py verify PATH` can be used to audit a staged runtime.
 
 -------------------------------------------------------------------------------
 Container AppImage release builds
@@ -259,6 +275,9 @@ Guile 1.8 with Guile 2 or Guile 3 for ATHENA.
 The AppImage launcher defaults to Wayland and follows the same scale/input
 policy as `StartATHENA.qt6.wayland.sh`.
 
+The container runtime copy and both native package builders enforce the same
+model-free runtime policy as the native tarball.
+
 -------------------------------------------------------------------------------
 Windows x86_64 cross build
 -------------------------------------------------------------------------------
@@ -272,6 +291,13 @@ The script uses a Windows target prefix under `build_windows/prefix`, configures
 an isolated `build_windows` tree, and assembles:
 
   release/windows/ATHENA
+
+The all-platform release driver additionally creates the canonical archive:
+
+  release/ATHENA-<version>-windows-x86_64.zip
+
+It runs a Wine version smoke test by default. Use `--skip-wine-test` only when
+Wine cannot be installed on the packaging host.
 
 The Windows build must use target libraries from the Windows prefix, including
 Qt6, Guile 1.8.8, mimalloc, ADS, libtcc, resvg, llama.cpp, and the other

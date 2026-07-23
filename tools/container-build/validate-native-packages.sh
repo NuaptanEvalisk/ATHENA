@@ -24,7 +24,7 @@ for flavor in dev rel; do
                  "$work/$flavor.opensuse.list" \
                  "$work/$flavor.rhel.list"; do
     grep -q '/opt/ATHENA/AppRun' "$listing"
-    if grep -E 'ATHENA\.bin\.before-|formula-cleaner/.*\.gguf|\.safetensors|/\.venv/' \
+    if grep -E 'ATHENA\.bin\.before-|\.gguf|\.safetensors|\.onnx|\.ckpt|\.pth|\.pt|/\.venv/|/\.uv-cache/|/__pycache__/' \
         "$listing"; then
       echo "excluded release artifact found in $listing" >&2
       exit 1

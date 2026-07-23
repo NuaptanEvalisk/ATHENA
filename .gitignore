@@ -38,5 +38,5 @@ CMakeLists.txt.user
 misc/benchmark/gbench
 
 TeXmacs/progs/ice-9
-release/
+/release/
 ATHENA/lib/

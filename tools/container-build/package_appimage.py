@@ -7,6 +7,11 @@ import subprocess
 import sys
 from pathlib import Path
 
+sys.path.insert(
+    0, str(Path(__file__).resolve().parents[1] / "release")
+)
+from runtime_policy import verify_runtime
+
 
 GLIBC_EXCLUDE = {
     "ld-linux-x86-64.so.2",
@@ -347,6 +352,7 @@ def main():
     gv = guile_version()
     if gv != "1.8":
         raise SystemExit(f"container AppImage builds must use Guile 1.8, got {gv}")
+    verify_runtime(runtime)
 
     if appdir.exists():
         shutil.rmtree(appdir)
@@ -360,6 +366,7 @@ def main():
     copy_guile(appdir)
     copy_imagemagick(appdir)
     copy_dependencies(appdir)
+    verify_runtime(appdir)
     fail_on_new_glibc(appdir)
 
     output_appimage.parent.mkdir(parents=True, exist_ok=True)

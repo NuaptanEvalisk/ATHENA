@@ -92,22 +92,27 @@ resvg, or KIO options.  Reapply the ADS patch and build:
     python3 patch_ads.py build_rel/_deps/ads-src
     cmake --build build_rel -j"$(nproc)"
 
-To assemble a release runtime directory from the checked-in `ATHENA/` tree:
+Use the idempotent all-platform release driver:
 
-    rm -rf release/ATHENA
-    mkdir -p release
-    rsync -a ATHENA/ release/ATHENA/
-    cp -f build_rel/src/ATHENA.bin release/ATHENA/bin/ATHENA.bin
-    cp -f build_rel/src/athena-codex-bridge \
-      release/ATHENA/bin/athena-codex-bridge
-    mkdir -p release/ATHENA/lib
-    rm -f release/ATHENA/lib/libqt6advanceddocking*.so*
-    cp -a build_rel/x64/lib/libqt6advanceddocking*.so* release/ATHENA/lib/
+    tools/release/build-all.sh
+
+For a native Linux runtime and tarball only:
+
+    tools/release/build-all.sh --skip-container --skip-windows
 
 This produces `release/ATHENA/`.  It is a runtime directory, not necessarily a
 fully portable bundle: libraries already present in `ATHENA/lib` are copied, and
 other libraries may still be resolved from the target system unless you package
 them separately.
+
+The release driver deliberately excludes formula cleaner, embedding, artifact
+classification, and other model weights from all primary packages. It also
+excludes virtual environments and generated Python caches. Do not replace this
+step with a raw copy of `ATHENA/`; use:
+
+    tools/release/runtime_policy.py verify release/ATHENA
+
+to audit an assembled runtime.
 
 OpenAI Codex integration always builds the lightweight
 `athena-codex-bridge`.  It normally discovers a system `codex` executable.  A
@@ -155,6 +160,10 @@ RPM or DEB on the build host:
 
 The AppImage launch path defaults to Wayland in the same spirit as
 `StartATHENA.qt6.wayland.sh`.
+
+`tools/release/build-all.sh` invokes this workflow for both `dev` and `rel`,
+copies its AppImages and native packages into `release/` using canonical names,
+and regenerates their SHA-256 files.
 
 Useful environment variables for the container build include:
 

@@ -73,9 +73,18 @@ builds. This selects the `src/Subsystems/Windows64` system layer instead of the
 old 32-bit Windows compatibility layer, which is required for Windows' LLP64
 ABI and for correct Guile smob pointer/tag handling.
 
-The release script excludes optional formula-cleaner model artifacts such as
-`.gguf`, `.safetensors`, and formula-cleaner virtual environments from the main
-Windows runtime tree. Package those artifacts separately if they are needed.
+The release script uses `tools/release/runtime_policy.py`, shared with every
+other ATHENA packager. It excludes all optional model weights, including formula
+cleaner, embedding, and artifact classification models, as well as virtual
+environments and generated caches. These resources must be installed separately
+when required.
+
+For a canonical Windows ZIP and Wine version smoke test, run the all-platform
+driver from the repository root:
+
+```sh
+tools/release/build-all.sh
+```
 
 For non-default paths:
 

@@ -10,6 +10,11 @@ import sys
 import tempfile
 from pathlib import Path
 
+sys.path.insert(
+    0, str(Path(__file__).resolve().parents[1] / "release")
+)
+from runtime_policy import verify_runtime
+
 
 def run(args: list[str], **kwargs) -> None:
     subprocess.run(args, check=True, text=True, **kwargs)
@@ -18,11 +23,7 @@ def run(args: list[str], **kwargs) -> None:
 def copy_payload(appdir: Path, root: Path) -> None:
     install_root = root / "opt/ATHENA"
     shutil.copytree(appdir, install_root, symlinks=True)
-    for directory in list(install_root.rglob("*")):
-        if directory.is_dir() and directory.name in {
-            ".venv", ".uv-cache", "__pycache__"
-        }:
-            shutil.rmtree(directory)
+    verify_runtime(install_root)
 
     bindir = root / "usr/bin"
     bindir.mkdir(parents=True, exist_ok=True)
@@ -119,8 +120,6 @@ cp -a %{{_sourcedir}}/payload/. %{{buildroot}}/
         "--define", f"_topdir {topdir}",
         "--define", f"_sourcedir {sourcedir}",
         "--define", f"_rpmdir {topdir / 'RPMS'}",
-        # The bundled model is already compressed. zstd avoids spending many
-        # minutes recompressing it with the much slower xz payload compressor.
         "--define", "_binary_payload w7.zstdio",
     ])
     built = list((topdir / "RPMS").rglob("*.rpm"))
@@ -144,6 +143,7 @@ def main() -> int:
         raise SystemExit("FLAVOR must be dev or rel")
     if not (appdir / "AppRun").is_file():
         raise SystemExit(f"invalid AppDir: {appdir}")
+    verify_runtime(appdir)
     outdir.mkdir(parents=True, exist_ok=True)
 
     with tempfile.TemporaryDirectory(prefix="athena-native-package-") as tmp:
