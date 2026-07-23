@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "Interface/edit_interface.hpp"
+#include "Interface/selection_autoscroll.hpp"
 #include "file.hpp"
 #include "convert.hpp"
 #include "server.hpp"
@@ -502,25 +503,13 @@ edit_interface_rep::selection_visible () {
   update_visible ();
   if ((vx2 - vx1 <= 80*pixel) || (vy2 - vy1 <= 80*pixel)) return;
 
-  SI extra= (cur_sb == 1? 20 * pixel: 0);
-  /*
-  bool scroll_x= (end_x < vx1 + extra) || (end_x >= vx2 - extra);
-  bool scroll_y= (end_y < vy1 + extra) || (end_y >= vy2 - extra);
-  if (scroll_x || scroll_y) {
-    SI new_x = (scroll_x)? end_x : (vx1+vx2)/2;
-    SI new_y = (scroll_y)? end_y : (vy1+vy2)/2;
-  */
-  // trying a "proportional" scroll 
-  SI mx = max (-end_x + vx1 + extra, max (end_x - vx2 + extra, 0));
-  SI my = max (-end_y + vy1 + extra, max (end_y - vy2 + extra, 0));
+  SI edge= (cur_sb == 1? 20 * pixel: 0);
+  SI maximum_step= 20 * pixel;
+  SI dx= selection_autoscroll_delta (end_x, vx1, vx2, edge, maximum_step);
+  SI dy= selection_autoscroll_delta (end_y, vy1, vy2, edge, maximum_step);
 
-  if ((mx>0) || (my>0)) {
-    SI vxc = (vx1+vx2)/2, dx = end_x - vxc;
-    SI vyc = (vy1+vy2)/2, dy = end_y - vyc;
-    SI new_x = vxc+ ((extra)? (mx*dx)/extra: dx);
-    SI new_y = vyc+ ((extra)? (my*dy)/extra: dy);
-    //end change
-    scroll_to (new_x, new_y);
+  if (dx != 0 || dy != 0) {
+    scroll_to (((vx1 + vx2) >> 1) + dx, ((vy1 + vy2) >> 1) + dy);
     send_invalidate_all (this);
     SI old_vx1= vx1, old_vy1= vy1;
     update_visible ();
