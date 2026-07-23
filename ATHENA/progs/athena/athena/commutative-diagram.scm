@@ -24,6 +24,7 @@
 (define cd-selected-id #f)
 (define cd-hover-kind #f)
 (define cd-hover-id #f)
+(define cd-halos-visible? #f)
 (define cd-context-kind #f)
 (define cd-context-time 0)
 (define cd-interaction 'idle)
@@ -41,8 +42,9 @@
 
 (define (cd-path-inside? p label)
   (and (pair? p)
-       (or (== (tree-label (path->tree p)) label)
-           (cd-path-inside? (cDr p) label))))
+       (let ((t (path->tree p)))
+         (or (and (tree? t) (== (tree-label t) label))
+             (cd-path-inside? (cDr p) label)))))
 
 (tm-define (in-commutative-diagram?)
   (cd-path-inside? (cDr (cursor-path)) 'commutative-diagram))
@@ -304,10 +306,10 @@
   (:secure #t)
   (if (not (tree? BODY)) '(tuple)
       (let* ((selected?
-               (and cd-selected-kind cd-selected-id
+               (and cd-halos-visible? cd-selected-kind cd-selected-id
                     (cd-selected? BODY cd-selected-kind cd-selected-id)))
              (hover?
-               (and cd-hover-kind cd-hover-id
+               (and cd-halos-visible? cd-hover-kind cd-hover-id
                     (cd-hovered? BODY cd-hover-kind cd-hover-id)))
              (drag (cd-layout-drag BODY)))
         `(tuple
@@ -351,6 +353,7 @@
 (define (cd-begin-session body)
   (cd-normalize-body! body)
   (let ((p (tree->path body)))
+    (set! cd-halos-visible? #t)
     (when (not (== p cd-session-body))
       (set! cd-session-body p)
       (set! cd-selected-kind #f)
@@ -373,7 +376,25 @@
 
 (define (cd-refresh)
   (when cd-session-body
-    (update-path cd-session-body)))
+    (let ((body (path->tree cd-session-body)))
+      (when (and (tree? body) (tm-is? body 'cd-body))
+        (update-path cd-session-body)))))
+
+(define (cd-cursor-in-session?)
+  (and cd-session-body
+       (and-with body (tree-innermost 'cd-body #t)
+         (== (tree->path body) cd-session-body))))
+
+(tm-define (notify-cursor-moved status)
+  (:require cd-session-body)
+  (let ((visible? (cd-cursor-in-session?)))
+    (when (!= visible? cd-halos-visible?)
+      (set! cd-halos-visible? visible?)
+      (when (not visible?) (cd-set-hover #f #f))
+      ;; Cursor notification can run before the diagram's pointer callback.
+      ;; Retypesetting here would detach the BODY passed to that callback.
+      (delayed (:idle 1) (cd-refresh))))
+  (former status))
 
 (define (cd-arrow-handle-at body x y)
   (and (== cd-selected-kind 'arrow)
@@ -402,6 +423,9 @@
 (define (cd-focus-object object index)
   (delayed (:idle 1) (tree-go-to object index :end)))
 
+(define (cd-focus-navigation body)
+  (delayed (:idle 1) (tree-go-to body 0 :end)))
+
 (define (cd-handle-press body x y)
   (cd-begin-session body)
   (let* ((hit (cd-hit-test body x y)) (kind (cd-hit-kind hit))
@@ -411,11 +435,15 @@
     (cond
       ((== kind 'handle)
        (cd-select 'arrow (cd-arrow-id object))
+       (cd-focus-navigation body)
        (set! cd-interaction 'pending-reconnect)
        (set! cd-interaction-id (cd-arrow-id object))
        (set! cd-interaction-part (caddr hit)))
       ((== kind 'vertex-content)
        (cd-select 'vertex (cd-vertex-id object))
+       (when (not (and (== old-kind 'vertex)
+                       (== old-id (cd-vertex-id object))))
+         (cd-focus-navigation body))
        (set! cd-interaction 'pending-connect)
        (set! cd-interaction-id (cd-vertex-id object))
        (when (and (== old-kind 'vertex)
@@ -423,10 +451,14 @@
          (set! cd-interaction-part 'edit)))
       ((== kind 'vertex-move)
        (cd-select 'vertex (cd-vertex-id object))
+       (cd-focus-navigation body)
        (set! cd-interaction 'moving)
        (set! cd-interaction-id (cd-vertex-id object)))
       ((== kind 'arrow)
        (cd-select 'arrow (cd-arrow-id object))
+       (when (not (and (== old-kind 'arrow)
+                       (== old-id (cd-arrow-id object))))
+         (cd-focus-navigation body))
        (set! cd-interaction 'pending-arrow)
        (set! cd-interaction-id (cd-arrow-id object))
        (when (and (== old-kind 'arrow) (== old-id (cd-arrow-id object)))
@@ -508,6 +540,146 @@
                  (else #f))))
     (when (cd-set-hover hover-kind hover-id) (cd-refresh))
     "done"))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Keyboard navigation
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(define (cd-cursor-body)
+  (tree-innermost 'cd-body #t))
+
+(define (cd-editing-label?)
+  (or (tree-innermost 'cd-vertex #t)
+      (tree-innermost 'cd-arrow #t)))
+
+(tm-define (commutative-diagram-keyboard?)
+  (and cd-session-body cd-selected-kind cd-selected-id
+       (and-with body (cd-cursor-body)
+         (and (== (tree->path body) cd-session-body)
+              (not (cd-editing-label?))))))
+
+(define (cd-object-position body kind object)
+  (if (== kind 'vertex)
+      (list (cd-vertex-x object) (cd-vertex-y object))
+      (and-with geometry (cd-arrow-geometry body object)
+        (cd-bezier-point geometry 0.5))))
+
+(define (cd-navigation-objects body)
+  (append
+    (map (lambda (v)
+           (list 'vertex (cd-vertex-id v)
+                 (cd-object-position body 'vertex v)))
+         (cd-vertices body))
+    (list-filter
+      (map (lambda (a)
+             (and-with position (cd-object-position body 'arrow a)
+               (list 'arrow (cd-arrow-id a) position)))
+           (cd-arrows body))
+      identity)))
+
+(define (cd-selected-navigation-object body)
+  (let ((object (if (== cd-selected-kind 'vertex)
+                    (cd-find-vertex body cd-selected-id)
+                    (cd-find-arrow body cd-selected-id))))
+    (and object
+         (list cd-selected-kind cd-selected-id
+               (cd-object-position body cd-selected-kind object)))))
+
+(define (cd-direction-vector direction)
+  (case direction
+    ((left) '(-1.0 0.0))
+    ((right) '(1.0 0.0))
+    ((up) '(0.0 1.0))
+    ((down) '(0.0 -1.0))
+    (else '(0.0 0.0))))
+
+(define (cd-navigation-score origin candidate direction)
+  (let* ((delta (list (- (car candidate) (car origin))
+                      (- (cadr candidate) (cadr origin))))
+         (primary (+ (* (car delta) (car direction))
+                     (* (cadr delta) (cadr direction)))))
+    (and (> primary 0.000001)
+         (let* ((perpendicular
+                  (abs (- (* (car delta) (cadr direction))
+                          (* (cadr delta) (car direction)))))
+                (distance (sqrt (+ (* (car delta) (car delta))
+                                   (* (cadr delta) (cadr delta))))))
+           (+ (* 4.0 (/ perpendicular primary))
+              (* 0.05 distance))))))
+
+(define (cd-navigate direction)
+  (and cd-session-body
+    (let* ((body (path->tree cd-session-body))
+           (current (and (tree? body)
+                         (cd-selected-navigation-object body)))
+           (vector (cd-direction-vector direction))
+           (best #f)
+           (best-score 1.0e100))
+      (when current
+        (for (candidate (cd-navigation-objects body))
+          (when (!= (list-ref candidate 1) cd-selected-id)
+            (and-with score
+              (cd-navigation-score (list-ref current 2)
+                                   (list-ref candidate 2) vector)
+              (when (< score best-score)
+                (set! best candidate)
+                (set! best-score score)))))
+        (when best
+          (cd-select (list-ref best 0) (list-ref best 1))
+          (cd-set-hover #f #f)
+          (cd-focus-navigation body)
+          (cd-refresh))))))
+
+(define (cd-edit-selected-label)
+  (and cd-session-body
+    (let ((body (path->tree cd-session-body)))
+      (and (tree? body)
+        (and-with object
+          (if (== cd-selected-kind 'vertex)
+              (cd-find-vertex body cd-selected-id)
+              (cd-find-arrow body cd-selected-id))
+          (cd-focus-object object 3))))))
+
+(define (cd-delete-selected)
+  (and cd-session-body
+    (let ((body (path->tree cd-session-body))
+          (kind cd-selected-kind)
+          (id cd-selected-id))
+      (when (tree? body)
+        (let loop ((i (- (tree-arity body) 1)))
+          (when (>= i 0)
+            (let ((child (tree-ref body i)))
+              (when (or (and (== kind 'arrow)
+                             (tm-is? child 'cd-arrow)
+                             (== (cd-arrow-id child) id))
+                        (and (== kind 'vertex)
+                             (or (and (tm-is? child 'cd-vertex)
+                                      (== (cd-vertex-id child) id))
+                                 (and (tm-is? child 'cd-arrow)
+                                      (or (== (cd-arrow-source child) id)
+                                          (== (cd-arrow-target child) id))))))
+                (tree-remove! body i 1)))
+            (loop (- i 1))))
+        (cd-select #f #f)
+        (cd-set-hover #f #f)
+        (cd-focus-navigation body)
+        (cd-refresh)))))
+
+(define (cd-clear-selection)
+  (cd-select #f #f)
+  (cd-set-hover #f #f)
+  (cd-refresh))
+
+(kbd-map
+  (:mode commutative-diagram-keyboard?)
+  ("left" (cd-navigate 'left))
+  ("right" (cd-navigate 'right))
+  ("up" (cd-navigate 'up))
+  ("down" (cd-navigate 'down))
+  ("return" (cd-edit-selected-label))
+  ("delete" (cd-delete-selected))
+  ("backspace" (cd-delete-selected))
+  ("escape" (cd-clear-selection)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Arrow properties
@@ -802,7 +974,11 @@
                (cd-handle-hover BODY x y))
               ((== type "adjust") (cd-handle-adjust BODY x y))
               ((== type "leave")
-               (when (cd-set-hover #f #f) (cd-refresh))
+               (let ((changed? (or cd-halos-visible?
+                                   cd-hover-kind cd-hover-id)))
+                 (set! cd-halos-visible? #f)
+                 (cd-set-hover #f #f)
+                 (when changed? (cd-refresh)))
                "done")
               ((== type "double-click")
                (let* ((hit (cd-hit-test BODY x y))

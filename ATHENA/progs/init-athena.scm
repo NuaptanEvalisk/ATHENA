@@ -355,6 +355,8 @@
              make-cd in-commutative-diagram? commutative-diagram-layout
              commutative-diagram-handle commutative-diagram-context-menu?
              commutative-diagram-show-hidden commutative-diagram-describe)
+(lazy-keyboard (athena athena commutative-diagram)
+               commutative-diagram-keyboard?)
 (lazy-menu (athena athena commutative-diagram)
            commutative-diagram-popup-menu commutative-diagram-focus-menu
            commutative-diagram-focus-icons)

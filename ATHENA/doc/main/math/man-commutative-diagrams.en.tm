@@ -6,11 +6,19 @@
   <tmdoc-title|Commutative diagrams>
 
   ATHENA represents a commutative diagram as a native structured document
-  object. Type <key|\ cd> in mathematics mode to insert one. Click an empty
-  grid point to create a vertex, edit the vertex formula in place, and drag
-  from one vertex to another to create an arrow. Vertices can be moved by
-  dragging their halo. Arrows and vertices can be selected by clicking their
-  visible geometry.
+  object, centered on its containing line. Type <key|\ cd> in mathematics
+  mode to insert one. Click an empty grid point to create a vertex, edit the
+  vertex formula in place, and drag from one vertex to another to create an
+  arrow. Vertices can be moved by dragging the area around their formula.
+  Hovered and selected vertices have an outline which leaves their formula
+  unobscured. Arrows and vertices can be selected by clicking their visible
+  geometry.
+
+  After selecting a vertex or arrow, use the arrow keys to select the nearest
+  object in that direction. Press <key|return> to edit the selected formula,
+  <key|delete> or <key|backspace> to remove the selected object, and
+  <key|escape> to clear the selection. Removing a vertex also removes its
+  incident arrows.
 
   Right-click an arrow and choose <menu|Arrow style> to edit its arrowhead,
   tail, body, label, curve, shortening, level, and color. Right-click the

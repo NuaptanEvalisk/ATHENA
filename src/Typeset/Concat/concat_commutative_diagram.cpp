@@ -253,7 +253,8 @@ public:
   }
 
   void formula (tree formula, path formula_ip, cd_point position,
-                string color, bool small) {
+                string color, bool small, string halo_color= "",
+                bool strong_halo= false) {
     tree old_color= env->local_begin (COLOR, color);
     tree old_size;
     if (small) old_size= env->local_begin (FONT_SIZE, "0.84");
@@ -263,6 +264,19 @@ public:
     point p= physical (position);
     SI x= (SI) p[0] - ((b->x1 + b->x2) >> 1);
     SI y= (SI) p[1] - ((b->y1 + b->y2) >> 1);
+    if (halo_color != "") {
+      SI pad= max (3 * line_unit, env->as_length ("0.06cm"));
+      array<SI> outline_x, outline_y;
+      outline_x << b->x1 - pad << b->x2 + pad
+                << b->x2 + pad << b->x1 - pad;
+      outline_y << b->y1 - pad << b->y1 - pad
+                << b->y2 + pad << b->y2 + pad;
+      add (polygon_box (decorate (formula_ip), outline_x, outline_y,
+                        brush (false),
+                        pencil (named_color (halo_color),
+                                strong_halo? 2 * line_unit: line_unit)),
+           x, y);
+    }
     add (b, x, y);
   }
 };
@@ -523,11 +537,10 @@ concater_rep::typeset_commutative_diagram (tree t, path ip) {
                    state.selected_id == vertices[i].id;
     bool hovered= state.hover_kind == "vertex" &&
                   state.hover_id == vertices[i].id;
-    if (selected || hovered)
-      builder.circle (vertices[i].position, selected? 0.15: 0.12,
-                      selected? "#70a0e8": "#b8d2f4", true);
     builder.formula (vertices[i].node[3], vertices[i].formula_ip,
-                     vertices[i].position, "black", false);
+                     vertices[i].position, "black", false,
+                     selected? "#3976c5": hovered? "#82aee5": "",
+                     selected);
   }
 
   box diagram= commutative_diagram_box (
@@ -537,5 +550,13 @@ concater_rep::typeset_commutative_diagram (tree t, path ip) {
   relay_args << tree ("relay-with-frame")
              << tree ("commutative-diagram-handle")
              << t[0] << t[1] << t[2];
-  print (relay_box (ip, diagram, relay_args));
+  box relayed= relay_box (ip, diagram, relay_args);
+  tree spring (HTAB, "0fn");
+  if (N(a) == 0)
+    print (empty_box (decorate_left (ip), 0, 0, 0, env->fn->yx));
+  print (space (0));
+  control (spring, decorate_left (ip));
+  print (relayed);
+  print (space (0));
+  control (spring, decorate_right (ip));
 }
