@@ -1114,6 +1114,10 @@
 
 (menu-bind math-insert-menu
   ("Fraction" (make-fraction))
+  (-> "Combinatorial number"
+      ("Binomial coefficient" (make 'binom))
+      ("Stirling number of the first kind" (make 'stirling-first))
+      ("Stirling number of the second kind" (make 'stirling-second)))
   ("Square root" (make-sqrt))
   ("N-th root" (make-var-sqrt))
   ("Negation" (make-neg))

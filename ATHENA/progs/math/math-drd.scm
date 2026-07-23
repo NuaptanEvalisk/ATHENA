@@ -16,7 +16,7 @@
 
 (define-group variant-tag
   (fraction-tag) (vertical-script-tag)
-  (textual-operator-tag))
+  (textual-operator-tag) (combinatorial-number-tag))
 
 (define-group fraction-tag
   frac tfrac dfrac frac* cfrac)
@@ -26,6 +26,9 @@
 
 (define-group textual-operator-tag
   math-up math-ss math-tt math-bf math-it math-sl)
+
+(define-group combinatorial-number-tag
+  binom stirling-first stirling-second)
 
 (define-group math-annotation-tag
   math-separator math-quantifier math-imply math-or math-and

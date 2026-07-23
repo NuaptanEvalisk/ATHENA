@@ -11,6 +11,21 @@
     For binomial coefficients, like <with|mode|math|<binom|n|m>>.
   </explain>
 
+  <\explain|<explain-macro|stirling-first|among|nr>>
+    For Stirling numbers of the first kind, like
+    <with|mode|math|<stirling-first|n|m>>.
+  </explain>
+
+  <\explain|<explain-macro|stirling-second|among|nr>>
+    For Stirling numbers of the second kind, like
+    <with|mode|math|<stirling-second|n|m>>.
+  </explain>
+
+  These three combinatorial number forms are structured variants. Place the
+  cursor inside one and press <key|Tab> or <key|Shift+Tab> to circulate through
+  the round, square, and curly delimiter forms while preserving both
+  arguments.
+
   <\explain|<explain-macro|choose|among|nr>>
     Alternative name for <markup|binom>, but depreciated.
   </explain>
