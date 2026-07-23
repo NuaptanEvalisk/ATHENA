@@ -2,6 +2,7 @@
 #include "QTMCommandPalette.hpp"
 #include "QTMUpdateChecker.hpp"
 #include "qt_utilities.hpp"
+#include "scheme.hpp"
 
 #include <QKeyEvent>
 #include <QTouchEvent>
@@ -38,6 +39,14 @@ nativeGestureTypeName (Qt::NativeGestureType type) {
 static bool gestureDebugEnabled () {
   QByteArray value= qgetenv ("ATHENA_GESTURE_DEBUG");
   return !value.isEmpty () && value != "0";
+}
+
+static bool quickSwitcherShortcut (const QKeyEvent* event) {
+  Qt::KeyboardModifiers modifiers= event->modifiers ();
+  return event->key () == Qt::Key_O &&
+         (modifiers & Qt::ControlModifier) != 0 &&
+         (modifiers & (Qt::ShiftModifier | Qt::AltModifier |
+                       Qt::MetaModifier)) == 0;
 }
 
 }
@@ -220,6 +229,15 @@ bool QTMApplication::notify (QObject* receiver, QEvent* event)
 {
   try {
     if (receiver != NULL && event != NULL &&
+        event->type () == QEvent::ShortcutOverride) {
+      QKeyEvent* keyEvent= static_cast<QKeyEvent*> (event);
+      if (quickSwitcherShortcut (keyEvent)) {
+        event->accept ();
+        return true;
+      }
+    }
+
+    if (receiver != NULL && event != NULL &&
         event->type () == QEvent::KeyPress) {
       QKeyEvent* keyEvent= static_cast<QKeyEvent*> (event);
       Qt::KeyboardModifiers modifiers= keyEvent->modifiers ();
@@ -240,6 +258,11 @@ bool QTMApplication::notify (QObject* receiver, QEvent* event)
         (modifiers & (Qt::AltModifier | Qt::MetaModifier)) == 0;
       if (commandPaletteShortcut) {
         command_palette_show ();
+        event->accept ();
+        return true;
+      }
+      if (quickSwitcherShortcut (keyEvent)) {
+        eval ("(open-quick-switcher)");
         event->accept ();
         return true;
       }
