@@ -1,5 +1,6 @@
 #include "QTMCodexCompletion.hpp"
 
+#include "boot.hpp"
 #include "qt_utilities.hpp"
 
 #include <QApplication>
@@ -107,7 +108,16 @@ class QTMCodexCompletionDialog final: public QDialog {
 public:
   QTMCodexCompletionDialog (const QString& bridge, const QString& home,
                             QWidget* parent)
-    : QDialog (parent), bridgePath (bridge), homePath (home) {
+    : QDialog (parent), bridgePath (bridge), homePath (home),
+      rememberChoices (
+        get_user_preference ("codex completion remember choices", "off") ==
+        "on"),
+      rememberedModel (to_qstring (
+        get_user_preference ("codex completion model", ""))),
+      rememberedEffort (to_qstring (
+        get_user_preference ("codex completion effort", ""))),
+      rememberedFast (
+        get_user_preference ("codex completion fast", "off") == "on") {
     setWindowTitle ("AI completion (custom)");
     setMinimumWidth (520);
 
@@ -119,11 +129,24 @@ public:
     effortCombo= new QComboBox (this);
     fastCheck= new QCheckBox ("Use fast service tier", this);
     webSearchCheck= new QCheckBox ("Allow Codex web search", this);
+    temporaryBufferCheck=
+      new QCheckBox ("Open answer in a temporary buffer", this);
+    rememberCheck= new QCheckBox ("Remember last choice", this);
+    rememberCheck->setChecked (rememberChoices);
+    if (rememberChoices) {
+      webSearchCheck->setChecked (
+        get_user_preference ("codex completion web search", "off") == "on");
+      temporaryBufferCheck->setChecked (
+        get_user_preference ("codex completion destination", "document") ==
+        "temporary-buffer");
+    }
     form->addRow ("Model:", modelCombo);
     form->addRow ("", modelDescription);
     form->addRow ("Reasoning effort:", effortCombo);
     form->addRow ("", fastCheck);
     form->addRow ("", webSearchCheck);
+    form->addRow ("", temporaryBufferCheck);
+    form->addRow ("", rememberCheck);
     layout->addLayout (form);
 
     statusLabel= new QLabel (this);
@@ -159,8 +182,40 @@ public:
     result << from_qstring (modelCombo->currentData ().toString ())
            << from_qstring (effortCombo->currentData ().toString ())
            << from_qstring (fastCheck->isChecked ()? fastTierId: QString ())
-           << (webSearchCheck->isChecked ()? string ("on"): string ("off"));
+           << (webSearchCheck->isChecked ()? string ("on"): string ("off"))
+           << (temporaryBufferCheck->isChecked ()?
+                 string ("temporary-buffer"): string ("document"))
+           << (rememberCheck->isChecked ()? string ("on"): string ("off"));
     return result;
+  }
+
+  void saveChoices () const {
+    const bool remember= rememberCheck->isChecked ();
+    set_user_preference ("codex completion remember choices",
+                         remember? "on": "off");
+    if (remember) {
+      set_user_preference (
+        "codex completion model",
+        from_qstring (modelCombo->currentData ().toString ()));
+      set_user_preference (
+        "codex completion effort",
+        from_qstring (effortCombo->currentData ().toString ()));
+      set_user_preference ("codex completion fast",
+                           fastCheck->isChecked ()? "on": "off");
+      set_user_preference ("codex completion web search",
+                           webSearchCheck->isChecked ()? "on": "off");
+      set_user_preference (
+        "codex completion destination",
+        temporaryBufferCheck->isChecked ()? "temporary-buffer": "document");
+    }
+    else {
+      set_user_preference ("codex completion model", "");
+      set_user_preference ("codex completion effort", "");
+      set_user_preference ("codex completion fast", "off");
+      set_user_preference ("codex completion web search", "off");
+      set_user_preference ("codex completion destination", "document");
+    }
+    save_user_preferences ();
   }
 
 private:
@@ -171,11 +226,17 @@ private:
   QComboBox* effortCombo;
   QCheckBox* fastCheck;
   QCheckBox* webSearchCheck;
+  QCheckBox* temporaryBufferCheck;
+  QCheckBox* rememberCheck;
   QLabel* statusLabel;
   QDialogButtonBox* buttons;
   QPushButton* reloadButton;
   int observedGeneration;
   QString fastTierId;
+  bool rememberChoices;
+  QString rememberedModel;
+  QString rememberedEffort;
+  bool rememberedFast;
 
   void refreshCatalog (bool force) {
     if (!force && observedGeneration == catalogGeneration) return;
@@ -206,6 +267,7 @@ private:
     }
 
     int defaultIndex= 0;
+    int rememberedIndex= -1;
     for (const QJsonValue& value: catalogModels) {
       QJsonObject model= value.toObject ();
       QString display= model.value ("displayName").toString ();
@@ -216,16 +278,23 @@ private:
                                Qt::UserRole + 1);
       if (model.value ("isDefault").toBool ())
         defaultIndex= modelCombo->count () - 1;
+      if (rememberChoices && id == rememberedModel)
+        rememberedIndex= modelCombo->count () - 1;
     }
-    modelCombo->setCurrentIndex (defaultIndex);
+    modelCombo->setCurrentIndex (
+      rememberedIndex >= 0? rememberedIndex: defaultIndex);
     statusLabel->clear ();
     refreshModelOptions ();
+    if (rememberChoices && fastCheck->isEnabled ())
+      fastCheck->setChecked (rememberedFast);
   }
 
   void refreshModelOptions () {
     QJsonObject model=
       modelCombo->currentData (Qt::UserRole + 1).toJsonObject ();
     QString previous= effortCombo->currentData ().toString ();
+    if (previous.isEmpty () && rememberChoices)
+      previous= rememberedEffort;
     effortCombo->clear ();
     QString defaultEffort= model.value ("defaultReasoningEffort").toString ();
     int defaultIndex= 0;
@@ -266,5 +335,6 @@ qtm_codex_completion_options (const string& bridge, const string& home) {
   QTMCodexCompletionDialog dialog (to_qstring (bridge), to_qstring (home),
                                    QApplication::activeWindow ());
   if (dialog.exec () != QDialog::Accepted) return array<string> ();
+  dialog.saveChoices ();
   return dialog.options ();
 }

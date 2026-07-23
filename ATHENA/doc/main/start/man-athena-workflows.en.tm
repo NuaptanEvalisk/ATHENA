@@ -134,6 +134,14 @@
   images through Codex's multimodal input. Temporary prompt, response, and
   image files are removed when the request finishes. Authentication lives in a
   dedicated Codex home configured under <menu|Edit|Preferences|Other|AI>.
+  <menu|Edit|AI|AI completion (new buffer)> uses the same default completion
+  settings as <menu|Edit|AI|AI completion>, but places the editable answer in a
+  temporary document pane that is popped out by default.
+  <menu|Edit|AI|AI completion (custom)> can place the generated answer either
+  after the selection or in a temporary popped-out document pane, while also
+  allowing the model and execution options to be selected. Its <item|Remember
+  last choice> option preserves the selected model, reasoning effort, fast tier,
+  web-search permission, and output destination for the next custom completion.
 
   Continuous RAG keeps search data in the vault-local <verbatim|rag.sqlite>
   database and can serve it through a read-only MCP endpoint. Optional RAG

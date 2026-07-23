@@ -154,7 +154,29 @@
                      "AI completion")))
   (codex-remove-completion-files input output figures))
 
-(define (codex-ai-completion-with-options model effort service-tier web-search)
+(define (codex-document-completion-target end)
+  (go-to end)
+  (selection-cancel)
+  (make-return-after)
+  (let ((placeholder (cursor-tree)))
+    (tree-set! placeholder '(athena-codex-thinking))
+    (tree-go-to placeholder :end)
+    (list (current-buffer) placeholder)))
+
+(define (codex-temporary-buffer-completion-target)
+  (selection-cancel)
+  (ads-prepare-floating)
+  (let* ((window (open-window))
+         (name (window-to-buffer window)))
+    (buffer-set-body
+      name (stree->tree '(document (athena-codex-thinking))))
+    (buffer-set-title name "AI completion")
+    (switch-to-window window)
+    (update-current-buffer)
+    (list name (tree-ref (buffer-get-body name) 0))))
+
+(define (codex-ai-completion-with-options
+          model effort service-tier web-search destination)
   (if (not (selection-active-any?))
       (set-message "Select text to continue with Codex" "AI completion")
       (let ((bridge (codex-bridge-path)))
@@ -174,26 +196,29 @@
                    (output (url-glue (url-temp) ".codex-output")))
               (string-save
                 (codex-completion-prompt latex (not (null? figures))) input)
-              (go-to end)
-              (selection-cancel)
-              (make-return-after)
-              (let ((placeholder (cursor-tree)))
-                (tree-set! placeholder '(athena-codex-thinking))
-                (tree-go-to placeholder :end)
-                (let ((buffer (current-buffer)))
-                  (update-current-buffer)
-                  (codex-run-completion-async
-                    bridge (codex-home-path)
-                    (url->system input) (url->system output)
-                    model effort service-tier web-search
-                    (map url->system figures)
-                    (object->command
-                      (lambda ()
-                        (codex-finish-completion
-                          buffer placeholder input output figures)))))))))))
+              (let* ((target
+                       (if (== destination "temporary-buffer")
+                           (codex-temporary-buffer-completion-target)
+                           (codex-document-completion-target end)))
+                     (buffer (list-ref target 0))
+                     (placeholder (list-ref target 1)))
+                (update-current-buffer)
+                (codex-run-completion-async
+                  bridge (codex-home-path)
+                  (url->system input) (url->system output)
+                  model effort service-tier web-search
+                  (map url->system figures)
+                  (object->command
+                    (lambda ()
+                      (codex-finish-completion
+                        buffer placeholder input output figures))))))))))
 
 (tm-define (codex-ai-completion)
-  (codex-ai-completion-with-options "" "" "" ""))
+  (codex-ai-completion-with-options "" "" "" "" "document"))
+
+(tm-define (codex-ai-completion-new-buffer)
+  (codex-ai-completion-with-options
+    "" "" "" "" "temporary-buffer"))
 
 (tm-define (codex-ai-completion-custom)
   (if (not (selection-active-any?))
@@ -201,10 +226,11 @@
       (let ((options
               (codex-completion-options
                 (codex-bridge-path) (codex-home-path))))
-        (when (and (list? options) (= (length options) 4))
+        (when (and (list? options) (= (length options) 6))
           (codex-ai-completion-with-options
             (list-ref options 0)
             (list-ref options 1)
             (list-ref options 2)
             (if (== (list-ref options 3) "on")
-                "live" "disabled"))))))
+                "live" "disabled")
+            (list-ref options 4))))))

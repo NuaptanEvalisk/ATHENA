@@ -459,6 +459,12 @@ ensure_builtin_user_preferences () {
           "notify-julia-syntax"),
 
     PREF ("codex home", "", ""),
+    PREF ("codex completion remember choices", "off", ""),
+    PREF ("codex completion model", "", ""),
+    PREF ("codex completion effort", "", ""),
+    PREF ("codex completion fast", "off", ""),
+    PREF ("codex completion web search", "off", ""),
+    PREF ("codex completion destination", "document", ""),
     PREF ("google tasks cloud todo list id", "", ""),
     PREF ("rag mcp port", "8765", ""),
     PREF ("rag embedding model", "", ""),

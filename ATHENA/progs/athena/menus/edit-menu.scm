@@ -83,6 +83,8 @@
   (when (selection-active-any?)
     (-> "AI"
         ("AI completion" (codex-ai-completion))
+        ("AI completion (new buffer)"
+          (codex-ai-completion-new-buffer))
         ("AI completion (custom)" (codex-ai-completion-custom))))
   (if (detailed-menus?)
       ---
