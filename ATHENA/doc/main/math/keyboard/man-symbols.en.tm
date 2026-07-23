@@ -68,7 +68,13 @@
   The logical relations <math|\<wedge\>> and <math|\<vee\>> are obtained
   using <key|&> and <key|%>. The operators <math|\<cap\>> and <math|\<cup\>>
   are natural variants <key|& var> and <key|% var>. Various miscellaneous
-  symbols can be obtained using the <prefix|math:symbol> prefix.
+  symbols can be obtained using the <prefix|math:symbol> prefix. Literal
+  ampersand and percent characters remain available in formulas:
+  <key|math:symbol &> inserts <math|&> and <key|math:symbol %> inserts
+  <math|%>. They are also the final entries of the ordinary <key|&> and
+  <key|%> variant cycles. Consequently, repeated <key|tab> eventually reaches
+  the literal character, while <key|& S-var> and <key|% S-var> reach it
+  immediately by circulating backward from the first variant.
 
   Notice that certain symbols with a different mathematical meaning are
   sometimes denoted in a<nbsp>similar way; such symbols are called
