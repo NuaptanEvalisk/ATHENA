@@ -19,13 +19,6 @@
         (athena tools shortcut-listing)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Dynamic menus
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(tm-define (run-proof-pipeline-menu-action)
-  (run-proof-pipeline))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; The Tools menu
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -75,7 +68,6 @@
       ("Count characters" (show-character-count))
       ("Count words" (show-word-count))
       ("Count lines" (show-line-count)))
-  ("Run proof pipeline" (run-proof-pipeline-menu-action))
   ---
   ("Clear undo history" (clear-undo-history))
   ("Save auxiliary data" (toggle-save-aux))

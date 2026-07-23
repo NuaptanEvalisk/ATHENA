@@ -226,13 +226,6 @@ texmacs_version (string which) {
   return ATHENA_VERSION;
 }
 
-tmscm
-run_proof_pipeline () {
-  editor ed= get_current_editor ();
-  ed->run_proof_pipeline ();
-  return TMSCM_UNSPECIFIED;
-}
-
 void
 set_fast_environments (bool b) {
   enable_fastenv= b;
@@ -1947,7 +1940,6 @@ initialize_glue () {
   tmscm_install_procedure ("modification?", modificationP, 1, 0, 0);
   tmscm_install_procedure ("patch?", patchP, 1, 0, 0);
   tmscm_install_procedure ("blackbox?", blackboxP, 1, 0, 0);
-  tmscm_install_procedure ("run-proof-pipeline", run_proof_pipeline, 0, 0, 0);
   tmscm_install_procedure ("outline-pane-show", outline_pane_show, 0, 0, 0);
   tmscm_install_procedure ("neighborhoods-pane-show",
                            neighborhoods_pane_show, 0, 0, 0);
