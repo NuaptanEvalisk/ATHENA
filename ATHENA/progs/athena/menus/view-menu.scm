@@ -96,6 +96,7 @@
   ("Show panorama" (toggle-panorama-mode))
   ("Show all slides" (toggle-slideshow-mode))
   ("Show outline" (outline-pane-show))
+  (link athena-view-panes-menu)
   ("Neighborhoods" (neighborhoods-pane-show))
   ("Error messages" (error-messages-show))
   ("Artifacts" (artifacts-pane-show))

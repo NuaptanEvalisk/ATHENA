@@ -322,6 +322,7 @@
       (when (selection-active-any?)
         (=> "Export selection as image"
             (link export-as-image-menu))))
+  (link athena-file-utilities-menu)
   ---
   ("Close document" (close-document))
   ("Close ATHENA" (safely-quit-ATHENA)))
@@ -333,6 +334,7 @@
 (menu-bind go-menu
   ("Welcome (System)" (go-to-system-welcome-page))
   ("Welcome (Vault)" (go-to-welcome-page))
+  (link athena-go-utilities-menu)
   ---
   (when (cursor-has-history?)
     ("Back" (cursor-history-backward)))

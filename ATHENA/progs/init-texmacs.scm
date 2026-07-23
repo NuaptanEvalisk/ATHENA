@@ -169,7 +169,15 @@
 (lazy-menu (athena menus edit-menu) edit-menu)
 (lazy-menu (athena menus view-menu) view-menu texmacs-bottom-toolbars)
 (lazy-menu (athena menus interface-menu) interface-menu)
-(lazy-menu (athena menus tools-menu) tools-menu)
+(lazy-menu (athena menus utility-menus)
+           athena-go-utilities-menu
+           athena-view-panes-menu
+           athena-workspace-utilities-menu
+           athena-file-utilities-menu
+           athena-document-utilities-menu
+           athena-edit-utilities-menu
+           athena-interface-utilities-menu
+           athena-help-utilities-menu)
 (lazy-menu (athena menus preferences-widgets)
            preferences-open?
            open-preferences open-plugin-preferences open-plugins-preferences)

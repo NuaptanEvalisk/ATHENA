@@ -117,6 +117,7 @@
       (link clipboard-import-preference-menu))
   (-> "Export selections as"
       (link clipboard-export-preference-menu))
+  (link athena-edit-utilities-menu)
   ---
   (if (not (preferences-open?))
       ("Preferences" (open-preferences))))

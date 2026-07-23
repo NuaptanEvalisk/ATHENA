@@ -36,6 +36,8 @@
 	("Welcome" (load-help-article "about/welcome/new-welcome"))
 	("Getting started" (load-help-article "about/welcome/start"))
 	---)
+  (link athena-help-utilities-menu)
+  ---
   (if (detailed-menus?)
       (when (url-exists-in-help? "main/config/man-configuration.en.tm")
 	(-> "Configuration"

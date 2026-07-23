@@ -33,4 +33,6 @@
   ("Linking tool" (toggle-preference "linking tool"))
   ("Presentation tool" (toggle-preference "presentation tool"))
   ("Source macros tool" (toggle-preference "source tool"))
-  ("Versioning tool" (toggle-preference "versioning tool")))
+  ("Versioning tool" (toggle-preference "versioning tool"))
+  ---
+  (link athena-interface-utilities-menu))

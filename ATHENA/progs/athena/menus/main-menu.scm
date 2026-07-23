@@ -80,7 +80,6 @@
   (=> "View" (link view-menu))
   (=> "Workspace" (link workspace-menu))
   (=> "Go" (link go-menu))
-  (if (detailed-menus?) (=> "Tools" (link tools-menu)))
   (if (with-database-tool?)
       (=> "Data" (link db-menu)))
   (if (with-debugging-tool?)
@@ -107,7 +106,9 @@
   ("New floating window" 
     (begin
       (ads-prepare-floating)
-      (new-document*))))
+      (new-document*)))
+  ---
+  (link athena-workspace-utilities-menu))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; The TeXmacs popup menus
@@ -163,9 +164,10 @@
       (-> "Part" (link document-part-menu)))
   (if (project-attached?) (=> "Project" (link project-menu)))
   (if (with-versioning-tool?) (-> "Version" (link version-menu)))
+  (-> "Interface" (link interface-menu))
   (-> "View" (link view-menu))
+  (-> "Workspace" (link workspace-menu))
   (-> "Go" (link go-menu))
-  (if (detailed-menus?) (-> "Tools" (link tools-menu)))
   (if (with-database-tool?) (-> "Data" (link db-menu)))
   (if (with-debugging-tool?) (-> "Debug" (link debug-menu)))
   (if (nnull? (test-menu)) (-> "Test" (link test-menu)))

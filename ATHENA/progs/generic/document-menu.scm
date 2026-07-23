@@ -896,6 +896,7 @@
       (group "Preferences")
       (link document-source-preferences-menu))
   (-> "Update" (link document-update-menu))
+  (link athena-document-utilities-menu)
   ("Anchor enunciations" (anchor-enunciations-current-document))
   ---
   (-> "Font" (link document-full-font-menu))
@@ -928,6 +929,7 @@
       ("Edit source tree" (toggle-source-mode))
       ("Preferences" (open-source-tree-preferences)))
   (-> "Update" (link document-update-menu))
+  (link athena-document-utilities-menu)
   ("Anchor enunciations" (anchor-enunciations-current-document))
   ---
   (if (new-fonts?)
