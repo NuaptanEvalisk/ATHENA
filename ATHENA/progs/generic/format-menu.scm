@@ -70,17 +70,41 @@
   ---
   ("Other" (make-interactive-with "opacity")))
 
+(define standard-text-colors
+  '("#000000" "#434343" "#666666" "#999999"
+    "#b7b7b7" "#cccccc" "#d9d9d9" "#ffffff"
+    "#980000" "#ff0000" "#ff9900" "#ffff00"
+    "#00ff00" "#00ffff" "#4a86e8" "#0000ff"
+    "#9900ff" "#ff00ff" "#e6b8af" "#f4cccc"
+    "#fce5cd" "#fff2cc" "#d9ead3" "#d0e0e3"
+    "#c9daf8" "#cfe2f3" "#d9d2e9" "#ead1dc"
+    "#85200c" "#a61c00" "#bf9000" "#38761d"))
+
+(tm-menu (text-color-swatches colors setter)
+  (tile 8
+    (for (col colors)
+      (explicit-buttons
+        ((balloon (color col #f #f 28 28) (eval col))
+         (setter col))))))
+
 (menu-bind color-menu
-  (with setter (lambda (col) (make-with "color" col))
-    (if (allow-pattern-colors?)
-        (pick-background "" (setter answer)))
-    (if (not (allow-pattern-colors?))
-        (pick-color (setter answer)))
+  (with setter
+      (lambda (col)
+        (color-picker-remember-color col)
+        (make-with "color" col))
+    (group "Standard colors")
+    (dynamic (text-color-swatches standard-text-colors setter))
+    (when (nnull? (color-picker-recent-colors))
+      ---
+      (group "Recent colors")
+      (dynamic (text-color-swatches (color-picker-recent-colors) setter)))
+    (when (nnull? (color-picker-saved-colors))
+      ---
+      (group "Saved colors")
+      (dynamic (text-color-swatches (color-picker-saved-colors) setter)))
     ---
-    ("Palette" (interactive-color setter '()))
-    (if (allow-pattern-colors?)
-        ("Pattern" (open-pattern-selector setter "1cm")))
-    ("Other" (make-interactive-with "color"))))
+    ("Other color..."
+     (interactive-color setter (color-picker-recent-colors)))))
 
 (menu-bind horizontal-space-menu
   (when (not (selection-active?))

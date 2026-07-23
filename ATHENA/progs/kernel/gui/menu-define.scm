@@ -602,6 +602,21 @@
     (when (!= r l)
       (set-preference type r))))
 
+(define-public (color-picker-recent-colors)
+  (get-preferred-list "recent text colors" 8))
+
+(define-public (color-picker-saved-colors)
+  (get-preferred-list "saved text colors" 8))
+
+(define-public (color-picker-remember-color color)
+  (when (string? color)
+    (insert-preferred-list "recent text colors" color 8)))
+
+(define-public (color-picker-set-saved-colors colors)
+  (when (list? colors)
+    (set-preference "saved text colors"
+                    (list-remove-duplicates colors))))
+
 (define-public (tm-pattern name . args)
   (let* ((s (if (url? name) (url->unix name) name))
          (pattern-dir (url->unix "$ATHENA_PATH/misc/patterns"))

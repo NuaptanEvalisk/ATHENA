@@ -39,6 +39,7 @@ protected:
   string            _windowTitle;
   command _commandAfterExecution;
   bool              _pickPattern;
+  array<tree>        _proposals;
 };
 
 

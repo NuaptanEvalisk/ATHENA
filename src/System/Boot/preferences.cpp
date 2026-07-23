@@ -220,6 +220,8 @@ ensure_builtin_user_preferences () {
 
     PREF ("vault fuzzy search limit", "3", ""),
     PREF ("vault transclusion color", "#f8f8f8", ""),
+    PREF ("recent text colors", "()", ""),
+    PREF ("saved text colors", "()", ""),
     PREF ("gui cursor color", "red", "notify-cursor-color"),
     PREF ("gui selection color", "red", "notify-selection-color"),
     PREF ("gui focus color", "#0ff", "notify-focus-color"),
