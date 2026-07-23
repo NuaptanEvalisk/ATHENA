@@ -12,6 +12,7 @@
 #include "QTMCompletingComboBox.hpp"
 #include "QTMPersonsExplorer.hpp"
 #include "QTMVaultAnchorModel.hpp"
+#include "QTMVaultArtifactPage.hpp"
 #include "QTMVaultLinkModel.hpp"
 #include "QTMVaultPreviewBuilder.hpp"
 #include "QTMVaultPreviewWidget.hpp"
@@ -89,7 +90,8 @@ enum TransclusionWizardPageId {
   TransclusionEnunciationPageId= 13,
   TransclusionUpperPageId= 14,
   TransclusionLowerPageId= 15,
-  TransclusionSearchPageId= 16
+  TransclusionSearchPageId= 16,
+  TransclusionArtifactPageId= 17
 };
 
 class QTMVaultTransclusionWizard;
@@ -101,6 +103,7 @@ public:
 
   QRadioButton* fileFirstRadio;
   QRadioButton* searchRadio;
+  QRadioButton* artifactRadio;
 };
 
 class TransclusionFilePage : public QWizardPage {
@@ -268,8 +271,8 @@ public:
   TransclusionUpperPage* upperPage;
   TransclusionLowerPage* lowerPage;
   TransclusionSearchPage* searchPage;
+  QTMVaultArtifactPage* artifactPage;
 
-private:
   void loadFiles ();
   void scheduleLoadFiles ();
 };
@@ -281,16 +284,19 @@ TransclusionModePage::TransclusionModePage (QWidget* parent)
 
   fileFirstRadio= new QRadioButton ("Locate a file first", this);
   searchRadio= new QRadioButton ("Locate by search", this);
+  artifactRadio= new QRadioButton ("Select an artifact", this);
   fileFirstRadio->setChecked (true);
 
   QVBoxLayout* layout= new QVBoxLayout (this);
   layout->addWidget (fileFirstRadio);
   layout->addWidget (searchRadio);
+  layout->addWidget (artifactRadio);
   layout->addStretch ();
 }
 
 int
 TransclusionModePage::nextId () const {
+  if (artifactRadio->isChecked ()) return TransclusionArtifactPageId;
   return searchRadio->isChecked () ? TransclusionSearchPageId :
     TransclusionFilePageId;
 }
@@ -322,6 +328,7 @@ TransclusionFilePage::TransclusionFilePage (QWidget* parent)
 void
 TransclusionFilePage::initializePage () {
   QWizardPage::initializePage ();
+  static_cast<QTMVaultTransclusionWizard*> (wizard ())->scheduleLoadFiles ();
   updateList ();
   searchEdit->setFocus ();
 }
@@ -1637,6 +1644,16 @@ QTMVaultTransclusionWizard::QTMVaultTransclusionWizard (QWidget* parent)
   upperPage= new TransclusionUpperPage (this);
   lowerPage= new TransclusionLowerPage (this);
   searchPage= new TransclusionSearchPage (this);
+  artifactPage= new QTMVaultArtifactPage (
+    QTMVaultArtifactUsage::Transclusion, transclusion_search_case_pref,
+    transclusion_search_fuzzy_pref, this);
+  artifactPage->setSelectionHandler (
+    [this] (const QTMVaultArtifactSelection& selection) {
+      setResult (selection.relative_path, selection.upper_anchor,
+                 selection.lower_anchor,
+                 file_display_stem (selection.relative_path),
+                 selection.upper_anchor);
+    });
 
   setPage (TransclusionModePageId, modePage);
   setPage (TransclusionFilePageId, filePage);
@@ -1645,13 +1662,13 @@ QTMVaultTransclusionWizard::QTMVaultTransclusionWizard (QWidget* parent)
   setPage (TransclusionUpperPageId, upperPage);
   setPage (TransclusionLowerPageId, lowerPage);
   setPage (TransclusionSearchPageId, searchPage);
+  setPage (TransclusionArtifactPageId, artifactPage);
   setStartId (TransclusionModePageId);
 }
 
 void
 QTMVaultTransclusionWizard::showEvent (QShowEvent* event) {
   QWizard::showEvent (event);
-  scheduleLoadFiles ();
 }
 
 void

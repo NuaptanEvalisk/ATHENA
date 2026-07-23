@@ -46,8 +46,14 @@
   Wikilink and transclusion inserters provide the same namespace, target-type,
   case, and fuzzy controls. Their file-first pages support ranked completion;
   their content-search pages can be stopped without discarding results already
-  found. Default wikilink display text is configurable separately for files,
-  headings, and anchors.
+  found. <menu|Select an artifact> searches <verbatim|artifacts.db> directly,
+  without scanning vault documents, and previews enunciations and bold-text
+  definitions before insertion. Enunciations reuse their indexed anchor pair.
+  If a selected definition paragraph is not already wrapped by anchors,
+  <ATHENA> asks before adding them; an open source document is changed in its
+  live editor and remains unsaved, rather than being overwritten on disk.
+  Default wikilink display text is configurable separately for files, headings,
+  and anchors.
 
   The Quick Switcher includes Raw, Structured, and Recents views. Recents
   contains only <verbatim|.ath> files actually opened in the active vault.

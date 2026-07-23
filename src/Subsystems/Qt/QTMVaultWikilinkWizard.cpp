@@ -12,6 +12,7 @@
 #include "QTMCompletingComboBox.hpp"
 #include "QTMPersonsExplorer.hpp"
 #include "QTMVaultAnchorModel.hpp"
+#include "QTMVaultArtifactPage.hpp"
 #include "QTMVaultLinkModel.hpp"
 #include "QTMVaultPreviewBuilder.hpp"
 #include "QTMVaultPreviewWidget.hpp"
@@ -275,7 +276,8 @@ enum WikilinkWizardPageId {
   WikilinkModePageId= 0,
   WikilinkFilePageId= 1,
   WikilinkAnchorPageId= 2,
-  WikilinkSearchPageId= 3
+  WikilinkSearchPageId= 3,
+  WikilinkArtifactPageId= 4
 };
 
 class QTMVaultWikilinkWizard;
@@ -287,6 +289,7 @@ public:
 
   QRadioButton* fileFirstRadio;
   QRadioButton* searchRadio;
+  QRadioButton* artifactRadio;
 };
 
 class WikilinkFilePage : public QWizardPage {
@@ -404,8 +407,8 @@ public:
   WikilinkFilePage*   filePage;
   WikilinkAnchorPage* anchorPage;
   WikilinkSearchPage* searchPage;
+  QTMVaultArtifactPage* artifactPage;
 
-private:
   void loadFiles ();
   void scheduleLoadFiles ();
 };
@@ -417,16 +420,19 @@ WikilinkModePage::WikilinkModePage (QWidget* parent)
 
   fileFirstRadio= new QRadioButton ("Locate a file first", this);
   searchRadio= new QRadioButton ("Locate by search", this);
+  artifactRadio= new QRadioButton ("Select an artifact", this);
   fileFirstRadio->setChecked (true);
 
   QVBoxLayout* layout= new QVBoxLayout (this);
   layout->addWidget (fileFirstRadio);
   layout->addWidget (searchRadio);
+  layout->addWidget (artifactRadio);
   layout->addStretch ();
 }
 
 int
 WikilinkModePage::nextId () const {
+  if (artifactRadio->isChecked ()) return WikilinkArtifactPageId;
   return searchRadio->isChecked () ? WikilinkSearchPageId :
     WikilinkFilePageId;
 }
@@ -458,6 +464,7 @@ WikilinkFilePage::WikilinkFilePage (QWidget* parent)
 void
 WikilinkFilePage::initializePage () {
   QWizardPage::initializePage ();
+  static_cast<QTMVaultWikilinkWizard*> (wizard ())->scheduleLoadFiles ();
   updateList ();
   searchEdit->setFocus ();
 }
@@ -1488,18 +1495,30 @@ QTMVaultWikilinkWizard::QTMVaultWikilinkWizard (QWidget* parent)
   filePage= new WikilinkFilePage (this);
   anchorPage= new WikilinkAnchorPage (this);
   searchPage= new WikilinkSearchPage (this);
+  artifactPage= new QTMVaultArtifactPage (
+    QTMVaultArtifactUsage::Wikilink, wikilink_search_case_pref,
+    wikilink_search_fuzzy_pref, this);
+  artifactPage->setSelectionHandler (
+    [this] (const QTMVaultArtifactSelection& selection) {
+      QString display= default_wikilink_display_text (
+        selection.relative_path, selection.upper_anchor);
+      if (display.isEmpty ()) display= selection.display_text;
+      setResult (selection.relative_path, selection.upper_anchor,
+                 file_display_stem (selection.relative_path),
+                 selection.upper_anchor, display);
+    });
 
   setPage (WikilinkModePageId, modePage);
   setPage (WikilinkFilePageId, filePage);
   setPage (WikilinkAnchorPageId, anchorPage);
   setPage (WikilinkSearchPageId, searchPage);
+  setPage (WikilinkArtifactPageId, artifactPage);
   setStartId (WikilinkModePageId);
 }
 
 void
 QTMVaultWikilinkWizard::showEvent (QShowEvent* event) {
   QWizard::showEvent (event);
-  scheduleLoadFiles ();
 }
 
 void

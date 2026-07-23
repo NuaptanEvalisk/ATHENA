@@ -344,6 +344,8 @@ std::string latex_for_tree (const tree& t) {
 struct Paragraph {
   tree value;
   int segment= 0;
+  int first_child= -1;
+  int last_child= -1;
 };
 
 void find_bold (const tree& t, std::vector<tree>& found) {
@@ -426,9 +428,10 @@ void collect_paragraphs (const tree& body, std::vector<Paragraph>& paragraphs) {
       tree joined (CONCAT);
       joined << paragraphs.back ().value << child;
       paragraphs.back ().value= joined;
+      paragraphs.back ().last_child= i;
       continue;
     }
-    paragraphs.push_back ({child, segment});
+    paragraphs.push_back ({child, segment, i, i});
   }
 }
 
@@ -1091,6 +1094,81 @@ athena_artifacts_extract_document (
       !select_definition_ranges (extracted, {}, 1, error))
     return false;
   records= std::move (extracted[relative_path].records);
+  return true;
+}
+
+bool
+athena_artifact_locate_paragraph (
+  const tree& document, const AthenaArtifactRecord& record,
+  AthenaArtifactParagraphLocation& location, std::string& error) {
+  location= AthenaArtifactParagraphLocation ();
+  if (record.origin != "bold-text") {
+    error= "Artifact is not a paragraph artifact";
+    return false;
+  }
+  tree body= document_body (document);
+  if (!is_compound (body)) {
+    error= "Document has no structural body";
+    return false;
+  }
+
+  std::vector<Paragraph> paragraphs;
+  collect_paragraphs (body, paragraphs);
+  std::unordered_map<std::string,int> occurrences;
+  long focus= -1;
+  for (size_t i=0; i<paragraphs.size (); i++) {
+    std::vector<tree> bolds;
+    find_bold (paragraphs[i].value, bolds);
+    for (const tree& keyword: bolds) {
+      std::string display= plain_text (visible_body (keyword));
+      if (excluded_bold_keyword (display)) continue;
+      std::string serialized= to_std (tree_to_texmacs (keyword));
+      int occurrence= ++occurrences[serialized];
+      if (serialized == record.keyword_tree &&
+          occurrence == record.keyword_occurrence) {
+        focus= (long) i;
+        break;
+      }
+    }
+    if (focus >= 0) break;
+  }
+  if (focus < 0) {
+    error= "Artifact source no longer matches the artifact database";
+    return false;
+  }
+  if (record.paragraph_offsets.empty () ||
+      std::find (record.paragraph_offsets.begin (),
+                 record.paragraph_offsets.end (), 0) ==
+        record.paragraph_offsets.end ()) {
+    error= "Artifact paragraph range is invalid";
+    return false;
+  }
+
+  long first= focus;
+  long last= focus;
+  for (int offset: record.paragraph_offsets) {
+    long index= focus + offset;
+    if (index < 0 || index >= (long) paragraphs.size () ||
+        paragraphs[(size_t) index].segment !=
+          paragraphs[(size_t) focus].segment) {
+      error= "Artifact paragraph range is stale";
+      return false;
+    }
+    first= std::min (first, index);
+    last= std::max (last, index);
+  }
+  for (long index= first; index<=last; index++)
+    if (std::find (record.paragraph_offsets.begin (),
+                   record.paragraph_offsets.end (),
+                   (int) (index - focus)) ==
+        record.paragraph_offsets.end ()) {
+      error= "Artifact paragraph range is not continuous";
+      return false;
+    }
+
+  location.focus_child= paragraphs[(size_t) focus].first_child;
+  location.first_child= paragraphs[(size_t) first].first_child;
+  location.last_child= paragraphs[(size_t) last].last_child;
   return true;
 }
 

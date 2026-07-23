@@ -36,6 +36,12 @@ struct AthenaArtifactRecord {
   int document_order= 0;
 };
 
+struct AthenaArtifactParagraphLocation {
+  int focus_child= -1;
+  int first_child= -1;
+  int last_child= -1;
+};
+
 struct AthenaArtifactsBuildResult {
   size_t documents_seen= 0;
   size_t documents_changed= 0;
@@ -100,6 +106,13 @@ bool athena_artifacts_extract_document (const tree& document,
                                         const std::string& relative_path,
                                         std::vector<AthenaArtifactRecord>& records,
                                         std::string& error);
+
+// Reconstruct the source paragraph span recorded for a bold-text artifact.
+// This deliberately shares the extractor's paragraph model so database
+// records cannot drift from inserter navigation.
+bool athena_artifact_locate_paragraph (
+  const tree& document, const AthenaArtifactRecord& record,
+  AthenaArtifactParagraphLocation& location, std::string& error);
 
 // Internal process worker used by the incremental parallel extractor.
 bool athena_artifacts_run_extract_worker (

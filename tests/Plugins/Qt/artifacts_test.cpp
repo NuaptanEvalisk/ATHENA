@@ -29,6 +29,7 @@ private slots:
   void selectsDefinitionRangeWithConfiguredModel ();
   void extractsEnunciationsBoldTextAndProofLink ();
   void boundsBoldDefinitionCandidatesAtEnunciations ();
+  void locatesStoredParagraphRange ();
   void doesNotLinkNonAdjacentProof ();
   void buildsIncrementallyAndPurgesDeletedDocuments ();
   void reportsBuildPhasesInOrder ();
@@ -178,6 +179,49 @@ TestArtifacts::boundsBoldDefinitionCandidatesAtEnunciations () {
   QCOMPARE (bold->definition_candidates[1].first, 1);
   QVERIFY (bold->definition_candidates[0].second.find ("equation*") !=
            std::string::npos);
+}
+
+void
+TestArtifacts::locatesStoredParagraphRange () {
+  MissingRangeModel noModel;
+  tree definition (CONCAT);
+  definition << "A map is a " << compound ("strong", "covering map")
+             << " when it satisfies the local condition.";
+  tree body (DOCUMENT);
+  body << "Earlier paragraph."
+       << definition
+       << compound ("equation*", "p^{-1}(U)=\\bigsqcup_i V_i")
+       << "The definition continues here."
+       << "A later paragraph in the same segment."
+       << compound ("theorem", "A segment boundary.");
+  tree document (DOCUMENT);
+  document << compound ("TeXmacs", "2.1.4")
+           << compound ("style", "generic")
+           << compound ("body", body);
+
+  std::vector<AthenaArtifactRecord> records;
+  std::string error;
+  QVERIFY2 (athena_artifacts_extract_document (document, "located.ath",
+                                                records, error),
+            error.c_str ());
+  auto bold= std::find_if (records.begin (), records.end (), [] (const auto& r) {
+    return r.origin == "bold-text";
+  });
+  QVERIFY (bold != records.end ());
+  bold->paragraph_offsets= {0, 1};
+
+  AthenaArtifactParagraphLocation location;
+  QVERIFY2 (athena_artifact_locate_paragraph (
+              document, *bold, location, error), error.c_str ());
+  QCOMPARE (location.focus_child, 1);
+  QCOMPARE (location.first_child, 1);
+  QCOMPARE (location.last_child, 3);
+
+  bold->paragraph_offsets= {0, 2};
+  error.clear ();
+  QVERIFY (!athena_artifact_locate_paragraph (
+    document, *bold, location, error));
+  QCOMPARE (error, std::string ("Artifact paragraph range is not continuous"));
 }
 
 void
