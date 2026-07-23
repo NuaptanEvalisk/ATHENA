@@ -16,6 +16,8 @@
 #include "translator.hpp"
 #include "iterator.hpp"
 
+#include <cstdlib>
+
 bool virtually_defined (string c, string name);
 font smart_font_bis (string f, string v, string s, string sh, int sz,
                      int hdpi, int vdpi);
@@ -985,6 +987,13 @@ smart_font_rep::advance (string s, int& pos, string& r, int& nr) {
   if (N(fn) <= nr || is_nil (fn[nr])) initialize_font (nr);
   if (sm->fn_rewr[nr] != REWRITE_NONE)
     r= rewrite (r, sm->fn_rewr[nr]);
+  if (std::getenv ("ATHENA_FONT_RESOLUTION_DEBUG") != nullptr &&
+      starts (s (start, pos), "<big-"))
+    cout << "FONT-RESOLUTION source=" << s (start, pos)
+         << " family=" << family
+         << " series=" << series
+         << " spec=" << sm->fn_spec[nr]
+         << " subfont=" << fn[nr]->res_name << "\n";
   //cout << "Got " << r << " in " << fn[nr]->res_name << "\n";
 }
 
@@ -1248,6 +1257,14 @@ smart_font_rep::resolve (string c) {
     return sm->add_char (tuple ("emoji"), c);
 
   if (math_kind != 0) {
+    if (series == "bold" && starts (c, "<big-") &&
+        !fn[SUBFONT_MAIN]->supports (c)) {
+      tree key= tuple ("synthetic-bold-rubber");
+      int nr= sm->add_font (key, REWRITE_NONE);
+      initialize_font (nr);
+      if (fn[nr]->supports (c))
+        return sm->add_char (key, c);
+    }
     string upc= substitute_upright (c);
     if (upc != "" && fn[SUBFONT_MAIN]->supports (upc)) {
       tree key= tuple ("up");
@@ -1443,6 +1460,12 @@ smart_font_rep::initialize_font (int nr) {
     double emb= 5.0/3.0;
     double fat= ((emb - 1.0) * sfn->wline) / sfn->wfn;
     fn[nr]= poor_bold_font (sfn, fat, fat); }
+  else if (a[0] == "synthetic-bold-rubber" && N(a) == 1) {
+    font sfn= smart_font_bis (family, variant, "medium", shape, sz, hdpi, dpi);
+    font rfn= rubber_font (sfn);
+    double emb= 5.0/3.0;
+    double fat= ((emb - 1.0) * rfn->wline) / rfn->wfn;
+    fn[nr]= poor_bold_font (rfn, fat, fat); }
   else if (a[0] == "poor-bbb" && N(a) == 3) {
     double pw= as_double (a[1]);
     double ph= as_double (a[2]);
