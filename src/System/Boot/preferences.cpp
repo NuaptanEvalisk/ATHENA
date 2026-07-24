@@ -291,7 +291,6 @@ ensure_builtin_user_preferences () {
     PREF ("vault normalize image filename when inserting", "off", ""),
     PREF ("vault auto anchor enunciations on save", "off", ""),
     PREF ("vault auto approve anchor changes", "off", ""),
-    PREF ("vault normalize person names on save", "off", ""),
 
     PREF ("bidirectional navigation", "off",
           "notify-bidirectional-navigation"),

@@ -5,6 +5,7 @@
 ******************************************************************************/
 
 #include "ATHENA/Data/vault_maintenance_internal.hpp"
+#include "ATHENA/Features/athena_features.hpp"
 
 #include "ATHENA/Data/vaultfile_json.hpp"
 #include "boot.hpp"
@@ -350,6 +351,7 @@ summary_document_text (VaultMaintenanceContext& ctx, bool success,
                       std::to_string (summary.health_files_scanned) +
                       " .ath file(s), unreadable " +
                       std::to_string (summary.health_files_failed))}),
+#if ATHENA_ENABLE_PERSON_SUBSYSTEM
     tm_row ({tm_text ("Person names"),
              tm_text ("wrapped " +
                       std::to_string (summary.person_names_wrapped) +
@@ -357,6 +359,7 @@ summary_document_text (VaultMaintenanceContext& ctx, bool success,
                       std::to_string (summary.person_files_changed) + " of " +
                       std::to_string (summary.person_files_scanned) +
                       " .ath file(s)")}),
+#endif
     tm_row ({tm_text ("Anchors"),
              tm_text ("wrapped " +
                       std::to_string (summary.anchor_enunciations_wrapped) +
@@ -561,11 +564,13 @@ vault_maintenance_pass_print_summary (VaultMaintenanceContext& ctx) {
             std::to_string (summary.health_files_scanned) +
             " .ath file(s); unreadable " +
             std::to_string (summary.health_files_failed));
+#if ATHENA_ENABLE_PERSON_SUBSYSTEM
   log_info ("summary: wrapped " +
             std::to_string (summary.person_names_wrapped) +
             " person-name occurrence(s) in " +
             std::to_string (summary.person_files_changed) + " of " +
             std::to_string (summary.person_files_scanned) + " .ath file(s)");
+#endif
   log_info ("summary: anchored " +
             std::to_string (summary.anchor_enunciations_wrapped) +
             " enunciation(s) and " +

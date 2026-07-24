@@ -9,6 +9,7 @@
 ******************************************************************************/
 
 #include "QTMPreferencesDialog.hpp"
+#include "ATHENA/Features/athena_features.hpp"
 #include "QTMESCSymbolPicker.hpp"
 #include "QTMMainTabWindow.hpp"
 #include "QTMWidget.hpp"
@@ -1549,11 +1550,13 @@ QTMPreferencesDialog::buildVaultPage () {
                  "vault wikilink display template anchor", "%c");
   finish_page (wikilinks);
 
+#if ATHENA_ENABLE_PERSON_SUBSYSTEM
   QWidget* persons= make_page ();
   QFormLayout* pn= add_section (persons, "Persons");
   add_toggle (pn, "Automatically tag recognized person names on save:",
               "vault normalize person names on save");
   finish_page (persons);
+#endif
 
   QWidget* maintenance= make_page ();
   QFormLayout* mt= add_section (maintenance, "Maintenance");
@@ -1819,7 +1822,9 @@ QTMPreferencesDialog::buildVaultPage () {
                   {"Navigation", navigation},
                   {"Namespaces", namespaces},
                   {"Wikilinks and Transclusion", wikilinks},
+#if ATHENA_ENABLE_PERSON_SUBSYSTEM
                   {"Persons", persons},
+#endif
                   {"Maintenance", maintenance},
                   {"Anchors and Images", anchors},
                   {"Vault Info", info}});

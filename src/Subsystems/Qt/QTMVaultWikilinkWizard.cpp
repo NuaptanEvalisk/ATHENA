@@ -9,8 +9,12 @@
 ******************************************************************************/
 
 #include "QTMVaultWikilinkWizard.hpp"
+#include "ATHENA/Features/athena_features.hpp"
 #include "QTMCompletingComboBox.hpp"
+#if ATHENA_ENABLE_PERSON_SUBSYSTEM
 #include "QTMPersonsExplorer.hpp"
+#include "ATHENA/Data/person_names.hpp"
+#endif
 #include "QTMVaultAnchorModel.hpp"
 #include "QTMVaultArtifactPage.hpp"
 #include "QTMVaultLinkModel.hpp"
@@ -23,7 +27,6 @@
 #include "scheme.hpp"
 #include "tree_search.hpp"
 #include "vault.hpp"
-#include "ATHENA/Data/person_names.hpp"
 #include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
@@ -345,7 +348,9 @@ public:
   void refreshNamespaces ();
   QString selectedNamespace () const;
   QString selectedEnunciation () const;
+#if ATHENA_ENABLE_PERSON_SUBSYSTEM
   QString selectedPerson () const;
+#endif
   bool caseInsensitiveSearch () const;
   bool fuzzySearch () const;
   void startSearch ();
@@ -360,7 +365,9 @@ public:
   QLineEdit*   queryEdit;
   QComboBox*   namespaceCombo;
   QComboBox*   enunciationCombo;
+#if ATHENA_ENABLE_PERSON_SUBSYSTEM
   QComboBox*   personCombo;
+#endif
   QCheckBox*   caseInsensitiveCheck;
   QCheckBox*   fuzzyCheck;
   QPushButton* searchButton;
@@ -867,10 +874,12 @@ WikilinkSearchPage::WikilinkSearchPage (QWidget* parent)
   for (const WikilinkEnunciationFilterEntry& entry: wikilink_enunciation_filters)
     enunciationCombo->addItem (entry.label, entry.tag);
   enunciationCombo->setMinimumWidth (190);
+#if ATHENA_ENABLE_PERSON_SUBSYSTEM
   personCombo= new QComboBox (this);
   personCombo->setEditable (true);
   personCombo->setInsertPolicy (QComboBox::NoInsert);
   personCombo->lineEdit ()->setPlaceholderText ("Any person");
+#endif
   caseInsensitiveCheck= new QCheckBox ("Case-insensitive", this);
   caseInsensitiveCheck->setChecked (
     get_preference (wikilink_search_case_pref, "off") == "on");
@@ -915,8 +924,10 @@ WikilinkSearchPage::WikilinkSearchPage (QWidget* parent)
   filters->addWidget (namespaceCombo, 0, 1);
   filters->addWidget (new QLabel ("Enunciation:", this), 0, 2);
   filters->addWidget (enunciationCombo, 0, 3);
+#if ATHENA_ENABLE_PERSON_SUBSYSTEM
   filters->addWidget (new QLabel ("Person:", this), 1, 0);
   filters->addWidget (personCombo, 1, 1);
+#endif
   filters->addWidget (new QLabel ("Matching:", this), 2, 0);
   QHBoxLayout* matching= new QHBoxLayout ();
   matching->setContentsMargins (0, 0, 0, 0);
@@ -960,8 +971,12 @@ WikilinkSearchPage::WikilinkSearchPage (QWidget* parent)
   setTabOrder (queryEdit, searchButton);
   setTabOrder (searchButton, namespaceCombo);
   setTabOrder (namespaceCombo, enunciationCombo);
+#if ATHENA_ENABLE_PERSON_SUBSYSTEM
   setTabOrder (enunciationCombo, personCombo);
   setTabOrder (personCombo, caseInsensitiveCheck);
+#else
+  setTabOrder (enunciationCombo, caseInsensitiveCheck);
+#endif
   setTabOrder (caseInsensitiveCheck, fuzzyCheck);
   setTabOrder (fuzzyCheck, resultList);
   setTabOrder (resultList, anchorList);
@@ -1074,11 +1089,13 @@ WikilinkSearchPage::refreshNamespaces () {
   namespaceCombo->addItems (names);
   namespaceCombo->setCurrentText (current);
 
+#if ATHENA_ENABLE_PERSON_SUBSYSTEM
   QString person= personCombo->currentText ().trimmed ();
   personCombo->clear ();
   personCombo->addItem (QString ());
   personCombo->addItems (qtm_vault_person_names ());
   personCombo->setCurrentText (person);
+#endif
 }
 
 QString
@@ -1093,11 +1110,13 @@ WikilinkSearchPage::selectedEnunciation () const {
   return enunciationCombo->currentData ().toString ().trimmed ();
 }
 
+#if ATHENA_ENABLE_PERSON_SUBSYSTEM
 QString
 WikilinkSearchPage::selectedPerson () const {
   return personCombo == nullptr ? QString () :
     personCombo->currentText ().trimmed ();
 }
+#endif
 
 bool
 WikilinkSearchPage::caseInsensitiveSearch () const {
@@ -1114,10 +1133,12 @@ WikilinkSearchPage::searchFile (url u, const tree& query,
                                 std::vector<WikilinkSearchResult>& hits) const {
   try {
     tree body= import_body_for_preview (u);
+#if ATHENA_ENABLE_PERSON_SUBSYSTEM
     QString person= selectedPerson ();
     if (!person.isEmpty () &&
         !athena_tree_contains_person_text (body, from_qstring (person)))
       return 0;
+#endif
     int oldMode= set_access_mode (DRD_ACCESS_SOURCE);
     std::vector<VaultContentMatch> matches;
     try {

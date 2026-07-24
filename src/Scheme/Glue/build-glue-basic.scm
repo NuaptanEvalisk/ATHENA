@@ -246,8 +246,6 @@
   (tree-descendant-env get_env_descendant (tree content path string content))
   (tree-load-inclusion load_inclusion (tree url))
   (tree-as-string tree_as_string (string content))
-  (athena-normalize-person-names athena_normalize_person_names_for_scheme
-    (tree tree))
   (tree-extents tree_extents (tree content))
   (tree-empty? is_empty (bool content))
   (tree-multi-line? is_multi_line (bool content))
@@ -846,7 +844,6 @@
   (vault-choose-link vault_choose_link (tree bool))
   (vault-quick-switcher vault_quick_switcher (tree array_string))
   (vault-show-explorer vault_show_explorer (void))
-  (persons-explorer-show persons_explorer_show (void))
   (vault-explorer-track-file vault_explorer_track_file (void url))
   (global-search-show global_search_show (void))
   (athena-diff-show athena_diff_show (void))

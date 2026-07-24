@@ -14,7 +14,6 @@
 (texmacs-module (athena menus utility-menus)
   (:use (athena athena tm-tools)
         (athena athena tm-vault)
-        (athena athena tm-vault-persons)
         (athena athena tm-vault-namespaces)
         (athena athena tm-websites)
         (athena tools shortcut-listing)))
@@ -30,7 +29,6 @@
 (menu-bind athena-view-panes-menu
   ("Vault Explorer" (open-vault-explorer))
   ("Namespace Explorer" (open-namespace-explorer))
-  ("Persons Explorer" (open-persons-explorer))
   ("Vault backup viewer" (open-vault-backup-viewer)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

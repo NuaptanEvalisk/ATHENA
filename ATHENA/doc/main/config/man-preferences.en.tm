@@ -672,9 +672,6 @@
     Global Search. When enabled, approximate matches are included after exact
     matches. Queries shorter than four characters remain exact-only.
 
-    The optional Person selector in Global Search further limits results to
-    documents containing the selected person name as text.
-
     <item*|Preferred initial neighborhood>Chooses the first selected row for a
     document in the neighborhoods viewer. The default is the first direct
     namespace-based neighborhood; the alternative is the path-based
@@ -728,11 +725,6 @@
     text inside eligible enunciations. Exact matches are listed first. This
     does not affect the file-first page of the wizard.
 
-    Both search pages also provide an optional Person selector populated from
-    semantic <markup|person> tags in the current vault. Selecting a person
-    requires the corresponding name to occur as text in every matching
-    document.
-
     <item*|Wikilink default display text for files>Template used to fill the
     display text field when a wikilink targets a whole file. The default is
     <verbatim|%f>.
@@ -754,23 +746,6 @@
   content or anchor display text, <verbatim|%C> capitalizes the first character
   of that content, and <verbatim|%s> lowercases the first character of that
   content.
-
-  <subsection|Persons>
-
-  <\description>
-    <item*|Automatically tag recognized person names on save>Wraps
-    recognized whole person names in the semantic <markup|person> content tag
-    before saving. Recognition uses ATHENA's bundled Wikidata-derived
-    name snapshot together with person names already tagged in the document.
-    Existing person tags, formulas, source code, and non-editable structural
-    arguments are left unchanged. The option is disabled by default.
-  </description>
-
-  <menu|View|Persons Explorer> lists person tags actually present in the
-  active vault. Selecting a person lists all tagged occurrences; opening an
-  occurrence jumps to its document. Vault Maintenance always performs the
-  same normalization across all <verbatim|.ath> documents and first learns
-  any person names already tagged in the vault.
 
   <subsection|Maintenance>
 
