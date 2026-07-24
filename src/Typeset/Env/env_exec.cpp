@@ -1241,7 +1241,10 @@ edit_env_rep::exec_use_package (tree t) {
     string doc_s;
     if (!load_string (name, doc_s, false)) {
       tree doc= texmacs_document_to_tree (doc_s);
-      if (is_compound (doc))
+      if (is_func (doc, _ERROR))
+        std_warning << "Style parse error in " << name << ": "
+                    << doc[0] << LF;
+      else if (is_compound (doc))
         exec (filter_style (extract (doc, "body")));
     }
   }

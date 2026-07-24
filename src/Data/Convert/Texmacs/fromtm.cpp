@@ -28,6 +28,9 @@ struct tm_reader {
   string  buf;                // the string being read from
   int     pos;                // the current position of the reader
   string  last;               // last read string
+  bool    malformed;          // malformed input was encountered
+  int     error_pos;          // byte position of the first parse error
+  string  error_message;      // description of the first parse error
 
   tm_reader (string buf2):
     version (TEXMACS_COMPAT_VERSION),
@@ -35,16 +38,19 @@ struct tm_reader {
     EXPAND_APPLY (EXPAND),
     backslash_ok (true),
     with_extensions (true),
-    buf (buf2), pos (0), last ("") {}
+    buf (buf2), pos (0), last (""),
+    malformed (false), error_pos (-1), error_message ("") {}
   tm_reader (string buf2, string version2):
     version (version2),
     codes (get_codes (version)),
     EXPAND_APPLY (version_inf (version, "0.3.3.22")? APPLY: EXPAND),
     backslash_ok (version_inf (version, "1.0.1.23")? false: true),
     with_extensions (version_inf (version, "1.0.2.4")? false: true),
-    buf (buf2), pos (0), last ("") {}
+    buf (buf2), pos (0), last (""),
+    malformed (false), error_pos (-1), error_message ("") {}
 
   int    skip_blank ();
+  void   fail (int at, string message);
   string decode (string s);
   string read_char ();
   string read_next ();
@@ -52,6 +58,14 @@ struct tm_reader {
   tree   read_apply (string s, bool skip_flag);
   tree   read (bool skip_flag);
 };
+
+void
+tm_reader::fail (int at, string message) {
+  if (malformed) return;
+  malformed= true;
+  error_pos= at;
+  error_message= message;
+}
 
 int
 tm_reader::skip_blank () {
@@ -197,14 +211,29 @@ tm_reader::read_apply (string name, bool skip_flag) {
   }
 
   bool closed= !skip_flag;
+  bool terminated= false;
+  bool block_header_ended= !skip_flag || last == "\\>";
   while (pos < N(buf)) {
     // cout << "last= " << last << LF;
     bool sub_flag= (skip_flag) && ((last == "") || (last[N(last)-1] != '|'));
     if (sub_flag) (void) skip_blank ();
     t << read (sub_flag);
     if ((last == "/>") || (last == "/|")) closed= true;
-    if (closed && ((last == ">") || (last == "/>"))) break;
+    if (skip_flag && !closed && last == ">") {
+      if (!block_header_ended)
+        block_header_ended= true;
+      else {
+        fail (pos > 0? pos - 1: pos, "unexpected closing delimiter");
+        break;
+      }
+    }
+    if (closed && ((last == ">") || (last == "/>"))) {
+      terminated= true;
+      break;
+    }
   }
+  if (!terminated && !malformed)
+    fail (pos, "unterminated <" * name * "|...> construct");
   // cout << "last= " << last << UNINDENT << LF;
   // cout << "Done" << LF;
 
@@ -331,16 +360,44 @@ tm_reader::read (bool skip_flag) {
   return D;
 }
 
+static tree
+finish_read (tm_reader& tmr) {
+  tree result= tmr.read (true);
+  if (!tmr.malformed) {
+    int parsed_end= tmr.pos;
+    tmr.skip_blank ();
+    if (tmr.pos < N(tmr.buf))
+      tmr.fail (parsed_end > 0? parsed_end - 1: parsed_end,
+                "unexpected closing delimiter");
+  }
+  if (!tmr.malformed) return result;
+
+  int line= 1;
+  int column= 1;
+  int limit= min (max (tmr.error_pos, 0), N(tmr.buf));
+  for (int i=0; i<limit; i++) {
+    if (tmr.buf[i] == '\n') {
+      line++;
+      column= 1;
+    }
+    else column++;
+  }
+  return tree (_ERROR,
+               "TeXmacs parse error at line " * as_string (line) *
+               ", column " * as_string (column) * ": " *
+               tmr.error_message);
+}
+
 tree
 texmacs_to_tree (string s) {
   tm_reader tmr (s);
-  return tmr.read (true);
+  return finish_read (tmr);
 }
 
 tree
 texmacs_to_tree (string s, string version) {
   tm_reader tmr (s, version);
-  return tmr.read (true);
+  return finish_read (tmr);
 }
 
 /******************************************************************************
@@ -396,6 +453,10 @@ texmacs_document_to_tree (string s) {
       if (s[i] == '>') break;
     string version= s (9, i);
     tree doc= texmacs_to_tree (s, version);
+    if (is_func (doc, _ERROR)) {
+      convert_error << doc[0] << LF;
+      return doc;
+    }
     if (is_compound (doc, "TeXmacs", 1) ||
         is_expand (doc, "TeXmacs", 1) ||
         is_apply (doc, "TeXmacs", 1))
