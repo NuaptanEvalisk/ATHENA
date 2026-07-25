@@ -8,9 +8,9 @@
 
 ATHENA is a mathematics-centered knowledge work environment built from GNU
 TeXmacs. It combines high-quality structured WYSIWYG typesetting with vaults,
-wikilinks, transclusions, namespaces, fast search, cloud task sync, continuous
-RAG, and import tooling for large Obsidian-style mathematical note
-collections.
+wikilinks, transclusions, namespaces, semantic artifacts, fast search, remote
+computation delegation, and import tooling for large Obsidian-style
+mathematical note collections.
 
 ![ATHENA screenshot](screenshot.png)
 
@@ -45,6 +45,32 @@ extension support, and a deep style system. The project also inherits decades
 of work by Joris van der Hoeven and the GNU TeXmacs contributors.
 
 ## Major Features
+
+### ATHENA 0.6 Highlights
+
+ATHENA 0.6 extends the document editor into a more connected mathematical
+knowledge environment while keeping vault data and document structure under
+the user's control.
+
+- Select indexed enunciations and definitions directly from the wikilink and
+  transclusion inserters, without rescanning the vault.
+- Delegate Continuous RAG embeddings and Artifact definition-span inference
+  through the shared authenticated ATHENA Delegation protocol and the
+  standalone `athena-transmitter`.
+- Use configurable, asynchronous OpenAI Codex completion with model and
+  reasoning controls, optional web search, editable detached output, and
+  multimodal input for selected figures and diagrams.
+- Create and edit native commutative-diagram AST objects, and use native
+  binomial and Stirling-number forms with structured Tab cycling.
+- Try a normal native-Wayland ATHENA desktop in a disposable WebRTC session at
+  [athweb.evalisk.org](https://athweb.evalisk.org/).
+- Maintain every structurally referenced vault asset, including PDFs, media,
+  includes, and arbitrary linked files, without breaking its document
+  references.
+- Monitor rendering FPS and editing latency in a per-document HUD, and use the
+  consolidated Preferences-based debugging controls when diagnosing problems.
+- Build model-free Linux, AppImage, DEB, RPM, and Windows release artifacts
+  through the unified release driver. ATHENA now requires Qt 6.
 
 ### Vaults
 
@@ -85,6 +111,9 @@ documents.
 - Filter link search by namespace and target kind, including headings,
   paragraphs, and enunciations; optionally use case-insensitive and fuzzy
   matching.
+- Select indexed enunciations and bold-text definitions from the Artifacts
+  database, with rendered previews and confirmed anchor creation for
+  definitions that do not yet have a reusable range.
 - Configure default wikilink display text templates separately for files,
   headings, and anchors.
 - Repair and resolve links when filenames or anchors move.
@@ -225,6 +254,8 @@ ATHENA heavily customizes the math typing experience.
   create a vertex, or drag from one vertex to another to create an arrow.
   Insert one from `Insert -> Mathematics -> Commutative diagram` or type
   `\\cd` and Enter.
+- Native binomial and first- and second-kind Stirling number forms. Tab and
+  Shift+Tab cycle among the three forms while preserving both arguments.
 - Inspect a formula's native tree in a reusable AST graph pane.
 
 The commutative-diagram interaction and styling model is inspired by
@@ -402,19 +433,22 @@ ATHENA can build a semantic inventory of mathematical objects in a vault.
 - Incrementally index enunciations, their proofs, and bold-text definitions in
   vault-local SQLite databases with stable UUIDs.
 - Browse, filter, and open indexed objects in the Artifacts ADS pane.
-- Build the whole vault or the current document from the Tools menu or as a
-  vault-maintenance pass.
+- Build the whole vault or the current document from `Workspace -> Artifacts`
+  or as a vault-maintenance pass.
 - Use a small local llama.cpp model to select definition paragraph ranges when
   installed, with a deterministic structural fallback when it is absent.
 - Optionally delegate definition-span selection through ATHENA Delegation's
   authenticated asynchronous FIFO and batched backend while keeping extraction
   and SQLite transactions local.
+- Select indexed artifacts directly in the wikilink and transclusion insertion
+  workflows.
 
 ### UI And Native Qt Work
 
 ATHENA has moved much of the knowledge-work interface into native Qt.
 
-- Qt 6 is the primary GUI path.
+- Qt 6 is the required GUI toolkit; the obsolete Qt 5 frontend has been
+  removed.
 - Qt Advanced Docking System panes.
 - Native Wayland docking for document panes through Qt's xdg-toplevel-drag path,
   with independent floating panes, taskbar-visible top-levels, system titlebars,
@@ -441,6 +475,8 @@ ATHENA has moved much of the knowledge-work interface into native Qt.
   font selection, wikilink insertion, transclusion insertion, page properties,
   paragraph properties, metadata, and namespace workflows.
 - Native Qt toast notifications.
+- Optional per-document rendering performance HUD with completed-paint FPS and
+  latest and five-second p95 editing latency.
 - Desktop icon theme integration for toolbar icons.
 - Startup splash progress reporting from real startup phases.
 - KDE/Wayland HiDPI scaling, input-method cursor placement, and fractional-DPR
@@ -479,11 +515,15 @@ Recent ATHENA work includes substantial low-level engineering:
 - Wayland fractional-scale scroll and centered-text repaint fixes.
 - Resizable and reopenable ADS panes.
 - Crash reporting through native dialogs.
+- Strict TeXmacs source parsing with file, line, and column diagnostics for
+  malformed documents and style packages instead of silent partial rendering.
 
 ### Web-Accessible ATHENA
 
 ATHENA can be demonstrated remotely without becoming a web application.
 
+- Try the public temporary instance at
+  [athweb.evalisk.org](https://athweb.evalisk.org/).
 - Serve a normal native-Wayland ATHENA desktop over WebRTC with the standalone
   `athena-web-server` broker.
 - Give every browser tab a dedicated, non-persistent rootless Podman sandbox
@@ -531,7 +571,7 @@ features are used, the document may become ATHENA-specific.
 
 ## Status
 
-ATHENA 0.5 is an active experimental system. It is powerful, opinionated, and
+ATHENA 0.6 is an active experimental system. It is powerful, opinionated, and
 still changing quickly. Expect rough edges. Expect features to be deeper than
 their polish. Expect the best experience on the developer's Linux setup.
 

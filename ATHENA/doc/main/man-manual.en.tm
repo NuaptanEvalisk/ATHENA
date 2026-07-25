@@ -10,6 +10,8 @@
 
     <branch|Getting started|start/man-getting-started.en.tm>
 
+    <branch|What is new in <ATHENA> 0.6|start/man-new-in-0.6.en.tm>
+
     <branch|ATHENA knowledge workflows|start/man-athena-workflows.en.tm>
 
     <branch|Writing simple documents|text/man-text.en.tm>

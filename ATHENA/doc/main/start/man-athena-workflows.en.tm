@@ -32,6 +32,13 @@
   recent-file entries, and auxiliary UUID hints are intentionally not
   rewritten in real time.
 
+  Vault Maintenance uses the same structural reference collector for images,
+  hyperlinks, card links, includes, sounds, videos, animations, and arbitrary
+  local files. It can normalize every referenced vault asset to a stable
+  asset-UUID name and rewrite all affected document references transactionally.
+  Structurally referenced files are never collected as orphans merely because
+  they are not images.
+
   Use <menu|File|Compare two files> to compare two <verbatim|.ath> documents.
   The resulting side-by-side document panes align document structure first
   and then highlight character changes inside corresponding text nodes.
@@ -108,11 +115,17 @@
   tree in a reusable graph pane. Generated tables of contents have screen-only
   folding controls; folding does not change document source or printed output.
 
+  Binomial coefficients and Stirling numbers of the first and second kinds are
+  native two-argument mathematical forms. While the cursor is inside one of
+  them, <key|Tab> and <key|Shift+Tab> cycle among all three notations without
+  changing either argument.
+
   <section|Artifacts, Codex, and RAG>
 
   The Artifacts system incrementally indexes enunciations, associated proofs,
   and bold-text definitions in vault-local SQLite databases. Build indexes for
-  the current document or the complete vault from <menu|Tools|Artifacts>, then
+  the current document or the complete vault from
+  <menu|Workspace|Artifacts>, then
   browse and search them in <menu|View|Artifacts>. If a compatible small GGUF
   model is installed, llama.cpp selects the paragraph range belonging to a
   bold definition; otherwise a deterministic structural fallback is used.
@@ -160,6 +173,23 @@
   Native Wayland and Windows support pinch view zoom without re-typesetting on
   every gesture update. Optional auto-hidden toolbars expand as an overlay, so
   revealing them does not resize or move the document viewport.
+
+  Enable <menu|Rendering performance monitor> under
+  <menu|Edit|Preferences|Other|Debugging> to show a semi-transparent HUD in
+  every document editor. It reports completed-paint frames per second, the
+  latest input-to-paint latency, and the five-second 95th-percentile latency.
+  Debugging preferences also centralize console visibility, backtraces, memory
+  reporting, and diagnostic logging channels.
+
+  <section|Web-accessible ATHENA>
+
+  <ATHENA> remains a native local application, but the standalone
+  <verbatim|athena-web-server> can expose temporary native-Wayland sessions over
+  WebRTC. Each browser tab receives an isolated, non-persistent Weston desktop
+  with <ATHENA>, a file manager, a terminal, and explicit Upload and Download
+  directories. Resource and session-time limits are enforced by the server;
+  closing the tab destroys the session. The public demonstration is available
+  at <hlink|athweb.evalisk.org|https://athweb.evalisk.org/>.
 
   <tmdoc-copyright|2026|Nuaptan Felix Evalisk>
 
