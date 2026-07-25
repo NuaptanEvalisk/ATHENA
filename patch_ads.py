@@ -636,6 +636,7 @@ def patch_ads_floating_windows(base_dir):
         '#include <QDragLeaveEvent>',
         '#include <QDropEvent>',
         '#include <QMimeData>',
+        '#include <QTimer>',
         '#include <QVector>',
         '#include <QWindow>',
         '#include <fstream>',
@@ -788,8 +789,8 @@ athenaFloatingContainerParent(CDockManager* dockManager)
 
     if 'static const char* const AthenaAdsFloatingDockMime' in content:
         content = re.sub(
-            r'#if defined\(Q_OS_UNIX\) && !defined\(Q_OS_MACOS\) && '
-            r'\(QT_VERSION >= QT_VERSION_CHECK\(6, 0, 0\)\)\n'
+            r'#if defined\(Q_OS_UNIX\) && !defined\(Q_OS_MACOS\)'
+            r'(?: && \(QT_VERSION >= QT_VERSION_CHECK\(6, 0, 0\)\))?\n'
             r'static const char\* const AthenaAdsFloatingDockMime.*?'
             r'#endif\n\s*static unsigned int zOrderCounterFloating = 0;\n',
             WAYLAND_DOCK_DRAG_HELPERS + '\n\nstatic unsigned int zOrderCounterFloating = 0;\n',
@@ -1050,6 +1051,7 @@ static void
 athenaLogWindowSurface(const char* label, QWidget* widget)
 {
 \tQWindow* window = widget == nullptr ? nullptr : widget->windowHandle();
+\tQScreen* screen = window == nullptr ? nullptr : window->screen();
 \tstd::ostringstream line;
 \tline << "ATHENA_GIANT " << label
 \t     << " widget=" << widget
@@ -1062,12 +1064,26 @@ athenaLogWindowSurface(const char* label, QWidget* widget)
 \t     << " size=" << athenaAdsSizeText(widget == nullptr ? QSize() : widget->size())
 \t     << " geometry=" << athenaAdsRectText(widget == nullptr ? QRect() : widget->geometry())
 \t     << " frame=" << athenaAdsRectText(widget == nullptr ? QRect() : widget->frameGeometry())
+\t     << " minimum=" << athenaAdsSizeText(widget == nullptr ? QSize() : widget->minimumSize())
+\t     << " minimumHint=" << athenaAdsSizeText(widget == nullptr ? QSize() : widget->minimumSizeHint())
+\t     << " maximum=" << athenaAdsSizeText(widget == nullptr ? QSize() : widget->maximumSize())
+\t     << " sizeHint=" << athenaAdsSizeText(widget == nullptr ? QSize() : widget->sizeHint())
+\t     << " sizePolicy=" << (widget == nullptr ? -1 : int(widget->sizePolicy().horizontalPolicy()))
+\t     << "," << (widget == nullptr ? -1 : int(widget->sizePolicy().verticalPolicy()))
+\t     << " windowFlags=" << (widget == nullptr ? 0 : quint64(widget->windowFlags()))
+\t     << " windowState=" << (widget == nullptr ? 0 : int(widget->windowState()))
 \t     << " widgetDpr=" << (widget == nullptr ? 0.0 : widget->devicePixelRatioF())
 \t     << " win=" << window
 \t     << " winVisible=" << (window != nullptr && window->isVisible())
 \t     << " winSize=" << athenaAdsSizeText(window == nullptr ? QSize() : window->size())
 \t     << " winGeometry=" << athenaAdsRectText(window == nullptr ? QRect() : window->geometry())
-\t     << " winDpr=" << (window == nullptr ? 0.0 : window->devicePixelRatio());
+\t     << " winMinimum=" << athenaAdsSizeText(window == nullptr ? QSize() : window->minimumSize())
+\t     << " winMaximum=" << athenaAdsSizeText(window == nullptr ? QSize() : window->maximumSize())
+\t     << " winFlags=" << (window == nullptr ? 0 : quint64(window->flags()))
+\t     << " winState=" << (window == nullptr ? 0 : int(window->windowState()))
+\t     << " winDpr=" << (window == nullptr ? 0.0 : window->devicePixelRatio())
+\t     << " screenGeometry=" << athenaAdsRectText(screen == nullptr ? QRect() : screen->geometry())
+\t     << " screenAvailable=" << athenaAdsRectText(screen == nullptr ? QRect() : screen->availableGeometry());
 \tathenaAdsGiantLog(line.str());
 \tif (athenaAdsWaylandDebugEnabled())
 \t{
@@ -1528,6 +1544,25 @@ bool CFloatingDockContainer::athenaTryStartWaylandDockDrag(const QPoint& hotSpot
 \tdrag.exec(Qt::MoveAction, Qt::MoveAction);
 \tathenaLogTopLevelWindows("after-qdrag-exec");
 \tathenaLogWindowSurface("after-qdrag-floating", this);
+\tQPointer<CFloatingDockContainer> delayedFloating(this);
+\tQTimer::singleShot(0, this, [delayedFloating]() {
+\t\tif (delayedFloating)
+\t\t{
+\t\t\tathenaLogWindowSurface("after-qdrag-floating-0ms", delayedFloating);
+\t\t}
+\t});
+\tQTimer::singleShot(100, this, [delayedFloating]() {
+\t\tif (delayedFloating)
+\t\t{
+\t\t\tathenaLogWindowSurface("after-qdrag-floating-100ms", delayedFloating);
+\t\t}
+\t});
+\tQTimer::singleShot(500, this, [delayedFloating]() {
+\t\tif (delayedFloating)
+\t\t{
+\t\t\tathenaLogWindowSurface("after-qdrag-floating-500ms", delayedFloating);
+\t\t}
+\t});
 \tif (athenaWaylandDockDragActive())
 \t{
 \t\tathenaFinishWaylandDockDrag(false);
