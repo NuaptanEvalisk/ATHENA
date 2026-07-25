@@ -30,6 +30,10 @@
 (define-group math-table-tag
   matrix det bmatrix Bmatrix)
 
+(tm-define (kbd-variant t forwards?)
+  (:require (tree-in? t (combinatorial-number-tag-list)))
+  (variant-circulate t forwards?))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Spaces
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
