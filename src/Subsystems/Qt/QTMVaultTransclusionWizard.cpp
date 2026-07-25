@@ -1690,6 +1690,7 @@ QTMVaultTransclusionWizard::QTMVaultTransclusionWizard (QWidget* parent)
 void
 QTMVaultTransclusionWizard::showEvent (QShowEvent* event) {
   QWizard::showEvent (event);
+  scheduleLoadFiles ();
 }
 
 void
@@ -1702,7 +1703,7 @@ void
 QTMVaultTransclusionWizard::scheduleLoadFiles () {
   if (filesLoaded || filesLoadScheduled) return;
   filesLoadScheduled= true;
-  QTimer::singleShot (350, this, [this] () {
+  QTimer::singleShot (0, this, [this] () {
     if (filesLoaded) return;
     loadFiles ();
     if (filePage != nullptr) filePage->updateList ();
