@@ -668,7 +668,7 @@ std::string
 document_bridge_script () {
   std::string js;
   if (!website_template_text ("document-bridge.js", js)) return "";
-  return "<script data-athena-website-bridge=\"2\">\n"
+  return "<script data-athena-website-bridge=\"3\">\n"
          "/* ATHENA_WEBSITE_BRIDGE_BEGIN */\n" + js +
          "\n/* ATHENA_WEBSITE_BRIDGE_END */\n</script>\n";
 }

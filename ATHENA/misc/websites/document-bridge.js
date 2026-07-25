@@ -90,6 +90,23 @@
     try{location.hash=target.id;}catch(e){}
     target.scrollIntoView({block:'start',inline:'nearest'});
   }
+  function prepareExternalWebLinks(){
+    Array.prototype.forEach.call(document.querySelectorAll('a[href]'),function(link){
+      var href=String(link.getAttribute('href')||'').trim();
+      if(!/^(?:https?:)?\/\//i.test(href)) return;
+      link.setAttribute('target','_blank');
+      var rel=String(link.getAttribute('rel')||'').split(/\s+/)
+        .filter(function(value){return value.length>0;});
+      ['noopener','noreferrer'].forEach(function(value){
+        if(rel.indexOf(value)<0) rel.push(value);
+      });
+      link.setAttribute('rel',rel.join(' '));
+    });
+  }
+  function initializeDocumentBridge(){
+    prepareExternalWebLinks();
+    sendOutline();
+  }
   window.athenaMissingTarget=function(target){
     if(hasShellParent()) send('athena-missing-target',{target:String(target)});
     else showStandaloneMissing(target);
@@ -105,8 +122,8 @@
     else if(data.type==='athena-request-outline') sendOutline();
   });
   if(document.readyState==='loading')
-    document.addEventListener('DOMContentLoaded',sendOutline);
-  else sendOutline();
+    document.addEventListener('DOMContentLoaded',initializeDocumentBridge);
+  else initializeDocumentBridge();
   window.addEventListener('load',sendOutline);
   setTimeout(sendOutline,250);
 })();

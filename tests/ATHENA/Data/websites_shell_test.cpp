@@ -22,6 +22,7 @@ class TestWebsiteShell: public QObject {
 
 private slots:
   void writesOneVersionedAssetGeneration ();
+  void externalWebLinksOpenOutsideDocumentFrame ();
 };
 
 static QString
@@ -67,6 +68,20 @@ TestWebsiteShell::writesOneVersionedAssetGeneration () {
   }
   QCOMPARE (count, 9);
   QCOMPARE (version.size (), 16);
+}
+
+void
+TestWebsiteShell::externalWebLinksOpenOutsideDocumentFrame () {
+  std::string bridge;
+  QVERIFY (website_template_text ("document-bridge.js", bridge));
+  QString script= QString::fromStdString (bridge);
+
+  QVERIFY (script.contains ("document.querySelectorAll('a[href]')"));
+  QVERIFY (script.contains ("/^(?:https?:)?\\/\\//i"));
+  QVERIFY (script.contains ("link.setAttribute('target','_blank')"));
+  QVERIFY (script.contains ("['noopener','noreferrer']"));
+  QVERIFY (script.contains (
+    "document.addEventListener('DOMContentLoaded',initializeDocumentBridge)"));
 }
 
 QTEST_APPLESS_MAIN (TestWebsiteShell)
