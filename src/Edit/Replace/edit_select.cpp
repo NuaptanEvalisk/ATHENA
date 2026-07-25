@@ -400,6 +400,16 @@ edit_select_rep::selection_get_subtable (
   return fp;
 }
 
+static path
+selection_table_path (tree et, path p) {
+  if (!is_nil (p)) p= path_up (p);
+  while (!is_nil (p)) {
+    if (is_func (subtree (et, p), TABLE)) return p;
+    p= path_up (p);
+  }
+  return path ();
+}
+
 selection
 edit_select_rep::compute_selection (path p1, path p2) {
   if (is_table_selection (et, p1, p2, true)) {
@@ -428,6 +438,13 @@ edit_select_rep::compute_selection (path p1, path p2) {
     selection_correct (p1, p2, p_start, p_end);
     //cout << "Find " << p_start << " -- " << p_end << "\n";
     selection sel= eb->find_check_selection (p_start, p_end);
+    path tf1= selection_table_path (et, p1);
+    path tf2= selection_table_path (et, p2);
+    // A promoted table boundary may have no direct cursor box, even though
+    // find_selection returned the complete table-to-text geometry.
+    if (!sel->valid && !is_nil (sel->rs) && tf1 != tf2 &&
+        (!is_nil (tf1) || !is_nil (tf2)))
+      sel->valid= true;
     //cout << "sel= " << sel << "\n";
     return sel;
   }
