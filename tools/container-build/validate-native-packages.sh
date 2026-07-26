@@ -24,6 +24,10 @@ for flavor in dev rel; do
                  "$work/$flavor.opensuse.list" \
                  "$work/$flavor.rhel.list"; do
     grep -q '/opt/ATHENA/AppRun' "$listing"
+    grep -q '/opt/ATHENA/usr/share/ATHENA/bin/athena-transmitter' "$listing"
+    grep -q '/opt/ATHENA/usr/share/ATHENA/bin/athena-web-server' "$listing"
+    grep -q '/opt/ATHENA/usr/share/ATHENA/share/ATHENA/web/index.html' "$listing"
+    grep -q '/opt/ATHENA/usr/share/ATHENA/share/ATHENA/web/app.js' "$listing"
     if grep -E 'ATHENA\.bin\.before-|\.gguf|\.safetensors|\.onnx|\.ckpt|\.pth|\.pt|/\.venv/|/\.uv-cache/|/__pycache__/' \
         "$listing"; then
       echo "excluded release artifact found in $listing" >&2

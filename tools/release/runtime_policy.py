@@ -25,6 +25,16 @@ CACHE_DIRECTORY_NAMES = {
     "__pycache__",
 }
 
+LINUX_SERVICE_EXECUTABLES = (
+    PurePosixPath("bin/athena-transmitter"),
+    PurePosixPath("bin/athena-web-server"),
+)
+
+LINUX_WEB_ASSETS = (
+    PurePosixPath("share/ATHENA/web/index.html"),
+    PurePosixPath("share/ATHENA/web/app.js"),
+)
+
 
 def _normalized_relative(path: Path) -> PurePosixPath:
     return PurePosixPath(path.as_posix())
@@ -53,6 +63,8 @@ def source_only_reason(
     rel = _normalized_relative(relative)
     if rel == PurePosixPath("bin/ATHENA.bin") and not keep_athena_binary:
         return "development executable"
+    if rel in LINUX_SERVICE_EXECUTABLES:
+        return "development service executable"
     if (len(rel.parts) == 2 and rel.parts[0] == "bin" and
             rel.name.startswith("ATHENA.bin.before-")):
         return "historical development executable"
@@ -145,17 +157,42 @@ def forbidden_entries(root: Path) -> list[tuple[Path, str]]:
     return sorted(result)
 
 
-def verify_runtime(root: Path) -> None:
-    bad = forbidden_entries(root)
-    if not bad:
+def verify_linux_services(root: Path) -> None:
+    root = root.resolve()
+    missing = [
+        relative for relative in (*LINUX_SERVICE_EXECUTABLES, *LINUX_WEB_ASSETS)
+        if not (root / relative).is_file()
+    ]
+    non_executable = [
+        relative for relative in LINUX_SERVICE_EXECUTABLES
+        if (root / relative).is_file() and
+        not os.access(root / relative, os.X_OK)
+    ]
+    if not missing and not non_executable:
         return
-    details = "\n".join(
-        f"  {path}: {reason}" for path, reason in bad
+    details = []
+    details.extend(f"  missing: {relative}" for relative in missing)
+    details.extend(
+        f"  not executable: {relative}" for relative in non_executable
     )
     raise RuntimeError(
-        "runtime contains files forbidden from ATHENA release packages:\n" +
-        details
+        "Linux runtime does not contain complete ATHENA service tools:\n" +
+        "\n".join(details)
     )
+
+
+def verify_runtime(root: Path, require_linux_services: bool = False) -> None:
+    bad = forbidden_entries(root)
+    if bad:
+        details = "\n".join(
+            f"  {path}: {reason}" for path, reason in bad
+        )
+        raise RuntimeError(
+            "runtime contains files forbidden from ATHENA release packages:\n" +
+            details
+        )
+    if require_linux_services:
+        verify_linux_services(root)
 
 
 def main(argv: list[str]) -> int:
@@ -182,6 +219,11 @@ def main(argv: list[str]) -> int:
         "verify", help="reject model weights and generated Python state"
     )
     verify_parser.add_argument("runtime", type=Path)
+    verify_parser.add_argument(
+        "--require-linux-services",
+        action="store_true",
+        help="also require the Linux service binaries and Web Server assets",
+    )
 
     args = parser.parse_args(argv)
     try:
@@ -194,7 +236,10 @@ def main(argv: list[str]) -> int:
             )
             verify_runtime(args.destination)
         else:
-            verify_runtime(args.runtime)
+            verify_runtime(
+                args.runtime,
+                require_linux_services=args.require_linux_services,
+            )
     except RuntimeError as error:
         print(error, file=sys.stderr)
         return 1

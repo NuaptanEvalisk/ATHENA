@@ -186,6 +186,15 @@ assemble_linux_runtime () {
     "$runtime/bin/ATHENA.bin"
   run install -m 755 "$local_build_dir/src/athena-codex-bridge" \
     "$runtime/bin/athena-codex-bridge"
+  run install -m 755 \
+    "$local_build_dir/tools/athena-transmitter/athena-transmitter" \
+    "$runtime/bin/athena-transmitter"
+  run install -m 755 \
+    "$local_build_dir/tools/athena-web-server/athena-web-server" \
+    "$runtime/bin/athena-web-server"
+  run mkdir -p "$runtime/share/ATHENA/web"
+  run cp -a "$repo_root/tools/athena-web-server/web/." \
+    "$runtime/share/ATHENA/web/"
 
   if [[ "$dry_run" -eq 0 ]]; then
     shopt -s nullglob
@@ -199,7 +208,8 @@ assemble_linux_runtime () {
   else
     echo "+ cp -a $local_build_dir/x64/lib/libqt6advanceddocking\\*.so\\* $runtime/lib/"
   fi
-  run python3 "$script_dir/runtime_policy.py" verify "$runtime"
+  run python3 "$script_dir/runtime_policy.py" verify "$runtime" \
+    --require-linux-services
 }
 
 archive_linux_runtime () {
@@ -220,6 +230,29 @@ archive_linux_runtime () {
     mv -f "$temporary" "$artifact"
   fi
   checksum "$artifact"
+}
+
+archive_linux_services () {
+  local source_epoch
+  source_epoch="$(git -C "$repo_root" log -1 --format=%ct)"
+
+  run python3 "$script_dir/package_linux_service.py" \
+    --kind transmitter \
+    --binary "$local_build_dir/tools/athena-transmitter/athena-transmitter" \
+    --repo-root "$repo_root" \
+    --version "$version" \
+    --source-epoch "$source_epoch" \
+    --output "$release_dir/ATHENA-Transmitter-$version-linux-x86_64.tar.gz"
+  checksum "$release_dir/ATHENA-Transmitter-$version-linux-x86_64.tar.gz"
+
+  run python3 "$script_dir/package_linux_service.py" \
+    --kind web-server \
+    --binary "$local_build_dir/tools/athena-web-server/athena-web-server" \
+    --repo-root "$repo_root" \
+    --version "$version" \
+    --source-epoch "$source_epoch" \
+    --output "$release_dir/ATHENA-Web-Server-$version-linux-x86_64.tar.gz"
+  checksum "$release_dir/ATHENA-Web-Server-$version-linux-x86_64.tar.gz"
 }
 
 stage_container_artifacts () {
@@ -243,11 +276,18 @@ stage_container_artifacts () {
       copy_artifact "$package" "$release_dir/$(basename -- "$package")"
     done
   done
+
+  for source in \
+    "$container_build_dir/ATHENA-Transmitter-$version-linux-x86_64.tar.gz" \
+    "$container_build_dir/ATHENA-Web-Server-$version-linux-x86_64.tar.gz"; do
+    copy_artifact "$source" "$release_dir/$(basename -- "$source")"
+  done
 }
 
 wine_smoke_test () {
   local runtime="$release_dir/windows/ATHENA"
   local wine_command
+  local attempt
   if command -v wine64 >/dev/null 2>&1; then
     wine_command=wine64
   elif command -v wine >/dev/null 2>&1; then
@@ -263,17 +303,33 @@ wine_smoke_test () {
   fi
 
   local log="$windows_build_dir/wine-release-smoke.log"
+  local attempt_log
   mkdir -p "$(dirname -- "$log")"
-  (
-    cd -- "$runtime"
-    WINEDEBUG=-all timeout 60s "$wine_command" \
-      bin/ATHENA.exe -H -v >"$log" 2>&1
-  )
-  if ! grep -q 'ATHENA' "$log"; then
-    cat "$log" >&2
-    echo "Windows release smoke test did not report ATHENA." >&2
-    exit 1
-  fi
+  : >"$log"
+  for attempt in 1 2 3; do
+    attempt_log="$windows_build_dir/wine-release-smoke-$attempt.log"
+    (
+      cd -- "$runtime"
+      WINEDEBUG=-all timeout 60s "$wine_command" \
+        bin/ATHENA.exe -H -v >"$attempt_log" 2>&1
+    )
+    # A fresh Wine launch may keep initialization work in child processes.
+    # Wait for the complete Wine process group before inspecting its output.
+    WINEDEBUG=-all timeout 60s wineserver -w
+    {
+      echo "== attempt $attempt"
+      cat "$attempt_log"
+    } >>"$log"
+    if grep -q 'ATHENA' "$attempt_log"; then
+      return
+    fi
+    # Retry a freshly initialized Wine prefix after its background setup has
+    # completed, while still requiring a real ATHENA version response.
+    sleep 1
+  done
+  cat "$log" >&2
+  echo "Windows release smoke test did not report ATHENA." >&2
+  exit 1
 }
 
 archive_windows_runtime () {
@@ -301,6 +357,7 @@ if [[ "$build_local" -eq 1 ]]; then
   configure_local_build
   assemble_linux_runtime
   archive_linux_runtime
+  archive_linux_services
 fi
 
 if [[ "$build_container" -eq 1 ]]; then

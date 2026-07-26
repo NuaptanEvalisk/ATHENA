@@ -13,7 +13,7 @@ from pathlib import Path
 sys.path.insert(
     0, str(Path(__file__).resolve().parents[1] / "release")
 )
-from runtime_policy import verify_runtime
+from runtime_policy import verify_linux_services, verify_runtime
 
 
 def run(args: list[str], **kwargs) -> None:
@@ -24,6 +24,7 @@ def copy_payload(appdir: Path, root: Path) -> None:
     install_root = root / "opt/ATHENA"
     shutil.copytree(appdir, install_root, symlinks=True)
     verify_runtime(install_root)
+    verify_linux_services(install_root / "usr/share/ATHENA")
 
     bindir = root / "usr/bin"
     bindir.mkdir(parents=True, exist_ok=True)
@@ -144,6 +145,7 @@ def main() -> int:
     if not (appdir / "AppRun").is_file():
         raise SystemExit(f"invalid AppDir: {appdir}")
     verify_runtime(appdir)
+    verify_linux_services(appdir / "usr/share/ATHENA")
     outdir.mkdir(parents=True, exist_ok=True)
 
     with tempfile.TemporaryDirectory(prefix="athena-native-package-") as tmp:

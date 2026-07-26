@@ -408,6 +408,15 @@ copy_runtime_tree () {
   install -Dm755 "$build_dir/src/ATHENA.bin" "$out_dir/bin/ATHENA.bin"
   install -Dm755 "$build_dir/src/athena-codex-bridge" \
     "$out_dir/bin/athena-codex-bridge"
+  install -Dm755 \
+    "$build_dir/tools/athena-transmitter/athena-transmitter" \
+    "$out_dir/bin/athena-transmitter"
+  install -Dm755 \
+    "$build_dir/tools/athena-web-server/athena-web-server" \
+    "$out_dir/bin/athena-web-server"
+  mkdir -p "$out_dir/share/ATHENA/web"
+  cp -a "$repo_root/tools/athena-web-server/web/." \
+    "$out_dir/share/ATHENA/web/"
   if [ -x "$build_dir/src/codex" ]; then
     install -Dm755 "$build_dir/src/codex" "$out_dir/bin/codex"
   fi
@@ -427,7 +436,8 @@ copy_runtime_tree () {
   if compgen -G "$prefix/lib64/libggml*.so*" >/dev/null; then
     cp -a "$prefix"/lib64/libggml*.so* "$out_dir/lib/"
   fi
-  python3 "$repo_root/tools/release/runtime_policy.py" verify "$out_dir"
+  python3 "$repo_root/tools/release/runtime_policy.py" verify "$out_dir" \
+    --require-linux-services
 }
 
 build_athena_flavor () {
@@ -497,6 +507,30 @@ build_athena_flavor () {
     "$container_build_dir/packages" \
     "$label" \
     "$athena_version"
+
+  if [ "$label" = rel ]; then
+    source_epoch="$(git -C "$repo_root" log -1 --format=%ct)"
+    python3 "$repo_root/tools/release/package_linux_service.py" \
+      --kind transmitter \
+      --binary "$build_dir/tools/athena-transmitter/athena-transmitter" \
+      --repo-root "$repo_root" \
+      --version "$athena_version" \
+      --source-epoch "$source_epoch" \
+      --output "$container_build_dir/ATHENA-Transmitter-$athena_version-linux-x86_64.tar.gz"
+    python3 "$repo_root/tools/release/package_linux_service.py" \
+      --kind web-server \
+      --binary "$build_dir/tools/athena-web-server/athena-web-server" \
+      --repo-root "$repo_root" \
+      --version "$athena_version" \
+      --source-epoch "$source_epoch" \
+      --output "$container_build_dir/ATHENA-Web-Server-$athena_version-linux-x86_64.tar.gz"
+    sha256sum \
+      "$container_build_dir/ATHENA-Transmitter-$athena_version-linux-x86_64.tar.gz" \
+      > "$container_build_dir/ATHENA-Transmitter-$athena_version-linux-x86_64.tar.gz.sha256"
+    sha256sum \
+      "$container_build_dir/ATHENA-Web-Server-$athena_version-linux-x86_64.tar.gz" \
+      > "$container_build_dir/ATHENA-Web-Server-$athena_version-linux-x86_64.tar.gz.sha256"
+  fi
 }
 
 download_appimagetool () {

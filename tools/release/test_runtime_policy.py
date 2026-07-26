@@ -6,7 +6,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from runtime_policy import copy_runtime, verify_runtime
+from runtime_policy import (
+    copy_runtime,
+    verify_linux_services,
+    verify_runtime,
+)
 
 
 class RuntimePolicyTest(unittest.TestCase):
@@ -93,6 +97,41 @@ class RuntimePolicyTest(unittest.TestCase):
 
             self.assertTrue((destination / "bin/ATHENA.bin").is_file())
             self.assertTrue((destination / "lib/libathena.so").is_file())
+
+    def test_source_service_binaries_are_never_reused(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / "source"
+            destination = root / "destination"
+            (source / "bin").mkdir(parents=True)
+            (source / "bin/athena-transmitter").write_text("stale")
+            (source / "bin/athena-web-server").write_text("stale")
+
+            copy_runtime(source, destination)
+
+            self.assertFalse(
+                (destination / "bin/athena-transmitter").exists()
+            )
+            self.assertFalse(
+                (destination / "bin/athena-web-server").exists()
+            )
+
+    def test_linux_service_validation_requires_complete_layout(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            runtime = Path(temporary)
+            (runtime / "bin").mkdir()
+            (runtime / "share/ATHENA/web").mkdir(parents=True)
+            for name in ("athena-transmitter", "athena-web-server"):
+                executable = runtime / "bin" / name
+                executable.write_text("executable")
+                executable.chmod(0o755)
+            (runtime / "share/ATHENA/web/index.html").write_text("index")
+            (runtime / "share/ATHENA/web/app.js").write_text("app")
+
+            verify_linux_services(runtime)
+            (runtime / "share/ATHENA/web/app.js").unlink()
+            with self.assertRaisesRegex(RuntimeError, "app.js"):
+                verify_linux_services(runtime)
 
 
 if __name__ == "__main__":

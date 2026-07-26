@@ -10,7 +10,7 @@ from pathlib import Path
 sys.path.insert(
     0, str(Path(__file__).resolve().parents[1] / "release")
 )
-from runtime_policy import verify_runtime
+from runtime_policy import verify_linux_services, verify_runtime
 
 
 GLIBC_EXCLUDE = {
@@ -353,6 +353,7 @@ def main():
     if gv != "1.8":
         raise SystemExit(f"container AppImage builds must use Guile 1.8, got {gv}")
     verify_runtime(runtime)
+    verify_linux_services(runtime)
 
     if appdir.exists():
         shutil.rmtree(appdir)
@@ -367,6 +368,7 @@ def main():
     copy_imagemagick(appdir)
     copy_dependencies(appdir)
     verify_runtime(appdir)
+    verify_linux_services(appdir / "usr/share/ATHENA")
     fail_on_new_glibc(appdir)
 
     output_appimage.parent.mkdir(parents=True, exist_ok=True)
