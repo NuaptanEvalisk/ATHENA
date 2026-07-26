@@ -1801,6 +1801,9 @@
         (cond ((and w (tm-func? arg w 1)) arg)
               ((in? w '(mathrm mathbf mathsf mathit mathtt mathsl))
                (post-process-math-text (list w arg)))
+              ((and (not (tmtex-math-mode?)) w a
+                    (texout-multiline? arg))
+               (list '!group (tex-concat (list (list a) " " arg))))
               (w (list w arg))
               (a (list '!group (tex-concat (list (list a) " " arg))))
               ((== "par-left" var)  (tmtex-make-parmod val "0pt" "0pt" arg #t))
@@ -3826,6 +3829,7 @@
   (new-remark (,tmtex-new-theorem 2))
   (new-exercise (,tmtex-new-theorem 2))
   (verbatim (,tmtex-verbatim 1))
+  (center (,tmtex-padded-center 1))
   (padded-center (,tmtex-padded-center 1))
   (padded-left-aligned (,tmtex-padded-left-aligned 1))
   (padded-right-aligned (,tmtex-padded-right-aligned 1))

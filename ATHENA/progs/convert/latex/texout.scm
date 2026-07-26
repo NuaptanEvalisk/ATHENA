@@ -337,6 +337,8 @@
 
 (tm-define (texout-multiline? x)
   (cond ((npair? x) #f)
+        ((and (pair? (car x))
+              (in? (caar x) '(!begin !begin*))) #t)
         ((in? (car x) '(!begin !nextline !newline !linefeed !eqn !table)) #t)
         ((and (in? (car x) '(!document !paragraph)) (> (length (cdr x)) 1)) #t)
         ((npair? (cdr x)) #f)
