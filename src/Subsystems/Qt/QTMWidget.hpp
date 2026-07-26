@@ -110,6 +110,7 @@ private:
   QPointer<QScrollBar> tabletScrollBarTarget;
   QTimer cursorBlinkTimer;
   bool cursorBlinkVisible= true;
+  bool embeddedScrollRefreshPending= false;
   QTMPerformanceMonitor performanceMonitor;
   bool viewPinchActive = false;
   bool viewPinchCommitPending = false;
@@ -129,6 +130,7 @@ private:
   QElapsedTimer neighborhoodWheelSwipeCooldown;
 
   void updateInputMethodCursorRectangle () const;
+  void scheduleEmbeddedScrollRefresh ();
   void setCursorBlinkVisible (bool visible);
   void refreshCursorBlinking (bool restart);
   bool forwardTabletEventToScrollBar (QTabletEvent* event);

@@ -30,7 +30,6 @@ public:
 
 private:
   void installPreviewEventFilter (QWidget* root);
-  void connectPreviewScrollbars (QTMWidget* tmWidget);
   bool isPreviewWatchedObject (QObject* watched) const;
   void showFallbackPreview (QWidget* parent);
   SI currentPreviewWidth () const;
