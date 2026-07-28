@@ -61,6 +61,8 @@ private slots:
   void init ();
   void cleanup ();
   void crossNodeCutRestoresInsertionSplice ();
+  void mixedMathTextFormattingKeepsPosition ();
+  void wikilinkDeletionKeepsInsertionAtSplice ();
   void patternRecolorKeepsOperatorBeforeCoexactTerm ();
 
 private:
@@ -114,6 +116,63 @@ TestHodgeRecolor::crossNodeCutRestoresInsertionSplice () {
   ed->insert_tree ("X");
 
   QVERIFY (subtree (the_et, buffer->rp) == tree (DOCUMENT, "aXd"));
+}
+
+void
+TestHodgeRecolor::mixedMathTextFormattingKeepsPosition () {
+  const tree initial= tree (
+    DOCUMENT,
+    tree (CONCAT, "Before ", compound ("math", "A"), "-forms after"));
+  set_document (buffer->rp, initial);
+
+  const path concatPath= buffer->rp * 0;
+  ed->setRawSelection (concatPath * 1 * 0 * 0,
+                       concatPath * 2 * 6);
+  path p1, p2;
+  ed->correctedSelection (p1, p2);
+  const tree selected= ed->selectedTree ();
+  QCOMPARE (p1, concatPath * 1 * 0);
+  QCOMPARE (p2, concatPath * 2 * 6);
+  QVERIFY (selected == tree (
+    CONCAT, compound ("math", "A"), "-forms"));
+  ed->selection_cut ("none");
+  ed->insert_tree (
+    tree (WITH, "font-series", "bold", selected),
+    path (2, end (selected)));
+
+  const tree expected= tree (
+    DOCUMENT,
+    tree (CONCAT,
+          "Before ",
+          tree (WITH, "font-series", "bold",
+                tree (CONCAT, compound ("math", "A"), "-forms")),
+          " after"));
+  const tree result= subtree (the_et, buffer->rp);
+  QVERIFY (result == expected);
+}
+
+void
+TestHodgeRecolor::wikilinkDeletionKeepsInsertionAtSplice () {
+  tree link (HLINK);
+  link << "linked text" << "tmfs://wikilink/uuid/file/anchor";
+  const tree initial= tree (
+    DOCUMENT,
+    tree (CONCAT, "Before ", link, " after"));
+  set_document (buffer->rp, initial);
+
+  const path concatPath= buffer->rp * 0;
+  ed->setRawSelection (concatPath * 1 * 0 * 0,
+                       concatPath * 2 * 0);
+  path p1, p2;
+  ed->correctedSelection (p1, p2);
+  QCOMPARE (p1, concatPath * 1 * 0);
+  QCOMPARE (p2, concatPath * 2 * 0);
+  QVERIFY (ed->selectedTree () == link);
+
+  ed->selection_cut ("none");
+  ed->insert_tree ("X");
+  QVERIFY (subtree (the_et, buffer->rp) ==
+           tree (DOCUMENT, "Before X after"));
 }
 
 void

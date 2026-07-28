@@ -237,7 +237,7 @@ raw_join (tree& ref, int pos) {
   modification mod= mod_join (path (), pos);
   if (!is_nil (ref->obs)) ref->obs->announce (ref, mod);
   tree t1= ref[pos], t2= ref[pos+1], t;
-  int offset= is_atomic (ref)? N(t1->label): N(t1);
+  int offset= is_atomic (t1)? N(t1->label): N(t1);
   if (is_atomic (t1) && is_atomic (t2)) t= t1->label * t2->label;
   else t= t1 * t2;
   if (!is_nil (ref->obs)) ref->obs->notify_join (ref, pos, t);
