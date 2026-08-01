@@ -16,4 +16,6 @@
 SI selection_autoscroll_delta (SI position, SI lower, SI upper,
                                SI edge_width, SI maximum_step);
 
+SI selection_hit_test_x (SI position, SI lower, SI upper);
+
 #endif // defined SELECTION_AUTOSCROLL_H

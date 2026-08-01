@@ -26,3 +26,9 @@ selection_autoscroll_delta (SI position, SI lower, SI upper,
 
   return std::clamp (delta, -maximum_step, maximum_step);
 }
+
+SI
+selection_hit_test_x (SI position, SI lower, SI upper) {
+  if (upper <= lower) return lower;
+  return std::clamp (position, lower, upper - 1);
+}

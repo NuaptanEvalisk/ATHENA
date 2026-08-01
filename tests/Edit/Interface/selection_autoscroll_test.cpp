@@ -20,6 +20,7 @@ private slots:
   void followsEdgePenetration();
   void boundsOutsideMotion();
   void keepsAxesIndependentWithoutEdgeZone();
+  void projectsSelectionHitTestingInsideDocument();
 };
 
 void TestSelectionAutoscroll::remainsStillAwayFromEdges() {
@@ -42,6 +43,13 @@ void TestSelectionAutoscroll::keepsAxesIndependentWithoutEdgeZone() {
   QCOMPARE (selection_autoscroll_delta (500, 0, 1000, 0, 40), 0);
   QCOMPARE (selection_autoscroll_delta (-12, 0, 1000, 0, 40), -12);
   QCOMPARE (selection_autoscroll_delta (1012, 0, 1000, 0, 40), 12);
+}
+
+void TestSelectionAutoscroll::projectsSelectionHitTestingInsideDocument() {
+  QCOMPARE (selection_hit_test_x (-500, 100, 900), 100);
+  QCOMPARE (selection_hit_test_x (400, 100, 900), 400);
+  QCOMPARE (selection_hit_test_x (1500, 100, 900), 899);
+  QCOMPARE (selection_hit_test_x (1500, 100, 100), 100);
 }
 
 QTEST_MAIN (TestSelectionAutoscroll)

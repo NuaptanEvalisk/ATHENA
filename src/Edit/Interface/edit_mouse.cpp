@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "edit_interface.hpp"
+#include "Interface/selection_autoscroll.hpp"
 #include "tm_buffer.hpp"
 #include "tm_timer.hpp"
 #include "link.hpp"
@@ -34,6 +35,11 @@ void disable_double_clicks ();
 static bool
 unix_primary_selection_disabled () {
   return get_preference ("disable unix primary selection", "off") == "on";
+}
+
+static SI
+selection_hit_x (box eb, SI x) {
+  return selection_hit_test_x (x, eb->x1, eb->x2);
 }
 
 static const int IMAGE_RESIZE_NONE   = 0;
@@ -262,13 +268,14 @@ void
 edit_interface_rep::mouse_adjust_selection (SI x, SI y, int mods) {
   if (inside_graphics () || mods <=1) return;
   if (mouse_message ("drag", x, y)) return;
-  go_to (x, y);
+  SI hit_x= selection_hit_x (eb, x);
+  go_to (hit_x, y);
   end_x= x;
   end_y= y;
   path sp= find_innermost_scroll (eb, tp);
-  path p1= tree_path (sp, start_x, start_y, 0);
-  path p2= tree_path (sp, end_x  , end_y  , 0);
-  path p3= tree_path (sp, x      , y      , 0);
+  path p1= tree_path (sp, selection_hit_x (eb, start_x), start_y, 0);
+  path p2= tree_path (sp, selection_hit_x (eb, end_x), end_y, 0);
+  path p3= tree_path (sp, hit_x, y, 0);
   
   bool p1_p2= path_inf (p1, p2);
   bool p1_p3= path_inf (p1, p3);
@@ -310,13 +317,13 @@ void
 edit_interface_rep::mouse_drag (SI x, SI y) {
   if (inside_graphics ()) return;
   if (mouse_message ("drag", x, y)) return;
-  go_to (x, y);
+  go_to (selection_hit_x (eb, x), y);
   end_x  = x;
   end_y  = y;
   selection_visible ();
   path sp= find_innermost_scroll (eb, tp);
-  path p1= tree_path (sp, start_x, start_y, 0);
-  path p2= tree_path (sp, end_x  , end_y  , 0);
+  path p1= tree_path (sp, selection_hit_x (eb, start_x), start_y, 0);
+  path p2= tree_path (sp, selection_hit_x (eb, end_x), end_y, 0);
   if (path_inf (p2, p1)) {
     path temp= p1;
     p1= p2;
@@ -340,7 +347,8 @@ edit_interface_rep::mouse_select (SI x, SI y, int mods, bool drag) {
   bool b0= inside_graphics (false);
   bool b= inside_graphics ();
   if (b) g= get_graphics ();
-  go_to (x, y);
+  SI hit_x= selection_hit_x (eb, x);
+  go_to (hit_x, y);
   if ((!b0 && inside_graphics (false)) || (b0 && !inside_graphics (false)))
     drag= false;
   if (!b && inside_graphics ())
@@ -352,7 +360,7 @@ edit_interface_rep::mouse_select (SI x, SI y, int mods, bool drag) {
   }
   if (!drag) {
     path sp= find_innermost_scroll (eb, tp);
-    path p0= tree_path (sp, x, y, 0);
+    path p0= tree_path (sp, hit_x, y, 0);
     set_selection (p0, p0);
     notify_change (THE_SELECTION);
   }
