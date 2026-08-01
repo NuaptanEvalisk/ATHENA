@@ -190,6 +190,14 @@ QTMWidget::tm_widget () const {
 }
 
 void
+QTMWidget::refreshEmbeddedBackingStore () {
+  if (athena_qt_is_closing () || is_nil (tmwid) || !isVisible ()) return;
+  if (!isEmbedded ()) return;
+  tm_widget ()->repaint_invalid_regions ();
+  if (surface () != nullptr) surface ()->update ();
+}
+
+void
 QTMWidget::notifyUserScroll () {
   if (athena_qt_is_closing ()) return;
   if (is_nil (tmwid)) return;
@@ -214,15 +222,12 @@ QTMWidget::scheduleEmbeddedScrollRefresh () {
   embeddedScrollRefreshPending= true;
   QTimer::singleShot (0, this, [this] () {
     embeddedScrollRefreshPending= false;
-    if (athena_qt_is_closing () || is_nil (tmwid) || !isVisible ()) return;
-
     // Output widgets keep their document in a backing pixmap.  A scrollbar
     // value change updates the logical origin immediately, but may occur while
     // the global GUI update is already active.  Synchronize this widget after
     // Qt has finished the scrollbar event so the backing pixmap follows the
     // new origin before it is painted.
-    tm_widget ()->repaint_invalid_regions ();
-    if (surface () != nullptr) surface ()->update ();
+    refreshEmbeddedBackingStore ();
   });
 }
 

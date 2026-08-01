@@ -27,7 +27,6 @@
 #include "new_view.hpp"
 #include "qt_utilities.hpp"
 #include "qt_widget.hpp"
-#include "qt_simple_widget.hpp"
 #include "renderer.hpp"
 #include "scheme.hpp"
 #include "link.hpp"
@@ -659,10 +658,7 @@ QTMGlobalSearch::refreshPreviewLayoutNow () {
   }
 
   if (the_gui != nullptr) the_gui->force_update ();
-  qt_simple_widget_rep::repaint_all ();
-  if (tmWidget != nullptr && tmWidget->surface () != nullptr)
-    tmWidget->surface ()->repaint ();
-  else previewQtWidget->repaint ();
+  if (tmWidget != nullptr) tmWidget->refreshEmbeddedBackingStore ();
 }
 
 void

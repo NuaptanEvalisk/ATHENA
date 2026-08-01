@@ -60,6 +60,7 @@ public:
     return viewport ()->mapToGlobal (p + QPoint (0, 22));
   }
   qt_simple_widget_rep* tm_widget () const;
+  void refreshEmbeddedBackingStore ();
   void finishGestureZoomCommitPreview ();
 
 signals:
