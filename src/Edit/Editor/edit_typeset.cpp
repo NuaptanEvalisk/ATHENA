@@ -21,12 +21,28 @@
 #include "new_style.hpp"
 #include "iterator.hpp"
 #include "merge_sort.hpp"
+#include "scheme.hpp"
 #ifdef EXPERIMENTAL
 #include "../../Style/Environment/std_environment.hpp"
 #endif // EXPERIMENTAL
 
 //box empty_box (path ip, int x1=0, int y1=0, int x2=0, int y2=0);
 bool enable_fastenv= false;
+
+static bool
+toc_fold_node (tree t) {
+  return is_compound (t, "table-of-contents") ||
+         is_compound (t, "table-of-contents*");
+}
+
+static bool
+toc_fold_contains (tree t) {
+  if (toc_fold_node (t)) return true;
+  if (is_atomic (t)) return false;
+  for (int i=0; i<N(t); i++)
+    if (toc_fold_contains (t[i])) return true;
+  return false;
+}
 
 /******************************************************************************
 * Contructors, destructors and notification of modifications
@@ -39,6 +55,7 @@ edit_typeset_rep::edit_typeset_rep ():
   stydef (UNINIT), pre (UNINIT), init (UNINIT), fin (UNINIT), grefs (UNINIT),
   folded_headings (), folded_tocs (), unfolded_tocs (),
   fold_view_active (false), fold_view_rebuild (false),
+  fold_view_has_toc (false),
   heading_word_count_cache_hash (INT_MIN), heading_word_count_cache (),
   heading_word_count_cache_map (0),
   env (drd, buf->buf->master,
@@ -70,6 +87,8 @@ edit_typeset_rep::set_data (new_data data) {
     (void) call (string ("notify-set-attachment"),
                  buf->buf->name, key, data->att [key]);
   }
+  fold_view_has_toc= toc_fold_contains (subtree (et, rp));
+  if (fold_view_has_toc) fold_view_rebuild= true;
 }
 
 void
@@ -1046,21 +1065,21 @@ heading_fold_hidden () {
   return compound ("folded-hidden");
 }
 
-static bool toc_fold_node (tree t);
-
 static tree
 heading_fold_screen_tree (tree t, path p, hashset<string> folded,
                           hashset<string> folded_tocs,
-                          hashset<string> unfolded_tocs) {
+                          hashset<string> unfolded_tocs,
+                          bool fold_tocs_by_default) {
   if (is_atomic (t)) return t;
   if (toc_fold_node (t)) {
     string key= as_string (p);
     tree_label label= L(t);
-    if (folded_tocs->contains (key))
+    if (folded_tocs->contains (key) ||
+        (fold_tocs_by_default && !unfolded_tocs->contains (key)))
       label= make_tree_label (is_compound (t, "table-of-contents*")
                                ? "screen-folded-table-of-contents*"
                                : "screen-folded-table-of-contents");
-    else if (unfolded_tocs->contains (key))
+    else
       label= make_tree_label (is_compound (t, "table-of-contents*")
                                ? "screen-unfolded-table-of-contents*"
                                : "screen-unfolded-table-of-contents");
@@ -1089,7 +1108,8 @@ heading_fold_screen_tree (tree t, path p, hashset<string> folded,
     }
 
     r[i]= heading_fold_screen_tree (t[i], cp, folded,
-                                    folded_tocs, unfolded_tocs);
+                                    folded_tocs, unfolded_tocs,
+                                    fold_tocs_by_default);
     if (folded_here)
       folded_level= level;
   }
@@ -1099,8 +1119,12 @@ heading_fold_screen_tree (tree t, path p, hashset<string> folded,
 tree
 edit_typeset_rep::folded_screen_tree () {
   tree doc= subtree (et, rp);
+  bool fold_tocs_by_default=
+    env->get_string (PAGE_MEDIUM) == "automatic" &&
+    get_preference ("fold table of contents in reflow", "on") == "on";
   return heading_fold_screen_tree (doc, path (), folded_headings,
-                                   folded_tocs, unfolded_tocs);
+                                   folded_tocs, unfolded_tocs,
+                                   fold_tocs_by_default);
 }
 
 bool
@@ -1177,12 +1201,6 @@ edit_typeset_rep::heading_fold_set_current (bool folded, bool toggle) {
 }
 
 static bool
-toc_fold_node (tree t) {
-  return is_compound (t, "table-of-contents") ||
-         is_compound (t, "table-of-contents*");
-}
-
-static bool
 toc_fold_find_for_path (tree doc, path p, path& toc) {
   for (path q= p; !is_nil (q); q= path_up (q))
     if (has_subtree (doc, q) && toc_fold_node (subtree (doc, q))) {
@@ -1254,15 +1272,19 @@ edit_typeset_rep::typeset_sub (SI& x1, SI& y1, SI& x2, SI& y2) {
 #endif
     bool printed= env->get_string (PAGE_PRINTED) == "true";
     bool folded_screen= !printed &&
-      (N(folded_headings) != 0 || N(folded_tocs) != 0 ||
-       N(unfolded_tocs) != 0);
+      (fold_view_has_toc || N(folded_headings) != 0 ||
+       N(folded_tocs) != 0 || N(unfolded_tocs) != 0);
     bool full_repaint= fold_view_rebuild ||
                        folded_screen != fold_view_active;
     if (full_repaint) {
       tree doc= subtree (et, rp);
       if (folded_screen)
         doc= heading_fold_screen_tree (doc, path (), folded_headings,
-                                      folded_tocs, unfolded_tocs);
+                                      folded_tocs, unfolded_tocs,
+                                      env->get_string (PAGE_MEDIUM) == "automatic" &&
+                                      get_preference (
+                                        "fold table of contents in reflow",
+                                        "on") == "on");
       ttt->screen_tree= folded_screen;
       ::notify_assign (ttt, path (), doc);
       fold_view_rebuild= false;
@@ -1373,6 +1395,9 @@ void
 edit_typeset_rep::typeset_invalidate (path p) {
   if (rp <= p) {
     //cout << "Invalidate " << p << "\n";
+    if (!fold_view_has_toc && toc_fold_contains (subtree (et, p)))
+      fold_view_has_toc= true;
+    if (fold_view_active || fold_view_has_toc) fold_view_rebuild= true;
     notify_change (THE_TREE);
     ::notify_assign (ttt, p / rp, subtree (et, p));
   }
@@ -1383,7 +1408,9 @@ edit_typeset_rep::typeset_invalidate_all () {
   //cout << "Invalidate all\n";
   heading_word_count_cache_hash= INT_MIN;
   heading_word_count_cache_map= hashmap<path,int> (0);
-  if (fold_view_active || N(folded_headings) != 0 ||
+  if (!fold_view_has_toc)
+    fold_view_has_toc= toc_fold_contains (subtree (et, rp));
+  if (fold_view_active || fold_view_has_toc || N(folded_headings) != 0 ||
       N(folded_tocs) != 0 || N(unfolded_tocs) != 0)
     fold_view_rebuild= true;
   notify_change (THE_ENVIRONMENT);

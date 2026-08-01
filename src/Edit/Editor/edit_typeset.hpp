@@ -32,6 +32,7 @@ protected:
   hashset<string> unfolded_tocs;
   bool fold_view_active;                   // screen typesetter uses folded tree
   bool fold_view_rebuild;                  // recreate screen typesetter
+  bool fold_view_has_toc;                  // source tree contains a ToC
   int  heading_word_count_cache_hash;       // source hash for cached counts
   array<heading_word_count_entry> heading_word_count_cache;
   hashmap<path,int> heading_word_count_cache_map;

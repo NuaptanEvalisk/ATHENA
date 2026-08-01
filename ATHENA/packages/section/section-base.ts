@@ -300,14 +300,6 @@
     </render-folded-std>
   </macro>>
 
-  <assign|render-foldable-table-of-contents|<\macro|name|body>
-    <\if|<and|<equal|<value|page-medium>|automatic>|<extern|ext-fold-toc-in-reflow?>>>
-      <render-folded-table-of-contents|<arg|name>|<arg|body>>
-    <|else>
-      <render-unfolded-table-of-contents|<arg|name>|<arg|body>>
-    </if>
-  </macro>>
-
   <assign|render-index|<\macro|name|body>
     <\with|par-par-sep|-0.5fn>
       <principal-section*|<arg|name>>
@@ -349,11 +341,11 @@
   </macro>>
 
   <assign|table-of-contents|<\macro|aux|body>
-    <render-foldable-table-of-contents|<table-of-contents-text>|<arg|body>>
+    <render-table-of-contents|<table-of-contents-text>|<arg|body>>
   </macro>>
 
   <assign|table-of-contents*|<\macro|aux|name|body>
-    <render-foldable-table-of-contents|<localize|<arg|name>>|<arg|body>>
+    <render-table-of-contents|<localize|<arg|name>>|<arg|body>>
   </macro>>
 
   <assign|screen-folded-table-of-contents|<\macro|aux|body>

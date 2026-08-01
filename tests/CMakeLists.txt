@@ -21,7 +21,8 @@ foreach (_test_file ${TEST_SRC_FILES})
   add_test (${_test_name} ${_test_name})
   if (_test_name STREQUAL "artifacts_test" OR
       _test_name STREQUAL "bold_big_operator_test" OR
-      _test_name STREQUAL "finite_part_integral_test")
+      _test_name STREQUAL "finite_part_integral_test" OR
+      _test_name STREQUAL "toc_pagination_test")
     if (TARGET ATHENA.bin)
       add_dependencies (${_test_name} ATHENA.bin)
     elseif (TARGET ATHENA)
@@ -36,7 +37,8 @@ foreach (_test_file ${TEST_SRC_FILES})
     set_tests_properties (${_test_name} PROPERTIES TIMEOUT 30)
   endif ()
   if (_test_name STREQUAL "bold_big_operator_test" OR
-      _test_name STREQUAL "finite_part_integral_test")
+      _test_name STREQUAL "finite_part_integral_test" OR
+      _test_name STREQUAL "toc_pagination_test")
     set_tests_properties (${_test_name} PROPERTIES TIMEOUT 30)
   endif ()
   set_tests_properties (${_test_name} PROPERTIES ENVIRONMENT "ATHENA_PATH=${ATHENA_SOURCE_DIR}/ATHENA")
