@@ -9,7 +9,9 @@
   object, centered on its containing line. Type <key|\ cd> in mathematics
   mode to insert one. Click an empty grid point to create a vertex, edit the
   vertex formula in place, and drag from one vertex to another to create an
-  arrow. Vertices can be moved by dragging the area around their formula.
+  arrow. To create a self-pointing arrow, drag away from a vertex and return
+  to the same vertex; the live loop preview follows the drag direction.
+  Vertices can be moved by dragging the area around their formula.
   Hovered and selected vertices have an outline which leaves their formula
   unobscured. Arrows and vertices can be selected by clicking their visible
   geometry.
@@ -21,9 +23,11 @@
   incident arrows.
 
   Right-click an arrow and choose <menu|Arrow style> to edit its arrowhead,
-  tail, body, label, curve, shortening, level, and color. Right-click the
-  diagram background to trim the canvas to its contents or enlarge it in one
-  direction.
+  tail, body, label, curve, shortening, level, color, loop radius, and loop
+  angle. Dragging an endpoint handle onto the arrow's other endpoint converts
+  an ordinary arrow into a self-pointing arrow; dragging either self-loop
+  handle to another vertex converts it back. Right-click the diagram
+  background to trim the canvas to its contents or enlarge it in one direction.
 
   <menu|Focus|Show hidden> deactivates the rendered diagram and exposes its
   complete native AST, including dimensions, stable identifiers,
@@ -44,8 +48,9 @@
 
   <\explain-macro|cd-arrow|id|source|target|formula|options>
     A directed diagram edge. <src-arg|source> and <src-arg|target> refer to
-    vertex identifiers, <src-arg|formula> is the editable edge label, and
-    <src-arg|options> stores the visual arrow style.
+    vertex identifiers and may be equal for a self-pointing arrow,
+    <src-arg|formula> is the editable edge label, and <src-arg|options> stores
+    the visual arrow style.
   </explain-macro>
 
   <tmdoc-copyright|2026|ATHENA contributors>

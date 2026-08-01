@@ -45,8 +45,9 @@ struct cd_named_geometry {
 struct cd_render_state {
   string selected_kind, selected_id;
   string hover_kind, hover_id;
+  string target_id;
   bool has_drag;
-  cd_point drag_start, drag_end;
+  cd_geometry drag_geometry;
 
   cd_render_state (): has_drag (false) {}
 };
@@ -145,6 +146,8 @@ cd_parse_layout (tree layout, array<cd_named_geometry>& geometries,
       state.hover_kind= cd_string (entry[1]);
       state.hover_id= cd_string (entry[2]);
     }
+    else if (kind == "target" && N(entry) == 2)
+      state.target_id= cd_string (entry[1]);
     else if (kind == "arrow" && N(entry) == 6) {
       cd_named_geometry named;
       named.id= cd_string (entry[1]);
@@ -154,8 +157,23 @@ cd_parse_layout (tree layout, array<cd_named_geometry>& geometries,
       if (valid) geometries << named;
     }
     else if (kind == "drag" && N(entry) == 3) {
-      state.has_drag= cd_tree_point (entry[1], state.drag_start) &&
-                      cd_tree_point (entry[2], state.drag_end);
+      cd_point start, end;
+      state.has_drag= cd_tree_point (entry[1], start) &&
+                      cd_tree_point (entry[2], end);
+      if (state.has_drag) {
+        cd_point delta= end - start;
+        state.drag_geometry.p[0]= start;
+        state.drag_geometry.p[1]= start + delta * (1.0 / 3.0);
+        state.drag_geometry.p[2]= start + delta * (2.0 / 3.0);
+        state.drag_geometry.p[3]= end;
+      }
+    }
+    else if (kind == "drag-curve" && N(entry) == 5) {
+      state.has_drag= true;
+      for (int j=0; j<4; j++)
+        state.has_drag=
+          cd_tree_point (entry[j+1], state.drag_geometry.p[j]) &&
+          state.has_drag;
     }
   }
 }
@@ -511,25 +529,11 @@ concater_rep::typeset_commutative_diagram (tree t, path ip) {
   }
 
   if (state.has_drag) {
-    array<point> drag_points;
-    array<path> drag_paths;
-    drag_points << builder.physical (state.drag_start)
-                << builder.physical (state.drag_end);
-    drag_paths << decorate (ip) << decorate (ip);
-    array<bool> dash;
-    dash << true << false;
-    builder.add (curve_box (decorate (ip),
-                    poly_segment (drag_points, drag_paths), 1.0,
-                    pencil (named_color ("#3976c5"),
-                            2 * builder.line_unit),
-                    dash, array<point> (), 3 * builder.line_unit,
-                    brush (false), array<box> (0)));
-    cd_point direction= state.drag_end - state.drag_start;
-    double len= std::sqrt (direction.x*direction.x +
-                           direction.y*direction.y);
-    if (len > 1.0e-9)
-      cd_add_open_head (builder, state.drag_end,
-                        direction * (1.0 / len), "#3976c5");
+    builder.curve (state.drag_geometry, "#3976c5",
+                   2 * builder.line_unit, "dashed");
+    cd_add_open_head (builder, state.drag_geometry.p[3],
+                      cd_bezier_tangent (state.drag_geometry, 1.0),
+                      "#3976c5");
   }
 
   for (int i=0; i<N(vertices); i++) {
@@ -537,10 +541,12 @@ concater_rep::typeset_commutative_diagram (tree t, path ip) {
                    state.selected_id == vertices[i].id;
     bool hovered= state.hover_kind == "vertex" &&
                   state.hover_id == vertices[i].id;
+    bool target= state.target_id == vertices[i].id;
     builder.formula (vertices[i].node[3], vertices[i].formula_ip,
                      vertices[i].position, "black", false,
+                     target? "#4c9f70":
                      selected? "#3976c5": hovered? "#82aee5": "",
-                     selected);
+                     selected || target);
   }
 
   box diagram= commutative_diagram_box (

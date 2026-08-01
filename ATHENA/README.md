@@ -200,9 +200,10 @@ ATHENA heavily customizes the math typing experience.
   `mathscr`, upright `mathrm`, and boldsymbol-style input.
 - Native commutative-diagram AST objects with directly editable formula
   vertices and semantic arrows between vertex IDs. Single-click the grid to
-  create a vertex, or drag from one vertex to another to create an arrow.
-  Insert one from `Insert -> Mathematics -> Commutative diagram` or type
-  `\\cd` and Enter.
+  create a vertex, drag from one vertex to another to create an arrow, or drag
+  away from a vertex and back to create a direction-aware self-loop. Endpoint
+  handles reconnect both ordinary arrows and self-loops. Insert one from
+  `Insert -> Mathematics -> Commutative diagram` or type `\\cd` and Enter.
 
 The commutative-diagram interaction and styling model is inspired by
 [Quiver](https://github.com/varkor/quiver), which is distributed under the MIT

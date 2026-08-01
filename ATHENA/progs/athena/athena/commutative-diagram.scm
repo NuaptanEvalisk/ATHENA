@@ -33,6 +33,7 @@
 (define cd-interaction-part #f)
 (define cd-drag-point #f)
 (define cd-drag-target #f)
+(define cd-drag-loop-angle #f)
 
 (define cd-vertex-content-radius 0.24)
 (define cd-vertex-move-radius 0.46)
@@ -181,6 +182,19 @@
          (len (max 0.000001 (sqrt (+ (* dx dx) (* dy dy))))))
     (list (/ dx len) (/ dy len))))
 
+(define (cd-loop-geometry centre angle-degrees radius-setting)
+  (let* ((angle (* 0.0174532925199433 angle-degrees))
+         (radius (+ 0.58 (* 0.12 (abs radius-setting))))
+         (sign (if (< radius-setting 0.0) -1.0 1.0))
+         (u (list (cos angle) (sin angle)))
+         (n (list (* sign (- (cadr u))) (* sign (car u))))
+         (q1 (cd-point+ centre (cd-point* n -0.20)))
+         (q2 (cd-point+ centre (cd-point* n 0.20)))
+         (outer (cd-point+ centre (cd-point* u radius)))
+         (c1 (cd-point+ outer (cd-point* n (* -0.72 radius))))
+         (c2 (cd-point+ outer (cd-point* n (* 0.72 radius)))))
+    (list q1 c1 c2 q2)))
+
 (define (cd-arrow-geometry body a)
   (let* ((source (cd-find-vertex body (cd-arrow-source a)))
          (target (cd-find-vertex body (cd-arrow-target a))))
@@ -189,19 +203,9 @@
              (p2 (list (cd-vertex-x target) (cd-vertex-y target)))
              (loop? (== (cd-arrow-source a) (cd-arrow-target a))))
         (if loop?
-            (let* ((angle (* 0.0174532925199433
-                             (cd-option-number a "loop-angle" 0.0)))
-                   (radius-setting (cd-option-number a "loop-radius" 3.0))
-                   (radius (+ 0.58 (* 0.12 (abs radius-setting))))
-                   (sign (if (< radius-setting 0.0) -1.0 1.0))
-                   (u (list (cos angle) (sin angle)))
-                   (n (list (* sign (- (cadr u))) (* sign (car u))))
-                   (q1 (cd-point+ p1 (cd-point* n -0.20)))
-                   (q2 (cd-point+ p1 (cd-point* n 0.20)))
-                   (outer (cd-point+ p1 (cd-point* u radius)))
-                   (c1 (cd-point+ outer (cd-point* n (* -0.72 radius))))
-                   (c2 (cd-point+ outer (cd-point* n (* 0.72 radius)))))
-              (list q1 c1 c2 q2))
+            (cd-loop-geometry p1
+              (cd-option-number a "loop-angle" 0.0)
+              (cd-option-number a "loop-radius" 3.0))
             (let* ((dx (- (car p2) (car p1))) (dy (- (cadr p2) (cadr p1)))
                    (len (max 0.001 (sqrt (+ (* dx dx) (* dy dy)))))
                    (u (list (/ dx len) (/ dy len)))
@@ -284,22 +288,40 @@
        (cond
          ((== cd-interaction 'connecting)
           (and-with source (cd-find-vertex body cd-interaction-id)
-            `(tuple "drag"
-                    ,(cd-layout-point
-                       (list (cd-vertex-x source) (cd-vertex-y source)))
-                    ,(cd-layout-point cd-drag-point))))
+            (let ((source-point
+                    (list (cd-vertex-x source) (cd-vertex-y source))))
+              (if (== cd-drag-target cd-interaction-id)
+                  `(tuple "drag-curve"
+                          ,@(map cd-layout-point
+                            (cd-loop-geometry source-point
+                              (or cd-drag-loop-angle 0.0) 3.0)))
+                  `(tuple "drag" ,(cd-layout-point source-point)
+                                  ,(cd-layout-point cd-drag-point))))))
          ((== cd-interaction 'reconnecting)
           (and-with arrow (cd-find-arrow body cd-interaction-id)
             (and-with ends (cd-arrow-endpoints body arrow)
-              (let ((fixed (if (== cd-interaction-part 'source)
-                               (cadr ends) (car ends))))
-                `(tuple "drag"
-                        ,(cd-layout-point
-                           (if (== cd-interaction-part 'source)
-                               cd-drag-point fixed))
-                        ,(cd-layout-point
-                           (if (== cd-interaction-part 'source)
-                               fixed cd-drag-point)))))))
+              (let* ((fixed-id
+                       (if (== cd-interaction-part 'source)
+                           (cd-arrow-target arrow) (cd-arrow-source arrow)))
+                     (fixed-vertex (cd-find-vertex body fixed-id))
+                     (fixed (if (== cd-interaction-part 'source)
+                                (cadr ends) (car ends))))
+                (if (and fixed-vertex (== cd-drag-target fixed-id))
+                    `(tuple "drag-curve"
+                            ,@(map cd-layout-point
+                              (cd-loop-geometry
+                                (list (cd-vertex-x fixed-vertex)
+                                      (cd-vertex-y fixed-vertex))
+                                (or cd-drag-loop-angle
+                                    (cd-option-number arrow "loop-angle" 0.0))
+                                (cd-option-number arrow "loop-radius" 3.0))))
+                    `(tuple "drag"
+                            ,(cd-layout-point
+                               (if (== cd-interaction-part 'source)
+                                   cd-drag-point fixed))
+                            ,(cd-layout-point
+                               (if (== cd-interaction-part 'source)
+                                   fixed cd-drag-point))))))))
          (else #f))))
 
 (tm-define (commutative-diagram-layout BODY)
@@ -320,6 +342,7 @@
            (tuple "hover"
                   ,(if hover? (cd-state-kind-string cd-hover-kind) "")
                   ,(if hover? cd-hover-id ""))
+           (tuple "target" ,(or cd-drag-target ""))
            ,@(cd-layout-arrows BODY)
            ,@(if drag (list drag) '())))))
 
@@ -348,7 +371,8 @@
   (set! cd-interaction-id #f)
   (set! cd-interaction-part #f)
   (set! cd-drag-point #f)
-  (set! cd-drag-target #f))
+  (set! cd-drag-target #f)
+  (set! cd-drag-loop-angle #f))
 
 (define (cd-begin-session body)
   (cd-normalize-body! body)
@@ -477,6 +501,30 @@
       (cd-distance x y (car cd-press-point) (cadr cd-press-point))
       0.0))
 
+(define (cd-update-loop-angle centre x y)
+  (let ((dx (- x (car centre))) (dy (- y (cadr centre))))
+    (when (> (+ (* dx dx) (* dy dy)) 0.01)
+      (set! cd-drag-loop-angle
+            (* 57.29577951308232 (atan dy dx))))))
+
+(define (cd-update-drag-target body x y)
+  (let* ((target (cd-nearest-vertex body x y cd-vertex-move-radius))
+         (target-id (and target (cd-vertex-id target))))
+    (set! cd-drag-target target-id)
+    (cond
+      ((== cd-interaction 'connecting)
+       (and-with source (cd-find-vertex body cd-interaction-id)
+         (cd-update-loop-angle
+           (list (cd-vertex-x source) (cd-vertex-y source)) x y)))
+      ((== cd-interaction 'reconnecting)
+       (and-with arrow (cd-find-arrow body cd-interaction-id)
+         (let ((fixed-id
+                 (if (== cd-interaction-part 'source)
+                     (cd-arrow-target arrow) (cd-arrow-source arrow))))
+           (and-with fixed (cd-find-vertex body fixed-id)
+             (cd-update-loop-angle
+               (list (cd-vertex-x fixed) (cd-vertex-y fixed)) x y))))))))
+
 (define (cd-handle-drag body x y)
   (cond
     ((== cd-interaction 'pending-connect)
@@ -496,8 +544,7 @@
     ((or (== cd-interaction 'connecting)
          (== cd-interaction 'reconnecting))
      (set! cd-drag-point (list x y))
-     (let ((target (cd-nearest-vertex body x y cd-vertex-move-radius)))
-       (set! cd-drag-target (and target (cd-vertex-id target)))))
+     (cd-update-drag-target body x y))
     (else #f))
   (cd-refresh)
   "done")
@@ -506,16 +553,26 @@
   (let ((interaction cd-interaction) (part cd-interaction-part)
         (object-id cd-interaction-id) (target cd-drag-target))
     (cond
-      ((and (== interaction 'connecting) target (!= target object-id))
+      ((and (== interaction 'connecting) target)
        (let ((a (cd-add-arrow body object-id target)))
+         (when (== target object-id)
+           (cd-set-option! a "loop-angle"
+                           (number->string (or cd-drag-loop-angle 0.0))))
          (cd-select 'arrow (cd-arrow-id a))
          (cd-focus-object a 3)))
       ((and (== interaction 'reconnecting) target)
        (and-with a (cd-find-arrow body object-id)
-         (cond ((and (== part 'source) (!= target (cd-arrow-target a)))
-                (tree-set a 1 target))
-               ((and (== part 'target) (!= target (cd-arrow-source a)))
-                (tree-set a 2 target)))))
+         (let ((changed? #f))
+           (cond ((and (== part 'source) (!= target (cd-arrow-source a)))
+                  (tree-set a 1 target)
+                  (set! changed? #t))
+                 ((and (== part 'target) (!= target (cd-arrow-target a)))
+                  (tree-set a 2 target)
+                  (set! changed? #t)))
+           (when (and changed?
+                      (== (cd-arrow-source a) (cd-arrow-target a)))
+             (cd-set-option! a "loop-angle"
+                             (number->string (or cd-drag-loop-angle 0.0)))))))
       ((and (== interaction 'pending-connect) (== part 'edit))
        (and-with v (cd-find-vertex body object-id) (cd-focus-object v 3)))
       ((and (== interaction 'pending-arrow) (== part 'edit))
