@@ -454,6 +454,7 @@
 ("<cap>"		"#2229")
 ("<cup>"		"#222A")
 ("<big-int>"		"#222B")
+("<big-fint>"		"#2A0D")
 ("<big-iint>"		"#222C")
 ("<big-iiint>"		"#222D")
 ("<big-oint>"		"#222E")

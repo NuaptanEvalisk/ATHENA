@@ -387,6 +387,7 @@
   ("product" (speech-big-operator "prod"))
   ("tensor product" (speech-big-operator "otimes"))
   ("integral" (speech-big-operator "int"))
+  ("finite part integral" (speech-big-operator "fint"))
   ("contour integral" (speech-big-operator "oint"))
   ("double integral" (speech-big-operator "iint"))
   ("triple integral" (speech-big-operator "iiint"))

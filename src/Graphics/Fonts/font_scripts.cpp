@@ -70,6 +70,7 @@ adjust_integral_sub (hashmap<string,double>& t,
 void
 adjust_integral (hashmap<string,double>& t, string suf, double delta) {
   adjust_integral_sub (t, "int", suf, delta);
+  adjust_integral_sub (t, "fint", suf, delta);
   adjust_integral_sub (t, "iint", suf, delta);
   adjust_integral_sub (t, "iiint", suf, delta);
   adjust_integral_sub (t, "iiiint", suf, delta);

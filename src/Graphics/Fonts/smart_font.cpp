@@ -194,7 +194,9 @@ is_greek (string c) {
 
 static bool
 is_rubber (string c) {
-  return (starts (c, "<large-") ||
+  return ((starts (c, "<big-") &&
+           (ends (c, "-1>") || ends (c, "-2>"))) ||
+          starts (c, "<large-") ||
           starts (c, "<left-") ||
           starts (c, "<right-") ||
           starts (c, "<mid-")) && ends (c, ">");

@@ -17,12 +17,19 @@ class TestConverter: public QObject {
 
 private slots:
   void test_utf8_to_cork();
+  void test_finite_part_integral();
 };
 
 void TestConverter::test_utf8_to_cork() {
   QCOMPARE (as_charp (utf8_to_cork ("中")), "<#4E2D>");
   QCOMPARE (as_charp (utf8_to_cork ("“")), "\x10");
   QCOMPARE (as_charp (utf8_to_cork("”")), "\x11");
+}
+
+void TestConverter::test_finite_part_integral() {
+  QCOMPARE (as_charp (strict_cork_to_utf8 ("<fint>")), "\xE2\xA8\x8D");
+  QCOMPARE (as_charp (strict_cork_to_utf8 ("<big-fint-1>")),
+            "\xE2\xA8\x8D");
 }
 
 QTEST_MAIN(TestConverter)

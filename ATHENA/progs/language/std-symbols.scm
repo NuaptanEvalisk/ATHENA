@@ -363,7 +363,8 @@
     ;; NOTE: declaration order is important, because of packrat parsing
     "intlim" "iintlim" "iiintlim" "iiiintlim" "idotsintlim"
     "ointlim" "oiintlim" "oiiintlim"
-    "int" "iint" "iiint" "iiiint" "idotsint" "oint" "oiint" "oiiint"
+    "int" "fint" "iint" "iiint" "iiiint" "idotsint"
+    "oint" "oiint" "oiiint"
     "upintlim" "upiintlim" "upiiintlim" "upointlim" "upoiintlim" "upoiiintlim"
     "upint" "upiint" "upiiint" "upoint" "upoiint" "upoiiint")
 
@@ -380,7 +381,8 @@
     (:type prefix)
     (:penalty invalid)
     (:spacing none big)
-    "<big-int>" "<big-iint>" "<big-iiint>" "<big-iiiint>" "<big-idotsint>"
+    "<big-int>" "<big-fint>" "<big-iint>" "<big-iiint>"
+    "<big-iiiint>" "<big-idotsint>"
     "<big-oint>" "<big-oiint>" "<big-oiiint>")
 
   (define Big-lim-symbol
@@ -703,7 +705,7 @@
     "<mathd>" "<mathD>" "<mathLaplace>" "<partial>" "<nabla>"
     "<Re>" "<Im>" "<complement>"
     "<sum>" "<prod>"
-    "<int>" "<iint>" "<iiint>" "<iiiint>" "<idotsint>"
+    "<int>" "<fint>" "<iint>" "<iiint>" "<iiiint>" "<idotsint>"
     "<oint>" "<oiint>" "<oiiint>"
     "<intlim>" "<iintlim>" "<iiintlim>" "<iiiintlim>" "<idotsintlim>"
     "<ointlim>" "<oiintlim>" "<oiiintlim>")

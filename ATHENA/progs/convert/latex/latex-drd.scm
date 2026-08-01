@@ -23,6 +23,7 @@
   ("geometry" 10)
   ("amsmath" 20)
   ("amssymb" 30)
+  ("esint" 35)
   ("graphicx" 40)
   ("wasysym" 50)
   ("stmaryrd" 60)
@@ -76,6 +77,7 @@
   (mathds "dsfont")
   (mathfrak "amssymb")
   (mathbb "amssymb")
+  (fint "esint")
   (theorembodyfont "theorem")
   (substack "mathtools")
 

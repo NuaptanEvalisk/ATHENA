@@ -1346,7 +1346,7 @@
 
 (define (tmtex-big-decode s)
   (cond ((nstring? s) "bignone")
-        ((in? s '("sum" "prod" "int" "oint" "coprod")) s)
+        ((in? s '("sum" "prod" "int" "fint" "oint" "coprod")) s)
         ((in? s '("iint" "iiint" "iiiint" "idotsint")) s)
         ((in? s '("oiint" "oiiint")) s)
         ((== s "amalg") "coprod")

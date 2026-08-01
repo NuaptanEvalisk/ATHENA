@@ -81,7 +81,7 @@
   bignone bigtimes bigoplus bigotimes bigodot
   bigvee bigwedge bigsqcup bigcup bigcap bigpluscup
   bigtriangledown bigtriangleup
-  int iint iiint bigiint bigiiint bigiiiint bigidotsint
+  int fint iint iiint bigiint bigiiint bigiiiint bigidotsint
   oint oiint oiiint bigoiint bigoiiint
   bigintwl bigiintwl bigiiintwl bigiiiintwl bigidotsintwl
   bigointwl bigoiintwl bigoiiintwl

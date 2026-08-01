@@ -521,13 +521,14 @@ bool has_poor_rubber= true;
 bool
 use_poor_rubber (font fn) {
   return has_poor_rubber && fn->type == FONT_TYPE_UNICODE &&
-    !starts (fn->res_name, "stix-");
+    fn->math_type != MATH_TYPE_STIX;
 }
 
 static font
 make_rubber_font (font fn) {
   string name= locase_all (fn->res_name);
-  if (starts (name, "stix-") ||
+  if (fn->math_type == MATH_TYPE_STIX ||
+      starts (name, "stix-") ||
       starts (name, "stix,") ||
       occurs (",stix,", name) ||
       occurs ("math=stix", name) ||

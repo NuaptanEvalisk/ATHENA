@@ -533,7 +533,7 @@
   (bracket-circulate t forward? mbrackets))
 
 (define bigops
-  '("<int>" "<intlim>" "<oint>" "<ointlim>"
+  '("<int>" "<intlim>" "<fint>" "<oint>" "<ointlim>"
     "<sum>" "<prod>" "<amalg>"
     "<cap>" "<cup>" "<sqcap>" "<sqcup>"
     "<vee>" "<wedge>" "<curlyvee>" "<curlywedge>"

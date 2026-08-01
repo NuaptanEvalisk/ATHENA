@@ -801,7 +801,7 @@
   (tmhtml (car l)))
 
 (define (tmhtml-big l)
-  (cond ((in? (car l) '("sum" "prod" "int" "oint" "amalg"))
+  (cond ((in? (car l) '("sum" "prod" "int" "fint" "oint" "amalg"))
 	 (tmhtml (string-append "<" (car l) ">")))
 	((in? (car l) '("<cap>" "<cup>" "<vee>" "<wedge>"))
 	 (with s (substring (car l) 1 (- (string-length (car l)) 1))

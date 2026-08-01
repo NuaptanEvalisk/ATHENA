@@ -289,6 +289,7 @@ symbol_priority (tree t) {
     if (s == "cap") return PRIORITY_INTERSECTION;
     if (s == "sqcap") return PRIORITY_INTERSECTION;
     if (s == "int") return PRIORITY_PLUS;
+    if (s == "fint") return PRIORITY_PLUS;
     if (s == "oint") return PRIORITY_PLUS;
     if (s == "intlim") return PRIORITY_PLUS;
     if (s == "ointlim") return PRIORITY_PLUS;

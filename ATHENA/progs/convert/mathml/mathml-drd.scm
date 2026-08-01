@@ -107,6 +107,7 @@
   ("&bigcup;" (big "cup"))  ; ⋃ U+022C3 
   ("&bigcap;" (big "cap"))  ; ⋂ U+022C2
   ("&Integral;" (big "int"))  ; ∫ U+0222B
+  ("&fpartint;" (big "fint"))  ; ⨍ U+2A0D Finite Part Integral
   ("&hamilt;" "<#210B>")  ; ℋ U+210B Script Capital H
   ("&planckh;" "<#210E>")  ; ℎ U+210E Planck Constant
   ("&planck;" "<hbar>")  ; ℏ U+210F Planck Constant Over Two Pi
@@ -595,6 +596,7 @@
   ("sum" "&Sum;")
   ("prod" "&Product;")
   ("int" "&Integral;")
+  ("fint" "&#x2A0D;")
   ("oint" "&ContourIntegral;")
   ("amalg" "&Coproduct;")
   ("cap" "&Intersection;")
@@ -620,7 +622,8 @@
   ;; For HTML entities &sum;, &prod;, etc.
   ("<sum>" "sum")
   ("<prod>" "prod")
-  ("<int>" "int"))
+  ("<int>" "int")
+  ("<fint>" "fint"))
 
 (logic-table tm->mathml-above-below%
   ("^" "&Hat;")

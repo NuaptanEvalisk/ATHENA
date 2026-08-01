@@ -276,6 +276,7 @@
   ("prod" "Insert big product" (math-big-operator "prod"))
   ("coprod" "Insert big coproduct" (math-big-operator "amalg"))
   ("int" "Insert big integral" (math-big-operator "int"))
+  ("fint" "Insert finite part integral" (math-big-operator "fint"))
   ("iint" "Insert big integrals" (math-big-operator "iint"))
   ("iiint" "Insert big integrals" (math-big-operator "iiint"))
   ("oint" "Insert big contour integral" (math-big-operator "oint"))

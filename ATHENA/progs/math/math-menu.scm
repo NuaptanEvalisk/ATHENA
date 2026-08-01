@@ -308,6 +308,7 @@
 
 (menu-bind big-operator-menu
   (symbol "<big-int-2>" (math-big-operator "int"))
+  (symbol "<big-fint-2>" (math-big-operator "fint"))
   (symbol "<big-iint-2>" (math-big-operator "iint"))
   (symbol "<big-iiint-2>" (math-big-operator "iiint"))
   (symbol "<big-idotsint-2>" (math-big-operator "idotsint"))
