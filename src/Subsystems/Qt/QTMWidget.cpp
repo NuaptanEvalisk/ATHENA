@@ -336,6 +336,27 @@ QTMWidget::gesturesSupportedForViewZoom () const {
 }
 
 bool
+QTMWidget::activateOwningViewForGesture (const char* source) const {
+  if (is_nil (tmwid) || !tm_widget()->is_editor_widget ()) return false;
+  array<url> views= get_all_views ();
+  for (int i=0; i<N(views); i++) {
+    editor ed= view_to_editor (views[i]);
+    if (!is_nil (ed) &&
+        (qt_simple_widget_rep*) ed.operator->() == tm_widget()) {
+      set_current_view (views[i]);
+      if (gestureDebugEnabled ())
+        cout << "[gesture] activate-view route=" << source
+             << " view=" << views[i] << LF;
+      return true;
+    }
+  }
+  if (gestureDebugEnabled ())
+    cout << "[gesture] activate-view route=" << source
+         << " view=(not-found)" << LF;
+  return false;
+}
+
+bool
 QTMWidget::inActiveGraphicsMode () const {
   try {
     if (!as_bool (call ("defined?", symbol_object ("in-active-graphics?"))))
@@ -368,6 +389,7 @@ QTMWidget::logGesture (const char* phase, const char* route, double scale,
 void
 QTMWidget::beginViewPinchZoom (const QPointF& focal, const char* source) {
   if (is_nil (tmwid) || tm_widget()->backingPixmap == NULL) return;
+  activateOwningViewForGesture (source);
   viewPinchActive= true;
   viewPinchCommitPending= false;
   viewPinchStartZoom= athena_clamp_view_zoom (
@@ -423,6 +445,7 @@ QTMWidget::finishViewPinchZoom (bool commit, const char* source) {
   viewPinchCommitPending= true;
   viewPinchCommittedScale= appliedScale;
   setPendingOriginAfterNextExtents (newOrigin);
+  activateOwningViewForGesture (source);
   call ("change-zoom-factor", object (finalZoom));
 }
 
@@ -447,6 +470,7 @@ QTMWidget::handleNativeGestureEvent (QNativeGestureEvent* event) {
          << as_string ((double) focal.x()) << ","
          << as_string ((double) focal.y()) << ")" << LF;
   }
+  activateOwningViewForGesture ("native-dispatch");
   if (inActiveGraphicsMode ()) {
     coord2 pt= from_qpoint (focal.toPoint() + origin());
     array<double> data;
@@ -537,7 +561,9 @@ QTMWidget::handleNativeGestureEvent (QNativeGestureEvent* event) {
 
 bool
 QTMWidget::handlePinchGestureForViewZoom (QPinchGesture* pinch) {
-  if (!gesturesSupportedForViewZoom () || inActiveGraphicsMode ()) return false;
+  if (!gesturesSupportedForViewZoom ()) return false;
+  activateOwningViewForGesture ("qt-pinch-dispatch");
+  if (inActiveGraphicsMode ()) return false;
   QPointF focal= pinch->hasHotSpot()
     ? surface()->mapFromGlobal (pinch->hotSpot().toPoint())
     : QPointF (surface()->width() / 2.0, surface()->height() / 2.0);

@@ -136,6 +136,7 @@ private:
   bool forwardTabletEventToScrollBar (QTabletEvent* event);
   QScrollBar* scrollBarAtGlobalPosition (const QPoint& globalPos) const;
   bool gesturesSupportedForViewZoom () const;
+  bool activateOwningViewForGesture (const char* source) const;
   bool inActiveGraphicsMode () const;
   bool gestureDebugEnabled () const;
   void logGesture (const char* phase, const char* route, double scale,
