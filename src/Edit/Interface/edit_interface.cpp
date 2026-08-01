@@ -349,13 +349,14 @@ void
 edit_interface_rep::cursor_visible () {
   path sp= find_innermost_scroll (eb, tp);
   cursor cu= get_cursor ();
+  if (selection_active_any ()) {
+    path p1, p2;
+    selection_get (p1, p2);
+    if (selection_covers_range (p1, p2, start (et, rp), end (et, rp)))
+      return;
+  }
   if (is_nil (sp)) {
     update_visible ();
-    if (selection_active_any ()) {
-      path p1, p2;
-      selection_get (p1, p2);
-      if (p1 == start (et, rp) && p2 == end (et, rp)) return;
-    }
     cu->y1 -= 2*pixel; cu->y2 += 2*pixel;
     bool must_update=
       (cu->ox+ ((SI) (cu->y1 * cu->slope)) <  vx1) ||

@@ -21,6 +21,7 @@ private slots:
   void boundsOutsideMotion();
   void keepsAxesIndependentWithoutEdgeZone();
   void projectsSelectionHitTestingInsideDocument();
+  void recognizesEquivalentWholeDocumentRanges();
 };
 
 void TestSelectionAutoscroll::remainsStillAwayFromEdges() {
@@ -50,6 +51,21 @@ void TestSelectionAutoscroll::projectsSelectionHitTestingInsideDocument() {
   QCOMPARE (selection_hit_test_x (400, 100, 900), 400);
   QCOMPARE (selection_hit_test_x (1500, 100, 900), 899);
   QCOMPARE (selection_hit_test_x (1500, 100, 100), 100);
+}
+
+void TestSelectionAutoscroll::recognizesEquivalentWholeDocumentRanges() {
+  path root= path (2);
+  path first_cursor= root * 0 * 0;
+  path last_cursor= root * 3 * 1;
+
+  QVERIFY (selection_covers_range (root * 0, root * 1,
+                                   first_cursor, last_cursor));
+  QVERIFY (selection_covers_range (first_cursor, last_cursor,
+                                   first_cursor, last_cursor));
+  QVERIFY (!selection_covers_range (root * 1 * 0, last_cursor,
+                                    first_cursor, last_cursor));
+  QVERIFY (!selection_covers_range (first_cursor, root * 2 * 1,
+                                    first_cursor, last_cursor));
 }
 
 QTEST_MAIN (TestSelectionAutoscroll)

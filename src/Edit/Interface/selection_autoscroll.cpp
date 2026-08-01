@@ -32,3 +32,10 @@ selection_hit_test_x (SI position, SI lower, SI upper) {
   if (upper <= lower) return lower;
   return std::clamp (position, lower, upper - 1);
 }
+
+bool
+selection_covers_range (path selected_start, path selected_end,
+                        path range_start, path range_end) {
+  return path_less_eq (selected_start, range_start) &&
+         path_less_eq (range_end, selected_end);
+}

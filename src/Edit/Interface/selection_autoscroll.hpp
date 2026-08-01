@@ -12,10 +12,14 @@
 #define SELECTION_AUTOSCROLL_H
 
 #include "basic.hpp"
+#include "path.hpp"
 
 SI selection_autoscroll_delta (SI position, SI lower, SI upper,
                                SI edge_width, SI maximum_step);
 
 SI selection_hit_test_x (SI position, SI lower, SI upper);
+
+bool selection_covers_range (path selected_start, path selected_end,
+                             path range_start, path range_end);
 
 #endif // defined SELECTION_AUTOSCROLL_H
