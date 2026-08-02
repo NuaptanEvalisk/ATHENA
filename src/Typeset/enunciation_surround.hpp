@@ -20,14 +20,67 @@ athena_tree_tag (tree t) {
 static inline bool
 athena_is_enunciation_surround (tree t) {
   if (L(t) == COMPOUND)
-    return N(t) == 4 && is_atomic (t[0]) &&
+    return (N(t) == 4 || N(t) == 5) && is_atomic (t[0]) &&
            t[0]->label == "enunciation-surround";
-  return as_string (L(t)) == "enunciation-surround" && N(t) == 3;
+  return as_string (L(t)) == "enunciation-surround" &&
+         (N(t) == 3 || N(t) == 4);
 }
 
 static inline int
 athena_enunciation_surround_delta (tree t) {
   return L(t) == COMPOUND ? 1 : 0;
+}
+
+static inline bool
+athena_enunciation_surround_has_color (tree t) {
+  if (!athena_is_enunciation_surround (t)) return false;
+  int d= athena_enunciation_surround_delta (t);
+  return N(t) == d + 4;
+}
+
+static inline tree
+athena_enunciation_surround_color (tree t) {
+  if (!athena_enunciation_surround_has_color (t)) return tree ("none");
+  int d= athena_enunciation_surround_delta (t);
+  return t[d + 3];
+}
+
+static inline tree
+athena_set_enunciation_surround_color (tree t, tree color, bool& found) {
+  if (is_atomic (t)) return t;
+  if (athena_is_enunciation_surround (t)) {
+    int d= athena_enunciation_surround_delta (t);
+    tree out (t, d + 4);
+    for (int i=0; i<d+3; i++) out[i]= t[i];
+    out[d + 3]= color;
+    found= true;
+    return out;
+  }
+  tree out (t, N(t));
+  for (int i=0; i<N(t); i++)
+    out[i]= athena_set_enunciation_surround_color (t[i], color, found);
+  return out;
+}
+
+static inline bool
+athena_is_enunciation_background (tree t) {
+  if (L(t) == COMPOUND)
+    return N(t) == 3 && is_atomic (t[0]) &&
+           t[0]->label == "athena-enunciation-background";
+  return as_string (L(t)) == "athena-enunciation-background" && N(t) == 2;
+}
+
+static inline int
+athena_enunciation_background_delta (tree t) {
+  return L(t) == COMPOUND ? 1 : 0;
+}
+
+static inline tree
+athena_enunciation_background_render_rewrite (tree t) {
+  int d= athena_enunciation_background_delta (t);
+  return tree (WITH, "ornament-color", t[d],
+               "ornament-shape", "rectangular",
+               "ornament-border", "0ln", tree (ORNAMENT, t[d + 1]));
 }
 
 static inline bool
@@ -277,6 +330,16 @@ athena_enunciation_surround_rewrite (edit_env env, tree t) {
     return tree (DOCUMENT, title_line, body);
   }
   return tree (SURROUND, left, right, body);
+}
+
+static inline tree
+athena_enunciation_surround_render_rewrite (edit_env env, tree t) {
+  tree body= athena_enunciation_surround_rewrite (env, t);
+  tree color= athena_enunciation_surround_color (t);
+  if (is_atomic (color) && color->label == "none") return body;
+  return tree (WITH, "ornament-color", color,
+               "ornament-shape", "rectangular",
+               "ornament-border", "0ln", tree (ORNAMENT, body));
 }
 
 #endif // ENUNCIATION_SURROUND_H

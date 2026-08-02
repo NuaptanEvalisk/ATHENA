@@ -104,8 +104,12 @@ concater_rep::typeset_with (tree t, path ip) {
 
 void
 concater_rep::typeset_compound (tree t, path ip) {
+  if (athena_is_enunciation_background (t)) {
+    typeset (athena_enunciation_background_render_rewrite (t), ip);
+    return;
+  }
   if (athena_is_enunciation_surround (t)) {
-    typeset (athena_enunciation_surround_rewrite (env, t), ip);
+    typeset (athena_enunciation_surround_render_rewrite (env, t), ip);
     return;
   }
   if (athena_is_proof_qed_layout (t)) {
@@ -162,12 +166,19 @@ concater_rep::typeset_compound (tree t, path ip) {
         if (col != "none") {
           f = copy(f); // Must copy before modifying
           tree body= copy (f[n]);
-          if (var == "render-proof")
-            body= tree(WITH, "vault-enunciation-color", "none", body);
-          tree orn = tree(WITH, "ornament-color", col, "ornament-shape",
-                          "rectangular", "ornament-border", "0ln",
-                          tree(ORNAMENT, body));
-          f[n] = tree(COMPOUND, tree("padded*"), orn);
+          bool found= false;
+          if (var == "render-enunciation")
+            body= athena_set_enunciation_surround_color (
+              body, tree (col), found);
+          if (found) f[n]= body;
+          else {
+            if (var == "render-proof")
+              body= tree(WITH, "vault-enunciation-color", "none", body);
+            tree bg= tree (COMPOUND,
+                           tree ("athena-enunciation-background"),
+                           tree (col), body);
+            f[n] = tree(COMPOUND, tree("padded*"), bg);
+          }
         }
       }
     }

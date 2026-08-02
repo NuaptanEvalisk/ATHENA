@@ -38,6 +38,20 @@ athena_enunciation_surround_body_path (bool display, path p) {
   return path (display? 1: 2, p->next);
 }
 
+static void
+athena_mark_enunciation_background (
+  array<page_item>& items, tree color, int alpha)
+{
+  brush bg (color, alpha);
+  for (int i=0; i<N(items); i++)
+    if (items[i]->type == PAGE_LINE_ITEM) {
+      page_item item= copy (items[i]);
+      if (item->block_bg->get_type () == brush_none)
+        item->block_bg= bg;
+      items[i]= item;
+    }
+}
+
 class bridge_compound_rep: public bridge_rep {
 protected:
   bool   valid;
@@ -89,6 +103,20 @@ void
 bridge_compound_rep::notify_assign (path p, tree u) {
   // cout << "Assign " << p << ", " << u << " in " << st << "\n";
   ASSERT (!is_nil (p) || L(u) >= START_EXTENSIONS, "nil path");
+  if (athena_is_enunciation_background (st)) {
+    int d= athena_enunciation_background_delta (st);
+    if (!is_nil (p) && p->item == d + 1 && !is_nil (p->next) &&
+        !is_nil (body)) {
+      body->notify_assign (p->next, u);
+      st= substitute (st, d + 1, body->st);
+    }
+    else {
+      st= substitute (st, p, u);
+      valid= false;
+    }
+    status= CORRUPTED;
+    return;
+  }
   if (athena_is_enunciation_surround (st)) {
     bool old_display= athena_enunciation_surround_display (env, st);
     tree new_st= substitute (st, p, u);
@@ -133,6 +161,19 @@ void
 bridge_compound_rep::notify_insert (path p, tree u) {
   // cout << "Insert " << p << ", " << u << " in " << st << "\n";
   ASSERT (!is_nil (p), "nil path");
+  if (athena_is_enunciation_background (st)) {
+    int d= athena_enunciation_background_delta (st);
+    if (!is_atom (p) && p->item == d + 1 && !is_nil (body)) {
+      body->notify_insert (p->next, u);
+      st= substitute (st, d + 1, body->st);
+    }
+    else {
+      st= insert_at (st, p, u);
+      valid= false;
+    }
+    status= CORRUPTED;
+    return;
+  }
   if (athena_is_enunciation_surround (st)) {
     bool old_display= athena_enunciation_surround_display (env, st);
     tree new_st= insert_at (st, p, u);
@@ -174,6 +215,19 @@ void
 bridge_compound_rep::notify_remove (path p, int nr) {
   // cout << "Remove " << p << ", " << nr << " in " << st << "\n";
   ASSERT (!is_nil (p), "nil path");
+  if (athena_is_enunciation_background (st)) {
+    int d= athena_enunciation_background_delta (st);
+    if (!is_atom (p) && p->item == d + 1 && !is_nil (body)) {
+      body->notify_remove (p->next, nr);
+      st= substitute (st, d + 1, body->st);
+    }
+    else {
+      st= remove_at (st, p, nr);
+      valid= false;
+    }
+    status= CORRUPTED;
+    return;
+  }
   if (athena_is_enunciation_surround (st)) {
     bool old_display= athena_enunciation_surround_display (env, st);
     tree new_st= remove_at (st, p, nr);
@@ -222,11 +276,26 @@ bridge_compound_rep::notify_macro (
   */
 
   bool flag;
+  if (athena_is_enunciation_background (st)) {
+    int d= athena_enunciation_background_delta (st);
+    bool color_dep= env->depends (st[d], var, l);
+    bool body_dep = env->depends (st[d + 1], var, l);
+    if (valid && body_dep && !color_dep && !is_nil (body)) {
+      flag= body->notify_macro (type, var, l, p, u);
+      status= CORRUPTED;
+      return flag || body_dep;
+    }
+    valid= false;
+    status= CORRUPTED;
+    return body_dep || color_dep;
+  }
   if (athena_is_enunciation_surround (st)) {
     int d= athena_enunciation_surround_delta (st);
     bool body_dep= env->depends (st[d + 2], var, l);
     bool wrapper_dep=
-      env->depends (st[d], var, l) || env->depends (st[d + 1], var, l);
+      env->depends (st[d], var, l) || env->depends (st[d + 1], var, l) ||
+      (athena_enunciation_surround_has_color (st) &&
+       env->depends (st[d + 3], var, l));
     if (valid && body_dep && !wrapper_dep && !is_nil (body)) {
       flag= body->notify_macro (type, var, l, p, u);
       status= CORRUPTED;
@@ -295,12 +364,38 @@ bridge_compound_rep::my_typeset_will_be_complete () {
 
 void
 bridge_compound_rep::my_typeset (int desired_status) {
+  if (athena_is_enunciation_background (st)) {
+    int d= athena_enunciation_background_delta (st);
+    tree body_t= st[d + 1];
+    initialize (body_t, 0, body_t);
+    if (!the_drd->is_child_enforcing (st))
+      ttt->insert_marker (st, ip);
+    array<page_item> items;
+    stack_border border;
+    ttt->local_start (items, border);
+    body->typeset (desired_status);
+    ttt->local_end (items, border);
+    athena_mark_enunciation_background (items, st[d], env->alpha);
+    ttt->insert_stack (items, border);
+    return;
+  }
   if (athena_is_enunciation_surround (st)) {
     tree r= athena_enunciation_surround_rewrite (env, st);
     initialize (r, 0, r);
     if (!the_drd->is_child_enforcing (st))
       ttt->insert_marker (st, ip);
-    body->typeset (desired_status);
+    tree color= athena_enunciation_surround_color (st);
+    if (is_atomic (color) && color->label == "none")
+      body->typeset (desired_status);
+    else {
+      array<page_item> items;
+      stack_border border;
+      ttt->local_start (items, border);
+      body->typeset (desired_status);
+      ttt->local_end (items, border);
+      athena_mark_enunciation_background (items, color, env->alpha);
+      ttt->insert_stack (items, border);
+    }
     return;
   }
   if (athena_is_proof_qed_layout (st)) {
@@ -354,12 +449,19 @@ bridge_compound_rep::my_typeset (int desired_status) {
         if (col != "none") {
           f = copy(f);
           tree body= copy (f[n]);
-          if (var == "render-proof")
-            body= tree(WITH, "vault-enunciation-color", "none", body);
-          tree orn = tree(WITH, "ornament-color", col, "ornament-shape",
-                          "rectangular", "ornament-border", "0ln",
-                          tree(ORNAMENT, body));
-          f[n] = tree(COMPOUND, tree("padded*"), orn);
+          bool found= false;
+          if (var == "render-enunciation")
+            body= athena_set_enunciation_surround_color (
+              body, tree (col), found);
+          if (found) f[n]= body;
+          else {
+            if (var == "render-proof")
+              body= tree(WITH, "vault-enunciation-color", "none", body);
+            tree bg= tree (COMPOUND,
+                           tree ("athena-enunciation-background"),
+                           tree (col), body);
+            f[n] = tree(COMPOUND, tree("padded*"), bg);
+          }
         }
       }
     }

@@ -359,9 +359,14 @@ make_lazy_with (edit_env env, tree t, path ip) {
 
 lazy
 make_lazy_compound (edit_env env, tree t, path ip) {
+  if (athena_is_enunciation_background (t))
+    return make_lazy (
+      env, attach_right (
+        athena_enunciation_background_render_rewrite (t), ip));
   if (athena_is_enunciation_surround (t))
     return make_lazy (
-      env, attach_right (athena_enunciation_surround_rewrite (env, t), ip));
+      env, attach_right (
+        athena_enunciation_surround_render_rewrite (env, t), ip));
   if (athena_is_proof_qed_layout (t))
     return make_lazy (
       env, attach_right (athena_proof_qed_layout_rewrite (env, t), ip));
@@ -416,12 +421,19 @@ make_lazy_compound (edit_env env, tree t, path ip) {
         if (col != "none") {
           f = copy(f); // Must copy before modifying
           tree body= copy (f[n]);
-          if (var == "render-proof")
-            body= tree(WITH, "vault-enunciation-color", "none", body);
-          tree orn = tree(WITH, "ornament-color", col, "ornament-shape",
-                          "rectangular", "ornament-border", "0ln",
-                          tree(ORNAMENT, body));
-          f[n] = tree(COMPOUND, tree("padded*"), orn);
+          bool found= false;
+          if (var == "render-enunciation")
+            body= athena_set_enunciation_surround_color (
+              body, tree (col), found);
+          if (found) f[n]= body;
+          else {
+            if (var == "render-proof")
+              body= tree(WITH, "vault-enunciation-color", "none", body);
+            tree bg= tree (COMPOUND,
+                           tree ("athena-enunciation-background"),
+                           tree (col), body);
+            f[n] = tree(COMPOUND, tree("padded*"), bg);
+          }
         }
       }
     }
