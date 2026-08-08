@@ -149,7 +149,8 @@
   hyperref)
 
 (logic-group latex-command-2*%
-  def newcommand renewcommand providecommand
+  def newcommand newcommand* renewcommand renewcommand*
+  providecommand providecommand*
   newtheorem newtheorem* frac parbox 
   ElseIf uElseIf lElseIf ForEach lForEach lForAll lFor)
 
@@ -401,7 +402,7 @@
 
 (logic-group latex-ignore-0%
   allowbreak notag xspace break sloppy makeatother makeatletter relax
-  qedhere
+  qedhere global long
   ignorespacesafterend ignorespaces balancecolumns
   tightlist)
 

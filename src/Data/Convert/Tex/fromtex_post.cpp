@@ -2375,6 +2375,212 @@ guess_missing (tree t) {
 }
 
 /******************************************************************************
+* Canonicalize theorem-like environments declared by imported documents
+******************************************************************************/
+
+static bool
+latex_text_argument (tree t, string& value) {
+  if (is_atomic (t)) {
+    value << t->label;
+    return true;
+  }
+  if (is_func (t, CONCAT) || is_func (t, DOCUMENT)) {
+    for (int i=0; i<N(t); i++)
+      if (!latex_text_argument (t[i], value)) return false;
+    return true;
+  }
+  if (is_tuple (t) && N(t) == 1 && is_atomic (t[0])) {
+    value << t[0]->label;
+    return true;
+  }
+  return false;
+}
+
+static void
+collect_latex_name_definitions (tree t, hashmap<string,tree>& definitions) {
+  if (is_atomic (t)) return;
+  string name;
+  if (is_tuple (t, "\\def", 2) && latex_text_argument (t[1], name))
+    definitions (name)= t[2];
+  for (int i=0; i<N(t); i++)
+    collect_latex_name_definitions (t[i], definitions);
+}
+
+static string
+resolve_latex_display_name (tree t, hashmap<string,tree>& definitions,
+                            int depth= 0) {
+  if (depth > 16) return "";
+  if (is_atomic (t)) return t->label;
+  if (is_func (t, CONCAT) || is_func (t, DOCUMENT)) {
+    string r;
+    for (int i=0; i<N(t); i++)
+      r << resolve_latex_display_name (t[i], definitions, depth);
+    return r;
+  }
+  if (!is_tuple (t) || N(t) == 0 || !is_atomic (t[0])) return "";
+
+  string command= t[0]->label;
+  if (N(t) == 1 && definitions->contains (command))
+    return resolve_latex_display_name (definitions[command], definitions,
+                                       depth + 1);
+  if (command == "\\protect" || command == "\\relax") return "";
+  if (command == "\\text" || command == "\\textrm" ||
+      command == "\\textnormal" || command == "\\textbf" ||
+      command == "\\textit" || command == "\\emph" ||
+      command == "\\mbox" || command == "\\mathrm") {
+    string r;
+    for (int i=1; i<N(t); i++)
+      r << resolve_latex_display_name (t[i], definitions, depth + 1);
+    return r;
+  }
+  return "";
+}
+
+static string
+normalize_enunciation_display_name (string name) {
+  name= trim_spaces (replace (replace (name, "\n", " "), "\t", " "));
+  while (occurs ("  ", name)) name= replace (name, "  ", " ");
+  while (N(name) > 0 &&
+         (name[N(name)-1] == '.' || name[N(name)-1] == ':' ||
+          name[N(name)-1] == ';'))
+    name= trim_spaces_right (name (0, N(name)-1));
+  return locase_all (name);
+}
+
+static string
+standard_enunciation_name (string display_name) {
+  string name= normalize_enunciation_display_name (display_name);
+  if (name == "theorem" || name == "thm") return "theorem";
+  if (name == "proposition" || name == "prop") return "proposition";
+  if (name == "lemma" || name == "lem") return "lemma";
+  if (name == "corollary" || name == "cor") return "corollary";
+  if (name == "axiom") return "axiom";
+  if (name == "definition" || name == "def") return "definition";
+  if (name == "notation") return "notation";
+  if (name == "conjecture") return "conjecture";
+  if (name == "law") return "law";
+  if (name == "remark" || name == "rem") return "remark";
+  if (name == "example") return "example";
+  if (name == "note") return "note";
+  if (name == "warning") return "warning";
+  if (name == "disambiguation") return "disambiguation";
+  if (name == "convention") return "convention";
+  if (name == "acknowledgment" || name == "acknowledgments")
+    return "acknowledgments";
+  if (name == "question") return "question";
+  if (name == "answer") return "answer";
+  if (name == "exercise") return "exercise";
+  if (name == "problem") return "problem";
+  if (name == "solution") return "solution";
+  if (name == "proof") return "proof";
+  return "";
+}
+
+static bool
+is_standard_enunciation_name_helper (string name, string target) {
+  return name == target * "name" || name == target * "-name" ||
+         (target == "acknowledgments" && name == "acknowledgmentname");
+}
+
+static void
+collect_standard_enunciation_name_helpers (
+    tree t, hashmap<string,tree>& definitions,
+    hashmap<string,bool>& name_helpers) {
+  if (is_atomic (t)) return;
+  string name;
+  if (is_tuple (t, "\\def", 2) && latex_text_argument (t[1], name)) {
+    string display= resolve_latex_display_name (t[2], definitions);
+    string target= standard_enunciation_name (display);
+    string helper_name= starts (name, "\\") ? name (1, N(name)): name;
+    if (target != "" &&
+        is_standard_enunciation_name_helper (helper_name, target))
+      name_helpers (name)= true;
+  }
+  for (int i=0; i<N(t); i++)
+    collect_standard_enunciation_name_helpers (
+      t[i], definitions, name_helpers);
+}
+
+static void
+collect_latex_enunciation_aliases (
+    tree t, hashmap<string,tree>& definitions,
+    hashmap<string,string>& declaration_aliases,
+    hashmap<string,string>& environment_aliases) {
+  if (is_atomic (t)) return;
+  string source;
+  if ((is_tuple (t, "\\newtheorem", 2) ||
+       is_tuple (t, "\\newtheorem*", 2)) &&
+      latex_text_argument (t[1], source)) {
+    string display= resolve_latex_display_name (t[2], definitions);
+    string target= standard_enunciation_name (display);
+    if (target != "") {
+      declaration_aliases (source)= target;
+      if (is_tuple (t, "\\newtheorem*", 2)) target << "*";
+      environment_aliases (source)= target;
+    }
+  }
+  for (int i=0; i<N(t); i++)
+    collect_latex_enunciation_aliases (t[i], definitions,
+      declaration_aliases, environment_aliases);
+}
+
+static tree
+rewrite_latex_enunciation_aliases (
+    tree t, hashmap<string,string>& declaration_aliases,
+    hashmap<string,string>& environment_aliases,
+    hashmap<string,bool>& name_helpers) {
+  if (is_atomic (t)) return t;
+  tree r (t, N(t));
+  for (int i=0; i<N(t); i++)
+    r[i]= rewrite_latex_enunciation_aliases (
+      t[i], declaration_aliases, environment_aliases, name_helpers);
+
+  string definition_name;
+  if (is_tuple (r, "\\def", 2) &&
+      latex_text_argument (r[1], definition_name) &&
+      name_helpers->contains (definition_name))
+    return tree ("");
+
+  string declaration_source;
+  if ((is_tuple (r, "\\newtheorem", 2) ||
+       is_tuple (r, "\\newtheorem*", 2)) &&
+      latex_text_argument (r[1], declaration_source) &&
+      declaration_aliases->contains (declaration_source))
+    r[1]= declaration_aliases[declaration_source];
+
+  if (is_tuple (r) && N(r) > 0 && is_atomic (r[0])) {
+    string command= r[0]->label;
+    string prefix, source;
+    if (starts (command, "\\begin-")) {
+      prefix= "\\begin-";
+      source= command (7, N(command));
+    }
+    else if (starts (command, "\\end-")) {
+      prefix= "\\end-";
+      source= command (5, N(command));
+    }
+    if (source != "" && environment_aliases->contains (source))
+      r[0]= prefix * environment_aliases[source];
+  }
+  return r;
+}
+
+static tree
+canonicalize_latex_enunciations (tree t) {
+  hashmap<string,tree> definitions (tree (""));
+  hashmap<string,string> declaration_aliases ("");
+  hashmap<string,string> environment_aliases ("");
+  hashmap<string,bool> name_helpers (false);
+  collect_latex_name_definitions (t, definitions);
+  collect_standard_enunciation_name_helpers (
+    t, definitions, name_helpers);
+  collect_latex_enunciation_aliases (
+    t, definitions, declaration_aliases, environment_aliases);
+  return rewrite_latex_enunciation_aliases (
+    t, declaration_aliases, environment_aliases, name_helpers);
+}
+
+/******************************************************************************
 * Interface
 ******************************************************************************/
 
@@ -2402,6 +2608,7 @@ latex_to_tree (tree t0, bool not_document) {
   command_type ("!em") = "false";
   // cout << "\n\nt1= " << t1 << "\n\n";
   tree t2= (is_document)? filter_preamble (t1): t1;
+  t2= canonicalize_latex_enunciations (t2);
   // cout << "\n\nt2= " << t2 << "\n\n";
 
   auto s2 = std::chrono::high_resolution_clock::now();

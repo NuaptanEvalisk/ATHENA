@@ -165,6 +165,7 @@ parse_declaration_sub (string s, int& i, string cmd,
   (void) trail_opt;
   int b= i, n= N(s);
   i += N(cmd);
+  if (i<n && s[i] == '*') i++;
   string first;
   for (int arg=0; arg<arity; arg++) {
     skip_whitespace (s, i);

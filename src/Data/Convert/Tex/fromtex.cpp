@@ -910,6 +910,7 @@ latex_symbol_to_tree (string s) {
     }
 
     if (latex_type (s) == "symbol") {
+      if (s == "FiveStar")      return "<bigstar>";
       if (s == "lnot")          return "<neg>";
       if (s == "land")          return "<wedge>";
       if (s == "lor")           return "<vee>";

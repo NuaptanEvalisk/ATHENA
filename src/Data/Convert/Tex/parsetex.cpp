@@ -994,9 +994,9 @@ latex_parser::parse_command (string s, int& i, string cmd, int change) {
   // << command_type ["!mode"] << ", " << latex_arity (cmd) << "]" << LF;
   if (cmd == "\\gdef" || cmd == "\\xdef" || cmd == "\\edef") cmd= "\\def";
   if (cmd == "\\def" && s[i] == '\\') delimdef = true;
-  if (cmd == "\\newcommand") cmd= "\\def";
-  if (cmd == "\\providecommand") cmd= "\\def";
-  if (cmd == "\\renewcommand") cmd= "\\def";
+  if (cmd == "\\newcommand" || cmd == "\\newcommand*") cmd= "\\def";
+  if (cmd == "\\providecommand" || cmd == "\\providecommand*") cmd= "\\def";
+  if (cmd == "\\renewcommand" || cmd == "\\renewcommand*") cmd= "\\def";
   if (cmd == "\\DeclareMathOperator") cmd= "\\def";
   if (cmd == "\\DeclareMathOperator*") cmd= "\\def";
   if (cmd == "\\RequirePackage") cmd= "\\usepackage";
