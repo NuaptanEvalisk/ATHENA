@@ -1596,6 +1596,7 @@ QTMWidget::wheelEvent(QWheelEvent *event) {
 void QTMWidget::showEvent (QShowEvent *event) {
   the_gui->force_update();
   QTMScrollView::showEvent (event);
+  performanceMonitor.refresh ();
 }
 
 void QTMWidget::closeEvent (QCloseEvent *event) {

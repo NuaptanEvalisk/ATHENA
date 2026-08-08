@@ -39,9 +39,11 @@ QTMPerformanceMonitor::QTMPerformanceMonitor (QTMWidget* owner2):
 
 bool
 QTMPerformanceMonitor::isDocumentCanvas () const {
-  return owner != nullptr && !is_nil (owner->tmwid) &&
-         owner->tm_widget () != nullptr &&
-         owner->tm_widget ()->is_editor_widget () && !owner->isEmbedded ();
+  if (owner == nullptr || !owner->isVisible () || is_nil (owner->tmwid))
+    return false;
+  qt_simple_widget_rep* widget= owner->tm_widget ();
+  return widget != nullptr && widget->is_editor_widget () &&
+         !owner->isEmbedded ();
 }
 
 QRect
