@@ -158,6 +158,18 @@ website_to_json (const athena_website_entry& website) {
   obj["publicUrl"] = qs (website.public_url);
   obj["description"] = qs (website.description);
   obj["generateSitemap"] = website.generate_sitemap;
+  QJsonObject redirections;
+  redirections["enabled"] = website.generate_redirections;
+  QJsonArray redirect_items;
+  for (const athena_website_redirection& redirection:
+       website.redirections) {
+    QJsonObject item;
+    item["shortcut"] = qs (redirection.shortcut);
+    item["path"] = qs (redirection.document);
+    redirect_items.append (item);
+  }
+  redirections["items"] = redirect_items;
+  obj["redirections"] = redirections;
   obj["regenerate"] = qs (website.regenerate.empty () ? "manual" :
                                                  website.regenerate);
   QJsonObject entrypoint;
@@ -188,6 +200,18 @@ website_from_json (const QJsonObject& obj) {
   website.generate_sitemap = obj.contains ("generateSitemap") ?
     obj.value ("generateSitemap").toBool (false) :
     !website.public_url.empty ();
+  QJsonObject redirections = obj.value ("redirections").toObject ();
+  website.generate_redirections =
+    redirections.value ("enabled").toBool (false);
+  for (const QJsonValue& value: redirections.value ("items").toArray ()) {
+    if (!value.isObject ()) continue;
+    QJsonObject item = value.toObject ();
+    athena_website_redirection redirection;
+    redirection.shortcut = ss (item.value ("shortcut").toString ());
+    redirection.document = clean_relative (
+      ss (item.value ("path").toString ()));
+    website.redirections.push_back (redirection);
+  }
   website.regenerate = ss (obj.value ("regenerate").toString ("manual"));
   QJsonObject entrypoint = obj.value ("entrypoint").toObject ();
   website.entrypoint_kind = ss (entrypoint.value ("kind").toString ());

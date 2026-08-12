@@ -26,6 +26,11 @@ struct athena_website_post_command {
   std::string arguments;
 };
 
+struct athena_website_redirection {
+  std::string shortcut;
+  std::string document;
+};
+
 struct athena_website_entry {
   std::string id;
   std::string name;
@@ -34,6 +39,8 @@ struct athena_website_entry {
   std::string public_url;
   std::string description;
   bool generate_sitemap = false;
+  bool generate_redirections = false;
+  std::vector<athena_website_redirection> redirections;
   std::string regenerate;
   std::string entrypoint_kind;
   std::string entrypoint_value;

@@ -27,6 +27,7 @@
 #include <QFileInfo>
 #include <QFontDatabase>
 #include <QFormLayout>
+#include <QHeaderView>
 #include <QHBoxLayout>
 #include <QInputDialog>
 #include <QLabel>
@@ -42,7 +43,9 @@
 #include <QTextEdit>
 #include <QTextCharFormat>
 #include <QTextCursor>
+#include <QTableWidget>
 #include <QTimer>
+#include <QToolButton>
 #include <QUrl>
 #include <QVBoxLayout>
 #include <QWizard>
@@ -401,6 +404,171 @@ private:
   }
 };
 
+class RedirectionsPage : public QWizardPage {
+public:
+  explicit RedirectionsPage (QWidget* parent= nullptr): QWizardPage (parent) {
+    setTitle ("Redirections");
+    setSubTitle ("Create Cloudflare Pages shortcuts for exported documents.");
+
+    enabled= new QCheckBox ("Generate Cloudflare Pages _redirects", this);
+    table= new QTableWidget (0, 3, this);
+    table->setHorizontalHeaderLabels ({"Shortcut", "Document", ""});
+    table->horizontalHeader ()->setSectionResizeMode (
+      0, QHeaderView::ResizeToContents);
+    table->horizontalHeader ()->setSectionResizeMode (1, QHeaderView::Stretch);
+    table->horizontalHeader ()->setSectionResizeMode (
+      2, QHeaderView::ResizeToContents);
+    table->verticalHeader ()->setVisible (false);
+    table->setSelectionMode (QAbstractItemView::NoSelection);
+    table->setMinimumHeight (240);
+
+    QPushButton* add= new QPushButton (
+      QIcon::fromTheme ("list-add"), "Add redirection", this);
+    QVBoxLayout* layout= new QVBoxLayout (this);
+    layout->addWidget (enabled);
+    layout->addWidget (table);
+    layout->addWidget (add, 0, Qt::AlignLeft);
+
+    connect (enabled, &QCheckBox::toggled, this, [this, add] (bool on) {
+      table->setEnabled (on);
+      add->setEnabled (on);
+      emit completeChanged ();
+    });
+    connect (add, &QPushButton::clicked, this, [this] () {
+      addRow (QString (), QString ());
+    });
+    table->setEnabled (false);
+    add->setEnabled (false);
+  }
+
+  void setDocuments (const QStringList& next) {
+    documents= next;
+    for (int row=0; row<table->rowCount (); row++) {
+      QComboBox* combo= qobject_cast<QComboBox*> (table->cellWidget (row, 1));
+      if (combo == nullptr) continue;
+      QString previous= combo->currentData ().toString ();
+      combo->clear ();
+      for (const QString& document: documents)
+        combo->addItem (document, document);
+      if (!previous.isEmpty () && !documents.contains (previous)) {
+        combo->insertItem (0, previous + " (not exported)", previous);
+        combo->setCurrentIndex (0);
+      }
+      else if (!previous.isEmpty ()) combo->setCurrentText (previous);
+    }
+    emit completeChanged ();
+  }
+
+  void setRedirections (
+      bool generate,
+      const std::vector<athena_website_redirection>& redirections) {
+    table->setRowCount (0);
+    for (const athena_website_redirection& redirection: redirections)
+      addRow (qss (redirection.shortcut), qss (redirection.document));
+    enabled->setChecked (generate);
+  }
+
+  bool generationEnabled () const { return enabled->isChecked (); }
+
+  std::vector<athena_website_redirection> redirections () const {
+    std::vector<athena_website_redirection> out;
+    for (int row=0; row<table->rowCount (); row++) {
+      QLineEdit* shortcut=
+        qobject_cast<QLineEdit*> (table->cellWidget (row, 0));
+      QComboBox* document=
+        qobject_cast<QComboBox*> (table->cellWidget (row, 1));
+      if (shortcut == nullptr || document == nullptr) continue;
+      athena_website_redirection redirection;
+      redirection.shortcut= qstd (shortcut->text ().trimmed ());
+      redirection.document= qstd (document->currentData ().toString ());
+      out.push_back (redirection);
+    }
+    return out;
+  }
+
+  bool validate (QString& error) const {
+    if (!generationEnabled ()) return true;
+    if (table->rowCount () > 2000) {
+      error= "Cloudflare Pages supports at most 2,000 static shortcuts.";
+      return false;
+    }
+    std::set<QString> shortcuts;
+    for (int row=0; row<table->rowCount (); row++) {
+      QLineEdit* shortcutEdit=
+        qobject_cast<QLineEdit*> (table->cellWidget (row, 0));
+      QComboBox* documentCombo=
+        qobject_cast<QComboBox*> (table->cellWidget (row, 1));
+      QString shortcut= shortcutEdit == nullptr ? QString () :
+                                      shortcutEdit->text ().trimmed ();
+      QString document= documentCombo == nullptr ? QString () :
+                                      documentCombo->currentData ().toString ();
+      if (!validShortcut (shortcut)) {
+        error= "Shortcut must be a site path beginning with '/', without "
+               "whitespace, a query, or a fragment.";
+        return false;
+      }
+      if (!shortcuts.insert (shortcut).second) {
+        error= "Duplicate redirection shortcut: " + shortcut;
+        return false;
+      }
+      if (!documents.contains (document)) {
+        error= "Redirection target is not in the website export range: " +
+               document;
+        return false;
+      }
+    }
+    return true;
+  }
+
+private:
+  QCheckBox* enabled;
+  QTableWidget* table;
+  QStringList documents;
+
+  static bool validShortcut (const QString& shortcut) {
+    if (!shortcut.startsWith ('/') || shortcut.startsWith ("//")) return false;
+    for (QChar c: shortcut)
+      if (c.isSpace () || c == '#' || c == '?') return false;
+    return true;
+  }
+
+  void addRow (const QString& shortcutText, const QString& documentPath) {
+    int row= table->rowCount ();
+    table->insertRow (row);
+    QLineEdit* shortcut= new QLineEdit (table);
+    shortcut->setPlaceholderText ("/short-name");
+    shortcut->setText (shortcutText);
+    QComboBox* document= new QComboBox (table);
+    for (const QString& item: documents) document->addItem (item, item);
+    if (!documentPath.isEmpty () && !documents.contains (documentPath))
+      document->insertItem (0, documentPath + " (not exported)",
+                            documentPath);
+    if (!documentPath.isEmpty ()) {
+      int index= document->findData (documentPath);
+      if (index >= 0) document->setCurrentIndex (index);
+    }
+    QToolButton* remove= new QToolButton (table);
+    remove->setIcon (QIcon::fromTheme ("edit-delete"));
+    remove->setToolTip ("Remove redirection");
+    table->setCellWidget (row, 0, shortcut);
+    table->setCellWidget (row, 1, document);
+    table->setCellWidget (row, 2, remove);
+    connect (shortcut, &QLineEdit::textChanged, this,
+             [this] () { emit completeChanged (); });
+    connect (document, qOverload<int> (&QComboBox::currentIndexChanged),
+             this, [this] () { emit completeChanged (); });
+    connect (remove, &QToolButton::clicked, this, [this, remove] () {
+      for (int i=0; i<table->rowCount (); i++)
+        if (table->cellWidget (i, 2) == remove) {
+          table->removeRow (i);
+          emit completeChanged ();
+          return;
+        }
+    });
+    emit completeChanged ();
+  }
+};
+
 class WebsiteWizard : public QWizard {
 public:
   WebsiteWizard (const std::vector<athena_website_entry>& existing,
@@ -463,6 +631,9 @@ public:
     sitemapPage->setLayout (sitemapLayout);
     addPage (sitemapPage);
 
+    redirectionsPage= new RedirectionsPage;
+    addPage (redirectionsPage);
+
     entryPage= new QWizardPage;
     entryPage->setTitle ("Entrypoint");
     fileEntry= new QRadioButton ("Document");
@@ -500,7 +671,11 @@ public:
       if (!selected.isEmpty ()) postProgram->setText (selected);
     });
     connect (selectorPage, &QWizardPage::completeChanged, this,
-             [this] () { refreshEntrypoints (); refreshSummary (); });
+             [this] () {
+               refreshEntrypoints ();
+               refreshRedirectionDocuments ();
+               refreshSummary ();
+             });
     connect (nameEdit, &QLineEdit::textChanged, this,
              [this] () { refreshSummary (); });
     connect (destinationEdit, &QLineEdit::textChanged, this,
@@ -516,6 +691,8 @@ public:
              [this] () { refreshSummary (); });
     connect (regenerateCombo, qOverload<int> (&QComboBox::currentIndexChanged),
              this,
+             [this] () { refreshSummary (); });
+    connect (redirectionsPage, &QWizardPage::completeChanged, this,
              [this] () { refreshSummary (); });
 
     if (initial != nullptr) {
@@ -538,6 +715,10 @@ public:
       destinationEdit->setText ("website");
     }
     refreshEntrypoints ();
+    refreshRedirectionDocuments ();
+    if (initial != nullptr)
+      redirectionsPage->setRedirections (
+        initial->generate_redirections, initial->redirections);
     refreshSummary ();
   }
 
@@ -569,6 +750,13 @@ public:
         "generation is enabled.");
       return false;
     }
+    if (currentPage () == redirectionsPage) {
+      QString error;
+      if (!redirectionsPage->validate (error)) {
+        QMessageBox::warning (this, "Websites manager", error);
+        return false;
+      }
+    }
     return QWizard::validateCurrentPage ();
   }
 
@@ -582,6 +770,8 @@ public:
     out.public_url= qstd (publicUrlEdit->text ().trimmed ());
     out.description= qstd (descriptionEdit->text ().trimmed ());
     out.generate_sitemap= generateSitemap->isChecked ();
+    out.generate_redirections= redirectionsPage->generationEnabled ();
+    out.redirections= redirectionsPage->redirections ();
     out.regenerate= qstd (regenerateCombo->currentData ().toString ());
     if (namespaceEntry->isChecked ()) {
       out.entrypoint_kind= "namespace";
@@ -607,6 +797,7 @@ private:
   SelectorPage* selectorPage;
   QWizardPage* publishPage;
   QWizardPage* sitemapPage;
+  RedirectionsPage* redirectionsPage;
   QWizardPage* entryPage;
   QWizardPage* confirmPage;
   QLineEdit* nameEdit;
@@ -650,6 +841,11 @@ private:
     }
   }
 
+  void refreshRedirectionDocuments () {
+    redirectionsPage->setDocuments (document_paths_for_selector (
+      selectorPage->currentSelector ()));
+  }
+
   void refreshSummary () {
     confirmation->setPlainText (
       QString ("Name: ") + nameEdit->text ().trimmed () + "\n" +
@@ -663,6 +859,10 @@ private:
       "\nDescription: " +
       (descriptionEdit->text ().trimmed ().isEmpty () ?
        "(none)" : descriptionEdit->text ().trimmed ()) +
+      "\nRedirections: " +
+      (redirectionsPage->generationEnabled () ?
+       QString::number ((int) redirectionsPage->redirections ().size ()) +
+         " configured" : "disabled") +
       "\nRegenerate: " + regenerateCombo->currentText () + "\n");
   }
 };

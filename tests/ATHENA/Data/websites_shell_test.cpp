@@ -23,6 +23,10 @@ class TestWebsiteShell: public QObject {
 private slots:
   void writesOneVersionedAssetGeneration ();
   void externalWebLinksOpenOutsideDocumentFrame ();
+  void persistsRedirectionConfiguration ();
+  void writesCloudflareRedirections ();
+  void rejectsRedirectionOutsideExportRange ();
+  void removesDisabledRedirectionsFile ();
 };
 
 static QString
@@ -82,6 +86,90 @@ TestWebsiteShell::externalWebLinksOpenOutsideDocumentFrame () {
   QVERIFY (script.contains ("['noopener','noreferrer']"));
   QVERIFY (script.contains (
     "document.addEventListener('DOMContentLoaded',initializeDocumentBridge)"));
+}
+
+void
+TestWebsiteShell::persistsRedirectionConfiguration () {
+  athena_website_entry website;
+  website.id= "redirect-site";
+  website.name= "Redirect site";
+  website.generate_redirections= true;
+  website.redirections.push_back ({"/manual", "Notes/Manual.ath"});
+  website.redirections.push_back ({"/start", "Notes/Start.ath"});
+
+  athena_website_entry restored= website_from_json (website_to_json (website));
+  QVERIFY (restored.generate_redirections);
+  QCOMPARE (restored.redirections.size (), (size_t) 2);
+  QCOMPARE (restored.redirections[0].shortcut, std::string ("/manual"));
+  QCOMPARE (restored.redirections[0].document,
+            std::string ("Notes/Manual.ath"));
+  QCOMPARE (restored.redirections[1].shortcut, std::string ("/start"));
+}
+
+void
+TestWebsiteShell::writesCloudflareRedirections () {
+  QTemporaryDir temp;
+  QVERIFY (temp.isValid ());
+
+  athena_website_entry website;
+  website.id= "redirect-site";
+  website.name= "Redirect site";
+  website.generate_redirections= true;
+  website.redirections.push_back (
+    {"/quick-start", "Notes/Quick Start.ath"});
+  website.redirections.push_back ({"/manual", "Manual.ath"});
+
+  GenerationContext context;
+  context.destination= fs::path (temp.path ().toStdString ());
+  context.selected_files= {"Notes/Quick Start.ath", "Manual.ath"};
+  context.html_paths["Notes/Quick Start.ath"]= "Notes/Quick Start.html";
+  context.html_paths["Manual.ath"]= "Manual.html";
+  std::string error;
+  QVERIFY2 (write_site_shell (website, context, error), error.c_str ());
+
+  QCOMPARE (readText (temp.filePath ("_redirects")),
+            QString ("/quick-start /Notes/Quick%20Start.html 302\n"
+                     "/manual /Manual.html 302\n"));
+}
+
+void
+TestWebsiteShell::rejectsRedirectionOutsideExportRange () {
+  QTemporaryDir temp;
+  QVERIFY (temp.isValid ());
+
+  athena_website_entry website;
+  website.id= "redirect-site";
+  website.name= "Redirect site";
+  website.generate_redirections= true;
+  website.redirections.push_back ({"/private", "Private.ath"});
+
+  GenerationContext context;
+  context.destination= fs::path (temp.path ().toStdString ());
+  context.selected_files= {"Public.ath"};
+  context.html_paths["Public.ath"]= "Public.html";
+  std::string error;
+  QVERIFY (!write_site_shell (website, context, error));
+  QVERIFY (QString::fromStdString (error).contains ("outside the exported range"));
+}
+
+void
+TestWebsiteShell::removesDisabledRedirectionsFile () {
+  QTemporaryDir temp;
+  QVERIFY (temp.isValid ());
+  QFile stale (temp.filePath ("_redirects"));
+  QVERIFY (stale.open (QIODevice::WriteOnly));
+  stale.write ("/old /Old.html 302\n");
+  stale.close ();
+
+  athena_website_entry website;
+  website.id= "redirect-site";
+  website.name= "Redirect site";
+  website.generate_redirections= false;
+  GenerationContext context;
+  context.destination= fs::path (temp.path ().toStdString ());
+  std::string error;
+  QVERIFY2 (write_site_shell (website, context, error), error.c_str ());
+  QVERIFY (!QFile::exists (temp.filePath ("_redirects")));
 }
 
 QTEST_APPLESS_MAIN (TestWebsiteShell)

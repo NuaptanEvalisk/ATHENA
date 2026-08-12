@@ -157,6 +157,72 @@ write_sitemap (const athena_website_entry& website,
   return true;
 }
 
+bool
+valid_redirect_shortcut (const std::string& shortcut) {
+  if (shortcut.empty () || shortcut[0] != '/' ||
+      shortcut.rfind ("//", 0) == 0)
+    return false;
+  for (unsigned char c: shortcut)
+    if (std::isspace (c) || c == '#' || c == '?') return false;
+  return true;
+}
+
+std::string
+redirect_destination (const std::string& html_path) {
+  return "/" + ss (QUrl::toPercentEncoding (qs (html_path), "/"));
+}
+
+bool
+write_redirections (const athena_website_entry& website,
+                    const GenerationContext& cx, std::string& error) {
+  fs::path target = cx.destination / "_redirects";
+  if (!website.generate_redirections) {
+    std::error_code ec;
+    fs::remove (target, ec);
+    return true;
+  }
+
+  if (website.redirections.size () > 2000) {
+    error = "Cloudflare Pages supports at most 2,000 static redirects per "
+            "_redirects file.";
+    return false;
+  }
+
+  std::set<std::string> shortcuts;
+  std::ostringstream out;
+  for (const athena_website_redirection& redirection:
+       website.redirections) {
+    if (!valid_redirect_shortcut (redirection.shortcut)) {
+      error = "Invalid website redirection shortcut: " +
+              redirection.shortcut;
+      return false;
+    }
+    if (!shortcuts.insert (redirection.shortcut).second) {
+      error = "Duplicate website redirection shortcut: " +
+              redirection.shortcut;
+      return false;
+    }
+    if (cx.selected_files.count (redirection.document) == 0) {
+      error = "Website redirection target is outside the exported range: " +
+              redirection.document;
+      return false;
+    }
+    auto html = cx.html_paths.find (redirection.document);
+    if (html == cx.html_paths.end ()) {
+      error = "Website redirection target has no generated HTML path: " +
+              redirection.document;
+      return false;
+    }
+    out << redirection.shortcut << " "
+        << redirect_destination (html->second) << " 302\n";
+  }
+  if (!write_file_bytes (target, out.str ())) {
+    error = "Could not write Cloudflare Pages _redirects.";
+    return false;
+  }
+  return true;
+}
+
 } // namespace
 
 QJsonObject
@@ -195,6 +261,7 @@ site_manifest (const athena_website_entry& website,
   root["publicUrl"] = qs (website.public_url);
   root["description"] = qs (website.description);
   root["generateSitemap"] = website.generate_sitemap;
+  root["generateRedirections"] = website.generate_redirections;
 
   std::string entry = "about:blank";
   if (website.entrypoint_kind == "namespace") {
@@ -282,6 +349,7 @@ write_site_shell (const athena_website_entry& website,
     return false;
   }
   if (!write_sitemap (website, cx, error)) return false;
+  if (!write_redirections (website, cx, error)) return false;
   copy_favicon (cx.destination / "css" / "favicon.png");
   return true;
 }
