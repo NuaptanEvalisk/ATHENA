@@ -23,6 +23,9 @@ target_link_libraries (athena_body
   ${ADS_LIBRARIES}
   rapidfuzz::rapidfuzz
 )
+if (TARGET KF6::SyntaxHighlighting)
+  target_link_libraries (athena_body PRIVATE KF6::SyntaxHighlighting)
+endif ()
 
 if (WIN32)
   add_executable (${ATHENA_binary_name} WIN32

@@ -784,6 +784,9 @@ if (ATHENA_GUI STREQUAL "Qt" OR ATHENA_GUI STREQUAL "Qt6")
   endif ()
 
   if (UNIX AND NOT APPLE)
+    find_package (KF6SyntaxHighlighting REQUIRED)
+    add_definitions ("-DUSE_KF6_SYNTAX_HIGHLIGHTING")
+
     option (USE_KF6_KIO_FILE_DIALOGS
             "Use KDE Frameworks KIO file dialogs" ON)
     if (USE_KF6_KIO_FILE_DIALOGS)

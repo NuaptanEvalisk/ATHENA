@@ -24,6 +24,11 @@
 #include <KIOFileWidgets/KFileCustomDialog>
 #include <KIOFileWidgets/KFileWidget>
 #endif
+#ifdef USE_KF6_SYNTAX_HIGHLIGHTING
+#include <KSyntaxHighlighting/Repository>
+#include <KSyntaxHighlighting/SyntaxHighlighter>
+#include <KSyntaxHighlighting/Theme>
+#endif
 #include <QAbstractItemView>
 #include <QAction>
 #include <QApplication>
@@ -34,6 +39,7 @@
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QFontDatabase>
 #include <QFormLayout>
 #include <QHeaderView>
 #include <QHBoxLayout>
@@ -61,6 +67,24 @@
 
 static QTMNamespaceManager* namespace_manager_widget= nullptr;
 static ads::CDockWidget* namespace_manager_dock= nullptr;
+
+#ifdef USE_KF6_SYNTAX_HIGHLIGHTING
+static KSyntaxHighlighting::Repository&
+namespace_syntax_repository () {
+  static KSyntaxHighlighting::Repository repository;
+  return repository;
+}
+
+static void
+namespace_highlight_c_source (QPlainTextEdit* edit) {
+  KSyntaxHighlighting::Repository& repository= namespace_syntax_repository ();
+  edit->ensurePolished ();
+  KSyntaxHighlighting::SyntaxHighlighter* highlighter=
+    new KSyntaxHighlighting::SyntaxHighlighter (edit->document ());
+  highlighter->setTheme (repository.themeForPalette (edit->palette ()));
+  highlighter->setDefinition (repository.definitionForName ("C"));
+}
+#endif
 
 static QIcon
 namespace_icon (const QString& name, QStyle::StandardPixmap fallback) {
@@ -677,7 +701,11 @@ public:
       QPlainTextEdit* edit= new QPlainTextEdit (pane);
       edit->setReadOnly (true);
       edit->setLineWrapMode (QPlainTextEdit::NoWrap);
+      edit->setFont (QFontDatabase::systemFont (QFontDatabase::FixedFont));
       edit->setPlainText (source);
+#ifdef USE_KF6_SYNTAX_HIGHLIGHTING
+      namespace_highlight_c_source (edit);
+#endif
       edit->setMinimumSize (420, 280);
       paneLayout->addWidget (edit);
       sources->addWidget (pane);
