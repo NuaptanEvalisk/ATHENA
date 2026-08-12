@@ -62,6 +62,7 @@ private:
   void completeFromSelection ();
   void switchTab ();
   void moveSelection (int delta);
+  void moveSelectionPage (int direction);
   QListWidget* activeList () const;
   int  fuzzyScore (const Entry& e, string query) const;
   int  fuzzyScore (string text, string query) const;

@@ -554,6 +554,23 @@ QTMQuickSwitcher::moveSelection (int delta) {
 }
 
 void
+QTMQuickSwitcher::moveSelectionPage (int direction) {
+  QListWidget* list= activeList ();
+  int count= list->count ();
+  if (count <= 0) return;
+
+  int row= list->currentRow ();
+  if (row < 0) row= direction > 0 ? 0 : count - 1;
+  int rowHeight= list->sizeHintForRow (row);
+  if (rowHeight <= 0) rowHeight= list->fontMetrics ().height ();
+  int pageRows= std::max (1, list->viewport ()->height () /
+                             std::max (1, rowHeight) - 1);
+  row= std::clamp (row + direction * pageRows, 0, count - 1);
+  list->setCurrentRow (row);
+  list->scrollToItem (list->item (row), QAbstractItemView::PositionAtCenter);
+}
+
+void
 QTMQuickSwitcher::completeFromSelection () {
   QListWidget* list= activeList ();
   QListWidgetItem* item= list->currentItem ();
@@ -576,6 +593,15 @@ QTMQuickSwitcher::eventFilter (QObject* watched, QEvent* event) {
       if (watched == searchEdit || watched == rawList ||
           watched == structuredList || watched == recentList) {
         moveSelection (key->key () == Qt::Key_Up ? -1 : 1);
+        return true;
+      }
+      return false;
+    }
+    if (key->key () == Qt::Key_PageUp ||
+        key->key () == Qt::Key_PageDown) {
+      if (watched == searchEdit || watched == rawList ||
+          watched == structuredList || watched == recentList) {
+        moveSelectionPage (key->key () == Qt::Key_PageUp ? -1 : 1);
         return true;
       }
       return false;
