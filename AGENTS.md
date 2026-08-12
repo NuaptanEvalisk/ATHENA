@@ -96,3 +96,35 @@ boundaries, do not patch from intuition. Debug from evidence.
 - Restrict filesystem searches to the known repository or an explicitly named
   data directory. When the user supplies an exact path, operate on that path
   directly instead of searching a broader parent.
+
+## Mature Implementations Before Approximate Replacements
+
+- For a self-contained capability request, first investigate whether a mature,
+  maintained implementation or library already exists. Prefer the established
+  implementation even when it introduces a substantial required dependency;
+  ATHENA does not prioritize being lightweight over correctness and quality.
+- Do not hand-write an approximate substitute merely because it is quick or
+  avoids adding a dependency. A partial C syntax highlighter, improvised parser,
+  simplified layout engine, ad hoc protocol implementation, or similar
+  "good enough" replacement is unacceptable when a professional implementation
+  is available.
+- Before implementing such a capability, document the existing implementations
+  considered, verify their licensing and integration surface, and use the best
+  suitable one as the source of truth. If none is suitable, explain the gap to
+  the user before writing a new implementation.
+- Treat "write something that looks approximately right" as a failed engineering
+  decision, not as incremental progress. Do not leave the approximation in the
+  worktree while switching to the proper implementation.
+
+## System Package Installation Boundary
+
+- Never install system packages without the user's explicit action or approval.
+  If a required dependency needs `zypper`, `sudo`, root access, or another system
+  package manager, stop and tell the user the exact package and command needed.
+- Do not bypass that boundary by downloading RPMs, extracting development files
+  into a temporary directory, creating a private package prefix, or otherwise
+  emulating a system installation. This prohibition applies even when the files
+  would remain under an ignored build directory.
+- After identifying a missing system dependency, make no further dependency
+  integration or feature implementation changes until the user confirms that
+  the package is installed.
