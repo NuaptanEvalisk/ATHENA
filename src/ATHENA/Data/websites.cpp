@@ -54,12 +54,16 @@ run_post_command (const athena_website_entry& website, const fs::path& root,
   args.replace ("{vault}", qs (root.string ()));
   args.replace ("{website}", qs (website.id));
   QStringList arguments = QProcess::splitCommand (args);
+  website_log ("running post-generation script");
   int rc = QProcess::execute (program, arguments);
   if (rc != 0) {
+    std::cout << std::endl << "ATHENA_WEBSITE_POST_STATUS failed " << rc
+              << std::endl;
     error = "Post-generation command failed with status " +
             std::to_string (rc);
     return false;
   }
+  std::cout << std::endl << "ATHENA_WEBSITE_POST_STATUS complete" << std::endl;
   return true;
 }
 
@@ -250,6 +254,26 @@ athena_generate_website (const std::string& vault_root,
   for (const athena_website_entry& website: websites) {
     if (website.id == website_id || website.name == website_id)
       return generate_website_entry (root, website, error);
+  }
+  error = "Unknown website: " + website_id;
+  return false;
+}
+
+bool
+athena_run_website_post_command (const std::string& vault_root,
+                                 const std::string& website_id,
+                                 std::string& error) {
+  fs::path root = normalize_root (fs::path (vault_root));
+  std::vector<athena_website_entry> websites;
+  if (!athena_websites_load (root.string (), websites, error)) return false;
+  for (const athena_website_entry& website: websites) {
+    if (website.id != website_id && website.name != website_id) continue;
+    if (!website.post_command.enabled || website.post_command.program.empty ()) {
+      error = "Website has no enabled post-generation command: " + website_id;
+      return false;
+    }
+    return run_post_command (website, root, destination_for (root, website),
+                             error);
   }
   error = "Unknown website: " + website_id;
   return false;

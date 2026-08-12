@@ -68,6 +68,9 @@ bool athena_website_selector_empty (
 bool athena_generate_website (const std::string& vault_root,
                               const std::string& website_id,
                               std::string& error);
+bool athena_run_website_post_command (const std::string& vault_root,
+                                      const std::string& website_id,
+                                      std::string& error);
 bool athena_generate_maintenance_websites (const std::string& vault_root,
                                            std::string& error);
 

@@ -121,6 +121,8 @@ int    artifact_queue_limit = 4096;
 int    artifact_queue_bytes = 32 * 1024 * 1024;
 string website_generate_dir;
 string website_generate_id;
+string website_post_command_dir;
+string website_post_command_id;
 bool   aofm_ignore_nonempty_dest = false;
 int    aofm_convert_vault_parallelism = 0;
 string extra_init_cmd;
@@ -704,6 +706,9 @@ set_global_options  (int argc, char** argv)  {
       else if (s == "-generate-website") {
         i += 2;
       }
+      else if (s == "-run-website-post-command") {
+        i += 2;
+      }
       else if (s == "-check-only") {
         // Handled in texmacs_entrypoint
       }
@@ -846,6 +851,7 @@ set_global_options  (int argc, char** argv)  {
         cout << "  --rag-delegated-embedding [dir]  Run only delegated incremental embedding\n";
         cout << "  --vault-maintenance-toc-worker [file] [marker]  Internal ToC maintenance worker\n";
         cout << "  --generate-website [dir] [id]  Generate a vault website headlessly\n";
+        cout << "  --run-website-post-command [dir] [id]  Run only a website post-generation command\n";
         cout << "  --check-only               With --vault-maintenance, run only the document health check\n";
         cout << "  --aofm-convert-file [file]  Convert one AOFM Markdown file headlessly\n";
         cout << "  --aofm-convert-vault [src] [dest] [jobs]  Convert an AOFM vault headlessly\n";
@@ -1087,6 +1093,16 @@ TeXmacs_main (int argc, char** argv) {
         athena_to_std_string (website_generate_dir),
         athena_to_std_string (website_generate_id), error);
       if (!ok) std_error << "website generation failed: "
+                         << error.c_str () << LF;
+      exit (ok ? 0 : 1);
+    }
+    if (website_post_command_dir != "" && website_post_command_id != "") {
+      eval ("(lazy-initialize-force)");
+      std::string error;
+      bool ok= athena_run_website_post_command (
+        athena_to_std_string (website_post_command_dir),
+        athena_to_std_string (website_post_command_id), error);
+      if (!ok) std_error << "website post-generation command failed: "
                          << error.c_str () << LF;
       exit (ok ? 0 : 1);
     }
@@ -1569,6 +1585,15 @@ texmacs_entrypoint (int argc, char** argv) {
       i++;
       if (i < argc) {
         website_generate_id= argv[i];
+        headless_mode= true;
+      }
+    }
+    if (s == "-run-website-post-command") {
+      i++;
+      if (i < argc) website_post_command_dir= argv[i];
+      i++;
+      if (i < argc) {
+        website_post_command_id= argv[i];
         headless_mode= true;
       }
     }

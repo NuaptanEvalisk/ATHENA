@@ -525,6 +525,7 @@
 (logic-table latex-special-symbols%
   ("less"          #\<)
   ("gtr"           #\>)
+  ("minus"         #\-)
   ("box"           (Box))
   ("over"          #\:)
   ("||"            (|)) ;; |

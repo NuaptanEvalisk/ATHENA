@@ -1025,9 +1025,13 @@ private:
     QLabel* status= new QLabel ("Starting website generation...");
     QProgressBar* progress= new QProgressBar;
     progress->setRange (0, 0);
+    QPushButton* rerunPost= new QPushButton (
+      "Rerun post-generation script");
+    rerunPost->setVisible (false);
     QAnsiTextEdit* output= new QAnsiTextEdit;
     layout->addWidget (status);
     layout->addWidget (progress);
+    layout->addWidget (rerunPost, 0, Qt::AlignLeft);
     layout->addWidget (output);
     pane->setLayout (layout);
 
@@ -1040,14 +1044,25 @@ private:
     dock->show ();
 
     QProcess* process= new QProcess (pane);
+    pane->setProperty ("athenaPostFailed", false);
+    pane->setProperty ("athenaPostOnly", false);
+    pane->setProperty ("athenaWebsiteOutputPending", QString ());
     process->setProgram (QCoreApplication::applicationFilePath ());
     process->setArguments (
       QStringList () << "--generate-website" << vault_root_qstring ()
                      << qss (website.id));
     process->setProcessChannelMode (QProcess::MergedChannels);
-    connect (process, &QProcess::readyRead, pane, [=] () {
-      QString text= QString::fromUtf8 (process->readAll ());
-      for (const QString& raw: text.split ('\n')) {
+    auto consumeOutput= [=] (bool flush) {
+      QString text= pane->property ("athenaWebsiteOutputPending").toString () +
+                    QString::fromUtf8 (process->readAll ());
+      QStringList lines= text.split ('\n');
+      QString pending= lines.takeLast ();
+      if (flush && !pending.isEmpty ()) {
+        lines.append (pending);
+        pending.clear ();
+      }
+      pane->setProperty ("athenaWebsiteOutputPending", pending);
+      for (const QString& raw: lines) {
         QString displayLine= raw;
         QString line= raw.trimmed ();
         if (line.isEmpty ()) continue;
@@ -1067,18 +1082,45 @@ private:
         else if (line.startsWith ("ATHENA_WEBSITE_LOG ")) {
           output->appendAnsiText (line.mid (19) + "\n");
         }
+        else if (line.startsWith ("ATHENA_WEBSITE_POST_STATUS ")) {
+          pane->setProperty ("athenaPostFailed",
+                             line.section (' ', 1, 1) == "failed");
+        }
         else output->appendAnsiText (displayLine + "\n");
       }
-    });
+    };
+    connect (process, &QProcess::readyRead, pane,
+             [=] () { consumeOutput (false); });
     connect (process,
              qOverload<int,QProcess::ExitStatus> (&QProcess::finished),
              pane,
              [=] (int code, QProcess::ExitStatus exitStatus) {
+      consumeOutput (true);
+      bool postOnly= pane->property ("athenaPostOnly").toBool ();
+      bool succeeded= exitStatus == QProcess::NormalExit && code == 0;
       progress->setRange (0, 1);
-      progress->setValue (exitStatus == QProcess::NormalExit && code == 0
-                          ? 1 : 0);
-      status->setText (code == 0 && exitStatus == QProcess::NormalExit
-                       ? "Generation complete" : "Generation failed");
+      progress->setValue (succeeded ? 1 : 0);
+      if (succeeded)
+        status->setText (postOnly ? "Post-generation script complete"
+                                  : "Generation complete");
+      else
+        status->setText (postOnly ? "Post-generation script failed"
+                                  : "Generation failed");
+      rerunPost->setVisible (
+        pane->property ("athenaPostFailed").toBool ());
+    });
+    connect (rerunPost, &QPushButton::clicked, pane, [=] () {
+      if (process->state () != QProcess::NotRunning) return;
+      pane->setProperty ("athenaPostFailed", false);
+      pane->setProperty ("athenaPostOnly", true);
+      rerunPost->setVisible (false);
+      status->setText ("Running post-generation script...");
+      progress->setRange (0, 0);
+      output->appendAnsiText ("\nRerunning post-generation script...\n");
+      process->setArguments (
+        QStringList () << "--run-website-post-command"
+                       << vault_root_qstring () << qss (website.id));
+      process->start ();
     });
     process->start ();
   }

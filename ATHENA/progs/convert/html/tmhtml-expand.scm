@@ -53,7 +53,6 @@
              mouse-over-balloon mouse-over-balloon*
              hover-balloon hover-balloon*
              popup-balloon popup-balloon*
-             big-figure small-figure big-table small-table
              render-big-figure render-small-figure
              render-big-table render-small-table
              theorem theorem* proposition proposition* lemma lemma*

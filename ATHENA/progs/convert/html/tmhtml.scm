@@ -237,6 +237,7 @@
                   ".figure-body { text-align: center; } "
                   ".figure img { max-width: 100%; height: auto; } "
                   ".figure-caption { margin-top: 0.35em; font-size: 90%; } "
+                  ".figure-caption-label { font-weight: bold; } "
                   ".verbatim, tt, code, kbd, samp, pre { font-family: "
                   "TeX Gyre Cursor, Courier New, Courier, monospace; "
                   "font-size: 100%; } "
@@ -1794,21 +1795,33 @@
                    (tmhtml-enunciation-body l))))
     (tmhtml-source-enunciation kind group title fallback (list body))))
 
-(define (tmhtml-source-figure kind l)
+(define (tmhtml-source-figure kind l . caption-prefix)
   (let* ((class (string-append "figure figure-" kind))
          (body (if (null? l) '(document "") (car l)))
          (caption (if (or (null? l) (null? (cdr l))) #f (cadr l)))
          (body-html (tmhtml body))
+         (prefix-html (if (null? caption-prefix)
+                          '()
+                          (tmhtml (car caption-prefix))))
          (caption-html (if caption (tmhtml caption) '())))
     `((h:div (@ (class ,class))
              (h:div (@ (class "figure-body")) ,@body-html)
-             ,@(if (nnull? caption-html)
-                   `((h:div (@ (class "figure-caption")) ,@caption-html))
+             ,@(if (or (nnull? prefix-html) (nnull? caption-html))
+                   `((h:div (@ (class "figure-caption"))
+                            ,@(if (nnull? prefix-html)
+                                  `((h:span (@ (class "figure-caption-label"))
+                                            ,@prefix-html))
+                                  '())
+                            ,@(if (and (nnull? prefix-html)
+                                      (nnull? caption-html))
+                                  '(". ")
+                                  '())
+                            ,@caption-html))
                    '())))))
 
 (define (tmhtml-render-figure kind l)
   (if (>= (length l) 4)
-      (tmhtml-source-figure kind (list (caddr l) (cadddr l)))
+      (tmhtml-source-figure kind (list (caddr l) (cadddr l)) (cadr l))
       (tmhtml-source-figure kind l)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
