@@ -54,6 +54,8 @@ vault_maintenance_run (string vault_dir, bool check_only) {
      vault_maintenance_pass_purge_retained_data},
     {"generate-websites", "Generate maintenance websites",
      vault_maintenance_pass_generate_websites},
+    {"dispatch-backups", "Dispatch vault backup mirrors",
+     vault_maintenance_pass_dispatch_backups},
     {"summary", "Print maintenance summary",
      vault_maintenance_pass_print_summary}
   };

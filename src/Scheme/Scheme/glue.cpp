@@ -51,6 +51,7 @@
 #include "QTMDocumentSearchBar.hpp"
 #include "QTMArtifactsPane.hpp"
 #include "QTMVaultInfoModel.hpp"
+#include "QTMVaultBackupDispatcher.hpp"
 #include "QTMAbout.hpp"
 #include "QTMESCSymbolPicker.hpp"
 #include "QTMFontSelector.hpp"
@@ -1838,9 +1839,15 @@ tmg_vaultfile_write (tmscm arg1, tmscm arg2) {
   TMSCM_ASSERT_ARRAY_STRING (arg2, TMSCM_ARG2, "vaultfile-write");
 
   std::string error;
+  std::filesystem::path root= tmg_vault_root_path (arg1);
   AthenaVaultfileInfo info=
     tmg_vaultfile_info_from_array (tmscm_to_array_string (arg2));
-  if (athena_vaultfile_write (tmg_vault_root_path (arg1), info, error))
+  AthenaVaultfileInfo previous;
+  std::string read_error;
+  if (athena_vaultfile_present (root) &&
+      athena_vaultfile_read (root, previous, read_error))
+    info.backup_dispatchers= previous.backup_dispatchers;
+  if (athena_vaultfile_write (root, info, error))
     return string_to_tmscm ("");
   return string_to_tmscm (string (error.c_str (), error.size ()));
 }
@@ -1853,6 +1860,15 @@ tmg_vaultfile_ensure_json (tmscm arg1) {
   if (athena_vaultfile_ensure_json (tmg_vault_root_path (arg1), error))
     return string_to_tmscm ("");
   return string_to_tmscm (string (error.c_str (), error.size ()));
+}
+
+static tmscm
+tmg_vault_backup_dispatch_realtime (tmscm arg1) {
+  TMSCM_ASSERT_URL (arg1, TMSCM_ARG1, "vault-backup-dispatch-realtime");
+  url saved_file= tmscm_to_url (arg1);
+  qtm_vault_backup_dispatch_realtime (
+    to_qstring (as_string (concretize (saved_file), URL_SYSTEM)));
+  return TMSCM_UNSPECIFIED;
 }
 
 tmscm
@@ -2064,6 +2080,8 @@ initialize_glue () {
                            tmg_vaultfile_write, 2, 0, 0);
   tmscm_install_procedure ("vaultfile-ensure-json",
                            tmg_vaultfile_ensure_json, 1, 0, 0);
+  tmscm_install_procedure ("vault-backup-dispatch-realtime",
+                           tmg_vault_backup_dispatch_realtime, 1, 0, 0);
   tmscm_install_procedure ("image-remove-background",
                            image_remove_background_current, 1, 0, 0);
   

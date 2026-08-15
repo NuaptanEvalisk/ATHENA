@@ -63,6 +63,8 @@
 #include <QStandardPaths>
 #include <QStyle>
 #include <QTabWidget>
+#include <QTableWidget>
+#include <QHeaderView>
 #include <QTextEdit>
 #include <QTextCursor>
 #include <QToolButton>
@@ -1731,6 +1733,164 @@ QTMPreferencesDialog::buildVaultPage () {
              "All");
   finish_page (maintenance);
 
+  QWidget* backup= make_page ();
+  QFormLayout* bk= add_section (backup, "Backup dispatchers");
+  QLabel* backupDescription= new QLabel (
+    "Each dispatcher maintains a one-way mirror of the whole active vault. "
+    "The destination may be an absolute local directory, a ~/ path, or an "
+    "rsync/SSH destination "
+    "such as user@host:/path. Files removed from the vault are also removed "
+    "from the mirror. .backup and .athena/rag-backup-* are excluded.", backup);
+  backupDescription->setWordWrap (true);
+  bk->addRow (backupDescription);
+
+  QTableWidget* dispatcherTable= new QTableWidget (backup);
+  dispatcherTable->setColumnCount (2);
+  dispatcherTable->setHorizontalHeaderLabels ({"Destination", "Trigger"});
+  dispatcherTable->horizontalHeader ()->setSectionResizeMode (
+    0, QHeaderView::Stretch);
+  dispatcherTable->horizontalHeader ()->setSectionResizeMode (
+    1, QHeaderView::ResizeToContents);
+  dispatcherTable->setSelectionBehavior (QAbstractItemView::SelectRows);
+  dispatcherTable->setSelectionMode (QAbstractItemView::ExtendedSelection);
+  dispatcherTable->setMinimumHeight (220);
+
+  auto triggerCombo= [dispatcherTable] (const QString& trigger) {
+    QComboBox* combo= new QComboBox (dispatcherTable);
+    combo->addItem ("Every successful save", "realtime");
+    combo->addItem ("Vault maintenance", "maintenance");
+    combo->addItem ("Idle for 5 minutes", "idle");
+    int index= combo->findData (trigger);
+    combo->setCurrentIndex (index >= 0 ? index : 0);
+    return combo;
+  };
+
+  QVector<QTMBackupDispatcher> configuredDispatchers;
+  QString dispatcherReadError;
+  bool dispatchersAvailable= qtm_backup_dispatchers_read (
+    configuredDispatchers, &dispatcherReadError);
+  if (dispatchersAvailable) {
+    for (const QTMBackupDispatcher& dispatcher: configuredDispatchers) {
+      int row= dispatcherTable->rowCount ();
+      dispatcherTable->insertRow (row);
+      QTableWidgetItem* destinationItem=
+        new QTableWidgetItem (dispatcher.destination);
+      destinationItem->setData (Qt::UserRole, dispatcher.destination);
+      dispatcherTable->setItem (row, 0, destinationItem);
+      dispatcherTable->setCellWidget (
+        row, 1, triggerCombo (dispatcher.trigger));
+    }
+  }
+  else {
+    dispatcherTable->setEnabled (false);
+    backupDescription->setText (dispatcherReadError.isEmpty ()
+      ? "No active vault." : dispatcherReadError);
+  }
+  bk->addRow (dispatcherTable);
+
+  QWidget* dispatcherButtons= new QWidget (backup);
+  QHBoxLayout* dispatcherButtonLayout= new QHBoxLayout (dispatcherButtons);
+  dispatcherButtonLayout->setContentsMargins (0, 0, 0, 0);
+  QPushButton* addDispatcher= new QPushButton ("Add destination...", backup);
+  QPushButton* browseDispatcher= new QPushButton ("Add local folder...", backup);
+  QPushButton* removeDispatcher= new QPushButton ("Remove selected", backup);
+  dispatcherButtonLayout->addWidget (addDispatcher);
+  dispatcherButtonLayout->addWidget (browseDispatcher);
+  dispatcherButtonLayout->addWidget (removeDispatcher);
+  dispatcherButtonLayout->addStretch (1);
+  addDispatcher->setEnabled (dispatchersAvailable);
+  browseDispatcher->setEnabled (dispatchersAvailable);
+  removeDispatcher->setEnabled (dispatchersAvailable);
+  bk->addRow (dispatcherButtons);
+
+  auto saveDispatchers= [backup, dispatcherTable] () {
+    QVector<QTMBackupDispatcher> dispatchers;
+    for (int row=0; row<dispatcherTable->rowCount (); ++row) {
+      QTableWidgetItem* destination= dispatcherTable->item (row, 0);
+      QComboBox* trigger= qobject_cast<QComboBox*> (
+        dispatcherTable->cellWidget (row, 1));
+      dispatchers.push_back (
+        {destination == nullptr ? QString () : destination->text (),
+         trigger == nullptr ? QString ("realtime")
+                            : trigger->currentData ().toString ()});
+    }
+    QString error;
+    if (!qtm_backup_dispatchers_write (dispatchers, &error)) {
+      QMessageBox::warning (backup, "Backup dispatchers", error);
+      return false;
+    }
+    return true;
+  };
+
+  auto appendDispatcher= [=] (const QString& destination) {
+    if (destination.trimmed ().isEmpty ()) return;
+    int row= dispatcherTable->rowCount ();
+    QComboBox* combo= nullptr;
+    {
+      QSignalBlocker blocker (dispatcherTable);
+      dispatcherTable->insertRow (row);
+      QTableWidgetItem* destinationItem=
+        new QTableWidgetItem (destination.trimmed ());
+      destinationItem->setData (Qt::UserRole, destination.trimmed ());
+      dispatcherTable->setItem (row, 0, destinationItem);
+      combo= triggerCombo ("realtime");
+      dispatcherTable->setCellWidget (row, 1, combo);
+    }
+    QObject::connect (
+      combo, QOverload<int>::of (&QComboBox::currentIndexChanged),
+      backup, [saveDispatchers] (int) { saveDispatchers (); });
+    if (!saveDispatchers ()) dispatcherTable->removeRow (row);
+  };
+
+  for (int row=0; row<dispatcherTable->rowCount (); ++row) {
+    QComboBox* combo= qobject_cast<QComboBox*> (
+      dispatcherTable->cellWidget (row, 1));
+    if (combo != nullptr)
+      QObject::connect (
+        combo, QOverload<int>::of (&QComboBox::currentIndexChanged),
+        backup, [saveDispatchers] (int) { saveDispatchers (); });
+  }
+  QObject::connect (
+    dispatcherTable, &QTableWidget::cellChanged, backup,
+    [dispatcherTable, saveDispatchers] (int row, int column) {
+      if (column != 0) return;
+      QTableWidgetItem* item= dispatcherTable->item (row, column);
+      if (item == nullptr) return;
+      QString previous= item->data (Qt::UserRole).toString ();
+      if (!saveDispatchers ()) {
+        QSignalBlocker blocker (dispatcherTable);
+        item->setText (previous);
+        return;
+      }
+      QString normalized= item->text ().trimmed ();
+      {
+        QSignalBlocker blocker (dispatcherTable);
+        item->setText (normalized);
+      }
+      item->setData (Qt::UserRole, normalized);
+    });
+  QObject::connect (addDispatcher, &QPushButton::clicked, backup, [=] () {
+    bool ok= false;
+    QString destination= QInputDialog::getText (
+      backup, "Add backup destination", "Destination:",
+      QLineEdit::Normal, QString (), &ok);
+    if (ok) appendDispatcher (destination);
+  });
+  QObject::connect (browseDispatcher, &QPushButton::clicked, backup, [=] () {
+    QString destination= QFileDialog::getExistingDirectory (
+      backup, "Choose backup destination", QDir::homePath ());
+    if (!destination.isEmpty ()) appendDispatcher (destination);
+  });
+  QObject::connect (removeDispatcher, &QPushButton::clicked, backup, [=] () {
+    QList<int> rows;
+    for (QTableWidgetItem* item: dispatcherTable->selectedItems ())
+      if (!rows.contains (item->row ())) rows << item->row ();
+    std::sort (rows.begin (), rows.end (), std::greater<int> ());
+    for (int row: rows) dispatcherTable->removeRow (row);
+    saveDispatchers ();
+  });
+  finish_page (backup);
+
   QWidget* anchors= make_page ();
   QFormLayout* a= add_section (anchors, "Anchors and Images");
   QCheckBox* autoAnchor= add_toggle (
@@ -1959,6 +2119,7 @@ QTMPreferencesDialog::buildVaultPage () {
                   {"Persons", persons},
 #endif
                   {"Maintenance", maintenance},
+                  {"Backup", backup},
                   {"Anchors and Images", anchors},
                   {"Vault Info", info}});
 }

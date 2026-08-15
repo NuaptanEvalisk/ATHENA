@@ -797,6 +797,35 @@
     maintenance summary pages are retained.
   </description>
 
+  <subsection|Backup>
+
+  Backup dispatchers maintain one-way, incremental mirrors of the active
+  vault. Each row combines a destination with one trigger. A destination may
+  be an absolute local directory, a path beginning with <verbatim|~/>, an SSH
+  destination such as
+  <verbatim|user@host:/path>, or an <verbatim|rsync://> destination. ATHENA
+  uses <verbatim|rsync> and coalesces repeated save requests while a transfer
+  is already running.
+
+  <description>
+    <item*|Every successful save>Dispatches after a document has been saved
+    successfully. Saves that occur during an active transfer request one
+    additional synchronization instead of starting concurrent transfers.
+
+    <item*|Vault maintenance>Dispatches after all mutating maintenance passes
+    and website generation have completed.
+
+    <item*|Idle for 5 minutes>Dispatches once after ATHENA has received no
+    keyboard, pointer, touch, wheel, or gesture input for five minutes. A new
+    period starts after the next user action.
+  </description>
+
+  Dispatching mirrors the whole vault and removes destination files that no
+  longer exist at the source. Use a dedicated destination; ATHENA rejects a
+  local destination that is the vault itself, contains the vault, or lies
+  inside it. The source directories <verbatim|.backup> and paths matching
+  <verbatim|.athena/rag-backup-*> are excluded.
+
   <subsection|Anchors and Images>
 
   <\description>

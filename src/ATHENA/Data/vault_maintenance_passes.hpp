@@ -79,6 +79,7 @@ struct VaultMaintenanceSummary {
   std::filesystem::path summary_dir;
   std::filesystem::path summary_file;
   size_t summaries_purged = 0;
+  size_t backup_dispatchers_run = 0;
 };
 
 struct VaultMaintenancePassRecord {
@@ -149,6 +150,8 @@ VaultMaintenancePassResult vault_maintenance_pass_collect_orphans (
 VaultMaintenancePassResult vault_maintenance_pass_purge_retained_data (
   VaultMaintenanceContext& ctx);
 VaultMaintenancePassResult vault_maintenance_pass_generate_websites (
+  VaultMaintenanceContext& ctx);
+VaultMaintenancePassResult vault_maintenance_pass_dispatch_backups (
   VaultMaintenanceContext& ctx);
 VaultMaintenancePassResult vault_maintenance_pass_print_summary (
   VaultMaintenanceContext& ctx);

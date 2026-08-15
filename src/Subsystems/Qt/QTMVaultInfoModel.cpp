@@ -11,6 +11,7 @@
 #include "QTMVaultInfoModel.hpp"
 
 #include "ATHENA/Data/vaultfile_json.hpp"
+#include "ATHENA/Data/vault_backup_dispatcher.hpp"
 #include "convert.hpp"
 #include "vault.hpp"
 
@@ -148,6 +149,75 @@ qtm_vaultfile_read (QTMVaultfileInfo& info, QString* error) {
 }
 
 bool
+qtm_backup_dispatchers_read (QVector<QTMBackupDispatcher>& dispatchers,
+                             QString* error) {
+  dispatchers.clear ();
+  if (!qtm_vault_info_available ()) {
+    if (error != nullptr) *error= "No active vault.";
+    return false;
+  }
+  AthenaVaultfileInfo info;
+  std::string read_error;
+  if (!athena_vaultfile_read (
+        std::filesystem::path (qtm_utf8_std_string (qtm_vault_root_path ())),
+        info, read_error)) {
+    if (error != nullptr) *error= QString::fromStdString (read_error);
+    return false;
+  }
+  for (const AthenaBackupDispatcher& dispatcher: info.backup_dispatchers)
+    dispatchers.push_back (
+      {QString::fromStdString (dispatcher.destination),
+       QString::fromStdString (dispatcher.trigger)});
+  return true;
+}
+
+bool
+qtm_backup_dispatchers_write (
+  const QVector<QTMBackupDispatcher>& dispatchers, QString* error) {
+  if (!qtm_vault_info_available ()) {
+    if (error != nullptr) *error= "No active vault.";
+    return false;
+  }
+  std::filesystem::path root (
+    qtm_utf8_std_string (qtm_vault_root_path ()));
+  AthenaVaultfileInfo info;
+  std::string io_error;
+  if (!athena_vaultfile_read (root, info, io_error)) {
+    if (error != nullptr) *error= QString::fromStdString (io_error);
+    return false;
+  }
+  info.backup_dispatchers.clear ();
+  for (const QTMBackupDispatcher& dispatcher: dispatchers) {
+    QString destination= dispatcher.destination.trimmed ();
+    QString trigger= dispatcher.trigger.trimmed ();
+    if (destination.isEmpty ()) {
+      if (error != nullptr) *error= "Backup destination cannot be empty.";
+      return false;
+    }
+    if (trigger != "realtime" && trigger != "maintenance" &&
+        trigger != "idle") {
+      if (error != nullptr) *error= "Unknown backup dispatcher trigger.";
+      return false;
+    }
+    std::string normalized;
+    std::string validation_error;
+    if (!athena_backup_dispatch_validate_destination (
+          root, qtm_utf8_std_string (destination), normalized,
+          validation_error)) {
+      if (error != nullptr) *error= QString::fromStdString (validation_error);
+      return false;
+    }
+    info.backup_dispatchers.push_back (
+      {qtm_utf8_std_string (destination), qtm_utf8_std_string (trigger)});
+  }
+  if (!athena_vaultfile_write (root, info, io_error)) {
+    if (error != nullptr) *error= QString::fromStdString (io_error);
+    return false;
+  }
+  return true;
+}
+
+bool
 qtm_vaultfile_write (const QTMVaultfileInfo& info, QString* error) {
   if (!qtm_vault_info_available ()) {
     if (error != nullptr) *error= "No active vault.";
@@ -198,7 +268,7 @@ qtm_vaultfile_write (const QTMVaultfileInfo& info, QString* error) {
     return false;
   }
 
-  AthenaVaultfileInfo vault_info;
+  AthenaVaultfileInfo vault_info= previous_info;
   vault_info.name= qtm_utf8_std_string (out.name.trimmed ());
   vault_info.map_path= qtm_utf8_std_string (out.mapPath);
   vault_info.preferences_path= qtm_utf8_std_string (out.preferencesPath);

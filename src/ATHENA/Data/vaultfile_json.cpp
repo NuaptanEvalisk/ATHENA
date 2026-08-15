@@ -10,6 +10,7 @@
 
 #include "ATHENA/Data/vaultfile_json.hpp"
 
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonParseError>
@@ -126,6 +127,28 @@ read_json_file (const std::filesystem::path& path, AthenaVaultfileInfo& info,
   info.enunciations_path= json_string (obj, "enunciations_path",
                                       "enunciations.db");
   info.bold_text_path= json_string (obj, "bold_text_path", "bold-text.db");
+  info.backup_dispatchers.clear ();
+  QJsonValue dispatchers_value= obj.value ("backup_dispatchers");
+  if (dispatchers_value.isArray ()) {
+    for (const QJsonValue& value: dispatchers_value.toArray ()) {
+      if (!value.isObject ()) {
+        error= "Invalid backup dispatcher in " + path.string ();
+        return false;
+      }
+      QJsonObject dispatcher= value.toObject ();
+      AthenaBackupDispatcher entry;
+      entry.destination= json_string (dispatcher, "destination");
+      entry.trigger= json_string (dispatcher, "trigger");
+      if (entry.destination.empty () ||
+          (entry.trigger != "realtime" && entry.trigger != "maintenance" &&
+           entry.trigger != "idle")) {
+        error= "Invalid backup dispatcher destination or trigger in " +
+               path.string ();
+        return false;
+      }
+      info.backup_dispatchers.push_back (entry);
+    }
+  }
   info= athena_vaultfile_normalize (info);
   return true;
 }
@@ -244,6 +267,15 @@ athena_vaultfile_write (const std::filesystem::path& root,
   }
 
   AthenaVaultfileInfo out= athena_vaultfile_normalize (info);
+  for (const AthenaBackupDispatcher& dispatcher: out.backup_dispatchers) {
+    if (dispatcher.destination.empty () ||
+        (dispatcher.trigger != "realtime" &&
+         dispatcher.trigger != "maintenance" &&
+         dispatcher.trigger != "idle")) {
+      error= "Invalid backup dispatcher destination or trigger";
+      return false;
+    }
+  }
   QJsonObject obj;
   obj["version"]= 1;
   obj["name"]= qs (out.name);
@@ -259,6 +291,14 @@ athena_vaultfile_write (const std::filesystem::path& root,
   obj["artifacts_path"]= qs (out.artifacts_path);
   obj["enunciations_path"]= qs (out.enunciations_path);
   obj["bold_text_path"]= qs (out.bold_text_path);
+  QJsonArray dispatchers;
+  for (const AthenaBackupDispatcher& entry: out.backup_dispatchers) {
+    QJsonObject dispatcher;
+    dispatcher["destination"]= qs (entry.destination);
+    dispatcher["trigger"]= qs (entry.trigger);
+    dispatchers.append (dispatcher);
+  }
+  obj["backup_dispatchers"]= dispatchers;
   QJsonDocument doc (obj);
   std::string text= ss (QString::fromUtf8 (
     doc.toJson (QJsonDocument::Indented)));

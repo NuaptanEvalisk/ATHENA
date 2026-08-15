@@ -12,6 +12,12 @@
 #define QTMVAULTINFOMODEL_HPP
 
 #include <QString>
+#include <QVector>
+
+struct QTMBackupDispatcher {
+  QString destination;
+  QString trigger;
+};
 
 struct QTMVaultfileInfo {
   QString name;
@@ -37,5 +43,9 @@ QString qtm_vault_relative_from_selected_path (const QString& selected);
 bool    qtm_vaultfile_read (QTMVaultfileInfo& info, QString* error= nullptr);
 bool    qtm_vaultfile_write (const QTMVaultfileInfo& info,
                              QString* error= nullptr);
+bool    qtm_backup_dispatchers_read (QVector<QTMBackupDispatcher>& dispatchers,
+                                     QString* error= nullptr);
+bool    qtm_backup_dispatchers_write (
+  const QVector<QTMBackupDispatcher>& dispatchers, QString* error= nullptr);
 
 #endif

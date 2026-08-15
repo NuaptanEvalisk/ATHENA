@@ -183,7 +183,9 @@
         ((in? :commit opts)
          (commit-buffer name)))
   (when (defined? 'google-cloud-todo-sync-buffer)
-    (delayed (:idle 0) (google-cloud-todo-sync-buffer name))))
+    (delayed (:idle 0) (google-cloud-todo-sync-buffer name)))
+  (when (defined? 'vault-backup-dispatch-realtime)
+    (vault-backup-dispatch-realtime name)))
 
 (define (save-buffer-save-now name opts)
   ;;(display* "save-buffer-save " name "\n")

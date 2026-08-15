@@ -1,6 +1,7 @@
 #include "QTMApplication.hpp"
 #include "QTMCommandPalette.hpp"
 #include "QTMUpdateChecker.hpp"
+#include "QTMVaultBackupDispatcher.hpp"
 #include "qt_utilities.hpp"
 #include "scheme.hpp"
 
@@ -192,6 +193,7 @@ void QTMApplication::load() {
   init_theme ();
 
   if (mUseTabWindow) new QTMMainTabWindow();
+  qtm_vault_backup_dispatcher_initialize ();
   qtm_schedule_update_check ();
 }
   
@@ -228,6 +230,7 @@ void QTMApplication::set_window_icon (string icon_path) {
 bool QTMApplication::notify (QObject* receiver, QEvent* event)
 {
   try {
+    qtm_vault_backup_dispatcher_note_activity (event);
     if (receiver != NULL && event != NULL &&
         event->type () == QEvent::ShortcutOverride) {
       QKeyEvent* keyEvent= static_cast<QKeyEvent*> (event);

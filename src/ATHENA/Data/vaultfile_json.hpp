@@ -15,6 +15,11 @@
 #include <string>
 #include <vector>
 
+struct AthenaBackupDispatcher {
+  std::string destination;
+  std::string trigger;
+};
+
 struct AthenaVaultfileInfo {
   std::string name= "Vault";
   std::string map_path= "map.sqlite";
@@ -29,6 +34,7 @@ struct AthenaVaultfileInfo {
   std::string artifacts_path= "artifacts.db";
   std::string enunciations_path= "enunciations.db";
   std::string bold_text_path= "bold-text.db";
+  std::vector<AthenaBackupDispatcher> backup_dispatchers;
 };
 
 std::filesystem::path athena_vaultfile_json_path (
