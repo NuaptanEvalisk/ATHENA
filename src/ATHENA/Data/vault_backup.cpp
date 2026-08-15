@@ -15,18 +15,13 @@
 #include "tm_ostream.hpp"
 
 #include <algorithm>
-#include <cerrno>
 #include <chrono>
-#include <csignal>
-#include <cstring>
 #include <ctime>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
 #include <sstream>
 #include <string>
-#include <sys/types.h>
-#include <sys/wait.h>
 #include <unistd.h>
 #include <vector>
 #include <zstd.h>
@@ -74,6 +69,14 @@ timestamp_string () {
   return out.str ();
 }
 
+static std::string
+unique_history_id () {
+  auto now= std::chrono::system_clock::now ().time_since_epoch ();
+  auto nanos= std::chrono::duration_cast<std::chrono::nanoseconds> (now).count ();
+  return timestamp_string () + "-" + std::to_string ((long) getpid ()) + "-" +
+         std::to_string (nanos);
+}
+
 static bool
 compress_file_zstd (const fs::path& source, const fs::path& target) {
   std::ifstream in (source, std::ios::binary);
@@ -116,19 +119,11 @@ compress_file_zstd (const fs::path& source, const fs::path& target) {
   }
 
   ZSTD_freeCCtx (cctx);
-  return ok && out.good ();
-}
-
-static void
-backup_child (std::string source, std::string target) {
-  bool ok= compress_file_zstd (fs::path (source), fs::path (target));
-  if (ok)
-    cout << "ATHENA] vault backup: saved pre-save copy to "
-         << target.c_str () << LF;
-  else
-    cerr << "ATHENA] vault backup: failed to save pre-save copy of "
-         << source.c_str () << LF;
-  _exit (ok ? 0 : 1);
+  if (!ok) return false;
+  out.flush ();
+  if (!out.good ()) return false;
+  out.close ();
+  return !out.fail ();
 }
 
 } // namespace
@@ -147,27 +142,25 @@ vault_backup_pre_save (url document) {
   fs::path rel= fs::relative (source, root, ec);
   if (ec || rel.empty ()) rel= source.filename ();
   fs::path target= root / ".backup" / "manual-save" /
-                   (timestamp_string () + "-" + std::to_string ((long) getpid ())) /
-                   rel;
+                   unique_history_id () / rel;
   target += ".zst";
 
-  std::string source_s= source.string ();
-  std::string target_s= target.string ();
-
-  pid_t pid= fork ();
-  if (pid < 0) {
-    cerr << "ATHENA] vault backup: fork failed: "
-         << std::strerror (errno) << LF;
+  fs::path partial= target;
+  partial += ".partial";
+  if (!compress_file_zstd (source, partial)) {
+    fs::remove (partial, ec);
+    cerr << "ATHENA] vault backup: failed to save pre-save copy of "
+         << source.string ().c_str () << LF;
     return false;
   }
-  if (pid == 0) {
-    pid_t grandchild= fork ();
-    if (grandchild < 0) _exit (1);
-    if (grandchild == 0) backup_child (source_s, target_s);
-    _exit (0);
+  fs::rename (partial, target, ec);
+  if (ec) {
+    fs::remove (partial, ec);
+    cerr << "ATHENA] vault backup: failed to publish pre-save copy of "
+         << source.string ().c_str () << LF;
+    return false;
   }
-
-  int status= 0;
-  while (waitpid (pid, &status, 0) < 0 && errno == EINTR) {}
+  cout << "ATHENA] vault backup: saved pre-save copy to "
+       << target.string ().c_str () << LF;
   return true;
 }
