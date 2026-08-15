@@ -14,6 +14,10 @@
 #include <QDialog>
 
 class QListWidget;
+class QCompleter;
+class QLineEdit;
+class QModelIndex;
+class QStandardItemModel;
 class QStackedWidget;
 
 class QTMPreferencesDialog : public QDialog {
@@ -22,6 +26,8 @@ public:
 
 private:
   void addCategory (const QString& name, QWidget* page);
+  void rebuildSearchIndex ();
+  void navigateToSearchResult (const QModelIndex& index);
   QWidget* buildGeneralPage ();
   QWidget* buildKeyboardPage ();
   QWidget* buildEditingPage ();
@@ -32,6 +38,9 @@ private:
 
   QListWidget*   categoryList;
   QStackedWidget* pageStack;
+  QLineEdit* searchEdit;
+  QCompleter* searchCompleter;
+  QStandardItemModel* searchModel;
 };
 
 void qtm_preferences_dialog_show ();

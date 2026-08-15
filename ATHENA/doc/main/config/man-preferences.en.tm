@@ -11,6 +11,11 @@
   Each category contains one or more tabs, and each tab contains sections of
   related settings.
 
+  Use the search field at the top of the dialog to find a setting by its name,
+  category, tab, or section. Selecting a result opens the corresponding tab,
+  scrolls the setting into view, and focuses its control. The shortcut
+  <key|C-f> moves keyboard focus to the search field.
+
   Changes are saved as user preferences. A few interface choices only become
   fully effective after restarting <ATHENA>; the dialog warns you when this is
   the case. Some settings are shown only when the corresponding subsystem is

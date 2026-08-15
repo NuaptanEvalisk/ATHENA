@@ -34,6 +34,7 @@
 #include <QClipboard>
 #include <QColorDialog>
 #include <QComboBox>
+#include <QCompleter>
 #include <QCoreApplication>
 #include <QDialogButtonBox>
 #include <QDir>
@@ -56,13 +57,16 @@
 #include <QRandomGenerator>
 #include <QScrollArea>
 #include <QSignalBlocker>
+#include <QShortcut>
 #include <QStackedWidget>
+#include <QStandardItemModel>
 #include <QStandardPaths>
 #include <QStyle>
 #include <QTabWidget>
 #include <QTextEdit>
 #include <QTextCursor>
 #include <QToolButton>
+#include <QTimer>
 #include <QUrl>
 #include <QVBoxLayout>
 #include <QWizard>
@@ -74,6 +78,13 @@
 #include <vector>
 
 namespace {
+
+enum PreferenceSearchRole {
+  preference_category_role= Qt::UserRole + 1,
+  preference_tab_role,
+  preference_target_role,
+  preference_scroll_area_role
+};
 
 struct Choice {
   const char* value;
@@ -859,7 +870,9 @@ add_page_setup_combo (QFormLayout* form, const QString& title,
 
 QTMPreferencesDialog::QTMPreferencesDialog (QWidget* parent)
   : QDialog (parent), categoryList (new QListWidget (this)),
-    pageStack (new QStackedWidget (this))
+    pageStack (new QStackedWidget (this)), searchEdit (new QLineEdit (this)),
+    searchCompleter (new QCompleter (this)),
+    searchModel (new QStandardItemModel (this))
 {
   setWindowTitle ("Preferences");
   resize (980, 680);
@@ -880,6 +893,16 @@ QTMPreferencesDialog::QTMPreferencesDialog (QWidget* parent)
   f.setBold (true);
   title->setFont (f);
   headerLayout->addWidget (title);
+  searchEdit->setPlaceholderText ("Search preferences...");
+  searchEdit->setClearButtonEnabled (true);
+  searchEdit->setMaximumWidth (620);
+  searchCompleter->setModel (searchModel);
+  searchCompleter->setCaseSensitivity (Qt::CaseInsensitive);
+  searchCompleter->setFilterMode (Qt::MatchContains);
+  searchCompleter->setCompletionMode (QCompleter::PopupCompletion);
+  searchCompleter->setMaxVisibleItems (14);
+  searchEdit->setCompleter (searchCompleter);
+  headerLayout->addWidget (searchEdit);
   outer->addWidget (header);
 
   QFrame* line= new QFrame (this);
@@ -918,10 +941,21 @@ QTMPreferencesDialog::QTMPreferencesDialog (QWidget* parent)
   addCategory ("Convert", buildConversionPage ());
   addCategory ("Vault", buildVaultPage ());
   addCategory ("Other", buildOtherPage ());
+  rebuildSearchIndex ();
 
   if (categoryList->count () > 0) categoryList->setCurrentRow (0);
   QObject::connect (categoryList, &QListWidget::currentRowChanged,
                     pageStack, &QStackedWidget::setCurrentIndex);
+  QObject::connect (
+    searchCompleter,
+    qOverload<const QModelIndex&> (&QCompleter::activated), this,
+    [this] (const QModelIndex& index) { navigateToSearchResult (index); });
+  QShortcut* findShortcut= new QShortcut (QKeySequence::Find, this);
+  QObject::connect (findShortcut, &QShortcut::activated, searchEdit,
+                    [this] () {
+    searchEdit->setFocus (Qt::ShortcutFocusReason);
+    searchEdit->selectAll ();
+  });
 }
 
 void
@@ -930,6 +964,105 @@ QTMPreferencesDialog::addCategory (const QString& name, QWidget* page) {
   QListWidgetItem* item= new QListWidgetItem (icon, name, categoryList);
   item->setSizeHint (QSize (180, 40));
   pageStack->addWidget (page);
+}
+
+void
+QTMPreferencesDialog::rebuildSearchIndex () {
+  searchModel->clear ();
+  for (int categoryIndex=0; categoryIndex<pageStack->count ();
+       categoryIndex++) {
+    const QString category= categoryList->item (categoryIndex)->text ();
+    QTabWidget* tabs= qobject_cast<QTabWidget*> (
+      pageStack->widget (categoryIndex));
+    if (tabs == nullptr) continue;
+    for (int tabIndex=0; tabIndex<tabs->count (); tabIndex++) {
+      QScrollArea* scroll= qobject_cast<QScrollArea*> (
+        tabs->widget (tabIndex));
+      if (scroll == nullptr || scroll->widget () == nullptr) continue;
+      const QString tab= tabs->tabText (tabIndex);
+      const QList<QGroupBox*> sections=
+        scroll->widget ()->findChildren<QGroupBox*> (
+          QString (), Qt::FindDirectChildrenOnly);
+      for (QGroupBox* section: sections) {
+        const QString sectionTitle= section->title ();
+        QFormLayout* form= qobject_cast<QFormLayout*> (section->layout ());
+        if (form == nullptr) {
+          QStandardItem* item= new QStandardItem (
+            sectionTitle + "  —  " + category + " > " + tab);
+          item->setData (categoryIndex, preference_category_role);
+          item->setData (tabIndex, preference_tab_role);
+          item->setData (QVariant::fromValue<QObject*> (section),
+                         preference_target_role);
+          item->setData (QVariant::fromValue<QObject*> (scroll),
+                         preference_scroll_area_role);
+          searchModel->appendRow (item);
+          continue;
+        }
+        for (int row=0; row<form->rowCount (); row++) {
+          QLayoutItem* labelItem= form->itemAt (row, QFormLayout::LabelRole);
+          QLayoutItem* fieldItem= form->itemAt (row, QFormLayout::FieldRole);
+          QLabel* settingLabel= labelItem == nullptr? nullptr:
+            qobject_cast<QLabel*> (labelItem->widget ());
+          if (settingLabel == nullptr) continue;
+          QString setting= settingLabel->text ().trimmed ();
+          setting.remove ('&');
+          if (setting.endsWith (':')) setting.chop (1);
+          if (setting.isEmpty ()) continue;
+          QWidget* target= fieldItem == nullptr? settingLabel:
+            fieldItem->widget ();
+          if (target == nullptr) target= settingLabel;
+          QString path= category + " > " + tab;
+          if (!sectionTitle.isEmpty ()) path += " > " + sectionTitle;
+          QStandardItem* item= new QStandardItem (
+            setting + "  —  " + path);
+          item->setToolTip (path);
+          item->setData (categoryIndex, preference_category_role);
+          item->setData (tabIndex, preference_tab_role);
+          item->setData (QVariant::fromValue<QObject*> (target),
+                         preference_target_role);
+          item->setData (QVariant::fromValue<QObject*> (scroll),
+                         preference_scroll_area_role);
+          searchModel->appendRow (item);
+        }
+      }
+    }
+  }
+}
+
+void
+QTMPreferencesDialog::navigateToSearchResult (const QModelIndex& index) {
+  if (!index.isValid ()) return;
+  const int categoryIndex= index.data (preference_category_role).toInt ();
+  const int tabIndex= index.data (preference_tab_role).toInt ();
+  QObject* targetObject=
+    index.data (preference_target_role).value<QObject*> ();
+  QObject* scrollObject=
+    index.data (preference_scroll_area_role).value<QObject*> ();
+  QWidget* target= qobject_cast<QWidget*> (targetObject);
+  QScrollArea* scroll= qobject_cast<QScrollArea*> (scrollObject);
+  if (categoryIndex < 0 || categoryIndex >= pageStack->count ()) return;
+  categoryList->setCurrentRow (categoryIndex);
+  QTabWidget* tabs= qobject_cast<QTabWidget*> (
+    pageStack->widget (categoryIndex));
+  if (tabs != nullptr && tabIndex >= 0 && tabIndex < tabs->count ())
+    tabs->setCurrentIndex (tabIndex);
+  QPointer<QWidget> guardedTarget= target;
+  QPointer<QScrollArea> guardedScroll= scroll;
+  QTimer::singleShot (0, this, [guardedTarget, guardedScroll] () {
+    if (guardedTarget == nullptr || guardedScroll == nullptr) return;
+    guardedScroll->ensureWidgetVisible (guardedTarget, 32, 32);
+    QWidget* focusTarget= guardedTarget;
+    if (focusTarget->focusPolicy () == Qt::NoFocus) {
+      const QList<QWidget*> children= focusTarget->findChildren<QWidget*> ();
+      for (QWidget* child: children)
+        if (child->focusPolicy () != Qt::NoFocus) {
+          focusTarget= child;
+          break;
+        }
+    }
+    if (focusTarget->focusPolicy () != Qt::NoFocus)
+      focusTarget->setFocus (Qt::ShortcutFocusReason);
+  });
 }
 
 QWidget*
