@@ -187,6 +187,7 @@ include (CheckCSourceCompiles)
 
 pkg_check_modules (SPDLOG REQUIRED IMPORTED_TARGET spdlog)
 pkg_check_modules (LLAMA QUIET IMPORTED_TARGET llama)
+pkg_check_modules (KPATHSEA QUIET IMPORTED_TARGET kpathsea)
 if (UNIX AND NOT APPLE)
   pkg_check_modules (FONTCONFIG REQUIRED IMPORTED_TARGET fontconfig)
   add_definitions (-DUSE_FONTCONFIG)

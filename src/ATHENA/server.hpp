@@ -98,6 +98,7 @@ public:
   virtual void   style_clear_cache () = 0;
   virtual void   refresh () = 0;
   virtual void   interpose_handler () = 0;
+  virtual void   post_repaint_handler () = 0;
   virtual void   wait_handler (string message, string arg) = 0;
   virtual void   set_script_status (int i) = 0;
   virtual void   set_printing_command (string s) = 0;

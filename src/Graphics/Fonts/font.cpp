@@ -528,6 +528,7 @@ static font
 make_rubber_font (font fn) {
   string name= locase_all (fn->res_name);
   if (fn->math_type == MATH_TYPE_STIX ||
+      fn->math_type == MATH_TYPE_TEX_GYRE ||
       starts (name, "stix-") ||
       starts (name, "stix,") ||
       occurs (",stix,", name) ||

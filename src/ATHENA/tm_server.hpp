@@ -52,6 +52,7 @@ public:
   void   style_clear_cache ();
   void   refresh ();
   void   interpose_handler ();
+  void   post_repaint_handler ();
   void   wait_handler (string message, string arg);
   void   set_script_status (int i);
   void   set_printing_command (string s);

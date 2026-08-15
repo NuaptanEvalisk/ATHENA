@@ -9,9 +9,8 @@
 ******************************************************************************/
 
 #include "bridge.hpp"
+#include "ATHENA/Data/transclusion_cache.hpp"
 #include "drd_std.hpp"
-#include "glue.hpp"
-#include "scheme.hpp"
 
 static array<string> active_transclusion_bridges;
 
@@ -44,7 +43,7 @@ struct TranscludeBridgeCycleLock {
 };
 
 static tree
-resolve_transclusion_tree (tree t) {
+resolve_transclusion_tree (tree t, string* cache_key) {
   if (N(t) != 4)
     return transclusion_error_tree (t, "Malformed transclusion");
 
@@ -53,21 +52,15 @@ resolve_transclusion_tree (tree t) {
   if (!lock.ok)
     return transclusion_error_tree (t, "Cyclic transclusion detected");
 
-  static tmscm fun= scm_lookup_string ("vault-resolve-transclude");
-  tmscm res_scm= call_scheme (fun,
-                              tree_to_tmscm (t[0]),
-                              tree_to_tmscm (t[1]),
-                              tree_to_tmscm (t[2]),
-                              tree_to_tmscm (t[3]));
-  tree content= tmscm_to_content (res_scm);
-  if (is_compound (content, DOCUMENT) && N(content) > 0)
-    content= content[0];
-  return content;
+  return athena_resolve_transclusion_display (t, cache_key);
 }
 
 class bridge_transclude_rep: public bridge_rep {
 protected:
   tree   bt;
+  tree   resolved;
+  string resolved_key;
+  bool   has_resolved;
   bridge body;
 
 public:
@@ -83,7 +76,7 @@ public:
 
 bridge_transclude_rep::bridge_transclude_rep (typesetter ttt, tree st,
                                               path ip):
-  bridge_rep (ttt, st, ip) {}
+  bridge_rep (ttt, st, ip), has_resolved (false) {}
 
 void
 bridge_transclude_rep::initialize (tree body_t) {
@@ -105,6 +98,9 @@ void
 bridge_transclude_rep::notify_assign (path p, tree u) {
   status= CORRUPTED;
   st= substitute (st, p, u);
+  resolved= tree ();
+  resolved_key= "";
+  has_resolved= false;
 }
 
 bool
@@ -125,7 +121,14 @@ bridge_transclude_rep::notify_change () {
 
 void
 bridge_transclude_rep::my_typeset (int desired_status) {
-  initialize (env->rewrite (resolve_transclusion_tree (st)));
+  string next_key;
+  tree next= resolve_transclusion_tree (st, &next_key);
+  if (resolved_key != next_key || !has_resolved) {
+    resolved= next;
+    resolved_key= next_key;
+    has_resolved= true;
+  }
+  initialize (env->rewrite (resolved));
   if (!the_drd->is_child_enforcing (st))
     ttt->insert_marker (st, ip);
   body->typeset (desired_status);

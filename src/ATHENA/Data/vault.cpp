@@ -19,6 +19,7 @@
 #include "ATHENA/Data/new_window.hpp"
 #include "ATHENA/Data/vault_map_sqlite.hpp"
 #include "ATHENA/Data/vault_safe_rename.hpp"
+#include "ATHENA/Data/transclusion_cache.hpp"
 #include "ATHENA/tm_window.hpp"
 
 #include <filesystem>
@@ -92,11 +93,11 @@ vault_load (url root_dir, string name, string db_rel_path,
   if (!athena_vault_map_prepare (root, vault_std_string (db_rel_path),
                                  resolved, error))
     return vault_tm_string (error);
-  if (!vault_safe_rename_recover (root, resolved, error))
-    return vault_tm_string (error);
 
   std::unique_ptr<AthenaVaultMapSqlite> map (new AthenaVaultMapSqlite);
   if (!map->open (root / resolved, true, error))
+    return vault_tm_string (error);
+  if (!vault_safe_rename_recover (root, *map, error))
     return vault_tm_string (error);
 
   if (is_vault_active) vault_close ();
@@ -106,6 +107,7 @@ vault_load (url root_dir, string name, string db_rel_path,
   current_vault.ns_db_url = root_dir * url (ns_db_rel_path);
   current_vault_map = std::move (map);
   is_vault_active = true;
+  athena_clear_transclusion_caches ();
   vault_refresh_window_titles ();
   return "";
 }
@@ -119,6 +121,7 @@ vault_close () {
   current_vault.name = "";
   current_vault.db_url = url_none ();
   current_vault.ns_db_url = url_none ();
+  athena_clear_transclusion_caches ();
   vault_refresh_window_titles ();
 }
 

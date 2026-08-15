@@ -57,6 +57,8 @@ protected:
   path         rp;   // path to the root of the document in et
   path         tp;   // path of cursor in tree
   path         previous_gp; // previous graphics path
+  bool         progressive_typeset_pending;
+  bool         progressive_typeset_continue;
 #ifdef EXPERIMENTAL
   environment  ste;  // environment for style rewriting
   tree         cct;  // clean copy of the document tree
@@ -162,6 +164,7 @@ public:
   virtual void invalidate_all () = 0;
   virtual void scroll_to (SI x, SI y) = 0;
   virtual void notify_change (int env_set, int env_unset = 0) = 0;
+  void schedule_progressive_typeset ();
   virtual bool has_changed (int question) = 0;
   virtual int  idle_time (int event_type= ANY_EVENT) = 0;
   virtual int  change_time () = 0;

@@ -337,6 +337,7 @@ bool is_extension (tree t);
 bool is_extension (tree t, int n);
 bool is_compound (tree t, string s);
 bool is_compound (tree t, string s, int n);
+bool tree_contains_compound (tree t, string s);
 
 /******************************************************************************
 * Tuples

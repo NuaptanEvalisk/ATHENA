@@ -14,7 +14,9 @@
 #include "vault_safe_rename.hpp"
 #include "vaultfile_json.hpp"
 #include "vault.hpp"
+#include "transclusion_cache.hpp"
 #include "convert.hpp"
+#include "drd_std.hpp"
 #include "file.hpp"
 #include "Database/database.hpp"
 #include "tm_timer.hpp"
@@ -31,6 +33,7 @@ class TestVaultMapSqlite: public QObject {
   Q_OBJECT
 
 private slots:
+  void initTestCase ();
   void crudAndReverseLookup ();
   void rewriteAnchorsTransactionally ();
   void migrateCurrentTmdbSnapshot ();
@@ -40,7 +43,46 @@ private slots:
   void recoversInterruptedDirectoryRename ();
   void extractsDocumentReferencesWithoutHints ();
   void cachesBoundedAndUnlimitedReferenceGraphs ();
+  void cachesAndInvalidatesStructuralTransclusions ();
 };
+
+namespace {
+
+bool
+tree_contains_label (tree value) {
+  if (is_func (value, LABEL)) return true;
+  if (is_atomic (value)) return false;
+  for (int i=0; i<N(value); ++i)
+    if (tree_contains_label (value[i])) return true;
+  return false;
+}
+
+bool
+tree_contains_text (tree value, string text) {
+  if (is_atomic (value)) return occurs (text, value->label);
+  for (int i=0; i<N(value); ++i)
+    if (tree_contains_text (value[i], text)) return true;
+  return false;
+}
+
+string
+first_image_path (tree value) {
+  if (is_func (value, IMAGE) && N(value) > 0 && is_atomic (value[0]))
+    return value[0]->label;
+  if (!is_atomic (value))
+    for (int i=0; i<N(value); ++i) {
+      string found= first_image_path (value[i]);
+      if (found != "") return found;
+    }
+  return "";
+}
+
+} // namespace
+
+void
+TestVaultMapSqlite::initTestCase () {
+  init_std_drd ();
+}
 
 void
 TestVaultMapSqlite::crudAndReverseLookup () {
@@ -431,6 +473,73 @@ TestVaultMapSqlite::cachesBoundedAndUnlimitedReferenceGraphs () {
     return edge.referenced_path == "D.ath" &&
            edge.referencing_path == "A.ath";
   }));
+  vault_close ();
+}
+
+void
+TestVaultMapSqlite::cachesAndInvalidatesStructuralTransclusions () {
+  QTemporaryDir temporary;
+  QVERIFY (temporary.isValid ());
+  std::filesystem::path root (temporary.path ().toStdString ());
+  std::filesystem::create_directories (root / "assets");
+
+  auto write_source= [&] (const char* payload) {
+    tree body (DOCUMENT);
+    body << compound ("label", "begin")
+         << tree (payload)
+         << compound ("image", "assets/example.png")
+         << compound ("label", "end")
+         << tree ("outside range");
+    tree document (DOCUMENT);
+    document << compound ("TeXmacs", "2.1.4")
+             << compound ("style", tuple ("generic"))
+             << compound ("body", body);
+    return !save_string (
+      url_system (string ((root / "Source.ath").string ().c_str ())),
+      tree_to_texmacs (document));
+  };
+
+  QVERIFY (write_source ("first payload"));
+  string serialized;
+  QVERIFY (!load_string (
+    url_system (string ((root / "Source.ath").string ().c_str ())),
+    serialized, false));
+  tree parsed= texmacs_document_to_tree (serialized);
+  string parsed_tree= tree_to_texmacs (parsed);
+  QVERIFY2 (tree_contains_label (parsed), as_charp (parsed_tree));
+  string load_error= vault_load (
+    url_system (string (root.string ().c_str ())), "Transclusion cache test",
+    "maps.sqlite");
+  QVERIFY2 (load_error == "", as_charp (load_error));
+  vault_set_node ("range", "Source.ath", "begin", "end");
+
+  tree transclusion (make_tree_label ("transclude"));
+  transclusion << tree ("range") << tree ("Source.ath")
+               << tree ("begin") << tree ("end");
+  AthenaTransclusionResolution first=
+    athena_resolve_transclusion_content (transclusion);
+  string first_error= tree_as_string (first.content);
+  QVERIFY2 (first.ok, as_charp (first_error));
+  QVERIFY (is_func (first.content, DOCUMENT));
+  QVERIFY (!tree_contains_label (first.content));
+  QVERIFY (tree_contains_text (first.content, "first payload"));
+  QVERIFY (!tree_contains_text (first.content, "outside range"));
+  string image_path= first_image_path (first.content);
+  QVERIFY (starts (image_path, "/"));
+  QVERIFY (ends (image_path, "/assets/example.png"));
+
+  AthenaTransclusionResolution repeated=
+    athena_resolve_transclusion_content (transclusion);
+  QCOMPARE (repeated.cache_key, first.cache_key);
+  QVERIFY (repeated.content == first.content);
+
+  QVERIFY (write_source ("changed payload with a different size"));
+  AthenaTransclusionResolution changed=
+    athena_resolve_transclusion_content (transclusion);
+  QVERIFY (changed.ok);
+  QVERIFY (changed.cache_key != first.cache_key);
+  QVERIFY (tree_contains_text (changed.content, "changed payload"));
+  QVERIFY (!tree_contains_text (changed.content, "first payload"));
   vault_close ();
 }
 

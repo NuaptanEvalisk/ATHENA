@@ -16,6 +16,8 @@
 
 #include "tree.hpp"
 
+class AthenaVaultMapSqlite;
+
 struct VaultSafeRenamePlan {
   std::filesystem::path source;
   std::filesystem::path target;
@@ -42,6 +44,9 @@ bool vault_safe_rename_execute (VaultSafeRenamePlan& plan,
                                 std::string& error);
 bool vault_safe_rename_recover (const std::filesystem::path& root,
                                 const std::string& map_relative_path,
+                                std::string& error);
+bool vault_safe_rename_recover (const std::filesystem::path& root,
+                                AthenaVaultMapSqlite& map,
                                 std::string& error);
 tree vault_safe_rename_rewrite_tree (
   tree document, const std::filesystem::path& source_before,

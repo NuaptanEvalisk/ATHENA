@@ -122,6 +122,11 @@ qt_simple_widget_rep::handle_repaint (renderer win, SI x1, SI y1, SI x2, SI y2) 
   (void) win; (void) x1; (void) y1; (void) x2; (void) y2;
 }
 
+void
+qt_simple_widget_rep::handle_post_repaint (bool painted) {
+  (void) painted;
+}
+
 
 /******************************************************************************
 * Handling of TeXmacs messages
@@ -622,11 +627,13 @@ qt_simple_widget_rep::repaint_invalid_regions () {
   }
   
   // propagate immediately the changes to the screen
-  if (!qrgn.isEmpty () && !repaint_interrupted) {
+  bool painted= !qrgn.isEmpty () && !repaint_interrupted;
+  if (painted) {
     canvas()->surface()->repaint (qrgn);
     backing_valid= true;
     canvas()->finishGestureZoomCommitPreview ();
   }
+  if (!repaint_interrupted) handle_post_repaint (painted);
 }
 
 hashset<pointer> qt_simple_widget_rep::all_widgets;

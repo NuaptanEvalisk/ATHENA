@@ -9,6 +9,7 @@
 ******************************************************************************/
 
 #include "ATHENA/Data/websites_internal.hpp"
+#include "ATHENA/Data/transclusion_cache.hpp"
 
 #include <QTemporaryDir>
 
@@ -614,13 +615,7 @@ resolve_transclusion (tree t, const std::string& source_rel,
                       const GenerationContext& cx) {
   if (N(t) != 4) return copy (t);
 
-  static tmscm fun= scm_lookup_string ("vault-resolve-transclude");
-  tmscm res_scm= call_scheme (fun,
-                              tree_to_tmscm (t[0]),
-                              tree_to_tmscm (t[1]),
-                              tree_to_tmscm (t[2]),
-                              tree_to_tmscm (t[3]));
-  tree content= tmscm_to_content (res_scm);
+  tree content= athena_resolve_transclusion_display (t);
   std::string transcluded_rel = transclusion_source_rel (t);
   if (transcluded_rel.empty ()) transcluded_rel = source_rel;
   return rewrite_static_links (content, transcluded_rel, output_rel, cx);

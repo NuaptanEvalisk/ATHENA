@@ -442,7 +442,10 @@ string
 file_format (url u) {
   if (is_rooted_tmfs (u))
     return as_string (call ("tmfs-format", object (u)));
-  else return suffix_to_format (suffix (u));
+  string ext= suffix (u);
+  if (ext == "ath" || ext == "tm" || ext == "ts" || ext == "tp")
+    return "texmacs";
+  return suffix_to_format (ext);
 }
 
 /******************************************************************************

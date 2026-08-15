@@ -393,12 +393,15 @@ bridge_rep::typeset (int desired_status) {
     ttt->local_start (l, sb);
     env->local_start (prev_back);
     if (env->hl_lan != 0) env->lan->highlight (st);
+    int pending_generation= ttt->progressive_pending_generation;
     my_typeset (desired_status);
+    bool progressively_pending=
+      ttt->progressive_pending_generation != pending_generation;
     env->local_update (ttt->old_patch, changes);
     env->local_end (prev_back);
     ttt->local_end (l, sb);
     env->link_env= old_link_env;
-    status= desired_status;
+    status= progressively_pending? CORRUPTED: desired_status;
     // cout << "old_patch     = " << ttt->old_patch << LF;
     // cout << "changes       = " << changes << LF;
     // cout << UNINDENT << "Typesetted " << st << ", " << desired_status << LF;

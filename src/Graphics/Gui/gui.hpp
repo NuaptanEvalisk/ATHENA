@@ -32,6 +32,8 @@ void gui_open (int& argc, char** argv);
   // start the gui
 void gui_interpose (void (*) (void));
   // specify an interpose routine for the main loop
+void gui_post_repaint (void (*) (void));
+  // specify work to schedule after the current repaint pass
 void gui_start_loop ();
   // start the main loop
 void gui_close ();

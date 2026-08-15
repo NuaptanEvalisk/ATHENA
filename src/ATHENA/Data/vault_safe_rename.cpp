@@ -410,10 +410,8 @@ vault_safe_rename_execute (VaultSafeRenamePlan& plan, std::string& error) {
 
 bool
 vault_safe_rename_recover (const fs::path& root,
-                           const std::string& map_relative_path,
+                           AthenaVaultMapSqlite& map,
                            std::string& error) {
-  AthenaVaultMapSqlite map;
-  if (!map.open (root / map_relative_path, true, error)) return false;
   std::vector<AthenaVaultMapRenameOperation> operations;
   if (!map.pending_path_renames (operations, error)) return false;
   for (const auto& operation: operations) {
@@ -463,4 +461,13 @@ vault_safe_rename_recover (const fs::path& root,
     return false;
   }
   return true;
+}
+
+bool
+vault_safe_rename_recover (const fs::path& root,
+                           const std::string& map_relative_path,
+                           std::string& error) {
+  AthenaVaultMapSqlite map;
+  if (!map.open (root / map_relative_path, true, error)) return false;
+  return vault_safe_rename_recover (root, map, error);
 }

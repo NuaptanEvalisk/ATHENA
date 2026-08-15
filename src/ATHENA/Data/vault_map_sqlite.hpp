@@ -60,6 +60,7 @@ public:
     const std::string& path,
     const std::vector<std::pair<std::string, std::string>>& renames,
     size_t& changed, std::string& error);
+  bool quick_check (std::string& error) const;
   bool integrity_check (std::string& error) const;
   bool set_migration_source (const std::string& relative_path,
                              std::string& error);

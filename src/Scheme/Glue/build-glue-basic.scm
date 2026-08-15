@@ -249,6 +249,7 @@
   (tree-extents tree_extents (tree content))
   (tree-empty? is_empty (bool content))
   (tree-multi-line? is_multi_line (bool content))
+  (tree-contains-compound? tree_contains_compound (bool content string))
   (tree-is-buffer? admits_edit_observer (bool tree))
   (tree-search-sections search_sections (array_tree tree))
   (tree-search-tree search (array_path content content path int))

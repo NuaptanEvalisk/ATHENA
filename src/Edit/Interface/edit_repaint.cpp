@@ -13,9 +13,28 @@
 #include "message.hpp"
 #include "gui.hpp" // for gui_interrupted
 
+#include <chrono>
+#include <cstdio>
+#include <cstdlib>
+#include <fstream>
+
 extern int nr_painted;
 extern void clear_pattern_rectangles (renderer ren, rectangle m, rectangles l);
 extern bool animated_flag;
+
+static void
+athena_profile_mark_first_paint () {
+  const char* arm_file= std::getenv ("ATHENA_PROFILE_FIRST_PAINT_ARM_FILE");
+  const char* timing_file= std::getenv ("ATHENA_PROFILE_TIMING_FILE");
+  if (arm_file == nullptr || timing_file == nullptr) return;
+
+  // Removing the arm file claims the one-shot marker before writing it.
+  if (std::remove (arm_file) != 0) return;
+  auto now= std::chrono::system_clock::now ().time_since_epoch ();
+  auto ns= std::chrono::duration_cast<std::chrono::nanoseconds> (now).count ();
+  std::ofstream out (timing_file, std::ios::app);
+  if (out) out << "first-paint\t" << ns << "\trenderer\n";
+}
 
 static void
 append_key_tree_text (tree t, string& out) {
@@ -491,4 +510,9 @@ edit_interface_rep::handle_repaint (renderer win, SI x1, SI y1, SI x2, SI y2) {
   if (pending_idle_menu_update)
     last_change = texmacs_time ();
   // cout << "Repainted\n";
+}
+
+void
+edit_interface_rep::handle_post_repaint (bool painted) {
+  if (painted) athena_profile_mark_first_paint ();
 }

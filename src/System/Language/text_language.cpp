@@ -103,6 +103,7 @@ advance_cjk_entity (string s, int& pos) {
 struct text_language_rep: language_rep {
   hashmap<string,string> patterns;
   hashmap<string,string> hyphenations;
+  hashmap<string,array<int> > hyphen_cache;
 
   text_language_rep (string lan_name, string hyph_name);
   text_property advance (tree t, int& pos);
@@ -111,7 +112,8 @@ struct text_language_rep: language_rep {
 };
 
 text_language_rep::text_language_rep (string lan_name, string hyph_name):
-  language_rep (lan_name), patterns ("?"), hyphenations ("?") {
+  language_rep (lan_name), patterns ("?"), hyphenations ("?"),
+  hyphen_cache (array<int> ()) {
     load_hyphen_tables (hyph_name, patterns, hyphenations, true); }
 
 text_property
@@ -171,7 +173,11 @@ text_language_rep::advance (tree t, int& pos) {
 
 array<int>
 text_language_rep::get_hyphens (string s) {
-  return ::get_hyphens (s, patterns, hyphenations);
+  if (hyphen_cache->contains (s)) return hyphen_cache[s];
+  if (N(hyphen_cache) >= 8192) hyphen_cache->clear ();
+  array<int> result= ::get_hyphens (s, patterns, hyphenations);
+  hyphen_cache (s)= result;
+  return result;
 }
 
 void
@@ -189,6 +195,7 @@ text_language_rep::hyphenate (
 struct french_language_rep: language_rep {
   hashmap<string,string> patterns;
   hashmap<string,string> hyphenations;
+  hashmap<string,array<int> > hyphen_cache;
 
   french_language_rep (string lan_name, string hyph_name);
   text_property advance (tree t, int& pos);
@@ -197,7 +204,8 @@ struct french_language_rep: language_rep {
 };
 
 french_language_rep::french_language_rep (string lan_name, string hyph_name):
-  language_rep (lan_name), patterns ("?"), hyphenations ("?") {
+  language_rep (lan_name), patterns ("?"), hyphenations ("?"),
+  hyphen_cache (array<int> ()) {
     load_hyphen_tables (hyph_name, patterns, hyphenations, true); }
 
 inline bool
@@ -272,7 +280,11 @@ french_language_rep::advance (tree t, int& pos) {
 
 array<int>
 french_language_rep::get_hyphens (string s) {
-  return ::get_hyphens (s, patterns, hyphenations);
+  if (hyphen_cache->contains (s)) return hyphen_cache[s];
+  if (N(hyphen_cache) >= 8192) hyphen_cache->clear ();
+  array<int> result= ::get_hyphens (s, patterns, hyphenations);
+  hyphen_cache (s)= result;
+  return result;
 }
 
 void
@@ -290,6 +302,7 @@ french_language_rep::hyphenate (
 struct ucs_text_language_rep: language_rep {
   hashmap<string,string> patterns;
   hashmap<string,string> hyphenations;
+  hashmap<string,array<int> > hyphen_cache;
 
   ucs_text_language_rep (string lan_name, string hyph_name);
   text_property advance (tree t, int& pos);
@@ -299,7 +312,8 @@ struct ucs_text_language_rep: language_rep {
 };
 
 ucs_text_language_rep::ucs_text_language_rep (string lan_name, string hyph_name):
-  language_rep (lan_name), patterns ("?"), hyphenations ("?")
+  language_rep (lan_name), patterns ("?"), hyphenations ("?"),
+  hyphen_cache (array<int> ())
   { load_hyphen_tables (hyph_name, patterns, hyphenations, false); }
 
 text_property
@@ -362,7 +376,11 @@ ucs_text_language_rep::advance (tree t, int& pos) {
 
 array<int>
 ucs_text_language_rep::get_hyphens (string s) {
-  return ::get_hyphens (s, patterns, hyphenations, true);
+  if (hyphen_cache->contains (s)) return hyphen_cache[s];
+  if (N(hyphen_cache) >= 8192) hyphen_cache->clear ();
+  array<int> result= ::get_hyphens (s, patterns, hyphenations, true);
+  hyphen_cache (s)= result;
+  return result;
 }
 
 void

@@ -247,6 +247,7 @@ public:
   void handle_set_zoom_factor (double zoomf);
   void handle_clear (renderer win, SI x1, SI y1, SI x2, SI y2);
   void handle_repaint (renderer win, SI x1, SI y1, SI x2, SI y2);
+  void handle_post_repaint (bool painted);
 
   friend class tm_window_rep;
 };

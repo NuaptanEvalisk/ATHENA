@@ -114,6 +114,7 @@ hashmap<string,tree> font_substitutions (UNINIT);
 static bool font_database_families_cached= false;
 static array<string> font_database_families_cache;
 static hashmap<string,tree> font_database_styles_cache (UNINIT);
+static hashmap<tree,tree> font_database_characteristics_cache (UNINIT);
 
 static bool
 font_database_core_family (string family) {
@@ -131,6 +132,7 @@ font_database_invalidate_selectors () {
   font_database_families_cached= false;
   font_database_families_cache= array<string> ();
   font_database_styles_cache= hashmap<string,tree> (UNINIT);
+  font_database_characteristics_cache= hashmap<tree,tree> (UNINIT);
 }
 
 void
@@ -796,14 +798,19 @@ array<string>
 font_database_characteristics (string family, string style) {
   family= upgrade_family_name (family);
   font_database_load ();
-  array<string> r;
   tree key= tuple (family, style);
+  if (font_database_characteristics_cache->contains (key)) {
+    tree cached= font_database_characteristics_cache[key];
+    if (is_func (cached, TUPLE)) return tuple_as_array (cached);
+  }
+  array<string> r;
   if (font_characteristics->contains (key)) {
     tree im= font_characteristics [key];
     for (int i=0; i<N(im); i++)
       if (is_atomic (im[i]))
 	r << im[i]->label;
   }
+  font_database_characteristics_cache (key)= array_as_tuple (r);
   return r;
 }
 

@@ -810,8 +810,10 @@ qt_gui_rep::show_wait_indicator (widget w, string message, string arg)  {
 
 
 void (*the_interpose_handler) (void) = NULL;
+void (*the_post_repaint_handler) (void) = NULL;
 
 void gui_interpose (void (*r) (void)) { the_interpose_handler = r; }
+void gui_post_repaint (void (*r) (void)) { the_post_repaint_handler = r; }
 
 void
 qt_gui_rep::event_loop () {
@@ -1234,6 +1236,7 @@ qt_gui_rep::update () {
   if (!postpone_treatment) {
     if (the_interpose_handler) the_interpose_handler();
     qt_simple_widget_rep::repaint_all ();
+    if (the_post_repaint_handler) the_post_repaint_handler ();
   }
   
   if (waiting_events.size() > 0) needing_update = true;

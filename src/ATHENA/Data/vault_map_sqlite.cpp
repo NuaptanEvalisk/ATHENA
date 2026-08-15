@@ -261,7 +261,7 @@ AthenaVaultMapSqlite::open (const fs::path& path, bool create,
     return false;
   }
   sqlite3_finalize (statement);
-  if (!integrity_check (error)) {
+  if (!quick_check (error)) {
     close ();
     return false;
   }
@@ -456,6 +456,20 @@ AthenaVaultMapSqlite::rewrite_anchors (
     exec_sql (impl->db, "ROLLBACK;", ignored);
     return false;
   }
+  return true;
+}
+
+bool
+AthenaVaultMapSqlite::quick_check (std::string& error) const {
+  sqlite3_stmt* st = nullptr;
+  if (sqlite3_prepare_v2 (impl->db, "PRAGMA quick_check;", -1, &st,
+                          nullptr) != SQLITE_OK ||
+      sqlite3_step (st) != SQLITE_ROW || column_text (st, 0) != "ok") {
+    if (st != nullptr) sqlite3_finalize (st);
+    error = sqlite_error (impl->db, "Vault map quick check failed");
+    return false;
+  }
+  sqlite3_finalize (st);
   return true;
 }
 
@@ -679,8 +693,6 @@ athena_vault_map_prepare (const fs::path& root,
     return false;
   fs::path source = root / requested;
   if (requested.extension () == ".sqlite") {
-    AthenaVaultMapSqlite map;
-    if (!map.open (source, true, error)) return false;
     resolved_relative_path = requested.generic_string ();
     return true;
   }

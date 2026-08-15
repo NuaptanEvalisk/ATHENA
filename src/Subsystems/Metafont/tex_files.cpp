@@ -19,6 +19,11 @@
 #include "tm_timer.hpp"
 #include "data_cache.hpp"
 
+#ifdef USE_KPATHSEA_API
+#include <cstdlib>
+#include "kpathsea_lookup.hpp"
+#endif
+
 static url the_tfm_path= url_none ();
 static url the_pk_path = url_none ();
 static url the_pfb_path= url_none ();
@@ -83,9 +88,18 @@ load_pfb_fallback () {
 ******************************************************************************/
 
 static string
-kpsewhich (string name) {
+kpsewhich (string name, int format) {
   bench_start ("kpsewhich");
+#ifdef USE_KPATHSEA_API
+  c_string cname (name);
+  char* found= athena_kpathsea_find (
+    cname, (athena_kpathsea_format) format);
+  string which= found == NULL? string (""): string (found);
+  if (found != NULL) std::free (found);
+#else
+  (void) format;
   string which= var_eval_system ("kpsewhich " * name);
+#endif
   bench_cumul ("kpsewhich");
   return which;
 }
@@ -95,7 +109,13 @@ resolve_tfm (url name) {
   url r= resolve (the_tfm_path * name);
   if (!is_none (r)) return r;
   if (get_setting ("KPSEWHICH") == "true") {
-    string which= kpsewhich (as_string (name));
+    string which= kpsewhich (as_string (name),
+#ifdef USE_KPATHSEA_API
+                             ATHENA_KPSE_TFM
+#else
+                             0
+#endif
+                            );
     if ((which!="") && exists (url_system (which))) return url_system (which);
     // cout << "Missed " << name << "\n";
   }
@@ -112,7 +132,13 @@ resolve_pk (url name) {
   if (!is_none (r)) return r;
 #ifndef OS_WIN32 // The kpsewhich from MikTeX is bugged for pk fonts
   if (get_setting ("KPSEWHICH") == "true") {
-    string which= kpsewhich (as_string (name));
+    string which= kpsewhich (as_string (name),
+#ifdef USE_KPATHSEA_API
+                             ATHENA_KPSE_PK
+#else
+                             0
+#endif
+                            );
     if ((which!="") && exists (url_system (which))) return url_system (which);
     // cout << "Missed " << name << "\n";
   }
@@ -134,7 +160,13 @@ resolve_pfb (url name) {
   if (!is_none (r)) return r;
 #ifndef OS_WIN32 // The kpsewhich from MikTeX is bugged for pfb fonts
   if (get_setting ("KPSEWHICH") == "true") {
-    string which= kpsewhich (as_string (name));
+    string which= kpsewhich (as_string (name),
+#ifdef USE_KPATHSEA_API
+                             ATHENA_KPSE_TYPE1
+#else
+                             0
+#endif
+                            );
     if ((which!="") && exists (url_system (which))) return url_system (which);
     // cout << "Missed " << name << "\n";
   }
@@ -163,7 +195,9 @@ url
 resolve_tex (url name) {
   string s= as_string (name);
   if (is_cached ("font_cache.scm", s)) {
-    url u= url_system (cache_get ("font_cache.scm", s) -> label);
+    string cached= cache_get ("font_cache.scm", s) -> label;
+    if (cached == "") return url_none ();
+    url u= url_system (cached);
     if (exists (u)) return u;
     cache_reset ("font_cache.scm", s);
   }
@@ -182,7 +216,7 @@ resolve_tex (url name) {
   if (ends (s, "pfb")) u= resolve_pfb (name);
   bench_cumul ("resolve tex");
 
-  if (!is_none (u)) cache_set ("font_cache.scm", s, as_string (u));
+  cache_set ("font_cache.scm", s, is_none (u)? string (""): as_string (u));
   //cout << "Resolve " << name << " -> " << u << "\n";
   return u;
 }

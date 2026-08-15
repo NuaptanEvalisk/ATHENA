@@ -29,6 +29,15 @@ public:
   hashmap<string,tree> old_patch;
   bool paper;
   bool screen_tree;          // typeset a transient screen tree, not the_et
+  bool progressive;          // incrementally typeset a long screen document
+  bool progressive_pending;  // root bridge has more work to do
+  bool progressive_initial;  // this pass started a new progressive layout
+  bool progressive_advance;  // extend the laid-out prefix during this pass
+  bool progressive_root_active;
+  int  progressive_required; // root child that must be available immediately
+  int  progressive_budget_ms;
+  time_t progressive_deadline_ms;
+  int  progressive_pending_generation;
 
 public:
   typesetter_rep (edit_env& env, tree et, path ip);

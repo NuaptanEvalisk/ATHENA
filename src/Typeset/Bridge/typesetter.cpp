@@ -11,13 +11,20 @@
 
 #include "Bridge/impl_typesetter.hpp"
 #include "iterator.hpp"
+#include "tm_timer.hpp"
 
 /******************************************************************************
 * Constructor and destructor
 ******************************************************************************/
 
 typesetter_rep::typesetter_rep (edit_env& env2, tree et, path ip):
-  env (env2), old_patch (UNINIT), screen_tree (false)
+  env (env2), old_patch (UNINIT), screen_tree (false),
+  progressive (false), progressive_pending (false),
+  progressive_initial (false), progressive_advance (true),
+  progressive_root_active (false),
+  progressive_required (0),
+  progressive_budget_ms (0), progressive_deadline_ms (0),
+  progressive_pending_generation (0)
 {
   paper= (env->get_string (PAGE_MEDIUM) == "paper");
   br= make_bridge (this, et, ip);
@@ -152,6 +159,12 @@ typesetter_rep::typeset () {
   a        = array<line_item> ();
   b        = array<line_item> ();
   paper    = (env->get_string (PAGE_MEDIUM) == "paper");
+  progressive_root_active= false;
+  progressive_pending=
+    progressive && !paper && !screen_tree &&
+    !br->my_typeset_will_be_complete ();
+  progressive_initial= false;
+  progressive_deadline_ms= texmacs_time () + progressive_budget_ms;
 
   // Test whether we are doing a complete typesetting
   env->complete= br->my_typeset_will_be_complete ();

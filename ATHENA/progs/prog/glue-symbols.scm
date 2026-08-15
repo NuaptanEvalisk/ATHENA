@@ -241,6 +241,7 @@
 "tree-extents"
 "tree-empty?"
 "tree-multi-line?"
+"tree-contains-compound?"
 "tree-is-buffer?"
 "tree-search-sections"
 "tree-search-tree"

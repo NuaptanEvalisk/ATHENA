@@ -435,7 +435,7 @@ compute_wide_accent (path ip, box b, string s,
   }
   // Unicode fonts do not provide TeXmacs' legacy varvect glyph; draw it.
   if (unicode && s == "<vect>") very_wide= true;
-  if (wide && stix) {
+  if (wide && (stix || tex_gyre)) {
     if (s == "^") s= "<hat>";
     if (s == "~") s= "<tilde>";
     if (s == "<hat>" || s == "<tilde>" || s == "<check>" ||
@@ -445,7 +445,12 @@ compute_wide_accent (path ip, box b, string s,
       wideb= wide_stix_box (decorate_middle (ip),
                             "<rubber-" * s (1, N(s)-1) * ">",
                             rfn, pen, width);
-      if (wideb->w() >= width) {
+      if (wideb->w() > 0) {
+        if (wideb->w() < width) {
+          double sx= ((double) width) / ((double) wideb->w());
+          wideb= transformed_box (decorate_middle (ip), wideb,
+                                  scaling (point (sx, 1.0), point (0.0, 0.0)));
+        }
         if (b->right_slope () != 0)
           wideb= shift_box (decorate_middle (ip), wideb,
                             (SI) (-0.5 * b->right_slope () * fn->yx), 0);

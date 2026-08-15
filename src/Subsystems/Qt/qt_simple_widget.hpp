@@ -71,6 +71,7 @@ public:
   virtual void handle_set_zoom_factor (double zoom);
   virtual void handle_clear (renderer win, SI x1, SI y1, SI x2, SI y2);
   virtual void handle_repaint (renderer win, SI x1, SI y1, SI x2, SI y2);
+  virtual void handle_post_repaint (bool painted);
   
     ////////////////////// Handling of TeXmacs' messages
   

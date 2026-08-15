@@ -229,7 +229,7 @@ edit_typeset_rep::set_init (hashmap<string,tree> H) {
 void
 edit_typeset_rep::add_init (hashmap<string,tree> H) {
   init->join (H);
-  ::notify_assign (ttt, path(), subtree (et, rp));
+  ttt->br->notify_assign (path (), subtree (et, rp));
   notify_change (THE_ENVIRONMENT);
 }
 
@@ -1271,6 +1271,19 @@ edit_typeset_rep::typeset_sub (SI& x1, SI& y1, SI& x2, SI& y2) {
   try {
 #endif
     bool printed= env->get_string (PAGE_PRINTED) == "true";
+    ttt->progressive= !printed && !ttt->screen_tree &&
+      env->get_string (PAGE_MEDIUM) != "paper";
+    path relative_cursor= rp <= tp? tp / rp: path ();
+    ttt->progressive_required=
+      is_nil (relative_cursor)? 0: max (0, relative_cursor->item);
+    bool progressive_was_pending= progressive_typeset_pending;
+    ttt->progressive_advance=
+      !progressive_was_pending || progressive_typeset_continue;
+    ttt->progressive_budget_ms= progressive_was_pending? 12: 0;
+    if (progressive_typeset_continue) {
+      ttt->br->status= CORRUPTED;
+      progressive_typeset_continue= false;
+    }
     bool folded_screen= !printed &&
       (fold_view_has_toc || N(folded_headings) != 0 ||
        N(folded_tocs) != 0 || N(unfolded_tocs) != 0);
@@ -1291,6 +1304,8 @@ edit_typeset_rep::typeset_sub (SI& x1, SI& y1, SI& x2, SI& y2) {
       fold_view_active= folded_screen;
     }
     eb= ::typeset (ttt, x1, y1, x2, y2);
+    progressive_typeset_pending=
+      ttt->progressive_root_active && ttt->progressive_pending;
     if (full_repaint) {
       SI big= (SI) (1 << 30);
       x1= -big; y1= -big; x2= big; y2= big;
@@ -1380,7 +1395,7 @@ edit_typeset_rep::typeset (SI& x1, SI& y1, SI& x2, SI& y2) {
     }
     missing_nr= N(env->missing);
     redefined_nr= N(env->redefined);
-    ::notify_assign (ttt, path(), ttt->br->st);
+    ttt->br->notify_assign (path (), ttt->br->st);
   }
 }
 
@@ -1415,7 +1430,7 @@ edit_typeset_rep::typeset_invalidate_all () {
     fold_view_rebuild= true;
   notify_change (THE_ENVIRONMENT);
   typeset_preamble ();
-  ::notify_assign (ttt, path(), subtree (et, rp));
+  ttt->br->notify_assign (path (), subtree (et, rp));
 }
 
 void

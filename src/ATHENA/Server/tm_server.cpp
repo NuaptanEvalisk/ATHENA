@@ -63,6 +63,12 @@ texmacs_interpose_handler () {
 }
 
 void
+texmacs_post_repaint_handler () {
+  if (the_server != NULL)
+    (*the_server)->post_repaint_handler ();
+}
+
+void
 texmacs_wait_handler (string message, string arg, int level) {
   (void) level;
   if (texmacs_started && the_server != NULL)
@@ -105,6 +111,7 @@ tm_server_rep::tm_server_rep (): def_zoomf (1.0), center_message ("") {
   the_server= tm_new<server> (this);
   initialize_scheme ();
   gui_interpose (texmacs_interpose_handler);
+  gui_post_repaint (texmacs_post_repaint_handler);
   set_wait_handler (texmacs_wait_handler);
   if (is_none (tm_init_file))
     tm_init_file= "$ATHENA_PATH/progs/init-texmacs.scm";
@@ -307,6 +314,19 @@ tm_server_rep::interpose_handler () {
     windows_refresh ();
   }
   sync_databases ();
+}
+
+void
+tm_server_rep::post_repaint_handler () {
+  if (headless_mode) return;
+  for (int i=0; i<N(bufs); i++) {
+    tm_buffer buf= (tm_buffer) bufs[i];
+    for (int j=0; j<N(buf->vws); j++) {
+      tm_view vw= (tm_view) buf->vws[j];
+      if (vw->win != NULL)
+        vw->ed->schedule_progressive_typeset ();
+    }
+  }
 }
 
 void

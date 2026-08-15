@@ -452,7 +452,8 @@ import_loaded_tree (string s, url u, string fm) {
   if (fm == "generic") fm= get_format (s, suffix (u));
   if (fm == "texmacs" && starts (s, "(document (TeXmacs")) fm= "stm";
   if (fm == "verbatim" && starts (s, "(document (TeXmacs")) fm= "stm";
-  tree t= generic_to_tree (s, fm * "-document");
+  tree t= fm == "texmacs" ? texmacs_document_to_tree (s)
+                           : generic_to_tree (s, fm * "-document");
   tree links= extract (t, "links");
   if (N (links) != 0)
     (void) call ("register-link-locations", object (u), object (links));

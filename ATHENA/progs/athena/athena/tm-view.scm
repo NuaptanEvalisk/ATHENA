@@ -224,7 +224,11 @@
   ;; Fit formulas operate in editor/canvas zoom space.  ATHENA stores the
   ;; user-visible window zoom without the HiDPI window scale, so convert back
   ;; before committing the fitted value.
-  (change-zoom-factor (/ (- f 0.0001) (fit-screen-zoom-scale))))
+  (let* ((target (/ (- f 0.0001) (fit-screen-zoom-scale)))
+         (current (get-window-zoom-factor))
+         (tolerance (* 0.001 (max 1.0 (abs target)))))
+    (when (> (abs (- target current)) tolerance)
+      (change-zoom-factor target))))
 
 (define (fit-canvas-zoom-factor)
   (* (get-window-zoom-factor) (fit-screen-zoom-scale)))

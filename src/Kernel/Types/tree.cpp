@@ -502,6 +502,15 @@ is_compound (tree t, string s, int n) {
   return (as_string (L(t)) == s) && (N(t) == n);
 }
 
+bool
+tree_contains_compound (tree t, string s) {
+  if (is_atomic (t)) return false;
+  if (is_compound (t, s)) return true;
+  for (int i= 0; i < N(t); ++i)
+    if (tree_contains_compound (t[i], s)) return true;
+  return false;
+}
+
 /******************************************************************************
 * Routines for simplification and correction
 ******************************************************************************/
