@@ -13,6 +13,7 @@
 #include "ATHENA/Data/new_buffer.hpp"
 #include "converter.hpp"
 #include "file.hpp"
+#include "scheme.hpp"
 #include "vault.hpp"
 
 namespace athena_namespaces {
@@ -92,11 +93,20 @@ join_path (const std::vector<string>& path, bool technical) {
 }
 
 static tree
-document_for_body (tree body) {
+document_for_body (tree body, bool use_vault_font= false) {
   tree doc (DOCUMENT);
   doc << compound ("TeXmacs", TEXMACS_COMPAT_VERSION);
   doc << compound ("style", tuple ("generic"));
   doc << compound ("body", body);
+  if (use_vault_font) {
+    string font= get_preference ("vault preferred font", "");
+    if (font != "") {
+      tree initial (COLLECTION);
+      initial << compound ("associate", "font", font);
+      initial << compound ("associate", "font-family", "rm");
+      doc << compound ("initial", initial);
+    }
+  }
   return doc;
 }
 
@@ -117,19 +127,7 @@ members_tree (const std::vector<athena_namespace_match>& members) {
   }
   for (const athena_namespace_match& m: members) {
     tree link= link_to_url (m.stem, m.file);
-    tree c (CONCAT);
-    c << link;
-    if (N(m.captures) > 0) {
-      c << tree ("  ");
-      c << tree ("[");
-      for (int i=0; i<N(m.captures); i++) {
-        if (i != 0) c << tree (", ");
-        c << tree (m.capture_types[i] * "=" * m.captures[i]);
-      }
-      c << tree ("]");
-    }
-    if (m.ambiguous) c << tree ("  (ambiguous)");
-    body << compound ("paragraph*", c);
+    body << compound ("paragraph*", link);
   }
   return body;
 }
@@ -303,7 +301,7 @@ technical_summary_page (const athena_namespace_definition& ns,
   body << compound ("subsection*", tree ("Members"));
   tree ms= members_tree (members);
   for (int i=0; i<N(ms); i++) body << ms[i];
-  return document_for_body (body);
+  return document_for_body (body, true);
 }
 
 
