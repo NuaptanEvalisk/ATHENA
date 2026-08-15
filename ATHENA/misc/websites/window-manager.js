@@ -212,9 +212,16 @@ function athenaSetDocTitle(path){
   if(cap) cap.textContent=title;
   athenaSyncTask('viewer');
 }
+function athenaPdfForDoc(path){
+  var clean=String(path||'').split('#')[0].split('?')[0];
+  var files=(window.ATHENA_SITE_DATA&&window.ATHENA_SITE_DATA.files)||[];
+  for(var i=0;i<files.length;i++)
+    if(files[i].html===clean) return files[i].pdf||'';
+  return '';
+}
 function athenaUpdateDocNav(){
   var back=byId('doc-back'), forward=byId('doc-forward');
-  var standalone=byId('doc-standalone');
+  var standalone=byId('doc-standalone'), pdf=byId('doc-pdf');
   if(back) back.disabled=athenaDocIndex<=0;
   if(forward) forward.disabled=athenaDocIndex<0 ||
     athenaDocIndex>=athenaDocHistory.length-1;
@@ -222,6 +229,13 @@ function athenaUpdateDocNav(){
     var current=athenaDocIndex>=0 ? athenaDocHistory[athenaDocIndex] :
       (byId('docframe') ? byId('docframe').getAttribute('src') : '');
     standalone.disabled=!current || current==='about:blank';
+  }
+  if(pdf){
+    pdf.hidden=!(window.ATHENA_SITE_DATA&&
+      window.ATHENA_SITE_DATA.generatePdfs);
+    var pdfCurrent=athenaDocIndex>=0 ? athenaDocHistory[athenaDocIndex] :
+      (byId('docframe') ? byId('docframe').getAttribute('src') : '');
+    pdf.disabled=!athenaPdfForDoc(pdfCurrent);
   }
 }
 function openDoc(path,options){
@@ -252,6 +266,18 @@ function athenaOpenStandaloneDoc(){
   var path=athenaDocIndex>=0 ? athenaDocHistory[athenaDocIndex] :
     (byId('docframe') ? byId('docframe').getAttribute('src') : '');
   athenaOpenPathInNewTab(path);
+}
+function athenaDownloadCurrentPdf(){
+  var path=athenaDocIndex>=0 ? athenaDocHistory[athenaDocIndex] :
+    (byId('docframe') ? byId('docframe').getAttribute('src') : '');
+  var pdf=athenaPdfForDoc(path);
+  if(!pdf) return;
+  var link=document.createElement('a');
+  link.href=pdf;
+  link.download='';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
 }
 function athenaDocBack(){
   if(athenaDocIndex<=0) return;

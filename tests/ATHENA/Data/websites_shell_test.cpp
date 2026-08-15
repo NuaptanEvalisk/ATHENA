@@ -24,6 +24,8 @@ private slots:
   void writesOneVersionedAssetGeneration ();
   void externalWebLinksOpenOutsideDocumentFrame ();
   void persistsRedirectionConfiguration ();
+  void persistsPdfGenerationConfiguration ();
+  void exposesDocumentPdfDownloads ();
   void writesCloudflareRedirections ();
   void rejectsRedirectionOutsideExportRange ();
   void removesDisabledRedirectionsFile ();
@@ -104,6 +106,55 @@ TestWebsiteShell::persistsRedirectionConfiguration () {
   QCOMPARE (restored.redirections[0].document,
             std::string ("Notes/Manual.ath"));
   QCOMPARE (restored.redirections[1].shortcut, std::string ("/start"));
+}
+
+void
+TestWebsiteShell::persistsPdfGenerationConfiguration () {
+  athena_website_entry website;
+  website.id= "pdf-site";
+  website.name= "PDF site";
+  website.generate_pdfs= true;
+
+  athena_website_entry restored= website_from_json (website_to_json (website));
+  QVERIFY (restored.generate_pdfs);
+
+  QJsonObject withoutPdf= website_to_json (website);
+  withoutPdf.remove ("generatePdfs");
+  QVERIFY (!website_from_json (withoutPdf).generate_pdfs);
+}
+
+void
+TestWebsiteShell::exposesDocumentPdfDownloads () {
+  QTemporaryDir temp;
+  QVERIFY (temp.isValid ());
+
+  athena_website_entry website;
+  website.id= "pdf-site";
+  website.name= "PDF site";
+  website.generate_pdfs= true;
+  GenerationContext context;
+  context.destination= fs::path (temp.path ().toStdString ());
+  context.selected_files= {"Notes/Example.ath"};
+  context.html_paths["Notes/Example.ath"]= "Notes/Example.html";
+  context.pdf_paths["Notes/Example.ath"]= "pdf/Notes/Example.pdf";
+  context.titles["Notes/Example.ath"]= "Example";
+
+  std::string error;
+  QVERIFY2 (write_site_shell (website, context, error), error.c_str ());
+  QString index= readText (temp.filePath ("index.html"));
+  QVERIFY (index.contains ("id=\"doc-pdf\""));
+
+  QString siteData;
+  QDir jsDir (temp.filePath ("js"));
+  QStringList files= jsDir.entryList ({"site-data.*.js"}, QDir::Files);
+  QCOMPARE (files.size (), 1);
+  siteData= readText (jsDir.filePath (files.first ()));
+  QVERIFY (siteData.contains ("\"pdf\":\"pdf/Notes/Example.pdf\""));
+
+  std::string bridge;
+  QVERIFY (website_template_text ("document-bridge.js", bridge));
+  QVERIFY (QString::fromStdString (bridge).contains (
+    "athena-standalone-pdf-download"));
 }
 
 void

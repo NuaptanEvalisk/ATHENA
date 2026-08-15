@@ -1702,10 +1702,16 @@ texmacs_entrypoint (int argc, char** argv) {
   reject_unsupported_qt_platforms (argc, argv);
   normalize_wayland_qt_scaling (argc, argv);
   bool rag_server_mode= rag_server_dir != "";
+  bool website_generation_mode= website_generate_dir != "";
+  if (website_generation_mode &&
+      is_empty (qt_platform_from_arguments (argc, argv)) &&
+      get_env ("QT_QPA_PLATFORM") == "" &&
+      get_env ("WAYLAND_DISPLAY") == "" && get_env ("DISPLAY") == "")
+    qputenv ("QT_QPA_PLATFORM", "offscreen");
   if (headless_mode && rag_server_mode) {
     qtmcoreapp= new QTMCoreApplication (argc, argv);
   }
-  else if (!headless_mode) {
+  else if (!headless_mode || website_generation_mode) {
     QGuiApplication::setHighDpiScaleFactorRoundingPolicy
       (requested_wayland_qt_platform (argc, argv) ?
        Qt::HighDpiScaleFactorRoundingPolicy::PassThrough :
@@ -1763,7 +1769,7 @@ texmacs_entrypoint (int argc, char** argv) {
 #ifdef QTTEXMACS
   // initialize the Qt application infrastructure
   if (headless_mode) {
-    if (qtmcoreapp == NULL)
+    if (qtmapp == NULL && qtmcoreapp == NULL)
       qtmcoreapp= new QTMCoreApplication (argc, argv);
   }
   else {
@@ -1805,8 +1811,10 @@ texmacs_entrypoint (int argc, char** argv) {
   startup_progress (83, "Starting Scheme");
   start_scheme (argc, argv, TeXmacs_main);
 #ifdef QTTEXMACS
-  if (headless_mode)
-    delete qtmcoreapp;
+  if (headless_mode) {
+    if (qtmapp != NULL) delete qtmapp;
+    else delete qtmcoreapp;
+  }
   else
     delete qtmapp;
 #endif

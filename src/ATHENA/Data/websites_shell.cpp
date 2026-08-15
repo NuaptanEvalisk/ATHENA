@@ -236,6 +236,9 @@ site_manifest (const athena_website_entry& website,
     QJsonObject file;
     file["path"] = qs (rel);
     file["html"] = qs (cx.html_paths.at (rel));
+    auto pdf = cx.pdf_paths.find (rel);
+    file["pdf"] = pdf == cx.pdf_paths.end () ? QString () :
+                                                   qs (pdf->second);
     QString stem_title = qs (fs::path (rel).stem ().string ());
     file["stemTitle"] = stem_title;
     auto title = cx.titles.find (rel);
@@ -261,6 +264,7 @@ site_manifest (const athena_website_entry& website,
   root["publicUrl"] = qs (website.public_url);
   root["description"] = qs (website.description);
   root["generateSitemap"] = website.generate_sitemap;
+  root["generatePdfs"] = website.generate_pdfs;
   root["generateRedirections"] = website.generate_redirections;
 
   std::string entry = "about:blank";
@@ -366,7 +370,7 @@ export_namespace_homepage (const std::string& name, bool technical,
   std::string title = technical ? "Namespace technical summary: " + name :
                                   "Namespace homepage: " + name;
   return export_document_html (rewritten, fs::path ("tmfs://ns/" + tmfs),
-                               target, output_rel, title, error);
+                               target, output_rel, title, "", error);
 }
 
 } // namespace athena_websites

@@ -14,6 +14,7 @@ window.onload=function(){
   byId('doc-back').onclick=athenaDocBack;
   byId('doc-forward').onclick=athenaDocForward;
   byId('doc-standalone').onclick=athenaOpenStandaloneDoc;
+  byId('doc-pdf').onclick=athenaDownloadCurrentPdf;
   var state=athenaLoadState();
   if(!athenaApplySavedState(state)) athenaDefaultLayout();
   athenaOpenInitialDoc((state && state.currentDoc) ||

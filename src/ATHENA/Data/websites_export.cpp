@@ -665,10 +665,12 @@ set_current_save_urls (const fs::path& source, const fs::path& target) {
 }
 
 std::string
-document_bridge_script () {
+document_bridge_script (const std::string& pdf_href) {
   std::string js;
   if (!website_template_text ("document-bridge.js", js)) return "";
   return "<script data-athena-website-bridge=\"3\">\n"
+         "window.ATHENA_DOCUMENT_PDF=" + json_script_string (pdf_href) +
+         ";\n"
          "/* ATHENA_WEBSITE_BRIDGE_BEGIN */\n" + js +
          "\n/* ATHENA_WEBSITE_BRIDGE_END */\n</script>\n";
 }
@@ -687,6 +689,12 @@ document_theme_style () {
          background_css +
          "a:link{color:var(--athena-link-color)}\n"
          "a:visited{color:var(--athena-visited-color)}\n"
+         ".athena-standalone-pdf-download{position:fixed;right:18px;"
+         "bottom:18px;z-index:2147483646;padding:8px 13px;border:1px solid "
+         "rgba(0,0,0,.45);background:rgba(240,240,240,.88);color:#111;"
+         "font:600 14px sans-serif;text-decoration:none;box-shadow:2px 2px "
+         "0 rgba(0,0,0,.28)}\n"
+         ".athena-standalone-pdf-download:hover{background:#fff;color:#111}\n"
          "</style>\n";
 }
 
@@ -711,10 +719,11 @@ inject_or_replace_document_theme (std::string& html) {
 
 bool
 inject_document_bridge (const fs::path& target, const std::string& output_rel,
-                        const std::string& title) {
+                        const std::string& title,
+                        const std::string& pdf_href) {
   std::string html;
   if (!read_file_bytes (target, html)) return false;
-  std::string script = document_bridge_script ();
+  std::string script = document_bridge_script (pdf_href);
   if (script.empty ()) return false;
   inject_or_replace_document_title (html, title);
   inject_document_favicon (html, output_rel);
@@ -751,7 +760,8 @@ inject_document_bridge (const fs::path& target, const std::string& output_rel,
 bool
 export_document_html (tree doc, const fs::path& source,
                       const fs::path& target, const std::string& output_rel,
-                      const std::string& title, std::string& error) {
+                      const std::string& title, const std::string& pdf_href,
+                      std::string& error) {
   std::error_code ec;
   fs::create_directories (target.parent_path (), ec);
   if (ec) {
@@ -795,8 +805,37 @@ export_document_html (tree doc, const fs::path& source,
     error = "HTML export produced an empty page for " + source.string ();
     return false;
   }
-  if (!inject_document_bridge (target, output_rel, title)) {
+  if (!inject_document_bridge (target, output_rel, title, pdf_href)) {
     error = "Could not inject website bridge into " + target.string ();
+    return false;
+  }
+  return true;
+}
+
+bool
+export_document_pdf (const fs::path& source, const fs::path& target,
+                     std::string& error) {
+  std::error_code ec;
+  fs::create_directories (target.parent_path (), ec);
+  if (ec) {
+    error= "Could not create " + target.parent_path ().string () + ": " +
+           ec.message ();
+    return false;
+  }
+  fs::remove (target, ec);
+  std::string command=
+    "(begin "
+    "(load-buffer (string->url " + scheme_quote (source.string ()) +
+    ") :strict) "
+    "(wrapped-print-to-file (string->url " +
+      scheme_quote (target.string ()) + ")) "
+    "(buffer-close (current-buffer)))";
+  eval (std_to_tm (command));
+
+  QFile file (qs (target.string ()));
+  if (!file.open (QIODevice::ReadOnly) || file.size () < 5 ||
+      file.read (5) != "%PDF-") {
+    error= "PDF export failed for " + source.string ();
     return false;
   }
   return true;

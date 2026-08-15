@@ -616,8 +616,10 @@ public:
     addPage (publishPage);
 
     sitemapPage= new QWizardPage;
-    sitemapPage->setTitle ("Sitemap");
+    sitemapPage->setTitle ("Generated files");
     generateSitemap= new QCheckBox ("Generate sitemap.xml");
+    generatePdfs= new QCheckBox (
+      "Generate downloadable PDF for every document");
     publicUrlEdit= new QLineEdit;
     publicUrlEdit->setPlaceholderText ("https://example.org/athena/");
     descriptionEdit= new QLineEdit;
@@ -625,6 +627,7 @@ public:
       "Short description for search results");
     publicUrlEdit->setEnabled (false);
     QFormLayout* sitemapLayout= new QFormLayout;
+    sitemapLayout->addRow (generatePdfs);
     sitemapLayout->addRow (generateSitemap);
     sitemapLayout->addRow ("Website base URL:", publicUrlEdit);
     sitemapLayout->addRow ("Description:", descriptionEdit);
@@ -685,6 +688,8 @@ public:
                publicUrlEdit->setEnabled (enabled);
                refreshSummary ();
              });
+    connect (generatePdfs, &QCheckBox::toggled, this,
+             [this] () { refreshSummary (); });
     connect (publicUrlEdit, &QLineEdit::textChanged, this,
              [this] () { refreshSummary (); });
     connect (descriptionEdit, &QLineEdit::textChanged, this,
@@ -700,6 +705,7 @@ public:
       nameEdit->setText (qss (initial->name));
       selectorPage->setSelector (initial->selector);
       destinationEdit->setText (qss (initial->destination));
+      generatePdfs->setChecked (initial->generate_pdfs);
       generateSitemap->setChecked (initial->generate_sitemap);
       publicUrlEdit->setText (qss (initial->public_url));
       descriptionEdit->setText (qss (initial->description));
@@ -769,6 +775,7 @@ public:
     out.destination= qstd (destinationEdit->text ().trimmed ());
     out.public_url= qstd (publicUrlEdit->text ().trimmed ());
     out.description= qstd (descriptionEdit->text ().trimmed ());
+    out.generate_pdfs= generatePdfs->isChecked ();
     out.generate_sitemap= generateSitemap->isChecked ();
     out.generate_redirections= redirectionsPage->generationEnabled ();
     out.redirections= redirectionsPage->redirections ();
@@ -802,6 +809,7 @@ private:
   QWizardPage* confirmPage;
   QLineEdit* nameEdit;
   QLineEdit* destinationEdit;
+  QCheckBox* generatePdfs;
   QCheckBox* generateSitemap;
   QLineEdit* publicUrlEdit;
   QLineEdit* descriptionEdit;
@@ -851,6 +859,8 @@ private:
       QString ("Name: ") + nameEdit->text ().trimmed () + "\n" +
       "Selector: " + selector_summary (selectorPage->currentSelector ()) +
       "\nDestination: " + destinationEdit->text ().trimmed () +
+      "\nDocument PDFs: " +
+      (generatePdfs->isChecked () ? "enabled" : "disabled") +
       "\nSitemap: " +
       (generateSitemap->isChecked () ? "enabled" : "disabled") +
       "\nWebsite base URL: " +
@@ -913,7 +923,10 @@ public:
     refresh ();
   }
 
-  void refresh () {
+  void refresh (const QString& preferredId= QString ()) {
+    QString selectedId= preferredId;
+    if (selectedId.isEmpty () && list->currentItem () != nullptr)
+      selectedId= list->currentItem ()->data (Qt::UserRole).toString ();
     std::string error;
     websites.clear ();
     list->clear ();
@@ -926,6 +939,8 @@ public:
       item->setData (Qt::UserRole, qss (website.id));
       item->setToolTip (selector_summary (website.selector));
       list->addItem (item);
+      if (!selectedId.isEmpty () && qss (website.id) == selectedId)
+        list->setCurrentItem (item);
     }
   }
 
@@ -943,21 +958,22 @@ private:
     return -1;
   }
 
-  bool save () {
+  bool save (const QString& preferredId= QString ()) {
     std::string error;
     if (!athena_websites_save (vault_root_std (), websites, error)) {
       QMessageBox::warning (this, "Websites manager", qss (error));
       return false;
     }
-    refresh ();
+    refresh (preferredId);
     return true;
   }
 
   void createWebsite () {
     WebsiteWizard wizard (websites, nullptr, this);
     if (wizard.exec () != QDialog::Accepted) return;
-    websites.push_back (wizard.resultEntry ());
-    save ();
+    athena_website_entry created= wizard.resultEntry ();
+    websites.push_back (created);
+    save (qss (created.id));
   }
 
   void configureWebsite () {
@@ -981,7 +997,12 @@ private:
     if (box.exec () != QMessageBox::Yes) return;
     QString dest= destination_path (websites[(size_t) index]);
     websites.erase (websites.begin () + index);
-    if (!save ()) return;
+    QString nextId;
+    if (!websites.empty ()) {
+      size_t next= std::min ((size_t) index, websites.size () - 1);
+      nextId= qss (websites[next].id);
+    }
+    if (!save (nextId)) return;
     if (removeArtifacts->isChecked ())
       QDir (dest).removeRecursively ();
   }
@@ -1012,7 +1033,11 @@ private:
 
   void generateWebsite () {
     int index= currentIndex ();
-    if (index < 0) return;
+    if (index < 0) {
+      QMessageBox::information (this, "Generate website",
+                                "Select a website to generate.");
+      return;
+    }
     showGenerationPane (websites[(size_t) index]);
   }
 

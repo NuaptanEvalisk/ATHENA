@@ -45,6 +45,8 @@ button,input,select{font:inherit}
 .ctrl.forward:before{width:0;height:0;border-top:5px solid transparent;border-bottom:5px solid transparent;border-left:8px solid #111;left:55%}
 .ctrl.standalone:before{width:10px;height:8px;border:2px solid #111;background:transparent;left:43%;top:58%}
 .ctrl.standalone:after{width:7px;height:7px;border-top:2px solid #111;border-right:2px solid #111;left:62%;top:38%}
+.ctrl.pdf:before{width:10px;height:12px;border:1px solid #111;background:#fff;top:48%}
+.ctrl.pdf:after{width:6px;height:7px;border-left:2px solid #111;border-bottom:2px solid #111;transform:translate(-50%,-62%) rotate(-45deg);top:52%}
 .content{height:calc(100% - 24px);overflow:auto;background:#f7f7f7}
 .tree{list-style:none;margin:0;padding:8px}
 .tree .tree{padding:0 0 0 18px}

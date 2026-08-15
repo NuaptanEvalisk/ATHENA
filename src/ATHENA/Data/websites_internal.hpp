@@ -67,6 +67,7 @@ struct GenerationContext {
   fs::path destination;
   std::set<std::string> selected_files;
   std::map<std::string,std::string> html_paths;
+  std::map<std::string,std::string> pdf_paths;
   std::map<std::string,std::string> titles;
   std::map<std::string,std::string> search_texts;
   std::map<std::string,std::string> namespace_homepages;
@@ -116,7 +117,10 @@ bool export_document_html (tree doc, const fs::path& source,
                            const fs::path& target,
                            const std::string& output_rel,
                            const std::string& title,
+                           const std::string& pdf_href,
                            std::string& error);
+bool export_document_pdf (const fs::path& source, const fs::path& target,
+                          std::string& error);
 
 bool write_site_shell (const athena_website_entry& website,
                        const GenerationContext& cx,

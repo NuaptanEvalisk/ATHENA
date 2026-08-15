@@ -105,6 +105,15 @@
   }
   function initializeDocumentBridge(){
     prepareExternalWebLinks();
+    if(window.ATHENA_DOCUMENT_PDF){
+      var download=document.createElement('a');
+      download.className='athena-standalone-pdf-download';
+      download.href=String(window.ATHENA_DOCUMENT_PDF);
+      download.download='';
+      download.textContent='PDF';
+      download.setAttribute('aria-label','Download document PDF');
+      document.body.appendChild(download);
+    }
     sendOutline();
   }
   window.athenaMissingTarget=function(target){

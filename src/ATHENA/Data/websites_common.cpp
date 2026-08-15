@@ -158,6 +158,7 @@ website_to_json (const athena_website_entry& website) {
   obj["publicUrl"] = qs (website.public_url);
   obj["description"] = qs (website.description);
   obj["generateSitemap"] = website.generate_sitemap;
+  obj["generatePdfs"] = website.generate_pdfs;
   QJsonObject redirections;
   redirections["enabled"] = website.generate_redirections;
   QJsonArray redirect_items;
@@ -200,6 +201,7 @@ website_from_json (const QJsonObject& obj) {
   website.generate_sitemap = obj.contains ("generateSitemap") ?
     obj.value ("generateSitemap").toBool (false) :
     !website.public_url.empty ();
+  website.generate_pdfs = obj.value ("generatePdfs").toBool (false);
   QJsonObject redirections = obj.value ("redirections").toObject ();
   website.generate_redirections =
     redirections.value ("enabled").toBool (false);

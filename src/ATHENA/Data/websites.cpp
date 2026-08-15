@@ -10,7 +10,206 @@
 
 #include "ATHENA/Data/websites_internal.hpp"
 
+#include <QCryptographicHash>
+#include <QSaveFile>
+
 namespace athena_websites {
+
+namespace {
+
+constexpr int website_source_manifest_version= 1;
+constexpr int website_document_export_revision= 1;
+constexpr const char* website_source_manifest_name=
+  ".athena-source-hashes.json";
+
+struct WebsiteSourceEntry {
+  std::string source_hash;
+  std::string html;
+  std::string pdf;
+  std::string title;
+  std::string search_text;
+  bool has_transclusion= false;
+  std::string vault_hash;
+};
+
+struct WebsiteSourceManifest {
+  bool valid= false;
+  bool generate_pdfs= false;
+  std::set<std::string> selected_files;
+  std::map<std::string,WebsiteSourceEntry> sources;
+};
+
+std::string
+pdf_rel_for_doc (const std::string& rel) {
+  fs::path path= fs::path ("pdf") / fs::path (rel);
+  path.replace_extension (".pdf");
+  return generic_path (path);
+}
+
+bool
+file_sha256 (const fs::path& path, std::string& hash, std::string& error) {
+  QFile file (qs (path.string ()));
+  if (!file.open (QIODevice::ReadOnly)) {
+    error= "Could not hash website source " + path.string ();
+    return false;
+  }
+  QCryptographicHash digest (QCryptographicHash::Sha256);
+  while (!file.atEnd ()) digest.addData (file.read (1024 * 1024));
+  hash= digest.result ().toHex ().toStdString ();
+  return true;
+}
+
+bool
+valid_pdf_file (const fs::path& path) {
+  QFile file (qs (path.string ()));
+  return file.open (QIODevice::ReadOnly) && file.size () >= 5 &&
+         file.read (5) == "%PDF-";
+}
+
+std::string
+source_collection_hash (const std::map<std::string,std::string>& hashes) {
+  QCryptographicHash digest (QCryptographicHash::Sha256);
+  for (const auto& item: hashes) {
+    digest.addData (QByteArray::fromStdString (item.first));
+    digest.addData (QByteArray (1, '\0'));
+    digest.addData (QByteArray::fromStdString (item.second));
+    digest.addData (QByteArray (1, '\0'));
+  }
+  return digest.result ().toHex ().toStdString ();
+}
+
+bool
+contains_transclusion (tree t) {
+  if (is_atomic (t)) return false;
+  if (is_compound (t, "transclude") && N(t) >= 4) return true;
+  for (int i=0; i<N(t); i++)
+    if (contains_transclusion (t[i])) return true;
+  return false;
+}
+
+WebsiteSourceManifest
+load_source_manifest (const fs::path& destination) {
+  WebsiteSourceManifest out;
+  QFile file (qs ((destination / website_source_manifest_name).string ()));
+  if (!file.open (QIODevice::ReadOnly)) return out;
+  QJsonParseError parse_error;
+  QJsonDocument document= QJsonDocument::fromJson (file.readAll (),
+                                                    &parse_error);
+  if (parse_error.error != QJsonParseError::NoError || !document.isObject ())
+    return out;
+  QJsonObject root= document.object ();
+  if (root.value ("version").toInt () != website_source_manifest_version ||
+      root.value ("documentExportRevision").toInt () !=
+        website_document_export_revision)
+    return out;
+  out.generate_pdfs= root.value ("generatePdfs").toBool (false);
+
+  QJsonArray selected= root.value ("selectedFiles").toArray ();
+  for (const QJsonValue& value: selected)
+    if (value.isString ()) out.selected_files.insert (ss (value.toString ()));
+
+  QJsonObject sources= root.value ("sources").toObject ();
+  for (auto it= sources.begin (); it != sources.end (); ++it) {
+    if (!it.value ().isObject ()) continue;
+    QJsonObject value= it.value ().toObject ();
+    WebsiteSourceEntry entry;
+    entry.source_hash= ss (value.value ("sha256").toString ());
+    entry.html= ss (value.value ("html").toString ());
+    entry.pdf= ss (value.value ("pdf").toString ());
+    entry.title= ss (value.value ("title").toString ());
+    entry.search_text= ss (value.value ("searchText").toString ());
+    entry.has_transclusion= value.value ("hasTransclusion").toBool (false);
+    entry.vault_hash= ss (value.value ("vaultSourceHash").toString ());
+    if (!entry.source_hash.empty () && !entry.html.empty ())
+      out.sources[ss (it.key ())]= entry;
+  }
+  out.valid= true;
+  return out;
+}
+
+bool
+write_source_manifest (const fs::path& destination,
+                       const std::set<std::string>& selected_files,
+                       const std::map<std::string,WebsiteSourceEntry>& entries,
+                       bool generate_pdfs,
+                       std::string& error) {
+  QJsonObject root;
+  root["version"]= website_source_manifest_version;
+  root["documentExportRevision"]= website_document_export_revision;
+  root["generatePdfs"]= generate_pdfs;
+  QJsonArray selected;
+  for (const std::string& rel: selected_files) selected.append (qs (rel));
+  root["selectedFiles"]= selected;
+
+  QJsonObject sources;
+  for (const auto& item: entries) {
+    QJsonObject value;
+    value["sha256"]= qs (item.second.source_hash);
+    value["html"]= qs (item.second.html);
+    if (!item.second.pdf.empty ()) value["pdf"]= qs (item.second.pdf);
+    value["title"]= qs (item.second.title);
+    value["searchText"]= qs (item.second.search_text);
+    value["hasTransclusion"]= item.second.has_transclusion;
+    if (item.second.has_transclusion)
+      value["vaultSourceHash"]= qs (item.second.vault_hash);
+    sources[qs (item.first)]= value;
+  }
+  root["sources"]= sources;
+
+  QSaveFile file (qs ((destination / website_source_manifest_name).string ()));
+  if (!file.open (QIODevice::WriteOnly)) {
+    error= "Could not write website source hash manifest.";
+    return false;
+  }
+  if (file.write (QJsonDocument (root).toJson (QJsonDocument::Indented)) < 0 ||
+      !file.commit ()) {
+    error= "Could not commit website source hash manifest.";
+    return false;
+  }
+  return true;
+}
+
+bool
+safe_generated_html (const std::string& path) {
+  fs::path p (path);
+  if (path.empty () || p.extension () != ".html" || p.is_absolute ())
+    return false;
+  for (const fs::path& component: p.lexically_normal ())
+    if (component == "..") return false;
+  return true;
+}
+
+void
+remove_stale_document_pages (const WebsiteSourceManifest& old_manifest,
+                             const GenerationContext& cx,
+                             bool generate_pdfs) {
+  if (!old_manifest.valid) return;
+  std::set<std::string> current;
+  for (const auto& item: cx.html_paths) current.insert (item.second);
+  for (const auto& item: old_manifest.sources) {
+    const std::string& html= item.second.html;
+    if (current.count (html) != 0 || !safe_generated_html (html)) continue;
+    std::error_code ec;
+    fs::remove (cx.destination / fs::path (html), ec);
+  }
+  for (const auto& item: old_manifest.sources) {
+    const std::string& pdf= item.second.pdf;
+    bool retained= generate_pdfs &&
+      cx.pdf_paths.count (item.first) != 0 &&
+      cx.pdf_paths.at (item.first) == pdf;
+    if (retained || pdf.empty ()) continue;
+    fs::path path (pdf);
+    bool safe= path.extension () == ".pdf" && !path.is_absolute ();
+    for (const fs::path& component: path.lexically_normal ())
+      if (component == "..") safe= false;
+    if (safe) {
+      std::error_code ec;
+      fs::remove (cx.destination / path, ec);
+    }
+  }
+}
+
+} // namespace
 
 void
 website_log (const std::string& message) {
@@ -83,25 +282,93 @@ generate_website_entry (const fs::path& root,
   cx.root = root;
   cx.destination = destination_for (root, website);
   cx.selected_files = selected;
-  for (const std::string& rel: selected)
+  for (const std::string& rel: selected) {
     cx.html_paths[rel] = html_rel_for_doc (rel);
+    if (website.generate_pdfs) cx.pdf_paths[rel]= pdf_rel_for_doc (rel);
+  }
+
+  std::map<std::string,std::string> source_hashes;
+  for (const std::string& rel: universe) {
+    std::string hash;
+    if (!file_sha256 (root / rel, hash, error)) return false;
+    source_hashes[rel]= hash;
+  }
+  const std::string vault_source_hash= source_collection_hash (source_hashes);
+  WebsiteSourceManifest old_manifest= load_source_manifest (cx.destination);
+  const bool same_export_range=
+    old_manifest.valid && old_manifest.selected_files == selected;
+  const bool same_pdf_configuration=
+    old_manifest.valid &&
+    old_manifest.generate_pdfs == website.generate_pdfs;
+  std::map<std::string,WebsiteSourceEntry> next_entries;
 
   website_log ("generating " + website.name + " into " +
                cx.destination.string ());
+  size_t html_cached_count= 0;
+  size_t html_exported_count= 0;
+  size_t pdf_cached_count= 0;
+  size_t pdf_exported_count= 0;
   size_t index = 0;
   for (const std::string& rel: selected) {
     index++;
-    website_progress (index, selected.size (), "Exporting", rel);
     fs::path source = root / rel;
     fs::path target = cx.destination / html_rel_for_doc (rel);
-    tree doc = import_tree (url_system (std_to_tm (source.string ())),
-                            "texmacs");
-    cx.titles[rel] = document_title (doc, fs::path (rel).stem ().string ());
-    cx.search_texts[rel] = document_search_text (doc);
-    tree rewritten = rewrite_static_links (doc, rel, rel, cx);
-    if (!export_document_html (rewritten, source, target, cx.html_paths[rel],
-                               cx.titles[rel], error))
-      return false;
+    auto old= old_manifest.sources.find (rel);
+    bool source_cached= same_export_range &&
+      old != old_manifest.sources.end () &&
+      old->second.source_hash == source_hashes.at (rel) &&
+      (!old->second.has_transclusion ||
+       old->second.vault_hash == vault_source_hash);
+    bool html_cached= source_cached && same_pdf_configuration &&
+      old->second.html == cx.html_paths.at (rel) && fs::is_regular_file (target);
+    bool pdf_cached= website.generate_pdfs && source_cached &&
+      old->second.pdf == cx.pdf_paths.at (rel) &&
+      valid_pdf_file (cx.destination / old->second.pdf);
+
+    WebsiteSourceEntry entry;
+    tree doc;
+    if (html_cached) {
+      cx.titles[rel]= old->second.title;
+      cx.search_texts[rel]= old->second.search_text;
+      entry= old->second;
+      html_cached_count++;
+    }
+    else {
+      website_progress (index, selected.size (), "Exporting HTML", rel);
+      doc= import_tree (url_system (std_to_tm (source.string ())), "texmacs");
+      cx.titles[rel]= document_title (doc, fs::path (rel).stem ().string ());
+      cx.search_texts[rel]= document_search_text (doc);
+      tree rewritten= rewrite_static_links (doc, rel, rel, cx);
+      std::string pdf_href= website.generate_pdfs ? relative_href (
+        cx.html_paths.at (rel), cx.pdf_paths.at (rel)) : "";
+      if (!export_document_html (rewritten, source, target,
+                                 cx.html_paths.at (rel), cx.titles.at (rel),
+                                 pdf_href, error))
+        return false;
+      entry.source_hash= source_hashes.at (rel);
+      entry.html= cx.html_paths.at (rel);
+      entry.title= cx.titles.at (rel);
+      entry.search_text= cx.search_texts.at (rel);
+      entry.has_transclusion= contains_transclusion (doc);
+      if (entry.has_transclusion) entry.vault_hash= vault_source_hash;
+      html_exported_count++;
+    }
+
+    if (website.generate_pdfs) {
+      entry.pdf= cx.pdf_paths.at (rel);
+      if (pdf_cached) pdf_cached_count++;
+      else {
+        website_progress (index, selected.size (), "Exporting PDF", rel);
+        if (!export_document_pdf (source, cx.destination / entry.pdf, error))
+          return false;
+        pdf_exported_count++;
+      }
+    }
+    else entry.pdf.clear ();
+
+    if (html_cached && (!website.generate_pdfs || pdf_cached))
+      website_progress (index, selected.size (), "Cached", rel);
+    next_entries[rel]= entry;
   }
 
   std::set<std::string> namespaces = selector_namespaces (website.selector);
@@ -122,6 +389,17 @@ generate_website_entry (const fs::path& root,
   }
 
   if (!write_site_shell (website, cx, error)) return false;
+  remove_stale_document_pages (old_manifest, cx, website.generate_pdfs);
+  if (!write_source_manifest (cx.destination, selected, next_entries,
+                              website.generate_pdfs, error))
+    return false;
+  website_log ("HTML export summary: " +
+               std::to_string (html_exported_count) + " generated, " +
+               std::to_string (html_cached_count) + " cached");
+  if (website.generate_pdfs)
+    website_log ("PDF export summary: " +
+                 std::to_string (pdf_exported_count) + " generated, " +
+                 std::to_string (pdf_cached_count) + " cached");
   if (!run_post_command (website, root, cx.destination, error)) return false;
   website_log ("complete");
   return true;
