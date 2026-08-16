@@ -28,7 +28,7 @@ boost_src="$src_dir/boost_$boost_version_underscore"
 guile18_source="${ATHENA_GUILE18_SOURCE:-$HOME/data/Software/TeXmacs/obs/guile-1.8.8}"
 guile18_prefix="$deps_dir/guile18"
 
-unset HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy
+python_bin="$(command -v python3)"
 
 mkdir -p "$prefix" "$src_dir" "$tools_dir" "$container_build_dir/logs"
 
@@ -79,6 +79,15 @@ ensure_guile18 () {
   fi
 
   local guile_build_src="$src_dir/guile-1.8.8"
+  local guile_cc="${ATHENA_GUILE18_CC:-gcc-13}"
+  local guile_cxx="${ATHENA_GUILE18_CXX:-g++-13}"
+  if ! command -v "$guile_cc" >/dev/null 2>&1; then
+    guile_cc=gcc
+  fi
+  if ! command -v "$guile_cxx" >/dev/null 2>&1; then
+    guile_cxx=g++
+  fi
+  local guile_cpp="${ATHENA_GUILE18_CPP:-$guile_cc -E -P}"
   rm -rf "$guile18_prefix" "$guile_build_src"
   rsync -a --delete \
     --exclude '.git' \
@@ -93,8 +102,8 @@ ensure_guile18 () {
     "$guile18_source/" "$guile_build_src/"
 
   pushd "$guile_build_src" >/dev/null
-  CC="${ATHENA_GUILE18_CC:-gcc}" \
-    CXX="${ATHENA_GUILE18_CXX:-g++}" \
+  CC="$guile_cc" \
+    CXX="$guile_cxx" \
     CFLAGS="${ATHENA_GUILE18_CFLAGS:--O2 -g -fPIC -fcommon}" \
     CXXFLAGS="${ATHENA_GUILE18_CXXFLAGS:--O2 -g -fPIC -fcommon}" \
     ./configure \
@@ -106,8 +115,8 @@ ensure_guile18 () {
   if [ -f libguile/scmconfig.h ]; then
     touch libguile/scmconfig.h
   fi
-  make -j1 CPP="${ATHENA_GUILE18_CPP:-gcc -E -P}"
-  make install CPP="${ATHENA_GUILE18_CPP:-gcc -E -P}"
+  make -j1 CPP="$guile_cpp"
+  make install CPP="$guile_cpp"
   popd >/dev/null
 
   prepend_build_paths
@@ -144,8 +153,8 @@ if [[ "$cxx_bin" == *icpx ]] &&
 fi
 
 if ! command -v uv >/dev/null 2>&1 ||
-   ! python3.11 -c 'import aqt' >/dev/null 2>&1; then
-  python3.11 -m pip install --user uv aqtinstall >/dev/null
+   ! "$python_bin" -c 'import aqt' >/dev/null 2>&1; then
+  "$python_bin" -m pip install --user uv aqtinstall >/dev/null
 fi
 
 git_clone_retry () {
@@ -190,7 +199,7 @@ ensure_qt () {
     mirror_args=(-b "$ATHENA_QT_MIRROR")
   fi
   mkdir -p "$deps_dir/qt-archives"
-  python3.11 -m aqt install-qt linux desktop "$qt_version" linux_gcc_64 \
+  "$python_bin" -m aqt install-qt linux desktop "$qt_version" linux_gcc_64 \
     "${mirror_args[@]}" \
     --timeout 30 \
     -d "$deps_dir/qt-archives" \
@@ -472,7 +481,7 @@ build_athena_flavor () {
     -DBoost_INCLUDE_DIR="$boost_src" \
     -DBoost_NO_SYSTEM_PATHS=ON \
     -DUSE_KF6_KIO_FILE_DIALOGS=OFF \
-    -DPython3_EXECUTABLE=/usr/bin/python3.11 \
+    -DPython3_EXECUTABLE="$python_bin" \
     -DLLAMA_CPP_SOURCE_DIR="$src_dir/llama.cpp" \
     -DLLAMA_COMMON_LIBRARY="$common_lib" \
     -DLLAMA_CPP_LIBRARY="$prefix/lib64/libllama.so" \

@@ -1,4 +1,4 @@
-FROM registry.opensuse.org/opensuse/leap:15.6
+FROM registry.opensuse.org/opensuse/leap:16.0
 
 SHELL ["/bin/bash", "-lc"]
 
@@ -48,6 +48,7 @@ RUN set -e; \
       harfbuzz-devel \
       hostname \
       iproute2 \
+      kf6-syntax-highlighting-devel \
       libgnutls-devel \
       libjpeg8-devel \
       libpng16-devel \
@@ -75,8 +76,8 @@ RUN set -e; \
       patchelf \
       pkg-config \
       procps \
-      python311 \
-      python311-pip \
+      python3 \
+      python313-pip \
       rsync \
       rpm-build \
       rustup \

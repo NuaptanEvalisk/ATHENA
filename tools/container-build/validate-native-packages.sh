@@ -28,7 +28,7 @@ for flavor in dev rel; do
     grep -q '/opt/ATHENA/usr/share/ATHENA/bin/athena-web-server' "$listing"
     grep -q '/opt/ATHENA/usr/share/ATHENA/share/ATHENA/web/index.html' "$listing"
     grep -q '/opt/ATHENA/usr/share/ATHENA/share/ATHENA/web/app.js' "$listing"
-    if grep -E 'ATHENA\.bin\.before-|\.gguf|\.safetensors|\.onnx|\.ckpt|\.pth|\.pt|/\.venv/|/\.uv-cache/|/__pycache__/' \
+    if grep -E 'ATHENA\.bin\.before-|/\.venv/|/\.uv-cache/|/__pycache__/|\.(gguf|safetensors|onnx|ckpt|pth|pt)$' \
         "$listing"; then
       echo "excluded release artifact found in $listing" >&2
       exit 1

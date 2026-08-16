@@ -241,7 +241,7 @@ For redistributable Linux bundles, use the scripted container workflow under
 
   tools/container-build/build-athena-container.sh
 
-The workflow builds in an openSUSE Leap 15.6 container, uses Qt 6, builds Guile
+The workflow builds in an openSUSE Leap 16.0 container, uses Qt 6, builds Guile
 1.8 from a source tree, prefers Intel `icx`/`icpx` when available, and produces:
 
   container_build/ATHENA-dev/

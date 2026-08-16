@@ -4,8 +4,7 @@ set -euo pipefail
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd -- "$script_dir/../.." && pwd)"
 container_build_dir="$repo_root/container_build"
-image_name="${ATHENA_CONTAINER_IMAGE:-localhost/athena-leap156-builder:latest}"
-container_name="${ATHENA_CONTAINER_NAME:-athena-leap156-builder}"
+image_name="${ATHENA_CONTAINER_IMAGE:-localhost/athena-leap160-builder:latest}"
 container_home="$container_build_dir/distrobox-home"
 guile18_source="${ATHENA_GUILE18_SOURCE:-$HOME/data/Software/TeXmacs/obs/guile-1.8.8}"
 
@@ -24,26 +23,21 @@ env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY \
   --http-proxy=false \
   --format docker \
   -t "$image_name" \
-  -f "$script_dir/Containerfile.opensuse-leap156" \
+  -f "$script_dir/Containerfile.opensuse-leap160" \
   "$repo_root" \
   2>&1 | tee "$container_build_dir/logs/podman-build-image.log"
 
-if podman container exists "$container_name"; then
-  podman rm -f "$container_name" >/dev/null
-fi
-
-distrobox create \
-  --name "$container_name" \
-  --image "$image_name" \
-  --yes \
-  --no-entry \
-  --home "$container_home" \
+podman run --rm \
+  --userns=keep-id \
+  --user "$(id -u):$(id -g)" \
+  --security-opt label=disable \
+  --network host \
+  --env HOME="$container_home" \
+  --env ATHENA_GUILE18_SOURCE="$guile18_source" \
+  --volume "$repo_root:$repo_root:rw" \
   --volume "$guile18_source:$guile18_source:ro" \
   --volume /opt/intel/oneapi:/opt/intel/oneapi:ro \
-  --pre-init-hooks 'zypper --non-interactive mr -d repo-backports-update repo-sle-update repo-update repo-update-non-oss repo-openh264 || true'
-
-distrobox enter --name "$container_name" -- \
-  env ATHENA_GUILE18_SOURCE="$guile18_source" \
+  "$image_name" \
   "$script_dir/opensuse-build-inside.sh" "$repo_root" "$@" \
   2>&1 | tee "$container_build_dir/logs/opensuse-build.log"
 

@@ -1,4 +1,4 @@
-#!/usr/bin/env python3.11
+#!/usr/bin/env python3
 """Build DEB and openSUSE/RHEL RPM packages from an ATHENA AppDir."""
 
 from __future__ import annotations

@@ -135,7 +135,7 @@ For redistributable Linux builds, use the scripted container build:
 
     tools/container-build/build-athena-container.sh
 
-The script builds inside an openSUSE Leap 15.6 distrobox/podman environment,
+The script builds inside an openSUSE Leap 16.0 Podman environment,
 uses Qt 6, builds Guile 1.8 from source, prefers Intel icx/icpx when available,
 and produces:
 
