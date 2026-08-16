@@ -46,31 +46,33 @@ of work by Joris van der Hoeven and the GNU TeXmacs contributors.
 
 ## Major Features
 
-### ATHENA 0.6 Highlights
+### ATHENA 0.7 Highlights
 
-ATHENA 0.6 extends the document editor into a more connected mathematical
-knowledge environment while keeping vault data and document structure under
-the user's control.
+ATHENA 0.7 concentrates on making large, living vaults faster to open, safer to
+mirror, and more complete to publish. It also closes a broad set of structural
+editing and interchange gaps found while using ATHENA for long mathematical
+documents.
 
-- Select indexed enunciations and definitions directly from the wikilink and
-  transclusion inserters, without rescanning the vault.
-- Delegate Continuous RAG embeddings and Artifact definition-span inference
-  through the shared authenticated ATHENA Delegation protocol and the
-  standalone `athena-transmitter`.
-- Use configurable, asynchronous OpenAI Codex completion with model and
-  reasoning controls, optional web search, editable detached output, and
-  multimodal input for selected figures and diagrams.
-- Create and edit native commutative-diagram AST objects, and use native
-  binomial and Stirling-number forms with structured Tab cycling.
-- Try a normal native-Wayland ATHENA desktop in a disposable WebRTC session at
-  [athweb.evalisk.org](https://athweb.evalisk.org/).
-- Maintain every structurally referenced vault asset, including PDFs, media,
-  includes, and arbitrary linked files, without breaking its document
-  references.
-- Monitor rendering FPS and editing latency in a per-document HUD, and use the
-  consolidated Preferences-based debugging controls when diagnosing problems.
-- Build model-free Linux, AppImage, DEB, RPM, and Windows release artifacts
-  through the unified release driver. ATHENA now requires Qt 6.
+- Open long, transclusion-heavy documents progressively. Native `.ath`
+  parsing, structural transclusion caches, reusable font and hyphenation data,
+  and time-budgeted screen typesetting reduced the project benchmark's median
+  warm open-to-first-paint time from about 10.7 seconds to about 0.38 seconds.
+- Configure multiple one-way vault backup dispatchers, triggered after every
+  successful save, after Vault Maintenance, or after five idle minutes.
+- Publish websites incrementally, optionally generate per-document PDFs, add
+  browser download controls and Cloudflare-compatible redirects, and retry a
+  failed post-generation script without regenerating the site.
+- Find any Preferences setting through the native search bar and `Ctrl+F`.
+- Edit native commutative-diagram self-loops, insert finite-part integrals, and
+  paginate long generated tables of contents correctly in print and PDF.
+- Preserve cursor, selection, preview, pinch-zoom, and tree order across more
+  structured editing operations, including formatting, table boundaries, and
+  whole-document selections.
+- Import nontrivial LaTeX documents more faithfully and export block-styled
+  mathematical structures, captions, numbering, and minus signs without
+  leaking internal forms.
+- Navigate Quick Switcher results with `Page Up` and `Page Down`, and search or
+  inspect embedded previews without losing their rendered viewport.
 
 ### Vaults
 
@@ -95,6 +97,8 @@ ATHENA vaults are self-contained mathematical knowledge bases.
   local asset references while preserving relative paths.
 - Use a vault quick switcher, command palette, outline pane, backup viewer, and
   error messages pane.
+- Configure multiple asynchronous one-way backup mirrors with save,
+  maintenance, or idle triggers.
 - Persist ADS pane layout across sessions.
 - Check GitHub releases at startup, when enabled in Preferences, and show an
   ATHENA toast when a newer release is available.
@@ -215,6 +219,9 @@ ATHENA adds editing modes and feedback aimed at large mathematical notes.
 - Paste structured content from Markdown or ChatGPT through the AOFM parser,
   including repaired inline/display mathematics and multiline math
   environments.
+- Keep structured selections and the viewport stable when crossing tables,
+  formatting complex inline material, selecting toward a document edge, or
+  selecting the entire document.
 
 ### Mathematical Input
 
@@ -304,6 +311,8 @@ The converter supports:
 - Formula normalization, including semantic differential `d`, blackboard `i`,
   textual operator recognition, matrices, cases, aligned equations, integrals,
   limits, and delimiter cleanup.
+- Native finite-part integral input and editable commutative-diagram self-loop
+  arrows with the same hover, selection, and style controls as ordinary arrows.
 
 ### LaTeX Interoperability
 
@@ -322,6 +331,10 @@ portable LaTeX.
   export came from a newer ATHENA version.
 - Export native commutative diagrams as `tikz-cd` while retaining the exact
   ATHENA diagram AST for round trips.
+- Normalize imported document titles, theorem-like environments, LyX helper
+  forms, and common custom LaTeX wrappers into native ATHENA structure.
+- Preserve block-styled mathematical structures and avoid internal
+  nonconverted-minus forms in generated LaTeX.
 
 ### PDF Export And Covers
 
@@ -337,6 +350,8 @@ ATHENA can generate richer PDF output than plain converted notes.
   and exported namespace documents.
 - Page-breaking fixes for highlighted ornaments, long proofs, enunciations,
   theorem-style backgrounds, and TeX-flavor page breaking.
+- Paginate long generated tables of contents instead of allowing their rows to
+  cross the printable page boundary.
 - Optional build warnings and automatic table of contents for converted
   documents.
 - Reverse-video mode is confined to document rendering, including pictures,
@@ -385,6 +400,14 @@ ATHENA can generate a static website from a vault.
   HTML export.
 - Use vault rendering preferences for generated website colors.
 - Optionally emit a valid `sitemap.xml` from a configured public base URL.
+- Regenerate only documents affected by source, transclusion, or export-setting
+  changes, while safely removing stale generated pages.
+- Optionally export each website document as an incremental PDF and provide
+  download controls in the desktop viewer and standalone pages.
+- Generate validated Cloudflare Pages `_redirects` shortcuts to documents in
+  the exported selection.
+- Retry a failed post-generation command from the output pane without repeating
+  document generation.
 - Display website generation logs through an ANSI-capable native output pane so
   custom scripts can emit terminal control codes.
 
@@ -454,6 +477,8 @@ ATHENA has moved much of the knowledge-work interface into native Qt.
   with independent floating panes, taskbar-visible top-levels, system titlebars,
   and redocking between main and floating containers.
 - Native Qt Preferences window with category sidebar.
+- Search categories, tabs, sections, and individual settings from Preferences,
+  with direct navigation and `Ctrl+F` focus.
 - Vault Explorer.
 - Namespace Manager.
 - Namespace Explorer.
@@ -501,6 +526,13 @@ Recent ATHENA work includes substantial low-level engineering:
 - Ref-counting and tree/string/list performance improvements.
 - Move semantics for core tree/string structures.
 - Large-document stack and parser fixes.
+- Progressive, time-budgeted screen typesetting that preserves estimated
+  geometry and continues after first paint; paper layout and exports still
+  perform complete deterministic typesetting.
+- Direct native `.ath` parsing plus reusable transclusion source, anchor, font,
+  hyphenation, and TeX lookup caches.
+- Reusable SQLite vault state and quick integrity checks that avoid repeating
+  full database setup during ordinary startup.
 - Fontconfig-backed system font discovery with persistent string-keyed caches
   and lazy font-menu construction.
 - Compact `sys_state.json` machine state and lazy TeX font probing without
@@ -571,7 +603,7 @@ features are used, the document may become ATHENA-specific.
 
 ## Status
 
-ATHENA 0.6 is an active experimental system. It is powerful, opinionated, and
+ATHENA 0.7 is an active experimental system. It is powerful, opinionated, and
 still changing quickly. Expect rough edges. Expect features to be deeper than
 their polish. Expect the best experience on the developer's Linux setup.
 

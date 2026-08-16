@@ -67,14 +67,18 @@
     links, card links, formula normalization, generated titles, and table of
     contents.
 
-    <item*|Maintenance and export>
+    <item*|Maintenance, backups, and publishing>
 
     Vault maintenance is now a modular pass pipeline. It can health-check
     documents, create zstd backups, purge old full backups and pre-save
     histories, normalize referenced assets, collect orphan assets, anchor enunciations and
     headings, update stale anchors while preserving UUID maps, run read-only
     anchoring checks in parallel, and generate <ATHENA> maintenance summary
-    pages. PDF export can optionally generate temporary DataArt cover images.
+    pages. Multiple backup dispatchers can mirror a vault after saves,
+    maintenance, or idle periods. Static websites are generated incrementally
+    and may include per-document PDFs, redirects, and post-generation
+    deployment commands. PDF export can optionally generate temporary DataArt
+    cover images.
 
     <item*|Google Tasks and continuous RAG>
 
@@ -88,7 +92,15 @@
     exploration, namespaces, global search, page properties, paragraph
     properties, metadata, error messages, custom styles, wikilinks,
     transclusions, Google Tasks, command palette, font selection, and color
-    selection.
+    selection. Preferences provides direct search across categories, tabs,
+    sections, and individual settings.
+
+    <item*|Large documents>
+
+    Long, transclusion-heavy documents use progressive screen typesetting and
+    shared structural, font, and vault caches. <ATHENA> presents the first
+    usable viewport promptly and continues screen layout in bounded batches,
+    while print and export retain complete deterministic typesetting.
 
     <item*|Foundations and divergence>
 
