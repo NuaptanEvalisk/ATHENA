@@ -35,6 +35,10 @@ LINUX_WEB_ASSETS = (
     PurePosixPath("share/ATHENA/web/app.js"),
 )
 
+PACKAGED_MODEL_FILES = {
+    PurePosixPath("misc/models/handwriting/handtex.ncnn.bin"),
+}
+
 
 def _normalized_relative(path: Path) -> PurePosixPath:
     return PurePosixPath(path.as_posix())
@@ -47,7 +51,7 @@ def distribution_forbidden_reason(relative: Path, is_directory: bool) -> str | N
     if not is_directory and rel.suffix.lower() in MODEL_SUFFIXES:
         return "model weight"
     if (not is_directory and rel.suffix.lower() == ".bin" and
-            rel.name != "ATHENA.bin"):
+            rel.name != "ATHENA.bin" and rel not in PACKAGED_MODEL_FILES):
         return "model weight"
     return None
 

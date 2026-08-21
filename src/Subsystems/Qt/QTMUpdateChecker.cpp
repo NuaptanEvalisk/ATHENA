@@ -139,8 +139,8 @@ static void
 handle_release_reply (QNetworkReply* reply) {
   if (reply == nullptr) return;
 
-  QByteArray bytes= reply->readAll ();
   if (reply->error () != QNetworkReply::NoError) return;
+  QByteArray bytes= reply->readAll ();
 
   QJsonParseError error;
   QJsonDocument doc= QJsonDocument::fromJson (bytes, &error);

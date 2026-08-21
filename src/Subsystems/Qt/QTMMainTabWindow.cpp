@@ -14,6 +14,7 @@
 #include "QTMPersonsExplorer.hpp"
 #endif
 #include "QTMNeighborhoodsPane.hpp"
+#include "QTMHandwritingSymbolPane.hpp"
 #include "qt_window_widget.hpp"
 #include "qt_utilities.hpp"
 #include "scheme.hpp"
@@ -88,6 +89,7 @@ isPersistentAdsPane (const QString& name) {
          name == "athena-persons-explorer" ||
 #endif
          name == "athena-neighborhoods-pane" ||
+         name == "athena-handwritten-symbol" ||
          name == "athena-global-search" ||
          name == "athena-vault-backup-viewer" ||
          name == "athena-error-messages";
@@ -553,6 +555,8 @@ void QTMMainTabWindow::restoreAdsVisiblePanes() {
 #endif
     else if (vault_active() && name == "athena-neighborhoods-pane")
       neighborhoods_pane_show ();
+    else if (name == "athena-handwritten-symbol")
+      handwriting_symbol_pane_show ();
     else if (vault_active() && name == "athena-global-search")
       global_search_show ();
     else if (vault_active() && name == "athena-vault-backup-viewer")

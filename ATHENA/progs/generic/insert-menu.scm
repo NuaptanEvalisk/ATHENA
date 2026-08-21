@@ -18,6 +18,40 @@
 	(generic format-edit)
 	(generic format-geometry-edit)))
 
+(define (handwriting-symbol-command-key command)
+  (if (and (string? command) (string-starts? command "\\"))
+      (substring command 1 (string-length command))
+      command))
+
+(define handwriting-symbol-direct-text-table
+  '(("\\--" . "-") ("\\---" . "--") ("\\----" . "---")))
+
+(define (handwriting-symbol-direct-text command)
+  (cond ((assoc command handwriting-symbol-direct-text-table) => cdr)
+        ((and (string? command) (not (string-starts? command "\\")))
+         command)
+        (else #f)))
+
+(tm-define (handwriting-symbol-input-description command)
+  (with direct (handwriting-symbol-direct-text command)
+    (if direct direct
+        (with key (handwriting-symbol-command-key command)
+          (with entry (kbd-get-command key)
+            (if (and (pair? entry) (procedure? (cdr entry)))
+                (string-append "\\" key "  Enter")
+                ""))))))
+
+(tm-define (handwriting-symbol-insert command)
+  (:interactive #t)
+  (with direct (handwriting-symbol-direct-text command)
+    (if direct (insert direct)
+        (with entry (kbd-get-command (handwriting-symbol-command-key command))
+          (if (and (pair? entry) (procedure? (cdr entry)))
+              ((cdr entry))
+              (set-message
+                (string-append "Unsupported symbol command: " command)
+                "Handwritten Symbol"))))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Insert links
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -139,6 +173,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (menu-bind texmacs-insert-menu
+  ("Handwritten Symbol" (handwriting-symbol-pane-show))
+  ---
   (-> "Macro" (link insert-macro-menu))
   (if (not (in-text?))
       ("Text" (make 'text)))

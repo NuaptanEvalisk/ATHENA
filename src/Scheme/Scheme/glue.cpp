@@ -54,6 +54,7 @@
 #include "QTMVaultBackupDispatcher.hpp"
 #include "QTMAbout.hpp"
 #include "QTMESCSymbolPicker.hpp"
+#include "QTMHandwritingSymbolPane.hpp"
 #include "QTMFontSelector.hpp"
 #include "QTMCodexCompletion.hpp"
 #include "QTMPreferencesDialog.hpp"
@@ -1959,6 +1960,8 @@ initialize_glue () {
   tmscm_install_procedure ("outline-pane-show", outline_pane_show, 0, 0, 0);
   tmscm_install_procedure ("neighborhoods-pane-show",
                            neighborhoods_pane_show, 0, 0, 0);
+  tmscm_install_procedure ("handwriting-symbol-pane-show",
+                           handwriting_symbol_pane_show, 0, 0, 0);
   tmscm_install_procedure ("error-messages-show",
                            error_messages_show, 0, 0, 0);
   tmscm_install_procedure ("command-palette-show",

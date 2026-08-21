@@ -776,6 +776,7 @@
 "namespace-export-show"
 "websites-manager-show"
 "global-search-show"
+"handwriting-symbol-pane-show"
 "outline-pane-show"
 "formula-ast-show"
 "neighborhoods-pane-show"

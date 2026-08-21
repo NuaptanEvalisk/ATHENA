@@ -154,12 +154,12 @@ sync_request (const QNetworkRequest& request, const QByteArray& body,
     reply->deleteLater ();
     return QByteArray ();
   }
-  QByteArray bytes= reply->readAll ();
   if (reply->error () != QNetworkReply::NoError) {
     if (error) *error= reply->errorString ();
     reply->deleteLater ();
     return QByteArray ();
   }
+  QByteArray bytes= reply->readAll ();
   reply->deleteLater ();
   return bytes;
 }

@@ -657,6 +657,7 @@ file (GLOB_RECURSE ATHENA_Base_SRCS CONFIGURE_DEPENDS
   "${ATHENA_SOURCE_DIR}/src/Scheme/Guile/*.cpp"
   "${ATHENA_SOURCE_DIR}/src/System/*.cpp"
   "${ATHENA_SOURCE_DIR}/src/ATHENA/Data/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/ATHENA/Math/*.cpp"
   "${ATHENA_SOURCE_DIR}/src/ATHENA/Server/*.cpp"
   "${ATHENA_SOURCE_DIR}/src/ATHENA/Window/*.cpp"
   "${ATHENA_SOURCE_DIR}/src/Typeset/*.cpp"
@@ -863,6 +864,27 @@ if (ATHENA_GUI STREQUAL "Qt" OR ATHENA_GUI STREQUAL "Qt6")
   set(RAPIDFUZZ_BUILD_TESTING OFF CACHE BOOL "" FORCE)
   set(RAPIDFUZZ_BUILD_BENCHMARKS OFF CACHE BOOL "" FORCE)
   FetchContent_MakeAvailable(rapidfuzz)
+
+  ### --------------------------------------------------------------------
+  ### ncnn (Hand TeX handwriting classifier)
+  ### --------------------------------------------------------------------
+  FetchContent_Declare(
+    ncnn
+    GIT_REPOSITORY https://github.com/Tencent/ncnn.git
+    GIT_TAG        e54f7b1f88434e1d844ea0551b880a1cfb079ce1
+  )
+  set(NCNN_VULKAN OFF CACHE BOOL "" FORCE)
+  # ATHENA may already host Intel SYCL and libraries using GNU OpenMP.  This
+  # small classifier runs asynchronously and does not justify introducing an
+  # additional OpenMP parallel region into that mixed-runtime process.
+  set(NCNN_OPENMP OFF CACHE BOOL "" FORCE)
+  set(NCNN_SHARED_LIB OFF CACHE BOOL "" FORCE)
+  set(NCNN_BUILD_TOOLS OFF CACHE BOOL "" FORCE)
+  set(NCNN_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+  set(NCNN_BUILD_BENCHMARK OFF CACHE BOOL "" FORCE)
+  set(NCNN_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+  set(NCNN_BUILD_INSTALL OFF CACHE BOOL "" FORCE)
+  FetchContent_MakeAvailable(ncnn)
 
   ### --------------------------------------------------------------------
   ### Qt Advanced Docking System
