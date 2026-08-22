@@ -158,6 +158,9 @@ BibTeX bibliography subsystem.
   provenance, and managed attachments in the Materials manager ADS pane.
 - Import `.bib` files through the pinned Hayagriva engine without reviving the
   old bibliography runtime.
+- Bulk-import personal and group libraries through Zotero's official Local API,
+  preserving typed metadata and optionally copying locally available file
+  attachments with source-key and identifier deduplication.
 - Insert UUID-backed citations with typed locators and open Materials through
   `tmfs://material/UUID` links.
 - Insert referenced Materials lists that combine automatically cited records

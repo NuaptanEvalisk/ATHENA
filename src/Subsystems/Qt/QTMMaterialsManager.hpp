@@ -14,6 +14,7 @@
 #include "ATHENA/Data/materials.hpp"
 #include "ATHENA/Data/materials_schema.hpp"
 
+#include <QStringList>
 #include <QWidget>
 #include <vector>
 
@@ -46,6 +47,7 @@ private:
   void removeSelected ();
   void chooseFiles ();
   void importBibtex ();
+  void importZotero ();
   void importFiles (const QStringList& files);
   bool reviewRecognition (const QString& path,
                           MaterialRecognitionResult& recognition);
@@ -56,6 +58,7 @@ private:
   std::string creatorRoleAt (int row) const;
   std::string fieldNameAt (int row) const;
   QString selectedUuid () const;
+  QStringList selectedUuids () const;
   void selectUuid (const QString& uuid);
 
   QLineEdit* searchEdit;

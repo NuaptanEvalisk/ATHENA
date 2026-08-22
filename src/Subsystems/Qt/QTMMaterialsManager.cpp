@@ -14,6 +14,7 @@
 #include "ATHENA/Data/materials_engine.hpp"
 #include "ATHENA/Data/vault.hpp"
 #include "QTMMainTabWindow.hpp"
+#include "QTMZoteroImporter.hpp"
 #include "boot.hpp"
 #include "convert.hpp"
 #include "scheme.hpp"
@@ -197,11 +198,13 @@ QTMMaterialsManager::QTMMaterialsManager (QWidget* parent): QWidget (parent) {
   QPushButton* addEmpty= new QPushButton ("New", this);
   QPushButton* addFiles= new QPushButton ("Add files...", this);
   QPushButton* importBib= new QPushButton ("Import BibTeX...", this);
+  QPushButton* importZoteroButton= new QPushButton ("Import Zotero...", this);
   QPushButton* refreshButton= new QPushButton ("Refresh", this);
   deleteButton= new QPushButton ("Delete", this);
   commands->addWidget (addEmpty);
   commands->addWidget (addFiles);
   commands->addWidget (importBib);
+  commands->addWidget (importZoteroButton);
   commands->addWidget (deleteButton);
   commands->addStretch (1);
   commands->addWidget (refreshButton);
@@ -228,7 +231,7 @@ QTMMaterialsManager::QTMMaterialsManager (QWidget* parent): QWidget (parent) {
   materialTable= new QTableWidget (0, 4, browser);
   materialTable->setHorizontalHeaderLabels ({"Type", "Creator", "Title", "Date"});
   materialTable->setSelectionBehavior (QAbstractItemView::SelectRows);
-  materialTable->setSelectionMode (QAbstractItemView::SingleSelection);
+  materialTable->setSelectionMode (QAbstractItemView::ExtendedSelection);
   materialTable->setEditTriggers (QAbstractItemView::NoEditTriggers);
   materialTable->verticalHeader ()->hide ();
   materialTable->horizontalHeader ()->setSectionResizeMode (
@@ -318,6 +321,8 @@ QTMMaterialsManager::QTMMaterialsManager (QWidget* parent): QWidget (parent) {
            [this] { chooseFiles (); });
   connect (importBib, &QPushButton::clicked, this,
            [this] { importBibtex (); });
+  connect (importZoteroButton, &QPushButton::clicked, this,
+           [this] { importZotero (); });
   connect (deleteButton, &QPushButton::clicked, this,
            [this] { removeSelected (); });
   connect (refreshButton, &QPushButton::clicked, this,
@@ -470,9 +475,19 @@ QTMMaterialsManager::rebuildList () {
 
 QString
 QTMMaterialsManager::selectedUuid () const {
-  QList<QTableWidgetItem*> selected= materialTable->selectedItems ();
-  return selected.isEmpty () ? QString ()
-                             : selected.front ()->data (Qt::UserRole).toString ();
+  QStringList selected= selectedUuids ();
+  return selected.size () == 1 ? selected.front () : QString ();
+}
+
+QStringList
+QTMMaterialsManager::selectedUuids () const {
+  QStringList result;
+  const QModelIndexList rows= materialTable->selectionModel ()->selectedRows (0);
+  for (const QModelIndex& index: rows) {
+    QTableWidgetItem* item= materialTable->item (index.row (), 0);
+    if (item != nullptr) result << item->data (Qt::UserRole).toString ();
+  }
+  return result;
 }
 
 void
@@ -506,7 +521,17 @@ QTMMaterialsManager::clearEditor () {
 
 void
 QTMMaterialsManager::loadSelection () {
-  QString uuid= selectedUuid ();
+  QStringList selected= selectedUuids ();
+  if (selected.size () > 1) {
+    clearEditor ();
+    stateLabel->setText (
+      QString ("%1 Materials selected. Editing is available for a single "
+               "Material; Delete applies to the complete selection.")
+        .arg (selected.size ()));
+    deleteButton->setEnabled (true);
+    return;
+  }
+  QString uuid= selected.isEmpty () ? QString () : selected.front ();
   if (uuid.isEmpty ()) { clearEditor (); return; }
   MaterialsStore* store= vault_get_materials_store ();
   if (store == nullptr) { clearEditor (); return; }
@@ -669,21 +694,36 @@ QTMMaterialsManager::createEmpty () {
 
 void
 QTMMaterialsManager::removeSelected () {
-  QString uuid= selectedUuid ();
-  if (uuid.isEmpty ()) return;
+  QStringList uuids= selectedUuids ();
+  if (uuids.isEmpty ()) return;
+  QString prompt;
+  if (uuids.size () == 1)
+    prompt= "Delete this Material and all managed attachment copies? Existing "
+            "citations to its UUID will become unresolved.";
+  else
+    prompt= QString (
+      "Delete all %1 selected Materials and their managed attachment copies? "
+      "Existing citations to their UUIDs will become unresolved.")
+        .arg (uuids.size ());
   if (QMessageBox::question (
-        this, "Delete Material",
-        "Delete this Material and all managed attachment copies? Existing "
-        "citations to its UUID will become unresolved.") != QMessageBox::Yes)
+        this, uuids.size () == 1 ? "Delete Material" : "Delete Materials",
+        prompt) != QMessageBox::Yes)
     return;
   MaterialsStore* store= store_or_warn (this);
   if (store == nullptr) return;
-  std::string error;
-  if (!store->remove (stdstr (uuid), true, error)) {
-    QMessageBox::warning (this, "Delete Material", qstr (error));
-    return;
+  int removed= 0;
+  QStringList failures;
+  for (const QString& uuid: uuids) {
+    std::string error;
+    if (store->remove (stdstr (uuid), true, error)) removed++;
+    else failures << QString ("%1: %2").arg (uuid, qstr (error));
   }
   refresh ();
+  if (!failures.isEmpty ())
+    QMessageBox::warning (
+      this, "Delete Materials",
+      QString ("Deleted %1 of %2 selected Materials.\n\n%3")
+        .arg (removed).arg (uuids.size ()).arg (failures.join ('\n')));
 }
 
 void
@@ -740,6 +780,14 @@ QTMMaterialsManager::importBibtex () {
     this, "Import BibTeX",
     QString ("Imported %1 Material(s). %2 strong-identifier duplicate(s) "
              "were left unchanged.").arg (added).arg (duplicates));
+}
+
+void
+QTMMaterialsManager::importZotero () {
+  MaterialsStore* store= store_or_warn (this);
+  if (store == nullptr) return;
+  QTMZoteroImportResult result;
+  if (qtm_import_zotero_library (this, *store, result)) refresh ();
 }
 
 bool

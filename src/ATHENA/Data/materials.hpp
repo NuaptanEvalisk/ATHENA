@@ -154,6 +154,9 @@ public:
     std::string& error) const;
   std::optional<std::string> material_for_sha256 (
     const std::string& sha256, std::string& error) const;
+  std::optional<std::string> material_for_source (
+    const std::string& source_kind, const std::string& source_reference,
+    std::string& error) const;
 
   static std::string normalize_identifier (const std::string& scheme,
                                            const std::string& value);

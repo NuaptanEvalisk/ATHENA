@@ -792,6 +792,8 @@ MaterialsStore::open (const fs::path& vault_root,
       "source_reference TEXT NOT NULL DEFAULT '', observed_value TEXT NOT NULL,"
       "confidence REAL NOT NULL, observed_at INTEGER NOT NULL"
     ");"
+    "CREATE INDEX IF NOT EXISTS material_provenance_source "
+      "ON material_provenance(source_kind,source_reference,material_uuid);"
     "CREATE TABLE IF NOT EXISTS material_landing_jobs("
       "uuid TEXT PRIMARY KEY, source_name TEXT NOT NULL, source_sha256 TEXT,"
       "state TEXT NOT NULL CHECK(state IN "
@@ -1212,6 +1214,23 @@ MaterialsStore::material_for_sha256 (const std::string& sha256,
     "SELECT material_uuid FROM material_attachments WHERE sha256=? LIMIT 1;");
   if (!query) { error= sqlite3_errmsg (impl->db); return {}; }
   bind_text (query.get (), 1, lower_ascii (trim_ascii (sha256)));
+  int status= sqlite3_step (query.get ());
+  if (status == SQLITE_ROW) return text_column (query.get (), 0);
+  if (status != SQLITE_DONE) error= sqlite3_errmsg (impl->db);
+  return {};
+}
+
+std::optional<std::string>
+MaterialsStore::material_for_source (const std::string& source_kind,
+                                     const std::string& source_reference,
+                                     std::string& error) const {
+  if (!is_open ()) { error= "Materials database is not open"; return {}; }
+  Statement query (impl->db,
+    "SELECT material_uuid FROM material_provenance WHERE source_kind=? AND "
+    "source_reference=? AND field_name='@record' ORDER BY id LIMIT 1;");
+  if (!query) { error= sqlite3_errmsg (impl->db); return {}; }
+  bind_text (query.get (), 1, source_kind);
+  bind_text (query.get (), 2, source_reference);
   int status= sqlite3_step (query.get ());
   if (status == SQLITE_ROW) return text_column (query.get (), 0);
   if (status != SQLITE_DONE) error= sqlite3_errmsg (impl->db);

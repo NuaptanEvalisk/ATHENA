@@ -52,6 +52,22 @@
   is an import path, not the former TeXmacs bibliography subsystem: imported
   entries become ordinary UUID-backed Material records.
 
+  <menu|Import Zotero> connects to the official Zotero Local API and bulk
+  imports My Library or a locally available group library. Start Zotero and
+  enable <menu|Settings|Advanced|Allow other applications on this computer to
+  communicate with Zotero> first. <ATHENA> preserves Zotero item types,
+  fields, creator roles, identifiers, tags, collections and relations, and can
+  copy locally available file attachments into the vault's managed Materials
+  folder. Zotero notes and annotations are not bibliographic Materials and are
+  therefore not imported.
+
+  Every imported Zotero record keeps its stable Zotero library identity and
+  item key as provenance. Repeating an import, including after restarting
+  Zotero, is consequently idempotent. Strong
+  identifiers such as DOI and ISBN also match existing Materials, so importing
+  a Zotero library does not create a second record for a source already entered
+  by another route.
+
   <section|Citing a Material>
 
   Use <menu|Insert|Material citation>. Search for one or more Materials and,

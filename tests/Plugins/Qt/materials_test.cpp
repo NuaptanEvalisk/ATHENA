@@ -13,6 +13,7 @@
 #include "ATHENA/Data/materials_engine.hpp"
 #include "ATHENA/Data/materials_recognition.hpp"
 #include "ATHENA/Data/materials_schema.hpp"
+#include "ATHENA/Data/materials_zotero.hpp"
 #include "ATHENA/Data/vault.hpp"
 #include "convert.hpp"
 
@@ -84,6 +85,7 @@ private slots:
   void loadsPinnedZoteroSchema ();
   void listsBundledCslStyles ();
   void importsBibtexAndRendersCsl ();
+  void parsesZoteroLibraryAndTracksSource ();
   void rendersMaterialInfoWithGenericMacros ();
 };
 
@@ -582,6 +584,101 @@ MaterialsTest::importsBibtexAndRendersCsl () {
   QCOMPARE (default_rendered.citation_html.size (), (size_t) 1);
   QCOMPARE (default_rendered.bibliography.size (), (size_t) 1);
   QCOMPARE (default_rendered.bibliography[0].uuid, book.uuid);
+}
+
+void
+MaterialsTest::parsesZoteroLibraryAndTracksSource () {
+  const std::string response= R"json([
+    {
+      "key":"PAPER001", "version":12,
+      "library":{"type":"user","id":1,"name":"My Library"},
+      "data":{
+        "key":"PAPER001", "version":12, "itemType":"journalArticle",
+        "title":"A Structured Zotero Import", "date":"2026",
+        "publicationTitle":"Journal of Materials", "volume":"7",
+        "issue":"2", "pages":"10-21", "DOI":"10.1000/Zotero.Test",
+        "creators":[
+          {"creatorType":"author","firstName":"Ada","lastName":"Lovelace"},
+          {"creatorType":"editor","name":"The Editorial Board"}
+        ],
+        "tags":[{"tag":"geometry"},{"tag":"imported"}],
+        "collections":["COLL0001"], "relations":{"dc:relation":"x"}
+      }
+    },
+    {
+      "key":"FILE0001",
+      "data":{
+        "key":"FILE0001", "itemType":"attachment",
+        "parentItem":"PAPER001", "linkMode":"imported_file",
+        "title":"Full Text PDF", "filename":"paper.pdf",
+        "contentType":"application/pdf"
+      }
+    },
+    {
+      "key":"NOTE0001",
+      "data":{"key":"NOTE0001","itemType":"note","note":"private note"}
+    },
+    {
+      "key":"FILE0002",
+      "data":{
+        "key":"FILE0002", "itemType":"attachment", "parentItem":"",
+        "linkMode":"linked_file", "title":"Standalone source",
+        "filename":"standalone.pdf", "contentType":"application/pdf"
+      }
+    }
+  ])json";
+
+  std::vector<ZoteroMaterialImport> imports;
+  ZoteroParseSummary summary;
+  std::string error;
+  QVERIFY2 (athena_materials_parse_zotero_items (
+              response, "server-A", "/users/0", imports, summary, error),
+            error.c_str ());
+  QCOMPARE (imports.size (), (size_t) 2);
+  QCOMPARE (summary.bibliographic_items, 1);
+  QCOMPARE (summary.child_attachments, 1);
+  QCOMPARE (summary.standalone_attachments, 1);
+  QCOMPARE (summary.ignored_notes, 1);
+
+  const ZoteroMaterialImport& article= imports[0];
+  QCOMPARE (article.item_key, std::string ("PAPER001"));
+  QCOMPARE (article.source_reference, std::string ("zotero:user:1:PAPER001"));
+  QCOMPARE (article.material.item_type, std::string ("journalArticle"));
+  QCOMPARE (article.material.field ("title"),
+            std::string ("A Structured Zotero Import"));
+  QCOMPARE (article.material.field ("publicationTitle"),
+            std::string ("Journal of Materials"));
+  QCOMPARE (article.material.creators.size (), (size_t) 2);
+  QCOMPARE (article.material.creators[0].given, std::string ("Ada"));
+  QCOMPARE (article.material.creators[0].family, std::string ("Lovelace"));
+  QCOMPARE (article.material.creators[1].literal,
+            std::string ("The Editorial Board"));
+  QCOMPARE (article.material.tags.size (), (size_t) 2);
+  QCOMPARE (article.material.identifiers.size (), (size_t) 1);
+  QCOMPARE (article.material.identifiers[0].scheme, std::string ("doi"));
+  QCOMPARE (article.attachments.size (), (size_t) 1);
+  QCOMPARE (article.attachments[0].item_key, std::string ("FILE0001"));
+  QVERIFY (QString::fromStdString (article.material.extra_json).contains (
+    "COLL0001"));
+
+  std::vector<ZoteroMaterialImport> after_restart;
+  ZoteroParseSummary restarted_summary;
+  QVERIFY2 (athena_materials_parse_zotero_items (
+              response, "server-B", "/users/0", after_restart,
+              restarted_summary, error), error.c_str ());
+  QCOMPARE (after_restart[0].source_reference, article.source_reference);
+
+  QTemporaryDir temporary;
+  QVERIFY (temporary.isValid ());
+  MaterialsStore store;
+  QVERIFY2 (store.open (fs::u8path (temporary.path ().toStdString ()),
+                        AthenaVaultfileInfo {}, error), error.c_str ());
+  MaterialRecord stored= article.material;
+  QVERIFY2 (store.create (stored, error), error.c_str ());
+  std::optional<std::string> by_source= store.material_for_source (
+    "zotero", article.source_reference, error);
+  QVERIFY2 (by_source.has_value (), error.c_str ());
+  QCOMPARE (*by_source, stored.uuid);
 }
 
 void
