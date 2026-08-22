@@ -1,0 +1,10 @@
+[package]
+name = "athena-materials-engine"
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-or-later"
+
+[dependencies]
+hayagriva = { git = "https://github.com/typst/hayagriva.git", rev = "e51299ecd1a9f62b2f069af2f554ae4e84d50527", features = ["biblatex", "archive"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"

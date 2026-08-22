@@ -187,6 +187,9 @@ assemble_linux_runtime () {
   run install -m 755 "$local_build_dir/src/athena-codex-bridge" \
     "$runtime/bin/athena-codex-bridge"
   run install -m 755 \
+    "$local_build_dir/materials-engine-cargo/release/athena-materials-engine" \
+    "$runtime/bin/athena-materials-engine"
+  run install -m 755 \
     "$local_build_dir/tools/athena-transmitter/athena-transmitter" \
     "$runtime/bin/athena-transmitter"
   run install -m 755 \

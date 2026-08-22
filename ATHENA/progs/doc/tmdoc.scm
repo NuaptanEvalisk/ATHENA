@@ -68,13 +68,6 @@
          (cons 'if-nref (tmdoc-substitute-sub (cdr x) root cur)))
         ((tm-func? x 'tmdoc-link*)
          (cons 'tmdoc-link (tmdoc-substitute-sub (cdr x) root cur)))
-        ((and (tm-in? x '(bibliography bibliography*))
-              (tm-atomic? (tm-ref x 2)))
-         (let* ((name (tm->string (tm-ref x 2)))
-                (rel (if (== name "") "" (url-relative cur name))))
-           `(,(tm-label x) ,(tm-ref x 0) ,(tm-ref x 1)
-             ,(url->string rel) ,@(cdddr (cDr (tm-children x)))
-             ,(tmdoc-substitute (cAr x) root cur))))
 	((list? x)
          (cons (car x) (tmdoc-substitute-sub (cdr x) root cur)))
 	(else x)))
@@ -182,11 +175,6 @@
   (with t (tree-import file-name "texmacs")
     (tmfile-language t)))
 
-(define (has-bib? doc)
-  (cond ((tm-atomic? doc) #f)
-        ((tm-is? doc 'cite) #t)
-        (else (list-or (map has-bib? (tm-children doc))))))
-
 (define (replace-special doc)
   (cond ((tm-atomic? doc) doc)
         ((tm-equal? doc '(chapter "Preface")) `(chapter* "Preface"))
@@ -197,13 +185,11 @@
          (l0 (cdr doc*))
          (i  (list-find-index l0 (lambda (x) (func? x 'title))))
          (l1 (if i (sublist l0 0 (+ i 1)) '()))
-         (l2 (if i (sublist l0 (+ i 1) (length l0)) l0))
-         (bib? (has-bib? `(document ,@l2))))
+         (l2 (if i (sublist l0 (+ i 1) (length l0)) l0)))
     `(document
        ,@l1
        (table-of-contents "toc" (document ""))
        ,@l2
-       ,@(if bib? `((bibliography "bib" "tm-plain" "" (document ""))) '())
        (the-index "idx" (document "")))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

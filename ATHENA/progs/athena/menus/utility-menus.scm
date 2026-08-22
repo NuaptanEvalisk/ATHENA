@@ -38,6 +38,7 @@
 (menu-bind athena-workspace-utilities-menu
   ("Namespace Manager" (open-namespace-manager))
   ("Websites manager" (open-websites-manager))
+  ("Materials manager" (materials-manager-show))
   ("Custom styles manager" (custom-styles-manager-show))
   (-> "Vault"
       ("Bugcheck" (vault-bugcheck))

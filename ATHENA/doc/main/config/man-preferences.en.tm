@@ -101,8 +101,6 @@
     <item*|Disable window positioning>Prevents <ATHENA> from restoring or
     forcing saved window positions.
 
-    <item*|New bibliography dialogue>Uses the newer bibliography dialog.
-
     <item*|Show live statistics in central footer>Shows live document
     statistics in the central part of the footer.
 
@@ -518,9 +516,6 @@
     <item*|Expand user-defined macros>Expands user-defined macros during
     export.
 
-    <item*|Export bibliographies as links>Exports bibliography entries
-    indirectly as links.
-
     <item*|Allow for macro definitions in preamble>Allows generated macro
     definitions in the LaTeX preamble.
 
@@ -542,26 +537,6 @@
 
     <item*|Store tracking information in LaTeX files>Embeds tracking
     information in exported LaTeX files.
-  </description>
-
-  <subsection|BibTeX>
-
-  <subsubsection|BibTeX -\<gtr\> TeXmacs>
-
-  <\description>
-    <item*|BibTeX command>Chooses the command used for bibliography
-    processing: <verbatim|bibtex>, <verbatim|biber>, <verbatim|biblatex>,
-    <verbatim|rubibtex>, or a custom value.
-
-    <item*|Only convert changes when re-importing>Uses conservative BibTeX
-    import based on the previously imported version.
-  </description>
-
-  <subsubsection|TeXmacs -\<gtr\> BibTeX>
-
-  <\description>
-    <item*|Only convert changes with respect to imported version>Uses
-    conservative BibTeX export based on the imported version.
   </description>
 
   <subsection|Verbatim>
@@ -752,6 +727,51 @@
   of that content, and <verbatim|%s> lowercases the first character of that
   content.
 
+  <subsection|Materials>
+
+  Material records and their managed files belong to the active vault, while
+  these provider and rendering choices are preferences.
+
+  <\description>
+    <item*|Local metadata extractor>Command used to inspect embedded metadata
+    in a dropped Material file. The default is <verbatim|exiftool>.
+
+    <item*|Local PDF text extractor>Command used to extract searchable text
+    from a dropped PDF for identifier recognition. The default is
+    <verbatim|pdftotext>.
+
+    <item*|Query Crossref>Allows DOI metadata lookup through Crossref.
+
+    <item*|Query OpenAlex>Allows DOI metadata lookup through OpenAlex.
+
+    <item*|Query Open Library>Allows ISBN metadata lookup through Open
+    Library. This provider is enabled by default so that books without useful
+    embedded PDF metadata can still be recognized from their ISBN.
+
+    <item*|Query Google Books>Allows ISBN metadata lookup through Google
+    Books.
+
+    <item*|Query arXiv>Allows metadata lookup for recognized arXiv IDs.
+
+    <item*|Query PubMed>Allows metadata lookup for recognized PubMed IDs.
+
+    <item*|Provider contact email>Email supplied to providers that request a
+    contact address for responsible API use.
+
+    <item*|Default CSL style>Selects the independent CSL style used for newly
+    inserted citations and reference lists.  The menu is populated from the
+    styles bundled with the Materials engine; legacy BibTeX style names such as
+    <verbatim|ams> are not CSL styles. The default is
+    <verbatim|springer-mathphys>, a numeric bracketed style suited to
+    mathematical writing. A document-level Citation Style overrides this
+    preference.
+  </description>
+
+  Local extraction always precedes provider lookup. Enabled providers receive
+  only recognized identifiers such as DOI, ISBN, arXiv ID, or PMID, never the
+  dropped document file. Open Library is enabled by default; the remaining
+  providers are disabled by default.
+
   <subsection|Maintenance>
 
   <\description>
@@ -807,7 +827,7 @@
   uses <verbatim|rsync> and coalesces repeated save requests while a transfer
   is already running.
 
-  <description>
+  <\description>
     <item*|Every successful save>Dispatches after a document has been saved
     successfully. Saves that occur during an active transfer request one
     additional synchronization instead of starting concurrent transfers.
@@ -879,6 +899,14 @@
     used by <menu|Tools|Websites manager>. Legacy <verbatim|Vaultfile>
     files are accepted only for startup migration; the JSON field defaults to
     <verbatim|websites.json>.
+
+    <item*|Materials database path>Vault-relative path to the Materials SQLite
+    database. It defaults to <verbatim|materials.sqlite> at the vault root and
+    is independent of the managed file folder.
+
+    <item*|Stored materials folder>Vault-relative folder into which dropped
+    source files are copied with canonical human-readable names. It defaults
+    to <verbatim|materials/>.
 
     <item*|Root namespace>Optional root namespace for the vault. It is stored
     in <verbatim|Vaultfile.json>, not in the preferences file, so it remains
@@ -1056,7 +1084,7 @@
 
   <subsubsection|Artifact Generation>
 
-  <description>
+  <\description>
     <item*|Enable Artifact Definition Span Delegation>Delegates only the LLM
     decision that selects which candidate paragraphs belong to a bold-text
     definition. ATHENA still performs incremental detection, AST extraction,

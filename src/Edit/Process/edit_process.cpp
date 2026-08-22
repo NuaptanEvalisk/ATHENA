@@ -13,8 +13,6 @@
 #include "analyze.hpp"
 #include "tm_buffer.hpp"
 #include "merge_sort.hpp"
-#include "Bibtex/bibtex.hpp"
-#include "Bibtex/bibtex_functions.hpp"
 #include "Sqlite3/sqlite3.hpp"
 #include "file.hpp"
 #include "convert.hpp"
@@ -57,177 +55,6 @@ remove_labels (tree t) {
   if (is_func (r, CONCAT, 0)) return "";
   if (is_func (r, CONCAT, 1)) return r[0];
   return r;
-}
-
-/******************************************************************************
-* Automatically generate a bibliography
-******************************************************************************/
-
-void
-copy_bst_file (url base, string style) {
-  string bst= style * ".bst";
-  url u1= url ("$ATHENA_HOME_PATH/system/bib", bst);
-  url u2= relative (base, bst);
-  if (!exists (u1) && exists (u2)) copy (u2, u1);
-}
-
-url
-find_bib_file (url base, string fname,
-               string suffix= ".bib", bool rooted= false) {
-  if (!ends (fname, suffix)) fname= fname * suffix;
-  url bibf (fname);
-  if (exists (bibf) && (!rooted || is_rooted (bibf)))
-    return bibf;
-  if (exists (relative (base, bibf)))
-    return relative (base, bibf);
-  if (exists (expand (relative (base, url_ancestor () * bibf))))
-    return resolve (expand (relative (base, url_ancestor () * bibf)));
-  return url_none ();
-}
-
-bool
-supports_db () {
-  return get_preference ("database tool") == "on";
-}
-
-bool
-uses_natbib (tree t) {
-  if (is_atomic (t)) return false;
-  if (is_compound (t, "natbib-triple")) return true;
-  for (int i=0; i<N(t); i++)
-    if (uses_natbib (t[i])) return true;
-  return false;
-}
-
-tree
-arrange_bib (tree t) {
-  if (is_atomic (t))
-    return replace (t->label, "--", "\25");
-  else if (is_func (t, DOCUMENT, 0))
-    return tree (DOCUMENT, "");
-  else {
-    int i, n= N(t);
-    tree r (t, n);
-    for (i=0; i<n; i++)
-      r[i]= arrange_bib (t[i]);
-    return r;
-  }
-}
-
-void
-edit_process_rep::generate_bibliography (
-  string bib, string style, string fname)
-{
-  if (N(style) == 0) style= "tm-plain";
-  system_wait ("Generating bibliography, ", "please wait");
-  if (DEBUG_AUTO)
-    debug_automatic << "Generating bibliography"
-                    << " [" << bib << ", " << style << ", " << fname << "]\n";
-  tree bib_t= buf->data->aux[bib];
-  if (buf->prj != NULL) bib_t= buf->prj->data->aux[bib];
-  tree t;
-  copy_bst_file (buf->buf->name, style);
-  url bib_file= find_bib_file (buf->buf->name, fname);
-  //cout << fname << " -> " << concretize (bib_file) << "\n";
-  url xbib_file= "$ATHENA_PATH/misc/bib/texmacs.bib";
-  if (is_none (bib_file)) {
-    url bbl_file= find_bib_file (buf->buf->name, fname, ".bbl");
-    if (is_none (bbl_file)) {
-      if (supports_db ()) {
-        t= as_tree (call (string ("bib-compile"),
-                          bib, style, bib_t, xbib_file));
-        call (string ("bib-attach"), bib, bib_t, xbib_file);
-      }
-      else {
-        for (int i=0; i<N(bib_t); i++)
-          if (!is_atomic (bib_t[i]) || !starts (bib_t[i]->label, "TeXmacs:")) {
-            std_error << "Could not load BibTeX file " << fname << LF;
-            set_message ("Could not find bibliography file",
-                         "compile bibliography");
-	    system_wait ("");
-            return;
-          }
-        t= as_tree (call (string ("bib-compile"),
-                          bib, style, bib_t, xbib_file));        
-      }
-    }
-    else t= bibtex_load_bbl (bib, bbl_file);
-    t= arrange_bib (t);
-  }
-  else {
-    bool star= false;
-    if (!bibtex_present () || starts (style, "tm-"))
-      if (is_document (bib_t)) {
-        tree new_t (DOCUMENT);
-        for (int i=0; i<N(bib_t); i++)
-          if (bib_t[i] != "*") new_t << bib_t[i];
-          else {
-            string sbib;
-            if (load_string (bib_file, sbib, false))
-              std_error << "Could not load BibTeX file " << fname;
-            tree pt= parse_bib (sbib);
-            if (is_document (pt))
-              for (int j=0; j<N(pt); j++)
-                if (is_compound (pt[j], "bib-entry") && N(pt[j]) >= 2)
-                  new_t << pt[j][1];
-          }
-        bib_t= new_t;
-      }
-    for (int i=0; i<N(bib_t); i++)
-      if (bib_t[i] == "*") star= true;
-    if (!bibtex_present () && !starts (style, "tm-")) {
-      if (style == "abbrv") style= "tm-abbrv";
-      else if (style == "acm") style= "tm-acm";
-      else if (style == "alpha") style= "tm-alpha";
-      else if (style == "elsart-num") style= "tm-elsart-num";
-      else if (style == "ieeetr") style= "tm-ieeetr";
-      else if (style == "siam") style= "tm-siam";
-      else if (style == "unsrt") style= "tm-unsrt";
-      else style= "tm-plain";
-    }
-    if (supports_db () && !is_rooted (bib_file))
-      bib_file= find_bib_file (buf->buf->name, fname, ".bib", true);
-    if (supports_db ()) {
-      //(void) call (string ("bib-import-bibtex"), bib_file);
-      array<object> args;
-      args << object (bib) << object (style)
-           << object (bib_t) << object (bib_file);
-      if (!star) args << object (xbib_file);
-      t= as_tree (call (string ("bib-compile"), args));
-    }
-    else if (starts (style, "tm-")) {
-      string sbib;
-      if (load_string (bib_file, sbib, false))
-        std_error << "Could not load BibTeX file " << fname;
-      string xsbib;
-      if (!load_string (xbib_file, xsbib, false))
-        sbib << "\n" << xsbib;
-      tree te= bib_entries (parse_bib (sbib), bib_t);
-      object ot= tree_to_stree (te);
-      eval ("(use-modules (bibtex " * style (3, N(style)) * "))");
-      t= stree_to_tree (call (string ("bib-process"),
-                              bib, style (3, N(style)), ot));
-    }
-    else t= bibtex_run (bib, style, bib_file, bib_t);
-    t= arrange_bib (t);
-    if (supports_db ())
-      (void) call (string ("bib-attach"), bib, bib_t, bib_file, xbib_file);
-    if (uses_natbib (t) && !defined_at_init ("cite-author-year-package")) {
-      tree st= get_style ();
-      if (is_atomic (st)) st= tuple (st);
-      bool missing= true;
-      for (int i=0; i<N(st); i++)
-        if (st[i] == "cite-author-year") missing= false;
-      if (missing) {
-        st << "cite-author-year";
-        change_style (st);
-      }
-    }
-  }
-  if (is_atomic (t) && starts (t->label, "Error:"))
-    set_message (t->label, "compile bibliography");
-  else if (is_compound (t) && N(t) > 0) insert_tree (t);
-  system_wait ("");
 }
 
 /******************************************************************************
@@ -568,8 +395,6 @@ edit_process_rep::generate_glossary (string gly) {
 static bool
 is_aux (tree t) {
   return
-    is_compound (t, "bibliography", 4) ||
-    is_compound (t, "bibliography*", 5) ||
     is_compound (t, "table-of-contents", 2) ||
     is_compound (t, "table-of-contents*", 3) ||
     is_compound (t, "the-index", 2) ||
@@ -600,12 +425,6 @@ edit_process_rep::generate_aux_recursively (string which, tree st, path p) {
         cout << "------------------------------------------------------\n";
       */
       if (arity (t) >= 1) {
-        if ((arity(t) >= 3) &&
-            (is_compound (t, "bibliography") ||
-             is_compound (t, "bibliography*")) &&
-            ((which == "") || (which == "bibliography")))
-          generate_bibliography (as_string (t[0]), as_string (t[1]),
-                                 as_string (t[2]));
         if ((is_compound (t, "table-of-contents") ||
              is_compound (t, "table-of-contents*")) &&
             ((which == "") || (which == "table-of-contents")))

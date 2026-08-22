@@ -2528,28 +2528,6 @@ upgrade_doc_info (tree t) {
 }
 
 /******************************************************************************
-* Upgrade bibliographies
-******************************************************************************/
-
-tree
-upgrade_bibliography (tree t) {
-  if (is_atomic (t)) return t;
-  else {
-    int i, n= N(t);
-    tree r (t, n);
-    for (i=0; i<n; i++)
-      r[i]= upgrade_bibliography (t[i]);
-    if (is_compound (t, "bibliography") || is_compound (t, "bibliography*")) {
-      int l= N(r)-1;
-      if (is_func (r[l], DOCUMENT, 1) && is_compound (r[l][0], "bib-list"));
-      else if (is_compound (r[l], "bib-list"));
-      else r[l]= tree (DOCUMENT, compound ("bib-list", "[99]", r[l]));
-    }
-    return r;
-  }
-}
-
-/******************************************************************************
 * Upgrade switches
 ******************************************************************************/
 
@@ -3321,10 +3299,7 @@ eat_spaces (tree t, bool after) {
   return
     is_compound (t, "hide-preamble") ||
     is_compound (t, "doc-data") ||
-    is_compound (t, "abstract") ||
-    is_compound (t, "bibliography") ||
-    is_compound (t, "bibitem") ||
-    is_compound (t, "bibitem*");
+    is_compound (t, "abstract");
 }
 
 static tree
@@ -3915,8 +3890,7 @@ is_std_textual_env (string s) {
       << "small-table" << "big-table" << "small-figure" << "big-figure"
       << "tabular" << "tabular*" << "block" << "block*" << "descriptive-table"
       << "description" << "itemize" << "enumerate"
-      << "bibliography" << "bib-list" << "thebibliography"
-      << "bib-field" << "bib-entry" << "db-field" << "db-entry"
+      << "db-field" << "db-entry"
       << "itemize-minus" << "enumerate-roman" << "enumerate-alpha"
       << "strong" << "em" << "dfn" << "sample"
       << "name" << "person" << "cite*" << "abbr" << "acronym"
@@ -4289,7 +4263,6 @@ upgrade (tree t, string version) {
     t= upgrade_doc_info (t);
   }
   if (version_inf_eq (version, "1.0.4.6"))
-    t= upgrade_bibliography (t);
   if (version_inf_eq (version, "1.0.5.4"))
     t= upgrade_switch (t);
   if (version_inf_eq (version, "1.0.5.7"))

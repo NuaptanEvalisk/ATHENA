@@ -18,6 +18,7 @@ jobs="${ATHENA_BUILD_JOBS:-$(nproc)}"
 git_timeout="${ATHENA_GIT_TIMEOUT:-300}"
 qt_version="${ATHENA_QT_VERSION:-6.11.1}"
 boost_version="${ATHENA_BOOST_VERSION:-1.87.0}"
+rust_toolchain="${ATHENA_RUST_TOOLCHAIN:-1.88.0}"
 boost_version_underscore="${boost_version//./_}"
 athena_version="$(sed -n 's/.*set *(ATHENA_APP_VERSION *"\([^"]*\)".*/\1/p' "$repo_root/CMakeLists.txt" | head -n1)"
 qt_root="$deps_dir/qt"
@@ -35,6 +36,7 @@ mkdir -p "$prefix" "$src_dir" "$tools_dir" "$container_build_dir/logs"
 export RUSTUP_HOME="$container_build_dir/rustup"
 export CARGO_HOME="$container_build_dir/cargo"
 export CARGO_TARGET_DIR="$container_build_dir/cargo-target"
+export RUSTUP_TOOLCHAIN="$rust_toolchain"
 
 prepend_build_paths () {
   export PATH="$guile18_prefix/bin:$HOME/.local/bin:$qt_prefix/bin:$prefix/bin:/opt/intel/oneapi/compiler/latest/bin:$PATH"
@@ -242,7 +244,7 @@ ensure_resvg () {
     return
   fi
 
-  rustup toolchain install 1.87.0 --profile minimal >/dev/null
+  rustup toolchain install "$rust_toolchain" --profile minimal >/dev/null
 
   local resvg_src="$src_dir/resvg"
   if [ ! -d "$resvg_src/.git" ]; then
@@ -250,7 +252,7 @@ ensure_resvg () {
       "${RESVG_REPO:-https://github.com/linebender/resvg.git}"
   fi
 
-  cargo +1.87.0 build \
+  cargo +"$rust_toolchain" build \
     --manifest-path "$resvg_src/Cargo.toml" \
     --package resvg-capi \
     --release
@@ -417,6 +419,9 @@ copy_runtime_tree () {
   install -Dm755 "$build_dir/src/ATHENA.bin" "$out_dir/bin/ATHENA.bin"
   install -Dm755 "$build_dir/src/athena-codex-bridge" \
     "$out_dir/bin/athena-codex-bridge"
+  install -Dm755 \
+    "$build_dir/materials-engine-cargo/release/athena-materials-engine" \
+    "$out_dir/bin/athena-materials-engine"
   install -Dm755 \
     "$build_dir/tools/athena-transmitter/athena-transmitter" \
     "$out_dir/bin/athena-transmitter"

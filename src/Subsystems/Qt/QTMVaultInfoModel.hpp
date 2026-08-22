@@ -30,6 +30,8 @@ struct QTMVaultfileInfo {
   QString ragIndexPath;
   QString websitesPath;
   QString rootNamespace;
+  QString materialsDbPath;
+  QString materialsDirectory;
 };
 
 bool    qtm_vault_info_available ();

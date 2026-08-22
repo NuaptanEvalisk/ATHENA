@@ -14,7 +14,6 @@
 #include <chrono>
 #include <iostream>
 
-#include "Bibtex/bibtex.hpp"
 #include "LaTeX_Preview/latex_preview.hpp"
 #include "Obsidian/aofm_telemetry.hpp"
 #include "Tex/convert_tex.hpp"
@@ -29,7 +28,6 @@ extern bool textm_class_flag;
 //bool textm_class_flag= true;
 extern bool textm_appendices;
 extern bool textm_unicode;
-extern bool textm_natbib;
 
 tree kill_space_invaders (tree t);
 tree set_special_fonts (tree t, string lan);
@@ -1289,31 +1287,6 @@ is_preamble_command (tree t, tree& doc, string& style) {
   return false;
 }
 
-bool
-is_bibliography_command (tree t, tree& doc, string& bib_style) {
-  if (is_func (t, APPLY, 2)) {
-    if (t[0] == "bibliographystyle") {
-      bib_style= t[1]->label;
-      return true;
-    }
-    if (t[0] == "bibliography") {
-      tree begin (BEGIN, "bibliography");
-      tree end (END, "bibliography");
-      tree bib;
-      begin << "bib" << bib_style << string_arg (t[1]);
-      url bbl= get_file_focus ();
-      bbl= glue (head (bbl) * basename (bbl, "tex"), "bbl");
-      if (exists (bbl))
-        bib= bibtex_load_bbl ("bib", bbl);
-      else
-        bib= tree (DOCUMENT, compound ("bib-list", "[99]", ""));
-      doc << begin << bib << end;
-      return true;
-    }
-  }
-  return false;
-}
-
 extern hashfunc<string,string> latex_std_type;
 
 bool
@@ -1334,14 +1307,13 @@ is_ignored_redefinition (tree t) {
 }
 
 static tree
-finalize_preamble (tree t, string& style, string& bib_style) {
+finalize_preamble_rec (tree t, string& style) {
   int i;
   tree u (L(t));
   for (i=0; i<N(t); i++) {
     if (is_concat (t[i]) || is_document (t[i]))
-      u << finalize_preamble (t[i], style, bib_style);
+      u << finalize_preamble_rec (t[i], style);
     else if (is_preamble_command (t[i], u, style));
-    else if (is_bibliography_command (t[i], u, bib_style));
     else if (is_ignored_redefinition (t[i]));
     else u << t[i];
   }
@@ -1353,8 +1325,7 @@ finalize_preamble (tree t, string& style, string& bib_style) {
 tree
 finalize_preamble (tree t, string& style) {
   style= "generic";
-  string bib_style= "plain";
-  return finalize_preamble (t, style, bib_style);
+  return finalize_preamble_rec (t, style);
 }
 
 /******************************************************************************
@@ -2604,7 +2575,6 @@ latex_to_tree (tree t0, bool not_document) {
   }
   textm_appendices= false;
   textm_unicode   = false;
-  textm_natbib    = false;
   command_type ("!em") = "false";
   // cout << "\n\nt1= " << t1 << "\n\n";
   tree t2= (is_document)? filter_preamble (t1): t1;
@@ -2711,8 +2681,6 @@ latex_to_tree (tree t0, bool not_document) {
     tree the_version= compound ("TeXmacs", TEXMACS_COMPAT_VERSION);
     tree the_style  = compound ("style", tuple (style));
     tree the_body   = compound ("body", t15);
-    if (textm_natbib)
-      the_style= compound ("style", tuple (style, "cite-author-year"));
     if (style != "acmart" && style != "acmsmall" && style != "acmlarge" &&
         style != "acmtog" && style != "sigconf" && style != "sigchi" &&
         style != "sigplan" && style != "amsart")

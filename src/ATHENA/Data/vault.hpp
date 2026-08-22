@@ -17,6 +17,8 @@
 
 #include <cstddef>
 
+class MaterialsStore;
+
 /* Vault metadata */
 struct vault_info {
   string name;
@@ -34,6 +36,7 @@ bool vault_active ();
 string vault_get_name ();
 url  vault_get_root ();
 url  vault_get_namespace_db ();
+MaterialsStore* vault_get_materials_store ();
 string vault_load (url root_dir, string name, string db_rel_path);
 string vault_load (url root_dir, string name, string db_rel_path,
                    string ns_db_rel_path);

@@ -136,6 +136,35 @@ ATHENA can embed content from another document into the current one.
 - Detect cycles to avoid recursive rendering failures.
 - Preserve source enunciation colors inside transclusion boxes.
 
+### Materials And Citations
+
+Materials are ATHENA's vault-native replacement for the legacy TeXmacs
+BibTeX bibliography subsystem.
+
+- Keep books, articles, chapters, theses, reports, slides, and other source
+  records in a normalized vault-local SQLite database with stable UUIDs.
+- Configure the database path independently in `Vaultfile.json`; it defaults
+  to `materials.sqlite` at the vault root.
+- Copy dropped source documents into a separately configured `materials/`
+  folder and rename generic inputs such as `paper2.pdf` to readable canonical
+  creator-year-title filenames.
+- Extract local metadata and identifiers with configurable tools, optionally
+  enrich DOI, ISBN, arXiv, and PMID records through external providers, and
+  review uncertain results before accepting them.
+- Deduplicate by file hash and normalized identifiers, merge records while
+  retaining UUID aliases, and search titles, creators, identifiers, abstracts,
+  and tags through SQLite FTS.
+- Edit Zotero-compatible item types, fields, creator roles, identifiers, tags,
+  provenance, and managed attachments in the Materials manager ADS pane.
+- Import `.bib` files through the pinned Hayagriva engine without reviving the
+  old bibliography runtime.
+- Insert UUID-backed citations with typed locators and open Materials through
+  `tmfs://material/UUID` links.
+- Insert referenced Materials lists that combine automatically cited records
+  with manually included reading, then render citations and lists using CSL.
+- Preserve exact citation and referenced-list AST through LaTeX
+  `ATHENA-DATA` object injection while still exporting useful visible LaTeX.
+
 ### Namespaces
 
 Namespaces are one of ATHENA's central knowledge-organization features. They

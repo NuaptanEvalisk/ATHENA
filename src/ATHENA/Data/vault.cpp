@@ -17,7 +17,9 @@
 #include "sys_utils.hpp"
 #include "ATHENA/Data/new_buffer.hpp"
 #include "ATHENA/Data/new_window.hpp"
+#include "ATHENA/Data/materials.hpp"
 #include "ATHENA/Data/vault_map_sqlite.hpp"
+#include "ATHENA/Data/vaultfile_json.hpp"
 #include "ATHENA/Data/vault_safe_rename.hpp"
 #include "ATHENA/Data/transclusion_cache.hpp"
 #include "ATHENA/tm_window.hpp"
@@ -31,6 +33,7 @@
 bool       is_vault_active = false;
 vault_info current_vault;
 static std::unique_ptr<AthenaVaultMapSqlite> current_vault_map;
+static std::unique_ptr<MaterialsStore> current_materials_store;
 
 bool
 vault_active () {
@@ -50,6 +53,11 @@ vault_get_root () {
 url
 vault_get_namespace_db () {
   return current_vault.ns_db_url;
+}
+
+MaterialsStore*
+vault_get_materials_store () {
+  return is_vault_active ? current_materials_store.get () : nullptr;
 }
 
 static void
@@ -100,12 +108,20 @@ vault_load (url root_dir, string name, string db_rel_path,
   if (!vault_safe_rename_recover (root, *map, error))
     return vault_tm_string (error);
 
+  AthenaVaultfileInfo vaultfile;
+  if (!athena_vaultfile_read (root, vaultfile, error))
+    return vault_tm_string (error);
+  std::unique_ptr<MaterialsStore> materials (new MaterialsStore);
+  if (!materials->open (root, vaultfile, error))
+    return vault_tm_string (error);
+
   if (is_vault_active) vault_close ();
   current_vault.root   = root_dir;
   current_vault.name   = name;
   current_vault.db_url = root_dir * url (vault_tm_string (resolved));
   current_vault.ns_db_url = root_dir * url (ns_db_rel_path);
   current_vault_map = std::move (map);
+  current_materials_store = std::move (materials);
   is_vault_active = true;
   athena_clear_transclusion_caches ();
   vault_refresh_window_titles ();
@@ -116,6 +132,7 @@ void
 vault_close () {
   if (is_vault_active) sync_databases ();
   current_vault_map.reset ();
+  current_materials_store.reset ();
   is_vault_active = false;
   current_vault.root = url_none ();
   current_vault.name = "";

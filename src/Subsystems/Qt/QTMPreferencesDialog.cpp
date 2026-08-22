@@ -10,6 +10,7 @@
 
 #include "QTMPreferencesDialog.hpp"
 #include "ATHENA/Features/athena_features.hpp"
+#include "ATHENA/Data/materials_engine.hpp"
 #include "QTMESCSymbolPicker.hpp"
 #include "QTMMainTabWindow.hpp"
 #include "QTMWidget.hpp"
@@ -1127,8 +1128,6 @@ QTMPreferencesDialog::buildGeneralPage () {
   add_toggle (appearanceForm, "Use print dialogue:", "gui:print dialogue");
   add_toggle (appearanceForm, "Disable window positioning:",
               "disable texmacs window positioning");
-  add_toggle (appearanceForm, "New bibliography dialogue:",
-              "gui:new bibliography dialogue");
   add_toggle (appearanceForm, "Show live statistics in central footer:",
               "gui:live-statistics");
   add_line_edit (appearanceForm, "Live statistics format:",
@@ -1511,8 +1510,6 @@ QTMPreferencesDialog::buildConversionPage () {
               "texmacs->latex:expand-macros");
   add_toggle (l2, "Expand user-defined macros:",
               "texmacs->latex:expand-user-macros");
-  add_toggle (l2, "Export bibliographies as links:",
-              "texmacs->latex:indirect-bib");
   add_toggle (l2, "Allow for macro definitions in preamble:",
               "texmacs->latex:use-macros");
   add_combo (l2, "Character encoding:", "texmacs->latex:encoding",
@@ -1542,18 +1539,6 @@ QTMPreferencesDialog::buildConversionPage () {
   add_toggle (l3, "Store tracking information in LaTeX files:",
               "texmacs->latex:attach-tracking-info");
   finish_page (latex);
-
-  QWidget* bibtex= make_page ();
-  QFormLayout* b1= add_section (bibtex, "BibTeX -> TeXmacs");
-  add_combo (b1, "BibTeX command:", "bibtex command",
-             {{"bibtex", "bibtex"}, {"biber", "biber"},
-              {"biblatex", "biblatex"}, {"rubibtex", "rubibtex"}, {"", ""}});
-  add_toggle (b1, "Only convert changes when re-importing:",
-              "bibtex->texmacs:conservative");
-  QFormLayout* b2= add_section (bibtex, "TeXmacs -> BibTeX");
-  add_toggle (b2, "Only convert changes with respect to imported version:",
-              "texmacs->bibtex:conservative");
-  finish_page (bibtex);
 
   QWidget* verbatim= make_page ();
   QFormLayout* v1= add_section (verbatim, "TeXmacs -> Verbatim");
@@ -1618,7 +1603,7 @@ QTMPreferencesDialog::buildConversionPage () {
               "image->texmacs:svg-prefer-inkscape");
   finish_page (image);
 
-  return tabbed ({{"Html", html}, {"LaTeX", latex}, {"BibTeX", bibtex},
+  return tabbed ({{"Html", html}, {"LaTeX", latex},
                   {"Verbatim", verbatim}, {"Pdf", pdf}, {"Image", image}});
 }
 
@@ -1684,6 +1669,70 @@ QTMPreferencesDialog::buildVaultPage () {
   add_line_edit (wt, "Wikilink default display text for anchors:",
                  "vault wikilink display template anchor", "%c");
   finish_page (wikilinks);
+
+  QWidget* materials= make_page ();
+  QFormLayout* mm= add_section (materials, "Materials");
+  QLabel* providerNotice= new QLabel (
+    "Local extraction is always performed first. Enabled metadata providers "
+    "receive only identifiers such as DOI, ISBN, arXiv ID, or PMID; document "
+    "files are never uploaded.", materials);
+  providerNotice->setWordWrap (true);
+  mm->addRow (providerNotice);
+  add_line_edit (mm, "Local metadata extractor:",
+                 "materials local metadata extractor", "exiftool");
+  add_line_edit (mm, "Local PDF text extractor:",
+                 "materials local text extractor", "pdftotext");
+  add_toggle (mm, "Query Crossref:", "materials provider crossref");
+  add_toggle (mm, "Query OpenAlex:", "materials provider openalex");
+  add_toggle (mm, "Query Open Library:",
+              "materials provider open library");
+  add_toggle (mm, "Query Google Books:", "materials provider google books");
+  add_toggle (mm, "Query arXiv:", "materials provider arxiv");
+  add_toggle (mm, "Query PubMed:", "materials provider pubmed");
+  add_line_edit (mm, "Provider contact email:",
+                 "materials provider contact email", "");
+  std::vector<MaterialCslStyle> cslStyles;
+  std::string cslError;
+  std::vector<QStringChoice> cslChoices;
+  if (athena_materials_list_csl_styles (cslStyles, cslError)) {
+    bool currentSupported= false;
+    QString current= pref ("materials csl style", "springer-mathphys");
+    for (const MaterialCslStyle& style: cslStyles) {
+      QString name= QString::fromUtf8 (
+        style.name.data (), (qsizetype) style.name.size ());
+      QString title= QString::fromUtf8 (
+        style.title.data (), (qsizetype) style.title.size ());
+      cslChoices.emplace_back (name, title + " (" + name + ")");
+      if (current == name) currentSupported= true;
+    }
+    if (!currentSupported)
+      set_pref ("materials csl style", "springer-mathphys");
+  }
+  else cslChoices.emplace_back (
+    "springer-mathphys", "Springer - MathPhys (numeric, brackets)");
+  QComboBox* cslCombo= add_qstring_combo (
+    mm, "Default CSL style:", "materials csl style", cslChoices,
+    "springer-mathphys");
+  cslCombo->setEditable (true);
+  cslCombo->setInsertPolicy (QComboBox::NoInsert);
+  cslCombo->setMaxVisibleItems (18);
+  cslCombo->completer ()->setCaseSensitivity (Qt::CaseInsensitive);
+  cslCombo->completer ()->setFilterMode (Qt::MatchContains);
+  QObject::connect (cslCombo->lineEdit (), &QLineEdit::editingFinished,
+                    [cslCombo] () {
+    int index= cslCombo->findText (
+      cslCombo->currentText (), Qt::MatchFixedString);
+    if (index >= 0) cslCombo->setCurrentIndex (index);
+    else if (cslCombo->currentIndex () >= 0)
+      cslCombo->setEditText (
+        cslCombo->itemText (cslCombo->currentIndex ()));
+  });
+  if (!cslError.empty ()) {
+    cslCombo->setEnabled (false);
+    cslCombo->setToolTip (
+      "Could not load CSL styles: " + QString::fromStdString (cslError));
+  }
+  finish_page (materials);
 
 #if ATHENA_ENABLE_PERSON_SUBSYSTEM
   QWidget* persons= make_page ();
@@ -1949,6 +1998,14 @@ QTMPreferencesDialog::buildVaultPage () {
     QLineEdit* websitesPath= add_path_chooser_row (
       vi, "Website registry path:", vaultInfo.websitesPath,
       chooseWebsites);
+    QPushButton* chooseMaterialsDb= nullptr;
+    QLineEdit* materialsDbPath= add_path_chooser_row (
+      vi, "Materials database path:", vaultInfo.materialsDbPath,
+      chooseMaterialsDb);
+    QPushButton* chooseMaterialsDirectory= nullptr;
+    QLineEdit* materialsDirectory= add_path_chooser_row (
+      vi, "Stored materials folder:", vaultInfo.materialsDirectory,
+      chooseMaterialsDirectory);
     QComboBox* rootNamespace= new QComboBox (info);
     rootNamespace->addItem ("None", "");
     QStringList namespaceNames= namespace_names_pref ();
@@ -1966,7 +2023,8 @@ QTMPreferencesDialog::buildVaultPage () {
     auto saveVaultfile= [info, vaultName, mapPath, preferencesPath,
                          namespacePath, startupPage,
                          oneTimeStartupPage, maintenanceSummaryPath,
-                         ragIndexPath, websitesPath, rootNamespace] () {
+                         ragIndexPath, websitesPath, materialsDbPath,
+                         materialsDirectory, rootNamespace] () {
       QTMVaultfileInfo next;
       next.name= vaultName->text ();
       next.mapPath= mapPath->text ();
@@ -1977,6 +2035,8 @@ QTMPreferencesDialog::buildVaultPage () {
       next.maintenanceSummaryPath= maintenanceSummaryPath->text ();
       next.ragIndexPath= ragIndexPath->text ();
       next.websitesPath= websitesPath->text ();
+      next.materialsDbPath= materialsDbPath->text ();
+      next.materialsDirectory= materialsDirectory->text ();
       next.rootNamespace= rootNamespace->currentData ().toString ();
       QString error;
       if (!qtm_vaultfile_write (next, &error)) {
@@ -1997,6 +2057,10 @@ QTMPreferencesDialog::buildVaultPage () {
         qtm_clean_vault_relative_path (next.ragIndexPath));
       websitesPath->setText (
         qtm_clean_vault_relative_path (next.websitesPath));
+      materialsDbPath->setText (
+        qtm_clean_vault_relative_path (next.materialsDbPath));
+      materialsDirectory->setText (
+        qtm_clean_vault_relative_path (next.materialsDirectory));
     };
 
     auto choosePath= [info, saveVaultfile] (QLineEdit* edit,
@@ -2057,6 +2121,10 @@ QTMPreferencesDialog::buildVaultPage () {
                       saveVaultfile);
     QObject::connect (websitesPath, &QLineEdit::editingFinished,
                       saveVaultfile);
+    QObject::connect (materialsDbPath, &QLineEdit::editingFinished,
+                      saveVaultfile);
+    QObject::connect (materialsDirectory, &QLineEdit::editingFinished,
+                      saveVaultfile);
     QObject::connect (
       rootNamespace, QOverload<int>::of (&QComboBox::currentIndexChanged),
       [saveVaultfile] (int) { saveVaultfile (); });
@@ -2089,6 +2157,13 @@ QTMPreferencesDialog::buildVaultPage () {
                       [=] () { choosePath (websitesPath,
                                            "Choose website registry",
                                            false); });
+    QObject::connect (chooseMaterialsDb, &QPushButton::clicked,
+                      [=] () { choosePath (materialsDbPath,
+                                           "Choose Materials database",
+                                           false); });
+    QObject::connect (chooseMaterialsDirectory, &QPushButton::clicked,
+                      [=] () { chooseFolder (materialsDirectory,
+                                             "Choose stored materials folder"); });
   }
 
   QComboBox* vaultFont= new QComboBox;
@@ -2115,6 +2190,7 @@ QTMPreferencesDialog::buildVaultPage () {
                   {"Navigation", navigation},
                   {"Namespaces", namespaces},
                   {"Wikilinks and Transclusion", wikilinks},
+                  {"Materials", materials},
 #if ATHENA_ENABLE_PERSON_SUBSYSTEM
                   {"Persons", persons},
 #endif

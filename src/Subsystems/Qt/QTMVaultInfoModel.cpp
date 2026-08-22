@@ -108,6 +108,8 @@ qtm_vaultfile_read (QTMVaultfileInfo& info, QString* error) {
   info.ragIndexPath= "rag.sqlite";
   info.websitesPath= "websites.json";
   info.rootNamespace= "";
+  info.materialsDbPath= "materials.sqlite";
+  info.materialsDirectory= "materials";
 
   std::string read_error;
   AthenaVaultfileInfo vault_info;
@@ -130,6 +132,10 @@ qtm_vaultfile_read (QTMVaultfileInfo& info, QString* error) {
   info.ragIndexPath= QString::fromStdString (vault_info.rag_index_path);
   info.websitesPath= QString::fromStdString (vault_info.websites_path);
   info.rootNamespace= QString::fromStdString (vault_info.root_namespace);
+  info.materialsDbPath=
+    QString::fromStdString (vault_info.materials_db_path);
+  info.materialsDirectory=
+    QString::fromStdString (vault_info.materials_directory);
 
   info.mapPath= qtm_clean_vault_relative_path (info.mapPath);
   info.preferencesPath= qtm_clean_vault_relative_path (info.preferencesPath);
@@ -141,10 +147,18 @@ qtm_vaultfile_read (QTMVaultfileInfo& info, QString* error) {
   info.ragIndexPath= qtm_clean_vault_relative_path (info.ragIndexPath);
   info.websitesPath= qtm_clean_vault_relative_path (info.websitesPath);
   info.rootNamespace= info.rootNamespace.trimmed ();
+  info.materialsDbPath=
+    qtm_clean_vault_relative_path (info.materialsDbPath);
+  info.materialsDirectory=
+    qtm_clean_vault_relative_path (info.materialsDirectory);
   if (info.mapPath.isEmpty ()) info.mapPath= "map.sqlite";
   if (info.namespaceDbPath.isEmpty ()) info.namespaceDbPath= "ns.sqlite";
   if (info.ragIndexPath.isEmpty ()) info.ragIndexPath= "rag.sqlite";
   if (info.websitesPath.isEmpty ()) info.websitesPath= "websites.json";
+  if (info.materialsDbPath.isEmpty ())
+    info.materialsDbPath= "materials.sqlite";
+  if (info.materialsDirectory.isEmpty ())
+    info.materialsDirectory= "materials";
   return true;
 }
 
@@ -234,8 +248,14 @@ qtm_vaultfile_write (const QTMVaultfileInfo& info, QString* error) {
   out.ragIndexPath= qtm_clean_vault_relative_path (out.ragIndexPath);
   out.websitesPath= qtm_clean_vault_relative_path (out.websitesPath);
   out.rootNamespace= out.rootNamespace.trimmed ();
+  out.materialsDbPath=
+    qtm_clean_vault_relative_path (out.materialsDbPath);
+  out.materialsDirectory=
+    qtm_clean_vault_relative_path (out.materialsDirectory);
   if (out.ragIndexPath.isEmpty ()) out.ragIndexPath= "rag.sqlite";
   if (out.websitesPath.isEmpty ()) out.websitesPath= "websites.json";
+  if (out.materialsDbPath.isEmpty ()) out.materialsDbPath= "materials.sqlite";
+  if (out.materialsDirectory.isEmpty ()) out.materialsDirectory= "materials";
 
   if (out.name.trimmed ().isEmpty ()) {
     if (error != nullptr) *error= "Vault name cannot be empty.";
@@ -245,6 +265,11 @@ qtm_vaultfile_write (const QTMVaultfileInfo& info, QString* error) {
     if (error != nullptr) *error= "Vault map database must be a .sqlite file.";
     return false;
   }
+  if (!out.materialsDbPath.endsWith (".sqlite", Qt::CaseInsensitive)) {
+    if (error != nullptr)
+      *error= "Materials database must be a .sqlite file.";
+    return false;
+  }
   if (!qtm_valid_vault_relative_path (out.mapPath) ||
       !qtm_valid_optional_vault_relative_path (out.preferencesPath) ||
       !qtm_valid_vault_relative_path (out.namespaceDbPath) ||
@@ -252,7 +277,9 @@ qtm_vaultfile_write (const QTMVaultfileInfo& info, QString* error) {
       !qtm_valid_optional_vault_target (out.oneTimeStartupPage) ||
       !qtm_valid_optional_vault_relative_path (out.maintenanceSummaryPath) ||
       !qtm_valid_vault_relative_path (out.ragIndexPath) ||
-      !qtm_valid_vault_relative_path (out.websitesPath)) {
+      !qtm_valid_vault_relative_path (out.websitesPath) ||
+      !qtm_valid_vault_relative_path (out.materialsDbPath) ||
+      !qtm_valid_vault_relative_path (out.materialsDirectory)) {
     if (error != nullptr)
       *error= "Vaultfile paths must be relative paths inside the vault, "
               "tmfs:// links, or file:// links, without ./ or ../ prefixes.";
@@ -281,6 +308,9 @@ qtm_vaultfile_write (const QTMVaultfileInfo& info, QString* error) {
   vault_info.rag_index_path= qtm_utf8_std_string (out.ragIndexPath);
   vault_info.websites_path= qtm_utf8_std_string (out.websitesPath);
   vault_info.root_namespace= qtm_utf8_std_string (out.rootNamespace);
+  vault_info.materials_db_path= qtm_utf8_std_string (out.materialsDbPath);
+  vault_info.materials_directory=
+    qtm_utf8_std_string (out.materialsDirectory);
 
   std::string write_error;
   if (!athena_vaultfile_write (

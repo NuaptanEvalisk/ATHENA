@@ -487,7 +487,6 @@ public:
   virtual void temp_proof_fix () = 0;
 
   /* public routines from edit_process */
-  virtual void generate_bibliography (string bib, string sty, string fname)= 0;
   virtual void generate_table_of_contents (string toc) = 0;
   virtual void generate_index (string idx) = 0;
   virtual void generate_glossary (string glo) = 0;

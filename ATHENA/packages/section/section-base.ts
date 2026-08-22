@@ -46,8 +46,6 @@
 
   <assign|epilogue-text|<macro|<localize|Epilogue>>>
 
-  <assign|bibliography-text|<macro|<localize|Bibliography>>>
-
   <assign|table-of-contents-text|<macro|<localize|Table of contents>>>
 
   <assign|index-text|<macro|<localize|Index>>>
@@ -272,12 +270,6 @@
     </src-comment>
   </active*>
 
-  <assign|render-bibliography|<\macro|name|body>
-    <principal-section*|<arg|name>>
-
-    <with|par-first|0fn|par-par-sep|0fn|font-size|0.84|<arg|body>>
-  </macro>>
-
   <assign|render-table-of-contents|<\macro|name|body>
     <with|chapter-toc|<macro|name|>|section-toc|<macro|name|>|<principal-section*|<arg|name>>>
 
@@ -323,22 +315,6 @@
       auxiliary channel and another name (c.f. lists of figures).
     </src-comment>
   </active*>
-
-  <assign|bibliography|<\macro|aux|style|file-name|body>
-    <render-bibliography|<bibliography-text>|<arg|body>>
-  </macro>>
-
-  <assign|bibliography*|<\macro|aux|style|file-name|name|body>
-    <render-bibliography|<localize|<arg|name>>|<arg|body>>
-  </macro>>
-
-  <drd-props|bibliography|arity|4|identifier|0|string|1|url|2>
-
-  <drd-props|bibliography*|arity|5|identifier|0|string|1|url|2>
-
-  <assign|thebibliography|<\macro|largest|body>
-    <render-bibliography|<bibliography-text>|<bib-list|<arg|largest>|<arg|body>>>
-  </macro>>
 
   <assign|table-of-contents|<\macro|aux|body>
     <render-table-of-contents|<table-of-contents-text>|<arg|body>>

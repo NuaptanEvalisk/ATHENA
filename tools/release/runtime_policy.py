@@ -26,6 +26,7 @@ CACHE_DIRECTORY_NAMES = {
 }
 
 LINUX_SERVICE_EXECUTABLES = (
+    PurePosixPath("bin/athena-materials-engine"),
     PurePosixPath("bin/athena-transmitter"),
     PurePosixPath("bin/athena-web-server"),
 )

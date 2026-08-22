@@ -14,13 +14,11 @@
 
     <branch|Generating a table of contents|man-toc.en.tm>
 
-    <branch|Compiling a bibliography|man-bibliography.en.tm>
+    <branch|Materials, citations, and referenced lists|man-materials.en.tm>
 
     <branch|Generating an index|man-index.en.tm>
 
     <branch|Compiling a glossary|man-glossary.en.tm>
-
-    <branch|Multiple extractions|man-multiple-extractions.en.tm>
 
     <branch|Books and multifile documents|man-multifile.en.tm>
   </traverse>

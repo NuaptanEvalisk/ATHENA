@@ -189,11 +189,6 @@
         (get-metadata kind))
       ""))
 
-(tm-define (buffer-has-biblio? u)
-  (with-buffer u
-    (with l (list-attachments)
-      (nnull? (list-filter l (cut string-ends? <> "-bibliography"))))))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Text and paragraph properties
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -467,9 +462,10 @@
       (:idle 1)
       (cursor-after
        (cond ((== what "all") 
+              (materials-update-current-document)
               (generate-all-aux) (inclusions-gc) (picture-gc) (wait-update-current-buffer))
-             ((== what "bibliography")
-              (generate-all-aux) (wait-update-current-buffer))
+             ((== what "materials")
+              (materials-update-current-document))
              ((== what "buffer") 
               (wait-update-current-buffer))
              (else (generate-aux what)))))))

@@ -24,6 +24,7 @@ for flavor in dev rel; do
                  "$work/$flavor.opensuse.list" \
                  "$work/$flavor.rhel.list"; do
     grep -q '/opt/ATHENA/AppRun' "$listing"
+    grep -q '/opt/ATHENA/usr/share/ATHENA/bin/athena-materials-engine' "$listing"
     grep -q '/opt/ATHENA/usr/share/ATHENA/bin/athena-transmitter' "$listing"
     grep -q '/opt/ATHENA/usr/share/ATHENA/bin/athena-web-server' "$listing"
     grep -q '/opt/ATHENA/usr/share/ATHENA/share/ATHENA/web/index.html' "$listing"

@@ -24,7 +24,7 @@
     </src-title>
   </active*>
 
-  <use-package|std|env|title-generic|header-article|section-article|std-latex|cite-author-year|html-font-size>
+  <use-package|std|env|title-generic|header-article|section-article|std-latex|html-font-size>
 
   <active*|<\src-comment>
     TeX-like style parameters.

@@ -227,7 +227,7 @@
 (define (vault-anchor-plain-text t)
   (cond ((string? t) t)
         ((not (pair? t)) "")
-        ((in? (car t) '(label reference pageref image include bibliography
+        ((in? (car t) '(label reference pageref image include
                         transclude TRANSCLUDE))
          "")
         (else

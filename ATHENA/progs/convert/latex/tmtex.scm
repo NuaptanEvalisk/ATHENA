@@ -48,7 +48,6 @@
 (define tmtex-image-root-url (unix->url "image"))
 (define tmtex-image-root-string "image")
 (define tmtex-appendices? #f)
-(define tmtex-indirect-bib? #f)
 (define tmtex-mathjax? #f)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -107,8 +106,7 @@
   (ieee-tran-style%     (in? tmtex-style '("ieeetran")) ieee-style%)
 
   ;; Other styles
-  (beamer-style%        (in? tmtex-style '("beamer" "old-beamer")))
-  (natbib-package%      (in? "cite-author-year" tmtex-packages)))
+  (beamer-style%        (in? tmtex-style '("beamer" "old-beamer"))))
 
 (tm-define (tmtex-style-init body)
   (noop))
@@ -234,8 +232,6 @@
   (set! tmtex-appendices? #f)
   (set! tmtex-replace-style?
     (== (assoc-ref opts "texmacs->latex:replace-style") "on"))
-  (set! tmtex-indirect-bib?
-    (== (assoc-ref opts "texmacs->latex:indirect-bib") "on"))
   (set! tmtex-use-macros?
     (== (assoc-ref opts "texmacs->latex:use-macros") "on"))
   (when (== (assoc-ref opts "texmacs->latex:mathjax") "on")
@@ -2854,79 +2850,6 @@
 (define (tmtex-toc s l)
   (tex-apply 'tableofcontents))
 
-(define (tmtex-bib-sub doc)
-  (cond ((nlist? doc) doc)
-        ((match? doc '(concat (bibitem* :%1) (label :string?) :*))
-         (let* ((l (cadr (caddr doc)))
-                (s (if (string-starts? l "bib-") (string-drop l 4) l)))
-           (cons* 'concat (list 'bibitem* (cadadr doc) s) (cdddr doc))))
-        ((func? doc 'bib-list 2) (tmtex-bib-sub (cAr doc)))
-        (else (map tmtex-bib-sub doc))))
-
-(define (tmtex-bib-max l)
-  (cond ((npair? l) "")
-        ((match? l '(bibitem* :string? :%1)) (cadr l))
-        (else (let* ((s1 (tmtex-bib-max (car l)))
-                     (s2 (tmtex-bib-max (cdr l))))
-                (if (< (string-length s1) (string-length s2)) s2 s1)))))
-
-(tm-define (tmtex-biblio s l titled?)
-  (if tmtex-indirect-bib?
-      (tex-concat (list (list 'bibliographystyle (force-string (cadr l)))
-                        (list 'bibliography (force-string (caddr l)))))
-      (let* ((doc (tmtex-bib-sub (cadddr l)))
-             (max (tmtex-textual (tmtex-bib-max doc)))
-             (tls tmtex-languages)
-             (lan (or (and (pair? tls) (car tls)) "english"))
-             (txt (translate-from-to "References" "english" lan))
-             (bib (tmtex (list 'thebibliography max doc))))
-        (if titled?
-            `(!document (section* ,(tmtex txt)) ,bib)
-            bib))))
-
-(tm-define (tmtex-bib t)
-  (tmtex-biblio (car t) (cdr t) #f))
-
-(define (tmtex-thebibliography s l)
-  (list (list '!begin s (car l)) (tmtex (cadr l))))
-
-(define (tmtex-bibitem*-std s l)
-  (cond ((= (length l) 1)
-         `(bibitem ,(car l)))
-        ((= (length l) 2)
-         `(bibitem (!option ,(tmtex (car l))) ,(cadr l)))
-        (else
-          (begin
-            (display* "ATHENA] non converted bibitem content: "
-                      (list s l) "\n")
-            ""))))
-
-(tm-define (tmtex-bibitem* s l)
-  (tmtex-bibitem*-std s l))
-
-(define (split-year s pos)
-  (if (and (> pos 0)
-           (string>=? (substring s (- pos 1) pos) "0")
-           (string<=? (substring s (- pos 1) pos) "9"))
-      (split-year s (- pos 1))
-      pos))
-
-(define (natbibify s)
-  (let* ((pos  (split-year s (string-length s)))
-         (auth (substring s 0 pos))
-         (year (substring s pos (string-length s))))
-    (when (== (string-length year) 2)
-      (set! year (string-append (if (string>=? year "30") "19" "20") year)))
-    (string-append auth "(" year ")")))
-
-(tm-define (tmtex-bibitem* s l)
-  (:mode natbib-package?)
-  (if (and (== (length l) 2)
-           (string? (cadr l))
-           (not (string-occurs? "(" (cadr l))))
-      (tmtex-bibitem*-std s (list (natbibify (cadr l)) (cadr l)))
-      (tmtex-bibitem*-std s l)))
-
 (define (tmtex-figure s l)
   (tmtex-float-sub #f "h" (cons (string->symbol s) l)))
 
@@ -3429,6 +3352,27 @@
    `(transclude ,@l)
    (tmtex-transclude-fallback l)))
 
+(define (tmtex-material-visible rendered)
+  (if (and (func? rendered 'hlink 2)
+           (string? (caddr rendered))
+           (string-starts? (caddr rendered) "tmfs://material/"))
+      (tmtex (cadr rendered))
+      (tmtex rendered)))
+
+(define (tmtex-material-citation s l)
+  (if (= (length l) 2)
+      (tmtex-athena-data-wrap
+       `(material-citation ,@l)
+       (tmtex-material-visible (cadr l)))
+      (tmtex-preserve-object `(material-citation ,@l))))
+
+(define (tmtex-referenced-materials s l)
+  (if (= (length l) 3)
+      (tmtex-athena-data-wrap
+       `(referenced-materials ,@l)
+       (tmtex (caddr l)))
+      (tmtex-preserve-object `(referenced-materials ,@l))))
+
 (define (tmtex-href s l)
   (list 'url (tmtex-verb-string (car l))))
 
@@ -3463,77 +3407,6 @@
 
 (define ((tmtex-rename into) s l)
   (tmtex-apply into (tmtex-list l)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Citations
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(define (tmtex-cite-list l)
-  (cond ((null? l) "")
-        ((nstring? (car l))
-         (display* "ATHENA] non converted citation: " (car l) "\n")
-         (tmtex-cite-list (cdr l)))
-        ((null? (cdr l)) (car l))
-        (else (string-append (car l) "," (tmtex-cite-list (cdr l))))))
-
-(tm-define (tmtex-cite s l)
-  (tex-apply 'cite (tmtex-cite-list l)))
-
-(tm-define (tmtex-cite s l)
-  (:mode natbib-package?)
-  (tex-apply 'citep (tmtex-cite-list l)))
-
-(define (tmtex-nocite s l)
-  (tex-apply 'nocite (tmtex-cite-list l)))
-
-(tm-define (tmtex-cite-detail s l)
-  (with c (tmtex-cite-list (list (car l)))
-    (tex-apply 'cite `(!option ,(tmtex (cadr l))) c)))
-
-(tm-define (tmtex-cite-detail s l)
-  (:mode natbib-package?)
-  (with c (tmtex-cite-list (list (car l)))
-    (tex-apply 'citetext `(!concat (citealp ,c) ", " ,(tmtex (cadr l))))))
-
-(tm-define (tmtex-cite-detail-poor s l)
-  (with c (tmtex-cite-list (list (car l)))
-    `(!concat ,(tex-apply 'cite c) " (" ,(tmtex (cadr l)) ")")))
-
-(define (tmtex-cite-detail-hook s l)
-  (tmtex-cite-detail s l))
-
-(define (tmtex-cite-raw s l)
-  (tex-apply 'citealp (tmtex-cite-list l)))
-
-(define (tmtex-cite-raw* s l)
-  (tex-apply 'citealp* (tmtex-cite-list l)))
-
-(define (tmtex-cite-textual s l)
-  (tex-apply 'citet (tmtex-cite-list l)))
-
-(define (tmtex-cite-textual* s l)
-  (tex-apply 'citet* (tmtex-cite-list l)))
-
-(define (tmtex-cite-parenthesized s l)
-  (tex-apply 'citep (tmtex-cite-list l)))
-
-(define (tmtex-cite-parenthesized* s l)
-  (tex-apply 'citep* (tmtex-cite-list l)))
-
-(define (tmtex-render-cite s l)
-  (tex-apply 'citetext (tmtex (car l))))
-
-(define (tmtex-cite-author s l)
-  (tex-apply 'citeauthor (tmtex (car l))))
-
-(define (tmtex-cite-author* s l)
-  (tex-apply 'citeauthor* (tmtex (car l))))
-
-(define (tmtex-cite-year s l)
-  (tex-apply 'citeyear (tmtex (car l))))
-
-(define (tmtex-natbib-triple s l)
-  `(protect (citeauthoryear ,@(map tmtex l))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Glossaries
@@ -3958,9 +3831,6 @@
   (glossary-2 (,tmtex-glossary-entry 3))
   (the-glossary (,tmtex-the-glossary 2))
   ((:or table-of-contents) (,tmtex-toc 2))
-  (thebibliography (,tmtex-thebibliography 2))
-  (bib-list (,tmtex-style-second 2))
-  (bibitem* (,tmtex-bibitem* -1))
   ((:or small-figure big-figure small-table big-table) (,tmtex-figure 2))
   (item (,tmtex-item 0))
   (item* (,tmtex-item-arg 1))
@@ -3974,6 +3844,8 @@
   (hlink (,tmtex-hlink 2))
   (cardlink (,tmtex-cardlink 2))
   (transclude (,tmtex-transclude 4))
+  (material-citation (,tmtex-material-citation 2))
+  (referenced-materials (,tmtex-referenced-materials 3))
   (action (,tmtex-action -1))
   (href (,tmtex-href 1))
   (slink (,tmtex-href 1))
@@ -3989,25 +3861,6 @@
   (made-by-TeXmacs (,(tmtex-rename 'madebyTeXmacs) 0))
   (cite-website (,(tmtex-rename 'citewebsite) 0))
   (tm-made (,(tmtex-rename 'tmmade) 0))
-  (cite (,tmtex-cite -1))
-  (nocite (,tmtex-nocite -1))
-  (cite-detail (,tmtex-cite-detail-hook 2))
-  (cite-raw (,tmtex-cite-raw -1))
-  (cite-raw* (,tmtex-cite-raw* -1))
-  (cite-textual (,tmtex-cite-textual -1))
-  (cite-textual* (,tmtex-cite-textual* -1))
-  (cite-parenthesized (,tmtex-cite-parenthesized -1))
-  (cite-parenthesized* (,tmtex-cite-parenthesized* -1))
-  (citet (,tmtex-cite-textual -1))
-  (citet* (,tmtex-cite-textual* -1))
-  (citep (,tmtex-cite-parenthesized -1))
-  (citep* (,tmtex-cite-parenthesized* -1))
-  (render-cite (,tmtex-render-cite 1))
-  ((:or cite-author cite-author-link) (,tmtex-cite-author 1))
-  ((:or cite-author* cite-author*-link) (,tmtex-cite-author* 1))
-  ((:or cite-year cite-year-link) (,tmtex-cite-year 1))
-  (natbib-triple (,tmtex-natbib-triple 3))
-  (natexlab (,tmtex-noop -1))
 
   ;; FIXME: we should do something more useful with this information
   (set-header (,tmtex-noop -1))
@@ -4094,7 +3947,6 @@
   (author-misc-label        tmtex-author-misc-label 2)
   ;; misc
   ((:or equation equation*) tmtex-equation 2)
-  (bibliography             tmtex-bib 4)
   (elsevier-frontmatter     tmtex-elsevier-frontmatter 2)
   (conferenceinfo           tmtex-acm-conferenceinfo 2)
   (CopyrightYear            tmtex-acm-copyright-year 2)

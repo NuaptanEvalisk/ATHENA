@@ -20,8 +20,7 @@
         (convert tools environment-test)
         (convert mathml mathtm-test)
         (convert tmml tmmltm-test)
-        (prog prog-format-test))
-        (utils cite cite-sort-test))
+        (prog prog-format-test)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Test LaTeX export
@@ -89,5 +88,4 @@
   (regtest-tmhtml)
   (regtest-tmmltm)
   (regtest-prog-format)
-  (regtest-cite-sort)
 )

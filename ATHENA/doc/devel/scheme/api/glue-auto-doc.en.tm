@@ -107,6 +107,14 @@ source code.
   </explain>
 
   <\explain>
+    <scm|(system-icon-for-link <scm-arg|string> <scm-arg|string>)>
+<explain-synopsis|no synopsis>
+  <|explain>
+    Calls the <c++> function <cpp|system_icon_for_link> which returns
+    <scm|string>.
+  </explain>
+
+  <\explain>
     <scm|(default-look-and-feel)>
 <explain-synopsis|no synopsis>
   <|explain>
@@ -443,14 +451,6 @@ source code.
   </explain>
 
   <\explain>
-    <scm|(set-bibtex-command <scm-arg|string>)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|set_bibtex_command> which returns
-    <scm|void>.
-  </explain>
-
-  <\explain>
     <scm|(number-latex-errors <scm-arg|url>)>
 <explain-synopsis|no synopsis>
   <|explain>
@@ -515,6 +515,22 @@ source code.
   </explain>
 
   <\explain>
+    <scm|(ads-show-tool-pane <scm-arg|widget> <scm-arg|string> <scm-arg|string> <scm-arg|command> <scm-arg|bool>)>
+<explain-synopsis|no synopsis>
+  <|explain>
+    Calls the <c++> function <cpp|ads_show_tool_pane> which returns
+    <scm|void>.
+  </explain>
+
+  <\explain>
+    <scm|(ads-close-tool-pane <scm-arg|string>)>
+<explain-synopsis|no synopsis>
+  <|explain>
+    Calls the <c++> function <cpp|ads_close_tool_pane> which returns
+    <scm|void>.
+  </explain>
+
+  <\explain>
     <scm|(exec-delayed <scm-arg|object>)>
 <explain-synopsis|no synopsis>
   <|explain>
@@ -555,6 +571,54 @@ source code.
   </explain>
 
   <\explain>
+    <scm|(cpp-register-preference <scm-arg|string> <scm-arg|string> <scm-arg|bool>)>
+<explain-synopsis|no synopsis>
+  <|explain>
+    Calls the <c++> function <cpp|register_user_preference> which returns
+    <scm|void>.
+  </explain>
+
+  <\explain>
+    <scm|(cpp-register-preference-callback <scm-arg|string> <scm-arg|string>)>
+<explain-synopsis|no synopsis>
+  <|explain>
+    Calls the <c++> function <cpp|register_user_preference_callback> which returns
+    <scm|void>.
+  </explain>
+
+  <\explain>
+    <scm|(cpp-preference-default-string? <scm-arg|string>)>
+<explain-synopsis|no synopsis>
+  <|explain>
+    Calls the <c++> function <cpp|user_preference_default_is_string> which returns
+    <scm|bool>.
+  </explain>
+
+  <\explain>
+    <scm|(cpp-preference-callback <scm-arg|string>)>
+<explain-synopsis|no synopsis>
+  <|explain>
+    Calls the <c++> function <cpp|get_user_preference_callback> which returns
+    <scm|string>.
+  </explain>
+
+  <\explain>
+    <scm|(cpp-preference-names)>
+<explain-synopsis|no synopsis>
+  <|explain>
+    Calls the <c++> function <cpp|get_user_preference_names> which returns
+    <scm|array_string>.
+  </explain>
+
+  <\explain>
+    <scm|(cpp-preference-callbacks)>
+<explain-synopsis|no synopsis>
+  <|explain>
+    Calls the <c++> function <cpp|get_user_preference_callback_names> which returns
+    <scm|array_string>.
+  </explain>
+
+  <\explain>
     <scm|(cpp-get-preference <scm-arg|string> <scm-arg|string>)>
 <explain-synopsis|no synopsis>
   <|explain>
@@ -575,6 +639,22 @@ source code.
 <explain-synopsis|no synopsis>
   <|explain>
     Calls the <c++> function <cpp|reset_user_preference> which returns
+    <scm|void>.
+  </explain>
+
+  <\explain>
+    <scm|(cpp-load-preferences <scm-arg|url>)>
+<explain-synopsis|no synopsis>
+  <|explain>
+    Calls the <c++> function <cpp|load_user_preferences> which returns
+    <scm|void>.
+  </explain>
+
+  <\explain>
+    <scm|(cpp-dump-preferences <scm-arg|url>)>
+<explain-synopsis|no synopsis>
+  <|explain>
+    Calls the <c++> function <cpp|dump_user_preferences> which returns
     <scm|void>.
   </explain>
 
@@ -1663,6 +1743,14 @@ source code.
 <explain-synopsis|no synopsis>
   <|explain>
     Calls the <c++> function <cpp|is_multi_line> which returns
+    <scm|bool>.
+  </explain>
+
+  <\explain>
+    <scm|(tree-contains-compound? <scm-arg|content> <scm-arg|string>)>
+<explain-synopsis|no synopsis>
+  <|explain>
+    Calls the <c++> function <cpp|tree_contains_compound> which returns
     <scm|bool>.
   </explain>
 
@@ -3667,30 +3755,6 @@ source code.
   </explain>
 
   <\explain>
-    <scm|(parse-bib <scm-arg|string>)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|parse_bib> which returns
-    <scm|tree>.
-  </explain>
-
-  <\explain>
-    <scm|(conservative-bib-import <scm-arg|string> <scm-arg|content> <scm-arg|string>)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|conservative_bib_import> which returns
-    <scm|tree>.
-  </explain>
-
-  <\explain>
-    <scm|(conservative-bib-export <scm-arg|content> <scm-arg|string> <scm-arg|content>)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|conservative_bib_export> which returns
-    <scm|string>.
-  </explain>
-
-  <\explain>
     <scm|(clean-html <scm-arg|content>)>
 <explain-synopsis|no synopsis>
   <|explain>
@@ -3735,6 +3799,22 @@ source code.
 <explain-synopsis|no synopsis>
   <|explain>
     Calls the <c++> function <cpp|vernac_document_to_tree> which returns
+    <scm|tree>.
+  </explain>
+
+  <\explain>
+    <scm|(aofm-markdown-\<gtr\>texmacs <scm-arg|string>)>
+<explain-synopsis|no synopsis>
+  <|explain>
+    Calls the <c++> function <cpp|aofm_markdown_to_tree> which returns
+    <scm|tree>.
+  </explain>
+
+  <\explain>
+    <scm|(aofm-chatgpt-\<gtr\>texmacs <scm-arg|string>)>
+<explain-synopsis|no synopsis>
+  <|explain>
+    Calls the <c++> function <cpp|aofm_chatgpt_to_tree> which returns
     <scm|tree>.
   </explain>
 
@@ -5227,6 +5307,22 @@ source code.
   </explain>
 
   <\explain>
+    <scm|(gui-set-focus-color <scm-arg|string>)>
+<explain-synopsis|no synopsis>
+  <|explain>
+    Calls the <c++> function <cpp|gui_set_focus_color> which returns
+    <scm|void>.
+  </explain>
+
+  <\explain>
+    <scm|(gui-set-focus-border-width <scm-arg|string>)>
+<explain-synopsis|no synopsis>
+  <|explain>
+    Calls the <c++> function <cpp|gui_set_focus_border_width> which returns
+    <scm|void>.
+  </explain>
+
+  <\explain>
     <scm|(buffer-list)>
 <explain-synopsis|no synopsis>
   <|explain>
@@ -5775,7 +5871,7 @@ source code.
 <explain-synopsis|no synopsis>
   <|explain>
     Calls the <c++> function <cpp|vault_load> which returns
-    <scm|void>.
+    <scm|string>.
   </explain>
 
   <\explain>
@@ -5800,6 +5896,14 @@ source code.
   <|explain>
     Calls the <c++> function <cpp|vault_get_root> which returns
     <scm|url>.
+  </explain>
+
+  <\explain>
+    <scm|(vault-backup-pre-save <scm-arg|url>)>
+<explain-synopsis|no synopsis>
+  <|explain>
+    Calls the <c++> function <cpp|vault_backup_pre_save> which returns
+    <scm|bool>.
   </explain>
 
   <\explain>
@@ -5856,6 +5960,46 @@ source code.
   <|explain>
     Calls the <c++> function <cpp|vault_choose_link> which returns
     <scm|tree>.
+  </explain>
+
+  <\explain>
+    <scm|(vault-quick-switcher <scm-arg|array_string>)>
+<explain-synopsis|no synopsis>
+  <|explain>
+    Calls the <c++> function <cpp|vault_quick_switcher> which returns
+    <scm|tree>.
+  </explain>
+
+  <\explain>
+    <scm|(vault-show-explorer)>
+<explain-synopsis|no synopsis>
+  <|explain>
+    Calls the <c++> function <cpp|vault_show_explorer> which returns
+    <scm|void>.
+  </explain>
+
+  <\explain>
+    <scm|(vault-explorer-track-file <scm-arg|url>)>
+<explain-synopsis|no synopsis>
+  <|explain>
+    Calls the <c++> function <cpp|vault_explorer_track_file> which returns
+    <scm|void>.
+  </explain>
+
+  <\explain>
+    <scm|(global-search-show)>
+<explain-synopsis|no synopsis>
+  <|explain>
+    Calls the <c++> function <cpp|global_search_show> which returns
+    <scm|void>.
+  </explain>
+
+  <\explain>
+    <scm|(athena-diff-show)>
+<explain-synopsis|no synopsis>
+  <|explain>
+    Calls the <c++> function <cpp|athena_diff_show> which returns
+    <scm|void>.
   </explain>
 
   <\explain>
@@ -5960,126 +6104,6 @@ source code.
   <|explain>
     Calls the <c++> function <cpp|window_search> which returns
     <scm|path>.
-  </explain>
-
-  <\explain>
-    <scm|(supports-bibtex?)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|bibtex_present> which returns
-    <scm|bool>.
-  </explain>
-
-  <\explain>
-    <scm|(bibtex-run <scm-arg|string> <scm-arg|string> <scm-arg|url> <scm-arg|array_string>)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|bibtex_run> which returns
-    <scm|tree>.
-  </explain>
-
-  <\explain>
-    <scm|(bib-add-period <scm-arg|scheme_tree>)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|bib_add_period> which returns
-    <scm|scheme_tree>.
-  </explain>
-
-  <\explain>
-    <scm|(bib-locase-first <scm-arg|scheme_tree>)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|bib_locase_first> which returns
-    <scm|scheme_tree>.
-  </explain>
-
-  <\explain>
-    <scm|(bib-upcase-first <scm-arg|scheme_tree>)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|bib_upcase_first> which returns
-    <scm|scheme_tree>.
-  </explain>
-
-  <\explain>
-    <scm|(bib-locase <scm-arg|scheme_tree>)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|bib_locase> which returns
-    <scm|scheme_tree>.
-  </explain>
-
-  <\explain>
-    <scm|(bib-upcase <scm-arg|scheme_tree>)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|bib_upcase> which returns
-    <scm|scheme_tree>.
-  </explain>
-
-  <\explain>
-    <scm|(bib-default-preserve-case <scm-arg|scheme_tree>)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|bib_default_preserve_case> which returns
-    <scm|scheme_tree>.
-  </explain>
-
-  <\explain>
-    <scm|(bib-default-upcase-first <scm-arg|scheme_tree>)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|bib_default_upcase_first> which returns
-    <scm|scheme_tree>.
-  </explain>
-
-  <\explain>
-    <scm|(bib-purify <scm-arg|scheme_tree>)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|bib_purify> which returns
-    <scm|string>.
-  </explain>
-
-  <\explain>
-    <scm|(bib-text-length <scm-arg|scheme_tree>)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|bib_text_length> which returns
-    <scm|int>.
-  </explain>
-
-  <\explain>
-    <scm|(bib-prefix <scm-arg|scheme_tree> <scm-arg|int>)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|bib_prefix> which returns
-    <scm|string>.
-  </explain>
-
-  <\explain>
-    <scm|(bib-empty? <scm-arg|scheme_tree> <scm-arg|string>)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|bib_empty> which returns
-    <scm|bool>.
-  </explain>
-
-  <\explain>
-    <scm|(bib-field <scm-arg|scheme_tree> <scm-arg|string>)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|bib_field> which returns
-    <scm|scheme_tree>.
-  </explain>
-
-  <\explain>
-    <scm|(bib-abbreviate <scm-arg|scheme_tree> <scm-arg|scheme_tree> <scm-arg|scheme_tree>)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|bib_abbreviate> which returns
-    <scm|scheme_tree>.
   </explain>
 
   <\explain>
@@ -6536,6 +6560,14 @@ source code.
   <|explain>
     Calls the <c++> function <cpp|ads_prepare_floating> which returns
     <scm|void>.
+  </explain>
+
+  <\explain>
+    <scm|(ads-open-panes?)>
+<explain-synopsis|no synopsis>
+  <|explain>
+    Calls the <c++> function <cpp|ads_open_panes> which returns
+    <scm|bool>.
   </explain>
 
   <\explain>

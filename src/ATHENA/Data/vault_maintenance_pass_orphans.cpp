@@ -128,7 +128,7 @@ collect_orphan_assets (const fs::path& root, size_t& moved,
   }
   std::vector<fs::path> orphans;
   for (const fs::path& asset : assets)
-    if (infrastructure.find (path_key (asset)) == infrastructure.end () &&
+    if (!is_vault_infrastructure_path (asset, infrastructure) &&
         used_assets.find (path_key (asset)) == used_assets.end ())
       orphans.push_back (asset);
 

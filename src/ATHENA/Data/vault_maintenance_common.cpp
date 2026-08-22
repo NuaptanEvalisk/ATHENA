@@ -173,6 +173,8 @@ collect_vault_infrastructure_paths (const fs::path& root,
   add ("artifacts.db");
   add ("enunciations.db");
   add ("bold-text.db");
+  add ("materials.sqlite");
+  add ("materials");
   add ("websites.json");
   if (!fs::exists (root / "Vaultfile.json")) return true;
 
@@ -186,7 +188,24 @@ collect_vault_infrastructure_paths (const fs::path& root,
   add (info.artifacts_path);
   add (info.enunciations_path);
   add (info.bold_text_path);
+  add (info.materials_db_path);
+  add (info.materials_directory);
   return true;
+}
+
+bool
+is_vault_infrastructure_path (
+  const fs::path& path,
+  const std::unordered_set<std::string>& infrastructure) {
+  std::string candidate = path_key (path);
+  for (const std::string& base: infrastructure) {
+    if (candidate == base) return true;
+    if (candidate.size () > base.size () &&
+        candidate.compare (0, base.size (), base) == 0 &&
+        candidate[base.size ()] == '/')
+      return true;
+  }
+  return false;
 }
 
 

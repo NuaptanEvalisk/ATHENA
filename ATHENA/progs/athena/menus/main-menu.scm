@@ -35,7 +35,10 @@
   (link focus-menu)
   (if (tree-innermost 'transclude #t)
     ---
-    (link vault-transclusion-focus-menu)))
+    (link vault-transclusion-focus-menu))
+  (if (tree-innermost 'referenced-materials #t)
+    ---
+    (link materials-focus-menu)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; The TeXmacs main menu

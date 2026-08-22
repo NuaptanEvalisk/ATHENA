@@ -207,6 +207,18 @@
       (list-ref data 12)
       "bold-text.db"))
 
+(define (vaultfile-materials-db-path data)
+  (if (and (list? data) (>= (length data) 14) (string? (list-ref data 13))
+           (not (string-null? (list-ref data 13))))
+      (list-ref data 13)
+      "materials.sqlite"))
+
+(define (vaultfile-materials-directory data)
+  (if (and (list? data) (>= (length data) 15) (string? (list-ref data 14))
+           (not (string-null? (list-ref data 14))))
+      (list-ref data 14)
+      "materials"))
+
 (define (vaultfile-normalized data)
   (list (car data)
         (cadr data)
@@ -220,7 +232,9 @@
         (vaultfile-root-namespace data)
         (vaultfile-artifacts-path data)
         (vaultfile-enunciations-path data)
-        (vaultfile-bold-text-path data)))
+        (vaultfile-bold-text-path data)
+        (vaultfile-materials-db-path data)
+        (vaultfile-materials-directory data)))
 
 (define (vaultfile-write! dir data)
   (let ((err (vaultfile-write dir (vaultfile-normalized data))))
@@ -247,7 +261,9 @@
         (vaultfile-root-namespace data)
         (vaultfile-artifacts-path data)
         (vaultfile-enunciations-path data)
-        (vaultfile-bold-text-path data)))
+        (vaultfile-bold-text-path data)
+        (vaultfile-materials-db-path data)
+        (vaultfile-materials-directory data)))
 
 (define (vault-preferences-url dir prefs-path)
   (url-append dir prefs-path))

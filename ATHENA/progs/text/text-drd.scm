@@ -69,7 +69,7 @@
   prologue epilogue)
 
 (define-group automatic-section-tag
-  table-of-contents bibliography the-index the-glossary
+  table-of-contents the-index the-glossary
   list-of-figures list-of-tables)
 
 (define-group long-principal-section-tag

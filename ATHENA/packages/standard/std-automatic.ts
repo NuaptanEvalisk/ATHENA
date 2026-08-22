@@ -40,82 +40,6 @@
 
   <\active*>
     <\src-comment>
-      Citations.
-    </src-comment>
-  </active*>
-
-  <assign|bib-prefix|bib>
-
-  <assign|with-bib|<macro|bib|body|<with|bib-prefix|<arg|bib>|<arg|body>>>>
-
-  <assign|render-cite|<macro|body|[<arg|body>]>>
-
-  <assign|render-cite-detail|<macro|body|detail|<render-cite|<arg|body>,
-  <arg|detail>>>>
-
-  <assign|cite-sep|<macro|, >>
-
-  <assign|cite-arg|<macro|key|<write|<value|bib-prefix>|<arg|key>><reference|<merge|<value|bib-prefix>|-|<arg|key>>>>>
-
-  <assign|cite-arg-extra|<macro|key|<cite-sep><cite-arg|<arg|key>>>>
-
-  <assign|cite|<xmacro|keys|<render-cite|<cite-arg|<arg|keys|0>><map-args|cite-arg-extra|concat|keys|1>>>>
-
-  <assign|cite-detail|<macro|key|details|<render-cite-detail|<cite-arg|<arg|key>>|<arg|details>>>>
-
-  <assign|cite-raw|<xmacro|keys|<cite-arg|<arg|keys|0>><map-args|cite-arg-extra|concat|keys|1>>>
-
-  <assign|nocite-arg|<macro|key|<write|<value|bib-prefix>|<arg|key>>>>
-
-  <assign|nocite|<xmacro|keys|<style-with|src-compact|none|<flag|<localize|bibliography>|dark
-  green|keys><map-args|nocite-arg|concat|keys>>>>
-
-  <drd-props|cite|arity|<tuple|repeat|1|1>|accessible|none|identifier|all>
-
-  <drd-props|nocite|arity|<tuple|repeat|1|1>|accessible|none|identifier|all>
-
-  <drd-props|cite-detail|arity|2|unaccessible|0|identifier|0>
-
-  <\active*>
-    <\src-comment>
-      Bibliographies.
-    </src-comment>
-  </active*>
-
-  <assign|bibitem-width|3em>
-
-  <assign|transform-bibitem|<macro|body|<strong|[<arg|body>] \ >>>
-
-  <assign|render-bibitem|<macro|text|<style-with|src-compact|none|<with|par-first|<minus|1tmpt|<value|bibitem-width>>|<yes-indent>><resize|<arg|text>|||<maximum|1r|<value|bibitem-width>>|>>>>
-
-  <assign|tmhtml-render-bibitem|<macro|text|<arg|text> >>
-
-  <assign|tmhtml-render-bibitem|<macro|text|<item*|<arg|text>>>>
-
-  <assign|bibitem|<macro|text|<style-with|src-compact|none|<bibitem*|<arg|text>><label|<merge|<value|bib-prefix>|-|<arg|text>>>>>>
-
-  <assign|bibitem-with-key|<macro|text|key|<style-with|src-compact|none|<bibitem*|<arg|text>><label|<merge|<value|bib-prefix>|-|<arg|key>>>>>>
-
-  <assign|bibitem*|<macro|text|<style-with|src-compact|none|<render-bibitem|<transform-bibitem|<arg|text>>><set-binding|<arg|text>>>>>
-
-  <assign|protect|>
-
-  <assign|newblock|>
-
-  <assign|citeauthoryear|<macro|author|year|<arg|author> <arg|year>>>
-
-  <assign|bibitem-hsep|<macro|<value|bibitem-width>>>
-
-  <assign|bib-list|<\macro|largest|body>
-    <\with|bibitem-width|<minimum|<box-info|<transform-bibitem|<arg|largest>>.|w.>|3em>|item-hsep|<value|bibitem-hsep>|bibitem-nr|0|par-flexibility|2.0>
-      <\description>
-        <arg|body>
-      </description>
-    </with>
-  </macro>>
-
-  <\active*>
-    <\src-comment>
       Tables of contents.
     </src-comment>
   </active*>
@@ -317,6 +241,26 @@
 
   <assign|glossary-2|<macro|entry|explain|right|<margin-first-other|0fn|10fn|<style-with|src-compact|none|<resize|<arg|entry>
   |||<maximum|1r|10fn>|><arg|explain><glossary-dots><no-break><arg|right>>>>>
+
+  <\active*>
+    <\src-comment>
+      Vault-native Materials citations and referenced-material lists. The UUID,
+      locator, CSL style, and manual entries remain structural; the final
+      argument is a regenerable rendering cache.
+    </src-comment>
+  </active*>
+
+  <assign|material-cite-item|<macro|uuid|locator-type|locator-value|>>
+
+  <drd-props|material-cite-item|arity|3|accessible|none>
+
+  <assign|material-citation|<macro|items|rendered|<arg|rendered>>>
+
+  <drd-props|material-citation|arity|2|accessible|1>
+
+  <assign|referenced-materials|<macro|style|manual|rendered|<arg|rendered>>>
+
+  <drd-props|referenced-materials|arity|3|accessible|2>
 
   <\active*>
     <\src-comment>

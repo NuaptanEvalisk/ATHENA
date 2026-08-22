@@ -604,19 +604,6 @@ tmg_set_latex_command (tmscm arg1) {
 }
 
 tmscm
-tmg_set_bibtex_command (tmscm arg1) {
-  TMSCM_ASSERT_STRING (arg1, TMSCM_ARG1, "set-bibtex-command");
-
-  string in1= tmscm_to_string (arg1);
-
-  // TMSCM_DEFER_INTS;
-  set_bibtex_command (in1);
-  // TMSCM_ALLOW_INTS;
-
-  return TMSCM_UNSPECIFIED;
-}
-
-tmscm
 tmg_number_latex_errors (tmscm arg1) {
   TMSCM_ASSERT_URL (arg1, TMSCM_ARG1, "number-latex-errors");
 
@@ -878,7 +865,7 @@ tmg_cpp_preference_callback (tmscm arg1) {
 tmscm
 tmg_cpp_preference_names () {
   // TMSCM_DEFER_INTS;
-  array<string> out= get_user_preference_names ();
+  array_string out= get_user_preference_names ();
   // TMSCM_ALLOW_INTS;
 
   return array_string_to_tmscm (out);
@@ -887,7 +874,7 @@ tmg_cpp_preference_names () {
 tmscm
 tmg_cpp_preference_callbacks () {
   // TMSCM_DEFER_INTS;
-  array<string> out= get_user_preference_callback_names ();
+  array_string out= get_user_preference_callback_names ();
   // TMSCM_ALLOW_INTS;
 
   return array_string_to_tmscm (out);
@@ -6360,53 +6347,6 @@ tmg_parse_html (tmscm arg1) {
 }
 
 tmscm
-tmg_parse_bib (tmscm arg1) {
-  TMSCM_ASSERT_STRING (arg1, TMSCM_ARG1, "parse-bib");
-
-  string in1= tmscm_to_string (arg1);
-
-  // TMSCM_DEFER_INTS;
-  tree out= parse_bib (in1);
-  // TMSCM_ALLOW_INTS;
-
-  return tree_to_tmscm (out);
-}
-
-tmscm
-tmg_conservative_bib_import (tmscm arg1, tmscm arg2, tmscm arg3) {
-  TMSCM_ASSERT_STRING (arg1, TMSCM_ARG1, "conservative-bib-import");
-  TMSCM_ASSERT_CONTENT (arg2, TMSCM_ARG2, "conservative-bib-import");
-  TMSCM_ASSERT_STRING (arg3, TMSCM_ARG3, "conservative-bib-import");
-
-  string in1= tmscm_to_string (arg1);
-  content in2= tmscm_to_content (arg2);
-  string in3= tmscm_to_string (arg3);
-
-  // TMSCM_DEFER_INTS;
-  tree out= conservative_bib_import (in1, in2, in3);
-  // TMSCM_ALLOW_INTS;
-
-  return tree_to_tmscm (out);
-}
-
-tmscm
-tmg_conservative_bib_export (tmscm arg1, tmscm arg2, tmscm arg3) {
-  TMSCM_ASSERT_CONTENT (arg1, TMSCM_ARG1, "conservative-bib-export");
-  TMSCM_ASSERT_STRING (arg2, TMSCM_ARG2, "conservative-bib-export");
-  TMSCM_ASSERT_CONTENT (arg3, TMSCM_ARG3, "conservative-bib-export");
-
-  content in1= tmscm_to_content (arg1);
-  string in2= tmscm_to_string (arg2);
-  content in3= tmscm_to_content (arg3);
-
-  // TMSCM_DEFER_INTS;
-  string out= conservative_bib_export (in1, in2, in3);
-  // TMSCM_ALLOW_INTS;
-
-  return string_to_tmscm (out);
-}
-
-tmscm
 tmg_clean_html (tmscm arg1) {
   TMSCM_ASSERT_CONTENT (arg1, TMSCM_ARG1, "clean-html");
 
@@ -10449,213 +10389,6 @@ tmg_alt_window_search (tmscm arg1) {
 }
 
 tmscm
-tmg_supports_bibtexP () {
-  // TMSCM_DEFER_INTS;
-  bool out= bibtex_present ();
-  // TMSCM_ALLOW_INTS;
-
-  return bool_to_tmscm (out);
-}
-
-tmscm
-tmg_bibtex_run (tmscm arg1, tmscm arg2, tmscm arg3, tmscm arg4) {
-  TMSCM_ASSERT_STRING (arg1, TMSCM_ARG1, "bibtex-run");
-  TMSCM_ASSERT_STRING (arg2, TMSCM_ARG2, "bibtex-run");
-  TMSCM_ASSERT_URL (arg3, TMSCM_ARG3, "bibtex-run");
-  TMSCM_ASSERT_ARRAY_STRING (arg4, TMSCM_ARG4, "bibtex-run");
-
-  string in1= tmscm_to_string (arg1);
-  string in2= tmscm_to_string (arg2);
-  url in3= tmscm_to_url (arg3);
-  array_string in4= tmscm_to_array_string (arg4);
-
-  // TMSCM_DEFER_INTS;
-  tree out= bibtex_run (in1, in2, in3, in4);
-  // TMSCM_ALLOW_INTS;
-
-  return tree_to_tmscm (out);
-}
-
-tmscm
-tmg_bib_add_period (tmscm arg1) {
-  TMSCM_ASSERT_SCHEME_TREE (arg1, TMSCM_ARG1, "bib-add-period");
-
-  scheme_tree in1= tmscm_to_scheme_tree (arg1);
-
-  // TMSCM_DEFER_INTS;
-  scheme_tree out= bib_add_period (in1);
-  // TMSCM_ALLOW_INTS;
-
-  return scheme_tree_to_tmscm (out);
-}
-
-tmscm
-tmg_bib_locase_first (tmscm arg1) {
-  TMSCM_ASSERT_SCHEME_TREE (arg1, TMSCM_ARG1, "bib-locase-first");
-
-  scheme_tree in1= tmscm_to_scheme_tree (arg1);
-
-  // TMSCM_DEFER_INTS;
-  scheme_tree out= bib_locase_first (in1);
-  // TMSCM_ALLOW_INTS;
-
-  return scheme_tree_to_tmscm (out);
-}
-
-tmscm
-tmg_bib_upcase_first (tmscm arg1) {
-  TMSCM_ASSERT_SCHEME_TREE (arg1, TMSCM_ARG1, "bib-upcase-first");
-
-  scheme_tree in1= tmscm_to_scheme_tree (arg1);
-
-  // TMSCM_DEFER_INTS;
-  scheme_tree out= bib_upcase_first (in1);
-  // TMSCM_ALLOW_INTS;
-
-  return scheme_tree_to_tmscm (out);
-}
-
-tmscm
-tmg_bib_locase (tmscm arg1) {
-  TMSCM_ASSERT_SCHEME_TREE (arg1, TMSCM_ARG1, "bib-locase");
-
-  scheme_tree in1= tmscm_to_scheme_tree (arg1);
-
-  // TMSCM_DEFER_INTS;
-  scheme_tree out= bib_locase (in1);
-  // TMSCM_ALLOW_INTS;
-
-  return scheme_tree_to_tmscm (out);
-}
-
-tmscm
-tmg_bib_upcase (tmscm arg1) {
-  TMSCM_ASSERT_SCHEME_TREE (arg1, TMSCM_ARG1, "bib-upcase");
-
-  scheme_tree in1= tmscm_to_scheme_tree (arg1);
-
-  // TMSCM_DEFER_INTS;
-  scheme_tree out= bib_upcase (in1);
-  // TMSCM_ALLOW_INTS;
-
-  return scheme_tree_to_tmscm (out);
-}
-
-tmscm
-tmg_bib_default_preserve_case (tmscm arg1) {
-  TMSCM_ASSERT_SCHEME_TREE (arg1, TMSCM_ARG1, "bib-default-preserve-case");
-
-  scheme_tree in1= tmscm_to_scheme_tree (arg1);
-
-  // TMSCM_DEFER_INTS;
-  scheme_tree out= bib_default_preserve_case (in1);
-  // TMSCM_ALLOW_INTS;
-
-  return scheme_tree_to_tmscm (out);
-}
-
-tmscm
-tmg_bib_default_upcase_first (tmscm arg1) {
-  TMSCM_ASSERT_SCHEME_TREE (arg1, TMSCM_ARG1, "bib-default-upcase-first");
-
-  scheme_tree in1= tmscm_to_scheme_tree (arg1);
-
-  // TMSCM_DEFER_INTS;
-  scheme_tree out= bib_default_upcase_first (in1);
-  // TMSCM_ALLOW_INTS;
-
-  return scheme_tree_to_tmscm (out);
-}
-
-tmscm
-tmg_bib_purify (tmscm arg1) {
-  TMSCM_ASSERT_SCHEME_TREE (arg1, TMSCM_ARG1, "bib-purify");
-
-  scheme_tree in1= tmscm_to_scheme_tree (arg1);
-
-  // TMSCM_DEFER_INTS;
-  string out= bib_purify (in1);
-  // TMSCM_ALLOW_INTS;
-
-  return string_to_tmscm (out);
-}
-
-tmscm
-tmg_bib_text_length (tmscm arg1) {
-  TMSCM_ASSERT_SCHEME_TREE (arg1, TMSCM_ARG1, "bib-text-length");
-
-  scheme_tree in1= tmscm_to_scheme_tree (arg1);
-
-  // TMSCM_DEFER_INTS;
-  int out= bib_text_length (in1);
-  // TMSCM_ALLOW_INTS;
-
-  return int_to_tmscm (out);
-}
-
-tmscm
-tmg_bib_prefix (tmscm arg1, tmscm arg2) {
-  TMSCM_ASSERT_SCHEME_TREE (arg1, TMSCM_ARG1, "bib-prefix");
-  TMSCM_ASSERT_INT (arg2, TMSCM_ARG2, "bib-prefix");
-
-  scheme_tree in1= tmscm_to_scheme_tree (arg1);
-  int in2= tmscm_to_int (arg2);
-
-  // TMSCM_DEFER_INTS;
-  string out= bib_prefix (in1, in2);
-  // TMSCM_ALLOW_INTS;
-
-  return string_to_tmscm (out);
-}
-
-tmscm
-tmg_bib_emptyP (tmscm arg1, tmscm arg2) {
-  TMSCM_ASSERT_SCHEME_TREE (arg1, TMSCM_ARG1, "bib-empty?");
-  TMSCM_ASSERT_STRING (arg2, TMSCM_ARG2, "bib-empty?");
-
-  scheme_tree in1= tmscm_to_scheme_tree (arg1);
-  string in2= tmscm_to_string (arg2);
-
-  // TMSCM_DEFER_INTS;
-  bool out= bib_empty (in1, in2);
-  // TMSCM_ALLOW_INTS;
-
-  return bool_to_tmscm (out);
-}
-
-tmscm
-tmg_bib_field (tmscm arg1, tmscm arg2) {
-  TMSCM_ASSERT_SCHEME_TREE (arg1, TMSCM_ARG1, "bib-field");
-  TMSCM_ASSERT_STRING (arg2, TMSCM_ARG2, "bib-field");
-
-  scheme_tree in1= tmscm_to_scheme_tree (arg1);
-  string in2= tmscm_to_string (arg2);
-
-  // TMSCM_DEFER_INTS;
-  scheme_tree out= bib_field (in1, in2);
-  // TMSCM_ALLOW_INTS;
-
-  return scheme_tree_to_tmscm (out);
-}
-
-tmscm
-tmg_bib_abbreviate (tmscm arg1, tmscm arg2, tmscm arg3) {
-  TMSCM_ASSERT_SCHEME_TREE (arg1, TMSCM_ARG1, "bib-abbreviate");
-  TMSCM_ASSERT_SCHEME_TREE (arg2, TMSCM_ARG2, "bib-abbreviate");
-  TMSCM_ASSERT_SCHEME_TREE (arg3, TMSCM_ARG3, "bib-abbreviate");
-
-  scheme_tree in1= tmscm_to_scheme_tree (arg1);
-  scheme_tree in2= tmscm_to_scheme_tree (arg2);
-  scheme_tree in3= tmscm_to_scheme_tree (arg3);
-
-  // TMSCM_DEFER_INTS;
-  scheme_tree out= bib_abbreviate (in1, in2, in3);
-  // TMSCM_ALLOW_INTS;
-
-  return scheme_tree_to_tmscm (out);
-}
-
-tmscm
 tmg_extract_attachments (tmscm arg1) {
   TMSCM_ASSERT_URL (arg1, TMSCM_ARG1, "extract-attachments");
 
@@ -10754,7 +10487,6 @@ tmg_help_about () {
 
 void
 initialize_glue_basic () {
-  tmscm_install_procedure ("help-about",  tmg_help_about, 0, 0, 0);
   tmscm_install_procedure ("texmacs-version-release",  tmg_texmacs_version_release, 1, 0, 0);
   tmscm_install_procedure ("version-before?",  tmg_version_beforeP, 2, 0, 0);
   tmscm_install_procedure ("get-original-path",  tmg_get_original_path, 0, 0, 0);
@@ -10809,7 +10541,6 @@ initialize_glue_basic () {
   tmscm_install_procedure ("get-show-kbd",  tmg_get_show_kbd, 0, 0, 0);
   tmscm_install_procedure ("set-show-kbd",  tmg_set_show_kbd, 1, 0, 0);
   tmscm_install_procedure ("set-latex-command",  tmg_set_latex_command, 1, 0, 0);
-  tmscm_install_procedure ("set-bibtex-command",  tmg_set_bibtex_command, 1, 0, 0);
   tmscm_install_procedure ("number-latex-errors",  tmg_number_latex_errors, 1, 0, 0);
   tmscm_install_procedure ("number-latex-pages",  tmg_number_latex_pages, 1, 0, 0);
   tmscm_install_procedure ("math-symbol-group",  tmg_math_symbol_group, 1, 0, 0);
@@ -11223,9 +10954,6 @@ initialize_glue_basic () {
   tmscm_install_procedure ("try-latex-export",  tmg_try_latex_export, 4, 0, 0);
   tmscm_install_procedure ("parse-xml",  tmg_parse_xml, 1, 0, 0);
   tmscm_install_procedure ("parse-html",  tmg_parse_html, 1, 0, 0);
-  tmscm_install_procedure ("parse-bib",  tmg_parse_bib, 1, 0, 0);
-  tmscm_install_procedure ("conservative-bib-import",  tmg_conservative_bib_import, 3, 0, 0);
-  tmscm_install_procedure ("conservative-bib-export",  tmg_conservative_bib_export, 3, 0, 0);
   tmscm_install_procedure ("clean-html",  tmg_clean_html, 1, 0, 0);
   tmscm_install_procedure ("upgrade-tmml",  tmg_upgrade_tmml, 1, 0, 0);
   tmscm_install_procedure ("upgrade-mathml",  tmg_upgrade_mathml, 1, 0, 0);
@@ -11520,25 +11248,11 @@ initialize_glue_basic () {
   tmscm_install_procedure ("alt-window-get-position",  tmg_alt_window_get_position, 1, 0, 0);
   tmscm_install_procedure ("alt-window-set-position",  tmg_alt_window_set_position, 3, 0, 0);
   tmscm_install_procedure ("alt-window-search",  tmg_alt_window_search, 1, 0, 0);
-  tmscm_install_procedure ("supports-bibtex?",  tmg_supports_bibtexP, 0, 0, 0);
-  tmscm_install_procedure ("bibtex-run",  tmg_bibtex_run, 4, 0, 0);
-  tmscm_install_procedure ("bib-add-period",  tmg_bib_add_period, 1, 0, 0);
-  tmscm_install_procedure ("bib-locase-first",  tmg_bib_locase_first, 1, 0, 0);
-  tmscm_install_procedure ("bib-upcase-first",  tmg_bib_upcase_first, 1, 0, 0);
-  tmscm_install_procedure ("bib-locase",  tmg_bib_locase, 1, 0, 0);
-  tmscm_install_procedure ("bib-upcase",  tmg_bib_upcase, 1, 0, 0);
-  tmscm_install_procedure ("bib-default-preserve-case",  tmg_bib_default_preserve_case, 1, 0, 0);
-  tmscm_install_procedure ("bib-default-upcase-first",  tmg_bib_default_upcase_first, 1, 0, 0);
-  tmscm_install_procedure ("bib-purify",  tmg_bib_purify, 1, 0, 0);
-  tmscm_install_procedure ("bib-text-length",  tmg_bib_text_length, 1, 0, 0);
-  tmscm_install_procedure ("bib-prefix",  tmg_bib_prefix, 2, 0, 0);
-  tmscm_install_procedure ("bib-empty?",  tmg_bib_emptyP, 2, 0, 0);
-  tmscm_install_procedure ("bib-field",  tmg_bib_field, 2, 0, 0);
-  tmscm_install_procedure ("bib-abbreviate",  tmg_bib_abbreviate, 3, 0, 0);
   tmscm_install_procedure ("extract-attachments",  tmg_extract_attachments, 1, 0, 0);
   tmscm_install_procedure ("pdf-make-attachments",  tmg_pdf_make_attachments, 3, 0, 0);
   tmscm_install_procedure ("pdf-get-linked-file-paths",  tmg_pdf_get_linked_file_paths, 2, 0, 0);
   tmscm_install_procedure ("pdf-replace-linked-path",  tmg_pdf_replace_linked_path, 2, 0, 0);
   tmscm_install_procedure ("pdf-get-attached-main-tm",  tmg_pdf_get_attached_main_tm, 1, 0, 0);
   tmscm_install_procedure ("array-url-append",  tmg_array_url_append, 2, 0, 0);
+  tmscm_install_procedure ("help-about",  tmg_help_about, 0, 0, 0);
 }

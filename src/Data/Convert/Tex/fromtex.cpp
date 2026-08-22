@@ -11,7 +11,6 @@
 
 #include "LaTeX_Preview/latex_preview.hpp"
 #include "Tex/convert_tex.hpp"
-#include "Bibtex/bibtex.hpp"
 #include "metadata.hpp"
 #include "scheme.hpp"
 #include "vars.hpp"
@@ -24,7 +23,6 @@ bool textm_class_flag= false;
 //bool textm_class_flag= true;
 bool textm_appendices= false;
 bool textm_unicode   = false;
-bool textm_natbib    = false;
 
 /*
 bool
@@ -1608,21 +1606,6 @@ is_large_delimiter (tree t, int& type) {
   return false;
 }
 
-tree
-latex_cite_to_tree (string cite_type, string s) {
-  tree r (APPLY, cite_type);
-  int i, last, n=N(s);
-  for (last=0, i=0; i<n; i++) {
-    while ((i<n) && (s[i]!=',')) i++;
-    r << s (last, i);
-    if (i<n) i++;
-    while ((i<n) && (s[i]==' ')) i++;
-    last= i;
-  }
-  if (N(r) == 1) return "";
-  return r;
-}
-
 static array<string> cref_table;
 
 tree
@@ -2673,88 +2656,6 @@ latex_command_to_tree (tree t) {
     if (dtype == -1) return tree (LEFT, s);
     else if (dtype == 1) return tree (RIGHT, s);
     else return tree (MID, s);
-  }
-  if (is_tuple (t, "\\cite", 1) || is_tuple (t, "\\nocite", 1)) {
-    string cite_type= t[0]->label (1, N(t[0]->label));
-    string s= v2e (t[1]);
-    return latex_cite_to_tree (cite_type, s);
-  }
-  if (is_tuple (t, "\\cite*", 2)) {
-    tree   ot= l2e (t[1]);
-    string s = v2e (t[2]);
-    tree   ct= latex_cite_to_tree ("cite", s);
-    if (N(ct) == 2) return compound ("cite-detail", ct[1], ot);
-    return tree (CONCAT, ct, " (", ot, ")");
-  }
-  if (is_tuple (t, "\\citedetail", 2))
-    return compound ("cite-detail", l2e (t[1]), l2e (t[2]));
-  if (is_tuple (t, "\\citet", 1) || is_tuple (t, "\\citep", 1) ||
-      is_tuple (t, "\\citet*", 1) || is_tuple (t, "\\citep*", 1) ||
-      is_tuple (t, "\\citealt", 1) || is_tuple (t, "\\citealp", 1) ||
-      is_tuple (t, "\\citealt*", 1) || is_tuple (t, "\\citealp*", 1) ||
-      is_tuple (t, "\\citeN", 1))
-    {
-      textm_natbib= true;
-      string star= "";
-      string cite_type= t[0]->label (1, N(t[0]->label));
-      if (cite_type == "citeN") cite_type= "citealt";
-      if (ends (cite_type, "*")) {
-        star= "*"; cite_type= cite_type (0, N (cite_type) - 1); }
-      if (cite_type == "citet") cite_type= "cite-textual" * star;
-      if (cite_type == "citep") cite_type= "cite-parenthesized" * star;
-      if (cite_type == "citealt") cite_type= "cite-raw" * star;
-      if (cite_type == "citealp") cite_type= "cite-raw" * star;
-      string s= v2e (t[1]);
-      return latex_cite_to_tree (cite_type, s);
-    }
-  if (is_tuple (t, "\\citet*", 2) || is_tuple (t, "\\citep*", 2) ||
-      is_tuple (t, "\\citet**", 2) || is_tuple (t, "\\citep**", 2) ||
-      is_tuple (t, "\\citealp*", 2))
-    {
-      textm_natbib= true;
-      string star= "";
-      string cite_type= t[0]->label (1, N(t[0]->label)-1);
-      if (ends (cite_type, "*")) {
-        star= "*"; cite_type= cite_type (0, N (cite_type) - 1); }
-      if (cite_type == "citet") cite_type= "cite-textual" * star;
-      if (cite_type == "citep") cite_type= "cite-parenthesized" * star;
-      if (cite_type == "citealt") cite_type= "cite-raw" * star;
-      if (cite_type == "citealp") cite_type= "cite-raw" * star;
-      string s= v2e (t[2]);
-      return latex_cite_to_tree (cite_type, s);
-    }
-  if (is_tuple (t, "\\citetext", 1))
-    return compound ("render-cite", l2e (t[1]));
-  if (is_tuple (t, "\\onlinecite", 1))
-    return compound ("cite-arg", l2e (t[1]));
-  if (is_tuple (t, "\\citeauthor", 1)) {
-    textm_natbib= true;
-    return compound ("cite-author-link", t2e (t[1])); }
-  if (is_tuple (t, "\\citeauthor*", 1)) {
-    textm_natbib= true;
-    return compound ("cite-author*-link", t2e (t[1])); }
-  if (is_tuple (t, "\\citeyear", 1)) {
-    textm_natbib= true;
-    return compound ("cite-year-link", t2e (t[1])); }
-  if (is_tuple (t, "\\citeauthoryear", 3)) {
-    textm_natbib= true;
-    return compound ("natbib-triple", l2e (t[1]), l2e (t[2]), t2e (t[3])); }
-  if (is_tuple (t, "\\bibitem", 1))
-    return compound ("bibitem", v2e (t[1]));
-  if (is_tuple (t, "\\bibitem*", 2)) {
-    tree key= t2e (t[1], false);
-    if (is_func (key, CONCAT))
-      for (int i=0; i<N(key); i++)
-        if (is_compound (key[i], "natbib-triple")) {
-          key= key[i]; break; }
-    if (is_compound (key, "natbib-triple", 3)) {
-      while (is_atomic (key[1]) && ends (key[1]->label, " "))
-        key[1]= key[1]->label (0, N(key[1]->label) - 1);
-      if (is_atomic (key[1]) && ends (key[1]->label, " et"))
-        key[1]= key[1]->label * " al.";
-    }
-    else key= string_arg (key);
-    return compound ("bibitem-with-key", key, v2e (t[2]));
   }
   if (is_tuple (t, "\\index", 1)) {
     string s= v2e (t[1]);

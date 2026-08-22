@@ -42,6 +42,7 @@ podman run --rm \
       "$img" --appimage-extract >/dev/null
       appdir="$tmp/squashfs-root"
       for required in \
+        "$appdir/usr/share/ATHENA/bin/athena-materials-engine" \
         "$appdir/usr/share/ATHENA/bin/athena-transmitter" \
         "$appdir/usr/share/ATHENA/bin/athena-web-server" \
         "$appdir/usr/share/ATHENA/share/ATHENA/web/index.html" \

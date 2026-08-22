@@ -72,7 +72,6 @@
   (get-show-kbd get_show_kbd (bool))
   (set-show-kbd set_show_kbd (void bool))
   (set-latex-command set_latex_command (void string))
-  (set-bibtex-command set_bibtex_command (void string))
   (number-latex-errors number_latex_errors (int url))
   (number-latex-pages number_latex_pages (int url))
   (math-symbol-group math_symbol_group (string string))
@@ -531,11 +530,6 @@
   (try-latex-export try_latex_export (tree content object url url))
   (parse-xml parse_xml (scheme_tree string))
   (parse-html parse_html (scheme_tree string))
-  (parse-bib parse_bib (tree string))
-  (conservative-bib-import conservative_bib_import
-                           (tree string content string))
-  (conservative-bib-export conservative_bib_export
-                           (string content string content))
   (clean-html clean_html (tree content))
   (upgrade-tmml tmml_upgrade (tree scheme_tree))
   (upgrade-mathml upgrade_mathml (tree content))
@@ -865,24 +859,6 @@
   (alt-window-set-position window_set_position (void int int int))
   (alt-window-search window_search (path url))
 
-  ;; routines for BibTeX
-  (supports-bibtex? bibtex_present (bool))
-  (bibtex-run bibtex_run (tree string string url array_string))
-  (bib-add-period bib_add_period (scheme_tree scheme_tree))
-  (bib-locase-first bib_locase_first (scheme_tree scheme_tree))
-  (bib-upcase-first bib_upcase_first (scheme_tree scheme_tree))
-  (bib-locase bib_locase (scheme_tree scheme_tree))
-  (bib-upcase bib_upcase (scheme_tree scheme_tree))
-  (bib-default-preserve-case bib_default_preserve_case (scheme_tree scheme_tree))
-  (bib-default-upcase-first bib_default_upcase_first (scheme_tree scheme_tree))
-  (bib-purify bib_purify (string scheme_tree))
-  (bib-text-length bib_text_length (int scheme_tree))
-  (bib-prefix bib_prefix (string scheme_tree int))
-  (bib-empty? bib_empty (bool scheme_tree string))
-  (bib-field bib_field (scheme_tree scheme_tree string))
-  (bib-abbreviate bib_abbreviate
-		  (scheme_tree scheme_tree scheme_tree scheme_tree))
-      
   ;; pdf-tm support
   (extract-attachments scm_extract_attachments (bool url))
   (pdf-make-attachments pdf_hummus_make_attachments (bool url array_url url))

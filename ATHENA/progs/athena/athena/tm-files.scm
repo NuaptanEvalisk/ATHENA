@@ -893,26 +893,11 @@
       (direct-print-buffer)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Important files to which the buffer is linked (e.g. bibliographies)
+;; Important files to which the buffer is linked
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define (linked-files-inside t)
-  (cond ((tree-atomic? t) (list))
-        ((tree-is? t 'document)
-         (append-map linked-files-inside (tree-children t)))
-        ((tree-in? t '(with with-bib))
-         (linked-files-inside (tm-ref t :last)))
-        ((or (tree-func? t 'bibliography 4)
-             (tree-func? t 'bibliography* 5))
-         (with name (tm->stree (tm-ref t 2))
-           (if (or (== name "") (nstring? name)) (list)
-               (with s (if (string-ends? name ".bib") name
-                           (string-append name ".bib"))
-                 (list (url-relative (current-buffer) s))))))
-        (else (list))))
-
 (tm-define (linked-file-list)
-  (linked-files-inside (buffer-tree)))
+  (list))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Deprecated functionality

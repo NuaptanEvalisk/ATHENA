@@ -494,13 +494,6 @@
 
 (menu-bind automatic-menu
   ("Table of contents" (make-aux "table-of-contents" "toc-prefix" "toc"))
-  (assuming (get-boolean-preference "gui:new bibliography dialogue")
-    ("Bibliography" (open-bibliography-inserter)))
-  (assuming (not (get-boolean-preference "gui:new bibliography dialogue"))
-    (if (with-database-tool?)
-        ("Bibliography" (make-database-bib)))
-    (if (not (with-database-tool?))
-        ("Bibliography" (choose-file make-bib "Bibliography file" "BibTeX"))))
   ("Index" (make-aux "the-index" "index-prefix" "idx"))
   ("Glossary" (make-aux "the-glossary" "glossary-prefix" "gly"))
   ;;("List of figures" (make-aux* "the-glossary*" "figure-list-prefix" "figure" "List of figures"))
@@ -907,10 +900,6 @@
     //
     (=> (eval (get-verbatim-section-title t #f))
         (link focus-section-menu))))
-
-(tm-define (child-proposals t i)
-  (:require (and (tree-in? t '(bibliography bibliography*)) (<= i 1)))
-  (if (== i 0) (list "bib" :other) (rcons (bib-standard-styles) :other)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Focus menu for lists

@@ -13,6 +13,7 @@
 
 (texmacs-module (generic insert-menu)
   (:use (utils edit selections)
+	(athena athena tm-materials)
 	(athena athena tm-reverse-hierarchy-graph)
 	(generic generic-edit)
 	(generic format-edit)
@@ -79,28 +80,6 @@
   (if (and (style-has? "std-dtd") (in-text?))
       ---
       (when (not (selection-active-non-small?))
-        (-> "Citation"
-            (if (not (style-has? "cite-author-year-dtd"))
-                ("Visible" (make 'cite))
-                ("Invisible" (make 'nocite))
-                ("Detailed" (make 'cite-detail)))
-            (if (style-has? "cite-author-year-dtd")
-                (group "Abbreviated authors")
-                ("Raw" (make 'cite-raw))
-                ("Textual" (make 'cite-textual))
-                ("Parenthesized" (make 'cite-parenthesized))
-                ---
-                (group "Full author list")
-                ("Raw" (make 'cite-raw*))
-                ("Textual" (make 'cite-textual*))
-                ("Parenthesized" (make 'cite-parenthesized*))
-                ---
-                (group "Decomposed")
-                ("Parenthesis" (make 'render-cite))
-                ("Abbreviated authors" (make 'cite-author-link))
-                ("Full author list" (make 'cite-author*-link))
-                ("Year" (make 'cite-year-link))
-                ("Invisible" (make 'nocite))))
         (-> "Index entry"
             ("Main" (make 'index))
             ("Sub" (make 'subindex))
@@ -115,8 +94,6 @@
             ---
             ("Interjection" (make 'glossary-line))))
       (-> "Alternate"
-          ("Bibliography"
-           (make-alternate "Name of bibliography" "bib" 'with-bib))
           ("Table of contents"
            (make-alternate "Name of table of contents" "toc" 'with-toc))
           ("Index"
@@ -174,6 +151,8 @@
 
 (menu-bind texmacs-insert-menu
   ("Handwritten Symbol" (handwriting-symbol-pane-show))
+  ("Material citation" (insert-material-citation))
+  ("Referenced Materials" (insert-referenced-materials))
   ---
   (-> "Macro" (link insert-macro-menu))
   (if (not (in-text?))

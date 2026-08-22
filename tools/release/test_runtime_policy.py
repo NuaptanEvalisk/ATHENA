@@ -104,11 +104,15 @@ class RuntimePolicyTest(unittest.TestCase):
             source = root / "source"
             destination = root / "destination"
             (source / "bin").mkdir(parents=True)
+            (source / "bin/athena-materials-engine").write_text("stale")
             (source / "bin/athena-transmitter").write_text("stale")
             (source / "bin/athena-web-server").write_text("stale")
 
             copy_runtime(source, destination)
 
+            self.assertFalse(
+                (destination / "bin/athena-materials-engine").exists()
+            )
             self.assertFalse(
                 (destination / "bin/athena-transmitter").exists()
             )
@@ -121,7 +125,11 @@ class RuntimePolicyTest(unittest.TestCase):
             runtime = Path(temporary)
             (runtime / "bin").mkdir()
             (runtime / "share/ATHENA/web").mkdir(parents=True)
-            for name in ("athena-transmitter", "athena-web-server"):
+            for name in (
+                "athena-materials-engine",
+                "athena-transmitter",
+                "athena-web-server",
+            ):
                 executable = runtime / "bin" / name
                 executable.write_text("executable")
                 executable.chmod(0o755)

@@ -184,17 +184,9 @@
 ;; Subroutines for syncing
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define db-forced-kinds? #f)
-
-(define (db-force-kinds)
-  (when (not db-forced-kinds?)
-    (import-from (database bib-manage))
-    (set! db-forced-kinds? #t)))
-
 (tm-define (db-change-list uid kind t)
   ;;(display* "Get changes " current-database ", " uid ", " kind ", " t "\n")
   (when (number? t) (set! t (number->string t)))
-  (db-force-kinds)
   (let* ((types (or (smart-ref db-kind-table kind) #t))
          (ids '()))
     (with-time :always

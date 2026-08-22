@@ -664,7 +664,6 @@ file (GLOB_RECURSE ATHENA_Base_SRCS CONFIGURE_DEPENDS
 )
 
 file (GLOB_RECURSE ATHENA_Subsystems_SRCS CONFIGURE_DEPENDS
-  "${ATHENA_SOURCE_DIR}/src/Subsystems/Bibtex/*.cpp"
   "${ATHENA_SOURCE_DIR}/src/Subsystems/Database/*.cpp"
   "${ATHENA_SOURCE_DIR}/src/Subsystems/Freetype/*.cpp"
   "${ATHENA_SOURCE_DIR}/src/Subsystems/Google/*.cpp"
@@ -977,6 +976,7 @@ endif ()
 
 add_subdirectory (src)
 add_subdirectory (tools/codex-bridge)
+add_subdirectory (tools/materials-engine)
 if (UNIX AND NOT APPLE)
   add_subdirectory (tools/athena-transmitter)
   add_subdirectory (tools/athena-web-server)
@@ -984,6 +984,11 @@ endif ()
 add_subdirectory (plugins)
 add_subdirectory (misc)
 add_subdirectory (ATHENA)
+
+# Keep the pinned Materials schema beside build-tree executables, matching the
+# installed ATHENA/misc layout used at runtime.
+file (COPY "${CMAKE_SOURCE_DIR}/ATHENA/misc/materials"
+      DESTINATION "${CMAKE_BINARY_DIR}/misc")
 
 ### --------------------------------------------------------------------
 ### Installation

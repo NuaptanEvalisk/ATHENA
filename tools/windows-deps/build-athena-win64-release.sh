@@ -112,6 +112,11 @@ if [[ ! -f "${build_dir}/x64/bin/libqt6advanceddocking.dll" ]]; then
   echo "missing ADS dll: ${build_dir}/x64/bin/libqt6advanceddocking.dll" >&2
   exit 1
 fi
+materials_engine="${build_dir}/materials-engine-cargo/x86_64-pc-windows-gnu/release/athena-materials-engine.exe"
+if [[ ! -f "${materials_engine}" ]]; then
+  echo "missing Materials engine: ${materials_engine}" >&2
+  exit 1
+fi
 
 echo "==> Refreshing ${release_dir}"
 python3 "${repo_root}/tools/release/runtime_policy.py" copy \
@@ -119,6 +124,7 @@ python3 "${repo_root}/tools/release/runtime_policy.py" copy \
 mkdir -p "${release_dir}/bin"
 
 cp -f "${build_dir}/src/ATHENA.exe" "${release_dir}/bin/ATHENA.exe"
+cp -f "${materials_engine}" "${release_dir}/bin/athena-materials-engine.exe"
 copy_if_present "${build_dir}/src/athena-codex-bridge.exe" "${release_dir}/bin"
 cp -f "${build_dir}/x64/bin/libqt6advanceddocking.dll" "${release_dir}/bin/"
 cp -f "${prefix}/bin/"*.dll "${release_dir}/bin/"

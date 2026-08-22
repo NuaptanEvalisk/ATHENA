@@ -16,7 +16,6 @@
 	(utils library cursor)
 	(utils edit variants)
         (utils misc tooltip)
-        (bibtex bib-complete)
 	(source macro-search)))
 
 (tm-define (generic-context? t) #t) ;; overridden in, e.g., graphics mode
@@ -166,18 +165,6 @@
   (:require (and (tree-in? t '(label reference pageref eqref smart-ref))
                  (cursor-inside? t)))
   (if (complete-try?) (noop)))
-
-(tm-define (bib-cite-context? t)
-  (and (tree-in? t '(cite nocite cite-detail))
-       (cursor-inside? t)))
-
-(tm-define (kbd-variant t forwards?)
-  (:require (and (not (supports-db?)) (bib-cite-context? t)))
-  (with u (current-bib-file #t)
-    (with ttxt (tree-ref t (cADr (cursor-path)))
-      (if (or (url-none? u) (not ttxt))
-          (set-message "No completions" "You must add a bibliography file")
-          (custom-complete (tm->tree (citekey-completions u ttxt)))))))
 
 (tm-define (kbd-alternate-variant t forwards?)
   (and-with p (tree-outer t)

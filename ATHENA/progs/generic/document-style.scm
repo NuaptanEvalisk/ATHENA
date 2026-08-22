@@ -305,7 +305,6 @@
   ("old-letter"     "Former default style for writing letters")
   ("old-seminar"    "Former style for overhead projector presentations")
 
-  ("bibliography"   "Style for editing bibliographic data files")
   ("email"          "Style for writing and reading emails")
   ("mailbox"        "Style for displaying mailboxes"))
 
@@ -340,8 +339,6 @@
 
   ("centered-program"   "Use a centered rendering style for algorithms")
   ("framed-program"     "Display algorithms inside frames and center")
-  ("cite-author-year"   "Mimic 'natbib' package from LaTeX")
-  ("cite-sort"          "Package for sorting lists of citations")
   ("two-columns"        "Markup and adjustments for two column documents")
   ("compact-list"       "Less indentation and vertical spacing for lists")
   ("triangle-list"      "Use triangular lists items")

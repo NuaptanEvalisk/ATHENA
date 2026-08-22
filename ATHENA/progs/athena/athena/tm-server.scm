@@ -55,9 +55,6 @@
 (define (notify-latex-command var val)
   (set-latex-command val))
 
-(define (notify-bibtex-command var val)
-  (set-bibtex-command val))
-
 (define (notify-tool var val)
   ;; FIXME: the menus sometimes don't get updated,
   ;; but the fix below does not work
@@ -279,4 +276,4 @@
   (safely-kill-window))
 
 (register-preference-callback-procedures
-  (list notify-bibtex-command notify-enunciation-rendering notify-fast-environments notify-gui-theme notify-language notify-latex-command notify-look-and-feel notify-new-fonts notify-new-page-breaking notify-restart notify-scripting-language notify-security notify-tool))
+  (list notify-enunciation-rendering notify-fast-environments notify-gui-theme notify-language notify-latex-command notify-look-and-feel notify-new-fonts notify-new-page-breaking notify-restart notify-scripting-language notify-security notify-tool))

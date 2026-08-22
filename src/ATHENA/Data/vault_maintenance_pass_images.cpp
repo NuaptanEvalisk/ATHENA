@@ -52,7 +52,7 @@ protected_asset_path (const fs::path& root, const fs::path& path,
   if (first == ".backup" || first == ".athena" || first == ".git" ||
       is_orphan_dir_name (first))
     return true;
-  return infrastructure.find (path_key (path)) != infrastructure.end ();
+  return is_vault_infrastructure_path (path, infrastructure);
 }
 
 bool

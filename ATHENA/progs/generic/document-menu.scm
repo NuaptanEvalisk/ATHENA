@@ -14,6 +14,7 @@
 (texmacs-module (generic document-menu)
   (:use (generic document-edit)
         (generic generic-menu)
+        (athena athena tm-materials)
         (athena athena tm-vault-anchors)
         (athena menus file-menu)))
 
@@ -121,7 +122,7 @@
   ("All" (update-document "all"))
   ---
   ("Buffer" (update-document "buffer"))
-  ("Bibliography" (update-document "bibliography"))
+  ("Referenced Materials" (update-document "materials"))
   ("Table of contents" (update-document "table-of-contents"))
   ("Index" (update-document "index"))
   ("Glossary" (update-document "glossary"))
@@ -878,6 +879,7 @@
 
 (menu-bind full-document-menu
   (-> "Style" (link document-style-menu))
+  (-> "Citation Style" (link materials-citation-style-menu))
   (link document-style-extra-menu)
   ;;(-> "Add package"
   ;;(link add-package-menu)
@@ -903,9 +905,6 @@
   (-> "Paragraph" (link document-paragraph-menu))
   (-> "Page" (link document-page-menu))
   (-> "Metadata" (link document-metadata-menu))
-  (-> "Bibliography"
-      (when (buffer-has-biblio? (current-buffer))
-	("Local entries" (open-biblio))))
   ---
   (-> "Magnification" (link document-magnification-menu))
   (-> "Colors" (link document-colors-menu))
@@ -921,6 +920,7 @@
 
 (menu-bind compressed-document-menu
   (-> "Style" (link document-style-menu))
+  (-> "Citation Style" (link materials-citation-style-menu))
   (link document-style-extra-menu)
   (if (and (not (project-attached?))
            (!= (get-init-tree "sectional-short-style") (tree 'macro "false")))
@@ -939,8 +939,6 @@
   ("Paragraph" (open-document-paragraph-format))
   ("Page" (open-document-page-format))
   ("Metadata" (open-document-metadata))
-  (when (buffer-has-biblio? (current-buffer))
-    ("Bibliography" (open-biblio)))
   ;;("Colors" (open-document-colors))
   ---
   (-> "Magnification" (link document-magnification-menu))

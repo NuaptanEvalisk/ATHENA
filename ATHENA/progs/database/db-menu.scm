@@ -246,7 +246,6 @@
 
 (menu-bind db-menu
   ("Open identities" (open-identities))
-  ("Open bibliography" (load-db-buffer "tmfs://db/bib/global"))
   (if (supports-gpg?) ("Open key manager" (open-gpg-key-manager)))
   ---
   (when (in-database?)

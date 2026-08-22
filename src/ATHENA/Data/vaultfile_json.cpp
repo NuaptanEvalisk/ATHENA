@@ -127,6 +127,10 @@ read_json_file (const std::filesystem::path& path, AthenaVaultfileInfo& info,
   info.enunciations_path= json_string (obj, "enunciations_path",
                                       "enunciations.db");
   info.bold_text_path= json_string (obj, "bold_text_path", "bold-text.db");
+  info.materials_db_path= json_string (obj, "materials_db_path",
+                                      "materials.sqlite");
+  info.materials_directory= json_string (obj, "materials_directory",
+                                         "materials");
   info.backup_dispatchers.clear ();
   QJsonValue dispatchers_value= obj.value ("backup_dispatchers");
   if (dispatchers_value.isArray ()) {
@@ -215,6 +219,9 @@ athena_vaultfile_normalize (const AthenaVaultfileInfo& info) {
   if (out.artifacts_path.empty ()) out.artifacts_path= "artifacts.db";
   if (out.enunciations_path.empty ()) out.enunciations_path= "enunciations.db";
   if (out.bold_text_path.empty ()) out.bold_text_path= "bold-text.db";
+  if (out.materials_db_path.empty ())
+    out.materials_db_path= "materials.sqlite";
+  if (out.materials_directory.empty ()) out.materials_directory= "materials";
   return out;
 }
 
@@ -234,6 +241,8 @@ athena_vaultfile_from_fields (const std::vector<std::string>& fields) {
   if (fields.size () >= 11) info.artifacts_path= fields[10];
   if (fields.size () >= 12) info.enunciations_path= fields[11];
   if (fields.size () >= 13) info.bold_text_path= fields[12];
+  if (fields.size () >= 14) info.materials_db_path= fields[13];
+  if (fields.size () >= 15) info.materials_directory= fields[14];
   return athena_vaultfile_normalize (info);
 }
 
@@ -252,7 +261,9 @@ athena_vaultfile_to_fields (const AthenaVaultfileInfo& info) {
            out.root_namespace,
            out.artifacts_path,
            out.enunciations_path,
-           out.bold_text_path };
+           out.bold_text_path,
+           out.materials_db_path,
+           out.materials_directory };
 }
 
 bool
@@ -291,6 +302,8 @@ athena_vaultfile_write (const std::filesystem::path& root,
   obj["artifacts_path"]= qs (out.artifacts_path);
   obj["enunciations_path"]= qs (out.enunciations_path);
   obj["bold_text_path"]= qs (out.bold_text_path);
+  obj["materials_db_path"]= qs (out.materials_db_path);
+  obj["materials_directory"]= qs (out.materials_directory);
   QJsonArray dispatchers;
   for (const AthenaBackupDispatcher& entry: out.backup_dispatchers) {
     QJsonObject dispatcher;

@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "glue.hpp"
+#include "scheme.hpp"
 
 #include "promise.hpp"
 #include "tree.hpp"
@@ -28,6 +29,8 @@
 #include "namespaces.hpp"
 #include "ATHENA/Data/vault_backup.hpp"
 #include "ATHENA/Data/vaultfile_json.hpp"
+#include "ATHENA/Data/materials_document.hpp"
+#include "ATHENA/Data/materials_engine.hpp"
 #include "QTMMainTabWindow.hpp"
 #include "QTMVaultChooser.hpp"
 #include "QTMQuickSwitcher.hpp"
@@ -50,6 +53,8 @@
 #include "QTMFormulaAstViewer.hpp"
 #include "QTMDocumentSearchBar.hpp"
 #include "QTMArtifactsPane.hpp"
+#include "QTMMaterialsManager.hpp"
+#include "QTMMaterialCitationDialog.hpp"
 #include "QTMVaultInfoModel.hpp"
 #include "QTMVaultBackupDispatcher.hpp"
 #include "QTMAbout.hpp"
@@ -1409,8 +1414,6 @@ tmscm_to_list_tree (tmscm p) {
 #include "Metafont/tex_files.hpp"
 #include "Freetype/tt_file.hpp"
 #include "LaTeX_Preview/latex_preview.hpp"
-#include "Bibtex/bibtex.hpp"
-#include "Bibtex/bibtex_functions.hpp"
 #include "link.hpp"
 #include "dictionary.hpp"
 #include "patch.hpp"
@@ -1807,6 +1810,57 @@ tmg_vaultfile_fields_to_array (const std::vector<std::string>& fields) {
   return out;
 }
 
+tmscm
+tmg_material_choose_citation (tmscm arg1) {
+  TMSCM_ASSERT_STRING (arg1, TMSCM_ARG1, "material-choose-citation");
+  string style= tmscm_to_string (arg1);
+  return tree_to_tmscm (qtm_material_choose_citation (
+    std::string (as_charp (style), N(style))));
+}
+
+tmscm
+tmg_material_choose_references () {
+  return tree_to_tmscm (qtm_material_choose_references ());
+}
+
+tmscm
+tmg_materials_update_document (tmscm arg1, tmscm arg2) {
+  TMSCM_ASSERT_TREE (arg1, TMSCM_ARG1, "materials-update-document");
+  TMSCM_ASSERT_STRING (arg2, TMSCM_ARG2, "materials-update-document");
+  std::string error;
+  string style= tmscm_to_string (arg2);
+  tree updated= athena_materials_update_document (
+    tmscm_to_tree (arg1), std::string (as_charp (style), N(style)), error);
+  tree result (TUPLE);
+  result << tree (error.empty () ? "ok" : "error");
+  result << (error.empty () ? updated : tree (error.c_str ()));
+  return tree_to_tmscm (result);
+}
+
+tmscm
+tmg_materials_csl_styles () {
+  std::vector<MaterialCslStyle> styles;
+  std::string error;
+  tree result (TUPLE);
+  if (!athena_materials_list_csl_styles (styles, error)) {
+    FAILED (c_string ("could not list CSL styles: " *
+                      string (error.c_str ())));
+    return tree_to_tmscm (result);
+  }
+  for (const MaterialCslStyle& style: styles)
+    result << compound ("tuple", tree (style.name.c_str ()),
+                        tree (style.title.c_str ()));
+  return tree_to_tmscm (result);
+}
+
+tmscm
+tmg_material_info_page (tmscm arg1) {
+  TMSCM_ASSERT_STRING (arg1, TMSCM_ARG1, "material-info-page");
+  string name= tmscm_to_string (arg1);
+  return tree_to_tmscm (athena_material_info_page (
+    std::string (as_charp (name), N(name))));
+}
+
 static AthenaVaultfileInfo
 tmg_vaultfile_info_from_array (array<string> fields) {
   std::vector<std::string> values;
@@ -1841,13 +1895,20 @@ tmg_vaultfile_write (tmscm arg1, tmscm arg2) {
 
   std::string error;
   std::filesystem::path root= tmg_vault_root_path (arg1);
-  AthenaVaultfileInfo info=
-    tmg_vaultfile_info_from_array (tmscm_to_array_string (arg2));
+  array<string> fields= tmscm_to_array_string (arg2);
+  AthenaVaultfileInfo info= tmg_vaultfile_info_from_array (fields);
   AthenaVaultfileInfo previous;
   std::string read_error;
   if (athena_vaultfile_present (root) &&
       athena_vaultfile_read (root, previous, read_error))
-    info.backup_dispatchers= previous.backup_dispatchers;
+    {
+      info.backup_dispatchers= previous.backup_dispatchers;
+      // Preserve newer Vaultfile fields when an older Scheme caller writes the
+      // positional record without knowing about them.
+      if (N(fields) < 14) info.materials_db_path= previous.materials_db_path;
+      if (N(fields) < 15)
+        info.materials_directory= previous.materials_directory;
+    }
   if (athena_vaultfile_write (root, info, error))
     return string_to_tmscm ("");
   return string_to_tmscm (string (error.c_str (), error.size ()));
@@ -2036,6 +2097,18 @@ initialize_glue () {
                            artifacts_build_entire_vault, 0, 0, 0);
   tmscm_install_procedure ("artifacts-build-current-document",
                            artifacts_build_current_document, 0, 0, 0);
+  tmscm_install_procedure ("materials-manager-show",
+                           materials_manager_show, 0, 0, 0);
+  tmscm_install_procedure ("material-choose-citation",
+                           tmg_material_choose_citation, 1, 0, 0);
+  tmscm_install_procedure ("material-choose-references",
+                           tmg_material_choose_references, 0, 0, 0);
+  tmscm_install_procedure ("materials-update-document",
+                           tmg_materials_update_document, 2, 0, 0);
+  tmscm_install_procedure ("materials-csl-styles",
+                           tmg_materials_csl_styles, 0, 0, 0);
+  tmscm_install_procedure ("material-info-page",
+                           tmg_material_info_page, 1, 0, 0);
   tmscm_install_procedure ("namespace-manager-show",
                            namespace_manager_show, 0, 0, 0);
   tmscm_install_procedure ("namespace-explorer-show",

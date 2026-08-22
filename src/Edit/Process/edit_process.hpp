@@ -18,7 +18,6 @@ public:
   edit_process_rep ();
   ~edit_process_rep ();
 
-  void generate_bibliography (string bib, string style, string fname);
   void generate_table_of_contents (string toc);
   void generate_index (string idx);
   void generate_glossary (string glo);

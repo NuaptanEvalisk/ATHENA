@@ -48,6 +48,9 @@ bool is_orphan_dir_name (const std::string& name);
 bool collect_vault_infrastructure_paths (
   const std::filesystem::path& root,
   std::unordered_set<std::string>& paths, std::string& error);
+bool is_vault_infrastructure_path (
+  const std::filesystem::path& path,
+  const std::unordered_set<std::string>& infrastructure);
 std::string manual_save_retention_label (long long seconds);
 std::string timestamp_string ();
 void log_info (const std::string& message);
