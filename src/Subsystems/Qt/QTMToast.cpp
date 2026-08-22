@@ -18,7 +18,9 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QPointer>
+#include <QStyle>
 #include <QTimer>
+#include <QToolButton>
 #include <QVBoxLayout>
 
 namespace {
@@ -95,6 +97,19 @@ qtm_show_toast (string left, string right) {
       "}"
       "#athenaToastNotification QLabel#athenaToastBody {"
       "color: rgba(24, 28, 35, 210);"
+      "}"
+      "#athenaToastNotification QToolButton#athenaToastDismiss {"
+      "background: transparent;"
+      "border: 0px;"
+      "border-left: 1px solid rgba(34, 40, 49, 45);"
+      "border-radius: 0px;"
+      "padding: 0px;"
+      "}"
+      "#athenaToastNotification QToolButton#athenaToastDismiss:hover {"
+      "background: rgba(34, 40, 49, 18);"
+      "}"
+      "#athenaToastNotification QToolButton#athenaToastDismiss:pressed {"
+      "background: rgba(34, 40, 49, 30);"
       "}");
   else
     toast->setStyleSheet (
@@ -112,29 +127,61 @@ qtm_show_toast (string left, string right) {
       "}"
       "#athenaToastNotification QLabel#athenaToastBody {"
       "color: rgba(255, 255, 255, 210);"
+      "}"
+      "#athenaToastNotification QToolButton#athenaToastDismiss {"
+      "background: transparent;"
+      "border: 0px;"
+      "border-left: 1px solid rgba(255, 255, 255, 45);"
+      "border-radius: 0px;"
+      "padding: 0px;"
+      "}"
+      "#athenaToastNotification QToolButton#athenaToastDismiss:hover {"
+      "background: rgba(255, 255, 255, 22);"
+      "}"
+      "#athenaToastNotification QToolButton#athenaToastDismiss:pressed {"
+      "background: rgba(255, 255, 255, 36);"
       "}");
 
-  QVBoxLayout* layout= new QVBoxLayout (toast);
+  QHBoxLayout* outer= new QHBoxLayout (toast);
+  outer->setContentsMargins (0, 0, 0, 0);
+  outer->setSpacing (0);
+
+  QWidget* content= new QWidget (toast);
+  QVBoxLayout* layout= new QVBoxLayout (content);
   layout->setContentsMargins (16, 12, 16, 12);
   layout->setSpacing (4);
+  outer->addWidget (content, 1);
 
   if (!title.trimmed ().isEmpty ()) {
-    QLabel* titleLabel= new QLabel (title, toast);
+    QLabel* titleLabel= new QLabel (title, content);
     titleLabel->setObjectName ("athenaToastTitle");
     titleLabel->setWordWrap (true);
-    titleLabel->setMinimumWidth (348);
-    titleLabel->setMaximumWidth (528);
+    titleLabel->setMinimumWidth (304);
+    titleLabel->setMaximumWidth (484);
     layout->addWidget (titleLabel);
   }
 
   if (!body.trimmed ().isEmpty ()) {
-    QLabel* bodyLabel= new QLabel (body, toast);
+    QLabel* bodyLabel= new QLabel (body, content);
     bodyLabel->setObjectName ("athenaToastBody");
     bodyLabel->setWordWrap (true);
-    bodyLabel->setMinimumWidth (348);
-    bodyLabel->setMaximumWidth (528);
+    bodyLabel->setMinimumWidth (304);
+    bodyLabel->setMaximumWidth (484);
     layout->addWidget (bodyLabel);
   }
+
+  QToolButton* dismiss= new QToolButton (toast);
+  dismiss->setObjectName ("athenaToastDismiss");
+  dismiss->setToolTip ("Dismiss notification");
+  dismiss->setAccessibleName ("Dismiss notification");
+  dismiss->setIcon (toast->style ()->standardIcon (
+    QStyle::SP_TitleBarCloseButton));
+  dismiss->setIconSize (QSize (18, 18));
+  dismiss->setFixedWidth (44);
+  dismiss->setSizePolicy (QSizePolicy::Fixed, QSizePolicy::Expanding);
+  dismiss->setFocusPolicy (Qt::NoFocus);
+  QObject::connect (dismiss, &QToolButton::clicked, toast, &QFrame::close);
+  outer->addWidget (dismiss);
 
   position_toast (toast, parent);
   toast->raise ();
