@@ -13,8 +13,6 @@
 #define QTMAPPLICATION_HPP
 
 #include <QApplication>
-#include <QSplashScreen>
-#include <QThread>
 #include <QIcon>
 #include <QStyle>
 #include <QStyleFactory>
@@ -31,6 +29,7 @@ bool init_palette (QApplication* app);
 void init_style_sheet (QApplication* app);
 void set_standard_style_sheet (QWidget *w);
 bool is_server_started ();
+class QTMProgressWindow;
 
 class QTMApplication: public QApplication {
   Q_OBJECT
@@ -84,7 +83,7 @@ public:
   void hide_splash ();
 
 private:
-  QSplashScreen* mSplash;
+  QTMProgressWindow* mStartupWindow;
   bool mPixmapManagerInitialized;
   QTMIconManager mIconManager;
   QTMKeyboard mKeyboard;

@@ -32,15 +32,13 @@
 #include "qt_simple_widget.hpp"
 #include "qt_window_widget.hpp"
 #include "QTMApplication.hpp"
+#include "QTMProgressWindow.hpp"
 
 
 #include <QDialog>
 #include <QHBoxLayout>
 #include <QVBoxLayout>
-#include <QThread>
 #include <QScreen>
-#include <QSplashScreen>
-#include <QPainter>
 #include <QFile>
 #include <QClipboard>
 #include <QApplication>
@@ -640,43 +638,8 @@ qt_gui_rep::show_wait_indicator (widget w, string message, string arg)  {
   if (headless_mode) return;
   
   if (!waitWindow) {
-    waitWindow = new QWidget(NULL, Qt::Window | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Tool);
-    waitWindow->setAutoFillBackground(true);
-    QPalette pal = waitWindow->palette();
-    pal.setColor(QPalette::Window, Qt::white);
-    waitWindow->setPalette(pal);
-    
-    QVBoxLayout *layout = new QVBoxLayout(waitWindow);
-    QLabel *imgLabel = new QLabel(waitWindow);
-    waitLabel = new QLabel(waitWindow); 
-    
-    waitLabel->setAlignment(Qt::AlignCenter);
-    waitLabel->setStyleSheet("color: black; margin: 20px; font-size: 24px; font-weight: bold;");
-    
-    string tmpath = get_env ("ATHENA_PATH");
-    url u1 = url_system (tmpath * "/misc/pictures/splash/waiting.png");
-    QString pm_path = to_qstring(as_string(u1));
-    
-    QPixmap pm;
-    if (QFile::exists(pm_path) && pm.load(pm_path)) {
-      if (qApp->primaryScreen()) {
-        QSize screenSize = qApp->primaryScreen()->availableGeometry().size();
-        int maxW = screenSize.width() / 4;
-        int maxH = screenSize.height() / 4;
-        if (pm.width() > maxW || pm.height() > maxH) {
-          pm = pm.scaled (maxW, maxH, Qt::KeepAspectRatio, Qt::SmoothTransformation);
-        }
-      }
-      imgLabel->setPixmap(pm);
-    } else {
-      imgLabel->setFixedSize(300, 150);
-    }
-    imgLabel->setAlignment(Qt::AlignCenter);
-    
-    layout->addWidget(imgLabel);
-    layout->addWidget(waitLabel);
-    layout->setSizeConstraint(QLayout::SetFixedSize);
-    waitWindow->setLayout(layout);
+    waitWindow= new QTMProgressWindow ("ATHENA", true);
+    waitWindow->setWindowModality (Qt::ApplicationModal);
   }
   
   if (N(message)) {
@@ -692,27 +655,21 @@ qt_gui_rep::show_wait_indicator (widget w, string message, string arg)  {
     if (waitDialogs.count() >= 2)
       msg = msg + QString ("\n") + waitDialogs.last();
     
-    waitLabel->setText(msg);
+    waitWindow->setMessage (msg);
+    waitWindow->setBusy (true);
     waitWindow->show();
-    waitWindow->adjustSize();
+    waitWindow->raise ();
 
-    // 居中显示
     if (w != NULL) {
       qt_window_widget_rep* win_wid = static_cast<qt_window_widget_rep*> (w.rep);
-      QPoint pt = win_wid->qwid->window()->geometry().center();
-      waitWindow->move(pt.x() - waitWindow->width()/2, pt.y() - waitWindow->height()/2);
+      waitWindow->centerOn (win_wid->qwid);
     }
-    
-    // 核心防黑屏 Hack：强行滞留主线程，等待异步 Window Manager 完成 Expose
-    for (int i = 0; i < 10; ++i) {
-      qApp->processEvents(QEventLoop::ExcludeUserInputEvents);
-      QThread::msleep(5); 
-    }
+    else waitWindow->centerOnScreen ();
     
     waitWindow->repaint();
     qApp->processEvents(QEventLoop::ExcludeUserInputEvents);
   } else {
-    if (waitWindow) waitWindow->close();
+    if (waitWindow) waitWindow->hide();
   }
 
   need_update();
@@ -1099,8 +1056,7 @@ qt_gui_rep::update () {
   time_credit    = 9 / (waiting_events.size() + 1);
 
   if (waitDialogs.count()) {
-    if (waitWindow) waitWindow->close();
-    if (waitLabel) waitLabel->setText ("");
+    if (waitWindow) waitWindow->hide();
     waitDialogs.clear ();
   }
     

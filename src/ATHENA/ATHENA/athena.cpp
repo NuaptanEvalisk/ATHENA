@@ -846,7 +846,7 @@ set_global_options  (int argc, char** argv)  {
         cout << "  -S         Rerun ATHENA setup program before starting\n";
         cout << "  -v         Display current ATHENA version\n";
         cout << "  -V         Show some informative messages\n";
-        cout << "  --no-splash-screen       Start without showing the splash screen\n";
+        cout << "  --no-splash-screen       Start without the startup progress window\n";
         cout << "  --vault-maintenance [dir]  Maintain an ATHENA vault headlessly\n";
         cout << "  --rag-delegated-embedding [dir]  Run only delegated incremental embedding\n";
         cout << "  --vault-maintenance-toc-worker [file] [marker]  Internal ToC maintenance worker\n";

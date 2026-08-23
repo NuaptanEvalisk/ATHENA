@@ -1,5 +1,6 @@
 #include "QTMApplication.hpp"
 #include "QTMCommandPalette.hpp"
+#include "QTMProgressWindow.hpp"
 #include "QTMUpdateChecker.hpp"
 #include "QTMVaultBackupDispatcher.hpp"
 #include "qt_utilities.hpp"
@@ -10,7 +11,7 @@
 #include <QNativeGestureEvent>
   
 QTMApplication::QTMApplication (int& argc, char** argv) :
-  QApplication (argc, argv), mSplash (NULL) { }
+  QApplication (argc, argv), mStartupWindow (nullptr) { }
 
 namespace {
 
@@ -52,132 +53,31 @@ static bool quickSwitcherShortcut (const QKeyEvent* event) {
 
 }
 
-#include <QPixmap>
-#include <QPainter>
-#include <QScreen>
-#include <QFontMetrics>
-#include <algorithm>
-
-class ATHENASplashScreen: public QSplashScreen {
-public:
-  ATHENASplashScreen (const QPixmap& pixmap)
-    : QSplashScreen (pixmap, Qt::WindowStaysOnTopHint),
-      progress (0), status ("Starting ATHENA") {}
-
-  void set_progress (int new_progress, QString new_status) {
-    progress= std::max (0, std::min (100, new_progress));
-    status= new_status;
-    repaint ();
-  }
-
-protected:
-  void drawContents (QPainter* painter) override {
-    QSplashScreen::drawContents (painter);
-
-    QRect r= rect ();
-    int margin= std::max (12, r.width () / 28);
-
-    QFont f= qApp != NULL ? qApp->font () : painter->font ();
-    if (f.pixelSize () <= 0 && f.pointSizeF () > 0)
-      f.setPointSize (std::max (11, (int) (f.pointSizeF () + 0.5)));
-    painter->setFont (f);
-    QFontMetrics fm (f);
-
-    int text_h= fm.height ();
-    int bar_h= std::max (10, text_h * 2 / 3);
-    int panel_h= std::max (bar_h + text_h + 22, r.height () / 7);
-    QRect panel (margin, r.height () - panel_h - margin,
-                 r.width () - 2 * margin, panel_h);
-    QRect bar (panel.left () + 12, panel.bottom () - bar_h - 10,
-               panel.width () - 24, bar_h);
-    int fill_w= (bar.width () * progress) / 100;
-
-    painter->setRenderHint (QPainter::Antialiasing, true);
-    painter->setPen (Qt::NoPen);
-    painter->setBrush (QColor (255, 255, 255, 230));
-    painter->drawRoundedRect (panel, 5, 5);
-
-    painter->setPen (QColor (45, 52, 62));
-    QString label= status + QString ("  %1%").arg (progress);
-    painter->drawText (panel.adjusted (12, 6, -12, -bar_h - 14),
-                       Qt::AlignLeft | Qt::AlignVCenter, label);
-
-    painter->setPen (QColor (170, 176, 184));
-    painter->setBrush (QColor (236, 239, 243));
-    painter->drawRoundedRect (bar, 4, 4);
-    if (fill_w > 0) {
-      QRect fill= bar;
-      fill.setWidth (fill_w);
-      painter->setPen (Qt::NoPen);
-      painter->setBrush (QColor (49, 112, 184));
-      painter->drawRoundedRect (fill, 4, 4);
-    }
-  }
-
-private:
-  int progress;
-  QString status;
-};
-
 void QTMApplication::show_splash () {
   if (headless_mode) return;
-  string path = get_env ("ATHENA_PATH");
-  url u1 = url_system (path * "/misc/pictures/splash/splashscr.png");
-  url u2 = url_system (path * "/../misc/pictures/splash/splashscr.png");
-  url u3 = url_system (path * "/misc/images/ATHENA-512.png");
-  
-  url logo_url;
-  if (exists (u1)) logo_url = u1;
-  else if (exists (u2)) logo_url = u2;
-  else if (exists (u3)) logo_url = u3;
-  else return;
-
-  QPixmap pixmap (to_qstring (as_string (logo_url)));
-  if (pixmap.isNull ()) return;
-  
-  // Scale if too big (e.g. high-res images on small screens)
-  if (primaryScreen()) {
-    QSize screenSize = primaryScreen()->availableGeometry().size();
-    int maxW = screenSize.width() / 2;
-    int maxH = screenSize.height() / 2;
-    if (pixmap.width() > maxW || pixmap.height() > maxH) {
-      pixmap = pixmap.scaled (maxW, maxH, Qt::KeepAspectRatio, Qt::SmoothTransformation);
-    }
-  }
-
-  // Create a clean splash with white background to avoid "black square" if PNG has transparency
-  QPixmap splash_pix (pixmap.size());
-  splash_pix.fill (Qt::white);
-  QPainter painter (&splash_pix);
-  painter.drawPixmap (0, 0, pixmap);
-  painter.end ();
-
-  mSplash = new ATHENASplashScreen (splash_pix);
+  if (mStartupWindow != nullptr) return;
+  mStartupWindow= new QTMProgressWindow ("Starting ATHENA");
   set_splash_progress (2, "Preparing application");
-  mSplash->show ();
-  mSplash->repaint ();
-  mSplash->raise ();
-  mSplash->activateWindow ();
-  
-  // 核心防黑屏 Hack：强行滞留主线程，等待异步 Window Manager 完成 Expose
-  // 10次循环 * 5ms 睡眠 = 50ms。这足以让 KWin/Mutter 处理完映射请求并分配显存。
-  for (int i = 0; i < 10; i++) {
-    qApp->processEvents (QEventLoop::AllEvents, 10);
-    QThread::msleep (5);
-  }
+  mStartupWindow->show ();
+  mStartupWindow->centerOnScreen ();
+  mStartupWindow->raise ();
+  mStartupWindow->activateWindow ();
+  qApp->processEvents (QEventLoop::AllEvents);
 }
 
 void QTMApplication::set_splash_progress (int progress, string message) {
-  if (!mSplash) return;
-  ATHENASplashScreen* splash= dynamic_cast<ATHENASplashScreen*> (mSplash);
-  if (splash) splash->set_progress (progress, to_qstring (message));
+  if (mStartupWindow == nullptr) return;
+  mStartupWindow->setMessage (to_qstring (message));
+  mStartupWindow->setProgress (progress);
+  mStartupWindow->repaint ();
+  qApp->processEvents (QEventLoop::ExcludeUserInputEvents);
 }
 
 void QTMApplication::hide_splash () {
-  if (mSplash) {
-    mSplash->finish (nullptr);
-    delete mSplash;
-    mSplash = nullptr;
+  if (mStartupWindow != nullptr) {
+    mStartupWindow->hide ();
+    delete mStartupWindow;
+    mStartupWindow= nullptr;
   }
 }
 

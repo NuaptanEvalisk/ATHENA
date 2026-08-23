@@ -14,8 +14,6 @@
 
 #include <QTranslator>
 #include <QTimer>
-#include <QLabel>
-#include <QSplashScreen>
 #include <QList>
 #include <QByteArray>
 
@@ -117,13 +115,13 @@ public:
 ******************************************************************************/
 
 class QTMGuiHelper;
+class QTMProgressWindow;
 
 class qt_gui_rep {
   bool           interrupted;
   time_t      interrupt_time;
   QTimer*        updatetimer;
-  QWidget*        waitWindow;
-  QLabel*          waitLabel;
+  QTMProgressWindow* waitWindow;
   QList<QString> waitDialogs;
   widget          _popup_wid;
   time_t      popup_wid_time; //!< 0 means not to show _popup_wid
