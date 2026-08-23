@@ -12,12 +12,6 @@ QFileDialog {
     min-height: 600px;
 }
 
-QMenuBar {
-    padding: 0px;
-    margin: 0px;
-    spacing: 0px;
-}
-
 QMenu::item:disabled {
     color: #A0A0A0;
 }
@@ -256,11 +250,6 @@ QMenuBar {
     padding: 0px;
     margin: 0px;
     spacing: 0px;
-}
-
-QMenuBar::item {
-    padding: 0px 8px;
-    margin: 0px;
 }
 
 #mainToolBar, #modeToolBar, #focusToolBar, #userToolBar, #menuToolBar,

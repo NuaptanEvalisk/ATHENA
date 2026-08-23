@@ -62,7 +62,8 @@ load_string (url u, string& s, bool fatal) {
     bool doc_flag= do_cache_doc (name);
     string cache_type= doc_flag? string ("doc_cache"): string ("file_cache");
     if (doc_flag) cache_load ("doc_cache");
-    bool currently_cached= is_cached (cache_type, name);
+    bool currently_cached= (file_flag || doc_flag) &&
+                           is_cached (cache_type, name);
     if (currently_cached && is_up_to_date (url_parent (r))) {
       s= cache_get (cache_type, name) -> label;
       return false;

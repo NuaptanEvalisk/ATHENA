@@ -141,7 +141,7 @@ do_cache_stat_fail (string name) {
 bool
 do_cache_file (string name) {
   return
-    !ends (name, ".ts") &&
+    !ends (name, ".ts") && !ends (name, ".css") &&
     (starts (name, texmacs_path_string) ||
      starts (name, texmacs_font_path_string));
 }
