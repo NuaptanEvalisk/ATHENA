@@ -197,14 +197,25 @@
                 (text (unsaved-buffer-display-name buf))
                 >>)))))
       ===
-      (bottom-buttons
-        ((if restart? "Save and restart" "Save and exit")
-         (save-selected-unsaved-buffers-and-finish selected restart?)
-         (quit))
-        // //
-        ((if restart? "Restart" "Exit") (finish-ATHENA restart?) (quit))
-        // //
-        ("Cancel" (quit))))))
+      (cond
+        (restart?
+         (bottom-buttons
+           ("Save and restart"
+            (save-selected-unsaved-buffers-and-finish selected #t)
+            (quit))
+           // //
+           ("Restart" (finish-ATHENA #t) (quit))
+           // //
+           ("Cancel" (quit))))
+        (else
+         (bottom-buttons
+           ("Save and exit"
+            (save-selected-unsaved-buffers-and-finish selected #f)
+            (quit))
+           // //
+           ("Exit" (finish-ATHENA #f) (quit))
+           // //
+           ("Cancel" (quit))))))))
 
 (tm-define (safely-kill-buffer)
   (cond ((buffer-embedded? (current-buffer))
