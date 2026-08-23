@@ -325,6 +325,7 @@
   (link athena-file-utilities-menu)
   ---
   ("Close document" (close-document))
+  ("Restart ATHENA" (safely-restart-ATHENA))
   ("Close ATHENA" (safely-quit-ATHENA)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

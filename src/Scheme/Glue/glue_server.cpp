@@ -664,6 +664,15 @@ tmg_yesP (tmscm arg1) {
 }
 
 tmscm
+tmg_restart_TeXmacs () {
+  // TMSCM_DEFER_INTS;
+  bool out= get_server()->restart ();
+  // TMSCM_ALLOW_INTS;
+
+  return bool_to_tmscm (out);
+}
+
+tmscm
 tmg_quit_TeXmacs () {
   // TMSCM_DEFER_INTS;
   get_server()->quit ();
@@ -728,5 +737,6 @@ initialize_glue_server () {
   tmscm_install_procedure ("mdi-attach",  tmg_mdi_attach, 0, 0, 0);
   tmscm_install_procedure ("recall-message",  tmg_recall_message, 0, 0, 0);
   tmscm_install_procedure ("yes?",  tmg_yesP, 1, 0, 0);
+  tmscm_install_procedure ("restart-TeXmacs",  tmg_restart_TeXmacs, 0, 0, 0);
   tmscm_install_procedure ("quit-TeXmacs",  tmg_quit_TeXmacs, 0, 0, 0);
 }

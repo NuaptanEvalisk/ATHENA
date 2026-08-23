@@ -28,7 +28,9 @@
 #ifdef QTTEXMACS
 #include <QCoreApplication>
 #include <QApplication>
+#include <QDir>
 #include <QMdiSubWindow>
+#include <QProcess>
 #include "QTMApplication.hpp"
 #include "QTMMainTabWindow.hpp"
 #endif
@@ -410,6 +412,22 @@ tm_server_rep::is_yes (string s) {
   s= locase_all (s);
   string st= locase_all (translate ("yes"));
   return tm_forward_access (s, 0) == tm_forward_access (st, 0) || s == st;
+}
+
+bool
+tm_server_rep::restart () {
+#ifdef QTTEXMACS
+  QString program= qEnvironmentVariable ("APPIMAGE");
+  if (program.isEmpty ()) program= QCoreApplication::applicationFilePath ();
+  QStringList arguments= QCoreApplication::arguments ();
+  if (!arguments.isEmpty ()) arguments.removeFirst ();
+  if (!QProcess::startDetached (program, arguments, QDir::currentPath ()))
+    return false;
+  quit ();
+  return true;
+#else
+  return false;
+#endif
 }
 
 void

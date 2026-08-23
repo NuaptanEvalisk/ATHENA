@@ -74,4 +74,5 @@
   (mdi-attach mdi_attach (void))
   (recall-message recall_message (void))
   (yes? is_yes (bool string))
+  (restart-TeXmacs restart (bool))
   (quit-TeXmacs quit (void)))

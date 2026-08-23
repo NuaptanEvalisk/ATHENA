@@ -111,6 +111,7 @@ public:
   virtual void   typeset_update (path p) = 0;
   virtual void   typeset_update_all () = 0;
   virtual bool   is_yes (string s) = 0;
+  virtual bool   restart () = 0;
   virtual void   quit () = 0;
   virtual void   shell    (string s) = 0;
   virtual void   mdi_tile () = 0;

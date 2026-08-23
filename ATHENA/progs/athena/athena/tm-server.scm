@@ -165,15 +165,21 @@
                 (save-buffer-manual buf)))
             buffers))
 
-(define (save-selected-unsaved-buffers-and-exit buffers)
+(define (finish-ATHENA restart?)
+  (if restart?
+      (unless (restart-TeXmacs)
+        (notify-now "Could not restart ATHENA"))
+      (quit-TeXmacs)))
+
+(define (save-selected-unsaved-buffers-and-finish buffers restart?)
   ;; The button invokes its dialogue-window quit command after this schedules
   ;; the save.  Run on the next idle turn, after Qt has restored the document
   ;; window as the active top-level and its editor is window-backed again.
   (delayed (:idle 1)
     (save-selected-unsaved-buffers buffers)
-    (quit-TeXmacs)))
+    (finish-ATHENA restart?)))
 
-(tm-widget ((unsaved-buffers-dialog buffers) quit)
+(tm-widget ((unsaved-buffers-dialog buffers restart?) quit)
   (let ((selected buffers))
     (padded
       (resize '("560px" "760px" "1000px") '("280px" "420px" "700px")
@@ -192,10 +198,11 @@
                 >>)))))
       ===
       (bottom-buttons
-        ("Save and exit" (save-selected-unsaved-buffers-and-exit selected)
-                         (quit))
+        ((if restart? "Save and restart" "Save and exit")
+         (save-selected-unsaved-buffers-and-finish selected restart?)
+         (quit))
         // //
-        ("Exit" (quit-TeXmacs) (quit))
+        ((if restart? "Restart" "Exit") (finish-ATHENA restart?) (quit))
         // //
         ("Cancel" (quit))))))
 
@@ -255,7 +262,19 @@
             ;; FIXME: focus on window with buffer, if any
             (switch-to-buffer (car l)))
           (dialogue-window
-           (unsaved-buffers-dialog l)
+           (unsaved-buffers-dialog l #f)
+           noop
+           "Unsaved buffers")))))
+
+(tm-define (safely-restart-ATHENA)
+  (let* ((l (modified-quit-save-candidate-buffers)))
+    (if (null? l)
+        (finish-ATHENA #t)
+        (begin
+          (when (nin? (current-buffer) l)
+            (switch-to-buffer (car l)))
+          (dialogue-window
+           (unsaved-buffers-dialog l #t)
            noop
            "Unsaved buffers")))))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

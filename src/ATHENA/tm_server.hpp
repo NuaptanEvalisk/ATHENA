@@ -65,6 +65,7 @@ public:
   void   typeset_update (path p);
   void   typeset_update_all ();
   bool   is_yes (string s);
+  bool   restart ();
   void   quit ();
   void   shell    (string s);
 };
