@@ -38,6 +38,10 @@ foreach (_test_file ${TEST_SRC_FILES})
   if (_test_name STREQUAL "hodge_recolor_test")
     set_tests_properties (${_test_name} PROPERTIES TIMEOUT 30)
   endif ()
+  if (_test_name STREQUAL "artifacts_test" OR
+      _test_name STREQUAL "vault_map_sqlite_test")
+    set_tests_properties (${_test_name} PROPERTIES TIMEOUT 30)
+  endif ()
   if (_test_name STREQUAL "bold_big_operator_test" OR
       _test_name STREQUAL "finite_part_integral_test" OR
       _test_name STREQUAL "toc_pagination_test")

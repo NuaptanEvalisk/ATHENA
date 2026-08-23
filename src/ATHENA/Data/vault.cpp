@@ -18,6 +18,7 @@
 #include "ATHENA/Data/new_buffer.hpp"
 #include "ATHENA/Data/new_window.hpp"
 #include "ATHENA/Data/materials.hpp"
+#include "ATHENA/Data/artifact_radioactive_links.hpp"
 #include "ATHENA/Data/vault_map_sqlite.hpp"
 #include "ATHENA/Data/vaultfile_json.hpp"
 #include "ATHENA/Data/vault_safe_rename.hpp"
@@ -123,6 +124,7 @@ vault_load (url root_dir, string name, string db_rel_path,
   current_vault_map = std::move (map);
   current_materials_store = std::move (materials);
   is_vault_active = true;
+  athena_artifact_radioactive_invalidate ();
   athena_clear_transclusion_caches ();
   vault_refresh_window_titles ();
   return "";
@@ -134,6 +136,7 @@ vault_close () {
   current_vault_map.reset ();
   current_materials_store.reset ();
   is_vault_active = false;
+  athena_artifact_radioactive_invalidate ();
   current_vault.root = url_none ();
   current_vault.name = "";
   current_vault.db_url = url_none ();

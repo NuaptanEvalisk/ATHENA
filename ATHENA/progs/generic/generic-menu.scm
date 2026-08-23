@@ -334,7 +334,8 @@
     ---
     (pick-background "" (setter answer))
     ---
-    (if (in? l (list "locus-color" "visited-color"))
+    (if (in? l (list "locus-color" "visited-color"
+                     "radioactive-link-color"))
         ((check "Preserve" "*" (parameter-test? l "preserve" mode))
          (parameter-set l "preserve" mode)))
     ("Palette" (interactive-color setter '()))

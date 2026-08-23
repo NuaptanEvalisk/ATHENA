@@ -130,6 +130,25 @@
   model is installed, llama.cpp selects the paragraph range belonging to a
   bold definition; otherwise a deterministic structural fallback is used.
 
+  Every indexed artifact has a persistent UUID. Rebuilding a changed document
+  first matches exact anchors and unique structural context, while an <ATHENA>
+  safe file or directory rename carries the UUID to the new path. If copied or
+  repeated material makes identity uncertain, <ATHENA> assigns a new UUID
+  instead of transferring the old identity speculatively. Links of the form
+  <verbatim|tmfs://artifact/<var|uuid>> open the corresponding indexed source.
+
+  In ordinary document text, artifact names automatically become clickable
+  radioactive links. Matching ignores Unicode capitalization and
+  recognizes English plural and inflectional variants. Mathematical
+  possessives and classical eponym adjectives are equivalent: for example,
+  <with|font-family|tt|Euler>, <with|font-family|tt|Euler's>, and
+  <with|font-family|tt|Eulerian> share one lexical form. The matcher uses one
+  immutable in-memory index for the active vault; it does not query SQLite or
+  scan documents for each rendered text node. Several artifacts may share a
+  name while retaining distinct UUIDs. Following such a radioactive link
+  opens a vault-font disambiguation page that lists the matching definitions,
+  their types, source files, and exact artifact links.
+
   Artifact Definition Span Delegation moves only that model decision to an
   authenticated ATHENA backend. Candidate paragraphs are deduplicated and
   submitted to an asynchronous FIFO queue; the backend combines work into

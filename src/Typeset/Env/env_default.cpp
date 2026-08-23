@@ -84,6 +84,7 @@ initialize_default_env () {
   env (BG_COLOR)         = "white";     // the background color
   env (LOCUS_COLOR)      = "global";    // the color of loci
   env (VISITED_COLOR)    = "global";    // the color of visited loci
+  env (RADIOACTIVE_LINK_COLOR)= "global"; // automatic artifact links
   env (NO_PATTERNS)      = "false";     // disable background patterns
   env (LANGUAGE)         = "english";   // the language
   env (SPACING_POLICY)   = "default";   // the spacing policy

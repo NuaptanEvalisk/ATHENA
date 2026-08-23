@@ -8,6 +8,8 @@
 
 #include "ATHENA/Data/artifacts.hpp"
 
+#include "ATHENA/Data/artifact_identity.hpp"
+#include "ATHENA/Data/artifact_radioactive_links.hpp"
 #include "ATHENA/Data/artifact_range_llm.hpp"
 #include "ATHENA/Data/new_buffer.hpp"
 #include "ATHENA/Data/vault.hpp"
@@ -23,6 +25,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QCryptographicHash>
 
 #include <algorithm>
 #include <atomic>
@@ -105,6 +108,34 @@ bool prepare (sqlite3* db, const char* sql, Statement& out,
   return false;
 }
 
+std::string column_text (sqlite3_stmt* st, int column);
+
+bool table_has_column (sqlite3* db, const std::string& schema,
+                       const std::string& table, const std::string& column,
+                       bool& found, std::string& error) {
+  Statement statement;
+  std::string sql= "PRAGMA " + schema + ".table_info(" + table + ");";
+  if (!prepare (db, sql.c_str (), statement, error)) return false;
+  found= false;
+  while (sqlite3_step (statement.st) == SQLITE_ROW)
+    if (column_text (statement.st, 1) == column) {
+      found= true;
+      break;
+    }
+  return true;
+}
+
+bool ensure_column (sqlite3* db, const std::string& schema,
+                    const std::string& table, const std::string& column,
+                    const std::string& declaration, std::string& error) {
+  bool found= false;
+  if (!table_has_column (db, schema, table, column, found, error)) return false;
+  if (found) return true;
+  return exec_sql (db, "ALTER TABLE " + schema + "." + table +
+                         " ADD COLUMN " + column + " " + declaration + ";",
+                   error);
+}
+
 bool bind_text (sqlite3_stmt* st, int index, const std::string& value) {
   return sqlite3_bind_text (st, index, value.data (), (int) value.size (),
                             SQLITE_TRANSIENT) == SQLITE_OK;
@@ -171,23 +202,53 @@ bool open_databases (const fs::path& root, SqliteDb& holder,
     "CREATE TABLE IF NOT EXISTS enunciations.entries("
     " uuid TEXT PRIMARY KEY,path TEXT NOT NULL,anchor_stem TEXT NOT NULL,"
     " tag TEXT NOT NULL,display_text TEXT NOT NULL,document_order INTEGER NOT NULL,"
+    " identity_focus TEXT NOT NULL DEFAULT '',"
+    " identity_host TEXT NOT NULL DEFAULT '',"
+    " identity_before TEXT NOT NULL DEFAULT '',"
+    " identity_after TEXT NOT NULL DEFAULT '',"
     " UNIQUE(path,anchor_stem,document_order));"
     "CREATE INDEX IF NOT EXISTS enunciations.entries_path_idx ON entries(path);"
     "CREATE TABLE IF NOT EXISTS bold_text.entries("
     " uuid TEXT PRIMARY KEY,path TEXT NOT NULL,keyword_tree TEXT NOT NULL,"
     " keyword_display TEXT NOT NULL,occurrence INTEGER NOT NULL,"
     " paragraph_offsets TEXT NOT NULL,document_order INTEGER NOT NULL,"
+    " identity_focus TEXT NOT NULL DEFAULT '',"
+    " identity_host TEXT NOT NULL DEFAULT '',"
+    " identity_before TEXT NOT NULL DEFAULT '',"
+    " identity_after TEXT NOT NULL DEFAULT '',"
     " UNIQUE(path,keyword_tree,occurrence));"
     "CREATE INDEX IF NOT EXISTS bold_text.entries_path_idx ON entries(path);"
     "CREATE TABLE IF NOT EXISTS artifacts("
     " uuid TEXT PRIMARY KEY,type TEXT NOT NULL,origin TEXT NOT NULL,"
     " content_uuid TEXT NOT NULL,proof_uuid TEXT,path TEXT NOT NULL,"
     " anchor_stem TEXT NOT NULL,display_text TEXT NOT NULL,"
-    " document_order INTEGER NOT NULL,"
+    " document_order INTEGER NOT NULL,identity_decision TEXT NOT NULL DEFAULT 'new',"
+    " identity_evidence TEXT NOT NULL DEFAULT '',"
     " UNIQUE(origin,content_uuid));"
     "CREATE INDEX IF NOT EXISTS artifacts_path_idx ON artifacts(path);"
-    "CREATE INDEX IF NOT EXISTS artifacts_search_idx ON artifacts(display_text);";
-  return exec_sql (holder.db, schema, error);
+    "CREATE INDEX IF NOT EXISTS artifacts_search_idx ON artifacts(display_text);"
+    "CREATE TABLE IF NOT EXISTS artifact_identity_history("
+    " sequence INTEGER PRIMARY KEY AUTOINCREMENT,path TEXT NOT NULL,"
+    " origin TEXT NOT NULL,old_content_uuid TEXT,new_content_uuid TEXT,"
+    " document_order INTEGER NOT NULL,decision TEXT NOT NULL,evidence TEXT NOT NULL,"
+    " score INTEGER NOT NULL,old_margin INTEGER NOT NULL,new_margin INTEGER NOT NULL,"
+    " global_delta INTEGER NOT NULL,created_at INTEGER NOT NULL);"
+    "CREATE INDEX IF NOT EXISTS artifact_identity_history_path_idx "
+    "ON artifact_identity_history(path,sequence);";
+  if (!exec_sql (holder.db, schema, error)) return false;
+  for (const std::string& attached: {"enunciations", "bold_text"})
+    for (const std::string& column:
+         {"identity_focus", "identity_host", "identity_before",
+          "identity_after"})
+      if (!ensure_column (holder.db, attached, "entries", column,
+                          "TEXT NOT NULL DEFAULT ''", error))
+        return false;
+  if (!ensure_column (holder.db, "main", "artifacts", "identity_decision",
+                      "TEXT NOT NULL DEFAULT 'new'", error) ||
+      !ensure_column (holder.db, "main", "artifacts", "identity_evidence",
+                      "TEXT NOT NULL DEFAULT ''", error))
+    return false;
+  return true;
 }
 
 std::string collapse_spaces (const std::string& value) {
@@ -346,6 +407,7 @@ struct Paragraph {
   int segment= 0;
   int first_child= -1;
   int last_child= -1;
+  std::string fingerprint;
 };
 
 void find_bold (const tree& t, std::vector<tree>& found) {
@@ -362,6 +424,30 @@ void find_bold (const tree& t, std::vector<tree>& found) {
 struct ExtractedDocument {
   std::vector<AthenaArtifactRecord> records;
 };
+
+std::string serialized_tree (const tree& value) {
+  return to_std (tree_to_texmacs (value));
+}
+
+std::string identity_fingerprint (const std::string& serialized) {
+  QByteArray bytes (serialized.data (), (qsizetype) serialized.size ());
+  QByteArray digest= QCryptographicHash::hash (
+    bytes, QCryptographicHash::Sha256).toHex ();
+  return "sha256:" + std::string (digest.constData (),
+                                   (size_t) digest.size ());
+}
+
+std::string identity_fingerprint (const tree& value) {
+  return identity_fingerprint (serialized_tree (value));
+}
+
+std::string identity_neighbor (const tree& parent, int start, int step) {
+  for (int i=start; i>=0 && i<N(parent); i += step) {
+    if (ignorable (parent[i]) || tag_name (parent[i]) == "label") continue;
+    return identity_fingerprint (parent[i]);
+  }
+  return "";
+}
 
 void scan_enunciations (const tree& parent, const std::string& rel,
                         std::vector<AthenaArtifactRecord>& out, int& order) {
@@ -393,6 +479,9 @@ void scan_enunciations (const tree& parent, const std::string& rel,
       if (record.display_text.size () > 300)
         record.display_text.resize (300);
       record.keyword_tree= base;
+      record.identity_focus= identity_fingerprint (child);
+      record.identity_before= identity_neighbor (parent, i - 1, -1);
+      record.identity_after= identity_neighbor (parent, i + 1, 1);
       record.document_order= order++;
       if (type == "provable") {
         for (int j=i+1; j<N(parent); j++) {
@@ -431,7 +520,7 @@ void collect_paragraphs (const tree& body, std::vector<Paragraph>& paragraphs) {
       paragraphs.back ().last_child= i;
       continue;
     }
-    paragraphs.push_back ({child, segment, i, i});
+    paragraphs.push_back ({child, segment, i, i, ""});
   }
 }
 
@@ -466,6 +555,8 @@ bool extract (const tree& document, const std::string& rel,
 
   std::vector<Paragraph> paragraphs;
   collect_paragraphs (body, paragraphs);
+  for (Paragraph& paragraph: paragraphs)
+    paragraph.fingerprint= identity_fingerprint (paragraph.value);
   std::unordered_map<std::string,int> occurrences;
   for (size_t paragraph_index=0; paragraph_index<paragraphs.size ();
        paragraph_index++) {
@@ -494,6 +585,16 @@ bool extract (const tree& document, const std::string& rel,
       record.keyword_occurrence= occurrence;
       record.definition_candidates= candidates;
       record.paragraph_offsets= {0};
+      record.identity_focus= identity_fingerprint (serialized);
+      record.identity_host= paragraphs[paragraph_index].fingerprint;
+      if (paragraph_index > 0 &&
+          paragraphs[paragraph_index - 1].segment ==
+            paragraphs[paragraph_index].segment)
+        record.identity_before= paragraphs[paragraph_index - 1].fingerprint;
+      if (paragraph_index + 1 < paragraphs.size () &&
+          paragraphs[paragraph_index + 1].segment ==
+            paragraphs[paragraph_index].segment)
+        record.identity_after= paragraphs[paragraph_index + 1].fingerprint;
       record.document_order= order++;
       extracted.records.push_back (record);
     }
@@ -512,6 +613,10 @@ QJsonObject record_json (const AthenaArtifactRecord& record) {
   object["keyword"]= qstr (record.keyword_tree);
   object["occurrence"]= record.keyword_occurrence;
   object["order"]= record.document_order;
+  object["identity_focus"]= qstr (record.identity_focus);
+  object["identity_host"]= qstr (record.identity_host);
+  object["identity_before"]= qstr (record.identity_before);
+  object["identity_after"]= qstr (record.identity_after);
   object["keyword_latex"]= qstr (record.keyword_latex);
   QJsonArray candidates;
   for (const auto& candidate: record.definition_candidates) {
@@ -539,6 +644,10 @@ AthenaArtifactRecord record_from_json (const QJsonObject& object) {
   record.keyword_tree= s ("keyword");
   record.keyword_occurrence= object.value ("occurrence").toInt ();
   record.document_order= object.value ("order").toInt ();
+  record.identity_focus= s ("identity_focus");
+  record.identity_host= s ("identity_host");
+  record.identity_before= s ("identity_before");
+  record.identity_after= s ("identity_after");
   record.keyword_latex= s ("keyword_latex");
   for (const QJsonValue& value: object.value ("candidates").toArray ()) {
     QJsonObject item= value.toObject ();
@@ -887,25 +996,125 @@ std::map<std::string,std::string> existing_ids (
   Statement st;
   if (!prepare (db, sql, st, error)) return out;
   bind_text (st.st, 1, path);
-  while (sqlite3_step (st.st) == SQLITE_ROW)
+  int rc;
+  while ((rc= sqlite3_step (st.st)) == SQLITE_ROW)
     out[column_text (st.st, 0)]= column_text (st.st, 1);
+  if (rc != SQLITE_DONE) error= sqlite3_errmsg (db);
   return out;
+}
+
+bool load_identity_observations (
+  sqlite3* db, const std::string& path,
+  std::vector<AthenaArtifactIdentityObservation>& observations,
+  std::string& error) {
+  Statement enunciations;
+  if (!prepare (
+        db,
+        "SELECT uuid,tag,anchor_stem,display_text,document_order,"
+        "identity_focus,identity_host,identity_before,identity_after "
+        "FROM enunciations.entries WHERE path=?1 ORDER BY document_order;",
+        enunciations, error))
+    return false;
+  bind_text (enunciations.st, 1, path);
+  int rc;
+  while ((rc= sqlite3_step (enunciations.st)) == SQLITE_ROW) {
+    AthenaArtifactIdentityObservation observation;
+    observation.uuid= column_text (enunciations.st, 0);
+    std::string base;
+    observation.type= enunciation_type (column_text (enunciations.st, 1), base);
+    observation.origin= "enunciation";
+    observation.anchor= column_text (enunciations.st, 2);
+    observation.display= column_text (enunciations.st, 3);
+    observation.document_order= sqlite3_column_int (enunciations.st, 4);
+    observation.focus= column_text (enunciations.st, 5);
+    observation.host= column_text (enunciations.st, 6);
+    observation.before= column_text (enunciations.st, 7);
+    observation.after= column_text (enunciations.st, 8);
+    observations.push_back (std::move (observation));
+  }
+  if (rc != SQLITE_DONE) {
+    error= sqlite3_errmsg (db);
+    return false;
+  }
+
+  Statement bold;
+  if (!prepare (
+        db,
+        "SELECT uuid,keyword_tree,keyword_display,document_order,"
+        "identity_focus,identity_host,identity_before,identity_after "
+        "FROM bold_text.entries WHERE path=?1 ORDER BY document_order;",
+        bold, error))
+    return false;
+  bind_text (bold.st, 1, path);
+  while ((rc= sqlite3_step (bold.st)) == SQLITE_ROW) {
+    AthenaArtifactIdentityObservation observation;
+    observation.uuid= column_text (bold.st, 0);
+    observation.origin= "bold-text";
+    observation.type= "definition";
+    std::string keyword= column_text (bold.st, 1);
+    observation.display= column_text (bold.st, 2);
+    observation.document_order= sqlite3_column_int (bold.st, 3);
+    observation.focus= column_text (bold.st, 4);
+    if (observation.focus.empty ())
+      observation.focus= identity_fingerprint (keyword);
+    observation.host= column_text (bold.st, 5);
+    observation.before= column_text (bold.st, 6);
+    observation.after= column_text (bold.st, 7);
+    observations.push_back (std::move (observation));
+  }
+  if (rc != SQLITE_DONE) {
+    error= sqlite3_errmsg (db);
+    return false;
+  }
+  return true;
+}
+
+AthenaArtifactIdentityObservation identity_observation (
+  const AthenaArtifactRecord& record) {
+  AthenaArtifactIdentityObservation observation;
+  observation.origin= record.origin;
+  observation.type= record.type;
+  observation.anchor= record.anchor_stem;
+  observation.focus= record.identity_focus;
+  observation.host= record.identity_host;
+  observation.before= record.identity_before;
+  observation.after= record.identity_after;
+  observation.display= record.display_text;
+  observation.document_order= record.document_order;
+  return observation;
 }
 
 bool replace_document (sqlite3* db, const std::string& rel,
                        ExtractedDocument& extracted, long long modified,
                        long long size, std::string& error) {
-  auto enunciation_ids= existing_ids (
-    db, "SELECT CASE WHEN anchor_stem='' THEN '#order:'||document_order "
-        "ELSE anchor_stem END,uuid FROM "
-        "enunciations.entries WHERE path=?1;", rel, error);
-  auto bold_ids= existing_ids (
-    db, "SELECT keyword_tree||char(31)||occurrence,uuid FROM bold_text.entries "
-        "WHERE path=?1;", rel, error);
+  std::vector<AthenaArtifactIdentityObservation> old_observations;
+  if (!load_identity_observations (db, rel, old_observations, error))
+    return false;
+  std::vector<AthenaArtifactIdentityObservation> new_observations;
+  new_observations.reserve (extracted.records.size ());
+  for (const AthenaArtifactRecord& record: extracted.records)
+    new_observations.push_back (identity_observation (record));
+  AthenaArtifactIdentityResult identity=
+    athena_artifact_associate_identities (old_observations, new_observations);
+
   auto artifact_ids= existing_ids (
     db, "SELECT origin||char(31)||content_uuid,uuid FROM artifacts WHERE path=?1;",
     rel, error);
   if (!error.empty ()) return false;
+
+  for (size_t i=0; i<extracted.records.size (); i++) {
+    AthenaArtifactRecord& record= extracted.records[i];
+    const AthenaArtifactIdentityDecision& decision= identity.decisions[i];
+    if (decision.kind == AthenaArtifactIdentityDecisionKind::Matched &&
+        decision.old_index >= 0)
+      record.content_uuid=
+        old_observations[(size_t) decision.old_index].uuid;
+    else
+      record.content_uuid= generate_uuid_v4 ();
+    record.identity_decision=
+      athena_artifact_identity_decision_name (decision.kind);
+    record.identity_evidence= decision.evidence;
+  }
 
   Statement del_artifacts, del_enunciations, del_bold;
   if (!prepare (db, "DELETE FROM artifacts WHERE path=?1;", del_artifacts, error) ||
@@ -923,25 +1132,22 @@ bool replace_document (sqlite3* db, const std::string& rel,
   Statement insert_enun, insert_bold, insert_artifact;
   if (!prepare (db,
       "INSERT INTO enunciations.entries(uuid,path,anchor_stem,tag,display_text,"
-      "document_order) VALUES(?1,?2,?3,?4,?5,?6);", insert_enun, error) ||
+      "document_order,identity_focus,identity_host,identity_before,identity_after) "
+      "VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10);", insert_enun, error) ||
       !prepare (db,
       "INSERT INTO bold_text.entries(uuid,path,keyword_tree,keyword_display,"
-      "occurrence,paragraph_offsets,document_order) "
-      "VALUES(?1,?2,?3,?4,?5,?6,?7);", insert_bold, error) ||
+      "occurrence,paragraph_offsets,document_order,identity_focus,identity_host,"
+      "identity_before,identity_after) "
+      "VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11);", insert_bold, error) ||
       !prepare (db,
       "INSERT INTO artifacts(uuid,type,origin,content_uuid,proof_uuid,path,"
-      "anchor_stem,display_text,document_order) "
-      "VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9);", insert_artifact, error))
+      "anchor_stem,display_text,document_order,identity_decision,identity_evidence) "
+      "VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11);", insert_artifact, error))
     return false;
 
   std::map<int,std::string> enunciation_order_ids;
   for (AthenaArtifactRecord& record: extracted.records) {
     if (record.origin == "enunciation") {
-      std::string key= record.anchor_stem.empty ()
-                        ? "#order:" + std::to_string (record.document_order)
-                        : record.anchor_stem;
-      record.content_uuid= enunciation_ids.count (key) ? enunciation_ids[key]
-                                                       : generate_uuid_v4 ();
       sqlite3_reset (insert_enun.st); sqlite3_clear_bindings (insert_enun.st);
       bind_text (insert_enun.st, 1, record.content_uuid);
       bind_text (insert_enun.st, 2, rel);
@@ -949,16 +1155,16 @@ bool replace_document (sqlite3* db, const std::string& rel,
       bind_text (insert_enun.st, 4, record.keyword_tree);
       bind_text (insert_enun.st, 5, record.display_text);
       sqlite3_bind_int (insert_enun.st, 6, record.document_order);
+      bind_text (insert_enun.st, 7, record.identity_focus);
+      bind_text (insert_enun.st, 8, record.identity_host);
+      bind_text (insert_enun.st, 9, record.identity_before);
+      bind_text (insert_enun.st, 10, record.identity_after);
       if (sqlite3_step (insert_enun.st) != SQLITE_DONE) {
         error= sqlite3_errmsg (db); return false;
       }
       enunciation_order_ids[record.document_order]= record.content_uuid;
     }
     else {
-      std::string key= record.keyword_tree + char (31) +
-                       std::to_string (record.keyword_occurrence);
-      record.content_uuid= bold_ids.count (key) ? bold_ids[key]
-                                                : generate_uuid_v4 ();
       sqlite3_reset (insert_bold.st); sqlite3_clear_bindings (insert_bold.st);
       bind_text (insert_bold.st, 1, record.content_uuid);
       bind_text (insert_bold.st, 2, rel);
@@ -967,6 +1173,10 @@ bool replace_document (sqlite3* db, const std::string& rel,
       sqlite3_bind_int (insert_bold.st, 5, record.keyword_occurrence);
       bind_text (insert_bold.st, 6, offsets_text (record.paragraph_offsets));
       sqlite3_bind_int (insert_bold.st, 7, record.document_order);
+      bind_text (insert_bold.st, 8, record.identity_focus);
+      bind_text (insert_bold.st, 9, record.identity_host);
+      bind_text (insert_bold.st, 10, record.identity_before);
+      bind_text (insert_bold.st, 11, record.identity_after);
       if (sqlite3_step (insert_bold.st) != SQLITE_DONE) {
         error= sqlite3_errmsg (db); return false;
       }
@@ -993,8 +1203,67 @@ bool replace_document (sqlite3* db, const std::string& rel,
     bind_text (insert_artifact.st, 7, record.anchor_stem);
     bind_text (insert_artifact.st, 8, record.display_text);
     sqlite3_bind_int (insert_artifact.st, 9, record.document_order);
+    bind_text (insert_artifact.st, 10, record.identity_decision);
+    bind_text (insert_artifact.st, 11, record.identity_evidence);
     if (sqlite3_step (insert_artifact.st) != SQLITE_DONE) {
       error= sqlite3_errmsg (db); return false;
+    }
+  }
+
+  Statement history;
+  if (!prepare (
+        db,
+        "INSERT INTO artifact_identity_history("
+        "path,origin,old_content_uuid,new_content_uuid,document_order,decision,"
+        "evidence,score,old_margin,new_margin,global_delta,created_at) "
+        "VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12);",
+        history, error))
+    return false;
+  long long created_at= (long long) std::chrono::duration_cast<std::chrono::seconds> (
+    std::chrono::system_clock::now ().time_since_epoch ()).count ();
+  for (size_t i=0; i<extracted.records.size (); i++) {
+    const AthenaArtifactRecord& record= extracted.records[i];
+    const AthenaArtifactIdentityDecision& decision= identity.decisions[i];
+    sqlite3_reset (history.st);
+    sqlite3_clear_bindings (history.st);
+    bind_text (history.st, 1, rel);
+    bind_text (history.st, 2, record.origin);
+    if (decision.old_index >= 0)
+      bind_text (history.st, 3,
+                 old_observations[(size_t) decision.old_index].uuid);
+    else
+      sqlite3_bind_null (history.st, 3);
+    bind_text (history.st, 4, record.content_uuid);
+    sqlite3_bind_int (history.st, 5, record.document_order);
+    bind_text (history.st, 6, record.identity_decision);
+    bind_text (history.st, 7, record.identity_evidence);
+    sqlite3_bind_int64 (history.st, 8, decision.score);
+    sqlite3_bind_int64 (history.st, 9, decision.old_margin);
+    sqlite3_bind_int64 (history.st, 10, decision.new_margin);
+    sqlite3_bind_int64 (history.st, 11, decision.global_delta);
+    sqlite3_bind_int64 (history.st, 12, created_at);
+    if (sqlite3_step (history.st) != SQLITE_DONE) {
+      error= sqlite3_errmsg (db);
+      return false;
+    }
+  }
+  for (int old_index: identity.deleted_old_indices) {
+    const AthenaArtifactIdentityObservation& old_value=
+      old_observations[(size_t) old_index];
+    sqlite3_reset (history.st);
+    sqlite3_clear_bindings (history.st);
+    bind_text (history.st, 1, rel);
+    bind_text (history.st, 2, old_value.origin);
+    bind_text (history.st, 3, old_value.uuid);
+    sqlite3_bind_null (history.st, 4);
+    sqlite3_bind_int (history.st, 5, old_value.document_order);
+    bind_text (history.st, 6, "deleted");
+    bind_text (history.st, 7, "no-accepted-successor");
+    for (int column= 8; column<=11; column++) sqlite3_bind_int (history.st, column, 0);
+    sqlite3_bind_int64 (history.st, 12, created_at);
+    if (sqlite3_step (history.st) != SQLITE_DONE) {
+      error= sqlite3_errmsg (db);
+      return false;
     }
   }
 
@@ -1014,6 +1283,33 @@ bool replace_document (sqlite3* db, const std::string& rel,
 
 bool delete_document (sqlite3* db, const std::string& rel,
                       std::string& error) {
+  std::vector<AthenaArtifactIdentityObservation> observations;
+  if (!load_identity_observations (db, rel, observations, error)) return false;
+  Statement history;
+  if (!prepare (
+        db,
+        "INSERT INTO artifact_identity_history("
+        "path,origin,old_content_uuid,new_content_uuid,document_order,decision,"
+        "evidence,score,old_margin,new_margin,global_delta,created_at) "
+        "VALUES(?1,?2,?3,NULL,?4,'deleted','source-document-removed',0,0,0,0,?5);",
+        history, error))
+    return false;
+  long long created_at= (long long) std::chrono::duration_cast<
+    std::chrono::seconds> (
+      std::chrono::system_clock::now ().time_since_epoch ()).count ();
+  for (const AthenaArtifactIdentityObservation& observation: observations) {
+    sqlite3_reset (history.st);
+    sqlite3_clear_bindings (history.st);
+    bind_text (history.st, 1, rel);
+    bind_text (history.st, 2, observation.origin);
+    bind_text (history.st, 3, observation.uuid);
+    sqlite3_bind_int (history.st, 4, observation.document_order);
+    sqlite3_bind_int64 (history.st, 5, created_at);
+    if (sqlite3_step (history.st) != SQLITE_DONE) {
+      error= sqlite3_errmsg (db);
+      return false;
+    }
+  }
   for (const char* sql: {
       "DELETE FROM artifacts WHERE path=?1;",
       "DELETE FROM enunciations.entries WHERE path=?1;",
@@ -1290,6 +1586,8 @@ athena_artifacts_build (
   }
   if (!exec_sql (holder.db, "COMMIT;", error)) { rollback (); return false; }
   committed= true;
+  if (!work.empty () || !deleted.empty ())
+    athena_artifact_radioactive_invalidate ();
   report_progress (progress, AthenaArtifactsBuildPhase::Complete, 1, 1);
   artifact_log ("build complete: " + std::to_string (result.artifacts) +
                 " artifact(s), " + std::to_string (result.enunciations) +
@@ -1326,6 +1624,153 @@ athena_artifacts_build_active_vault (
 }
 
 bool
+athena_artifacts_apply_path_rename (
+  const fs::path& vault_root, const std::string& old_path,
+  const std::string& new_path, bool is_directory, std::string& error) {
+  if (old_path.empty () || new_path.empty () || old_path == new_path) {
+    error= "Invalid artifact path rename";
+    return false;
+  }
+  fs::path root= normalize_root (vault_root);
+  AthenaVaultfileInfo configured;
+  if (!athena_vaultfile_read (root, configured, error)) return false;
+  if (!fs::exists (root / configured.artifacts_path)) return true;
+
+  SqliteDb holder;
+  AthenaVaultfileInfo info;
+  if (!open_databases (root, holder, info, error)) return false;
+  if (!exec_sql (holder.db, "BEGIN IMMEDIATE;", error)) return false;
+  bool committed= false;
+  auto rollback= [&] () {
+    if (!committed) {
+      std::string ignored;
+      exec_sql (holder.db, "ROLLBACK;", ignored);
+    }
+  };
+
+  auto is_affected= [&] (const std::string& path) {
+    if (path == old_path) return true;
+    return is_directory && path.size () > old_path.size () &&
+           path.compare (0, old_path.size (), old_path) == 0 &&
+           path[old_path.size ()] == '/';
+  };
+  auto renamed= [&] (const std::string& path) {
+    return new_path + path.substr (old_path.size ());
+  };
+  auto rewrite_table= [&] (const char* table) {
+    Statement query;
+    std::string select= std::string ("SELECT DISTINCT path FROM ") + table +
+                        " ORDER BY path;";
+    if (!prepare (holder.db, select.c_str (), query, error)) return false;
+    std::vector<std::pair<std::string,std::string>> changes;
+    int status= SQLITE_ROW;
+    while ((status= sqlite3_step (query.st)) == SQLITE_ROW) {
+      std::string path= column_text (query.st, 0);
+      if (is_affected (path)) changes.emplace_back (path, renamed (path));
+    }
+    if (status != SQLITE_DONE) {
+      error= sqlite3_errmsg (holder.db);
+      return false;
+    }
+    if (changes.empty ()) return true;
+
+    Statement remove_destination;
+    Statement update_source;
+    std::string remove_sql= std::string ("DELETE FROM ") + table +
+                            " WHERE path=?1;";
+    std::string update_sql= std::string ("UPDATE ") + table +
+                            " SET path=?1 WHERE path=?2;";
+    if (!prepare (holder.db, remove_sql.c_str (), remove_destination, error) ||
+        !prepare (holder.db, update_sql.c_str (), update_source, error))
+      return false;
+    // The filesystem destination did not exist when safe rename was planned.
+    // Rows already carrying a destination path are therefore stale snapshots.
+    for (const auto& change: changes) {
+      sqlite3_reset (remove_destination.st);
+      sqlite3_clear_bindings (remove_destination.st);
+      bind_text (remove_destination.st, 1, change.second);
+      if (sqlite3_step (remove_destination.st) != SQLITE_DONE) {
+        error= sqlite3_errmsg (holder.db);
+        return false;
+      }
+    }
+    for (const auto& change: changes) {
+      sqlite3_reset (update_source.st);
+      sqlite3_clear_bindings (update_source.st);
+      bind_text (update_source.st, 1, change.second);
+      bind_text (update_source.st, 2, change.first);
+      if (sqlite3_step (update_source.st) != SQLITE_DONE) {
+        error= sqlite3_errmsg (holder.db);
+        return false;
+      }
+    }
+    return true;
+  };
+
+  for (const char* table:
+       {"documents", "artifacts", "enunciations.entries",
+        "bold_text.entries"})
+    if (!rewrite_table (table)) {
+      rollback ();
+      return false;
+    }
+  if (!exec_sql (holder.db, "COMMIT;", error)) {
+    rollback ();
+    return false;
+  }
+  committed= true;
+  athena_artifact_radioactive_invalidate ();
+  return true;
+}
+
+namespace {
+
+const char* artifact_select_columns () {
+  return
+    "SELECT a.uuid,a.type,a.origin,a.content_uuid,COALESCE(a.proof_uuid,''),"
+    "a.path,a.anchor_stem,a.display_text,a.document_order,"
+    "COALESCE(b.keyword_tree,''),COALESCE(b.occurrence,0),"
+    "COALESCE(b.paragraph_offsets,''),"
+    "CASE WHEN a.origin='bold-text' THEN COALESCE(b.identity_focus,'') "
+    "ELSE COALESCE(e.identity_focus,'') END,"
+    "CASE WHEN a.origin='bold-text' THEN COALESCE(b.identity_host,'') "
+    "ELSE COALESCE(e.identity_host,'') END,"
+    "CASE WHEN a.origin='bold-text' THEN COALESCE(b.identity_before,'') "
+    "ELSE COALESCE(e.identity_before,'') END,"
+    "CASE WHEN a.origin='bold-text' THEN COALESCE(b.identity_after,'') "
+    "ELSE COALESCE(e.identity_after,'') END,"
+    "a.identity_decision,a.identity_evidence FROM artifacts a "
+    "LEFT JOIN bold_text.entries b ON a.origin='bold-text' AND "
+    "b.uuid=a.content_uuid LEFT JOIN enunciations.entries e ON "
+    "a.origin='enunciation' AND e.uuid=a.content_uuid ";
+}
+
+AthenaArtifactRecord artifact_record_from_statement (sqlite3_stmt* statement) {
+  AthenaArtifactRecord record;
+  record.uuid= column_text (statement, 0);
+  record.type= column_text (statement, 1);
+  record.origin= column_text (statement, 2);
+  record.content_uuid= column_text (statement, 3);
+  record.proof_uuid= column_text (statement, 4);
+  record.relative_path= column_text (statement, 5);
+  record.anchor_stem= column_text (statement, 6);
+  record.display_text= column_text (statement, 7);
+  record.document_order= sqlite3_column_int (statement, 8);
+  record.keyword_tree= column_text (statement, 9);
+  record.keyword_occurrence= sqlite3_column_int (statement, 10);
+  record.paragraph_offsets= parse_offsets (column_text (statement, 11));
+  record.identity_focus= column_text (statement, 12);
+  record.identity_host= column_text (statement, 13);
+  record.identity_before= column_text (statement, 14);
+  record.identity_after= column_text (statement, 15);
+  record.identity_decision= column_text (statement, 16);
+  record.identity_evidence= column_text (statement, 17);
+  return record;
+}
+
+} // namespace
+
+bool
 athena_artifacts_query (const fs::path& vault_root,
                         std::vector<AthenaArtifactRecord>& records,
                         std::string& error) {
@@ -1334,29 +1779,42 @@ athena_artifacts_query (const fs::path& vault_root,
   AthenaVaultfileInfo info;
   if (!open_databases (vault_root, holder, info, error)) return false;
   Statement st;
-  if (!prepare (holder.db,
-      "SELECT a.uuid,a.type,a.origin,a.content_uuid,COALESCE(a.proof_uuid,''),"
-      "a.path,a.anchor_stem,a.display_text,a.document_order,"
-      "COALESCE(b.keyword_tree,''),COALESCE(b.occurrence,0),"
-      "COALESCE(b.paragraph_offsets,'') FROM artifacts a "
-      "LEFT JOIN bold_text.entries b ON a.origin='bold-text' AND "
-      "b.uuid=a.content_uuid ORDER BY a.path,a.document_order;", st, error))
+  std::string sql= std::string (artifact_select_columns ()) +
+                   "ORDER BY a.path,a.document_order;";
+  if (!prepare (holder.db, sql.c_str (), st, error))
     return false;
-  while (sqlite3_step (st.st) == SQLITE_ROW) {
-    AthenaArtifactRecord record;
-    record.uuid= column_text (st.st, 0);
-    record.type= column_text (st.st, 1);
-    record.origin= column_text (st.st, 2);
-    record.content_uuid= column_text (st.st, 3);
-    record.proof_uuid= column_text (st.st, 4);
-    record.relative_path= column_text (st.st, 5);
-    record.anchor_stem= column_text (st.st, 6);
-    record.display_text= column_text (st.st, 7);
-    record.document_order= sqlite3_column_int (st.st, 8);
-    record.keyword_tree= column_text (st.st, 9);
-    record.keyword_occurrence= sqlite3_column_int (st.st, 10);
-    record.paragraph_offsets= parse_offsets (column_text (st.st, 11));
-    records.push_back (record);
+  int rc;
+  while ((rc= sqlite3_step (st.st)) == SQLITE_ROW)
+    records.push_back (artifact_record_from_statement (st.st));
+  if (rc != SQLITE_DONE) {
+    error= sqlite3_errmsg (holder.db);
+    return false;
   }
+  return true;
+}
+
+bool
+athena_artifact_query_uuid (const fs::path& vault_root,
+                            const std::string& uuid,
+                            AthenaArtifactRecord& record, bool& found,
+                            std::string& error) {
+  found= false;
+  SqliteDb holder;
+  AthenaVaultfileInfo info;
+  if (!open_databases (vault_root, holder, info, error)) return false;
+  Statement st;
+  std::string sql= std::string (artifact_select_columns ()) +
+                   "WHERE a.uuid=?1;";
+  if (!prepare (holder.db, sql.c_str (), st, error))
+    return false;
+  bind_text (st.st, 1, uuid);
+  int rc= sqlite3_step (st.st);
+  if (rc == SQLITE_DONE) return true;
+  if (rc != SQLITE_ROW) {
+    error= sqlite3_errmsg (holder.db);
+    return false;
+  }
+  record= artifact_record_from_statement (st.st);
+  found= true;
   return true;
 }

@@ -9,6 +9,7 @@
         (generic document-edit)
         (fonts font-new-widgets)
         (link ref-edit)
+        (link link-navigate)
         (athena athena tm-vault-bugcheck)
         (athena athena tm-vault-images)
         (athena athena tm-vault-anchors)
@@ -27,12 +28,26 @@
   (if (!= anchor "")
       (delayed (:idle 100) (go-to-label anchor))))
 
+(tm-define (artifact-jump-to-source path anchor-stem)
+  (load-buffer path)
+  (when (!= anchor-stem "")
+    (delayed (:idle 100)
+      (let* ((candidates (list anchor-stem
+                               (string-append anchor-stem " {")
+                               (string-append anchor-stem "{")
+                               (string-append anchor-stem " }")
+                               (string-append anchor-stem "}")))
+             (anchor (list-find candidates
+                                (lambda (candidate)
+                                  (nnull? (label->path candidate))))))
+        (when anchor (go-to-label anchor))))))
+
 (tm-define (ext-get-preference key def)
   (let ((val (get-preference key)))
     (if (string-null? val) def val)))
 
 (define-secure-symbols wikilink-repair-apply vault-transclude-repair
-                       vault-jump-to-source
+                       vault-jump-to-source artifact-jump-to-source
                        load-buffer load-vault-dir
                        string->url vault-load-latest-action
                        vault-validate-root-namespace
@@ -961,6 +976,52 @@
 
 (tmfs-load-handler (wikilink name)
   (wikilink-handler-sub name))
+
+(tmfs-load-handler (artifact name)
+  (if (artifact-open-uuid name)
+      `(document
+         (TeXmacs ,(texmacs-compat-version))
+         (style (tuple "generic"))
+         (body (document "Opening artifact...")))
+      `(document
+         (TeXmacs ,(texmacs-compat-version))
+         (style (tuple "generic"))
+         (body (document (bold "Artifact not found: ") ,name)))))
+
+(tmfs-title-handler (artifact name doc)
+  "Artifact")
+
+(tmfs-permission-handler (artifact name kind)
+  (== kind "read"))
+
+(define (artifact-url? u)
+  (when (string? u) (set! u (system->url u)))
+  (url-rooted-tmfs-protocol? u "artifact"))
+
+(define (artifact-url-uuid u)
+  (when (string? u) (set! u (system->url u)))
+  (url->system (url-tail u)))
+
+;; tmfs://artifact/... is a navigation command, not a document.  Dispatch it
+;; before the generic TMFS loader so following an artifact never leaves an
+;; "Opening artifact..." buffer behind.  The C++ locator reuses the current
+;; buffer when it already contains the defining source.
+(tm-define (go-to-url u . opt-from)
+  (:require (artifact-url? u))
+  (when (pair? opt-from) (cursor-history-add (car opt-from)))
+  (if (artifact-open-uuid (artifact-url-uuid u))
+      (when (pair? opt-from)
+        (delayed (:idle 150) (cursor-history-add (cursor-path))))
+      (set-message "Artifact not found in the active vault" "Artifact")))
+
+(tmfs-load-handler (artifact-disambiguation name)
+  (tree->stree (artifact-disambiguation-page name)))
+
+(tmfs-title-handler (artifact-disambiguation name doc)
+  "Artifact disambiguation")
+
+(tmfs-permission-handler (artifact-disambiguation name kind)
+  (== kind "read"))
 
 (define (wikilink-trigger-repair uuid file-hint anchor-hint)
   (display* "Trigger repair for " uuid ", hint: " file-hint "\n")

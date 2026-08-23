@@ -1070,6 +1070,7 @@ init_std_drd () {
   init_var (BG_COLOR, TYPE_COLOR);
   init_var (LOCUS_COLOR, TYPE_COLOR);
   init_var (VISITED_COLOR, TYPE_COLOR);
+  init_var (RADIOACTIVE_LINK_COLOR, TYPE_COLOR);
   init_var (NO_PATTERNS, TYPE_COLOR);
   init_var (LANGUAGE, TYPE_STRING);
   init_var (SPACING_POLICY, TYPE_ADHOC);

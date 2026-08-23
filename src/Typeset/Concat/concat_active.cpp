@@ -229,8 +229,11 @@ concater_rep::typeset_locus (tree t, path ip) {
   bool printed= env->get_string (PAGE_PRINTED) == "true";
   marker (descend (ip, 0));
   tree old= env->local_begin (COLOR, col);
+  tree old_locus_scope=
+    env->local_begin ("athena-inside-locus", "true");
   int pos= N(a);
   typeset (t[last], descend (ip, last));
+  env->local_end ("athena-inside-locus", old_locus_scope);
   bool force_pdf_printed_locus=
     printed &&
     (anchor != "" || ref != "");

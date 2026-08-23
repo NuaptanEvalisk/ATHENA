@@ -29,6 +29,7 @@
 #include "namespaces.hpp"
 #include "ATHENA/Data/vault_backup.hpp"
 #include "ATHENA/Data/vaultfile_json.hpp"
+#include "ATHENA/Data/artifact_document.hpp"
 #include "ATHENA/Data/materials_document.hpp"
 #include "ATHENA/Data/materials_engine.hpp"
 #include "QTMMainTabWindow.hpp"
@@ -2007,6 +2008,20 @@ tmg_document_search_close () {
   return TMSCM_UNSPECIFIED;
 }
 
+tmscm
+tmg_artifact_open_uuid (tmscm arg1) {
+  TMSCM_ASSERT_STRING (arg1, TMSCM_ARG1, "artifact-open-uuid");
+  return bool_to_tmscm (artifacts_open_uuid (tmscm_to_string (arg1)));
+}
+
+tmscm
+tmg_artifact_disambiguation_page (tmscm arg1) {
+  TMSCM_ASSERT_STRING (arg1, TMSCM_ARG1,
+                       "artifact-disambiguation-page");
+  return tree_to_tmscm (
+    athena_artifact_disambiguation_page (tmscm_to_string (arg1)));
+}
+
 void
 initialize_glue () {
   initialize_escape_symbol_picker_data ();
@@ -2097,6 +2112,10 @@ initialize_glue () {
                            artifacts_build_entire_vault, 0, 0, 0);
   tmscm_install_procedure ("artifacts-build-current-document",
                            artifacts_build_current_document, 0, 0, 0);
+  tmscm_install_procedure ("artifact-open-uuid",
+                           tmg_artifact_open_uuid, 1, 0, 0);
+  tmscm_install_procedure ("artifact-disambiguation-page",
+                           tmg_artifact_disambiguation_page, 1, 0, 0);
   tmscm_install_procedure ("materials-manager-show",
                            materials_manager_show, 0, 0, 0);
   tmscm_install_procedure ("material-choose-citation",

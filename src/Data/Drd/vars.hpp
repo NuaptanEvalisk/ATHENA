@@ -60,6 +60,7 @@ extern string OPACITY;
 extern string BG_COLOR;
 extern string LOCUS_COLOR;
 extern string VISITED_COLOR;
+extern string RADIOACTIVE_LINK_COLOR;
 extern string NO_PATTERNS;
 extern string LANGUAGE;
 extern string SPACING_POLICY;

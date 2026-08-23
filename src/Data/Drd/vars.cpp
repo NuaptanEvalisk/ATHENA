@@ -62,6 +62,7 @@ string OPACITY ("opacity");
 string BG_COLOR ("bg-color");
 string LOCUS_COLOR ("locus-color");
 string VISITED_COLOR ("visited-color");
+string RADIOACTIVE_LINK_COLOR ("radioactive-link-color");
 string NO_PATTERNS ("no-patterns");
 string LANGUAGE ("language");
 string SPACING_POLICY ("spacing-policy");

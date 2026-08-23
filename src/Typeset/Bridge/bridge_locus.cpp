@@ -148,7 +148,9 @@ bridge_locus_rep::my_typeset (int desired_status) {
   bool wrap= ((!ok && N(ids) != 0) || force_pdf_printed_locus);
   if (!ok && !wrap) typeset_warning << "Ignored unaccessible loci\n";
   tree old_col= env->read (COLOR);
+  tree old_locus_scope= env->read ("athena-inside-locus");
   env->write_update (COLOR, col);
+  env->write_update ("athena-inside-locus", "true");
   ttt->insert_marker (st, ip);
   if (wrap) {
     array<page_item> l2;
@@ -163,5 +165,6 @@ bridge_locus_rep::my_typeset (int desired_status) {
     ttt->insert_stack (l2, sb2);
   }
   else body->typeset (desired_status);
+  env->write_update ("athena-inside-locus", old_locus_scope);
   env->write_update (COLOR, old_col);
 }

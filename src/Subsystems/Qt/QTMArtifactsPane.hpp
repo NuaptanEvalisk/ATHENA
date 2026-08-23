@@ -40,5 +40,6 @@ private:
 void artifacts_pane_show ();
 void artifacts_build_entire_vault ();
 void artifacts_build_current_document ();
+bool artifacts_open_uuid (string uuid);
 
 #endif // QTMARTIFACTSPANE_HPP

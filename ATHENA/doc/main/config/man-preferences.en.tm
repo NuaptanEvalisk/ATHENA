@@ -340,6 +340,10 @@
 
     <item*|Clicked link color>Color used for visited links.
 
+    <item*|Radioactive link color>Color used for automatically recognized
+    artifact terms. It is independent of the colors for ordinary links so
+    that inferred links remain visually distinguishable.
+
     <item*|Override white background>Replaces white document backgrounds by
     the chosen override color.
 

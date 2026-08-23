@@ -5,16 +5,23 @@
 ******************************************************************************/
 
 #include <QtTest/QtTest>
+#include <QElapsedTimer>
 #include <QTemporaryDir>
 
 #include "ATHENA/Data/artifacts.hpp"
+#include "ATHENA/Data/artifact_document.hpp"
 #include "ATHENA/Data/artifact_range_llm.hpp"
+#include "ATHENA/Data/artifact_radioactive_links.hpp"
 #include "ATHENA/Data/vaultfile_json.hpp"
+#include "converter.hpp"
 #include "convert.hpp"
+
+#include <sqlite3.h>
 
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
+#include <map>
 
 bool headless_mode= true;
 bool is_headless () { return true; }
@@ -32,6 +39,21 @@ private slots:
   void locatesStoredParagraphRange ();
   void doesNotLinkNonAdjacentProof ();
   void buildsIncrementallyAndPurgesDeletedDocuments ();
+  void storesAndDisambiguatesSameNamedArtifacts ();
+  void preservesBoldIdentityWhenDuplicateIsInsertedBefore ();
+  void doesNotTransferDeletedDuplicateToInsertedDuplicate ();
+  void rejectsIdentityTransferWhenParagraphIsCopiedExactly ();
+  void preservesUniqueBoldIdentityAcrossHostEdit ();
+  void preservesUnanchoredEnunciationsWhenOneIsInsertedBefore ();
+  void doesNotTransferDeletedUnanchoredDuplicateEnunciation ();
+  void migratesLegacyIdentitySchemaConservatively ();
+  void preservesIdentityAcrossTrustedPathRenames ();
+  void matchesRadioactiveLinksByCaseAndInflection ();
+  void matchesPossessiveAndEponymRadioactiveLinks ();
+  void prefersLongestRadioactiveArtifactTerm ();
+  void linksAmbiguousRadioactiveArtifactTerms ();
+  void preservesUnicodeRadioactiveMatchOffsets ();
+  void matchesLargeRadioactiveArtifactIndexWithinBudget ();
   void reportsBuildPhasesInOrder ();
   void delegatedFailureLeavesDatabaseUnchanged ();
 };
@@ -123,6 +145,81 @@ write_document (const fs::path& path, const tree& document) {
   string serialized= tree_to_texmacs (document);
   std::ofstream output (path, std::ios::binary | std::ios::trunc);
   output.write (as_charp (serialized), N(serialized));
+}
+
+static tree
+bold_paragraph_document (
+  const std::vector<std::pair<std::string,std::string>>& paragraphs,
+  const char* keyword= "shared concept") {
+  tree body (DOCUMENT);
+  for (const auto& paragraph_parts: paragraphs) {
+    tree paragraph (CONCAT);
+    paragraph << paragraph_parts.first.c_str () << compound ("strong", keyword)
+              << paragraph_parts.second.c_str ();
+    body << paragraph;
+  }
+  tree document (DOCUMENT);
+  document << compound ("TeXmacs", "2.1.4")
+           << compound ("style", "generic")
+           << compound ("body", body);
+  return document;
+}
+
+static const AthenaArtifactRecord*
+record_with_display_text (const std::vector<AthenaArtifactRecord>& records,
+                          const std::string& text) {
+  auto found= std::find_if (records.begin (), records.end (), [&] (const auto& r) {
+    return r.origin == "enunciation" && r.display_text == text;
+  });
+  return found == records.end () ? nullptr : &*found;
+}
+
+static bool
+exec_test_sql (const fs::path& path, const std::string& sql,
+               std::string& error) {
+  sqlite3* database= nullptr;
+  if (sqlite3_open (path.string ().c_str (), &database) != SQLITE_OK) {
+    error= database ? sqlite3_errmsg (database) : "Could not open test database";
+    if (database) sqlite3_close (database);
+    return false;
+  }
+  char* message= nullptr;
+  int status= sqlite3_exec (database, sql.c_str (), nullptr, nullptr, &message);
+  if (status != SQLITE_OK) error= message ? message : sqlite3_errmsg (database);
+  sqlite3_free (message);
+  sqlite3_close (database);
+  return status == SQLITE_OK;
+}
+
+static int
+query_test_int (const fs::path& path, const std::string& sql,
+                std::string& error) {
+  sqlite3* database= nullptr;
+  if (sqlite3_open (path.string ().c_str (), &database) != SQLITE_OK) {
+    error= database ? sqlite3_errmsg (database) : "Could not open test database";
+    if (database) sqlite3_close (database);
+    return -1;
+  }
+  sqlite3_stmt* statement= nullptr;
+  int result= -1;
+  if (sqlite3_prepare_v2 (database, sql.c_str (), -1, &statement, nullptr) !=
+      SQLITE_OK)
+    error= sqlite3_errmsg (database);
+  else if (sqlite3_step (statement) == SQLITE_ROW)
+    result= sqlite3_column_int (statement, 0);
+  else
+    error= sqlite3_errmsg (database);
+  sqlite3_finalize (statement);
+  sqlite3_close (database);
+  return result;
+}
+
+static std::string
+sql_literal (const std::string& value) {
+  char* quoted= sqlite3_mprintf ("%Q", value.c_str ());
+  std::string result= quoted ? quoted : "NULL";
+  sqlite3_free (quoted);
+  return result;
 }
 
 void
@@ -276,6 +373,14 @@ TestArtifacts::buildsIncrementallyAndPurgesDeletedDocuments () {
   QVERIFY2 (athena_artifacts_query (root, records, error), error.c_str ());
   QCOMPARE (records.size (), (size_t) 6);
   std::string stable_uuid= records[0].content_uuid;
+  AthenaArtifactRecord exact_record;
+  bool exact_found= false;
+  QVERIFY2 (athena_artifact_query_uuid (
+              root, records[0].uuid, exact_record, exact_found, error),
+            error.c_str ());
+  QVERIFY (exact_found);
+  QCOMPARE (exact_record.uuid, records[0].uuid);
+  QCOMPARE (exact_record.content_uuid, records[0].content_uuid);
   QVERIFY (!records[0].proof_uuid.empty ());
 
   AthenaArtifactsBuildResult unchanged;
@@ -302,6 +407,563 @@ TestArtifacts::buildsIncrementallyAndPurgesDeletedDocuments () {
   QCOMPARE (records.size (), (size_t) 3);
   for (const AthenaArtifactRecord& record: records)
     QCOMPARE (record.relative_path, std::string ("A.ath"));
+  int deleted_history= query_test_int (
+    root / "indexes/artifacts.db",
+    "SELECT COUNT(*) FROM artifact_identity_history WHERE path='B.ath' "
+    "AND decision='deleted' AND evidence='source-document-removed';", error);
+  QVERIFY2 (deleted_history >= 0, error.c_str ());
+  QCOMPARE (deleted_history, 3);
+}
+
+void
+TestArtifacts::storesAndDisambiguatesSameNamedArtifacts () {
+  MissingRangeModel noModel;
+  QTemporaryDir temporary;
+  QVERIFY (temporary.isValid ());
+  fs::path root (temporary.path ().toStdString ());
+  AthenaVaultfileInfo info;
+  std::string error;
+  QVERIFY2 (athena_vaultfile_write (root, info, error), error.c_str ());
+  write_document (
+    root / "Euler.ath",
+    bold_paragraph_document ({{"First source defines ", " one way."},
+                              {"A second source defines ", " differently."}},
+                             "Euler's theorem"));
+
+  AthenaArtifactsBuildResult built;
+  QVERIFY2 (athena_artifacts_build (root, {}, true, {}, built, error),
+            error.c_str ());
+  std::vector<AthenaArtifactRecord> all;
+  QVERIFY2 (athena_artifacts_query (root, all, error), error.c_str ());
+  std::vector<AthenaArtifactRecord> same_name;
+  for (const AthenaArtifactRecord& record: all)
+    if (record.origin == "bold-text" &&
+        record.display_text == "Euler's theorem") same_name.push_back (record);
+  QCOMPARE (same_name.size (), (size_t) 2);
+  QVERIFY (same_name[0].uuid != same_name[1].uuid);
+  QVERIFY (same_name[0].content_uuid != same_name[1].content_uuid);
+
+  auto matches= athena_artifact_radioactive_matches_for_records (
+    same_name, "Eulerian theorem applies here.");
+  QCOMPARE (matches.size (), (size_t) 1);
+  QCOMPARE (matches[0].uuids.size (), (size_t) 2);
+  QCOMPARE (matches[0].uuids[0], same_name[0].uuid);
+  QCOMPARE (matches[0].uuids[1], same_name[1].uuid);
+  QCOMPARE (matches[0].disambiguation_key,
+            athena_artifact_radioactive_key (same_name[0]));
+  std::string target= athena_artifact_radioactive_destination (matches[0]);
+  QVERIFY (target.rfind ("tmfs://artifact-disambiguation/", 0) == 0);
+  QCOMPARE (target.substr (std::string ("tmfs://artifact-disambiguation/").size ()),
+            matches[0].disambiguation_key);
+
+  tree page= athena_artifact_disambiguation_document (same_name, "Pagella");
+  string source= tree_to_texmacs (page);
+  std::string serialized (as_charp (source), (size_t) N(source));
+  QVERIFY (serialized.find ("font|Pagella") != std::string::npos);
+  QVERIFY (serialized.find ("tmfs://artifact/" + same_name[0].uuid) !=
+           std::string::npos);
+  QVERIFY (serialized.find ("tmfs://artifact/" + same_name[1].uuid) !=
+           std::string::npos);
+  QVERIFY (serialized.find ("Select the intended one") != std::string::npos);
+}
+
+void
+TestArtifacts::preservesBoldIdentityWhenDuplicateIsInsertedBefore () {
+  MissingRangeModel noModel;
+  QTemporaryDir temporary;
+  QVERIFY (temporary.isValid ());
+  fs::path root (temporary.path ().toStdString ());
+  AthenaVaultfileInfo info;
+  std::string error;
+  QVERIFY2 (athena_vaultfile_write (root, info, error), error.c_str ());
+  write_document (
+    root / "A.ath",
+    bold_paragraph_document ({{"First host defines ", " precisely."},
+                              {"Second host applies ", " elsewhere."}}));
+  AthenaArtifactsBuildResult first_build;
+  QVERIFY2 (athena_artifacts_build (root, {}, true, {}, first_build, error),
+            error.c_str ());
+  std::vector<AthenaArtifactRecord> before;
+  QVERIFY2 (athena_artifacts_query (root, before, error), error.c_str ());
+  QCOMPARE (before.size (), (size_t) 2);
+  std::string first_content_uuid= before[0].content_uuid;
+  std::string first_artifact_uuid= before[0].uuid;
+  std::string second_content_uuid= before[1].content_uuid;
+  std::string second_artifact_uuid= before[1].uuid;
+
+  write_document (
+    root / "A.ath",
+    bold_paragraph_document ({{"Inserted host mentions ", " newly."},
+                              {"First host defines ", " precisely."},
+                              {"Second host applies ", " elsewhere."}}));
+  AthenaArtifactsBuildResult second_build;
+  QVERIFY2 (athena_artifacts_build (root, {}, true, {}, second_build, error),
+            error.c_str ());
+  std::vector<AthenaArtifactRecord> after;
+  QVERIFY2 (athena_artifacts_query (root, after, error), error.c_str ());
+  QCOMPARE (after.size (), (size_t) 3);
+  QCOMPARE (after[1].content_uuid, first_content_uuid);
+  QCOMPARE (after[1].uuid, first_artifact_uuid);
+  QCOMPARE (after[2].content_uuid, second_content_uuid);
+  QCOMPARE (after[2].uuid, second_artifact_uuid);
+  QVERIFY (after[0].content_uuid != first_content_uuid);
+  QVERIFY (after[0].content_uuid != second_content_uuid);
+  QCOMPARE (after[0].identity_decision, std::string ("new"));
+}
+
+void
+TestArtifacts::doesNotTransferDeletedDuplicateToInsertedDuplicate () {
+  MissingRangeModel noModel;
+  QTemporaryDir temporary;
+  QVERIFY (temporary.isValid ());
+  fs::path root (temporary.path ().toStdString ());
+  AthenaVaultfileInfo info;
+  std::string error;
+  QVERIFY2 (athena_vaultfile_write (root, info, error), error.c_str ());
+  write_document (
+    root / "A.ath",
+    bold_paragraph_document ({{"Old removed host uses ", " once."},
+                              {"Persistent host uses ", " twice."}}));
+  AthenaArtifactsBuildResult first_build;
+  QVERIFY2 (athena_artifacts_build (root, {}, true, {}, first_build, error),
+            error.c_str ());
+  std::vector<AthenaArtifactRecord> before;
+  QVERIFY2 (athena_artifacts_query (root, before, error), error.c_str ());
+  QCOMPARE (before.size (), (size_t) 2);
+  std::string removed_uuid= before[0].content_uuid;
+  std::string persistent_uuid= before[1].content_uuid;
+
+  write_document (
+    root / "A.ath",
+    bold_paragraph_document ({{"Persistent host uses ", " twice."},
+                              {"Unrelated inserted host uses ", " later."}}));
+  AthenaArtifactsBuildResult second_build;
+  QVERIFY2 (athena_artifacts_build (root, {}, true, {}, second_build, error),
+            error.c_str ());
+  std::vector<AthenaArtifactRecord> after;
+  QVERIFY2 (athena_artifacts_query (root, after, error), error.c_str ());
+  QCOMPARE (after.size (), (size_t) 2);
+  QCOMPARE (after[0].content_uuid, persistent_uuid);
+  QVERIFY (after[1].content_uuid != removed_uuid);
+  QVERIFY (after[1].content_uuid != persistent_uuid);
+  QCOMPARE (after[1].identity_decision, std::string ("new"));
+}
+
+void
+TestArtifacts::rejectsIdentityTransferWhenParagraphIsCopiedExactly () {
+  MissingRangeModel noModel;
+  QTemporaryDir temporary;
+  QVERIFY (temporary.isValid ());
+  fs::path root (temporary.path ().toStdString ());
+  AthenaVaultfileInfo info;
+  std::string error;
+  QVERIFY2 (athena_vaultfile_write (root, info, error), error.c_str ());
+  auto paragraph= std::make_pair (std::string ("A copied host defines "),
+                                  std::string (" exactly."));
+  write_document (root / "A.ath", bold_paragraph_document ({paragraph}));
+  AthenaArtifactsBuildResult first_build;
+  QVERIFY2 (athena_artifacts_build (root, {}, true, {}, first_build, error),
+            error.c_str ());
+  std::vector<AthenaArtifactRecord> before;
+  QVERIFY2 (athena_artifacts_query (root, before, error), error.c_str ());
+  QCOMPARE (before.size (), (size_t) 1);
+  std::string old_content_uuid= before[0].content_uuid;
+  std::string old_artifact_uuid= before[0].uuid;
+
+  write_document (root / "A.ath",
+                  bold_paragraph_document ({paragraph, paragraph}));
+  AthenaArtifactsBuildResult second_build;
+  QVERIFY2 (athena_artifacts_build (root, {}, true, {}, second_build, error),
+            error.c_str ());
+  std::vector<AthenaArtifactRecord> after;
+  QVERIFY2 (athena_artifacts_query (root, after, error), error.c_str ());
+  QCOMPARE (after.size (), (size_t) 2);
+  for (const AthenaArtifactRecord& record: after) {
+    QVERIFY (record.content_uuid != old_content_uuid);
+    QVERIFY (record.uuid != old_artifact_uuid);
+    QCOMPARE (record.identity_decision, std::string ("ambiguous"));
+  }
+}
+
+void
+TestArtifacts::preservesUniqueBoldIdentityAcrossHostEdit () {
+  MissingRangeModel noModel;
+  QTemporaryDir temporary;
+  QVERIFY (temporary.isValid ());
+  fs::path root (temporary.path ().toStdString ());
+  AthenaVaultfileInfo info;
+  std::string error;
+  QVERIFY2 (athena_vaultfile_write (root, info, error), error.c_str ());
+  write_document (
+    root / "A.ath",
+    bold_paragraph_document ({{"Original wording for ", " here."}}));
+  AthenaArtifactsBuildResult first_build;
+  QVERIFY2 (athena_artifacts_build (root, {}, true, {}, first_build, error),
+            error.c_str ());
+  std::vector<AthenaArtifactRecord> before;
+  QVERIFY2 (athena_artifacts_query (root, before, error), error.c_str ());
+  QCOMPARE (before.size (), (size_t) 1);
+
+  write_document (
+    root / "A.ath",
+    bold_paragraph_document ({{"Substantially revised wording for ",
+                               " in the edited paragraph."}}));
+  AthenaArtifactsBuildResult second_build;
+  QVERIFY2 (athena_artifacts_build (root, {}, true, {}, second_build, error),
+            error.c_str ());
+  std::vector<AthenaArtifactRecord> after;
+  QVERIFY2 (athena_artifacts_query (root, after, error), error.c_str ());
+  QCOMPARE (after.size (), (size_t) 1);
+  QCOMPARE (after[0].content_uuid, before[0].content_uuid);
+  QCOMPARE (after[0].uuid, before[0].uuid);
+  QCOMPARE (after[0].identity_evidence, std::string ("unique-focus"));
+}
+
+void
+TestArtifacts::preservesUnanchoredEnunciationsWhenOneIsInsertedBefore () {
+  MissingRangeModel noModel;
+  QTemporaryDir temporary;
+  QVERIFY (temporary.isValid ());
+  fs::path root (temporary.path ().toStdString ());
+  AthenaVaultfileInfo info;
+  std::string error;
+  QVERIFY2 (athena_vaultfile_write (root, info, error), error.c_str ());
+  tree first_body (DOCUMENT);
+  first_body << compound ("theorem", "The first stable statement.")
+             << compound ("lemma", "The second stable statement.");
+  tree first_document (DOCUMENT);
+  first_document << compound ("TeXmacs", "2.1.4")
+                 << compound ("style", "generic")
+                 << compound ("body", first_body);
+  write_document (root / "A.ath", first_document);
+  AthenaArtifactsBuildResult first_build;
+  QVERIFY2 (athena_artifacts_build (root, {}, true, {}, first_build, error),
+            error.c_str ());
+  std::vector<AthenaArtifactRecord> before;
+  QVERIFY2 (athena_artifacts_query (root, before, error), error.c_str ());
+  const AthenaArtifactRecord* theorem_before=
+    record_with_display_text (before, "The first stable statement.");
+  const AthenaArtifactRecord* lemma_before=
+    record_with_display_text (before, "The second stable statement.");
+  QVERIFY (theorem_before);
+  QVERIFY (lemma_before);
+  std::string theorem_uuid= theorem_before->content_uuid;
+  std::string lemma_uuid= lemma_before->content_uuid;
+
+  tree second_body (DOCUMENT);
+  second_body << compound ("proposition", "A newly inserted statement.")
+              << compound ("theorem", "The first stable statement.")
+              << compound ("lemma", "The second stable statement.");
+  tree second_document (DOCUMENT);
+  second_document << compound ("TeXmacs", "2.1.4")
+                  << compound ("style", "generic")
+                  << compound ("body", second_body);
+  write_document (root / "A.ath", second_document);
+  AthenaArtifactsBuildResult second_build;
+  QVERIFY2 (athena_artifacts_build (root, {}, true, {}, second_build, error),
+            error.c_str ());
+  std::vector<AthenaArtifactRecord> after;
+  QVERIFY2 (athena_artifacts_query (root, after, error), error.c_str ());
+  const AthenaArtifactRecord* theorem_after=
+    record_with_display_text (after, "The first stable statement.");
+  const AthenaArtifactRecord* lemma_after=
+    record_with_display_text (after, "The second stable statement.");
+  QVERIFY (theorem_after);
+  QVERIFY (lemma_after);
+  QCOMPARE (theorem_after->content_uuid, theorem_uuid);
+  QCOMPARE (lemma_after->content_uuid, lemma_uuid);
+}
+
+void
+TestArtifacts::doesNotTransferDeletedUnanchoredDuplicateEnunciation () {
+  MissingRangeModel noModel;
+  QTemporaryDir temporary;
+  QVERIFY (temporary.isValid ());
+  fs::path root (temporary.path ().toStdString ());
+  AthenaVaultfileInfo info;
+  std::string error;
+  QVERIFY2 (athena_vaultfile_write (root, info, error), error.c_str ());
+
+  tree first_body (DOCUMENT);
+  first_body << "Removed left context."
+             << compound ("theorem", "A duplicated statement.")
+             << "Removed right context."
+             << "Persistent left context."
+             << compound ("theorem", "A duplicated statement.")
+             << "Persistent right context.";
+  tree first_document (DOCUMENT);
+  first_document << compound ("TeXmacs", "2.1.4")
+                 << compound ("style", "generic")
+                 << compound ("body", first_body);
+  write_document (root / "A.ath", first_document);
+  AthenaArtifactsBuildResult first_build;
+  QVERIFY2 (athena_artifacts_build (root, {}, true, {}, first_build, error),
+            error.c_str ());
+  std::vector<AthenaArtifactRecord> before;
+  QVERIFY2 (athena_artifacts_query (root, before, error), error.c_str ());
+  QCOMPARE (before.size (), (size_t) 2);
+  std::string removed_uuid= before[0].content_uuid;
+  std::string persistent_uuid= before[1].content_uuid;
+
+  tree second_body (DOCUMENT);
+  second_body << "Persistent left context."
+              << compound ("theorem", "A duplicated statement.")
+              << "Persistent right context."
+              << "Inserted left context."
+              << compound ("theorem", "A duplicated statement.")
+              << "Inserted right context.";
+  tree second_document (DOCUMENT);
+  second_document << compound ("TeXmacs", "2.1.4")
+                  << compound ("style", "generic")
+                  << compound ("body", second_body);
+  write_document (root / "A.ath", second_document);
+  AthenaArtifactsBuildResult second_build;
+  QVERIFY2 (athena_artifacts_build (root, {}, true, {}, second_build, error),
+            error.c_str ());
+  std::vector<AthenaArtifactRecord> after;
+  QVERIFY2 (athena_artifacts_query (root, after, error), error.c_str ());
+  QCOMPARE (after.size (), (size_t) 2);
+  QCOMPARE (after[0].content_uuid, persistent_uuid);
+  QVERIFY (after[1].content_uuid != removed_uuid);
+  QVERIFY (after[1].content_uuid != persistent_uuid);
+  QCOMPARE (after[1].identity_decision, std::string ("new"));
+}
+
+void
+TestArtifacts::migratesLegacyIdentitySchemaConservatively () {
+  MissingRangeModel noModel;
+  QTemporaryDir temporary;
+  QVERIFY (temporary.isValid ());
+  fs::path root (temporary.path ().toStdString ());
+  AthenaVaultfileInfo info;
+  std::string error;
+  QVERIFY2 (athena_vaultfile_write (root, info, error), error.c_str ());
+
+  string encoded_keyword=
+    tree_to_texmacs (compound ("strong", "shared concept"));
+  std::string keyword (as_charp (encoded_keyword), (size_t) N(encoded_keyword));
+  QVERIFY2 (exec_test_sql (
+              root / info.artifacts_path,
+              "CREATE TABLE documents(path TEXT PRIMARY KEY,mtime_ns INTEGER "
+              "NOT NULL,size INTEGER NOT NULL);"
+              "CREATE TABLE artifacts(uuid TEXT PRIMARY KEY,type TEXT NOT NULL,"
+              "origin TEXT NOT NULL,content_uuid TEXT NOT NULL,proof_uuid TEXT,"
+              "path TEXT NOT NULL,anchor_stem TEXT NOT NULL,display_text TEXT "
+              "NOT NULL,document_order INTEGER NOT NULL,"
+              "UNIQUE(origin,content_uuid));"
+              "INSERT INTO artifacts VALUES('legacy-artifact','definition',"
+              "'bold-text','legacy-content',NULL,'A.ath','','shared concept',0);",
+              error), error.c_str ());
+  QVERIFY2 (exec_test_sql (
+              root / info.enunciations_path,
+              "CREATE TABLE entries(uuid TEXT PRIMARY KEY,path TEXT NOT NULL,"
+              "anchor_stem TEXT NOT NULL,tag TEXT NOT NULL,display_text TEXT "
+              "NOT NULL,document_order INTEGER NOT NULL,"
+              "UNIQUE(path,anchor_stem,document_order));",
+              error), error.c_str ());
+  QVERIFY2 (exec_test_sql (
+              root / info.bold_text_path,
+              "CREATE TABLE entries(uuid TEXT PRIMARY KEY,path TEXT NOT NULL,"
+              "keyword_tree TEXT NOT NULL,keyword_display TEXT NOT NULL,"
+              "occurrence INTEGER NOT NULL,paragraph_offsets TEXT NOT NULL,"
+              "document_order INTEGER NOT NULL,"
+              "UNIQUE(path,keyword_tree,occurrence));"
+              "INSERT INTO entries VALUES('legacy-content','A.ath'," +
+              sql_literal (keyword) +
+              ",'shared concept',1,'0',0);",
+              error), error.c_str ());
+
+  write_document (
+    root / "A.ath",
+    bold_paragraph_document ({{"A legacy paragraph defines ", " here."}}));
+  AthenaArtifactsBuildResult build;
+  QVERIFY2 (athena_artifacts_build (root, {}, true, {}, build, error),
+            error.c_str ());
+  std::vector<AthenaArtifactRecord> records;
+  QVERIFY2 (athena_artifacts_query (root, records, error), error.c_str ());
+  QCOMPARE (records.size (), (size_t) 1);
+  QCOMPARE (records[0].content_uuid, std::string ("legacy-content"));
+  QCOMPARE (records[0].uuid, std::string ("legacy-artifact"));
+  QCOMPARE (records[0].identity_decision, std::string ("matched"));
+  QCOMPARE (records[0].identity_evidence, std::string ("unique-focus"));
+  QVERIFY (!records[0].identity_host.empty ());
+}
+
+void
+TestArtifacts::preservesIdentityAcrossTrustedPathRenames () {
+  MissingRangeModel noModel;
+  QTemporaryDir temporary;
+  QVERIFY (temporary.isValid ());
+  fs::path root (temporary.path ().toStdString ());
+  AthenaVaultfileInfo info;
+  std::string error;
+  QVERIFY2 (athena_vaultfile_write (root, info, error), error.c_str ());
+  fs::create_directories (root / "Old");
+  write_document (
+    root / "Old/A.ath", artifact_test_document ("compact operator"));
+  write_document (
+    root / "Old/B.ath", artifact_test_document ("Fredholm operator"));
+
+  AthenaArtifactsBuildResult initial;
+  QVERIFY2 (athena_artifacts_build (root, {}, true, {}, initial, error),
+            error.c_str ());
+  std::vector<AthenaArtifactRecord> before;
+  QVERIFY2 (athena_artifacts_query (root, before, error), error.c_str ());
+  std::map<std::string,std::string> uuid_by_key;
+  for (const AthenaArtifactRecord& record: before)
+    uuid_by_key[record.relative_path + char (31) + record.display_text]=
+      record.uuid;
+
+  fs::rename (root / "Old", root / "New");
+  QVERIFY2 (athena_artifacts_apply_path_rename (
+              root, "Old", "New", true, error), error.c_str ());
+  fs::rename (root / "New/A.ath", root / "New/Renamed.ath");
+  QVERIFY2 (athena_artifacts_apply_path_rename (
+              root, "New/A.ath", "New/Renamed.ath", false, error),
+            error.c_str ());
+
+  AthenaArtifactsBuildResult rebuilt;
+  QVERIFY2 (athena_artifacts_build (root, {}, true, {}, rebuilt, error),
+            error.c_str ());
+  QCOMPARE (rebuilt.documents_changed, (size_t) 0);
+  QCOMPARE (rebuilt.documents_deleted, (size_t) 0);
+  std::vector<AthenaArtifactRecord> after;
+  QVERIFY2 (athena_artifacts_query (root, after, error), error.c_str ());
+  QCOMPARE (after.size (), before.size ());
+  for (const AthenaArtifactRecord& record: after) {
+    std::string old_path= record.relative_path == "New/Renamed.ath" ?
+      "Old/A.ath" : "Old/B.ath";
+    std::string key= old_path + char (31) + record.display_text;
+    QVERIFY (uuid_by_key.count (key));
+    QCOMPARE (record.uuid, uuid_by_key[key]);
+  }
+  AthenaArtifactRecord exact;
+  bool found= false;
+  QVERIFY2 (athena_artifact_query_uuid (
+              root, after.front ().uuid, exact, found, error), error.c_str ());
+  QVERIFY (found);
+  QVERIFY (exact.relative_path == "New/Renamed.ath" ||
+           exact.relative_path == "New/B.ath");
+}
+
+static AthenaArtifactRecord
+radioactive_record (const char* uuid, const char* term,
+                    const char* origin= "bold-text") {
+  AthenaArtifactRecord record;
+  record.uuid= uuid;
+  record.origin= origin;
+  if (record.origin == "bold-text") record.display_text= term;
+  else record.anchor_stem= term;
+  return record;
+}
+
+void
+TestArtifacts::matchesRadioactiveLinksByCaseAndInflection () {
+  std::vector<AthenaArtifactRecord> records= {
+    radioactive_record ("compact-operator", "compact operator")};
+  string text= "COMPACT OPERATORS and compact operator";
+  auto matches= athena_artifact_radioactive_matches_for_records (records, text);
+  QCOMPARE (matches.size (), (size_t) 2);
+  QCOMPARE (matches[0].uuids, std::vector<std::string> ({"compact-operator"}));
+  QCOMPARE (text (matches[0].start, matches[0].end),
+            string ("COMPACT OPERATORS"));
+  QCOMPARE (text (matches[1].start, matches[1].end),
+            string ("compact operator"));
+}
+
+void
+TestArtifacts::matchesPossessiveAndEponymRadioactiveLinks () {
+  std::vector<AthenaArtifactRecord> records= {
+    radioactive_record ("euler", "Euler theorem"),
+    radioactive_record ("noether", "Noether space"),
+    radioactive_record ("artin", "Artin ring"),
+    radioactive_record ("gauss", "Gauss measure"),
+    radioactive_record ("lagrange", "Lagrange identity")};
+  string text= utf8_to_cork (
+    "Euler's theorem; EULERIAN THEOREM; Euler\xE2\x80\x99s theorem. "
+    "Noetherian spaces and Noether's space. Artinian rings. "
+    "Gaussian measures. Lagrangian identities.");
+  auto matches= athena_artifact_radioactive_matches_for_records (records, text);
+  QCOMPARE (matches.size (), (size_t) 8);
+  std::vector<std::string> expected= {
+    "euler", "euler", "euler", "noether", "noether", "artin",
+    "gauss", "lagrange"};
+  QCOMPARE (matches.size (), expected.size ());
+  for (size_t i=0; i<matches.size (); i++)
+    QCOMPARE (matches[i].uuids, std::vector<std::string> ({expected[i]}));
+
+  std::vector<AthenaArtifactRecord> ordinary= {
+    radioactive_record ("median", "median")};
+  auto false_match= athena_artifact_radioactive_matches_for_records (
+    ordinary, "med");
+  QVERIFY (false_match.empty ());
+}
+
+void
+TestArtifacts::prefersLongestRadioactiveArtifactTerm () {
+  std::vector<AthenaArtifactRecord> records= {
+    radioactive_record ("operator", "operator"),
+    radioactive_record ("compact-operator", "compact operator")};
+  string text= "A compact operator is an operator.";
+  auto matches= athena_artifact_radioactive_matches_for_records (records, text);
+  QCOMPARE (matches.size (), (size_t) 2);
+  QCOMPARE (matches[0].uuids,
+            std::vector<std::string> ({"compact-operator"}));
+  QCOMPARE (matches[1].uuids, std::vector<std::string> ({"operator"}));
+}
+
+void
+TestArtifacts::linksAmbiguousRadioactiveArtifactTerms () {
+  std::vector<AthenaArtifactRecord> records= {
+    radioactive_record ("first", "Banach space"),
+    radioactive_record ("second", "banach spaces")};
+  auto matches= athena_artifact_radioactive_matches_for_records (
+    records, "A Banach space is complete.");
+  QCOMPARE (matches.size (), (size_t) 1);
+  QCOMPARE (matches[0].uuids,
+            std::vector<std::string> ({"first", "second"}));
+  QCOMPARE (matches[0].disambiguation_key.size (), (size_t) 64);
+  QCOMPARE (athena_artifact_radioactive_destination (matches[0]),
+            std::string ("tmfs://artifact-disambiguation/") +
+              matches[0].disambiguation_key);
+}
+
+void
+TestArtifacts::preservesUnicodeRadioactiveMatchOffsets () {
+  std::vector<AthenaArtifactRecord> records= {
+    radioactive_record ("frechet", "Fr<#e9>chet theorem", "enunciation")};
+  string text= utf8_to_cork ("The FR\xC3\x89" "CHET theorems apply.");
+  auto matches= athena_artifact_radioactive_matches_for_records (records, text);
+  QCOMPARE (matches.size (), (size_t) 1);
+  QCOMPARE (cork_to_utf8 (text (matches[0].start, matches[0].end)),
+            string ("FR\xC3\x89" "CHET theorems"));
+}
+
+void
+TestArtifacts::matchesLargeRadioactiveArtifactIndexWithinBudget () {
+  std::vector<AthenaArtifactRecord> records;
+  records.reserve (5000);
+  for (int i=0; i<5000; i++) {
+    std::string suffix= std::to_string (i);
+    records.push_back (radioactive_record (
+      ("artifact-" + suffix).c_str (),
+      ("semantic concept " + suffix).c_str ()));
+  }
+  string text;
+  for (int i=0; i<1000; i++)
+    text << "Ordinary prose without an artifact match. ";
+  text << "SEMANTIC CONCEPT 4999";
+
+  QElapsedTimer timer;
+  timer.start ();
+  auto matches= athena_artifact_radioactive_matches_for_records (records, text);
+  qint64 elapsed= timer.elapsed ();
+  QCOMPARE (matches.size (), (size_t) 1);
+  QCOMPARE (matches[0].uuids,
+            std::vector<std::string> ({"artifact-4999"}));
+  QVERIFY2 (elapsed < 3000,
+            qPrintable (QString ("Large radioactive-link match took %1 ms")
+                          .arg (elapsed)));
 }
 
 void

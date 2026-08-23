@@ -8,6 +8,7 @@
 
 #include "ATHENA/Data/vault_safe_rename.hpp"
 
+#include "ATHENA/Data/artifacts.hpp"
 #include "ATHENA/Data/new_buffer.hpp"
 #include "ATHENA/Data/vault.hpp"
 #include "ATHENA/Data/vault_file_references.hpp"
@@ -193,6 +194,8 @@ vault_safe_rename_plan (const fs::path& source_arg, const fs::path& target_arg,
   std::vector<fs::path> protected_paths= {
     root / "Vaultfile.json", root / info.map_path,
     root / info.namespace_db_path, root / info.rag_index_path,
+    root / info.artifacts_path, root / info.enunciations_path,
+    root / info.bold_text_path,
     root / ".backup", root / ".athena"};
   for (const fs::path& protected_path: protected_paths)
     if (source == normalized_absolute (protected_path) ||
@@ -391,6 +394,13 @@ vault_safe_rename_execute (VaultSafeRenamePlan& plan, std::string& error) {
     return false;
   }
 
+  // Keep the journal until every derived path index has observed the same
+  // lineage event.  Recovery can safely repeat both updates after a crash.
+  if (!athena_artifacts_apply_path_rename (
+        plan.impl->root, plan.old_relative_path, plan.new_relative_path,
+        plan.is_directory, error))
+    return false;
+
   for (const fs::path& old_buffer: plan.impl->open_buffers) {
     fs::path new_buffer= plan.is_directory ?
       replace_prefix (old_buffer, plan.source, plan.target) :
@@ -452,6 +462,9 @@ vault_safe_rename_recover (const fs::path& root,
       }
       size_t changed= 0;
       if (!map.apply_path_rename (operation.operation_id, changed, error) ||
+          !athena_artifacts_apply_path_rename (
+            root, operation.old_path, operation.new_path,
+            operation.is_directory, error) ||
           !map.finish_path_rename (operation.operation_id, error))
         return false;
       continue;

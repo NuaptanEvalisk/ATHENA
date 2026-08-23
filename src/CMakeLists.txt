@@ -22,6 +22,7 @@ target_link_libraries (athena_body
   PRIVATE
   ${ADS_LIBRARIES}
   rapidfuzz::rapidfuzz
+  athena_snowball_english
   ncnn
 )
 if (TARGET KF6::SyntaxHighlighting)

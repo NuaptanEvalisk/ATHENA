@@ -297,6 +297,10 @@ TestVaultMapSqlite::recoversInterruptedDirectoryRename () {
   QTemporaryDir temporary;
   QVERIFY (temporary.isValid ());
   std::filesystem::path root (temporary.path ().toStdString ());
+  AthenaVaultfileInfo info;
+  info.map_path= "map.sqlite";
+  std::string error;
+  QVERIFY2 (athena_vaultfile_write (root, info, error), error.c_str ());
   std::filesystem::create_directories (root / "Old");
   {
     std::ofstream original (root / "Old/Note.ath");
@@ -307,7 +311,6 @@ TestVaultMapSqlite::recoversInterruptedDirectoryRename () {
   }
 
   AthenaVaultMapSqlite map;
-  std::string error;
   QVERIFY2 (map.open (root / "map.sqlite", true, error), error.c_str ());
   QVERIFY2 (map.set_node ({"note", "Old/Note.ath", "", ""}, error),
             error.c_str ());
@@ -376,6 +379,10 @@ TestVaultMapSqlite::cachesBoundedAndUnlimitedReferenceGraphs () {
   QTemporaryDir temporary;
   QVERIFY (temporary.isValid ());
   std::filesystem::path root (temporary.path ().toStdString ());
+  AthenaVaultfileInfo info;
+  std::string vaultfile_error;
+  QVERIFY2 (athena_vaultfile_write (root, info, vaultfile_error),
+            vaultfile_error.c_str ());
 
   auto write_document= [&] (const std::string& name, tree body) {
     tree content (DOCUMENT);
@@ -481,6 +488,10 @@ TestVaultMapSqlite::cachesAndInvalidatesStructuralTransclusions () {
   QTemporaryDir temporary;
   QVERIFY (temporary.isValid ());
   std::filesystem::path root (temporary.path ().toStdString ());
+  AthenaVaultfileInfo info;
+  std::string vaultfile_error;
+  QVERIFY2 (athena_vaultfile_write (root, info, vaultfile_error),
+            vaultfile_error.c_str ());
   std::filesystem::create_directories (root / "assets");
 
   auto write_source= [&] (const char* payload) {

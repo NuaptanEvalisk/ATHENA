@@ -18,6 +18,7 @@
   ("bg-color" "Background colour")
   ("locus-color" "Colour of loci")
   ("visited-color" "Colour of visited loci")
+  ("radioactive-link-color" "Colour of automatic artifact links")
   ("magnification" "Magnification")
   ("font-base-size" "Font size")
   ("dpi" "Dots per inch")

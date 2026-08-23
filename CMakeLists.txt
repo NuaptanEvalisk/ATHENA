@@ -865,6 +865,26 @@ if (ATHENA_GUI STREQUAL "Qt" OR ATHENA_GUI STREQUAL "Qt6")
   FetchContent_MakeAvailable(rapidfuzz)
 
   ### --------------------------------------------------------------------
+  ### Snowball English stemmer (radioactive artifact links)
+  ### --------------------------------------------------------------------
+  FetchContent_Declare(
+    snowball_libstemmer_c
+    URL      https://snowballstem.org/dist/libstemmer_c-3.1.1.tar.gz
+    URL_HASH SHA256=0e82fb0e29006cad2831b4b25980a1dae85959c6a1faaaf96547f551e352042a
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+  )
+  FetchContent_MakeAvailable(snowball_libstemmer_c)
+  add_library(athena_snowball_english STATIC
+    ${snowball_libstemmer_c_SOURCE_DIR}/runtime/api.c
+    ${snowball_libstemmer_c_SOURCE_DIR}/runtime/utilities.c
+    ${snowball_libstemmer_c_SOURCE_DIR}/src_c/stem_UTF_8_english.c
+  )
+  target_include_directories(athena_snowball_english PUBLIC
+    ${snowball_libstemmer_c_SOURCE_DIR}/runtime
+    ${snowball_libstemmer_c_SOURCE_DIR}/src_c
+  )
+
+  ### --------------------------------------------------------------------
   ### ncnn (Hand TeX handwriting classifier)
   ### --------------------------------------------------------------------
   FetchContent_Declare(

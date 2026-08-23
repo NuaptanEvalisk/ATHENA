@@ -13,6 +13,10 @@
 #include "formatter.hpp"
 #include "analyze.hpp"
 #include "boot.hpp"
+#include "ATHENA/Data/artifact_radioactive_links.hpp"
+
+#include <algorithm>
+#include <vector>
 
 lazy make_lazy_vstream (edit_env env, tree t, path ip, tree channel);
 
@@ -32,6 +36,23 @@ void
 concater_rep::typeset_substring (string s, path ip, int pos) {
   box b= make_text_box (env, ip, pos, s, env->pen);
   a << line_item (STRING_ITEM, OP_TEXT, b, HYPH_INVALID, env->lan);
+}
+
+void
+concater_rep::typeset_radioactive_substring (
+  string s, path ip, int pos, string id, string destination) {
+  string color= env->get_string (RADIOACTIVE_LINK_COLOR);
+  if (color == "preserve") color= "";
+  else if (color == "global")
+    color= get_locus_rendering (RADIOACTIVE_LINK_COLOR);
+  typeset_colored_substring (s, ip, pos, color);
+  if (N(a) > 0) {
+    a[N(a)-1]->b= locus_box (a[N(a)-1]->b->ip, a[N(a)-1]->b,
+                             list<string> (id), env->pixel, destination, "");
+    // A locus is a modifier box, not a textual leaf.  Keeping STRING_ITEM here
+    // makes the line breaker call get_leaf_string() on the locus wrapper.
+    a[N(a)-1]->type= STD_ITEM;
+  }
 }
 
 void
@@ -98,6 +119,63 @@ concater_rep::typeset_text_string (tree t, path ip, int pos, int end) {
   string s= t->label;
   int    start;
 
+  struct ActiveMatch {
+    int start;
+    int end;
+    string id;
+    string destination;
+  };
+  std::vector<ActiveMatch> links;
+  bool allow_links= is_accessible (ip) &&
+                    env->get_string (PAGE_PRINTED) != "true" &&
+                    env->get_string ("athena-inside-locus") != "true" &&
+                    !is_nil (env->link_env);
+  if (allow_links) {
+    auto matches= athena_artifact_radioactive_matches (s);
+    links.reserve (matches.size ());
+    for (const AthenaArtifactRadioactiveMatch& match: matches) {
+      if (match.start < pos || match.end > end || match.start >= match.end)
+        continue;
+      if (match.uuids.empty ()) continue;
+      const std::string& first_candidate= match.uuids.front ();
+      string uuid (first_candidate.data (), (int) first_candidate.size ());
+      string id= "%artifact:" * uuid * ":" * as_string (ip) * ":" *
+                 as_string (match.start);
+      std::string target= athena_artifact_radioactive_destination (match);
+      string destination (target.data (), (int) target.size ());
+      env->link_env->insert_locus (id, t);
+      tree source_id (ID, tree (id));
+      tree destination_url (URL, tree (destination));
+      env->link_env->insert_link (
+        tree (LINK, "hyperlink", tree (ATTR), source_id, destination_url));
+      links.push_back ({match.start, match.end, id, destination});
+    }
+  }
+
+  auto typeset_piece= [&] (int first, int last) {
+    // Empty text still contributes a box that anchors an otherwise empty
+    // paragraph.  The former direct typeset_substring call had this behavior.
+    if (first == last) {
+      typeset_substring ("", ip, first);
+      return;
+    }
+    int current= first;
+    for (const ActiveMatch& link: links) {
+      if (link.end <= current) continue;
+      if (link.start >= last) break;
+      int linked_start= std::max (current, link.start);
+      int linked_end= std::min (last, link.end);
+      if (linked_start > current)
+        typeset_substring (s (current, linked_start), ip, current);
+      if (linked_end > linked_start)
+        typeset_radioactive_substring (
+          s (linked_start, linked_end), ip, linked_start,
+          link.id, link.destination);
+      current= linked_end;
+    }
+    if (current < last) typeset_substring (s (current, last), ip, current);
+  };
+
   do {
     start= pos;
     text_property tp= env->lan->advance (t, pos);
@@ -113,7 +191,7 @@ concater_rep::typeset_text_string (tree t, path ip, int pos, int end) {
     else { // strings
       penalty_max (tp->pen_before);
       PRINT_SPACE (tp->spc_before)
-      typeset_substring (s (start, pos), ip, start);
+      typeset_piece (start, pos);
       penalty_min (tp->pen_after);
       PRINT_SPACE (tp->spc_after)
     }

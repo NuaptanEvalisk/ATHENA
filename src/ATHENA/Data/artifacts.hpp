@@ -31,6 +31,12 @@ struct AthenaArtifactRecord {
   std::string keyword_tree;
   int keyword_occurrence= 0;
   std::vector<int> paragraph_offsets;
+  std::string identity_focus;
+  std::string identity_host;
+  std::string identity_before;
+  std::string identity_after;
+  std::string identity_decision;
+  std::string identity_evidence;
   std::string keyword_latex;
   std::vector<std::pair<int,std::string>> definition_candidates;
   int document_order= 0;
@@ -100,6 +106,18 @@ bool athena_artifacts_build_active_vault (
 bool athena_artifacts_query (const std::filesystem::path& vault_root,
                              std::vector<AthenaArtifactRecord>& records,
                              std::string& error);
+
+bool athena_artifact_query_uuid (const std::filesystem::path& vault_root,
+                                 const std::string& uuid,
+                                 AthenaArtifactRecord& record, bool& found,
+                                 std::string& error);
+
+// Preserve artifact identity when ATHENA itself renames a Vault document or
+// directory.  External filesystem moves have no trustworthy lineage signal
+// and are intentionally handled as deletion plus insertion by the builder.
+bool athena_artifacts_apply_path_rename (
+  const std::filesystem::path& vault_root, const std::string& old_path,
+  const std::string& new_path, bool is_directory, std::string& error);
 
 // Exposed for focused extraction tests.  No database or vault state is needed.
 bool athena_artifacts_extract_document (const tree& document,

@@ -66,7 +66,7 @@ void execute_open (const AthenaArtifactRecord& record) {
   url file= url_system (tmstr (absolute.string ()));
   if (record.origin == "enunciation" && !record.anchor_stem.empty ()) {
     array<object> cmd;
-    cmd << symbol_object ("vault-jump-to-source") << object (file)
+    cmd << symbol_object ("artifact-jump-to-source") << object (file)
         << object (tmstr (record.anchor_stem));
     exec_delayed (scheme_cmd (as_list_object (cmd)));
     return;
@@ -392,3 +392,19 @@ artifacts_pane_show () {
 
 void artifacts_build_entire_vault () { build_with_dialog (false); }
 void artifacts_build_current_document () { build_with_dialog (true); }
+
+bool
+artifacts_open_uuid (string uuid) {
+  if (!vault_active ()) return false;
+  AthenaArtifactRecord record;
+  bool found= false;
+  std::string error;
+  if (!athena_artifact_query_uuid (active_root (), std_string (uuid), record,
+                                   found, error)) {
+    std_warning << "Could not resolve artifact UUID: " << error.c_str () << LF;
+    return false;
+  }
+  if (!found) return false;
+  execute_open (record);
+  return true;
+}

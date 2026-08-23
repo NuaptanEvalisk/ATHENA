@@ -487,6 +487,19 @@ ATHENA can build a semantic inventory of mathematical objects in a vault.
 
 - Incrementally index enunciations, their proofs, and bold-text definitions in
   vault-local SQLite databases with stable UUIDs.
+- Preserve artifact UUIDs conservatively across document edits and ATHENA safe
+  renames.  Exact anchors and unique structural context are accepted first;
+  ambiguous copies receive new identities instead of silently inheriting the
+  wrong history.
+- Resolve `tmfs://artifact/<uuid>` links to the indexed source and turn
+  artifact names in ordinary document text into automatic links. Same-named
+  artifacts retain separate UUIDs and open a vault-font disambiguation page
+  with exact links to each candidate.
+  Matching is Unicode case-insensitive and uses Snowball English stemming for
+  plural and other inflectional variants. Mathematical possessives and
+  classical eponym adjectives are equivalent, such as `Euler`/`Euler's`/
+  `Eulerian` and `Noether`/`Noetherian`, without scanning the vault while
+  typesetting.
 - Browse, filter, and open indexed objects in the Artifacts ADS pane.
 - Build the whole vault or the current document from `Workspace -> Artifacts`
   or as a vault-maintenance pass.

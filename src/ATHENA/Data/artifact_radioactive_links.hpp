@@ -1,0 +1,42 @@
+/******************************************************************************
+* MODULE     : artifact_radioactive_links.hpp
+* DESCRIPTION: Fast automatic links to stable semantic artifacts
+* COPYRIGHT  : (C) 2026 Nuaptan Felix Evalisk
+*******************************************************************************
+* This software falls under the GNU general public license version 3 or later.
+*******************************************************************************/
+
+#ifndef ATHENA_ARTIFACT_RADIOACTIVE_LINKS_HPP
+#define ATHENA_ARTIFACT_RADIOACTIVE_LINKS_HPP
+
+#include "ATHENA/Data/artifacts.hpp"
+#include "string.hpp"
+
+#include <string>
+#include <vector>
+
+struct AthenaArtifactRadioactiveMatch {
+  int start= 0;
+  int end= 0;
+  std::vector<std::string> uuids;
+  std::string disambiguation_key;
+};
+
+std::string athena_artifact_radioactive_destination (
+  const AthenaArtifactRadioactiveMatch& match);
+
+string athena_artifact_radioactive_name (const AthenaArtifactRecord& record);
+
+std::string athena_artifact_radioactive_key (
+  const AthenaArtifactRecord& record);
+
+std::vector<AthenaArtifactRadioactiveMatch>
+athena_artifact_radioactive_matches (string text);
+
+std::vector<AthenaArtifactRadioactiveMatch>
+athena_artifact_radioactive_matches_for_records (
+  const std::vector<AthenaArtifactRecord>& records, string text);
+
+void athena_artifact_radioactive_invalidate ();
+
+#endif // ATHENA_ARTIFACT_RADIOACTIVE_LINKS_HPP
