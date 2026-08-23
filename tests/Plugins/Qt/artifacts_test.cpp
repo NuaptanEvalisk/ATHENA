@@ -5,7 +5,12 @@
 ******************************************************************************/
 
 #include <QtTest/QtTest>
+#include <QDir>
 #include <QElapsedTimer>
+#include <QFile>
+#include <QFileInfo>
+#include <QProcess>
+#include <QProcessEnvironment>
 #include <QTemporaryDir>
 
 #include "ATHENA/Data/artifacts.hpp"
@@ -40,6 +45,7 @@ private slots:
   void doesNotLinkNonAdjacentProof ();
   void buildsIncrementallyAndPurgesDeletedDocuments ();
   void storesAndDisambiguatesSameNamedArtifacts ();
+  void navigatesArtifactAndLoadsDisambiguationPage ();
   void preservesBoldIdentityWhenDuplicateIsInsertedBefore ();
   void doesNotTransferDeletedDuplicateToInsertedDuplicate ();
   void rejectsIdentityTransferWhenParagraphIsCopiedExactly ();
@@ -163,6 +169,26 @@ bold_paragraph_document (
            << compound ("style", "generic")
            << compound ("body", body);
   return document;
+}
+
+static tree
+named_theorem_document (const std::string& name, const std::string& statement) {
+  tree body (DOCUMENT);
+  body << compound ("label", ("theorem:" + name + " {").c_str ())
+       << compound ("theorem", statement.c_str ())
+       << compound ("label", ("theorem:" + name + " }").c_str ());
+  tree document (DOCUMENT);
+  document << compound ("TeXmacs", "2.1.4")
+           << compound ("style", "generic")
+           << compound ("body", body);
+  return document;
+}
+
+static QString
+scheme_quote (QString value) {
+  value.replace ('\\', "\\\\");
+  value.replace ('"', "\\\"");
+  return '"' + value + '"';
 }
 
 static const AthenaArtifactRecord*
@@ -465,6 +491,159 @@ TestArtifacts::storesAndDisambiguatesSameNamedArtifacts () {
   QVERIFY (serialized.find ("tmfs://artifact/" + same_name[1].uuid) !=
            std::string::npos);
   QVERIFY (serialized.find ("Select the intended one") != std::string::npos);
+}
+
+void
+TestArtifacts::navigatesArtifactAndLoadsDisambiguationPage () {
+  QTemporaryDir temporary;
+  QVERIFY (temporary.isValid ());
+  fs::path root (temporary.filePath ("vault").toStdString ());
+  QVERIFY (fs::create_directories (root));
+
+  AthenaVaultfileInfo info;
+  std::string error;
+  QVERIFY2 (athena_vaultfile_write (root, info, error), error.c_str ());
+  write_document (
+    root / "Banach.ath",
+    named_theorem_document (
+      "Banach fixed-point theorem",
+      "Every contraction of a complete metric space has a unique fixed point."));
+  write_document (
+    root / "Euler functions.ath",
+    named_theorem_document (
+      "Euler's theorem",
+      "Every homogeneous function satisfies Euler's identity."));
+  write_document (
+    root / "Euler polyhedra.ath",
+    named_theorem_document (
+      "Euler's theorem",
+      "Every convex polyhedron satisfies V minus E plus F equals two."));
+  tree demoBody (DOCUMENT);
+  demoBody << "Runtime navigation fixture.";
+  tree demoDocument (DOCUMENT);
+  demoDocument << compound ("TeXmacs", "2.1.4")
+               << compound ("style", "generic")
+               << compound ("body", demoBody);
+  write_document (root / "Demo.ath", demoDocument);
+
+  AthenaArtifactsBuildResult built;
+  QVERIFY2 (athena_artifacts_build (root, {}, true, {}, built, error),
+            error.c_str ());
+  std::vector<AthenaArtifactRecord> records;
+  QVERIFY2 (athena_artifacts_query (root, records, error), error.c_str ());
+  const AthenaArtifactRecord* banach= nullptr;
+  std::vector<AthenaArtifactRecord> euler;
+  for (const AthenaArtifactRecord& record: records) {
+    if (record.anchor_stem == "theorem:Banach fixed-point theorem")
+      banach= &record;
+    if (record.anchor_stem == "theorem:Euler's theorem")
+      euler.push_back (record);
+  }
+  QVERIFY (banach != nullptr);
+  QCOMPARE (euler.size (), (size_t) 2);
+  QString disambiguationUrl= QString::fromStdString (
+    "tmfs://artifact-disambiguation/" +
+    athena_artifact_radioactive_key (euler.front ()));
+
+  QString home= temporary.filePath ("home");
+  QVERIFY (QDir ().mkpath (home + "/progs"));
+  QVERIFY (QDir ().mkpath (home + "/fonts"));
+  QVERIFY (QDir ().mkpath (home + "/system"));
+  QString resultPath= temporary.filePath ("navigation-result.txt");
+  QString sourcePath= QString::fromStdString ((root / "Banach.ath").string ());
+  QString demoPath= QString::fromStdString ((root / "Demo.ath").string ());
+  QString uniqueUrl= QString::fromStdString ("tmfs://artifact/" + banach->uuid);
+
+  QString script= QString (R"SCM(
+(set-preference "check for updates" "off")
+(delayed (:pause 1000)
+  (begin
+    (load-vault-dir (system->url %1))
+    (delayed (:pause 500)
+      (begin
+        (load-buffer (system->url %2))
+        (go-to-url %3)
+        (delayed (:pause 1200)
+          (begin
+            (string-save
+              (string-append
+                "same-buffer="
+                (if (== (url->system (current-buffer)) %2) "1" "0")
+                "\nsame-anchor="
+                (if (== (cursor-path)
+                        (label->path "theorem:Banach fixed-point theorem {"))
+                    "1" "0")
+                "\n")
+              (system->url %4))
+            (load-buffer (system->url %5))
+            (go-to-url %6)
+            (delayed (:pause 1200)
+              (begin
+                (string-save
+                  (string-append
+                    (string-load (system->url %4))
+                    "disambiguation-buffer="
+                    (if (and (== (url->system (current-buffer)) %6)
+                             (buffer-exists? (system->url %6)))
+                        "1" "0")
+                    "\n")
+                  (system->url %4))
+                (quit-TeXmacs)))))))))
+)SCM")
+    .arg (scheme_quote (QString::fromStdString (root.string ())))
+    .arg (scheme_quote (sourcePath))
+    .arg (scheme_quote (uniqueUrl))
+    .arg (scheme_quote (resultPath))
+    .arg (scheme_quote (demoPath))
+    .arg (scheme_quote (disambiguationUrl));
+  QFile init (home + "/progs/my-init-texmacs.scm");
+  QVERIFY (init.open (QIODevice::WriteOnly | QIODevice::Text));
+  QByteArray initBytes= script.toUtf8 ();
+  QCOMPARE (init.write (initBytes), (qint64) initBytes.size ());
+  init.close ();
+
+  QString executable=
+    QDir (QCoreApplication::applicationDirPath ())
+      .absoluteFilePath ("../src/ATHENA.bin");
+  QVERIFY2 (QFile::exists (executable), qPrintable (executable));
+  QString launcherDirectory= temporary.filePath ("bin");
+  QVERIFY (QDir ().mkpath (launcherDirectory));
+  QString launcher= launcherDirectory + "/ATHENA";
+  QVERIFY2 (QFile::link (executable, launcher), qPrintable (launcher));
+  QProcess process;
+  QProcessEnvironment environment= QProcessEnvironment::systemEnvironment ();
+  environment.insert (
+    "ATHENA_PATH",
+    QDir (QCoreApplication::applicationDirPath ())
+      .absoluteFilePath ("../../ATHENA"));
+  QString executableDirectory= QFileInfo (executable).absolutePath ();
+  environment.insert ("ATHENA_BIN_PATH", executableDirectory);
+  environment.insert (
+    "PATH", launcherDirectory + ':' + environment.value ("PATH"));
+  environment.insert ("ATHENA_HOME_PATH", home);
+  environment.insert ("QT_QPA_PLATFORM", "offscreen");
+  environment.insert ("TM_REEXEC", "1");
+  process.setProcessEnvironment (environment);
+  process.setProgram (launcher);
+  process.setArguments (
+    {"--no-splash-screen", "--platform", "offscreen", demoPath});
+  process.start ();
+  QVERIFY2 (process.waitForFinished (30000), qPrintable (process.errorString ()));
+
+  QByteArray output= process.readAllStandardOutput () +
+                     process.readAllStandardError ();
+  QByteArray diagnostic;
+  for (const QByteArray& line: output.split ('\n'))
+    if (!line.contains ("approximating font")) diagnostic += line + '\n';
+  QCOMPARE (process.exitStatus (), QProcess::NormalExit);
+  QFile result (resultPath);
+  QVERIFY2 (result.open (QIODevice::ReadOnly | QIODevice::Text),
+            diagnostic.right (8192).constData ());
+  QByteArray assertions= result.readAll ();
+  QVERIFY2 (assertions.contains ("same-buffer=1"), assertions.constData ());
+  QVERIFY2 (assertions.contains ("same-anchor=1"), assertions.constData ());
+  QVERIFY2 (assertions.contains ("disambiguation-buffer=1"),
+            assertions.constData ());
 }
 
 void
