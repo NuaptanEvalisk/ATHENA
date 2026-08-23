@@ -178,6 +178,16 @@ qt_font_rep::draw_fixed (renderer ren, string s, SI x, SI y) {
   }
 }
 
+int
+qt_font_rep::index_glyph (string s, font_metric& fnm, font_glyphs& fng) {
+  (void) s;
+  (void) fnm;
+  (void) fng;
+  // Qt fonts are rendered through QPainter and intentionally have no
+  // TeXmacs bitmap glyph table.  Callers use -1 to select that draw path.
+  return -1;
+}
+
 font
 qt_font_rep::magnify (double zoomx, double zoomy) {
   if (zoomx != zoomy) return poor_magnify (zoomx, zoomy);
