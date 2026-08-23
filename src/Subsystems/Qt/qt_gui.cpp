@@ -47,7 +47,6 @@
 #include <QCryptographicHash>
 #include <QFileIconProvider>
 #include <QFileInfo>
-#include <QFontInfo>
 #include <QMimeDatabase>
 #include <QMimeType>
 #include <QPixmap>
@@ -67,10 +66,6 @@
 #include <QImage>
 #include <QUrl>
 #include <QApplication>
-#include <QJsonArray>
-#include <QJsonDocument>
-#include <QJsonObject>
-#include <QProcess>
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDialog>
@@ -154,48 +149,6 @@ tm_sleep () {
 }
 #endif
 
-static double
-athena_kde_output_scale () {
-  if (!QApplication::platformName ().startsWith (QStringLiteral ("wayland")))
-    return 1.0;
-
-  QString screen_name;
-  if (QScreen* screen= QGuiApplication::primaryScreen ())
-    screen_name= screen->name ();
-
-  QProcess proc;
-  proc.start (QStringLiteral ("kscreen-doctor"),
-              QStringList () << QStringLiteral ("--json"));
-  if (!proc.waitForFinished (1000) ||
-      proc.exitStatus () != QProcess::NormalExit ||
-      proc.exitCode () != 0)
-    return 1.0;
-
-  QJsonParseError error;
-  QJsonDocument doc= QJsonDocument::fromJson (proc.readAllStandardOutput (),
-                                              &error);
-  if (error.error != QJsonParseError::NoError || !doc.isObject ())
-    return 1.0;
-
-  QJsonArray outputs= doc.object ().value (QStringLiteral ("outputs")).toArray ();
-  double fallback= 1.0;
-  for (const QJsonValue& value: outputs) {
-    QJsonObject output= value.toObject ();
-    if (!output.value (QStringLiteral ("enabled")).toBool () ||
-        !output.value (QStringLiteral ("connected")).toBool ())
-      continue;
-
-    double scale= output.value (QStringLiteral ("scale")).toDouble (1.0);
-    if (scale < 0.5 || scale > 4.0) continue;
-    if (fallback == 1.0) fallback= scale;
-
-    QString name= output.value (QStringLiteral ("name")).toString ();
-    if (!screen_name.isEmpty () && name == screen_name)
-      return scale;
-  }
-  return fallback;
-}
-
 static void
 athena_sync_logical_ui_font (const QFont& font) {
   if (qApp == nullptr) return;
@@ -251,32 +204,9 @@ athena_sync_logical_ui_font (const QFont& font) {
 void
 athena_resync_wayland_ui_fonts () {
   if (qApp == nullptr ||
-      !QApplication::platformName ().startsWith (QStringLiteral ("wayland")) ||
-      retina_scale <= 1.0)
+      !QApplication::platformName ().startsWith (QStringLiteral ("wayland")))
     return;
   athena_sync_logical_ui_font (qApp->font ());
-}
-
-static void
-athena_apply_logical_ui_scale (double scale) {
-  static double applied_scale= 1.0;
-  if (scale <= 1.0 || applied_scale != 1.0 || qApp == nullptr)
-    return;
-
-  QFont font= qApp->font ();
-  QFontInfo info (font);
-  int pixel_size= font.pixelSize () > 0 ? font.pixelSize () : info.pixelSize ();
-  if (pixel_size > 0) {
-    // QtWayland gives CFF fonts such as CMU Typewriter Text poor metrics when
-    // we rescale through point sizes.  Use the resolved integer pixel size
-    // from Qt's platform font instead.
-    font.setPixelSize (max (1, (int) floor (pixel_size * scale + 0.5)));
-  }
-  else if (font.pointSizeF () > 0)
-    font.setPointSize (max (1, (int) floor (font.pointSizeF () * scale + 0.5)));
-  qApp->setFont (font);
-  athena_sync_logical_ui_font (font);
-  applied_scale= scale;
 }
 
 void
@@ -287,31 +217,18 @@ athena_initialize_wayland_ui_scale () {
     return;
 
   double dpr= 1.0;
-  QSize geometry;
-  if (QScreen* screen= QGuiApplication::primaryScreen ()) {
+  if (QScreen* screen= QGuiApplication::primaryScreen ())
     dpr= screen->devicePixelRatio ();
-    geometry= screen->geometry ().size ();
-  }
 
-  double output_scale= 1.0;
-  bool enable_logical_scale= false;
+  // QtWayland already exposes screen geometry, fonts, and widget dimensions
+  // in compositor-scaled logical coordinates.  Only the backing store needs
+  // the physical device-pixel ratio; applying the KScreen scale again to
+  // retina_scale would enlarge every Qt metric and the document zoom twice.
+  retina_manual= true;
+  retina_factor= max (1, (int) ceil (dpr));
+  retina_zoom= 1;
+  retina_scale= 1.0;
   if (dpr > 1.0) {
-    output_scale= athena_kde_output_scale ();
-    retina_factor= (int) ceil (dpr);
-    retina_zoom= 1;
-    retina_scale= output_scale;
-    enable_logical_scale= true;
-  }
-  else if (!geometry.isEmpty () &&
-           min (geometry.width (), geometry.height ()) >= 1440) {
-    output_scale= athena_kde_output_scale ();
-    retina_zoom= 1;
-    retina_scale= output_scale;
-    enable_logical_scale= true;
-  }
-
-  if (enable_logical_scale) {
-    retina_manual= true;
     if (!retina_iman) {
       retina_iman= true;
       retina_icons= 1;
@@ -327,8 +244,7 @@ athena_initialize_wayland_ui_scale () {
   if (has_user_preference ("retina-scale"))
     retina_scale= as_double (get_user_preference ("retina-scale"));
 
-  if (enable_logical_scale)
-    athena_apply_logical_ui_scale (retina_scale);
+  athena_sync_logical_ui_font (qApp->font ());
 }
 
 /******************************************************************************
@@ -391,14 +307,9 @@ needing_update (false)
       debug_boot << "Device pixel ratio: " << dpr << "\n";
 
     if (dpr > 1.0) {
-      // QtWayland reports the physical buffer DPR, which is rounded up on
-      // fractional-scale KDE sessions.  Use KScreen's output scale for
-      // ATHENA's logical UI metrics instead.
-      double output_scale= athena_kde_output_scale ();
       retina_factor= (int) ceil (dpr);
       retina_zoom  = 1;
-      retina_scale = output_scale;
-      athena_apply_logical_ui_scale (retina_scale);
+      retina_scale = 1.0;
       if (!retina_iman) {
         retina_iman  = true;
         retina_icons = 1;
@@ -411,8 +322,7 @@ needing_update (false)
         debug_boot << "Screen extents: " << w/PIXEL << " x " << h/PIXEL << "\n";
       if (min (w, h) >= 1440 * PIXEL) {
         retina_zoom  = 1;
-        retina_scale = athena_kde_output_scale ();
-        athena_apply_logical_ui_scale (retina_scale);
+        retina_scale = 1.0;
         if (!retina_iman) {
           retina_iman  = true;
           retina_icons = 1;
