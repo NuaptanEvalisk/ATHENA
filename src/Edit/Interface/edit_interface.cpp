@@ -31,6 +31,13 @@ extern void (*env_next_prog)(void);
 extern void set_snap_mode (tree t);
 extern void set_snap_distance (SI d);
 
+static bool defer_editor_chrome_build= false;
+
+void
+defer_next_editor_chrome_build () {
+  defer_editor_chrome_build= true;
+}
+
 /*static*/ string
 MODE_LANGUAGE (string mode) {
   if (mode == "text") return LANGUAGE;
@@ -124,32 +131,56 @@ void
 edit_interface_rep::resume () {
   //cout << "Resume " << buf->buf->name << LF;
   got_focus= true;
-  SERVER (menu_main ("(horizontal (link texmacs-menu))"));
-  SERVER (menu_icons (0, "(horizontal (link texmacs-main-icons))"));
-  SERVER (menu_icons (1, "(horizontal (link texmacs-mode-icons))"));
-  SERVER (menu_icons (2, "(horizontal (link texmacs-focus-icons))"));
-  SERVER (menu_icons (3, "(horizontal (link texmacs-extra-icons))"));
-  array<url> a= buffer_to_windows (buf->buf->name);
-  if (N(a) > 0) {
-    string win = "(string->url \"" * as_string (a[0]) * "\")";
-    string bdyn= "(dynamic (texmacs-bottom-tools " * win * "))";
-    string xdyn= "(dynamic (texmacs-extra-tools " * win * "))";
-    SERVER (bottom_tools (0, "(vertical " * bdyn * ")"));
-    SERVER (bottom_tools (1, "(vertical " * xdyn * ")"));
+  bool defer_chrome= defer_editor_chrome_build;
+  defer_editor_chrome_build= false;
+  if (!defer_chrome) {
+    bench_start ("build main menu");
+    SERVER (menu_main ("(horizontal (link texmacs-menu))"));
+    bench_cumul ("build main menu");
+    bench_start ("build main toolbar");
+    SERVER (menu_icons (0, "(horizontal (link texmacs-main-icons))"));
+    bench_cumul ("build main toolbar");
+    bench_start ("build mode toolbar");
+    SERVER (menu_icons (1, "(horizontal (link texmacs-mode-icons))"));
+    bench_cumul ("build mode toolbar");
+    bench_start ("build focus toolbar");
+    SERVER (menu_icons (2, "(horizontal (link texmacs-focus-icons))"));
+    bench_cumul ("build focus toolbar");
+    bench_start ("build user toolbar");
+    SERVER (menu_icons (3, "(horizontal (link texmacs-extra-icons))"));
+    bench_cumul ("build user toolbar");
+    array<url> a= buffer_to_windows (buf->buf->name);
+    if (N(a) > 0) {
+      string win = "(string->url \"" * as_string (a[0]) * "\")";
+      string bdyn= "(dynamic (texmacs-bottom-tools " * win * "))";
+      string xdyn= "(dynamic (texmacs-extra-tools " * win * "))";
+      bench_start ("build bottom tools");
+      SERVER (bottom_tools (0, "(vertical " * bdyn * ")"));
+      SERVER (bottom_tools (1, "(vertical " * xdyn * ")"));
+      bench_cumul ("build bottom tools");
+    }
   }
   cur_sb= 2;
+  bench_start ("initialize editor focus state");
   env_change= env_change & (~THE_FREEZE);
   notify_change (THE_FOCUS + THE_EXTENTS);
+  bench_cumul ("initialize editor focus state");
   drd_info old_drd= the_drd;
   the_drd= drd;
-  path new_tp= make_cursor_accessible (tp, true);
-  if (new_tp != tp) {
-    notify_change (THE_CURSOR);
-    tp= new_tp;
+  if (!defer_chrome) {
+    bench_start ("make initial cursor accessible");
+    path new_tp= make_cursor_accessible (tp, true);
+    bench_cumul ("make initial cursor accessible");
+    if (new_tp != tp) {
+      notify_change (THE_CURSOR);
+      tp= new_tp;
+    }
   }
   the_drd= old_drd;
-  if (!headless_mode)
+  bench_start ("reset initial editor");
+  if (!headless_mode && !defer_chrome)
     reset_all ();
+  bench_cumul ("reset initial editor");
 }
 
 void

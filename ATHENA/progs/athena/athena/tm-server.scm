@@ -11,9 +11,9 @@
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(texmacs-module (athena athena tm-server)
-  (:use (generic document-edit)))
+(texmacs-module (athena athena tm-server))
 (use-modules (kernel athena tm-preferences))
+(lazy-define (generic document-edit) init-default set-document-language)
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

@@ -34,6 +34,7 @@
 
 (define lazy-force-all? #f)
 (define lazy-force-busy? #f)
+(define kbd-inverse-warmup-running? #f)
 
 (define (lazy-keyboard-force-do l)
   (cond ((null? l) l)
@@ -57,6 +58,40 @@
 	(set! lazy-force-all? #f))
       (when (and lazy-force-all? (nnull? lazy-keyboard-waiting))
 	(lazy-keyboard-force #t)))))
+
+(define (lazy-keyboard-drop-done l)
+  (cond ((null? l) '())
+        ((ahash-ref lazy-keyboard-done (cdar l))
+         (lazy-keyboard-drop-done (cdr l)))
+        (else l)))
+
+(define (kbd-inverse-warmup-step)
+  (if lazy-force-busy?
+      (delayed (:idle 10) (kbd-inverse-warmup-step))
+      (begin
+        (set! lazy-keyboard-waiting
+              (lazy-keyboard-drop-done lazy-keyboard-waiting))
+        (if (null? lazy-keyboard-waiting)
+            (begin
+              (set! kbd-inverse-warmup-running? #f)
+              (update-menus))
+            (let* ((entry (car lazy-keyboard-waiting))
+                   (module (cdr entry)))
+              (set! lazy-keyboard-waiting (cdr lazy-keyboard-waiting))
+              (set! lazy-force-busy? #t)
+              (dynamic-wind
+                (lambda () (noop))
+                (lambda ()
+                  (module-provide module)
+                  (ahash-set! lazy-keyboard-done module #t))
+                (lambda () (set! lazy-force-busy? #f)))
+              (delayed (:idle 1) (kbd-inverse-warmup-step)))))))
+
+(tm-define (kbd-start-inverse-warmup)
+  (:synopsis "Populate the inverse keyboard cache after the first window")
+  (when (not kbd-inverse-warmup-running?)
+    (set! kbd-inverse-warmup-running? #t)
+    (delayed (:idle 500) (kbd-inverse-warmup-step))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Definition of keyboard wildcards
@@ -142,6 +177,11 @@
   (:synopsis "Find keyboard binding for command @com")
   ;;(display* "Find inverse binding '" com "'\n")
   (lazy-keyboard-force)
+  (with r (ctx-resolve (kbd-get-inv com) #f)
+    (if r r "")))
+
+(tm-define (kbd-find-cached-inv-binding com)
+  (:synopsis "Read an already populated inverse keyboard binding")
   (with r (ctx-resolve (kbd-get-inv com) #f)
     (if r r "")))
 

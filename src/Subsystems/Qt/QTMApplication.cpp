@@ -5,6 +5,7 @@
 #include "QTMVaultBackupDispatcher.hpp"
 #include "qt_utilities.hpp"
 #include "scheme.hpp"
+#include "tm_timer.hpp"
 
 #include <QKeyEvent>
 #include <QTouchEvent>
@@ -90,11 +91,17 @@ void QTMApplication::load() {
 
   mPixmapManagerInitialized = false;
 
+  bench_start ("initialize qt theme");
   init_theme ();
+  bench_cumul ("initialize qt theme");
 
+  bench_start ("construct qt tab shell");
   if (mUseTabWindow) new QTMMainTabWindow();
+  bench_cumul ("construct qt tab shell");
+  bench_start ("initialize background services");
   qtm_vault_backup_dispatcher_initialize ();
   qtm_schedule_update_check ();
+  bench_cumul ("initialize background services");
 }
   
 

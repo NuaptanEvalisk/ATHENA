@@ -28,6 +28,8 @@ url  window_to_view (url win);
 url  view_to_buffer (url u);
 url  view_to_window (url u);
 url  get_new_view (url name);
+void defer_next_view_initialization ();
+void schedule_deferred_view_initialization ();
 url  get_recent_view (url name);
 url  get_passive_view (url name);
 void delete_view (url u);

@@ -77,7 +77,7 @@ setup_tex () {
 
 void
 init_tex () {
-  reset_tfm_path (false);
-  reset_pk_path (false);
-  reset_pfb_path ();
+  // TFM, PK, and Type1 directory expansion is only needed by the legacy TeX
+  // font backend.  The resolvers initialize their respective paths on first
+  // use so ordinary TrueType/OpenType startup does not scan unused trees.
 }

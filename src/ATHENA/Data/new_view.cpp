@@ -18,6 +18,11 @@
 #include "dictionary.hpp"
 #include "new_document.hpp"
 #include "drd_std.hpp"
+#include "boot.hpp"
+
+#ifdef QTTEXMACS
+#include <QTimer>
+#endif
 
 #ifdef OS_MINGW
 #define WINPATHS
@@ -246,6 +251,40 @@ get_all_views () {
 
 url tm_init_buffer_file= url_none ();
 url my_init_buffer_file= url_none ();
+static bool defer_view_initialization= false;
+static url deferred_view= url_none ();
+
+void
+defer_next_view_initialization () {
+  defer_view_initialization= true;
+}
+
+static void
+initialize_view (tm_view vw) {
+  url previous= get_current_view_safe ();
+  set_current_view (abstract_view (vw));
+  if (is_none (tm_init_buffer_file))
+    tm_init_buffer_file= "$ATHENA_PATH/progs/init-buffer.scm";
+  if (is_none (my_init_buffer_file))
+    my_init_buffer_file= "$ATHENA_HOME_PATH/progs/my-init-buffer.scm";
+  bench_start ("load init buffer");
+  if (exists (tm_init_buffer_file)) exec_file (tm_init_buffer_file);
+  if (exists (my_init_buffer_file)) exec_file (my_init_buffer_file);
+  bench_cumul ("load init buffer");
+  set_current_view (previous);
+}
+
+void
+schedule_deferred_view_initialization () {
+#ifdef QTTEXMACS
+  url pending= deferred_view;
+  deferred_view= url_none ();
+  QTimer::singleShot (500, [pending] () {
+    tm_view vw= concrete_view (pending);
+    if (vw != nullptr && vw->win != nullptr) initialize_view (vw);
+  });
+#endif
+}
 
 url
 get_new_view (url name) {
@@ -253,20 +292,18 @@ get_new_view (url name) {
 
   create_buffer (name, tree (DOCUMENT));
   tm_buffer buf= concrete_buffer (name);
+  bench_start ("construct initial editor");
   editor    ed = new_editor (get_server () -> get_server (), buf);
+  bench_cumul ("construct initial editor");
   tm_view   vw = tm_new<tm_view_rep> (buf, ed);
   buf->vws << vw;
   ed->set_data (buf->data);
 
-  url temp= get_current_view_safe ();
-  set_current_view (abstract_view (vw));
-  if (is_none (tm_init_buffer_file))
-    tm_init_buffer_file= "$ATHENA_PATH/progs/init-buffer.scm";
-  if (is_none (my_init_buffer_file))
-    my_init_buffer_file= "$ATHENA_HOME_PATH/progs/my-init-buffer.scm";
-  if (exists (tm_init_buffer_file)) exec_file (tm_init_buffer_file);
-  if (exists (my_init_buffer_file)) exec_file (my_init_buffer_file);
-  set_current_view (temp);
+  if (defer_view_initialization) {
+    defer_view_initialization= false;
+    deferred_view= abstract_view (vw);
+  }
+  else initialize_view (vw);
 
   //cout << "View created " << abstract_view (vw) << "\n";
   return abstract_view (vw);
@@ -350,10 +387,14 @@ attach_view (url win_u, url u) {
   // cout << "Attach view " << vw->buf->buf->name << "\n";
   vw->win= win;
   widget wid= win->wid;
+  bench_start ("attach editor canvas");
   set_scrollable (wid, vw->ed);
+  bench_cumul ("attach editor canvas");
   vw->ed->cvw= wid.rep;
   ASSERT (is_attached (wid), "widget should be attached");
+  bench_start ("resume initial editor");
   vw->ed->resume ();
+  bench_cumul ("resume initial editor");
   win->set_window_name (vw->buf->buf->title);
   win->set_window_url (vw->buf->buf->name);
   notify_set_view (u);

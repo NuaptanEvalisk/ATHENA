@@ -106,6 +106,7 @@ kpsewhich (string name, int format) {
 
 static url
 resolve_tfm (url name) {
+  if (is_none (the_tfm_path)) reset_tfm_path (false);
   url r= resolve (the_tfm_path * name);
   if (!is_none (r)) return r;
   if (get_setting ("KPSEWHICH") == "true") {
@@ -128,6 +129,7 @@ resolve_tfm (url name) {
 
 static url
 resolve_pk (url name) {
+  if (is_none (the_pk_path)) reset_pk_path (false);
   url r= resolve (the_pk_path * name);
   if (!is_none (r)) return r;
 #ifndef OS_WIN32 // The kpsewhich from MikTeX is bugged for pk fonts
@@ -156,6 +158,7 @@ resolve_pk (url name) {
 
 static url
 resolve_pfb (url name) {
+  if (is_none (the_pfb_path)) reset_pfb_path ();
   url r= resolve (the_pfb_path * name);
   if (!is_none (r)) return r;
 #ifndef OS_WIN32 // The kpsewhich from MikTeX is bugged for pfb fonts
@@ -184,6 +187,7 @@ resolve_pfb (url name) {
 
 url
 tfm_font_path () {
+  if (is_none (the_tfm_path)) reset_tfm_path (false);
   return the_tfm_path;
 }
 

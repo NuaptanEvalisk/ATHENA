@@ -22,6 +22,8 @@
 #define INPUT_SPELL       3
 #define INPUT_COMPLETE    4
 
+void defer_next_editor_chrome_build ();
+
 string MODE_LANGUAGE (string mode);
 
 class edit_interface_rep: virtual public editor_rep {

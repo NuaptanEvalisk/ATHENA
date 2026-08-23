@@ -13,6 +13,7 @@
 #include "file.hpp"
 #include "convert.hpp"
 #include "iterator.hpp"
+#include "tm_timer.hpp"
 
 /******************************************************************************
 * Caching routines
@@ -270,10 +271,18 @@ cache_initialize () {
   remove (texmacs_home_path * "system/cache/font_path_cache.scm");
   remove (texmacs_home_path * "system/cache/font_file_index.scm");
 
+  bench_start ("load persistent data caches");
   cache_refresh ();
+  bench_cumul ("load persistent data caches");
+}
+
+void
+cache_validate_font_directories () {
+  bench_start ("validate font cache directories");
   if (is_recursively_up_to_date (texmacs_path * "fonts/type1") &&
       is_recursively_up_to_date (texmacs_path * "fonts/truetype") &&
       is_recursively_up_to_date (texmacs_home_path * "fonts/type1") &&
       is_recursively_up_to_date (texmacs_home_path * "fonts/truetype"));
   else remove (texmacs_home_path * "fonts/error" * url_wildcard ("*"));
+  bench_cumul ("validate font cache directories");
 }

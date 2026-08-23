@@ -17,6 +17,7 @@
 #include "message.hpp"
 #include "dictionary.hpp"
 #include "new_document.hpp"
+#include "boot.hpp"
 
 /******************************************************************************
 * Manage global list of windows
@@ -91,9 +92,15 @@ new_window (bool map_flag= true, tree geom= "") {
   if (get_preference ("extra tools") == "on") mask += 512;
   url* id= tm_new<url> (url_none ());
   command quit= tm_new<kill_window_command_rep> (id);
+  bench_start ("construct qt editor shell");
   tm_window win= tm_new<tm_window_rep> (texmacs_widget (mask, quit), geom);
+  bench_cumul ("construct qt editor shell");
   tm_window_table (win->id)= win;
-  if (map_flag) win->map ();
+  if (map_flag) {
+    bench_start ("map editor window");
+    win->map ();
+    bench_cumul ("map editor window");
+  }
   *id= abstract_window (win);
   return abstract_window (win);
 }
@@ -247,10 +254,15 @@ new_buffer_in_this_window (url name, tree doc) {
 
 url
 new_buffer_in_new_window (url name, tree doc, tree geom) {
-  if (is_nil (concrete_buffer (name)))
+  if (is_nil (concrete_buffer (name))) {
+    bench_start ("create initial buffer");
     create_buffer (name, doc);
+    bench_cumul ("create initial buffer");
+  }
   url win= new_window (true, geom);
+  bench_start ("create initial view");
   window_set_view (win, get_passive_view (name), true);
+  bench_cumul ("create initial view");
   return win;
 }
 

@@ -61,6 +61,22 @@
     form))
 
 (define old-primitive-load primitive-load)
+(define startup-load-profile? (equal? (getenv "ATHENA_STARTUP_PROFILE") "1"))
+
+(define (startup-profiled-primitive-load filename)
+  (let* ((start (texmacs-time))
+         (result (old-primitive-load filename))
+         (elapsed (- (texmacs-time) start)))
+    (display "ATHENA-STARTUP-LOAD\t")
+    (display elapsed)
+    (display "\t")
+    (display filename)
+    (newline)
+    result))
+
+(if startup-load-profile?
+    (set! primitive-load startup-profiled-primitive-load))
+
 (define (new-primitive-load filename)
   (if (member (scheme-dialect) (list "guile-a" "guile-b"))
       (old-primitive-load filename)
@@ -133,10 +149,11 @@
 (lazy-define (utils test test-convert) delayed-quit
              build-manual build-ref-suite run-test-suite)
 (use-modules (utils library smart-table))
-(use-modules (utils plugins plugin-convert))
+(when (not (qt-gui?))
+  (use-modules (utils plugins plugin-convert)))
 (use-modules (utils misc markup-funcs))
 (use-modules (utils misc artwork))
-(use-modules (utils handwriting handwriting))
+(lazy-define (utils handwriting handwriting) learn-glyphs)
 (lazy-tmfs-handler (utils automate auto-tmfs) automate)
 (lazy-define (utils automate auto-tmfs) auto-load-help)
 (lazy-define (utils misc gui-keyboard) get-keyboard)
@@ -147,9 +164,8 @@
 ;(display* "memory: " (texmacs-memory) " bytes\n")
 
 ;(display "Booting main TeXmacs functionality\n")
-(use-modules (athena athena tm-server) (athena athena tm-view)
-             (athena athena tm-files) (athena athena tm-print)
-             (athena athena tm-vault))
+(use-modules (athena athena tm-server) (athena athena tm-vault-startup))
+(lazy-define (athena athena tm-vault) load-vault-dir)
 (lazy-define (athena athena tm-files)
              buffer-missing-style? buffer-set-default-style)
 (use-modules (athena keyboard config-kbd))
@@ -174,7 +190,13 @@
 (lazy-menu (athena menus preferences-widgets)
            preferences-open?
            open-preferences open-plugin-preferences open-plugins-preferences)
-(use-modules (athena menus main-menu))
+(lazy-menu (athena menus main-menu)
+           texmacs-extra-menu texmacs-extra-icons
+           plugin-menu plugin-icons bookmarks-menu test-menu help-icons
+           comment-menu athena-focus-menu texmacs-menu window-list-menu
+           workspace-menu presentation-popup-menu texmacs-popup-menu
+           texmacs-alternative-popup-menu texmacs-main-icons
+           texmacs-mode-icons)
 (lazy-define (athena menus file-menu) recent-file-list recent-directory-list)
 (lazy-define (athena menus view-menu) set-bottom-bar test-bottom-bar?)
 (lazy-tool (athena menus view-tools) retina-settings-tool)
@@ -507,7 +529,7 @@
 ;(display "Booting fonts\n")
 (use-modules (fonts fonts-ec) (fonts fonts-adobe) (fonts fonts-x)
              (fonts fonts-math) (fonts fonts-foreign) (fonts fonts-misc)
-             (fonts fonts-composite) (fonts fonts-truetype))
+             (fonts fonts-composite))
 (lazy-define (fonts font-old-menu)
 	     text-font-menu math-font-menu prog-font-menu)
 (lazy-define (fonts font-new-widgets)

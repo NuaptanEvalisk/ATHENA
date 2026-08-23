@@ -65,6 +65,33 @@ font_database_is_font_file (string name) {
 #define DELTA_CHARACTERISTICS \
   "$ATHENA_HOME_PATH/fonts/delta-characteristics.scm"
 
+static string
+font_database_cache_stamp (url u) {
+  if (!exists (u)) return "-";
+  return as_string (file_size (u)) * ":" *
+         as_string (last_modified (u, false));
+}
+
+string
+font_database_cache_signature () {
+  array<url> files;
+  files << url (GLOBAL_DATABASE)
+        << url (GLOBAL_FEATURES)
+        << url (GLOBAL_CHARACTERISTICS)
+        << url (GLOBAL_SUBSTITUTIONS)
+        << url (LOCAL_DATABASE)
+        << url (LOCAL_FEATURES)
+        << url (LOCAL_CHARACTERISTICS)
+        << url (LOCAL_DISCOVERY_VERSION)
+        << url (DELTA_DATABASE)
+        << url (DELTA_FEATURES)
+        << url (DELTA_CHARACTERISTICS);
+  string r= "1";
+  for (int i=0; i<N(files); i++)
+    r << ";" << font_database_cache_stamp (files[i]);
+  return r;
+}
+
 /******************************************************************************
 * Additional comparison operators
 ******************************************************************************/
@@ -318,7 +345,7 @@ font_database_global_load (string name) {
   name= upgrade_family_name (name);
   bool quiet= font_database_core_family (requested);
 #ifdef QTTEXMACS
-  if (!quiet && QCoreApplication::instance () && !is_headless () &&
+  if (!quiet && qobject_cast<QApplication*> (QCoreApplication::instance ()) &&
       get_user_preference ("show font substitution warning") == "on") {
     string msg= name == "" ?
       "Loading the global font fallback database." :
@@ -347,6 +374,7 @@ font_database_save () {
   font_database_save_features (LOCAL_FEATURES);
   font_database_save_characteristics (LOCAL_CHARACTERISTICS);
   font_database_save_discovery_version ();
+  font_closest_cache_invalidate ();
 }
 
 /******************************************************************************
@@ -449,6 +477,7 @@ font_database_build_global (url u) {
   font_database_save_database (GLOBAL_DATABASE);
   font_database_save_features (GLOBAL_FEATURES_BIS);
   font_database_save_characteristics (GLOBAL_CHARACTERISTICS);
+  font_closest_cache_invalidate ();
   fonts_loaded= fonts_global_loaded= false;
 }
 
@@ -502,6 +531,7 @@ font_database_save_local_delta () {
   font_database_save_database (DELTA_DATABASE);
   font_database_save_features (DELTA_FEATURES);
   font_database_save_characteristics (DELTA_CHARACTERISTICS);
+  font_closest_cache_invalidate ();
   font_table= hashmap<tree,tree> (UNINIT);
   font_features= hashmap<tree,tree> (UNINIT);
   font_variants= hashmap<tree,tree> (UNINIT);

@@ -20,6 +20,7 @@
 #include "scheme.hpp"
 #include "tm_server.hpp"
 #include "tm_ostream.hpp"
+#include "tm_timer.hpp"
 #include "vault.hpp"
 
 #include <QMouseEvent>
@@ -194,7 +195,8 @@ athenaMainWindowBaseTitle() {
 }
 
 QTMMainTabWindow::QTMMainTabWindow()
-  : mLastFocusedDocumentWidget (nullptr) {
+  : mMdiArea (nullptr), mLastFocusedDocumentWidget (nullptr) {
+  bench_start ("construct main window base widgets");
   mStackedWidget = new QStackedWidget(this);
   setCentralWidget (mStackedWidget);
   setWindowTitle (athenaMainWindowBaseTitle());
@@ -203,8 +205,14 @@ QTMMainTabWindow::QTMMainTabWindow()
   mTabWidget->setTabsClosable(true);
   mTabWidget->setMovable(true);
 
-  mMdiArea = new QMdiArea(mStackedWidget);
-  mMdiArea->setViewMode (QMdiArea::SubWindowView);
+  // ATHENA uses ADS.  QMdiArea has a surprisingly expensive constructor on
+  // Qt 6/Wayland, so retain the legacy path without paying for it unless MDI
+  // is explicitly selected before this window is created.
+  if (tmapp()->useMdi ()) {
+    mMdiArea = new QMdiArea(mStackedWidget);
+    mMdiArea->setViewMode (QMdiArea::SubWindowView);
+  }
+  bench_cumul ("construct main window base widgets");
 
   qtm_apply_ads_tab_close_preferences ();
   if (QApplication::platformName().startsWith(QStringLiteral("wayland"))) {
@@ -221,7 +229,10 @@ QTMMainTabWindow::QTMMainTabWindow()
     ads::CDockManager::setConfigFlag (
       ads::CDockManager::FloatingContainerForceQWidgetTitleBar, true);
   }
+  bench_start ("construct ads dock manager");
   mDockManager = new ads::CDockManager(mStackedWidget);
+  bench_cumul ("construct ads dock manager");
+  bench_start ("connect main window shell");
   connect(mDockManager, &ads::CDockManager::focusedDockWidgetChanged,
           this, [this](ads::CDockWidget*, ads::CDockWidget* now) {
             if (now) {
@@ -235,7 +246,7 @@ QTMMainTabWindow::QTMMainTabWindow()
           this, &QTMMainTabWindow::saveAdsLayoutState);
 
   mStackedWidget->addWidget (mTabWidget);
-  mStackedWidget->addWidget (mMdiArea);
+  if (mMdiArea != nullptr) mStackedWidget->addWidget (mMdiArea);
   mStackedWidget->addWidget (mDockManager);
 
   if (tmapp()->useMdi()) mStackedWidget->setCurrentWidget (mMdiArea);
@@ -251,12 +262,15 @@ QTMMainTabWindow::QTMMainTabWindow()
   setDefaultStyle();
 
   connect(mTabWidget, SIGNAL(tabCloseRequested(int)), this, SLOT(closeTab(int)));
-  connect(mMdiArea, SIGNAL(subWindowActivated(QMdiSubWindow*)), this, SLOT(onSubWindowActivated(QMdiSubWindow*)));
+  if (mMdiArea != nullptr)
+    connect(mMdiArea, SIGNAL(subWindowActivated(QMdiSubWindow*)),
+            this, SLOT(onSubWindowActivated(QMdiSubWindow*)));
 
   installEventFilter(this);
   mTabWidget->tabBar()->installEventFilter(this);
 
   gTopTabWindow = this;
+  bench_cumul ("connect main window shell");
 }
 
 QTMMainTabWindow::~QTMMainTabWindow() {
@@ -1140,7 +1154,7 @@ void QTMMainTabWindow::setDefaultStyle() {
     "   padding: 0px !important; "
     "   margin: 0px !important; "
     "} ";
-  
+
   this->setStyleSheet(adsStyle);
 
   mTabWidget->setStyleSheet(

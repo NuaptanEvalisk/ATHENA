@@ -12,6 +12,9 @@
 #include "font.hpp"
 #include "Freetype/tt_tools.hpp"
 #include "analyze.hpp"
+#include "convert.hpp"
+#include "file.hpp"
+#include "iterator.hpp"
 
 bool is_weight (string s);
 bool is_category (string s);
@@ -257,10 +260,56 @@ logical_font (string family, string variant, string series, string shape) {
 * Find closest existing font
 ******************************************************************************/
 
+#define CLOSEST_CACHE "$ATHENA_HOME_PATH/fonts/font-closest-cache.scm"
+
+static hashmap<tree,tree> closest_cache (UNINIT);
+static bool closest_cache_loaded= false;
+
+static void
+closest_cache_load () {
+  if (closest_cache_loaded) return;
+  closest_cache_loaded= true;
+  if (!exists (CLOSEST_CACHE)) return;
+  string s;
+  if (load_string (CLOSEST_CACHE, s, false)) return;
+  tree t= block_to_scheme_tree (s);
+  if (!is_tuple (t) || N(t) == 0 ||
+      !is_func (t[0], TUPLE, 2) ||
+      t[0][0] != "athena-font-closest-cache" ||
+      t[0][1] != font_database_cache_signature ()) return;
+  for (int i=1; i<N(t); i++)
+    if (is_func (t[i], TUPLE, 2) &&
+        is_func (t[i][0], TUPLE, 5) &&
+        is_func (t[i][1], TUPLE, 4))
+      closest_cache (t[i][0])= t[i][1];
+}
+
+static void
+closest_cache_save () {
+  array<scheme_tree> entries;
+  entries << tuple ("athena-font-closest-cache",
+                    font_database_cache_signature ());
+  iterator<tree> it= iterate (closest_cache);
+  while (it->busy ()) {
+    tree key= it->next ();
+    entries << tuple (key, closest_cache[key]);
+  }
+  save_string (CLOSEST_CACHE,
+               scheme_tree_to_block (tree (TUPLE, entries)));
+}
+
+void
+font_closest_cache_invalidate () {
+  closest_cache= hashmap<tree,tree> (UNINIT);
+  closest_cache_loaded= true;
+  remove (CLOSEST_CACHE);
+}
+
 bool
 find_closest (string& family, string& variant, string& series, string& shape,
 	      int attempt) {
-  static hashmap<tree,tree> closest_cache (UNINIT);
+  font_database_load ();
+  closest_cache_load ();
   tree val= tuple (copy (family), variant, series, shape);
   tree key= tuple (copy (family), variant, series, shape, as_string (attempt));
   if (closest_cache->contains (key)) {
@@ -312,6 +361,7 @@ find_closest (string& family, string& variant, string& series, string& shape,
     //     << ", " << series << ", " << shape << "\n";
     tree t= tuple (family, variant, series, shape);
     closest_cache (key)= t;
+    closest_cache_save ();
     return t != val;
   }
 }

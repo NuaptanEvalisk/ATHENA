@@ -111,7 +111,9 @@ server_rep::~server_rep () {}
 
 tm_server_rep::tm_server_rep (): def_zoomf (1.0), center_message ("") {
   the_server= tm_new<server> (this);
+  bench_start ("initialize guile");
   initialize_scheme ();
+  bench_cumul ("initialize guile");
   gui_interpose (texmacs_interpose_handler);
   gui_post_repaint (texmacs_post_repaint_handler);
   set_wait_handler (texmacs_wait_handler);
@@ -119,10 +121,10 @@ tm_server_rep::tm_server_rep (): def_zoomf (1.0), center_message ("") {
     tm_init_file= "$ATHENA_PATH/progs/init-texmacs.scm";
   if (is_none (my_init_file))
     my_init_file= "$ATHENA_HOME_PATH/progs/my-init-texmacs.scm";
-  bench_start ("initialize scheme");
+  bench_start ("load scheme boot");
   if (exists (tm_init_file)) exec_file (tm_init_file);
   if (exists (my_init_file)) exec_file (my_init_file);
-  bench_cumul ("initialize scheme");
+  bench_cumul ("load scheme boot");
   if (my_init_cmds != "") {
     my_init_cmds= "(begin" * my_init_cmds * ")";
     exec_delayed (scheme_cmd (my_init_cmds));

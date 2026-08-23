@@ -46,6 +46,7 @@
 #include "new_buffer.hpp"
 #include "new_view.hpp"
 #include "tm_window.hpp"
+#include "Interface/edit_interface.hpp"
 #include "scheme.hpp"
 #include "convert.hpp"
 #include "Freetype/tt_file.hpp"
@@ -64,6 +65,7 @@
 #include "Qt/qt_utilities.hpp"
 #include <QApplication>
 #include <QDir>
+#include <QTimer>
 #endif
 
 #ifdef MACOSX_EXTENSIONS
@@ -937,7 +939,9 @@ TeXmacs_main (int argc, char** argv) {
   { // opening scope for server sv
     if (DEBUG_STD) debug_boot << "Starting server...\n";
     startup_progress (90, "Starting server");
+    bench_start ("start server");
     server sv;
+    bench_cumul ("start server");
     startup_progress (92, "Server ready");
   
     // append commands to open standard welcome messages if needed
@@ -1028,11 +1032,28 @@ TeXmacs_main (int argc, char** argv) {
   
     if (number_buffers () == 0) {
       if (DEBUG_STD) debug_boot << "Creating 'no name' buffer...\n";
-      startup_progress (94, "Opening first document");
+      startup_progress (94, "Building editor window");
+      bench_start ("build editor window");
+      defer_next_editor_chrome_build ();
+      defer_next_view_initialization ();
       open_window ();
-      startup_progress (96, "First document ready");
+      bench_cumul ("build editor window");
+      bench_cumul ("startup to editor shell");
+      startup_progress (96, "Editor window ready");
+      schedule_deferred_view_initialization ();
+      QTimer::singleShot (1000, [] () {
+        cache_validate_font_directories ();
+      });
       if (DEBUG_STD) debug_boot << "Queueing vault startup initialization...\n";
-      extra_init_cmd << "(vault-startup-open-initial-buffer)";
+      extra_init_cmd << "(delayed (:idle 1) "
+                        "(begin "
+                        "(import-from (utils plugins plugin-convert)) "
+                        "(update-menus)))";
+      extra_init_cmd << "(delayed (:idle 100) "
+                        "(import-from (fonts fonts-truetype)))";
+      extra_init_cmd << "(delayed (:idle 150) "
+                        "(vault-startup-open-initial-buffer))";
+      extra_init_cmd << "(kbd-start-inverse-warmup)";
     }
     extra_init_cmd << "(delayed (:idle 300) (ads-restore-visible-panes))";
 
@@ -1513,6 +1534,7 @@ athena_refresh_cache_if_sources_changed (int argc, char** argv) {
 
 int
 texmacs_entrypoint (int argc, char** argv) {
+  bench_start ("startup to editor shell");
   for (int i=1; i<argc; i++) {
     string s= argv[i];
     if ((N(s)>=2) && (s(0,2)=="--")) s= s (1, N(s));
@@ -1699,6 +1721,7 @@ texmacs_entrypoint (int argc, char** argv) {
   }
   handle_rag_server_keypair_generation ();
 #ifdef QTTEXMACS
+  bench_start ("create qt application");
   reject_unsupported_qt_platforms (argc, argv);
   normalize_wayland_qt_scaling (argc, argv);
   bool rag_server_mode= rag_server_dir != "";
@@ -1724,12 +1747,15 @@ texmacs_entrypoint (int argc, char** argv) {
     if (!headless_mode && !no_splash_screen) tmapp()->show_splash ();
     startup_progress (5, "Application created");
   }
+  bench_cumul ("create qt application");
 #endif
   startup_progress (8, "Reading startup options");
   immediate_options (argc, argv);
   startup_progress (10, "Startup options loaded");
   startup_progress (12, "Checking caches");
+  bench_start ("check startup caches");
   athena_refresh_cache_if_sources_changed (argc, argv);
+  bench_cumul ("check startup caches");
   startup_progress (20, "Caches ready");
 #ifdef STACK_SIZE
   struct rlimit limit;
@@ -1749,7 +1775,9 @@ texmacs_entrypoint (int argc, char** argv) {
   startup_progress (30, "Core booted");
   windows_delayed_refresh (1000000000);
   startup_progress (34, "Loading preferences");
+  bench_start ("load startup preferences");
   load_user_preferences ();
+  bench_cumul ("load startup preferences");
   startup_progress (38, "Preferences loaded");
 #ifndef OS_MINGW
   set_env ("LC_NUMERIC", "POSIX");
@@ -1774,17 +1802,23 @@ texmacs_entrypoint (int argc, char** argv) {
   }
   else {
     startup_progress (42, "Initializing interface");
+    bench_start ("initialize qt interface");
     athena_initialize_wayland_ui_scale ();
     ((QTMApplication*)qtmapp)->load();
+    bench_cumul ("initialize qt interface");
     startup_progress (50, "Interface initialized");
   }
 #endif
 
   startup_progress (56, "Initializing caches");
+  bench_start ("initialize data caches");
   cache_initialize ();
+  bench_cumul ("initialize data caches");
   startup_progress (60, "Caches initialized");
   startup_progress (65, "Loading fonts");
+  bench_start ("initialize fonts");
   ATHENA_init_font  ();
+  bench_cumul ("initialize fonts");
   startup_progress (70, "Fonts ready");
 #ifdef QTTEXMACS
   if (!headless_mode) {
@@ -1809,6 +1843,13 @@ texmacs_entrypoint (int argc, char** argv) {
 //  test_environments ();
 //#endif
   startup_progress (83, "Starting Scheme");
+  // Guile 1.8 defaults to 256 KiB/32 KiB initial heap segments.  ATHENA's
+  // module bootstrap immediately outgrows them and otherwise spends a large
+  // part of startup repeatedly collecting and extending the heap.
+  if (get_env ("GUILE_INIT_SEGMENT_SIZE_1") == "")
+    set_env ("GUILE_INIT_SEGMENT_SIZE_1", "16777216");
+  if (get_env ("GUILE_INIT_SEGMENT_SIZE_2") == "")
+    set_env ("GUILE_INIT_SEGMENT_SIZE_2", "4194304");
   start_scheme (argc, argv, TeXmacs_main);
 #ifdef QTTEXMACS
   if (headless_mode) {

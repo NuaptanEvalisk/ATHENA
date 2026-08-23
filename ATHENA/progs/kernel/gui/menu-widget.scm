@@ -124,7 +124,7 @@
         (else (translate (kbd-system-rewrite shortcut)))))
 
 (define (kbd-find-shortcut what menu-flag?)
-  (with r (kbd-find-inv-binding what)
+  (with r (kbd-find-cached-inv-binding what)
     (when (string-contains? r "accent:")
       (set! r (string-replace r "accent:deadhat" "^"))
       (set! r (string-replace r "accent:tilde" "~"))

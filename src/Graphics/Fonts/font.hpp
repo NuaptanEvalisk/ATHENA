@@ -250,6 +250,8 @@ void font_database_global_load (string name = "");
 void font_database_save ();
 void font_database_filter ();
 void font_database_save_local_delta ();
+string font_database_cache_signature ();
+void font_closest_cache_invalidate ();
 array<string> font_database_families ();
 array<string> font_database_delta_families ();
 array<string> font_database_styles (string family);

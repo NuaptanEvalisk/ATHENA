@@ -237,7 +237,14 @@ tt_platform_font_catalog () {
   tt_platform_fonts= hashmap<string,string> ("");
   tt_platform_dirs= url_none ();
 
-  FcConfig* config= FcInitLoadConfigAndFonts ();
+  // Qt has initialized Fontconfig by the time ATHENA reaches this path.
+  // Reuse that catalog instead of parsing every system font a second time.
+  FcConfig* config= FcConfigGetCurrent ();
+  bool own_config= false;
+  if (config == nullptr) {
+    config= FcInitLoadConfigAndFonts ();
+    own_config= config != nullptr;
+  }
   if (config != nullptr) {
     string xtt= get_env ("ATHENA_FONT_PATH");
     string ximp= get_preference ("imported fonts", "");
@@ -255,7 +262,7 @@ tt_platform_font_catalog () {
           tt_platform_dirs, url_system (string ((const char*) dir)));
       FcStrListDone (dirs);
     }
-    FcConfigDestroy (config);
+    if (own_config) FcConfigDestroy (config);
   }
 
   tt_platform_signature= signature;
@@ -368,6 +375,7 @@ tt_font_path () {
 #endif
   bench_cumul ("tt font path");
   cache_set (TT_FONT_PATH_CACHE, key, tt_font_path_encode (cached_path));
+  cache_save (TT_FONT_PATH_CACHE);
   cached_xtt= xtt;
   cached_imported= ximp;
   initialized= true;
@@ -521,9 +529,6 @@ tt_font_find_sub (string name) {
 
 url
 tt_font_find (string name) {
-  url platform= tt_platform_font_find (name);
-  if (!is_none (platform)) return platform;
-
   string s= "ttf:" * name;
   if (is_cached ("font_cache.scm", s)) {
     string r= cache_get ("font_cache.scm", s) -> label;
@@ -533,9 +538,11 @@ tt_font_find (string name) {
     cache_reset ("font_cache.scm", s);
   }
 
-  url r= tt_font_find_sub (name);
+  url r= tt_platform_font_find (name);
+  if (is_none (r)) r= tt_font_find_sub (name);
   if (is_none (r)) cache_set ("font_cache.scm", s, "");
   else cache_set ("font_cache.scm", s, as_string (r));
+  cache_save ("font_cache.scm");
   return r;
 }
 
