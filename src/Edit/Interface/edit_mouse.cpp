@@ -726,6 +726,17 @@ edit_interface_rep::mouse_any (string type, SI x, SI y, int mods, time_t t,
     last_t= t;
   }
 
+  heading_cell_bracket heading_bracket;
+  bool over_heading_bracket=
+    type != "leave" && heading_cell_bracket_at (x, y, heading_bracket);
+  if (type == "move" || type == "leave") {
+    path hovered= over_heading_bracket ? heading_bracket.heading_path : path ();
+    if (hovered != heading_cell_hovered) {
+      heading_cell_hovered= hovered;
+      notify_change (THE_DECORATIONS);
+    }
+  }
+
   bool move_like=
     (type == "move" || type == "dragging-left" || type == "dragging-right");
   if ((!move_like) || (is_attached (this) && !check_event (MOTION_EVENT)))
@@ -745,6 +756,7 @@ edit_interface_rep::mouse_any (string type, SI x, SI y, int mods, time_t t,
     if (handle == IMAGE_RESIZE_CORNER) set_pointer ("XC_bottom_right_corner");
     else if (handle == IMAGE_RESIZE_RIGHT) set_pointer ("XC_right_side");
     else if (handle == IMAGE_RESIZE_BOTTOM) set_pointer ("XC_bottom_side");
+    if (over_heading_bracket) set_pointer ("XC_hand2");
   }
 
   if (type == "leave")
@@ -762,6 +774,29 @@ edit_interface_rep::mouse_any (string type, SI x, SI y, int mods, time_t t,
   if (type == "pinch-end") eval ("(pinch-end)");
   if (type == "scale") eval ("(pinch-scale " * as_string (data[0]) * ")");
   if (type == "rotate") eval ("(pinch-rotate " * as_string (-data[0]) * ")");
+
+  if (type == "double-left" && over_heading_bracket) {
+    select_heading_cell (heading_bracket);
+    heading_cell_pressed= path ();
+    send_mouse_grab (this, false);
+    drag_left_reset ();
+    heading_fold_toggle_at (as_string (heading_bracket.heading_path));
+    return;
+  }
+  if ((type == "press-left" || type == "start-drag-left") &&
+      over_heading_bracket) {
+    heading_cell_pressed= heading_bracket.heading_path;
+    select_heading_cell (heading_bracket);
+    send_mouse_grab (this, true);
+    return;
+  }
+  if (!is_nil (heading_cell_pressed) && type == "dragging-left") return;
+  if (!is_nil (heading_cell_pressed) &&
+      (type == "release-left" || type == "end-drag-left")) {
+    heading_cell_pressed= path ();
+    send_mouse_grab (this, false);
+    return;
+  }
 
   if ((type == "press-left" || type == "start-drag-left") &&
       mouse_message ("click", x, y)) {

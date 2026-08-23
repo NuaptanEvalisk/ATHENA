@@ -149,6 +149,7 @@ public:
   bool     heading_unfold_current ();
   bool     heading_fold_toggle_at (string p);
   void     heading_unfold_all ();
+  array<heading_cell_range> heading_cell_ranges ();
   int      heading_word_count_at (path p);
   bool     toc_fold_set_at (path p, bool folded);
   void     typeset_sub (SI& x1, SI& y1, SI& x2, SI& y2);

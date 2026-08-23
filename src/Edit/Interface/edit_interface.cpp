@@ -92,7 +92,9 @@ edit_interface_rep::edit_interface_rep ():
   typewriter_manual_scroll_time (0),
   typewriter_manual_scroll_path (),
   live_statistics_cache_hash (-1),
-  live_statistics_cache ()
+  live_statistics_cache (),
+  heading_cell_cache_valid (false), heading_cell_cache (),
+  heading_cell_pressed (), heading_cell_hovered ()
 {
   input_mode= INPUT_NORMAL;
   gui_root_extents (cur_wx, cur_wy);
@@ -901,8 +903,16 @@ edit_interface_rep::apply_changes () {
   // cout << "Handling tree\n";
   if (env_change & (THE_TREE+THE_ENVIRONMENT)) {
     typeset_invalidate_env ();
+    SI old_heading_right= is_nil (eb) ? vx2 : eb->x2;
     SI x1, y1, x2, y2;
     typeset (x1, y1, x2, y2);
+    heading_cell_cache_valid= false;
+    SI heading_strip_width= 80 * pixel;
+    invalidate (old_heading_right - heading_strip_width, vy1,
+                old_heading_right + 2 * pixel, vy2);
+    if (!is_nil (eb) && eb->x2 != old_heading_right)
+      invalidate (eb->x2 - heading_strip_width, vy1,
+                  eb->x2 + 2 * pixel, vy2);
     invalidate (x1- 2*pixel, y1- 2*pixel, x2+ 2*pixel, y2+ 2*pixel);
     // check_data_integrety ();
     the_ghost_cursor()= eb->find_check_cursor (tp);

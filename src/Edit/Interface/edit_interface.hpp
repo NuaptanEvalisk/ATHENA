@@ -26,6 +26,20 @@ void defer_next_editor_chrome_build ();
 
 string MODE_LANGUAGE (string mode);
 
+struct heading_cell_bracket {
+  int  level;
+  path heading_path;
+  path selection_start;
+  path selection_end;
+  SI   y1;
+  SI   y2;
+  bool folded;
+
+  heading_cell_bracket ():
+    level (0), heading_path (), selection_start (), selection_end (),
+    y1 (0), y2 (0), folded (false) {}
+};
+
 class edit_interface_rep: virtual public editor_rep {
 protected:
   int           env_change;    // which things have been changed ?
@@ -99,6 +113,10 @@ protected:
   path          typewriter_manual_scroll_path;
   int           live_statistics_cache_hash;
   athena_document_statistics live_statistics_cache;
+  bool          heading_cell_cache_valid;
+  array<heading_cell_bracket> heading_cell_cache;
+  path          heading_cell_pressed;
+  path          heading_cell_hovered;
 
 public:
   edit_interface_rep ();
@@ -141,6 +159,7 @@ public:
   void draw_cursor (renderer ren);
   void draw_selection (renderer ren, rectangle r);
   void draw_graphics (renderer ren);
+  void draw_heading_cell_brackets (renderer ren, rectangle r);
   void draw_keys (renderer ren);
   void draw_pre (renderer win, renderer ren, rectangle r);
   void draw_post (renderer win, renderer ren, rectangle r);
@@ -212,6 +231,9 @@ public:
   bool image_resize_update (SI x, SI y);
   void image_resize_finish ();
   void draw_image_resize_handles (renderer ren, rectangle r);
+  array<heading_cell_bracket> heading_cell_brackets ();
+  bool heading_cell_bracket_at (SI x, SI y, heading_cell_bracket& bracket);
+  void select_heading_cell (heading_cell_bracket bracket);
   cursor get_cursor ();
   array<SI> get_mouse_position ();
   void set_pointer (string name);

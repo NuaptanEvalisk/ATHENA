@@ -65,11 +65,9 @@
 
   <assign|sectional-no-indent|<macro|<no-indent*>>>
 
-  <assign|heading-fold-control|<macro|name|<style-with|src-compact|none|<action|<specific|screen*|<active*|<with|color|dark grey|<rigid|[+]>>>>|heading-fold-toggle-tree|<arg|name>>>>>
-
   <assign|heading-word-count-control|<macro|name|<style-with|src-compact|none|<specific|screen*|<extern|heading-word-count-tree|<arg|name>>>>>>
 
-  <assign|heading-fold-title|<macro|name|<surround||<heading-word-count-control|<arg|name>><resize|<right-flush><heading-fold-control|<arg|name>>|0w||0w|>|<arg|name>>>>
+  <assign|heading-fold-title|<macro|name|<surround||<heading-word-count-control|<arg|name>><resize|<right-flush>|0w||0w|>|<arg|name>>>>
 
   <assign|sectional-short|<macro|name|<no-indent><arg|name>>>
 

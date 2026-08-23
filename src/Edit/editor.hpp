@@ -43,6 +43,21 @@ class modification;
 class editor;
 extern bool enable_fastenv;
 
+struct heading_cell_range {
+  int  level;
+  path heading_path;
+  path selection_start;
+  path selection_end;
+  path heading_end;
+  path visual_start;
+  path visual_end;
+  bool folded;
+
+  heading_cell_range ():
+    level (0), heading_path (), selection_start (), selection_end (),
+    heading_end (), visual_start (), visual_end (), folded (false) {}
+};
+
 class editor_rep: public simple_widget_rep {
 public:
   server_rep*  sv;   // the underlying texmacs server
@@ -348,6 +363,7 @@ public:
   virtual bool     heading_unfold_current () = 0;
   virtual bool     heading_fold_toggle_at (string p) = 0;
   virtual void     heading_unfold_all () = 0;
+  virtual array<heading_cell_range> heading_cell_ranges () = 0;
   virtual int      heading_word_count_at (path p) = 0;
   virtual bool     toc_fold_set_at (path p, bool folded) = 0;
 

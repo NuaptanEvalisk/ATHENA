@@ -1174,6 +1174,49 @@ edit_typeset_rep::heading_unfold_all () {
   invalidate_all ();
 }
 
+array<heading_cell_range>
+edit_typeset_rep::heading_cell_ranges () {
+  array<heading_cell_range> ranges;
+  tree doc= subtree (et, rp);
+  array<path> headings;
+  heading_collect_paths (doc, path (), headings);
+
+  int hidden_level= 0;
+  for (int i=0; i<N(headings); i++) {
+    path hp= headings[i];
+    int level= heading_level (subtree (doc, hp));
+    if (hidden_level != 0) {
+      if (level <= hidden_level) hidden_level= 0;
+      else continue;
+    }
+
+    bool folded_here= folded_headings->contains (as_string (hp));
+    int next= i + 1;
+    while (next < N(headings) &&
+           heading_level (subtree (doc, headings[next])) > level)
+      next++;
+
+    path absolute= rp * hp;
+    path logical_end= next < N(headings)
+      ? start (et, rp * headings[next])
+      : end (et, rp);
+
+    heading_cell_range range;
+    range.level          = level;
+    range.heading_path   = hp;
+    range.selection_start= start (et, absolute);
+    range.selection_end  = logical_end;
+    range.heading_end    = end (et, absolute);
+    range.visual_start   = range.selection_start;
+    range.visual_end     = folded_here ? range.heading_end : logical_end;
+    range.folded         = folded_here;
+    ranges << range;
+
+    if (folded_here) hidden_level= level;
+  }
+  return ranges;
+}
+
 bool
 edit_typeset_rep::heading_fold_set_current (bool folded, bool toggle) {
   tree doc= subtree (et, rp);
