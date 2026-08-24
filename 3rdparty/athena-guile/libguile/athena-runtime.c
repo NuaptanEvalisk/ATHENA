@@ -1263,11 +1263,31 @@ SCM_DEFINE (scm_athena_definition_install_x, "%athena-definition-install!",
             "Install an ATHENA root definition and register its metadata.")
 #define FUNC_NAME s_scm_athena_definition_install_x
 {
+  SCM modules;
+
   scm_module_define (athena_root_module, name, procedure);
   scm_module_export (athena_root_module, scm_list_1 (name));
   athena_table_prepend (athena_definition_sources, name, source);
   scm_hashq_set_x (athena_definition_names, procedure, name);
   athena_table_prepend (athena_definition_modules, name, module_name);
+
+  /* Guile 1.8-era TeXmacs modules shared one mutable top-level binding for
+     every tm-define name.  Guile 3 normally compiles references to a module's
+     own local variable instead.  Keep those variables synchronized whenever
+     a later module extends the dispatch chain, otherwise an earlier wrapper
+     such as kbd-return keeps calling its module-local, incomplete kbd-enter. */
+  modules = scm_hashq_ref (athena_definition_modules, name, SCM_EOL);
+  while (scm_is_pair (modules))
+    {
+      SCM module = scm_hash_ref (athena_modules, scm_car (modules), SCM_BOOL_F);
+      if (scm_is_true (module))
+        {
+          SCM variable = scm_module_local_variable (module, name);
+          if (scm_is_true (variable))
+            scm_variable_set_x (variable, procedure);
+        }
+      modules = scm_cdr (modules);
+    }
   return procedure;
 }
 #undef FUNC_NAME

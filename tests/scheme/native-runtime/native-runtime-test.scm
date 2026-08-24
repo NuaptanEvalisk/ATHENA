@@ -31,6 +31,15 @@
 (module-load '(test provider))
 (assert-equal 1 provider-load-count "module-load exactly once")
 
+(module-load '(test dispatch-base))
+(assert-equal '(base 0) (call-cross-module-dispatch 0)
+              "base module dispatch")
+(module-load '(test dispatch-extension))
+(assert-equal '(positive 1) (call-cross-module-dispatch 1)
+              "later module updates compiled local dispatcher")
+(assert-equal '(base 0) (call-cross-module-dispatch 0)
+              "later module preserves former dispatch")
+
 (module-load '(test cycle-a))
 (assert-equal 'a (cycle-a-value) "cycle A")
 (assert-equal 'b (cycle-b-value) "cycle B")
