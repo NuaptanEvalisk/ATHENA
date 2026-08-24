@@ -14,7 +14,7 @@
 (texmacs-module (prog prog-edit)
   (:use (utils library tree)
         (utils library cursor)))
-(use-modules (kernel athena tm-preferences))
+(import-from (kernel athena tm-preferences))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

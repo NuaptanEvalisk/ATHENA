@@ -1,0 +1,1728 @@
+;;;; tree-il.test --- test suite for compiling tree-il   -*- scheme -*-
+;;;; Andy Wingo <wingo@pobox.com> --- May 2009
+;;;;
+;;;; Copyright (C) 2009-2014,2018-2021,2023 Free Software Foundation, Inc.
+;;;;
+;;;; This library is free software; you can redistribute it and/or
+;;;; modify it under the terms of the GNU Lesser General Public
+;;;; License as published by the Free Software Foundation; either
+;;;; version 3 of the License, or (at your option) any later version.
+;;;;
+;;;; This library is distributed in the hope that it will be useful,
+;;;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;;;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+;;;; Lesser General Public License for more details.
+;;;;
+;;;; You should have received a copy of the GNU Lesser General Public
+;;;; License along with this library; if not, write to the Free Software
+;;;; Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+
+(define-module (test-suite tree-il)
+  #:use-module (test-suite lib)
+  #:use-module (system base compile)
+  #:use-module (system base pmatch)
+  #:use-module (system base message)
+  #:use-module (language tree-il)
+  #:use-module (language tree-il primitives)
+  #:use-module (language tree-il optimize)
+  #:use-module (ice-9 match)
+  #:use-module (ice-9 regex)
+  #:use-module (srfi srfi-13))
+
+(define-syntax-rule (pass-if-primitives-resolved in expected)
+  (pass-if (format #f "primitives-resolved in ~s" 'in)
+    (let* ((module   (let ((m (make-module)))
+                       (beautify-user-module! m)
+                       m))
+           (orig     (parse-tree-il 'in))
+           (resolved (expand-primitives (resolve-primitives orig module))))
+      (or (equal? (unparse-tree-il resolved) 'expected)
+          (begin
+            (format (current-error-port)
+                    "primitive test failed: got ~s, expected ~s"
+                    resolved 'expected)
+            #f)))))
+
+(define-syntax pass-if-tree-il->scheme
+  (syntax-rules ()
+    ((_ in pat)
+     (assert-scheme->tree-il->scheme in pat #t))
+    ((_ in pat guard-exp)
+     (pass-if 'in
+       (pmatch (tree-il->scheme
+                (compile 'in #:from 'scheme #:to 'tree-il))
+         (pat (guard guard-exp) #t)
+         (_ #f))))))
+
+
+(with-test-prefix "primitives"
+
+  (with-test-prefix "error"
+    (pass-if-primitives-resolved
+        (primcall error (const "message"))
+      (primcall throw (const misc-error) (const #f)
+                (const "message") (primcall list) (const #f)))
+
+    (pass-if-primitives-resolved
+        (primcall error (const "message") (const 42))
+      (primcall throw (const misc-error) (const #f)
+                (const "message ~S") (primcall list (const 42))
+                (const #f)))
+
+    (pass-if-equal "https://bugs.gnu.org/39509"
+        '(throw 'misc-error #f "~A" (list "message") #f)
+      (let ((module (make-fresh-user-module)))
+        (decompile (expand-primitives
+                    (resolve-primitives
+                     (compile '(error ((lambda () "message")))
+                              #:to 'tree-il)
+                     module))
+                   #:from 'tree-il
+                   #:to 'scheme)))
+
+    (pass-if-equal "https://bugs.gnu.org/39509 with argument"
+        '(throw 'misc-error #f "~A ~S" (list "message" 42) #f)
+      (let ((module (make-fresh-user-module)))
+        (decompile (expand-primitives
+                    (resolve-primitives
+                     (compile '(error ((lambda () "message")) 42)
+                              #:to 'tree-il)
+                     module))
+                   #:from 'tree-il
+                   #:to 'scheme)))))
+
+
+(define* (compile+optimize exp #:key (env (current-module))
+                           (optimization-level 2) (opts '()))
+  (let ((optimize (make-lowerer optimization-level opts)))
+    (optimize (compile exp #:to 'tree-il #:env env) env)))
+
+(with-test-prefix "optimize"
+
+  (pass-if-equal "https://debbugs.gnu.org/48098"
+      '(begin
+         (display "hey!\n")
+         42)
+    (decompile
+     (compile+optimize
+      '(begin
+         (call-with-prompt (make-prompt-tag)
+           (lambda () (display "hey!\n"))
+           (lambda (k) #f))
+         42)))))
+
+
+(with-test-prefix "tree-il->scheme"
+  (pass-if-tree-il->scheme
+   (case-lambda ((a) a) ((b c) (list b c)))
+   (case-lambda ((,a) ,a1) ((,b ,c) (list ,b1 ,c1)))
+   (and (eq? a a1) (eq? b b1) (eq? c c1))))
+
+
+(with-test-prefix "contification"
+  (pass-if "http://debbugs.gnu.org/9769"
+    ((compile '(lambda ()
+                 (let ((fail (lambda () #f)))
+                   (let ((test (lambda () (fail))))
+                     (test))
+                   #t))
+              ;; Prevent inlining.  We're testing contificatoin here,
+              ;; and inlining it will reduce the entire thing to #t.
+              #:opts '(#:partial-eval? #f)))))
+
+
+(define (sum . args)
+  (apply + args))
+
+(with-test-prefix "many args"
+  (pass-if "call with > 256 args"
+    (equal? (compile `(1+ (sum ,@(iota 1000)))
+                     #:env (current-module))
+            (1+ (apply sum (iota 1000)))))
+
+  (pass-if "tail call with > 256 args"
+    (equal? (compile `(sum ,@(iota 1000))
+                     #:env (current-module))
+            (apply sum (iota 1000)))))
+
+
+
+(with-test-prefix "tree-il-fold"
+
+  (pass-if "void"
+    (let ((up 0) (down 0) (mark (list 'mark)))
+      (and (eq? mark
+                (tree-il-fold (lambda (x y) (set! down (1+ down)) y)
+                              (lambda (x y) (set! up (1+ up)) y)
+                              mark
+                              (make-void #f)))
+           (= up 1)
+           (= down 1))))
+
+  (pass-if "lambda and application"
+    (let* ((ups '()) (downs '())
+           (result (tree-il-fold (lambda (x y)
+                                   (set! downs (cons x downs))
+                                   (1+ y))
+                                 (lambda (x y)
+                                   (set! ups (cons x ups))
+                                   (1+ y))
+                                 0
+                                 (parse-tree-il
+                                  '(lambda ()
+                                     (lambda-case
+                                      (((x y) #f #f #f () (x1 y1))
+                                       (call (toplevel +)
+                                             (lexical x x1)
+                                             (lexical y y1)))
+                                      #f))))))
+      (define (strip-source x)
+        (post-order (lambda (x)
+                      (set! (tree-il-src x) #f)
+                      x)
+                    x))
+      (and (= result 12)
+           (equal? (map strip-source (list-head (reverse ups) 3))
+                   (list (make-toplevel-ref #f #f '+)
+                         (make-lexical-ref #f 'x 'x1)
+                         (make-lexical-ref #f 'y 'y1)))
+           (equal? (map strip-source (reverse (list-head downs 3)))
+                   (list (make-toplevel-ref #f #f '+)
+                         (make-lexical-ref #f 'x 'x1)
+                         (make-lexical-ref #f 'y 'y1)))))))
+
+
+;;;
+;;; Warnings.
+;;;
+
+;; Make sure we get English messages.
+(when (defined? 'setlocale)
+  (setlocale LC_ALL "C"))
+
+(define (call-with-warnings thunk)
+  (let ((port (open-output-string)))
+    ;; Disable any warnings added by default.
+    (parameterize ((default-warning-level 0))
+      (with-fluids ((*current-warning-port*   port)
+                    (*current-warning-prefix* ""))
+        (thunk)))
+    (let ((warnings (get-output-string port)))
+      (string-tokenize warnings
+                       (char-set-complement (char-set #\newline))))))
+
+(define %opts-w-unused
+  '(#:warnings (unused-variable)))
+
+(define %opts-w-unused-toplevel
+  '(#:warnings (unused-toplevel)))
+
+(define %opts-w-unused-module
+  '(#:warnings (unused-module)))
+
+(define %opts-w-shadowed-toplevel
+  '(#:warnings (shadowed-toplevel)))
+
+(define %opts-w-unbound
+  '(#:warnings (unbound-variable)))
+
+(define %opts-w-use-before-definition
+  '(#:warnings (use-before-definition)))
+
+(define %opts-w-non-idempotent-definition
+  '(#:warnings (non-idempotent-definition)))
+
+(define %opts-w-arity
+  '(#:warnings (arity-mismatch)))
+
+(define %opts-w-format
+  '(#:warnings (format)))
+
+(define %opts-w-duplicate-case-datum
+  '(#:warnings (duplicate-case-datum)))
+
+(define %opts-w-bad-case-datum
+  '(#:warnings (bad-case-datum)))
+
+
+(with-test-prefix "warnings"
+
+   (pass-if "unknown warning type"
+     (let ((w (call-with-warnings
+                (lambda ()
+                  (compile #t #:opts '(#:warnings (does-not-exist)))))))
+       (and (= (length w) 1)
+            (number? (string-contains (car w) "unknown warning")))))
+
+   (with-test-prefix "unused-variable"
+
+     (pass-if "quiet"
+       (null? (call-with-warnings
+                (lambda ()
+                  (compile '(lambda (x y) (+ x y))
+                           #:opts %opts-w-unused)))))
+
+     (pass-if "let/unused"
+       (let ((w (call-with-warnings
+                  (lambda ()
+                    (compile '(lambda (x)
+                                (let ((y (+ x 2)))
+                                  x))
+                             #:opts %opts-w-unused)))))
+         (and (= (length w) 1)
+              (number? (string-contains (car w) "unused variable `y'")))))
+
+     (pass-if "shadowed variable"
+       (let ((w (call-with-warnings
+                  (lambda ()
+                    (compile '(lambda (x)
+                                (let ((y x))
+                                  (let ((y (+ x 2)))
+                                    (+ x y))))
+                             #:opts %opts-w-unused)))))
+         (and (= (length w) 1)
+              (number? (string-contains (car w) "unused variable `y'")))))
+
+     (pass-if "letrec"
+       (null? (call-with-warnings
+                (lambda ()
+                  (compile '(lambda ()
+                              (letrec ((x (lambda () (y)))
+                                       (y (lambda () (x))))
+                                y))
+                           #:opts %opts-w-unused)))))
+
+     (pass-if "unused argument"
+       ;; Unused arguments should not be reported.
+       (null? (call-with-warnings
+                (lambda ()
+                  (compile '(lambda (x y z) #t)
+                           #:opts %opts-w-unused)))))
+
+     (pass-if "special variable names"
+       (null? (call-with-warnings
+                (lambda ()
+                  (compile '(lambda ()
+                              (let ((_ 'underscore)
+                                    (#{gensym name}# 'ignore-me))
+                                #t))
+                           #:to 'cps
+                           #:opts %opts-w-unused))))))
+
+   (with-test-prefix "unused-toplevel"
+
+     (pass-if "used after definition"
+       (null? (call-with-warnings
+                (lambda ()
+                  (let ((in (open-input-string
+                             "(define foo 2) foo")))
+                    (read-and-compile in
+                                      #:to 'cps
+                                      #:opts %opts-w-unused-toplevel))))))
+
+     (pass-if "used before definition"
+       (null? (call-with-warnings
+                (lambda ()
+                  (let ((in (open-input-string
+                             "(define (bar) foo) (define foo 2) (bar)")))
+                    (read-and-compile in
+                                      #:to 'cps
+                                      #:opts %opts-w-unused-toplevel))))))
+
+     (pass-if "unused but public"
+       (let ((in (open-input-string
+                  "(define-module (test-suite tree-il x) #:export (bar))
+                   (define (bar) #t)")))
+         (null? (call-with-warnings
+                  (lambda ()
+                    (read-and-compile in
+                                      #:to 'cps
+                                      #:opts %opts-w-unused-toplevel))))))
+
+     (pass-if "unused but public (more)"
+       (let ((in (open-input-string
+                  "(define-module (test-suite tree-il x) #:export (bar))
+                   (define (bar) (baz))
+                   (define (baz) (foo))
+                   (define (foo) #t)")))
+         (null? (call-with-warnings
+                  (lambda ()
+                    (read-and-compile in
+                                      #:to 'cps
+                                      #:opts %opts-w-unused-toplevel))))))
+
+     (pass-if "unused but define-public"
+       (null? (call-with-warnings
+                (lambda ()
+                  (compile '(define-public foo 2)
+                           #:to 'cps
+                           #:opts %opts-w-unused-toplevel)))))
+
+     (pass-if "used by macro"
+       ;; FIXME: See comment about macros at `unused-toplevel-analysis'.
+       (throw 'unresolved)
+
+       (null? (call-with-warnings
+                (lambda ()
+                  (let ((in (open-input-string
+                             "(define (bar) 'foo)
+                              (define-syntax baz
+                                (syntax-rules () ((_) (bar))))")))
+                    (read-and-compile in
+                                      #:to 'cps
+                                      #:opts %opts-w-unused-toplevel))))))
+
+     (pass-if "unused"
+       (let ((w (call-with-warnings
+                  (lambda ()
+                    (compile '(define foo 2)
+                             #:to 'cps
+                             #:opts %opts-w-unused-toplevel)))))
+         (and (= (length w) 1)
+              (number? (string-contains (car w)
+                                        (format #f "top-level variable `~A'"
+                                                'foo))))))
+
+     (pass-if "unused recursive"
+       (let ((w (call-with-warnings
+                  (lambda ()
+                    (compile '(define (foo) (foo))
+                             #:to 'cps
+                             #:opts %opts-w-unused-toplevel)))))
+         (and (= (length w) 1)
+              (number? (string-contains (car w)
+                                        (format #f "top-level variable `~A'"
+                                                'foo))))))
+
+     (pass-if "unused mutually recursive"
+       (let* ((in (open-input-string
+                   "(define (foo) (bar)) (define (bar) (foo))"))
+              (w  (call-with-warnings
+                    (lambda ()
+                      (read-and-compile in
+                                        #:to 'cps
+                                        #:opts %opts-w-unused-toplevel)))))
+         (and (= (length w) 2)
+              (number? (string-contains (car w)
+                                        (format #f "top-level variable `~A'"
+                                                'foo)))
+              (number? (string-contains (cadr w)
+                                        (format #f "top-level variable `~A'"
+                                                'bar))))))
+
+     (pass-if "special variable names"
+       (null? (call-with-warnings
+                (lambda ()
+                  (compile '(define #{gensym name}# 'ignore-me)
+                           #:to 'cps
+                           #:opts %opts-w-unused-toplevel))))))
+
+   (with-test-prefix "unused-module"
+
+     (pass-if-equal "quiet"
+         '()
+       (call-with-warnings
+        (lambda ()
+          (compile '(begin
+                      (use-modules (ice-9 popen))
+                      (define (proc cmd)
+                        (open-input-pipe cmd)))
+                   #:env (make-fresh-user-module)
+                   #:opts %opts-w-unused-module))))
+
+     (pass-if-equal "quiet, renamer"
+         '()
+       (call-with-warnings
+        (lambda ()
+          (compile '(begin
+                      (use-modules ((ice-9 popen) #:prefix p-))
+                      (define (proc cmd)
+                        (p-open-input-pipe cmd)))
+                   #:env (make-fresh-user-module)
+                   #:opts %opts-w-unused-module))))
+
+     (pass-if "definitely unused"
+       (let* ((defmod '(define-module (foo)
+                         #:use-module (ice-9 vlist)
+                         #:use-module (ice-9 popen)
+                         #:export (proc)))
+              (w (call-with-warnings
+                  (lambda ()
+                    (set-source-properties! defmod
+                                            '((filename . "foo.scm")
+                                              (line . 0)
+                                              (column . 0)))
+                    (compile `(begin
+                                ,defmod
+                                (define (frob x)
+                                  (vlist-cons x vlist-null)))
+                             #:env (make-fresh-user-module)
+                             #:opts %opts-w-unused-module)))))
+         (and (= (length w) 1)
+              (string-prefix? "foo.scm:1:0" (car w))
+              (number? (string-contains (car w)
+                                        "unused module (ice-9 popen)")))))
+
+     (pass-if "definitely unused, use-modules"
+       (let* ((usemod '(use-modules (rnrs bytevectors)
+                                    (ice-9 q)))
+              (w (call-with-warnings
+                  (lambda ()
+                    (set-source-properties! usemod
+                                            '((filename . "bar.scm")
+                                              (line . 5)
+                                              (column . 0)))
+                    (compile `(begin
+                                ,usemod
+                                (define (square x)
+                                  (* x x)))
+                             #:env (make-fresh-user-module)
+                             #:opts %opts-w-unused-module)))))
+         (and (= (length w) 2)
+              (string-prefix? "bar.scm:6:0" (car w))
+              (number? (string-contains (car w)
+                                        "unused module (rnrs bytevectors)"))
+              (number? (string-contains (cadr w)
+                                        "unused module (ice-9 q)")))))
+
+     (pass-if "definitely unused, local binding shadows imported one"
+       (let ((w (call-with-warnings
+                 (lambda ()
+                   (compile `(begin
+                               (define-module (whatever x y z)
+                                 #:use-module (ice-9 popen)
+                                 #:export (frob))
+
+                               (define (open-input-pipe x)
+                                 ;; Shadows the one from (ice-9 popen).
+                                 x)
+                               (define (frob y)
+                                 (close-port (open-input-pipe y))))
+                            #:env (make-fresh-user-module)
+                            #:opts %opts-w-unused-module)))))
+         (and (= (length w) 1)
+              (number? (string-contains (car w)
+                                        "unused module (ice-9 popen)")))))
+
+     (pass-if-equal "(ice-9 match) is actually used"
+         '()
+       ;; (ice-9 match) is used and the macro expansion of the 'match'
+       ;; form refers to (@@ (ice-9 match) car) and the likes.
+       (call-with-warnings
+        (lambda ()
+          (compile '(begin
+                      (use-modules (ice-9 match))
+                      (define (proc lst)
+                        (match lst
+                          ((a b c) (+ a (* b c))))))
+                   #:env (make-fresh-user-module)
+                   #:opts %opts-w-unused-module))))
+
+     (pass-if-equal "re-exporting is using"
+         '()
+       ;; This module re-exports a binding from (ice-9 q), so (ice-9 q)
+       ;; should be considered as used.
+       (call-with-warnings
+        (lambda ()
+          (compile '(begin
+                      (define-module (this is an ice-9 q user)
+                        #:use-module (ice-9 q)
+                        #:re-export (make-q)
+                        #:export (proc))
+                      (define (proc a b)
+                        (* a b)))
+                   #:env (make-fresh-user-module)
+                   #:opts %opts-w-unused-module))))
+
+     (pass-if "(srfi srfi-26) might be unused"
+       ;; At the tree-il level, it is impossible to know whether (srfi
+       ;; srfi-26) is actually use, because all we see is the output of
+       ;; macro expansion, and in this case it doesn't capture any
+       ;; binding from (srfi srfi-26).
+       (let* ((w (call-with-warnings
+                  (lambda ()
+                    (compile `(begin
+                                (define-module (whatever)
+                                  #:use-module (srfi srfi-26)
+                                  #:export (square))
+                                (define double
+                                  (cut * 2 <>)))
+                             #:env (make-fresh-user-module)
+                             #:opts %opts-w-unused-module)))))
+         (and (= (length w) 1)
+              (number? (string-contains (car w)
+                                        "possibly unused module (srfi srfi-26)")))))
+
+     (pass-if-equal "(ice-9 format) is actually used"
+         '()
+       ;; The 'format' binding of (ice-9 format) takes precedence over
+       ;; (@@ (guile) format), so (ice-9 format) must not be reported as
+       ;; unused.
+       (call-with-warnings
+        (lambda ()
+          (compile '(begin
+                      (define-module (whatever-else)
+                        #:use-module (ice-9 format)
+                        #:export (proc))
+                      (define (proc lst)
+                        (format #f "~{~a ~}~%" lst)))
+                   #:env (make-fresh-user-module)
+                   #:opts %opts-w-unused-module)))))
+
+   (with-test-prefix "shadowed-toplevel"
+
+     (pass-if "quiet"
+       (null? (call-with-warnings
+                (lambda ()
+                  (let ((in (open-input-string
+                             "(define foo 2) (define bar 3)")))
+                    (read-and-compile in
+                                      #:to 'cps
+                                      #:opts
+                                      %opts-w-shadowed-toplevel))))))
+
+     (pass-if "internal define"
+       (null? (call-with-warnings
+               (lambda ()
+                 (let ((in (open-input-string
+                            "(define foo 2)
+  (define (bar x) (define foo (+ x 2)) (* foo x))")))
+                   (read-and-compile in
+                                     #:to 'cps
+                                     #:opts
+                                     %opts-w-shadowed-toplevel))))))
+
+     (pass-if "one shadowing definition"
+       (match (call-with-warnings
+                (lambda ()
+                  (let ((in (open-input-string
+                             "(define foo 2)\n  (define foo 3)")))
+                    (read-and-compile in
+                                      #:to 'cps
+                                      #:opts
+                                      %opts-w-shadowed-toplevel))))
+         ((message)
+          (->bool (string-match ":2:2:.*previous.*foo.*:1:0" message)))))
+
+     (pass-if "two shadowing definitions"
+       (match (call-with-warnings
+                (lambda ()
+                  (let ((in (open-input-string
+                             "(define-public foo 2)\n(define foo 3)
+  (define (foo x) x)")))
+                    (read-and-compile in
+                                      #:to 'cps
+                                      #:opts
+                                      %opts-w-shadowed-toplevel))))
+         ((message1 message2)
+          (->bool
+           (and (string-match ":2:0:.*previous.*foo.*:1:0" message1)
+                (string-match ":3:2:.*previous.*foo.*:1:0" message2))))))
+
+     (pass-if "define-public"
+       (match (call-with-warnings
+                (lambda ()
+                  (let ((in (open-input-string
+                             "(define foo 2)\n(define-public foo 3)")))
+                    (read-and-compile in
+                                      #:to 'cps
+                                      #:opts
+                                      %opts-w-shadowed-toplevel))))
+         ((message)
+          (->bool (string-match ":2:0:.*previous.*foo.*:1:0" message)))))
+
+     (pass-if "macro"
+       (match (call-with-warnings
+               (lambda ()
+                 (let ((in (open-input-string
+                            "(define foo 42)
+  (define-syntax-rule (defun proc (args ...) body ...)
+    (define (proc args ...) body ...))
+  (defun foo (a b c) (+ a b c))")))
+                   (read-and-compile in
+                                     #:to 'cps
+                                     #:opts
+                                     %opts-w-shadowed-toplevel))))
+         ((message)
+          (->bool (string-match ":4:2:.*previous.*foo.*:1:0" message))))))
+
+   (with-test-prefix "unbound variable"
+
+     (pass-if "quiet"
+       (null? (call-with-warnings
+                (lambda ()
+                  (compile '+ #:opts %opts-w-unbound)))))
+
+     (pass-if "ref"
+       (let* ((v (gensym))
+              (w (call-with-warnings
+                   (lambda ()
+                     (compile v
+                              #:to 'cps
+                              #:opts %opts-w-unbound)))))
+         (and (= (length w) 1)
+              (number? (string-contains (car w)
+                                        (format #f "unbound variable `~A'"
+                                                v))))))
+
+     (pass-if "set!"
+       (let* ((v (gensym))
+              (w (call-with-warnings
+                   (lambda ()
+                     (compile `(set! ,v 7)
+                              #:to 'cps
+                              #:opts %opts-w-unbound)))))
+         (and (= (length w) 1)
+              (number? (string-contains (car w)
+                                        (format #f "unbound variable `~A'"
+                                                v))))))
+
+     (pass-if "module-local top-level is visible"
+       (let ((m (make-module))
+             (v (gensym)))
+         (beautify-user-module! m)
+         (compile `(define ,v 123)
+                  #:env m #:opts %opts-w-unbound)
+         (null? (call-with-warnings
+                  (lambda ()
+                    (compile v
+                             #:env m
+                             #:to 'cps
+                             #:opts %opts-w-unbound))))))
+
+     (pass-if "module-local top-level is visible after"
+       (let ((m (make-module))
+             (v (gensym)))
+         (beautify-user-module! m)
+         (null? (call-with-warnings
+                  (lambda ()
+                    (let ((in (open-input-string
+                               "(define (f)
+                                  (set! chbouib 3))
+                                (define chbouib 5)")))
+                      (read-and-compile in
+                                        #:env m
+                                        #:opts %opts-w-unbound)))))))
+
+     (pass-if "optional arguments are visible"
+       (null? (call-with-warnings
+                (lambda ()
+                  (compile '(lambda* (x #:optional y z) (list x y z))
+                           #:opts %opts-w-unbound
+                           #:to 'cps)))))
+
+     (pass-if "keyword arguments are visible"
+       (null? (call-with-warnings
+                (lambda ()
+                  (compile '(lambda* (x #:key y z) (list x y z))
+                           #:opts %opts-w-unbound
+                           #:to 'cps)))))
+
+     (pass-if "GOOPS definitions are visible"
+       (let ((m (make-module))
+             (v (gensym)))
+         (beautify-user-module! m)
+         (module-use! m (resolve-interface '(oop goops)))
+         (null? (call-with-warnings
+                  (lambda ()
+                    (let ((in (open-input-string
+                               "(define-class <foo> ()
+                                  (bar #:getter foo-bar))
+                                (define z (foo-bar (make <foo>)))")))
+                      (read-and-compile in
+                                        #:env m
+                                        #:opts %opts-w-unbound))))))))
+
+   (pass-if "re-exported binding"          ;<https://bugs.gnu.org/47031>
+     (null? (call-with-warnings
+             (lambda ()
+               (compile '(begin
+                           (use-modules (srfi srfi-35))
+
+                           ;; This 'condition' form expands to a
+                           ;; 'make-compound-condition' call, which is
+                           ;; re-exported from (ice-9 exceptions).
+                           (condition (&error)
+                                      (&message (message "oh!"))))
+                        #:opts %opts-w-unbound)))))
+
+   (with-test-prefix "use-before-definition"
+     (define-syntax-rule (pass-if-warnings expr pat test)
+       (pass-if 'expr
+         (match (call-with-warnings
+                 (lambda ()
+                   (compile 'expr #:to 'cps
+                            #:opts %opts-w-use-before-definition)))
+           (pat test)
+           (_ #f))))
+
+     (define-syntax-rule (pass-if-no-warnings expr)
+       (pass-if-warnings expr () #t))
+
+     (pass-if-no-warnings
+      (begin (define x +) x))
+     (pass-if-warnings
+      (begin x (define x +))
+      (w) (number? (string-contains w "`x' used before definition")))
+     (pass-if-warnings
+      (begin (set! x 1) (define x +))
+      (w) (number? (string-contains w "`x' used before definition")))
+     (pass-if-no-warnings
+      (begin (lambda () x) (define x +)))
+     (pass-if-no-warnings
+      (begin (if (defined? 'x) x) (define x +))))
+
+   (with-test-prefix "non-idempotent-definition"
+     (define-syntax-rule (pass-if-warnings expr pat test)
+       (pass-if 'expr
+         (match (call-with-warnings
+                 (lambda ()
+                   (compile 'expr #:to 'cps
+                            #:opts %opts-w-non-idempotent-definition)))
+           (pat test)
+           (_ #f))))
+
+     (define-syntax-rule (pass-if-no-warnings expr)
+       (pass-if-warnings expr () #t))
+
+     (pass-if-no-warnings
+      (begin (define - +) (define y -)))
+     (pass-if-warnings
+      (begin - (define - +))
+      (w) (number? (string-contains w "non-idempotent binding for `-'")))
+     (pass-if-warnings
+      (begin (define y -) (define - +))
+      (w) (number? (string-contains w "non-idempotent binding for `-'")))
+     (pass-if-no-warnings
+      (begin (lambda () -) (define - +)))
+     (pass-if-no-warnings
+      (begin (if (defined? '-) -) (define - +))))
+
+   (with-test-prefix "arity mismatch"
+
+     (pass-if "quiet"
+       (null? (call-with-warnings
+                (lambda ()
+                  (compile '(cons 'a 'b) #:opts %opts-w-arity)))))
+
+     (pass-if "direct application"
+       (let ((w (call-with-warnings
+                  (lambda ()
+                    (compile '((lambda (x y) (or x y)) 1 2 3 4 5)
+                             #:opts %opts-w-arity
+                             #:to 'cps)))))
+         (and (= (length w) 1)
+              (number? (string-contains (car w)
+                                        "wrong number of arguments to")))))
+     (pass-if "local"
+       (let ((w (call-with-warnings
+                  (lambda ()
+                    (compile '(let ((f (lambda (x y) (+ x y))))
+                                (f 2))
+                             #:opts %opts-w-arity
+                             #:to 'cps)))))
+         (and (= (length w) 1)
+              (number? (string-contains (car w)
+                                        "wrong number of arguments to")))))
+
+     (pass-if "global"
+       (let ((w (call-with-warnings
+                  (lambda ()
+                    (compile '(cons 1 2 3 4)
+                             #:opts %opts-w-arity
+                             #:to 'cps)))))
+         (and (= (length w) 1)
+              (number? (string-contains (car w)
+                                        "wrong number of arguments to")))))
+
+     (pass-if "alias to global"
+       (let ((w (call-with-warnings
+                  (lambda ()
+                    (compile '(let ((f cons)) (f 1 2 3 4))
+                             #:opts %opts-w-arity
+                             #:to 'cps)))))
+         (and (= (length w) 1)
+              (number? (string-contains (car w)
+                                        "wrong number of arguments to")))))
+
+     (pass-if "alias to lexical to global"
+       (let ((w (call-with-warnings
+                  (lambda ()
+                    (compile '(let ((f number?))
+                                (let ((g f))
+                                  (f 1 2 3 4)))
+                             #:opts %opts-w-arity
+                             #:to 'cps)))))
+         (and (= (length w) 1)
+              (number? (string-contains (car w)
+                                        "wrong number of arguments to")))))
+
+     (pass-if "alias to lexical"
+       (let ((w (call-with-warnings
+                  (lambda ()
+                    (compile '(let ((f (lambda (x y z) (+ x y z))))
+                                (let ((g f))
+                                  (g 1)))
+                             #:opts %opts-w-arity
+                             #:to 'cps)))))
+         (and (= (length w) 1)
+              (number? (string-contains (car w)
+                                        "wrong number of arguments to")))))
+
+     (pass-if "letrec"
+       (let ((w (call-with-warnings
+                  (lambda ()
+                    (compile '(letrec ((odd?  (lambda (x) (even? (1- x))))
+                                       (even? (lambda (x)
+                                                (or (= 0 x)
+                                                    (odd?)))))
+                                (odd? 1))
+                             #:opts %opts-w-arity
+                             #:to 'cps)))))
+         (and (= (length w) 1)
+              (number? (string-contains (car w)
+                                        "wrong number of arguments to")))))
+
+     (pass-if "case-lambda"
+       (null? (call-with-warnings
+                (lambda ()
+                  (compile '(let ((f (case-lambda
+                                       ((x)     1)
+                                       ((x y)   2)
+                                       ((x y z) 3))))
+                              (list (f 1)
+                                    (f 1 2)
+                                    (f 1 2 3)))
+                           #:opts %opts-w-arity
+                           #:to 'cps)))))
+
+     (pass-if "case-lambda with wrong number of arguments"
+       (let ((w (call-with-warnings
+                  (lambda ()
+                    (compile '(let ((f (case-lambda
+                                         ((x)     1)
+                                         ((x y)   2))))
+                                (f 1 2 3))
+                             #:opts %opts-w-arity
+                             #:to 'cps)))))
+         (and (= (length w) 1)
+              (number? (string-contains (car w)
+                                        "wrong number of arguments to")))))
+
+     (pass-if "case-lambda*"
+       (null? (call-with-warnings
+                (lambda ()
+                  (compile '(let ((f (case-lambda*
+                                       ((x #:optional y) 1)
+                                       ((x #:key y)      2)
+                                       ((x y #:key z)    3))))
+                              (list (f 1)
+                                    (f 1 2)
+                                    (f #:y 2)
+                                    (f 1 2 #:z 3)))
+                           #:opts %opts-w-arity
+                           #:to 'cps)))))
+
+     (pass-if "case-lambda* with wrong arguments"
+       (let ((w (call-with-warnings
+                  (lambda ()
+                    (compile '(let ((f (case-lambda*
+                                         ((x #:optional y) 1)
+                                         ((x #:key y)      2)
+                                         ((x y #:key z)    3))))
+                                (list (f)
+                                      (f 1 #:z 3)))
+                             #:opts %opts-w-arity
+                             #:to 'cps)))))
+         (and (= (length w) 2)
+              (null? (filter (lambda (w)
+                               (not
+                                (number?
+                                 (string-contains
+                                  w "wrong number of arguments to"))))
+                             w)))))
+
+     (pass-if "top-level applicable struct"
+       (null? (call-with-warnings
+               (lambda ()
+                 (compile '(let ((p current-warning-port))
+                             (p (+ (p) 1))
+                             (p))
+                          #:opts %opts-w-arity
+                          #:to 'cps)))))
+
+     (pass-if "top-level applicable struct with wrong arguments"
+       (let ((w (call-with-warnings
+                 (lambda ()
+                   (compile '(let ((p current-warning-port))
+                               (p 1 2 3))
+                            #:opts %opts-w-arity
+                            #:to 'cps)))))
+         (and (= (length w) 1)
+              (number? (string-contains (car w)
+                                        "wrong number of arguments to")))))
+
+     (pass-if "local toplevel-defines"
+       (let ((w (call-with-warnings
+                  (lambda ()
+                    (let ((in (open-input-string "
+                                (define (g x) (f x))
+                                (define (f) 1)")))
+                      (read-and-compile in
+                                        #:opts %opts-w-arity
+                                        #:to 'cps))))))
+         (and (= (length w) 1)
+              (number? (string-contains (car w)
+                                        "wrong number of arguments to")))))
+
+     (pass-if "global toplevel alias"
+       (let ((w (call-with-warnings
+                  (lambda ()
+                    (let ((in (open-input-string "
+                                (define f cons)
+                                (define (g) (f))")))
+                      (read-and-compile in
+                                        #:opts %opts-w-arity
+                                        #:to 'cps))))))
+         (and (= (length w) 1)
+              (number? (string-contains (car w)
+                                        "wrong number of arguments to")))))
+
+     (pass-if "local toplevel overrides global"
+       (null? (call-with-warnings
+                (lambda ()
+                  (let ((in (open-input-string "
+                              (define (cons) 0)
+                              (define (foo x) (cons))")))
+                    (read-and-compile in
+                                      #:opts %opts-w-arity
+                                      #:to 'cps))))))
+
+     (pass-if "keyword not passed and quiet"
+       (null? (call-with-warnings
+                (lambda ()
+                  (compile '(let ((f (lambda* (x #:key y) y)))
+                              (f 2))
+                           #:opts %opts-w-arity
+                           #:to 'cps)))))
+
+     (pass-if "keyword passed and quiet"
+       (null? (call-with-warnings
+                (lambda ()
+                  (compile '(let ((f (lambda* (x #:key y) y)))
+                              (f 2 #:y 3))
+                           #:opts %opts-w-arity
+                           #:to 'cps)))))
+
+     (pass-if "keyword passed to global and quiet"
+       (null? (call-with-warnings
+                (lambda ()
+                  (let ((in (open-input-string "
+                              (use-modules (system base compile))
+                              (compile '(+ 2 3) #:env (current-module))")))
+                    (read-and-compile in
+                                      #:opts %opts-w-arity
+                                      #:to 'cps))))))
+
+     (pass-if "extra keyword"
+       (let ((w (call-with-warnings
+                  (lambda ()
+                    (compile '(let ((f (lambda* (x #:key y) y)))
+                                (f 2 #:Z 3))
+                             #:opts %opts-w-arity
+                             #:to 'cps)))))
+         (and (= (length w) 1)
+              (number? (string-contains (car w)
+                                        "wrong number of arguments to")))))
+
+     (pass-if "extra keywords allowed"
+       (null? (call-with-warnings
+                (lambda ()
+                  (compile '(let ((f (lambda* (x #:key y #:allow-other-keys)
+                                       y)))
+                              (f 2 #:Z 3))
+                           #:opts %opts-w-arity
+                           #:to 'cps))))))
+
+   (with-test-prefix "format"
+
+     (pass-if "quiet (no args)"
+       (null? (call-with-warnings
+               (lambda ()
+                 (compile '(format #t "hey!")
+                          #:opts %opts-w-format
+                          #:to 'cps)))))
+
+     (pass-if "quiet (1 arg)"
+       (null? (call-with-warnings
+               (lambda ()
+                 (compile '(format #t "hey ~A!" "you")
+                          #:opts %opts-w-format
+                          #:to 'cps)))))
+
+     (pass-if "quiet (2 args)"
+       (null? (call-with-warnings
+               (lambda ()
+                 (compile '(format #t "~A ~A!" "hello" "world")
+                          #:opts %opts-w-format
+                          #:to 'cps)))))
+
+     (pass-if "wrong port arg"
+       (let ((w (call-with-warnings
+                 (lambda ()
+                   (compile '(format 10 "foo")
+                            #:opts %opts-w-format
+                            #:to 'cps)))))
+         (and (= (length w) 1)
+              (number? (string-contains (car w)
+                                        "wrong port argument")))))
+
+     (pass-if "non-literal format string"
+       (let ((w (call-with-warnings
+                 (lambda ()
+                   (compile '(format #f fmt)
+                            #:opts %opts-w-format
+                            #:to 'cps)))))
+         (and (= (length w) 1)
+              (number? (string-contains (car w)
+                                        "non-literal format string")))))
+
+     (pass-if "non-literal format string using gettext"
+       (null? (call-with-warnings
+               (lambda ()
+                 (compile '(format #t (gettext "~A ~A!") "hello" "world")
+                          #:opts %opts-w-format
+                          #:to 'cps)))))
+
+     (pass-if "non-literal format string using gettext as _"
+       (null? (call-with-warnings
+               (lambda ()
+                 (compile '(format #t (G_ "~A ~A!") "hello" "world")
+                          #:opts %opts-w-format
+                          #:to 'cps)))))
+
+     (pass-if "non-literal format string using gettext as top-level _"
+       (null? (call-with-warnings
+               (lambda ()
+                 (compile '(begin
+                             (define (_ s) (gettext s "my-domain"))
+                             (format #t (G_ "~A ~A!") "hello" "world"))
+                          #:opts %opts-w-format
+                          #:to 'cps)))))
+
+     (pass-if "non-literal format string using gettext as module-ref _"
+       (null? (call-with-warnings
+               (lambda ()
+                 (compile '(format #t ((@@ (foo) G_) "~A ~A!") "hello" "world")
+                          #:opts %opts-w-format
+                          #:to 'cps)))))
+
+     (pass-if "non-literal format string using gettext as lexical _"
+       (null? (call-with-warnings
+               (lambda ()
+                 (compile '(let ((_ (lambda (s)
+                                      (gettext s "my-domain"))))
+                             (format #t (G_ "~A ~A!") "hello" "world"))
+                          #:opts %opts-w-format
+                          #:to 'cps)))))
+
+     (pass-if "non-literal format string using ngettext"
+       (null? (call-with-warnings
+               (lambda ()
+                 (compile '(format #t
+                                   (ngettext "~a thing" "~a things" n "dom") n)
+                          #:opts %opts-w-format
+                          #:to 'cps)))))
+
+     (pass-if "non-literal format string using ngettext as N_"
+       (null? (call-with-warnings
+               (lambda ()
+                 (compile '(format #t (N_ "~a thing" "~a things" n) n)
+                          #:opts %opts-w-format
+                          #:to 'cps)))))
+
+     (pass-if "non-literal format string with (define _ gettext)"
+       (null? (call-with-warnings
+               (lambda ()
+                 (compile '(begin
+                             (define _ gettext)
+                             (define (foo)
+                               (format #t (G_ "~A ~A!") "hello" "world")))
+                          #:opts %opts-w-format
+                          #:to 'cps)))))
+
+     (pass-if "wrong format string"
+       (let ((w (call-with-warnings
+                 (lambda ()
+                   (compile '(format #f 'not-a-string)
+                            #:opts %opts-w-format
+                            #:to 'cps)))))
+         (and (= (length w) 1)
+              (number? (string-contains (car w)
+                                        "wrong format string")))))
+
+     (pass-if "wrong number of args"
+       (let ((w (call-with-warnings
+                 (lambda ()
+                   (compile '(format "shbweeb")
+                            #:opts %opts-w-format
+                            #:to 'cps)))))
+         (and (= (length w) 1)
+              (number? (string-contains (car w)
+                                        "wrong number of arguments")))))
+
+     (pass-if "~%, ~~, ~&, ~t, ~_, ~!, ~|, ~/, ~q and ~\\n"
+       (null? (call-with-warnings
+               (lambda ()
+                 (compile '((@ (ice-9 format) format) some-port
+                            "~&~3_~~ ~\n~12they~% ~!~|~/~q")
+                          #:opts %opts-w-format
+                          #:to 'cps)))))
+
+     (pass-if "one missing argument"
+       (let ((w (call-with-warnings
+                 (lambda ()
+                   (compile '(format some-port "foo ~A~%")
+                            #:opts %opts-w-format
+                            #:to 'cps)))))
+         (and (= (length w) 1)
+              (number? (string-contains (car w)
+                                        "expected 1, got 0")))))
+
+     (pass-if "one missing argument, gettext"
+       (let ((w (call-with-warnings
+                 (lambda ()
+                   (compile '(format some-port (gettext "foo ~A~%"))
+                            #:opts %opts-w-format
+                            #:to 'cps)))))
+         (and (= (length w) 1)
+              (number? (string-contains (car w)
+                                        "expected 1, got 0")))))
+
+     (pass-if "two missing arguments"
+       (let ((w (call-with-warnings
+                 (lambda ()
+                   (compile '((@ (ice-9 format) format) #f
+                              "foo ~10,2f and bar ~S~%")
+                            #:opts %opts-w-format
+                            #:to 'cps)))))
+         (and (= (length w) 1)
+              (number? (string-contains (car w)
+                                        "expected 2, got 0")))))
+
+     (pass-if "one given, one missing argument"
+       (let ((w (call-with-warnings
+                 (lambda ()
+                   (compile '(format #t "foo ~A and ~S~%" hey)
+                            #:opts %opts-w-format
+                            #:to 'cps)))))
+         (and (= (length w) 1)
+              (number? (string-contains (car w)
+                                        "expected 2, got 1")))))
+
+     (pass-if "too many arguments"
+       (let ((w (call-with-warnings
+                 (lambda ()
+                   (compile '(format #t "foo ~A~%" 1 2)
+                            #:opts %opts-w-format
+                            #:to 'cps)))))
+         (and (= (length w) 1)
+              (number? (string-contains (car w)
+                                        "expected 1, got 2")))))
+
+     (pass-if "~h"
+       (null? (call-with-warnings
+                 (lambda ()
+                   (compile '((@ (ice-9 format) format) #t
+                              "foo ~h ~a~%" 123.4 'bar)
+                            #:opts %opts-w-format
+                            #:to 'cps)))))
+
+     (pass-if "~:h with locale object"
+       (null? (call-with-warnings
+                 (lambda ()
+                   (compile '((@ (ice-9 format) format) #t
+                              "foo ~:h~%" 123.4 %global-locale)
+                            #:opts %opts-w-format
+                            #:to 'cps)))))
+
+     (pass-if "~:h without locale object"
+       (let ((w (call-with-warnings
+                 (lambda ()
+                   (compile '((@ (ice-9 format) format) #t "foo ~,2:h" 123.4)
+                            #:opts %opts-w-format
+                            #:to 'cps)))))
+         (and (= (length w) 1)
+              (number? (string-contains (car w)
+                                        "expected 2, got 1")))))
+
+     (with-test-prefix "conditionals"
+       (pass-if "literals"
+        (null? (call-with-warnings
+                (lambda ()
+                  (compile '((@ (ice-9 format) format) #f "~A ~[foo~;bar~;baz~;~] ~10,2f"
+                                    'a 1 3.14)
+                           #:opts %opts-w-format
+                           #:to 'cps)))))
+
+       (pass-if "literals with selector"
+         (let ((w (call-with-warnings
+                   (lambda ()
+                     (compile '((@ (ice-9 format) format) #f "~2[foo~;bar~;baz~;~] ~A"
+                                       1 'dont-ignore-me)
+                              #:opts %opts-w-format
+                              #:to 'cps)))))
+           (and (= (length w) 1)
+                (number? (string-contains (car w)
+                                          "expected 1, got 2")))))
+
+       (pass-if "escapes (exact count)"
+         (let ((w (call-with-warnings
+                   (lambda ()
+                     (compile '((@ (ice-9 format) format) #f "~[~a~;~a~]")
+                              #:opts %opts-w-format
+                              #:to 'cps)))))
+           (and (= (length w) 1)
+                (number? (string-contains (car w)
+                                          "expected 2, got 0")))))
+
+       (pass-if "escapes with selector"
+         (let ((w (call-with-warnings
+                   (lambda ()
+                     (compile '((@ (ice-9 format) format) #f "~1[chbouib~;~a~]")
+                              #:opts %opts-w-format
+                              #:to 'cps)))))
+           (and (= (length w) 1)
+                (number? (string-contains (car w)
+                                          "expected 1, got 0")))))
+
+       (pass-if "escapes, range"
+         (let ((w (call-with-warnings
+                   (lambda ()
+                     (compile '((@ (ice-9 format) format) #f "~[chbouib~;~a~;~2*~a~]")
+                              #:opts %opts-w-format
+                              #:to 'cps)))))
+           (and (= (length w) 1)
+                (number? (string-contains (car w)
+                                          "expected 1 to 4, got 0")))))
+
+       (pass-if "@"
+         (let ((w (call-with-warnings
+                   (lambda ()
+                     (compile '((@ (ice-9 format) format) #f "~@[temperature=~d~]")
+                              #:opts %opts-w-format
+                              #:to 'cps)))))
+           (and (= (length w) 1)
+                (number? (string-contains (car w)
+                                          "expected 1, got 0")))))
+
+       (pass-if "nested"
+         (let ((w (call-with-warnings
+                   (lambda ()
+                     (compile '((@ (ice-9 format) format) #f "~:[~[hey~;~a~;~va~]~;~3*~]")
+                              #:opts %opts-w-format
+                              #:to 'cps)))))
+           (and (= (length w) 1)
+                (number? (string-contains (car w)
+                                          "expected 2 to 4, got 0")))))
+
+       (pass-if "unterminated"
+         (let ((w (call-with-warnings
+                   (lambda ()
+                     (compile '((@ (ice-9 format) format) #f "~[unterminated")
+                              #:opts %opts-w-format
+                              #:to 'cps)))))
+           (and (= (length w) 1)
+                (number? (string-contains (car w)
+                                          "unterminated conditional")))))
+
+       (pass-if "unexpected ~;"
+         (let ((w (call-with-warnings
+                   (lambda ()
+                     (compile '((@ (ice-9 format) format) #f "foo~;bar")
+                              #:opts %opts-w-format
+                              #:to 'cps)))))
+           (and (= (length w) 1)
+                (number? (string-contains (car w)
+                                          "unexpected")))))
+
+       (pass-if "unexpected ~]"
+         (let ((w (call-with-warnings
+                   (lambda ()
+                     (compile '((@ (ice-9 format) format) #f "foo~]")
+                              #:opts %opts-w-format
+                              #:to 'cps)))))
+           (and (= (length w) 1)
+                (number? (string-contains (car w)
+                                          "unexpected"))))))
+
+     (pass-if "~{...~}"
+       (null? (call-with-warnings
+               (lambda ()
+                 (compile '((@ (ice-9 format) format) #f "~A ~{~S~} ~A"
+                                   'hello '("ladies" "and")
+                                   'gentlemen)
+                          #:opts %opts-w-format
+                          #:to 'cps)))))
+
+     (pass-if "~{...~}, too many args"
+       (let ((w (call-with-warnings
+                 (lambda ()
+                   (compile '((@ (ice-9 format) format) #f "~{~S~}" 1 2 3)
+                            #:opts %opts-w-format
+                            #:to 'cps)))))
+         (and (= (length w) 1)
+              (number? (string-contains (car w)
+                                        "expected 1, got 3")))))
+
+     (pass-if "~@{...~}"
+       (null? (call-with-warnings
+               (lambda ()
+                 (compile '((@ (ice-9 format) format) #f "~@{~S~}" 1 2 3)
+                          #:opts %opts-w-format
+                          #:to 'cps)))))
+
+     (pass-if "~@{...~}, too few args"
+       (let ((w (call-with-warnings
+                 (lambda ()
+                   (compile '((@ (ice-9 format) format) #f "~A ~@{~S~}")
+                            #:opts %opts-w-format
+                            #:to 'cps)))))
+         (and (= (length w) 1)
+              (number? (string-contains (car w)
+                                        "expected at least 1, got 0")))))
+
+     (pass-if "unterminated ~{...~}"
+       (let ((w (call-with-warnings
+                 (lambda ()
+                   (compile '((@ (ice-9 format) format) #f "~{")
+                            #:opts %opts-w-format
+                            #:to 'cps)))))
+         (and (= (length w) 1)
+              (number? (string-contains (car w)
+                                        "unterminated")))))
+
+     (pass-if "~(...~)"
+       (null? (call-with-warnings
+               (lambda ()
+                 (compile '((@ (ice-9 format) format) #f "~:@(~A ~A~)" 'foo 'bar)
+                          #:opts %opts-w-format
+                          #:to 'cps)))))
+
+     (pass-if "~v"
+       (let ((w (call-with-warnings
+                 (lambda ()
+                   (compile '((@ (ice-9 format) format) #f "~v_foo")
+                            #:opts %opts-w-format
+                            #:to 'cps)))))
+         (and (= (length w) 1)
+              (number? (string-contains (car w)
+                                        "expected 1, got 0")))))
+     (pass-if "~v:@y"
+       (null? (call-with-warnings
+               (lambda ()
+                 (compile '((@ (ice-9 format) format) #f "~v:@y" 1 123)
+                          #:opts %opts-w-format
+                          #:to 'cps)))))
+
+
+     (pass-if "~*"
+       (let ((w (call-with-warnings
+                 (lambda ()
+                   (compile '((@ (ice-9 format) format) #f "~2*~a" 'a 'b)
+                            #:opts %opts-w-format
+                            #:to 'cps)))))
+         (and (= (length w) 1)
+              (number? (string-contains (car w)
+                                        "expected 3, got 2")))))
+
+     (pass-if "~p"
+       (null? (call-with-warnings
+               (lambda ()
+                 (compile '(((@ (ice-9 format) format) #f "thing~p" 2))
+                          #:opts %opts-w-format
+                          #:to 'cps)))))
+
+     (pass-if "~p, too few arguments"
+       (let ((w (call-with-warnings
+                 (lambda ()
+                   (compile '((@ (ice-9 format) format) #f "~p")
+                            #:opts %opts-w-format
+                            #:to 'cps)))))
+         (and (= (length w) 1)
+              (number? (string-contains (car w)
+                                        "expected 1, got 0")))))
+
+     (pass-if "~:p"
+       (null? (call-with-warnings
+               (lambda ()
+                 (compile '(((@ (ice-9 format) format) #f "~d thing~:p" 2))
+                          #:opts %opts-w-format
+                          #:to 'cps)))))
+
+     (pass-if "~:@p, too many arguments"
+       (let ((w (call-with-warnings
+                 (lambda ()
+                   (compile '((@ (ice-9 format) format) #f "~d pupp~:@p" 5 5)
+                            #:opts %opts-w-format
+                            #:to 'cps)))))
+         (and (= (length w) 1)
+              (number? (string-contains (car w)
+                                        "expected 1, got 2")))))
+
+     (pass-if "~:@p, too few arguments"
+       (let ((w (call-with-warnings
+                 (lambda ()
+                   (compile '((@ (ice-9 format) format) #f "pupp~:@p")
+                            #:opts %opts-w-format
+                            #:to 'cps)))))
+         (and (= (length w) 1)
+              (number? (string-contains (car w)
+                                        "expected 1, got 0")))))
+
+     (pass-if "~?"
+       (null? (call-with-warnings
+               (lambda ()
+                 (compile '((@ (ice-9 format) format) #f "~?" "~d ~d" '(1 2))
+                          #:opts %opts-w-format
+                          #:to 'cps)))))
+
+     (pass-if "~^"
+       (null? (call-with-warnings
+               (lambda ()
+                 (compile '((@ (ice-9 format) format) #f "~a ~^ ~a" 0 1)
+                          #:opts %opts-w-format
+                          #:to 'cps)))))
+
+     (pass-if "~^, too few args"
+       (let ((w (call-with-warnings
+                 (lambda ()
+                   (compile '((@ (ice-9 format) format) #f "~a ~^ ~a")
+                            #:opts %opts-w-format
+                            #:to 'cps)))))
+         (and (= (length w) 1)
+              (number? (string-contains (car w)
+                                        "expected at least 1, got 0")))))
+
+     (pass-if "parameters: +,-,#, and '"
+       (null? (call-with-warnings
+               (lambda ()
+                 (compile '((@ (ice-9 format) format) some-port
+                            "~#~ ~,,-2f ~,,+2f ~'A~" 1234 1234)
+                          #:opts %opts-w-format
+                          #:to 'cps)))))
+
+     (pass-if "complex 1"
+       (let ((w (call-with-warnings
+                 (lambda ()
+                   (compile '((@ (ice-9 format) format) #f
+                                     "~4@S    ~32S~@[;; ~1{~@?~}~]~@[~61t at ~a~]\n"
+                                     1 2 3 4 5 6)
+                            #:opts %opts-w-format
+                            #:to 'cps)))))
+         (and (= (length w) 1)
+              (number? (string-contains (car w)
+                                        "expected 4, got 6")))))
+
+     (pass-if "complex 2"
+       (let ((w (call-with-warnings
+                 (lambda ()
+                   (compile '((@ (ice-9 format) format) #f
+                                     "~:(~A~) Commands~:[~; [abbrev]~]:~2%"
+                                     1 2 3 4)
+                            #:opts %opts-w-format
+                            #:to 'cps)))))
+         (and (= (length w) 1)
+              (number? (string-contains (car w)
+                                        "expected 2, got 4")))))
+
+     (pass-if "complex 3"
+       (let ((w (call-with-warnings
+                 (lambda ()
+                   (compile '((@ (ice-9 format) format) #f "~9@a~:[~*~3_~;~3d~] ~v:@y~%")
+                            #:opts %opts-w-format
+                            #:to 'cps)))))
+         (and (= (length w) 1)
+              (number? (string-contains (car w)
+                                        "expected 5, got 0")))))
+
+     (pass-if "ice-9 format"
+       (let ((w (call-with-warnings
+                 (lambda ()
+                   (let ((in (open-input-string
+                              "(use-modules ((ice-9 format) #:prefix i9-))
+                               (i9-format #t \"yo! ~A\" 1 2)")))
+                     (read-and-compile in
+                                       #:opts %opts-w-format
+                                       #:to 'cps))))))
+         (and (= (length w) 1)
+              (number? (string-contains (car w)
+                                        "expected 1, got 2")))))
+
+     (pass-if "not format"
+       (null? (call-with-warnings
+               (lambda ()
+                 (compile '(let ((format chbouib))
+                             (format #t "not ~A a format string"))
+                          #:opts %opts-w-format
+                          #:to 'cps)))))
+
+     (with-test-prefix "simple-format"
+
+       (pass-if "good"
+         (null? (call-with-warnings
+                 (lambda ()
+                   (compile '(simple-format #t "foo ~a bar ~s ~%~~" 1 2)
+                            #:opts %opts-w-format
+                            #:to 'cps)))))
+
+       (pass-if "wrong number of args"
+         (let ((w (call-with-warnings
+                   (lambda ()
+                     (compile '(simple-format #t "foo ~a ~s~%" 'one-missing)
+                              #:opts %opts-w-format
+                              #:to 'cps)))))
+           (and (= (length w) 1)
+                (number? (string-contains (car w) "wrong number")))))
+
+       (pass-if "unsupported"
+         (let ((w (call-with-warnings
+                   (lambda ()
+                     (compile '(simple-format #t "foo ~x~%" 16)
+                              #:opts %opts-w-format
+                              #:to 'cps)))))
+           (and (= (length w) 1)
+                (number? (string-contains (car w) "unsupported format option")))))
+
+       (pass-if "unsupported, gettext"
+         (let ((w (call-with-warnings
+                   (lambda ()
+                     (compile '(simple-format #t (gettext "foo ~2f~%") 3.14)
+                              #:opts %opts-w-format
+                              #:to 'cps)))))
+           (and (= (length w) 1)
+                (number? (string-contains (car w) "unsupported format option")))))
+
+       (pass-if "unsupported, ngettext"
+         (let ((w (call-with-warnings
+                   (lambda ()
+                     (compile '(simple-format #t (ngettext "s ~x" "p ~x" x) x)
+                              #:opts %opts-w-format
+                              #:to 'cps)))))
+           (and (= (length w) 1)
+                (number? (string-contains (car w) "unsupported format option")))))))
+
+   (with-test-prefix "duplicate-case-datum"
+
+     (pass-if "quiet"
+       (null? (call-with-warnings
+                (lambda ()
+                  (compile '(case x ((1) 'one) ((2) 'two))
+                           #:opts %opts-w-duplicate-case-datum
+                           #:to 'cps)))))
+
+     (pass-if "one duplicate"
+       (let ((w (call-with-warnings
+                  (lambda ()
+                    (compile '(case x
+                                ((1) 'one)
+                                ((2) 'two)
+                                ((1) 'one-again))
+                             #:opts %opts-w-duplicate-case-datum
+                             #:to 'cps)))))
+         (and (= (length w) 1)
+              (number? (string-contains (car w) "duplicate")))))
+
+     (pass-if "one duplicate"
+       (let ((w (call-with-warnings
+                  (lambda ()
+                    (compile '(case x
+                                ((1 2 3) 'a)
+                                ((1)     'one))
+                             #:opts %opts-w-duplicate-case-datum
+                             #:to 'cps)))))
+         (and (= (length w) 1)
+              (number? (string-contains (car w) "duplicate"))))))
+
+   (with-test-prefix "bad-case-datum"
+
+     (pass-if "quiet"
+       (null? (call-with-warnings
+                (lambda ()
+                  (compile '(case x ((1) 'one) ((2) 'two))
+                           #:opts %opts-w-bad-case-datum
+                           #:to 'cps)))))
+
+     (pass-if "not eqv?"
+       (let ((w (call-with-warnings
+                  (lambda ()
+                    (compile '(case x
+                                ((1)     'one)
+                                (("bad") 'bad))
+                             #:opts %opts-w-bad-case-datum
+                             #:to 'cps)))))
+         (and (= (length w) 1)
+              (number? (string-contains (car w)
+                                        "cannot be meaningfully compared")))))
+
+     (pass-if "one clause element not eqv?"
+       (let ((w (call-with-warnings
+                  (lambda ()
+                    (compile '(case x
+                                ((1 (2) 3) 'a))
+                             #:opts %opts-w-duplicate-case-datum
+                             #:to 'cps)))))
+         (and (= (length w) 1)
+              (number? (string-contains (car w)
+                                        "cannot be meaningfully compared"))))))
+
+   (with-test-prefix "location"
+     (define (call-with-fake-input-file filename contents thunk)
+       (call-with-input-string contents
+         (lambda (port)
+           (set-port-filename! port filename)
+           (thunk port))))
+
+     (pass-if "unused variable"
+       (let ((w (call-with-warnings
+                 (lambda ()
+                   (call-with-fake-input-file
+                    "unused-variable.scm"
+                    "\
+(lambda (x)
+  (let ((y (+ x 2)))
+    x))"
+                    (lambda (port)
+                      (read-and-compile port #:opts %opts-w-unused #:to 'cps)))))))
+         (and (= (length w) 1)
+              (number? (string-contains (car w) "unused variable `y'"))
+              (number? (string-contains (car w) "unused-variable.scm:2:2")))))
+
+     (pass-if "unbound variable (spaces)"
+       (let ((w (call-with-warnings
+                 (lambda ()
+                   (call-with-fake-input-file
+                    "unbound-spaces.scm"
+                    "  (foo)"
+                    (lambda (port)
+                      (read-and-compile port #:opts %opts-w-unbound #:to 'cps)))))))
+         (and (= (length w) 1)
+              (number? (string-contains (car w) "unbound variable `foo'"))
+              (number? (string-contains (car w) "unbound-spaces.scm:1:3")))))
+
+     (pass-if "unbound variable (tabs)"
+       (let ((w (call-with-warnings
+                 (lambda ()
+                   (call-with-fake-input-file
+                    "unbound-tabs.scm"
+                    "\t\t(foo)"
+                    (lambda (port)
+                      (read-and-compile port #:opts %opts-w-unbound #:to 'cps)))))))
+         (and (= (length w) 1)
+              (number? (string-contains (car w) "unbound variable `foo'"))
+              (number? (string-contains (car w) "unbound-tabs.scm:1:17")))))))
+
+;; Local Variables:
+;; eval: (put 'pass-if-primitives-resolved 'scheme-indent-function 1)
+;; eval: (put 'pass-if-tree-il->scheme 'scheme-indent-function 1)
+;; End:

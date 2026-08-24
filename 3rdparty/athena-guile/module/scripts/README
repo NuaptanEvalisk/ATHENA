@@ -1,0 +1,63 @@
+Overview and Usage
+------------------
+
+This directory contains Scheme programs, some useful in maintaining Guile.
+On "make install", these programs are copied to PKGDATADIR/VERSION/scripts.
+
+You can use guild to invoke a program from the shell, or alternatively,
+load its file as a Guile Scheme module, and use its exported procedure(s)
+from Scheme code.  Typically for any PROGRAM:
+
+  (use-modules (scripts PROGRAM))
+  (PROGRAM ARG1 ARG2 ...)
+
+For programs that write to stdout, you might try, instead:
+
+  (use-modules (scripts PROGRAM))
+  (with-output-to-string (lambda () (PROGRAM ARG1 ARG2 ...)))
+
+Note that all args must be strings.
+
+To see PROGRAM's commentary, which may or may not be helpful:
+
+  (help (scripts PROGRAM))
+
+If you want to try the programs before installing Guile, you will probably
+need to set environment variable GUILE_LOAD_PATH to be the parent directory.
+This can be done in Bourne-compatible shells like so:
+
+  GUILE_LOAD_PATH=`(cd .. ; pwd)`
+  export GUILE_LOAD_PATH
+
+[FIXME: Can someone supply the csh-compatible equivalent?]
+
+
+
+How to Contribute
+-----------------
+
+See template file PROGRAM for a quick start.
+
+Programs must follow the "guild" convention, documented here:
+
+- The module name must be "(scripts PROGRAM)".  A procedure named PROGRAM w/
+  signature "(PROGRAM . args)" must be exported.  Basically, use some variant
+  of the form:
+
+  (define-module (scripts PROGRAM)
+    :export (PROGRAM))
+
+  Feel free to export other definitions useful in the module context.
+
+- There must be the alias:
+
+  (define main PROGRAM)
+
+  However, `main' must NOT be exported.
+
+Following these conventions allows the program file to be used as module
+(scripts PROGRAM) in addition to being invoked by guild.  Please also
+include a helpful Commentary section w/ some usage info.
+
+
+[README ends here]

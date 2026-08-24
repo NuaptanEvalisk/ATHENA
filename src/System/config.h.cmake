@@ -18,17 +18,8 @@
 /* gs lib */
 #cmakedefine GS_LIB "@GS_LIB@"
 
-/* Guile version */
-#cmakedefine GUILE_A 1
-
-/* Guile version */
-#cmakedefine GUILE_B 1
-
-/* Guile version */
-#cmakedefine GUILE_C 1
-
-/* Guile version */
-#cmakedefine GUILE_D 1
+/* ATHENA's private Guile 3 runtime */
+#cmakedefine ATHENA_GUILE3 1
 
 #cmakedefine GUILE_NUM 0
 

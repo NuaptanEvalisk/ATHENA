@@ -1,0 +1,465 @@
+;;;; modules.test --- exercise some of guile's module stuff -*- scheme -*-
+
+;;;; Copyright (C) 2006, 2007, 2009-2011, 2014, 2019 Free Software Foundation, Inc.
+;;;;
+;;;; This library is free software; you can redistribute it and/or
+;;;; modify it under the terms of the GNU Lesser General Public
+;;;; License as published by the Free Software Foundation; either
+;;;; version 3 of the License, or (at your option) any later version.
+;;;; 
+;;;; This library is distributed in the hope that it will be useful,
+;;;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;;;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+;;;; Lesser General Public License for more details.
+;;;; 
+;;;; You should have received a copy of the GNU Lesser General Public
+;;;; License along with this library; if not, write to the Free Software
+;;;; Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+
+(define-module (test-suite test-modules)
+  #:use-module (srfi srfi-1)
+  #:use-module ((ice-9 streams) #:prefix s:)  ; for test purposes
+  #:use-module (test-suite lib))
+
+
+(define (every? . args)
+  (not (not (apply every args))))
+
+
+
+;;;
+;;; Foundations.
+;;;
+
+(with-test-prefix "foundations"
+
+  (pass-if "modules don't remain anonymous"
+    ;; This is a requirement for `psyntax': it stores module names and relies
+    ;; on being able to `resolve-module' them.
+    (let ((m (make-module)))
+      (and (module-name m)
+           (eq? m (resolve-module (module-name m))))))
+
+  (pass-if "module-add!"
+    (let ((m (make-module))
+          (value (cons 'x 'y)))
+      (module-add! m 'something (make-variable value))
+      (eq? (module-ref m 'something) value)))
+
+  (pass-if "module-define!"
+    (let ((m (make-module))
+          (value (cons 'x 'y)))
+      (module-define! m 'something value)
+      (eq? (module-ref m 'something) value)))
+
+  (pass-if "module-use!"
+    (let ((m (make-module))
+          (import (make-module)))
+      (module-define! m 'something 'something)
+      (module-define! import 'imported 'imported)
+      (module-use! m import)
+      (and (eq? (module-ref m 'something) 'something)
+           (eq? (module-ref m 'imported)  'imported)
+           (module-local-variable m 'something)
+           (not (module-local-variable m 'imported))
+           #t)))
+
+  (pass-if "module-use! (duplicates local binding)"
+    ;; Imported bindings can't override locale bindings.
+    (let ((m (make-module))
+          (import (make-module)))
+      (module-define! m 'something 'something)
+      (module-define! import 'something 'imported)
+      (module-use! m import)
+      (eq? (module-ref m 'something) 'something)))
+
+  (pass-if "module-locally-bound?"
+     (let ((m (make-module))
+           (import (make-module)))
+       (module-define! m 'something #t)
+       (module-define! import 'imported #t)
+       (module-use! m import)
+       (and (module-locally-bound? m 'something)
+            (not (module-locally-bound? m 'imported)))))
+
+  (pass-if "module-{local-,}variable"
+     (let ((m (make-module))
+           (import (make-module)))
+       (module-define! m 'local #t)
+       (module-define! import 'imported #t)
+       (module-use! m import)
+       (and (module-local-variable m 'local)
+            (not (module-local-variable m 'imported))
+            (eq? (module-variable m 'local)
+                 (module-local-variable m 'local))
+            (eq? (module-local-variable import 'imported)
+                 (module-variable m 'imported)))))
+
+  (pass-if "module-import-interface"
+    (and (every? (lambda (sym iface)
+                   (eq? (module-import-interface (current-module) sym)
+                        iface))
+                 '(current-module exception:bad-variable every)
+                 (cons the-scm-module
+                       (map resolve-interface
+                            '((test-suite lib) (srfi srfi-1)))))
+
+         ;; For renamed bindings, a custom interface is used so we can't
+         ;; check for equality with `eq?'.
+         (every? (lambda (sym iface)
+                   (let ((import
+                          (module-import-interface (current-module) sym)))
+                     (equal? (module-name import)
+                             (module-name iface))))
+                 '(s:make-stream s:stream-car s:stream-cdr)
+                 (make-list 3 (resolve-interface '(ice-9 streams))))))
+
+  (pass-if "module-reverse-lookup"
+    (let ((mods   '((srfi srfi-1) (test-suite lib)      (ice-9 streams)))
+          (syms   '(every         exception:bad-variable make-stream))
+          (locals '(every         exception:bad-variable s:make-stream)))
+      (every? (lambda (var sym)
+                (eq? (module-reverse-lookup (current-module) var)
+                     sym))
+              (map module-variable
+                   (map resolve-interface mods)
+                   syms)
+              locals)))
+
+  (pass-if "module-reverse-lookup [pre-module-obarray]"
+    (let ((var (module-variable (current-module) 'string?)))
+      (eq? 'string? (module-reverse-lookup #f var))))
+
+  (pass-if-exception "module-reverse-lookup [wrong-type-arg]"
+    exception:wrong-type-arg
+    (module-reverse-lookup (current-module) 'foo))
+
+  (pass-if "the-root-module"
+    (eq? (module-public-interface the-root-module) the-scm-module))
+
+  (pass-if "the-scm-module"
+    ;; THE-SCM-MODULE is its own public interface.  See
+    ;; <https://savannah.gnu.org/bugs/index.php?30623>.
+    (eq? (module-public-interface the-scm-module) the-scm-module)))
+
+
+
+;;;
+;;; module-use! / module-use-interfaces!
+;;;
+(with-test-prefix "module-use"
+  (let ((m (make-module)))
+    (pass-if "no uses initially"
+      (null? (module-uses m)))
+
+    (pass-if "using ice-9 q"
+      (begin
+        (module-use! m (resolve-interface '(ice-9 q)))
+        (equal? (module-uses m)
+                (list (resolve-interface '(ice-9 q))))))
+
+    (pass-if "using ice-9 q again"
+      (begin
+        (module-use! m (resolve-interface '(ice-9 q)))
+        (equal? (module-uses m)
+                (list (resolve-interface '(ice-9 q))))))
+
+    (pass-if "using ice-9 ftw"
+      (begin
+        (module-use-interfaces! m (list (resolve-interface '(ice-9 ftw))))
+        (equal? (module-uses m)
+                (list (resolve-interface '(ice-9 q))
+                      (resolve-interface '(ice-9 ftw))))))
+
+    (pass-if "using ice-9 ftw again"
+      (begin
+        (module-use-interfaces! m (list (resolve-interface '(ice-9 ftw))))
+        (equal? (module-uses m)
+                (list (resolve-interface '(ice-9 q))
+                      (resolve-interface '(ice-9 ftw))))))
+
+    (pass-if "using ice-9 control twice"
+      (begin
+        (module-use-interfaces! m (list (resolve-interface '(ice-9 control))
+                                        (resolve-interface '(ice-9 control))))
+        (equal? (module-uses m)
+                (list (resolve-interface '(ice-9 q))
+                      (resolve-interface '(ice-9 ftw))
+                      (resolve-interface '(ice-9 control))))))))
+
+
+
+;;;
+;;; Resolve-module.
+;;;
+
+(with-test-prefix "resolve-module"
+
+  (pass-if "#:ensure #t by default"
+    (module? (resolve-module (list (gensym)))))
+
+  (pass-if "#:ensure #t explicitly"
+    (module? (resolve-module (list (gensym)) #:ensure #t)))
+
+  (pass-if "#:ensure #f"
+    (not (resolve-module (list (gensym)) #:ensure #f))))
+
+
+
+;;;
+;;; Observers.
+;;;
+
+(with-test-prefix "observers"
+
+  (pass-if "weak observer invoked"
+    (let* ((m (make-module))
+           (invoked 0))
+      (module-observe-weak m (lambda (mod)
+                               (if (eq? mod m)
+                                   (set! invoked (+ invoked 1)))))
+      (module-define! m 'something 2)
+      (module-define! m 'something-else 1)
+      (= invoked 2)))
+
+  (pass-if "all weak observers invoked"
+    ;; With the two-argument `module-observe-weak' available in previous
+    ;; versions, the observer would get unregistered as soon as the observing
+    ;; closure gets GC'd, making it impossible to use an anonymous lambda as
+    ;; the observing procedure.
+
+    (let* ((m (make-module))
+           (observer-count 500)
+           (observer-ids (let loop ((i observer-count)
+                                    (ids '()))
+                           (if (= i 0)
+                               ids
+                               (loop (- i 1) (cons (make-module) ids)))))
+           (observers-invoked (make-hash-table observer-count)))
+
+      ;; register weak observers
+      (for-each (lambda (id)
+                  (module-observe-weak m id
+                                       (lambda (m)
+                                         (hashq-set! observers-invoked
+                                                     id #t))))
+                observer-ids)
+
+      (gc)
+
+      ;; invoke them
+      (module-call-observers m)
+
+      ;; make sure all of them were invoked
+      (->bool (every (lambda (id)
+                       (hashq-ref observers-invoked id))
+                     observer-ids))))
+
+  (pass-if "imported bindings updated"
+    (let ((m (make-module))
+          (imported (make-module)))
+      ;; Beautify them, notably adding them a public interface.
+      (beautify-user-module! m)
+      (beautify-user-module! imported)
+
+      (module-use! m (module-public-interface imported))
+      (module-define! imported 'imported-binding #t)
+
+      ;; At this point, `imported-binding' is local to IMPORTED.
+      (and (not (module-variable m 'imported-binding))
+           (begin
+             ;; Export `imported-binding' from IMPORTED.
+             (module-export! imported '(imported-binding))
+
+             ;; Make sure it is now visible from M.
+             (module-ref m 'imported-binding))))))
+
+
+
+;;;
+;;; Duplicate bindings handling.
+;;;
+
+(with-test-prefix "duplicate bindings"
+
+  (pass-if "simple duplicate handler"
+    ;; Import the same binding twice.
+    (let* ((m (make-module))
+           (import1 (make-module))
+           (import2 (make-module))
+           (handler-invoked? #f)
+           (handler (lambda (module name int1 val1 int2 val2 var val)
+                      ;; We expect both VAR and VAL to be #f, as there
+                      ;; is no previous binding for 'imported in M.
+                      (if var (error "unexpected var" var))
+                      (if val (error "unexpected val" val))
+                      (set! handler-invoked? #t)
+                      ;; Keep the first binding.
+                      (or var (module-local-variable int1 name)))))
+
+      (set-module-duplicates-handlers! m (list handler))
+      (module-define! m 'something 'something)
+      (set-module-name! import1 'imported-module-1)
+      (set-module-name! import2 'imported-module-2)
+      (module-define! import1 'imported 'imported-1)
+      (module-define! import2 'imported 'imported-2)
+      (module-use! m import1)
+      (module-use! m import2)
+      (and (eq? (module-ref m 'imported) 'imported-1)
+           handler-invoked?))))
+
+
+;;;
+;;; Lazy binder.
+;;;
+
+(with-test-prefix "lazy binder"
+
+  (pass-if "not invoked"
+    (let ((m (make-module))
+          (invoked? #f))
+      (module-define! m 'something 2)
+      (set-module-binder! m (lambda args (set! invoked? #t) #f))
+      (and (module-ref m 'something)
+           (not invoked?))))
+
+  (pass-if "not invoked (module-add!)"
+    (let ((m (make-module))
+          (invoked? #f))
+      (set-module-binder! m (lambda args (set! invoked? #t) #f))
+      (module-add! m 'something (make-variable 2))
+      (and (module-ref m 'something)
+           (not invoked?))))
+
+  (pass-if "invoked (module-ref)"
+    (let ((m (make-module))
+          (invoked? #f))
+      (set-module-binder! m (lambda args (set! invoked? #t) #f))
+      (false-if-exception (module-ref m 'something))
+      invoked?))
+
+  (pass-if "invoked (module-define!)"
+    (let ((m (make-module))
+          (invoked? #f))
+      (set-module-binder! m (lambda args (set! invoked? #t) #f))
+      (module-define! m 'something 2)
+      (and invoked?
+           (eqv? (module-ref m 'something) 2))))
+
+  (pass-if "honored (ref)"
+    (let ((m (make-module))
+          (invoked? #f)
+          (value (cons 'x 'y)))
+      (set-module-binder! m
+                          (lambda (mod sym define?)
+                            (set! invoked? #t)
+                            (cond ((not (eq? m mod))
+                                   (error "invalid module" mod))
+                                  (define?
+                                   (error "DEFINE? shouldn't be set"))
+                                  (else
+                                   (make-variable value)))))
+      (and (eq? (module-ref m 'something) value)
+           invoked?))))
+
+
+
+;;;
+;;; Higher-level features.
+;;;
+
+(with-test-prefix "autoload"
+
+  (pass-if "module-autoload!"
+     (let ((m (make-module)))
+       (module-autoload! m '(ice-9 q) '(make-q))
+       (not (not (module-ref m 'make-q)))))
+
+  (pass-if "autoloaded"
+     (catch #t
+       (lambda ()
+	 ;; Simple autoloading.
+	 (eval '(begin
+		  (define-module (test-autoload-one)
+		    :autoload (ice-9 q) (make-q))
+		  (not (not make-q)))
+	       (current-module)))
+	(lambda (key . args)
+	  #f)))
+
+  ;; In Guile 1.8.0 this failed because the binder in
+  ;; `make-autoload-interface' would try to remove the autoload interface
+  ;; from the module's "uses" without making sure it is still part of these
+  ;; "uses".
+  ;;
+  (pass-if "autoloaded+used"
+     (catch #t
+       (lambda ()
+	 (eval '(begin
+		  (define-module (test-autoload-two)
+		    :autoload (ice-9 q) (make-q)
+		    :use-module (ice-9 q))
+		  (not (not make-q)))
+	       (current-module)))
+	(lambda (key . args)
+	  #f))))
+
+
+;;;
+;;; R6RS compatibility
+;;;
+
+(with-test-prefix "module versions"
+
+  (pass-if "version-matches? for matching versions"
+    (version-matches? '(1 2 3) '(1 2 3)))
+
+  (pass-if "version-matches? for non-matching versions"
+    (not (version-matches? '(3 2 1) '(1 2 3))))
+
+  (pass-if "version-matches? against more specified version"
+    (version-matches? '(1 2) '(1 2 3)))
+
+  (pass-if "version-matches? against less specified version"
+    (not (version-matches? '(1 2 3) '(1 2)))))
+
+
+(with-test-prefix "circular imports"
+  (pass-if-equal "#:select" 1
+    (begin
+      (eval
+       '(begin
+          (define-module (test-circular-imports))
+          (define (init-module-a)
+            (eval '(begin
+                     (define-module (test-circular-imports a)
+                       #:use-module (test-circular-imports b)
+                       #:export (from-a))
+                     (define from-a 1))
+                  (current-module)))
+          (define (init-module-b)
+            (eval '(begin
+                     (define-module (test-circular-imports b)
+                       #:use-module ((test-circular-imports a)
+                                     #:select (from-a))
+                       #:export (from-b))
+                     (define from-b 2))
+                  (current-module)))
+          (define (submodule-binder mod name)
+            (let ((m (make-module)))
+              (set-module-kind! m 'directory)
+              (set-module-name! m (append (module-name mod) (list name)))
+              (module-define-submodule! mod name m)
+              (case name
+                ((a) (init-module-a))
+                ((b) (init-module-b))
+                ((c) #t)
+                (else (error "unreachable")))
+              m))
+          (set-module-submodule-binder! (current-module) submodule-binder))
+       (current-module))
+      (eval '(begin
+               (define-module (test-circular-imports c))
+               (use-modules (test-circular-imports a))
+               from-a)
+            (current-module)))))

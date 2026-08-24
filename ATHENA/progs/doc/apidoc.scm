@@ -34,7 +34,7 @@
   (string>? (symbol->string x) (symbol->string y)))
 
 (define (append-command-alphabetically cmd)
-  "Used to build the hash @indexed-commands from entries in @tm-defined-name"
+  "Add a command from ATHENA's native definition registry to the index"
   (with _cmd (symbol->string cmd)
     (with _first (substring _cmd 0 1)
       (if (ahash-ref indexed-commands _first)
@@ -46,7 +46,7 @@
   "Builds links to all texmacs-modules where @cmd is defined"
   ($para ($strong `(scm ,cmd)) " is defined in " $lf
     `(indent ,($para
-      ($for (mod (ahash-ref tm-defined-module (string->symbol cmd)))
+      ($for (mod (%athena-definition-modules (string->symbol cmd)))
          ($module-doc-link mod) ", ")))))
 
 (define (output-commands-folded-section handle)
@@ -72,7 +72,7 @@
 
 (define ($doc-all-symbols-buffer)
   (map append-command-alphabetically 
-       (sort (map car (ahash-table->list tm-defined-table)) symbols>?))
+       (sort (%athena-defined-symbols) symbols>?))
   (with sorted (sort (reverse (ahash-table->list indexed-commands)) sort-by-car)
     ($tmapidoc
       ($tmdoc-title (replace "All TeXmacs commands"))

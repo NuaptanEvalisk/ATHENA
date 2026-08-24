@@ -1,0 +1,464 @@
+;;;; threads.test --- Tests for Guile threading.    -*- scheme -*-
+;;;;
+;;;; Copyright 2003, 2006, 2007, 2009, 2010, 2011, 2012, 2013,
+;;;;   2014 Free Software Foundation, Inc.
+;;;;
+;;;; This library is free software; you can redistribute it and/or
+;;;; modify it under the terms of the GNU Lesser General Public
+;;;; License as published by the Free Software Foundation; either
+;;;; version 3 of the License, or (at your option) any later version.
+;;;; 
+;;;; This library is distributed in the hope that it will be useful,
+;;;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;;;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+;;;; Lesser General Public License for more details.
+;;;; 
+;;;; You should have received a copy of the GNU Lesser General Public
+;;;; License along with this library; if not, write to the Free Software
+;;;; Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+
+(define-module (test-threads)
+  #:use-module (ice-9 threads)
+  #:use-module (system base compile)
+  #:use-module (test-suite lib))
+
+(define (asyncs-still-working?)
+  (let ((a #f))
+    (system-async-mark (lambda ()
+			 (set! a #t)))
+    ;; The point of the following (equal? ...) is to go through
+    ;; primitive code (scm_equal_p) that includes a SCM_TICK call and
+    ;; hence gives system asyncs a chance to run.  Of course the
+    ;; evaluator (eval.i.c) also calls SCM_TICK regularly, but in the
+    ;; near future we may be using the VM instead of the traditional
+    ;; compiler, and then we will still want asyncs-still-working? to
+    ;; work.  (The VM should probably have SCM_TICK calls too, but
+    ;; let's not rely on that here.)
+    (equal? '(a b c) '(a b c))
+    a))
+
+(define (require-cancel-thread)
+  ;; Skip the test when 'cancel-thread' is unavailable.
+  (unless (defined? 'cancel-thread)
+    (throw 'unresolved)))
+
+(if (provided? 'threads)
+    (begin
+
+      (with-test-prefix "parallel"
+	(pass-if "no forms"
+	  (call-with-values
+	      (lambda ()
+		(parallel))
+	    (lambda ()
+	      #t)))
+
+	(pass-if "1"
+	  (call-with-values
+	      (lambda ()
+		(parallel 1))
+	    (lambda (x)
+	      (equal? x 1))))
+
+	(pass-if "1 2"
+	  (call-with-values
+	      (lambda ()
+		(parallel 1 2))
+	    (lambda (x y)
+	      (and (equal? x 1)
+		   (equal? y 2)))))
+
+	(pass-if "1 2 3"
+	  (call-with-values
+	      (lambda ()
+		(parallel 1 2 3))
+	    (lambda (x y z)
+	      (and (equal? x 1)
+		   (equal? y 2)
+		   (equal? z 3))))))
+
+      ;;
+      ;; par-map
+      ;;
+
+      (with-test-prefix "par-map"
+
+        (pass-if "simple"
+          (compile '(letrec ((fibo (lambda (n)
+                                     (if (<= n 1)
+                                         n
+                                         (+ (fibo (- n 1))
+                                            (fibo (- n 2)))))))
+                      (equal? (par-map fibo (iota 13))
+                              (map fibo (iota 13))))
+                   #:to 'value
+                   #:env (current-module)))
+
+        (pass-if-equal "long list" (map 1+ (iota 10000))
+          ;; In Guile 2.0.7, this would trigger a stack overflow.
+          ;; See <http://bugs.gnu.org/13188>.
+          (par-map 1+ (iota 10000))))
+
+      ;;
+      ;; par-for-each
+      ;;
+
+      (with-test-prefix "par-for-each"
+
+        (pass-if "simple"
+          (compile '(let ((v (make-vector 6 #f)))
+                      (par-for-each (lambda (n)
+                                      (vector-set! v n n))
+                                    (iota 6))
+                      (equal? v (list->vector (iota 6))))
+                   #:to 'value
+                   #:env (current-module))))
+
+      ;;
+      ;; n-par-for-each
+      ;;
+
+      (with-test-prefix "n-par-for-each"
+
+	(pass-if "0 in limit 10"
+	  (n-par-for-each 10 noop '())
+	  #t)
+
+	(pass-if "6 in limit 10"
+	  (let ((v (make-vector 6 #f)))
+	    (n-par-for-each 10 (lambda (n)
+				 (vector-set! v n #t))
+			    '(0 1 2 3 4 5))
+	    (equal? v '#(#t #t #t #t #t #t))))
+
+	(pass-if "6 in limit 1"
+	  (let ((v (make-vector 6 #f)))
+	    (n-par-for-each 1 (lambda (n)
+				(vector-set! v n #t))
+			    '(0 1 2 3 4 5))
+	    (equal? v '#(#t #t #t #t #t #t))))
+
+	(pass-if "6 in limit 2"
+	  (let ((v (make-vector 6 #f)))
+	    (n-par-for-each 2 (lambda (n)
+				(vector-set! v n #t))
+			    '(0 1 2 3 4 5))
+	    (equal? v '#(#t #t #t #t #t #t))))
+
+	(pass-if "6 in limit 3"
+	  (let ((v (make-vector 6 #f)))
+	    (n-par-for-each 3 (lambda (n)
+				(vector-set! v n #t))
+			    '(0 1 2 3 4 5))
+	    (equal? v '#(#t #t #t #t #t #t)))))
+
+      ;;
+      ;; n-for-each-par-map
+      ;;
+
+      (with-test-prefix "n-for-each-par-map"
+
+	(pass-if "asyncs are still working 2"
+	  (asyncs-still-working?))
+
+	(pass-if "0 in limit 10"
+	  (n-for-each-par-map 10 noop noop '())
+	  #t)
+
+	(pass-if "6 in limit 10"
+	  (let ((result '()))
+	    (n-for-each-par-map 10
+				(lambda (n) (set! result (cons n result)))
+				(lambda (n) (* 2 n))
+				'(0 1 2 3 4 5))
+	    (equal? result '(10 8 6 4 2 0))))
+
+	(pass-if "6 in limit 1"
+	  (let ((result '()))
+	    (n-for-each-par-map 1
+				(lambda (n) (set! result (cons n result)))
+				(lambda (n) (* 2 n))
+				'(0 1 2 3 4 5))
+	    (equal? result '(10 8 6 4 2 0))))
+
+	(pass-if "6 in limit 2"
+	  (let ((result '()))
+	    (n-for-each-par-map 2
+				(lambda (n) (set! result (cons n result)))
+				(lambda (n) (* 2 n))
+				'(0 1 2 3 4 5))
+	    (equal? result '(10 8 6 4 2 0))))
+
+	(pass-if "6 in limit 3"
+	  (let ((result '()))
+	    (n-for-each-par-map 3
+				(lambda (n) (set! result (cons n result)))
+				(lambda (n) (* 2 n))
+				'(0 1 2 3 4 5))
+	    (equal? result '(10 8 6 4 2 0)))))
+
+      ;;
+      ;; timed mutex locking
+      ;;
+
+      (with-test-prefix "lock-mutex"
+
+	(pass-if "asyncs are still working 3"
+	  (asyncs-still-working?))
+
+	(pass-if "timed locking fails if timeout exceeded"
+	  (let ((m (make-mutex)))
+	    (lock-mutex m)
+	    (let ((t (begin-thread (lock-mutex m (+ (current-time) 1)))))
+	      (not (join-thread t)))))
+
+	(pass-if "asyncs are still working 6"
+	  (asyncs-still-working?))
+
+        (pass-if "timed locking succeeds if mutex unlocked within timeout"
+	  (let* ((m (make-mutex))
+		 (c (make-condition-variable))
+		 (cm (make-mutex)))
+	    (lock-mutex cm)
+	    (let ((t (begin-thread (begin (lock-mutex cm)
+					  (signal-condition-variable c)
+					  (unlock-mutex cm)
+					  (lock-mutex m
+						      (+ (current-time) 5))))))
+	      (lock-mutex m)
+	      (wait-condition-variable c cm)
+	      (unlock-mutex cm)
+	      (sleep 1)
+	      (unlock-mutex m)
+	      (join-thread t))))
+
+	(pass-if "asyncs are still working 7"
+	  (asyncs-still-working?))
+
+	)
+
+      ;;
+      ;; timed mutex unlocking
+      ;;
+
+      (with-test-prefix "unlock-mutex"
+
+	(pass-if "asyncs are still working 5"
+	  (asyncs-still-working?))
+
+        (pass-if "timed unlocking returns #f if timeout exceeded"
+          (let ((m (make-mutex))
+		(c (make-condition-variable)))
+	    (lock-mutex m)
+	    (not (wait-condition-variable c m (current-time)))))
+
+	(pass-if "asyncs are still working 4"
+	  (asyncs-still-working?))
+
+        (pass-if "timed unlocking returns #t if condition signaled"
+	  (let ((m1 (make-mutex))
+		(m2 (make-mutex))
+		(c1 (make-condition-variable))
+		(c2 (make-condition-variable)))
+	    (lock-mutex m1)
+	    (let ((t (begin-thread
+                      (lock-mutex m1)
+                      (signal-condition-variable c1)
+                      (lock-mutex m2)
+                      (unlock-mutex m1)
+                      (wait-condition-variable c2 m2 (+ (current-time) 5)))))
+	      (wait-condition-variable c1 m1)
+	      (unlock-mutex m1)
+	      (lock-mutex m2)
+	      (signal-condition-variable c2)
+	      (unlock-mutex m2)
+	      (join-thread t)))))
+
+      ;;
+      ;; timed joining
+      ;;
+
+      (with-test-prefix "join-thread"
+
+	(pass-if "timed joining fails if timeout exceeded"
+          (require-cancel-thread)
+	  (let* ((m (make-mutex))
+		 (c (make-condition-variable))
+		 (t (begin-thread (begin (lock-mutex m)
+					 (wait-condition-variable c m))))
+		 (r (join-thread t (current-time))))
+	    (cancel-thread t)
+	    (not r)))
+
+        (pass-if "join-thread returns timeoutval on timeout"
+          (require-cancel-thread)
+          (let* ((m (make-mutex))
+		 (c (make-condition-variable))
+		 (t (begin-thread (begin (lock-mutex m)
+					 (wait-condition-variable c m))))
+		 (r (join-thread t (current-time) 'foo)))
+	    (cancel-thread t)
+	    (eq? r 'foo)))
+
+
+	(pass-if "timed joining succeeds if thread exits within timeout"
+          (let ((t (begin-thread (begin (sleep 1) #t))))
+	    (join-thread t (+ (current-time) 5))))
+
+	(pass-if "asyncs are still working 1"
+	  (asyncs-still-working?))
+
+	;; scm_join_thread_timed has a SCM_TICK in the middle of it,
+	;; to allow asyncs to run (including signal delivery).  We
+	;; used to have a bug whereby if the joined thread terminated
+	;; at the same time as the joining thread is in this SCM_TICK,
+	;; scm_join_thread_timed would not notice and would hang
+	;; forever.  So in this test we are setting up the following
+	;; sequence of events.
+        ;;   T=0  other thread is created and starts running
+	;;   T=2  main thread sets up an async that will sleep for 10 seconds
+        ;;   T=2  main thread calls join-thread, which will...
+        ;;   T=2  ...call the async, which starts sleeping
+        ;;   T=5  other thread finishes its work and terminates
+        ;;   T=7  async completes, main thread continues inside join-thread.
+	(pass-if "don't hang when joined thread terminates in SCM_TICK"
+	  (let ((other-thread (make-thread sleep 5)))
+	    (letrec ((delay-count 10)
+		     (aproc (lambda ()
+			      (set! delay-count (- delay-count 1))
+			      (if (zero? delay-count)
+				  (sleep 5)
+				  (system-async-mark aproc)))))
+	      (sleep 2)
+	      (system-async-mark aproc)
+	      (join-thread other-thread)))
+	  #t)
+
+        (pass-if "do not throw exception if trying to join after timeout"
+          (let ((other-thread (begin-thread (pause))))
+            (dynamic-wind
+              (const #f)
+              (lambda ()
+                (join-thread other-thread 1)
+                ;; Up to 3.0.9, this second call would throw: "mutex
+                ;; already locked by thread".
+                ;; See <https://bugs.gnu.org/55356>.
+                (join-thread other-thread 1)
+                #t)
+              (lambda ()
+                (cancel-thread other-thread))))))
+
+      ;;
+      ;; thread cancellation
+      ;;
+
+      (with-test-prefix "cancel-thread"
+
+        (pass-if "cancel succeeds"
+          (require-cancel-thread)
+	  (let ((m (make-mutex)))
+	    (lock-mutex m)
+	    (let ((t (begin-thread (begin (lock-mutex m) 'foo))))
+	      (cancel-thread t)
+	      (join-thread t)
+	      #t)))
+
+	(pass-if "cancel result passed to join"
+          (require-cancel-thread)
+	  (let ((m (make-mutex)))
+	    (lock-mutex m)
+	    (let ((t (begin-thread (lock-mutex m))))
+	      (cancel-thread t 'foo)
+	      (eq? (join-thread t) 'foo))))
+
+	(pass-if "can cancel self"
+          (require-cancel-thread)
+	  (let ((m (make-mutex)))
+	    (lock-mutex m)
+	    (let ((t (begin-thread (begin
+				     (cancel-thread (current-thread) 'foo)
+				     (lock-mutex m)))))
+	      (eq? (join-thread t) 'foo)))))
+
+      ;;
+      ;; mutex ownership
+      ;;
+
+      (with-test-prefix "mutex-ownership"
+	(pass-if "mutex ownership for locked mutex"
+	  (let ((m (make-mutex)))
+	    (lock-mutex m)
+	    (eq? (mutex-owner m) (current-thread))))
+
+	(pass-if "mutex ownership for unlocked mutex"
+	  (let ((m (make-mutex)))
+	    (not (mutex-owner m))))
+
+	(pass-if "mutex with owner not retained (bug #27450)"
+          (let ((g (make-guardian)))
+            (g (let ((m (make-mutex))) (lock-mutex m) m))
+
+            ;; Avoid false references to M on the stack.
+            (clear-stale-stack-references)
+
+            (gc) (gc)
+            (let ((m (g)))
+              (and (mutex? m)
+                   (eq? (mutex-owner m) (current-thread)))))))
+
+      ;;
+      ;; mutex lock levels
+      ;;
+
+      (with-test-prefix "mutex-lock-levels"
+
+        (pass-if "unlocked level is 0"
+	  (let ((m (make-mutex)))
+	    (and (not (mutex-locked? m)) (eqv? (mutex-level m) 0))))
+
+        (pass-if "non-recursive lock level is 1"
+	  (let ((m (make-mutex)))
+	    (lock-mutex m)
+	    (and (mutex-locked? m) (eqv? (mutex-level m) 1))))
+
+	(pass-if "recursive lock level is >1"
+	  (let ((m (make-mutex 'recursive)))
+	    (lock-mutex m)
+	    (lock-mutex m)
+	    (and (mutex-locked? m) (eqv? (mutex-level m) 2)))))
+
+      ;;
+      ;; mutex behavior
+      ;;
+
+      (with-test-prefix "mutex-behavior"
+
+        (pass-if "allow external unlock"
+	  (let* ((m (make-mutex 'allow-external-unlock))
+		 (t (begin-thread (lock-mutex m))))
+	    (join-thread t)
+	    (unlock-mutex m)))
+
+	(pass-if "recursive mutexes"
+	  (let* ((m (make-mutex 'recursive)))
+	    (lock-mutex m)
+	    (lock-mutex m)))
+
+	(pass-if "abandoned mutexes are dead"
+          (let* ((m (make-mutex)))
+	    (join-thread (begin-thread (lock-mutex m)))
+            (not (lock-mutex m (+ (current-time) 0.1))))))))
+
+
+;;
+;; nproc
+;;
+
+(with-test-prefix "nproc"
+
+  (pass-if "total-processor-count"
+    (>= (total-processor-count) 1))
+
+  (pass-if "current-processor-count"
+    (and (>= (current-processor-count) 1)
+         (>= (total-processor-count) (current-processor-count)))))

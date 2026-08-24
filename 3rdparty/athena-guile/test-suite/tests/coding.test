@@ -1,0 +1,113 @@
+;;;; coding.test --- test suite for coding declarations. -*- mode: scheme -*-
+;;;;
+;;;; Copyright (C) 2011, 2013, 2014 Free Software Foundation, Inc.
+;;;;
+;;;; This library is free software; you can redistribute it and/or
+;;;; modify it under the terms of the GNU Lesser General Public
+;;;; License as published by the Free Software Foundation; either
+;;;; version 3 of the License, or (at your option) any later version.
+;;;;
+;;;; This library is distributed in the hope that it will be useful,
+;;;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;;;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+;;;; Lesser General Public License for more details.
+;;;;
+;;;; You should have received a copy of the GNU Lesser General Public
+;;;; License along with this library; if not, write to the Free Software
+;;;; Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+
+(define-module (test-coding)
+  #:use-module (test-suite lib))
+
+(define (with-temp-file proc)
+  (let* ((tmpdir (or (getenv "TMPDIR")
+                     (getenv "TEMP")
+                     "/tmp"))
+         (name (string-append tmpdir "/coding-test.XXXXXX"))
+         (port (mkstemp! name)))
+    (let ((res (with-throw-handler
+                #t
+                (lambda ()
+                  (proc name port))
+                (lambda _
+                  (delete-file name)))))
+      (delete-file name)
+      res)))
+
+(define (scan-coding str)
+  (with-temp-file
+   (lambda (name port)
+     (display str port)
+     (close port)
+     ;; We don't simply seek back and rescan, because the encoding scan
+     ;; relies on the opportunistic filling of the input buffer, which
+     ;; doesn't happen after a seek.
+     (let* ((port (open-input-file name))
+            (res (file-encoding port)))
+       (close-port port)
+       res))))
+
+(with-test-prefix "block comments"
+
+  (pass-if-equal "first line"
+      "ISO-8859-1"
+    (scan-coding "#! coding: iso-8859-1 !#"))
+
+  (pass-if-equal "first line no whitespace"
+      "ISO-8859-1"
+    (scan-coding "#!coding:iso-8859-1!#"))
+
+  (pass-if-equal "second line"
+      "ISO-8859-1"
+    (scan-coding "#!  \n  coding: iso-8859-1  !#"))
+
+  (pass-if-equal "second line no whitespace"
+      "ISO-8859-1"
+    (scan-coding "#!\ncoding:iso-8859-1!#"))
+
+  (pass-if-equal "third line"
+      "ISO-8859-1"
+    (scan-coding "#! \n  coding: iso-8859-1  \n  !#"))
+
+  (pass-if-equal "third line no whitespace"
+      "ISO-8859-1"
+    (scan-coding "#!\ncoding:iso-8859-1\n!#")))
+
+(with-test-prefix "line comment"
+  (pass-if-equal "first line, no whitespace, no nl"
+      "ISO-8859-1"
+    (scan-coding ";coding:iso-8859-1"))
+
+  (pass-if-equal "first line, whitespace, no nl"
+      "ISO-8859-1"
+    (scan-coding "; coding: iso-8859-1 "))
+
+  (pass-if-equal "first line, no whitespace, nl"
+      "ISO-8859-1"
+    (scan-coding ";coding:iso-8859-1\n"))
+
+  (pass-if-equal "first line, whitespace, nl"
+      "ISO-8859-1"
+    (scan-coding "; coding: iso-8859-1 \n"))
+
+  (pass-if-equal "second line, no whitespace, no nl"
+      "ISO-8859-1"
+    (scan-coding "\n;coding:iso-8859-1"))
+
+  (pass-if-equal "second line, whitespace, no nl"
+      "ISO-8859-1"
+    (scan-coding "\n; coding: iso-8859-1 "))
+
+  (pass-if-equal "second line, no whitespace, nl"
+      "ISO-8859-1"
+    (scan-coding "\n;coding:iso-8859-1\n"))
+
+  (pass-if-equal "second line, whitespace, nl"
+      "ISO-8859-1"
+    (scan-coding "\n; coding: iso-8859-1 \n"))
+
+  (pass-if-equal "http://bugs.gnu.org/16463"
+      ;; On Guile <= 2.0.9, this would return "ISO-8".
+      "ISO-8859-1"
+    (scan-coding (string-append (make-string 485 #\space)
+                                "; coding: ISO-8859-1"))))

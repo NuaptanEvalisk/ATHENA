@@ -1,0 +1,96 @@
+;;;; dwarf.test                               -*- scheme -*-
+;;;;
+;;;; Copyright 2013, 2021 Free Software Foundation, Inc.
+;;;;
+;;;; This library is free software; you can redistribute it and/or
+;;;; modify it under the terms of the GNU Lesser General Public
+;;;; License as published by the Free Software Foundation; either
+;;;; version 3 of the License, or (at your option) any later version.
+;;;;
+;;;; This library is distributed in the hope that it will be useful,
+;;;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;;;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+;;;; Lesser General Public License for more details.
+;;;;
+;;;; You should have received a copy of the GNU Lesser General Public
+;;;; License along with this library; if not, write to the Free Software
+;;;; Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+
+(define-module (test-suite test-dwarf)
+  #:use-module (test-suite lib)
+  #:use-module (ice-9 match)
+  #:use-module (system base compile)
+  #:use-module (system vm debug)
+  #:use-module (system vm program)
+  #:use-module (system vm loader))
+
+(define prog
+  (string-concatenate
+   ;; The start of every datum is a possible source location.
+   '("(define (qux f)\n" 
+     ;^ 0:0
+     "  (+ 32 (f)))\n"
+     ;  ^1:2  ^1:8
+     "\n"
+     "(define bar\n"
+     ;^ 3;0
+     "  (lambda (a)\n"
+     ;  ^ 4:2
+     "    13))\n"
+     ;    ^ 5:4
+     "'success\n")
+   ))
+
+(let* ((port (open-input-string prog))
+       (bv (begin
+             (set-port-filename! port "foo.scm")
+             (read-and-compile port #:to 'bytecode))))
+  (pass-if-equal 'success
+      ((load-thunk-from-memory bv)))
+
+  (pass-if-equal 13 (bar 10))
+
+  (let ((source (find-source-for-addr (program-code qux))))
+    (pass-if-equal "foo.scm" (source-file source))
+    (pass-if-equal 0 (source-line source))
+    (pass-if-equal 1 (source-line-for-user source))
+    (pass-if-equal 0 (source-column source)))
+
+  (let ((source (find-source-for-addr (program-code bar))))
+    (pass-if-equal "foo.scm" (source-file source))
+    (pass-if-equal 4 (source-line source))
+    (pass-if-equal 5 (source-line-for-user source))
+    (pass-if-equal 2 (source-column source)))
+
+  (match (find-program-sources (program-code qux))
+    ((s1 s2 s3)
+     (pass-if-equal "foo.scm" (source-file s1))
+     (pass-if-equal 0 (source-line s1))
+     (pass-if-equal 1 (source-line-for-user s1))
+     (pass-if-equal 0 (source-column s1))
+
+     (pass-if-equal "foo.scm" (source-file s2))
+     (pass-if-equal 1 (source-line s2))
+     (pass-if-equal 2 (source-line-for-user s2))
+     (pass-if-equal 8 (source-column s2))
+
+     (pass-if-equal "foo.scm" (source-file s3))
+     (pass-if-equal 1 (source-line s3))
+     (pass-if-equal 2 (source-line-for-user s3))
+     (pass-if-equal 2 (source-column s3)))
+    (sources
+     (error "unexpected sources" sources)))
+
+  (match (find-program-sources (program-code bar))
+    ((s1 s2)
+     (pass-if-equal "foo.scm" (source-file s1))
+     (pass-if-equal 4 (source-line s1))
+     (pass-if-equal 5 (source-line-for-user s1))
+     (pass-if-equal 2 (source-column s1))
+
+     (pass-if-equal "foo.scm" (source-file s2))
+     (pass-if-equal 5 (source-line s2))
+     (pass-if-equal 6 (source-line-for-user s2))
+     (pass-if-equal 4 (source-column s2)))
+    (sources
+     (error "unexpected sources" sources))))

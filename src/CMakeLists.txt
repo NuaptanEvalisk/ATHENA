@@ -11,8 +11,10 @@ else (APPLE)
 endif (APPLE)
 
 add_library(athena_body STATIC ${ATHENA_All_SRCS})
-add_dependencies(athena_body athena_build_info)
+add_dependencies(athena_body athena_build_info athena_guile_runtime)
 target_compile_definitions(athena_body PRIVATE
+  ATHENA_GUILE_BUILD_RUNTIME_ROOT="${ATHENA_GUILE_PREFIX}"
+  ATHENA_GUILE_RUNTIME_ID="${ATHENA_GUILE_RUNTIME_ID}"
   $<$<CONFIG:Debug>:ATHENA_DEBUG_BUILD=1>
 )
 target_link_libraries (athena_body
@@ -44,6 +46,7 @@ else (WIN32)
 endif (WIN32)
 target_compile_definitions(${ATHENA_binary_name} PRIVATE
   MI_OVERRIDE=1
+  ATHENA_GUILE_RUNTIME_ID="${ATHENA_GUILE_RUNTIME_ID}"
   $<$<CONFIG:Debug>:ATHENA_DEBUG_BUILD=1>
 )
 target_link_libraries (${ATHENA_binary_name}
@@ -58,10 +61,71 @@ target_link_libraries (${ATHENA_binary_name}
 if (NOT APPLE AND NOT WIN32)
   add_custom_command (TARGET ${ATHENA_binary_name} POST_BUILD
     COMMAND ${PATCHELF_EXECUTABLE}
-            --set-rpath "$ORIGIN/../lib"
+            --set-rpath "$ORIGIN/../lib/athena-guile/lib:$ORIGIN/../lib"
             $<TARGET_FILE:${ATHENA_binary_name}>
     COMMENT "Setting relocatable runtime library path for ATHENA"
     VERBATIM)
+endif ()
+
+if (NOT WIN32)
+  set (ATHENA_SCHEME_COMPILE_JOBS "20" CACHE STRING
+       "Parallel workers used to precompile ATHENA Scheme modules")
+  file (GLOB_RECURSE ATHENA_SCHEME_SOURCES CONFIGURE_DEPENDS
+        "${ATHENA_SOURCE_DIR}/ATHENA/progs/*.scm")
+  set (ATHENA_SCHEME_BYTECODE_DIR
+       "${ATHENA_SOURCE_DIR}/ATHENA/lib/athena-scheme/${ATHENA_GUILE_RUNTIME_ID}")
+  set (ATHENA_SCHEME_BYTECODE_STAMP
+       "${ATHENA_SCHEME_BYTECODE_DIR}/.complete")
+  set (ATHENA_SCHEME_COMPILE_HOME
+       "${ATHENA_BINARY_DIR}/athena-scheme-compile-home")
+  get_filename_component (ATHENA_LLAMA_RUNTIME_DIR
+                          "${LLAMA_CPP_LIBRARY}" DIRECTORY)
+  add_custom_command (
+    OUTPUT "${ATHENA_SCHEME_BYTECODE_STAMP}"
+    COMMAND ${CMAKE_COMMAND} -E remove_directory
+            "${ATHENA_SCHEME_BYTECODE_DIR}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory
+            "${ATHENA_SCHEME_BYTECODE_DIR}"
+            "${ATHENA_SCHEME_COMPILE_HOME}"
+    COMMAND /bin/bash
+            "${ATHENA_SOURCE_DIR}/tools/compile-athena-scheme-bytecode.sh"
+            $<TARGET_FILE:${ATHENA_binary_name}>
+            "${ATHENA_SCHEME_BYTECODE_DIR}"
+            "${ATHENA_SOURCE_DIR}/ATHENA"
+            "${ATHENA_SCHEME_COMPILE_HOME}"
+            "${ATHENA_GUILE_PREFIX}"
+            "${ATHENA_SOURCE_DIR}/ATHENA/progs"
+            "${ATHENA_LLAMA_RUNTIME_DIR}"
+            "${ATHENA_BINARY_DIR}/x64/lib"
+            "${ATHENA_SCHEME_COMPILE_JOBS}"
+            "${ATHENA_GUILE_RUNTIME_ID}"
+    DEPENDS ${ATHENA_SCHEME_SOURCES}
+            "${ATHENA_SOURCE_DIR}/src/ATHENA/ATHENA/athena.cpp"
+            "${ATHENA_SOURCE_DIR}/3rdparty/athena-guile/libguile/athena-runtime.c"
+            "${ATHENA_SOURCE_DIR}/tools/compile-athena-scheme-bytecode.sh"
+            "${ATHENA_SOURCE_DIR}/tools/plan-athena-scheme-bytecode.scm"
+    COMMENT "Precompiling ATHENA Scheme modules with the initialized ATHENA runtime"
+    VERBATIM)
+  add_custom_target (athena_scheme_bytecode ALL
+                     DEPENDS "${ATHENA_SCHEME_BYTECODE_STAMP}")
+  add_dependencies (athena_scheme_bytecode ${ATHENA_binary_name})
+
+  set (ATHENA_LOCAL_RUNTIME_DIR "${ATHENA_SOURCE_DIR}/ATHENA")
+  add_custom_target (athena_local_runtime ALL
+    COMMAND ${CMAKE_COMMAND} -E make_directory
+            "${ATHENA_LOCAL_RUNTIME_DIR}/bin"
+    COMMAND "${Python3_EXECUTABLE}"
+            "${ATHENA_SOURCE_DIR}/tools/release/copy-private-guile-runtime.py"
+            "${ATHENA_GUILE_PREFIX}"
+            "${ATHENA_LOCAL_RUNTIME_DIR}"
+            "${ATHENA_GUILE_RUNTIME_ID}"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            $<TARGET_FILE:${ATHENA_binary_name}>
+            "${ATHENA_LOCAL_RUNTIME_DIR}/bin/ATHENA.bin"
+    COMMENT "Deploying the complete ATHENA runtime tree"
+    VERBATIM)
+  add_dependencies (athena_local_runtime
+                    athena_scheme_bytecode athena_guile_runtime)
 endif ()
 
 if (APPLE)

@@ -1,0 +1,30 @@
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+bindir=@bindir@
+libdir=@libdir@
+includedir=@includedir@
+datarootdir=@datarootdir@
+datadir=@datadir@
+pkgdatadir=@datadir@/guile
+pkgincludedir=@includedir@/guile
+
+sitedir=@sitedir@
+extensiondir=@libdir@/guile/@GUILE_EFFECTIVE_VERSION@/extensions
+siteccachedir=@libdir@/guile/@GUILE_EFFECTIVE_VERSION@/site-ccache
+libguileinterface=@LIBGUILE_INTERFACE@
+
+# Actual name of the 'guile' and 'guild' programs.  This is
+# particularly useful when '--program-transform-name' or similar has
+# been used.
+guild=${bindir}/@guild@
+guile=${bindir}/@guile@
+
+Name: GNU Guile
+Description: GNU's Ubiquitous Intelligent Language for Extension
+Version: @GUILE_VERSION@
+Libs: -L${libdir} -lguile-@GUILE_EFFECTIVE_VERSION@ @BDW_GC_LIBS@
+Libs.private: @LIB_CLOCK_GETTIME@ @LIBGMP@ @LIBLTDL@ @LIBFFI_LIBS@	\
+  @LIBUNISTRING@ @GUILE_LIBS@ @LIBICONV@ @LIBINTL@ @LIBSOCKET@		\
+  @SERVENT_LIB@ @HOSTENT_LIB@ @GETADDRINFO_LIB@ @INET_NTOP_LIB@		\
+  @INET_PTON_LIB@
+Cflags: -I${pkgincludedir}/@GUILE_EFFECTIVE_VERSION@ @GUILE_CFLAGS@ @BDW_GC_CFLAGS@

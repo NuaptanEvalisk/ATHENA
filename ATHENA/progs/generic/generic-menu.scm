@@ -956,4 +956,4 @@
 ;; Immediately load document-menu
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(use-modules (generic document-menu))
+(import-from (generic document-menu))

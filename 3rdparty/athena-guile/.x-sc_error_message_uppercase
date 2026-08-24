@@ -1,0 +1,7 @@
+^libguile/
+^guile-readline/
+^gc-benchmarks/
+^emacs/
+^NEWS
+^doc/
+^test-suite/tests/ports.test

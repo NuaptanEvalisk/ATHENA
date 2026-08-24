@@ -1,0 +1,2048 @@
+@c -*-texinfo-*-
+@c This is part of the GNU Guile Reference Manual.
+@c Copyright (C)  2008-2011, 2013, 2015, 2018, 2019, 2020, 2022, 2023
+@c   Free Software Foundation, Inc.
+@c See the file guile.texi for copying conditions.
+
+@node A Virtual Machine for Guile
+@section A Virtual Machine for Guile
+
+Enough about data---how does Guile run code?
+
+Code is a grammatical production of a language.  Sometimes these
+languages are implemented using interpreters: programs that run
+along-side the program being interpreted, dynamically translating the
+high-level code to low-level code.  Sometimes these languages are
+implemented using compilers:  programs that translate high-level
+programs to equivalent low-level code, and pass on that low-level code
+to some other language implementation.  Each of these languages can be
+thought to be virtual machines: they offer programs an abstract machine
+on which to run.
+
+Guile implements a number of interpreters and compilers on different
+language levels.  For example, there is an interpreter for the Scheme
+language that is itself implemented as a Scheme program compiled to a
+bytecode for a low-level virtual machine shipped with Guile.  That
+virtual machine is implemented by both an interpreter---a C program that
+interprets the bytecodes---and a compiler---a C program that dynamically
+translates bytecode programs to native machine code@footnote{Even the
+lowest-level machine code can be thought to be interpreted by the CPU,
+and indeed is often implemented by compiling machine instructions to
+``micro-operations''.}.
+
+This section describes the language implemented by Guile's bytecode
+virtual machine, as well as some examples of translations of Scheme
+programs to Guile's VM.
+
+@menu
+* Why a VM?::                   
+* VM Concepts::                 
+* Stack Layout::                
+* Variables and the VM::                   
+* VM Programs::         
+* Object File Format::
+* Instruction Set::
+* Just-In-Time Native Code::
+@end menu
+
+@node Why a VM?
+@subsection Why a VM?
+
+@cindex interpreter
+For a long time, Guile only had a Scheme interpreter, implemented in C.
+Guile's interpreter operated directly on the S-expression representation
+of Scheme source code.
+
+But while the interpreter was highly optimized and hand-tuned, it still
+performed many needless computations during the course of evaluating a
+Scheme expression.  For example, application of a function to arguments
+needlessly consed up the arguments in a list. Evaluation of an
+expression like @code{(f x y)} always had to figure out whether @var{f}
+was a procedure, or a special form like @code{if}, or something else.
+The interpreter represented the lexical environment as a heap data
+structure, so every evaluation caused allocation, which was of course
+slow.  Et cetera.
+
+The solution to the slow-interpreter problem was to compile the
+higher-level language, Scheme, into a lower-level language for which all
+of the checks and dispatching have already been done---the code is
+instead stripped to the bare minimum needed to ``do the job''.
+
+The question becomes then, what low-level language to choose? There are
+many options.  We could compile to native code directly, but that poses
+portability problems for Guile, as it is a highly cross-platform
+project.
+
+So we want the performance gains that compilation provides, but we
+also want to maintain the portability benefits of a single code path.
+The obvious solution is to compile to a virtual machine that is
+present on all Guile installations.
+
+The easiest (and most fun) way to depend on a virtual machine is to
+implement the virtual machine within Guile itself.  Guile contains a
+bytecode interpreter (written in C) and a Scheme to bytecode compiler
+(written in Scheme).  This way the virtual machine provides what Scheme
+needs (tail calls, multiple values, @code{call/cc}) and can provide
+optimized inline instructions for Guile as well (GC-managed allocations,
+type checks, etc.).
+
+Guile also includes a just-in-time (JIT) compiler to translate bytecode
+to native code.  Because Guile embeds a portable code generation library
+(@url{https://gitlab.com/wingo/lightening}), we keep the benefits of
+portability while also benefitting from fast native code.  To avoid too
+much time spent in the JIT compiler itself, Guile is tuned to only emit
+machine code for bytecode that is called often.
+
+The rest of this section describes that VM that Guile implements, and
+the compiled procedures that run on it.
+
+Before moving on, though, we should note that though we spoke of the
+interpreter in the past tense, Guile still has an interpreter. The
+difference is that before, it was Guile's main Scheme implementation,
+and so was implemented in highly optimized C; now, it is actually
+implemented in Scheme, and compiled down to VM bytecode, just like any
+other program.  (There is still a C interpreter around, used to
+bootstrap the compiler, but it is not normally used at runtime.)
+
+The upside of implementing the interpreter in Scheme is that we preserve
+tail calls and multiple-value handling between interpreted and compiled
+code, and with advent of the JIT compiler in Guile 3.0 we reach the
+speed of the old hand-tuned C implementation; it's the best of both
+worlds.
+
+Also note that this decision to implement a bytecode compiler does not
+preclude ahead-of-time native compilation.  More possibilities are
+discussed in @ref{Extending the Compiler}.
+
+@node VM Concepts
+@subsection VM Concepts
+
+The bytecode in a Scheme procedure is interpreted by a virtual machine
+(VM).  Each thread has its own instantiation of the VM.  The virtual
+machine executes the sequence of instructions in a procedure.
+
+Each VM instruction starts by indicating which operation it is, and then
+follows by encoding its source and destination operands.  Each procedure
+declares that it has some number of local variables, including the
+function arguments.  These local variables form the available operands
+of the procedure, and are accessed by index.
+
+The local variables for a procedure are stored on a stack.  Calling a
+procedure typically enlarges the stack, and returning from a procedure
+shrinks it.  Stack memory is exclusive to the virtual machine that owns
+it.
+
+In addition to their stacks, virtual machines also have access to the
+global memory (modules, global bindings, etc) that is shared among other
+parts of Guile, including other VMs.
+
+The registers that a VM has are as follows:
+
+@itemize
+@item ip - Instruction pointer
+@item sp - Stack pointer
+@item fp - Frame pointer
+@end itemize
+
+In other architectures, the instruction pointer is sometimes called the
+``program counter'' (pc). This set of registers is pretty typical for
+virtual machines; their exact meanings in the context of Guile's VM are
+described in the next section.
+
+@node Stack Layout
+@subsection Stack Layout
+
+The stack of Guile's virtual machine is composed of @dfn{frames}. Each
+frame corresponds to the application of one compiled procedure, and
+contains storage space for arguments, local variables, and some
+bookkeeping information (such as what to do after the frame is
+finished).
+
+While the compiler is free to do whatever it wants to, as long as the
+semantics of a computation are preserved, in practice every time you
+call a function, a new frame is created. (The notable exception of
+course is the tail call case, @pxref{Tail Calls}.)
+
+The structure of the top stack frame is as follows:
+
+@example
+   | ...previous frame locals...  |
+   +==============================+ <- fp + 3
+   | Dynamic link                 |
+   +------------------------------+
+   | Virtual return address (vRA) |
+   +------------------------------+
+   | Machine return address (mRA) |
+   +==============================+ <- fp
+   | Local 0                      |
+   +------------------------------+
+   | Local 1                      |
+   +------------------------------+
+   | ...                          |
+   +------------------------------+
+   | Local N-1                    |
+   \------------------------------/ <- sp
+@end example
+
+In the above drawing, the stack grows downward.  At the beginning of a
+function call, the procedure being applied is in local 0, followed by
+the arguments from local 1.  After the procedure checks that it is being
+passed a compatible set of arguments, the procedure allocates some
+additional space in the frame to hold variables local to the function.
+
+Note that once a value in a local variable slot is no longer needed,
+Guile is free to re-use that slot.  This applies to the slots that were
+initially used for the callee and arguments, too.  For this reason,
+backtraces in Guile aren't always able to show all of the arguments: it
+could be that the slot corresponding to that argument was re-used by
+some other variable.
+
+The @dfn{virtual return address} is the @code{ip} that was in effect
+before this program was applied.  When we return from this activation
+frame, we will jump back to this @code{ip}.  Likewise, the @dfn{dynamic
+link} is the offset of the @code{fp} that was in effect before this
+program was applied, relative to the current @code{fp}.
+
+There are two return addresses: the virtual return address (vRA), and
+the machine return address (mRA).  The vRA is always present and
+indicates a bytecode address.  The mRA is only present when a call is
+made from a function with machine code (e.g. a function that has been
+JIT-compiled).
+
+To prepare for a non-tail application, Guile's VM will emit code that
+shuffles the function to apply and its arguments into appropriate stack
+slots, with three free slots below them.  The call then initializes
+those free slots to hold the machine return address (or NULL), the
+virtual return address, and the offset to the previous frame pointer
+(@code{fp}).  It then gets the @code{ip} for the function being called
+and adjusts @code{fp} to point to the new call frame.
+
+In this way, the dynamic link links the current frame to the previous
+frame.  Computing a stack trace involves traversing these frames.
+
+Each stack local in Guile is 64 bits wide, even on 32-bit architectures.
+This allows Guile to preserve its uniform treatment of stack locals
+while allowing for unboxed arithmetic on 64-bit integers and
+floating-point numbers.  @xref{Instruction Set}, for more on unboxed
+arithmetic.
+
+As an implementation detail, we actually store the dynamic link as an
+offset and not an absolute value because the stack can move at runtime
+as it expands or during partial continuation calls.  If it were an
+absolute value, we would have to walk the frames, relocating frame
+pointers.
+
+@node Variables and the VM
+@subsection Variables and the VM
+
+Consider the following Scheme code as an example:
+
+@example
+  (define (foo a)
+    (lambda (b) (vector foo a b)))
+@end example
+
+Within the lambda expression, @code{foo} is a top-level variable,
+@code{a} is a lexically captured variable, and @code{b} is a local
+variable.
+
+Another way to refer to @code{a} and @code{b} is to say that @code{a} is
+a ``free'' variable, since it is not defined within the lambda, and
+@code{b} is a ``bound'' variable. These are the terms used in the
+@dfn{lambda calculus}, a mathematical notation for describing functions.
+The lambda calculus is useful because it is a language in which to
+reason precisely about functions and variables.  It is especially good
+at describing scope relations, and it is for that reason that we mention
+it here.
+
+Guile allocates all variables on the stack. When a lexically enclosed
+procedure with free variables---a @dfn{closure}---is created, it copies
+those variables into its free variable vector. References to free
+variables are then redirected through the free variable vector.
+
+If a variable is ever @code{set!}, however, it will need to be
+heap-allocated instead of stack-allocated, so that different closures
+that capture the same variable can see the same value. Also, this
+allows continuations to capture a reference to the variable, instead
+of to its value at one point in time. For these reasons, @code{set!}
+variables are allocated in ``boxes''---actually, in variable cells.
+@xref{Variables}, for more information. References to @code{set!}
+variables are indirected through the boxes.
+
+Thus perhaps counterintuitively, what would seem ``closer to the
+metal'', viz @code{set!}, actually forces an extra memory allocation and
+indirection.  Sometimes Guile's optimizer can remove this allocation,
+but not always.
+
+Going back to our example, @code{b} may be allocated on the stack, as
+it is never mutated.
+
+@code{a} may also be allocated on the stack, as it too is never
+mutated. Within the enclosed lambda, its value will be copied into
+(and referenced from) the free variables vector.
+
+@code{foo} is a top-level variable, because @code{foo} is not
+lexically bound in this example.
+
+@node VM Programs
+@subsection Compiled Procedures are VM Programs
+
+By default, when you enter in expressions at Guile's REPL, they are
+first compiled to bytecode.  Then that bytecode is executed to produce a
+value.  If the expression evaluates to a procedure, the result of this
+process is a compiled procedure.
+
+A compiled procedure is a compound object consisting of its bytecode and
+a reference to any captured lexical variables.  In addition, when a
+procedure is compiled, it has associated metadata written to side
+tables, for instance a line number mapping, or its docstring.  You can
+pick apart these pieces with the accessors in @code{(system vm
+program)}.  @xref{Compiled Procedures}, for a full API reference.
+
+A procedure may reference data that was statically allocated when the
+procedure was compiled.  For example, a pair of immediate objects
+(@pxref{Immediate Objects}) can be allocated directly in the memory
+segment that contains the compiled bytecode, and accessed directly by
+the bytecode.
+
+Another use for statically allocated data is to serve as a cache for a
+bytecode.  Top-level variable lookups are handled in this way; the first
+time a top-level binding is referenced, the resolved variable will be
+stored in a cache.  Thereafter all access to the variable goes through
+the cache cell.  The variable's value may change in the future, but the
+variable itself will not.
+
+We can see how these concepts tie together by disassembling the
+@code{foo} function we defined earlier to see what is going on:
+
+@smallexample
+scheme@@(guile-user)> (define (foo a) (lambda (b) (vector foo a b)))
+scheme@@(guile-user)> ,x foo
+Disassembly of #<procedure foo (a)> at #xf1da30:
+
+   0    (instrument-entry 164)                                at (unknown file):5:0
+   2    (assert-nargs-ee/locals 2 1)    ;; 3 slots (1 arg)
+   3    (allocate-words/immediate 2 3)                        at (unknown file):5:16
+   4    (load-u64 0 0 65605)
+   7    (word-set!/immediate 2 0 0)
+   8    (load-label 0 7)                ;; anonymous procedure at #xf1da6c
+  10    (word-set!/immediate 2 1 0)
+  11    (scm-set!/immediate 2 2 1)
+  12    (reset-frame 1)                 ;; 1 slot
+  13    (handle-interrupts)
+  14    (return-values)
+
+----------------------------------------
+Disassembly of anonymous procedure at #xf1da6c:
+
+   0    (instrument-entry 183)                                at (unknown file):5:16
+   2    (assert-nargs-ee/locals 2 3)    ;; 5 slots (1 arg)
+   3    (static-ref 2 152)              ;; #<variable 112e530 value: #<procedure foo (a)>>
+   5    (immediate-tag=? 2 7 0)         ;; heap-object?
+   7    (je 19)                         ;; -> L2
+   8    (static-ref 2 119)              ;; #<directory (guile-user) ca9750>
+  10    (static-ref 1 127)              ;; foo
+  12    (call-scm<-scm-scm 2 2 1 40)
+  14    (immediate-tag=? 2 7 0)         ;; heap-object?
+  16    (jne 8)                         ;; -> L1
+  17    (scm-ref/immediate 0 2 1)
+  18    (immediate-tag=? 0 4095 2308)   ;; undefined?
+  20    (je 4)                          ;; -> L1
+  21    (static-set! 2 134)             ;; #<variable 112e530 value: #<procedure foo (a)>>
+  23    (j 3)                           ;; -> L2
+L1:
+  24    (throw/value 1 151)             ;; #(unbound-variable #f "Unbound variable: ~S")
+L2:
+  26    (scm-ref/immediate 2 2 1)
+  27    (allocate-words/immediate 1 4)                        at (unknown file):5:28
+  28    (load-u64 0 0 781)
+  31    (word-set!/immediate 1 0 0)
+  32    (scm-set!/immediate 1 1 2)
+  33    (scm-ref/immediate 4 4 2)
+  34    (scm-set!/immediate 1 2 4)
+  35    (scm-set!/immediate 1 3 3)
+  36    (mov 4 1)
+  37    (reset-frame 1)                 ;; 1 slot
+  38    (handle-interrupts)
+  39    (return-values)
+@end smallexample
+
+The first thing to notice is that the bytecode is at a fairly low level.
+When a program is compiled from Scheme to bytecode, it is expressed in
+terms of more primitive operations.  As such, there can be more
+instructions than you might expect.
+
+The first chunk of instructions is the outer @code{foo} procedure.  It
+is followed by the code for the contained closure.  The code can look
+daunting at first glance, but with practice it quickly becomes
+comprehensible, and indeed being able to read bytecode is an important
+step to understanding the low-level performance of Guile programs.
+
+The @code{foo} function begins with a prelude.  The
+@code{instrument-entry} bytecode increments a counter associated with
+the function.  If the counter reaches a certain threshold, Guile will
+emit machine code (``JIT-compile'') for @code{foo}.  Emitting machine
+code is fairly cheap but it does take time, so it's not something you
+want to do for every function.  Using a per-function counter and a
+global threshold allows Guile to spend time JIT-compiling only the
+``hot'' functions.
+
+Next in the prelude is an argument-checking instruction, which checks
+that it was called with only 1 argument (plus the callee function itself
+makes 2) and then reserves stack space for an additional 1 local.
+
+Then from @code{ip} 3 to 11, we allocate a new closure by allocating a
+three-word object, initializing its first word to store a type tag,
+setting its second word to its code pointer, and finally at @code{ip}
+11, storing local value 1 (the @code{a} argument) into the third word
+(the first free variable).
+
+Before returning, @code{foo} ``resets the frame'' to hold only one local
+(the return value), runs any pending interrupts (@pxref{Asyncs}) and
+then returns.
+
+Note that local variables in Guile's virtual machine are usually
+addressed relative to the stack pointer, which leads to a pleasantly
+efficient @code{sp[@var{n}]} access.  However it can make the
+disassembly hard to read, because the @code{sp} can change during the
+function, and because incoming arguments are relative to the @code{fp},
+not the @code{sp}.
+
+To know what @code{fp}-relative slot corresponds to an
+@code{sp}-relative reference, scan up in the disassembly until you get
+to a ``@var{n} slots'' annotation; in our case, 3, indicating that the
+frame has space for 3 slots.  Thus a zero-indexed @code{sp}-relative
+slot of 2 corresponds to the @code{fp}-relative slot of 0, which
+initially held the value of the closure being called.  This means that
+Guile doesn't need the value of the closure to compute its result, and
+so slot 0 was free for re-use, in this case for the result of making a
+new closure.
+
+A closure is code with data.  As you can see, making the closure
+involved making an object (@code{ip} 3), putting a code pointer in it
+(@code{ip} 8 and 10), and putting in the closure's free variable
+(@code{ip} 11).
+
+The second stanza disassembles the code for the closure.  After the
+prelude, all of the code between @code{ip} 5 and 24 is related to
+loading the toplevel variable @code{foo} into slot 1.  This lookup
+happens only once, and is associated with a cache; after the first run,
+the value in the cache will be a bound variable, and the code will jump
+from @code{ip} 7 to 26.  On the first run, Guile gets the module
+associated with the function, calls out to a run-time routine to look up
+the variable, and checks that the variable is bound before initializing
+the cache.  Either way, @code{ip} 26 dereferences the variable into
+local 2.
+
+What follows is the allocation and initialization of the vector return
+value.  @code{Ip} 27 does the allocation, and the following two
+instructions initialize the type-and-length tag for the object's first
+word.  @code{Ip} 32 sets word 1 of the object (the first vector slot) to
+the value of @code{foo}; @code{ip} 33 fetches the closure variable for
+@code{a}, then in @code{ip} 34 stores it in the second vector slot; and
+finally, in @code{ip} 35, local @code{b} is stored to the third vector
+slot.  This is followed by the return sequence.
+
+
+@node Object File Format
+@subsection Object File Format
+
+To compile a file to disk, we need a format in which to write the
+compiled code to disk, and later load it into Guile.  A good @dfn{object
+file format} has a number of characteristics:
+
+@itemize
+@item Above all else, it should be very cheap to load a compiled file.
+@item It should be possible to statically allocate constants in the
+file.  For example, a bytevector literal in source code can be emitted
+directly into the object file.
+@item The compiled file should enable maximum code and data sharing
+between different processes.
+@item The compiled file should contain debugging information, such as
+line numbers, but that information should be separated from the code
+itself.  It should be possible to strip debugging information if space
+is tight.
+@end itemize
+
+These characteristics are not specific to Scheme.  Indeed, mainstream
+languages like C and C++ have solved this issue many times in the past.
+Guile builds on their work by adopting ELF, the object file format of
+GNU and other Unix-like systems, as its object file format.  Although
+Guile uses ELF on all platforms, we do not use platform support for ELF.
+Guile implements its own linker and loader.  The advantage of using ELF
+is not sharing code, but sharing ideas.  ELF is simply a well-designed
+object file format.
+
+An ELF file has two meta-tables describing its contents.  The first
+meta-table is for the loader, and is called the @dfn{program table} or
+sometimes the @dfn{segment table}.  The program table divides the file
+into big chunks that should be treated differently by the loader.
+Mostly the difference between these @dfn{segments} is their
+permissions.
+
+Typically all segments of an ELF file are marked as read-only, except
+that part that represents modifiable static data or static data that
+needs load-time initialization.  Loading an ELF file is as simple as
+mmapping the thing into memory with read-only permissions, then using
+the segment table to mark a small sub-region of the file as writable.
+This writable section is typically added to the root set of the garbage
+collector as well.
+
+One ELF segment is marked as ``dynamic'', meaning that it has data of
+interest to the loader.  Guile uses this segment to record the Guile
+version corresponding to this file.  There is also an entry in the
+dynamic segment that points to the address of an initialization thunk
+that is run to perform any needed link-time initialization.  (This is
+like dynamic relocations for normal ELF shared objects, except that we
+compile the relocations as a procedure instead of having the loader
+interpret a table of relocations.)  Finally, the dynamic segment marks
+the location of the ``entry thunk'' of the object file.  This thunk is
+returned to the caller of @code{load-thunk-from-memory} or
+@code{load-thunk-from-file}.  When called, it will execute the ``body''
+of the compiled expression.
+
+The other meta-table in an ELF file is the @dfn{section table}.  Whereas
+the program table divides an ELF file into big chunks for the loader,
+the section table specifies small sections for use by introspective
+tools like debuggers or the like.  One segment (program table entry)
+typically contains many sections.  There may be sections outside of any
+segment, as well.
+
+Typical sections in a Guile @code{.go} file include:
+
+@table @code
+@item .rtl-text
+Bytecode.
+@item .data
+Data that needs initialization, or which may be modified at runtime.
+@item .rodata
+Statically allocated data that needs no run-time initialization, and
+which therefore can be shared between processes.
+@item .dynamic
+The dynamic section, discussed above.
+@item .symtab
+@itemx .strtab
+A table mapping addresses in the @code{.rtl-text} to procedure names.
+@code{.strtab} is used by @code{.symtab}.
+@item .guile.procprops
+@itemx .guile.arities
+@itemx .guile.arities.strtab
+@itemx .guile.docstrs
+@itemx .guile.docstrs.strtab
+Side tables of procedure properties, arities, and docstrings.
+@item .guile.docstrs.strtab
+Side table of frame maps, describing the set of live slots for ever
+return point in the program text, and whether those slots are pointers
+are not.  Used by the garbage collector.
+@item .debug_info
+@itemx .debug_abbrev
+@itemx .debug_str
+@itemx .debug_loc
+@itemx .debug_line
+Debugging information, in DWARF format.  See the DWARF specification,
+for more information.
+@item .shstrtab
+Section name string table.
+@end table
+
+For more information, see @uref{http://linux.die.net/man/5/elf,,the
+elf(5) man page}.  See @uref{http://dwarfstd.org/,the DWARF
+specification} for more on the DWARF debugging format.  Or if you are an
+adventurous explorer, try running @code{readelf} or @code{objdump} on
+compiled @code{.go} files.  It's good times!
+
+
+@node Instruction Set
+@subsection Instruction Set
+
+There are currently about 150 instructions in Guile's virtual machine.
+These instructions represent atomic units of a program's execution.
+Ideally, they perform one task without conditional branches, then
+dispatch to the next instruction in the stream.
+
+Instructions themselves are composed of 1 or more 32-bit units.  The low
+8 bits of the first word indicate the opcode, and the rest of
+instruction describe the operands.  There are a number of different ways
+operands can be encoded.
+
+@table @code
+@item s@var{n}
+An unsigned @var{n}-bit integer, indicating the @code{sp}-relative index
+of a local variable.
+@item f@var{n}
+An unsigned @var{n}-bit integer, indicating the @code{fp}-relative index
+of a local variable.  Used when a continuation accepts a variable number
+of values, to shuffle received values into known locations in the
+frame.
+@item c@var{n}
+An unsigned @var{n}-bit integer, indicating a constant value.
+@item l24
+An offset from the current @code{ip}, in 32-bit units, as a signed
+24-bit value.  Indicates a bytecode address, for a relative jump.
+@item zi16
+@itemx i16
+@itemx i32
+An immediate Scheme value (@pxref{Immediate Objects}), encoded directly
+in 16 or 32 bits.  @code{zi16} is sign-extended; the others are
+zero-extended.
+@item a32
+@itemx b32
+An immediate Scheme value, encoded as a pair of 32-bit words.
+@code{a32} and @code{b32} values always go together on the same opcode,
+and indicate the high and low bits, respectively.  Normally only used on
+64-bit systems.
+@item n32
+A statically allocated non-immediate.  The address of the non-immediate
+is encoded as a signed 32-bit integer, and indicates a relative offset
+in 32-bit units.  Think of it as @code{SCM x = ip + offset}.
+@item r32
+Indirect scheme value, like @code{n32} but indirected.  Think of it as
+@code{SCM *x = ip + offset}.
+@item l32
+@item lo32
+An ip-relative address, as a signed 32-bit integer.  Could indicate a
+bytecode address, as in @code{make-closure}, or a non-immediate address,
+as with @code{static-patch!}.
+
+@code{l32} and @code{lo32} are the same from the perspective of the
+virtual machine.  The difference is that an assembler might want to
+allow an @code{lo32} address to be specified as a label and then some
+number of words offset from that label, for example when patching a
+field of a statically allocated object.
+@item v32:x8-l24
+Almost all VM instructions have a fixed size.  The @code{jtable}
+instruction used to perform optimized @code{case} branches is an
+exception, which uses a @code{v32} trailing word to indicate the number
+of additional words in the instruction, which themselves are encoded as
+@code{x8-l24} values.
+@item b1
+A boolean value: 1 for true, otherwise 0.
+@item x@var{n}
+An ignored sequence of @var{n} bits.
+@end table
+
+An instruction is specified by giving its name, then describing its
+operands.  The operands are packed by 32-bit words, with earlier
+operands occupying the lower bits.
+
+For example, consider the following instruction specification:
+
+@deftypefn Instruction {} call f24:@var{proc} x8:@var{_} c24:@var{nlocals}
+@end deftypefn
+
+The first word in the instruction will start with the 8-bit value
+corresponding to the @var{call} opcode in the low bits, followed by
+@var{proc} as a 24-bit value.  The second word starts with 8 dead bits,
+followed by the index as a 24-bit immediate value.
+
+For instructions with operands that encode references to the stack, the
+interpretation of those stack values is up to the instruction itself.
+Most instructions expect their operands to be tagged SCM values
+(@code{scm} representation), but some instructions expect unboxed
+integers (@code{u64} and @code{s64} representations) or floating-point
+numbers (@code{f64} representation).  It is assumed that the bits for a
+@code{u64} value are the same as those for an @code{s64} value, and that
+@code{s64} values are stored in two's complement.
+
+Instructions have static types:  they must receive their operands in the
+format they expect.  It's up to the compiler to ensure this is the case.
+
+Unless otherwise mentioned, all operands and results are in the
+@code{scm} representation.
+
+@menu
+* Call and Return Instructions::
+* Function Prologue Instructions::
+* Shuffling Instructions::
+* Trampoline Instructions::
+* Non-Local Control Flow Instructions::
+* Instrumentation Instructions::
+* Intrinsic Call Instructions::
+* Constant Instructions::
+* Memory Access Instructions::
+* Atomic Memory Access Instructions::
+* Tagging and Untagging Instructions::
+* Integer Arithmetic Instructions::
+* Floating-Point Arithmetic Instructions::
+* Comparison Instructions::
+* Branch Instructions::
+* Raw Memory Access Instructions::
+@end menu
+
+
+@node Call and Return Instructions
+@subsubsection Call and Return Instructions
+
+As described earlier (@pxref{Stack Layout}), Guile's calling convention
+is that arguments are passed and values returned on the stack.
+
+For calls, both in tail position and in non-tail position, we require
+that the procedure and the arguments already be shuffled into place
+before the call instruction.  ``Into place'' for a tail call means that
+the procedure should be in slot 0, relative to the @code{fp}, and the
+arguments should follow.  For a non-tail call, if the procedure is in
+@code{fp}-relative slot @var{n}, the arguments should follow from slot
+@var{n}+1, and there should be three free slots between @var{n}-1 and
+@var{n}-3 in which to save the mRA, vRA, and @code{fp}.
+
+Returning values is similar.  Multiple-value returns should have values
+already shuffled down to start from @code{fp}-relative slot 0 before
+emitting @code{return-values}.
+
+In both calls and returns, the @code{sp} is used to indicate to the
+callee or caller the number of arguments or return values, respectively.
+After receiving return values, it is the caller's responsibility to
+@dfn{restore the frame} by resetting the @code{sp} to its former value.
+
+@deftypefn Instruction {} call f24:@var{proc} x8:@var{_} c24:@var{nlocals}
+Call a procedure.  @var{proc} is the local corresponding to a procedure.
+The three values below @var{proc} will be overwritten by the saved call
+frame data.  The new frame will have space for @var{nlocals} locals: one
+for the procedure, and the rest for the arguments which should already
+have been pushed on.
+
+When the call returns, execution proceeds with the next instruction.
+There may be any number of values on the return stack; the precise
+number can be had by subtracting the address of @var{proc}-1 from the
+post-call @code{sp}.
+@end deftypefn
+
+@deftypefn Instruction {} call-label f24:@var{proc} x8:@var{_} c24:@var{nlocals} l32:@var{label}
+Call a procedure in the same compilation unit.
+
+This instruction is just like @code{call}, except that instead of
+dereferencing @var{proc} to find the call target, the call target is
+known to be at @var{label}, a signed 32-bit offset in 32-bit units from
+the current @code{ip}.  Since @var{proc} is not dereferenced, it may be
+some other representation of the closure.
+@end deftypefn
+
+@deftypefn Instruction {} tail-call x24:@var{_}
+Tail-call a procedure.  Requires that the procedure and all of the
+arguments have already been shuffled into position, and that the frame
+has already been reset to the number of arguments to the call.
+@end deftypefn
+
+@deftypefn Instruction {} tail-call-label x24:@var{_} l32:@var{label}
+Tail-call a known procedure.  As @code{call} is to @code{call-label},
+@code{tail-call} is to @code{tail-call-label}.
+@end deftypefn
+
+@deftypefn Instruction {} return-values x24:@var{_}
+Return a number of values from a call frame.  The return values should
+have already been shuffled down to a contiguous array starting at slot
+0, and the frame already reset.
+@end deftypefn
+
+@deftypefn Instruction {} receive f12:@var{dst} f12:@var{proc} x8:@var{_} c24:@var{nlocals}
+Receive a single return value from a call whose procedure was in
+@var{proc}, asserting that the call actually returned at least one
+value.  Afterwards, resets the frame to @var{nlocals} locals.
+@end deftypefn
+
+@deftypefn Instruction {} receive-values f24:@var{proc} b1:@var{allow-extra?} x7:@var{_} c24:@var{nvalues}
+Receive a return of multiple values from a call whose procedure was in
+@var{proc}.  If fewer than @var{nvalues} values were returned, signal an
+error.  Unless @var{allow-extra?} is true, require that the number of
+return values equals @var{nvalues} exactly.  After @code{receive-values}
+has run, the values can be copied down via @code{mov}, or used in place.
+@end deftypefn
+
+
+@node Function Prologue Instructions
+@subsubsection Function Prologue Instructions
+
+A function call in Guile is very cheap: the VM simply hands control to
+the procedure. The procedure itself is responsible for asserting that it
+has been passed an appropriate number of arguments. This strategy allows
+arbitrarily complex argument parsing idioms to be developed, without
+harming the common case.
+
+For example, only calls to keyword-argument procedures ``pay'' for the
+cost of parsing keyword arguments. (At the time of this writing, calling
+procedures with keyword arguments is typically two to four times as
+costly as calling procedures with a fixed set of arguments.)
+
+@deftypefn Instruction {} assert-nargs-ee c24:@var{expected}
+@deftypefnx Instruction {} assert-nargs-ge c24:@var{expected}
+@deftypefnx Instruction {} assert-nargs-le c24:@var{expected}
+If the number of actual arguments is not @code{==}, @code{>=}, or
+@code{<=} @var{expected}, respectively, signal an error.
+
+The number of arguments is determined by subtracting the stack pointer
+from the frame pointer (@code{fp - sp}).  @xref{Stack Layout}, for more
+details on stack frames.  Note that @var{expected} includes the
+procedure itself.
+@end deftypefn
+
+@deftypefn Instruction {} arguments<=? c24:@var{expected}
+Set the @code{LESS_THAN}, @code{EQUAL}, or @code{NONE} comparison result
+values if the number of arguments is respectively less than, equal to,
+or greater than @var{expected}.
+@end deftypefn
+
+@deftypefn Instruction {} positional-arguments<=? c24:@var{nreq} x8:@var{_} c24:@var{expected}
+Set the @code{LESS_THAN}, @code{EQUAL}, or @code{NONE} comparison result
+values if the number of positional arguments is respectively less than,
+equal to, or greater than @var{expected}.  The first @var{nreq}
+arguments are positional arguments, as are the subsequent arguments that
+are not keywords.
+@end deftypefn
+
+The @code{arguments<=?} and @code{positional-arguments<=?} instructions
+are used to implement multiple arities, as in @code{case-lambda}.
+@xref{Case-lambda}, for more information.  @xref{Branch Instructions},
+for more on comparison results.
+
+@deftypefn Instruction {} bind-kwargs c24:@var{nreq} c8:@var{flags} c24:@var{nreq-and-opt} x8:@var{_} c24:@var{ntotal} n32:@var{kw-offset}
+@var{flags} is a bitfield, whose lowest bit is @var{allow-other-keys},
+second bit is @var{has-rest}, and whose following six bits are unused.
+
+Find the last positional argument, and shuffle all the rest above
+@var{ntotal}.  Initialize the intervening locals to
+@code{SCM_UNDEFINED}.  Then load the constant at @var{kw-offset} words
+from the current @var{ip}, and use it and the @var{allow-other-keys}
+flag to bind keyword arguments.  If @var{has-rest}, collect all shuffled
+arguments into a list, and store it in @var{nreq-and-opt}.  Finally,
+clear the arguments that we shuffled up.
+
+The parsing is driven by a keyword arguments association list, looked up
+using @var{kw-offset}.  The alist is a list of pairs of the form
+@code{(@var{kw} . @var{index})}, mapping keyword arguments to their
+local slot indices.  Unless @code{allow-other-keys} is set, the parser
+will signal an error if an unknown key is found.
+
+A macro-mega-instruction.
+@end deftypefn
+
+@deftypefn Instruction {} bind-optionals f24:@var{nlocals}
+Expand the current frame to have at least @var{nlocals} locals, filling
+in any fresh values with @code{SCM_UNDEFINED}.  If the frame has more
+than @var{nlocals} locals, it is left as it is.
+@end deftypefn
+
+@deftypefn Instruction {} bind-rest f24:@var{dst}
+Collect any arguments at or above @var{dst} into a list, and store that
+list at @var{dst}.
+@end deftypefn
+
+@deftypefn Instruction {} alloc-frame c24:@var{nlocals}
+Ensure that there is space on the stack for @var{nlocals} local
+variables.  The value of any new local is undefined.
+@end deftypefn
+
+@deftypefn Instruction {} reset-frame c24:@var{nlocals}
+Like @code{alloc-frame}, but doesn't check that the stack is big enough,
+and doesn't initialize values to @code{SCM_UNDEFINED}.  Used to reset
+the frame size to something less than the size that was previously set
+via alloc-frame.
+@end deftypefn
+
+@deftypefn Instruction {} assert-nargs-ee/locals c12:@var{expected} c12:@var{nlocals}
+Equivalent to a sequence of @code{assert-nargs-ee} and
+@code{allocate-frame}.  The number of locals reserved is @var{expected}
++ @var{nlocals}.
+@end deftypefn
+
+
+@node Shuffling Instructions
+@subsubsection Shuffling Instructions
+
+These instructions are used to move around values on the stack.
+
+@deftypefn Instruction {} mov s12:@var{dst} s12:@var{src}
+@deftypefnx Instruction {} long-mov s24:@var{dst} x8:@var{_} s24:@var{src}
+Copy a value from one local slot to another.
+
+As discussed previously, procedure arguments and local variables are
+allocated to local slots.  Guile's compiler tries to avoid shuffling
+variables around to different slots, which often makes @code{mov}
+instructions redundant.  However there are some cases in which shuffling
+is necessary, and in those cases, @code{mov} is the thing to use.
+@end deftypefn
+
+@deftypefn Instruction {} long-fmov f24:@var{dst} x8:@var{_} f24:@var{src}
+Copy a value from one local slot to another, but addressing slots
+relative to the @code{fp} instead of the @code{sp}.  This is used when
+shuffling values into place after multiple-value returns.
+@end deftypefn
+
+@deftypefn Instruction {} push s24:@var{src}
+Bump the stack pointer by one word, and fill it with the value from slot
+@var{src}.  The offset to @var{src} is calculated before the stack
+pointer is adjusted.
+@end deftypefn
+
+The @code{push} instruction is used when another instruction is unable
+to address an operand because the operand is encoded with fewer than 24
+bits.  In that case, Guile's assembler will transparently emit code that
+temporarily pushes any needed operands onto the stack, emits the
+original instruction to address those now-near variables, then shuffles
+the result (if any) back into place.
+
+@deftypefn Instruction {} pop s24:@var{dst}
+Pop the stack pointer, storing the value that was there in slot
+@var{dst}.  The offset to @var{dst} is calculated after the stack
+pointer is adjusted.
+@end deftypefn
+
+@deftypefn Instruction {} drop c24:@var{count}
+Pop the stack pointer by @var{count} words, discarding any values that
+were stored there.
+@end deftypefn
+
+@deftypefn Instruction {} shuffle-down f12:@var{from} f12:@var{to}
+Shuffle down values from @var{from} to @var{to}, reducing the frame size
+by @var{FROM}-@var{TO} slots.  Part of the internal implementation of
+@code{call-with-values}, @code{values}, and @code{apply}.
+@end deftypefn
+
+@deftypefn Instruction {} expand-apply-argument x24:@var{_}
+Take the last local in a frame and expand it out onto the stack, as for
+the last argument to @code{apply}.
+@end deftypefn
+
+
+@node Trampoline Instructions
+@subsubsection Trampoline Instructions
+
+Though most applicable objects in Guile are procedures implemented in
+bytecode, not all are.  There are primitives, continuations, and other
+procedure-like objects that have their own calling convention.  Instead
+of adding special cases to the @code{call} instruction, Guile wraps
+these other applicable objects in VM trampoline procedures, then
+provides special support for these objects in bytecode.
+
+Trampoline procedures are typically generated by Guile at runtime, for
+example in response to a call to @code{scm_c_make_gsubr}.  As such, a
+compiler probably shouldn't emit code with these instructions.  However,
+it's still interesting to know how these things work, so we document
+these trampoline instructions here.
+
+@deftypefn Instruction {} subr-call c24:@var{idx}
+Call a subr, passing all locals in this frame as arguments, and storing
+the results on the stack, ready to be returned.
+@end deftypefn
+
+@deftypefn Instruction {} foreign-call c12:@var{cif-idx} c12:@var{ptr-idx}
+Call a foreign function.  Fetch the @var{cif} and foreign pointer from
+@var{cif-idx} and @var{ptr-idx} closure slots of the callee.  Arguments
+are taken from the stack, and results placed on the stack, ready to be
+returned.
+@end deftypefn
+
+@deftypefn Instruction {} builtin-ref s12:@var{dst} c12:@var{idx}
+Load a builtin stub by index into @var{dst}.
+@end deftypefn
+
+
+@node Non-Local Control Flow Instructions
+@subsubsection Non-Local Control Flow Instructions
+
+@deftypefn Instruction {} capture-continuation s24:@var{dst}
+Capture the current continuation, and write it to @var{dst}.  Part of
+the implementation of @code{call/cc}.
+@end deftypefn
+
+@deftypefn Instruction {} continuation-call c24:@var{contregs}
+Return to a continuation, nonlocally.  The arguments to the continuation
+are taken from the stack.  @var{contregs} is a free variable containing
+the reified continuation.
+@end deftypefn
+
+@deftypefn Instruction {} abort x24:@var{_}
+Abort to a prompt handler.  The tag is expected in slot 1, and the rest
+of the values in the frame are returned to the prompt handler.  This
+corresponds to a tail application of @code{abort-to-prompt}.
+
+If no prompt can be found in the dynamic environment with the given tag,
+an error is signaled.  Otherwise all arguments are passed to the
+prompt's handler, along with the captured continuation, if necessary.
+
+If the prompt's handler can be proven to not reference the captured
+continuation, no continuation is allocated.  This decision happens
+dynamically, at run-time; the general case is that the continuation may
+be captured, and thus resumed.  A reinstated continuation will have its
+arguments pushed on the stack from slot 0, as if from a multiple-value
+return, and control resumes in the caller.  Thus to the calling
+function, a call to @code{abort-to-prompt} looks like any other function
+call.
+@end deftypefn
+
+@deftypefn Instruction {} compose-continuation c24:@var{cont}
+Compose a partial continuation with the current continuation.  The
+arguments to the continuation are taken from the stack.  @var{cont} is a
+free variable containing the reified continuation.
+@end deftypefn
+
+@deftypefn Instruction {} prompt s24:@var{tag} b1:@var{escape-only?} x7:@var{_} f24:@var{proc-slot} x8:@var{_} l24:@var{handler-offset}
+Push a new prompt on the dynamic stack, with a tag from @var{tag} and a
+handler at @var{handler-offset} words from the current @var{ip}.
+
+If an abort is made to this prompt, control will jump to the handler.
+The handler will expect a multiple-value return as if from a call with
+the procedure at @var{proc-slot}, with the reified partial continuation
+as the first argument, followed by the values returned to the handler.
+If control returns to the handler, the prompt is already popped off by
+the abort mechanism.  (Guile's @code{prompt} implements Felleisen's
+@dfn{--F--} operator.)
+
+If @var{escape-only?} is nonzero, the prompt will be marked as
+escape-only, which allows an abort to this prompt to avoid reifying the
+continuation.
+
+@xref{Prompts}, for more information on prompts.
+@end deftypefn
+
+@deftypefn Instruction {} throw s12:@var{key} s12:@var{args}
+Raise an error by throwing to @var{key} and @var{args}.  @var{args}
+should be a list.
+@end deftypefn
+
+@deftypefn Instruction {} throw/value s24:@var{value} n32:@var{key-subr-and-message}
+@deftypefnx Instruction {} throw/value+data s24:@var{value} n32:@var{key-subr-and-message}
+Raise an error, indicating @var{val} as the bad value.
+@var{key-subr-and-message} should be a vector, where the first element
+is the symbol to which to throw, the second is the procedure in which to
+signal the error (a string) or @code{#f}, and the third is a format
+string for the message, with one template.  These instructions do not
+fall through.
+
+Both of these instructions throw to a key with four arguments: the
+procedure that indicates the error (or @code{#f}, the format string, a
+list with @var{value}, and either @code{#f} or the list with @var{value}
+as the last argument respectively.
+@end deftypefn
+
+@deftypefn Instruction {} unreachable x24:@var{_}
+Abort the process.  This instruction should never be reached and must
+not continue.  You would think this is useless but that's not the case:
+it is inserted after a primcall to @code{raise-exception}, and allows
+compilers to know that this branch of control flow does not rejoin the
+graph.
+@end deftypefn
+
+
+@node Instrumentation Instructions
+@subsubsection Instrumentation Instructions
+
+@deftypefn Instruction {} instrument-entry x24_@var{_} n32:@var{data}
+@deftypefnx Instruction {} instrument-loop x24_@var{_} n32:@var{data}
+Increase execution counter for this function and potentially tier up to
+the next JIT level.  @var{data} is an offset to a structure recording
+execution counts and the next-level JIT code corresponding to this
+function.  The increment values are currently 30 for
+@code{instrument-entry} and 2 for @code{instrument-loop}.
+
+@code{instrument-entry} will also run the apply hook, if VM hooks are
+enabled.
+@end deftypefn
+
+@deftypefn Instruction {} handle-interrupts x24:@var{_}
+Handle pending asynchronous interrupts (asyncs).  @xref{Asyncs}.  The
+compiler inserts @code{handle-interrupts} instructions before any call,
+return, or loop back-edge.
+@end deftypefn
+
+@deftypefn Instruction {} return-from-interrupt x24:@var{_}
+A special instruction to return from a call and also pop off the stack
+frame from the call.  Used when returning from asynchronous interrupts.
+@end deftypefn
+
+
+@node Intrinsic Call Instructions
+@subsubsection Intrinsic Call Instructions
+
+Guile's instruction set is low-level.  This is good because the separate
+components of, say, a @code{vector-ref} operation might be able to be
+optimized out, leaving only the operations that need to be performed at
+run-time.
+
+However some macro-operations may need to perform large amounts of
+computation at run-time to handle all the edge cases, and whose
+micro-operation components aren't amenable to optimization.
+Residualizing code for the entire macro-operation would lead to code
+bloat with no benefit.
+
+In this kind of a case, Guile's VM calls out to @dfn{intrinsics}:
+run-time routines written in the host language (currently C, possibly
+more in the future if Guile gains more run-time targets like
+WebAssembly).  There is one instruction for each instrinsic prototype;
+the intrinsic is specified by index in the instruction.
+
+@deftypefn Instruction {} call-thread x24:@var{_} c32:@var{idx}
+Call the @code{void}-returning instrinsic with index @var{idx}, passing
+the current @code{scm_thread*} as the argument.
+@end deftypefn
+
+@deftypefn Instruction {} call-thread-scm s24:@var{a} c32:@var{idx}
+Call the @code{void}-returning instrinsic with index @var{idx}, passing
+the current @code{scm_thread*} and the @code{scm} local @var{a} as
+arguments.
+@end deftypefn
+
+@deftypefn Instruction {} call-thread-scm-scm s12:@var{a} s12:@var{b} c32:@var{idx}
+Call the @code{void}-returning instrinsic with index @var{idx}, passing
+the current @code{scm_thread*} and the @code{scm} locals @var{a} and
+@var{b} as arguments.
+@end deftypefn
+
+@deftypefn Instruction {} call-scm-sz-u32 s12:@var{a} s12:@var{b} c32:@var{idx}
+Call the @code{void}-returning instrinsic with index @var{idx}, passing
+the locals @var{a}, @var{b}, and @var{c} as arguments.  @var{a} is a
+@code{scm} value, while @var{b} and @var{c} are raw @code{u64} values
+which fit into @code{size_t} and @code{uint32_t} types, respectively.
+@end deftypefn
+
+@deftypefn Instruction {} call-scm<-thread s24:@var{dst} c32:@var{idx}
+Call the @code{SCM}-returning instrinsic with index @var{idx}, passing
+the current @code{scm_thread*} as the argument.  Place the result in
+@var{dst}.
+@end deftypefn
+
+@deftypefn Instruction {} call-scm<-u64 s12:@var{dst} s12:@var{a} c32:@var{idx}
+Call the @code{SCM}-returning instrinsic with index @var{idx}, passing
+@code{u64} local @var{a} as the argument.  Place the result in
+@var{dst}.
+@end deftypefn
+
+@deftypefn Instruction {} call-scm<-s64 s12:@var{dst} s12:@var{a} c32:@var{idx}
+Call the @code{SCM}-returning instrinsic with index @var{idx}, passing
+@code{s64} local @var{a} as the argument.  Place the result in
+@var{dst}.
+@end deftypefn
+
+@deftypefn Instruction {} call-scm<-scm s12:@var{dst} s12:@var{a} c32:@var{idx}
+Call the @code{SCM}-returning instrinsic with index @var{idx}, passing
+@code{scm} local @var{a} as the argument.  Place the result in
+@var{dst}.
+@end deftypefn
+
+@deftypefn Instruction {} call-u64<-scm s12:@var{dst} s12:@var{a} c32:@var{idx}
+Call the @code{uint64_t}-returning instrinsic with index @var{idx},
+passing @code{scm} local @var{a} as the argument.  Place the @code{u64}
+result in @var{dst}.
+@end deftypefn
+
+@deftypefn Instruction {} call-s64<-scm s12:@var{dst} s12:@var{a} c32:@var{idx}
+Call the @code{int64_t}-returning instrinsic with index @var{idx},
+passing @code{scm} local @var{a} as the argument.  Place the @code{s64}
+result in @var{dst}.
+@end deftypefn
+
+@deftypefn Instruction {} call-f64<-scm s12:@var{dst} s12:@var{a} c32:@var{idx}
+Call the @code{double}-returning instrinsic with index @var{idx},
+passing @code{scm} local @var{a} as the argument.  Place the @code{f64}
+result in @var{dst}.
+@end deftypefn
+
+@deftypefn Instruction {} call-scm<-scm-scm s8:@var{dst} s8:@var{a} s8:@var{b} c32:@var{idx}
+Call the @code{SCM}-returning instrinsic with index @var{idx}, passing
+@code{scm} locals @var{a} and @var{b} as arguments.  Place the
+@code{scm} result in @var{dst}.
+@end deftypefn
+
+@deftypefn Instruction {} call-scm<-scm-uimm s8:@var{dst} s8:@var{a} c8:@var{b} c32:@var{idx}
+Call the @code{SCM}-returning instrinsic with index @var{idx}, passing
+@code{scm} local @var{a} and @code{uint8_t} immediate @var{b} as
+arguments.  Place the @code{scm} result in @var{dst}.
+@end deftypefn
+
+@deftypefn Instruction {} call-scm<-thread-scm s12:@var{dst} s12:@var{a} c32:@var{idx}
+Call the @code{SCM}-returning instrinsic with index @var{idx}, passing
+the current @code{scm_thread*} and @code{scm} local @var{a} as
+arguments.  Place the @code{scm} result in @var{dst}.
+@end deftypefn
+
+@deftypefn Instruction {} call-scm<-scm-u64 s8:@var{dst} s8:@var{a} s8:@var{b} c32:@var{idx}
+Call the @code{SCM}-returning instrinsic with index @var{idx}, passing
+@code{scm} local @var{a} and @code{u64} local @var{b} as arguments.
+Place the @code{scm} result in @var{dst}.
+@end deftypefn
+
+@deftypefn Instruction {} call-scm-scm s12:@var{a} s12:@var{b} c32:@var{idx}
+Call the @code{void}-returning instrinsic with index @var{idx}, passing
+@code{scm} locals @var{a} and @var{b} as arguments.
+@end deftypefn
+
+@deftypefn Instruction {} call-scm-scm-scm s8:@var{a} s8:@var{b} s8:@var{c} c32:@var{idx}
+Call the @code{void}-returning instrinsic with index @var{idx}, passing
+@code{scm} locals @var{a}, @var{b}, and @var{c} as arguments.
+@end deftypefn
+
+@deftypefn Instruction {} call-scm-uimm-scm s8:@var{a} c8:@var{b} s8:@var{c} c32:@var{idx}
+Call the @code{void}-returning instrinsic with index @var{idx}, passing
+@code{scm} local @var{a}, @code{uint8_t} immediate @var{b}, and
+@code{scm} local @var{c} as arguments.
+@end deftypefn
+
+There are corresponding macro-instructions for specific intrinsics.
+These are equivalent to @code{call-@var{instrinsic-kind}} instructions
+with the appropriate intrinsic @var{idx} arguments.
+
+@deffn {Macro Instruction} add dst a b
+@deffnx {Macro Instruction} add/immediate dst a b/imm
+Add @code{SCM} values @var{a} and @var{b} and place the result in
+@var{dst}.
+@end deffn
+@deffn {Macro Instruction} sub dst a b
+@deffnx {Macro Instruction} sub/immediate dst a b/imm
+Subtract @code{SCM} value @var{b} from @var{a} and place the result in
+@var{dst}.
+@end deffn
+@deffn {Macro Instruction} mul dst a b
+Multiply @code{SCM} values @var{a} and @var{b} and place the result in
+@var{dst}.
+@end deffn
+@deffn {Macro Instruction} div dst a b
+Divide @code{SCM} value @var{a} by @var{b} and place the result in
+@var{dst}.
+@end deffn
+@deffn {Macro Instruction} quo dst a b
+Compute the quotient of @code{SCM} values @var{a} and @var{b} and place
+the result in @var{dst}.
+@end deffn
+@deffn {Macro Instruction} rem dst a b
+Compute the remainder of @code{SCM} values @var{a} and @var{b} and place
+the result in @var{dst}.
+@end deffn
+@deffn {Macro Instruction} mod dst a b
+Compute the modulo of @code{SCM} value @var{a} by @var{b} and place the
+result in @var{dst}.
+@end deffn
+@deffn {Macro Instruction} logand dst a b
+Compute the bitwise @code{and} of @code{SCM} values @var{a} and @var{b}
+and place the result in @var{dst}.
+@end deffn
+@deffn {Macro Instruction} logior dst a b
+Compute the bitwise inclusive @code{or} of @code{SCM} values @var{a} and
+@var{b} and place the result in @var{dst}.
+@end deffn
+@deffn {Macro Instruction} logxor dst a b
+Compute the bitwise exclusive @code{or} of @code{SCM} values @var{a} and
+@var{b} and place the result in @var{dst}.
+@end deffn
+@deffn {Macro Instruction} logsub dst a b
+Compute the bitwise @code{and} of @code{SCM} value @var{a} and the
+bitwise @code{not} of @var{b} and place the result in @var{dst}.
+@end deffn
+@deffn {Macro Instruction} lsh dst a b
+@deffnx {Macro Instruction} lsh/immediate a b/imm
+Shift @code{SCM} value @var{a} left by @code{u64} value @var{b} bits and
+place the result in @var{dst}.
+@end deffn
+@deffn {Macro Instruction} rsh dst a b
+@deffnx {Macro Instruction} rsh/immediate dst a b/imm
+Shifts @code{SCM} value @var{a} right by @code{u64} value @var{b} bits
+and place the result in @var{dst}.
+@end deffn
+@deffn {Macro Instruction} scm->f64 dst src
+Convert @var{src} to an unboxed @code{f64} and place the result in
+@var{dst}, or raises an error if @var{src} is not a real number.
+@end deffn
+@deffn {Macro Instruction} scm->u64 dst src
+Convert @var{src} to an unboxed @code{u64} and place the result in
+@var{dst}, or raises an error if @var{src} is not an integer within
+range.
+@end deffn
+@deffn {Macro Instruction} scm->u64/truncate dst src
+Convert @var{src} to an unboxed @code{u64} and place the result in
+@var{dst}, truncating to the low 64 bits, or raises an error if
+@var{src} is not an integer.
+@end deffn
+@deffn {Macro Instruction} scm->s64 dst src
+Convert @var{src} to an unboxed @code{s64} and place the result in
+@var{dst}, or raises an error if @var{src} is not an integer within
+range.
+@end deffn
+@deffn {Macro Instruction} u64->scm dst src
+Convert @var{u64} value @var{src} to a Scheme integer in @var{dst}.
+@end deffn
+@deffn {Macro Instruction} s64->scm scm<-s64
+Convert @var{s64} value @var{src} to a Scheme integer in @var{dst}.
+@end deffn
+@deffn {Macro Instruction} string-set! str idx ch
+Sets the character @var{idx} (a @code{u64}) of string @var{str} to
+@var{ch} (a @code{u64} that is a valid character value).
+@end deffn
+@deffn {Macro Instruction} string->number dst src
+Call @code{string->number} on @var{src} and place the result in
+@var{dst}.
+@end deffn
+@deffn {Macro Instruction} string->symbol dst src
+Call @code{string->symbol} on @var{src} and place the result in
+@var{dst}.
+@end deffn
+@deffn {Macro Instruction} symbol->keyword dst src
+Call @code{symbol->keyword} on @var{src} and place the result in
+@var{dst}.
+@end deffn
+@deffn {Macro Instruction} class-of dst src
+Set @var{dst} to the GOOPS class of @code{src}.
+@end deffn
+@deffn {Macro Instruction} wind winder unwinder
+Push wind and unwind procedures onto the dynamic stack.  Note that
+neither are actually called; the compiler should emit calls to
+@var{winder} and @var{unwinder} for the normal dynamic-wind control
+flow.  Also note that the compiler should have inserted checks that
+@var{winder} and @var{unwinder} are thunks, if it could not prove that
+to be the case.  @xref{Dynamic Wind}.
+@end deffn
+@deffn {Macro Instruction} unwind
+Exit from the dynamic extent of an expression, popping the top entry off
+of the dynamic stack.
+@end deffn
+@deffn {Macro Instruction} push-fluid fluid value
+Dynamically bind @var{value} to @var{fluid} by creating a with-fluids
+object, pushing that object on the dynamic stack.  @xref{Fluids and
+Dynamic States}.
+@end deffn
+@deffn {Macro Instruction} pop-fluid
+Leave the dynamic extent of a @code{with-fluid*} expression, restoring
+the fluid to its previous value.  @code{push-fluid} should always be
+balanced with @code{pop-fluid}.
+@end deffn
+@deffn {Macro Instruction} fluid-ref dst fluid
+Place the value associated with the fluid @var{fluid} in @var{dst}.
+@end deffn
+@deffn {Macro Instruction} fluid-set! fluid value
+Set the value of the fluid @var{fluid} to @var{value}.
+@end deffn
+@deffn {Macro Instruction} push-dynamic-state state
+Save the current set of fluid bindings on the dynamic stack and instate
+the bindings from @var{state} instead.  @xref{Fluids and Dynamic
+States}.
+@end deffn
+@deffn {Macro Instruction} pop-dynamic-state
+Restore a saved set of fluid bindings from the dynamic stack.
+@code{push-dynamic-state} should always be balanced with
+@code{pop-dynamic-state}.
+@end deffn
+@deffn {Macro Instruction} resolve-module dst name public?
+Look up the module named @var{name}, resolve its public interface if the
+immediate operand @var{public?} is true, then place the result in
+@var{dst}.
+@end deffn
+@deffn {Macro Instruction} lookup dst mod sym
+Look up @var{sym} in module @var{mod}, placing the resulting variable
+(or @code{#f} if not found) in @var{dst}.
+@end deffn
+@deffn {Macro Instruction} define! dst mod sym
+Look up @var{sym} in module @var{mod}, placing the resulting variable in
+@var{dst}, creating the variable if needed.
+@end deffn
+@deffn {Macro Instruction} current-module dst
+Set @var{dst} to the current module.
+@end deffn
+@deffn {Macro Instruction} $car dst src
+@deffnx {Macro Instruction} $cdr dst src
+@deffnx {Macro Instruction} $set-car! x val
+@deffnx {Macro Instruction} $set-cdr! x val
+@deffnx {Macro Instruction} $variable-ref dst src
+@deffnx {Macro Instruction} $variable-set! x val
+@deffnx {Macro Instruction} $vector-length dst x
+@deffnx {Macro Instruction} $vector-ref dst x idx
+@deffnx {Macro Instruction} $vector-ref/immediate dst x idx/imm
+@deffnx {Macro Instruction} $vector-set! x idx v
+@deffnx {Macro Instruction} $vector-set!/immediate x idx/imm v
+@deffnx {Macro Instruction} $allocate-struct dst vtable nwords
+@deffnx {Macro Instruction} $struct-vtable dst src
+@deffnx {Macro Instruction} $struct-ref dst src idx
+@deffnx {Macro Instruction} $struct-ref/immediate dst src idx/imm
+@deffnx {Macro Instruction} $struct-set! x idx v
+@deffnx {Macro Instruction} $struct-set!/immediate x idx/imm v
+Intrinsics for use by the baseline compiler.  The usual strategy for CPS
+compilation is to expose the component parts of e.g. @code{vector-ref}
+so that the compiler can learn from them and eliminate needless bits.
+However in the non-optimizing baseline compiler, that's just overhead,
+so we have some intrinsics that encapsulate all the usual type checks.
+@end deffn
+
+
+@node Constant Instructions
+@subsubsection Constant Instructions
+
+The following instructions load literal data into a program.  There are
+two kinds.
+
+The first set of instructions loads immediate values.  These
+instructions encode the immediate directly into the instruction stream.
+
+@deftypefn Instruction {} make-immediate s8:@var{dst} zi16:@var{low-bits}
+Make an immediate whose low bits are @var{low-bits}, sign-extended.
+@end deftypefn
+
+@deftypefn Instruction {} make-short-immediate s8:@var{dst} i16:@var{low-bits}
+Make an immediate whose low bits are @var{low-bits}, and whose top bits are
+0.
+@end deftypefn
+
+@deftypefn Instruction {} make-long-immediate s24:@var{dst} i32:@var{low-bits}
+Make an immediate whose low bits are @var{low-bits}, and whose top bits are
+0.
+@end deftypefn
+
+@deftypefn Instruction {} make-long-long-immediate s24:@var{dst} a32:@var{high-bits} b32:@var{low-bits}
+Make an immediate with @var{high-bits} and @var{low-bits}.
+@end deftypefn
+
+Non-immediate constant literals are referenced either directly or
+indirectly.  For example, Guile knows at compile-time what the layout of
+a string will be like, and arranges to embed that object directly in the
+compiled image.  A reference to a string will use
+@code{make-non-immediate} to treat a pointer into the compilation unit
+as a @code{scm} value directly.
+
+@deftypefn Instruction {} make-non-immediate s24:@var{dst} n32:@var{offset}
+Load a pointer to statically allocated memory into @var{dst}.  The
+object's memory will be found @var{offset} 32-bit words away from the
+current instruction pointer.  Whether the object is mutable or immutable
+depends on where it was allocated by the compiler, and loaded by the
+loader.
+@end deftypefn
+
+Sometimes you need to load up a code pointer into a register; for this,
+use @code{load-label}.
+
+@deftypefn Instruction {} load-label s24:@var{dst} l32:@var{offset}
+Load a label @var{offset} words away from the current @code{ip} and
+write it to @var{dst}.  @var{offset} is a signed 32-bit integer.
+@end deftypefn
+
+Finally, Guile supports a number of unboxed data types, with their
+associate constant loaders.
+
+@deftypefn Instruction {} load-f64 s24:@var{dst} au32:@var{high-bits} au32:@var{low-bits}
+Load a double-precision floating-point value formed by joining
+@var{high-bits} and @var{low-bits}, and write it to @var{dst}.
+@end deftypefn
+
+@deftypefn Instruction {} load-u64 s24:@var{dst} au32:@var{high-bits} au32:@var{low-bits}
+Load an unsigned 64-bit integer formed by joining @var{high-bits} and
+@var{low-bits}, and write it to @var{dst}.
+@end deftypefn
+
+@deftypefn Instruction {} load-s64 s24:@var{dst} au32:@var{high-bits} au32:@var{low-bits}
+Load a signed 64-bit integer formed by joining @var{high-bits} and
+@var{low-bits}, and write it to @var{dst}.
+@end deftypefn
+
+Some objects must be unique across the whole system.  This is the case
+for symbols and keywords.  For these objects, Guile arranges to
+initialize them when the compilation unit is loaded, storing them into a
+slot in the image.  References go indirectly through that slot.
+@code{static-ref} is used in this case.
+
+@deftypefn Instruction {} static-ref s24:@var{dst} r32:@var{offset}
+Load a @var{scm} value into @var{dst}.  The @var{scm} value will be fetched from
+memory, @var{offset} 32-bit words away from the current instruction
+pointer.  @var{offset} is a signed value.
+@end deftypefn
+
+Fields of non-immediates may need to be fixed up at load time, because
+we do not know in advance at what address they will be loaded.  This is
+the case, for example, for a pair containing a non-immediate in one of
+its fields.  @code{static-set!} and @code{static-patch!} are used in
+these situations.
+
+@deftypefn Instruction {} static-set! s24:@var{src} lo32:@var{offset}
+Store a @var{scm} value into memory, @var{offset} 32-bit words away from the
+current instruction pointer.  @var{offset} is a signed value.
+@end deftypefn
+
+@deftypefn Instruction {} static-patch! x24:@var{_} lo32:@var{dst-offset} l32:@var{src-offset}
+Patch a pointer at @var{dst-offset} to point to @var{src-offset}.  Both offsets
+are signed 32-bit values, indicating a memory address as a number
+of 32-bit words away from the current instruction pointer.
+@end deftypefn
+
+
+@node Memory Access Instructions
+@subsubsection Memory Access Instructions
+
+In these instructions, the @code{/immediate} variants represent their
+indexes or counts as immediates; otherwise these values are unboxed u64
+locals.
+
+@deftypefn Instruction {} allocate-words s12:@var{dst} s12:@var{count}
+@deftypefnx Instruction {} allocate-words/immediate s12:@var{dst} c12:@var{count}
+Allocate a fresh GC-traced object consisting of @var{count} words and
+store it into @var{dst}.
+@end deftypefn
+
+@deftypefn Instruction {} scm-ref s8:@var{dst} s8:@var{obj} s8:@var{idx}
+@deftypefnx Instruction {} scm-ref/immediate s8:@var{dst} s8:@var{obj} c8:@var{idx}
+Load the @code{SCM} object at word offset @var{idx} from local
+@var{obj}, and store it to @var{dst}.
+@end deftypefn
+
+@deftypefn Instruction {} scm-set! s8:@var{dst} s8:@var{idx} s8:@var{obj}
+@deftypefnx Instruction {} scm-set!/immediate s8:@var{dst} c8:@var{idx} s8:@var{obj}
+Store the @code{scm} local @var{val} into object @var{obj} at word
+offset @var{idx}.
+@end deftypefn
+
+@deftypefn Instruction {} scm-ref/tag s8:@var{dst} s8:@var{obj} c8:@var{tag}
+Load the first word of @var{obj}, subtract the immediate @var{tag}, and store the
+resulting @code{SCM} to @var{dst}.
+@end deftypefn
+
+@deftypefn Instruction {} scm-set!/tag s8:@var{obj} c8:@var{tag} s8:@var{val}
+Set the first word of @var{obj} to the unpacked bits of the @code{scm}
+value @var{val} plus the immediate value @var{tag}.
+@end deftypefn
+
+@deftypefn Instruction {} word-ref s8:@var{dst} s8:@var{obj} s8:@var{idx}
+@deftypefnx Instruction {} word-ref/immediate s8:@var{dst} s8:@var{obj} c8:@var{idx}
+Load the word at offset @var{idx} from local @var{obj}, and store it to
+the @code{u64} local @var{dst}.
+@end deftypefn
+
+@deftypefn Instruction {} word-set! s8:@var{dst} s8:@var{idx} s8:@var{obj}
+@deftypefnx Instruction {} word-set!/immediate s8:@var{dst} c8:@var{idx} s8:@var{obj}
+Store the @code{u64} local @var{val} into object @var{obj} at word
+offset @var{idx}.
+@end deftypefn
+
+@deftypefn Instruction {} pointer-ref/immediate s8:@var{dst} s8:@var{obj} c8:@var{idx}
+Load the pointer at offset @var{idx} from local @var{obj}, and store it
+to the unboxed pointer local @var{dst}.
+@end deftypefn
+
+@deftypefn Instruction {} pointer-set!/immediate s8:@var{dst} c8:@var{idx} s8:@var{obj}
+Store the unboxed pointer local @var{val} into object @var{obj} at word
+offset @var{idx}.
+@end deftypefn
+
+@deftypefn Instruction {} tail-pointer-ref/immediate s8:@var{dst} s8:@var{obj} c8:@var{idx}
+Compute the address of word offset @var{idx} from local @var{obj}, and store it
+to @var{dst}.
+@end deftypefn
+
+
+@node Atomic Memory Access Instructions
+@subsubsection Atomic Memory Access Instructions
+
+@deftypefn Instruction {} current-thread s24:@var{dst}
+Write the current thread into @var{dst}.
+@end deftypefn
+
+@deftypefn Instruction {} atomic-scm-ref/immediate s8:@var{dst} s8:@var{obj} c8:@var{idx}
+Atomically load the @code{SCM} object at word offset @var{idx} from
+local @var{obj}, using the sequential consistency memory model.  Store
+the result to @var{dst}.
+@end deftypefn
+
+@deftypefn Instruction {} atomic-scm-set!/immediate s8:@var{obj} c8:@var{idx} s8:@var{val}
+Atomically set the @code{SCM} object at word offset @var{idx} from local
+@var{obj} to @var{val}, using the sequential consistency memory model.
+@end deftypefn
+
+@deftypefn Instruction {} atomic-scm-swap!/immediate s24:@var{dst} x8:@var{_} s24:@var{obj} c8:@var{idx} s24:@var{val}
+Atomically swap the @code{SCM} value stored in object @var{obj} at word
+offset @var{idx} with @var{val}, using the sequentially consistent
+memory model.  Store the previous value to @var{dst}.
+@end deftypefn
+
+@deftypefn Instruction {} atomic-scm-compare-and-swap!/immediate s24:@var{dst} x8:@var{_} s24:@var{obj} c8:@var{idx} s24:@var{expected} x8:@var{_} s24:@var{desired}
+Atomically swap the @code{SCM} value stored in object @var{obj} at word
+offset @var{idx} with @var{desired}, if and only if the value that was
+there was @var{expected}, using the sequentially consistent memory
+model.  Store the value that was previously at @var{idx} from @var{obj}
+in @var{dst}.
+@end deftypefn
+
+
+@node Tagging and Untagging Instructions
+@subsubsection Tagging and Untagging Instructions
+
+@deftypefn Instruction {} tag-char s12:@var{dst} s12:@var{src}
+Make a @code{SCM} character whose integer value is the @code{u64} in
+@var{src}, and store it in @var{dst}.
+@end deftypefn
+
+@deftypefn Instruction {} untag-char s12:@var{dst} s12:@var{src}
+Extract the integer value from the @code{SCM} character @var{src}, and
+store the resulting @code{u64} in @var{dst}.
+@end deftypefn
+
+@deftypefn Instruction {} tag-fixnum s12:@var{dst} s12:@var{src}
+Make a @code{SCM} integer whose value is the @code{s64} in @var{src},
+and store it in @var{dst}.
+@end deftypefn
+
+@deftypefn Instruction {} untag-fixnum s12:@var{dst} s12:@var{src}
+Extract the integer value from the @code{SCM} integer @var{src}, and
+store the resulting @code{s64} in @var{dst}.
+@end deftypefn
+
+
+@node Integer Arithmetic Instructions
+@subsubsection Integer Arithmetic Instructions
+
+@deftypefn Instruction {} uadd s8:@var{dst} s8:@var{a} s8:@var{b}
+@deftypefnx Instruction {} uadd/immediate s8:@var{dst} s8:@var{a} c8:@var{b}
+Add the @code{u64} values @var{a} and @var{b}, and store the @code{u64}
+result to @var{dst}.  Overflow will wrap.
+@end deftypefn
+
+@deftypefn Instruction {} usub s8:@var{dst} s8:@var{a} s8:@var{b}
+@deftypefnx Instruction {} usub/immediate s8:@var{dst} s8:@var{a} c8:@var{b}
+Subtract the @code{u64} value @var{b} from @var{a}, and store the
+@code{u64} result to @var{dst}.  Underflow will wrap.
+@end deftypefn
+
+@deftypefn Instruction {} umul s8:@var{dst} s8:@var{a} s8:@var{b}
+@deftypefnx Instruction {} umul/immediate s8:@var{dst} s8:@var{a} c8:@var{b}
+Multiply the @code{u64} values @var{a} and @var{b}, and store the
+@code{u64} result to @var{dst}.  Overflow will wrap.
+@end deftypefn
+
+@deftypefn Instruction {} ulogand s8:@var{dst} s8:@var{a} s8:@var{b}
+Place the bitwise @code{and} of the @code{u64} values @var{a} and
+@var{b} into the @code{u64} local @var{dst}.
+@end deftypefn
+
+@deftypefn Instruction {} ulogior s8:@var{dst} s8:@var{a} s8:@var{b}
+Place the bitwise inclusive @code{or} of the @code{u64} values @var{a}
+and @var{b} into the @code{u64} local @var{dst}.
+@end deftypefn
+
+@deftypefn Instruction {} ulogxor s8:@var{dst} s8:@var{a} s8:@var{b}
+Place the bitwise exclusive @code{or} of the @code{u64} values @var{a}
+and @var{b} into the @code{u64} local @var{dst}.
+@end deftypefn
+
+@deftypefn Instruction {} ulogsub s8:@var{dst} s8:@var{a} s8:@var{b}
+Place the bitwise @code{and} of the @code{u64} values @var{a} and the
+bitwise @code{not} of @var{b} into the @code{u64} local @var{dst}.
+@end deftypefn
+
+@deftypefn Instruction {} ulsh s8:@var{dst} s8:@var{a} s8:@var{b}
+@deftypefnx Instruction {} ulsh/immediate s8:@var{dst} s8:@var{a} c8:@var{b}
+Shift the unboxed unsigned 64-bit integer in @var{a} left by @var{b}
+bits, also an unboxed unsigned 64-bit integer.  Truncate to 64 bits and
+write to @var{dst} as an unboxed value.  Only the lower 6 bits of
+@var{b} are used.
+@end deftypefn
+
+@deftypefn Instruction {} ursh s8:@var{dst} s8:@var{a} s8:@var{b}
+@deftypefnx Instruction {} ursh/immediate s8:@var{dst} s8:@var{a} c8:@var{b}
+Shift the unboxed unsigned 64-bit integer in @var{a} right by @var{b}
+bits, also an unboxed unsigned 64-bit integer.  Truncate to 64 bits and
+write to @var{dst} as an unboxed value.  Only the lower 6 bits of
+@var{b} are used.
+@end deftypefn
+
+@deftypefn Instruction {} srsh s8:@var{dst} s8:@var{a} s8:@var{b}
+@deftypefnx Instruction {} srsh/immediate s8:@var{dst} s8:@var{a} c8:@var{b}
+Shift the unboxed signed 64-bit integer in @var{a} right by @var{b}
+bits, also an unboxed signed 64-bit integer.  Truncate to 64 bits and
+write to @var{dst} as an unboxed value.  Only the lower 6 bits of
+@var{b} are used.
+@end deftypefn
+
+
+@node Floating-Point Arithmetic Instructions
+@subsubsection Floating-Point Arithmetic Instructions
+
+@deftypefn Instruction {} fadd s8:@var{dst} s8:@var{a} s8:@var{b}
+Add the @code{f64} values @var{a} and @var{b}, and store the @code{f64}
+result to @var{dst}.
+@end deftypefn
+
+@deftypefn Instruction {} fsub s8:@var{dst} s8:@var{a} s8:@var{b}
+Subtract the @code{f64} value @var{b} from @var{a}, and store the
+@code{f64} result to @var{dst}.
+@end deftypefn
+
+@deftypefn Instruction {} fmul s8:@var{dst} s8:@var{a} s8:@var{b}
+Multiply the @code{f64} values @var{a} and @var{b}, and store the
+@code{f64} result to @var{dst}.
+@end deftypefn
+
+@deftypefn Instruction {} fdiv s8:@var{dst} s8:@var{a} s8:@var{b}
+Divide the @code{f64} values @var{a} by @var{b}, and store the
+@code{f64} result to @var{dst}.
+@end deftypefn
+
+
+@node Comparison Instructions
+@subsubsection Comparison Instructions
+
+@deftypefn Instruction {} u64=? s12:@var{a} s12:@var{b}
+Set the comparison result to @var{EQUAL} if the @code{u64} values
+@var{a} and @var{b} are the same, or @code{NONE} otherwise.
+@end deftypefn
+
+@deftypefn Instruction {} u64<? s12:@var{a} s12:@var{b}
+Set the comparison result to @code{LESS_THAN} if the @code{u64} value
+@var{a} is less than the @code{u64} value @var{b} are the same, or
+@code{NONE} otherwise.
+@end deftypefn
+
+@deftypefn Instruction {} s64<? s12:@var{a} s12:@var{b}
+Set the comparison result to @code{LESS_THAN} if the @code{s64} value
+@var{a} is less than the @code{s64} value @var{b} are the same, or
+@code{NONE} otherwise.
+@end deftypefn
+
+@deftypefn Instruction {} s64-imm=? s12:@var{a} z12:@var{b}
+Set the comparison result to @var{EQUAL} if the @code{s64} value @var{a}
+is equal to the immediate @code{s64} value @var{b}, or @code{NONE}
+otherwise.
+@end deftypefn
+
+@deftypefn Instruction {} u64-imm<? s12:@var{a} c12:@var{b}
+Set the comparison result to @code{LESS_THAN} if the @code{u64} value
+@var{a} is less than the immediate @code{u64} value @var{b}, or
+@code{NONE} otherwise.
+@end deftypefn
+
+@deftypefn Instruction {} imm-u64<? s12:@var{a} s12:@var{b}
+Set the comparison result to @code{LESS_THAN} if the @code{u64}
+immediate @var{b} is less than the @code{u64} value @var{a}, or
+@code{NONE} otherwise.
+@end deftypefn
+
+@deftypefn Instruction {} s64-imm<? s12:@var{a} z12:@var{b}
+Set the comparison result to @code{LESS_THAN} if the @code{s64} value
+@var{a} is less than the immediate @code{s64} value @var{b}, or
+@code{NONE} otherwise.
+@end deftypefn
+
+@deftypefn Instruction {} imm-s64<? s12:@var{a} z12:@var{b}
+Set the comparison result to @code{LESS_THAN} if the @code{s64}
+immediate @var{b} is less than the @code{s64} value @var{a}, or
+@code{NONE} otherwise.
+@end deftypefn
+
+@deftypefn Instruction {} f64=? s12:@var{a} s12:@var{b}
+Set the comparison result to @var{EQUAL} if the f64 value @var{a} is
+equal to the f64 value @var{b}, or @code{NONE} otherwise.
+@end deftypefn
+
+@deftypefn Instruction {} f64<? s12:@var{a} s12:@var{b}
+Set the comparison result to @code{LESS_THAN} if the f64 value @var{a}
+is less than the f64 value @var{b}, @code{NONE} if @var{a} is greater
+than or equal to @var{b}, or @code{INVALID} otherwise.
+@end deftypefn
+
+@deftypefn Instruction {} =? s12:@var{a} s12:@var{b}
+Set the comparison result to @var{EQUAL} if the SCM values @var{a} and
+@var{b} are numerically equal, in the sense of the Scheme @code{=}
+operator.  Set to @code{NONE} otherwise.
+@end deftypefn
+
+@deftypefn Instruction {} heap-numbers-equal? s12:@var{a} s12:@var{b}
+Set the comparison result to @var{EQUAL} if the SCM values @var{a} and
+@var{b} are numerically equal, in the sense of Scheme @code{=}.  Set to
+@code{NONE} otherwise.  It is known that both @var{a} and @var{b} are
+heap numbers.
+@end deftypefn
+
+@deftypefn Instruction {} <? s12:@var{a} s12:@var{b}
+Set the comparison result to @code{LESS_THAN} if the SCM value @var{a}
+is less than the SCM value @var{b}, @code{NONE} if @var{a} is greater
+than or equal to @var{b}, or @code{INVALID} otherwise.
+@end deftypefn
+
+@deftypefn Instruction {} immediate-tag=? s24:@var{obj} c16:@var{mask} c16:@var{tag}
+Set the comparison result to @var{EQUAL} if the result of a bitwise
+@code{and} between the bits of @code{scm} value @var{a} and the
+immediate @var{mask} is @var{tag}, or @code{NONE} otherwise.
+@end deftypefn
+
+@deftypefn Instruction {} heap-tag=? s24:@var{obj} c16:@var{mask} c16:@var{tag}
+Set the comparison result to @var{EQUAL} if the result of a bitwise
+@code{and} between the first word of @code{scm} value @var{a} and the
+immediate @var{mask} is @var{tag}, or @code{NONE} otherwise.
+@end deftypefn
+
+@deftypefn Instruction {} eq? s12:@var{a} s12:@var{b}
+Set the comparison result to @var{EQUAL} if the SCM values @var{a} and
+@var{b} are @code{eq?}, or @code{NONE} otherwise.
+@end deftypefn
+
+@deftypefn Instruction {} eq-immediate? s8:@var{a} zi16:@var{b}
+Set the comparison result to @var{EQUAL} if the SCM value @var{a} is
+equal to the immediate SCM value @var{b} (sign-extended), or @code{NONE}
+otherwise.
+@end deftypefn
+
+There are a set of macro-instructions for @code{immediate-tag=?} and
+@code{heap-tag=?} as well that abstract away the precise type tag
+values.  @xref{The SCM Type in Guile}.
+
+@deffn {Macro Instruction} fixnum? x
+@deffnx {Macro Instruction} heap-object? x
+@deffnx {Macro Instruction} char? x
+@deffnx {Macro Instruction} eq-false? x
+@deffnx {Macro Instruction} eq-nil? x
+@deffnx {Macro Instruction} eq-null? x
+@deffnx {Macro Instruction} eq-true? x
+@deffnx {Macro Instruction} unspecified? x
+@deffnx {Macro Instruction} undefined? x
+@deffnx {Macro Instruction} eof-object? x
+@deffnx {Macro Instruction} null? x
+@deffnx {Macro Instruction} false? x
+@deffnx {Macro Instruction} nil? x
+Emit a @code{immediate-tag=?} instruction that will set the comparison
+result to @code{EQUAL} if @var{x} would pass the corresponding predicate
+(e.g. @code{null?}), or @code{NONE} otherwise.
+@end deffn
+
+@deffn {Macro Instruction} pair? x
+@deffnx {Macro Instruction} struct? x
+@deffnx {Macro Instruction} symbol? x
+@deffnx {Macro Instruction} variable? x
+@deffnx {Macro Instruction} vector? x
+@deffnx {Macro Instruction} immutable-vector? x
+@deffnx {Macro Instruction} mutable-vector? x
+@deffnx {Macro Instruction} weak-vector? x
+@deffnx {Macro Instruction} string? x
+@deffnx {Macro Instruction} heap-number? x
+@deffnx {Macro Instruction} hash-table? x
+@deffnx {Macro Instruction} pointer? x
+@deffnx {Macro Instruction} fluid? x
+@deffnx {Macro Instruction} stringbuf? x
+@deffnx {Macro Instruction} dynamic-state? x
+@deffnx {Macro Instruction} frame? x
+@deffnx {Macro Instruction} keyword? x
+@deffnx {Macro Instruction} atomic-box? x
+@deffnx {Macro Instruction} syntax? x
+@deffnx {Macro Instruction} program? x
+@deffnx {Macro Instruction} vm-continuation? x
+@deffnx {Macro Instruction} bytevector? x
+@deffnx {Macro Instruction} weak-set? x
+@deffnx {Macro Instruction} weak-table? x
+@deffnx {Macro Instruction} array? x
+@deffnx {Macro Instruction} bitvector? x
+@deffnx {Macro Instruction} smob? x
+@deffnx {Macro Instruction} port? x
+@deffnx {Macro Instruction} bignum? x
+@deffnx {Macro Instruction} flonum? x
+@deffnx {Macro Instruction} compnum? x
+@deffnx {Macro Instruction} fracnum? x
+Emit a @code{heap-tag=?} instruction that will set the comparison result
+to @code{EQUAL} if @var{x} would pass the corresponding predicate
+(e.g. @code{null?}), or @code{NONE} otherwise.
+@end deffn
+
+
+@node Branch Instructions
+@subsubsection Branch Instructions
+
+All offsets to branch instructions are 24-bit signed numbers, which
+count 32-bit units.  This gives Guile effectively a 26-bit address range
+for relative jumps.
+
+@deftypefn Instruction {} j l24:@var{offset}
+Add @var{offset} to the current instruction pointer.
+@end deftypefn
+
+@deftypefn Instruction {} jl l24:@var{offset}
+If the last comparison result is @code{LESS_THAN}, add @var{offset}, a
+signed 24-bit number, to the current instruction pointer.
+@end deftypefn
+
+@deftypefn Instruction {} je l24:@var{offset}
+If the last comparison result is @code{EQUAL}, add @var{offset}, a
+signed 24-bit number, to the current instruction pointer.
+@end deftypefn
+
+@deftypefn Instruction {} jnl l24:@var{offset}
+If the last comparison result is not @code{LESS_THAN}, add @var{offset},
+a signed 24-bit number, to the current instruction pointer.
+@end deftypefn
+
+@deftypefn Instruction {} jne l24:@var{offset}
+If the last comparison result is not @code{EQUAL}, add @var{offset}, a
+signed 24-bit number, to the current instruction pointer.
+@end deftypefn
+
+@deftypefn Instruction {} jge l24:@var{offset}
+If the last comparison result is @code{NONE}, add @var{offset}, a
+signed 24-bit number, to the current instruction pointer.
+
+This is intended for use after a @code{<?} comparison, and is different
+from @code{jnl} in the way it handles not-a-number (NaN) values:
+@code{<?} sets @code{INVALID} instead of @code{NONE} if either value is
+a NaN.  For exact numbers, @code{jge} is the same as @code{jnl}.
+@end deftypefn
+
+@deftypefn Instruction {} jnge l24:@var{offset}
+If the last comparison result is not @code{NONE}, add @var{offset}, a
+signed 24-bit number, to the current instruction pointer.
+
+This is intended for use after a @code{<?} comparison, and is different
+from @code{jl} in the way it handles not-a-number (NaN) values:
+@code{<?} sets @code{INVALID} instead of @code{NONE} if either value is
+a NaN.  For exact numbers, @code{jnge} is the same as @code{jl}.
+@end deftypefn
+
+@deftypefn Instruction {} jtable s24:@var{idx} v32:@var{length} [x8:_ l24:@var{offset}]...
+Branch to an entry in a table, as in C's @code{switch} statement.
+@var{idx} is a @code{u64} local indicating which entry to branch to.
+The immediate @var{len} indicates the number of entries in the table,
+and should be greater than or equal to 1.  The last entry in the table
+is the "catch-all" entry.  The @var{offset}... values are signed 24-bit
+immediates (@code{l24} encoding), indicating a memory address as a
+number of 32-bit words away from the current instruction pointer.
+@end deftypefn
+
+
+@node Raw Memory Access Instructions
+@subsubsection Raw Memory Access Instructions
+
+Bytevector operations correspond closely to what the current hardware
+can do, so it makes sense to inline them to VM instructions, providing
+a clear path for eventual native compilation. Without this, Scheme
+programs would need other primitives for accessing raw bytes -- but
+these primitives are as good as any.
+
+@deftypefn Instruction {} u8-ref s8:@var{dst} s8:@var{ptr} s8:@var{idx}
+@deftypefnx Instruction {} s8-ref s8:@var{dst} s8:@var{ptr} s8:@var{idx}
+@deftypefnx Instruction {} u16-ref s8:@var{dst} s8:@var{ptr} s8:@var{idx}
+@deftypefnx Instruction {} s16-ref s8:@var{dst} s8:@var{ptr} s8:@var{idx}
+@deftypefnx Instruction {} u32-ref s8:@var{dst} s8:@var{ptr} s8:@var{idx}
+@deftypefnx Instruction {} s32-ref s8:@var{dst} s8:@var{ptr} s8:@var{idx}
+@deftypefnx Instruction {} u64-ref s8:@var{dst} s8:@var{ptr} s8:@var{idx}
+@deftypefnx Instruction {} s64-ref s8:@var{dst} s8:@var{ptr} s8:@var{idx}
+@deftypefnx Instruction {} f32-ref s8:@var{dst} s8:@var{ptr} s8:@var{idx}
+@deftypefnx Instruction {} f64-ref s8:@var{dst} s8:@var{ptr} s8:@var{idx}
+
+Fetch the item at byte offset @var{idx} from the raw pointer local
+@var{ptr}, and store it in @var{dst}.  All accesses use native
+endianness.
+
+The @var{idx} value should be an unboxed unsigned 64-bit integer.
+
+The results are all written to the stack as unboxed values, either as
+signed 64-bit integers, unsigned 64-bit integers, or IEEE double
+floating point numbers.
+@end deftypefn
+
+@deftypefn Instruction {} u8-set! s8:@var{ptr} s8:@var{idx} s8:@var{val}
+@deftypefnx Instruction {} s8-set! s8:@var{ptr} s8:@var{idx} s8:@var{val}
+@deftypefnx Instruction {} u16-set! s8:@var{ptr} s8:@var{idx} s8:@var{val}
+@deftypefnx Instruction {} s16-set! s8:@var{ptr} s8:@var{idx} s8:@var{val}
+@deftypefnx Instruction {} u32-set! s8:@var{ptr} s8:@var{idx} s8:@var{val}
+@deftypefnx Instruction {} s32-set! s8:@var{ptr} s8:@var{idx} s8:@var{val}
+@deftypefnx Instruction {} u64-set! s8:@var{ptr} s8:@var{idx} s8:@var{val}
+@deftypefnx Instruction {} s64-set! s8:@var{ptr} s8:@var{idx} s8:@var{val}
+@deftypefnx Instruction {} f32-set! s8:@var{ptr} s8:@var{idx} s8:@var{val}
+@deftypefnx Instruction {} f64-set! s8:@var{ptr} s8:@var{idx} s8:@var{val}
+
+Store @var{val} into memory pointed to by raw pointer local @var{ptr},
+at byte offset @var{idx}.  Multibyte values are written using native
+endianness.
+
+The @var{idx} value should be an unboxed unsigned 64-bit integer.
+
+The @var{val} values are all unboxed, either as signed 64-bit integers,
+unsigned 64-bit integers, or IEEE double floating point numbers.
+@end deftypefn
+
+@node Just-In-Time Native Code
+@subsection Just-In-Time Native Code
+
+@cindex just-in-time compiler
+@cindex jit compiler
+@cindex template jit
+@cindex compiler, just-in-time
+The final piece of Guile's virtual machine is a just-in-time (JIT)
+compiler from bytecode instructions to native code.  It is faster to run
+a function when its bytecode instructions are compiled to native code,
+compared to having the VM interpret the instructions.
+
+The JIT compiler runs automatically, triggered by counters associated
+with each function.  The counter increments when functions are called
+and during each loop iteration.  Once a function's counter passes a
+certain value, the function gets JIT-compiled.  @xref{Instrumentation
+Instructions}, for full details.
+
+Guile's JIT compiler is what is known as a @dfn{template JIT}.  This
+kind of JIT is very simple: for each instruction in a function, the JIT
+compiler will emit a generic sequence of machine code corresponding to
+the instruction kind, specializing that generic template to reference
+the specific operands of the instruction being compiled.
+
+The strength of a template JIT is principally that it is very fast at
+emitting code.  It doesn't need to do any time-consuming analysis on the
+bytecode that it is compiling to do its job.
+
+A template JIT is also very predictable: the native code emitted by a
+template JIT has the same performance characteristics of the
+corresponding bytecode, only that it runs faster.  In theory you could
+even generate the template-JIT machine code ahead of time, as it doesn't
+depend on any value seen at run-time.
+
+This predictability makes it possible to reason about the performance of
+a system in terms of bytecode, knowing that the conclusions apply to
+native code emitted by a template JIT.
+
+Because the machine code corresponding to an instruction always performs
+the same tasks that the interpreter would do for that instruction,
+bytecode and a template JIT also allows Guile programmers to debug their
+programs in terms of the bytecode model.  When a Guile programmer sets a
+breakpoint, Guile will disable the JIT for the thread being debugged,
+falling back to the interpreter (which has the corresponding code to run
+the hooks).  @xref{VM Hooks}.
+
+To emit native code, Guile uses a forked version of GNU Lightning.  This
+"Lightening" effort, spun out as a separate project, aims to build on
+the back-end support from GNU Lightning, but adapting the API and
+behavior of the library to match Guile's needs.  This code is included
+in the Guile source distribution.  For more information, see
+@url{https://gitlab.com/wingo/lightening}.  As of mid-2019, Lightening
+supports code generation for the x86-64, ia32, ARMv7, and AArch64
+architectures.
+
+The weaknesses of a template JIT are two-fold.  Firstly, as a simple
+back-end that has to run fast, a template JIT doesn't have time to do
+analysis that could help it generate better code, notably global
+register allocation and instruction selection.
+
+However this is a minor weakness compared to the inability to perform
+significant, speculative program transformations.  For example, Guile
+could see that in an expression @code{(f x)}, that in practice @var{f}
+always refers to the same function.  An advanced JIT compiler would
+speculatively inline @var{f} into the call-site, along with a dynamic
+check to make sure that the assertion still held.  But as a template JIT
+doesn't pay attention to values only known at run-time, it can't make
+this transformation.
+
+This limitation is mitigated in part by Guile's robust ahead-of-time
+compiler which can already perform significant optimizations when it can
+prove they will always be valid, and its low-level bytecode which is
+able to represent the effect of those optimizations (e.g. elided
+type-checks).  @xref{Compiling to the Virtual Machine}, for more on
+Guile's compiler.
+
+An ahead-of-time Scheme-to-bytecode strategy, complemented by a template
+JIT, also particularly suits the somewhat static nature of Scheme.
+Scheme programmers often write code in a way that makes the identity of
+free variable references lexically apparent.  For example, the @code{(f
+x)} expression could appear within a @code{(let ((f (lambda (x) (1+
+x)))) ...)} expression, or we could see that @code{f} was imported from
+a particular module where we know its binding.  Ahead-of-time
+compilation techniques can work well for a language like Scheme where
+there is little polymorphism and much first-order programming.  They do
+not work so well for a language like JavaScript, which is highly mutable
+at run-time and difficult to analyze due to method calls (which are
+effectively higher-order calls).
+
+All that said, a template JIT works well for Guile at this point.  It's
+only a few thousand lines of maintainable code, it speeds up Scheme
+programs, and it keeps the bulk of the Guile Scheme implementation
+written in Scheme itself.  The next step is probably to add
+ahead-of-time native code emission to the back-end of the compiler
+written in Scheme, to take advantage of the opportunity to do global
+register allocation and instruction selection.  Once this is working, it
+can allow Guile to experiment with speculative optimizations in Scheme
+as well.  @xref{Extending the Compiler}, for more on future directions.
+
+Finally, note that there are a few environment variables that can be
+tweaked to make JIT compilation happen sooner, later, or never.
+@xref{Environment Variables}, for more.

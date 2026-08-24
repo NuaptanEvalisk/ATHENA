@@ -20,7 +20,7 @@
         (athena athena tm-vault-startup)
         (athena athena tm-vault-welcome)
         (athena menus file-menu)))
-(use-modules (kernel athena tm-preferences))
+(import-from (kernel athena tm-preferences))
 
 
 (tm-define (vault-jump-to-source path anchor)

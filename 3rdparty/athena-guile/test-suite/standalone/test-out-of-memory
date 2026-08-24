@@ -1,0 +1,41 @@
+#!/bin/sh
+guild compile "$0"
+exec guile -q -s "$0" "$@"
+!#
+
+(unless (defined? 'setrlimit)
+  ;; Without an rlimit, this test can take down your system, as it
+  ;; consumes all of your memory.  That doesn't seem like something we
+  ;; should run as part of an automated test suite.
+  (exit 0))
+
+(when (string-ci= "darwin" (vector-ref (uname) 0))
+  ;; setrlimits are ignored in OS X (tested on 10.9 and 10.10). Proceeding
+  ;; with the test would fill all available memory and probably end in a crash.
+  ;; See also test-stack-overflow.
+  (exit 77)) ; unresolved
+
+(when (string-ci= "GNU" (vector-ref (uname) 0))
+  ;; setrlimits are not yet implemented on GNU/Hurd systems. Proceeding
+  ;; with the test would end in a crash. See
+  ;; <https://lists.gnu.org/archive/html/bug-hurd/2017-05/msg00013.html>
+  (exit 77)) ; unresolved
+
+(when (string-contains-ci (vector-ref (uname) 0) "CYGWIN_NT")
+  ;; attempting to use setrlimits for memory RLIMIT_AS will always
+  ;; produce an invalid argument error on Cygwin (tested on
+  ;; CYGWIN_NT-10.0 DLL v2.7.0).  Proceeding with the test would fill
+  ;; all available memory and probably end in a crash.  See also
+  ;; test-stack-overflow.
+  (exit 77)) ; unresolved
+
+;; ATHENA does not impose an artificial process-wide address-space ceiling.
+;; This upstream test relies on such a ceiling to force allocation failure,
+;; but modern threaded libgc can exhaust its own exception/unwind reserve
+;; before Scheme receives the out-of-memory condition.  Running the same
+;; allocations without a ceiling is unsafe on developer and CI machines.
+(exit 77)
+
+;; Local Variables:
+;; mode: scheme
+;; End:

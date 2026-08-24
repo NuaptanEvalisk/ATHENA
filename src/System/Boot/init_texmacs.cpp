@@ -303,6 +303,56 @@ release_boot_lock () {
 
 static void
 init_guile () {
+  url runtime_root= get_env_path ("ATHENA_GUILE_RUNTIME_ROOT");
+  url bundled_root= "$ATHENA_PATH/lib/athena-guile";
+  if (is_none (runtime_root) || runtime_root->t == "") {
+    if (exists (bundled_root * "share/guile/3.0/ice-9/boot-9.scm"))
+      runtime_root= bundled_root;
+#ifdef ATHENA_GUILE_BUILD_RUNTIME_ROOT
+    else
+      runtime_root= url_system (ATHENA_GUILE_BUILD_RUNTIME_ROOT);
+#endif
+  }
+
+  url standard_path= runtime_root * "share/guile/3.0";
+  url compiled_path= runtime_root * "lib/guile/3.0/ccache";
+  if (!exists (standard_path * "ice-9/boot-9.scm")) {
+    failed_error << "\nATHENA Guile runtime root=" << runtime_root << "\n";
+    FAILED ("ATHENA's bundled Guile standard library could not be found");
+  }
+  set_env_path ("GUILE_SYSTEM_PATH", standard_path);
+  set_env_path ("GUILE_SYSTEM_COMPILED_PATH", compiled_path);
+
+  url scheme_source= "$ATHENA_PATH/progs";
+  url bundled_bytecode= url ("$ATHENA_PATH/lib/athena-scheme") *
+                         url (ATHENA_GUILE_RUNTIME_ID);
+  url bundled_stamp= bundled_bytecode * ".complete";
+  bool compiling_bytecode= get_env ("ATHENA_SCHEME_COMPILE") == "1";
+  set_env_path ("ATHENA_GUILE_SOURCE_ROOT", scheme_source);
+
+  // Build workers write into the bundled bytecode directory concurrently.
+  // They must bootstrap from immutable sources instead of consuming outputs
+  // from the same build, which would make module initialization order-dependent.
+  if (!compiling_bytecode && exists (bundled_bytecode)) {
+    url existing= get_env_path ("GUILE_LOAD_COMPILED_PATH");
+    set_env_path ("GUILE_LOAD_COMPILED_PATH",
+                  is_none (existing) ? bundled_bytecode :
+                  (bundled_bytecode | existing));
+  }
+
+  if (get_env ("ATHENA_GUILE_CACHE_PATH") == "") {
+    if (exists (bundled_stamp))
+      set_env_path ("ATHENA_GUILE_CACHE_PATH", bundled_bytecode);
+    else {
+      url guile_cache= url ("$ATHENA_HOME_PATH/system/cache/guile") *
+                       url (ATHENA_GUILE_RUNTIME_ID);
+      make_dir (guile_cache);
+      set_env_path ("ATHENA_GUILE_CACHE_PATH", guile_cache);
+    }
+  }
+  if (get_env ("GUILE_AUTO_COMPILE") == "")
+    set_env ("GUILE_AUTO_COMPILE", exists (bundled_stamp) ? "0" : "1");
+
   url guile_path= "$ATHENA_PATH/progs:$GUILE_LOAD_PATH";
   if (!exists (guile_path * "init-texmacs.scm")) {
     boot_error << "\n";
@@ -317,38 +367,6 @@ init_guile () {
     boot_error << "\n";
     FAILED ("guile could not be found");
   }
-
-  /*
-  if (!exists ("$GUILE_LOAD_PATH/ice-9/boot-9.scm")) {
-    int i;
-    string guile_data    = var_eval_system ("guile-config info datadir");
-    string guile_version = var_eval_system ("guile --version");
-    for (i=0; i<N(guile_version); i++)
-      if (guile_version[i] == '\n') break;
-    guile_version= guile_version (0, i);
-    for (i=N(guile_version); i>0; i--)
-      if (guile_version[i-1] == ' ') break;
-    guile_version= guile_version (i, N (guile_version));
-    if (guile_version == "") {
-      var_eval_system ("guile-config info top_srcdir");
-      for (i=N(guile_version); i>0; i--)
-        if (guile_version[i-1] == '-') break;
-      guile_version= guile_version (i, N (guile_version));
-      for (i=0; i<N(guile_version); i++)
-        if ((guile_version[i] == '/') || (guile_version[i] == '\\')) {
-          guile_version= guile_version (0, i);
-          break;
-        }
-    }
-    url guile_dir= url_system (guile_data) * url ("guile", guile_version);
-    guile_path= guile_path | guile_dir;
-    set_env_path ("GUILE_LOAD_PATH", guile_path);
-    if (!exists ("$GUILE_LOAD_PATH/ice-9/boot-9.scm")) {
-      failed_error << "\nGUILE_LOAD_PATH=" << guile_path << "\n";
-      FAILED ("guile seems not to be installed on your system");
-    }
-  }
-  */
 
   guile_path= guile_path | "$ATHENA_HOME_PATH/progs" | plugin_path ("progs");
   set_env_path ("GUILE_LOAD_PATH", guile_path);

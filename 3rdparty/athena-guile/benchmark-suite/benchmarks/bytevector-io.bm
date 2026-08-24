@@ -1,0 +1,52 @@
+;;; bytevector-io.bm --- Exercise bytevector I/O primitives.  -*- Scheme -*-
+;;;
+;;; Copyright (C) 2008, 2017 Free Software Foundation, Inc.
+;;;
+;;; This program is free software; you can redistribute it and/or
+;;; modify it under the terms of the GNU Lesser General Public License
+;;; as published by the Free Software Foundation; either version 3, or
+;;; (at your option) any later version.
+;;;
+;;; This program is distributed in the hope that it will be useful,
+;;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;;; GNU Lesser General Public License for more details.
+;;;
+;;; You should have received a copy of the GNU Lesser General Public
+;;; License along with this software; see the file COPYING.LESSER.  If
+;;; not, write to the Free Software Foundation, Inc., 51 Franklin
+;;; Street, Fifth Floor, Boston, MA 02110-1301 USA
+
+(define-module (benchmarks bytevector-io)
+  :use-module (benchmark-suite lib)
+  :use-module (rnrs io ports)
+  :use-module (rnrs bytevectors))
+
+(define file-name
+  (tmpnam))
+
+(define %buffer-size
+  7777)
+
+(define buf
+  (make-u8vector %buffer-size))
+
+
+(with-benchmark-prefix "bytevector i/o"
+
+  (benchmark "put-bytevector" 4000
+    (let ((output (open-output-file file-name)))
+      (put-bytevector output buf)
+      (close output)))
+
+  (benchmark "get-bytevector-n!" 20000
+    (let ((input (open-input-file file-name)))
+      (setvbuf input 'none)
+      (get-bytevector-n! input buf 0 (bytevector-length buf))
+      (close input)))
+
+  (benchmark "get-bytevector-n" 20000
+    (let ((input (open-input-file file-name)))
+      (setvbuf input 'none)
+      (get-bytevector-n input (bytevector-length buf))
+      (close input))))

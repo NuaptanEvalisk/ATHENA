@@ -13,7 +13,7 @@
 
 (texmacs-module (kernel athena tm-convert)
   (:use (kernel athena tm-define) (kernel athena tm-modes)))
-(use-modules (kernel athena tm-preferences))
+(import-from (kernel athena tm-preferences))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

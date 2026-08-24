@@ -13,7 +13,7 @@
 
 (texmacs-module (athena athena tm-view)
   (:use (utils library cursor)))
-(use-modules (kernel athena tm-preferences))
+(import-from (kernel athena tm-preferences))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

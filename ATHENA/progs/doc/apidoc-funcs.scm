@@ -160,7 +160,7 @@
 
 ; WRONG! what about unloaded modules
 (define (tm-exported? sym)
-  (and (symbol? sym) (ahash-ref tm-defined-table sym)))
+  (and (symbol? sym) (%athena-definition-defined? sym)))
 
 (define (dir-with-access? path) (url-test? path "dx"))
 

@@ -1,0 +1,342 @@
+/* Copyright 1995-1996,2000-2001,2004-2006,2008-2013,2017-2019
+     Free Software Foundation, Inc.
+
+   This file is part of Guile.
+
+   Guile is free software: you can redistribute it and/or modify it
+   under the terms of the GNU Lesser General Public License as published
+   by the Free Software Foundation, either version 3 of the License, or
+   (at your option) any later version.
+
+   Guile is distributed in the hope that it will be useful, but WITHOUT
+   ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+   FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
+   License for more details.
+
+   You should have received a copy of the GNU Lesser General Public
+   License along with Guile.  If not, see
+   <https://www.gnu.org/licenses/>.  */
+
+
+
+#ifdef HAVE_CONFIG_H
+# include <config.h>
+#endif
+
+#include <verify.h>
+
+#include "boolean.h"
+#include "gsubr.h"
+
+#include "pairs.h"
+
+
+
+/* {Pairs}
+ */
+
+/*
+ * This compile-time test verifies the properties needed for the
+ * efficient test macro scm_is_null_or_nil defined in pairs.h,
+ * which is defined in terms of the SCM_MATCHES_BITS_IN_COMMON macro.
+ *
+ * See the comments preceeding the definitions of SCM_BOOL_F and
+ * SCM_MATCHES_BITS_IN_COMMON in scm.h for more information.
+ */
+verify (SCM_BITS_DIFFER_IN_EXACTLY_ONE_BIT_POSITION		\
+        (SCM_ELISP_NIL_BITS, SCM_EOL_BITS));
+
+
+#if (SCM_DEBUG_PAIR_ACCESSES == 1)
+
+#include "ports.h"
+#include "strings.h"
+
+void scm_error_pair_access (SCM non_pair)
+{
+  static unsigned int running = 0;
+  SCM message = scm_from_utf8_string ("Non-pair accessed with SCM_C[AD]R: `~S'\n");
+
+  if (!running)
+    {
+      running = 1;
+      scm_simple_format (scm_current_error_port (),
+			 message, scm_list_1 (non_pair));
+      abort ();
+    }
+}
+
+#endif
+
+SCM 
+scm_cons2 (SCM w, SCM x, SCM y)
+{
+  return scm_cons (w, scm_cons (x, y));
+}
+
+
+SCM_DEFINE (scm_pair_p, "pair?", 1, 0, 0, 
+            (SCM x),
+	    "Return @code{#t} if @var{x} is a pair; otherwise return\n"
+	    "@code{#f}.")
+#define FUNC_NAME s_scm_pair_p
+{
+  return scm_from_bool (scm_is_pair (x));
+}
+#undef FUNC_NAME
+
+SCM_DEFINE (scm_set_car_x, "set-car!", 2, 0, 0,
+            (SCM pair, SCM value),
+            "Stores @var{value} in the car field of @var{pair}.  The value returned\n"
+            "by @code{set-car!} is unspecified.")
+#define FUNC_NAME s_scm_set_car_x
+{
+  SCM_VALIDATE_MUTABLE_PAIR (1, pair);
+  SCM_SETCAR (pair, value);
+  return SCM_UNSPECIFIED;
+}
+#undef FUNC_NAME
+
+
+SCM_DEFINE (scm_set_cdr_x, "set-cdr!", 2, 0, 0,
+            (SCM pair, SCM value),
+            "Stores @var{value} in the cdr field of @var{pair}.  The value returned\n"
+            "by @code{set-cdr!} is unspecified.")
+#define FUNC_NAME s_scm_set_cdr_x
+{
+  SCM_VALIDATE_MUTABLE_PAIR (1, pair);
+  SCM_SETCDR (pair, value);
+  return SCM_UNSPECIFIED;
+}
+#undef FUNC_NAME
+
+
+
+/* Every cxr-pattern is made up of pairs of bits, starting with the two least
+ * significant bits.  If in a pair of bits the least significant of the two
+ * bits is 0, this means CDR, otherwise CAR.  The most significant bits of the
+ * two bits is only needed to indicate when cxr-ing is ready.  This is the
+ * case, when all remaining pairs of bits equal 00.  */
+
+/* The compiler should unroll this. */
+#define CHASE_PAIRS(tree, FUNC_NAME, pattern)                           \
+  uint32_t pattern_var = pattern;                                   \
+  do                                                                    \
+    {                                                                   \
+      if (!scm_is_pair (tree))                                          \
+	scm_wrong_type_arg_msg (FUNC_NAME, 0, tree, "pair");            \
+      tree = (pattern_var & 1) ? SCM_CAR (tree) : SCM_CDR (tree);       \
+      pattern_var >>= 2;                                                \
+    }                                                                   \
+  while (pattern_var);                                                  \
+  return tree
+
+
+SCM_DEFINE (scm_cddr, "cddr", 1, 0, 0, (SCM x), "")
+#define FUNC_NAME s_scm_cddr
+{
+  CHASE_PAIRS (x, "cddr", 0x0a); /* 00001010 */
+}
+#undef FUNC_NAME
+
+SCM_DEFINE (scm_cdar, "cdar", 1, 0, 0, (SCM x), "")
+#define FUNC_NAME s_scm_cdar
+{
+  CHASE_PAIRS (x, "cdar", 0x0b); /* 00001011 */
+}
+#undef FUNC_NAME
+
+SCM_DEFINE (scm_cadr, "cadr", 1, 0, 0, (SCM x), "")
+#define FUNC_NAME s_scm_cadr
+{
+  CHASE_PAIRS (x, "cadr", 0x0e); /* 00001110 */
+}
+#undef FUNC_NAME
+
+SCM_DEFINE (scm_caar, "caar", 1, 0, 0, (SCM x), "")
+#define FUNC_NAME s_scm_caar
+{
+  CHASE_PAIRS (x, "caar", 0x0f); /* 00001111 */
+}
+#undef FUNC_NAME
+
+SCM_DEFINE (scm_cdddr, "cdddr", 1, 0, 0, (SCM x), "")
+#define FUNC_NAME s_scm_cdddr
+{
+  CHASE_PAIRS (x, "cdddr", 0x2a); /* 00101010 */
+}
+#undef FUNC_NAME
+
+SCM_DEFINE (scm_cddar, "cddar", 1, 0, 0, (SCM x), "")
+#define FUNC_NAME s_scm_cddar
+{
+  CHASE_PAIRS (x, "cddar", 0x2b); /* 00101011 */
+}
+#undef FUNC_NAME
+
+SCM_DEFINE (scm_cdadr, "cdadr", 1, 0, 0, (SCM x), "")
+#define FUNC_NAME s_scm_cdadr
+{
+  CHASE_PAIRS (x, "cdadr", 0x2e); /* 00101110 */
+}
+#undef FUNC_NAME
+
+SCM_DEFINE (scm_cdaar, "cdaar", 1, 0, 0, (SCM x), "")
+#define FUNC_NAME s_scm_cdaar
+{
+  CHASE_PAIRS (x, "cdaar", 0x2f); /* 00101111 */
+}
+#undef FUNC_NAME
+
+SCM_DEFINE (scm_caddr, "caddr", 1, 0, 0, (SCM x), "")
+#define FUNC_NAME s_scm_caddr
+{
+  CHASE_PAIRS (x, "caddr", 0x3a); /* 00111010 */
+}
+#undef FUNC_NAME
+
+SCM_DEFINE (scm_cadar, "cadar", 1, 0, 0, (SCM x), "")
+#define FUNC_NAME s_scm_cadar
+{
+  CHASE_PAIRS (x, "cadar", 0x3b); /* 00111011 */
+}
+#undef FUNC_NAME
+
+SCM_DEFINE (scm_caadr, "caadr", 1, 0, 0, (SCM x), "")
+#define FUNC_NAME s_scm_caadr
+{
+  CHASE_PAIRS (x, "caadr", 0x3e); /* 00111110 */
+}
+#undef FUNC_NAME
+
+SCM_DEFINE (scm_caaar, "caaar", 1, 0, 0, (SCM x), "")
+#define FUNC_NAME s_scm_caaar
+{
+  CHASE_PAIRS (x, "caaar", 0x3f); /* 00111111 */
+}
+#undef FUNC_NAME
+
+SCM_DEFINE (scm_cddddr, "cddddr", 1, 0, 0, (SCM x), "")
+#define FUNC_NAME s_scm_cddddr
+{
+  CHASE_PAIRS (x, "cddddr", 0xaa); /* 10101010 */
+}
+#undef FUNC_NAME
+
+SCM_DEFINE (scm_cdddar, "cdddar", 1, 0, 0, (SCM x), "")
+#define FUNC_NAME s_scm_cdddar
+{
+  CHASE_PAIRS (x, "cdddar", 0xab); /* 10101011 */
+}
+#undef FUNC_NAME
+
+SCM_DEFINE (scm_cddadr, "cddadr", 1, 0, 0, (SCM x), "")
+#define FUNC_NAME s_scm_cddadr
+{
+  CHASE_PAIRS (x, "cddadr", 0xae); /* 10101110 */
+}
+#undef FUNC_NAME
+
+SCM_DEFINE (scm_cddaar, "cddaar", 1, 0, 0, (SCM x), "")
+#define FUNC_NAME s_scm_cddaar
+{
+  CHASE_PAIRS (x, "cddaar", 0xaf); /* 10101111 */
+}
+#undef FUNC_NAME
+
+SCM_DEFINE (scm_cdaddr, "cdaddr", 1, 0, 0, (SCM x), "")
+#define FUNC_NAME s_scm_cdaddr
+{
+  CHASE_PAIRS (x, "cdaddr", 0xba); /* 10111010 */
+}
+#undef FUNC_NAME
+
+SCM_DEFINE (scm_cdadar, "cdadar", 1, 0, 0, (SCM x), "")
+#define FUNC_NAME s_scm_cdadar
+{
+  CHASE_PAIRS (x, "cdadar", 0xbb); /* 10111011 */
+}
+#undef FUNC_NAME
+
+SCM_DEFINE (scm_cdaadr, "cdaadr", 1, 0, 0, (SCM x), "")
+#define FUNC_NAME s_scm_cdaadr
+{
+  CHASE_PAIRS (x, "cdaadr", 0xbe); /* 10111110 */
+}
+#undef FUNC_NAME
+
+SCM_DEFINE (scm_cdaaar, "cdaaar", 1, 0, 0, (SCM x), "")
+#define FUNC_NAME s_scm_cdaaar
+{
+  CHASE_PAIRS (x, "cdaaar", 0xbf); /* 10111111 */
+}
+#undef FUNC_NAME
+
+SCM_DEFINE (scm_cadddr, "cadddr", 1, 0, 0, (SCM x), "")
+#define FUNC_NAME s_scm_cadddr
+{
+  CHASE_PAIRS (x, "cadddr", 0xea); /* 11101010 */
+}
+#undef FUNC_NAME
+
+SCM_DEFINE (scm_caddar, "caddar", 1, 0, 0, (SCM x), "")
+#define FUNC_NAME s_scm_caddar
+{
+  CHASE_PAIRS (x, "caddar", 0xeb); /* 11101011 */
+}
+#undef FUNC_NAME
+
+SCM_DEFINE (scm_cadadr, "cadadr", 1, 0, 0, (SCM x), "")
+#define FUNC_NAME s_scm_cadadr
+{
+  CHASE_PAIRS (x, "cadadr", 0xee); /* 11101110 */
+}
+#undef FUNC_NAME
+
+SCM_DEFINE (scm_cadaar, "cadaar", 1, 0, 0, (SCM x), "")
+#define FUNC_NAME s_scm_cadaar
+{
+  CHASE_PAIRS (x, "cadaar", 0xef); /* 11101111 */
+}
+#undef FUNC_NAME
+
+SCM_DEFINE (scm_caaddr, "caaddr", 1, 0, 0, (SCM x), "")
+#define FUNC_NAME s_scm_caaddr
+{
+  CHASE_PAIRS (x, "caaddr", 0xfa); /* 11111010 */
+}
+#undef FUNC_NAME
+
+SCM_DEFINE (scm_caadar, "caadar", 1, 0, 0, (SCM x), "")
+#define FUNC_NAME s_scm_caadar
+{
+  CHASE_PAIRS (x, "caadar", 0xfb); /* 11111011 */
+}
+#undef FUNC_NAME
+
+SCM_DEFINE (scm_caaadr, "caaadr", 1, 0, 0, (SCM x), "")
+#define FUNC_NAME s_scm_caaadr
+{
+  CHASE_PAIRS (x, "caaadr", 0xfe); /* 11111110 */
+}
+#undef FUNC_NAME
+
+SCM_DEFINE (scm_caaaar, "caaaar", 1, 0, 0, (SCM x), "")
+#define FUNC_NAME s_scm_caaaar
+{
+  CHASE_PAIRS (x, "caaaar", 0xff); /* 11111111 */
+}
+#undef FUNC_NAME
+
+
+
+
+void
+scm_init_pairs ()
+{
+#include "pairs.x"
+  scm_c_define_gsubr ("cons", 2, 0, 0, scm_cons);
+  scm_c_define_gsubr ("car", 1, 0, 0, scm_car);
+  scm_c_define_gsubr ("cdr", 1, 0, 0, scm_cdr);
+}
+

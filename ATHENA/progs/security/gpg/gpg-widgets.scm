@@ -14,7 +14,7 @@
 (texmacs-module (security gpg gpg-widgets)
   (:use (security gpg gpg-base)
 	(security wallet wallet-menu)))
-(use-modules (kernel athena tm-preferences))
+(import-from (kernel athena tm-preferences))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

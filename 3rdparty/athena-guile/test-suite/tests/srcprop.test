@@ -1,0 +1,133 @@
+;;;; srcprop.test --- test Guile source properties    -*- scheme -*-
+;;;;
+;;;; Copyright (C) 2003, 2006, 2009 Free Software Foundation, Inc.
+;;;;
+;;;; This library is free software; you can redistribute it and/or
+;;;; modify it under the terms of the GNU Lesser General Public
+;;;; License as published by the Free Software Foundation; either
+;;;; version 3 of the License, or (at your option) any later version.
+;;;; 
+;;;; This library is distributed in the hope that it will be useful,
+;;;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;;;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+;;;; Lesser General Public License for more details.
+;;;; 
+;;;; You should have received a copy of the GNU Lesser General Public
+;;;; License along with this library; if not, write to the Free Software
+;;;; Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+
+(define-module (test-suite test-srcprop)
+  :use-module (test-suite lib))
+
+
+;;;
+;;; source-properties
+;;;
+
+(with-test-prefix "source-properties"
+
+  (pass-if "no props"
+    (null? (source-properties (list 1 2 3))))
+
+  (read-enable 'positions)
+  (with-test-prefix "read properties"
+    (define (reads-with-srcprops? str)
+      (let ((x (read (open-input-string str))))
+        (not (null? (source-properties x)))))
+
+    (pass-if "pairs"           (reads-with-srcprops? "(1 . 2)"))
+    (pass-if "vectors"         (reads-with-srcprops? "#(1 2 3)"))
+    (pass-if "bytevectors"     (reads-with-srcprops? "#vu8(1 2 3)"))
+    (pass-if "bitvectors"      (reads-with-srcprops? "#*101011"))
+    (pass-if "srfi4 vectors"   (reads-with-srcprops? "#f64(3.1415 2.71)"))
+    (pass-if "arrays"          (reads-with-srcprops? "#2u32@2@3((1 2) (2 3))"))
+    (pass-if "strings"         (reads-with-srcprops? "\"hello\""))
+    (pass-if "null string"     (reads-with-srcprops? "\"\""))
+
+    (pass-if "floats"          (reads-with-srcprops? "3.1415"))
+    (pass-if "fractions"       (reads-with-srcprops? "1/2"))
+    (pass-if "complex numbers" (reads-with-srcprops? "1+1i"))
+    (pass-if "bignums"
+      (and (reads-with-srcprops? (number->string (1+ most-positive-fixnum)))
+           (reads-with-srcprops? (number->string (1- most-negative-fixnum)))))
+
+    (pass-if "fixnums (should have none)"
+      (not (or (reads-with-srcprops? "0")
+               (reads-with-srcprops? "1")
+               (reads-with-srcprops? "-1")
+               (reads-with-srcprops? (number->string most-positive-fixnum))
+               (reads-with-srcprops? (number->string most-negative-fixnum)))))
+
+    (pass-if "symbols (should have none)"
+      (not (reads-with-srcprops? "foo")))
+
+    (pass-if "keywords (should have none)"
+      (not (reads-with-srcprops? "#:foo")))
+
+    (pass-if "characters (should have none)"
+      (not (reads-with-srcprops? "#\\c")))
+
+    (pass-if "booleans (should have none)"
+      (not (or (reads-with-srcprops? "#t")
+               (reads-with-srcprops? "#f"))))))
+
+;;;
+;;; set-source-property!
+;;;
+
+(with-test-prefix "set-source-property!"
+  (read-enable 'positions)
+
+  (pass-if "setting the breakpoint property works"
+    (let ((s (read (open-input-string "(+ 3 4)"))))
+      (throw 'unresolved)
+      (set-source-property! s 'breakpoint #t)
+      (let ((current-trap-opts (evaluator-traps-interface))
+	    (current-debug-opts (debug-options-interface))
+	    (trap-called #f))
+	(trap-set! enter-frame-handler (lambda _ (set! trap-called #t)))
+	(trap-enable 'traps)
+	(debug-enable 'debug)
+	(debug-enable 'breakpoints)
+	(with-traps (lambda ()
+		      (primitive-eval s)))
+	(evaluator-traps-interface current-trap-opts)
+	(debug-options-interface current-debug-opts)
+	trap-called))))
+
+;;;
+;;; set-source-properties!
+;;;
+
+(with-test-prefix "set-source-properties!"
+  (read-enable 'positions)
+
+  (pass-if "setting the breakpoint property works"
+    (let ((s (read (open-input-string "(+ 3 4)"))))
+      (throw 'unresolved)
+      (set-source-properties! s '((breakpoint #t)))
+      (let ((current-trap-opts (evaluator-traps-interface))
+	    (current-debug-opts (debug-options-interface))
+	    (trap-called #f))
+	(trap-set! enter-frame-handler (lambda _ (set! trap-called #t)))
+	(trap-enable 'traps)
+	(debug-enable 'debug)
+	(debug-enable 'breakpoints)
+	(with-traps (lambda ()
+		      (primitive-eval s)))
+	(evaluator-traps-interface current-trap-opts)
+	(debug-options-interface current-debug-opts)
+	trap-called)))
+
+  (let ((s (read (open-input-string "(1 . 2)"))))
+    
+    (with-test-prefix "copied props"
+      (pass-if "visible to source-property"
+	(let ((t (cons 3 4)))
+	  (set-source-properties! t (source-properties s))
+	  (number? (source-property t 'line))))
+
+      (pass-if "visible to source-properties"
+	(let ((t (cons 3 4)))
+	  (set-source-properties! t (source-properties s))
+	  (not (null? (source-properties t))))))))

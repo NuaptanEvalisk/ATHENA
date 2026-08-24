@@ -1,0 +1,230 @@
+Contributors since the last release:
+
+    Christopher Baines
+           Greg Benison
+	    Rob Browning
+        Tristan Colgate-McFarlane
+          Aleix Conchillo Flaqué
+        Ludovic Courtès
+          Jason Earl
+           Paul Eggert
+          Asher Gordon
+          Brian Gough
+         Volker Grabsch
+         Julian Graham
+        Michael Gran
+         Daniel Hartwig
+             No Itisnt
+           Neil Jerram
+        Chris K Jester-Young
+          David Kastrup
+         Daniel Kraft
+         Daniel Krueger
+           Noah Lavine
+    Christopher Lemmer Webber
+         Daniel Llorens
+        Gregory Marton
+      Thien-Thi Nguyen
+        Han-Wen Nienhuys
+            Jan Nieuwenhuizen
+        Keisuke Nishida
+         Jose A Ortega Ruiz
+            Ian Price
+            Ken Raeburn
+        Andreas Rottmann
+          Kevin Ryde
+        Timothy Sample
+       Stefan I Tampe
+             BT Templeton
+          David Thompson
+           Bake Timmons
+         Mark H Weaver
+          Göran Weinholt
+           Ralf Wildenhues
+           Andy Wingo
+            Eli Zaretskii
+
+Authors of free software libraries that have been included into Guile
+since the last release:
+
+	    Jim Bender
+	    Per Bothner
+	    Rob Browning
+           Oleg Kiselyov
+	   Alex Shinn
+        Richard Todd
+
+For fixes or providing information which led to a fix:
+
+           Hans Åberg
+          David Allouche
+         Andrea Azzarone
+         Andrew Bagdanov
+          Lluís Batlle i Rossell
+	 Martin Baulig
+        Fabrice Bauzac
+         Михаил Бахтерев
+        Sylvain Beucler
+          Carlo Bramini
+       Jonathan Brielmaier
+            Rob Browning
+         Adrian Bunk
+        Michael Carmack
+          Jozef Chraplewski
+              R Clayton
+      Alexandru Cojocaru
+        Tristan Colgate
+        Stephen Compall
+          Brian Crowder
+    Christopher Cramer
+           Josh Datko
+          David Diffenbaugh
+          Hyper Division
+           Erik Dominikus
+      Alexandre Duret-Lutz
+           Nils Durner
+         John W Eaton
+	Clinton Ebadi
+          David Fang
+          Barry Fishman
+       Kevin J. Fletcher
+          Josep Portella Florit
+        Charles Gagnon
+             Fu-gangqiang
+          Aidan Gauland
+          Peter Gavin
+         Andrew Gaylard
+           Nils Gey
+           Eric Gillespie, Jr
+           Nala Ginrut
+         Didier Godefroy
+  Panicz Maciej Godek
+           John Goerzen
+	 Volker Grabsch
+           Mike Gran
+         Raimon Grau
+   Massimiliano Gubinelli
+         Szavai Gyula
+         Roland Haeder
+	  Bruno Haible
+	   Mark Harig
+	   Sven Hartrumpf
+	   Eric Hanchrow
+	   Judy Hawkins
+	    Jon Herron
+            Sam Hocevar
+          Kevin Holmes
+	Patrick Horgan
+           Ales Hvezda
+           Arun Isaac
+         Stefan Israelsson Tampe
+         Andrey Ivanov
+          Peter Ivanyi
+       Wolfgang Jaehrling
+         Aubrey Jaffer
+          David Jaquay
+           Paul Jarc
+          Steve Juranich
+         Nikita Karetnikov
+          David Kastrup
+        Richard Kim
+          Bruce Korb
+           René Köcher
+       Matthias Köppe
+           Matt Kraai
+         Daniel Kraft
+           Noah Lavine
+           Shea Levy
+       Miroslav Lichvar
+         Daniel Llorens del Río
+           Jeff Long
+	  Marco Maggi
+      Bogdan A. Marinescu
+        Gregory Marton
+          Chris Marusich
+      Kjetil S. Matheussen
+        Antoine Mathys
+         Alexei Matveev
+        Patrick McCarty
+            Dan McMahill
+          Roger Mc Murtrie
+          Scott McPeak
+          David Michael
+          Glenn Michaels
+         Andrew Milkowski
+            Tim Mooney
+        Han-Wen Nienhuys
+            Jan Nieuwenhuizen
+         Hrvoje Nikšić
+         Stefan Nordhausen
+         Roland Orre
+	  Peter O'Gorman
+         Pieter Pareit
+           Jack Pavlovsky
+          Derek Peschel
+           Arno Peters
+	    Ron Peterson
+          David Pirotte
+         Carlos Pita
+            Ian Price
+         Sergey Poznyakoff
+            Ken Raeburn
+         Juhani Rantanen
+        Andreas Rottmann
+           Hugh Sasse
+         Werner Scheinast
+	   Bill Schottstaedt
+            Jan Schukat
+	  Frank Schwidom
+    John Steele Scott
+         Thiemo Seufer
+           Ivan Shcherbakov
+          Scott Shedden
+           Alex Shinn
+          Peter Simons
+         Daniel Skarda
+           Dale Smith
+            Jan Smydke
+          Cesar Strauss
+	  Klaus Stehle
+         Kouhei Sutou
+        Michael Talbot-Wilson
+         Rainer Tammer
+          Frank Terbeck
+	 Samuel Thibault
+        Richard Todd
+    Sree Harsha Totakura
+            Tom Tromey
+          Issac Trotts
+           Greg Troxel
+        Michael Tuexen
+       Aaron M. Ucko
+        Stephen Uitti
+        Momchil Velikov
+	  Linas Vepstas
+     Panagiotis Vossos
+        Neil W. Van Dyke
+          Aaron VanDevender
+         Sjoerd Van Leent
+	Andreas Vögele
+          Chris Vine
+            Tom de Vries
+        Jeffrey Walton
+            Xin Wang
+         Thomas Wawrzinek
+        Mark H. Weaver
+          Göran Weinholt
+       David A. Wheeler
+           Ralf Wildenhues
+            Jon Wilson
+           Andy Wingo
+          Keith Wright
+        Ricardo Wurmus
+        William Xu
+         Atom X Zane
+                Zefram
+
+
+;; Local Variables:
+;; coding: utf-8
+;; End:

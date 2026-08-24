@@ -4,10 +4,7 @@
 # update documentation of glue 
 ./build-auto-doc
 
-GUILE=guile
-if [ -f "$HOME/opt/guile18/bin/guile" ]; then
-  GUILE="$HOME/opt/guile18/bin/guile"
-fi
+GUILE="${ATHENA_GUILE_FOR_BUILD:-guile}"
 
 if test $# = 2; then
   $GUILE -l build-glue.scm -l $1 -c "(quit)" | cat > $2

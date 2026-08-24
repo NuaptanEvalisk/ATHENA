@@ -20,14 +20,13 @@
 
 (define boot-start (texmacs-time))
 
-(if (not (defined? 'texmacs-compat-version))
-    (define-public (texmacs-compat-version) "2.1.4"))
-
 (define developer-mode?
   (equal? (cpp-get-preference "developer tool" "off") "on"))
 
 (if developer-mode?
-    (debug-enable 'backtrace 'debug))
+    (if (equal? (scheme-dialect) "guile-d")
+        (debug-enable 'backtrace)
+        (debug-enable 'backtrace 'debug)))
 
 (define (%new-read-hook sym) (noop)) ; for autocompletion
 
@@ -122,9 +121,10 @@
 (inherit-modules (kernel logic logic-rules) (kernel logic logic-query)
                  (kernel logic logic-data))
 (inherit-modules (kernel athena tm-define)
+                 (kernel athena tm-dialogue)
                  (kernel athena tm-preferences) (kernel athena tm-modes)
                  (kernel athena tm-plugins) (kernel athena tm-secure)
-                 (kernel athena tm-convert) (kernel athena tm-dialogue)
+                 (kernel athena tm-convert)
                  (kernel athena tm-language) (kernel athena tm-file-system)
                  (kernel athena tm-states))
 (inherit-modules (kernel gui gui-markup)
@@ -141,18 +141,18 @@
 ;(display* "memory: " (texmacs-memory) " bytes\n")
 
 ;(display "Booting utilities\n")
-(use-modules (utils library cpp-wrap))
+(import-from (utils library cpp-wrap))
 (lazy-define (utils library cursor) notify-cursor-moved)
 (lazy-define (utils edit variants) make-inline-tag-list make-wrapped-tag-list)
 (lazy-define (utils cas cas-out) cas->stree)
 (lazy-define (utils plugins plugin-cmd) pre-serialize verbatim-serialize)
 (lazy-define (utils test test-convert) delayed-quit
              build-manual build-ref-suite run-test-suite)
-(use-modules (utils library smart-table))
+(import-from (utils library smart-table))
 (when (not (qt-gui?))
   (use-modules (utils plugins plugin-convert)))
-(use-modules (utils misc markup-funcs))
-(use-modules (utils misc artwork))
+(import-from (utils misc markup-funcs))
+(import-from (utils misc artwork))
 (lazy-define (utils handwriting handwriting) learn-glyphs)
 (lazy-tmfs-handler (utils automate auto-tmfs) automate)
 (lazy-define (utils automate auto-tmfs) auto-load-help)
@@ -164,11 +164,11 @@
 ;(display* "memory: " (texmacs-memory) " bytes\n")
 
 ;(display "Booting main TeXmacs functionality\n")
-(use-modules (athena athena tm-server) (athena athena tm-vault-startup))
+(import-from (athena athena tm-server) (athena athena tm-vault-startup))
 (lazy-define (athena athena tm-vault) load-vault-dir)
 (lazy-define (athena athena tm-files)
              buffer-missing-style? buffer-set-default-style)
-(use-modules (athena keyboard config-kbd))
+(import-from (athena keyboard config-kbd))
 (lazy-keyboard (athena keyboard prefix-kbd) always?)
 (lazy-keyboard (athena keyboard latex-kbd) always?)
 (lazy-menu (athena menus file-menu)
@@ -527,7 +527,7 @@
 ;(display* "memory: " (texmacs-memory) " bytes\n")
 
 ;(display "Booting fonts\n")
-(use-modules (fonts fonts-ec) (fonts fonts-adobe) (fonts fonts-x)
+(import-from (fonts fonts-ec) (fonts fonts-adobe) (fonts fonts-x)
              (fonts fonts-math) (fonts fonts-foreign) (fonts fonts-misc)
              (fonts fonts-composite))
 (lazy-define (fonts font-old-menu)

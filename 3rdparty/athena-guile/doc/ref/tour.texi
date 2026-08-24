@@ -1,0 +1,404 @@
+@c -*-texinfo-*-
+@c This is part of the GNU Guile Reference Manual.
+@c Copyright (C)  1996, 1997, 2000, 2001, 2002, 2003, 2004, 2006, 2010, 2011,
+@c   2012, 2021 Free Software Foundation, Inc.
+@c See the file guile.texi for copying conditions.
+
+@raisesections
+
+@node Hello Guile!
+@section Hello Guile!
+
+This chapter presents a quick tour of all the ways that Guile can be
+used.  There are additional examples in the @file{examples/}
+directory in the Guile source distribution.  It also explains how best to report
+any problems that you find.
+
+The following examples assume that Guile has been installed in
+@code{/usr/local/}.
+
+@menu
+* Running Guile Interactively::
+* Running Guile Scripts::
+* Linking Guile into Programs::
+* Writing Guile Extensions::
+* Using the Guile Module System::
+* Reporting Bugs::              
+@end menu
+
+
+@node Running Guile Interactively
+@subsection Running Guile Interactively
+
+In its simplest form, Guile acts as an interactive interpreter for the
+Scheme programming language, reading and evaluating Scheme expressions
+the user enters from the terminal.  Here is a sample interaction between
+Guile and a user; the user's input appears after the @code{$} and
+@code{scheme@@(guile-user)>} prompts:
+
+@example
+$ guile
+scheme@@(guile-user)> (+ 1 2 3)                ; add some numbers
+$1 = 6
+scheme@@(guile-user)> (define (factorial n)    ; define a function
+                       (if (zero? n) 1 (* n (factorial (- n 1)))))
+scheme@@(guile-user)> (factorial 20)
+$2 = 2432902008176640000
+scheme@@(guile-user)> (getpwnam "root")        ; look in /etc/passwd
+$3 = #("root" "x" 0 0 "root" "/root" "/bin/bash")
+scheme@@(guile-user)> @kbd{C-d}
+$
+@end example
+
+
+@node Running Guile Scripts
+@subsection Running Guile Scripts
+
+Like AWK, Perl, or any shell, Guile can interpret script files.  A Guile
+script is simply a file of Scheme code with some extra information at
+the beginning which tells the operating system how to invoke Guile, and
+then tells Guile how to handle the Scheme code.
+
+Here is a trivial Guile script.  @xref{Guile Scripting}, for more details.
+
+@example
+#!/usr/local/bin/guile -s
+!#
+(display "Hello, world!")
+(newline)
+@end example
+
+
+@node Linking Guile into Programs
+@subsection Linking Guile into Programs
+
+The Guile interpreter is available as an object library, to be linked
+into applications using Scheme as a configuration or extension
+language.
+
+Here is @file{simple-guile.c}, source code for a program that will
+produce a complete Guile interpreter.  In addition to all usual
+functions provided by Guile, it will also offer the function
+@code{my-hostname}.
+
+@example
+#include <stdlib.h>
+#include <libguile.h>
+
+static SCM
+my_hostname (void)
+@{
+  char *s = getenv ("HOSTNAME");
+  if (s == NULL)
+    return SCM_BOOL_F;
+  else
+    return scm_from_locale_string (s);
+@}
+
+static void
+inner_main (void *data, int argc, char **argv)
+@{
+  scm_c_define_gsubr ("my-hostname", 0, 0, 0, my_hostname);
+  scm_shell (argc, argv);
+@}
+
+int
+main (int argc, char **argv)
+@{
+  scm_boot_guile (argc, argv, inner_main, 0);
+  return 0; /* never reached */
+@}
+@end example
+
+When Guile is correctly installed on your system, the above program
+can be compiled and linked like this:
+
+@example
+$ gcc -o simple-guile simple-guile.c \
+    `pkg-config --cflags --libs guile-@value{EFFECTIVE-VERSION}`
+@end example
+
+When it is run, it behaves just like the @code{guile} program except
+that you can also call the new @code{my-hostname} function.
+
+@example
+$ ./simple-guile
+scheme@@(guile-user)> (+ 1 2 3)
+$1 = 6
+scheme@@(guile-user)> (my-hostname)
+"burns"
+@end example
+
+@node Writing Guile Extensions
+@subsection Writing Guile Extensions
+
+You can link Guile into your program and make Scheme available to the
+users of your program.  You can also link your library into Guile and
+make its functionality available to all users of Guile.
+
+A library that is linked into Guile is called an @dfn{extension}, but it
+really just is an ordinary object library.
+
+The following example shows how to write a simple extension for Guile
+that makes the @code{j0} function available to Scheme code.
+
+@smallexample
+#include <math.h>
+#include <libguile.h>
+
+SCM
+j0_wrapper (SCM x)
+@{
+  return scm_from_double (j0 (scm_to_double (x)));
+@}
+
+void
+init_bessel ()
+@{
+  scm_c_define_gsubr ("j0", 1, 0, 0, j0_wrapper);
+@}
+@end smallexample
+
+This C source file needs to be compiled into a shared library.  Here is
+how to do it on GNU/Linux:
+
+@smallexample
+gcc `pkg-config --cflags guile-@value{EFFECTIVE-VERSION}` \
+  -shared -o libguile-bessel.so -fPIC bessel.c
+@end smallexample
+
+For creating shared libraries portably, we recommend the use of GNU
+Libtool (@pxref{Top, , Introduction, libtool, GNU Libtool}).
+
+A shared library can be loaded into a running Guile process with the
+function @code{load-extension}.  The @code{j0} is then immediately
+available:
+
+@smallexample
+$ guile
+scheme@@(guile-user)> (load-extension "./libguile-bessel" "init_bessel")
+scheme@@(guile-user)> (j0 2)
+$1 = 0.223890779141236
+@end smallexample
+
+For more on how to install your extension, @pxref{Installing Site
+Packages}.
+
+
+@node Using the Guile Module System
+@subsection Using the Guile Module System
+
+Guile has support for dividing a program into @dfn{modules}.  By using
+modules, you can group related code together and manage the
+composition of complete programs from largely independent parts.
+
+For more details on the module system beyond this introductory material,
+@xref{Modules}.
+
+@menu
+* Using Modules::
+* Writing new Modules::
+* Putting Extensions into Modules::
+@end menu
+
+
+@node Using Modules
+@subsubsection Using Modules
+
+Guile comes with a lot of useful modules, for example for string
+processing or command line parsing.  Additionally, there exist many
+Guile modules written by other Guile hackers, but which have to be
+installed manually.
+
+Here is a sample interactive session that shows how to use the
+@code{(ice-9 popen)} module which provides the means for communicating
+with other processes over pipes together with the @code{(ice-9
+rdelim)} module that provides the function @code{read-line}.
+
+@smallexample
+$ guile
+scheme@@(guile-user)> (use-modules (ice-9 popen))
+scheme@@(guile-user)> (use-modules (ice-9 rdelim))
+scheme@@(guile-user)> (define p (open-input-pipe "ls -l"))
+scheme@@(guile-user)> (read-line p)
+$1 = "total 30"
+scheme@@(guile-user)> (read-line p)
+$2 = "drwxr-sr-x    2 mgrabmue mgrabmue     1024 Mar 29 19:57 CVS"
+@end smallexample
+
+@node Writing new Modules
+@subsubsection Writing new Modules
+
+You can create new modules using the syntactic form
+@code{define-module}.  All definitions following this form until the
+next @code{define-module} are placed into the new module.
+
+One module is usually placed into one file, and that file is installed
+in a location where Guile can automatically find it.  The following
+session shows a simple example.
+
+@smallexample
+$ cat /usr/local/share/guile/site/foo/bar.scm
+
+(define-module (foo bar)
+  #:export (frob))
+
+(define (frob x) (* 2 x))
+
+$ guile
+scheme@@(guile-user)> (use-modules (foo bar))
+scheme@@(guile-user)> (frob 12)
+$1 = 24
+@end smallexample
+
+For more on how to install your module, @pxref{Installing Site
+Packages}.
+
+
+@node Putting Extensions into Modules
+@subsubsection Putting Extensions into Modules
+
+In addition to Scheme code you can also put things that are defined in
+C into a module.
+
+You do this by writing a small Scheme file that defines the module and
+call @code{load-extension} directly in the body of the module.
+
+@smallexample
+$ cat /usr/local/share/guile/site/math/bessel.scm
+
+(define-module (math bessel)
+  #:export (j0))
+
+(load-extension "libguile-bessel" "init_bessel")
+
+$ file /usr/local/lib/guile/@value{EFFECTIVE-VERSION}/extensions/libguile-bessel.so
+@dots{} ELF 32-bit LSB shared object @dots{}
+$ guile
+scheme@@(guile-user)> (use-modules (math bessel))
+scheme@@(guile-user)> (j0 2)
+$1 = 0.223890779141236
+@end smallexample
+
+@xref{Foreign Extensions}, for more information.
+
+@lowersections
+
+@node Reporting Bugs
+@section Reporting Bugs
+
+Any problems with the installation should be reported to
+@email{bug-guile@@gnu.org}.
+
+If you find a bug in Guile, please report it to the Guile developers, so
+they can fix it.  They may also be able to suggest workarounds when it
+is not possible for you to apply the bug-fix or install a new version of
+Guile yourself.
+
+Before sending in bug reports, please check with the following list that
+you really have found a bug.
+
+@itemize @bullet
+@item
+Whenever documentation and actual behavior differ, you have certainly
+found a bug, either in the documentation or in the program.
+
+@item
+When Guile crashes, it is a bug.
+
+@item
+When Guile hangs or takes forever to complete a task, it is a bug.
+
+@item
+When calculations produce wrong results, it is a bug.
+
+@item
+When Guile signals an error for valid Scheme programs, it is a bug.
+
+@item
+When Guile does not signal an error for invalid Scheme programs, it may
+be a bug, unless this is explicitly documented.
+
+@item
+When some part of the documentation is not clear and does not make sense
+to you even after re-reading the section, it is a bug.
+@end itemize
+
+Before reporting the bug, check whether any programs you have loaded
+into Guile, including your @file{.guile} file, set any variables that
+may affect the functioning of Guile.  Also, see whether the problem
+happens in a freshly started Guile without loading your @file{.guile}
+file (start Guile with the @code{-q} switch to prevent loading the init
+file).  If the problem does @emph{not} occur then, you must report the
+precise contents of any programs that you must load into Guile in order
+to cause the problem to occur.
+
+When you write a bug report, please make sure to include as much of the
+information described below in the report.  If you can't figure out some
+of the items, it is not a problem, but the more information we get, the
+more likely we can diagnose and fix the bug.
+
+@itemize @bullet
+@item
+The version number of Guile. You can get this information from invoking
+@samp{guile --version} at your shell, or calling @code{(version)} from
+within Guile.
+
+@item
+Your machine type, as determined by the @code{config.guess} shell
+script. If you have a Guile checkout, this file is located in
+@code{build-aux}; otherwise you can fetch the latest version from
+@uref{http://git.savannah.gnu.org/gitweb/?p=config.git;a=blob_plain;f=config.guess;hb=HEAD}.
+
+@example
+$ build-aux/config.guess
+x86_64-unknown-linux-gnu
+@end example
+
+@item
+If you installed Guile from a binary package, the version of that
+package. On systems that use RPM, use @code{rpm -qa | grep guile}. On systems
+that use DPKG, @code{dpkg -l | grep guile}. 
+
+@item
+If you built Guile yourself, the build configuration that you used:
+
+@example
+$ ./config.status --config
+'--enable-error-on-warning' '--disable-deprecated'...
+@end example
+
+@item
+A complete description of how to reproduce the bug.
+
+If you have a Scheme program that produces the bug, please include it in
+the bug report. If your program is too big to include, please try to
+reduce your code to a minimal test case.
+
+If you can reproduce your problem at the REPL, that is best. Give a
+transcript of the expressions you typed at the REPL.
+
+@item
+A description of the incorrect behavior.  For example, "The Guile
+process gets a fatal signal," or, "The resulting output is as follows,
+which I think is wrong."
+
+If the manifestation of the bug is a Guile error message, it is
+important to report the precise text of the error message, and a
+backtrace showing how the Scheme program arrived at the error. This can
+be done using the @code{,backtrace} command in Guile's debugger.
+@end itemize
+
+If your bug causes Guile to crash, additional information from a
+low-level debugger such as GDB might be helpful. If you have built Guile
+yourself, you can run Guile under GDB via the
+@code{meta/gdb-uninstalled-guile} script. Instead of invoking Guile as
+usual, invoke the wrapper script, type @code{run} to start the process,
+then @code{backtrace} when the crash comes. Include that backtrace in
+your report.
+
+
+
+@c Local Variables:
+@c TeX-master: "guile.texi"
+@c End:

@@ -13,7 +13,7 @@
 
 (texmacs-module (security gpg gpg-wallet)
   (:use (security gpg gpg-base)))
-(use-modules (kernel athena tm-preferences))
+(import-from (kernel athena tm-preferences))
 
 
 ;(display "ATHENA] Loading GnuPG wallet\n")

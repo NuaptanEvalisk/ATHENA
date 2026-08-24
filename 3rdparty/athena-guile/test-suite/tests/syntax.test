@@ -1,0 +1,1727 @@
+;;;; syntax.test --- test suite for Guile's syntactic forms    -*- scheme -*-
+;;;;
+;;;; Copyright (C) 2001, 2003, 2004, 2005, 2006, 2009, 2010,
+;;;;   2011, 2012, 2013, 2014, 2021, 2024 Free Software Foundation, Inc.
+;;;;
+;;;; This library is free software; you can redistribute it and/or
+;;;; modify it under the terms of the GNU Lesser General Public
+;;;; License as published by the Free Software Foundation; either
+;;;; version 3 of the License, or (at your option) any later version.
+;;;; 
+;;;; This library is distributed in the hope that it will be useful,
+;;;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;;;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+;;;; Lesser General Public License for more details.
+;;;; 
+;;;; You should have received a copy of the GNU Lesser General Public
+;;;; License along with this library; if not, write to the Free Software
+;;;; Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+
+(define-module (test-suite test-syntax)
+  #:use-module (ice-9 regex)
+  #:use-module (ice-9 local-eval)
+  #:use-module ((system syntax) #:select (syntax?))
+  #:use-module (test-suite lib))
+
+
+(define exception:generic-syncase-error
+  "source expression failed to match")
+(define exception:unexpected-syntax
+  "unexpected syntax")
+
+(define exception:bad-expression
+  "Bad expression")
+
+(define exception:missing/extra-expr
+  "Missing or extra expression")
+(define exception:missing-expr
+  "Missing expression")
+(define exception:empty-body
+  "empty body")
+(define exception:body-should-end-with-expr
+  "body should end with an expression")
+(define exception:extra-expr
+  "Extra expression")
+(define exception:illegal-empty-combination
+  "Illegal empty combination")
+
+(define exception:bad-lambda
+  "bad lambda")
+(define exception:bad-let
+  "bad let$")
+(define exception:bad-letrec
+  "bad letrec$")
+(define exception:bad-letrec*
+  "bad letrec\\*$")
+(define exception:bad-set!
+  "bad set!")
+(define exception:bad-quote
+  '(quote . "bad syntax"))
+(define exception:bad-bindings
+  "Bad bindings")
+(define exception:bad-binding
+  "Bad binding")
+(define exception:duplicate-binding
+  "duplicate bound variable")
+(define exception:bad-body
+  "^bad body")
+(define exception:bad-formals
+  "invalid argument list")
+(define exception:bad-formal
+  "Bad formal")
+(define exception:duplicate-formals
+  "duplicate identifier in argument list")
+
+(define exception:missing-clauses
+  "Missing clauses")
+(define exception:misplaced-else-clause
+  "Misplaced else clause")
+(define exception:bad-case-clause
+  "Bad case clause")
+(define exception:bad-case-labels
+  "Bad case labels")
+(define exception:bad-cond-clause
+  "Bad cond clause")
+
+(define exception:too-many-args
+  "too many arguments")
+(define exception:wrong-number-of-values
+  '(wrong-number-of-args . "number of (values)|(arguments)"))
+(define exception:zero-expression-sequence
+  "sequence of zero expressions")
+
+(define exception:variable-ref
+  '(misc-error . "Unbound variable"))
+
+;; (put 'pass-if-syntax-error 'scheme-indent-function 1)
+(define-syntax pass-if-syntax-error
+  (syntax-rules ()
+    ((_ name pat exp)
+     (pass-if name
+       (catch 'syntax-error
+         (lambda () exp (error "expected syntax-error exception"))
+         (lambda (k who what where form . maybe-subform)
+           (if (if (pair? pat)
+                   (and (eq? who (car pat))
+                        (string-match (cdr pat) what))
+                   (string-match pat what))
+               #t
+               (error "unexpected syntax-error exception" what pat))))))))
+
+(with-test-prefix "expressions"
+
+  (with-test-prefix "Bad argument list"
+
+    (pass-if-equal "syntax-error location"
+        '((filename . "example.scm") (line . 1) (column . 2))
+      (catch 'syntax-error
+        (lambda ()
+          (eval (call-with-input-string "\n  (let foo bar)"
+                  (lambda (port)
+                    (set-port-filename! port "example.scm")
+                    (read port)))
+                (interaction-environment)))
+        (lambda (key proc message properties form subform . rest)
+          properties)))
+
+    (pass-if-syntax-error "improper argument list of length 1"
+      exception:generic-syncase-error
+      (eval '(let ((foo (lambda (x y) #t)))
+	       (foo . 1))
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "improper argument list of length 2"
+      exception:generic-syncase-error
+      (eval '(let ((foo (lambda (x y) #t)))
+	       (foo 1 . 2))
+	    (interaction-environment))))
+
+  (with-test-prefix "missing or extra expression"
+
+    ;; R5RS says:
+    ;; *Note:* In many dialects of Lisp, the empty combination, (),
+    ;; is a legitimate expression.  In Scheme, combinations must
+    ;; have at least one subexpression, so () is not a syntactically
+    ;; valid expression.
+
+    ;; Fixed on 2001-3-3
+    (pass-if-syntax-error "empty parentheses \"()\""
+      exception:unexpected-syntax
+      (eval '()
+	    (interaction-environment)))))
+
+(with-test-prefix "quote"
+  #t)
+
+(with-test-prefix "quasiquote"
+
+  (with-test-prefix "unquote"
+
+    (pass-if "repeated execution"
+      (let ((foo (let ((i 0)) (lambda () (set! i (+ i 1)) `(,i)))))
+	(and (equal? (foo) '(1)) (equal? (foo) '(2))))))
+
+  (with-test-prefix "unquote-splicing"
+
+    (pass-if "extra arguments"
+      (equal? (eval '(quasiquote ((unquote-splicing (list 1 2) (list 3 4))))
+                    (interaction-environment))
+              '(1 2 3 4)))))
+
+(with-test-prefix "begin"
+
+  (pass-if "valid (begin)"
+    (eval '(begin (begin) #t) (interaction-environment)))
+
+  (if (not (include-deprecated-features))
+      (pass-if-syntax-error "invalid (begin)"
+        exception:zero-expression-sequence
+        (eval '(begin (if #t (begin)) #t) (interaction-environment)))))
+
+(define-syntax matches?
+  (syntax-rules (<>)
+    ((_ (op arg ...) pat)   (let ((x (op arg ...)))
+                              (matches? x pat)))
+    ((_ x ())               (null? x))
+    ((_ x (a . b))          (and (pair? x)
+                                 (matches? (car x) a)
+                                 (matches? (cdr x) b)))
+    ((_ x <>)                #t) 
+    ((_ x pat)              (equal? x 'pat))))
+
+(with-test-prefix "lambda"
+
+  (with-test-prefix "bad formals"
+
+    (pass-if-syntax-error "(lambda)"
+      exception:bad-lambda
+      (eval '(lambda)
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "(lambda . \"foo\")"
+      exception:bad-lambda
+      (eval '(lambda . "foo")
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "(lambda \"foo\")"
+      exception:bad-lambda
+      (eval '(lambda "foo")
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "(lambda \"foo\" #f)"
+      exception:bad-formals
+      (eval '(lambda "foo" #f)
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "(lambda (x 1) 2)"
+      exception:bad-formals
+      (eval '(lambda (x 1) 2)
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "(lambda (1 x) 2)"
+      exception:bad-formals
+      (eval '(lambda (1 x) 2)
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "(lambda (x \"a\") 2)"
+      exception:bad-formals
+      (eval '(lambda (x "a") 2)
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "(lambda (\"a\" x) 2)"
+      exception:bad-formals
+      (eval '(lambda ("a" x) 2)
+	    (interaction-environment))))
+
+  (with-test-prefix "duplicate formals"
+
+    ;; Fixed on 2001-3-3
+    (pass-if-syntax-error "(lambda (x x) 1)"
+      exception:duplicate-formals
+      (eval '(lambda (x x) 1)
+	    (interaction-environment)))
+
+    ;; Fixed on 2001-3-3
+    (pass-if-syntax-error "(lambda (x x x) 1)"
+      exception:duplicate-formals
+      (eval '(lambda (x x x) 1)
+	    (interaction-environment))))
+
+  (with-test-prefix "bad body"
+
+    (pass-if-syntax-error "(lambda ())"
+      exception:bad-lambda
+      (eval '(lambda ())
+	    (interaction-environment)))))
+
+(with-test-prefix "let"
+
+  (with-test-prefix "bindings"
+
+    (pass-if-exception "late binding"
+      exception:unbound-var
+      (let ((x 1) (y x)) y)))
+
+  (with-test-prefix "bad bindings"
+
+    (pass-if-syntax-error "(let)"
+      exception:bad-let
+      (eval '(let)
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "(let 1)"
+      exception:bad-let
+      (eval '(let 1)
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "(let (x))"
+      exception:bad-let
+      (eval '(let (x))
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "(let ((x)))"
+      exception:bad-let
+      (eval '(let ((x)))
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "(let (x) 1)"
+      exception:bad-let
+      (eval '(let (x) 1)
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "(let ((x)) 3)"
+      exception:bad-let
+      (eval '(let ((x)) 3)
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "(let ((x 1) y) x)"
+      exception:bad-let
+      (eval '(let ((x 1) y) x)
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "(let ((1 2)) 3)"
+      exception:bad-let
+      (eval '(let ((1 2)) 3)
+	    (interaction-environment))))
+
+  (with-test-prefix "duplicate bindings"
+
+    (pass-if-syntax-error "(let ((x 1) (x 2)) x)"
+      exception:duplicate-binding
+      (eval '(let ((x 1) (x 2)) x)
+	    (interaction-environment))))
+
+  (with-test-prefix "bad body"
+
+    (pass-if-syntax-error "(let ())"
+      exception:bad-let
+      (eval '(let ())
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "(let ((x 1)))"
+      exception:bad-let
+      (eval '(let ((x 1)))
+	    (interaction-environment)))))
+
+(with-test-prefix "named let"
+
+  (with-test-prefix "initializers"
+
+    (pass-if "evaluated in outer environment"
+      (let ((f -))
+	(eqv? (let f ((n (f 1))) n) -1))))
+
+  (with-test-prefix "bad bindings"
+
+    (pass-if-syntax-error "(let x (y))"
+      exception:bad-let
+      (eval '(let x (y))
+	    (interaction-environment))))
+
+  (with-test-prefix "bad body"
+
+    (pass-if-syntax-error "(let x ())"
+      exception:bad-let
+      (eval '(let x ())
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "(let x ((y 1)))"
+      exception:bad-let
+      (eval '(let x ((y 1)))
+	    (interaction-environment)))))
+
+(with-test-prefix "let*"
+
+  (with-test-prefix "bindings"
+
+    (pass-if "(let* ((x 1) (x 2)) ...)"
+      (let* ((x 1) (x 2))
+	(= x 2)))
+
+    (pass-if "(let* ((x 1) (x x)) ...)"
+      (let* ((x 1) (x x))
+	(= x 1)))
+
+    (pass-if "(let ((x 1) (y 2)) (let* () ...))"
+      (let ((x 1) (y 2))
+        (let* ()
+          (and (= x 1) (= y 2))))))
+
+  (with-test-prefix "bad bindings"
+
+    (pass-if-syntax-error "(let*)"
+      exception:generic-syncase-error
+      (eval '(let*)
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "(let* 1)"
+      exception:generic-syncase-error
+      (eval '(let* 1)
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "(let* (x))"
+      exception:generic-syncase-error
+      (eval '(let* (x))
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "(let* (x) 1)"
+      exception:generic-syncase-error
+      (eval '(let* (x) 1)
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "(let* ((x)) 3)"
+      exception:generic-syncase-error
+      (eval '(let* ((x)) 3)
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "(let* ((x 1) y) x)"
+      exception:generic-syncase-error
+      (eval '(let* ((x 1) y) x)
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "(let* x ())"
+      exception:generic-syncase-error
+      (eval '(let* x ())
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "(let* x (y))"
+      exception:generic-syncase-error
+      (eval '(let* x (y))
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "(let* ((1 2)) 3)"
+      exception:generic-syncase-error
+      (eval '(let* ((1 2)) 3)
+	    (interaction-environment))))
+
+  (with-test-prefix "bad body"
+
+    (pass-if-syntax-error "(let* ())"
+      exception:generic-syncase-error
+      (eval '(let* ())
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "(let* ((x 1)))"
+      exception:generic-syncase-error
+      (eval '(let* ((x 1)))
+	    (interaction-environment)))))
+
+(with-test-prefix "letrec"
+
+  (with-test-prefix "bindings"
+
+    (pass-if-exception "initial bindings are undefined"
+      exception:variable-ref
+      (eval '(let ((x 1))
+               (letrec ((x 1) (y x)) y))
+            (interaction-environment))))
+
+  (with-test-prefix "bad bindings"
+
+    (pass-if-syntax-error "(letrec)"
+      exception:bad-letrec
+      (eval '(letrec)
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "(letrec 1)"
+      exception:bad-letrec
+      (eval '(letrec 1)
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "(letrec (x))"
+      exception:bad-letrec
+      (eval '(letrec (x))
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "(letrec (x) 1)"
+      exception:bad-letrec
+      (eval '(letrec (x) 1)
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "(letrec ((x)) 3)"
+      exception:bad-letrec
+      (eval '(letrec ((x)) 3)
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "(letrec ((x 1) y) x)"
+      exception:bad-letrec
+      (eval '(letrec ((x 1) y) x)
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "(letrec x ())"
+      exception:bad-letrec
+      (eval '(letrec x ())
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "(letrec x (y))"
+      exception:bad-letrec
+      (eval '(letrec x (y))
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "(letrec ((1 2)) 3)"
+      exception:bad-letrec
+      (eval '(letrec ((1 2)) 3)
+	    (interaction-environment))))
+
+  (with-test-prefix "duplicate bindings"
+
+    (pass-if-syntax-error "(letrec ((x 1) (x 2)) x)"
+      exception:duplicate-binding
+      (eval '(letrec ((x 1) (x 2)) x)
+	    (interaction-environment))))
+
+  (with-test-prefix "bad body"
+
+    (pass-if-syntax-error "(letrec ())"
+      exception:bad-letrec
+      (eval '(letrec ())
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "(letrec ((x 1)))"
+      exception:bad-letrec
+      (eval '(letrec ((x 1)))
+	    (interaction-environment)))))
+
+(with-test-prefix "letrec*"
+
+  (with-test-prefix "bindings"
+
+    (pass-if-exception "initial bindings are undefined"
+      exception:variable-ref
+      (eval '(letrec* ((x y) (y 1)) y)
+            (interaction-environment))))
+
+  (with-test-prefix "bad bindings"
+
+    (pass-if-syntax-error "(letrec*)"
+      exception:bad-letrec*
+      (eval '(letrec*)
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "(letrec* 1)"
+      exception:bad-letrec*
+      (eval '(letrec* 1)
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "(letrec* (x))"
+      exception:bad-letrec*
+      (eval '(letrec* (x))
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "(letrec* (x) 1)"
+      exception:bad-letrec*
+      (eval '(letrec* (x) 1)
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "(letrec* ((x)) 3)"
+      exception:bad-letrec*
+      (eval '(letrec* ((x)) 3)
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "(letrec* ((x 1) y) x)"
+      exception:bad-letrec*
+      (eval '(letrec* ((x 1) y) x)
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "(letrec* x ())"
+      exception:bad-letrec*
+      (eval '(letrec* x ())
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "(letrec* x (y))"
+      exception:bad-letrec*
+      (eval '(letrec* x (y))
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "(letrec* ((1 2)) 3)"
+      exception:bad-letrec*
+      (eval '(letrec* ((1 2)) 3)
+	    (interaction-environment))))
+
+  (with-test-prefix "duplicate bindings"
+
+    (pass-if-syntax-error "(letrec* ((x 1) (x 2)) x)"
+      exception:duplicate-binding
+      (eval '(letrec* ((x 1) (x 2)) x)
+	    (interaction-environment))))
+
+  (with-test-prefix "bad body"
+
+    (pass-if-syntax-error "(letrec* ())"
+      exception:bad-letrec*
+      (eval '(letrec* ())
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "(letrec* ((x 1)))"
+      exception:bad-letrec*
+      (eval '(letrec* ((x 1)))
+	    (interaction-environment))))
+
+  (with-test-prefix "referencing previous values"
+    (pass-if (equal? (letrec* ((a (cons 'foo 'bar))
+                               (b a))
+                       b)
+                     '(foo . bar)))
+    (pass-if (equal? (let ()
+                       (define a (cons 'foo 'bar))
+                       (define b a)
+                       b)
+                     '(foo . bar)))))
+
+(with-test-prefix "if"
+
+  (with-test-prefix "missing or extra expressions"
+
+    (pass-if-syntax-error "(if)"
+      exception:generic-syncase-error
+      (eval '(if)
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "(if 1 2 3 4)"
+      exception:generic-syncase-error
+      (eval '(if 1 2 3 4)
+	    (interaction-environment)))))
+
+(with-test-prefix "cond"
+
+  (with-test-prefix "cond is hygienic"
+
+    (pass-if "bound 'else is handled correctly"
+      (eq? (let ((else 'ok)) (cond (else))) 'ok))
+
+    (with-test-prefix "bound '=> is handled correctly"
+
+      (pass-if "#t => 'ok"
+        (let ((=> 'foo))
+          (eq? (cond (#t => 'ok)) 'ok)))
+
+      (pass-if "else =>"
+        (let ((=> 'foo))
+          (eq? (cond (else =>)) 'foo)))
+
+      (pass-if "else => identity"
+        (let ((=> 'foo))
+          (eq? (cond (else => identity)) identity)))))
+
+  (with-test-prefix "SRFI-61"
+
+    (pass-if "always available"
+      (cond-expand (srfi-61 #t) (else #f)))
+
+    (pass-if "single value consequent"
+      (eq? 'ok (cond (#t identity => (lambda (x) 'ok)) (else #f))))
+
+    (pass-if "single value alternate"
+      (eq? 'ok (cond (#t not => (lambda (x) #f)) (else 'ok))))
+
+    (pass-if-exception "doesn't affect standard =>"
+      exception:wrong-num-args
+      (cond ((values 1 2) => (lambda (x y) #t))))
+
+    (pass-if "multiple values consequent"
+      (equal? '(2 1) (cond ((values 1 2)
+			    (lambda (one two)
+			      (and (= 1 one) (= 2 two))) =>
+			    (lambda (one two) (list two one)))
+			   (else #f))))
+
+    (pass-if "multiple values alternate"
+      (eq? 'ok (cond ((values 2 3 4)
+		      (lambda args (equal? '(1 2 3) args)) =>
+		      (lambda (x y z) #f))
+		     (else 'ok))))
+
+    (pass-if "zero values"
+      (eq? 'ok (cond ((values) (lambda () #t) => (lambda () 'ok))
+		     (else #f))))
+
+    (pass-if "bound => is handled correctly"
+      (let ((=> 'ok))
+	(eq? 'ok (cond (#t identity =>) (else #f)))))
+
+    (pass-if-syntax-error "missing recipient"
+      '(cond . "wrong number of receiver expressions")
+      (eval '(cond (#t identity =>))
+            (interaction-environment)))
+
+    (pass-if-syntax-error "extra recipient"
+      '(cond . "wrong number of receiver expressions")
+      (eval '(cond (#t identity => identity identity))
+            (interaction-environment))))
+
+  (with-test-prefix "bad or missing clauses"
+
+    (pass-if-syntax-error "(cond)"
+      exception:generic-syncase-error
+      (eval '(cond)
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "(cond #t)"
+      '(cond . "invalid clause")
+      (eval '(cond #t)
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "(cond 1)"
+      '(cond . "invalid clause")
+      (eval '(cond 1)
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "(cond 1 2)"
+      '(cond . "invalid clause")
+      (eval '(cond 1 2)
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "(cond 1 2 3)"
+      '(cond . "invalid clause")
+      (eval '(cond 1 2 3)
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "(cond 1 2 3 4)"
+      '(cond . "invalid clause")
+      (eval '(cond 1 2 3 4)
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "(cond ())"
+      '(cond . "invalid clause")
+      (eval '(cond ())
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "(cond () 1)"
+      '(cond . "invalid clause")
+      (eval '(cond () 1)
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "(cond (1) 1)"
+      '(cond . "invalid clause")
+      (eval '(cond (1) 1)
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "(cond (else #f) (#t #t))"
+      '(cond . "else must be the last clause")
+      (eval '(cond (else #f) (#t #t))
+	    (interaction-environment))))
+
+  (with-test-prefix "wrong number of arguments"
+
+    (pass-if-exception "=> (lambda (x y) #t)"
+      exception:wrong-num-args
+      (cond (1 => (lambda (x y) #t))))))
+
+(with-test-prefix "case"
+
+  (pass-if "clause with empty labels list"
+    (case 1 (() #f) (else #t)))
+
+  (with-test-prefix "case handles '=> correctly"
+
+    (pass-if "(1 2 3) => list"
+      (equal? (case 1 ((1 2 3) => list))
+              '(1)))
+
+    (pass-if "else => list"
+      (equal? (case 6
+                ((1 2 3) 'wrong)
+                (else => list))
+              '(6)))
+
+    (with-test-prefix "bound '=> is handled correctly"
+
+      (pass-if "(1) => 'ok"
+        (let ((=> 'foo))
+          (eq? (case 1 ((1) => 'ok)) 'ok)))
+
+      (pass-if "else =>"
+        (let ((=> 'foo))
+          (eq? (case 1 (else =>)) 'foo)))
+
+      (pass-if "else => list"
+        (let ((=> 'foo))
+          (eq? (case 1 (else => identity)) identity))))
+
+    (pass-if-syntax-error "missing recipient"
+      '(case . "wrong number of receiver expressions")
+      (eval '(case 1 ((1) =>))
+            (interaction-environment)))
+
+    (pass-if-syntax-error "extra recipient"
+      '(case . "wrong number of receiver expressions")
+      (eval '(case 1 ((1) => identity identity))
+            (interaction-environment))))
+
+  (with-test-prefix "case is hygienic"
+
+    (pass-if-syntax-error "bound 'else is handled correctly"
+      '(case . "invalid clause")
+      (eval '(let ((else #f)) (case 1 (else #f)))
+            (interaction-environment))))
+
+  (with-test-prefix "bad or missing clauses"
+
+    (pass-if-syntax-error "(case)"
+      exception:generic-syncase-error
+      (eval '(case)
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "(case . \"foo\")"
+      exception:generic-syncase-error
+      (eval '(case . "foo")
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "(case 1)"
+      exception:generic-syncase-error
+      (eval '(case 1)
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "(case 1 . \"foo\")"
+      exception:generic-syncase-error
+      (eval '(case 1 . "foo")
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "(case 1 \"foo\")"
+      '(case . "invalid clause")
+      (eval '(case 1 "foo")
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "(case 1 ())"
+      '(case . "invalid clause")
+      (eval '(case 1 ())
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "(case 1 (\"foo\"))"
+      '(case . "invalid clause")
+      (eval '(case 1 ("foo"))
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "(case 1 (\"foo\" \"bar\"))"
+      '(case . "invalid clause")
+      (eval '(case 1 ("foo" "bar"))
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "(case 1 ((2) \"bar\") . \"foo\")"
+      exception:generic-syncase-error
+      (eval '(case 1 ((2) "bar") . "foo")
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "(case 1 ((2) \"bar\") (else))"
+      '(case . "invalid clause")
+      (eval '(case 1 ((2) "bar") (else))
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "(case 1 (else #f) . \"foo\")"
+      exception:generic-syncase-error
+      (eval '(case 1 (else #f) . "foo")
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "(case 1 (else #f) ((1) #t))"
+      '(case . "else must be the last clause")
+      (eval '(case 1 (else #f) ((1) #t))
+	    (interaction-environment)))))
+
+(with-test-prefix "top-level define"
+
+  (pass-if "redefinition"
+    (let ((m (make-module)))
+      (beautify-user-module! m)
+
+      ;; The previous value of `round' must still be visible at the time the
+      ;; new `round' is defined.  According to R5RS (Section 5.2.1), `define'
+      ;; should behave like `set!' in this case (except that in the case of
+      ;; Guile, we respect module boundaries).
+      (eval '(define round round) m)
+      (eq? (module-ref m 'round) round)))
+
+  (with-test-prefix "missing or extra expressions"
+
+    (pass-if-syntax-error "(define)"
+      exception:generic-syncase-error
+      (eval '(define)
+	    (interaction-environment))))
+
+  (pass-if "module scoping"
+    (equal?
+     (eval
+      '(begin
+         (define-module (top-level-define/module-scoping-1)
+           #:export (define-10))
+         (define-syntax-rule (define-10 name)
+           (begin
+             (define t 10)
+             (define (name) t)))
+         (define-module (top-level-define/module-scoping-2)
+           #:use-module (top-level-define/module-scoping-1))
+         (define-10 foo)
+         (foo))
+      (current-module))
+     10))
+
+  (pass-if "module scoping, same symbolic name"
+    (equal?
+     (eval
+      '(begin
+         (define-module (top-level-define/module-scoping-3))
+         (define a 10)
+         (define-module (top-level-define/module-scoping-4)
+           #:use-module (top-level-define/module-scoping-3))
+         (define a (@@ (top-level-define/module-scoping-3) a))
+         a)
+      (current-module))
+     10))
+  
+  (pass-if "module scoping, introduced names"
+    (equal?
+     (eval
+      '(begin
+         (define-module (top-level-define/module-scoping-5)
+           #:export (define-constant))
+         (define-syntax-rule (define-constant name val)
+           (begin
+             (define t val)
+             (define (name) t)))
+         (define-module (top-level-define/module-scoping-6)
+           #:use-module (top-level-define/module-scoping-5))
+         (define-constant foo 10)
+         (define-constant bar 20)
+         (foo))
+      (current-module))
+     10))
+
+  (pass-if "module scoping, duplicate introduced name"
+    (equal?
+     (eval
+      '(begin
+         (define-module (top-level-define/module-scoping-7)
+           #:export (define-constant))
+         (define-syntax-rule (define-constant name val)
+           (begin
+             (define t val)
+             (define (name) t)))
+         (define-module (top-level-define/module-scoping-8)
+           #:use-module (top-level-define/module-scoping-7))
+         (define-constant foo 10)
+         (define-constant foo 20)
+         (foo))
+      (current-module))
+     20)))
+
+(with-test-prefix "internal define"
+
+  (pass-if "internal defines become letrec"
+    (eval '(let ((a identity) (b identity) (c identity))
+             (define (a x) (if (= x 0) 'a (b (- x 1))))
+             (define (b x) (if (= x 0) 'b (c (- x 1))))
+             (define (c x) (if (= x 0) 'c (a (- x 1))))
+             (and (eq? 'a (a 0) (a 3))
+                  (eq? 'b (a 1) (a 4))
+                  (eq? 'c (a 2) (a 5))))
+          (interaction-environment)))
+
+  (pass-if "binding is created before expression is evaluated"
+    ;; Internal defines are equivalent to `letrec' (R5RS, Section 5.2.2).
+    (= (eval '(let ()
+                (define foo
+                  (begin
+                    (set! foo 1)
+                    (+ foo 1)))
+                foo)
+             (interaction-environment))
+       2))
+
+  (pass-if "internal defines with begin"
+    (false-if-exception
+     (eval '(let ((a identity) (b identity) (c identity))
+              (define (a x) (if (= x 0) 'a (b (- x 1))))
+              (begin
+                (define (b x) (if (= x 0) 'b (c (- x 1)))))
+              (define (c x) (if (= x 0) 'c (a (- x 1))))
+              (and (eq? 'a (a 0) (a 3))
+                   (eq? 'b (a 1) (a 4))
+                   (eq? 'c (a 2) (a 5))))
+           (interaction-environment))))
+
+  (pass-if "internal defines with empty begin"
+    (false-if-exception
+     (eval '(let ((a identity) (b identity) (c identity))
+              (define (a x) (if (= x 0) 'a (b (- x 1))))
+              (begin)
+              (define (b x) (if (= x 0) 'b (c (- x 1))))
+              (define (c x) (if (= x 0) 'c (a (- x 1))))
+              (and (eq? 'a (a 0) (a 3))
+                   (eq? 'b (a 1) (a 4))
+                   (eq? 'c (a 2) (a 5))))
+           (interaction-environment))))
+
+  (pass-if "internal defines with macro application"
+    (false-if-exception
+     (eval '(begin
+              (defmacro my-define forms
+                (cons 'define forms))
+              (let ((a identity) (b identity) (c identity))
+                (define (a x) (if (= x 0) 'a (b (- x 1))))
+                (my-define (b x) (if (= x 0) 'b (c (- x 1))))
+                (define (c x) (if (= x 0) 'c (a (- x 1))))
+                (and (eq? 'a (a 0) (a 3))
+                     (eq? 'b (a 1) (a 4))
+                     (eq? 'c (a 2) (a 5)))))
+           (interaction-environment))))
+
+  (pass-if-syntax-error "empty body"
+    exception:empty-body
+    (eval '(let () (begin))
+          (interaction-environment)))
+
+  (pass-if-syntax-error "body should end with expression"
+    exception:body-should-end-with-expr
+    (eval '(let () (define x #t))
+          (interaction-environment)))
+
+  (pass-if-equal "mixed definitions and expressions" 256
+    ((eval '(lambda (x)
+              (unless (number? x) (error "not a number" x))
+              (define (square x) (* x x))
+              (square (square x)))
+           (interaction-environment))
+     4))
+
+  (pass-if-equal "mixed definitions and expressions 2" 42
+    (eval '(let ()
+             (define (foo) (bar))
+             1
+             (define (bar) 42)
+             (foo))
+          (interaction-environment))))
+
+(with-test-prefix "top-level define-values"
+
+  (pass-if "zero values"
+    (eval '(begin (define-values () (values))
+                  #t)
+          (interaction-environment)))
+
+  (pass-if-equal "one value"
+      1
+    (eval '(begin (define-values (x) 1)
+                  x)
+          (interaction-environment)))
+
+  (pass-if-equal "two values"
+      '(2 3)
+    (eval '(begin (define-values (x y) (values 2 3))
+                  (list x y))
+          (interaction-environment)))
+
+  (pass-if-equal "three values"
+      '(4 5 6)
+    (eval '(begin (define-values (x y z) (values 4 5 6))
+                  (list x y z))
+          (interaction-environment)))
+
+  (pass-if-equal "one value with tail"
+      '(a (b c d))
+    (eval '(begin (define-values (x . y) (values 'a 'b 'c 'd))
+                  (list x y))
+          (interaction-environment)))
+
+  (pass-if-equal "two values with tail"
+      '(x y (z w))
+    (eval '(begin (define-values (x y . z) (values 'x 'y 'z 'w))
+                  (list x y z))
+          (interaction-environment)))
+
+  (pass-if-equal "just tail"
+      '(1 2 3)
+    (eval '(begin (define-values x (values 1 2 3))
+                  x)
+          (interaction-environment)))
+
+  (pass-if-exception "expected 0 values, got 1"
+      exception:wrong-number-of-values
+    (eval '(define-values () 1)
+          (interaction-environment)))
+
+  (pass-if-exception "expected 1 value, got 0"
+      exception:wrong-number-of-values
+    (eval '(define-values (x) (values))
+          (interaction-environment)))
+
+  (pass-if-exception "expected 1 value, got 2"
+      exception:wrong-number-of-values
+    (eval '(define-values (x) (values 1 2))
+          (interaction-environment)))
+
+  (pass-if-exception "expected 1 value with tail, got 0"
+      exception:wrong-number-of-values
+    (eval '(define-values (x . y) (values))
+          (interaction-environment)))
+
+  (pass-if-exception "expected 2 value with tail, got 1"
+      exception:wrong-number-of-values
+    (eval '(define-values (x y . z) 1)
+          (interaction-environment)))
+
+  (pass-if "redefinition"
+    (let ((m (make-module)))
+      (beautify-user-module! m)
+
+      ;; The previous values of `floor' and `round' must still be
+      ;; visible at the time the new `floor' and `round' are defined.
+      (eval '(define-values (floor round) (values floor round)) m)
+      (and (eq? (module-ref m 'floor) floor)
+           (eq? (module-ref m 'round) round))))
+
+  (with-test-prefix "missing expression"
+
+    (pass-if-syntax-error "(define-values)"
+      exception:generic-syncase-error
+      (eval '(define-values)
+	    (interaction-environment)))))
+
+(with-test-prefix "internal define-values"
+
+  (pass-if "zero values"
+    (let ()
+      (define-values () (values))
+      #t))
+
+  (pass-if-equal "one value"
+      1
+    (let ()
+      (define-values (x) 1)
+      x))
+
+  (pass-if-equal "two values"
+      '(2 3)
+    (let ()
+      (define-values (x y) (values 2 3))
+      (list x y)))
+
+  (pass-if-equal "three values"
+      '(4 5 6)
+    (let ()
+      (define-values (x y z) (values 4 5 6))
+      (list x y z)))
+
+  (pass-if-equal "one value with tail"
+      '(a (b c d))
+    (let ()
+      (define-values (x . y) (values 'a 'b 'c 'd))
+      (list x y)))
+
+  (pass-if-equal "two values with tail"
+      '(x y (z w))
+    (let ()
+      (define-values (x y . z) (values 'x 'y 'z 'w))
+      (list x y z)))
+
+  (pass-if-equal "just tail"
+      '(1 2 3)
+    (let ()
+      (define-values x (values 1 2 3))
+      x))
+
+  (pass-if-exception "expected 0 values, got 1"
+      exception:wrong-number-of-values
+    (eval '(let ()
+             (define-values () 1)
+             #f)
+          (interaction-environment)))
+
+  (pass-if-exception "expected 1 value, got 0"
+      exception:wrong-number-of-values
+    (eval '(let ()
+             (define-values (x) (values))
+             #f)
+          (interaction-environment)))
+
+  (pass-if-exception "expected 1 value, got 2"
+      exception:wrong-number-of-values
+    (eval '(let ()
+             (define-values (x) (values 1 2))
+             #f)
+          (interaction-environment)))
+
+  (pass-if-exception "expected 1 value with tail, got 0"
+      exception:wrong-number-of-values
+    (eval '(let ()
+             (define-values (x . y) (values))
+             #f)
+          (interaction-environment)))
+
+  (pass-if-exception "expected 2 value with tail, got 1"
+      exception:wrong-number-of-values
+    (eval '(let ()
+             (define-values (x y . z) 1)
+             #f)
+          (interaction-environment)))
+
+  (with-test-prefix "missing expression"
+
+    (pass-if-syntax-error "(define-values)"
+      exception:generic-syncase-error
+      (eval '(let ()
+               (define-values)
+               #f)
+	    (interaction-environment)))))
+
+(with-test-prefix "set!"
+
+  (with-test-prefix "missing or extra expressions"
+
+    (pass-if-syntax-error "(set!)"
+      exception:bad-set!
+      (eval '(set!)
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "(set! 1)"
+      exception:bad-set!
+      (eval '(set! 1)
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "(set! 1 2 3)"
+      exception:bad-set!
+      (eval '(set! 1 2 3)
+	    (interaction-environment))))
+
+  (with-test-prefix "bad variable"
+
+    (pass-if-syntax-error "(set! \"\" #t)"
+      exception:bad-set!
+      (eval '(set! "" #t)
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "(set! 1 #t)"
+      exception:bad-set!
+      (eval '(set! 1 #t)
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "(set! #t #f)"
+      exception:bad-set!
+      (eval '(set! #t #f)
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "(set! #f #t)"
+      exception:bad-set!
+      (eval '(set! #f #t)
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "(set! #\\space #f)"
+      exception:bad-set!
+      (eval '(set! #\space #f)
+	    (interaction-environment)))))
+
+(with-test-prefix "quote"
+
+  (with-test-prefix "missing or extra expression"
+
+    (pass-if-syntax-error "(quote)"
+      exception:bad-quote
+      (eval '(quote)
+	    (interaction-environment)))
+
+    (pass-if-syntax-error "(quote a b)"
+      exception:bad-quote
+      (eval '(quote a b)
+	    (interaction-environment)))))
+
+(with-test-prefix "while"
+  
+  (define (unreachable)
+    (error "unreachable code has been reached!"))
+  
+  ;; Return a new procedure COND which when called (COND) will return #t the
+  ;; first N times, then #f, then any further call is an error.  N=0 is
+  ;; allowed, in which case #f is returned by the first call.
+  (define (make-iterations-cond n)
+    (lambda ()
+      (cond ((not n)
+	     (error "oops, condition re-tested after giving false"))
+	    ((= 0 n)
+	     (set! n #f)
+	     #f)
+	    (else
+	     (set! n (1- n))
+	     #t))))
+  
+
+  (pass-if-syntax-error "too few args" exception:generic-syncase-error
+    (eval '(while) (interaction-environment)))
+  
+  (with-test-prefix "empty body"
+    (do ((n 0 (1+ n)))
+	((> n 5))
+      (pass-if n
+	(eval `(letrec ((make-iterations-cond
+                         (lambda (n)
+                           (lambda ()
+                             (cond ((not n)
+                                    (error "oops, condition re-tested after giving false"))
+                                   ((= 0 n)
+                                    (set! n #f)
+                                    #f)
+                                   (else
+                                    (set! n (1- n))
+                                    #t))))))
+                 (let ((cond (make-iterations-cond ,n)))
+                   (while (cond))
+                   #t))
+              (interaction-environment)))))
+  
+  (pass-if "initially false"
+    (while #f
+      (unreachable))
+    #t)
+  
+  (with-test-prefix "iterations"
+    (do ((n 0 (1+ n)))
+	((> n 5))
+      (pass-if n
+	(let ((cond (make-iterations-cond n))
+	      (i    0))
+	  (while (cond)
+	    (set! i (1+ i)))
+	  (= i n)))))
+  
+  (with-test-prefix "break"
+    
+    (pass-if "normal return"
+      (not (while #f (error "not reached"))))
+
+    (pass-if "no args"
+      (while #t (break)))
+
+    (pass-if "multiple values"
+      (equal? '(1 2 3)
+              (call-with-values
+                  (lambda () (while #t (break 1 2 3)))
+                list)))
+
+    (with-test-prefix "from cond"
+      (pass-if "first"
+	(while (begin
+		 (break)
+		 (unreachable))
+	  (unreachable))
+	#t)
+      
+      (do ((n 0 (1+ n)))
+	  ((> n 5))
+	(pass-if n
+	  (let ((cond (make-iterations-cond n))
+		(i    0))
+	    (while (if (cond)
+		       #t
+		       (begin
+			 (break)
+			 (unreachable)))
+	      (set! i (1+ i)))
+	    (= i n)))))
+    
+    (with-test-prefix "from body"
+      (pass-if "first"
+	(while #t
+	  (break)
+	  (unreachable))
+	#t)
+      
+      (do ((n 0 (1+ n)))
+	  ((> n 5))
+	(pass-if n
+	  (let ((cond (make-iterations-cond n))
+		(i    0))
+	    (while #t
+	      (if (not (cond))
+		  (begin
+		    (break)
+		    (unreachable)))
+	      (set! i (1+ i)))
+	    (= i n)))))
+    
+    (pass-if "from nested"
+      (while #t
+	(let ((outer-break break))
+	  (while #t
+	    (outer-break)
+	    (unreachable)))
+	(unreachable))
+      #t)
+    
+    (pass-if "from recursive"
+      (let ((outer-break #f))
+	(define (r n)
+	  (while #t
+	    (if (eq? n 'outer)
+		(begin
+		  (set! outer-break break)
+		  (r 'inner))
+		(begin
+		  (outer-break)
+		  (unreachable))))
+	  (if (eq? n 'inner)
+	      (error "broke only from inner loop")))
+	(r 'outer))
+      #t))
+  
+  (with-test-prefix "continue"
+    
+    (pass-if-syntax-error "too many args" exception:too-many-args
+      (eval '(while #t
+               (continue 1))
+            (interaction-environment)))
+    
+    (with-test-prefix "from cond"
+      (do ((n 0 (1+ n)))
+	  ((> n 5))
+	(pass-if n
+	  (let ((cond (make-iterations-cond n))
+		(i    0))
+	    (while (if (cond)
+		       (begin
+			 (set! i (1+ i))
+			 (continue)
+			 (unreachable))
+		       #f)
+	      (unreachable))
+	    (= i n)))))
+    
+    (with-test-prefix "from body"
+      (do ((n 0 (1+ n)))
+	  ((> n 5))
+	(pass-if n
+	  (let ((cond (make-iterations-cond n))
+		(i    0))
+	    (while (cond)
+	      (set! i (1+ i))
+	      (continue)
+	      (unreachable))
+	    (= i n)))))
+    
+    (pass-if "from nested"
+      (let ((cond (make-iterations-cond 3)))
+	(while (cond)
+	  (let ((outer-continue continue))
+	    (while #t
+	      (outer-continue)
+	      (unreachable)))))
+      #t)
+    
+    (pass-if "from recursive"
+      (let ((outer-continue #f))
+	(define (r n)
+	  (let ((cond  (make-iterations-cond 3))
+		(first #t))
+	    (while (begin
+		     (if (and (not first)
+			      (eq? n 'inner))
+			 (error "continued only to inner loop"))
+		     (cond))
+	      (set! first #f)
+	      (if (eq? n 'outer)
+		  (begin
+		    (set! outer-continue continue)
+		    (r 'inner))
+		  (begin
+		    (outer-continue)
+		    (unreachable))))))
+	(r 'outer))
+      #t)))
+
+(with-test-prefix "syntax-rules"
+
+  (pass-if-equal "custom ellipsis within normal ellipsis"
+      '((((a x) (a y) (a …))
+         ((b x) (b y) (b …))
+         ((c x) (c y) (c …)))
+        (((a x) (b x) (c x))
+         ((a y) (b y) (c y))
+         ((a …) (b …) (c …))))
+    (let ()
+      (define-syntax foo
+        (syntax-rules ()
+          ((_ y ...)
+           (syntax-rules … ()
+             ((_ x …)
+              '((((x y) ...) …)
+                (((x y) …) ...)))))))
+      (define-syntax bar (foo x y …))
+      (bar a b c)))
+
+  (pass-if-equal "normal ellipsis within custom ellipsis"
+      '((((a x) (a y) (a z))
+         ((b x) (b y) (b z))
+         ((c x) (c y) (c z)))
+        (((a x) (b x) (c x))
+         ((a y) (b y) (c y))
+         ((a z) (b z) (c z))))
+    (let ()
+      (define-syntax foo
+        (syntax-rules … ()
+          ((_ y …)
+           (syntax-rules ()
+             ((_ x ...)
+              '((((x y) …) ...)
+                (((x y) ...) …)))))))
+      (define-syntax bar (foo x y z))
+      (bar a b c)))
+
+  ;; This test is given in SRFI-46.
+  (pass-if-equal "custom ellipsis is handled hygienically"
+      '((1) 2 (3) (4))
+    (let-syntax
+        ((f (syntax-rules ()
+              ((f ?e)
+               (let-syntax
+                   ((g (syntax-rules --- ()
+                         ((g (??x ?e) (??y ---))
+                          '((??x) ?e (??y) ---)))))
+                 (g (1 2) (3 4)))))))
+      (f ---))))
+
+(with-test-prefix "syntax-error"
+
+  (pass-if-syntax-error "outside of macro without args"
+    "test error"
+    (eval '(syntax-error "test error")
+          (interaction-environment)))
+
+  (pass-if-syntax-error "outside of macro with args"
+    "test error x \\(y z\\)"
+    (eval '(syntax-error "test error" x (y z))
+          (interaction-environment)))
+
+  (pass-if-equal "within macro"
+      '(simple-let
+        "expected an identifier but got (z1 z2)"
+        (simple-let ((y (* x x))
+                     ((z1 z2) (values x x)))
+          (+ y 1)))
+    (catch 'syntax-error
+      (lambda ()
+        (eval '(let ()
+                 (define-syntax simple-let
+                   (syntax-rules ()
+                     ((_ (head ... ((x . y) val) . tail)
+                         body1 body2 ...)
+                      (syntax-error
+                       "expected an identifier but got"
+                       (x . y)))
+                     ((_ ((name val) ...) body1 body2 ...)
+                      ((lambda (name ...) body1 body2 ...)
+                       val ...))))
+                 (define (foo x)
+                   (simple-let ((y (* x x))
+                                ((z1 z2) (values x x)))
+                     (+ y 1)))
+                 foo)
+              (interaction-environment))
+        (error "expected syntax-error exception"))
+      (lambda (k who what where form . maybe-subform)
+        (list who what form)))))
+
+(with-test-prefix "syntax-case"
+  
+  (pass-if-syntax-error "duplicate pattern variable"
+    '(syntax-case . "duplicate pattern variable")
+    (eval '(lambda (e)
+             (syntax-case e ()
+               ((a b c d e d f) #f)))
+          (interaction-environment)))
+
+  (with-test-prefix "misplaced ellipses"
+
+    (pass-if-syntax-error "bare ellipsis"
+      '(syntax-case . "misplaced ellipsis")
+      (eval '(lambda (e)
+               (syntax-case e ()
+                 (... #f)))
+            (interaction-environment)))
+
+    (pass-if-syntax-error "ellipsis singleton"
+      '(syntax-case . "misplaced ellipsis")
+      (eval '(lambda (e)
+               (syntax-case e ()
+                 ((...) #f)))
+            (interaction-environment)))
+
+    (pass-if-syntax-error "ellipsis in car"
+      '(syntax-case . "misplaced ellipsis")
+      (eval '(lambda (e)
+               (syntax-case e ()
+                 ((... . _) #f)))
+            (interaction-environment)))
+
+    (pass-if-syntax-error "ellipsis in cdr"
+      '(syntax-case . "misplaced ellipsis")
+      (eval '(lambda (e)
+               (syntax-case e ()
+                 ((_ . ...) #f)))
+            (interaction-environment)))
+
+    (pass-if-syntax-error "two ellipses in the same list"
+      '(syntax-case . "misplaced ellipsis")
+      (eval '(lambda (e)
+               (syntax-case e ()
+                 ((x ... y ...) #f)))
+            (interaction-environment)))
+
+    (pass-if-syntax-error "three ellipses in the same list"
+      '(syntax-case . "misplaced ellipsis")
+      (eval '(lambda (e)
+               (syntax-case e ()
+                 ((x ... y ... z ...) #f)))
+            (interaction-environment)))))
+
+(with-test-prefix "with-ellipsis"
+
+  (pass-if-equal "simple"
+      '(a 1 2 3)
+    (let ()
+      (define-syntax define-quotation-macros
+        (lambda (x)
+          (syntax-case x ()
+            ((_ (macro-name head-symbol) ...)
+             #'(begin (define-syntax macro-name
+                        (lambda (x)
+                          (with-ellipsis …
+                            (syntax-case x ()
+                              ((_ x …)
+                               #'(quote (head-symbol x …)))))))
+                      ...)))))
+      (define-quotation-macros (quote-a a) (quote-b b))
+      (quote-a 1 2 3)))
+
+  (pass-if-equal "disables normal ellipsis"
+      '(a ...)
+    (let ()
+      (define-syntax foo
+        (lambda (x)
+          (with-ellipsis …
+            (syntax-case x ()
+              ((_)
+               #'(quote (a ...)))))))
+      (foo)))
+
+  (pass-if-equal "doesn't affect ellipsis for generated code"
+      '(a b c)
+    (let ()
+      (define-syntax quotation-macro
+        (lambda (x)
+          (with-ellipsis …
+            (syntax-case x ()
+              ((_)
+               #'(lambda (x)
+                   (syntax-case x ()
+                     ((_ x ...)
+                      #'(quote (x ...))))))))))
+      (define-syntax kwote (quotation-macro))
+      (kwote a b c)))
+
+  (pass-if-equal "propagates into syntax binders"
+      '(a b c)
+    (let ()
+      (with-ellipsis …
+        (define-syntax kwote
+          (lambda (x)
+            (syntax-case x ()
+              ((_ x …)
+               #'(quote (x …))))))
+        (kwote a b c))))
+
+  (pass-if-equal "works with local-eval"
+      5
+    (let ((env (with-ellipsis … (the-environment))))
+      (local-eval '(syntax-case #'(a b c d e) ()
+                     ((x …)
+                      (length #'(x …))))
+                  env))))
+
+(with-test-prefix "syntax objects"
+  (let ((interpreted (eval '#'(foo bar baz) (current-module)))
+        (interpreted-bis (eval '#'(foo bar baz) (current-module)))
+        (compiled ((@ (system base compile) compile) '#'(foo bar baz)
+                   #:env (current-module))))
+    ;; Guile's expander doesn't wrap lists.
+    (pass-if "interpreted syntax object?"
+      (and (list? interpreted)
+           (and-map syntax? interpreted)))
+    (pass-if "compiled syntax object?"
+      (and (list? compiled)
+           (and-map syntax? compiled)))
+
+    (pass-if "interpreted syntax objects are not vectors"
+      (not (vector? interpreted)))
+    (pass-if "compiled syntax objects are not vectors"
+      (not (vector? compiled)))
+
+    (pass-if-equal "syntax objects comparable with equal? (eval/eval)"
+        interpreted interpreted-bis)
+    (pass-if-equal "syntax objects comparable with equal? (eval/compile)"
+        interpreted compiled)
+
+    (pass-if-equal "syntax objects hash the same (eval/eval)"
+        (hash interpreted most-positive-fixnum)
+      (hash interpreted-bis most-positive-fixnum))
+
+    (pass-if-equal "syntax objects hash the same (eval/compile)"
+        (hash interpreted most-positive-fixnum)
+      (hash compiled most-positive-fixnum))))
+
+(with-test-prefix "#nil in syntaxes"
+  (pass-if-equal "does not crash"
+      42
+    (let ()
+      (define-syntax foo
+        (syntax-rules ()
+          ;; In 3.0.7 this would crash with
+          ;;   unknown location: unexpected syntax in form ()
+          ((_ x) (when (eq? x #nil) 42))))
+      (foo #nil))))
+
+(with-test-prefix "duplicate top-level introduced definitions"
+  (pass-if-equal '(42 69)
+      (primitive-eval
+       (macroexpand
+        '(begin
+           (define-syntax-rule (defconst f val)
+             (begin
+               ;; The zeros cause a hash collision.
+               (define t (begin 0 0 0 0 0 0 0 0 0 val))
+               (define (f) t)))
+           (defconst a 42)
+           (defconst b 69)
+           (list (a) (b)))))))
+
+(pass-if-exception "macro-introduced cross-module unbound identifiers"
+    exception:unbound-var
+  (eval
+   '(begin
+      (define-module (foo) #:export (introduce-unbound))
+      (define-syntax-rule (introduce-unbound)
+        variable-bound-in-bar)
+      (define-module (bar) #:use-module (foo))
+      (define variable-bound-in-bar 42)
+      (introduce-unbound))
+   (interaction-environment)))
+
+;;; Local Variables:
+;;; eval: (put 'pass-if-syntax-error 'scheme-indent-function 1)
+;;; eval: (put 'with-ellipsis 'scheme-indent-function 1)
+;;; End:

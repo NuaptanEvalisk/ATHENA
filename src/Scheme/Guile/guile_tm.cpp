@@ -27,7 +27,6 @@
  ******************************************************************************/
 bool scm_busy= false;
 
-#if (defined(GUILE_C) || defined(GUILE_D))
 static void (*old_call_back) (int, char**)= NULL;
 static void
 new_call_back (void *closure, int argc, char** argv) {
@@ -35,7 +34,6 @@ new_call_back (void *closure, int argc, char** argv) {
   
   old_call_back (argc, argv);
 }
-#endif
 
 
 int guile_argc;
@@ -45,12 +43,8 @@ void
 start_scheme (int argc, char** argv, void (*call_back) (int, char**)) {
   guile_argc = argc;
   guile_argv = argv;
-#if (defined(GUILE_C) || defined(GUILE_D))
   old_call_back= call_back;
   scm_boot_guile (argc, argv, new_call_back, 0);
-#else
-  gh_enter (argc, argv, call_back);
-#endif
 }
 
 
@@ -252,36 +246,12 @@ call_scheme (SCM fun, array<SCM> a) {
 
 string
 scheme_dialect () {
-#ifdef GUILE_A
-  return "guile-a";
-#else
-#ifdef GUILE_B
-  return "guile-b";
-#else
-#ifdef GUILE_C
-  return "guile-c";
-#else
-#ifdef GUILE_D
   return "guile-d";
-#else
-  return "unknown";
-#endif
-#endif
-#endif
-#endif
 }
 
-#if (defined(GUILE_C) || defined(GUILE_D))
 #define SET_SMOB(smob,data,type)   \
 SCM_NEWSMOB (smob, type, data);
 #define GET_SMOB_DATA(smob) ((void*) SCM_SMOB_DATA (smob))
-#else
-#define SET_SMOB(smob,data,type)   \
-SCM_NEWCELL (smob);              \
-SCM_SETCAR (smob, (SCM) (type)); \
-SCM_SETCDR (smob, (SCM) (data));
-#define GET_SMOB_DATA(smob) ((void*) SCM_CDR (smob))
-#endif
 
 
 /******************************************************************************
@@ -293,13 +263,6 @@ SCM
 bool_to_scm (bool flag) {
   return scm_bool2scm (flag);
 }
-
-#if (defined(GUILE_A) || defined(GUILE_B))
-int
-scm_to_bool (SCM flag) {
-  return scm_scm2bool (flag);
-}
-#endif
 
 /******************************************************************************
  * Integers
@@ -315,18 +278,6 @@ long_to_scm (long l) {
   return scm_long2scm (l);
 }
 
-#if (defined(GUILE_A) || defined(GUILE_B))
-int
-scm_to_int (SCM i) {
-  return (int) scm_scm2long (i);
-}
-
-long
-scm_to_long (SCM l) {
-  return scm_scm2long (l);
-}
-#endif
-
 /******************************************************************************
  * Floating point numbers
  ******************************************************************************/
@@ -334,13 +285,6 @@ SCM
 double_to_scm (double i) {
   return scm_double2scm (i);
 }
-
-#if (defined(GUILE_A) || defined(GUILE_B))
-double
-scm_to_double (SCM i) {
-  return scm_scm2double (i);
-}
-#endif
 
 /******************************************************************************
  * Strings
@@ -401,16 +345,8 @@ tmscm_to_symbol (tmscm s) {
  * Blackbox
  ******************************************************************************/
 
-#if (defined(GUILE_C) || defined(GUILE_D))
 static scm_t_bits blackbox_tag;
 #define SCM_BLACKBOXP(t) SCM_SMOB_PREDICATE (blackbox_tag, t)
-#elif defined(SIZEOF_ENT) && SIZEOF_ENT == SCM_SIZEOF_LONG_LONG
-static long long blackbox_tag;
-#define SCM_BLACKBOXP(t) (SCM_NIMP (t) && (((long long) SCM_CAR (t)) == blackbox_tag))
-#else
-static long blackbox_tag;
-#define SCM_BLACKBOXP(t) (SCM_NIMP (t) && (((long) SCM_CAR (t)) == blackbox_tag))
-#endif
 
 bool
 tmscm_is_blackbox (tmscm t) {
@@ -435,7 +371,7 @@ mark_blackbox (SCM blackbox_smob) {
   return SCM_BOOL_F;
 }
 
-static scm_sizet
+static size_t
 free_blackbox (SCM blackbox_smob) {
   blackbox *ptr = (blackbox *) GET_SMOB_DATA (blackbox_smob);
 #ifdef DEBUG_ON
@@ -526,9 +462,6 @@ tmscm object_stack;
 void
 initialize_scheme () {
   const char* init_prg =
-  "(read-set! keywords 'prefix)\n"
-  "(read-enable 'positions)\n"
-  "(debug-enable 'debug)\n"
 #ifdef DEBUG_ON
   "(debug-enable 'backtrace)\n"
 #endif
@@ -567,4 +500,9 @@ initialize_scheme () {
     //scm_shell (guile_argc, guile_argv);
   
   
+}
+
+void
+finalize_scheme_bootstrap () {
+  scm_athena_flush_deferred_auto_compilation ();
 }

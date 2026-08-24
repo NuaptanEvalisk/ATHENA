@@ -440,45 +440,14 @@ pkg_check_modules (LIBSODIUM REQUIRED libsodium)
 pkg_check_modules (MAGICKWAND REQUIRED MagickWand)
 add_definitions (${MAGICKWAND_CFLAGS_OTHER})
 ### --------------------------------------------------------------------
-###  Some Guile related adjustements
+### ATHENA's private Guile 3 runtime
 ### --------------------------------------------------------------------
 
-# Allow for selection of Scheme implementation
-set(SCHEME_IMPL "default" CACHE STRING "Implementation of Scheme to compile for.")
-set_property(CACHE SCHEME_IMPL PROPERTY STRINGS default guile-1.8 guile-2.0 guile-2.2 guile-3.0 chez s7)
-message(STATUS "Looking for Scheme implementation: " ${SCHEME_IMPL})
-
-if (${SCHEME_IMPL} STREQUAL "default")
-  # Find Guile and determine which version we are using.
-  # Look for guile versions in this order: 1.8 > 3.0 > 2.2 > 2.0
-  pkg_search_module (Guile REQUIRED guile-1.8 guile-3.0 guile-2.2 guile-2.0)
-  if (NOT Guile_FOUND)
-    message(FATAL_ERROR "Guile not installed or pkg-config cannot detect it.")
-  endif ()
-elseif ( (${SCHEME_IMPL} STREQUAL "guile-1.8")
-         OR (${SCHEME_IMPL} STREQUAL "guile-2.0")
-         OR (${SCHEME_IMPL} STREQUAL "guile-2.2")
-         OR (${SCHEME_IMPL} STREQUAL "guile-3.0") )
-  pkg_check_modules (Guile REQUIRED ${SCHEME_IMPL})
-elseif ((${SCHEME_IMPL} STREQUAL "chez") OR (${SCHEME_IMPL} STREQUAL "s7"))
-  message(FATAL_ERROR "Selected Scheme implementation not implemented yet.")
-else ()
-  message(FATAL_ERROR "Incorrect scheme implementation selected.")
-endif()
-
-if (Guile_VERSION VERSION_LESS 2.0)
-  set (CONFIG_GUILE_SERIAL "C")
-  option (GUILE_C "Using Guile 1.8.x" ON)
-  message (STATUS "Using GUILE_C: " ${Guile_VERSION})
-else ()
-  set (CONFIG_GUILE_SERIAL "D")
-  option (GUILE_D "Using Guile 2.x or 3.x" ON)
-  set (SCM_SIZET size_t)
-  message (STATUS "Using GUILE_D: " ${Guile_VERSION})
-endif ()
-
-set (CMAKE_REQUIRED_FLAGS "-Werror ${Guile_CFLAGS}")
-set (CMAKE_REQUIRED_INCLUDES ${Guile_INCLUDE_DIRS})
+include(AthenaGuile)
+set(CONFIG_GUILE_SERIAL "ATHENA-GUILE3")
+set(ATHENA_GUILE3 1)
+set(SCM_SIZET size_t)
+set(CMAKE_REQUIRED_INCLUDES "${ATHENA_GUILE_INCLUDE_DIR}")
 set (guile_str_size_t size_t)
 
 ### --------------------------------------------------------------------
@@ -639,7 +608,7 @@ else (WIN32)
 endif (WIN32)
 
 set (ATHENA_Include_Dirs ${ATHENA_Include_Dirs}
-  ${Guile_INCLUDE_DIRS} ${FREETYPE_INCLUDE_DIRS}
+  ${ATHENA_GUILE_INCLUDE_DIR} ${FREETYPE_INCLUDE_DIRS}
   ${IMLIB2_INCLUDE_DIR} ${GMP_INCLUDES} ${GNUTLS_INCLUDE_DIRS}
   ${TCC_INCLUDE_DIR} ${SQLITE3_INCLUDE_DIRS} ${ICONV_INCLUDE_DIR}
   ${ATHENA_LLAMA_INCLUDE_DIR} ${LLAMA_COMMON_INCLUDE_DIR}
@@ -729,7 +698,7 @@ if (APPLE AND EXISTS /opt/homebrew/lib)
 endif ()
 
 set (ATHENA_Libraries
-  ${Guile_LIBRARIES}
+  ATHENA::Guile
   ${ZLIB_LIBRARIES}
   ${JPEG_LIBRARIES}
   ${PNG_LIBRARIES}
@@ -1040,6 +1009,13 @@ install (FILES ATHENA/misc/images/text-x-athena.svg
   DESTINATION share/icons/hicolor/scalable/mimetypes)
 install (FILES ATHENA/misc/mime/athena.xml DESTINATION share/mime/packages)
 install (FILES ATHENA/misc/pixmaps/ATHENA.xpm DESTINATION share/pixmaps)
+install (DIRECTORY "${ATHENA_GUILE_PREFIX}/share/guile/3.0"
+  DESTINATION share/ATHENA/lib/athena-guile/share/guile)
+install (DIRECTORY "${ATHENA_GUILE_PREFIX}/lib/guile/3.0"
+  DESTINATION share/ATHENA/lib/athena-guile/lib/guile)
+install (DIRECTORY "${ATHENA_GUILE_PREFIX}/lib/"
+  DESTINATION share/ATHENA/lib/athena-guile/lib
+  FILES_MATCHING PATTERN "libathena-guile.so*")
 foreach (size IN ITEMS 16 22 24 32 48 64 128 256 512)
   message (STATUS ${size})
   install (FILES ATHENA/misc/images/athena-${size}.png RENAME ATHENA.png
@@ -1053,6 +1029,14 @@ endforeach ()
 if (BUILD_TESTS)
   find_package(Qt6 COMPONENTS Test REQUIRED)
   set(ATHENA_QT_TEST_LIBRARY Qt6::Test)
+  add_test(NAME athena_guile_native_runtime
+    COMMAND ${CMAKE_COMMAND} -E env
+      "LD_LIBRARY_PATH=${ATHENA_GUILE_PREFIX}/lib"
+      "GUILE_LOAD_PATH=${CMAKE_SOURCE_DIR}/tests/scheme/native-runtime:${ATHENA_GUILE_STANDARD_LIBRARY}"
+      "GUILE_LOAD_COMPILED_PATH=${ATHENA_GUILE_COMPILED_LIBRARY}"
+      "GUILE_AUTO_COMPILE=0"
+      ${ATHENA_GUILE_PREFIX}/bin/guile --no-auto-compile
+      ${CMAKE_SOURCE_DIR}/tests/scheme/native-runtime/native-runtime-test.scm)
   if (NOT WIN32)
     add_test(NAME codex_bridge_protocol
       COMMAND ${Python3_EXECUTABLE}

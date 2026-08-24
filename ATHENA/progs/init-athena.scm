@@ -20,14 +20,13 @@
 
 (define boot-start (athena-time))
 
-(if (not (defined? 'texmacs-compat-version))
-    (define-public (texmacs-compat-version) "2.1.4"))
-
 (define developer-mode?
   (equal? (cpp-get-preference "developer tool" "off") "on"))
 
 (if developer-mode?
-    (debug-enable 'backtrace 'debug))
+    (if (equal? (scheme-dialect) "guile-d")
+        (debug-enable 'backtrace)
+        (debug-enable 'backtrace 'debug)))
 
 (define (%new-read-hook sym) (noop)) ; for autocompletion
 
@@ -106,9 +105,10 @@
 (inherit-modules (kernel logic logic-rules) (kernel logic logic-query)
                  (kernel logic logic-data))
 (inherit-modules (kernel athena tm-define)
+                 (kernel athena tm-dialogue)
                  (kernel athena tm-preferences) (kernel athena tm-modes)
                  (kernel athena tm-plugins) (kernel athena tm-secure)
-                 (kernel athena tm-convert) (kernel athena tm-dialogue)
+                 (kernel athena tm-convert)
                  (kernel athena tm-language) (kernel athena tm-file-system)
                  (kernel athena tm-states))
 (inherit-modules (kernel gui gui-markup)
@@ -125,18 +125,18 @@
 ;(display* "memory: " (athena-memory) " bytes\n")
 
 ;(display "Booting utilities\n")
-(use-modules (utils library cpp-wrap))
+(import-from (utils library cpp-wrap))
 (lazy-define (utils library cursor) notify-cursor-moved)
 (lazy-define (utils edit variants) make-inline-tag-list make-wrapped-tag-list)
 (lazy-define (utils cas cas-out) cas->stree)
 (lazy-define (utils plugins plugin-cmd) pre-serialize verbatim-serialize)
 (lazy-define (utils test test-convert) delayed-quit
              build-manual build-ref-suite run-test-suite)
-(use-modules (utils library smart-table))
-(use-modules (utils plugins plugin-convert))
-(use-modules (utils misc markup-funcs))
-(use-modules (utils misc artwork))
-(use-modules (utils handwriting handwriting))
+(import-from (utils library smart-table))
+(import-from (utils plugins plugin-convert))
+(import-from (utils misc markup-funcs))
+(import-from (utils misc artwork))
+(import-from (utils handwriting handwriting))
 (lazy-tmfs-handler (utils automate auto-tmfs) automate)
 (lazy-define (utils automate auto-tmfs) auto-load-help)
 (lazy-define (utils misc gui-keyboard) get-keyboard)
@@ -147,7 +147,7 @@
 ;(display* "memory: " (athena-memory) " bytes\n")
 
 ;(display "Booting main ATHENA functionality\n")
-(use-modules (athena athena tm-server) (athena athena tm-view)
+(import-from (athena athena tm-server) (athena athena tm-view)
              (athena athena tm-files) (athena athena tm-print)
              (athena athena tm-vault) (athena athena tm-materials)
              (athena athena tm-codex))
@@ -156,7 +156,7 @@
   heading-word-count-schedule-refresh)
 (lazy-define (athena athena tm-files)
              buffer-missing-style? buffer-set-default-style)
-(use-modules (athena keyboard config-kbd))
+(import-from (athena keyboard config-kbd))
 (lazy-keyboard (athena keyboard prefix-kbd) always?)
 (lazy-keyboard (athena keyboard latex-kbd) always?)
 (lazy-menu (athena menus file-menu)
@@ -178,7 +178,7 @@
 (lazy-menu (athena menus preferences-widgets)
            preferences-open?
            open-preferences open-plugin-preferences open-plugins-preferences)
-(use-modules (athena menus main-menu))
+(import-from (athena menus main-menu))
 (lazy-define (athena menus file-menu) recent-file-list recent-directory-list)
 (lazy-define (athena menus view-menu) set-bottom-bar test-bottom-bar?)
 (lazy-define (athena athena tm-reverse-hierarchy-graph)
@@ -517,7 +517,7 @@
 ;(display* "memory: " (athena-memory) " bytes\n")
 
 ;(display "Booting fonts\n")
-(use-modules (fonts fonts-ec) (fonts fonts-adobe) (fonts fonts-x)
+(import-from (fonts fonts-ec) (fonts fonts-adobe) (fonts fonts-x)
              (fonts fonts-math) (fonts fonts-foreign) (fonts fonts-misc)
              (fonts fonts-composite) (fonts fonts-truetype))
 (lazy-define (fonts font-old-menu)

@@ -1,0 +1,1019 @@
+/* Copyright 1998-2004,2008-2015,2017-2018
+     Free Software Foundation, Inc.
+
+   This file is part of Guile.
+
+   Guile is free software: you can redistribute it and/or modify it
+   under the terms of the GNU Lesser General Public License as published
+   by the Free Software Foundation, either version 3 of the License, or
+   (at your option) any later version.
+
+   Guile is distributed in the hope that it will be useful, but WITHOUT
+   ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+   FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
+   License for more details.
+
+   You should have received a copy of the GNU Lesser General Public
+   License along with Guile.  If not, see
+   <https://www.gnu.org/licenses/>.  */
+
+
+/* This software is a derivative work of other copyrighted softwares; the
+ * copyright notices of these softwares are placed in the file COPYRIGHTS
+ *
+ * This file is based upon stklos.c from the STk distribution by
+ * Erick Gallesio <eg@unice.fr>.
+ */
+
+#ifdef HAVE_CONFIG_H
+# include <config.h>
+#endif
+
+#include "async.h"
+#include "boolean.h"
+#include "chars.h"
+#include "dynwind.h"
+#include "eval.h"
+#include "extensions.h"
+#include "foreign.h"
+#include "gsubr.h"
+#include "hashtab.h"
+#include "keywords.h"
+#include "macros.h"
+#include "modules.h"
+#include "numbers.h"
+#include "pairs.h"
+#include "ports-internal.h"
+#include "ports.h"
+#include "procprop.h"
+#include "programs.h"
+#include "smob.h"
+#include "strings.h"
+#include "strports.h"
+#include "symbols.h"
+#include "variable.h"
+#include "vectors.h"
+#include "version.h"
+#include "weak-table.h"
+
+#include "goops.h"
+
+
+/* Objects have identity, so references to classes and instances are by
+   value, not by reference.  Redefinition of a class or modification of
+   an instance causes in-place update; you can think of GOOPS as
+   building in its own indirection, and for that reason referring to
+   GOOPS values by variable reference is unnecessary.
+
+   References to ordinary procedures is by reference (by variable),
+   though, as in the rest of Guile.  */
+
+SCM_KEYWORD (k_name, "name");
+SCM_KEYWORD (k_setter, "setter");
+SCM_SYMBOL (sym_redefined, "redefined");
+SCM_GLOBAL_SYMBOL (scm_sym_args, "args");
+
+static int goops_loaded_p = 0;
+
+static SCM var_make_standard_class = SCM_BOOL_F;
+static SCM var_class_of_obsolete_indirect_instance = SCM_BOOL_F;
+static SCM var_make = SCM_BOOL_F;
+static SCM var_inherit_applicable = SCM_BOOL_F;
+static SCM var_class_name = SCM_BOOL_F;
+static SCM var_class_direct_supers = SCM_BOOL_F;
+static SCM var_class_direct_slots = SCM_BOOL_F;
+static SCM var_class_direct_subclasses = SCM_BOOL_F;
+static SCM var_class_direct_methods = SCM_BOOL_F;
+static SCM var_class_precedence_list = SCM_BOOL_F;
+static SCM var_class_slots = SCM_BOOL_F;
+
+static SCM var_generic_function_methods = SCM_BOOL_F;
+static SCM var_method_generic_function = SCM_BOOL_F;
+static SCM var_method_specializers = SCM_BOOL_F;
+static SCM var_method_procedure = SCM_BOOL_F;
+
+static SCM var_slot_ref = SCM_BOOL_F;
+static SCM var_slot_set_x = SCM_BOOL_F;
+static SCM var_slot_bound_p = SCM_BOOL_F;
+static SCM var_slot_exists_p = SCM_BOOL_F;
+
+/* These variables are filled in by the object system when loaded. */
+static SCM class_boolean, class_char, class_pair;
+static SCM class_procedure, class_string, class_symbol;
+static SCM class_primitive_generic;
+static SCM class_vector, class_null;
+static SCM class_integer, class_real, class_complex, class_fraction;
+static SCM class_unknown;
+static SCM class_top, class_class;
+static SCM class_applicable;
+static SCM class_applicable_struct, class_applicable_struct_with_setter;
+static SCM class_generic, class_generic_with_setter;
+static SCM class_accessor;
+static SCM class_extended_generic, class_extended_generic_with_setter;
+static SCM class_extended_accessor;
+static SCM class_method;
+static SCM class_accessor_method;
+static SCM class_procedure_class;
+static SCM class_applicable_struct_class;
+static SCM class_applicable_struct_with_setter_class;
+static SCM class_number, class_list;
+static SCM class_keyword;
+static SCM class_syntax;
+static SCM class_atomic_box;
+static SCM class_port, class_input_output_port;
+static SCM class_input_port, class_output_port;
+
+static SCM class_foreign;
+static SCM class_hashtable;
+static SCM class_fluid;
+static SCM class_dynamic_state;
+static SCM class_frame;
+static SCM class_vm_cont;
+static SCM class_bytevector;
+static SCM class_uvec;
+static SCM class_array;
+static SCM class_bitvector;
+
+static SCM vtable_class_map = SCM_BOOL_F;
+
+/* SMOB classes.  */
+SCM scm_i_smob_class[SCM_I_MAX_SMOB_TYPE_COUNT];
+
+SCM scm_module_goops;
+
+static SCM scm_sys_make_vtable_vtable (SCM layout);
+static SCM scm_sys_init_layout_x (SCM class, SCM layout);
+static SCM scm_sys_clear_fields_x (SCM obj, SCM unbound);
+static SCM scm_sys_goops_early_init (void);
+static SCM scm_sys_goops_loaded (void);
+
+
+
+
+SCM_DEFINE (scm_sys_make_vtable_vtable, "%make-vtable-vtable", 1, 0, 0,
+            (SCM layout),
+	    "")
+#define FUNC_NAME s_scm_sys_make_vtable_vtable
+{
+  return scm_i_make_vtable_vtable (layout);
+}
+#undef FUNC_NAME
+
+SCM
+scm_make_standard_class (SCM meta, SCM name, SCM dsupers, SCM dslots)
+{
+  return scm_call_4 (scm_variable_ref (var_make_standard_class),
+                     meta, name, dsupers, dslots);
+}
+
+SCM_DEFINE (scm_sys_init_layout_x, "%init-layout!", 2, 0, 0,
+	    (SCM class, SCM layout),
+	    "")
+#define FUNC_NAME s_scm_sys_init_layout_x
+{
+  SCM_VALIDATE_INSTANCE (1, class);
+  SCM_ASSERT (!scm_is_symbol (SCM_VTABLE_LAYOUT (class)), class, 1, FUNC_NAME);
+  SCM_VALIDATE_STRING (2, layout);
+
+  SCM_SET_VTABLE_LAYOUT (class, scm_make_struct_layout (layout));
+  scm_i_struct_inherit_vtable_magic (scm_class_of (class), class);
+  SCM_SET_CLASS_FLAGS (class, SCM_VTABLE_FLAG_GOOPS_CLASS);
+
+  return SCM_UNSPECIFIED;
+}
+#undef FUNC_NAME
+
+
+
+
+static SCM
+get_indirect_slots (SCM x)
+{
+  /* Precondition: X is an indirect instance.  The indirect slots are in
+     the last field.  */
+  scm_t_bits nfields =
+    SCM_STRUCT_DATA_REF (SCM_STRUCT_VTABLE (x), scm_vtable_index_size);
+
+  return SCM_STRUCT_SLOT_REF (x, nfields - 1);
+}
+
+/* This function is used for efficient type dispatch.  */
+SCM_DEFINE (scm_class_of, "class-of", 1, 0, 0,
+	    (SCM x),
+	    "Return the class of @var{x}.")
+#define FUNC_NAME s_scm_class_of
+{
+  switch (SCM_ITAG3 (x))
+    {
+    case scm_tc3_int_1:
+    case scm_tc3_int_2:
+      return class_integer;
+
+    case scm_tc3_imm24:
+      if (SCM_CHARP (x))
+	return class_char;
+      else if (scm_is_bool (x))
+        return class_boolean;
+      else if (scm_is_null (x))
+        return class_null;
+      else
+        return class_unknown;
+
+    case scm_tc3_cons:
+      switch (SCM_TYP7 (x))
+	{
+	case scm_tcs_cons_nimcar:
+	  return class_pair;
+	case scm_tc7_symbol:
+	  return class_symbol;
+	case scm_tc7_vector:
+	case scm_tc7_wvect:
+	  return class_vector;
+	case scm_tc7_pointer:
+	  return class_foreign;
+	case scm_tc7_hashtable:
+	  return class_hashtable;
+	case scm_tc7_fluid:
+	  return class_fluid;
+	case scm_tc7_dynamic_state:
+	  return class_dynamic_state;
+        case scm_tc7_frame:
+	  return class_frame;
+        case scm_tc7_keyword:
+	  return class_keyword;
+        case scm_tc7_syntax:
+	  return class_syntax;
+        case scm_tc7_atomic_box:
+	  return class_atomic_box;
+        case scm_tc7_vm_cont:
+	  return class_vm_cont;
+	case scm_tc7_bytevector:
+          if (SCM_BYTEVECTOR_ELEMENT_TYPE (x) == SCM_ARRAY_ELEMENT_TYPE_VU8)
+            return class_bytevector;
+          else
+            return class_uvec;
+	case scm_tc7_array:
+          return class_array;
+	case scm_tc7_bitvector:
+          return class_bitvector;
+	case scm_tc7_string:
+	  return class_string;
+        case scm_tc7_number:
+          switch SCM_TYP16 (x) {
+          case scm_tc16_big:
+            return class_integer;
+          case scm_tc16_real:
+            return class_real;
+          case scm_tc16_complex:
+            return class_complex;
+	  case scm_tc16_fraction:
+	    return class_fraction;
+          }
+	case scm_tc7_program:
+	  if (SCM_PROGRAM_IS_PRIMITIVE_GENERIC (x)
+              && SCM_UNPACK (*SCM_SUBR_GENERIC (x)))
+	    return class_primitive_generic;
+	  else
+	    return class_procedure;
+
+	case scm_tc7_smob:
+	  {
+	    scm_t_bits type = SCM_TYP16 (x);
+	    if (type != scm_tc16_port_with_ps)
+	      return scm_i_smob_class[SCM_TC2SMOBNUM (type)];
+	    x = SCM_PORT_WITH_PS_PORT (x);
+	    /* fall through to ports */
+	  }
+	case scm_tc7_port:
+          {
+            scm_t_port_type *ptob = SCM_PORT_TYPE (x);
+            if (SCM_INPUT_PORT_P (x))
+              {
+                if (SCM_OUTPUT_PORT_P (x))
+                  return ptob->input_output_class;
+                return ptob->input_class;
+              }
+            return ptob->output_class;
+          }
+	case scm_tcs_struct:
+          {
+            SCM vtable = SCM_STRUCT_VTABLE (x);
+            scm_t_bits flags = SCM_VTABLE_FLAGS (vtable);
+            scm_t_bits direct = SCM_VTABLE_FLAG_GOOPS_CLASS;
+            scm_t_bits indirect = direct | SCM_VTABLE_FLAG_GOOPS_INDIRECT;
+            scm_t_bits mask = indirect;
+            if ((flags & mask) == direct)
+              /* A direct GOOPS object.  */
+              return vtable;
+            else if ((flags & mask) == indirect)
+              /* An indirect GOOPS object.  If the vtable of the slots
+                 object is flagged to indicate that there's a new class
+                 definition available, migrate the instance before
+                 returning the class.  */
+              {
+                SCM slots = get_indirect_slots (x);
+                scm_t_bits slot_flags = SCM_OBJ_CLASS_FLAGS (slots);
+                if (slot_flags & SCM_VTABLE_FLAG_GOOPS_NEEDS_MIGRATION)
+                  return scm_call_1
+                    (scm_variable_ref (var_class_of_obsolete_indirect_instance),
+                     x);
+                else
+                  return vtable;
+              }
+            else
+              /* A non-GOOPS struct.  */
+              return scm_i_define_class_for_vtable (vtable);
+          }
+	default:
+	  if (scm_is_pair (x))
+	    return class_pair;
+	  else
+	    return class_unknown;
+	}
+
+    case scm_tc3_struct:
+    case scm_tc3_tc7_1:
+    case scm_tc3_tc7_2:
+      /* case scm_tc3_unused: */
+      /* Never reached */
+      break;
+    }
+  return class_unknown;
+}
+#undef FUNC_NAME
+
+
+
+
+SCM_DEFINE (scm_instance_p, "instance?", 1, 0, 0,
+	    (SCM obj),
+	    "Return @code{#t} if @var{obj} is an instance.")
+#define FUNC_NAME s_scm_instance_p
+{
+  return scm_from_bool (SCM_INSTANCEP (obj));
+}
+#undef FUNC_NAME
+
+int
+scm_is_generic (SCM x)
+{
+  return SCM_INSTANCEP (x) && SCM_SUBCLASSP (scm_class_of (x), class_generic);
+}
+
+int
+scm_is_method (SCM x)
+{
+  return SCM_INSTANCEP (x) && SCM_SUBCLASSP (scm_class_of (x), class_method);
+}
+
+
+
+
+SCM
+scm_class_name (SCM obj)
+{
+  return scm_call_1 (scm_variable_ref (var_class_name), obj);
+}
+
+SCM
+scm_class_direct_supers (SCM obj)
+{
+  return scm_call_1 (scm_variable_ref (var_class_direct_supers), obj);
+}
+
+SCM
+scm_class_direct_slots (SCM obj)
+{
+  return scm_call_1 (scm_variable_ref (var_class_direct_slots), obj);
+}
+
+SCM
+scm_class_direct_subclasses (SCM obj)
+{
+  return scm_call_1 (scm_variable_ref (var_class_direct_subclasses), obj);
+}
+
+SCM
+scm_class_direct_methods (SCM obj)
+{
+  return scm_call_1 (scm_variable_ref (var_class_direct_methods), obj);
+}
+
+SCM
+scm_class_precedence_list (SCM obj)
+{
+  return scm_call_1 (scm_variable_ref (var_class_precedence_list), obj);
+}
+
+SCM
+scm_class_slots (SCM obj)
+{
+  return scm_call_1 (scm_variable_ref (var_class_slots), obj);
+}
+
+
+
+
+SCM_DEFINE (scm_generic_function_name, "generic-function-name", 1, 0, 0,
+            (SCM obj),
+	    "Return the name of the generic function @var{obj}.")
+#define FUNC_NAME s_scm_generic_function_name
+{
+  SCM_VALIDATE_GENERIC (1, obj);
+  return scm_procedure_property (obj, scm_sym_name);
+}
+#undef FUNC_NAME
+
+SCM
+scm_generic_function_methods (SCM obj)
+{
+  return scm_call_1 (scm_variable_ref (var_generic_function_methods), obj);
+}
+
+SCM
+scm_method_generic_function (SCM obj)
+{
+  return scm_call_1 (scm_variable_ref (var_method_generic_function), obj);
+}
+
+SCM
+scm_method_specializers (SCM obj)
+{
+  return scm_call_1 (scm_variable_ref (var_method_specializers), obj);
+}
+
+SCM
+scm_method_procedure (SCM obj)
+{
+  return scm_call_1 (scm_variable_ref (var_method_procedure), obj);
+}
+
+
+
+
+SCM
+scm_slot_ref (SCM obj, SCM slot_name)
+{
+  return scm_call_2 (scm_variable_ref (var_slot_ref), obj, slot_name);
+}
+
+SCM
+scm_slot_set_x (SCM obj, SCM slot_name, SCM value)
+{
+  return scm_call_3 (scm_variable_ref (var_slot_set_x), obj, slot_name, value);
+}
+
+SCM
+scm_slot_bound_p (SCM obj, SCM slot_name)
+{
+  return scm_call_2 (scm_variable_ref (var_slot_bound_p), obj, slot_name);
+}
+
+SCM
+scm_slot_exists_p (SCM obj, SCM slot_name)
+{
+  return scm_call_2 (scm_variable_ref (var_slot_exists_p), obj, slot_name);
+}
+
+
+
+
+SCM_DEFINE (scm_sys_clear_fields_x, "%clear-fields!", 2, 0, 0,
+	    (SCM obj, SCM unbound),
+            "")
+#define FUNC_NAME s_scm_sys_clear_fields_x
+{
+  scm_t_signed_bits n, i;
+
+  SCM_VALIDATE_STRUCT (1, obj);
+  n = SCM_STRUCT_SIZE (obj);
+
+  /* Set all SCM-holding slots to the GOOPS unbound value.  */
+  for (i = 0; i < n; i++)
+    if (!SCM_STRUCT_FIELD_IS_UNBOXED (obj, i))
+      SCM_STRUCT_SLOT_SET (obj, i, unbound);
+
+  return SCM_UNSPECIFIED;
+}
+#undef FUNC_NAME
+
+
+
+
+static scm_i_pthread_mutex_t goops_lock = SCM_I_PTHREAD_MUTEX_INITIALIZER;
+
+SCM_DEFINE (scm_sys_modify_instance, "%modify-instance", 2, 0, 0,
+	    (SCM old, SCM new),
+	    "Used by change-class to modify objects in place.")
+#define FUNC_NAME s_scm_sys_modify_instance
+{
+  scm_t_bits i, old_nfields, new_nfields;
+
+  SCM_VALIDATE_INSTANCE (1, old);
+  SCM_VALIDATE_INSTANCE (2, new);
+
+  old_nfields = SCM_STRUCT_DATA_REF (SCM_STRUCT_VTABLE (old),
+                                     scm_vtable_index_size);
+  new_nfields = SCM_STRUCT_DATA_REF (SCM_STRUCT_VTABLE (new),
+                                     scm_vtable_index_size);
+  SCM_ASSERT (old_nfields == new_nfields, new, SCM_ARG2, FUNC_NAME);
+
+  /* Exchange the data contained in old and new. We exchange rather than
+     scratch the old value with new to be correct with GC.  See "Class
+     redefinition protocol" in goops.scm.  */
+  scm_i_pthread_mutex_lock (&goops_lock);
+  /* Swap vtables.  */
+  {
+    scm_t_bits tmp = SCM_CELL_WORD_0 (old);
+    SCM_SET_CELL_WORD_0 (old, SCM_CELL_WORD_0 (new));
+    SCM_SET_CELL_WORD_0 (new, tmp);
+  }
+  /* Swap data.  */
+  for (i = 0; i < old_nfields; i++)
+    {
+      scm_t_bits tmp = SCM_STRUCT_DATA_REF (old, i);
+      SCM_STRUCT_DATA_SET (old, i, SCM_STRUCT_DATA_REF (new, i));
+      SCM_STRUCT_DATA_SET (new, i, tmp);
+    }
+  scm_i_pthread_mutex_unlock (&goops_lock);
+  return SCM_UNSPECIFIED;
+}
+#undef FUNC_NAME
+
+
+
+/* Primitive generics: primitives that can dispatch to generics if their
+   arguments fail to apply.  */
+
+SCM_DEFINE (scm_generic_capability_p, "generic-capability?", 1, 0, 0,
+	    (SCM proc),
+	    "")
+#define FUNC_NAME s_scm_generic_capability_p
+{
+  SCM_ASSERT (scm_is_true (scm_procedure_p (proc)),
+	      proc, SCM_ARG1, FUNC_NAME);
+  return (SCM_PRIMITIVE_GENERIC_P (proc) ? SCM_BOOL_T : SCM_BOOL_F);
+}
+#undef FUNC_NAME
+
+SCM_DEFINE (scm_enable_primitive_generic_x, "enable-primitive-generic!", 0, 0, 1,
+	    (SCM subrs),
+	    "")
+#define FUNC_NAME s_scm_enable_primitive_generic_x
+{
+  SCM_VALIDATE_REST_ARGUMENT (subrs);
+  while (!scm_is_null (subrs))
+    {
+      SCM subr = SCM_CAR (subrs);
+      SCM_ASSERT (SCM_PRIMITIVE_GENERIC_P (subr), subr, SCM_ARGn, FUNC_NAME);
+      SCM_SET_SUBR_GENERIC (subr,
+                            scm_make (scm_list_3 (class_generic,
+                                                  k_name,
+                                                  SCM_SUBR_NAME (subr))));
+      subrs = SCM_CDR (subrs);
+    }
+  return SCM_UNSPECIFIED;
+}
+#undef FUNC_NAME
+
+SCM_DEFINE (scm_set_primitive_generic_x, "set-primitive-generic!", 2, 0, 0,
+	    (SCM subr, SCM generic),
+	    "")
+#define FUNC_NAME s_scm_set_primitive_generic_x
+{
+  SCM_ASSERT (SCM_PRIMITIVE_GENERIC_P (subr), subr, SCM_ARG1, FUNC_NAME);
+  SCM_ASSERT (SCM_GENERICP (generic), generic, SCM_ARG2, FUNC_NAME);
+  SCM_SET_SUBR_GENERIC (subr, generic);
+  return SCM_UNSPECIFIED;
+}
+#undef FUNC_NAME
+
+SCM_DEFINE (scm_primitive_generic_generic, "primitive-generic-generic", 1, 0, 0,
+	    (SCM subr),
+	    "")
+#define FUNC_NAME s_scm_primitive_generic_generic
+{
+  if (SCM_PRIMITIVE_GENERIC_P (subr))
+    {
+      if (!SCM_UNPACK (*SCM_SUBR_GENERIC (subr)))
+	scm_enable_primitive_generic_x (scm_list_1 (subr));
+      return *SCM_SUBR_GENERIC (subr);
+    }
+  SCM_WRONG_TYPE_ARG (SCM_ARG1, subr);
+}
+#undef FUNC_NAME
+
+SCM
+scm_wta_dispatch_0 (SCM gf, const char *subr)
+{
+  if (!SCM_UNPACK (gf))
+    scm_error_num_args_subr (subr);
+
+  return scm_call_0 (gf);
+}
+
+SCM
+scm_wta_dispatch_1 (SCM gf, SCM a1, int pos, const char *subr)
+{
+  if (!SCM_UNPACK (gf))
+    scm_wrong_type_arg (subr, pos, a1);
+
+  return scm_call_1 (gf, a1);
+}
+
+SCM
+scm_wta_dispatch_2 (SCM gf, SCM a1, SCM a2, int pos, const char *subr)
+{
+  if (!SCM_UNPACK (gf))
+    scm_wrong_type_arg (subr, pos, (pos == SCM_ARG1) ? a1 : a2);
+
+  return scm_call_2 (gf, a1, a2);
+}
+
+SCM
+scm_wta_dispatch_n (SCM gf, SCM args, int pos, const char *subr)
+{
+  if (!SCM_UNPACK (gf))
+    scm_wrong_type_arg (subr, pos, scm_list_ref (args, scm_from_int (pos)));
+
+  return scm_apply_0 (gf, args);
+}
+
+
+
+
+SCM
+scm_make (SCM args)
+{
+  return scm_apply_0 (scm_variable_ref (var_make), args);
+}
+
+
+
+
+/* SMOB, struct, and port classes.  */
+
+static SCM
+make_class_name (const char *prefix, const char *type_name, const char *suffix)
+{
+  if (!type_name)
+    type_name = "";
+  return scm_string_to_symbol (scm_string_append
+                               (scm_list_3 (scm_from_utf8_string (prefix),
+                                            scm_from_utf8_string (type_name),
+                                            scm_from_utf8_string (suffix))));
+}
+
+SCM
+scm_make_extended_class (char const *type_name, int applicablep)
+{
+  SCM name, meta, supers;
+
+  name = make_class_name ("<", type_name, ">");
+  meta = class_class;
+
+  if (applicablep)
+    supers = scm_list_1 (class_applicable);
+  else
+    supers = scm_list_1 (class_top);
+
+  return scm_make_standard_class (meta, name, supers, SCM_EOL);
+}
+
+void
+scm_i_inherit_applicable (SCM c)
+{
+  scm_call_1 (scm_variable_ref (var_inherit_applicable), c);
+}
+
+static void
+create_smob_classes (void)
+{
+  long i;
+
+  for (i = 0; i < SCM_I_MAX_SMOB_TYPE_COUNT; ++i)
+    scm_i_smob_class[i] = SCM_BOOL_F;
+
+  for (i = 0; i < scm_numsmob; ++i)
+    if (scm_is_false (scm_i_smob_class[i]))
+      scm_i_smob_class[i] = scm_make_extended_class (SCM_SMOBNAME (i),
+                                                     scm_smobs[i].apply != 0);
+}
+
+struct pre_goops_port_type
+{
+  scm_t_port_type *ptob;
+  struct pre_goops_port_type *prev;
+};
+struct pre_goops_port_type *pre_goops_port_types;
+
+static void
+make_port_classes (scm_t_port_type *ptob)
+{
+  SCM name, meta, super, supers;
+
+  meta = class_class;
+
+  name = make_class_name ("<", ptob->name, "-port>");
+  supers = scm_list_1 (class_port);
+  super = scm_make_standard_class (meta, name, supers, SCM_EOL);
+
+  name = make_class_name ("<", ptob->name, "-input-port>");
+  supers = scm_list_2 (super, class_input_port);
+  ptob->input_class = scm_make_standard_class (meta, name, supers, SCM_EOL);
+
+  name = make_class_name ("<", ptob->name, "-output-port>");
+  supers = scm_list_2 (super, class_output_port);
+  ptob->output_class = scm_make_standard_class (meta, name, supers, SCM_EOL);
+
+  name = make_class_name ("<", ptob->name, "-input-output-port>");
+  supers = scm_list_2 (super, class_input_output_port);
+  ptob->input_output_class =
+    scm_make_standard_class (meta, name, supers, SCM_EOL);
+}
+
+void
+scm_make_port_classes (scm_t_port_type *ptob)
+{
+  ptob->input_class = SCM_BOOL_F;
+  ptob->output_class = SCM_BOOL_F;
+  ptob->input_output_class = SCM_BOOL_F;
+
+  if (!goops_loaded_p)
+    {
+      /* Not really a pair.  */
+      struct pre_goops_port_type *link;
+      link = scm_gc_typed_calloc (struct pre_goops_port_type);
+      link->ptob = ptob;
+      link->prev = pre_goops_port_types;
+      pre_goops_port_types = link;
+      return;
+    }
+
+  make_port_classes (ptob);
+}
+
+static void
+create_port_classes (void)
+{
+  while (pre_goops_port_types)
+    {
+      make_port_classes (pre_goops_port_types->ptob);
+      pre_goops_port_types = pre_goops_port_types->prev;
+    }
+}
+
+SCM
+scm_i_define_class_for_vtable (SCM vtable)
+{
+  SCM class;
+
+  scm_i_pthread_mutex_lock (&scm_i_misc_mutex);
+  if (scm_is_false (vtable_class_map))
+    vtable_class_map = scm_c_make_weak_table (0, SCM_WEAK_TABLE_KIND_KEY);
+  scm_i_pthread_mutex_unlock (&scm_i_misc_mutex);
+
+  if (scm_is_false (scm_struct_vtable_p (vtable)))
+    abort ();
+
+  class = scm_weak_table_refq (vtable_class_map, vtable, SCM_BOOL_F);
+
+  if (scm_is_false (class))
+    {
+      if (SCM_UNPACK (class_class))
+        {
+          SCM name, meta, supers;
+
+          name = SCM_VTABLE_NAME (vtable);
+          if (scm_is_symbol (name))
+            name = scm_string_to_symbol
+              (scm_string_append
+               (scm_list_3 (scm_from_latin1_string ("<"),
+                            scm_symbol_to_string (name),
+                            scm_from_latin1_string (">"))));
+          else
+            name = scm_from_latin1_symbol ("<>");
+
+          if (SCM_STRUCT_VTABLE_FLAG_IS_SET (vtable, SCM_VTABLE_FLAG_SETTER))
+            {
+              meta = class_applicable_struct_with_setter_class;
+              supers = scm_list_1 (class_applicable_struct_with_setter);
+            }
+          else if (SCM_STRUCT_VTABLE_FLAG_IS_SET (vtable,
+                                                  SCM_VTABLE_FLAG_APPLICABLE))
+            {
+              meta = class_applicable_struct_class;
+              supers = scm_list_1 (class_applicable_struct);
+            }
+          else
+            {
+              meta = class_class;
+              supers = scm_list_1 (class_top);
+            }
+
+          class = scm_make_standard_class (meta, name, supers, SCM_EOL);
+        }
+      else
+        /* `create_struct_classes' will fill this in later.  */
+        class = SCM_BOOL_F;
+
+      /* Don't worry about races.  This only happens when creating a
+         vtable, which happens by definition in one thread.  */
+      scm_weak_table_putq_x (vtable_class_map, vtable, class);
+    }
+
+  return class;
+}
+
+static SCM
+make_struct_class (void *closure SCM_UNUSED,
+		   SCM vtable, SCM data, SCM prev SCM_UNUSED)
+{
+  if (scm_is_false (data))
+    scm_i_define_class_for_vtable (vtable);
+  return SCM_UNSPECIFIED;
+}
+
+static void
+create_struct_classes (void)
+{
+  /* FIXME: take the vtable_class_map while initializing goops?  */
+  scm_internal_hash_fold (make_struct_class, 0, SCM_BOOL_F,
+                          vtable_class_map);
+}
+
+
+
+
+void
+scm_load_goops ()
+{
+  if (!goops_loaded_p)
+    scm_c_resolve_module ("oop goops");
+}
+
+SCM
+scm_ensure_accessor (SCM name)
+{
+  SCM var, gf;
+
+  var = scm_module_variable (scm_current_module (), name);
+  if (SCM_VARIABLEP (var) && !SCM_UNBNDP (SCM_VARIABLE_REF (var)))
+    gf = SCM_VARIABLE_REF (var);
+  else
+    gf = SCM_BOOL_F;
+
+  if (!SCM_IS_A_P (gf, class_accessor))
+    {
+      gf = scm_make (scm_list_3 (class_generic, k_name, name));
+      gf = scm_make (scm_list_5 (class_accessor,
+				 k_name, name, k_setter, gf));
+    }
+
+  return gf;
+}
+
+
+
+
+SCM_DEFINE (scm_sys_goops_early_init, "%goops-early-init", 0, 0, 0,
+	    (),
+	    "")
+#define FUNC_NAME s_scm_sys_goops_early_init
+{
+  var_make_standard_class = scm_c_lookup ("make-standard-class");
+  var_make = scm_c_lookup ("make");
+  var_inherit_applicable = scm_c_lookup ("inherit-applicable!");
+
+  /* For SCM_SUBCLASSP.  */
+  var_class_precedence_list = scm_c_lookup ("class-precedence-list");
+
+  var_slot_ref = scm_c_lookup ("slot-ref");
+  var_slot_set_x = scm_c_lookup ("slot-set!");
+  var_slot_bound_p = scm_c_lookup ("slot-bound?");
+  var_slot_exists_p = scm_c_lookup ("slot-exists?");
+
+  class_class = scm_variable_ref (scm_c_lookup ("<class>"));
+  class_top = scm_variable_ref (scm_c_lookup ("<top>"));
+
+  /* Applicables */
+  class_procedure_class = scm_variable_ref (scm_c_lookup ("<procedure-class>"));
+  class_applicable_struct_class = scm_variable_ref (scm_c_lookup ("<applicable-struct-class>"));
+  class_applicable_struct_with_setter_class =
+    scm_variable_ref (scm_c_lookup ("<applicable-struct-with-setter-class>"));
+
+  class_method = scm_variable_ref (scm_c_lookup ("<method>"));
+  class_accessor_method = scm_variable_ref (scm_c_lookup ("<accessor-method>"));
+  class_applicable = scm_variable_ref (scm_c_lookup ("<applicable>"));
+  class_applicable_struct = scm_variable_ref (scm_c_lookup ("<applicable-struct>"));
+  class_applicable_struct_with_setter = scm_variable_ref (scm_c_lookup ("<applicable-struct-with-setter>"));
+  class_generic = scm_variable_ref (scm_c_lookup ("<generic>"));
+  class_extended_generic = scm_variable_ref (scm_c_lookup ("<extended-generic>"));
+  class_generic_with_setter = scm_variable_ref (scm_c_lookup ("<generic-with-setter>"));
+  class_accessor = scm_variable_ref (scm_c_lookup ("<accessor>"));
+  class_extended_generic_with_setter = scm_variable_ref (scm_c_lookup ("<extended-generic-with-setter>"));
+  class_extended_accessor = scm_variable_ref (scm_c_lookup ("<extended-accessor>"));
+
+  /* Primitive types classes */
+  class_boolean = scm_variable_ref (scm_c_lookup ("<boolean>"));
+  class_char = scm_variable_ref (scm_c_lookup ("<char>"));
+  class_list = scm_variable_ref (scm_c_lookup ("<list>"));
+  class_pair = scm_variable_ref (scm_c_lookup ("<pair>"));
+  class_null = scm_variable_ref (scm_c_lookup ("<null>"));
+  class_string = scm_variable_ref (scm_c_lookup ("<string>"));
+  class_symbol = scm_variable_ref (scm_c_lookup ("<symbol>"));
+  class_vector = scm_variable_ref (scm_c_lookup ("<vector>"));
+  class_foreign = scm_variable_ref (scm_c_lookup ("<foreign>"));
+  class_hashtable = scm_variable_ref (scm_c_lookup ("<hashtable>"));
+  class_fluid = scm_variable_ref (scm_c_lookup ("<fluid>"));
+  class_dynamic_state = scm_variable_ref (scm_c_lookup ("<dynamic-state>"));
+  class_frame = scm_variable_ref (scm_c_lookup ("<frame>"));
+  class_keyword = scm_variable_ref (scm_c_lookup ("<keyword>"));
+  class_syntax = scm_variable_ref (scm_c_lookup ("<syntax>"));
+  class_atomic_box = scm_variable_ref (scm_c_lookup ("<atomic-box>"));
+  class_vm_cont = scm_variable_ref (scm_c_lookup ("<vm-continuation>"));
+  class_bytevector = scm_variable_ref (scm_c_lookup ("<bytevector>"));
+  class_uvec = scm_variable_ref (scm_c_lookup ("<uvec>"));
+  class_array = scm_variable_ref (scm_c_lookup ("<array>"));
+  class_bitvector = scm_variable_ref (scm_c_lookup ("<bitvector>"));
+  class_number = scm_variable_ref (scm_c_lookup ("<number>"));
+  class_complex = scm_variable_ref (scm_c_lookup ("<complex>"));
+  class_real = scm_variable_ref (scm_c_lookup ("<real>"));
+  class_integer = scm_variable_ref (scm_c_lookup ("<integer>"));
+  class_fraction = scm_variable_ref (scm_c_lookup ("<fraction>"));
+  class_unknown = scm_variable_ref (scm_c_lookup ("<unknown>"));
+  class_procedure = scm_variable_ref (scm_c_lookup ("<procedure>"));
+  class_primitive_generic = scm_variable_ref (scm_c_lookup ("<primitive-generic>"));
+  class_port = scm_variable_ref (scm_c_lookup ("<port>"));
+  class_input_port = scm_variable_ref (scm_c_lookup ("<input-port>"));
+  class_output_port = scm_variable_ref (scm_c_lookup ("<output-port>"));
+  class_input_output_port = scm_variable_ref (scm_c_lookup ("<input-output-port>"));
+
+  create_smob_classes ();
+  create_struct_classes ();
+  create_port_classes ();
+
+  return SCM_UNSPECIFIED;
+}
+#undef FUNC_NAME
+
+SCM_DEFINE (scm_sys_goops_loaded, "%goops-loaded", 0, 0, 0,
+	    (),
+	    "Announce that GOOPS is loaded and perform initialization\n"
+	    "on the C level which depends on the loaded GOOPS modules.")
+#define FUNC_NAME s_scm_sys_goops_loaded
+{
+  goops_loaded_p = 1;
+  var_class_name = scm_c_lookup ("class-name");
+  var_class_direct_supers = scm_c_lookup ("class-direct-supers");
+  var_class_direct_slots = scm_c_lookup ("class-direct-slots");
+  var_class_direct_subclasses = scm_c_lookup ("class-direct-subclasses");
+  var_class_direct_methods = scm_c_lookup ("class-direct-methods");
+  var_class_slots = scm_c_lookup ("class-slots");
+
+  var_generic_function_methods = scm_c_lookup ("generic-function-methods");
+  var_method_generic_function = scm_c_lookup ("method-generic-function");
+  var_method_specializers = scm_c_lookup ("method-specializers");
+  var_method_procedure = scm_c_lookup ("method-procedure");
+
+  var_class_of_obsolete_indirect_instance =
+    scm_c_lookup ("class-of-obsolete-indirect-instance");
+
+  return SCM_UNSPECIFIED;
+}
+#undef FUNC_NAME
+
+static void
+scm_init_goops_builtins (void *unused)
+{
+  scm_module_goops = scm_current_module ();
+
+#include "goops.x"
+
+  scm_c_define ("vtable-flag-vtable",
+                scm_from_int (SCM_VTABLE_FLAG_VTABLE));
+  scm_c_define ("vtable-flag-applicable-vtable",
+                scm_from_int (SCM_VTABLE_FLAG_APPLICABLE_VTABLE));
+  scm_c_define ("vtable-flag-setter-vtable",
+                scm_from_int (SCM_VTABLE_FLAG_SETTER_VTABLE));
+  scm_c_define ("vtable-flag-validated",
+                scm_from_int (SCM_VTABLE_FLAG_VALIDATED));
+  scm_c_define ("vtable-flag-goops-class",
+                scm_from_int (SCM_VTABLE_FLAG_GOOPS_CLASS));
+  scm_c_define ("vtable-flag-goops-slot",
+                scm_from_int (SCM_VTABLE_FLAG_GOOPS_SLOT));
+  scm_c_define ("vtable-flag-goops-static-slot-allocation",
+                scm_from_int (SCM_VTABLE_FLAG_GOOPS_STATIC_SLOT_ALLOCATION));
+  scm_c_define ("vtable-flag-goops-indirect",
+                scm_from_int (SCM_VTABLE_FLAG_GOOPS_INDIRECT));
+  scm_c_define ("vtable-flag-goops-needs-migration",
+                scm_from_int (SCM_VTABLE_FLAG_GOOPS_NEEDS_MIGRATION));
+}
+
+void
+scm_init_goops ()
+{
+  scm_c_register_extension ("libguile-" SCM_EFFECTIVE_VERSION,
+                            "scm_init_goops_builtins", scm_init_goops_builtins,
+                            NULL);
+}

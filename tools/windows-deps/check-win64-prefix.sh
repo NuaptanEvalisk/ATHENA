@@ -47,6 +47,4 @@ require_pkg "libzstd"
 require_pkg "libsodium"
 require_pkg "MagickWand"
 
-require_pkg "guile-1.8"
-
 exit "${missing}"

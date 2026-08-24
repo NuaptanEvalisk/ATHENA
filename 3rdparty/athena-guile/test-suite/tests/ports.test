@@ -1,0 +1,2085 @@
+;;;; ports.test --- Guile I/O ports.    -*- coding: utf-8; mode: scheme; -*-
+;;;; Jim Blandy <jimb@red-bean.com> --- May 1999
+;;;;
+;;;; 	Copyright (C) 1999, 2001, 2004, 2006-2007, 2009-2015, 2017, 2019-2021,
+;;;;      2024 Free Software Foundation, Inc.
+;;;;
+;;;; This library is free software; you can redistribute it and/or
+;;;; modify it under the terms of the GNU Lesser General Public
+;;;; License as published by the Free Software Foundation; either
+;;;; version 3 of the License, or (at your option) any later version.
+;;;; 
+;;;; This library is distributed in the hope that it will be useful,
+;;;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;;;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+;;;; Lesser General Public License for more details.
+;;;; 
+;;;; You should have received a copy of the GNU Lesser General Public
+;;;; License along with this library; if not, write to the Free Software
+;;;; Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+
+(define-module (test-suite test-ports)
+  #:use-module (test-suite lib)
+  #:use-module (test-suite guile-test)
+  #:use-module (ice-9 popen)
+  #:use-module (ice-9 rdelim)
+  #:use-module (ice-9 threads)
+  #:use-module (rnrs bytevectors)
+  #:use-module ((ice-9 binary-ports) #:select (open-bytevector-input-port
+                                               open-bytevector-output-port
+                                               put-bytevector
+                                               get-bytevector-n
+                                               get-bytevector-all
+                                               unget-bytevector)))
+
+(define (display-line . args)
+  (for-each display args)
+  (newline))
+
+(define (test-file)
+  (data-file-name "ports-test.tmp"))
+
+
+;;;; Some general utilities for testing ports.
+
+;; Make sure we are set up for 8-bit Latin-1 data.
+(fluid-set! %default-port-encoding "ISO-8859-1")
+(for-each (lambda (p)
+            (set-port-encoding! p (fluid-ref %default-port-encoding)))
+          (list (current-input-port) (current-output-port)
+                (current-error-port)))
+
+;;; Read from PORT until EOF, and return the result as a string.
+(define (read-all port)
+  (let loop ((chars '()))
+    (let ((char (read-char port)))
+      (if (eof-object? char)
+          (list->string (reverse! chars))
+          (loop (cons char chars))))))
+
+(define (read-file filename)
+  (let* ((port (open-input-file filename))
+         (string (read-all port)))
+    (close-port port)
+    string))
+
+
+
+(with-test-prefix "%default-port-conversion-strategy"
+
+  (pass-if "initial value"
+    (eq? 'substitute (fluid-ref %default-port-conversion-strategy)))
+
+  (pass-if "file port"
+    (let ((strategies '(error substitute escape)))
+      (equal? (map (lambda (s)
+                     (with-fluids ((%default-port-conversion-strategy s))
+                       (call-with-output-file "/dev/null"
+                         (lambda (p)
+                           (port-conversion-strategy p)))))
+                   strategies)
+              strategies)))
+
+  (pass-if "(set-port-conversion-strategy! #f sym)"
+    (begin
+      (set-port-conversion-strategy! #f 'error)
+      (and (eq? (fluid-ref %default-port-conversion-strategy) 'error)
+           (begin
+             (set-port-conversion-strategy! #f 'substitute)
+             (eq? (fluid-ref %default-port-conversion-strategy)
+                  'substitute)))))
+
+)
+
+
+;;;; Normal file ports.
+
+;;; Write out an s-expression, and read it back.
+(let ((string '("From fairest creatures we desire increase,"
+                "That thereby beauty's rose might never die,"))
+      (filename (test-file)))
+  (let ((port (open-output-file filename)))
+    (write string port)
+    (close-port port))
+  (let ((port (open-input-file filename)))
+    (let ((in-string (read port)))
+      (pass-if "file: write and read back list of strings" 
+               (equal? string in-string)))
+    (close-port port))
+  (delete-file filename))
+
+;;; Write out a string, and read it back a character at a time.
+(let ((string "This is a test string\nwith no newline at the end")
+      (filename (test-file)))
+  (let ((port (open-output-file filename)))
+    (display string port)
+    (close-port port))
+  (let ((in-string (read-file filename)))
+    (pass-if "file: write and read back characters"
+             (equal? string in-string)))
+  (delete-file filename))
+
+;;; Buffered input/output port with seeking.
+(let* ((filename (test-file))
+       (port (open-file filename "w+")))
+  (display "J'Accuse" port)
+  (seek port -1 SEEK_CUR)
+  (pass-if "file: r/w 1"
+           (char=? (read-char port) #\e))
+  (pass-if "file: r/w 2"
+           (eof-object? (read-char port)))
+  (seek port -1 SEEK_CUR)
+  (write-char #\x port)
+  (seek port 7 SEEK_SET)
+  (pass-if "file: r/w 3"
+           (char=? (read-char port) #\x))
+  (seek port -2 SEEK_END)
+  (pass-if "file: r/w 4"
+           (char=? (read-char port) #\s))
+  (close-port port)
+  (delete-file filename))
+
+;;; Unbuffered input/output port with seeking.
+(let* ((filename (test-file))
+       (port (open-file filename "w+0")))
+  (display "J'Accuse" port)
+  (seek port -1 SEEK_CUR)
+  (pass-if "file: ub r/w 1"
+           (char=? (read-char port) #\e))
+  (pass-if "file: ub r/w 2"
+           (eof-object? (read-char port)))
+  (seek port -1 SEEK_CUR)
+  (write-char #\x port)
+  (seek port 7 SEEK_SET)
+  (pass-if "file: ub r/w 3"
+           (char=? (read-char port) #\x))
+  (seek port -2 SEEK_END)
+  (pass-if "file: ub r/w 4"
+           (char=? (read-char port) #\s))
+  (close-port port)
+  (delete-file filename))
+
+;;; Buffered output-only and input-only ports with seeking.
+(let* ((filename (test-file))
+       (port (open-output-file filename)))
+  (display "J'Accuse" port)
+  (pass-if "file: out tell"
+           (= (seek port 0 SEEK_CUR) 8))
+  (seek port -1 SEEK_CUR)
+  (write-char #\x port)
+  (close-port port)
+  (let ((iport (open-input-file filename)))
+    (pass-if "file: in tell 0"
+             (= (seek iport 0 SEEK_CUR) 0))
+    (read-char iport)
+    (pass-if "file: in tell 1"
+             (= (seek iport 0 SEEK_CUR) 1))
+    (unread-char #\z iport)
+    (pass-if "file: in tell 0 after unread"
+             (= (seek iport 0 SEEK_CUR) 0))
+    (pass-if "file: unread char still there"
+             (char=? (read-char iport) #\z))
+    (seek iport 7 SEEK_SET)
+    (pass-if "file: in last char"
+             (char=? (read-char iport) #\x))
+    (close-port iport))
+  (delete-file filename))
+
+(let* ((file (test-file))
+       (port (open-output-file file)))
+  (seek port 4096 SEEK_SET)
+  (display "bye." port)
+  (close-port port)
+
+  (pass-if-equal "size of sparse file"
+      4100
+    (stat:size (stat file)))
+
+  (pass-if-equal "SEEK_DATA while on data"
+      4096
+    (if (defined? 'SEEK_DATA)
+        (call-with-input-file file
+          (lambda (port)
+            (catch 'system-error
+              (lambda ()
+                (seek port 4096 SEEK_DATA))
+              (lambda _
+                (throw 'unresolved)))))
+        (throw 'unresolved)))
+
+  (pass-if-equal "SEEK_DATA while in hole"
+      4096
+    (if (defined? 'SEEK_DATA)
+        (call-with-input-file file
+          (lambda (port)
+            (catch 'system-error
+              (lambda ()
+                (seek port 10 SEEK_DATA))
+              (lambda _
+                (throw 'unresolved)))))
+        (throw 'unresolved)))
+
+  (pass-if-equal "SEEK_HOLE while in hole"
+      10
+    (if (defined? 'SEEK_HOLE)
+        (call-with-input-file file
+          (lambda (port)
+            (catch 'system-error
+              (lambda ()
+                (seek port 10 SEEK_HOLE))
+              (lambda _
+                (throw 'unresolved)))))
+        (throw 'unresolved))))
+
+;;; unusual characters.
+(let* ((filename (test-file))
+       (port (open-output-file filename)))
+  (display (string #\nul (integer->char 255) (integer->char 128)
+                   #\nul) port)
+  (close-port port)
+  (let* ((port (open-input-file filename))
+         (line (read-line port)))
+    (pass-if "file: read back NUL 1"
+             (char=? (string-ref line 0) #\nul))
+    (pass-if "file: read back 255"
+             (char=? (string-ref line 1) (integer->char 255)))
+    (pass-if "file: read back 128"
+             (char=? (string-ref line 2) (integer->char 128)))
+    (pass-if "file: read back NUL 2"
+             (char=? (string-ref line 3) #\nul))
+    (pass-if "file: EOF"
+             (eof-object? (read-char port)))
+    (close-port port))
+  (delete-file filename))
+
+;;; line buffering mode.
+(let* ((filename (test-file))
+       (port (open-file filename "wl"))
+       (test-string "one line more or less"))
+  (write-line test-string port)
+  (let* ((in-port (open-input-file filename))
+         (line (read-line in-port)))
+    (close-port in-port)
+    (close-port port)
+    (pass-if "file: line buffering"
+             (string=? line test-string)))
+  (delete-file filename))
+
+;;; read-line should use the port encoding (not the locale encoding).
+(let ((str "ĉu bone?"))
+  (with-locale "C"
+               (let* ((filename (test-file))
+                      (port (open-file filename "wl")))
+                 (set-port-encoding! port "UTF-8")
+                 (write-line str port)
+                 (let ((in-port (open-input-file filename)))
+                   (set-port-encoding! in-port "UTF-8")
+                   (let ((line (read-line in-port)))
+                     (close-port in-port)
+                     (close-port port)
+                     (pass-if "file: read-line honors port encoding"
+                              (string=? line str))))
+                 (delete-file filename))))
+
+;;; binary mode ignores port encoding
+(pass-if "file: binary mode ignores port encoding"
+  (with-fluids ((%default-port-encoding "UTF-8"))
+               (let* ((filename (test-file))
+                      (port (open-file filename "w"))
+                      (test-string "一二三")
+                      (binary-test-string
+                       (apply string
+                              (map integer->char
+                                   (array->list
+                                    (string->utf8 test-string))))))
+                 (write-line test-string port)
+                 (close-port port)
+                 (let* ((in-port (open-file filename "rb"))
+                        (line (read-line in-port)))
+                   (close-port in-port)
+                   (delete-file filename)
+                   (string=? line binary-test-string)))))
+
+;;; binary mode ignores file coding declaration
+(pass-if "file: binary mode ignores file coding declaration"
+  (with-fluids ((%default-port-encoding "UTF-8"))
+               (let* ((filename (test-file))
+                      (port (open-file filename "w"))
+                      (test-string "一二三")
+                      (binary-test-string
+                       (apply string
+                              (map integer->char
+                                   (array->list
+                                    (string->utf8 test-string))))))
+                 (write-line ";; coding: utf-8" port)
+                 (write-line test-string port)
+                 (close-port port)
+                 (let* ((in-port (open-file filename "rb"))
+                        (line1 (read-line in-port))
+                        (line2 (read-line in-port)))
+                   (close-port in-port)
+                   (delete-file filename)
+                   (string=? line2 binary-test-string)))))
+
+;; open-file ignores file coding declaration by default
+(pass-if "file: open-file ignores coding declaration by default"
+  (with-fluids ((%default-port-encoding "UTF-8"))
+               (let* ((filename (test-file))
+                      (port (open-output-file filename))
+                      (test-string "€100"))
+                 (write-line ";; coding: iso-8859-15" port)
+                 (write-line test-string port)
+                 (close-port port)
+                 (let* ((in-port (open-input-file filename))
+                        (line1 (read-line in-port))
+                        (line2 (read-line in-port)))
+                   (close-port in-port)
+                   (delete-file filename)
+                   (string=? line2 test-string)))))
+
+;; open-input-file with guess-encoding honors coding declaration
+(pass-if "file: open-input-file with guess-encoding honors coding declaration"
+  (with-fluids ((%default-port-encoding "UTF-8"))
+               (let* ((filename (test-file))
+                      (port (open-output-file filename))
+                      (test-string "€100"))
+                 (set-port-encoding! port "iso-8859-15")
+                 (write-line ";; coding: iso-8859-15" port)
+                 (write-line test-string port)
+                 (close-port port)
+                 (let* ((in-port (open-input-file filename
+                                                  #:guess-encoding #t))
+                        (line1 (read-line in-port))
+                        (line2 (read-line in-port)))
+                   (close-port in-port)
+                   (delete-file filename)
+                   (string=? line2 test-string)))))
+
+(pass-if-exception "invalid wide mode string"
+    exception:out-of-range
+  (open-file "/dev/null" "λ"))
+
+(pass-if "valid wide mode string"
+  ;; Pass 'open-file' a valid mode string, but as a wide string.
+  (let ((mode (string-copy "λ")))
+    (string-set! mode 0 #\r)
+    (let ((port (open-file "/dev/null" mode)))
+      (and (input-port? port)
+           (begin
+             (close-port port)
+             #t)))))
+
+(with-test-prefix "keyword arguments for file openers"
+  (with-fluids ((%default-port-encoding "UTF-8"))
+    (let ((filename (test-file)))
+
+      (with-test-prefix "write #:encoding"
+
+        (pass-if-equal "open-file"
+            #vu8(116 0 101 0 115 0 116 0)
+            (let ((port (open-file filename "w"
+                                   #:encoding "UTF-16LE")))
+              (display "test" port)
+              (close-port port))
+            (let* ((port (open-file filename "rb"))
+                   (bv (get-bytevector-all port)))
+              (close-port port)
+              bv))
+
+        (pass-if-equal "open-output-file"
+            #vu8(116 0 101 0 115 0 116 0)
+            (let ((port (open-output-file filename
+                                          #:encoding "UTF-16LE")))
+              (display "test" port)
+              (close-port port))
+            (let* ((port (open-file filename "rb"))
+                   (bv (get-bytevector-all port)))
+              (close-port port)
+              bv))
+
+        (pass-if-equal "call-with-output-file"
+            #vu8(116 0 101 0 115 0 116 0)
+            (call-with-output-file filename
+              (lambda (port)
+                (display "test" port))
+              #:encoding "UTF-16LE")
+            (let* ((port (open-file filename "rb"))
+                   (bv (get-bytevector-all port)))
+              (close-port port)
+              bv))
+
+        (pass-if-equal "with-output-to-file"
+            #vu8(116 0 101 0 115 0 116 0)
+            (with-output-to-file filename
+              (lambda ()
+                (display "test"))
+              #:encoding "UTF-16LE")
+            (let* ((port (open-file filename "rb"))
+                   (bv (get-bytevector-all port)))
+              (close-port port)
+              bv))
+
+        (pass-if-equal "with-error-to-file"
+            #vu8(116 0 101 0 115 0 116 0)
+            (with-error-to-file
+             filename
+             (lambda ()
+               (display "test" (current-error-port)))
+             #:encoding "UTF-16LE")
+            (let* ((port (open-file filename "rb"))
+                   (bv (get-bytevector-all port)))
+              (close-port port)
+              bv)))
+
+      (with-test-prefix "write #:binary"
+
+        (pass-if-equal "open-output-file"
+            "ISO-8859-1"
+          (let* ((port (open-output-file filename #:binary #t))
+                 (enc (port-encoding port)))
+            (close-port port)
+            enc))
+
+        (pass-if-equal "call-with-output-file"
+            "ISO-8859-1"
+          (call-with-output-file filename port-encoding #:binary #t))
+
+        (pass-if-equal "with-output-to-file"
+            "ISO-8859-1"
+          (with-output-to-file filename
+            (lambda () (port-encoding (current-output-port)))
+            #:binary #t))
+
+        (pass-if-equal "with-error-to-file"
+            "ISO-8859-1"
+          (with-error-to-file
+           filename
+           (lambda () (port-encoding (current-error-port)))
+           #:binary #t)))
+
+      (with-test-prefix "read #:encoding"
+
+        (pass-if-equal "open-file read #:encoding"
+            "test"
+          (call-with-output-file filename
+            (lambda (port)
+              (put-bytevector port #vu8(116 0 101 0 115 0 116 0))))
+          (let* ((port (open-file filename "r" #:encoding "UTF-16LE"))
+                 (str  (read-string port)))
+            (close-port port)
+            str))
+
+        (pass-if-equal "open-input-file #:encoding"
+            "test"
+          (call-with-output-file filename
+            (lambda (port)
+              (put-bytevector port #vu8(116 0 101 0 115 0 116 0))))
+          (let* ((port (open-input-file filename #:encoding "UTF-16LE"))
+                 (str  (read-string port)))
+            (close-port port)
+            str))
+
+        (pass-if-equal "call-with-input-file #:encoding"
+            "test"
+          (call-with-output-file filename
+            (lambda (port)
+              (put-bytevector port #vu8(116 0 101 0 115 0 116 0))))
+          (call-with-input-file filename
+            read-string
+            #:encoding "UTF-16LE"))
+
+        (pass-if-equal "with-input-from-file #:encoding"
+            "test"
+          (call-with-output-file filename
+            (lambda (port)
+              (put-bytevector port #vu8(116 0 101 0 115 0 116 0))))
+          (with-input-from-file filename
+            read-string
+            #:encoding "UTF-16LE")))
+
+      (with-test-prefix "read #:binary"
+
+        (pass-if-equal "open-input-file"
+            "ISO-8859-1"
+          (let* ((port (open-input-file filename #:binary #t))
+                 (enc (port-encoding port)))
+            (close-port port)
+            enc))
+
+        (pass-if-equal "call-with-input-file"
+            "ISO-8859-1"
+          (call-with-input-file filename port-encoding #:binary #t))
+
+        (pass-if-equal "with-input-from-file"
+            "ISO-8859-1"
+          (with-input-from-file filename
+            (lambda () (port-encoding (current-input-port)))
+            #:binary #t)))
+
+      (with-test-prefix "#:guess-encoding with coding declaration"
+
+        (pass-if-equal "open-file"
+            "€100"
+          (with-output-to-file filename
+            (lambda ()
+              (write-line "test")
+              (write-line "; coding: ISO-8859-15")
+              (write-line "€100"))
+            #:encoding "ISO-8859-15")
+          (let* ((port (open-file filename "r"
+                                  #:guess-encoding #t
+                                  #:encoding "UTF-16LE"))
+                 (str (begin (read-line port)
+                             (read-line port)
+                             (read-line port))))
+            (close-port port)
+            str))
+
+        (pass-if-equal "open-input-file"
+            "€100"
+          (with-output-to-file filename
+            (lambda ()
+              (write-line "test")
+              (write-line "; coding: ISO-8859-15")
+              (write-line "€100"))
+            #:encoding "ISO-8859-15")
+          (let* ((port (open-input-file filename
+                                        #:guess-encoding #t
+                                        #:encoding "UTF-16LE"))
+                 (str (begin (read-line port)
+                             (read-line port)
+                             (read-line port))))
+            (close-port port)
+            str))
+
+        (pass-if-equal "call-with-input-file"
+            "€100"
+          (with-output-to-file filename
+            (lambda ()
+              (write-line "test")
+              (write-line "; coding: ISO-8859-15")
+              (write-line "€100"))
+            #:encoding "ISO-8859-15")
+          (call-with-input-file filename
+            (lambda (port)
+              (read-line port)
+              (read-line port)
+              (read-line port))
+            #:guess-encoding #t
+            #:encoding "UTF-16LE"))
+
+        (pass-if-equal "with-input-from-file"
+            "€100"
+          (with-output-to-file filename
+            (lambda ()
+              (write-line "test")
+              (write-line "; coding: ISO-8859-15")
+              (write-line "€100"))
+            #:encoding "ISO-8859-15")
+          (with-input-from-file filename
+            (lambda ()
+              (read-line)
+              (read-line)
+              (read-line))
+            #:guess-encoding #t
+            #:encoding "UTF-16LE")))
+
+      (with-test-prefix "#:guess-encoding without coding declaration"
+
+        (pass-if-equal "open-file"
+            "€100"
+          (with-output-to-file filename
+            (lambda () (write-line "€100"))
+            #:encoding "ISO-8859-15")
+          (let* ((port (open-file filename "r"
+                                  #:guess-encoding #t
+                                  #:encoding "ISO-8859-15"))
+                 (str (read-line port)))
+            (close-port port)
+            str))
+
+        (pass-if-equal "open-input-file"
+            "€100"
+          (with-output-to-file filename
+            (lambda () (write-line "€100"))
+            #:encoding "ISO-8859-15")
+          (let* ((port (open-input-file filename
+                                        #:guess-encoding #t
+                                        #:encoding "ISO-8859-15"))
+                 (str (read-line port)))
+            (close-port port)
+            str))
+
+        (pass-if-equal "call-with-input-file"
+            "€100"
+          (with-output-to-file filename
+            (lambda () (write-line "€100"))
+            #:encoding "ISO-8859-15")
+          (call-with-input-file filename
+            read-line
+            #:guess-encoding #t
+            #:encoding "ISO-8859-15"))
+
+        (pass-if-equal "with-input-from-file"
+            "€100"
+          (with-output-to-file filename
+            (lambda () (write-line "€100"))
+            #:encoding "ISO-8859-15")
+          (with-input-from-file filename
+            read-line
+            #:guess-encoding #t
+            #:encoding "ISO-8859-15")))
+
+      (delete-file filename))))
+
+;;; ungetting characters and strings.
+(with-input-from-string "walk on the moon\nmoon"
+                        (lambda ()
+                          (read-char)
+                          (unread-char #\a)
+                          (pass-if "unread-char"
+                                   (char=? (read-char) #\a))
+                          (read-line)
+                          (let ((replacenoid "chicken enchilada"))
+                            (unread-char #\newline)
+                            (unread-string replacenoid)
+                            (pass-if "unread-string"
+                                     (string=? (read-line) replacenoid)))
+                          (pass-if "unread residue"
+                                   (string=? (read-line) "moon"))))
+
+(pass-if-equal "initial revealed count"    ;<https://bugs.gnu.org/41204>
+    0
+  (let* ((port     (open-input-file "/dev/null"))
+         (revealed (port-revealed port)))
+    (close-port port)
+    revealed))
+
+(pass-if-equal "non-revealed port is closed"
+    EBADF
+  (let* ((port (open-input-file "/dev/null"))
+         (fdes (fileno port)))          ;leaves revealed count unchanged
+    (unless (zero? (port-revealed port))
+      (error "wrong revealed count" (port-revealed port)))
+
+    (set! port #f)
+    (gc)
+    (catch 'system-error
+      (lambda ()
+        (seek fdes 0 SEEK_CUR)
+
+        ;; If we get here, it might be because PORT was not GC'd, we
+        ;; don't know, and we can't use a guardian because it would keep
+        ;; PORT alive, and we can't close the descriptor because
+        ;; subseuqent opens may re-use it, and then if this port is
+        ;; garbage collected, it'll close the descriptor unexpectedly.
+        (throw 'unresolved))
+      (lambda args
+        (system-error-errno args)))))
+
+(pass-if-equal "close-port & revealed port"
+    EBADF
+  (let* ((port (open-file "/dev/null" "r0"))
+         (fdes (port->fdes port)))    ;increments revealed count of PORT
+    (unless (= 1 (port-revealed port))
+      (error "wrong revealed count" (port-revealed port)))
+    (close-port port)                 ;closes FDES as a side-effect
+    (catch 'system-error
+      (lambda ()
+        (seek fdes 0 SEEK_CUR)
+        #f)
+      (lambda args
+        (system-error-errno args)))))
+
+(pass-if "revealed port fdes not closed"
+  (let* ((port (open-file "/dev/null" "r0"))
+         (fdes (port->fdes port)))
+    (unless (= 1 (port-revealed port))
+      (error "wrong revealed count" (port-revealed port)))
+
+    (set! port #f)
+    (gc)
+
+    ;; Note: We can't know for sure whether PORT was GC'd; using a
+    ;; guardian is not an option because it would keep it alive.
+    (and (zero? (seek fdes 0 SEEK_CUR))
+         (begin
+           (close-fdes fdes)
+           #t))))
+
+(when (and (provided? 'threads) (provided? 'fcntl))
+  (let* ((p (pipe))
+         (r (car p))
+         (w (cdr p)))
+    (fcntl r F_SETFL (logior (fcntl r F_GETFL) O_NONBLOCK))
+    (let ((thread (call-with-new-thread
+                   (lambda ()
+                     (usleep (* 250 1000))
+                     (write-char #\a w)
+                     (force-output w)))))
+      (pass-if-equal "non-blocking-I/O" #\a (read-char r))
+      (join-thread thread))))
+
+
+;;;; Pipe (popen) ports.
+
+;;; Run a command, and read its output.
+(let* ((pipe (open-pipe "echo 'Howdy there, partner!'" "r"))
+       (in-string (read-all pipe)))
+  (close-pipe pipe)
+  (pass-if "pipe: read"
+           (equal? in-string "Howdy there, partner!\n")))
+
+;;; Run a command, send some output to it, and see if it worked.
+(let* ((filename (test-file))
+       (pipe (open-pipe (string-append "grep Mommy > " filename) "w")))
+  (display "Now Jimmy lives on a mushroom cloud\n" pipe)
+  (display "Mommy, why does everybody have a bomb?\n" pipe)
+  (close-pipe pipe)
+  (let ((in-string (read-file filename)))
+    (pass-if "pipe: write"
+             (equal? in-string "Mommy, why does everybody have a bomb?\n")))
+  (delete-file filename))
+
+(pass-if-equal "pipe, fdopen, and line buffering"
+    "foo\nbar\n"
+  (unless (provided? 'fork)
+          (throw 'unresolved))
+  (let ((in+out (pipe))
+        (pid    (primitive-fork)))
+    (if (zero? pid)
+        (dynamic-wind
+          (const #t)
+          (lambda ()
+            (close-port (car in+out))
+            (let ((port (cdr in+out)))
+              (setvbuf port 'line )
+              ;; Strings containing '\n' or should be flushed; others
+              ;; should be kept in PORT's buffer.
+              (display "foo\n" port)
+              (display "bar\n" port)
+              (display "this will be kept in PORT's buffer" port)))
+          (lambda ()
+            (primitive-_exit 0)))
+        (begin
+          (close-port (cdr in+out))
+          (let ((str (read-all (car in+out))))
+            (waitpid pid)
+            str)))))
+
+
+;;;; Void ports.  These are so trivial we don't test them.
+
+
+;;;; String ports.
+
+(with-test-prefix "string ports"
+
+  ;; Write text to a string port.
+  (let* ((string "Howdy there, partner!")
+         (in-string (call-with-output-string
+                     (lambda (port)
+                       (display string port)
+                       (newline port)))))
+    (pass-if "display text"
+             (equal? in-string (string-append string "\n"))))
+
+  ;; Write an s-expression to a string port.
+  (let* ((sexpr '("more utterly random text" 1729 #(a vector) 3.1415926))
+         (in-sexpr
+          (call-with-input-string (call-with-output-string
+                                   (lambda (port)
+                                     (write sexpr port)))
+                                  read)))
+    (pass-if "write/read sexpr"
+             (equal? in-sexpr sexpr)))
+
+  ;; seeking and unreading from an input string.
+  (let ((text "that text didn't look random to me"))
+    (call-with-input-string text
+                            (lambda (p)
+                              (pass-if "input tell 0"
+                                       (= (seek p 0 SEEK_CUR) 0))
+                              (read-char p)
+                              (pass-if "input tell 1"
+                                       (= (seek p 0 SEEK_CUR) 1))
+                              (unread-char #\x p)
+                              (pass-if "input tell back to 0"
+                                       (= (seek p 0 SEEK_CUR) 0))
+                              (pass-if "input ungetted char"
+                                       (char=? (read-char p) #\x))
+                              (seek p 0 SEEK_END)
+                              (pass-if "input seek to end"
+                                       (= (seek p 0 SEEK_CUR)
+                                          (string-length text)))
+                              (unread-char #\x p)
+                              (pass-if "input seek to beginning"
+                                       (= (seek p 0 SEEK_SET) 0))
+                              (pass-if "input reread first char"
+                                       (char=? (read-char p)
+                                               (string-ref text 0))))))
+
+  ;; seeking an output string.
+  (let* ((text (string-copy "123456789"))
+         (len (string-length text))
+         (result (call-with-output-string
+                  (lambda (p)
+                    (pass-if "output tell 0"
+                             (= (seek p 0 SEEK_CUR) 0))
+                    (display text p)
+                    (pass-if "output tell end"
+                             (= (seek p 0 SEEK_CUR) len))
+                    (pass-if "output seek to beginning"
+                             (= (seek p 0 SEEK_SET) 0))
+                    (write-char #\a p)
+                    (seek p -1 SEEK_END)
+                    (pass-if "output seek to last char"
+                             (= (seek p 0 SEEK_CUR)
+                                (- len 1)))
+                    (write-char #\b p)))))
+    (string-set! text 0 #\a)
+    (string-set! text (- len 1) #\b)
+    (pass-if "output check"
+             (string=? text result)))
+
+  (pass-if-exception "truncating input string fails"
+      exception:wrong-type-arg
+    (call-with-input-string "hej"
+      (lambda (p)
+        (truncate-file p 0))))
+
+  (pass-if-equal "truncating output string" "hej"
+    (call-with-output-string
+      (lambda (p)
+        (truncate-file p 0)
+        (display "hej" p))))
+
+  (pass-if-exception "truncating output string before position"
+      exception:out-of-range
+    (call-with-output-string
+      (lambda (p)
+        (display "hej" p)
+        (truncate-file p 0))))
+
+  (pass-if-equal "truncating output string at position" "hej"
+    (call-with-output-string
+      (lambda (p)
+        (display "hej" p)
+        (truncate-file p 3))))
+
+  (pass-if-equal "truncating output string after seek" ""
+    (call-with-output-string
+      (lambda (p)
+        (display "hej" p)
+        (seek p 0 SEEK_SET)
+        (truncate-file p 0))))
+
+  (pass-if-equal "truncating output string after seek to end" "hej"
+    (call-with-output-string
+      (lambda (p)
+        (display "hej" p)
+        (seek p 0 SEEK_SET)
+        (truncate-file p 3))))
+
+  (pass-if "%default-port-encoding is ignored"
+    (let ((str "ĉu bone?"))
+      ;; Latin-1 cannot represent ‘ĉ’.
+      (with-fluids ((%default-port-encoding "ISO-8859-1"))
+        (string=? (call-with-output-string
+                   (lambda (p)
+                     (set-port-conversion-strategy! p 'substitute)
+                     (display str p)))
+                  "ĉu bone?"))))
+
+  (pass-if "%default-port-conversion-strategy is honored"
+    (let ((strategies '(error substitute escape)))
+      (equal? (map (lambda (s)
+                     (with-fluids ((%default-port-conversion-strategy s))
+                       (call-with-output-string
+                        (lambda (p)
+                          (and (eq? s (port-conversion-strategy p))
+                               (begin
+                                 (set-port-conversion-strategy! p s)
+                                 (display (port-conversion-strategy p)
+                                          p)))))))
+                   strategies)
+              (map symbol->string strategies))))
+
+  (pass-if "suitable encoding [latin-1]"
+    (let ((str "hello, world")
+          (encoding "ISO-8859-1"))
+      (equal? str
+              (call-with-output-string
+               (lambda (p)
+                 (set-port-encoding! p encoding)
+                 (display str p))))))
+
+  (pass-if "suitable encoding [latin-3]"
+    (let ((str "ĉu bone?")
+          (encoding "ISO-8859-3"))
+      (equal? str
+              (call-with-output-string
+               (lambda (p)
+                 (set-port-encoding! p encoding)
+                 (display str p))))))
+
+  (pass-if "wrong encoding, error"
+    (let ((str "ĉu bone?"))
+      (catch 'encoding-error
+        (lambda ()
+          (with-fluids ((%default-port-conversion-strategy 'error))
+            (call-with-output-string
+             (lambda (p)
+               ;; Latin-1 cannot represent ‘ĉ’.
+               (set-port-encoding! p "ISO-8859-1")
+               (display str p))))
+          #f)                           ; so the test really fails here
+        (lambda (key subr message errno port chr)
+          (and (eqv? chr #\ĉ)
+               (string? (strerror errno)))))))
+
+  (pass-if "wrong encoding, substitute"
+    (let ((str "ĉu bone?"))
+      (string=? (call-with-output-string
+                 (lambda (p)
+                   (set-port-encoding! p "ISO-8859-1")
+                   (set-port-conversion-strategy! p 'substitute)
+                   (display str p)))
+                "?u bone?")))
+
+  (pass-if "wrong encoding, escape"
+    (let ((str "ĉu bone?"))
+      (string=? (call-with-output-string
+                 (lambda (p)
+                   (set-port-encoding! p "ISO-8859-1")
+                   (set-port-conversion-strategy! p 'escape)
+                   (display str p)))
+                "\\u0109u bone?")))
+
+  (pass-if "peek-char"
+    (let ((p (open-input-string "안녕하세요")))
+      (and (char=? (peek-char p) #\안)
+           (char=? (peek-char p) #\안)
+           (char=? (peek-char p) #\안)
+           (= (port-line p) 0)
+           (= (port-column p) 0))))
+
+  ;; Mini DSL to test decoding error handling.
+  (letrec-syntax ((decoding-error?
+                   (syntax-rules ()
+                     ((_ port proc)
+                      (catch 'decoding-error
+                        (lambda ()
+                          (pk 'proc (proc port))
+                          #f)
+                        (lambda (key subr message errno p)
+                          (define (skip-over-error)
+                            (let ((strategy (port-conversion-strategy p)))
+                              (set-port-conversion-strategy! p 'substitute)
+                              ;; If `proc' is `read-char', this will
+                              ;; skip over the bad bytes.
+                              (let ((c (proc p)))
+                                (unless (eqv? c #\xFFFD)
+                                  (error "unexpected char" c))
+                                (set-port-conversion-strategy! p strategy)
+                                #t)))
+                          (and (eq? p port)
+                               (not (= 0 errno))
+                               (skip-over-error)))))))
+                  (make-check
+                   (syntax-rules (-> error eof)
+                     ((_ port (proc -> error))
+                      (if (eq? 'substitute
+                               (port-conversion-strategy port))
+                          (eqv? (proc port) #\xFFFD)
+                          (decoding-error? port proc)))
+                     ((_ port (proc -> eof))
+                      (eof-object? (proc port)))
+                     ((_ port (proc -> char))
+                      (eqv? (proc port) char))))
+                  (make-checks
+                   (syntax-rules ()
+                     ((_ port check ...)
+                      (and (make-check port check) ...))))
+                  (make-peek+read-checks
+                   (syntax-rules ()
+                     ((_ port (result ...) e1 expected ...)
+                      (make-peek+read-checks port
+                                             (result ...
+                                                     (peek-char -> e1)
+                                                     (read-char -> e1))
+                                             expected ...))
+                     ((_ port (result ...))
+                      (make-checks port result ...))
+                     ((_ port #f e1 expected ...)
+                      (make-peek+read-checks port
+                                             ((peek-char -> e1)
+                                              (read-char -> e1))
+                                             expected ...))))
+
+                  (test-decoding-error*
+                      (syntax-rules ()
+                        ((_ sequence encoding strategy (expected ...))
+                         (begin
+                          (pass-if (format #f "test-decoding-error: ~s ~s ~s"
+                                           'sequence encoding strategy)
+                            (let ((p (open-bytevector-input-port
+                                      (u8-list->bytevector 'sequence))))
+                              (set-port-encoding! p encoding)
+                              (set-port-conversion-strategy! p strategy)
+                              (make-checks p
+                                           (read-char -> expected) ...)))
+
+                          ;; Generate the same test, but with one
+                          ;; `peek-char' call before each `read-char'.
+                          ;; Both should yield the same result.
+                          (pass-if (format #f "test-decoding-error: ~s ~s ~s + peek-char"
+                                           'sequence encoding strategy)
+                            (let ((p (open-bytevector-input-port
+                                      (u8-list->bytevector 'sequence))))
+                              (set-port-encoding! p encoding)
+                              (set-port-conversion-strategy! p strategy)
+                              (make-peek+read-checks p #f expected
+                                                     ...)))))))
+                  (test-decoding-error
+                      (syntax-rules ()
+                        ((_ sequence encoding (expected ...))
+                         (begin
+                           (test-decoding-error* sequence encoding 'error
+                             (expected ...))
+
+                           ;; `escape' should behave exactly like `error'.
+                           (test-decoding-error* sequence encoding 'escape
+                             (expected ...))
+
+                           (test-decoding-error* sequence encoding 'substitute
+                             (expected ...)))))))
+
+    (test-decoding-error (255 65 66 67) "UTF-8"
+      (error #\A #\B #\C eof))
+
+    (test-decoding-error (255 206 187 206 188) "UTF-8"
+      (error #\λ #\μ eof))
+
+    (test-decoding-error (206 187 206) "UTF-8"
+      ;; Unterminated sequence.
+      (#\λ error eof))
+
+    ;; Check how ill-formed UTF-8 sequences are handled (see Table 3-7
+    ;; of the "Conformance" chapter of Unicode 6.0.0.)
+
+    (test-decoding-error (#xc0 #x80 #x41) "UTF-8"
+      (error                ;; C0: should be in the C2..DF range
+       error                ;; 80: invalid
+       #\A
+       eof))
+
+    (test-decoding-error (#xc2 #x41 #x42) "UTF-8"
+      ;; Section 3.9 of Unicode 6.0.0 reads:
+      ;;   "If the converter encounters an ill-formed UTF-8 code unit
+      ;;   sequence which starts with a valid first byte, but which does
+      ;;   not continue with valid successor bytes (see Table 3-7), it
+      ;;   must not consume the successor bytes".
+      ;; Glibc/libiconv do not conform to it and instead swallow the
+      ;; #x41.  This example appears literally in Section 3.9.
+      (error                ;; 41: invalid successor
+       #\A                  ;; 41: valid starting byte
+       #\B
+       eof))
+
+    (test-decoding-error (#xf0 #x80 #x80 #x41) "UTF-8"
+      ;; According to Unicode 6.0.0, Section 3.9, "the only formal
+      ;; requirement mandated by Unicode conformance for a converter is
+      ;; that the <41> be processed and correctly interpreted as
+      ;; <U+0041>".
+      (error                ;; 2nd byte should be in the A0..BF range
+       error                ;; 80: not a valid starting byte
+       error                ;; 80: not a valid starting byte
+       #\A
+       eof))
+
+    (test-decoding-error (#xe0 #xa0 #x41 #x42) "UTF-8"
+      (error                ;; 3rd byte should be in the 80..BF range
+       #\A
+       #\B
+       eof))
+
+    (test-decoding-error (#xf0 #x88 #x88 #x88) "UTF-8"
+      (error                ;; 2nd byte should be in the 90..BF range
+       error                ;; 88: not a valid starting byte
+       error                ;; 88: not a valid starting byte
+       error                ;; 88: not a valid starting byte
+       eof))
+
+    (test-decoding-error (#xf4 #xa4 #xbd #xa4) "UTF-8"
+      (error                ;; 2nd byte should be in the 90..BF range
+       error                ;; 88: not a valid starting byte
+       error                ;; 88: not a valid starting byte
+       error                ;; 88: not a valid starting byte
+       eof))))
+
+(with-test-prefix "call-with-output-string"
+
+  ;; In Guile 1.6.4, closing the port resulted in a segv, check that doesn't
+  ;; occur.
+  (pass-if-exception "proc closes port" exception:wrong-type-arg
+    (call-with-output-string close-port)))
+
+
+
+;;;; Soft ports.  No tests implemented yet.
+
+
+;;;; Generic operations across all port types.
+
+(let ((port-loop-temp (test-file)))
+
+  ;; Return a list of input ports that all return the same text.
+  ;; We map tests over this list.
+  (define (input-port-list text)
+
+    ;; Create a text file some of the ports will use.
+    (let ((out-port (open-output-file port-loop-temp)))
+      (display text out-port)
+      (close-port out-port))
+
+    (list (open-input-file port-loop-temp)
+          (open-input-pipe (string-append "cat " port-loop-temp))
+          (call-with-input-string text (lambda (x) x))
+          ;; We don't test soft ports at the moment.
+          ))
+
+  (define port-list-names '("file" "pipe" "string"))
+
+  ;; Test the line counter.
+  (define (test-line-counter text second-line final-column)
+    (with-test-prefix "line counter"
+      (let ((ports (input-port-list text)))
+        (for-each
+         (lambda (port port-name)
+           (with-test-prefix port-name
+             (pass-if "at beginning of input"
+                      (= (port-line port) 0))
+             (pass-if "read first character"
+                      (eqv? (read-char port) #\x))
+             (pass-if "after reading one character"
+                      (= (port-line port) 0))
+             (pass-if "read first newline"
+                      (eqv? (read-char port) #\newline))
+             (pass-if "after reading first newline char"
+                      (= (port-line port) 1))
+             (pass-if "second line read correctly"
+                      (equal? (read-line port) second-line))
+             (pass-if "read-line increments line number"
+                      (= (port-line port) 2))
+             (pass-if "read-line returns EOF"
+                      (let loop ((i 0))
+                        (cond
+                         ((eof-object? (read-line port)) #t)
+                         ((> i 20) #f)
+                         (else (loop (+ i 1))))))
+             (pass-if "line count is 5 at EOF"
+                      (= (port-line port) 5))
+             (pass-if "column is correct at EOF"
+                      (= (port-column port) final-column))))
+         ports port-list-names)
+        (for-each close-port ports)
+        (delete-file port-loop-temp))))
+
+  (with-test-prefix "newline"
+    (test-line-counter
+     (string-append "x\n"
+                    "He who receives an idea from me, receives instruction\n"
+                    "himself without lessening mine; as he who lights his\n"
+                    "taper at mine, receives light without darkening me.\n"
+                    "  --- Thomas Jefferson\n")
+     "He who receives an idea from me, receives instruction"
+     0))
+
+  (with-test-prefix "no newline"
+    (test-line-counter
+     (string-append "x\n"
+                    "He who receives an idea from me, receives instruction\n"
+                    "himself without lessening mine; as he who lights his\n"
+                    "taper at mine, receives light without darkening me.\n"
+                    "  --- Thomas Jefferson\n"
+                    "no newline here")
+     "He who receives an idea from me, receives instruction"
+     15)))
+
+;; Test port-line and port-column for output ports
+
+(define (test-output-line-counter text final-column)
+  (with-test-prefix "port-line and port-column for output ports"
+    (let ((port (open-output-string)))
+      (pass-if "at beginning of input"
+               (and (= (port-line port) 0)
+                    (= (port-column port) 0)))
+      (write-char #\x port)
+      (pass-if "after writing one character"
+               (and (= (port-line port) 0)
+                    (= (port-column port) 1)))
+      (write-char #\newline port)
+      (pass-if "after writing first newline char"
+               (and (= (port-line port) 1)
+                    (= (port-column port) 0)))
+      (display text port)
+      (pass-if "line count is 5 at end"
+               (= (port-line port) 5))
+      (pass-if "column is correct at end"
+               (= (port-column port) final-column)))))
+
+(test-output-line-counter
+ (string-append "He who receives an idea from me, receives instruction\n"
+                "himself without lessening mine; as he who lights his\n"
+                "taper at mine, receives light without darkening me.\n"
+                "  --- Thomas Jefferson\n"
+                "no newline here")
+ 15)
+
+(with-test-prefix "port-column"
+
+  (with-test-prefix "output"
+
+    (pass-if "x"
+      (let ((port (open-output-string)))
+        (display "x" port)
+        (= 1 (port-column port))))
+
+    (pass-if "\\a"
+      (let ((port (open-output-string)))
+        (display "\a" port)
+        (= 0 (port-column port))))
+
+    (pass-if "x\\a"
+      (let ((port (open-output-string)))
+        (display "x\a" port)
+        (= 1 (port-column port))))
+
+    (pass-if "\\x08 backspace"
+      (let ((port (open-output-string)))
+        (display "\x08" port)
+        (= 0 (port-column port))))
+
+    (pass-if "x\\x08 backspace"
+      (let ((port (open-output-string)))
+        (display "x\x08" port)
+        (= 0 (port-column port))))
+
+    (pass-if "\\n"
+      (let ((port (open-output-string)))
+        (display "\n" port)
+        (= 0 (port-column port))))
+
+    (pass-if "x\\n"
+      (let ((port (open-output-string)))
+        (display "x\n" port)
+        (= 0 (port-column port))))
+
+    (pass-if "\\r"
+      (let ((port (open-output-string)))
+        (display "\r" port)
+        (= 0 (port-column port))))
+
+    (pass-if "x\\r"
+      (let ((port (open-output-string)))
+        (display "x\r" port)
+        (= 0 (port-column port))))
+
+    (pass-if "\\t"
+      (let ((port (open-output-string)))
+        (display "\t" port)
+        (= 8 (port-column port))))
+
+    (pass-if "x\\t"
+      (let ((port (open-output-string)))
+        (display "x\t" port)
+        (= 8 (port-column port)))))
+
+  (with-test-prefix "input"
+
+    (pass-if "x"
+      (let ((port (open-input-string "x")))
+        (while (not (eof-object? (read-char port))))
+        (= 1 (port-column port))))
+
+    (pass-if "\\a"
+      (let ((port (open-input-string "\a")))
+        (while (not (eof-object? (read-char port))))
+        (= 0 (port-column port))))
+
+    (pass-if "x\\a"
+      (let ((port (open-input-string "x\a")))
+        (while (not (eof-object? (read-char port))))
+        (= 1 (port-column port))))
+
+    (pass-if "\\x08 backspace"
+      (let ((port (open-input-string "\x08")))
+        (while (not (eof-object? (read-char port))))
+        (= 0 (port-column port))))
+
+    (pass-if "x\\x08 backspace"
+      (let ((port (open-input-string "x\x08")))
+        (while (not (eof-object? (read-char port))))
+        (= 0 (port-column port))))
+
+    (pass-if "\\n"
+      (let ((port (open-input-string "\n")))
+        (while (not (eof-object? (read-char port))))
+        (= 0 (port-column port))))
+
+    (pass-if "x\\n"
+      (let ((port (open-input-string "x\n")))
+        (while (not (eof-object? (read-char port))))
+        (= 0 (port-column port))))
+
+    (pass-if "\\r"
+      (let ((port (open-input-string "\r")))
+        (while (not (eof-object? (read-char port))))
+        (= 0 (port-column port))))
+
+    (pass-if "x\\r"
+      (let ((port (open-input-string "x\r")))
+        (while (not (eof-object? (read-char port))))
+        (= 0 (port-column port))))
+
+    (pass-if "\\t"
+      (let ((port (open-input-string "\t")))
+        (while (not (eof-object? (read-char port))))
+        (= 8 (port-column port))))
+
+    (pass-if "x\\t"
+      (let ((port (open-input-string "x\t")))
+        (while (not (eof-object? (read-char port))))
+        (= 8 (port-column port))))))
+
+(with-test-prefix "port-line"
+
+  ;; in guile 1.8.1 and earlier port-line was truncated to an int, whereas
+  ;; scm_t_port actually holds a long; this restricted the range on 64-bit
+  ;; systems
+  (pass-if "set most-positive-fixnum/2"
+    (let ((n    (quotient most-positive-fixnum 2))
+          (port (open-output-string)))
+      (set-port-line! port n)
+      (eqv? n (port-line port)))))
+
+(with-test-prefix "port-encoding"
+
+  (pass-if-exception "set-port-encoding!, wrong encoding"
+    exception:miscellaneous-error
+    (let ((p (open-input-string "q")))
+      (set-port-encoding! p "does-not-exist")
+      (read p)))
+
+  (let* ((filename (test-file))
+         (port (open-output-file filename)))
+    (write 'test port)
+    (close-port port)
+
+    (pass-if-exception "%default-port-encoding, wrong encoding"
+        exception:miscellaneous-error
+      (with-fluids ((%default-port-encoding "does-not-exist"))
+                   (set! port (open-input-file filename))
+                   (read port)))
+    (false-if-exception (close-port port))
+    (delete-file filename)))
+
+;;;
+;;; port-for-each
+;;;
+
+(with-test-prefix "port-for-each"
+
+  ;; In guile 1.8.0 through 1.8.2, port-for-each could pass a freed cell to
+  ;; its iterator func if a port was inaccessible in the last gc mark but
+  ;; the lazy sweeping has not yet reached it to remove it from the port
+  ;; table (scm_i_port_table).  Provoking those gc conditions is a little
+  ;; tricky, but the following code made it happen in 1.8.2.
+  (pass-if "passing freed cell"
+    (let ((lst '()))
+      ;; clear out the heap
+      (gc) (gc) (gc)
+      ;; allocate cells so the opened ports aren't at the start of the heap
+      (make-list 1000)
+      (open-input-file "/dev/null")
+      (make-list 1000)
+      (open-input-file "/dev/null")
+      ;; this gc leaves the above ports unmarked, ie. inaccessible
+      (gc)
+      ;; but they're still in the port table, so this sees them
+      (port-for-each (lambda (port)
+                       (set! lst (cons port lst))))
+      ;; this forces completion of the sweeping
+      (gc) (gc) (gc)
+      ;; and (if the bug is present) the cells accumulated in LST are now
+      ;; freed cells, which give #f from `port?'
+      (not (memq #f (map port? lst))))))
+
+(with-test-prefix
+ "fdes->port"
+ (pass-if "fdes->ports finds port"
+          (let* ((port (open-file (test-file) "w"))
+                 (res (not (not (memq port (fdes->ports (port->fdes port)))))))
+            (close-port port)
+            res)))
+
+;;;
+;;; seek
+;;;
+
+(with-test-prefix "seek"
+
+  (with-test-prefix "file port"
+
+    (pass-if "SEEK_CUR"
+      (call-with-output-file (test-file)
+        (lambda (port)
+          (display "abcde" port)))
+      (let ((port (open-file (test-file) "r")))
+        (read-char port)
+        (seek port 2 SEEK_CUR)
+        (let ((res (eqv? #\d (read-char port))))
+          (close-port port)
+          res)))
+
+    (pass-if "SEEK_SET"
+      (call-with-output-file (test-file)
+        (lambda (port)
+          (display "abcde" port)))
+      (let ((port (open-file (test-file) "r")))
+        (read-char port)
+        (seek port 3 SEEK_SET)
+        (let ((res (eqv? #\d (read-char port))))
+          (close-port port)
+          res)))
+
+    (pass-if "SEEK_END"
+      (call-with-output-file (test-file)
+        (lambda (port)
+          (display "abcde" port)))
+      (let ((port (open-file (test-file) "r")))
+        (read-char port)
+        (seek port -2 SEEK_END)
+        (let ((res (eqv? #\d (read-char port))))
+          (close-port port)
+          res)))))
+
+;;;
+;;; truncate-file
+;;;
+
+(with-test-prefix "truncate-file"
+
+  (pass-if-exception "flonum file" exception:wrong-type-arg
+    (truncate-file 1.0 123))
+
+  (pass-if-exception "frac file" exception:wrong-type-arg
+    (truncate-file 7/3 123))
+
+  (with-test-prefix "filename"
+
+    (pass-if-exception "flonum length" exception:wrong-type-arg
+      (call-with-output-file (test-file)
+        (lambda (port)
+          (display "hello" port)))
+      (truncate-file (test-file) 1.0))
+
+    (pass-if "shorten"
+      (call-with-output-file (test-file)
+        (lambda (port)
+          (display "hello" port)))
+      (truncate-file (test-file) 1)
+      (eqv? 1 (stat:size (stat (test-file)))))
+
+    (pass-if-exception "shorten to current pos" exception:miscellaneous-error
+      (call-with-output-file (test-file)
+        (lambda (port)
+          (display "hello" port)))
+      (truncate-file (test-file))))
+
+  (with-test-prefix "file descriptor"
+
+    (pass-if "shorten"
+      (call-with-output-file (test-file)
+        (lambda (port)
+          (display "hello" port)))
+      (let ((fd (open-fdes (test-file) O_RDWR)))
+        (truncate-file fd 1)
+        (close-fdes fd))
+      (eqv? 1 (stat:size (stat (test-file)))))
+
+    (pass-if "shorten to current pos"
+      (call-with-output-file (test-file)
+        (lambda (port)
+          (display "hello" port)))
+      (let ((fd (open-fdes (test-file) O_RDWR)))
+        (seek fd 1 SEEK_SET)
+        (truncate-file fd)
+        (close-fdes fd))
+      (eqv? 1 (stat:size (stat (test-file))))))
+
+  (with-test-prefix "file port"
+
+    (pass-if "shorten"
+      (call-with-output-file (test-file)
+        (lambda (port)
+          (display "hello" port)))
+      (let ((port (open-file (test-file) "r+")))
+        (truncate-file port 1)
+        (close-port port))
+      (eqv? 1 (stat:size (stat (test-file)))))
+
+    (pass-if "shorten to current pos"
+      (call-with-output-file (test-file)
+        (lambda (port)
+          (display "hello" port)))
+      (let ((port (open-file (test-file) "r+")))
+        (read-char port)
+        (truncate-file port)
+        (close-port port))
+      (eqv? 1 (stat:size (stat (test-file)))))))
+
+
+;;;; testing read-delimited and friends
+
+(with-test-prefix "read-delimited!"
+  (let ((c (make-string 20 #\!)))
+    (call-with-input-string
+     "defdef\nghighi\n"
+     (lambda (port)
+
+       (read-delimited! "\n" c port 'concat)
+       (pass-if "read-delimited! reads a first line"
+                (string=? c "defdef\n!!!!!!!!!!!!!"))
+
+       (read-delimited! "\n" c port 'concat 3)
+       (pass-if "read-delimited! reads a first line"
+                (string=? c "defghighi\n!!!!!!!!!!"))))))
+
+
+;;;; char-ready?
+
+(call-with-input-string
+ "howdy"
+ (lambda (port)
+   (pass-if "char-ready? returns true on string port"
+            (char-ready? port))))
+
+;;; This segfaults on some versions of Guile.  We really should run
+;;; the tests in a subprocess...
+
+(call-with-input-string
+ "howdy"
+ (lambda (port)
+   (with-input-from-port
+       port
+     (lambda ()
+       (pass-if "char-ready? returns true on string port as default port"
+                (char-ready?))))))
+
+
+;;;; pending-eof behavior
+
+(with-test-prefix "pending EOF behavior"
+  ;; Make a test port that will produce the given sequence.  Each
+  ;; element of 'lst' may be either a character or #f (which means EOF).
+  (define (test-soft-port . lst)
+    (make-soft-port
+     (vector (lambda (c) #f)            ; write char
+             (lambda (s) #f)            ; write string
+             (lambda () #f)             ; flush
+             (lambda ()                 ; read char
+               (let ((c (car lst)))
+                 (set! lst (cdr lst))
+                 c))
+             (lambda () #f))            ; close
+     "rw"))
+
+  (define (call-with-port p proc)
+    (dynamic-wind
+      (lambda () #f)
+      (lambda () (proc p))
+      (lambda () (close-port p))))
+
+  (define (call-with-test-file str proc)
+    (let ((filename (test-file)))
+      (dynamic-wind
+        (lambda () (call-with-output-file filename
+                     (lambda (p) (display str p))))
+        (lambda () (call-with-input-file filename proc))
+        (lambda () (delete-file (test-file))))))
+
+  (pass-if "peek-char does not swallow EOF (soft port)"
+    (call-with-port (test-soft-port #\a #f #\b)
+      (lambda (p)
+        (and (char=? #\a  (peek-char p))
+             (char=? #\a  (read-char p))
+             (eof-object? (peek-char p))
+             (eof-object? (read-char p))
+             (char=? #\b  (peek-char p))
+             (char=? #\b  (read-char p))))))
+
+  (pass-if "unread clears pending EOF (soft port)"
+    (call-with-port (test-soft-port #\a #f #\b)
+      (lambda (p)
+        (and (char=? #\a  (read-char p))
+             (eof-object? (peek-char p))
+             (begin (unread-char #\u p)
+                    (char=? #\u  (read-char p)))))))
+
+  (pass-if "unread clears pending EOF (string port)"
+    (call-with-input-string "a"
+      (lambda (p)
+        (and (char=? #\a  (read-char p))
+             (eof-object? (peek-char p))
+             (begin (unread-char #\u p)
+                    (char=? #\u  (read-char p)))))))
+
+  (pass-if "unread clears pending EOF (file port)"
+    (call-with-test-file
+     "a"
+     (lambda (p)
+       (and (char=? #\a  (read-char p))
+            (eof-object? (peek-char p))
+            (begin (unread-char #\u p)
+                   (char=? #\u  (read-char p)))))))
+
+  (pass-if "seek clears pending EOF (string port)"
+    (call-with-input-string "a"
+      (lambda (p)
+        (and (char=? #\a  (read-char p))
+             (eof-object? (peek-char p))
+             (begin (seek p 0 SEEK_SET)
+                    (char=? #\a (read-char p)))))))
+
+  (pass-if "seek clears pending EOF (file port)"
+    (call-with-test-file
+     "a"
+     (lambda (p)
+       (and (char=? #\a  (read-char p))
+            (eof-object? (peek-char p))
+            (begin (seek p 0 SEEK_SET)
+                   (char=? #\a (read-char p))))))))
+
+
+;;;; Close current-input-port, and make sure everyone can handle it.
+
+(with-test-prefix "closing current-input-port"
+  (for-each (lambda (procedure name)
+              (with-input-from-port
+                  (call-with-input-string "foo" (lambda (p) p))
+                (lambda ()
+                  (close-port (current-input-port))
+                  (pass-if-exception name
+                    exception:wrong-type-arg
+                    (procedure)))))
+            (list read read-char read-line)
+            '("read" "read-char" "read-line")))
+
+
+
+(with-test-prefix "setvbuf"
+
+  (pass-if-exception "closed port"
+      exception:wrong-type-arg
+    (let ((port (open-input-file "/dev/null")))
+      (close-port port)
+      (setvbuf port 'block)))
+
+  (pass-if-exception "string port"
+      exception:wrong-type-arg
+    (let ((port (open-input-string "Hey!")))
+      (close-port port)
+      (setvbuf port 'block)))
+
+  (pass-if "line/column number preserved"
+    ;; In Guile 2.0.5, `setvbuf' would erroneously decrease the port's
+    ;; line and/or column number.
+    (call-with-output-file (test-file)
+      (lambda (p)
+        (display "This is GNU Guile.\nWelcome." p)))
+    (call-with-input-file (test-file)
+      (lambda (p)
+        (and (eqv? #\T (read-char p))
+             (let ((line (port-line p))
+                   (col  (port-column p)))
+               (and (= line 0) (= col 1)
+                    (begin
+                      (setvbuf p 'block 777)
+                      (let ((line* (port-line p))
+                            (col*  (port-column p)))
+                        (and (= line line*)
+                             (= col col*)))))))))))
+
+
+
+(pass-if-equal "unget-bytevector"
+    #vu8(10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 200 201 202 203
+            1 2 3 4 251 253 254 255)
+  (let ((port (open-bytevector-input-port #vu8(1 2 3 4 251 253 254 255))))
+    (unget-bytevector port #vu8(200 201 202 203))
+    (unget-bytevector port #vu8(20 21 22 23 24))
+    (unget-bytevector port #vu8(10 11 12 13 14 15 16 17 18 19) 4)
+    (unget-bytevector port #vu8(10 11 12 13 14 15 16 17 18 19) 2 2)
+    (unget-bytevector port #vu8(10 11))
+    (get-bytevector-all port)))
+
+
+
+(with-test-prefix "unicode byte-order marks (BOMs)"
+
+  (define (bv-read-test* encoding bv proc)
+    (let ((port (open-bytevector-input-port bv)))
+      (set-port-encoding! port encoding)
+      (proc port)))
+
+  (define (bv-read-test encoding bv)
+    (bv-read-test* encoding bv read-string))
+
+  (define (bv-write-test* encoding proc)
+    (call-with-values
+        (lambda () (open-bytevector-output-port))
+      (lambda (port get-bytevector)
+        (set-port-encoding! port encoding)
+        (proc port)
+        (get-bytevector))))
+
+  (define (bv-write-test encoding str)
+    (bv-write-test* encoding
+                    (lambda (p)
+                      (display str p))))
+
+  (pass-if-equal "BOM not discarded from Latin-1 stream"
+      "\xEF\xBB\xBF\x61"
+    (bv-read-test "ISO-8859-1" #vu8(#xEF #xBB #xBF #x61)))
+
+  (pass-if-equal "BOM not discarded from Latin-2 stream"
+      "\u010F\u0165\u017C\x61"
+    (bv-read-test "ISO-8859-2" #vu8(#xEF #xBB #xBF #x61)))
+
+  (pass-if-equal "BOM not discarded from UTF-16BE stream"
+      "\uFEFF\x61"
+    (bv-read-test "UTF-16BE" #vu8(#xFE #xFF #x00 #x61)))
+
+  (pass-if-equal "BOM not discarded from UTF-16LE stream"
+      "\uFEFF\x61"
+    (bv-read-test "UTF-16LE" #vu8(#xFF #xFE #x61 #x00)))
+
+  (pass-if-equal "BOM not discarded from UTF-32BE stream"
+      "\uFEFF\x61"
+    (bv-read-test "UTF-32BE" #vu8(#x00 #x00 #xFE #xFF
+                                       #x00 #x00 #x00 #x61)))
+
+  (pass-if-equal "BOM not discarded from UTF-32LE stream"
+      "\uFEFF\x61"
+    (bv-read-test "UTF-32LE" #vu8(#xFF #xFE #x00 #x00
+                                       #x61 #x00 #x00 #x00)))
+
+  (pass-if-equal "BOM not written to UTF-8 stream"
+      #vu8(#x61)
+    (bv-write-test "UTF-8" "a"))
+
+  (pass-if-equal "BOM not written to UTF-16BE stream"
+      #vu8(#x00 #x61)
+    (bv-write-test "UTF-16BE" "a"))
+
+  (pass-if-equal "BOM not written to UTF-16LE stream"
+      #vu8(#x61 #x00)
+    (bv-write-test "UTF-16LE" "a"))
+
+  (pass-if-equal "BOM not written to UTF-32BE stream"
+      #vu8(#x00 #x00 #x00 #x61)
+    (bv-write-test "UTF-32BE" "a"))
+
+  (pass-if-equal "BOM not written to UTF-32LE stream"
+      #vu8(#x61 #x00 #x00 #x00)
+    (bv-write-test "UTF-32LE" "a"))
+
+  (pass-if "Don't read from the port unless user asks to"
+    (let* ((p (make-soft-port
+               (vector
+                (lambda (c) #f)           ; write char
+                (lambda (s) #f)           ; write string
+                (lambda () #f)            ; flush
+                (lambda () (throw 'fail)) ; read char
+                (lambda () #f))
+               "rw")))
+      (set-port-encoding! p "UTF-16")
+      (display "abc" p)
+      (set-port-encoding! p "UTF-32")
+      (display "def" p)
+      #t))
+
+  ;; TODO: test that input and output streams are independent when
+  ;; appropriate, and linked when appropriate.
+
+  (pass-if-equal "BOM discarded from start of UTF-8 stream"
+      "a"
+    (bv-read-test "Utf-8" #vu8(#xEF #xBB #xBF #x61)))
+
+  (pass-if-equal "BOM discarded from start of UTF-8 stream after seek to 0"
+      '(#\a "a")
+    (bv-read-test* "uTf-8" #vu8(#xEF #xBB #xBF #x61)
+                   (lambda (p)
+                     (let ((c (read-char p)))
+                       (seek p 0 SEEK_SET)
+                       (let ((s (read-string p)))
+                         (list c s))))))
+
+  (pass-if-equal "Only one BOM discarded from start of UTF-8 stream"
+      "\uFEFFa"
+    (bv-read-test "UTF-8" #vu8(#xEF #xBB #xBF #xEF #xBB #xBF #x61)))
+
+  (pass-if-equal "BOM not discarded from UTF-8 stream after seek to > 0"
+      "\uFEFFb"
+    (bv-read-test* "UTF-8" #vu8(#x61 #xEF #xBB #xBF #x62)
+                   (lambda (p)
+                     (seek p 1 SEEK_SET)
+                     (read-string p))))
+
+  (pass-if-equal "BOM not discarded unless at start of UTF-8 stream"
+      "a\uFEFFb"
+    (bv-read-test "UTF-8" #vu8(#x61 #xEF #xBB #xBF #x62)))
+
+  (pass-if-equal "BOM (BE) written to start of UTF-16 stream"
+      #vu8(#xFE #xFF #x00 #x61 #x00 #x62)
+    (bv-write-test "UTF-16" "ab"))
+
+  (pass-if-equal "BOM (BE) written to UTF-16 stream after set-port-encoding!"
+      #vu8(#xFE #xFF #x00 #x61 #x00 #x62 #xFE #xFF #x00 #x63 #x00 #x64)
+    (bv-write-test* "UTF-16"
+                    (lambda (p)
+                      (display "ab" p)
+                      (set-port-encoding! p "UTF-16")
+                      (display "cd" p))))
+
+  (pass-if-equal "BOM discarded from start of UTF-16 stream (BE)"
+      "a"
+    (bv-read-test "UTF-16" #vu8(#xFE #xFF #x00 #x61)))
+
+  (pass-if-equal "BOM discarded from start of UTF-16 stream (BE) after seek to 0"
+      '(#\a "a")
+    (bv-read-test* "utf-16" #vu8(#xFE #xFF #x00 #x61)
+                   (lambda (p)
+                     (let ((c (read-char p)))
+                       (seek p 0 SEEK_SET)
+                       (let ((s (read-string p)))
+                         (list c s))))))
+
+  (pass-if-equal "Only one BOM discarded from start of UTF-16 stream (BE)"
+      "\uFEFFa"
+    (bv-read-test "Utf-16" #vu8(#xFE #xFF #xFE #xFF #x00 #x61)))
+
+  (pass-if-equal "BOM not discarded from UTF-16 stream (BE) after seek to > 0"
+      "\uFEFFa"
+    (bv-read-test* "uTf-16" #vu8(#xFE #xFF #xFE #xFF #x00 #x61)
+                   (lambda (p)
+                     (seek p 2 SEEK_SET)
+                     (read-string p))))
+
+  (pass-if-equal "BOM not discarded unless at start of UTF-16 stream"
+      "a\uFEFFb"
+    (bv-read-test "utf-16" #vu8(#x00 #x61 #xFE #xFF #x00 #x62)))
+
+  (pass-if-equal "BOM discarded from start of UTF-16 stream (LE)"
+      "a"
+    (bv-read-test "UTF-16" #vu8(#xFF #xFE #x61 #x00)))
+
+  (pass-if-equal "BOM discarded from start of UTF-16 stream (LE) after seek to 0"
+      '(#\a "a")
+    (bv-read-test* "Utf-16" #vu8(#xFF #xFE #x61 #x00)
+                   (lambda (p)
+                     (let ((c (read-char p)))
+                       (seek p 0 SEEK_SET)
+                       (let ((s (read-string p)))
+                         (list c s))))))
+
+  (pass-if-equal "Only one BOM discarded from start of UTF-16 stream (LE)"
+      "\uFEFFa"
+    (bv-read-test "UTf-16" #vu8(#xFF #xFE #xFF #xFE #x61 #x00)))
+
+  (pass-if-equal "BOM discarded from start of UTF-32 stream (BE)"
+      "a"
+    (bv-read-test "UTF-32" #vu8(#x00 #x00 #xFE #xFF
+                                     #x00 #x00 #x00 #x61)))
+
+  (pass-if-equal "BOM discarded from start of UTF-32 stream (BE) after seek to 0"
+      '(#\a "a")
+    (bv-read-test* "utF-32" #vu8(#x00 #x00 #xFE #xFF
+                                      #x00 #x00 #x00 #x61)
+                   (lambda (p)
+                     (let ((c (read-char p)))
+                       (seek p 0 SEEK_SET)
+                       (let ((s (read-string p)))
+                         (list c s))))))
+
+  (pass-if-equal "Only one BOM discarded from start of UTF-32 stream (BE)"
+      "\uFEFFa"
+    (bv-read-test "UTF-32" #vu8(#x00 #x00 #xFE #xFF
+                                     #x00 #x00 #xFE #xFF
+                                     #x00 #x00 #x00 #x61)))
+
+  (pass-if-equal "BOM not discarded from UTF-32 stream (BE) after seek to > 0"
+      "\uFEFFa"
+    (bv-read-test* "UtF-32" #vu8(#x00 #x00 #xFE #xFF
+                                      #x00 #x00 #xFE #xFF
+                                      #x00 #x00 #x00 #x61)
+                   (lambda (p)
+                     (seek p 4 SEEK_SET)
+                     (read-string p))))
+
+  (pass-if-equal "BOM discarded within UTF-16 stream (BE) after set-port-encoding!"
+      "ab"
+    (bv-read-test* "UTF-16" #vu8(#x00 #x61 #xFE #xFF #x00 #x62)
+                   (lambda (p)
+                     (let ((a (read-char p)))
+                       (set-port-encoding! p "UTF-16")
+                       (string a (read-char p))))))
+
+  (pass-if-equal "BOM discarded within UTF-16 stream (LE,BE) after set-port-encoding!"
+      "ab"
+    (bv-read-test* "utf-16" #vu8(#x00 #x61 #xFF #xFE #x62 #x00)
+                   (lambda (p)
+                     (let ((a (read-char p)))
+                       (set-port-encoding! p "UTF-16")
+                       (string a (read-char p))))))
+
+  (pass-if-equal "BOM discarded within UTF-32 stream (BE) after set-port-encoding!"
+      "ab"
+    (bv-read-test* "UTF-32" #vu8(#x00 #x00 #x00 #x61
+                                      #x00 #x00 #xFE #xFF
+                                      #x00 #x00 #x00 #x62)
+                   (lambda (p)
+                     (let ((a (read-char p)))
+                       (set-port-encoding! p "UTF-32")
+                       (string a (read-char p))))))
+
+  (pass-if-equal "BOM discarded within UTF-32 stream (LE,BE) after set-port-encoding!"
+      "ab"
+    (bv-read-test* "UTF-32" #vu8(#x00 #x00 #x00 #x61
+                                      #xFF #xFE #x00 #x00
+                                      #x62 #x00 #x00 #x00)
+                   (lambda (p)
+                     (let ((a (read-char p)))
+                       (set-port-encoding! p "UTF-32")
+                       (string a (read-char p))))))
+
+  (pass-if-equal "BOM not discarded unless at start of UTF-32 stream"
+      "a\uFEFFb"
+    (bv-read-test "UTF-32" #vu8(#x00 #x00 #x00 #x61
+                                     #x00 #x00 #xFE #xFF
+                                     #x00 #x00 #x00 #x62)))
+
+  (pass-if-equal "BOM discarded from start of UTF-32 stream (LE)"
+      "a"
+    (bv-read-test "UTF-32" #vu8(#xFF #xFE #x00 #x00
+                                     #x61 #x00 #x00 #x00)))
+
+  (pass-if-equal "BOM discarded from start of UTF-32 stream (LE) after seek to 0"
+      '(#\a "a")
+    (bv-read-test* "UTf-32" #vu8(#xFF #xFE #x00 #x00
+                                      #x61 #x00 #x00 #x00)
+                   (lambda (p)
+                     (let ((c (read-char p)))
+                       (seek p 0 SEEK_SET)
+                       (let ((s (read-string p)))
+                         (list c s))))))
+
+  (pass-if-equal "Only one BOM discarded from start of UTF-32 stream (LE)"
+      "\uFEFFa"
+    (bv-read-test "UTF-32" #vu8(#xFF #xFE #x00 #x00
+                                     #xFF #xFE #x00 #x00
+                                     #x61 #x00 #x00 #x00))))
+
+
+
+(define-syntax-rule (with-load-path path body ...)
+  (let ((new path)
+        (old %load-path))
+    (dynamic-wind
+      (lambda ()
+        (set! %load-path new))
+      (lambda ()
+        body ...)
+      (lambda ()
+        (set! %load-path old)))))
+
+(define %temporary-directory
+  (string-append (or (getenv "TMPDIR") "/tmp") "/guile-ports-test."
+                 (number->string (getpid))))
+
+(with-test-prefix "%file-port-name-canonicalization"
+
+  (pass-if-equal "absolute file name & empty %load-path entry" "/dev/null"
+    ;; In Guile 2.0.5 and earlier, this would return "dev/null" instead
+    ;; of "/dev/null".  See
+    ;; <http://lists.gnu.org/archive/html/guile-devel/2012-05/msg00059.html>
+    ;; for a discussion.
+    (with-load-path (cons "" (delete "/" %load-path))
+      (with-fluids ((%file-port-name-canonicalization 'relative))
+        (port-filename (open-input-file "/dev/null")))))
+
+  (pass-if-equal "relative canonicalization with /" "dev/null"
+    (with-load-path (cons "/" %load-path)
+      (with-fluids ((%file-port-name-canonicalization 'relative))
+        (port-filename (open-input-file "/dev/null")))))
+
+  (pass-if-equal "relative canonicalization with /dev/.." "dev/null"
+    (with-load-path (cons "/dev/.." %load-path)
+      (with-fluids ((%file-port-name-canonicalization 'relative))
+        (port-filename (open-input-file "/dev/null")))))
+
+  (pass-if-equal "relative canonicalization from ice-9" "ice-9/q.scm"
+    (with-fluids ((%file-port-name-canonicalization 'relative))
+      (port-filename
+       (open-input-file (%search-load-path "ice-9/q.scm")))))
+
+  (pass-if-equal "relative canonicalization with common prefixes"
+      "x.scm"
+
+    ;; In Guile up to 2.2.2, this would return "wrong/x.scm'.
+    (let* ((dir1 (string-append %temporary-directory "/something"))
+           (dir2 (string-append dir1 "-wrong")))
+      (with-load-path (append (list dir1 dir2) %load-path)
+        (dynamic-wind
+          (lambda ()
+            (mkdir %temporary-directory)
+            (mkdir dir1)
+            (mkdir dir2)
+            (call-with-output-file (string-append dir2 "/x.scm")
+              (const #t)))
+          (lambda ()
+            (with-fluids ((%file-port-name-canonicalization 'relative))
+              (port-filename
+               (open-input-file (string-append dir2 "/x.scm")))))
+          (lambda ()
+            (delete-file (string-append dir2 "/x.scm"))
+            (rmdir dir2)
+            (rmdir dir1)
+            (rmdir %temporary-directory))))))
+
+  (pass-if-equal "absolute canonicalization from ice-9"
+      (canonicalize-path
+       (string-append (assoc-ref %guile-build-info 'top_srcdir)
+                      "/module/ice-9/q.scm"))
+    (with-fluids ((%file-port-name-canonicalization 'absolute))
+      (port-filename (open-input-file (%search-load-path "ice-9/q.scm"))))))
+
+(with-test-prefix "file name separators"
+
+  (pass-if "no backslash separators in Windows file names"
+    ;; In Guile 2.0.11 and earlier, %load-path on Windows could
+    ;; include file names with backslashes, and `getcwd' on Windows
+    ;; would always return a directory name with backslashes.
+    (or (not (file-name-separator? #\\))
+        (with-load-path (cons (getcwd) %load-path)
+          (not (string-index (%search-load-path (basename (test-file)))
+                             #\\))))))
+
+(delete-file (test-file))
+
+;;; Local Variables:
+;;; eval: (put 'test-decoding-error 'scheme-indent-function 3)
+;;; eval: (put 'with-load-path 'scheme-indent-function 1)
+;;; End:

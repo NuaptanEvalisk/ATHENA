@@ -1,0 +1,39 @@
+#! /bin/sh
+# Usage: check-guile [-i GUILE-INTERPRETER] [GUILE-TEST-ARGS]
+# If `-i GUILE-INTERPRETER' is omitted, use ${top_builddir}/meta/guile.
+# See ${top_srcdir}/test-suite/guile-test for documentation on GUILE-TEST-ARGS.
+#
+# Example invocations:
+# ./check-guile
+# ./check-guile numbers.test
+# ./check-guile -i /usr/local/bin/guile
+# ./check-guile -i /usr/local/bin/guile numbers.test
+# ./check-guile -i meta/gdb-uninstalled-guile numbers.test
+
+set -e
+
+top_builddir=@top_builddir_absolute@
+top_srcdir=@top_srcdir_absolute@
+
+export TEST_SUITE_DIR="${top_srcdir}/test-suite"
+
+if [ x"$1" = x-i ] ; then
+    guile="$2"
+    shift 2
+else
+    guile="${top_builddir}/meta/guile"
+fi
+
+export GUILE_LOAD_PATH="$TEST_SUITE_DIR"
+
+if ! [ -f "$guile" -a -x "$guile" ] ; then
+    echo "ERROR: Cannot execute $guile" 1>&2
+    exit 2
+fi
+
+exec "$guile" \
+    --debug \
+    -L "$TEST_SUITE_DIR" \
+    --no-auto-compile -e main -s "$TEST_SUITE_DIR/guile-test" \
+    --test-suite "$TEST_SUITE_DIR/tests" \
+    --log-file check-guile.log "$@"

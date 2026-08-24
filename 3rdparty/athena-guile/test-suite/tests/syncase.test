@@ -1,0 +1,324 @@
+;;;; syncase.test --- test suite for (ice-9 syncase)            -*- scheme -*-
+;;;;
+;;;; 	Copyright (C) 2001, 2006, 2009, 2010, 2011, 2013, 2015 Free Software Foundation, Inc.
+;;;; 
+;;;; This library is free software; you can redistribute it and/or
+;;;; modify it under the terms of the GNU Lesser General Public
+;;;; License as published by the Free Software Foundation; either
+;;;; version 3 of the License, or (at your option) any later version.
+;;;; 
+;;;; This library is distributed in the hope that it will be useful,
+;;;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;;;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+;;;; Lesser General Public License for more details.
+;;;; 
+;;;; You should have received a copy of the GNU Lesser General Public
+;;;; License along with this library; if not, write to the Free Software
+;;;; Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+
+;; These tests are in a module so that the syntax transformer does not
+;; affect code outside of this file.
+;;
+(define-module (test-suite test-syncase)
+  #:use-module (test-suite lib)
+  #:use-module (system base compile)
+  #:use-module (ice-9 regex)
+  #:use-module ((srfi srfi-1) :select (member)))
+
+(define-syntax plus
+  (syntax-rules ()
+    ((plus x ...) (+ x ...))))
+
+(pass-if "basic syncase macro"
+  (= (plus 1 2 3) (+ 1 2 3)))
+
+(pass-if "@ works with syncase"
+  (eq? run-test (@ (test-suite lib) run-test)))
+
+(define-syntax string-let
+  (lambda (stx)
+    (syntax-case stx ()
+      ((_ id body ...)
+       #`(let ((id #,(symbol->string
+                      (syntax->datum #'id))))
+           body ...)))))
+
+(pass-if "macro using quasisyntax"
+  (equal? (string-let foo (list foo foo))
+          '("foo" "foo")))
+
+(define-syntax string-case
+  (syntax-rules (else)
+    ((string-case expr ((string ...) clause-body ...) ... (else else-body ...))
+     (let ((value expr))
+       (cond ((member value '(string ...) string=?)
+              clause-body ...)
+             ...
+             (else
+              else-body ...))))
+    ((string-case expr ((string ...) clause-body ...) ...)
+     (let ((value expr))
+       (cond ((member value '(string ...) string=?)
+              clause-body ...)
+             ...)))))
+
+(define-syntax alist
+  (syntax-rules (tail)
+    ((alist ((key val) ... (tail expr)))
+     (cons* '(key . val) ... expr))
+    ((alist ((key val) ...))
+     (list '(key . val) ...))))
+
+(with-test-prefix "with-syntax"
+  (pass-if "definitions allowed in body"
+    (equal? (with-syntax ((a 23))
+              (define b #'a)
+              (syntax->datum b))
+            23)))
+
+(with-test-prefix "tail patterns"
+  (with-test-prefix "at the outermost level"
+    (pass-if "non-tail invocation"
+      (equal? (string-case "foo" (("foo") 'foo))
+              'foo))
+    (pass-if "tail invocation"
+      (equal? (string-case "foo" (("bar") 'bar) (else 'else))
+              'else)))
+  (with-test-prefix "at a nested level"
+    (pass-if "non-tail invocation"
+      (equal? (alist ((a 1) (b 2) (c 3)))
+              '((a . 1) (b . 2) (c . 3))))
+    (pass-if "tail invocation"
+      (equal? (alist ((foo 42) (tail '((bar . 66)))))
+              '((foo . 42) (bar . 66))))))
+
+(with-test-prefix "serializable labels and marks"
+  (compile '(begin
+              (define-syntax duplicate-macro
+                (syntax-rules ()
+                  ((_ new-name old-name)
+                   (define-syntax new-name
+                     (syntax-rules ()
+                       ((_ . vals)
+                        (letrec-syntax ((apply (syntax-rules ()
+                                                 ((_ macro args)
+                                                  (macro . args)))))
+                          (apply old-name vals))))))))
+
+              (define-syntax kwote
+                (syntax-rules ()
+                  ((_ arg1) 'arg1)))
+
+              (duplicate-macro kwote* kwote))
+           #:env (current-module))
+  (pass-if "compiled macro-generating macro works"
+    (eq? (eval '(kwote* foo) (current-module))
+         'foo)))
+
+(with-test-prefix "changes to expansion environment"
+  (pass-if "expander detects changes to current-module with @@ @@"
+    (compile '(begin
+                (define-module (new-module))
+                (@@ @@ (new-module)
+                       (define-syntax new-module-macro
+                         (lambda (stx)
+                           (syntax-case stx () 
+                             ((_ arg) (syntax arg))))))
+                (@@ @@ (new-module)
+                       (new-module-macro #t)))
+             #:env (current-module))))
+
+(define-module (test-suite test-syncase-2)
+  #:export (make-the-macro))
+
+(define (hello)
+  'hello)
+
+(define-syntax make-the-macro
+  (syntax-rules ()
+    ((_ name)
+     (define-syntax name
+       (syntax-rules ()
+         ((_) (hello)))))))
+
+(define-module (test-suite test-syncase)) ;; back to main module
+(use-modules (test-suite test-syncase-2))
+
+(make-the-macro foo)
+
+(with-test-prefix "macro-generating macro"
+  (pass-if "module hygiene"
+    (eq? (foo) 'hello)))
+
+(pass-if "_ is a placeholder"
+  (equal? (eval '(begin
+                   (define-syntax ciao
+                     (lambda (stx)
+                       (syntax-case stx ()
+                         ((_ _)
+                          "ciao"))))
+                   (ciao 1))
+                (current-module))
+          "ciao"))
+
+(define qux 30)
+
+(with-test-prefix "identifier-syntax"
+  
+  (pass-if "global reference"
+    (let-syntax ((baz (identifier-syntax qux)))
+      (equal? baz qux)))
+
+  (pass-if "lexical hygienic reference"
+    (let-syntax ((baz (identifier-syntax qux)))
+      (let ((qux 20))
+        (equal? (+ baz qux)
+                50))))
+  
+  (pass-if "lexical hygienic reference (bound)"
+    (let ((qux 20))
+      (let-syntax ((baz (identifier-syntax qux)))
+        (equal? (+ baz qux)
+                40))))
+  
+  (pass-if "global reference (settable)"
+    (let-syntax ((baz (identifier-syntax
+                       (id qux)
+                       ((set! id expr) (set! qux expr)))))
+      (equal? baz qux)))
+
+  (pass-if "lexical hygienic reference (settable)"
+    (let-syntax ((baz (identifier-syntax
+                       (id qux)
+                       ((set! id expr) (set! qux expr)))))
+      (let ((qux 20))
+        (equal? (+ baz qux)
+                50))))
+  
+  (pass-if "lexical hygienic reference (bound, settable)"
+    (let ((qux 20))
+      (let-syntax ((baz (identifier-syntax
+                         (id qux)
+                         ((set! id expr) (set! qux expr)))))
+        (equal? (+ baz qux)
+                40))))
+
+  (pass-if "global set!"
+    (let-syntax ((baz (identifier-syntax
+                       (id qux)
+                       ((set! id expr) (set! qux expr)))))
+      (set! baz 10)
+      (equal? (+ baz qux) 20)))
+
+  (pass-if "lexical hygienic set!"
+    (let-syntax ((baz (identifier-syntax
+                       (id qux)
+                       ((set! id expr) (set! qux expr)))))
+      (and (let ((qux 20))
+             (set! baz 5)
+             (equal? (+ baz qux)
+                     25))
+           (equal? qux 5))))
+  
+  (pass-if "lexical hygienic set! (bound)"
+    (let ((qux 20))
+      (let-syntax ((baz (identifier-syntax
+                         (id qux)
+                         ((set! id expr) (set! qux expr)))))
+        (set! baz 50)
+        (equal? (+ baz qux)
+                100)))))
+
+(with-test-prefix "top-level expansions"
+  (pass-if "syntax definitions expanded before other expressions"
+    (eval '(begin
+             (define even?
+               (lambda (x)
+                 (or (= x 0) (odd? (- x 1)))))
+             (define-syntax odd?
+               (syntax-rules ()
+                 ((odd? x) (not (even? x)))))
+             (even? 10))
+          (current-module))))
+
+(define-module (test-suite test-syncase-3)
+  #:autoload (test-syncase-3-does-not-exist) (baz))
+
+(define-module (test-suite test-syncase)) ;; back to main module
+
+(pass-if "missing autoloads do not foil psyntax"
+  (parameterize ((current-warning-port (%make-void-port "w")))
+    (eval '(if #f (baz) #t)
+          (resolve-module '(test-suite test-syncase-3)))))
+
+(use-modules (system syntax))
+
+(with-test-prefix "syntax-local-binding"
+  (define-syntax syntax-type
+    (lambda (x)
+      (syntax-case x ()
+        ((_ id resolve?)
+         (call-with-values
+             (lambda ()
+               (syntax-local-binding
+                #'id
+                #:resolve-syntax-parameters? (syntax->datum #'resolve?)))
+           (lambda (type value)
+             (with-syntax ((type (datum->syntax #'id type)))
+               #''type)))))))
+
+  (define-syntax-parameter foo
+    (syntax-rules ()))
+
+  (pass-if "syntax-parameters (resolved)"
+    (equal? (syntax-type foo #t) 'macro))
+
+  (pass-if "syntax-parameters (unresolved)"
+    (equal? (syntax-type foo #f) 'syntax-parameter)))
+
+;; (put 'pass-if-syntax-error 'scheme-indent-function 1)
+(define-syntax pass-if-syntax-error
+  (syntax-rules ()
+    ((_ name pat exp)
+     (pass-if name
+       (catch 'syntax-error
+         (lambda () exp (error "expected syntax-error exception"))
+         (lambda (k who what where form . maybe-subform)
+           (if (if (pair? pat)
+                   (and (eq? who (car pat))
+                        (string-match (cdr pat) what))
+                   (string-match pat what))
+               #t
+               (error "unexpected syntax-error exception" what pat))))))))
+
+(with-test-prefix "primitives"
+  (pass-if-syntax-error "primref in default module"
+    "failed to match"
+    (macroexpand '(@@ primitive cons)))
+
+  (pass-if-syntax-error "primcall in default module"
+    "failed to match"
+    (macroexpand '((@@ primitive cons) 1 2)))
+
+  (pass-if-equal "primcall in (guile)"
+      '(1 . 2)
+      (@@ @@ (guile) ((@@ primitive cons) 1 2)))
+
+  (pass-if-syntax-error "primref in (guile)"
+    "not in operator position"
+    (macroexpand '(@@ @@ (guile) (@@ primitive cons)))))
+
+(pass-if "infinite loop bug"
+  (begin
+    (macroexpand
+     '(let-syntax
+          ((define-foo
+             (syntax-rules ()
+               ((define-foo a b)
+                (begin
+                  (define a '())
+                  ;; Oddly, the "*" in the define* seems to be
+                  ;; important in triggering this bug.
+                  (define* (b) (set! a a)))))))
+        (define-foo a c)))
+    #t))

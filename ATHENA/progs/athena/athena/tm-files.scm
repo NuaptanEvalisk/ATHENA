@@ -19,7 +19,7 @@
         (kernel athena tm-convert)
         (kernel athena tm-dialogue)
         (utils library cursor)))
-(use-modules (kernel athena tm-preferences))
+(import-from (kernel athena tm-preferences))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

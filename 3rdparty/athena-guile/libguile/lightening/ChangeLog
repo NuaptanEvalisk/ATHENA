@@ -1,0 +1,17 @@
+-*- text -*-
+
+Starting from October 30, 2018, the Lightening project no longer stores
+change logs in `ChangeLog' files.  Instead, changes are detailed in the
+version control system's logs.  They can be seen by downloading a copy
+of the Git repository:
+
+  $ git clone https://gitlab.com/wingo/lightening
+  $ git log
+
+Alternatively, they can be seen on the web, using the Gitweb interface
+at:
+
+  https://gitlab.com/wingo/lightening
+
+Change logs from upstream GNU Lightning are still available in
+ChangeLog.lightning.

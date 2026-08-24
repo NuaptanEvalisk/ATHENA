@@ -1,0 +1,104 @@
+;;;; gc.test --- test guile's garbage collection    -*- scheme -*-
+;;;; Copyright (C) 2000, 2001, 2004, 2006, 2007, 2008, 2009,
+;;;;   2011, 2012, 2013 Free Software Foundation, Inc.
+;;;;
+;;;; This library is free software; you can redistribute it and/or
+;;;; modify it under the terms of the GNU Lesser General Public
+;;;; License as published by the Free Software Foundation; either
+;;;; version 3 of the License, or (at your option) any later version.
+;;;; 
+;;;; This library is distributed in the hope that it will be useful,
+;;;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;;;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+;;;; Lesser General Public License for more details.
+;;;; 
+;;;; You should have received a copy of the GNU Lesser General Public
+;;;; License along with this library; if not, write to the Free Software
+;;;; Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+
+(define-module (tests gc)
+  #:use-module (ice-9 documentation)
+  #:use-module (test-suite lib)
+  #:use-module ((system base compile) #:select (compile)))
+
+
+;; Some of these tests verify that things are collectable.  As we use a
+;; third-party conservative collector, we really can't guarantee that --
+;; we can try, but on some platforms, on some versions (possibly), the
+;; test might fail.  But we don't want that to stop the build.  So,
+;; instead of failing, throw 'unresolved.
+;;
+(define (maybe-gc-flakiness result)
+  (or result
+      (throw 'unresolved)))
+
+;;;
+;;; miscellaneous
+;;;
+
+
+(define (documented? object)
+  (not (not (object-documentation object))))
+
+;; In guile 1.6.4 this test bombed, due to the record in h being collected
+;; by the gc, but not removed from h, leaving "x" as a freed cell.
+;; The usual correct result here is for x to be #f, but there's always a
+;; chance gc will mark something used when it isn't, so we allow x to be a
+;; record too.
+(pass-if "weak-values versus records"
+  (let ((rec-type (make-record-type 'foo '()))
+	(h        (make-weak-value-hash-table 61)))
+    (hash-set! h "foo" ((record-constructor rec-type)))
+    (gc)
+    (let ((x (hash-ref h "foo")))
+      (or (not x)
+	  ((record-predicate rec-type) x)))))
+
+
+;;;
+;;; 
+;;;
+
+(with-test-prefix "gc"
+
+  (pass-if "after-gc-hook gets called"
+    (let* ((foo #f)
+	   (thunk (lambda () (set! foo #t))))
+      (add-hook! after-gc-hook thunk)
+      (gc)
+      (remove-hook! after-gc-hook thunk)
+      foo))
+
+  (pass-if "Unused modules are removed"
+    (let* ((guard (make-guardian))
+           (total 1000))
+
+      (for-each (lambda (x) (guard (make-module))) (iota total))
+
+      ;; Avoid false references to the modules on the stack.
+      (clear-stale-stack-references)
+
+      (gc)
+      (gc)   ;; twice: have to kill the weak vectors.
+      (gc)   ;; thrice: because the test doesn't succeed with only
+      ;; one gc round. not sure why.
+
+      (maybe-gc-flakiness
+       (= (let lp ((i 0))
+            (if (guard)
+                (lp (1+ i))
+                i))
+          total))))
+
+  (pass-if "Lexical vars are collectable"
+    (let ((l (compile
+              '(begin
+                 (define guardian (make-guardian))
+                 (let ((f (list 'foo)))
+                   (guardian f))
+                 ((@ (test-suite lib) clear-stale-stack-references))
+                 (gc)(gc)(gc)
+                 (guardian))
+              ;; Prevent the optimizer from propagating f.
+              #:opts '(#:partial-eval? #f))))
+      (maybe-gc-flakiness (equal? l '(foo))))))

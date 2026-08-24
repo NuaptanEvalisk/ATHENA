@@ -13,10 +13,10 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (texmacs-module (athena menus developer-menu))
-(use-modules (kernel athena tm-preferences))
+(import-from (kernel athena tm-preferences))
 
 
-(use-modules (prog scheme-tools) (prog scheme-menu)
+(import-from (prog scheme-tools) (prog scheme-menu)
              (doc apidoc) (doc apidoc-widgets)
              (language natural))
 
@@ -84,7 +84,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (menu-bind provoke-error-menu
-  (xxx))
+  (dynamic (gui-make '(xxx))))
 
 (menu-bind developer-menu
   (group "Scheme")

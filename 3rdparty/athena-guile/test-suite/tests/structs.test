@@ -1,0 +1,203 @@
+;;;; structs.test --- Structures.      -*- mode: scheme; coding: utf-8; -*-
+;;;; Ludovic Courtès <ludo@gnu.org>, 2006-06-12.
+;;;;
+;;;; Copyright (C) 2006, 2007, 2009, 2010, 2012, 2017 Free Software Foundation, Inc.
+;;;;
+;;;; This library is free software; you can redistribute it and/or
+;;;; modify it under the terms of the GNU Lesser General Public
+;;;; License as published by the Free Software Foundation; either
+;;;; version 3 of the License, or (at your option) any later version.
+;;;; 
+;;;; This library is distributed in the hope that it will be useful,
+;;;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;;;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+;;;; Lesser General Public License for more details.
+;;;; 
+;;;; You should have received a copy of the GNU Lesser General Public
+;;;; License along with this library; if not, write to the Free Software
+;;;; Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+
+(define-module (test-suite test-structs)
+  :use-module (test-suite lib))
+
+
+
+;;;
+;;; Struct example taken from the reference manual (by Tom Lord).
+;;;
+
+(define ball-root
+  (make-vtable (string-append standard-vtable-fields "pw") 0))
+
+(define (make-ball-type ball-color)
+  (make-struct/no-tail ball-root
+                       (make-struct-layout "pw")
+                       (lambda (ball port)
+                         (format port "#<a ~A ball owned by ~A>"
+                                 (color ball)
+                                 (owner ball)))
+                       ball-color))
+
+(define (color ball) (struct-ref (struct-vtable ball) vtable-offset-user))
+(define (owner ball) (struct-ref ball 0))
+(define (set-owner! ball owner) (struct-set! ball 0 owner))
+
+(define red (make-ball-type 'red))
+(define green (make-ball-type 'green))
+
+(define (make-ball type owner) (make-struct/no-tail type owner))
+
+
+
+;;;
+;;; Test suite.
+;;;
+
+(with-test-prefix "low-level struct procedures"
+
+  (pass-if "constructors"
+     (and (struct-vtable? ball-root)
+	  (struct-vtable? red)
+	  (struct-vtable? green)))
+
+  (pass-if "vtables"
+     (and (eq? (struct-vtable red) ball-root)
+	  (eq? (struct-vtable green) ball-root)
+	  (eq? (struct-vtable (make-ball red "Bob")) red)
+          (eq? (struct-vtable ball-root) <standard-vtable>)
+
+	  ;; end of the vtable tower
+	  (eq? (struct-vtable <standard-vtable>) <standard-vtable>)))
+
+  (pass-if "write"
+     (set-owner! (make-ball red "Bob") "Fred")
+     #t)
+
+  (pass-if "struct-set!"
+     (let ((ball (make-ball green "Bob")))
+       (set-owner! ball "Bill")
+       (string=? (owner ball) "Bill")))
+
+  (pass-if "struct-ref"
+     (let ((ball (make-ball red "Alice")))
+       (equal? (struct-ref ball 0) "Alice")))
+
+  (pass-if "struct-set!"
+     (let* ((v (make-vtable "pw"))
+            (s (make-struct/no-tail v))
+            (r (struct-set! s 0 'a)))
+       (eq? r
+            (struct-ref s 0)
+            'a)))
+
+  (pass-if-exception "struct-ref out-of-range"
+     exception:out-of-range
+     (let* ((v (make-vtable "pwpw"))
+            (s (make-struct/no-tail v 'a 'b)))
+       (struct-ref s 2)))
+
+  (pass-if-exception "struct-set! out-of-range"
+     exception:out-of-range
+     (let* ((v (make-vtable "pwpw"))
+            (s (make-struct/no-tail v 'a 'b)))
+       (struct-set! s 2 'c))))
+
+
+(with-test-prefix "equal?"
+
+  (pass-if "simple structs"
+     (let* ((vtable (make-vtable "pw"))
+            (s1     (make-struct/no-tail vtable "hello"))
+            (s2     (make-struct/no-tail vtable "hello")))
+       (equal? s1 s2)))
+
+  (pass-if "more complex structs"
+     (let ((first (make-ball red (string-copy "Bob")))
+           (second (make-ball red (string-copy "Bob"))))
+       (equal? first second)))
+
+  (pass-if "not-equal?"
+     (not (or (equal? (make-ball red "Bob") (make-ball green "Bob"))
+	      (equal? (make-ball red "Bob") (make-ball red "Bill"))))))
+
+
+(with-test-prefix "hash"
+
+  (pass-if "simple structs"
+    (let* ((v  (make-vtable "pw"))
+           (s1 (make-struct/no-tail v "hello"))
+           (s2 (make-struct/no-tail v "hello")))
+      (= (hash s1 7777) (hash s2 7777))))
+
+  (pass-if "different structs"
+    (let* ((v  (make-vtable "pw"))
+           (s1 (make-struct/no-tail v "hello"))
+           (s2 (make-struct/no-tail v "world")))
+      (or (not (= (hash s1 7777) (hash s2 7777)))
+          (throw 'unresolved))))
+
+  (pass-if "different struct types"
+    (let* ((v1 (make-vtable "pw"))
+           (v2 (make-vtable "pw"))
+           (s1 (make-struct/no-tail v1 "hello"))
+           (s2 (make-struct/no-tail v2 "hello")))
+      (or (not (= (hash s1 7777) (hash s2 7777)))
+          (throw 'unresolved))))
+
+  (pass-if "more complex structs"
+    (let ((s1 (make-ball red (string-copy "Bob")))
+          (s2 (make-ball red (string-copy "Bob"))))
+      (= (hash s1 7777) (hash s2 7777))))
+
+  (pass-if "struct with weird fields"
+    (let* ((v  (make-vtable "pwuwph"))
+           (s1 (make-struct/no-tail v "hello" 123 "invisible-secret1"))
+           (s2 (make-struct/no-tail v "hello" 123 "invisible-secret2")))
+      (= (hash s1 7777) (hash s2 7777))))
+
+  (pass-if "cyclic structs"
+    (let* ((v (make-vtable "pw"))
+           (a (make-struct/no-tail v #f))
+           (b (make-struct/no-tail v a)))
+      (struct-set! a 0 b)
+      (and (hash a 7777) (hash b 7777) #t))))
+
+
+;;
+;; make-struct
+;;
+
+(with-test-prefix "make-struct"
+
+  ;; in guile 1.8.1 and earlier, this caused an error throw out of an
+  ;; SCM_CRITICAL_SECTION_START / SCM_CRITICAL_SECTION_END, which abort()ed
+  ;; the program
+  ;;
+  (pass-if-exception "wrong type for `u' field" exception:wrong-type-arg
+    (let* ((vv (make-vtable standard-vtable-fields))
+	   (v  (make-struct/no-tail vv (make-struct-layout "uw"))))
+      (make-struct/no-tail v 'x))))
+
+;;
+;; make-vtable
+;;
+
+(with-test-prefix "make-vtable"
+
+  (pass-if "without printer"
+    (let* ((vtable (make-vtable "pwpw"))
+	   (struct (make-struct/no-tail vtable 'x 'y)))
+      (and (eq? 'x (struct-ref struct 0))
+	   (eq? 'y (struct-ref struct 1)))))
+
+  (pass-if "with printer"
+    (let ()
+      (define (print struct port)
+	(display "hello" port))
+	
+      (let* ((vtable (make-vtable "pwpw" print))
+	     (struct (make-struct/no-tail vtable 'x 'y))
+	     (str    (call-with-output-string
+		      (lambda (port)
+			(display struct port)))))
+	 (equal? str "hello")))))

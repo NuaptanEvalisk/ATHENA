@@ -1,0 +1,443 @@
+;;;; compiler.test --- tests for the compiler      -*- scheme -*-
+;;;; Copyright (C) 2008-2014, 2018, 2021-2022, 2024 Free Software Foundation, Inc.
+;;;; 
+;;;; This library is free software; you can redistribute it and/or
+;;;; modify it under the terms of the GNU Lesser General Public
+;;;; License as published by the Free Software Foundation; either
+;;;; version 3 of the License, or (at your option) any later version.
+;;;; 
+;;;; This library is distributed in the hope that it will be useful,
+;;;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;;;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+;;;; Lesser General Public License for more details.
+;;;; 
+;;;; You should have received a copy of the GNU Lesser General Public
+;;;; License along with this library; if not, write to the Free Software
+;;;; Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+
+(define-module (tests compiler)
+  #:use-module (test-suite lib)
+  #:use-module (test-suite guile-test)
+  #:use-module (system base compile)
+  #:use-module ((language tree-il)
+                #:select (tree-il-src call-args))
+  #:use-module ((system vm loader) #:select (load-thunk-from-memory))
+  #:use-module ((system vm program) #:select (program-sources source:addr)))
+
+(define read-and-compile
+  (@@ (system base compile) read-and-compile))
+
+
+
+(with-test-prefix "basic"
+
+  (pass-if "compile to value"
+    (equal? (compile 1) 1)))
+
+
+(with-test-prefix "psyntax"
+
+  (pass-if "compile uses a fresh module by default"
+    (begin
+      (compile '(define + -))
+      (eq? (compile '+) +)))
+
+  (pass-if "compile-time definitions are isolated"
+    (begin
+      (compile '(define foo-bar #t))
+      (not (module-variable (current-module) 'foo-bar))))
+
+  (pass-if "compile in current module"
+    (let ((o (begin
+               (compile '(define-macro (foo) 'bar)
+                        #:env (current-module))
+               (compile '(let ((bar 'ok)) (foo))
+                        #:env (current-module)))))
+      (and (macro? (module-ref (current-module) 'foo))
+           (eq? o 'ok))))
+
+  (pass-if "compile in fresh module"
+    (let* ((m  (let ((m (make-module)))
+                 (beautify-user-module! m)
+                 m))
+           (o  (begin
+                 (compile '(define-macro (foo) 'bar) #:env m)
+                 (compile '(let ((bar 'ok)) (foo)) #:env m))))
+      (and (module-ref m 'foo)
+           (eq? o 'ok))))
+
+  (pass-if "redefinition"
+    ;; In this case the locally-bound `round' must have the same value as the
+    ;; imported `round'.  See the same test in `syntax.test' for details.
+    (let ((m (make-module)))
+      (beautify-user-module! m)
+      (compile '(define round round) #:env m)
+      (eq? round (module-ref m 'round))))
+
+  (pass-if-equal "syntax-source with read-hash-extend"
+      '((filename . "sample.scm") (line . 2) (column . 5))
+    ;; In Guile 3.0.8, psyntax would dismiss source properties added by
+    ;; read hash extensions on data they return.
+    ;; See <https://issues.guix.gnu.org/54003>
+    (with-fluids ((%read-hash-procedures
+                   (fluid-ref %read-hash-procedures)))
+      (read-hash-extend #\~ (lambda (chr port)
+                              (list 'magic (read port))))
+      (tree-il-src
+       (car
+        (call-args
+         (call-with-input-string "\
+;; first line
+;; second line
+   #~(this is a magic expression)"
+           (lambda (port)
+             (set-port-filename! port "sample.scm")
+             (compile (read-syntax port) #:to 'tree-il)))))))))
+
+
+(with-test-prefix "current-reader"
+
+  (pass-if "default compile-time current-reader differs"
+    (not (eq? (compile 'current-reader)
+              current-reader)))
+
+  (pass-if "compile-time changes are honored and isolated"
+    ;; Make sure changing `current-reader' as the side-effect of a defmacro
+    ;; actually works.
+    (let ((r     (fluid-ref current-reader))
+          (input (open-input-string
+                  "(define-macro (install-reader!)
+                     ;;(format #t \"current-reader = ~A~%\" current-reader)
+                     (fluid-set! current-reader
+                                 (let ((first? #t))
+                                   (lambda args
+                                     (if first?
+                                         (begin
+                                           (set! first? #f)
+                                           ''ok)
+                                         (read (open-input-string \"\"))))))
+                     #f)
+                   (install-reader!)
+                   this-should-be-ignored")))
+      (and (eq? ((load-thunk-from-memory (read-and-compile input)))
+                'ok)
+           (eq? r (fluid-ref current-reader)))))
+
+  (pass-if "with eval-when"
+    (let ((r (fluid-ref current-reader)))
+      (compile '(eval-when (compile eval)
+                  (fluid-set! current-reader (lambda args 'chbouib))))
+      (eq? (fluid-ref current-reader) r))))
+
+
+(with-test-prefix "procedure-name"
+
+  (pass-if "program"
+    (let ((m  (make-module)))
+      (beautify-user-module! m)
+      (compile '(define (foo x) x) #:env m)
+      (eq? (procedure-name (module-ref m 'foo)) 'foo)))
+
+  (pass-if "program with lambda"
+    (let ((m  (make-module)))
+      (beautify-user-module! m)
+      (compile '(define foo (lambda (x) x)) #:env m)
+      (eq? (procedure-name (module-ref m 'foo)) 'foo)))
+
+  (pass-if "subr"
+    (eq? (procedure-name waitpid) 'waitpid)))
+
+
+(with-test-prefix "program-sources"
+
+  (with-test-prefix "source info associated with IP 0"
+
+    ;; Tools like `(system vm coverage)' like it when source info is associated
+    ;; with IP 0 of a VM program, which corresponds to the entry point.  See
+    ;; also <http://savannah.gnu.org/bugs/?29817> for details.
+
+    (pass-if "lambda"
+      (let ((s (program-sources (compile '(lambda (x) x)))))
+        (not (not (memv 0 (map source:addr s))))))
+
+    (pass-if "lambda*"
+      (let ((s (program-sources
+                (compile '(lambda* (x #:optional y) x)))))
+        (not (not (memv 0 (map source:addr s))))))
+
+    (pass-if "case-lambda"
+      (let ((s (program-sources
+                (compile '(case-lambda (()    #t)
+                                       ((y)   y)
+                                       ((y z) (list y z)))))))
+        (not (not (memv 0 (map source:addr s))))))))
+
+(with-test-prefix "case-lambda"
+  (pass-if "self recursion to different clause"
+    (equal? (with-output-to-string
+              (lambda ()
+                (let ()
+                  (define t
+                    (case-lambda
+                      ((x)
+                       (t x 'y))
+                      ((x y)
+                       (display (list x y))
+                       (list x y))))
+                  (display (t 'x)))))
+            "(x y)(x y)")))
+
+(with-test-prefix "limits"
+  (define (arg n)
+    (string->symbol (format #f "arg~a" n)))
+
+  ;; Cons and vector-set! take uint8 arguments, so this triggers the
+  ;; shuffling case.  Also there is the case where more than 252
+  ;; arguments causes shuffling.
+
+  (pass-if "300 arguments"
+    (equal? (apply (compile `(lambda ,(map arg (iota 300))
+                               'foo))
+                   (iota 300))
+            'foo))
+
+  (pass-if "300 arguments with list"
+    (equal? (apply (compile `(lambda ,(map arg (iota 300))
+                               (list ,@(reverse (map arg (iota 300))))))
+                   (iota 300))
+            (reverse (iota 300))))
+
+  (pass-if "300 arguments with vector"
+    (equal? (apply (compile `(lambda ,(map arg (iota 300))
+                               (vector ,@(reverse (map arg (iota 300))))))
+                   (iota 300))
+            (list->vector (reverse (iota 300)))))
+
+  (pass-if "0 arguments with list of 300 elements"
+    (equal? ((compile `(lambda ()
+                         (list ,@(map (lambda (n) `(identity ,n))
+                                      (iota 300))))))
+            (iota 300)))
+
+  (pass-if "0 arguments with vector of 300 elements"
+    (equal? ((compile `(lambda ()
+                         (vector ,@(map (lambda (n) `(identity ,n))
+                                        (iota 300))))))
+            (list->vector (iota 300)))))
+
+(with-test-prefix "regression tests"
+  (pass-if-equal "#18583" 1
+    (compile
+     '(begin
+        (define x (list 1))
+        (define x (car x))
+        x)))
+
+  (pass-if "Chained comparisons"
+    (not (compile
+          '(false-if-exception (< 'not-a-number)))))
+
+  (pass-if-equal "(not (list 1 2))"          ;https://bugs.gnu.org/58217
+      '(#f #f)
+    ;; The baseline compiler (-O0 and -O1) in 3.0.8 would crash.
+    (list (compile '(not (list 1 2)) #:optimization-level 2)
+          (compile '(not (list 1 2)) #:optimization-level 0))))
+
+(with-test-prefix "prompt body slot allocation"
+  (define test-code
+    '(begin
+       (use-modules (ice-9 control))
+
+       (define (foo k) (k))
+       (define (qux k) 42)
+
+       (define (test)
+         (let lp ((i 0))
+           (when (< i 5)
+             (let/ec cancel (let lp () (qux cancel) (foo cancel) (lp)))
+             (lp (1+ i)))))
+       test))
+  (define test-proc #f)
+  (pass-if "compiling test works"
+    (begin
+      (set! test-proc (compile test-code))
+      (procedure? test-proc)))
+
+  (pass-if "test terminates without error"
+    (begin
+      (test-proc)
+      #t)))
+
+(with-test-prefix "flonum inference"
+  (define test-code
+    '(lambda (x) (let ((y (if x 0.0 0.0+0.0i))) (+ y 0.0))))
+  (define test-proc #f)
+  (pass-if "compiling test works"
+    (begin
+      (set! test-proc (compile test-code))
+      (procedure? test-proc)))
+
+  (pass-if-equal "test flonum" 0.0 (test-proc #t))
+  (pass-if-equal "test complex" 0.0+0.0i (test-proc #f)))
+
+(with-test-prefix "null? and nil? inference"
+  (pass-if-equal "nil? after null?"
+      '((f . f)  ; 3
+        (f . f)  ; #t
+        (f . t)  ; #f
+        (t . t)  ; #nil
+        (t . t)) ; ()
+    (map (compile '(lambda (x)
+                     (if (null? x)
+                         (cons 't (if (nil? x) 't 'f))
+                         (cons 'f (if (nil? x) 't 'f)))))
+         '(3 #t #f #nil ())))
+
+  (pass-if-equal "nil? after truth test"
+      '((t . f)  ; 3
+        (t . f)  ; #t
+        (f . t)  ; #f
+        (f . t)  ; #nil
+        (t . t)) ; ()
+    (map (compile '(lambda (x)
+                     (if x
+                         (cons 't (if (nil? x) 't 'f))
+                         (cons 'f (if (nil? x) 't 'f)))))
+         '(3 #t #f #nil ())))
+
+  (pass-if-equal "null? after nil?"
+      '((f . f)  ; 3
+        (f . f)  ; #t
+        (t . f)  ; #f
+        (t . t)  ; #nil
+        (t . t)) ; ()
+    (map (compile '(lambda (x)
+                     (if (nil? x)
+                         (cons 't (if (null? x) 't 'f))
+                         (cons 'f (if (null? x) 't 'f)))))
+         '(3 #t #f #nil ())))
+
+  (pass-if-equal "truth test after nil?"
+      '((f . t)  ; 3
+        (f . t)  ; #t
+        (t . f)  ; #f
+        (t . f)  ; #nil
+        (t . t)) ; ()
+    (map (compile '(lambda (x)
+                     (if (nil? x)
+                         (cons 't (if x 't 'f))
+                         (cons 'f (if x 't 'f)))))
+         '(3 #t #f #nil ()))))
+
+(with-test-prefix "cse auxiliary definitions"
+  (define test-proc
+    (compile
+     '(begin
+        (define count 1)
+        (set! count count) ;; Avoid inlining
+
+        (define (main)
+          (define (trampoline thunk)
+            (let loop ((i 0) (result #f))
+              (cond
+               ((< i 1)
+                (loop (+ i 1) (thunk)))
+               (else
+                (unless (= result 42) (error "bad result" result))
+                result))))
+          (define (test n)
+            (let ((matrix (make-vector n)))
+              (let loop ((i (- n 1)))
+                (when (>= i 0)
+                  (vector-set! matrix i (make-vector n 42))
+                  (loop (- i 1))))
+              (vector-ref (vector-ref matrix 0) 0)))
+
+          (trampoline (lambda () (test count))))
+        main)))
+
+  (pass-if-equal "running test" 42 (test-proc))
+
+  (define test2
+    (compile '(lambda (x)
+                (define pair (cons 42 69))
+                (when x (set-car! pair 100))
+                (car pair))))
+  (pass-if-equal "clobbering" 100 (test2 #t)))
+
+(with-test-prefix "closure conversion"
+  (define test-proc
+    (compile
+     '(lambda (arg)
+        (define (A a)
+          (let loop ((ls a))
+            (cond ((null? ls)
+                   (B a))
+                  ((pair? ls)
+                   (if (list? (car ls))
+                       (loop (cdr ls))
+                       #t))
+                  (else #t))))
+        (define (B b)
+          (let loop ((ls b))
+            (cond ((null? ls)
+                   (map A b))
+                  ((pair? ls)
+                   (if (list? (car ls))
+                       (loop (cdr ls))
+                       (error "bad" b)))
+                  (else
+                   (error "bad" b)))))
+        (B arg))))
+
+  (pass-if-equal "running test" '(#t #t)
+    (test-proc '((V X) (Y Z)))))
+
+(with-test-prefix "constant propagation"
+  (define test-proc
+    (compile
+     '(lambda (a b)
+        (let ((c (if (and (eq? a 'foo)
+                          (eq? b 'bar))
+                     'qux
+                     a)))
+          c))))
+
+  (pass-if-equal "one two" 'one (test-proc 'one 'two))
+  (pass-if-equal "one bar" 'one (test-proc 'one 'bar))
+  (pass-if-equal "foo bar" 'qux (test-proc 'foo 'bar))
+  (pass-if-equal "foo two" 'foo (test-proc 'foo 'two)))
+
+(with-test-prefix "size effects in multi-arg eq / <"
+  (pass-if-equal "eq?" 42
+    (compile '(catch 'foo
+                (lambda () (= 0 1 (throw 'foo)))
+                (lambda (k) 42))))
+
+  (pass-if-equal "<" 42
+    (compile '(catch 'foo
+                (lambda () (< 0 -1 (throw 'foo)))
+                (lambda (k) 42)))))
+
+(with-test-prefix "read-and-compile tree-il"
+  (let ((code
+         "\
+(seq
+  (define forty-two
+    (lambda ((name . forty-two))
+            (lambda-case ((() #f #f #f () ()) (const 42)))))
+  (toplevel forty-two))")
+        (bytecode #f)
+        (proc #f))
+    (pass-if "compiling tree-il works"
+      (begin
+        (set! bytecode
+          (call-with-input-string code
+            (lambda (port)
+              (read-and-compile port #:from 'tree-il))))
+        #t))
+    (pass-if "bytecode can be read"
+      (begin
+        (set! proc ((load-thunk-from-memory bytecode)))
+        (procedure? proc)))
+    (pass-if-equal "proc executes" 42 (proc))))

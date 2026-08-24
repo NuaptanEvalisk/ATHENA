@@ -1,0 +1,334 @@
+;;;; optargs.test --- test suite for optional arg processing -*- scheme -*-
+;;;; Matthias Koeppe <mkoeppe@mail.math.uni-magdeburg.de> --- June 2001
+;;;;
+;;;; 	Copyright (C) 2001, 2006, 2009, 2010, 2013 Free Software Foundation, Inc.
+;;;; 
+;;;; This library is free software; you can redistribute it and/or
+;;;; modify it under the terms of the GNU Lesser General Public
+;;;; License as published by the Free Software Foundation; either
+;;;; version 3 of the License, or (at your option) any later version.
+;;;; 
+;;;; This library is distributed in the hope that it will be useful,
+;;;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;;;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+;;;; Lesser General Public License for more details.
+;;;; 
+;;;; You should have received a copy of the GNU Lesser General Public
+;;;; License along with this library; if not, write to the Free Software
+;;;; Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+
+(define-module (test-suite test-optargs)
+  #:use-module (test-suite lib)
+  #:use-module (system base compile)
+  #:use-module (ice-9 optargs))
+
+(define exception:invalid-keyword
+  '(keyword-argument-error . "Invalid keyword"))
+
+(define exception:unrecognized-keyword
+  '(keyword-argument-error . "Unrecognized keyword"))
+
+(define exception:extraneous-arguments
+  ;; Message depends on whether we use the interpreter or VM, and on the
+  ;; evenness of the number of extra arguments (!).
+  ;'(keyword-argument-error . ".*")
+  '(#t . ".*"))
+
+(with-test-prefix/c&e "optional argument processing"
+  (pass-if "local defines work with optional arguments"
+    (eval '(begin
+             (define* (test-1 #:optional (x 0))
+               (define d 1)			; local define
+               #t)
+             (false-if-exception (test-1)))
+          (interaction-environment))))
+
+;;;
+;;; let-keywords
+;;;
+
+(define-syntax-rule (without-compiler-warnings exp ...)
+  (parameterize ((default-warning-level 0)) exp ...))
+
+(without-compiler-warnings
+ (with-test-prefix/c&e "let-keywords"
+   ;; in guile 1.6.4 and earlier, an empty binding list only used `begin',
+   ;; which caused apparently internal defines to "leak" out into the
+   ;; encompasing environment
+   (pass-if-exception "empty bindings internal defines leaking out"
+       exception:unbound-var
+     (let ((rest '()))
+       (let-keywords rest #f ()
+                     (define localvar #f)
+                     #f)
+       localvar))
+
+   (pass-if "one key"
+     (let-keywords '(#:foo 123) #f (foo)
+                   (= foo 123))))
+
+
+ (with-test-prefix/c&e "let-keywords*"
+   ;; in guile 1.6.4 and earlier, an empty binding list only used `begin',
+   ;; which caused apparently internal defines to "leak" out into the
+   ;; encompasing environment
+   (pass-if-exception "empty bindings internal defines leaking out"
+       exception:unbound-var
+     (let ((rest '()))
+       (let-keywords* rest #f ()
+                      (define localvar #f)
+                      #f)
+       localvar))
+
+   (pass-if "one key"
+     (let-keywords* '(#:foo 123) #f (foo)
+                    (= foo 123))))
+
+ (with-test-prefix/c&e "let-optional"
+   ;; in guile 1.6.4 and earlier, an empty binding list only used `begin',
+   ;; which caused apparently internal defines to "leak" out into the
+   ;; encompasing environment
+   (pass-if-exception "empty bindings internal defines leaking out"
+       exception:unbound-var
+     (let ((rest '()))
+       (let-optional rest ()
+                     (define localvar #f)
+                     #f)
+       localvar))
+
+   (pass-if "one var"
+     (let ((rest '(123)))
+       (let-optional rest ((foo 999))
+                     (= foo 123)))))
+
+ (with-test-prefix/c&e "let-optional*"
+   ;; in guile 1.6.4 and earlier, an empty binding list only used `begin',
+   ;; which caused apparently internal defines to "leak" out into the
+   ;; encompasing environment
+   (pass-if-exception "empty bindings internal defines leaking out"
+       exception:unbound-var
+     (let ((rest '()))
+       (let-optional* rest ()
+                      (define localvar #f)
+                      #f)
+       localvar))
+
+   (pass-if "one var"
+     (let ((rest '(123)))
+       (let-optional* rest ((foo 999))
+                      (= foo 123))))))
+
+(define* (foo a b #:optional c (d 1) (e c) f #:key g (h a) (i r) #:rest r)
+  (list a b c d e f g h i r))
+
+;; So we could use lots more tests here, but the fact that lambda* is in
+;; the compiler, and the compiler compiles itself, using the evaluator
+;; (when bootstrapping) and compiled code (when doing a partial rebuild)
+;; makes me a bit complacent.
+(without-compiler-warnings
+ (with-test-prefix/c&e "define*"
+   (pass-if "the whole enchilada"
+     (equal? (foo 1 2)
+             '(1 2 #f 1 #f #f #f 1 () ())))
+
+   (pass-if-exception "extraneous arguments"
+       exception:extraneous-arguments
+     (let ((f (lambda* (#:key x) x)))
+       (f 1 2 #:x 'x)))
+
+   (pass-if-equal "unrecognized keyword" '(#:y)
+     (catch 'keyword-argument-error
+            (lambda ()
+              (let ((f (lambda* (#:key x) x)))
+                (f #:y 'not-recognized)))
+            (lambda (key proc fmt args data)
+              data)))
+
+   (pass-if-equal "missing argument" '("Keyword argument has no value" #:x)
+     (catch 'keyword-argument-error
+            (lambda ()
+              (let ((f (lambda* (#:key x) x)))
+                (f #:x)))
+            (lambda (key proc fmt args data)
+              (cons fmt data))))
+
+   (pass-if-equal "invalid keyword" '(not-a-keyword)
+     (catch 'keyword-argument-error
+            (lambda ()
+              (let ((f (lambda* (#:key x) x)))
+                (f 'not-a-keyword 'something)))
+            (lambda (key proc fmt args data)
+              data)))
+
+   (pass-if "rest given before keywords"
+     ;; Passing the rest argument before the keyword arguments should not
+     ;; prevent keyword argument binding.
+     (let ((f (lambda* (#:key x y z #:rest r) (list x y z r))))
+       (equal? (f 1 2 3 #:x 'x #:z 'z)
+               '(x #f z (1 2 3 #:x x #:z z)))))))
+
+(with-test-prefix "scm_c_bind_keyword_arguments"
+
+  (pass-if-equal "unrecognized keyword" '(#:y)
+    (catch 'keyword-argument-error
+      (lambda ()
+        (open-file "/dev/null" "r" #:y 'not-recognized))
+      (lambda (key proc fmt args data)
+        data)))
+
+  (pass-if-equal "missing argument"
+      '("Keyword argument has no value" #:encoding)
+    (catch 'keyword-argument-error
+      (lambda ()
+        (open-file "/dev/null" "r" #:encoding))
+      (lambda (key proc fmt args data)
+        (cons fmt data))))
+
+  (pass-if-equal "invalid keyword" '(not-a-keyword)
+    (catch 'keyword-argument-error
+      (lambda ()
+        (open-file "/dev/null" "r" 'not-a-keyword 'something))
+      (lambda (key proc fmt args data)
+        data))))
+
+(with-test-prefix/c&e "lambda* inits"
+  (pass-if "can bind lexicals within inits"
+    (begin
+      (define qux
+        (lambda* (#:optional a #:key (b (or a 13) #:a))
+          b))
+      #t))
+  (pass-if "testing qux"
+    (and (equal? (qux) 13)
+         (equal? (qux 1) 1)
+         (equal? (qux #:a 2) 2)))
+  (pass-if "nested lambda* with optional"
+    (begin
+      (define (foo x)
+        (define baz x)
+        (define* (bar #:optional (y baz))
+          (or (zero? y) (bar (1- y))))
+        (bar))
+      (foo 10)))
+  (pass-if "nested lambda* with key"
+    (begin
+      (define (foo x)
+        (define baz x)
+        (define* (bar #:key (y baz))
+          (or (zero? y) (bar #:y (1- y))))
+        (bar))
+      (foo 10))))
+
+
+(with-test-prefix/c&e "defmacro*"
+  (pass-if "definition"
+    (begin
+      (defmacro* transmogrify (a #:optional (b 10))
+        `(,a ,b))
+      #t))
+  
+  (pass-if "explicit arg"
+    (equal? (transmogrify quote 5)
+            5))
+
+  (pass-if "default arg"
+    (equal? (transmogrify quote)
+            10)))
+
+(without-compiler-warnings
+ (with-test-prefix/c&e "case-lambda"
+   (pass-if-exception "no clauses, no args" exception:wrong-num-args
+     ((case-lambda)))
+
+   (pass-if-exception "no clauses, args" exception:wrong-num-args
+     ((case-lambda) 1))
+
+   (pass-if "docstring"
+     (equal? "docstring test"
+             (procedure-documentation
+              (case-lambda
+               "docstring test"
+               (() 0)
+               ((x) 1)))))))
+
+(without-compiler-warnings
+ (with-test-prefix/c&e "case-lambda*"
+   (pass-if-exception "no clauses, no args" exception:wrong-num-args
+     ((case-lambda*)))
+
+   (pass-if-exception "no clauses, args" exception:wrong-num-args
+     ((case-lambda*) 1))
+
+   (pass-if "docstring"
+     (equal? "docstring test"
+             (procedure-documentation
+              (case-lambda*
+               "docstring test"
+               (() 0)
+               ((x) 1)))))
+
+   (pass-if "unambiguous"
+     ((case-lambda*
+       ((a b) #t)
+       ((a) #f))
+      1 2))
+
+   (pass-if "unambiguous (reversed)"
+     ((case-lambda*
+       ((a) #f)
+       ((a b) #t))
+      1 2))
+
+   (pass-if "optionals (order disambiguates)"
+     ((case-lambda*
+       ((a #:optional b) #t)
+       ((a b) #f))
+      1 2))
+
+   (pass-if "optionals (order disambiguates (2))"
+     ((case-lambda*
+       ((a b) #t)
+       ((a #:optional b) #f))
+      1 2))
+
+   (pass-if "optionals (one arg)"
+     ((case-lambda*
+       ((a b) #f)
+       ((a #:optional b) #t))
+      1))
+
+   (pass-if "optionals (one arg (2))"
+     ((case-lambda*
+       ((a #:optional b) #t)
+       ((a b) #f))
+      1))
+
+   (pass-if "keywords without keyword"
+     ((case-lambda*
+       ((a #:key c) #t)
+       ((a b) #f))
+      1))
+
+   (pass-if "keywords with keyword"
+     ((case-lambda*
+       ((a #:key c) #t)
+       ((a b) #f))
+      1 #:c 2))
+
+   (pass-if "keywords (too many positionals)"
+     ((case-lambda*
+       ((a #:key c) #f)
+       ((a b) #t))
+      1 2))
+
+   (pass-if "keywords (order disambiguates)"
+     ((case-lambda*
+       ((a #:key c) #t)
+       ((a b c) #f))
+      1 #:c 2))
+
+   (pass-if "keywords (order disambiguates (2))"
+     ((case-lambda*
+       ((a b c) #t)
+       ((a #:key c) #f))
+      1 #:c 2))))

@@ -1,0 +1,514 @@
+;;;; web-http.test --- HTTP library        -*- mode: scheme; coding: utf-8; -*-
+;;;;
+;;;; 	Copyright (C) 2010-2011, 2014-2017 Free Software Foundation, Inc.
+;;;;
+;;;; This library is free software; you can redistribute it and/or
+;;;; modify it under the terms of the GNU Lesser General Public
+;;;; License as published by the Free Software Foundation; either
+;;;; version 3 of the License, or (at your option) any later version.
+;;;;
+;;;; This library is distributed in the hope that it will be useful,
+;;;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;;;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+;;;; Lesser General Public License for more details.
+;;;;
+;;;; You should have received a copy of the GNU Lesser General Public
+;;;; License along with this library; if not, write to the Free Software
+;;;; Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+
+
+(define-module (test-suite web-http)
+  #:use-module (web uri)
+  #:use-module (web http)
+  #:use-module (rnrs bytevectors)
+  #:use-module (rnrs io ports)
+  #:use-module (ice-9 regex)
+  #:use-module (ice-9 control)
+  #:use-module (srfi srfi-19)
+  #:use-module (test-suite lib))
+
+
+(define-syntax pass-if-expected-exception
+  (syntax-rules ()
+    ((_ name exception-predicate? exp)
+     (pass-if name
+       (with-exception-handler
+           (lambda (exn)
+             (if (exception-predicate? exn)
+                 #t
+                 (error "unexpected exception" exn)))
+         (lambda ()
+           exp
+           #f)
+         #:unwind? #t)))))
+
+(define-syntax pass-if-only-parse
+  (syntax-rules ()
+    ((_ sym str val)
+     (pass-if (format #f "~a: ~s -> ~s" 'sym str val)
+       (and (equal? (parse-header 'sym str)
+                    val)
+            (valid-header? 'sym val))))))
+
+(define-syntax-rule (pass-if-reparse sym val)
+  (pass-if-equal (format #f "~a: ~s reparse" 'sym val) val
+    (let ((str (call-with-output-string
+                 (lambda (port)
+                   (write-header 'sym val port)))))
+      (call-with-values (lambda () (read-header (open-input-string str)))
+        (lambda (sym* val*)
+          (unless (eq? 'sym sym*) (error "unexpected header"))
+          val*)))))
+
+(define-syntax pass-if-parse
+  (syntax-rules ()
+    ((_ sym str val)
+     (begin
+       (pass-if-only-parse sym str val)
+       (pass-if-reparse sym val)))))
+
+(define-syntax pass-if-round-trip
+  (syntax-rules ()
+    ((_ str)
+     (pass-if-equal (format #f "~s round trip" str)
+         str
+       (call-with-output-string
+        (lambda (port)
+          (call-with-values
+              (lambda () (read-header (open-input-string str)))
+            (lambda (sym val)
+              (write-header sym val port)))))))))
+
+(define-syntax pass-if-any-error
+  (syntax-rules ()
+    ((_ sym str)
+     (pass-if (format #f "~a: ~s -> any error" 'sym str)
+       (% (catch #t
+            (lambda ()
+              (parse-header 'sym str)
+              (abort (lambda () (error "expected exception"))))
+            (lambda (k . args)
+              #t))
+          (lambda (k thunk)
+            (thunk)))))))
+
+(define-syntax pass-if-parse-error
+  (syntax-rules ()
+    ((_ sym str expected-component)
+     (pass-if (format #f "~a: ~s -> ~a error" 'sym str 'expected-component)
+       (catch 'bad-header
+         (lambda ()
+           (parse-header 'sym str)
+           (error "expected exception" 'expected-component))
+         (lambda (k component arg)
+           (if (or (not 'expected-component)
+                   (eq? 'expected-component component))
+               #t
+               (error "unexpected exception" component arg))))))))
+
+(define-syntax pass-if-read-request-line
+  (syntax-rules ()
+    ((_ str expected-method expected-uri expected-version)
+     (pass-if str
+       (equal? (call-with-values
+                   (lambda ()
+                     (read-request-line (open-input-string
+                                         (string-append str "\r\n"))))
+                 list)
+               (list 'expected-method
+                     expected-uri
+                     'expected-version))))))
+
+(define-syntax pass-if-write-request-line
+  (syntax-rules ()
+    ((_ expected-str method uri version)
+     (pass-if expected-str
+       (equal? (string-append expected-str "\r\n")
+               (call-with-output-string
+                (lambda (port)
+                  (write-request-line 'method uri 'version port))))))))
+
+(define-syntax pass-if-read-response-line
+  (syntax-rules ()
+    ((_ str expected-version expected-code expected-phrase)
+     (pass-if str
+       (equal? (call-with-values
+                   (lambda ()
+                     (read-response-line (open-input-string
+                                          (string-append str "\r\n"))))
+                 list)
+               (list 'expected-version
+                     expected-code
+                     expected-phrase))))))
+
+(define-syntax pass-if-write-response-line
+  (syntax-rules ()
+    ((_ expected-str version code phrase)
+     (pass-if expected-str
+       (equal? (string-append expected-str "\r\n")
+               (call-with-output-string
+                (lambda (port)
+                  (write-response-line 'version code phrase port))))))))
+
+(with-test-prefix "read-request-line"
+  (pass-if-read-request-line "GET / HTTP/1.1"
+                             GET
+                             (build-uri-reference
+                              #:path "/")
+                             (1 . 1))
+  (pass-if-read-request-line "GET http://www.w3.org/pub/WWW/TheProject.html HTTP/1.1"
+                             GET
+                             (build-uri-reference
+                              #:scheme 'http
+                              #:host "www.w3.org"
+                              #:path "/pub/WWW/TheProject.html")
+                             (1 . 1))
+  (pass-if-read-request-line "GET /pub/WWW/TheProject.html HTTP/1.1"
+                             GET
+                             (build-uri-reference
+                              #:path "/pub/WWW/TheProject.html")
+                             (1 . 1))
+  (pass-if-read-request-line "HEAD /etc/hosts?foo=bar HTTP/1.1"
+                             HEAD
+                             (build-uri-reference
+                              #:path "/etc/hosts"
+                              #:query "foo=bar")
+                             (1 . 1)))
+
+(with-test-prefix "write-request-line"
+  (pass-if-write-request-line "GET / HTTP/1.1"
+                              GET
+                              (build-uri-reference
+                               #:path "/")
+                              (1 . 1))
+  ;;; FIXME: Test fails due to scheme, host always being removed.
+  ;;; However, it should be supported to request these be present, and
+  ;;; that is possible with absolute/relative URI support.
+  ;; (pass-if-write-request-line "GET http://www.w3.org/pub/WWW/TheProject.html HTTP/1.1"
+  ;;                             GET
+  ;;                             (build-uri 'http
+  ;;                                        #:host "www.w3.org"
+  ;;                                        #:path "/pub/WWW/TheProject.html")
+  ;;                             (1 . 1))
+  (pass-if-write-request-line "GET /pub/WWW/TheProject.html HTTP/1.1"
+                              GET
+                              (build-uri-reference
+                               #:path "/pub/WWW/TheProject.html")
+                              (1 . 1))
+  (pass-if-write-request-line "GET /?foo HTTP/1.1"
+                              GET
+                              (build-uri 'http #:query "foo")
+                              (1 . 1))
+  (pass-if-write-request-line "HEAD /etc/hosts?foo=bar HTTP/1.1"
+                              HEAD
+                              (build-uri-reference
+                               #:path "/etc/hosts"
+                               #:query "foo=bar")
+                              (1 . 1)))
+
+(with-test-prefix "read-response-line"
+  (pass-if-exception "missing CR/LF"
+      `(bad-header . "")
+    (call-with-input-string "HTTP/1.1 200 Almost okay"
+      (lambda (port)
+        (read-response-line port))))
+  (pass-if-read-response-line "HTTP/1.0 404 Not Found"
+                              (1 . 0) 404 "Not Found")
+  (pass-if-read-response-line "HTTP/1.1 200 OK"
+                              (1 . 1) 200 "OK")
+
+  ;; Empty reason phrases are valid; see <http://bugs.gnu.org/22273>.
+  (pass-if-read-response-line "HTTP/1.1 302 "
+                              (1 . 1) 302 ""))
+
+(with-test-prefix "write-response-line"
+  (pass-if-write-response-line "HTTP/1.0 404 Not Found"
+                               (1 . 0) 404 "Not Found")
+  (pass-if-write-response-line "HTTP/1.1 200 OK"
+                               (1 . 1) 200 "OK"))
+
+(with-test-prefix "general headers"
+
+  (pass-if-parse cache-control "no-transform" '(no-transform))
+  (pass-if-parse cache-control "no-transform,foo" '(no-transform foo))
+  (pass-if-parse cache-control "no-cache" '(no-cache))
+  (pass-if-parse cache-control "no-cache=\"Authorization, Date\""
+                 '((no-cache . (authorization date))))
+  (pass-if-parse cache-control "private=\"Foo\""
+                 '((private . (foo))))
+  (pass-if-parse cache-control "no-cache,max-age=10"
+                 '(no-cache (max-age . 10)))
+  (pass-if-parse cache-control "max-stale" '(max-stale))
+  (pass-if-parse cache-control "max-stale=10" '((max-stale . 10)))
+  (pass-if-round-trip "Cache-Control: acme-cache-extension\r\n")
+  (pass-if-round-trip "Cache-Control: acme-cache-extension=20\r\n")
+  (pass-if-round-trip "Cache-Control: acme-cache-extension=100 quux\r\n")
+  (pass-if-round-trip "Cache-Control: acme-cache-extension=\"100, quux\"\r\n")
+
+  (pass-if-parse connection "close" '(close))
+  (pass-if-parse connection "Content-Encoding" '(content-encoding))
+
+  (pass-if-parse date "Tue, 15 Nov 1994 08:12:31 GMT"
+                 (string->date "Tue, 15 Nov 1994 08:12:31 +0000"
+                               "~a, ~d ~b ~Y ~H:~M:~S ~z"))
+  (pass-if-parse date "Tue, 15 Nov 1994 16:12:31 +0800"
+                 (string->date "Tue, 15 Nov 1994 08:12:31 +0000"
+                               "~a, ~d ~b ~Y ~H:~M:~S ~z"))
+  (pass-if-parse date "Wed, 7 Sep 2011 11:25:00 GMT"
+                 (string->date "Wed, 7 Sep 2011 11:25:00 +0000"
+                               "~a,~e ~b ~Y ~H:~M:~S ~z"))
+
+  ;; This is a non-conforming date (lack of leading zero for the hours)
+  ;; that some HTTP servers provide.  See <http://bugs.gnu.org/23421>.
+  (pass-if-parse date "Sun, 06 Nov 1994  8:49:37 GMT"
+                 (string->date "Sun, 6 Nov 1994 08:49:37 +0000"
+                               "~a,~e ~b ~Y ~H:~M:~S ~z"))
+  (pass-if-parse date "Sun, 6 Nov 1994  8:49:37 GMT"
+                 (string->date "Sun, 6 Nov 1994 08:49:37 +0000"
+                               "~a,~e ~b ~Y ~H:~M:~S ~z"))
+
+  (pass-if-parse-error date "Tue, 15 Nov 1994 08:12:31 EST" date)
+  (pass-if-any-error date "Tue, 15 Qux 1994 08:12:31 EST")
+
+  (pass-if-parse pragma "no-cache" '(no-cache))
+  (pass-if-parse pragma "no-cache, foo" '(no-cache foo))
+
+  (pass-if-parse trailer "foo, bar" '(foo bar))
+  (pass-if-parse trailer "connection, bar" '(connection bar))
+
+  (pass-if-parse transfer-encoding "foo, chunked" '((foo) (chunked)))
+
+  (pass-if-parse upgrade "qux" '("qux"))
+
+  (pass-if-parse via "xyzzy" '("xyzzy"))
+
+  (pass-if-parse warning "123 foo \"core breach imminent\""
+                 '((123 "foo" "core breach imminent" #f)))
+  (pass-if-parse
+   warning
+   "123 foo \"core breach imminent\" \"Tue, 15 Nov 1994 08:12:31 GMT\""
+   `((123 "foo" "core breach imminent"
+          ,(string->date "Tue, 15 Nov 1994 08:12:31 +0000"
+                         "~a, ~d ~b ~Y ~H:~M:~S ~z")))))
+
+(with-test-prefix "entity headers"
+  (pass-if-parse allow "foo, bar" '(foo bar))
+  (pass-if-parse content-disposition "form-data; name=\"file\"; filename=\"q.go\""
+                 '(form-data (name . "file") (filename . "q.go")))
+  (pass-if-parse content-encoding "qux, baz" '(qux baz))
+  (pass-if-parse content-language "qux, baz" '("qux" "baz"))
+  (pass-if-parse content-length "100" 100)
+  (pass-if-parse content-length "0" 0)
+  (pass-if-parse content-length "010" 10)
+  (pass-if-parse content-location "http://foo/"
+                 (build-uri 'http #:host "foo" #:path "/"))
+  (pass-if-parse content-location "//foo/"
+                 (build-uri-reference #:host "foo" #:path "/"))
+  (pass-if-parse content-location "/etc/foo"
+                 (build-uri-reference #:path "/etc/foo"))
+  (pass-if-parse content-location "foo"
+                 (build-uri-reference #:path "foo"))
+  (pass-if-parse content-range "bytes 10-20/*" '(bytes (10 . 20) *))
+  (pass-if-parse content-range "bytes */*" '(bytes * *))
+  (pass-if-parse content-range "bytes */30" '(bytes * 30))
+  (pass-if-parse content-type "foo/bar" '(foo/bar))
+  (pass-if-parse content-type "foo/bar; baz=qux" '(foo/bar (baz . "qux")))
+  (pass-if-parse expires "Tue, 15 Nov 1994 08:12:31 GMT"
+                 (string->date "Tue, 15 Nov 1994 08:12:31 +0000"
+                         "~a, ~d ~b ~Y ~H:~M:~S ~z"))
+  (pass-if-parse last-modified "Tue, 15 Nov 1994 08:12:31 GMT"
+                 (string->date "Tue, 15 Nov 1994 08:12:31 +0000"
+                         "~a, ~d ~b ~Y ~H:~M:~S ~z")))
+
+(with-test-prefix "request headers"
+  (pass-if-parse accept "text/*;q=0.3, text/html;q=0.7, text/html;level=1"
+                 '((text/* (q . 300))
+                   (text/html (q . 700))
+                   (text/html (level . "1"))))
+  (pass-if-parse accept-charset "iso-8859-5, unicode-1-1;q=0.8"
+                 '((1000 . "iso-8859-5") (800 . "unicode-1-1")))
+  (pass-if-parse accept-encoding "gzip;q=1.0, identity; q=0.5, *;q=0"
+                 '((1000 . "gzip")
+                   (500 . "identity")
+                   (0 . "*")))
+  (pass-if-parse accept-language "da, en-gb;q=0.8, en;q=0.7"
+                 '((1000 . "da") (800 . "en-gb") (700 . "en")))
+  ;; Allow nonstandard .2 to mean 0.2
+  (pass-if-parse accept-language "en-gb;q=.2" '((200 . "en-gb")))
+  (pass-if-parse authorization "Basic foooo" '(basic . "foooo"))
+  (pass-if-parse authorization "Digest foooo" '(digest foooo))
+  (pass-if-parse authorization "Digest foo=bar,baz=qux"
+                 '(digest (foo . "bar") (baz . "qux")))
+  (pass-if-parse authorization "basic foooo" '(basic . "foooo"))
+  (pass-if-parse authorization "digest foooo" '(digest foooo))
+  (pass-if-parse authorization "digest foo=bar,baz=qux"
+                 '(digest (foo . "bar") (baz . "qux")))
+  (pass-if-round-trip "Authorization: Basic foooo\r\n")
+  (pass-if-round-trip "Authorization: Bearer token\r\n")
+  (pass-if-round-trip "Authorization: Digest foooo\r\n")
+  (pass-if-round-trip "Authorization: Digest foo=bar, baz=qux\r\n")
+  (pass-if-parse expect "100-continue, foo" '((100-continue) (foo)))
+  (pass-if-parse from "foo@bar" "foo@bar")
+  (pass-if-parse host "qux" '("qux" . #f))
+  (pass-if-parse host "qux:80" '("qux" . 80))
+  (pass-if-parse host "[2001:db8::1]" '("2001:db8::1" . #f))
+  (pass-if-parse host "[2001:db8::1]:80" '("2001:db8::1" . 80))
+  (pass-if-parse host "[::ffff:192.0.2.1]" '("::ffff:192.0.2.1" . #f))
+  (pass-if-round-trip "Host: [2001:db8::1]\r\n")
+  (pass-if-parse if-match "\"xyzzy\", W/\"qux\""
+                 '(("xyzzy" . #t) ("qux" . #f)))
+  (pass-if-parse if-match "*" '*)
+  (pass-if-parse if-modified-since "Tue, 15 Nov 1994 08:12:31 GMT"
+                 (string->date "Tue, 15 Nov 1994 08:12:31 +0000"
+                         "~a, ~d ~b ~Y ~H:~M:~S ~z"))
+  (pass-if-parse if-none-match "\"xyzzy\", W/\"qux\""
+                 '(("xyzzy" . #t) ("qux" . #f)))
+  (pass-if-parse if-none-match "xyzzy, W/\"qux\""
+                 '(("xyzzy" . #t) ("qux" . #f)))
+  (pass-if-parse if-none-match "*" '*)
+  (pass-if-parse if-range "\"foo\"" '("foo" . #t))
+  (pass-if-parse if-range  "Tue, 15 Nov 1994 08:12:31 GMT"
+                 (string->date "Tue, 15 Nov 1994 08:12:31 +0000"
+                         "~a, ~d ~b ~Y ~H:~M:~S ~z"))
+  (pass-if-parse if-unmodified-since "Tue, 15 Nov 1994 08:12:31 GMT"
+                 (string->date "Tue, 15 Nov 1994 08:12:31 +0000"
+                         "~a, ~d ~b ~Y ~H:~M:~S ~z"))
+  (pass-if-parse max-forwards "10" 10)
+  (pass-if-parse max-forwards "00" 0)
+  (pass-if-parse proxy-authorization "Basic foooo" '(basic . "foooo"))
+  (pass-if-parse proxy-authorization "Digest foooo" '(digest foooo))
+  (pass-if-parse proxy-authorization "Digest foo=bar,baz=qux"
+                 '(digest (foo . "bar") (baz . "qux")))
+  (pass-if-parse range "bytes=10-20" '(bytes (10 . 20)))
+  (pass-if-parse range "bytes=10-" '(bytes (10 . #f)))
+  (pass-if-parse range "bytes=-20" '(bytes (#f . 20)))
+  (pass-if-parse range "bytes=-20,-30" '(bytes (#f . 20) (#f . 30)))
+  (pass-if-parse referer "http://foo/bar?baz"
+                 (build-uri 'http #:host "foo" #:path "/bar" #:query "baz"))
+  (pass-if-parse referer "//foo/bar?baz"
+                 (build-uri-reference #:host "foo"
+                                      #:path "/bar"
+                                      #:query "baz"))
+  (pass-if-parse referer "/etc/foo"
+                 (build-uri-reference #:path "/etc/foo"))
+  (pass-if-parse referer "foo"
+                 (build-uri-reference #:path "foo"))
+  (pass-if-parse te "trailers" '((trailers)))
+  (pass-if-parse te "trailers,foo" '((trailers) (foo)))
+  (pass-if-parse user-agent "guile" "guile"))
+
+
+;; Response headers
+;;
+(with-test-prefix "response headers"
+  (pass-if-parse accept-ranges "foo,bar" '(foo bar))
+  (pass-if-parse age "30" 30)
+  (pass-if-parse etag "\"foo\"" '("foo" . #t))
+  (pass-if-parse etag "W/\"foo\"" '("foo" . #f))
+  (pass-if-parse etag "foo" '("foo" . #t))
+  (pass-if-parse location "http://other-place"
+                 (build-uri 'http #:host "other-place"))
+  (pass-if-only-parse location "#foo"
+                      (build-uri-reference #:fragment "foo"))
+  (pass-if-only-parse location "/#foo"
+                      (build-uri-reference #:path "/" #:fragment "foo"))
+  (pass-if-parse location "/foo"
+                 (build-uri-reference #:path "/foo"))
+  (pass-if-parse location "//server/foo"
+                 (build-uri-reference #:host "server" #:path "/foo"))
+  (pass-if-parse proxy-authenticate "Basic realm=\"guile\""
+                 '((basic (realm . "guile"))))
+  (pass-if-parse retry-after "Tue, 15 Nov 1994 08:12:31 GMT"
+                 (string->date "Tue, 15 Nov 1994 08:12:31 +0000"
+                         "~a, ~d ~b ~Y ~H:~M:~S ~z"))
+  (pass-if-parse retry-after "20" 20)
+  (pass-if-parse server "guile!" "guile!")
+  (pass-if-parse vary "*" '*)
+  (pass-if-parse vary "foo, bar" '(foo bar))
+  (pass-if-parse www-authenticate "Basic realm=\"guile\""
+                 '((basic (realm . "guile")))))
+
+(with-test-prefix "chunked encoding"
+  (let* ((s "5\r\nFirst\r\nA\r\n line\n Sec\r\n8\r\nond line\r\n0\r\n\r\n")
+         (p (make-chunked-input-port (open-input-string s))))
+    (pass-if-equal
+        "First line\n Second line"
+        (get-string-all p))
+    (pass-if (port-eof? (make-chunked-input-port (open-input-string "0\r\n"))))
+
+    (pass-if-equal "reads chunks without buffering"
+        ;; Make sure the chunked input port does not read more than what
+        ;; the client asked.  See <http://bugs.gnu.org/19939>
+        `("First " "chunk." "Second " "chunk."
+          (1 1 1 6 6 1 1
+           1 1 1 7 6 1 1))
+      (let* ((str      "C\r\nFirst chunk.\r\nD\r\nSecond chunk.\r\n")
+             (requests '())
+             (read!    (let ((port (open-input-string str)))
+                         (lambda (bv index count)
+                           (set! requests (cons count requests))
+                           (let ((n (get-bytevector-n! port bv index
+                                                       count)))
+                             (if (eof-object? n) 0 n)))))
+             (input    (make-custom-binary-input-port "chunky" read!
+                                                      #f #f #f))
+             (port     (make-chunked-input-port input)))
+        (setvbuf input 'none)
+        (setvbuf port 'none)
+        (list (utf8->string (get-bytevector-n port 6))
+              (utf8->string (get-bytevector-n port 6))
+              (utf8->string (get-bytevector-n port 7))
+              (utf8->string (get-bytevector-n port 6))
+              (reverse requests))))
+
+    (pass-if-equal "reads across chunk boundaries"
+        ;; Same, but read across chunk boundaries.
+        `("First " "chunk.Second " "chunk."
+          (1 1 1 6 6 1 1
+           1 1 1 7 6 1 1))
+      (let* ((str      "C\r\nFirst chunk.\r\nD\r\nSecond chunk.\r\n")
+             (requests '())
+             (read!    (let ((port (open-input-string str)))
+                         (lambda (bv index count)
+                           (set! requests (cons count requests))
+                           (let ((n (get-bytevector-n! port bv index
+                                                       count)))
+                             (if (eof-object? n) 0 n)))))
+             (input    (make-custom-binary-input-port "chunky" read!
+                                                      #f #f #f))
+             (port     (make-chunked-input-port input)))
+        (setvbuf input 'none)
+        (setvbuf port 'none)
+        (list (utf8->string (get-bytevector-n port 6))
+              (utf8->string (get-bytevector-n port 13))
+              (utf8->string (get-bytevector-n port 6))
+              (reverse requests)))))
+
+  (pass-if-equal "EOF instead of chunk header"
+      "Only chunk."
+    ;; Omit the second chunk header, leading to a premature EOF.  This
+    ;; used to cause 'read-chunk-header' to throw to wrong-type-arg.
+    ;; See the backtrace at
+    ;; <http://debbugs.gnu.org/cgi/bugreport.cgi?bug=19976#5>.
+    (let* ((str  "B\r\nOnly chunk.")
+           (port (make-chunked-input-port (open-input-string str))))
+      (get-string-all port)))
+
+  (pass-if-expected-exception "Exception on premature chunk end"
+      chunked-input-ended-prematurely-error?
+    (let* ((str  "b\r\nFirst chunk\r\nc\r\nSecond chun")
+           (port (make-chunked-input-port (open-input-string str))))
+      (get-string-all port)))
+
+  (pass-if-equal
+      (call-with-output-string
+       (lambda (out-raw)
+         (let ((out-chunked (make-chunked-output-port out-raw
+                                                      #:keep-alive? #t)))
+           (display "First chunk" out-chunked)
+           (force-output out-chunked)
+           (display "Second chunk" out-chunked)
+           (force-output out-chunked)
+           (display "Third chunk" out-chunked)
+           (close-port out-chunked))))
+      "b\r\nFirst chunk\r\nc\r\nSecond chunk\r\nb\r\nThird chunk\r\n0\r\n\r\n"))

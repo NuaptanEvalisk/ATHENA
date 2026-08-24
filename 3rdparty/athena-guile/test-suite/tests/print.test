@@ -1,0 +1,265 @@
+;;;; -*- coding: utf-8; mode: scheme; -*-
+;;;;
+;;;; Copyright (C) 2010, 2013, 2014, 2023  Free Software Foundation, Inc.
+;;;;
+;;;; This library is free software; you can redistribute it and/or
+;;;; modify it under the terms of the GNU Lesser General Public
+;;;; License as published by the Free Software Foundation; either
+;;;; version 3 of the License, or (at your option) any later version.
+;;;;
+;;;; This library is distributed in the hope that it will be useful,
+;;;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;;;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+;;;; Lesser General Public License for more details.
+;;;;
+;;;; You should have received a copy of the GNU Lesser General Public
+;;;; License along with this library; if not, write to the Free Software
+;;;; Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+
+(define-module (test-suite test-print)
+  #:use-module (ice-9 pretty-print)
+  #:use-module (test-suite lib))
+
+(define-syntax prints?
+  ;; #t if EXP prints as RESULT.
+  (syntax-rules ()
+    ((_ exp result arg ...)
+     (string=? result
+               (with-output-to-string
+                 (lambda ()
+                   (pretty-print 'exp arg ...)))))))
+
+(define (with-print-options opts thunk)
+  (let ((saved-options (print-options)))
+    (dynamic-wind
+        (lambda ()
+          (print-options opts))
+        thunk
+        (lambda ()
+          (print-options saved-options)))))
+
+(define-syntax-rule (write-with-options opts x)
+  (with-print-options opts (lambda ()
+                             (with-output-to-string
+                               (lambda ()
+                                 (write x))))))
+
+
+(with-test-prefix "write"
+
+  (with-test-prefix "r7rs-symbols"
+
+    (pass-if-equal "basic"
+        "|foo bar|"
+      (write-with-options '(r7rs-symbols)
+                          (string->symbol "foo bar")))
+
+    (pass-if-equal "escapes"
+        "|bar \\| backslash \\x5c; alarm \\a backspace \\b tab \\t newline \\n cr \\r null \\x0; del \\x7f;|"
+      (write-with-options
+       '(r7rs-symbols)
+       (string->symbol
+        (string-append
+         "bar | backslash \\ alarm \a backspace \b tab \t newline \n cr \r null \0 del "
+         (string #\del)))))
+
+    (pass-if-equal "brackets"
+        "|()[]{}|"
+      (write-with-options '(r7rs-symbols)
+                          (string->symbol "()[]{}")))
+
+    (pass-if-equal "starts with bar"
+        "|\\|foo|"
+      (write-with-options '(r7rs-symbols)
+                          (string->symbol "|foo")))
+
+    (pass-if-equal "ends with bar"
+        "|foo\\||"
+      (write-with-options '(r7rs-symbols)
+                          (string->symbol "foo|")))
+
+    (pass-if-equal "starts with backslash"
+        "|\\x5c;foo|"
+      (write-with-options '(r7rs-symbols)
+                          (string->symbol "\\foo")))
+
+    (pass-if-equal "ends with backslash"
+        "|foo\\x5c;|"
+      (write-with-options '(r7rs-symbols)
+                          (string->symbol "foo\\")))))
+
+
+(with-test-prefix "pretty-print"
+
+  (pass-if "pair"
+    (prints? (a . b) "(a . b)\n"))
+
+  (pass-if "list"
+    (prints? (a b c) "(a b c)\n"))
+
+  (pass-if "dotted list"
+    (prints? (a b . c) "(a b . c)\n"))
+
+  (pass-if "quote"
+    (prints? 'foo "'foo\n"))
+
+  (pass-if "non-starting quote"
+    (prints? (foo 'bar) "(foo 'bar)\n"))
+
+  (pass-if "nested quote"
+    (prints? (''foo) "(''foo)\n"))
+
+  (pass-if "quasiquote & co."
+    (prints?  (define foo `(bar ,(+ 2 3)))
+              "(define foo `(bar ,(+ 2 3)))\n"))
+
+  (pass-if "indent"
+    (prints? (9 (8 (7 (6 (5 (4 (3 (2 (1 (0 0))))))))))
+             (string-append
+              "(9\n"
+              " (8\n"
+              "  (7\n"
+              "   (6\n"
+              "    (5\n"
+              "     (4\n"
+              "      (3\n"
+              "       (2\n"
+              "        (1\n"
+              "         (0\n"
+              "          0))))))))))\n")
+             #:width 10))
+
+  (pass-if "prefix"
+    (prints? (9 (8 (7 (6 (5 (4 (3 (2 (1 (0 0))))))))))
+             (string-append
+              "> (9\n"
+              ">  (8\n"
+              ">   (7\n"
+              ">    (6\n"
+              ">     (5\n"
+              ">      (4\n"
+              ">       (3\n"
+              ">        (2\n"
+              ">         (1\n"
+              ">          (0\n"
+              ">           0))))))))))\n")
+             #:width 10
+             #:per-line-prefix "> ")))
+
+
+(with-test-prefix "truncated-print"
+  (define exp '(a b #(c d e) f . g))
+
+  (define (tprint x width encoding)
+    (call-with-output-string
+     (lambda (p)
+       (set-port-encoding! p encoding)
+       (truncated-print x p #:width width))))
+
+  (pass-if-equal "(a b . #)"
+      (tprint exp 10 "ISO-8859-1"))
+
+  (pass-if-equal "(a b # f . g)"
+      (tprint exp 15 "ISO-8859-1"))
+
+  (pass-if-equal "(a b #(c ...) . #)"
+      (tprint exp 18 "ISO-8859-1"))
+
+  (pass-if-equal "(a b #(c d e) f . g)"
+      (tprint exp 20 "ISO-8859-1"))
+
+  (pass-if-equal "\"The quick brown...\""
+      (tprint "The quick brown fox" 20 "ISO-8859-1"))
+
+  (pass-if-equal "\"The quick brown f…\""
+      (tprint "The quick brown fox" 20 "UTF-8"))
+
+  (pass-if-equal "#<directory (tes...>"
+      (tprint (current-module) 20 "ISO-8859-1"))
+
+  (pass-if-equal "#<directory (test-…>"
+      (tprint (current-module) 20 "UTF-8"))
+
+  ;; bitvectors
+
+  (let ((testv (bitvector #t #f #f #t #t #f #t #t)))
+    (pass-if-equal "#*10011011"
+        (tprint testv 11 "UTF-8"))
+
+    (pass-if-equal "#*10011011"
+        (tprint testv 11 "ISO-8859-1"))
+    
+    (pass-if-equal "#*10011…"
+        (tprint testv 8 "UTF-8"))
+
+    (pass-if-equal "#*100..."
+        (tprint testv 8 "ISO-8859-1"))
+
+    (pass-if-equal "#*10…"
+        (tprint testv 5 "UTF-8"))
+
+    (pass-if-equal "#*..."
+        (tprint testv 5 "ISO-8859-1"))
+
+    (pass-if-equal "#*1…"
+        (tprint testv 4 "UTF-8"))
+
+    (pass-if-equal "#"
+        (tprint testv 4 "ISO-8859-1")))
+  
+  ;; rank 0 arrays
+  
+  (pass-if-equal "#0(#)"
+      (tprint (make-typed-array #t 9.0) 6 "UTF-8"))
+  
+  (pass-if-equal "#0(9.0)"
+      (tprint (make-typed-array #t 9.0) 7 "UTF-8"))
+
+  (pass-if-equal "#0f64(#)"
+      (tprint (make-typed-array 'f64 9.0) 8 "UTF-8"))
+
+  (pass-if-equal "#0f64(9.0)"
+      (tprint (make-typed-array 'f64 9.0) 10 "UTF-8"))
+
+  (pass-if-equal "#"
+      (tprint (make-typed-array 's32 0 20 20) 7 "UTF-8"))
+
+  ;; higher dimensional arrays
+
+  (let ((testa (make-typed-array 's32 0 20 20)))
+    (pass-if-equal "#2s32(…)"
+        (tprint testa 8 "UTF-8"))
+
+    (pass-if-equal "#2s32(# …)"
+        (tprint testa 10 "UTF-8"))
+
+    (pass-if-equal "#2s32((…) …)"
+        (tprint testa 12 "UTF-8"))
+
+    (pass-if-equal "#2s32((0 …) …)"
+        (tprint testa 14 "UTF-8")))
+
+  ;; check that bounds are printed correctly
+
+  (pass-if-equal "#2@-1@0((foo foo foo foo …) …)"
+      (tprint (make-array 'foo '(-1 3) 5) 30 "UTF-8"))
+
+  (pass-if-equal "#3@-1:5@0:0@0:5(() () () # #)"
+      (tprint (make-array 'foo '(-1 3) 0 5) 30 "UTF-8"))
+
+  ;; nested objects including arrays
+  
+  (pass-if-equal "#2((#(9 9) #(9 9)) (#(9 9) #(9 9)))"
+      (tprint (make-typed-array #t (make-typed-array #t 9 2) 2 2) 40 "UTF-8"))
+
+  (pass-if-equal "#(#2((9 9) (9 9)) #2((9 9) (9 9)))"
+      (tprint (make-vector 2 (make-typed-array #t 9 2 2)) 40 "UTF-8"))
+
+  (pass-if-equal "(#2((9 9) (9 9)) #2((9 9) (9 9)))"
+      (tprint (make-list 2 (make-typed-array #t 9 2 2)) 40 "UTF-8"))
+
+  (pass-if-equal "(#0(9) #0(9))"
+      (tprint (make-list 2 (make-typed-array #t 9)) 20 "UTF-8"))
+
+  (pass-if-equal "(#0(9) #)"
+      (tprint (make-list 2 (make-typed-array #t 9)) 10 "UTF-8")))

@@ -35,9 +35,9 @@ Options:
   -h, --help               Show this help
 
 Environment:
-  ATHENA_GUILE18_SOURCE, ATHENA_CONTAINER_IMAGE, ATHENA_CONTAINER_NAME,
-  ATHENA_WIN64_PREFIX, and the existing container/Windows build variables are
-  passed through to their respective build helpers.
+  ATHENA_CONTAINER_IMAGE, ATHENA_CONTAINER_NAME, ATHENA_WIN64_PREFIX, and the
+  existing container/Windows build variables are passed through to their
+  respective build helpers.
 EOF
 }
 
@@ -150,7 +150,6 @@ configure_local_build () {
     -G Ninja
     -DATHENA_GUI=Qt6
     -DCMAKE_BUILD_TYPE=Release
-    -DSCHEME_IMPL=guile-1.8
   )
   if [[ ! -f "$local_build_dir/CMakeCache.txt" ]]; then
     local icx=/opt/intel/oneapi/compiler/latest/bin/icx
@@ -164,10 +163,6 @@ configure_local_build () {
   fi
   args+=("${cmake_extra_args[@]}")
 
-  local guile_pkg="$HOME/opt/guile18/lib64/pkgconfig"
-  if [[ -d "$guile_pkg" ]]; then
-    export PKG_CONFIG_PATH="$guile_pkg${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
-  fi
   run "${args[@]}"
   run python3 "$repo_root/patch_ads.py" "$local_build_dir/_deps/ads-src"
   run cmake --build "$local_build_dir" -j"$jobs"
@@ -184,6 +179,8 @@ assemble_linux_runtime () {
   run rm -f "$runtime/lib"/libqt6advanceddocking*.so*
   run install -m 755 "$local_build_dir/src/ATHENA.bin" \
     "$runtime/bin/ATHENA.bin"
+  run python3 "$script_dir/copy-private-guile-runtime.py" \
+    "$local_build_dir/athena-guile-runtime" "$runtime"
   run install -m 755 "$local_build_dir/src/athena-codex-bridge" \
     "$runtime/bin/athena-codex-bridge"
   run install -m 755 \

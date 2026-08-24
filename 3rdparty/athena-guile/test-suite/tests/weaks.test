@@ -1,0 +1,279 @@
+;;;; weaks.test --- tests guile's weaks     -*- scheme -*-
+;;;; Copyright (C) 1999, 2001, 2003, 2006, 2009, 2010, 2011, 2012, 2014
+;;;; Free Software Foundation, Inc.
+;;;; 
+;;;; This library is free software; you can redistribute it and/or
+;;;; modify it under the terms of the GNU Lesser General Public
+;;;; License as published by the Free Software Foundation; either
+;;;; version 3 of the License, or (at your option) any later version.
+;;;; 
+;;;; This library is distributed in the hope that it will be useful,
+;;;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;;;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+;;;; Lesser General Public License for more details.
+;;;; 
+;;;; You should have received a copy of the GNU Lesser General Public
+;;;; License along with this library; if not, write to the Free Software
+;;;; Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+
+;;; {Description} 
+
+;;; This is a semi test suite for weaks; I say semi, because weaks
+;;; are pretty non-deterministic given the amount of information we
+;;; can infer from scheme.
+;;;
+;;; In particular, we can't always reliably test the more important
+;;; aspects of weaks (i.e., that an object is removed when it's dead)
+;;; because we have no way of knowing for certain that the object is
+;;; really dead. It tests it anyway, but the failures of any `death'
+;;; tests really shouldn't be surprising.
+;;;
+;;; Interpret failures in the dying functions here as a hint that you
+;;; should look at any changes you've made involving weaks
+;;; (everything else should always pass), but there are a host of
+;;; other reasons why they might not work as tested here, so if you
+;;; haven't done anything to weaks, don't sweat it :)
+
+(define-module (test-weaks)
+  #:use-module (test-suite lib)
+  #:use-module (ice-9 weak-vector)
+  #:use-module (srfi srfi-1)
+  #:use-module (srfi srfi-26))
+
+
+;;; Creation functions 
+
+
+(with-test-prefix
+ "weak-creation"
+ (with-test-prefix "make-weak-vector"
+  (pass-if "normal"
+    (make-weak-vector 10 #f)
+    #t)
+  (pass-if-exception "bad size"
+    exception:wrong-type-arg
+    (make-weak-vector 'foo)))
+
+ (with-test-prefix "list->weak-vector"
+		   (pass-if "create"
+			    (let* ((lst '(a b c d e f g))
+				   (wv (list->weak-vector lst)))
+			      (and (eq? (weak-vector-ref wv 0) 'a)
+				   (eq? (weak-vector-ref wv 1) 'b)
+				   (eq? (weak-vector-ref wv 2) 'c)
+				   (eq? (weak-vector-ref wv 3) 'd)
+				   (eq? (weak-vector-ref wv 4) 'e)
+				   (eq? (weak-vector-ref wv 5) 'f)
+				   (eq? (weak-vector-ref wv 6) 'g))))
+		   (pass-if-exception "bad-args"
+		     exception:wrong-type-arg
+		     (list->weak-vector 32)))
+
+ (with-test-prefix "make-weak-key-hash-table"
+		   (pass-if "create"
+		     (make-weak-key-hash-table 17)
+		     #t)
+		   (pass-if-exception "bad-args"
+		     exception:wrong-type-arg
+		     (make-weak-key-hash-table '(bad arg))))
+ (with-test-prefix "make-weak-value-hash-table"
+		   (pass-if "create"
+		     (make-weak-value-hash-table 17)
+		     #t)
+		   (pass-if-exception "bad-args"
+		     exception:wrong-type-arg
+		     (make-weak-value-hash-table '(bad arg))))
+
+ (with-test-prefix "make-doubly-weak-hash-table"
+		   (pass-if "create"
+		     (make-doubly-weak-hash-table 17)
+		     #t)
+		   (pass-if-exception "bad-args"
+		     exception:wrong-type-arg
+		     (make-doubly-weak-hash-table '(bad arg)))))
+
+
+
+
+;; This should remove most of the non-dying problems associated with
+;; trying this inside a closure
+
+(define global-weak (make-weak-vector 10 #f))
+(begin
+  (weak-vector-set! global-weak 0 (string-copy "string"))
+  (weak-vector-set! global-weak 1 (string-copy "beans"))
+  (weak-vector-set! global-weak 2 (string-copy "to"))
+  (weak-vector-set! global-weak 3 (string-copy "utah"))
+  (weak-vector-set! global-weak 4 (string-copy "yum yum"))
+  (gc))
+
+;;; Normal weak vectors
+(let ((x (make-weak-vector 10 #f))
+      (bar "bar"))
+  (with-test-prefix 
+   "weak-vector"
+   (pass-if "lives"
+	    (begin
+	      (weak-vector-set! x 0 bar)
+	      (gc)
+	      (and (weak-vector-ref x 0) (eq? bar (weak-vector-ref x 0)))))
+   (pass-if "dies"
+	    (begin
+	      (gc)
+	      (or (and (not (weak-vector-ref global-weak 0))
+		       (not (weak-vector-ref global-weak 1))
+		       (not (weak-vector-ref global-weak 2))
+		       (not (weak-vector-ref global-weak 3))
+		       (not (weak-vector-ref global-weak 4)))
+		  (throw 'unresolved))))))
+
+
+;;;
+;;; Weak hash tables & weak alist vectors.
+;;;
+
+(define (valid? value initial-value)
+  ;; Return true if VALUE is "valid", i.e., if it's either #f or
+  ;; INITIAL-VALUE.  The idea is to make sure `hash-ref' doesn't return
+  ;; garbage.
+  (or (not value)
+      (equal? value initial-value)))
+
+ (let ((x (make-weak-key-hash-table 17))
+      (y (make-weak-value-hash-table 17))
+      (z (make-doubly-weak-hash-table 17))
+      (test-key "foo")
+      (test-value "bar"))
+  (with-test-prefix
+   "weak-hash"
+   (pass-if "lives"
+	    (begin
+	      (hash-set! x test-key test-value)
+	      (hash-set! y test-key test-value)
+	      (hash-set! z test-key test-value)
+	      (gc)
+	      (gc)
+	      (and (hash-ref x test-key)
+		   (hash-ref y test-key)
+		   (hash-ref z test-key)
+		   #t)))
+
+   ;; In the tests below we use `string-copy' to avoid the risk of
+   ;; unintended retention of a string that we want to be GC'd.
+
+   (pass-if "weak-key dies"
+            (begin
+              (hash-set! x (string-copy "this") "is")
+              (hash-set! x (string-copy "a") "test")
+              (hash-set! x (string-copy "of") "the")
+              (hash-set! x (string-copy "emergency") "weak")
+              (hash-set! x (string-copy "key") "hash system")
+              (gc)
+              (let ((values (map (cut hash-ref x <>)
+                                 '("this" "a" "of" "emergency" "key"))))
+                (and (every valid? values
+                            '("is" "test" "the" "weak" "hash system"))
+                     (any not values)
+                     (hash-ref x test-key)
+                     #t))))
+
+   (pass-if "weak-value dies"
+            (begin
+              (hash-set! y "this" (string-copy "is"))
+              (hash-set! y "a" (string-copy "test"))
+              (hash-set! y "of" (string-copy "the"))
+              (hash-set! y "emergency" (string-copy "weak"))
+              (hash-set! y "value" (string-copy "hash system"))
+              (gc)
+              (let ((values (map (cut hash-ref y <>)
+                                 '("this" "a" "of" "emergency" "key"))))
+                (and (every valid? values
+                            '("is" "test" "the" "weak" "hash system"))
+                     (any not values)
+                     (hash-ref y test-key)
+                     #t))))
+
+   (pass-if "doubly-weak dies"
+            (begin
+              (hash-set! z (string-copy "this") (string-copy "is"))
+              (hash-set! z "a" (string-copy "test"))
+              (hash-set! z (string-copy "of") "the")
+              (hash-set! z "emergency" (string-copy "weak"))
+              (hash-set! z (string-copy "all") (string-copy "hash system"))
+              (gc)
+              (let ((values (map (cut hash-ref z <>)
+                                 '("this" "a" "of" "emergency" "key"))))
+                (and (every valid? values
+                            '("is" "test" "the" "weak" "hash system"))
+                     (any not values)
+                     (hash-ref z test-key)
+                     #t))))
+
+   (pass-if "hash-set!, weak val, im -> im"
+     (let ((t (make-weak-value-hash-table)))
+       (hash-set! t "foo" 1)
+       (hash-set! t "foo" 2)
+       (equal? (hash-ref t "foo") 2)))
+
+   (pass-if "hash-set!, weak val, im -> nim"
+     (let ((t (make-weak-value-hash-table)))
+       (hash-set! t "foo" 1)
+       (hash-set! t "foo" "baz")
+       (equal? (hash-ref t "foo") "baz")))
+
+   (pass-if "hash-set!, weak val, nim -> nim"
+     (let ((t (make-weak-value-hash-table)))
+       (hash-set! t "foo" "bar")
+       (hash-set! t "foo" "baz")
+       (equal? (hash-ref t "foo") "baz")))
+
+   (pass-if "hash-set!, weak val, nim -> im"
+     (let ((t (make-weak-value-hash-table)))
+       (hash-set! t "foo" "bar")
+       (hash-set! t "foo" 1)
+       (equal? (hash-ref t "foo") 1)))
+
+   (pass-if "hash-set!, weak key, returns value"
+     (let ((t (make-weak-value-hash-table))
+           (val (string #\f #\o #\o)))
+       (eq? (hashq-set! t "bar" val)
+            (hashv-set! t "bar" val)
+            (hash-set! t "bar" val)
+            val)))
+
+   (pass-if "assoc can do anything"
+            ;; Until 1.9.12, as hash table's custom ASSOC procedure was
+            ;; called with the GC lock alloc held, which imposed severe
+            ;; restrictions on what it could do (bug #29616).  This test
+            ;; makes sure this is no longer the case.
+            (let ((h (make-doubly-weak-hash-table 2))
+                  (c 123)
+                  (k "GNU"))
+
+              (define (assoc-ci key bucket)
+                (make-list 123) ;; this should be possible
+                (gc)            ;; this too
+                (find (lambda (p)
+                        (string-ci=? key (car p)))
+                      bucket))
+
+              (hashx-set! string-hash-ci assoc-ci h
+                          (string-copy "hello") (string-copy "world"))
+              (hashx-set! string-hash-ci assoc-ci h
+                          k "Guile")
+
+              (and (every (cut valid? <> "Guile")
+                          (unfold (cut >= <> c)
+                                  (lambda (_)
+                                    (hashx-ref string-hash-ci assoc-ci
+                                               h "gnu"))
+                                  1+
+                                  0))
+                   (every (cut valid? <> "world")
+                          (unfold (cut >= <> c)
+                                  (lambda (_)
+                                    (hashx-ref string-hash-ci assoc-ci
+                                               h "HELLO"))
+                                  1+
+                                  0))
+                   #t)))))

@@ -124,6 +124,7 @@ tm_server_rep::tm_server_rep (): def_zoomf (1.0), center_message ("") {
   bench_start ("load scheme boot");
   if (exists (tm_init_file)) exec_file (tm_init_file);
   if (exists (my_init_file)) exec_file (my_init_file);
+  finalize_scheme_bootstrap ();
   bench_cumul ("load scheme boot");
   if (my_init_cmds != "") {
     my_init_cmds= "(begin" * my_init_cmds * ")";

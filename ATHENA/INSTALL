@@ -50,10 +50,8 @@ From the repository root, configure a Qt 6 build.  A typical debug build uses
       -DATHENA_GUI=Qt6 \
       -DCMAKE_BUILD_TYPE=Debug
 
-If you build against a local Guile 1.8 prefix, make sure pkg-config can see it,
-for example:
-
-    export PKG_CONFIG_PATH="$HOME/opt/guile18/lib64/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+No system Guile installation is needed. CMake builds ATHENA's vendored private
+Guile 3 runtime and links the executable to it.
 
 ATHENA patches Qt Advanced Docking System through `patch_ads.py`.  Reapply the
 ADS patch after configuring or refreshing the dependency tree:
@@ -79,7 +77,6 @@ For a release build, use a separate build directory such as `build_rel/` and
 configure it explicitly for Qt 6.  The current local release workflow uses Intel
 oneAPI when available:
 
-    export PKG_CONFIG_PATH="$HOME/opt/guile18/lib64/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
     cmake -S . -B build_rel -G Ninja \
       -DATHENA_GUI=Qt6 \
       -DCMAKE_BUILD_TYPE=Release \
@@ -135,9 +132,9 @@ For redistributable Linux builds, use the scripted container build:
 
     tools/container-build/build-athena-container.sh
 
-The script builds inside an openSUSE Leap 16.0 Podman environment,
-uses Qt 6, builds Guile 1.8 from source, prefers Intel icx/icpx when available,
-and produces:
+The script builds inside an openSUSE Leap 16.0 Podman environment, uses Qt 6,
+builds the vendored private ATHENA Guile runtime, prefers Intel icx/icpx when
+available, and produces:
 
     container_build/ATHENA-dev/
     container_build/ATHENA-rel/
@@ -167,13 +164,12 @@ and regenerates their SHA-256 files.
 
 Useful environment variables for the container build include:
 
-    ATHENA_GUILE18_SOURCE=/path/to/guile-1.8.8
     ATHENA_BUILD_JOBS=16
     ATHENA_SKIP_UBUNTU_VALIDATE=1
     ATHENA_ALLOW_SYSTEM_COMPILER=1
 
-`ATHENA_GUILE18_SOURCE` must point to a Guile 1.8 source tree.  ATHENA still
-requires Guile 1.8; do not substitute Guile 2 or Guile 3.
+The private Guile library, standard library, and compiled standard library are
+bundled under `ATHENA/lib/athena-guile`; no target-system Guile is required.
 
 -------------------------------------------------------------------------------
 Platform status

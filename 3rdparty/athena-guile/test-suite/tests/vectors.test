@@ -1,0 +1,164 @@
+;;;; vectors.test --- test suite for Guile's vector functions -*- scheme -*-
+;;;;
+;;;; Copyright (C) 2003, 2006, 2010, 2011 Free Software Foundation, Inc.
+;;;; 
+;;;; This library is free software; you can redistribute it and/or
+;;;; modify it under the terms of the GNU Lesser General Public
+;;;; License as published by the Free Software Foundation; either
+;;;; version 3 of the License, or (at your option) any later version.
+;;;; 
+;;;; This library is distributed in the hope that it will be useful,
+;;;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;;;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+;;;; Lesser General Public License for more details.
+;;;; 
+;;;; You should have received a copy of the GNU Lesser General Public
+;;;; License along with this library; if not, write to the Free Software
+;;;; Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+
+(define-module (test-suite vectors)
+  :use-module (test-suite lib))
+
+;; FIXME:  As soon as guile supports immutable vectors, this has to be
+;; replaced with the appropriate error type and message.
+(define exception:immutable-vector
+  (cons 'some-error-type "^trying to modify an immutable vector"))
+
+
+(with-test-prefix "vector-set!"
+
+  (expect-fail-exception "vector constant"
+    exception:immutable-vector
+    (vector-set! '#(1 2 3) 0 4)))
+
+(with-test-prefix "vector-copy"
+
+  (pass-if "defaults"
+    (equal? #(1 2 3) (vector-copy #(1 2 3))))
+  (pass-if "default end"
+    (equal? #(2 3) (vector-copy #(1 2 3) 1)))
+  (pass-if "start end"
+    (equal? #(2) (vector-copy #(1 2 3) 1 2))))
+
+(with-test-prefix "vector->list"
+
+  (pass-if "plain vector"
+    (equal? '(1 2 3) (vector->list #(1 2 3))))
+
+  (pass-if "string vector 1"
+    (equal? '("abc" "def" "ghi") (vector->list #("abc" "def" "ghi"))))
+
+  (pass-if "string-vector 2"
+    (equal? '("abc\u0100" "def\u0101" "ghi\u0102") 
+            (vector->list #("abc\u0100" "def\u0101" "ghi\u0102"))))
+
+  (pass-if "shared array"
+    (let ((b (make-shared-array #(1) (lambda (x) '(0)) 2)))
+      (equal? b (list->vector (vector->list b))))))
+
+(with-test-prefix "make-vector"
+
+  (pass-if "null"
+    (equal? #() (make-vector 0)))
+
+  (pass-if "fill with num"
+    (equal? #(1 1 1) (make-vector 3 1)))
+
+  (pass-if "fill with string"
+    (equal? #("abc" "abc" "abc") (make-vector 3 "abc")))
+
+  (pass-if "fill with string 2"
+    (equal? #("ab\u0100" "ab\u0100" "ab\u0100") 
+            (make-vector 3 "ab\u0100"))))
+
+(with-test-prefix "vector-move-left!"
+
+  (pass-if-exception "before start" exception:out-of-range
+    (let ((a (vector 1 2 3 4 5 6 7 8 9))
+          (b (vector 10 20 30 40 50 60 70 80 90)))
+      (vector-move-left! a 3 5 b -1)))
+
+  (pass-if "beginning"
+    (let ((a (vector 1 2 3 4 5 6 7 8 9))
+          (b (vector 10 20 30 40 50 60 70 80 90)))
+      (vector-move-left! a 3 5 b 0)
+      (equal? b #(4 5 30 40 50 60 70 80 90))))
+
+  (pass-if "middle"
+    (let ((a (vector 1 2 3 4 5 6 7 8 9))
+          (b (vector 10 20 30 40 50 60 70 80 90)))
+      (vector-move-left! a 3 5 b 2)
+      (equal? b #(10 20 4 5 50 60 70 80 90))))
+
+  (pass-if "overlap -"
+    (let ((a (vector 1 2 3 4 5 6 7 8 9)))
+      (vector-move-left! a 3 5 a 2)
+      (equal? a #(1 2 4 5 5 6 7 8 9))))
+
+  (pass-if "overlap +"
+    (let ((a (vector 1 2 3 4 5 6 7 8 9)))
+      (vector-move-left! a 3 5 a 4)
+      (equal? a #(1 2 3 4 4 4 7 8 9))))
+
+  (pass-if "end"
+    (let ((a (vector 1 2 3 4 5 6 7 8 9))
+          (b (vector 10 20 30 40 50 60 70 80 90)))
+       (vector-move-left! a 3 5 b 7)
+       (equal? b #(10 20 30 40 50 60 70 4 5))))
+
+  (pass-if "whole thing"
+    (let ((a (vector 1 2 3 4 5 6 7 8 9))
+          (b (vector 10 20 30 40 50 60 70 80 90)))
+       (vector-move-left! a 0 9 b 0)
+       (equal? b #(1 2 3 4 5 6 7 8 9))))
+
+  (pass-if-exception "past end" exception:out-of-range
+    (let ((a (vector 1 2 3 4 5 6 7 8 9))
+          (b (vector 10 20 30 40 50 60 70 80 90)))
+      (vector-move-left! a 3 5 b 8))))
+
+(with-test-prefix "vector-move-right!"
+
+  (pass-if-exception "before start" exception:out-of-range
+    (let ((a (vector 1 2 3 4 5 6 7 8 9))
+          (b (vector 10 20 30 40 50 60 70 80 90)))
+      (vector-move-right! a 3 5 b -1)))
+
+  (pass-if "beginning"
+    (let ((a (vector 1 2 3 4 5 6 7 8 9))
+          (b (vector 10 20 30 40 50 60 70 80 90)))
+      (vector-move-right! a 3 5 b 0)
+      (equal? b #(4 5 30 40 50 60 70 80 90))))
+
+  (pass-if "middle"
+    (let ((a (vector 1 2 3 4 5 6 7 8 9))
+          (b (vector 10 20 30 40 50 60 70 80 90)))
+      (vector-move-right! a 3 5 b 2)
+      (equal? b #(10 20 4 5 50 60 70 80 90))))
+
+  (pass-if "overlap -"
+    (let ((a (vector 1 2 3 4 5 6 7 8 9)))
+      (vector-move-right! a 3 5 a 2)
+      (equal? a #(1 2 5 5 5 6 7 8 9))))
+
+  (pass-if "overlap +"
+    (let ((a (vector 1 2 3 4 5 6 7 8 9)))
+      (vector-move-right! a 3 5 a 4)
+      (equal? a #(1 2 3 4 4 5 7 8 9))))
+
+  (pass-if "end"
+    (let ((a (vector 1 2 3 4 5 6 7 8 9))
+          (b (vector 10 20 30 40 50 60 70 80 90)))
+       (vector-move-right! a 3 5 b 7)
+       (equal? b #(10 20 30 40 50 60 70 4 5))))
+
+  (pass-if "whole thing"
+    (let ((a (vector 1 2 3 4 5 6 7 8 9))
+          (b (vector 10 20 30 40 50 60 70 80 90)))
+       (vector-move-right! a 0 9 b 0)
+       (equal? b #(1 2 3 4 5 6 7 8 9))))
+
+  (pass-if-exception "past end" exception:out-of-range
+    (let ((a (vector 1 2 3 4 5 6 7 8 9))
+          (b (vector 10 20 30 40 50 60 70 80 90)))
+      (vector-move-right! a 3 5 b 8))))

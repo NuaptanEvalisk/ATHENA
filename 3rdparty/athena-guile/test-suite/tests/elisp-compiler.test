@@ -1,0 +1,629 @@
+;;;; elisp-compiler.test --- Test the compiler for Elisp.  -*- scheme -*-
+;;;;
+;;;; Copyright (C) 2009, 2010 Free Software Foundation, Inc.
+;;;; Daniel Kraft
+;;;;
+;;;; This library is free software; you can redistribute it and/or
+;;;; modify it under the terms of the GNU Lesser General Public
+;;;; License as published by the Free Software Foundation; either
+;;;; version 3 of the License, or (at your option) any later version.
+;;;; 
+;;;; This library is distributed in the hope that it will be useful,
+;;;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;;;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+;;;; Lesser General Public License for more details.
+;;;; 
+;;;; You should have received a copy of the GNU Lesser General Public
+;;;; License along with this library; if not, write to the Free Software
+;;;; Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+
+(define-module (test-elisp-compiler)
+  :use-module (test-suite lib)
+  :use-module (system base compile)
+  :use-module (language elisp runtime))
+
+
+; Macros to handle the compilation conveniently.
+
+(define-syntax compile-test
+  (syntax-rules (pass-if pass-if-equal pass-if-exception)
+    ((_ (pass-if test-name exp))
+     (pass-if test-name (compile 'exp #:from 'elisp #:to 'value)))
+    ((_ (pass-if test-name exp #:opts opts))
+     (pass-if test-name (compile 'exp #:from 'elisp #:to 'value #:opts opts)))
+    ((_ (pass-if-equal test-name result exp))
+     (pass-if test-name (equal? result
+                                (compile 'exp #:from 'elisp #:to 'value))))
+    ((_ (pass-if-exception test-name exc exp))
+     (pass-if-exception test-name exc
+                        (compile 'exp #:from 'elisp #:to 'value)))))
+
+(define-syntax with-test-prefix/compile
+  (syntax-rules ()
+    ((_ section-name exp ...)
+     (with-test-prefix section-name (compile-test exp) ...))))
+
+
+; Test control structures.
+; ========================
+
+(compile '(%set-lexical-binding-mode #nil) #:from 'elisp #:to 'value)
+
+(with-test-prefix/compile "Sequencing"
+  
+  (pass-if-equal "progn" 1
+    (progn (setq a 0)
+           (setq a (1+ a))
+           a))
+
+  (pass-if-equal "empty progn" #nil
+    (progn))
+
+  (pass-if "prog1"
+    (progn (setq a 0)
+           (setq b (prog1 a (setq a (1+ a))))
+           (and (= a 1) (= b 0))))
+
+  (pass-if "prog2"
+    (progn (setq a 0)
+           (setq b (prog2 (setq a (1+ a))
+                          (setq a (1+ a))
+                          (setq a (1+ a))))
+           (and (= a 3) (= b 2)))))
+
+(with-test-prefix/compile "Conditionals"
+
+  (pass-if-equal "succeeding if" 1
+    (if t 1 2))
+  (pass-if "failing if"
+    (and (= (if nil
+              1
+              (setq a 2) (setq a (1+ a)) a)
+            3)
+         (equal (if nil 1) nil)))
+
+  (pass-if-equal "if with no else" #nil
+    (if nil t))
+
+  (pass-if-equal "empty cond" nil-value
+    (cond))
+  (pass-if-equal "all failing cond" nil-value
+    (cond (nil) (nil)))
+  (pass-if-equal "only condition" 5
+    (cond (nil) (5)))
+  (pass-if-equal "succeeding cond value" 42
+    (cond (nil) (t 42) (t 0)))
+  (pass-if-equal "succeeding cond side-effect" 42
+    (progn (setq a 0)
+           (cond (nil) (t (setq a 42) 1) (t (setq a 0)))
+           a)))
+
+(with-test-prefix/compile "Combining Conditions"
+
+  (pass-if-equal "empty and" t-value (and))
+  (pass-if-equal "failing and" nil-value (and 1 2 nil 3))
+  (pass-if-equal "succeeding and" 3 (and 1 2 3))
+
+  (pass-if-equal "empty or" nil-value (or))
+  (pass-if-equal "failing or" nil-value (or nil nil nil))
+  (pass-if-equal "succeeding or" 1 (or nil 1 nil 2 nil 3))
+
+  (pass-if-equal "not true" nil-value (not 1))
+  (pass-if-equal "not false" t-value (not nil)))
+
+(with-test-prefix/compile "Iteration"
+
+  (pass-if-equal "failing while" 0
+    (progn (setq a 0)
+           (while nil (setq a 1))
+           a))
+  (pass-if-equal "running while" 120
+    (progn (setq prod 1
+                 i 1)
+           (while (<= i 5)
+             (setq prod (* i prod))
+             (setq i (1+ i)))
+           prod)))
+
+(with-test-prefix/compile "Exceptions"
+
+  (pass-if "catch without exception"
+    (and (setq a 0)
+         (= (catch 'foobar
+                   (setq a (1+ a))
+                   (setq a (1+ a))
+                   a)
+            2)
+         (= (catch (+ 1 2) a) 2)))
+
+  ; FIXME: Figure out how to do this...
+  ;(pass-if-exception "uncaught exception" 'elisp-exception
+  ;  (throw 'abc 1))
+
+  (pass-if "catch and throw"
+    (and (setq mylist '(1 2))
+         (= (catch 'abc (throw 'abc 2) 1) 2)
+         (= (catch 'abc (catch 'def (throw 'abc (1+ 0)) 2) 3) 1)
+         (= (catch 'abc (catch 'def (throw 'def 1) 2) 3) 3)
+         (= (catch mylist (catch (list 1 2) (throw mylist 1) 2) 3) 1)))
+
+  (pass-if "unwind-protect"
+    (progn (setq a 0 b 1 c 1)
+           (catch 'exc
+                  (unwind-protect (progn (setq a 1)
+                                         (throw 'exc 0))
+                                  (setq a 0)
+                                  (setq b 0)))
+           (unwind-protect nil (setq c 0))
+           (and (= a 0) (= b 0) (= c 0)
+                (= (unwind-protect 42 1 2 3) 42)))))
+
+(with-test-prefix/compile "Eval"
+
+  (pass-if-equal "basic eval" 3
+    (progn (setq code '(+ 1 2))
+           (eval code)))
+
+  (pass-if "real dynamic code"
+    (and (setq a 1 b 1 c 1)
+         (defun set-code (var val)
+           (list 'setq var val))
+         (= a 1) (= b 1) (= c 1)
+         (eval (set-code 'a '(+ 2 3)))
+         (eval (set-code 'c 42))
+         (= a 5) (= b 1) (= c 42)))
+
+  ; Build code that recursively again and again calls eval.  What we want is
+  ; something like:
+  ; (eval '(1+ (eval '(1+ (eval 1)))))
+  (pass-if "recursive eval"
+    (progn (setq depth 10 i depth)
+           (setq code '(eval 0))
+           (while (not (zerop i))
+             (setq code (#{`}# (eval (quote (1+ (#{,}# code))))))
+             (setq i (1- i)))
+           (= (eval code) depth))))
+
+
+; Test handling of variables.
+; ===========================
+
+(with-test-prefix/compile "Variable Setting/Referencing"
+
+  ; TODO: Check for variable-void error
+
+  (pass-if-equal "setq and reference" 6
+    (progn (setq a 1 b 2 c 3)
+           (+ a b c)))
+  (pass-if-equal "setq evaluation order" 1
+    (progn (setq a 0 b 0)
+           (setq a 1 b a)))
+  (pass-if-equal "setq value" 2
+    (progn (setq a 1 b 2)))
+
+  (pass-if "set and symbol-value"
+    (progn (setq myvar 'a)
+           (and (= (set myvar 42) 42)
+                (= a 42)
+                (= (symbol-value myvar) 42))))
+  (pass-if "void variables"
+    (progn (setq a 1 b 2)
+           (and (eq (makunbound 'b) 'b)
+                (boundp 'a)
+                (not (boundp 'b))))))
+
+(with-test-prefix/compile "Let and Let*"
+
+  (pass-if-equal "let without value" nil-value
+    (let (a (b 5)) a))
+  (pass-if-equal "basic let" 0
+    (progn (setq a 0)
+           (let ((a 1)
+                 (b a))
+             b)))
+
+  (pass-if-equal "empty let" #nil (let ()))
+
+  (pass-if "let*"
+    (progn (setq a 0)
+           (and (let* ((a 1)
+                       (b a))
+                  (= b 1))
+                (let* (a b)
+                  (setq a 1 b 2)
+                  (and (= a 1) (= b 2)))
+                (= a 0)
+                (not (boundp 'b)))))
+
+  (pass-if-equal "empty let*" #nil
+    (let* ()))
+
+  (pass-if "local scope"
+    (progn (setq a 0)
+           (setq b (let (a)
+                     (setq a 1)
+                     a))
+           (and (= a 0)
+                (= b 1)))))
+
+(with-test-prefix/compile "Lexical Scoping"
+
+  (pass-if "basic let semantics"
+    (and (setq a 1)
+         (lexical-let ((a 2) (b a))
+           (and (= a 2) (= b 1)))
+         (lexical-let* ((a 2) (b a))
+           (and (= a 2) (= b 2) (setq a 42) (= a 42)))
+         (= a 1)))
+
+  (pass-if "lexical scope with lexical-let's"
+    (and (setq a 1)
+         (defun dyna () a)
+         (lexical-let (a)
+           (setq a 2)
+           (and (= a 2) (= (dyna) 1)))
+         (= a 1)
+         (lexical-let* (a)
+           (setq a 2)
+           (and (= a 2) (= (dyna) 1)))
+         (= a 1)))
+
+  (pass-if "lexical scoping vs. symbol-value / set"
+    (and (setq a 1)
+         (lexical-let ((a 2))
+           (and (= a 2)
+                (= (symbol-value 'a) 1)
+                (set 'a 3)
+                (= a 2)
+                (= (symbol-value 'a) 3)))
+         (= a 3)))
+
+  (pass-if "let inside lexical-let"
+    (and (setq a 1 b 1)
+         (defun dynvals () (cons a b))
+         (lexical-let ((a 2))
+           (and (= a 2) (equal (dynvals) '(1 . 1))
+                (let ((a 3) (b a))
+                  (declare (lexical a))
+                  (and (= a 3) (= b 2)
+                       (equal (dynvals) '(1 . 2))))
+                (let* ((a 4) (b a))
+                  (declare (lexical a))
+                  (and (= a 4) (= b 4)
+                       (equal (dynvals) '(1 . 4))))
+                (= a 2)))
+         (= a 1)))
+
+  (pass-if "lambda args inside lexical-let"
+    (and (setq a 1)
+         (defun dyna () a)
+         (lexical-let ((a 2) (b 42))
+           (and (= a 2) (= (dyna) 1)
+                ((lambda (a)
+                   (declare (lexical a))
+                   (and (= a 3) (= b 42) (= (dyna) 1))) 3)
+                ((lambda () (let ((a 3))
+                              (declare (lexical a))
+                              (and (= a 3) (= (dyna) 1)))))
+                (= a 2) (= (dyna) 1)))
+         (= a 1)))
+
+  (pass-if "closures"
+    (and (defun make-counter ()
+           (lexical-let ((cnt 0))
+             (lambda ()
+               (setq cnt (1+ cnt)))))
+         (setq c1 (make-counter) c2 (make-counter))
+         (= (funcall c1) 1)
+         (= (funcall c1) 2)
+         (= (funcall c1) 3)
+         (= (funcall c2) 1)
+         (= (funcall c2) 2)
+         (= (funcall c1) 4)
+         (= (funcall c2) 3)))
+
+  (pass-if "lexical lambda args"
+    (progn (setq a 1 b 1)
+           (defun dyna () a)
+           (defun dynb () b)
+           (lexical-let (a c)
+             ((lambda (a b &optional c)
+                (declare (lexical a c))
+                (and (= a 3) (= (dyna) 1)
+                     (= b 2) (= (dynb) 2)
+                     (= c 1)))
+              3 2 1))))
+
+  ; Check if a lambda without dynamically bound arguments
+  ; is tail-optimized by doing a deep recursion that would otherwise overflow
+  ; the stack.
+  (pass-if "lexical lambda tail-recursion"
+    (lexical-let (i)
+      (setq to 1000000)
+      (defun iteration-1 (i)
+        (declare (lexical i))
+        (if (< i to)
+          (iteration-1 (1+ i))))
+      (iteration-1 0)
+      (setq x 0)
+      (defun iteration-2 ()
+        (if (< x to)
+          (setq x (1+ x))
+          (iteration-2)))
+      (iteration-2)
+      t)))
+
+
+(with-test-prefix/compile "defconst and defvar"
+
+  (pass-if-equal "defconst without docstring" 3.141
+    (progn (setq pi 3)
+           (defconst pi 3.141)
+           pi))
+  (pass-if-equal "defconst value" 'pi
+    (defconst pi 3.141 "Pi"))
+
+  (pass-if-equal "defvar without value" 42
+    (progn (setq a 42)
+           (defvar a)
+           a))
+  (pass-if-equal "defvar on already defined variable" 42
+    (progn (setq a 42)
+           (defvar a 1 "Some docstring is also ok")
+           a))
+  (pass-if-equal "defvar on undefined variable" 1
+    (progn (makunbound 'a)
+           (defvar a 1)
+           a))
+  (pass-if-equal "defvar value" 'a
+    (defvar a)))
+
+
+; Functions and lambda expressions.
+; =================================
+
+(with-test-prefix/compile "Lambda Expressions"
+
+  (pass-if-equal "required arguments" 3
+    ((lambda (a b c) c) 1 2 3))
+
+  (pass-if-equal "optional argument" 3
+    ((lambda (a &optional b c) c) 1 2 3))
+  (pass-if-equal "optional missing" nil-value
+    ((lambda (&optional a) a)))
+
+  (pass-if-equal "rest argument" '(3 4 5)
+    ((lambda (a b &rest c) c) 1 2 3 4 5))
+  (pass-if "rest missing"
+    (null ((lambda (a b &rest c) c) 1 2)))
+
+  (pass-if-equal "empty lambda" #nil
+    ((lambda ()))))
+
+(with-test-prefix/compile "Function Definitions"
+
+  (pass-if-equal "defun" 3
+    (progn (defun test (a b) (+ a b))
+           (test 1 2)))
+  (pass-if-equal "defun value" 'test
+    (defun test (a b) (+ a b)))
+
+  (pass-if "fset and symbol-function"
+    (progn (setq myfunc 'x x 5)
+           (and (= (fset myfunc 42) 42)
+                (= (symbol-function myfunc) 42)
+                (= x 5))))
+  (pass-if "void function values"
+    (progn (setq a 1)
+           (defun test (a b) (+ a b))
+           (fmakunbound 'a)
+           (fset 'b 5)
+           (and (fboundp 'b) (fboundp 'test)
+                (not (fboundp 'a))
+                (= a 1))))
+
+  (pass-if "flet"
+    (progn (defun foobar () 42)
+           (defun test () (foobar))
+           (and (= (test) 42)
+                (flet ((foobar () 0)
+                       (myfoo ()
+                         (funcall (symbol-function 'foobar))))
+                  (and (= (myfoo) 42)
+                       (= (test) 42)))
+                (flet ((foobar () nil))
+                  (defun foobar () 0)
+                  (= (test) 42))
+                (= (test) 42)))))
+
+(with-test-prefix/compile "Calling Functions"
+
+  (pass-if-equal "recursion" 120
+    (progn (defun factorial (n prod)
+             (if (zerop n)
+               prod
+               (factorial (1- n) (* prod n))))
+           (factorial 5 1)))
+
+  (pass-if "dynamic scoping"
+    (progn (setq a 0)
+           (defun foo ()
+             (setq a (1+ a))
+             a)
+           (defun bar (a)
+             (foo))
+           (and (= 43 (bar 42))
+                (zerop a))))
+
+  (pass-if "funcall and apply argument handling"
+    (and (defun allid (&rest args) args)
+         (setq allid-var (symbol-function 'allid))
+         (equal (funcall allid-var 1 2 3) '(1 2 3))
+         (equal (funcall allid-var) nil)
+         (equal (funcall allid-var 1 2 '(3 4)) '(1 2 (3 4)))
+         (equal (funcall allid-var '()) '(()))
+         (equal (apply allid-var 1 2 '(3 4)) '(1 2 3 4))
+         (equal (apply allid-var '(1 2)) '(1 2))
+         (equal (apply allid-var '()) nil)))
+
+  (pass-if "raw functions with funcall"
+    (and (= (funcall '+ 1 2) 3)
+         (= (funcall (lambda (a b) (+ a b)) 1 2) 3)
+         (= (funcall '(lambda (a b) (+ a b)) 1 2) 3))))
+
+
+; Quoting and Backquotation.
+; ==========================
+
+(with-test-prefix/compile "Quotation"
+
+  (pass-if "quote"
+    (and (equal '42 42) (equal '"abc" "abc")
+         (equal '(1 2 (3 (4) x)) '(1 2 (3 (4) x)))
+         (not (equal '(1 2 (3 4 (x))) '(1 2 3 4 x)))
+         (equal '(1 2 . 3) '(1 2 . 3))))
+
+  (pass-if "simple backquote"
+    (and (equal (#{`}# 42) 42)
+         (equal (#{`}# (1 (a))) '(1 (a)))
+         (equal (#{`}# (1 . 2)) '(1 . 2))))
+  (pass-if "unquote"
+    (progn (setq a 42 l '(18 12))
+           (and (equal (#{`}# (#{,}# a)) 42)
+                (equal (#{`}# (1 a ((#{,}# l)) . (#{,}# a))) '(1 a ((18 12)) . 42)))))
+  (pass-if "unquote splicing"
+    (progn (setq l '(18 12) empty '())
+           (and (equal (#{`}# (#{,@}# l)) '(18 12))
+                (equal (#{`}# (l 2 (3 (#{,@}# l)) ((#{,@}# l)) (#{,@}# l)))
+                       '(l 2 (3 18 12) (18 12) 18 12))
+                (equal (#{`}# (1 2 (#{,@}# empty) 3)) '(1 2 3))))))
+      
+
+
+; Macros.
+; =======
+
+(with-test-prefix/compile "Macros"
+
+  (pass-if-equal "defmacro value" 'magic-number
+    (defmacro magic-number () 42))
+
+  (pass-if-equal "macro expansion" 1
+    (progn (defmacro take-first (a b) a)
+           (take-first 1 (/ 1 0)))))
+
+
+; Test the built-ins.
+; ===================
+
+(with-test-prefix/compile "Equivalence Predicates"
+
+  (pass-if "equal"
+    (and (equal 2 2) (not (equal 1 2))
+         (equal "abc" "abc") (not (equal "abc" "ABC"))
+         (equal 'abc 'abc) (not (equal 'abc 'def))
+         (equal '(1 2 (3 4) 5) '(1 2 (3 4) 5))
+         (not (equal '(1 2 3 4 5) '(1 2 (3 4) 5)))))
+
+  (pass-if "eq"
+    (progn (setq some-list '(1 2))
+           (setq some-string "abc")
+           (and (eq 2 2) (not (eq 1 2))
+                (eq 'abc 'abc) (not (eq 'abc 'def))
+                (eq some-string some-string) (not (eq some-string (string 97 98 99)))
+                (eq some-list some-list) (not (eq some-list (list 1 2)))))))
+
+(with-test-prefix/compile "Number Built-Ins"
+
+  (pass-if "floatp"
+    (and (floatp 1.0) (not (floatp 1)) (not (floatp 'a))))
+  (pass-if "integerp"
+    (and (integerp 42) (integerp -2) (not (integerp 1.0))))
+  (pass-if "numberp"
+    (and (numberp 1.0) (numberp -2) (not (numberp 'a))))
+  (pass-if "wholenump"
+    (and (wholenump 0) (not (wholenump -2)) (not (wholenump 1.0))))
+  (pass-if "zerop"
+    (and (zerop 0) (zerop 0.0) (not (zerop 1))))
+
+  (pass-if "comparisons"
+    (and (= 1 1.0) (/= 0 1)
+         (< 1 2) (> 2 1) (>= 1 1) (<= 1 1)
+         (not (< 1 1)) (not (<= 2 1))))
+
+  (pass-if "max and min"
+    (and (= (max -5 2 4.0 1) 4.0) (= (min -5 2 4.0 1) -5)
+         (= (max 1) 1) (= (min 1) 1)))
+  (pass-if "abs"
+    (and (= (abs 1.0) 1.0) (= (abs -5) 5)))
+
+  (pass-if "float"
+    (and (= (float 1) 1) (= (float 5.5) 5.5)
+         (floatp (float 1))))
+
+  (pass-if-equal "basic arithmetic operators" -8.5
+    (+ (1+ 0) (1- 0) (- 5.5) (* 2 -2) (- 2 1)))
+  (pass-if "modulo"
+    (= (% 5 3) 2))
+
+  (pass-if "floating point rounding"
+    (and (= (ffloor 1.7) 1.0) (= (ffloor -1.2) -2.0) (= (ffloor 1.0) 1.0)
+         (= (fceiling 1.2) 2.0) (= (fceiling -1.7) -1.0) (= (fceiling 1.0) 1.0)
+         (= (ftruncate 1.6) 1.0) (= (ftruncate -1.7) -1.0)
+         (= (fround 1.2) 1.0) (= (fround 1.7) 2.0) (= (fround -1.7) -2.0))))
+
+(with-test-prefix/compile "List Built-Ins"
+
+  (pass-if "consp and atom"
+    (and (consp '(1 2 3)) (consp '(1 2 . 3)) (consp '(a . b))
+         (not (consp '())) (not (consp 1)) (not (consp "abc"))
+         (atom 'a) (atom '()) (atom -1.5) (atom "abc")
+         (not (atom '(1 . 2))) (not (atom '(1)))))
+  (pass-if "listp and nlistp"
+    (and (listp '(1 2 3)) (listp '(1)) (listp '()) (listp '(1 . 2))
+         (not (listp 'a)) (not (listp 42)) (nlistp 42)
+         (not (nlistp '())) (not (nlistp '(1 2 3))) (not (nlistp '(1 . 2)))))
+  (pass-if "null"
+    (and (null '()) (not (null 1)) (not (null '(1 2))) (not (null '(1 . 2)))))
+
+  (pass-if "car and cdr"
+    (and (equal (car '(1 2 3)) 1) (equal (cdr '(1 2 3)) '(2 3))
+         (equal (car '()) nil) (equal (cdr '()) nil)
+         (equal (car '(1 . 2)) 1) (equal (cdr '(1 . 2)) 2)
+         (null (cdr '(1)))))
+  (pass-if "car-safe and cdr-safe"
+    (and (equal (car-safe '(1 2)) 1) (equal (cdr-safe '(1 2)) '(2))
+         (equal (car-safe 5) nil) (equal (cdr-safe 5) nil)))
+
+  (pass-if "nth and nthcdr"
+    (and (equal (nth -5 '(1 2 3)) 1) (equal (nth 3 '(1 2 3)) nil)
+         (equal (nth 0 '(1 2 3)) 1) (equal (nth 2 '(1 2 3)) 3)
+         (equal (nthcdr -5 '(1 2 3)) '(1 2 3))
+         (equal (nthcdr 4 '(1 2 3)) nil)
+         (equal (nthcdr 1 '(1 2 3)) '(2 3))
+         (equal (nthcdr 2 '(1 2 3)) '(3))))
+
+  (pass-if "length"
+    (and (= (length '()) 0)
+         (= (length '(1 2 3 4 5)) 5)
+         (= (length '(1 2 (3 4 (5)) 6)) 4)))
+
+  (pass-if "cons, list and make-list"
+    (and (equal (cons 1 2) '(1 . 2)) (equal (cons 1 '(2 3)) '(1 2 3))
+         (equal (cons 1 '()) '(1))
+         (equal (list 'a) '(a)) (equal (list) '()) (equal (list 1 2) '(1 2))
+         (equal (make-list 3 42) '(42 42 42))
+         (equal (make-list 0 1) '())))
+  (pass-if "append"
+    (and (equal (append '(1 2) '(3 4) '(5)) '(1 2 3 4 5))
+         (equal (append '(1 2) 3) '(1 2 . 3))))
+  (pass-if "reverse"
+    (and (equal (reverse '(5 4 3 2 1)) '(1 2 3 4 5))
+         (equal (reverse '()) '())))
+  (pass-if "setcar and setcdr"
+    (progn (setq pair (cons 1 2))
+           (setq copy pair)
+           (setq a (setcar copy 3))
+           (setq b (setcdr copy 4))
+           (and (= a 3) (= b 4)
+                (equal pair '(3 . 4))))))

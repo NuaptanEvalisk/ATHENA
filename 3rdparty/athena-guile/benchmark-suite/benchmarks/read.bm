@@ -1,0 +1,73 @@
+;;; read.bm --- Exercise the reader.               -*- Scheme -*-
+;;;
+;;; Copyright (C) 2008, 2010, 2012 Free Software Foundation, Inc.
+;;;
+;;; This program is free software; you can redistribute it and/or
+;;; modify it under the terms of the GNU Lesser General Public License
+;;; as published by the Free Software Foundation; either version 3, or
+;;; (at your option) any later version.
+;;;
+;;; This program is distributed in the hope that it will be useful,
+;;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;;; GNU Lesser General Public License for more details.
+;;;
+;;; You should have received a copy of the GNU Lesser General Public
+;;; License along with this software; see the file COPYING.LESSER.  If
+;;; not, write to the Free Software Foundation, Inc., 51 Franklin
+;;; Street, Fifth Floor, Boston, MA 02110-1301 USA
+
+(define-module (benchmarks read)
+  :use-module (benchmark-suite lib))
+
+
+(define %files-to-load
+  ;; Various large Scheme files.
+  (map %search-load-path
+       '("ice-9/boot-9.scm"  "ice-9/common-list.scm"
+	 "ice-9/format.scm"  "ice-9/optargs.scm"
+	 "ice-9/session.scm" "ice-9/getopt-long.scm"
+         "ice-9/psyntax-pp.scm")))
+
+(define (load-file-with-reader file-name reader buffering)
+  (with-input-from-file file-name
+    (lambda ()
+      (apply setvbuf (current-input-port) buffering)
+      (let loop ((sexp (reader)))
+        (if (eof-object? sexp)
+            #t
+	    (loop (reader)))))))
+
+(define (exercise-read buffering)
+  (for-each (lambda (file)
+		      (load-file-with-reader file read buffering))
+            %files-to-load))
+
+(define small "\"hello, world!\"")
+(define large (string-append "\"" (make-string 1234 #\A) "\""))
+
+(fluid-set! %default-port-encoding "UTF-8")       ; for string ports
+
+
+(with-benchmark-prefix "read"
+
+  (benchmark "'none" 5  ;; this one is very slow
+    (exercise-read (list 'none)))
+
+  (benchmark "'line" 10
+    (exercise-read (list 'line)))
+
+  (benchmark "'block 4096" 10
+    (exercise-read (list 'block 4096)))
+
+  (benchmark "'block 8192" 10
+    (exercise-read (list 'block 8192)))
+
+  (benchmark "'block 16384" 10
+    (exercise-read (list 'block 16384)))
+
+  (benchmark "small strings" 100000
+    (call-with-input-string small read))
+
+  (benchmark "large strings" 100000
+    (call-with-input-string large read)))

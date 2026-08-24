@@ -12,7 +12,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (texmacs-module (athena athena tm-server))
-(use-modules (kernel athena tm-preferences))
+(import-from (kernel athena tm-preferences))
 (lazy-define (generic document-edit) init-default set-document-language)
 
 
@@ -117,7 +117,7 @@
   (string<=? (symbol->string s1) (symbol->string s2)))
 
 (define (get-function-list)
-  (list-sort (map car (ahash-table->list tm-defined-table)) symbol<=?))
+  (list-sort (%athena-defined-symbols) symbol<=?))
 
 (define (get-interactive-function-list)
   (let* ((funs (get-function-list))

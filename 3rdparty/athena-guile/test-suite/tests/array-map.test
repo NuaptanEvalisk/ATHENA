@@ -1,0 +1,552 @@
+;;;; array-map.test --- test array mapping functions -*- scheme -*-
+;;;;
+;;;; Copyright (C) 2004, 2005, 2006, 2009, 2013 Free Software Foundation, Inc.
+;;;;
+;;;; This library is free software; you can redistribute it and/or
+;;;; modify it under the terms of the GNU Lesser General Public
+;;;; License as published by the Free Software Foundation; either
+;;;; version 3 of the License, or (at your option) any later version.
+;;;;
+;;;; This library is distributed in the hope that it will be useful,
+;;;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;;;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+;;;; Lesser General Public License for more details.
+;;;;
+;;;; You should have received a copy of the GNU Lesser General Public
+;;;; License along with this library; if not, write to the Free Software
+;;;; Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+
+(define-module (test-suite test-array-map)
+  #:use-module (test-suite lib))
+
+(define exception:shape-mismatch
+  (cons 'misc-error ".*shape mismatch.*"))
+
+(define (array-row a i)
+  (make-shared-array a (lambda (j) (list i j))
+                       (cadr (array-dimensions a))))
+
+(define (array-col a j)
+  (make-shared-array a (lambda (i) (list i j))
+                       (car (array-dimensions a))))
+
+;;;
+;;; array-index-map!
+;;;
+
+(with-test-prefix "array-index-map!"
+
+  (pass-if "basic test"
+    (let ((nlst '()))
+      (array-index-map! (make-array #f '(1 1))
+                        (lambda (n)
+                          (set! nlst (cons n nlst))))
+      (equal? nlst '(1))))
+
+  (with-test-prefix "empty arrays"
+
+    (pass-if "all axes empty"
+      (array-index-map! (make-typed-array 'f64 0 0 0) (const 0))
+      (array-index-map! (make-typed-array 'b #t 0 0) (const #t))
+      (array-index-map! (make-typed-array #t 0 0 0) (const 0))
+      #t)
+
+    (pass-if "last axis empty"
+      (array-index-map! (make-typed-array 'f64 0 2 0) (const 0))
+      (array-index-map! (make-typed-array 'b #t 2 0) (const #t))
+      (array-index-map! (make-typed-array #t 0 2 0) (const 0))
+      #t)
+
+    ; the 'f64 cases fail in 2.0.9 with out-of-range.
+    (pass-if "axis empty, other than last"
+      (array-index-map! (make-typed-array 'f64 0 0 2) (const 0))
+      (array-index-map! (make-typed-array 'b #t 0 2) (const #t))
+      (array-index-map! (make-typed-array #t 0 0 2) (const 0))
+      #t))
+
+  (pass-if "rank 2"
+    (let ((a (make-array 0 2 2))
+          (b (make-array 0 2 2)))
+      (array-index-map! a (lambda (i j) i))
+      (array-index-map! b (lambda (i j) j))
+      (and (array-equal? a #2((0 0) (1 1)))
+           (array-equal? b #2((0 1) (0 1)))))))
+
+;;;
+;;; array-copy!
+;;;
+
+(with-test-prefix "array-copy!"
+
+  (with-test-prefix "empty arrays"
+
+    (pass-if "empty other than last, #t"
+      (let* ((b (make-array 0 2 2))
+             (c (make-shared-array b (lambda (i j) (list i j)) 0 2)))
+        (array-copy! #2:0:2() c)
+        (array-equal? #2:0:2() c)))
+
+    (pass-if "empty other than last, 'f64"
+      (let* ((b (make-typed-array 'f64 0 2 2))
+             (c (make-shared-array b (lambda (i j) (list i j)) 0 2)))
+        (array-copy! #2:0:2() c)
+        (array-equal? #2f64:0:2() c)))
+
+    (pass-if "empty/immutable vector"
+      (array-copy! #() (vector))
+      #t)
+
+  ;; FIXME add empty, type 'b cases.
+
+    )
+
+  ;; note that it is the opposite of array-map!. This is, unfortunately,
+  ;; documented in the manual.
+
+  (pass-if "matching behavior I"
+    (let ((a #(1 2))
+          (b (make-array 0 3)))
+      (array-copy! a b)
+      (equal? b #(1 2 0))))
+
+  (pass-if-exception "matching behavior II" exception:shape-mismatch
+    (let ((a #(1 2 3))
+          (b (make-array 0 2)))
+      (array-copy! a b)
+      (equal? b #(1 2))))
+
+  ;; here both a & b are are unrollable down to the first axis, but the
+  ;; size mismatch limits unrolling to the last axis only.
+
+  (pass-if "matching behavior III"
+    (let ((a #3(((1 2) (3 4)) ((5 6) (7 8))))
+          (b (make-array 0 2 3 2)))
+      (array-copy! a b)
+      (array-equal? b #3(((1 2) (3 4) (0 0)) ((5 6) (7 8) (0 0))))))
+
+  (pass-if "rank 0"
+    (let ((a #0(99))
+          (b (make-array 0)))
+      (array-copy! a b)
+      (equal? b #0(99))))
+
+  (pass-if "rank 1"
+    (let* ((a #2((1 2) (3 4)))
+           (b (make-shared-array a (lambda (j) (list 1 j)) 2))
+           (c (make-shared-array a (lambda (i) (list (- 1 i) 1)) 2))
+           (d (make-array 0 2))
+           (e (make-array 0 2)))
+      (array-copy! b d)
+      (array-copy! c e)
+      (and (equal? d #(3 4))
+           (equal? e #(4 2)))))
+
+  (pass-if "rank 2"
+    (let ((a #2((1 2) (3 4)))
+          (b (make-array 0 2 2))
+          (c (make-array 0 2 2))
+          (d (make-array 0 2 2))
+          (e (make-array 0 2 2)))
+      (array-copy! a b)
+      (array-copy! a (transpose-array c 1 0))
+      (array-copy! (transpose-array a 1 0) d)
+      (array-copy! (transpose-array a 1 0) (transpose-array e 1 0))
+      (and (equal? a #2((1 2) (3 4)))
+           (equal? b #2((1 2) (3 4)))
+           (equal? c #2((1 3) (2 4)))
+           (equal? d #2((1 3) (2 4)))
+           (equal? e #2((1 2) (3 4))))))
+
+  (pass-if "rank 2, discontinuous"
+    (let ((A #2((0 1) (2 3) (4 5)))
+          (B #2((10 11) (12 13) (14 15)))
+          (C #2((20) (21) (22)))
+          (X (make-array 0 3 5))
+          (piece (lambda (X w s)
+                   (make-shared-array
+                    X (lambda (i j) (list i (+ j s))) 3 w))))
+      (array-copy! A (piece X 2 0))
+      (array-copy! B (piece X 2 2))
+      (array-copy! C (piece X 1 4))
+      (and (array-equal? X #2((0 1 10 11 20) (2 3 12 13 21) (4 5 14 15 22))))))
+
+  (pass-if "null increments, not empty"
+    (let ((a (make-array 0 2 2)))
+      (array-copy! (make-shared-array #0(1) (lambda x '()) 2 2) a)
+      (array-equal? #2((1 1) (1 1))))))
+
+;;;
+;;; array-map!
+;;;
+
+(with-test-prefix "array-map!"
+
+  (pass-if-exception "no args" exception:wrong-num-args
+    (array-map!))
+
+  (pass-if-exception "one arg" exception:wrong-num-args
+    (array-map! (make-array #f 5)))
+
+  (with-test-prefix "no sources"
+
+    (pass-if "closure 0"
+      (array-map! (make-array #f 5) (lambda () #f))
+      #t)
+
+    (pass-if-exception "closure 1" exception:wrong-num-args
+      (array-map! (make-array #f 5) (lambda (x) #f)))
+
+    (pass-if-exception "closure 2" exception:wrong-num-args
+      (array-map! (make-array #f 5) (lambda (x y) #f)))
+
+    (pass-if-exception "subr_1" exception:wrong-num-args
+      (array-map! (make-array #f 5) length))
+
+    (pass-if-exception "subr_2" exception:wrong-num-args
+      (array-map! (make-array #f 5) logtest))
+
+    (pass-if-exception "subr_2o" exception:wrong-num-args
+      (array-map! (make-array #f 5) number->string))
+
+    (pass-if-exception "dsubr" exception:wrong-num-args
+      (array-map! (make-array #f 5) sqrt))
+
+    (pass-if "rpsubr"
+      (let ((a (make-array 'foo 5)))
+	(array-map! a =)
+	(equal? a (make-array #t 5))))
+
+    (pass-if "asubr"
+      (let ((a (make-array 'foo 5)))
+	(array-map! a +)
+	(equal? a (make-array 0 5))))
+
+    ;; in Guile 1.6.4 and earlier this resulted in a segv
+    (pass-if "noop"
+      (array-map! (make-array #f 5) noop)
+      #t))
+
+  (with-test-prefix "one source"
+
+    (pass-if-exception "closure 0" exception:wrong-num-args
+      (array-map! (make-array #f 5) (lambda () #f)
+                  (make-array #f 5)))
+
+    (pass-if "closure 1"
+      (let ((a (make-array #f 5)))
+	(array-map! a (lambda (x) 'foo) (make-array #f 5))
+	(equal? a (make-array 'foo 5))))
+
+    (pass-if-exception "closure 2" exception:wrong-num-args
+      (array-map! (make-array #f 5) (lambda (x y) #f)
+                  (make-array #f 5)))
+
+    (pass-if "subr_1"
+      (let ((a (make-array #f 5)))
+        (array-map! a length (make-array '(x y z) 5))
+        (equal? a (make-array 3 5))))
+
+    (pass-if-exception "subr_2" exception:wrong-num-args
+      (array-map! (make-array #f 5) logtest
+                  (make-array 999 5)))
+
+    (pass-if "subr_2o"
+      (let ((a (make-array #f 5)))
+	(array-map! a number->string (make-array 99 5))
+	(equal? a (make-array "99" 5))))
+
+    (pass-if "dsubr"
+      (let ((a (make-array #f 5)))
+	(array-map! a sqrt (make-array 16.0 5))
+	(equal? a (make-array 4.0 5))))
+
+    (pass-if "rpsubr"
+      (let ((a (make-array 'foo 5)))
+	(array-map! a = (make-array 0 5))
+	(equal? a (make-array #t 5))))
+
+    (pass-if "asubr"
+      (let ((a (make-array 'foo 5)))
+	(array-map! a - (make-array 99 5))
+	(equal? a (make-array -99 5))))
+
+    ;; in Guile 1.6.5 and 1.6.6 this was an error
+    (pass-if "1+"
+      (let ((a (make-array #f 5)))
+	(array-map! a 1+ (make-array 123 5))
+	(equal? a (make-array 124 5))))
+
+    (pass-if "rank 0"
+      (let ((a #0(99))
+            (b (make-array 0)))
+        (array-map! b values a)
+        (equal? b #0(99))))
+
+    (pass-if "rank 2, discontinuous"
+      (let ((A #2((0 1) (2 3) (4 5)))
+            (B #2((10 11) (12 13) (14 15)))
+            (C #2((20) (21) (22)))
+            (X (make-array 0 3 5))
+            (piece (lambda (X w s)
+                     (make-shared-array
+                      X (lambda (i j) (list i (+ j s))) 3 w))))
+        (array-map! (piece X 2 0) values A)
+        (array-map! (piece X 2 2) values B)
+        (array-map! (piece X 1 4) values C)
+        (and (array-equal? X #2((0 1 10 11 20) (2 3 12 13 21) (4 5 14 15 22))))))
+
+    (pass-if "null increments, not empty"
+      (let ((a (make-array 0 2 2)))
+        (array-map! a values (make-shared-array #0(1) (lambda x '()) 2 2))
+        (array-equal? a #2((1 1) (1 1))))))
+
+  (with-test-prefix "two sources"
+
+    (pass-if-exception "closure 0" exception:wrong-num-args
+      (array-map! (make-array #f 5) (lambda () #f)
+                  (make-array #f 5) (make-array #f 5)))
+
+    (pass-if-exception "closure 1" exception:wrong-num-args
+      (array-map! (make-array #f 5) (lambda (x) #f)
+                  (make-array #f 5) (make-array #f 5)))
+
+    (pass-if "closure 2"
+      (let ((a (make-array #f 5)))
+        (array-map! a (lambda (x y) 'foo)
+                    (make-array #f 5) (make-array #f 5))
+        (equal? a (make-array 'foo 5))))
+
+    (pass-if-exception "subr_1" exception:wrong-num-args
+      (array-map! (make-array #f 5) length
+		  (make-array #f 5) (make-array #f 5)))
+
+    (pass-if "subr_2"
+      (let ((a (make-array 'foo 5)))
+	(array-map! a logtest
+		    (make-array 999 5) (make-array 999 5))
+	(equal? a (make-array #t 5))))
+
+    (pass-if "subr_2o"
+      (let ((a (make-array #f 5)))
+	(array-map! a number->string
+		    (make-array 32 5) (make-array 16 5))
+	(equal? a (make-array "20" 5))))
+
+    (pass-if-exception "dsubr" exception:wrong-num-args
+      (let ((a (make-array #f 5)))
+	(array-map! a sqrt
+		    (make-array 16.0 5) (make-array 16.0 5))
+	(equal? a (make-array 4.0 5))))
+
+    (pass-if "rpsubr"
+      (let ((a (make-array 'foo 5)))
+	(array-map! a = (make-array 99 5) (make-array 77 5))
+	(equal? a (make-array #f 5))))
+
+    (pass-if "asubr"
+      (let ((a (make-array 'foo 5)))
+	(array-map! a - (make-array 99 5) (make-array 11 5))
+	(equal? a (make-array 88 5))))
+
+    (pass-if "+"
+      (let ((a (make-array #f 4)))
+	(array-map! a + #(1 2 3 4) #(5 6 7 8))
+	(equal? a #(6 8 10 12))))
+
+    (pass-if "noncompact arrays 1"
+      (let ((a #2((0 1) (2 3)))
+            (c (make-array 0 2)))
+        (begin
+          (array-map! c + (array-row a 1) (array-row a 1))
+          (array-equal? c #(4 6)))))
+
+    (pass-if "noncompact arrays 2"
+      (let ((a #2((0 1) (2 3)))
+            (c (make-array 0 2)))
+        (begin
+          (array-map! c + (array-col a 1) (array-col a 1))
+          (array-equal? c #(2 6)))))
+
+    (pass-if "noncompact arrays 3"
+      (let ((a #2((0 1) (2 3)))
+            (c (make-array 0 2)))
+        (begin
+          (array-map! c + (array-col a 1) (array-row a 1))
+          (array-equal? c #(3 6)))))
+
+    (pass-if "noncompact arrays 4"
+      (let ((a #2((0 1) (2 3)))
+            (c (make-array 0 2)))
+        (begin
+          (array-map! c + (array-col a 1) (array-row a 1))
+          (array-equal? c #(3 6)))))
+
+    (pass-if "offset arrays 1"
+      (let ((a #2@1@-3((0 1) (2 3)))
+            (c (make-array 0 '(1 2) '(-3 -2))))
+        (begin
+          (array-map! c + a a)
+          (array-equal? c #2@1@-3((0 2) (4 6)))))))
+
+  ;; note that array-copy! has the opposite behavior.
+
+  (pass-if-exception "matching behavior I" exception:shape-mismatch
+    (let ((a #(1 2))
+          (b (make-array 0 3)))
+      (array-map! b values a)
+      (equal? b #(1 2 0))))
+
+  (pass-if "matching behavior II"
+    (let ((a #(1 2 3))
+          (b (make-array 0 2)))
+      (array-map! b values a)
+      (equal? b #(1 2))))
+
+  ;; here both a & b are are unrollable down to the first axis, but the
+  ;; size mismatch limits unrolling to the last axis only.
+
+  (pass-if "matching behavior III"
+    (let ((a #3(((1 2) (3 4) (5 6)) ((7 8) (9 10) (11 12))))
+          (b (make-array 0 2 2 2)))
+      (array-map! b values a)
+      (array-equal? b #3(((1 2) (3 4)) ((7 8) (9 10)))))))
+
+;;;
+;;; array-for-each
+;;;
+
+(with-test-prefix "array-for-each"
+
+  (with-test-prefix "1 source"
+    (pass-if-equal "rank 0"
+        '(99)
+      (let* ((a #0(99))
+             (l '())
+             (p (lambda (x) (set! l (cons x l)))))
+        (array-for-each p a)
+        l))
+
+    (pass-if-equal "noncompact array"
+        '(3 2 1 0)
+      (let* ((a #2((0 1) (2 3)))
+             (l '())
+             (p (lambda (x) (set! l (cons x l)))))
+        (array-for-each p a)
+        l))
+
+    (pass-if-equal "vector"
+        '(3 2 1 0)
+      (let* ((a #(0 1 2 3))
+             (l '())
+             (p (lambda (x) (set! l (cons x l)))))
+        (array-for-each p a)
+        l))
+
+    (pass-if-equal "shared array"
+        '(3 2 1 0)
+      (let* ((a  #2((0 1) (2 3)))
+             (a' (make-shared-array a
+                                    (lambda (x)
+                                      (list (quotient x 4)
+                                            (modulo x 4)))
+                                    4))
+             (l  '())
+             (p  (lambda (x) (set! l (cons x l)))))
+        (array-for-each p a')
+        l)))
+
+  (with-test-prefix "3 sources"
+    (pass-if-equal "noncompact arrays 1"
+        '((3 1 3) (2 0 2))
+      (let* ((a #2((0 1) (2 3)))
+             (l '())
+             (rec (lambda args (set! l (cons args l)))))
+        (array-for-each rec (array-row a 1) (array-row a 0) (array-row a 1))
+        l))
+
+    (pass-if-equal "noncompact arrays 2"
+        '((3 3 3) (2 2 1))
+      (let* ((a #2((0 1) (2 3)))
+             (l '())
+             (rec (lambda args (set! l (cons args l)))))
+        (array-for-each rec (array-row a 1) (array-row a 1) (array-col a 1))
+        l))
+
+    (pass-if-equal "noncompact arrays 3"
+        '((3 3 3) (2 1 1))
+      (let* ((a #2((0 1) (2 3)))
+             (l '())
+             (rec (lambda args (set! l (cons args l)))))
+        (array-for-each rec (array-row a 1) (array-col a 1) (array-col a 1))
+        l))
+
+    (pass-if-equal "noncompact arrays 4"
+        '((3 2 3) (1 0 2))
+      (let* ((a #2((0 1) (2 3)))
+             (l '())
+             (rec (lambda args (set! l (cons args l)))))
+        (array-for-each rec (array-col a 1) (array-col a 0) (array-row a 1))
+        l)))
+
+  (with-test-prefix "empty arrays"
+
+    (pass-if "empty other than last, #t" ; fails in 2.0.9 with bad a.
+      (let* ((a (list))
+             (b (make-array 0 2 2))
+             (c (make-shared-array b (lambda (i j) (list i j)) 0 2)))
+        (array-for-each (lambda (c) (set! a (cons c a))) c)
+        (equal? a '())))
+
+    (pass-if "empty other than last, f64" ; fails in 2.0.9 with out of range.
+      (let* ((a (list))
+             (b (make-typed-array 'f64 0 2 2))
+             (c (make-shared-array b (lambda (i j) (list i j)) 0 2)))
+        (array-for-each (lambda (c) (set! a (cons c a))) c)
+        (equal? a '())))
+
+    ;; FIXME add type 'b cases.
+
+    (pass-if-exception "empty arrays shape check" exception:shape-mismatch
+      (let* ((a (list))
+             (b (make-typed-array 'f64 0 0 2))
+             (c (make-typed-array 'f64 0 2 0)))
+        (array-for-each (lambda (b c) (set! a (cons* b c a))) b c)))))
+
+;;;
+;;; array-slice-for-each
+;;;
+
+(with-test-prefix "array-slice-for-each"
+
+  (pass-if-equal "1 argument frame rank 1"
+      #2((1 3 9) (2 7 8))
+      (let* ((a (list->array 2 '((9 1 3) (7 8 2)))))
+        (array-slice-for-each 1 (lambda (a) (sort! a <)) a)
+        a))
+
+  (pass-if-equal "1 argument frame rank 1, non-zero base indices"
+      #2@1@1((1 3 9) (2 7 8))
+      (let* ((a (make-array *unspecified* '(1 2) '(1 3)))
+             (b #2@1@1((9 1 3) (7 8 2))))
+        (array-copy! b a)
+        (array-slice-for-each 1 (lambda (a) (sort! a <)) a)
+        a))
+
+  (pass-if-equal "2 arguments frame rank 1"
+      #f64(8 -1)
+      (let* ((x (list->typed-array 'f64 2 '((9 1) (7 8))))
+             (y (f64vector 99 99)))
+        (array-slice-for-each 1 (lambda (y x) (array-set! y (- (array-ref x 0) (array-ref x 1)))) y x)
+        y))
+
+  (pass-if-equal "regression: zero-sized frame loop without unrolling"
+      99
+    (let* ((x 99)
+           (o (make-array 0. 0 3 2)))
+      (array-slice-for-each 2
+        (lambda (o a0 a1)
+          (set! x 0))
+        o
+        (make-shared-array (make-array 1. 0 1) (const '(0 0)) 0 3)
+        (make-array 2. 0 3))
+      x)))

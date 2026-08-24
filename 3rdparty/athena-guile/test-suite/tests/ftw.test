@@ -1,0 +1,374 @@
+;;;; ftw.test --- exercise ice-9/ftw.scm      -*- scheme -*-
+;;;;
+;;;; Copyright 2006, 2011, 2012, 2018 Free Software Foundation, Inc.
+;;;;
+;;;; This library is free software; you can redistribute it and/or
+;;;; modify it under the terms of the GNU Lesser General Public
+;;;; License as published by the Free Software Foundation; either
+;;;; version 3 of the License, or (at your option) any later version.
+;;;; 
+;;;; This library is distributed in the hope that it will be useful,
+;;;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;;;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+;;;; Lesser General Public License for more details.
+;;;; 
+;;;; You should have received a copy of the GNU Lesser General Public
+;;;; License along with this library; if not, write to the Free Software
+;;;; Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+
+(define-module (test-suite test-ice-9-ftw)
+  #:use-module (test-suite lib)
+  #:use-module (ice-9 ftw)
+  #:use-module (ice-9 match)
+  #:use-module (srfi srfi-1)
+  #:use-module (srfi srfi-26))
+
+(define mingw?
+  (string-contains %host-type "-mingw32"))
+
+;; the procedure-source checks here ensure the vector indexes we write match
+;; what ice-9/posix.scm stat:dev and stat:ino do (which in turn match
+;; libguile/filesys.c of course)
+
+(define (stat:dev! st dev)
+  (vector-set! st 0 dev))
+(define (stat:ino! st ino)
+  (vector-set! st 1 ino))
+
+(let* ((s (stat "/"))
+       (i (stat:ino s))
+       (d (stat:dev s)))
+  (stat:ino! s (1+ i))
+  (stat:dev! s (1+ d))
+  (if (not (and (= (stat:ino s) (1+ i))
+                (= (stat:dev s) (1+ d))))
+      (error "unexpected definitions of stat:dev and stat:ino")))
+
+;;
+;; visited?-proc
+;;
+
+(with-test-prefix "visited?-proc"
+
+  ;; normally internal-only
+  (let* ((visited?-proc (@@ (ice-9 ftw) visited?-proc))
+	 (visited? (visited?-proc 97))
+	 (s (stat "/")))
+
+    (define (try-visited? dev ino fname)
+      (stat:dev! s dev)
+      (stat:ino! s ino)
+      (visited? s fname))
+
+    (with-test-prefix "valid inodes"
+
+      (pass-if "0 1 - 1st" (eq? #f (try-visited? 0 1 "0.1")))
+      (pass-if "0 1 - 2nd" (eq? #t (try-visited? 0 1 "0.1")))
+      (pass-if "0 1 - 3rd" (eq? #t (try-visited? 0 1 "0.1")))
+
+      (pass-if "0 2" (eq? #f (try-visited? 0 2 "0.2")))
+      (pass-if "0 3" (eq? #f (try-visited? 0 3 "0.3")))
+      (pass-if "0 4" (eq? #f (try-visited? 0 4 "0.4")))
+
+      (pass-if "5 5" (eq? #f (try-visited? 5 5 "5.5")))
+      (pass-if "5 7" (eq? #f (try-visited? 5 7 "5.7")))
+      (pass-if "7 5" (eq? #f (try-visited? 7 5 "7.5")))
+      (pass-if "7 7" (eq? #f (try-visited? 7 7 "7.7")))
+
+      (pass-if "5 5 - 2nd" (eq? #t (try-visited? 5 5 "5.5")))
+      (pass-if "5 7 - 2nd" (eq? #t (try-visited? 5 7 "5.7")))
+      (pass-if "7 5 - 2nd" (eq? #t (try-visited? 7 5 "7.5")))
+      (pass-if "7 7 - 2nd" (eq? #t (try-visited? 7 7 "7.7"))))
+
+    (with-test-prefix "broken inodes"
+      (pass-if "0 1 - 1st" (eq? #f (try-visited? 0 0 "0.1")))
+      (pass-if "0 1 - 2nd" (eq? #t (try-visited? 0 0 "0.1")))
+      (pass-if "0 1 - 3rd" (eq? #t (try-visited? 0 0 "0.1")))
+
+      (pass-if "0 2" (eq? #f (try-visited? 0 0 "0.2")))
+      (pass-if "0 3" (eq? #f (try-visited? 0 0 "0.3")))
+      (pass-if "0 4" (eq? #f (try-visited? 0 0 "0.4")))
+
+      (pass-if "5 5" (eq? #f (try-visited? 5 0 "5.5")))
+      (pass-if "5 7" (eq? #f (try-visited? 5 0 "5.7")))
+      (pass-if "7 5" (eq? #f (try-visited? 7 0 "7.5")))
+      (pass-if "7 7" (eq? #f (try-visited? 7 0 "7.7")))
+
+      (pass-if "5 5 - 2nd" (eq? #t (try-visited? 5 0 "5.5")))
+      (pass-if "5 7 - 2nd" (eq? #t (try-visited? 5 0 "5.7")))
+      (pass-if "7 5 - 2nd" (eq? #t (try-visited? 7 0 "7.5")))
+      (pass-if "7 7 - 2nd" (eq? #t (try-visited? 7 0 "7.7"))))))
+
+
+;;;
+;;; `file-system-fold' & co.
+;;;
+
+(define %top-builddir
+  (canonicalize-path (getcwd)))
+
+(define %top-srcdir
+  (canonicalize-path (assq-ref %guile-build-info 'top_srcdir)))
+
+(define %test-dir
+  (string-append %top-srcdir "/test-suite"))
+
+(define %test-suite-lib-dir
+  (string-append %top-srcdir "/test-suite/test-suite"))
+
+(define (make-file-tree dir tree)
+  "Make file system TREE at DIR."
+  (define (touch file)
+    (call-with-output-file file
+      (cut display "" <>)))
+
+  (let loop ((dir  dir)
+             (tree tree))
+    (define (scope file)
+      (string-append dir "/" file))
+
+    (match tree
+      (('directory name (body ...))
+       (mkdir (scope name))
+       (for-each (cute loop (scope name) <>) body))
+      (('directory name (? integer? mode) (body ...))
+       (mkdir (scope name))
+       (for-each (cute loop (scope name) <>) body)
+       (chmod (scope name) mode))
+      ((file)
+       (touch (scope file)))
+      ((file (? integer? mode))
+       (touch (scope file))
+       (chmod (scope file) mode))
+      ((from '-> to)
+       (symlink to (scope from))))))
+
+(define (delete-file-tree dir tree)
+  "Delete file TREE from DIR."
+  (let loop ((dir  dir)
+             (tree tree))
+    (define (scope file)
+      (string-append dir "/" file))
+
+    (match tree
+      (('directory name (body ...))
+       (for-each (cute loop (scope name) <>) body)
+       (rmdir (scope name)))
+      (('directory name (? integer? mode) (body ...))
+       (chmod (scope name) #o755)          ; make sure it can be entered
+       (for-each (cute loop (scope name) <>) body)
+       (rmdir (scope name)))
+      ((from '-> _)
+       (delete-file (scope from)))
+      ((file _ ...)
+       (delete-file (scope file))))))
+
+(define-syntax-rule (with-file-tree dir tree body ...)
+  (dynamic-wind
+    (lambda ()
+      (make-file-tree dir tree))
+    (lambda ()
+      body ...)
+    (lambda ()
+      (delete-file-tree dir tree))))
+
+(with-test-prefix "file-system-fold"
+
+  (pass-if "test-suite"
+    (let ((enter? (lambda (n s r)
+                    ;; Enter only `test-suite/tests/'.
+                    (if (member `(down ,%test-dir) r)
+                        (or (string=? (basename n) "tests")
+                            (string=? (basename n) "test-suite"))
+                        (string=? (basename n) "test-suite"))))
+          (leaf   (lambda (n s r) (cons `(leaf ,n) r)))
+          (down   (lambda (n s r) (cons `(down ,n) r)))
+          (up     (lambda (n s r) (cons `(up ,n) r)))
+          (skip   (lambda (n s r) (cons `(skip ,n) r)))
+          (error  (lambda (n s e r) (cons `(error ,n) r))))
+      (define seq
+        (reverse
+         (file-system-fold enter? leaf down up skip error '() %test-dir)))
+
+      (match seq
+        ((('down (? (cut string=? <> %test-dir)))
+          between ...
+          ('up (? (cut string=? <> %test-dir))))
+         (and (any (match-lambda (('down (= basename "test-suite")) #t) (_ #f))
+                   between)
+              (any (match-lambda (('down (= basename "tests")) #t) (_ #f))
+                   between)
+              (any (match-lambda (('leaf (= basename "alist.test")) #t) (_ #f))
+                   between)
+              (any (match-lambda (('up   (= basename "tests")) #t) (_ #f))
+                   between)
+              (any (match-lambda (('skip (= basename "standalone")) #t) (_ #f))
+                   between))))))
+
+  (pass-if-equal "test-suite (never enter)"
+      `((skip ,%test-dir))
+    (let ((enter? (lambda (n s r) #f))
+          (leaf   (lambda (n s r) (cons `(leaf ,n) r)))
+          (down   (lambda (n s r) (cons `(down ,n) r)))
+          (up     (lambda (n s r) (cons `(up ,n) r)))
+          (skip   (lambda (n s r) (cons `(skip ,n) r)))
+          (error  (lambda (n s e r) (cons `(error ,n) r))))
+      (file-system-fold enter? leaf down up skip error '() %test-dir)))
+
+  (let ((name   (string-append %test-suite-lib-dir "/lib.scm")))
+    (pass-if-equal "test-suite/lib.scm (flat file)"
+        `((leaf ,name))
+      (let ((enter? (lambda (n s r) #t))
+            (leaf   (lambda (n s r) (cons `(leaf ,n) r)))
+            (down   (lambda (n s r) (cons `(down ,n) r)))
+            (up     (lambda (n s r) (cons `(up ,n) r)))
+            (skip   (lambda (n s r) (cons `(skip ,n) r)))
+            (error  (lambda (n s e r) (cons `(error ,n) r))))
+        (file-system-fold enter? leaf down up skip error '() name))))
+
+  (pass-if "ENOENT"
+    (let ((enter? (lambda (n s r) #t))
+          (leaf   (lambda (n s r) (cons `(leaf ,n) r)))
+          (down   (lambda (n s r) (cons `(down ,n) r)))
+          (up     (lambda (n s r) (cons `(up ,n) r)))
+          (skip   (lambda (n s r) (cons `(skip ,n) r)))
+          (error  (lambda (n s e r) (cons `(error ,n ,e) r)))
+          (name   "/.does-not-exist."))
+      (equal? (file-system-fold enter? leaf down up skip error '() name)
+              `((error ,name ,ENOENT)))))
+
+  (let ((name (string-append %top-builddir "/test-EACCES")))
+    (pass-if-equal "EACCES"
+        `((error ,name ,EACCES))
+      (if (or (and (defined? 'getuid) (zero? (getuid)))
+              ;; When run as root, this test would fail because root can
+              ;; list the contents of #o000 directories.
+              mingw?
+              ;; MinGW uses ACLs for directory control, which
+              ;; chmod doesn't emulate.
+              )
+          (throw 'unresolved)
+          (with-file-tree %top-builddir '(directory "test-EACCES" #o000
+                                                    (("a") ("b")))
+            (let ((enter? (lambda (n s r) #t))
+                  (leaf   (lambda (n s r) (cons `(leaf ,n) r)))
+                  (down   (lambda (n s r) (cons `(down ,n) r)))
+                  (up     (lambda (n s r) (cons `(up ,n) r)))
+                  (skip   (lambda (n s r) (cons `(skip ,n) r)))
+                  (error  (lambda (n s e r) (cons `(error ,n ,e) r))))
+              (file-system-fold enter? leaf down up skip error '() name))))))
+
+  (pass-if "dangling symlink and lstat"
+    (if (not (defined? 'symlink))
+        (throw 'unresolved)
+        (with-file-tree %top-builddir '(directory "test-dangling"
+                                                  (("dangling" -> "xxx")))
+          (let ((enter? (lambda (n s r) #t))
+                (leaf   (lambda (n s r) (cons `(leaf ,n) r)))
+                (down   (lambda (n s r) (cons `(down ,n) r)))
+                (up     (lambda (n s r) (cons `(up ,n) r)))
+                (skip   (lambda (n s r) (cons `(skip ,n) r)))
+                (error  (lambda (n s e r) (cons `(error ,n ,e) r)))
+                (name   (string-append %top-builddir "/test-dangling")))
+            (equal? (file-system-fold enter? leaf down up skip error '()
+                                      name)
+                    `((up   ,name)
+                      (leaf ,(string-append name "/dangling"))
+                      (down ,name)))))))
+
+  (pass-if "dangling symlink and stat"
+    ;; Same as above, but using `stat' instead of `lstat'.
+    (if (not (defined? 'symlink))
+        (throw 'unresolved)
+        (with-file-tree %top-builddir '(directory "test-dangling"
+                                                  (("dangling" -> "xxx")))
+          (let ((enter? (lambda (n s r) #t))
+                (leaf   (lambda (n s r) (cons `(leaf ,n) r)))
+                (down   (lambda (n s r) (cons `(down ,n) r)))
+                (up     (lambda (n s r) (cons `(up ,n) r)))
+                (skip   (lambda (n s r) (cons `(skip ,n) r)))
+                (error  (lambda (n s e r) (cons `(error ,n ,e) r)))
+                (name   (string-append %top-builddir "/test-dangling")))
+            (equal? (file-system-fold enter? leaf down up skip error '()
+                                      name stat)
+                    `((up    ,name)
+                      (error ,(string-append name "/dangling") ,ENOENT)
+                      (down  ,name))))))))
+
+(with-test-prefix "file-system-tree"
+
+  (pass-if "test-suite (never enter)"
+    (match (file-system-tree %test-dir (lambda (n s) #f))
+      (("test-suite" (= stat:type 'directory))    ; no children
+       #t)))
+
+  (pass-if "test-suite/*"
+    (match (file-system-tree %test-dir (lambda (n s)
+                                         (string=? n %test-dir)))
+      (("test-suite" (= stat:type 'directory) children ...)
+       (any (match-lambda
+             (("tests" (= stat:type 'directory))  ; no children
+              #t)
+             (_ #f))
+            children))))
+
+  (pass-if "test-suite (recursive)"
+    (match (file-system-tree %test-dir)
+      (("test-suite" (= stat:type 'directory) children ...)
+       (any (match-lambda
+             (("tests" (= stat:type 'directory) (= car files) ...)
+              (let ((expected '("alist.test" "bytevectors.test"
+                                "ftw.test" "gc.test" "vlist.test")))
+                (lset= string=?
+                       (lset-intersection string=? files expected)
+                       expected)))
+             (_ #f))
+            children))))
+
+  (pass-if "ENOENT"
+    (not (file-system-tree "/.does-not-exist."))))
+
+(with-test-prefix "scandir"
+
+  (pass-if "top-srcdir"
+    (let ((valid? (negate (cut string-any #\/ <>))))
+      (match (scandir %top-srcdir)
+        (((? valid? files) ...)
+         ;; Both subdirs and files must be included.
+         (let ((expected '("libguile" "README" "COPYING"
+                           "test-suite" "Makefile.am"
+                           "." "..")))
+           (lset= string=?
+                  (lset-intersection string=? files expected)
+                  expected))))))
+
+  (pass-if "test-suite"
+    (let ((select? (cut string-suffix? ".test" <>)))
+      (match (scandir (string-append %test-dir "/tests") select?)
+        (("00-initial-env.test" (? select?) ...)
+         #t))))
+
+  (pass-if "flat file"
+    (not (scandir (string-append %test-dir "/Makefile.am"))))
+
+  (pass-if "EACCES"
+    (not (scandir "/.does-not-exist.")))
+
+  (pass-if "no select"
+    (null? (scandir %test-dir (lambda (_) #f))))
+
+  ;; In Guile up to 2.0.6, this would return ("." ".." "link-to-dir").
+  (pass-if-equal "symlink to directory"
+      '("." ".." "link-to-dir" "subdir")
+    (if (not (defined? 'symlink))
+        (throw 'unresolved)
+        (with-file-tree %top-builddir '(directory "test-scandir-symlink"
+                                                  (("link-to-dir" -> "subdir")
+                                                   (directory "subdir"
+                                                              (("a")))))
+          (let ((name (string-append %top-builddir "/test-scandir-symlink")))
+            (scandir name))))))
+
+;;; Local Variables:
+;;; eval: (put 'with-file-tree 'scheme-indent-function 2)
+;;; End:

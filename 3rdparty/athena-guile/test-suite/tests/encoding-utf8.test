@@ -1,0 +1,190 @@
+;;;; encoding-utf8.test --- test suite for Guile's string encodings    -*- mode: scheme; coding: utf-8 -*-
+;;;;
+;;;; Copyright (C) 2009, 2010, 2014 Free Software Foundation, Inc.
+;;;;
+;;;; This library is free software; you can redistribute it and/or
+;;;; modify it under the terms of the GNU Lesser General Public
+;;;; License as published by the Free Software Foundation; either
+;;;; version 3 of the License, or (at your option) any later version.
+;;;;
+;;;; This library is distributed in the hope that it will be useful,
+;;;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;;;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+;;;; Lesser General Public License for more details.
+;;;;
+;;;; You should have received a copy of the GNU Lesser General Public
+;;;; License along with this library; if not, write to the Free Software
+;;;; Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+
+(define-module (test-strings)
+  #:use-module (test-suite lib)
+  #:use-module (srfi srfi-1))
+
+;; Create a string from integer char values, eg. (string-ints 65) => "A"
+(define (string-ints . args)
+  (apply string (map integer->char args)))
+
+(when (defined? 'setlocale)
+  (setlocale LC_ALL ""))
+
+(define ascii-a (integer->char 65))     ; LATIN CAPITAL LETTER A
+(define a-acute (integer->char #x00c1)) ; LATIN CAPITAL LETTER A WITH ACUTE
+(define alpha (integer->char #x03b1))   ; GREEK SMALL LETTER ALPHA
+(define cherokee-a (integer->char #x13a0)) ; CHEROKEE LETTER A
+
+(with-test-prefix "characters"
+  (pass-if "input A"
+    (char=? ascii-a #\A))
+
+  (pass-if "input A acute"
+    (char=? a-acute #\Á))
+ 
+  (pass-if "input alpha"
+    (char=? alpha #\α))
+ 
+  (pass-if "input Cherokee A"
+    (char=? cherokee-a #\Ꭰ))
+ 
+ (pass-if "display A"
+           (let ((pt (open-output-string)))
+             (set-port-encoding! pt "UTF-8")
+             (set-port-conversion-strategy! pt 'substitute)
+             (display ascii-a pt)
+             (string=? "A"
+                       (get-output-string pt))))
+
+  (pass-if "display A acute"
+           (let ((pt (open-output-string)))
+             (set-port-encoding! pt "UTF-8")
+             (set-port-conversion-strategy! pt 'substitute)
+             (display a-acute pt)
+             (string=? "Á"
+                       (get-output-string pt))))
+
+  (pass-if "display alpha"
+           (let ((pt (open-output-string)))
+             (set-port-encoding! pt "UTF-8")
+             (set-port-conversion-strategy! pt 'substitute)
+             (display alpha pt)
+             (string-ci=? "α"
+                       (get-output-string pt))))
+
+  (pass-if "display Cherokee A"
+           (let ((pt (open-output-string)))
+             (set-port-encoding! pt "UTF-8")
+             (set-port-conversion-strategy! pt 'substitute)
+             (display cherokee-a pt)
+             (string-ci=? "Ꭰ"
+                       (get-output-string pt))))
+
+  (pass-if "write A"
+           (let ((pt (open-output-string)))
+             (set-port-encoding! pt "UTF-8")
+             (set-port-conversion-strategy! pt 'escape)
+             (write ascii-a pt)
+             (string=? "#\\A"
+                       (get-output-string pt))))
+
+  (pass-if "write A acute"
+           (let ((pt (open-output-string)))
+             (set-port-encoding! pt "UTF-8")
+             (set-port-conversion-strategy! pt 'escape)
+             (write a-acute pt)
+             (string=? "#\\Á"
+                       (get-output-string pt))))
+
+  (pass-if "write A followed by combining accent"
+           (let ((pt (open-output-string)))
+             (set-port-encoding! pt "UTF-8")
+             (set-port-conversion-strategy! pt 'escape)
+             (write (string #\A (integer->char #x030f)) pt)
+             (string-ci=? "\"Ȁ\""
+                          (get-output-string pt))))
+
+  (pass-if "write alpha"
+           (let ((pt (open-output-string)))
+             (set-port-encoding! pt "UTF-8")
+             (set-port-conversion-strategy! pt 'escape)
+             (write alpha pt)
+             (string=? "#\\α"
+                       (get-output-string pt))))
+
+  (pass-if "write Cherokee A"
+           (let ((pt (open-output-string)))
+             (set-port-encoding! pt "UTF-8")
+             (set-port-conversion-strategy! pt 'escape)
+             (write cherokee-a pt)
+             (string=? "#\\Ꭰ"
+                       (get-output-string pt)))))
+
+(define s1 "última")
+(define s2 "cédula")
+(define s3 "años")
+(define s4 "羅生門")
+
+(with-test-prefix "string length"
+
+  (pass-if "última"
+	   (eqv? (string-length s1) 6))
+    
+  (pass-if "cédula"
+	   (eqv? (string-length s2) 6))
+
+  (pass-if "años"
+	   (eqv? (string-length s3) 4))
+
+  (pass-if "羅生門"
+	   (eqv? (string-length s4) 3)))
+
+(with-test-prefix "internal encoding"
+
+  (pass-if "última"
+	   (string=? s1 (string-ints #xfa #x6c #x74 #x69 #x6d #x61)))
+
+  (pass-if "cédula"
+	   (string=? s2 (string-ints #x63 #xe9 #x64 #x75 #x6c #x61)))
+
+  (pass-if "años"
+	   (string=? s3 (string-ints #x61 #xf1 #x6f #x73)))
+ 
+  (pass-if "羅生門"
+	   (string=? s4 (string-ints #x7f85 #x751f #x9580))))
+
+(with-test-prefix "chars"
+ 
+  (pass-if "última"
+	   (list= eqv? (string->list s1)
+		  (list #\ú #\l #\t #\i #\m #\a)))
+
+  (pass-if "cédula"
+	   (list= eqv? (string->list s2)
+		  (list #\c #\é #\d #\u #\l #\a)))
+
+  (pass-if "años"
+	   (list= eqv? (string->list s3)
+		  (list #\a #\ñ #\o #\s)))
+
+  (pass-if "羅生門"
+	   (list= eqv? (string->list s4)
+		  (list #\羅 #\生 #\門))))
+
+(with-test-prefix "symbols == strings"
+
+  (pass-if "última"
+	   (eq? (string->symbol s1) 'última))
+
+  (pass-if "cédula"
+	   (eq? (string->symbol s2) 'cédula))
+
+  (pass-if "años"
+	   (eq? (string->symbol s3) 'años))
+ 
+  (pass-if "羅生門"
+	   (eq? (string->symbol s4) '羅生門)))
+
+(with-test-prefix "non-ascii variable names"
+
+  (pass-if "1"
+	   (let ((芥川龍之介  1)
+		 (ñ 2))
+	     (eqv? (+  芥川龍之介 ñ) 3))))

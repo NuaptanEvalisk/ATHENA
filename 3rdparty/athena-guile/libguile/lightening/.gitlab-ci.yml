@@ -1,0 +1,40 @@
+image: debian:stable
+
+before_script:
+  - dpkg --add-architecture i386
+  - dpkg --add-architecture arm64
+  - dpkg --add-architecture armhf
+  - apt-get update -qq
+  - apt-get install -y
+      libc6-dev:amd64 gcc make
+      binfmt-support qemu-user-static
+      gcc-i686-linux-gnu libc6-dev-i386-cross libc6:i386
+      gcc-aarch64-linux-gnu libc6-dev-arm64-cross libc6:arm64
+      gcc-arm-linux-gnueabihf libc6-dev-armhf-cross libc6:armhf
+  - update-binfmts --enable qemu-aarch64
+  - update-binfmts --enable qemu-arm
+
+x86-64:
+  stage: test
+  script:
+    - make -C tests test-native
+
+i686:
+  stage: test
+  script:
+    - make -C tests test-ia32 CC_IA32=i686-linux-gnu-gcc
+
+aarch64:
+  stage: test
+  script:
+    - make -C tests test-aarch64 CC_AARCH64=aarch64-linux-gnu-gcc
+
+armhf:
+  stage: test
+  script:
+    - make -C tests test-armv7 CC_ARMv7="arm-linux-gnueabihf-gcc -marm"
+
+armhf-thumb:
+  stage: test
+  script:
+    - make -C tests test-armv7 CC_ARMv7="arm-linux-gnueabihf-gcc -mthumb"

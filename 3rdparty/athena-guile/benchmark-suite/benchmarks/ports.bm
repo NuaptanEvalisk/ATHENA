@@ -1,0 +1,95 @@
+;;; ports.bm --- Port I/O.         -*- mode: scheme; coding: utf-8; -*-
+;;;
+;;; Copyright (C) 2010-2014 Free Software Foundation, Inc.
+;;;
+;;; This program is free software; you can redistribute it and/or
+;;; modify it under the terms of the GNU Lesser General Public License
+;;; as published by the Free Software Foundation; either version 3, or
+;;; (at your option) any later version.
+;;;
+;;; This program is distributed in the hope that it will be useful,
+;;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;;; GNU Lesser General Public License for more details.
+;;;
+;;; You should have received a copy of the GNU Lesser General Public
+;;; License along with this software; see the file COPYING.LESSER.  If
+;;; not, write to the Free Software Foundation, Inc., 51 Franklin
+;;; Street, Fifth Floor, Boston, MA 02110-1301 USA
+
+(define-module (benchmarks ports)
+  #:use-module (ice-9 rdelim)
+  #:use-module (benchmark-suite lib))
+
+(define-syntax sequence
+  (lambda (s)
+    ;; Create a sequence `(begin EXPR ...)' with COUNT occurrences of EXPR.
+    (syntax-case s ()
+      ((_ expr count)
+       (number? (syntax->datum #'count))
+       (cons #'begin
+             (make-list (syntax->datum #'count) #'expr))))))
+
+(define (large-string s)
+  (string-concatenate (make-list (* iteration-factor 10000) s)))
+
+(define %latin1-port
+  (let ((p (open-input-string (large-string "hello, world"))))
+    (set-port-encoding! p "ISO-8859-1")
+    p))
+
+(define %utf8/ascii-port
+  (open-input-string (large-string "hello, world")))
+
+(define %utf8/wide-port
+  (open-input-string (large-string "안녕하세요")))
+
+
+(with-benchmark-prefix "peek-char"
+
+  (benchmark "latin-1 port" 700
+    (sequence (peek-char %latin1-port) 1000))
+
+  (benchmark "utf-8 port, ascii character" 700
+    (sequence (peek-char %utf8/ascii-port) 1000))
+
+  (benchmark "utf-8 port, Korean character" 700
+    (sequence (peek-char %utf8/wide-port) 1000)))
+
+(with-benchmark-prefix "char-ready?"
+
+  (benchmark "latin-1 port" 10000
+    (sequence (char-ready? %latin1-port) 1000))
+
+  (benchmark "utf-8 port, ascii character" 10000
+    (sequence (char-ready? %utf8/ascii-port) 1000))
+
+  (benchmark "utf-8 port, Korean character" 10000
+    (sequence (char-ready? %utf8/wide-port) 1000)))
+
+;; Keep the `read-char' benchmarks last as they consume input from the
+;; ports.
+
+(with-benchmark-prefix "read-char"
+
+  (benchmark "latin-1 port" 10000
+    (sequence (read-char %latin1-port) 1000))
+
+  (benchmark "utf-8 port, ascii character" 10000
+    (sequence (read-char %utf8/ascii-port) 1000))
+
+  (benchmark "utf-8 port, Korean character" 10000
+    (sequence (read-char %utf8/wide-port) 1000)))
+
+
+(with-benchmark-prefix "rdelim"
+
+  (let ((str (string-concatenate (make-list 1000 "one line\n"))))
+    (benchmark "read-line" 1000
+               (let ((port (open-input-string str)))
+                 (sequence (read-line port) 1000))))
+
+  (let ((str (large-string "Hello, world.\n")))
+    (benchmark "read-string" 200
+               (let ((port (open-input-string str)))
+                 (read-string port)))))

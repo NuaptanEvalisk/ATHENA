@@ -14,7 +14,7 @@
 (texmacs-module (security gpg gpg-base)
   (:use (utils base environment))
   (:use (database db-users)))
-(use-modules (kernel athena tm-preferences))
+(import-from (kernel athena tm-preferences))
 
 
 ;(display "ATHENA] Loading GnuPG base support (http://www.gnupg.org)\n")

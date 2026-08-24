@@ -1,0 +1,323 @@
+;;;; chars.test --- Characters.       -*- coding: utf-8; mode: scheme; -*-
+;;;; Greg J. Badros <gjb@cs.washington.edu>
+;;;;
+;;;; Copyright (C) 2000, 2006, 2009, 2010, 2013, 2021 Free Software Foundation, Inc.
+;;;; 
+;;;; This library is free software; you can redistribute it and/or
+;;;; modify it under the terms of the GNU Lesser General Public
+;;;; License as published by the Free Software Foundation; either
+;;;; version 3 of the License, or (at your option) any later version.
+;;;; 
+;;;; This library is distributed in the hope that it will be useful,
+;;;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;;;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+;;;; Lesser General Public License for more details.
+;;;; 
+;;;; You should have received a copy of the GNU Lesser General Public
+;;;; License along with this library; if not, write to the Free Software
+;;;; Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+
+(use-modules (test-suite lib))
+
+(define exception:wrong-type-to-apply
+  (cons 'misc-error "^Wrong type to apply:"))
+
+(define exception:unknown-character-name
+  (cons #t "unknown character"))
+
+
+(with-test-prefix "basic char handling"
+
+  (with-test-prefix "evaluator"
+
+    ;; The following test makes sure that the evaluator distinguishes between
+    ;; evaluator-internal instruction codes and characters.
+    (pass-if-exception "evaluating chars"
+      exception:wrong-type-arg
+      (eval '(#\0) (interaction-environment))))
+
+  (with-test-prefix "comparisons"
+
+    ;; char=?
+    (pass-if "char=? #\\A #\\A"
+      (char=? #\A #\A))
+
+    (pass-if "char=? #\\A #\\a"
+      (not (char=? #\A #\a)))
+
+    (pass-if "char=? #\\A #\\B"
+      (not (char=? #\A #\B)))
+
+    (pass-if "char=? #\\B #\\A"
+      (not (char=? #\A #\B)))
+
+    ;; char<?
+    (pass-if "char<? #\\A #\\A"
+      (not (char<? #\A #\A)))
+
+    (pass-if "char<? #\\A #\\a"
+      (char<? #\A #\a))
+
+    (pass-if "char<? #\\A #\\B"
+      (char<? #\A #\B))
+
+    (pass-if "char<? #\\B #\\A"
+      (not (char<? #\B #\A)))
+
+    ;; char<=?
+    (pass-if "char<=? #\\A #\\A"
+      (char<=? #\A #\A))
+
+    (pass-if "char<=? #\\A #\\a"
+      (char<=? #\A #\a))
+
+    (pass-if "char<=? #\\A #\\B"
+      (char<=? #\A #\B))
+
+    (pass-if "char<=? #\\B #\\A"
+      (not (char<=? #\B #\A)))
+
+    ;; char>?
+    (pass-if "char>? #\\A #\\A"
+      (not (char>? #\A #\A)))
+
+    (pass-if "char>? #\\A #\\a"
+      (not (char>? #\A #\a)))
+
+    (pass-if "char>? #\\A #\\B"
+      (not (char>? #\A #\B)))
+
+    (pass-if "char>? #\\B #\\A"
+      (char>? #\B #\A))
+
+    ;; char>=?
+    (pass-if "char>=? #\\A #\\A"
+      (char>=? #\A #\A))
+
+    (pass-if "char>=? #\\A #\\a"
+      (not (char>=? #\A #\a)))
+
+    (pass-if "char>=? #\\A #\\B"
+      (not (char>=? #\A #\B)))
+
+    (pass-if "char>=? #\\B #\\A"
+      (char>=? #\B #\A))
+
+    ;; char-ci=?
+    (pass-if "char-ci=? #\\A #\\A"
+      (char-ci=? #\A #\A))
+
+    (pass-if "char-ci=? #\\A #\\a"
+      (char-ci=? #\A #\a))
+
+    (pass-if "char-ci=? #\\A #\\B"
+      (not (char-ci=? #\A #\B)))
+
+    (pass-if "char-ci=? #\\B #\\A"
+      (not (char-ci=? #\A #\B)))
+
+    ;; char-ci<?
+    (pass-if "char-ci<? #\\A #\\A"
+      (not (char-ci<? #\A #\A)))
+
+    (pass-if "char-ci<? #\\A #\\a"
+      (not (char-ci<? #\A #\a)))
+
+    (pass-if "char-ci<? #\\A #\\B"
+      (char-ci<? #\A #\B))
+
+    (pass-if "char-ci<? #\\B #\\A"
+      (not (char-ci<? #\B #\A)))
+
+    ;; char-ci<=?
+    (pass-if "char-ci<=? #\\A #\\A"
+      (char-ci<=? #\A #\A))
+
+    (pass-if "char-ci<=? #\\A #\\a"
+      (char-ci<=? #\A #\a))
+
+    (pass-if "char-ci<=? #\\A #\\B"
+      (char-ci<=? #\A #\B))
+
+    (pass-if "char-ci<=? #\\B #\\A"
+      (not (char-ci<=? #\B #\A)))
+
+    ;; char-ci>?
+    (pass-if "char-ci>? #\\A #\\A"
+      (not (char-ci>? #\A #\A)))
+
+    (pass-if "char-ci>? #\\A #\\a"
+      (not (char-ci>? #\A #\a)))
+
+    (pass-if "char-ci>? #\\A #\\B"
+      (not (char-ci>? #\A #\B)))
+
+    (pass-if "char-ci>? #\\B #\\A"
+      (char-ci>? #\B #\A))
+
+    ;; char-ci>=?
+    (pass-if "char-ci>=? #\\A #\\A"
+      (char-ci>=? #\A #\A))
+
+    (pass-if "char-ci>=? #\\A #\\a"
+      (char-ci>=? #\A #\a))
+
+    (pass-if "char-ci>=? #\\A #\\B"
+      (not (char-ci>=? #\A #\B)))
+
+    (pass-if "char-ci>=? #\\B #\\A"
+      (char-ci>=? #\B #\A)))
+
+  (with-test-prefix "categories"
+
+    (pass-if "char-alphabetic?"
+      (and (char-alphabetic? #\a)
+           (char-alphabetic? #\A)
+           (not (char-alphabetic? #\1))
+           (not (char-alphabetic? #\+))))
+
+    (pass-if "char-numeric?"
+      (and (not (char-numeric? #\a))
+           (not (char-numeric? #\A))
+           (char-numeric? #\1)
+           (not (char-numeric? #\+))))
+
+    (pass-if "char-whitespace?"
+      (and (not (char-whitespace? #\a))
+           (not (char-whitespace? #\A))
+           (not (char-whitespace? #\1))
+           (char-whitespace? #\space)
+           (not (char-whitespace? #\+))))
+
+    (pass-if "char-upper-case?"
+      (and (not (char-upper-case? #\a))
+           (char-upper-case? #\A)
+           (not (char-upper-case? #\1))
+           (not (char-upper-case? #\+))))
+
+    (pass-if "char-lower-case?"
+      (and (char-lower-case? #\a)
+           (not (char-lower-case? #\A))
+           (not (char-lower-case? #\1))
+           (not (char-lower-case? #\+))))
+
+    (pass-if "char-is-both? works"
+      (and
+       (not (char-is-both? #\?))
+       (not (char-is-both? #\newline))
+       (char-is-both? #\a)
+       (char-is-both? #\Z)
+       (not (char-is-both? #\1))))
+
+    (pass-if "char-general-category"
+      (and (eq? (char-general-category #\a) 'Ll)
+	   (eq? (char-general-category #\A) 'Lu)
+	   (eq? (char-general-category #\762) 'Lt))))
+
+  (with-test-prefix "integer"
+
+    (pass-if "char->integer"
+      (eqv? (char->integer #\A) 65))
+
+    (pass-if "integer->char"
+      (eqv? (integer->char 65) #\A))
+
+    (pass-if-exception "integer->char out of range, -1" exception:out-of-range
+      (integer->char -1))
+
+    (pass-if-exception "integer->char out of range, surrrogate" 
+                       exception:out-of-range
+      (integer->char #xd800))
+
+    (pass-if-exception "integer->char out of range, too big" 
+                       exception:out-of-range
+      (integer->char #x110000))
+
+    (pass-if-exception "octal out of range, surrrogate" 
+                       exception:out-of-range
+      (with-input-from-string "#\\154000" read))
+
+    (pass-if-exception "octal out of range, too big" 
+                       exception:out-of-range
+      (with-input-from-string "#\\4200000" read)))
+
+  (with-test-prefix "case"
+
+    (pass-if "char-upcase"
+      (eqv? (char-upcase #\a) #\A))
+
+    (pass-if "char-downcase"
+      (eqv? (char-downcase #\A) #\a))
+
+    (pass-if "char-titlecase"
+      (and (eqv? (char-titlecase #\a) #\A)
+           (eqv? (char-titlecase #\763) #\762))))
+
+  (with-test-prefix "charnames"
+
+    (pass-if "R5RS character names"
+      (and (eqv? #\space (integer->char #x20))
+           (eqv? #\newline (integer->char #x0A))))
+
+    (pass-if "R6RS character names"
+      (and (eqv? #\nul (integer->char #x00))
+           (eqv? #\alarm (integer->char #x07))
+           (eqv? #\backspace (integer->char #x08))
+           (eqv? #\tab (integer->char #x09))
+           (eqv? #\linefeed (integer->char #x0A))
+           (eqv? #\newline (integer->char #x0A))
+           (eqv? #\vtab (integer->char #x0B))
+           (eqv? #\page (integer->char #x0C))
+           (eqv? #\return (integer->char #x0D))
+           (eqv? #\esc (integer->char #x1B))
+           (eqv? #\space (integer->char #x20))
+           (eqv? #\delete (integer->char #x7F))))
+
+    (pass-if "R5RS character names are case insensitive"
+      (and (eqv? #\space #\ )
+           (eqv? #\SPACE #\ )
+           (eqv? #\Space #\ )
+           (eqv? #\newline (integer->char 10))
+           (eqv? #\NEWLINE (integer->char 10))
+           (eqv? #\Newline (integer->char 10))))
+
+    (pass-if "C0 control names are case insensitive"
+      (and (eqv? #\nul #\000)
+           (eqv? #\soh #\001)
+           (eqv? #\stx #\002)
+           (eqv? #\NUL #\000)
+           (eqv? #\SOH #\001)
+           (eqv? #\STX #\002)
+           (eqv? #\Nul #\000)
+           (eqv? #\Soh #\001)
+           (eqv? #\Stx #\002)))
+
+    (pass-if "alt charnames are case insensitive"
+      (eqv? #\null #\nul)
+      (eqv? #\NULL #\nul)
+      (eqv? #\Null #\nul))
+
+    (pass-if-exception "bad charname" exception:unknown-character-name
+      (with-input-from-string "#\\blammo" read))
+
+    (pass-if "R5RS character names are preferred write format"
+      (string=?
+       (with-output-to-string (lambda () (write #\space)))
+       "#\\space"))
+
+    (pass-if "C0 control character names are preferred write format"
+      (string=?
+       (with-output-to-string (lambda () (write #\soh)))
+       "#\\soh"))
+
+    (pass-if "combining accent is pretty-printed"
+      (let ((accent (integer->char #x030f))) ; COMBINING DOUBLE GRAVE ACCENT
+        (string=?
+         (with-output-to-string (lambda () (write accent)))
+         "#\\◌̏")))
+
+    (pass-if "combining X is pretty-printed"
+      (let ((x (integer->char #x0353))) ; COMBINING X BELOW
+        (string=?
+         (with-output-to-string (lambda () (write x)))
+         "#\\◌͓")))))

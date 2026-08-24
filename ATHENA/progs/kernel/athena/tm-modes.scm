@@ -43,11 +43,7 @@
           (list 'begin defn arch1 arch2 logic-cmd)))))
 
 (define-public-macro (texmacs-modes . l)
-  `(begin
-     (set! temp-module ,(current-module))
-     (set-current-module texmacs-user)
-     ,@(map texmacs-mode l)
-     (set-current-module temp-module)))
+  `(begin ,@(map texmacs-mode l)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Checking modes

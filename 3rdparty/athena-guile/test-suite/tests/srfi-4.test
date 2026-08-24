@@ -1,0 +1,583 @@
+;;;; srfi-4.test --- Test suite for Guile's SRFI-4 functions. -*- scheme -*-
+;;;; Martin Grabmueller, 2001-06-26
+;;;;
+;;;; Copyright (C) 2001, 2006, 2010, 2011, 2013, 2014 Free Software Foundation, Inc.
+;;;; 
+;;;; This library is free software; you can redistribute it and/or
+;;;; modify it under the terms of the GNU Lesser General Public
+;;;; License as published by the Free Software Foundation; either
+;;;; version 3 of the License, or (at your option) any later version.
+;;;; 
+;;;; This library is distributed in the hope that it will be useful,
+;;;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;;;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+;;;; Lesser General Public License for more details.
+;;;; 
+;;;; You should have received a copy of the GNU Lesser General Public
+;;;; License along with this library; if not, write to the Free Software
+;;;; Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+
+(use-modules (srfi srfi-4)
+             (srfi srfi-4 gnu)
+	     (test-suite lib))
+
+(with-test-prefix "u8 vectors"
+
+  (pass-if "u8vector? success"
+    (u8vector? (u8vector)))
+
+  (pass-if "u8vector? failure"
+    (not (u8vector? (s8vector))))
+
+  (pass-if "u8vector-length success 1"
+    (= (u8vector-length (u8vector)) 0))
+
+  (pass-if "u8vector-length success 2"
+    (= (u8vector-length (u8vector 3)) 1))
+
+  (pass-if "u8vector-length failure"
+    (not (= (u8vector-length (u8vector 3)) 3)))
+
+  (pass-if "u8vector-ref"
+    (= (u8vector-ref (u8vector 1 2 3) 1) 2))
+  
+  (pass-if "u8vector-set!/ref"
+    (= (let ((s (make-u8vector 10 0)))
+	 (u8vector-set! s 4 33)
+	 (u8vector-ref s 4)) 33))
+
+  (pass-if "u8vector->list/list->u8vector"
+    (equal? (u8vector->list (u8vector 1 2 3 4))
+	    (u8vector->list (list->u8vector '(1 2 3 4)))))
+
+  (pass-if "u8vector->list/array->list"
+    (equal? (u8vector->list (u8vector 1 2 3 4))
+	    (array->list (u8vector 1 2 3 4))))
+
+  (pass-if "make-u8vector"
+    (equal? (list->u8vector '(7 7 7 7))
+            (make-u8vector 4 7))))
+
+(with-test-prefix "s8 vectors"
+
+  (pass-if "s8vector? success"
+    (s8vector? (s8vector)))
+
+  (pass-if "s8vector? failure"
+    (not (s8vector? (u8vector))))
+
+  (pass-if "s8vector-length success 1"
+    (= (s8vector-length (s8vector)) 0))
+
+  (pass-if "s8vector-length success 2"
+    (= (s8vector-length (s8vector -3)) 1))
+
+  (pass-if "s8vector-length failure"
+    (not (= (s8vector-length (s8vector 3)) 3)))
+
+  (pass-if "s8vector-ref"
+    (= (s8vector-ref (s8vector 1 2 3) 1) 2))
+  
+  (pass-if "s8vector-set!/ref"
+    (= (let ((s (make-s8vector 10 0)))
+	 (s8vector-set! s 4 33)
+	 (s8vector-ref s 4)) 33))
+
+  (pass-if "s8vector->list/list->s8vector"
+    (equal? (s8vector->list (s8vector 1 2 3 4))
+	    (s8vector->list (list->s8vector '(1 2 3 4)))))
+
+  (pass-if "s8vector->list/array->list"
+    (equal? (s8vector->list (s8vector 1 2 3 4))
+	    (array->list (s8vector 1 2 3 4))))
+
+  (pass-if "make-s8vector"
+    (equal? (list->s8vector '(7 7 7 7))
+            (make-s8vector 4 7))))
+
+
+(with-test-prefix "u16 vectors"
+
+  (pass-if "u16vector? success"
+    (u16vector? (u16vector)))
+
+  (pass-if "u16vector? failure"
+    (not (u16vector? (s16vector))))
+
+  (pass-if "u16vector-length success 1"
+    (= (u16vector-length (u16vector)) 0))
+
+  (pass-if "u16vector-length success 2"
+    (= (u16vector-length (u16vector 3)) 1))
+
+  (pass-if "u16vector-length failure"
+    (not (= (u16vector-length (u16vector 3)) 3)))
+
+  (pass-if "u16vector-ref"
+    (= (u16vector-ref (u16vector 1 2 3) 1) 2))
+  
+  (pass-if "u16vector-set!/ref"
+    (= (let ((s (make-u16vector 10 0)))
+	 (u16vector-set! s 4 33)
+	 (u16vector-ref s 4)) 33))
+
+  (pass-if "u16vector->list/list->u16vector"
+    (equal? (u16vector->list (u16vector 1 2 3 4))
+	    (u16vector->list (list->u16vector '(1 2 3 4)))))
+
+  (pass-if "u16vector->list/array->list"
+    (equal? (u16vector->list (u16vector 1 2 3 4))
+	    (array->list (u16vector 1 2 3 4))))
+
+  (pass-if "make-u16vector"
+    (equal? (list->u16vector '(7 7 7 7))
+            (make-u16vector 4 7))))
+
+(with-test-prefix "s16 vectors"
+
+  (pass-if "s16vector? success"
+    (s16vector? (s16vector)))
+
+  (pass-if "s16vector? failure"
+    (not (s16vector? (u16vector))))
+
+  (pass-if "s16vector-length success 1"
+    (= (s16vector-length (s16vector)) 0))
+
+  (pass-if "s16vector-length success 2"
+    (= (s16vector-length (s16vector -3)) 1))
+
+  (pass-if "s16vector-length failure"
+    (not (= (s16vector-length (s16vector 3)) 3)))
+
+  (pass-if "s16vector-ref"
+    (= (s16vector-ref (s16vector 1 2 3) 1) 2))
+  
+  (pass-if "s16vector-set!/ref"
+    (= (let ((s (make-s16vector 10 0)))
+	 (s16vector-set! s 4 33)
+	 (s16vector-ref s 4)) 33))
+
+  (pass-if "s16vector->list/list->s16vector"
+    (equal? (s16vector->list (s16vector 1 2 3 4))
+	    (s16vector->list (list->s16vector '(1 2 3 4)))))
+
+  (pass-if "s16vector->list/array->list"
+    (equal? (s16vector->list (s16vector 1 2 3 4))
+	    (array->list (s16vector 1 2 3 4))))
+
+  (pass-if "make-s16vector"
+    (equal? (list->s16vector '(7 7 7 7))
+            (make-s16vector 4 7))))
+
+(with-test-prefix "u32 vectors"
+
+  (pass-if "u32vector? success"
+    (u32vector? (u32vector)))
+
+  (pass-if "u32vector? failure"
+    (not (u32vector? (s32vector))))
+
+  (pass-if "u32vector-length success 1"
+    (= (u32vector-length (u32vector)) 0))
+
+  (pass-if "u32vector-length success 2"
+    (= (u32vector-length (u32vector 3)) 1))
+
+  (pass-if "u32vector-length failure"
+    (not (= (u32vector-length (u32vector 3)) 3)))
+
+  (pass-if "u32vector-ref"
+    (= (u32vector-ref (u32vector 1 2 3) 1) 2))
+  
+  (pass-if "u32vector-set!/ref"
+    (= (let ((s (make-u32vector 10 0)))
+	 (u32vector-set! s 4 33)
+	 (u32vector-ref s 4)) 33))
+
+  (pass-if "u32vector->list/list->u32vector"
+    (equal? (u32vector->list (u32vector 1 2 3 4))
+	    (u32vector->list (list->u32vector '(1 2 3 4)))))
+
+  (pass-if "u32vector->list/array->list"
+    (equal? (u32vector->list (u32vector 1 2 3 4))
+	    (array->list (u32vector 1 2 3 4))))
+
+  (pass-if "make-u32vector"
+    (equal? (list->u32vector '(7 7 7 7))
+            (make-u32vector 4 7))))
+
+(with-test-prefix "s32 vectors"
+
+  (pass-if "s32vector? success"
+    (s32vector? (s32vector)))
+
+  (pass-if "s32vector? failure"
+    (not (s32vector? (u32vector))))
+
+  (pass-if "s32vector-length success 1"
+    (= (s32vector-length (s32vector)) 0))
+
+  (pass-if "s32vector-length success 2"
+    (= (s32vector-length (s32vector -3)) 1))
+
+  (pass-if "s32vector-length failure"
+    (not (= (s32vector-length (s32vector 3)) 3)))
+
+  (pass-if "s32vector-ref"
+    (= (s32vector-ref (s32vector 1 2 3) 1) 2))
+  
+  (pass-if "s32vector-set!/ref"
+    (= (let ((s (make-s32vector 10 0)))
+	 (s32vector-set! s 4 33)
+	 (s32vector-ref s 4)) 33))
+
+  (pass-if "s32vector->list/list->s32vector"
+    (equal? (s32vector->list (s32vector 1 2 3 4))
+	    (s32vector->list (list->s32vector '(1 2 3 4)))))
+
+  (pass-if "s32vector->list/array->list"
+    (equal? (s32vector->list (s32vector 1 2 3 4))
+	    (array->list (s32vector 1 2 3 4))))
+
+  (pass-if "make-s32vector"
+    (equal? (list->s32vector '(7 7 7 7))
+            (make-s32vector 4 7))))
+
+(with-test-prefix "u64 vectors"
+
+  (pass-if "u64vector? success"
+    (u64vector? (u64vector)))
+
+  (pass-if "u64vector? failure"
+    (not (u64vector? (s64vector))))
+
+  (pass-if "u64vector-length success 1"
+    (= (u64vector-length (u64vector)) 0))
+
+  (pass-if "u64vector-length success 2"
+    (= (u64vector-length (u64vector 3)) 1))
+
+  (pass-if "u64vector-length failure"
+    (not (= (u64vector-length (u64vector 3)) 3)))
+
+  (pass-if "u64vector-ref"
+    (= (u64vector-ref (u64vector 1 2 3) 1) 2))
+  
+  (pass-if "u64vector-set!/ref"
+    (= (let ((s (make-u64vector 10 0)))
+	 (u64vector-set! s 4 33)
+	 (u64vector-ref s 4)) 33))
+
+  (pass-if "u64vector->list/list->u64vector"
+    (equal? (u64vector->list (u64vector 1 2 3 4))
+	    (u64vector->list (list->u64vector '(1 2 3 4)))))
+
+  (pass-if "u64vector->list/array->list"
+    (equal? (u64vector->list (u64vector 1 2 3 4))
+	    (array->list (u64vector 1 2 3 4))))
+
+  (pass-if "make-u64vector"
+    (equal? (list->u64vector '(7 7 7 7))
+            (make-u64vector 4 7))))
+
+(with-test-prefix "s64 vectors"
+
+  (pass-if "s64vector? success"
+    (s64vector? (s64vector)))
+
+  (pass-if "s64vector? failure"
+    (not (s64vector? (u64vector))))
+
+  (pass-if "s64vector-length success 1"
+    (= (s64vector-length (s64vector)) 0))
+
+  (pass-if "s64vector-length success 2"
+    (= (s64vector-length (s64vector -3)) 1))
+
+  (pass-if "s64vector-length failure"
+    (not (= (s64vector-length (s64vector 3)) 3)))
+
+  (pass-if "s64vector-ref"
+    (= (s64vector-ref (s64vector 1 2 3) 1) 2))
+  
+  (pass-if "s64vector-set!/ref"
+    (= (let ((s (make-s64vector 10 0)))
+	 (s64vector-set! s 4 33)
+	 (s64vector-ref s 4)) 33))
+
+  (pass-if "s64vector->list/list->s64vector"
+    (equal? (s64vector->list (s64vector 1 2 3 4))
+	    (s64vector->list (list->s64vector '(1 2 3 4)))))
+
+  (pass-if "s64vector->list/array->list"
+    (equal? (s64vector->list (s64vector 1 2 3 4))
+	    (array->list (s64vector 1 2 3 4))))
+
+  (pass-if "make-s64vector"
+    (equal? (list->s64vector '(7 7 7 7))
+            (make-s64vector 4 7))))
+
+(with-test-prefix "f32 vectors"
+
+  (pass-if "f32vector? success"
+    (f32vector? (f32vector)))
+
+  (pass-if "f32vector? failure"
+    (not (f32vector? (s8vector))))
+
+  (pass-if "f32vector-length success 1"
+    (= (f32vector-length (f32vector)) 0))
+
+  (pass-if "f32vector-length success 2"
+    (= (f32vector-length (f32vector -3)) 1))
+
+  (pass-if "f32vector-length failure"
+    (not (= (f32vector-length (f32vector 3)) 3)))
+
+  (pass-if "f32vector-ref"
+    (= (f32vector-ref (f32vector 1 2 3) 1) 2))
+  
+  (pass-if "f32vector-set!/ref"
+    (= (let ((s (make-f32vector 10 0)))
+	 (f32vector-set! s 4 33)
+	 (f32vector-ref s 4)) 33))
+
+  (pass-if "f32vector->list/list->f32vector"
+    (equal? (f32vector->list (f32vector 1 2 3 4))
+	    (f32vector->list (list->f32vector '(1 2 3 4)))))
+
+  (pass-if "f32vector->list/array->list"
+    (equal? (f32vector->list (f32vector 1 2 3 4))
+	    (array->list (f32vector 1 2 3 4))))
+
+  (pass-if "make-f32vector"
+    (equal? (list->f32vector '(7 7 7 7))
+            (make-f32vector 4 7)))
+
+  (pass-if "+inf.0, -inf.0, +nan.0 in f32vector"
+    (f32vector? #f32(+inf.0 -inf.0 +nan.0))))
+
+(with-test-prefix "f64 vectors"
+
+  (pass-if "f64vector? success"
+    (f64vector? (f64vector)))
+
+  (pass-if "f64vector? failure"
+    (not (f64vector? (f32vector))))
+
+  (pass-if "f64vector-length success 1"
+    (= (f64vector-length (f64vector)) 0))
+
+  (pass-if "f64vector-length success 2"
+    (= (f64vector-length (f64vector -3)) 1))
+
+  (pass-if "f64vector-length failure"
+    (not (= (f64vector-length (f64vector 3)) 3)))
+
+  (pass-if "f64vector-ref"
+    (= (f64vector-ref (f64vector 1 2 3) 1) 2))
+  
+  (pass-if "f64vector-set!/ref"
+    (= (let ((s (make-f64vector 10 0)))
+	 (f64vector-set! s 4 33)
+	 (f64vector-ref s 4)) 33))
+
+  (pass-if "f64vector->list/list->f64vector"
+    (equal? (f64vector->list (f64vector 1 2 3 4))
+	    (f64vector->list (list->f64vector '(1 2 3 4)))))
+
+  (pass-if "f64vector->list/array->list"
+    (equal? (f64vector->list (f64vector 1 2 3 4))
+	    (array->list (f64vector 1 2 3 4))))
+
+  (pass-if "make-f64vector"
+    (equal? (list->f64vector '(7 7 7 7))
+            (make-f64vector 4 7)))
+
+  (pass-if "+inf.0, -inf.0, +nan.0 in f64vector"
+    (f64vector? #f64(+inf.0 -inf.0 +nan.0))))
+
+(with-test-prefix "c32 vectors"
+
+  (pass-if "c32vector? success"
+    (c32vector? (c32vector)))
+
+  (pass-if "c32vector? failure"
+    (not (c32vector? (s8vector))))
+
+  (pass-if "c32vector-length success 1"
+    (= (c32vector-length (c32vector)) 0))
+
+  (pass-if "c32vector-length success 2"
+    (= (c32vector-length (c32vector -3-2i)) 1))
+
+  (pass-if "c32vector-length failure"
+    (not (= (c32vector-length (c32vector 3)) 3)))
+
+  (pass-if "c32vector-ref"
+    (= (c32vector-ref (c32vector 1 2+13i 3) 1) 2+13i))
+  
+  (pass-if "c32vector-set!/ref"
+    (= (let ((s (make-c32vector 10 0)))
+	 (c32vector-set! s 4 33-1i)
+	 (c32vector-ref s 4)) 33-1i))
+
+  (pass-if "c32vector->list/list->c32vector"
+    (equal? (c32vector->list (c32vector 1 2 3 4))
+	    (c32vector->list (list->c32vector '(1 2 3 4)))))
+
+  (pass-if "c32vector->list/array->list"
+    (equal? (c32vector->list (c32vector 1 2 3 4))
+	    (array->list (c32vector 1 2 3 4))))
+
+  (pass-if "make-c32vector"
+    (equal? (list->c32vector '(7 7 7 7))
+            (make-c32vector 4 7)))
+
+  (pass-if "+inf.0, -inf.0, +nan.0 in c32vector"
+    (c32vector? #c32(+inf.0 -inf.0 +nan.0)))
+
+  (pass-if "array-ref"
+    (let ((v (c32vector 1+1i)))
+      (= (c32vector-ref v 0)
+         (array-ref v 0))))
+
+  (pass-if "array-set!"
+    (let ((x 1+1i)
+          (v (c32vector 0)))
+      (array-set! v x 0)
+      (= x (array-ref v 0))))
+
+  (pass-if-exception "array-ref, out-of-range"
+    exception:out-of-range
+    (array-ref (c32vector 1.0) 1))
+
+  (pass-if-exception "array-set!, out-of-range"
+    exception:out-of-range
+    (array-set! (c32vector 1.0) 2.0 1)))
+
+(with-test-prefix "c64 vectors"
+
+  (pass-if "c64vector? success"
+    (c64vector? (c64vector)))
+
+  (pass-if "c64vector? failure"
+    (not (c64vector? (s8vector))))
+
+  (pass-if "c64vector-length success 1"
+    (= (c64vector-length (c64vector)) 0))
+
+  (pass-if "c64vector-length success 2"
+    (= (c64vector-length (c64vector -3-2i)) 1))
+
+  (pass-if "c64vector-length failure"
+    (not (= (c64vector-length (c64vector 3)) 3)))
+
+  (pass-if "c64vector-ref"
+    (= (c64vector-ref (c64vector 1+2i 2+3i 3) 1) 2+3i))
+  
+  (pass-if "c64vector-set!/ref"
+    (= (let ((s (make-c64vector 10 0)))
+	 (c64vector-set! s 4 33+1i)
+	 (c64vector-ref s 4)) 33+1i))
+
+  (pass-if "c64vector->list/list->c64vector"
+    (equal? (c64vector->list (c64vector 1 2 3 4))
+	    (c64vector->list (list->c64vector '(1 2 3 4)))))
+
+  (pass-if "c64vector->list/array->list"
+    (equal? (c64vector->list (c64vector 1 2 3 4))
+	    (array->list (c64vector 1 2 3 4))))
+
+  (pass-if "make-c64vector"
+    (equal? (list->c64vector '(7 7 7 7))
+            (make-c64vector 4 7)))
+
+  (pass-if "+inf.0, -inf.0, +nan.0 in c64vector"
+    (c64vector? #c64(+inf.0 -inf.0 +nan.0)))
+
+  (pass-if "array-ref"
+    (let ((v (c64vector 1+1i)))
+      (= (c64vector-ref v 0)
+         (array-ref v 0))))
+
+  (pass-if "array-set!"
+    (let ((x 1+1i)
+          (v (c64vector 0)))
+      (array-set! v x 0)
+      (= x (array-ref v 0))))
+
+  (pass-if-exception "array-ref, out-of-range"
+    exception:out-of-range
+    (array-ref (c64vector 1.0) 1))
+
+  (pass-if-exception "array-set!, out-of-range"
+    exception:out-of-range
+    (array-set! (c64vector 1.0) 2.0 1)))
+
+(with-test-prefix "accessing uniform vectors of different types"
+
+  (pass-if "u32vector-length of u16vector"
+    (= 2 (u32vector-length (make-u16vector 4))))
+
+  (pass-if "u32vector-length of u8vector"
+    (= 2 (u32vector-length (make-u8vector 8))))
+
+  (pass-if "u8vector-length of u16vector"
+    (= 4 (u8vector-length (make-u16vector 2))))
+
+  (pass-if "u8vector-length of u32vector"
+    (= 8 (u8vector-length (make-u32vector 2))))
+
+  (pass-if "u32vector-set! of u16vector"
+    (let ((v (make-u16vector 4 #xFFFF)))
+      (u32vector-set! v 1 0)
+      (equal? v #u16(#xFFFF #xFFFF 0 0))))
+
+  (pass-if "u16vector-set! of u32vector"
+    (let ((v (make-u32vector 2 #xFFFFFFFF)))
+      (u16vector-set! v 2 0)
+      (u16vector-set! v 3 0)
+      (equal? v #u32(#xFFFFFFFF 0)))))
+
+(with-test-prefix "typed vector copies (srfi srfi-4 gnu)"
+
+  (pass-if "f64vector-copy"
+    (equal? #f64(1 2 3 4) (f64vector-copy #f64(9 7 1 2 3 4 0 8) 2 6)))
+
+  (pass-if "c64vector-copy"
+    (equal? #c64(1 2 3 4 0 8) (c64vector-copy #c64(9 7 1 2 3 4 0 8) 2)))
+
+  (pass-if "s32vector-copy! (both optional args)"
+    (let ((v (s32vector 9 7 1 2 3 4 0 8)))
+      (s32vector-copy! v 2 #s32(-1 -2 -3 -4 -5 -6 -7 -8) 3 7)
+      (equal? #s32(9 7 -4 -5 -6 -7 0 8) v)))
+
+  (pass-if "s16vector-copy! (one optional arg)"
+    (let ((v (s16vector 9 7 1 2 3 4 0 8)))
+      (s16vector-copy! v 2 #s16(-1 -2 -3 -4 -5 -6 -7 -8) 3)
+      (equal? #s16(9 7 -4 -5 -6 -7 -8 8) v)))
+
+  (pass-if "s8vector-copy! (no optional args)"
+    (let ((v (s8vector 9 7 1 2 3 4 0 8)))
+      (s8vector-copy! v 2 #s8(-1 -2 -3 -4 -5))
+      (equal? #s8(9 7 -1 -2 -3 -4 -5 8) v))))
+
+(with-test-prefix "srfi-4 type size"
+
+  (pass-if "c64vector"
+    (= 16 (srfi-4-vector-type-size #c64())))
+
+  (pass-if "c32vector"
+    (= 8 (srfi-4-vector-type-size #c32())))
+
+  (pass-if "f32vector"
+    (= 4 (srfi-4-vector-type-size #f32())))
+
+  (pass-if "u16vector"
+    (= 2 (srfi-4-vector-type-size #u16())))  
+  
+  (pass-if "s8vector"
+    (= 1 (srfi-4-vector-type-size #s8()))))
+

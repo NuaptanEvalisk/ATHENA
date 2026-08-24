@@ -1,0 +1,199 @@
+;;;; records.test --- Test suite for Guile's records. -*- mode: scheme; coding: utf-8 -*-
+;;;;
+;;;; Copyright (C) 2009-2010, 2019 Free Software Foundation, Inc.
+;;;; 
+;;;; This library is free software; you can redistribute it and/or
+;;;; modify it under the terms of the GNU Lesser General Public
+;;;; License as published by the Free Software Foundation; either
+;;;; version 3 of the License, or (at your option) any later version.
+;;;; 
+;;;; This library is distributed in the hope that it will be useful,
+;;;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;;;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+;;;; Lesser General Public License for more details.
+;;;; 
+;;;; You should have received a copy of the GNU Lesser General Public
+;;;; License along with this library; if not, write to the Free Software
+;;;; Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+
+(define-module (test-records)
+  #:use-module (ice-9 format)
+  #:use-module (test-suite lib))
+
+;; ascii names and symbols, custom printer
+(define rtd-foo (make-record-type 'foo '(x y)
+                                  (lambda (s p)
+                                    (display "#<it is a foo>" p))))
+(define make-foo (record-constructor rtd-foo))
+(define foo? (record-predicate rtd-foo))
+(define get-foo-x (record-accessor rtd-foo 'x))
+(define get-foo-y (record-accessor rtd-foo 'y))
+(define set-foo-x! (record-modifier rtd-foo 'x))
+(define set-foo-y! (record-modifier rtd-foo 'y))
+
+;; non-Latin-1 names and symbols, default printer
+(define rtd-fŏŏ (make-record-type 'fŏŏ '(x ȳ)))
+(define make-fŏŏ (record-constructor rtd-fŏŏ))
+(define fŏŏ? (record-predicate rtd-fŏŏ))
+(define get-fŏŏ-x (record-accessor rtd-fŏŏ 'x))
+(define get-fŏŏ-ȳ (record-accessor rtd-fŏŏ 'ȳ))
+(define set-fŏŏ-x! (record-modifier rtd-fŏŏ 'x))
+(define set-fŏŏ-ȳ! (record-modifier rtd-fŏŏ 'ȳ))
+
+(with-test-prefix "records"
+  
+  (with-test-prefix "constructor"
+
+    (pass-if-exception "0 args (2 required)" exception:wrong-num-args
+      (make-foo))
+
+    (pass-if-exception "1 arg (2 required)" exception:wrong-num-args
+      (make-foo 1))
+
+    (pass-if "2 args (2 required)" exception:wrong-num-args
+      (foo? (make-foo 1 2)))
+
+    (pass-if "non-latin-1" exception:wrong-num-args
+      (fŏŏ? (make-fŏŏ 1 2))))
+
+  (with-test-prefix "modifier and getter"
+
+    (pass-if "set"
+      (let ((r (make-foo 1 2)))
+        (set-foo-x! r 3)
+        (eqv? (get-foo-x r) 3)))
+
+    (pass-if "set 2"
+      (let ((r (make-fŏŏ 1 2)))
+        (set-fŏŏ-ȳ! r 3)
+        (eqv? (get-fŏŏ-ȳ r) 3))))
+
+  (with-test-prefix "record type name"
+    
+    (pass-if "foo"
+      (string=? "foo" (symbol->string (record-type-name rtd-foo))))
+
+    (pass-if "fŏŏ"
+      (string=? "fŏŏ" (symbol->string (record-type-name rtd-fŏŏ)))))
+
+  (with-test-prefix "printer"
+
+    (pass-if "foo"
+      (string=? "#<it is a foo>"
+                (with-output-to-string
+                  (lambda () (display (make-foo 1 2))))))
+
+    (pass-if "fŏŏ"
+      (with-locale "en_US.utf8"
+        (string-prefix? "#<fŏŏ"
+                        (with-output-to-string
+                          (lambda () (display (make-fŏŏ 1 2))))))))
+
+  (with-test-prefix "subtyping"
+    (let ()
+      (define a (make-record-type 'a '(s t)))
+      (define b (make-record-type 'b '(u v) #:extensible? #t))
+      (define c (make-record-type 'c '(w x) #:parent b))
+
+      (pass-if (not (record-type-extensible? a)))
+      (pass-if (record-type-extensible? b))
+      (pass-if (not (record-type-extensible? c)))
+
+      (pass-if-exception "subtyping final: a" '(misc-error . "final")
+        (make-record-type 'd '(y x) #:parent a))
+      (pass-if-exception "subtyping final: c" '(misc-error . "final")
+        (make-record-type 'd '(y x) #:parent c))
+
+      (pass-if-equal "fields of subtype" '(u v w x)
+        (record-type-fields c))
+
+      (pass-if "final predicate: a? a"
+        ((record-predicate a) ((record-constructor a) 1 2)))
+      (pass-if "final predicate: a? b"
+        (not ((record-predicate a) ((record-constructor b) 1 2))))
+
+      (pass-if "non-final predicate: b? a"
+        (not ((record-predicate b) ((record-constructor a) 1 2))))
+      (pass-if "non-final predicate: b? b"
+        ((record-predicate b) ((record-constructor b) 1 2)))
+      (pass-if "non-final predicate: b? c"
+        ((record-predicate b) ((record-constructor c) 1 2 3 4)))
+
+      (pass-if "final predicate: c? a"
+        (not ((record-predicate c) ((record-constructor a) 1 2))))
+      (pass-if "final predicate: c? b"
+        (not ((record-predicate c) ((record-constructor b) 1 2))))
+      (pass-if "final predicate: c? c"
+        ((record-predicate c) ((record-constructor c) 1 2 3 4)))
+
+      (pass-if-equal "b accessor on b" 1
+        ((record-accessor b 'u) ((record-constructor b) 1 2)))
+      (pass-if-equal "b accessor on c" 1
+        ((record-accessor b 'u) ((record-constructor c) 1 2 3 4)))
+
+      (pass-if-equal "c accessor on c" 3
+        ((record-accessor c 'w) ((record-constructor c) 1 2 3 4)))))
+
+  (with-test-prefix "prefab types"
+    (let ()
+      (define uid 'ANhUpf2WpNnF2XIVLxq@IkavIc5wbqe8)
+      (define a (make-record-type 'a '(s t) #:uid uid))
+      (define b (make-record-type 'b '() #:extensible? #t))
+
+      (pass-if (eq? a (make-record-type 'a '(s t) #:uid uid)))
+      (pass-if-exception "different name" '(misc-error . "incompatible")
+        (make-record-type 'b '(s t) #:uid uid))
+      (pass-if-exception "different fields" '(misc-error . "incompatible")
+        (make-record-type 'a '(u v) #:uid uid))
+      (pass-if-exception "fewer fields" '(misc-error . "incompatible")
+        (make-record-type 'a '(s) #:uid uid))
+      (pass-if-exception "more fields" '(misc-error . "incompatible")
+        (make-record-type 'a '(s t u) #:uid uid))
+      (pass-if-exception "adding a parent" '(misc-error . "incompatible")
+        (make-record-type 'a '(s t) #:parent b #:uid uid))
+      (pass-if-exception "specifying a printer" '(misc-error . "incompatible")
+        (make-record-type 'a '(s t) pk #:uid uid))
+      (pass-if-exception "non-final" '(misc-error . "incompatible")
+        (make-record-type 'a '(s t) #:extensible? #t #:uid uid))))
+
+  (with-test-prefix "opaque types"
+    (let ()
+      (define a (make-record-type 'a '() #:extensible? #t #:opaque? #t))
+      (define b (make-record-type 'b '()))
+      (define c (make-record-type 'c '() #:parent a))
+
+      (pass-if (record-type-opaque? a))
+      (pass-if (not (record-type-opaque? b)))
+      (pass-if (record-type-opaque? c))
+      (pass-if-exception "non-opaque" '(misc-error . "opaque")
+        (make-record-type 'd '() #:opaque? #f #:parent a))))
+
+  (with-test-prefix "immutable fields"
+    (let ()
+      (define a (make-record-type 'a '(s t (mutable u) (immutable v))
+                                  #:extensible? #t))
+      (define b (make-record-type 'b '(w (immutable x)) #:parent a))
+
+      (pass-if-exception "bad field" '(misc-error . "field")
+        (make-record-type 'a '("foo")))
+      (pass-if-exception "bad field" '(misc-error . "field")
+        (make-record-type 'a '((mutable u x))))
+      (pass-if-exception "bad field" '(misc-error . "field")
+        (make-record-type 'a '((qux u))))
+      (pass-if-equal (record-type-mutable-fields a) #b0111)
+      (pass-if-equal (record-type-mutable-fields b) #b010111)
+
+      (pass-if (procedure? (record-modifier a 's)))
+      (pass-if (procedure? (record-modifier a 't)))
+      (pass-if (procedure? (record-modifier a 'u)))
+      (pass-if-exception "immutable" '(misc-error . "immutable")
+        (record-modifier a 'v))
+
+      (pass-if (procedure? (record-modifier b 's)))
+      (pass-if (procedure? (record-modifier b 't)))
+      (pass-if (procedure? (record-modifier b 'u)))
+      (pass-if-exception "immutable" '(misc-error . "immutable")
+        (record-modifier b 'v))
+      (pass-if (procedure? (record-modifier b 'w)))
+      (pass-if-exception "immutable" '(misc-error . "immutable")
+        (record-modifier b 'x)))))

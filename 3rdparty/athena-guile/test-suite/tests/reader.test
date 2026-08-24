@@ -1,0 +1,573 @@
+;;;; reader.test --- Reader test.    -*- coding: iso-8859-1; mode: scheme -*-
+;;;;
+;;;; Copyright (C) 1999, 2001-2003, 2007-2011, 2013-2015, 2020-2022
+;;;;   Free Software Foundation, Inc.
+;;;;
+;;;; Jim Blandy <jimb@red-bean.com>
+;;;;
+;;;; This library is free software; you can redistribute it and/or
+;;;; modify it under the terms of the GNU Lesser General Public
+;;;; License as published by the Free Software Foundation; either
+;;;; version 3 of the License, or (at your option) any later version.
+;;;;
+;;;; This library is distributed in the hope that it will be useful,
+;;;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;;;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+;;;; Lesser General Public License for more details.
+;;;;
+;;;; You should have received a copy of the GNU Lesser General Public
+;;;; License along with this library; if not, write to the Free Software
+;;;; Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+
+(define-module (test-suite reader)
+  #:use-module (srfi srfi-1)
+  #:use-module (test-suite lib)
+  #:use-module (system syntax internal))
+
+
+(define exception:eof
+  (cons 'read-error "unexpected end of input"))
+(define exception:unexpected-rparen
+  (cons 'read-error "unexpected \")\"$"))
+(define exception:unexpected-rsqbracket
+  (cons 'read-error "unexpected \"]\"$"))
+(define exception:unterminated-block-comment
+  (cons 'read-error "unterminated `#. \\.\\.\\. .#' comment$"))
+(define exception:unknown-character-name
+  (cons 'read-error "unknown character name .*$"))
+(define exception:unknown-sharp-object
+  (cons 'read-error "Unknown # object: .*$"))
+(define exception:eof-in-string
+  (cons 'read-error "end of input while reading string$"))
+(define exception:eof-in-symbol
+  (cons 'read-error "end of input while reading symbol$"))
+(define exception:invalid-escape
+  (cons 'read-error "invalid character in escape sequence: .*$"))
+(define exception:missing-expression
+  (cons 'read-error "no expression after #;"))
+(define exception:mismatched-paren
+  (cons 'read-error "mismatched close paren"))
+
+
+(define (read-string s)
+  (with-input-from-string s (lambda () (read))))
+
+(define (with-read-options opts thunk)
+  (let ((saved-options (read-options)))
+    (dynamic-wind
+        (lambda ()
+          (read-options opts))
+        thunk
+        (lambda ()
+          (read-options saved-options)))))
+
+(define (read-string-as-list s)
+  (with-input-from-string s
+    (lambda ()
+      (unfold eof-object? values (lambda (x) (read)) (read)))))
+
+
+(with-test-prefix "reading"
+  (pass-if "0"
+    (equal? (read-string "0") 0))
+  (pass-if "1++i"
+    (equal? (read-string "1++i") '1++i))
+  (pass-if "1+i+i"
+    (equal? (read-string "1+i+i") '1+i+i))
+  (pass-if "1+e10000i"
+    (equal? (read-string "1+e10000i") '1+e10000i))
+  (pass-if "-nan.0-1i"
+    (not (equal? (imag-part (read-string "-nan.0-1i"))
+                 (imag-part (read-string "-nan.0+1i")))))
+
+  (pass-if-equal "'\|' in string literals"
+      "a|b"
+    (read-string "\"a\\|b\""))
+
+  (pass-if-equal "'(' in string literals"
+      "a(b"
+    (read-string "\"a\\(b\""))
+
+  (pass-if-equal "#\\escape"
+      '(a #\esc b)
+    (read-string "(a #\\escape b)"))
+
+  (pass-if-equal "#true"
+      '(a #t b)
+    (read-string "(a #true b)"))
+
+  (pass-if-equal "#false"
+      '(a #f b)
+    (read-string "(a #false b)"))
+
+  ;; At one time the arg list for "Unknown # object: ~S" didn't make it out
+  ;; of read.c.  Check that `format' can be applied to this error.
+  (pass-if "error message on bad #"
+    (catch #t
+	   (lambda ()
+	     (read-string "#ZZZ")
+	     ;; oops, this # is supposed to be unrecognised
+	     #f)
+	   (lambda (key subr message args rest)
+	     (apply format #f message args)
+	     ;; message and args are ok
+	     #t)))
+
+  (pass-if "block comment"
+    (equal? '(+ 1 2 3)
+            (read-string "(+ 1 #! this is a\ncomment !# 2 3)")))
+
+  (pass-if "block comment finishing s-exp"
+    (equal? '(+ 2)
+            (read-string "(+ 2 #! a comment\n!#\n) ")))
+
+  (pass-if "R6RS lexeme comment"
+    (equal? '(+ 1 2 3)
+            (read-string "(+ 1 #!r6rs 2 3)")))
+
+  (pass-if "partial R6RS lexeme comment"
+    (equal? '(+ 1 2 3)
+            (read-string "(+ 1 #!r6r !# 2 3)")))
+
+  (pass-if "R6RS/SRFI-30 block comment"
+    (equal? '(+ 1 2 3)
+            (read-string "(+ 1 #| this is a\ncomment |# 2 3)")))
+
+  (pass-if "R6RS/SRFI-30 nested block comment"
+    (equal? '(a b c)
+            (read-string "(a b c #| d #| e |# f |#)")))
+
+  (pass-if "R6RS/SRFI-30 nested block comment (2)"
+    (equal? '(a b c)
+            (read-string "(a b c #|||||||#)")))
+
+  (pass-if "R6RS/SRFI-30 nested block comment (3)"
+    (equal? '(a b c)
+            (read-string "(a b c #||||||||#)")))
+
+  (pass-if "R6RS/SRFI-30 block comment syntax overridden"
+    ;; To be compatible with 1.8 and earlier, we should be able to override
+    ;; this syntax.
+    (with-fluids ((%read-hash-procedures (fluid-ref %read-hash-procedures)))
+      (read-hash-extend #\| (lambda args 'not))
+      (fold (lambda (x y result)
+              (and result (eq? x y)))
+            #t
+            (read-string "(this is #| a comment)")
+            `(this is not a comment))))
+  
+  (pass-if "unprintable symbol"
+    ;; The reader tolerates unprintable characters for symbols.
+    (equal? (string->symbol "\x01\x02\x03")
+            (read-string "\x01\x02\x03")))
+
+  (pass-if "CR recognized as a token delimiter"
+    ;; In 1.8.3, character 0x0d was not recognized as a delimiter.
+    (equal? (read-string "one\x0dtwo") 'one))
+
+  (pass-if "returned strings are mutable"
+    ;; Per R5RS Section 3.4, "Storage Model", `read' is supposed to return
+    ;; mutable objects.
+    (let ((str (with-input-from-string "\"hello, world\"" read)))
+      (string-set! str 0 #\H)
+      (string=? str "Hello, world")))
+
+  (pass-if "square brackets are parens"
+    (equal? '() (read-string "[]")))
+
+  (pass-if-exception "paren mismatch" exception:mismatched-paren
+                     (read-string "'[)"))
+
+  (pass-if-exception "paren mismatch (2)" exception:mismatched-paren
+                     (read-string "'(]"))
+
+  (pass-if-exception "paren mismatch (3)" exception:mismatched-paren
+                     (read-string "'(foo bar]"))
+
+  (pass-if-exception "paren mismatch (4)" exception:mismatched-paren
+    (read-string "'[foo bar)"))
+
+  (pass-if-equal '(#f 1) (read-string "(#f1)"))
+  (pass-if-equal '(#f a) (read-string "(#fa)"))
+  (pass-if-equal '(#f a) (read-string "(#Fa)"))
+  (pass-if-equal '(#t 1) (read-string "(#t1)"))
+  (pass-if-equal '(#t r) (read-string "(#tr)"))
+  (pass-if-equal '(#t r) (read-string "(#Tr)"))
+  (pass-if-equal '(#t) (read-string "(#TrUe)"))
+  (pass-if-equal '(#t) (read-string "(#TRUE)"))
+  (pass-if-equal '(#t) (read-string "(#true)"))
+  (pass-if-equal '(#f) (read-string "(#false)"))
+  (pass-if-equal '(#f) (read-string "(#FALSE)"))
+  (pass-if-equal '(#f) (read-string "(#FaLsE)"))
+
+  (pass-if (eof-object? (read-string "#!!#"))))
+
+
+
+(pass-if-exception "radix passed to number->string can't be zero"
+  exception:out-of-range
+  (number->string 10 0))
+(pass-if-exception "radix passed to number->string can't be one either"
+  exception:out-of-range
+  (number->string 10 1))
+
+
+(with-test-prefix "mismatching parentheses"
+  (pass-if-equal "read-error location"
+      '("foo.scm:3:1: unexpected end of input while searching for: ~A" #\))
+    (catch 'read-error
+      (lambda ()
+        ;; The missing closing paren error should be located on line 3,
+        ;; column 1 (one-indexed).
+        (call-with-input-string "\n    (hi there!\n"
+          (lambda (port)
+            (set-port-filename! port "foo.scm")
+            (read port))))
+      (lambda (key proc message args . _)
+        (cons message args))))
+  (pass-if-exception "opening parenthesis"
+    exception:eof
+    (read-string "("))
+  (pass-if-exception "closing parenthesis following mismatched opening"
+    exception:unexpected-rparen
+    (read-string ")"))
+  (pass-if-exception "closing square bracket following mismatched opening"
+    exception:unexpected-rsqbracket
+    (read-string "]"))
+  (pass-if-exception "opening vector parenthesis"
+    exception:eof
+    (read-string "#("))
+  (pass-if-exception "closing parenthesis following mismatched vector opening"
+     exception:unexpected-rparen
+     (read-string ")")))
+
+
+(with-test-prefix "exceptions"
+
+  ;; Reader exceptions: although they are not documented, they may be relied
+  ;; on by some programs, hence these tests.
+
+  (pass-if-exception "unterminated block comment"
+    exception:unterminated-block-comment
+    (read-string "(+ 1 #! comment\n..."))
+  (pass-if-exception "R6RS/SRFI-30 unterminated nested block comment"
+    exception:unterminated-block-comment
+    (read-string "(foo #| bar #| |#)"))
+  (pass-if-exception "unknown character name"
+    exception:unknown-character-name
+    (read-string "#\\theunknowncharacter"))
+  (pass-if-exception "unknown sharp object"
+    exception:unknown-sharp-object
+    (read-string "#?"))
+  (pass-if-exception "eof in string"
+    exception:eof-in-string
+    (read-string "\"the string that never ends"))
+  (pass-if-exception "invalid escape in string"
+    exception:invalid-escape
+    (read-string "\"some string \\???\"")))
+
+
+(with-test-prefix "read-options"
+  (pass-if "case-sensitive"
+    (not (eq? 'guile 'GuiLe)))
+  (pass-if "case-insensitive"
+    (eq? 'guile
+         (with-read-options '(case-insensitive)
+           (lambda ()
+             (read-string "GuiLe")))))
+  (pass-if-equal "r7rs-symbols"
+      (list 'a (string->symbol "Hello, this is | a \"test\"") 'b)
+    (with-read-options '(r7rs-symbols)
+      (lambda ()
+        (read-string "(a |H\\x65;llo, this is \\| a \"test\"| b)"))))
+  (pass-if "prefix keywords"
+    (eq? #:keyword
+         (with-read-options '(keywords prefix case-insensitive)
+           (lambda ()
+             (read-string ":KeyWord")))))
+  (pass-if "prefix non-keywords"
+    (symbol? (with-read-options '(keywords prefix)
+               (lambda ()
+                 (read-string "srfi88-keyword:")))))
+  (pass-if "postfix keywords"
+    (eq? #:keyword
+         (with-read-options '(keywords postfix)
+           (lambda ()
+             (read-string "keyword:")))))
+  (pass-if "long postfix keywords"
+    (eq? #:keyword0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789
+         (with-read-options '(keywords postfix)
+           (lambda ()
+             (read-string "keyword0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789:")))))
+  (pass-if "`:' is not a postfix keyword (per SRFI-88)"
+    (eq? ':
+         (with-read-options '(keywords postfix)
+           (lambda ()
+             (read-string ":")))))
+  (pass-if "no positions"
+    (let ((sexp (with-read-options '()
+                  (lambda ()
+                    (read-string "(+ 1 2 3)")))))
+      (and (not (source-property sexp 'line))
+           (not (source-property sexp 'column)))))
+  (pass-if "positions"
+    (let ((sexp (with-read-options '(positions)
+                  (lambda ()
+                    (read-string "(+ 1 2 3)")))))
+      (and (equal? (source-property sexp 'line) 0)
+           (equal? (source-property sexp 'column) 0))))
+  (pass-if "positions on quote"
+    (let ((sexp (with-read-options '(positions)
+                   (lambda ()
+                    (read-string "'abcde")))))
+      (and (equal? (source-property sexp 'line) 0)
+           (equal? (source-property sexp 'column) 0))))
+  (pass-if "position of SCSH block comment"
+    ;; In Guile 2.0.0 the reader would not update the port's position
+    ;; when reading an SCSH block comment.
+    (let ((sexp (with-read-options '(positions)
+                  (lambda ()
+                    (read-string "#!foo\nbar\nbaz\n!#\n(hello world)\n")))))
+      (= 4 (source-property sexp 'line))))
+
+  (with-test-prefix "r6rs-hex-escapes"
+      (pass-if-exception "non-hex char in two-digit hex-escape"
+      exception:invalid-escape
+      (with-read-options '(r6rs-hex-escapes)
+        (lambda ()
+          (with-input-from-string "\"\\x0g;\"" read))))
+
+    (pass-if-exception "non-hex char in four-digit hex-escape"
+      exception:invalid-escape
+      (with-read-options '(r6rs-hex-escapes)
+        (lambda ()
+          (with-input-from-string "\"\\x000g;\"" read))))
+
+    (pass-if-exception "non-hex char in six-digit hex-escape"
+      exception:invalid-escape
+      (with-read-options '(r6rs-hex-escapes)
+        (lambda ()
+          (with-input-from-string "\"\\x00000g;\"" read))))
+
+    (pass-if-exception "no semicolon at termination of one-digit hex-escape"
+      exception:invalid-escape
+      (with-read-options '(r6rs-hex-escapes)
+        (lambda ()
+          (with-input-from-string "\"\\x0\"" read))))
+
+    (pass-if-exception "no semicolon at termination of three-digit hex-escape"
+      exception:invalid-escape
+      (with-read-options '(r6rs-hex-escapes)
+        (lambda ()
+          (with-input-from-string "\"\\x000\"" read))))
+
+    (pass-if "two-digit hex escape"
+      (eqv?
+       (with-read-options '(r6rs-hex-escapes)
+         (lambda ()
+           (string-ref (with-input-from-string "\"--\\xff;--\"" read) 2)))
+       (integer->char #xff)))
+
+    (pass-if "four-digit hex escape"
+      (eqv?
+       (with-read-options '(r6rs-hex-escapes)
+         (lambda ()
+           (string-ref (with-input-from-string "\"--\\x0100;--\"" read) 2)))
+       (integer->char #x0100)))
+
+    (pass-if "six-digit hex escape"
+      (eqv?
+       (with-read-options '(r6rs-hex-escapes)
+         (lambda ()
+           (string-ref (with-input-from-string "\"--\\x010300;--\"" read) 2)))
+       (integer->char #x010300)))
+
+    (pass-if "escaped characters match non-escaped ASCII characters"
+      (string=?
+       (with-read-options '(r6rs-hex-escapes)
+         (lambda ()
+           (with-input-from-string "\"\\x41;\\x0042;\\x000043;\"" read)))
+       "ABC"))
+
+    (pass-if "write R6RS string escapes"
+       (let* ((s1 (apply string
+                         (map integer->char '(#x8 ; backspace
+                                              #x18 ; cancel
+                                              #x20 ; space
+                                              #x30 ; zero
+                                              #x40 ; at sign
+                                              ))))
+              (s2 (with-read-options '(r6rs-hex-escapes)
+                     (lambda ()
+                      (with-output-to-string
+                        (lambda () (write s1)))))))
+         (lset= eqv?
+                (string->list s2)
+                (list #\" #\\ #\b #\\ #\x #\1 #\8 #\; #\space #\0 #\@ #\"))))
+
+    (pass-if "display R6RS string escapes"
+      (string=?
+       (with-read-options '(r6rs-hex-escapes)
+         (lambda ()
+           (let ((pt (open-output-string))
+                 (s1 (apply string (map integer->char
+                                        '(#xFF #x100 #xFFF #x1000 #xFFFF #x10000)))))
+             (set-port-encoding! pt "ASCII")
+             (set-port-conversion-strategy! pt 'escape)
+             (display s1 pt)
+             (get-output-string pt))))
+       "\\xff;\\x100;\\xfff;\\x1000;\\xffff;\\x10000;"))
+
+    (pass-if "one-digit hex escape"
+      (eqv? (with-input-from-string "#\\xA" read)
+            (integer->char #x0A)))
+
+    (pass-if "two-digit hex escape"
+      (eqv? (with-input-from-string "#\\xFF" read)
+            (integer->char #xFF)))
+
+    (pass-if "four-digit hex escape"
+      (eqv? (with-input-from-string "#\\x00FF" read)
+            (integer->char #xFF)))
+
+    (pass-if "eight-digit hex escape"
+      (eqv? (with-input-from-string "#\\x00006587" read)
+            (integer->char #x6587)))
+
+    (pass-if "write R6RS escapes"
+      (string=?
+       (with-read-options '(r6rs-hex-escapes)
+         (lambda ()
+           (with-output-to-string
+             (lambda ()
+               (write (integer->char #x80))))))
+       "#\\x80")))
+
+  (with-test-prefix "hungry escapes"
+    (pass-if "default not hungry"
+      ;; Assume default setting of not hungry.
+      (equal? (with-input-from-string "\"foo\\\n  bar\""
+                read)
+              "foo  bar"))
+    (pass-if "hungry"
+      (dynamic-wind
+        (lambda ()
+          (read-enable 'hungry-eol-escapes))
+        (lambda ()
+          (equal? (with-input-from-string "\"foo\\\n  bar\""
+                    read)
+                  "foobar"))
+        (lambda ()
+          (read-disable 'hungry-eol-escapes))))))
+
+(with-test-prefix "per-port-read-options"
+  (pass-if "case-sensitive"
+    (equal? '(guile GuiLe gUIle)
+            (with-read-options '(case-insensitive)
+              (lambda ()
+                (read-string-as-list "GUIle #!no-fold-case GuiLe gUIle")))))
+  (pass-if "case-insensitive"
+    (equal? '(GUIle guile guile)
+            (read-string-as-list "GUIle #!fold-case GuiLe gUIle")))
+  (with-test-prefix "r6rs"
+    (pass-if-equal "case sensitive"
+        '(guile GuiLe gUIle)
+      (with-read-options '(case-insensitive)
+        (lambda ()
+          (read-string-as-list "GUIle #!r6rs GuiLe gUIle"))))
+    (pass-if-equal "square brackets"
+        '((a b c) (foo 42 bar) (x . y))
+      (read-string-as-list "(a b c) #!r6rs [foo 42 bar] [x . y]"))
+    (pass-if-equal "hex string escapes"
+        '("native\x7fsyntax"
+          "\0"
+          "ascii\x7fcontrol"
+          "U\u0100BMP"
+          "U\U010402SMP")
+      (read-string-as-list (string-append "\"native\\x7fsyntax\" "
+                                          "#!r6rs "
+                                          "\"\\x0;\" "
+                                          "\"ascii\\x7f;control\" "
+                                          "\"U\\x100;BMP\" "
+                                          "\"U\\x10402;SMP\"")))
+    (with-test-prefix "keyword style"
+      (pass-if-equal "postfix disabled"
+          '(#:regular #:postfix postfix: #:regular2)
+        (with-read-options '(keywords postfix)
+          (lambda ()
+            (read-string-as-list "#:regular postfix: #!r6rs postfix: #:regular2"))))
+      (pass-if-equal "prefix disabled"
+          '(#:regular #:prefix :prefix #:regular2)
+        (with-read-options '(keywords prefix)
+          (lambda ()
+            (read-string-as-list "#:regular :prefix #!r6rs :prefix #:regular2")))))))
+
+(with-test-prefix "#;"
+  (for-each
+   (lambda (pair)
+     (pass-if (car pair)
+       (equal? (with-input-from-string (car pair) read) (cdr pair))))
+
+   '(("#;foo 10". 10)
+     ("#;(10 20 30) foo" . foo)
+     ("#;   (10 20 30) foo" . foo)
+     ("#;\n10\n20" . 20)))
+
+  (pass-if "#;foo"
+    (eof-object? (with-input-from-string "#;foo" read)))
+
+  (pass-if-exception "#;"
+    exception:eof
+    (with-input-from-string "#;" read))
+  (pass-if-exception "#;("
+    exception:eof
+    (with-input-from-string "#;(" read)))
+
+(with-test-prefix "#'"
+  (for-each
+   (lambda (pair)
+     (pass-if (car pair)
+       (equal? (with-input-from-string (car pair) read) (cdr pair))))
+
+   '(("#'foo". (syntax foo))
+     ("#`foo" . (quasisyntax foo))
+     ("#,foo" . (unsyntax foo))
+     ("#,@foo" . (unsyntax-splicing foo)))))
+
+(with-test-prefix "#{}#"
+  (pass-if (equal? (read-string "#{}#") '#{}#))
+  ;; See <https://debbugs.gnu.org/cgi/bugreport.cgi?bug=49623>
+  (pass-if (equal? (read-string "#{}}#") (string->symbol "}")))
+  (pass-if (equal? (read-string "#{}}}#") (string->symbol "}}")))
+  (pass-if (equal? (read-string "#{{}}#") (string->symbol "{}")))
+  (pass-if (equal? (read-string "#{{}b}#") (string->symbol "{}b")))
+  (pass-if (not (equal? (read-string "(a #{.}# b)") '(a . b))))
+  (pass-if (equal? (read-string "#{a}#") 'a))
+  (pass-if (equal? (read-string "#{a b}#") '#{a b}#))
+  (pass-if-exception "#{" exception:eof-in-symbol
+                     (read-string "#{"))
+  (pass-if (equal? (read-string "#{a\\x20;b}#") '#{a b}#)))
+
+(begin-deprecated
+ (with-test-prefix "deprecated #{}# escapes"
+   (pass-if (equal? (read-string "#{a\\ b}#") '#{a b}#))))
+
+(with-test-prefix "read-syntax"
+  (pass-if-equal "annotations" 'args
+    (syntax-expression (call-with-input-string "( . args)"
+                         read-syntax)))
+
+  (pass-if-equal "syntax-source"
+      '((filename . "sample.scm") (line . 2) (column . 3))
+    (syntax-source
+     (call-with-input-string "\
+;; first line
+;; second line
+   (this is an expression)"
+       (lambda (port)
+         (set-port-filename! port "sample.scm")
+         (read-syntax port))))))
+
+;;; Local Variables:
+;;; eval: (put 'with-read-options 'scheme-indent-function 1)
+;;; End:

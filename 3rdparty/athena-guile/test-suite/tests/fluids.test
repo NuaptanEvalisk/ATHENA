@@ -1,0 +1,283 @@
+;;;;                                                          -*- scheme -*-
+;;;; fluids.test --- test suite for fluid values
+;;;;
+;;;; Copyright (C) 2010 Free Software Foundation, Inc.
+;;;; 
+;;;; This library is free software; you can redistribute it and/or
+;;;; modify it under the terms of the GNU Lesser General Public
+;;;; License as published by the Free Software Foundation; either
+;;;; version 3 of the License, or (at your option) any later version.
+;;;; 
+;;;; This library is distributed in the hope that it will be useful,
+;;;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;;;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+;;;; Lesser General Public License for more details.
+;;;; 
+;;;; You should have received a copy of the GNU Lesser General Public
+;;;; License along with this library; if not, write to the Free Software
+;;;; Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+
+(define-module (test-suite test-fluids)
+  #:use-module (ice-9 threads)
+  #:use-module (test-suite lib)
+  #:use-module (system base compile))
+
+
+(define exception:syntax-error
+  (cons 'syntax-error "failed to match"))
+(define exception:duplicate-binding
+  (cons 'syntax-error "duplicate"))
+
+(define a (make-fluid))
+(define b (make-fluid))
+(define c #f)
+
+(with-test-prefix "syntax"
+  (pass-if-exception "with-fluids missing expression"
+    exception:syntax-error
+    (eval '(with-fluids ((a 1)))
+	  (interaction-environment)))
+
+  (pass-if-exception "with-fluids bad bindings"
+    exception:syntax-error
+    (eval '(with-fluids (a) #f)
+	  (interaction-environment)))
+
+  (pass-if-exception "with-fluids bad bindings"
+    exception:syntax-error
+    (eval '(with-fluids ((a)) #f)
+	  (interaction-environment))))
+
+(with-test-prefix "initial fluid values"
+
+  (pass-if "fluid-ref returns #f for uninitialized fluid"
+    (eq? #f (fluid-ref (make-fluid))))
+
+  (pass-if "fluid-ref returns #f for uninitialized thread local fluid"
+    (eq? #f (fluid-ref (make-thread-local-fluid))))
+
+  (pass-if "fluid-ref returns default"
+    (eq? #t (fluid-ref (make-fluid #t))))
+
+  (pass-if "fluid-ref returns thread local default"
+    (eq? #t (fluid-ref (make-thread-local-fluid #t))))
+
+  (pass-if "initial value is inherited from parent thread"
+    (if (provided? 'threads)
+        (let ((f (make-fluid)))
+          (fluid-set! f 'initial)
+          (let ((child (call-with-new-thread
+                        (lambda ()
+                          (let ((init (fluid-ref f)))
+                            (fluid-set! f 'new)
+                            (list init (fluid-ref f)))))))
+            (equal? '(initial new) (join-thread child))))
+        (throw 'unresolved))))
+
+(with-test-prefix "with-fluids with non-fluid"
+  (pass-if-exception "exception raised if nonfluid passed to with-fluids"
+                     exception:wrong-type-arg
+    (with-fluids ((c #t))
+      c))
+  
+  (pass-if "fluids not modified if nonfluid passed to with-fluids"
+    (catch 'wrong-type-arg
+      (lambda ()
+        (with-fluids ((a #t)
+                      (c #t))
+          #f))
+      (lambda _
+        (not (fluid-ref a))))))
+
+(with-test-prefix "with-fluids with duplicate fluid"
+  ;; These tests must be compiled, because the evaluator
+  ;; effectively transforms (with-fluids ((a 1) (b 2)) ...)
+  ;; into (with-fluids ((a 1)) (with-fluids ((b 2)) ...))
+
+  (pass-if "last value wins"
+    (compile '(with-fluids ((a 1)
+                            (a 2)
+                            (a 3))
+                (eqv? (fluid-ref a) 3))
+             #:env (current-module)))
+  
+  (pass-if "remove the duplicate, not the last binding"
+    (compile '(with-fluids ((a 1)
+                            (a 2)
+                            (a 3)
+                            (b 4))
+                (eqv? (fluid-ref b) 4))
+             #:env (current-module)))
+
+  (pass-if "original value restored"
+    (compile '(and (with-fluids ((a 1)
+                                 (a 2))
+                     (eqv? (fluid-ref a) 2))
+                   (eqv? (fluid-ref a) #f))
+             #:env (current-module))))
+
+(pass-if "fluid values are thread-local"
+  (if (provided? 'threads)
+      (let ((f (make-fluid)))
+        (fluid-set! f 'parent)
+        (let ((child (call-with-new-thread
+                      (lambda ()
+                        (fluid-set! f 'child)
+                        (fluid-ref f)))))
+          (and (eq? (join-thread child) 'child)
+               (eq? (fluid-ref f) 'parent))))
+      (throw 'unresolved)))
+
+(pass-if "fluids are GC'd"
+
+  (let ((g (make-guardian)))
+    (g (make-fluid))
+    (let loop ((i 1000))
+      (and (> i 0)
+           (begin
+             (make-fluid)
+             (loop (1- i)))))
+    (gc)
+    (fluid? (g))))
+
+(pass-if-exception "fluid-ref* depth must be non-negative"
+    exception:out-of-range
+  (fluid-ref* (make-fluid) -1))
+
+(with-test-prefix "with-fluids"
+
+  (pass-if "with-fluids binds"
+    (= (with-fluids ((a 1)) (fluid-ref a)) 1))
+
+  (pass-if "with-fluids unbinds"
+    (begin
+      (fluid-set! a 0)
+      (with-fluids ((a 1)) (fluid-ref a))
+      (= (fluid-ref a) 0)))
+  
+  (pass-if "with-fluids and dynamic-wind"
+    (letrec ((co-routine #f)
+	     (spawn (lambda (proc)
+		      (set! co-routine proc)))
+	     (yield (lambda (val)
+		      (call-with-current-continuation
+		       (lambda (k)
+			 (let ((next co-routine))
+			   (set! co-routine k)
+			   (next val)))))))
+      
+      (spawn (lambda (val)
+	       (with-fluids ((a 'inside))
+	         (yield (fluid-ref a))
+		 (yield (fluid-ref a)))))
+
+      (fluid-set! a 'outside)
+      (let ((inside-a (yield #f)))
+	(let ((outside-a (fluid-ref a)))
+	  (let ((inside-a2 (yield #f)))
+	    (and (eq? inside-a 'inside)
+		 (eq? outside-a 'outside)
+		 (eq? inside-a2 'inside))))))))
+
+(with-test-prefix "unbound fluids"
+  (pass-if "fluid-ref of unbound fluid"
+    (catch #t
+           (lambda () (fluid-ref (make-unbound-fluid)))
+           (lambda (key . args) #t)))
+  (pass-if "fluid-bound? of bound fluid"
+    (fluid-bound? (make-fluid)))
+  (pass-if "fluid-bound? of unbound fluid"
+    (not (fluid-bound? (make-unbound-fluid))))
+  (pass-if "unbound fluids can be set"
+    (let ((fluid (make-unbound-fluid)))
+      (fluid-set! fluid #t)
+      (fluid-ref fluid)))
+  (pass-if "bound fluids can be unset"
+    (let ((fluid (make-fluid)))
+      (fluid-unset! fluid)
+      (catch #t
+             (lambda () (fluid-ref fluid))
+             (lambda (key . args) #t)))))
+
+(with-test-prefix "dynamic states"
+  (pass-if "basics"
+    (dynamic-state? (current-dynamic-state)))
+
+  (pass-if "with a fluid (basic)"
+    (let ((fluid (make-fluid #f))
+          (state (current-dynamic-state)))
+      (with-dynamic-state
+       state
+       (lambda ()
+         (eqv? (fluid-ref fluid) #f)))))
+
+  (pass-if "with a fluid (set outer)"
+    (let ((fluid (make-fluid #f))
+          (state (current-dynamic-state)))
+      (fluid-set! fluid #t)
+      (and (with-dynamic-state
+            state
+            (lambda ()
+              (eqv? (fluid-ref fluid) #f)))
+           (eqv? (fluid-ref fluid) #t))))
+
+  (pass-if "with a fluid (set inner)"
+    (let ((fluid (make-fluid #f))
+          (state (current-dynamic-state)))
+      (and (with-dynamic-state
+            state
+            (lambda ()
+              (fluid-set! fluid #t)
+              (eqv? (fluid-ref fluid) #t)))
+           (eqv? (fluid-ref fluid) #f))))
+
+  (pass-if "dynstate captured (1)"
+    (let ((fluid (make-fluid #f))
+          (state (current-dynamic-state))
+          (tag (make-prompt-tag "hey")))
+      (let ((k (call-with-prompt tag
+                 (lambda ()
+                   (with-dynamic-state
+                    state
+                    (lambda ()
+                      (abort-to-prompt tag)
+                      (fluid-ref fluid))))
+                 (lambda (k) k))))
+        (eqv? (k) #f))))
+
+  (pass-if "dynstate captured (2)"
+    (let ((fluid (make-fluid #f))
+          (state (current-dynamic-state))
+          (tag (make-prompt-tag "hey")))
+      (let ((k (call-with-prompt tag
+                 (lambda ()
+                   (with-dynamic-state
+                    state
+                    (lambda ()
+                      (abort-to-prompt tag)
+                      (fluid-ref fluid))))
+                 (lambda (k) k))))
+        (fluid-set! fluid #t)
+        (eqv? (k) #f))))
+
+  (pass-if "dynstate captured (3)"
+    (let ((fluid (make-fluid #f))
+          (state (current-dynamic-state))
+          (tag (make-prompt-tag "hey")))
+      (let ((k (call-with-prompt tag
+                 (lambda ()
+                   (with-dynamic-state
+                    state
+                    (lambda ()
+                      (fluid-set! fluid #t)
+                      (abort-to-prompt tag)
+                      (fluid-ref fluid))))
+                 (lambda (k) k))))
+        (and (eqv? (fluid-ref fluid) #f)
+             (eqv? (k) #t)))))
+
+  (pass-if "exception handler not captured"
+    (let ((state (catch #t (lambda () (current-dynamic-state)) error)))
+      (catch #t
+        (lambda () (with-dynamic-state state (lambda () (/ 1 0))))
+        (lambda _ #t)))))

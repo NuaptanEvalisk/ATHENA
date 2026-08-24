@@ -1,0 +1,337 @@
+;;;; Low-level tests of the bytecode assembler -*- mode: scheme; coding: utf-8; -*-
+;;;;
+;;;; 	Copyright (C) 2010-2015, 2017-2019 Free Software Foundation, Inc.
+;;;;
+;;;; This library is free software; you can redistribute it and/or
+;;;; modify it under the terms of the GNU Lesser General Public
+;;;; License as published by the Free Software Foundation; either
+;;;; version 3 of the License, or (at your option) any later version.
+;;;;
+;;;; This library is distributed in the hope that it will be useful,
+;;;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;;;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+;;;; Lesser General Public License for more details.
+;;;;
+;;;; You should have received a copy of the GNU Lesser General Public
+;;;; License along with this library; if not, write to the Free Software
+;;;; Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+
+(define-module (tests bytecode)
+  #:use-module (test-suite lib)
+  #:use-module (system vm assembler)
+  #:use-module (system vm program)
+  #:use-module (system vm loader)
+  #:use-module (system vm linker)
+  #:use-module (system vm debug))
+
+(define (assemble-program instructions)
+  "Take the sequence of instructions @var{instructions}, assemble them
+into bytecode, link an image, and load that image from memory.  Returns
+a procedure."
+  (let ((asm (make-assembler)))
+    (emit-text asm instructions)
+    (load-thunk-from-memory (link-assembly asm #:page-aligned? #f))))
+
+(define-syntax-rule (assert-equal val expr)
+  (let ((x val))
+    (pass-if (object->string x) (equal? expr x))))
+
+(define (return-constant val)
+  (assemble-program `((begin-program foo
+                                     ((name . foo)))
+                      (begin-standard-arity #t () 1 #f)
+                      (load-constant 0 ,val)
+                      (return-values)
+                      (end-arity)
+                      (end-program))))
+
+(define-syntax-rule (assert-constants val ...)
+  (begin
+    (assert-equal val ((return-constant val)))
+    ...))
+
+(with-test-prefix "load-constant"
+  (assert-constants
+   1
+   -1
+   0
+   most-positive-fixnum
+   most-negative-fixnum
+   #t
+   #\c
+   (integer->char 16000)
+   3.14
+   "foo"
+   'foo
+   #:foo
+   "æ" ;; a non-ASCII Latin-1 string
+   "λ" ;; non-ascii, non-latin-1
+   '(1 . 2)
+   '(1 2 3 4)
+   #(1 2 3)
+   #("foo" "bar" 'baz)
+   #vu8()
+   #vu8(1 2 3 4 128 129 130)
+   #u32()
+   #u32(1 2 3 4 128 129 130 255 1000)
+   ;; FIXME: Add more tests for arrays (uniform and otherwise)
+   ))
+
+(define-syntax-rule (assert-bad-constants val ...)
+  (begin
+    (pass-if-exception (object->string val) exception:miscellaneous-error
+      (return-constant val))
+    ...))
+
+(with-test-prefix "bad constants"
+  (assert-bad-constants (make-symbol "foo")
+                        (lambda () 100)))
+
+(with-test-prefix "static procedure"
+  (assert-equal 42
+                (((assemble-program `((begin-program foo
+                                                     ((name . foo)))
+                                      (begin-standard-arity #t () 1 #f)
+                                      (load-static-procedure 0 bar)
+                                      (return-values)
+                                      (end-arity)
+                                      (end-program)
+                                      (begin-program bar
+                                                     ((name . bar)))
+                                      (begin-standard-arity #t () 1 #f)
+                                      (load-constant 0 42)
+                                      (return-values)
+                                      (end-arity)
+                                      (end-program)))))))
+
+(with-test-prefix "loop"
+  (assert-equal (* 999 500)
+                (let ((sumto
+                       (assemble-program
+                        ;; 0: limit
+                        ;; 1: n
+                        ;; 2: accum
+                        '((begin-program countdown
+                                         ((name . countdown)))
+                          (begin-standard-arity #t (x) 4 #f)
+                          (definition closure 0 scm)
+                          (definition x 1 scm)
+                          (j fix-body)
+                          (label loop-head)
+                          (=? 1 2)
+                          (je out)
+                          (add 0 1 0)
+                          (add/immediate 1 1 1)
+                          (j loop-head)
+                          (label fix-body)
+                          (load-constant 1 0)
+                          (load-constant 0 0)
+                          (j loop-head)
+                          (label out)
+                          (mov 3 0)
+                          (reset-frame 1)
+                          (return-values)
+                          (end-arity)
+                          (end-program)))))
+                  (sumto 1000))))
+
+(with-test-prefix "call"
+  (assert-equal 42
+                (let ((call ;; (lambda (x) (x))
+                       (assemble-program
+                        '((begin-program call
+                                         ((name . call)))
+                          (begin-standard-arity #t (f) 7 #f)
+                          (definition closure 0 scm)
+                          (definition f 1 scm)
+                          (mov 1 5)
+                          (call 5 1)
+                          (receive 0 5 7)
+                          (reset-frame 1)
+                          (return-values)
+                          (end-arity)
+                          (end-program)))))
+                  (call (lambda () 42))))
+
+  (assert-equal 6
+                (let ((call-with-3 ;; (lambda (x) (x 3))
+                       (assemble-program
+                        '((begin-program call-with-3
+                                         ((name . call-with-3)))
+                          (begin-standard-arity #t (f) 7 #f)
+                          (definition closure 0 scm)
+                          (definition f 1 scm)
+                          (mov 1 5)
+                          (load-constant 0 3)
+                          (call 5 2)
+                          (receive 0 5 7)
+                          (reset-frame 1)
+                          (return-values)
+                          (end-arity)
+                          (end-program)))))
+                  (call-with-3 (lambda (x) (* x 2))))))
+
+(with-test-prefix "tail-call"
+  (assert-equal 3
+                (let ((call ;; (lambda (x) (x))
+                       (assemble-program
+                        '((begin-program call
+                                         ((name . call)))
+                          (begin-standard-arity #t (f) 2 #f)
+                          (definition closure 0 scm)
+                          (definition f 1 scm)
+                          (mov 1 0)
+                          (reset-frame 1)
+                          (tail-call)
+                          (end-arity)
+                          (end-program)))))
+                  (call (lambda () 3))))
+
+  (assert-equal 6
+                (let ((call-with-3 ;; (lambda (x) (x 3))
+                       (assemble-program
+                        '((begin-program call-with-3
+                                         ((name . call-with-3)))
+                          (begin-standard-arity #t (f) 2 #f)
+                          (definition closure 0 scm)
+                          (definition f 1 scm)
+                          (mov 1 0) ;; R0 <- R1
+                          (load-constant 0 3) ;; R1 <- 3
+                          (tail-call)
+                          (end-arity)
+                          (end-program)))))
+                  (call-with-3 (lambda (x) (* x 2))))))
+
+(with-test-prefix "debug contexts"
+  (let ((return-3 (assemble-program
+                   '((begin-program return-3 ((name . return-3)))
+                     (begin-standard-arity #t () 1 #f)
+                     (load-constant 0 3)
+                     (return-values)
+                     (end-arity)
+                     (end-program)))))
+    (pass-if "program name"
+      (and=> (find-program-debug-info (program-code return-3))
+             (lambda (pdi)
+               (equal? (program-debug-info-name pdi)
+                       'return-3))))
+
+    (pass-if "program address"
+      (and=> (find-program-debug-info (program-code return-3))
+             (lambda (pdi)
+               (equal? (program-debug-info-addr pdi)
+                       (program-code return-3)))))))
+
+(with-test-prefix "procedure name"
+  (pass-if-equal 'foo
+      (procedure-name
+       (assemble-program
+        '((begin-program foo ((name . foo)))
+          (begin-standard-arity #t () 1 #f)
+          (load-constant 0 42)
+          (return-values)
+          (end-arity)
+          (end-program))))))
+
+(with-test-prefix "simple procedure arity"
+  (pass-if-equal "#<procedure foo ()>"
+      (object->string
+       (assemble-program
+        '((begin-program foo ((name . foo)))
+          (begin-standard-arity #t () 1 #f)
+          (definition closure 0 scm)
+          (load-constant 0 42)
+          (return-values)
+          (end-arity)
+          (end-program)))))
+  (pass-if-equal "#<procedure foo (x y)>"
+      (object->string
+       (assemble-program
+        '((begin-program foo ((name . foo)))
+          (begin-standard-arity #t (x y) 3 #f)
+          (definition closure 0 scm)
+          (definition x 1 scm)
+          (definition y 2 scm)
+          (load-constant 2 42)
+          (reset-frame 1)
+          (return-values)
+          (end-arity)
+          (end-program)))))
+
+  (pass-if-equal "#<procedure foo (x #:optional y . z)>"
+      (object->string
+       (assemble-program
+        '((begin-program foo ((name . foo)))
+          (begin-opt-arity #t (x) (y) z 4 #f)
+          (definition closure 0 scm)
+          (definition x 1 scm)
+          (definition y 2 scm)
+          (definition z 3 scm)
+          (load-constant 3 42)
+          (reset-frame 1)
+          (return-values)
+          (end-arity)
+          (end-program))))))
+
+(with-test-prefix "procedure docstrings"
+  (pass-if-equal "qux qux"
+      (procedure-documentation
+       (assemble-program
+        '((begin-program foo ((name . foo) (documentation . "qux qux")))
+          (begin-standard-arity #t () 1 #f)
+          (load-constant 0 42)
+          (return-values)
+          (end-arity)
+          (end-program))))))
+
+(with-test-prefix "procedure properties"
+  ;; No properties.
+  (pass-if-equal '()
+      (procedure-properties
+       (assemble-program
+        '((begin-program foo ())
+          (begin-standard-arity #t () 1 #f)
+          (load-constant 0 42)
+          (return-values)
+          (end-arity)
+          (end-program)))))
+
+  ;; Name and docstring (which actually don't go out to procprops).
+  (pass-if-equal '((name . foo)
+                   (documentation . "qux qux"))
+      (procedure-properties
+       (assemble-program
+        '((begin-program foo ((name . foo) (documentation . "qux qux")))
+          (begin-standard-arity #t () 1 #f)
+          (load-constant 0 42)
+          (return-values)
+          (end-arity)
+          (end-program)))))
+
+  ;; A property that actually needs serialization.
+  (pass-if-equal '((name . foo)
+                   (documentation . "qux qux")
+                   (moo . "mooooooooooooo"))
+      (procedure-properties
+       (assemble-program
+        '((begin-program foo ((name . foo)
+                              (documentation . "qux qux")
+                              (moo . "mooooooooooooo")))
+          (begin-standard-arity #t () 1 #f)
+          (load-constant 0 42)
+          (return-values)
+          (end-arity)
+          (end-program)))))
+
+  ;; Procedure-name still works in this case.
+  (pass-if-equal 'foo
+      (procedure-name
+       (assemble-program
+        '((begin-program foo ((name . foo)
+                              (documentation . "qux qux")
+                              (moo . "mooooooooooooo")))
+          (begin-standard-arity #t () 1 #f)
+          (load-constant 0 42)
+          (return-values)
+          (end-arity)
+          (end-program))))))

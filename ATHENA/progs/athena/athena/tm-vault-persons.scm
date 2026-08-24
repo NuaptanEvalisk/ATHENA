@@ -12,7 +12,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (texmacs-module (athena athena tm-vault-persons))
-(use-modules (kernel athena tm-preferences))
+(import-from (kernel athena tm-preferences))
 
 (define (vault-person-normalization-supported? buf)
   (and (url? buf)

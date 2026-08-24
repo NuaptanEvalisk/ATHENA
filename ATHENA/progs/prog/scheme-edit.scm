@@ -15,7 +15,7 @@
   (:use (prog prog-edit)
         (prog scheme-tools) (prog scheme-autocomplete)
         (utils misc tm-keywords)))
-(use-modules (kernel athena tm-preferences))
+(import-from (kernel athena tm-preferences))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

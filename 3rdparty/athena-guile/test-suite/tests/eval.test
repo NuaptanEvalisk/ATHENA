@@ -1,0 +1,661 @@
+;;;; eval.test --- tests guile's evaluator     -*- scheme -*-
+;;;; Copyright (C) 2000-2001,2003-2015,2017,2019,2020
+;;;;   Free Software Foundation, Inc.
+;;;;
+;;;; This library is free software; you can redistribute it and/or
+;;;; modify it under the terms of the GNU Lesser General Public
+;;;; License as published by the Free Software Foundation; either
+;;;; version 3 of the License, or (at your option) any later version.
+;;;; 
+;;;; This library is distributed in the hope that it will be useful,
+;;;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;;;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+;;;; Lesser General Public License for more details.
+;;;; 
+;;;; You should have received a copy of the GNU Lesser General Public
+;;;; License along with this library; if not, write to the Free Software
+;;;; Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+
+(define-module (test-suite test-eval)
+  :use-module (test-suite lib)
+  :use-module ((srfi srfi-1) :select (unfold count))
+  :use-module ((system vm vm) :select (call-with-stack-overflow-handler))
+  :use-module ((system vm frame) :select (frame-call-representation))
+  :use-module (ice-9 documentation)
+  :use-module (ice-9 exceptions)
+  :use-module (ice-9 local-eval))
+
+
+(define exception:bad-expression
+  (cons 'syntax-error "Bad expression"))
+
+(define exception:failed-match
+  (cons 'syntax-error "failed to match any pattern"))
+
+(define exception:not-a-list
+  (cons 'wrong-type-arg "Not a list"))
+
+(define exception:wrong-length
+  (cons 'wrong-type-arg "wrong length"))
+
+;;;
+;;; miscellaneous
+;;;
+
+(define (documented? object)
+  (not (not (object-documentation object))))
+
+
+;;;
+;;; memoization
+;;;
+
+(with-test-prefix "memoization"
+  (pass-if "transparency"
+    (let ((x '(begin 1)))
+      (eval x (current-module))
+      (equal? '(begin 1) x))))
+
+
+;;;
+;;; eval
+;;;
+
+(with-test-prefix "evaluator"
+
+  (pass-if "definitions return #<unspecified>"
+    (eq? (primitive-eval '(define test-var 'foo))
+         (if #f #f)))
+
+  (with-test-prefix "symbol lookup"
+
+    (with-test-prefix "top level"
+
+      (with-test-prefix "unbound"
+
+	(pass-if-exception "variable reference"
+	  exception:unbound-var
+	  x)
+
+	(pass-if-exception "procedure"
+	  exception:unbound-var
+	  (x)))))
+
+  (with-test-prefix "parameter error"
+
+    ;; This is currently a bug in guile:
+    ;; Macros are accepted as function parameters.
+    ;; Functions that 'apply' macros are rewritten!!!
+
+    (pass-if-exception "macro as argument"
+      exception:failed-match
+      (primitive-eval
+       '(let ((f (lambda (p a b) (p a b))))
+          (f and #t #t))))
+
+    (pass-if-exception "passing macro as parameter"
+      exception:failed-match
+      (primitive-eval
+       '(let* ((f (lambda (p a b) (p a b)))
+               (foo (procedure-source f)))
+          (f and #t #t)
+          (equal? (procedure-source f) foo))))
+
+    ))
+
+;;;
+;;; call
+;;;
+
+(with-test-prefix "call"
+
+  (with-test-prefix "wrong number of arguments"
+
+    (pass-if-exception "((lambda () #f) 1)"
+      exception:wrong-num-args
+      ((lambda () #f) 1))
+
+    (pass-if-exception "((lambda (x) #f))"
+      exception:wrong-num-args
+      ((lambda (x) #f)))
+
+    (pass-if-exception "((lambda (x) #f) 1 2)"
+      exception:wrong-num-args
+      ((lambda (x) #f) 1 2))
+
+    (pass-if-exception "((lambda (x y) #f))"
+      exception:wrong-num-args
+      ((lambda (x y) #f)))
+
+    (pass-if-exception "((lambda (x y) #f) 1)"
+      exception:wrong-num-args
+      ((lambda (x y) #f) 1))
+
+    (pass-if-exception "((lambda (x y) #f) 1 2 3)"
+      exception:wrong-num-args
+      ((lambda (x y) #f) 1 2 3))
+
+    (pass-if-exception "((lambda (x . rest) #f))"
+      exception:wrong-num-args
+      ((lambda (x . rest) #f)))
+
+    (pass-if-exception "((lambda (x y . rest) #f))"
+      exception:wrong-num-args
+      ((lambda (x y . rest) #f)))
+
+    (pass-if-exception "((lambda (x y . rest) #f) 1)"
+      exception:wrong-num-args
+      ((lambda (x y . rest) #f) 1))))
+
+;;;
+;;; apply
+;;;
+
+(with-test-prefix "apply"
+
+  (with-test-prefix "scm_tc7_subr_2o"
+
+    ;; prior to guile 1.6.9 and 1.8.1 this called the function with
+    ;; SCM_UNDEFINED, which in the case of make-vector resulted in
+    ;; wrong-type-arg, instead of the intended wrong-num-args
+    (pass-if-exception "0 args" exception:wrong-num-args
+      (apply make-vector '()))
+
+    (pass-if "1 arg"
+      (vector? (apply make-vector '(1))))
+
+    (pass-if "2 args"
+      (vector? (apply make-vector '(1 2))))
+
+    ;; prior to guile 1.6.9 and 1.8.1 this error wasn't detected
+    (pass-if-exception "3 args" exception:wrong-num-args
+      (apply make-vector '(1 2 3)))))
+
+;;;
+;;; map
+;;;
+
+(with-test-prefix "map"
+
+  ;; Is documentation available?
+
+  (expect-fail "documented?"
+    (documented? map))
+
+  (with-test-prefix "argument error"
+
+    (with-test-prefix "non list argument"
+      #t)
+
+    (with-test-prefix "different length lists"
+
+      (pass-if-exception "first list empty"
+        exception:wrong-length
+	(map + '() '(1)))
+
+      (pass-if-exception "second list empty"
+        exception:wrong-length
+	(map + '(1) '()))
+
+      (pass-if-exception "first list shorter"
+	exception:wrong-length
+	(map + '(1) '(2 3)))
+
+      (pass-if-exception "second list shorter"
+	exception:wrong-length
+	(map + '(1 2) '(3)))
+    )))
+
+(with-test-prefix "for-each"
+
+  (pass-if-exception "1 arg, non-list, even number of elements"
+      exception:not-a-list
+    (for-each values '(1 2 3 4 . 5)))
+
+  (pass-if-exception "1 arg, non-list, odd number of elements"
+      exception:not-a-list
+    (for-each values '(1 2 3 . 4))))
+
+;;;
+;;; define with procedure-name
+;;;
+
+;; names are only set on top-level procedures (currently), so these can't be
+;; hidden in a let
+;;
+(define foo-closure (lambda () "hello"))
+(define bar-closure foo-closure)
+;; make sure that make-procedure-with-setter returns an anonymous
+;; procedure-with-setter by passing it an anonymous getter.
+(define foo-pws (make-procedure-with-setter
+                 (lambda (x) (car x))
+                 (lambda (x y) (set-car! x y))))
+(define bar-pws foo-pws)
+
+(with-test-prefix "define set procedure-name"
+
+  (pass-if "closure"
+    (eq? 'foo-closure (procedure-name bar-closure)))
+
+  (expect-fail "procedure-with-setter" ; FIXME: `pass-if' when it's supported
+    (eq? 'foo-pws (procedure-name bar-pws))))
+
+;;;
+;;; promises
+;;;
+
+(with-test-prefix "promises"
+
+  (with-test-prefix "basic promise behaviour"
+
+    (pass-if "delay gives a promise"
+      (promise? (delay 1)))
+
+    (pass-if "force evaluates a promise"
+      (eqv? (force (delay (+ 1 2))) 3))
+
+    (pass-if "a forced promise is a promise"
+      (let ((p (delay (+ 1 2))))
+	(force p)
+	(promise? p)))
+
+    (pass-if "forcing a forced promise works"
+      (let ((p (delay (+ 1 2))))
+	(force p)
+	(eqv? (force p) 3)))
+
+    (pass-if "a promise is evaluated once"
+      (let* ((x 1)
+	     (p (delay (+ x 1))))
+	(force p)
+	(set! x (+ x 1))
+	(eqv? (force p) 2)))
+
+    (pass-if "a promise may call itself"
+      (define p
+	(let ((x 0))
+	  (delay 
+	    (begin 
+	      (set! x (+ x 1))
+	      (if (> x 1) x (force p))))))
+      (eqv? (force p) 2))
+
+    (pass-if "a promise carries its environment"
+      (let* ((x 1) (p #f))
+	(let* ((x 2))
+	  (set! p (delay (+ x 1))))
+	(eqv? (force p) 3)))
+
+    (pass-if "a forced promise does not reference its environment"
+      (let* ((g (make-guardian))
+	     (p #f))
+	(let* ((x (cons #f #f)))
+	  (g x)
+	  (set! p (delay (car x))))
+	(force p)
+        (gc)
+        ;; Though this test works reliably when running just eval.test,
+        ;; it often does the unresolved case when running the full
+        ;; suite.  Adding this extra gc makes the full-suite behavior
+        ;; pass more reliably.
+	(gc)
+        (if (not (equal? (g) (cons #f #f)))
+	    (throw 'unresolved)
+	    #t))))
+
+  (with-test-prefix "extended promise behaviour"
+
+    (pass-if-exception "forcing a non-promise object is not supported"
+      exception:wrong-type-arg
+      (force 1))
+
+    (pass-if "unmemoizing a promise"
+      (display-backtrace
+       (let ((stack #f))
+         (false-if-exception
+          (with-throw-handler #t
+                              (lambda ()
+                                (let ((f (lambda (g) (delay (g)))))
+                                  (force (f error))))
+                              (lambda _
+                                (set! stack (make-stack #t)))))
+         stack)
+       (%make-void-port "w"))
+      #t)))
+
+
+;;;
+;;; stacks
+;;;
+
+(define (stack->frames stack)
+  ;; Return the list of frames comprising STACK.
+  (unfold (lambda (i)
+            (>= i (stack-length stack)))
+          (lambda (i)
+            (stack-ref stack i))
+          1+
+          0))
+
+(define (make-tagged-trimmed-stack tag spec)
+  (catch 'result
+    (lambda ()
+      (call-with-prompt
+        tag
+        (lambda ()
+          (with-throw-handler 'wrong-type-arg
+            (lambda () (substring 'wrong 'type 'arg))
+            (lambda _ (throw 'result (apply make-stack spec)))))
+        (lambda () (throw 'make-stack-failed))))
+    (lambda (key result) result)))
+
+(define tag (make-prompt-tag "foo"))
+
+(with-test-prefix "stacks"
+  (pass-if "stack involving a primitive"
+    ;; The primitive involving the error must appear exactly once on the
+    ;; stack.
+    (let* ((stack (make-tagged-trimmed-stack tag '(#t)))
+           (frames (stack->frames stack))
+           (num (count (lambda (frame) (eq? (frame-procedure-name frame)
+                                            'substring))
+                       frames)))
+      (= num 1)))
+
+  (pass-if "arguments of a primitive stack frame"
+    ;; Create a stack with two primitive frames and make sure the
+    ;; arguments are correct.
+    (let* ((stack (make-tagged-trimmed-stack tag '(#t)))
+           (call-list (map frame-call-representation (stack->frames stack))))
+      (and (equal? (car call-list) '(make-stack #t))
+           (pair? (member '(substring wrong type arg)
+                          (cdr call-list))))))
+
+  (pass-if "inner trim with prompt tag"
+    (let* ((stack (make-tagged-trimmed-stack tag `(#t ,tag)))
+           (frames (stack->frames stack)))
+      ;; the top frame on the stack is the body of the catch, and the
+      ;; next frame is the with-exception-handler corresponding to the
+      ;; (catch 'result ...)
+      (eq? (car (frame-call-representation (cadr frames)))
+           'with-exception-handler)))
+
+  (pass-if "outer trim with prompt tag"
+    (let* ((stack (make-tagged-trimmed-stack tag `(#t 0 ,tag)))
+           (frames (stack->frames stack)))
+      ;; the top frame on the stack is the make-stack call, and the last
+      ;; frame is the (with-throw-handler 'wrong-type-arg ...)
+      (and (eq? (car (frame-call-representation (car frames)))
+                'make-stack)
+           (eq? (car (frame-call-representation (car (last-pair frames))))
+                'with-exception-handler))))
+
+  (pass-if "avoid frame-local-ref out of range"
+    (with-exception-handler
+        (lambda (ex)
+          ;; If frame-call-representation fails, we'll catch that
+          ;; instead of the expected "Wrong type to apply" error.
+          (string-prefix? "Wrong type to apply" (exception-message ex)))
+      (lambda ()
+        (with-exception-handler
+            (lambda (ex)
+              (let* ((stack (make-stack #t))
+                     (frames (stack->frames stack)))
+                (for-each frame-call-representation frames))
+              (raise-exception ex))
+          (lambda ()
+            ;; This throws a "Wrong type to apply" error, creating a
+            ;; frame with an incorrect number of local slots as
+            ;; described in bug <https://bugs.gnu.org/56493>.
+            (primitive-eval '(define foo (#t))))))
+      #:unwind? #t)))
+
+;;;
+;;; letrec init evaluation
+;;;
+
+(with-test-prefix "letrec init evaluation"
+
+  (pass-if "lots of inits calculated in correct order"
+    (equal? (letrec ((a 'a) (b 'b) (c 'c) (d 'd)
+		     (e 'e) (f 'f) (g 'g) (h 'h)
+		     (i 'i) (j 'j) (k 'k) (l 'l)
+		     (m 'm) (n 'n) (o 'o) (p 'p)
+		     (q 'q) (r 'r) (s 's) (t 't)
+		     (u 'u) (v 'v) (w 'w) (x 'x)
+		     (y 'y) (z 'z))
+	      (list a b c d e f g h i j k l m
+		    n o p q r s t u v w x y z))
+	    '(a b c d e f g h i j k l m
+	      n o p q r s t u v w x y z))))
+
+;;;
+;;; values
+;;;
+
+(with-test-prefix "values"
+
+  (pass-if "single value"
+    (equal? 1 (values 1)))
+
+  (pass-if "call-with-values"
+    (equal? (call-with-values (lambda () (values 1 2 3 4)) list)
+            '(1 2 3 4)))
+
+  (pass-if "equal?"
+    (equal? (values 1 2 3 4) (values 1 2 3 4))))
+
+;;;
+;;; stack overflow handling
+;;;
+
+(with-test-prefix "stack overflow handlers"
+  (define (trigger-overflow)
+    (trigger-overflow)
+    (error "not reached"))
+
+  (define (dynwind-test n)
+    (catch 'foo
+      (lambda ()
+        (call-with-stack-overflow-handler n
+          (lambda ()
+            (dynamic-wind (lambda () #t)
+                          trigger-overflow
+                          trigger-overflow))
+          (lambda ()
+            (throw 'foo))))
+      (lambda _ #t)))
+
+  (pass-if-exception "limit should be number"
+      exception:wrong-type-arg
+    (call-with-stack-overflow-handler #t
+      trigger-overflow trigger-overflow))
+
+  (pass-if-exception "limit should be exact integer"
+      exception:wrong-type-arg
+    (call-with-stack-overflow-handler 2.0
+      trigger-overflow trigger-overflow))
+
+  (pass-if-exception "limit should be non-negative"
+      exception:out-of-range
+    (call-with-stack-overflow-handler -1
+      trigger-overflow trigger-overflow))
+
+  (pass-if-exception "limit should be positive"
+      exception:out-of-range
+    (call-with-stack-overflow-handler 0
+      trigger-overflow trigger-overflow))
+
+  (pass-if-exception "limit should be within address space"
+      exception:out-of-range
+    (call-with-stack-overflow-handler (ash 1 64)
+      trigger-overflow trigger-overflow))
+
+  (pass-if "exception on overflow"
+    (catch 'foo
+      (lambda ()
+        (call-with-stack-overflow-handler 10000
+          trigger-overflow
+          (lambda ()
+            (throw 'foo))))
+      (lambda _ #t)))
+
+  (pass-if "exception on overflow with dynwind"
+    ;; Try all limits between 1 and 200 words.
+    (let lp ((n 1))
+      (or (= n 200)
+          (and (dynwind-test n)
+               (lp (1+ n))))))
+
+  (pass-if-exception "overflow handler should return number"
+      exception:wrong-type-arg
+    (call-with-stack-overflow-handler 1000
+      trigger-overflow
+      (lambda () #t)))
+  (pass-if-exception "overflow handler should return exact integer"
+      exception:wrong-type-arg
+    (call-with-stack-overflow-handler 1000
+      trigger-overflow
+      (lambda () 2.0)))
+  (pass-if-exception "overflow handler should be non-negative"
+      exception:out-of-range
+    (call-with-stack-overflow-handler 1000
+      trigger-overflow
+      (lambda () -1)))
+  (pass-if-exception "overflow handler should be positive"
+      exception:out-of-range
+    (call-with-stack-overflow-handler 1000
+      trigger-overflow
+      (lambda () 0)))
+
+  (letrec ((fac (lambda (n)
+                  (if (zero? n) 1 (* n (fac (1- n)))))))
+    (pass-if-equal "overflow handler can allow recursion to continue"
+        (fac 10)
+      (call-with-stack-overflow-handler 1
+        (lambda () (fac 10))
+        (lambda () 1)))))
+
+;;;
+;;; docstrings
+;;;
+
+(with-test-prefix "docstrings"
+
+  (pass-if-equal "fixed closure"
+      '("hello" "world")
+    (map procedure-documentation
+         (list (eval '(lambda (a b) "hello" (+ a b))
+                     (current-module))
+               (eval '(lambda (a b) "world" (- a b))
+                     (current-module)))))
+
+  (pass-if-equal "fixed closure with many args"
+      "So many args."
+    (procedure-documentation
+     (eval '(lambda (a b c d e f g h i j k)
+              "So many args."
+              (+ a b))
+           (current-module))))
+
+  (pass-if-equal "general closure"
+      "How general."
+    (procedure-documentation
+     (eval '(lambda* (a b #:key k #:rest r)
+              "How general."
+              (+ a b))
+           (current-module)))))
+
+;;;
+;;; local-eval
+;;;
+
+(with-test-prefix "local evaluation"
+
+  (pass-if "local-eval"
+
+    (let* ((env1 (local-eval '(let ((x 1) (y 2) (z 3))
+                                (define-syntax-rule (foo x) (quote x))
+                                (the-environment))
+                             (current-module)))
+           (env2 (local-eval '(let ((x 111) (a 'a))
+                                (define-syntax-rule (bar x) (quote x))
+                                (the-environment))
+                           env1)))
+      (local-eval '(set! x 11) env1)
+      (local-eval '(set! y 22) env1)
+      (local-eval '(set! z 33) env2)
+      (and (equal? (local-eval '(list x y z) env1)
+                   '(11 22 33))
+           (equal? (local-eval '(list x y z a) env2)
+                   '(111 22 33 a)))))
+
+  (pass-if "local-compile"
+
+    (let* ((env1 (local-compile '(let ((x 1) (y 2) (z 3))
+                                   (define-syntax-rule (foo x) (quote x))
+                                   (the-environment))
+                                (current-module)))
+           (env2 (local-compile '(let ((x 111) (a 'a))
+                                   (define-syntax-rule (bar x) (quote x))
+                                   (the-environment))
+                                env1)))
+      (local-compile '(set! x 11) env1)
+      (local-compile '(set! y 22) env1)
+      (local-compile '(set! z 33) env2)
+      (and (equal? (local-compile '(list x y z) env1)
+                   '(11 22 33))
+           (equal? (local-compile '(list x y z a) env2)
+                   '(111 22 33 a)))))
+
+  (pass-if "the-environment within a macro"
+    (let ((module-a-name '(test module the-environment a))
+          (module-b-name '(test module the-environment b)))
+      (let ((module-a (resolve-module module-a-name))
+            (module-b (resolve-module module-b-name)))
+        (module-use! module-a (resolve-interface '(guile)))
+        (module-use! module-a (resolve-interface '(ice-9 local-eval)))
+        (eval '(begin
+                 (define z 3)
+                 (define-syntax-rule (test)
+                   (let ((x 1) (y 2))
+                     (the-environment))))
+              module-a)
+        (module-use! module-b (resolve-interface '(guile)))
+        (let ((env (local-eval `(let ((x 111) (y 222))
+                                  ((@@ ,module-a-name test)))
+                               module-b)))
+          (equal? (local-eval '(list x y z) env)
+                  '(1 2 3))))))
+
+  (pass-if "capture pattern variables"
+    (let ((env (syntax-case #'(((a 1) (b 2) (c 3))
+                               ((d 4) (e 5) (f 6))) ()
+                 ((((k v) ...) ...) (the-environment)))))
+      (equal? (syntax->datum (local-eval '#'((k ... v ...) ...) env))
+              '((a b c 1 2 3) (d e f 4 5 6)))))
+
+  (pass-if "mixed primitive-eval, local-eval and local-compile"
+
+    (let* ((env1 (primitive-eval '(let ((x 1) (y 2) (z 3))
+                                    (define-syntax-rule (foo x) (quote x))
+                                    (the-environment))))
+           (env2 (local-eval '(let ((x 111) (a 'a))
+                                (define-syntax-rule (bar x) (quote x))
+                                (the-environment))
+                             env1))
+           (env3 (local-compile '(let ((y 222) (b 'b))
+                                   (the-environment))
+                                env2)))
+      (local-eval    '(set! x 11) env1)
+      (local-compile '(set! y 22) env2)
+      (local-eval    '(set! z 33) env2)
+      (local-compile '(set! a (* y 2)) env3)
+      (and (equal? (local-compile '(list x y z) env1)
+                   '(11 22 33))
+           (equal? (local-eval '(list x y z a) env2)
+                   '(111 22 33 444))
+           (equal? (local-eval '(list x y z a b) env3)
+                   '(111 222 33 444 b))))))
+
+;;; eval.test ends here

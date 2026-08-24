@@ -1,0 +1,420 @@
+;;;; srfi-19.test --- test suite for SRFI-19 -*- scheme -*-
+;;;; Matthias Koeppe <mkoeppe@mail.math.uni-magdeburg.de> --- June 2001
+;;;;
+;;;; Copyright (C) 2001, 2003-2008, 2011, 2014, 2017, 2018
+;;;;   Free Software Foundation, Inc.
+;;;;
+;;;; This library is free software; you can redistribute it and/or
+;;;; modify it under the terms of the GNU Lesser General Public
+;;;; License as published by the Free Software Foundation; either
+;;;; version 3 of the License, or (at your option) any later version.
+;;;;
+;;;; This library is distributed in the hope that it will be useful,
+;;;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;;;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+;;;; Lesser General Public License for more details.
+;;;;
+;;;; You should have received a copy of the GNU Lesser General Public
+;;;; License along with this library; if not, write to the Free Software
+;;;; Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+
+;; SRFI-19 overrides current-date, so we have to do the test in a
+;; separate module, or later tests will fail.
+
+(define-module (test-suite test-srfi-19)
+  #:duplicates (last)  ;; avoid warning about srfi-19 replacing `current-time'
+  #:use-module (test-suite lib)
+  #:use-module (srfi srfi-1)
+  #:use-module (srfi srfi-19)
+  #:use-module (ice-9 format))
+
+;; Make sure we use the default locale.
+(when (defined? 'setlocale)
+  (setlocale LC_ALL "C"))
+
+(define (with-tz* tz thunk)
+  "Temporarily set the TZ environment variable to the passed string
+value and call THUNK."
+  (let ((old-tz #f))
+    (dynamic-wind
+	(lambda ()
+	  (set! old-tz (getenv "TZ"))
+	  (putenv (format #f "TZ=~A" tz)))
+	thunk
+	(lambda ()
+	  (if old-tz
+	      (putenv (format #f "TZ=~A" old-tz))
+	      (putenv "TZ"))))))
+
+(defmacro with-tz (tz . body)
+  `(with-tz* ,tz (lambda () ,@body)))
+
+(define (test-integral-time-structure date->time)
+  "Test whether the given DATE->TIME procedure creates a time
+structure with integral seconds.  (The seconds shall be maintained as
+integers, or precision may go away silently.  The SRFI-19 reference
+implementation was not OK for Guile in this respect because of Guile's
+incomplete numerical tower implementation.)"
+  (pass-if (format #f "~A makes integer seconds"
+		   date->time)
+	   (exact? (time-second
+		    (date->time (make-date 0 0 0 12 1 6 2001 0))))))
+
+(define (test-time->date time->date date->time)
+  (pass-if (format #f "~A works"
+		   time->date)
+	   (begin
+	     (time->date (date->time (make-date 0 0 0 12 1 6 2001 0)))
+	     #t)))
+
+(define (test-dst time->date date->time)
+  (pass-if (format #f "~A respects local DST if no TZ-OFFSET given"
+		   time->date)
+	   (let ((time (date->time (make-date 0 0 0 12 1 6 2001 0))))
+	     ;; on 2001-06-01, there should be 4 hours zone offset
+	     ;; between EST (EDT) and GMT
+	     (= (date-zone-offset
+		 (with-tz "EST5EDT"
+		   (time->date time)))
+		-14400))))
+
+(define-macro (test-time-conversion a b)
+  (let* ((a->b-sym (symbol-append a '-> b))
+	 (b->a-sym (symbol-append b '-> a)))
+    `(pass-if (format #f "~A and ~A work and are inverses of each other"
+		      ',a->b-sym ',b->a-sym)
+	      (let ((time (make-time ,a 12345 67890123)))
+		(time=? time (,b->a-sym (,a->b-sym time)))))))
+
+(define (test-time-comparison cmp a b)
+  (pass-if (format #f "~A works" cmp)
+           (cmp a b)))
+
+(define (test-time-arithmetic op a b res)
+  (pass-if (format #f "~A works" op)
+           (time=? (op a b) res)))
+
+;; return true if time objects X and Y are equal
+(define (time-equal? x y)
+  (and (eq?  (time-type x)       (time-type y))
+       (eqv? (time-second x)     (time-second y))
+       (eqv? (time-nanosecond x) (time-nanosecond y))))
+
+(with-test-prefix "SRFI date/time library"
+  ;; check for typos and silly errors
+  (pass-if "date-zone-offset is defined"
+	   (and (defined? 'date-zone-offset)
+		date-zone-offset
+		#t))
+  (pass-if "add-duration is defined"
+	   (and (defined? 'add-duration)
+		add-duration
+		#t))
+  (pass-if "(current-time time-tai) works"
+	   (time? (current-time time-tai)))
+  (pass-if "(current-time time-process) works"
+           (time? (current-time time-process)))
+  (test-time-conversion time-utc time-tai)
+  (test-time-conversion time-utc time-monotonic)
+  (test-time-conversion time-tai time-monotonic)
+  (pass-if "string->date works"
+	   (begin (string->date "2001-06-01@14:00" "~Y-~m-~d@~H:~M")
+		  #t))
+  (pass-if "string->date accepts ISO 8601 zones with a colon"
+	   (begin (string->date "2024-12-31T23:59:59+01:00" "~Y-~m-~dT~H:~M:~S~z")
+		  #t))
+  ;; check for code paths where reals were passed to quotient, which
+  ;; doesn't work in Guile (and is unspecified in R5RS)
+  (test-time->date time-utc->date date->time-utc)
+  (test-time->date time-tai->date date->time-tai)
+  (test-time->date time-monotonic->date date->time-monotonic)
+  (pass-if "Fractional nanoseconds are handled"
+	   (begin (make-time time-duration 1000000000.5 0) #t))
+  ;; the seconds in a time shall be maintained as integers, or
+  ;; precision may silently go away
+  (test-integral-time-structure date->time-utc)
+  (test-integral-time-structure date->time-tai)
+  (test-integral-time-structure date->time-monotonic)
+  ;; check for DST and zone related problems
+  (pass-if "date->time-utc is the inverse of time-utc->date"
+	   (let ((time (date->time-utc
+			(make-date 0 0 0 14 1 6 2001 7200))))
+	     (time=? time
+		     (date->time-utc (time-utc->date time 7200)))))
+  (test-dst time-utc->date date->time-utc)
+  (test-dst time-tai->date date->time-tai)
+  (test-dst time-monotonic->date date->time-monotonic)
+  (test-dst julian-day->date date->julian-day)
+  (test-dst modified-julian-day->date date->modified-julian-day)
+
+  (pass-if "`date->julian-day' honors timezone"
+    (let ((now (current-date -14400)))
+      (time=? (date->time-utc (julian-day->date (date->julian-day now)))
+              (date->time-utc now))))
+
+  (pass-if "string->date respects local DST if no time zone is read"
+	   (time=? (date->time-utc
+		    (with-tz "EST5EDT"
+		      (string->date "2001-06-01@08:00" "~Y-~m-~d@~H:~M")))
+		   (date->time-utc
+		    (make-date 0 0 0 12 1 6 2001 0))))
+  (pass-if "string->date understands days and months"
+           (time=? (let ((d (string->date "Saturday, December 9, 2006"
+                                          "~A, ~B ~d, ~Y")))
+                     (date->time-utc (make-date (date-nanosecond d)
+                                                (date-second d)
+                                                (date-minute d)
+                                                (date-hour d)
+                                                (date-day d)
+                                                (date-month d)
+                                                (date-year d)
+                                                0)))
+                   (date->time-utc
+                    (make-date 0 0 0 0 9 12 2006 0))))
+
+  (pass-if "string->date works on Sunday"
+    ;; `string->date' never rests!
+    (let* ((str  "Sun, 05 Jun 2005 18:33:00 +0200")
+           (date (string->date str "~a, ~d ~b ~Y ~H:~M:~S ~z")))
+      (equal? "Sun Jun 05 18:33:00+0200 2005"
+              (date->string date))))
+
+  (pass-if "string->date understands nanoseconds (1)"
+    (let ((date (string->date "2018-12-10 10:53:24.189"
+                              "~Y-~m-~d ~H:~M:~S.~N")))
+      (time=? (date->time-utc date)
+              (date->time-utc (make-date 189000000 24 53 10 10 12 2018
+                                         (date-zone-offset date))))))
+
+  (pass-if "string->date understands nanoseconds (2)"
+    (let ((date (string->date "2018-12-10 10:53:24.189654321"
+                              "~Y-~m-~d ~H:~M:~S.~N")))
+      (time=? (date->time-utc date)
+              (date->time-utc (make-date 189654321 24 53 10 10 12 2018
+                                         (date-zone-offset date))))))
+
+  (pass-if "date->string pads small nanoseconds values correctly"
+    (let* ((date (make-date 99999999 5 34 12 26 3 2017 0)))
+      (equal? "099999999"
+              (date->string date "~N"))))
+
+  (pass-if "date->string ~f without leading zeroes"
+    (let ((date (make-date 200000000 5 34 12 26 3 2017 0)))
+      (equal? "5.2" (date->string date "~f"))))
+
+  (pass-if "date->string ~f proper fractional part"
+    (let ((date (make-date 550000 56 34 12 26 3 2017 0)))
+      (equal? "56.00055" (date->string date "~f"))))
+
+  ;; check time comparison procedures
+  (let* ((time1 (make-time time-monotonic 0 0))
+         (time2 (make-time time-monotonic 0 0))
+         (time3 (make-time time-monotonic 385907 998360432))
+         (time4 (make-time time-monotonic 385907 998360432)))
+    (test-time-comparison time<=? time1 time3)
+    (test-time-comparison time<?  time1 time3)
+    (test-time-comparison time=?  time1 time2)
+    (test-time-comparison time>=? time3 time3)
+    (test-time-comparison time>?  time3 time2))
+  ;; check time arithmetic procedures
+  (let* ((time1 (make-time time-monotonic 0 0))
+         (time2 (make-time time-monotonic 385907 998360432))
+         (diff (time-difference time2 time1)))
+    (test-time-arithmetic add-duration time1 diff time2)
+    (test-time-arithmetic subtract-duration time2 diff time1))
+
+  (with-test-prefix "nanosecond normalization"
+    (pass-if "small positive duration"
+      (time-equal? (make-time time-duration 999999000 0)
+                   (time-difference (make-time time-tai 0 1) (make-time time-tai 1000 0))))
+    (pass-if "small negative duration"
+      (time-equal? (make-time time-duration -999999000 0)
+                   (time-difference (make-time time-tai 1000 0) (make-time time-tai 0 1)))))
+
+  (with-test-prefix "date->time-tai"
+    ;; leap second 1 Jan 1999, 1 second of UTC in make-date is out as 2
+    ;; seconds of TAI in date->time-tai
+    (pass-if "31dec98 23:59:59"
+      (time-equal? (make-time time-tai 0 915148830)
+		   (date->time-tai (make-date 0 59 59 23 31 12 1998 0))))
+    (pass-if "31dec98 23:59:60"
+      (time-equal? (make-time time-tai 0 915148831)
+		   (date->time-tai (make-date 0 60 59 23 31 12 1998 0))))
+    (pass-if "1jan99 0:00:00"
+      (time-equal? (make-time time-tai 0 915148832)
+		   (date->time-tai (make-date 0 0  0  0   1  1 1999 0))))
+
+    ;; leap second 1 Jan 2006, 1 second of UTC in make-date is out as 2
+    ;; seconds of TAI in date->time-tai
+    (pass-if "31dec05 23:59:59"
+      (time-equal? (make-time time-tai 0 1136073631)
+		   (date->time-tai (make-date 0 59 59 23 31 12 2005 0))))
+    (pass-if "31dec05 23:59:60"
+      (time-equal? (make-time time-tai 0 1136073632)
+		   (date->time-tai (make-date 0 60 59 23 31 12 2005 0))))
+    (pass-if "1jan06 0:00:00"
+      (time-equal? (make-time time-tai 0 1136073633)
+		   (date->time-tai (make-date 0 0  0  0   1  1 2006 0)))))
+
+  (with-test-prefix "date->time-monotonic"
+    ;; leap second 1 Jan 1999, 1 second of UTC in make-date is out as 2
+    ;; seconds of MONOTONIC in date->time-monotonic
+    (pass-if "31dec98 23:59:59"
+      (time-equal? (make-time time-monotonic 0 915148830)
+		   (date->time-monotonic (make-date 0 59 59 23 31 12 1998 0))))
+    (pass-if "31dec98 23:59:60"
+      (time-equal? (make-time time-monotonic 0 915148831)
+		   (date->time-monotonic (make-date 0 60 59 23 31 12 1998 0))))
+    (pass-if "1jan99 0:00:00"
+      (time-equal? (make-time time-monotonic 0 915148832)
+		   (date->time-monotonic (make-date 0 0  0  0   1  1 1999 0))))
+
+    ;; leap second 1 Jan 2006, 1 second of UTC in make-date is out as 2
+    ;; seconds of MONOTONIC in date->time-monotonic
+    (pass-if "31dec05 23:59:59"
+      (time-equal? (make-time time-monotonic 0 1136073631)
+		   (date->time-monotonic (make-date 0 59 59 23 31 12 2005 0))))
+    (pass-if "31dec05 23:59:60"
+      (time-equal? (make-time time-monotonic 0 1136073632)
+		   (date->time-monotonic (make-date 0 60 59 23 31 12 2005 0))))
+    (pass-if "1jan06 0:00:00"
+      (time-equal? (make-time time-monotonic 0 1136073633)
+		   (date->time-monotonic (make-date 0 0  0  0   1  1 2006 0)))))
+
+  (with-test-prefix "julian-day->date"
+    (pass-if-equal "0002-07-29T12:00:00Z" "0002-07-29T12:00:00Z"
+      (date->string (julian-day->date 1722000 0) "~4"))
+    (pass-if-equal "0024-06-23T12:00:00Z" "0024-06-23T12:00:00Z"
+      (date->string (julian-day->date 1730000 0) "~4"))
+    (pass-if-equal "2000-01-01T00:00:00Z" "2000-01-01T00:00:00Z"
+      (date->string (julian-day->date 4903089/2 0) "~4"))
+    (pass-if-equal "9999-12-31T12:00:00Z" "9999-12-31T12:00:00Z"
+      (date->string (julian-day->date 5373484 0) "~4"))
+    (pass-if-equal "+10000-01-01T12:00:00Z" "+10000-01-01T12:00:00Z"
+      (date->string (julian-day->date 5373485 0) "~4"))
+    (pass-if-equal "negative julian days"
+        '((-2000000 . "-10188-02-01T14:24:00Z wk=04 dow=6 doy=032")
+          (-20000 . "-4767-02-20T14:24:00Z wk=08 dow=0 doy=051")
+          (-10 . "-4713-11-14T14:24:00Z wk=45 dow=5 doy=318")
+          (-9 . "-4713-11-15T14:24:00Z wk=45 dow=6 doy=319")
+          (-8 . "-4713-11-16T14:24:00Z wk=46 dow=0 doy=320")
+          (-7 . "-4713-11-17T14:24:00Z wk=46 dow=1 doy=321")
+          (-6 . "-4713-11-18T14:24:00Z wk=46 dow=2 doy=322")
+          (-5 . "-4713-11-19T14:24:00Z wk=46 dow=3 doy=323")
+          (-4 . "-4713-11-20T14:24:00Z wk=46 dow=4 doy=324")
+          (-3 . "-4713-11-21T14:24:00Z wk=46 dow=5 doy=325")
+          (-2 . "-4713-11-22T14:24:00Z wk=46 dow=6 doy=326")
+          (-1 . "-4713-11-23T14:24:00Z wk=47 dow=0 doy=327")
+          (0 . "-4713-11-24T14:24:00Z wk=47 dow=1 doy=328")
+          (1 . "-4713-11-25T14:24:00Z wk=47 dow=2 doy=329")
+          (2 . "-4713-11-26T14:24:00Z wk=47 dow=3 doy=330")
+          (3 . "-4713-11-27T14:24:00Z wk=47 dow=4 doy=331")
+          (4 . "-4713-11-28T14:24:00Z wk=47 dow=5 doy=332")
+          (5 . "-4713-11-29T14:24:00Z wk=47 dow=6 doy=333")
+          (6 . "-4713-11-30T14:24:00Z wk=48 dow=0 doy=334")
+          (7 . "-4713-12-01T14:24:00Z wk=48 dow=1 doy=335")
+          (8 . "-4713-12-02T14:24:00Z wk=48 dow=2 doy=336")
+          (9 . "-4713-12-03T14:24:00Z wk=48 dow=3 doy=337"))
+      (map (lambda (n)
+             (cons n (date->string (julian-day->date (+ n 1/10) 0)
+                                   "~4 wk=~U dow=~w doy=~j")))
+           (cons* -2000000 -20000 (iota 20 -10))))
+    (pass-if-equal "negative year numbers"
+        '((1721055 . "-0001-12-27T14:24:00Z wk=52 dow=1 doy=361")
+          (1721056 . "-0001-12-28T14:24:00Z wk=52 dow=2 doy=362")
+          (1721057 . "-0001-12-29T14:24:00Z wk=52 dow=3 doy=363")
+          (1721058 . "-0001-12-30T14:24:00Z wk=52 dow=4 doy=364")
+          (1721059 . "-0001-12-31T14:24:00Z wk=52 dow=5 doy=365")
+          (1721060 . "0000-01-01T14:24:00Z wk=00 dow=6 doy=001")
+          (1721061 . "0000-01-02T14:24:00Z wk=01 dow=0 doy=002")
+          (1721062 . "0000-01-03T14:24:00Z wk=01 dow=1 doy=003")
+          (1721063 . "0000-01-04T14:24:00Z wk=01 dow=2 doy=004")
+          (1721064 . "0000-01-05T14:24:00Z wk=01 dow=3 doy=005"))
+      (map (lambda (n)
+             (cons n (date->string (julian-day->date (+ n 1/10) 0)
+                                   "~4 wk=~U dow=~w doy=~j")))
+           (iota 10 1721055))))
+
+  (with-test-prefix "time-utc->date"
+    (pass-if-equal "2012-07-01T00:59:59+0100" "2012-07-01T00:59:59+0100"
+      (date->string (time-utc->date (make-time time-utc 0 1341100799)
+                                    3600)
+                    "~4"))
+    (pass-if-equal "2012-07-01T01:00:00+0100" "2012-07-01T01:00:00+0100"
+      (date->string (time-utc->date (make-time time-utc 0 1341100800)
+                                    3600)
+                    "~4"))
+    (pass-if-equal "2012-07-01T01:00:01+0100" "2012-07-01T01:00:01+0100"
+      (date->string (time-utc->date (make-time time-utc 0 1341100801)
+                                    3600)
+                    "~4")))
+
+  (with-test-prefix "time-tai->date"
+    (pass-if-equal "2012-07-01T00:59:59+0100" "2012-07-01T00:59:59+0100"
+      (date->string (time-tai->date (make-time time-tai 0 1341100833)
+                                    3600)
+                    "~4"))
+    (pass-if-equal "2012-07-01T00:59:60+0100" "2012-07-01T00:59:60+0100"
+      (date->string (time-tai->date (make-time time-tai 0 1341100834)
+                                    3600)
+                    "~4"))
+    (pass-if-equal "2012-07-01T01:00:00+0100" "2012-07-01T01:00:00+0100"
+      (date->string (time-tai->date (make-time time-tai 0 1341100835)
+                                    3600)
+                    "~4"))
+    (pass-if-equal "2012-07-01T01:00:01+0100" "2012-07-01T01:00:01+0100"
+      (date->string (time-tai->date (make-time time-tai 0 1341100836)
+                                    3600)
+                    "~4")))
+
+  (with-test-prefix "time-monotonic->date"
+    (pass-if-equal "2012-07-01T00:59:59+0100" "2012-07-01T00:59:59+0100"
+      (date->string (time-monotonic->date (make-time time-monotonic
+                                                     0 1341100833)
+                                          3600)
+                    "~4"))
+    (pass-if-equal "2012-07-01T00:59:60+0100" "2012-07-01T00:59:60+0100"
+      (date->string (time-monotonic->date (make-time time-monotonic
+                                                     0 1341100834)
+                                          3600)
+                    "~4"))
+    (pass-if-equal "2012-07-01T01:00:00+0100" "2012-07-01T01:00:00+0100"
+      (date->string (time-monotonic->date (make-time time-monotonic
+                                                     0 1341100835)
+                                          3600)
+                    "~4"))
+    (pass-if-equal "2012-07-01T01:00:01+0100" "2012-07-01T01:00:01+0100"
+      (date->string (time-monotonic->date (make-time time-monotonic
+                                                     0 1341100836)
+                                          3600)
+                    "~4")))
+
+  (with-test-prefix "time-tai->julian-day"
+    (pass-if-equal "2012-07-01T00:59:59+0100" 212207860799/86400
+      (time-tai->julian-day (make-time time-tai 0 1341100833)))
+    (pass-if-equal "2012-07-01T00:59:60+0100" 4912219/2
+      (time-tai->julian-day (make-time time-tai 0 1341100834)))
+    (pass-if-equal "2012-07-01T01:00:00+0100" 4912219/2
+      (time-tai->julian-day (make-time time-tai 0 1341100835)))
+    (pass-if-equal "2012-07-01T01:00:01+0100" 212207860801/86400
+      (time-tai->julian-day (make-time time-tai 0 1341100836))))
+
+  (with-test-prefix "time-monotonic->julian-day"
+    (pass-if-equal "2012-07-01T00:59:59+0100" 212207860799/86400
+      (time-monotonic->julian-day (make-time time-monotonic 0 1341100833)))
+    (pass-if-equal "2012-07-01T00:59:60+0100" 4912219/2
+      (time-monotonic->julian-day (make-time time-monotonic 0 1341100834)))
+    (pass-if-equal "2012-07-01T01:00:00+0100" 4912219/2
+      (time-monotonic->julian-day (make-time time-monotonic 0 1341100835)))
+    (pass-if-equal "2012-07-01T01:00:01+0100" 212207860801/86400
+      (time-monotonic->julian-day (make-time time-monotonic 0 1341100836))))
+
+  (with-test-prefix "date-week-number"
+    (pass-if (= 0 (date-week-number (make-date 0 0 0 0 1 1 1984 0) 0)))
+    (pass-if (= 0 (date-week-number (make-date 0 0 0 0 7 1 1984 0) 0)))
+    (pass-if (= 1 (date-week-number (make-date 0 0 0 0 8 1 1984 0) 0)))))
+
+
+;; Local Variables:
+;; eval: (put 'with-tz 'scheme-indent-function 1)
+;; End:

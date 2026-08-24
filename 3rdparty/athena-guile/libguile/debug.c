@@ -1,0 +1,226 @@
+/* Debugging extensions for Guile
+
+   Copyright 1995-2003,2006,2008-2013,2018
+     Free Software Foundation, Inc.
+
+   This file is part of Guile.
+
+   Guile is free software: you can redistribute it and/or modify it
+   under the terms of the GNU Lesser General Public License as published
+   by the Free Software Foundation, either version 3 of the License, or
+   (at your option) any later version.
+
+   Guile is distributed in the hope that it will be useful, but WITHOUT
+   ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+   FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
+   License for more details.
+
+   You should have received a copy of the GNU Lesser General Public
+   License along with Guile.  If not, see
+   <https://www.gnu.org/licenses/>.  */
+
+
+#ifdef HAVE_CONFIG_H
+# include <config.h>
+#endif
+
+#include <errno.h>
+
+#ifdef HAVE_GETRLIMIT
+#include <sys/time.h>
+#include <sys/resource.h>
+#endif
+
+#ifdef __MINGW32__
+# define WIN32_LEAN_AND_MEAN
+# include <windows.h>
+#endif
+
+#include "alist.h"
+#include "async.h"
+#include "continuations.h"
+#include "dynwind.h"
+#include "eval.h"
+#include "feature.h"
+#include "fluids.h"
+#include "gsubr.h"
+#include "list.h"
+#include "macros.h"
+#include "memoize.h"
+#include "modules.h"
+#include "pairs.h"
+#include "ports.h"
+#include "private-options.h"
+#include "procprop.h"
+#include "programs.h"
+#include "read.h"
+#include "smob.h"
+#include "srcprop.h"
+#include "stackchk.h"
+#include "strports.h"
+#include "struct.h"
+#include "throw.h"
+#include "variable.h"
+#include "vm.h"
+
+#include "debug.h"
+
+
+
+
+/*
+ * Debugging options.
+ */
+
+scm_t_option scm_debug_opts[] = {
+  { SCM_OPTION_BOOLEAN, "backwards", 0,
+    "Display backtrace in anti-chronological order." },
+  { SCM_OPTION_INTEGER, "width", 79, "Maximal width of backtrace." },
+  { SCM_OPTION_INTEGER, "depth", 20, "Maximal length of printed backtrace." },
+  { SCM_OPTION_BOOLEAN, "backtrace", 1, "Show backtrace on error." },
+  /* This default stack limit will be overridden by init_stack_limit(),
+     if we have getrlimit() and the stack limit is not INFINITY. But it is still
+     important, as some systems have both the soft and the hard limits set to
+     INFINITY; in that case we fall back to this value.
+
+     The situation is aggravated by certain compilers, which can consume
+     "beaucoup de stack", as they say in France.
+
+     See http://thread.gmane.org/gmane.lisp.guile.devel/8599/focus=8662 for
+     more discussion. This setting is 640 KB on 32-bit arches (should be enough
+     for anyone!) or a whoppin' 1280 KB on 64-bit arches.
+  */
+  { SCM_OPTION_INTEGER, "stack", 160000, "Stack size limit (measured in words; 0 = no check)." },
+  { SCM_OPTION_SCM, "show-file-name", SCM_BOOL_T_BITS,
+    "Show file names and line numbers "
+    "in backtraces when not `#f'.  A value of `base' "
+    "displays only base names, while `#t' displays full names."},
+  { SCM_OPTION_BOOLEAN, "warn-deprecated", 0,
+    "Warn when deprecated features are used." },
+  { 0 }, 
+};
+
+
+/* {Run time control of the debugging evaluator}
+ */
+
+SCM_DEFINE (scm_debug_options, "debug-options-interface", 0, 1, 0, 
+            (SCM setting),
+	    "Option interface for the debug options. Instead of using\n"
+	    "this procedure directly, use the procedures @code{debug-enable},\n"
+	    "@code{debug-disable}, @code{debug-set!} and @code{debug-options}.")
+#define FUNC_NAME s_scm_debug_options
+{
+  SCM ans;
+
+  ans = scm_options (setting, scm_debug_opts, FUNC_NAME);
+  scm_stack_checking_enabled_p = SCM_STACK_CHECKING_P;
+
+  return ans;
+}
+#undef FUNC_NAME
+
+
+
+
+#if 0
+SCM_REGISTER_PROC (s_reverse_lookup, "reverse-lookup", 2, 0, 0, scm_reverse_lookup);
+#endif
+
+SCM
+scm_reverse_lookup (SCM env, SCM data)
+{
+  while (scm_is_pair (env) && scm_is_pair (SCM_CAR (env)))
+    {
+      SCM names = SCM_CAAR (env);
+      SCM values = SCM_CDAR (env);
+      while (scm_is_pair (names))
+	{
+	  if (scm_is_eq (SCM_CAR (values), data))
+	    return SCM_CAR (names);
+	  names = SCM_CDR (names);
+	  values = SCM_CDR (values);
+	}
+      if (!scm_is_null (names) && scm_is_eq (values, data))
+	return names;
+      env = SCM_CDR (env);
+    }
+  return SCM_BOOL_F;
+}
+
+
+
+/* Undocumented debugging procedure */
+#ifdef GUILE_DEBUG
+SCM_DEFINE (scm_debug_hang, "debug-hang", 0, 1, 0, 
+            (SCM obj),
+	    "Go into an endless loop, which can be only terminated with\n"
+	    "a debugger.")
+#define FUNC_NAME s_scm_debug_hang
+{
+  int go = 0;
+  while (!go) ;
+  return SCM_UNSPECIFIED;
+}
+#undef FUNC_NAME
+#endif
+
+static SCM local_eval_var;
+
+static void
+init_local_eval_var (void)
+{
+  local_eval_var = scm_c_public_variable ("ice-9 local-eval", "local-eval");
+}
+
+SCM
+scm_local_eval (SCM exp, SCM env)
+{
+  static scm_i_pthread_once_t once = SCM_I_PTHREAD_ONCE_INIT;
+  scm_i_pthread_once (&once, init_local_eval_var);
+
+  return scm_call_2 (scm_variable_ref (local_eval_var), exp, env);
+}
+
+static void
+init_stack_limit (void)
+{
+#if defined HAVE_GETRLIMIT
+  struct rlimit lim;
+  if (getrlimit (RLIMIT_STACK, &lim) == 0)
+      {
+        rlim_t bytes = lim.rlim_cur;
+
+        /* set our internal stack limit to 80% of the rlimit. */
+        if (bytes == RLIM_INFINITY)
+          bytes = lim.rlim_max;
+
+        if (bytes != RLIM_INFINITY)
+          SCM_STACK_LIMIT = bytes * 8 / 10 / sizeof (scm_t_bits);
+      }
+  errno = 0;
+#elif defined __MINGW32__
+  MEMORY_BASIC_INFORMATION m;
+  uintptr_t bytes;
+
+  if (VirtualQuery ((LPCVOID) &m, &m, sizeof m))
+    {
+      bytes = (DWORD_PTR) m.BaseAddress + m.RegionSize
+	       - (DWORD_PTR) m.AllocationBase;
+      SCM_STACK_LIMIT = bytes * 8 / 10 / sizeof (scm_t_bits);
+    }
+#endif
+}
+
+
+
+void
+scm_init_debug ()
+{
+  init_stack_limit ();
+  scm_init_opts (scm_debug_options, scm_debug_opts);
+
+  scm_add_feature ("debug-extensions");
+
+#include "debug.x"
+}

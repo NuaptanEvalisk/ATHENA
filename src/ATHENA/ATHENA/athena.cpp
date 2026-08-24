@@ -125,11 +125,145 @@ string website_generate_dir;
 string website_generate_id;
 string website_post_command_dir;
 string website_post_command_id;
+string scheme_bytecode_output_dir;
+string scheme_bytecode_source_file;
+string scheme_bytecode_compiled_file;
+string scheme_bytecode_manifest_file;
 bool   aofm_ignore_nonempty_dest = false;
 int    aofm_convert_vault_parallelism = 0;
 string extra_init_cmd;
 bool exec_exit= true;
 static std::string athena_to_std_string (const string& s);
+
+static bool
+athena_compile_scheme_file (const std::filesystem::path& source,
+                            const std::filesystem::path& output) {
+  namespace fs= std::filesystem;
+  std::error_code ec;
+  fs::create_directories (output.parent_path (), ec);
+  if (ec) {
+    std::cerr << "ATHENA Scheme bytecode: could not create "
+              << output.parent_path () << ": " << ec.message () << '\n';
+    return false;
+  }
+
+  eval ("(use-modules (system base compile))");
+  eval ("(use-modules (utils edit variants) (database db-base))");
+  eval ("(when (and (not (defined? 'athena-time)) "
+        "                 (defined? 'texmacs-time)) "
+        "  (module-define! (current-module) 'athena-time texmacs-time))");
+  eval ("(let* ((module (resolve-module '(database db-base))) "
+        "       (database (module-variable module 'current-database)) "
+        "       (provider (module-ref module 'global-database))) "
+        "  (variable-set! database (provider)))");
+  string optimization= get_env ("ATHENA_SCHEME_OPTIMIZATION_LEVEL");
+  if (optimization != "0" && optimization != "1" &&
+      optimization != "2" && optimization != "3")
+    optimization= "1";
+  string command= "(with-database (global-database) (compile-file " *
+    scm_quote (string (source.generic_string ().c_str ())) *
+    " #:output-file " *
+    scm_quote (string (output.generic_string ().c_str ())) *
+    " #:env (current-module) #:optimization-level " * optimization *
+    " #:warning-level 0))";
+  object result= eval (command);
+  if (is_list (result) || !fs::exists (output)) {
+    std::cerr << "ATHENA Scheme bytecode: compilation failed for "
+              << source << '\n';
+    if (is_list (result))
+      std::cerr << "ATHENA Scheme bytecode: Guile exception: "
+                << athena_to_std_string (object_to_string (result)) << '\n';
+    return false;
+  }
+  return true;
+}
+
+static void
+athena_enable_scheme_dependency_cache () {
+  string cache= get_env ("ATHENA_SCHEME_DEPENDENCY_CACHE_PATH");
+  if (cache == "") cache= scheme_bytecode_output_dir;
+  eval ("(let ((cache " * scm_quote (cache) * ")) "
+        "  (unless (member cache %load-compiled-path) "
+        "    (set! %load-compiled-path "
+        "          (cons cache %load-compiled-path))))");
+}
+
+static bool
+athena_compile_scheme_bytecode () {
+  namespace fs= std::filesystem;
+  const fs::path source_root (athena_to_std_string (get_env ("ATHENA_PATH")) +
+                              "/progs");
+  const fs::path output_root (athena_to_std_string (
+    scheme_bytecode_output_dir));
+  std::vector<fs::path> sources;
+  std::error_code ec;
+
+  for (fs::recursive_directory_iterator it (source_root, ec), end;
+       !ec && it != end; it.increment (ec))
+    if (it->is_regular_file (ec) && it->path ().extension () == ".scm")
+      sources.push_back (it->path ());
+  if (ec) {
+    std::cerr << "ATHENA Scheme bytecode: could not enumerate "
+              << source_root << ": " << ec.message () << '\n';
+    return false;
+  }
+  std::sort (sources.begin (), sources.end ());
+  fs::create_directories (output_root, ec);
+  if (ec) {
+    std::cerr << "ATHENA Scheme bytecode: could not create " << output_root
+              << ": " << ec.message () << '\n';
+    return false;
+  }
+
+  size_t completed= 0;
+  for (const fs::path& source: sources) {
+    fs::path relative= fs::relative (source, source_root, ec);
+    if (ec) return false;
+    fs::path output= output_root / relative;
+    output.replace_extension (".go");
+    if (!athena_compile_scheme_file (source, output)) return false;
+    completed++;
+    std::cout << "ATHENA Scheme bytecode: " << completed << "/"
+              << sources.size () << " " << relative.generic_string () << '\n';
+  }
+
+  std::ofstream stamp (output_root / ".complete", std::ios::binary);
+  stamp << ATHENA_GUILE_RUNTIME_ID << '\n' << completed << '\n';
+  return stamp.good ();
+}
+
+static bool
+athena_compile_scheme_manifest () {
+  namespace fs= std::filesystem;
+  std::ifstream input (athena_to_std_string (scheme_bytecode_manifest_file),
+                       std::ios::binary);
+  if (!input) {
+    std::cerr << "ATHENA Scheme bytecode: could not open worker manifest "
+              << athena_to_std_string (scheme_bytecode_manifest_file) << '\n';
+    return false;
+  }
+
+  std::string source;
+  std::string output;
+  size_t completed= 0;
+  while (std::getline (input, source, '\0')) {
+    if (!std::getline (input, output, '\0')) {
+      std::cerr << "ATHENA Scheme bytecode: truncated worker manifest "
+                << athena_to_std_string (scheme_bytecode_manifest_file) << '\n';
+      return false;
+    }
+    if (source.empty () || output.empty ()) {
+      std::cerr << "ATHENA Scheme bytecode: empty path in worker manifest "
+                << athena_to_std_string (scheme_bytecode_manifest_file) << '\n';
+      return false;
+    }
+    if (!athena_compile_scheme_file (fs::path (source), fs::path (output)))
+      return false;
+    completed++;
+    std::cout << "ATHENA Scheme bytecode: " << source << '\n';
+  }
+  return completed != 0;
+}
 
 #ifdef OS_MINGW
 #ifndef CP_UTF8
@@ -711,6 +845,15 @@ set_global_options  (int argc, char** argv)  {
       else if (s == "-run-website-post-command") {
         i += 2;
       }
+      else if (s == "-compile-scheme-bytecode") {
+        i++;
+      }
+      else if (s == "-compile-scheme-bytecode-worker") {
+        i += 3;
+      }
+      else if (s == "-compile-scheme-bytecode-worker-list") {
+        i += 2;
+      }
       else if (s == "-check-only") {
         // Handled in texmacs_entrypoint
       }
@@ -923,6 +1066,27 @@ TeXmacs_main (int argc, char** argv) {
 
   startup_progress (82, "Configuring session");
   set_global_options (argc, argv);
+
+  if (scheme_bytecode_output_dir != "") {
+    init_plugins ();
+    gui_open (argc, argv);
+    server sv;
+    // Bootstrap against source so legacy shared-root bindings are installed
+    // in their historical order. Only then expose completed dependency
+    // levels to compile-file's module resolver.
+    athena_enable_scheme_dependency_cache ();
+    bool ok= scheme_bytecode_manifest_file != ""
+      ? athena_compile_scheme_manifest ()
+      : (scheme_bytecode_source_file == ""
+           ? athena_compile_scheme_bytecode ()
+           : athena_compile_scheme_file (
+               std::filesystem::path (athena_to_std_string (
+                 scheme_bytecode_source_file)),
+               std::filesystem::path (athena_to_std_string (
+                 scheme_bytecode_compiled_file))));
+    release_boot_lock ();
+    exit (ok ? 0 : 1);
+  }
 
   if (DEBUG_STD) debug_boot << "Installing internal plug-ins...\n";
   startup_progress (84, "Loading plug-ins");
@@ -1619,6 +1783,37 @@ texmacs_entrypoint (int argc, char** argv) {
         headless_mode= true;
       }
     }
+    if (s == "-compile-scheme-bytecode") {
+      i++;
+      if (i < argc) {
+        scheme_bytecode_output_dir= argv[i];
+        headless_mode= true;
+        no_splash_screen= true;
+        skip_fonts_cache= true;
+        exec_exit= false;
+      }
+    }
+    if (s == "-compile-scheme-bytecode-worker") {
+      if (i + 3 < argc) {
+        scheme_bytecode_output_dir= argv[++i];
+        scheme_bytecode_source_file= argv[++i];
+        scheme_bytecode_compiled_file= argv[++i];
+        headless_mode= true;
+        no_splash_screen= true;
+        skip_fonts_cache= true;
+        exec_exit= false;
+      }
+    }
+    if (s == "-compile-scheme-bytecode-worker-list") {
+      if (i + 2 < argc) {
+        scheme_bytecode_output_dir= argv[++i];
+        scheme_bytecode_manifest_file= argv[++i];
+        headless_mode= true;
+        no_splash_screen= true;
+        skip_fonts_cache= true;
+        exec_exit= false;
+      }
+    }
     if (s == "-check-only") {
       vault_maintenance_check_only= true;
     }
@@ -1708,6 +1903,10 @@ texmacs_entrypoint (int argc, char** argv) {
       headless_mode= true;
   }
   ATHENA_init_paths (argc, argv);
+  if (scheme_bytecode_output_dir != "") {
+    set_env ("ATHENA_GUILE_SOURCE_ROOT", "$ATHENA_PATH/progs");
+    set_env ("GUILE_AUTO_COMPILE", "0");
+  }
   if (artifact_extract_worker_manifest != "" &&
       artifact_extract_worker_output != "") {
     std::string error;
@@ -1754,7 +1953,8 @@ texmacs_entrypoint (int argc, char** argv) {
   startup_progress (10, "Startup options loaded");
   startup_progress (12, "Checking caches");
   bench_start ("check startup caches");
-  athena_refresh_cache_if_sources_changed (argc, argv);
+  if (scheme_bytecode_output_dir == "")
+    athena_refresh_cache_if_sources_changed (argc, argv);
   bench_cumul ("check startup caches");
   startup_progress (20, "Caches ready");
 #ifdef STACK_SIZE
@@ -1815,11 +2015,13 @@ texmacs_entrypoint (int argc, char** argv) {
   cache_initialize ();
   bench_cumul ("initialize data caches");
   startup_progress (60, "Caches initialized");
-  startup_progress (65, "Loading fonts");
-  bench_start ("initialize fonts");
-  ATHENA_init_font  ();
-  bench_cumul ("initialize fonts");
-  startup_progress (70, "Fonts ready");
+  if (scheme_bytecode_output_dir == "") {
+    startup_progress (65, "Loading fonts");
+    bench_start ("initialize fonts");
+    ATHENA_init_font ();
+    bench_cumul ("initialize fonts");
+    startup_progress (70, "Fonts ready");
+  }
 #ifdef QTTEXMACS
   if (!headless_mode) {
 #    ifndef OS_MACOS
@@ -1843,13 +2045,6 @@ texmacs_entrypoint (int argc, char** argv) {
 //  test_environments ();
 //#endif
   startup_progress (83, "Starting Scheme");
-  // Guile 1.8 defaults to 256 KiB/32 KiB initial heap segments.  ATHENA's
-  // module bootstrap immediately outgrows them and otherwise spends a large
-  // part of startup repeatedly collecting and extending the heap.
-  if (get_env ("GUILE_INIT_SEGMENT_SIZE_1") == "")
-    set_env ("GUILE_INIT_SEGMENT_SIZE_1", "16777216");
-  if (get_env ("GUILE_INIT_SEGMENT_SIZE_2") == "")
-    set_env ("GUILE_INIT_SEGMENT_SIZE_2", "4194304");
   start_scheme (argc, argv, TeXmacs_main);
 #ifdef QTTEXMACS
   if (headless_mode) {

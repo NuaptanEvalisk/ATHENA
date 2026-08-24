@@ -182,44 +182,6 @@ def copy_optional_tree(src: Path, dst: Path):
         shutil.copytree(src, dst, dirs_exist_ok=True, symlinks=True)
 
 
-def guile_version() -> str | None:
-    try:
-        raw = output(["guile", "-c", "(display (version))"]).strip()
-    except Exception:
-        return None
-    parts = raw.split(".")
-    if len(parts) >= 2:
-        return ".".join(parts[:2])
-    return raw
-
-
-def guile_pkgconfig_prefix(ver: str) -> Path | None:
-    try:
-        raw = output(["pkg-config", "--variable=prefix", f"guile-{ver}"]).strip()
-    except Exception:
-        return None
-    return Path(raw) if raw else None
-
-
-def copy_guile(appdir: Path):
-    ver = guile_version()
-    if not ver:
-        return
-    prefix = guile_pkgconfig_prefix(ver) or Path("/usr")
-    copy_optional_tree(prefix / "share/guile" / ver,
-                       appdir / "usr/share/guile" / ver)
-    copy_optional_tree(prefix / "share/guile/site",
-                       appdir / "usr/share/guile/site")
-    copy_optional_tree(prefix / "share/guile/site" / ver,
-                       appdir / "usr/share/guile/site" / ver)
-    copy_optional_tree(prefix / "share/guile",
-                       appdir / "usr/share/guile")
-    copy_optional_tree(prefix / "lib64/guile" / ver,
-                       appdir / "usr/lib64/guile" / ver)
-    copy_optional_tree(prefix / "lib/guile" / ver,
-                       appdir / "usr/lib/guile" / ver)
-
-
 def copy_imagemagick(appdir: Path):
     for base in [Path("/usr/lib64"), Path("/usr/share")]:
         if not base.exists():
@@ -229,22 +191,20 @@ def copy_imagemagick(appdir: Path):
 
 
 def write_apprun(appdir: Path):
-    gv = guile_version() or "2.0"
     apprun = appdir / "AppRun"
     apprun.write_text("""#!/usr/bin/env bash
 set -euo pipefail
 
-appdir="$(cd -- "$(dirname -- "${{BASH_SOURCE[0]}}")" && pwd)"
+appdir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 athena_dir="$appdir/usr/share/ATHENA"
 
 export ATHENA_PATH="$athena_dir"
-export LD_LIBRARY_PATH="$appdir/usr/lib:$athena_dir/lib${{LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}}"
-export QT_PLUGIN_PATH="$appdir/usr/plugins${{QT_PLUGIN_PATH:+:$QT_PLUGIN_PATH}}"
+export ATHENA_GUILE_RUNTIME_ROOT="$athena_dir/lib/athena-guile"
+export LD_LIBRARY_PATH="$athena_dir/lib/athena-guile/lib:$appdir/usr/lib:$athena_dir/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+export QT_PLUGIN_PATH="$appdir/usr/plugins${QT_PLUGIN_PATH:+:$QT_PLUGIN_PATH}"
 export QT_QPA_PLATFORM_PLUGIN_PATH="$appdir/usr/plugins/platforms"
-export GUILE_LOAD_PATH="$appdir/usr/share/guile/site:$appdir/usr/share/guile/{guile_version}:$appdir/usr/share/guile${{GUILE_LOAD_PATH:+:$GUILE_LOAD_PATH}}"
-export GUILE_LOAD_COMPILED_PATH="$appdir/usr/lib64/guile/{guile_version}/ccache:$appdir/usr/lib/guile/{guile_version}/ccache${{GUILE_LOAD_COMPILED_PATH:+:$GUILE_LOAD_COMPILED_PATH}}"
-export MAGICK_CONFIGURE_PATH="$appdir/usr/share/ImageMagick-7:$appdir/usr/lib64/ImageMagick-7.1.1/config-Q16HDRI${{MAGICK_CONFIGURE_PATH:+:$MAGICK_CONFIGURE_PATH}}"
-export MAGICK_CODER_MODULE_PATH="$appdir/usr/lib64/ImageMagick-7.1.1/modules-Q16HDRI/coders${{MAGICK_CODER_MODULE_PATH:+:$MAGICK_CODER_MODULE_PATH}}"
+export MAGICK_CONFIGURE_PATH="$appdir/usr/share/ImageMagick-7:$appdir/usr/lib64/ImageMagick-7.1.1/config-Q16HDRI${MAGICK_CONFIGURE_PATH:+:$MAGICK_CONFIGURE_PATH}"
+export MAGICK_CODER_MODULE_PATH="$appdir/usr/lib64/ImageMagick-7.1.1/modules-Q16HDRI/coders${MAGICK_CODER_MODULE_PATH:+:$MAGICK_CODER_MODULE_PATH}"
 
 athena_locale_charmap="$(locale charmap 2>/dev/null || true)"
 case "$athena_locale_charmap" in
@@ -290,12 +250,12 @@ for arg in "$@"; do
 done
 
 if [ "$has_platform_arg" -eq 0 ]; then
-  platform_args=(--platform "${{ATHENA_QT_PLATFORM:-wayland}}")
+  platform_args=(--platform "${ATHENA_QT_PLATFORM:-wayland}")
 fi
 
 cd "$athena_dir"
-exec "$athena_dir/bin/ATHENA.bin" "${{platform_args[@]}}" "$@"
-""".format(guile_version=gv))
+exec "$athena_dir/bin/ATHENA.bin" "${platform_args[@]}" "$@"
+""")
     apprun.chmod(apprun.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
 
@@ -349,9 +309,6 @@ def main():
     output_appimage = Path(sys.argv[2]).resolve()
     appdir = Path(sys.argv[3]).resolve()
     appimagetool = Path(sys.argv[4]).resolve()
-    gv = guile_version()
-    if gv != "1.8":
-        raise SystemExit(f"container AppImage builds must use Guile 1.8, got {gv}")
     verify_runtime(runtime)
     verify_linux_services(runtime)
 
@@ -364,7 +321,6 @@ def main():
     write_apprun(appdir)
     write_desktop_and_icon(appdir, runtime)
     copy_qt_plugins(appdir)
-    copy_guile(appdir)
     copy_imagemagick(appdir)
     copy_dependencies(appdir)
     verify_runtime(appdir)

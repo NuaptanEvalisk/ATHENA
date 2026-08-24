@@ -19,7 +19,7 @@ Dependencies
 ATHENA intentionally assumes a modern desktop development environment. The
 CMake configuration currently requires, among others:
 
-  CMake, a C/C++ compiler, pkg-config, Qt 6, Guile 1.8, Boost headers,
+  CMake, a C/C++ compiler, pkg-config, Qt 6, Boost headers,
   mimalloc, SQLite3, Python 3, uv, FreeType, PNG, JPEG, zlib, zstd,
   ImageMagick/MagickWand, Iconv, GnuTLS, GMP, Ghostscript, resvg with
   ResvgQt.h, libtcc, and patchelf.
@@ -48,29 +48,21 @@ direct, global, and export hierarchy diagrams are laid out through Boost graph
 algorithms in the application.
 
 -------------------------------------------------------------------------------
-Guile 1.8
+ATHENA private Guile runtime
 -------------------------------------------------------------------------------
 
-ATHENA currently needs Guile 1.8. Do not rely on a modern distribution's default
-Guile development package unless it actually provides Guile 1.8 pkg-config
-metadata.
+ATHENA does not use a system Guile installation. CMake builds the vendored,
+ATHENA-specific Guile 3 runtime under `3rdparty/athena-guile` and links
+`ATHENA.bin` against `libathena-guile`. The runtime contains native
+implementations of ATHENA's module, require/import, contextual definition, and
+lazy-definition infrastructure. Do not add a system Guile package or
+`PKG_CONFIG_PATH` override to the build.
 
-The Guile 1.8 package used for the verified build is:
-
-  https://build.opensuse.org/package/show/home:jmnotin:TeXmacs/Guile18
-
-Build and install Guile 1.8 separately before configuring ATHENA. If the package
-is installed system-wide and pkg-config can already find guile-1.8, no extra
-environment variable is needed. If you install it under a private prefix, for
-example $HOME/opt/guile18, export its pkg-config path before running CMake:
-
-  export PKG_CONFIG_PATH="$HOME/opt/guile18/lib64/pkgconfig:$PKG_CONFIG_PATH"
-
-Verify that pkg-config sees the correct version:
-
-  pkg-config --modversion guile-1.8
-
-The verified build used Guile 1.8.8.
+The private runtime is installed into the build tree automatically. Release
+packaging copies its library, standard Scheme library, and compiled standard
+library into `ATHENA/lib/athena-guile`. ATHENA compiles application Scheme
+modules into `$ATHENA_HOME_PATH/system/cache/guile/3.0`; subsequent starts reuse
+that cache.
 
 -------------------------------------------------------------------------------
 DataArt Python environment
@@ -118,8 +110,6 @@ Configure and build
 From the repository root:
 
   source /opt/intel/oneapi/setvars.sh
-  export PKG_CONFIG_PATH="$HOME/opt/guile18/lib64/pkgconfig:$PKG_CONFIG_PATH"
-
   CC=icx CXX=icpx cmake -S . -B build_qt6 \
     -DATHENA_GUI=Qt6 \
     -DCMAKE_BUILD_TYPE=Debug
@@ -144,8 +134,6 @@ ATHENA/lib without manually running patchelf.
 For a local release-mode binary, use a separate build directory:
 
   source /opt/intel/oneapi/setvars.sh
-  export PKG_CONFIG_PATH="$HOME/opt/guile18/lib64/pkgconfig:$PKG_CONFIG_PATH"
-
   CC=icx CXX=icpx cmake -S . -B build_rel \
     -DATHENA_GUI=Qt6 \
     -DCMAKE_BUILD_TYPE=RelWithDebInfo
@@ -241,8 +229,9 @@ For redistributable Linux bundles, use the scripted container workflow under
 
   tools/container-build/build-athena-container.sh
 
-The workflow builds in an openSUSE Leap 16.0 container, uses Qt 6, builds Guile
-1.8 from a source tree, prefers Intel `icx`/`icpx` when available, and produces:
+The workflow builds in an openSUSE Leap 16.0 container, uses Qt 6, builds the
+vendored ATHENA Guile runtime, prefers Intel `icx`/`icpx` when available, and
+produces:
 
   container_build/ATHENA-dev/
   container_build/ATHENA-rel/
@@ -264,13 +253,9 @@ the RPMs or DEBs on the host:
 
 Useful knobs:
 
-  ATHENA_GUILE18_SOURCE=/path/to/guile-1.8.8
   ATHENA_BUILD_JOBS=16
   ATHENA_SKIP_UBUNTU_VALIDATE=1
   ATHENA_ALLOW_SYSTEM_COMPILER=1
-
-`ATHENA_GUILE18_SOURCE` must point to a Guile 1.8 source tree. Do not replace
-Guile 1.8 with Guile 2 or Guile 3 for ATHENA.
 
 The AppImage launcher defaults to Wayland and follows the same scale/input
 policy as `StartATHENA.qt6.wayland.sh`.
@@ -299,10 +284,10 @@ The all-platform release driver additionally creates the canonical archive:
 It runs a Wine version smoke test by default. Use `--skip-wine-test` only when
 Wine cannot be installed on the packaging host.
 
-The Windows build must use target libraries from the Windows prefix, including
-Qt6, Guile 1.8.8, mimalloc, ADS, libtcc, resvg, llama.cpp, and the other
-runtime DLLs. It must not consume Linux host Qt or host pkg-config metadata.
-See `tools/windows-deps/README.md` for dependency preparation details.
+The native Windows cross build is temporarily unavailable while the private
+ATHENA Guile runtime is being ported to MinGW-w64. The retired Guile 1.8 target
+must not be used as a fallback. See `tools/windows-deps/README.md` for current
+status.
 
 The CMake Windows configuration distinguishes 64-bit MinGW with `OS_MINGW64`
 and uses the `src/Subsystems/Windows64` system layer. This is required for the
@@ -343,7 +328,6 @@ For a system install, use the usual CMake install workflow:
 Set a custom prefix at configure time if needed:
 
   source /opt/intel/oneapi/setvars.sh
-  export PKG_CONFIG_PATH="$HOME/opt/guile18/lib64/pkgconfig:$PKG_CONFIG_PATH"
   CC=icx CXX=icpx cmake -S . -B build_qt6 \
     -DATHENA_GUI=Qt6 \
     -DCMAKE_BUILD_TYPE=Debug \
@@ -358,10 +342,8 @@ Troubleshooting
 -------------------------------------------------------------------------------
 
 If CMake cannot find a dependency, install the corresponding development package
-and rerun the configure step. If CMake cannot find Guile 1.8 specifically, check
-PKG_CONFIG_PATH and verify:
-
-  pkg-config --modversion guile-1.8
+and rerun the configure step. The Guile runtime is not a system dependency; a
+failure in that component should be diagnosed in `athena-guile-build`.
 
 If generated files or Scheme cache entries interfere with a local development
 build, remove the build directory and ATHENA cache, then configure again:
@@ -369,7 +351,6 @@ build, remove the build directory and ATHENA cache, then configure again:
   rm -rf build_qt6
   rm -rf ~/.ATHENA/system/cache
   source /opt/intel/oneapi/setvars.sh
-  export PKG_CONFIG_PATH="$HOME/opt/guile18/lib64/pkgconfig:$PKG_CONFIG_PATH"
   CC=icx CXX=icpx cmake -S . -B build_qt6 \
     -DATHENA_GUI=Qt6 \
     -DCMAKE_BUILD_TYPE=Debug

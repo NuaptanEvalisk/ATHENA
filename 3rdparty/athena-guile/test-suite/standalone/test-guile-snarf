@@ -1,0 +1,38 @@
+#!/bin/sh
+
+# Test the `guile-snarf' tool.
+
+# Strip the first line, like GNU `tail -n +2' does, but in a portable
+# way (`tail' on Solaris 10 doesn't support `-n +2' for instance.)
+strip_first_line ()
+{
+    read line
+    while read line
+    do
+	echo "$line"
+    done
+}
+
+snarf ()
+{
+    # GNU cpp emits a comment on the first line, which shows what
+    # arguments it was passed.  Strip this line.
+    echo "$1" | guile-snarf - | strip_first_line | tr -d ' \t\n'
+}
+
+snarf_test ()
+{
+    x=`snarf "$1"`
+    if [ x"$x" != x"$2" ]; then
+        echo "Incorrect output: expected \"$2\", but got \"$x\""
+        exit 1
+    fi
+}
+
+snarf_test "^^a^:^" "a;"
+snarf_test "  ^  ^  b  ^  :  ^  " "b;"
+snarf_test "c\n^^d^:^\ne" "d;"
+snarf_test "f^^g^:^h" "g;"
+snarf_test "^^i^:^j^^k^:^" "i;k;"
+snarf_test "l^^m" ""
+snarf_test "n^:^o" ""

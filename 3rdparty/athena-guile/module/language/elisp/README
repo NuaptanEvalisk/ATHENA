@@ -1,0 +1,115 @@
+Guile's Emacs Lisp compiler
+===========================
+
+This is more or less a lot of work in progress.  Here are some notes as well
+as status information.
+
+Already implemented:
+  * progn, prog1, prog2
+  * if, cond, when, unless
+  * not, and, or
+  * referencing and setting (setq) variables
+  * set, symbol-value, makunbound, boundp functions
+  * fset, symbol-function, fmakunbound, fboundp
+  * funcall, apply (also with raw lists as arguments and the like!)
+  * eval
+  * while, dotimes, dolist
+  * catch, throw, unwind-protect
+  * let, let*
+  * lambda expressions, function calls using list notation
+  * some built-ins (mainly numbers/arithmetic)
+  * defconst, defvar, defun
+  * macros
+  * quotation and backquotation with unquote/unquote-splicing
+  * specific elisp reader
+
+Especially still missing:
+  * more general built-ins
+  * advice?
+  * defsubst and inlining
+  * recursive macros
+  * anonymous macros
+
+Other ideas and things to think about:
+  * #nil vs. #f/'() handling in Guile
+
+Compiler options implemented:
+  * #:disable-void-check ['all / '(sym1 sym2 sym3)] to disable the check
+    for void value on access either completely or for some symbols
+  * #:always-lexical (usable same as disable-void-check) to always bind
+    certain or all symbols lexically (including lambda arguments)
+
+Extensions over original elisp:
+  * guile-ref, guile-primitive
+  * flet and flet*
+  * lexical-let and lexical-let*
+  * without-void-checks, with-always-lexical
+
+
+Details to the implemented extensions
+=====================================
+
+guile-ref and guile-primitive:
+------------------------------
+
+(guile-ref module sym) is a new special construct to access symbols from the
+Guile-world.  Actually, (guile-ref module sym) is the same as (@ module sym)
+would be in Scheme.  Both module and sym must be statically given and are not
+evaluated.
+
+(guile-primitive sym) does the same to access a Guile primitive directly, which
+is slightly faster where applicable.
+
+flet and flet*:
+---------------
+
+These constructs behave exactly like let and let*, except that they bind the
+function slots rather than the value slots, and so make dynamic scoping
+available for functions, too.
+
+The distinction between flet and flet* is probably less useful than the one
+between let and let*, but it was easy to implement both flet and flet*
+based on the existing let and let* code, so not having both of them seemed
+a little inconsistent.
+
+lexical-let and lexical-let*:
+-----------------------------
+
+lexical-let and lexical-let* are constructs provided by the elisp package
+'cl originally, but in Guile they are natively implemented because using
+lexical instead of dynamic binding gives better performance in this case.
+
+They work just like let and let*, but bind their target symbols lexically.
+Some oberservations with the Emacs 'cl implementation that we mimic in Guile
+for compatibility:
+
+  * Ordinary let's within the lexical scope of a lexical-let still establish new
+    *lexical* bindings for symbols already lexically bound.  So once lexical,
+    always lexical (on a per-symbol basis).
+
+  * However, lambda constructs within the lexical scope of a lexical-let where
+    one of their arguments is already lexically bound still bind it dynamically
+    for their scope.
+
+  * On the other hand, symbols lexically bound that are not rebound via the
+    argument-list build lexical closures just well.
+
+  * If symbols are accessed where they are not known at compile-time (like
+    symbol-value or set primitives), this always refers to the dynamic binding
+    and never the lexical one.  That's very nice to the implementor...
+
+without-void-checks:
+--------------------
+
+Disable void checks in addition to the compiler option for all or some symbols
+in the lexical scope of this construct:
+
+(without-void-checks all body...) or
+(without-void-checks (sym1 sym2 ...) body...
+
+with-always-lexical:
+--------------------
+
+As without-void-checks but adds to list of symbols that should always be bound
+lexically.  This lexical binding includes lambda arguments (if the symbols
+match up with the list), which can not be bound lexically otherwise.

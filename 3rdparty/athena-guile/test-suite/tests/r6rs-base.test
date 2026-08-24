@@ -1,0 +1,238 @@
+;;; r6rs-base.test --- Test suite for R6RS (rnrs base)
+
+;;      Copyright (C) 2010, 2011 Free Software Foundation, Inc.
+;;
+;; This library is free software; you can redistribute it and/or
+;; modify it under the terms of the GNU Lesser General Public
+;; License as published by the Free Software Foundation; either
+;; version 3 of the License, or (at your option) any later version.
+;; 
+;; This library is distributed in the hope that it will be useful,
+;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+;; Lesser General Public License for more details.
+;; 
+;; You should have received a copy of the GNU Lesser General Public
+;; License along with this library; if not, write to the Free Software
+;; Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+
+
+(define-module (test-suite test-r6rs-base)
+  :use-module ((rnrs base) :version (6))
+  :use-module ((rnrs conditions) :version (6))
+  :use-module ((rnrs exceptions) :version (6))
+  :use-module (test-suite lib))
+
+
+;; numbers are considered =? if their difference is less than a set
+;; tolerance
+(define (=? alpha beta)
+  (< (abs (- alpha beta)) 1e-10))
+
+(with-test-prefix "log (2nd arg)"
+  (pass-if "log positive-base" (=? (log 8 2) 3))
+  (pass-if "log negative-base" (=? (real-part (log 256 -4))
+                                   0.6519359443))
+  (pass-if "log base-one" (= (log 10 1) +inf.0))
+  (pass-if "log base-zero"
+    (catch #t
+      (lambda () (log 10 0) #f)
+      (lambda args #t))))
+
+(with-test-prefix "boolean=?"
+  (pass-if "boolean=? null" (boolean=?))
+  (pass-if "boolean=? unary" (boolean=? #f))
+  (pass-if "boolean=? many" 
+    (and (boolean=? #t #t #t) 
+	 (boolean=? #f #f #f) 
+	 (not (boolean=? #t #f #t))))
+  (pass-if "boolean=? mixed type" (not (boolean=? #t #t 'foo))))
+
+(with-test-prefix "symbol=?"
+  (pass-if "symbol=? null" (symbol=?))
+  (pass-if "symbol=? unary" (symbol=? 'a))
+  (pass-if "symbol=? many" 
+    (and (symbol=? 'a 'a 'a) 
+	 (symbol=? 'foo 'foo 'foo) 
+	 (not (symbol=? 'a 'foo 'a))))
+  (pass-if "symbol=? mixed type" (not (symbol=? 'a 'a 123))))
+
+(with-test-prefix "infinite?"
+  (pass-if "infinite? true on infinities"
+    (and (infinite? +inf.0) (infinite? -inf.0)))
+  (pass-if "infinite? false on non-infities"
+    (and (not (infinite? 123)) (not (infinite? +nan.0)))))
+
+(with-test-prefix "finite?"
+  (pass-if "finite? false on infinities"
+    (and (not (finite? +inf.0)) (not (finite? -inf.0))))
+  (pass-if "finite? true on non-infinities"
+    (and (finite? 123) (finite? 123.0))))
+
+(with-test-prefix "exact-integer-sqrt"
+  (pass-if "exact-integer-sqrt simple"
+    (let-values (((s e) (exact-integer-sqrt 5)))
+      (and (eqv? s 2) (eqv? e 1)))))
+
+(with-test-prefix "integer-valued?"
+  (pass-if "true on integers"
+    (and (integer-valued? 3) (integer-valued? 3.0) (integer-valued? 3.0+0.0i)))
+  (pass-if "false on rationals" (not (integer-valued? 3.1)))
+  (pass-if "false on reals" (not (integer-valued? +nan.0))))
+
+(with-test-prefix "rational-valued?"
+  (pass-if "true on integers" (rational-valued? 3))
+  (pass-if "true on rationals" 
+    (and (rational-valued? 3.1) (rational-valued? 3.1+0.0i)))
+  (pass-if "false on reals" 
+    (or (not (rational-valued? +nan.0))
+        (throw 'unresolved))))
+
+(with-test-prefix "real-valued?"
+  (pass-if "true on integers" (real-valued? 3))
+  (pass-if "true on rationals" (real-valued? 3.1))
+  (pass-if "true on reals" (real-valued? +nan.0)))
+
+(with-test-prefix "vector-for-each"
+  (pass-if "vector-for-each simple"
+    (let ((sum 0))
+      (vector-for-each (lambda (x) (set! sum (+ sum x))) '#(1 2 3))
+      (eqv? sum 6))))    
+
+(with-test-prefix "vector-map"
+  (pass-if "vector-map simple"
+    (equal? '#(3 2 1) (vector-map (lambda (x) (- 4 x)) '#(1 2 3)))))
+
+(with-test-prefix "real-valued?"
+  (pass-if (real-valued? +nan.0))
+  (pass-if (real-valued? +nan.0+0i))
+  (pass-if (real-valued? +nan.0+0.0i))
+  (pass-if (real-valued? +inf.0))
+  (pass-if (real-valued? -inf.0))
+  (pass-if (real-valued? +inf.0+0.0i))
+  (pass-if (real-valued? -inf.0-0.0i))
+  (pass-if (real-valued? 3))
+  (pass-if (real-valued? -2.5))
+  (pass-if (real-valued? -2.5+0i))
+  (pass-if (real-valued? -2.5+0.0i))
+  (pass-if (real-valued? -2.5-0i))
+  (pass-if (real-valued? #e1e10))
+  (pass-if (real-valued? 1e200))
+  (pass-if (real-valued? 1e200+0.0i))
+  (pass-if (real-valued? 6/10))
+  (pass-if (real-valued? 6/10+0.0i))
+  (pass-if (real-valued? 6/10+0i))
+  (pass-if (real-valued? 6/3))
+  (pass-if (not (real-valued? 3+i)))
+  (pass-if (not (real-valued? -2.5+0.01i)))
+  (pass-if (not (real-valued? +nan.0+0.01i)))
+  (pass-if (not (real-valued? +nan.0+nan.0i)))
+  (pass-if (not (real-valued? +inf.0-0.01i)))
+  (pass-if (not (real-valued? +0.01i)))
+  (pass-if (not (real-valued? -inf.0i))))
+
+(with-test-prefix "rational-valued?"
+  (pass-if (not (rational-valued? +nan.0)))
+  (pass-if (not (rational-valued? +nan.0+0i)))
+  (pass-if (not (rational-valued? +nan.0+0.0i)))
+  (pass-if (not (rational-valued? +inf.0)))
+  (pass-if (not (rational-valued? -inf.0)))
+  (pass-if (not (rational-valued? +inf.0+0.0i)))
+  (pass-if (not (rational-valued? -inf.0-0.0i)))
+  (pass-if (rational-valued? 3))
+  (pass-if (rational-valued? -2.5))
+  (pass-if (rational-valued? -2.5+0i))
+  (pass-if (rational-valued? -2.5+0.0i))
+  (pass-if (rational-valued? -2.5-0i))
+  (pass-if (rational-valued? #e1e10))
+  (pass-if (rational-valued? 1e200))
+  (pass-if (rational-valued? 1e200+0.0i))
+  (pass-if (rational-valued? 6/10))
+  (pass-if (rational-valued? 6/10+0.0i))
+  (pass-if (rational-valued? 6/10+0i))
+  (pass-if (rational-valued? 6/3))
+  (pass-if (not (rational-valued? 3+i)))
+  (pass-if (not (rational-valued? -2.5+0.01i)))
+  (pass-if (not (rational-valued? +nan.0+0.01i)))
+  (pass-if (not (rational-valued? +nan.0+nan.0i)))
+  (pass-if (not (rational-valued? +inf.0-0.01i)))
+  (pass-if (not (rational-valued? +0.01i)))
+  (pass-if (not (rational-valued? -inf.0i))))
+
+(with-test-prefix "integer-valued?"
+  (pass-if (not (integer-valued? +nan.0)))
+  (pass-if (not (integer-valued? +nan.0+0i)))
+  (pass-if (not (integer-valued? +nan.0+0.0i)))
+  (pass-if (not (integer-valued? +inf.0)))
+  (pass-if (not (integer-valued? -inf.0)))
+  (pass-if (not (integer-valued? +inf.0+0.0i)))
+  (pass-if (not (integer-valued? -inf.0-0.0i)))
+  (pass-if (integer-valued? 3))
+  (pass-if (integer-valued? 3.0))
+  (pass-if (integer-valued? 3+0i))
+  (pass-if (integer-valued? 3+0.0i))
+  (pass-if (integer-valued? 8/4))
+  (pass-if (integer-valued? #e1e10))
+  (pass-if (integer-valued? 1e200))
+  (pass-if (integer-valued? 1e200+0.0i))
+  (pass-if (not (integer-valued? -2.5)))
+  (pass-if (not (integer-valued? -2.5+0i)))
+  (pass-if (not (integer-valued? -2.5+0.0i)))
+  (pass-if (not (integer-valued? -2.5-0i)))
+  (pass-if (not (integer-valued? 6/10)))
+  (pass-if (not (integer-valued? 6/10+0.0i)))
+  (pass-if (not (integer-valued? 6/10+0i)))
+  (pass-if (not (integer-valued? 3+i)))
+  (pass-if (not (integer-valued? -2.5+0.01i)))
+  (pass-if (not (integer-valued? +nan.0+0.01i)))
+  (pass-if (not (integer-valued? +nan.0+nan.0i)))
+  (pass-if (not (integer-valued? +inf.0-0.01i)))
+  (pass-if (not (integer-valued? +0.01i)))
+  (pass-if (not (integer-valued? -inf.0i))))
+
+(with-test-prefix "assert"
+  (pass-if "assert returns value" (= 1 (assert 1)))
+  (pass-if "assertion-violation"
+    (guard (condition ((assertion-violation? condition) #t))
+      (assert #f)
+      #f)))
+
+(with-test-prefix "string-for-each"
+  (pass-if "reverse string"
+    (let ((s "reverse me") (l '()))
+      (string-for-each (lambda (x) (set! l (cons x l))) s)
+      (equal? "em esrever" (list->string l))))
+  (pass-if "two strings good"
+    (let ((s1 "two legs good")
+          (s2 "four legs bad")
+          (c '()))
+      (string-for-each (lambda (c1 c2)
+                         (set! c (cons* c2 c1 c)))
+                       s1 s2)
+      (equal? (list->string c)
+              "ddaobo gs gsegle lr uoowft")))
+  (pass-if "two strings bad"
+    (let ((s1 "frotz")
+          (s2 "veeblefetzer"))
+      (guard (condition ((assertion-violation? condition) #t))
+        (string-for-each (lambda (s1 s2) #f) s1 s2)
+        #f)))
+  (pass-if "many strings good"
+    (let ((s1 "foo")
+          (s2 "bar")
+          (s3 "baz")
+          (s4 "zot")
+          (c '()))
+      (string-for-each (lambda (c1 c2 c3 c4)
+                         (set! c (cons* c4 c3 c2 c1 c)))
+                       s1 s2 s3 s4)
+      (equal? (list->string c)
+              "tzrooaaozbbf")))
+  (pass-if "many strings bad"
+    (let ((s1 "foo")
+          (s2 "bar")
+          (s3 "baz")
+          (s4 "quux"))
+      (guard (condition ((assertion-violation? condition) #t))
+        (string-for-each (lambda _ #f) s1 s2 s3 s4)
+        #f))))

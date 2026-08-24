@@ -1,0 +1,711 @@
+;;;; strings.test --- test suite for Guile's string functions    -*- scheme -*-
+;;;; Jim Blandy <jimb@red-bean.com> --- August 1999
+;;;;
+;;;; Copyright (C) 1999,2001,2004-2006,2008-2011,2013,2015,2018,2020,2023
+;;;;   Free Software Foundation, Inc.
+;;;;
+;;;; This library is free software; you can redistribute it and/or
+;;;; modify it under the terms of the GNU Lesser General Public
+;;;; License as published by the Free Software Foundation; either
+;;;; version 3 of the License, or (at your option) any later version.
+;;;;
+;;;; This library is distributed in the hope that it will be useful,
+;;;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;;;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+;;;; Lesser General Public License for more details.
+;;;;
+;;;; You should have received a copy of the GNU Lesser General Public
+;;;; License along with this library; if not, write to the Free Software
+;;;; Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+
+(define-module (test-strings)
+  #:use-module ((system base compile) #:select (compile))
+  #:use-module (test-suite lib)
+  #:use-module (ice-9 string-fun))
+
+(define exception:read-only-string
+  (cons 'misc-error "^string is read-only"))
+(define exception:invalid-escape
+  (cons 'read-error "invalid character in escape sequence"))
+
+;; Create a string from integer char values, eg. (string-ints 65) => "A"
+(define (string-ints . args)
+  (apply string (map integer->char args)))
+
+;;
+;; string internals
+;;
+
+;; Some abbreviations
+;; BMP - Basic Multilingual Plane (codepoints below U+FFFF)
+;; SMP - Suplementary Multilingual Plane (codebpoints from U+10000 to U+1FFFF)
+
+(with-test-prefix "string internals"
+
+  (pass-if "new string starts at 1st char in stringbuf"
+    (let ((s "abc"))
+      (= 0 (assq-ref (%string-dump s) 'start))))
+
+  (pass-if "length of new string same as stringbuf"
+    (let ((s "def"))
+      (= (string-length s) (assq-ref (%string-dump s) 'stringbuf-length))))
+
+  (pass-if "contents of new string same as stringbuf"
+    (let ((s "ghi"))
+      (string=? s (assq-ref (%string-dump s) 'stringbuf-chars))))
+
+  (pass-if "writable strings are not read-only"
+    (let ((s "zyx"))
+      (not (assq-ref (%string-dump s) 'read-only))))
+
+  (pass-if "read-only strings are read-only"
+    (let ((s (substring/read-only "zyx" 0)))
+      (assq-ref (%string-dump s) 'read-only)))
+
+  (pass-if "new Latin-1 encoded strings are not shared"
+    (let ((s "abc"))
+      (not (assq-ref (%string-dump s) 'stringbuf-shared))))
+
+  (pass-if "new UCS-4 encoded strings are not shared"
+    (let ((s "\u0100bc"))
+      (not (assq-ref (%string-dump s) 'stringbuf-shared))))
+
+  ;; Should this be true? It isn't currently true.
+  (pass-if "null shared substrings are shared"
+    (let* ((s1 "")
+           (s2 (substring/shared s1 0 0)))
+      (throw 'untested)
+      (eq? (assq-ref (%string-dump s2) 'shared)
+           s1)))
+
+  (pass-if "ASCII shared substrings are shared"
+    (let* ((s1 "foobar")
+           (s2 (substring/shared s1 0 3)))
+      (eq? (assq-ref (%string-dump s2) 'shared)
+           s1)))
+
+  (pass-if "BMP shared substrings are shared"
+    (let* ((s1 "\u0100\u0101\u0102\u0103\u0104\u0105")
+           (s2 (substring/shared s1 0 3)))
+      (eq? (assq-ref (%string-dump s2) 'shared)
+           s1)))
+
+  (pass-if "null substrings are not shared"
+    (let* ((s1 "")
+           (s2 (substring s1 0 0)))
+      (not (eq? (assq-ref (%string-dump s2) 'shared)
+                s1))))
+
+  (pass-if "ASCII substrings are not shared"
+    (let* ((s1 "foobar")
+           (s2 (substring s1 0 3)))
+      (not (eq? (assq-ref (%string-dump s2) 'shared)
+                s1))))
+
+  (pass-if "BMP substrings are not shared"
+    (let* ((s1 "\u0100\u0101\u0102\u0103\u0104\u0105")
+           (s2 (substring s1 0 3)))
+      (not (eq? (assq-ref (%string-dump s2) 'shared)
+                s1))))
+
+  (pass-if "ASCII substrings immutable before copy-on-write"
+    (let* ((s1 "foobar")
+           (s2 (substring s1 0 3)))
+      (and (not (assq-ref (%string-dump s1) 'stringbuf-mutable))
+           (not (assq-ref (%string-dump s2) 'stringbuf-mutable)))))
+
+  (pass-if "BMP substrings immutable before copy-on-write"
+    (let* ((s1 "\u0100\u0101\u0102\u0103\u0104\u0105")
+           (s2 (substring s1 0 3)))
+      (and (not (assq-ref (%string-dump s1) 'stringbuf-mutable))
+           (not (assq-ref (%string-dump s2) 'stringbuf-mutable)))))
+
+  (pass-if "ASCII base string still immutable after copy-on-write"
+    (let* ((s1 "foobar")
+           (s2 (substring s1 0 3)))
+      (string-set! s2 0 #\F)
+      (and (not (assq-ref (%string-dump s1) 'stringbuf-mutable))
+           (assq-ref (%string-dump s2) 'stringbuf-mutable))))
+
+  (pass-if "BMP base string still immutable after copy-on-write"
+    (let* ((s1 "\u0100\u0101\u0102\u0103\u0104\u0105")
+           (s2 (substring s1 0 3)))
+      (string-set! s2 0 #\F)
+      (and (not (assq-ref (%string-dump s1) 'stringbuf-mutable))
+           (assq-ref (%string-dump s2) 'stringbuf-mutable))))
+
+  (pass-if "ASCII substrings mutable after shared mutation"
+    (let* ((s1 "foobar")
+           (s2 (substring/shared s1 0 3)))
+      (string-set! s2 0 #\F)
+      (and (assq-ref (%string-dump s1) 'stringbuf-mutable)
+           (assq-ref (%string-dump s2) 'stringbuf-mutable))))
+
+  (pass-if "BMP substrings mutable after shared mutation"
+    (let* ((s1 "\u0100\u0101\u0102\u0103\u0104\u0105")
+           (s2 (substring/shared s1 0 3)))
+      (string-set! s2 0 #\F)
+      (and (assq-ref (%string-dump s1) 'stringbuf-mutable)
+           (assq-ref (%string-dump s2) 'stringbuf-mutable))))
+
+  (with-test-prefix "encodings"
+
+    (pass-if "null strings are Latin-1 encoded"
+      (let ((s ""))
+        (not (assq-ref (%string-dump s) 'stringbuf-wide))))
+
+    (pass-if "ASCII strings are Latin-1 encoded"
+      (let ((s "jkl"))
+        (not (assq-ref (%string-dump s) 'stringbuf-wide))))
+
+    (pass-if "Latin-1 strings are Latin-1 encoded"
+      (let ((s "\xC0\xC1\xC2"))
+        (not (assq-ref (%string-dump s) 'stringbuf-wide))))
+
+    (pass-if "BMP strings are UCS-4 encoded"
+      (let ((s "\u0100\u0101\x0102"))
+        (assq-ref (%string-dump s) 'stringbuf-wide)))
+
+    (pass-if "SMP strings are UCS-4 encoded"
+      (let ((s "\U010300\u010301\x010302"))
+        (assq-ref (%string-dump s) 'stringbuf-wide)))
+
+    (pass-if "null list->string is Latin-1 encoded"
+      (let ((s (string-ints)))
+        (not (assq-ref (%string-dump s) 'stringbuf-wide))))
+
+    (pass-if "ASCII list->string is Latin-1 encoded"
+      (let ((s (string-ints 65 66 67)))
+        (not (assq-ref (%string-dump s) 'stringbuf-wide))))
+
+    (pass-if "Latin-1 list->string is Latin-1 encoded"
+      (let ((s (string-ints #xc0 #xc1 #xc2)))
+        (not (assq-ref (%string-dump s) 'stringbuf-wide))))
+
+    (pass-if "BMP list->string is UCS-4 encoded"
+      (let ((s (string-ints #x0100 #x0101 #x0102)))
+        (assq-ref (%string-dump s) 'stringbuf-wide)))
+
+    (pass-if "SMP list->string is UCS-4 encoded"
+      (let ((s (string-ints #x010300 #x010301 #x010302)))
+        (assq-ref (%string-dump s) 'stringbuf-wide)))
+
+    (pass-if "encoding of string not based on escape style"
+      (let ((s "\U000040"))
+        (not (assq-ref (%string-dump s) 'stringbuf-wide))))))
+
+(with-test-prefix "escapes"
+
+  (pass-if-exception "non-hex char in two-digit hex-escape"
+    exception:invalid-escape                     
+    (with-input-from-string "\"\\x0g\"" read))
+
+  (pass-if-exception "non-hex char in four-digit hex-escape"
+    exception:invalid-escape                     
+    (with-input-from-string "\"\\u000g\"" read))
+
+  (pass-if-exception "non-hex char in six-digit hex-escape"
+    exception:invalid-escape                     
+    (with-input-from-string "\"\\U00000g\"" read))
+
+  (pass-if-exception "premature termination of two-digit hex-escape"
+    exception:invalid-escape                     
+    (with-input-from-string "\"\\x0\"" read))
+
+  (pass-if-exception "premature termination of four-digit hex-escape"
+    exception:invalid-escape                     
+    (with-input-from-string "\"\\u000\"" read))
+
+  (pass-if-exception "premature termination of six-digit hex-escape"
+    exception:invalid-escape                     
+    (with-input-from-string "\"\\U00000\"" read))
+
+  (pass-if "extra hex digits ignored for two-digit hex escape"
+    (eqv? (string-ref "--\xfff--" 2)
+          (integer->char #xff)))
+
+  (pass-if "extra hex digits ignored for four-digit hex escape"
+    (eqv? (string-ref "--\u0100f--" 2)
+          (integer->char #x0100)))
+
+  (pass-if "extra hex digits ignored for six-digit hex escape"
+    (eqv? (string-ref "--\U010300f--" 2)
+          (integer->char #x010300)))
+
+  (pass-if "escaped characters match non-escaped ASCII characters"
+    (string=? "ABC" "\x41\u0042\U000043"))
+
+  (pass-if "R5RS backslash escapes"
+    (string=? "\"\\" (string #\" #\\)))
+
+  (pass-if "R6RS backslash escapes"
+    (string=? "\a\b\t\n\v\f\r"
+              (string #\alarm #\backspace #\tab #\newline #\vtab
+                      #\page #\return)))
+
+  (pass-if "Guile extensions backslash escapes"
+    (string=? "\0" (string #\nul))))
+
+;;
+;; string?
+;;
+(with-test-prefix "string?"
+
+  (pass-if "string"
+    (string? "abc"))
+
+  (pass-if "symbol"
+    (not (string? 'abc))))
+
+;;
+;; literals
+;;
+
+(with-test-prefix "literals"
+
+  ;; The "Storage Model" section of R5RS reads: "In such systems literal
+  ;; constants and the strings returned by `symbol->string' are
+  ;; immutable objects".  `eval' doesn't support it yet, but it doesn't
+  ;; really matter because `eval' doesn't coalesce repeated constants,
+  ;; unlike the bytecode compiler.
+
+  (pass-if-exception "literals are constant"
+    exception:read-only-string
+    (compile '(string-set! "literal string" 0 #\x)
+             #:from 'scheme
+             #:to 'value)))
+
+;;
+;; string-null?
+;; 
+
+(with-test-prefix "string-null?"
+
+  (pass-if "null string"
+    (string-null? ""))
+
+  (pass-if "non-null string"
+    (not (string-null? "a")))
+
+  (pass-if "respects \\0"
+    (not (string-null? "\0")))
+
+  (pass-if-exception "symbol"
+    exception:wrong-type-arg
+    (string-null? 'a)))
+
+;;
+;; string=?
+;;
+
+(with-test-prefix "string=?"
+
+  (pass-if "respects 1st parameter's string length"
+    (not (string=? "foo\0" "foo")))
+
+  (pass-if "respects 2nd paramter's string length"
+    (not (string=? "foo" "foo\0")))
+
+  (with-test-prefix "wrong argument type"
+
+    (pass-if-exception "1st argument symbol"
+      exception:wrong-type-arg
+      (string=? 'a "a"))
+
+    (pass-if-exception "2nd argument symbol"
+      exception:wrong-type-arg
+      (string=? "a" 'b))
+
+    (pass-if-exception "1st argument EOF"
+      exception:wrong-type-arg
+      (string=? (with-input-from-string "" read) "b"))
+
+    (pass-if-exception "2nd argument EOF"
+      exception:wrong-type-arg
+      (string=? "a" (with-input-from-string "" read)))))
+
+;;
+;; string<?
+;;
+
+(with-test-prefix "string<?"
+
+  (pass-if "respects string length"
+    (and (not (string<? "foo\0a" "foo\0a"))
+	 (string<? "foo\0a" "foo\0b")))
+
+  (with-test-prefix "wrong argument type"
+
+    (pass-if-exception "1st argument symbol"
+      exception:wrong-type-arg
+      (string<? 'a "a"))
+
+    (pass-if-exception "2nd argument symbol"
+      exception:wrong-type-arg
+      (string<? "a" 'b)))
+
+  (pass-if "same as char<?"
+    (eq? (char<? (integer->char 0) (integer->char 255))
+	 (string<? (string-ints 0) (string-ints 255)))))
+
+;;
+;; string-ci<?
+;;
+
+(with-test-prefix "string-ci<?"
+
+  (pass-if "respects string length"
+    (and (not (string-ci<? "foo\0a" "foo\0a"))
+	 (string-ci<? "foo\0a" "foo\0b")))
+
+  (with-test-prefix "wrong argument type"
+
+    (pass-if-exception "1st argument symbol"
+      exception:wrong-type-arg
+      (string-ci<? 'a "a"))
+
+    (pass-if-exception "2nd argument symbol"
+      exception:wrong-type-arg
+      (string-ci<? "a" 'b)))
+
+  (pass-if "same as char-ci<?"
+    (eq? (char-ci<? (integer->char 0) (integer->char 255))
+	 (string-ci<? (string-ints 0) (string-ints 255)))))
+
+;;
+;; string<=?
+;;
+
+(with-test-prefix "string<=?"
+
+  (pass-if "same as char<=?"
+    (eq? (char<=? (integer->char 0) (integer->char 255))
+	 (string<=? (string-ints 0) (string-ints 255)))))
+
+;;
+;; string-ci<=?
+;;
+
+(with-test-prefix "string-ci<=?"
+
+  (pass-if "same as char-ci<=?"
+    (eq? (char-ci<=? (integer->char 0) (integer->char 255))
+	 (string-ci<=? (string-ints 0) (string-ints 255)))))
+
+;;
+;; string>?
+;;
+
+(with-test-prefix "string>?"
+
+  (pass-if "same as char>?"
+    (eq? (char>? (integer->char 0) (integer->char 255))
+	 (string>? (string-ints 0) (string-ints 255)))))
+
+;;
+;; string-ci>?
+;;
+
+(with-test-prefix "string-ci>?"
+
+  (pass-if "same as char-ci>?"
+    (eq? (char-ci>? (integer->char 0) (integer->char 255))
+	 (string-ci>? (string-ints 0) (string-ints 255)))))
+
+;;
+;; string>=?
+;;
+
+(with-test-prefix "string>=?"
+
+  (pass-if "same as char>=?"
+    (eq? (char>=? (integer->char 0) (integer->char 255))
+	 (string>=? (string-ints 0) (string-ints 255)))))
+
+;;
+;; string-ci>=?
+;;
+
+(with-test-prefix "string-ci>=?"
+
+  (pass-if "same as char-ci>=?"
+    (eq? (char-ci>=? (integer->char 0) (integer->char 255))
+	 (string-ci>=? (string-ints 0) (string-ints 255)))))
+
+;;
+;; Unicode string normalization forms
+;;
+
+;;
+;; string-normalize-nfd
+;;
+
+(with-test-prefix "string-normalize-nfd"
+
+  (pass-if "canonical decomposition is equal?"
+    (equal? (string-normalize-nfd "\xe9") "\x65\u0301")))
+
+;;
+;; string-normalize-nfkd
+;;
+
+(with-test-prefix "string-normalize-nfkd"
+  
+  (pass-if "compatibility decomposition is equal?"
+    (equal? (string-normalize-nfkd "\u1e9b\u0323") "s\u0323\u0307")))
+
+;;
+;; string-normalize-nfc
+;;
+
+(with-test-prefix "string-normalize-nfc"
+
+  (pass-if "canonical composition is equal?"
+    (equal? (string-normalize-nfc "\x65\u0301") "\xe9")))
+
+;;
+;; string-normalize-nfkc
+;;
+
+(with-test-prefix "string-normalize-nfkc"
+
+  (pass-if "compatibility composition is equal?"
+    (equal? (string-normalize-nfkc "\u1e9b\u0323") "\u1e69")))
+
+;;
+;; normalizing large strings
+;;
+
+(pass-if "string-normalize-{nfd,nfc,nfkd,nfkc} on large strings"
+  ;; In Guile <= 2.2.4, these would overflow the C stack and crash.
+  (let ((large (make-string 4000000 #\a)))
+    (and (string=? large (string-normalize-nfd large))
+         (string=? large (string-normalize-nfc large))
+         (string=? large (string-normalize-nfkd large))
+         (string=? large (string-normalize-nfkc large)))))
+
+;;
+;; string-utf8-length
+;;
+
+(with-test-prefix "string-utf8-length"
+
+  (pass-if-exception "wrong type argument"
+      exception:wrong-type-arg
+    (string-utf8-length 50))
+
+  (pass-if-equal 0 (string-utf8-length ""))
+  (pass-if-equal 1 (string-utf8-length "\0"))
+  (pass-if-equal 5 (string-utf8-length "hello"))
+  (pass-if-equal 7 (string-utf8-length "helloλ"))
+  (pass-if-equal 9 (string-utf8-length "ሠላም")))
+
+;;
+;; string-ref
+;;
+
+(with-test-prefix/c&e "string-ref"
+
+  (pass-if-exception "empty string"
+    exception:out-of-range
+    (string-ref "" 0))
+
+  (pass-if-exception "empty string and non-zero index"
+    exception:out-of-range
+    (string-ref "" 123))
+
+  (pass-if-exception "out of range"
+    exception:out-of-range
+    (string-ref "hello" 123))
+
+  (pass-if-equal "negative index"          ;<https://bugs.gnu.org/60488>
+      '(0 upper -1)
+    (catch 'out-of-range
+      (lambda ()
+        (string-ref "hello" -1))
+      (lambda args
+        (let ((bounds+index (list-ref args 3)))
+          ;; At -O2, the out-of-range error is raised when converting
+          ;; "-1" to uint64, so the upper bound that's reported is
+          ;; UINT64_MAX.
+          (list (list-ref bounds+index 0) 'upper
+                (list-ref bounds+index 2))))))
+
+  (pass-if "regular string, ASCII char"
+    (char=? (string-ref "GNU Guile" 4) #\G))
+
+  (pass-if "regular string, hex escaped Latin-1 char"
+    (char=? (string-ref "--\xff--" 2) 
+            (integer->char #xff)))
+
+  (pass-if "regular string, hex escaped BMP char"
+    (char=? (string-ref "--\u0100--" 2) 
+            (integer->char #x0100)))
+
+  (pass-if "regular string, hex escaped SMP char"
+    (char=? (string-ref "--\U010300--" 2) 
+            (integer->char #x010300))))
+
+;;
+;; string-set!
+;;
+
+(with-test-prefix "string-set!"
+
+  (pass-if-exception "empty string"
+    exception:out-of-range
+    (string-set! (string-copy "") 0 #\x))
+
+  (pass-if-exception "empty string and non-zero index"
+    exception:out-of-range
+    (string-set! (string-copy "") 123 #\x))
+
+  (pass-if-exception "out of range"
+    exception:out-of-range
+    (string-set! (string-copy "hello") 123 #\x))
+
+  (pass-if-exception "negative index"
+    exception:out-of-range
+    (string-set! (string-copy "hello") -1 #\x))
+
+  (pass-if-exception "read-only string"
+    exception:read-only-string
+    (string-set! (substring/read-only "abc" 0) 1 #\space))
+
+  (pass-if "regular string, ASCII char"
+    (let ((s (string-copy "GNU guile")))
+      (string-set! s 4 #\G)
+      (char=? (string-ref s 4) #\G)))
+
+  (pass-if "regular string, Latin-1 char"
+    (let ((s (string-copy "GNU guile")))
+      (string-set! s 4 (integer->char #xfe))
+      (char=? (string-ref s 4) (integer->char #xfe))))
+
+  (pass-if "regular string, BMP char"
+    (let ((s (string-copy "GNU guile")))
+      (string-set! s 4 (integer->char #x0100))
+      (char=? (string-ref s 4) (integer->char #x0100))))
+
+  (pass-if "regular string, SMP char"
+    (let ((s (string-copy "GNU guile")))
+      (string-set! s 4 (integer->char #x010300))
+      (char=? (string-ref s 4) (integer->char #x010300)))))
+
+;;
+;; list->string
+;;
+(with-test-prefix "string"
+
+  (pass-if-exception "convert circular list to string"
+    '(wrong-type-arg . "Apply to non-list")
+    (let ((foo (list #\a #\b #\c)))
+      (set-cdr! (cddr foo) (cdr foo))
+      (apply string foo))))
+ 
+(with-test-prefix "string-split"
+
+  ;; in guile 1.6.7 and earlier, character >=128 wasn't matched in the string
+  (pass-if "char 255"
+    (equal? '("a" "b")
+	    (string-split (string #\a (integer->char 255) #\b)
+			  (integer->char 255))))
+
+  (pass-if "empty string - char"
+    (equal? '("")
+            (string-split "" #\:)))
+
+  (pass-if "non-empty - char - no delimiters"
+    (equal? '("foobarfrob")
+            (string-split "foobarfrob" #\:)))
+
+  (pass-if "non-empty - char - delimiters"
+    (equal? '("foo" "bar" "frob")
+            (string-split "foo:bar:frob" #\:)))
+
+  (pass-if "non-empty - char - leading delimiters"
+    (equal? '("" "" "foo" "bar" "frob")
+            (string-split "::foo:bar:frob" #\:)))
+
+  (pass-if "non-empty - char - trailing delimiters"
+    (equal? '("foo" "bar" "frob" "" "")
+            (string-split "foo:bar:frob::" #\:)))
+
+  (pass-if "empty string - charset"
+    (equal? '("")
+            (string-split "" (char-set #\:))))
+
+  (pass-if "non-empty - charset - no delimiters"
+    (equal? '("foobarfrob")
+            (string-split "foobarfrob" (char-set #\:))))
+
+  (pass-if "non-empty - charset - delimiters"
+    (equal? '("foo" "bar" "frob")
+            (string-split "foo:bar:frob" (char-set #\:))))
+
+  (pass-if "non-empty - charset - leading delimiters"
+    (equal? '("" "" "foo" "bar" "frob")
+            (string-split "::foo:bar:frob" (char-set #\:))))
+
+  (pass-if "non-empty - charset - trailing delimiters"
+    (equal? '("foo" "bar" "frob" "" "")
+            (string-split "foo:bar:frob::" (char-set #\:))))
+
+  (pass-if "empty string - pred"
+    (equal? '("")
+            (string-split "" (negate char-alphabetic?))))
+
+  (pass-if "non-empty - pred - no delimiters"
+    (equal? '("foobarfrob")
+            (string-split "foobarfrob" (negate char-alphabetic?))))
+
+  (pass-if "non-empty - pred - delimiters"
+    (equal? '("foo" "bar" "frob")
+            (string-split "foo:bar:frob" (negate char-alphabetic?))))
+
+  (pass-if "non-empty - pred - leading delimiters"
+    (equal? '("" "" "foo" "bar" "frob")
+            (string-split "::foo:bar:frob" (negate char-alphabetic?))))
+
+  (pass-if "non-empty - pred - trailing delimiters"
+    (equal? '("foo" "bar" "frob" "" "")
+            (string-split "foo:bar:frob::" (negate char-alphabetic?)))))
+
+(with-test-prefix "substring-move!"
+
+  (pass-if-exception "substring-move! checks start and end correctly"
+    exception:out-of-range
+    (substring-move! "sample" 3 0 "test" 3)))
+
+(with-test-prefix "substring/shared"
+
+  (pass-if "modify indirectly"
+    (let ((str (string-copy "foofoofoo")))
+      (string-upcase! (substring/shared str 3 6))
+      (string=? str "fooFOOfoo")))
+
+  (pass-if "modify cow indirectly"
+    (let* ((str1 (string-copy "foofoofoo"))
+	   (str2 (string-copy str1)))
+      (string-upcase! (substring/shared str2 3 6))
+      (and (string=? str1 "foofoofoo")
+	   (string=? str2 "fooFOOfoo"))))
+
+  (pass-if "modify double indirectly"
+    (let* ((str1 (string-copy "foofoofoo"))
+	   (str2 (substring/shared str1 2 7)))
+      (string-upcase! (substring/shared str2 1 4))
+      (string=? str1 "fooFOOfoo")))
+
+  (pass-if "modify cow double indirectly"
+    (let* ((str1 "foofoofoo")
+	   (str2 (substring str1 2 7)))
+      (string-upcase! (substring/shared str2 1 4))
+      (and (string=? str1 "foofoofoo")
+	   (string=? str2 "oFOOf")))))
+
+(with-test-prefix "miscellaneous string functions"
+
+  (pass-if "string-replace-substring"
+    (string=? (string-replace-substring "a ring of strings" "ring" "rut")
+              "a rut of struts")))

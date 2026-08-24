@@ -1,0 +1,145 @@
+;;;; statprof.test --- test suite for Guile's profiler       -*- scheme -*-
+;;;; Copyright (C) 2017 Free Software Foundation, Inc.
+;; Copyright (C) 2004, 2009, 2010, 2014 Andy Wingo <wingo at pobox dot com>
+;; Copyright (C) 2001 Rob Browning <rlb at defaultvalue dot org>
+
+;; This library is free software; you can redistribute it and/or
+;; modify it under the terms of the GNU Lesser General Public
+;; License as published by the Free Software Foundation; either
+;; version 2.1 of the License, or (at your option) any later version.
+;;
+;; This library is distributed in the hope that it will be useful,
+;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+;; Lesser General Public License for more details.
+;;
+;; You should have received a copy of the GNU Lesser General Public
+;; License along with this program; if not, contact:
+;;
+;; Free Software Foundation           Voice:  +1-617-542-5942
+;; 59 Temple Place - Suite 330        Fax:    +1-617-542-2652
+;; Boston, MA  02111-1307,  USA       gnu@gnu.org
+
+;;; Commentary:
+;;
+;; Unit tests for (debugging statprof).
+;;
+;;; Code:
+
+(define-module (test-suite test-statprof)
+  #:use-module (test-suite lib)
+  #:use-module (system base compile)
+  #:use-module (srfi srfi-1)
+  #:use-module (statprof))
+
+;; Throw `unresolved' upon ENOSYS or EINVAL.  This is used to skip tests
+;; on platforms such as GNU/Hurd or Cygwin where `ITIMER_PROF' is is
+;; currently unimplemented.
+(define-syntax-rule (when-implemented body ...)
+  (catch 'system-error
+    (lambda ()
+      body ...)
+    (lambda args
+      (let ((errno (system-error-errno args)))
+        (false-if-exception (statprof-stop))
+        (if (or (= errno ENOSYS) (= errno EINVAL))
+            (throw 'unresolved)
+            (apply throw args))))))
+
+(pass-if-equal "return values"
+    '(42 77)
+  (when-implemented
+   (call-with-values
+       (lambda ()
+         (with-output-to-port (%make-void-port "w")
+           (lambda ()
+             (statprof
+              (lambda ()
+                (let loop ((i 10000))
+                  (if (zero? i)
+                      (values 42 77)
+                      (loop (1- i)))))))))
+     list)))
+
+(pass-if "statistical sample counts within expected range"
+  (when-implemented
+    ;; test to see that if we call 3 identical functions equally, they
+    ;; show up equally in the call count, +/- 30%. it's a big range, and
+    ;; I tried to do something more statistically valid, but failed (for
+    ;; the moment).
+
+    ;; make sure these are compiled so we're not swamped in `eval'
+    (define (make-func)
+      ;; Disable partial evaluation so that `(+ i i)' doesn't get
+      ;; stripped.
+      (compile '(lambda (n)
+		  (do ((i 0 (+ i 1))) ((= 200 i)) (+ i i)))
+	       #:opts '(#:partial-eval? #f)))
+    (define run-test
+      (compile '(lambda (num-calls funcs)
+		  (let loop ((x num-calls) (funcs funcs))
+		    (cond
+		     ((positive? x)
+		      ((car funcs) x)
+		      (loop (- x 1) (cdr funcs))))))))
+
+    (let ((num-calls 200000)
+	  (funcs (circular-list (make-func) (make-func) (make-func))))
+
+      ;; Run test. 20000 us == 200 Hz.
+      (statprof-reset 0 20000 #f #f)
+      (statprof-start)
+      (run-test num-calls funcs)
+      (statprof-stop)
+
+      (let ((a-data (statprof-proc-call-data (car funcs)))
+	    (b-data (statprof-proc-call-data (cadr funcs)))
+	    (c-data (statprof-proc-call-data (caddr funcs))))
+	(if (and a-data b-data c-data)
+	    (let* ((samples (map statprof-call-data-cum-samples
+				 (list a-data b-data c-data)))
+		   (expected (/ (apply + samples) 3.0))
+                   (diffs (map (lambda (x) (abs (- x expected)))
+                               samples))
+                   (max-diff (apply max diffs)))
+
+	      (or (< max-diff (sqrt expected))
+                  ;; don't stop the test suite for what statistically is
+                  ;; bound to happen.
+                  (begin
+                    (format (current-warning-port)
+                            ";;; warning: max diff ~a > (sqrt ~a)\n"
+                            max-diff expected)
+                    (throw 'unresolved))))
+
+            ;; Samples were not collected for at least one of the
+            ;; functions, possibly because NUM-CALLS is too low compared
+            ;; to the CPU speed.
+	    (throw 'unresolved (pk (list a-data b-data c-data))))))))
+
+(pass-if "accurate call counting"
+  (when-implemented
+    ;; Test to see that if we call a function N times while the profiler
+    ;; is active, it shows up N times.
+    (let ((num-calls 200))
+
+      (define do-nothing
+        (compile '(lambda (n)
+                    (simple-format #f "FOO ~A\n" (+ n n)))))
+
+      ;; Run test.
+      (statprof-reset 0 50000 #t #f)
+      (statprof-start)
+      (let loop ((x num-calls))
+        (cond
+         ((positive? x)
+          (do-nothing x)
+          (loop (- x 1))
+          #t)))
+      (statprof-stop)
+
+      ;; Check result.
+      (let ((proc-data (statprof-proc-call-data do-nothing)))
+        (and proc-data
+             (= (statprof-call-data-calls proc-data)
+                num-calls))))))

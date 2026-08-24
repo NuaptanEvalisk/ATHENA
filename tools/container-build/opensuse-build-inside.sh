@@ -26,8 +26,6 @@ qt_prefix="$qt_root/$qt_version/gcc_64"
 ads_patched_src="$deps_dir/ads-patched/qt6"
 rapidfuzz_src="$src_dir/rapidfuzz-cpp"
 boost_src="$src_dir/boost_$boost_version_underscore"
-guile18_source="${ATHENA_GUILE18_SOURCE:-$HOME/data/Software/TeXmacs/obs/guile-1.8.8}"
-guile18_prefix="$deps_dir/guile18"
 
 python_bin="$(command -v python3)"
 
@@ -39,90 +37,10 @@ export CARGO_TARGET_DIR="$container_build_dir/cargo-target"
 export RUSTUP_TOOLCHAIN="$rust_toolchain"
 
 prepend_build_paths () {
-  export PATH="$guile18_prefix/bin:$HOME/.local/bin:$qt_prefix/bin:$prefix/bin:/opt/intel/oneapi/compiler/latest/bin:$PATH"
-  export PKG_CONFIG_PATH="$guile18_prefix/lib64/pkgconfig:$guile18_prefix/lib/pkgconfig:$prefix/lib64/pkgconfig:$prefix/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
-  export LD_LIBRARY_PATH="$qt_prefix/lib:$prefix/lib64:$prefix/lib:$guile18_prefix/lib64:$guile18_prefix/lib:${LD_LIBRARY_PATH:-}"
-  export LIBRARY_PATH="$guile18_prefix/lib64:$guile18_prefix/lib:${LIBRARY_PATH:-}"
-  export CPATH="$guile18_prefix/include:${CPATH:-}"
-  export CMAKE_PREFIX_PATH="$qt_prefix:$prefix:$guile18_prefix:${CMAKE_PREFIX_PATH:-}"
-  export GUILE_LOAD_PATH="$guile18_prefix/share/guile/site:$guile18_prefix/share/guile/1.8:$guile18_prefix/share/guile${GUILE_LOAD_PATH:+:$GUILE_LOAD_PATH}"
-}
-
-require_guile18 () {
-  if [ ! -x "$guile18_prefix/bin/guile" ] ||
-     [ ! -f "$guile18_prefix/lib64/pkgconfig/guile-1.8.pc" ]; then
-    echo "Guile 1.8 prefix not available in container: $guile18_prefix" >&2
-    exit 1
-  fi
-  local gv
-  gv="$("$guile18_prefix/bin/guile" -c '(display (version))')"
-  case "$gv" in
-    1.8.*) ;;
-    *)
-      echo "Expected Guile 1.8, got $gv from $guile18_prefix" >&2
-      exit 1
-      ;;
-  esac
-}
-
-ensure_guile18 () {
-  if [ -x "$guile18_prefix/bin/guile" ] &&
-     [ -f "$guile18_prefix/lib64/pkgconfig/guile-1.8.pc" ]; then
-    local existing_gv
-    existing_gv="$("$guile18_prefix/bin/guile" -c '(display (version))')"
-    case "$existing_gv" in
-      1.8.*) return ;;
-    esac
-  fi
-
-  if [ ! -x "$guile18_source/configure" ]; then
-    echo "Guile 1.8 source tree not available in container: $guile18_source" >&2
-    exit 1
-  fi
-
-  local guile_build_src="$src_dir/guile-1.8.8"
-  local guile_cc="${ATHENA_GUILE18_CC:-gcc-13}"
-  local guile_cxx="${ATHENA_GUILE18_CXX:-g++-13}"
-  if ! command -v "$guile_cc" >/dev/null 2>&1; then
-    guile_cc=gcc
-  fi
-  if ! command -v "$guile_cxx" >/dev/null 2>&1; then
-    guile_cxx=g++
-  fi
-  local guile_cpp="${ATHENA_GUILE18_CPP:-$guile_cc -E -P}"
-  rm -rf "$guile18_prefix" "$guile_build_src"
-  rsync -a --delete \
-    --exclude '.git' \
-    --exclude '.deps/' \
-    --exclude '.libs/' \
-    --exclude '*.a' \
-    --exclude '*.la' \
-    --exclude '*.lo' \
-    --exclude '*.o' \
-    --exclude '*.so' \
-    --exclude '*.so.*' \
-    "$guile18_source/" "$guile_build_src/"
-
-  pushd "$guile_build_src" >/dev/null
-  CC="$guile_cc" \
-    CXX="$guile_cxx" \
-    CFLAGS="${ATHENA_GUILE18_CFLAGS:--O2 -g -fPIC -fcommon}" \
-    CXXFLAGS="${ATHENA_GUILE18_CXXFLAGS:--O2 -g -fPIC -fcommon}" \
-    ./configure \
-      --prefix="$guile18_prefix" \
-      --libdir="$guile18_prefix/lib64" \
-      --disable-error-on-warning \
-      --enable-shared \
-      --enable-static
-  if [ -f libguile/scmconfig.h ]; then
-    touch libguile/scmconfig.h
-  fi
-  make -j1 CPP="$guile_cpp"
-  make install CPP="$guile_cpp"
-  popd >/dev/null
-
-  prepend_build_paths
-  require_guile18
+  export PATH="$HOME/.local/bin:$qt_prefix/bin:$prefix/bin:/opt/intel/oneapi/compiler/latest/bin:$PATH"
+  export PKG_CONFIG_PATH="$prefix/lib64/pkgconfig:$prefix/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
+  export LD_LIBRARY_PATH="$qt_prefix/lib:$prefix/lib64:$prefix/lib:${LD_LIBRARY_PATH:-}"
+  export CMAKE_PREFIX_PATH="$qt_prefix:$prefix:${CMAKE_PREFIX_PATH:-}"
 }
 
 prepend_build_paths
@@ -134,7 +52,6 @@ if [ -r /opt/intel/oneapi/setvars.sh ]; then
   set -u
 fi
 prepend_build_paths
-ensure_guile18
 
 if command -v icx >/dev/null 2>&1 && command -v icpx >/dev/null 2>&1; then
   cc_bin="$(command -v icx)"
@@ -417,6 +334,8 @@ copy_runtime_tree () {
   mkdir -p "$out_dir/bin" "$out_dir/lib"
 
   install -Dm755 "$build_dir/src/ATHENA.bin" "$out_dir/bin/ATHENA.bin"
+  python3 "$repo_root/tools/release/copy-private-guile-runtime.py" \
+    "$build_dir/athena-guile-runtime" "$out_dir"
   install -Dm755 "$build_dir/src/athena-codex-bridge" \
     "$out_dir/bin/athena-codex-bridge"
   install -Dm755 \
@@ -462,8 +381,8 @@ build_athena_flavor () {
   local common_lib="$deps_dir/build/llama.cpp/common/libcommon.a"
 
   if [ -f "$build_dir/CMakeCache.txt" ] &&
-     { ! grep -q 'Guile_VERSION:INTERNAL=1\.8\.' "$build_dir/CMakeCache.txt" ||
-       ! grep -q "Guile_PREFIX:INTERNAL=$guile18_prefix" "$build_dir/CMakeCache.txt"; }; then
+     ! grep -Fxq 'ATHENA_GUILE_RUNTIME_ID:INTERNAL=athena-guile-3.0.10-native' \
+       "$build_dir/CMakeCache.txt"; then
     rm -rf "$build_dir"
   fi
 
@@ -475,9 +394,7 @@ build_athena_flavor () {
     -DQt6_DIR="$qt_prefix/lib/cmake/Qt6" \
     -DCMAKE_C_FLAGS="$compiler_base_flags" \
     -DCMAKE_CXX_FLAGS="$compiler_base_flags" \
-    -DCMAKE_EXE_LINKER_FLAGS="-L$guile18_prefix/lib64 -L$guile18_prefix/lib" \
     -DATHENA_GUI=Qt6 \
-    -DSCHEME_IMPL=guile-1.8 \
     -DATHENA_INTEL_NATIVE_OPTIMIZATION=OFF \
     -DADS_VERSION=4.3.1 \
     -DFETCHCONTENT_SOURCE_DIR_ADS="$ads_patched_src" \
@@ -498,10 +415,8 @@ build_athena_flavor () {
     -DTCC_INCLUDE_DIR="$prefix/include" \
     -DTCC_LIBRARY="$prefix/lib64/libtcc.a"
 
-  if ! grep -q 'Guile_VERSION:INTERNAL=1\.8\.' "$build_dir/CMakeCache.txt" ||
-     ! grep -q 'GUILE_C:BOOL=ON' "$build_dir/CMakeCache.txt"; then
-    echo "ATHENA $label build did not configure against Guile 1.8." >&2
-    grep -E 'SCHEME_IMPL|Guile_VERSION|GUILE_[CD]' "$build_dir/CMakeCache.txt" >&2 || true
+  if [ ! -f "$build_dir/athena-guile-runtime/lib/libathena-guile.so.1" ]; then
+    echo "ATHENA $label build did not produce its private Guile runtime." >&2
     exit 1
   fi
 

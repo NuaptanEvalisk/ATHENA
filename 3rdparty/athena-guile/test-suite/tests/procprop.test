@@ -1,0 +1,75 @@
+;;;; procprop.test --- Procedure properties -*- mode: scheme; coding: utf-8; -*-
+;;;; Ludovic Courtès <ludo@gnu.org>
+;;;;
+;;;; 	Copyright (C) 2009, 2010, 2011, 2012, 2013 Free Software Foundation, Inc.
+;;;;
+;;;; This library is free software; you can redistribute it and/or
+;;;; modify it under the terms of the GNU Lesser General Public
+;;;; License as published by the Free Software Foundation; either
+;;;; version 3 of the License, or (at your option) any later version.
+;;;; 
+;;;; This library is distributed in the hope that it will be useful,
+;;;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;;;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+;;;; Lesser General Public License for more details.
+;;;; 
+;;;; You should have received a copy of the GNU Lesser General Public
+;;;; License along with this library; if not, write to the Free Software
+;;;; Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+
+(define-module (test-procpop)
+  :use-module (test-suite lib))
+
+
+(with-test-prefix "procedure-name"
+  (pass-if "simple subr"
+    (eq? 'display (procedure-name display)))
+
+  (pass-if "gsubr"
+    (eq? 'hashq-ref (procedure-name hashq-ref)))
+
+  (pass-if "from eval"
+    (eq? 'foobar (procedure-name
+                  (eval '(begin (define (foobar) #t) foobar)
+                        (current-module))))))
+
+
+(with-test-prefix "procedure-arity"
+  (pass-if "simple subr"
+    (equal? (procedure-minimum-arity display)
+            '(1 1 #f)))
+
+  (pass-if "gsubr"
+    (equal? (procedure-minimum-arity hashq-ref)
+            '(2 1 #f)))
+
+  (pass-if "port-closed?"
+    (equal? (procedure-minimum-arity port-closed?)
+            '(1 0 #f)))
+
+  (pass-if "apply"
+    (equal? (procedure-minimum-arity apply)
+            '(2 0 #t)))
+
+  (pass-if "cons*"
+    (equal? (procedure-minimum-arity cons*)
+            '(1 0 #t)))
+
+  (pass-if "list"
+    (equal? (procedure-minimum-arity list)
+            '(0 0 #t)))
+
+  (pass-if "fixed, eval"
+    (equal? (procedure-minimum-arity (eval '(lambda (a b) #t)
+                                           (current-module)))
+            '(2 0 #f)))
+
+  (pass-if "rest, eval"
+    (equal? (procedure-minimum-arity (eval '(lambda (a b . c) #t)
+                                           (current-module)))
+            '(2 0 #t)))
+
+  (pass-if "opt, eval"
+    (equal? (procedure-minimum-arity (eval '(lambda* (a b #:optional c) #t)
+                                           (current-module)))
+            '(2 1 #f))))

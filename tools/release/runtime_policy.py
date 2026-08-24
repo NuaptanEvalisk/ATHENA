@@ -186,6 +186,29 @@ def verify_linux_services(root: Path) -> None:
     )
 
 
+def verify_private_guile(root: Path) -> None:
+    candidates = (root.resolve(), root.resolve() / "usr/share/ATHENA")
+    for runtime in candidates:
+        if not (runtime / "bin/ATHENA.bin").is_file():
+            continue
+        required = (
+            PurePosixPath("lib/athena-guile/lib/libathena-guile.so.1"),
+            PurePosixPath(
+                "lib/athena-guile/share/guile/3.0/ice-9/boot-9.scm"
+            ),
+            PurePosixPath(
+                "lib/athena-guile/lib/guile/3.0/ccache/ice-9/boot-9.go"
+            ),
+        )
+        missing = [path for path in required if not (runtime / path).exists()]
+        if missing:
+            details = "\n".join(f"  missing: {path}" for path in missing)
+            raise RuntimeError(
+                "Linux runtime does not contain ATHENA's private Guile 3 "
+                "runtime:\n" + details
+            )
+
+
 def verify_runtime(root: Path, require_linux_services: bool = False) -> None:
     bad = forbidden_entries(root)
     if bad:
@@ -198,6 +221,7 @@ def verify_runtime(root: Path, require_linux_services: bool = False) -> None:
         )
     if require_linux_services:
         verify_linux_services(root)
+    verify_private_guile(root)
 
 
 def main(argv: list[str]) -> int:

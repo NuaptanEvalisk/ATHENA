@@ -1,0 +1,1509 @@
+dnl   configuration script for Guile
+dnl   Process this file with autoconf to produce configure.
+dnl
+
+define(GUILE_CONFIGURE_COPYRIGHT,[[
+Copyright 1998-2023 Free Software Foundation, Inc.
+
+This file is part of Guile.
+
+Guile is free software: you can redistribute it and/or modify it
+under the terms of the GNU Lesser General Public License as published
+by the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+Guile is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
+License for more details.
+
+You should have received a copy of the GNU Lesser General Public
+License along with Guile.  If not, see
+<https://www.gnu.org/licenses/>.
+]])
+
+AC_PREREQ(2.64)
+
+AC_INIT([GNU Guile],
+        m4_esyscmd([build-aux/git-version-gen --match v3.0.\* .tarball-version]),
+        [bug-guile@gnu.org])
+AC_CONFIG_AUX_DIR([build-aux])
+AC_CONFIG_MACRO_DIR([m4])
+AC_CONFIG_SRCDIR(GUILE-VERSION)
+
+AC_CANONICAL_TARGET
+
+AM_INIT_AUTOMAKE([1.12 gnu no-define -Wall -Wno-override \
+  color-tests dist-lzip dist-xz])
+m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])], [AC_SUBST([AM_DEFAULT_VERBOSITY],1)])
+
+AC_COPYRIGHT(GUILE_CONFIGURE_COPYRIGHT)
+AC_CONFIG_SRCDIR([GUILE-VERSION])
+
+. $srcdir/GUILE-VERSION
+GUILE_VERSION="$PACKAGE_VERSION"
+
+AC_CONFIG_HEADERS([config.h])
+AH_TOP(/*GUILE_CONFIGURE_COPYRIGHT*/)
+
+dnl We require the pkg.m4 set of macros from pkg-config.
+dnl Make sure it's available.
+m4_pattern_forbid([PKG_CHECK_MODULES])
+
+#--------------------------------------------------------------------
+
+AC_LANG([C])
+
+dnl Some more checks for Win32
+AC_CANONICAL_HOST
+
+AC_PROG_INSTALL
+AC_PROG_CC
+gl_EARLY
+
+AC_MSG_CHECKING([whether the compiler supports -flto])
+old_CFLAGS="$CFLAGS"
+LTO_CFLAGS="-flto"
+CFLAGS="$CFLAGS $LTO_CFLAGS"
+AC_LINK_IFELSE([AC_LANG_PROGRAM([int foo;], [])],, [LTO_CFLAGS=])
+CFLAGS="$old_CFLAGS"
+if test -n "$LTO_CFLAGS"; then
+  AC_MSG_RESULT([yes])
+else
+  AC_MSG_RESULT([no])
+fi
+
+AC_ARG_ENABLE(lto,
+  [AS_HELP_STRING([--enable-lto]
+                  [enable link-time optimization for libguile])],
+  [],
+  [if test -z "$LTO_CFLAGS"; then enable_lto=no; else enable_lto=yes; fi])
+case "$enable_lto" in
+  yes | y)
+    if test -z "$LTO_CFLAGS"; then
+      AC_MSG_ERROR([--enable-lto=$enable_lto unsupported for $CC])
+    fi
+    CFLAGS="$CFLAGS $LTO_CFLAGS"
+    AC_MSG_CHECKING([for lto-specific prefix for ar, nm, objcopy, ranlib])
+    if test "$GCC" = yes; then
+       TOOLCHAIN_PREFIX=gcc
+    else
+       # Assuming LLVM if not GCC.  Probably won't hurt.
+       TOOLCHAIN_PREFIX=llvm
+    fi
+    AC_MSG_RESULT([$TOOLCHAIN_PREFIX])
+    AC_CHECK_TOOLS([AR], [$TOOLCHAIN_PREFIX-ar ar])
+    AC_CHECK_TOOLS([NM], [$TOOLCHAIN_PREFIX-nm nm])
+    AC_CHECK_TOOLS([OBJCOPY], [$TOOLCHAIN_PREFIX-objcopy objcopy])
+    AC_CHECK_TOOLS([RANLIB], [$TOOLCHAIN_PREFIX-ranlib ranlib])
+    ;;
+  no | n)
+    ;;
+  *)
+    AC_MSG_ERROR([unexpected --enable-lto=$enable_lto])
+    ;;
+esac
+
+AC_MSG_CHECKING([compiler's C standard])
+if test "$ac_prog_cc_stdc" = "c89"; then
+  AC_MSG_ERROR([Support for C99 required but not found.])
+else
+  AC_MSG_RESULT([$ac_prog_cc_stdc])
+fi
+
+# Gnulib uses gperf when building from git
+if ! test -f ".tarball-version"; then
+  AC_CHECK_TOOL([GPERF], [gperf], [no])
+  if test x"$GPERF" = x"no"; then
+    AC_MSG_ERROR([Building from git requires gperf. Please install it.])
+  fi
+fi
+
+AC_PROG_CPP
+AC_PROG_SED
+AC_PROG_AWK
+AC_PROG_LN_S
+AM_PROG_AR
+
+dnl Gnulib.
+gl_INIT
+
+dnl We provide our own lib/glthread/lock.h, so let other Gnulib modules
+dnl know that we have it.  This allows them to be compiled with adequate
+dnl locking support.  See <http://bugs.gnu.org/14404>.
+AC_DEFINE([GNULIB_LOCK], [1],
+  [Define to allow Gnulib modules to use Guile's locks.])
+
+
+LT_INIT([dlopen win32-dll])
+
+AM_CONDITIONAL([HAVE_SHARED_LIBRARIES], [test "x$enable_shared" = "xyes"])
+
+# Some systems provide dlopen via libc; others require -ldl.
+AC_SEARCH_LIBS([dlopen], [dl])
+
+AC_CHECK_PROG(have_makeinfo, makeinfo, yes, no)
+AM_CONDITIONAL(HAVE_MAKEINFO, test "$have_makeinfo" = yes)
+
+PKG_INSTALLDIR
+AM_PATH_LISPDIR
+
+AC_DEFINE_UNQUOTED([HOST_TYPE], ["$host"],
+  [Define to the host's GNU triplet.])
+
+#--------------------------------------------------------------------
+#
+# User options (after above tests that may set default CFLAGS etc.)
+#
+#--------------------------------------------------------------------
+
+GUILE_ERROR_ON_WARNING="no"
+
+AC_ARG_ENABLE(error-on-warning,
+  [  --enable-error-on-warning    treat compile warnings as errors],
+  [case "${enableval}" in
+     yes | y) GUILE_ERROR_ON_WARNING="yes" ;;
+     no | n)  GUILE_ERROR_ON_WARNING="no" ;;
+     *) AC_MSG_ERROR(bad value ${enableval} for --enable-error-on-warning) ;;
+   esac])
+
+AC_ARG_ENABLE(debug-malloc,
+  [  --enable-debug-malloc   include malloc debugging code],
+  if test "$enable_debug_malloc" = y || test "$enable_debug_malloc" = yes; then
+    AC_DEFINE([GUILE_DEBUG_MALLOC], 1,
+      [Define this if you want to debug scm_must_malloc/realloc/free calls.])
+  fi)
+
+# Check if JIT is available.
+GUILE_ENABLE_JIT
+
+SCM_I_GSC_GUILE_DEBUG=0
+AC_ARG_ENABLE(guile-debug,
+  [AS_HELP_STRING([--enable-guile-debug],
+                  [include internal debugging functions])],
+  if test "$enable_guile_debug" = y || test "$enable_guile_debug" = yes; then
+    SCM_I_GSC_GUILE_DEBUG=1
+  fi)
+
+AC_ARG_ENABLE(posix,
+  [  --disable-posix         omit non-essential POSIX interfaces],,
+  enable_posix=yes)
+
+AC_ARG_ENABLE(networking,
+  [  --disable-networking    omit networking interfaces],,
+  enable_networking=yes)
+
+AC_ARG_ENABLE(regex,
+  [  --disable-regex         omit regular expression interfaces],,
+  enable_regex=yes)
+
+AC_ARG_ENABLE(tmpnam,
+  AS_HELP_STRING([--disable-tmpnam],[omit POSIX tmpnam]),,
+  enable_tmpnam=yes)
+
+AC_ARG_ENABLE([deprecated],
+  AS_HELP_STRING([--disable-deprecated],[omit deprecated features]))
+
+if test "$enable_deprecated" = no; then
+  SCM_I_GSC_ENABLE_DEPRECATED=0
+  warn_default=no
+else
+  if test "$enable_deprecated" = yes || test "$enable_deprecated" = ""; then
+    warn_default=summary
+  elif test "$enable_deprecated" = shutup; then
+    warn_default=no
+  else
+    warn_default=$enable_deprecated
+  fi
+  SCM_I_GSC_ENABLE_DEPRECATED=1
+fi
+AC_DEFINE_UNQUOTED([SCM_WARN_DEPRECATED_DEFAULT], "$warn_default",
+[Define this to control the default warning level for deprecated features.])
+
+dnl  Added the following configure option in January 2008 following
+dnl  investigation of problems with "64" system and library calls on
+dnl  Darwin (MacOS X).  The libguile code (_scm.h) assumes that if a
+dnl  system has stat64, it will have all the other 64 APIs too; but on
+dnl  Darwin, stat64 is there but other APIs are missing.
+dnl
+dnl  It also appears, from the Darwin docs, that most system call APIs
+dnl  there (i.e. the traditional ones _without_ "64" in their names) have
+dnl  been 64-bit-capable for a long time now, so it isn't necessary to
+dnl  use "64" versions anyway.  For example, Darwin's off_t is 64-bit.
+dnl
+dnl  A similar problem has been reported for HP-UX:
+dnl  http://www.nabble.com/Building-guile-1.8.2-on-hpux-td13106681.html
+dnl
+dnl  Therefore, and also because a Guile without LARGEFILE64 support is
+dnl  better than no Guile at all, we provide this option to suppress
+dnl  trying to use "64" calls.
+dnl
+dnl  It may be that for some 64-bit function on Darwin/HP-UX we do need
+dnl  to use a "64" call, and hence that by using --without-64-calls we're
+dnl  missing out on that.  If so, someone can work on that in the future.
+dnl  For now, --without-64-calls allows Guile to build on OSs where it
+dnl  wasn't building before.
+AC_MSG_CHECKING([whether to use system and library "64" calls])
+AC_ARG_WITH([64-calls],
+  AS_HELP_STRING([--without-64-calls],
+                 [don't attempt to use system and library calls with "64" in their names]),
+  [use_64_calls=$withval],
+  [use_64_calls=yes
+   case $host in
+     *-apple-darwin* )
+       use_64_calls=no
+       ;;
+     powerpc-ibm-aix* )
+       use_64_calls=no
+       ;;
+   esac])
+AC_MSG_RESULT($use_64_calls)
+case "$use_64_calls" in
+  y* )
+    AC_DEFINE([GUILE_USE_64_CALLS], 1,
+      [Define to 1 in order to try to use "64" versions of system and library calls.])
+    ;;
+esac
+
+#--------------------------------------------------------------------
+
+dnl Check for dynamic linking
+
+use_modules=yes
+AC_ARG_WITH(modules,
+[  --with-modules[=FILES]  Add support for dynamic modules],
+use_modules="$withval")
+test -z "$use_modules" && use_modules=yes
+DLPREOPEN=
+if test "$use_modules" != no; then
+  if test "$use_modules" = yes; then
+    DLPREOPEN="-dlpreopen force"
+  else
+    DLPREOPEN="-export-dynamic"
+    for module in $use_modules; do
+      DLPREOPEN="$DLPREOPEN -dlopen $module"
+    done
+  fi
+fi
+
+dnl files which are destined for separate modules.
+
+if test "$use_modules" != no; then
+   AC_LIBOBJ([dynl])
+   AC_DEFINE([HAVE_MODULES], 1,
+     [Define this if you want support for dynamically loaded modules in Guile.])
+fi
+
+if test "$enable_posix" = yes; then
+   AC_LIBOBJ([posix])
+   AC_DEFINE([HAVE_POSIX], 1,
+     [Define this if you want support for non-essential POSIX system calls in Guile.])
+fi
+
+if test "$enable_networking" = yes; then
+   AC_LIBOBJ([net_db])
+   AC_LIBOBJ([socket])
+   AC_DEFINE([HAVE_NETWORKING], 1,
+     [Define this if you want support for networking in Guile.])
+fi
+
+if test "$enable_debug_malloc" = yes; then
+   AC_LIBOBJ([debug-malloc])
+fi
+
+AC_CHECK_LIB(uca, __uc_get_ar_bsp)
+
+# "volatile" is used in a couple of tests below.
+AC_C_VOLATILE
+
+AC_C_INLINE
+if test "$ac_cv_c_inline" != no; then
+  SCM_I_GSC_C_INLINE="\"${ac_cv_c_inline}\""
+else
+  SCM_I_GSC_C_INLINE=NULL
+fi
+AC_CHECK_LIB(uca, __uc_get_ar_bsp)
+
+AC_C_BIGENDIAN
+
+AC_C_LABELS_AS_VALUES
+
+AC_CHECK_SIZEOF(char)
+AC_CHECK_SIZEOF(unsigned char)
+AC_CHECK_SIZEOF(short)
+AC_CHECK_SIZEOF(unsigned short)
+AC_CHECK_SIZEOF(int)
+AC_CHECK_SIZEOF(unsigned int)
+AC_CHECK_SIZEOF(long)
+AC_CHECK_SIZEOF(unsigned long)
+AC_CHECK_SIZEOF(size_t)
+AC_CHECK_SIZEOF(long long)
+AC_CHECK_SIZEOF(unsigned long long)
+AC_CHECK_SIZEOF(__int64)
+AC_CHECK_SIZEOF(unsigned __int64)
+AC_CHECK_SIZEOF(void *)
+AC_CHECK_SIZEOF(intptr_t)
+AC_CHECK_SIZEOF(uintptr_t)
+AC_CHECK_SIZEOF(ptrdiff_t)
+AC_CHECK_SIZEOF(size_t)
+AC_CHECK_SIZEOF(off_t)
+AC_CHECK_SIZEOF(intmax_t)
+
+if test "$ac_cv_sizeof_long" -gt "$ac_cv_sizeof_void_p"; then
+  AC_MSG_ERROR(long does not fit into a void*)
+fi
+
+if test "$ac_cv_sizeof_ptrdiff_t" -ne 0; then
+  SCM_I_GSC_T_PTRDIFF='"ptrdiff_t"'
+else
+  SCM_I_GSC_T_PTRDIFF='"long"'
+fi
+AC_SUBST([SCM_I_GSC_T_PTRDIFF])
+
+AC_CHECK_HEADERS([stdatomic.h])
+
+AC_MSG_CHECKING([for which prebuilt binary set to use during bootstrap])
+SCM_PREBUILT_BINARIES=
+case "$ac_cv_c_bigendian-$ac_cv_sizeof_void_p" in
+  yes-8) SCM_PREBUILT_BINARIES=64-bit-big-endian;;
+  yes-4) SCM_PREBUILT_BINARIES=32-bit-big-endian;;
+  no-8) SCM_PREBUILT_BINARIES=64-bit-little-endian;;
+  no-4) SCM_PREBUILT_BINARIES=32-bit-little-endian;;
+  *) AC_MSG_ERROR([Unexpected endianness+pointer size combination.])
+esac
+AC_MSG_RESULT($SCM_PREBUILT_BINARIES)
+AC_SUBST([SCM_PREBUILT_BINARIES])
+
+AC_HEADER_SYS_WAIT
+AC_HEADER_DIRENT
+
+# Reason for checking:
+#
+#   HP-UX 11.11 (at least) doesn't provide `struct dirent64', even
+#   with `_LARGEFILE64_SOURCE', so check whether it's available.
+#
+AC_CHECK_MEMBER([struct dirent64.d_name],
+  [SCM_I_GSC_HAVE_STRUCT_DIRENT64=1], [SCM_I_GSC_HAVE_STRUCT_DIRENT64=0],
+  [ #ifndef _LARGEFILE64_SOURCE
+    # define _LARGEFILE64_SOURCE
+    #endif
+
+    /* Per Autoconf manual.  */
+    #include <sys/types.h>
+    #ifdef HAVE_DIRENT_H
+    # include <dirent.h>
+    #else
+    # define dirent direct
+    # ifdef HAVE_SYS_NDIR_H
+    #  include <sys/ndir.h>
+    # endif
+    # ifdef HAVE_SYS_DIR_H
+    #  include <sys/dir.h>
+    # endif
+    # ifdef HAVE_NDIR_H
+    #  include <ndir.h>
+    # endif
+    #endif ])
+AC_SUBST([SCM_I_GSC_HAVE_STRUCT_DIRENT64])
+
+# Reasons for testing:
+#   complex.h - new in C99
+#   fenv.h - available in C99, but not older systems
+#   machine/fpu.h - on Tru64 5.1b, the declaration of fesetround(3) is in
+#     this file instead of <fenv.h>
+#   process.h - mingw specific
+#   sched.h - missing on MinGW
+#   sys/sendfile.h - non-POSIX, found in glibc
+#
+AC_CHECK_HEADERS([complex.h fenv.h io.h memory.h process.h \
+linux/fs.h \
+sys/dir.h sys/ioctl.h sys/select.h \
+sys/time.h sys/timeb.h sys/times.h sys/stdtypes.h sys/types.h \
+sys/utime.h unistd.h utime.h pwd.h grp.h sys/utsname.h \
+direct.h machine/fpu.h sched.h sys/sendfile.h])
+
+# "complex double" is new in C99, and "complex" is only a keyword if
+# <complex.h> is included
+AC_CHECK_TYPES(complex double,,,
+[#if HAVE_COMPLEX_H
+#include <complex.h>
+#endif])
+
+# On MacOS X <sys/socklen.h> contains socklen_t, so must include that
+# when testing.
+AC_CHECK_TYPE(socklen_t, ,
+  [AC_DEFINE_UNQUOTED([socklen_t], int,
+                      [Define to `int' if <sys/socket.h> does not define.])],
+  [#if HAVE_SYS_TYPES_H
+#include <sys/types.h>
+#endif
+#include <sys/socket.h>
+])
+
+AC_CHECK_TYPES([struct ip_mreq], , , [#include <netinet/in.h>])
+
+AC_TYPE_GETGROUPS
+AC_TYPE_MODE_T
+
+dnl Check whether we need -lm.
+LT_LIB_M
+LIBS="$LIBS $LIBM"
+
+AC_CHECK_FUNCS(gethostbyname)
+if test $ac_cv_func_gethostbyname = no; then
+    AC_CHECK_LIB(nsl, gethostbyname)
+fi
+
+AC_CHECK_FUNCS(connect)
+if test $ac_cv_func_connect = no; then
+    AC_CHECK_LIB(socket, connect)
+fi
+
+dnl
+dnl Check for Winsock and other functionality on Win32 (*not* CygWin)
+dnl
+EXTRA_DEFS=""
+mingw_libpath=false
+case $host in
+  *-*-mingw*)
+    AC_CHECK_HEADER(winsock2.h, [AC_DEFINE([HAVE_WINSOCK2_H], 1,
+      [Define if you have the <winsock2.h> header file.])])
+    AC_CHECK_LIB(ws2_32, main)
+    AC_LIBOBJ([posix-w32])
+    if test "$enable_shared" = yes ; then
+      EXTRA_DEFS="-DSCM_IMPORT"
+      AC_DEFINE([USE_DLL_IMPORT], 1,
+        [Define if you need additional CPP macros on Win32 platforms.])
+    fi
+    mingw_libpath=true
+    ;;
+esac
+AC_SUBST(EXTRA_DEFS)
+AM_CONDITIONAL([MINGW_LIBPATH], [test x$mingw_libpath = xtrue])
+
+# Reasons for testing:
+#   crt_externs.h - Darwin specific
+#
+AC_CHECK_HEADERS([crt_externs.h])
+
+# Reasons for testing:
+#   DINFINITY - OSF specific
+#   DQNAN - OSF specific
+#       (DINFINITY and DQNAN are actually global variables, not functions)
+#   chsize - an MS-DOS-ism, found in mingw
+#   cexp, clog - not in various pre-c99 systems, and note that it's possible
+#       for gcc to provide the "complex double" type but the system to not
+#       have functions like cexp and clog
+#   clog10 - not in mingw (though others like clog and csqrt are)
+#   fesetround - available in C99, but not older systems
+#   ftruncate - posix, but probably not older systems (current mingw
+#               has it as an inline for chsize)
+#   ioctl - not in mingw.
+#   gmtime_r - recent posix, not on old systems
+#   readdir_r - recent posix, not on old systems
+#   readdir64_r - not available on HP-UX 11.11
+#   stat64 - SuS largefile stuff, not on old systems
+#   sysconf - not on old systems
+#   truncate - not in mingw
+#   isblank - available as a GNU extension or in C99
+#   _NSGetEnviron - Darwin specific
+#   strcoll_l, newlocale, uselocale, utimensat, futimens, fchmodat,
+#   unlinkat, fchownat, fstatat, openat - POSIX.1-2008
+#   strtol_l - non-POSIX, found in glibc
+#   fork - unavailable on Windows
+#   sched_getaffinity, sched_setaffinity - GNU extensions (glibc)
+#   sendfile - non-POSIX, found in glibc
+#   pipe2 - non-POSIX, found in glibc (GNU/Linux and GNU/Hurd)
+#   posix_spawn_file_actions_addclosefrom_np - glibc >= 2.34
+#...clearenv - non-POSIX, found in glibc
+#
+AC_CHECK_FUNCS([DINFINITY DQNAN cexp chsize clog clog10 ctermid         \
+  fesetround ftime ftruncate fchown fchownat fchmod fchdir readlinkat	\
+  fchmodat symlinkat mkdirat renameat unlinkat getcwd geteuid getsid	\
+  gettimeofday getuid getgid gmtime_r ioctl lstat mkdir mkdtemp mknod   \
+  nice readlink rmdir setegid seteuid                            \
+  setuid setgid setpgid setsid sigaction siginterrupt stat64  \
+  strptime symlink sync sysconf tcgetpgrp tcsetpgrp uname waitpid       \
+  strdup usleep on_exit chown link fcntl ttyname getpwent \
+  getgrent kill getppid getpgrp fork setitimer getitimer strchr strcmp  \
+  index bcopy rindex truncate isblank _NSGetEnviron              \
+  strcoll_l strtod_l strtol_l newlocale uselocale utimensat     \
+  fstatat futimens openat						\
+  sched_getaffinity sched_setaffinity sendfile pipe2			\
+  posix_spawn_file_actions_addclosefrom_np                              \
+  clearenv])
+
+# The newlib C library uses _NL_ prefixed locale langinfo constants.
+AC_CHECK_DECLS([_NL_NUMERIC_GROUPING], [], [], [[#include <langinfo.h>]])
+
+# Reasons for testing:
+#   netdb.h - not in mingw
+#   sys/param.h - not in mingw
+#   pthread.h - only available with pthreads.  ACX_PTHREAD doesn't
+#       check this specifically, we need it for the timespec test below.
+#   pthread_np.h - available on FreeBSD
+#   sethostname - the function itself check because it's not in mingw,
+#       the DECL is checked because Solaris 10 doens't have in any header
+#   hstrerror - on Tru64 5.1b the symbol is available in libc but the
+#       declaration isn't anywhere.
+#   cuserid - on Tru64 5.1b the declaration is documented to be available
+#       only with `_XOPEN_SOURCE' or some such.
+#
+AC_CHECK_HEADERS([crypt.h netdb.h pthread.h pthread_np.h sys/param.h sys/resource.h sys/file.h sys/mman.h])
+AC_CHECK_FUNCS(chroot flock getlogin cuserid getpriority setpriority getpass sethostname gethostname)
+AC_CHECK_DECLS([sethostname, hstrerror, cuserid])
+
+# crypt() may or may not be available, for instance in some countries there
+# are restrictions on cryptography.
+#
+# crypt() might be in libc (eg. OpenBSD), or it might be in a separate
+# -lcrypt library (eg. Debian GNU/Linux).
+#
+# On HP-UX 11, crypt() is in libc and there's a dummy libcrypt.a.  We must
+# be careful to avoid -lcrypt in this case, since libtool will see there's
+# only a static libcrypt and decide to build only a static libguile.
+#
+# AC_SEARCH_LIBS lets us add -lcrypt to LIBS only if crypt() is not in the
+# libraries already in that list.
+#
+AC_SEARCH_LIBS(crypt, crypt,
+  [AC_DEFINE([HAVE_CRYPT],1,
+             [Define to 1 if you have the `crypt' function.])])
+
+# When compiling with GCC on some OSs (Solaris, AIX), _Complex_I doesn't
+# work; in the reported cases so far, 1.0fi works well instead.  According
+# to the C99 spec, the complex.h header must provide a working definition
+# of _Complex_I, so we always try _Complex_I first.  The 1.0fi fallback
+# is a workaround for the failure of some systems to conform to C99.
+if test "$ac_cv_type_complex_double" = yes; then
+  AC_MSG_CHECKING([for i])
+  AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
+#if HAVE_COMPLEX_H
+#include <complex.h>
+#endif
+complex double z;
+]], [[
+z = _Complex_I;
+]])],
+    [AC_DEFINE([GUILE_I],_Complex_I,[The imaginary unit (positive square root of -1).])
+     AC_MSG_RESULT([_Complex_I])],
+    [AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
+#if HAVE_COMPLEX_H
+#include <complex.h>
+#endif
+complex double z;
+]],[[
+z = 1.0fi;
+]])],
+  [AC_DEFINE([GUILE_I],1.0fi)
+   AC_MSG_RESULT([1.0fi])],
+  [ac_cv_type_complex_double=no
+   AC_MSG_RESULT([not available])])])
+fi
+
+# glibc 2.3.6 (circa 2006) and various prior versions had a bug where
+# csqrt(-i) returned a negative real part, when it should be positive
+# for the principal root.
+#
+if test "$ac_cv_type_complex_double" = yes; then
+
+  AC_CACHE_CHECK([whether csqrt is usable],
+    guile_cv_use_csqrt,
+    [AC_RUN_IFELSE([AC_LANG_SOURCE([[
+#include <complex.h>
+/* "volatile" is meant to prevent gcc from calculating the sqrt as a
+   constant, we want to test libc. */
+volatile complex double z = - _Complex_I;
+int
+main (void)
+{
+  z = csqrt (z);
+  if (creal (z) > 0.0)
+    return 0;  /* good */
+  else
+    return 1;  /* bad */
+}]])],
+    [guile_cv_use_csqrt=yes],
+    [guile_cv_use_csqrt="no, glibc 2.3 bug"],
+    [guile_cv_use_csqrt="yes, hopefully (cross-compiling)"])])
+  case $guile_cv_use_csqrt in
+    yes*)
+      AC_DEFINE([HAVE_USABLE_CSQRT], 1, [Define to 1 if csqrt is bug-free])
+      ;;
+  esac
+fi
+
+# Cygwin and Hurd (circa 2017) and various prior versions defined stub
+# versions of the virtual and profiling itimers that would always fail
+# when called.
+if test "$ac_cv_func_getitimer" = yes; then
+
+  AC_CACHE_CHECK([whether getitimer(ITIMER_PROF) is usable],
+    guile_cv_use_getitimer_prof,
+    [AC_RUN_IFELSE([AC_LANG_SOURCE([[
+#include <sys/time.h>
+int
+main (void)
+{
+  struct itimerval I;
+  if (getitimer (ITIMER_PROF, &I) == 0)
+    return 0;  /* good */
+  else
+    return 1;  /* bad */
+}]])],
+    [guile_cv_use_getitimer_prof=yes],
+    [guile_cv_use_getitimer_prof=no],
+    [guile_cv_use_getitimer_prof="yes, hopefully (cross-compiling)"])])
+  case $guile_cv_use_getitimer_prof in
+    yes*)
+      AC_DEFINE([HAVE_USABLE_GETITIMER_PROF], 1, [Define to 1 if getitimer(ITIMER_PROF, ...) is functional])
+      ;;
+  esac
+
+  AC_CACHE_CHECK([whether getitimer(ITIMER_VIRTUAL) is usable],
+    guile_cv_use_getitimer_virtual,
+    [AC_RUN_IFELSE([AC_LANG_SOURCE([[
+#include <sys/time.h>
+int
+main (void)
+{
+  struct itimerval I;
+  if (getitimer (ITIMER_VIRTUAL, &I) == 0)
+    return 0;  /* good */
+  else
+    return 1;  /* bad */
+}]])],
+    [guile_cv_use_getitimer_virtual=yes],
+    [guile_cv_use_getitimer_virtual=no],
+    [guile_cv_use_getitimer_virtual="yes, hopefully (cross-compiling)"])])
+  case $guile_cv_use_getitimer_virtual in
+    yes*)
+      AC_DEFINE([HAVE_USABLE_GETITIMER_VIRTUAL], 1, [Define to 1 if getitimer(ITIMER_VIRTUAL, ...) is functional])
+      ;;
+  esac
+fi
+
+
+AC_CACHE_SAVE
+
+dnl GMP tests
+
+SCM_I_GSC_ENABLE_MINI_GMP=0
+AC_ARG_ENABLE(mini-gmp,
+  [AS_HELP_STRING([--enable-mini-gmp],
+                  [use mini-gmp instead of the full GMP library])])
+
+if test "x$enable_mini_gmp" = xyes || test "x$enable_mini_gmp" = xy; then
+  SCM_I_GSC_ENABLE_MINI_GMP=1
+else
+  AC_LIB_HAVE_LINKFLAGS([gmp],[],[#include <gmp.h>], [mpz_import (0,0,0,0,0,0,0);])
+  if test "x$HAVE_LIBGMP" != "xyes"; then
+    AC_MSG_ERROR([GNU MP 4.1 or greater not found; either install it, or pass '--enable-mini-gmp' to use included less-optimal arbitrary-precision integer support.])
+  fi
+  if test "x$LIBGMP_PREFIX" != "x"; then
+    CPPFLAGS="-I$LIBGMP_PREFIX $CPPFLAGS"
+  fi
+  AC_CHECK_DECLS([mpz_inits], [], [], [[#include <gmp.h>]])
+fi
+AC_SUBST([SCM_I_GSC_ENABLE_MINI_GMP])
+AM_CONDITIONAL([USE_MINI_GMP], [test "x$enable_mini_gmp" = "xyes"])
+
+dnl GNU libunistring is checked for by Gnulib's `libunistring' module.
+if test "x$LTLIBUNISTRING" = "x"; then
+  AC_MSG_ERROR([GNU libunistring is required, please install it.])
+fi
+
+dnl Sloppy check to make sure people aren't trying to use too-old libunistring.
+case "$LIBUNISTRING_VERSION" in
+  0.9.0 | 0.9.1 | 0.9.2 )
+  AC_MSG_ERROR([libunistring too old.  Please install a recent libunistring (>= 0.9.3).])
+  ;;
+esac
+
+GUILE_LIBUNISTRING_WITH_ICONV_SUPPORT
+if test "x$ac_cv_libunistring_with_iconv_support" != "xyes"; then
+  AC_MSG_ERROR([No iconv support.  Please recompile libunistring with iconv enabled.])
+fi
+
+dnl Libffi is needed to compile Guile's foreign function interface, but its
+dnl interface isn't exposed in Guile's API.
+PKG_CHECK_MODULES(LIBFFI, libffi)
+AC_SUBST(LIBFFI_CFLAGS)
+AC_SUBST(LIBFFI_LIBS)
+
+dnl figure out approriate ffi type for size_t
+AC_CHECK_SIZEOF(size_t)
+AC_CHECK_SIZEOF(ssize_t)
+ffi_size_type=uint$(($ac_cv_sizeof_size_t*8))
+ffi_ssize_type=sint$(($ac_cv_sizeof_ssize_t*8))
+AC_DEFINE_UNQUOTED([ffi_type_size_t], ffi_type_${ffi_size_type},
+		   [ffi type for size_t])
+AC_DEFINE_UNQUOTED([ffi_type_ssize_t], ffi_type_${ffi_ssize_type},
+		   [ffi type for ssize_t])
+
+dnl i18n tests
+#AC_CHECK_HEADERS([libintl.h])
+#AC_CHECK_FUNCS(gettext)
+#if test $ac_cv_func_gettext = no; then
+#   AC_CHECK_LIB(intl, gettext)
+#fi
+#AC_CHECK_FUNCS([bindtextdomain textdomain])
+AM_GNU_GETTEXT([external], [need-ngettext])
+AM_GNU_GETTEXT_VERSION([0.18.1])
+
+### Some systems don't declare some functions.  On such systems, we
+### need to at least provide our own K&R-style declarations.
+
+### GUILE_FUNC_DECLARED(function, headerfile)
+
+### Check for a declaration of FUNCTION in HEADERFILE; if it is
+### not there, #define MISSING_FUNCTION_DECL.
+AC_DEFUN([GUILE_FUNC_DECLARED], [
+  AC_CACHE_CHECK(for $1 declaration, guile_cv_func_$1_declared,
+    AC_EGREP_HEADER($1, $2,
+		    guile_cv_func_$1_declared=yes,
+		    guile_cv_func_$1_declared=no))
+  if test [x$guile_cv_func_]$1[_declared] = xno; then
+    AC_DEFINE([MISSING_]translit($1, [a-z], [A-Z])[_DECL], 1,
+      [Define if the operating system supplies $1 without declaring it.])
+  fi
+])
+
+GUILE_FUNC_DECLARED(sleep, unistd.h)
+GUILE_FUNC_DECLARED(usleep, unistd.h)
+
+AC_CHECK_DECLS([getlogin, alarm])
+
+AC_CHECK_DECLS([strptime],,,
+[#define _GNU_SOURCE /* ask glibc to give strptime prototype */
+#include <time.h>])
+
+### On some systems usleep has no return value.  If it does have one,
+### we'd like to return it; otherwise, we'll fake it.
+AC_CACHE_CHECK([return type of usleep], guile_cv_func_usleep_return_type,
+  [AC_EGREP_HEADER(changequote(<, >)<void[ 	]+usleep>changequote([, ]),
+                   unistd.h,
+		   [guile_cv_func_usleep_return_type=void],
+		   [guile_cv_func_usleep_return_type=int])])
+case "$guile_cv_func_usleep_return_type" in
+  "void" )
+    AC_DEFINE([USLEEP_RETURNS_VOID], 1,
+      [Define if the system headers declare usleep to return void.])
+  ;;
+esac
+
+AC_CHECK_HEADER(sys/un.h, have_sys_un_h=1)
+if test -n "$have_sys_un_h" ; then
+  AC_DEFINE([HAVE_UNIX_DOMAIN_SOCKETS], 1,
+    [Define if the system supports Unix-domain (file-domain) sockets.])
+fi
+
+AC_CHECK_FUNCS(getrlimit setrlimit)
+
+AC_CHECK_FUNCS(socketpair getgroups setgroups setpwent pause tzset)
+
+AC_CHECK_FUNCS(sethostent   gethostent   endhostent   dnl
+               setnetent    getnetent    endnetent    dnl
+               setprotoent  getprotoent  endprotoent  dnl
+               setservent   getservent   endservent   dnl
+               getnetbyaddr getnetbyname dnl
+	       inet_lnaof inet_makeaddr inet_netof hstrerror)
+
+AC_CHECK_MEMBERS([struct sockaddr_in.sin_len],,,
+[#ifdef HAVE_SYS_TYPES_H
+#include <sys/types.h>
+#endif
+#include <netinet/in.h>])
+
+AC_MSG_CHECKING(for __libc_stack_end)
+AC_CACHE_VAL(guile_cv_have_libc_stack_end,
+[AC_LINK_IFELSE([AC_LANG_PROGRAM([[#include <stdio.h>
+extern char *__libc_stack_end;]],
+   [[printf("%p", (char*) __libc_stack_end);]])],
+   [guile_cv_have_libc_stack_end=yes],
+   [guile_cv_have_libc_stack_end=no])])
+AC_MSG_RESULT($guile_cv_have_libc_stack_end)
+
+if test $guile_cv_have_libc_stack_end = yes; then
+  AC_DEFINE([HAVE_LIBC_STACK_END], 1,
+           [Define if you have the __libc_stack_end variable.])
+fi
+
+dnl Some systems do not declare this.  Some systems do declare it, as a
+dnl macro.  With cygwin it may be in a DLL.
+
+AC_MSG_CHECKING(whether netdb.h declares h_errno)
+AC_CACHE_VAL(guile_cv_have_h_errno,
+  [AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <netdb.h>]],
+                                      [[int a = h_errno;]])],
+  [guile_cv_have_h_errno=yes],
+  [guile_cv_have_h_errno=no])])
+AC_MSG_RESULT($guile_cv_have_h_errno)
+if test $guile_cv_have_h_errno = yes; then
+  AC_DEFINE([HAVE_H_ERRNO], 1, [Define if h_errno is declared in netdb.h.])
+fi
+
+AC_MSG_CHECKING(whether uint32_t is defined)
+AC_CACHE_VAL(guile_cv_have_uint32_t,
+  [AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <sys/types.h>
+		   #if HAVE_STDINT_H
+		   #include <stdint.h>
+                   #endif
+		   #ifndef HAVE_NETDB_H
+	           #include <netdb.h>
+		   #endif]],
+		   [[uint32_t a;]])],
+		   [guile_cv_have_uint32_t=yes],
+		   [guile_cv_have_uint32_t=no])])
+AC_MSG_RESULT($guile_cv_have_uint32_t)
+if test $guile_cv_have_uint32_t = yes; then
+  AC_DEFINE([HAVE_UINT32_T], 1,
+    [Define if uint32_t typedef is defined when netdb.h is include.])
+fi
+
+AC_MSG_CHECKING(for working IPv6 support)
+AC_CACHE_VAL(guile_cv_have_ipv6,
+[AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
+#ifdef HAVE_SYS_TYPES_H
+#include <sys/types.h>
+#endif
+#include <netinet/in.h>
+#include <sys/socket.h>]],
+[[struct sockaddr_in6 a;  a.sin6_family = AF_INET6;]])],
+[guile_cv_have_ipv6=yes],
+[guile_cv_have_ipv6=no])])
+AC_MSG_RESULT($guile_cv_have_ipv6)
+if test $guile_cv_have_ipv6 = yes; then
+  AC_DEFINE([HAVE_IPV6], 1, [Define if you want support for IPv6.])
+fi
+
+# included in rfc2553 but not in older implementations, e.g., glibc 2.1.3.
+AC_MSG_CHECKING(whether sockaddr_in6 has sin6_scope_id)
+AC_CACHE_VAL(guile_cv_have_sin6_scope_id,
+[AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
+#ifdef HAVE_SYS_TYPES_H
+#include <sys/types.h>
+#endif
+#include <netinet/in.h>]],
+[[struct sockaddr_in6 sok;  sok.sin6_scope_id = 0;]])],
+[guile_cv_have_sin6_scope_id=yes],
+[guile_cv_have_sin6_scope_id=no])])
+AC_MSG_RESULT($guile_cv_have_sin6_scope_id)
+if test $guile_cv_have_sin6_scope_id = yes; then
+  AC_DEFINE([HAVE_SIN6_SCOPE_ID], 1,
+    [Define this if your IPv6 has sin6_scope_id in sockaddr_in6 struct.])
+fi
+
+# struct sockaddr_in6 field sin_len is only present on BSD systems
+AC_CHECK_MEMBERS([struct sockaddr_in6.sin6_len],,,
+[#ifdef HAVE_SYS_TYPES_H
+#include <sys/types.h>
+#endif
+#include <netinet/in.h>])
+
+AC_MSG_CHECKING(whether localtime caches TZ)
+AC_CACHE_VAL(guile_cv_localtime_cache,
+[if test x$ac_cv_func_tzset = xyes; then
+AC_RUN_IFELSE([AC_LANG_SOURCE([[#include <time.h>
+#include <stdlib.h>
+extern char **environ;
+int unset_TZ ()
+{
+  char **from, **to;
+  for (to = from = environ; (*to = *from); from++)
+    if (! (to[0][0] == 'T' && to[0][1] == 'Z' && to[0][2] == '='))
+      to++;
+}
+char TZ_GMT0[] = "TZ=GMT0";
+char TZ_PST8[] = "TZ=PST8";
+int main()
+{
+  time_t now = time ((time_t *) 0);
+  int hour_GMT0, hour_unset;
+  if (putenv (TZ_GMT0) != 0)
+    exit (1);
+  hour_GMT0 = localtime (&now)->tm_hour;
+  unset_TZ ();
+  hour_unset = localtime (&now)->tm_hour;
+  if (putenv (TZ_PST8) != 0)
+    exit (1);
+  if (localtime (&now)->tm_hour == hour_GMT0)
+    exit (1);
+  unset_TZ ();
+  if (localtime (&now)->tm_hour != hour_unset)
+    exit (1);
+  exit (0);
+}]])],
+[guile_cv_localtime_cache=no],
+[guile_cv_localtime_cache=yes],
+[# If we have tzset, assume the worst when cross-compiling.
+guile_cv_localtime_cache=yes])
+else
+        # If we lack tzset, report that localtime does not cache TZ,
+        # since we can't invalidate the cache if we don't have tzset.
+        guile_cv_localtime_cache=no
+fi])dnl
+AC_MSG_RESULT($guile_cv_localtime_cache)
+if test $guile_cv_localtime_cache = yes; then
+  AC_DEFINE([LOCALTIME_CACHE], 1, [Define if localtime caches the TZ setting.])
+fi
+
+if test "$enable_regex" = yes; then
+   AC_LIBOBJ([regex-posix])
+   AC_DEFINE([ENABLE_REGEX], 1, [Define when regex support is enabled.])
+fi
+
+if test "$enable_tmpnam" = yes; then
+   AC_DEFINE([ENABLE_TMPNAM], 1, [Define when tmpnam support is enabled.])
+fi
+
+AC_REPLACE_FUNCS([strerror memmove])
+
+# Reasons for testing:
+#   asinh, acosh, atanh, trunc - C99 standard, generally not available on
+#                                older systems
+#   sincos - GLIBC extension
+#   __sincos - APPLE extension
+#
+AC_CHECK_FUNCS(asinh acosh atanh copysign finite sincos __sincos trunc)
+
+# C99 specifies isinf and isnan as macros.
+# HP-UX provides only macros, no functions.
+# glibc 2.3.2 provides both macros and functions.
+# IRIX 6.5 and Solaris 8 only provide functions.
+#
+# The following tests detect isinf and isnan either as functions or as
+# macros from <math.h>.  Plain AC_CHECK_FUNCS is insufficient, it doesn't
+# use <math.h> so doesn't detect on macro-only systems like HP-UX.
+#
+AC_MSG_CHECKING([for isinf])
+AC_LINK_IFELSE([AC_LANG_SOURCE(
+[[#include <math.h>
+volatile double x = 0.0;
+int main () { return (isinf(x) != 0); }]])],
+  [AC_MSG_RESULT([yes])
+   AC_DEFINE([HAVE_ISINF], 1,
+             [Define to 1 if you have the `isinf' macro or function.])],
+  [AC_MSG_RESULT([no])])
+AC_MSG_CHECKING([for isnan])
+AC_LINK_IFELSE([AC_LANG_SOURCE([[
+#include <math.h>
+volatile double x = 0.0;
+int main () { return (isnan(x) != 0); }]])],
+  [AC_MSG_RESULT([yes])
+   AC_DEFINE([HAVE_ISNAN], 1,
+             [Define to 1 if you have the `isnan' macro or function.])],
+  [AC_MSG_RESULT([no])])
+
+# Reasons for checking:
+#
+#     st_rdev
+#     st_blksize
+#     st_blocks   not in mingw
+#     tm_gmtoff   BSD+GNU, not in C99
+#
+# Note AC_STRUCT_ST_BLOCKS is not used here because we don't want the
+# AC_LIBOBJ(fileblocks) replacement which that macro gives.
+#
+AC_CHECK_MEMBERS([struct stat.st_rdev, struct stat.st_blksize, struct stat.st_blocks, struct stat.st_atim, struct stat.st_mtim, struct stat.st_ctim],,,
+                 [#define _GNU_SOURCE
+#ifdef HAVE_SYS_STAT_H
+# include <sys/stat.h>
+#endif
+])
+
+AC_STRUCT_TIMEZONE
+AC_CHECK_MEMBERS([struct tm.tm_gmtoff],,,
+[#include <time.h>
+#if HAVE_SYS_TIME_H
+# include <sys/time.h>
+#endif
+])
+GUILE_STRUCT_UTIMBUF
+
+
+#--------------------------------------------------------------------
+#
+# What values do the iconv error handlers have?
+#
+# The only place that we need iconv in our public interfaces is for
+# the error handlers, which are just ints.  So we weaken our
+# dependency by looking up those values at configure-time.
+#--------------------------------------------------------------------
+GUILE_UNISTRING_ICONVEH_VALUES
+
+#--------------------------------------------------------------------
+#
+# Which way does the stack grow?
+#
+# Following code comes from Autoconf 2.69's internal _AC_LIBOBJ_ALLOCA
+# macro (/usr/share/autoconf/autoconf/functions.m4).  Gnulib has
+# very similar code, so in future we could look at using that.
+#
+# An important detail is that the code involves find_stack_direction
+# calling _itself_ - which means that find_stack_direction (or at
+# least the second find_stack_direction() call) cannot be inlined.
+# If the code could be inlined, that might cause the test to give
+# an incorrect answer.
+#--------------------------------------------------------------------
+
+SCM_I_GSC_STACK_GROWS_UP=0
+AC_RUN_IFELSE([AC_LANG_SOURCE(
+[int
+find_stack_direction (int *addr, int depth)
+{
+  int dir, dummy = 0;
+  if (! addr)
+    addr = &dummy;
+  *addr = addr < &dummy ? 1 : addr == &dummy ? 0 : -1;
+  dir = depth ? find_stack_direction (addr, depth - 1) : 0;
+  return dir + dummy;
+}
+
+int
+main (int argc, char **argv)
+{
+  return find_stack_direction (0, argc + !argv + 20) < 0;
+}])],
+	       [SCM_I_GSC_STACK_GROWS_UP=1],
+	       [],
+	       [AC_MSG_WARN(Guessing that stack grows down -- see scmconfig.h)])
+
+#--------------------------------------------------------------------
+#
+# Boehm's GC library
+#
+#--------------------------------------------------------------------
+AC_MSG_CHECKING(for which bdw-gc pkg-config file to use)
+AC_ARG_WITH(bdw_gc, [  --with-bdw-gc=PKG       name of BDW-GC pkg-config file],
+            [bdw_gc="$withval"], [bdw_gc=bdw-gc])
+AC_MSG_RESULT($bdw_gc)
+PKG_CHECK_MODULES([BDW_GC], [$bdw_gc >= 7.2])
+
+save_LIBS="$LIBS"
+LIBS="$BDW_GC_LIBS $LIBS"
+CFLAGS="$BDW_GC_CFLAGS $CFLAGS"
+
+# Functions that might not be defined, depending on configuration.
+AC_CHECK_FUNCS([GC_pthread_exit GC_pthread_cancel GC_pthread_sigmask])
+
+# Functions from GC 7.3.
+AC_CHECK_FUNCS([GC_move_disappearing_link GC_is_heap_ptr])
+
+# See if there's an auxiliary stack, as in ia64.
+AC_CHECK_MEMBER([struct GC_stack_base.reg_base],
+  [SCM_I_GSC_HAVE_AUXILIARY_STACK=1], [SCM_I_GSC_HAVE_AUXILIARY_STACK=0],
+  [#include <gc/gc.h>])
+AC_SUBST([SCM_I_GSC_HAVE_AUXILIARY_STACK])
+
+LIBS="$save_LIBS"
+
+
+AC_CHECK_SIZEOF(float)
+if test "$ac_cv_sizeof_float" -le "$ac_cv_sizeof_long"; then
+    AC_DEFINE([SCM_SINGLES], 1,
+              [Define this if floats are the same size as longs.])
+fi
+
+AC_MSG_CHECKING(for struct linger)
+AC_CACHE_VAL(scm_cv_struct_linger,
+	AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
+#include <sys/types.h>
+#include <sys/socket.h>]],
+	                  [[struct linger lgr;  lgr.l_linger = 100]])],
+			  [scm_cv_struct_linger="yes"],
+			  [scm_cv_struct_linger="no"]))
+AC_MSG_RESULT($scm_cv_struct_linger)
+if test $scm_cv_struct_linger = yes; then
+	AC_DEFINE([HAVE_STRUCT_LINGER], 1,
+          [Define this if your system defines struct linger, for use with the
+           getsockopt and setsockopt system calls.])
+fi
+
+
+dnl Check for `struct timespec', for the sake of `gen-scmconfig'.  When
+dnl building Guile, we always have it, thanks to Gnulib; but scmconfig.h
+dnl must tell whether the system has it.
+dnl
+dnl On MinGW, struct timespec is in <pthread.h>.
+AC_MSG_CHECKING(for struct timespec)
+AC_CACHE_VAL(scm_cv_struct_timespec,
+	AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
+#include <time.h>
+#if HAVE_PTHREAD_H
+#include <pthread.h>
+#endif]], [[struct timespec t;  t.tv_nsec = 100]])],
+          [scm_cv_struct_timespec="yes"],
+          [scm_cv_struct_timespec="no"]))
+AC_MSG_RESULT($scm_cv_struct_timespec)
+if test $scm_cv_struct_timespec = yes; then
+  dnl Don't call it `HAVE_STRUCT_TIMESPEC' because pthread-win32's
+  dnl <pthread.h> checks whether that macro is defined.
+  AC_DEFINE([HAVE_SYSTEM_STRUCT_TIMESPEC], 1,
+    [Define this if your system defines struct timespec via either <time.h> or <pthread.h>.])
+fi
+
+#--------------------------------------------------------------------
+#
+# Flags for thread support
+#
+#--------------------------------------------------------------------
+
+SCM_I_GSC_USE_PTHREAD_THREADS=0
+SCM_I_GSC_USE_NULL_THREADS=0
+AC_SUBST([SCM_I_GSC_USE_PTHREAD_THREADS])
+AC_SUBST([SCM_I_GSC_USE_NULL_THREADS])
+
+### What thread package has the user asked for?
+AC_ARG_WITH(threads, [  --with-threads          thread interface],
+            , with_threads=yes)
+
+AC_SUBST(SCM_I_GSC_NEED_BRACES_ON_PTHREAD_ONCE_INIT, 0)
+AC_SUBST(SCM_I_GSC_NEED_BRACES_ON_PTHREAD_MUTEX_INITIALIZER, 0)
+
+case "$with_threads" in
+  "yes" | "pthread" | "pthreads" | "pthread-threads" | "")
+
+    build_pthread_support="yes"
+
+    ACX_PTHREAD([CC="$PTHREAD_CC"
+       LIBS="$PTHREAD_LIBS $LIBS"
+       SCM_I_GSC_USE_PTHREAD_THREADS=1
+       with_threads="pthreads"],
+      [with_threads="null"
+       build_pthread_support="no"])
+
+    old_CFLAGS="$CFLAGS"
+    CFLAGS="$PTHREAD_CFLAGS $CFLAGS"
+
+    # Reasons for testing:
+    #     pthread_getattr_np - "np" meaning "non portable" says it
+    #         all; not present on MacOS X or Solaris 10
+    #     pthread_get_stackaddr_np - "np" meaning "non portable" says it
+    #         all; specific to MacOS X
+    #     pthread_attr_get_np - "np" meaning "non portable" says it
+    #         all; specific to FreeBSD
+    #     pthread_sigmask - not available on mingw
+    #     pthread_cancel - not available on Android (Bionic libc)
+    #
+    AC_CHECK_FUNCS([pthread_attr_getstack pthread_getattr_np		\
+      pthread_get_stackaddr_np pthread_attr_get_np pthread_sigmask	\
+      pthread_cancel])
+
+    # Apple Silicon JIT code arena needs to be unprotected before writing.
+    AC_CHECK_FUNCS([pthread_jit_write_protect_np])
+
+    # On past versions of Solaris, believe 8 through 10 at least, you
+    # had to write "pthread_once_t foo = { PTHREAD_ONCE_INIT };".
+    # This is contrary to POSIX:
+    # http://www.opengroup.org/onlinepubs/000095399/functions/pthread_once.html
+    # Check here if this style is required.
+    #
+    # glibc (2.3.6 at least) works both with or without braces, so the
+    # test checks whether it works without.
+    #
+
+    if test "$GCC" = "yes"; then
+      # Since GCC only issues a warning for missing braces, so we need
+      # `-Werror' to catch it.
+      CFLAGS="-Werror -Wmissing-braces $CFLAGS"
+    fi
+
+    AC_CACHE_CHECK([whether PTHREAD_ONCE_INIT needs braces],
+      guile_cv_need_braces_on_pthread_once_init,
+      [AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <pthread.h>
+         pthread_once_t foo = PTHREAD_ONCE_INIT;]])],
+        [guile_cv_need_braces_on_pthread_once_init=no],
+        [guile_cv_need_braces_on_pthread_once_init=yes])])
+    if test "$guile_cv_need_braces_on_pthread_once_init" = yes; then
+      SCM_I_GSC_NEED_BRACES_ON_PTHREAD_ONCE_INIT=1
+    fi
+
+    # Same problem with `PTHREAD_MUTEX_INITIALIZER', e.g., on IRIX
+    # 6.5.30m with GCC 3.3.
+    AC_CACHE_CHECK([whether PTHREAD_MUTEX_INITIALIZER needs braces],
+      guile_cv_need_braces_on_pthread_mutex_initializer,
+      [AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <pthread.h>
+         pthread_mutex_t foo = PTHREAD_MUTEX_INITIALIZER;]])],
+        [guile_cv_need_braces_on_pthread_mutex_initializer=no],
+        [guile_cv_need_braces_on_pthread_mutex_initializer=yes])])
+    if test "$guile_cv_need_braces_on_pthread_mutex_initializer" = yes; then
+      SCM_I_GSC_NEED_BRACES_ON_PTHREAD_MUTEX_INITIALIZER=1
+    fi
+
+    CFLAGS="$old_CFLAGS"
+
+    # On Solaris, sched_yield lives in -lrt.
+    AC_SEARCH_LIBS(sched_yield, rt)
+
+  ;;
+esac
+
+case "$with_threads" in
+  "pthreads")
+  ;;
+  "no" | "null")
+    SCM_I_GSC_USE_NULL_THREADS=1
+    SCM_I_GSC_HAVE_THREAD_STORAGE_CLASS=0
+    with_threads="null-threads"
+  ;;
+  * )
+    AC_MSG_ERROR(invalid value for --with-threads: $with_threads)
+  ;;
+esac
+
+AC_MSG_CHECKING(what kind of threads to support)
+AC_MSG_RESULT($with_threads)
+
+AM_CONDITIONAL([BUILD_PTHREAD_SUPPORT],
+  [test "x$build_pthread_support" = "xyes"])
+
+
+if test "$with_threads" = pthreads; then
+
+dnl Normally Gnulib's 'threadlib' module would define this macro, but
+dnl since we don't use it, define it by ourselves.
+AC_DEFINE([USE_POSIX_THREADS], [1],
+  [Define to let Gnulib modules know that we use POSIX threads.])
+
+AC_MSG_CHECKING([whether pthread_attr_getstack works for the main thread])
+old_CFLAGS="$CFLAGS"
+CFLAGS="$PTHREAD_CFLAGS $CFLAGS"
+if test "$cross_compiling" = "no"; then
+  AC_RUN_IFELSE([AC_LANG_SOURCE([[
+  #if HAVE_PTHREAD_ATTR_GETSTACK
+  #include <pthread.h>
+
+  int main ()
+  {
+    pthread_attr_t attr;
+    void *start, *end;
+    size_t size;
+
+    pthread_getattr_np (pthread_self (), &attr);
+    pthread_attr_getstack (&attr, &start, &size);
+    end = (char *)start + size;
+
+    if ((void *)&attr < start || (void *)&attr >= end)
+      return 1;
+    else
+      return 0;
+  }
+  #else
+  int main ()
+  {
+    return 1;
+  }
+  #endif
+  ]])],
+  [works=yes
+   AC_DEFINE([PTHREAD_ATTR_GETSTACK_WORKS], [1], [Define when pthread_att_get_stack works for the main thread])],
+  [works=no],
+  [])
+else
+  works="assuming it doesn't"
+fi
+CFLAGS="$old_CFLAGS"
+AC_MSG_RESULT($works)
+
+GUILE_THREAD_LOCAL_STORAGE
+
+fi # with_threads=pthreads
+
+
+## Cross building
+if test "$cross_compiling" = "yes"; then
+  AC_MSG_CHECKING(cc for build)
+  ## /usr/bin/cc still uses wrong assembler
+  ## CC_FOR_BUILD="${CC_FOR_BUILD-/usr/bincc}"
+  CC_FOR_BUILD="${CC_FOR_BUILD-PATH=/usr/bin:$PATH cc}"
+else
+  CC_FOR_BUILD="${CC_FOR_BUILD-$CC}"
+fi
+
+## AC_MSG_CHECKING("if we are cross compiling")
+## AC_MSG_RESULT($cross_compiling)
+if test "$cross_compiling" = "yes"; then
+   AC_MSG_RESULT($CC_FOR_BUILD)
+fi
+
+## No need as yet to be more elaborate
+CCLD_FOR_BUILD="$CC_FOR_BUILD"
+
+AC_SUBST(cross_compiling)
+AC_ARG_VAR(CC_FOR_BUILD,[build system C compiler])
+AC_SUBST(CCLD_FOR_BUILD)
+
+## libtool erroneously calls CC_FOR_BUILD HOST_CC;
+## --HOST is the platform that PACKAGE is compiled for.
+HOST_CC="$CC_FOR_BUILD"
+AC_SUBST(HOST_CC)
+
+GUILE_CHECK_GUILE_FOR_BUILD
+
+## If we're using GCC, add flags to reduce strictness of undefined
+## behavior, and ask for aggressive warnings.
+GCC_CFLAGS=""
+case "$GCC" in
+  yes )
+    ## We had -Wstrict-prototypes in here for a bit, but Guile does too
+    ## much stuff with generic function pointers for that to really be
+    ## less than exasperating.
+    ## -Wundef was removed because Gnulib prevented it (see
+    ## <http://thread.gmane.org/gmane.lisp.guile.bugs/5329>.)
+
+    ## Build with `-fno-strict-aliasing' and `-fwrapv' to prevent
+    ## miscompilation on some platforms.  See
+    ## <http://lists.gnu.org/archive/html/guile-devel/2012-01/msg00487.html>.
+
+    POTENTIAL_GCC_CFLAGS="-Wall -Wmissing-prototypes \
+      -Wpointer-arith -fno-strict-aliasing -fwrapv"
+    # Do this here so we don't screw up any of the tests above that might
+    # not be "warning free"
+    if test "${GUILE_ERROR_ON_WARNING}" = yes
+    then
+	POTENTIAL_GCC_CFLAGS="${POTENTIAL_GCC_CFLAGS} -Werror"
+	enable_compile_warnings=no
+    fi
+
+    for flag in $POTENTIAL_GCC_CFLAGS
+    do
+	gl_WARN_ADD([$flag], [GCC_CFLAGS])
+    done
+    ;;
+esac
+
+AC_SUBST(GCC_CFLAGS)
+
+# Check for GNU ld's "-z relro".
+GUILE_GNU_LD_RELRO
+
+
+LIBLOBJS=""
+for file in $LIBOBJS; do
+  file=`echo "$file" | sed 's,\.[[^.]]*$,.lo,'`
+  LIBLOBJS="$LIBLOBJS libathena_guile_la-$file"
+done
+
+## We also need to create corresponding .doc and .x files
+EXTRA_DOT_DOC_FILES="`echo ${LIB@&t@OBJS} | sed 's,\.[[^.]]* ,.doc ,g;s,\.[[^.]]*$,.doc,'`"
+EXTRA_DOT_X_FILES="`echo ${LIB@&t@OBJS} | sed 's,\.[[^.]]* ,.x ,g;s,\.[[^.]]*$,.x,'`"
+
+# GNU Readline bindings.
+GUILE_READLINE
+
+AC_SUBST(GUILE_MAJOR_VERSION)
+AC_SUBST(GUILE_MINOR_VERSION)
+AC_SUBST(GUILE_MICRO_VERSION)
+AC_SUBST(GUILE_EFFECTIVE_VERSION)
+AC_SUBST(GUILE_VERSION)
+
+#######################################################################
+# library versioning
+
+AC_SUBST(LIBGUILE_INTERFACE_CURRENT)
+AC_SUBST(LIBGUILE_INTERFACE_REVISION)
+AC_SUBST(LIBGUILE_INTERFACE_AGE)
+AC_SUBST(LIBGUILE_INTERFACE)
+
+AC_SUBST(LIBGUILE_I18N_MAJOR)
+AC_SUBST(LIBGUILE_I18N_INTERFACE_CURRENT)
+AC_SUBST(LIBGUILE_I18N_INTERFACE_REVISION)
+AC_SUBST(LIBGUILE_I18N_INTERFACE_AGE)
+AC_SUBST(LIBGUILE_I18N_INTERFACE)
+
+
+#######################################################################
+
+dnl Tell guile-config what flags guile users should compile and link
+dnl with, keeping only `-I' flags from $CPPFLAGS.
+GUILE_CFLAGS=""
+next_is_includedir=false
+for flag in $CPPFLAGS
+do
+  if $next_is_includedir; then
+    GUILE_CFLAGS="$GUILE_CFLAGS -I $flag"
+    next_is_includedir=false
+  else
+    case "$flag" in
+      -I)  next_is_includedir=true;;
+      -I*) GUILE_CFLAGS="$GUILE_CFLAGS $flag";;
+      *)   ;;
+    esac
+  fi
+done
+
+GUILE_CFLAGS="$GUILE_CFLAGS $PTHREAD_CFLAGS"
+GUILE_LIBS="$LIBS"
+
+AC_SUBST(GUILE_LIBS)
+AC_SUBST(GUILE_CFLAGS)
+
+AC_SUBST(AWK)
+AC_SUBST(LIBLOBJS)
+AC_SUBST(EXTRA_DOT_DOC_FILES)
+AC_SUBST(EXTRA_DOT_X_FILES)
+
+dnl See also top_builddir in info node: (libtool)AC_PROG_LIBTOOL
+top_builddir_absolute=`pwd`
+AC_SUBST(top_builddir_absolute)
+top_srcdir_absolute=`(cd $srcdir && pwd)`
+AC_SUBST(top_srcdir_absolute)
+
+dnl Add -I flag so that lib/glthread/lock.h finds <libguile/threads.h>.
+CPPFLAGS="-I$top_srcdir_absolute $CPPFLAGS"
+
+dnl `sitedir' goes into libpath.h and the pkg-config file.
+pkgdatadir="$datadir/$PACKAGE_TARNAME"
+sitedir="$pkgdatadir/site/$GUILE_EFFECTIVE_VERSION"
+AC_SUBST([sitedir])
+
+# Additional SCM_I_GSC definitions are above.
+AC_SUBST([SCM_I_GSC_GUILE_DEBUG])
+AC_SUBST([SCM_I_GSC_ENABLE_DEPRECATED])
+AC_SUBST([SCM_I_GSC_STACK_GROWS_UP])
+AC_SUBST([SCM_I_GSC_C_INLINE])
+AC_CONFIG_FILES([libguile/gen-scmconfig.h])
+
+AC_CONFIG_FILES([
+  Makefile
+  lib/Makefile
+  doc/Makefile
+  doc/r5rs/Makefile
+  doc/ref/Makefile
+  examples/Makefile
+  libguile/Makefile
+  libguile/version.h
+  guile-readline/Makefile
+  test-suite/Makefile
+  test-suite/standalone/Makefile
+  meta/Makefile
+  module/Makefile
+  stage0/Makefile
+  stage1/Makefile
+  stage2/Makefile
+  prebuilt/Makefile
+  prebuilt/x86_64-unknown-linux-gnu/Makefile
+  prebuilt/i686-pc-linux-gnu/Makefile
+  prebuilt/mips-unknown-linux-gnu/Makefile
+])
+
+
+GUILE_CONFIG_SCRIPT([check-guile])
+GUILE_CONFIG_SCRIPT([benchmark-guile])
+GUILE_CONFIG_SCRIPT([meta/guile])
+GUILE_CONFIG_SCRIPT([meta/build-env])
+GUILE_CONFIG_SCRIPT([meta/uninstalled-env])
+GUILE_CONFIG_SCRIPT([meta/gdb-uninstalled-guile])
+GUILE_CONFIG_SCRIPT([libguile/guile-snarf])
+GUILE_CONFIG_SCRIPT([libguile/guile-snarf-docs])
+GUILE_CONFIG_SCRIPT([test-suite/standalone/test-use-srfi])
+GUILE_CONFIG_SCRIPT([test-suite/standalone/test-fast-slot-ref])
+
+AC_OUTPUT
+
+dnl Local Variables:
+dnl comment-start: "dnl "
+dnl comment-end: ""
+dnl comment-start-skip: "\\bdnl\\b\\s *"
+dnl End:

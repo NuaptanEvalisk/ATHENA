@@ -1,0 +1,168 @@
+;;;; format.test --- test suite for Guile's CL-ish format  -*- scheme -*-
+;;;; Matthias Koeppe <mkoeppe@mail.math.uni-magdeburg.de> --- June 2001
+;;;;
+;;;; Copyright (C) 2001, 2003, 2004, 2006, 2010, 2011, 2012,
+;;;;   2014, 2017 Free Software Foundation, Inc.
+;;;;
+;;;; This library is free software; you can redistribute it and/or
+;;;; modify it under the terms of the GNU Lesser General Public
+;;;; License as published by the Free Software Foundation; either
+;;;; version 3 of the License, or (at your option) any later version.
+;;;;
+;;;; This library is distributed in the hope that it will be useful,
+;;;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;;;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+;;;; Lesser General Public License for more details.
+;;;;
+;;;; You should have received a copy of the GNU Lesser General Public
+;;;; License along with this library; if not, write to the Free Software
+;;;; Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+
+(define-module (test-format)
+  #:use-module (test-suite lib)
+  #:use-module (ice-9 i18n)
+  #:use-module (ice-9 format))
+
+
+(with-test-prefix "simple-format"
+  (pass-if-exception "current-output-port is closed"
+      exception:wrong-type-arg
+    ;; This used to segfault in Guile <= 2.0.10.
+    (let ((old (current-output-port))
+          (new (%make-void-port "w")))
+      (dynamic-wind
+        (lambda ()
+          (set-current-output-port new)
+          (close-port new))
+        (lambda ()
+          (simple-format #t "hello, closed port!")
+          #t)
+        (lambda ()
+          (set-current-output-port old))))))
+
+;;; FORMAT Basic Output
+
+(with-test-prefix "format basic output"
+  (pass-if "default to Unicode-capable port"
+    ;; `(format #f ...)' should be able to deal with Unicode characters.
+    (with-fluids ((%default-port-encoding "ISO-8859-1"))
+      (let ((alpha (integer->char #x03b1)))  ; GREEK SMALL LETTER ALPHA
+        (= 1 (string-length (format #f (string alpha)))))))
+
+  (pass-if "format ~% produces a new line"
+	   (string=? (format #f "~%") "\n"))
+  (pass-if "format ~& starts a fresh line"
+	   (string=? (format #f "~&abc~&~&") "abc\n"))
+  (pass-if "format ~& is stateless but works properly across outputs via port-column"
+	   (string=?
+	    (with-output-to-string
+	      (lambda ()
+		(display "xyz")
+		(format #t "~&abc")
+		(format #f "~&")	; shall have no effect
+		(format #t "~&~&")))
+	    "xyz\nabc\n"))
+  (pass-if "format ~F (format-out-substr) maintains the column correctly"
+	   (= (string-length (format #f "~@F~20T" 1)) 20)))
+
+;;;
+;;; misc
+;;;
+
+(with-test-prefix "format"
+
+  ;; in guile 1.6.4 and earlier, excess arguments were an error, but this
+  ;; changed to follow the common lisp spec
+  (pass-if "excess arguments ignored A"
+    (string=? (format #f "" 1 2 3 4) ""))
+  (pass-if "excess arguments ignored B"
+    (string=? (format #f "~a ~a" 1 2 3 4) "1 2")))
+
+;;;
+;;; ~d
+;;;
+
+(with-test-prefix "~d decimal integer"
+
+  (with-test-prefix "~@d"
+
+    (pass-if "-1"
+      (string=? (format #f "~@d" -1) "-1"))
+
+    ;; in guile 1.6.4 and earlier, ~@d gave "0" but we think "+0" is what the
+    ;; common lisp spec intendes
+    (pass-if "+0"
+      (string=? (format #f "~@d" 0) "+0"))
+
+    (pass-if "+1"
+      (string=? (format #f "~@d" 1) "+1"))))
+
+;;;
+;;; ~f
+;;;
+
+(with-test-prefix "~f fixed-point"
+
+  (pass-if "1.5"
+    (string=? "1.5" (format #f "~f" 1.5)))
+  
+  (pass-if "3/2"
+    (string=? "1.5" (format #f "~f" 3/2)))
+
+  (pass-if "~2f"
+    (string=? "10." (format #f "~2f" 9.9)))
+
+  (pass-if "~2,1f"
+    (string=? "9.9" (format #f "~2,1f" 9.9)))
+
+  (pass-if "~2,2f"
+    (string=? "9.90" (format #f "~2,2f" 9.9)))
+  
+  ;; in guile prior to 1.6.9 and 1.8.1, leading zeros were incorrectly
+  ;; stripped, moving the decimal point and giving "25.0" here
+  (pass-if "string 02.5"
+    (string=? "2.5" (format #f "~f" "02.5")))
+
+  (pass-if "scale with few leading zeros"
+    (string=? "1.23" (format #f "~,,3f" "0.00123")))
+
+  (pass-if "scale with many leading zeros"
+    (string=? "0.0123" (format #f "~,,1f" "0.00123"))))
+
+;;;
+;;; ~h
+;;;
+
+(when (defined? 'setlocale)
+  (setlocale LC_ALL "C"))
+
+(with-test-prefix "~h localized number"
+
+  (pass-if "1234.5"
+    (string=? (format #f "~h" 1234.5) "1234.5"))
+
+  (pass-if "padding"
+    (string=? (format #f "~6h" 123.2) " 123.2"))
+
+  (pass-if "padchar"
+    (string=? (format #f "~8,,'*h" 123.2) "***123.2"))
+
+  (pass-if "decimals"
+    (string=? (format #f "~,2h" 123.4567)
+              "123.46"))
+
+  (pass-if "locale"
+    (string=? (format #f "~,3:h, ~a" 1234.5678
+                      %global-locale "approximately")
+              "1234.568, approximately")))
+
+;;;
+;;; ~{
+;;;
+
+(with-test-prefix "~{ iteration"
+
+  ;; In Guile 1.6.4 and earlier, the maximum iterations parameter defaulted
+  ;; to 100, but it's now like Common Lisp where the default is no limit
+  (pass-if "no arbitrary iteration limit"
+    (= (string-length (format #f "~{~a~}" (make-list 200 #\b))) 200)))

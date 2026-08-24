@@ -14,7 +14,7 @@
 (texmacs-module (link link-navigate)
   (:use (utils library cursor) (link link-edit) (link link-extern)
         (generic generic-edit)))
-(use-modules (kernel athena tm-preferences))
+(import-from (kernel athena tm-preferences))
 
 (define heading-word-count-refresh-serial 0)
 

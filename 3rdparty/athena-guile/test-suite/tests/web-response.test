@@ -1,0 +1,150 @@
+;;;; web-response.test --- HTTP responses       -*- mode: scheme; coding: utf-8; -*-
+;;;;
+;;;;   Copyright (C) 2010-2016 Free Software Foundation, Inc.
+;;;;
+;;;; This library is free software; you can redistribute it and/or
+;;;; modify it under the terms of the GNU Lesser General Public
+;;;; License as published by the Free Software Foundation; either
+;;;; version 3 of the License, or (at your option) any later version.
+;;;;
+;;;; This library is distributed in the hope that it will be useful,
+;;;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;;;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+;;;; Lesser General Public License for more details.
+;;;;
+;;;; You should have received a copy of the GNU Lesser General Public
+;;;; License along with this library; if not, write to the Free Software
+;;;; Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+
+
+(define-module (test-suite web-response)
+  #:use-module (web uri)
+  #:use-module (web response)
+  #:use-module (rnrs bytevectors)
+  #:use-module (rnrs io ports)
+  #:use-module (srfi srfi-19)
+  #:use-module (test-suite lib))
+
+
+;; The newlines are equivalent to \n. From www.gnu.org.
+(define example-1
+  "HTTP/1.1 200 OK\r
+Date: Wed, 03 Nov 2010 22:27:07 GMT\r
+Server: Apache/2.0.55\r
+Accept-Ranges: bytes\r
+Cache-Control: max-age=543234\r
+Expires: Thu, 28 Oct 2010 15:33:13 GMT\r
+Vary: Accept-Encoding\r
+Content-Encoding: gzip\r
+Content-Length: 36\r
+Content-Type: text/html; charset=utf-8\r
+\r
+abcdefghijklmnopqrstuvwxyz0123456789
+-> Here is trailing garbage that should be ignored because it is
+   beyond Content-Length.")
+
+(define example-2
+  "HTTP/1.1 200 OK\r
+Transfer-Encoding: chunked\r
+Content-Type: text/plain
+\r
+1c\r
+Lorem ipsum dolor sit amet, \r
+1d\r
+consectetur adipisicing elit,\r
+43\r
+ sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.\r
+0\r\n")
+
+(define (responses-equal? r1 body1 r2 body2)
+  (and (equal? (response-version r1) (response-version r2))
+       (equal? (response-code r1) (response-code r2))
+       (equal? (response-reason-phrase r1) (response-reason-phrase r2))
+       (equal? (response-headers r1) (response-headers r2))
+       (equal? body1 body2)))
+
+(with-test-prefix "example-1"
+  (let ((r #f) (body #f))
+    (pass-if "read-response"
+      (begin
+        (set! r (read-response (open-input-string example-1)))
+        (response? r)))
+
+    (pass-if "read-response-body"
+      (begin
+        (set! body (read-response-body r))
+        #t))
+
+    (pass-if-equal '(1 . 1) (response-version r))
+    (pass-if-equal 200 (response-code r))
+    (pass-if-equal "OK" (response-reason-phrase r))
+
+    (pass-if-equal (string->utf8 "abcdefghijklmnopqrstuvwxyz0123456789")
+        body)
+
+    (pass-if-equal "checking all headers"
+        `((date . ,(string->date "Wed, 03 Nov 2010 22:27:07 +0000"
+                                 "~a, ~d ~b ~Y ~H:~M:~S ~z"))
+          (server . "Apache/2.0.55")
+          (accept-ranges . (bytes))
+          (cache-control . ((max-age . 543234)))
+          (expires . ,(string->date "Thu, 28 Oct 2010 15:33:13 GMT +0000"
+                                    "~a, ~d ~b ~Y ~H:~M:~S ~z"))
+          (vary . (accept-encoding))
+          (content-encoding . (gzip))
+          (content-length . 36)
+          (content-type . (text/html (charset . "utf-8"))))
+      (response-headers r))
+
+    (pass-if "write then read"
+      (call-with-values
+          (lambda ()
+            (with-input-from-string
+                (with-output-to-string
+                  (lambda ()
+                    (let ((r (write-response r (current-output-port))))
+                      (write-response-body r body))))
+              (lambda ()
+                (let ((r (read-response (current-input-port))))
+                  (values r (read-response-body r))))))
+        (lambda (r* body*)
+          (responses-equal? r body r* body*))))
+
+    (pass-if-equal "by accessor"
+        '(gzip)
+      (response-content-encoding r))
+
+    (pass-if-equal "response-body-port"
+        `("UTF-8" ,body)
+      (with-fluids ((%default-port-encoding #f))
+        (let* ((r (read-response (open-input-string example-1)))
+               (p (response-body-port r)))
+          (list (port-encoding p) (get-bytevector-all p)))))
+
+    (pass-if "response-body-port + close"
+      (with-fluids ((%default-port-encoding #f))
+        (let* ((r (read-response (open-input-string example-1)))
+               (p (response-body-port r #:keep-alive? #f)))
+          ;; Before, calling 'close-port' here would yield a
+          ;; wrong-arg-num error when calling the delimited input port's
+          ;; 'close' procedure.
+          (close-port p)
+          (port-closed? p))))))
+
+(with-test-prefix "example-2"
+  (let* ((r (read-response (open-input-string example-2)))
+         (b (read-response-body r)))
+    (pass-if-equal '((chunked))
+        (response-transfer-encoding r))
+    (pass-if-equal
+        (string->utf8
+         (string-append
+          "Lorem ipsum dolor sit amet, consectetur adipisicing elit,"
+          " sed do eiusmod tempor incididunt ut labore et dolore magna aliqua."))
+        b)
+    (pass-if-equal "response-body-port"
+        `("ISO-8859-1" ,(utf8->string b)) ; no `charset', hence ISO-8859-1
+      (with-fluids ((%default-port-encoding #f))
+        (let* ((r (read-response (open-input-string example-2)))
+               (p (response-body-port r)))
+          (list (port-encoding p) (get-string-all p)))))))

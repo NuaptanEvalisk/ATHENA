@@ -28,34 +28,25 @@
   (caddr sr))
 
 (define (slotlist-load l)
- ;(display* "load=" l "\n")
   (for (e l)
-     (eval
-        `(begin
-           (if (not (defined? ',(car e)))
-               (define-public ,(car e) #f))
-           (set! ,(car e)
-                 ,(with val (cadr e)
-                     (if (and (pair? val) (eq? (car val) 'quote))
-                         val
-                        `(quote ,(eval val)))))))))
+    (let* ((name (car e))
+           (form (cadr e))
+           (value (if (and (pair? form) (eq? (car form) 'quote))
+                      (cadr form)
+                      (eval form))))
+      (%athena-root-binding-set! name value))))
 
 (define (proplist-load l funcs b)
- ;(display* "load[props]=" l "\n")
   (for (e l)
-     (if (not (defined? `,(car e)))
-         (eval `(define-public ,(car e) #f))))
+    (%athena-public-define-if-absent!
+      (%athena-root-module) (car e) #f))
   (if b
       (for (f funcs)
          (f))))
 
 (define (slotlist-save l)
   (for (e l)
-     (set-car! (cdr e) `(quote ,(eval (car e)))))
- ;(display* "save=" l "\n")
- ;(for (e l)
- ;   (eval `(undefine ,(car e))))
-)
+    (set-car! (cdr e) `(quote ,(%athena-root-binding-ref (car e))))))
 
 ;; User-level API
 (define current-state #f)
@@ -130,15 +121,21 @@
   (let* ((theslots (copy-tree slotlists))
          (slots (cadr (car theslots)))
          (props (cadr (cadr theslots))))
-    `(begin
-        (if (not (defined? ',name))
-            (define-public ,name #f))
-        (with cprops #f
-          (set! cprops (map (lambda (x)
-                               (eval
-                                  `(lambda () (set! ,(car x) ,(cadr x)))))
-                           ',props))
-          (set! ,name (state-create (append '(,slots ,props) `(,cprops))))))))
+    `(eval-when (expand load eval)
+        (define-public ,name #f)
+        ,@(map (lambda (x)
+                 `(%athena-public-define-if-absent!
+                    (%athena-root-module) ',(car x) #f))
+               (append slots props))
+        (let ((cprops
+               (list
+                 ,@(map (lambda (x)
+                          `(lambda ()
+                             (%athena-root-binding-set!
+                               ',(car x) ,(cadr x))))
+                        props))))
+          (set! ,name
+                (state-create (append '(,slots ,props) (list cprops))))))))
 
 (define-public-macro (with-state sr . body)
  `(begin
