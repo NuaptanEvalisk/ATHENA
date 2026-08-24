@@ -19,8 +19,11 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define-public-macro (define-secure-symbols . l)
-  (for-each (lambda (x) (property-set! x :secure #t '())) l)
-  '(noop))
+  ;; The security declarations must be part of the compiled module.  Performing
+  ;; this mutation while expanding the macro only updates the build-time Guile
+  ;; process; a subsequently loaded .go file would contain no declarations.
+  `(begin
+     ,@(map (lambda (x) `(property-set! ',x :secure #t '())) l)))
 
 (define-secure-symbols
   boolean? null? symbol? string? pair? list?

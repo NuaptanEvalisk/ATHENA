@@ -133,7 +133,9 @@ ispeller_rep::start () {
     unavailable = true;
     return err;
   }
-  debug_spell << "running " << name << " with " << locale << " dictionary for " << lan << "\n";
+  if (DEBUG_IO)
+    debug_spell << "running " << name << " with " << locale
+                << " dictionary for " << lan << "\n";
   unavailable = false;
   return "ok";
 }

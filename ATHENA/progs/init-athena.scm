@@ -138,6 +138,10 @@
 (import-from (utils misc artwork))
 (import-from (utils handwriting handwriting))
 (lazy-tmfs-handler (utils automate auto-tmfs) automate)
+(lazy-tmfs-handler (athena athena tm-vault-welcome) welcome)
+(lazy-define (athena athena tm-vault-welcome)
+             go-to-system-welcome-page go-to-welcome-page
+             go-to-vault-initial-page)
 (lazy-define (utils automate auto-tmfs) auto-load-help)
 (lazy-define (utils misc gui-keyboard) get-keyboard)
 (lazy-keyboard (utils automate auto-kbd) in-auto?)

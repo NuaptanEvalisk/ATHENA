@@ -1,7 +1,6 @@
 (texmacs-module (athena athena tm-vault-welcome)
   (:use (kernel boot abbrevs)
-        (athena athena tm-vault-recents)
-        (athena menus file-menu)))
+        (athena athena tm-vault-recents)))
 
 (tm-define (vault-load-latest-action path-s)
   (load-vault-dir (string->url path-s)))

@@ -883,7 +883,7 @@ athenaFloatingContainerParent(CDockManager* dockManager)
 \t\tbreak;
 ''',
         1)
-    if 'athenaTryStartWaylandDockDrag(DragStartMousePos, MouseEventHandler)' not in content:
+    if 'if (athenaTryStartWaylandDockDrag(DragStartMousePos, MouseEventHandler))' not in content:
         content = content.replace(
             '''\tif (DraggingFloatingWidget == DragState)
 \t{
@@ -898,6 +898,38 @@ athenaFloatingContainerParent(CDockManager* dockManager)
 \t\t\treturn;
 \t\t}
 \t\td->MouseEventHandler = MouseEventHandler;
+''',
+            1)
+        content = content.replace(
+            '''\tif (DraggingFloatingWidget == DragState)
+\t{
+\t\td->MouseEventHandler = MouseEventHandler;
+\t\tif (d->MouseEventHandler)
+\t\t{
+\t\t\td->MouseEventHandler->grabMouse();
+\t\t}
+\t}
+''',
+            '''\tif (DraggingFloatingWidget == DragState)
+\t{
+\t\tif (athenaIsNativeWaylandPlatform())
+\t\t{
+\t\t\tshow();
+\t\t\tif (athenaTryStartWaylandDockDrag(DragStartMousePos, MouseEventHandler))
+\t\t\t{
+\t\t\t\treturn;
+\t\t\t}
+\t\t\td->MouseEventHandler = nullptr;
+\t\t}
+\t\telse
+\t\t{
+\t\t\td->MouseEventHandler = MouseEventHandler;
+\t\t\tif (d->MouseEventHandler)
+\t\t\t{
+\t\t\t\td->MouseEventHandler->grabMouse();
+\t\t\t}
+\t\t}
+\t}
 ''',
             1)
 

@@ -137,8 +137,20 @@ QTMAction::doShowToolTip() {
 BEGIN_SLOT
   static int step = (int) ceil (QFontMetricsF (qApp->font()).height());
   _timer->stop();
-  if ((QCursor::pos() - _pos).manhattanLength() < step)  // Hideous HACK
-    QToolTip::showText (QCursor::pos(), toolTip());
+  if ((QCursor::pos() - _pos).manhattanLength() < step) { // Hideous HACK
+    QWidget* owner= qobject_cast<QWidget*> (parent ());
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+    for (QObject* associated: associatedObjects ()) {
+      QWidget* candidate= qobject_cast<QWidget*> (associated);
+      if (candidate != nullptr && candidate->isVisible ()) {
+        owner= candidate;
+        break;
+      }
+    }
+#endif
+    if (owner == nullptr) owner= QApplication::activeWindow ();
+    QToolTip::showText (QCursor::pos(), toolTip(), owner);
+  }
   else
     QToolTip::hideText();
 END_SLOT

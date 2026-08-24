@@ -22,9 +22,13 @@
 
 (define lazy-format-todo '())
 
+(define-public (lazy-format-register module)
+  (set! lazy-format-todo (cons module lazy-format-todo)))
+
 (define-public-macro (lazy-format module . ignored)
-  (set! lazy-format-todo (cons module lazy-format-todo))
-  `(delayed (:idle 2000) (import-from ,module)))
+  `(begin
+     (lazy-format-register ',module)
+     (delayed (:idle 2000) (import-from ,module))))
 
 (define (lazy-format-force)
   (if (nnull? lazy-format-todo)
@@ -105,24 +109,26 @@
          (list (car cmd) (list 'unquote `(lambda () ,(cadr cmd)))))
         (else cmd)))
 
+(define (converter-requirements-satisfied? options)
+  (let loop ((rest options))
+    (cond ((null? rest) #t)
+          ((func? (car rest) :require 1)
+           (and ((second (car rest))) (loop (cdr rest))))
+          (else (loop (cdr rest))))))
+
+(define-public (converter-register from to options)
+  (set! converter-distance (make-ahash-table))
+  (set! converter-path (make-ahash-table))
+  (when (converter-requirements-satisfied? options)
+    (converter-set-penalty from to 1.0)
+    (for-each (lambda (cmd) (converter-cmd from to cmd)) options)))
+
 (define-public-macro (converter from* to* . options)
   "Declare a converter between @from@ and @to* according to @options"
   (let* ((from (if (string? from*) from* (symbol->string from*)))
          (to (if (string? to*) to* (symbol->string to*))))
-    (set! converter-distance (make-ahash-table))
-    (set! converter-path (make-ahash-table))
-;; NEW if (:required) clause present but not fulfilled do nothing
-;; this enables to define several possible implementations of a given converter
-;; not presuming on the availability of external tools : the last valid one is retained
-;; (previously the last defined -even if unavailable- erased whatever was already defined)
-    (cond ((and (in? (car (first options)) '(:penalty)) 
-            (in? (car (second options)) '(:require)) 
-            (not (eval (second (second options))))) (noop))
-          ((and (in? (car (first options)) '(:require)) 
-            (not (eval (second (first options))))) (noop))
-          (else (converter-set-penalty from to 1.0) 
-             `(for-each (lambda (x) (converter-cmd ,from ,to x))
-                 ,(list 'quasiquote (map converter-sub options)))))))
+    `(converter-register
+       ,from ,to ,(list 'quasiquote (map converter-sub options)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Special converters

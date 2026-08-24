@@ -797,21 +797,29 @@ athena_tm_define_expand_parts (SCM head, SCM body, SCM conditions,
                     scm_list_2 (athena_symbol ("quote"), name)),
         scm_list_3 (athena_symbol ("lambda"), athena_symbol ("args"),
                     scm_list_1 (athena_symbol ("noop")))));
-  warning_form = scm_list_3
-    (athena_symbol ("when"),
-     scm_list_3
-       (athena_symbol ("and"),
-        scm_list_2
-          (athena_symbol ("not"),
-           scm_list_2 (athena_symbol ("%athena-definition-defined?"),
-                       scm_list_2 (athena_symbol ("quote"), name))),
-        scm_from_bool (!scm_is_null (conditions))),
-     scm_cons
-       (athena_symbol ("display*"),
-        scm_list_4 (scm_from_utf8_string ("warning: conditional master routine "),
-                    scm_list_2 (athena_symbol ("quote"), name),
-                    scm_from_utf8_string ("\n   "),
-                    scm_list_2 (athena_symbol ("quote"), value))));
+  if (athena_compiling_scheme_bytecode_p ())
+    warning_form = scm_list_1 (athena_symbol ("noop"));
+  else
+    warning_form = scm_list_3
+      (athena_symbol ("when"),
+       scm_list_3
+         (athena_symbol ("and"),
+          scm_list_2
+            (athena_symbol ("not"),
+             scm_list_3
+               (athena_symbol ("or"),
+                scm_list_2 (athena_symbol ("%athena-definition-defined?"),
+                            scm_list_2 (athena_symbol ("quote"), name)),
+                scm_list_2 (athena_symbol ("%athena-definition-ref"),
+                            scm_list_2 (athena_symbol ("quote"), name)))),
+          scm_from_bool (!scm_is_null (conditions))),
+       scm_cons
+         (athena_symbol ("display*"),
+          scm_list_4
+            (scm_from_utf8_string ("warning: conditional master routine "),
+             scm_list_2 (athena_symbol ("quote"), name),
+             scm_from_utf8_string ("\n   "),
+             scm_list_2 (athena_symbol ("quote"), value))));
   install_form = scm_list_5
     (athena_symbol ("%athena-definition-install!"),
      scm_list_2 (athena_symbol ("quote"), name), name,

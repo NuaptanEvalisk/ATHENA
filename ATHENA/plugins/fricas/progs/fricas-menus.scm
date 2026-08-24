@@ -12,7 +12,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (texmacs-module (fricas-menus)
-  (:use (texmacs texmacs tm-files)
+  (:use (athena athena tm-files)
 	;(doc help-funcs)
 	(dynamic scripts-edit)
         (dynamic session-menu)))
