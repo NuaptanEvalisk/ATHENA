@@ -16,6 +16,8 @@
 #include "blackbox.hpp"
 #include "array.hpp"
 
+#include <type_traits>
+
 
 #ifdef OS_MINGW
 // we redefine some symbols to avoid name clashes with Windows headers (included by Guile)
@@ -153,8 +155,17 @@ tmscm call_scheme (tmscm fun, tmscm a1, tmscm a2, tmscm a3, tmscm a4);
 tmscm call_scheme (tmscm fun, array<tmscm> a);
 
 
+template<typename Return, typename... Args>
+inline void
+tmscm_install_procedure_checked (const char* name, Return (*func) (Args...),
+                                 int args, int p0, int p1) {
+  static_assert (std::is_same<Return, tmscm>::value,
+                 "Scheme primitives must return tmscm");
+  scm_new_procedure (name, reinterpret_cast<FN> (func), args, p0, p1);
+}
+
 #define tmscm_install_procedure(name, func, args, p0, p1) \
-  scm_new_procedure (name, ( FN )( func ), args, p0, p1)
+  tmscm_install_procedure_checked (name, func, args, p0, p1)
 
 #define TMSCM_ASSERT(_cond, _arg, _pos, _subr) \
  SCM_ASSERT(_cond, _arg, _pos, _subr)

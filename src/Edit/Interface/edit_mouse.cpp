@@ -224,6 +224,10 @@ edit_interface_rep::mouse_message (string message, SI x, SI y) {
   rectangles rs;
   tree r= eb->message (message, x, y, rs);
   if (N(rs) != 0) invalidate (rs);
+  if (is_tuple (r, "direct-link", 1) && is_atomic (r[1])) {
+    call ("go-to-url", object (r[1]->label));
+    return true;
+  }
   return r != "";
 }
 

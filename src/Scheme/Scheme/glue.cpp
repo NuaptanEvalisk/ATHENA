@@ -2022,6 +2022,13 @@ tmg_artifact_disambiguation_page (tmscm arg1) {
     athena_artifact_disambiguation_page (tmscm_to_string (arg1)));
 }
 
+template<void (*Function) ()>
+static tmscm
+tmg_void_nullary () {
+  Function ();
+  return TMSCM_UNSPECIFIED;
+}
+
 void
 initialize_glue () {
   initialize_escape_symbol_picker_data ();
@@ -2033,19 +2040,23 @@ initialize_glue () {
   tmscm_install_procedure ("modification?", modificationP, 1, 0, 0);
   tmscm_install_procedure ("patch?", patchP, 1, 0, 0);
   tmscm_install_procedure ("blackbox?", blackboxP, 1, 0, 0);
-  tmscm_install_procedure ("outline-pane-show", outline_pane_show, 0, 0, 0);
+  tmscm_install_procedure ("outline-pane-show",
+                           tmg_void_nullary<outline_pane_show>, 0, 0, 0);
   tmscm_install_procedure ("neighborhoods-pane-show",
-                           neighborhoods_pane_show, 0, 0, 0);
+                           tmg_void_nullary<neighborhoods_pane_show>, 0, 0, 0);
   tmscm_install_procedure ("handwriting-symbol-pane-show",
-                           handwriting_symbol_pane_show, 0, 0, 0);
+                           tmg_void_nullary<handwriting_symbol_pane_show>,
+                           0, 0, 0);
   tmscm_install_procedure ("error-messages-show",
-                           error_messages_show, 0, 0, 0);
+                           tmg_void_nullary<error_messages_show>, 0, 0, 0);
   tmscm_install_procedure ("command-palette-show",
-                           command_palette_show, 0, 0, 0);
+                           tmg_void_nullary<command_palette_show>, 0, 0, 0);
   tmscm_install_procedure ("custom-styles-manager-show",
-                           custom_styles_manager_show, 0, 0, 0);
+                           tmg_void_nullary<custom_styles_manager_show>,
+                           0, 0, 0);
   tmscm_install_procedure ("visual-buffer-switcher-show",
-                           visual_buffer_switcher_show, 0, 0, 0);
+                           tmg_void_nullary<visual_buffer_switcher_show>,
+                           0, 0, 0);
   tmscm_install_procedure ("visual-buffer-switcher-choose",
                            tmg_visual_buffer_switcher_choose, 1, 0, 0);
   tmscm_install_procedure ("heading-fold-toggle",
@@ -2075,19 +2086,22 @@ initialize_glue () {
   tmscm_install_procedure ("native-open-page-setup",
                            tmg_native_open_page_setup, 0, 0, 0);
   tmscm_install_procedure ("page-properties-pane-show",
-                           page_properties_pane_show, 0, 0, 0);
+                           tmg_void_nullary<page_properties_pane_show>,
+                           0, 0, 0);
   tmscm_install_procedure ("paragraph-properties-pane-show",
-                           paragraph_properties_pane_show, 0, 0, 0);
+                           tmg_void_nullary<paragraph_properties_pane_show>,
+                           0, 0, 0);
   tmscm_install_procedure ("metadata-properties-pane-show",
-                           metadata_properties_pane_show, 0, 0, 0);
+                           tmg_void_nullary<metadata_properties_pane_show>,
+                           0, 0, 0);
   tmscm_install_procedure ("escape-symbol-picker",
                            tmg_escape_symbol_picker, 0, 0, 0);
   tmscm_install_procedure ("ads-restore-visible-panes",
                            ads_restore_visible_panes, 0, 0, 0);
   tmscm_install_procedure ("vault-backup-viewer-show",
-                           vault_backup_viewer_show, 0, 0, 0);
+                           tmg_void_nullary<vault_backup_viewer_show>, 0, 0, 0);
   tmscm_install_procedure ("google-tasks-show",
-                           google_tasks_show, 0, 0, 0);
+                           tmg_void_nullary<google_tasks_show>, 0, 0, 0);
   tmscm_install_procedure ("google-cloud-todo-sync-buffer",
                            tmg_google_cloud_todo_sync_buffer, 1, 0, 0);
   tmscm_install_procedure ("google-cloud-todo-sync-open-buffers",
@@ -2107,17 +2121,19 @@ initialize_glue () {
   tmscm_install_procedure ("document-search-close",
                            tmg_document_search_close, 0, 0, 0);
   tmscm_install_procedure ("artifacts-pane-show",
-                           artifacts_pane_show, 0, 0, 0);
+                           tmg_void_nullary<artifacts_pane_show>, 0, 0, 0);
   tmscm_install_procedure ("artifacts-build-entire-vault",
-                           artifacts_build_entire_vault, 0, 0, 0);
+                           tmg_void_nullary<artifacts_build_entire_vault>,
+                           0, 0, 0);
   tmscm_install_procedure ("artifacts-build-current-document",
-                           artifacts_build_current_document, 0, 0, 0);
+                           tmg_void_nullary<artifacts_build_current_document>,
+                           0, 0, 0);
   tmscm_install_procedure ("artifact-open-uuid",
                            tmg_artifact_open_uuid, 1, 0, 0);
   tmscm_install_procedure ("artifact-disambiguation-page",
                            tmg_artifact_disambiguation_page, 1, 0, 0);
   tmscm_install_procedure ("materials-manager-show",
-                           materials_manager_show, 0, 0, 0);
+                           tmg_void_nullary<materials_manager_show>, 0, 0, 0);
   tmscm_install_procedure ("material-choose-citation",
                            tmg_material_choose_citation, 1, 0, 0);
   tmscm_install_procedure ("material-choose-references",
@@ -2129,27 +2145,32 @@ initialize_glue () {
   tmscm_install_procedure ("material-info-page",
                            tmg_material_info_page, 1, 0, 0);
   tmscm_install_procedure ("namespace-manager-show",
-                           namespace_manager_show, 0, 0, 0);
+                           tmg_void_nullary<namespace_manager_show>, 0, 0, 0);
   tmscm_install_procedure ("namespace-explorer-show",
-                           namespace_explorer_show, 0, 0, 0);
+                           tmg_void_nullary<namespace_explorer_show>, 0, 0, 0);
   tmscm_install_procedure ("reverse-hierarchy-graph-show",
-                           reverse_hierarchy_graph_show, 0, 0, 0);
+                           tmg_void_nullary<reverse_hierarchy_graph_show>,
+                           0, 0, 0);
   tmscm_install_procedure ("reverse-hierarchy-graph-insert",
-                           reverse_hierarchy_graph_insert, 0, 0, 0);
+                           tmg_void_nullary<reverse_hierarchy_graph_insert>,
+                           0, 0, 0);
   tmscm_install_procedure ("reverse-hierarchy-graph-render",
                            tmg_reverse_hierarchy_graph_render, 1, 0, 0);
   tmscm_install_procedure ("direct-hierarchy-graph-show",
-                           direct_hierarchy_graph_show, 0, 0, 0);
+                           tmg_void_nullary<direct_hierarchy_graph_show>,
+                           0, 0, 0);
   tmscm_install_procedure ("direct-hierarchy-graph-show-namespace",
                            tmg_direct_hierarchy_graph_show_namespace, 1, 0, 0);
   tmscm_install_procedure ("global-hierarchy-graph-show",
-                           global_hierarchy_graph_show, 0, 0, 0);
+                           tmg_void_nullary<global_hierarchy_graph_show>,
+                           0, 0, 0);
   tmscm_install_procedure ("local-reference-graph-show",
-                           local_reference_graph_show, 0, 0, 0);
+                           tmg_void_nullary<local_reference_graph_show>,
+                           0, 0, 0);
   tmscm_install_procedure ("reference-graph-show",
-                           reference_graph_show, 0, 0, 0);
+                           tmg_void_nullary<reference_graph_show>, 0, 0, 0);
   tmscm_install_procedure ("formula-ast-show",
-                           formula_ast_show, 0, 0, 0);
+                           tmg_void_nullary<formula_ast_show>, 0, 0, 0);
   tmscm_install_procedure ("vault-validate-root-namespace",
                            tmg_vault_validate_root_namespace, 0, 0, 0);
   tmscm_install_procedure ("namespace-info-page",
@@ -2160,9 +2181,9 @@ initialize_glue () {
     "namespace-create-file-with-optional-initializer",
     tmg_namespace_create_file_with_optional_initializer, 1, 0, 0);
   tmscm_install_procedure ("namespace-export-show",
-                           namespace_export_show, 0, 0, 0);
+                           tmg_void_nullary<namespace_export_show>, 0, 0, 0);
   tmscm_install_procedure ("websites-manager-show",
-                           websites_manager_show, 0, 0, 0);
+                           tmg_void_nullary<websites_manager_show>, 0, 0, 0);
   tmscm_install_procedure ("vault-load-with-ns",
                            tmg_vault_load_with_ns, 4, 0, 0);
   tmscm_install_procedure ("vault-rewrite-anchor-references",

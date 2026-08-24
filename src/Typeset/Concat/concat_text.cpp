@@ -40,7 +40,7 @@ concater_rep::typeset_substring (string s, path ip, int pos) {
 
 void
 concater_rep::typeset_radioactive_substring (
-  string s, path ip, int pos, string id, string destination) {
+  string s, path ip, int pos, string destination) {
   string color= env->get_string (RADIOACTIVE_LINK_COLOR);
   if (color == "preserve") color= "";
   else if (color == "global")
@@ -48,7 +48,7 @@ concater_rep::typeset_radioactive_substring (
   typeset_colored_substring (s, ip, pos, color);
   if (N(a) > 0) {
     a[N(a)-1]->b= locus_box (a[N(a)-1]->b->ip, a[N(a)-1]->b,
-                             list<string> (id), env->pixel, destination, "");
+                             list<string> (), env->pixel, destination, "");
     // A locus is a modifier box, not a textual leaf.  Keeping STRING_ITEM here
     // makes the line breaker call get_leaf_string() on the locus wrapper.
     a[N(a)-1]->type= STD_ITEM;
@@ -122,14 +122,12 @@ concater_rep::typeset_text_string (tree t, path ip, int pos, int end) {
   struct ActiveMatch {
     int start;
     int end;
-    string id;
     string destination;
   };
   std::vector<ActiveMatch> links;
   bool allow_links= is_accessible (ip) &&
                     env->get_string (PAGE_PRINTED) != "true" &&
-                    env->get_string ("athena-inside-locus") != "true" &&
-                    !is_nil (env->link_env);
+                    env->get_string ("athena-inside-locus") != "true";
   if (allow_links) {
     auto matches= athena_artifact_radioactive_matches (s);
     links.reserve (matches.size ());
@@ -137,18 +135,9 @@ concater_rep::typeset_text_string (tree t, path ip, int pos, int end) {
       if (match.start < pos || match.end > end || match.start >= match.end)
         continue;
       if (match.uuids.empty ()) continue;
-      const std::string& first_candidate= match.uuids.front ();
-      string uuid (first_candidate.data (), (int) first_candidate.size ());
-      string id= "%artifact:" * uuid * ":" * as_string (ip) * ":" *
-                 as_string (match.start);
       std::string target= athena_artifact_radioactive_destination (match);
       string destination (target.data (), (int) target.size ());
-      env->link_env->insert_locus (id, t);
-      tree source_id (ID, tree (id));
-      tree destination_url (URL, tree (destination));
-      env->link_env->insert_link (
-        tree (LINK, "hyperlink", tree (ATTR), source_id, destination_url));
-      links.push_back ({match.start, match.end, id, destination});
+      links.push_back ({match.start, match.end, destination});
     }
   }
 
@@ -169,8 +158,7 @@ concater_rep::typeset_text_string (tree t, path ip, int pos, int end) {
         typeset_substring (s (current, linked_start), ip, current);
       if (linked_end > linked_start)
         typeset_radioactive_substring (
-          s (linked_start, linked_end), ip, linked_start,
-          link.id, link.destination);
+          s (linked_start, linked_end), ip, linked_start, link.destination);
       current= linked_end;
     }
     if (current < last) typeset_substring (s (current, last), ip, current);

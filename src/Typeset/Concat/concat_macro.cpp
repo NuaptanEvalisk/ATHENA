@@ -508,13 +508,13 @@ concater_rep::typeset_range (tree t, path ip) {
     else {
       marker (descend (ip, 0));
       if (env->mode == 1)
-        typeset_text_string (t1->label, ip1, i1, i2);
+        typeset_text_string (t1, ip1, i1, i2);
       else if (env->mode == 2)
         typeset_math_string (t1->label, ip1, i1, i2);
       else if (env->mode == 3)
         typeset_prog_string (t1       , ip1, i1, i2);
       else
-        typeset_text_string (t1->label, ip1, i1, i2);
+        typeset_text_string (t1, ip1, i1, i2);
       marker (descend (ip, 1));
     }
   }

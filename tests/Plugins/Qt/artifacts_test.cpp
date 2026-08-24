@@ -46,6 +46,7 @@ private slots:
   void buildsIncrementallyAndPurgesDeletedDocuments ();
   void storesAndDisambiguatesSameNamedArtifacts ();
   void navigatesArtifactAndLoadsDisambiguationPage ();
+  void keepsRadioactiveRangeMacroLociAlive ();
   void preservesBoldIdentityWhenDuplicateIsInsertedBefore ();
   void doesNotTransferDeletedDuplicateToInsertedDuplicate ();
   void rejectsIdentityTransferWhenParagraphIsCopiedExactly ();
@@ -644,6 +645,95 @@ TestArtifacts::navigatesArtifactAndLoadsDisambiguationPage () {
   QVERIFY2 (assertions.contains ("same-anchor=1"), assertions.constData ());
   QVERIFY2 (assertions.contains ("disambiguation-buffer=1"),
             assertions.constData ());
+}
+
+void
+TestArtifacts::keepsRadioactiveRangeMacroLociAlive () {
+  QTemporaryDir temporary;
+  QVERIFY (temporary.isValid ());
+  fs::path root (temporary.filePath ("vault").toStdString ());
+  QVERIFY (fs::create_directories (root));
+
+  AthenaVaultfileInfo info;
+  std::string error;
+  QVERIFY2 (athena_vaultfile_write (root, info, error), error.c_str ());
+  write_document (
+    root / "Euler.ath",
+    named_theorem_document (
+      "Euler's theorem",
+      "Every homogeneous function satisfies Euler's identity."));
+  tree demoBody (DOCUMENT);
+  demoBody << compound ("range", "Eulerian theorem has several meanings.",
+                        "0", "38");
+  tree demoDocument (DOCUMENT);
+  demoDocument << compound ("TeXmacs", "2.1.4")
+               << compound ("style", "generic")
+               << compound ("body", demoBody);
+  write_document (root / "Demo.ath", demoDocument);
+
+  AthenaArtifactsBuildResult built;
+  QVERIFY2 (athena_artifacts_build (root, {}, true, {}, built, error),
+            error.c_str ());
+
+  QString home= temporary.filePath ("home");
+  QVERIFY (QDir ().mkpath (home + "/progs"));
+  QVERIFY (QDir ().mkpath (home + "/fonts"));
+  QVERIFY (QDir ().mkpath (home + "/system"));
+  QString resultPath= temporary.filePath ("range-result.txt");
+  QString demoPath= QString::fromStdString ((root / "Demo.ath").string ());
+  QString script= QString (R"SCM(
+(set-preference "check for updates" "off")
+(delayed (:pause 500)
+  (begin
+    (load-vault-dir (system->url %1))
+    (delayed (:pause 300)
+      (begin
+        (load-buffer (system->url %2))
+        (delayed (:pause 1200)
+          (begin
+            (string-save "range-locus-alive=1\n" (system->url %3))
+            (quit-TeXmacs)))))))
+)SCM")
+    .arg (scheme_quote (QString::fromStdString (root.string ())))
+    .arg (scheme_quote (demoPath))
+    .arg (scheme_quote (resultPath));
+  QFile init (home + "/progs/my-init-texmacs.scm");
+  QVERIFY (init.open (QIODevice::WriteOnly | QIODevice::Text));
+  QCOMPARE (init.write (script.toUtf8 ()), (qint64) script.toUtf8 ().size ());
+  init.close ();
+
+  QString executable=
+    QDir (QCoreApplication::applicationDirPath ())
+      .absoluteFilePath ("../src/ATHENA.bin");
+  QString launcherDirectory= temporary.filePath ("bin");
+  QVERIFY (QDir ().mkpath (launcherDirectory));
+  QString launcher= launcherDirectory + "/ATHENA";
+  QVERIFY2 (QFile::link (executable, launcher), qPrintable (launcher));
+  QProcess process;
+  QProcessEnvironment environment= QProcessEnvironment::systemEnvironment ();
+  environment.insert (
+    "ATHENA_PATH",
+    QDir (QCoreApplication::applicationDirPath ())
+      .absoluteFilePath ("../../ATHENA"));
+  environment.insert ("ATHENA_BIN_PATH", QFileInfo (executable).absolutePath ());
+  environment.insert ("PATH", launcherDirectory + ':' + environment.value ("PATH"));
+  environment.insert ("ATHENA_HOME_PATH", home);
+  environment.insert ("QT_QPA_PLATFORM", "offscreen");
+  environment.insert ("TM_REEXEC", "1");
+  process.setProcessEnvironment (environment);
+  process.setProgram (launcher);
+  process.setArguments ({"--no-splash-screen", "--platform", "offscreen"});
+  process.start ();
+  QVERIFY2 (process.waitForFinished (30000), qPrintable (process.errorString ()));
+  QByteArray diagnostic= process.readAllStandardOutput () +
+                         process.readAllStandardError ();
+  QCOMPARE (process.exitStatus (), QProcess::NormalExit);
+  QVERIFY2 (!diagnostic.contains ("The required path does not exist"),
+            diagnostic.right (8192).constData ());
+  QFile result (resultPath);
+  QVERIFY2 (result.open (QIODevice::ReadOnly | QIODevice::Text),
+            diagnostic.right (8192).constData ());
+  QVERIFY (result.readAll ().contains ("range-locus-alive=1"));
 }
 
 void

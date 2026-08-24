@@ -749,6 +749,7 @@ struct locus_box_rep: public change_box_rep {
   operator tree () { return tree (TUPLE, "locus"); }
   box adjust_kerning (int mode, double factor);
   box expand_glyphs (int mode, double factor);
+  tree message (tree type, SI x, SI y, rectangles& rs);
   void loci (SI x, SI y, SI delta, list<string>& ids2, rectangles& rs);
   void collect_page_numbers (hashmap<string,tree>& h, tree page);
   void post_display (renderer &ren);
@@ -786,6 +787,15 @@ box
 locus_box_rep::expand_glyphs (int mode, double factor) {
   box body= bs[0]->expand_glyphs (mode, factor);
   return locus_box (ip, body, ids, pixel, ref, anchor);
+}
+
+tree
+locus_box_rep::message (tree type, SI x, SI y, rectangles& rs) {
+  if (ref != "" && is_nil (ids) &&
+      (type == "select" || type == "double-click") &&
+      x >= x1 && x < x2 && y >= y1 && y < y2)
+    return tree (TUPLE, "direct-link", ref);
+  return bs[0]->message (type, x, y, rs);
 }
 
 void

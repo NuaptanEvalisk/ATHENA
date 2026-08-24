@@ -44,7 +44,7 @@ class concater_rep {
   // textual markup
   void typeset_substring (string s, path ip, int pos);
   void typeset_radioactive_substring (string s, path ip, int pos,
-                                      string id, string destination);
+                                      string destination);
   void typeset_math_substring (string s, path ip, int pos, int op_type);
   void typeset_math_macro (string s, tree_label m, path ip,
                            int p1, int p2, int ot);
