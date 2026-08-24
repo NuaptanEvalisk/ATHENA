@@ -22,7 +22,9 @@ set(ATHENA_GUILE_LIBRARY
   "${ATHENA_GUILE_PREFIX}/lib/libathena-guile${CMAKE_SHARED_LIBRARY_SUFFIX}")
 
 set(ATHENA_GUILE_C_FLAGS
-  "-O3 -g -std=gnu17 -fno-omit-frame-pointer")
+  "-O3 -g -std=gnu17 -fno-omit-frame-pointer -march=native -mavx2 -funroll-loops")
+set(ATHENA_GUILE_LINK_FLAGS
+  "-flto=thin -fuse-ld=lld -Wl,--thinlto-cache-dir=${ATHENA_GUILE_BUILD_DIR}/lto-cache")
 if(CMAKE_C_COMPILER_ID MATCHES "Intel")
   # Guile's numeric semantics require gradual underflow. IntelLLVM defaults
   # optimized builds to fast floating point and enables FTZ/DAZ otherwise.
@@ -49,6 +51,7 @@ ExternalProject_Add(athena_guile_runtime
     "${CMAKE_COMMAND}" -E env
       "CC=${CMAKE_C_COMPILER}"
       "CFLAGS=${ATHENA_GUILE_C_FLAGS}"
+      "LDFLAGS=${ATHENA_GUILE_LINK_FLAGS}"
       <SOURCE_DIR>/configure
         --prefix=<INSTALL_DIR>
         --libdir=<INSTALL_DIR>/lib
@@ -56,7 +59,7 @@ ExternalProject_Add(athena_guile_runtime
         --disable-static
         --enable-jit=yes
         --disable-nls
-        --disable-lto
+        --enable-lto=thin
   BUILD_COMMAND "${ATHENA_GUILE_MAKE_EXECUTABLE}" -j20
   INSTALL_COMMAND "${ATHENA_GUILE_MAKE_EXECUTABLE}" -j20 install
   BUILD_BYPRODUCTS "${ATHENA_GUILE_LIBRARY}"

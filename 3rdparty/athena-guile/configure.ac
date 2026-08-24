@@ -73,9 +73,21 @@ else
   AC_MSG_RESULT([no])
 fi
 
+AC_MSG_CHECKING([whether the compiler supports -flto=thin])
+old_CFLAGS="$CFLAGS"
+THIN_LTO_CFLAGS="-flto=thin"
+CFLAGS="$CFLAGS $THIN_LTO_CFLAGS"
+AC_LINK_IFELSE([AC_LANG_PROGRAM([int foo;], [])],, [THIN_LTO_CFLAGS=])
+CFLAGS="$old_CFLAGS"
+if test -n "$THIN_LTO_CFLAGS"; then
+  AC_MSG_RESULT([yes])
+else
+  AC_MSG_RESULT([no])
+fi
+
 AC_ARG_ENABLE(lto,
   [AS_HELP_STRING([--enable-lto]
-                  [enable link-time optimization for libguile])],
+                  [enable link-time optimization for libguile (yes, no, or thin)])],
   [],
   [if test -z "$LTO_CFLAGS"; then enable_lto=no; else enable_lto=yes; fi])
 case "$enable_lto" in
@@ -89,6 +101,23 @@ case "$enable_lto" in
        TOOLCHAIN_PREFIX=gcc
     else
        # Assuming LLVM if not GCC.  Probably won't hurt.
+       TOOLCHAIN_PREFIX=llvm
+    fi
+    AC_MSG_RESULT([$TOOLCHAIN_PREFIX])
+    AC_CHECK_TOOLS([AR], [$TOOLCHAIN_PREFIX-ar ar])
+    AC_CHECK_TOOLS([NM], [$TOOLCHAIN_PREFIX-nm nm])
+    AC_CHECK_TOOLS([OBJCOPY], [$TOOLCHAIN_PREFIX-objcopy objcopy])
+    AC_CHECK_TOOLS([RANLIB], [$TOOLCHAIN_PREFIX-ranlib ranlib])
+    ;;
+  thin)
+    if test -z "$THIN_LTO_CFLAGS"; then
+      AC_MSG_ERROR([--enable-lto=thin unsupported for $CC])
+    fi
+    CFLAGS="$CFLAGS $THIN_LTO_CFLAGS"
+    AC_MSG_CHECKING([for thin-lto-specific prefix for ar, nm, objcopy, ranlib])
+    if test "$GCC" = yes; then
+       TOOLCHAIN_PREFIX=gcc
+    else
        TOOLCHAIN_PREFIX=llvm
     fi
     AC_MSG_RESULT([$TOOLCHAIN_PREFIX])
