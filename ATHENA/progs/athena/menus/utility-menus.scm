@@ -63,9 +63,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (menu-bind athena-file-utilities-menu
-  ("Export namespace" (namespace-export-show))
-  (if (url-exists-in-path? "pdflatex")
-      (-> "LaTeX" (link tmtex-menu))))
+  ("Export namespace" (namespace-export-show)))
 
 (menu-bind athena-document-utilities-menu
   (-> "Macros" (link source-macros-menu))

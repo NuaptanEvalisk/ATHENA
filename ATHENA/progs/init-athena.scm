@@ -439,7 +439,6 @@
 (lazy-define (convert latex latex-tools) latex-set-virtual-packages
              latex-has-style? latex-has-package?
              latex-has-athena-style? latex-has-athena-package?)
-(lazy-menu (convert latex tmtex-widgets) tmtex-menu)
 ;(display* "time: " (- (athena-time) boot-start) "\n")
 ;(display* "memory: " (athena-memory) " bytes\n")
 
