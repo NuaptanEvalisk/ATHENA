@@ -4,6 +4,22 @@
   (unless (equal? expected actual)
     (error label expected actual)))
 
+(define (assert-true actual label)
+  (unless actual
+    (error label actual)))
+
+(let ((stats (gc-stats)))
+  (assert-true (>= (assq-ref stats 'heap-size) (* 64 1024 1024))
+               "ATHENA initial GC heap")
+  (assert-true (> (assq-ref stats 'gc-parallel-markers) 1)
+               "ATHENA parallel GC markers")
+  (assert-equal #t (assq-ref stats 'gc-incremental)
+                "ATHENA incremental GC")
+  (assert-equal 1 (assq-ref stats 'gc-free-space-divisor)
+                "ATHENA GC free-space divisor")
+  (assert-equal 10 (assq-ref stats 'gc-time-limit-ms)
+                "ATHENA incremental GC pause target"))
+
 (define (native-inherited-forward-reference)
   native-inherited-forward-binding)
 

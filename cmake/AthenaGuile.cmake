@@ -1,4 +1,5 @@
 include(ExternalProject)
+include(AthenaBdwgc)
 
 find_program(ATHENA_GUILE_MAKE_EXECUTABLE NAMES gmake make REQUIRED)
 
@@ -52,6 +53,7 @@ ExternalProject_Add(athena_guile_runtime
       "CC=${CMAKE_C_COMPILER}"
       "CFLAGS=${ATHENA_GUILE_C_FLAGS}"
       "LDFLAGS=${ATHENA_GUILE_LINK_FLAGS}"
+      "PKG_CONFIG_PATH=${ATHENA_BDWGC_PKGCONFIG_DIR}:$ENV{PKG_CONFIG_PATH}"
       <SOURCE_DIR>/configure
         --prefix=<INSTALL_DIR>
         --libdir=<INSTALL_DIR>/lib
@@ -63,6 +65,7 @@ ExternalProject_Add(athena_guile_runtime
   BUILD_COMMAND "${ATHENA_GUILE_MAKE_EXECUTABLE}" -j20
   INSTALL_COMMAND "${ATHENA_GUILE_MAKE_EXECUTABLE}" -j20 install
   BUILD_BYPRODUCTS "${ATHENA_GUILE_LIBRARY}"
+  DEPENDS athena_bdwgc_runtime
   USES_TERMINAL_BUILD TRUE
   USES_TERMINAL_INSTALL TRUE)
 

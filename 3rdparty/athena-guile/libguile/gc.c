@@ -68,7 +68,10 @@
    result of 'guile -c "(display (assq-ref (gc-stats)
    'heap-total-allocated))"'.  */
 
-#define DEFAULT_INITIAL_HEAP_SIZE (256 * 1024 * SIZEOF_UINTPTR_T)
+#define ATHENA_INITIAL_HEAP_SIZE (64 * 1024 * 1024)
+#define ATHENA_GC_FREE_SPACE_DIVISOR 1
+#define ATHENA_GC_PAUSE_TARGET_MS 10
+#define ATHENA_GC_MAX_MARKERS 16
 
 /* Set this to != 0 if every cell that is accessed shall be checked:
  */
@@ -155,6 +158,10 @@ SCM_SYMBOL (sym_heap_total_allocated, "heap-total-allocated");
 SCM_SYMBOL (sym_heap_allocated_since_gc, "heap-allocated-since-gc");
 SCM_SYMBOL (sym_protected_objects, "protected-objects");
 SCM_SYMBOL (sym_times, "gc-times");
+SCM_SYMBOL (sym_parallel_markers, "gc-parallel-markers");
+SCM_SYMBOL (sym_incremental, "gc-incremental");
+SCM_SYMBOL (sym_free_space_divisor, "gc-free-space-divisor");
+SCM_SYMBOL (sym_time_limit, "gc-time-limit-ms");
 
 
 /* {Scheme Interface to GC}
@@ -185,6 +192,14 @@ SCM_DEFINE (scm_gc_stats, "gc-stats", 0, 0, 0,
 		scm_cons (sym_protected_objects,
 			  scm_from_ulong (protected_obj_count)),
 		scm_cons (sym_times, scm_from_size_t (gc_times)),
+		scm_cons (sym_parallel_markers,
+			  scm_from_int (GC_get_parallel () + 1)),
+		scm_cons (sym_incremental,
+			  scm_from_bool (GC_is_incremental_mode ())),
+		scm_cons (sym_free_space_divisor,
+			  scm_from_ulong (GC_get_free_space_divisor ())),
+		scm_cons (sym_time_limit,
+			  scm_from_ulong (GC_get_time_limit ())),
 		SCM_UNDEFINED);
 
   return answer;
@@ -445,8 +460,21 @@ scm_gc_unregister_roots (SCM *b, unsigned long n)
 void
 scm_storage_prehistory ()
 {
+  long processor_count;
+  unsigned marker_count;
+
   GC_set_all_interior_pointers (0);
   GC_set_finalize_on_demand (1);
+
+  processor_count = sysconf (_SC_NPROCESSORS_ONLN);
+  marker_count = processor_count > 1 ? (unsigned) processor_count : 2;
+  if (marker_count > ATHENA_GC_MAX_MARKERS)
+    marker_count = ATHENA_GC_MAX_MARKERS;
+  GC_set_markers_count (marker_count);
+
+  /* A smaller divisor deliberately trades memory for fewer collections.  */
+  GC_set_free_space_divisor (ATHENA_GC_FREE_SPACE_DIVISOR);
+  GC_set_time_limit (ATHENA_GC_PAUSE_TARGET_MS);
 
 #if (GC_VERSION_MAJOR == 7 && GC_VERSION_MINOR == 4	\
      && GC_VERSION_MICRO == 0)
@@ -465,8 +493,10 @@ scm_storage_prehistory ()
   GC_INIT ();
 
   size_t heap_size = GC_get_heap_size ();
-  if (heap_size < DEFAULT_INITIAL_HEAP_SIZE)
-    GC_expand_hp (DEFAULT_INITIAL_HEAP_SIZE - heap_size);
+  if (heap_size < ATHENA_INITIAL_HEAP_SIZE)
+    GC_expand_hp (ATHENA_INITIAL_HEAP_SIZE - heap_size);
+
+  GC_enable_incremental ();
 
   /* We only need to register a displacement for those types for which the
      higher bits of the type tag are used to store a pointer (that is, a
@@ -575,7 +605,7 @@ accumulate_gc_timer (void * hook_data SCM_UNUSED,
   return NULL;
 }
 
-static size_t bytes_until_gc = DEFAULT_INITIAL_HEAP_SIZE;
+static size_t bytes_until_gc = ATHENA_INITIAL_HEAP_SIZE;
 static scm_i_pthread_mutex_t bytes_until_gc_lock = SCM_I_PTHREAD_MUTEX_INITIALIZER;
 
 void
