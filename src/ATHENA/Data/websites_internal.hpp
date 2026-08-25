@@ -121,6 +121,11 @@ bool export_document_html (tree doc, const fs::path& source,
                            std::string& error);
 bool export_document_pdf (const fs::path& source, const fs::path& target,
                           std::string& error);
+bool decorate_website_document (const fs::path& target,
+                                const std::string& output_rel,
+                                const std::string& title,
+                                const std::string& pdf_href,
+                                const std::string& site_data_version = "");
 
 bool write_site_shell (const athena_website_entry& website,
                        const GenerationContext& cx,

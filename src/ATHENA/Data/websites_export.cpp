@@ -262,10 +262,16 @@ inject_or_replace_document_title (std::string& html, const std::string& title) {
 
 void
 inject_document_favicon (std::string& html, const std::string& output_rel) {
+  size_t legacy = html.find ("css/favicon.png");
+  if (legacy != std::string::npos) {
+    html.replace (legacy, std::string ("css/favicon.png").size (),
+                  "icons/favicon.png");
+    return;
+  }
   if (html.find ("rel=\"icon\"") != std::string::npos ||
       html.find ("rel='icon'") != std::string::npos)
     return;
-  std::string href = relative_href (output_rel, "css/favicon.png");
+  std::string href = relative_href (output_rel, "icons/favicon.png");
   std::string link = "<link rel=\"icon\" href=\"" + html_escape (href) +
                      "\"></link>\n";
   size_t head = html.find ("</head>");
@@ -660,18 +666,43 @@ set_current_save_urls (const fs::path& source, const fs::path& target) {
 }
 
 std::string
-document_bridge_script (const std::string& pdf_href) {
+document_site_root (const std::string& output_rel) {
+  std::string root = relative_href (output_rel, "index.html");
+  const std::string index = "index.html";
+  if (root.size () >= index.size () &&
+      root.compare (root.size () - index.size (), index.size (), index) == 0)
+    root.erase (root.size () - index.size ());
+  return root.empty () ? "./" : root;
+}
+
+std::string
+document_bridge_script (const std::string& output_rel,
+                        const std::string& pdf_href,
+                        const std::string& site_data_version) {
   std::string js;
   if (!website_template_text ("document-bridge.js", js)) return "";
-  return "<script data-athena-website-bridge=\"3\">\n"
+  std::string data_script;
+  if (!site_data_version.empty ()) {
+    std::string href = relative_href (output_rel, "site-data.js") +
+                       "?v=" + site_data_version;
+    data_script = "<script data-athena-website-data=\"1\" src=\"" +
+                  html_escape (href) + "\"></script>\n";
+  }
+  return "<!-- ATHENA_WEBSITE_SHELL_BEGIN -->\n" + data_script +
+         "<script data-athena-website-bridge=\"4\">\n"
+         "window.ATHENA_SITE_ROOT=" +
+         json_script_string (document_site_root (output_rel)) + ";\n"
          "window.ATHENA_DOCUMENT_PDF=" + json_script_string (pdf_href) +
          ";\n"
          "/* ATHENA_WEBSITE_BRIDGE_BEGIN */\n" + js +
-         "\n/* ATHENA_WEBSITE_BRIDGE_END */\n</script>\n";
+         "\n/* ATHENA_WEBSITE_BRIDGE_END */\n</script>\n" +
+         "<!-- ATHENA_WEBSITE_SHELL_END -->\n";
 }
 
 std::string
 document_theme_style () {
+  std::string website_css;
+  website_template_text ("site.css", website_css);
   std::string background_css;
   if (get_preference ("override white document background", "off") == "on") {
     string pref = get_preference ("white document background override color",
@@ -681,15 +712,8 @@ document_theme_style () {
   }
   return "<style data-athena-website-theme=\"1\">\n" +
          site_theme_css () +
+         website_css + "\n" +
          background_css +
-         "a:link{color:var(--athena-link-color)}\n"
-         "a:visited{color:var(--athena-visited-color)}\n"
-         ".athena-standalone-pdf-download{position:fixed;right:18px;"
-         "bottom:18px;z-index:2147483646;padding:8px 13px;border:1px solid "
-         "rgba(0,0,0,.45);background:rgba(240,240,240,.88);color:#111;"
-         "font:600 14px sans-serif;text-decoration:none;box-shadow:2px 2px "
-         "0 rgba(0,0,0,.28)}\n"
-         ".athena-standalone-pdf-download:hover{background:#fff;color:#111}\n"
          "</style>\n";
 }
 
@@ -713,16 +737,30 @@ inject_or_replace_document_theme (std::string& html) {
 }
 
 bool
-inject_document_bridge (const fs::path& target, const std::string& output_rel,
-                        const std::string& title,
-                        const std::string& pdf_href) {
+decorate_website_document (const fs::path& target,
+                           const std::string& output_rel,
+                           const std::string& title,
+                           const std::string& pdf_href,
+                           const std::string& site_data_version) {
   std::string html;
   if (!read_file_bytes (target, html)) return false;
-  std::string script = document_bridge_script (pdf_href);
+  std::string script = document_bridge_script (
+    output_rel, pdf_href, site_data_version);
   if (script.empty ()) return false;
   inject_or_replace_document_title (html, title);
   inject_document_favicon (html, output_rel);
   inject_or_replace_document_theme (html);
+  std::string shell_begin = "<!-- ATHENA_WEBSITE_SHELL_BEGIN -->";
+  std::string shell_end = "<!-- ATHENA_WEBSITE_SHELL_END -->";
+  size_t old_shell = html.find (shell_begin);
+  if (old_shell != std::string::npos) {
+    size_t old_end = html.find (shell_end, old_shell);
+    if (old_end != std::string::npos) {
+      old_end += shell_end.size ();
+      html.replace (old_shell, old_end - old_shell, script);
+      return write_file_bytes (target, html);
+    }
+  }
   std::string begin = "/* ATHENA_WEBSITE_BRIDGE_BEGIN */";
   std::string end = "/* ATHENA_WEBSITE_BRIDGE_END */";
   size_t old_begin = html.find (begin);
@@ -800,7 +838,7 @@ export_document_html (tree doc, const fs::path& source,
     error = "HTML export produced an empty page for " + source.string ();
     return false;
   }
-  if (!inject_document_bridge (target, output_rel, title, pdf_href)) {
+  if (!decorate_website_document (target, output_rel, title, pdf_href)) {
     error = "Could not inject website bridge into " + target.string ();
     return false;
   }

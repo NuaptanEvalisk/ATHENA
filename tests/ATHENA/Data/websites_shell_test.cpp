@@ -1,6 +1,6 @@
 /******************************************************************************
 * MODULE     : websites_shell_test.cpp
-* DESCRIPTION: Tests for versioned static website shell assets
+* DESCRIPTION: Tests for content-first static website pages
 * COPYRIGHT  : (C) 2026 Nuaptan Felix Evalisk
 *******************************************************************************
 * This software falls under the GNU general public license version 3 or later.
@@ -11,7 +11,6 @@
 #include "ATHENA/Data/websites_internal.hpp"
 
 #include <QFile>
-#include <QRegularExpression>
 #include <QTemporaryDir>
 #include <QtTest/QtTest>
 
@@ -21,8 +20,8 @@ class TestWebsiteShell: public QObject {
   Q_OBJECT
 
 private slots:
-  void writesOneVersionedAssetGeneration ();
-  void externalWebLinksOpenOutsideDocumentFrame ();
+  void writesContentFirstEntryAndManifest ();
+  void externalWebLinksOpenInNewTabs ();
   void persistsRedirectionConfiguration ();
   void persistsPdfGenerationConfiguration ();
   void exposesDocumentPdfDownloads ();
@@ -38,56 +37,67 @@ readText (const QString& path) {
   return QString::fromUtf8 (file.readAll ());
 }
 
+static bool
+writePage (const QString& path) {
+  QFileInfo info (path);
+  QDir ().mkpath (info.absolutePath ());
+  QFile file (path);
+  if (!file.open (QIODevice::WriteOnly)) return false;
+  return file.write (
+    "<!doctype html><html><head><title>Old</title></head>"
+    "<body><h1>Heading</h1><p>Content</p></body></html>") > 0;
+}
+
 void
-TestWebsiteShell::writesOneVersionedAssetGeneration () {
+TestWebsiteShell::writesContentFirstEntryAndManifest () {
   QTemporaryDir temp;
   QVERIFY (temp.isValid ());
 
   athena_website_entry website;
   website.id= "test-site";
   website.name= "Test site";
+  website.entrypoint_value= "Notes/Home.ath";
 
   GenerationContext context;
   context.destination= fs::path (temp.path ().toStdString ());
+  context.selected_files= {"Notes/Home.ath"};
+  context.html_paths["Notes/Home.ath"]= "Notes/Home.html";
+  context.titles["Notes/Home.ath"]= "Home";
+  QVERIFY (writePage (temp.filePath ("Notes/Home.html")));
+
   std::string error;
   QVERIFY2 (write_site_shell (website, context, error), error.c_str ());
 
   QString index= readText (temp.filePath ("index.html"));
   QVERIFY (!index.isEmpty ());
-  QVERIFY (!index.contains ("Skip to desktop"));
-  QVERIFY (!index.contains ("{{ASSET_VERSION}}"));
+  QVERIFY (index.contains ("location.replace"));
+  QVERIFY (index.contains ("Notes/Home.html"));
+  QVERIFY (!index.contains ("iframe"));
+  QVERIFY (!index.contains ("taskbar"));
+  QVERIFY (QFile::exists (temp.filePath ("site-manifest.json")));
+  QVERIFY (QFile::exists (temp.filePath ("site-data.js")));
+  QVERIFY (QFile::exists (temp.filePath ("icons/vault.svg")));
+  QVERIFY (QFile::exists (temp.filePath ("icons/search.svg")));
 
-  QRegularExpression reference (
-    "(?:href|src)=\\\"((?:css|js)/[^\\\"]+\\.([0-9a-f]{16})\\.(?:css|js))\\\"");
-  QRegularExpressionMatchIterator matches= reference.globalMatch (index);
-  QString version;
-  int count= 0;
-  while (matches.hasNext ()) {
-    QRegularExpressionMatch match= matches.next ();
-    QString path= match.captured (1);
-    QString currentVersion= match.captured (2);
-    if (version.isEmpty ()) version= currentVersion;
-    QCOMPARE (currentVersion, version);
-    QVERIFY2 (QFile::exists (temp.filePath (path)),
-              qPrintable ("Missing generated asset: " + path));
-    count++;
-  }
-  QCOMPARE (count, 9);
-  QCOMPARE (version.size (), 16);
+  QString page= readText (temp.filePath ("Notes/Home.html"));
+  QVERIFY (page.contains ("window.ATHENA_SITE_ROOT=\"../\""));
+  QVERIFY (page.contains ("athena-site-toolbar"));
+  QVERIFY (page.contains ("site-manifest.json"));
+  QVERIFY (page.contains ("src=\"../site-data.js?v="));
 }
 
 void
-TestWebsiteShell::externalWebLinksOpenOutsideDocumentFrame () {
+TestWebsiteShell::externalWebLinksOpenInNewTabs () {
   std::string bridge;
   QVERIFY (website_template_text ("document-bridge.js", bridge));
   QString script= QString::fromStdString (bridge);
 
   QVERIFY (script.contains ("document.querySelectorAll('a[href]')"));
   QVERIFY (script.contains ("/^(?:https?:)?\\/\\//i"));
-  QVERIFY (script.contains ("link.setAttribute('target','_blank')"));
+  QVERIFY (script.contains ("link.target='_blank'"));
   QVERIFY (script.contains ("['noopener','noreferrer']"));
   QVERIFY (script.contains (
-    "document.addEventListener('DOMContentLoaded',initializeDocumentBridge)"));
+    "document.addEventListener('DOMContentLoaded',start)"));
 }
 
 void
@@ -138,23 +148,17 @@ TestWebsiteShell::exposesDocumentPdfDownloads () {
   context.html_paths["Notes/Example.ath"]= "Notes/Example.html";
   context.pdf_paths["Notes/Example.ath"]= "pdf/Notes/Example.pdf";
   context.titles["Notes/Example.ath"]= "Example";
+  QVERIFY (writePage (temp.filePath ("Notes/Example.html")));
 
   std::string error;
   QVERIFY2 (write_site_shell (website, context, error), error.c_str ());
-  QString index= readText (temp.filePath ("index.html"));
-  QVERIFY (index.contains ("id=\"doc-pdf\""));
-
-  QString siteData;
-  QDir jsDir (temp.filePath ("js"));
-  QStringList files= jsDir.entryList ({"site-data.*.js"}, QDir::Files);
-  QCOMPARE (files.size (), 1);
-  siteData= readText (jsDir.filePath (files.first ()));
-  QVERIFY (siteData.contains ("\"pdf\":\"pdf/Notes/Example.pdf\""));
-
-  std::string bridge;
-  QVERIFY (website_template_text ("document-bridge.js", bridge));
-  QVERIFY (QString::fromStdString (bridge).contains (
-    "athena-standalone-pdf-download"));
+  QVERIFY (!readText (temp.filePath ("index.html")).contains ("doc-pdf"));
+  QVERIFY (readText (temp.filePath ("site-manifest.json")).contains (
+    "\"pdf\":\"pdf/Notes/Example.pdf\""));
+  QString page= readText (temp.filePath ("Notes/Example.html"));
+  QVERIFY (page.contains (
+    "window.ATHENA_DOCUMENT_PDF=\"../pdf/Notes/Example.pdf\""));
+  QVERIFY (page.contains ("athena-site-tool-pdf"));
 }
 
 void
@@ -175,6 +179,8 @@ TestWebsiteShell::writesCloudflareRedirections () {
   context.selected_files= {"Notes/Quick Start.ath", "Manual.ath"};
   context.html_paths["Notes/Quick Start.ath"]= "Notes/Quick Start.html";
   context.html_paths["Manual.ath"]= "Manual.html";
+  QVERIFY (writePage (temp.filePath ("Notes/Quick Start.html")));
+  QVERIFY (writePage (temp.filePath ("Manual.html")));
   std::string error;
   QVERIFY2 (write_site_shell (website, context, error), error.c_str ());
 
@@ -198,6 +204,7 @@ TestWebsiteShell::rejectsRedirectionOutsideExportRange () {
   context.destination= fs::path (temp.path ().toStdString ());
   context.selected_files= {"Public.ath"};
   context.html_paths["Public.ath"]= "Public.html";
+  QVERIFY (writePage (temp.filePath ("Public.html")));
   std::string error;
   QVERIFY (!write_site_shell (website, context, error));
   QVERIFY (QString::fromStdString (error).contains ("outside the exported range"));

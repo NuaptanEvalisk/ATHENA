@@ -27,33 +27,6 @@ replace_all (std::string& text, const std::string& from,
   }
 }
 
-struct ShellAsset {
-  std::string path;
-  std::string content;
-};
-
-std::string
-shell_asset_version (const std::string& index,
-                     const std::vector<ShellAsset>& assets) {
-  QCryptographicHash hash (QCryptographicHash::Sha256);
-  hash.addData (QByteArray::fromStdString (index));
-  for (const ShellAsset& asset: assets) {
-    hash.addData (QByteArray (1, '\0'));
-    hash.addData (QByteArray::fromStdString (asset.path));
-    hash.addData (QByteArray (1, '\0'));
-    hash.addData (QByteArray::fromStdString (asset.content));
-  }
-  return hash.result ().toHex ().left (16).toStdString ();
-}
-
-fs::path
-versioned_asset_path (const std::string& path, const std::string& version) {
-  fs::path source (path);
-  std::string filename = source.stem ().string () + "." + version +
-                         source.extension ().string ();
-  return source.parent_path () / filename;
-}
-
 std::string
 xml_escape (const std::string& text) {
   std::string out;
@@ -223,6 +196,38 @@ write_redirections (const athena_website_entry& website,
   return true;
 }
 
+bool
+copy_site_icons (const fs::path& destination, std::string& error) {
+  fs::path root = fs::path (tm_to_std (get_env ("ATHENA_PATH"))) /
+                  "misc" / "icons" / "libreoffice" / "colibre" /
+                  "cmd" / "32";
+  const std::map<std::string,std::string> icons = {
+    {"vault.svg", "navigator.svg"},
+    {"namespace.svg", "viewdatasourcebrowser.svg"},
+    {"outline.svg", "outlinemode.svg"},
+    {"search.svg", "searchdialog.svg"},
+    {"switcher.svg", "sidebar.svg"},
+    {"pdf.svg", "exportdirecttopdf.svg"},
+    {"close.svg", "cancel.svg"}
+  };
+  std::error_code ec;
+  fs::create_directories (destination, ec);
+  if (ec) {
+    error = "Could not create website icon folder: " + ec.message ();
+    return false;
+  }
+  for (const auto& icon: icons) {
+    fs::copy_file (root / icon.second, destination / icon.first,
+                   fs::copy_options::overwrite_existing, ec);
+    if (ec) {
+      error = "Could not copy website icon " + icon.second + ": " +
+              ec.message ();
+      return false;
+    }
+  }
+  return true;
+}
+
 } // namespace
 
 QJsonObject
@@ -280,13 +285,6 @@ site_manifest (const athena_website_entry& website,
   return root;
 }
 
-std::string
-site_data_js (const QJsonObject& manifest) {
-  std::string data = ss (QJsonDocument (manifest).toJson (
-    QJsonDocument::Compact));
-  return std::string ("window.ATHENA_SITE_DATA=") + data + ";\n";
-}
-
 bool
 copy_favicon (const fs::path& dest) {
   fs::path src = fs::path (tm_to_std (get_env ("ATHENA_PATH"))) /
@@ -302,10 +300,13 @@ bool
 write_site_shell (const athena_website_entry& website,
                   const GenerationContext& cx, std::string& error) {
   std::error_code ec;
-  fs::create_directories (cx.destination / "js", ec);
-  fs::create_directories (cx.destination / "css", ec);
+  fs::remove_all (cx.destination / "js", ec);
+  ec.clear ();
+  fs::remove_all (cx.destination / "css", ec);
+  ec.clear ();
+  fs::create_directories (cx.destination, ec);
   if (ec) {
-    error = "Could not create website support folders: " + ec.message ();
+    error = "Could not create website destination: " + ec.message ();
     return false;
   }
 
@@ -315,46 +316,76 @@ write_site_shell (const athena_website_entry& website,
     return false;
   }
 
-  std::vector<ShellAsset> assets;
-  assets.push_back ({"css/site.css", ""});
-  if (!website_template_text ("site.css", assets.back ().content)) {
-    error = "Could not read website template site.css.";
-    return false;
-  }
-  assets.push_back ({"css/theme.css", site_theme_css ()});
-  assets.push_back ({"js/site-data.js",
-                     site_data_js (site_manifest (website, cx))});
-  for (const std::string& name: {
-         "window-manager.js", "explorers.js", "outline.js", "search.js",
-         "quick-switcher.js", "app.js"}) {
-    ShellAsset asset {"js/" + name, ""};
-    if (!website_template_text (name, asset.content)) {
-      error = "Could not read website template " + name + ".";
-      return false;
-    }
-    assets.push_back (std::move (asset));
-  }
-
-  std::string asset_version = shell_asset_version (index, assets);
+  QJsonObject manifest = site_manifest (website, cx);
   replace_all (index, "{{TITLE}}", website.name);
   replace_all (index, "{{CANONICAL}}", canonical_link (website));
   replace_all (index, "{{DESCRIPTION_META}}", description_meta (website));
-  replace_all (index, "{{ASSET_VERSION}}", asset_version);
+  replace_all (index, "{{ENTRY}}",
+               json_script_string (ss (manifest["entry"].toString ())));
 
-  for (const ShellAsset& asset: assets)
-    if (!write_file_bytes (cx.destination /
-                           versioned_asset_path (asset.path, asset_version),
-                           asset.content)) {
-      error = "Could not write website shell asset " + asset.path + ".";
-      return false;
-    }
   if (!write_file_bytes (cx.destination / "index.html", index)) {
-    error = "Could not write website shell files.";
+    error = "Could not write website entry page.";
     return false;
   }
+  std::string manifest_json = ss (QJsonDocument (manifest).toJson (
+    QJsonDocument::Compact));
+  if (!write_file_bytes (cx.destination / "site-manifest.json",
+                         manifest_json)) {
+    error = "Could not write website manifest.";
+    return false;
+  }
+  std::string site_data_version = ss (QCryptographicHash::hash (
+    QByteArray::fromStdString (manifest_json), QCryptographicHash::Sha256)
+    .toHex ().left (16));
+  std::string site_data = "window.ATHENA_SITE_DATA=" + manifest_json + ";\n";
+  if (!write_file_bytes (cx.destination / "site-data.js", site_data)) {
+    error = "Could not write website data script.";
+    return false;
+  }
+  if (!copy_site_icons (cx.destination / "icons", error)) return false;
+
+  for (const std::string& rel: cx.selected_files) {
+    auto html = cx.html_paths.find (rel);
+    if (html == cx.html_paths.end ()) continue;
+    auto title = cx.titles.find (rel);
+    auto pdf = cx.pdf_paths.find (rel);
+    std::string pdf_href =
+      website.generate_pdfs && pdf != cx.pdf_paths.end () ?
+      relative_href (html->second, pdf->second) : "";
+    if (!decorate_website_document (
+          cx.destination / html->second, html->second,
+          title == cx.titles.end () ? fs::path (rel).stem ().string () :
+                                     title->second,
+          pdf_href, site_data_version)) {
+      error = "Could not decorate generated document " + html->second + ".";
+      return false;
+    }
+  }
+  for (const auto& homepage: cx.namespace_homepages) {
+    std::string title = "Namespace homepage: " + homepage.first;
+    if (!decorate_website_document (
+          cx.destination / homepage.second, homepage.second, title, "",
+          site_data_version)) {
+      error = "Could not decorate namespace homepage " + homepage.second +
+              ".";
+      return false;
+    }
+    std::string technical = "homepages/" +
+      safe_namespace_file (homepage.first, true);
+    if (fs::exists (cx.destination / technical) &&
+        !decorate_website_document (
+          cx.destination / technical, technical,
+          "Namespace technical summary: " + homepage.first, "",
+          site_data_version)) {
+      error = "Could not decorate namespace technical summary " +
+              technical + ".";
+      return false;
+    }
+  }
+
   if (!write_sitemap (website, cx, error)) return false;
   if (!write_redirections (website, cx, error)) return false;
-  copy_favicon (cx.destination / "css" / "favicon.png");
+  copy_favicon (cx.destination / "icons" / "favicon.png");
   return true;
 }
 
