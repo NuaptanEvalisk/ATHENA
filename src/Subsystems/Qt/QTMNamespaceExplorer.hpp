@@ -14,7 +14,6 @@
 #include "namespaces.hpp"
 
 #include <QMap>
-#include <QSet>
 #include <QSize>
 #include <QString>
 #include <QStringList>
@@ -25,22 +24,20 @@ class QAction;
 class QSizeGrip;
 class QTreeWidget;
 class QTreeWidgetItem;
+class QTimer;
 
 class QTMNamespaceExplorer : public QWidget {
 public:
   QTMNamespaceExplorer (QWidget* parent = nullptr);
 
   QSize sizeHint () const override;
-  void refresh ();
+  void refresh (bool invalidateCache= false);
   void setFloatingResizeGripVisible (bool visible);
   bool selectNamespace (const QString& name);
 
 private:
   QStringList directChildNames (const QString& name,
                                 const QStringList& path) const;
-  bool namespaceContainsNamespace (const QString& start,
-                                   const QString& target,
-                                   QSet<QString>& seen) const;
   void simplifyChildNames (const QString& parent,
                            const QStringList& path,
                            const QStringList& childNames,
@@ -79,6 +76,7 @@ private:
   QAction*     fromRootNamespaceAction;
   QAction*     simplifyHierarchyAction;
   QSizeGrip*   floatingSizeGrip;
+  QTimer*      ontologyPollTimer;
   QString      rootPath;
   QMap<QString, athena_namespace_definition> namespaces;
 };

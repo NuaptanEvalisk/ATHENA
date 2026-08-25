@@ -28,9 +28,9 @@ field_type_name (ns_field_type t) {
 }
 
 bool
-parse_template (string templ, std::vector<template_token>& out,
-                string& error) {
-  std::string t= tm_to_std (templ);
+parse_template_std (const std::string& templ, std::vector<template_token>& out,
+                    std::string& error) {
+  const std::string& t= templ;
   std::string lit;
   for (size_t i=0; i<t.size (); i++) {
     if (t[i] != '%') {
@@ -65,8 +65,8 @@ parse_template (string templ, std::vector<template_token>& out,
     case 'N': tok.type= ns_pos_int_field; break;
     case 'R': tok.type= ns_roman_field; break;
     default:
-      error= "Unknown namespace template placeholder %" *
-             std_to_tm (std::string (1, t[i + 1])) * ".";
+      error= "Unknown namespace template placeholder %" +
+             std::string (1, t[i + 1]) + ".";
       return false;
     }
     out.push_back (tok);
@@ -80,6 +80,15 @@ parse_template (string templ, std::vector<template_token>& out,
     out.push_back (tok);
   }
   return true;
+}
+
+bool
+parse_template (string templ, std::vector<template_token>& out,
+                string& error) {
+  std::string native_error;
+  bool ok= parse_template_std (tm_to_std (templ), out, native_error);
+  if (!ok) error= std_to_tm (native_error);
+  return ok;
 }
 
 static size_t
@@ -228,19 +237,42 @@ better_candidate (const match_candidate& a, const match_candidate& b) {
 bool
 match_stem (const athena_namespace_definition& ns, const std::string& stem,
             athena_namespace_match& out, string& error) {
+  std::vector<std::string> captures;
+  std::vector<std::string> capture_types;
+  bool ambiguous= false;
+  std::string native_error;
+  bool matched= match_stem_std (tm_to_std (ns.templ), stem, captures,
+                                capture_types, ambiguous, native_error);
+  if (!native_error.empty ()) error= std_to_tm (native_error);
+  if (!matched) return false;
+  out.stem= std_to_tm (stem);
+  out.ambiguous= ambiguous;
+  for (size_t i=0; i<captures.size (); ++i) {
+    out.captures << std_to_tm (captures[i]);
+    out.capture_types << std_to_tm (capture_types[i]);
+  }
+  return true;
+}
+
+bool
+match_stem_std (const std::string& templ, const std::string& stem,
+                std::vector<std::string>& captures,
+                std::vector<std::string>& capture_types, bool& ambiguous,
+                std::string& error) {
+  captures.clear ();
+  capture_types.clear ();
+  ambiguous= false;
   std::vector<template_token> toks;
-  if (!parse_template (ns.templ, toks, error)) return false;
+  if (!parse_template_std (templ, toks, error)) return false;
   std::vector<match_candidate> matches;
   match_backtrack (toks, stem, 0, 0, match_candidate (), matches);
   if (matches.empty ()) return false;
   std::sort (matches.begin (), matches.end (), better_candidate);
-
-    out.stem= std_to_tm (stem);
-    out.ambiguous= matches.size () > 1;
-    for (size_t i=0; i<matches[0].captures.size (); i++) {
-      out.captures << std_to_tm (matches[0].captures[i]);
-      out.capture_types << std_to_tm (field_type_name (matches[0].types[i]));
-    }
+  captures= matches[0].captures;
+  ambiguous= matches.size () > 1;
+  capture_types.reserve (matches[0].types.size ());
+  for (ns_field_type type: matches[0].types)
+    capture_types.emplace_back (field_type_name (type));
   return true;
 }
 
@@ -549,10 +581,25 @@ template_derivation_mapping (string child_template, string parent_template,
 bool
 template_derives_from (string child_template, string parent_template,
                        bool& derives, string& error) {
+  std::string native_error;
+  bool ok= template_derives_from_std (tm_to_std (child_template),
+                                      tm_to_std (parent_template), derives,
+                                      native_error);
+  if (!ok) error= std_to_tm (native_error);
+  return ok;
+}
+
+bool
+template_derives_from_std (const std::string& child_template,
+                           const std::string& parent_template, bool& derives,
+                           std::string& error) {
   derives= false;
+  std::vector<template_token> child;
+  std::vector<template_token> parent;
+  if (!parse_template_std (child_template, child, error)) return false;
+  if (!parse_template_std (parent_template, parent, error)) return false;
   derivation_result mapping;
-  derives= template_derivation_mapping (child_template, parent_template, true,
-                                        mapping, error);
+  derives= template_derivation_mapping_tokens (child, parent, true, mapping);
   return true;
 }
 

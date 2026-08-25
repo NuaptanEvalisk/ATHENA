@@ -155,8 +155,6 @@ QTMQuickSwitcher::loadFiles (array<string> recentFiles) {
 
 void
 QTMQuickSwitcher::loadNamespaces () {
-  string error;
-  athena_namespace_refresh_derived (error);
   namespaces= athena_namespaces_list ();
 }
 

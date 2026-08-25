@@ -17,6 +17,7 @@
 #include "QTMVaultExplorer.hpp"
 #include "QTMVaultInfoModel.hpp"
 #include "boot.hpp"
+#include "namespace_ontology.hpp"
 #include "namespaces.hpp"
 #include "qt_utilities.hpp"
 #include "scheme.hpp"
@@ -61,7 +62,8 @@ namespace {
 enum NamespaceExplorerItemType {
   NamespaceItem= 0,
   FileItem= 1,
-  PlaceholderItem= 2
+  PlaceholderItem= 2,
+  StatusItem= 3
 };
 
 enum NamespaceExplorerRoles {
@@ -194,7 +196,8 @@ QTMNamespaceExplorer::QTMNamespaceExplorer (QWidget* parent)
     leafMatchesOnlyAction (nullptr),
     fromRootNamespaceAction (nullptr),
     simplifyHierarchyAction (nullptr),
-    floatingSizeGrip (new QSizeGrip (this)) {
+    floatingSizeGrip (new QSizeGrip (this)),
+    ontologyPollTimer (new QTimer (this)) {
   tree->setColumnCount (1);
   tree->setHeaderHidden (true);
   tree->setContextMenuPolicy (Qt::CustomContextMenu);
@@ -209,7 +212,7 @@ QTMNamespaceExplorer::QTMNamespaceExplorer (QWidget* parent)
   toolbar->setToolButtonStyle (Qt::ToolButtonIconOnly);
   QAction* refreshAction= toolbar->addAction (
     namespace_explorer_icon ("view-refresh", QStyle::SP_BrowserReload),
-    "Refresh", this, [this] () { refresh (); });
+    "Refresh", this, [this] () { refresh (true); });
   refreshAction->setToolTip ("Refresh");
   leafMatchesOnlyAction= toolbar->addAction (
     namespace_explorer_icon ("view-filter", QStyle::SP_FileDialogDetailedView),
@@ -272,6 +275,16 @@ QTMNamespaceExplorer::QTMNamespaceExplorer (QWidget* parent)
            this, [this] (QTreeWidgetItem* item, int) { loadItem (item); });
   connect (tree, &QTreeWidget::customContextMenuRequested,
            this, [this] (const QPoint& pos) { showContextMenu (pos); });
+  ontologyPollTimer->setInterval (50);
+  connect (ontologyPollTimer, &QTimer::timeout, this, [this] () {
+    string error;
+    athena_namespace_ontology_status status=
+      athena_namespace_ontology_get_status (error);
+    if (status == athena_namespace_ontology_ready ||
+        status == athena_namespace_ontology_failed ||
+        status == athena_namespace_ontology_inactive)
+      refresh (false);
+  });
 }
 
 QSize
@@ -303,7 +316,7 @@ QTMNamespaceExplorer::showError (const QString& message) const {
 }
 
 void
-QTMNamespaceExplorer::refresh () {
+QTMNamespaceExplorer::refresh (bool invalidateCache) {
   rootPath= to_qstring (concretize (vault_get_root ()));
   namespaces.clear ();
   tree->clear ();
@@ -323,8 +336,27 @@ QTMNamespaceExplorer::refresh () {
   }
 
   string error;
-  if (!athena_namespace_refresh_derived (error) && error != "")
-    showError ("Derived parent refresh failed: " + to_qstring (error));
+  if (invalidateCache) athena_namespace_ontology_invalidate (true);
+  athena_namespace_ontology_status ontologyStatus=
+    athena_namespace_ontology_get_status (error);
+  if (ontologyStatus != athena_namespace_ontology_ready) {
+    QTreeWidgetItem* statusItem= new QTreeWidgetItem (tree);
+    statusItem->setData (0, TypeRole, StatusItem);
+    statusItem->setFlags (statusItem->flags () & ~Qt::ItemIsSelectable);
+    if (ontologyStatus == athena_namespace_ontology_building) {
+      statusItem->setText (0, "Indexing namespaces...");
+      ontologyPollTimer->start ();
+    }
+    else {
+      ontologyPollTimer->stop ();
+      statusItem->setText (
+        0, ontologyStatus == athena_namespace_ontology_failed && error != "" ?
+          "Namespace indexing failed: " + to_qstring (error) :
+          "Namespace index is unavailable.");
+    }
+    return;
+  }
+  ontologyPollTimer->stop ();
 
   QStringList names;
   for (const athena_namespace_definition& ns: athena_namespaces_list ()) {
@@ -397,36 +429,17 @@ QStringList
 QTMNamespaceExplorer::directChildNames (const QString& name,
                                         const QStringList& path) const {
   QStringList childNames;
-  for (auto it= namespaces.constBegin (); it != namespaces.constEnd (); ++it) {
-    const athena_namespace_definition& ns= it.value ();
-    bool child= false;
-    for (int i=0; i<N(ns.parents); i++)
-      if (to_qstring (ns.parents[i]) == name) child= true;
-    for (int i=0; i<N(ns.derived_parents); i++)
-      if (to_qstring (ns.derived_parents[i]) == name) child= true;
-    if (child && !path.contains (it.key ()) && !childNames.contains (it.key ()))
-      childNames << it.key ();
+  strings visible;
+  strings folded;
+  string error;
+  if (!athena_namespace_ontology_children (
+        from_qstring (name), false, visible, folded, error))
+    return childNames;
+  for (int i=0; i<N(visible); ++i) {
+    QString child= to_qstring (visible[i]);
+    if (!path.contains (child)) childNames << child;
   }
-  childNames.sort ();
   return childNames;
-}
-
-bool
-QTMNamespaceExplorer::namespaceContainsNamespace (const QString& start,
-                                                 const QString& target,
-                                                 QSet<QString>& seen) const {
-  if (start == target) return true;
-  if (seen.contains (start)) return false;
-  seen.insert (start);
-
-  QStringList path;
-  path << start;
-  QStringList children= directChildNames (start, path);
-  for (const QString& child: children) {
-    if (child == target) return true;
-    if (namespaceContainsNamespace (child, target, seen)) return true;
-  }
-  return false;
 }
 
 void
@@ -444,19 +457,23 @@ QTMNamespaceExplorer::simplifyChildNames (const QString& parent,
     visibleNames= childNames;
     return;
   }
-
-  for (const QString& child: childNames) {
-    bool folded= false;
-    for (const QString& sibling: childNames) {
-      if (sibling == child) continue;
-      QSet<QString> seen;
-      if (namespaceContainsNamespace (sibling, child, seen)) {
-        folded= true;
-        break;
-      }
-    }
-    if (folded) foldedNames << child;
-    else visibleNames << child;
+  strings cachedVisible;
+  strings cachedFolded;
+  string error;
+  if (!athena_namespace_ontology_children (
+        from_qstring (parent), true, cachedVisible, cachedFolded, error)) {
+    visibleNames= childNames;
+    return;
+  }
+  for (int i=0; i<N(cachedVisible); ++i) {
+    QString child= to_qstring (cachedVisible[i]);
+    if (childNames.contains (child) && !path.contains (child))
+      visibleNames << child;
+  }
+  for (int i=0; i<N(cachedFolded); ++i) {
+    QString child= to_qstring (cachedFolded[i]);
+    if (childNames.contains (child) && !path.contains (child))
+      foldedNames << child;
   }
 }
 
@@ -650,7 +667,7 @@ QTMNamespaceExplorer::newFileNearSelected () {
     return;
   }
   if (!writeNewFile (path)) showError ("Could not create file.");
-  else refresh ();
+  else refresh (true);
 }
 
 void
@@ -668,7 +685,7 @@ QTMNamespaceExplorer::newFolderNearSelected () {
   QString path= QDir (dir).filePath (name);
   if (!pathInVault (dir) || QFileInfo::exists (path) || !QDir ().mkpath (path))
     showError ("Could not create folder.");
-  else refresh ();
+  else refresh (true);
 }
 
 void
@@ -692,7 +709,7 @@ QTMNamespaceExplorer::renameSelectedFile () {
     showError ("Could not rename file: destination already exists.");
     return;
   }
-  if (qtm_safe_rename_vault_item (this, path, target)) refresh ();
+  if (qtm_safe_rename_vault_item (this, path, target)) refresh (true);
 }
 
 void
@@ -742,7 +759,7 @@ QTMNamespaceExplorer::pasteNearSelected () {
   }
   if (!copyRecursively (namespace_explorer_clipboard_path, target))
     showError ("Could not paste item.");
-  else refresh ();
+  else refresh (true);
 }
 
 void
@@ -766,7 +783,7 @@ QTMNamespaceExplorer::deleteSelectedFile () {
   else ok= QFile::remove (path);
 
   if (!ok) showError ("Could not delete file.");
-  else refresh ();
+  else refresh (true);
 }
 
 void
@@ -814,7 +831,7 @@ QTMNamespaceExplorer::showContextMenu (const QPoint& pos) {
     });
     menu.addAction ("Open in system file manager", this,
                     [this] () { openSelectedFileInFileManager (); });
-    menu.addAction ("Refresh", this, [this] () { refresh (); });
+    menu.addAction ("Refresh", this, [this] () { refresh (true); });
   }
   if (!menu.actions ().isEmpty ())
     menu.exec (tree->viewport ()->mapToGlobal (pos));

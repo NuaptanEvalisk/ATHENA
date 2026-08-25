@@ -18,6 +18,7 @@
 #include "ATHENA/Data/new_buffer.hpp"
 #include "ATHENA/Data/new_window.hpp"
 #include "ATHENA/Data/materials.hpp"
+#include "ATHENA/Data/namespace_ontology.hpp"
 #include "ATHENA/Data/artifact_radioactive_links.hpp"
 #include "ATHENA/Data/vault_map_sqlite.hpp"
 #include "ATHENA/Data/vaultfile_json.hpp"
@@ -124,6 +125,8 @@ vault_load (url root_dir, string name, string db_rel_path,
   current_vault_map = std::move (map);
   current_materials_store = std::move (materials);
   is_vault_active = true;
+  athena_namespace_ontology_start (current_vault.root,
+                                   current_vault.ns_db_url);
   athena_artifact_radioactive_invalidate ();
   athena_clear_transclusion_caches ();
   vault_refresh_window_titles ();
@@ -132,7 +135,10 @@ vault_load (url root_dir, string name, string db_rel_path,
 
 void
 vault_close () {
-  if (is_vault_active) sync_databases ();
+  if (is_vault_active) {
+    athena_namespace_ontology_stop ();
+    sync_databases ();
+  }
   current_vault_map.reset ();
   current_materials_store.reset ();
   is_vault_active = false;

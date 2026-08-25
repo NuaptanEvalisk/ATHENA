@@ -10,12 +10,17 @@
 
 #include "namespaces_private.hpp"
 
+#include "namespace_ontology.hpp"
 #include "vault.hpp"
 
 #include <sqlite3.h>
 
 #include <QApplication>
 #include <QMessageBox>
+
+#include <iomanip>
+#include <sstream>
+#include <unordered_map>
 
 namespace athena_namespaces {
 
@@ -381,14 +386,96 @@ recompute_derived_parents (sqlite3* db, string& error) {
   return true;
 }
 
+static void
+fingerprint_bytes (uint64_t& value, const void* data, size_t length) {
+  const unsigned char* bytes= static_cast<const unsigned char*> (data);
+  for (size_t i=0; i<length; ++i) {
+    value ^= (uint64_t) bytes[i];
+    value *= UINT64_C (1099511628211);
+  }
+  value ^= UINT64_C (255);
+  value *= UINT64_C (1099511628211);
+}
 
+static bool
+fingerprint_query (sqlite3* db, const char* sql, uint64_t& value,
+                   string& error) {
+  sqlite3_stmt* st= nullptr;
+  if (!prepare_sql (db, sql, &st, error)) return false;
+  while (true) {
+    int status= sqlite3_step (st);
+    if (status == SQLITE_DONE) break;
+    if (status != SQLITE_ROW) {
+      set_sql_error (db, "SQLite fingerprint query failed", error);
+      sqlite3_finalize (st);
+      return false;
+    }
+    int columns= sqlite3_column_count (st);
+    for (int column=0; column<columns; ++column) {
+      const void* text= sqlite3_column_text (st, column);
+      int length= sqlite3_column_bytes (st, column);
+      if (text != nullptr && length > 0)
+        fingerprint_bytes (value, text, (size_t) length);
+      else
+        fingerprint_bytes (value, "", 0);
+    }
+  }
+  sqlite3_finalize (st);
+  return true;
+}
 
-} // namespace athena_namespaces
+static bool
+derived_source_fingerprint (sqlite3* db, std::string& out, string& error) {
+  uint64_t value= UINT64_C (1469598103934665603);
+  if (!fingerprint_query (
+        db,
+        "SELECT name, kind, template FROM namespaces ORDER BY name;",
+        value, error))
+    return false;
+  std::ostringstream stream;
+  stream << std::hex << std::setw (16) << std::setfill ('0') << value;
+  out= stream.str ();
+  return true;
+}
 
-using namespace athena_namespaces;
+static bool
+meta_value (sqlite3* db, const char* key, std::string& out, string& error) {
+  sqlite3_stmt* st= nullptr;
+  if (!prepare_sql (db, "SELECT value FROM meta WHERE key=?;", &st, error))
+    return false;
+  if (sqlite3_bind_text (st, 1, key, -1, SQLITE_STATIC) != SQLITE_OK) {
+    set_sql_error (db, "SQLite meta bind failed", error);
+    sqlite3_finalize (st);
+    return false;
+  }
+  int status= sqlite3_step (st);
+  if (status == SQLITE_ROW) {
+    const unsigned char* value= sqlite3_column_text (st, 0);
+    out= value == nullptr ? "" : (const char*) value;
+  }
+  else if (status != SQLITE_DONE) {
+    set_sql_error (db, "SQLite meta query failed", error);
+    sqlite3_finalize (st);
+    return false;
+  }
+  sqlite3_finalize (st);
+  return true;
+}
+
+static bool
+set_meta_value (sqlite3* db, const char* key, const std::string& value,
+                string& error) {
+  return exec_prepared (
+    db,
+    "INSERT INTO meta(key, value) VALUES(?, ?) "
+    "ON CONFLICT(key) DO UPDATE SET value=excluded.value;",
+    { std_to_tm (key), std_to_tm (value) }, error);
+}
 
 bool
-athena_namespace_refresh_derived (string& error) {
+refresh_derived_parents_if_needed (bool force, bool& changed,
+                                   string& error) {
+  changed= false;
   if (!vault_active ()) {
     error= "No active vault.";
     return false;
@@ -399,7 +486,17 @@ athena_namespace_refresh_derived (string& error) {
   if (!cx.open (true, error)) return false;
   if (!exec_sql (cx.db, "BEGIN IMMEDIATE;", error)) return false;
 
-  bool ok= recompute_derived_parents (cx.db, error);
+  std::string fingerprint;
+  std::string previous;
+  bool ok= derived_source_fingerprint (cx.db, fingerprint, error) &&
+           meta_value (cx.db, "derived-source-fingerprint", previous, error);
+  if (ok && (force || fingerprint != previous)) {
+    ok= recompute_derived_parents (cx.db, error) &&
+        set_meta_value (cx.db, "derived-source-fingerprint", fingerprint,
+                        error);
+    changed= ok;
+  }
+
   if (ok) {
     if (!exec_sql (cx.db, "COMMIT;", error)) {
       string ignored;
@@ -414,37 +511,101 @@ athena_namespace_refresh_derived (string& error) {
   return ok;
 }
 
-std::vector<athena_namespace_definition>
-athena_namespaces_list () {
-  std::vector<athena_namespace_definition> out;
-  if (!ns_db_exists ()) return out;
+bool
+load_namespace_snapshot_from_db (
+  std::vector<athena_namespace_definition>& namespaces,
+  std::vector<athena_namespace_relation>& relations, string& error) {
+  namespaces.clear ();
+  relations.clear ();
+  if (!ns_db_exists ()) return true;
 
-  string error;
   ns_sqlite_connection cx;
-  if (!cx.open (false, error)) return out;
+  if (!cx.open (false, error)) return false;
+  if (!namespace_row_list (cx.db, namespaces, error)) return false;
+
+  std::unordered_map<std::string,size_t> indices;
+  for (size_t i=0; i<namespaces.size (); ++i)
+    indices[tm_to_std (namespaces[i].name)]= i;
 
   sqlite3_stmt* st= nullptr;
-  if (!prepare_sql (cx.db,
-        "SELECT name FROM namespaces ORDER BY name;",
-        &st, error)) return out;
+  if (!prepare_sql (
+        cx.db,
+        "SELECT child, parent, source FROM namespace_parents "
+        "ORDER BY child, source, ord, parent;",
+        &st, error))
+    return false;
   while (true) {
     int status= sqlite3_step (st);
     if (status == SQLITE_DONE) break;
     if (status != SQLITE_ROW) {
+      set_sql_error (cx.db, "SQLite parent snapshot failed", error);
       sqlite3_finalize (st);
-      return out;
+      return false;
     }
-    athena_namespace_definition ns;
-    string name= column_tm_string (st, 0);
-    string err;
-    if (get_namespace_from_db (cx.db, name, ns, err)) out.push_back (ns);
+    string child= column_tm_string (st, 0);
+    auto found= indices.find (tm_to_std (child));
+    if (found == indices.end ()) continue;
+    string parent= column_tm_string (st, 1);
+    string source= column_tm_string (st, 2);
+    if (source == "declared") namespaces[found->second].parents << parent;
+    else if (source == "derived")
+      namespaces[found->second].derived_parents << parent;
   }
   sqlite3_finalize (st);
+
+  if (!prepare_sql (
+        cx.db,
+        "SELECT parent, child, decision, source FROM relation_decisions "
+        "ORDER BY parent, child;",
+        &st, error))
+    return false;
+  while (true) {
+    int status= sqlite3_step (st);
+    if (status == SQLITE_DONE) break;
+    if (status != SQLITE_ROW) {
+      set_sql_error (cx.db, "SQLite relation snapshot failed", error);
+      sqlite3_finalize (st);
+      return false;
+    }
+    athena_namespace_relation relation;
+    relation.parent= column_tm_string (st, 0);
+    relation.child= column_tm_string (st, 1);
+    relation.decision= column_tm_string (st, 2);
+    relation.source= column_tm_string (st, 3);
+    if (relation.parent != "" && relation.child != "")
+      relations.push_back (relation);
+  }
+  sqlite3_finalize (st);
+  return true;
+}
+
+
+
+} // namespace athena_namespaces
+
+using namespace athena_namespaces;
+
+bool
+athena_namespace_refresh_derived (string& error) {
+  bool changed= false;
+  bool ok= refresh_derived_parents_if_needed (true, changed, error);
+  if (ok) athena_namespace_ontology_invalidate (false);
+  return ok;
+}
+
+std::vector<athena_namespace_definition>
+athena_namespaces_list () {
+  std::vector<athena_namespace_definition> out;
+  if (athena_namespace_ontology_namespaces (out)) return out;
+  std::vector<athena_namespace_relation> ignored;
+  string error;
+  load_namespace_snapshot_from_db (out, ignored, error);
   return out;
 }
 
 bool
 athena_namespace_get (string name, athena_namespace_definition& out) {
+  if (athena_namespace_ontology_namespace (name, out)) return true;
   if (!ns_db_exists () || name == "") return false;
   string error;
   ns_sqlite_connection cx;
@@ -508,8 +669,6 @@ athena_namespace_save (const athena_namespace_definition& ns, string& error) {
       "(child, parent, source, ord) VALUES(?, ?, 'declared', ?);",
       { ns.name, ns.parents[i], std_to_tm (std::to_string (i)) }, error);
 
-  if (ok) ok= recompute_derived_parents (cx.db, error);
-
   if (ok) {
     if (!exec_sql (cx.db, "COMMIT;", error)) {
       string ignored;
@@ -521,6 +680,7 @@ athena_namespace_save (const athena_namespace_definition& ns, string& error) {
     string ignored;
     exec_sql (cx.db, "ROLLBACK;", ignored);
   }
+  if (ok) athena_namespace_ontology_invalidate (false);
   return ok;
 }
 
@@ -556,12 +716,14 @@ athena_namespace_remove (string name, string& error) {
     string ignored;
     exec_sql (cx.db, "ROLLBACK;", ignored);
   }
+  if (ok) athena_namespace_ontology_invalidate (false);
   return ok;
 }
 
 std::vector<athena_namespace_relation>
 athena_namespace_relations_list () {
   std::vector<athena_namespace_relation> out;
+  if (athena_namespace_ontology_relations (out)) return out;
   if (!ns_db_exists ()) return out;
 
   string error;
@@ -609,8 +771,10 @@ athena_namespace_relation_set (string parent, string child, string decision,
 
   ns_sqlite_connection cx;
   if (!cx.open (true, error)) return false;
-  return upsert_relation_decision (cx.db, parent, child, decision, source,
-                                   error);
+  bool ok= upsert_relation_decision (cx.db, parent, child, decision, source,
+                                     error);
+  if (ok) athena_namespace_ontology_invalidate (false);
+  return ok;
 }
 
 bool
@@ -623,9 +787,11 @@ athena_namespace_relation_remove (string parent, string child, string& error) {
 
   ns_sqlite_connection cx;
   if (!cx.open (false, error)) return false;
-  return exec_prepared (cx.db,
+  bool ok= exec_prepared (cx.db,
     "DELETE FROM relation_decisions WHERE parent=? AND child=?;",
     { parent, child }, error);
+  if (ok) athena_namespace_ontology_invalidate (false);
+  return ok;
 }
 
 bool

@@ -1315,7 +1315,6 @@ void
 QTMNamespaceManager::refreshAll () {
   refreshNamespaces ();
   refreshRelations ();
-  refreshMembers ();
 }
 
 bool
@@ -1334,11 +1333,6 @@ QTMNamespaceManager::selectNamespace (const QString& name) {
 
 void
 QTMNamespaceManager::refreshNamespaces () {
-  string error;
-  if (!athena_namespace_refresh_derived (error) && error != "")
-    statusLabel->setText ("Derived parent refresh failed: " +
-                          to_qstring (error));
-
   QString selected= loadedName;
   if (selected.isEmpty () && namespaceList->currentItem () != nullptr)
     selected= namespaceList->currentItem ()->text ();

@@ -1306,8 +1306,6 @@ TransclusionSearchPage::refreshNamespaces () {
   QString current= namespaceCombo == nullptr ? QString () :
     namespaceCombo->currentText ().trimmed ();
   QStringList names;
-  string error;
-  athena_namespace_refresh_derived (error);
   for (const athena_namespace_definition& ns: athena_namespaces_list ())
     names << to_qstring (ns.name);
   names.removeDuplicates ();

@@ -11,6 +11,7 @@
 #include "namespaces_private.hpp"
 
 #include "file.hpp"
+#include "namespace_ontology.hpp"
 #include "vault.hpp"
 
 namespace athena_namespaces {
@@ -116,17 +117,20 @@ athena_namespace_members (string name, string& error) {
     error= "No active vault.";
     return out;
   }
+  bool cached= athena_namespace_ontology_members (name, out, error);
   athena_namespace_definition ns;
   if (!athena_namespace_get (name, ns)) {
     error= "Unknown namespace: " * name;
     return out;
   }
-
-  std::map<std::string,bool> visiting;
-  std::map<std::string,bool> seen;
-  if (!collect_namespace_members (ns, ns.kind == "abstract", visiting, seen,
-                                  out, error))
-    return out;
+  if (!cached) {
+    error= "";
+    std::map<std::string,bool> visiting;
+    std::map<std::string,bool> seen;
+    if (!collect_namespace_members (ns, ns.kind == "abstract", visiting, seen,
+                                    out, error))
+      return out;
+  }
 
   if (ns.sorter_trivial || ns.sorter_path != "") {
     string sort_error;

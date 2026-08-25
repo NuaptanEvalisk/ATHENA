@@ -133,14 +133,24 @@ const char* field_type_name (ns_field_type t);
 int parse_roman_value (const std::string& s);
 bool parse_template (string templ, std::vector<template_token>& out,
                      string& error);
+bool parse_template_std (const std::string& templ,
+                         std::vector<template_token>& out,
+                         std::string& error);
 std::string template_to_std (const std::vector<template_token>& toks);
 bool match_stem (const athena_namespace_definition& ns, const std::string& stem,
                  athena_namespace_match& out, string& error);
+bool match_stem_std (const std::string& templ, const std::string& stem,
+                     std::vector<std::string>& captures,
+                     std::vector<std::string>& capture_types,
+                     bool& ambiguous, std::string& error);
 bool template_derivation_mapping (string child_template, string parent_template,
                                   bool require_changed,
                                   derivation_result& result, string& error);
 bool template_derives_from (string child_template, string parent_template,
                             bool& derives, string& error);
+bool template_derives_from_std (const std::string& child_template,
+                                const std::string& parent_template,
+                                bool& derives, std::string& error);
 bool subproduct_candidate_from_order (string first_template,
                                       string second_template,
                                       bool aggressive_string,
@@ -149,6 +159,12 @@ bool subproduct_candidate_from_order (string first_template,
 ns_compare_fn load_sorter (string sorter_path, string& error);
 int compare_with_sorter (ns_compare_fn fn, const athena_namespace_match& a,
                          const athena_namespace_match& b);
+
+bool refresh_derived_parents_if_needed (bool force, bool& changed,
+                                        string& error);
+bool load_namespace_snapshot_from_db (
+  std::vector<athena_namespace_definition>& namespaces,
+  std::vector<athena_namespace_relation>& relations, string& error);
 
 } // namespace athena_namespaces
 
