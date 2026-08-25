@@ -41,6 +41,18 @@ PACKAGED_MODEL_FILES = {
 }
 
 
+def _is_packaged_model_file(relative: PurePosixPath) -> bool:
+    runtime_prefixes = (
+        PurePosixPath("."),
+        PurePosixPath("usr/share/ATHENA"),
+    )
+    return any(
+        relative == prefix / model
+        for prefix in runtime_prefixes
+        for model in PACKAGED_MODEL_FILES
+    )
+
+
 def _normalized_relative(path: Path) -> PurePosixPath:
     return PurePosixPath(path.as_posix())
 
@@ -49,10 +61,12 @@ def distribution_forbidden_reason(relative: Path, is_directory: bool) -> str | N
     rel = _normalized_relative(relative)
     if any(part in CACHE_DIRECTORY_NAMES for part in rel.parts):
         return "generated Python environment or cache"
+    if not is_directory and _is_packaged_model_file(rel):
+        return None
     if not is_directory and rel.suffix.lower() in MODEL_SUFFIXES:
         return "model weight"
     if (not is_directory and rel.suffix.lower() == ".bin" and
-            rel.name != "ATHENA.bin" and rel not in PACKAGED_MODEL_FILES):
+            rel.name != "ATHENA.bin" and not _is_packaged_model_file(rel)):
         return "model weight"
     return None
 

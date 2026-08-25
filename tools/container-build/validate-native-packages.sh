@@ -6,19 +6,27 @@ repo_root="${1:-$(cd -- "$script_dir/../.." && pwd)}"
 packages="$repo_root/container_build/packages"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
+version="$(
+  sed -n 's/.*set *(ATHENA_APP_VERSION *"\([^"]*\)".*/\1/p' \
+    "$repo_root/CMakeLists.txt" | head -n1
+)"
+[ -n "$version" ] || {
+  echo "could not read ATHENA_APP_VERSION from CMakeLists.txt" >&2
+  exit 1
+}
 
 for flavor in dev rel; do
-  deb=("$packages"/ATHENA-*-$flavor-linux-x86_64.deb)
-  opensuse=("$packages"/ATHENA-*-$flavor-opensuse-x86_64.rpm)
-  rhel=("$packages"/ATHENA-*-$flavor-rhel-x86_64.rpm)
-  [ -f "${deb[0]}" ] && [ -f "${opensuse[0]}" ] && [ -f "${rhel[0]}" ] || {
-    echo "missing native package for $flavor" >&2
+  deb="$packages/ATHENA-$version-$flavor-linux-x86_64.deb"
+  opensuse="$packages/ATHENA-$version-$flavor-opensuse-x86_64.rpm"
+  rhel="$packages/ATHENA-$version-$flavor-rhel-x86_64.rpm"
+  [ -f "$deb" ] && [ -f "$opensuse" ] && [ -f "$rhel" ] || {
+    echo "missing ATHENA $version native package for $flavor" >&2
     exit 1
   }
-  dpkg-deb --info "${deb[0]}" >/dev/null
-  dpkg-deb --contents "${deb[0]}" >"$work/$flavor.deb.list"
-  rpm -qpl "${opensuse[0]}" >"$work/$flavor.opensuse.list"
-  rpm -qpl "${rhel[0]}" >"$work/$flavor.rhel.list"
+  dpkg-deb --info "$deb" >/dev/null
+  dpkg-deb --contents "$deb" >"$work/$flavor.deb.list"
+  rpm -qpl "$opensuse" >"$work/$flavor.opensuse.list"
+  rpm -qpl "$rhel" >"$work/$flavor.rhel.list"
 
   for listing in "$work/$flavor.deb.list" \
                  "$work/$flavor.opensuse.list" \

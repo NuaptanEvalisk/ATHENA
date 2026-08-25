@@ -415,12 +415,13 @@ build_athena_flavor () {
     -DTCC_INCLUDE_DIR="$prefix/include" \
     -DTCC_LIBRARY="$prefix/lib64/libtcc.a"
 
+  cmake --build "$build_dir" -j"$jobs"
+
   if [ ! -f "$build_dir/athena-guile-runtime/lib/libathena-guile.so.1" ]; then
     echo "ATHENA $label build did not produce its private Guile runtime." >&2
     exit 1
   fi
 
-  cmake --build "$build_dir" -j"$jobs"
   copy_runtime_tree "$build_dir" "$out_dir"
 
   "$repo_root/tools/container-build/package_appimage.py" \

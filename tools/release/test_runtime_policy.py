@@ -76,7 +76,34 @@ class RuntimePolicyTest(unittest.TestCase):
             binary = runtime / "bin/ATHENA.bin"
             binary.parent.mkdir()
             binary.write_text("executable")
+            for relative in (
+                "lib/athena-guile/lib/libathena-guile.so.1",
+                "lib/athena-guile/share/guile/3.0/ice-9/boot-9.scm",
+                "lib/athena-guile/lib/guile/3.0/ccache/ice-9/boot-9.go",
+            ):
+                dependency = runtime / relative
+                dependency.parent.mkdir(parents=True, exist_ok=True)
+                dependency.write_text("runtime")
             verify_runtime(runtime)
+
+    def test_verify_allows_the_packaged_handwriting_model(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            runtime = Path(temporary)
+            model = runtime / "misc/models/handwriting/handtex.ncnn.bin"
+            model.parent.mkdir(parents=True)
+            model.write_text("model")
+            verify_runtime(runtime)
+
+    def test_verify_allows_the_packaged_handwriting_model_in_appdir(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            appdir = Path(temporary)
+            model = (
+                appdir /
+                "usr/share/ATHENA/misc/models/handwriting/handtex.ncnn.bin"
+            )
+            model.parent.mkdir(parents=True)
+            model.write_text("model")
+            verify_runtime(appdir)
 
     def test_copy_can_retain_an_executable_runtime(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

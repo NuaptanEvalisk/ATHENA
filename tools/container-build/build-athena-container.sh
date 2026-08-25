@@ -9,10 +9,8 @@ container_home="$container_build_dir/distrobox-home"
 
 mkdir -p "$container_build_dir/logs" "$container_home"
 
-env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY \
-    -u http_proxy -u https_proxy -u all_proxy \
-  podman build \
-  --http-proxy=false \
+podman build \
+  --network host \
   --format docker \
   -t "$image_name" \
   -f "$script_dir/Containerfile.opensuse-leap160" \

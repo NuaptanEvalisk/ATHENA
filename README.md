@@ -46,33 +46,35 @@ of work by Joris van der Hoeven and the GNU TeXmacs contributors.
 
 ## Major Features
 
-### ATHENA 0.7 Highlights
+### ATHENA 0.8 Highlights
 
-ATHENA 0.7 concentrates on making large, living vaults faster to open, safer to
-mirror, and more complete to publish. It also closes a broad set of structural
-editing and interchange gaps found while using ATHENA for long mathematical
-documents.
+ATHENA 0.8 strengthens the connection between mathematical documents and the
+knowledge they cite, define, and publish. It also replaces a foundational
+legacy runtime and makes several large-vault operations genuinely incremental.
 
-- Open long, transclusion-heavy documents progressively. Native `.ath`
-  parsing, structural transclusion caches, reusable font and hyphenation data,
-  and time-budgeted screen typesetting reduced the project benchmark's median
-  warm open-to-first-paint time from about 10.7 seconds to about 0.38 seconds.
-- Configure multiple one-way vault backup dispatchers, triggered after every
-  successful save, after Vault Maintenance, or after five idle minutes.
-- Publish websites incrementally, optionally generate per-document PDFs, add
-  browser download controls and Cloudflare-compatible redirects, and retry a
-  failed post-generation script without regenerating the site.
-- Find any Preferences setting through the native search bar and `Ctrl+F`.
-- Edit native commutative-diagram self-loops, insert finite-part integrals, and
-  paginate long generated tables of contents correctly in print and PDF.
-- Preserve cursor, selection, preview, pinch-zoom, and tree order across more
-  structured editing operations, including formatting, table boundaries, and
-  whole-document selections.
-- Import nontrivial LaTeX documents more faithfully and export block-styled
-  mathematical structures, captions, numbering, and minus signs without
-  leaking internal forms.
-- Navigate Quick Switcher results with `Page Up` and `Page Down`, and search or
-  inspect embedded previews without losing their rendered viewport.
+- Replace the inherited BibTeX workflow with vault-native Materials: a
+  UUID-backed SQLite catalog, managed attachments, reviewed metadata
+  recognition, Hayagriva/CSL citations, BibTeX import, and Zotero Local API
+  bulk import.
+- Preserve Artifact identities across document edits and safe renames, then
+  turn artifact names into fast radioactive links with inflection handling,
+  mathematical eponym normalization, and same-name disambiguation pages.
+- Draw a symbol in the Handwritten Symbol pane and insert a ranked ATHENA math
+  command using the pinned Hand TeX classifier and native ncnn inference.
+- Replace Guile 1.8 with ATHENA's private Guile 3 runtime, including native
+  module/lazy-definition compatibility, parallel incremental Scheme bytecode,
+  and a tuned private parallel garbage collector.
+- Replace document-tree heading fold buttons with right-side Mathematica-style
+  cell brackets, and modernize generated websites around direct, content-first
+  pages with floating navigation tools rather than an iframe desktop shell.
+- Cache namespace ontology and membership incrementally, reuse backing pixels
+  during smooth scrolling, reduce startup work, and make first-use namespace
+  exploration non-blocking and visibly indexed.
+- Improve Wayland scaling and native menu placement, add in-process restart,
+  and replace decorative splash screens with compact native progress windows.
+- Tighten LaTeX, HTML, PDF, transclusion, slideshow, and delimiter export paths
+  while retaining lossless ATHENA-specific structure where external formats
+  cannot represent it directly.
 
 ### Vaults
 
@@ -422,11 +424,12 @@ ATHENA can generate a static website from a vault.
 
 - Manage vault-scoped website definitions in the native Websites manager.
 - Select exported documents and namespaces from the current vault.
-- Generate an iframe-based desktop shell with a Start menu, Vault Explorer,
-  Namespace Explorer, Outline, Global Search, Quick Switcher, accessible window
-  controls, and saved browser-side layout state.
-- Generate standalone document pages with document titles, favicons, canonical
-  links, descriptions, and extensionless HTTP URLs.
+- Open canonical content pages directly in a constrained reading layout instead
+  of wrapping documents in an iframe-based desktop metaphor.
+- Provide a compact floating toolbar for modal Vault Explorer, Namespace
+  Explorer, Outline, Global Search, Quick Switcher, and optional PDF download.
+- Generate document pages with titles, favicons, canonical links, descriptions,
+  extensionless HTTP URLs, and external links that open in new browser tabs.
 - Preserve mathematical structure, enunciations, transclusions, figures,
   table-like document bodies, MathJax output, and ATHENA logo macros during
   HTML export.
@@ -549,6 +552,12 @@ ATHENA has moved much of the knowledge-work interface into native Qt.
   latest and five-second p95 editing latency.
 - Desktop icon theme integration for toolbar icons.
 - Startup splash progress reporting from real startup phases.
+- Compact native startup and waiting progress windows instead of decorative
+  image-backed splash screens.
+- Right-side Mathematica-style cell brackets for selecting and folding heading
+  ranges without inserting controls into the document tree.
+- Handwritten mathematical symbol recognition with mouse, touch, and tablet
+  input in a dockable native pane.
 - KDE/Wayland HiDPI scaling, input-method cursor placement, and fractional-DPR
   repaint fixes for Qt 6.
 - Reliable text toolbar dropdowns for document style, theme, font, and font
@@ -594,6 +603,15 @@ Recent ATHENA work includes substantial low-level engineering:
 - Crash reporting through native dialogs.
 - Strict TeXmacs source parsing with file, line, and column diagnostics for
   malformed documents and style packages instead of silent partial rendering.
+- A private ATHENA Guile 3 runtime with native module and lazy-definition
+  compatibility, dependency-aware parallel bytecode compilation, ThinLTO and
+  native CPU tuning, and a statically linked parallel BDW-GC policy optimized
+  for throughput rather than minimal memory use.
+- Persistent incremental namespace ontology and file-membership snapshots,
+  with background refresh and non-blocking first expansion in Namespace
+  Explorer.
+- Backing-pixmap reuse and exposed-strip repainting during smooth scrolling,
+  including fractional-Wayland origin correction after scrolling settles.
 
 ### Web-Accessible ATHENA
 
@@ -648,7 +666,7 @@ features are used, the document may become ATHENA-specific.
 
 ## Status
 
-ATHENA 0.7 is an active experimental system. It is powerful, opinionated, and
+ATHENA 0.8 is an active experimental system. It is powerful, opinionated, and
 still changing quickly. Expect rough edges. Expect features to be deeper than
 their polish. Expect the best experience on the developer's Linux setup.
 

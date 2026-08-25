@@ -212,15 +212,11 @@
     <TeXmacs> currently uses the Qt6 interface. Older Qt interfaces are no
     longer supported by ATHENA.
 
-    As to <name|Guile>, please be aware that <name|Guile> 1 and <name|Guile>
-    2 carry the same name, but that resemblances very much end there:
-    <name|Guile> 2 has a completely different design, which breaks the
-    interface with<nbsp><TeXmacs>. Porting our interface to <name|Guile> 2
-    requires a lot of work and it is possible that this will never be done.
-    Since <name|Guile> 1 is no longer supported by many standard <name|Linux>
-    distributions, recent versions of <TeXmacs> directly include <name|Guile>
-    1. We will continue to do so until we find time to switch to a more
-    recent version of <name|Guile> or to another <scheme> implementation.
+    <ATHENA> 0.8 uses a private, source-integrated <name|Guile> 3 runtime.
+    Native compatibility support preserves the module, lazy-definition, and
+    requirement behavior used by the inherited Scheme sources. Scheme modules
+    are compiled to dependency-aware bytecode during the build, and installed
+    <ATHENA> releases do not depend on a system <name|Guile> 1.8 package.
   </answer*>
 
   <section*|Troubleshooting>

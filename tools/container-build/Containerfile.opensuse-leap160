@@ -3,6 +3,11 @@ FROM registry.opensuse.org/opensuse/leap:16.0
 SHELL ["/bin/bash", "-lc"]
 
 RUN set -e; \
+    sed -i \
+      -e 's|http://cdn.opensuse.org/|https://muug.ca/mirror/opensuse/|g' \
+      -e 's|https://cdn.opensuse.org/|https://muug.ca/mirror/opensuse/|g' \
+      /etc/zypp/repos.d/*.repo; \
+    printf '\ndownload.transfer_timeout = 1800\n' >> /etc/zypp/zypp.conf; \
     zypper --non-interactive mr -d \
       repo-backports-update \
       repo-sle-update \
@@ -18,6 +23,7 @@ RUN set -e; \
       automake \
       bash \
       binutils \
+      bison \
       boost-devel \
       bzip2 \
       ca-certificates \
@@ -30,9 +36,11 @@ RUN set -e; \
       dpkg \
       file \
       findutils \
+      flex \
       fontconfig-devel \
       freetype2-devel \
       gawk \
+      gperf \
       gcc \
       gcc-c++ \
       gcc13 \
@@ -102,7 +110,9 @@ RUN set -e; \
     zypper --non-interactive --gpg-auto-import-keys refresh; \
     zypper --non-interactive --gpg-auto-import-keys install \
       --force-resolution -y \
-      libcurl-devel; \
+      libcurl-devel \
+      libunistring-devel \
+      ripgrep; \
     zypper clean --all
 
 ENV PATH="/opt/intel/oneapi/compiler/latest/bin:/usr/local/bin:/usr/bin:/bin"

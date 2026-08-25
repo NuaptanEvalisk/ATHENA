@@ -12,9 +12,9 @@
   <ATHENA> stands for the <em|Advanced Typesetting and Hypertext Environment
   for Notes and Archives>. It is a mathematics-centered knowledge work
   environment built from GNU <TeXmacs>, combining structured WYSIWYG
-  typesetting with vaults, wikilinks, transclusions, namespaces, rendered
-  search, cloud task sync, continuous RAG, and import tooling for large
-  mathematical note collections.
+  typesetting with vaults, wikilinks, transclusions, namespaces, Materials,
+  semantic Artifacts, rendered search, cloud task sync, continuous RAG, and
+  import tooling for large mathematical note collections.
 
   <\description>
     <item*|Warning: not for everyone>
@@ -60,6 +60,20 @@
     automatic anchors, proper solution rendering, and corrected display-first
     title layout.
 
+    <item*|Materials and citations>
+
+    Vault-native Materials replace the legacy bibliography workflow. Books,
+    articles, chapters, and other sources have stable UUIDs, typed metadata,
+    managed attachments, CSL citations, and referenced-Materials lists.
+    Libraries can be imported from BibTeX or from Zotero's Local API.
+
+    <item*|Artifacts and radioactive links>
+
+    <ATHENA> indexes enunciations and bold-text definitions as stable semantic
+    Artifacts. Artifact names in ordinary prose can become automatic
+    radioactive links with case, inflection, possessive, eponym, and
+    same-name disambiguation handling.
+
     <item*|Obsidian/AOFM conversion>
 
     <ATHENA> can import Obsidian-style mathematical vaults, including
@@ -101,6 +115,13 @@
     shared structural, font, and vault caches. <ATHENA> presents the first
     usable viewport promptly and continues screen layout in bounded batches,
     while print and export retain complete deterministic typesetting.
+
+    <item*|Modern runtime and mathematical input>
+
+    <ATHENA> ships a private <name|Guile> 3 runtime with parallel incremental
+    Scheme bytecode compilation. A native Handwritten Symbol pane recognizes
+    mouse, touch, or tablet input locally and inserts ranked mathematical
+    symbols without a network service.
 
     <item*|Foundations and divergence>
 
