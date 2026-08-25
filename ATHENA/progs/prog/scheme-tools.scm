@@ -12,7 +12,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 ;; The contents of this file are preliminary and simple. Things TO-DO are:
-;;  - Use gui:help-window-visible in init-texmacs.scm (or elsewhere)
+;;  - Use gui:help-window-visible in init-athena.scm (or elsewhere)
 ;;  - this list 
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

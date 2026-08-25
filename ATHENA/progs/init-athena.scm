@@ -18,7 +18,7 @@
       (else
        (debug-set! stack 1000000)))
 
-(define boot-start (athena-time))
+(define boot-start (texmacs-time))
 
 (define developer-mode?
   (equal? (cpp-get-preference "developer tool" "off") "on"))
@@ -60,6 +60,22 @@
     form))
 
 (define old-primitive-load primitive-load)
+(define startup-load-profile? (equal? (getenv "ATHENA_STARTUP_PROFILE") "1"))
+
+(define (startup-profiled-primitive-load filename)
+  (let* ((start (texmacs-time))
+         (result (old-primitive-load filename))
+         (elapsed (- (texmacs-time) start)))
+    (display "ATHENA-STARTUP-LOAD\t")
+    (display elapsed)
+    (display "\t")
+    (display filename)
+    (newline)
+    result))
+
+(if startup-load-profile?
+    (set! primitive-load startup-profiled-primitive-load))
+
 (define (new-primitive-load filename)
   (if (member (scheme-dialect) (list "guile-a" "guile-b"))
       (old-primitive-load filename)
@@ -93,7 +109,7 @@
 ;;   (display "Done\n"))
 ;; (set! primitive-load new-primitive-load)
 
-;(display "Booting ATHENA kernel functionality\n")
+;(display "Booting TeXmacs kernel functionality\n")
 (primitive-load (url-concretize "$ATHENA_PATH/progs/kernel/boot/boot.scm"))
 (inherit-modules (kernel boot compat) (kernel boot abbrevs)
                  (kernel boot debug) (kernel boot srfi)
@@ -121,8 +137,8 @@
                  (kernel old-gui old-gui-factory)
                  (kernel old-gui old-gui-form)
                  (kernel old-gui old-gui-test))
-;(display* "time: " (- (athena-time) boot-start) "\n")
-;(display* "memory: " (athena-memory) " bytes\n")
+;(display* "time: " (- (texmacs-time) boot-start) "\n")
+;(display* "memory: " (texmacs-memory) " bytes\n")
 
 ;(display "Booting utilities\n")
 (import-from (utils library cpp-wrap))
@@ -133,10 +149,11 @@
 (lazy-define (utils test test-convert) delayed-quit
              build-manual build-ref-suite run-test-suite)
 (import-from (utils library smart-table))
-(import-from (utils plugins plugin-convert))
+(when (not (qt-gui?))
+  (use-modules (utils plugins plugin-convert)))
 (import-from (utils misc markup-funcs))
 (import-from (utils misc artwork))
-(import-from (utils handwriting handwriting))
+(lazy-define (utils handwriting handwriting) learn-glyphs)
 (lazy-tmfs-handler (utils automate auto-tmfs) automate)
 (lazy-tmfs-handler (athena athena tm-vault-welcome) welcome)
 (lazy-define (athena athena tm-vault-welcome)
@@ -147,17 +164,12 @@
 (lazy-keyboard (utils automate auto-kbd) in-auto?)
 (define supports-email? (url-exists-in-path? "mmail"))
 (if supports-email? (use-modules (utils email email-tmfs)))
-;(display* "time: " (- (athena-time) boot-start) "\n")
-;(display* "memory: " (athena-memory) " bytes\n")
+;(display* "time: " (- (texmacs-time) boot-start) "\n")
+;(display* "memory: " (texmacs-memory) " bytes\n")
 
-;(display "Booting main ATHENA functionality\n")
-(import-from (athena athena tm-server) (athena athena tm-view)
-             (athena athena tm-files) (athena athena tm-print)
-             (athena athena tm-vault) (athena athena tm-materials)
-             (athena athena tm-codex))
-(define-secure-symbols heading-fold-toggle-tree heading-fold-toggle
-  heading-word-count-tree heading-word-count-path
-  heading-word-count-schedule-refresh)
+;(display "Booting main TeXmacs functionality\n")
+(import-from (athena athena tm-server) (athena athena tm-vault-startup))
+(lazy-define (athena athena tm-vault) load-vault-dir)
 (lazy-define (athena athena tm-files)
              buffer-missing-style? buffer-set-default-style)
 (import-from (athena keyboard config-kbd))
@@ -168,7 +180,7 @@
            new-file-menu load-menu save-menu
            print-menu print-menu-inline close-menu)
 (lazy-menu (athena menus edit-menu) edit-menu)
-(lazy-menu (athena menus view-menu) view-menu athena-bottom-toolbars)
+(lazy-menu (athena menus view-menu) view-menu texmacs-bottom-toolbars)
 (lazy-menu (athena menus interface-menu) interface-menu)
 (lazy-menu (athena menus utility-menus)
            athena-go-utilities-menu
@@ -182,18 +194,19 @@
 (lazy-menu (athena menus preferences-widgets)
            preferences-open?
            open-preferences open-plugin-preferences open-plugins-preferences)
-(import-from (athena menus main-menu))
+(lazy-menu (athena menus main-menu)
+           texmacs-extra-menu texmacs-extra-icons
+           plugin-menu plugin-icons bookmarks-menu test-menu help-icons
+           comment-menu athena-focus-menu texmacs-menu window-list-menu
+           workspace-menu presentation-popup-menu texmacs-popup-menu
+           texmacs-alternative-popup-menu texmacs-main-icons
+           texmacs-mode-icons)
 (lazy-define (athena menus file-menu) recent-file-list recent-directory-list)
 (lazy-define (athena menus view-menu) set-bottom-bar test-bottom-bar?)
-(lazy-define (athena athena tm-reverse-hierarchy-graph)
-             open-reverse-hierarchy-graph insert-reverse-hierarchy-graph
-             open-direct-hierarchy-graph open-global-hierarchy-graph)
-(define-secure-symbols reverse-hierarchy-graph-render
-                       global-hierarchy-graph-show)
 (lazy-tool (athena menus view-tools) retina-settings-tool)
 (tm-define (notify-set-attachment name key val) (noop))
-;(display* "time: " (- (athena-time) boot-start) "\n")
-;(display* "memory: " (athena-memory) " bytes\n")
+;(display* "time: " (- (texmacs-time) boot-start) "\n")
+;(display* "memory: " (texmacs-memory) " bytes\n")
 
 ;(display "Booting generic mode\n")
 (lazy-keyboard (generic generic-kbd) always?)
@@ -203,9 +216,7 @@
              spell-live-import-custom-dictionary-from-preferences)
 (lazy-keyboard (generic generic-speech-en) always?)
 (lazy-keyboard (generic generic-speech-fr) always?)
-(lazy-menu (generic generic-menu) focus-menu athena-focus-icons)
-(lazy-menu (athena athena tm-vault) vault-transclusion-focus-menu)
-(lazy-menu (athena athena tm-materials) materials-focus-menu)
+(lazy-menu (generic generic-menu) focus-menu texmacs-focus-icons)
 (lazy-menu (generic format-menu) format-menu
            font-size-menu color-menu horizontal-space-menu
            transform-menu specific-menu
@@ -214,12 +225,11 @@
            page-header-menu page-footer-menu page-numbering-menu
            page-break-menu)
 (lazy-menu (generic document-menu) document-menu
-           cite-athena-menu cite-athena-short-menu
            project-menu document-style-menu global-language-menu)
 (lazy-menu (generic document-part)
            preamble-menu document-part-menu project-manage-menu)
-(lazy-menu (generic insert-menu) insert-menu athena-insert-menu
-           athena-insert-icons insert-link-menu insert-image-menu)
+(lazy-menu (generic insert-menu) insert-menu texmacs-insert-menu
+           texmacs-insert-icons insert-link-menu insert-image-menu)
 (lazy-define (generic document-edit) update-document set-document-language
              get-init-page-rendering init-page-rendering)
 (lazy-define (generic generic-edit) notify-activated notify-disactivated
@@ -257,8 +267,8 @@
 (tm-property (open-pattern-selector cmd w) (:interactive #t))
 (tm-property (open-gradient-selector cmd) (:interactive #t))
 (tm-property (open-background-picture-selector cmd) (:interactive #t))
-;(display* "time: " (- (athena-time) boot-start) "\n")
-;(display* "memory: " (athena-memory) " bytes\n")
+;(display* "time: " (- (texmacs-time) boot-start) "\n")
+;(display* "memory: " (texmacs-memory) " bytes\n")
 
 ;(display "Booting text mode\n")
 (lazy-keyboard (text text-kbd) in-text?)
@@ -268,8 +278,8 @@
 (lazy-menu (text text-menu) text-format-menu text-format-icons
 	   text-menu text-block-menu text-inline-menu
            text-icons text-block-icons text-inline-icons)
-;(display* "time: " (- (athena-time) boot-start) "\n")
-;(display* "memory: " (athena-memory) " bytes\n")
+;(display* "time: " (- (texmacs-time) boot-start) "\n")
+;(display* "memory: " (texmacs-memory) " bytes\n")
 (lazy-define (text text-drd) tm-register-new-list-tag)
 
 ;(display "Booting math mode\n")
@@ -286,8 +296,8 @@
            context-preferences-menu insert-math-menu)
 (lazy-initialize (math math-menu) (in-math?))
 (lazy-define (math math-edit) brackets-refresh)
-;(display* "time: " (- (athena-time) boot-start) "\n")
-;(display* "memory: " (athena-memory) " bytes\n")
+;(display* "time: " (- (texmacs-time) boot-start) "\n")
+;(display* "memory: " (texmacs-memory) " bytes\n")
 
 ;(display "Booting programming modes\n")
 (lazy-format (prog prog-format) scheme)
@@ -296,8 +306,8 @@
 (lazy-keyboard (prog prog-kbd) in-prog?)
 (lazy-menu (prog prog-menu) prog-format-menu prog-format-icons
 	   prog-menu prog-icons)
-;(display* "time: " (- (athena-time) boot-start) "\n")
-;(display* "memory: " (athena-memory) " bytes\n")
+;(display* "time: " (- (texmacs-time) boot-start) "\n")
+;(display* "memory: " (texmacs-memory) " bytes\n")
 
 ;(display "Booting source mode\n")
 (lazy-keyboard (source source-kbd) always?)
@@ -319,8 +329,8 @@
 (tm-property (open-shortcuts-editor . opt) (:interactive #t))
 (when (url-exists? "$ATHENA_HOME_PATH/system/shortcuts.scm")
   (delayed (:idle 100) (init-user-shortcuts)))
-;(display* "time: " (- (athena-time) boot-start) "\n")
-;(display* "memory: " (athena-memory) " bytes\n")
+;(display* "time: " (- (texmacs-time) boot-start) "\n")
+;(display* "memory: " (texmacs-memory) " bytes\n")
 
 ;(display "Booting table mode\n")
 (lazy-keyboard (table table-kbd) in-table?)
@@ -330,8 +340,8 @@
 (lazy-tool (table table-tools) cell-properties-tool table-properties-tool)
 (tm-property (open-cell-properties) (:interactive #t))
 (tm-property (open-table-properties) (:interactive #t))
-;(display* "time: " (- (athena-time) boot-start) "\n")
-;(display* "memory: " (athena-memory) " bytes\n")
+;(display* "time: " (- (texmacs-time) boot-start) "\n")
+;(display* "memory: " (texmacs-memory) " bytes\n")
 
 ;(display "Booting graphics mode\n")
 (lazy-keyboard (graphics graphics-kbd) in-active-graphics? graphics-wheel)
@@ -362,21 +372,21 @@
 (define-secure-symbols commutative-diagram-layout
   commutative-diagram-handle)
 (define-secure-symbols ext-fold-toc-in-reflow? toc-fold-tree toc-unfold-tree)
-;(display* "time: " (- (athena-time) boot-start) "\n")
-;(display* "memory: " (athena-memory) " bytes\n")
+;(display* "time: " (- (texmacs-time) boot-start) "\n")
+;(display* "memory: " (texmacs-memory) " bytes\n")
 
 ;(display "Booting formal and natural languages\n")
 (lazy-language (language minimal) minimal)
 (lazy-language (language std-math) std-math)
 (lazy-define (language natural) replace)
-;(display* "time: " (- (athena-time) boot-start) "\n")
-;(display* "memory: " (athena-memory) " bytes\n")
+;(display* "time: " (- (texmacs-time) boot-start) "\n")
+;(display* "memory: " (texmacs-memory) " bytes\n")
 
 ;(display "Booting educational features\n")
 (lazy-keyboard (education edu-kbd) in-edu-text?)
 (lazy-menu (education edu-menu) edu-insert-menu)
-;(display* "time: " (- (athena-time) boot-start) "\n")
-;(display* "memory: " (athena-memory) " bytes\n")
+;(display* "time: " (- (texmacs-time) boot-start) "\n")
+;(display* "memory: " (texmacs-memory) " bytes\n")
 
 ;(display "Booting dynamic features\n")
 (lazy-keyboard (dynamic fold-kbd) always?)
@@ -397,8 +407,8 @@
 (lazy-define (dynamic calc-edit) calc-ready? calc-table-renumber)
 (lazy-define (dynamic scripts-plot) open-plots-editor)
 (lazy-initialize (dynamic session-menu) (in-session?))
-;(display* "time: " (- (athena-time) boot-start) "\n")
-;(display* "memory: " (athena-memory) " bytes\n")
+;(display* "time: " (- (texmacs-time) boot-start) "\n")
+;(display* "memory: " (texmacs-memory) " bytes\n")
 
 ;(display "Booting documentation\n")
 (lazy-keyboard (doc tmdoc-kbd) in-manual?)
@@ -417,11 +427,11 @@
 (lazy-tmfs-handler (doc tmdoc) help)
 (lazy-tmfs-handler (doc apidoc) apidoc)
 (define-secure-symbols tmdoc-include)
-;(display* "time: " (- (athena-time) boot-start) "\n")
-;(display* "memory: " (athena-memory) " bytes\n")
+;(display* "time: " (- (texmacs-time) boot-start) "\n")
+;(display* "memory: " (texmacs-memory) " bytes\n")
 
 ;(display "Booting converters\n")
-(lazy-format (convert rewrite init-rewrite) athena verbatim)
+(lazy-format (convert rewrite init-rewrite) texmacs verbatim)
 (lazy-format (convert tmml init-tmml) tmml)
 (lazy-format (convert latex init-latex) latex)
 (lazy-format (convert html init-html) html)
@@ -430,7 +440,7 @@
              postscript pdf xmgrace svg xpm jpeg ppm gif png pnm)
 (lazy-define (convert images tmimage)
              export-selection-as-graphics clipboard-copy-image)
-(lazy-define (convert rewrite init-rewrite) athena->code athena->verbatim)
+(lazy-define (convert rewrite init-rewrite) texmacs->code texmacs->verbatim)
 (lazy-define (convert html tmhtml) ext-tmhtml-eqnarray*)
 (define-secure-symbols ext-tmhtml-eqnarray*)
 (lazy-define (convert html tmhtml-expand) tmhtml-env-patch)
@@ -438,16 +448,16 @@
 (lazy-define (convert latex tmtex) tmtex-env-patch)
 (lazy-define (convert latex latex-tools) latex-set-virtual-packages
              latex-has-style? latex-has-package?
-             latex-has-athena-style? latex-has-athena-package?)
-;(display* "time: " (- (athena-time) boot-start) "\n")
-;(display* "memory: " (athena-memory) " bytes\n")
+             latex-has-texmacs-style? latex-has-texmacs-package?)
+;(display* "time: " (- (texmacs-time) boot-start) "\n")
+;(display* "memory: " (texmacs-memory) " bytes\n")
 
 ;(display "Booting partial document facilities\n")
 (lazy-define (part part-shared) buffer-initialize buffer-notify)
 (lazy-menu (part part-menu) document-master-menu)
 (lazy-tmfs-handler (part part-tmfs) part)
-;(display* "time: " (- (athena-time) boot-start) "\n")
-;(display* "memory: " (athena-memory) " bytes\n")
+;(display* "time: " (- (texmacs-time) boot-start) "\n")
+;(display* "memory: " (texmacs-memory) " bytes\n")
 
 ;(display "Booting database facilities\n")
 (lazy-define (database db-widget) open-db-chooser)
@@ -455,8 +465,8 @@
 (lazy-define (database db-convert) db-url?)
 (lazy-menu (database db-menu) db-menu db-toolbar)
 (lazy-tmfs-handler (database db-tmfs) db)
-;(display* "time: " (- (athena-time) boot-start) "\n")
-;(display* "memory: " (athena-memory) " bytes\n")
+;(display* "time: " (- (texmacs-time) boot-start) "\n")
+;(display* "memory: " (texmacs-memory) " bytes\n")
 
 ;(display "Booting security tools\n")
 (lazy-define (security wallet wallet-menu) expand-with-wallet)
@@ -472,8 +482,8 @@
 (lazy-menu (security gpg gpg-menu) gpg-menu document-encryption-menu)
 (lazy-menu (security gpg gpg-widgets) gpg-preferences-widget)
 
-;(display* "time: " (- (athena-time) boot-start) "\n")
-;(display* "memory: " (athena-memory) " bytes\n")
+;(display* "time: " (- (texmacs-time) boot-start) "\n")
+;(display* "memory: " (texmacs-memory) " bytes\n")
 
 ;(display "Booting linking facilities\n")
 (lazy-menu (link link-menu) link-menu)
@@ -487,15 +497,15 @@
 (lazy-menu (link ref-menu) ref-menu)
 (lazy-define (link ref-edit) preview-reference)
 (define-secure-symbols preview-reference)
-;(display* "time: " (- (athena-time) boot-start) "\n")
-;(display* "memory: " (athena-memory) " bytes\n")
+;(display* "time: " (- (texmacs-time) boot-start) "\n")
+;(display* "memory: " (texmacs-memory) " bytes\n")
 
 ;(display "Booting versioning facilities\n")
 (lazy-menu (version version-menu) version-menu)
 (lazy-keyboard (version version-kbd) with-versioning-tool?)
 (lazy-define (version version-tmfs) update-buffer commit-buffer)
-;(display* "time: " (- (athena-time) boot-start) "\n")
-;(display* "memory: " (athena-memory) " bytes\n")
+;(display* "time: " (- (texmacs-time) boot-start) "\n")
+;(display* "memory: " (texmacs-memory) " bytes\n")
 
 ;(display "Booting debugging and developer facilities\n")
 (lazy-menu (debug debug-menu) debug-menu)
@@ -503,26 +513,26 @@
            developer-menu custom-keyboard-toolbar)
 (lazy-define (debug debug-widgets) notify-debug-message
              open-debug-console open-error-messages)
-;(display* "time: " (- (athena-time) boot-start) "\n")
-;(display* "memory: " (athena-memory) " bytes\n")
+;(display* "time: " (- (texmacs-time) boot-start) "\n")
+;(display* "memory: " (texmacs-memory) " bytes\n")
 
 ;(display "Booting editing modes for various special styles\n")
 (lazy-menu (various poster-menu) poster-block-menu)
 (lazy-menu (various theme-menu) basic-theme-menu)
 (lazy-define (various theme-edit) current-basic-theme)
 (lazy-define (various theme-menu) basic-theme-name)
-;(display* "time: " (- (athena-time) boot-start) "\n")
-;(display* "memory: " (athena-memory) " bytes\n")
+;(display* "time: " (- (texmacs-time) boot-start) "\n")
+;(display* "memory: " (texmacs-memory) " bytes\n")
 
 ;(display "Booting plugins\n")
 (for-each lazy-plugin-initialize (plugin-list))
-;(display* "time: " (- (athena-time) boot-start) "\n")
-;(display* "memory: " (athena-memory) " bytes\n")
+;(display* "time: " (- (texmacs-time) boot-start) "\n")
+;(display* "memory: " (texmacs-memory) " bytes\n")
 
 ;(display "Booting fonts\n")
 (import-from (fonts fonts-ec) (fonts fonts-adobe) (fonts fonts-x)
              (fonts fonts-math) (fonts fonts-foreign) (fonts fonts-misc)
-             (fonts fonts-composite) (fonts fonts-truetype))
+             (fonts fonts-composite))
 (lazy-define (fonts font-old-menu)
 	     text-font-menu math-font-menu prog-font-menu)
 (lazy-define (fonts font-new-widgets)
@@ -530,16 +540,15 @@
              open-document-other-font-selector)
 (tm-property (open-font-selector) (:interactive #t))
 (tm-property (open-document-font-selector) (:interactive #t))
-;(display* "time: " (- (athena-time) boot-start) "\n")
-;(display* "memory: " (athena-memory) " bytes\n")
+;(display* "time: " (- (texmacs-time) boot-start) "\n")
+;(display* "memory: " (texmacs-memory) " bytes\n")
 
 ;(display "Booting regression testing\n")
 (lazy-define (check check-master) check-all run-checks run-all-tests)
-;(display* "time: " (- (athena-time) boot-start) "\n")
-;(display* "memory: " (athena-memory) " bytes\n")
+;(display* "time: " (- (texmacs-time) boot-start) "\n")
+;(display* "memory: " (texmacs-memory) " bytes\n")
 
 ;(display "------------------------------------------------------\n")
 (delayed (:idle 10000) (autosave-delayed))
-(athena-banner)
-(set! athena-booted? #t)
+(texmacs-banner)
 ;(display "Initialization done\n")

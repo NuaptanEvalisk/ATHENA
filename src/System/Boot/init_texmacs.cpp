@@ -354,14 +354,14 @@ init_guile () {
     set_env ("GUILE_AUTO_COMPILE", exists (bundled_stamp) ? "0" : "1");
 
   url guile_path= "$ATHENA_PATH/progs:$GUILE_LOAD_PATH";
-  if (!exists (guile_path * "init-texmacs.scm")) {
+  if (!exists (guile_path * "init-athena.scm")) {
     boot_error << "\n";
     boot_error << "Installation problem: please send a bug report.\n";
-    boot_error << "The initialization file init-texmacs.scm"
+    boot_error << "The initialization file init-athena.scm"
                << " could not be found.\n";
     boot_error << "Please check the values of the environment variables\n";
     boot_error << "ATHENA_PATH and GUILE_LOAD_PATH."
-               << " init-texmacs.scm should\n";
+               << " init-athena.scm should\n";
     boot_error << "be readable and in the directory $ATHENA_PATH/progs\n";
     boot_error << "or in the directory $GUILE_LOAD_PATH\n";
     boot_error << "\n";

@@ -103,12 +103,12 @@
 
 (define module-exported-cache (make-ahash-table))
 
-; HACK: we use read (copying what's done in init-texmacs.scm) until the
+; HACK: we use read (copying what's done in init-athena.scm) until the
 ; code indexer is implemented
 (define (parse-form form f)
   "Set symbol properties and return the symbol."
   (and (pair? form) 
-       (member (car form) def-keywords) ;def-keywords defined in init-texmacs.scm
+       (member (car form) def-keywords) ;def-keywords defined in init-athena.scm
        (let* ((l (source-property form 'line))
               (c (source-property form 'column))
               (sym  (if (pair? (cadr form)) (caadr form) (cadr form))))

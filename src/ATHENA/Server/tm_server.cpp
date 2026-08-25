@@ -118,7 +118,7 @@ tm_server_rep::tm_server_rep (): def_zoomf (1.0), center_message ("") {
   gui_post_repaint (texmacs_post_repaint_handler);
   set_wait_handler (texmacs_wait_handler);
   if (is_none (tm_init_file))
-    tm_init_file= "$ATHENA_PATH/progs/init-texmacs.scm";
+    tm_init_file= "$ATHENA_PATH/progs/init-athena.scm";
   if (is_none (my_init_file))
     my_init_file= "$ATHENA_HOME_PATH/progs/my-init-texmacs.scm";
   bench_start ("load scheme boot");

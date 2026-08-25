@@ -1139,6 +1139,15 @@ TeXmacs_main (int argc, char** argv) {
     server sv;
     bench_cumul ("start server");
     startup_progress (92, "Server ready");
+
+    // GUI startup reaches the document file layer through its deferred window
+    // and menu initialization.  Headless document workloads have no such
+    // transition, so establish that capability explicitly before any C++
+    // workload evaluates load/save/export commands in the shared Scheme root.
+    // Pure service modes deliberately keep their smaller module footprint.
+    if (headless_mode && rag_server_dir == "" &&
+        rag_delegated_embedding_dir == "")
+      eval ("(module-provide '(athena athena tm-files))");
   
     // append commands to open standard welcome messages if needed
     if (install_status == 1) {

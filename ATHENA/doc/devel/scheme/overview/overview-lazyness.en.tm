@@ -71,7 +71,7 @@
   </scm-code>
 
   For more concrete examples, we recommend the user to take a look at the
-  standard initialization file <hlink|<verbatim|init-texmacs.scm>|$ATHENA_PATH/progs/init-texmacs.scm>.
+  standard initialization file <hlink|<verbatim|init-athena.scm>|$ATHENA_PATH/progs/init-athena.scm>.
 
   <label|redefinitions>On the negative side, the mechanism for lazy loading
   has the important consequence that you can no longer make assumptions on

@@ -8,7 +8,7 @@
   When starting up, <TeXmacs> executes the file
 
   <\verbatim>
-    \ \ \ \ $ATHENA_PATH/progs/init-texmacs.scm
+    \ \ \ \ $ATHENA_PATH/progs/init-athena.scm
   </verbatim>
 
   as well as your personal initialization file

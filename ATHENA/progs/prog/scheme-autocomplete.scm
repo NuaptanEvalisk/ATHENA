@@ -78,7 +78,7 @@
             (pt-words-below (pt-find completions (tmstring->string root))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Hook for new-read. See init-texmacs.scm
+;; Hook for new-read. See init-athena.scm
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define (%read-symbol-hook sym)
