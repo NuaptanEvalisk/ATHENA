@@ -1515,12 +1515,13 @@
                 r))))
 
 (define (tmhtml-ornament l)
-  (let* ((body (tmhtml (car l)))
+  (let* ((block? (stm-block-structure? (car l)))
+         (body (tmhtml (car l)))
          (styl (tmhtml-ornament-get-env-style))
-         (styl (if (contains-surround? l)
+         (styl (if (or block? (contains-surround? l))
                  (string-append styl ";display:block;") styl))
          (args (if (== styl "") '() `((style ,styl))))
-         (tag  (if (stm-block-structure? (car l)) 'h:div 'h:span)))
+         (tag  (if block? 'h:div 'h:span)))
     `((,tag (@ (class "ornament") ,@args) ,@body))))
 
 (define (tmhtml-balloon l)

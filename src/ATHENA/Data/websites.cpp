@@ -18,7 +18,7 @@ namespace athena_websites {
 namespace {
 
 constexpr int website_source_manifest_version= 1;
-constexpr int website_document_export_revision= 1;
+constexpr int website_document_export_revision= 2;
 constexpr const char* website_source_manifest_name=
   ".athena-source-hashes.json";
 
