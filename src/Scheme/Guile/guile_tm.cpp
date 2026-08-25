@@ -28,6 +28,16 @@
 bool scm_busy= false;
 
 static void (*old_call_back) (int, char**)= NULL;
+static scheme_compile_callback old_compile_callback= nullptr;
+
+static void
+athena_auto_compile_callback (const char* source, int compiling, void* data) {
+  (void) data;
+  if (old_compile_callback != nullptr)
+    old_compile_callback (compiling != 0,
+                          source == nullptr ? string () : string (source));
+}
+
 static void
 new_call_back (void *closure, int argc, char** argv) {
   (void) closure;
@@ -40,11 +50,16 @@ int guile_argc;
 char **guile_argv;
 
 void
-start_scheme (int argc, char** argv, void (*call_back) (int, char**)) {
+start_scheme (int argc, char** argv, void (*call_back) (int, char**),
+              scheme_compile_callback compile_callback) {
   guile_argc = argc;
   guile_argv = argv;
   old_call_back= call_back;
+  old_compile_callback= compile_callback;
+  scm_athena_set_auto_compile_callback (athena_auto_compile_callback, nullptr);
   scm_boot_guile (argc, argv, new_call_back, 0);
+  scm_athena_set_auto_compile_callback (nullptr, nullptr);
+  old_compile_callback= nullptr;
 }
 
 

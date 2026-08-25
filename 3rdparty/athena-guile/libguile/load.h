@@ -39,6 +39,11 @@ SCM_API SCM scm_sys_search_load_path (SCM filename);
 SCM_API SCM scm_primitive_load_path (SCM filename_and_exception_on_not_found);
 SCM_API SCM scm_c_primitive_load_path (const char *filename);
 SCM_API unsigned long scm_athena_flush_deferred_auto_compilation (void);
+typedef void (*scm_t_athena_auto_compile_callback) (const char *source,
+                                                     int compiling,
+                                                     void *data);
+SCM_API void scm_athena_set_auto_compile_callback (
+  scm_t_athena_auto_compile_callback callback, void *data);
 SCM_INTERNAL SCM scm_sys_warn_auto_compilation_enabled (void);
 SCM_INTERNAL void scm_init_load_path (void);
 SCM_INTERNAL void scm_init_load (void);

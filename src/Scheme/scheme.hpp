@@ -19,7 +19,9 @@
 
 class patch;
 
-void start_scheme (int argc, char** argv, void (*call_back) (int, char**));
+typedef void (*scheme_compile_callback) (bool compiling, string source);
+void start_scheme (int argc, char** argv, void (*call_back) (int, char**),
+                   scheme_compile_callback compile_callback= nullptr);
 void initialize_scheme ();
 void finalize_scheme_bootstrap ();
 

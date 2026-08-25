@@ -569,10 +569,42 @@ startup_progress (int progress, string message) {
   if (!headless_mode && qtmapp != NULL && !no_splash_screen)
     qtmapp->set_splash_progress (progress, message);
 }
+
+static int startup_scheme_compile_depth= 0;
+
+static string
+startup_scheme_module_name (string source) {
+  string install_root= get_env ("ATHENA_PATH") * "/";
+  string source_root= install_root * "progs/";
+  if (starts (source, source_root)) return source (N(source_root), N(source));
+  if (starts (source, install_root))
+    return source (N(install_root), N(source));
+  return source;
+}
+
+static void
+startup_scheme_compile (bool compiling, string source) {
+  if (headless_mode || qtmapp == NULL || no_splash_screen) return;
+  if (compiling) {
+    startup_scheme_compile_depth++;
+    qtmapp->set_splash_busy (
+      "Compiling Scheme module: " * startup_scheme_module_name (source));
+  }
+  else {
+    startup_scheme_compile_depth= std::max (0, startup_scheme_compile_depth - 1);
+    if (startup_scheme_compile_depth == 0)
+      qtmapp->set_splash_progress (83, "Loading Scheme modules");
+  }
+}
 #else
 static void
 startup_progress (int progress, string message) {
   (void) progress; (void) message;
+}
+
+static void
+startup_scheme_compile (bool compiling, string source) {
+  (void) compiling; (void) source;
 }
 #endif
 
@@ -2044,8 +2076,8 @@ texmacs_entrypoint (int argc, char** argv) {
 //#ifdef EXPERIMENTAL
 //  test_environments ();
 //#endif
-  startup_progress (83, "Starting Scheme");
-  start_scheme (argc, argv, TeXmacs_main);
+  startup_progress (83, "Loading Scheme modules");
+  start_scheme (argc, argv, TeXmacs_main, startup_scheme_compile);
 #ifdef QTTEXMACS
   if (headless_mode) {
     if (qtmapp != NULL) delete qtmapp;

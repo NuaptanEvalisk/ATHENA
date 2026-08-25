@@ -74,6 +74,14 @@ void QTMApplication::set_splash_progress (int progress, string message) {
   qApp->processEvents (QEventLoop::ExcludeUserInputEvents);
 }
 
+void QTMApplication::set_splash_busy (string message) {
+  if (mStartupWindow == nullptr) return;
+  mStartupWindow->setMessage (to_qstring (message));
+  mStartupWindow->setBusy (true);
+  mStartupWindow->repaint ();
+  qApp->processEvents (QEventLoop::ExcludeUserInputEvents);
+}
+
 void QTMApplication::hide_splash () {
   if (mStartupWindow != nullptr) {
     mStartupWindow->hide ();

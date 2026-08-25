@@ -1013,6 +1013,31 @@ SCM_KEYWORD (kw_opts, "opts");
 SCM_SYMBOL (sym_compile_file, "compile-file");
 SCM_SYMBOL (sym_auto_compilation_options, "%auto-compilation-options");
 
+static scm_t_athena_auto_compile_callback athena_auto_compile_callback;
+static void *athena_auto_compile_callback_data;
+
+void
+scm_athena_set_auto_compile_callback (
+  scm_t_athena_auto_compile_callback callback, void *data)
+{
+  athena_auto_compile_callback = callback;
+  athena_auto_compile_callback_data = data;
+}
+
+static void
+athena_report_auto_compile (SCM source, int compiling)
+{
+  char *name;
+
+  if (athena_auto_compile_callback == NULL)
+    return;
+
+  name = scm_to_utf8_string (source);
+  athena_auto_compile_callback (name, compiling,
+                                athena_auto_compile_callback_data);
+  free (name);
+}
+
 static SCM
 do_try_auto_compile (void *data)
 {
@@ -1022,6 +1047,7 @@ do_try_auto_compile (void *data)
   scm_puts (";;; compiling ", scm_current_warning_port ());
   scm_display (source, scm_current_warning_port ());
   scm_newline (scm_current_warning_port ());
+  athena_report_auto_compile (source, 1);
 
   comp_mod = scm_c_resolve_module ("system base compile");
   compile_file = scm_module_variable (comp_mod, sym_compile_file);
@@ -1051,6 +1077,7 @@ do_try_auto_compile (void *data)
       scm_puts (";;; compiled ", scm_current_warning_port ());
       scm_display (res, scm_current_warning_port ());
       scm_newline (scm_current_warning_port ());
+      athena_report_auto_compile (source, 0);
       return res;
     }
   else
@@ -1059,6 +1086,7 @@ do_try_auto_compile (void *data)
       scm_display (source, scm_current_warning_port ());
       scm_puts ("\n;;; is part of the compiler; skipping auto-compilation\n",
                 scm_current_warning_port ());
+      athena_report_auto_compile (source, 0);
       return SCM_BOOL_F;
     }
 }
@@ -1087,6 +1115,7 @@ auto_compile_catch_handler (void *data, SCM tag, SCM throw_args)
       }
 
   scm_close_port (oport);
+  athena_report_auto_compile (source, 0);
 
   return SCM_BOOL_F;
 }
