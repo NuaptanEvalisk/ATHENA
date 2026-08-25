@@ -21,7 +21,11 @@
                 (append-map
                   (lambda (option)
                     (if (and (pair? option)
-                             (memq (car option) '(#:use #:inherit)))
+                             (let* ((head (car option))
+                                    (text (object->string head)))
+                               (member text
+                                       '("#:use" "#:inherit"
+                                         ":use" ":inherit"))))
                         (cdr option)
                         '()))
                   options))))))
@@ -42,12 +46,14 @@
 (define (module-key name)
   (and name (object->string name)))
 
-(define (emit-entry level component entry)
+(define (emit-entry level component dependencies entry)
   (display level)
   (display #\tab)
   (display component)
   (display #\tab)
   (display (entry-path entry))
+  (display #\tab)
+  (display (string-join (map number->string dependencies) ","))
   (newline))
 
 (define (strongly-connected-components entries)
@@ -120,16 +126,20 @@
                   component))
       components component-ids)
     (define (component-dependencies id)
-      (delete-duplicates
-        (append-map
-          (lambda (entry)
-            (filter-map
-              (lambda (dependency)
-                (let ((dependency-id
-                       (hash-ref component-of (module-key dependency))))
-                  (and dependency-id (not (= dependency-id id)) dependency-id)))
-              (entry-dependencies entry)))
-          (list-ref components id))))
+      (sort
+        (delete-duplicates
+          (append-map
+            (lambda (entry)
+              (filter-map
+                (lambda (dependency)
+                  (let ((dependency-id
+                         (hash-ref component-of (module-key dependency))))
+                    (and dependency-id
+                         (not (= dependency-id id))
+                         dependency-id)))
+                (entry-dependencies entry)))
+            (list-ref components id)))
+        <))
     (let loop ((remaining component-ids) (completed '()) (level 0))
       (unless (null? remaining)
         (let ((ready
@@ -142,8 +152,10 @@
             (error "internal error: condensation graph contains a cycle"))
           (for-each
             (lambda (id)
-              (for-each (lambda (entry) (emit-entry level id entry))
-                        (list-ref components id)))
+              (let ((dependencies (component-dependencies id)))
+                (for-each (lambda (entry)
+                            (emit-entry level id dependencies entry))
+                          (list-ref components id))))
             ready)
           (loop (lset-difference = remaining ready)
                 (append ready completed)

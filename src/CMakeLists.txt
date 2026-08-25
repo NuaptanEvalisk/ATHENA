@@ -72,6 +72,14 @@ if (NOT WIN32)
        "Parallel workers used to precompile ATHENA Scheme modules")
   file (GLOB_RECURSE ATHENA_SCHEME_SOURCES CONFIGURE_DEPENDS
         "${ATHENA_SOURCE_DIR}/ATHENA/progs/*.scm")
+  list (SORT ATHENA_SCHEME_SOURCES)
+  string (JOIN "\n" ATHENA_SCHEME_SOURCE_MANIFEST_CONTENT
+          ${ATHENA_SCHEME_SOURCES})
+  string (APPEND ATHENA_SCHEME_SOURCE_MANIFEST_CONTENT "\n")
+  set (ATHENA_SCHEME_SOURCE_MANIFEST
+       "${ATHENA_BINARY_DIR}/athena-scheme-sources.txt")
+  file (GENERATE OUTPUT "${ATHENA_SCHEME_SOURCE_MANIFEST}"
+        CONTENT "${ATHENA_SCHEME_SOURCE_MANIFEST_CONTENT}")
   set (ATHENA_SCHEME_BYTECODE_DIR
        "${ATHENA_SOURCE_DIR}/ATHENA/lib/athena-scheme/${ATHENA_GUILE_RUNTIME_ID}")
   set (ATHENA_SCHEME_BYTECODE_STAMP
@@ -82,8 +90,6 @@ if (NOT WIN32)
                           "${LLAMA_CPP_LIBRARY}" DIRECTORY)
   add_custom_command (
     OUTPUT "${ATHENA_SCHEME_BYTECODE_STAMP}"
-    COMMAND ${CMAKE_COMMAND} -E remove_directory
-            "${ATHENA_SCHEME_BYTECODE_DIR}"
     COMMAND ${CMAKE_COMMAND} -E make_directory
             "${ATHENA_SCHEME_BYTECODE_DIR}"
             "${ATHENA_SCHEME_COMPILE_HOME}"
@@ -100,6 +106,7 @@ if (NOT WIN32)
             "${ATHENA_SCHEME_COMPILE_JOBS}"
             "${ATHENA_GUILE_RUNTIME_ID}"
     DEPENDS ${ATHENA_SCHEME_SOURCES}
+            "${ATHENA_SCHEME_SOURCE_MANIFEST}"
             "${ATHENA_SOURCE_DIR}/src/ATHENA/ATHENA/athena.cpp"
             "${ATHENA_SOURCE_DIR}/3rdparty/athena-guile/libguile/athena-runtime.c"
             "${ATHENA_SOURCE_DIR}/tools/compile-athena-scheme-bytecode.sh"

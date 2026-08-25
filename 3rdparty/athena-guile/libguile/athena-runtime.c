@@ -90,6 +90,35 @@ athena_symbol (const char *name)
   return scm_from_utf8_symbol (name);
 }
 
+/* Guile 1.8's prefix keyword reader turns :option into a keyword, whereas
+   Guile 3's native reader leaves it as a colon-prefixed symbol.  ATHENA source
+   accepts both spellings, but Guile's own bootstrap must retain the native
+   reader.  Normalize at the language boundary instead of changing the global
+   reader while building Guile itself. */
+static SCM
+athena_option_key (SCM value)
+{
+  if (scm_is_keyword (value))
+    return scm_keyword_to_symbol (value);
+  if (scm_is_symbol (value))
+    {
+      char *name = scm_to_utf8_string (scm_symbol_to_string (value));
+      SCM result = SCM_BOOL_F;
+      if (name[0] == ':' && name[1] != '\0')
+        result = athena_symbol (name + 1);
+      free (name);
+      return result;
+    }
+  return SCM_BOOL_F;
+}
+
+static int
+athena_option_form_p (SCM value)
+{
+  return scm_is_pair (value)
+         && scm_is_true (athena_option_key (scm_car (value)));
+}
+
 static int
 athena_variable_bound_p (SCM variable)
 {
@@ -677,10 +706,13 @@ SCM_DEFINE (scm_athena_texmacs_module_expand,
       SCM option = scm_car (cursor);
       SCM keyword;
       SCM action = SCM_BOOL_F;
-      if (!scm_is_pair (option) || !scm_is_keyword (scm_car (option)))
+      if (!scm_is_pair (option))
         scm_misc_error (FUNC_NAME, "invalid module option ~S",
                         scm_list_1 (option));
-      keyword = scm_keyword_to_symbol (scm_car (option));
+      keyword = athena_option_key (scm_car (option));
+      if (scm_is_false (keyword))
+        scm_misc_error (FUNC_NAME, "invalid module option ~S",
+                        scm_list_1 (option));
       if (scm_is_eq (keyword, athena_symbol ("use")))
         action = scm_list_3
           (athena_symbol ("eval-when"),
@@ -909,12 +941,11 @@ athena_parse_definition_options (SCM head, SCM body)
   parsed.wrappers = SCM_EOL;
 
   while (scm_is_pair (cursor)
-         && scm_is_pair (scm_car (cursor))
-         && scm_is_keyword (scm_car (scm_car (cursor))))
+         && athena_option_form_p (scm_car (cursor)))
     {
       SCM option = scm_car (cursor);
       SCM args = scm_cdr (option);
-      SCM key = scm_keyword_to_symbol (scm_car (option));
+      SCM key = athena_option_key (scm_car (option));
 
       if (scm_is_eq (key, athena_symbol ("mode")))
         {
@@ -943,7 +974,7 @@ athena_parse_definition_options (SCM head, SCM body)
                || scm_is_eq (key, athena_symbol ("returns"))
                || scm_is_eq (key, athena_symbol ("note")))
         athena_add_property_descriptor
-          (&parsed, scm_car (option), athena_quote (args));
+          (&parsed, scm_symbol_to_keyword (key), athena_quote (args));
       else if (scm_is_eq (key, athena_symbol ("synopsis*")))
         {
           athena_add_property_descriptor
@@ -1505,7 +1536,7 @@ SCM_DEFINE (scm_athena_not_define_option_p, "not-define-option?", 1, 0, 0,
 #define FUNC_NAME s_scm_athena_not_define_option_p
 {
   return scm_from_bool
-    (!(scm_is_pair (value) && scm_is_keyword (scm_car (value))));
+    (!athena_option_form_p (value));
 }
 #undef FUNC_NAME
 
@@ -1579,8 +1610,7 @@ SCM_DEFINE (scm_athena_lazy_define_expand, "%athena-lazy-define-expand",
   SCM cursor = names;
 
   while (scm_is_pair (cursor)
-         && scm_is_pair (scm_car (cursor))
-         && scm_is_keyword (scm_car (scm_car (cursor))))
+         && athena_option_form_p (scm_car (cursor)))
     {
       options = scm_cons (scm_car (cursor), options);
       cursor = scm_cdr (cursor);
@@ -2181,11 +2211,16 @@ scm_init_athena_runtime (void)
   SCM handlers;
   size_t i;
 
-  /* Prefix keywords and source positions are part of ATHENA's private
-     language.  Build-time guild and the embedded interpreter must parse the
-     Guile 1.8-era corpus identically. */
-  scm_c_eval_string ("(read-set! keywords 'prefix)");
-  scm_c_eval_string ("(read-enable 'positions)");
+  /* Prefix keywords and source positions belong to ATHENA's private source
+     language, not to Guile's own standard library.  In particular, boot-9
+     must be compiled with Guile 3's native #:keyword reader.  ATHENA sets the
+     source root before initializing the embedded runtime and in every
+     bytecode worker. */
+  if (getenv ("ATHENA_GUILE_SOURCE_ROOT"))
+    {
+      scm_c_eval_string ("(read-set! keywords 'prefix)");
+      scm_c_eval_string ("(read-enable 'positions)");
+    }
 
   athena_root_module = scm_current_module ();
   scm_gc_protect_object (athena_root_module);
