@@ -14,6 +14,7 @@
 #include "scheme.hpp"
 
 #include <QApplication>
+#include <QEvent>
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -26,6 +27,25 @@
 namespace {
 
 static QPointer<QFrame> activeToast;
+
+static void position_toast (QFrame* toast, QWidget* parent);
+
+class QTMToastFrame final: public QFrame {
+public:
+  explicit QTMToastFrame (QWidget* parent): QFrame (parent), anchor (parent) {
+    if (anchor != nullptr) anchor->installEventFilter (this);
+  }
+
+protected:
+  bool eventFilter (QObject* watched, QEvent* event) override {
+    if (watched == anchor && event->type () == QEvent::Resize)
+      position_toast (this, anchor);
+    return QFrame::eventFilter (watched, event);
+  }
+
+private:
+  QPointer<QWidget> anchor;
+};
 
 static QWidget*
 toast_parent () {
@@ -74,7 +94,7 @@ qtm_show_toast (string left, string right) {
 
   if (activeToast) activeToast->close ();
 
-  QFrame* toast= new QFrame (parent);
+  QFrame* toast= new QTMToastFrame (parent);
   activeToast= toast;
   toast->setAttribute (Qt::WA_DeleteOnClose);
   toast->setWindowFlags (Qt::FramelessWindowHint);
