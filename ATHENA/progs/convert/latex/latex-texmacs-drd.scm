@@ -75,6 +75,7 @@
   bignone nobracket nospace nocomma noplus nosymbol
   dotminus dotpm dotmp dotamalg dottimes dotoplus dototimes dotast
   into longminus longequal
+  longtwoheadrightarrow longtwoheadleftarrow
   longhookrightarrow longhookleftarrow
   triangleup tmprecdot preceqdot
   llangle rrangle join um upl upm ump pplus

@@ -219,6 +219,8 @@
   (into "\\rightarrow")
   (longminus "{-\\!\\!-}")
   (longequal "{=\\!\\!=}")
+  (longtwoheadrightarrow "{\\relbar\\joinrel\\twoheadrightarrow}")
+  (longtwoheadleftarrow "{\\twoheadleftarrow\\joinrel\\relbar}")
   (longhookrightarrow "{\\lhook\\joinrel\\relbar\\joinrel\\rightarrow}")
   (longhookleftarrow "{\\leftarrow\\joinrel\\relbar\\joinrel\\rhook}")
   (triangleup "\\triangle")
