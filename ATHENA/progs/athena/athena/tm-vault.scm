@@ -787,6 +787,11 @@
                                         `(with "ornament-color" ,bg-color
                                                "ornament-shape" "rectangular"
                                                "ornament-border" "1ln"
+                                               "ornament-vpadding" "0.25spc"
+                                               "padding-above" "0.15fn"
+                                               "padding-below" "0.15fn"
+                                               "large-padding-above" "0.2fn"
+                                               "large-padding-below" "0.2fn"
                                            (ornamented
                                                (with "par-par-sep" "0fn"
                                                      "par-sep" "0fn"

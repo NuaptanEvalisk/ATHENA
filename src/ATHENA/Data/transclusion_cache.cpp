@@ -302,11 +302,18 @@ display_tree (tree transclusion, const AthenaTransclusionResolution& resolved) {
   tree compact= tree (WITH, "par-par-sep", "0fn", "par-sep", "0fn",
                       document);
   tree ornamented= compound ("ornamented", compact);
-  return tree (WITH,
-               "ornament-color",
-               get_preference ("vault transclusion color", "#f8f8f8"),
-               "ornament-shape", "rectangular",
-               "ornament-border", "1ln", ornamented);
+  tree styled (WITH);
+  styled << "ornament-color"
+         << get_preference ("vault transclusion color", "#f8f8f8")
+         << "ornament-shape" << "rectangular"
+         << "ornament-border" << "1ln"
+         << "ornament-vpadding" << "0.25spc"
+         << "padding-above" << "0.15fn"
+         << "padding-below" << "0.15fn"
+         << "large-padding-above" << "0.2fn"
+         << "large-padding-below" << "0.2fn"
+         << ornamented;
+  return styled;
 }
 
 } // namespace
