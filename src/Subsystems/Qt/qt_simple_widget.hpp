@@ -98,6 +98,7 @@ public:
   void reset_all() {
     if (backingPixmap == NULL) return;
     backing_pos = QPoint(); // reset the origin
+    backing_physical_pos = QPoint();
     *backingPixmap = QPixmap(); // reset the backing store
     invalidate_all(); // invalidate the whole canvas
   }
@@ -108,9 +109,11 @@ protected:
   rectangles   invalid_regions;
   QPixmap*     backingPixmap;  
   QPoint       backing_pos;
+  QPoint       backing_physical_pos;
   bool         backing_valid;
 
-  void invalidate_rect (int x1, int y1, int x2, int y2);
+  void invalidate_rect (int x1, int y1, int x2, int y2,
+                        bool widen_fractional_text= true);
   void invalidate_all ();
   bool is_invalid ();
   void repaint_invalid_regions ();

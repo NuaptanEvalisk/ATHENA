@@ -99,6 +99,14 @@ QTMWidget::QTMWidget (QWidget* _parent, qt_widget _tmwid)
            this, [this] (int) { notifyUserScroll (); });
   connect (verticalScrollBar (), &QScrollBar::sliderMoved,
            this, [this] (int) { notifyUserScroll (); });
+  fractionalScrollSettleTimer.setSingleShot (true);
+  fractionalScrollSettleTimer.setInterval (80);
+  fractionalScrollSettleTimer.setTimerType (Qt::CoarseTimer);
+  connect (&fractionalScrollSettleTimer, &QTimer::timeout, this, [this] () {
+    if (athena_qt_is_closing () || is_nil (tmwid) || !isVisible ()) return;
+    tm_widget ()->invalidate_all ();
+    the_gui->need_update ();
+  });
   cursorBlinkTimer.setTimerType (Qt::CoarseTimer);
   connect (&cursorBlinkTimer, &QTimer::timeout, this, [this] () {
     if (get_preference ("blinking cursor", "on") != "on" ||
@@ -208,12 +216,20 @@ void
 QTMWidget::scrollContentsBy (int dx, int dy) {
   QTMScrollView::scrollContentsBy (dx,dy);
   updateInputMethodCursorRectangle ();
+  scheduleFractionalScrollSettle ();
   if (athena_qt_is_closing ()) return;
   if (internalScrollChange ()) return;
   the_gui->force_update();
   if (isEmbedded ()) scheduleEmbeddedScrollRefresh ();
   // we force an update of the internal state to be in sync with the moving
   // scrollbars
+}
+
+void
+QTMWidget::scheduleFractionalScrollSettle () {
+  qreal dpr= devicePixelRatioF ();
+  if (std::fabs (dpr - std::round (dpr)) <= 0.001) return;
+  fractionalScrollSettleTimer.start ();
 }
 
 void

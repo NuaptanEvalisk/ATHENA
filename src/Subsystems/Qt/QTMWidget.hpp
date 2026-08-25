@@ -110,6 +110,7 @@ private:
   qreal lastPixelRatio = 0.0;
   QPointer<QScrollBar> tabletScrollBarTarget;
   QTimer cursorBlinkTimer;
+  QTimer fractionalScrollSettleTimer;
   bool cursorBlinkVisible= true;
   bool embeddedScrollRefreshPending= false;
   QTMPerformanceMonitor performanceMonitor;
@@ -132,6 +133,7 @@ private:
 
   void updateInputMethodCursorRectangle () const;
   void scheduleEmbeddedScrollRefresh ();
+  void scheduleFractionalScrollSettle ();
   void setCursorBlinkVisible (bool visible);
   void refreshCursorBlinking (bool restart);
   bool forwardTabletEventToScrollBar (QTabletEvent* event);

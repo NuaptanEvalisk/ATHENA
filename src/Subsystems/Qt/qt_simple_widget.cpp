@@ -20,6 +20,7 @@
 #include "QTMMenuHelper.hpp"
 #include <QPixmap>
 #include <QLayout>
+#include <QRegion>
 #include <cmath>
 
 #include "QTMImpressIconEngine.hpp"
@@ -52,6 +53,9 @@ qt_simple_widget_rep::as_qwidget (QWidget* parent_widget) {
   }
   all_widgets->insert((pointer) this);
   backing_pos = canvas()->origin ();
+  backing_physical_pos= QPoint (
+    qRound (device_pixel_ratio () * backing_pos.x ()),
+    qRound (device_pixel_ratio () * backing_pos.y ()));
   backing_valid = false;
   return qwid;
 }
@@ -410,14 +414,16 @@ fractional_pixel_ratio (double pixel_ratio) {
 }
 
 void
-qt_simple_widget_rep::invalidate_rect (int x1, int y1, int x2, int y2) {
+qt_simple_widget_rep::invalidate_rect (int x1, int y1, int x2, int y2,
+                                       bool widen_fractional_text) {
   // Because of accumulated rounding error on screen with a dpr > 1, 
   // we enlarge the invalid rect by a few pixels.
   // todo : the solution would be to use a float for the coordinates
   // and sizes in the whole code.
   qreal dpr = canvas()->devicePixelRatio();
   int padding = (int) ceil (dpr * 8.0);
-  if (fractional_pixel_ratio (dpr) && canvas()->surface()) {
+  if (widen_fractional_text && fractional_pixel_ratio (dpr) &&
+      canvas()->surface()) {
     // Centered and right-aligned paragraphs can shift the old glyph positions
     // horizontally when the text changes.  On fractional Wayland scales, a
     // narrow physical invalidation band may then repaint only the new glyphs,
@@ -475,6 +481,8 @@ qt_simple_widget_rep::repaint_invalid_regions () {
     long h= backingPixmap->height();
     backing_pos = h == 0 ? QPoint (0, 0)
       : (backing_pos * pixel_ratio * canvas_physical_size.height()) / h;
+    backing_physical_pos= QPoint (qRound (pixel_ratio * backing_pos.x ()),
+                                  qRound (pixel_ratio * backing_pos.y ()));
     *backingPixmap= newBackingPixmap;
   }
   // Look if the scroll position has changed. backing_pos is the old position, 
@@ -488,54 +496,34 @@ qt_simple_widget_rep::repaint_invalid_regions () {
     QSize surface_logical_size = canvas()->surface()->size();
     QRect full_surface_logical_rect (QPoint (0, 0), surface_logical_size);
 
-    if (fractional_pixel_ratio (pixel_ratio)) {
-      // Qt paint events are in logical coordinates, but the backing pixmap is
-      // in physical pixels.  With fractional Wayland scales, a logical scroll
-      // delta cannot be represented by an exact integer pixmap move; repeated
-      // rounded copies leave stale rows or columns in the backing store.
-      backing_pos= origin;
-      invalidate_rect (0, 0, sz.width(), sz.height());
-    } else {
-      int dx =  pixel_ratio * (origin.x() - backing_pos.x());
-      int dy =  pixel_ratio * (origin.y() - backing_pos.y());
-      backing_pos = origin;
+    QPoint physical_origin (qRound (pixel_ratio * origin.x()),
+                            qRound (pixel_ratio * origin.y()));
+    int dx= physical_origin.x() - backing_physical_pos.x();
+    int dy= physical_origin.y() - backing_physical_pos.y();
+    backing_pos= origin;
+    backing_physical_pos= physical_origin;
 
-      QPixmap newBackingPixmap (backingPixmap->size());
-      QPainter p (&newBackingPixmap);
-      //p.fillRect(0, 0, backingPixmap->size().width(),
-      //           backingPixmap->size().height(),Qt::red);
+    rectangles invalid;
+    while (!is_nil (invalid_regions)) {
+      rectangle r= invalid_regions->item;
+      invalid= rectangles (
+        rectangle (r->x1-dx, r->y1-dy, r->x2-dx, r->y2-dy), invalid);
+      invalid_regions= invalid_regions->next;
+    }
+    invalid_regions= invalid & rectangles (
+      rectangle (0, 0, sz.width(), sz.height()));
 
-      p.drawPixmap (-dx,-dy,*backingPixmap);
-      p.end();
-      *backingPixmap = newBackingPixmap;
-      //cout << "SCROLL CONTENTS BY " << dx << " " << dy << LF;
-
-      rectangles invalid;
-      while (!is_nil (invalid_regions)) {
-        rectangle r = invalid_regions->item ;
-        //      rectangle q = rectangle (r->x1+dx,r->y1-dy,r->x2+dx,r->y2-dy);
-        rectangle q = rectangle (r->x1-dx,r->y1-dy,r->x2-dx,r->y2-dy);
-        invalid = rectangles (q, invalid);
-        //cout << r << " ---> " << q << LF;
-        invalid_regions = invalid_regions->next;
-      }
-
-      invalid_regions= invalid & rectangles (rectangle (0,0,
-                                                        sz.width(),sz.height()));
-
-      if (!backing_valid) {
-        invalidate_rect (0, 0, sz.width(), sz.height());
-      } else {
-        if (dy<0)
-          invalidate_rect (0,0,sz.width(),min (sz.height(),-dy));
-        else if (dy>0)
-          invalidate_rect (0,max (0,sz.height()-dy),sz.width(),sz.height());
-
-        if (dx<0)
-          invalidate_rect (0,0,min (-dx,sz.width()),sz.height());
-        else if (dx>0)
-          invalidate_rect (max (0,sz.width()-dx),0,sz.width(),sz.height());
-      }
+    if (!backing_valid) invalidate_rect (0, 0, sz.width(), sz.height());
+    else if (dx != 0 || dy != 0) {
+      // QPixmap::scroll moves the reusable pixels in place and reports the
+      // newly exposed physical strips.  Tracking the rounded absolute
+      // physical origin, rather than rounding each logical delta, prevents
+      // fractional-DPR error from accumulating over a smooth scroll.
+      QRegion exposed;
+      backingPixmap->scroll (-dx, -dy, backingPixmap->rect(), &exposed);
+      for (const QRect& r: exposed)
+        invalidate_rect (r.left(), r.top(), r.right() + 1, r.bottom() + 1,
+                         false);
     }
     // we call update now to allow repainting of invalid regions
     // this cannot be done directly since interpose_handler needs

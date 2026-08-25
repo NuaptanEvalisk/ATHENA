@@ -96,6 +96,7 @@ QTMScrollView::QTMScrollView (QWidget *_parent):
   setFrameShape(QFrame::NoFrame);
 
   mInertiaTimer = new QTimer(this);
+  mInertiaTimer->setTimerType (Qt::PreciseTimer);
   connect(mInertiaTimer, &QTimer::timeout, this, [this]() {
     if (std::abs(mInertiaVelocityX) < 1.0 && std::abs(mInertiaVelocityY) < 1.0) {
       mInertiaTimer->stop();
@@ -103,10 +104,12 @@ QTMScrollView::QTMScrollView (QWidget *_parent):
       mInertiaVelocityY = 0;
       return;
     }
-    QScrollBar *hBar = horizontalScrollBar();
-    QScrollBar *vBar = verticalScrollBar();
-    hBar->setValue(hBar->value() - qRound(mInertiaVelocityX));
-    vBar->setValue(vBar->value() - qRound(mInertiaVelocityY));
+    int dx= qRound (mInertiaVelocityX);
+    int dy= qRound (mInertiaVelocityY);
+    if (dx != 0)
+      horizontalScrollBar ()->setValue (horizontalScrollBar ()->value () - dx);
+    if (dy != 0)
+      verticalScrollBar ()->setValue (verticalScrollBar ()->value () - dy);
     mInertiaVelocityX *= mInertiaFriction;
     mInertiaVelocityY *= mInertiaFriction;
   });
