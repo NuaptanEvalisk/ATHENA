@@ -1389,7 +1389,7 @@ pdf_hummus_renderer_rep::make_pdf_font (string fontname)
     }
     else if (font != NULL) {
       if (!pdf_font_fallback_warning_seen ("known-issue", fname, u))
-	convert_warning << "pdf_hummus_renderer, font: " << fname
+	debug_convert << "pdf_hummus_renderer, font: " << fname
 			<< " in file " << u << " has a known native PDF "
 			<< "embedding issue. It is converted to bitmap type 3 "
 			<< "font." << LF;

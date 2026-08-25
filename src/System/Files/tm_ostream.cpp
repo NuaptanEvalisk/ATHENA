@@ -80,6 +80,9 @@ athena_log_line_starts (const std::string& line, const std::string& prefix) {
 spdlog::level::level_enum
 athena_level_for_log_line (spdlog::level::level_enum base,
                            const std::string& line) {
+  if (athena_log_line_starts (line, "debug-"))
+    return spdlog::level::debug;
+
   if (athena_log_line_starts (line, "WARNING:") ||
       athena_log_line_starts (line, "warning:") ||
       athena_log_line_starts (line, "std-warning,") ||
