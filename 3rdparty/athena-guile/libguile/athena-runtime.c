@@ -801,13 +801,11 @@ athena_tm_define_expand_parts (SCM head, SCM body, SCM conditions,
   SCM effective_body = body;
   SCM value;
   SCM former;
-  SCM local_value;
+  SCM public_value;
   SCM warning_form;
   SCM install_form;
-  SCM local_definition;
   SCM definition_form;
   SCM phased_definition;
-  SCM runtime_phase;
 
   if (!athena_proper_list_p (body) || !athena_proper_list_p (conditions)
       || !athena_proper_list_p (properties))
@@ -852,37 +850,34 @@ athena_tm_define_expand_parts (SCM head, SCM body, SCM conditions,
              scm_list_2 (athena_symbol ("quote"), name),
              scm_from_utf8_string ("\n   "),
              scm_list_2 (athena_symbol ("quote"), value))));
-  install_form = scm_list_5
-    (athena_symbol ("%athena-definition-install!"),
-     scm_list_2 (athena_symbol ("quote"), name), name,
-     scm_list_2 (athena_symbol ("quote"), value),
-     scm_list_2 (athena_symbol ("module-name"),
-                 scm_list_1 (athena_symbol ("current-module"))));
-  local_value = scm_cons
+  public_value = scm_cons
     (athena_symbol ("let*"),
      scm_cons (scm_list_1 (former), scm_list_1 (value)));
-  /* TeXmacs' Guile 1.8 modules have sequential top-level semantics: a
-     tm-define may be called by a macro later in the same source file.  Make
-     one local definition visible while expanding and emit that same definition
-     for load/eval.  Keeping the lambda in a single form avoids compiling large
-     tm-define bodies twice.  The ATHENA registry and its side effects remain a
-     load/eval-only operation. */
-  local_definition = scm_list_3
-    (athena_symbol ("define"), name, local_value);
+  {
+    SCM procedure = athena_symbol ("definition-procedure");
+    SCM install_public = scm_list_5
+      (athena_symbol ("%athena-definition-install!"),
+       scm_list_2 (athena_symbol ("quote"), name), procedure,
+       scm_list_2 (athena_symbol ("quote"), value),
+       scm_list_2 (athena_symbol ("module-name"),
+                   scm_list_1 (athena_symbol ("current-module"))));
+    install_form = scm_list_3
+      (athena_symbol ("let"),
+       scm_list_1 (scm_list_2 (procedure, public_value)), install_public);
+  }
+  definition_form = scm_cons
+    (athena_symbol ("begin"), scm_list_2 (warning_form, install_form));
+  /* A Guile 1.8 tm-define publishes into the shared TeXmacs environment; it
+     does not replace a same-named private helper in the source module.  Run
+     the registry installation during expansion as well as load/eval so that
+     later macros in the same sequential source can already call it. */
   phased_definition = scm_list_3
     (athena_symbol ("eval-when"),
      scm_list_3 (athena_symbol ("expand"), athena_symbol ("load"),
                  athena_symbol ("eval")),
-     local_definition);
-  definition_form = scm_cons
-    (athena_symbol ("begin"), scm_list_2 (warning_form, install_form));
-  runtime_phase = scm_list_3
-    (athena_symbol ("eval-when"),
-     scm_list_2 (athena_symbol ("load"), athena_symbol ("eval")),
      definition_form);
   return scm_cons (athena_symbol ("begin"),
-                   scm_cons (phased_definition,
-                             scm_cons (runtime_phase, properties)));
+                   scm_cons (phased_definition, properties));
 }
 
 SCM_DEFINE (scm_athena_tm_define_expand, "%athena-tm-define-expand",
@@ -890,7 +885,8 @@ SCM_DEFINE (scm_athena_tm_define_expand, "%athena-tm-define-expand",
             "Expand ATHENA's tm-define form into Guile 3 definitions.")
 #define FUNC_NAME s_scm_athena_tm_define_expand
 {
-  return athena_tm_define_expand_parts (head, body, conditions, properties);
+  return athena_tm_define_expand_parts
+    (head, body, conditions, properties);
 }
 #undef FUNC_NAME
 
@@ -1294,31 +1290,11 @@ SCM_DEFINE (scm_athena_definition_install_x, "%athena-definition-install!",
             "Install an ATHENA root definition and register its metadata.")
 #define FUNC_NAME s_scm_athena_definition_install_x
 {
-  SCM modules;
-
   scm_module_define (athena_root_module, name, procedure);
   scm_module_export (athena_root_module, scm_list_1 (name));
   athena_table_prepend (athena_definition_sources, name, source);
   scm_hashq_set_x (athena_definition_names, procedure, name);
   athena_table_prepend (athena_definition_modules, name, module_name);
-
-  /* Guile 1.8-era TeXmacs modules shared one mutable top-level binding for
-     every tm-define name.  Guile 3 normally compiles references to a module's
-     own local variable instead.  Keep those variables synchronized whenever
-     a later module extends the dispatch chain, otherwise an earlier wrapper
-     such as kbd-return keeps calling its module-local, incomplete kbd-enter. */
-  modules = scm_hashq_ref (athena_definition_modules, name, SCM_EOL);
-  while (scm_is_pair (modules))
-    {
-      SCM module = scm_hash_ref (athena_modules, scm_car (modules), SCM_BOOL_F);
-      if (scm_is_true (module))
-        {
-          SCM variable = scm_module_local_variable (module, name);
-          if (scm_is_true (variable))
-            scm_variable_set_x (variable, procedure);
-        }
-      modules = scm_cdr (modules);
-    }
   return procedure;
 }
 #undef FUNC_NAME
