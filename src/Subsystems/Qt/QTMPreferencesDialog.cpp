@@ -1188,11 +1188,11 @@ QTMPreferencesDialog::buildGeneralPage () {
   fonts->layout ()->addWidget (preferredBox);
 
   QFormLayout* maintenance= add_section (fonts, "Maintenance");
-  QPushButton* scan= new QPushButton ("Scan disk for fonts");
+  QPushButton* scan= new QPushButton ("Refresh system fonts");
   QObject::connect (scan, &QPushButton::clicked, [] () {
     (void) call ("scan-disk-for-fonts");
   });
-  maintenance->addRow (label ("Scan for system fonts:"), scan);
+  maintenance->addRow (label ("System font catalog:"), scan);
   QPushButton* clear= new QPushButton ("Clear font cache");
   QObject::connect (clear, &QPushButton::clicked, [] () {
     (void) call ("clear-font-cache");

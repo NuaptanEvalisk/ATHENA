@@ -13,23 +13,18 @@
 #include "message.hpp"
 #include "boot.hpp"
 
-#ifdef QTTEXMACS
-#include <QMessageBox>
-#include <QApplication>
-#include "Qt/qt_utilities.hpp"
-#endif
 #include "iterator.hpp"
 #include "file.hpp"
 #include "convert.hpp"
 #include "merge_sort.hpp"
 #include "Freetype/tt_file.hpp"
 #include "Freetype/tt_tools.hpp"
-#include "Metafont/tex_files.hpp"
 #include "data_cache.hpp"
 
 void font_database_filter_features ();
 void font_database_filter_characteristics ();
 static array<string> font_database_families (hashmap<tree,tree> ftab);
+static void font_database_guess_features ();
 
 static bool
 font_database_has_extension (string name, string ext) {
@@ -43,24 +38,12 @@ font_database_is_tt_file (string name) {
          font_database_has_extension (name, ".otf");
 }
 
-static bool
-font_database_is_font_file (string name) {
-  return font_database_is_tt_file (name) ||
-         font_database_has_extension (name, ".tfm");
-}
-
-#define GLOBAL_DATABASE "$ATHENA_PATH/fonts/font-database.scm"
 #define GLOBAL_FEATURES "$ATHENA_PATH/fonts/font-features.scm"
-#define GLOBAL_FEATURES_BIS "$ATHENA_PATH/fonts/font-features.bis.scm"
 #define GLOBAL_CHARACTERISTICS "$ATHENA_PATH/fonts/font-characteristics.scm"
 #define GLOBAL_SUBSTITUTIONS "$ATHENA_PATH/fonts/font-substitutions.scm"
-#define LOCAL_DATABASE "$ATHENA_HOME_PATH/fonts/font-database.scm"
 #define LOCAL_FEATURES "$ATHENA_HOME_PATH/fonts/font-features.scm"
 #define LOCAL_CHARACTERISTICS \
   "$ATHENA_HOME_PATH/fonts/font-characteristics.scm"
-#define LOCAL_DISCOVERY_VERSION "$ATHENA_HOME_PATH/fonts/font-discovery-version"
-#define FONT_DISCOVERY_VERSION "2"
-#define DELTA_DATABASE "$ATHENA_HOME_PATH/fonts/delta-database.scm"
 #define DELTA_FEATURES "$ATHENA_HOME_PATH/fonts/delta-features.scm"
 #define DELTA_CHARACTERISTICS \
   "$ATHENA_HOME_PATH/fonts/delta-characteristics.scm"
@@ -75,18 +58,14 @@ font_database_cache_stamp (url u) {
 string
 font_database_cache_signature () {
   array<url> files;
-  files << url (GLOBAL_DATABASE)
-        << url (GLOBAL_FEATURES)
+  files << url (GLOBAL_FEATURES)
         << url (GLOBAL_CHARACTERISTICS)
         << url (GLOBAL_SUBSTITUTIONS)
-        << url (LOCAL_DATABASE)
         << url (LOCAL_FEATURES)
         << url (LOCAL_CHARACTERISTICS)
-        << url (LOCAL_DISCOVERY_VERSION)
-        << url (DELTA_DATABASE)
         << url (DELTA_FEATURES)
         << url (DELTA_CHARACTERISTICS);
-  string r= "1";
+  string r= "2;catalog=" * tt_font_catalog_signature ();
   for (int i=0; i<N(files); i++)
     r << ";" << font_database_cache_stamp (files[i]);
   return r;
@@ -131,25 +110,18 @@ struct font_less_eq_operator {
 
 bool new_fonts= false;
 static bool fonts_loaded= false;
+static bool fonts_loading= false;
 static bool fonts_global_loaded= false;
 hashmap<tree,tree> font_table (UNINIT);
-hashmap<tree,tree> font_global_table (UNINIT);
 hashmap<tree,tree> font_features (UNINIT);
 hashmap<tree,tree> font_variants (UNINIT);
 hashmap<tree,tree> font_characteristics (UNINIT);
+static hashmap<tree,tree> font_catalog_characteristics (UNINIT);
 hashmap<string,tree> font_substitutions (UNINIT);
 static bool font_database_families_cached= false;
 static array<string> font_database_families_cache;
 static hashmap<string,tree> font_database_styles_cache (UNINIT);
 static hashmap<tree,tree> font_database_characteristics_cache (UNINIT);
-
-static bool
-font_database_core_family (string family) {
-  string upgraded= upgrade_family_name (family);
-  return upgraded == "roman" || upgraded == "concrete" ||
-         starts (family, "TeXmacs Computer Modern") ||
-         starts (family, "TeXmacs Concrete");
-}
 
 void set_new_fonts (bool new_val) { new_fonts= new_val; }
 bool get_new_fonts () { return new_fonts; }
@@ -169,20 +141,28 @@ tuple_insert (tree& t, tree x) {
   t << x;
 }
 
-void
-font_database_load_database (url u, hashmap<tree,tree>& ftab= font_table) {
-  if (!exists (u)) return;
-  if (&ftab == &font_table) font_database_invalidate_selectors ();
-  string s;
-  if (!load_string (u, s, false)) {
-    tree t= block_to_scheme_tree (s);
-    for (int i=0; i<N(t); i++)
-      if (is_func (t[i], TUPLE, 2)) {
-        //if (&ftab == &font_table)
-        //  cout << t[i][0] << " ~> " << t[i][1] << "\n";
-        ftab (t[i][0])= t[i][1];
-      }
-  }
+static void
+font_database_load_catalog (bool refresh) {
+  font_database_invalidate_selectors ();
+  font_table= hashmap<tree,tree> (UNINIT);
+  font_catalog_characteristics= hashmap<tree,tree> (UNINIT);
+  tree catalog= tt_font_catalog (refresh);
+  for (int i=0; i<N(catalog); i++)
+    if (is_func (catalog[i], TUPLE) && N(catalog[i]) >= 4 &&
+        is_atomic (catalog[i][0]) && is_atomic (catalog[i][1]) &&
+        is_atomic (catalog[i][2]) && is_atomic (catalog[i][3])) {
+      tree key= tuple (catalog[i][0], catalog[i][1]);
+      tree im = tuple (catalog[i][2], catalog[i][3], "0");
+      tree all (TUPLE);
+      if (font_table->contains (key)) all= font_table[key];
+      tuple_insert (all, im);
+      font_table (key)= all;
+      if (N(catalog[i]) >= 5 && is_func (catalog[i][4], TUPLE))
+        font_catalog_characteristics (key)= catalog[i][4];
+    }
+
+  // Platforms without a native catalog still discover their actual font files.
+  if (N(font_table) == 0) font_database_build (tt_font_path ());
 }
 
 void
@@ -218,22 +198,6 @@ font_database_load_characteristics (url u) {
 }
 
 void
-font_database_save_database (url u) {
-  array<scheme_tree> r;
-  iterator<tree> it= iterate (font_table);
-  while (it->busy ()) {
-    tree key= it->next ();
-    r << tuple (key, font_table [key]);
-  }
-  merge_sort_leq<scheme_tree,font_less_eq_operator> (r);
-  string s= scheme_tree_to_block (tree (TUPLE, r));
-  save_string (u, s);
-  // FIXME: this should not be necessary
-  remove ("$ATHENA_PATH/system/cache/file_cache");
-  cache_refresh ();
-}
-
-void
 font_database_save_features (url u) {
   array<scheme_tree> r;
   iterator<tree> it= iterate (font_features);
@@ -245,6 +209,7 @@ font_database_save_features (url u) {
   }
   merge_sort_leq<scheme_tree,font_less_eq_operator> (r);
   string s= scheme_tree_to_block (tree (TUPLE, r));
+  mkdir (head (u));
   save_string (u, s);
   // FIXME: this should not be necessary
   remove ("$ATHENA_PATH/system/cache/file_cache");
@@ -261,22 +226,11 @@ font_database_save_characteristics (url u) {
   }
   merge_sort_leq<scheme_tree,font_less_eq_operator> (r);
   string s= scheme_tree_to_block (tree (TUPLE, r));
+  mkdir (head (u));
   save_string (u, s);
   // FIXME: this should not be necessary
   remove ("$ATHENA_PATH/system/cache/file_cache");
   cache_refresh ();
-}
-
-static bool
-font_database_discovery_current () {
-  string s;
-  return !load_string (LOCAL_DISCOVERY_VERSION, s, false) &&
-         trim_spaces (s) == FONT_DISCOVERY_VERSION;
-}
-
-static void
-font_database_save_discovery_version () {
-  save_string (LOCAL_DISCOVERY_VERSION, FONT_DISCOVERY_VERSION "\n");
 }
 
 static array<string>
@@ -309,71 +263,43 @@ font_database_load_substitutions (url u) {
 
 void
 font_database_load () {
-  if (fonts_loaded) return;
-  system_wait ("Loading font database", "please wait...");
-  font_database_load_database (LOCAL_DATABASE);
-  if (N (font_table) != 0 && !font_database_discovery_current ())
-    font_table= hashmap<tree,tree> (UNINIT);
-  if (N (font_table) == 0) {
-    system_wait ("Scanning system fonts", "this may take a while...");
-    font_database_load_database (GLOBAL_DATABASE);
-    font_database_filter ();
-    font_database_save_database (LOCAL_DATABASE);
-    font_database_save_discovery_version ();
-  }
+  if (fonts_loaded || fonts_loading) return;
+  fonts_loading= true;
+  system_wait ("Loading platform font catalog", "please wait...");
+  font_database_load_catalog (false);
+
+  // These files are derived metadata only.  The platform catalog above is the
+  // sole authority for which font families, styles, and files are installed.
+  font_database_load_features (GLOBAL_FEATURES);
   font_database_load_features (LOCAL_FEATURES);
-  if (N (font_features) == 0) {
-    font_database_load_features (GLOBAL_FEATURES);
-    font_database_filter_features ();
-    font_database_save_features (LOCAL_FEATURES);
-  }
-  font_database_load_characteristics (LOCAL_CHARACTERISTICS);
-  if (N (font_characteristics) == 0) {
-    font_database_load_characteristics (GLOBAL_CHARACTERISTICS);
-    font_database_filter_characteristics ();
-    font_database_save_characteristics (LOCAL_CHARACTERISTICS);
-  }
-  font_database_load_substitutions (GLOBAL_SUBSTITUTIONS);
+  font_database_filter_features ();
+  // Make catalog queries re-entrant while deriving cheap name metadata below.
+  // Detailed glyph characteristics remain lazy because eagerly analyzing every
+  // system font makes a fresh profile take tens of seconds to start.
   fonts_loaded= true;
+  font_database_guess_features ();
+  font_database_load_characteristics (GLOBAL_CHARACTERISTICS);
+  font_database_load_characteristics (LOCAL_CHARACTERISTICS);
+  font_database_filter_characteristics ();
+  font_database_load_substitutions (GLOBAL_SUBSTITUTIONS);
+  fonts_loading= false;
   system_wait ("");
 }
 
 void
 font_database_global_load (string name) {
   if (fonts_global_loaded) return;
-  string requested= name;
-  name= upgrade_family_name (name);
-  bool quiet= font_database_core_family (requested);
-#ifdef QTTEXMACS
-  if (!quiet && qobject_cast<QApplication*> (QCoreApplication::instance ()) &&
-      get_user_preference ("show font substitution warning") == "on") {
-    string msg= name == "" ?
-      "Loading the global font fallback database." :
-      "Font family not found in the local font database: " * requested *
-      "\nLoading the global font fallback database.";
-    QMessageBox::warning (NULL, "ATHENA warning", to_qstring (msg));
-  }
-#endif
-  if (!quiet) {
-    if (name == "")
-      cout << "ATHENA] warning, loading global font fallback database\n";
-    else
-      cout << "ATHENA] warning, font family '" << requested
-           << "' not found in local font database; loading global font fallback database\n";
-  }
-  font_database_load_database (GLOBAL_DATABASE, font_global_table);
-  font_database_load_features (GLOBAL_FEATURES);
-  font_database_load_characteristics (GLOBAL_CHARACTERISTICS);
-  font_database_load_substitutions (GLOBAL_SUBSTITUTIONS);
+  (void) name;
+  font_database_load ();
+  // Global derived metadata is loaded once by font_database_load.  This entry
+  // point remains for callers that resolve historical document family names.
   fonts_global_loaded= true;
 }
 
 void
 font_database_save () {
-  font_database_save_database (LOCAL_DATABASE);
   font_database_save_features (LOCAL_FEATURES);
   font_database_save_characteristics (LOCAL_CHARACTERISTICS);
-  font_database_save_discovery_version ();
   font_closest_cache_invalidate ();
 }
 
@@ -435,50 +361,44 @@ font_database_guess_features () {
   array<string> families= font_database_families (font_table);
   for (int i=0; i<N(families); i++)
     if (!font_features->contains (families[i])) {
-      array<string> a= guessed_features (families[i], false);
-      tree t (TUPLE);
-      for (int j=0; j<N(a); j++) t << tree (encode_feature (a[j]));
-      font_features (families[i])= t;
+      string master= family_to_master (families[i]);
+      array<string> features= family_features (families[i]);
+      tree entry (TUPLE);
+      entry << tree (master);
+      for (int j=0; j<N(features); j++)
+        entry << tree (encode_feature (features[j]));
+      font_features (families[i])= entry;
+      tree variants (TUPLE);
+      if (font_variants->contains (master)) variants= font_variants[master];
+      tuple_insert (variants, families[i]);
+      font_variants (master)= variants;
     }
 }
 
 void
 font_database_build_local () {
-  font_database_invalidate_selectors ();
   font_database_load ();
-  font_database_build (tt_font_path ());
-  font_database_build_characteristics (false);
+  font_database_load_catalog (true);
+  font_database_filter_features ();
+  font_database_filter_characteristics ();
   font_database_guess_features ();
   font_database_save ();
 }
 
 void
 font_database_extend_local (url u) {
-  font_database_invalidate_selectors ();
   tt_extend_font_path (u);
   font_database_load ();
-  font_database_build (u);
-  font_database_build_characteristics (false);
+  font_database_load_catalog (true);
+  font_database_filter_features ();
+  font_database_filter_characteristics ();
   font_database_guess_features ();
   font_database_save ();
 }
 
 void
 font_database_build_global (url u) {
-  fonts_loaded= fonts_global_loaded= false;
-  font_table= hashmap<tree,tree> (UNINIT);
-  font_database_load_database (GLOBAL_DATABASE);
-  font_database_load_features (GLOBAL_FEATURES);
-  font_database_load_characteristics (GLOBAL_CHARACTERISTICS);
-  fonts_loaded= fonts_global_loaded= true;
-  font_database_build (u);
-  font_database_build_characteristics (false);
-  font_database_guess_features ();
-  font_database_save_database (GLOBAL_DATABASE);
-  font_database_save_features (GLOBAL_FEATURES_BIS);
-  font_database_save_characteristics (GLOBAL_CHARACTERISTICS);
-  font_closest_cache_invalidate ();
-  fonts_loaded= fonts_global_loaded= false;
+  font_database_extend_local (u);
 }
 
 void
@@ -486,171 +406,19 @@ font_database_build_global () {
   font_database_build_global (tt_font_path ());
 }
 
-/******************************************************************************
-* Build increments with respect to existing database
-******************************************************************************/
-
-void
-keep_delta (hashmap<tree,tree>& new_t, hashmap<tree,tree> old_t) {
-  iterator<tree> it= iterate (old_t);
-  while (it->busy ()) {
-    tree key= it->next ();
-    if (new_t->contains (key) && old_t->contains (key))
-      new_t->reset (key);
-  }
-}
-
 void
 font_database_save_local_delta () {
-  font_database_invalidate_selectors ();
-  fonts_loaded= fonts_global_loaded= false;
-  font_table= hashmap<tree,tree> (UNINIT);
-  font_features= hashmap<tree,tree> (UNINIT);
-  font_variants= hashmap<tree,tree> (UNINIT);
-  font_characteristics= hashmap<tree,tree> (UNINIT);
-  font_database_load_database (GLOBAL_DATABASE);
-  font_database_load_features (GLOBAL_FEATURES);
-  font_database_load_characteristics (GLOBAL_CHARACTERISTICS);
-  hashmap<tree,tree> old_font_table= font_table;
-  hashmap<tree,tree> old_font_features= font_features;
-  hashmap<tree,tree> old_font_characteristics= font_characteristics;
-  fonts_loaded= fonts_global_loaded= false;
-  font_table= hashmap<tree,tree> (UNINIT);
-  font_features= hashmap<tree,tree> (UNINIT);
-  font_variants= hashmap<tree,tree> (UNINIT);
-  font_characteristics= hashmap<tree,tree> (UNINIT);
-  font_database_load_database (GLOBAL_DATABASE);
-  font_database_load_features (GLOBAL_FEATURES);
-  font_database_load_characteristics (GLOBAL_CHARACTERISTICS);
-  font_database_load_database (LOCAL_DATABASE);
-  font_database_load_features (LOCAL_FEATURES);
-  font_database_load_characteristics (LOCAL_CHARACTERISTICS);
-  keep_delta (font_table, old_font_table);
-  keep_delta (font_features, old_font_features);
-  keep_delta (font_characteristics, old_font_characteristics);
-  font_database_save_database (DELTA_DATABASE);
+  font_database_load ();
   font_database_save_features (DELTA_FEATURES);
   font_database_save_characteristics (DELTA_CHARACTERISTICS);
-  font_closest_cache_invalidate ();
-  font_table= hashmap<tree,tree> (UNINIT);
-  font_features= hashmap<tree,tree> (UNINIT);
-  font_variants= hashmap<tree,tree> (UNINIT);
-  font_characteristics= hashmap<tree,tree> (UNINIT);
-  fonts_loaded= fonts_global_loaded= false;
-}
-
-/******************************************************************************
-* Only keep existing files in database
-******************************************************************************/
-
-static hashmap<tree,tree> new_font_table (UNINIT);
-static hashmap<tree,tree> back_font_table (UNINIT);
-
-void
-build_back_entry (tree key, tree loc) {
-  tree names (TUPLE);
-  if (back_font_table->contains (loc))
-    names= back_font_table [loc];
-  tuple_insert (names, key);
-  back_font_table (loc)= names;
-}
-
-void
-build_back_table () {
-  iterator<tree> it= iterate (font_table);
-  while (it->busy ()) {
-    tree key= it->next ();
-    if (is_func (key, TUPLE, 2) && is_tuple (font_table [key])) {
-      tree im= font_table [key];
-      for (int i=0; i<N(im); i++) {
-        tree loc = im[i];
-        build_back_entry (key, loc);
-        if (is_func (loc, TUPLE, 3))
-          build_back_entry (key, loc (0, 2));
-      }
-    }
-  }
-}
-
-tree
-find_best_approximation (tree ff) {
-  int ref_sz= as_int (ff[2]);
-  tree best= tree (TUPLE);
-  tree keys= back_font_table [ff (0, 2)];
-  for (int i=0; i<N(keys); i++) {
-    tree key= keys[i];
-    tree ims= font_table [key];
-    if (!is_func (ims, TUPLE)) continue;
-    for (int j=0; j<N(ims); j++) {
-      if (is_tuple (ims[j]) && N(ims[j]) == 3 && ims[j] (0, 2) == ff (0, 2)) {
-        if (N(best) == 0) best= ims[j];
-        else {
-          int old_sz= as_int (best[2]);
-          int new_sz= as_int (ims[j][2]);
-          if (max (new_sz - ref_sz, ref_sz - new_sz) <
-              max (old_sz - ref_sz, ref_sz - old_sz))
-            best= ims[j];
-        }
-      }
-    }
-  }
-  cout << "ATHENA] approximating font " << ff << " ~> " << best << "\n";
-  if (N(best) >= 2) return best;
-  return ff (0, 2);
-}
-
-void
-font_database_collect (url u) {
-  if (is_none (u));
-  else if (is_or (u)) {
-    font_database_collect (u[1]);
-    font_database_collect (u[2]);
-  }
-  else if (is_directory (u)) {
-    bool err;
-    array<string> a= read_directory (u, err);
-    for (int i=0; i<N(a); i++)
-      if (!starts (a[i], "."))
-        if (font_database_is_font_file (a[i]))
-          for (int j=0; j<65536; j++) {
-            int  sz= file_size (u * a[i]);
-            tree ff= tuple (a[i], as_string (j), as_string (sz));
-            if (!back_font_table->contains (ff) &&
-                 back_font_table->contains (ff (0, 2))) {
-              ff= find_best_approximation (ff);
-              if (j != 0 && N (tt_font_name (u * a[i])) <= j) {
-                cout << "ATHENA] ignore " << ff << " and higher subfonts\n";
-                break;
-              }
-            }
-            if (back_font_table->contains (ff)) {
-              tree keys= back_font_table [ff];
-              for (int j=0; j<N(keys); j++) {
-                tree key= keys[j];
-                tree im (TUPLE);
-                if (new_font_table->contains (key))
-                  im= new_font_table [key];
-                tuple_insert (im, ff);
-                new_font_table (key)= im;
-              }
-            }
-            else break;
-          }
-  }
 }
 
 void
 font_database_filter () {
-  font_database_invalidate_selectors ();
-  new_font_table = hashmap<tree,tree> (UNINIT);
-  back_font_table= hashmap<tree,tree> (UNINIT);
-  build_back_table ();
-  font_database_collect (tt_font_path ());
-  font_database_collect (tfm_font_path ());
-  font_table= new_font_table;
-  font_database_invalidate_selectors ();
-  new_font_table = hashmap<tree,tree> (UNINIT);
-  back_font_table= hashmap<tree,tree> (UNINIT);
+  font_database_load_catalog (true);
+  font_database_filter_features ();
+  font_database_filter_characteristics ();
+  font_database_guess_features ();
 }
 
 void
@@ -670,13 +438,25 @@ font_database_filter_features () {
       new_font_features (key)= font_features [key];
   }
   font_features= new_font_features;
+  font_variants= hashmap<tree,tree> (UNINIT);
+  it= iterate (font_features);
+  while (it->busy ()) {
+    tree family= it->next ();
+    tree features= font_features[family];
+    if (!is_atomic (family) || !is_func (features, TUPLE) || N(features) == 0)
+      continue;
+    tree variants (TUPLE);
+    if (font_variants->contains (features[0]))
+      variants= font_variants[features[0]];
+    tuple_insert (variants, family);
+    font_variants (features[0])= variants;
+  }
 }
 
 void
 font_database_filter_characteristics () {
   hashmap<tree,tree> new_font_characteristics (UNINIT);
   iterator<tree> it= iterate (font_table);
-  it= iterate (font_table);
   while (it->busy ()) {
     tree key= it->next ();
     if (font_characteristics->contains (key))
@@ -689,38 +469,38 @@ font_database_filter_characteristics () {
 * Additional font characteristics (automatically generated)
 ******************************************************************************/
 
+static bool
+font_database_build_characteristics_for (tree key, bool force) {
+  if (!is_func (key, TUPLE, 2) || !font_table->contains (key)) return false;
+  if (!force && font_characteristics->contains (key)) return false;
+  tree im= font_table[key];
+  for (int i=0; i<N(im); i++)
+    if (is_func (im[i], TUPLE, 3)) {
+      string name= as_string (im[i][0]);
+      string nr  = as_string (im[i][1]);
+      if (font_database_has_extension (name, ".ttc"))
+        name= name (0, N(name)-4) * "." * nr * ".ttf";
+      else if (font_database_has_extension (name, ".ttf") ||
+               font_database_has_extension (name, ".otf"))
+        name= name (0, N(name)-4);
+      else continue;
+      if (!tt_font_exists (name) && ends (name, "10"))
+        name= name (0, N(name)-2);
+      if (!tt_font_exists (name)) continue;
+      array<string> a= tt_analyze (name);
+      tree t (TUPLE, N(a));
+      for (int j=0; j<N(a); j++) t[j]= a[j];
+      font_characteristics (key)= t;
+      return true;
+    }
+  return false;
+}
+
 void
 font_database_build_characteristics (bool force) {
   iterator<tree> it= iterate (font_table);
-  while (it->busy ()) {
-    tree key= it->next ();
-    tree im = font_table[key];
-    if (!(is_func (key, TUPLE) && N(key) >= 2)) continue;
-    cout << "Analyzing " << key[0] << " " << key[1] << "\n";
-    for (int i=0; i<N(im); i++)
-      if (force || !font_characteristics->contains (key))
-        if (is_func (im[i], TUPLE, 3)) {
-          string name= as_string (im[i][0]);
-          string nr  = as_string (im[i][1]);
-          cout << "| Processing " << name << ", " << nr << "\n";
-          if (font_database_has_extension (name, ".ttc"))
-            name= (name (0, N(name)-4) * "." * nr * ".ttf");
-          if (font_database_has_extension (name, ".ttf") ||
-              font_database_has_extension (name, ".otf") ||
-              font_database_has_extension (name, ".tfm")) {
-            name= name (0, N(name)-4);
-            if (!tt_font_exists (name) && ends (name, "10"))
-              name= name (0, N(name)-2);
-            if (tt_font_exists (name)) {
-              array<string> a= tt_analyze (name);
-              cout << name << " ~> " << a << "\n";
-              tree t (TUPLE, N(a));
-              for (int j=0; j<N(a); j++) t[j]= a[j];
-              font_characteristics (key)= t;
-            }
-          }
-        }
-  }
+  while (it->busy ())
+    (void) font_database_build_characteristics_for (it->next (), force);
 }
 
 /******************************************************************************
@@ -756,9 +536,7 @@ font_database_families () {
 
 array<string>
 font_database_delta_families () {
-  hashmap<tree,tree> t;
-  font_database_load_database (DELTA_DATABASE, t);
-  return font_database_families (t);
+  return font_database_families ();
 }
 
 static array<string>
@@ -790,9 +568,7 @@ font_database_styles (string family) {
 
 array<string>
 font_database_global_styles (string family) {
-  family= upgrade_family_name (family);
-  font_database_global_load (family);
-  return font_database_styles (family, font_global_table);
+  return font_database_styles (family);
 }
 
 array<string>
@@ -839,6 +615,11 @@ font_database_characteristics (string family, string style) {
     for (int i=0; i<N(im); i++)
       if (is_atomic (im[i]))
 	r << im[i]->label;
+  }
+  else if (font_catalog_characteristics->contains (key)) {
+    tree im= font_catalog_characteristics[key];
+    for (int i=0; i<N(im); i++)
+      if (is_atomic (im[i])) r << im[i]->label;
   }
   font_database_characteristics_cache (key)= array_as_tuple (r);
   return r;

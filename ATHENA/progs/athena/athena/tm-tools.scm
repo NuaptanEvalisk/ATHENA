@@ -82,15 +82,15 @@
       "$ATHENA_HOME_PATH/system/cache/font_file_index.scm"
       "$ATHENA_HOME_PATH/system/cache/font_path_cache_v2.scm"
       "$ATHENA_HOME_PATH/system/cache/font_file_index_v2.scm"
+      ;; Obsolete identity database; remove any pre-Fontconfig residue.
       "$ATHENA_HOME_PATH/fonts/font-database.scm"
       "$ATHENA_HOME_PATH/fonts/font-features.scm"
       "$ATHENA_HOME_PATH/fonts/font-characteristics.scm")))
 
 (tm-define (scan-disk-for-fonts)
   (:interactive #t)
-  (:synopsis "Scan disk for more fonts")
-  (system-wait "Full search for more fonts on your system"
-               "(can be long)")
+  (:synopsis "Refresh system fonts")
+  (system-wait "Refreshing the system font catalog" "please wait...")
   (font-database-build-local))
 
 (tm-define (clean-athena-cache)

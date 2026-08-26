@@ -14,8 +14,11 @@
 
 #include "url.hpp"
 #include "bitmap_font.hpp"
+#include "tree.hpp"
 
 url    tt_font_path ();
+tree   tt_font_catalog (bool refresh= false);
+string tt_font_catalog_signature ();
 void   tt_font_cache_set_warmup_disabled (bool disabled);
 void   tt_font_cache_warmup ();
 void   tt_extend_font_path (url u);

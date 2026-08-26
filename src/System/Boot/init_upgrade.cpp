@@ -155,6 +155,7 @@ init_upgrade () {
   remove (url ("$ATHENA_HOME_PATH/system/cache/doc_cache"));
   remove (url ("$ATHENA_HOME_PATH/system/cache/file_cache"));
   remove (url ("$ATHENA_HOME_PATH/system/cache/stat_cache.scm"));
+  // The installed-font identity database is now supplied by the platform.
   remove (url ("$ATHENA_HOME_PATH/fonts/font-database.scm"));
   remove (url ("$ATHENA_HOME_PATH/fonts/font-features.scm"));
   remove (url ("$ATHENA_HOME_PATH/fonts/font-characteristics.scm"));

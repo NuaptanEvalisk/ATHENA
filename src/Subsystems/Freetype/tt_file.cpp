@@ -161,7 +161,9 @@ tt_private_font_roots (string xtt, string ximp) {
 #ifdef USE_FONTCONFIG
 static hashmap<string,string> tt_platform_fonts ("");
 static url tt_platform_dirs= url_none ();
-static string tt_platform_signature;
+static tree tt_platform_catalog (TUPLE);
+static string tt_platform_request_signature;
+static string tt_platform_catalog_digest;
 static bool tt_platform_initialized= false;
 
 static string
@@ -197,6 +199,36 @@ tt_platform_add_pattern_names (FcPattern* pattern, const char* field,
   }
 }
 
+static tree
+tt_platform_characteristics (FcPattern* pattern) {
+  tree result (TUPLE);
+  FcCharSet* charset= nullptr;
+  if (FcPatternGetCharSet (pattern, FC_CHARSET, 0, &charset) == FcResultMatch) {
+    if (FcCharSetHasChar (charset, 0x0041) &&
+        FcCharSetHasChar (charset, 0x0061)) result << "Ascii";
+    if (FcCharSetHasChar (charset, 0x00e9)) result << "Latin";
+    if (FcCharSetHasChar (charset, 0x03b1)) result << "Greek";
+    if (FcCharSetHasChar (charset, 0x0430)) result << "Cyrillic";
+    if (FcCharSetHasChar (charset, 0x4e00)) result << "CJK";
+    if (FcCharSetHasChar (charset, 0xac00)) result << "Hangul";
+    if (FcCharSetHasChar (charset, 0x2200) ||
+        FcCharSetHasChar (charset, 0x2211)) result << "MathSymbols";
+    if (FcCharSetHasChar (charset, 0x1d400)) result << "MathExtra";
+    if (FcCharSetHasChar (charset, 0x1d44e)) result << "MathLetters";
+  }
+
+  int spacing= FC_PROPORTIONAL;
+  if (FcPatternGetInteger (pattern, FC_SPACING, 0, &spacing) == FcResultMatch)
+    result << (spacing == FC_MONO || spacing == FC_DUAL?
+               "mono=yes": "mono=no");
+  int slant= FC_SLANT_ROMAN;
+  if (FcPatternGetInteger (pattern, FC_SLANT, 0, &slant) == FcResultMatch) {
+    result << (string ("slant=") * as_string (slant));
+    result << (slant == FC_SLANT_ITALIC? "italic=yes": "italic=no");
+  }
+  return result;
+}
+
 static void
 tt_platform_collect_set (FcFontSet* set) {
   if (set == nullptr) return;
@@ -207,11 +239,31 @@ tt_platform_collect_set (FcFontSet* set) {
       continue;
     string path ((const char*) file);
     string base= tt_font_basename (path);
+    if (!tt_font_file_extension (base)) continue;
     tt_platform_add_name (base, path);
     tt_platform_add_name (tt_font_strip_extension (base), path);
     tt_platform_add_pattern_names (pattern, FC_FAMILY, path);
     tt_platform_add_pattern_names (pattern, FC_FULLNAME, path);
     tt_platform_add_pattern_names (pattern, FC_POSTSCRIPT_NAME, path);
+
+    FcChar8* style_value= nullptr;
+    string style= "Regular";
+    if (FcPatternGetString (pattern, FC_STYLE, 0, &style_value) ==
+        FcResultMatch)
+      style= string ((const char*) style_value);
+    int face_index= 0;
+    (void) FcPatternGetInteger (pattern, FC_INDEX, 0, &face_index);
+    tree characteristics= tt_platform_characteristics (pattern);
+    for (int family_index=0; ; family_index++) {
+      FcChar8* family_value= nullptr;
+      if (FcPatternGetString (pattern, FC_FAMILY, family_index,
+                              &family_value) != FcResultMatch)
+        break;
+      string family ((const char*) family_value);
+      if (family != "")
+        tt_platform_catalog <<
+          tuple (family, style, base, as_string (face_index), characteristics);
+    }
   }
 }
 
@@ -229,13 +281,15 @@ tt_fontconfig_add_dir (FcConfig* config, url u) {
 }
 
 static void
-tt_platform_font_catalog () {
+tt_platform_font_catalog (bool refresh= false) {
   string signature= tt_font_cache_signature ();
-  if (tt_platform_initialized && signature == tt_platform_signature) return;
+  if (!refresh && tt_platform_initialized &&
+      signature == tt_platform_request_signature) return;
 
   bench_start ("platform font catalog");
   tt_platform_fonts= hashmap<string,string> ("");
   tt_platform_dirs= url_none ();
+  tt_platform_catalog= tree (TUPLE);
 
   // Qt has initialized Fontconfig by the time ATHENA reaches this path.
   // Reuse that catalog instead of parsing every system font a second time.
@@ -246,6 +300,7 @@ tt_platform_font_catalog () {
     own_config= config != nullptr;
   }
   if (config != nullptr) {
+    if (refresh) (void) FcConfigBuildFonts (config);
     string xtt= get_env ("ATHENA_FONT_PATH");
     string ximp= get_preference ("imported fonts", "");
     tt_fontconfig_add_dir (config, tt_private_font_roots (xtt, ximp));
@@ -265,14 +320,23 @@ tt_platform_font_catalog () {
     if (own_config) FcConfigDestroy (config);
   }
 
-  tt_platform_signature= signature;
+  string digest_source;
+  for (int i=0; i<N(tt_platform_catalog); i++)
+    if (is_func (tt_platform_catalog[i], TUPLE) &&
+        N(tt_platform_catalog[i]) >= 4)
+      for (int j=0; j<N(tt_platform_catalog[i]); j++)
+        if (is_atomic (tt_platform_catalog[i][j]))
+          digest_source << tt_platform_catalog[i][j]->label << "\n";
+  tt_platform_catalog_digest=
+    as_string (N(tt_platform_catalog)) * ":" * as_string (hash (digest_source));
+  tt_platform_request_signature= signature;
   tt_platform_initialized= true;
   bench_cumul ("platform font catalog");
 }
 
 static url
 tt_platform_font_find (string name) {
-  tt_platform_font_catalog ();
+  tt_platform_font_catalog (false);
   if (!tt_platform_fonts->contains (name)) return url_none ();
   url u= url_system (tt_platform_fonts[name]);
   return exists (u)? u: url_none ();
@@ -280,8 +344,20 @@ tt_platform_font_find (string name) {
 
 static url
 tt_platform_font_path () {
-  tt_platform_font_catalog ();
+  tt_platform_font_catalog (false);
   return tt_platform_dirs;
+}
+
+static tree
+tt_platform_font_entries (bool refresh) {
+  tt_platform_font_catalog (refresh);
+  return copy (tt_platform_catalog);
+}
+
+static string
+tt_platform_font_signature () {
+  tt_platform_font_catalog (false);
+  return tt_platform_catalog_digest;
 }
 #else
 static url
@@ -294,11 +370,32 @@ static url
 tt_platform_font_path () {
   return url_none ();
 }
+
+static tree
+tt_platform_font_entries (bool refresh) {
+  (void) refresh;
+  return tree (TUPLE);
+}
+
+static string
+tt_platform_font_signature () {
+  return "directory-catalog";
+}
 #endif
 
 static url
 tt_fontconfig_path () {
   return tt_platform_font_path ();
+}
+
+tree
+tt_font_catalog (bool refresh) {
+  return tt_platform_font_entries (refresh);
+}
+
+string
+tt_font_catalog_signature () {
+  return tt_platform_font_signature ();
 }
 
 url
