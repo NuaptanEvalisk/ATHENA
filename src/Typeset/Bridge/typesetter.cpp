@@ -161,7 +161,7 @@ typesetter_rep::typeset () {
   paper    = (env->get_string (PAGE_MEDIUM) == "paper");
   progressive_root_active= false;
   progressive_pending=
-    progressive && !paper && !screen_tree &&
+    progressive && !paper &&
     !br->my_typeset_will_be_complete ();
   progressive_initial= false;
   progressive_deadline_ms= texmacs_time () + progressive_budget_ms;

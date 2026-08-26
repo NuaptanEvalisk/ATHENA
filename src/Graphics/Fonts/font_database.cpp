@@ -23,7 +23,6 @@
 
 void font_database_filter_features ();
 void font_database_filter_characteristics ();
-static array<string> font_database_families (hashmap<tree,tree> ftab);
 static void font_database_guess_features ();
 
 static bool
@@ -233,9 +232,6 @@ font_database_save_characteristics (url u) {
   cache_refresh ();
 }
 
-static array<string>
-font_database_styles (string family, hashmap<tree,tree> ftab);
-
 void
 font_database_load_substitutions (url u) {
   if (!exists (u)) return;
@@ -252,7 +248,7 @@ font_database_load_substitutions (url u) {
           is_atomic (t[i][1][0])) {
         string key= t[i][0][0]->label;
         string im = t[i][1][0]->label;
-        if (N(font_database_styles (im, font_table)) != 0) {
+        if (N(font_database_styles (im)) != 0) {
           if (!font_substitutions->contains (key))
             font_substitutions (key)= tree (TUPLE);
           font_substitutions (key) << t[i];
@@ -358,7 +354,7 @@ font_database_build (url u) {
 
 static void
 font_database_guess_features () {
-  array<string> families= font_database_families (font_table);
+  array<string> families= font_database_families ();
   for (int i=0; i<N(families); i++)
     if (!font_features->contains (families[i])) {
       string master= family_to_master (families[i]);
@@ -507,30 +503,41 @@ font_database_build_characteristics (bool force) {
 * Querying the database
 ******************************************************************************/
 
-static array<string>
-font_database_families (hashmap<tree,tree> ftab) {
-  hashmap<string,bool> families;
-  iterator<tree> it= iterate (ftab);
+static void
+font_database_build_selectors () {
+  hashmap<string,tree> styles (UNINIT);
+  iterator<tree> it= iterate (font_table);
   while (it->busy ()) {
     tree key= it->next ();
-    if (is_func (key, TUPLE, 2) && is_atomic (key[0]))
-      families (key[0]->label)= true;
+    if (!is_func (key, TUPLE, 2) || !is_atomic (key[0]) ||
+        !is_atomic (key[1]))
+      continue;
+    string family= key[0]->label;
+    tree family_styles (TUPLE);
+    if (styles->contains (family)) family_styles= styles[family];
+    family_styles << key[1];
+    styles (family)= family_styles;
   }
-  array<string> r;
-  iterator<string> it2= iterate (families);
-  while (it2->busy ())
-    r << it2->next ();
-  merge_sort_leq<string,locase_less_eq_operator> (r);
-  return r;
+
+  font_database_families_cache= array<string> ();
+  font_database_styles_cache= hashmap<string,tree> (UNINIT);
+  iterator<string> families= iterate (styles);
+  while (families->busy ()) {
+    string family= families->next ();
+    array<string> family_styles= tuple_as_array (styles[family]);
+    merge_sort_leq<string,locase_less_eq_operator> (family_styles);
+    font_database_families_cache << family;
+    font_database_styles_cache (family)= array_as_tuple (family_styles);
+  }
+  merge_sort_leq<string,locase_less_eq_operator>
+    (font_database_families_cache);
+  font_database_families_cached= true;
 }
 
 array<string>
 font_database_families () {
   font_database_load ();
-  if (!font_database_families_cached) {
-    font_database_families_cache= font_database_families (font_table);
-    font_database_families_cached= true;
-  }
+  if (!font_database_families_cached) font_database_build_selectors ();
   return font_database_families_cache;
 }
 
@@ -539,31 +546,17 @@ font_database_delta_families () {
   return font_database_families ();
 }
 
-static array<string>
-font_database_styles (string family, hashmap<tree,tree> ftab) {
-  array<string> r;
-  iterator<tree> it= iterate (ftab);
-  while (it->busy ()) {
-    tree key= it->next ();
-    if (is_func (key, TUPLE, 2) && key[0]->label == family)
-      r << key[1]->label;
-  }
-  merge_sort_leq<string,locase_less_eq_operator> (r);
-  return r;
-}
-
 array<string>
 font_database_styles (string family) {
   family= upgrade_family_name (family);
   font_database_load ();
+  if (!font_database_families_cached) font_database_build_selectors ();
   if (font_database_styles_cache->contains (family)) {
     tree cached= font_database_styles_cache[family];
     if (is_func (cached, TUPLE))
       return tuple_as_array (cached);
   }
-  array<string> r= font_database_styles (family, font_table);
-  font_database_styles_cache (family)= array_as_tuple (r);
-  return r;
+  return array<string> ();
 }
 
 array<string>

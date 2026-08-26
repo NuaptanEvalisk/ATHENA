@@ -220,7 +220,7 @@ bridge_document_rep::my_exec_until (path p) {
 bool
 bridge_document_rep::my_typeset_will_be_complete () {
   bool root_document= ttt->br.operator-> () == this;
-  bool progressive= ttt->progressive && !ttt->paper && !ttt->screen_tree &&
+  bool progressive= ttt->progressive && !ttt->paper &&
                     (root_document? N(st) >= 96:
                      ttt->progressive_root_active && N(st) >= 32);
   if (root_document) ttt->progressive_root_active= progressive;
@@ -266,7 +266,7 @@ bridge_document_rep::my_typeset (int desired_status) {
     string mode = athena_labels_mode (env);
     bool printed= env->get_string (PAGE_PRINTED) == "true";
     bool root_document= ttt->br.operator-> () == this;
-    bool progressive= ttt->progressive && !ttt->paper && !ttt->screen_tree &&
+    bool progressive= ttt->progressive && !ttt->paper &&
                       (root_document? n >= 96:
                        ttt->progressive_root_active && n >= 32);
     if (root_document) ttt->progressive_root_active= progressive;

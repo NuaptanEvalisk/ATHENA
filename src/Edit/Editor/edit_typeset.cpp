@@ -1314,7 +1314,7 @@ edit_typeset_rep::typeset_sub (SI& x1, SI& y1, SI& x2, SI& y2) {
   try {
 #endif
     bool printed= env->get_string (PAGE_PRINTED) == "true";
-    ttt->progressive= !printed && !ttt->screen_tree &&
+    ttt->progressive= !printed &&
       env->get_string (PAGE_MEDIUM) != "paper";
     path relative_cursor= rp <= tp? tp / rp: path ();
     ttt->progressive_required=
