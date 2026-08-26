@@ -13,6 +13,8 @@
 
 (texmacs-module (kernel athena tm-states))
 
+(use-modules (ice-9 copy-tree))
+
 ;; Low-level API
 (define-public (state-create slotlist)
 ;; slotlist === ((<SLOT-DESCR>*) (<PROP-DESCR>*) (<COMPILED-PROP>*))
