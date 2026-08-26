@@ -305,6 +305,14 @@ double_to_scm (double i) {
  * Strings
  ******************************************************************************/
 
+static char*
+athena_scm_string_to_bytes (SCM value, size_t* length) {
+  size_t count= scm_c_string_length (value);
+  for (size_t i=0; i<count; ++i)
+    if (SCM_CHAR (scm_c_string_ref (value, i)) > 0xff)
+      return scm_to_utf8_stringn (value, length);
+  return scm_to_latin1_stringn (value, length);
+}
 
 tmscm
 string_to_tmscm (string s) {
@@ -312,7 +320,10 @@ string_to_tmscm (string s) {
 #ifdef DEBUG_ON
   if (! scm_busy) {
 #endif
-  SCM r= scm_str2scm (_s, N(s));
+  // TeXmacs strings are byte strings (typically Cork or UTF-8), matching
+  // Guile 1.8 semantics.  Locale decoding corrupts both under embedded
+  // Guile 3 when the process still has the C locale.
+  SCM r= scm_from_latin1_stringn (_s, N(s));
   return r;
 #ifdef DEBUG_ON
   } else return SCM_BOOL_F;
@@ -322,7 +333,7 @@ string_to_tmscm (string s) {
 string
 tmscm_to_string (tmscm s) {
   guile_str_size_t len_r;
-  char* _r= scm_scm2str (s, &len_r);
+  char* _r= athena_scm_string_to_bytes (s, &len_r);
   string r (_r, len_r);
 #ifdef OS_WIN32
   scm_must_free(_r);
@@ -339,14 +350,14 @@ tmscm_to_string (tmscm s) {
 tmscm
 symbol_to_tmscm (string s) {
   c_string _s (s);
-  SCM r= scm_symbol2scm (_s);
+  SCM r= scm_from_latin1_symboln (_s, N(s));
   return r;
 }
 
 string
 tmscm_to_symbol (tmscm s) {
   guile_str_size_t len_r;
-  char* _r= scm_scm2symbol (s, &len_r);
+  char* _r= athena_scm_string_to_bytes (scm_symbol_to_string (s), &len_r);
   string r (_r, len_r);
 #ifdef OS_WIN32
   scm_must_free(_r);

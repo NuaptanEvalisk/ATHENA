@@ -69,10 +69,6 @@
 #define scm_scm2long scm_to_long
 #define scm_double2scm scm_from_double
 #define scm_scm2double scm_to_double
-#define scm_str2scm scm_from_locale_stringn
-#define scm_scm2str scm_to_locale_stringn
-#define scm_symbol2scm scm_from_locale_symbol
-#define scm_scm2symbol(x,y) scm_to_locale_stringn(scm_symbol_to_string(x),y)
 #define scm_internal_lazy_catch(tag,body,body_data,handler,handler_data) \
   scm_internal_catch(tag,body,body_data,handler,handler_data)
 
