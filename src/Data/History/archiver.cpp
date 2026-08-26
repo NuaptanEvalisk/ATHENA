@@ -306,6 +306,11 @@ archiver_rep::active () {
 }
 
 bool
+archiver_rep::has_content_changes () {
+  return does_modify (current);
+}
+
+bool
 archiver_rep::has_history () {
   return nr_undo (archive) == 1;
 }

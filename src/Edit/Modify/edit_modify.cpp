@@ -301,6 +301,11 @@ edit_modify_rep::start_editing () {
 void
 edit_modify_rep::end_editing () {
   //cout << UNINDENT << "End editing" << LF;
+  if (!is_nil (buf) && buf->buf->read_only && arch->has_content_changes ()) {
+    global_cancel ();
+    set_message ("This view is read-only", "edit");
+    return;
+  }
   global_confirm ();
 }
 
@@ -353,6 +358,10 @@ edit_modify_rep::undo_possibilities () {
 void
 edit_modify_rep::undo (bool redoable) {
   interrupt_shortcut ();
+  if (!is_nil (buf) && buf->buf->read_only) {
+    set_message ("This view is read-only", "undo");
+    return;
+  }
   arch->forget_cursor ();
   if (inside_graphics () && !as_bool (eval ("graphics-undo-enabled"))) {
     eval ("(graphics-reset-context 'undo)"); return; }
@@ -389,6 +398,10 @@ edit_modify_rep::redo_possibilities () {
 void
 edit_modify_rep::redo (int i) {
   interrupt_shortcut ();
+  if (!is_nil (buf) && buf->buf->read_only) {
+    set_message ("This view is read-only", "redo");
+    return;
+  }
   arch->forget_cursor ();
   if (arch->redo_possibilities () == 0) {
     set_message ("No more redo information available", "redo"); return; }

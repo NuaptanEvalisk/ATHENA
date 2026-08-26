@@ -47,6 +47,7 @@ public:
   void add (modification m);
   void start_slave (double a);
   bool active ();
+  bool has_content_changes ();
   bool has_history ();
   void cancel ();        // cancel current series of modifications
   void confirm ();       // move current modifications to history
