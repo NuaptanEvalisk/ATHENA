@@ -76,7 +76,7 @@ edit_interface_rep::edit_interface_rep ():
   zpixel (max ((SI) tm_round (std_shrinkf * PIXEL), pixel)),
   copy_always (),
   last_x (0), last_y (0), last_t (0),
-  tremble_count (0), tremble_right (false),
+  tremble_count (0), shake_detector (),
   table_selection (false), mouse_adjusting (false),
   image_resize_active (false), image_resize_handle (0),
   image_resize_path (),

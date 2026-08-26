@@ -1023,12 +1023,15 @@ QTMWidget::mouseReleaseEvent (QMouseEvent* event) {
 void
 QTMWidget::mouseMoveEvent (QMouseEvent* event) {
   if (is_nil (tmwid)) return;
+  QPointF localPoint= event->position ();
   QPoint point = event->pos() + origin();
   coord2 pt = from_qpoint(point);
   unsigned int mstate = mouse_state (event, false);
   string s = "move";
+  array<double> data;
+  data << localPoint.x () << localPoint.y ();
   the_gui->process_mouse (tm_widget(), s, pt.x1, pt.x2, 
-                          mstate, texmacs_time ());
+                          mstate, texmacs_time (), data);
   event->accept();
 }
 

@@ -697,21 +697,22 @@ edit_interface_rep::mouse_any (string type, SI x, SI y, int mods, time_t t,
     return;
   }
   if (t > last_event) last_event= t;
-  if (((x > last_x && !tremble_right) || (x < last_x && tremble_right)) &&
-      (abs (x - last_x) > abs (y - last_y)) &&
-      type == "move") {
-    tremble_count= min (tremble_count + 1, 35);
-    tremble_right= (x > last_x);
-    if (texmacs_time () - last_change > 500) {
-      tremble_count= max (tremble_count - 1, 0);
+  if (type == "move" && (mods & 31) != 0)
+    shake_detector.reset ();
+  else if (type == "move") {
+    SI shake_x= x;
+    SI shake_y= y;
+    SI shake_pixel= pixel;
+    if (N(data) >= 2) {
+      shake_x= (SI) tm_round (data[0]);
+      shake_y= (SI) tm_round (data[1]);
+      shake_pixel= 1;
+    }
+    if (shake_detector.update (shake_x, shake_y, t, shake_pixel)) {
+      tremble_count= min (max (tremble_count, 3) + 4, 28);
       env_change = env_change | (THE_CURSOR + THE_FREEZE);
       last_change= texmacs_time ();
     }
-    else if (tremble_count > 3) {
-      env_change = env_change | (THE_CURSOR + THE_FREEZE);
-      last_change= texmacs_time ();
-    }
-    //cout << "Tremble+ " << tremble_count << LF;
   }
 
   bool found_flag= false;

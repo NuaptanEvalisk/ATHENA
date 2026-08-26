@@ -13,6 +13,7 @@
 #define EDIT_INTERFACE_H
 #include "editor.hpp"
 #include "heading_word_count.hpp"
+#include "pointer_shake_detector.hpp"
 #include "tm_timer.hpp"
 #include "widget.hpp"
 
@@ -73,7 +74,7 @@ protected:
   SI            start_x, start_y;
   SI            end_x, end_y;
   int           tremble_count;
-  bool          tremble_right;
+  pointer_shake_detector shake_detector;
   bool          table_selection;
   int           mouse_adjusting;  // mask with active key modifiers upon click
   bool          image_resize_active;
