@@ -37,6 +37,12 @@
 #include <QFile>
 #include <QGuiApplication>
 
+#include <png.h>
+
+#include <algorithm>
+#include <cstdio>
+#include <limits>
+
 #include "colors.hpp"
 
 #include "dictionary.hpp"
@@ -455,19 +461,102 @@ qt_supports (url u) {
   return ans;
 }
 
+namespace {
+
+constexpr int qt_default_dots_per_meter= 3937; // Qt's 100 dpi default.
+
+static FILE*
+qt_open_image_file (const QString& path) {
+#ifdef OS_MINGW
+  return _wfopen (reinterpret_cast<const wchar_t*> (path.utf16 ()), L"rb");
+#else
+  QByteArray encoded= QFile::encodeName (path);
+  return std::fopen (encoded.constData (), "rb");
+#endif
+}
+
+static bool
+qt_png_header_info (const QString& path, QSize& size, int& dpm_x, int& dpm_y) {
+  FILE* file= qt_open_image_file (path);
+  if (file == nullptr) return false;
+
+  png_structp png= png_create_read_struct (PNG_LIBPNG_VER_STRING,
+                                           nullptr, nullptr, nullptr);
+  if (png == nullptr) {
+    std::fclose (file);
+    return false;
+  }
+  png_infop info= png_create_info_struct (png);
+  if (info == nullptr) {
+    png_destroy_read_struct (&png, nullptr, nullptr);
+    std::fclose (file);
+    return false;
+  }
+  if (setjmp (png_jmpbuf (png))) {
+    png_destroy_read_struct (&png, &info, nullptr);
+    std::fclose (file);
+    return false;
+  }
+
+  png_init_io (png, file);
+  png_read_info (png, info);
+  png_uint_32 width= png_get_image_width (png, info);
+  png_uint_32 height= png_get_image_height (png, info);
+  if (width == 0 || height == 0 ||
+      width > (png_uint_32) std::numeric_limits<int>::max () ||
+      height > (png_uint_32) std::numeric_limits<int>::max ()) {
+    png_destroy_read_struct (&png, &info, nullptr);
+    std::fclose (file);
+    return false;
+  }
+
+  size= QSize ((int) width, (int) height);
+  png_uint_32 x_resolution= 0;
+  png_uint_32 y_resolution= 0;
+  int unit= PNG_RESOLUTION_UNKNOWN;
+  if (png_get_pHYs (png, info, &x_resolution, &y_resolution, &unit) &&
+      unit == PNG_RESOLUTION_METER && x_resolution > 0 && y_resolution > 0) {
+    dpm_x= (int) std::min<png_uint_32> (
+      x_resolution, (png_uint_32) std::numeric_limits<int>::max ());
+    dpm_y= (int) std::min<png_uint_32> (
+      y_resolution, (png_uint_32) std::numeric_limits<int>::max ());
+  }
+
+  png_destroy_read_struct (&png, &info, nullptr);
+  std::fclose (file);
+  return true;
+}
+
+static bool
+qt_image_header_info (url image, QSize& size, int& dpm_x, int& dpm_y) {
+  QString path= utf8_to_qstring (concretize (image));
+  dpm_x= qt_default_dots_per_meter;
+  dpm_y= qt_default_dots_per_meter;
+  if (suffix (image) == "png" && qt_png_header_info (path, size, dpm_x, dpm_y))
+    return true;
+
+  QImageReader reader (path);
+  size= reader.size ();
+  return size.isValid ();
+}
+
+} // namespace
+
 bool
 qt_image_size (url image, int& w, int& h) {// w, h in points
   if (DEBUG_CONVERT) debug_convert << "qt_image_size :" <<LF;
-  QImage im= QImage (utf8_to_qstring (concretize (image)));
-  if (im.isNull ()) {
+  QSize size;
+  int dpm_x= qt_default_dots_per_meter;
+  int dpm_y= qt_default_dots_per_meter;
+  if (!qt_image_header_info (image, size, dpm_x, dpm_y)) {
       convert_error << "Cannot read image file '" << image << "'"
       << " in qt_image_size" << LF;
       w= 35; h= 35;
       return false;
   }
   else {
-    w= (int) rint ((((double) im.width ())*2834)/im.dotsPerMeterX());
-    h= (int) rint ((((double) im.height())*2834)/im.dotsPerMeterY());
+    w= (int) rint ((((double) size.width ())*2834)/dpm_x);
+    h= (int) rint ((((double) size.height())*2834)/dpm_y);
     if (DEBUG_CONVERT) debug_convert <<"QT dotsPerMeter: "
         <<w<<" x "<<h<<LF;
     return true;      
@@ -477,11 +566,13 @@ qt_image_size (url image, int& w, int& h) {// w, h in points
 bool
 qt_native_image_size (url image, int& w, int& h) {
   if (DEBUG_CONVERT) debug_convert << "qt_image_size :" <<LF;
-  QImage im= QImage (utf8_to_qstring (concretize (image)));
-  if (im.isNull ()) return false;
+  QSize size;
+  int dpm_x= qt_default_dots_per_meter;
+  int dpm_y= qt_default_dots_per_meter;
+  if (!qt_image_header_info (image, size, dpm_x, dpm_y)) return false;
   else {
-    w= im.width ();
-    h= im.height();
+    w= size.width ();
+    h= size.height ();
     return true;
   }
 }

@@ -61,6 +61,7 @@
 #ifdef QTTEXMACS
 #include "Qt/QTMApplication.hpp"
 #include "Qt/qt_gui.hpp"
+#include "Qt/qt_font.hpp"
 #include "QTMGoogleTasksPane.hpp"
 #include "Qt/qt_utilities.hpp"
 #include <QApplication>
@@ -1239,6 +1240,7 @@ TeXmacs_main (int argc, char** argv) {
       if (DEBUG_STD) debug_boot << "Creating 'no name' buffer...\n";
       startup_progress (94, "Building editor window");
       bench_start ("build editor window");
+      qt_wait_for_font_fallback_warmup ();
       defer_next_editor_chrome_build ();
       defer_next_view_initialization ();
       open_window ();
@@ -1256,7 +1258,7 @@ TeXmacs_main (int argc, char** argv) {
                         "(update-menus)))";
       extra_init_cmd << "(delayed (:idle 100) "
                         "(import-from (fonts fonts-truetype)))";
-      extra_init_cmd << "(delayed (:idle 150) "
+      extra_init_cmd << "(delayed (:idle 0) "
                         "(vault-startup-open-initial-buffer))";
       extra_init_cmd << "(kbd-start-inverse-warmup)";
     }
@@ -2063,6 +2065,9 @@ texmacs_entrypoint (int argc, char** argv) {
     bench_cumul ("initialize fonts");
     startup_progress (70, "Fonts ready");
   }
+#ifdef QTTEXMACS
+  if (!headless_mode) qt_start_font_fallback_warmup ();
+#endif
 #ifdef QTTEXMACS
   if (!headless_mode) {
 #    ifndef OS_MACOS

@@ -15,9 +15,13 @@
 #include "Qt/qt_renderer.hpp"
 
 #include <QFontDatabase>
+#include <QApplication>
 #include <QPainter>
 #include <QStringList>
 #include <QVector>
+
+#include <future>
+#include <mutex>
 
 #include "analyze.hpp"
 #include "dictionary.hpp"
@@ -43,6 +47,56 @@ make_qt_font (string family, int size) {
   else if (family != "") qfn.setFamily (to_qstring (family));
   qfn.setPixelSize (size);
   return qfn;
+}
+
+namespace {
+
+std::once_flag qt_font_warmup_once;
+std::future<void> qt_font_warmup_future;
+
+static void
+warm_qt_font (QFont font) {
+  if (font.pixelSize () <= 0) font.setPixelSize (16);
+  QFontMetricsF metrics (font);
+  const QString sample= QStringLiteral (
+    "ATHENA Mathematics abcdefghijklmnopqrstuvwxyz "
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZ 0123456789 "
+    "\u03b1\u03b2\u03b3\u03b4\u03b5 \u2192 \u2295 \u222b");
+  (void) metrics.tightBoundingRect (sample);
+  (void) metrics.horizontalAdvance (sample);
+}
+
+} // namespace
+
+void
+qt_start_font_fallback_warmup () {
+  if (qApp == nullptr) return;
+  QFont application_font= qApp->font ();
+  std::call_once (qt_font_warmup_once, [application_font] () {
+    qt_font_warmup_future= std::async (std::launch::async,
+      [application_font] () {
+        warm_qt_font (application_font);
+        for (QFont::Style style: {QFont::StyleNormal, QFont::StyleItalic})
+          for (QFont::Weight weight: {QFont::Normal, QFont::Bold}) {
+            QFont pagella (QStringLiteral ("TeX Gyre Pagella"));
+            pagella.setStyle (style);
+            pagella.setWeight (weight);
+            pagella.setPixelSize (16);
+            warm_qt_font (pagella);
+          }
+      });
+  });
+}
+
+void
+qt_wait_for_font_fallback_warmup () {
+  if (!qt_font_warmup_future.valid ()) return;
+  try {
+    qt_font_warmup_future.get ();
+  }
+  catch (...) {
+    // Warmup is opportunistic; Qt can still initialize fonts lazily.
+  }
 }
 
 /******************************************************************************

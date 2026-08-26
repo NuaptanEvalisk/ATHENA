@@ -191,6 +191,15 @@ static tree namespace_dynamic_tree (
   const std::vector<athena_namespace_match>& members,
   tree t);
 
+static bool
+namespace_homepage_needs_members (tree t) {
+  if (is_ns_tag (t, "ns-matches")) return true;
+  if (is_atomic (t)) return false;
+  for (int i=0; i<N(t); i++)
+    if (namespace_homepage_needs_members (t[i])) return true;
+  return false;
+}
+
 static tree
 namespace_dynamic_replacement (const athena_namespace_definition& ns,
                                const std::vector<string>& path,
@@ -257,13 +266,17 @@ namespace_rebase_homepage_images (tree t, url source_dir) {
 static bool
 load_homepage (const athena_namespace_definition& ns,
                const std::vector<string>& path,
-               const std::vector<athena_namespace_match>& members,
                tree& out) {
   if (ns.homepage_path == "") return false;
   url u= namespace_path_url (ns.homepage_path);
   string s;
   if (load_string (u, s, false)) return false;
   tree doc= import_loaded_tree (s, u, "texmacs");
+  std::vector<athena_namespace_match> members;
+  if (namespace_homepage_needs_members (doc)) {
+    string error;
+    members= athena_namespace_members (ns.name, error);
+  }
   tree expanded= namespace_dynamic_tree (ns, path, members, doc);
   out= namespace_rebase_homepage_images (expanded, head (u));
   return true;
@@ -338,13 +351,12 @@ athena_namespace_info_page (string tmfs_name) {
   if (!athena_namespace_get (name, ns))
     return error_page ("Namespace", "Unknown namespace: " + tm_to_std (name));
 
+  if (!technical) {
+    tree homepage;
+    if (load_homepage (ns, path, homepage)) return homepage;
+  }
   string error;
   std::vector<athena_namespace_match> members=
     athena_namespace_members (name, error);
-
-  if (!technical) {
-    tree homepage;
-    if (load_homepage (ns, path, members, homepage)) return homepage;
-  }
   return technical_summary_page (ns, members, error);
 }

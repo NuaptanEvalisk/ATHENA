@@ -38,4 +38,7 @@ struct qt_font_rep: font_rep {
   //glyph get_glyph (string s);
 };
 
+void qt_start_font_fallback_warmup ();
+void qt_wait_for_font_fallback_warmup ();
+
 #endif // defined QT_FONT_H
