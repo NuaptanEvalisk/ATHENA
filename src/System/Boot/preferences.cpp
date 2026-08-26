@@ -227,6 +227,7 @@ ensure_builtin_user_preferences () {
     PREF ("gui focus border width", "1", "notify-focus-border-width"),
     PREF ("locus-color", "#404080", "notify-link-color"),
     PREF ("visited-color", "#702070", "notify-link-color"),
+    PREF ("enable radioactive links", "on", "notify-link-color"),
     PREF ("radioactive-link-color", "#a04400", "notify-link-color"),
     PREF ("override white document background", "off",
           "notify-document-background-color"),

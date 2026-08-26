@@ -125,7 +125,9 @@ concater_rep::typeset_text_string (tree t, path ip, int pos, int end) {
     string destination;
   };
   std::vector<ActiveMatch> links;
-  bool allow_links= is_accessible (ip) &&
+  bool allow_links= get_user_preference ("enable radioactive links", "on") ==
+                      "on" &&
+                    is_accessible (ip) &&
                     env->get_string (PAGE_PRINTED) != "true" &&
                     env->get_string ("athena-inside-locus") != "true";
   if (allow_links) {

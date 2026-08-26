@@ -340,6 +340,10 @@
 
     <item*|Clicked link color>Color used for visited links.
 
+    <item*|Enable radioactive links>Automatically recognizes artifact terms in
+    document text and renders them as links to the corresponding stable
+    artifacts. Disable this option to leave matching text unlinked.
+
     <item*|Radioactive link color>Color used for automatically recognized
     artifact terms. It is independent of the colors for ordinary links so
     that inferred links remain visually distinguishable.

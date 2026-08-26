@@ -1353,6 +1353,8 @@ QTMPreferencesDialog::buildRenderingPage () {
               {"6", "6"}}, "1");
   add_color_button (dc, "Unclicked link color:", "locus-color", false);
   add_color_button (dc, "Clicked link color:", "visited-color", false);
+  add_toggle (dc, "Enable radioactive links:",
+              "enable radioactive links");
   add_color_button (dc, "Radioactive link color:",
                     "radioactive-link-color", false);
   add_toggle (dc, "Override white background:",
