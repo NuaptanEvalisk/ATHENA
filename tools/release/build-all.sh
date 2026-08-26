@@ -150,6 +150,7 @@ configure_local_build () {
     -G Ninja
     -DATHENA_GUI=Qt6
     -DCMAKE_BUILD_TYPE=Release
+    -DATHENA_CPU_TARGET=x86-64-v3
   )
   if [[ ! -f "$local_build_dir/CMakeCache.txt" ]]; then
     local icx=/opt/intel/oneapi/compiler/latest/bin/icx

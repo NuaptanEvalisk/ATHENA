@@ -13,6 +13,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <map>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -21,6 +22,8 @@
 namespace athena::web {
 
 namespace fs = std::filesystem;
+
+class HttpBodyState;
 
 struct IceServer {
   std::string uri;
@@ -43,6 +46,8 @@ struct HttpRequest {
   std::map<std::string,std::string> headers;
   std::string buffered_body;
   uint64_t content_length= 0;
+  bool chunked_transfer= false;
+  std::shared_ptr<HttpBodyState> body_state;
 };
 
 uint64_t parse_byte_size (std::string_view text);
@@ -56,7 +61,11 @@ std::vector<std::string> split_path (std::string_view path);
 std::optional<IceServer> parse_ice_server (std::string_view uri);
 std::optional<TurnCredentials>
 parse_cloudflare_turn_credentials (std::string_view response);
-bool read_http_request (int fd, HttpRequest& request, std::string& error);
+bool read_http_request (int fd, HttpRequest& request, std::string& error,
+                        uint64_t max_body_bytes= uint64_t (2) << 30);
+bool read_http_body_to_file (int fd, HttpRequest& request,
+                             const fs::path& destination,
+                             uint64_t& body_bytes, std::string& error);
 fs::path choose_web_root (const std::optional<fs::path>& configured,
                           const fs::path& executable,
                           const fs::path& source_default,

@@ -90,6 +90,33 @@ find_package (Boost REQUIRED)
 
 option (QTPIPES "use Qt pipes" ON)
 
+set (ATHENA_CPU_TARGET "native" CACHE STRING
+  "CPU ISA target: native, x86-64-v3, x86-64-v2, or x86-64")
+set_property (CACHE ATHENA_CPU_TARGET PROPERTY STRINGS
+  native x86-64-v3 x86-64-v2 x86-64)
+if (ATHENA_CPU_TARGET STREQUAL "native")
+  set (ATHENA_CPU_COMPILE_FLAGS "-march=native -mavx2")
+elseif (ATHENA_CPU_TARGET MATCHES "^x86-64(-v[23])?$")
+  set (ATHENA_CPU_COMPILE_FLAGS
+    "-march=${ATHENA_CPU_TARGET} -mtune=generic")
+else ()
+  message (FATAL_ERROR
+    "Unsupported ATHENA_CPU_TARGET='${ATHENA_CPU_TARGET}'. "
+    "Use native, x86-64-v3, x86-64-v2, or x86-64.")
+endif ()
+message (STATUS
+  "ATHENA CPU target: ${ATHENA_CPU_TARGET} (${ATHENA_CPU_COMPILE_FLAGS})")
+
+function (athena_write_build_fingerprint path content)
+  set (previous "")
+  if (EXISTS "${path}")
+    file (READ "${path}" previous)
+  endif ()
+  if (NOT previous STREQUAL "${content}")
+    file (WRITE "${path}" "${content}")
+  endif ()
+endfunction ()
+
 option (ATHENA_BUNDLE_CODEX
   "Bundle a redistributable Codex executable with ATHENA" OFF)
 set (ATHENA_CODEX_BINARY "" CACHE FILEPATH
@@ -521,9 +548,10 @@ option (ATHENA_INTEL_NATIVE_OPTIMIZATION
 if (CMAKE_CXX_COMPILER_ID STREQUAL "IntelLLVM" AND
     ATHENA_INTEL_NATIVE_OPTIMIZATION)
   message(STATUS "Detected IntelLLVM compiler, adding aggressive optimization flags")
-  # Modern optimization: O3, native architecture, AVX2, loop unrolling, and ThinLTO
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -march=native -mavx2 -funroll-loops -flto=thin -fp-model fast")
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -march=native -mavx2 -funroll-loops -flto=thin -fp-model fast")
+  # Release builders select a portable ISA baseline explicitly. Local builds
+  # retain native tuning by default.
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 ${ATHENA_CPU_COMPILE_FLAGS} -funroll-loops -flto=thin -fp-model fast")
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 ${ATHENA_CPU_COMPILE_FLAGS} -funroll-loops -flto=thin -fp-model fast")
   
   # Linker flags: Use lld, ThinLTO, and enable caching in the build directory
   set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -flto=thin -fuse-ld=lld -Wl,--thinlto-cache-dir=${CMAKE_BINARY_DIR}/lto_cache -static-intel")

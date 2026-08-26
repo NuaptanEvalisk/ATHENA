@@ -12,9 +12,14 @@ set(ATHENA_BDWGC_PKGCONFIG_DIR
   "${ATHENA_BDWGC_PREFIX}/lib/pkgconfig")
 
 set(ATHENA_BDWGC_C_FLAGS
-  "-O3 -g -fPIC -fno-omit-frame-pointer -march=native -mavx2 -funroll-loops -flto=thin -DGC_USE_ENTIRE_HEAP")
+  "-O3 -g -fPIC -fno-omit-frame-pointer ${ATHENA_CPU_COMPILE_FLAGS} -funroll-loops -flto=thin -DGC_USE_ENTIRE_HEAP")
 set(ATHENA_BDWGC_LINK_FLAGS
   "-flto=thin -fuse-ld=lld -Wl,--thinlto-cache-dir=${ATHENA_BDWGC_BUILD_DIR}/lto-cache")
+set(ATHENA_BDWGC_TOOLCHAIN_FINGERPRINT
+  "${ATHENA_BINARY_DIR}/athena-bdwgc-toolchain.txt")
+athena_write_build_fingerprint(
+  "${ATHENA_BDWGC_TOOLCHAIN_FINGERPRINT}"
+  "CC=${CMAKE_C_COMPILER}\nCFLAGS=${ATHENA_BDWGC_C_FLAGS}\nLDFLAGS=${ATHENA_BDWGC_LINK_FLAGS}\n")
 
 set(ATHENA_BDWGC_CMAKE_ARGS
   "-DCMAKE_INSTALL_PREFIX:PATH=${ATHENA_BDWGC_PREFIX}"
@@ -67,6 +72,12 @@ ExternalProject_Add(athena_bdwgc_runtime
   BUILD_BYPRODUCTS "${ATHENA_BDWGC_LIBRARY}"
   USES_TERMINAL_BUILD TRUE
   USES_TERMINAL_INSTALL TRUE)
+
+ExternalProject_Add_Step(athena_bdwgc_runtime toolchain_changes
+  COMMAND "${CMAKE_COMMAND}" -E true
+  DEPENDERS configure
+  DEPENDS "${ATHENA_BDWGC_TOOLCHAIN_FINGERPRINT}"
+  COMMENT "Checking the private ATHENA BDW-GC toolchain configuration")
 
 ExternalProject_Add_Step(athena_bdwgc_runtime source_changes
   COMMAND "${CMAKE_COMMAND}" -E true

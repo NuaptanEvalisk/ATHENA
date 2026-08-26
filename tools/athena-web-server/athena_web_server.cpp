@@ -515,40 +515,6 @@ reserve_available_port (const std::set<int>& excluded) {
   throw std::runtime_error ("could not allocate loopback port");
 }
 
-bool
-read_body_to_file (int fd, const HttpRequest& request,
-                   const fs::path& destination, std::string& error) {
-  std::ofstream output (destination, std::ios::binary | std::ios::trunc);
-  if (!output) {
-    error= "failed to create upload staging file";
-    return false;
-  }
-  uint64_t written= 0;
-  size_t initial= size_t (std::min<uint64_t> (
-    request.buffered_body.size (), request.content_length));
-  output.write (request.buffered_body.data (), std::streamsize (initial));
-  written= initial;
-  std::array<char,64 * 1024> buffer {};
-  while (written < request.content_length) {
-    size_t wanted= size_t (std::min<uint64_t> (
-      buffer.size (), request.content_length - written));
-    ssize_t count= ::recv (fd, buffer.data (), wanted, 0);
-    if (count < 0 && errno == EINTR) continue;
-    if (count <= 0) {
-      error= "upload connection closed early";
-      return false;
-    }
-    output.write (buffer.data (), count);
-    if (!output) {
-      error= "failed while staging upload";
-      return false;
-    }
-    written+= uint64_t (count);
-  }
-  output.close ();
-  return true;
-}
-
 class SessionManager {
 public:
   explicit SessionManager (Config config): config_ (std::move (config)) {
@@ -1425,7 +1391,7 @@ handle_static (int fd, const HttpRequest& request, const fs::path& web_root) {
 }
 
 void
-handle_api (int fd, const HttpRequest& request, SessionManager& manager,
+handle_api (int fd, HttpRequest& request, SessionManager& manager,
             const Config& config) {
   std::vector<std::string> parts= split_path (request.path);
   if (parts.size () == 2 && parts[0] == "api" &&
@@ -1498,7 +1464,7 @@ handle_api (int fd, const HttpRequest& request, SessionManager& manager,
       send_json (fd, 400, json_error ("invalid upload filename"));
       return;
     }
-    if (request.content_length == 0) {
+    if (!request.chunked_transfer && request.content_length == 0) {
       send_json (fd, 400, json_error ("empty uploads are not accepted"));
       return;
     }
@@ -1509,14 +1475,22 @@ handle_api (int fd, const HttpRequest& request, SessionManager& manager,
     fs::path staged= session->state_dir / "staging" /
       ("upload-" + random_hex (8));
     std::string error;
-    if (!read_body_to_file (fd, request, staged, error)) {
+    uint64_t uploaded_bytes= 0;
+    if (!read_http_body_to_file (fd, request, staged, uploaded_bytes, error)) {
       std::error_code ec;
       fs::remove (staged, ec);
-      send_json (fd, 400, json_error (error));
+      send_json (fd, error.find ("body limit") != std::string::npos ? 413: 400,
+                 json_error (error));
+      return;
+    }
+    if (uploaded_bytes == 0) {
+      std::error_code ec;
+      fs::remove (staged, ec);
+      send_json (fd, 400, json_error ("empty uploads are not accepted"));
       return;
     }
     bool installed= manager.upload (session, filename, staged,
-                                    request.content_length, error);
+                                    uploaded_bytes, error);
     std::error_code ec;
     fs::remove (staged, ec);
     if (!installed) {
@@ -1577,7 +1551,7 @@ handle_client (int fd, SessionManager& manager, const Config& config,
   ::setsockopt (fd, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof (timeout));
   HttpRequest request;
   std::string error;
-  if (!read_http_request (fd, request, error)) {
+  if (!read_http_request (fd, request, error, config.storage_limit)) {
     send_json (fd, 400, json_error (error));
     ::close (fd);
     return;

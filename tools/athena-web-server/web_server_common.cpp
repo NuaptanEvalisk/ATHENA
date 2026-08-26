@@ -12,6 +12,8 @@
 
 #include <boost/json.hpp>
 #include <boost/json/src.hpp>
+#include <boost/asio/buffer.hpp>
+#include <boost/beast/http.hpp>
 
 #include <sys/socket.h>
 
@@ -28,6 +30,13 @@
 namespace athena::web {
 
 namespace json = boost::json;
+namespace http = boost::beast::http;
+
+class HttpBodyState {
+public:
+  http::request_parser<http::file_body> parser;
+  std::string pending;
+};
 
 namespace {
 
@@ -214,7 +223,8 @@ split_path (std::string_view path) {
 }
 
 bool
-read_http_request (int fd, HttpRequest& request, std::string& error) {
+read_http_request (int fd, HttpRequest& request, std::string& error,
+                   uint64_t max_body_bytes) {
   constexpr size_t max_header_bytes= 64 * 1024;
   std::string buffer;
   std::array<char,8192> chunk {};
@@ -285,11 +295,19 @@ read_http_request (int fd, HttpRequest& request, std::string& error) {
       return false;
     }
   }
-  if (request.headers.count ("transfer-encoding") != 0) {
-    error= "Transfer-Encoding is not supported";
-    return false;
-  }
+  auto transfer= request.headers.find ("transfer-encoding");
   auto length= request.headers.find ("content-length");
+  if (transfer != request.headers.end ()) {
+    if (lower_ascii (trim (transfer->second)) != "chunked") {
+      error= "unsupported Transfer-Encoding";
+      return false;
+    }
+    if (length != request.headers.end ()) {
+      error= "Transfer-Encoding and Content-Length cannot be combined";
+      return false;
+    }
+    request.chunked_transfer= true;
+  }
   if (length != request.headers.end ()) {
     try {
       size_t consumed= 0;
@@ -302,6 +320,84 @@ read_http_request (int fd, HttpRequest& request, std::string& error) {
       return false;
     }
   }
+
+  request.body_state= std::make_shared<HttpBodyState> ();
+  request.body_state->parser.header_limit (max_header_bytes);
+  request.body_state->parser.body_limit (max_body_bytes);
+  boost::system::error_code parse_error;
+  size_t consumed= request.body_state->parser.put (
+    boost::asio::buffer (buffer), parse_error);
+  if (parse_error == http::error::need_more) parse_error.clear ();
+  if (parse_error || !request.body_state->parser.is_header_done ()) {
+    error= parse_error ? "invalid HTTP framing: " + parse_error.message ():
+                         "incomplete HTTP framing";
+    request.body_state.reset ();
+    return false;
+  }
+  request.body_state->pending= buffer.substr (consumed);
+  request.buffered_body= request.body_state->pending;
+  return true;
+}
+
+bool
+read_http_body_to_file (int fd, HttpRequest& request,
+                        const fs::path& destination,
+                        uint64_t& body_bytes, std::string& error) {
+  if (!request.body_state) {
+    error= "HTTP body parser is unavailable";
+    return false;
+  }
+  HttpBodyState& state= *request.body_state;
+  boost::system::error_code body_error;
+  state.parser.get ().body ().open (
+    destination.c_str (), boost::beast::file_mode::write, body_error);
+  if (body_error) {
+    error= "failed to create upload staging file: " + body_error.message ();
+    return false;
+  }
+
+  std::array<char,64 * 1024> incoming {};
+  while (!state.parser.is_done ()) {
+    if (state.pending.empty ()) {
+      ssize_t count= ::recv (fd, incoming.data (), incoming.size (), 0);
+      if (count < 0 && errno == EINTR) continue;
+      if (count <= 0) {
+        error= "upload connection closed early";
+        state.parser.get ().body ().close ();
+        return false;
+      }
+      state.pending.assign (incoming.data (), size_t (count));
+    }
+
+    body_error.clear ();
+    size_t consumed= state.parser.put (
+      boost::asio::buffer (state.pending), body_error);
+    state.pending.erase (0, consumed);
+    if (body_error == http::error::need_more) body_error.clear ();
+    if (body_error) {
+      error= "invalid HTTP body framing: " + body_error.message ();
+      state.parser.get ().body ().close ();
+      return false;
+    }
+    if (consumed == 0 && !state.parser.is_done ()) {
+      error= "HTTP body parser made no progress";
+      state.parser.get ().body ().close ();
+      return false;
+    }
+  }
+  state.parser.get ().body ().close ();
+  if (!state.pending.empty ()) {
+    error= "unexpected data after HTTP request body";
+    return false;
+  }
+  std::error_code size_error;
+  body_bytes= fs::file_size (destination, size_error);
+  if (size_error) {
+    error= "failed to inspect upload staging file: " + size_error.message ();
+    return false;
+  }
+  request.content_length= body_bytes;
+  request.buffered_body.clear ();
   return true;
 }
 

@@ -23,7 +23,7 @@ set(ATHENA_GUILE_LIBRARY
   "${ATHENA_GUILE_PREFIX}/lib/libathena-guile${CMAKE_SHARED_LIBRARY_SUFFIX}")
 
 set(ATHENA_GUILE_C_FLAGS
-  "-O3 -g -std=gnu17 -fno-omit-frame-pointer -march=native -mavx2 -funroll-loops")
+  "-O3 -g -std=gnu17 -fno-omit-frame-pointer ${ATHENA_CPU_COMPILE_FLAGS} -funroll-loops")
 set(ATHENA_GUILE_LINK_FLAGS
   "-flto=thin -fuse-ld=lld -Wl,--thinlto-cache-dir=${ATHENA_GUILE_BUILD_DIR}/lto-cache")
 if(CMAKE_C_COMPILER_ID MATCHES "Intel")
@@ -31,6 +31,11 @@ if(CMAKE_C_COMPILER_ID MATCHES "Intel")
   # optimized builds to fast floating point and enables FTZ/DAZ otherwise.
   string(APPEND ATHENA_GUILE_C_FLAGS " -fp-model=precise -no-ftz")
 endif()
+set(ATHENA_GUILE_TOOLCHAIN_FINGERPRINT
+  "${ATHENA_BINARY_DIR}/athena-guile-toolchain.txt")
+athena_write_build_fingerprint(
+  "${ATHENA_GUILE_TOOLCHAIN_FINGERPRINT}"
+  "CC=${CMAKE_C_COMPILER}\nCFLAGS=${ATHENA_GUILE_C_FLAGS}\nLDFLAGS=${ATHENA_GUILE_LINK_FLAGS}\n")
 
 # Imported include directories must exist when CMake generates the ATHENA
 # targets.  The external build populates this directory before compilation.
@@ -68,6 +73,12 @@ ExternalProject_Add(athena_guile_runtime
   DEPENDS athena_bdwgc_runtime
   USES_TERMINAL_BUILD TRUE
   USES_TERMINAL_INSTALL TRUE)
+
+ExternalProject_Add_Step(athena_guile_runtime toolchain_changes
+  COMMAND "${CMAKE_COMMAND}" -E true
+  DEPENDERS configure
+  DEPENDS "${ATHENA_GUILE_TOOLCHAIN_FINGERPRINT}"
+  COMMENT "Checking the private ATHENA Guile toolchain configuration")
 
 # ExternalProject normally treats an in-tree SOURCE_DIR as opaque: without an
 # explicit step dependency, editing the vendored runtime would not invalidate

@@ -395,6 +395,7 @@ build_athena_flavor () {
     -DCMAKE_C_FLAGS="$compiler_base_flags" \
     -DCMAKE_CXX_FLAGS="$compiler_base_flags" \
     -DATHENA_GUI=Qt6 \
+    -DATHENA_CPU_TARGET=x86-64-v3 \
     -DATHENA_INTEL_NATIVE_OPTIMIZATION=OFF \
     -DADS_VERSION=4.3.1 \
     -DFETCHCONTENT_SOURCE_DIR_ADS="$ads_patched_src" \

@@ -150,10 +150,24 @@ main () {
              "duplicate HTTP headers accepted");
     request= HttpRequest {};
     error.clear ();
+    require (parse_request (
+               "POST /api/sessions HTTP/1.1\r\n"
+               "Transfer-Encoding: chunked\r\n\r\n0\r\n\r\n",
+               request, error) && request.chunked_transfer,
+             "valid chunked request rejected");
+    request= HttpRequest {};
+    error.clear ();
     require (!parse_request (
-               "POST / HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n",
+               "POST / HTTP/1.1\r\nTransfer-Encoding: gzip\r\n\r\n",
                request, error),
-             "Transfer-Encoding accepted");
+             "unsupported Transfer-Encoding accepted");
+    request= HttpRequest {};
+    error.clear ();
+    require (!parse_request (
+               "POST / HTTP/1.1\r\nTransfer-Encoding: chunked\r\n"
+               "Content-Length: 4\r\n\r\n0\r\n\r\n",
+               request, error),
+             "ambiguous chunked Content-Length accepted");
     request= HttpRequest {};
     error.clear ();
     require (!parse_request (

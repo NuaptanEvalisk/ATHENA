@@ -89,11 +89,16 @@ def main() -> int:
 
     signature = runtime_signature(source)
     if runtime_is_current(destination, signature):
+        destination.chmod(0o755)
         return 0
 
     destination.parent.mkdir(parents=True, exist_ok=True)
     staging = Path(tempfile.mkdtemp(
         prefix=".athena-guile-", dir=destination.parent))
+    # mkdtemp deliberately creates mode 0700 directories.  The assembled
+    # runtime is later executed by unprivileged package/container users, so its
+    # root must remain traversable after staging is atomically renamed.
+    staging.chmod(0o755)
     backup = destination.parent / f".athena-guile-backup-{os.getpid()}"
     try:
         copy_tree(source / "share/guile/3.0",

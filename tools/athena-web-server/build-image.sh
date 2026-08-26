@@ -92,6 +92,20 @@ else
   exit 1
 fi
 
+private_guile="$context/runtime/lib/athena-guile"
+if [[ ! -d "$private_guile" ]]; then
+  echo "ATHENA runtime does not contain its private Guile runtime: $private_guile" >&2
+  exit 1
+fi
+# The OCI image runs ATHENA as uid 1000.  Preserve private runtime contents,
+# but guarantee that its atomic-copy staging root is traversable after package
+# extraction (older packages inherited mkdtemp's mode 0700 here).
+chmod 0755 "$private_guile"
+if ! test -r "$private_guile/lib/libathena-guile.so.1"; then
+  echo "ATHENA private Guile runtime is not readable by the web sandbox" >&2
+  exit 1
+fi
+
 for file in \
   Containerfile \
   container-entrypoint.sh \
