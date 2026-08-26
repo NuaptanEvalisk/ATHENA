@@ -778,6 +778,7 @@ QTMWidget::handleNeighborhoodWheelSwipe (QWheelEvent* event) {
 void
 QTMWidget::drawViewPinchPreview (QPainter& p) const {
   if (viewPinchPreview.isNull()) return;
+  p.save ();
   double scale= viewPinchCommitPending
     ? viewPinchCommittedScale : viewPinchScale;
   p.fillRect (surface()->rect(), surface()->palette().brush (QPalette::Base));
@@ -791,6 +792,7 @@ QTMWidget::drawViewPinchPreview (QPainter& p) const {
   p.scale (scale, scale);
   p.translate (-viewPinchFocal);
   p.drawPixmap (target, viewPinchPreview, source);
+  p.restore ();
 }
 
 void
