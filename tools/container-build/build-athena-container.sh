@@ -23,6 +23,10 @@ podman run --rm \
   --security-opt label=disable \
   --network host \
   --env HOME="$container_home" \
+  --env ATHENA_BUILD_FLAVORS="${ATHENA_BUILD_FLAVORS:-dev rel}" \
+  --env ATHENA_BUILD_JOBS="${ATHENA_BUILD_JOBS:-$(nproc)}" \
+  --env ATHENA_GIT_TIMEOUT="${ATHENA_GIT_TIMEOUT:-300}" \
+  --env ATHENA_ALLOW_SYSTEM_COMPILER="${ATHENA_ALLOW_SYSTEM_COMPILER:-0}" \
   --volume "$repo_root:$repo_root:rw" \
   --volume /opt/intel/oneapi:/opt/intel/oneapi:ro \
   "$image_name" \

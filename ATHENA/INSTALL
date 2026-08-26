@@ -156,7 +156,10 @@ RPM or DEB on the build host:
     tools/container-build/validate-native-packages.sh
 
 The AppImage launch path defaults to Wayland in the same spirit as
-`StartATHENA.qt6.wayland.sh`.
+`StartATHENA.qt6.wayland.sh`. The AppImage already contains ATHENA's complete
+relocatable Scheme bytecode. DEB and RPM installation compiles the same Scheme
+corpus once during the package post-install phase and stores it below
+`/var/cache/athena`; normal startup does not compile it again.
 
 `tools/release/build-all.sh` invokes this workflow for both `dev` and `rel`,
 copies its AppImages and native packages into `release/` using canonical names,

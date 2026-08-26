@@ -14,6 +14,16 @@ from runtime_policy import (
 
 
 class RuntimePolicyTest(unittest.TestCase):
+    def add_scheme_bytecode(self, runtime: Path) -> None:
+        generation = (
+            runtime / "lib/athena-scheme/athena-guile-3.0.10-native"
+        )
+        generation.mkdir(parents=True, exist_ok=True)
+        (generation / "init-athena.go").write_text("bytecode")
+        (generation / ".complete").write_text(
+            "athena-guile-3.0.10-native\n1\n"
+        )
+
     def test_copy_keeps_runtime_code_but_excludes_release_artifacts(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -77,6 +87,7 @@ class RuntimePolicyTest(unittest.TestCase):
             binary.parent.mkdir()
             binary.write_text("executable")
             for relative in (
+                "lib/athena-guile/bin/guile",
                 "lib/athena-guile/lib/libathena-guile.so.1",
                 "lib/athena-guile/share/guile/3.0/ice-9/boot-9.scm",
                 "lib/athena-guile/lib/guile/3.0/ccache/ice-9/boot-9.go",
@@ -84,7 +95,26 @@ class RuntimePolicyTest(unittest.TestCase):
                 dependency = runtime / relative
                 dependency.parent.mkdir(parents=True, exist_ok=True)
                 dependency.write_text("runtime")
+            self.add_scheme_bytecode(runtime)
             verify_runtime(runtime)
+
+    def test_verify_rejects_missing_application_bytecode(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            runtime = Path(temporary)
+            binary = runtime / "bin/ATHENA.bin"
+            binary.parent.mkdir()
+            binary.write_text("executable")
+            for relative in (
+                "lib/athena-guile/bin/guile",
+                "lib/athena-guile/lib/libathena-guile.so.1",
+                "lib/athena-guile/share/guile/3.0/ice-9/boot-9.scm",
+                "lib/athena-guile/lib/guile/3.0/ccache/ice-9/boot-9.go",
+            ):
+                dependency = runtime / relative
+                dependency.parent.mkdir(parents=True, exist_ok=True)
+                dependency.write_text("runtime")
+            with self.assertRaisesRegex(RuntimeError, "bytecode generation"):
+                verify_runtime(runtime)
 
     def test_verify_allows_the_packaged_handwriting_model(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

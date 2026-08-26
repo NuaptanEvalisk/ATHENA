@@ -16,6 +16,10 @@ sys.path.insert(
 from runtime_policy import verify_linux_services, verify_runtime
 
 
+REPO_ROOT = Path(__file__).resolve().parents[2]
+NATIVE_SCHEME_CACHE = "/var/cache/athena/scheme"
+
+
 def run(args: list[str], **kwargs) -> None:
     subprocess.run(args, check=True, text=True, **kwargs)
 
@@ -26,10 +30,36 @@ def copy_payload(appdir: Path, root: Path) -> None:
     verify_runtime(install_root)
     verify_linux_services(install_root / "usr/share/ATHENA")
 
+    tools = install_root / "usr/share/tools"
+    tools.mkdir(parents=True, exist_ok=True)
+    for name in (
+        "compile-athena-scheme-bytecode.sh",
+        "plan-athena-scheme-bytecode.scm",
+    ):
+        shutil.copy2(REPO_ROOT / "tools" / name, tools / name)
+    compiler = tools / "compile-installed-scheme-bytecode.sh"
+    shutil.copy2(
+        REPO_ROOT / "tools/release/compile-installed-scheme-bytecode.sh",
+        compiler,
+    )
+    compiler.chmod(0o755)
+
+    # AppImages carry relocatable bytecode. Native packages deliberately build
+    # it against their final source tree during installation and keep the
+    # result in /var/cache instead of modifying package-owned files below /opt.
+    shutil.rmtree(install_root / "usr/share/ATHENA/lib/athena-scheme")
+
     bindir = root / "usr/bin"
     bindir.mkdir(parents=True, exist_ok=True)
     launcher = bindir / "ATHENA"
-    launcher.write_text('#!/usr/bin/env sh\nexec /opt/ATHENA/AppRun "$@"\n')
+    launcher.write_text(
+        "#!/usr/bin/env sh\n"
+        f"export ATHENA_GUILE_CACHE_PATH={NATIVE_SCHEME_CACHE}/"
+        "athena-guile-3.0.10-native\n"
+        "export GUILE_LOAD_COMPILED_PATH=$ATHENA_GUILE_CACHE_PATH\n"
+        "export GUILE_AUTO_COMPILE=0\n"
+        'exec /opt/ATHENA/AppRun "$@"\n'
+    )
     launcher.chmod(0o755)
 
     applications = root / "usr/share/applications"
@@ -70,6 +100,26 @@ Description: Mathematical knowledge organization and writing environment
  namespaces, transclusion, graphs, publishing, and retrieval workflows.
 """
     (debian / "control").write_text(control)
+    postinst = debian / "postinst"
+    postinst.write_text(
+        "#!/bin/sh\n"
+        "set -e\n"
+        "if [ \"${1:-}\" = configure ]; then\n"
+        "  ATHENA_SCHEME_SYSTEM_CACHE=/var/cache/athena/scheme \\\n"
+        "  ATHENA_SCHEME_COMPILE_HOME=/var/cache/athena/scheme-compile-home \\\n"
+        "    /opt/ATHENA/usr/share/tools/compile-installed-scheme-bytecode.sh\n"
+        "fi\n"
+    )
+    postinst.chmod(0o755)
+    postrm = debian / "postrm"
+    postrm.write_text(
+        "#!/bin/sh\n"
+        "set -e\n"
+        "if [ \"${1:-}\" = purge ]; then\n"
+        "  rm -rf /var/cache/athena\n"
+        "fi\n"
+    )
+    postrm.chmod(0o755)
     out = outdir / f"ATHENA-{version}-{flavor}-linux-x86_64.deb"
     run(["dpkg-deb", "--root-owner-group", "--build", str(work), str(out)])
     return out
@@ -105,6 +155,16 @@ namespaces, transclusion, graphs, publishing, and retrieval workflows.
 %install
 mkdir -p %{{buildroot}}
 cp -a %{{_sourcedir}}/payload/. %{{buildroot}}/
+
+%post
+ATHENA_SCHEME_SYSTEM_CACHE=/var/cache/athena/scheme \\
+ATHENA_SCHEME_COMPILE_HOME=/var/cache/athena/scheme-compile-home \\
+  /opt/ATHENA/usr/share/tools/compile-installed-scheme-bytecode.sh
+
+%postun
+if [ "$1" -eq 0 ]; then
+  rm -rf /var/cache/athena
+fi
 
 %files
 /opt/ATHENA

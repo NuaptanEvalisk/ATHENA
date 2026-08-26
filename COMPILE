@@ -258,7 +258,11 @@ Useful knobs:
   ATHENA_ALLOW_SYSTEM_COMPILER=1
 
 The AppImage launcher defaults to Wayland and follows the same scale/input
-policy as `StartATHENA.qt6.wayland.sh`.
+policy as `StartATHENA.qt6.wayland.sh`. AppImages contain the complete,
+relocatable ATHENA Scheme bytecode generation, so a fresh user profile does
+not compile the Scheme corpus on first launch. DEB and RPM packages instead
+compile that bytecode against their final installation tree in their
+post-install script and retain it below `/var/cache/athena`.
 
 The container runtime copy and both native package builders enforce the same
 model-free runtime policy as the native tarball.

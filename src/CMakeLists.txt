@@ -81,7 +81,7 @@ if (NOT WIN32)
   file (GENERATE OUTPUT "${ATHENA_SCHEME_SOURCE_MANIFEST}"
         CONTENT "${ATHENA_SCHEME_SOURCE_MANIFEST_CONTENT}")
   set (ATHENA_SCHEME_BYTECODE_DIR
-       "${ATHENA_SOURCE_DIR}/ATHENA/lib/athena-scheme/${ATHENA_GUILE_RUNTIME_ID}")
+       "${ATHENA_BINARY_DIR}/athena-scheme/${ATHENA_GUILE_RUNTIME_ID}")
   set (ATHENA_SCHEME_BYTECODE_STAMP
        "${ATHENA_SCHEME_BYTECODE_DIR}/.complete")
   set (ATHENA_SCHEME_COMPILE_HOME
@@ -121,6 +121,12 @@ if (NOT WIN32)
   add_custom_target (athena_local_runtime ALL
     COMMAND ${CMAKE_COMMAND} -E make_directory
             "${ATHENA_LOCAL_RUNTIME_DIR}/bin"
+            "${ATHENA_LOCAL_RUNTIME_DIR}/lib/athena-scheme"
+    COMMAND ${CMAKE_COMMAND} -E rm -rf
+            "${ATHENA_LOCAL_RUNTIME_DIR}/lib/athena-scheme/${ATHENA_GUILE_RUNTIME_ID}"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${ATHENA_SCHEME_BYTECODE_DIR}"
+            "${ATHENA_LOCAL_RUNTIME_DIR}/lib/athena-scheme/${ATHENA_GUILE_RUNTIME_ID}"
     COMMAND "${Python3_EXECUTABLE}"
             "${ATHENA_SOURCE_DIR}/tools/release/copy-private-guile-runtime.py"
             "${ATHENA_GUILE_PREFIX}"

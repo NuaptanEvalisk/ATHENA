@@ -328,14 +328,20 @@ ensure_boost_headers () {
 copy_runtime_tree () {
   local build_dir="$1"
   local out_dir="$2"
+  local runtime_id="athena-guile-3.0.10-native"
 
   python3 "$repo_root/tools/release/runtime_policy.py" copy \
     "$repo_root/ATHENA" "$out_dir"
   mkdir -p "$out_dir/bin" "$out_dir/lib"
 
+  rm -rf "$out_dir/lib/athena-scheme"
+  mkdir -p "$out_dir/lib/athena-scheme"
+  cp -a "$build_dir/athena-scheme/$runtime_id" \
+    "$out_dir/lib/athena-scheme/$runtime_id"
+
   install -Dm755 "$build_dir/src/ATHENA.bin" "$out_dir/bin/ATHENA.bin"
   python3 "$repo_root/tools/release/copy-private-guile-runtime.py" \
-    "$build_dir/athena-guile-runtime" "$out_dir"
+    "$build_dir/athena-guile-runtime" "$out_dir" "$runtime_id"
   install -Dm755 "$build_dir/src/athena-codex-bridge" \
     "$out_dir/bin/athena-codex-bridge"
   install -Dm755 \

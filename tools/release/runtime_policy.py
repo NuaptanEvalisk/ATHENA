@@ -206,6 +206,7 @@ def verify_private_guile(root: Path) -> None:
         if not (runtime / "bin/ATHENA.bin").is_file():
             continue
         required = (
+            PurePosixPath("lib/athena-guile/bin/guile"),
             PurePosixPath("lib/athena-guile/lib/libathena-guile.so.1"),
             PurePosixPath(
                 "lib/athena-guile/share/guile/3.0/ice-9/boot-9.scm"
@@ -223,6 +224,44 @@ def verify_private_guile(root: Path) -> None:
             )
 
 
+def verify_scheme_bytecode(root: Path) -> None:
+    candidates = (root.resolve(), root.resolve() / "usr/share/ATHENA")
+    for runtime in candidates:
+        if not (runtime / "bin/ATHENA.bin").is_file():
+            continue
+        bytecode_root = runtime / "lib/athena-scheme"
+        generations = [
+            path for path in bytecode_root.iterdir()
+            if path.is_dir()
+        ] if bytecode_root.is_dir() else []
+        if len(generations) != 1:
+            raise RuntimeError(
+                "Linux runtime must contain exactly one ATHENA Scheme "
+                f"bytecode generation below {bytecode_root}; found "
+                f"{len(generations)}"
+            )
+        generation = generations[0]
+        marker = generation / ".complete"
+        try:
+            lines = marker.read_text(encoding="utf-8").splitlines()
+            expected = int(lines[1])
+        except (OSError, ValueError, IndexError) as error:
+            raise RuntimeError(
+                f"invalid ATHENA Scheme bytecode marker: {marker}"
+            ) from error
+        if (len(lines) != 2 or lines[0] != generation.name or
+                expected <= 0):
+            raise RuntimeError(
+                f"invalid ATHENA Scheme bytecode marker: {marker}"
+            )
+        actual = sum(1 for path in generation.rglob("*.go") if path.is_file())
+        if actual != expected:
+            raise RuntimeError(
+                "incomplete ATHENA Scheme bytecode generation: "
+                f"expected {expected}, got {actual}: {generation}"
+            )
+
+
 def verify_runtime(root: Path, require_linux_services: bool = False) -> None:
     bad = forbidden_entries(root)
     if bad:
@@ -236,6 +275,7 @@ def verify_runtime(root: Path, require_linux_services: bool = False) -> None:
     if require_linux_services:
         verify_linux_services(root)
     verify_private_guile(root)
+    verify_scheme_bytecode(root)
 
 
 def main(argv: list[str]) -> int:

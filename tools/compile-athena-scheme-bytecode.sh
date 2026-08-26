@@ -62,7 +62,9 @@ if [[ -e "$llama_runtime/libggml-sycl.so.0" ]]; then
   done
 fi
 
-mapfile -d '' sources < <(rg --files -0 -g '*.scm' "$source_root" | sort -z)
+mapfile -d '' sources < <(
+  find "$source_root" -type f -name '*.scm' -print0 | sort -z
+)
 if [[ ${#sources[@]} -eq 0 ]]; then
   echo "ATHENA Scheme bytecode: no Scheme sources below $source_root" >&2
   exit 1
@@ -108,12 +110,11 @@ state_dir="$athena_home/incremental-state/$runtime_id"
 previous_hash_file="$state_dir/source-hashes.tsv"
 previous_plan_file="$state_dir/dependency-plan.tsv"
 previous_toolchain_file="$state_dir/toolchain.sha256"
-repo_root="$(cd -- "$athena_path/.." && pwd)"
 toolchain_inputs=(
-  "$repo_root/src/ATHENA/ATHENA/athena.cpp"
-  "$repo_root/3rdparty/athena-guile/libguile/athena-runtime.c"
-  "$repo_root/tools/compile-athena-scheme-bytecode.sh"
-  "$repo_root/tools/plan-athena-scheme-bytecode.scm"
+  "$binary"
+  "$guile_runtime/lib/libathena-guile.so.1"
+  "$planner"
+  "${BASH_SOURCE[0]}"
 )
 for input in "${toolchain_inputs[@]}"; do
   if [[ ! -r "$input" ]]; then
@@ -395,9 +396,9 @@ while IFS= read -r relative; do
   if [[ -z "${current_outputs[$compiled_file]+set}" ]]; then
     rm -f "$compiled_file"
   fi
-done < <(cd "$output" && rg --files -g '*.go' | sort)
+done < <(cd "$output" && find . -type f -name '*.go' -printf '%P\n' | sort)
 
-compiled_count="$(rg --files -g '*.go' "$output" | wc -l)"
+compiled_count="$(find "$output" -type f -name '*.go' -printf '.\n' | wc -l)"
 if [[ "$compiled_count" -ne "${#sources[@]}" ]]; then
   echo "ATHENA Scheme bytecode: expected ${#sources[@]} files, got $compiled_count" >&2
   exit 1

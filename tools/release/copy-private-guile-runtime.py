@@ -17,7 +17,11 @@ def copy_tree(source: Path, destination: Path) -> None:
 
 def runtime_signature(source: Path) -> str:
     digest = hashlib.sha256()
-    roots = [source / "share/guile/3.0", source / "lib/guile/3.0"]
+    roots = [
+        source / "bin/guile",
+        source / "share/guile/3.0",
+        source / "lib/guile/3.0",
+    ]
     roots.extend(sorted((source / "lib").glob("libathena-guile.so*")))
     for root in roots:
         paths = [root]
@@ -36,6 +40,7 @@ def runtime_signature(source: Path) -> str:
 def runtime_is_current(destination: Path, signature: str) -> bool:
     marker = destination / ".athena-runtime.json"
     required = [
+        destination / "bin/guile",
         destination / "lib/libathena-guile.so.1",
         destination / "share/guile/3.0/ice-9/boot-9.scm",
         destination / "lib/guile/3.0/ccache/ice-9/boot-9.go",
@@ -105,6 +110,8 @@ def main() -> int:
                   staging / "share/guile/3.0")
         copy_tree(source / "lib/guile/3.0",
                   staging / "lib/guile/3.0")
+        (staging / "bin").mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source / "bin/guile", staging / "bin/guile")
         (staging / "lib").mkdir(parents=True, exist_ok=True)
         libraries = sorted((source / "lib").glob("libathena-guile.so*"))
         if not libraries:
@@ -118,6 +125,7 @@ def main() -> int:
                 shutil.copy2(library, target)
 
         required = [
+            staging / "bin/guile",
             staging / "lib/libathena-guile.so.1",
             staging / "share/guile/3.0/ice-9/boot-9.scm",
             staging / "lib/guile/3.0/ccache/ice-9/boot-9.go",
