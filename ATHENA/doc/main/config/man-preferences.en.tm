@@ -268,6 +268,25 @@
     <item*|Custom dictionary>Imports the selected custom dictionary.
   </description>
 
+  <subsection|Source>
+
+  These settings control how <menu|Document|Edit source tree> presents the
+  document structure. They are applied when source-tree editing is entered.
+
+  <\description>
+    <item*|Presentation style>Chooses the notation used to display tree tags:
+    angular markup, Scheme, functional notation, or LaTeX-like notation.
+
+    <item*|Special rendering>Controls how strongly ATHENA replaces raw source
+    tags with specialized visual representations.
+
+    <item*|Compactification>Controls which tags and arguments are collapsed
+    into compact source forms.
+
+    <item*|Closing style>Chooses how the closing portion of long source tags is
+    displayed.
+  </description>
+
   <subsection|Formula Importer>
 
   These settings affect LaTeX formula import.

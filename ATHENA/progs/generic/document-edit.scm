@@ -35,10 +35,17 @@
 (define (in-source-mode?)
   (== (get-env "preamble") "true"))
 
+(define (apply-source-tree-preferences)
+  (init-env "src-style" (get-preference "source tree style"))
+  (init-env "src-special" (get-preference "source tree special rendering"))
+  (init-env "src-compact" (get-preference "source tree compactification"))
+  (init-env "src-close" (get-preference "source tree closing style")))
+
 (tm-define (toggle-source-mode)
   (:synopsis "Toggle source code editing mode")
   (:check-mark "v" in-source-mode?)
   (let ((new (if (string=? (get-env "preamble") "true") "false" "true")))
+    (when (== new "true") (apply-source-tree-preferences))
     (init-env "preamble" new)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

@@ -216,6 +216,10 @@ ensure_builtin_user_preferences () {
     PREF ("keyboard tool", "off", "notify-keyboard-tool"),
     PREF ("cyrillic input method", "none", "notify-cyrillic-input-method"),
     PREF ("versioning grain", "detailed", "notify-versioning-grain"),
+    PREF ("source tree style", "angular", ""),
+    PREF ("source tree special rendering", "normal", ""),
+    PREF ("source tree compactification", "normal", ""),
+    PREF ("source tree closing style", "compact", ""),
 
     PREF ("vault fuzzy search limit", "3", ""),
     PREF ("vault transclusion color", "#f8f8f8", ""),

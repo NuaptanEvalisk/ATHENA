@@ -19,7 +19,7 @@
   rendering the document in a way which makes its tree structure particularly
   apparent. It may be instructive to take an arbitrary document of yours and
   to take a look at it in \Psource mode\Q by enabling
-  <menu|Document|Source|Edit source tree>.
+  <menu|Document|Edit source tree>.
 
   The choice between ASCII-based editing and tree-based editing is
   non-trivial, because <TeXmacs> style files and packages have a double

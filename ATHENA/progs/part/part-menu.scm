@@ -31,16 +31,3 @@
   ---
   (for (incl (buffer-get-includes))
     ((eval incl) (goto-include (current-buffer) incl))))
-
-(menu-bind document-part-menu
-  (:require (url-rooted-tmfs-protocol? (current-buffer) "part"))
-  (let* ((name (part-open-name (current-buffer)))
-         (m (part-master name))
-         (f (part-file name))
-         (t (tree-import m "texmacs"))
-	 (b (tmfile-get t 'body))
-	 (l (tm-get-includes b)))
-    ((eval (url->string (url-tail m))) (load-document m))
-    ---
-    (for (incl l)
-      ((eval incl) (goto-include m incl)))))

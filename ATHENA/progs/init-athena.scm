@@ -227,7 +227,9 @@
 (lazy-menu (generic document-menu) document-menu
            project-menu document-style-menu global-language-menu)
 (lazy-menu (generic document-part)
-           preamble-menu document-part-menu project-manage-menu)
+           preamble-menu project-manage-menu)
+(lazy-define (generic document-part)
+             buffer-has-preamble? in-preamble-mode? toggle-preamble-mode)
 (lazy-menu (generic insert-menu) insert-menu texmacs-insert-menu
            texmacs-insert-icons insert-link-menu insert-image-menu)
 (lazy-define (generic document-edit) update-document set-document-language
@@ -243,7 +245,7 @@
 (lazy-define (generic format-widgets) open-paragraph-format open-page-format)
 (lazy-define (generic pattern-selector) open-pattern-selector
              open-gradient-selector open-background-picture-selector)
-(lazy-define (generic document-widgets) open-source-tree-preferences
+(lazy-define (generic document-widgets)
              open-document-paragraph-format open-document-page-format
              open-document-metadata open-document-colors)
 (lazy-tool (generic format-tools)
@@ -251,7 +253,6 @@
            document-page-tool
            sections-tool subsections-tool)
 (lazy-tool (generic document-tools)
-           source-tree-preferences-tool
            document-colors-tool)
 (lazy-tool (generic pattern-tools)
            color-tool pattern-tool gradient-tool picture-tool)
@@ -259,7 +260,6 @@
 (tm-property (open-paragraph-format) (:interactive #t))
 (tm-property (open-page-format) (:interactive #t)
                                 (:applicable (not (selection-active?))))
-(tm-property (open-source-tree-preferences) (:interactive #t))
 (tm-property (open-document-paragraph-format) (:interactive #t))
 (tm-property (open-document-page-format) (:interactive #t))
 (tm-property (open-document-metadata) (:interactive #t))

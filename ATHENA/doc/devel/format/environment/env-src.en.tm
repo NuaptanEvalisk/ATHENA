@@ -15,7 +15,7 @@
     tags>
   <|explain>
     The principal rendering style for source trees as specified in
-    <menu|Document|Source|Style>. Possible values are <verbatim|angular>,
+    <menu|Preferences|Editing|Source|Presentation style>. Possible values are <verbatim|angular>,
     <verbatim|scheme>, <verbatim|functional> and <verbatim|latex>.
   </explain>
 
@@ -24,7 +24,7 @@
   <|explain>
     How to render special tags like <markup|concat>, <markup|document>,
     <markup|compound>, <abbr|etc.>, as specified in
-    <menu|Document|Source|Special>. Possible values are <verbatim|raw>,
+    <menu|Preferences|Editing|Source|Special rendering>. Possible values are <verbatim|raw>,
     <verbatim|format>, <verbatim|normal> and <verbatim|maximal>.
   </explain>
 
@@ -32,7 +32,7 @@
     <var-val|src-compact|normal><explain-synopsis|compactication level>
   <|explain>
     How compact should tags be rendered, as specified in
-    <menu|Document|Source|Compactification>. Possible values are
+    <menu|Preferences|Editing|Source|Compactification>. Possible values are
     <verbatim|none>, <verbatim|inline>, <verbatim|normal>, <verbatim|inline
     tags> and <verbatim|all>.
   </explain>
@@ -41,7 +41,7 @@
     <var-val|src-close|compact><explain-synopsis|closing style for long tags>
   <|explain>
     The rendering style of closing tags as specified in
-    <menu|Document|Source|Closing style>. Possible values are
+    <menu|Preferences|Editing|Source|Closing style>. Possible values are
     <verbatim|repeat>, <verbatim|long>, <verbatim|compact> and
     <verbatim|minimal>.
   </explain>

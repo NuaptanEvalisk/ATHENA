@@ -18,12 +18,6 @@
 ;; Wrappers
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(tm-tool* (source-tree-preferences-tool win)
-  (:name "Source tree preferences")
-  (with u (current-buffer)
-    (dynamic ((source-tree-preferences-editor u)
-              (tool-quit 'source-tree-preferences-tool #f win)))))
-
 (tm-tool* (document-colors-tool win)
   (:name "Document colors")
   (with u (current-buffer)

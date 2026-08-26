@@ -80,41 +80,6 @@
   (-> "Theme" (link basic-theme-menu)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Document -> Source submenus
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(menu-bind document-source-preferences-menu
-  (-> "Style"
-      ("Default" (init-default "src-style"))
-      ---
-      ("Angular" (init-env "src-style" "angular"))
-      ("Scheme" (init-env "src-style" "scheme"))
-      ("Functional" (init-env "src-style" "functional"))
-      ("Latex" (init-env "src-style" "latex")))
-  (-> "Special"
-      ("Default" (init-default "src-special"))
-      ---
-      ("None" (init-env "src-special" "raw"))
-      ("Formatting" (init-env "src-special" "format"))
-      ("Normal" (init-env "src-special" "normal"))
-      ("Maximal" (init-env "src-special" "maximal")))
-  (-> "Compactification"
-      ("Default" (init-default "src-compact"))
-      ---
-      ("Minimal" (init-env "src-compact" "none"))
-      ("Only inline tags" (init-env "src-compact" "inline"))
-      ("Normal" (init-env "src-compact" "normal"))
-      ("Inline arguments" (init-env "src-compact" "inline args"))
-      ("Maximal" (init-env "src-compact" "all")))
-  (-> "Closing style"
-      ("Default" (init-default "src-close"))
-      ---
-      ("Repeat" (init-env "src-close" "repeat"))
-      ("Stretched" (init-env "src-close" "long"))
-      ("Compact" (init-env "src-close" "compact"))
-      ("Minimal" (init-env "src-close" "minimal"))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; The Document -> Update menu
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -889,14 +854,13 @@
   ;;(link remove-package-menu)
   ;;---
   ;;("Other" (interactive remove-style-package)))
-  (if (and (not (project-attached?))
-           (!= (get-init-tree "sectional-short-style") (tree 'macro "false")))
-      (-> "Part" (link document-part-menu)))
-  (-> "Source"
-      ("Edit source tree" (toggle-source-mode))
-      ---
-      (group "Preferences")
-      (link document-source-preferences-menu))
+  ("Edit source tree" (toggle-source-mode))
+  (if (not (buffer-has-preamble?))
+      ("Create preamble" (toggle-preamble-mode)))
+  (if (and (buffer-has-preamble?) (not (in-preamble-mode?)))
+      ("Show preamble" (toggle-preamble-mode)))
+  (if (in-preamble-mode?)
+      ("Show main document" (toggle-preamble-mode)))
   (-> "Update" (link document-update-menu))
   (link athena-document-utilities-menu)
   ("Anchor enunciations" (anchor-enunciations-current-document))
@@ -922,12 +886,13 @@
   (-> "Style" (link document-style-menu))
   (-> "Citation Style" (link materials-citation-style-menu))
   (link document-style-extra-menu)
-  (if (and (not (project-attached?))
-           (!= (get-init-tree "sectional-short-style") (tree 'macro "false")))
-      (-> "Part" (link document-part-menu)))
-  (-> "Source"
-      ("Edit source tree" (toggle-source-mode))
-      ("Preferences" (open-source-tree-preferences)))
+  ("Edit source tree" (toggle-source-mode))
+  (if (not (buffer-has-preamble?))
+      ("Create preamble" (toggle-preamble-mode)))
+  (if (and (buffer-has-preamble?) (not (in-preamble-mode?)))
+      ("Show preamble" (toggle-preamble-mode)))
+  (if (in-preamble-mode?)
+      ("Show main document" (toggle-preamble-mode)))
   (-> "Update" (link document-update-menu))
   (link athena-document-utilities-menu)
   ("Anchor enunciations" (anchor-enunciations-current-document))

@@ -50,18 +50,19 @@
       (set-message "Citation style follows Preferences" "Materials")))
 
 (tm-menu (materials-citation-style-menu)
-  ((check "Use Preferences default" "v"
-          (not (init-has? "materials-csl-style")))
-   (materials-use-default-citation-style))
-  ---
-  (for (entry (materials-csl-style-entries))
-    (let* ((name (tree->string (tree-ref entry 0)))
-           (title (tree->string (tree-ref entry 1)))
-           (menu-label `(verbatim ,(string-append title " (" name ")"))))
-      ((check (eval menu-label) "v"
-              (and (init-has? "materials-csl-style")
-                   (== name (materials-document-citation-style))))
-       (materials-set-document-citation-style name)))))
+  (scrollable
+    ((check "Use Preferences default" "v"
+            (not (init-has? "materials-csl-style")))
+     (materials-use-default-citation-style))
+    ---
+    (for (entry (materials-csl-style-entries))
+      (let* ((name (tree->string (tree-ref entry 0)))
+             (title (tree->string (tree-ref entry 1)))
+             (menu-label `(verbatim ,(string-append title " (" name ")"))))
+        ((check (eval menu-label) "v"
+                (and (init-has? "materials-csl-style")
+                     (== name (materials-document-citation-style))))
+         (materials-set-document-citation-style name))))))
 
 (tm-define (insert-material-citation)
   (:interactive #t)

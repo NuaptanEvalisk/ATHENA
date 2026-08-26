@@ -1300,6 +1300,27 @@ QTMPreferencesDialog::buildEditingPage () {
   t->addRow (label ("Custom dictionary:"), import);
   finish_page (text);
 
+  QWidget* source= make_page ();
+  QFormLayout* s= add_section (source, "Source tree");
+  add_combo (s, "Presentation style:", "source tree style",
+             {{"angular", "Angular"}, {"scheme", "Scheme"},
+              {"functional", "Functional"}, {"latex", "LaTeX"}},
+             "angular");
+  add_combo (s, "Special rendering:", "source tree special rendering",
+             {{"raw", "None"}, {"format", "Formatting"},
+              {"normal", "Normal"}, {"maximal", "Maximal"}},
+             "normal");
+  add_combo (s, "Compactification:", "source tree compactification",
+             {{"none", "Minimal"}, {"inline", "Only inline tags"},
+              {"normal", "Normal"}, {"inline args", "Inline arguments"},
+              {"all", "Maximal"}},
+             "normal");
+  add_combo (s, "Closing style:", "source tree closing style",
+             {{"repeat", "Repeat"}, {"long", "Stretched"},
+              {"compact", "Compact"}, {"minimal", "Minimal"}},
+             "compact");
+  finish_page (source);
+
   QWidget* importer= make_page ();
   QFormLayout* i= add_section (importer, "Formula Importer");
   add_toggle (i, "Recognize matrices and determinants disguised as arrays:",
@@ -1328,7 +1349,8 @@ QTMPreferencesDialog::buildEditingPage () {
   finish_page (importer);
 
   return tabbed ({{"Maths", math}, {"Programming", programming},
-                  {"Text", text}, {"Formula Importer", importer}});
+                  {"Text", text}, {"Source", source},
+                  {"Formula Importer", importer}});
 }
 
 QWidget*

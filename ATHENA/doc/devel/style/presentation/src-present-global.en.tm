@@ -5,11 +5,11 @@
 <\body>
   <tmdoc-title|Global presentation>
 
-  In the <menu|Source tags> group of the <menu|Document|Source> menu, you find
-  several ways to customize the rendering of source trees in your document.
-  We recommend you to play around with the different possibilities in a
-  document of your own (after enabling <menu|Document|Source|Source tree>) or a
-  standard style package in <verbatim|$ATHENA_PATH/packages>.
+  In <menu|Preferences|Editing|Source>, you find several ways to customize the
+  rendering of source trees. We recommend you to play around with the
+  different possibilities in a document of your own (after enabling
+  <menu|Document|Edit source tree>) or a standard style package in
+  <verbatim|$ATHENA_PATH/packages>.
 
   First of all, you may choose between the different major styles
   ``angular'', ``scheme'', ``functional'' and ``<LaTeX>'' \ for rendering
@@ -57,7 +57,7 @@
 
   Secondly, you may wish to reserve a special treatment to certain tags like
   <markup|concat> and <markup|document>. In the menu
-  <menu|Document|Source|Special> you may specify to which extent you want to
+  <menu|Preferences|Editing|Source|Special rendering> you may specify to which extent you want to
   treat such tags in a special way:
 
   <\description>
@@ -122,7 +122,7 @@
   Another thing which may be controlled by the user is whether the
   presentation of tags should be compact or stretched out across several
   lines. Several levels of compactification may be specified in the
-  <menu|Document|Source|Compactification> menu:
+  <menu|Preferences|Editing|Source|Compactification> setting:
 
   <\description>
     <item*|Minimal>The tags are all stretched out across several lines.

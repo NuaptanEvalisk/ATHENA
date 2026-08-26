@@ -57,53 +57,6 @@
   (top-window select-style-widget "Select document style"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Document -> Source -> Preferences
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(tm-widget ((source-tree-preferences-editor u) quit)
-  (padded
-    (refreshable "source-tree-preferences"
-      (aligned
-        (item (text "Main presentation style:")
-          (enum (initial-set u "src-style" answer)
-                '("angular" "scheme" "functional" "latex")
-                (initial-get u "src-style") "10em"))
-        (item (text "Tags with special rendering:")
-          (enum (initial-set u "src-special" answer)
-                '("raw" "format" "normal" "maximal")
-                (initial-get u "src-special") "10em"))
-        (item (text "Compactification:")
-          (enum (initial-set u "src-compact" answer)
-                '("none" "inline" "normal" "inline args" "all")
-                (initial-get u "src-compact") "10em"))
-        (item (text "Closing style:")
-          (enum (initial-set u "src-close" answer)
-                '("repeat" "long" "compact" "minimal")
-                (initial-get u "src-close") "10em"))))
-    ======
-    (explicit-buttons
-      (hlist
-        >>>
-        ("Reset"
-         (initial-default u "src-style" "src-special"
-                            "src-compact" "src-close")
-         (refresh-now "source-tree-preferences"))
-        // //
-        ("Ok" (quit))))))
-
-(tm-define (open-source-tree-preferences-window)
-  (:interactive #t)
-  (with u (current-buffer)
-    (dialogue-window (source-tree-preferences-editor u) noop
-                     "Document source tree preferences")))
-
-(tm-define (open-source-tree-preferences)
-  (:interactive #t)
-  (if (side-tools?)
-      (tool-select :right 'source-tree-preferences-tool)
-      (open-source-tree-preferences-window)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Document -> Paragraph
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

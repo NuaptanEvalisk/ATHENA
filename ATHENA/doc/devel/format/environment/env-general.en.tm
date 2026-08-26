@@ -144,7 +144,7 @@
   <|explain>
     This flag determines whether we are editing normal text or a style-sheet.
     The source tree or preamble mode may be selected in
-    <menu|Document|Source|Edit source tree>.
+    <menu|Document|Edit source tree>.
   </explain>
 
   <\explain>
