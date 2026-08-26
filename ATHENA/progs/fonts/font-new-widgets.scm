@@ -850,16 +850,29 @@
 ;; High level window interface
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(define (selector-replace-font-change changes profile)
+  (cond ((null? changes) (list "font" profile))
+        ((== (car changes) "font")
+         (cons* "font" profile (cddr changes)))
+        (else
+         (cons* (car changes) (cadr changes)
+                (selector-replace-font-change (cddr changes) profile)))))
+
 (define (native-font-selector-window specs title)
   (let* ((init (initial-font-data specs))
-         (res (native-font-selector (car init) (cadr init) (caddr init) title)))
-    (when (list-3? res)
+         (profile ((car specs) "font"))
+         (res (native-font-selector (car init) (cadr init) (caddr init)
+                                    profile title)))
+    (when (list-4? res)
       (ahash-set! selector-table (selkey specs :family) (car res))
       (ahash-set! selector-table (selkey specs :style) (cadr res))
       (ahash-set! selector-table (selkey specs :size) (caddr res))
-      (with changes (selector-get-changes specs (car specs))
-        (when (nnull? changes)
-          ((cadr specs) changes)))
+      (let* ((getter (car specs))
+             (profile* (cadddr res))
+             (changes (selector-get-changes specs getter))
+             (changes* (selector-replace-font-change changes profile*)))
+        (when (nnull? changes*)
+          ((cadr specs) changes*)))
       (selector-clean specs)
       (keyboard-focus-on "canvas"))))
 

@@ -12,6 +12,7 @@
 #include "ATHENA/Features/athena_features.hpp"
 #include "ATHENA/Data/materials_engine.hpp"
 #include "QTMESCSymbolPicker.hpp"
+#include "QTMFontSelector.hpp"
 #include "QTMMainTabWindow.hpp"
 #include "QTMWidget.hpp"
 #include "QTMReverseHierarchyGraph.hpp"
@@ -2170,24 +2171,35 @@ QTMPreferencesDialog::buildVaultPage () {
                                              "Choose stored materials folder"); });
   }
 
-  QComboBox* vaultFont= new QComboBox;
-  QStringList vaultFonts;
-  vaultFonts << "" << "roman" << "stix" << "bonum" << "pagella" << "schola"
-             << "termes";
-  vaultFonts << preferred_fonts ();
-  vaultFonts << font_families ();
-  vaultFonts.removeDuplicates ();
-  QString current= pref ("vault preferred font", "");
-  if (!vaultFonts.contains (current)) vaultFonts << current;
-  vaultFont->addItems (vaultFonts);
-  vaultFont->setCurrentText (current);
-  QObject::connect (vaultFont,
-                    static_cast<void (QComboBox::*) (const QString&)> (
-                      &QComboBox::currentTextChanged),
-    [] (const QString& value) {
+  QWidget* vaultFontRow= new QWidget (info);
+  QHBoxLayout* vaultFontLayout= new QHBoxLayout (vaultFontRow);
+  vaultFontLayout->setContentsMargins (0, 0, 0, 0);
+  QLineEdit* vaultFont= new QLineEdit (vaultFontRow);
+  vaultFont->setReadOnly (true);
+  vaultFont->setText (
+    qtm_font_profile_summary (pref ("vault preferred font", "")));
+  QPushButton* configureVaultFont= new QPushButton ("Configure...", vaultFontRow);
+  QPushButton* clearVaultFont= new QPushButton ("Clear", vaultFontRow);
+  vaultFontLayout->addWidget (vaultFont, 1);
+  vaultFontLayout->addWidget (configureVaultFont);
+  vaultFontLayout->addWidget (clearVaultFont);
+  QObject::connect (configureVaultFont, &QPushButton::clicked,
+                    [vaultFont, info] () {
+    string selected;
+    if (!native_font_profile_selector_dialog (
+          from_qstring_pref (pref ("vault preferred font", "")),
+          "Vault font configuration", selected, info))
+      return;
+    QString value= to_qstring_pref (selected);
     set_pref ("vault preferred font", value);
+    vaultFont->setText (qtm_font_profile_summary (value));
   });
-  vi->addRow (label ("Global preferred font for vault:"), vaultFont);
+  QObject::connect (clearVaultFont, &QPushButton::clicked,
+                    [vaultFont] () {
+    set_pref ("vault preferred font", "");
+    vaultFont->setText (qtm_font_profile_summary (QString ()));
+  });
+  vi->addRow (label ("Global preferred font for vault:"), vaultFontRow);
   finish_page (info);
 
   return tabbed ({{"General", general},

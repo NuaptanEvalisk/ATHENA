@@ -62,6 +62,7 @@
 #include "QTMESCSymbolPicker.hpp"
 #include "QTMHandwritingSymbolPane.hpp"
 #include "QTMFontSelector.hpp"
+#include "QTMVaultFontConfigurator.hpp"
 #include "QTMCodexCompletion.hpp"
 #include "QTMPreferencesDialog.hpp"
 #include "QTMPagePropertiesPane.hpp"
@@ -1627,11 +1628,13 @@ tmg_native_anchor_enunciations_confirm (tmscm arg1, tmscm arg2,
 }
 
 tmscm
-tmg_native_font_selector (tmscm arg1, tmscm arg2, tmscm arg3, tmscm arg4) {
+tmg_native_font_selector (tmscm arg1, tmscm arg2, tmscm arg3, tmscm arg4,
+                          tmscm arg5) {
   TMSCM_ASSERT_STRING (arg1, TMSCM_ARG1, "native-font-selector");
   TMSCM_ASSERT_STRING (arg2, TMSCM_ARG2, "native-font-selector");
   TMSCM_ASSERT_STRING (arg3, TMSCM_ARG3, "native-font-selector");
   TMSCM_ASSERT_STRING (arg4, TMSCM_ARG4, "native-font-selector");
+  TMSCM_ASSERT_STRING (arg5, TMSCM_ARG5, "native-font-selector");
 
   if (headless_mode) return tmscm_null ();
 
@@ -1639,7 +1642,8 @@ tmg_native_font_selector (tmscm arg1, tmscm arg2, tmscm arg3, tmscm arg4) {
     native_font_selector_dialog (tmscm_to_string (arg1),
                                  tmscm_to_string (arg2),
                                  tmscm_to_string (arg3),
-                                 tmscm_to_string (arg4));
+                                 tmscm_to_string (arg4),
+                                 tmscm_to_string (arg5));
   return array_string_to_tmscm (result);
 }
 
@@ -2078,7 +2082,10 @@ initialize_glue () {
   tmscm_install_procedure ("native-anchor-enunciations-confirm",
                            tmg_native_anchor_enunciations_confirm, 4, 0, 0);
   tmscm_install_procedure ("native-font-selector",
-                           tmg_native_font_selector, 4, 0, 0);
+                           tmg_native_font_selector, 5, 0, 0);
+  tmscm_install_procedure ("configure-font-for-vault",
+                           tmg_void_nullary<qtm_configure_font_for_vault>,
+                           0, 0, 0);
   tmscm_install_procedure ("native-open-preferences",
                            tmg_native_open_preferences, 0, 0, 0);
   tmscm_install_procedure ("native-preferences-open?",

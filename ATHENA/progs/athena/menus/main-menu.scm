@@ -110,6 +110,7 @@
     (begin
       (ads-prepare-floating)
       (new-document*)))
+  ("Configure Font for Vault" (configure-font-for-vault))
   ---
   (link athena-workspace-utilities-menu))
 

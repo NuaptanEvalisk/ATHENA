@@ -15,28 +15,33 @@
 #include "string.hpp"
 
 #include <QDialog>
+#include <QMap>
 #include <QString>
 #include <QStringList>
 
 class QLabel;
 class QLineEdit;
 class QListWidget;
+class QComboBox;
 
 class QTMFontSelector : public QDialog {
 public:
   QTMFontSelector (const QString& family, const QString& style,
-                   const QString& size, const QString& title,
+                   const QString& size, const QString& fontProfile,
+                   const QString& title, bool showSize= true,
                    QWidget* parent = nullptr);
 
   QString selectedFamily () const;
   QString selectedStyle () const;
   QString selectedSize () const;
+  QString selectedFontProfile () const;
 
 private:
   void loadFamilies ();
   void populateFamilies (const QString& preferred);
   void populateStyles (const QString& preferred);
   void populateSizes (const QString& preferred);
+  void populateSubfonts (const QString& fontProfile);
   void updatePreview ();
   void selectListText (QListWidget* list, const QString& text);
 
@@ -46,9 +51,17 @@ private:
   QListWidget* styleList;
   QListWidget* sizeList;
   QLabel* preview;
+  QMap<QString,QComboBox*> subfontSelectors;
+  QStringList unknownAssignments;
 };
 
 array<string> native_font_selector_dialog (string family, string style,
-                                           string size, string title);
+                                           string size, string font_profile,
+                                           string title);
+
+bool native_font_profile_selector_dialog (string current, string title,
+                                          string& selected,
+                                          QWidget* parent= nullptr);
+QString qtm_font_profile_summary (const QString& profile);
 
 #endif // QTMFONTSELECTOR_HPP

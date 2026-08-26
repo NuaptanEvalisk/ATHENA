@@ -189,6 +189,14 @@
   an independent floating document window. <key|Ctrl+w> closes the focused
   non-document pane as well as ordinary document panes.
 
+  Document font selection supports a main font plus independent text and
+  mathematics subfonts. <menu|Workspace|Configure Font for Vault> applies one
+  such profile to every <verbatim|.ath> document in the active vault, updates
+  the vault preferred font, and shows cancellable preparation progress. The
+  operation refuses unsaved affected buffers, validates every staged document,
+  and backs up originals under <verbatim|.backup/font-configuration> before
+  replacing them.
+
   Native Wayland and Windows support pinch view zoom without re-typesetting on
   every gesture update. Optional auto-hidden toolbars expand as an overlay, so
   revealing them does not resize or move the document viewport.

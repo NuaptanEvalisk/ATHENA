@@ -923,8 +923,12 @@
     no longer exists. The namespace explorer and
     <menu|View|Graphs|Global hierarchy graph> use this field.
 
-    <item*|Global preferred font for vault>Preferred font family for vault
-    documents and vault export operations.
+    <item*|Global preferred font for vault>Preferred font profile for vault
+    documents, generated vault pages, and vault export operations. The shared
+    font configurator selects a main font and optional bold, italic, small
+    caps, sans-serif, typewriter, mathematics, Greek, blackboard-bold,
+    calligraphic, and Fraktur subfonts. <menu|Clear> restores the document
+    default.
   </description>
 
   <section|Other>
