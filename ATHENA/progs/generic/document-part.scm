@@ -15,45 +15,6 @@
   (:use (generic document-edit)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Flatten old-style projects into one file
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(define (inclusion-children t)
-  (cond ((tree-is? t 'with) (inclusion-children (cAr (tree-children t))))
-	((tree-is? t 'document) (tree-children t))
-	(else (list t))))
-
-(define (expand-includes-one t r)
-  (if (tree-is? t 'include)
-      (with u (url-relative r (unix->url (tree->string (tree-ref t 0))))
-	(inclusion-children (tree-load-inclusion u)))
-      (list (expand-includes t r))))
-
-(define (expand-includes t r)
-  (cond ((tree-atomic? t) t)
-	((tree-is? t 'document)
-	 (with l (map (lambda (x) (expand-includes-one x r)) (tree-children t))
-	   (cons 'document (apply append l))))
-	(else
-	 (with l (map (lambda (x) (expand-includes x r)) (tree-children t))
-	   (cons (tree-label t) l)))))
-
-(tm-define (buffer-expand-includes)
-  (with t (buffer-tree)
-    (tree-assign! t (expand-includes (buffer-tree) (buffer-master)))))
-
-(define (buffer-master?) (== (get-init "project-flag") "true"))
-(tm-define (buffer-toggle-master)
-  (:synopsis "Toggle using current buffer as master file of project")
-  (:check-mark "v" buffer-master?)
-  (init-env "project-flag"
-            (if (== (get-init "project-flag") "true") "false" "true")))
-
-(define (project-attach* u)
-  (with name (url->unix (url-delta (current-buffer) u))
-    (project-attach name)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Document preamble
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -126,29 +87,6 @@
       (tree-go-to (buffer-tree) 0 0 :start)
       (update-current-buffer))))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Buffer with included files
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(define (tm-include? t)
-  (and (tm-func? t 'include 1)
-       (tm-atomic? (tm-ref t 0))))
-
-(tm-define (tm-get-includes doc)
-  (cond ((tm-func? doc 'with)
-	 (tm-get-includes (tm-ref doc :last)))
-	((tm-func? doc 'document)
-	 (append-map tm-get-includes (tm-children doc)))
-	((tm-include? doc)
-	 (list (tm->string (tm-ref doc 0))))
-	(else (list))))
-
-(tm-define (buffer-get-includes)
-  (tm-get-includes (buffer-tree)))
-
-(tm-define (buffer-contains-includes?)
-  (nnull? (buffer-get-includes)))
-
 (menu-bind preamble-menu
   (if (and (buffer-has-preamble?) (not (in-preamble-mode?)))
       ("Show preamble" (toggle-preamble-mode)))
@@ -156,15 +94,3 @@
       ("Create preamble" (toggle-preamble-mode)))
   (if (in-preamble-mode?)
       ("Show main document" (toggle-preamble-mode))))
-
-(menu-bind project-manage-menu
-  (if (!= (url-suffix (current-buffer)) "tp")
-      ("Use as master" (buffer-toggle-master)))
-  (when (buffer-contains-includes?)
-    ("Expand inclusions" (buffer-expand-includes)))
-  ---
-  (when (not (project-attached?))
-    ("Attach master"
-     (choose-file project-attach* "Attach master file for project" "texmacs")))
-  (when (project-attached?)
-    ("Detach master" (project-detach))))

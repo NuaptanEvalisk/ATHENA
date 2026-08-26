@@ -655,35 +655,6 @@
 
   <drd-props|hide-para|border|no>
 
-  <\active*>
-    <\src-comment>
-      Different versions of parts of documents.
-    </src-comment>
-  </active*>
-
-  <assign|old-version-color|dark red>
-
-  <assign|new-version-color|dark green>
-
-  <assign|render-old|<macro|old|<with|color|<value|old-version-color>|<arg|old>>>>
-
-  <assign|render-new|<macro|new|<with|color|<value|new-version-color>|<arg|new>>>>
-
-  <assign|version-old|<macro|old|new|<render-old|<arg|old>>>>
-
-  <assign|version-new|<macro|old|new|<render-new|<arg|new>>>>
-
-  <assign|version-both-small|<macro|old|new|<render-old|<arg|old>><render-new|<arg|new>>>>
-
-  <assign|version-both-big|<\macro|old|new>
-    <render-old|<arg|old>>
-
-    <surround||<right-flush>|<render-new|<arg|new>>>
-  </macro>>
-
-  <assign|version-both|<macro|old|new|<compound|<if|<equal|<get-label|<arg|old>>|document>|version-both-big|version-both-small>|<arg|old>|<arg|new>>>>
-
-  <assign|version-suppressed|<macro|<math|<op|\<times\>>>>>
 </body>
 
 <\initial>

@@ -73,11 +73,7 @@
   For the second kind of \Peasy-to-make\Q errors, <TeXmacs> includes an
   automatic syntax corrector. Assuming that your cursor is inside a formula,
   you may use <menu|Edit|Correct|Correct all> for the correction of all
-  formulas in your document, or the correction of the current selection. If
-  the versioning tool is activated, then you may use
-  <menu|Edit|Correct|Correct manually> to show the differences between the
-  original and the corrected versions. You may then use the versioning tool
-  to go through these differences and select the preferred versions.
+  formulas in your document, or the correction of the current selection.
 
   The precise algorithms which are used for the correction may be enabled or
   disabled from <menu|Edit|Preferences|Mathematics|Manual correction>:

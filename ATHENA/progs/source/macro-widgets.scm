@@ -13,7 +13,6 @@
 
 (texmacs-module (source macro-widgets)
   (:use (source macro-edit)
-	(version version-edit) ;; FIXME: for selection-trees
 	(generic format-edit)
         (generic document-part)
         (utils library cursor)))

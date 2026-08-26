@@ -578,10 +578,6 @@ tree
 edit_cursor_rep::get_labels () {
   tree r (TUPLE);
   hashmap<string,tree> h= buf->data->ref;
-  if (buf->prj != NULL) {
-    h= copy (buf->prj->data->ref);
-    h->join (buf->data->ref);
-  }
   iterator<string> it= iterate (h);
   while (it->busy ()) {
     string ref= it->next ();
@@ -629,13 +625,11 @@ edit_cursor_rep::search_label (string s, bool local) {
         !is_func (subtree (et, path_up (p)), INCLUDE))
       return p;
   }
-  tree val= (buf->prj == NULL? buf->data->ref[s]: buf->prj->data->ref[s]);
+  tree val= buf->data->ref[s];
   url u;
   if (is_func (val, TUPLE, 3) && is_atomic (val[2]) &&
       !starts (val[2]->label, "#"))
     u= relative (buf->buf->name, url (val[2]->label));
-  else if (buf->prj != NULL)
-    u= buf->prj->buf->name;
   if (local || is_none (u)) return path ();
   if (u != buf->buf->name) {
     url vw= get_passive_view (u);
@@ -653,7 +647,7 @@ edit_cursor_rep::go_to_label (string s) {
     show_cursor_if_hidden ();
     return;
   }
-  tree val= (buf->prj==NULL? buf->data->ref[s]: buf->prj->data->ref[s]);
+  tree val= buf->data->ref[s];
   if (is_func (val, TUPLE, 3) && is_atomic (val[2])) {
     string extra= val[2]->label;
     if (starts (extra, "#")) {

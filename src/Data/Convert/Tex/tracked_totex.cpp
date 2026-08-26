@@ -162,13 +162,11 @@ static tree
 purify (tree d) {
   tree v= extract (d, "TeXmacs");
   tree s= extract (d, "style");
-  tree p= extract (d, "project");
   tree b= extract (d, "body");
   tree i= extract (d, "initial");
   tree r (DOCUMENT);
   r << compound ("TeXmacs", v)
     << compound ("style", s);
-  if (p != "") r << compound ("project", "");
   r << compound ("body", b);
   if (N(i) > 0) r << compound ("initial", i);
   return r;

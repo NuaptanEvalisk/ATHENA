@@ -5835,38 +5835,6 @@ source code.
   </explain>
 
   <\explain>
-    <scm|(project-attach <scm-arg|string>)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|project_attach> which returns
-    <scm|void>.
-  </explain>
-
-  <\explain>
-    <scm|(project-detach)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|project_attach> which returns
-    <scm|void>.
-  </explain>
-
-  <\explain>
-    <scm|(project-attached?)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|project_attached> which returns
-    <scm|bool>.
-  </explain>
-
-  <\explain>
-    <scm|(project-get)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|project_get> which returns
-    <scm|url>.
-  </explain>
-
-  <\explain>
     <scm|(vault-load <scm-arg|url> <scm-arg|string> <scm-arg|string>)>
 <explain-synopsis|no synopsis>
   <|explain>

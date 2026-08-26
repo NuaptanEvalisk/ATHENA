@@ -130,7 +130,6 @@
 (inherit-modules (kernel gui gui-markup)
                  (kernel gui menu-define) (kernel gui menu-widget)
                  (kernel gui kbd-define)
-                 (kernel gui speech-define)
                  (kernel gui kbd-handlers)
                  (kernel gui menu-test)
                  (kernel old-gui old-gui-widget)
@@ -197,7 +196,7 @@
 (lazy-menu (athena menus main-menu)
            texmacs-extra-menu texmacs-extra-icons
            plugin-menu plugin-icons bookmarks-menu test-menu help-icons
-           comment-menu athena-focus-menu texmacs-menu window-list-menu
+           athena-focus-menu texmacs-menu window-list-menu
            workspace-menu presentation-popup-menu texmacs-popup-menu
            texmacs-alternative-popup-menu texmacs-main-icons
            texmacs-mode-icons)
@@ -214,8 +213,6 @@
 (lazy-menu (generic live-spell) spell-live-popup-menu)
 (lazy-define (generic live-spell)
              spell-live-import-custom-dictionary-from-preferences)
-(lazy-keyboard (generic generic-speech-en) always?)
-(lazy-keyboard (generic generic-speech-fr) always?)
 (lazy-menu (generic generic-menu) focus-menu texmacs-focus-icons)
 (lazy-menu (generic format-menu) format-menu
            font-size-menu color-menu horizontal-space-menu
@@ -225,9 +222,9 @@
            page-header-menu page-footer-menu page-numbering-menu
            page-break-menu)
 (lazy-menu (generic document-menu) document-menu
-           project-menu document-style-menu global-language-menu)
+           document-style-menu global-language-menu)
 (lazy-menu (generic document-part)
-           preamble-menu project-manage-menu)
+           preamble-menu)
 (lazy-define (generic document-part)
              buffer-has-preamble? in-preamble-mode? toggle-preamble-mode)
 (lazy-menu (generic insert-menu) insert-menu texmacs-insert-menu
@@ -272,8 +269,6 @@
 
 ;(display "Booting text mode\n")
 (lazy-keyboard (text text-kbd) in-text?)
-(lazy-keyboard (text text-speech-en) in-text?)
-(lazy-keyboard (text text-speech-fr) in-text?)
 (lazy-keyboard (text chinese chinese) in-chinese?)
 (lazy-menu (text text-menu) text-format-menu text-format-icons
 	   text-menu text-block-menu text-inline-menu
@@ -285,10 +280,6 @@
 ;(display "Booting math mode\n")
 (lazy-keyboard (math math-kbd) in-math?)
 (lazy-keyboard (math math-sem-edit) in-sem-math?)
-(lazy-keyboard (math math-speech-en) in-math?)
-(lazy-keyboard (math math-adjust-en) in-math?)
-(lazy-keyboard (math math-speech-fr) in-math?)
-(lazy-keyboard (math math-adjust-fr) in-math?)
 (lazy-menu (math math-menu) math-format-menu math-format-icons
 	   math-menu math-insert-menu
            math-icons math-insert-icons
@@ -452,13 +443,6 @@
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 ;(display* "memory: " (texmacs-memory) " bytes\n")
 
-;(display "Booting partial document facilities\n")
-(lazy-define (part part-shared) buffer-initialize buffer-notify)
-(lazy-menu (part part-menu) document-master-menu)
-(lazy-tmfs-handler (part part-tmfs) part)
-;(display* "time: " (- (texmacs-time) boot-start) "\n")
-;(display* "memory: " (texmacs-memory) " bytes\n")
-
 ;(display "Booting database facilities\n")
 (lazy-define (database db-widget) open-db-chooser)
 (lazy-define (database db-menu) db-show-toolbar)
@@ -494,16 +478,8 @@
              heading-word-count-schedule-refresh)
 (lazy-define (link link-extern) get-constellation
              get-link-locations register-link-locations)
-(lazy-menu (link ref-menu) ref-menu)
 (lazy-define (link ref-edit) preview-reference)
 (define-secure-symbols preview-reference)
-;(display* "time: " (- (texmacs-time) boot-start) "\n")
-;(display* "memory: " (texmacs-memory) " bytes\n")
-
-;(display "Booting versioning facilities\n")
-(lazy-menu (version version-menu) version-menu)
-(lazy-keyboard (version version-kbd) with-versioning-tool?)
-(lazy-define (version version-tmfs) update-buffer commit-buffer)
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 ;(display* "memory: " (texmacs-memory) " bytes\n")
 

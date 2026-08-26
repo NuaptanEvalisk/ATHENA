@@ -178,10 +178,6 @@
 
 (define (save-buffer-post name opts)
   ;;(display* "save-buffer-post " name "\n")
-  (cond ((in? :update opts)
-         (update-buffer name))
-        ((in? :commit opts)
-         (commit-buffer name)))
   (when (defined? 'google-cloud-todo-sync-buffer)
     (delayed (:idle 0) (google-cloud-todo-sync-buffer name)))
   (when (defined? 'vault-backup-dispatch-realtime)

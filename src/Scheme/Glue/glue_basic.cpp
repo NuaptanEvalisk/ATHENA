@@ -9902,46 +9902,6 @@ tmg_kill_current_window_and_buffer () {
 }
 
 tmscm
-tmg_project_attach (tmscm arg1) {
-  TMSCM_ASSERT_STRING (arg1, TMSCM_ARG1, "project-attach");
-
-  string in1= tmscm_to_string (arg1);
-
-  // TMSCM_DEFER_INTS;
-  project_attach (in1);
-  // TMSCM_ALLOW_INTS;
-
-  return TMSCM_UNSPECIFIED;
-}
-
-tmscm
-tmg_project_detach () {
-  // TMSCM_DEFER_INTS;
-  project_attach ();
-  // TMSCM_ALLOW_INTS;
-
-  return TMSCM_UNSPECIFIED;
-}
-
-tmscm
-tmg_project_attachedP () {
-  // TMSCM_DEFER_INTS;
-  bool out= project_attached ();
-  // TMSCM_ALLOW_INTS;
-
-  return bool_to_tmscm (out);
-}
-
-tmscm
-tmg_project_get () {
-  // TMSCM_DEFER_INTS;
-  url out= project_get ();
-  // TMSCM_ALLOW_INTS;
-
-  return url_to_tmscm (out);
-}
-
-tmscm
 tmg_vault_load (tmscm arg1, tmscm arg2, tmscm arg3) {
   TMSCM_ASSERT_URL (arg1, TMSCM_ARG1, "vault-load");
   TMSCM_ASSERT_STRING (arg2, TMSCM_ARG2, "vault-load");
@@ -11162,10 +11122,6 @@ initialize_glue_basic () {
   tmscm_install_procedure ("cpp-buffer-close",  tmg_cpp_buffer_close, 1, 0, 0);
   tmscm_install_procedure ("kill-window",  tmg_kill_window, 1, 0, 0);
   tmscm_install_procedure ("kill-current-window-and-buffer",  tmg_kill_current_window_and_buffer, 0, 0, 0);
-  tmscm_install_procedure ("project-attach",  tmg_project_attach, 1, 0, 0);
-  tmscm_install_procedure ("project-detach",  tmg_project_detach, 0, 0, 0);
-  tmscm_install_procedure ("project-attached?",  tmg_project_attachedP, 0, 0, 0);
-  tmscm_install_procedure ("project-get",  tmg_project_get, 0, 0, 0);
   tmscm_install_procedure ("vault-load",  tmg_vault_load, 3, 0, 0);
   tmscm_install_procedure ("vault-close",  tmg_vault_close, 0, 0, 0);
   tmscm_install_procedure ("vault-active?",  tmg_vault_activeP, 0, 0, 0);

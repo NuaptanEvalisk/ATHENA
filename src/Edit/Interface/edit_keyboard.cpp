@@ -164,66 +164,15 @@ std_accent (string s) {
   return s;
 }
 
-static bool speech_pre_edit;
-static time_t last_uttering;
-static array<string> pauses;
-static string current_speech;
-
-static void
-handle_speech (string s) {
-  if (speech_pre_edit) {
-    time_t now= texmacs_time ();
-    if (now > last_uttering + 1000) {
-      while (N(pauses) != 0 && !starts (current_speech, pauses[N(pauses)-1]))
-        pauses= range (pauses, 0, N(pauses) - 1);
-      if (N(pauses) == 0 || N(current_speech) > N(pauses[N(pauses)-1]))
-        pauses << current_speech;
-    }
-  }
-  string prefix= "";
-  list<string> bursts;
-  for (int i=0; i<N(pauses); i++) {
-    if (starts (s, pauses[i]) && N(pauses[i]) > N(prefix)) {
-      string next= pauses[i];
-      int j= N(prefix);
-      while (j<N(next) && next[j] == ' ') j++;
-      if (j < N(next)) bursts << next (j, N(next));
-      prefix= next;
-    }
-  }
-  if (N(s) > N(prefix)) {
-    int j= N(prefix);
-    while (j<N(s) && s[j] == ' ') j++;
-    if (j < N(s)) bursts << s (j, N(s));
-  }
-  call ("keyboard-speech", bursts);
-  last_uttering= texmacs_time ();
-}
-
 void
 edit_interface_rep::key_press (string gkey) {
   string zero= "a"; zero[0]= '\0';
   string key= replace (gkey, "<#0>", zero);
-  if (starts (key, "pre-edit:") &&
-      speech_pre_edit &&
-      ends (key, ":" * current_speech)) return;
   if (pre_edit_mark != 0) {
     ASSERT (sh_mark == 0, "invalid shortcut during pre-edit");
     mark_cancel (pre_edit_mark);
     pre_edit_s= "";
     pre_edit_mark= 0;
-  }
-  if (starts (key, "speech:")) {
-    if (pre_edit_s != "") return;
-    interrupt_shortcut ();
-    archive_state ();
-    handle_speech (key (7, N(key)));
-    call ("speech-pause");
-    speech_pre_edit= false;
-    pauses= array<string> ();
-    current_speech= "";
-    interrupt_shortcut ();
-    return;
   }
   if (starts (key, "pre-edit:")) {
     string s= key (9, N(key));
@@ -254,14 +203,7 @@ edit_interface_rep::key_press (string gkey) {
       pre_edit_mark= new_marker ();
       mark_start (pre_edit_mark);
       archive_state ();
-      if (get_preference ("speech", "off") == "off")
-        insert_tree (compound ("pre-edit", s), path (0, pos));
-      else {
-        //insert_tree (compound ("pre-edit", ""), path (0, 0));
-        handle_speech (s);
-        speech_pre_edit= true;
-        current_speech= s;
-      }
+      insert_tree (compound ("pre-edit", s), path (0, pos));
       return;
     }
   }

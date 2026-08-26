@@ -505,8 +505,6 @@ static charp apply_expand_value_strings[]= {
   "dfn", "kbd", "var", "acronym", "person",
   "menu", "submenu", "subsubmenu", "tmdef", "tmref",
   "key", "skey", "ckey", "akey", "mkey", "hkey",
-  "include-document", "include-project", "globalize-variable",
-  "localize-variable", "assign-variable",
   "gb", "cgb", "gbt", "cgbt", "head", "tail", "hm", "tm", "binom",
   //"ma", "mb", "md", "me", "mf", "mg", "mh", "mi", "mj", "mk",
   //"mm", "mn", "mu", "mv", "mw", "my", "mz",
@@ -1407,24 +1405,6 @@ upgrade_split (tree t, bool eq= false) {
     }
     for (i=0; i<n; i++)
       r[i]= upgrade_split (t[i]);
-    return r;
-  }
-}
-
-/******************************************************************************
-* Upgrade projects
-******************************************************************************/
-
-static tree
-upgrade_project (tree t) {
-  if (is_atomic (t)) return t;
-  else if (is_expand (t, "include-document", 1))
-    return tree (VAR_INCLUDE, t[1]);
-  else {
-    int i, n= N(t);
-    tree r (t, n);
-    for (i=0; i<n; i++)
-      r[i]= upgrade_project (t[i]);
     return r;
   }
 }
@@ -4218,8 +4198,6 @@ upgrade (tree t, string version) {
     t= upgrade_table (t);
   if (version_inf_eq (version, "0.3.4.8"))
     t= upgrade_split (t, false);
-  if (version_inf_eq (version, "0.3.5.6"))
-    t= upgrade_project (t);
   if (version_inf_eq (version, "0.3.5.10"))
     t= upgrade_title (t);
   if (version_inf_eq (version, "1.0.0.1"))

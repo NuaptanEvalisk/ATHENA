@@ -19,8 +19,6 @@ tree
 attach_data (tree body, new_data data, bool no_aux) {
   tree doc (DOCUMENT);
   doc << compound ("TeXmacs", TEXMACS_COMPAT_VERSION);
-  if (data->project != "")
-    doc << compound ("project", copy (data->project));
   if (data->style != tree (TUPLE))
     doc << compound ("style", copy (data->style));
   if (body != tree (DOCUMENT, ""))
@@ -53,7 +51,6 @@ attach_data (tree body, new_data data, bool no_aux) {
 
 tree
 detach_data (tree doc, new_data& data) {
-  data->project= extract (doc, "project");
   data->style  = extract (doc, "style");
   data->init   = hashmap<string,tree> (UNINIT, extract (doc, "initial"));
   data->fin    = hashmap<string,tree> (UNINIT, extract (doc, "final"));

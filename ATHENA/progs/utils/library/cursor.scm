@@ -14,6 +14,41 @@
 (texmacs-module (utils library cursor))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Subtrees covered by the current selection
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(define (selection-subtrees t p1 p2)
+  (cond ((or (null? p1) (null? p2)) '())
+        ((and (== p1 (list 0)) (== p2 (list (tree-right-index t)))) (list t))
+        ((tree-atomic? t) '())
+        ((== p1 (list (tree-right-index t))) '())
+        ((== p2 (list 0)) '())
+        ((== p1 (list 0))
+         (selection-subtrees t (list 0 0) p2))
+        ((== p2 (list (tree-right-index t)))
+         (with n (- (tree-arity t) 1)
+           (with c (tree-ref t n)
+             (selection-subtrees t p1 (list n (tree-right-index c))))))
+        ((== (car p1) (car p2))
+         (selection-subtrees (tree-ref t (car p1)) (cdr p1) (cdr p2)))
+        ((< (car p1) (car p2))
+         (let* ((i1 (car p1))
+                (i2 (car p2))
+                (t1 (tree-ref t i1))
+                (t2 (tree-ref t i2))
+                (l1 (selection-subtrees t p1
+                                        (list i1 (tree-right-index t1))))
+                (l2 (selection-subtrees t (list i2 0) p2))
+                (ll (sublist (tree-children t) (+ i1 1) i2)))
+           (append l1 ll l2)))
+        (else '())))
+
+(tm-define (selection-trees)
+  (let* ((p1 (selection-get-start*))
+         (p2 (selection-get-end*)))
+    (selection-subtrees (root-tree) p1 p2)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Temporary changes of the cursor position
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

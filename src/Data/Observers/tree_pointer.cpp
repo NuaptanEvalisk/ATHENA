@@ -63,7 +63,7 @@ public:
 void
 tree_pointer_rep::announce (tree& ref, modification mod) {
   //cout << "Announce " << mod << "\n";
-  (void) ref; link_announce (observer (this), mod);
+  (void) ref;
   if (N(cb) != 0 && ip_attached (obtain_ip (ref)))
     call (cb, symbol_object ("announce"), ref, mod);
 }

@@ -8,7 +8,6 @@
         (utils library cursor)
         (generic document-edit)
         (fonts font-new-widgets)
-        (link ref-edit)
         (link link-navigate)
         (athena athena tm-vault-bugcheck)
         (athena athena tm-vault-images)

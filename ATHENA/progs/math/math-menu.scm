@@ -1058,8 +1058,6 @@
 
 (menu-bind math-correct-menu
   ("Correct all" (math-correct-all))
-  (when (with-versioning-tool?)
-    ("Correct manually" (math-correct-manually)))
   ---
   (group "Options")
   ("Remove superfluous invisible operators"

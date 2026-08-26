@@ -261,22 +261,13 @@ set_buffer_tree (url name, tree doc) {
     tree body= detach_data (doc, buf->data);
     set_document (buf->rp, body);
     buf->buf->title= propose_title (buf->buf->title, name, body);
-    if (buf->data->project != "") {
-      url prj_name= head (name) * as_string (buf->data->project);
-      buf->prj= concrete_buffer_insist (prj_name);
-    }
   }
   else {
     string old_title= buf->buf->title;
-    string old_project= buf->data->project->label;
     tree body= detach_data (doc, buf->data);
     assign (buf->rp, body);
     set_buffer_data (name, buf->data);
     buf->buf->title= propose_title (old_title, name, body);
-    if (buf->data->project != "" && buf->data->project != old_project) {
-      url prj_name= head (name) * as_string (buf->data->project);
-      buf->prj= concrete_buffer_insist (prj_name);
-    }
   }
   if (is_rooted_tmfs (name))
     buf->buf->read_only=

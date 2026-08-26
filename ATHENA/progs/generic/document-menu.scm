@@ -19,38 +19,6 @@
         (athena menus file-menu)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Project menu
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(tm-define (include-list base t)
-  (cond ((tree-is? t 'document)
-         (apply append (map (cut include-list base <>) (tree-children t))))
-        ((and (tree-is? t 'include) (tree-atomic? (tree-ref t 0)))
-         (list (url-relative base (tree->string (tree-ref t 0)))))
-        (else (list))))
-
-(tm-define (project-file-list)
-  (if (project-attached?)
-      (let* ((prj (project-get))
-             (t (buffer->tree prj)))
-        (include-list prj t))
-      (list)))
-
-(tm-define (main-project-entry)
-  (buffer-list-menu (list (project-get))))
-
-(tm-define (project-list-menu)
-  (buffer-list-menu (project-file-list)))
-
-(menu-bind project-menu
-  (if (== (project-get) (current-buffer))
-      (link preamble-menu))
-  (if (!= (project-get) (current-buffer))
-      (link main-project-entry))
-  ---    
-  (link project-list-menu))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Document style
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -90,10 +58,7 @@
   ("Referenced Materials" (update-document "materials"))
   ("Table of contents" (update-document "table-of-contents"))
   ("Index" (update-document "index"))
-  ("Glossary" (update-document "glossary"))
-  (if (project-attached?)
-      ---
-      ("Clear local information" (clear-local-info))))
+  ("Glossary" (update-document "glossary")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; The Document -> Font menus

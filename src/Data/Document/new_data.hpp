@@ -18,7 +18,6 @@
 class new_data;
 class new_data_rep: public concrete_struct {
 public:
-  tree project;               // a project the document belongs to
   tree style;                 // the style of the buffer
   hashmap<string,tree> init;  // initial values of environment variables
   hashmap<string,tree> fin;   // final values of environment variables
@@ -27,7 +26,7 @@ public:
   hashmap<string,tree> att;   // attachments: LaTeX source, etc.
 
   inline new_data_rep ():
-    project (""), style (tuple ("generic")),
+    style (tuple ("generic")),
     init ("?"), fin ("?"), ref ("?"), aux ("?"), att ("?") {}
 };
 

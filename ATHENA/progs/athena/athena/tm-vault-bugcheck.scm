@@ -1,7 +1,6 @@
 (texmacs-module (athena athena tm-vault-bugcheck)
   (:use (kernel boot abbrevs)
-        (kernel library list)
-        (link ref-edit)))
+        (kernel library list)))
 
 (define vault-bugcheck-run-id 0)
 (define vault-bugcheck-errors '())
@@ -148,19 +147,12 @@
       (lambda ()
         (let ((rel (vault-bugcheck-rel u)))
           (vault-bugcheck-force-typeset u)
-          (let ((messages (vault-bugcheck-debug-messages))
-                (dups (duplicate-labels)))
+          (let ((messages (vault-bugcheck-debug-messages)))
             (for (m messages)
               (let ((message (vault-bugcheck-format-debug-message m)))
                 (display* "Vault bugcheck found TeXmacs diagnostic in "
                           rel ": " message "\n")
-                (vault-bugcheck-add-error rel "TeXmacs diagnostic" message)))
-            (when dups
-              (display* "Vault bugcheck found duplicate labels in " rel "\n")
-              (vault-bugcheck-add-error
-               rel "duplicate labels"
-               (string-append (number->string (length dups))
-                              " duplicate label occurrence(s)"))))
+                (vault-bugcheck-add-error rel "TeXmacs diagnostic" message))))
           (vault-bugcheck-step (cdr files) total (+ index 1) run-id)))
       (lambda (key . args)
         (vault-bugcheck-report-error u key args)

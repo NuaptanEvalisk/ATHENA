@@ -14,7 +14,6 @@
 (texmacs-module (link ref-edit)
   (:use (utils edit variants)
         (generic generic-edit)
-        (generic document-part)
         (text text-drd)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -65,53 +64,6 @@
          (id2 (string-append "bib-" id1)))
     (tree-search t (named-context? tie-context? id1 id2))))
 
-(tm-define (search-duplicate-labels t)
-  (let* ((labs (search-labels t))
-         (labl (map (lambda (lab) (tm->string (tm-ref lab 0))) labs))
-         (freq (list->frequencies labl))
-         (filt (lambda (lab)
-                 (with f (ahash-ref freq (tm->string (tm-ref lab 0)))
-                   (> (or f 0) 1)))))
-    (list-filter labs filt)))
-
-(define (tm-keys t)
-  (cond ((tm-in? t '(cite-detail)) (list (tm-ref t 0)))
-        (else (tm-children t))))
-
-(define ((tie-in? t) ref)
-  (with l (map tm->string (tm-keys ref))
-    (forall? (lambda (s) (ahash-ref t s)) l)))
-
-(define (strip-bib s)
-  (if (string-starts? s "bib-") (string-drop s 4) s))
-
-(define (set-of-labels t)
-  (let* ((labs (search-labels t))
-         (labl (map (lambda (t) (strip-bib (tm->string (tm-ref t 0)))) labs))
-         (labt (list->ahash-set labl)))
-    (if (project-attached?)
-        (let* ((glob (list->ahash-set (map strip-bib (list-references* #t))))
-               (loc  (list->ahash-set (map strip-bib (list-references)))))
-          (ahash-table-append (ahash-table-difference glob loc) labt))
-        labt)))
-
-(define (non-auto? t)
-  (not (and (tm-compound? t)
-            (forall? (lambda (l)
-                       (and-with s (tm->string l)
-                         (string-starts? s "auto-")))
-                     (tm-children t)))))
-
-(tm-define (search-broken-references t)
-  (let* ((refs (list-filter (search-references t) non-auto?))
-         (labt (set-of-labels t)))
-    (list-filter refs (non (tie-in? labt)))))
-
-(tm-define (search-broken-citations t)
-  (let* ((refs (search-citations t))
-         (labt (set-of-labels t)))
-    (list-filter refs (non (tie-in? labt)))))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Navigation
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -157,31 +109,10 @@
 (tm-define (same-ties)
   (and-nnull? (search-tie (buffer-tree) (tie-id))))
 
-(tm-define (duplicate-labels)
-  (and-nnull? (search-duplicate-labels (buffer-tree))))
-
-(tm-define (broken-references)
-  (and-nnull? (search-broken-references (buffer-tree))))
-
-(tm-define (broken-citations)
-  (and-nnull? (search-broken-citations (buffer-tree))))
-
 (tm-define (go-to-same-tie dir)
   (:applicable (same-ties))
   (set! current-id (tie-id))
   (list-go-to (same-ties) dir))
-
-(tm-define (go-to-duplicate-label dir)
-  (:applicable (duplicate-labels))
-  (list-go-to (duplicate-labels) dir))
-
-(tm-define (go-to-broken-reference dir)
-  (:applicable (broken-references))
-  (list-go-to (broken-references) dir))
-
-(tm-define (go-to-broken-citation dir)
-  (:applicable (broken-citations))
-  (list-go-to (broken-citations) dir))
 
 (tm-define (special-extremal t forwards?)
   (:require (focus-label t))
@@ -202,18 +133,6 @@
 (tm-define (special-incremental t forwards?)
   (:require (tie-context? t))
   (go-to-same-tie (if forwards? :next :previous)))
-
-(tm-define (special-navigate t dir)
-  (:require (label-context? t))
-  (go-to-duplicate-label dir))
-
-(tm-define (special-navigate t dir)
-  (:require (reference-context? t))
-  (go-to-broken-reference dir))
-
-(tm-define (special-navigate t dir)
-  (:require (citation-context? t))
-  (go-to-broken-citation dir))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Finding the label key from its number
@@ -468,4 +387,3 @@
                 (begin
                   (close-tooltip)
                   (set-message "" "")))))))))
-

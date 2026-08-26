@@ -19,8 +19,6 @@
     <branch|Generating an index|man-index.en.tm>
 
     <branch|Compiling a glossary|man-glossary.en.tm>
-
-    <branch|Books and multifile documents|man-multifile.en.tm>
   </traverse>
 
   <tmdoc-copyright|1998--2002|Joris van der Hoeven>

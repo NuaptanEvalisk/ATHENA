@@ -816,11 +816,6 @@
   (kill-window kill_window (void url))
   (kill-current-window-and-buffer kill_current_window_and_buffer (void))
 
-  (project-attach project_attach (void string))
-  (project-detach project_attach (void))
-  (project-attached? project_attached (bool))
-  (project-get project_get (url))
-
   ;; vault management
   (vault-load vault_load (string url string string))
   (vault-close vault_close (void))

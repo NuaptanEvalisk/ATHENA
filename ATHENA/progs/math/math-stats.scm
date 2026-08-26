@@ -1,9 +1,8 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-;; MODULE      : math-speech.scm
+;; MODULE      : math-stats.scm
 ;; DESCRIPTION : analyze statistical properties of mathematical documents
-;;               as needed for speech recognition, for instance
 ;; COPYRIGHT   : (C) 2022  Joris van der Hoeven
 ;;
 ;; This software falls under the GNU general public license version 3 or later.

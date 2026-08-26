@@ -18,7 +18,6 @@
 #include "Data/new_buffer.hpp"
 #include "Data/new_view.hpp"
 #include "Data/new_window.hpp"
-#include "Data/new_project.hpp"
 
 class editor;
 

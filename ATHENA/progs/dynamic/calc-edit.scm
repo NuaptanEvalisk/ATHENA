@@ -15,7 +15,7 @@
   (:use (text text-drd)
         (text text-structure)
         (link locus-edit)
-        (version version-edit)
+        (utils library cursor)
         (dynamic session-edit)
         (dynamic scripts-edit)
         (dynamic calc-drd)))

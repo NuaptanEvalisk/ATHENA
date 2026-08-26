@@ -792,18 +792,6 @@
     (when (!= r t)
       (tree-set! t r))))
 
-(define (math-manually-correct-tree t)
-  (with r (manual-correct-math t)
-    (when (!= r t)
-      (import-from (version version-compare))
-      (let* ((t1 (tree->stree t))
-	     (t2 (tree->stree r))
-	     (tb (compare-versions t1 t2))
-	     (rt (stree->tree tb)))
-	(tree-set! t rt)
-	(tree-go-to t :start)
-	(version-next-difference)))))
-
 (tm-define (math-correct-all)
   (:synopsis "Correct selected formula or all formulas in document")
   (if (selection-active-any?)
@@ -812,12 +800,3 @@
 	  (set-message "Only implemented for complete subtrees"
 		       "correct formula"))
       (math-correct-tree (buffer-tree))))
-
-(tm-define (math-correct-manually)
-  (:synopsis "Manually correct selected formula or all formulas in document")
-  (if (selection-active-any?)
-      (if (== (selection-tree) (path->tree (selection-path)))
-	  (math-manually-correct-tree (path->tree (selection-path)))
-	  (set-message "Only implemented for complete subtrees"
-		       "correct formula"))
-      (math-manually-correct-tree (buffer-tree))))

@@ -31,10 +31,7 @@
   <\explain|<tmstyle|book>>
     This is the basic style for writing books. Books are assumed to be
     subdivided into chapters and numbers of environments are prefixed by the
-    chapter number. In general, it is also comfortable to store each chapter
-    in a separate file, so that they can be edited more efficiently. This
-    issue is explained in more detail in the section about <hlink|books and
-    multifile documents|../links/man-multifile.en.tm>.
+    chapter number.
   </explain>
 
   <\explain|<tmstyle|seminar>>

@@ -438,7 +438,6 @@ texmacs_document_to_tree (string s) {
           << compound ("references", t[3]);
     else
       doc << compound ("body", t[0])
-          << compound ("project", t[1])
           << compound ("style", t[2])
           << compound ("initial", t[3])
           << compound ("final", t[4])
@@ -499,7 +498,6 @@ extract (tree doc, string attr) {
 
   if (attr == "TeXmacs") return "";
   if (attr == "body") return tree (DOCUMENT, "");
-  if (attr == "project") return "";
   if (attr == "style") return tree (TUPLE);
   if (attr == "initial") return tree (COLLECTION);
   if (attr == "final") return tree (COLLECTION);
@@ -512,7 +510,6 @@ extract (tree doc, string attr) {
 tree
 extract_document (tree doc) {
   if (is_func (doc, _ERROR)) return doc;
-  bool prj = (extract (doc, "project") != "");
   tree body= extract (doc, "body");
   tree init= extract (doc, "initial");
   if (is_func (init, COLLECTION)) {
@@ -544,12 +541,7 @@ extract_document (tree doc) {
             (l == PAGE_SCREEN_RIGHT) ||
             (l == PAGE_SCREEN_TOP) ||
             (l == PAGE_SCREEN_BOT) ||
-            (l == PAGE_SHOW_HF) ||
-            (l == PAGE_FIRST && prj) ||
-            (l == "chapter-nr" && prj) ||
-            (l == "section-nr" && prj) ||
-            (l == "subsection-nr" && prj) ||
-            (l == "subsubsection-nr" && prj)) continue;
+            (l == PAGE_SHOW_HF)) continue;
         w << l << r;
       }
     if (N(w)>0) {

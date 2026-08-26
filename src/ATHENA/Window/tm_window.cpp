@@ -321,8 +321,6 @@ enrich_embedded_document (tree body, tree style) {
   doc << style; //compound ("style", style);
   doc << compound ("body", body);
   doc << compound ("initial", make_collection (initial));
-  if (initial->contains ("project") && initial ["project"] != "")
-    doc << compound ("project", initial ["project"]);
   return doc;
 }
 

@@ -59,9 +59,9 @@ edit_typeset_rep::edit_typeset_rep ():
   heading_word_count_cache_hash (INT_MIN), heading_word_count_cache (),
   heading_word_count_cache_map (0),
   env (drd, buf->buf->master,
-       buf->data->ref, (buf->prj==NULL? grefs: buf->prj->data->ref),
-       buf->data->aux, (buf->prj==NULL? buf->data->aux: buf->prj->data->aux),
-       buf->data->att, (buf->prj==NULL? buf->data->att: buf->prj->data->att)),
+       buf->data->ref, grefs,
+       buf->data->aux, buf->data->aux,
+       buf->data->att, buf->data->att),
   ttt (new_typesetter (env, subtree (et, rp), reverse (rp))) {
     init_update ();
 }
@@ -144,7 +144,6 @@ concat_as_string (tree t) {
 array<string>
 edit_typeset_rep::find_refs (string val, bool global) {
   tree a= (tree) buf->data->ref;
-  if (global && buf->prj != NULL) a= buf->prj->data->ref;
   array<string> v;
   int i, n= N(a);
   for (i=0; i<n; i++)
@@ -157,7 +156,6 @@ edit_typeset_rep::find_refs (string val, bool global) {
 array<string>
 edit_typeset_rep::list_refs (bool global) {
   tree a= (tree) buf->data->ref;
-  if (global && buf->prj != NULL) a= buf->prj->data->ref;
   array<string> v;
   int i, n= N(a);
   for (i=0; i<n; i++)
@@ -184,7 +182,6 @@ edit_typeset_rep::reset_aux (string key) {
 array<string>
 edit_typeset_rep::list_auxs (bool global) {
   tree a= (tree) buf->data->aux;
-  if (global && buf->prj != NULL) a= buf->prj->data->aux;
   array<string> v;
   int i, n= N(a);
   for (i=0; i<n; i++)
@@ -211,7 +208,6 @@ edit_typeset_rep::reset_att (string key) {
 array<string>
 edit_typeset_rep::list_atts (bool global) {
   tree a= (tree) buf->data->att;
-  if (global && buf->prj != NULL) a= buf->prj->data->att;
   array<string> v;
   int i, n= N(a);
   for (i=0; i<n; i++)
@@ -338,33 +334,6 @@ edit_typeset_rep::typeset_prepare () {
 
 void
 edit_typeset_rep::init_update () {
-  if (buf->prj != NULL) {
-    string id= as_string (delta (buf->prj->buf->name, buf->buf->name));
-    string lab= "part:" * id;
-    hashmap<string,tree> aux= env->global_aux;
-    hashmap<string,tree> ref= env->global_ref;
-    if (aux->contains ("parts")) {
-      tree parts= aux ["parts"];
-      if (is_func (parts, DOCUMENT))
-        for (int i=0; i<N(parts); i++)
-          if (is_tuple (parts[i]) && N(parts[i]) >= 1)
-            if (parts[i][0] == id)
-              for (int j=1; j+1 < N(parts[i]); j+=2)
-                if (is_atomic (parts[i][j])) {
-                  buf->data->init (parts[i][j]->label)= copy (parts[i][j+1]);
-                  init (parts[i][j]->label)= copy (parts[i][j+1]);
-                }      
-    }
-    if (ref->contains (lab)) {
-      tree val= ref [lab];
-      if (is_tuple (val) && N(val) >= 2 && val[1] != tree (UNINIT)) {
-        buf->data->init (PAGE_FIRST)= copy (val[1]);
-        init (PAGE_FIRST)= copy (val[1]);
-      }
-    }
-  }
-  else if (buf->data->init ["part-flag"] == "true")
-    grefs= copy (buf->data->ref);
 }
 
 void
@@ -1005,8 +974,7 @@ heading_fold_container (tree t) {
          is_func (t, CONCAT) ||
          is_compound (t, "ignore") ||
          is_compound (t, "show-part") ||
-         is_compound (t, "hide-part") ||
-         is_compound (t, "live-io*");
+         is_compound (t, "hide-part");
 }
 
 static void

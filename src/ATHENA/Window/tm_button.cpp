@@ -274,15 +274,6 @@ texmacs_output_widget_with_width (tree doc, tree style, SI screen_width,
   hashmap<string,tree> h1 (UNINIT), h2 (UNINIT);
   hashmap<string,tree> h3 (UNINIT), h4 (UNINIT);
   hashmap<string,tree> h5 (UNINIT), h6 (UNINIT);
-  tree prj= extract (doc, "project");
-  if (is_atomic (prj) && prj != "" && exists (url_system (prj->label))) {
-    tm_buffer buf= concrete_buffer_insist (url_system (prj->label));
-    if (!is_nil (buf)) {
-      h1= copy (buf->data->ref);
-      h3= copy (buf->data->aux);
-      h5= copy (buf->data->att);
-    }
-  }
   edit_env env (drd, "none", h1, h2, h3, h4, h5, h6);
   initialize_environment (env, doc, drd);
   tree t= extract (doc, "body");

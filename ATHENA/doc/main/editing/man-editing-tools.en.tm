@@ -32,8 +32,6 @@
     <branch|Structured variants|man-structured-variants.en.tm>
 
     <branch|Positioning and resizing objects|man-structured-geometry.en.tm>
-
-    <branch|Versioning tools|man-versioning.en.tm>
   </traverse>
 
   <tmdoc-copyright|1998\U2020|Joris van der Hoeven>

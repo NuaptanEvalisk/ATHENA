@@ -58,7 +58,6 @@
     with-encoding with-indexing
     with-user with-extra-fields
     with-remote-context with-identifier-context
-    speech-symbols
     user-ask
     tab icon-tab section-tab form item meti refreshable division
     $when $let $let* $for $refreshable $division
@@ -90,8 +89,6 @@
 (setq binary-keywords
   '(with with-define with-global and-with with-innermost receive
     with-environment with-environment* converter with-cache
-    speech-map speech-map-wildcard
-    speech-adjust speech-reduce speech-collection
     user-confirm user-url
     section-tabs
     resize cached

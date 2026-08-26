@@ -70,10 +70,6 @@
   (-> "Refresh auxiliary data"
       ("Inclusions" (inclusions-gc))
       ("Pictures" (picture-gc)))
-  (-> "References"
-      (link ref-menu))
-  (-> "Project"
-      (link project-manage-menu))
   (-> "Statistics"
       ("Count characters" (show-character-count))
       ("Count words" (show-word-count))
@@ -88,11 +84,6 @@
   ("Clear undo history" (clear-undo-history)))
 
 (menu-bind athena-interface-utilities-menu
-  (-> "Speech"
-      ("Off" (reset-preference "speech"))
-      ---
-      ("English" (set-preference "speech" "english"))
-      ("French" (set-preference "speech" "french")))
   ("Show key presses" (toggle-show-kbd))
   ("Remote control" (toggle-remote-control-mode)))
 
