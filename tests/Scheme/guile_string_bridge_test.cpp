@@ -21,6 +21,7 @@ private slots:
   void preserves_cork_bytes ();
   void exports_native_unicode_as_utf8 ();
   void preserves_accent_through_verbatim_conversion ();
+  void lazyForceAcceptsOrdinaryGuileProcedures ();
 };
 
 void
@@ -49,6 +50,18 @@ TestGuileStringBridge::preserves_accent_through_verbatim_conversion () {
   string converted= utf8_to_cork (converter_input);
   string inserted= tmscm_to_string (string_to_tmscm (converted));
   QCOMPARE (inserted, string ("\xE9", 1));
+}
+
+void
+TestGuileStringBridge::lazyForceAcceptsOrdinaryGuileProcedures () {
+  tmscm result= eval_scheme (
+    "(catch #t "
+    "  (lambda () "
+    "    (lazy-define-force system) "
+    "    (lazy-define-force (lambda () #t)) "
+    "    #t) "
+    "  (lambda args #f))");
+  QVERIFY (scm_is_true (result));
 }
 
 static int test_status= 1;

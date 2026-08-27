@@ -27,6 +27,7 @@
 #include "libguile/modules.h"
 #include "libguile/pairs.h"
 #include "libguile/ports.h"
+#include "libguile/procprop.h"
 #include "libguile/procs.h"
 #include "libguile/strports.h"
 #include "libguile/strings.h"
@@ -1562,7 +1563,13 @@ SCM_DEFINE (scm_athena_lazy_force, "lazy-define-force", 1, 0, 0,
   SCM name = value;
   SCM modules;
   if (scm_is_true (scm_procedure_p (name)))
-    name = scm_hashq_ref (athena_definition_names, name, SCM_BOOL_F);
+    {
+      SCM registered =
+        scm_hashq_ref (athena_definition_names, name, SCM_BOOL_F);
+      name = scm_is_false (registered) ? scm_procedure_name (name) : registered;
+      if (scm_is_false (name))
+        return SCM_UNSPECIFIED;
+    }
   if (!scm_is_symbol (name))
     scm_wrong_type_arg_msg (FUNC_NAME, 1, value, "procedure or symbol");
   modules = scm_hashq_ref (athena_lazy_modules, name, SCM_EOL);
