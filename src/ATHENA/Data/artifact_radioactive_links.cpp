@@ -164,26 +164,20 @@ std::string token_key (const std::vector<Token>& tokens) {
   return digest.result ().toHex ().toStdString ();
 }
 
-QString artifact_term (const AthenaArtifactRecord& record) {
-  QString term;
-  if (record.origin == "bold-text")
-    term= qstring_from_tm_or_utf8 (record.display_text);
-  else if (record.origin == "enunciation" && !record.anchor_stem.empty ()) {
-    term= qstring_from_tm_or_utf8 (record.anchor_stem).trimmed ();
-    while (term.endsWith ('{') || term.endsWith ('}')) term.chop (1);
-    term= term.trimmed ();
-    static const QRegularExpression heading (
-      QStringLiteral (R"(^H[1-6]\s+(.+)$)"),
-      QRegularExpression::CaseInsensitiveOption);
-    QRegularExpressionMatch heading_match= heading.match (term);
-    if (heading_match.hasMatch ()) term= heading_match.captured (1).trimmed ();
-    else {
-      qsizetype colon= term.indexOf (':');
-      if (colon >= 0 && !term.mid (colon + 1).trimmed ().isEmpty ())
-        term= term.mid (colon + 1).trimmed ();
-    }
+std::vector<QString> artifact_terms (const AthenaArtifactRecord& record) {
+  if (record.type == "completion") return {};
+  std::vector<QString> terms;
+  terms.reserve (record.semantic_names.size ());
+  for (const std::string& name: record.semantic_names) {
+    QString term= qstring_from_tm_or_utf8 (name).simplified ();
+    if (!term.isEmpty ()) terms.push_back (term);
   }
-  return term.simplified ();
+  return terms;
+}
+
+QString artifact_term (const AthenaArtifactRecord& record) {
+  std::vector<QString> terms= artifact_terms (record);
+  return terms.empty () ? QString () : terms.front ();
 }
 
 void add_term (RadioactiveIndex& index, const QString& term,
@@ -218,7 +212,8 @@ std::shared_ptr<const RadioactiveIndex> build_index (
   auto index= std::make_shared<RadioactiveIndex> ();
   index->vault_root= vault_root;
   for (const AthenaArtifactRecord& record: records)
-    add_term (*index, artifact_term (record), record.uuid);
+    for (const QString& term: artifact_terms (record))
+      add_term (*index, term, record.uuid);
   return index;
 }
 

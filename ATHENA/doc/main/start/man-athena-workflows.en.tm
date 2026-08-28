@@ -149,6 +149,13 @@
   opens a vault-font disambiguation page that lists the matching definitions,
   their types, source files, and exact artifact links.
 
+  <paragraph*|Known issue.> An enunciation whose content consists only of an
+  image is not artifactized. <ATHENA> currently has no textual semantic
+  identity for such an object, so storing it would create an unnamed artifact
+  that cannot be searched or matched reliably. Add a textual statement or
+  caption when the enunciation must participate in Artifacts and radioactive
+  links.
+
   Artifact Definition Span Delegation moves only that model decision to an
   authenticated ATHENA backend. Candidate paragraphs are deduplicated and
   submitted to an asynchronous FIFO queue; the backend combines work into

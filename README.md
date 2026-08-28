@@ -514,6 +514,12 @@ ATHENA can build a semantic inventory of mathematical objects in a vault.
 - Select indexed artifacts directly in the wikilink and transclusion insertion
   workflows.
 
+Known issue: an enunciation whose content consists only of an image is not
+artifactized. ATHENA currently has no textual semantic identity for such an
+object, so indexing it would create an unnamed artifact that cannot be searched
+or matched reliably. Add a textual statement or caption when the enunciation
+must participate in Artifacts and radioactive links.
+
 ### UI And Native Qt Work
 
 ATHENA has moved much of the knowledge-work interface into native Qt.

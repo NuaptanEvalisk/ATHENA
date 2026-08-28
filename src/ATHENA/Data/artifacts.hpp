@@ -30,6 +30,10 @@ struct AthenaArtifactRecord {
   // TeXmacs' internal Cork encoding so they can be parsed back into trees.
   std::string anchor_stem;
   std::string display_text;
+  // Semantic names are extracted from artifact content.  anchor_stem is only
+  // a source navigation locator and must never be treated as a user-facing
+  // name.  Several artifacts may intentionally share the same name.
+  std::vector<std::string> semantic_names;
   std::string keyword_tree;
   int keyword_occurrence= 0;
   std::vector<int> paragraph_offsets;

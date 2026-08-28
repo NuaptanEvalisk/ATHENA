@@ -61,6 +61,7 @@ private slots:
   void matchesPossessiveAndEponymRadioactiveLinks ();
   void prefersLongestRadioactiveArtifactTerm ();
   void linksAmbiguousRadioactiveArtifactTerms ();
+  void namesEnunciationsStrictlyAndSkipsCompletions ();
   void preservesUnicodeRadioactiveMatchOffsets ();
   void matchesLargeRadioactiveArtifactIndexWithinBudget ();
   void reportsBuildPhasesInOrder ();
@@ -201,8 +202,9 @@ bold_paragraph_document (
 static tree
 named_theorem_document (const std::string& name, const std::string& statement) {
   tree body (DOCUMENT);
+  std::string content= "(" + name + ") " + statement;
   body << compound ("label", ("theorem:" + name + " {").c_str ())
-       << compound ("theorem", statement.c_str ())
+       << compound ("theorem", compound ("strong", content.c_str ()))
        << compound ("label", ("theorem:" + name + " }").c_str ());
   tree document (DOCUMENT);
   document << compound ("TeXmacs", "2.1.4")
@@ -287,10 +289,16 @@ TestArtifacts::extractsEnunciationsBoldTextAndProofLink () {
   QCOMPARE (records[0].type, std::string ("provable"));
   QCOMPARE (records[0].anchor_stem,
             std::string ("Compactness theorem"));
+  QCOMPARE (records[0].semantic_names,
+            std::vector<std::string> (
+              {"Every finite rank operator is compact."}));
   QVERIFY (records[0].proof_uuid.rfind ("@order:", 0) == 0);
   QCOMPARE (records[1].type, std::string ("completion"));
+  QVERIFY (records[1].semantic_names.empty ());
   QCOMPARE (records[2].origin, std::string ("bold-text"));
   QCOMPARE (records[2].display_text, std::string ("compact operator"));
+  QCOMPARE (records[2].semantic_names,
+            std::vector<std::string> ({"compact operator"}));
   QVERIFY (records[2].keyword_tree.find ("<strong|compact operator>") !=
            std::string::npos);
   QCOMPARE (records[2].paragraph_offsets, std::vector<int> ({0}));
@@ -515,6 +523,11 @@ TestArtifacts::preservesAccentedArtifactTextAcrossWorkerAndDatabase () {
   QCOMPARE (enunciation->anchor_stem, std::string ("H\xc3\xb6lder theorem"));
   QCOMPARE (enunciation->display_text,
             std::string ("A th\xc3\xa9or\xc3\xa8me statement."));
+  QCOMPARE (enunciation->semantic_names,
+            std::vector<std::string> (
+              {"A th\xc3\xa9or\xc3\xa8me statement."}));
+  QCOMPARE (found->semantic_names,
+            std::vector<std::string> ({"Ces\xc3\xa0ro summation"}));
   string expected_keyword= tree_to_texmacs (compound ("strong", keyword));
   QCOMPARE (found->keyword_tree,
             std::string (as_charp (expected_keyword),
@@ -526,13 +539,23 @@ TestArtifacts::preservesAccentedArtifactTextAcrossWorkerAndDatabase () {
     "'436573C3A0726F2073756D6D6174696F6E';", error);
   QVERIFY2 (utf8_rows >= 0, error.c_str ());
   QCOMPARE (utf8_rows, 1);
+  int semantic_name_rows= query_test_int (
+    root / "indexes/artifacts.db",
+    "SELECT COUNT(*) FROM artifact_names WHERE hex(name)="
+    "'436573C3A0726F2073756D6D6174696F6E';", error);
+  QVERIFY2 (semantic_name_rows >= 0, error.c_str ());
+  QCOMPARE (semantic_name_rows, 1);
 
-  // Missing encoding metadata represents a database made by the old builder.
+  // Missing format metadata represents a database made by an older builder.
   QVERIFY2 (exec_test_sql (
               root / "indexes/artifacts.db",
               "DELETE FROM artifact_meta WHERE key='text_encoding';"
+              "DELETE FROM artifact_meta WHERE key='record_format';"
+              "DELETE FROM artifact_meta WHERE key='semantic_names';"
               "UPDATE artifacts SET display_text='damaged' "
-              "WHERE origin='bold-text';", error), error.c_str ());
+              "WHERE origin='bold-text';"
+              "UPDATE artifact_names SET name='damaged';", error),
+            error.c_str ());
   AthenaArtifactsBuildResult migrated;
   QVERIFY2 (athena_artifacts_build (root, {}, true, {}, migrated, error),
             error.c_str ());
@@ -544,6 +567,8 @@ TestArtifacts::preservesAccentedArtifactTextAcrossWorkerAndDatabase () {
   });
   QVERIFY (found != records.end ());
   QCOMPARE (found->display_text, std::string ("Ces\xc3\xa0ro summation"));
+  QCOMPARE (found->semantic_names,
+            std::vector<std::string> ({"Ces\xc3\xa0ro summation"}));
   QCOMPARE (found->content_uuid, stable_uuid);
 }
 
@@ -574,6 +599,12 @@ TestArtifacts::storesAndDisambiguatesSameNamedArtifacts () {
   QCOMPARE (same_name.size (), (size_t) 2);
   QVERIFY (same_name[0].uuid != same_name[1].uuid);
   QVERIFY (same_name[0].content_uuid != same_name[1].content_uuid);
+  int stored_names= query_test_int (
+    root / info.artifacts_path,
+    "SELECT COUNT(*) FROM artifact_names WHERE name='Euler''s theorem';",
+    error);
+  QVERIFY2 (stored_names >= 0, error.c_str ());
+  QCOMPARE (stored_names, 2);
 
   auto matches= athena_artifact_radioactive_matches_for_records (
     same_name, "Eulerian theorem applies here.");
@@ -1226,8 +1257,12 @@ radioactive_record (const char* uuid, const char* term,
   AthenaArtifactRecord record;
   record.uuid= uuid;
   record.origin= origin;
-  if (record.origin == "bold-text") record.display_text= term;
-  else record.anchor_stem= term;
+  record.display_text= term;
+  record.semantic_names= {term};
+  if (record.origin != "bold-text") {
+    record.type= "provable";
+    record.anchor_stem= std::string ("theorem:") + term;
+  }
   return record;
 }
 
@@ -1300,6 +1335,129 @@ TestArtifacts::linksAmbiguousRadioactiveArtifactTerms () {
   QCOMPARE (athena_artifact_radioactive_destination (matches[0]),
             std::string ("tmfs://artifact-disambiguation/") +
               matches[0].disambiguation_key);
+}
+
+void
+TestArtifacts::namesEnunciationsStrictlyAndSkipsCompletions () {
+  MissingRangeModel noModel;
+  AthenaArtifactRecord named= radioactive_record (
+    "lagrange", "(Lagrange) Every finite group has a useful subgroup.",
+    "enunciation");
+  named.anchor_stem= "theorem:Let";
+  named.semantic_names= {"Lagrange"};
+  AthenaArtifactRecord unnamed= radioactive_record (
+    "unnamed", "Let X be a compact Hausdorff space.", "enunciation");
+  unnamed.anchor_stem= "theorem:Let";
+  AthenaArtifactRecord proof= radioactive_record (
+    "proof", "(Lagrange) Apply the orbit-stabilizer theorem.",
+    "enunciation");
+  proof.type= "completion";
+  proof.anchor_stem= "proof:Lagrange";
+  proof.semantic_names.clear ();
+  AthenaArtifactRecord dated= radioactive_record (
+    "einstein", "(Einstein, 2026) A revised field equation.",
+    "enunciation");
+  dated.semantic_names= {"Einstein, 2026", "Einstein"};
+  AthenaArtifactRecord we_have= radioactive_record (
+    "we-have", "We have a natural isomorphism between these functors.",
+    "enunciation");
+  we_have.anchor_stem= "theorem:We have";
+
+  QCOMPARE (cork_to_utf8 (athena_artifact_radioactive_name (named)),
+            string ("Lagrange"));
+  QCOMPARE (cork_to_utf8 (athena_artifact_radioactive_name (unnamed)),
+            string ("Let X be a compact Hausdorff space."));
+  QVERIFY (athena_artifact_radioactive_name (proof) == "");
+  QCOMPARE (cork_to_utf8 (athena_artifact_radioactive_name (dated)),
+            string ("Einstein, 2026"));
+  QCOMPARE (cork_to_utf8 (athena_artifact_radioactive_name (we_have)),
+            string ("We have a natural isomorphism between these functors."));
+
+  tree forensic_body (DOCUMENT);
+  forensic_body
+    << compound ("label", "question:Show that {")
+    << compound ("question", "Show that U(H) is isomorphic to SU(2).")
+    << compound ("label", "question:Show that }")
+    << compound ("label", "question:52297528 {")
+    << compound ("question", "A complete non-Latin mathematical statement.")
+    << compound ("label", "question:52297528 }")
+    << compound ("label", "theorem:Einstein 2026 {")
+    << compound ("theorem", compound (
+         "strong", "(Einstein, 2026) A revised field equation."))
+    << compound ("label", "theorem:Einstein 2026 }")
+    << compound ("label", "theorem:X d {")
+    << compound ("theorem", "(X,d) is a complete metric space.")
+    << compound ("label", "theorem:X d }")
+    << compound ("label", "question {")
+    << compound ("question", compound (
+         "big-figure", compound ("image", "assets/problem.png", "600px",
+                                  "", "", ""), ""))
+    << compound ("label", "question }");
+  tree forensic_document (DOCUMENT);
+  forensic_document << compound ("TeXmacs", "2.1.4")
+                    << compound ("style", "generic")
+                    << compound ("body", forensic_body);
+  std::vector<AthenaArtifactRecord> forensic_records;
+  std::string forensic_error;
+  QVERIFY2 (athena_artifacts_extract_document (
+              forensic_document, "forensic.ath", forensic_records,
+              forensic_error), forensic_error.c_str ());
+  QCOMPARE (forensic_records.size (), (size_t) 4);
+  QCOMPARE (forensic_records[0].anchor_stem, std::string ("question:Show that"));
+  QCOMPARE (forensic_records[0].semantic_names,
+            std::vector<std::string> (
+              {"Show that U(H) is isomorphic to SU(2)."}));
+  QCOMPARE (forensic_records[1].anchor_stem, std::string ("question:52297528"));
+  QCOMPARE (forensic_records[1].semantic_names,
+            std::vector<std::string> (
+              {"A complete non-Latin mathematical statement."}));
+  QCOMPARE (forensic_records[2].semantic_names,
+            std::vector<std::string> ({"Einstein, 2026", "Einstein"}));
+  QCOMPARE (forensic_records[3].semantic_names,
+            std::vector<std::string> (
+              {"(X,d) is a complete metric space."}));
+  for (const AthenaArtifactRecord& record: forensic_records)
+    QVERIFY (record.anchor_stem != "question");
+
+  std::vector<AthenaArtifactRecord> records= {
+    named, unnamed, proof, dated, we_have};
+  auto matches= athena_artifact_radioactive_matches_for_records (
+    records,
+    "Lagrangian results apply. Let is not a title. "
+    "Let X be a compact Hausdorff space. Einstein made a proposal; "
+    "Einstein, 2026 is the revised version. "
+    "We have a natural isomorphism between these functors.");
+  QCOMPARE (matches.size (), (size_t) 5);
+  QCOMPARE (matches[0].uuids, std::vector<std::string> ({"lagrange"}));
+  QCOMPARE (matches[1].uuids, std::vector<std::string> ({"unnamed"}));
+  QCOMPARE (matches[2].uuids, std::vector<std::string> ({"einstein"}));
+  QCOMPARE (matches[3].uuids, std::vector<std::string> ({"einstein"}));
+  QCOMPARE (matches[4].uuids, std::vector<std::string> ({"we-have"}));
+  for (const auto& match: matches)
+    QVERIFY (std::find (match.uuids.begin (), match.uuids.end (), "proof") ==
+             match.uuids.end ());
+
+  std::string long_statement= "A theorem whose complete statement is ";
+  long_statement.append (400, 'x');
+  tree body (DOCUMENT);
+  body << compound ("label", "theorem:A theorem {")
+       << compound ("theorem", long_statement.c_str ());
+  tree document (DOCUMENT);
+  document << compound ("TeXmacs", "2.1.4")
+           << compound ("style", "generic")
+           << compound ("body", body);
+  std::vector<AthenaArtifactRecord> extracted;
+  std::string error;
+  QVERIFY2 (athena_artifacts_extract_document (
+              document, "long.ath", extracted, error), error.c_str ());
+  auto theorem= std::find_if (
+    extracted.begin (), extracted.end (), [] (const auto& record) {
+      return record.origin == "enunciation";
+    });
+  QVERIFY (theorem != extracted.end ());
+  QCOMPARE (theorem->display_text, long_statement);
+  QCOMPARE (theorem->semantic_names,
+            std::vector<std::string> ({long_statement}));
 }
 
 void

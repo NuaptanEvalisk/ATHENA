@@ -26,6 +26,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QCryptographicHash>
+#include <QRegularExpression>
 
 #include <algorithm>
 #include <atomic>
@@ -109,13 +110,6 @@ std::string decode_opaque (const std::string& value) {
   QByteArray decoded= QByteArray::fromBase64 (
     encoded, QByteArray::AbortOnBase64DecodingErrors);
   return std::string (decoded.constData (), (size_t) decoded.size ());
-}
-
-std::string truncate_utf8 (const std::string& value, qsizetype limit) {
-  QString text= qstr (value);
-  if (text.size () <= limit) return value;
-  QByteArray truncated= text.left (limit).toUtf8 ();
-  return std::string (truncated.constData (), (size_t) truncated.size ());
 }
 
 std::string tag_name (const tree& t) {
@@ -260,6 +254,11 @@ bool open_databases (const fs::path& root, SqliteDb& holder,
     " UNIQUE(origin,content_uuid));"
     "CREATE INDEX IF NOT EXISTS artifacts_path_idx ON artifacts(path);"
     "CREATE INDEX IF NOT EXISTS artifacts_search_idx ON artifacts(display_text);"
+    "CREATE TABLE IF NOT EXISTS artifact_names("
+    " artifact_uuid TEXT NOT NULL,name TEXT NOT NULL,ordinal INTEGER NOT NULL,"
+    " PRIMARY KEY(artifact_uuid,ordinal),UNIQUE(artifact_uuid,name),"
+    " FOREIGN KEY(artifact_uuid) REFERENCES artifacts(uuid) ON DELETE CASCADE);"
+    "CREATE INDEX IF NOT EXISTS artifact_names_name_idx ON artifact_names(name);"
     "CREATE TABLE IF NOT EXISTS artifact_range_cache("
     " path TEXT NOT NULL,mtime_ns INTEGER NOT NULL,size INTEGER NOT NULL,"
     " request_hash TEXT NOT NULL,paragraph_offsets TEXT NOT NULL,"
@@ -306,6 +305,52 @@ bool open_databases (const fs::path& root, SqliteDb& holder,
     if (!exec_sql (holder.db, "BEGIN IMMEDIATE;DELETE FROM documents;"
                               "INSERT OR REPLACE INTO artifact_meta(key,value)"
                               " VALUES('text_encoding','utf8-opaque-v1');COMMIT;",
+                   error)) {
+      std::string ignored;
+      exec_sql (holder.db, "ROLLBACK;", ignored);
+      return false;
+    }
+  }
+  Statement record_format;
+  if (!prepare (holder.db,
+                "SELECT value FROM artifact_meta WHERE key='record_format';",
+                record_format, error))
+    return false;
+  rc= sqlite3_step (record_format.st);
+  if (rc != SQLITE_ROW && rc != SQLITE_DONE) {
+    error= sqlite3_errmsg (holder.db);
+    return false;
+  }
+  if (rc != SQLITE_ROW || column_text (record_format.st, 0) != "v2") {
+    // v2 retains complete enunciation text instead of a truncated display
+    // value. Keep old artifact rows available while their source stamps are
+    // invalidated so identity association can preserve UUIDs.
+    if (!exec_sql (holder.db, "BEGIN IMMEDIATE;DELETE FROM documents;"
+                              "INSERT OR REPLACE INTO artifact_meta(key,value)"
+                              " VALUES('record_format','v2');COMMIT;",
+                   error)) {
+      std::string ignored;
+      exec_sql (holder.db, "ROLLBACK;", ignored);
+      return false;
+    }
+  }
+  Statement semantic_names;
+  if (!prepare (holder.db,
+                "SELECT value FROM artifact_meta WHERE key='semantic_names';",
+                semantic_names, error))
+    return false;
+  rc= sqlite3_step (semantic_names.st);
+  if (rc != SQLITE_ROW && rc != SQLITE_DONE) {
+    error= sqlite3_errmsg (holder.db);
+    return false;
+  }
+  if (rc != SQLITE_ROW || column_text (semantic_names.st, 0) != "content-v1") {
+    // Navigation labels and semantic names are different representations.
+    // Revisit every source once so names are extracted from content while old
+    // rows remain available for stable UUID association.
+    if (!exec_sql (holder.db, "BEGIN IMMEDIATE;DELETE FROM documents;"
+                              "INSERT OR REPLACE INTO artifact_meta(key,value)"
+                              " VALUES('semantic_names','content-v1');COMMIT;",
                    error)) {
       std::string ignored;
       exec_sql (holder.db, "ROLLBACK;", ignored);
@@ -379,6 +424,64 @@ std::string plain_text (const tree& t) {
     out += part;
   }
   return collapse_spaces (out);
+}
+
+bool contains_tag (const tree& t, const std::string& wanted) {
+  if (!is_compound (t)) return false;
+  if (tag_name (t) == wanted) return true;
+  for (int i=0; i<N(t); i++)
+    if (contains_tag (t[i], wanted)) return true;
+  return false;
+}
+
+bool leading_bold_text (const tree& t, std::string& text) {
+  if (!is_compound (t)) return false;
+  if (bold_wrapper (t)) {
+    text= plain_text (visible_body (t));
+    return !text.empty ();
+  }
+  if (formatting_wrapper (tag_name (t)) && N(t) >= 1)
+    return leading_bold_text (t[N(t)-1], text);
+  for (int i=0; i<N(t); i++) {
+    if (plain_text (t[i]).empty ()) continue;
+    return leading_bold_text (t[i], text);
+  }
+  return false;
+}
+
+std::vector<std::string> semantic_names_for (
+  const std::string& origin, const std::string& type,
+  const std::string& display_text, const std::string& explicit_title= {}) {
+  if (type == "completion") return {};
+  QString display= qstr (display_text).simplified ();
+  if (display.isEmpty ()) return {};
+  if (origin == "bold-text") return {display.toStdString ()};
+  if (origin != "enunciation") return {};
+
+  QString title_source= qstr (explicit_title).simplified ();
+  if (title_source.isEmpty ()) return {display.toStdString ()};
+  QChar opening= title_source.front ();
+  QChar closing;
+  if (opening == QChar ('(')) closing= QChar (')');
+  else if (opening == QChar (0xff08)) closing= QChar (0xff09);
+  else return {display.toStdString ()};
+
+  qsizetype close= title_source.indexOf (closing, 1);
+  if (close <= 1) return {display.toStdString ()};
+  if (close + 1 < title_source.size () &&
+      !title_source[close + 1].isSpace ())
+    return {display.toStdString ()};
+  QString title= title_source.mid (1, close - 1).trimmed ();
+  if (title.isEmpty ()) return {display.toStdString ()};
+
+  std::vector<std::string> names= {title.toStdString ()};
+  qsizetype comma= title.indexOf (QRegularExpression (QStringLiteral ("[,，]")));
+  if (comma > 0) {
+    QString leading= title.left (comma).trimmed ();
+    if (!leading.isEmpty () && leading != title)
+      names.push_back (leading.toStdString ());
+  }
+  return names;
 }
 
 std::string normalized_word (std::string value) {
@@ -539,6 +642,11 @@ void scan_enunciations (const tree& parent, const std::string& rel,
     std::string base;
     std::string type= enunciation_type (tag_name (child), base);
     if (!type.empty ()) {
+      std::string display= cork_bytes_to_utf8 (plain_text (child));
+      // Image-only enunciations have no textual semantic identity that can be
+      // named, searched, or matched reliably. Leave them out until image
+      // understanding becomes part of artifactization.
+      if (display.empty () && contains_tag (child, "image")) continue;
       std::string anchor;
       for (int j=i-1; j>=0; j--) {
         if (ignorable (parent[j])) continue;
@@ -557,8 +665,12 @@ void scan_enunciations (const tree& parent, const std::string& rel,
       record.origin= "enunciation";
       record.relative_path= rel;
       record.anchor_stem= cork_bytes_to_utf8 (anchor);
-      record.display_text= truncate_utf8 (
-        cork_bytes_to_utf8 (plain_text (child)), 300);
+      record.display_text= display;
+      std::string explicit_title;
+      if (leading_bold_text (child, explicit_title))
+        explicit_title= cork_bytes_to_utf8 (explicit_title);
+      record.semantic_names= semantic_names_for (
+        record.origin, record.type, record.display_text, explicit_title);
       record.keyword_tree= base;
       record.identity_focus= identity_fingerprint (child);
       record.identity_before= identity_neighbor (parent, i - 1, -1);
@@ -770,6 +882,8 @@ bool extract (const tree& document, const std::string& rel,
       record.origin= "bold-text";
       record.relative_path= rel;
       record.display_text= cork_bytes_to_utf8 (display);
+      record.semantic_names= semantic_names_for (
+        record.origin, record.type, record.display_text);
       record.keyword_tree= serialized;
       record.keyword_occurrence= occurrence;
       record.definition_candidates= candidates;
@@ -799,6 +913,10 @@ QJsonObject record_json (const AthenaArtifactRecord& record) {
   object["path"]= qstr (record.relative_path);
   object["anchor"]= qstr (record.anchor_stem);
   object["display"]= qstr (record.display_text);
+  QJsonArray semantic_names;
+  for (const std::string& name: record.semantic_names)
+    semantic_names.append (qstr (name));
+  object["semantic_names"]= semantic_names;
   object["keyword"]= qstr (encode_opaque (record.keyword_tree));
   object["occurrence"]= record.keyword_occurrence;
   object["order"]= record.document_order;
@@ -830,6 +948,10 @@ AthenaArtifactRecord record_from_json (const QJsonObject& object) {
   record.relative_path= s ("path");
   record.anchor_stem= s ("anchor");
   record.display_text= s ("display");
+  for (const QJsonValue& value: object.value ("semantic_names").toArray ()) {
+    QByteArray name= value.toString ().toUtf8 ();
+    record.semantic_names.emplace_back (name.constData (), (size_t) name.size ());
+  }
   record.keyword_tree= decode_opaque (s ("keyword"));
   record.keyword_occurrence= object.value ("occurrence").toInt ();
   record.document_order= object.value ("order").toInt ();
@@ -1365,7 +1487,7 @@ bool replace_document (sqlite3* db, const std::string& rel,
     }
   }
 
-  Statement insert_enun, insert_bold, insert_artifact;
+  Statement insert_enun, insert_bold, insert_artifact, insert_name;
   if (!prepare (db,
       "INSERT INTO enunciations.entries(uuid,path,anchor_stem,tag,display_text,"
       "document_order,identity_focus,identity_host,identity_before,identity_after) "
@@ -1379,6 +1501,10 @@ bool replace_document (sqlite3* db, const std::string& rel,
       "INSERT INTO artifacts(uuid,type,origin,content_uuid,proof_uuid,path,"
       "anchor_stem,display_text,document_order,identity_decision,identity_evidence) "
       "VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11);", insert_artifact, error))
+    return false;
+  if (!prepare (db,
+                "INSERT INTO artifact_names(artifact_uuid,name,ordinal) "
+                "VALUES(?1,?2,?3);", insert_name, error))
     return false;
 
   std::map<int,std::string> enunciation_order_ids;
@@ -1443,6 +1569,16 @@ bool replace_document (sqlite3* db, const std::string& rel,
     bind_text (insert_artifact.st, 11, record.identity_evidence);
     if (sqlite3_step (insert_artifact.st) != SQLITE_DONE) {
       error= sqlite3_errmsg (db); return false;
+    }
+    for (size_t i=0; i<record.semantic_names.size (); i++) {
+      sqlite3_reset (insert_name.st);
+      sqlite3_clear_bindings (insert_name.st);
+      bind_text (insert_name.st, 1, record.uuid);
+      bind_text (insert_name.st, 2, record.semantic_names[i]);
+      sqlite3_bind_int (insert_name.st, 3, (int) i);
+      if (sqlite3_step (insert_name.st) != SQLITE_DONE) {
+        error= sqlite3_errmsg (db); return false;
+      }
     }
   }
 
@@ -2031,6 +2167,36 @@ AthenaArtifactRecord artifact_record_from_statement (sqlite3_stmt* statement) {
   return record;
 }
 
+bool load_semantic_names (sqlite3* db,
+                          std::vector<AthenaArtifactRecord>& records,
+                          std::string& error) {
+  if (records.empty ()) return true;
+  std::unordered_map<std::string,size_t> by_uuid;
+  by_uuid.reserve (records.size ());
+  for (size_t i=0; i<records.size (); i++) by_uuid[records[i].uuid]= i;
+
+  Statement names;
+  const char* sql= records.size () == 1
+    ? "SELECT artifact_uuid,name FROM artifact_names WHERE artifact_uuid=?1 "
+      "ORDER BY ordinal;"
+    : "SELECT artifact_uuid,name FROM artifact_names "
+      "ORDER BY artifact_uuid,ordinal;";
+  if (!prepare (db, sql, names, error))
+    return false;
+  if (records.size () == 1) bind_text (names.st, 1, records.front ().uuid);
+  int rc;
+  while ((rc= sqlite3_step (names.st)) == SQLITE_ROW) {
+    auto found= by_uuid.find (column_text (names.st, 0));
+    if (found != by_uuid.end ())
+      records[found->second].semantic_names.push_back (column_text (names.st, 1));
+  }
+  if (rc != SQLITE_DONE) {
+    error= sqlite3_errmsg (db);
+    return false;
+  }
+  return true;
+}
+
 } // namespace
 
 bool
@@ -2053,7 +2219,7 @@ athena_artifacts_query (const fs::path& vault_root,
     error= sqlite3_errmsg (holder.db);
     return false;
   }
-  return true;
+  return load_semantic_names (holder.db, records, error);
 }
 
 bool
@@ -2078,6 +2244,9 @@ athena_artifact_query_uuid (const fs::path& vault_root,
     return false;
   }
   record= artifact_record_from_statement (st.st);
+  std::vector<AthenaArtifactRecord> records= {record};
+  if (!load_semantic_names (holder.db, records, error)) return false;
+  record= std::move (records.front ());
   found= true;
   return true;
 }
