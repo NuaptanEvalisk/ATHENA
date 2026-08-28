@@ -14,6 +14,7 @@
 #include <QTemporaryDir>
 
 #include "ATHENA/Data/artifacts.hpp"
+#include "ATHENA/Data/artifact_identity.hpp"
 #include "ATHENA/Data/artifact_document.hpp"
 #include "ATHENA/Data/artifact_range_llm.hpp"
 #include "ATHENA/Data/artifact_radioactive_links.hpp"
@@ -52,6 +53,7 @@ private slots:
   void preservesBoldIdentityWhenDuplicateIsInsertedBefore ();
   void doesNotTransferDeletedDuplicateToInsertedDuplicate ();
   void rejectsIdentityTransferWhenParagraphIsCopiedExactly ();
+  void preservesExactDuplicateIdentityGroupByDocumentOrder ();
   void preservesUniqueBoldIdentityAcrossHostEdit ();
   void preservesUnanchoredEnunciationsWhenOneIsInsertedBefore ();
   void doesNotTransferDeletedUnanchoredDuplicateEnunciation ();
@@ -988,6 +990,40 @@ TestArtifacts::rejectsIdentityTransferWhenParagraphIsCopiedExactly () {
     QVERIFY (record.uuid != old_artifact_uuid);
     QCOMPARE (record.identity_decision, std::string ("ambiguous"));
   }
+}
+
+void
+TestArtifacts::preservesExactDuplicateIdentityGroupByDocumentOrder () {
+  auto observation= [] (const char* uuid, int order) {
+    AthenaArtifactIdentityObservation value;
+    value.uuid= uuid;
+    value.origin= "bold-text";
+    value.type= "definition";
+    value.focus= "identical keyword";
+    value.host= "The identical host defines identical keyword.";
+    value.before= "same left context";
+    value.after= "same right context";
+    value.display= "identical keyword";
+    value.document_order= order;
+    return value;
+  };
+  std::vector<AthenaArtifactIdentityObservation> old_values= {
+    observation ("first-uuid", 4), observation ("second-uuid", 9)};
+  std::vector<AthenaArtifactIdentityObservation> new_values= {
+    observation ("", 14), observation ("", 19)};
+
+  AthenaArtifactIdentityResult result=
+    athena_artifact_associate_identities (old_values, new_values);
+  QCOMPARE (result.decisions.size (), (size_t) 2);
+  QCOMPARE (result.decisions[0].kind,
+            AthenaArtifactIdentityDecisionKind::Matched);
+  QCOMPARE (result.decisions[0].old_index, 0);
+  QCOMPARE (result.decisions[0].evidence,
+            std::string ("exact-duplicate-group-order"));
+  QCOMPARE (result.decisions[1].kind,
+            AthenaArtifactIdentityDecisionKind::Matched);
+  QCOMPARE (result.decisions[1].old_index, 1);
+  QVERIFY (result.deleted_old_indices.empty ());
 }
 
 void

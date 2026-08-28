@@ -78,6 +78,58 @@ void unique_pass (
   }
 }
 
+void exact_duplicate_group_pass (
+  const std::vector<Observation>& old_values,
+  const std::vector<Observation>& new_values,
+  std::vector<bool>& old_matched, std::vector<bool>& new_matched,
+  std::vector<Decision>& decisions) {
+  auto key_for= [] (const Observation& value) {
+    return identity_key ({value.origin, value.type, value.anchor, value.focus,
+                          value.host, value.before, value.after, value.display});
+  };
+  std::map<std::string,std::vector<int>> old_by_key;
+  std::map<std::string,std::vector<int>> new_by_key;
+  for (size_t i=0; i<old_values.size (); i++)
+    if (!old_matched[i] && !old_values[i].focus.empty ())
+      old_by_key[key_for (old_values[i])].push_back ((int) i);
+  for (size_t i=0; i<new_values.size (); i++)
+    if (!new_matched[i] && !new_values[i].focus.empty ())
+      new_by_key[key_for (new_values[i])].push_back ((int) i);
+
+  for (auto& item: old_by_key) {
+    auto found= new_by_key.find (item.first);
+    if (item.second.size () < 2 || found == new_by_key.end () ||
+        item.second.size () != found->second.size ())
+      continue;
+    auto by_document_order= [] (int left, int right,
+                                 const std::vector<Observation>& values) {
+      if (values[(size_t) left].document_order !=
+          values[(size_t) right].document_order)
+        return values[(size_t) left].document_order <
+               values[(size_t) right].document_order;
+      return left < right;
+    };
+    std::sort (item.second.begin (), item.second.end (),
+               [&] (int left, int right) {
+                 return by_document_order (left, right, old_values);
+               });
+    std::sort (found->second.begin (), found->second.end (),
+               [&] (int left, int right) {
+                 return by_document_order (left, right, new_values);
+               });
+    for (size_t i=0; i<item.second.size (); i++) {
+      int old_index= item.second[i];
+      int new_index= found->second[i];
+      old_matched[(size_t) old_index]= true;
+      new_matched[(size_t) new_index]= true;
+      Decision& decision= decisions[(size_t) new_index];
+      decision.kind= AthenaArtifactIdentityDecisionKind::Matched;
+      decision.old_index= old_index;
+      decision.evidence= "exact-duplicate-group-order";
+    }
+  }
+}
+
 long long pair_score (const Observation& old_value,
                       const Observation& new_value) {
   if (!compatible (old_value, new_value)) return 0;
@@ -347,6 +399,13 @@ athena_artifact_associate_identities (
     },
     [] (const Observation& value) { return !value.focus.empty (); },
     old_matched, new_matched, result.decisions);
+
+  // Multiple observations can be semantically and contextually identical.
+  // When the complete multisets are unchanged, document order is the only
+  // observable identity and gives a deterministic bijection.  Unequal groups
+  // deliberately fall through to conservative ambiguity handling.
+  exact_duplicate_group_pass (old_observations, new_observations,
+                              old_matched, new_matched, result.decisions);
 
   resolve_ambiguous_components (old_observations, new_observations,
                                 old_matched, new_matched, result.decisions);
