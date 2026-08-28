@@ -28,7 +28,8 @@
 
 namespace {
 
-constexpr int context_tokens= 4096;
+constexpr int base_context_tokens= 8192;
+constexpr int context_tokens_per_lane= 768;
 constexpr int output_tokens= 48;
 constexpr int artifact_threads= 6;
 constexpr int prefill_batch_tokens= 512;
@@ -131,8 +132,10 @@ const std::string& prompt_prefix () {
   static const std::string value=
          "You select which nearby paragraphs constitute the mathematical "
          "definition of a bold keyword in an ATHENA note.\n"
-         "Return ONLY one bracketed comma-separated list of paragraph integers, "
-         "for example [-1, 0, 1]. If the bold text is not a mathematical term "
+         "Return ONLY one bracketed sorted list of paragraph integers, for "
+         "example [-1, 0, 1]. You may give every integer or only sorted range "
+         "endpoints; ATHENA includes all intervening paragraphs. If the bold "
+         "text is not a mathematical term "
          "being defined, return []. Do not explain, reason, use prose, or emit "
          "markdown. For a definition, paragraph 0 MUST be included. Select only "
          "supplied integers and the smallest contiguous semantic range that "
@@ -265,13 +268,18 @@ public:
         int required_kv=
           prefix_tokens + total_suffix + count * output_tokens;
         if (maximum_suffix > 0 &&
-            prefix_tokens + maximum_suffix + output_tokens < context_tokens &&
-            required_kv < context_tokens + 256 * parallelism)
+            prefix_tokens + maximum_suffix + output_tokens < context_capacity &&
+            required_kv < context_capacity)
           break;
         count--;
       }
       if (count == 0) {
-        range_warning ("definition-range request exceeds model context");
+        int required_tokens= prefix_tokens + output_tokens;
+        if (!suffixes.empty ()) required_tokens += (int) suffixes[0].size ();
+        range_warning (
+          "definition-range request requires " +
+          std::to_string (required_tokens) + " tokens, exceeding the " +
+          std::to_string (context_capacity) + "-token model context");
         if (completed) completed->fetch_add (1);
         base++;
         continue;
@@ -498,7 +506,8 @@ private:
     llama_memory_clear (memory, true);
     const llama_vocab* vocab= llama_model_get_vocab (model);
     std::vector<llama_token> tokens= tokenize (vocab, prompt_prefix ());
-    if (tokens.empty () || (int) tokens.size () + output_tokens >= context_tokens)
+    if (tokens.empty () ||
+        (int) tokens.size () + output_tokens >= context_capacity)
       return false;
     auto started= std::chrono::steady_clock::now ();
     int ignored_logits= -1;
@@ -543,7 +552,9 @@ private:
     llama_context_params cp= llama_context_default_params ();
     parallel_capacity= parallelism;
     cp.n_seq_max= (uint32_t) parallel_capacity + 1;
-    cp.n_ctx= context_tokens + 256 * (uint32_t) parallel_capacity;
+    cp.n_ctx= base_context_tokens +
+              context_tokens_per_lane * (uint32_t) parallel_capacity;
+    context_capacity= (int) cp.n_ctx;
     // The admission check permits the combined per-sequence suffixes to fill
     // the logical context.  n_batch must cover that same bound; n_ubatch still
     // limits each physical compute chunk to keep GPU work bounded.
@@ -591,6 +602,7 @@ private:
     prefix_cached= false;
     prefix_tokens= 0;
     parallel_capacity= 0;
+    context_capacity= 0;
     loaded_gpu_layers= 0;
   }
 
@@ -603,6 +615,7 @@ private:
   bool prefix_cached= false;
   int prefix_tokens= 0;
   int parallel_capacity= 0;
+  int context_capacity= 0;
   int loaded_gpu_layers= 0;
 };
 
@@ -683,12 +696,15 @@ athena_artifact_parse_definition_range_output (
   }
   catch (const std::exception&) { return invalid (); }
 
-  if (std::find (offsets.begin (), offsets.end (), 0) == offsets.end () ||
-      !std::is_sorted (offsets.begin (), offsets.end ()))
+  if (!std::is_sorted (offsets.begin (), offsets.end ()) ||
+      offsets.front () > 0 || offsets.back () < 0)
     return invalid ();
-  for (size_t i=1; i<offsets.size (); i++)
-    if (offsets[i] != offsets[i - 1] + 1) return invalid ();
-  return offsets;
+  std::vector<int> contiguous;
+  for (int offset=offsets.front (); offset<=offsets.back (); offset++) {
+    if (!allowed.count (offset)) return invalid ();
+    contiguous.push_back (offset);
+  }
+  return contiguous;
 }
 
 std::vector<std::vector<int>>

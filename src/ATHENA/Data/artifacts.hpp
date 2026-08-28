@@ -12,6 +12,7 @@
 #define ATHENA_ARTIFACTS_HPP
 
 #include "tree.hpp"
+#include "path.hpp"
 #include "ATHENA/Data/artifact_range_llm.hpp"
 
 #include <filesystem>
@@ -49,6 +50,7 @@ struct AthenaArtifactRecord {
 };
 
 struct AthenaArtifactParagraphLocation {
+  path parent;
   int focus_child= -1;
   int first_child= -1;
   int last_child= -1;

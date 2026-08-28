@@ -43,6 +43,7 @@ private slots:
   void selectsDefinitionRangeWithConfiguredModel ();
   void extractsEnunciationsBoldTextAndProofLink ();
   void boundsBoldDefinitionCandidatesAtEnunciations ();
+  void isolatesStructuredBoldBlocks ();
   void locatesStoredParagraphRange ();
   void doesNotLinkNonAdjacentProof ();
   void excludesBoldCandidatesRejectedBySemanticSelector ();
@@ -86,14 +87,16 @@ TestArtifacts::validatesDefinitionRangeModelOutput () {
   QVERIFY (parse ("[]").empty ());
   QCOMPARE (parse ("Answer: [-1, 0, 1]"),
             std::vector<int> ({-1, 0, 1}));
+  QCOMPARE (parse ("Answer: [-1, 1]"),
+            std::vector<int> ({-1, 0, 1}));
   QVERIFY (parse ("[2]").empty ());
-  QVERIFY (parse ("[0, 2]").empty ());
+  QCOMPARE (parse ("[0, 2]"), std::vector<int> ({0, 1, 2}));
   QVERIFY (parse ("[1, 0]").empty ());
   QVERIFY (parse ("[0, 0]").empty ());
   QVERIFY (parse ("[0, 9]").empty ());
   QVERIFY (parse ("[0, prose]").empty ());
   QCOMPARE (parse ("[2]", true), std::vector<int> ({0}));
-  QCOMPARE (parse ("[0, 2]", true), std::vector<int> ({0}));
+  QCOMPARE (parse ("[0, 2]", true), std::vector<int> ({0, 1, 2}));
   QVERIFY (parse ("[]", true).empty ());
 }
 
@@ -352,6 +355,53 @@ TestArtifacts::boundsBoldDefinitionCandidatesAtEnunciations () {
   QCOMPARE (bold->definition_candidates[1].first, 1);
   QVERIFY (bold->definition_candidates[0].second.find ("equation*") !=
            std::string::npos);
+}
+
+void
+TestArtifacts::isolatesStructuredBoldBlocks () {
+  MissingRangeModel noModel;
+  tree first_body (DOCUMENT);
+  first_body << compound ("strong", "Group Theory")
+             << compound ("transclude", "", "Group Theory.Aspect", "",
+                          "Aspect Abstract Algebra -> Group Theory");
+  tree second_body (DOCUMENT);
+  second_body << compound ("strong", "Ring Theory")
+              << "Unrelated second block.";
+  tree body (DOCUMENT);
+  body << "A long introductory paragraph that belongs to neither block."
+       << compound ("note", first_body)
+       << compound ("note", second_body);
+  tree document (DOCUMENT);
+  document << compound ("TeXmacs", "2.1.4")
+           << compound ("style", "generic")
+           << compound ("body", body);
+
+  std::vector<AthenaArtifactRecord> records;
+  std::string error;
+  QVERIFY2 (athena_artifacts_extract_document (
+              document, "Scope.ath", records, error), error.c_str ());
+  std::vector<const AthenaArtifactRecord*> bold;
+  for (const auto& record: records)
+    if (record.origin == "bold-text") bold.push_back (&record);
+  QCOMPARE (bold.size (), (size_t) 2);
+  QCOMPARE (bold[0]->definition_candidates.size (), (size_t) 2);
+  QCOMPARE (bold[1]->definition_candidates.size (), (size_t) 2);
+  QVERIFY (bold[0]->definition_candidates[0].second.find (
+             "Group Theory") != std::string::npos);
+  QVERIFY (bold[0]->definition_candidates[1].second.find (
+             "Group Theory.Aspect") != std::string::npos);
+  QVERIFY (bold[0]->definition_candidates[1].second.find (
+             "Unrelated second block") == std::string::npos);
+
+  AthenaArtifactRecord located_record= *bold[0];
+  located_record.paragraph_offsets= {0, 1};
+  AthenaArtifactParagraphLocation location;
+  QVERIFY2 (athena_artifact_locate_paragraph (
+              document, located_record, location, error), error.c_str ());
+  QVERIFY (location.parent == path (1) * 0);
+  QCOMPARE (location.focus_child, 0);
+  QCOMPARE (location.first_child, 0);
+  QCOMPARE (location.last_child, 1);
 }
 
 void

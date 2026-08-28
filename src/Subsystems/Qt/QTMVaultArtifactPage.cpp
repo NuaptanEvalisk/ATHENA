@@ -136,29 +136,21 @@ bool load_artifact_source (const AthenaArtifactRecord& record,
   return true;
 }
 
-int top_index (path p) {
-  return is_nil (p) ? -1 : p->item;
-}
-
 bool pair_wraps_range (const TransclusionAnchorPair& pair,
-                       int first, int last) {
-  int upper= top_index (pair.upperWhere);
-  int lower= top_index (pair.lowerWhere);
-  return upper >= 0 && lower >= 0 && upper < first && lower > last;
+                       path first, path last) {
+  return path_less (pair.upperWhere, first) &&
+         path_less (last, pair.lowerWhere);
 }
 
 int tightest_wrapping_pair (
-  const std::vector<TransclusionAnchorPair>& pairs, int first, int last) {
+  const std::vector<TransclusionAnchorPair>& pairs, path first, path last) {
   int best= -1;
   for (int i=0; i<(int) pairs.size (); i++) {
     if (!pair_wraps_range (pairs[i], first, last)) continue;
     if (best < 0 ||
-        top_index (pairs[i].upperWhere) >
-          top_index (pairs[best].upperWhere) ||
-        (top_index (pairs[i].upperWhere) ==
-           top_index (pairs[best].upperWhere) &&
-         top_index (pairs[i].lowerWhere) <
-           top_index (pairs[best].lowerWhere)))
+        path_less (pairs[best].upperWhere, pairs[i].upperWhere) ||
+        (pairs[i].upperWhere == pairs[best].upperWhere &&
+         path_less (pairs[i].lowerWhere, pairs[best].lowerWhere)))
       best= i;
   }
   return best;
@@ -187,16 +179,63 @@ QString unique_paragraph_anchor (
   return candidate;
 }
 
-tree insert_paragraph_anchors (tree body, int first, int last,
-                               const QString& upper,
-                               const QString& lower) {
+tree insert_paragraph_anchors_at (tree value, path parent, int first, int last,
+                                  const QString& upper,
+                                  const QString& lower) {
+  if (!is_nil (parent)) {
+    int child= parent->item;
+    if (!is_compound (value) || child < 0 || child >= N(value))
+      return copy (value);
+    tree result= copy (value);
+    result[child]= insert_paragraph_anchors_at (
+      value[child], parent->next, first, last, upper, lower);
+    return result;
+  }
+  if (!is_document (value)) return copy (value);
   tree result (DOCUMENT);
-  for (int i=0; i<N(body); i++) {
+  for (int i=0; i<N(value); i++) {
     if (i == first) result << compound ("label", from_qstring (upper));
-    result << copy (body[i]);
+    result << copy (value[i]);
     if (i == last) result << compound ("label", from_qstring (lower));
   }
   return result;
+}
+
+tree insert_paragraph_anchors (tree body, path parent, int first, int last,
+                               const QString& upper,
+                               const QString& lower) {
+  return insert_paragraph_anchors_at (
+    body, parent, first, last, upper, lower);
+}
+
+tree select_nested_paragraphs (tree value, path parent, int first, int last) {
+  if (!is_nil (parent)) {
+    int child= parent->item;
+    if (!is_compound (value) || child < 0 || child >= N(value))
+      return copy (value);
+    tree result= copy (value);
+    result[child]= select_nested_paragraphs (
+      value[child], parent->next, first, last);
+    return result;
+  }
+  if (!is_document (value)) return copy (value);
+  tree selected (DOCUMENT);
+  for (int i=first; i<=last && i<N(value); i++)
+    if (i >= 0) selected << copy (value[i]);
+  return selected;
+}
+
+tree build_paragraph_preview (tree body,
+                              const AthenaArtifactParagraphLocation& location) {
+  if (is_nil (location.parent))
+    return build_preview_from_anchor_range (
+      body, path (location.first_child), path (location.last_child));
+  int top= location.parent->item;
+  if (top < 0 || top >= N(body)) return tree (DOCUMENT, "");
+  tree block= select_nested_paragraphs (
+    body[top], location.parent->next,
+    location.first_child, location.last_child);
+  return tree (DOCUMENT, compound ("marked", block));
 }
 
 bool save_anchored_body (ArtifactSource& source, tree body, QString& error) {
@@ -258,8 +297,10 @@ bool resolve_paragraph (
   collect_anchors (source.body, path (), anchors);
   std::vector<TransclusionAnchorPair> pairs=
     collect_transclusion_pairs (anchors);
+  path first= location.parent * location.first_child;
+  path last= location.parent * location.last_child;
   int pairIndex= tightest_wrapping_pair (
-    pairs, location.first_child, location.last_child);
+    pairs, first, last);
   if (pairIndex >= 0) {
     selection.upper_anchor= pairs[pairIndex].upper;
     selection.lower_anchor= pairs[pairIndex].lower;
@@ -280,7 +321,7 @@ bool resolve_paragraph (
   selection.upper_anchor= stem + " {";
   selection.lower_anchor= stem + " }";
   tree updated= insert_paragraph_anchors (
-    source.body, location.first_child, location.last_child,
+    source.body, location.parent, location.first_child, location.last_child,
     selection.upper_anchor, selection.lower_anchor);
   return save_anchored_body (source, updated, error);
 }
@@ -315,8 +356,7 @@ bool locate_artifact_preview (
       error= qstr (locateError) + ". Rebuild artifacts and try again.";
       return false;
     }
-    previewBody= build_preview_from_anchor_range (
-      source.body, path (location.first_child), path (location.last_child));
+    previewBody= build_paragraph_preview (source.body, location);
     return true;
   }
   error= "Unsupported artifact origin.";

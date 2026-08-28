@@ -568,6 +568,7 @@ std::string latex_for_tree (const tree& t) {
 
 struct Paragraph {
   tree value;
+  path parent;
   int segment= 0;
   int first_child= -1;
   int last_child= -1;
@@ -673,27 +674,57 @@ void scan_enunciations (const tree& parent, const std::string& rel,
   }
 }
 
-void collect_paragraphs (const tree& body, std::vector<Paragraph>& paragraphs) {
-  if (!is_compound (body)) return;
-  int segment= 0;
-  for (int i=0; i<N(body); i++) {
-    const tree& child= body[i];
+bool contains_document (const tree& value) {
+  if (!is_compound (value)) return false;
+  if (is_document (value)) return true;
+  for (int i=0; i<N(value); i++)
+    if (contains_document (value[i])) return true;
+  return false;
+}
+
+void collect_paragraphs_in (const tree& value, path where,
+                            std::vector<Paragraph>& paragraphs,
+                            int& next_segment) {
+  if (!is_compound (value)) return;
+  if (!is_document (value)) {
+    for (int i=0; i<N(value); i++)
+      if (contains_document (value[i]))
+        collect_paragraphs_in (
+          value[i], where * i, paragraphs, next_segment);
+    return;
+  }
+
+  int segment= next_segment++;
+  for (int i=0; i<N(value); i++) {
+    const tree& child= value[i];
     std::string base;
     if (!enunciation_type (tag_name (child), base).empty ()) {
-      segment++;
+      segment= next_segment++;
       continue;
     }
     if (tag_name (child) == "label" || ignorable (child)) continue;
     if (standalone_attachment (child) && !paragraphs.empty () &&
-        paragraphs.back ().segment == segment) {
+        paragraphs.back ().segment == segment &&
+        paragraphs.back ().parent == where) {
       tree joined (CONCAT);
       joined << paragraphs.back ().value << child;
       paragraphs.back ().value= joined;
       paragraphs.back ().last_child= i;
       continue;
     }
-    paragraphs.push_back ({child, segment, i, i, ""});
+    if (contains_document (child)) {
+      collect_paragraphs_in (
+        child, where * i, paragraphs, next_segment);
+      segment= next_segment++;
+      continue;
+    }
+    paragraphs.push_back ({child, where, segment, i, i, ""});
   }
+}
+
+void collect_paragraphs (const tree& body, std::vector<Paragraph>& paragraphs) {
+  int next_segment= 0;
+  collect_paragraphs_in (body, path (), paragraphs, next_segment);
 }
 
 std::string offsets_text (const std::vector<int>& offsets) {
@@ -734,7 +765,7 @@ bool valid_definition_offsets (const AthenaArtifactRangeRequest& request,
 
 std::string range_request_hash (const AthenaArtifactRangeRequest& request) {
   std::ostringstream canonical;
-  canonical << "athena-artifact-range-v5\n"
+  canonical << "athena-artifact-range-v7\n"
             << request.keyword_latex.size () << ':' << request.keyword_latex
             << '\n';
   for (const auto& paragraph: request.paragraphs)
@@ -1841,6 +1872,7 @@ athena_artifact_locate_paragraph (
   location.focus_child= paragraphs[(size_t) focus].first_child;
   location.first_child= paragraphs[(size_t) first].first_child;
   location.last_child= paragraphs[(size_t) last].last_child;
+  location.parent= paragraphs[(size_t) focus].parent;
   return true;
 }
 
