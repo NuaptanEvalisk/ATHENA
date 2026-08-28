@@ -28,6 +28,11 @@ void athena_artifact_range_model_release ();
 
 int athena_artifact_range_batch_size ();
 
+std::vector<int> athena_artifact_parse_definition_range_output (
+  const std::string& output,
+  const std::vector<std::pair<int,std::string>>& paragraphs,
+  bool fallback_to_paragraph_zero);
+
 std::vector<std::vector<int>> athena_artifact_select_definition_ranges (
   const std::vector<AthenaArtifactRangeRequest>& requests,
   const std::string& model_path, const std::atomic<bool>* cancelled,

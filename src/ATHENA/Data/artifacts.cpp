@@ -54,6 +54,8 @@ namespace fs= std::filesystem;
 
 namespace {
 
+constexpr size_t range_checkpoint_batch_size= 128;
+
 void artifact_log (const std::string& message) {
   std::cout << "[artifacts] " << message << std::endl;
 }
@@ -227,6 +229,13 @@ bool open_databases (const fs::path& root, SqliteDb& holder,
     " UNIQUE(origin,content_uuid));"
     "CREATE INDEX IF NOT EXISTS artifacts_path_idx ON artifacts(path);"
     "CREATE INDEX IF NOT EXISTS artifacts_search_idx ON artifacts(display_text);"
+    "CREATE TABLE IF NOT EXISTS artifact_range_cache("
+    " path TEXT NOT NULL,mtime_ns INTEGER NOT NULL,size INTEGER NOT NULL,"
+    " request_hash TEXT NOT NULL,paragraph_offsets TEXT NOT NULL,"
+    " updated_at INTEGER NOT NULL,"
+    " PRIMARY KEY(path,mtime_ns,size,request_hash));"
+    "CREATE INDEX IF NOT EXISTS artifact_range_cache_path_idx "
+    "ON artifact_range_cache(path);"
     "CREATE TABLE IF NOT EXISTS artifact_identity_history("
     " sequence INTEGER PRIMARY KEY AUTOINCREMENT,path TEXT NOT NULL,"
     " origin TEXT NOT NULL,old_content_uuid TEXT,new_content_uuid TEXT,"
@@ -261,6 +270,20 @@ std::string collapse_spaces (const std::string& value) {
     out.push_back ((char) c);
   }
   return out;
+}
+
+bool path_in_configured_subtree (const fs::path& root, const fs::path& path,
+                                 const std::string& configured) {
+  fs::path subtree= fs::path (configured).lexically_normal ();
+  if (subtree.empty () || subtree.is_absolute ()) return false;
+  for (const fs::path& part: subtree)
+    if (part == "." || part == "..") return false;
+  fs::path relative= path.lexically_relative (root);
+  auto expected= subtree.begin ();
+  auto actual= relative.begin ();
+  for (; expected != subtree.end (); ++expected, ++actual)
+    if (actual == relative.end () || *actual != *expected) return false;
+  return true;
 }
 
 bool formatting_wrapper (const std::string& tag) {
@@ -543,6 +566,114 @@ std::vector<int> parse_offsets (const std::string& text) {
   return out;
 }
 
+bool valid_definition_offsets (const AthenaArtifactRangeRequest& request,
+                               const std::vector<int>& offsets) {
+  if (offsets.empty () ||
+      std::find (offsets.begin (), offsets.end (), 0) == offsets.end () ||
+      !std::is_sorted (offsets.begin (), offsets.end ()) ||
+      std::adjacent_find (offsets.begin (), offsets.end ()) != offsets.end ())
+    return false;
+  std::set<int> allowed;
+  for (const auto& paragraph: request.paragraphs)
+    allowed.insert (paragraph.first);
+  for (size_t i=0; i<offsets.size (); i++)
+    if (!allowed.count (offsets[i]) ||
+        (i > 0 && offsets[i] != offsets[i - 1] + 1))
+      return false;
+  return true;
+}
+
+std::string range_request_hash (const AthenaArtifactRangeRequest& request) {
+  std::ostringstream canonical;
+  canonical << "athena-artifact-range-v2\n"
+            << request.keyword_latex.size () << ':' << request.keyword_latex
+            << '\n';
+  for (const auto& paragraph: request.paragraphs)
+    canonical << paragraph.first << ':' << paragraph.second.size () << ':'
+              << paragraph.second << '\n';
+  return identity_fingerprint (canonical.str ());
+}
+
+bool load_range_checkpoint (sqlite3* db, const std::string& path,
+                            long long modified, long long size,
+                            const std::string& request_hash,
+                            const AthenaArtifactRangeRequest& request,
+                            std::vector<int>& offsets, bool& found,
+                            std::string& error) {
+  Statement statement;
+  if (!prepare (
+        db,
+        "SELECT paragraph_offsets FROM artifact_range_cache "
+        "WHERE path=?1 AND mtime_ns=?2 AND size=?3 AND request_hash=?4;",
+        statement, error))
+    return false;
+  bind_text (statement.st, 1, path);
+  sqlite3_bind_int64 (statement.st, 2, modified);
+  sqlite3_bind_int64 (statement.st, 3, size);
+  bind_text (statement.st, 4, request_hash);
+  int status= sqlite3_step (statement.st);
+  if (status == SQLITE_DONE) { found= false; return true; }
+  if (status != SQLITE_ROW) { error= sqlite3_errmsg (db); return false; }
+  offsets= parse_offsets (column_text (statement.st, 0));
+  found= valid_definition_offsets (request, offsets);
+  return true;
+}
+
+struct RangeCheckpoint {
+  std::string path;
+  long long modified= 0;
+  long long size= 0;
+  std::string request_hash;
+  std::vector<int> offsets;
+};
+
+bool store_range_checkpoints (sqlite3* db,
+                              const std::vector<RangeCheckpoint>& checkpoints,
+                              std::string& error) {
+  if (checkpoints.empty ()) return true;
+  if (!exec_sql (db, "BEGIN IMMEDIATE;", error)) return false;
+  bool committed= false;
+  auto rollback= [&] () {
+    if (!committed) {
+      std::string ignored;
+      exec_sql (db, "ROLLBACK;", ignored);
+    }
+  };
+  Statement insert;
+  if (!prepare (
+        db,
+        "INSERT INTO artifact_range_cache(path,mtime_ns,size,request_hash,"
+        "paragraph_offsets,updated_at) VALUES(?1,?2,?3,?4,?5,?6) "
+        "ON CONFLICT(path,mtime_ns,size,request_hash) DO UPDATE SET "
+        "paragraph_offsets=excluded.paragraph_offsets,"
+        "updated_at=excluded.updated_at;",
+        insert, error)) {
+    rollback ();
+    return false;
+  }
+  long long updated_at= (long long) std::chrono::duration_cast<
+    std::chrono::seconds> (
+      std::chrono::system_clock::now ().time_since_epoch ()).count ();
+  for (const RangeCheckpoint& checkpoint: checkpoints) {
+    sqlite3_reset (insert.st);
+    sqlite3_clear_bindings (insert.st);
+    bind_text (insert.st, 1, checkpoint.path);
+    sqlite3_bind_int64 (insert.st, 2, checkpoint.modified);
+    sqlite3_bind_int64 (insert.st, 3, checkpoint.size);
+    bind_text (insert.st, 4, checkpoint.request_hash);
+    bind_text (insert.st, 5, offsets_text (checkpoint.offsets));
+    sqlite3_bind_int64 (insert.st, 6, updated_at);
+    if (sqlite3_step (insert.st) != SQLITE_DONE) {
+      error= sqlite3_errmsg (db);
+      rollback ();
+      return false;
+    }
+  }
+  if (!exec_sql (db, "COMMIT;", error)) { rollback (); return false; }
+  committed= true;
+  return true;
+}
+
 bool extract (const tree& document, const std::string& rel,
               ExtractedDocument& extracted, std::string& error) {
   tree body= document_body (document);
@@ -690,21 +821,49 @@ bool extract_serial (const std::vector<DocumentWork>& work,
 }
 
 bool select_definition_ranges (
+  sqlite3* db, const std::vector<DocumentWork>& documents,
   std::map<std::string,ExtractedDocument>& extracted,
-  const AthenaArtifactsProgress& progress, size_t,
-  std::string& error, const AthenaArtifactRangeSelector& selector= {}) {
+  const AthenaArtifactsProgress& progress, std::string& error,
+  const AthenaArtifactRangeSelector& selector= {}) {
   struct ReleaseRangeModel {
     ~ReleaseRangeModel () { athena_artifact_range_model_release (); }
   } release_range_model;
   struct RangeWork {
     AthenaArtifactRecord* record;
     std::string path;
+    long long modified;
+    long long size;
+    AthenaArtifactRangeRequest request;
+    std::string request_hash;
   };
+  std::unordered_map<std::string,const DocumentWork*> metadata;
+  for (const DocumentWork& document: documents)
+    metadata[document.rel]= &document;
   std::vector<RangeWork> work;
-  for (auto& document: extracted)
-    for (AthenaArtifactRecord& record: document.second.records)
-      if (record.origin == "bold-text")
-        work.push_back ({&record, document.first});
+  for (auto& document: extracted) {
+    auto document_metadata= metadata.find (document.first);
+    if (document_metadata == metadata.end ()) {
+      error= "Artifact range selection has no source metadata for " +
+             document.first;
+      return false;
+    }
+    for (AthenaArtifactRecord& record: document.second.records) {
+      if (record.origin != "bold-text") continue;
+      AthenaArtifactRangeRequest request;
+      request.keyword_latex= latex_for_tree (
+        texmacs_to_tree (to_tm (record.keyword_tree)));
+      record.keyword_latex= request.keyword_latex;
+      request.paragraphs.reserve (record.definition_candidates.size ());
+      for (const auto& candidate: record.definition_candidates)
+        request.paragraphs.push_back (
+          {candidate.first, latex_for_tree (
+                              texmacs_to_tree (to_tm (candidate.second)))});
+      const DocumentWork& source= *document_metadata->second;
+      work.push_back ({&record, document.first, source.modified, source.size,
+                       std::move (request), {}});
+      work.back ().request_hash= range_request_hash (work.back ().request);
+    }
+  }
   size_t range_total= work.size ();
   artifact_log ("definition-range phase: " + std::to_string (range_total) +
                 " bold-text artifact(s) require semantic range selection");
@@ -718,90 +877,108 @@ bool select_definition_ranges (
     return true;
   }
 
-  std::string model_path= athena_artifact_range_model_path ();
-  if (!selector && !athena_artifact_range_model_available (model_path)) {
-    for (const RangeWork& item: work) item.record->paragraph_offsets= {0};
-    if (!report_progress (
-          progress, AthenaArtifactsBuildPhase::SelectingDefinitionRanges,
-          range_total, range_total, work.back ().path,
-          work.back ().record->display_text)) {
-      error= "Artifact build cancelled";
-      return false;
-    }
-    return true;
-  }
-
-  std::vector<AthenaArtifactRangeRequest> requests;
-  requests.reserve (range_total);
+  std::vector<std::vector<int>> selected (range_total);
+  std::vector<size_t> missing;
+  size_t cached= 0;
   for (size_t index=0; index<work.size (); index++) {
-    AthenaArtifactRecord& record= *work[index].record;
     if (!report_progress (
           progress, AthenaArtifactsBuildPhase::SelectingDefinitionRanges,
-          0, range_total, work[index].path, record.display_text)) {
+          cached, range_total, work[index].path,
+          work[index].record->display_text)) {
       error= "Artifact build cancelled";
       return false;
     }
-    AthenaArtifactRangeRequest request;
-    request.keyword_latex= latex_for_tree (
-      texmacs_to_tree (to_tm (record.keyword_tree)));
-    record.keyword_latex= request.keyword_latex;
-    request.paragraphs.reserve (record.definition_candidates.size ());
-    for (const auto& candidate: record.definition_candidates)
-      request.paragraphs.push_back (
-        {candidate.first, latex_for_tree (
-                            texmacs_to_tree (to_tm (candidate.second)))});
+    bool found= false;
+    if (db && !load_range_checkpoint (
+                db, work[index].path, work[index].modified, work[index].size,
+                work[index].request_hash, work[index].request, selected[index],
+                found, error))
+      return false;
+    if (found) cached++;
+    else missing.push_back (index);
     artifact_log ("queued definition range " +
                   std::to_string (index + 1) + "/" +
                   std::to_string (range_total) + " in " + work[index].path +
-                  ": \"" + record.display_text + "\" (" +
-                  std::to_string (request.paragraphs.size ()) +
-                  " candidate paragraph(s))");
-    requests.push_back (std::move (request));
+                  ": \"" + work[index].record->display_text + "\" (" +
+                  std::to_string (work[index].request.paragraphs.size ()) +
+                  " candidate paragraph(s)" +
+                  (found ? ", checkpoint hit)" : ")"));
+  }
+  artifact_log ("definition-range incremental plan: " +
+                std::to_string (cached) + " checkpoint hit(s), " +
+                std::to_string (missing.size ()) + " request(s) to evaluate");
+
+  std::string model_path= athena_artifact_range_model_path ();
+  if (!selector && !athena_artifact_range_model_available (model_path)) {
+    for (size_t index: missing) selected[index]= {0};
+    missing.clear ();
   }
 
   auto started= std::chrono::steady_clock::now ();
-  std::vector<std::vector<int>> selected;
-  if (selector) {
-    bool ok= selector (
-      requests, selected,
-      [&] (size_t current, size_t total, size_t queued, size_t running) {
-        size_t index= std::min (current, range_total - 1);
-        return report_progress (
-          progress, AthenaArtifactsBuildPhase::SelectingDefinitionRanges,
-          current, total, work[index].path,
-          work[index].record->display_text, queued, running);
-      }, error);
-    if (!ok) return false;
-  }
-  else {
-    std::atomic<bool> cancelled (false);
-    std::atomic<size_t> completed (0);
-    std::future<std::vector<std::vector<int>>> inference= std::async (
-      std::launch::async,
-      [requests, model_path, &cancelled, &completed] () {
-        return athena_artifact_select_definition_ranges (
-          requests, model_path, &cancelled, &completed);
-      });
-    while (inference.wait_for (std::chrono::milliseconds (40)) !=
-           std::future_status::ready) {
-      size_t current= std::min (completed.load (), range_total);
-      size_t index= std::min (current, range_total - 1);
-      if (!report_progress (
-            progress, AthenaArtifactsBuildPhase::SelectingDefinitionRanges,
-            current, range_total, work[index].path,
-            work[index].record->display_text))
-        cancelled.store (true);
+  for (size_t base=0; base<missing.size (); base += range_checkpoint_batch_size) {
+    size_t count= std::min (range_checkpoint_batch_size,
+                           missing.size () - base);
+    std::vector<AthenaArtifactRangeRequest> requests;
+    requests.reserve (count);
+    for (size_t i=0; i<count; i++)
+      requests.push_back (work[missing[base + i]].request);
+    std::vector<std::vector<int>> chunk_selected;
+    auto update= [&] (size_t current, size_t, size_t queued, size_t running) {
+      size_t local= std::min (current, count);
+      size_t detail_index= missing[base + std::min (local, count - 1)];
+      return report_progress (
+        progress, AthenaArtifactsBuildPhase::SelectingDefinitionRanges,
+        cached + base + local, range_total, work[detail_index].path,
+        work[detail_index].record->display_text, queued, running);
+    };
+    if (selector) {
+      if (!selector (requests, chunk_selected, update, error)) return false;
     }
-    try { selected= inference.get (); }
-    catch (const std::exception& exception) {
-      error= std::string ("Artifact range inference failed: ") +
-             exception.what ();
+    else {
+      std::atomic<bool> cancelled (false);
+      std::atomic<size_t> completed (0);
+      std::future<std::vector<std::vector<int>>> inference= std::async (
+        std::launch::async,
+        [requests, model_path, &cancelled, &completed] () {
+          return athena_artifact_select_definition_ranges (
+            requests, model_path, &cancelled, &completed);
+        });
+      while (inference.wait_for (std::chrono::milliseconds (40)) !=
+             std::future_status::ready)
+        if (!update (std::min (completed.load (), count), count, 0, 0))
+          cancelled.store (true);
+      try { chunk_selected= inference.get (); }
+      catch (const std::exception& exception) {
+        error= std::string ("Artifact range inference failed: ") +
+               exception.what ();
+        return false;
+      }
+      if (cancelled.load ()) {
+        error= "Artifact build cancelled";
+        return false;
+      }
+    }
+    if (chunk_selected.size () != count) {
+      error= "Artifact range inference returned an incomplete result";
       return false;
     }
-    if (cancelled.load ()) {
-      error= "Artifact build cancelled";
-      return false;
+    std::vector<RangeCheckpoint> checkpoints;
+    checkpoints.reserve (count);
+    for (size_t i=0; i<count; i++) {
+      size_t index= missing[base + i];
+      if (!valid_definition_offsets (work[index].request, chunk_selected[i])) {
+        error= "Artifact range inference returned invalid offsets";
+        return false;
+      }
+      selected[index]= std::move (chunk_selected[i]);
+      checkpoints.push_back ({work[index].path, work[index].modified,
+                              work[index].size, work[index].request_hash,
+                              selected[index]});
     }
+    if (db && !store_range_checkpoints (db, checkpoints, error)) return false;
+    artifact_log ("definition-range checkpoint committed: completed=" +
+                  std::to_string (cached + base + count) + "/" +
+                  std::to_string (range_total));
   }
   if (selected.size () != work.size ()) {
     error= "Artifact range inference returned an incomplete result";
@@ -862,7 +1039,7 @@ pid_t start_extract_worker (const fs::path& executable,
   _exit (127);
 }
 
-bool extract_parallel (const std::vector<DocumentWork>& work,
+bool extract_parallel (sqlite3* db, const std::vector<DocumentWork>& work,
                        std::map<std::string,ExtractedDocument>& extracted,
                        const AthenaArtifactsProgress& progress,
                        const AthenaArtifactRangeSelector& selector,
@@ -870,7 +1047,7 @@ bool extract_parallel (const std::vector<DocumentWork>& work,
   if (work.size () < 2) {
     if (!extract_serial (work, extracted, progress, error)) return false;
     return select_definition_ranges (
-      extracted, progress, work.size (), error, selector);
+      db, work, extracted, progress, error, selector);
   }
   const char* configured= std::getenv ("ATHENA_ARTIFACT_WORKER_EXECUTABLE");
   fs::path executable= configured && *configured ? fs::path (configured)
@@ -878,7 +1055,7 @@ bool extract_parallel (const std::vector<DocumentWork>& work,
   if (executable.empty () || !fs::exists (executable)) {
     if (!extract_serial (work, extracted, progress, error)) return false;
     return select_definition_ranges (
-      extracted, progress, work.size (), error, selector);
+      db, work, extracted, progress, error, selector);
   }
   unsigned hardware= std::max (1u, std::thread::hardware_concurrency ());
   int jobs= (int) std::min<size_t> (work.size (), hardware);
@@ -947,21 +1124,21 @@ bool extract_parallel (const std::vector<DocumentWork>& work,
   if (!ok) return false;
   // The parent owns one model instance and performs all semantic range choices.
   return select_definition_ranges (
-    extracted, progress, work.size (), error, selector);
+    db, work, extracted, progress, error, selector);
 }
 #endif
 
-bool extract_documents (const std::vector<DocumentWork>& work,
+bool extract_documents (sqlite3* db, const std::vector<DocumentWork>& work,
                         std::map<std::string,ExtractedDocument>& extracted,
                         const AthenaArtifactsProgress& progress,
                         const AthenaArtifactRangeSelector& selector,
                         std::string& error) {
 #if defined(__unix__) || defined(__APPLE__)
-  return extract_parallel (work, extracted, progress, selector, error);
+  return extract_parallel (db, work, extracted, progress, selector, error);
 #else
   if (!extract_serial (work, extracted, progress, error)) return false;
   return select_definition_ranges (
-    extracted, progress, work.size (), error, selector);
+    db, work, extracted, progress, error, selector);
 #endif
 }
 
@@ -1278,6 +1455,20 @@ bool replace_document (sqlite3* db, const std::string& rel,
   if (sqlite3_step (doc.st) != SQLITE_DONE) {
     error= sqlite3_errmsg (db); return false;
   }
+  Statement prune_cache;
+  if (!prepare (
+        db,
+        "DELETE FROM artifact_range_cache WHERE path=?1 AND "
+        "(mtime_ns<>?2 OR size<>?3);",
+        prune_cache, error))
+    return false;
+  bind_text (prune_cache.st, 1, rel);
+  sqlite3_bind_int64 (prune_cache.st, 2, modified);
+  sqlite3_bind_int64 (prune_cache.st, 3, size);
+  if (sqlite3_step (prune_cache.st) != SQLITE_DONE) {
+    error= sqlite3_errmsg (db);
+    return false;
+  }
   return true;
 }
 
@@ -1314,6 +1505,7 @@ bool delete_document (sqlite3* db, const std::string& rel,
       "DELETE FROM artifacts WHERE path=?1;",
       "DELETE FROM enunciations.entries WHERE path=?1;",
       "DELETE FROM bold_text.entries WHERE path=?1;",
+      "DELETE FROM artifact_range_cache WHERE path=?1;",
       "DELETE FROM documents WHERE path=?1;"}) {
     Statement st;
     if (!prepare (db, sql, st, error)) return false;
@@ -1386,8 +1578,11 @@ athena_artifacts_extract_document (
   const tree& document, const std::string& relative_path,
   std::vector<AthenaArtifactRecord>& records, std::string& error) {
   std::map<std::string,ExtractedDocument> extracted;
+  std::vector<DocumentWork> source= {
+    {fs::path (), relative_path, 0, 0}
+  };
   if (!extract (document, relative_path, extracted[relative_path], error) ||
-      !select_definition_ranges (extracted, {}, 1, error))
+      !select_definition_ranges (nullptr, source, extracted, {}, error))
     return false;
   records= std::move (extracted[relative_path].records);
   return true;
@@ -1494,6 +1689,14 @@ athena_artifacts_build (
 
   std::vector<fs::path> documents= full_vault ? scan_ath_documents (root)
                                                : requested_documents;
+  if (full_vault && !info.maintenance_summary_path.empty ())
+    documents.erase (
+      std::remove_if (
+        documents.begin (), documents.end (), [&] (const fs::path& path) {
+          return path_in_configured_subtree (
+            root, path, info.maintenance_summary_path);
+        }),
+      documents.end ());
   std::sort (documents.begin (), documents.end ());
   result.documents_seen= documents.size ();
   artifact_log ("discovered " + std::to_string (documents.size ()) +
@@ -1528,7 +1731,8 @@ athena_artifacts_build (
 
   std::map<std::string,ExtractedDocument> extracted;
   if (!extract_documents (
-        work, extracted, progress, options.range_selector, error)) return false;
+        holder.db, work, extracted, progress, options.range_selector, error))
+    return false;
 
   if (!exec_sql (holder.db, "BEGIN IMMEDIATE;", error)) return false;
   bool committed= false;

@@ -86,8 +86,16 @@ if (NOT WIN32)
        "${ATHENA_SCHEME_BYTECODE_DIR}/.complete")
   set (ATHENA_SCHEME_COMPILE_HOME
        "${ATHENA_BINARY_DIR}/athena-scheme-compile-home")
-  get_filename_component (ATHENA_LLAMA_RUNTIME_DIR
-                          "${LLAMA_CPP_LIBRARY}" DIRECTORY)
+  if (LLAMA_CPP_LIBRARY)
+    get_filename_component (ATHENA_LLAMA_RUNTIME_DIR
+                            "${LLAMA_CPP_LIBRARY}" DIRECTORY)
+  elseif (LLAMA_LIBRARY_DIRS)
+    list (GET LLAMA_LIBRARY_DIRS 0 ATHENA_LLAMA_RUNTIME_DIR)
+  else ()
+    set (ATHENA_LLAMA_RUNTIME_DIR "")
+  endif ()
+  get_filename_component (ATHENA_RESVG_RUNTIME_DIR
+                          "${RESVG_LIBRARY}" DIRECTORY)
   add_custom_command (
     OUTPUT "${ATHENA_SCHEME_BYTECODE_STAMP}"
     COMMAND ${CMAKE_COMMAND} -E make_directory
@@ -103,6 +111,7 @@ if (NOT WIN32)
             "${ATHENA_SOURCE_DIR}/ATHENA/progs"
             "${ATHENA_LLAMA_RUNTIME_DIR}"
             "${ATHENA_BINARY_DIR}/x64/lib"
+            "${ATHENA_RESVG_RUNTIME_DIR}"
             "${ATHENA_SCHEME_COMPILE_JOBS}"
             "${ATHENA_GUILE_RUNTIME_ID}"
     DEPENDS ${ATHENA_SCHEME_SOURCES}

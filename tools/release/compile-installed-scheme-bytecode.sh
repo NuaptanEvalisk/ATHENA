@@ -31,5 +31,6 @@ exec /bin/bash "$tools_root/compile-athena-scheme-bytecode.sh" \
   "$runtime_root/progs" \
   "$runtime_root/lib" \
   "$runtime_root/lib" \
+  "$runtime_root/lib" \
   "$jobs" \
   "$runtime_id"

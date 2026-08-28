@@ -12,6 +12,8 @@
 #include "rag_delegation_crypto.hpp"
 #include "rag_embedding.hpp"
 
+#include "ATHENA/Data/vaultfile_json.hpp"
+
 #include <sqlite3.h>
 
 #include <algorithm>
@@ -331,6 +333,17 @@ valid_delegated_rel_path (const std::string& rel) {
 std::vector<fs::path>
 scan_delegation_ath_files (const fs::path& vault_root) {
   std::vector<fs::path> out;
+  fs::path maintenance_root;
+  AthenaVaultfileInfo info;
+  std::string vault_error;
+  if (athena_vaultfile_read (vault_root, info, vault_error)) {
+    fs::path configured= fs::path (info.maintenance_summary_path)
+                           .lexically_normal ();
+    bool valid= !configured.empty () && !configured.is_absolute ();
+    for (const fs::path& part: configured)
+      valid= valid && part != "." && part != "..";
+    if (valid) maintenance_root= vault_root / configured;
+  }
   std::error_code ec;
   if (!fs::exists (vault_root, ec)) return out;
   fs::recursive_directory_iterator it (
@@ -341,7 +354,9 @@ scan_delegation_ath_files (const fs::path& vault_root) {
     std::string name= p.filename ().string ();
     if (it->is_directory (ec)) {
       if (name == ".backup" || name == ".athena" || name == ".git" ||
-          name == "assets" || (!name.empty () && name[0] == '.'))
+          name == "assets" || (!name.empty () && name[0] == '.') ||
+          (!maintenance_root.empty () &&
+           p.lexically_normal () == maintenance_root))
         it.disable_recursion_pending ();
       continue;
     }

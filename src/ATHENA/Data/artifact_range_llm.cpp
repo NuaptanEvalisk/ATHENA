@@ -22,6 +22,7 @@
 #include <cstdlib>
 #include <mutex>
 #include <regex>
+#include <set>
 #include <sstream>
 #include <thread>
 #include <unordered_map>
@@ -216,33 +217,6 @@ std::string make_shared_prompt_suffix (
     out << entry.first << " = C" << entry.second << "\n";
   out << "Answer:";
   return out.str ();
-}
-
-std::vector<int> parse_result (
-  const std::string& text,
-  const std::vector<std::pair<int,std::string>>& paragraphs,
-  bool fallback_to_paragraph_zero) {
-  std::vector<int> allowed;
-  for (const auto& p: paragraphs) allowed.push_back (p.first);
-  std::vector<int> out;
-  std::smatch match;
-  if (!std::regex_search (text, match, std::regex ("\\[([^\\]]*)\\]")))
-    return fallback_to_paragraph_zero ? std::vector<int> {0}:
-                                        std::vector<int> {};
-  std::regex integer ("-?[0-9]+");
-  std::string body= match[1].str ();
-  for (std::sregex_iterator it (body.begin (), body.end (), integer), end;
-       it != end; ++it) {
-    int value= std::stoi (it->str ());
-    if (std::find (allowed.begin (), allowed.end (), value) != allowed.end () &&
-        std::find (out.begin (), out.end (), value) == out.end ())
-      out.push_back (value);
-  }
-  if (std::find (out.begin (), out.end (), 0) == out.end ())
-    return fallback_to_paragraph_zero ? std::vector<int> {0}:
-                                        std::vector<int> {};
-  std::sort (out.begin (), out.end ());
-  return out;
 }
 
 class RangeModel {
@@ -524,7 +498,7 @@ public:
       for (State& state: states) {
         if (!state.done) finish (state);
         const AthenaArtifactRangeRequest& request= requests[state.request];
-        results[state.request]= parse_result (
+        results[state.request]= athena_artifact_parse_definition_range_output (
           state.answer, request.paragraphs, fallback_to_paragraph_zero);
         std::string output_log= "definition-range model output: request=" +
           std::to_string (state.request + 1);
@@ -652,8 +626,10 @@ private:
     parallel_capacity= parallelism;
     cp.n_seq_max= (uint32_t) parallel_capacity + 1;
     cp.n_ctx= context_tokens + 256 * (uint32_t) parallel_capacity;
-    cp.n_batch= std::max (
-      prefill_batch_tokens, parallel_capacity * 128);
+    // The admission check permits the combined per-sequence suffixes to fill
+    // the logical context.  n_batch must cover that same bound; n_ubatch still
+    // limits each physical compute chunk to keep GPU work bounded.
+    cp.n_batch= cp.n_ctx;
     cp.n_ubatch= prefill_batch_tokens;
     cp.kv_unified= true;
     // Intel's SYCL Flash Attention path is substantially slower for the
@@ -668,7 +644,9 @@ private:
                                  std::to_string (gpu_layers)) +
                ", threads=" + std::to_string (cp.n_threads) +
                ", parallel-sequences=" +
-               std::to_string (parallel_capacity));
+               std::to_string (parallel_capacity) + ", batch-tokens=" +
+               std::to_string (cp.n_batch) + ", microbatch-tokens=" +
+               std::to_string (cp.n_ubatch));
     ctx= llama_init_from_model (model, cp);
     if (!ctx) { unload (); return false; }
     for (int lane=0; lane<parallel_capacity; lane++) {
@@ -750,6 +728,48 @@ athena_artifact_range_model_release () {
 int
 athena_artifact_range_batch_size () {
   return configured_batch_size ();
+}
+
+std::vector<int>
+athena_artifact_parse_definition_range_output (
+  const std::string& output,
+  const std::vector<std::pair<int,std::string>>& paragraphs,
+  bool fallback_to_paragraph_zero) {
+  auto invalid= [fallback_to_paragraph_zero] () {
+    return fallback_to_paragraph_zero ? std::vector<int> {0}:
+                                        std::vector<int> {};
+  };
+  std::smatch match;
+  if (!std::regex_search (output, match, std::regex ("\\[([^\\]]*)\\]")))
+    return invalid ();
+
+  std::string body= match[1].str ();
+  static const std::regex list_pattern (
+    "^\\s*-?[0-9]+\\s*(,\\s*-?[0-9]+\\s*)*$");
+  if (!std::regex_match (body, list_pattern)) return invalid ();
+
+  std::set<int> allowed;
+  for (const auto& paragraph: paragraphs) allowed.insert (paragraph.first);
+  std::vector<int> offsets;
+  std::regex integer ("-?[0-9]+");
+  try {
+    for (std::sregex_iterator it (body.begin (), body.end (), integer), end;
+         it != end; ++it) {
+      int offset= std::stoi (it->str ());
+      if (!allowed.count (offset) ||
+          std::find (offsets.begin (), offsets.end (), offset) != offsets.end ())
+        return invalid ();
+      offsets.push_back (offset);
+    }
+  }
+  catch (const std::exception&) { return invalid (); }
+
+  if (std::find (offsets.begin (), offsets.end (), 0) == offsets.end () ||
+      !std::is_sorted (offsets.begin (), offsets.end ()))
+    return invalid ();
+  for (size_t i=1; i<offsets.size (); i++)
+    if (offsets[i] != offsets[i - 1] + 1) return invalid ();
+  return offsets;
 }
 
 std::vector<std::vector<int>>

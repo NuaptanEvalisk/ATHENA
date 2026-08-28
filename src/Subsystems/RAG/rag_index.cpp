@@ -307,6 +307,17 @@ shard_accepts (const std::string& rel, int shard_index, int shard_count) {
 static std::vector<fs::path>
 scan_ath_files (const fs::path& root) {
   std::vector<fs::path> out;
+  fs::path maintenance_root;
+  AthenaVaultfileInfo info;
+  std::string vault_error;
+  if (athena_vaultfile_read (root, info, vault_error)) {
+    fs::path configured= fs::path (info.maintenance_summary_path)
+                           .lexically_normal ();
+    bool valid= !configured.empty () && !configured.is_absolute ();
+    for (const fs::path& part: configured)
+      valid= valid && part != "." && part != "..";
+    if (valid) maintenance_root= root / configured;
+  }
   std::error_code ec;
   fs::recursive_directory_iterator it (
     root, fs::directory_options::skip_permission_denied, ec);
@@ -315,7 +326,9 @@ scan_ath_files (const fs::path& root) {
     fs::path p= it->path ();
     if (it->is_directory (ec)) {
       std::string name= p.filename ().string ();
-      if (name == ".backup" || name == ".git")
+      if (name == ".backup" || name == ".git" ||
+          (!maintenance_root.empty () &&
+           p.lexically_normal () == maintenance_root))
         it.disable_recursion_pending ();
       continue;
     }

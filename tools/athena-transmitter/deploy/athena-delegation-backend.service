@@ -7,8 +7,11 @@ After=network-online.target
 Type=simple
 WorkingDirectory=/home/felix/data/Software/ATHENA-rag-runtime
 Environment=ATHENA_GUILE_RUNTIME_ROOT=/home/felix/data/Software/ATHENA-rag-runtime/lib/athena-guile
-Environment=LD_LIBRARY_PATH=/home/felix/data/Software/ATHENA-rag-runtime/lib/athena-guile/lib:/home/felix/data/Software/ATHENA-rag-runtime/backend-lib:/home/felix/opt/llama-p100-rag/lib64:/home/felix/opt/resvg/lib64:/home/felix/data/Software/ATHENA-delegation-current/build_p100/x64/lib
-ExecStart=/home/felix/data/Software/ATHENA-rag-runtime/bin/ATHENA.bin -H --rag-server /home/felix/.local/share/athena-rag-backend/vault --rag-port 8765 --rag-listen-address 100.103.71.75 --delegation-key-dir /home/felix/.local/share/athena-rag-backend/keys --delegation-accepted-clients /home/felix/.local/share/athena-rag-backend/keys/accepted-clients.json --rag-embedding-model /home/felix/data/Software/embedding/bge-m3-FP16.gguf --rag-embedding-device auto --artifact-range-model /home/felix/data/Software/ATHENA-rag-runtime/models/artifact-range-model.gguf --artifact-range-batch-size 16 --skip-fonts-cache
+Environment=ATHENA_GUILE_CACHE_PATH=/home/felix/data/Software/ATHENA-rag-runtime/lib/athena-scheme/athena-guile-3.0.10-native
+Environment=GUILE_LOAD_COMPILED_PATH=/home/felix/data/Software/ATHENA-rag-runtime/lib/athena-scheme/athena-guile-3.0.10-native
+Environment=GUILE_AUTO_COMPILE=0
+Environment=LD_LIBRARY_PATH=/home/felix/data/Software/ATHENA-rag-runtime/lib/athena-guile/lib:/home/felix/data/Software/ATHENA-rag-runtime/lib:/home/felix/opt/llama-p100-rag/lib64:/home/felix/opt/resvg/lib64
+ExecStart=/home/felix/data/Software/ATHENA-rag-runtime/bin/ATHENA.bin -H --rag-server /home/felix/.local/share/athena-rag-backend/vault --rag-port 8765 --rag-listen-address 100.103.71.75 --delegation-key-dir /home/felix/.local/share/athena-rag-backend/keys --delegation-accepted-clients /home/felix/.local/share/athena-rag-backend/keys/accepted-clients.json --rag-embedding-model /home/felix/data/Software/embedding/bge-m3-FP16.gguf --rag-embedding-device auto --artifact-range-model /home/felix/data/Software/embedding/artifact-range-model.gguf --artifact-range-batch-size 16 --skip-fonts-cache
 Restart=on-failure
 RestartSec=5
 TimeoutStopSec=90

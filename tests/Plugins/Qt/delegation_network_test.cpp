@@ -89,8 +89,12 @@ TestDelegationNetwork::exercisesLiveArtifactDelegation () {
             qPrintable (error));
   QCOMPARE (status, QString ("accepted"));
 
+  bool countOk= false;
+  int requestCount= qEnvironmentVariableIntValue (
+    "ATHENA_DELEGATION_TEST_ARTIFACT_REQUESTS", &countOk);
+  if (!countOk || requestCount < 1) requestCount= 16;
   std::vector<AthenaArtifactRangeRequest> requests;
-  for (int i=0; i<16; i++) {
+  for (int i=0; i<requestCount; i++) {
     AthenaArtifactRangeRequest request;
     request.keyword_latex= "compactness";
     request.paragraphs.push_back ({0,

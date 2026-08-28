@@ -262,6 +262,8 @@ bool
 retryable_transport_failure (const QString& message) {
   QString lower= message.toLower ();
   return lower.contains ("timed out") || lower.contains ("status code 524") ||
+         lower.contains ("http/2 protocol error") ||
+         lower.contains ("http/2 stream") ||
          lower.contains ("error transferring") ||
          lower.contains ("connection closed") ||
          lower.contains ("connection reset") ||
@@ -732,9 +734,12 @@ qtm_delegation_select_artifact_ranges (
   };
   std::vector<Payload> payloads;
   size_t next= 0;
-  int maxRequests= std::clamp (server.artifactMaxRequests, 1, 512);
+  // Submit RPCs cross an HTTPS proxy before reaching the transmitter.  Keep
+  // jobs comfortably below the backend's storage limit so large source
+  // paragraphs cannot spend the entire request timeout in transit.
+  int maxRequests= std::clamp (server.artifactMaxRequests, 1, 128);
   int maxBytes= std::clamp (server.artifactMaxPlaintextBytes,
-                            64 * 1024, 8 * 1024 * 1024);
+                            64 * 1024, 1024 * 1024);
   QString buildId= QUuid::createUuid ().toString (QUuid::WithoutBraces);
   while (next < requests.size ()) {
     QJsonArray catalog;
@@ -857,7 +862,7 @@ qtm_delegation_select_artifact_ranges (
         break;
       }
     }
-    if (error) *error= lastError;
+    if (error) *error= method + ": " + lastError;
     return false;
   };
   auto cancelActive= [&] () {
@@ -873,7 +878,7 @@ qtm_delegation_select_artifact_ranges (
   auto submitOne= [&] (size_t index) {
     QJsonObject response;
     if (!rpc ("artifact.definition_span.submit", payloads[index].params,
-              response, 30000)) return false;
+              response, 120000)) return false;
     if (!response.value ("ok").toBool () ||
         response.value ("job_id").toString ().isEmpty ()) {
       if (error) *error= response.value ("error").toString (

@@ -38,6 +38,7 @@ class TestArtifacts: public QObject {
 
 private slots:
   void initTestCase ();
+  void validatesDefinitionRangeModelOutput ();
   void selectsDefinitionRangeWithConfiguredModel ();
   void extractsEnunciationsBoldTextAndProofLink ();
   void boundsBoldDefinitionCandidatesAtEnunciations ();
@@ -62,8 +63,32 @@ private slots:
   void preservesUnicodeRadioactiveMatchOffsets ();
   void matchesLargeRadioactiveArtifactIndexWithinBudget ();
   void reportsBuildPhasesInOrder ();
+  void resumesDefinitionRangeSelectionFromCheckpoint ();
   void delegatedFailureLeavesDatabaseUnchanged ();
 };
+
+void
+TestArtifacts::validatesDefinitionRangeModelOutput () {
+  const std::vector<std::pair<int,std::string>> paragraphs= {
+    {-1, "Before"}, {0, "Focus"}, {1, "After"}, {2, "Later"}
+  };
+  auto parse= [&] (const char* output, bool fallback= false) {
+    return athena_artifact_parse_definition_range_output (
+      output, paragraphs, fallback);
+  };
+
+  QCOMPARE (parse ("[0]"), std::vector<int> ({0}));
+  QCOMPARE (parse ("Answer: [-1, 0, 1]"),
+            std::vector<int> ({-1, 0, 1}));
+  QVERIFY (parse ("[2]").empty ());
+  QVERIFY (parse ("[0, 2]").empty ());
+  QVERIFY (parse ("[1, 0]").empty ());
+  QVERIFY (parse ("[0, 0]").empty ());
+  QVERIFY (parse ("[0, 9]").empty ());
+  QVERIFY (parse ("[0, prose]").empty ());
+  QCOMPARE (parse ("[2]", true), std::vector<int> ({0}));
+  QCOMPARE (parse ("[0, 2]", true), std::vector<int> ({0}));
+}
 
 class MissingRangeModel {
 public:
@@ -1267,6 +1292,74 @@ TestArtifacts::reportsBuildPhasesInOrder () {
                       AthenaArtifactsBuildPhase::WritingDatabase) != phases.end ());
   QCOMPARE (std::count (phases.begin (), phases.end (),
                         AthenaArtifactsBuildPhase::Complete), 1);
+}
+
+void
+TestArtifacts::resumesDefinitionRangeSelectionFromCheckpoint () {
+  QTemporaryDir temporary;
+  QVERIFY (temporary.isValid ());
+  fs::path root (temporary.path ().toStdString ());
+  AthenaVaultfileInfo info;
+  std::string error;
+  QVERIFY2 (athena_vaultfile_write (root, info, error), error.c_str ());
+
+  tree body (DOCUMENT);
+  for (int i=0; i<129; i++) {
+    tree paragraph (CONCAT);
+    paragraph << "A definition of "
+              << compound ("strong", ("checkpoint term " +
+                                        std::to_string (i)).c_str ())
+              << " is given here.";
+    body << paragraph;
+  }
+  tree document (DOCUMENT);
+  document << compound ("TeXmacs", "2.1.4")
+           << compound ("style", "generic")
+           << compound ("body", body);
+  write_document (root / "Checkpoint.ath", document);
+
+  int first_calls= 0;
+  AthenaArtifactsBuildOptions interrupted;
+  interrupted.range_selector=
+    [&] (const std::vector<AthenaArtifactRangeRequest>& requests,
+         std::vector<std::vector<int>>& results,
+         const AthenaArtifactRangeSelectionProgress&,
+         std::string& selector_error) {
+      first_calls++;
+      if (first_calls == 2) {
+        selector_error= "simulated interruption after checkpoint";
+        return false;
+      }
+      results.assign (requests.size (), std::vector<int> ({0}));
+      return true;
+    };
+  AthenaArtifactsBuildResult failed;
+  QVERIFY (!athena_artifacts_build (
+    root, {}, true, {}, failed, error, interrupted));
+  QCOMPARE (error, std::string ("simulated interruption after checkpoint"));
+  QCOMPARE (first_calls, 2);
+  QCOMPARE (query_test_int (
+              root / info.artifacts_path,
+              "SELECT COUNT(*) FROM artifact_range_cache;", error),
+            128);
+
+  std::vector<size_t> resumed_batches;
+  AthenaArtifactsBuildOptions resumed;
+  resumed.range_selector=
+    [&] (const std::vector<AthenaArtifactRangeRequest>& requests,
+         std::vector<std::vector<int>>& results,
+         const AthenaArtifactRangeSelectionProgress&,
+         std::string&) {
+      resumed_batches.push_back (requests.size ());
+      results.assign (requests.size (), std::vector<int> ({0}));
+      return true;
+    };
+  AthenaArtifactsBuildResult built;
+  error.clear ();
+  QVERIFY2 (athena_artifacts_build (
+              root, {}, true, {}, built, error, resumed), error.c_str ());
+  QCOMPARE (resumed_batches, std::vector<size_t> ({1}));
+  QCOMPARE (built.bold_texts, (size_t) 129);
 }
 
 void

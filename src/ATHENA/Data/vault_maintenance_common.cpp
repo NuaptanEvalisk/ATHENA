@@ -361,7 +361,7 @@ scan_documents (const fs::path& root) {
   fs::recursive_directory_iterator end;
 
   static const std::unordered_set<std::string> document_exts = {
-    ".ath", ".tm", ".ts", ".tp", ".stm"
+    ".ath", ".tm"
   };
 
   for (; !ec && it != end; it.increment (ec)) {

@@ -385,7 +385,7 @@ private:
         if (valid[i]) continue;
         auto retry= athena_artifact_select_definition_ranges (
           {requests[i]}, options.model_path.string (), nullptr, nullptr,
-          false);
+          true);
         if (retry.size () == 1 && valid_offsets (requests[i], retry[0])) {
           selected[i]= std::move (retry[0]);
           valid[i]= true;

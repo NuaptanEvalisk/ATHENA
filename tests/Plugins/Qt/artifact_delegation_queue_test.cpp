@@ -84,9 +84,14 @@ TestArtifactDelegationQueue::submitIsIdempotentAndAcknowledged () {
   QJsonObject status;
   QTRY_VERIFY_WITH_TIMEOUT (
     (status= queue.wait ("alice", wait)).value ("state").toString () ==
-      "failed",
+      "complete",
     2000);
-  QCOMPARE (status.value ("results").toArray ().size (), 0);
+  QJsonArray results= status.value ("results").toArray ();
+  QCOMPARE (results.size (), 1);
+  QJsonArray expectedOffsets;
+  expectedOffsets.append (0);
+  QCOMPARE (results[0].toObject ().value ("offsets").toArray (),
+            expectedOffsets);
   QJsonObject ack= queue.acknowledge ("alice", wait);
   QVERIFY (ack.value ("ok").toBool ());
   QVERIFY (!queue.wait ("alice", wait).value ("ok").toBool ());

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ $# -ne 10 ]]; then
-  echo "usage: $0 BINARY OUTPUT ATHENA_PATH ATHENA_HOME GUILE_RUNTIME SOURCE_ROOT LLAMA_RUNTIME ADS_RUNTIME JOBS RUNTIME_ID" >&2
+if [[ $# -ne 11 ]]; then
+  echo "usage: $0 BINARY OUTPUT ATHENA_PATH ATHENA_HOME GUILE_RUNTIME SOURCE_ROOT LLAMA_RUNTIME ADS_RUNTIME RESVG_RUNTIME JOBS RUNTIME_ID" >&2
   exit 2
 fi
 
@@ -14,8 +14,9 @@ guile_runtime="$5"
 source_root="$6"
 llama_runtime="$7"
 ads_runtime="$8"
-jobs="$9"
-runtime_id="${10}"
+resvg_runtime="$9"
+jobs="${10}"
+runtime_id="${11}"
 
 if ! [[ "$jobs" =~ ^[1-9][0-9]*$ ]]; then
   echo "ATHENA Scheme bytecode: invalid worker count: $jobs" >&2
@@ -44,7 +45,7 @@ export ATHENA_SCHEME_COMPILE=1
 export GUILE_AUTO_COMPILE=0
 export GUILE_WARN_DEPRECATED=no
 export QT_QPA_PLATFORM=offscreen
-export LD_LIBRARY_PATH="$llama_runtime:$ads_runtime:$guile_runtime/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+export LD_LIBRARY_PATH="$llama_runtime:$ads_runtime:$resvg_runtime:$guile_runtime/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 
 mkdir -p "$athena_home"
 
