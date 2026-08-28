@@ -734,7 +734,7 @@ bool valid_definition_offsets (const AthenaArtifactRangeRequest& request,
 
 std::string range_request_hash (const AthenaArtifactRangeRequest& request) {
   std::ostringstream canonical;
-  canonical << "athena-artifact-range-v3\n"
+  canonical << "athena-artifact-range-v5\n"
             << request.keyword_latex.size () << ':' << request.keyword_latex
             << '\n';
   for (const auto& paragraph: request.paragraphs)

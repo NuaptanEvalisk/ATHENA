@@ -25,7 +25,6 @@
 #include <set>
 #include <sstream>
 #include <thread>
-#include <unordered_map>
 
 namespace {
 
@@ -140,10 +139,7 @@ const std::string& prompt_prefix () {
          "defines the keyword; exclude headings, emphasis, step numbers, "
          "answers, examples, later consequences, conversation, and unrelated "
          "text. A displayed formula attached to a paragraph is part of "
-         "that paragraph. When a shared paragraph catalog is supplied, each "
-         "question maps its local paragraph integers to catalog identifiers; "
-         "inspect only those mapped catalog entries and return the local "
-         "integers.\n\n"
+         "that paragraph.\n\n"
          "Example keyword: compact operator\n"
          "=== BEGIN PARAGRAPH -1 ===\nWe now introduce a useful class.\n"
          "=== END PARAGRAPH -1 ===\n"
@@ -162,64 +158,26 @@ const std::string& prompt_prefix () {
          "Example keyword: 2\n"
          "=== BEGIN PARAGRAPH 0 ===\n2. Apply the preceding construction.\n"
          "=== END PARAGRAPH 0 ===\nAnswer: []\n\n"
-         "Shared paragraph catalog example:\n"
-         "=== BEGIN CATALOG C0 ===\nWe now introduce a useful class.\n"
-         "=== END CATALOG C0 ===\n"
-         "=== BEGIN CATALOG C1 ===\nA bounded operator is called compact "
-         "when it maps bounded sets to relatively compact sets.\n"
-         "=== END CATALOG C1 ===\n"
-         "=== BEGIN CATALOG C2 ===\nThe identity is not compact in infinite "
-         "dimension.\n=== END CATALOG C2 ===\n"
-         "Keyword (LaTeX): compact operator\n"
-         "Candidate mapping (local integer = catalog identifier):\n"
-         "-1 = C0\n0 = C1\n1 = C2\nAnswer: [0]\n\n"
+         "Example keyword: not\n"
+         "=== BEGIN PARAGRAPH 0 ===\nThe operator is \\textbf{not} "
+         "compact.\n=== END PARAGRAPH 0 ===\nAnswer: []\n\n"
+         "Example keyword: cannot\n"
+         "=== BEGIN PARAGRAPH 0 ===\nThis sequence \\textbf{cannot} "
+         "converge.\n=== END PARAGRAPH 0 ===\nAnswer: []\n\n"
+         "Example keyword: Important\n"
+         "=== BEGIN PARAGRAPH 0 ===\n\\textbf{Important.} This convention "
+         "will be used below.\n=== END PARAGRAPH 0 ===\nAnswer: []\n\n"
          ;
   return value;
 }
 
-struct SharedPromptWave {
-  std::string catalog;
-  std::vector<std::vector<std::pair<int,int>>> mappings;
-};
-
-SharedPromptWave make_shared_prompt_wave (
-  const std::vector<AthenaArtifactRangeRequest>& requests,
-  size_t base, int count) {
-  SharedPromptWave wave;
-  wave.mappings.resize ((size_t) count);
-  std::unordered_map<std::string,int> catalog_ids;
-  std::vector<std::string> paragraphs;
-  for (int lane=0; lane<count; lane++) {
-    const auto& request= requests[base + (size_t) lane];
-    for (const auto& paragraph: request.paragraphs) {
-      auto found= catalog_ids.find (paragraph.second);
-      int id;
-      if (found == catalog_ids.end ()) {
-        id= (int) paragraphs.size ();
-        catalog_ids.emplace (paragraph.second, id);
-        paragraphs.push_back (paragraph.second);
-      }
-      else id= found->second;
-      wave.mappings[(size_t) lane].push_back ({paragraph.first, id});
-    }
-  }
+std::string make_prompt_suffix (const AthenaArtifactRangeRequest& request) {
   std::ostringstream out;
-  out << "Shared paragraph catalog for the following questions:\n";
-  for (size_t id=0; id<paragraphs.size (); id++)
-    out << "=== BEGIN CATALOG C" << id << " ===\n" << paragraphs[id]
-        << "\n=== END CATALOG C" << id << " ===\n";
-  wave.catalog= out.str ();
-  return wave;
-}
-
-std::string make_shared_prompt_suffix (
-  const std::string& keyword,
-  const std::vector<std::pair<int,int>>& mapping) {
-  std::ostringstream out;
-  out << "Keyword (LaTeX): " << keyword << "\n"
-      << "Candidate mapping (local integer = catalog identifier):\n";
-  for (const auto& entry: mapping)
-    out << entry.first << " = C" << entry.second << "\n";
+  out << "Keyword (LaTeX): " << request.keyword_latex << "\n";
+  for (const auto& paragraph: request.paragraphs)
+    out << "=== BEGIN PARAGRAPH " << paragraph.first << " ===\n"
+        << paragraph.second << "\n=== END PARAGRAPH " << paragraph.first
+        << " ===\n";
   out << "Answer:";
   return out.str ();
 }
@@ -269,7 +227,7 @@ public:
       bool ready= prepare_prefix_cache ();
       if (ready)
         range_log ("definition-range fixed prompt cache rebuilt for next "
-                   "catalog group");
+                   "request group");
       return ready;
     };
 
@@ -291,29 +249,23 @@ public:
       if (cancelled && cancelled->load ()) break;
       int count= (int) std::min<size_t> ((size_t) parallelism,
                                         requests.size () - base);
-      SharedPromptWave wave;
-      std::vector<llama_token> catalog_tokens;
       std::vector<std::vector<llama_token>> suffixes;
       while (count > 0) {
-        wave= make_shared_prompt_wave (requests, base, count);
-        catalog_tokens= tokenize (vocab, wave.catalog, false);
         suffixes.clear ();
         int maximum_suffix= 0;
         int total_suffix= 0;
         for (int lane=0; lane<count; lane++) {
           suffixes.push_back (tokenize (
-            vocab, make_shared_prompt_suffix (
-              requests[base + (size_t) lane].keyword_latex,
-              wave.mappings[(size_t) lane]), false));
+            vocab, make_prompt_suffix (requests[base + (size_t) lane]),
+            false));
           maximum_suffix= std::max (
             maximum_suffix, (int) suffixes.back ().size ());
           total_suffix += (int) suffixes.back ().size ();
         }
-        int required_kv= prefix_tokens + (int) catalog_tokens.size () +
-                         total_suffix + count * output_tokens;
-        if (!catalog_tokens.empty () &&
-            prefix_tokens + (int) catalog_tokens.size () + maximum_suffix +
-              output_tokens < context_tokens &&
+        int required_kv=
+          prefix_tokens + total_suffix + count * output_tokens;
+        if (maximum_suffix > 0 &&
+            prefix_tokens + maximum_suffix + output_tokens < context_tokens &&
             required_kv < context_tokens + 256 * parallelism)
           break;
         count--;
@@ -325,46 +277,7 @@ public:
         continue;
       }
 
-      llama_memory_seq_rm (memory, 0, prefix_tokens, -1);
-      range_log ("definition-range shared catalog prefill started: requests=" +
-                 std::to_string (count) + ", catalog-tokens=" +
-                 std::to_string (catalog_tokens.size ()));
-      auto catalog_started= std::chrono::steady_clock::now ();
-      int catalog_chunks= 0;
-      bool catalog_ok= true;
-      for (size_t offset=0; offset<catalog_tokens.size ();) {
-        int take= std::min (
-          prefill_batch_tokens, (int) (catalog_tokens.size () - offset));
-        llama_batch batch= llama_batch_init (take, 0, 1);
-        for (int i=0; i<take; i++)
-          batch_add (batch, catalog_tokens[offset + (size_t) i],
-                     prefix_tokens + (int) offset + i, 0, false);
-        int status= llama_decode (ctx, batch);
-        llama_batch_free (batch);
-        if (status != 0) {
-          range_warning ("definition-range shared catalog prefill failed");
-          catalog_ok= false;
-          break;
-        }
-        offset += (size_t) take;
-        catalog_chunks++;
-      }
-      int shared_tokens= prefix_tokens + (int) catalog_tokens.size ();
-      auto catalog_ms= std::chrono::duration_cast<std::chrono::milliseconds> (
-        std::chrono::steady_clock::now () - catalog_started).count ();
-      range_log ("definition-range shared catalog cached: requests=" +
-                 std::to_string (count) + ", catalog-tokens=" +
-                 std::to_string (catalog_tokens.size ()) + ", chunks=" +
-                 std::to_string (catalog_chunks) + ", elapsed-ms=" +
-                 std::to_string (catalog_ms));
-      if (!catalog_ok) {
-        if (completed) completed->fetch_add ((size_t) count);
-        base += (size_t) count;
-        bool more= base < requests.size () &&
-                   !(cancelled && cancelled->load ());
-        if (!reset_shared_cache (more)) break;
-        continue;
-      }
+      int shared_tokens= prefix_tokens;
 
       std::vector<State> states ((size_t) count);
       int total_dynamic_tokens= 0;

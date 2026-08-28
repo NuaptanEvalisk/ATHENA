@@ -150,14 +150,22 @@ TestArtifacts::selectsDefinitionRangeWithConfiguredModel () {
   QCOMPARE (batched[1], selected);
   std::vector<int> selectedAfterBatch=
     athena_artifact_select_definition_range ("covering map", paragraphs);
-  std::vector<int> rejectedStep= athena_artifact_select_definition_range (
-    "2", {{0, "2. Apply the preceding construction."}});
+  std::vector<AthenaArtifactRangeRequest> nonDefinitions= {
+    {"2", {{0, "2. Apply the preceding construction."}}},
+    {"not", {{0, "The operator is \\textbf{not} compact."}}},
+    {"cannot", {{0, "This sequence \\textbf{cannot} converge."}}},
+    {"No", {{0, "\\textbf{No}, the assertion is false."}}},
+    {"Important", {{0, "\\textbf{Important.} Use this convention below."}}}
+  };
+  auto rejected= athena_artifact_select_definition_ranges (
+    nonDefinitions, athena_artifact_range_model_path (), nullptr, nullptr);
   athena_artifact_range_model_release ();
   QVERIFY (std::find (selected.begin (), selected.end (), 0) != selected.end ());
   QVERIFY (std::find (selected.begin (), selected.end (), 1) != selected.end ());
   for (int offset: selected) QVERIFY (offset >= -1 && offset <= 2);
   QCOMPARE (selectedAfterBatch, selected);
-  QVERIFY (rejectedStep.empty ());
+  QCOMPARE (rejected.size (), nonDefinitions.size ());
+  for (const auto& offsets: rejected) QVERIFY (offsets.empty ());
 }
 
 static tree
