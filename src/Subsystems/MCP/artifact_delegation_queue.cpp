@@ -69,8 +69,8 @@ bool terminal (const ArtifactJob& job) {
 
 bool valid_offsets (const AthenaArtifactRangeRequest& request,
                     const std::vector<int>& offsets) {
-  if (offsets.empty () ||
-      std::find (offsets.begin (), offsets.end (), 0) == offsets.end ())
+  if (offsets.empty ()) return true;
+  if (std::find (offsets.begin (), offsets.end (), 0) == offsets.end ())
     return false;
   std::set<int> allowed;
   for (const auto& candidate: request.paragraphs)
@@ -374,7 +374,7 @@ private:
       std::atomic<size_t> completed {0};
       std::vector<std::vector<int>> selected=
         athena_artifact_select_definition_ranges (
-          requests, options.model_path.string (), nullptr, &completed, false);
+          requests, options.model_path.string (), nullptr, &completed, true);
 
       // A model retry can be expensive.  Keep all inference outside the queue
       // mutex so submit/wait/cancel remain responsive while the worker runs.

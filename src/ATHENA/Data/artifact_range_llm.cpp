@@ -133,11 +133,13 @@ const std::string& prompt_prefix () {
          "You select which nearby paragraphs constitute the mathematical "
          "definition of a bold keyword in an ATHENA note.\n"
          "Return ONLY one bracketed comma-separated list of paragraph integers, "
-         "for example [-1, 0, 1]. Do not explain, reason, use prose, or emit "
-         "markdown. Paragraph 0 MUST always be included. Select only supplied "
-         "integers. Select the smallest contiguous semantic range that defines "
-         "the keyword; exclude examples, later consequences, conversation, and "
-         "unrelated text. A displayed formula attached to a paragraph is part of "
+         "for example [-1, 0, 1]. If the bold text is not a mathematical term "
+         "being defined, return []. Do not explain, reason, use prose, or emit "
+         "markdown. For a definition, paragraph 0 MUST be included. Select only "
+         "supplied integers and the smallest contiguous semantic range that "
+         "defines the keyword; exclude headings, emphasis, step numbers, "
+         "answers, examples, later consequences, conversation, and unrelated "
+         "text. A displayed formula attached to a paragraph is part of "
          "that paragraph. When a shared paragraph catalog is supplied, each "
          "question maps its local paragraph integers to catalog identifiers; "
          "inspect only those mapped catalog entries and return the local "
@@ -157,6 +159,9 @@ const std::string& prompt_prefix () {
          "=== BEGIN PARAGRAPH 1 ===\nEvery x\\in X has an open neighborhood U "
          "whose inverse image is a disjoint union of open sets mapped "
          "homeomorphically onto U.\n=== END PARAGRAPH 1 ===\nAnswer: [0, 1]\n\n"
+         "Example keyword: 2\n"
+         "=== BEGIN PARAGRAPH 0 ===\n2. Apply the preceding construction.\n"
+         "=== END PARAGRAPH 0 ===\nAnswer: []\n\n"
          "Shared paragraph catalog example:\n"
          "=== BEGIN CATALOG C0 ===\nWe now introduce a useful class.\n"
          "=== END CATALOG C0 ===\n"
@@ -744,6 +749,7 @@ athena_artifact_parse_definition_range_output (
     return invalid ();
 
   std::string body= match[1].str ();
+  if (trim (body).empty ()) return {};
   static const std::regex list_pattern (
     "^\\s*-?[0-9]+\\s*(,\\s*-?[0-9]+\\s*)*$");
   if (!std::regex_match (body, list_pattern)) return invalid ();

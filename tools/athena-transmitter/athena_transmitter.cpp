@@ -275,7 +275,7 @@ identity_object () {
   json::array caps;
   caps.emplace_back ("athena-delegation-v1");
   caps.emplace_back ("rag-embedding-v1");
-  caps.emplace_back ("artifact-definition-span-v1");
+  caps.emplace_back ("artifact-definition-span-v2");
   caps.emplace_back ("pending-enrollment");
   caps.emplace_back ("pre-post-forward-scripts");
   o["capabilities"]= caps;
@@ -901,7 +901,7 @@ handle_plain_rpc (const json::object& plain,
     std::string error;
     std::string requiredCapability=
       method == "rag.embedding.build_patch" ? "rag-embedding-v1":
-                                               "artifact-definition-span-v1";
+                                               "artifact-definition-span-v2";
     std::string reply= forward_plain_rpc (json::serialize (forwarded_request),
                                           sender_public_key, error,
                                           !active_lease,

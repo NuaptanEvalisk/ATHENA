@@ -71,7 +71,7 @@ TestDelegationNetwork::exercisesLiveArtifactDelegation () {
   QVERIFY2 (qtm_delegation_fetch_identity (url, server, &error),
             qPrintable (error));
   QVERIFY (server.capabilities.contains ("athena-delegation-v1"));
-  QVERIFY (server.capabilities.contains ("artifact-definition-span-v1"));
+  QVERIFY (server.capabilities.contains ("artifact-definition-span-v2"));
   QVERIFY2 (qtm_delegation_save_servers ({server}, &error),
             qPrintable (error));
 

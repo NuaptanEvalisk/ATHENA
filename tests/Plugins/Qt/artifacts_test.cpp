@@ -45,6 +45,7 @@ private slots:
   void boundsBoldDefinitionCandidatesAtEnunciations ();
   void locatesStoredParagraphRange ();
   void doesNotLinkNonAdjacentProof ();
+  void excludesBoldCandidatesRejectedBySemanticSelector ();
   void buildsIncrementallyAndPurgesDeletedDocuments ();
   void preservesAccentedArtifactTextAcrossWorkerAndDatabase ();
   void storesAndDisambiguatesSameNamedArtifacts ();
@@ -82,6 +83,7 @@ TestArtifacts::validatesDefinitionRangeModelOutput () {
   };
 
   QCOMPARE (parse ("[0]"), std::vector<int> ({0}));
+  QVERIFY (parse ("[]").empty ());
   QCOMPARE (parse ("Answer: [-1, 0, 1]"),
             std::vector<int> ({-1, 0, 1}));
   QVERIFY (parse ("[2]").empty ());
@@ -92,6 +94,7 @@ TestArtifacts::validatesDefinitionRangeModelOutput () {
   QVERIFY (parse ("[0, prose]").empty ());
   QCOMPARE (parse ("[2]", true), std::vector<int> ({0}));
   QCOMPARE (parse ("[0, 2]", true), std::vector<int> ({0}));
+  QVERIFY (parse ("[]", true).empty ());
 }
 
 class MissingRangeModel {
@@ -147,11 +150,14 @@ TestArtifacts::selectsDefinitionRangeWithConfiguredModel () {
   QCOMPARE (batched[1], selected);
   std::vector<int> selectedAfterBatch=
     athena_artifact_select_definition_range ("covering map", paragraphs);
+  std::vector<int> rejectedStep= athena_artifact_select_definition_range (
+    "2", {{0, "2. Apply the preceding construction."}});
   athena_artifact_range_model_release ();
   QVERIFY (std::find (selected.begin (), selected.end (), 0) != selected.end ());
   QVERIFY (std::find (selected.begin (), selected.end (), 1) != selected.end ());
   for (int offset: selected) QVERIFY (offset >= -1 && offset <= 2);
   QCOMPARE (selectedAfterBatch, selected);
+  QVERIFY (rejectedStep.empty ());
 }
 
 static tree
@@ -166,8 +172,7 @@ artifact_test_document (const char* keyword) {
        << compound ("label", "Proof of compactness }");
   tree paragraph (CONCAT);
   paragraph << "An operator is called " << compound ("strong", keyword)
-            << " when it maps bounded sets to relatively compact sets. "
-            << compound ("strong", "not");
+            << " when it maps bounded sets to relatively compact sets.";
   body << paragraph;
   tree document (DOCUMENT);
   document << compound ("TeXmacs", "2.1.4")
@@ -406,6 +411,46 @@ TestArtifacts::doesNotLinkNonAdjacentProof () {
             error.c_str ());
   QCOMPARE (records.size (), (size_t) 2);
   QVERIFY (records[0].proof_uuid.empty ());
+}
+
+void
+TestArtifacts::excludesBoldCandidatesRejectedBySemanticSelector () {
+  QTemporaryDir temporary;
+  QVERIFY (temporary.isValid ());
+  fs::path root (temporary.path ().toStdString ());
+  AthenaVaultfileInfo info;
+  std::string error;
+  QVERIFY2 (athena_vaultfile_write (root, info, error), error.c_str ());
+
+  tree body (DOCUMENT);
+  body << compound ("theorem", "A genuine mathematical statement.");
+  tree numbered_step (CONCAT);
+  numbered_step << compound ("strong", "2") << ". Apply the construction.";
+  body << numbered_step;
+  tree document (DOCUMENT);
+  document << compound ("TeXmacs", "2.1.4")
+           << compound ("style", "generic")
+           << compound ("body", body);
+  write_document (root / "A.ath", document);
+
+  AthenaArtifactsBuildOptions options;
+  options.range_selector= [] (
+      const std::vector<AthenaArtifactRangeRequest>& requests,
+      std::vector<std::vector<int>>& results,
+      const AthenaArtifactRangeSelectionProgress&, std::string&) {
+    results.assign (requests.size (), {});
+    return true;
+  };
+  AthenaArtifactsBuildResult built;
+  QVERIFY2 (athena_artifacts_build (
+              root, {}, true, {}, built, error, options), error.c_str ());
+  QCOMPARE (built.enunciations, (size_t) 1);
+  QCOMPARE (built.bold_texts, (size_t) 0);
+  QCOMPARE (built.artifacts, (size_t) 1);
+  std::vector<AthenaArtifactRecord> records;
+  QVERIFY2 (athena_artifacts_query (root, records, error), error.c_str ());
+  QCOMPARE (records.size (), (size_t) 1);
+  QCOMPARE (records[0].origin, std::string ("enunciation"));
 }
 
 void
@@ -1011,6 +1056,8 @@ TestArtifacts::preservesExactDuplicateIdentityGroupByDocumentOrder () {
     observation ("first-uuid", 4), observation ("second-uuid", 9)};
   std::vector<AthenaArtifactIdentityObservation> new_values= {
     observation ("", 14), observation ("", 19)};
+  old_values[0].display= old_values[1].display= "<#6982><#5FF5>";
+  new_values[0].display= new_values[1].display= "concept";
 
   AthenaArtifactIdentityResult result=
     athena_artifact_associate_identities (old_values, new_values);

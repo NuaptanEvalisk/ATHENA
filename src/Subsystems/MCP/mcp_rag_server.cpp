@@ -576,7 +576,7 @@ identity_result () {
   caps.append ("athena-delegation-v1");
   caps.append ("rag-embedding-v1");
   if (artifact_queue && artifact_queue->available ())
-    caps.append ("artifact-definition-span-v1");
+    caps.append ("artifact-definition-span-v2");
   caps.append ("pending-enrollment");
   o["capabilities"]= caps;
   QJsonObject limits;

@@ -85,7 +85,7 @@ void exact_duplicate_group_pass (
   std::vector<Decision>& decisions) {
   auto key_for= [] (const Observation& value) {
     return identity_key ({value.origin, value.type, value.anchor, value.focus,
-                          value.host, value.before, value.after, value.display});
+                          value.host, value.before, value.after});
   };
   std::map<std::string,std::vector<int>> old_by_key;
   std::map<std::string,std::vector<int>> new_by_key;
@@ -401,9 +401,10 @@ athena_artifact_associate_identities (
     old_matched, new_matched, result.decisions);
 
   // Multiple observations can be semantically and contextually identical.
-  // When the complete multisets are unchanged, document order is the only
-  // observable identity and gives a deterministic bijection.  Unequal groups
-  // deliberately fall through to conservative ambiguity handling.
+  // When the complete structural multisets are unchanged, document order is
+  // the only observable identity and gives a deterministic bijection. Display
+  // text is deliberately excluded: its encoding is not identity. Unequal
+  // groups fall through to conservative ambiguity handling.
   exact_duplicate_group_pass (old_observations, new_observations,
                               old_matched, new_matched, result.decisions);
 

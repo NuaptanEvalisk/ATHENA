@@ -484,27 +484,6 @@ std::vector<std::string> semantic_names_for (
   return names;
 }
 
-std::string normalized_word (std::string value) {
-  value= collapse_spaces (value);
-  while (!value.empty () && std::ispunct ((unsigned char) value.front ()))
-    value.erase (value.begin ());
-  while (!value.empty () && std::ispunct ((unsigned char) value.back ()))
-    value.pop_back ();
-  std::transform (value.begin (), value.end (), value.begin (),
-                  [] (unsigned char c) { return (char) std::tolower (c); });
-  return value;
-}
-
-bool excluded_bold_keyword (const std::string& value) {
-  static const std::set<std::string> excluded= {
-    "not", "is", "is not", "cannot", "can not", "can't", "however",
-    "but", "impossible", "possible", "should not", "must not", "no",
-    "yes", "therefore", "thus", "hence"
-  };
-  std::string normalized= normalized_word (value);
-  return normalized.empty () || excluded.count (normalized) != 0;
-}
-
 std::string enunciation_type (const std::string& original,
                               std::string& base_tag) {
   static const std::map<std::string,std::pair<std::string,std::string>> tags= {
@@ -738,8 +717,8 @@ std::vector<int> parse_offsets (const std::string& text) {
 
 bool valid_definition_offsets (const AthenaArtifactRangeRequest& request,
                                const std::vector<int>& offsets) {
-  if (offsets.empty () ||
-      std::find (offsets.begin (), offsets.end (), 0) == offsets.end () ||
+  if (offsets.empty ()) return true;
+  if (std::find (offsets.begin (), offsets.end (), 0) == offsets.end () ||
       !std::is_sorted (offsets.begin (), offsets.end ()) ||
       std::adjacent_find (offsets.begin (), offsets.end ()) != offsets.end ())
     return false;
@@ -755,7 +734,7 @@ bool valid_definition_offsets (const AthenaArtifactRangeRequest& request,
 
 std::string range_request_hash (const AthenaArtifactRangeRequest& request) {
   std::ostringstream canonical;
-  canonical << "athena-artifact-range-v2\n"
+  canonical << "athena-artifact-range-v3\n"
             << request.keyword_latex.size () << ':' << request.keyword_latex
             << '\n';
   for (const auto& paragraph: request.paragraphs)
@@ -865,7 +844,7 @@ bool extract (const tree& document, const std::string& rel,
     find_bold (paragraphs[paragraph_index].value, bolds);
     for (const tree& keyword: bolds) {
       std::string display= plain_text (visible_body (keyword));
-      if (excluded_bold_keyword (display)) continue;
+      if (collapse_spaces (display).empty ()) continue;
       std::string serialized= to_std (tree_to_texmacs (keyword));
       int occurrence= ++occurrences[serialized];
       std::vector<std::pair<int,std::string>> candidates;
@@ -1189,6 +1168,13 @@ bool select_definition_ranges (
         work.back ().record->display_text)) {
     error= "Artifact build cancelled";
     return false;
+  }
+  for (auto& document: extracted) {
+    auto& records= document.second.records;
+    records.erase (
+      std::remove_if (records.begin (), records.end (), [] (const auto& record) {
+        return record.origin == "bold-text" && record.paragraph_offsets.empty ();
+      }), records.end ());
   }
   return true;
 }
@@ -1807,7 +1793,7 @@ athena_artifact_locate_paragraph (
     find_bold (paragraphs[i].value, bolds);
     for (const tree& keyword: bolds) {
       std::string display= plain_text (visible_body (keyword));
-      if (excluded_bold_keyword (display)) continue;
+      if (collapse_spaces (display).empty ()) continue;
       std::string serialized= to_std (tree_to_texmacs (keyword));
       int occurrence= ++occurrences[serialized];
       if (serialized == record.keyword_tree &&
