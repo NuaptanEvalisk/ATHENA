@@ -85,8 +85,37 @@ std::string to_std (string s) {
 
 string to_tm (const std::string& s) { return string (s.data (), (int) s.size ()); }
 
+std::string cork_bytes_to_utf8 (const std::string& value) {
+  return to_std (cork_to_utf8 (to_tm (value)));
+}
+
 QString qstr (const std::string& s) {
   return QString::fromUtf8 (s.data (), (qsizetype) s.size ());
+}
+
+std::string encode_opaque (const std::string& value) {
+  QByteArray encoded= QByteArray (value.data (), (qsizetype) value.size ())
+                        .toBase64 (QByteArray::Base64Encoding);
+  return "base64-v1:" +
+         std::string (encoded.constData (), (size_t) encoded.size ());
+}
+
+std::string decode_opaque (const std::string& value) {
+  constexpr const char* prefix= "base64-v1:";
+  if (value.rfind (prefix, 0) != 0) return value;
+  QByteArray encoded (value.data () + std::char_traits<char>::length (prefix),
+                      (qsizetype) (value.size () -
+                                   std::char_traits<char>::length (prefix)));
+  QByteArray decoded= QByteArray::fromBase64 (
+    encoded, QByteArray::AbortOnBase64DecodingErrors);
+  return std::string (decoded.constData (), (size_t) decoded.size ());
+}
+
+std::string truncate_utf8 (const std::string& value, qsizetype limit) {
+  QString text= qstr (value);
+  if (text.size () <= limit) return value;
+  QByteArray truncated= text.left (limit).toUtf8 ();
+  return std::string (truncated.constData (), (size_t) truncated.size ());
 }
 
 std::string tag_name (const tree& t) {
@@ -201,6 +230,8 @@ bool open_databases (const fs::path& root, SqliteDb& holder,
     "PRAGMA foreign_keys=ON;"
     "CREATE TABLE IF NOT EXISTS documents("
     " path TEXT PRIMARY KEY,mtime_ns INTEGER NOT NULL,size INTEGER NOT NULL);"
+    "CREATE TABLE IF NOT EXISTS artifact_meta("
+    " key TEXT PRIMARY KEY,value TEXT NOT NULL);"
     "CREATE TABLE IF NOT EXISTS enunciations.entries("
     " uuid TEXT PRIMARY KEY,path TEXT NOT NULL,anchor_stem TEXT NOT NULL,"
     " tag TEXT NOT NULL,display_text TEXT NOT NULL,document_order INTEGER NOT NULL,"
@@ -257,6 +288,30 @@ bool open_databases (const fs::path& root, SqliteDb& holder,
       !ensure_column (holder.db, "main", "artifacts", "identity_evidence",
                       "TEXT NOT NULL DEFAULT ''", error))
     return false;
+  Statement encoding;
+  if (!prepare (holder.db,
+                "SELECT value FROM artifact_meta WHERE key='text_encoding';",
+                encoding, error))
+    return false;
+  int rc= sqlite3_step (encoding.st);
+  if (rc != SQLITE_ROW && rc != SQLITE_DONE) {
+    error= sqlite3_errmsg (holder.db);
+    return false;
+  }
+  if (rc != SQLITE_ROW ||
+      column_text (encoding.st, 0) != "utf8-opaque-v1") {
+    // Earlier builders treated TeXmacs' Cork bytes as UTF-8 at the worker
+    // boundary.  Emptying this incremental stamp table makes every source get
+    // revisited while the existing rows remain available for UUID matching.
+    if (!exec_sql (holder.db, "BEGIN IMMEDIATE;DELETE FROM documents;"
+                              "INSERT OR REPLACE INTO artifact_meta(key,value)"
+                              " VALUES('text_encoding','utf8-opaque-v1');COMMIT;",
+                   error)) {
+      std::string ignored;
+      exec_sql (holder.db, "ROLLBACK;", ignored);
+      return false;
+    }
+  }
   return true;
 }
 
@@ -417,12 +472,16 @@ std::string latex_for_tree (const tree& t) {
   // Standalone artifact readers and unit tests do not boot Guile.  Their range
   // selectors only need a stable textual representation; the full ATHENA
   // process continues to use the normal LaTeX converter below.
-  if (headless_mode) return to_std (tree_to_texmacs (t));
+  if (headless_mode)
+    return cork_bytes_to_utf8 (to_std (tree_to_texmacs (t)));
   try {
-    return to_std (as_string (call ("convert", t, "texmacs-tree",
-                                    "latex-snippet")));
+    return cork_bytes_to_utf8 (
+      to_std (as_string (call ("convert", t, "texmacs-tree",
+                               "latex-snippet"))));
   }
-  catch (...) { return to_std (tree_to_texmacs (t)); }
+  catch (...) {
+    return cork_bytes_to_utf8 (to_std (tree_to_texmacs (t)));
+  }
 }
 
 struct Paragraph {
@@ -497,10 +556,9 @@ void scan_enunciations (const tree& parent, const std::string& rel,
       record.type= type;
       record.origin= "enunciation";
       record.relative_path= rel;
-      record.anchor_stem= anchor;
-      record.display_text= plain_text (child);
-      if (record.display_text.size () > 300)
-        record.display_text.resize (300);
+      record.anchor_stem= cork_bytes_to_utf8 (anchor);
+      record.display_text= truncate_utf8 (
+        cork_bytes_to_utf8 (plain_text (child)), 300);
       record.keyword_tree= base;
       record.identity_focus= identity_fingerprint (child);
       record.identity_before= identity_neighbor (parent, i - 1, -1);
@@ -711,7 +769,7 @@ bool extract (const tree& document, const std::string& rel,
       record.type= "definition";
       record.origin= "bold-text";
       record.relative_path= rel;
-      record.display_text= display;
+      record.display_text= cork_bytes_to_utf8 (display);
       record.keyword_tree= serialized;
       record.keyword_occurrence= occurrence;
       record.definition_candidates= candidates;
@@ -741,7 +799,7 @@ QJsonObject record_json (const AthenaArtifactRecord& record) {
   object["path"]= qstr (record.relative_path);
   object["anchor"]= qstr (record.anchor_stem);
   object["display"]= qstr (record.display_text);
-  object["keyword"]= qstr (record.keyword_tree);
+  object["keyword"]= qstr (encode_opaque (record.keyword_tree));
   object["occurrence"]= record.keyword_occurrence;
   object["order"]= record.document_order;
   object["identity_focus"]= qstr (record.identity_focus);
@@ -753,7 +811,7 @@ QJsonObject record_json (const AthenaArtifactRecord& record) {
   for (const auto& candidate: record.definition_candidates) {
     QJsonObject item;
     item["offset"]= candidate.first;
-    item["source"]= qstr (candidate.second);
+    item["source"]= qstr (encode_opaque (candidate.second));
     candidates.append (item);
   }
   object["candidates"]= candidates;
@@ -772,7 +830,7 @@ AthenaArtifactRecord record_from_json (const QJsonObject& object) {
   record.relative_path= s ("path");
   record.anchor_stem= s ("anchor");
   record.display_text= s ("display");
-  record.keyword_tree= s ("keyword");
+  record.keyword_tree= decode_opaque (s ("keyword"));
   record.keyword_occurrence= object.value ("occurrence").toInt ();
   record.document_order= object.value ("order").toInt ();
   record.identity_focus= s ("identity_focus");
@@ -785,7 +843,8 @@ AthenaArtifactRecord record_from_json (const QJsonObject& object) {
     QByteArray source= item.value ("source").toString ().toUtf8 ();
     record.definition_candidates.push_back (
       {item.value ("offset").toInt (),
-       std::string (source.constData (), (size_t) source.size ())});
+       decode_opaque (
+         std::string (source.constData (), (size_t) source.size ())) });
   }
   return record;
 }
@@ -1228,7 +1287,7 @@ bool load_identity_observations (
     observation.uuid= column_text (bold.st, 0);
     observation.origin= "bold-text";
     observation.type= "definition";
-    std::string keyword= column_text (bold.st, 1);
+    std::string keyword= decode_opaque (column_text (bold.st, 1));
     observation.display= column_text (bold.st, 2);
     observation.document_order= sqlite3_column_int (bold.st, 3);
     observation.focus= column_text (bold.st, 4);
@@ -1345,7 +1404,7 @@ bool replace_document (sqlite3* db, const std::string& rel,
       sqlite3_reset (insert_bold.st); sqlite3_clear_bindings (insert_bold.st);
       bind_text (insert_bold.st, 1, record.content_uuid);
       bind_text (insert_bold.st, 2, rel);
-      bind_text (insert_bold.st, 3, record.keyword_tree);
+      bind_text (insert_bold.st, 3, encode_opaque (record.keyword_tree));
       bind_text (insert_bold.st, 4, record.display_text);
       sqlite3_bind_int (insert_bold.st, 5, record.keyword_occurrence);
       bind_text (insert_bold.st, 6, offsets_text (record.paragraph_offsets));
@@ -1960,7 +2019,7 @@ AthenaArtifactRecord artifact_record_from_statement (sqlite3_stmt* statement) {
   record.anchor_stem= column_text (statement, 6);
   record.display_text= column_text (statement, 7);
   record.document_order= sqlite3_column_int (statement, 8);
-  record.keyword_tree= column_text (statement, 9);
+  record.keyword_tree= decode_opaque (column_text (statement, 9));
   record.keyword_occurrence= sqlite3_column_int (statement, 10);
   record.paragraph_offsets= parse_offsets (column_text (statement, 11));
   record.identity_focus= column_text (statement, 12);

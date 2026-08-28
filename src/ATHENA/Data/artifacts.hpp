@@ -26,6 +26,8 @@ struct AthenaArtifactRecord {
   std::string content_uuid;
   std::string proof_uuid;
   std::string relative_path;
+  // User-facing text is UTF-8. keyword_tree and definition_candidates retain
+  // TeXmacs' internal Cork encoding so they can be parsed back into trees.
   std::string anchor_stem;
   std::string display_text;
   std::string keyword_tree;

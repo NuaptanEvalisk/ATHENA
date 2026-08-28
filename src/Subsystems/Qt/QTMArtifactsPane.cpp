@@ -67,7 +67,7 @@ void execute_open (const AthenaArtifactRecord& record) {
   if (record.origin == "enunciation" && !record.anchor_stem.empty ()) {
     array<object> cmd;
     cmd << symbol_object ("artifact-jump-to-source") << object (file)
-        << object (tmstr (record.anchor_stem));
+        << object (utf8_to_cork (tmstr (record.anchor_stem)));
     exec_delayed (scheme_cmd (as_list_object (cmd)));
     return;
   }

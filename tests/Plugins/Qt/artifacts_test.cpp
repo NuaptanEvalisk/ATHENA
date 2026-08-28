@@ -45,6 +45,7 @@ private slots:
   void locatesStoredParagraphRange ();
   void doesNotLinkNonAdjacentProof ();
   void buildsIncrementallyAndPurgesDeletedDocuments ();
+  void preservesAccentedArtifactTextAcrossWorkerAndDatabase ();
   void storesAndDisambiguatesSameNamedArtifacts ();
   void navigatesArtifactAndLoadsDisambiguationPage ();
   void keepsRadioactiveRangeMacroLociAlive ();
@@ -465,6 +466,85 @@ TestArtifacts::buildsIncrementallyAndPurgesDeletedDocuments () {
     "AND decision='deleted' AND evidence='source-document-removed';", error);
   QVERIFY2 (deleted_history >= 0, error.c_str ());
   QCOMPARE (deleted_history, 3);
+}
+
+void
+TestArtifacts::preservesAccentedArtifactTextAcrossWorkerAndDatabase () {
+  MissingRangeModel noModel;
+  QTemporaryDir temporary;
+  QVERIFY (temporary.isValid ());
+  fs::path root (temporary.path ().toStdString ());
+  AthenaVaultfileInfo info;
+  info.artifacts_path= "indexes/artifacts.db";
+  info.enunciations_path= "indexes/enunciations.db";
+  info.bold_text_path= "indexes/bold-text.db";
+  std::string error;
+  QVERIFY2 (athena_vaultfile_write (root, info, error), error.c_str ());
+
+  string keyword= utf8_to_cork ("Ces\xc3\xa0ro summation");
+  string anchor= utf8_to_cork ("H\xc3\xb6lder theorem {");
+  string statement= utf8_to_cork ("A th\xc3\xa9or\xc3\xa8me statement.");
+  tree body (DOCUMENT);
+  body << compound ("label", anchor)
+       << compound ("theorem", statement);
+  tree paragraph (CONCAT);
+  paragraph << "A sequence is " << compound ("strong", keyword) << ".";
+  body << paragraph;
+  tree document (DOCUMENT);
+  document << compound ("TeXmacs", "2.1.4")
+           << compound ("style", "generic")
+           << compound ("body", body);
+  write_document (root / "Accented.ath", document);
+
+  AthenaArtifactsBuildResult first;
+  QVERIFY2 (athena_artifacts_build (root, {}, true, {}, first, error),
+            error.c_str ());
+  std::vector<AthenaArtifactRecord> records;
+  QVERIFY2 (athena_artifacts_query (root, records, error), error.c_str ());
+  auto found= std::find_if (records.begin (), records.end (), [] (const auto& r) {
+    return r.origin == "bold-text";
+  });
+  QVERIFY (found != records.end ());
+  QCOMPARE (found->display_text, std::string ("Ces\xc3\xa0ro summation"));
+  std::string stable_uuid= found->content_uuid;
+  auto enunciation= std::find_if (
+    records.begin (), records.end (), [] (const auto& r) {
+      return r.origin == "enunciation";
+    });
+  QVERIFY (enunciation != records.end ());
+  QCOMPARE (enunciation->anchor_stem, std::string ("H\xc3\xb6lder theorem"));
+  QCOMPARE (enunciation->display_text,
+            std::string ("A th\xc3\xa9or\xc3\xa8me statement."));
+  string expected_keyword= tree_to_texmacs (compound ("strong", keyword));
+  QCOMPARE (found->keyword_tree,
+            std::string (as_charp (expected_keyword),
+                         (size_t) N(expected_keyword)));
+
+  int utf8_rows= query_test_int (
+    root / "indexes/artifacts.db",
+    "SELECT COUNT(*) FROM artifacts WHERE hex(display_text)="
+    "'436573C3A0726F2073756D6D6174696F6E';", error);
+  QVERIFY2 (utf8_rows >= 0, error.c_str ());
+  QCOMPARE (utf8_rows, 1);
+
+  // Missing encoding metadata represents a database made by the old builder.
+  QVERIFY2 (exec_test_sql (
+              root / "indexes/artifacts.db",
+              "DELETE FROM artifact_meta WHERE key='text_encoding';"
+              "UPDATE artifacts SET display_text='damaged' "
+              "WHERE origin='bold-text';", error), error.c_str ());
+  AthenaArtifactsBuildResult migrated;
+  QVERIFY2 (athena_artifacts_build (root, {}, true, {}, migrated, error),
+            error.c_str ());
+  QCOMPARE (migrated.documents_changed, (size_t) 1);
+  records.clear ();
+  QVERIFY2 (athena_artifacts_query (root, records, error), error.c_str ());
+  found= std::find_if (records.begin (), records.end (), [] (const auto& r) {
+    return r.origin == "bold-text";
+  });
+  QVERIFY (found != records.end ());
+  QCOMPARE (found->display_text, std::string ("Ces\xc3\xa0ro summation"));
+  QCOMPARE (found->content_uuid, stable_uuid);
 }
 
 void
