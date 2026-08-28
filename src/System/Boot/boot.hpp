@@ -36,6 +36,7 @@ bool   has_user_preference (string var);
 void   register_user_preference (string var, string def, bool string_def);
 void   register_user_preference_callback (string var, string callback);
 bool   user_preference_default_is_string (string var);
+bool   user_preference_is_sensitive (string var);
 string get_user_preference (string var, string def= "");
 string get_user_preference_callback (string var);
 array<string> get_user_preference_names ();

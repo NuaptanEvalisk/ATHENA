@@ -685,6 +685,25 @@ get_user_preference_names () {
   return a;
 }
 
+bool
+user_preference_is_sensitive (string var) {
+  string key= locase_all (var);
+  if (key == "rag mcp bearer token" ||
+      key == "google oauth client id" ||
+      key == "google oauth client secret")
+    return true;
+
+  static const char* markers[]= {
+    "access key", "api key", "apikey", "authentication",
+    "authorization", "bearer", "client id", "client secret", "cookie",
+    "credential", "oauth", "password", "passwd", "private key",
+    "refresh token", "secret", "session key", "token"
+  };
+  for (const char* marker: markers)
+    if (search_forwards (string (marker), key) >= 0) return true;
+  return false;
+}
+
 array<string>
 get_user_preference_callback_names () {
   ensure_builtin_user_preferences ();

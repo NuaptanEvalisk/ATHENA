@@ -99,6 +99,13 @@ using QStringChoice = std::pair<QString, QString>;
 
 static QPointer<QTMPreferencesDialog> activePreferencesDialog;
 static QPointer<QDialog> activePageSetupDialog;
+static bool collectingPreferencesMetadata= false;
+static const char* preferenceKeyProperty= "athenaPreferenceKey";
+
+static void
+mark_preference_control (QWidget* widget, const char* key) {
+  widget->setProperty (preferenceKeyProperty, QString::fromUtf8 (key));
+}
 
 static QString
 to_qstring_pref (string s) {
@@ -389,6 +396,7 @@ label (const QString& text) {
 static QCheckBox*
 add_toggle (QFormLayout* form, const QString& title, const char* key) {
   QCheckBox* box= new QCheckBox;
+  mark_preference_control (box, key);
   box->setChecked (pref_on (key));
   QObject::connect (box, &QCheckBox::toggled, [key] (bool on) {
     set_bool_pref (key, on);
@@ -401,6 +409,7 @@ static QLineEdit*
 add_line_edit (QFormLayout* form, const QString& title, const char* key,
                const char* def= "", bool password= false) {
   QLineEdit* edit= new QLineEdit;
+  mark_preference_control (edit, key);
   edit->setText (pref (key, def));
   if (password) edit->setEchoMode (QLineEdit::Password);
   QObject::connect (edit, &QLineEdit::editingFinished, [key, edit] () {
@@ -415,6 +424,7 @@ add_combo (QFormLayout* form, const QString& title, const char* key,
            const std::vector<Choice>& choices, const char* def= "default",
            bool restart= false) {
   QComboBox* combo= new QComboBox;
+  mark_preference_control (combo, key);
   QString cur= pref (key, def);
   int curIndex= -1;
   for (size_t i=0; i<choices.size (); i++) {
@@ -442,6 +452,7 @@ add_qstring_combo (QFormLayout* form, const QString& title, const char* key,
                    const std::vector<QStringChoice>& choices,
                    const char* def= "default", bool restart= false) {
   QComboBox* combo= new QComboBox;
+  mark_preference_control (combo, key);
   QString cur= pref (key, def);
   int curIndex= -1;
   for (size_t i=0; i<choices.size (); i++) {
@@ -480,7 +491,10 @@ add_color_button (QFormLayout* form, const QString& title, const char* key,
     button_set_color (button, c.name ());
   });
 
-  if (!optional) form->addRow (label (title), button);
+  if (!optional) {
+    mark_preference_control (button, key);
+    form->addRow (label (title), button);
+  }
   else {
     QWidget* row= new QWidget;
     QHBoxLayout* layout= new QHBoxLayout (row);
@@ -492,6 +506,7 @@ add_color_button (QFormLayout* form, const QString& title, const char* key,
       button_set_color (button, "none");
     });
     layout->addWidget (none);
+    mark_preference_control (row, key);
     form->addRow (label (title), row);
   }
   return button;
@@ -849,6 +864,7 @@ add_page_setup_combo (QFormLayout* form, const QString& title,
                       const std::vector<QStringChoice>& choices,
                       const QString& def) {
   QComboBox* combo= new QComboBox;
+  mark_preference_control (combo, key);
   QString cur= pref (key, def);
   int curIndex= -1;
   for (size_t i=0; i<choices.size (); i++) {
@@ -968,6 +984,54 @@ QTMPreferencesDialog::addCategory (const QString& name, QWidget* page) {
   QListWidgetItem* item= new QListWidgetItem (icon, name, categoryList);
   item->setSizeHint (QSize (180, 40));
   pageStack->addWidget (page);
+}
+
+QStringList
+QTMPreferencesDialog::exportMetadata () const {
+  QStringList result;
+  for (int categoryIndex= 0; categoryIndex < pageStack->count ();
+       ++categoryIndex) {
+    const QString category= categoryList->item (categoryIndex)->text ();
+    QTabWidget* tabs= qobject_cast<QTabWidget*> (
+      pageStack->widget (categoryIndex));
+    if (tabs == nullptr) continue;
+    for (int tabIndex= 0; tabIndex < tabs->count (); ++tabIndex) {
+      QScrollArea* scroll= qobject_cast<QScrollArea*> (
+        tabs->widget (tabIndex));
+      if (scroll == nullptr || scroll->widget () == nullptr) continue;
+      const QString tab= tabs->tabText (tabIndex);
+      const QList<QGroupBox*> groups=
+        scroll->widget ()->findChildren<QGroupBox*> (
+          QString (), Qt::FindDirectChildrenOnly);
+      for (QGroupBox* group: groups) {
+        const QString groupTitle= group->title ();
+        QFormLayout* form= qobject_cast<QFormLayout*> (group->layout ());
+        if (form == nullptr) {
+          const QString key=
+            group->property (preferenceKeyProperty).toString ();
+          if (!key.isEmpty ())
+            result << category << tab << groupTitle << groupTitle << key;
+          continue;
+        }
+        for (int row= 0; row < form->rowCount (); ++row) {
+          QLayoutItem* labelItem= form->itemAt (row, QFormLayout::LabelRole);
+          QLayoutItem* fieldItem= form->itemAt (row, QFormLayout::FieldRole);
+          QLabel* settingLabel= labelItem == nullptr? nullptr:
+            qobject_cast<QLabel*> (labelItem->widget ());
+          QWidget* field= fieldItem == nullptr? nullptr: fieldItem->widget ();
+          if (settingLabel == nullptr || field == nullptr) continue;
+          const QString key=
+            field->property (preferenceKeyProperty).toString ();
+          if (key.isEmpty ()) continue;
+          QString setting= settingLabel->text ().trimmed ();
+          setting.remove ('&');
+          if (setting.endsWith (':')) setting.chop (1);
+          result << category << tab << groupTitle << setting << key;
+        }
+      }
+    }
+  }
+  return result;
 }
 
 void
@@ -1147,6 +1211,7 @@ QTMPreferencesDialog::buildGeneralPage () {
               "show font substitution warning");
 
   QGroupBox* preferredBox= new QGroupBox ("Preferred fonts", fonts);
+  mark_preference_control (preferredBox, "preferred fonts");
   QVBoxLayout* preferredLayout= new QVBoxLayout (preferredBox);
   QListWidget* fontList= new QListWidget (preferredBox);
   preferredLayout->addWidget (fontList);
@@ -1427,6 +1492,7 @@ QTMPreferencesDialog::buildRenderingPage () {
     apply_enunciation_preset (presetCombo->currentText ());
   });
   QWidget* presetRow= new QWidget;
+  mark_preference_control (presetRow, "enunciation color preset");
   QHBoxLayout* presetLayout= new QHBoxLayout (presetRow);
   presetLayout->setContentsMargins (0, 0, 0, 0);
   presetLayout->addWidget (presetCombo, 1);
@@ -1545,6 +1611,8 @@ QTMPreferencesDialog::buildConversionPage () {
               {"ascii", "Legacy ASCII (exports as UTF-8)"}});
   QFormLayout* l3= add_section (latex, "Conservative conversion options");
   QCheckBox* sourceTracking= new QCheckBox;
+  mark_preference_control (sourceTracking,
+                           "latex->texmacs:source-tracking");
   sourceTracking->setChecked (pref_on ("latex->texmacs:source-tracking") ||
                               pref_on ("texmacs->latex:source-tracking"));
   QObject::connect (sourceTracking, &QCheckBox::toggled, [] (bool on) {
@@ -1553,6 +1621,7 @@ QTMPreferencesDialog::buildConversionPage () {
   });
   l3->addRow (label ("Keep track of source code:"), sourceTracking);
   QCheckBox* conservative= new QCheckBox;
+  mark_preference_control (conservative, "latex->texmacs:conservative");
   conservative->setChecked (pref_on ("latex->texmacs:conservative") &&
                             pref_on ("texmacs->latex:conservative"));
   QObject::connect (conservative, &QCheckBox::toggled, [] (bool on) {
@@ -2194,6 +2263,7 @@ QTMPreferencesDialog::buildVaultPage () {
   }
 
   QWidget* vaultFontRow= new QWidget (info);
+  mark_preference_control (vaultFontRow, "vault preferred font");
   QHBoxLayout* vaultFontLayout= new QHBoxLayout (vaultFontRow);
   vaultFontLayout->setContentsMargins (0, 0, 0, 0);
   QLineEdit* vaultFont= new QLineEdit (vaultFontRow);
@@ -2245,6 +2315,7 @@ QTMPreferencesDialog::buildOtherPage () {
   QLineEdit* codexHome= new QLineEdit (codex_home_path (), ai);
   QPushButton* chooseCodexHome= new QPushButton ("Browse...", ai);
   QWidget* codexHomeRow= new QWidget (ai);
+  mark_preference_control (codexHomeRow, "codex home");
   QHBoxLayout* codexHomeLayout= new QHBoxLayout (codexHomeRow);
   codexHomeLayout->setContentsMargins (0, 0, 0, 0);
   codexHomeLayout->addWidget (codexHome, 1);
@@ -2405,6 +2476,7 @@ QTMPreferencesDialog::buildOtherPage () {
 
   QFormLayout* rd= add_section (security, "ATHENA Delegation");
   QListWidget* ragServers= new QListWidget (security);
+  mark_preference_control (ragServers, "delegation server");
   ragServers->setMinimumHeight (120);
   auto reloadRagServers= [ragServers] () {
     ragServers->clear ();
@@ -2591,6 +2663,8 @@ QTMPreferencesDialog::buildOtherPage () {
     google, "OAuth desktop client secret:", "google oauth client secret", "",
     true);
   QComboBox* cloudTodoList= new QComboBox (connectivity);
+  mark_preference_control (cloudTodoList,
+                           "google tasks cloud todo list id");
   cloudTodoList->addItem ("Default task list", "");
   google->addRow (label ("Cloud todo task list:"), cloudTodoList);
   QLabel* googleStatus= new QLabel (connectivity);
@@ -2675,7 +2749,9 @@ QTMPreferencesDialog::buildOtherPage () {
     set_preference ("google tasks cloud todo list id", "");
     refreshGoogleStatus ();
   });
-  refreshGoogleStatus ();
+  if (!collectingPreferencesMetadata) refreshGoogleStatus ();
+  else googleStatus->setText ("Google Tasks status is not queried while "
+                              "collecting preference metadata.");
 
   QFormLayout* rag= add_section (connectivity, "Continuous RAG");
   add_line_edit (rag, "MCP port:", "rag mcp port", "8765");
@@ -2698,6 +2774,8 @@ QTMPreferencesDialog::buildOtherPage () {
   QLineEdit* embeddingModel= add_path_chooser_row (
     rag, "Embedding model path:", pref ("rag embedding model", ""),
     chooseEmbedding);
+  mark_preference_control (embeddingModel->parentWidget (),
+                           "rag embedding model");
   QObject::connect (embeddingModel, &QLineEdit::editingFinished,
                     [embeddingModel] () {
     set_pref ("rag embedding model", embeddingModel->text ().trimmed ());
@@ -2762,6 +2840,37 @@ qtm_preferences_dialog_show () {
 bool
 qtm_preferences_dialog_open () {
   return !activePreferencesDialog.isNull ();
+}
+
+int
+qtm_preferences_export_privacy_dialog () {
+  if (headless_mode) return 0;
+  QMessageBox dialog (QMessageBox::Question, "View all preferences",
+    "The preferences export may contain access tokens, authentication "
+    "information, and other credentials. Redact sensitive values?",
+    QMessageBox::NoButton, QApplication::activeWindow ());
+  dialog.setInformativeText (
+    "Redaction is recommended before sharing the generated ATHENA document.");
+  QPushButton* redact= dialog.addButton ("Redact sensitive values",
+                                         QMessageBox::AcceptRole);
+  QPushButton* include= dialog.addButton ("Include sensitive values",
+                                          QMessageBox::DestructiveRole);
+  dialog.addButton (QMessageBox::Cancel);
+  dialog.setDefaultButton (redact);
+  dialog.exec ();
+  if (dialog.clickedButton () == redact) return 1;
+  if (dialog.clickedButton () == include) return 2;
+  return 0;
+}
+
+QStringList
+qtm_preferences_export_metadata () {
+  if (activePreferencesDialog)
+    return activePreferencesDialog->exportMetadata ();
+  collectingPreferencesMetadata= true;
+  QTMPreferencesDialog dialog;
+  collectingPreferencesMetadata= false;
+  return dialog.exportMetadata ();
 }
 
 void

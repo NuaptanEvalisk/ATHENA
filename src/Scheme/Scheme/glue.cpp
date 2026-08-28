@@ -1659,6 +1659,29 @@ tmg_native_preferences_openP () {
 }
 
 tmscm
+tmg_native_preferences_export_privacy () {
+  return int_to_tmscm (qtm_preferences_export_privacy_dialog ());
+}
+
+tmscm
+tmg_native_preferences_export_metadata () {
+  array<string> result;
+  const QStringList metadata= qtm_preferences_export_metadata ();
+  for (const QString& field: metadata) {
+    const QByteArray utf8= field.toUtf8 ();
+    result << string (utf8.constData (), utf8.size ());
+  }
+  return array_string_to_tmscm (result);
+}
+
+tmscm
+tmg_native_preference_sensitiveP (tmscm arg1) {
+  TMSCM_ASSERT_STRING (arg1, TMSCM_ARG1, "native-preference-sensitive?");
+  return bool_to_tmscm (
+    user_preference_is_sensitive (tmscm_to_string (arg1)));
+}
+
+tmscm
 tmg_native_open_page_setup () {
   qtm_page_setup_dialog_show ();
   return TMSCM_UNSPECIFIED;
@@ -2090,6 +2113,12 @@ initialize_glue () {
                            tmg_native_open_preferences, 0, 0, 0);
   tmscm_install_procedure ("native-preferences-open?",
                            tmg_native_preferences_openP, 0, 0, 0);
+  tmscm_install_procedure ("native-preferences-export-privacy",
+                           tmg_native_preferences_export_privacy, 0, 0, 0);
+  tmscm_install_procedure ("native-preferences-export-metadata",
+                           tmg_native_preferences_export_metadata, 0, 0, 0);
+  tmscm_install_procedure ("native-preference-sensitive?",
+                           tmg_native_preference_sensitiveP, 1, 0, 0);
   tmscm_install_procedure ("native-open-page-setup",
                            tmg_native_open_page_setup, 0, 0, 0);
   tmscm_install_procedure ("page-properties-pane-show",

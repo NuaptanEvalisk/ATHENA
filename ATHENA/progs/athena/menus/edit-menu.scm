@@ -14,6 +14,7 @@
 (texmacs-module (athena menus edit-menu)
   (:use (utils library cursor)
 	(utils edit selections)
+        (kernel athena tm-preferences)
         (athena athena tm-codex)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -121,5 +122,6 @@
       (link clipboard-export-preference-menu))
   (link athena-edit-utilities-menu)
   ---
+  ("View all preferences" (view-all-preferences))
   (if (not (preferences-open?))
       ("Preferences" (open-preferences))))

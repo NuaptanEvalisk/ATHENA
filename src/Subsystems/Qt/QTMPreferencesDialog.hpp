@@ -12,6 +12,7 @@
 #define QTMPREFERENCESDIALOG_HPP
 
 #include <QDialog>
+#include <QStringList>
 
 class QListWidget;
 class QCompleter;
@@ -23,6 +24,7 @@ class QStackedWidget;
 class QTMPreferencesDialog : public QDialog {
 public:
   QTMPreferencesDialog (QWidget* parent= nullptr);
+  QStringList exportMetadata () const;
 
 private:
   void addCategory (const QString& name, QWidget* page);
@@ -45,6 +47,8 @@ private:
 
 void qtm_preferences_dialog_show ();
 bool qtm_preferences_dialog_open ();
+int  qtm_preferences_export_privacy_dialog ();
+QStringList qtm_preferences_export_metadata ();
 void qtm_page_setup_dialog_show ();
 
 #endif

@@ -163,6 +163,138 @@
 (tm-define (get-boolean-preference which)
   (== (get-preference which) "on"))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Complete preferences document
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(define (preference-export-metadata->entries fields)
+  (if (null? fields) '()
+      (cons (list (list-ref fields 0) (list-ref fields 1)
+                  (list-ref fields 2) (list-ref fields 3)
+                  (list-ref fields 4))
+            (preference-export-metadata->entries (list-tail fields 5)))))
+
+(define (preference-export-entry-field entry index)
+  (list-ref entry index))
+
+(define (preference-export-ordered-unique values)
+  (if (null? values) '()
+      (cons (car values)
+            (preference-export-ordered-unique
+              (filter (lambda (value) (!= value (car values)))
+                      (cdr values))))))
+
+(define (preference-export-value name redact?)
+  (let ((value (cpp-get-preference name "default")))
+    (if (and redact? (native-preference-sensitive? name) (!= value ""))
+        "[REDACTED]"
+        (if (== value "") "(empty)" value))))
+
+(define (preference-export-row label name redact?)
+  `(row
+     (cell ,label)
+     (cell (verbatim ,(preference-export-value name redact?)))
+     (cell ,(if (cpp-has-preference? name) "Customized" "Default"))))
+
+(define (preference-export-table entries redact?)
+  `(tabular
+     (tformat
+       (twith "table-width" "1par")
+       (twith "table-hmode" "exact")
+       (cwith 1 1 1 -1 "cell-background" "#e8e8e8")
+       (cwith 1 -1 1 -1 "cell-hyphen" "t")
+       (cwith 1 -1 1 -1 "cell-lsep" "0.5em")
+       (cwith 1 -1 1 -1 "cell-rsep" "0.5em")
+       (cwith 1 -1 1 -1 "cell-tsep" "0.25em")
+       (cwith 1 -1 1 -1 "cell-bsep" "0.25em")
+       (cwith 1 -1 1 1 "cell-width" "0.36par")
+       (cwith 1 -1 2 2 "cell-width" "0.44par")
+       (cwith 1 -1 3 3 "cell-width" "0.20par")
+       (table
+         (row (cell (strong "Preference"))
+              (cell (strong "Effective value"))
+              (cell (strong "Source")))
+         ,@(map (lambda (entry)
+                  (preference-export-row
+                    (preference-export-entry-field entry 3)
+                    (preference-export-entry-field entry 4) redact?))
+                entries)))))
+
+(define (preference-export-group group tab entries redact?)
+  (append (if (== group tab) '() `((subsubsection ,group)))
+          (list (preference-export-table entries redact?))))
+
+(define (preference-export-tab tab entries redact?)
+  (let ((groups (preference-export-ordered-unique
+                  (map (lambda (entry)
+                         (preference-export-entry-field entry 2))
+                       entries))))
+    (cons `(subsection ,tab)
+          (append-map
+            (lambda (group)
+              (preference-export-group
+                group tab
+                (filter (lambda (entry)
+                          (== (preference-export-entry-field entry 2) group))
+                        entries)
+                redact?))
+            groups))))
+
+(define (preference-export-section category entries redact?)
+  (let ((selected
+          (filter (lambda (entry)
+                    (== (preference-export-entry-field entry 0) category))
+                  entries)))
+    (let ((tabs (preference-export-ordered-unique
+                  (map (lambda (entry)
+                         (preference-export-entry-field entry 1))
+                       selected))))
+      (cons `(section ,category)
+            (append-map
+              (lambda (tab)
+                (preference-export-tab
+                  tab
+                  (filter (lambda (entry)
+                            (== (preference-export-entry-field entry 1) tab))
+                          selected)
+                  redact?))
+              tabs)))))
+
+(tm-define (view-all-preferences)
+  (:interactive #t)
+  (let ((choice (native-preferences-export-privacy)))
+    (when (!= choice 0)
+      (let* ((redact? (== choice 1))
+             (entries (preference-export-metadata->entries
+                        (native-preferences-export-metadata)))
+             (categories (preference-export-ordered-unique
+                           (map (lambda (entry)
+                                  (preference-export-entry-field entry 0))
+                                entries)))
+             (sections
+               (append-map
+                 (lambda (category)
+                   (preference-export-section category entries redact?))
+                 categories))
+             (mode (if redact? "Sensitive values are redacted."
+                       "Sensitive values are included. Do not share this document."))
+             (doc `(document
+                     (doc-data
+                       (doc-title (concat "All " (ATHENA) " Preferences")))
+                     (concat
+                       (strong "Export mode: ")
+                       ,(if redact? mode `(with "color" "red" ,mode)))
+                     (concat
+                       "This document follows the category, tab, section, and setting order of the Preferences window. Values marked Default are inherited from "
+                       (ATHENA)
+                       "; Customized values are explicitly stored in the active preferences scope.")
+                     ,@sections)))
+        (new-buffer)
+        (buffer-set-title (current-buffer)
+                          (if redact? "All preferences (redacted)"
+                              "All preferences"))
+        (buffer-set-body (current-buffer) (stree->tree doc))))))
+
 (define (notify-debug-backtrace name val)
   (if (== val "on")
       (when (not (in? 'backtrace (debug-options)))
