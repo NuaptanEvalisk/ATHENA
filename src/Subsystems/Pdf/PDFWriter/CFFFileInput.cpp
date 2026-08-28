@@ -23,6 +23,7 @@
 #include "CharStringType2Interpreter.h"
 #include "StandardEncoding.h"
 
+#include <algorithm>
 
 using namespace PDFHummus;
 
@@ -804,7 +805,8 @@ void CFFFileInput::ReadEncoding(EncodingsInfo* inEncoding,LongFilePositionType i
 		mPrimitivesReader.SetOffset(inEncodingPosition);
 		mPrimitivesReader.ReadCard8(encodingFormat);
 
-		if(0 == (encodingFormat & 0x1))
+		Byte baseEncodingFormat = encodingFormat & 0x7f;
+		if(0 == baseEncodingFormat)
 		{
 			mPrimitivesReader.ReadCard8(inEncoding->mEncodingsCount);
 			if(inEncoding->mEncodingsCount > 0)
@@ -814,38 +816,29 @@ void CFFFileInput::ReadEncoding(EncodingsInfo* inEncoding,LongFilePositionType i
 					mPrimitivesReader.ReadCard8(inEncoding->mEncoding[i]);
 			}
 		}
-		else // format = 1
+		else if(1 == baseEncodingFormat)
 		{
 			Byte rangesCount = 0;
 			mPrimitivesReader.ReadCard8(rangesCount);
-			if(rangesCount > 0)
+			std::vector<Byte> encodings;
+			encodings.reserve(255);
+			for(Byte i=0; i < rangesCount; ++i)
 			{
-				Byte firstCode;
-				Byte left;
-
-				inEncoding->mEncodingsCount = 0;
-				// get the encoding count (yap, reading twice here)				
-				for(Byte i=0; i < rangesCount; ++i)
-				{
-					mPrimitivesReader.ReadCard8(firstCode);
-					mPrimitivesReader.ReadCard8(left);
-					inEncoding->mEncodingsCount+= left;
-				}
-				inEncoding->mEncoding = new Byte[inEncoding->mEncodingsCount];
-				mPrimitivesReader.SetOffset(inEncodingPosition+2); // reset encoding to beginning of range reading
-
-				// now read the encoding array
-				Byte encodingIndex = 0;
-				for(Byte i=0; i < rangesCount; ++i)
-				{
-					mPrimitivesReader.ReadCard8(firstCode);
-					mPrimitivesReader.ReadCard8(left);
-					for(Byte j=0;j < left;++j)
-						inEncoding->mEncoding[encodingIndex+j] = firstCode+j;
-					encodingIndex+=left;
-				}
+				Byte firstCode = 0;
+				Byte left = 0;
+				mPrimitivesReader.ReadCard8(firstCode);
+				mPrimitivesReader.ReadCard8(left);
+				for(unsigned int j=0; j <= left && encodings.size() < 255; ++j)
+					encodings.push_back((Byte)(firstCode+j));
+			}
+			inEncoding->mEncodingsCount = (Byte)encodings.size();
+			if(!encodings.empty())
+			{
+				inEncoding->mEncoding = new Byte[encodings.size()];
+				std::copy(encodings.begin(),encodings.end(),inEncoding->mEncoding);
 			}
 		}
+		inEncoding->mEncodingEnd = mPrimitivesReader.GetCurrentPosition();
 		if((encodingFormat & 0x80) !=  0) // supplaments exist, need to add to encoding end
 		{
 			mPrimitivesReader.SetOffset(inEncoding->mEncodingEnd); // set position to end of encoding, and start of supplamental, so that can read their count
@@ -867,7 +860,7 @@ void CFFFileInput::ReadEncoding(EncodingsInfo* inEncoding,LongFilePositionType i
 				}
 			}
 		}
-		inEncoding->mEncodingEnd =  mPrimitivesReader.GetCurrentPosition();
+		inEncoding->mEncodingEnd = mPrimitivesReader.GetCurrentPosition();
 	}
 }
 
@@ -1692,4 +1685,3 @@ unsigned short CFFFileInput::GetGlyphSID(unsigned short inFontIndex,unsigned sho
 		return sid;
 	}
 }
-

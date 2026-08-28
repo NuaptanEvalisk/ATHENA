@@ -98,7 +98,9 @@ typedef std::pair<Byte,unsigned short> ByteAndUShort;
 
 struct EncodingsInfo
 {
-	EncodingsInfo() {mEncoding = NULL;}
+	EncodingsInfo()
+		: mEncodingStart(0), mEncodingEnd(0),
+		  mType(eEncodingStandard), mEncodingsCount(0), mEncoding(NULL) {}
 
 	LongFilePositionType mEncodingStart;
 	LongFilePositionType mEncodingEnd;
@@ -313,4 +315,3 @@ private:
 	PDFHummus::EStatusCode ReadCIDInformation(unsigned short inFontIndex);
 	PDFHummus::EStatusCode ReadCFFFileByIndexOrName(IByteReaderWithPosition* inCFFFile,const std::string& inFontName,unsigned short inFontIndex);
 };
-

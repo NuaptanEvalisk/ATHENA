@@ -599,6 +599,11 @@ EStatusCode CFFEmbeddedFontWriter::WriteEncodings(const UIntVector& inSubsetGlyp
 
 	// not CID, write encoding, according to encoding values from the original font
 	EncodingsInfo* encodingInfo = mOpenTypeInput.mCFF.mTopDictIndex[0].mEncoding;
+	if(encodingInfo == NULL)
+	{
+		mEncodingPosition = 0;
+		return PDFHummus::eSuccess;
+	}
 	if(encodingInfo->mEncodingStart <= 1)
 	{
 		mEncodingPosition = encodingInfo->mEncodingStart;
@@ -636,13 +641,18 @@ EStatusCode CFFEmbeddedFontWriter::WriteEncodings(const UIntVector& inSubsetGlyp
 
 		// assuming that 0 is in the subset glyphs IDs, which does not require encoding
 		// get the encodings count
-		Byte encodingGlyphsCount = std::min((Byte)(inSubsetGlyphIDs.size()-1),encodingInfo->mEncodingsCount); 
+		size_t subsetGlyphsCount = inSubsetGlyphIDs.size() > 1 ?
+			inSubsetGlyphIDs.size()-1 : 0;
+		Byte encodingGlyphsCount = (Byte)std::min(
+			subsetGlyphsCount,(size_t)encodingInfo->mEncodingsCount);
 
 		mPrimitivesWriter.WriteCard8(encodingGlyphsCount);
 		for(Byte i=0; i < encodingGlyphsCount;++i)
 		{
-			if(inSubsetGlyphIDs[i+1] < encodingInfo->mEncodingsCount)
-				mPrimitivesWriter.WriteCard8(encodingInfo->mEncoding[inSubsetGlyphIDs[i+1]-1]);
+			unsigned int glyphID = inSubsetGlyphIDs[i+1];
+			if(glyphID > 0 && glyphID <= encodingInfo->mEncodingsCount &&
+				encodingInfo->mEncoding != NULL)
+				mPrimitivesWriter.WriteCard8(encodingInfo->mEncoding[glyphID-1]);
 			else
 				mPrimitivesWriter.WriteCard8(0);
 		}
