@@ -125,6 +125,18 @@ void build_with_dialog (bool current_only) {
   QObject::connect (cancel, &QPushButton::clicked, [&] () { cancelled= true; });
   dialog.adjustSize ();
   dialog.setFixedWidth (dialog_width);
+  int dialog_height= dialog.height ();
+  dialog.setFixedHeight (dialog_height);
+  auto grow_dialog_to_contents= [&] () {
+    status->updateGeometry ();
+    delegatedState->updateGeometry ();
+    layout->invalidate ();
+    layout->activate ();
+    int required_height= dialog.sizeHint ().height ();
+    if (required_height <= dialog_height) return;
+    dialog_height= required_height;
+    dialog.setFixedHeight (dialog_height);
+  };
   dialog.show ();
   QApplication::processEvents ();
 
@@ -193,8 +205,6 @@ void build_with_dialog (bool current_only) {
       }
       status->setText (message);
       status->setToolTip (message);
-      dialog.adjustSize ();
-      dialog.setFixedWidth (dialog_width);
       if (event.delegated_queued || event.delegated_running) {
         delegatedState->setText (
           QString ("<span style='color:#7b7b7b'>Queued %1</span> &nbsp; "
@@ -205,6 +215,7 @@ void build_with_dialog (bool current_only) {
             .arg ((qulonglong) event.current));
         delegatedState->show ();
       }
+      grow_dialog_to_contents ();
       QApplication::processEvents (QEventLoop::AllEvents, 50);
       return !cancelled;
     }, result, error, options);
