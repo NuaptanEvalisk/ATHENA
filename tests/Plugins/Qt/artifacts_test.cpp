@@ -71,6 +71,7 @@ private slots:
   void preservesUnicodeRadioactiveMatchOffsets ();
   void matchesLargeRadioactiveArtifactIndexWithinBudget ();
   void reportsBuildPhasesInOrder ();
+  void excludesExternalResourcesFromDefinitionRangeRequests ();
   void resumesDefinitionRangeSelectionFromCheckpoint ();
   void delegatedFailureLeavesDatabaseUnchanged ();
 };
@@ -1889,6 +1890,58 @@ TestArtifacts::reportsBuildPhasesInOrder () {
                       AthenaArtifactsBuildPhase::WritingDatabase) != phases.end ());
   QCOMPARE (std::count (phases.begin (), phases.end (),
                         AthenaArtifactsBuildPhase::Complete), 1);
+}
+
+void
+TestArtifacts::excludesExternalResourcesFromDefinitionRangeRequests () {
+  QTemporaryDir temporary;
+  QVERIFY (temporary.isValid ());
+  fs::path root (temporary.path ().toStdString ());
+  AthenaVaultfileInfo info;
+  std::string error;
+  QVERIFY2 (athena_vaultfile_write (root, info, error), error.c_str ());
+
+  tree paragraph (CONCAT);
+  paragraph << "The " << compound ("strong", "heat ball")
+            << " controls the mean-value formula."
+            << compound ("image", "https://i.sstatic.net/vxyGk.png", "373px",
+                         "", "", "");
+  tree body (DOCUMENT);
+  body << paragraph
+       << compound (
+            "big-figure",
+            compound ("image", "https://i.sstatic.net/vxyGk.png", "373px",
+                      "", "", ""),
+            "A heat ball.");
+  tree document (DOCUMENT);
+  document << compound ("TeXmacs", "2.1.4")
+           << compound ("style", "generic")
+           << compound ("body", body);
+  write_document (root / "Remote image.ath", document);
+
+  size_t requests_seen= 0;
+  bool external_resource_seen= false;
+  AthenaArtifactsBuildOptions options;
+  options.range_selector=
+    [&] (const std::vector<AthenaArtifactRangeRequest>& requests,
+         std::vector<std::vector<int>>& results,
+         const AthenaArtifactRangeSelectionProgress&,
+         std::string&) {
+      for (const AthenaArtifactRangeRequest& request: requests) {
+        requests_seen++;
+        for (const auto& candidate: request.paragraphs)
+          external_resource_seen |=
+            candidate.second.find ("i.sstatic.net") != std::string::npos ||
+            candidate.second.find ("<image|") != std::string::npos;
+      }
+      results.assign (requests.size (), std::vector<int> ({0}));
+      return true;
+    };
+  AthenaArtifactsBuildResult built;
+  QVERIFY2 (athena_artifacts_build (
+              root, {}, true, {}, built, error, options), error.c_str ());
+  QVERIFY (requests_seen >= 1);
+  QVERIFY (!external_resource_seen);
 }
 
 void

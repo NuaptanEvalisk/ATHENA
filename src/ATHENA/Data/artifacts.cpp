@@ -350,11 +350,14 @@ tree visible_body (const tree& t) {
   return t;
 }
 
+bool nonsemantic_resource_tag (const std::string& tag) {
+  return tag == "image" || tag == "include" || tag == "bibliography";
+}
+
 std::string plain_text (const tree& t) {
   if (is_atomic (t)) return to_std (t->label);
   std::string tag= tag_name (t);
-  if (tag == "label" || tag == "image" || tag == "include" ||
-      tag == "bibliography") return "";
+  if (tag == "label" || nonsemantic_resource_tag (tag)) return "";
   if (formatting_wrapper (tag) && N(t) >= 1) return plain_text (t[N(t)-1]);
   std::string out;
   for (int i=0; i<N(t); i++) {
@@ -490,19 +493,29 @@ bool standalone_attachment (const tree& t) {
   return tags.count (tag_name (t)) != 0;
 }
 
+tree artifact_semantic_tree (const tree& t) {
+  if (is_atomic (t)) return t;
+  std::string tag= tag_name (t);
+  if (nonsemantic_resource_tag (tag)) return tree ("");
+  tree out (L(t), N(t));
+  for (int i=0; i<N(t); i++) out[i]= artifact_semantic_tree (t[i]);
+  return out;
+}
+
 std::string latex_for_tree (const tree& t) {
+  tree semantic= artifact_semantic_tree (t);
   // Standalone artifact readers and unit tests do not boot Guile.  Their range
   // selectors only need a stable textual representation; the full ATHENA
   // process continues to use the normal LaTeX converter below.
   if (headless_mode)
-    return cork_bytes_to_utf8 (to_std (tree_to_texmacs (t)));
+    return cork_bytes_to_utf8 (to_std (tree_to_texmacs (semantic)));
   try {
     return cork_bytes_to_utf8 (
-      to_std (as_string (call ("convert", t, "texmacs-tree",
+      to_std (as_string (call ("convert", semantic, "texmacs-tree",
                                "latex-snippet"))));
   }
   catch (...) {
-    return cork_bytes_to_utf8 (to_std (tree_to_texmacs (t)));
+    return cork_bytes_to_utf8 (to_std (tree_to_texmacs (semantic)));
   }
 }
 
