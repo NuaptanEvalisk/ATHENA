@@ -15,6 +15,7 @@
 #include <cmath>
 
 #include <QImage>
+#include <QPdfWriter>
 #include <QPrinter>
 #include <QPainter>
 #include <QCoreApplication>
@@ -54,10 +55,6 @@
 #include "qt_gui.hpp"    // gui_maximal_extents()
 #include "editor.hpp"
 #include "new_view.hpp"  // get_current_editor()
-
-#ifdef USE_GS
-#include "Ghostscript/gs_utilities.hpp"
-#endif
 
 #define SCREEN_PIXEL (PIXEL)
 
@@ -622,51 +619,56 @@ qt_convert_image (url image, url dest, int w, int h) {// w, h in pixels
 
 void
 qt_image_to_pdf (url image, url outfile, int w_pt, int h_pt, int dpi) {
-// use a QPrinter to output raster images to eps or pdf
-// dpi is the maximum dpi : the image will either be dowsampled to that dpi
-// or the actual dpi will be lower
-  if (DEBUG_CONVERT) debug_convert << "qt_image_to_eps_or_pdf " << image << " -> "<<outfile<<LF;
-  QPrinter printer;
-  printer.setPageOrientation(QPageLayout::Portrait);
-  if (suffix(outfile)=="eps") {
-    cout << "ATHENA] warning: PostScript output is not supported by Qt\n";
-    printer.setOutputFormat(QPrinter::PdfFormat);
-  }
-  else printer.setOutputFormat(QPrinter::PdfFormat);
-  printer.setFullPage(true);
-  if (!dpi) dpi=96; 
-  printer.setResolution(dpi);
-  printer.setOutputFileName(utf8_to_qstring (concretize (outfile)));
-  QImage im (utf8_to_qstring (concretize (image)));
+  if (DEBUG_CONVERT)
+    debug_convert << "qt_image_to_pdf " << image << " -> " << outfile << LF;
+
+  QString input_path= utf8_to_qstring (concretize (image));
+  QString output_path= utf8_to_qstring (concretize (outfile));
+  QImageReader reader (input_path);
+  reader.setAutoTransform (true);
+  QImage im= reader.read ();
   if (im.isNull ()) {
     convert_error << "Cannot read image file '" << image << "'"
-    << " in qt_image_to_pdf" << LF;
-  // load the "?" image?
+                  << " in qt_image_to_pdf" << LF;
+    return;
   }
-  else {
-/*  if (DEBUG_CONVERT) debug_convert << "size asked " << w_pt << "x"<<h_pt
-  << " at " << maximum dpi <<" dpi"<<LF
-  << "dpi set: " << printer.resolution() <<LF;
-*/
-    if (dpi > 0 && w_pt > 0 && h_pt > 0) {
 
-      printer.setPageSize(QPageSize(QSizeF(w_pt, h_pt), QPageSize::Point));
+  dpi= std::max (1, dpi > 0 ? dpi : 96);
+  double aspect= (double) im.width () / (double) im.height ();
+  if (w_pt <= 0 && h_pt <= 0) {
+    double x_dpi= im.dotsPerMeterX () > 0
+                    ? im.dotsPerMeterX () * 0.0254 : 96.0;
+    double y_dpi= im.dotsPerMeterY () > 0
+                    ? im.dotsPerMeterY () * 0.0254 : 96.0;
+    w_pt= std::max (1, (int) std::lround (72.0 * im.width () / x_dpi));
+    h_pt= std::max (1, (int) std::lround (72.0 * im.height () / y_dpi));
+  }
+  else if (w_pt <= 0)
+    w_pt= std::max (1, (int) std::lround (h_pt * aspect));
+  else if (h_pt <= 0)
+    h_pt= std::max (1, (int) std::lround (w_pt / aspect));
 
-      // w_pt and h_pt are dimensions in points (and there are 72 points per inch)
-      int ww = w_pt * dpi / 72;
-      int hh = h_pt * dpi / 72;
-      if ((ww < im.width ()) ||( hh < im.height ())) //downsample if possible to reduce file size
-	      im= im.scaled (ww, hh, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
-  	  else // image was too small, reduce dpi accordingly to fill page
-        printer.setResolution((int) (dpi*im.width())/(double)ww);
-      if (DEBUG_CONVERT) debug_convert << "dpi asked: "<< dpi <<" ; actual dpi set: " << printer.resolution() <<LF;
-	  }
-    else printer.setPageSize(QPageSize(QSizeF(im.width (), im.height ()), QPageSize::Point));
-    QPainter p;
-    p.begin(&printer);
-    p.drawImage(0, 0, im);
-    p.end();
-    }
+  QPdfWriter writer (output_path);
+  writer.setPdfVersion (QPdfWriter::PdfVersion_1_4);
+  writer.setResolution (dpi);
+  writer.setPageSize (QPageSize (QSizeF (w_pt, h_pt), QPageSize::Point,
+                                     QString (), QPageSize::ExactMatch));
+  writer.setPageMargins (QMarginsF (), QPageLayout::Point);
+
+  QRect target= writer.pageLayout ().paintRectPixels (writer.resolution ());
+  if (target.width () < im.width () || target.height () < im.height ())
+    im= im.scaled (target.size (), Qt::IgnoreAspectRatio,
+                   Qt::SmoothTransformation);
+
+  QPainter painter (&writer);
+  if (!painter.isActive ()) {
+    convert_error << "Cannot create PDF file '" << outfile << "'"
+                  << " in qt_image_to_pdf" << LF;
+    QFile::remove (output_path);
+    return;
+  }
+  painter.drawImage (target, im);
+  painter.end ();
 }
 
 void qt_image_to_eps(url image, url outfile, int w_pt, int h_pt, int dpi) {

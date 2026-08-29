@@ -46,6 +46,15 @@
   (if (not (os-mingw?)) cmd
       (escape-shell (url-concretize (url-resolve-in-path cmd)))))
 
+(tm-define (native-image-file->pdf x opts)
+  (let* ((dest (assoc-ref opts 'dest))
+         (res (get-raster-resolution opts))
+         (dpi (cond ((number? res) res)
+                    ((string? res) (or (string->number res) 96))
+                    (else 96))))
+    (image->pdf-file x dest 0 0 dpi)
+    (if (url-exists? dest) dest #f)))
+
 (tm-define (rsvg-convert x opts)
   (let* ((dest (assoc-ref opts 'dest))
          (fm (url-format (url-concretize dest)))
@@ -243,6 +252,10 @@
 (define-format png
   (:name "Png")
   (:suffix "png"))
+
+(converter png-file pdf-file
+  (:require (qt6-gui?))
+  (:function-with-options native-image-file->pdf))
 
 (converter png-file postscript-document
   (:function image->psdoc))

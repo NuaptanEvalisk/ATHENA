@@ -2037,6 +2037,27 @@ tmg_image_2psdoc (tmscm arg1) {
 }
 
 tmscm
+tmg_image_2pdf_file (tmscm arg1, tmscm arg2, tmscm arg3, tmscm arg4, tmscm arg5) {
+  TMSCM_ASSERT_URL (arg1, TMSCM_ARG1, "image->pdf-file");
+  TMSCM_ASSERT_URL (arg2, TMSCM_ARG2, "image->pdf-file");
+  TMSCM_ASSERT_INT (arg3, TMSCM_ARG3, "image->pdf-file");
+  TMSCM_ASSERT_INT (arg4, TMSCM_ARG4, "image->pdf-file");
+  TMSCM_ASSERT_INT (arg5, TMSCM_ARG5, "image->pdf-file");
+
+  url in1= tmscm_to_url (arg1);
+  url in2= tmscm_to_url (arg2);
+  int in3= tmscm_to_int (arg3);
+  int in4= tmscm_to_int (arg4);
+  int in5= tmscm_to_int (arg5);
+
+  // TMSCM_DEFER_INTS;
+  image_to_pdf (in1, in2, in3, in4, in5);
+  // TMSCM_ALLOW_INTS;
+
+  return TMSCM_UNSPECIFIED;
+}
+
+tmscm
 tmg_anim_control_times (tmscm arg1) {
   TMSCM_ASSERT_CONTENT (arg1, TMSCM_ARG1, "anim-control-times");
 
@@ -10563,6 +10584,7 @@ initialize_glue_basic () {
   tmscm_install_procedure ("logical-font-substitute",  tmg_logical_font_substitute, 1, 0, 0);
   tmscm_install_procedure ("font-family-main",  tmg_font_family_main, 1, 0, 0);
   tmscm_install_procedure ("image->psdoc",  tmg_image_2psdoc, 1, 0, 0);
+  tmscm_install_procedure ("image->pdf-file",  tmg_image_2pdf_file, 5, 0, 0);
   tmscm_install_procedure ("anim-control-times",  tmg_anim_control_times, 1, 0, 0);
   tmscm_install_procedure ("tree->stree",  tmg_tree_2stree, 1, 0, 0);
   tmscm_install_procedure ("stree->tree",  tmg_stree_2tree, 1, 0, 0);

@@ -195,6 +195,7 @@
 
   ;; routines for images and animations
   (image->psdoc image_to_psdoc (string url))
+  (image->pdf-file image_to_pdf (void url url int int int))
   (anim-control-times get_control_times (array_double content))
 
   ;; routines for trees

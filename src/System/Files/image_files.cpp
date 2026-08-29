@@ -520,7 +520,7 @@ image_to_pdf (url image, url pdf, int w_pt, int h_pt, int dpi) {
 #endif
   //converters below will yield only raster images.
 #ifdef QTTEXMACS
-  if (qt_supports (image) && qt_supports (pdf)) {
+  if (qt_supports (image)) {
     if (DEBUG_CONVERT) debug_convert << " using qt "<<LF;
     qt_image_to_pdf (image, pdf, w_pt, h_pt, dpi);
     return;

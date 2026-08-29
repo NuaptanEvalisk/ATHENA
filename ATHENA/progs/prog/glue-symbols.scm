@@ -192,6 +192,7 @@
 "logical-font-substitute"
 "font-family-main"
 "image->psdoc"
+"image->pdf-file"
 "anim-control-times"
 "tree->stree"
 "stree->tree"
