@@ -1859,6 +1859,9 @@ QTMPreferencesDialog::buildVaultPage () {
              "Unlimited");
   add_toggle (mt, "Update all tables of contents during vault maintenance:",
               "vault maintenance update table of contents");
+  add_toggle (mt,
+              "Remove redundant block wikilinks matched by radioactive links:",
+              "vault maintenance remove redundant block wikilinks");
   add_toggle (mt, "Update Continuous RAG during vault maintenance:",
               "vault maintenance continuous rag");
   add_combo (mt, "If delegated RAG is unavailable:",

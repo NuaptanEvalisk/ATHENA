@@ -256,6 +256,7 @@ ensure_builtin_user_preferences () {
     PREF ("vault maintenance anchor reader processes", "Unlimited", ""),
     PREF ("vault maintenance update table of contents", "off", ""),
     PREF ("vault maintenance continuous rag", "off", ""),
+    PREF ("vault maintenance remove redundant block wikilinks", "off", ""),
     PREF ("delegation server", "", ""),
     PREF ("vault maintenance rag delegation fallback", "continue", ""),
     PREF ("vault collect orphan assets", "off", ""),

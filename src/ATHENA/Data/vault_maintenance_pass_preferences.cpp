@@ -231,6 +231,9 @@ vault_maintenance_pass_read_policy_preferences (VaultMaintenanceContext& ctx) {
   ctx.summary.artifact_delegation_enabled =
     get_preference ("artifact definition span delegation enabled", "off") ==
     "on";
+  ctx.summary.redundant_block_wikilink_removal_enabled =
+    get_preference (
+      "vault maintenance remove redundant block wikilinks", "off") == "on";
   ctx.summary.rag_fallback_policy = rag_fallback_preference ();
   ctx.summary.delegation_server = trim_copy (tm_to_std (
     get_preference ("delegation server", "")));

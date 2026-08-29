@@ -342,6 +342,25 @@ std::shared_ptr<const RadioactiveIndex> active_index () {
 
 } // namespace
 
+struct AthenaArtifactRadioactiveMatcher::Impl {
+  explicit Impl (const std::vector<AthenaArtifactRecord>& records)
+    : index (build_index (records)) {}
+
+  std::shared_ptr<const RadioactiveIndex> index;
+};
+
+AthenaArtifactRadioactiveMatcher::AthenaArtifactRadioactiveMatcher (
+    const std::vector<AthenaArtifactRecord>& records)
+  : impl (std::make_shared<const Impl> (records)) {}
+
+AthenaArtifactRadioactiveMatcher::~AthenaArtifactRadioactiveMatcher () = default;
+
+std::vector<AthenaArtifactRadioactiveMatch>
+AthenaArtifactRadioactiveMatcher::matches (string text) const {
+  return impl && impl->index ? match_index (*impl->index, text)
+                             : std::vector<AthenaArtifactRadioactiveMatch> ();
+}
+
 std::string
 athena_artifact_radioactive_destination (
   const AthenaArtifactRadioactiveMatch& match) {
@@ -373,7 +392,7 @@ athena_artifact_radioactive_matches (string text) {
 std::vector<AthenaArtifactRadioactiveMatch>
 athena_artifact_radioactive_matches_for_records (
   const std::vector<AthenaArtifactRecord>& records, string text) {
-  return match_index (*build_index (records), text);
+  return AthenaArtifactRadioactiveMatcher (records).matches (text);
 }
 
 bool

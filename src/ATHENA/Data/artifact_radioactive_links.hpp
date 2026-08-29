@@ -14,6 +14,7 @@
 #include "string.hpp"
 
 #include <string>
+#include <memory>
 #include <vector>
 
 struct AthenaArtifactRadioactiveMatch {
@@ -21,6 +22,24 @@ struct AthenaArtifactRadioactiveMatch {
   int end= 0;
   std::vector<std::string> uuids;
   std::string disambiguation_key;
+};
+
+class AthenaArtifactRadioactiveMatcher {
+public:
+  explicit AthenaArtifactRadioactiveMatcher (
+    const std::vector<AthenaArtifactRecord>& records);
+  ~AthenaArtifactRadioactiveMatcher ();
+
+  AthenaArtifactRadioactiveMatcher (
+    const AthenaArtifactRadioactiveMatcher&) = delete;
+  AthenaArtifactRadioactiveMatcher& operator= (
+    const AthenaArtifactRadioactiveMatcher&) = delete;
+
+  std::vector<AthenaArtifactRadioactiveMatch> matches (string text) const;
+
+private:
+  struct Impl;
+  std::shared_ptr<const Impl> impl;
 };
 
 std::string athena_artifact_radioactive_destination (

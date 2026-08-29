@@ -52,6 +52,13 @@ struct VaultMaintenanceSummary {
   bool artifact_delegation_enabled = false;
   bool artifact_delegation_attempted = false;
   bool artifact_delegation_succeeded = false;
+  bool redundant_block_wikilink_removal_enabled = false;
+  size_t redundant_wikilink_files_scanned = 0;
+  size_t redundant_block_wikilinks_scanned = 0;
+  size_t redundant_wikilink_full_matches = 0;
+  size_t redundant_wikilinks_removed = 0;
+  size_t redundant_wikilink_files_changed = 0;
+  size_t redundant_wikilink_unverified_targets = 0;
   bool toc_update_enabled = false;
   size_t toc_files_scanned = 0;
   size_t toc_files_containing_toc = 0;
@@ -140,6 +147,8 @@ VaultMaintenancePassResult vault_maintenance_pass_normalize_person_names (
 VaultMaintenancePassResult vault_maintenance_pass_anchor_enunciations (
   VaultMaintenanceContext& ctx);
 VaultMaintenancePassResult vault_maintenance_pass_build_artifacts (
+  VaultMaintenanceContext& ctx);
+VaultMaintenancePassResult vault_maintenance_pass_remove_redundant_wikilinks (
   VaultMaintenanceContext& ctx);
 VaultMaintenancePassResult vault_maintenance_pass_update_tables_of_contents (
   VaultMaintenanceContext& ctx);

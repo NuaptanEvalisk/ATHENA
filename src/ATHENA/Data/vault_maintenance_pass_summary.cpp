@@ -394,6 +394,31 @@ summary_document_text (VaultMaintenanceContext& ctx, bool success,
                           ", delegated range selection succeeded":
                           ", delegated range selection failed"):
                         ", local range selection"))}));
+  if (summary.redundant_block_wikilink_removal_enabled)
+    work_rows.push_back (
+      tm_row ({tm_text ("Redundant block wikilinks"),
+               tm_text ("scanned " +
+                        std::to_string (
+                          summary.redundant_block_wikilinks_scanned) +
+                        " block wikilink(s) in " +
+                        std::to_string (
+                          summary.redundant_wikilink_files_scanned) +
+                        " file(s), full radioactive matches " +
+                        std::to_string (
+                          summary.redundant_wikilink_full_matches) +
+                        ", removed " +
+                        std::to_string (
+                          summary.redundant_wikilinks_removed) +
+                        " in " +
+                        std::to_string (
+                          summary.redundant_wikilink_files_changed) +
+                        " changed file(s), unverified targets " +
+                        std::to_string (
+                          summary.redundant_wikilink_unverified_targets))}));
+  else
+    work_rows.push_back (
+      tm_row ({tm_text ("Redundant block wikilinks"),
+               tm_text ("removal disabled")}));
   if (summary.toc_update_enabled)
     work_rows.push_back (
       tm_row ({tm_text ("Tables of contents"),
@@ -602,6 +627,20 @@ vault_maintenance_pass_print_summary (VaultMaintenanceContext& ctx) {
               (summary.artifact_delegation_succeeded ? "delegated":
                                                         "delegation failed"):
               "local"));
+  if (summary.redundant_block_wikilink_removal_enabled)
+    log_info ("summary: redundant block wikilinks scanned " +
+              std::to_string (
+                summary.redundant_block_wikilinks_scanned) +
+              ", full radioactive matches " +
+              std::to_string (summary.redundant_wikilink_full_matches) +
+              ", removed " +
+              std::to_string (summary.redundant_wikilinks_removed) +
+              " in " +
+              std::to_string (summary.redundant_wikilink_files_changed) +
+              " changed file(s), unverified targets " +
+              std::to_string (
+                summary.redundant_wikilink_unverified_targets));
+  else log_info ("summary: redundant block wikilink removal disabled");
   if (summary.toc_update_enabled)
     log_info ("summary: updated tables of contents in " +
               std::to_string (summary.toc_files_updated) + " of " +
