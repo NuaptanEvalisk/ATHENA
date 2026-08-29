@@ -27,34 +27,31 @@
   (if (!= anchor "")
       (delayed (:idle 100) (go-to-label anchor))))
 
-(tm-define (artifact-jump-to-source path anchor-stem)
-  (load-buffer path)
-  (when (!= anchor-stem "")
-    (delayed (:idle 100)
-      (let* ((candidates (list anchor-stem
-                               (string-append anchor-stem " {")
-                               (string-append anchor-stem "{")
-                               (string-append anchor-stem " }")
-                               (string-append anchor-stem "}")))
-             (anchor (list-find candidates
-                                (lambda (candidate)
-                                  (nnull? (label->path candidate))))))
-        (when anchor (go-to-label anchor))))))
-
 (tm-define (artifact-jump-to-position path position)
   (load-buffer path)
-  (delayed (:idle 100)
-    (and-with target
+  (and-with target
+      (path->tree (append (tree->path (buffer-tree)) position))
+    (tree-go-to target :start)
+    (cursor-show-if-hidden)
+    ;; Expanding a folded ancestor moves the cursor to that variant's entry.
+    ;; Re-resolve the tree handle, then restore the exact artifact position.
+    (and-with visible-target
         (path->tree (append (tree->path (buffer-tree)) position))
-      (tree-go-to target :start))))
+      (tree-go-to visible-target :start))))
+
+(tm-define (artifact-navigation-failed path)
+  (set-message
+    (string-append "Artifact definition changed in " path
+                   "; rebuild artifacts for this document")
+    "Artifact"))
 
 (tm-define (ext-get-preference key def)
   (let ((val (get-preference key)))
     (if (string-null? val) def val)))
 
 (define-secure-symbols wikilink-repair-apply vault-transclude-repair
-                       vault-jump-to-source artifact-jump-to-source
-                       artifact-jump-to-position
+                       vault-jump-to-source artifact-jump-to-position
+                       artifact-navigation-failed
                        load-buffer load-vault-dir
                        string->url vault-load-latest-action
                        vault-validate-root-namespace

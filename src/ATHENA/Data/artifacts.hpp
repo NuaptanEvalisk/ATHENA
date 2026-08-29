@@ -120,6 +120,10 @@ bool athena_artifact_query_uuid (const std::filesystem::path& vault_root,
                                  AthenaArtifactRecord& record, bool& found,
                                  std::string& error);
 
+bool athena_artifacts_mark_document_stale (
+  const std::filesystem::path& vault_root, const std::string& relative_path,
+  std::string& error);
+
 // Preserve artifact identity when ATHENA itself renames a Vault document or
 // directory.  External filesystem moves have no trustworthy lineage signal
 // and are intentionally handled as deletion plus insertion by the builder.
@@ -139,6 +143,10 @@ bool athena_artifacts_extract_document (const tree& document,
 bool athena_artifact_locate_paragraph (
   const tree& document, const AthenaArtifactRecord& record,
   AthenaArtifactParagraphLocation& location, std::string& error);
+
+bool athena_artifact_locate_source (
+  const tree& document, const AthenaArtifactRecord& record,
+  path& source_path, std::string& error);
 
 bool athena_artifact_is_defining_occurrence (
   const tree& document, path source_path,

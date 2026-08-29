@@ -57,6 +57,7 @@ namespace fs= std::filesystem;
 namespace {
 
 constexpr size_t range_checkpoint_batch_size= 128;
+constexpr const char* source_locator_contract= "stable-identity-association";
 
 void artifact_log (const std::string& message) {
   std::cout << "[artifacts] " << message << std::endl;
@@ -145,6 +146,23 @@ std::string column_text (sqlite3_stmt* st, int column) {
   return value ? std::string ((const char*) value, (size_t) n) : std::string ();
 }
 
+bool ensure_column (sqlite3* db, const char* table, const char* column,
+                    const char* declaration, std::string& error) {
+  std::string pragma= std::string ("PRAGMA table_info(") + table + ");";
+  Statement columns;
+  if (!prepare (db, pragma.c_str (), columns, error)) return false;
+  int rc;
+  while ((rc= sqlite3_step (columns.st)) == SQLITE_ROW)
+    if (column_text (columns.st, 1) == column) return true;
+  if (rc != SQLITE_DONE) {
+    error= sqlite3_errmsg (db);
+    return false;
+  }
+  std::string alter= std::string ("ALTER TABLE ") + table +
+                     " ADD COLUMN " + column + " " + declaration + ";";
+  return exec_sql (db, alter, error);
+}
+
 bool safe_relative_database (const std::string& value) {
   fs::path path (value);
   if (value.empty () || path.is_absolute ()) return false;
@@ -196,7 +214,8 @@ bool open_databases (const fs::path& root, SqliteDb& holder,
   const char* schema=
     "PRAGMA foreign_keys=ON;"
     "CREATE TABLE IF NOT EXISTS documents("
-    " path TEXT PRIMARY KEY,mtime_ns INTEGER NOT NULL,size INTEGER NOT NULL);"
+    " path TEXT PRIMARY KEY,mtime_ns INTEGER NOT NULL,size INTEGER NOT NULL,"
+    " locator_contract TEXT NOT NULL DEFAULT '');"
     "CREATE TABLE IF NOT EXISTS enunciations.entries("
     " uuid TEXT PRIMARY KEY,path TEXT NOT NULL,anchor_stem TEXT NOT NULL,"
     " tag TEXT NOT NULL,display_text TEXT NOT NULL,document_order INTEGER NOT NULL,"
@@ -246,6 +265,9 @@ bool open_databases (const fs::path& root, SqliteDb& holder,
     "CREATE INDEX IF NOT EXISTS artifact_identity_history_path_idx "
     "ON artifact_identity_history(path,sequence);";
   if (!exec_sql (holder.db, schema, error)) return false;
+  if (!ensure_column (holder.db, "documents", "locator_contract",
+                      "TEXT NOT NULL DEFAULT ''", error))
+    return false;
   return true;
 }
 
@@ -533,7 +555,9 @@ std::string identity_neighbor (const tree& parent, int start, int step) {
 }
 
 void scan_enunciations (const tree& parent, const std::string& rel,
-                        std::vector<AthenaArtifactRecord>& out, int& order) {
+                        std::vector<AthenaArtifactRecord>& out, int& order,
+                        path where= path (),
+                        std::vector<path>* source_paths= nullptr) {
   if (!is_compound (parent)) return;
   for (int i=0; i<N(parent); i++) {
     const tree& child= parent[i];
@@ -586,9 +610,10 @@ void scan_enunciations (const tree& parent, const std::string& rel,
         }
       }
       out.push_back (record);
+      if (source_paths != nullptr) source_paths->push_back (where * i);
       continue;
     }
-    scan_enunciations (child, rel, out, order);
+    scan_enunciations (child, rel, out, order, where * i, source_paths);
   }
 }
 
@@ -1575,12 +1600,15 @@ bool replace_document (sqlite3* db, const std::string& rel,
 
   Statement doc;
   if (!prepare (db,
-      "INSERT INTO documents(path,mtime_ns,size) VALUES(?1,?2,?3) "
+      "INSERT INTO documents(path,mtime_ns,size,locator_contract) "
+      "VALUES(?1,?2,?3,?4) "
       "ON CONFLICT(path) DO UPDATE SET mtime_ns=excluded.mtime_ns,"
-      "size=excluded.size;", doc, error)) return false;
+      "size=excluded.size,locator_contract=excluded.locator_contract;",
+      doc, error)) return false;
   bind_text (doc.st, 1, rel);
   sqlite3_bind_int64 (doc.st, 2, modified);
   sqlite3_bind_int64 (doc.st, 3, size);
+  bind_text (doc.st, 4, source_locator_contract);
   if (sqlite3_step (doc.st) != SQLITE_DONE) {
     error= sqlite3_errmsg (db); return false;
   }
@@ -1650,12 +1678,15 @@ bool is_current_fingerprint (sqlite3* db, const std::string& rel,
                              long long modified, long long size,
                              std::string& error) {
   Statement st;
-  if (!prepare (db, "SELECT mtime_ns,size FROM documents WHERE path=?1;",
-                st, error)) return false;
+  if (!prepare (
+        db,
+        "SELECT mtime_ns,size,locator_contract FROM documents WHERE path=?1;",
+        st, error)) return false;
   bind_text (st.st, 1, rel);
   int rc= sqlite3_step (st.st);
   return rc == SQLITE_ROW && sqlite3_column_int64 (st.st, 0) == modified &&
-         sqlite3_column_int64 (st.st, 1) == size;
+         sqlite3_column_int64 (st.st, 1) == size &&
+         column_text (st.st, 2) == source_locator_contract;
 }
 
 } // namespace
@@ -1826,6 +1857,55 @@ bool enunciation_matches_record (
 }
 
 } // namespace
+
+bool
+athena_artifact_locate_source (
+  const tree& document, const AthenaArtifactRecord& record,
+  path& source_path, std::string& error) {
+  source_path= path ();
+  if (record.origin == "bold-text") {
+    AthenaArtifactParagraphLocation location;
+    if (!athena_artifact_locate_paragraph (
+          document, record, location, error)) return false;
+    source_path= location.parent * location.focus_child;
+    return true;
+  }
+  if (record.origin != "enunciation") {
+    error= "Artifact has no supported source locator";
+    return false;
+  }
+
+  tree body= document_body (document);
+  std::vector<AthenaArtifactRecord> current;
+  std::vector<path> source_paths;
+  int order= 0;
+  scan_enunciations (
+    body, record.relative_path, current, order, path (), &source_paths);
+  std::vector<AthenaArtifactIdentityObservation> candidates;
+  candidates.reserve (current.size ());
+  for (const AthenaArtifactRecord& candidate: current)
+    candidates.push_back (identity_observation (candidate));
+  AthenaArtifactIdentityResult associated=
+    athena_artifact_associate_identities (
+      {identity_observation (record)}, candidates);
+  int matched= -1;
+  for (size_t i=0; i<associated.decisions.size (); i++)
+    if (associated.decisions[i].kind ==
+          AthenaArtifactIdentityDecisionKind::Matched &&
+        associated.decisions[i].old_index == 0) {
+      if (matched >= 0) {
+        error= "Artifact source identity is ambiguous";
+        return false;
+      }
+      matched= (int) i;
+    }
+  if (matched < 0) {
+    error= "Artifact source no longer matches the artifact database";
+    return false;
+  }
+  source_path= source_paths[(size_t) matched];
+  return true;
+}
 
 bool
 athena_artifact_is_defining_occurrence (
@@ -2006,6 +2086,27 @@ athena_artifacts_build_active_vault (
   }
   return athena_artifacts_build (root, documents, !current_document_only,
                                  progress, result, error, options);
+}
+
+bool
+athena_artifacts_mark_document_stale (
+  const fs::path& vault_root, const std::string& relative_path,
+  std::string& error) {
+  SqliteDb holder;
+  AthenaVaultfileInfo info;
+  if (!open_databases (normalize_root (vault_root), holder, info, error))
+    return false;
+  Statement stale;
+  if (!prepare (
+        holder.db,
+        "UPDATE documents SET locator_contract='' WHERE path=?1;",
+        stale, error)) return false;
+  bind_text (stale.st, 1, relative_path);
+  if (sqlite3_step (stale.st) != SQLITE_DONE) {
+    error= sqlite3_errmsg (holder.db);
+    return false;
+  }
+  return true;
 }
 
 bool

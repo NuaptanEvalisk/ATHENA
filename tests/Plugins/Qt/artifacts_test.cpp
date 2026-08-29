@@ -47,6 +47,7 @@ private slots:
   void boundsBoldDefinitionCandidatesAtEnunciations ();
   void isolatesStructuredBoldBlocks ();
   void locatesStoredParagraphRange ();
+  void locatesStructuredEnunciationsAfterEdits ();
   void excludesOnlyArtifactDefiningOccurrences ();
   void doesNotLinkNonAdjacentProof ();
   void buildsIncrementallyAndPurgesDeletedDocuments ();
@@ -271,6 +272,33 @@ named_theorem_document (const std::string& name, const std::string& statement) {
   body << compound ("label", ("theorem:" + name + " {").c_str ())
        << compound ("theorem", compound ("strong", content.c_str ()))
        << compound ("label", ("theorem:" + name + " }").c_str ());
+  tree document (DOCUMENT);
+  document << compound ("TeXmacs", "2.1.4")
+           << compound ("style", "generic")
+           << compound ("body", body);
+  return document;
+}
+
+static tree
+structured_theorem_document (int prefix_count= 0, bool folded= false) {
+  tree body (DOCUMENT);
+  for (int i=0; i<prefix_count; i++)
+    body << tree (("Prelude paragraph " + std::to_string (i) + ".").c_str ());
+  tree opening (CONCAT);
+  opening << "theorem:Kernel of " << compound ("math", "f") << " {";
+  tree closing (CONCAT);
+  closing << "theorem:Kernel of " << compound ("math", "f") << " }";
+  tree theorem_body (DOCUMENT);
+  theorem_body << compound ("label", opening)
+               << compound (
+                    "theorem",
+                    compound ("strong",
+                              "(Kernel theorem) The kernel is normal."))
+               << compound ("label", closing);
+  if (folded)
+    body << compound ("folded", "Collapsed theorem", theorem_body);
+  else
+    for (int i=0; i<N(theorem_body); i++) body << theorem_body[i];
   tree document (DOCUMENT);
   document << compound ("TeXmacs", "2.1.4")
            << compound ("style", "generic")
@@ -541,6 +569,38 @@ TestArtifacts::locatesStoredParagraphRange () {
 }
 
 void
+TestArtifacts::locatesStructuredEnunciationsAfterEdits () {
+  tree original= structured_theorem_document ();
+  std::vector<AthenaArtifactRecord> records;
+  std::string error;
+  QVERIFY2 (athena_artifacts_extract_document (
+              original, "Structured.ath", records, error), error.c_str ());
+  auto theorem= std::find_if (
+    records.begin (), records.end (), [] (const auto& record) {
+      return record.origin == "enunciation";
+    });
+  QVERIFY (theorem != records.end ());
+  QVERIFY (!is_atomic (extract (original, "body")[0][0]));
+
+  path source_path;
+  QVERIFY2 (athena_artifact_locate_source (
+              original, *theorem, source_path, error), error.c_str ());
+  QCOMPARE (source_path, path (1));
+
+  tree edited= structured_theorem_document (40);
+  error.clear ();
+  QVERIFY2 (athena_artifact_locate_source (
+              edited, *theorem, source_path, error), error.c_str ());
+  QCOMPARE (source_path, path (41));
+
+  tree folded= structured_theorem_document (40, true);
+  error.clear ();
+  QVERIFY2 (athena_artifact_locate_source (
+              folded, *theorem, source_path, error), error.c_str ());
+  QCOMPARE (source_path, path (40, 1, 1));
+}
+
+void
 TestArtifacts::excludesOnlyArtifactDefiningOccurrences () {
   MissingRangeModel noModel;
   tree definition (CONCAT);
@@ -625,7 +685,6 @@ TestArtifacts::doesNotLinkNonAdjacentProof () {
 
 void
 TestArtifacts::buildsIncrementallyAndPurgesDeletedDocuments () {
-  MissingRangeModel noModel;
   QTemporaryDir temporary;
   QVERIFY (temporary.isValid ());
   fs::path root (temporary.path ().toStdString ());
@@ -638,10 +697,23 @@ TestArtifacts::buildsIncrementallyAndPurgesDeletedDocuments () {
   write_document (root / "A.ath", artifact_test_document ("compact operator"));
   write_document (root / "B.ath", artifact_test_document ("Fredholm operator"));
 
+  size_t selected_ranges= 0;
+  AthenaArtifactsBuildOptions options;
+  options.range_selector=
+    [&] (const std::vector<AthenaArtifactRangeRequest>& requests,
+         std::vector<std::vector<int>>& results,
+         const AthenaArtifactRangeSelectionProgress&,
+         std::string&) {
+      selected_ranges += requests.size ();
+      results.assign (requests.size (), std::vector<int> ({0}));
+      return true;
+    };
+
   AthenaArtifactsBuildResult first;
-  QVERIFY2 (athena_artifacts_build (root, {}, true, {}, first, error),
+  QVERIFY2 (athena_artifacts_build (root, {}, true, {}, first, error, options),
             error.c_str ());
   QCOMPARE (first.documents_changed, (size_t) 2);
+  QCOMPARE (selected_ranges, (size_t) 2);
   QCOMPARE (first.artifacts, (size_t) 6);
   QVERIFY (fs::exists (root / "indexes/artifacts.db"));
   QVERIFY (fs::exists (root / "indexes/enunciations.db"));
@@ -662,24 +734,37 @@ TestArtifacts::buildsIncrementallyAndPurgesDeletedDocuments () {
   QVERIFY (!records[0].proof_uuid.empty ());
 
   AthenaArtifactsBuildResult unchanged;
-  QVERIFY2 (athena_artifacts_build (root, {}, true, {}, unchanged, error),
+  QVERIFY2 (athena_artifacts_build (
+              root, {}, true, {}, unchanged, error, options),
             error.c_str ());
   QCOMPARE (unchanged.documents_changed, (size_t) 0);
+  QCOMPARE (selected_ranges, (size_t) 2);
+
+  QVERIFY2 (athena_artifacts_mark_document_stale (root, "B.ath", error),
+            error.c_str ());
+  AthenaArtifactsBuildResult stale;
+  QVERIFY2 (athena_artifacts_build (root, {}, true, {}, stale, error, options),
+            error.c_str ());
+  QCOMPARE (stale.documents_changed, (size_t) 1);
+  QCOMPARE (selected_ranges, (size_t) 2);
 
   write_document (root / "A.ath", artifact_test_document ("compact map"));
   AthenaArtifactsBuildResult modified;
-  QVERIFY2 (athena_artifacts_build (root, {}, true, {}, modified, error),
+  QVERIFY2 (athena_artifacts_build (
+              root, {}, true, {}, modified, error, options),
             error.c_str ());
   QCOMPARE (modified.documents_changed, (size_t) 1);
+  QCOMPARE (selected_ranges, (size_t) 3);
   records.clear ();
   QVERIFY2 (athena_artifacts_query (root, records, error), error.c_str ());
   QCOMPARE (records[0].content_uuid, stable_uuid);
 
   fs::remove (root / "B.ath");
   AthenaArtifactsBuildResult purged;
-  QVERIFY2 (athena_artifacts_build (root, {}, true, {}, purged, error),
+  QVERIFY2 (athena_artifacts_build (root, {}, true, {}, purged, error, options),
             error.c_str ());
   QCOMPARE (purged.documents_deleted, (size_t) 1);
+  QCOMPARE (selected_ranges, (size_t) 3);
   records.clear ();
   QVERIFY2 (athena_artifacts_query (root, records, error), error.c_str ());
   QCOMPARE (records.size (), (size_t) 3);
@@ -841,11 +926,7 @@ TestArtifacts::navigatesArtifactAndLoadsDisambiguationPage () {
   AthenaVaultfileInfo info;
   std::string error;
   QVERIFY2 (athena_vaultfile_write (root, info, error), error.c_str ());
-  write_document (
-    root / "Banach.ath",
-    named_theorem_document (
-      "Banach fixed-point theorem",
-      "Every contraction of a complete metric space has a unique fixed point."));
+  write_document (root / "Banach.ath", structured_theorem_document ());
   write_document (
     root / "Euler functions.ath",
     named_theorem_document (
@@ -886,7 +967,8 @@ TestArtifacts::navigatesArtifactAndLoadsDisambiguationPage () {
   const AthenaArtifactRecord* middle= nullptr;
   std::vector<AthenaArtifactRecord> euler;
   for (const AthenaArtifactRecord& record: records) {
-    if (record.anchor_stem == "theorem:Banach fixed-point theorem")
+    if (record.relative_path == "Banach.ath" &&
+        record.origin == "enunciation")
       banach= &record;
     if (record.origin == "bold-text" && record.display_text == "middle concept")
       middle= &record;
@@ -896,6 +978,12 @@ TestArtifacts::navigatesArtifactAndLoadsDisambiguationPage () {
   QVERIFY (banach != nullptr);
   QVERIFY (middle != nullptr);
   QCOMPARE (euler.size (), (size_t) 2);
+  path banachSource;
+  QVERIFY2 (athena_artifact_locate_source (
+              structured_theorem_document (80), *banach,
+              banachSource, error), error.c_str ());
+  QCOMPARE (banachSource, path (81));
+  write_document (root / "Banach.ath", structured_theorem_document (80));
   QString disambiguationUrl= QString::fromStdString (
     "tmfs://artifact-disambiguation/" +
     athena_artifact_radioactive_key (euler.front ()));
@@ -919,17 +1007,46 @@ TestArtifacts::navigatesArtifactAndLoadsDisambiguationPage () {
     (delayed (:pause 500)
       (begin
         (load-buffer (system->url %2))
-        (go-to-url %3)
-        (delayed (:pause 1200)
-          (begin
+        (let ((before-y (get-scroll-y)))
+          (go-to-url %3)
+          (delayed (:pause 1200)
+            (begin
             (string-save
               (string-append
                 "same-buffer="
                 (if (== (url->system (current-buffer)) %2) "1" "0")
-                "\nsame-anchor="
-                (if (== (cursor-path)
-                        (label->path "theorem:Banach fixed-point theorem {"))
-                    "1" "0")
+                "\ncurrent-buffer=" (url->system (current-buffer))
+                "\nsame-position="
+                (let* ((matches
+                         (tree-search-indices
+                           (buffer-tree)
+                           (lambda (node)
+                             (and (tree-compound? node)
+                                  (== (tree-label node) 'theorem)))))
+                       (expected
+                         (and (pair? matches)
+                              (append (tree->path (buffer-tree))
+                                      (car matches)))))
+                  (if (and expected
+                           (list-starts? (cursor-path) expected))
+                      "1" "0"))
+                "\nsame-cursor=" (object->string (cursor-path))
+                "\nsame-expected="
+                (let* ((matches
+                         (tree-search-indices
+                           (buffer-tree)
+                           (lambda (node)
+                             (and (tree-compound? node)
+                                  (== (tree-label node) 'theorem)))))
+                       (expected
+                         (and (pair? matches)
+                              (append (tree->path (buffer-tree))
+                                      (car matches)))))
+                  (object->string expected))
+                "\ncursor-accessible="
+                (if (cursor-accessible?) "1" "0")
+                "\nscroll-moved="
+                (if (!= (get-scroll-y) before-y) "1" "0")
                 "\n")
               (system->url %4))
             (load-buffer (system->url %5))
@@ -978,7 +1095,7 @@ TestArtifacts::navigatesArtifactAndLoadsDisambiguationPage () {
                           "\nmiddle-expected=" (object->string expected)
                           "\n")
                         (system->url %4)))
-                    (quit-TeXmacs)))))))))))
+                    (quit-TeXmacs))))))))))))
 )SCM")
     .arg (scheme_quote (QString::fromStdString (root.string ())))
     .arg (scheme_quote (sourcePath))
@@ -1035,7 +1152,11 @@ TestArtifacts::navigatesArtifactAndLoadsDisambiguationPage () {
   QByteArray navigationDiagnostic= assertions + '\n' + diagnostic.right (8192);
   QVERIFY2 (assertions.contains ("same-buffer=1"),
             navigationDiagnostic.constData ());
-  QVERIFY2 (assertions.contains ("same-anchor=1"),
+  QVERIFY2 (assertions.contains ("same-position=1"),
+            navigationDiagnostic.constData ());
+  QVERIFY2 (assertions.contains ("cursor-accessible=1"),
+            navigationDiagnostic.constData ());
+  QVERIFY2 (assertions.contains ("scroll-moved=1"),
             navigationDiagnostic.constData ());
   QVERIFY2 (assertions.contains ("disambiguation-buffer=1"),
             navigationDiagnostic.constData ());

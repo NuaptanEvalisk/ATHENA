@@ -63,24 +63,16 @@ fs::path active_root () {
 void execute_open (const AthenaArtifactRecord& record) {
   fs::path absolute= active_root () / fs::path (record.relative_path);
   url file= url_system (tmstr (absolute.string ()));
-  if (record.origin == "enunciation" && !record.anchor_stem.empty ()) {
-    array<object> cmd;
-    cmd << symbol_object ("artifact-jump-to-source") << object (file)
-        << object (utf8_to_cork (tmstr (record.anchor_stem)));
-    exec_delayed (scheme_cmd (as_list_object (cmd)));
-    return;
-  }
-
   try {
-    tree document= import_tree (file, "texmacs");
-    AthenaArtifactParagraphLocation location;
+    tree document= concrete_buffer (file) != nullptr
+      ? get_buffer_tree (file) : import_tree (file, "texmacs");
+    path source_path;
     std::string error;
-    if (athena_artifact_locate_paragraph (
-          document, record, location, error)) {
-      path focus= location.parent * location.focus_child;
+    if (athena_artifact_locate_source (
+          document, record, source_path, error)) {
       array<object> cmd;
       cmd << symbol_object ("artifact-jump-to-position") << object (file)
-          << list_object (symbol_object ("quote"), object (focus));
+          << list_object (symbol_object ("quote"), object (source_path));
       exec_delayed (scheme_cmd (as_list_object (cmd)));
       return;
     }
@@ -90,8 +82,14 @@ void execute_open (const AthenaArtifactRecord& record) {
   catch (...) {
     std_warning << "Could not read artifact source for navigation" << LF;
   }
+  std::string stale_error;
+  if (!athena_artifacts_mark_document_stale (
+        active_root (), record.relative_path, stale_error))
+    std_warning << "Could not schedule stale artifact document for rebuild: "
+                << stale_error.c_str () << LF;
   array<object> cmd;
-  cmd << symbol_object ("load-buffer") << object (file);
+  cmd << symbol_object ("artifact-navigation-failed")
+      << object (utf8_to_cork (tmstr (record.relative_path)));
   exec_delayed (scheme_cmd (as_list_object (cmd)));
 }
 
