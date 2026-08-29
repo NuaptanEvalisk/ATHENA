@@ -12,6 +12,7 @@
 #include "bridge.hpp"
 #include "drd_std.hpp"
 #include "enunciation_surround.hpp"
+#include "radioactive_link_scope.hpp"
 #include "scheme.hpp"
 
 tree insert_at (tree, path, tree);
@@ -407,20 +408,22 @@ bridge_compound_rep::my_typeset (int desired_status) {
     return;
   }
 
-  int d; tree f;
+  int d;
+  tree f;
+  string macro_name;
   if (L(st) == COMPOUND) {
     d= 1;
     f= st[0];
     if (is_compound (f)) f= env->exec (f);
     if (is_atomic (f)) {
-      string var= f->label;
-      if (env->provides (var)) f= env->read (var);
+      macro_name= f->label;
+      if (env->provides (macro_name)) f= env->read (macro_name);
       else f= tree (_ERROR, st);
     }
   }
   else {
-    string var= as_string (L(st));
-    if (env->provides (var)) f= env->read (var);
+    macro_name= as_string (L(st));
+    if (env->provides (macro_name)) f= env->read (macro_name);
     else f= tree (_ERROR, st);
     d= 0;
   }
@@ -429,12 +432,7 @@ bridge_compound_rep::my_typeset (int desired_status) {
     int i, n=N(f)-1, m=N(st)-d;
     
     // WYVERN EDITION: Inject background colors for enunciations
-    string var;
-    if (L(st) == COMPOUND) {
-      if (is_atomic(st[0])) var = st[0]->label;
-    } else {
-      var = as_string(L(st));
-    }
+    string var= macro_name;
     
     if (is_enunciation_type (var)) {
       string col = get_preference ("vault " * var * " color", "none");
@@ -489,7 +487,15 @@ bridge_compound_rep::my_typeset (int desired_status) {
     // /*IF_NON_CHILD_ENFORCING(st)*/ ttt->insert_marker (st, ip);
     if (!the_drd->is_child_enforcing (st))
       ttt->insert_marker (st, ip);
+    bool suppress_links= athena_suppresses_radioactive_links (macro_name);
+    tree old_radioactive_scope;
+    if (suppress_links)
+      old_radioactive_scope=
+        env->local_begin ("athena-radioactive-links-suppressed", "true");
     body->typeset (desired_status);
+    if (suppress_links)
+      env->local_end ("athena-radioactive-links-suppressed",
+                      old_radioactive_scope);
     env->macro_arg= env->macro_arg->next;
     env->macro_src= env->macro_src->next;
   }

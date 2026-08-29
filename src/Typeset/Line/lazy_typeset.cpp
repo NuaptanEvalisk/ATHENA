@@ -17,6 +17,7 @@
 #include "analyze.hpp"
 #include "enunciation_surround.hpp"
 #include "packrat.hpp"
+#include "radioactive_link_scope.hpp"
 #include "scheme.hpp"
 #include "tree_label.hpp"
 
@@ -371,21 +372,23 @@ make_lazy_compound (edit_env env, tree t, path ip) {
     return make_lazy (
       env, attach_right (athena_proof_qed_layout_rewrite (env, t), ip));
 
-  int d; tree f;
+  int d;
+  tree f;
+  string macro_name;
   if (L(t) == COMPOUND) {
     d= 1;
     f= t[0];
     if (is_compound (f)) f= env->exec (f);
     if (is_atomic (f)) {
-      string var= f->label;
-      if (env->provides (var)) f= env->read (var);
-      else f= tree (_ERROR, "compound " * var);
+      macro_name= f->label;
+      if (env->provides (macro_name)) f= env->read (macro_name);
+      else f= tree (_ERROR, "compound " * macro_name);
     }
   }
   else {
-    string var= as_string (L(t));
-    if (env->provides (var)) f= env->read (var);
-    else f= tree (_ERROR, "compound " * var);
+    macro_name= as_string (L(t));
+    if (env->provides (macro_name)) f= env->read (macro_name);
+    else f= tree (_ERROR, "compound " * macro_name);
     d= 0;
   }
 
@@ -401,12 +404,7 @@ make_lazy_compound (edit_env env, tree t, path ip) {
     int i, n=N(f)-1, m=N(t)-d;
     
     // WYVERN EDITION: Inject background colors for enunciations
-    string var;
-    if (L(t) == COMPOUND) {
-      if (is_atomic(t[0])) var = t[0]->label;
-    } else {
-      var = as_string(L(t));
-    }
+    string var= macro_name;
     
     if (is_enunciation_type (var)) {
       string col = get_preference ("vault " * var * " color", "none");
@@ -456,8 +454,16 @@ make_lazy_compound (edit_env env, tree t, path ip) {
 	  i<m? t[i+d]: attach_dip (tree (UNINIT), decorate_right(ip));
 	env->macro_src->item (var)= i<m? descend (ip,i+d): decorate_right(ip);
       }
+    bool suppress_links= athena_suppresses_radioactive_links (macro_name);
+    tree old_radioactive_scope;
+    if (suppress_links)
+      old_radioactive_scope=
+        env->local_begin ("athena-radioactive-links-suppressed", "true");
     if (is_decoration (ip)) par= make_lazy (env, attach_here (f[n], ip));
     else par= make_lazy (env, attach_right (f[n], ip));
+    if (suppress_links)
+      env->local_end ("athena-radioactive-links-suppressed",
+                      old_radioactive_scope);
     env->macro_arg= env->macro_arg->next;
     env->macro_src= env->macro_src->next;
   }

@@ -129,7 +129,9 @@ concater_rep::typeset_text_string (tree t, path ip, int pos, int end) {
                       "on" &&
                     is_accessible (ip) &&
                     env->get_string (PAGE_PRINTED) != "true" &&
-                    env->get_string ("athena-inside-locus") != "true";
+                    env->get_string ("athena-inside-locus") != "true" &&
+                    env->get_string (
+                      "athena-radioactive-links-suppressed") != "true";
   if (allow_links) {
     auto matches= athena_artifact_radioactive_matches (s);
     links.reserve (matches.size ());

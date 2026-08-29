@@ -16,6 +16,7 @@
 #include "formatter.hpp"
 #include "glue.hpp"
 #include "hashset.hpp"
+#include "radioactive_link_scope.hpp"
 
 static string
 athena_labels_mode (edit_env env) {
@@ -118,41 +119,38 @@ concater_rep::typeset_compound (tree t, path ip) {
     return;
   }
 
-  int d; tree f;
+  int d;
+  tree f;
+  string macro_name;
   if (L(t) == COMPOUND) {
     if (N(t) == 0) { typeset_error (t, ip); return; }
     d= 1;
     f= t[0];
     if (is_compound (f)) f= env->exec (f);
     if (is_atomic (f)) {
-      string var= f->label;
-      if (!env->provides (var)) {
+      macro_name= f->label;
+      if (!env->provides (macro_name)) {
         typeset_error (t, ip);
         return;
       }
-      f= env->read (var);
+      f= env->read (macro_name);
     }
   }
   else {
-    string var= as_string (L(t));
-    if (!env->provides (var)) {
+    macro_name= as_string (L(t));
+    if (!env->provides (macro_name)) {
       typeset_error (t, ip);
       return;
     }
     d= 0;
-    f= env->read (var);
+    f= env->read (macro_name);
   }
 
   if (is_applicable (f)) {
     int i, n=N(f)-1, m=N(t)-d;
     
     // WYVERN EDITION: Inject background colors for enunciations
-    string var;
-    if (L(t) == COMPOUND) {
-      if (is_atomic(t[0])) var = t[0]->label;
-    } else {
-      var = as_string(L(t));
-    }
+    string var= macro_name;
     
     if (is_enunciation_type (var)) {
       string col = get_preference ("vault " * var * " color", "none");
@@ -202,6 +200,11 @@ concater_rep::typeset_compound (tree t, path ip) {
           i<m? t[i+d]: attach_dip (tree (UNINIT), decorate_right(ip));
         env->macro_src->item (var)= i<m? descend (ip,i+d): decorate_right(ip);
       }
+    bool suppress_links= athena_suppresses_radioactive_links (macro_name);
+    tree old_radioactive_scope;
+    if (suppress_links)
+      old_radioactive_scope=
+        env->local_begin ("athena-radioactive-links-suppressed", "true");
     if (is_decoration (ip))
       typeset (attach_here (f[n], ip));
     else {
@@ -209,6 +212,9 @@ concater_rep::typeset_compound (tree t, path ip) {
       typeset (attach_right (f[n], ip));
       /*IF_NON_CHILD_ENFORCING(t)*/ marker (descend (ip, 1));
     }
+    if (suppress_links)
+      env->local_end ("athena-radioactive-links-suppressed",
+                      old_radioactive_scope);
     env->macro_arg= env->macro_arg->next;
     env->macro_src= env->macro_src->next;
   }
@@ -611,8 +617,16 @@ concater_rep::typeset_label (tree t, path ip) {
                         tree (CONCAT, "[", name, "]"));
     tree hidden_anchor (LOCUS, src_id, link, binding);
     typeset_locus (hidden_anchor, ip);
+    tree old_radioactive_scope=
+      env->local_begin ("athena-radioactive-links-suppressed", "true");
     typeset (tiny_t, ip);
+    env->local_end ("athena-radioactive-links-suppressed",
+                    old_radioactive_scope);
     return;
   }
+  tree old_radioactive_scope=
+    env->local_begin ("athena-radioactive-links-suppressed", "true");
   typeset_compound (t, ip);
+  env->local_end ("athena-radioactive-links-suppressed",
+                  old_radioactive_scope);
 }

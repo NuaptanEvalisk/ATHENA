@@ -30,6 +30,7 @@
 #include <QMessageBox>
 #include <QProgressBar>
 #include <QPushButton>
+#include <QSizePolicy>
 #include <QTableWidget>
 #include <QTimer>
 #include <QVBoxLayout>
@@ -99,6 +100,7 @@ void execute_open (const AthenaArtifactRecord& record) {
 }
 
 void build_with_dialog (bool current_only) {
+  constexpr int dialog_width= 620;
   if (!vault_active ()) {
     QMessageBox::warning (QApplication::activeWindow (), "Build artifacts",
                           "No active vault. Please load a vault first.");
@@ -108,8 +110,12 @@ void build_with_dialog (bool current_only) {
   dialog.setWindowTitle (current_only ? "Build artifacts for current document"
                                       : "Build artifacts for entire vault");
   dialog.setModal (true);
+  dialog.setFixedWidth (dialog_width);
   QVBoxLayout* layout= new QVBoxLayout (&dialog);
   QLabel* status= new QLabel ("Preparing artifact databases...", &dialog);
+  status->setWordWrap (true);
+  status->setMinimumWidth (0);
+  status->setSizePolicy (QSizePolicy::Ignored, QSizePolicy::Preferred);
   QProgressBar* progress= new QProgressBar (&dialog);
   progress->setRange (0, 1);
   progress->setValue (0);
@@ -123,7 +129,8 @@ void build_with_dialog (bool current_only) {
   layout->addWidget (cancel, 0, Qt::AlignRight);
   bool cancelled= false;
   QObject::connect (cancel, &QPushButton::clicked, [&] () { cancelled= true; });
-  dialog.resize (620, dialog.sizeHint ().height ());
+  dialog.adjustSize ();
+  dialog.setFixedWidth (dialog_width);
   dialog.show ();
   QApplication::processEvents ();
 
@@ -168,27 +175,32 @@ void build_with_dialog (bool current_only) {
       }
       QString path= qstr (event.path);
       QString detail= qstr (event.detail);
+      QString message;
       switch (event.phase) {
       case AthenaArtifactsBuildPhase::Preparing:
-        status->setText ("Preparing artifact databases..."); break;
+        message= "Preparing artifact databases..."; break;
       case AthenaArtifactsBuildPhase::Extracting:
-        status->setText (path.isEmpty () ? "Extracting document structures..."
-                                        : QString ("Extracting %1").arg (path));
+        message= path.isEmpty () ? "Extracting document structures..."
+                                 : QString ("Extracting %1").arg (path);
         break;
       case AthenaArtifactsBuildPhase::SelectingDefinitionRanges:
-        status->setText (
+        message=
           detail.isEmpty ()
             ? "Selecting semantic definition ranges..."
             : QString ("Selecting definition range for %1 in %2")
-                .arg (detail, path));
+                .arg (detail, path);
         break;
       case AthenaArtifactsBuildPhase::WritingDatabase:
-        status->setText (path.isEmpty () ? "Writing artifact databases..."
-                                        : QString ("Writing %1").arg (path));
+        message= path.isEmpty () ? "Writing artifact databases..."
+                                 : QString ("Writing %1").arg (path);
         break;
       case AthenaArtifactsBuildPhase::Complete:
-        status->setText ("Artifact generation complete"); break;
+        message= "Artifact generation complete"; break;
       }
+      status->setText (message);
+      status->setToolTip (message);
+      dialog.adjustSize ();
+      dialog.setFixedWidth (dialog_width);
       if (event.delegated_queued || event.delegated_running) {
         delegatedState->setText (
           QString ("<span style='color:#7b7b7b'>Queued %1</span> &nbsp; "
