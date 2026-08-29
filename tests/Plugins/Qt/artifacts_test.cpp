@@ -40,13 +40,14 @@ class TestArtifacts: public QObject {
 private slots:
   void initTestCase ();
   void validatesDefinitionRangeModelOutput ();
+  void expandsDefinitionRangeWindowProgressively ();
   void selectsDefinitionRangeWithConfiguredModel ();
   void extractsEnunciationsBoldTextAndProofLink ();
+  void filtersNonNamesBeforeDefinitionRangeInference ();
   void boundsBoldDefinitionCandidatesAtEnunciations ();
   void isolatesStructuredBoldBlocks ();
   void locatesStoredParagraphRange ();
   void doesNotLinkNonAdjacentProof ();
-  void excludesBoldCandidatesRejectedBySemanticSelector ();
   void buildsIncrementallyAndPurgesDeletedDocuments ();
   void preservesAccentedArtifactTextAcrossWorkerAndDatabase ();
   void storesAndDisambiguatesSameNamedArtifacts ();
@@ -59,7 +60,6 @@ private slots:
   void preservesUniqueBoldIdentityAcrossHostEdit ();
   void preservesUnanchoredEnunciationsWhenOneIsInsertedBefore ();
   void doesNotTransferDeletedUnanchoredDuplicateEnunciation ();
-  void migratesLegacyIdentitySchemaConservatively ();
   void preservesIdentityAcrossTrustedPathRenames ();
   void matchesRadioactiveLinksByCaseAndInflection ();
   void matchesPossessiveAndEponymRadioactiveLinks ();
@@ -97,7 +97,63 @@ TestArtifacts::validatesDefinitionRangeModelOutput () {
   QVERIFY (parse ("[0, prose]").empty ());
   QCOMPARE (parse ("[2]", true), std::vector<int> ({0}));
   QCOMPARE (parse ("[0, 2]", true), std::vector<int> ({0, 1, 2}));
-  QVERIFY (parse ("[]", true).empty ());
+  QCOMPARE (parse ("[]", true), std::vector<int> ({0}));
+}
+
+void
+TestArtifacts::expandsDefinitionRangeWindowProgressively () {
+  AthenaArtifactRangeRequest local;
+  local.keyword_latex= "local";
+  AthenaArtifactRangeRequest extended;
+  extended.keyword_latex= "extended";
+  for (int offset=-5; offset<=5; offset++) {
+    local.paragraphs.push_back ({offset, std::to_string (offset)});
+    extended.paragraphs.push_back ({offset, std::to_string (offset)});
+  }
+  AthenaArtifactRangeRequest isolated;
+  isolated.keyword_latex= "isolated";
+  isolated.paragraphs= {{0, "focus"}};
+
+  int wave= 0;
+  std::vector<std::vector<std::pair<int,int>>> observed;
+  std::atomic<size_t> completed (0);
+  auto selected= athena_artifact_select_definition_ranges_progressively (
+    {local, extended, isolated},
+    [&] (const std::vector<AthenaArtifactRangeRequest>& requests)
+      -> std::vector<std::vector<int>> {
+      wave++;
+      observed.push_back ({});
+      for (const AthenaArtifactRangeRequest& request: requests)
+        observed.back ().push_back ({request.paragraphs.front ().first,
+                                     request.paragraphs.back ().first});
+      if (wave == 1) {
+        return std::vector<std::vector<int>> {
+          {0}, {-1, 0, 1}
+        };
+      }
+      if (wave == 2) {
+        return std::vector<std::vector<int>> {
+          {-2, -1, 0, 1, 2}
+        };
+      }
+      return std::vector<std::vector<int>> {
+        {-1, 0, 1}
+      };
+    }, nullptr, &completed);
+
+  QCOMPARE (wave, 3);
+  QCOMPARE (completed.load (), (size_t) 3);
+  QCOMPARE (selected.size (), (size_t) 3);
+  QCOMPARE (selected[0], std::vector<int> ({0}));
+  QCOMPARE (selected[1], std::vector<int> ({-1, 0, 1}));
+  QCOMPARE (selected[2], std::vector<int> ({0}));
+  QCOMPARE (observed.size (), (size_t) 3);
+  const std::vector<std::pair<int,int>> first= {{-1, 1}, {-1, 1}};
+  const std::vector<std::pair<int,int>> second= {{-2, 2}};
+  const std::vector<std::pair<int,int>> third= {{-4, 4}};
+  QCOMPARE (observed[0], first);
+  QCOMPARE (observed[1], second);
+  QCOMPARE (observed[2], third);
 }
 
 class MissingRangeModel {
@@ -142,7 +198,7 @@ TestArtifacts::selectsDefinitionRangeWithConfiguredModel () {
     {2, "The identity map is an example."}
   };
   std::vector<AthenaArtifactRangeRequest> requests= {
-    {"covering map", paragraphs}, {"covering map", paragraphs}
+    {"covering map", paragraphs}, {"local covering condition", paragraphs}
   };
   std::atomic<size_t> completed (0);
   auto batched= athena_artifact_select_definition_ranges (
@@ -150,25 +206,15 @@ TestArtifacts::selectsDefinitionRangeWithConfiguredModel () {
   QCOMPARE (batched.size (), (size_t) 2);
   QCOMPARE (completed.load (), (size_t) 2);
   std::vector<int> selected= batched[0];
-  QCOMPARE (batched[1], selected);
+  QVERIFY (std::find (batched[1].begin (), batched[1].end (), 0) !=
+           batched[1].end ());
   std::vector<int> selectedAfterBatch=
     athena_artifact_select_definition_range ("covering map", paragraphs);
-  std::vector<AthenaArtifactRangeRequest> nonDefinitions= {
-    {"2", {{0, "2. Apply the preceding construction."}}},
-    {"not", {{0, "The operator is \\textbf{not} compact."}}},
-    {"cannot", {{0, "This sequence \\textbf{cannot} converge."}}},
-    {"No", {{0, "\\textbf{No}, the assertion is false."}}},
-    {"Important", {{0, "\\textbf{Important.} Use this convention below."}}}
-  };
-  auto rejected= athena_artifact_select_definition_ranges (
-    nonDefinitions, athena_artifact_range_model_path (), nullptr, nullptr);
   athena_artifact_range_model_release ();
   QVERIFY (std::find (selected.begin (), selected.end (), 0) != selected.end ());
   QVERIFY (std::find (selected.begin (), selected.end (), 1) != selected.end ());
   for (int offset: selected) QVERIFY (offset >= -1 && offset <= 2);
   QCOMPARE (selectedAfterBatch, selected);
-  QCOMPARE (rejected.size (), nonDefinitions.size ());
-  for (const auto& offsets: rejected) QVERIFY (offsets.empty ());
 }
 
 static tree
@@ -323,6 +369,52 @@ TestArtifacts::extractsEnunciationsBoldTextAndProofLink () {
 }
 
 void
+TestArtifacts::filtersNonNamesBeforeDefinitionRangeInference () {
+  MissingRangeModel noModel;
+  tree body (DOCUMENT);
+  const std::vector<const char*> filtered= {
+    "no", "not",
+    "am", "is", "are", "was", "were", "be", "being", "been",
+    "do", "does", "did", "doing", "done",
+    "have", "has", "had", "having",
+    "can", "cannot", "could", "may", "might", "must",
+    "shall", "should", "will", "would",
+    "ain't", "aren't", "can't", "couldn't", "didn't", "doesn't", "don't",
+    "hadn't", "hasn't", "haven't", "isn't", "mightn't", "mustn't",
+    "needn't", "shan't", "shouldn't", "wasn't", "weren't", "won't",
+    "wouldn't", "CAN"
+  };
+  for (const char* word: filtered) {
+    tree paragraph (CONCAT);
+    paragraph << "Context " << compound ("strong", word) << ".";
+    body << paragraph;
+  }
+  tree step (CONCAT);
+  step << compound ("strong", "2") << ". Apply the construction.";
+  tree concept (CONCAT);
+  concept << "A " << compound ("strong", "2-category")
+          << " has objects, morphisms, and 2-morphisms.";
+  tree predicate (CONCAT);
+  predicate << "A map is " << compound ("strong", "continuous")
+            << " if inverse images of open sets are open.";
+  body << step << concept << predicate;
+  tree document (DOCUMENT);
+  document << compound ("TeXmacs", "2.1.4")
+           << compound ("style", "generic")
+           << compound ("body", body);
+
+  std::vector<AthenaArtifactRecord> records;
+  std::string error;
+  QVERIFY2 (athena_artifacts_extract_document (
+              document, "numeric-step.ath", records, error),
+            error.c_str ());
+  QCOMPARE (records.size (), (size_t) 2);
+  QCOMPARE (records[0].origin, std::string ("bold-text"));
+  QCOMPARE (records[0].display_text, std::string ("2-category"));
+  QCOMPARE (records[1].display_text, std::string ("continuous"));
+}
+
+void
 TestArtifacts::boundsBoldDefinitionCandidatesAtEnunciations () {
   MissingRangeModel noModel;
   tree definition (CONCAT);
@@ -472,46 +564,6 @@ TestArtifacts::doesNotLinkNonAdjacentProof () {
 }
 
 void
-TestArtifacts::excludesBoldCandidatesRejectedBySemanticSelector () {
-  QTemporaryDir temporary;
-  QVERIFY (temporary.isValid ());
-  fs::path root (temporary.path ().toStdString ());
-  AthenaVaultfileInfo info;
-  std::string error;
-  QVERIFY2 (athena_vaultfile_write (root, info, error), error.c_str ());
-
-  tree body (DOCUMENT);
-  body << compound ("theorem", "A genuine mathematical statement.");
-  tree numbered_step (CONCAT);
-  numbered_step << compound ("strong", "2") << ". Apply the construction.";
-  body << numbered_step;
-  tree document (DOCUMENT);
-  document << compound ("TeXmacs", "2.1.4")
-           << compound ("style", "generic")
-           << compound ("body", body);
-  write_document (root / "A.ath", document);
-
-  AthenaArtifactsBuildOptions options;
-  options.range_selector= [] (
-      const std::vector<AthenaArtifactRangeRequest>& requests,
-      std::vector<std::vector<int>>& results,
-      const AthenaArtifactRangeSelectionProgress&, std::string&) {
-    results.assign (requests.size (), {});
-    return true;
-  };
-  AthenaArtifactsBuildResult built;
-  QVERIFY2 (athena_artifacts_build (
-              root, {}, true, {}, built, error, options), error.c_str ());
-  QCOMPARE (built.enunciations, (size_t) 1);
-  QCOMPARE (built.bold_texts, (size_t) 0);
-  QCOMPARE (built.artifacts, (size_t) 1);
-  std::vector<AthenaArtifactRecord> records;
-  QVERIFY2 (athena_artifacts_query (root, records, error), error.c_str ());
-  QCOMPARE (records.size (), (size_t) 1);
-  QCOMPARE (records[0].origin, std::string ("enunciation"));
-}
-
-void
 TestArtifacts::buildsIncrementallyAndPurgesDeletedDocuments () {
   MissingRangeModel noModel;
   QTemporaryDir temporary;
@@ -619,7 +671,6 @@ TestArtifacts::preservesAccentedArtifactTextAcrossWorkerAndDatabase () {
   });
   QVERIFY (found != records.end ());
   QCOMPARE (found->display_text, std::string ("Ces\xc3\xa0ro summation"));
-  std::string stable_uuid= found->content_uuid;
   auto enunciation= std::find_if (
     records.begin (), records.end (), [] (const auto& r) {
       return r.origin == "enunciation";
@@ -651,30 +702,6 @@ TestArtifacts::preservesAccentedArtifactTextAcrossWorkerAndDatabase () {
   QVERIFY2 (semantic_name_rows >= 0, error.c_str ());
   QCOMPARE (semantic_name_rows, 1);
 
-  // Missing format metadata represents a database made by an older builder.
-  QVERIFY2 (exec_test_sql (
-              root / "indexes/artifacts.db",
-              "DELETE FROM artifact_meta WHERE key='text_encoding';"
-              "DELETE FROM artifact_meta WHERE key='record_format';"
-              "DELETE FROM artifact_meta WHERE key='semantic_names';"
-              "UPDATE artifacts SET display_text='damaged' "
-              "WHERE origin='bold-text';"
-              "UPDATE artifact_names SET name='damaged';", error),
-            error.c_str ());
-  AthenaArtifactsBuildResult migrated;
-  QVERIFY2 (athena_artifacts_build (root, {}, true, {}, migrated, error),
-            error.c_str ());
-  QCOMPARE (migrated.documents_changed, (size_t) 1);
-  records.clear ();
-  QVERIFY2 (athena_artifacts_query (root, records, error), error.c_str ());
-  found= std::find_if (records.begin (), records.end (), [] (const auto& r) {
-    return r.origin == "bold-text";
-  });
-  QVERIFY (found != records.end ());
-  QCOMPARE (found->display_text, std::string ("Ces\xc3\xa0ro summation"));
-  QCOMPARE (found->semantic_names,
-            std::vector<std::string> ({"Ces\xc3\xa0ro summation"}));
-  QCOMPARE (found->content_uuid, stable_uuid);
 }
 
 void
@@ -1273,66 +1300,6 @@ TestArtifacts::doesNotTransferDeletedUnanchoredDuplicateEnunciation () {
   QVERIFY (after[1].content_uuid != removed_uuid);
   QVERIFY (after[1].content_uuid != persistent_uuid);
   QCOMPARE (after[1].identity_decision, std::string ("new"));
-}
-
-void
-TestArtifacts::migratesLegacyIdentitySchemaConservatively () {
-  MissingRangeModel noModel;
-  QTemporaryDir temporary;
-  QVERIFY (temporary.isValid ());
-  fs::path root (temporary.path ().toStdString ());
-  AthenaVaultfileInfo info;
-  std::string error;
-  QVERIFY2 (athena_vaultfile_write (root, info, error), error.c_str ());
-
-  string encoded_keyword=
-    tree_to_texmacs (compound ("strong", "shared concept"));
-  std::string keyword (as_charp (encoded_keyword), (size_t) N(encoded_keyword));
-  QVERIFY2 (exec_test_sql (
-              root / info.artifacts_path,
-              "CREATE TABLE documents(path TEXT PRIMARY KEY,mtime_ns INTEGER "
-              "NOT NULL,size INTEGER NOT NULL);"
-              "CREATE TABLE artifacts(uuid TEXT PRIMARY KEY,type TEXT NOT NULL,"
-              "origin TEXT NOT NULL,content_uuid TEXT NOT NULL,proof_uuid TEXT,"
-              "path TEXT NOT NULL,anchor_stem TEXT NOT NULL,display_text TEXT "
-              "NOT NULL,document_order INTEGER NOT NULL,"
-              "UNIQUE(origin,content_uuid));"
-              "INSERT INTO artifacts VALUES('legacy-artifact','definition',"
-              "'bold-text','legacy-content',NULL,'A.ath','','shared concept',0);",
-              error), error.c_str ());
-  QVERIFY2 (exec_test_sql (
-              root / info.enunciations_path,
-              "CREATE TABLE entries(uuid TEXT PRIMARY KEY,path TEXT NOT NULL,"
-              "anchor_stem TEXT NOT NULL,tag TEXT NOT NULL,display_text TEXT "
-              "NOT NULL,document_order INTEGER NOT NULL,"
-              "UNIQUE(path,anchor_stem,document_order));",
-              error), error.c_str ());
-  QVERIFY2 (exec_test_sql (
-              root / info.bold_text_path,
-              "CREATE TABLE entries(uuid TEXT PRIMARY KEY,path TEXT NOT NULL,"
-              "keyword_tree TEXT NOT NULL,keyword_display TEXT NOT NULL,"
-              "occurrence INTEGER NOT NULL,paragraph_offsets TEXT NOT NULL,"
-              "document_order INTEGER NOT NULL,"
-              "UNIQUE(path,keyword_tree,occurrence));"
-              "INSERT INTO entries VALUES('legacy-content','A.ath'," +
-              sql_literal (keyword) +
-              ",'shared concept',1,'0',0);",
-              error), error.c_str ());
-
-  write_document (
-    root / "A.ath",
-    bold_paragraph_document ({{"A legacy paragraph defines ", " here."}}));
-  AthenaArtifactsBuildResult build;
-  QVERIFY2 (athena_artifacts_build (root, {}, true, {}, build, error),
-            error.c_str ());
-  std::vector<AthenaArtifactRecord> records;
-  QVERIFY2 (athena_artifacts_query (root, records, error), error.c_str ());
-  QCOMPARE (records.size (), (size_t) 1);
-  QCOMPARE (records[0].content_uuid, std::string ("legacy-content"));
-  QCOMPARE (records[0].uuid, std::string ("legacy-artifact"));
-  QCOMPARE (records[0].identity_decision, std::string ("matched"));
-  QCOMPARE (records[0].identity_evidence, std::string ("unique-focus"));
-  QVERIFY (!records[0].identity_host.empty ());
 }
 
 void

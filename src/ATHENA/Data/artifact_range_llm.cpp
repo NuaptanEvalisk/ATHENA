@@ -15,11 +15,13 @@
 #include "tm_ostream.hpp"
 
 #include <llama.h>
+#include <chat.h>
 #include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <cctype>
 #include <cstdlib>
+#include <filesystem>
 #include <mutex>
 #include <regex>
 #include <set>
@@ -128,60 +130,78 @@ std::string token_piece (const llama_vocab* vocab, llama_token token) {
   return n > 0 ? std::string (large.data (), (size_t) n) : std::string ();
 }
 
-const std::string& prompt_prefix () {
+struct ChatEnvelope {
+  std::string prefix;
+  std::string suffix;
+};
+
+ChatEnvelope chat_envelope (const common_chat_templates* templates,
+                            const std::string& instructions) {
+  static const std::string marker=
+    "\n<ATHENA_ARTIFACT_DYNAMIC_REQUEST_9F4738C1>\n";
+  std::string content= instructions + marker;
+  if (!templates) return {instructions, ""};
+  common_chat_templates_inputs inputs;
+  inputs.messages.push_back ({"user", content});
+  inputs.add_generation_prompt= true;
+  inputs.use_jinja= true;
+  inputs.enable_thinking= false;
+  std::string prompt= common_chat_templates_apply (templates, inputs).prompt;
+  size_t split= prompt.find (marker);
+  if (split == std::string::npos) return {instructions, ""};
+  return {prompt.substr (0, split), prompt.substr (split + marker.size ())};
+}
+
+const std::string& definition_range_prompt () {
   static const std::string value=
-         "You select which nearby paragraphs constitute the mathematical "
-         "definition of a bold keyword in an ATHENA note.\n"
+         "The marked span has already been verified as the semantic name of "
+         "a mathematical artifact. Select which nearby paragraphs constitute "
+         "its definition in an ATHENA note.\n"
          "Return ONLY one bracketed sorted list of paragraph integers, for "
          "example [-1, 0, 1]. You may give every integer or only sorted range "
-         "endpoints; ATHENA includes all intervening paragraphs. If the bold "
-         "text is not a mathematical term "
-         "being defined, return []. Do not explain, reason, use prose, or emit "
-         "markdown. For a definition, paragraph 0 MUST be included. Select only "
+         "endpoints; ATHENA includes all intervening paragraphs. Do not "
+         "explain, reason, use prose, or emit markdown. Paragraph 0 MUST be "
+         "included. Select only "
          "supplied integers and the smallest contiguous semantic range that "
-         "defines the keyword; exclude headings, emphasis, step numbers, "
-         "answers, examples, later consequences, conversation, and unrelated "
-         "text. A displayed formula attached to a paragraph is part of "
+         "defines the marked span; exclude headings, examples, later "
+         "consequences, conversation, and unrelated text. Stop before a "
+         "neighboring paragraph that begins an independent definition or "
+         "introduces a different marked expression. If the supplied context "
+         "ends while the definition still continues, include that boundary "
+         "paragraph; ATHENA will then supply more context. A displayed formula "
+         "attached to a paragraph is part of "
          "that paragraph.\n\n"
-         "Example keyword: compact operator\n"
          "=== BEGIN PARAGRAPH -1 ===\nWe now introduce a useful class.\n"
          "=== END PARAGRAPH -1 ===\n"
          "=== BEGIN PARAGRAPH 0 ===\nA bounded operator is called "
          "\\textbf{compact} when it maps bounded sets to relatively compact "
          "sets.\n=== END PARAGRAPH 0 ===\n"
          "=== BEGIN PARAGRAPH 1 ===\nThe identity is not compact in infinite "
-         "dimension.\n=== END PARAGRAPH 1 ===\nAnswer: [0]\n\n"
-         "Example keyword: covering space\n"
+         "dimension.\n=== END PARAGRAPH 1 ===\n"
+         "Keyword (LaTeX): compact operator\nAnswer: [0]\n\n"
          "=== BEGIN PARAGRAPH 0 ===\nA map p:E\\to X is a "
          "\\textbf{covering space} if the following local condition holds.\n"
          "=== END PARAGRAPH 0 ===\n"
          "=== BEGIN PARAGRAPH 1 ===\nEvery x\\in X has an open neighborhood U "
          "whose inverse image is a disjoint union of open sets mapped "
-         "homeomorphically onto U.\n=== END PARAGRAPH 1 ===\nAnswer: [0, 1]\n\n"
-         "Example keyword: 2\n"
-         "=== BEGIN PARAGRAPH 0 ===\n2. Apply the preceding construction.\n"
-         "=== END PARAGRAPH 0 ===\nAnswer: []\n\n"
-         "Example keyword: not\n"
-         "=== BEGIN PARAGRAPH 0 ===\nThe operator is \\textbf{not} "
-         "compact.\n=== END PARAGRAPH 0 ===\nAnswer: []\n\n"
-         "Example keyword: cannot\n"
-         "=== BEGIN PARAGRAPH 0 ===\nThis sequence \\textbf{cannot} "
-         "converge.\n=== END PARAGRAPH 0 ===\nAnswer: []\n\n"
-         "Example keyword: Important\n"
-         "=== BEGIN PARAGRAPH 0 ===\n\\textbf{Important.} This convention "
-         "will be used below.\n=== END PARAGRAPH 0 ===\nAnswer: []\n\n"
+         "homeomorphically onto U.\n=== END PARAGRAPH 1 ===\n"
+         "Keyword (LaTeX): covering space\nAnswer: [0, 1]\n\n"
          ;
   return value;
 }
 
-std::string make_prompt_suffix (const AthenaArtifactRangeRequest& request) {
+std::string make_context_prefix (const AthenaArtifactRangeRequest& request) {
   std::ostringstream out;
-  out << "Keyword (LaTeX): " << request.keyword_latex << "\n";
   for (const auto& paragraph: request.paragraphs)
     out << "=== BEGIN PARAGRAPH " << paragraph.first << " ===\n"
         << paragraph.second << "\n=== END PARAGRAPH " << paragraph.first
         << " ===\n";
-  out << "Answer:";
+  return out.str ();
+}
+
+std::string make_keyword_tail (const AthenaArtifactRangeRequest& request) {
+  std::ostringstream out;
+  out << "Keyword (LaTeX): " << request.keyword_latex << "\nAnswer:";
   return out.str ();
 }
 
@@ -198,7 +218,6 @@ public:
     std::vector<std::vector<int>> results (requests.size ());
     if (fallback_to_paragraph_zero)
       for (std::vector<int>& result: results) result= {0};
-    if (completed) completed->store (0);
     if (requests.empty () || (cancelled && cancelled->load ())) return results;
     int parallelism= std::clamp (
       requested_parallelism, 1,
@@ -216,7 +235,9 @@ public:
       llama_context* context;
       ~AbortReset () { llama_set_abort_callback (context, nullptr, nullptr); }
     } reset {ctx};
-    if (!prepare_prefix_cache ()) return results;
+    ChatEnvelope envelope= chat_envelope (
+      chat_templates.get (), definition_range_prompt ());
+    if (!prepare_prefix_cache (envelope.prefix)) return results;
     llama_memory_t memory= llama_get_memory (ctx);
     range_log ("definition-range batch started: requests=" +
                std::to_string (requests.size ()) + ", parallelism=" +
@@ -227,7 +248,7 @@ public:
       llama_memory_clear (memory, true);
       prefix_cached= false;
       if (!rebuild_prefix) return true;
-      bool ready= prepare_prefix_cache ();
+      bool ready= prepare_prefix_cache (envelope.prefix);
       if (ready)
         range_log ("definition-range fixed prompt cache rebuilt for next "
                    "request group");
@@ -237,7 +258,8 @@ public:
     struct State {
       size_t request= 0;
       int lane= 0;
-      std::vector<llama_token> suffix;
+      const std::vector<llama_token>* context= nullptr;
+      const std::vector<llama_token>* tail= nullptr;
       std::string answer;
       int generated= 0;
       int n_past= 0;
@@ -248,71 +270,121 @@ public:
       bool counted= false;
     };
 
-    for (size_t base=0; base<requests.size ();) {
-      if (cancelled && cancelled->load ()) break;
-      int count= (int) std::min<size_t> ((size_t) parallelism,
-                                        requests.size () - base);
-      std::vector<std::vector<llama_token>> suffixes;
-      while (count > 0) {
-        suffixes.clear ();
-        int maximum_suffix= 0;
-        int total_suffix= 0;
-        for (int lane=0; lane<count; lane++) {
-          suffixes.push_back (tokenize (
-            vocab, make_prompt_suffix (requests[base + (size_t) lane]),
-            false));
-          maximum_suffix= std::max (
-            maximum_suffix, (int) suffixes.back ().size ());
-          total_suffix += (int) suffixes.back ().size ();
-        }
-        int required_kv=
-          prefix_tokens + total_suffix + count * output_tokens;
-        if (maximum_suffix > 0 &&
-            prefix_tokens + maximum_suffix + output_tokens < context_capacity &&
-            required_kv < context_capacity)
-          break;
-        count--;
-      }
-      if (count == 0) {
-        int required_tokens= prefix_tokens + output_tokens;
-        if (!suffixes.empty ()) required_tokens += (int) suffixes[0].size ();
-        range_warning (
-          "definition-range request requires " +
-          std::to_string (required_tokens) + " tokens, exceeding the " +
-          std::to_string (context_capacity) + "-token model context");
+    struct TokenizedRequest {
+      std::vector<llama_token> context;
+      std::vector<llama_token> tail;
+    };
+    std::vector<TokenizedRequest> tokenized;
+    tokenized.reserve (requests.size ());
+    for (const AthenaArtifactRangeRequest& request: requests) {
+      TokenizedRequest item;
+      item.context= tokenize (vocab, make_context_prefix (request), false);
+      item.tail= tokenize (
+        vocab, make_keyword_tail (request) + envelope.suffix, false);
+      tokenized.push_back (std::move (item));
+    }
+
+    struct PackedGroup {
+      std::vector<size_t> requests;
+      std::vector<size_t> context_representatives;
+      int dynamic_tokens= 0;
+    };
+    auto has_context= [&] (const PackedGroup& group, size_t request) {
+      for (size_t representative: group.context_representatives)
+        if (tokenized[representative].context == tokenized[request].context)
+          return true;
+      return false;
+    };
+    std::vector<size_t> order (requests.size ());
+    for (size_t i=0; i<order.size (); i++) order[i]= i;
+    std::stable_sort (order.begin (), order.end (), [&] (size_t a, size_t b) {
+      return tokenized[a].context.size () + tokenized[a].tail.size () >
+             tokenized[b].context.size () + tokenized[b].tail.size ();
+    });
+    std::vector<PackedGroup> groups;
+    for (size_t request: order) {
+      int context_tokens= (int) tokenized[request].context.size ();
+      int tail_tokens= (int) tokenized[request].tail.size ();
+      int request_tokens= context_tokens + tail_tokens;
+      if (tail_tokens == 0 ||
+          prefix_tokens + request_tokens + output_tokens >= context_capacity) {
+        if (request_tokens > 0)
+          range_warning (
+            "definition-range request requires " +
+            std::to_string (prefix_tokens + request_tokens + output_tokens) +
+            " tokens, exceeding the " + std::to_string (context_capacity) +
+            "-token model context");
         if (completed) completed->fetch_add (1);
-        base++;
         continue;
       }
+      size_t best= groups.size ();
+      int best_remaining= context_capacity;
+      for (size_t i=0; i<groups.size (); i++) {
+        const PackedGroup& group= groups[i];
+        int count= (int) group.requests.size () + 1;
+        if (count > parallelism) continue;
+        int marginal_context= has_context (group, request) ? 0: context_tokens;
+        int required= prefix_tokens + group.dynamic_tokens +
+                      marginal_context + tail_tokens +
+                      count * output_tokens;
+        if (required >= context_capacity) continue;
+        int remaining= context_capacity - required;
+        if (remaining < best_remaining) {
+          best= i;
+          best_remaining= remaining;
+        }
+      }
+      if (best == groups.size ()) {
+        groups.push_back (PackedGroup ());
+        best= groups.size () - 1;
+      }
+      PackedGroup& group= groups[best];
+      if (!has_context (group, request)) {
+        group.context_representatives.push_back (request);
+        group.dynamic_tokens += context_tokens;
+      }
+      group.requests.push_back (request);
+      group.dynamic_tokens += tail_tokens;
+    }
+    range_log ("definition-range token packing: groups=" +
+               std::to_string (groups.size ()) + ", requests=" +
+               std::to_string (requests.size ()));
+
+    for (size_t group_index=0; group_index<groups.size (); group_index++) {
+      if (cancelled && cancelled->load ()) break;
+      PackedGroup& group= groups[group_index];
+      int count= (int) group.requests.size ();
 
       int shared_tokens= prefix_tokens;
 
       std::vector<State> states ((size_t) count);
-      int total_dynamic_tokens= 0;
+      int total_tail_tokens= 0;
+      int naive_context_tokens= 0;
       for (int lane=0; lane<count; lane++) {
         State& state= states[(size_t) lane];
-        state.request= base + (size_t) lane;
+        state.request= group.requests[(size_t) lane];
         state.lane= lane;
-        state.suffix= std::move (suffixes[(size_t) lane]);
-        if (state.suffix.empty ()) {
+        state.context= &tokenized[state.request].context;
+        state.tail= &tokenized[state.request].tail;
+        if (state.tail->empty ()) {
           state.done= true;
           if (completed) completed->fetch_add (1);
           continue;
         }
-        state.n_past= shared_tokens + (int) state.suffix.size ();
-        total_dynamic_tokens += (int) state.suffix.size ();
+        state.n_past= shared_tokens + (int) state.context->size () +
+                      (int) state.tail->size ();
+        naive_context_tokens += (int) state.context->size ();
+        total_tail_tokens += (int) state.tail->size ();
       }
 
       for (int lane=0; lane<count; lane++) {
         llama_seq_id sequence= lane + 1;
         llama_memory_seq_rm (memory, sequence, -1, -1);
-        llama_memory_seq_cp (memory, 0, sequence, 0, shared_tokens);
         llama_sampler_reset (samplers[(size_t) lane]);
       }
 
-      if (total_dynamic_tokens == 0) {
-        base += (size_t) count;
-        bool more= base < requests.size () &&
+      if (total_tail_tokens == 0) {
+        bool more= group_index + 1 < groups.size () &&
                    !(cancelled && cancelled->load ());
         if (!reset_shared_cache (more)) break;
         continue;
@@ -340,24 +412,79 @@ public:
         state.has_pending_token= true;
       };
 
-      auto prompt_started= std::chrono::steady_clock::now ();
-      llama_batch prompt= llama_batch_init (total_dynamic_tokens, 0, 1);
-      for (State& state: states) {
-        if (state.done) continue;
-        for (size_t token=0; token<state.suffix.size (); token++) {
-          bool logits= token + 1 == state.suffix.size ();
-          if (logits) state.batch_index= prompt.n_tokens;
-          batch_add (prompt, state.suffix[token],
-                     shared_tokens + (int) token, state.lane + 1, logits);
-        }
+      struct SharedContext {
+        int leader= 0;
+        std::vector<int> lanes;
+      };
+      std::vector<SharedContext> contexts;
+      for (int lane=0; lane<count; lane++) {
+        if (states[(size_t) lane].done) continue;
+        size_t context= contexts.size ();
+        for (size_t i=0; i<contexts.size (); i++)
+          if (*states[(size_t) contexts[i].leader].context ==
+              *states[(size_t) lane].context) {
+            context= i;
+            break;
+          }
+        if (context == contexts.size ())
+          contexts.push_back ({lane, {lane}});
+        else contexts[context].lanes.push_back (lane);
       }
-      int prompt_status= llama_decode (ctx, prompt);
-      llama_batch_free (prompt);
+
+      int unique_context_tokens= 0;
+      for (const SharedContext& context: contexts) {
+        const State& leader= states[(size_t) context.leader];
+        unique_context_tokens += (int) leader.context->size ();
+        llama_memory_seq_cp (
+          memory, 0, leader.lane + 1, 0, shared_tokens);
+      }
+
+      auto prompt_started= std::chrono::steady_clock::now ();
+      int prompt_status= 0;
+      if (unique_context_tokens > 0) {
+        llama_batch context_batch=
+          llama_batch_init (unique_context_tokens, 0, 1);
+        for (const SharedContext& context: contexts) {
+          const State& leader= states[(size_t) context.leader];
+          for (size_t token=0; token<leader.context->size (); token++)
+            batch_add (context_batch, (*leader.context)[token],
+                       shared_tokens + (int) token, leader.lane + 1, false);
+        }
+        prompt_status= llama_decode (ctx, context_batch);
+        llama_batch_free (context_batch);
+      }
       if (prompt_status != 0) {
-        range_warning ("definition-range question batch prefill failed");
+        range_warning ("definition-range shared context prefill failed");
         for (State& state: states) if (!state.done) finish (state);
       }
-      else
+      else {
+        for (const SharedContext& context: contexts) {
+          const State& leader= states[(size_t) context.leader];
+          int end= shared_tokens + (int) leader.context->size ();
+          for (size_t i=1; i<context.lanes.size (); i++)
+            llama_memory_seq_cp (
+              memory, leader.lane + 1, context.lanes[i] + 1, 0, end);
+        }
+
+        llama_batch tail_batch= llama_batch_init (total_tail_tokens, 0, 1);
+        for (State& state: states) {
+          if (state.done) continue;
+          int start= shared_tokens + (int) state.context->size ();
+          for (size_t token=0; token<state.tail->size (); token++) {
+            bool logits= token + 1 == state.tail->size ();
+            if (logits) state.batch_index= tail_batch.n_tokens;
+            batch_add (tail_batch, (*state.tail)[token], start + (int) token,
+                       state.lane + 1, logits);
+          }
+        }
+        prompt_status= llama_decode (ctx, tail_batch);
+        llama_batch_free (tail_batch);
+        if (prompt_status != 0) {
+          range_warning ("definition-range keyword batch prefill failed");
+          for (State& state: states) if (!state.done) finish (state);
+        }
+      }
+      if (prompt_status == 0)
         for (State& state: states)
           if (!state.done)
             accept_sample (state, llama_sampler_sample (
@@ -365,8 +492,12 @@ public:
       auto prompt_ms= std::chrono::duration_cast<std::chrono::milliseconds> (
         std::chrono::steady_clock::now () - prompt_started).count ();
       range_log ("definition-range question batch evaluated: requests=" +
-                 std::to_string (count) + ", evaluated-tokens=" +
-                 std::to_string (total_dynamic_tokens) + ", elapsed-ms=" +
+                 std::to_string (count) + ", unique-contexts=" +
+                 std::to_string (contexts.size ()) + ", evaluated-tokens=" +
+                 std::to_string (unique_context_tokens + total_tail_tokens) +
+                 ", reused-context-tokens=" +
+                 std::to_string (naive_context_tokens -
+                                 unique_context_tokens) + ", elapsed-ms=" +
                  std::to_string (prompt_ms));
 
       auto generation_started= std::chrono::steady_clock::now ();
@@ -442,8 +573,7 @@ public:
       range_log ("definition-range generation batch complete: requests=" +
                  std::to_string (count) + ", elapsed-ms=" +
                  std::to_string (generation_ms));
-      base += (size_t) count;
-      bool more= base < requests.size () &&
+      bool more= group_index + 1 < groups.size () &&
                  !(cancelled && cancelled->load ());
       if (!reset_shared_cache (more)) break;
     }
@@ -495,7 +625,7 @@ private:
     return !logits_on_last || logits_index >= 0;
   }
 
-  bool prepare_prefix_cache () {
+  bool prepare_prefix_cache (const std::string& prompt) {
     llama_memory_t memory= llama_get_memory (ctx);
     if (prefix_cached) {
       if (llama_memory_seq_rm (memory, 0, prefix_tokens, -1)) return true;
@@ -505,7 +635,7 @@ private:
     }
     llama_memory_clear (memory, true);
     const llama_vocab* vocab= llama_model_get_vocab (model);
-    std::vector<llama_token> tokens= tokenize (vocab, prompt_prefix ());
+    std::vector<llama_token> tokens= tokenize (vocab, prompt);
     if (tokens.empty () ||
         (int) tokens.size () + output_tokens >= context_capacity)
       return false;
@@ -549,6 +679,10 @@ private:
       range_warning ("could not load definition-range model " + path);
       return false;
     }
+    chat_templates= common_chat_templates_init (model, "");
+    if (!chat_templates)
+      range_warning ("model has no usable chat template; artifact prompts "
+                     "will use plain text");
     llama_context_params cp= llama_context_default_params ();
     parallel_capacity= parallelism;
     cp.n_seq_max= (uint32_t) parallel_capacity + 1;
@@ -597,6 +731,7 @@ private:
     for (llama_sampler* sampler: samplers) llama_sampler_free (sampler);
     samplers.clear ();
     if (ctx) llama_free (ctx);
+    chat_templates.reset ();
     if (model) llama_model_free (model);
     ctx= nullptr; model= nullptr; loaded_path.clear ();
     prefix_cached= false;
@@ -609,6 +744,7 @@ private:
   std::mutex mutex;
   llama_model* model= nullptr;
   llama_context* ctx= nullptr;
+  common_chat_templates_ptr chat_templates;
   std::vector<llama_sampler*> samplers;
   std::string loaded_path;
   std::string warned_path;
@@ -661,6 +797,30 @@ athena_artifact_range_batch_size () {
   return configured_batch_size ();
 }
 
+std::string
+athena_artifact_definition_range_cache_contract (
+  const std::string& model_path) {
+  namespace fs= std::filesystem;
+  AthenaArtifactRangeRequest format_example {
+    "<KEYWORD>", {{-1, "<PREVIOUS>"}, {0, "<FOCUS>"}, {1, "<NEXT>"}}
+  };
+  std::ostringstream out;
+  out << definition_range_prompt () << "\nDYNAMIC REQUEST\n"
+      << make_context_prefix (format_example)
+      << make_keyword_tail (format_example)
+      << "\nMODEL\n" << model_path << '\n';
+  std::error_code error;
+  fs::path path (model_path);
+  if (fs::is_regular_file (path, error)) {
+    auto size= fs::file_size (path, error);
+    if (!error) out << size << '\n';
+    error.clear ();
+    auto modified= fs::last_write_time (path, error);
+    if (!error) out << modified.time_since_epoch ().count () << '\n';
+  }
+  return out.str ();
+}
+
 std::vector<int>
 athena_artifact_parse_definition_range_output (
   const std::string& output,
@@ -675,7 +835,7 @@ athena_artifact_parse_definition_range_output (
     return invalid ();
 
   std::string body= match[1].str ();
-  if (trim (body).empty ()) return {};
+  if (trim (body).empty ()) return invalid ();
   static const std::regex list_pattern (
     "^\\s*-?[0-9]+\\s*(,\\s*-?[0-9]+\\s*)*$");
   if (!std::regex_match (body, list_pattern)) return invalid ();
@@ -708,13 +868,118 @@ athena_artifact_parse_definition_range_output (
 }
 
 std::vector<std::vector<int>>
+athena_artifact_select_definition_ranges_progressively (
+  const std::vector<AthenaArtifactRangeRequest>& requests,
+  const AthenaArtifactRangePass& pass, const std::atomic<bool>* cancelled,
+  std::atomic<size_t>* completed, bool fallback_to_paragraph_zero) {
+  struct Window {
+    int available_left= 0;
+    int available_right= 0;
+    int visible_left= 0;
+    int visible_right= 0;
+    int left_step= 1;
+    int right_step= 1;
+  };
+
+  std::vector<std::vector<int>> results (requests.size ());
+  if (fallback_to_paragraph_zero)
+    for (std::vector<int>& result: results) result= {0};
+  if (completed) completed->store (0);
+  if (requests.empty () || (cancelled && cancelled->load ())) return results;
+
+  std::vector<Window> windows (requests.size ());
+  std::vector<size_t> pending;
+  for (size_t i=0; i<requests.size (); i++) {
+    if (requests[i].paragraphs.empty ()) {
+      if (completed) completed->fetch_add (1);
+      continue;
+    }
+    Window& window= windows[i];
+    window.available_left= requests[i].paragraphs.front ().first;
+    window.available_right= requests[i].paragraphs.back ().first;
+    bool has_focus= false;
+    for (const auto& paragraph: requests[i].paragraphs)
+      has_focus= has_focus || paragraph.first == 0;
+    if (!has_focus) {
+      if (completed) completed->fetch_add (1);
+      continue;
+    }
+    window.visible_left= std::max (-1, window.available_left);
+    window.visible_right= std::min (1, window.available_right);
+    if (window.available_left == 0 && window.available_right == 0) {
+      results[i]= {0};
+      if (completed) completed->fetch_add (1);
+      continue;
+    }
+    pending.push_back (i);
+  }
+
+  size_t wave_number= 0;
+  while (!pending.empty () && !(cancelled && cancelled->load ())) {
+    wave_number++;
+    std::vector<AthenaArtifactRangeRequest> wave;
+    wave.reserve (pending.size ());
+    for (size_t index: pending) {
+      AthenaArtifactRangeRequest request;
+      request.keyword_latex= requests[index].keyword_latex;
+      const Window& window= windows[index];
+      for (const auto& paragraph: requests[index].paragraphs)
+        if (paragraph.first >= window.visible_left &&
+            paragraph.first <= window.visible_right)
+          request.paragraphs.push_back (paragraph);
+      wave.push_back (std::move (request));
+    }
+    range_log ("definition-range adaptive wave=" +
+               std::to_string (wave_number) + ", requests=" +
+               std::to_string (wave.size ()));
+    std::vector<std::vector<int>> selected= pass (wave);
+    selected.resize (wave.size ());
+    std::vector<size_t> next;
+    for (size_t i=0; i<pending.size (); i++) {
+      size_t index= pending[i];
+      Window& window= windows[index];
+      std::vector<int> choice= std::move (selected[i]);
+      if (choice.empty () && fallback_to_paragraph_zero) choice= {0};
+      bool grow_left= !choice.empty () &&
+        choice.front () == window.visible_left &&
+        window.visible_left > window.available_left;
+      bool grow_right= !choice.empty () &&
+        choice.back () == window.visible_right &&
+        window.visible_right < window.available_right;
+      if (grow_left) {
+        window.visible_left= std::max (
+          window.available_left, window.visible_left - window.left_step);
+        window.left_step *= 2;
+      }
+      if (grow_right) {
+        window.visible_right= std::min (
+          window.available_right, window.visible_right + window.right_step);
+        window.right_step *= 2;
+      }
+      if (grow_left || grow_right) {
+        next.push_back (index);
+        continue;
+      }
+      results[index]= std::move (choice);
+      if (completed) completed->fetch_add (1);
+    }
+    pending= std::move (next);
+  }
+  return results;
+}
+
+std::vector<std::vector<int>>
 athena_artifact_select_definition_ranges (
   const std::vector<AthenaArtifactRangeRequest>& requests,
   const std::string& model_path, const std::atomic<bool>* cancelled,
   std::atomic<size_t>* completed, bool fallback_to_paragraph_zero) {
-  return range_model ().select_many (
-    requests, model_path, configured_batch_size (), cancelled, completed,
-    fallback_to_paragraph_zero);
+  return athena_artifact_select_definition_ranges_progressively (
+    requests,
+    [&] (const std::vector<AthenaArtifactRangeRequest>& wave) {
+      return range_model ().select_many (
+        wave, model_path, configured_batch_size (), cancelled, nullptr,
+        fallback_to_paragraph_zero);
+    }, cancelled, completed, fallback_to_paragraph_zero);
 }
 
 std::vector<int>
@@ -722,8 +987,8 @@ athena_artifact_select_definition_range (
   const std::string& keyword_latex,
   const std::vector<std::pair<int,std::string>>& paragraphs) {
   AthenaArtifactRangeRequest request {keyword_latex, paragraphs};
-  auto results= range_model ().select_many (
-    {request}, configured_model (), 1, nullptr, nullptr, true);
+  auto results= athena_artifact_select_definition_ranges (
+    {request}, configured_model (), nullptr, nullptr, true);
   return results.empty () ? std::vector<int> {0} : results[0];
 }
 
@@ -733,7 +998,7 @@ athena_artifact_select_definition_range (
   const std::vector<std::pair<int,std::string>>& paragraphs,
   const std::string& model_path, const std::atomic<bool>* cancelled) {
   AthenaArtifactRangeRequest request {keyword_latex, paragraphs};
-  auto results= range_model ().select_many (
-    {request}, model_path, 1, cancelled, nullptr, true);
+  auto results= athena_artifact_select_definition_ranges (
+    {request}, model_path, cancelled, nullptr, true);
   return results.empty () ? std::vector<int> {0} : results[0];
 }

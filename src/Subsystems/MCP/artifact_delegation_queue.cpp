@@ -69,8 +69,8 @@ bool terminal (const ArtifactJob& job) {
 
 bool valid_offsets (const AthenaArtifactRangeRequest& request,
                     const std::vector<int>& offsets) {
-  if (offsets.empty ()) return true;
-  if (std::find (offsets.begin (), offsets.end (), 0) == offsets.end ())
+  if (offsets.empty () ||
+      std::find (offsets.begin (), offsets.end (), 0) == offsets.end ())
     return false;
   std::set<int> allowed;
   for (const auto& candidate: request.paragraphs)

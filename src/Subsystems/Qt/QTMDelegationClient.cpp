@@ -940,10 +940,10 @@ qtm_delegation_select_artifact_ranges (
       std::set<int> allowed;
       for (const auto& candidate: requests[index].paragraphs)
         allowed.insert (candidate.first);
-      bool valid= offsets.empty () ||
-        (std::find (offsets.begin (), offsets.end (), 0) != offsets.end () &&
-         std::is_sorted (offsets.begin (), offsets.end ()) &&
-         std::adjacent_find (offsets.begin (), offsets.end ()) == offsets.end ());
+      bool valid= !offsets.empty () &&
+        std::find (offsets.begin (), offsets.end (), 0) != offsets.end () &&
+        std::is_sorted (offsets.begin (), offsets.end ()) &&
+        std::adjacent_find (offsets.begin (), offsets.end ()) == offsets.end ();
       for (size_t i=0; valid && i<offsets.size (); i++)
         valid= allowed.count (offsets[i]) &&
                (i == 0 || offsets[i] == offsets[i - 1] + 1);

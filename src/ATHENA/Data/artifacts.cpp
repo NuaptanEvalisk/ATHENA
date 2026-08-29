@@ -43,6 +43,7 @@
 #include <set>
 #include <sstream>
 #include <unordered_map>
+#include <unordered_set>
 #include <thread>
 
 #if defined(__unix__) || defined(__APPLE__)
@@ -133,34 +134,6 @@ bool prepare (sqlite3* db, const char* sql, Statement& out,
   return false;
 }
 
-std::string column_text (sqlite3_stmt* st, int column);
-
-bool table_has_column (sqlite3* db, const std::string& schema,
-                       const std::string& table, const std::string& column,
-                       bool& found, std::string& error) {
-  Statement statement;
-  std::string sql= "PRAGMA " + schema + ".table_info(" + table + ");";
-  if (!prepare (db, sql.c_str (), statement, error)) return false;
-  found= false;
-  while (sqlite3_step (statement.st) == SQLITE_ROW)
-    if (column_text (statement.st, 1) == column) {
-      found= true;
-      break;
-    }
-  return true;
-}
-
-bool ensure_column (sqlite3* db, const std::string& schema,
-                    const std::string& table, const std::string& column,
-                    const std::string& declaration, std::string& error) {
-  bool found= false;
-  if (!table_has_column (db, schema, table, column, found, error)) return false;
-  if (found) return true;
-  return exec_sql (db, "ALTER TABLE " + schema + "." + table +
-                         " ADD COLUMN " + column + " " + declaration + ";",
-                   error);
-}
-
 bool bind_text (sqlite3_stmt* st, int index, const std::string& value) {
   return sqlite3_bind_text (st, index, value.data (), (int) value.size (),
                             SQLITE_TRANSIENT) == SQLITE_OK;
@@ -224,8 +197,6 @@ bool open_databases (const fs::path& root, SqliteDb& holder,
     "PRAGMA foreign_keys=ON;"
     "CREATE TABLE IF NOT EXISTS documents("
     " path TEXT PRIMARY KEY,mtime_ns INTEGER NOT NULL,size INTEGER NOT NULL);"
-    "CREATE TABLE IF NOT EXISTS artifact_meta("
-    " key TEXT PRIMARY KEY,value TEXT NOT NULL);"
     "CREATE TABLE IF NOT EXISTS enunciations.entries("
     " uuid TEXT PRIMARY KEY,path TEXT NOT NULL,anchor_stem TEXT NOT NULL,"
     " tag TEXT NOT NULL,display_text TEXT NOT NULL,document_order INTEGER NOT NULL,"
@@ -275,88 +246,6 @@ bool open_databases (const fs::path& root, SqliteDb& holder,
     "CREATE INDEX IF NOT EXISTS artifact_identity_history_path_idx "
     "ON artifact_identity_history(path,sequence);";
   if (!exec_sql (holder.db, schema, error)) return false;
-  for (const std::string& attached: {"enunciations", "bold_text"})
-    for (const std::string& column:
-         {"identity_focus", "identity_host", "identity_before",
-          "identity_after"})
-      if (!ensure_column (holder.db, attached, "entries", column,
-                          "TEXT NOT NULL DEFAULT ''", error))
-        return false;
-  if (!ensure_column (holder.db, "main", "artifacts", "identity_decision",
-                      "TEXT NOT NULL DEFAULT 'new'", error) ||
-      !ensure_column (holder.db, "main", "artifacts", "identity_evidence",
-                      "TEXT NOT NULL DEFAULT ''", error))
-    return false;
-  Statement encoding;
-  if (!prepare (holder.db,
-                "SELECT value FROM artifact_meta WHERE key='text_encoding';",
-                encoding, error))
-    return false;
-  int rc= sqlite3_step (encoding.st);
-  if (rc != SQLITE_ROW && rc != SQLITE_DONE) {
-    error= sqlite3_errmsg (holder.db);
-    return false;
-  }
-  if (rc != SQLITE_ROW ||
-      column_text (encoding.st, 0) != "utf8-opaque-v1") {
-    // Earlier builders treated TeXmacs' Cork bytes as UTF-8 at the worker
-    // boundary.  Emptying this incremental stamp table makes every source get
-    // revisited while the existing rows remain available for UUID matching.
-    if (!exec_sql (holder.db, "BEGIN IMMEDIATE;DELETE FROM documents;"
-                              "INSERT OR REPLACE INTO artifact_meta(key,value)"
-                              " VALUES('text_encoding','utf8-opaque-v1');COMMIT;",
-                   error)) {
-      std::string ignored;
-      exec_sql (holder.db, "ROLLBACK;", ignored);
-      return false;
-    }
-  }
-  Statement record_format;
-  if (!prepare (holder.db,
-                "SELECT value FROM artifact_meta WHERE key='record_format';",
-                record_format, error))
-    return false;
-  rc= sqlite3_step (record_format.st);
-  if (rc != SQLITE_ROW && rc != SQLITE_DONE) {
-    error= sqlite3_errmsg (holder.db);
-    return false;
-  }
-  if (rc != SQLITE_ROW || column_text (record_format.st, 0) != "v2") {
-    // v2 retains complete enunciation text instead of a truncated display
-    // value. Keep old artifact rows available while their source stamps are
-    // invalidated so identity association can preserve UUIDs.
-    if (!exec_sql (holder.db, "BEGIN IMMEDIATE;DELETE FROM documents;"
-                              "INSERT OR REPLACE INTO artifact_meta(key,value)"
-                              " VALUES('record_format','v2');COMMIT;",
-                   error)) {
-      std::string ignored;
-      exec_sql (holder.db, "ROLLBACK;", ignored);
-      return false;
-    }
-  }
-  Statement semantic_names;
-  if (!prepare (holder.db,
-                "SELECT value FROM artifact_meta WHERE key='semantic_names';",
-                semantic_names, error))
-    return false;
-  rc= sqlite3_step (semantic_names.st);
-  if (rc != SQLITE_ROW && rc != SQLITE_DONE) {
-    error= sqlite3_errmsg (holder.db);
-    return false;
-  }
-  if (rc != SQLITE_ROW || column_text (semantic_names.st, 0) != "content-v1") {
-    // Navigation labels and semantic names are different representations.
-    // Revisit every source once so names are extracted from content while old
-    // rows remain available for stable UUID association.
-    if (!exec_sql (holder.db, "BEGIN IMMEDIATE;DELETE FROM documents;"
-                              "INSERT OR REPLACE INTO artifact_meta(key,value)"
-                              " VALUES('semantic_names','content-v1');COMMIT;",
-                   error)) {
-      std::string ignored;
-      exec_sql (holder.db, "ROLLBACK;", ignored);
-      return false;
-    }
-  }
   return true;
 }
 
@@ -370,6 +259,35 @@ std::string collapse_spaces (const std::string& value) {
     out.push_back ((char) c);
   }
   return out;
+}
+
+bool has_name_bearing_text (const std::string& value) {
+  const QString text= qstr (cork_bytes_to_utf8 (value));
+  for (QChar character: text)
+    if (character.isLetter ()) return true;
+  return false;
+}
+
+bool filtered_english_auxiliary (const std::string& value) {
+  static const std::unordered_set<std::string> words= {
+    "no", "not",
+    "am", "is", "are", "was", "were", "be", "being", "been",
+    "do", "does", "did", "doing", "done",
+    "have", "has", "had", "having",
+    "can", "cannot", "could", "may", "might", "must",
+    "shall", "should", "will", "would",
+    "ain't", "aren't", "can't", "couldn't", "didn't", "doesn't", "don't",
+    "hadn't", "hasn't", "haven't", "isn't", "mightn't", "mustn't",
+    "needn't", "shan't", "shouldn't", "wasn't", "weren't", "won't",
+    "wouldn't"
+  };
+  QString normalized= qstr (cork_bytes_to_utf8 (value))
+    .normalized (QString::NormalizationForm_KC).trimmed ().toCaseFolded ();
+  normalized.replace (QChar (0x2018), QChar ('\''));
+  normalized.replace (QChar (0x2019), QChar ('\''));
+  QByteArray utf8= normalized.toUtf8 ();
+  return words.count (
+    std::string (utf8.constData (), (size_t) utf8.size ())) != 0;
 }
 
 bool path_in_configured_subtree (const fs::path& root, const fs::path& path,
@@ -748,7 +666,7 @@ std::vector<int> parse_offsets (const std::string& text) {
 
 bool valid_definition_offsets (const AthenaArtifactRangeRequest& request,
                                const std::vector<int>& offsets) {
-  if (offsets.empty ()) return true;
+  if (offsets.empty ()) return false;
   if (std::find (offsets.begin (), offsets.end (), 0) == offsets.end () ||
       !std::is_sorted (offsets.begin (), offsets.end ()) ||
       std::adjacent_find (offsets.begin (), offsets.end ()) != offsets.end ())
@@ -763,9 +681,10 @@ bool valid_definition_offsets (const AthenaArtifactRangeRequest& request,
   return true;
 }
 
-std::string range_request_hash (const AthenaArtifactRangeRequest& request) {
+std::string range_request_hash (const AthenaArtifactRangeRequest& request,
+                                const std::string& cache_contract) {
   std::ostringstream canonical;
-  canonical << "athena-artifact-range-v7\n"
+  canonical << cache_contract.size () << ':' << cache_contract << '\n'
             << request.keyword_latex.size () << ':' << request.keyword_latex
             << '\n';
   for (const auto& paragraph: request.paragraphs)
@@ -875,7 +794,9 @@ bool extract (const tree& document, const std::string& rel,
     find_bold (paragraphs[paragraph_index].value, bolds);
     for (const tree& keyword: bolds) {
       std::string display= plain_text (visible_body (keyword));
-      if (collapse_spaces (display).empty ()) continue;
+      if (collapse_spaces (display).empty () ||
+          !has_name_bearing_text (display) ||
+          filtered_english_auxiliary (display)) continue;
       std::string serialized= to_std (tree_to_texmacs (keyword));
       int occurrence= ++occurrences[serialized];
       std::vector<std::pair<int,std::string>> candidates;
@@ -1030,6 +951,9 @@ bool select_definition_ranges (
   std::unordered_map<std::string,const DocumentWork*> metadata;
   for (const DocumentWork& document: documents)
     metadata[document.rel]= &document;
+  std::string model_path= athena_artifact_range_model_path ();
+  std::string cache_contract=
+    athena_artifact_definition_range_cache_contract (model_path);
   std::vector<RangeWork> work;
   for (auto& document: extracted) {
     auto document_metadata= metadata.find (document.first);
@@ -1052,7 +976,8 @@ bool select_definition_ranges (
       const DocumentWork& source= *document_metadata->second;
       work.push_back ({&record, document.first, source.modified, source.size,
                        std::move (request), {}});
-      work.back ().request_hash= range_request_hash (work.back ().request);
+      work.back ().request_hash= range_request_hash (
+        work.back ().request, cache_contract);
     }
   }
   size_t range_total= work.size ();
@@ -1099,7 +1024,6 @@ bool select_definition_ranges (
                 std::to_string (cached) + " checkpoint hit(s), " +
                 std::to_string (missing.size ()) + " request(s) to evaluate");
 
-  std::string model_path= athena_artifact_range_model_path ();
   if (!selector && !athena_artifact_range_model_available (model_path)) {
     for (size_t index: missing) selected[index]= {0};
     missing.clear ();
@@ -1199,13 +1123,6 @@ bool select_definition_ranges (
         work.back ().record->display_text)) {
     error= "Artifact build cancelled";
     return false;
-  }
-  for (auto& document: extracted) {
-    auto& records= document.second.records;
-    records.erase (
-      std::remove_if (records.begin (), records.end (), [] (const auto& record) {
-        return record.origin == "bold-text" && record.paragraph_offsets.empty ();
-      }), records.end ());
   }
   return true;
 }

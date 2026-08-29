@@ -228,6 +228,11 @@ find_path (LLAMA_COMMON_INCLUDE_DIR common.h
   HINTS
     ${LLAMA_CPP_SOURCE_DIR}
   PATH_SUFFIXES common)
+find_path (LLAMA_JSON_INCLUDE_DIR nlohmann/json_fwd.hpp
+  HINTS
+    ${LLAMA_CPP_SOURCE_DIR}
+    ${LLAMA_COMMON_INCLUDE_DIR}/..
+  PATH_SUFFIXES vendor)
 find_path (LLAMA_CPP_INCLUDE_DIR llama.h
   HINTS
     ${LLAMA_CPP_SOURCE_DIR}
@@ -303,6 +308,11 @@ if (NOT LLAMA_COMMON_INCLUDE_DIR OR NOT LLAMA_COMMON_LIBRARY)
     "-DLLAMA_CPP_SOURCE_DIR=/path/to/llama.cpp. "
     "Found common.h='${LLAMA_COMMON_INCLUDE_DIR}', "
     "library='${LLAMA_COMMON_LIBRARY}'.")
+endif ()
+if (NOT LLAMA_JSON_INCLUDE_DIR)
+  message (FATAL_ERROR
+    "llama.cpp chat templates require its vendored nlohmann JSON headers. "
+    "Configure LLAMA_CPP_SOURCE_DIR to the matching llama.cpp source tree.")
 endif ()
 
 find_path (RESVGQT_INCLUDE_DIR ResvgQt.h)
@@ -640,6 +650,7 @@ set (ATHENA_Include_Dirs ${ATHENA_Include_Dirs}
   ${IMLIB2_INCLUDE_DIR} ${GMP_INCLUDES} ${GNUTLS_INCLUDE_DIRS}
   ${TCC_INCLUDE_DIR} ${SQLITE3_INCLUDE_DIRS} ${ICONV_INCLUDE_DIR}
   ${ATHENA_LLAMA_INCLUDE_DIR} ${LLAMA_COMMON_INCLUDE_DIR}
+  ${LLAMA_JSON_INCLUDE_DIR}
 )
 
 ### --------------------------------------------------------------------
