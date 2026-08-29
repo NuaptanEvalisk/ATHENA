@@ -19,10 +19,6 @@
 
 #include <algorithm>
 #include <cctype>
-#include <filesystem>
-
-namespace fs= std::filesystem;
-
 namespace {
 
 std::string to_std (string value) {
@@ -168,15 +164,10 @@ athena_artifact_disambiguation_page (string disambiguation_key) {
       }))
     return error_document ("Artifact disambiguation",
                            "The artifact disambiguation key is invalid.", font);
-  fs::path root (to_std (concretize (vault_get_root ())));
-  std::vector<AthenaArtifactRecord> all_records;
-  std::string error;
-  if (!athena_artifacts_query (root, all_records, error))
-    return error_document ("Artifact disambiguation", error, font);
   std::vector<AthenaArtifactRecord> records;
-  for (const AthenaArtifactRecord& record: all_records)
-    if (athena_artifact_radioactive_key (record) == key)
-      records.push_back (record);
+  if (!athena_artifact_radioactive_records_for_key (key, records))
+    return error_document (
+      "Artifact disambiguation", "The artifact index is unavailable.", font);
   if (records.size () < 2)
     return error_document (
       "Artifact disambiguation",

@@ -8,6 +8,7 @@
 
 #include "QTMDelegationClient.hpp"
 #include "QTMMainTabWindow.hpp"
+#include "ATHENA/Data/artifact_radioactive_links.hpp"
 #include "ATHENA/Data/new_buffer.hpp"
 #include "ATHENA/Data/namespaces.hpp"
 #include "ATHENA/Data/vault.hpp"
@@ -60,21 +61,21 @@ fs::path active_root () {
                          : fs::path ();
 }
 
-void execute_open (const AthenaArtifactRecord& record) {
+bool resolve_open_target (const AthenaArtifactRecord& record, url& file,
+                          path& source_path) {
   fs::path absolute= active_root () / fs::path (record.relative_path);
-  url file= url_system (tmstr (absolute.string ()));
+  file= url_system (tmstr (absolute.string ()));
   try {
-    tree document= concrete_buffer (file) != nullptr
-      ? get_buffer_tree (file) : import_tree (file, "texmacs");
-    path source_path;
+    bool already_open= concrete_buffer (file) != nullptr;
+    tree document= already_open ? get_buffer_tree (file)
+                                : import_tree (file, "texmacs");
     std::string error;
     if (athena_artifact_locate_source (
           document, record, source_path, error)) {
-      array<object> cmd;
-      cmd << symbol_object ("artifact-jump-to-position") << object (file)
-          << list_object (symbol_object ("quote"), object (source_path));
-      exec_delayed (scheme_cmd (as_list_object (cmd)));
-      return;
+      // Keep the parsed tree as the editor buffer. Loading it then only creates
+      // or switches the view instead of reading and parsing the file again.
+      if (!already_open) set_buffer_tree (file, document);
+      return true;
     }
     std_warning << "Could not locate artifact in source: " << error.c_str ()
                 << LF;
@@ -87,6 +88,32 @@ void execute_open (const AthenaArtifactRecord& record) {
         active_root (), record.relative_path, stale_error))
     std_warning << "Could not schedule stale artifact document for rebuild: "
                 << stale_error.c_str () << LF;
+  return false;
+}
+
+bool resolve_uuid_record (string uuid, AthenaArtifactRecord& record) {
+  if (athena_artifact_radioactive_record (std_string (uuid), record))
+    return true;
+  bool found= false;
+  std::string error;
+  if (!athena_artifact_query_uuid (active_root (), std_string (uuid), record,
+                                   found, error)) {
+    std_warning << "Could not resolve artifact UUID: " << error.c_str () << LF;
+    return false;
+  }
+  return found;
+}
+
+void execute_open (const AthenaArtifactRecord& record) {
+  url file;
+  path source_path;
+  if (resolve_open_target (record, file, source_path)) {
+    array<object> cmd;
+    cmd << symbol_object ("artifact-jump-to-position") << object (file)
+        << list_object (symbol_object ("quote"), object (source_path));
+    exec_delayed (scheme_cmd (as_list_object (cmd)));
+    return;
+  }
   array<object> cmd;
   cmd << symbol_object ("artifact-navigation-failed")
       << object (utf8_to_cork (tmstr (record.relative_path)));
@@ -414,14 +441,15 @@ bool
 artifacts_open_uuid (string uuid) {
   if (!vault_active ()) return false;
   AthenaArtifactRecord record;
-  bool found= false;
-  std::string error;
-  if (!athena_artifact_query_uuid (active_root (), std_string (uuid), record,
-                                   found, error)) {
-    std_warning << "Could not resolve artifact UUID: " << error.c_str () << LF;
-    return false;
-  }
-  if (!found) return false;
+  if (!resolve_uuid_record (uuid, record)) return false;
   execute_open (record);
   return true;
+}
+
+bool
+artifacts_resolve_uuid (string uuid, url& file, path& source_path) {
+  if (!vault_active ()) return false;
+  AthenaArtifactRecord record;
+  return resolve_uuid_record (uuid, record) &&
+         resolve_open_target (record, file, source_path);
 }

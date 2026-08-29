@@ -57,6 +57,7 @@ struct RadioactiveIndex {
   std::string vault_root;
   std::vector<TrieNode> nodes= {TrieNode ()};
   std::unordered_map<std::string,AthenaArtifactRecord> records;
+  std::unordered_map<std::string,std::vector<std::string>> records_by_key;
 };
 
 struct TextProjection {
@@ -215,8 +216,14 @@ std::shared_ptr<const RadioactiveIndex> build_index (
   index->vault_root= vault_root;
   for (const AthenaArtifactRecord& record: records) {
     index->records.emplace (record.uuid, record);
-    for (const QString& term: artifact_terms (record))
+    for (const QString& term: artifact_terms (record)) {
       add_term (*index, term, record.uuid);
+      std::string key= token_key (tokenize (term));
+      std::vector<std::string>& matches= index->records_by_key[key];
+      if (std::find (matches.begin (), matches.end (), record.uuid) ==
+          matches.end ())
+        matches.push_back (record.uuid);
+    }
   }
   return index;
 }
@@ -367,6 +374,34 @@ std::vector<AthenaArtifactRadioactiveMatch>
 athena_artifact_radioactive_matches_for_records (
   const std::vector<AthenaArtifactRecord>& records, string text) {
   return match_index (*build_index (records), text);
+}
+
+bool
+athena_artifact_radioactive_record (
+  const std::string& uuid, AthenaArtifactRecord& record) {
+  auto index= std::atomic_load_explicit (&cached_index,
+                                         std::memory_order_acquire);
+  if (!index) return false;
+  auto found= index->records.find (uuid);
+  if (found == index->records.end ()) return false;
+  record= found->second;
+  return true;
+}
+
+bool
+athena_artifact_radioactive_records_for_key (
+  const std::string& key, std::vector<AthenaArtifactRecord>& records) {
+  records.clear ();
+  auto index= active_index ();
+  if (!index) return false;
+  auto matches= index->records_by_key.find (key);
+  if (matches == index->records_by_key.end ()) return true;
+  records.reserve (matches->second.size ());
+  for (const std::string& uuid: matches->second) {
+    auto found= index->records.find (uuid);
+    if (found != index->records.end ()) records.push_back (found->second);
+  }
+  return true;
 }
 
 bool

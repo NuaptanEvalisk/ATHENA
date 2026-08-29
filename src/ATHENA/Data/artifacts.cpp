@@ -1869,6 +1869,28 @@ bool enunciation_matches_record (
           identity_fingerprint (enunciation) == record.identity_focus);
 }
 
+bool find_enunciation_by_order (
+  const tree& parent, int target, int& order, path where,
+  path& source_path) {
+  if (!is_compound (parent)) return false;
+  for (int i=0; i<N(parent); i++) {
+    const tree& child= parent[i];
+    std::string base;
+    if (!enunciation_type (tag_name (child), base).empty ()) {
+      if (plain_text (child).empty () && contains_tag (child, "image"))
+        continue;
+      if (order++ == target) {
+        source_path= where * i;
+        return true;
+      }
+      continue;
+    }
+    if (find_enunciation_by_order (
+          child, target, order, where * i, source_path)) return true;
+  }
+  return false;
+}
+
 } // namespace
 
 bool
@@ -1889,6 +1911,20 @@ athena_artifact_locate_source (
   }
 
   tree body= document_body (document);
+  int hinted_order= 0;
+  path hinted_path;
+  if (find_enunciation_by_order (
+        body, record.document_order, hinted_order, path (), hinted_path) &&
+      has_subtree (body, hinted_path)) {
+    tree hinted= subtree (body, hinted_path);
+    if (enunciation_matches_record (body, hinted_path, hinted, record)) {
+      source_path= hinted_path;
+      return true;
+    }
+  }
+
+  // The document changed around this artifact. Fall back to stable identity
+  // association so navigation remains correct when source paths have shifted.
   std::vector<AthenaArtifactRecord> current;
   std::vector<path> source_paths;
   int order= 0;

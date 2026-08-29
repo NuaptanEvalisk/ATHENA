@@ -1018,10 +1018,14 @@
 (tm-define (go-to-url u . opt-from)
   (:require (artifact-url? u))
   (when (pair? opt-from) (cursor-history-add (car opt-from)))
-  (if (artifact-open-uuid (artifact-url-uuid u))
-      (when (pair? opt-from)
-        (delayed (:idle 150) (cursor-history-add (cursor-path))))
-      (set-message "Artifact not found in the active vault" "Artifact")))
+  (let ((target (artifact-resolve-uuid (artifact-url-uuid u))))
+    (if target
+        (begin
+          (artifact-jump-to-position (car target) (cadr target))
+          (when (pair? opt-from) (cursor-history-add (cursor-path))))
+        (set-message
+          "Artifact not found or its definition has changed; rebuild artifacts"
+          "Artifact"))))
 
 (tmfs-load-handler (artifact-disambiguation name)
   (tree->stree (artifact-disambiguation-page name)))

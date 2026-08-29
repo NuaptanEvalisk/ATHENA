@@ -2042,6 +2042,19 @@ tmg_artifact_open_uuid (tmscm arg1) {
 }
 
 tmscm
+tmg_artifact_resolve_uuid (tmscm arg1) {
+  TMSCM_ASSERT_STRING (arg1, TMSCM_ARG1, "artifact-resolve-uuid");
+  url file;
+  path source_path;
+  if (!artifacts_resolve_uuid (
+        tmscm_to_string (arg1), file, source_path))
+    return bool_to_tmscm (false);
+  return tmscm_cons (
+    url_to_tmscm (file),
+    tmscm_cons (path_to_tmscm (source_path), tmscm_null ()));
+}
+
+tmscm
 tmg_artifact_disambiguation_page (tmscm arg1) {
   TMSCM_ASSERT_STRING (arg1, TMSCM_ARG1,
                        "artifact-disambiguation-page");
@@ -2166,6 +2179,8 @@ initialize_glue () {
                            0, 0, 0);
   tmscm_install_procedure ("artifact-open-uuid",
                            tmg_artifact_open_uuid, 1, 0, 0);
+  tmscm_install_procedure ("artifact-resolve-uuid",
+                           tmg_artifact_resolve_uuid, 1, 0, 0);
   tmscm_install_procedure ("artifact-disambiguation-page",
                            tmg_artifact_disambiguation_page, 1, 0, 0);
   tmscm_install_procedure ("materials-manager-show",

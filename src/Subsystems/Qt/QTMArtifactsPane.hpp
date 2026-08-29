@@ -8,6 +8,7 @@
 #define QTMARTIFACTSPANE_HPP
 
 #include "ATHENA/Data/artifacts.hpp"
+#include "url.hpp"
 
 #include <QWidget>
 #include <vector>
@@ -41,5 +42,6 @@ void artifacts_pane_show ();
 void artifacts_build_entire_vault ();
 void artifacts_build_current_document ();
 bool artifacts_open_uuid (string uuid);
+bool artifacts_resolve_uuid (string uuid, url& file, path& source_path);
 
 #endif // QTMARTIFACTSPANE_HPP

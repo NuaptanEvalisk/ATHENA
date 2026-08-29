@@ -38,6 +38,12 @@ std::vector<AthenaArtifactRadioactiveMatch>
 athena_artifact_radioactive_matches_for_records (
   const std::vector<AthenaArtifactRecord>& records, string text);
 
+bool athena_artifact_radioactive_record (
+  const std::string& uuid, AthenaArtifactRecord& record);
+
+bool athena_artifact_radioactive_records_for_key (
+  const std::string& key, std::vector<AthenaArtifactRecord>& records);
+
 bool athena_artifact_radioactive_is_defining_occurrence (
   const AthenaArtifactRadioactiveMatch& match, url current_file,
   const tree& document, path source_path);

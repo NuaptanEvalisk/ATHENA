@@ -1010,10 +1010,17 @@ TestArtifacts::navigatesArtifactAndLoadsDisambiguationPage () {
         (load-buffer (system->url %2))
         (let ((before-y (get-scroll-y)))
           (go-to-url %3)
+          (string-save
+            (string-append
+              "immediate-buffer="
+              (if (== (url->system (current-buffer)) %2) "1" "0")
+              "\n")
+            (system->url %4))
           (delayed (:pause 1200)
             (begin
             (string-save
               (string-append
+                (string-load (system->url %4))
                 "same-buffer="
                 (if (== (url->system (current-buffer)) %2) "1" "0")
                 "\ncurrent-buffer=" (url->system (current-buffer))
@@ -1064,6 +1071,13 @@ TestArtifacts::navigatesArtifactAndLoadsDisambiguationPage () {
                     "\n")
                   (system->url %4))
                 (go-to-url %8)
+                (string-save
+                  (string-append
+                    (string-load (system->url %4))
+                    "candidate-immediate-buffer="
+                    (if (== (url->system (current-buffer)) %7) "1" "0")
+                    "\n")
+                  (system->url %4))
                 (delayed (:pause 1200)
                   (begin
                     (let* ((matches
@@ -1151,6 +1165,8 @@ TestArtifacts::navigatesArtifactAndLoadsDisambiguationPage () {
             diagnostic.right (8192).constData ());
   QByteArray assertions= result.readAll ();
   QByteArray navigationDiagnostic= assertions + '\n' + diagnostic.right (8192);
+  QVERIFY2 (assertions.contains ("immediate-buffer=1"),
+            navigationDiagnostic.constData ());
   QVERIFY2 (assertions.contains ("same-buffer=1"),
             navigationDiagnostic.constData ());
   QVERIFY2 (assertions.contains ("same-position=1"),
@@ -1160,6 +1176,8 @@ TestArtifacts::navigatesArtifactAndLoadsDisambiguationPage () {
   QVERIFY2 (assertions.contains ("scroll-moved=1"),
             navigationDiagnostic.constData ());
   QVERIFY2 (assertions.contains ("disambiguation-buffer=1"),
+            navigationDiagnostic.constData ());
+  QVERIFY2 (assertions.contains ("candidate-immediate-buffer=1"),
             navigationDiagnostic.constData ());
   QVERIFY2 (assertions.contains ("middle-buffer=1"),
             navigationDiagnostic.constData ());
