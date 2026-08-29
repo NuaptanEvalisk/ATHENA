@@ -10,6 +10,7 @@
 #define ATHENA_ARTIFACT_RADIOACTIVE_LINKS_HPP
 
 #include "ATHENA/Data/artifacts.hpp"
+#include "url.hpp"
 #include "string.hpp"
 
 #include <string>
@@ -36,6 +37,10 @@ athena_artifact_radioactive_matches (string text);
 std::vector<AthenaArtifactRadioactiveMatch>
 athena_artifact_radioactive_matches_for_records (
   const std::vector<AthenaArtifactRecord>& records, string text);
+
+bool athena_artifact_radioactive_is_defining_occurrence (
+  const AthenaArtifactRadioactiveMatch& match, url current_file,
+  const tree& document, path source_path);
 
 void athena_artifact_radioactive_invalidate ();
 

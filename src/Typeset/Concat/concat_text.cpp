@@ -113,6 +113,8 @@ concater_rep::typeset_colored_substring
 #define PRINT_SPACE(spc_type) \
   if (spc_type != SPC_NONE) print (spc_tab[spc_type]);
 
+extern tree the_et;
+
 void
 concater_rep::typeset_text_string (tree t, path ip, int pos, int end) {
   array<space> spc_tab= env->fn->get_normal_spacing (env->spacing_policy);
@@ -139,6 +141,15 @@ concater_rep::typeset_text_string (tree t, path ip, int pos, int end) {
       if (match.start < pos || match.end > end || match.start >= match.end)
         continue;
       if (match.uuids.empty ()) continue;
+      path source_path= reverse (ip);
+      if (!is_nil (source_path)) {
+        path root (source_path->item);
+        if (has_subtree (the_et, root) &&
+            athena_artifact_radioactive_is_defining_occurrence (
+              match, env->cur_file_name, subtree (the_et, root),
+              source_path->next))
+          continue;
+      }
       std::string target= athena_artifact_radioactive_destination (match);
       string destination (target.data (), (int) target.size ());
       links.push_back ({match.start, match.end, destination});

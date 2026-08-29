@@ -41,12 +41,20 @@
                                   (nnull? (label->path candidate))))))
         (when anchor (go-to-label anchor))))))
 
+(tm-define (artifact-jump-to-position path position)
+  (load-buffer path)
+  (delayed (:idle 100)
+    (and-with target
+        (path->tree (append (tree->path (buffer-tree)) position))
+      (tree-go-to target :start))))
+
 (tm-define (ext-get-preference key def)
   (let ((val (get-preference key)))
     (if (string-null? val) def val)))
 
 (define-secure-symbols wikilink-repair-apply vault-transclude-repair
                        vault-jump-to-source artifact-jump-to-source
+                       artifact-jump-to-position
                        load-buffer load-vault-dir
                        string->url vault-load-latest-action
                        vault-validate-root-namespace

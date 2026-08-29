@@ -1793,6 +1793,57 @@ athena_artifact_locate_paragraph (
   return true;
 }
 
+namespace {
+
+bool enunciation_matches_record (
+  tree body, path scope, const tree& enunciation,
+  const AthenaArtifactRecord& record) {
+  std::string base;
+  if (enunciation_type (tag_name (enunciation), base) != record.type)
+    return false;
+  path parent_path= path_up (scope);
+  if (!has_subtree (body, parent_path)) return false;
+  tree parent= subtree (body, parent_path);
+  if (!is_compound (parent)) return false;
+  int index= last_item (scope);
+  std::string anchor;
+  for (int i=index-1; i>=0; i--) {
+    if (ignorable (parent[i])) continue;
+    anchor= anchor_stem (label_text (parent[i]));
+    break;
+  }
+  if (anchor.empty ()) {
+    for (int i=index+1; i<N(parent); i++) {
+      if (ignorable (parent[i])) continue;
+      anchor= anchor_stem (label_text (parent[i]));
+      break;
+    }
+  }
+  return (!record.anchor_stem.empty () &&
+          cork_bytes_to_utf8 (anchor) == record.anchor_stem) ||
+         (!record.identity_focus.empty () &&
+          identity_fingerprint (enunciation) == record.identity_focus);
+}
+
+} // namespace
+
+bool
+athena_artifact_is_defining_occurrence (
+  const tree& document, path source_path,
+  const AthenaArtifactRecord& record) {
+  tree body= document_body (document);
+  for (path current= source_path; !is_nil (current);
+       current= path_up (current)) {
+    if (!has_subtree (body, current)) continue;
+    tree value= subtree (body, current);
+    if (record.origin == "bold-text" && bold_wrapper (value) &&
+        to_std (tree_to_texmacs (value)) == record.keyword_tree) return true;
+    if (record.origin == "enunciation" &&
+        enunciation_matches_record (body, current, value, record)) return true;
+  }
+  return false;
+}
+
 bool
 athena_artifacts_build (
   const fs::path& vault_root,

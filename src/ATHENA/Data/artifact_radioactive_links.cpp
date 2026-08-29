@@ -31,6 +31,7 @@ extern "C" {
 #include <filesystem>
 #include <memory>
 #include <mutex>
+#include <unordered_map>
 #include <utility>
 
 namespace fs= std::filesystem;
@@ -55,6 +56,7 @@ struct TrieNode {
 struct RadioactiveIndex {
   std::string vault_root;
   std::vector<TrieNode> nodes= {TrieNode ()};
+  std::unordered_map<std::string,AthenaArtifactRecord> records;
 };
 
 struct TextProjection {
@@ -211,9 +213,11 @@ std::shared_ptr<const RadioactiveIndex> build_index (
   const std::string& vault_root= {}) {
   auto index= std::make_shared<RadioactiveIndex> ();
   index->vault_root= vault_root;
-  for (const AthenaArtifactRecord& record: records)
+  for (const AthenaArtifactRecord& record: records) {
+    index->records.emplace (record.uuid, record);
     for (const QString& term: artifact_terms (record))
       add_term (*index, term, record.uuid);
+  }
   return index;
 }
 
@@ -363,6 +367,29 @@ std::vector<AthenaArtifactRadioactiveMatch>
 athena_artifact_radioactive_matches_for_records (
   const std::vector<AthenaArtifactRecord>& records, string text) {
   return match_index (*build_index (records), text);
+}
+
+bool
+athena_artifact_radioactive_is_defining_occurrence (
+  const AthenaArtifactRadioactiveMatch& match, url current_file,
+  const tree& document, path source_path) {
+  auto index= active_index ();
+  if (!index || index->vault_root.empty () || is_nil (source_path)) return false;
+  fs::path root= fs::path (index->vault_root).lexically_normal ();
+  fs::path file=
+    fs::path (to_std (concretize (current_file))).lexically_normal ();
+  fs::path relative= file.lexically_relative (root);
+  if (relative.empty () || relative.string ().rfind ("..", 0) == 0)
+    return false;
+  std::string relative_path= relative.generic_string ();
+  for (const std::string& uuid: match.uuids) {
+    auto found= index->records.find (uuid);
+    if (found == index->records.end () ||
+        found->second.relative_path != relative_path) continue;
+    if (athena_artifact_is_defining_occurrence (
+          document, source_path, found->second)) return true;
+  }
+  return false;
 }
 
 void

@@ -140,6 +140,10 @@ bool athena_artifact_locate_paragraph (
   const tree& document, const AthenaArtifactRecord& record,
   AthenaArtifactParagraphLocation& location, std::string& error);
 
+bool athena_artifact_is_defining_occurrence (
+  const tree& document, path source_path,
+  const AthenaArtifactRecord& record);
+
 // Internal process worker used by the incremental parallel extractor.
 bool athena_artifacts_run_extract_worker (
   const std::filesystem::path& manifest,

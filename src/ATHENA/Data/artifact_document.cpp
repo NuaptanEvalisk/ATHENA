@@ -42,12 +42,13 @@ tree artifact_document (tree body, string preferred_font) {
   document << compound ("TeXmacs", TEXMACS_COMPAT_VERSION)
            << compound ("style", tuple ("generic"))
            << compound ("body", body);
+  tree initial (COLLECTION);
+  initial << compound ("associate", "page-medium", "automatic");
   if (preferred_font != "") {
-    tree initial (COLLECTION);
     initial << compound ("associate", "font", preferred_font)
             << compound ("associate", "font-family", "rm");
-    document << compound ("initial", initial);
   }
+  document << compound ("initial", initial);
   return document;
 }
 
@@ -57,6 +58,77 @@ tree error_document (const char* title, const std::string& message,
   body << compound ("section*", tree (title))
        << compound ("paragraph*", tree (internal_text (message)));
   return artifact_document (body, preferred_font);
+}
+
+tree table_property (string name, string value) {
+  tree property (TWITH);
+  property << name << value;
+  return property;
+}
+
+tree cell_property (string row_from, string row_to,
+                    string column_from, string column_to,
+                    string name, string value) {
+  tree property (CWITH);
+  property << row_from << row_to << column_from << column_to
+           << name << value;
+  return property;
+}
+
+tree table_cell (tree content) {
+  tree cell (CELL);
+  cell << content;
+  return cell;
+}
+
+tree artifact_disambiguation_table (
+  const std::vector<AthenaArtifactRecord>& records) {
+  tree table (TABLE);
+  tree header (ROW);
+  header << table_cell (compound ("strong", "Artifact"))
+         << table_cell (compound ("strong", "Type"))
+         << table_cell (compound ("strong", "Source"));
+  table << header;
+
+  for (const AthenaArtifactRecord& record: records) {
+    string name= athena_artifact_radioactive_name (record);
+    if (name == "") name= internal_text (record.display_text);
+    if (name == "") name= "Untitled artifact";
+    string destination= "tmfs://artifact/" *
+      string (record.uuid.data (), (int) record.uuid.size ());
+
+    tree artifact= compound ("hlink", compound ("strong", name), destination);
+
+    tree source= tree (
+      WITH, "athena-radioactive-links-suppressed", "true",
+      compound ("samp", internal_text (record.relative_path)));
+    tree row (ROW);
+    row << table_cell (artifact)
+        << table_cell (internal_text (record.type))
+        << table_cell (source);
+    table << row;
+  }
+
+  tree format (TFORMAT);
+  format << table_property ("table-width", "1par")
+         << table_property ("table-hmode", "exact")
+         << cell_property ("1", "1", "1", "-1",
+                           "cell-background", "#ececec")
+         << cell_property ("1", "1", "1", "-1",
+                           "cell-bborder", "1ln")
+         << cell_property ("1", "-1", "1", "-1", "cell-hyphen", "t")
+         << cell_property ("1", "-1", "1", "-1", "cell-valign", "T")
+         << cell_property ("1", "-1", "1", "-1", "cell-lsep", "0.6em")
+         << cell_property ("1", "-1", "1", "-1", "cell-rsep", "0.6em")
+         << cell_property ("1", "-1", "1", "-1", "cell-tsep", "0.35em")
+         << cell_property ("1", "-1", "1", "-1", "cell-bsep", "0.35em")
+         << cell_property ("1", "-1", "1", "1", "cell-width", "16em")
+         << cell_property ("1", "-1", "1", "1", "cell-hmode", "exact")
+         << cell_property ("1", "-1", "2", "2", "cell-width", "8em")
+         << cell_property ("1", "-1", "2", "2", "cell-hmode", "exact")
+         << cell_property ("1", "-1", "3", "3", "cell-hpart", "1")
+         << table;
+  return compound ("tabular", format);
 }
 
 } // namespace
@@ -79,25 +151,7 @@ athena_artifact_disambiguation_document (
                   "Select the intended one:";
   body << compound ("paragraph*", introduction);
 
-  tree items (DOCUMENT);
-  for (const AthenaArtifactRecord& record: records) {
-    string name= athena_artifact_radioactive_name (record);
-    if (name == "") name= internal_text (record.display_text);
-    if (name == "") name= "Untitled artifact";
-    string destination= "tmfs://artifact/" *
-      string (record.uuid.data (), (int) record.uuid.size ());
-    tree row (CONCAT);
-    row << compound ("item")
-        << compound ("hlink", compound ("strong", name), destination)
-        << " (" << internal_text (record.type) << ")";
-    string description= internal_text (record.display_text);
-    if (description != "" && description != name)
-      row << " - " << description;
-    row << " [" << compound ("samp", internal_text (record.relative_path))
-        << "]";
-    items << row;
-  }
-  body << compound ("itemize", items);
+  body << artifact_disambiguation_table (records);
   return artifact_document (body, preferred_font);
 }
 

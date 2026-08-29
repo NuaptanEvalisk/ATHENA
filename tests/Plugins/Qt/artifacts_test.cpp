@@ -47,6 +47,7 @@ private slots:
   void boundsBoldDefinitionCandidatesAtEnunciations ();
   void isolatesStructuredBoldBlocks ();
   void locatesStoredParagraphRange ();
+  void excludesOnlyArtifactDefiningOccurrences ();
   void doesNotLinkNonAdjacentProof ();
   void buildsIncrementallyAndPurgesDeletedDocuments ();
   void preservesAccentedArtifactTextAcrossWorkerAndDatabase ();
@@ -540,6 +541,65 @@ TestArtifacts::locatesStoredParagraphRange () {
 }
 
 void
+TestArtifacts::excludesOnlyArtifactDefiningOccurrences () {
+  MissingRangeModel noModel;
+  tree definition (CONCAT);
+  definition << "A " << compound ("strong", "middle concept")
+             << " is defined here.";
+  tree body (DOCUMENT);
+  body << "The middle concept is used before its definition."
+       << definition
+       << "The middle concept is used after its definition.";
+  tree document (DOCUMENT);
+  document << compound ("TeXmacs", "2.1.4")
+           << compound ("style", "generic")
+           << compound ("body", body);
+
+  std::vector<AthenaArtifactRecord> records;
+  std::string error;
+  QVERIFY2 (athena_artifacts_extract_document (
+              document, "Definition.ath", records, error), error.c_str ());
+  auto bold= std::find_if (records.begin (), records.end (), [] (const auto& r) {
+    return r.origin == "bold-text" && r.display_text == "middle concept";
+  });
+  QVERIFY (bold != records.end ());
+  AthenaArtifactParagraphLocation location;
+  QVERIFY2 (athena_artifact_locate_paragraph (
+              document, *bold, location, error), error.c_str ());
+  QCOMPARE (location.parent, path ());
+  QCOMPARE (location.focus_child, 1);
+  string serialized_keyword=
+    tree_to_texmacs (subtree (body, path (1) * 1));
+  QCOMPARE (std::string (as_charp (serialized_keyword), N(serialized_keyword)),
+            bold->keyword_tree);
+  QVERIFY (athena_artifact_is_defining_occurrence (
+    document, path (1) * 1 * 0, *bold));
+  QVERIFY (!athena_artifact_is_defining_occurrence (
+    document, path (0), *bold));
+  QVERIFY (!athena_artifact_is_defining_occurrence (
+    document, path (2), *bold));
+
+  tree theorem_document= named_theorem_document (
+    "Euler's theorem",
+    "Every homogeneous function satisfies Euler's identity.");
+  records.clear ();
+  error.clear ();
+  QVERIFY2 (athena_artifacts_extract_document (
+              theorem_document, "Theorem.ath", records, error),
+            error.c_str ());
+  auto theorem= std::find_if (
+    records.begin (), records.end (), [] (const auto& r) {
+      return r.origin == "enunciation" &&
+             r.anchor_stem == "theorem:Euler's theorem";
+    });
+  QVERIFY (theorem != records.end ());
+  QVERIFY (athena_artifact_is_defining_occurrence (
+    theorem_document, path (1) * 0 * 0, *theorem));
+  QVERIFY (!athena_artifact_is_defining_occurrence (
+    theorem_document, path (0) * 0, *theorem));
+}
+
+void
 TestArtifacts::doesNotLinkNonAdjacentProof () {
   MissingRangeModel noModel;
   tree body (DOCUMENT);
@@ -760,10 +820,19 @@ TestArtifacts::storesAndDisambiguatesSameNamedArtifacts () {
   QVERIFY (serialized.find ("tmfs://artifact/" + same_name[1].uuid) !=
            std::string::npos);
   QVERIFY (serialized.find ("Select the intended one") != std::string::npos);
+  QVERIFY (serialized.find ("<tabular|") != std::string::npos);
+  QVERIFY (serialized.find ("<itemize|") == std::string::npos);
+  QVERIFY (serialized.find ("page-medium|automatic") != std::string::npos);
+  QVERIFY (serialized.find ("table-hmode|exact") != std::string::npos);
+  QVERIFY (serialized.find ("cell-width|16em") != std::string::npos);
+  QVERIFY2 (serialized.find ("athena-radioactive-links-suppressed") !=
+            std::string::npos, serialized.c_str ());
+  QVERIFY (serialized.find ("<samp|") != std::string::npos);
 }
 
 void
 TestArtifacts::navigatesArtifactAndLoadsDisambiguationPage () {
+  MissingRangeModel noModel;
   QTemporaryDir temporary;
   QVERIFY (temporary.isValid ());
   fs::path root (temporary.filePath ("vault").toStdString ());
@@ -787,6 +856,19 @@ TestArtifacts::navigatesArtifactAndLoadsDisambiguationPage () {
     named_theorem_document (
       "Euler's theorem",
       "Every convex polyhedron satisfies V minus E plus F equals two."));
+  tree middleDefinition (CONCAT);
+  middleDefinition << "A " << compound ("strong", "middle concept")
+                   << " is defined in the middle of this document.";
+  tree middleBody (DOCUMENT);
+  middleBody << "First paragraph."
+             << "Second paragraph."
+             << middleDefinition
+             << "Last paragraph.";
+  tree middleDocument (DOCUMENT);
+  middleDocument << compound ("TeXmacs", "2.1.4")
+                 << compound ("style", "generic")
+                 << compound ("body", middleBody);
+  write_document (root / "Middle.ath", middleDocument);
   tree demoBody (DOCUMENT);
   demoBody << "Runtime navigation fixture.";
   tree demoDocument (DOCUMENT);
@@ -801,14 +883,18 @@ TestArtifacts::navigatesArtifactAndLoadsDisambiguationPage () {
   std::vector<AthenaArtifactRecord> records;
   QVERIFY2 (athena_artifacts_query (root, records, error), error.c_str ());
   const AthenaArtifactRecord* banach= nullptr;
+  const AthenaArtifactRecord* middle= nullptr;
   std::vector<AthenaArtifactRecord> euler;
   for (const AthenaArtifactRecord& record: records) {
     if (record.anchor_stem == "theorem:Banach fixed-point theorem")
       banach= &record;
+    if (record.origin == "bold-text" && record.display_text == "middle concept")
+      middle= &record;
     if (record.anchor_stem == "theorem:Euler's theorem")
       euler.push_back (record);
   }
   QVERIFY (banach != nullptr);
+  QVERIFY (middle != nullptr);
   QCOMPARE (euler.size (), (size_t) 2);
   QString disambiguationUrl= QString::fromStdString (
     "tmfs://artifact-disambiguation/" +
@@ -820,8 +906,10 @@ TestArtifacts::navigatesArtifactAndLoadsDisambiguationPage () {
   QVERIFY (QDir ().mkpath (home + "/system"));
   QString resultPath= temporary.filePath ("navigation-result.txt");
   QString sourcePath= QString::fromStdString ((root / "Banach.ath").string ());
+  QString middlePath= QString::fromStdString ((root / "Middle.ath").string ());
   QString demoPath= QString::fromStdString ((root / "Demo.ath").string ());
   QString uniqueUrl= QString::fromStdString ("tmfs://artifact/" + banach->uuid);
+  QString middleUrl= QString::fromStdString ("tmfs://artifact/" + middle->uuid);
 
   QString script= QString (R"SCM(
 (set-preference "check for updates" "off")
@@ -857,14 +945,49 @@ TestArtifacts::navigatesArtifactAndLoadsDisambiguationPage () {
                         "1" "0")
                     "\n")
                   (system->url %4))
-                (quit-TeXmacs)))))))))
+                (go-to-url %8)
+                (delayed (:pause 1200)
+                  (begin
+                    (let* ((matches
+                             (tree-search-indices
+                               (buffer-tree)
+                               (lambda (node)
+                                 (and (tree-compound? node)
+                                      (== (tree-label node) 'strong)
+                                      (== (tree->string (tree-ref node 0))
+                                          "middle concept")))))
+                           (keyword-path (and (pair? matches) (car matches)))
+                           (paragraph-path
+                             (and keyword-path
+                                  (list-head keyword-path
+                                             (- (length keyword-path) 1))))
+                           (expected
+                             (and paragraph-path
+                                  (append (tree->path (buffer-tree))
+                                          paragraph-path))))
+                      (string-save
+                        (string-append
+                          (string-load (system->url %4))
+                          "middle-buffer="
+                          (if (== (url->system (current-buffer)) %7) "1" "0")
+                          "\nmiddle-position="
+                          (if (and expected
+                                   (list-starts? (cursor-path) expected))
+                              "1" "0")
+                          "\nmiddle-cursor=" (object->string (cursor-path))
+                          "\nmiddle-expected=" (object->string expected)
+                          "\n")
+                        (system->url %4)))
+                    (quit-TeXmacs)))))))))))
 )SCM")
     .arg (scheme_quote (QString::fromStdString (root.string ())))
     .arg (scheme_quote (sourcePath))
     .arg (scheme_quote (uniqueUrl))
     .arg (scheme_quote (resultPath))
     .arg (scheme_quote (demoPath))
-    .arg (scheme_quote (disambiguationUrl));
+    .arg (scheme_quote (disambiguationUrl))
+    .arg (scheme_quote (middlePath))
+    .arg (scheme_quote (middleUrl));
   QFile init (home + "/progs/my-init-texmacs.scm");
   QVERIFY (init.open (QIODevice::WriteOnly | QIODevice::Text));
   QByteArray initBytes= script.toUtf8 ();
@@ -909,10 +1032,17 @@ TestArtifacts::navigatesArtifactAndLoadsDisambiguationPage () {
   QVERIFY2 (result.open (QIODevice::ReadOnly | QIODevice::Text),
             diagnostic.right (8192).constData ());
   QByteArray assertions= result.readAll ();
-  QVERIFY2 (assertions.contains ("same-buffer=1"), assertions.constData ());
-  QVERIFY2 (assertions.contains ("same-anchor=1"), assertions.constData ());
+  QByteArray navigationDiagnostic= assertions + '\n' + diagnostic.right (8192);
+  QVERIFY2 (assertions.contains ("same-buffer=1"),
+            navigationDiagnostic.constData ());
+  QVERIFY2 (assertions.contains ("same-anchor=1"),
+            navigationDiagnostic.constData ());
   QVERIFY2 (assertions.contains ("disambiguation-buffer=1"),
-            assertions.constData ());
+            navigationDiagnostic.constData ());
+  QVERIFY2 (assertions.contains ("middle-buffer=1"),
+            navigationDiagnostic.constData ());
+  QVERIFY2 (assertions.contains ("middle-position=1"),
+            navigationDiagnostic.constData ());
 }
 
 void

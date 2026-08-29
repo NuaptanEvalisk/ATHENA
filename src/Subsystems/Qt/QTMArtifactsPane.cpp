@@ -13,9 +13,7 @@
 #include "ATHENA/Data/vault.hpp"
 #include "boot.hpp"
 #include "convert.hpp"
-#include "drd_mode.hpp"
 #include "scheme.hpp"
-#include "tree_search.hpp"
 #include "qt_utilities.hpp"
 
 #include <DockWidget.h>
@@ -75,25 +73,23 @@ void execute_open (const AthenaArtifactRecord& record) {
 
   try {
     tree document= import_tree (file, "texmacs");
-    tree body= extract (document, "body");
-    if (is_empty (body)) body= document;
-    tree query= texmacs_to_tree (tmstr (record.keyword_tree));
-    int old_mode= set_access_mode (DRD_ACCESS_SOURCE);
-    range_set hits;
-    try { hits= search (body, query, path (), 5000); }
-    catch (...) { set_access_mode (old_mode); throw; }
-    set_access_mode (old_mode);
-    int index= std::max (0, record.keyword_occurrence - 1);
-    if (2 * index + 1 < N(hits)) {
+    AthenaArtifactParagraphLocation location;
+    std::string error;
+    if (athena_artifact_locate_paragraph (
+          document, record, location, error)) {
+      path focus= location.parent * location.focus_child;
       array<object> cmd;
-      cmd << symbol_object ("global-search-open-occurrence") << object (file)
-          << list_object (symbol_object ("quote"), object (hits[2*index]))
-          << list_object (symbol_object ("quote"), object (hits[2*index+1]));
+      cmd << symbol_object ("artifact-jump-to-position") << object (file)
+          << list_object (symbol_object ("quote"), object (focus));
       exec_delayed (scheme_cmd (as_list_object (cmd)));
       return;
     }
+    std_warning << "Could not locate artifact in source: " << error.c_str ()
+                << LF;
   }
-  catch (...) {}
+  catch (...) {
+    std_warning << "Could not read artifact source for navigation" << LF;
+  }
   array<object> cmd;
   cmd << symbol_object ("load-buffer") << object (file);
   exec_delayed (scheme_cmd (as_list_object (cmd)));
