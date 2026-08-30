@@ -13,7 +13,18 @@
 
 #include "string.hpp"
 
+#include <string>
+#include <vector>
+
+struct VaultMaintenancePlanEntry {
+  std::string id;
+  std::string description;
+};
+
 bool vault_maintenance_run (string vault_dir, bool check_only = false);
 bool vault_rag_delegation_run (string vault_dir);
+bool vault_maintenance_plan (
+  string vault_dir, std::vector<VaultMaintenancePlanEntry>& entries,
+  std::string& error);
 
 #endif // VAULT_MAINTENANCE_HPP

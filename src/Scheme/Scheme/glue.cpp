@@ -58,6 +58,7 @@
 #include "QTMMaterialCitationDialog.hpp"
 #include "QTMVaultInfoModel.hpp"
 #include "QTMVaultBackupDispatcher.hpp"
+#include "QTMVaultMaintenanceDialog.hpp"
 #include "QTMAbout.hpp"
 #include "QTMESCSymbolPicker.hpp"
 #include "QTMHandwritingSymbolPane.hpp"
@@ -1824,6 +1825,13 @@ tmg_vault_rewrite_anchor_references (tmscm arg1, tmscm arg2) {
   return int_to_tmscm ((int) changed);
 }
 
+tmscm
+tmg_vault_maintenance_setup (tmscm arg1) {
+  TMSCM_ASSERT_URL (arg1, TMSCM_ARG1, "vault-maintenance-setup");
+  string root= concretize (tmscm_to_url (arg1));
+  return tree_to_tmscm (qtm_vault_maintenance_setup (root));
+}
+
 static std::filesystem::path
 tmg_vault_root_path (tmscm arg) {
   string s= concretize (tmscm_to_url (arg));
@@ -2239,6 +2247,8 @@ initialize_glue () {
                            tmg_vault_load_with_ns, 4, 0, 0);
   tmscm_install_procedure ("vault-rewrite-anchor-references",
                            tmg_vault_rewrite_anchor_references, 2, 0, 0);
+  tmscm_install_procedure ("vault-maintenance-setup",
+                           tmg_vault_maintenance_setup, 1, 0, 0);
   tmscm_install_procedure ("vaultfile-present?",
                            tmg_vaultfile_presentP, 1, 0, 0);
   tmscm_install_procedure ("vaultfile-read",
