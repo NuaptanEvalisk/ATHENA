@@ -38,6 +38,7 @@ struct athena_website_entry {
   std::string destination;
   std::string public_url;
   std::string description;
+  std::string favicon;
   bool generate_sitemap = false;
   bool generate_pdfs = false;
   bool generate_redirections = false;

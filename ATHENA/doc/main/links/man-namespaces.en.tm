@@ -254,8 +254,10 @@
   The removed legacy <em|Create web site> command is not used by this system.
 
   A website definition has a name, a selector, a destination folder, optional
-  sitemap settings, a public description for generated metadata, an entrypoint,
-  an optional post-generation command, and a regeneration mode. The selector is
+  sitemap settings, a public description for generated metadata, an optional
+  favicon, an entrypoint, an optional post-generation command, and a
+  regeneration mode. A favicon path may be absolute or relative to the vault;
+  leaving it empty uses the <ATHENA> logo. The selector is
   built visually from recursive path
   selectors, recursive namespace selectors, and boolean operators such as
   <verbatim|and>, <verbatim|or>, <verbatim|xor>, <verbatim|nand>,
@@ -264,7 +266,7 @@
   Press <em|Generate now> to open a floating progress pane. <ATHENA> starts a
   separate headless process using
   <verbatim|ATHENA.bin --generate-website vault-root website-id>, exports the
-  selected documents to HTML, writes an iframe-based UNIX-style site shell, and
+  selected documents to HTML, writes the site shell and supporting indexes, and
   opens the configured entrypoint. Links to selected vault documents become
   relative links. Links outside the selected set become static modal messages.
   Transclusions are inlined during export. If sitemap generation is enabled,

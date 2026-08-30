@@ -2147,6 +2147,10 @@ QTMPreferencesDialog::buildVaultCategories () {
               "vault auto copy images to vault");
   add_toggle (a, "Normalize image filename when inserting:",
               "vault normalize image filename when inserting");
+  add_combo (a, "Pasted internet images:",
+             "pasted internet image handling",
+             {{"Keep remote link", "link"},
+              {"Download into vault", "download"}}, "link");
   finish_page (anchors);
 
   QWidget* info= make_page ();

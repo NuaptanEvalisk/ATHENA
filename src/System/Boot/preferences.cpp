@@ -281,6 +281,7 @@ ensure_builtin_user_preferences () {
     PREF ("vault proof standard color", "none", "notify-enunciation-color"),
     PREF ("vault auto copy images to vault", "off", ""),
     PREF ("vault normalize image filename when inserting", "off", ""),
+    PREF ("pasted internet image handling", "link", ""),
     PREF ("vault auto anchor enunciations on save", "off", ""),
     PREF ("vault auto approve anchor changes", "off", ""),
 

@@ -13,6 +13,7 @@
 #include "ATHENA/Data/image_background.hpp"
 #include "ATHENA/Data/vault.hpp"
 #include "scheme.hpp"
+#include "web_files.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -43,6 +44,12 @@ normalize_image_names () {
 static bool
 auto_remove_background () {
   return image_auto_remove_background_enabled ();
+}
+
+static bool
+download_pasted_internet_images () {
+  return get_preference ("pasted internet image handling", "link") ==
+         "download";
 }
 
 static std::string
@@ -239,6 +246,41 @@ vault_image_insertion_prepare_data (url document, string data, string extension,
                                           error)) {
     return true;
   }
+  document_ref= relative_ref (doc_path, target);
+  return true;
+}
+
+bool
+vault_image_insertion_prepare_remote (url document, url source,
+                                      string& document_ref, string& error) {
+  if (!download_pasted_internet_images ()) return false;
+
+  fs::path doc_path, root_path;
+  if (!document_in_vault (document, doc_path, root_path)) return false;
+
+  url downloaded= get_from_web (source);
+  if (is_none (downloaded)) {
+    error= "could not download pasted image " * as_string (source);
+    return true;
+  }
+
+  fs::path downloaded_path= url_path (downloaded);
+  if (!fs::is_regular_file (downloaded_path)) {
+    error= "downloaded image is not a regular file";
+    return true;
+  }
+
+  fs::path assets_dir;
+  if (!ensure_assets_dir (doc_path, assets_dir, error)) return true;
+  fs::path target= target_path (
+    assets_dir, fs::path (), to_std (suffix (source)));
+  if (!copy_file (downloaded_path, target, error)) return true;
+  if (auto_remove_background () &&
+      lower_extension (target.extension ().string ()) == "png" &&
+      !image_remove_white_background_png (
+        url_system (to_tm (target.string ())), error))
+    return true;
+
   document_ref= relative_ref (doc_path, target);
   return true;
 }

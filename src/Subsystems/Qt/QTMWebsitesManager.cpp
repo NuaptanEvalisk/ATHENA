@@ -625,12 +625,20 @@ public:
     descriptionEdit= new QLineEdit;
     descriptionEdit->setPlaceholderText (
       "Short description for search results");
+    faviconEdit= new QLineEdit;
+    faviconEdit->setPlaceholderText (
+      "Default: ATHENA logo");
+    QPushButton* browseFavicon= new QPushButton ("Browse...");
+    QHBoxLayout* faviconRow= new QHBoxLayout;
+    faviconRow->addWidget (faviconEdit);
+    faviconRow->addWidget (browseFavicon);
     publicUrlEdit->setEnabled (false);
     QFormLayout* sitemapLayout= new QFormLayout;
     sitemapLayout->addRow (generatePdfs);
     sitemapLayout->addRow (generateSitemap);
     sitemapLayout->addRow ("Website base URL:", publicUrlEdit);
     sitemapLayout->addRow ("Description:", descriptionEdit);
+    sitemapLayout->addRow ("Favicon:", faviconRow);
     sitemapPage->setLayout (sitemapLayout);
     addPage (sitemapPage);
 
@@ -673,6 +681,17 @@ public:
         this, "Choose post-generation program", vault_root_qstring ());
       if (!selected.isEmpty ()) postProgram->setText (selected);
     });
+    connect (browseFavicon, &QPushButton::clicked, this, [this] () {
+      QString initial= faviconEdit->text ().trimmed ().isEmpty ()
+        ? vault_root_qstring () : faviconEdit->text ().trimmed ();
+      QString selected= QFileDialog::getOpenFileName (
+        this, "Choose website favicon", initial,
+        "Images (*.png *.jpg *.jpeg *.svg *.ico);;All files (*)");
+      if (selected.isEmpty ()) return;
+      QDir root (vault_root_qstring ());
+      QString relative= root.relativeFilePath (selected);
+      faviconEdit->setText (relative.startsWith ("../") ? selected : relative);
+    });
     connect (selectorPage, &QWizardPage::completeChanged, this,
              [this] () {
                refreshEntrypoints ();
@@ -694,6 +713,8 @@ public:
              [this] () { refreshSummary (); });
     connect (descriptionEdit, &QLineEdit::textChanged, this,
              [this] () { refreshSummary (); });
+    connect (faviconEdit, &QLineEdit::textChanged, this,
+             [this] () { refreshSummary (); });
     connect (regenerateCombo, qOverload<int> (&QComboBox::currentIndexChanged),
              this,
              [this] () { refreshSummary (); });
@@ -709,6 +730,7 @@ public:
       generateSitemap->setChecked (initial->generate_sitemap);
       publicUrlEdit->setText (qss (initial->public_url));
       descriptionEdit->setText (qss (initial->description));
+      faviconEdit->setText (qss (initial->favicon));
       int regen= regenerateCombo->findData (qss (initial->regenerate));
       if (regen >= 0) regenerateCombo->setCurrentIndex (regen);
       postEnabled->setChecked (initial->post_command.enabled);
@@ -775,6 +797,7 @@ public:
     out.destination= qstd (destinationEdit->text ().trimmed ());
     out.public_url= qstd (publicUrlEdit->text ().trimmed ());
     out.description= qstd (descriptionEdit->text ().trimmed ());
+    out.favicon= qstd (faviconEdit->text ().trimmed ());
     out.generate_pdfs= generatePdfs->isChecked ();
     out.generate_sitemap= generateSitemap->isChecked ();
     out.generate_redirections= redirectionsPage->generationEnabled ();
@@ -813,6 +836,7 @@ private:
   QCheckBox* generateSitemap;
   QLineEdit* publicUrlEdit;
   QLineEdit* descriptionEdit;
+  QLineEdit* faviconEdit;
   QComboBox* regenerateCombo;
   QCheckBox* postEnabled;
   QLineEdit* postProgram;
@@ -869,6 +893,9 @@ private:
       "\nDescription: " +
       (descriptionEdit->text ().trimmed ().isEmpty () ?
        "(none)" : descriptionEdit->text ().trimmed ()) +
+      "\nFavicon: " +
+      (faviconEdit->text ().trimmed ().isEmpty () ?
+       "ATHENA logo" : faviconEdit->text ().trimmed ()) +
       "\nRedirections: " +
       (redirectionsPage->generationEnabled () ?
        QString::number ((int) redirectionsPage->redirections ().size ()) +

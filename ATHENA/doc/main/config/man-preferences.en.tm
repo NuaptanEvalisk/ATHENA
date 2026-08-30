@@ -901,6 +901,12 @@
 
     <item*|Normalize image filename when inserting>Normalizes image file names
     when images are inserted into the vault.
+
+    <item*|Pasted internet images>Controls whether an image copied from a web
+    browser remains linked to its remote URL or is downloaded into the current
+    document's vault assets directory. Downloading applies only to saved
+    <verbatim|.ath> documents in the active vault; elsewhere ATHENA keeps the
+    remote link.
   </description>
 
   <subsection|Vault Info>

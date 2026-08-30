@@ -157,6 +157,7 @@ website_to_json (const athena_website_entry& website) {
   obj["destination"] = qs (website.destination);
   obj["publicUrl"] = qs (website.public_url);
   obj["description"] = qs (website.description);
+  obj["favicon"] = qs (website.favicon);
   obj["generateSitemap"] = website.generate_sitemap;
   obj["generatePdfs"] = website.generate_pdfs;
   QJsonObject redirections;
@@ -198,6 +199,7 @@ website_from_json (const QJsonObject& obj) {
   website.public_url = ss (obj.value ("publicUrl").toString (
     obj.value ("baseUrl").toString ()));
   website.description = ss (obj.value ("description").toString ());
+  website.favicon = ss (obj.value ("favicon").toString ());
   website.generate_sitemap = obj.contains ("generateSitemap") ?
     obj.value ("generateSitemap").toBool (false) :
     !website.public_url.empty ();

@@ -71,6 +71,7 @@
 #include <QMainWindow>
 #include <QMenu>
 #include <QMenuBar>
+#include <QMessageBox>
 #include <QPushButton>
 #include <QRadioButton>
 #include <QStatusBar>
@@ -436,15 +437,26 @@ qt_gui_rep::get_selection (string key, tree& t, string& s, string format) {
             prepared= vault_image_insertion_prepare_file (
               get_current_buffer_safe (), url_system (local), ref, error);
           }
+          else
+            prepared= vault_image_insertion_prepare_remote (
+              get_current_buffer_safe (),
+              url (from_qstring (l[0].toString ())), ref, error);
           if (prepared && ref != "") {
             string w, h;
-            qt_pretty_image_size (url_system (local), w, h);
+            url image= l[0].isLocalFile () ? url_system (local) :
+              relative (get_current_buffer_safe (), url_unix (ref));
+            qt_pretty_image_size (image, w, h);
             tree im (IMAGE, ref, w, h, "", "");
             s= as_string (call ("convert", im, "texmacs-tree",
                                 "texmacs-snippet"));
             input_format= "";
           }
-          else if (prepared) return false;
+          else if (prepared) {
+            QMessageBox::warning (
+              QApplication::activeWindow (), "Paste image",
+              to_qstring (error));
+            return false;
+          }
           else {
             s= from_qstring (l[0].toString ());
             input_format = "linked-picture";

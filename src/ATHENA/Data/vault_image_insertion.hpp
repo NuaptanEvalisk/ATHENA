@@ -22,4 +22,8 @@ bool vault_image_insertion_prepare_data (url document, string data,
                                          string& document_ref,
                                          string& error);
 
+bool vault_image_insertion_prepare_remote (url document, url source,
+                                           string& document_ref,
+                                           string& error);
+
 #endif // VAULT_IMAGE_INSERTION_HPP

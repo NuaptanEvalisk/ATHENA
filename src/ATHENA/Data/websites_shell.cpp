@@ -286,14 +286,37 @@ site_manifest (const athena_website_entry& website,
 }
 
 bool
-copy_favicon (const fs::path& dest) {
-  fs::path src = fs::path (tm_to_std (get_env ("ATHENA_PATH"))) /
-                 "misc" / "images" / "ATHENA-512.png";
+copy_favicon (const athena_website_entry& website,
+              const GenerationContext& cx, std::string& error) {
+  fs::path src;
+  if (website.favicon.empty ())
+    src = fs::path (tm_to_std (get_env ("ATHENA_PATH"))) /
+          "misc" / "images" / "ATHENA-512.png";
+  else {
+    src = fs::path (website.favicon);
+    if (!src.is_absolute ()) src = cx.root / src;
+    src = src.lexically_normal ();
+  }
+  if (!fs::is_regular_file (src)) {
+    error = website.favicon.empty () ?
+      "Could not find the default ATHENA website favicon." :
+      "Could not find website favicon: " + src.string ();
+    return false;
+  }
+
+  fs::path dest = cx.destination / "icons" / "favicon.png";
   std::error_code ec;
-  if (!fs::exists (src)) return true;
   fs::create_directories (dest.parent_path (), ec);
+  if (ec) {
+    error = "Could not create website icon directory: " + ec.message ();
+    return false;
+  }
   fs::copy_file (src, dest, fs::copy_options::overwrite_existing, ec);
-  return !ec;
+  if (ec) {
+    error = "Could not copy website favicon: " + ec.message ();
+    return false;
+  }
+  return true;
 }
 
 bool
@@ -385,8 +408,7 @@ write_site_shell (const athena_website_entry& website,
 
   if (!write_sitemap (website, cx, error)) return false;
   if (!write_redirections (website, cx, error)) return false;
-  copy_favicon (cx.destination / "icons" / "favicon.png");
-  return true;
+  return copy_favicon (website, cx, error);
 }
 
 bool

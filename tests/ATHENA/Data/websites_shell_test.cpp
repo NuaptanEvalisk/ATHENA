@@ -24,6 +24,7 @@ private slots:
   void externalWebLinksOpenInNewTabs ();
   void persistsRedirectionConfiguration ();
   void persistsPdfGenerationConfiguration ();
+  void persistsAndCopiesCustomFavicon ();
   void exposesDocumentPdfDownloads ();
   void writesCloudflareRedirections ();
   void rejectsRedirectionOutsideExportRange ();
@@ -131,6 +132,31 @@ TestWebsiteShell::persistsPdfGenerationConfiguration () {
   QJsonObject withoutPdf= website_to_json (website);
   withoutPdf.remove ("generatePdfs");
   QVERIFY (!website_from_json (withoutPdf).generate_pdfs);
+}
+
+void
+TestWebsiteShell::persistsAndCopiesCustomFavicon () {
+  QTemporaryDir temp;
+  QVERIFY (temp.isValid ());
+  QFile source (temp.filePath ("custom.png"));
+  QVERIFY (source.open (QIODevice::WriteOnly));
+  QCOMPARE (source.write ("custom favicon"), (qint64) 14);
+  source.close ();
+
+  athena_website_entry website;
+  website.id= "favicon-site";
+  website.name= "Favicon site";
+  website.favicon= "custom.png";
+  athena_website_entry restored= website_from_json (website_to_json (website));
+  QCOMPARE (restored.favicon, std::string ("custom.png"));
+
+  GenerationContext context;
+  context.root= fs::path (temp.path ().toStdString ());
+  context.destination= context.root / "site";
+  std::string error;
+  QVERIFY2 (write_site_shell (restored, context, error), error.c_str ());
+  QCOMPARE (readText (temp.filePath ("site/icons/favicon.png")),
+            QString ("custom favicon"));
 }
 
 void
