@@ -853,6 +853,12 @@
     maintenance summary pages are retained.
   </description>
 
+  Maintenance Setup also includes a missing-image scan, enabled by default.
+  It parses structural local <verbatim|image> references in every
+  <verbatim|.ath> document and lists references whose target image file does
+  not exist in the generated maintenance summary. Remote image URLs are
+  ignored without being downloaded.
+
   <subsection|Backup>
 
   Backup dispatchers maintain one-way, incremental mirrors of the active

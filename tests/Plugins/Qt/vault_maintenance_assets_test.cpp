@@ -76,6 +76,7 @@ private slots:
   void normalizesEveryStructuralAssetKind ();
   void preservesReferenceFormsAndDocumentTargets ();
   void protectsConfiguredVaultInfrastructure ();
+  void reportsMissingLocalImagesOnly ();
   void orphanCollectionUsesStructuralReferences ();
   void parseFailureLeavesAssetsUntouched ();
 };
@@ -219,6 +220,40 @@ TestVaultMaintenanceAssets::protectsConfiguredVaultInfrastructure () {
   QVERIFY2 (orphans.ok, orphans.message.c_str ());
   QCOMPARE (context.summary.orphan_assets_collected, (size_t) 0);
   QVERIFY (fs::exists (root / info.map_path));
+}
+
+void
+TestVaultMaintenanceAssets::reportsMissingLocalImagesOnly () {
+  QTemporaryDir temporary;
+  QVERIFY (temporary.isValid ());
+  fs::path root (temporary.path ().toStdString ());
+  fs::create_directories (root / "assets");
+  touch (root / "assets/present.png");
+  QVERIFY (write_document (
+    root / "Note.ath",
+    document_with ({
+      reference_node ("image", "assets/present.png"),
+      reference_node ("image", "assets/missing.png"),
+      reference_node ("image", "assets/missing.png"),
+      reference_node ("image", "https://example.com/remote.png"),
+      reference_node ("hlink", "assets/missing-link.png")})));
+
+  VaultMaintenanceContext context;
+  context.root= root;
+  VaultMaintenancePassResult result=
+    vault_maintenance_pass_scan_missing_images (context);
+  QVERIFY2 (result.ok, result.message.c_str ());
+  QVERIFY (context.summary.missing_image_scan_enabled);
+  QCOMPARE (context.summary.missing_image_files_scanned, (size_t) 1);
+  QCOMPARE (context.summary.local_image_references_scanned, (size_t) 3);
+  QCOMPARE (context.summary.missing_images.size (), (size_t) 1);
+  QCOMPARE (context.summary.missing_images[0].document_path,
+            root / "Note.ath");
+  QCOMPARE (context.summary.missing_images[0].reference,
+            std::string ("assets/missing.png"));
+  QCOMPARE (context.summary.missing_images[0].resolved_path,
+            athena_vault_normalized_path (root / "assets/missing.png"));
+  QCOMPARE (context.warnings.size (), (size_t) 1);
 }
 
 void

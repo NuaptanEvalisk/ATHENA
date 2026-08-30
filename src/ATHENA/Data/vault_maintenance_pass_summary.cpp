@@ -346,6 +346,16 @@ summary_document_text (VaultMaintenanceContext& ctx, bool success,
                       " asset file(s), updated " +
                       std::to_string (summary.asset_reference_updates) +
                       " asset reference(s)")}),
+    tm_row ({tm_text ("Missing images"),
+             summary.missing_image_scan_enabled
+               ? tm_text (
+                   "scanned " +
+                   std::to_string (summary.missing_image_files_scanned) +
+                   " .ath file(s) and " +
+                   std::to_string (summary.local_image_references_scanned) +
+                   " local image reference(s); missing " +
+                   std::to_string (summary.missing_images.size ()))
+               : tm_text ("scan skipped")}),
     tm_row ({tm_text ("Health check"),
              tm_text ("scanned " +
                       std::to_string (summary.health_files_scanned) +
@@ -481,6 +491,27 @@ summary_document_text (VaultMaintenanceContext& ctx, bool success,
     }
   }
 
+  std::vector<std::string> missing_image_rows;
+  if (!summary.missing_images.empty ()) {
+    missing_image_rows.push_back (
+      tm_row ({tm_strong ("Document"), tm_strong ("Image reference"),
+               tm_strong ("Resolved path")}));
+    for (const VaultMaintenanceMissingImage& missing:
+         summary.missing_images) {
+      std::error_code ec;
+      fs::path relative= fs::relative (missing.document_path, ctx.root, ec);
+      std::string document_label=
+        !ec && !relative.empty () && !relative.is_absolute ()
+          ? relative.generic_string ()
+          : missing.document_path.generic_string ();
+      missing_image_rows.push_back (
+        tm_row ({tm_hlink (document_label,
+                           missing.document_path.generic_string ()),
+                 tm_verbatim (missing.reference),
+                 tm_verbatim (missing.resolved_path.generic_string ())}));
+    }
+  }
+
   std::string startup_label;
   std::string startup_target = vault_startup_page_target (ctx, startup_label);
 
@@ -506,6 +537,10 @@ summary_document_text (VaultMaintenanceContext& ctx, bool success,
   if (!orphan_rows.empty ()) {
     body << "  <section|Collected Orphans>\n\n";
     body << "  " << tm_table (orphan_rows) << "\n\n";
+  }
+  if (!missing_image_rows.empty ()) {
+    body << "  <section|Missing Images>\n\n";
+    body << "  " << tm_table (missing_image_rows) << "\n\n";
   }
   body << "  <section|Next Step>\n\n";
   body << "  <cardlink|" << tm_escape_text (startup_label)
@@ -585,6 +620,14 @@ vault_maintenance_pass_print_summary (VaultMaintenanceContext& ctx) {
             " asset file(s), updated " +
             std::to_string (summary.asset_reference_updates) +
             " asset reference(s)");
+  if (summary.missing_image_scan_enabled)
+    log_info ("summary: missing-image scan checked " +
+              std::to_string (summary.local_image_references_scanned) +
+              " local image reference(s) in " +
+              std::to_string (summary.missing_image_files_scanned) +
+              " .ath file(s); missing " +
+              std::to_string (summary.missing_images.size ()));
+  else log_info ("summary: missing-image scan skipped");
   log_info ("summary: health-checked " +
             std::to_string (summary.health_files_scanned) +
             " .ath file(s); unreadable " +

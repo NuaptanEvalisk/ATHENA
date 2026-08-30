@@ -32,6 +32,9 @@ std::filesystem::path athena_vault_resolve_file_reference (
 void athena_vault_collect_file_references (
   tree document, const std::filesystem::path& source,
   std::vector<AthenaVaultFileReference>& references);
+void athena_vault_collect_image_file_references (
+  tree document, const std::filesystem::path& source,
+  std::vector<AthenaVaultFileReference>& references);
 
 tree athena_vault_rewrite_file_references (
   tree document, const std::filesystem::path& source_before,

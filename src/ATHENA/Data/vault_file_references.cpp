@@ -77,6 +77,21 @@ collect_references (tree t, const fs::path& source,
   }
 }
 
+void
+collect_image_references (tree t, const fs::path& source,
+                          std::vector<AthenaVaultFileReference>& references) {
+  if (is_atomic (t)) return;
+  if ((is_func (t, IMAGE) || is_compound (t, "image")) && N(t) >= 1 &&
+      is_atomic (t[0])) {
+    std::string value= to_std (tree_as_string (t[0]));
+    if (athena_vault_is_local_file_reference (value))
+      references.push_back (
+        {value, athena_vault_resolve_file_reference (source, value)});
+  }
+  for (int i=0; i<N(t); ++i)
+    collect_image_references (t[i], source, references);
+}
+
 tree
 rewrite_map (tree t, const fs::path& source_before,
              const fs::path& source_after,
@@ -172,6 +187,14 @@ athena_vault_collect_file_references (
   tree document, const fs::path& source,
   std::vector<AthenaVaultFileReference>& references) {
   collect_references (document, athena_vault_normalized_path (source), references);
+}
+
+void
+athena_vault_collect_image_file_references (
+  tree document, const fs::path& source,
+  std::vector<AthenaVaultFileReference>& references) {
+  collect_image_references (
+    document, athena_vault_normalized_path (source), references);
 }
 
 tree

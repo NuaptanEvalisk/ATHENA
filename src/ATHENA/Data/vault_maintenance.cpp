@@ -101,6 +101,9 @@ registered_passes () {
       vault_maintenance_pass_health_check}, false, pass_always_enabled},
     {{"normalize-assets", "Normalize referenced asset names and references",
       vault_maintenance_pass_normalize_assets}, false, pass_always_enabled},
+    {{"scan-missing-images", "Scan for missing images",
+      vault_maintenance_pass_scan_missing_images}, false,
+      pass_always_enabled},
 #if ATHENA_ENABLE_PERSON_SUBSYSTEM
     {{"normalize-person-names", "Tag recognized person names",
       vault_maintenance_pass_normalize_person_names}, false,

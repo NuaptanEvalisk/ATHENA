@@ -21,6 +21,12 @@ struct VaultMaintenanceCollectedOrphan {
   std::filesystem::path original_path;
 };
 
+struct VaultMaintenanceMissingImage {
+  std::filesystem::path document_path;
+  std::string reference;
+  std::filesystem::path resolved_path;
+};
+
 struct VaultMaintenanceSummary {
   std::filesystem::path backup_archive;
   int backup_limit = -1;
@@ -29,6 +35,10 @@ struct VaultMaintenanceSummary {
   size_t manual_save_histories_purged = 0;
   size_t asset_renames = 0;
   size_t asset_reference_updates = 0;
+  bool missing_image_scan_enabled = false;
+  size_t missing_image_files_scanned = 0;
+  size_t local_image_references_scanned = 0;
+  std::vector<VaultMaintenanceMissingImage> missing_images;
   size_t health_files_scanned = 0;
   size_t health_files_failed = 0;
   size_t person_files_scanned = 0;
@@ -141,6 +151,8 @@ VaultMaintenancePassResult vault_maintenance_pass_health_check (
 VaultMaintenancePassResult vault_maintenance_pass_read_policy_preferences (
   VaultMaintenanceContext& ctx);
 VaultMaintenancePassResult vault_maintenance_pass_normalize_assets (
+  VaultMaintenanceContext& ctx);
+VaultMaintenancePassResult vault_maintenance_pass_scan_missing_images (
   VaultMaintenanceContext& ctx);
 VaultMaintenancePassResult vault_maintenance_pass_normalize_person_names (
   VaultMaintenanceContext& ctx);
