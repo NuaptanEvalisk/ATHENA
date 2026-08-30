@@ -12,7 +12,6 @@
 #ifndef QT_GUI_HPP
 #define QT_GUI_HPP
 
-#include <QTranslator>
 #include <QTimer>
 #include <QList>
 #include <QByteArray>
@@ -131,8 +130,6 @@ class qt_gui_rep {
   QByteArray clipboard_text_cache;
   bool clipboard_text_cache_valid;
   
-  QTranslator* q_translator;
-  
   time_t time_credit;        // interval to interrupt long redrawings
   time_t timeout_time;       // new redraw interruption
   
@@ -179,7 +176,7 @@ public:
   void update();
   void force_update();
   void need_update();
-  void refresh_language();
+  void refresh_ui();
   
   /* queued processing */
   void process_keypress (qt_simple_widget_rep *wid, string key, time_t t);

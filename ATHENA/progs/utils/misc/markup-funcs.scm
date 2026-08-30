@@ -133,8 +133,7 @@
 
 (tm-define (ext-language-suffix)
   (:secure #t)
-  (with s (language-to-locale (get-output-language))
-    (if (>= (string-length s) 2) (substring s 0 2) "en")))
+  "en")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Applying a macro recursively to paragraphs

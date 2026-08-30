@@ -754,15 +754,6 @@
   (string-append "@ATHENA-LANGUAGE-FLAG:" (language-menu-flag-code lan)
                  "@" (upcase-first lan)))
 
-(menu-bind global-language-menu
-  (for (lan supported-languages)
-    (when (supported-language? lan)
-      ((check (eval (language-menu-label lan)) "*"
-              (and (test-document-language? lan)
-                   (== lan (get-output-language))))
-       (set-document-language lan)
-       (set-output-language lan)))))
-
 (menu-bind document-language-menu
   ("Default" (set-default-document-language))
   ---

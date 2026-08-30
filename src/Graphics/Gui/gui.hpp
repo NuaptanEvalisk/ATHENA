@@ -45,7 +45,7 @@ void gui_root_extents (SI& width, SI& height);
 void gui_maximal_extents (SI& width, SI& height);
   // get the maximal size of a window (can be larger than the screen size)
 void gui_refresh ();
-  // update and redraw all windows (e.g. on change of output language)
+  // update and redraw all windows
 string gui_version ();
   // retrieve the type of GUI that is being used
 string system_icon_for_link (string target, string type);

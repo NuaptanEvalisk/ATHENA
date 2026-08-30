@@ -36,7 +36,7 @@
 
 (tm-define (tmdoc-search . queries)
   ;; queries is a list which alternates grep-strings and search routines
-  (with lan (string-take (language-to-locale (get-output-language)) 2)
+  (with lan "en"
     (or (tmdoc-search-local queries lan)
         (and (!= lan "en")
              (tmdoc-search-local queries "en")))))

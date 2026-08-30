@@ -968,70 +968,13 @@ tmg_get_default_printing_command () {
 }
 
 tmscm
-tmg_set_input_language (tmscm arg1) {
-  TMSCM_ASSERT_STRING (arg1, TMSCM_ARG1, "set-input-language");
-
-  string in1= tmscm_to_string (arg1);
-
-  // TMSCM_DEFER_INTS;
-  set_input_language (in1);
-  // TMSCM_ALLOW_INTS;
-
-  return TMSCM_UNSPECIFIED;
-}
-
-tmscm
-tmg_get_input_language () {
-  // TMSCM_DEFER_INTS;
-  string out= get_input_language ();
-  // TMSCM_ALLOW_INTS;
-
-  return string_to_tmscm (out);
-}
-
-tmscm
-tmg_set_output_language (tmscm arg1) {
-  TMSCM_ASSERT_STRING (arg1, TMSCM_ARG1, "set-output-language");
-
-  string in1= tmscm_to_string (arg1);
-
-  // TMSCM_DEFER_INTS;
-  gui_set_output_language (in1);
-  // TMSCM_ALLOW_INTS;
-
-  return TMSCM_UNSPECIFIED;
-}
-
-tmscm
-tmg_get_output_language () {
-  // TMSCM_DEFER_INTS;
-  string out= get_output_language ();
-  // TMSCM_ALLOW_INTS;
-
-  return string_to_tmscm (out);
-}
-
-tmscm
-tmg_translate (tmscm arg1) {
-  TMSCM_ASSERT_CONTENT (arg1, TMSCM_ARG1, "translate");
+tmg_ui_text (tmscm arg1) {
+  TMSCM_ASSERT_CONTENT (arg1, TMSCM_ARG1, "ui-text");
 
   content in1= tmscm_to_content (arg1);
 
   // TMSCM_DEFER_INTS;
-  string out= translate (in1);
-  // TMSCM_ALLOW_INTS;
-
-  return string_to_tmscm (out);
-}
-
-tmscm
-tmg_string_translate (tmscm arg1) {
-  TMSCM_ASSERT_STRING (arg1, TMSCM_ARG1, "string-translate");
-
-  string in1= tmscm_to_string (arg1);
-
-  // TMSCM_DEFER_INTS;
-  string out= translate_as_is (in1);
+  string out= ui_text (in1);
   // TMSCM_ALLOW_INTS;
 
   return string_to_tmscm (out);
@@ -1055,19 +998,6 @@ tmg_translate_from_to (tmscm arg1, tmscm arg2, tmscm arg3) {
 }
 
 tmscm
-tmg_tree_translate (tmscm arg1) {
-  TMSCM_ASSERT_CONTENT (arg1, TMSCM_ARG1, "tree-translate");
-
-  content in1= tmscm_to_content (arg1);
-
-  // TMSCM_DEFER_INTS;
-  tree out= tree_translate (in1);
-  // TMSCM_ALLOW_INTS;
-
-  return tree_to_tmscm (out);
-}
-
-tmscm
 tmg_tree_translate_from_to (tmscm arg1, tmscm arg2, tmscm arg3) {
   TMSCM_ASSERT_CONTENT (arg1, TMSCM_ARG1, "tree-translate-from-to");
   TMSCM_ASSERT_STRING (arg2, TMSCM_ARG2, "tree-translate-from-to");
@@ -1082,21 +1012,6 @@ tmg_tree_translate_from_to (tmscm arg1, tmscm arg2, tmscm arg3) {
   // TMSCM_ALLOW_INTS;
 
   return tree_to_tmscm (out);
-}
-
-tmscm
-tmg_force_load_translations (tmscm arg1, tmscm arg2) {
-  TMSCM_ASSERT_STRING (arg1, TMSCM_ARG1, "force-load-translations");
-  TMSCM_ASSERT_STRING (arg2, TMSCM_ARG2, "force-load-translations");
-
-  string in1= tmscm_to_string (arg1);
-  string in2= tmscm_to_string (arg2);
-
-  // TMSCM_DEFER_INTS;
-  force_load_dictionary (in1, in2);
-  // TMSCM_ALLOW_INTS;
-
-  return TMSCM_UNSPECIFIED;
 }
 
 tmscm
@@ -10501,16 +10416,9 @@ initialize_glue_basic () {
   tmscm_install_procedure ("cpp-dump-preferences",  tmg_cpp_dump_preferences, 1, 0, 0);
   tmscm_install_procedure ("save-preferences",  tmg_save_preferences, 0, 0, 0);
   tmscm_install_procedure ("get-default-printing-command",  tmg_get_default_printing_command, 0, 0, 0);
-  tmscm_install_procedure ("set-input-language",  tmg_set_input_language, 1, 0, 0);
-  tmscm_install_procedure ("get-input-language",  tmg_get_input_language, 0, 0, 0);
-  tmscm_install_procedure ("set-output-language",  tmg_set_output_language, 1, 0, 0);
-  tmscm_install_procedure ("get-output-language",  tmg_get_output_language, 0, 0, 0);
-  tmscm_install_procedure ("translate",  tmg_translate, 1, 0, 0);
-  tmscm_install_procedure ("string-translate",  tmg_string_translate, 1, 0, 0);
+  tmscm_install_procedure ("ui-text",  tmg_ui_text, 1, 0, 0);
   tmscm_install_procedure ("translate-from-to",  tmg_translate_from_to, 3, 0, 0);
-  tmscm_install_procedure ("tree-translate",  tmg_tree_translate, 1, 0, 0);
   tmscm_install_procedure ("tree-translate-from-to",  tmg_tree_translate_from_to, 3, 0, 0);
-  tmscm_install_procedure ("force-load-translations",  tmg_force_load_translations, 2, 0, 0);
   tmscm_install_procedure ("color",  tmg_color, 1, 0, 0);
   tmscm_install_procedure ("get-hex-color",  tmg_get_hex_color, 1, 0, 0);
   tmscm_install_procedure ("named-color->xcolormap",  tmg_named_color_2xcolormap, 1, 0, 0);

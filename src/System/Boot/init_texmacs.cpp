@@ -247,7 +247,6 @@ init_user_dirs () {
   make_dir ("$ATHENA_HOME_PATH/langs/mathematical");
   make_dir ("$ATHENA_HOME_PATH/langs/mathematical/syntax");
   make_dir ("$ATHENA_HOME_PATH/langs/natural");
-  make_dir ("$ATHENA_HOME_PATH/langs/natural/dic");
   make_dir ("$ATHENA_HOME_PATH/langs/natural/hyphen");
   make_dir ("$ATHENA_HOME_PATH/langs/programming");
   make_dir ("$ATHENA_HOME_PATH/misc");
@@ -435,10 +434,8 @@ init_env_vars () {
                        url ("$ATHENA_PATH/misc/pixmaps/modern/16x16/focus") |
                        url ("$ATHENA_PATH/misc/pixmaps/traditional/--x17") |
                        plugin_path ("misc/pixmaps"));
-  (void) get_env_path ("ATHENA_DIC_PATH",
-                       "$ATHENA_HOME_PATH/langs/natural/dic" |
-                       url ("$ATHENA_PATH/langs/natural/dic") |
-                       plugin_path ("langs/natural/dic"));
+  (void) get_env_path ("ATHENA_DOCUMENT_LOCALE_PATH",
+                       url ("$ATHENA_PATH/langs/document"));
   (void) get_env_path ("ATHENA_THEME_PATH",
                        url ("$ATHENA_PATH/misc/themes") |
                        url ("$ATHENA_HOME_PATH/misc/themes") |

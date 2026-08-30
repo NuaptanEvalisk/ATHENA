@@ -50,7 +50,7 @@
 (define (url-resolve-help s)
   (if (and (in? (url-suffix s) '("tex" "tm")) (url-exists? s))
       s
-      (let* ((lan (string-take (language-to-locale (get-output-language)) 2)) 
+      (let* ((lan "en")
              (suf-tmml (string-append "." lan ".tmml"))
              (suf (string-append "." lan ".tm"))
              (dir help-file-path))

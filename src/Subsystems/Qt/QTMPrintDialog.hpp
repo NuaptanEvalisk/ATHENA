@@ -364,35 +364,35 @@ public:
   
   void retranslateUi(QDialog *QTMPrintDialog)
   {
-    QTMPrintDialog->setWindowTitle(QApplication::translate("QTMPrintDialog", "Print", 0));
-    label_3->setText(QApplication::translate("QTMPrintDialog", "Copies:", 0));
-    copiesInput->setText(QApplication::translate("QTMPrintDialog", "1", 0));
-    collatedCheck->setText(QApplication::translate("QTMPrintDialog", "Collated", 0));
-    label_7->setText(QApplication::translate("QTMPrintDialog", "Pages:", 0));
-    allPagesRadio->setText(QApplication::translate("QTMPrintDialog", "All", 0));
-    rangePagesRadio->setText(QApplication::translate("QTMPrintDialog", "From:", 0));
-    fromPageInput->setText(QApplication::translate("QTMPrintDialog", "1", 0));
-    label_4->setText(QApplication::translate("QTMPrintDialog", "To:", 0));
-    toPageInput->setText(QApplication::translate("QTMPrintDialog", "1", 0));
-    evenPagesCheck->setText(QApplication::translate("QTMPrintDialog", "Even", 0));
-    oddPagesCheck->setText(QApplication::translate("QTMPrintDialog", "Odd", 0));
-    paperSizeLabel->setText(QApplication::translate("QTMPrintDialog", "Paper size:", 0));
-    label_2->setText(QApplication::translate("QTMPrintDialog", "Orientation:", 0));
-    resolutionLabel->setText(QApplication::translate("QTMPrintDialog", "Resolution:", 0));
-    duplexCheck->setText(QApplication::translate("QTMPrintDialog", "Print on both sides", 0));
-    fitToPageCheck->setText(QApplication::translate("QTMPrintDialog", "Fit to page", 0));
-    label_5->setText(QApplication::translate("QTMPrintDialog", "Pages per side:", 0));
+    QTMPrintDialog->setWindowTitle(QStringLiteral("Print"));
+    label_3->setText(QStringLiteral("Copies:"));
+    copiesInput->setText(QStringLiteral("1"));
+    collatedCheck->setText(QStringLiteral("Collated"));
+    label_7->setText(QStringLiteral("Pages:"));
+    allPagesRadio->setText(QStringLiteral("All"));
+    rangePagesRadio->setText(QStringLiteral("From:"));
+    fromPageInput->setText(QStringLiteral("1"));
+    label_4->setText(QStringLiteral("To:"));
+    toPageInput->setText(QStringLiteral("1"));
+    evenPagesCheck->setText(QStringLiteral("Even"));
+    oddPagesCheck->setText(QStringLiteral("Odd"));
+    paperSizeLabel->setText(QStringLiteral("Paper size:"));
+    label_2->setText(QStringLiteral("Orientation:"));
+    resolutionLabel->setText(QStringLiteral("Resolution:"));
+    duplexCheck->setText(QStringLiteral("Print on both sides"));
+    fitToPageCheck->setText(QStringLiteral("Fit to page"));
+    label_5->setText(QStringLiteral("Pages per side:"));
     pagesPerSideCombo->clear();
     pagesPerSideCombo->insertItems(0, QStringList()
-                                   << QApplication::translate("QTMPrintDialog", "1", 0)
-                                   << QApplication::translate("QTMPrintDialog", "2", 0)
-                                   << QApplication::translate("QTMPrintDialog", "4", 0)
-                                   << QApplication::translate("QTMPrintDialog", "6", 0)
-                                   << QApplication::translate("QTMPrintDialog", "9", 0)
-                                   << QApplication::translate("QTMPrintDialog", "16", 0)
+                                   << QStringLiteral("1")
+                                   << QStringLiteral("2")
+                                   << QStringLiteral("4")
+                                   << QStringLiteral("6")
+                                   << QStringLiteral("9")
+                                   << QStringLiteral("16")
                                    );
-    label_6->setText(QApplication::translate("QTMPrintDialog", "Order:", 0));
-    blackWhiteCheck->setText(QApplication::translate("QTMPrintDialog", "Print in black and white", 0));
+    label_6->setText(QStringLiteral("Order:"));
+    blackWhiteCheck->setText(QStringLiteral("Print in black and white"));
   } // retranslateUi
   
 };

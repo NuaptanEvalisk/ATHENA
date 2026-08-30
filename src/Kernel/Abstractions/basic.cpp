@@ -16,7 +16,6 @@
 #include "url.hpp"
 #include "file.hpp"
 #include "Freetype/tt_file.hpp"
-#include "dictionary.hpp"
 #include "sys_utils.hpp"
 #include "convert.hpp"
 
@@ -364,8 +363,6 @@ use_macos_fonts () {
   if (gui_is_qt ()) return true;
   string s= get_preference ("look and feel");
   if (s != "default" && s != "macos") return false;
-  string l= get_output_language ();
-  if (l == "bulgarian" || l == "russian" || l == "ukrainian") return false;
   return tt_font_exists ("LucidaGrande");
 #else
   return false;

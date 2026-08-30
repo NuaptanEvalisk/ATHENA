@@ -11,6 +11,7 @@
 
 #include "tm_config.hpp"
 #include "analyze.hpp"
+#include "gui_text.hpp"
 
 #ifdef Q_OS_MAC
 #include "Subsystems/Qt/QTMApplication.hpp"
@@ -217,9 +218,10 @@ tm_config_rep::get_keycomb (
 ******************************************************************************/
 
 static tree
-localize (string s, bool mod_flag= false) {
-  if (mod_flag) return tree (CONCAT, localize (s), "+");
-  else return compound ("localize", s);
+keyboard_label (string s, bool mod_flag= false) {
+  tree label= ui_text (s);
+  if (mod_flag) return tree (CONCAT, label, "+");
+  return label;
 }
 
 tree
@@ -235,8 +237,8 @@ system_kbd_initialize (hashmap<string,tree>& h) {
     h ("C-")= "<#2303>";
     h ("A-")= "<#2325>";
     h ("M-")= "<#2318>";
-    h ("H-")= localize ("Hyper");
-    h ("windows")= localize ("Windows");
+    h ("H-")= keyboard_label ("Hyper");
+    h ("windows")= keyboard_label ("Windows");
     h ("capslock")= "<#21EA>";
     h ("return")= "<#21A9>";
     h ("delete")= "<#2326>";
@@ -260,28 +262,28 @@ system_kbd_initialize (hashmap<string,tree>& h) {
     h ("<gtr>")= "<#3E>";
   }
   else if (gui_is_qt ()) {
-    h ("S-")= localize ("Shift::keyboard", true);
-    h ("C-")= localize ("Ctrl::keyboard", true);
-    h ("A-")= localize ("Alt::keyboard", true);
-    h ("M-")= localize ("Meta::keyboard", true);
-    h ("H-")= localize ("Hyper::keyboard", true);
-    h ("windows")= localize ("Windows");
-    h ("capslock")= localize ("Capslock");
-    h ("return")= localize ("Return");
-    h ("delete")= localize ("Delete");
-    h ("backspace")= localize ("Backspace");
-    h ("escape")= localize ("Escape");
-    h ("space")= localize ("Space");
-    h ("var")= localize ("Tab");
-    h ("tab")= localize ("Tab");
+    h ("S-")= keyboard_label ("Shift::keyboard", true);
+    h ("C-")= keyboard_label ("Ctrl::keyboard", true);
+    h ("A-")= keyboard_label ("Alt::keyboard", true);
+    h ("M-")= keyboard_label ("Meta::keyboard", true);
+    h ("H-")= keyboard_label ("Hyper::keyboard", true);
+    h ("windows")= keyboard_label ("Windows");
+    h ("capslock")= keyboard_label ("Capslock");
+    h ("return")= keyboard_label ("Return");
+    h ("delete")= keyboard_label ("Delete");
+    h ("backspace")= keyboard_label ("Backspace");
+    h ("escape")= keyboard_label ("Escape");
+    h ("space")= keyboard_label ("Space");
+    h ("var")= keyboard_label ("Tab");
+    h ("tab")= keyboard_label ("Tab");
     h ("left")= mathop ("<leftarrow>");
     h ("right")= mathop ("<rightarrow>");
     h ("up")= mathop ("<uparrow>");
     h ("down")= mathop ("<downarrow>");
-    h ("home")= localize ("Home");
-    h ("end")= localize ("End");
-    h ("pageup")= localize ("PageUp");
-    h ("pagedown")= localize ("PageDown");
+    h ("home")= keyboard_label ("Home");
+    h ("end")= keyboard_label ("End");
+    h ("pageup")= keyboard_label ("PageUp");
+    h ("pagedown")= keyboard_label ("PageDown");
     h ("section")= "\237";
   }
   else {
@@ -290,23 +292,23 @@ system_kbd_initialize (hashmap<string,tree>& h) {
     h ("A-")= "A-";
     h ("M-")= "M-";
     h ("H-")= "H-";
-    h ("windows")= localize ("windows");
-    h ("capslock")= localize ("capslock");
-    h ("return")= localize ("return");
-    h ("delete")= localize ("delete");
-    h ("backspace")= localize ("backspace");
-    h ("escape")= localize ("escape");
-    h ("space")= localize ("space");
-    h ("var")= localize ("tab");
-    h ("tab")= localize ("tab");
+    h ("windows")= keyboard_label ("windows");
+    h ("capslock")= keyboard_label ("capslock");
+    h ("return")= keyboard_label ("return");
+    h ("delete")= keyboard_label ("delete");
+    h ("backspace")= keyboard_label ("backspace");
+    h ("escape")= keyboard_label ("escape");
+    h ("space")= keyboard_label ("space");
+    h ("var")= keyboard_label ("tab");
+    h ("tab")= keyboard_label ("tab");
     h ("left")= mathop ("<leftarrow>");
     h ("right")= mathop ("<rightarrow>");
     h ("up")= mathop ("<uparrow>");
     h ("down")= mathop ("<downarrow>");
-    h ("home")= localize ("home");
-    h ("end")= localize ("end");
-    h ("pageup")= localize ("pageup");
-    h ("pagedown")= localize ("pagedown");
+    h ("home")= keyboard_label ("home");
+    h ("end")= keyboard_label ("end");
+    h ("pageup")= keyboard_label ("pageup");
+    h ("pagedown")= keyboard_label ("pagedown");
     h ("section")= "\237";
   }
 }

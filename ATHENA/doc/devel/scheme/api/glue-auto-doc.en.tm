@@ -675,51 +675,11 @@ source code.
   </explain>
 
   <\explain>
-    <scm|(set-input-language <scm-arg|string>)>
+    <scm|(ui-text <scm-arg|content>)>
 <explain-synopsis|no synopsis>
   <|explain>
-    Calls the <c++> function <cpp|set_input_language> which returns
-    <scm|void>.
-  </explain>
-
-  <\explain>
-    <scm|(get-input-language)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|get_input_language> which returns
-    <scm|string>.
-  </explain>
-
-  <\explain>
-    <scm|(set-output-language <scm-arg|string>)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|gui_set_output_language> which returns
-    <scm|void>.
-  </explain>
-
-  <\explain>
-    <scm|(get-output-language)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|get_output_language> which returns
-    <scm|string>.
-  </explain>
-
-  <\explain>
-    <scm|(translate <scm-arg|content>)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|translate> which returns
-    <scm|string>.
-  </explain>
-
-  <\explain>
-    <scm|(string-translate <scm-arg|string>)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|translate_as_is> which returns
-    <scm|string>.
+    Calls the <c++> function <cpp|ui_text> which formats direct English
+    interface content and returns <scm|string>.
   </explain>
 
   <\explain>
@@ -731,27 +691,11 @@ source code.
   </explain>
 
   <\explain>
-    <scm|(tree-translate <scm-arg|content>)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|tree_translate> which returns
-    <scm|tree>.
-  </explain>
-
-  <\explain>
     <scm|(tree-translate-from-to <scm-arg|content> <scm-arg|string> <scm-arg|string>)>
 <explain-synopsis|no synopsis>
   <|explain>
     Calls the <c++> function <cpp|tree_translate> which returns
     <scm|tree>.
-  </explain>
-
-  <\explain>
-    <scm|(force-load-translations <scm-arg|string> <scm-arg|string>)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|force_load_dictionary> which returns
-    <scm|void>.
   </explain>
 
   <\explain>

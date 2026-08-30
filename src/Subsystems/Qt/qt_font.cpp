@@ -24,7 +24,6 @@
 #include <mutex>
 
 #include "analyze.hpp"
-#include "dictionary.hpp"
 
 #define MAGN (dpi * PIXEL / 72.0)
 #define ROUND(x) ((SI) round (x * MAGN))

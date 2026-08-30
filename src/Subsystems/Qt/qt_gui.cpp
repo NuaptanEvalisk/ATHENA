@@ -13,13 +13,12 @@
 
 #include "convert.hpp"
 #include "iterator.hpp"
-#include "dictionary.hpp"
 #include "file.hpp" // added for copy_as_graphics
 #include "analyze.hpp"
-#include "locale.hpp"
 #include "message.hpp"
 #include "scheme.hpp"
 #include "sys_utils.hpp"
+#include "locale.hpp"
 #include "tm_window.hpp"
 #include "new_window.hpp"
 #include "ATHENA/Data/new_buffer.hpp"
@@ -55,8 +54,6 @@
 #include <QLabel>
 #include <QSocketNotifier>
 #include <QSetIterator>
-#include <QTranslator>
-#include <QLocale>
 #include <QMimeData>
 #include <QByteArray>
 #include <QCoreApplication>
@@ -251,7 +248,7 @@ athena_initialize_wayland_ui_scale () {
 
 qt_gui_rep::qt_gui_rep (int &argc, char **argv):
 interrupted (false), waitWindow (NULL), popup_wid_time (0),
-clipboard_text_cache_valid (false), q_translator (0),
+clipboard_text_cache_valid (false),
 time_credit (100), do_check_events (false), updating (false),
 needing_update (false)
 {
@@ -276,9 +273,6 @@ needing_update (false)
   extern void mac_install_filter();
   mac_install_filter();
 #endif
-  
-  set_output_language (get_locale_language ());
-  refresh_language();
   
   updatetimer = new QTimer (gui_helper);
   updatetimer->setSingleShot (true);
@@ -768,7 +762,7 @@ gui_maximal_extents (SI& width, SI& height) {
 
 void
 gui_refresh () {
-  the_gui->refresh_language();
+  the_gui->refresh_ui();
 }
 
 string
@@ -1168,28 +1162,8 @@ void needs_update () {
   the_gui->need_update();
 }
 
-/*! Called upon change of output language.
- 
- We currently emit a signal which forces every QTMAction to change his text
- according to the new language, but the preferred Qt way seems to use
- LanguageChange events (these are triggered upon installation of QTranslators)
- */
 void
-qt_gui_rep::refresh_language() {
-  /* FIXME: why is this here? We don't use QTranslators...
-  QTranslator* qtr = new QTranslator();
-  if (qtr->load ("qt_" +
-                 QLocale (to_qstring 
-                           (language_to_locale (get_output_language()))).name(),
-                 QLibraryInfo::location (QLibraryInfo::TranslationsPath))) {
-    if (q_translator)
-      qApp->removeTranslator (q_translator);
-    qApp->installTranslator (qtr);
-    q_translator = qtr;
-  } else {
-    delete qtr;
-  }
-   */
+qt_gui_rep::refresh_ui() {
   gui_helper->doRefresh();
 }
 

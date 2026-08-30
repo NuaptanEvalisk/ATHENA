@@ -25,6 +25,7 @@
 #include "convert.hpp"
 #include "file.hpp"
 #include "gui.hpp"
+#include "gui_text.hpp"
 #include "vault.hpp"
 #include "namespaces.hpp"
 #include "ATHENA/Data/vault_backup.hpp"

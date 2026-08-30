@@ -222,7 +222,7 @@
            page-header-menu page-footer-menu page-numbering-menu
            page-break-menu)
 (lazy-menu (generic document-menu) document-menu
-           document-style-menu global-language-menu)
+           document-style-menu)
 (lazy-menu (generic document-part)
            preamble-menu)
 (lazy-define (generic document-part)
@@ -369,7 +369,7 @@
 ;(display "Booting formal and natural languages\n")
 (lazy-language (language minimal) minimal)
 (lazy-language (language std-math) std-math)
-(lazy-define (language natural) replace)
+(lazy-define (kernel gui ui-text) replace)
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 ;(display* "memory: " (texmacs-memory) " bytes\n")
 

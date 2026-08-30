@@ -17,7 +17,7 @@
 #include "convert.hpp"
 #include "converter.hpp"
 #include "scheme.hpp"
-#include "dictionary.hpp"
+#include "gui_text.hpp"
 #include "editor.hpp"
 #include "new_view.hpp"      // get_current_editor()
 #include "image_files.hpp"
@@ -181,11 +181,11 @@ qt_chooser_widget_rep::set_type (const string& _type)
   }
 
   if (format_exists (_type)) {
-    nameFilter = to_qstring (translate
+    nameFilter = to_qstring (ui_text
                              (as_string (call ("format-get-name", _type))
                               * " file"));
   } else if (_type == "image") {
-    nameFilter = to_qstring (translate ("Image file"));
+    nameFilter = QStringLiteral ("Image file");
   } else {
     if (DEBUG_STD)
       debug_widgets << "qt_chooser_widget: IGNORING unknown format "
@@ -213,19 +213,19 @@ qt_chooser_widget_rep::perform_dialog_with_qfiledialog() {
   QString path = QString::fromUtf8 (&tmp[0]);
   QString filter = nameFilter;
   if (type == "image")
-    filter = to_qstring (translate ("Image file")) + " (*.png *.jpg *.jpeg *.bmp *.gif *.pdf)";
+    filter = QStringLiteral ("Image file (*.png *.jpg *.jpeg *.bmp *.gif *.pdf)");
   else if (type == "directory")
     filter = "";
   else if (type == "generic")
-    filter = to_qstring (translate ("All files (*)"));
+    filter = QStringLiteral ("All files (*)");
   else
-    filter = to_qstring (translate (as_string (call ("format-get-name", type))
-                                    * " file")) + " (" + filter + ")";
+    filter = to_qstring (ui_text (as_string (call ("format-get-name", type))
+                                  * " file")) + " (" + filter + ")";
   if (prompt != "") {
     string text= prompt;
     if (ends (text, ":")) text= text (0, N(text) - 1);
     if (ends (text, " as")) text= text (0, N(text) - 3);
-    filter = to_qstring (translate (text)) + " (" + filter + ")";
+    filter = to_qstring (ui_text (text)) + " (" + filter + ")";
   }
   //QString imqstring = QFileDialog::getSaveFileName (NULL, caption, path, filter);
   // if save dialog, then use getSaveFileName, otherwise use getOpenFileName
@@ -266,12 +266,12 @@ static QString
 qt_chooser_kde_filter (const string& type) {
   if (type == "image")
     return "*.png *.jpg *.jpeg *.bmp *.gif *.pdf *.svg|" +
-           to_qstring (translate ("Image file")) +
+           QStringLiteral ("Image file") +
            " (*.png *.jpg *.jpeg *.bmp *.gif *.pdf *.svg)";
   if (type == "directory")
     return QString ();
   if (type == "generic")
-    return "*|" + to_qstring (translate ("All files (*)"));
+    return QStringLiteral ("*|All files (*)");
 
   object ret= call ("format-get-suffixes*", type);
   array<object> suffixes= as_array_object (ret);
@@ -281,8 +281,8 @@ qt_chooser_kde_filter (const string& type) {
     patterns += "*." + to_qstring (as_string (suffixes[i]));
   }
   if (patterns.isEmpty ()) patterns= "*";
-  QString label= to_qstring (translate (as_string (call ("format-get-name", type))
-                                        * " file"));
+  QString label= to_qstring (ui_text (as_string (call ("format-get-name", type))
+                                      * " file"));
   return patterns + "|" + label + " (" + patterns + ")";
 }
 
@@ -427,7 +427,7 @@ qt_chooser_widget_rep::perform_dialog () {
   if (native_dialog && type == "latex" && prompt != "") {
     file_ptr->setOption (QFileDialog::DontUseNativeDialog, true);
     portable_latex =
-      new QCheckBox (to_qstring (translate ("Make converted file portable")),
+      new QCheckBox (QStringLiteral ("Make converted file portable"),
                      file_ptr);
     portable_latex->setChecked (false);
     QGridLayout* layout = qobject_cast<QGridLayout*> (file_ptr->layout ());
@@ -451,14 +451,14 @@ qt_chooser_widget_rep::perform_dialog () {
     if (ends (text, " as")) text= text (0, N(text) - 3);
     file_ptr->setDefaultSuffix (defaultSuffix);
     file_ptr->setAcceptMode (QFileDialog::AcceptSave);
-    file_ptr->setLabelText (QFileDialog::Accept, to_qstring (translate (text)));
+    file_ptr->setLabelText (QFileDialog::Accept, to_qstring (ui_text (text)));
   }
 
   if (type != "directory") {
     QStringList filters;
     if (nameFilter != "")
       filters << nameFilter;
-    filters << to_qstring (translate ("All files (*)"));
+    filters << QStringLiteral ("All files (*)");
     file_ptr->setNameFilters (filters);
   }
 

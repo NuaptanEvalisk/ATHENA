@@ -21,19 +21,19 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define-regexp-grammar
-  (:translatable? (:or
+  (:ui-text? (:or
     :string?
     (concat :*)
     (verbatim :%1)
     (text :tuple? :string?)
-    (replace :string? :translatable?)))
+    (replace :string? :ui-text?)))
   (:menu-label (:or
-    :translatable?
+    :ui-text?
     (color :%5)
     (icon :string?)
     (extend :menu-label :*)
     (style :integer? :menu-label)
-    (balloon :menu-label :translatable?)))
+    (balloon :menu-label :ui-text?)))
   (:menu-wide-label (:or
     :menu-label
     (check :menu-wide-label :string? :%1)
@@ -121,7 +121,7 @@
 (define (kbd-system shortcut menu-flag?)
   (cond ((nstring? shortcut) "")
         ((and (qt-gui?) menu-flag?) shortcut)
-        (else (translate (kbd-system-rewrite shortcut)))))
+        (else (kbd-system-rewrite shortcut))))
 
 (define (kbd-find-shortcut what menu-flag?)
   (with r (kbd-find-cached-inv-binding what)
@@ -143,7 +143,7 @@
 ;; Menu labels
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define (translatable? s)
+(define (ui-text? s)
   (or (string? s) (func? s 'concat) (func? s 'verbatim) (func? s 'replace)))
 
 (define (active? style)
@@ -154,29 +154,6 @@
 
 (define (verb? style)
   (!= (logand style widget-style-verb) 0))
-
-(define (recursive-occurs? w t)
-  (cond ((string? t) (string-occurs? w t))
-        ((list? t) (list-or (map (cut recursive-occurs? w <>) t)))
-        (else #f)))
-
-(define (recursive-replace t w b)
-  (cond ((string? t) (string-replace t w b))
-        ((list? t) (map (cut recursive-replace <> w b) t))
-        (else t)))
-
-(define (adjust-translation s t)
-  (cond ((not (and (qt-gui?) (os-macos?)
-                   (in? (get-preference "language")
-                        (list "english" "british"))))
-         t)
-        ((recursive-occurs? "reference" s)
-	 (recursive-replace (recursive-replace t "c" "<#441>") "e" "<#435>"))
-        ((recursive-occurs? "onfigur" s)
-	 (recursive-replace t "o" "<#43E>"))
-        ((in? s (list "Help" "Edit" "View"))
-	 (recursive-replace t "e" "<#435>"))
-        (else t)))
 
 (define (make-menu-label p style . opt)
   "Make widget for menu label @p."
@@ -194,8 +171,8 @@
   ;;     Pixmap menu label, the <string> is the name of the pixmap.
   (let ((tt? (and (nnull? opt) (car opt)))
         (col (color (if (greyed? style) "dark grey" "black"))))
-    (cond ((translatable? p)            ; "text"
-           (widget-text (adjust-translation p (translate p)) style col #t))
+    (cond ((ui-text? p)                 ; "text"
+           (widget-text (ui-text p) style col #t))
           ((tuple? p 'balloon 2)        ; (balloon <label> "balloon text")
            (make-menu-label (cadr p) style tt?))
           ((tuple? p 'extend)           ; (extend <label> . ws)
@@ -236,12 +213,12 @@
 
 (define (make-menu-group s style)
   "Make @(group :string?) menu item."
-  (widget-menu-group (adjust-translation s (translate s)) style))
+  (widget-menu-group (ui-text s) style))
 
 (define (make-menu-text s style)
   "Make @(text :string?) menu item."
   ;;(widget-text s style (color "black") #t)
-  (widget-text (translate s) style (color "black") #f))
+  (widget-text (ui-text s) style (color "black") #f))
 
 (define (attach-resize t)
   (if (not global-resize) t
@@ -283,15 +260,15 @@
 (define (make-enum p style)
   "Make @(enum :%3 :string?) item."
   (with (tag cmd vals val width) p
-    (let* ((translate* (if (verb? style) identity translate))
+    (let* ((format* (if (verb? style) identity ui-text))
            (xval (val))
            (xvals (vals))
            (nvals (if (and (nnull? xvals) (== (cAr xvals) ""))
                       `(,@(cDr xvals) ,xval "") `(,@xvals ,xval)))
            (xvals* (list-remove-duplicates nvals))
-           (tval (translate* xval))
-           (tvals (map translate* xvals*))
-           (dec (map (lambda (v) (cons (translate* v) v)) xvals*))
+           (tval (format* xval))
+           (tvals (map format* xvals*))
+           (dec (map (lambda (v) (cons (format* v) v)) xvals*))
            (cmd* (lambda (r) (cmd (or (assoc-ref dec r) r)))))
       (widget-enum (object->command (menu-protect cmd*))
                    tvals tval style width))))
@@ -350,7 +327,7 @@
 
 (define (add-menu-entry-balloon but style action label)
   (with txt (if (tuple? label 'balloon 2)
-		(translate (third label))
+		(ui-text (third label))
 		(search-balloon-help action))
     (if (not txt) but
 	(with bal (widget-text txt style (color "black") #t)
@@ -451,10 +428,10 @@
                (src (and cmd (promise-source cmd)))
                (sh (and src (kbd-find-shortcut src #f)))
                (txt (if (or (not sh) (== sh "")) text
-                        (if (string? text) 
-                            (string-append text " (" sh ")")
+                        (if (string? text)
+                            `(concat ,text " (" ,sh ")")
                             text)))
-               (ftxt (translate txt))
+               (ftxt (ui-text txt))
                (twid (widget-text ftxt style (color "black") #t)))
           (widget-balloon but twid))
         but)))
@@ -487,7 +464,7 @@
                 (make-menu-symbol-button style symstring opt-cmd)
                 (widget-balloon
                  (make-menu-symbol-button style symstring opt-cmd)
-                 (make-menu-label (string-append "Keyboard equivalent: " sh)
+                 (make-menu-label `(concat "Keyboard equivalent: " ,sh)
                                   style))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -597,7 +574,7 @@
              (lambda () (make-menu-widget (list 'vertical items) style))))))
       (if (tuple? label 'balloon 2)
           (let* ((text (caddr label))
-                 (ftxt (translate text))
+                 (ftxt (ui-text text))
                  (twid (widget-text ftxt style (color "black") #t)))
             (widget-balloon button twid))
           button))))
@@ -747,7 +724,7 @@
   (if (pair? p)
       (cond ((match? p '(input :%1 :string? :%1 :string?))
              (list (make-menu-input p style)))
-            ((translatable? (car p))
+            ((ui-text? (car p))
              (list (make-menu-entry p style bar?)))
             ((symbol? (car p))
              (with result (ahash-ref make-menu-items-table (car p))
@@ -1143,7 +1120,7 @@
            (men (menu-promise))
            (scm (list 'vertical men))
            (wid (make-menu-widget* scm 0)))
-      (alt-window-create-quit win wid (translate name) qui)
+      (alt-window-create-quit win wid (ui-text name) qui)
       (alt-window-show win))))
 
 (define (ads-tool-pane* menu-promise cmd name floating? opts)
@@ -1158,7 +1135,7 @@
            (men (menu-promise lbd))
            (scm (list 'vertical men))
            (wid (make-menu-widget* scm 0)))
-      (ads-show-tool-pane wid id (translate name) qui floating?))))
+      (ads-show-tool-pane wid id (ui-text name) qui floating?))))
 
 (tm-define (ads-tool-pane menu-promise cmd name . opts)
   (:interactive #t)
@@ -1178,7 +1155,7 @@
            (men (menu-promise lbd))
            (scm (list 'vertical men))
            (wid (make-menu-widget* scm 0)))
-      (alt-window-create-quit win wid (translate name) qui)
+      (alt-window-create-quit win wid (ui-text name) qui)
       (alt-window-show win))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1191,7 +1168,7 @@
          (lbd (lambda x (apply cmd x) (alt-window-delete win)))
          (com (object->command (menu-protect lbd)))
          (wid (wid-promise com)))
-    (alt-window-create-plain win wid (translate name))
+    (alt-window-create-plain win wid (ui-text name))
     (alt-window-show win)))
 
 (tm-define (interactive-print done u)

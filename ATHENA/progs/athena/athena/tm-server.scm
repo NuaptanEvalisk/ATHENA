@@ -34,13 +34,6 @@
   (set-message "Restart in order to let the new theme take effect"
                "graphical interface theme"))
 
-(define (notify-language var val)
-  (set-output-language val)
-  (if (and (current-view) (== (buffer-tree) (stree->tree '(document ""))))
-      (set-document-language val))
-  (cond ((or (== val "bulgarian") (== val "russian") (== val "ukrainian"))
-         (notify-preference "cyrillic input method"))))
-
 (define (notify-scripting-language var val)
   (if (current-view)
       (if (== val "none")
@@ -306,4 +299,4 @@
   (safely-kill-window))
 
 (register-preference-callback-procedures
-  (list notify-enunciation-rendering notify-fast-environments notify-gui-theme notify-language notify-latex-command notify-look-and-feel notify-new-fonts notify-new-page-breaking notify-restart notify-scripting-language notify-security notify-tool))
+  (list notify-enunciation-rendering notify-fast-environments notify-gui-theme notify-latex-command notify-look-and-feel notify-new-fonts notify-new-page-breaking notify-restart notify-scripting-language notify-security notify-tool))

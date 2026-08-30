@@ -535,7 +535,7 @@ tabbed (std::initializer_list<std::pair<QString, QWidget*> > tabs) {
 }
 
 static std::vector<QStringChoice>
-basic_language_choices () {
+document_language_choices () {
   return {{"english", "English"}, {"french", "French"},
           {"german", "German"}, {"spanish", "Spanish"},
           {"italian", "Italian"}, {"portuguese", "Portuguese"},
@@ -1137,8 +1137,6 @@ QWidget*
 QTMPreferencesDialog::buildGeneralPage () {
   QWidget* basic= make_page ();
   QFormLayout* basicForm= add_section (basic, "Basic");
-  add_qstring_combo (basicForm, "User interface language:", "language",
-                     basic_language_choices ());
   add_combo (basicForm, "Complex actions:", "complex actions",
              {{"menus", "Through the menus"},
               {"popups", "Through popup windows"}});
@@ -1357,7 +1355,7 @@ QTMPreferencesDialog::buildEditingPage () {
              {{"1", "Once"}, {"2", "Twice"}, {"3", "Three times"}});
   add_qstring_combo (t, "Custom dictionary language:",
                      "custom dictionary import language",
-                     basic_language_choices ());
+                     document_language_choices ());
   QPushButton* import= new QPushButton ("Import");
   QObject::connect (import, &QPushButton::clicked, [] () {
     (void) call ("spell-live-import-custom-dictionary-from-preferences");

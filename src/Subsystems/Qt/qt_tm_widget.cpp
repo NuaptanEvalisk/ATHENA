@@ -308,10 +308,10 @@ qt_tm_widget_rep::qt_tm_widget_rep(int mask, command _quit)
   // status bar
   
   QStatusBar* bar= new QStatusBar(mw);
-  leftLabel= new QLabel (qt_translate ("Welcome to ATHENA"), mw);
+  leftLabel= new QLabel (QStringLiteral ("Welcome to ATHENA"), mw);
   centerLabel= new QLabel ("", mw);
   rightSpacer= new QLabel ("", mw);
-  rightLabel= new QLabel (qt_translate ("Booting"), mw);
+  rightLabel= new QLabel (QStringLiteral ("Booting"), mw);
   leftLabel->setFrameStyle (QFrame::NoFrame);
   centerLabel->setFrameStyle (QFrame::NoFrame);
   rightSpacer->setFrameStyle (QFrame::NoFrame);

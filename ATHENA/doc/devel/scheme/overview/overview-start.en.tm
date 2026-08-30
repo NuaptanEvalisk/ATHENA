@@ -141,8 +141,8 @@
   Of course, the plug-in mechanism is more interesting when the plug-in
   contains more than a few customization routines. In general, a plug-in may
   also contain additional style files or packages, scripts for launching
-  extern binaries, additional icons and internationalization files, and so
-  on. Furthermore, <scheme> extensions are usually regrouped into <scheme>
+  extern binaries, additional icons, and so on. Furthermore, <scheme>
+  extensions are usually regrouped into <scheme>
   modules in the directory
 
   <\verbatim>

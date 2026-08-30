@@ -139,7 +139,7 @@
 (tmfs-load-handler (grep query)
   (let* ((type (query-ref query "type"))
          (what (query-ref query "what"))
-         (lan  (string-take (language-to-locale (get-output-language)) 2)))
+         (lan "en"))
     (cond ((== type "Scheme")
            (srcgrep what "$ATHENA_PATH/progs" "*.scm"))
           ((== type "Styles")

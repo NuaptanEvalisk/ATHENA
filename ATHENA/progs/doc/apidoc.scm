@@ -63,12 +63,11 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (tm-define-macro ($tmapidoc . l)
-  (with lan (get-output-language)
-    ($quote
-      `(document
-         (TeXmacs ,(texmacs-compat-version))
-         (style (tuple "tmdoc" "scheme-api" ,lan))
-         (body ($unquote ($block ,@l)))))))
+  ($quote
+    `(document
+       (TeXmacs ,(texmacs-compat-version))
+       (style (tuple "tmdoc" "scheme-api" "english"))
+       (body ($unquote ($block ,@l))))))
 
 (define ($doc-all-symbols-buffer)
   (map append-command-alphabetically 
@@ -107,7 +106,7 @@
 
 (define ($query-not-implemented query)
  ($tmdoc 
-   ($tmdoc-title (translate "Request unknown or not implemented"))
+   ($tmdoc-title "Request unknown or not implemented")
    ($para query)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

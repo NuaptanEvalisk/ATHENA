@@ -319,7 +319,7 @@ qt_inputs_list_widget_rep::perform_dialog() {
                                  QMessageBox::Cancel);
       msgBox.setDefaultButton (yes_index == 0 ? QMessageBox::Yes :
                                                 QMessageBox::No);
-      msgBox.setWindowTitle (qt_translate ("Question"));
+      msgBox.setWindowTitle (QStringLiteral ("Question"));
       msgBox.setIcon (QMessageBox::Question);
       int ret = msgBox.exec ();
       if (ret == QMessageBox::Yes)
@@ -345,7 +345,7 @@ qt_inputs_list_widget_rep::perform_dialog() {
           QWidget::setTabOrder (buttonlist[i], buttonlist[i+1]);
         QWidget::setTabOrder (buttonlist[choices-1], msgBox.escapeButton());
       }
-      msgBox.setWindowTitle (qt_translate ("Question"));
+      msgBox.setWindowTitle (QStringLiteral ("Question"));
       msgBox.setIcon (QMessageBox::Question);
 #ifdef Q_OS_MAC
       QTMFilterHack filter (msgBox.buttons());

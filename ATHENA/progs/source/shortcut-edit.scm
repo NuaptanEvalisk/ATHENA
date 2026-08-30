@@ -76,7 +76,7 @@
   (in? cmd (map cadr current-user-shortcuts)))
 
 (tm-define (encode-shortcut sh)
-  (translate (kbd-system-rewrite sh)))
+  (kbd-system-rewrite sh))
 
 (tm-define (decode-shortcut sh)
   (with all (map (lambda (x) (cons (encode-shortcut x) x))

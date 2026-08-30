@@ -18,7 +18,7 @@
 #include "sys_utils.hpp"
 #include "file.hpp"
 #include "analyze.hpp"
-#include "dictionary.hpp"
+#include "gui_text.hpp"
 #include "tm_link.hpp"
 #include "socket_notifier.hpp"
 #include "new_style.hpp"
@@ -99,13 +99,6 @@ get_subtree (path p) {
   return get_current_editor () -> the_subtree (p);
 }
 
-void
-gui_set_output_language (string lan) {
-  set_output_language (lan);
-  get_server () -> refresh ();
-  gui_refresh ();
-}
-
 server_rep::server_rep () {}
 server_rep::~server_rep () {}
 
@@ -152,7 +145,7 @@ tm_server_rep::set_center_message (tree m) {
 #endif
   center_message= m;
   tree c = as_footer_tree (call ("center-footer-hook", object (as_string (m))));
-  set_center_footer (translate (c));
+  set_center_footer (ui_text (c));
 }
 
 tree
@@ -337,7 +330,7 @@ tm_server_rep::post_repaint_handler () {
 void
 tm_server_rep::wait_handler (string message, string arg) {
   if (has_current_window ())
-    show_wait_indicator (concrete_window () -> win, translate (message), arg);
+    show_wait_indicator (concrete_window () -> win, ui_text (message), arg);
   else
     cout << "ATHENA] Please wait: " << message << " " << arg << "\n";
 }
@@ -413,7 +406,7 @@ tm_server_rep::typeset_update_all () {
 bool
 tm_server_rep::is_yes (string s) {
   s= locase_all (s);
-  string st= locase_all (translate ("yes"));
+  string st= "yes";
   return tm_forward_access (s, 0) == tm_forward_access (st, 0) || s == st;
 }
 

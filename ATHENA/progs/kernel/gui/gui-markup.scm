@@ -249,48 +249,33 @@
 ;; Menu and widget elements
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-; Temporary hack:
-(tm-define all-translations (make-ahash-table))
-
-(define (process-translate x)
+(define (process-ui-text x)
   (if (or (func? x 'concat) (func? x 'verbatim) (func? x 'replace))
-      `(list ',(car x) ,@(map process-translate (cdr x)))
+      `(list ',(car x) ,@(map process-ui-text (cdr x)))
       x))
 
 (tm-define-macro ($-> text . l)
   (:synopsis "Make pullright button")
-  (if developer-mode?
-    (ahash-set! all-translations text #t))
   `(cons* '-> ,text ($list ,@l)))
 
 (tm-define-macro ($=> text . l)
   (:synopsis "Make pulldown button")
-  (if developer-mode?
-    (ahash-set! all-translations text #t))
   `(cons* '=> ,text ($list ,@l)))
 
 (tm-define-macro ($> text . cmds)
   (:synopsis "Make button")
-  (if developer-mode?
-    (ahash-set! all-translations text #t))
   `(list ,text (lambda () ,@cmds)))
 
 (tm-define-macro ($check text check pred?)
   (:synopsis "Make check")
-  (if developer-mode?
-    (ahash-set! all-translations text #t))
   `(list 'check ,text ,check (lambda () ,pred?)))
 
 (tm-define-macro ($shortcut* text sh)
   (:synopsis "Make shortcut")
-  (if developer-mode?
-    (ahash-set! all-translations text #t))
   `(list 'shortcut ,text ,sh))
 
 (tm-define-macro ($balloon text balloon)
   (:synopsis "Make balloon")
-  (if developer-mode?
-    (ahash-set! all-translations text #t))
   `(list 'balloon ,text ,balloon))
 
 (tm-define-macro ($concat-text . l)
@@ -302,9 +287,7 @@
   `(quote (verbatim ,@l)))
 
 (tm-define-macro ($replace-text str . x)
-  (:synopsis "Make text to be translated with arguments")
-  (if developer-mode?
-      (ahash-set! all-translations (car x) #t))
+  (:synopsis "Format direct English interface text with arguments")
   `(quote (replace ,str ,@x)))
 
 (tm-define-macro ($icon name)
@@ -319,13 +302,11 @@
 
 (tm-define-macro ($menu-group text)
   (:synopsis "Make a menu group")
-  `(list 'group ,(process-translate text)))
+  `(list 'group ,(process-ui-text text)))
 
 (tm-define-macro ($menu-text text)
   (:synopsis "Make text")
-  (if developer-mode?
-    (ahash-set! all-translations text #t))
-  `(list 'text ,(process-translate text)))
+  `(list 'text ,(process-ui-text text)))
 
 (tm-define-macro ($menu-invisible text)
   (:synopsis "Make invisible")
@@ -584,15 +565,14 @@
       (body ($unquote ($block ,@l))))))
 
 (tm-define-macro ($tmdoc . l)
-  (with lan (get-output-language)
-    ($quote
-      `(document
-         (TeXmacs ,(texmacs-compat-version))
-         (style (tuple "tmdoc" ,lan))
-         (body ($unquote ($block ,@l)))))))
+  ($quote
+    `(document
+       (TeXmacs ,(texmacs-compat-version))
+       (style (tuple "tmdoc" "english"))
+       (body ($unquote ($block ,@l))))))
 
 (tm-define-macro ($localize . l)
-  `(tree-translate ($inline ,@l)))
+  `($inline ,@l))
 
 (tm-define-macro ($tmdoc-title . l)
   ($quote `(document (tmdoc-title ($unquote ($inline ,@l))))))

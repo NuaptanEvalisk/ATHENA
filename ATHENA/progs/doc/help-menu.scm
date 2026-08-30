@@ -143,8 +143,6 @@
 	    ("Documentation"
 	     (load-help-article
 	      "about/contribute/documentation/documentation"))
-	    ("Internationalization"
-	     (load-help-article "about/contribute/translate/translate"))
 	    ("Writing data converters"
 	     (load-help-article "about/contribute/converters/converters"))
 	    ("Porting TeXmacs to other platforms"

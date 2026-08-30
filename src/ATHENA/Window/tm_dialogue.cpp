@@ -15,7 +15,7 @@
 #include "file.hpp"
 #include "analyze.hpp"
 #include "message.hpp"
-#include "dictionary.hpp"
+#include "gui_text.hpp"
 
 /******************************************************************************
 * Dialogues
@@ -80,11 +80,8 @@ dialogue_command (server_rep* sv, object fun, int n) {
 void
 tm_frame_rep::dialogue_start (string name, widget wid) {
   if (is_nil (dialogue_win)) {
-    string lan= get_output_language ();
-    if (lan == "russian") lan= "english";
-    name= translate (name, "english", lan);
     dialogue_wid= wid;
-    dialogue_win= plain_window_widget (dialogue_wid, name);
+    dialogue_win= plain_window_widget (dialogue_wid, ui_text (name));
 
     if (has_current_window ()) {
       widget win= concrete_window () -> win;
@@ -162,13 +159,13 @@ tm_frame_rep::choose_file (object fun, string title, string type,
 static string
 get_prompt (scheme_tree p, int i) {
   if (is_atomic (p[i]) && is_quoted (p[i]->label))
-    return translate (scm_unquote (p[i]->label));
+    return ui_text (scm_unquote (p[i]->label));
   else if (is_tuple (p[i]) && N(p[i])>0) {
     if (is_atomic (p[i][0]) && is_quoted (p[i][0]->label))
-      return translate (scm_unquote (p[i][0]->label));
-    return translate (scheme_tree_to_tree (p[i][0]));
+      return ui_text (scm_unquote (p[i][0]->label));
+    return ui_text (scheme_tree_to_tree (p[i][0]));
   }
-  return translate ("Input:");
+  return "Input:";
 }
 
 static string
@@ -214,8 +211,8 @@ tm_frame_rep::interactive (object fun, scheme_tree p) {
       if (k > 0) set_string_input (input_wid, proposals[0]);
       for (j=0; j<k; j++) add_input_proposal (input_wid, proposals[j]);
     }
-    string title= translate ("Enter data");
-    if (ends (prompts[0], "?")) title= translate ("Question");
+    string title= "Enter data";
+    if (ends (prompts[0], "?")) title= "Question";
     dialogue_start (title, wid);
     send_keyboard_focus (get_form_field (dialogue_wid, 0));
   }

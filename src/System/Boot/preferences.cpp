@@ -13,7 +13,6 @@
 #include "basic.hpp"
 #include "file.hpp"
 #include "sys_utils.hpp"
-#include "locale.hpp"
 #include "analyze.hpp"
 #include "convert.hpp"
 #include "merge_sort.hpp"
@@ -39,7 +38,6 @@ void notify_preference (string var);
 
 enum builtin_default_kind {
   PREF_STATIC,
-  PREF_LANGUAGE,
   PREF_PRINTING_COMMAND,
   PREF_PAPER_TYPE,
   PREF_GPG_EXECUTABLE
@@ -70,8 +68,6 @@ default_paper_type () {
 static string
 builtin_default_value (const builtin_preference& pref) {
   switch (pref.kind) {
-  case PREF_LANGUAGE:
-    return get_locale_language ();
   case PREF_PRINTING_COMMAND:
     return get_printing_default ();
   case PREF_PAPER_TYPE:
@@ -102,7 +98,6 @@ ensure_builtin_user_preferences () {
     PREF ("new toolbar", "on", "notify-restart"),
     PREF ("disable texmacs window positioning", "off", ""),
     PREF ("complex actions", "popups", ""),
-    PREF_KIND ("language", "english", "notify-language", PREF_LANGUAGE),
     PREF ("default cjk language", "chinese", ""),
     PREF ("render solution in smaller font", "on",
           "notify-enunciation-rendering"),

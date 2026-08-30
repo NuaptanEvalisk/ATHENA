@@ -12,7 +12,7 @@
 #include "edit_interface.hpp"
 #include "convert.hpp"
 #include "connect.hpp"
-#include "dictionary.hpp"
+#include "gui_text.hpp"
 #include "tm_server.hpp"
 #include "server.hpp"
 #include "new_view.hpp"
@@ -45,7 +45,7 @@ is_startup_banner_message (tree l, tree r) {
 
 void
 edit_interface_rep::set_left_footer (tree l) {
-  SERVER (set_left_footer (translate (l)));
+  SERVER (set_left_footer (ui_text (l)));
 }
 
 void
@@ -124,12 +124,12 @@ edit_interface_rep::set_left_footer () {
 
 void
 edit_interface_rep::set_center_footer (tree c) {
-  SERVER (set_center_footer (translate (c)));
+  SERVER (set_center_footer (ui_text (c)));
 }
 
 void
 edit_interface_rep::set_right_footer (tree r) {
-  SERVER (set_right_footer (translate (r)));
+  SERVER (set_right_footer (ui_text (r)));
 }
 
 tree
@@ -584,7 +584,7 @@ edit_interface_rep::set_message (tree l, tree r, bool temp) {
   if ((l != "" || r != "") &&
       !is_startup_banner_message (l, r) &&
       get_preference ("use toast notifications", "off") == "on" &&
-      qtm_show_toast (translate (l), translate (r))) {
+      qtm_show_toast (ui_text (l), ui_text (r))) {
     message_l= "";
     message_r= "";
     if (!temp) {

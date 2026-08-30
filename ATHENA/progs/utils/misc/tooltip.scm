@@ -41,7 +41,7 @@
   (set! y (quotient y 256))
   (if tooltip-win (tooltip-unmap))
   (with win (alt-window-handle)
-    (alt-window-create-tooltip win wid (translate "Tooltip"))
+    (alt-window-create-tooltip win wid "Tooltip")
     (alt-window-set-position win x y)
     (alt-window-show win)
     (set! tooltip-id id)

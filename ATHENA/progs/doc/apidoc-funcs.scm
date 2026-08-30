@@ -328,7 +328,7 @@
               (doc-explain-sub (cdr entries) scheme?)))))
   
 (tm-define ($doc-explain-scm* key)
-  (with docs (doc-retrieve (doc-scm-cache) key (get-output-language))
+  (with docs (doc-retrieve (doc-scm-cache) key "english")
     (if (null? docs)
         ($explain-scheme-not-found key) 
         `(document ,@(doc-explain-sub docs #t)))))
@@ -348,7 +348,7 @@
          "."))))
 
 (tm-define ($doc-explain-macro* key)
-  (with docs (doc-retrieve (doc-macro-cache) key (get-output-language))
+  (with docs (doc-retrieve (doc-macro-cache) key "english")
     (if (null? docs)
         ($explain-macro-not-found key)
         `(document ,@(doc-explain-sub docs #f)))))

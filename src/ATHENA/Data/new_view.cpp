@@ -15,7 +15,6 @@
 #include "web_files.hpp"
 #include "tm_link.hpp"
 #include "message.hpp"
-#include "dictionary.hpp"
 #include "new_document.hpp"
 #include "drd_std.hpp"
 #include "boot.hpp"

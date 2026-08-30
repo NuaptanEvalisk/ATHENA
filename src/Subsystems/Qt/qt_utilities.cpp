@@ -46,7 +46,6 @@
 
 #include "colors.hpp"
 
-#include "dictionary.hpp"
 #include "converter.hpp"
 #include "locale.hpp"
 #include "scheme.hpp"
@@ -858,13 +857,6 @@ qt_apply_tm_style (QWidget* qwid, int style, color c) {
 }
 
 
-QString
-qt_translate (const string& s) {
-  string in_lan= get_input_language ();
-  string out_lan= get_output_language ();
-  return to_qstring(tm_var_encode (translate (s, in_lan, out_lan)));
-}
-
 string
 qt_application_directory () {
   return string (QCoreApplication::applicationDirPath().toUtf8().constData());
@@ -917,7 +909,7 @@ string
 qt_pretty_date (int t, string fm) {
   QDateTime dt= QDateTime::fromSecsSinceEpoch (t);
 
-  QLocale loc = QLocale (to_qstring (get_locale_language ()));
+  QLocale loc (QLocale::English, QLocale::UnitedStates);
   QString s ("");
   if (fm == "short") {
     s = loc.toString (dt.date (), QLocale::FormatType::ShortFormat);

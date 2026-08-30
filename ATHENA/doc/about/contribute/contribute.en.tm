@@ -12,8 +12,6 @@
 
     <branch|Documentation|documentation/documentation.en.tm>
 
-    <branch|Internationalization|translate/translate.en.tm>
-
     <branch|Writing data converters|converters/converters.en.tm>
 
     <branch|Porting <TeXmacs> to other platforms|porting/porting.en.tm>

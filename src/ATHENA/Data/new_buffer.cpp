@@ -15,7 +15,6 @@
 #include "web_files.hpp"
 #include "tm_link.hpp"
 #include "message.hpp"
-#include "dictionary.hpp"
 #include "new_document.hpp"
 #include "merge_sort.hpp"
 
@@ -191,7 +190,7 @@ string
 propose_title (string old_title, url u, tree doc) {
   string name= as_string (tail (u));
   if (starts (name, "no_name_") && ends (name, ".tm")) {
-    string no_name= translate ("No name");
+    string no_name= "No name";
     for (int i=0; i<N(no_name); i++)
       if (((unsigned char) (no_name[i])) >= (unsigned char) 128)
         { no_name= "No name"; break; }

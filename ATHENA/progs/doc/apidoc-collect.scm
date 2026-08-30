@@ -194,7 +194,7 @@
 (tm-define (doc-check-cache)
   (:synopsis "Ensure that the documentation cache is built")
   (let  ((t (get-preference "doc:collect-timestamp"))
-         (lan (get-output-language))
+         (lan "english")
          (langs (get-preference "doc:collect-languages")))
     (if (not (and (!= t "default") (list? langs) (member lan langs)))
         (doc-collect-all lan))))

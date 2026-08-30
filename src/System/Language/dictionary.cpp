@@ -17,6 +17,7 @@
 #include "drd_std.hpp"
 #include "scheme.hpp"
 #include "iterator.hpp"
+#include "gui_text.hpp"
 
 RESOURCE_CODE(dictionary);
 
@@ -61,7 +62,7 @@ void
 dictionary_rep::load (string fname) {
   fname= fname * ".scm";
   if (DEBUG_CONVERT) debug_convert << "Loading " << fname << "\n";
-  url u= url ("$ATHENA_DIC_PATH") * url_wildcard ("*" * fname);
+  url u= url ("$ATHENA_DOCUMENT_LOCALE_PATH") * url_wildcard ("*" * fname);
   load (expand (complete (u)));
 }
 
@@ -153,53 +154,11 @@ dictionary_rep::translate (string s, bool guess) {
   return s;
 }
 
-/******************************************************************************
-* Interface
-******************************************************************************/
-
-static string in_lan ("english");
-static string out_lan ("english");
-
-void set_input_language (string s) { in_lan= s; }
-string get_input_language () { return in_lan; }
-void set_output_language (string s) { out_lan= s; }
-string get_output_language () { return out_lan; }
-
 string
 translate (string s, string from, string to) {
   if (N(from)==0) return s;
   dictionary dict= load_dictionary (from, to);
   return dict->translate (s);
-}
-
-string
-translate (string s) {
-  return translate (s, "english", out_lan);
-}
-
-string
-translate (const char* s) {
-  return translate (string (s), "english", out_lan);
-}
-
-void
-force_load_dictionary (string from, string to) {
-  string name= from * "-" * to;
-  if (dictionary::instances -> contains (name))
-    dictionary::instances -> reset (name);
-  load_dictionary (from, to);
-  notify_preference ("language");
-}
-
-string
-translate_as_is (string s, string from, string to) {
-  dictionary dict= load_dictionary (from, to);
-  return dict->translate (s, false);
-}
-
-string
-translate_as_is (string s) {
-  return translate_as_is (s, "english", out_lan);
 }
 
 /******************************************************************************
@@ -243,13 +202,13 @@ tree_translate (tree t, string from, string to) {
         //cout << "tree_translate() ERROR: first child should be a string\n";
       return t;
     }
-    t[0]->label= translate_as_is (t[0]->label, from, to);
+    t[0]->label= load_dictionary (from, to)->translate (t[0]->label, false);
     return translate_replace (t, from, to);
   }
   else if (is_compound (t, "verbatim", 1))
     return t[0];
   else if (is_compound (t, "localize", 1))
-    return tree_translate (t[0], "english", out_lan);
+    return tree_translate (t[0], "english", to);
   else if (is_compound (t, "render-key", 1))
     return compound ("render-key", tree_translate (t[0], from, to));
   else {
@@ -261,64 +220,7 @@ tree_translate (tree t, string from, string to) {
   }
 }
 
-tree
-tree_translate (tree t) {
-  return tree_translate (t, "english", out_lan);
-}
-
-/******************************************************************************
-* Translate and serialize
-******************************************************************************/
-
-static string
-serialize (tree t) {
-  if (is_atomic (t))
-    return t->label;
-  else if (is_concat (t)) {
-    string s;
-    for (int i=0; i<N(t); i++) {
-      tree u= t[i];
-      while (is_concat (u) && N(u) > 0) u= u[0];
-      if (i > 0 && is_compound (u, "render-key"))
-	if (!is_atomic (t[i-1]) || !ends (t[i-1]->label, " ")) {
-	  if (use_macos_fonts () || gui_is_qt ()) s << "  ";
-	  else s << " ";
-	}
-      s << serialize (t[i]);
-    }
-    return s;
-  }
-  else if (is_compound (t, "render-key", 1))
-    return serialize (t[0]);
-  else if (is_func (t, WITH))
-    return serialize (t[N(t)-1]);
-  else if (is_compound (t, "math", 1))
-    return serialize (t[0]);
-  else if (is_compound (t, "op", 1)) {
-    t= t[0];
-    if (gui_is_qt ()) {
-      if (t == "<leftarrow>") return "Left";
-      if (t == "<rightarrow>") return "Right";
-      if (t == "<uparrow>") return "Up";
-      if (t == "<downarrow>") return "Down";
-    }
-    else {
-      if (t == "<leftarrow>") return "left";
-      if (t == "<rightarrow>") return "right";
-      if (t == "<uparrow>") return "up";
-      if (t == "<downarrow>") return "down";
-    }
-    return serialize (t);
-  }
-  else return "";
-}
-
 string
 translate (tree t, string from, string to) {
-  return serialize (tree_translate (t, from, to));
-}
-
-string
-translate (tree t) {
-  return serialize (tree_translate (t));
+  return ui_text (tree_translate (t, from, to));
 }

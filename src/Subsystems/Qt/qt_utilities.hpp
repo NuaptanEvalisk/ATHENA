@@ -72,19 +72,6 @@ QString   utf8_to_qstring (const string& s);
 QString latin1_to_qstring (const string& s);
 string  from_qstring_utf8 (const QString & s);
 
-/*! Returns a QString with the translation of the argument to the current
- language.
- 
- NOTE: translations of gui items are always done in the scheme side using 
- (translate stuff-to-translate), and this is enabled by default for most widgets
- displaying text. We need not and must not use Qt's mechanism for translations
- nor even this function, unless the strings to be translated are hardcoded in
- our code (which is wrong of course). While parsing widgets, etc. nothing is to
- be done wrt. translations.
- */
-QString qt_translate (const string& s);
-
-
 #ifdef OS_MACOS
 QString fromNSUrl(const QUrl &url);
 #endif

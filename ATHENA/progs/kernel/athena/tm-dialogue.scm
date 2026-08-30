@@ -27,8 +27,8 @@
 (define-public (user-confirm prompt default cont)
   (let ((k (lambda (answ) (cont (yes? answ)))))
     (if default
-        (user-ask (list prompt "question" (translate "yes") (translate "no")) k)
-        (user-ask (list prompt "question" (translate "no") (translate "yes")) k))))
+        (user-ask (list prompt "question" "yes" "no") k)
+        (user-ask (list prompt "question" "no" "yes") k))))
 
 (define-public (user-url prompt type cont)
   (user-delayed (lambda () (choose-file cont prompt type))))

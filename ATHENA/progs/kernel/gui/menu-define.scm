@@ -573,7 +573,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define (gui-make-pick-color x)
-  `($> ,(translate "Choose color...")
+  `($> "Choose color..."
        (interactive-color (lambda (answer) ,@(cdr x)) '())))
 
 (extend-table gui-make-table

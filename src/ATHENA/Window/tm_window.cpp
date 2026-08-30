@@ -13,7 +13,7 @@
 #include "tm_data.hpp"
 #include "scheme.hpp"
 #include "message.hpp"
-#include "dictionary.hpp"
+#include "gui_text.hpp"
 #include "merge_sort.hpp"
 #include "iterator.hpp"
 #include "boot.hpp"
@@ -642,7 +642,7 @@ tm_window_rep::interactive (string name, string type, array<string> def,
   if (get_interactive_mode ()) { s= "cancel"; return; }
   text_ptr = &s;
   call_back= cmd;
-  widget tw = text_widget (translate (name), 0, black, false);
+  widget tw = text_widget (ui_text (name), 0, black, false);
   widget inp= input_text_widget (tm_new<ia_command_rep> (this), type, def,
                                  WIDGET_STYLE_MINI);
   set_interactive_prompt (wid, tw);

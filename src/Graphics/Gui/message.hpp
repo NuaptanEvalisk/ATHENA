@@ -324,7 +324,7 @@ inline void
 send_update (widget w) {
   // this message is issued if the contents of w or a subwidget of w
   // has changed in such a way that the geometries of w and its subwidgets
-  // may need to be adjusted. Example: a change of the current output language
+  // may need to be adjusted after a structural UI change
   send (w, SLOT_UPDATE);
 }
 

@@ -13,7 +13,6 @@
 #include "hashset.hpp"
 #include "analyze.hpp"
 #include "connect.hpp"
-#include "dictionary.hpp"
 
 /******************************************************************************
 * Finding completions in text
@@ -91,7 +90,7 @@ void
 edit_interface_rep::complete_message () {
   int i, n= N(completions);
   string s= "";
-  string sep= translate (", ");  // Might be needed for oriental languages
+  string sep= ", ";
   for (i=1; i<min(n,11); i++) {
     int j= (completion_pos + i) % n;
     if (i != 1) s << sep;

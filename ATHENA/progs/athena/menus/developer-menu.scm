@@ -17,8 +17,7 @@
 
 
 (import-from (prog scheme-tools) (prog scheme-menu)
-             (doc apidoc) (doc apidoc-widgets)
-             (language natural))
+             (doc apidoc) (doc apidoc-widgets))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Miscellaneous extra routines
@@ -89,9 +88,6 @@
 (menu-bind developer-menu
   (group "Scheme")
   (link scheme-menu)
-  ---
-  (group "Translations")
-  (link translations-menu)
   ---
   (group "Documentation")
   (link apidoc-menu)

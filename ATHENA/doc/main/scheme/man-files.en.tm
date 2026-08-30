@@ -14,8 +14,8 @@
     <item><verbatim|$ATHENA_PATH/fonts/virtual> contains definitions of
     virtual characters.
 
-    <item><verbatim|$ATHENA_PATH/langs/natural/dic> contains the current
-    dictionaries used by <apply|TeXmacs>.
+    <item><verbatim|$ATHENA_PATH/langs/document> contains translations of
+    structural document terms such as section, theorem, proof, and references.
 
     <item><verbatim|$ATHENA_PATH/langs/natural/hyphen> contains hyphenation
     patterns for various languages.

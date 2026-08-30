@@ -27,9 +27,6 @@
   <subsection|Basic>
 
   <\description>
-    <item*|User interface language>Chooses the language used by menus,
-    dialogs, messages, and other interface text.
-
     <item*|Complex actions>Controls how commands that need extra information
     ask for it. They may ask through menus or through popup windows.
 

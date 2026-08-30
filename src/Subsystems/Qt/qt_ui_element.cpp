@@ -397,7 +397,7 @@ qt_ui_element_rep::as_qaction () {
       array<widget> arr = open_box<T> (load);
       
       act = new QTMAction (NULL);
-      act->setText (qt_translate ("Menu"));
+      act->setText (QStringLiteral ("Menu"));
       QMenu* m = new QMenu ();
       for (int i = 0; i < N(arr); i++) {
         if (is_nil (arr[i])) break;

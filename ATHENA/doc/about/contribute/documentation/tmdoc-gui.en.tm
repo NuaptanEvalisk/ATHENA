@@ -69,12 +69,10 @@
     Block versions of <markup|small-focus> and <markup|small-envbox>.
   </explain>
 
-  Notice that the contents of none of the above tags should be translated
-  into foreign languages. Indeed, for menu tags, the translations are done
-  automatically, so as to keep the translations synchronized with the
-  translations of the actual <TeXmacs> menus. In the cases of markup, styles,
-  packages and <abbr|d.t.d.>s, it is important to keep the original name,
-  because it often corresponds to a file name.
+  Keep the contents of these tags in English. Menu tags represent ATHENA's
+  English interface text directly. For markup, styles, packages and
+  <abbr|d.t.d.>s, the original name must also be preserved because it often
+  corresponds to a file name.
 
   <tmdoc-copyright|1998--2011|Joris van der Hoeven>
 
