@@ -153,8 +153,17 @@ done < "$plan_file"
 
 full_rebuild=0
 full_rebuild_reason=""
-if [[ ! -r "$previous_hash_file" || ! -r "$previous_plan_file" ||
-      ! -r "$previous_toolchain_file" ]]; then
+runtime_refresh="${ATHENA_SCHEME_RUNTIME_REFRESH:-0}"
+bootstrap_existing_outputs=0
+if [[ "$runtime_refresh" == 1 &&
+      ( ! -r "$previous_hash_file" || ! -r "$previous_plan_file" ) ]]; then
+  # A normal ATHENA startup reaches this mode only after validating the
+  # bundled runtime id and finding a source newer than its corresponding .go.
+  # Seed incremental state from those complete existing outputs instead of
+  # recompiling the entire Scheme tree on the first runtime refresh.
+  bootstrap_existing_outputs=1
+elif [[ ! -r "$previous_hash_file" || ! -r "$previous_plan_file" ||
+        ! -r "$previous_toolchain_file" ]]; then
   full_rebuild=1
   full_rebuild_reason="incremental state is unavailable"
 else
@@ -163,7 +172,8 @@ else
     previous_hash["$source_file"]="$digest"
   done < "$previous_hash_file"
   previous_toolchain="$(<"$previous_toolchain_file")"
-  if [[ "$previous_toolchain" != "$toolchain_hash" ]]; then
+  if [[ "$runtime_refresh" != 1 &&
+        "$previous_toolchain" != "$toolchain_hash" ]]; then
     full_rebuild=1
     full_rebuild_reason="compiler semantics changed"
   fi
@@ -173,6 +183,14 @@ if (( full_rebuild )); then
   echo "ATHENA Scheme bytecode: full rebuild: $full_rebuild_reason"
   for component in "${!current_components[@]}"; do
     affected["$component"]=1
+  done
+elif (( bootstrap_existing_outputs )); then
+  for source_file in "${sources[@]}"; do
+    relative="${source_file#"$source_root"/}"
+    compiled_file="$output/${relative%.scm}.go"
+    if [[ ! -f "$compiled_file" || "$source_file" -nt "$compiled_file" ]]; then
+      affected["${current_component[$source_file]}"]=1
+    fi
   done
 else
   for source_file in "${sources[@]}"; do
@@ -232,7 +250,8 @@ fi
 for source_file in "${sources[@]}"; do
   relative="${source_file#"$source_root"/}"
   compiled_file="$output/${relative%.scm}.go"
-  if [[ ! -f "$compiled_file" ]]; then
+  if [[ ! -f "$compiled_file" ||
+        ( "$runtime_refresh" == 1 && "$source_file" -nt "$compiled_file" ) ]]; then
     affected["${current_component[$source_file]}"]=1
   fi
 done
