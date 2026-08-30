@@ -19,6 +19,7 @@
 #include "QTMWidget.hpp"
 #include "QTMMenuHelper.hpp"
 #include <QPixmap>
+#include <QCursor>
 #include <QLayout>
 #include <QRegion>
 #include <cmath>
@@ -256,13 +257,17 @@ qt_simple_widget_rep::send (slot s, blackbox val) {
       typedef pair<string, string> T;
       check_type<T> (val, s);
       T contents = open_box<T> (val); // x1 = name, x2 = mask.
-      /*
-      if (contents.x2 == "")   // mask == ""
-        ;                      // set default pointer.
-      else                     // set new pointer
-        ;
-      */
-      NOT_IMPLEMENTED("qt_simple_widget::SLOT_MOUSE_POINTER");
+      Qt::CursorShape shape= Qt::ArrowCursor;
+      if (contents.x1 == "XC_hand2") shape= Qt::PointingHandCursor;
+      else if (contents.x1 == "XC_right_side" ||
+               contents.x1 == "XC_sb_h_double_arrow")
+        shape= Qt::SizeHorCursor;
+      else if (contents.x1 == "XC_bottom_side" ||
+               contents.x1 == "XC_sb_v_double_arrow")
+        shape= Qt::SizeVerCursor;
+      else if (contents.x1 == "XC_bottom_right_corner")
+        shape= Qt::SizeFDiagCursor;
+      if (canvas () != nullptr) canvas ()->setCursor (QCursor (shape));
     }
       break;
 

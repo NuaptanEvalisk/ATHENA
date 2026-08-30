@@ -136,12 +136,15 @@ protected:
   virtual void animate () = 0;
   virtual path search_format () = 0;
   virtual path search_format (int& row, int& col) = 0;
+  virtual path search_table (path fp) = 0;
   virtual void table_get_extents (path fp, int& nr_rows, int& nr_cols) = 0;
   virtual void table_bound (path fp, int& i1, int& j1, int& i2, int& j2) = 0;
   virtual tree table_get_subtable (path p, int i1, int j1, int i2, int j2) = 0;
   virtual void table_write_subtable (path fp, int row, int col, tree subt) = 0;
   virtual void table_del_format (path fp, int I1, int J1,
 				 int I2, int J2, string var) = 0;
+  virtual void table_set_format (path fp, int I1, int J1,
+				 int I2, int J2, string var, tree val) = 0;
   virtual void table_insert (path fp, int row, int col,
                              int nr_rows, int nr_cols) = 0;
   virtual void table_remove (path fp, int row, int col,

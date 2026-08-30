@@ -84,6 +84,12 @@ protected:
   SI            image_resize_x1, image_resize_y1;
   SI            image_resize_x2, image_resize_y2;
   rectangles    image_resize_rects;
+  bool          table_resize_active;
+  int           table_resize_handle;
+  path          table_resize_format_path;
+  int           table_resize_row, table_resize_column;
+  SI            table_resize_start_x, table_resize_start_y;
+  SI            table_resize_initial_size;
   rectangles    selection_rects;
   array<rectangles> alt_selection_rects;
   array<rectangles> spell_selection_rects;
@@ -232,6 +238,12 @@ public:
   bool image_resize_update (SI x, SI y);
   void image_resize_finish ();
   void draw_image_resize_handles (renderer ren, rectangle r);
+  bool table_cell_bounds (path fp, int row, int column, rectangle& r);
+  int  table_resize_handle_at (SI x, SI y, path& fp, int& row,
+                               int& column, rectangle& r);
+  bool table_resize_start (SI x, SI y);
+  bool table_resize_update (SI x, SI y);
+  void table_resize_finish ();
   array<heading_cell_bracket> heading_cell_brackets ();
   bool heading_cell_bracket_at (SI x, SI y, heading_cell_bracket& bracket);
   void select_heading_cell (heading_cell_bracket bracket);

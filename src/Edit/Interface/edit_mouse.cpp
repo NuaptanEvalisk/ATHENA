@@ -18,6 +18,7 @@
 #include "drd_mode.hpp"
 #include "message.hpp"
 #include "scheme.hpp"
+#include "tree_select.hpp"
 #include "window.hpp"
 
   // These are tm-defined in graphics-utils.scm (looks like they shouldn't)
@@ -46,6 +47,9 @@ static const int IMAGE_RESIZE_NONE   = 0;
 static const int IMAGE_RESIZE_RIGHT  = 1;
 static const int IMAGE_RESIZE_BOTTOM = 2;
 static const int IMAGE_RESIZE_CORNER = 3;
+static const int TABLE_RESIZE_NONE   = 0;
+static const int TABLE_RESIZE_COLUMN = 1;
+static const int TABLE_RESIZE_ROW    = 2;
 
 /******************************************************************************
 * Routines for the mouse
@@ -217,6 +221,158 @@ edit_interface_rep::image_resize_finish () {
   image_resize_rects= rectangles ();
   send_mouse_grab (this, false);
   notify_change (THE_DECORATIONS);
+}
+
+bool
+edit_interface_rep::table_cell_bounds (path fp, int row, int column,
+                                       rectangle& r) {
+  if (!(rp <= fp) || !has_subtree (et, fp)) return false;
+  tree format= subtree (et, fp);
+  if (!is_func (format, TFORMAT) && !is_func (format, TABLE)) return false;
+  int rows, columns;
+  table_get_extents (fp, rows, columns);
+  if (row < 0 || row >= rows || column < 0 || column >= columns) return false;
+  path cp= fp * ::table_search_cell (format, row, column);
+  selection sel= eb->find_check_selection (cp * 0, cp * 1);
+  if (is_nil (sel->rs)) return false;
+  r= least_upper_bound (sel->rs);
+  return r != rectangle (0, 0, 0, 0);
+}
+
+int
+edit_interface_rep::table_resize_handle_at (SI x, SI y, path& best_fp,
+                                            int& best_row, int& best_column,
+                                            rectangle& best_rect) {
+  if (inside_graphics ()) return TABLE_RESIZE_NONE;
+  SI threshold= 6 * pixel;
+  SI probe_x[5]= {x, x - threshold, x + threshold, x, x};
+  SI probe_y[5]= {y, y, y, y - threshold, y + threshold};
+  SI best_distance= threshold + 1;
+  int best_handle= TABLE_RESIZE_NONE;
+
+  for (int probe=0; probe<5; probe++) {
+    path hit= tree_path (path (), probe_x[probe], probe_y[probe], 0);
+    if (!(rp <= hit)) continue;
+    path structural= path_up (hit);
+    if (!(rp <= structural) || !has_subtree (et, structural)) continue;
+    path fp= ::table_search_format (et, structural);
+    if (is_nil (fp) || !(rp <= fp) || !has_subtree (et, fp)) continue;
+    tree format= subtree (et, fp);
+    if (!is_func (format, TFORMAT) && !is_func (format, TABLE)) continue;
+
+    int row, column, rows, columns;
+    ::table_search_coordinates (format, tail (structural, N(fp)), row, column);
+    table_get_extents (fp, rows, columns);
+    if (row < 0 || row >= rows || column < 0 || column >= columns) continue;
+
+    rectangle cell;
+    if (!table_cell_bounds (fp, row, column, cell)) continue;
+    auto consider= [&] (int handle, int target_row, int target_column,
+                         rectangle target, SI distance) {
+      if (distance > threshold || distance >= best_distance) return;
+      best_distance= distance;
+      best_handle= handle;
+      best_fp= fp;
+      best_row= target_row;
+      best_column= target_column;
+      best_rect= target;
+    };
+
+    if (y >= cell->y1 - threshold && y <= cell->y2 + threshold) {
+      consider (TABLE_RESIZE_COLUMN, row, column, cell,
+                abs_si (x - cell->x2));
+      if (column > 0) {
+        rectangle previous;
+        if (table_cell_bounds (fp, row, column - 1, previous))
+          consider (TABLE_RESIZE_COLUMN, row, column - 1, previous,
+                    abs_si (x - cell->x1));
+      }
+    }
+    if (x >= cell->x1 - threshold && x <= cell->x2 + threshold) {
+      consider (TABLE_RESIZE_ROW, row, column, cell,
+                abs_si (y - cell->y1));
+      if (row > 0) {
+        rectangle previous;
+        if (table_cell_bounds (fp, row - 1, column, previous))
+          consider (TABLE_RESIZE_ROW, row - 1, column, previous,
+                    abs_si (y - cell->y2));
+      }
+    }
+  }
+  return best_handle;
+}
+
+bool
+edit_interface_rep::table_resize_start (SI x, SI y) {
+  path fp;
+  int row= 0, column= 0;
+  rectangle r;
+  int handle= table_resize_handle_at (x, y, fp, row, column, r);
+  if (handle == TABLE_RESIZE_NONE) return false;
+
+  if (is_func (subtree (et, fp), TABLE)) insert_node (fp * 0, TFORMAT);
+  table_resize_active= true;
+  table_resize_handle= handle;
+  table_resize_format_path= fp;
+  table_resize_row= row;
+  table_resize_column= column;
+  table_resize_start_x= x;
+  table_resize_start_y= y;
+  table_resize_initial_size= handle == TABLE_RESIZE_COLUMN ?
+    abs_si (r->x2 - r->x1) : abs_si (r->y2 - r->y1);
+  send_mouse_grab (this, true);
+  return true;
+}
+
+bool
+edit_interface_rep::table_resize_update (SI x, SI y) {
+  if (!table_resize_active) return false;
+  path fp= table_resize_format_path;
+  if (!(rp <= fp) || !has_subtree (et, fp) ||
+      (!is_func (subtree (et, fp), TFORMAT) &&
+       !is_func (subtree (et, fp), TABLE))) {
+    table_resize_finish ();
+    return true;
+  }
+
+  SI delta= table_resize_handle == TABLE_RESIZE_COLUMN ?
+    x - table_resize_start_x : table_resize_start_y - y;
+  SI min_size= max (as_length ("16px"), (SI) 1);
+  SI final_size= max (table_resize_initial_size + delta, min_size);
+  SI px_len= (SI) tm_round (((double) max (as_length ("1px"), (SI) 1)) *
+                            zoomf);
+  px_len= max (px_len, (SI) 1);
+  int size_px= (int) max ((SI) 1,
+    (SI) tm_round (((double) final_size) / ((double) px_len)));
+  tree value (as_string (size_px) * "px");
+
+  if (table_resize_handle == TABLE_RESIZE_COLUMN) {
+    table_set_format (fp, 1, table_resize_column + 1, -1,
+                      table_resize_column + 1, CELL_WIDTH, value);
+    table_set_format (fp, 1, table_resize_column + 1, -1,
+                      table_resize_column + 1, CELL_HMODE, tree ("exact"));
+  }
+  else {
+    table_set_format (fp, table_resize_row + 1, 1,
+                      table_resize_row + 1, -1, CELL_HEIGHT, value);
+    table_set_format (fp, table_resize_row + 1, 1,
+                      table_resize_row + 1, -1, CELL_VMODE, tree ("exact"));
+  }
+
+  path table= search_table (fp);
+  if (!is_nil (table))
+    call ("table-resize-notify", object (subtree (et, table)));
+  notify_change (THE_TREE + THE_ENVIRONMENT);
+  return true;
+}
+
+void
+edit_interface_rep::table_resize_finish () {
+  if (!table_resize_active) return;
+  table_resize_active= false;
+  table_resize_handle= TABLE_RESIZE_NONE;
+  table_resize_format_path= path ();
+  send_mouse_grab (this, false);
 }
 
 bool
@@ -761,6 +917,14 @@ edit_interface_rep::mouse_any (string type, SI x, SI y, int mods, time_t t,
     if (handle == IMAGE_RESIZE_CORNER) set_pointer ("XC_bottom_right_corner");
     else if (handle == IMAGE_RESIZE_RIGHT) set_pointer ("XC_right_side");
     else if (handle == IMAGE_RESIZE_BOTTOM) set_pointer ("XC_bottom_side");
+    else {
+      int row, column;
+      handle= table_resize_handle_at (x, y, p, row, column, r);
+      if (handle == TABLE_RESIZE_COLUMN)
+        set_pointer ("XC_sb_h_double_arrow");
+      else if (handle == TABLE_RESIZE_ROW)
+        set_pointer ("XC_sb_v_double_arrow");
+    }
     if (over_heading_bracket) set_pointer ("XC_hand2");
   }
 
@@ -847,6 +1011,7 @@ edit_interface_rep::mouse_any (string type, SI x, SI y, int mods, time_t t,
   
   if (type == "press-left" || type == "start-drag-left") {
     if (mods <= 1 && image_resize_start (x, y)) return;
+    if (mods <= 1 && table_resize_start (x, y)) return;
     if (mods > 1) {
       mouse_adjusting = mods;
       mouse_adjust_selection(x, y, mods);
@@ -856,6 +1021,10 @@ edit_interface_rep::mouse_any (string type, SI x, SI y, int mods, time_t t,
   if (type == "dragging-left") {
     if (image_resize_active) {
       image_resize_update (x, y);
+      return;
+    }
+    if (table_resize_active) {
+      table_resize_update (x, y);
       return;
     }
     if (mouse_adjusting && mods > 1) {
@@ -868,6 +1037,11 @@ edit_interface_rep::mouse_any (string type, SI x, SI y, int mods, time_t t,
     if (image_resize_active) {
       image_resize_update (x, y);
       image_resize_finish ();
+      return;
+    }
+    if (table_resize_active) {
+      table_resize_update (x, y);
+      table_resize_finish ();
       return;
     }
     // Wayland may coalesce the last motion before release.  Finish the
