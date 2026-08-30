@@ -484,7 +484,7 @@
 
   <subsection|Html>
 
-  <subsubsection|TeXmacs -\<gtr\> Html>
+  <subsubsection|ATHENA → Html>
 
   <\description>
     <item*|Use CSS for more advanced formatting>Exports additional formatting
@@ -505,7 +505,7 @@
     or leaves it unset.
   </description>
 
-  <subsubsection|Html -\<gtr\> TeXmacs>
+  <subsubsection|Html → ATHENA>
 
   <\description>
     <item*|Try to import formulas using LaTeX annotations>When HTML or MathML
@@ -514,20 +514,20 @@
 
   <subsection|LaTeX>
 
-  <subsubsection|LaTeX -\<gtr\> TeXmacs>
+  <subsubsection|LaTeX → ATHENA>
 
   <\description>
     <item*|Import sophisticated objects as pictures>Falls back to picture
     import for LaTeX objects that cannot be represented structurally.
   </description>
 
-  <subsubsection|TeXmacs -\<gtr\> LaTeX>
+  <subsubsection|ATHENA → LaTeX>
 
   <\description>
-    <item*|Replace TeXmacs styles with no LaTeX equivalents>Uses replacement
-    styles when a TeXmacs style has no direct LaTeX equivalent.
+    <item*|Replace ATHENA styles with no LaTeX equivalents>Uses replacement
+    styles when an ATHENA style has no direct LaTeX equivalent.
 
-    <item*|Expand TeXmacs macros with no LaTeX equivalents>Expands TeXmacs
+    <item*|Expand ATHENA macros with no LaTeX equivalents>Expands ATHENA
     macros that LaTeX cannot represent directly.
 
     <item*|Expand user-defined macros>Expands user-defined macros during
@@ -558,7 +558,7 @@
 
   <subsection|Verbatim>
 
-  <subsubsection|TeXmacs -\<gtr\> Verbatim>
+  <subsubsection|ATHENA → Verbatim>
 
   <\description>
     <item*|Use line wrapping for lines longer than 80 characters>Wraps long
@@ -568,7 +568,7 @@
     automatic, Cork, ISO-8859-1, ISO-8859-2, or UTF-8.
   </description>
 
-  <subsubsection|Verbatim -\<gtr\> TeXmacs>
+  <subsubsection|Verbatim → ATHENA>
 
   <\description>
     <item*|Merge lines into paragraphs unless separated by blank lines>Merges
@@ -580,7 +580,7 @@
 
   <subsection|Pdf>
 
-  <subsubsection|TeXmacs -\<gtr\> Pdf/Postscript>
+  <subsubsection|ATHENA → Pdf/Postscript>
 
   <\description>
     <item*|Produce Pdf using native export filter>Uses the native PDF export
@@ -611,7 +611,7 @@
 
   <subsection|Image>
 
-  <subsubsection|TeXmacs -\<gtr\> Image>
+  <subsubsection|ATHENA → Image>
 
   <\description>
     <item*|Bitmap export resolution (dpi)>Chooses the raster export
@@ -621,7 +621,7 @@
     export. The available formats depend on installed converters.
   </description>
 
-  <subsubsection|Image -\<gtr\> TeXmacs>
+  <subsubsection|Image → ATHENA>
 
   <\description>
     <item*|Auto remove image background>Attempts to remove the background

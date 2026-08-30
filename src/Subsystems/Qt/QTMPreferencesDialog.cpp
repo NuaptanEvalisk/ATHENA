@@ -330,21 +330,26 @@ pixmap_icon (const char* path) {
 
 static QIcon
 category_icon (QStyle* style, const QString& name) {
+  (void) style;
   if (name == "General")
-    return pixmap_icon ("$ATHENA_PATH/misc/pixmaps/modern/32x32/settings/tm_prefs_general.png");
+    return pixmap_icon ("$ATHENA_PATH/misc/pixmaps/modern/32x32/settings/tm_prefs_general.svg");
   if (name == "Keyboard")
-    return pixmap_icon ("$ATHENA_PATH/misc/pixmaps/modern/32x32/settings/tm_prefs_keyboard.png");
+    return pixmap_icon ("$ATHENA_PATH/misc/pixmaps/modern/32x32/settings/tm_prefs_keyboard.svg");
+  if (name == "Editing")
+    return pixmap_icon ("$ATHENA_PATH/misc/pixmaps/modern/20x20/mode/tm_edit_props.svg");
   if (name == "Rendering")
     return pixmap_icon ("$ATHENA_PATH/misc/pixmaps/modern/20x20/mode/tm_view.svg");
   if (name == "Convert")
-    return pixmap_icon ("$ATHENA_PATH/misc/pixmaps/modern/32x32/settings/tm_prefs_convert.png");
+    return pixmap_icon ("$ATHENA_PATH/misc/pixmaps/modern/32x32/settings/tm_prefs_convert.svg");
   if (name == "Vault")
+    return pixmap_icon ("$ATHENA_PATH/misc/pixmaps/modern/24x24/main/tm_open.svg");
+  if (name == "Knowledge")
     return pixmap_icon ("$ATHENA_PATH/misc/pixmaps/modern/20x20/mode/tm_link.svg");
+  if (name == "Materials")
+    return pixmap_icon ("$ATHENA_PATH/misc/pixmaps/modern/20x20/mode/tm_document_at.svg");
   if (name == "Other")
-    return pixmap_icon ("$ATHENA_PATH/misc/pixmaps/modern/32x32/settings/tm_prefs_other.png");
-  if (name == "Editing")
-    return style->standardIcon (QStyle::SP_FileIcon);
-  return style->standardIcon (QStyle::SP_FileDialogDetailedView);
+    return pixmap_icon ("$ATHENA_PATH/misc/pixmaps/modern/32x32/settings/tm_prefs_other.svg");
+  return QIcon ();
 }
 
 static QWidget*
@@ -1531,7 +1536,7 @@ QTMPreferencesDialog::buildRenderingPage () {
 QWidget*
 QTMPreferencesDialog::buildConversionPage () {
   QWidget* html= make_page ();
-  QFormLayout* h1= add_section (html, "TeXmacs -> Html");
+  QFormLayout* h1= add_section (html, "ATHENA → Html");
   add_toggle (h1, "Use CSS for more advanced formatting:",
               "texmacs->html:css");
   QCheckBox* mathjax= add_toggle (h1, "Export mathematical formulas as MathJax:",
@@ -1576,19 +1581,19 @@ QTMPreferencesDialog::buildConversionPage () {
               {"https://www.texmacs.org/css/web-article-dark-colored.css",
                "web-article-dark-colored.css"},
               {"", ""}}, "---");
-  QFormLayout* h2= add_section (html, "Html -> TeXmacs");
+  QFormLayout* h2= add_section (html, "Html → ATHENA");
   add_toggle (h2, "Try to import formulas using LaTeX annotations:",
               "mathml->texmacs:latex-annotations");
   finish_page (html);
 
   QWidget* latex= make_page ();
-  QFormLayout* l1= add_section (latex, "LaTeX -> TeXmacs");
+  QFormLayout* l1= add_section (latex, "LaTeX → ATHENA");
   add_toggle (l1, "Import sophisticated objects as pictures:",
               "latex->texmacs:fallback-on-pictures");
-  QFormLayout* l2= add_section (latex, "TeXmacs -> LaTeX");
-  add_toggle (l2, "Replace TeXmacs styles with no LaTeX equivalents:",
+  QFormLayout* l2= add_section (latex, "ATHENA → LaTeX");
+  add_toggle (l2, "Replace ATHENA styles with no LaTeX equivalents:",
               "texmacs->latex:replace-style");
-  add_toggle (l2, "Expand TeXmacs macros with no LaTeX equivalents:",
+  add_toggle (l2, "Expand ATHENA macros with no LaTeX equivalents:",
               "texmacs->latex:expand-macros");
   add_toggle (l2, "Expand user-defined macros:",
               "texmacs->latex:expand-user-macros");
@@ -1626,14 +1631,14 @@ QTMPreferencesDialog::buildConversionPage () {
   finish_page (latex);
 
   QWidget* verbatim= make_page ();
-  QFormLayout* v1= add_section (verbatim, "TeXmacs -> Verbatim");
+  QFormLayout* v1= add_section (verbatim, "ATHENA → Verbatim");
   add_toggle (v1, "Use line wrapping for lines longer than 80 characters:",
               "texmacs->verbatim:wrap");
   add_combo (v1, "Character encoding:", "texmacs->verbatim:encoding",
              {{"auto", "Automatic"}, {"cork", "Cork"},
               {"iso-8859-1", "Iso-8859-1"},
               {"iso-8859-2", "Iso-8859-2"}, {"utf-8", "Utf-8"}});
-  QFormLayout* v2= add_section (verbatim, "Verbatim -> TeXmacs");
+  QFormLayout* v2= add_section (verbatim, "Verbatim → ATHENA");
   add_toggle (v2, "Merge lines into paragraphs unless separated by blank lines:",
               "verbatim->texmacs:wrap");
   add_combo (v2, "Character encoding:", "verbatim->texmacs:encoding",
@@ -1643,7 +1648,7 @@ QTMPreferencesDialog::buildConversionPage () {
   finish_page (verbatim);
 
   QWidget* pdf= make_page ();
-  QFormLayout* pdfForm= add_section (pdf, "TeXmacs -> Pdf/Postscript");
+  QFormLayout* pdfForm= add_section (pdf, "ATHENA → Pdf/Postscript");
   if (scheme_bool ("supports-native-pdf?"))
     add_toggle (pdfForm, "Produce Pdf using native export filter:",
                 "native pdf");
@@ -1666,7 +1671,7 @@ QTMPreferencesDialog::buildConversionPage () {
   finish_page (pdf);
 
   QWidget* image= make_page ();
-  QFormLayout* im1= add_section (image, "TeXmacs -> Image");
+  QFormLayout* im1= add_section (image, "ATHENA → Image");
   add_combo (im1, "Bitmap export resolution (dpi):",
              "texmacs->image:raster-resolution",
              {{"1200", "1200"}, {"600", "600"}, {"300", "300"},
@@ -1681,7 +1686,7 @@ QTMPreferencesDialog::buildConversionPage () {
   if (formats.empty ()) formats.push_back ({"png", "Png"});
   add_combo (im1, "Clipboard image format:", "texmacs->image:format", formats,
              "png");
-  QFormLayout* im2= add_section (image, "Image -> TeXmacs");
+  QFormLayout* im2= add_section (image, "Image → ATHENA");
   add_toggle (im2, "Auto remove image background:",
               "image auto remove background");
   add_toggle (im2, "Use Inkscape for conversion from SVG:",
