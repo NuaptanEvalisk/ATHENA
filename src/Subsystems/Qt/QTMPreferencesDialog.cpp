@@ -329,26 +329,32 @@ pixmap_icon (const char* path) {
 }
 
 static QIcon
-category_icon (QStyle* style, const QString& name) {
-  (void) style;
+category_icon (const QString& name) {
+  auto libreoffice_icon= [] (const char* icon_name) {
+    std::string path=
+      "$ATHENA_PATH/misc/icons/libreoffice/colibre/cmd/32/";
+    path += icon_name;
+    path += ".svg";
+    return pixmap_icon (path.c_str ());
+  };
   if (name == "General")
-    return pixmap_icon ("$ATHENA_PATH/misc/pixmaps/modern/32x32/settings/tm_prefs_general.svg");
+    return libreoffice_icon ("configuredialog");
   if (name == "Keyboard")
-    return pixmap_icon ("$ATHENA_PATH/misc/pixmaps/modern/32x32/settings/tm_prefs_keyboard.svg");
+    return libreoffice_icon ("assignmacro");
   if (name == "Editing")
-    return pixmap_icon ("$ATHENA_PATH/misc/pixmaps/modern/20x20/mode/tm_edit_props.svg");
+    return libreoffice_icon ("editdoc");
   if (name == "Rendering")
-    return pixmap_icon ("$ATHENA_PATH/misc/pixmaps/modern/20x20/mode/tm_view.svg");
+    return libreoffice_icon ("printpreview");
   if (name == "Convert")
-    return pixmap_icon ("$ATHENA_PATH/misc/pixmaps/modern/32x32/settings/tm_prefs_convert.svg");
+    return libreoffice_icon ("transformdialog");
   if (name == "Vault")
-    return pixmap_icon ("$ATHENA_PATH/misc/pixmaps/modern/24x24/main/tm_open.svg");
+    return libreoffice_icon ("open");
   if (name == "Knowledge")
-    return pixmap_icon ("$ATHENA_PATH/misc/pixmaps/modern/20x20/mode/tm_link.svg");
+    return libreoffice_icon ("navigator");
   if (name == "Materials")
-    return pixmap_icon ("$ATHENA_PATH/misc/pixmaps/modern/20x20/mode/tm_document_at.svg");
+    return libreoffice_icon ("bibliographycomponent");
   if (name == "Other")
-    return pixmap_icon ("$ATHENA_PATH/misc/pixmaps/modern/32x32/settings/tm_prefs_other.svg");
+    return libreoffice_icon ("optionstreedialog");
   return QIcon ();
 }
 
@@ -988,7 +994,7 @@ QTMPreferencesDialog::QTMPreferencesDialog (QWidget* parent)
 
 void
 QTMPreferencesDialog::addCategory (const QString& name, QWidget* page) {
-  QIcon icon= category_icon (style (), name);
+  QIcon icon= category_icon (name);
   QListWidgetItem* item= new QListWidgetItem (icon, name, categoryList);
   item->setSizeHint (QSize (180, 40));
   pageStack->addWidget (page);
