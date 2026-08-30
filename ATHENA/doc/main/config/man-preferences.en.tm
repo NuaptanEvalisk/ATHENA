@@ -27,12 +27,6 @@
   <subsection|Basic>
 
   <\description>
-    <item*|Complex actions>Controls how commands that need extra information
-    ask for it. They may ask through menus or through popup windows.
-
-    <item*|Details in menus>Chooses between simplified menus and detailed
-    menus. Detailed menus expose more commands and advanced entries.
-
     <item*|Check for updates on startup>When enabled, <ATHENA> checks the
     <name|GitHub> releases page shortly after startup and shows a toast
     notification if a newer release is available.
@@ -62,9 +56,6 @@
     <name|Gnome>, <name|KDE>, <name|Mac OS>, and <name|Windows>. This setting
     requires restart.
 
-    <item*|User interface theme>Chooses the interface theme: default, bright,
-    dark, native, or legacy. This setting requires restart.
-
     <item*|Use text toolbars instead of icon toolbars>Replaces toolbar icons
     with concise command labels. This applies to the main, mode-dependent,
     focus-dependent, and user toolbars; popup menus and ordinary dialog
@@ -90,8 +81,6 @@
     <item*|Inertial sensitivity multiplier>Scales the strength of scroll
     input before it is turned into inertial movement.
 
-    <item*|Use multi-tabs>Enables tabbed document windows.
-
     <item*|Use print dialogue>Uses the graphical print dialog instead of the
     older command-oriented print workflow.
 
@@ -105,9 +94,12 @@
     default format uses placeholders such as <verbatim|%w> for words,
     <verbatim|%c> for characters, and <verbatim|%l> for lines.
 
-    <item*|Use toast notifications>Enables transient toast notifications for
-    suitable status messages.
   </description>
+
+  Complex commands always use popup windows, menus always expose their
+  detailed form, and the interface always uses the native theme. ATHENA uses
+  its Advanced Docking System instead of the upstream multi-tab interface and
+  always enables toast notifications.
 
   <subsection|Fonts>
 
@@ -385,8 +377,9 @@
 
     <item*|Persistent fit width>Keeps fit-width viewing persistent.
 
-    <item*|Fast environments>Uses faster environment handling when possible.
   </description>
+
+  Fast environment handling is always enabled.
 
   <subsubsection|Table of Contents>
 

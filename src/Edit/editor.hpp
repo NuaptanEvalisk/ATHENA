@@ -41,8 +41,6 @@ typedef tm_buffer_rep* tm_buffer;
 typedef tm_view_rep* tm_view;
 class modification;
 class editor;
-extern bool enable_fastenv;
-
 struct heading_cell_range {
   int  level;
   path heading_path;

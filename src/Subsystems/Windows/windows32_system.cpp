@@ -187,13 +187,6 @@ bool IsWindowsDarkMode() {
   return value == 0;  // If value is 0, dark mode is enabled
 }
 
-string get_default_theme() {
-  if (IsWindowsDarkMode()) {
-    return "dark";
-  }
-  return "light";
-}
-
 string qt_application_directory ();
 
 string texmacs_get_application_directory_str() {

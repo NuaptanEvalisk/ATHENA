@@ -299,14 +299,6 @@ source code.
   </explain>
 
   <\explain>
-    <scm|(set-fast-environments <scm-arg|bool>)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|set_fast_environments> which returns
-    <scm|void>.
-  </explain>
-
-  <\explain>
     <scm|(font-exists-in-tt? <scm-arg|string>)>
 <explain-synopsis|no synopsis>
   <|explain>

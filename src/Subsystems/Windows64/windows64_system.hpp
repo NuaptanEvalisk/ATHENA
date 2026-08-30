@@ -163,7 +163,6 @@ intptr_t texmacs_spawnvp(int mode, string name, ::array<::string> args);
  * @brief A function to get the default theme according to the way texmacs
  * has been compiled, and the system configuration
  */
-string get_default_theme();
 
 /*
  * @brief Proxy function to the system function with UTF-8 encoded strings

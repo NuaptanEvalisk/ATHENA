@@ -62,7 +62,6 @@
 "get-texmacs-path"
 "get-texmacs-home-path"
 "plugin-list"
-"set-fast-environments"
 "font-exists-in-tt?"
 "eval-system"
 "var-eval-system"

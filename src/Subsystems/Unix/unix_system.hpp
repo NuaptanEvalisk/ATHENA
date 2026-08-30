@@ -144,7 +144,6 @@ bool texmacs_setenv(string variable_name, string new_value);
  * @brief A function to get the default theme according to the way texmacs
  * has been compiled, and the system configuration
  */
-string get_default_theme();
 
 /*
  * @brief A function to get the directory where the texmacs application

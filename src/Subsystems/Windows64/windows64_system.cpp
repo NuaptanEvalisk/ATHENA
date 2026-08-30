@@ -425,21 +425,6 @@ bool IsWindowsDarkMode() {
 }
 
 
-string get_default_theme() {
-#if defined(QTTEXMACS) && QT_VERSION >= 0x060500
-  if (QGuiApplication::styleHints()->colorScheme() == Qt::ColorScheme::Dark) {
-    return "dark";
-  } else {
-    return "light";
-  }
-#else
-  if (IsWindowsDarkMode()) {
-    return "dark";
-  }
-  return "light";
-#endif
-}
-
 string texmacs_get_application_directory_str() {
   std::wstring wide_path(MAX_PATH, 0);
   DWORD len = GetModuleFileNameW(nullptr, &wide_path[0], MAX_PATH);

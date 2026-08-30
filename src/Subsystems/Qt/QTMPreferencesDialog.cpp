@@ -1140,11 +1140,6 @@ QWidget*
 QTMPreferencesDialog::buildGeneralPage () {
   QWidget* basic= make_page ();
   QFormLayout* basicForm= add_section (basic, "Basic");
-  add_combo (basicForm, "Complex actions:", "complex actions",
-             {{"menus", "Through the menus"},
-              {"popups", "Through popup windows"}});
-  add_combo (basicForm, "Details in menus:", "detailed menus",
-             {{"simple", "Simplified menus"}, {"detailed", "Detailed menus"}});
   add_toggle (basicForm, "Check for updates on startup:",
               "check for updates");
   add_toggle (basicForm, "Remember panes layout:",
@@ -1168,9 +1163,6 @@ QTMPreferencesDialog::buildGeneralPage () {
              {{"default", "Default"}, {"emacs", "Emacs"}, {"gnome", "Gnome"},
               {"kde", "KDE"}, {"macos", "Mac OS"}, {"windows", "Windows"}},
              "default", true);
-  add_combo (appearanceForm, "User interface theme:", "gui theme",
-             {{"default", "Default"}, {"light", "Bright"}, {"dark", "Dark"},
-              {"native-light", "Native"}, {"", "Legacy"}}, "default", true);
   add_toggle (appearanceForm, "Use text toolbars instead of icon toolbars:",
               "text toolbar");
   QCheckBox* hideToolbars=
@@ -1190,7 +1182,6 @@ QTMPreferencesDialog::buildGeneralPage () {
                  "inertial scrolling friction", "0.95");
   add_line_edit (appearanceForm, "Inertial sensitivity multiplier:",
                  "inertial scrolling sensitivity", "1.0");
-  add_toggle (appearanceForm, "Use multi-tabs:", "enable tab");
   add_toggle (appearanceForm, "Use print dialogue:", "gui:print dialogue");
   add_toggle (appearanceForm, "Disable window positioning:",
               "disable texmacs window positioning");
@@ -1199,8 +1190,6 @@ QTMPreferencesDialog::buildGeneralPage () {
   add_line_edit (appearanceForm, "Live statistics format:",
                  "gui:live-statistics-format",
                  "Words: %w, Chars: %c, Lines: %l");
-  add_toggle (appearanceForm, "Use toast notifications:",
-              "use toast notifications");
   finish_page (appearance);
 
   QWidget* fonts= make_page ();
@@ -1461,7 +1450,6 @@ QTMPreferencesDialog::buildRenderingPage () {
              {{"chinese", "Chinese"}, {"japanese", "Japanese"},
               {"korean", "Korean"}, {"taiwanese", "Taiwanese"}});
   add_toggle (m, "Persistent fit width:", "persistent fit width");
-  add_toggle (m, "Fast environments:", "fast environments");
   QFormLayout* toc= add_section (misc, "Table of Contents");
   add_toggle (toc, "Fold by default in Reflow:",
               "fold table of contents in reflow");

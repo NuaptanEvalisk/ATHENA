@@ -20,19 +20,12 @@
 ;; Preferences
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define (get-default-enable-tab)
-  "off")
-
 (define (get-default-show-table-cells)
   (if (qt-gui?) "on" "off"))
 
 (define (notify-look-and-feel var val)
   (set-message "Restart in order to let the new look and feel take effect"
                "configure look and feel"))
-
-(define (notify-gui-theme var val)
-  (set-message "Restart in order to let the new theme take effect"
-               "graphical interface theme"))
 
 (define (notify-scripting-language var val)
   (if (current-view)
@@ -55,9 +48,6 @@
 
 (define (notify-new-fonts var val)
   (set-new-fonts (== val "on")))
-
-(define (notify-fast-environments var val)
-  (set-fast-environments (== val "on")))
 
 (define (notify-new-page-breaking var val)
   (noop))
@@ -299,4 +289,4 @@
   (safely-kill-window))
 
 (register-preference-callback-procedures
-  (list notify-enunciation-rendering notify-fast-environments notify-gui-theme notify-latex-command notify-look-and-feel notify-new-fonts notify-new-page-breaking notify-restart notify-scripting-language notify-security notify-tool))
+  (list notify-enunciation-rendering notify-latex-command notify-look-and-feel notify-new-fonts notify-new-page-breaking notify-restart notify-scripting-language notify-security notify-tool))

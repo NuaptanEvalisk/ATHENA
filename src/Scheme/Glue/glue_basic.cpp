@@ -371,19 +371,6 @@ tmg_plugin_list () {
 }
 
 tmscm
-tmg_set_fast_environments (tmscm arg1) {
-  TMSCM_ASSERT_BOOL (arg1, TMSCM_ARG1, "set-fast-environments");
-
-  bool in1= tmscm_to_bool (arg1);
-
-  // TMSCM_DEFER_INTS;
-  set_fast_environments (in1);
-  // TMSCM_ALLOW_INTS;
-
-  return TMSCM_UNSPECIFIED;
-}
-
-tmscm
 tmg_font_exists_in_ttP (tmscm arg1) {
   TMSCM_ASSERT_STRING (arg1, TMSCM_ARG1, "font-exists-in-tt?");
 
@@ -10369,7 +10356,6 @@ initialize_glue_basic () {
   tmscm_install_procedure ("get-texmacs-path",  tmg_get_texmacs_path, 0, 0, 0);
   tmscm_install_procedure ("get-texmacs-home-path",  tmg_get_texmacs_home_path, 0, 0, 0);
   tmscm_install_procedure ("plugin-list",  tmg_plugin_list, 0, 0, 0);
-  tmscm_install_procedure ("set-fast-environments",  tmg_set_fast_environments, 1, 0, 0);
   tmscm_install_procedure ("font-exists-in-tt?",  tmg_font_exists_in_ttP, 1, 0, 0);
   tmscm_install_procedure ("eval-system",  tmg_eval_system, 1, 0, 0);
   tmscm_install_procedure ("var-eval-system",  tmg_var_eval_system, 1, 0, 0);

@@ -117,15 +117,7 @@ void QTMApplication::init_theme () {
 #if defined(OS_MINGW64)
   setStyle(QStyleFactory::create("Windows"));
 #endif
-  string theme= get_user_preference ("gui theme", "default");
-  if (theme == "default") 
-    theme = get_default_theme ();
-  if (theme == "light")
-    tm_style_sheet= "$ATHENA_PATH/misc/themes/standard-light.css";
-  else if (theme == "dark")
-    tm_style_sheet= "$ATHENA_PATH/misc/themes/standard-dark.css";
-  else if (theme != "")
-    tm_style_sheet= theme;
+  tm_style_sheet= "$ATHENA_PATH/misc/themes/native-light.css";
 
   init_palette (this);
   init_style_sheet (this);

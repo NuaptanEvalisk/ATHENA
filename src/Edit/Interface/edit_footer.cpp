@@ -583,7 +583,6 @@ edit_interface_rep::set_message (tree l, tree r, bool temp) {
 #ifdef QTTEXMACS
   if ((l != "" || r != "") &&
       !is_startup_banner_message (l, r) &&
-      get_preference ("use toast notifications", "off") == "on" &&
       qtm_show_toast (ui_text (l), ui_text (r))) {
     message_l= "";
     message_r= "";

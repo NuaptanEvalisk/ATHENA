@@ -238,11 +238,6 @@ texmacs_version (string which) {
   return ATHENA_VERSION;
 }
 
-void
-set_fast_environments (bool b) {
-  enable_fastenv= b;
-}
-
 tmscm
 image_remove_background_current (tmscm arg1) {
   if (!tmscm_is_string (arg1))

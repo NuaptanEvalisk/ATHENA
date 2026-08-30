@@ -189,20 +189,6 @@ bool texmacs_setenv (string variable_name, string new_value) {
     ) == 0;
 }
 
-string get_default_theme () {
-#ifdef qt_no_fontconfig
-  return "native";
-#endif
-#if defined (QTTEXMACS) && QT_VERSION >= 0x060500
-  if (QGuiApplication::styleHints()->colorScheme() == Qt::ColorScheme::Dark) {
-    return "dark";
-  } else {
-    return "light";
-  }
-#endif
-  return "light";
-}
-
 url texmacs_get_application_directory () {
   // sometimes, the bin path is set in ATHENA_BIN_PATH
   string bin_path;

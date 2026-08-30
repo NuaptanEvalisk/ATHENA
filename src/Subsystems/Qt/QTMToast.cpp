@@ -75,12 +75,6 @@ position_toast (QFrame* toast, QWidget* parent) {
   toast->setGeometry (x, y, size.width (), size.height ());
 }
 
-static bool
-light_theme () {
-  string theme= get_preference ("gui theme", "default");
-  return theme == "light" || theme == "native-light";
-}
-
 } // namespace
 
 bool
@@ -101,66 +95,35 @@ qtm_show_toast (string left, string right) {
   toast->setObjectName ("athenaToastNotification");
   toast->setMinimumWidth (380);
   toast->setMaximumWidth (560);
-  if (light_theme ())
-    toast->setStyleSheet (
-      "#athenaToastNotification {"
-      "background: rgba(248, 249, 252, 225);"
-      "border: 1px solid rgba(34, 40, 49, 45);"
-      "border-radius: 0px;"
-      "}"
-      "#athenaToastNotification QLabel {"
-      "color: rgba(24, 28, 35, 245);"
-      "background: transparent;"
-      "}"
-      "#athenaToastNotification QLabel#athenaToastTitle {"
-      "font-weight: 600;"
-      "}"
-      "#athenaToastNotification QLabel#athenaToastBody {"
-      "color: rgba(24, 28, 35, 210);"
-      "}"
-      "#athenaToastNotification QToolButton#athenaToastDismiss {"
-      "background: transparent;"
-      "border: 0px;"
-      "border-left: 1px solid rgba(34, 40, 49, 45);"
-      "border-radius: 0px;"
-      "padding: 0px;"
-      "}"
-      "#athenaToastNotification QToolButton#athenaToastDismiss:hover {"
-      "background: rgba(34, 40, 49, 18);"
-      "}"
-      "#athenaToastNotification QToolButton#athenaToastDismiss:pressed {"
-      "background: rgba(34, 40, 49, 30);"
-      "}");
-  else
-    toast->setStyleSheet (
-      "#athenaToastNotification {"
-      "background: rgba(31, 34, 40, 225);"
-      "border: 1px solid rgba(255, 255, 255, 45);"
-      "border-radius: 0px;"
-      "}"
-      "#athenaToastNotification QLabel {"
-      "color: rgba(255, 255, 255, 245);"
-      "background: transparent;"
-      "}"
-      "#athenaToastNotification QLabel#athenaToastTitle {"
-      "font-weight: 600;"
-      "}"
-      "#athenaToastNotification QLabel#athenaToastBody {"
-      "color: rgba(255, 255, 255, 210);"
-      "}"
-      "#athenaToastNotification QToolButton#athenaToastDismiss {"
-      "background: transparent;"
-      "border: 0px;"
-      "border-left: 1px solid rgba(255, 255, 255, 45);"
-      "border-radius: 0px;"
-      "padding: 0px;"
-      "}"
-      "#athenaToastNotification QToolButton#athenaToastDismiss:hover {"
-      "background: rgba(255, 255, 255, 22);"
-      "}"
-      "#athenaToastNotification QToolButton#athenaToastDismiss:pressed {"
-      "background: rgba(255, 255, 255, 36);"
-      "}");
+  toast->setStyleSheet (
+    "#athenaToastNotification {"
+    "background: rgba(248, 249, 252, 225);"
+    "border: 1px solid rgba(34, 40, 49, 45);"
+    "border-radius: 0px;"
+    "}"
+    "#athenaToastNotification QLabel {"
+    "color: rgba(24, 28, 35, 245);"
+    "background: transparent;"
+    "}"
+    "#athenaToastNotification QLabel#athenaToastTitle {"
+    "font-weight: 600;"
+    "}"
+    "#athenaToastNotification QLabel#athenaToastBody {"
+    "color: rgba(24, 28, 35, 210);"
+    "}"
+    "#athenaToastNotification QToolButton#athenaToastDismiss {"
+    "background: transparent;"
+    "border: 0px;"
+    "border-left: 1px solid rgba(34, 40, 49, 45);"
+    "border-radius: 0px;"
+    "padding: 0px;"
+    "}"
+    "#athenaToastNotification QToolButton#athenaToastDismiss:hover {"
+    "background: rgba(34, 40, 49, 18);"
+    "}"
+    "#athenaToastNotification QToolButton#athenaToastDismiss:pressed {"
+    "background: rgba(34, 40, 49, 30);"
+    "}");
 
   QHBoxLayout* outer= new QHBoxLayout (toast);
   outer->setContentsMargins (0, 0, 0, 0);

@@ -143,7 +143,6 @@ bool texmacs_remove(string filename);
  * @brief A function to get the default theme according to the way texmacs
  * has been compiled, and the system configuration
  */
-string get_default_theme();
 
 /*
  * @brief A function to get the directory string where the texmacs

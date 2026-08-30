@@ -27,8 +27,6 @@
 #endif // EXPERIMENTAL
 
 //box empty_box (path ip, int x1=0, int y1=0, int x2=0, int y2=0);
-bool enable_fastenv= false;
-
 static bool
 toc_fold_node (tree t) {
   return is_compound (t, "table-of-contents") ||
@@ -454,47 +452,44 @@ edit_typeset_rep::typeset_exec_until (path p) {
   if (N(cur)>=25) // avoids out of memory in weird cases
     typeset_invalidate_env ();
   typeset_prepare ();
-  if (enable_fastenv) {
-    if (!(rp <= p)) {
-      failed_error << "Erroneous path " << p << "\n";
-      FAILED ("invalid typesetting path");
-    }
-    if (rp < p) {
-      tree t= subtree (et, rp);
-      path q= path_up (p / rp);
-      while (!is_nil (q)) {
-        int i= q->item;
-        restricted_exec (env, t, i);
-        if (L(t) == TFORMAT && i == N(t) - 1) {
-          tree fm= tree (TFORMAT);
-          table_descend (t, q, fm);
-          if (!is_nil (q))
-            for (int k=0; k<N(fm); k++)
-              if (is_func (fm[k], CWITH, 2))
-                env->write (fm[k][0]->label, fm[k][1]);
+  if (!(rp <= p)) {
+    failed_error << "Erroneous path " << p << "\n";
+    FAILED ("invalid typesetting path");
+  }
+  if (rp < p) {
+    tree t= subtree (et, rp);
+    path q= path_up (p / rp);
+    while (!is_nil (q)) {
+      int i= q->item;
+      restricted_exec (env, t, i);
+      if (L(t) == TFORMAT && i == N(t) - 1) {
+        tree fm= tree (TFORMAT);
+        table_descend (t, q, fm);
+        if (!is_nil (q))
+          for (int k=0; k<N(fm); k++)
+            if (is_func (fm[k], CWITH, 2))
+              env->write (fm[k][0]->label, fm[k][1]);
+      }
+      else {
+        tree w= drd->get_env_child (t, i, tree (ATTR));
+        if (w == "") break;
+        //cout << "t= " << t << "\n";
+        //cout << "i= " << i << "\n";
+        //cout << "w= " << w << "\n";
+        tree ww (w, N(w));
+        for (int j=0; j<N(w); j+=2) {
+          //cout << w[j] << " := " << env->exec (w[j+1]) << "\n";
+          ww[j+1]= env->exec (w[j+1]);
         }
-        else {
-          tree w= drd->get_env_child (t, i, tree (ATTR));
-          if (w == "") break;
-          //cout << "t= " << t << "\n";
-          //cout << "i= " << i << "\n";
-          //cout << "w= " << w << "\n";
-          tree ww (w, N(w));
-          for (int j=0; j<N(w); j+=2) {
-            //cout << w[j] << " := " << env->exec (w[j+1]) << "\n";
-            ww[j+1]= env->exec (w[j+1]);
-          }
-          for (int j=0; j<N(w); j+=2)
-            env->write (w[j]->label, ww[j+1]);
-          t= t[i];
-          q= q->next;
-        }
+        for (int j=0; j<N(w); j+=2)
+          env->write (w[j]->label, ww[j+1]);
+        t= t[i];
+        q= q->next;
       }
     }
-    if (env->read (PREAMBLE) == "true")
-      env->write (MODE, "src");
   }
-  else exec_until (ttt, p / rp);
+  if (env->read (PREAMBLE) == "true")
+    env->write (MODE, "src");
   if (env->read (MODE) == "src" && env->read (PREAMBLE) != "true")
     define_style_macros (env, subtree (et, rp));
   env->read_env (cur (p));

@@ -337,10 +337,10 @@
             (or (== t s) (and (== t "std") (!= s "emacs")))))))
 
 (define-public (use-popups?)
-  (== (get-preference "complex actions") "popups"))
+  #t)
 
 (define-public (use-menus?)
-  (== (get-preference "complex actions") "menus"))
+  #f)
 
 (define-public (use-print-dialog?)
   (and (qt-gui?) (== (get-preference "gui:print dialogue") "on")))
