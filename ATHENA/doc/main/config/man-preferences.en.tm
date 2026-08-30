@@ -946,8 +946,9 @@
     documents, generated vault pages, and vault export operations. The shared
     font configurator selects a main font and optional bold, italic, small
     caps, sans-serif, typewriter, mathematics, Greek, blackboard-bold,
-    calligraphic, and Fraktur subfonts. <menu|Clear> restores the document
-    default.
+    calligraphic, and Fraktur subfonts. It also reports whether the main font
+    contains CJK glyphs and supports independent regular, bold, and italic CJK
+    fallback fonts. <menu|Clear> restores the document default.
   </description>
 
   <section|Other>

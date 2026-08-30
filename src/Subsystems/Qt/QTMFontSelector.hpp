@@ -43,6 +43,9 @@ private:
   void populateSizes (const QString& preferred);
   void populateSubfonts (const QString& fontProfile);
   void updatePreview ();
+  void updateCjkCoverage ();
+  void updateSubfontPreview (const QString& key);
+  void updateSubfontPreviews ();
   void selectListText (QListWidget* list, const QString& text);
 
   QStringList allFamilies;
@@ -51,7 +54,9 @@ private:
   QListWidget* styleList;
   QListWidget* sizeList;
   QLabel* preview;
+  QLabel* cjkCoverage;
   QMap<QString,QComboBox*> subfontSelectors;
+  QMap<QString,QLabel*> subfontPreviews;
   QStringList unknownAssignments;
 };
 

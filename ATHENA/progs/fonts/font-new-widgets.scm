@@ -77,6 +77,7 @@
 (define customize-vars
   (list "bold" "italic" "smallcaps" "sansserif"
         "typewriter" "math" "greek" "bbb" "cal" "frak"
+        "cjk" "bold cjk" "italic cjk"
         "embold" "embbb"
         "slant" "hmagnify" "vmagnify" "hextended" "vextended"))
 
@@ -452,7 +453,10 @@
          (greek (selector-customize-get specs "greek" #f))
          (bbb   (selector-customize-get specs "bbb" #f))
          (cal   (selector-customize-get specs "cal" #f))
-         (frak  (selector-customize-get specs "frak" #f)))
+         (frak  (selector-customize-get specs "frak" #f))
+         (cjk   (selector-customize-get specs "cjk" #f))
+         (cjk-it (selector-customize-get specs "italic cjk" #f))
+         (cjk-bf (selector-customize-get specs "bold cjk" #f)))
     (if bf    (set! fam (string-append "bold=" bf "," fam)))
     (if it    (set! fam (string-append "italic=" it "," fam)))
     (if sc    (set! fam (string-append "smallcaps=" sc "," fam)))
@@ -463,6 +467,9 @@
     (if bbb   (set! fam (string-append "bbb=" bbb "," fam)))
     (if cal   (set! fam (string-append "cal=" cal "," fam)))
     (if frak  (set! fam (string-append "frak="frak  "," fam)))
+    (if cjk    (set! fam (string-append "cjk=" cjk "," fam)))
+    (if cjk-it (set! fam (string-append "italic cjk=" cjk-it "," fam)))
+    (if cjk-bf (set! fam (string-append "bold cjk=" cjk-bf "," fam)))
     fam))
 
 (define (selector-font-effects specs)
@@ -662,20 +669,28 @@
         (dynamic (font-effect-selector specs "vmagnify"))))
     (horizontal (glue #f #t 0 0))))
 
-(define (default-subfonts-list which)
-  '("TeXmacs Computer Modern" "Stix"
-    "TeX Gyre Bonum" "TeX Gyre Pagella"
-    "TeX Gyre Schola" "TeX Gyre Termes"))
+(define (cjk-subfont? which)
+  (in? which '("cjk" "bold cjk" "italic cjk")))
 
-(define (default-subfonts which)
+(define (default-subfonts-list which)
+  (if (cjk-subfont? which)
+      (list-remove-duplicates
+        (append (search-font-families '("cjk"))
+                (search-font-families '("hangul"))))
+      '("TeXmacs Computer Modern" "Stix"
+        "TeX Gyre Bonum" "TeX Gyre Pagella"
+        "TeX Gyre Schola" "TeX Gyre Termes")))
+
+(define (default-subfonts which current)
   (with l (cons "Default" (default-subfonts-list which))
-    (if (in? which l)
+    (if (in? current l)
 	(append l (list ""))
-	(append l (list which "")))))
+	(append l (list current "")))))
 
 (tm-widget (subfont-selector specs which)
   (enum (selector-customize-set!* specs which answer)
-	(default-subfonts (selector-customize-get* specs which "Default"))
+        (default-subfonts which
+          (selector-customize-get* specs which "Default"))
         (selector-customize-get* specs which "Default") "160px"))
 
 (tm-widget (font-variant-selector specs)
@@ -708,6 +723,17 @@
         (dynamic (subfont-selector specs "frak"))))
     (horizontal (glue #f #t 0 0))))
 
+(tm-widget (font-cjk-selector specs)
+  (vertical
+    (aligned
+      (item (text "CJK:")
+        (dynamic (subfont-selector specs "cjk")))
+      (item (text "CJK bold:")
+        (dynamic (subfont-selector specs "bold cjk")))
+      (item (text "CJK italic:")
+        (dynamic (subfont-selector specs "italic cjk"))))
+    (horizontal (glue #f #t 0 0))))
+
 (tm-widget (font-customized-selector specs)
   (assuming (selector-customize?)
     === === ===
@@ -721,6 +747,11 @@
       (dynamic (font-variant-selector specs))
       >>>
       (dynamic (font-math-selector specs)))
+    ===
+    (horizontal
+      >>>
+      (dynamic (font-cjk-selector specs))
+      >>>)
     === === ===)
   (assuming (not (selector-customize?))
     === === ===))
@@ -738,6 +769,11 @@
       (dynamic (font-variant-selector specs))
       >>>
       (dynamic (font-math-selector specs)))
+    ===
+    (horizontal
+      >>>
+      (dynamic (font-cjk-selector specs))
+      >>>)
     === === ===
     (explicit-buttons (hlist >>> ("Done" (quit))))))
 
@@ -839,6 +875,8 @@
             (centered (dynamic (font-variant-selector specs))))
           (section-tab "Mathematics"
             (centered (dynamic (font-math-selector specs))))
+          (section-tab "CJK fallback"
+            (centered (dynamic (font-cjk-selector specs))))
           (section-tab "More"
             (division "plain"
               (padded

@@ -35,7 +35,9 @@ VaultFontConfiguratorTest::rewritesProfileWithoutDisturbingOtherMetadata () {
            << compound ("initial", initial);
 
   string profile=
-    "typewriter=JetBrains Mono,math=STIX Two Math,libertine";
+    "bold cjk=Noto Serif CJK SC,italic cjk=Noto Serif CJK SC,"
+    "cjk=Noto Serif CJK SC,typewriter=JetBrains Mono,"
+    "math=STIX Two Math,libertine";
   tree rewritten= athena_document_with_font_profile (document, profile);
 
   QCOMPARE (initialValue (rewritten, "font"), tree (profile));
