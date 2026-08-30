@@ -45,12 +45,15 @@ private:
   bool saveEditor ();
   void createEmpty ();
   void removeSelected ();
+  void reidentifySelected ();
   void chooseFiles ();
+  void chooseDirectory ();
   void importBibtex ();
   void importZotero ();
-  void importFiles (const QStringList& files);
+  void importFiles (const QStringList& files, bool review_recognition);
   bool reviewRecognition (const QString& path,
-                          MaterialRecognitionResult& recognition);
+                          MaterialRecognitionResult& recognition,
+                          const QString& accept_text= "Add Material");
   void openAttachment (int row);
   void populateTypeCombo (QComboBox* combo, const std::string& selected);
   void addCreatorRow (const MaterialCreator* creator= nullptr);
@@ -77,6 +80,7 @@ private:
   QLabel* stateLabel;
   QPushButton* saveButton;
   QPushButton* deleteButton;
+  QPushButton* reidentifyButton;
   std::vector<MaterialSearchHit> records;
   MaterialRecord loaded;
   MaterialSchema schema;

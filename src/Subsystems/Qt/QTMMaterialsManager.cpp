@@ -23,10 +23,12 @@
 #include <QAbstractItemView>
 #include <QApplication>
 #include <QComboBox>
+#include <QCheckBox>
 #include <QDesktopServices>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QDir>
+#include <QDirIterator>
 #include <QDragEnterEvent>
 #include <QDropEvent>
 #include <QEventLoop>
@@ -62,6 +64,42 @@ namespace {
 
 QTMMaterialsManager* materials_widget= nullptr;
 ads::CDockWidget* materials_dock= nullptr;
+
+constexpr int material_import_progress_width= 560;
+
+class MaterialImportProgress final: public QProgressDialog {
+public:
+  MaterialImportProgress (const QString& title, int count, QWidget* parent):
+    QProgressDialog (QString (), "Cancel", 0, count, parent) {
+    setWindowTitle (title);
+    setWindowModality (Qt::WindowModal);
+    setMinimumDuration (0);
+    setAutoClose (false);
+    setAutoReset (false);
+    setFixedWidth (material_import_progress_width);
+    QLabel* label= findChild<QLabel*> ();
+    if (label != nullptr) {
+      label->setWordWrap (true);
+      label->setMinimumWidth (0);
+      label->setSizePolicy (QSizePolicy::Ignored, QSizePolicy::Preferred);
+    }
+  }
+
+  void setProgressText (const QString& text) {
+    setLabelText (text);
+    ensurePolished ();
+    int required= std::max (sizeHint ().height (), minimumSizeHint ().height ());
+    if (required > monotonic_height) {
+      monotonic_height= required;
+      setMinimumHeight (monotonic_height);
+    }
+    if (height () < monotonic_height)
+      resize (width (), monotonic_height);
+  }
+
+private:
+  int monotonic_height= 0;
+};
 
 QString
 qstr (const std::string& value) {
@@ -197,14 +235,18 @@ QTMMaterialsManager::QTMMaterialsManager (QWidget* parent): QWidget (parent) {
   QHBoxLayout* commands= new QHBoxLayout;
   QPushButton* addEmpty= new QPushButton ("New", this);
   QPushButton* addFiles= new QPushButton ("Add files...", this);
+  QPushButton* addDirectory= new QPushButton ("Add directory...", this);
   QPushButton* importBib= new QPushButton ("Import BibTeX...", this);
   QPushButton* importZoteroButton= new QPushButton ("Import Zotero...", this);
   QPushButton* refreshButton= new QPushButton ("Refresh", this);
   deleteButton= new QPushButton ("Delete", this);
+  reidentifyButton= new QPushButton ("Re-identify", this);
   commands->addWidget (addEmpty);
   commands->addWidget (addFiles);
+  commands->addWidget (addDirectory);
   commands->addWidget (importBib);
   commands->addWidget (importZoteroButton);
+  commands->addWidget (reidentifyButton);
   commands->addWidget (deleteButton);
   commands->addStretch (1);
   commands->addWidget (refreshButton);
@@ -319,10 +361,14 @@ QTMMaterialsManager::QTMMaterialsManager (QWidget* parent): QWidget (parent) {
            [this] { createEmpty (); });
   connect (addFiles, &QPushButton::clicked, this,
            [this] { chooseFiles (); });
+  connect (addDirectory, &QPushButton::clicked, this,
+           [this] { chooseDirectory (); });
   connect (importBib, &QPushButton::clicked, this,
            [this] { importBibtex (); });
   connect (importZoteroButton, &QPushButton::clicked, this,
            [this] { importZotero (); });
+  connect (reidentifyButton, &QPushButton::clicked, this,
+           [this] { reidentifySelected (); });
   connect (deleteButton, &QPushButton::clicked, this,
            [this] { removeSelected (); });
   connect (refreshButton, &QPushButton::clicked, this,
@@ -517,6 +563,7 @@ QTMMaterialsManager::clearEditor () {
   stateLabel->setText ("Select a Material or drop a file to begin.");
   saveButton->setEnabled (false);
   deleteButton->setEnabled (false);
+  reidentifyButton->setEnabled (false);
 }
 
 void
@@ -529,6 +576,7 @@ QTMMaterialsManager::loadSelection () {
                "Material; Delete applies to the complete selection.")
         .arg (selected.size ()));
     deleteButton->setEnabled (true);
+    reidentifyButton->setEnabled (false);
     return;
   }
   QString uuid= selected.isEmpty () ? QString () : selected.front ();
@@ -579,7 +627,9 @@ QTMMaterialsManager::loadSelection () {
   attachmentTable->setRowCount (0);
   std::vector<MaterialAttachment> attachments= store->attachments (
     loaded.uuid, error);
+  bool has_primary_attachment= false;
   for (const MaterialAttachment& attachment: attachments) {
+    has_primary_attachment|= attachment.primary;
     int row= attachmentTable->rowCount ();
     attachmentTable->insertRow (row);
     QStringList values= {
@@ -599,6 +649,7 @@ QTMMaterialsManager::loadSelection () {
       .arg ((qlonglong) loaded.revision));
   saveButton->setEnabled (true);
   deleteButton->setEnabled (true);
+  reidentifyButton->setEnabled (has_primary_attachment);
 }
 
 bool
@@ -727,10 +778,141 @@ QTMMaterialsManager::removeSelected () {
 }
 
 void
+QTMMaterialsManager::reidentifySelected () {
+  QString uuid= selectedUuid ();
+  MaterialsStore* store= store_or_warn (this);
+  if (uuid.isEmpty () || store == nullptr) return;
+
+  std::string error;
+  std::optional<MaterialRecord> current= store->get (stdstr (uuid), error);
+  if (!current) {
+    QMessageBox::warning (this, "Re-identify Material", qstr (error));
+    return;
+  }
+  std::optional<MaterialAttachment> attachment=
+    store->primary_attachment (current->uuid, error);
+  if (!attachment) {
+    QMessageBox::warning (
+      this, "Re-identify Material",
+      error.empty () ? "This Material has no primary attachment."
+                     : qstr (error));
+    return;
+  }
+  fs::path source= store->vault_root () / fs::u8path (attachment->stored_path);
+  QString source_path= qstr (source.u8string ());
+
+  MaterialRecognitionResult recognition;
+  MaterialImportProgress progress ("Re-identifying Material", 0, this);
+  MaterialRecognitionOptions options= recognition_options ();
+  options.progress= [&] (const std::string& stage) {
+    progress.setProgressText (
+      QDir::toNativeSeparators (source_path) + "\n" + qstr (stage));
+    QApplication::processEvents (QEventLoop::AllEvents, 25);
+  };
+  options.cancelled= [&] { return progress.wasCanceled (); };
+  options.progress ("Starting recognition");
+  bool recognized= athena_material_recognize_file (
+    source, options, recognition, error);
+  bool cancelled= progress.wasCanceled () ||
+                  error == "Material recognition cancelled";
+  progress.close ();
+  if (cancelled) return;
+  if (!recognized) {
+    QMessageBox::warning (this, "Re-identify Material", qstr (error));
+    return;
+  }
+  if (!reviewRecognition (source_path, recognition, "Update Material")) return;
+
+  MaterialRecord replacement= recognition.material;
+  replacement.uuid= current->uuid;
+  replacement.revision= current->revision;
+  replacement.created_at= current->created_at;
+  replacement.updated_at= current->updated_at;
+  replacement.extra_json= current->extra_json;
+  replacement.tags= current->tags;
+  replacement.identifiers= recognition.identifiers;
+  replacement.provenance.insert (
+    replacement.provenance.begin (), current->provenance.begin (),
+    current->provenance.end ());
+  replacement.provenance.push_back (
+    {"*", "re-identification", attachment->canonical_name,
+     "accepted", recognition.confidence});
+  if (!store->update (replacement, current->revision, error)) {
+    QMessageBox::warning (this, "Re-identify Material", qstr (error));
+    return;
+  }
+  refresh ();
+  selectUuid (uuid);
+}
+
+void
 QTMMaterialsManager::chooseFiles () {
   QStringList files= QFileDialog::getOpenFileNames (
     this, "Add Materials", QDir::homePath (), "All files (*)");
-  if (!files.isEmpty ()) importFiles (files);
+  if (!files.isEmpty ()) importFiles (files, files.size () == 1);
+}
+
+void
+QTMMaterialsManager::chooseDirectory () {
+  QDialog dialog (this);
+  dialog.setWindowTitle ("Add Materials from Directory");
+  dialog.setMinimumWidth (560);
+  QVBoxLayout* layout= new QVBoxLayout (&dialog);
+
+  QLabel* explanation= new QLabel (
+    "Choose a directory whose files should be processed by the Materials "
+    "recognition pipeline.", &dialog);
+  explanation->setWordWrap (true);
+  layout->addWidget (explanation);
+
+  QHBoxLayout* directory_row= new QHBoxLayout;
+  QLineEdit* directory_edit= new QLineEdit (&dialog);
+  directory_edit->setReadOnly (true);
+  directory_edit->setPlaceholderText ("No directory selected");
+  QPushButton* browse= new QPushButton ("Browse...", &dialog);
+  directory_row->addWidget (directory_edit, 1);
+  directory_row->addWidget (browse);
+  layout->addLayout (directory_row);
+
+  QCheckBox* recursive= new QCheckBox ("Include subdirectories", &dialog);
+  layout->addWidget (recursive);
+
+  QDialogButtonBox* buttons= new QDialogButtonBox (
+    QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+  buttons->button (QDialogButtonBox::Ok)->setText ("Add directory");
+  buttons->button (QDialogButtonBox::Ok)->setEnabled (false);
+  layout->addWidget (buttons);
+
+  connect (browse, &QPushButton::clicked, &dialog, [&] {
+    QString initial= directory_edit->text ().isEmpty ()
+      ? QDir::homePath () : directory_edit->text ();
+    QString directory= QFileDialog::getExistingDirectory (
+      &dialog, "Choose Materials Directory", initial,
+      QFileDialog::ShowDirsOnly);
+    if (directory.isEmpty ()) return;
+    directory_edit->setText (QDir::cleanPath (directory));
+    buttons->button (QDialogButtonBox::Ok)->setEnabled (true);
+  });
+  connect (buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+  connect (buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+  if (dialog.exec () != QDialog::Accepted) return;
+
+  QStringList files;
+  QDirIterator::IteratorFlags flags= recursive->isChecked ()
+    ? QDirIterator::Subdirectories : QDirIterator::NoIteratorFlags;
+  QDirIterator iterator (
+    directory_edit->text (), QDir::Files | QDir::Readable, flags);
+  while (iterator.hasNext ()) files << iterator.next ();
+  std::sort (files.begin (), files.end (), [] (const QString& left,
+                                                const QString& right) {
+    return QString::compare (left, right, Qt::CaseInsensitive) < 0;
+  });
+  if (files.isEmpty ()) {
+    QMessageBox::information (
+      this, "Add Materials", "The selected directory contains no files.");
+    return;
+  }
+  importFiles (files, false);
 }
 
 void
@@ -792,7 +974,8 @@ QTMMaterialsManager::importZotero () {
 
 bool
 QTMMaterialsManager::reviewRecognition (
-  const QString& path, MaterialRecognitionResult& recognition) {
+  const QString& path, MaterialRecognitionResult& recognition,
+  const QString& accept_text) {
   QDialog dialog (this);
   dialog.setWindowTitle ("Review recognized Material");
   dialog.resize (760, 700);
@@ -892,7 +1075,7 @@ QTMMaterialsManager::reviewRecognition (
   outer->addWidget (diagnostics, 1);
   QDialogButtonBox* buttons= new QDialogButtonBox (
     QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
-  buttons->button (QDialogButtonBox::Ok)->setText ("Add Material");
+  buttons->button (QDialogButtonBox::Ok)->setText (accept_text);
   outer->addWidget (buttons);
   connect (buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
   connect (buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
@@ -969,47 +1152,61 @@ QTMMaterialsManager::reviewRecognition (
 }
 
 void
-QTMMaterialsManager::importFiles (const QStringList& files) {
+QTMMaterialsManager::importFiles (const QStringList& files,
+                                  bool review_recognition) {
   MaterialsStore* store= store_or_warn (this);
-  if (store == nullptr) return;
+  if (store == nullptr || files.isEmpty ()) return;
   QString lastUuid;
+  QStringList failures;
+  MaterialImportProgress progress ("Adding Materials", files.size (), this);
+  progress.setValue (0);
   for (int index=0; index<files.size (); ++index) {
+    progress.show ();
+    progress.setValue (index);
     QString file= files[index];
     MaterialRecognitionResult recognition;
     std::string error;
     bool recognized= false;
     bool cancelled= false;
-    {
-      QProgressDialog progress (QString (), "Cancel", 0, 0, this);
-      progress.setWindowTitle ("Adding Material");
-      progress.setWindowModality (Qt::WindowModal);
-      progress.setMinimumDuration (0);
-      progress.setAutoClose (false);
-      progress.setAutoReset (false);
-      progress.setMinimumWidth (560);
-      const QString context=
-        QString ("%1 of %2 · %3\n")
-          .arg (index + 1).arg (files.size ())
-          .arg (QFileInfo (file).fileName ());
-      MaterialRecognitionOptions options= recognition_options ();
-      options.progress= [&] (const std::string& stage) {
-        progress.setLabelText (context + qstr (stage));
-        QApplication::processEvents (QEventLoop::AllEvents, 25);
-      };
-      options.cancelled= [&] { return progress.wasCanceled (); };
-      options.progress ("Starting recognition");
-      recognized= athena_material_recognize_file (
-        fs::u8path (stdstr (file)), options, recognition, error);
-      cancelled= progress.wasCanceled () ||
-                 error == "Material recognition cancelled";
-      progress.reset ();
-    }
+    const QString context=
+      QString ("%1 of %2\n%3\n")
+        .arg (index + 1).arg (files.size ())
+        .arg (QDir::toNativeSeparators (file));
+    MaterialRecognitionOptions options= recognition_options ();
+    options.progress= [&] (const std::string& stage) {
+      progress.setProgressText (context + qstr (stage));
+      QApplication::processEvents (QEventLoop::AllEvents, 25);
+    };
+    options.cancelled= [&] { return progress.wasCanceled (); };
+    options.progress ("Starting recognition");
+    recognized= athena_material_recognize_file (
+      fs::u8path (stdstr (file)), options, recognition, error);
+    cancelled= progress.wasCanceled () ||
+               error == "Material recognition cancelled";
     if (cancelled) break;
     if (!recognized) {
-      QMessageBox::warning (this, "Add Material", qstr (error));
+      if (review_recognition) {
+        progress.hide ();
+        QMessageBox::warning (this, "Add Material", qstr (error));
+        progress.show ();
+      }
+      else failures << QString ("%1: %2").arg (file, qstr (error));
+      progress.setValue (index + 1);
       continue;
     }
-    if (!reviewRecognition (file, recognition)) continue;
+    if (review_recognition) {
+      progress.hide ();
+      if (!reviewRecognition (file, recognition)) {
+        progress.setValue (index + 1);
+        continue;
+      }
+      progress.show ();
+    }
+    else {
+      recognition.material.provenance.push_back (
+        {"*", "automatic-review", QFileInfo (file).fileName ().toStdString (),
+         "accepted", recognition.confidence});
+    }
 
     std::optional<std::string> existing;
     for (const MaterialIdentifier& identifier: recognition.identifiers) {
@@ -1019,25 +1216,53 @@ QTMMaterialsManager::importFiles (const QStringList& files) {
       if (existing) break;
     }
     if (!error.empty ()) {
-      QMessageBox::warning (this, "Add Material", qstr (error));
+      if (review_recognition) {
+        progress.hide ();
+        QMessageBox::warning (this, "Add Material", qstr (error));
+        progress.show ();
+      }
+      else failures << QString ("%1: %2").arg (file, qstr (error));
+      progress.setValue (index + 1);
       continue;
     }
     if (existing) {
-      std::optional<MaterialRecord> old= store->get (*existing, error);
-      QString title= old ? qstr (old->field ("title")) : qstr (*existing);
-      if (QMessageBox::question (
-            this, "Existing Material",
-            QString ("The identifier already belongs to “%1”. Add this file "
-                     "as an attachment to that Material?").arg (title)) !=
-          QMessageBox::Yes)
+      bool declined= false;
+      if (review_recognition) {
+        std::optional<MaterialRecord> old= store->get (*existing, error);
+        if (!old && !error.empty ()) {
+          progress.hide ();
+          QMessageBox::warning (this, "Add Material", qstr (error));
+          progress.show ();
+          progress.setValue (index + 1);
+          continue;
+        }
+        QString title= old ? qstr (old->field ("title")) : qstr (*existing);
+        progress.hide ();
+        declined= QMessageBox::question (
+          this, "Existing Material",
+          QString ("The identifier already belongs to “%1”. Add this file "
+                   "as an attachment to that Material?").arg (title)) !=
+          QMessageBox::Yes;
+        progress.show ();
+      }
+      if (declined) {
+        progress.setValue (index + 1);
         continue;
+      }
       MaterialImportResult imported;
       if (!store->import_file (*existing, fs::u8path (stdstr (file)),
                                "document", false, imported, error)) {
-        QMessageBox::warning (this, "Add Material", qstr (error));
+        if (review_recognition) {
+          progress.hide ();
+          QMessageBox::warning (this, "Add Material", qstr (error));
+          progress.show ();
+        }
+        else failures << QString ("%1: %2").arg (file, qstr (error));
+        progress.setValue (index + 1);
         continue;
       }
       lastUuid= qstr (*existing);
+      progress.setValue (index + 1);
       continue;
     }
 
@@ -1047,13 +1272,31 @@ QTMMaterialsManager::importFiles (const QStringList& files) {
     if (!store->import_material_file (
           material, fs::u8path (stdstr (file)), "document", true,
           imported, error)) {
-      QMessageBox::warning (this, "Add Material", qstr (error));
+      if (review_recognition) {
+        progress.hide ();
+        QMessageBox::warning (this, "Add Material", qstr (error));
+        progress.show ();
+      }
+      else failures << QString ("%1: %2").arg (file, qstr (error));
+      progress.setValue (index + 1);
       continue;
     }
     lastUuid= qstr (material.uuid);
+    progress.setValue (index + 1);
   }
+  progress.close ();
   refresh ();
   selectUuid (lastUuid);
+  if (!failures.isEmpty ()) {
+    QStringList shown= failures.mid (0, 20);
+    if (failures.size () > shown.size ())
+      shown << QString ("...and %1 more failure(s)")
+                 .arg (failures.size () - shown.size ());
+    QMessageBox::warning (
+      this, "Add Materials",
+      QString ("%1 file(s) could not be imported:\n\n%2")
+        .arg (failures.size ()).arg (shown.join ('\n')));
+  }
 }
 
 void
@@ -1077,7 +1320,7 @@ QTMMaterialsManager::dropEvent (QDropEvent* event) {
   QStringList files= dropped_files (event->mimeData ());
   if (files.isEmpty ()) return;
   event->acceptProposedAction ();
-  importFiles (files);
+  importFiles (files, files.size () == 1);
 }
 
 void
