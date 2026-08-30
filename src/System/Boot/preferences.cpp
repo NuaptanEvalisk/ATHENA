@@ -324,6 +324,7 @@ ensure_builtin_user_preferences () {
     PREF ("materials provider contact email", "", ""),
     PREF ("materials local metadata extractor", "exiftool", ""),
     PREF ("materials local text extractor", "pdftotext", ""),
+    PREF ("materials import parallelism", "auto", ""),
     PREF ("materials csl style", "springer-mathphys", ""),
     PREF ("allow-blank-replace", "off", ""),
     PREF ("allow-initial-replace", "off", ""),

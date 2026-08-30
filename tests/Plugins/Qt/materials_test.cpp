@@ -84,6 +84,10 @@ private slots:
   void recognizesJournalMastheadWithoutIdentifiers ();
   void recognizesLocalSpringerTitlePages ();
   void recognizesLocalImportedSolutionManual ();
+  void preservesCorroboratedChinesePdfMetadata ();
+  void normalizesCjkCreatorCredits ();
+  void recognizesScannedCjkBookCover ();
+  void recognizesTextLayerBookTitlePage ();
   void cancelsBlockingRecognition ();
   void loadsPinnedZoteroSchema ();
   void listsBundledCslStyles ();
@@ -580,6 +584,107 @@ MaterialsTest::recognizesLocalImportedSolutionManual () {
     recognized.material.creators.begin (), recognized.material.creators.end (),
     [] (const MaterialCreator& creator) {
       return creator.literal == "TeX" || creator.literal == "pdfTeX";
+    }));
+}
+
+void
+MaterialsTest::preservesCorroboratedChinesePdfMetadata () {
+  QString path= qEnvironmentVariable ("ATHENA_CHINESE_MATERIAL_FIXTURE");
+  if (path.isEmpty ())
+    QSKIP ("ATHENA_CHINESE_MATERIAL_FIXTURE is not configured");
+  fs::path source= fs::u8path (path.toStdString ());
+  QVERIFY2 (fs::exists (source), source.string ().c_str ());
+  MaterialRecognitionOptions options;
+  MaterialRecognitionResult recognized;
+  std::string error;
+  QVERIFY2 (athena_material_recognize_file (
+              source, options, recognized, error), error.c_str ());
+  QCOMPARE (recognized.material.field ("title"),
+            std::string ("立方类型论入门"));
+  QCOMPARE (recognized.material.creators.size (), (size_t) 1);
+  QCOMPARE (recognized.material.creators[0].literal,
+            std::string ("Tesla Zhang"));
+  QVERIFY (std::none_of (
+    recognized.material.provenance.begin (),
+    recognized.material.provenance.end (),
+    [] (const MaterialProvenance& provenance) {
+      return provenance.source_kind == "title-page-layout";
+    }));
+}
+
+void
+MaterialsTest::normalizesCjkCreatorCredits () {
+  QString path= qEnvironmentVariable ("ATHENA_CJK_CREDIT_FIXTURE");
+  if (path.isEmpty ())
+    QSKIP ("ATHENA_CJK_CREDIT_FIXTURE is not configured");
+  fs::path source= fs::u8path (path.toStdString ());
+  QVERIFY2 (fs::exists (source), source.string ().c_str ());
+  MaterialRecognitionOptions options;
+  MaterialRecognitionResult recognized;
+  std::string error;
+  QVERIFY2 (athena_material_recognize_file (
+              source, options, recognized, error), error.c_str ());
+  QCOMPARE (recognized.material.field ("title"),
+            std::string ("朗道《力学》解读"));
+  QCOMPARE (recognized.material.creators.size (), (size_t) 1);
+  QCOMPARE (recognized.material.creators[0].role, std::string ("author"));
+  QCOMPARE (recognized.material.creators[0].literal, std::string ("鞠国兴"));
+  QVERIFY (std::any_of (
+    recognized.material.provenance.begin (),
+    recognized.material.provenance.end (),
+    [] (const MaterialProvenance& provenance) {
+      return provenance.field_name == "creator" &&
+             provenance.observed_value == "鞠国兴编著";
+    }));
+}
+
+void
+MaterialsTest::recognizesScannedCjkBookCover () {
+  QString path= qEnvironmentVariable ("ATHENA_SCANNED_CJK_BOOK_FIXTURE");
+  if (path.isEmpty ())
+    QSKIP ("ATHENA_SCANNED_CJK_BOOK_FIXTURE is not configured");
+  fs::path source= fs::u8path (path.toStdString ());
+  QVERIFY2 (fs::exists (source), source.string ().c_str ());
+  MaterialRecognitionOptions options;
+  MaterialRecognitionResult recognized;
+  std::string error;
+  QVERIFY2 (athena_material_recognize_file (
+              source, options, recognized, error), error.c_str ());
+  QCOMPARE (recognized.material.field ("title"), std::string ("数论导引"));
+  QCOMPARE (recognized.material.creators.size (), (size_t) 1);
+  QCOMPARE (recognized.material.creators[0].role, std::string ("author"));
+  QCOMPARE (recognized.material.creators[0].literal, std::string ("华罗庚"));
+  QVERIFY (std::any_of (
+    recognized.material.provenance.begin (),
+    recognized.material.provenance.end (),
+    [] (const MaterialProvenance& provenance) {
+      return provenance.source_kind == "title-page-ocr";
+    }));
+}
+
+void
+MaterialsTest::recognizesTextLayerBookTitlePage () {
+  QString path= qEnvironmentVariable ("ATHENA_TEXT_LAYER_BOOK_FIXTURE");
+  if (path.isEmpty ())
+    QSKIP ("ATHENA_TEXT_LAYER_BOOK_FIXTURE is not configured");
+  fs::path source= fs::u8path (path.toStdString ());
+  QVERIFY2 (fs::exists (source), source.string ().c_str ());
+  MaterialRecognitionOptions options;
+  MaterialRecognitionResult recognized;
+  std::string error;
+  QVERIFY2 (athena_material_recognize_file (
+              source, options, recognized, error), error.c_str ());
+  QCOMPARE (recognized.material.field ("title"),
+            std::string ("Category Theory in Context"));
+  QCOMPARE (recognized.material.creators.size (), (size_t) 1);
+  QCOMPARE (recognized.material.creators[0].role, std::string ("author"));
+  QCOMPARE (recognized.material.creators[0].literal,
+            std::string ("Emily Riehl"));
+  QVERIFY (std::any_of (
+    recognized.material.provenance.begin (),
+    recognized.material.provenance.end (),
+    [] (const MaterialProvenance& provenance) {
+      return provenance.source_kind == "title-page-layout";
     }));
 }
 

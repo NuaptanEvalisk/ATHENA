@@ -50,12 +50,16 @@
 #include <QTabWidget>
 #include <QTableWidget>
 #include <QTextEdit>
+#include <QThread>
+#include <QThreadPool>
 #include <QUrl>
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <atomic>
 #include <filesystem>
 #include <map>
+#include <mutex>
 #include <set>
 
 namespace fs= std::filesystem;
@@ -1156,13 +1160,102 @@ QTMMaterialsManager::importFiles (const QStringList& files,
                                   bool review_recognition) {
   MaterialsStore* store= store_or_warn (this);
   if (store == nullptr || files.isEmpty ()) return;
+  struct PreparedRecognition {
+    MaterialRecognitionResult result;
+    std::string error;
+    bool recognized= false;
+  };
+  int ideal_workers= std::max (1, QThread::idealThreadCount ());
+  QString configured_parallelism= preference (
+    "materials import parallelism", "auto");
+  bool parallelism_ok= false;
+  int requested_workers= configured_parallelism.toInt (&parallelism_ok);
+  if (!parallelism_ok || requested_workers < 1)
+    requested_workers= ideal_workers;
+  requested_workers= std::min (requested_workers, ideal_workers);
+  int worker_count= std::min (requested_workers, (int) files.size ());
+  bool parallel_recognition= !review_recognition && worker_count > 1;
+  int recognition_steps= parallel_recognition ? files.size () : 0;
+  std::vector<PreparedRecognition> prepared ((size_t) files.size ());
   QString lastUuid;
   QStringList failures;
-  MaterialImportProgress progress ("Adding Materials", files.size (), this);
+  MaterialImportProgress progress (
+    "Adding Materials", files.size () + recognition_steps, this);
   progress.setValue (0);
+  if (parallel_recognition) {
+    MaterialRecognitionOptions base_options= recognition_options ();
+    std::atomic<int> next_index {0};
+    std::atomic<int> completed {0};
+    std::atomic<bool> cancel {false};
+    std::mutex status_mutex;
+    int active_index= -1;
+    std::string active_stage;
+    QThreadPool workers;
+    workers.setMaxThreadCount (worker_count);
+    for (int worker=0; worker<worker_count; ++worker) {
+      workers.start ([&, base_options] {
+        while (!cancel.load (std::memory_order_relaxed)) {
+          int index= next_index.fetch_add (1);
+          if (index >= files.size ()) break;
+          QString file= files[index];
+          MaterialRecognitionOptions options= base_options;
+          options.cancelled= [&] {
+            return cancel.load (std::memory_order_relaxed);
+          };
+          options.progress= [&, index] (const std::string& stage) {
+            std::lock_guard<std::mutex> lock (status_mutex);
+            active_index= index;
+            active_stage= stage;
+          };
+          options.progress ("Starting recognition");
+          PreparedRecognition& item= prepared[(size_t) index];
+          item.recognized= athena_material_recognize_file (
+            fs::u8path (stdstr (file)), options, item.result, item.error);
+          completed.fetch_add (1);
+        }
+      });
+    }
+    progress.show ();
+    while (completed.load () < files.size () && !cancel.load ()) {
+      QApplication::processEvents (QEventLoop::AllEvents, 25);
+      if (progress.wasCanceled ()) {
+        cancel.store (true);
+        break;
+      }
+      int current_index;
+      std::string current_stage;
+      {
+        std::lock_guard<std::mutex> lock (status_mutex);
+        current_index= active_index;
+        current_stage= active_stage;
+      }
+      QString detail;
+      if (current_index >= 0)
+        detail= QDir::toNativeSeparators (files[current_index]) + "\n" +
+                qstr (current_stage);
+      progress.setProgressText (
+        QString ("Recognizing Materials in parallel with %1 workers\n"
+                 "Completed %2 of %3\n%4")
+          .arg (worker_count).arg (completed.load ()).arg (files.size ())
+          .arg (detail));
+      progress.setValue (completed.load ());
+      QThread::msleep (20);
+    }
+    workers.waitForDone ();
+    if (cancel.load () || progress.wasCanceled ()) {
+      progress.close ();
+      return;
+    }
+    progress.setValue (recognition_steps);
+  }
+  auto set_import_progress= [&] (int completed) {
+    progress.setValue (recognition_steps + completed);
+  };
   for (int index=0; index<files.size (); ++index) {
     progress.show ();
-    progress.setValue (index);
+    QApplication::processEvents (QEventLoop::AllEvents, 25);
+    if (progress.wasCanceled ()) break;
+    set_import_progress (index);
     QString file= files[index];
     MaterialRecognitionResult recognition;
     std::string error;
@@ -1172,17 +1265,26 @@ QTMMaterialsManager::importFiles (const QStringList& files,
       QString ("%1 of %2\n%3\n")
         .arg (index + 1).arg (files.size ())
         .arg (QDir::toNativeSeparators (file));
-    MaterialRecognitionOptions options= recognition_options ();
-    options.progress= [&] (const std::string& stage) {
-      progress.setProgressText (context + qstr (stage));
-      QApplication::processEvents (QEventLoop::AllEvents, 25);
-    };
-    options.cancelled= [&] { return progress.wasCanceled (); };
-    options.progress ("Starting recognition");
-    recognized= athena_material_recognize_file (
-      fs::u8path (stdstr (file)), options, recognition, error);
-    cancelled= progress.wasCanceled () ||
-               error == "Material recognition cancelled";
+    if (parallel_recognition) {
+      PreparedRecognition& item= prepared[(size_t) index];
+      recognition= std::move (item.result);
+      error= std::move (item.error);
+      recognized= item.recognized;
+      progress.setProgressText (context + "Importing recognized Material");
+    }
+    else {
+      MaterialRecognitionOptions options= recognition_options ();
+      options.progress= [&] (const std::string& stage) {
+        progress.setProgressText (context + qstr (stage));
+        QApplication::processEvents (QEventLoop::AllEvents, 25);
+      };
+      options.cancelled= [&] { return progress.wasCanceled (); };
+      options.progress ("Starting recognition");
+      recognized= athena_material_recognize_file (
+        fs::u8path (stdstr (file)), options, recognition, error);
+      cancelled= progress.wasCanceled () ||
+                  error == "Material recognition cancelled";
+    }
     if (cancelled) break;
     if (!recognized) {
       if (review_recognition) {
@@ -1191,13 +1293,13 @@ QTMMaterialsManager::importFiles (const QStringList& files,
         progress.show ();
       }
       else failures << QString ("%1: %2").arg (file, qstr (error));
-      progress.setValue (index + 1);
+      set_import_progress (index + 1);
       continue;
     }
     if (review_recognition) {
       progress.hide ();
       if (!reviewRecognition (file, recognition)) {
-        progress.setValue (index + 1);
+        set_import_progress (index + 1);
         continue;
       }
       progress.show ();
@@ -1222,7 +1324,7 @@ QTMMaterialsManager::importFiles (const QStringList& files,
         progress.show ();
       }
       else failures << QString ("%1: %2").arg (file, qstr (error));
-      progress.setValue (index + 1);
+      set_import_progress (index + 1);
       continue;
     }
     if (existing) {
@@ -1233,7 +1335,7 @@ QTMMaterialsManager::importFiles (const QStringList& files,
           progress.hide ();
           QMessageBox::warning (this, "Add Material", qstr (error));
           progress.show ();
-          progress.setValue (index + 1);
+          set_import_progress (index + 1);
           continue;
         }
         QString title= old ? qstr (old->field ("title")) : qstr (*existing);
@@ -1246,7 +1348,7 @@ QTMMaterialsManager::importFiles (const QStringList& files,
         progress.show ();
       }
       if (declined) {
-        progress.setValue (index + 1);
+        set_import_progress (index + 1);
         continue;
       }
       MaterialImportResult imported;
@@ -1258,11 +1360,11 @@ QTMMaterialsManager::importFiles (const QStringList& files,
           progress.show ();
         }
         else failures << QString ("%1: %2").arg (file, qstr (error));
-        progress.setValue (index + 1);
+        set_import_progress (index + 1);
         continue;
       }
       lastUuid= qstr (*existing);
-      progress.setValue (index + 1);
+      set_import_progress (index + 1);
       continue;
     }
 
@@ -1278,11 +1380,11 @@ QTMMaterialsManager::importFiles (const QStringList& files,
         progress.show ();
       }
       else failures << QString ("%1: %2").arg (file, qstr (error));
-      progress.setValue (index + 1);
+      set_import_progress (index + 1);
       continue;
     }
     lastUuid= qstr (material.uuid);
-    progress.setValue (index + 1);
+    set_import_progress (index + 1);
   }
   progress.close ();
   refresh ();

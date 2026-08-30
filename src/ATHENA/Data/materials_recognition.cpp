@@ -57,6 +57,49 @@ qpath (const fs::path& path) {
   return QString::fromUtf8 (path.u8string ().c_str ());
 }
 
+bool
+compact_east_asian_person_name (QString value) {
+  value.remove (QRegularExpression (QStringLiteral ("[^\\p{L}]")));
+  static const QRegularExpression name (
+    QStringLiteral (
+      "^(?:(?:\\p{sc=Han}|\\p{sc=Hiragana}|\\p{sc=Katakana}){2,6}|"
+      "\\p{sc=Hangul}{2,4})$"),
+    QRegularExpression::UseUnicodePropertiesOption);
+  return name.match (value).hasMatch ();
+}
+
+struct NormalizedCreatorCredit {
+  std::string role;
+  std::string literal;
+};
+
+NormalizedCreatorCredit
+normalize_creator_credit (const std::string& role,
+                          const std::string& literal) {
+  QString value= qs (literal).trimmed ();
+  static const QRegularExpression credit (
+    QStringLiteral (
+      "^((?:\\p{sc=Han}|\\p{sc=Hiragana}|\\p{sc=Katakana}|"
+      "\\p{sc=Hangul}){2,6}?)\\s*"
+      "(编著|編著|撰著|主编|主編|编纂|編纂|编译|編譯|翻译|翻譯|"
+      "校注|著|撰|编|編|译|譯|注)[.。]?$"),
+    QRegularExpression::UseUnicodePropertiesOption);
+  QRegularExpressionMatch match= credit.match (value);
+  if (!match.hasMatch () ||
+      !compact_east_asian_person_name (match.captured (1)))
+    return {role, literal};
+  QString marker= match.captured (2);
+  std::string normalized_role= role;
+  if (marker == "主编" || marker == "主編" || marker == "编" ||
+      marker == "編" || marker == "编纂" || marker == "編纂" ||
+      marker == "校注" || marker == "注")
+    normalized_role= "editor";
+  else if (marker == "译" || marker == "譯" || marker == "翻译" ||
+           marker == "翻譯" || marker == "编译" || marker == "編譯")
+    normalized_role= "translator";
+  return {normalized_role, ss (match.captured (1))};
+}
+
 struct EmbeddedCreatorCandidate {
   QString value;
   std::string source;
@@ -107,11 +150,13 @@ add_creator (MaterialRecord& material, const std::string& role,
              const std::string& literal, const std::string& source= {},
              double confidence= 1.0) {
   if (given.empty () && family.empty () && literal.empty ()) return;
+  NormalizedCreatorCredit credit= normalize_creator_credit (role, literal);
   for (const MaterialCreator& creator: material.creators)
-    if (creator.role == role && creator.given == given &&
-        creator.family == family && creator.literal == literal) return;
+    if (creator.role == credit.role && creator.given == given &&
+        creator.family == family && creator.literal == credit.literal) return;
   material.creators.push_back (
-    {role, given, family, literal, "", (int) material.creators.size ()});
+    {credit.role, given, family, credit.literal, "",
+     (int) material.creators.size ()});
   if (!source.empty ()) {
     std::string observed= literal;
     if (observed.empty ()) {
@@ -302,6 +347,16 @@ normalize_printed_text (QString text) {
   return text.simplified ();
 }
 
+QString
+normalize_ocr_text (QString text) {
+  text= normalize_printed_text (text);
+  static const QRegularExpression between_han (
+    QStringLiteral ("(?<=\\p{sc=Han})\\s+(?=\\p{sc=Han})"),
+    QRegularExpression::UseUnicodePropertiesOption);
+  text.remove (between_han);
+  return text;
+}
+
 std::vector<LayoutPage>
 parse_bbox_layout (const QByteArray& document, std::string& diagnostic) {
   std::vector<LayoutPage> pages;
@@ -369,6 +424,14 @@ has_letters (const QString& text) {
 }
 
 bool
+has_title_substance (const QString& text) {
+  int letters= 0;
+  for (QChar character: text)
+    if (character.isLetter () && ++letters >= 2) return true;
+  return false;
+}
+
+bool
 contains_digit (const QString& text) {
   return std::any_of (text.begin (), text.end (),
                       [] (QChar character) { return character.isDigit (); });
@@ -393,17 +456,12 @@ probable_person_line (const QString& text) {
   QString value= normalize_printed_text (text);
   if (value.size () < 3 || value.size () > 100 || contains_digit (value) ||
       book_boilerplate (value)) return false;
+  NormalizedCreatorCredit credit= normalize_creator_credit (
+    "author", ss (value));
+  if (credit.literal != ss (value))
+    return compact_east_asian_person_name (qs (credit.literal));
   QStringList words= value.split (' ', Qt::SkipEmptyParts);
-  if (words.size () == 1) {
-    int letters= 0;
-    bool non_latin= false;
-    for (QChar character: value)
-      if (character.isLetter ()) {
-        letters++;
-        non_latin|= character.unicode () > 0x024f;
-      }
-    return non_latin && letters >= 2 && letters <= 12;
-  }
+  if (words.size () == 1) return false;
   if (words.size () > 10) return false;
   int name_words= 0;
   for (QString word: words) {
@@ -459,44 +517,110 @@ book_title_candidate (const LayoutPage& page, int page_index) {
         line.text.size () >= 4 && line.text.size () <= 100 &&
         !(contains_digit (line.text) && line.text.size () < 8))
       maximum= std::max (maximum, line.height);
-  if (maximum < 14.0) return result;
+  const double minimum_title_height=
+    page.height > 0.0 ? std::max (4.0, page.height * 0.008) : 4.0;
+  if (maximum < minimum_title_height) return result;
 
   int anchor= -1;
-  for (int i=0; i<(int) page.lines.size (); ++i) {
-    const LayoutLine& line= page.lines[(size_t) i];
-    if (line.height >= maximum * 0.88 && has_letters (line.text) &&
-        !book_boilerplate (line.text) &&
-        !(contains_digit (line.text) && line.text.size () < 8)) {
-      anchor= i;
+  for (int i=1; i<(int) page.lines.size (); ++i) {
+    const QString raw= page.lines[(size_t) i].text;
+    NormalizedCreatorCredit credit= normalize_creator_credit (
+      "author", ss (raw));
+    if (credit.literal == ss (raw) ||
+        !compact_east_asian_person_name (qs (credit.literal)))
+      continue;
+    const LayoutLine& preceding= page.lines[(size_t) i - 1];
+    if (has_letters (preceding.text) &&
+        !book_boilerplate (preceding.text) &&
+        preceding.text.size () >= 4 && preceding.text.size () <= 100 &&
+        page.lines[(size_t) i].y - preceding.y <= maximum * 4.0) {
+      anchor= i - 1;
+      maximum= preceding.height;
       break;
     }
   }
+  if (anchor < 0)
+    for (int i=0; i<(int) page.lines.size (); ++i) {
+      const LayoutLine& line= page.lines[(size_t) i];
+      if (line.height >= maximum * 0.88 && has_letters (line.text) &&
+          !book_boilerplate (line.text) &&
+          !(contains_digit (line.text) && line.text.size () < 8)) {
+        anchor= i;
+        break;
+      }
+    }
   if (anchor < 0) return result;
 
   const double title_top= page.lines[(size_t) anchor].y;
   const double title_limit= title_top + maximum * 5.0;
   int authors_after_start= -1;
   int authors_after_end= -1;
-  for (int date_index=anchor + 1;
-       date_index<(int) page.lines.size () &&
-       page.lines[(size_t) date_index].y <= title_limit;
-       ++date_index) {
-    if (!probable_date_line (page.lines[(size_t) date_index].text)) continue;
-    int start= date_index;
-    while (start > anchor + 1 &&
-           probable_person_line (page.lines[(size_t) start - 1].text) &&
-           page.lines[(size_t) start - 1].height <= maximum * 0.85)
-      --start;
-    if (start == date_index) continue;
-    bool strong= date_index - start >= 2;
-    for (int i=start; i<date_index; ++i)
-      strong|= strong_person_name_signal (page.lines[(size_t) i].text);
-    if (strong) {
-      authors_after_start= start;
-      authors_after_end= date_index;
+  for (int i=anchor + 1; i<(int) page.lines.size () &&
+       page.lines[(size_t) i].y <= title_limit; ++i) {
+    const QString raw= page.lines[(size_t) i].text;
+    NormalizedCreatorCredit credit= normalize_creator_credit (
+      "author", ss (raw));
+    if (credit.literal != ss (raw) &&
+        compact_east_asian_person_name (qs (credit.literal))) {
+      authors_after_start= i;
+      authors_after_end= i + 1;
+      while (authors_after_end<(int) page.lines.size () &&
+             page.lines[(size_t) authors_after_end].y <= title_limit) {
+        const QString next= page.lines[(size_t) authors_after_end].text;
+        NormalizedCreatorCredit next_credit= normalize_creator_credit (
+          "author", ss (next));
+        if (next_credit.literal == ss (next) ||
+            !compact_east_asian_person_name (qs (next_credit.literal)))
+          break;
+        ++authors_after_end;
+      }
       break;
     }
   }
+  if (authors_after_start < 0)
+    for (int i=anchor + 1; i<(int) page.lines.size () &&
+         page.lines[(size_t) i].y <= title_limit; ++i) {
+      const LayoutLine& line= page.lines[(size_t) i];
+      const LayoutLine& preceding= page.lines[(size_t) i - 1];
+      const double gap= line.y - preceding.y - preceding.height;
+      if (gap < maximum * 0.75 || line.height > maximum * 1.05 ||
+          !strong_person_name_signal (line.text))
+        continue;
+      authors_after_start= i;
+      authors_after_end= i + 1;
+      while (authors_after_end<(int) page.lines.size () &&
+             page.lines[(size_t) authors_after_end].y <= title_limit) {
+        const LayoutLine& author= page.lines[(size_t) authors_after_end];
+        const LayoutLine& previous=
+          page.lines[(size_t) authors_after_end - 1];
+        if (author.y - previous.y - previous.height > maximum * 1.5 ||
+            !probable_person_line (author.text))
+          break;
+        ++authors_after_end;
+      }
+      break;
+    }
+  if (authors_after_start < 0)
+    for (int date_index=anchor + 1;
+         date_index<(int) page.lines.size () &&
+         page.lines[(size_t) date_index].y <= title_limit;
+         ++date_index) {
+      if (!probable_date_line (page.lines[(size_t) date_index].text)) continue;
+      int start= date_index;
+      while (start > anchor + 1 &&
+             probable_person_line (page.lines[(size_t) start - 1].text) &&
+             page.lines[(size_t) start - 1].height <= maximum * 0.85)
+        --start;
+      if (start == date_index) continue;
+      bool strong= date_index - start >= 2;
+      for (int i=start; i<date_index; ++i)
+        strong|= strong_person_name_signal (page.lines[(size_t) i].text);
+      if (strong) {
+        authors_after_start= start;
+        authors_after_end= date_index;
+        break;
+      }
+    }
   QStringList title_lines;
   for (int i=anchor; i<(int) page.lines.size (); ++i) {
     const LayoutLine& line= page.lines[(size_t) i];
@@ -513,7 +637,7 @@ book_title_candidate (const LayoutPage& page, int page_index) {
   }
   if (title_lines.isEmpty ()) return result;
   result.title= normalize_printed_text (title_lines.join (' '));
-  if (result.title.size () < 5 || result.title.size () > 300 ||
+  if (!has_title_substance (result.title) || result.title.size () > 300 ||
       book_boilerplate (result.title)) {
     result.title.clear ();
     return result;
@@ -545,6 +669,7 @@ apply_book_title_pages (const std::vector<LayoutPage>& pages,
   for (int index=0; index<(int) pages.size (); ++index) {
     BookTitleCandidate candidate= book_title_candidate (
       pages[(size_t) index], index);
+    if (candidate.title.isEmpty () || candidate.authors.isEmpty ()) continue;
     if (candidate.score > best.score) best= std::move (candidate);
   }
   if (best.title.isEmpty ()) return false;
@@ -613,9 +738,17 @@ parse_tesseract_tsv (const QByteArray& output) {
     QStringList words;
   };
   std::map<QString, LineAccumulator> accumulated;
+  int page_width= 0;
+  int page_height= 0;
   const QList<QByteArray> rows= output.split ('\n');
   for (int row=1; row<rows.size (); ++row) {
     QList<QByteArray> columns= rows[row].split ('\t');
+    if (columns.size () < 11) continue;
+    if (columns[0] == "1") {
+      page_width= columns[8].toInt ();
+      page_height= columns[9].toInt ();
+      continue;
+    }
     if (columns.size () < 12 || columns[0] != "5") continue;
     QString word= QString::fromUtf8 (columns[11]).trimmed ();
     if (word.isEmpty ()) continue;
@@ -636,10 +769,12 @@ parse_tesseract_tsv (const QByteArray& output) {
     line.words << word;
   }
   LayoutPage page;
+  page.width= page_width;
+  page.height= page_height;
   for (const auto& [key, value]: accumulated) {
     (void) key;
     LayoutLine line;
-    line.text= normalize_printed_text (value.words.join (' '));
+    line.text= normalize_ocr_text (value.words.join (' '));
     line.x= value.left;
     line.y= value.top;
     line.width= std::max (0, value.right - value.left);
@@ -665,10 +800,39 @@ layout_letter_count (const std::vector<LayoutPage>& pages) {
   return result;
 }
 
+bool
+layout_text_is_usable (const std::vector<LayoutPage>& pages) {
+  int lines= 0;
+  int short_lines= 0;
+  for (const LayoutPage& page: pages)
+    for (const LayoutLine& line: page.lines) {
+      int letters= 0;
+      for (QChar character: line.text)
+        if (character.isLetter ()) letters++;
+      if (letters == 0) continue;
+      lines++;
+      if (letters <= 2) short_lines++;
+    }
+  if (layout_letter_count (pages) < 80) return false;
+  return lines < 20 || short_lines * 10 < lines * 7;
+}
+
+QString
+ocr_languages_for (const MaterialRecognitionOptions& options,
+                   const QString& text_hint) {
+  QString configured= qs (options.ocr_languages).trimmed ();
+  if (!configured.isEmpty () && configured != "auto") return configured;
+  static const QRegularExpression han (
+    QStringLiteral ("\\p{sc=Han}"),
+    QRegularExpression::UseUnicodePropertiesOption);
+  return han.match (text_hint).hasMatch () ? "chi_sim+eng" : "eng";
+}
+
 std::vector<LayoutPage>
 ocr_pdf_front_matter (const fs::path& source,
                       const MaterialRecognitionOptions& options,
-                      int page_count, std::vector<std::string>& diagnostics) {
+                      int page_count, const QString& text_hint,
+                      std::vector<std::string>& diagnostics) {
   std::vector<LayoutPage> pages;
   QTemporaryDir temporary;
   if (!temporary.isValid ()) {
@@ -678,6 +842,7 @@ ocr_pdf_front_matter (const fs::path& source,
   int available_pages= page_count > 0 ? page_count : options.pdf_pages;
   int count= std::min ({std::max (1, available_pages),
                         std::max (1, options.pdf_pages), 5});
+  QString languages= ocr_languages_for (options, text_hint);
   for (int page=1; page<=count; ++page) {
     if (options.cancelled && options.cancelled ()) break;
     if (options.progress)
@@ -700,11 +865,17 @@ ocr_pdf_front_matter (const fs::path& source,
     }
     QByteArray tsv;
     std::string ocr_diagnostic;
-    bool recognized= run_process (
-      options.ocr_engine,
-      {image, "stdout", "-l", qs (options.ocr_languages),
-       "--psm", "3", "tsv"}, options.providers.timeout_ms,
-      tsv, ocr_diagnostic, options.cancelled);
+    auto recognize= [&] (const QString& selected_languages) {
+      tsv.clear ();
+      ocr_diagnostic.clear ();
+      return run_process (
+        options.ocr_engine,
+        {image, "stdout", "-l", selected_languages,
+         "--psm", "3", "tsv"}, options.providers.timeout_ms,
+        tsv, ocr_diagnostic, options.cancelled);
+    };
+    bool recognized= recognize (languages);
+    if (!recognized && languages != "eng") recognized= recognize ("eng");
     if (!recognized) {
       if (!ocr_diagnostic.empty ()) diagnostics.push_back (ocr_diagnostic);
       break;
@@ -1541,29 +1712,45 @@ athena_material_recognize_file (const fs::path& source,
   if (recognition_cancelled (options, error)) return false;
   if (mime == "application/pdf" ||
       suffix.compare ("pdf", Qt::CaseInsensitive) == 0) {
+    QString creator_evidence= QFileInfo (qpath (source)).completeBaseName () +
+                              '\n' + QString::fromUtf8 (text_bytes);
+    apply_embedded_creator_candidates (
+      embedded_creators, metadata_software, creator_evidence,
+      result.material, result.diagnostics);
+    bool complete_embedded_identity=
+      !result.material.field ("title").empty () &&
+      !result.material.creators.empty ();
     apply_pdf_structure (QString::fromUtf8 (text_bytes), pdf_page_count,
                          result.material, result.diagnostics);
-    if (result.material.item_type == "document")
+    if (result.material.item_type == "document" &&
+        !complete_embedded_identity)
       if (apply_book_title_pages (
             front_layout, "title-page-layout", 0.92, result.material,
             result.diagnostics))
         title_page_confidence= 0.92;
-    if (title_page_confidence == 0.0 &&
-        layout_letter_count (front_layout) < 80) {
+    if (!complete_embedded_identity && title_page_confidence == 0.0 &&
+        (result.material.field ("title").empty () ||
+         !layout_text_is_usable (front_layout))) {
       report_progress (options, "OCR is needed for scanned title pages");
       std::vector<LayoutPage> ocr_pages= ocr_pdf_front_matter (
-        source, options, pdf_page_count, result.diagnostics);
+        source, options, pdf_page_count, QString::fromUtf8 (text_bytes),
+        result.diagnostics);
       if (apply_book_title_pages (
             ocr_pages, "title-page-ocr", 0.82, result.material,
             result.diagnostics))
         title_page_confidence= 0.82;
     }
+    if (complete_embedded_identity)
+      result.diagnostics.push_back (
+        "Kept corroborated embedded title and author metadata");
   }
-  QString creator_evidence= QFileInfo (qpath (source)).completeBaseName () +
-                            '\n' + QString::fromUtf8 (text_bytes);
-  apply_embedded_creator_candidates (
-    embedded_creators, metadata_software, creator_evidence,
-    result.material, result.diagnostics);
+  else {
+    QString creator_evidence= QFileInfo (qpath (source)).completeBaseName () +
+                              '\n' + QString::fromUtf8 (text_bytes);
+    apply_embedded_creator_candidates (
+      embedded_creators, metadata_software, creator_evidence,
+      result.material, result.diagnostics);
+  }
   report_progress (options,
                    "Recognizing DOI, ISBN, arXiv, and PMID identifiers");
   extract_identifiers (QString::fromUtf8 (text_bytes), result.identifiers);
@@ -1579,6 +1766,8 @@ athena_material_recognize_file (const fs::path& source,
   if (result.external_metadata_used) result.confidence= 0.96;
   else if (title_page_confidence > 0.0)
     result.confidence= title_page_confidence;
+  else if (!result.material.field ("title").empty () &&
+           !result.material.creators.empty ()) result.confidence= 0.84;
   else if (!result.material.field ("title").empty () &&
            !result.identifiers.empty ()) result.confidence= 0.78;
   else if (!result.material.field ("title").empty () &&

@@ -70,6 +70,7 @@
 #include <QHeaderView>
 #include <QTextEdit>
 #include <QTextCursor>
+#include <QThread>
 #include <QToolButton>
 #include <QTimer>
 #include <QUrl>
@@ -1864,6 +1865,18 @@ QTMPreferencesDialog::buildVaultPage () {
                  "materials local metadata extractor", "exiftool");
   add_line_edit (mm, "Local PDF text extractor:",
                  "materials local text extractor", "pdftotext");
+  int logicalProcessors= std::max (1, QThread::idealThreadCount ());
+  std::vector<QStringChoice> importParallelism;
+  importParallelism.emplace_back (
+    "auto", QString ("Automatic (%1 workers)").arg (logicalProcessors));
+  for (int workers=1; workers<=logicalProcessors; ++workers)
+    importParallelism.emplace_back (
+      QString::number (workers),
+      workers == 1 ? QString ("1 worker")
+                   : QString ("%1 workers").arg (workers));
+  add_qstring_combo (mm, "Directory import parallelism:",
+                     "materials import parallelism", importParallelism,
+                     "auto");
   add_toggle (mm, "Query Crossref:", "materials provider crossref");
   add_toggle (mm, "Query OpenAlex:", "materials provider openalex");
   add_toggle (mm, "Query Open Library:",
