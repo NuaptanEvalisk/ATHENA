@@ -143,8 +143,7 @@ available, and produces:
     container_build/ATHENA-dev.AppImage.sha256
     container_build/ATHENA-rel.AppImage.sha256
     container_build/packages/*.deb
-    container_build/packages/*-opensuse-x86_64.rpm
-    container_build/packages/*-rhel-x86_64.rpm
+    container_build/packages/*-linux-x86_64.rpm
 
 By default it also validates both AppImages in an Ubuntu 24.04 container:
 

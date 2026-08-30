@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build DEB and openSUSE/RHEL RPM packages from an ATHENA AppDir."""
+"""Build DEB and RPM packages from an ATHENA AppDir."""
 
 from __future__ import annotations
 
@@ -125,10 +125,9 @@ Description: Mathematical knowledge organization and writing environment
     return out
 
 
-def build_rpm(payload: Path, outdir: Path, flavor: str, version: str,
-              distro: str) -> Path:
+def build_rpm(payload: Path, outdir: Path, flavor: str, version: str) -> Path:
     name = package_name(flavor)
-    topdir = payload.parent / f"rpmbuild-{distro}"
+    topdir = payload.parent / "rpmbuild"
     sourcedir = topdir / "SOURCES"
     specs = topdir / "SPECS"
     sourcedir.mkdir(parents=True)
@@ -137,7 +136,7 @@ def build_rpm(payload: Path, outdir: Path, flavor: str, version: str,
     spec = specs / f"{name}.spec"
     spec.write_text(f"""Name:           {name}
 Version:        {version}
-Release:        1.{distro}.{flavor}
+Release:        1
 Summary:        Mathematical knowledge organization and writing environment
 License:        GPL-3.0-or-later
 URL:            https://athena.evalisk.org/
@@ -186,7 +185,7 @@ fi
     built = list((topdir / "RPMS").rglob("*.rpm"))
     if len(built) != 1:
         raise RuntimeError(f"expected one RPM, found {built}")
-    out = outdir / f"ATHENA-{version}-{flavor}-{distro}-x86_64.rpm"
+    out = outdir / f"ATHENA-{version}-{flavor}-linux-x86_64.rpm"
     shutil.copy2(built[0], out)
     return out
 
@@ -213,8 +212,7 @@ def main() -> int:
         copy_payload(appdir, payload)
         outputs = [
             build_deb(payload, outdir, flavor, version),
-            build_rpm(payload, outdir, flavor, version, "opensuse"),
-            build_rpm(payload, outdir, flavor, version, "rhel"),
+            build_rpm(payload, outdir, flavor, version),
         ]
     for output in outputs:
         run(["sha256sum", str(output)], stdout=(output.with_suffix(

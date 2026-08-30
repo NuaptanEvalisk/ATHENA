@@ -272,8 +272,7 @@ stage_container_artifacts () {
   for flavor in dev rel; do
     for package in \
       "$container_build_dir/packages/ATHENA-$version-$flavor-linux-x86_64.deb" \
-      "$container_build_dir/packages/ATHENA-$version-$flavor-opensuse-x86_64.rpm" \
-      "$container_build_dir/packages/ATHENA-$version-$flavor-rhel-x86_64.rpm"; do
+      "$container_build_dir/packages/ATHENA-$version-$flavor-linux-x86_64.rpm"; do
       copy_artifact "$package" "$release_dir/$(basename -- "$package")"
     done
   done
@@ -362,7 +361,7 @@ if [[ "$build_local" -eq 1 ]]; then
 fi
 
 if [[ "$build_container" -eq 1 ]]; then
-  echo "==> AppImage, DEB, openSUSE RPM, and RHEL RPM"
+  echo "==> AppImage, DEB, and RPM"
   run env \
     "ATHENA_BUILD_JOBS=$jobs" \
     "ATHENA_BUILD_FLAVORS=dev rel" \

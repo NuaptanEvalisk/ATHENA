@@ -18,30 +18,24 @@ read -r -a flavors <<<"${ATHENA_BUILD_FLAVORS:-dev rel}"
 
 for flavor in "${flavors[@]}"; do
   deb="$packages/ATHENA-$version-$flavor-linux-x86_64.deb"
-  opensuse="$packages/ATHENA-$version-$flavor-opensuse-x86_64.rpm"
-  rhel="$packages/ATHENA-$version-$flavor-rhel-x86_64.rpm"
-  [ -f "$deb" ] && [ -f "$opensuse" ] && [ -f "$rhel" ] || {
+  rpm_package="$packages/ATHENA-$version-$flavor-linux-x86_64.rpm"
+  [ -f "$deb" ] && [ -f "$rpm_package" ] || {
     echo "missing ATHENA $version native package for $flavor" >&2
     exit 1
   }
   dpkg-deb --info "$deb" >/dev/null
   dpkg-deb --contents "$deb" >"$work/$flavor.deb.list"
-  rpm -qpl "$opensuse" >"$work/$flavor.opensuse.list"
-  rpm -qpl "$rhel" >"$work/$flavor.rhel.list"
+  rpm -qpl "$rpm_package" >"$work/$flavor.rpm.list"
   rm -rf "$work/$flavor.deb-control"
   dpkg-deb --control "$deb" "$work/$flavor.deb-control"
   grep -q 'compile-installed-scheme-bytecode.sh' \
     "$work/$flavor.deb-control/postinst"
-  rpm -qp --scripts "$opensuse" >"$work/$flavor.opensuse.scripts"
-  rpm -qp --scripts "$rhel" >"$work/$flavor.rhel.scripts"
+  rpm -qp --scripts "$rpm_package" >"$work/$flavor.rpm.scripts"
   grep -q 'compile-installed-scheme-bytecode.sh' \
-    "$work/$flavor.opensuse.scripts"
-  grep -q 'compile-installed-scheme-bytecode.sh' \
-    "$work/$flavor.rhel.scripts"
+    "$work/$flavor.rpm.scripts"
 
   for listing in "$work/$flavor.deb.list" \
-                 "$work/$flavor.opensuse.list" \
-                 "$work/$flavor.rhel.list"; do
+                 "$work/$flavor.rpm.list"; do
     grep -q '/opt/ATHENA/AppRun' "$listing"
     grep -q '/opt/ATHENA/usr/share/ATHENA/bin/athena-materials-engine' "$listing"
     grep -q '/opt/ATHENA/usr/share/ATHENA/bin/athena-transmitter' "$listing"
