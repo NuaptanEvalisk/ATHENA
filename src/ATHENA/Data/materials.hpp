@@ -144,6 +144,11 @@ public:
                     const std::filesystem::path& source,
                     const std::string& role, bool make_primary,
                     MaterialImportResult& result, std::string& error);
+  bool import_material_file (MaterialRecord& material,
+                             const std::filesystem::path& source,
+                             const std::string& role, bool make_primary,
+                             MaterialImportResult& result,
+                             std::string& error);
   std::vector<MaterialAttachment> attachments (
     const std::string& material_uuid, std::string& error) const;
   std::optional<MaterialAttachment> primary_attachment (
@@ -164,6 +169,13 @@ public:
                                          const std::filesystem::path& source);
 
 private:
+  bool import_file_with_sha256 (const std::string& material_uuid,
+                                const std::filesystem::path& source,
+                                const std::string& sha256,
+                                const std::string& role, bool make_primary,
+                                MaterialImportResult& result,
+                                std::string& error);
+
   struct Impl;
   std::unique_ptr<Impl> impl;
 };

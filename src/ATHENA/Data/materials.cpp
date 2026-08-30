@@ -31,6 +31,7 @@
 #include <set>
 #include <sstream>
 #include <system_error>
+#include <utility>
 
 namespace fs= std::filesystem;
 
@@ -1243,14 +1244,71 @@ MaterialsStore::import_file (const std::string& material_uuid,
                              bool make_primary, MaterialImportResult& result,
                              std::string& error) {
   result= MaterialImportResult {};
-  std::string canonical= resolve_uuid (material_uuid, error);
-  if (canonical.empty ()) return false;
   if (!fs::exists (source) || !fs::is_regular_file (source)) {
     error= "Material attachment is not a regular file: " + source.string ();
     return false;
   }
   std::string sha256;
   if (!file_sha256 (source, sha256, error)) return false;
+  return import_file_with_sha256 (material_uuid, source, sha256, role,
+                                  make_primary, result, error);
+}
+
+bool
+MaterialsStore::import_material_file (
+  MaterialRecord& material, const fs::path& source, const std::string& role,
+  bool make_primary, MaterialImportResult& result, std::string& error) {
+  result= MaterialImportResult {};
+  if (!fs::exists (source) || !fs::is_regular_file (source)) {
+    error= "Material attachment is not a regular file: " + source.string ();
+    return false;
+  }
+  std::string sha256;
+  if (!file_sha256 (source, sha256, error)) return false;
+
+  std::optional<std::string> existing= material_for_sha256 (sha256, error);
+  if (!error.empty ()) return false;
+  if (existing) {
+    if (!import_file_with_sha256 (*existing, source, sha256, role,
+                                  make_primary, result, error))
+      return false;
+    std::optional<MaterialRecord> canonical= get (*existing, error);
+    if (!canonical) return false;
+    material= std::move (*canonical);
+    return true;
+  }
+
+  if (!create (material, error)) return false;
+  std::string created_uuid= material.uuid;
+  bool imported= import_file_with_sha256 (
+    created_uuid, source, sha256, role, make_primary, result, error);
+  if (!imported || result.duplicate) {
+    std::string cleanup_error;
+    if (!remove (created_uuid, true, cleanup_error)) {
+      if (!error.empty ()) error += "; ";
+      error += "Could not remove incomplete Material " + created_uuid +
+               ": " + cleanup_error;
+      return false;
+    }
+  }
+  if (!imported) return false;
+  if (result.duplicate) {
+    std::optional<MaterialRecord> canonical=
+      get (result.existing_material_uuid, error);
+    if (!canonical) return false;
+    material= std::move (*canonical);
+  }
+  return true;
+}
+
+bool
+MaterialsStore::import_file_with_sha256 (
+  const std::string& material_uuid, const fs::path& source,
+  const std::string& sha256, const std::string& role, bool make_primary,
+  MaterialImportResult& result, std::string& error) {
+  result= MaterialImportResult {};
+  std::string canonical= resolve_uuid (material_uuid, error);
+  if (canonical.empty ()) return false;
   std::optional<std::string> existing= material_for_sha256 (sha256, error);
   if (!error.empty ()) return false;
   if (existing) {

@@ -1043,24 +1043,14 @@ QTMMaterialsManager::importFiles (const QStringList& files) {
 
     MaterialRecord material= recognition.material;
     material.identifiers= recognition.identifiers;
-    if (!store->create (material, error)) {
-      QMessageBox::warning (this, "Add Material", qstr (error));
-      continue;
-    }
     MaterialImportResult imported;
-    if (!store->import_file (material.uuid, fs::u8path (stdstr (file)),
-                             "document", true, imported, error)) {
-      std::string cleanup_error;
-      store->remove (material.uuid, true, cleanup_error);
+    if (!store->import_material_file (
+          material, fs::u8path (stdstr (file)), "document", true,
+          imported, error)) {
       QMessageBox::warning (this, "Add Material", qstr (error));
       continue;
     }
-    if (imported.duplicate) {
-      std::string cleanup_error;
-      store->remove (material.uuid, true, cleanup_error);
-      lastUuid= qstr (imported.existing_material_uuid);
-    }
-    else lastUuid= qstr (material.uuid);
+    lastUuid= qstr (material.uuid);
   }
   refresh ();
   selectUuid (lastUuid);

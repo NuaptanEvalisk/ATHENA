@@ -77,6 +77,7 @@ private slots:
   void rejectsPathsOutsideVault ();
   void createsSearchesAndUpdatesMaterials ();
   void canonicalizesAndDeduplicatesFiles ();
+  void deduplicatesMaterialImportsWithDifferentFilenames ();
   void preservesAliasesAndPrimaryAttachmentOnMerge ();
   void recognizesMetadataAndIdentifiersWithoutUsingFilename ();
   void recognizesIsbnThroughOpenLibrary ();
@@ -210,6 +211,49 @@ MaterialsTest::canonicalizesAndDeduplicatesFiles () {
   QVERIFY (duplicate.duplicate);
   QCOMPARE (duplicate.existing_material_uuid, first.uuid);
   QCOMPARE (store.attachments (second.uuid, error).size (), (size_t) 0);
+}
+
+void
+MaterialsTest::deduplicatesMaterialImportsWithDifferentFilenames () {
+  QTemporaryDir temporary;
+  QVERIFY (temporary.isValid ());
+  fs::path root= fs::u8path (temporary.path ().toStdString ());
+  MaterialsStore store;
+  std::string error;
+  QVERIFY2 (store.open (root, AthenaVaultfileInfo {}, error), error.c_str ());
+
+  fs::path first_source= root / "original-name.pdf";
+  fs::path second_source= root / "renamed-copy.pdf";
+  const QByteArray contents= "%PDF-1.7\nidentical material\n";
+  QVERIFY (write_bytes (first_source, contents));
+  QVERIFY (write_bytes (second_source, contents));
+
+  MaterialRecord first= sample_material ("Canonical", "Author", "2026");
+  MaterialImportResult first_import;
+  QVERIFY2 (store.import_material_file (
+              first, first_source, "document", true, first_import, error),
+            error.c_str ());
+  QVERIFY (!first_import.duplicate);
+
+  MaterialRecord second= sample_material ("Duplicate", "Someone", "2025");
+  MaterialImportResult second_import;
+  QVERIFY2 (store.import_material_file (
+              second, second_source, "document", true, second_import, error),
+            error.c_str ());
+  QVERIFY (second_import.duplicate);
+  QCOMPARE (second.uuid, first.uuid);
+  QCOMPARE (second.field ("title"), std::string ("Canonical"));
+  QCOMPARE (second_import.existing_material_uuid, first.uuid);
+
+  std::vector<MaterialSearchHit> materials= store.list (100, 0, error);
+  QVERIFY2 (error.empty (), error.c_str ());
+  QCOMPARE (materials.size (), (size_t) 1);
+  QCOMPARE (store.attachments (first.uuid, error).size (), (size_t) 1);
+  size_t managed_files= 0;
+  for (const fs::directory_entry& entry:
+       fs::directory_iterator (store.materials_directory ()))
+    if (entry.is_regular_file ()) managed_files++;
+  QCOMPARE (managed_files, (size_t) 1);
 }
 
 void
