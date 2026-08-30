@@ -18,6 +18,8 @@ struct QTMZoteroImportResult {
   int added= 0;
   int already_imported= 0;
   int identifier_duplicates= 0;
+  int hash_reconciled= 0;
+  int hash_conflicts_kept_both= 0;
   int attachments_copied= 0;
   int attachments_already_present= 0;
   int attachments_unavailable= 0;

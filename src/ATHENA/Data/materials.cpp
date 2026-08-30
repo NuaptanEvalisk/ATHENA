@@ -13,6 +13,7 @@
 #include <QCryptographicHash>
 #include <QFile>
 #include <QJsonDocument>
+#include <QJsonObject>
 #include <QJsonParseError>
 #include <QMimeDatabase>
 #include <QRegularExpression>
@@ -252,7 +253,8 @@ safe_vault_path (const fs::path& root, const std::string& configured,
 }
 
 bool
-file_sha256 (const fs::path& path, std::string& hash, std::string& error) {
+compute_file_sha256 (const fs::path& path, std::string& hash,
+                     std::string& error) {
   QFile file (qpath (path));
   if (!file.open (QIODevice::ReadOnly)) {
     error= "Could not read material file " + path.string () + ": " +
@@ -686,6 +688,321 @@ MaterialRecord::field (const std::string& name) const {
   for (const MaterialField& entry: fields)
     if (entry.name == name) return entry.value;
   return {};
+}
+
+namespace {
+
+std::string
+metadata_form (const std::string& value) {
+  QString normalized= qs (value).normalized (
+    QString::NormalizationForm_KC).toCaseFolded ().simplified ();
+  return ss (normalized);
+}
+
+bool
+same_creator (const MaterialCreator& left, const MaterialCreator& right) {
+  auto identity= [] (const MaterialCreator& creator) {
+    if (!creator.literal.empty ()) return metadata_form (creator.literal);
+    return metadata_form (creator.given + " " + creator.family + " " +
+                          creator.suffix);
+  };
+  return metadata_form (left.role) == metadata_form (right.role) &&
+         identity (left) == identity (right);
+}
+
+std::string
+creator_display (const MaterialCreator& creator) {
+  if (!creator.literal.empty ()) return creator.literal;
+  return ss ((qs (creator.given) + " " + qs (creator.family) + " " +
+              qs (creator.suffix)).simplified ());
+}
+
+bool
+placeholder_field_value (const std::string& name, const std::string& value) {
+  const std::string normalized= metadata_form (value);
+  if (normalized.empty () || normalized == "unknown") return true;
+  if (name == "title") return normalized == "untitled";
+  if (name == "date")
+    return normalized == "n.d." || normalized == "n.d" ||
+           normalized == "undated";
+  return false;
+}
+
+bool
+same_provenance (const MaterialProvenance& left,
+                 const MaterialProvenance& right) {
+  return left.field_name == right.field_name &&
+         left.source_kind == right.source_kind &&
+         left.source_reference == right.source_reference &&
+         left.observed_value == right.observed_value;
+}
+
+void
+append_unique_metadata (MaterialRecord& target,
+                        const MaterialRecord& incoming) {
+  for (const MaterialCreator& creator: incoming.creators)
+    if (std::none_of (target.creators.begin (), target.creators.end (),
+                      [&] (const MaterialCreator& old) {
+                        return same_creator (old, creator);
+                      })) {
+      MaterialCreator copy= creator;
+      copy.ordinal= (int) target.creators.size ();
+      target.creators.push_back (std::move (copy));
+    }
+  for (const std::string& tag: incoming.tags)
+    if (std::none_of (target.tags.begin (), target.tags.end (),
+                      [&] (const std::string& old) {
+                        return metadata_form (old) == metadata_form (tag);
+                      }))
+      target.tags.push_back (tag);
+  for (const MaterialProvenance& provenance: incoming.provenance)
+    if (std::none_of (target.provenance.begin (), target.provenance.end (),
+                      [&] (const MaterialProvenance& old) {
+                        return same_provenance (old, provenance);
+                      }))
+      target.provenance.push_back (provenance);
+
+  QJsonObject combined= QJsonDocument::fromJson (
+    QByteArray::fromStdString (target.extra_json)).object ();
+  QJsonObject additions= QJsonDocument::fromJson (
+    QByteArray::fromStdString (incoming.extra_json)).object ();
+  for (auto it= additions.begin (); it != additions.end (); ++it)
+    if (!combined.contains (it.key ())) combined.insert (it.key (), it.value ());
+  target.extra_json= ss (QString::fromUtf8 (
+    QJsonDocument (combined).toJson (QJsonDocument::Compact)));
+}
+
+std::string
+joined_field_values (const std::vector<MaterialField>& fields,
+                     const std::string& name, const std::string& language) {
+  QStringList values;
+  for (const MaterialField& field: fields)
+    if (field.name == name && field.language == language)
+      values << qs (field.value);
+  return ss (values.join (" | "));
+}
+
+} // namespace
+
+MaterialMetadataReconciliation
+athena_materials_reconcile_metadata (const MaterialRecord& existing,
+                                     const MaterialRecord& incoming) {
+  MaterialMetadataReconciliation result;
+  result.prefer_existing= existing;
+  result.prefer_incoming= existing;
+  append_unique_metadata (result.prefer_existing, incoming);
+  append_unique_metadata (result.prefer_incoming, incoming);
+
+  const bool existing_generic= existing.item_type.empty () ||
+                               existing.item_type == "document";
+  const bool incoming_generic= incoming.item_type.empty () ||
+                               incoming.item_type == "document";
+  if (existing_generic && !incoming_generic) {
+    result.prefer_existing.item_type= incoming.item_type;
+    result.prefer_incoming.item_type= incoming.item_type;
+  }
+  else if (!existing_generic && !incoming_generic &&
+           existing.item_type != incoming.item_type) {
+    result.conflicts.push_back (
+      {"Item type", existing.item_type, incoming.item_type});
+    result.prefer_incoming.item_type= incoming.item_type;
+  }
+
+  std::set<std::pair<std::string, std::string>> field_keys;
+  for (const MaterialField& field: incoming.fields)
+    field_keys.insert ({field.name, field.language});
+  for (const auto& key: field_keys) {
+    std::vector<const MaterialField*> old_values;
+    std::vector<const MaterialField*> new_values;
+    for (const MaterialField& field: existing.fields)
+      if (field.name == key.first && field.language == key.second)
+        old_values.push_back (&field);
+    for (const MaterialField& field: incoming.fields)
+      if (field.name == key.first && field.language == key.second)
+        new_values.push_back (&field);
+    if (old_values.empty ()) {
+      int ordinal= 0;
+      for (const MaterialField& old: result.prefer_existing.fields)
+        if (old.name == key.first && old.language == key.second)
+          ordinal= std::max (ordinal, old.ordinal + 1);
+      for (const MaterialField* field: new_values) {
+        MaterialField copy= *field;
+        copy.ordinal= ordinal++;
+        result.prefer_existing.fields.push_back (copy);
+        result.prefer_incoming.fields.push_back (copy);
+      }
+      continue;
+    }
+    bool old_is_placeholder= std::all_of (
+      old_values.begin (), old_values.end (), [&] (const MaterialField* field) {
+        return placeholder_field_value (key.first, field->value);
+      });
+    bool new_is_placeholder= std::all_of (
+      new_values.begin (), new_values.end (), [&] (const MaterialField* field) {
+        return placeholder_field_value (key.first, field->value);
+      });
+    if (old_is_placeholder && !new_is_placeholder) {
+      auto replace_key= [&] (std::vector<MaterialField>& fields) {
+        fields.erase (std::remove_if (
+          fields.begin (), fields.end (), [&] (const MaterialField& field) {
+            return field.name == key.first && field.language == key.second;
+          }), fields.end ());
+        int ordinal= 0;
+        for (const MaterialField* field: new_values) {
+          MaterialField copy= *field;
+          copy.ordinal= ordinal++;
+          fields.push_back (copy);
+        }
+      };
+      replace_key (result.prefer_existing.fields);
+      replace_key (result.prefer_incoming.fields);
+      continue;
+    }
+    if (new_is_placeholder) continue;
+    bool equivalent= true;
+    for (const MaterialField* field: new_values)
+      if (std::none_of (old_values.begin (), old_values.end (),
+                        [&] (const MaterialField* old) {
+                          return metadata_form (old->value) ==
+                                 metadata_form (field->value);
+                        })) {
+        equivalent= false;
+        break;
+      }
+    if (equivalent) continue;
+    result.conflicts.push_back (
+      {key.first + (key.second.empty () ? "" : " [" + key.second + "]"),
+       joined_field_values (existing.fields, key.first, key.second),
+       joined_field_values (incoming.fields, key.first, key.second)});
+    auto remove_key= [&] (std::vector<MaterialField>& fields) {
+      fields.erase (std::remove_if (
+        fields.begin (), fields.end (), [&] (const MaterialField& field) {
+          return field.name == key.first && field.language == key.second;
+        }), fields.end ());
+    };
+    remove_key (result.prefer_incoming.fields);
+    int ordinal= 0;
+    for (const MaterialField* field: new_values) {
+      MaterialField copy= *field;
+      copy.ordinal= ordinal++;
+      result.prefer_incoming.fields.push_back (copy);
+    }
+  }
+
+  std::set<std::string> incoming_roles;
+  for (const MaterialCreator& creator: incoming.creators)
+    incoming_roles.insert (metadata_form (creator.role));
+  for (const std::string& role: incoming_roles) {
+    std::vector<MaterialCreator> old_values;
+    std::vector<MaterialCreator> new_values;
+    for (const MaterialCreator& creator: existing.creators)
+      if (metadata_form (creator.role) == role) old_values.push_back (creator);
+    for (const MaterialCreator& creator: incoming.creators)
+      if (metadata_form (creator.role) == role) new_values.push_back (creator);
+    if (old_values.empty ()) continue;
+    bool overlaps= std::any_of (
+      new_values.begin (), new_values.end (), [&] (const auto& value) {
+        return std::any_of (old_values.begin (), old_values.end (),
+                            [&] (const auto& old) {
+          return same_creator (old, value);
+        });
+      });
+    if (overlaps) continue;
+    auto values= [] (const std::vector<MaterialCreator>& creators) {
+      QStringList result;
+      for (const MaterialCreator& creator: creators)
+        result << qs (creator_display (creator));
+      return ss (result.join (" | "));
+    };
+    result.conflicts.push_back (
+      {"Creators: " + role, values (old_values), values (new_values)});
+    auto replace_role= [&] (std::vector<MaterialCreator>& creators,
+                            const std::vector<MaterialCreator>& values) {
+      creators.erase (std::remove_if (
+        creators.begin (), creators.end (), [&] (const auto& creator) {
+          return metadata_form (creator.role) == role;
+        }), creators.end ());
+      creators.insert (creators.end (), values.begin (), values.end ());
+      for (int index=0; index<(int) creators.size (); ++index)
+        creators[(size_t) index].ordinal= index;
+    };
+    replace_role (result.prefer_existing.creators, old_values);
+    replace_role (result.prefer_incoming.creators, new_values);
+  }
+
+  std::set<std::string> incoming_schemes;
+  for (const MaterialIdentifier& identifier: incoming.identifiers)
+    incoming_schemes.insert (metadata_form (identifier.scheme));
+  for (const std::string& scheme: incoming_schemes) {
+    std::vector<MaterialIdentifier> old_values;
+    std::vector<MaterialIdentifier> new_values;
+    for (const MaterialIdentifier& identifier: existing.identifiers)
+      if (metadata_form (identifier.scheme) == scheme)
+        old_values.push_back (identifier);
+    for (const MaterialIdentifier& identifier: incoming.identifiers)
+      if (metadata_form (identifier.scheme) == scheme)
+        new_values.push_back (identifier);
+    if (old_values.empty ()) {
+      result.prefer_existing.identifiers.insert (
+        result.prefer_existing.identifiers.end (), new_values.begin (),
+        new_values.end ());
+      result.prefer_incoming.identifiers.insert (
+        result.prefer_incoming.identifiers.end (), new_values.begin (),
+        new_values.end ());
+      continue;
+    }
+    bool equivalent= std::all_of (
+      new_values.begin (), new_values.end (), [&] (const auto& value) {
+        std::string normalized= MaterialsStore::normalize_identifier (
+          value.scheme, value.value);
+        return std::any_of (old_values.begin (), old_values.end (),
+                            [&] (const auto& old) {
+          return MaterialsStore::normalize_identifier (old.scheme, old.value) ==
+                 normalized;
+        });
+      });
+    if (equivalent) continue;
+    auto values= [] (const std::vector<MaterialIdentifier>& identifiers) {
+      QStringList result;
+      for (const auto& identifier: identifiers) result << qs (identifier.value);
+      return ss (result.join (" | "));
+    };
+    result.conflicts.push_back (
+      {"Identifier: " + scheme, values (old_values), values (new_values)});
+    result.prefer_incoming.identifiers.erase (std::remove_if (
+      result.prefer_incoming.identifiers.begin (),
+      result.prefer_incoming.identifiers.end (), [&] (const auto& value) {
+        return metadata_form (value.scheme) == scheme;
+      }), result.prefer_incoming.identifiers.end ());
+    result.prefer_incoming.identifiers.insert (
+      result.prefer_incoming.identifiers.end (), new_values.begin (),
+      new_values.end ());
+  }
+
+  if (incoming.review_state == "ready" ||
+      existing.review_state == "unrecognized" ||
+      existing.review_state == "error") {
+    result.prefer_existing.review_state= incoming.review_state;
+    result.prefer_incoming.review_state= incoming.review_state;
+  }
+  return result;
+}
+
+MaterialRecord
+athena_materials_replace_metadata (const MaterialRecord& existing,
+                                   const MaterialRecord& incoming) {
+  MaterialRecord result= incoming;
+  result.uuid= existing.uuid;
+  result.revision= existing.revision;
+  result.created_at= existing.created_at;
+  result.updated_at= existing.updated_at;
+
+  MaterialRecord retained;
+  retained.tags= existing.tags;
+  retained.provenance= existing.provenance;
+  retained.extra_json= existing.extra_json;
+  append_unique_metadata (result, retained);
+  return result;
 }
 
 MaterialsStore::MaterialsStore (): impl (std::make_unique<Impl> ()) {}
@@ -1551,6 +1868,12 @@ MaterialsStore::normalize_identifier (const std::string& raw_scheme,
     return ss (value.toUpper ());
   }
   return ss (value.trimmed ().toLower ());
+}
+
+bool
+MaterialsStore::file_sha256 (const fs::path& path, std::string& sha256,
+                             std::string& error) {
+  return compute_file_sha256 (path, sha256, error);
 }
 
 std::string

@@ -103,6 +103,25 @@ struct MaterialRelation {
   std::string object_uuid;
 };
 
+struct MaterialMetadataConflict {
+  std::string field;
+  std::string existing_value;
+  std::string incoming_value;
+};
+
+struct MaterialMetadataReconciliation {
+  MaterialRecord prefer_existing;
+  MaterialRecord prefer_incoming;
+  std::vector<MaterialMetadataConflict> conflicts;
+
+  bool compatible () const { return conflicts.empty (); }
+};
+
+MaterialMetadataReconciliation athena_materials_reconcile_metadata (
+  const MaterialRecord& existing, const MaterialRecord& incoming);
+MaterialRecord athena_materials_replace_metadata (
+  const MaterialRecord& existing, const MaterialRecord& incoming);
+
 class MaterialsStore {
 public:
   MaterialsStore ();
@@ -165,6 +184,8 @@ public:
 
   static std::string normalize_identifier (const std::string& scheme,
                                            const std::string& value);
+  static bool file_sha256 (const std::filesystem::path& path,
+                           std::string& sha256, std::string& error);
   static std::string canonical_filename (const MaterialRecord& material,
                                          const std::filesystem::path& source);
 

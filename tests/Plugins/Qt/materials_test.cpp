@@ -77,6 +77,7 @@ class MaterialsTest: public QObject {
 private slots:
   void vaultfileDefaultsAndRoundTrip ();
   void migratesUnrecognizedReviewState ();
+  void reconcilesMaterialMetadata ();
   void rejectsPathsOutsideVault ();
   void createsSearchesAndUpdatesMaterials ();
   void canonicalizesAndDeduplicatesFiles ();
@@ -177,6 +178,74 @@ MaterialsTest::migratesUnrecognizedReviewState () {
     "22222222-2222-4222-8222-222222222222", error);
   QVERIFY2 (review.has_value (), error.c_str ());
   QCOMPARE (review->review_state, std::string ("needs_review"));
+}
+
+void
+MaterialsTest::reconcilesMaterialMetadata () {
+  MaterialRecord unknown;
+  unknown.uuid= "11111111-1111-4111-8111-111111111111";
+  unknown.review_state= "unrecognized";
+  unknown.fields= {{"title", "Untitled", "", 0},
+                   {"badOcrField", "garbage", "", 0}};
+  unknown.tags= {"local"};
+  MaterialRecord zotero;
+  zotero.item_type= "book";
+  zotero.review_state= "ready";
+  zotero.fields= {{"title", "Geometry", "", 0},
+                  {"date", "2026", "", 0}};
+  zotero.creators= {{"author", "Ada", "Lovelace", "", "", 0}};
+  zotero.tags= {"zotero"};
+  zotero.provenance= {{"@record", "zotero", "zotero:user:1:ABC",
+                       "ABC", 1.0}};
+  MaterialMetadataReconciliation replacement=
+    athena_materials_reconcile_metadata (unknown, zotero);
+  QVERIFY (replacement.compatible ());
+  QCOMPARE (replacement.prefer_incoming.uuid, unknown.uuid);
+  QCOMPARE (replacement.prefer_incoming.field ("title"),
+            std::string ("Geometry"));
+  QCOMPARE (replacement.prefer_incoming.review_state, std::string ("ready"));
+  QCOMPARE (replacement.prefer_incoming.tags.size (), (size_t) 2);
+  MaterialRecord overwritten= athena_materials_replace_metadata (unknown,
+                                                                  zotero);
+  QCOMPARE (overwritten.uuid, unknown.uuid);
+  QCOMPARE (overwritten.field ("title"), std::string ("Geometry"));
+  QVERIFY (overwritten.field ("badOcrField").empty ());
+  QCOMPARE (overwritten.tags.size (), (size_t) 2);
+
+  MaterialRecord compatible= zotero;
+  compatible.uuid= unknown.uuid;
+  compatible.fields= {{"title", " geometry ", "", 0},
+                       {"publisher", "ATHENA Press", "", 0}};
+  compatible.creators.push_back (
+    {"editor", "Emmy", "Noether", "", "", 1});
+  MaterialMetadataReconciliation united=
+    athena_materials_reconcile_metadata (zotero, compatible);
+  QVERIFY (united.compatible ());
+  QCOMPARE (united.prefer_existing.field ("publisher"),
+            std::string ("ATHENA Press"));
+  QCOMPARE (united.prefer_existing.creators.size (), (size_t) 2);
+
+  MaterialRecord conflicting= zotero;
+  conflicting.item_type= "journalArticle";
+  conflicting.fields[0].value= "Algebra";
+  conflicting.creators= {{"author", "Emmy", "Noether", "", "", 0}};
+  conflicting.identifiers= {{"doi", "10.1/new", ""}};
+  MaterialRecord original= zotero;
+  original.identifiers= {{"doi", "10.1/old", ""}};
+  MaterialMetadataReconciliation conflict=
+    athena_materials_reconcile_metadata (original, conflicting);
+  QCOMPARE (conflict.conflicts.size (), (size_t) 4);
+  QCOMPARE (conflict.prefer_existing.field ("title"),
+            std::string ("Geometry"));
+  QCOMPARE (conflict.prefer_incoming.field ("title"),
+            std::string ("Algebra"));
+  QCOMPARE (conflict.prefer_existing.item_type, std::string ("book"));
+  QCOMPARE (conflict.prefer_incoming.item_type,
+            std::string ("journalArticle"));
+  QCOMPARE (conflict.prefer_existing.creators[0].family,
+            std::string ("Lovelace"));
+  QCOMPARE (conflict.prefer_incoming.creators[0].family,
+            std::string ("Noether"));
 }
 
 void

@@ -21,6 +21,7 @@
 #include <QEventLoop>
 #include <QFileInfo>
 #include <QFormLayout>
+#include <QHeaderView>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -33,6 +34,7 @@
 #include <QProgressDialog>
 #include <QPushButton>
 #include <QSizePolicy>
+#include <QTableWidget>
 #include <QTimer>
 #include <QUrl>
 #include <QUrlQuery>
@@ -64,6 +66,18 @@ struct HttpResult {
   int status= 0;
 };
 
+struct ResolvedZoteroAttachment {
+  const ZoteroAttachmentDescriptor* descriptor= nullptr;
+  QString local_path;
+};
+
+enum class MetadataConflictDecision {
+  KeepExisting,
+  UseZotero,
+  KeepBoth,
+  Cancel
+};
+
 std::string
 stdstr (const QString& value) {
   QByteArray bytes= value.toUtf8 ();
@@ -73,6 +87,79 @@ stdstr (const QString& value) {
 QString
 qstr (const std::string& value) {
   return QString::fromUtf8 (value.data (), (qsizetype) value.size ());
+}
+
+MetadataConflictDecision
+choose_metadata_conflict (
+  QWidget* parent, const MaterialRecord& existing,
+  const MaterialRecord& incoming,
+  const MaterialMetadataReconciliation& reconciliation) {
+  QDialog dialog (parent);
+  dialog.setWindowTitle ("Resolve duplicate Material");
+  dialog.resize (900, 420);
+  QVBoxLayout* layout= new QVBoxLayout (&dialog);
+  QLabel* explanation= new QLabel (
+    QString ("The Zotero item <b>%1</b> has the same file as an existing "
+             "Material, but some metadata conflicts. Select which conflicting "
+             "values to trust, or keep both records.")
+      .arg (qstr (incoming.field ("title")).toHtmlEscaped ()), &dialog);
+  explanation->setWordWrap (true);
+  layout->addWidget (explanation);
+
+  QTableWidget* table= new QTableWidget (
+    (int) reconciliation.conflicts.size (), 3, &dialog);
+  table->setHorizontalHeaderLabels ({"Field", "Existing Material", "Zotero"});
+  table->setEditTriggers (QAbstractItemView::NoEditTriggers);
+  table->setSelectionMode (QAbstractItemView::NoSelection);
+  table->setWordWrap (true);
+  for (int row=0; row<(int) reconciliation.conflicts.size (); ++row) {
+    const MaterialMetadataConflict& conflict=
+      reconciliation.conflicts[(size_t) row];
+    table->setItem (row, 0, new QTableWidgetItem (qstr (conflict.field)));
+    table->setItem (
+      row, 1, new QTableWidgetItem (qstr (conflict.existing_value)));
+    table->setItem (
+      row, 2, new QTableWidgetItem (qstr (conflict.incoming_value)));
+  }
+  table->horizontalHeader ()->setSectionResizeMode (0,
+                                                    QHeaderView::ResizeToContents);
+  table->horizontalHeader ()->setSectionResizeMode (1, QHeaderView::Stretch);
+  table->horizontalHeader ()->setSectionResizeMode (2, QHeaderView::Stretch);
+  table->verticalHeader ()->setVisible (false);
+  table->resizeRowsToContents ();
+  layout->addWidget (table, 1);
+
+  QLabel* existing_title= new QLabel (
+    "Existing: " + qstr (existing.field ("title")), &dialog);
+  existing_title->setWordWrap (true);
+  layout->addWidget (existing_title);
+  QDialogButtonBox* buttons= new QDialogButtonBox (&dialog);
+  QPushButton* keep_existing= buttons->addButton (
+    "Use existing", QDialogButtonBox::AcceptRole);
+  QPushButton* use_zotero= buttons->addButton (
+    "Use Zotero", QDialogButtonBox::AcceptRole);
+  QPushButton* keep_both= buttons->addButton (
+    "Keep both", QDialogButtonBox::ActionRole);
+  QPushButton* cancel= buttons->addButton (QDialogButtonBox::Cancel);
+  keep_existing->setDefault (true);
+  MetadataConflictDecision decision= MetadataConflictDecision::Cancel;
+  QObject::connect (keep_existing, &QPushButton::clicked, &dialog, [&] {
+    decision= MetadataConflictDecision::KeepExisting;
+    dialog.accept ();
+  });
+  QObject::connect (use_zotero, &QPushButton::clicked, &dialog, [&] {
+    decision= MetadataConflictDecision::UseZotero;
+    dialog.accept ();
+  });
+  QObject::connect (keep_both, &QPushButton::clicked, &dialog, [&] {
+    decision= MetadataConflictDecision::KeepBoth;
+    dialog.accept ();
+  });
+  QObject::connect (cancel, &QPushButton::clicked, &dialog, &QDialog::reject);
+  layout->addWidget (buttons);
+  if (dialog.exec () != QDialog::Accepted)
+    return MetadataConflictDecision::Cancel;
+  return decision;
 }
 
 QUrl
@@ -400,16 +487,113 @@ qtm_import_zotero_library (QWidget* parent, MaterialsStore& store,
     std::optional<std::string> target= store.material_for_source (
       "zotero", entry.source_reference, store_error);
     bool known_source= target.has_value ();
+    bool identifier_duplicate= false;
     if (!target && store_error.empty ())
       target= find_identifier_duplicate (store, entry.material, store_error);
+    identifier_duplicate= !known_source && target.has_value ();
     if (!store_error.empty ()) {
       result.failed_items++;
       step += 1 + (copy_attachments ? (int) entry.attachments.size () : 0);
       progress.setValue (step);
       continue;
     }
+
+    std::vector<ResolvedZoteroAttachment> resolved_attachments;
+    std::optional<std::string> hash_target;
+    if (copy_attachments) {
+      for (const ZoteroAttachmentDescriptor& attachment: entry.attachments) {
+        if (progress.wasCanceled ()) { result.cancelled= true; break; }
+        QString attachment_name= qstr (attachment.filename.empty ()
+          ? attachment.title : attachment.filename);
+        progress.setLabelText ("Reading Zotero attachment: " + attachment_name);
+        HttpResult location;
+        QString location_error;
+        QString endpoint= library.prefix + "/items/" +
+                          qstr (attachment.item_key) + "/file/view/url";
+        if (!http_get (api_url (endpoint), &progress, location,
+                       location_error)) {
+          if (progress.wasCanceled ()) result.cancelled= true;
+          resolved_attachments.push_back ({&attachment, {}});
+          if (result.cancelled) break;
+          continue;
+        }
+        QString local= attachment_path (location.body);
+        if (local.isEmpty () || !QFileInfo (local).isFile ()) {
+          resolved_attachments.push_back ({&attachment, {}});
+          continue;
+        }
+        resolved_attachments.push_back ({&attachment, local});
+        if (target) continue;
+        std::string sha256;
+        if (!MaterialsStore::file_sha256 (
+              fs::u8path (stdstr (local)), sha256, store_error))
+          break;
+        std::optional<std::string> owner= store.material_for_sha256 (
+          sha256, store_error);
+        if (!store_error.empty ()) break;
+        if (owner && hash_target && *owner != *hash_target) {
+          store_error= "Zotero attachments match multiple existing Materials";
+          break;
+        }
+        if (owner) hash_target= owner;
+      }
+    }
+    if (result.cancelled) break;
+    if (!store_error.empty ()) {
+      result.failed_items++;
+      step += 1 + (copy_attachments ? (int) entry.attachments.size () : 0);
+      progress.setValue (step);
+      continue;
+    }
+
+    if (!target && hash_target) {
+      std::optional<MaterialRecord> existing= store.get (*hash_target,
+                                                         store_error);
+      if (!existing) {
+        result.failed_items++;
+        step += 1 + (int) entry.attachments.size ();
+        progress.setValue (step);
+        continue;
+      }
+      MaterialMetadataReconciliation reconciliation=
+        athena_materials_reconcile_metadata (*existing, entry.material);
+      MetadataConflictDecision decision= MetadataConflictDecision::KeepExisting;
+      if (existing->review_state == "unrecognized" ||
+          existing->review_state == "error")
+        decision= MetadataConflictDecision::UseZotero;
+      else if (!reconciliation.compatible ())
+        decision= choose_metadata_conflict (
+          parent, *existing, entry.material, reconciliation);
+      if (decision == MetadataConflictDecision::Cancel) {
+        result.cancelled= true;
+        break;
+      }
+      if (decision == MetadataConflictDecision::KeepBoth) {
+        result.hash_conflicts_kept_both++;
+      }
+      else {
+        MaterialRecord merged;
+        if (existing->review_state == "unrecognized" ||
+            existing->review_state == "error")
+          merged= athena_materials_replace_metadata (*existing,
+                                                      entry.material);
+        else
+          merged= decision == MetadataConflictDecision::UseZotero
+            ? reconciliation.prefer_incoming
+            : reconciliation.prefer_existing;
+        if (!store.update (merged, existing->revision, store_error)) {
+          result.failed_items++;
+          step += 1 + (int) entry.attachments.size ();
+          progress.setValue (step);
+          continue;
+        }
+        target= merged.uuid;
+        result.hash_reconciled++;
+      }
+    }
+
     if (known_source) result.already_imported++;
-    else if (target) {
+    else if (identifier_duplicate) {
       result.identifier_duplicates++;
       const MaterialProvenance& marker= entry.material.provenance.back ();
       if (!record_zotero_source (store, *target, marker, store_error)) {
@@ -419,7 +603,7 @@ qtm_import_zotero_library (QWidget* parent, MaterialsStore& store,
         continue;
       }
     }
-    else {
+    else if (!target) {
       MaterialRecord material= entry.material;
       if (!store.create (material, store_error)) {
         result.failed_items++;
@@ -436,25 +620,13 @@ qtm_import_zotero_library (QWidget* parent, MaterialsStore& store,
     if (!copy_attachments) continue;
     bool have_primary= store.primary_attachment (*target, store_error).has_value ();
     store_error.clear ();
-    for (const ZoteroAttachmentDescriptor& attachment: entry.attachments) {
+    for (const ResolvedZoteroAttachment& resolved: resolved_attachments) {
       if (progress.wasCanceled ()) { result.cancelled= true; break; }
+      const ZoteroAttachmentDescriptor& attachment= *resolved.descriptor;
       QString attachment_name= qstr (attachment.filename.empty ()
         ? attachment.title : attachment.filename);
       progress.setLabelText ("Copying Zotero attachment: " + attachment_name);
-      HttpResult location;
-      QString location_error;
-      QString endpoint= library.prefix + "/items/" +
-                        qstr (attachment.item_key) + "/file/view/url";
-      if (!http_get (api_url (endpoint), &progress, location, location_error)) {
-        if (progress.wasCanceled ()) result.cancelled= true;
-        else result.attachments_unavailable++;
-        step++;
-        progress.setValue (step);
-        if (result.cancelled) break;
-        continue;
-      }
-      QString local= attachment_path (location.body);
-      if (local.isEmpty () || !QFileInfo (local).isFile ()) {
+      if (resolved.local_path.isEmpty ()) {
         result.attachments_unavailable++;
         step++;
         progress.setValue (step);
@@ -463,7 +635,8 @@ qtm_import_zotero_library (QWidget* parent, MaterialsStore& store,
       MaterialImportResult imported;
       bool make_primary= !have_primary;
       std::string role= make_primary ? "document" : "supplement";
-      if (!store.import_file (*target, fs::u8path (stdstr (local)), role,
+      if (!store.import_file (*target,
+                              fs::u8path (stdstr (resolved.local_path)), role,
                               make_primary, imported, store_error)) {
         result.attachments_unavailable++;
         store_error.clear ();
@@ -485,10 +658,13 @@ qtm_import_zotero_library (QWidget* parent, MaterialsStore& store,
     "Imported %1 new Material(s).\n"
     "%2 Zotero item(s) were already imported.\n"
     "%3 item(s) matched existing Materials by identifier.\n"
-    "%4 attachment(s) copied; %5 already present; %6 unavailable.\n"
-    "%7 item(s) failed.")
+    "%4 item(s) reconciled by attachment hash; %5 conflicting item(s) kept "
+    "separately.\n"
+    "%6 attachment(s) copied; %7 already present; %8 unavailable.\n"
+    "%9 item(s) failed.")
       .arg (result.added).arg (result.already_imported)
-      .arg (result.identifier_duplicates).arg (result.attachments_copied)
+      .arg (result.identifier_duplicates).arg (result.hash_reconciled)
+      .arg (result.hash_conflicts_kept_both).arg (result.attachments_copied)
       .arg (result.attachments_already_present)
       .arg (result.attachments_unavailable).arg (result.failed_items);
   if (result.cancelled) summary.prepend ("Import was cancelled.\n\n");
