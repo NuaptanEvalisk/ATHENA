@@ -488,6 +488,7 @@
 (lazy-menu (athena menus developer-menu)
            developer-menu custom-keyboard-toolbar)
 (lazy-define (debug debug-widgets) notify-debug-message
+             acknowledge-debug-messages
              open-debug-console open-error-messages)
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 ;(display* "memory: " (texmacs-memory) " bytes\n")

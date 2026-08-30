@@ -428,7 +428,9 @@ athena_artifact_radioactive_is_defining_occurrence (
   const AthenaArtifactRadioactiveMatch& match, url current_file,
   const tree& document, path source_path) {
   auto index= active_index ();
-  if (!index || index->vault_root.empty () || is_nil (source_path)) return false;
+  if (!index || index->vault_root.empty () || is_nil (source_path) ||
+      is_none (current_file))
+    return false;
   fs::path root= fs::path (index->vault_root).lexically_normal ();
   fs::path file=
     fs::path (to_std (concretize (current_file))).lexically_normal ();

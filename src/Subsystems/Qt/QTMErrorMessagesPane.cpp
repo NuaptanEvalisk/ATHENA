@@ -13,6 +13,7 @@
 #include "basic.hpp"
 #include "convert.hpp"
 #include "qt_utilities.hpp"
+#include "scheme.hpp"
 #include "tree.hpp"
 
 #include <DockAreaWidget.h>
@@ -40,6 +41,12 @@
 
 static QTMErrorMessagesPane* error_messages_widget= nullptr;
 static ads::CDockWidget* error_messages_dock= nullptr;
+
+static void
+acknowledge_error_messages () {
+  try { call ("acknowledge-debug-messages"); }
+  catch (...) {}
+}
 
 static void
 set_error_messages_area_height (ads::CDockWidget* dock) {
@@ -257,6 +264,7 @@ QTMErrorMessagesPane::refresh () {
 
 void
 QTMErrorMessagesPane::clearMessages () {
+  acknowledge_error_messages ();
   clear_debug_messages ();
   refresh ();
 }
@@ -296,6 +304,8 @@ error_messages_show () {
     QObject::connect (error_messages_dock, &QObject::destroyed, [] () {
       error_messages_dock= nullptr;
     });
+    QObject::connect (error_messages_dock, &ads::CDockWidget::closed,
+                      [] () { acknowledge_error_messages (); });
   }
 
   win->showAdsDockWidget (error_messages_dock, ads::BottomDockWidgetArea);

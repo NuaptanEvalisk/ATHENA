@@ -75,7 +75,7 @@ tree_extents (tree doc) {
   hashmap<string,tree> h1 (UNINIT), h2 (UNINIT);
   hashmap<string,tree> h3 (UNINIT), h4 (UNINIT);
   hashmap<string,tree> h5 (UNINIT), h6 (UNINIT);
-  edit_env env (drd, "none", h1, h2, h3, h4, h5, h6);
+  edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
   initialize_environment (env, doc, drd);
   tree t= extract (doc, "body");
   lazy lz= make_lazy (env, t, path ());
@@ -274,7 +274,7 @@ texmacs_output_widget_with_width (tree doc, tree style, SI screen_width,
   hashmap<string,tree> h1 (UNINIT), h2 (UNINIT);
   hashmap<string,tree> h3 (UNINIT), h4 (UNINIT);
   hashmap<string,tree> h5 (UNINIT), h6 (UNINIT);
-  edit_env env (drd, "none", h1, h2, h3, h4, h5, h6);
+  edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
   initialize_environment (env, doc, drd);
   tree t= extract (doc, "body");
   lazy lz= make_lazy (env, t, path ());

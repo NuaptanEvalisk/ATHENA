@@ -144,29 +144,41 @@
 (tm-define console-updating? #f)
 (tm-define console-errors? #f)
 (tm-define console-warnings? #f)
+(tm-define console-message-generation 0)
+(tm-define console-acknowledged-generation 0)
+
+(tm-define (acknowledge-debug-messages)
+  (set! console-acknowledged-generation console-message-generation))
+
+(define (show-new-error-messages generation)
+  (when (> generation console-acknowledged-generation)
+    (acknowledge-debug-messages)
+    (error-messages-show)))
 
 (tm-define (update-consoles)
-  (for (kind (ahash-set->list console-active?))
-    (let* ((old (ahash-ref console-categories kind))
-           (new (list-message-types kind))
-           (delta (list-difference new old)))
-      (ahash-set! console-categories kind new)
-      (ahash-set! console-selected kind
-                  (list-union (ahash-ref console-selected kind) delta))))
-  (when (nnull? (ahash-set->list console-active?))
-    (refresh-console))
-  (when (and (or (and console-errors?
-                      (get-boolean-preference "open console on errors"))
-                 (and console-warnings?
-                      (get-boolean-preference "open console on warnings"))))
-    (delayed
-      (:idle 1)
-      (error-messages-show)))
-  (set! console-updating? #f)
-  (set! console-errors? #f)
-  (set! console-warnings? #f))
+  (let ((generation console-message-generation))
+    (for (kind (ahash-set->list console-active?))
+      (let* ((old (ahash-ref console-categories kind))
+             (new (list-message-types kind))
+             (delta (list-difference new old)))
+        (ahash-set! console-categories kind new)
+        (ahash-set! console-selected kind
+                    (list-union (ahash-ref console-selected kind) delta))))
+    (when (nnull? (ahash-set->list console-active?))
+      (refresh-console))
+    (when (and (or (and console-errors?
+                        (get-boolean-preference "open console on errors"))
+                   (and console-warnings?
+                        (get-boolean-preference "open console on warnings"))))
+      (delayed
+        (:idle 1)
+        (show-new-error-messages generation)))
+    (set! console-updating? #f)
+    (set! console-errors? #f)
+    (set! console-warnings? #f)))
 
 (tm-define (notify-debug-message channel)
+  (set! console-message-generation (+ console-message-generation 1))
   (when (string-ends? channel "-error")
     (set! console-errors? #t))
   (when (string-ends? channel "-warning")
