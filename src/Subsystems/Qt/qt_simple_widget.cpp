@@ -91,6 +91,11 @@ qt_simple_widget_rep::handle_keypress (string key, time_t t) {
 }
 
 void
+qt_simple_widget_rep::handle_text_input (string text, time_t t) {
+  (void) text; (void) t;
+}
+
+void
 qt_simple_widget_rep::handle_keyboard_focus (bool has_focus, time_t t) {
   (void) has_focus; (void) t;
 }

@@ -14,6 +14,7 @@
 #include "hyphenate.hpp"
 #include "impl_language.hpp"
 #include "sys_utils.hpp"
+#include "unicode_ranges.hpp"
 
 /******************************************************************************
 * Shared Unicode CJK classification
@@ -37,28 +38,8 @@ read_unicode_entity (string s, int pos, int& next, int& code) {
 
 static bool
 is_cjk_letter_code (int code) {
-  return (code >= 0x2E80  && code <= 0x2EFF ) ||
-         (code >= 0x2F00  && code <= 0x2FDF ) ||
-         (code >= 0x3040  && code <= 0x30FF ) ||
-         (code >= 0x3100  && code <= 0x312F ) ||
-         (code >= 0x3130  && code <= 0x318F ) ||
-         (code >= 0x31A0  && code <= 0x31BF ) ||
-         (code >= 0x31C0  && code <= 0x31EF ) ||
-         (code >= 0x31F0  && code <= 0x31FF ) ||
-         (code >= 0x3400  && code <= 0x4DBF ) ||
-         (code >= 0x4E00  && code <= 0x9FFF ) ||
-         (code >= 0xA960  && code <= 0xA97F ) ||
-         (code >= 0xAC00  && code <= 0xD7FF ) ||
-         (code >= 0xF900  && code <= 0xFAFF ) ||
-         (code >= 0xFF00  && code <= 0xFFEF ) ||
-         (code >= 0x1B000 && code <= 0x1B0FF) ||
-         (code >= 0x20000 && code <= 0x2A6DF) ||
-         (code >= 0x2A700 && code <= 0x2B73F) ||
-         (code >= 0x2B740 && code <= 0x2B81F) ||
-         (code >= 0x2B820 && code <= 0x2CEAF) ||
-         (code >= 0x2CEB0 && code <= 0x2EBEF) ||
-         (code >= 0x2F800 && code <= 0x2FA1F) ||
-         (code >= 0x30000 && code <= 0x3134F);
+  return unicode_is_east_asian_letter (code) ||
+         (code >= 0xFF00 && code <= 0xFFEF);
 }
 
 static bool

@@ -39,7 +39,7 @@ void athena_resync_wayland_ui_fonts ();
 class qp_type {
 public:
   enum id_t {
-    QP_NULL,    QP_KEYPRESS,     QP_KEYBOARD_FOCUS,
+    QP_NULL,    QP_KEYPRESS,     QP_TEXT_INPUT, QP_KEYBOARD_FOCUS,
     QP_MOUSE,   QP_RESIZE,       QP_SOCKET_NOTIFICATION,
     QP_COMMAND, QP_COMMAND_ARGS, QP_DELAYED_COMMANDS };
   id_t sid;
@@ -183,6 +183,7 @@ public:
   
   /* queued processing */
   void process_keypress (qt_simple_widget_rep *wid, string key, time_t t);
+  void process_text_input (qt_simple_widget_rep *wid, string text, time_t t);
   void process_keyboard_focus (qt_simple_widget_rep *wid, bool has_focus,
                                time_t t);
   void process_mouse (qt_simple_widget_rep *wid, string kind, SI x, SI y,

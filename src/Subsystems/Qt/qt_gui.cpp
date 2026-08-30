@@ -866,6 +866,14 @@ qt_gui_rep::process_queued_events (int max) {
         }
       }
         break;
+      case qp_type::QP_TEXT_INPUT :
+      {
+        typedef triple<widget, string, time_t > T;
+        T x = open_box <T> (ev.x2);
+        if (!is_nil (x.x1))
+          concrete_simple_widget (x.x1)->handle_text_input (x.x2, x.x3);
+      }
+        break;
       case qp_type::QP_KEYBOARD_FOCUS :
       {
         typedef triple<widget, bool, time_t > T;
@@ -933,6 +941,14 @@ qt_gui_rep::process_keypress (qt_simple_widget_rep *wid, string key, time_t t) {
   typedef triple<widget, string, time_t > T;
   add_event (queued_event (qp_type::QP_KEYPRESS,
                            close_box<T> (T (wid, key, t))));
+}
+
+void
+qt_gui_rep::process_text_input (qt_simple_widget_rep *wid, string text,
+                                time_t t) {
+  typedef triple<widget, string, time_t > T;
+  add_event (queued_event (qp_type::QP_TEXT_INPUT,
+                           close_box<T> (T (wid, text, t))));
 }
 
 void

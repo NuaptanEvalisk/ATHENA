@@ -15,6 +15,7 @@
 #include "Freetype/tt_tools.hpp"
 #include "translator.hpp"
 #include "iterator.hpp"
+#include "unicode_ranges.hpp"
 
 #include <cstdlib>
 
@@ -489,14 +490,12 @@ get_unicode_range (int code) {
   else if (code >= 0x380 && code <= 0x3ff) return "greek";
   else if (code >= 0x400 && code <= 0x4ff) return "cyrillic";
   else if (is_emoji_code (code)) return "emoji";
-  else if (code >= 0x3000 && code <= 0x303f) return "cjk";
-  else if (code >= 0x3400 && code <= 0x4dbf) return "cjk";
-  else if (code >= 0x4e00 && code <= 0x9fcc) return "cjk";
-  else if (code >= 0xf900 && code <= 0xfaff) return "cjk";
-  else if (code >= 0x3040 && code <= 0x309F) return "hiragana";
-  else if (code >= 0x30a0 && code <= 0x30ff) return "hiragana";
-  else if (code >= 0xac00 && code <= 0xd7af) return "hangul";
-  else if (code >= 0xff00 && code <= 0xffef) return "cjk";
+  else if (unicode_is_cjk_ideograph (code) ||
+           unicode_is_cjk_radical_or_stroke (code) ||
+           unicode_is_cjk_punctuation (code)) return "cjk";
+  else if (unicode_is_hiragana (code) ||
+           unicode_is_katakana (code)) return "hiragana";
+  else if (unicode_is_hangul (code)) return "hangul";
   else if (code >= 0x2000 && code <= 0x23ff) return "mathsymbols";
   else if (code >= 0x2900 && code <= 0x2e7f) return "mathextra";
   else if (code >= 0x1d400 && code <= 0x1d7ff) return "mathletters";

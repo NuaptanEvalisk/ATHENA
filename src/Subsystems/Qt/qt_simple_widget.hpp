@@ -63,6 +63,7 @@ public:
   virtual void handle_get_size_hint (SI& w, SI& h);
   virtual void handle_notify_resize (SI w, SI h);
   virtual void handle_keypress (string key, time_t t);
+  virtual void handle_text_input (string text, time_t t);
   virtual void handle_keyboard_focus (bool has_focus, time_t t);
   virtual void handle_cursor_blink (bool visible);
   virtual void handle_user_scroll (time_t t);

@@ -17,6 +17,7 @@
 #include "tree_correct.hpp"
 #include "url.hpp"
 #include "font.hpp"
+#include "unicode_ranges.hpp"
 
 tree upgrade_tex (tree t);
 bool textm_class_flag= false;
@@ -315,16 +316,8 @@ tree set_special_fonts (tree t, string lan);
 
 static bool
 is_cjk_code (int code) {
-  return (code >= 0x4E00  && code <= 0x9FFF ) ||
-         (code >= 0x3400  && code <= 0x4DBF ) ||
-         (code >= 0x20000 && code <= 0x2A6DF) ||
-         (code >= 0x2A700 && code <= 0x2B73F) ||
-         (code >= 0x2B740 && code <= 0x2B81F) ||
-         (code >= 0xF900  && code <= 0xFAFF ) ||
-         (code >= 0x2F800 && code <= 0x2FA1F) ||
-         (code >= 0x2F00  && code <= 0x2FDF ) ||
-         (code >= 0x2E80  && code <= 0x2EFF ) ||
-         (code >= 0x31C0  && code <= 0x31EF );
+  return unicode_is_cjk_ideograph (code) ||
+         unicode_is_cjk_radical_or_stroke (code);
 }
 
 static bool

@@ -11,6 +11,7 @@
 #include <QtTest/QtTest>
 
 #include "converter.hpp"
+#include "unicode_ranges.hpp"
 
 class TestConverter: public QObject {
   Q_OBJECT
@@ -18,6 +19,7 @@ class TestConverter: public QObject {
 private slots:
   void test_utf8_to_cork();
   void test_finite_part_integral();
+  void test_unicode_17_cjk_ranges();
 };
 
 void TestConverter::test_utf8_to_cork() {
@@ -30,6 +32,16 @@ void TestConverter::test_finite_part_integral() {
   QCOMPARE (as_charp (strict_cork_to_utf8 ("<fint>")), "\xE2\xA8\x8D");
   QCOMPARE (as_charp (strict_cork_to_utf8 ("<big-fint-1>")),
             "\xE2\xA8\x8D");
+}
+
+void TestConverter::test_unicode_17_cjk_ranges() {
+  QCOMPARE (as_charp (utf8_to_cork ("\xF0\xA0\x80\x80")), "<#20000>");
+  QVERIFY (unicode_is_cjk_ideograph (0x20000));
+  QVERIFY (unicode_is_cjk_ideograph (0x2EBF0));
+  QVERIFY (unicode_is_cjk_ideograph (0x31350));
+  QVERIFY (unicode_is_cjk_ideograph (0x323B0));
+  QVERIFY (unicode_is_cjk_ideograph (0x3347F));
+  QVERIFY (!unicode_is_cjk_ideograph (0x33480));
 }
 
 QTEST_MAIN(TestConverter)

@@ -350,6 +350,52 @@ edit_interface_rep::handle_keypress (string key, time_t t) {
 #endif
 }
 
+void
+edit_interface_rep::handle_text_input (string text, time_t t) {
+  if (is_nil (buf) || text == "") return;
+  if (t > last_event) last_event= t;
+  bool started= false;
+#ifdef USE_EXCEPTIONS
+  try {
+#endif
+    if (is_nil (eb)) apply_changes ();
+    start_editing ();
+    started= true;
+    if (pre_edit_mark != 0) {
+      ASSERT (sh_mark == 0, "invalid shortcut during pre-edit");
+      mark_cancel (pre_edit_mark);
+      pre_edit_s= "";
+      pre_edit_mark= 0;
+    }
+    if (pre_edit_skip) {
+      string converted= as_string (
+        call ("downgrade-pre-edit", cork_to_utf8 (text)));
+      if (converted == "") {
+        end_editing ();
+        return;
+      }
+      text= converted;
+    }
+    interrupt_shortcut ();
+    archive_state ();
+    call ("kbd-insert", text);
+    update_focus_loci ();
+    if (!is_nil (focus_ids) && got_focus)
+      call ("link-follow-ids", object (focus_ids), object ("focus"));
+    notify_change (THE_DECORATIONS);
+    end_editing ();
+#ifdef USE_EXCEPTIONS
+  }
+  catch (string msg) {
+    if (started) {
+      cancel_editing ();
+      interrupt_shortcut ();
+    }
+  }
+  handle_exceptions ();
+#endif
+}
+
 void drag_left_reset ();
 void drag_right_reset ();
 

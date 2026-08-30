@@ -920,8 +920,9 @@ QTMWidget::inputMethodEvent (QInputMethodEvent* event) {
     if (!done) {
       if (DEBUG_QT)
         debug_qt << "IM committing: " << commit_string.toUtf8().data() << LF;
-      for (int i = 0; i < commit_string.size(); ++i)
-        kbdEvent (0, Qt::NoModifier, commit_string[i]);
+      if (!is_nil (tmwid))
+        the_gui->process_text_input (
+          tm_widget (), from_qstring (commit_string), texmacs_time ());
     }
   }
   
@@ -961,7 +962,14 @@ QTMWidget::inputMethodEvent (QInputMethodEvent* event) {
     }
     (void) sel_start; (void) sel_length;
     
-    r = r * as_string (pos) * ":" * from_qstring (preedit_string);
+    int utf16Pos= std::clamp (pos, 0, (int) preedit_string.size ());
+    if (utf16Pos > 0 && utf16Pos < preedit_string.size () &&
+        preedit_string[utf16Pos].isLowSurrogate () &&
+        preedit_string[utf16Pos - 1].isHighSurrogate ())
+      utf16Pos--;
+    int scalarPos=
+      preedit_string.left (utf16Pos).toUcs4 ().size ();
+    r = r * as_string (scalarPos) * ":" * from_qstring (preedit_string);
   }
 
   if (!is_nil (tmwid)) {

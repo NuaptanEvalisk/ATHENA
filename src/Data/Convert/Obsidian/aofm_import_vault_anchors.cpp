@@ -5,6 +5,7 @@
 
 #include "file.hpp"
 #include "vault.hpp"
+#include "unicode_ranges.hpp"
 
 namespace aofm_import_vault_internal {
 
@@ -312,16 +313,7 @@ decode_utf8_codepoint(const std::string& s, size_t& pos,
 
 bool
 is_cjk_codepoint(char32_t cp) {
-  return
-    (cp >= 0x3400 && cp <= 0x4DBF) ||
-    (cp >= 0x4E00 && cp <= 0x9FFF) ||
-    (cp >= 0xF900 && cp <= 0xFAFF) ||
-    (cp >= 0x20000 && cp <= 0x2A6DF) ||
-    (cp >= 0x2A700 && cp <= 0x2B73F) ||
-    (cp >= 0x2B740 && cp <= 0x2B81F) ||
-    (cp >= 0x2B820 && cp <= 0x2CEAF) ||
-    (cp >= 0x2CEB0 && cp <= 0x2EBEF) ||
-    (cp >= 0x30000 && cp <= 0x3134F);
+  return unicode_is_cjk_ideograph ((std::uint32_t) cp);
 }
 
 std::string
