@@ -131,6 +131,8 @@ read_json_file (const std::filesystem::path& path, AthenaVaultfileInfo& info,
                                       "materials.sqlite");
   info.materials_directory= json_string (obj, "materials_directory",
                                          "materials");
+  info.artifact_title_filter_path= json_string (
+    obj, "artifact_title_filter_path", "artifact-title-filter.lst");
   info.backup_dispatchers.clear ();
   QJsonValue dispatchers_value= obj.value ("backup_dispatchers");
   if (dispatchers_value.isArray ()) {
@@ -222,6 +224,8 @@ athena_vaultfile_normalize (const AthenaVaultfileInfo& info) {
   if (out.materials_db_path.empty ())
     out.materials_db_path= "materials.sqlite";
   if (out.materials_directory.empty ()) out.materials_directory= "materials";
+  if (out.artifact_title_filter_path.empty ())
+    out.artifact_title_filter_path= "artifact-title-filter.lst";
   return out;
 }
 
@@ -243,6 +247,7 @@ athena_vaultfile_from_fields (const std::vector<std::string>& fields) {
   if (fields.size () >= 13) info.bold_text_path= fields[12];
   if (fields.size () >= 14) info.materials_db_path= fields[13];
   if (fields.size () >= 15) info.materials_directory= fields[14];
+  if (fields.size () >= 16) info.artifact_title_filter_path= fields[15];
   return athena_vaultfile_normalize (info);
 }
 
@@ -263,7 +268,8 @@ athena_vaultfile_to_fields (const AthenaVaultfileInfo& info) {
            out.enunciations_path,
            out.bold_text_path,
            out.materials_db_path,
-           out.materials_directory };
+           out.materials_directory,
+           out.artifact_title_filter_path };
 }
 
 bool
@@ -304,6 +310,7 @@ athena_vaultfile_write (const std::filesystem::path& root,
   obj["bold_text_path"]= qs (out.bold_text_path);
   obj["materials_db_path"]= qs (out.materials_db_path);
   obj["materials_directory"]= qs (out.materials_directory);
+  obj["artifact_title_filter_path"]= qs (out.artifact_title_filter_path);
   QJsonArray dispatchers;
   for (const AthenaBackupDispatcher& entry: out.backup_dispatchers) {
     QJsonObject dispatcher;

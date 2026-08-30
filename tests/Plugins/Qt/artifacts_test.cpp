@@ -18,6 +18,7 @@
 #include "ATHENA/Data/artifact_document.hpp"
 #include "ATHENA/Data/artifact_range_llm.hpp"
 #include "ATHENA/Data/artifact_radioactive_links.hpp"
+#include "ATHENA/Data/artifact_title_filter.hpp"
 #include "ATHENA/Data/vaultfile_json.hpp"
 #include "converter.hpp"
 #include "convert.hpp"
@@ -44,6 +45,7 @@ private slots:
   void selectsDefinitionRangeWithConfiguredModel ();
   void extractsEnunciationsBoldTextAndProofLink ();
   void filtersNonNamesBeforeDefinitionRangeInference ();
+  void appliesVaultArtifactTitleFilterIncrementally ();
   void boundsBoldDefinitionCandidatesAtEnunciations ();
   void isolatesStructuredBoldBlocks ();
   void locatesStoredParagraphRange ();
@@ -442,6 +444,34 @@ TestArtifacts::filtersNonNamesBeforeDefinitionRangeInference () {
   QCOMPARE (records[0].origin, std::string ("bold-text"));
   QCOMPARE (records[0].display_text, std::string ("2-category"));
   QCOMPARE (records[1].display_text, std::string ("continuous"));
+}
+
+void
+TestArtifacts::appliesVaultArtifactTitleFilterIncrementally () {
+  QTemporaryDir temporary;
+  QVERIFY (temporary.isValid ());
+  fs::path root (temporary.path ().toStdString ());
+  std::string error;
+  QVERIFY2 (athena_vaultfile_write (root, AthenaVaultfileInfo {}, error),
+            error.c_str ());
+  write_document (root / "Filtered.ath",
+                  artifact_test_document ("compact operator"));
+  QVERIFY2 (athena_artifact_title_filter_write (
+              root, {"compact operator"}, error), error.c_str ());
+
+  AthenaArtifactsBuildResult filtered;
+  QVERIFY2 (athena_artifacts_build (root, {}, true, {}, filtered, error),
+            error.c_str ());
+  QCOMPARE (filtered.documents_changed, (size_t) 1);
+  QCOMPARE (filtered.artifacts, (size_t) 2);
+
+  QVERIFY2 (athena_artifact_title_filter_write (root, {}, error),
+            error.c_str ());
+  AthenaArtifactsBuildResult restored;
+  QVERIFY2 (athena_artifacts_build (root, {}, true, {}, restored, error),
+            error.c_str ());
+  QCOMPARE (restored.documents_changed, (size_t) 1);
+  QCOMPARE (restored.artifacts, (size_t) 3);
 }
 
 void

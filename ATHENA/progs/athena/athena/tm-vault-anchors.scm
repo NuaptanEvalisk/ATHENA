@@ -171,10 +171,31 @@
   (vault-anchor-downcase-ascii
    (vault-anchor-sanitize-text s 0)))
 
+(define vault-anchor-title-filter-cache-root #f)
+(define vault-anchor-title-filter-cache '())
+
+(tm-define (vault-anchor-title-filter-invalidate)
+  (set! vault-anchor-title-filter-cache-root #f)
+  (set! vault-anchor-title-filter-cache '()))
+
+(define (vault-anchor-title-filter-root)
+  (if (and (defined? 'vault-active?) (vault-active?))
+      (vault-get-root)
+      (url-none)))
+
+(define (vault-anchor-title-filter)
+  (let ((root (vault-anchor-title-filter-root)))
+    (when (or (not vault-anchor-title-filter-cache-root)
+              (!= root vault-anchor-title-filter-cache-root))
+      (set! vault-anchor-title-filter-cache-root root)
+      (set! vault-anchor-title-filter-cache
+            (map vault-anchor-normalize-title-candidate
+                 (artifact-title-filter-read root))))
+    vault-anchor-title-filter-cache))
+
 (define (vault-anchor-common-title-candidate? s)
   (in? (vault-anchor-normalize-title-candidate s)
-       '("not" "cannot" "however" "but" "should not" "is" "is not"
-         "can not")))
+       (vault-anchor-title-filter)))
 
 (define (vault-anchor-join-text parts)
   (vault-anchor-collapse-whitespace

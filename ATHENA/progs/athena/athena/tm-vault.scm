@@ -238,6 +238,12 @@
       (list-ref data 14)
       "materials"))
 
+(define (vaultfile-artifact-title-filter-path data)
+  (if (and (list? data) (>= (length data) 16) (string? (list-ref data 15))
+           (not (string-null? (list-ref data 15))))
+      (list-ref data 15)
+      "artifact-title-filter.lst"))
+
 (define (vaultfile-normalized data)
   (list (car data)
         (cadr data)
@@ -253,7 +259,8 @@
         (vaultfile-enunciations-path data)
         (vaultfile-bold-text-path data)
         (vaultfile-materials-db-path data)
-        (vaultfile-materials-directory data)))
+        (vaultfile-materials-directory data)
+        (vaultfile-artifact-title-filter-path data)))
 
 (define (vaultfile-write! dir data)
   (let ((err (vaultfile-write dir (vaultfile-normalized data))))
@@ -282,7 +289,8 @@
         (vaultfile-enunciations-path data)
         (vaultfile-bold-text-path data)
         (vaultfile-materials-db-path data)
-        (vaultfile-materials-directory data)))
+        (vaultfile-materials-directory data)
+        (vaultfile-artifact-title-filter-path data)))
 
 (define (vault-preferences-url dir prefs-path)
   (url-append dir prefs-path))

@@ -751,6 +751,18 @@
   of that content, and <verbatim|%s> lowercases the first character of that
   content.
 
+  <subsection|Artifacts>
+
+  <\description>
+    <item*|Rejected artifact names>Edits the active vault's exact-match
+    filter for candidate artifact names. Entries such as <verbatim|not> and
+    <verbatim|cannot> prevent incidental bold text with that complete name
+    from becoming an artifact, and cause an enunciation to fall back to its
+    complete content instead of using that text as its title. Double-click an
+    entry to edit it. The list is stored in the <verbatim|.lst> file selected
+    by the Vaultfile, one entry per line.
+  </description>
+
   <subsection|Materials>
 
   Material records and their managed files belong to the active vault, while
@@ -931,6 +943,11 @@
     <item*|Stored materials folder>Vault-relative folder into which dropped
     source files are copied with canonical human-readable names. It defaults
     to <verbatim|materials/>.
+
+    <item*|Artifact title filter path>Vault-relative path to the editable
+    artifact-name rejection list. It defaults to
+    <verbatim|artifact-title-filter.lst>; the file contains one exact name or
+    phrase per line.
 
     <item*|Root namespace>Optional root namespace for the vault. It is stored
     in <verbatim|Vaultfile.json>, not in the preferences file, so it remains

@@ -11,6 +11,7 @@
 #include "QTMVaultInfoModel.hpp"
 
 #include "ATHENA/Data/vaultfile_json.hpp"
+#include "ATHENA/Data/artifact_title_filter.hpp"
 #include "ATHENA/Data/vault_backup_dispatcher.hpp"
 #include "convert.hpp"
 #include "vault.hpp"
@@ -110,6 +111,7 @@ qtm_vaultfile_read (QTMVaultfileInfo& info, QString* error) {
   info.rootNamespace= "";
   info.materialsDbPath= "materials.sqlite";
   info.materialsDirectory= "materials";
+  info.artifactTitleFilterPath= "artifact-title-filter.lst";
 
   std::string read_error;
   AthenaVaultfileInfo vault_info;
@@ -136,6 +138,8 @@ qtm_vaultfile_read (QTMVaultfileInfo& info, QString* error) {
     QString::fromStdString (vault_info.materials_db_path);
   info.materialsDirectory=
     QString::fromStdString (vault_info.materials_directory);
+  info.artifactTitleFilterPath=
+    QString::fromStdString (vault_info.artifact_title_filter_path);
 
   info.mapPath= qtm_clean_vault_relative_path (info.mapPath);
   info.preferencesPath= qtm_clean_vault_relative_path (info.preferencesPath);
@@ -151,6 +155,8 @@ qtm_vaultfile_read (QTMVaultfileInfo& info, QString* error) {
     qtm_clean_vault_relative_path (info.materialsDbPath);
   info.materialsDirectory=
     qtm_clean_vault_relative_path (info.materialsDirectory);
+  info.artifactTitleFilterPath=
+    qtm_clean_vault_relative_path (info.artifactTitleFilterPath);
   if (info.mapPath.isEmpty ()) info.mapPath= "map.sqlite";
   if (info.namespaceDbPath.isEmpty ()) info.namespaceDbPath= "ns.sqlite";
   if (info.ragIndexPath.isEmpty ()) info.ragIndexPath= "rag.sqlite";
@@ -159,6 +165,8 @@ qtm_vaultfile_read (QTMVaultfileInfo& info, QString* error) {
     info.materialsDbPath= "materials.sqlite";
   if (info.materialsDirectory.isEmpty ())
     info.materialsDirectory= "materials";
+  if (info.artifactTitleFilterPath.isEmpty ())
+    info.artifactTitleFilterPath= "artifact-title-filter.lst";
   return true;
 }
 
@@ -252,10 +260,14 @@ qtm_vaultfile_write (const QTMVaultfileInfo& info, QString* error) {
     qtm_clean_vault_relative_path (out.materialsDbPath);
   out.materialsDirectory=
     qtm_clean_vault_relative_path (out.materialsDirectory);
+  out.artifactTitleFilterPath=
+    qtm_clean_vault_relative_path (out.artifactTitleFilterPath);
   if (out.ragIndexPath.isEmpty ()) out.ragIndexPath= "rag.sqlite";
   if (out.websitesPath.isEmpty ()) out.websitesPath= "websites.json";
   if (out.materialsDbPath.isEmpty ()) out.materialsDbPath= "materials.sqlite";
   if (out.materialsDirectory.isEmpty ()) out.materialsDirectory= "materials";
+  if (out.artifactTitleFilterPath.isEmpty ())
+    out.artifactTitleFilterPath= "artifact-title-filter.lst";
 
   if (out.name.trimmed ().isEmpty ()) {
     if (error != nullptr) *error= "Vault name cannot be empty.";
@@ -270,6 +282,11 @@ qtm_vaultfile_write (const QTMVaultfileInfo& info, QString* error) {
       *error= "Materials database must be a .sqlite file.";
     return false;
   }
+  if (!out.artifactTitleFilterPath.endsWith (".lst", Qt::CaseInsensitive)) {
+    if (error != nullptr)
+      *error= "Artifact title filter must be a .lst file.";
+    return false;
+  }
   if (!qtm_valid_vault_relative_path (out.mapPath) ||
       !qtm_valid_optional_vault_relative_path (out.preferencesPath) ||
       !qtm_valid_vault_relative_path (out.namespaceDbPath) ||
@@ -279,7 +296,8 @@ qtm_vaultfile_write (const QTMVaultfileInfo& info, QString* error) {
       !qtm_valid_vault_relative_path (out.ragIndexPath) ||
       !qtm_valid_vault_relative_path (out.websitesPath) ||
       !qtm_valid_vault_relative_path (out.materialsDbPath) ||
-      !qtm_valid_vault_relative_path (out.materialsDirectory)) {
+      !qtm_valid_vault_relative_path (out.materialsDirectory) ||
+      !qtm_valid_vault_relative_path (out.artifactTitleFilterPath)) {
     if (error != nullptr)
       *error= "Vaultfile paths must be relative paths inside the vault, "
               "tmfs:// links, or file:// links, without ./ or ../ prefixes.";
@@ -311,6 +329,8 @@ qtm_vaultfile_write (const QTMVaultfileInfo& info, QString* error) {
   vault_info.materials_db_path= qtm_utf8_std_string (out.materialsDbPath);
   vault_info.materials_directory=
     qtm_utf8_std_string (out.materialsDirectory);
+  vault_info.artifact_title_filter_path=
+    qtm_utf8_std_string (out.artifactTitleFilterPath);
 
   std::string write_error;
   if (!athena_vaultfile_write (
@@ -330,6 +350,48 @@ qtm_vaultfile_write (const QTMVaultfileInfo& info, QString* error) {
       std::filesystem::path (qtm_utf8_std_string (qtm_vault_root_path ())),
       previous_info, rollback_error);
     if (error != nullptr) *error= to_qstring_vault_info (load_error);
+    return false;
+  }
+  return true;
+}
+
+bool
+qtm_artifact_title_filter_read (QStringList& entries, QString* error) {
+  entries.clear ();
+  if (!qtm_vault_info_available ()) {
+    if (error != nullptr) *error= "No active vault.";
+    return false;
+  }
+  AthenaArtifactTitleFilter filter;
+  std::string read_error;
+  if (!athena_artifact_title_filter_read (
+        std::filesystem::path (
+          qtm_utf8_std_string (qtm_vault_root_path ())), filter,
+        read_error)) {
+    if (error != nullptr) *error= QString::fromStdString (read_error);
+    return false;
+  }
+  for (const std::string& entry: filter.entries)
+    entries << QString::fromStdString (entry);
+  return true;
+}
+
+bool
+qtm_artifact_title_filter_write (const QStringList& entries, QString* error) {
+  if (!qtm_vault_info_available ()) {
+    if (error != nullptr) *error= "No active vault.";
+    return false;
+  }
+  std::vector<std::string> values;
+  values.reserve ((size_t) entries.size ());
+  for (const QString& entry: entries)
+    values.push_back (qtm_utf8_std_string (entry));
+  std::string write_error;
+  if (!athena_artifact_title_filter_write (
+        std::filesystem::path (
+          qtm_utf8_std_string (qtm_vault_root_path ())), values,
+        write_error)) {
+    if (error != nullptr) *error= QString::fromStdString (write_error);
     return false;
   }
   return true;

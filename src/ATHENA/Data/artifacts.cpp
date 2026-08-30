@@ -11,6 +11,7 @@
 #include "ATHENA/Data/artifact_identity.hpp"
 #include "ATHENA/Data/artifact_radioactive_links.hpp"
 #include "ATHENA/Data/artifact_range_llm.hpp"
+#include "ATHENA/Data/artifact_title_filter.hpp"
 #include "ATHENA/Data/new_buffer.hpp"
 #include "ATHENA/Data/vault.hpp"
 #include "ATHENA/Data/vault_maintenance_internal.hpp"
@@ -288,28 +289,6 @@ bool has_name_bearing_text (const std::string& value) {
   for (QChar character: text)
     if (character.isLetter ()) return true;
   return false;
-}
-
-bool filtered_english_auxiliary (const std::string& value) {
-  static const std::unordered_set<std::string> words= {
-    "no", "not",
-    "am", "is", "are", "was", "were", "be", "being", "been",
-    "do", "does", "did", "doing", "done",
-    "have", "has", "had", "having",
-    "can", "cannot", "could", "may", "might", "must",
-    "shall", "should", "will", "would",
-    "ain't", "aren't", "can't", "couldn't", "didn't", "doesn't", "don't",
-    "hadn't", "hasn't", "haven't", "isn't", "mightn't", "mustn't",
-    "needn't", "shan't", "shouldn't", "wasn't", "weren't", "won't",
-    "wouldn't"
-  };
-  QString normalized= qstr (cork_bytes_to_utf8 (value))
-    .normalized (QString::NormalizationForm_KC).trimmed ().toCaseFolded ();
-  normalized.replace (QChar (0x2018), QChar ('\''));
-  normalized.replace (QChar (0x2019), QChar ('\''));
-  QByteArray utf8= normalized.toUtf8 ();
-  return words.count (
-    std::string (utf8.constData (), (size_t) utf8.size ())) != 0;
 }
 
 bool path_in_configured_subtree (const fs::path& root, const fs::path& path,
@@ -812,6 +791,7 @@ bool store_range_checkpoints (sqlite3* db,
 }
 
 bool extract (const tree& document, const std::string& rel,
+              const AthenaArtifactTitleFilter& title_filter,
               ExtractedDocument& extracted, std::string& error) {
   tree body= document_body (document);
   if (!is_compound (body)) {
@@ -834,7 +814,8 @@ bool extract (const tree& document, const std::string& rel,
       std::string display= plain_text (visible_body (keyword));
       if (collapse_spaces (display).empty () ||
           !has_name_bearing_text (display) ||
-          filtered_english_auxiliary (display)) continue;
+          athena_artifact_title_filter_contains (
+            title_filter, cork_bytes_to_utf8 (display))) continue;
       std::string serialized= to_std (tree_to_texmacs (keyword));
       int occurrence= ++occurrences[serialized];
       std::vector<std::pair<int,std::string>> candidates;
@@ -950,6 +931,7 @@ struct DocumentWork {
 bool read_document (const fs::path& path, tree& document, std::string& error);
 
 bool extract_serial (const std::vector<DocumentWork>& work,
+                     const AthenaArtifactTitleFilter& title_filter,
                      std::map<std::string,ExtractedDocument>& extracted,
                      const AthenaArtifactsProgress& progress,
                      std::string& error) {
@@ -961,7 +943,8 @@ bool extract_serial (const std::vector<DocumentWork>& work,
     }
     tree document;
     if (!read_document (work[i].path, document, error)) return false;
-    if (!extract (document, work[i].rel, extracted[work[i].rel], error))
+    if (!extract (document, work[i].rel, title_filter,
+                  extracted[work[i].rel], error))
       return false;
     artifact_log ("extracted " + work[i].rel + ": " +
                   std::to_string (extracted[work[i].rel].records.size ()) +
@@ -1193,12 +1176,14 @@ pid_t start_extract_worker (const fs::path& executable,
 }
 
 bool extract_parallel (sqlite3* db, const std::vector<DocumentWork>& work,
+                       const AthenaArtifactTitleFilter& title_filter,
                        std::map<std::string,ExtractedDocument>& extracted,
                        const AthenaArtifactsProgress& progress,
                        const AthenaArtifactRangeSelector& selector,
                        std::string& error) {
   if (work.size () < 2) {
-    if (!extract_serial (work, extracted, progress, error)) return false;
+    if (!extract_serial (work, title_filter, extracted, progress, error))
+      return false;
     return select_definition_ranges (
       db, work, extracted, progress, error, selector);
   }
@@ -1206,7 +1191,8 @@ bool extract_parallel (sqlite3* db, const std::vector<DocumentWork>& work,
   fs::path executable= configured && *configured ? fs::path (configured)
                                                   : current_executable_path ();
   if (executable.empty () || !fs::exists (executable)) {
-    if (!extract_serial (work, extracted, progress, error)) return false;
+    if (!extract_serial (work, title_filter, extracted, progress, error))
+      return false;
     return select_definition_ranges (
       db, work, extracted, progress, error, selector);
   }
@@ -1228,7 +1214,14 @@ bool extract_parallel (sqlite3* db, const std::vector<DocumentWork>& work,
     }
     fs::path manifest= temp / (std::to_string (worker) + ".manifest.json");
     fs::path output= temp / (std::to_string (worker) + ".result.json");
-    QByteArray bytes= QJsonDocument (documents).toJson (QJsonDocument::Compact);
+    QJsonArray filtered_names;
+    for (const std::string& entry: title_filter.entries)
+      filtered_names.append (qstr (entry));
+    QJsonObject manifest_root;
+    manifest_root["title_filter"]= filtered_names;
+    manifest_root["documents"]= documents;
+    QByteArray bytes= QJsonDocument (manifest_root)
+                        .toJson (QJsonDocument::Compact);
     std::ofstream stream (manifest, std::ios::binary | std::ios::trunc);
     stream.write (bytes.constData (), bytes.size ());
     stream.close ();
@@ -1282,14 +1275,17 @@ bool extract_parallel (sqlite3* db, const std::vector<DocumentWork>& work,
 #endif
 
 bool extract_documents (sqlite3* db, const std::vector<DocumentWork>& work,
+                        const AthenaArtifactTitleFilter& title_filter,
                         std::map<std::string,ExtractedDocument>& extracted,
                         const AthenaArtifactsProgress& progress,
                         const AthenaArtifactRangeSelector& selector,
                         std::string& error) {
 #if defined(__unix__) || defined(__APPLE__)
-  return extract_parallel (db, work, extracted, progress, selector, error);
+  return extract_parallel (db, work, title_filter, extracted, progress,
+                           selector, error);
 #else
-  if (!extract_serial (work, extracted, progress, error)) return false;
+  if (!extract_serial (work, title_filter, extracted, progress, error))
+    return false;
   return select_definition_ranges (
     db, work, extracted, progress, error, selector);
 #endif
@@ -1416,7 +1412,8 @@ AthenaArtifactIdentityObservation identity_observation (
 
 bool replace_document (sqlite3* db, const std::string& rel,
                        ExtractedDocument& extracted, long long modified,
-                       long long size, std::string& error) {
+                       long long size, const std::string& extraction_contract,
+                       std::string& error) {
   std::vector<AthenaArtifactIdentityObservation> old_observations;
   if (!load_identity_observations (db, rel, old_observations, error))
     return false;
@@ -1621,7 +1618,7 @@ bool replace_document (sqlite3* db, const std::string& rel,
   bind_text (doc.st, 1, rel);
   sqlite3_bind_int64 (doc.st, 2, modified);
   sqlite3_bind_int64 (doc.st, 3, size);
-  bind_text (doc.st, 4, source_locator_contract);
+  bind_text (doc.st, 4, extraction_contract);
   if (sqlite3_step (doc.st) != SQLITE_DONE) {
     error= sqlite3_errmsg (db); return false;
   }
@@ -1689,6 +1686,7 @@ bool delete_document (sqlite3* db, const std::string& rel,
 
 bool is_current_fingerprint (sqlite3* db, const std::string& rel,
                              long long modified, long long size,
+                             const std::string& extraction_contract,
                              std::string& error) {
   Statement st;
   if (!prepare (
@@ -1699,7 +1697,7 @@ bool is_current_fingerprint (sqlite3* db, const std::string& rel,
   int rc= sqlite3_step (st.st);
   return rc == SQLITE_ROW && sqlite3_column_int64 (st.st, 0) == modified &&
          sqlite3_column_int64 (st.st, 1) == size &&
-         column_text (st.st, 2) == source_locator_contract;
+         column_text (st.st, 2) == extraction_contract;
 }
 
 } // namespace
@@ -1713,18 +1711,29 @@ athena_artifacts_run_extract_worker (const fs::path& manifest,
   QJsonDocument request= QJsonDocument::fromJson (
     QByteArray (bytes.data (), (qsizetype) bytes.size ()));
   if (!input.good () && !input.eof ()) error= "Could not read worker manifest";
-  else if (!request.isArray ()) error= "Invalid artifact worker manifest";
+  else if (!request.isObject ()) error= "Invalid artifact worker manifest";
+
+  AthenaArtifactTitleFilter title_filter;
+  QJsonArray requested_documents;
+  if (error.empty ()) {
+    QJsonObject root= request.object ();
+    std::vector<std::string> entries;
+    for (const QJsonValue& value: root.value ("title_filter").toArray ())
+      entries.push_back (value.toString ().toStdString ());
+    title_filter= athena_artifact_title_filter_from_entries (entries);
+    requested_documents= root.value ("documents").toArray ();
+  }
 
   QJsonArray documents;
   if (error.empty ()) {
-    for (const QJsonValue& value: request.array ()) {
+    for (const QJsonValue& value: requested_documents) {
       QJsonObject source= value.toObject ();
       fs::path file (source.value ("file").toString ().toStdString ());
       std::string rel= source.value ("path").toString ().toStdString ();
       tree document;
       ExtractedDocument extracted;
       if (!read_document (file, document, error) ||
-          !extract (document, rel, extracted, error)) break;
+          !extract (document, rel, title_filter, extracted, error)) break;
       QJsonArray records;
       for (const AthenaArtifactRecord& record: extracted.records)
         records.append (record_json (record));
@@ -1754,7 +1763,10 @@ athena_artifacts_extract_document (
   std::vector<DocumentWork> source= {
     {fs::path (), relative_path, 0, 0}
   };
-  if (!extract (document, relative_path, extracted[relative_path], error) ||
+  AthenaArtifactTitleFilter title_filter=
+    athena_artifact_title_filter_defaults ();
+  if (!extract (document, relative_path, title_filter,
+                extracted[relative_path], error) ||
       !select_definition_ranges (nullptr, source, extracted, {}, error))
     return false;
   records= std::move (extracted[relative_path].records);
@@ -1992,6 +2004,12 @@ athena_artifacts_build (
   SqliteDb holder;
   AthenaVaultfileInfo info;
   if (!open_databases (root, holder, info, error)) return false;
+  AthenaArtifactTitleFilter title_filter;
+  if (!athena_artifact_title_filter_read (root, title_filter, error))
+    return false;
+  std::string extraction_contract= std::string (source_locator_contract) +
+    ":title-filter=" +
+    athena_artifact_title_filter_fingerprint (title_filter);
   artifact_log ("databases: artifacts=" + (root / info.artifacts_path).string () +
                 ", enunciations=" +
                 (root / info.enunciations_path).string () +
@@ -2030,8 +2048,9 @@ athena_artifacts_build (
     std::string rel= relative_key (root, path);
     long long modified= mtime_ns (path);
     long long size= (long long) fs::file_size (path);
-    if (full_vault && is_current_fingerprint (holder.db, rel, modified, size,
-                                              error)) continue;
+    if (full_vault && is_current_fingerprint (
+          holder.db, rel, modified, size, extraction_contract, error))
+      continue;
     if (!error.empty ()) return false;
     work.push_back ({path, rel, modified, size});
   }
@@ -2041,7 +2060,8 @@ athena_artifacts_build (
 
   std::map<std::string,ExtractedDocument> extracted;
   if (!extract_documents (
-        holder.db, work, extracted, progress, options.range_selector, error))
+        holder.db, work, title_filter, extracted, progress,
+        options.range_selector, error))
     return false;
 
   if (!exec_sql (holder.db, "BEGIN IMMEDIATE;", error)) return false;
@@ -2078,7 +2098,7 @@ athena_artifacts_build (
       return false;
     }
     if (!replace_document (holder.db, item.rel, found->second, item.modified,
-                           item.size, error)) {
+                           item.size, extraction_contract, error)) {
       rollback ();
       return false;
     }

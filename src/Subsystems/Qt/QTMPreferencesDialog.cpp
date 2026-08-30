@@ -32,6 +32,7 @@
 #include "vault.hpp"
 
 #include <QApplication>
+#include <QAbstractItemView>
 #include <QCheckBox>
 #include <QClipboard>
 #include <QColorDialog>
@@ -1764,6 +1765,93 @@ QTMPreferencesDialog::buildVaultPage () {
                  "vault wikilink display template anchor", "%c");
   finish_page (wikilinks);
 
+  QWidget* artifacts= make_page ();
+  QFormLayout* af= add_section (artifacts, "Artifactization");
+  QLabel* filterExplanation= new QLabel (
+    "Complete candidate artifact names in this vault-specific list are "
+    "ignored. Double-click an entry to edit it. The backing .lst file stores "
+    "one entry per line.", artifacts);
+  filterExplanation->setWordWrap (true);
+  af->addRow (filterExplanation);
+  QListWidget* titleFilter= new QListWidget (artifacts);
+  titleFilter->setMinimumHeight (280);
+  titleFilter->setEditTriggers (QAbstractItemView::DoubleClicked |
+                                QAbstractItemView::EditKeyPressed);
+  af->addRow (label ("Rejected artifact names:"), titleFilter);
+  QWidget* filterButtons= new QWidget (artifacts);
+  QHBoxLayout* filterButtonLayout= new QHBoxLayout (filterButtons);
+  filterButtonLayout->setContentsMargins (0, 0, 0, 0);
+  QPushButton* addFilterEntry= new QPushButton ("Add entry", filterButtons);
+  QPushButton* removeFilterEntry=
+    new QPushButton ("Remove selected", filterButtons);
+  filterButtonLayout->addWidget (addFilterEntry);
+  filterButtonLayout->addWidget (removeFilterEntry);
+  filterButtonLayout->addStretch (1);
+  af->addRow (filterButtons);
+
+  auto reloadTitleFilter= [titleFilter, artifacts] () {
+    QStringList entries;
+    QString error;
+    if (!qtm_artifact_title_filter_read (entries, &error)) {
+      QMessageBox::warning (artifacts, "Artifactization", error);
+      return false;
+    }
+    QSignalBlocker blocker (titleFilter);
+    titleFilter->clear ();
+    for (const QString& entry: entries) {
+      QListWidgetItem* item= new QListWidgetItem (entry, titleFilter);
+      item->setFlags (item->flags () | Qt::ItemIsEditable);
+    }
+    return true;
+  };
+  auto saveTitleFilter= [titleFilter, artifacts] () {
+    QStringList entries;
+    QSignalBlocker blocker (titleFilter);
+    for (int row=0; row<titleFilter->count (); row++) {
+      QString entry= titleFilter->item (row)->text ().trimmed ();
+      titleFilter->item (row)->setText (entry);
+      if (!entry.isEmpty ()) entries << entry;
+    }
+    QString error;
+    if (!qtm_artifact_title_filter_write (entries, &error)) {
+      QMessageBox::warning (artifacts, "Artifactization", error);
+      return false;
+    }
+    try { (void) call ("vault-anchor-title-filter-invalidate"); }
+    catch (...) {}
+    return true;
+  };
+  if (qtm_vault_info_available ()) {
+    reloadTitleFilter ();
+    QObject::connect (titleFilter, &QListWidget::itemChanged, artifacts,
+                      [saveTitleFilter] (QListWidgetItem*) {
+                        saveTitleFilter ();
+                      });
+    QObject::connect (addFilterEntry, &QPushButton::clicked, artifacts,
+                      [=] () {
+      bool ok= false;
+      QString entry= QInputDialog::getText (
+        artifacts, "Add rejected artifact name", "Name or phrase:",
+        QLineEdit::Normal, QString (), &ok).trimmed ();
+      if (!ok || entry.isEmpty ()) return;
+      QListWidgetItem* item= new QListWidgetItem (entry, titleFilter);
+      item->setFlags (item->flags () | Qt::ItemIsEditable);
+      saveTitleFilter ();
+    });
+    QObject::connect (removeFilterEntry, &QPushButton::clicked, artifacts,
+                      [=] () {
+      delete titleFilter->takeItem (titleFilter->currentRow ());
+      saveTitleFilter ();
+    });
+  }
+  else {
+    titleFilter->setEnabled (false);
+    addFilterEntry->setEnabled (false);
+    removeFilterEntry->setEnabled (false);
+    titleFilter->addItem ("No active vault.");
+  }
+  finish_page (artifacts);
+
   QWidget* materials= make_page ();
   QFormLayout* mm= add_section (materials, "Materials");
   QLabel* providerNotice= new QLabel (
@@ -2103,6 +2191,10 @@ QTMPreferencesDialog::buildVaultPage () {
     QLineEdit* materialsDirectory= add_path_chooser_row (
       vi, "Stored materials folder:", vaultInfo.materialsDirectory,
       chooseMaterialsDirectory);
+    QPushButton* chooseArtifactTitleFilter= nullptr;
+    QLineEdit* artifactTitleFilterPath= add_path_chooser_row (
+      vi, "Artifact title filter path:", vaultInfo.artifactTitleFilterPath,
+      chooseArtifactTitleFilter);
     QComboBox* rootNamespace= new QComboBox (info);
     rootNamespace->addItem ("None", "");
     QStringList namespaceNames= namespace_names_pref ();
@@ -2121,7 +2213,8 @@ QTMPreferencesDialog::buildVaultPage () {
                          namespacePath, startupPage,
                          oneTimeStartupPage, maintenanceSummaryPath,
                          ragIndexPath, websitesPath, materialsDbPath,
-                         materialsDirectory, rootNamespace] () {
+                         materialsDirectory, artifactTitleFilterPath,
+                         rootNamespace] () {
       QTMVaultfileInfo next;
       next.name= vaultName->text ();
       next.mapPath= mapPath->text ();
@@ -2134,6 +2227,7 @@ QTMPreferencesDialog::buildVaultPage () {
       next.websitesPath= websitesPath->text ();
       next.materialsDbPath= materialsDbPath->text ();
       next.materialsDirectory= materialsDirectory->text ();
+      next.artifactTitleFilterPath= artifactTitleFilterPath->text ();
       next.rootNamespace= rootNamespace->currentData ().toString ();
       QString error;
       if (!qtm_vaultfile_write (next, &error)) {
@@ -2158,6 +2252,8 @@ QTMPreferencesDialog::buildVaultPage () {
         qtm_clean_vault_relative_path (next.materialsDbPath));
       materialsDirectory->setText (
         qtm_clean_vault_relative_path (next.materialsDirectory));
+      artifactTitleFilterPath->setText (
+        qtm_clean_vault_relative_path (next.artifactTitleFilterPath));
     };
 
     auto choosePath= [info, saveVaultfile] (QLineEdit* edit,
@@ -2222,6 +2318,8 @@ QTMPreferencesDialog::buildVaultPage () {
                       saveVaultfile);
     QObject::connect (materialsDirectory, &QLineEdit::editingFinished,
                       saveVaultfile);
+    QObject::connect (artifactTitleFilterPath, &QLineEdit::editingFinished,
+                      saveVaultfile);
     QObject::connect (
       rootNamespace, QOverload<int>::of (&QComboBox::currentIndexChanged),
       [saveVaultfile] (int) { saveVaultfile (); });
@@ -2261,6 +2359,10 @@ QTMPreferencesDialog::buildVaultPage () {
     QObject::connect (chooseMaterialsDirectory, &QPushButton::clicked,
                       [=] () { chooseFolder (materialsDirectory,
                                              "Choose stored materials folder"); });
+    QObject::connect (chooseArtifactTitleFilter, &QPushButton::clicked,
+                      [=] () { choosePath (artifactTitleFilterPath,
+                                           "Choose artifact title filter",
+                                           false); });
   }
 
   QWidget* vaultFontRow= new QWidget (info);
@@ -2299,6 +2401,7 @@ QTMPreferencesDialog::buildVaultPage () {
                   {"Navigation", navigation},
                   {"Namespaces", namespaces},
                   {"Wikilinks and Transclusion", wikilinks},
+                  {"Artifacts", artifacts},
                   {"Materials", materials},
 #if ATHENA_ENABLE_PERSON_SUBSYSTEM
                   {"Persons", persons},

@@ -12,6 +12,7 @@
 #define QTMVAULTINFOMODEL_HPP
 
 #include <QString>
+#include <QStringList>
 #include <QVector>
 
 struct QTMBackupDispatcher {
@@ -32,6 +33,7 @@ struct QTMVaultfileInfo {
   QString rootNamespace;
   QString materialsDbPath;
   QString materialsDirectory;
+  QString artifactTitleFilterPath;
 };
 
 bool    qtm_vault_info_available ();
@@ -49,5 +51,9 @@ bool    qtm_backup_dispatchers_read (QVector<QTMBackupDispatcher>& dispatchers,
                                      QString* error= nullptr);
 bool    qtm_backup_dispatchers_write (
   const QVector<QTMBackupDispatcher>& dispatchers, QString* error= nullptr);
+bool    qtm_artifact_title_filter_read (QStringList& entries,
+                                        QString* error= nullptr);
+bool    qtm_artifact_title_filter_write (const QStringList& entries,
+                                         QString* error= nullptr);
 
 #endif

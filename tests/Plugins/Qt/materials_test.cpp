@@ -113,7 +113,8 @@ MaterialsTest::vaultfileDefaultsAndRoundTrip () {
   QCOMPARE (reread.materials_directory, std::string ("Library Materials"));
 
   std::vector<std::string> fields= athena_vaultfile_to_fields (reread);
-  QCOMPARE (fields.size (), (size_t) 15);
+  QCOMPARE (fields.size (), (size_t) 16);
+  QCOMPARE (fields[15], std::string ("artifact-title-filter.lst"));
   QCOMPARE (fields[13], std::string ("indexes/library.sqlite"));
   QCOMPARE (fields[14], std::string ("Library Materials"));
 }

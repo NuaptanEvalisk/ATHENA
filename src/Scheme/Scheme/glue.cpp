@@ -30,6 +30,7 @@
 #include "namespaces.hpp"
 #include "ATHENA/Data/vault_backup.hpp"
 #include "ATHENA/Data/vaultfile_json.hpp"
+#include "ATHENA/Data/artifact_title_filter.hpp"
 #include "ATHENA/Data/artifact_document.hpp"
 #include "ATHENA/Data/materials_document.hpp"
 #include "ATHENA/Data/materials_engine.hpp"
@@ -1926,6 +1927,22 @@ tmg_vaultfile_read (tmscm arg1) {
 }
 
 tmscm
+tmg_artifact_title_filter_read (tmscm arg1) {
+  TMSCM_ASSERT_URL (arg1, TMSCM_ARG1, "artifact-title-filter-read");
+
+  url root_url= tmscm_to_url (arg1);
+  AthenaArtifactTitleFilter filter=
+    is_none (root_url) ? athena_artifact_title_filter_defaults ()
+                       : AthenaArtifactTitleFilter ();
+  std::string error;
+  if (!is_none (root_url) && !athena_artifact_title_filter_read (
+        tmg_vault_root_path (arg1), filter, error))
+    return array_string_to_tmscm (array<string> ());
+  return array_string_to_tmscm (
+    tmg_vaultfile_fields_to_array (filter.entries));
+}
+
+tmscm
 tmg_vaultfile_write (tmscm arg1, tmscm arg2) {
   TMSCM_ASSERT_URL (arg1, TMSCM_ARG1, "vaultfile-write");
   TMSCM_ASSERT_ARRAY_STRING (arg2, TMSCM_ARG2, "vaultfile-write");
@@ -1945,6 +1962,9 @@ tmg_vaultfile_write (tmscm arg1, tmscm arg2) {
       if (N(fields) < 14) info.materials_db_path= previous.materials_db_path;
       if (N(fields) < 15)
         info.materials_directory= previous.materials_directory;
+      if (N(fields) < 16)
+        info.artifact_title_filter_path=
+          previous.artifact_title_filter_path;
     }
   if (athena_vaultfile_write (root, info, error))
     return string_to_tmscm ("");
@@ -2254,6 +2274,8 @@ initialize_glue () {
                            tmg_vaultfile_presentP, 1, 0, 0);
   tmscm_install_procedure ("vaultfile-read",
                            tmg_vaultfile_read, 1, 0, 0);
+  tmscm_install_procedure ("artifact-title-filter-read",
+                           tmg_artifact_title_filter_read, 1, 0, 0);
   tmscm_install_procedure ("vaultfile-write",
                            tmg_vaultfile_write, 2, 0, 0);
   tmscm_install_procedure ("vaultfile-ensure-json",

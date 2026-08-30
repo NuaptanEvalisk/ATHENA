@@ -36,6 +36,7 @@ struct AthenaVaultfileInfo {
   std::string bold_text_path= "bold-text.db";
   std::string materials_db_path= "materials.sqlite";
   std::string materials_directory= "materials";
+  std::string artifact_title_filter_path= "artifact-title-filter.lst";
   std::vector<AthenaBackupDispatcher> backup_dispatchers;
 };
 
