@@ -961,7 +961,8 @@ QTMPreferencesDialog::QTMPreferencesDialog (QWidget* parent)
   addCategory ("Editing", buildEditingPage ());
   addCategory ("Rendering", buildRenderingPage ());
   addCategory ("Convert", buildConversionPage ());
-  addCategory ("Vault", buildVaultPage ());
+  for (const auto& category: buildVaultCategories ())
+    addCategory (category.first, category.second);
   addCategory ("Other", buildOtherPage ());
   rebuildSearchIndex ();
 
@@ -1703,8 +1704,8 @@ QTMPreferencesDialog::buildConversionPage () {
                   {"Verbatim", verbatim}, {"Pdf", pdf}, {"Image", image}});
 }
 
-QWidget*
-QTMPreferencesDialog::buildVaultPage () {
+std::vector<std::pair<QString, QWidget*> >
+QTMPreferencesDialog::buildVaultCategories () {
   QWidget* general= make_page ();
   QFormLayout* g= add_section (general, "General");
   add_toggle (g, "Auto load last vault:", "vault auto load last");
@@ -2410,19 +2411,22 @@ QTMPreferencesDialog::buildVaultPage () {
   vi->addRow (label ("Global preferred font for vault:"), vaultFontRow);
   finish_page (info);
 
-  return tabbed ({{"General", general},
-                  {"Navigation", navigation},
-                  {"Namespaces", namespaces},
-                  {"Wikilinks and Transclusion", wikilinks},
-                  {"Artifacts", artifacts},
-                  {"Materials", materials},
+  QWidget* vault= tabbed ({{"General", general},
+                           {"Maintenance", maintenance},
+                           {"Backup", backup},
+                           {"Vault Info", info}});
+  QWidget* knowledge= tabbed ({{"Navigation", navigation},
+                               {"Namespaces", namespaces},
+                               {"Wikilinks and Transclusion", wikilinks},
+                               {"Artifacts", artifacts},
 #if ATHENA_ENABLE_PERSON_SUBSYSTEM
-                  {"Persons", persons},
+                               {"Persons", persons},
 #endif
-                  {"Maintenance", maintenance},
-                  {"Backup", backup},
-                  {"Anchors and Images", anchors},
-                  {"Vault Info", info}});
+                               {"Anchors and Images", anchors}});
+  QWidget* materialLibrary= tabbed ({{"Sources and Citations", materials}});
+  return {{"Vault", vault},
+          {"Knowledge", knowledge},
+          {"Materials", materialLibrary}};
 }
 
 QWidget*

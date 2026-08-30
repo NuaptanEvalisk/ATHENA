@@ -638,7 +638,12 @@
     SVG import conversion.
   </description>
 
-  <section|Vault>
+  <section|Vault, Knowledge, and Materials>
+
+  The native Preferences dialog separates vault lifecycle and storage under
+  <menu|Vault>, cross-document knowledge tools under <menu|Knowledge>, and the
+  source library under <menu|Materials>. The subsections below document those
+  three related categories together.
 
   <subsection|General>
 

@@ -14,6 +14,9 @@
 #include <QDialog>
 #include <QStringList>
 
+#include <utility>
+#include <vector>
+
 class QListWidget;
 class QCompleter;
 class QLineEdit;
@@ -35,7 +38,7 @@ private:
   QWidget* buildEditingPage ();
   QWidget* buildRenderingPage ();
   QWidget* buildConversionPage ();
-  QWidget* buildVaultPage ();
+  std::vector<std::pair<QString, QWidget*> > buildVaultCategories ();
   QWidget* buildOtherPage ();
 
   QListWidget*   categoryList;
