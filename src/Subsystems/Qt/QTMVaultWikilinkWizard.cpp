@@ -1157,6 +1157,8 @@ WikilinkSearchPage::searchFile (url u, const tree& query,
         collect_enunciation_matches (matches, body, query,
                                      from_qstring (enunciation), path (), 200,
                                      caseInsensitive, fuzzy);
+      score_search_match_titles (body, query, path (), matches,
+                                 caseInsensitive, fuzzy);
     }
     catch (...) {
       set_access_mode (oldMode);
@@ -1180,6 +1182,7 @@ WikilinkSearchPage::searchFile (url u, const tree& query,
       result.hitEnd= match.end;
       result.exact= match.exact;
       result.score= match.score;
+      result.titleMatchScore= match.titleMatchScore;
       hits.push_back (result);
     }
     return hitCount;
@@ -1319,6 +1322,8 @@ WikilinkSearchPage::startSearch () {
   std::stable_sort (
     collected.begin (), collected.end (),
     [] (const WikilinkSearchResult& a, const WikilinkSearchResult& b) {
+      if (a.titleMatchScore != b.titleMatchScore)
+        return a.titleMatchScore > b.titleMatchScore;
       if (a.exact != b.exact) return a.exact;
       if (a.exact) return false;
       if (a.score != b.score) return a.score > b.score;

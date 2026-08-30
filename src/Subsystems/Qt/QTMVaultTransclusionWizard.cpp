@@ -1389,12 +1389,18 @@ TransclusionSearchPage::searchFile (
         tree range= build_preview_from_anchor_range (
           body, pair.upperWhere, pair.lowerWhere);
         std::vector<VaultContentMatch> matches;
-        append_content_matches (matches, range, query, path (), 1,
+        constexpr int matchLimit= 200;
+        append_content_matches (matches, range, query, path (), matchLimit,
                                 caseInsensitive, fuzzy);
-        if (matches.empty () && tag.isEmpty ())
-          append_heading_matches (matches, range, query, path (), 1,
+        if (tag.isEmpty () && (int) matches.size () < matchLimit)
+          append_heading_matches (matches, range, query, path (),
+                                  matchLimit - (int) matches.size (),
                                   caseInsensitive, fuzzy);
         if (matches.empty ()) continue;
+        score_search_match_titles (range, query, path (), matches,
+                                   caseInsensitive, fuzzy);
+        std::stable_sort (matches.begin (), matches.end (),
+                          vault_search_match_precedes);
 
         TransclusionSearchResult result;
         result.file= u;
@@ -1404,6 +1410,7 @@ TransclusionSearchPage::searchFile (
         result.lowerWhere= pair.lowerWhere;
         result.exact= matches[0].exact;
         result.score= matches[0].score;
+        result.titleMatchScore= matches[0].titleMatchScore;
         hits.push_back (result);
         matched++;
       }
@@ -1556,6 +1563,8 @@ TransclusionSearchPage::startSearch () {
     collected.begin (), collected.end (),
     [] (const TransclusionSearchResult& a,
         const TransclusionSearchResult& b) {
+      if (a.titleMatchScore != b.titleMatchScore)
+        return a.titleMatchScore > b.titleMatchScore;
       if (a.exact != b.exact) return a.exact;
       if (a.exact) return false;
       if (a.score != b.score) return a.score > b.score;

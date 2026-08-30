@@ -29,6 +29,7 @@ struct WikilinkSearchResult {
   path    hitEnd;
   bool    exact;
   double  score;
+  int     titleMatchScore= -1;
 };
 
 struct TransclusionSearchResult {
@@ -42,6 +43,7 @@ struct TransclusionSearchResult {
   int     fileHits;
   bool    exact;
   double  score;
+  int     titleMatchScore= -1;
 };
 
 struct VaultContentMatch {
@@ -49,6 +51,7 @@ struct VaultContentMatch {
   path   end;
   bool   exact;
   double score;
+  int    titleMatchScore= -1;
 };
 
 class VaultRawSearchPrefilter {
@@ -77,5 +80,10 @@ void collect_enunciation_matches (std::vector<VaultContentMatch>& out, tree t,
 void append_heading_matches (std::vector<VaultContentMatch>& out, tree t,
                              tree query, path base, int limit,
                              bool case_insensitive, bool fuzzy);
+void score_search_match_titles (tree t, tree query, path base,
+                                std::vector<VaultContentMatch>& matches,
+                                bool case_insensitive, bool fuzzy);
+bool vault_search_match_precedes (const VaultContentMatch& a,
+                                  const VaultContentMatch& b);
 
 #endif // QTMVAULTSEARCH_HPP

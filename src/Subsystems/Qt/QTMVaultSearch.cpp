@@ -15,9 +15,11 @@
 #include "fuzzy_rank.hpp"
 #include "qt_utilities.hpp"
 #include <QFile>
+#include <QRegularExpression>
 #include <rapidfuzz/distance/Levenshtein.hpp>
 #include <rapidfuzz/fuzz.hpp>
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <deque>
@@ -377,6 +379,155 @@ same_match_range (const VaultContentMatch& a, const VaultContentMatch& b) {
   return a.start == b.start && a.end == b.end;
 }
 
+static bool
+path_starts_with (path value, path prefix) {
+  if (is_nil (prefix)) return true;
+  if (is_nil (value) || value->item != prefix->item) return false;
+  return path_starts_with (value->next, prefix->next);
+}
+
+static bool
+formatting_wrapper (tree t) {
+  return is_compound (t, "with") || is_compound (t, "style-with");
+}
+
+static bool
+bold_wrapper (tree t) {
+  if (is_compound (t, "strong")) return N(t) >= 1;
+  if (!formatting_wrapper (t) || N(t) < 3) return false;
+  for (int i=0; i+1<N(t)-1; i+=2)
+    if (is_atomic (t[i]) && is_atomic (t[i+1]) &&
+        (t[i]->label == "font-series" || t[i]->label == "fontseries") &&
+        (t[i+1]->label == "bold" || t[i+1]->label == "bold-series"))
+      return true;
+  return false;
+}
+
+static bool
+enunciation_node (tree t) {
+  if (!is_compound (t)) return false;
+  string tag= as_string (L(t));
+  for (const WikilinkEnunciationFilterEntry& entry:
+       wikilink_enunciation_filters)
+    if (normalized_enunciation_tag (to_qstring (tag)) ==
+        normalized_enunciation_tag (entry.tag))
+      return true;
+  return false;
+}
+
+static bool
+heading_node (tree t) {
+  return is_compound (t, "section") || is_compound (t, "section*") ||
+         is_compound (t, "subsection") || is_compound (t, "subsection*") ||
+         is_compound (t, "subsubsection") ||
+         is_compound (t, "subsubsection*") ||
+         is_compound (t, "paragraph") || is_compound (t, "paragraph*") ||
+         is_compound (t, "subparagraph") ||
+         is_compound (t, "subparagraph*");
+}
+
+static bool
+tree_has_visible_text (tree t) {
+  if (is_atomic (t)) return !to_qstring (t->label).trimmed ().isEmpty ();
+  if (is_func (t, LABEL) || is_func (t, RAW_DATA)) return false;
+  for (int i=0; i<N(t); i++)
+    if (tree_has_visible_text (t[i])) return true;
+  return false;
+}
+
+static QString
+visible_tree_text (tree t) {
+  if (is_atomic (t)) return to_qstring (t->label);
+  if (is_func (t, LABEL) || is_func (t, RAW_DATA)) return QString ();
+  QStringList parts;
+  for (int i=0; i<N(t); i++) {
+    QString part= visible_tree_text (t[i]).trimmed ();
+    if (!part.isEmpty ()) parts << part;
+  }
+  return parts.join (" ").simplified ();
+}
+
+static bool
+leading_bold_scope (tree t, path base, path& scope, tree& titleTree) {
+  if (is_atomic (t)) return false;
+  if (bold_wrapper (t)) {
+    scope= base;
+    titleTree= t;
+    return true;
+  }
+  if (formatting_wrapper (t) && N(t) >= 1)
+    return leading_bold_scope (t[N(t)-1], base * (N(t)-1), scope,
+                               titleTree);
+  for (int i=0; i<N(t); i++) {
+    if (!tree_has_visible_text (t[i])) continue;
+    return leading_bold_scope (t[i], base * i, scope, titleTree);
+  }
+  return false;
+}
+
+static bool
+preferred_anchor_title (tree t, QString& title) {
+  if (!is_func (t, LABEL, 1)) return false;
+  QString anchor= to_qstring (tree_as_string (t[0])).trimmed ();
+  QRegularExpressionMatch heading=
+    QRegularExpression ("^H[1-6]\\s+(.+)$").match (anchor);
+  if (heading.hasMatch ()) {
+    title= heading.captured (1).trimmed ();
+    return true;
+  }
+  if (!is_upper_anchor (anchor)) return false;
+  QString tag= anchor_pair_tag (anchor);
+  for (const WikilinkEnunciationFilterEntry& entry:
+       wikilink_enunciation_filters)
+    if (tag == normalized_enunciation_tag (entry.tag)) {
+      QString key= clean_anchor_display (anchor);
+      int colon= key.indexOf (':');
+      title= (colon < 0 ? key : key.mid (colon + 1)).trimmed ();
+      return !title.isEmpty ();
+    }
+  return false;
+}
+
+struct PreferredSearchScope {
+  path where;
+  QString title;
+};
+
+static int
+rapidfuzz_title_score (QString title, QString query, bool caseInsensitive) {
+  title= title.simplified ();
+  query= query.simplified ();
+  if (caseInsensitive) {
+    title= title.toCaseFolded ();
+    query= query.toCaseFolded ();
+  }
+  if (title.isEmpty () || query.isEmpty ()) return -1;
+  if (title == query) return 100000;
+  std::u32string titleText= title.toStdU32String ();
+  std::u32string queryText= query.toStdU32String ();
+  return (int) std::lround (
+    1000.0 * rapidfuzz::fuzz::WRatio (titleText, queryText));
+}
+
+static void
+collect_preferred_scopes (tree t, path base,
+                          std::vector<PreferredSearchScope>& scopes) {
+  if (is_atomic (t)) return;
+  QString anchorTitle;
+  if (preferred_anchor_title (t, anchorTitle))
+    scopes.push_back ({base, anchorTitle});
+  if (heading_node (t))
+    scopes.push_back ({base, visible_tree_text (t)});
+  if (enunciation_node (t)) {
+    path title;
+    tree titleTree;
+    if (leading_bold_scope (t, base, title, titleTree))
+      scopes.push_back ({title, visible_tree_text (titleTree)});
+  }
+  for (int i=0; i<N(t); i++)
+    collect_preferred_scopes (t[i], base * i, scopes);
+}
+
 } // namespace
 
 void
@@ -407,4 +558,30 @@ append_heading_matches (std::vector<VaultContentMatch>& out, tree t,
       }
     if (!duplicate) out.push_back (addition);
   }
+}
+
+void
+score_search_match_titles (
+  tree t, tree query, path base, std::vector<VaultContentMatch>& matches,
+  bool caseInsensitive, bool) {
+  std::vector<PreferredSearchScope> scopes;
+  collect_preferred_scopes (t, base, scopes);
+  QString queryText= to_qstring (tree_as_string (query)).simplified ();
+  for (VaultContentMatch& match: matches)
+    for (const PreferredSearchScope& scope: scopes)
+      if (path_starts_with (match.start, scope.where)) {
+        int score= rapidfuzz_title_score (scope.title, queryText,
+                                          caseInsensitive);
+        match.titleMatchScore= std::max (match.titleMatchScore, score);
+      }
+}
+
+bool
+vault_search_match_precedes (const VaultContentMatch& a,
+                             const VaultContentMatch& b) {
+  if (a.titleMatchScore != b.titleMatchScore)
+    return a.titleMatchScore > b.titleMatchScore;
+  if (a.exact != b.exact) return a.exact;
+  if (!a.exact && a.score != b.score) return a.score > b.score;
+  return path_less (a.start, b.start);
 }

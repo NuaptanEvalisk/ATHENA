@@ -28,6 +28,7 @@ private slots:
   void recognizesEnunciationAnchorPairs ();
   void findsInnermostEnclosingAnchorPair ();
   void recognizesHeadingAnchorTargets ();
+  void prefersEnunciationNamesAndHeadings ();
   void rawPrefilterRejectsUnrelatedFiles ();
   void rawPrefilterRespectsCaseOption ();
   void rawPrefilterIsConservative ();
@@ -172,6 +173,53 @@ TestVaultSearch::recognizesHeadingAnchorTargets () {
     if (heading_anchor_target_index (headings, match.start) == 0)
       foundHeadingText= true;
   QVERIFY (foundHeadingText);
+}
+
+void
+TestVaultSearch::prefersEnunciationNamesAndHeadings () {
+  tree theoremBody (CONCAT);
+  theoremBody << compound ("strong", "Named result");
+  theoremBody << tree ("Body result");
+  tree body (DOCUMENT);
+  body << tree (LABEL, "theorem:Named result {");
+  body << compound ("theorem", theoremBody);
+  body << tree (LABEL, "theorem:Named result }");
+  body << tree (LABEL, "H1 Named result section");
+  body << compound ("section", "Named result section");
+
+  std::vector<VaultContentMatch> matches (4);
+  for (VaultContentMatch& match: matches) {
+    match.exact= true;
+    match.score= 100.0;
+  }
+  matches[0].start= path () * 0 * 0 * 0;
+  matches[1].start= path () * 1 * 0 * 0 * 0;
+  matches[2].start= path () * 1 * 0 * 1 * 0;
+  matches[3].start= path () * 4 * 0 * 0;
+  score_search_match_titles (body, tree ("Named result"), path (), matches,
+                             false, false);
+
+  QCOMPARE (matches[0].titleMatchScore, 100000);
+  QCOMPARE (matches[1].titleMatchScore, 100000);
+  QCOMPARE (matches[2].titleMatchScore, -1);
+  QVERIFY (matches[3].titleMatchScore >= 0);
+  QVERIFY (vault_search_match_precedes (matches[0], matches[2]));
+
+  tree names (DOCUMENT);
+  names << tree (LABEL, "definition:Lie group {");
+  names << tree (LABEL, "definition:Lie groupoid {");
+  std::vector<VaultContentMatch> nameMatches (2);
+  for (VaultContentMatch& match: nameMatches) {
+    match.exact= true;
+    match.score= 100.0;
+  }
+  nameMatches[0].start= path () * 0 * 0 * 0;
+  nameMatches[1].start= path () * 1 * 0 * 0;
+  score_search_match_titles (names, tree ("Lie group"), path (),
+                             nameMatches, false, false);
+  QCOMPARE (nameMatches[0].titleMatchScore, 100000);
+  QVERIFY (nameMatches[1].titleMatchScore < nameMatches[0].titleMatchScore);
+  QVERIFY (vault_search_match_precedes (nameMatches[0], nameMatches[1]));
 }
 
 static url
