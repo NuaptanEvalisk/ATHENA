@@ -91,6 +91,7 @@ struct MaterialFilenameMaintenanceResult {
   int renamed= 0;
   int unchanged= 0;
   int missing= 0;
+  std::vector<std::filesystem::path> missing_files;
   std::vector<std::filesystem::path> unreferenced_files;
 };
 

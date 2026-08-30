@@ -99,6 +99,8 @@ registered_passes () {
       vault_maintenance_pass_create_backup}, false, pass_always_enabled},
     {{"health-check", "Check ATHENA document readability",
       vault_maintenance_pass_health_check}, false, pass_always_enabled},
+    {{"maintain-materials", "Canonicalize and purge Material attachments",
+      vault_maintenance_pass_maintain_materials}, false, pass_always_enabled},
     {{"normalize-assets", "Normalize referenced asset names and references",
       vault_maintenance_pass_normalize_assets}, false, pass_always_enabled},
     {{"scan-missing-images", "Scan for missing images",

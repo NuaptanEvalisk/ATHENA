@@ -35,6 +35,12 @@ struct VaultMaintenanceSummary {
   size_t manual_save_histories_purged = 0;
   size_t asset_renames = 0;
   size_t asset_reference_updates = 0;
+  bool materials_database_present = false;
+  size_t material_attachments_renamed = 0;
+  size_t material_attachments_unchanged = 0;
+  size_t material_attachments_missing = 0;
+  size_t material_files_purged = 0;
+  std::vector<std::filesystem::path> missing_material_attachments;
   bool missing_image_scan_enabled = false;
   size_t missing_image_files_scanned = 0;
   size_t local_image_references_scanned = 0;
@@ -147,6 +153,8 @@ VaultMaintenancePassResult vault_maintenance_pass_load_preferences (
 VaultMaintenancePassResult vault_maintenance_pass_create_backup (
   VaultMaintenanceContext& ctx);
 VaultMaintenancePassResult vault_maintenance_pass_health_check (
+  VaultMaintenanceContext& ctx);
+VaultMaintenancePassResult vault_maintenance_pass_maintain_materials (
   VaultMaintenanceContext& ctx);
 VaultMaintenancePassResult vault_maintenance_pass_read_policy_preferences (
   VaultMaintenanceContext& ctx);

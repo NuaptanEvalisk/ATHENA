@@ -346,6 +346,19 @@ summary_document_text (VaultMaintenanceContext& ctx, bool success,
                       " asset file(s), updated " +
                       std::to_string (summary.asset_reference_updates) +
                       " asset reference(s)")}),
+    tm_row ({tm_text ("Materials"),
+             summary.materials_database_present
+               ? tm_text (
+                   "renamed " +
+                   std::to_string (summary.material_attachments_renamed) +
+                   " attachment(s), unchanged " +
+                   std::to_string (summary.material_attachments_unchanged) +
+                   ", missing " +
+                   std::to_string (summary.material_attachments_missing) +
+                   ", purged " +
+                   std::to_string (summary.material_files_purged) +
+                   " unreferenced file(s)")
+               : tm_text ("no Materials database; skipped")}),
     tm_row ({tm_text ("Missing images"),
              summary.missing_image_scan_enabled
                ? tm_text (
@@ -512,6 +525,15 @@ summary_document_text (VaultMaintenanceContext& ctx, bool success,
     }
   }
 
+  std::vector<std::string> missing_material_rows;
+  if (!summary.missing_material_attachments.empty ()) {
+    missing_material_rows.push_back (
+      tm_row ({tm_strong ("Missing Material attachment")}));
+    for (const fs::path& path: summary.missing_material_attachments)
+      missing_material_rows.push_back (
+        tm_row ({tm_verbatim (path.generic_string ())}));
+  }
+
   std::string startup_label;
   std::string startup_target = vault_startup_page_target (ctx, startup_label);
 
@@ -541,6 +563,10 @@ summary_document_text (VaultMaintenanceContext& ctx, bool success,
   if (!missing_image_rows.empty ()) {
     body << "  <section|Missing Images>\n\n";
     body << "  " << tm_table (missing_image_rows) << "\n\n";
+  }
+  if (!missing_material_rows.empty ()) {
+    body << "  <section|Missing Material Attachments>\n\n";
+    body << "  " << tm_table (missing_material_rows) << "\n\n";
   }
   body << "  <section|Next Step>\n\n";
   body << "  <cardlink|" << tm_escape_text (startup_label)
@@ -620,6 +646,17 @@ vault_maintenance_pass_print_summary (VaultMaintenanceContext& ctx) {
             " asset file(s), updated " +
             std::to_string (summary.asset_reference_updates) +
             " asset reference(s)");
+  if (summary.materials_database_present)
+    log_info ("summary: Materials renamed " +
+              std::to_string (summary.material_attachments_renamed) +
+              " attachment(s), unchanged " +
+              std::to_string (summary.material_attachments_unchanged) +
+              ", missing " +
+              std::to_string (summary.material_attachments_missing) +
+              ", purged " +
+              std::to_string (summary.material_files_purged) +
+              " unreferenced file(s)");
+  else log_info ("summary: no Materials database; maintenance skipped");
   if (summary.missing_image_scan_enabled)
     log_info ("summary: missing-image scan checked " +
               std::to_string (summary.local_image_references_scanned) +

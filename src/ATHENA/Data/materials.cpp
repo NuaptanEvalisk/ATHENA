@@ -1955,7 +1955,9 @@ MaterialsStore::canonicalize_filenames (
              "directory: " + file.stored_path;
       return false;
     }
+    ec.clear ();
     file.exists= fs::is_regular_file (file.original, ec);
+    if (ec == std::errc::no_such_file_or_directory) ec.clear ();
     if (ec) {
       error= "Could not inspect managed Material attachment: " + ec.message ();
       return false;
@@ -1964,6 +1966,7 @@ MaterialsStore::canonicalize_filenames (
     else {
       occupied.insert (file.original);
       result.missing++;
+      result.missing_files.push_back (file.original);
     }
   }
 
