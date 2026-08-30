@@ -314,9 +314,29 @@ qt_ui_element_rep::get_fresh_qactionlist() {
 
           for (int i = 0; i < N(arr); i++) {
               if (is_nil (arr[i])) break;
-              QAction* a = concrete (arr[i])->as_qaction ();
-              list->append(a);
+              qt_widget child= concrete (arr[i]);
+              if (child->type == scrollable_widget) {
+                QList<QAction*>* inner= child->get_fresh_qactionlist ();
+                if (inner != NULL) {
+                  list->append (*inner);
+                  delete inner;
+                }
+              }
+              else list->append (child->as_qaction ());
           }
+      }
+        break;
+
+      case scrollable_widget:
+      {
+        typedef pair<widget, int> T;
+        T x= open_box<T> (load);
+        QList<QAction*>* inner=
+          concrete (x.x1)->get_fresh_qactionlist ();
+        if (inner != NULL) {
+          list->append (*inner);
+          delete inner;
+        }
       }
         break;
 
@@ -324,6 +344,20 @@ qt_ui_element_rep::get_fresh_qactionlist() {
         break;
   }
   return list;
+}
+
+bool
+qt_ui_element_rep::requires_menu_scrolling () const {
+  if (type == scrollable_widget) return true;
+  if (type != vertical_menu && type != horizontal_menu &&
+      type != vertical_list)
+    return false;
+  typedef array<widget> T;
+  array<widget> arr= open_box<T> (load);
+  for (int i=0; i<N(arr); ++i)
+    if (!is_nil (arr[i]) && concrete (arr[i])->requires_menu_scrolling ())
+      return true;
+  return false;
 }
 
 /*! For the refresh_widget

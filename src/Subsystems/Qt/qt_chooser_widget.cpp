@@ -31,7 +31,7 @@
 #include <QByteArray>
 #include <QUrl>
 
-#ifdef USE_KF5_KIO
+#ifdef USE_KF6
 #include <KIOFileWidgets/KFileCustomDialog>
 #include <KIOFileWidgets/KFileWidget>
 #include <KIOWidgets/kfile.h>
@@ -261,7 +261,7 @@ qt_chooser_widget_rep::perform_dialog_with_qfiledialog() {
 }
 
 
-#ifdef USE_KF5_KIO
+#ifdef USE_KF6
 static QString
 qt_chooser_kde_filter (const string& type) {
   if (type == "image")
@@ -403,7 +403,7 @@ qt_chooser_widget_rep::perform_dialog_with_kfiledialog() {
  */
 void
 qt_chooser_widget_rep::perform_dialog () {
-#ifdef USE_KF5_KIO
+#ifdef USE_KF6
   return perform_dialog_with_kfiledialog();
 #endif
 

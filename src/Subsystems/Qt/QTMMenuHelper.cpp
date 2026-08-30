@@ -455,7 +455,10 @@ QTMLazyMenu::transferActions (QList<QAction*>* from) {
 void
 QTMLazyMenu::force () {
 BEGIN_SLOT
-  QList<QAction*>* list = concrete (promise_widget())->get_qactionlist();
+  qt_widget source= concrete (promise_widget ());
+  setProperty (QTM_SCROLLABLE_MENU_PROPERTY,
+               source->requires_menu_scrolling ());
+  QList<QAction*>* list= source->get_qactionlist ();
   transferActions (list);
 END_SLOT
 }

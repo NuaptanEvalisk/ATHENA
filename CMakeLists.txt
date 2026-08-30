@@ -821,7 +821,7 @@ if (ATHENA_GUI STREQUAL "Qt" OR ATHENA_GUI STREQUAL "Qt6")
       get_filename_component (KF6_INCLUDE_ROOT
                               "${KF6_KIO_FILE_WIDGETS_INCLUDE_DIR}/.."
                               ABSOLUTE)
-      add_definitions ("-DUSE_KF5_KIO")
+      add_definitions ("-DUSE_KF6")
       set (ATHENA_Include_Dirs ${ATHENA_Include_Dirs}
            ${KF6_INCLUDE_ROOT}
            ${KF6_KIO_CORE_INCLUDE_DIRS}

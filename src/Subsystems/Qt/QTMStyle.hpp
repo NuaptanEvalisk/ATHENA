@@ -14,6 +14,9 @@
 
 #include <QStyle>
 
+inline constexpr const char* QTM_SCROLLABLE_MENU_PROPERTY=
+  "athenaScrollableMenu";
+
 int qt_zoom (int sz);
 
 #ifdef Q_OS_MAC

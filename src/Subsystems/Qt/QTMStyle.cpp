@@ -450,6 +450,11 @@ QTMStyle::styleHint (StyleHint hint, const QStyleOption* option, const QWidget* 
       // Set SH_MenuBar_AltKeyNavigation to false. Typically this would be the job of the style that is selected.
       // However: That mechanism seems to be broken with some Qt versions. Furthermore, the Alt key is heavily
       // used within TeXmacs, so the menubar navigation gets in the way quite often.
+    case SH_Menu_Scrollable:
+      if (widget != nullptr &&
+          widget->property (QTM_SCROLLABLE_MENU_PROPERTY).toBool ())
+        return 1;
+      [[fallthrough]];
     default:
       return baseStyle()->styleHint (hint, option, widget, returnData);
   }

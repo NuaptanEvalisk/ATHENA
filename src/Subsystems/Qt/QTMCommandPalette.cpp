@@ -12,7 +12,7 @@
 #include "QTMMainTabWindow.hpp"
 #include "QTMMenuHelper.hpp"
 
-#ifdef USE_KF5_KIO
+#ifdef USE_KF6
 #include <KCommandBar>
 #endif
 
@@ -127,7 +127,7 @@ collect_menu_actions (QMenu* menu, QObject* palette,
 
 static QString menu_group_name (QAction* action);
 
-#ifndef USE_KF5_KIO
+#ifndef USE_KF6
 static QAction*
 action_for_item (QListWidgetItem* item) {
   if (item == nullptr) return nullptr;
@@ -321,7 +321,7 @@ command_palette_show () {
     if (action != nullptr && action->menu () != nullptr)
       force_lazy_menu_tree (action->menu (), seen);
 
-#ifdef USE_KF5_KIO
+#ifdef USE_KF6
   KCommandBar* palette= new KCommandBar (host);
   palette->setAttribute (Qt::WA_DeleteOnClose);
   QVector<KCommandBar::ActionGroup> groups;

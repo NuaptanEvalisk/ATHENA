@@ -67,6 +67,7 @@ public:
   virtual QLayoutItem*     as_qlayoutitem (QWidget* parent_widget);
   virtual QList<QAction*>* get_qactionlist();
   virtual QList<QAction*>* get_fresh_qactionlist();
+  virtual bool             requires_menu_scrolling () const;
 
   operator tree ();
 

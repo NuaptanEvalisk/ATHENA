@@ -20,7 +20,7 @@
 #include "vault.hpp"
 
 #include <DockWidget.h>
-#ifdef USE_KF5_KIO
+#ifdef USE_KF6
 #include <KIOFileWidgets/KFileCustomDialog>
 #include <KIOFileWidgets/KFileWidget>
 #endif
@@ -119,7 +119,7 @@ qlist_contains (QListWidget* list, const QString& text) {
   return !list->findItems (text, Qt::MatchExactly).isEmpty ();
 }
 
-#ifdef USE_KF5_KIO
+#ifdef USE_KF6
 static QString
 namespace_selected_local_file (KFileWidget* file_widget) {
   QString selected= file_widget->selectedFile ();
@@ -190,7 +190,7 @@ namespace_choose_file (QWidget* parent, QLineEdit* edit,
   QFileInfo start_info (start_path);
   if (!start_info.exists ()) start_path= start_info.absolutePath ();
 
-#ifdef USE_KF5_KIO
+#ifdef USE_KF6
   KFileCustomDialog dialog (QUrl::fromLocalFile (start_path), parent);
   dialog.setWindowTitle (title);
   dialog.setOperationMode (KFileWidget::Opening);
@@ -223,7 +223,7 @@ namespace_choose_homepage_target (QWidget* parent, QLineEdit* edit) {
   QFileInfo start_info (start_path);
   if (!start_info.exists ()) start_path= start_info.absolutePath ();
 
-#ifdef USE_KF5_KIO
+#ifdef USE_KF6
   KFileCustomDialog dialog (QUrl::fromLocalFile (start_path), parent);
   dialog.setWindowTitle ("Create Namespace Homepage");
   dialog.setOperationMode (KFileWidget::Saving);
