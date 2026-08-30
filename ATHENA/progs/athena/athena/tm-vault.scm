@@ -767,6 +767,70 @@
                 (list-difference active-transclusions (list uuid-str)))
           res))))
 
+(define (vault-flatten-cycle-error file-hint)
+  `(with "color" "red"
+     (concat (bold "Broken Transclusion: ")
+             "Cyclic transclusion detected (" ,file-hint ").")))
+
+(define (vault-flatten-stree* st resolver active)
+  (cond
+    ((not (pair? st)) st)
+    ((and (eq? (car st) 'transclude) (>= (length st) 5))
+     (let ((uuid (cadr st))
+           (file-hint (caddr st)))
+       (if (member uuid active)
+           (vault-flatten-cycle-error file-hint)
+           (let ((resolved (resolver (cadr st) (caddr st)
+                                     (cadddr st) (list-ref st 4))))
+             (vault-flatten-stree*
+               (if (tree? resolved) (tree->stree resolved) resolved)
+               resolver (cons uuid active))))))
+    ((eq? (car st) 'document)
+     (cons 'document
+           (append-map
+             (lambda (child)
+               (let ((flat (vault-flatten-stree* child resolver active)))
+                 (if (and (pair? flat) (eq? (car flat) 'document))
+                     (cdr flat)
+                     (list flat))))
+             (cdr st))))
+    (else
+      (cons (car st)
+            (map (lambda (child)
+                   (vault-flatten-stree* child resolver active))
+                 (cdr st))))))
+
+(define (vault-flatten-stree st resolver)
+  (vault-flatten-stree* st resolver '()))
+
+(tm-define (vault-flatten-document)
+  (:interactive #t)
+  (if (not (vault-active?))
+      (set-message "No active vault. Please load a vault first." "Flatten")
+      (let* ((source (current-buffer))
+             (source-title (buffer-get-title source))
+             (target (buffer-new)))
+        (buffer-copy source target)
+        (let* ((count 0)
+               (resolver (lambda (uuid file-hint anchor-b anchor-e)
+                           (set! count (+ count 1))
+                           (vault-resolve-transclude-content
+                             uuid file-hint anchor-b anchor-e)))
+               (body (tree->stree (buffer-get-body target)))
+               (flattened (vault-flatten-stree
+                            body resolver)))
+          (buffer-set-body target (stree->tree flattened))
+          (buffer-set-title target
+            (string-append
+              (if (string-null? source-title) "Untitled" source-title)
+              " (flattened)"))
+          (switch-to-buffer target)
+          (set-message
+            (string-append "Flattened " (number->string count)
+                           (if (= count 1) " transclusion" " transclusions")
+                           " into a new document")
+            "Flatten")))))
+
 (tm-define (vault-resolve-transclude uuid f-hint b-hint e-hint)
   (let* ((uuid-str (tree->string uuid))
          (f-hint-str (tree->string f-hint))

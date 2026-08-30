@@ -12,7 +12,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (texmacs-module (athena menus main-menu)
-  (:use (utils library cursor)))
+  (:use (utils library cursor)
+        (athena athena tm-vault)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Main dynamic, extensible or user defined submenus
@@ -170,6 +171,11 @@
   (link presentation-popup-menu)
   ---
   (former))
+
+(tm-menu (document-menu)
+  (former)
+  ---
+  ("Flatten transclusions into new document" (vault-flatten-document)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; The main icon bar
