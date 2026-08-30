@@ -289,16 +289,15 @@ QTMMaterialsManager::QTMMaterialsManager (QWidget* parent): QWidget (parent) {
   materialTable->setSelectionMode (QAbstractItemView::ExtendedSelection);
   materialTable->setEditTriggers (QAbstractItemView::NoEditTriggers);
   materialTable->verticalHeader ()->hide ();
-  materialTable->horizontalHeader ()->setSectionResizeMode (
-    0, QHeaderView::ResizeToContents);
-  materialTable->horizontalHeader ()->setSectionResizeMode (
-    1, QHeaderView::ResizeToContents);
-  materialTable->horizontalHeader ()->setSectionResizeMode (
-    2, QHeaderView::ResizeToContents);
-  materialTable->horizontalHeader ()->setSectionResizeMode (
-    3, QHeaderView::Stretch);
-  materialTable->horizontalHeader ()->setSectionResizeMode (
-    4, QHeaderView::ResizeToContents);
+  QHeaderView* materialHeader= materialTable->horizontalHeader ();
+  materialHeader->setSectionResizeMode (QHeaderView::Interactive);
+  materialHeader->setStretchLastSection (false);
+  materialHeader->setMinimumSectionSize (60);
+  materialTable->setColumnWidth (0, 90);
+  materialTable->setColumnWidth (1, 110);
+  materialTable->setColumnWidth (2, 200);
+  materialTable->setColumnWidth (3, 360);
+  materialTable->setColumnWidth (4, 150);
   browserLayout->addWidget (materialTable, 1);
 
   QWidget* editor= new QWidget (splitter);
