@@ -1729,8 +1729,8 @@ QTMPreferencesDialog::buildVaultPage () {
               "vault global search fuzzy search");
   add_combo (nav, "Preferred initial neighborhood:",
              "vault preferred initial neighborhood",
-             {{"First direct namespace-based neighborhood", "namespace"},
-              {"Path-based neighborhood", "path"}},
+             {{"namespace", "First direct namespace-based neighborhood"},
+              {"path", "Path-based neighborhood"}},
              "namespace");
   finish_page (navigation);
 
