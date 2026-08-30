@@ -50,6 +50,7 @@ private:
   void chooseDirectory ();
   void importBibtex ();
   void importZotero ();
+  void canonicalizeFilenames ();
   void importFiles (const QStringList& files, bool review_recognition);
   bool reviewRecognition (const QString& path,
                           MaterialRecognitionResult& recognition,

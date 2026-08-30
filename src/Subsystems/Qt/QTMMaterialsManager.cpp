@@ -33,6 +33,7 @@
 #include <QDropEvent>
 #include <QEventLoop>
 #include <QFileDialog>
+#include <QFile>
 #include <QFileInfo>
 #include <QFormLayout>
 #include <QHeaderView>
@@ -250,6 +251,8 @@ QTMMaterialsManager::QTMMaterialsManager (QWidget* parent): QWidget (parent) {
   QPushButton* addDirectory= new QPushButton ("Add directory...", this);
   QPushButton* importBib= new QPushButton ("Import BibTeX...", this);
   QPushButton* importZoteroButton= new QPushButton ("Import Zotero...", this);
+  QPushButton* canonicalizeButton= new QPushButton (
+    "Canonicalize filenames", this);
   QPushButton* refreshButton= new QPushButton ("Refresh", this);
   deleteButton= new QPushButton ("Delete", this);
   reidentifyButton= new QPushButton ("Re-identify", this);
@@ -258,6 +261,7 @@ QTMMaterialsManager::QTMMaterialsManager (QWidget* parent): QWidget (parent) {
   commands->addWidget (addDirectory);
   commands->addWidget (importBib);
   commands->addWidget (importZoteroButton);
+  commands->addWidget (canonicalizeButton);
   commands->addWidget (reidentifyButton);
   commands->addWidget (deleteButton);
   commands->addStretch (1);
@@ -381,6 +385,8 @@ QTMMaterialsManager::QTMMaterialsManager (QWidget* parent): QWidget (parent) {
            [this] { importBibtex (); });
   connect (importZoteroButton, &QPushButton::clicked, this,
            [this] { importZotero (); });
+  connect (canonicalizeButton, &QPushButton::clicked, this,
+           [this] { canonicalizeFilenames (); });
   connect (reidentifyButton, &QPushButton::clicked, this,
            [this] { reidentifySelected (); });
   connect (deleteButton, &QPushButton::clicked, this,
@@ -986,6 +992,56 @@ QTMMaterialsManager::importZotero () {
   if (store == nullptr) return;
   QTMZoteroImportResult result;
   if (qtm_import_zotero_library (this, *store, result)) refresh ();
+}
+
+void
+QTMMaterialsManager::canonicalizeFilenames () {
+  MaterialsStore* store= store_or_warn (this);
+  if (store == nullptr) return;
+
+  std::string error;
+  std::vector<fs::path> unreferenced=
+    store->unreferenced_material_files (error);
+  if (!error.empty ()) {
+    QMessageBox::warning (this, "Canonicalize Material filenames", qstr (error));
+    return;
+  }
+  QString prompt=
+    "Rename managed attachments from their current Material metadata.";
+  if (!unreferenced.empty ())
+    prompt += QString ("\n\n%1 unreferenced file(s) in the Materials directory "
+                       "will be moved to the system Trash.")
+                .arg (unreferenced.size ());
+  if (QMessageBox::question (this, "Canonicalize Material filenames", prompt) !=
+      QMessageBox::Yes)
+    return;
+
+  MaterialFilenameMaintenanceResult result;
+  if (!store->canonicalize_filenames (result, error)) {
+    QMessageBox::warning (this, "Canonicalize Material filenames", qstr (error));
+    return;
+  }
+
+  QStringList trash_failures;
+  for (const fs::path& path: result.unreferenced_files) {
+    QString file= qstr (path.u8string ());
+    if (!QFile::moveToTrash (file)) trash_failures << file;
+  }
+  refresh ();
+
+  QString summary= QString (
+    "Renamed %1 attachment(s).\n"
+    "%2 attachment(s) already had canonical names.\n"
+    "%3 referenced attachment(s) were missing.\n"
+    "Moved %4 unreferenced file(s) to the system Trash.")
+      .arg (result.renamed)
+      .arg (result.unchanged)
+      .arg (result.missing)
+      .arg (result.unreferenced_files.size () - trash_failures.size ());
+  if (!trash_failures.isEmpty ())
+    summary += "\n\nCould not move these files to Trash:\n" +
+               trash_failures.join ('\n');
+  QMessageBox::information (this, "Canonicalize Material filenames", summary);
 }
 
 bool

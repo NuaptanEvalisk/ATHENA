@@ -87,6 +87,13 @@ struct MaterialImportResult {
   std::string existing_material_uuid;
 };
 
+struct MaterialFilenameMaintenanceResult {
+  int renamed= 0;
+  int unchanged= 0;
+  int missing= 0;
+  std::vector<std::filesystem::path> unreferenced_files;
+};
+
 struct MaterialSearchHit {
   std::string uuid;
   std::string item_type;
@@ -172,6 +179,10 @@ public:
     const std::string& material_uuid, std::string& error) const;
   std::optional<MaterialAttachment> primary_attachment (
     const std::string& material_uuid, std::string& error) const;
+  bool canonicalize_filenames (MaterialFilenameMaintenanceResult& result,
+                               std::string& error);
+  std::vector<std::filesystem::path> unreferenced_material_files (
+    std::string& error) const;
 
   std::optional<std::string> material_for_identifier (
     const std::string& scheme, const std::string& value,

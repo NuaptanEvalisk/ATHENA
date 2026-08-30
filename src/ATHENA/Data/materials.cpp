@@ -1838,6 +1838,251 @@ MaterialsStore::primary_attachment (const std::string& material_uuid,
   return all.front ();
 }
 
+std::vector<fs::path>
+MaterialsStore::unreferenced_material_files (std::string& error) const {
+  std::vector<fs::path> result;
+  if (!is_open ()) {
+    error= "Materials database is not open";
+    return result;
+  }
+
+  std::set<fs::path> referenced;
+  Statement query (impl->db,
+                   "SELECT stored_path FROM material_attachments;");
+  if (!query) {
+    error= sqlite3_errmsg (impl->db);
+    return result;
+  }
+  int status;
+  while ((status= sqlite3_step (query.get ())) == SQLITE_ROW)
+    referenced.insert ((impl->root / fs::u8path (
+      text_column (query.get (), 0))).lexically_normal ());
+  if (status != SQLITE_DONE) {
+    error= sqlite3_errmsg (impl->db);
+    return {};
+  }
+
+  std::error_code ec;
+  fs::recursive_directory_iterator iterator (
+    impl->files_path, fs::directory_options::skip_permission_denied, ec);
+  fs::recursive_directory_iterator end;
+  if (ec) {
+    error= "Could not scan the Materials directory: " + ec.message ();
+    return {};
+  }
+  while (iterator != end) {
+    const fs::directory_entry entry= *iterator;
+    bool regular= entry.is_regular_file (ec) || entry.is_symlink (ec);
+    if (ec) {
+      error= "Could not inspect a file in the Materials directory: " +
+             ec.message ();
+      return {};
+    }
+    if (regular && !referenced.count (entry.path ().lexically_normal ()))
+      result.push_back (entry.path ());
+    iterator.increment (ec);
+    if (ec) {
+      error= "Could not scan the Materials directory: " + ec.message ();
+      return {};
+    }
+  }
+  std::sort (result.begin (), result.end ());
+  return result;
+}
+
+bool
+MaterialsStore::canonicalize_filenames (
+  MaterialFilenameMaintenanceResult& result, std::string& error) {
+  result= MaterialFilenameMaintenanceResult {};
+  if (!is_open ()) {
+    error= "Materials database is not open";
+    return false;
+  }
+
+  struct Rename {
+    std::string attachment_uuid;
+    std::string material_uuid;
+    fs::path original;
+    fs::path staged;
+    fs::path target;
+    std::string stored_path;
+    std::string canonical_name;
+    bool exists= false;
+    bool changed= false;
+    bool published= false;
+  };
+  std::vector<Rename> files;
+  Statement query (
+    impl->db,
+    "SELECT uuid,material_uuid,stored_path FROM material_attachments "
+    "ORDER BY material_uuid,is_primary DESC,created_at,uuid;");
+  if (!query) {
+    error= sqlite3_errmsg (impl->db);
+    return false;
+  }
+  int status;
+  while ((status= sqlite3_step (query.get ())) == SQLITE_ROW) {
+    Rename file;
+    file.attachment_uuid= text_column (query.get (), 0);
+    file.material_uuid= text_column (query.get (), 1);
+    file.stored_path= text_column (query.get (), 2);
+    file.original=
+      (impl->root / fs::u8path (file.stored_path)).lexically_normal ();
+    files.push_back (std::move (file));
+  }
+  if (status != SQLITE_DONE) {
+    error= sqlite3_errmsg (impl->db);
+    return false;
+  }
+
+  std::set<fs::path> occupied;
+  std::error_code ec;
+  for (fs::recursive_directory_iterator iterator (
+         impl->files_path, fs::directory_options::skip_permission_denied, ec),
+       end;
+       !ec && iterator != end; iterator.increment (ec))
+    if (iterator->is_regular_file (ec) || iterator->is_symlink (ec))
+      occupied.insert (iterator->path ().lexically_normal ());
+  if (ec) {
+    error= "Could not scan the Materials directory: " + ec.message ();
+    return false;
+  }
+  for (Rename& file: files) {
+    fs::path relative= file.original.lexically_relative (impl->files_path);
+    if (relative.empty () || relative.is_absolute () ||
+        *relative.begin () == "..") {
+      error= "Managed Material attachment path escapes the Materials "
+             "directory: " + file.stored_path;
+      return false;
+    }
+    file.exists= fs::is_regular_file (file.original, ec);
+    if (ec) {
+      error= "Could not inspect managed Material attachment: " + ec.message ();
+      return false;
+    }
+    if (file.exists) occupied.erase (file.original);
+    else {
+      occupied.insert (file.original);
+      result.missing++;
+    }
+  }
+
+  auto reserve_target= [&] (const std::string& filename,
+                            const std::string& uuid) {
+    fs::path requested= (impl->files_path / fs::u8path (filename))
+                          .lexically_normal ();
+    if (occupied.insert (requested).second) return requested;
+    fs::path stem= requested.stem ();
+    fs::path extension= requested.extension ();
+    std::string suffix= uuid.substr (0, std::min<size_t> (8, uuid.size ()));
+    for (int index= 1; index<10000; ++index) {
+      std::string discriminator= " [" + suffix;
+      if (index > 1) discriminator += "-" + std::to_string (index);
+      discriminator += "]";
+      fs::path candidate= (impl->files_path / fs::u8path (
+        stem.u8string () + discriminator + extension.u8string ()))
+                             .lexically_normal ();
+      if (occupied.insert (candidate).second) return candidate;
+    }
+    fs::path candidate= (impl->files_path /
+      fs::u8path (uuid_v4 () + extension.u8string ())).lexically_normal ();
+    occupied.insert (candidate);
+    return candidate;
+  };
+
+  std::string loaded_uuid;
+  MaterialRecord material;
+  for (Rename& file: files) {
+    if (!file.exists) continue;
+    if (loaded_uuid != file.material_uuid) {
+      if (!load_record (impl->db, file.material_uuid, material, error))
+        return false;
+      loaded_uuid= file.material_uuid;
+    }
+    std::string filename= canonical_filename (material, file.original);
+    file.target= reserve_target (filename, file.material_uuid);
+    file.canonical_name= file.target.filename ().u8string ();
+    file.changed= file.target != file.original;
+    if (file.changed) result.renamed++;
+    else result.unchanged++;
+  }
+
+  auto restore_files= [&] {
+    for (auto iterator= files.rbegin (); iterator != files.rend (); ++iterator) {
+      if (!iterator->changed) continue;
+      std::error_code ignored;
+      fs::path current= iterator->published ? iterator->target : iterator->staged;
+      if (!current.empty () && fs::exists (current, ignored))
+        fs::rename (current, iterator->original, ignored);
+    }
+  };
+
+  for (Rename& file: files) {
+    if (!file.changed) continue;
+    file.staged= impl->files_path /
+      fs::u8path (".athena-material-rename-" + uuid_v4 () + ".part");
+    fs::rename (file.original, file.staged, ec);
+    if (ec) {
+      error= "Could not stage Material attachment for renaming: " +
+             ec.message ();
+      restore_files ();
+      return false;
+    }
+  }
+
+  if (!begin_transaction (impl->db, error)) {
+    restore_files ();
+    return false;
+  }
+  Statement temporary_path (
+    impl->db,
+    "UPDATE material_attachments SET stored_path=? WHERE uuid=?;");
+  Statement final_path (
+    impl->db,
+    "UPDATE material_attachments SET stored_path=?,canonical_name=? "
+    "WHERE uuid=?;");
+  if (!temporary_path || !final_path) error= sqlite3_errmsg (impl->db);
+
+  for (Rename& file: files) {
+    if (!error.empty () || !file.changed) continue;
+    std::string temporary= fs::relative (file.staged, impl->root).generic_string ();
+    sqlite3_reset (temporary_path.get ());
+    sqlite3_clear_bindings (temporary_path.get ());
+    bind_text (temporary_path.get (), 1, temporary);
+    bind_text (temporary_path.get (), 2, file.attachment_uuid);
+    if (sqlite3_step (temporary_path.get ()) != SQLITE_DONE)
+      error= sqlite3_errmsg (impl->db);
+  }
+  for (Rename& file: files) {
+    if (!error.empty () || !file.exists) continue;
+    if (file.changed) {
+      fs::rename (file.staged, file.target, ec);
+      if (ec) {
+        error= "Could not publish canonical Material attachment name: " +
+               ec.message ();
+        break;
+      }
+      file.published= true;
+    }
+    std::string stored= fs::relative (file.target, impl->root).generic_string ();
+    sqlite3_reset (final_path.get ());
+    sqlite3_clear_bindings (final_path.get ());
+    bind_text (final_path.get (), 1, stored);
+    bind_text (final_path.get (), 2, file.canonical_name);
+    bind_text (final_path.get (), 3, file.attachment_uuid);
+    if (sqlite3_step (final_path.get ()) != SQLITE_DONE)
+      error= sqlite3_errmsg (impl->db);
+  }
+  if (!error.empty () || !commit_transaction (impl->db, error)) {
+    rollback_transaction (impl->db);
+    restore_files ();
+    return false;
+  }
+
+  result.unreferenced_files= unreferenced_material_files (error);
+  return error.empty ();
+}
+
 std::string
 MaterialsStore::normalize_identifier (const std::string& raw_scheme,
                                       const std::string& raw_value) {

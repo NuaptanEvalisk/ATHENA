@@ -81,6 +81,7 @@ private slots:
   void rejectsPathsOutsideVault ();
   void createsSearchesAndUpdatesMaterials ();
   void canonicalizesAndDeduplicatesFiles ();
+  void canonicalizesStoredFilenamesAndFindsOrphans ();
   void deduplicatesMaterialImportsWithDifferentFilenames ();
   void preservesAliasesAndPrimaryAttachmentOnMerge ();
   void recognizesMetadataAndIdentifiersWithoutUsingFilename ();
@@ -339,6 +340,53 @@ MaterialsTest::canonicalizesAndDeduplicatesFiles () {
   QVERIFY (duplicate.duplicate);
   QCOMPARE (duplicate.existing_material_uuid, first.uuid);
   QCOMPARE (store.attachments (second.uuid, error).size (), (size_t) 0);
+}
+
+void
+MaterialsTest::canonicalizesStoredFilenamesAndFindsOrphans () {
+  QTemporaryDir temporary;
+  QVERIFY (temporary.isValid ());
+  fs::path root= fs::u8path (temporary.path ().toStdString ());
+  MaterialsStore store;
+  std::string error;
+  QVERIFY2 (store.open (root, AthenaVaultfileInfo {}, error), error.c_str ());
+
+  MaterialRecord material= sample_material ("Wrong title", "Wrong", "2020");
+  QVERIFY2 (store.create (material, error), error.c_str ());
+  fs::path source= root / "source.pdf";
+  QVERIFY (write_bytes (source, "%PDF-1.7\n"));
+  MaterialImportResult imported;
+  QVERIFY2 (store.import_file (material.uuid, source, "document", true,
+                               imported, error), error.c_str ());
+  fs::path old_path= root / imported.attachment.stored_path;
+
+  std::optional<MaterialRecord> updated= store.get (material.uuid, error);
+  QVERIFY2 (updated.has_value (), error.c_str ());
+  auto title= std::find_if (
+    updated->fields.begin (), updated->fields.end (),
+    [] (const MaterialField& field) { return field.name == "title"; });
+  QVERIFY (title != updated->fields.end ());
+  title->value= "Correct title";
+  updated->creators[0].family= "Correct";
+  QVERIFY2 (store.update (*updated, updated->revision, error), error.c_str ());
+  fs::path orphan= store.materials_directory () / "orphan.pdf";
+  QVERIFY (write_bytes (orphan, "orphan"));
+
+  MaterialFilenameMaintenanceResult result;
+  QVERIFY2 (store.canonicalize_filenames (result, error), error.c_str ());
+  QCOMPARE (result.renamed, 1);
+  QCOMPARE (result.missing, 0);
+  QCOMPARE (result.unreferenced_files.size (), (size_t) 1);
+  QCOMPARE (result.unreferenced_files[0], orphan);
+
+  std::vector<MaterialAttachment> attachments=
+    store.attachments (material.uuid, error);
+  QVERIFY2 (error.empty (), error.c_str ());
+  QCOMPARE (attachments.size (), (size_t) 1);
+  QCOMPARE (attachments[0].canonical_name,
+            std::string ("Correct - 2020 - Correct title.pdf"));
+  QVERIFY (!fs::exists (old_path));
+  QVERIFY (fs::exists (root / attachments[0].stored_path));
 }
 
 void
