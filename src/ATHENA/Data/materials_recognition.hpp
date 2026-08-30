@@ -34,6 +34,9 @@ struct MaterialProviderOptions {
 struct MaterialRecognitionOptions {
   std::string metadata_extractor= "exiftool";
   std::string pdf_text_extractor= "pdftotext";
+  std::string pdf_page_renderer= "pdftoppm";
+  std::string ocr_engine= "tesseract";
+  std::string ocr_languages= "eng";
   int pdf_pages= 8;
   int maximum_text_bytes= 512 * 1024;
   MaterialProviderOptions providers;

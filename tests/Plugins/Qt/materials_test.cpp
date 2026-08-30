@@ -82,6 +82,8 @@ private slots:
   void recognizesMetadataAndIdentifiersWithoutUsingFilename ();
   void recognizesIsbnThroughOpenLibrary ();
   void recognizesJournalMastheadWithoutIdentifiers ();
+  void recognizesLocalSpringerTitlePages ();
+  void recognizesLocalImportedSolutionManual ();
   void cancelsBlockingRecognition ();
   void loadsPinnedZoteroSchema ();
   void listsBundledCslStyles ();
@@ -477,6 +479,108 @@ MaterialsTest::recognizesJournalMastheadWithoutIdentifiers () {
   QCOMPARE (recognized.material.creators[0].literal,
             std::string ("Andrzej Nowak"));
   QCOMPARE (recognized.confidence, 0.82);
+}
+
+void
+MaterialsTest::recognizesLocalSpringerTitlePages () {
+  QString directory= qEnvironmentVariable ("ATHENA_SPRINGER_FIXTURES");
+  if (directory.isEmpty ())
+    QSKIP ("ATHENA_SPRINGER_FIXTURES is not configured");
+  struct Expected {
+    const char* file;
+    const char* title;
+    QStringList authors;
+  };
+  const std::vector<Expected> examples= {
+    {"978-3-319-17368-9.pdf",
+     "Why Prove it Again? Alternative Proofs in Mathematical Practice",
+     {"John W. Dawson, Jr."}},
+    {"978-3-319-01736-5.pdf",
+     "A Differential Approach to Geometry Geometric Trilogy III",
+     {"Francis Borceux"}},
+    {"978-1-4757-6804-6.pdf",
+     "The Symmetric Group Representations, Combinatorial Algorithms, and "
+     "Symmetric Functions Second Edition",
+     {"Bruce E. Sagan"}},
+    {"978-1-4471-7344-1.pdf", "Leavitt Path Algebras",
+     {"Gene Abrams", "Pere Ara", "Mercedes Siles Molina"}},
+    {"978-0-387-70914-7.pdf",
+     "Functional Analysis, Sobolev Spaces and Partial Differential Equations",
+     {"Haim Brezis"}}
+  };
+  for (const Expected& expected: examples) {
+    fs::path source= fs::u8path (directory.toStdString ()) / expected.file;
+    QVERIFY2 (fs::exists (source), source.string ().c_str ());
+    MaterialRecognitionOptions options;
+    MaterialRecognitionResult recognized;
+    std::string error;
+    QVERIFY2 (athena_material_recognize_file (
+                source, options, recognized, error), error.c_str ());
+    QCOMPARE (QString::fromStdString (recognized.material.field ("title")),
+              QString::fromUtf8 (expected.title));
+    QStringList authors;
+    for (const MaterialCreator& creator: recognized.material.creators)
+      authors << QString::fromStdString (
+        creator.literal.empty ()
+          ? creator.given + (creator.given.empty () || creator.family.empty ()
+                               ? "" : " ") + creator.family
+          : creator.literal);
+    QCOMPARE (authors, expected.authors);
+    QVERIFY (std::any_of (
+      recognized.identifiers.begin (), recognized.identifiers.end (),
+      [] (const MaterialIdentifier& identifier) {
+        return identifier.scheme == "isbn";
+      }));
+  }
+
+  QTemporaryDir temporary;
+  QVERIFY (temporary.isValid ());
+  fs::path empty_text_extractor=
+    fs::u8path (temporary.path ().toStdString ()) / "empty-pdftotext";
+  QVERIFY (write_bytes (empty_text_extractor, "#!/bin/sh\nexit 0\n"));
+  fs::permissions (empty_text_extractor,
+                   fs::perms::owner_read | fs::perms::owner_write |
+                   fs::perms::owner_exec);
+  MaterialRecognitionOptions ocr_options;
+  ocr_options.pdf_text_extractor= empty_text_extractor.string ();
+  ocr_options.pdf_pages= 1;
+  MaterialRecognitionResult ocr_recognized;
+  std::string ocr_error;
+  fs::path ocr_source= fs::u8path (directory.toStdString ()) /
+                       "978-3-319-17368-9.pdf";
+  QVERIFY2 (athena_material_recognize_file (
+              ocr_source, ocr_options, ocr_recognized, ocr_error),
+            ocr_error.c_str ());
+  QCOMPARE (ocr_recognized.material.field ("title"),
+            std::string (
+              "Why Prove it Again? Alternative Proofs in Mathematical Practice"));
+  QCOMPARE (ocr_recognized.material.creators.size (), (size_t) 1);
+  QCOMPARE (ocr_recognized.material.creators[0].literal,
+            std::string ("John W. Dawson, Jr."));
+}
+
+void
+MaterialsTest::recognizesLocalImportedSolutionManual () {
+  QString path= qEnvironmentVariable ("ATHENA_IMPORTED_MATERIAL_FIXTURE");
+  if (path.isEmpty ())
+    QSKIP ("ATHENA_IMPORTED_MATERIAL_FIXTURE is not configured");
+  fs::path source= fs::u8path (path.toStdString ());
+  QVERIFY2 (fs::exists (source), source.string ().c_str ());
+  MaterialRecognitionOptions options;
+  MaterialRecognitionResult recognized;
+  std::string error;
+  QVERIFY2 (athena_material_recognize_file (
+              source, options, recognized, error), error.c_str ());
+  QCOMPARE (recognized.material.field ("title"),
+            std::string ("Solution Manual for Analysis I"));
+  QCOMPARE (recognized.material.creators.size (), (size_t) 1);
+  QCOMPARE (recognized.material.creators[0].literal,
+            std::string ("Dean F. Valentine Jr."));
+  QVERIFY (std::none_of (
+    recognized.material.creators.begin (), recognized.material.creators.end (),
+    [] (const MaterialCreator& creator) {
+      return creator.literal == "TeX" || creator.literal == "pdfTeX";
+    }));
 }
 
 void
