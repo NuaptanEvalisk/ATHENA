@@ -110,6 +110,14 @@ qstr (const std::string& value) {
   return QString::fromUtf8 (value.data (), (qsizetype) value.size ());
 }
 
+QString
+material_state_label (const std::string& state) {
+  if (state == "needs_review") return "Needs review";
+  if (state == "unrecognized") return "Unrecognized";
+  if (state == "error") return "Error";
+  return "Ready";
+}
+
 std::string
 stdstr (const QString& value) {
   QByteArray bytes= value.toUtf8 ();
@@ -274,8 +282,9 @@ QTMMaterialsManager::QTMMaterialsManager (QWidget* parent): QWidget (parent) {
   searchEdit= new QLineEdit (browser);
   searchEdit->setPlaceholderText ("Search title, creator, identifier, or tag");
   browserLayout->addWidget (searchEdit);
-  materialTable= new QTableWidget (0, 4, browser);
-  materialTable->setHorizontalHeaderLabels ({"Type", "Creator", "Title", "Date"});
+  materialTable= new QTableWidget (0, 5, browser);
+  materialTable->setHorizontalHeaderLabels (
+    {"State", "Type", "Creator", "Title", "Date"});
   materialTable->setSelectionBehavior (QAbstractItemView::SelectRows);
   materialTable->setSelectionMode (QAbstractItemView::ExtendedSelection);
   materialTable->setEditTriggers (QAbstractItemView::NoEditTriggers);
@@ -285,9 +294,11 @@ QTMMaterialsManager::QTMMaterialsManager (QWidget* parent): QWidget (parent) {
   materialTable->horizontalHeader ()->setSectionResizeMode (
     1, QHeaderView::ResizeToContents);
   materialTable->horizontalHeader ()->setSectionResizeMode (
-    2, QHeaderView::Stretch);
+    2, QHeaderView::ResizeToContents);
   materialTable->horizontalHeader ()->setSectionResizeMode (
-    3, QHeaderView::ResizeToContents);
+    3, QHeaderView::Stretch);
+  materialTable->horizontalHeader ()->setSectionResizeMode (
+    4, QHeaderView::ResizeToContents);
   browserLayout->addWidget (materialTable, 1);
 
   QWidget* editor= new QWidget (splitter);
@@ -512,8 +523,10 @@ QTMMaterialsManager::rebuildList () {
   for (const MaterialSearchHit& hit: shown) {
     int row= materialTable->rowCount ();
     materialTable->insertRow (row);
-    QStringList values= {qstr (hit.item_type), qstr (hit.creators),
-                         qstr (hit.title), qstr (hit.issued)};
+    QStringList values= {material_state_label (hit.review_state),
+                         qstr (hit.item_type),
+                         qstr (hit.creators), qstr (hit.title),
+                         qstr (hit.issued)};
     for (int column=0; column<values.size (); ++column) {
       QTableWidgetItem* item= cell (values[column], false);
       item->setData (Qt::UserRole, qstr (hit.uuid));
@@ -649,7 +662,7 @@ QTMMaterialsManager::loadSelection () {
   }
   stateLabel->setText (
     QString ("UUID: %1    State: %2    Revision: %3")
-      .arg (qstr (loaded.uuid), qstr (loaded.review_state))
+      .arg (qstr (loaded.uuid), material_state_label (loaded.review_state))
       .arg ((qlonglong) loaded.revision));
   saveButton->setEnabled (true);
   deleteButton->setEnabled (true);
@@ -709,7 +722,7 @@ QTMMaterialsManager::saveEditor () {
   for (const QString& tag: tagsEdit->text ().split (
          QRegularExpression ("[,;]"), Qt::SkipEmptyParts))
     next.tags.push_back (stdstr (tag.trimmed ()));
-  next.review_state= next.field ("title").empty () ? "needs_review" : "ready";
+  next.review_state= next.field ("title").empty () ? "unrecognized" : "ready";
   next.provenance.push_back (
     {"*", "manual", "Materials Manager", "edited", 1.0});
 
@@ -733,7 +746,7 @@ QTMMaterialsManager::createEmpty () {
     this, "New Material", "Title:", QLineEdit::Normal, QString (), &ok);
   if (!ok) return;
   MaterialRecord material;
-  material.review_state= title.trimmed ().isEmpty () ? "needs_review" : "ready";
+  material.review_state= title.trimmed ().isEmpty () ? "unrecognized" : "ready";
   if (!title.trimmed ().isEmpty ())
     material.fields.push_back ({"title", stdstr (title.trimmed ()), "", 0});
   material.provenance.push_back (
@@ -1148,7 +1161,7 @@ QTMMaterialsManager::reviewRecognition (
   QString accepted_title= field_values["title"].trimmed ();
   recognition.material.review_state=
     accepted_title.isEmpty () || accepted_title == "Untitled"
-      ? "needs_review" : "ready";
+      ? "unrecognized" : "ready";
   recognition.material.provenance.push_back (
     {"*", "manual-review", QFileInfo (path).fileName ().toStdString (),
      "accepted", 1.0});

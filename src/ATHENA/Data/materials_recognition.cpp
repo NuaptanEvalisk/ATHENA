@@ -68,6 +68,13 @@ compact_east_asian_person_name (QString value) {
   return name.match (value).hasMatch ();
 }
 
+QString
+normalize_east_asian_name_spacing (QString value) {
+  if (!compact_east_asian_person_name (value)) return value.trimmed ();
+  value.remove (QRegularExpression (QStringLiteral ("[^\\p{L}]")));
+  return value;
+}
+
 struct NormalizedCreatorCredit {
   std::string role;
   std::string literal;
@@ -87,7 +94,7 @@ normalize_creator_credit (const std::string& role,
   QRegularExpressionMatch match= credit.match (value);
   if (!match.hasMatch () ||
       !compact_east_asian_person_name (match.captured (1)))
-    return {role, literal};
+    return {role, ss (normalize_east_asian_name_spacing (value))};
   QString marker= match.captured (2);
   std::string normalized_role= role;
   if (marker == "主编" || marker == "主編" || marker == "编" ||
@@ -117,6 +124,7 @@ struct LayoutLine {
 struct LayoutPage {
   double width= 0.0;
   double height= 0.0;
+  double recognition_confidence= 100.0;
   std::vector<LayoutLine> lines;
 };
 
@@ -142,6 +150,31 @@ set_field (MaterialRecord& material, const std::string& name,
   else return;
   material.provenance.push_back (
     {name, source, "", value, confidence});
+}
+
+double
+field_confidence (const MaterialRecord& material, const std::string& name) {
+  double result= 0.0;
+  for (const MaterialProvenance& provenance: material.provenance)
+    if (provenance.field_name == name)
+      result= std::max (result, provenance.confidence);
+  return result;
+}
+
+double
+creator_confidence (const MaterialRecord& material) {
+  return field_confidence (material, "creator");
+}
+
+bool
+set_field_if_stronger (MaterialRecord& material, const std::string& name,
+                       const std::string& value, const std::string& source,
+                       double confidence) {
+  if (value.empty ()) return false;
+  bool missing= material.field (name).empty ();
+  if (!missing && confidence <= field_confidence (material, name)) return false;
+  set_field (material, name, value, source, confidence, !missing);
+  return true;
 }
 
 void
@@ -270,16 +303,29 @@ first_json_string (const QJsonObject& object,
   return {};
 }
 
+bool has_title_substance (const QString& text);
+
 void
 apply_exiftool_metadata (
   const QJsonObject& object, MaterialRecord& material,
   std::vector<EmbeddedCreatorCandidate>& creator_candidates,
   QStringList& software_values, std::vector<std::string>& diagnostics) {
-  set_field (material, "title",
-             ss (first_json_string (
-               object, {"XMP-dc:Title", "PDF:Title", "Title",
-                        "File:DocumentName", "DocumentName"})),
-             "embedded-metadata", 0.72);
+  QString embedded_title= first_json_string (
+    object, {"XMP-dc:Title", "PDF:Title", "Title",
+             "File:DocumentName", "DocumentName"});
+  double embedded_title_confidence= 0.86;
+  static const QRegularExpression placeholder_title (
+    QStringLiteral (
+      "^(?:untitled|document|djvu document|ssreader print|[0-9]+|"
+      ".+\\.(?:pdf|dvi|ps|docx?))$"),
+    QRegularExpression::CaseInsensitiveOption |
+      QRegularExpression::UseUnicodePropertiesOption);
+  if (!has_title_substance (embedded_title)) embedded_title_confidence= 0.0;
+  else if (placeholder_title.match (embedded_title.trimmed ()).hasMatch ())
+    embedded_title_confidence= 0.25;
+  if (embedded_title_confidence > 0.0)
+    set_field (material, "title", ss (embedded_title), "embedded-metadata",
+               embedded_title_confidence);
   set_field (material, "date",
              ss (first_json_string (
                object, {"XMP-prism:PublicationDate", "XMP-dc:Date",
@@ -357,6 +403,38 @@ normalize_ocr_text (QString text) {
   return text;
 }
 
+void
+merge_visual_lines (LayoutPage& page, double baseline_tolerance) {
+  if (page.lines.size () < 2) return;
+  std::vector<LayoutLine> merged;
+  for (const LayoutLine& incoming: page.lines) {
+    if (!merged.empty ()) {
+      LayoutLine& previous= merged.back ();
+      double gap= incoming.x - previous.x - previous.width;
+      double tolerance= std::max (previous.height, incoming.height) *
+                        baseline_tolerance;
+      double maximum_gap= page.width > 0.0 ? page.width * 0.08
+                                           : tolerance * 8.0;
+      if (std::abs (incoming.y - previous.y) <= tolerance &&
+          gap >= -1.0 && gap <= maximum_gap) {
+        previous.text= normalize_printed_text (
+          previous.text + ' ' + incoming.text);
+        double right= std::max (previous.x + previous.width,
+                                incoming.x + incoming.width);
+        double bottom= std::max (previous.y + previous.height,
+                                 incoming.y + incoming.height);
+        previous.x= std::min (previous.x, incoming.x);
+        previous.y= std::min (previous.y, incoming.y);
+        previous.width= right - previous.x;
+        previous.height= bottom - previous.y;
+        continue;
+      }
+    }
+    merged.push_back (incoming);
+  }
+  page.lines= std::move (merged);
+}
+
 std::vector<LayoutPage>
 parse_bbox_layout (const QByteArray& document, std::string& diagnostic) {
   std::vector<LayoutPage> pages;
@@ -414,6 +492,7 @@ parse_bbox_layout (const QByteArray& document, std::string& diagnostic) {
       if (std::abs (left.y - right.y) > 1.0) return left.y < right.y;
       return left.x < right.x;
     });
+  for (LayoutPage& page: pages) merge_visual_lines (page, 0.35);
   return pages;
 }
 
@@ -452,6 +531,28 @@ book_boilerplate (const QString& text) {
 }
 
 bool
+title_page_auxiliary_line (const QString& text) {
+  static const QRegularExpression auxiliary (
+    QStringLiteral (
+      "(?:https?://|www\\.|@|^(?:version|edition|revised|corrections?)\\b|"
+      "^(?:published|copyright|all rights reserved)\\b)"),
+    QRegularExpression::CaseInsensitiveOption |
+      QRegularExpression::UseUnicodePropertiesOption);
+  return auxiliary.match (text.trimmed ()).hasMatch ();
+}
+
+bool
+title_page_institution_line (const QString& text) {
+  static const QRegularExpression institution (
+    QStringLiteral (
+      "\\b(?:university|college|department|school|institute|laboratory|"
+      "faculty|press|publisher)\\b|(?:大学|学院|系|研究所|实验室|出版社)"),
+    QRegularExpression::CaseInsensitiveOption |
+      QRegularExpression::UseUnicodePropertiesOption);
+  return institution.match (text.trimmed ()).hasMatch ();
+}
+
+bool
 probable_person_line (const QString& text) {
   QString value= normalize_printed_text (text);
   if (value.size () < 3 || value.size () > 100 || contains_digit (value) ||
@@ -471,10 +572,41 @@ probable_person_line (const QString& text) {
     if (lower == "de" || lower == "del" || lower == "van" ||
         lower == "von" || lower == "da" || lower == "di" ||
         lower == "jr" || lower == "jr.") continue;
+    if (word.size () == 1) return false;
     if (!word.front ().isUpper ()) return false;
     name_words++;
   }
   return name_words >= 2;
+}
+
+bool
+plain_east_asian_person_line (const QString& text) {
+  QString compact= text;
+  compact.remove (QRegularExpression (QStringLiteral ("[^\\p{L}]")));
+  static const QRegularExpression plain_name (
+    QStringLiteral (
+      "^(?:(?:\\p{sc=Han}){2,4}|(?:\\p{sc=Hiragana}|"
+      "\\p{sc=Katakana}){2,6}|\\p{sc=Hangul}{2,4})$"),
+    QRegularExpression::UseUnicodePropertiesOption);
+  return plain_name.match (compact).hasMatch () &&
+         !title_page_institution_line (text) &&
+         !title_page_auxiliary_line (text);
+}
+
+bool
+plain_east_asian_author_position (const LayoutPage& page,
+                                  const LayoutLine& title,
+                                  const LayoutLine& candidate,
+                                  double maximum) {
+  if (!plain_east_asian_person_line (candidate.text) ||
+      candidate.height > maximum * 0.82)
+    return false;
+  if (page.width <= 0.0) return true;
+  double center= candidate.x + candidate.width * 0.5;
+  bool centered= std::abs (center - page.width * 0.5) <= page.width * 0.20;
+  bool title_aligned= std::abs (candidate.x - title.x) <= maximum * 1.5;
+  return candidate.width <= page.width * 0.35 &&
+         (centered || title_aligned);
 }
 
 bool
@@ -504,12 +636,16 @@ strong_person_name_signal (const QString& text) {
 struct BookTitleCandidate {
   QString title;
   QStringList authors;
+  double recognition_confidence= 100.0;
   double score= -std::numeric_limits<double>::infinity ();
 };
+
+QString evidence_form (const QString& text);
 
 BookTitleCandidate
 book_title_candidate (const LayoutPage& page, int page_index) {
   BookTitleCandidate result;
+  result.recognition_confidence= page.recognition_confidence;
   if (page.lines.empty ()) return result;
   double maximum= 0.0;
   for (const LayoutLine& line: page.lines)
@@ -552,7 +688,10 @@ book_title_candidate (const LayoutPage& page, int page_index) {
   if (anchor < 0) return result;
 
   const double title_top= page.lines[(size_t) anchor].y;
-  const double title_limit= title_top + maximum * 5.0;
+  const double page_limit= page.height > 0.0 ? page.height * 0.72
+                                             : title_top + maximum * 16.0;
+  const double title_limit= std::min (page_limit,
+                                      title_top + maximum * 16.0);
   int authors_after_start= -1;
   int authors_after_end= -1;
   for (int i=anchor + 1; i<(int) page.lines.size () &&
@@ -583,8 +722,15 @@ book_title_candidate (const LayoutPage& page, int page_index) {
       const LayoutLine& line= page.lines[(size_t) i];
       const LayoutLine& preceding= page.lines[(size_t) i - 1];
       const double gap= line.y - preceding.y - preceding.height;
-      if (gap < maximum * 0.75 || line.height > maximum * 1.05 ||
-          !strong_person_name_signal (line.text))
+      bool latin_name= probable_person_line (line.text);
+      bool east_asian_name= page_index <= 1 &&
+        plain_east_asian_author_position (
+          page, page.lines[(size_t) anchor], line, maximum);
+      bool spatially_separate= line.height <= maximum * 0.78 ||
+                               gap >= maximum;
+      if (title_page_institution_line (line.text) ||
+          title_page_auxiliary_line (line.text) ||
+          (!latin_name && !east_asian_name) || !spatially_separate)
         continue;
       authors_after_start= i;
       authors_after_end= i + 1;
@@ -594,6 +740,8 @@ book_title_candidate (const LayoutPage& page, int page_index) {
         const LayoutLine& previous=
           page.lines[(size_t) authors_after_end - 1];
         if (author.y - previous.y - previous.height > maximum * 1.5 ||
+            title_page_institution_line (author.text) ||
+            title_page_auxiliary_line (author.text) ||
             !probable_person_line (author.text))
           break;
         ++authors_after_end;
@@ -622,18 +770,28 @@ book_title_candidate (const LayoutPage& page, int page_index) {
       }
     }
   QStringList title_lines;
+  const LayoutLine* previous_title= nullptr;
   for (int i=anchor; i<(int) page.lines.size (); ++i) {
     const LayoutLine& line= page.lines[(size_t) i];
     if (line.y > title_limit) break;
     if (i == authors_after_start) break;
-    if (book_boilerplate (line.text)) {
+    if (book_boilerplate (line.text) ||
+        title_page_auxiliary_line (line.text) ||
+        title_page_institution_line (line.text)) {
       if (!title_lines.isEmpty ()) break;
       continue;
     }
     if (probable_date_line (line.text)) break;
-    if (line.height < maximum * 0.18 || !has_letters (line.text)) continue;
+    if (line.height < maximum * 0.42 || !has_letters (line.text)) {
+      if (!title_lines.isEmpty ()) break;
+      continue;
+    }
+    if (previous_title != nullptr &&
+        line.y - previous_title->y - previous_title->height > maximum * 1.8)
+      break;
     if (contains_digit (line.text) && line.text.size () < 20) continue;
     title_lines << line.text;
+    previous_title= &line;
   }
   if (title_lines.isEmpty ()) return result;
   result.title= normalize_printed_text (title_lines.join (' '));
@@ -643,51 +801,71 @@ book_title_candidate (const LayoutPage& page, int page_index) {
     return result;
   }
 
-  const double author_window= maximum * 2.8;
-  for (int i=anchor - 1; i>=0; --i) {
+  for (int i=0; page_index <= 2 && i<anchor; ++i) {
     const LayoutLine& line= page.lines[(size_t) i];
-    if (title_top - line.y > author_window) break;
-    if (line.height >= maximum * 0.23 && probable_person_line (line.text))
-      result.authors.prepend (line.text);
+    if (line.y >= title_top || line.height < maximum * 0.23 ||
+        title_page_institution_line (line.text) ||
+        title_page_auxiliary_line (line.text))
+      continue;
+    if (strong_person_name_signal (line.text)) result.authors << line.text;
   }
   if (authors_after_start >= 0)
     for (int i=authors_after_start; i<authors_after_end; ++i)
       result.authors << page.lines[(size_t) i].text;
-  result.score= maximum * 2.0 + result.authors.size () * 35.0 -
+  double relative_size= page.height > 0.0 ? maximum / page.height * 1000.0
+                                          : maximum;
+  result.score= relative_size * 2.0 + result.authors.size () * 35.0 -
                 std::min<size_t> (page.lines.size (), 100) * 0.15 -
-                page_index * 1.5;
+                page_index * 18.0;
   if (result.authors.isEmpty ()) result.score -= 45.0;
   return result;
 }
 
-bool
+double
 apply_book_title_pages (const std::vector<LayoutPage>& pages,
                         const std::string& source, double confidence,
+                        bool require_author,
                         MaterialRecord& material,
                         std::vector<std::string>& diagnostics) {
   BookTitleCandidate best;
   for (int index=0; index<(int) pages.size (); ++index) {
     BookTitleCandidate candidate= book_title_candidate (
       pages[(size_t) index], index);
-    if (candidate.title.isEmpty () || candidate.authors.isEmpty ()) continue;
+    if (candidate.title.isEmpty () ||
+        (require_author && candidate.authors.isEmpty ())) continue;
+    if (source == "title-page-ocr" &&
+        candidate.recognition_confidence < 45.0) continue;
     if (candidate.score > best.score) best= std::move (candidate);
   }
-  if (best.title.isEmpty ()) return false;
-  if (best.authors.isEmpty ()) {
-    diagnostics.push_back (
-      "Ignored title-page candidate without a credible author: " +
-      ss (best.title));
-    return false;
+  if (best.title.isEmpty ()) return 0.0;
+  double effective_confidence= confidence;
+  if (source == "title-page-ocr")
+    effective_confidence= std::min (
+      confidence, 0.45 + best.recognition_confidence / 200.0);
+  if (best.authors.isEmpty ())
+    effective_confidence= std::min (effective_confidence, 0.70);
+  const QString existing_title= qs (material.field ("title"));
+  const bool title_agrees= existing_title.isEmpty () ||
+    evidence_form (existing_title) == evidence_form (best.title);
+  bool title_changed= set_field_if_stronger (
+    material, "title", ss (best.title), source, effective_confidence);
+  bool replace_creators= !best.authors.isEmpty () &&
+    (title_changed || title_agrees) &&
+    (material.creators.empty () ||
+     effective_confidence > creator_confidence (material));
+  bool changed= title_changed;
+  if (replace_creators) {
+    material.creators.clear ();
+    for (const QString& author: best.authors)
+      add_creator (material, "author", "", "", ss (author), source,
+                   effective_confidence);
+    changed= true;
   }
+  if (!changed) return 0.0;
   material.item_type= "book";
-  set_field (material, "title", ss (best.title), source, confidence, true);
-  material.creators.clear ();
-  for (const QString& author: best.authors)
-    add_creator (material, "author", "", "", ss (author), source,
-                 confidence);
   diagnostics.push_back (
-    "Recognized book title and authors from its title-page layout");
-  return true;
+    "Recognized book metadata from " + source);
+  return effective_confidence;
 }
 
 QString
@@ -735,6 +913,8 @@ parse_tesseract_tsv (const QByteArray& output) {
     int top= std::numeric_limits<int>::max ();
     int right= 0;
     int bottom= 0;
+    double confidence_sum= 0.0;
+    int confidence_count= 0;
     QStringList words;
   };
   std::map<QString, LineAccumulator> accumulated;
@@ -758,6 +938,7 @@ parse_tesseract_tsv (const QByteArray& output) {
     int top= columns[7].toInt ();
     int width= columns[8].toInt ();
     int height= columns[9].toInt ();
+    double confidence= columns[10].toDouble ();
     QString key= QString::fromLatin1 (columns[2]) + ':' +
                  QString::fromLatin1 (columns[3]) + ':' +
                  QString::fromLatin1 (columns[4]);
@@ -766,11 +947,17 @@ parse_tesseract_tsv (const QByteArray& output) {
     line.top= std::min (line.top, top);
     line.right= std::max (line.right, left + width);
     line.bottom= std::max (line.bottom, top + height);
+    if (confidence >= 0.0) {
+      line.confidence_sum += confidence;
+      line.confidence_count++;
+    }
     line.words << word;
   }
   LayoutPage page;
   page.width= page_width;
   page.height= page_height;
+  double confidence_sum= 0.0;
+  int confidence_count= 0;
   for (const auto& [key, value]: accumulated) {
     (void) key;
     LayoutLine line;
@@ -780,12 +967,17 @@ parse_tesseract_tsv (const QByteArray& output) {
     line.width= std::max (0, value.right - value.left);
     line.height= std::max (0, value.bottom - value.top);
     if (!line.text.isEmpty ()) page.lines.push_back (line);
+    confidence_sum += value.confidence_sum;
+    confidence_count += value.confidence_count;
   }
+  if (confidence_count > 0)
+    page.recognition_confidence= confidence_sum / confidence_count;
   std::sort (page.lines.begin (), page.lines.end (),
              [] (const LayoutLine& left, const LayoutLine& right) {
     if (std::abs (left.y - right.y) > 3.0) return left.y < right.y;
     return left.x < right.x;
-  });
+             });
+  merge_visual_lines (page, 0.35);
   return page.lines.empty () ? std::vector<LayoutPage> {}
                              : std::vector<LayoutPage> {page};
 }
@@ -817,15 +1009,36 @@ layout_text_is_usable (const std::vector<LayoutPage>& pages) {
   return lines < 20 || short_lines * 10 < lines * 7;
 }
 
-QString
-ocr_languages_for (const MaterialRecognitionOptions& options,
-                   const QString& text_hint) {
+QStringList
+ocr_language_candidates (const MaterialRecognitionOptions& options,
+                         const QString& text_hint) {
   QString configured= qs (options.ocr_languages).trimmed ();
-  if (!configured.isEmpty () && configured != "auto") return configured;
+  if (!configured.isEmpty () && configured != "auto") return {configured};
   static const QRegularExpression han (
     QStringLiteral ("\\p{sc=Han}"),
     QRegularExpression::UseUnicodePropertiesOption);
-  return han.match (text_hint).hasMatch () ? "chi_sim+eng" : "eng";
+  return han.match (text_hint).hasMatch ()
+           ? QStringList ({"chi_sim+eng", "eng"})
+           : QStringList ({"eng", "chi_sim+eng"});
+}
+
+double
+ocr_layout_score (const LayoutPage& page) {
+  int letters= 0;
+  int han_letters= 0;
+  int suspicious= 0;
+  static const QRegularExpression han (
+    QStringLiteral ("\\p{sc=Han}"),
+    QRegularExpression::UseUnicodePropertiesOption);
+  for (const LayoutLine& line: page.lines)
+    for (QChar character: line.text) {
+      if (character == QChar::ReplacementCharacter) suspicious++;
+      if (!character.isLetter ()) continue;
+      letters++;
+      if (han.match (QString (character)).hasMatch ()) han_letters++;
+    }
+  return page.recognition_confidence + std::min (10, letters / 20) +
+         std::min (6, han_letters / 3) - suspicious * 8.0;
 }
 
 std::vector<LayoutPage>
@@ -842,7 +1055,8 @@ ocr_pdf_front_matter (const fs::path& source,
   int available_pages= page_count > 0 ? page_count : options.pdf_pages;
   int count= std::min ({std::max (1, available_pages),
                         std::max (1, options.pdf_pages), 5});
-  QString languages= ocr_languages_for (options, text_hint);
+  QStringList language_candidates= ocr_language_candidates (
+    options, text_hint);
   for (int page=1; page<=count; ++page) {
     if (options.cancelled && options.cancelled ()) break;
     if (options.progress)
@@ -863,25 +1077,38 @@ ocr_pdf_front_matter (const fs::path& source,
         diagnostics.push_back (render_diagnostic);
       break;
     }
-    QByteArray tsv;
+    LayoutPage best_page;
+    double best_score= -std::numeric_limits<double>::infinity ();
     std::string ocr_diagnostic;
-    auto recognize= [&] (const QString& selected_languages) {
-      tsv.clear ();
-      ocr_diagnostic.clear ();
-      return run_process (
+    for (const QString& languages: language_candidates) {
+      QByteArray tsv;
+      std::string attempt_diagnostic;
+      bool recognized= run_process (
         options.ocr_engine,
-        {image, "stdout", "-l", selected_languages,
-         "--psm", "3", "tsv"}, options.providers.timeout_ms,
-        tsv, ocr_diagnostic, options.cancelled);
-    };
-    bool recognized= recognize (languages);
-    if (!recognized && languages != "eng") recognized= recognize ("eng");
-    if (!recognized) {
+        {image, "stdout", "-l", languages, "--psm", "3", "tsv"},
+        options.providers.timeout_ms, tsv, attempt_diagnostic,
+        options.cancelled);
+      if (!recognized) {
+        if (attempt_diagnostic == "Material recognition cancelled") {
+          ocr_diagnostic= attempt_diagnostic;
+          break;
+        }
+        if (!attempt_diagnostic.empty ()) ocr_diagnostic= attempt_diagnostic;
+        continue;
+      }
+      std::vector<LayoutPage> recognized_pages= parse_tesseract_tsv (tsv);
+      if (recognized_pages.empty ()) continue;
+      double score= ocr_layout_score (recognized_pages.front ());
+      if (score > best_score) {
+        best_score= score;
+        best_page= std::move (recognized_pages.front ());
+      }
+    }
+    if (best_page.lines.empty ()) {
       if (!ocr_diagnostic.empty ()) diagnostics.push_back (ocr_diagnostic);
       break;
     }
-    std::vector<LayoutPage> recognized_pages= parse_tesseract_tsv (tsv);
-    if (!recognized_pages.empty ()) pages.push_back (recognized_pages.front ());
+    pages.push_back (std::move (best_page));
   }
   return pages;
 }
@@ -1720,25 +1947,24 @@ athena_material_recognize_file (const fs::path& source,
     bool complete_embedded_identity=
       !result.material.field ("title").empty () &&
       !result.material.creators.empty ();
+    bool usable_front_layout= layout_text_is_usable (front_layout);
     apply_pdf_structure (QString::fromUtf8 (text_bytes), pdf_page_count,
                          result.material, result.diagnostics);
     if (result.material.item_type == "document" &&
-        !complete_embedded_identity)
-      if (apply_book_title_pages (
-            front_layout, "title-page-layout", 0.92, result.material,
-            result.diagnostics))
-        title_page_confidence= 0.92;
-    if (!complete_embedded_identity && title_page_confidence == 0.0 &&
-        (result.material.field ("title").empty () ||
-         !layout_text_is_usable (front_layout))) {
+        !complete_embedded_identity && usable_front_layout)
+      title_page_confidence= apply_book_title_pages (
+        front_layout, "title-page-layout", 0.92, false,
+        result.material, result.diagnostics);
+    if (!complete_embedded_identity && !usable_front_layout) {
       report_progress (options, "OCR is needed for scanned title pages");
       std::vector<LayoutPage> ocr_pages= ocr_pdf_front_matter (
         source, options, pdf_page_count, QString::fromUtf8 (text_bytes),
         result.diagnostics);
-      if (apply_book_title_pages (
-            ocr_pages, "title-page-ocr", 0.82, result.material,
-            result.diagnostics))
-        title_page_confidence= 0.82;
+      title_page_confidence= std::max (
+        title_page_confidence,
+        apply_book_title_pages (
+          ocr_pages, "title-page-ocr", 0.82, true,
+          result.material, result.diagnostics));
     }
     if (complete_embedded_identity)
       result.diagnostics.push_back (
@@ -1773,13 +1999,15 @@ athena_material_recognize_file (const fs::path& source,
   else if (!result.material.field ("title").empty () &&
            result.material.item_type != "document") result.confidence= 0.82;
   else if (!result.material.field ("title").empty ()) result.confidence= 0.62;
-  else {
+  bool unrecognized= result.material.field ("title").empty ();
+  if (unrecognized) {
     set_field (result.material, "title", "Untitled", "fallback", 0.0);
     result.confidence= 0.0;
     result.diagnostics.push_back (
       "No trustworthy title was recognized; manual review is required");
   }
-  result.material.review_state=
-    result.confidence >= 0.85 ? "ready" : "needs_review";
+  result.material.review_state= unrecognized
+    ? "unrecognized"
+    : (result.confidence >= 0.85 ? "ready" : "needs_review");
   return true;
 }

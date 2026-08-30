@@ -26,6 +26,8 @@
 #include <QTemporaryDir>
 #include <QtTest/QtTest>
 
+#include <sqlite3.h>
+
 #include <filesystem>
 
 namespace fs= std::filesystem;
@@ -74,6 +76,7 @@ class MaterialsTest: public QObject {
 
 private slots:
   void vaultfileDefaultsAndRoundTrip ();
+  void migratesUnrecognizedReviewState ();
   void rejectsPathsOutsideVault ();
   void createsSearchesAndUpdatesMaterials ();
   void canonicalizesAndDeduplicatesFiles ();
@@ -88,6 +91,9 @@ private slots:
   void normalizesCjkCreatorCredits ();
   void recognizesScannedCjkBookCover ();
   void recognizesTextLayerBookTitlePage ();
+  void recognizesDiverseTextTitlePages ();
+  void selectsCjkOcrWithoutTextHint ();
+  void preservesMeaningfulEmbeddedTitleAgainstOcr ();
   void cancelsBlockingRecognition ();
   void loadsPinnedZoteroSchema ();
   void listsBundledCslStyles ();
@@ -124,6 +130,53 @@ MaterialsTest::vaultfileDefaultsAndRoundTrip () {
   QCOMPARE (fields[15], std::string ("artifact-title-filter.lst"));
   QCOMPARE (fields[13], std::string ("indexes/library.sqlite"));
   QCOMPARE (fields[14], std::string ("Library Materials"));
+}
+
+void
+MaterialsTest::migratesUnrecognizedReviewState () {
+  QTemporaryDir temporary;
+  QVERIFY (temporary.isValid ());
+  fs::path root= fs::u8path (temporary.path ().toStdString ());
+  fs::path database= root / "materials.sqlite";
+  sqlite3* db= nullptr;
+  QCOMPARE (sqlite3_open (database.string ().c_str (), &db), SQLITE_OK);
+  const char* sql=
+    "CREATE TABLE materials("
+      "uuid TEXT PRIMARY KEY,item_type TEXT NOT NULL,"
+      "review_state TEXT NOT NULL CHECK(review_state IN "
+        "('ready','needs_review','error')),"
+      "extra_json TEXT NOT NULL DEFAULT '{}',revision INTEGER NOT NULL,"
+      "created_at INTEGER NOT NULL,updated_at INTEGER NOT NULL);"
+    "CREATE TABLE material_fields("
+      "material_uuid TEXT NOT NULL REFERENCES materials(uuid),"
+      "name TEXT NOT NULL,value TEXT NOT NULL,language TEXT NOT NULL DEFAULT '',"
+      "ordinal INTEGER NOT NULL DEFAULT 0,"
+      "PRIMARY KEY(material_uuid,name,ordinal));"
+    "INSERT INTO materials VALUES"
+      "('11111111-1111-4111-8111-111111111111','document','needs_review',"
+       "'{}',1,1,1),"
+      "('22222222-2222-4222-8222-222222222222','book','needs_review',"
+       "'{}',1,1,1);"
+    "INSERT INTO material_fields VALUES"
+      "('11111111-1111-4111-8111-111111111111','title','Untitled','',0),"
+      "('22222222-2222-4222-8222-222222222222','title','A candidate','',0);"
+    "PRAGMA user_version=1;";
+  char* message= nullptr;
+  QCOMPARE (sqlite3_exec (db, sql, nullptr, nullptr, &message), SQLITE_OK);
+  sqlite3_free (message);
+  sqlite3_close (db);
+
+  MaterialsStore store;
+  std::string error;
+  QVERIFY2 (store.open (root, AthenaVaultfileInfo {}, error), error.c_str ());
+  std::optional<MaterialRecord> unknown= store.get (
+    "11111111-1111-4111-8111-111111111111", error);
+  QVERIFY2 (unknown.has_value (), error.c_str ());
+  QCOMPARE (unknown->review_state, std::string ("unrecognized"));
+  std::optional<MaterialRecord> review= store.get (
+    "22222222-2222-4222-8222-222222222222", error);
+  QVERIFY2 (review.has_value (), error.c_str ());
+  QCOMPARE (review->review_state, std::string ("needs_review"));
 }
 
 void
@@ -685,6 +738,90 @@ MaterialsTest::recognizesTextLayerBookTitlePage () {
     recognized.material.provenance.end (),
     [] (const MaterialProvenance& provenance) {
       return provenance.source_kind == "title-page-layout";
+    }));
+}
+
+void
+MaterialsTest::recognizesDiverseTextTitlePages () {
+  QString directory= qEnvironmentVariable ("ATHENA_MATERIALS_VAULT_FIXTURES");
+  if (directory.isEmpty ())
+    QSKIP ("ATHENA_MATERIALS_VAULT_FIXTURES is not configured");
+  struct Expected {
+    const char* file;
+    const char* title;
+    QStringList authors;
+  };
+  const std::vector<Expected> examples= {
+    {"Unknown - n.d - Untitled [78ad61d9].pdf", "The Matrix Cookbook",
+     {"Kaare Brandt Petersen", "Michael Syskind Pedersen"}},
+    {"Unknown - n.d - Untitled [2bfef975].pdf", "拓扑学讲义", {"陆俊"}},
+    {"Unknown - n.d - Untitled [54360338].pdf",
+     "The Geometry of the Classical Groups", {"D. E. Taylor"}},
+    {"Unknown - n.d - Untitled [104e7350].pdf",
+     "A Class of Models with the Potential to Represent Fundamental Physics",
+     {"Stephen Wolfram"}}
+  };
+  for (const Expected& expected: examples) {
+    fs::path source= fs::u8path (directory.toStdString ()) / expected.file;
+    QVERIFY2 (fs::exists (source), source.string ().c_str ());
+    MaterialRecognitionOptions options;
+    MaterialRecognitionResult recognized;
+    std::string error;
+    QVERIFY2 (athena_material_recognize_file (
+                source, options, recognized, error), error.c_str ());
+    QCOMPARE (QString::fromStdString (recognized.material.field ("title")),
+              QString::fromUtf8 (expected.title));
+    QStringList authors;
+    for (const MaterialCreator& creator: recognized.material.creators)
+      authors << QString::fromStdString (creator.literal);
+    QCOMPARE (authors, expected.authors);
+    QCOMPARE (recognized.material.review_state, std::string ("ready"));
+  }
+}
+
+void
+MaterialsTest::selectsCjkOcrWithoutTextHint () {
+  QString path= qEnvironmentVariable ("ATHENA_IMAGE_ONLY_CJK_FIXTURE");
+  if (path.isEmpty ())
+    QSKIP ("ATHENA_IMAGE_ONLY_CJK_FIXTURE is not configured");
+  fs::path source= fs::u8path (path.toStdString ());
+  QVERIFY2 (fs::exists (source), source.string ().c_str ());
+  MaterialRecognitionOptions options;
+  MaterialRecognitionResult recognized;
+  std::string error;
+  QVERIFY2 (athena_material_recognize_file (
+              source, options, recognized, error), error.c_str ());
+  QVERIFY (QString::fromStdString (recognized.material.field ("title"))
+             .contains ("原子物理"));
+  QVERIFY (std::any_of (
+    recognized.material.provenance.begin (),
+    recognized.material.provenance.end (),
+    [] (const MaterialProvenance& provenance) {
+      return provenance.source_kind == "title-page-ocr";
+    }));
+}
+
+void
+MaterialsTest::preservesMeaningfulEmbeddedTitleAgainstOcr () {
+  QString path= qEnvironmentVariable ("ATHENA_EMBEDDED_TITLE_FIXTURE");
+  if (path.isEmpty ())
+    QSKIP ("ATHENA_EMBEDDED_TITLE_FIXTURE is not configured");
+  fs::path source= fs::u8path (path.toStdString ());
+  QVERIFY2 (fs::exists (source), source.string ().c_str ());
+  MaterialRecognitionOptions options;
+  MaterialRecognitionResult recognized;
+  std::string error;
+  QVERIFY2 (athena_material_recognize_file (
+              source, options, recognized, error), error.c_str ());
+  QCOMPARE (recognized.material.field ("title"),
+            std::string ("图书馆手册2024V1-制作"));
+  QVERIFY (recognized.material.creators.empty ());
+  QVERIFY (std::any_of (
+    recognized.material.provenance.begin (),
+    recognized.material.provenance.end (),
+    [] (const MaterialProvenance& provenance) {
+      return provenance.field_name == "title" &&
+             provenance.source_kind == "embedded-metadata";
     }));
 }
 

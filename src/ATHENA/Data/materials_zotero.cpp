@@ -95,7 +95,7 @@ parse_record (const QJsonObject& wrapper, const QJsonObject& data,
   MaterialRecord material;
   material.item_type= utf8 (data.value ("itemType").toString ("document"));
   material.review_state= data.value ("title").toString ().trimmed ().isEmpty ()
-                            ? "needs_review" : "ready";
+                            ? "unrecognized" : "ready";
 
   static const std::set<std::string> excluded= {
     "key", "version", "itemType", "creators", "tags", "collections",

@@ -105,6 +105,44 @@ exec_sql (sqlite3* db, const char* sql, std::string& error) {
 }
 
 bool
+migrate_materials_v1_to_v2 (sqlite3* db, std::string& error) {
+  const char* migration=
+    "PRAGMA foreign_keys=OFF;"
+    "PRAGMA legacy_alter_table=ON;"
+    "BEGIN IMMEDIATE;"
+    "ALTER TABLE materials RENAME TO materials_v1;"
+    "CREATE TABLE materials("
+      "uuid TEXT PRIMARY KEY,"
+      "item_type TEXT NOT NULL,"
+      "review_state TEXT NOT NULL CHECK(review_state IN "
+        "('ready','needs_review','unrecognized','error')),"
+      "extra_json TEXT NOT NULL DEFAULT '{}',"
+      "revision INTEGER NOT NULL DEFAULT 1,"
+      "created_at INTEGER NOT NULL,"
+      "updated_at INTEGER NOT NULL"
+    ");"
+    "INSERT INTO materials(uuid,item_type,review_state,extra_json,revision,"
+      "created_at,updated_at) "
+    "SELECT uuid,item_type,"
+      "CASE WHEN review_state='needs_review' AND NOT EXISTS("
+        "SELECT 1 FROM material_fields f WHERE f.material_uuid=materials_v1.uuid "
+        "AND f.name='title' AND trim(f.value)<>'' "
+        "AND lower(trim(f.value))<>'untitled') "
+      "THEN 'unrecognized' ELSE review_state END,"
+      "extra_json,revision,created_at,updated_at FROM materials_v1;"
+    "DROP TABLE materials_v1;"
+    "PRAGMA user_version=2;"
+    "COMMIT;"
+    "PRAGMA legacy_alter_table=OFF;"
+    "PRAGMA foreign_keys=ON;";
+  if (exec_sql (db, migration, error)) return true;
+  std::string ignored;
+  exec_sql (db, "ROLLBACK;PRAGMA legacy_alter_table=OFF;"
+                "PRAGMA foreign_keys=ON;", ignored);
+  return false;
+}
+
+bool
 exec_bound (sqlite3* db, const char* sql,
             const std::vector<std::string>& parameters, std::string& error) {
   Statement statement (db, sql);
@@ -713,16 +751,23 @@ MaterialsStore::open (const fs::path& vault_root,
     close ();
     return false;
   }
-  Statement version (db, "PRAGMA user_version;");
-  if (!version || sqlite3_step (version.get ()) != SQLITE_ROW) {
-    error= sqlite3_errmsg (db);
+  int schema_version= 0;
+  {
+    Statement version (db, "PRAGMA user_version;");
+    if (!version || sqlite3_step (version.get ()) != SQLITE_ROW) {
+      error= sqlite3_errmsg (db);
+      close ();
+      return false;
+    }
+    schema_version= sqlite3_column_int (version.get (), 0);
+  }
+  if (schema_version > 2) {
+    error= "Materials database schema " + std::to_string (schema_version) +
+           " is newer than this ATHENA build supports";
     close ();
     return false;
   }
-  int schema_version= sqlite3_column_int (version.get (), 0);
-  if (schema_version > 1) {
-    error= "Materials database schema " + std::to_string (schema_version) +
-           " is newer than this ATHENA build supports";
+  if (schema_version == 1 && !migrate_materials_v1_to_v2 (db, error)) {
     close ();
     return false;
   }
@@ -732,7 +777,7 @@ MaterialsStore::open (const fs::path& vault_root,
       "uuid TEXT PRIMARY KEY,"
       "item_type TEXT NOT NULL,"
       "review_state TEXT NOT NULL CHECK(review_state IN "
-        "('ready','needs_review','error')),"
+        "('ready','needs_review','unrecognized','error')),"
       "extra_json TEXT NOT NULL DEFAULT '{}',"
       "revision INTEGER NOT NULL DEFAULT 1,"
       "created_at INTEGER NOT NULL,"
@@ -811,7 +856,7 @@ MaterialsStore::open (const fs::path& vault_root,
       "uuid UNINDEXED,title,creators,identifiers,abstract_text,tags,"
       "tokenize='unicode61 remove_diacritics 2'"
     ");"
-    "PRAGMA user_version=1;";
+    "PRAGMA user_version=2;";
   if (!exec_sql (db, schema, error)) {
     close ();
     return false;
