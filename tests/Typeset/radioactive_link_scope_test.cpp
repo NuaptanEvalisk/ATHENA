@@ -19,6 +19,7 @@ private slots:
   void suppressesDocumentAndHeadingTitles ();
   void suppressesTableOfContents ();
   void preservesOrdinaryContent ();
+  void permitsSyntheticTransclusionContent ();
 };
 
 void
@@ -44,6 +45,13 @@ TestRadioactiveLinkScope::preservesOrdinaryContent () {
   QVERIFY (!athena_suppresses_radioactive_links ("document"));
   QVERIFY (!athena_suppresses_radioactive_links ("strong"));
   QVERIFY (!athena_suppresses_radioactive_links ("theorem"));
+}
+
+void
+TestRadioactiveLinkScope::permitsSyntheticTransclusionContent () {
+  QVERIFY (athena_allows_radioactive_link_path (true, false));
+  QVERIFY (!athena_allows_radioactive_link_path (false, false));
+  QVERIFY (athena_allows_radioactive_link_path (false, true));
 }
 
 QTEST_MAIN (TestRadioactiveLinkScope)

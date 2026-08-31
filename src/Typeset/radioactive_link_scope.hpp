@@ -28,4 +28,9 @@ athena_suppresses_radioactive_links (string name) {
          name == "render-unfolded-table-of-contents";
 }
 
+inline bool
+athena_allows_radioactive_link_path (bool accessible, bool transcluded) {
+  return accessible || transcluded;
+}
+
 #endif // defined RADIOACTIVE_LINK_SCOPE_H

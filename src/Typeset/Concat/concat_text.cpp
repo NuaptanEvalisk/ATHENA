@@ -14,6 +14,7 @@
 #include "analyze.hpp"
 #include "boot.hpp"
 #include "ATHENA/Data/artifact_radioactive_links.hpp"
+#include "radioactive_link_scope.hpp"
 
 #include <algorithm>
 #include <vector>
@@ -127,9 +128,12 @@ concater_rep::typeset_text_string (tree t, path ip, int pos, int end) {
     string destination;
   };
   std::vector<ActiveMatch> links;
+  bool transcluded=
+    env->get_string ("athena-radioactive-links-in-transclusion") == "true";
   bool allow_links= get_user_preference ("enable radioactive links", "on") ==
                       "on" &&
-                    is_accessible (ip) &&
+                    athena_allows_radioactive_link_path (
+                      is_accessible (ip), transcluded) &&
                     env->get_string (PAGE_PRINTED) != "true" &&
                     env->get_string ("athena-inside-locus") != "true" &&
                     env->get_string (

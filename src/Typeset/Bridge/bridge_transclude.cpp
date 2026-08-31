@@ -131,5 +131,9 @@ bridge_transclude_rep::my_typeset (int desired_status) {
   initialize (env->rewrite (resolved));
   if (!the_drd->is_child_enforcing (st))
     ttt->insert_marker (st, ip);
+  tree old_radioactive_scope= env->local_begin (
+    "athena-radioactive-links-in-transclusion", "true");
   body->typeset (desired_status);
+  env->local_end ("athena-radioactive-links-in-transclusion",
+                  old_radioactive_scope);
 }

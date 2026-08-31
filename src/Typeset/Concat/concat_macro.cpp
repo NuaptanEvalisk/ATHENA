@@ -575,8 +575,12 @@ concater_rep::typeset_transclude (tree t, path ip) {
   if (!decorated) marker (descend (ip, 0));
   lazy lz= decorated? make_lazy (env, attach_here (rewritten, ip)):
                       make_lazy (env, attach_right (rewritten, ip));
+  tree old_radioactive_scope= env->local_begin (
+    "athena-radioactive-links-in-transclusion", "true");
   lazy vs= lz->produce (LAZY_VSTREAM, make_format_vstream (width, 0, 0));
   box b= (box) vs->produce (LAZY_BOX, make_format_none ());
+  env->local_end ("athena-radioactive-links-in-transclusion",
+                  old_radioactive_scope);
   print (b);
   if (!decorated) marker (descend (ip, 1));
 }
