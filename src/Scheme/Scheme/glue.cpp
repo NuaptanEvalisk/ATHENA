@@ -32,8 +32,13 @@
 #include "ATHENA/Data/vaultfile_json.hpp"
 #include "ATHENA/Data/artifact_title_filter.hpp"
 #include "ATHENA/Data/artifact_document.hpp"
+#include "ATHENA/Data/artifact_radioactive_links.hpp"
+#include "ATHENA/Data/global_transformation.hpp"
+#include "ATHENA/Data/materials.hpp"
 #include "ATHENA/Data/materials_document.hpp"
 #include "ATHENA/Data/materials_engine.hpp"
+#include "ATHENA/Data/namespace_ontology.hpp"
+#include "ATHENA/Data/transclusion_cache.hpp"
 #include "QTMMainTabWindow.hpp"
 #include "QTMVaultChooser.hpp"
 #include "QTMQuickSwitcher.hpp"
@@ -95,7 +100,9 @@
 #include <QMessageBox>
 #include <QPointer>
 #include <QProcess>
+#include <QProgressDialog>
 #include <QPushButton>
+#include <QSizePolicy>
 #include <QSpacerItem>
 #include <QVBoxLayout>
 #include <QWidget>
@@ -103,6 +110,9 @@
 #include <filesystem>
 #include <memory>
 #include <string>
+#include <unordered_map>
+
+namespace fs= std::filesystem;
 
 tmscm 
 blackboxP (tmscm t) {
@@ -1843,6 +1853,153 @@ tmg_vaultfile_fields_to_array (const std::vector<std::string>& fields) {
   return out;
 }
 
+static tree
+tmg_utf8_text (const std::string& value) {
+  return tree (utf8_to_cork (string (value.data (), value.size ())));
+}
+
+static std::string
+tmg_cork_to_utf8 (tmscm value) {
+  string converted= cork_to_utf8 (tmscm_to_string (value));
+  return std::string (as_charp (converted), (size_t) N(converted));
+}
+
+static tree
+tmg_integer_text (std::int64_t value) {
+  return tree (std::to_string (value).c_str ());
+}
+
+static MaterialsStore*
+tmg_materials_store (const char* routine) {
+  MaterialsStore* store= vault_get_materials_store ();
+  if (store == nullptr)
+    FAILED (c_string (string (routine) * ": no active Materials database"));
+  return store;
+}
+
+static tree
+tmg_material_record_tree (const MaterialRecord& material) {
+  tree fields (TUPLE);
+  for (const MaterialField& field: material.fields)
+    fields << compound ("material-field", tmg_utf8_text (field.name),
+                        tmg_utf8_text (field.value),
+                        tmg_utf8_text (field.language),
+                        tmg_integer_text (field.ordinal));
+  tree creators (TUPLE);
+  for (const MaterialCreator& creator: material.creators)
+    creators << compound ("material-creator", tmg_utf8_text (creator.role),
+                          tmg_utf8_text (creator.given),
+                          tmg_utf8_text (creator.family),
+                          tmg_utf8_text (creator.literal),
+                          tmg_utf8_text (creator.suffix),
+                          tmg_integer_text (creator.ordinal));
+  tree identifiers (TUPLE);
+  for (const MaterialIdentifier& identifier: material.identifiers)
+    identifiers << compound ("material-identifier",
+                              tmg_utf8_text (identifier.scheme),
+                              tmg_utf8_text (identifier.value),
+                              tmg_utf8_text (identifier.normalized_value));
+  tree tags (TUPLE);
+  for (const std::string& tag: material.tags) tags << tmg_utf8_text (tag);
+
+  array<tree> children;
+  children << tmg_utf8_text (material.uuid)
+           << tmg_utf8_text (material.item_type)
+           << tmg_utf8_text (material.review_state)
+           << tmg_integer_text (material.revision)
+           << tmg_integer_text (material.created_at)
+           << tmg_integer_text (material.updated_at)
+           << fields << creators << identifiers << tags;
+  return compound ("material-record", children);
+}
+
+tmscm
+tmg_material_resolve_uuid (tmscm arg1) {
+  TMSCM_ASSERT_STRING (arg1, TMSCM_ARG1, "material-resolve-uuid");
+  MaterialsStore* store= tmg_materials_store ("material-resolve-uuid");
+  std::string error;
+  std::string resolved= store->resolve_uuid (tmg_cork_to_utf8 (arg1), error);
+  if (!error.empty ())
+    FAILED (c_string ("material-resolve-uuid: " * string (error.c_str ())));
+  if (resolved.empty ()) return bool_to_tmscm (false);
+  return string_to_tmscm (utf8_to_cork (
+    string (resolved.data (), resolved.size ())));
+}
+
+tmscm
+tmg_material_find_by_identifier (tmscm arg1, tmscm arg2) {
+  TMSCM_ASSERT_STRING (arg1, TMSCM_ARG1, "material-find-by-identifier");
+  TMSCM_ASSERT_STRING (arg2, TMSCM_ARG2, "material-find-by-identifier");
+  MaterialsStore* store= tmg_materials_store ("material-find-by-identifier");
+  std::string error;
+  std::optional<std::string> found= store->material_for_identifier (
+    tmg_cork_to_utf8 (arg1), tmg_cork_to_utf8 (arg2), error);
+  if (!error.empty ())
+    FAILED (c_string ("material-find-by-identifier: " *
+                      string (error.c_str ())));
+  if (!found) return bool_to_tmscm (false);
+  return string_to_tmscm (utf8_to_cork (
+    string (found->data (), found->size ())));
+}
+
+tmscm
+tmg_material_get (tmscm arg1) {
+  TMSCM_ASSERT_STRING (arg1, TMSCM_ARG1, "material-get");
+  MaterialsStore* store= tmg_materials_store ("material-get");
+  std::string error;
+  std::optional<MaterialRecord> material=
+    store->get (tmg_cork_to_utf8 (arg1), error);
+  if (!error.empty ())
+    FAILED (c_string ("material-get: " * string (error.c_str ())));
+  if (!material) return bool_to_tmscm (false);
+  return tree_to_tmscm (tmg_material_record_tree (*material));
+}
+
+static tree
+tmg_material_hits_tree (const std::vector<MaterialSearchHit>& hits) {
+  tree result (TUPLE);
+  for (const MaterialSearchHit& hit: hits) {
+    array<tree> values;
+    values << tmg_utf8_text (hit.uuid)
+           << tmg_utf8_text (hit.item_type)
+           << tmg_utf8_text (hit.title)
+           << tmg_utf8_text (hit.creators)
+           << tmg_utf8_text (hit.issued)
+           << tmg_utf8_text (hit.review_state)
+           << tree (as_string (hit.rank));
+    result << compound ("material-search-hit", values);
+  }
+  return result;
+}
+
+tmscm
+tmg_materials_search (tmscm arg1, tmscm arg2) {
+  TMSCM_ASSERT_STRING (arg1, TMSCM_ARG1, "materials-search");
+  TMSCM_ASSERT_INT (arg2, TMSCM_ARG2, "materials-search");
+  MaterialsStore* store= tmg_materials_store ("materials-search");
+  std::string error;
+  int limit= std::max (1, std::min (tmscm_to_int (arg2), 1000));
+  std::vector<MaterialSearchHit> hits=
+    store->search (tmg_cork_to_utf8 (arg1), limit, error);
+  if (!error.empty ())
+    FAILED (c_string ("materials-search: " * string (error.c_str ())));
+  return tree_to_tmscm (tmg_material_hits_tree (hits));
+}
+
+tmscm
+tmg_materials_list (tmscm arg1, tmscm arg2) {
+  TMSCM_ASSERT_INT (arg1, TMSCM_ARG1, "materials-list");
+  TMSCM_ASSERT_INT (arg2, TMSCM_ARG2, "materials-list");
+  MaterialsStore* store= tmg_materials_store ("materials-list");
+  std::string error;
+  int limit= std::max (1, std::min (tmscm_to_int (arg1), 1000));
+  int offset= std::max (0, tmscm_to_int (arg2));
+  std::vector<MaterialSearchHit> hits= store->list (limit, offset, error);
+  if (!error.empty ())
+    FAILED (c_string ("materials-list: " * string (error.c_str ())));
+  return tree_to_tmscm (tmg_material_hits_tree (hits));
+}
+
 tmscm
 tmg_material_choose_citation (tmscm arg1) {
   TMSCM_ASSERT_STRING (arg1, TMSCM_ARG1, "material-choose-citation");
@@ -1871,6 +2028,23 @@ tmg_materials_update_document (tmscm arg1, tmscm arg2) {
 }
 
 tmscm
+tmg_materials_update_document_auto (tmscm arg1) {
+  TMSCM_ASSERT_TREE (arg1, TMSCM_ARG1, "materials-update-document-auto");
+  tree document= tmscm_to_tree (arg1);
+  string preference= get_preference ("materials csl style",
+                                     "springer-mathphys");
+  std::string fallback (as_charp (preference), (size_t) N(preference));
+  std::string style=
+    athena_materials_document_citation_style (document, fallback);
+  std::string error;
+  tree updated= athena_materials_update_document (document, style, error);
+  tree result (TUPLE);
+  result << tree (error.empty () ? "ok" : "error");
+  result << (error.empty () ? updated : tmg_utf8_text (error));
+  return tree_to_tmscm (result);
+}
+
+tmscm
 tmg_materials_csl_styles () {
   std::vector<MaterialCslStyle> styles;
   std::string error;
@@ -1892,6 +2066,226 @@ tmg_material_info_page (tmscm arg1) {
   string name= tmscm_to_string (arg1);
   return tree_to_tmscm (athena_material_info_page (
     std::string (as_charp (name), N(name))));
+}
+
+namespace {
+
+class GlobalTransformationProgress final: public QProgressDialog {
+public:
+  explicit GlobalTransformationProgress (const QString& title,
+                                          QWidget* parent):
+    QProgressDialog (QString (), "Cancel", 0, 1, parent) {
+    setWindowTitle (title);
+    setWindowModality (Qt::ApplicationModal);
+    setMinimumDuration (0);
+    setAutoClose (false);
+    setAutoReset (false);
+    setFixedWidth (620);
+    QLabel* label= findChild<QLabel*> ();
+    if (label != nullptr) {
+      label->setWordWrap (true);
+      label->setMinimumWidth (0);
+      label->setSizePolicy (QSizePolicy::Ignored, QSizePolicy::Preferred);
+    }
+  }
+
+  void set_progress_text (const QString& value) {
+    setLabelText (value);
+    ensurePolished ();
+    int required= std::max (sizeHint ().height (), minimumSizeHint ().height ());
+    if (required > monotonic_height) {
+      monotonic_height= required;
+      setMinimumHeight (monotonic_height);
+    }
+    if (height () < monotonic_height) resize (width (), monotonic_height);
+  }
+
+private:
+  int monotonic_height= 0;
+};
+
+fs::path
+tmg_normalized_path (const fs::path& path) {
+  std::error_code ec;
+  fs::path result= fs::weakly_canonical (path, ec);
+  if (!ec) return result.lexically_normal ();
+  result= fs::absolute (path, ec);
+  return (ec ? path : result).lexically_normal ();
+}
+
+bool
+tmg_path_at_or_below (const fs::path& path, const fs::path& root) {
+  fs::path relative= path.lexically_relative (root);
+  if (relative.empty ()) return path == root;
+  auto first= relative.begin ();
+  return first != relative.end () && *first != "..";
+}
+
+tree
+tmg_global_transformation_result (
+    const char* status, const AthenaGlobalTransformationPlan& plan,
+    const std::string& message) {
+  tree changed (TUPLE);
+  for (const AthenaGlobalTransformationRewrite& rewrite: plan.rewrites)
+    changed << tmg_utf8_text (rewrite.relative_path.generic_u8string ());
+  tree result (TUPLE);
+  result << tree (status)
+         << tmg_integer_text ((std::int64_t) plan.scanned)
+         << tmg_integer_text ((std::int64_t) plan.rewrites.size ())
+         << tmg_utf8_text (message)
+         << tmg_utf8_text (plan.backup_root.empty ()
+                             ? std::string ()
+                             : plan.backup_root.string ())
+         << changed;
+  return result;
+}
+
+} // namespace
+
+tmscm
+tmg_global_transformation_run (tmscm arg1, tmscm arg2) {
+  TMSCM_ASSERT (scm_is_true (scm_procedure_p (arg1)), arg1, TMSCM_ARG1,
+                "global-transformation-run");
+  TMSCM_ASSERT_STRING (arg2, TMSCM_ARG2, "global-transformation-run");
+  AthenaGlobalTransformationPlan plan;
+  if (!vault_active ())
+    return tree_to_tmscm (tmg_global_transformation_result (
+      "error", plan, "Load a Vault before running a global transformation"));
+  if (headless_mode)
+    return tree_to_tmscm (tmg_global_transformation_result (
+      "error", plan, "Global transformations require the interactive editor"));
+
+  std::string name= tmg_cork_to_utf8 (arg2);
+  string root_string= concretize (vault_get_root ());
+  fs::path root= tmg_normalized_path (
+    fs::path (std::string (as_charp (root_string), (size_t) N(root_string))));
+  std::unordered_map<std::string,url> open_buffers;
+  QStringList modified;
+  array<url> buffers= get_all_buffers ();
+  for (int i=0; i<N(buffers); ++i) {
+    if (is_rooted_tmfs (buffers[i]) || is_rooted_web (buffers[i])) continue;
+    string concrete= concretize (buffers[i]);
+    fs::path path= tmg_normalized_path (fs::path (
+      std::string (as_charp (concrete), (size_t) N(concrete))));
+    if (!tmg_path_at_or_below (path, root) || path.extension () != ".ath")
+      continue;
+    open_buffers[path.string ()]= buffers[i];
+    if (buffer_modified (buffers[i]))
+      modified << QString::fromStdString (
+        path.lexically_relative (root).generic_u8string ());
+  }
+  if (!modified.isEmpty ()) {
+    QStringList shown= modified.mid (0, 12);
+    if (modified.size () > shown.size ())
+      shown << QString ("... and %1 more").arg (modified.size () - shown.size ());
+    QMessageBox::warning (
+      qApp->activeWindow (), "Run global transformation",
+      QString ("Save the open Vault documents before continuing:\n\n%1")
+        .arg (shown.join ("\n")));
+    return tree_to_tmscm (tmg_global_transformation_result (
+      "error", plan, "Open Vault documents have unsaved changes"));
+  }
+
+  GlobalTransformationProgress progress (
+    QString::fromStdString (name.empty () ? "Run global transformation" : name),
+    qApp->activeWindow ());
+  progress.set_progress_text ("Scanning Vault documents...");
+  progress.show ();
+  QApplication::processEvents ();
+
+  std::string error;
+  auto transform= [&] (const std::string& relative, const tree& input,
+                        tree& output, std::string& callback_error) {
+    tmscm result= call_scheme (
+      arg1,
+      string_to_tmscm (utf8_to_cork (
+        string (relative.data (), relative.size ()))),
+      tree_to_tmscm (copy (input)));
+    if (scm_is_false (result)) {
+      output= input;
+      return true;
+    }
+    if (!tmscm_is_tree (result)) {
+      callback_error=
+        "Transformer must return #f for no change or a complete document tree";
+      return false;
+    }
+    output= tmscm_to_tree (result);
+    return true;
+  };
+  auto report_progress= [&] (size_t current, size_t total,
+                              const std::string& relative) {
+    progress.setRange (0, std::max (1, (int) total));
+    progress.setValue ((int) current);
+    if (!relative.empty ())
+      progress.set_progress_text (
+        QString ("Transforming %1 of %2: %3")
+          .arg (current + 1).arg (total)
+          .arg (QString::fromStdString (relative)));
+    QApplication::processEvents ();
+    return !progress.wasCanceled ();
+  };
+
+  if (!athena_global_transformation_prepare (
+        root, transform, report_progress, plan, error)) {
+    progress.close ();
+    if (error == "cancelled")
+      return tree_to_tmscm (tmg_global_transformation_result (
+        "cancelled", plan, "Transformation cancelled; no files were changed"));
+    QMessageBox::critical (qApp->activeWindow (), "Run global transformation",
+                           QString::fromStdString (error));
+    return tree_to_tmscm (tmg_global_transformation_result (
+      "error", plan, error));
+  }
+  progress.close ();
+
+  if (plan.rewrites.empty ())
+    return tree_to_tmscm (tmg_global_transformation_result (
+      "ok", plan, "The transformation did not change any documents"));
+
+  QString question=
+    QString ("%1 inspected %2 document(s) and will change %3.\n\n"
+             "Apply the transformation? A backup of every changed document "
+             "will be retained in the Vault.")
+      .arg (QString::fromStdString (name.empty () ? "The transformation" : name))
+      .arg ((qulonglong) plan.scanned)
+      .arg ((qulonglong) plan.rewrites.size ());
+  if (QMessageBox::question (
+        qApp->activeWindow (), "Run global transformation", question,
+        QMessageBox::Apply | QMessageBox::Cancel,
+        QMessageBox::Cancel) != QMessageBox::Apply)
+    return tree_to_tmscm (tmg_global_transformation_result (
+      "cancelled", plan, "Transformation cancelled; no files were changed"));
+
+  GlobalTransformationProgress commit_progress (
+    "Run global transformation", qApp->activeWindow ());
+  commit_progress.setCancelButton (nullptr);
+  commit_progress.setRange (0, 0);
+  commit_progress.set_progress_text (
+    "Backing up and installing transformed documents...");
+  commit_progress.show ();
+  QApplication::processEvents ();
+  if (!athena_global_transformation_commit (plan, error)) {
+    commit_progress.close ();
+    QMessageBox::critical (qApp->activeWindow (), "Run global transformation",
+                           QString::fromStdString (error));
+    return tree_to_tmscm (tmg_global_transformation_result (
+      "error", plan, error));
+  }
+  commit_progress.close ();
+
+  for (const AthenaGlobalTransformationRewrite& rewrite: plan.rewrites) {
+    auto open= open_buffers.find (tmg_normalized_path (rewrite.path).string ());
+    if (open != open_buffers.end ())
+      set_buffer_tree (open->second, rewrite.transformed);
+  }
+  athena_clear_transclusion_caches ();
+  athena_namespace_ontology_invalidate (true);
+  athena_artifact_radioactive_invalidate ();
+
+  return tree_to_tmscm (tmg_global_transformation_result (
+    "ok", plan,
+    "Transformed " + std::to_string (plan.rewrites.size ()) + " document(s)"));
 }
 
 static AthenaVaultfileInfo
@@ -2213,12 +2607,26 @@ initialize_glue () {
                            tmg_material_choose_citation, 1, 0, 0);
   tmscm_install_procedure ("material-choose-references",
                            tmg_material_choose_references, 0, 0, 0);
+  tmscm_install_procedure ("material-resolve-uuid",
+                           tmg_material_resolve_uuid, 1, 0, 0);
+  tmscm_install_procedure ("material-find-by-identifier",
+                           tmg_material_find_by_identifier, 2, 0, 0);
+  tmscm_install_procedure ("material-get",
+                           tmg_material_get, 1, 0, 0);
+  tmscm_install_procedure ("materials-search",
+                           tmg_materials_search, 2, 0, 0);
+  tmscm_install_procedure ("materials-list",
+                           tmg_materials_list, 2, 0, 0);
   tmscm_install_procedure ("materials-update-document",
                            tmg_materials_update_document, 2, 0, 0);
+  tmscm_install_procedure ("materials-update-document-auto",
+                           tmg_materials_update_document_auto, 1, 0, 0);
   tmscm_install_procedure ("materials-csl-styles",
                            tmg_materials_csl_styles, 0, 0, 0);
   tmscm_install_procedure ("material-info-page",
                            tmg_material_info_page, 1, 0, 0);
+  tmscm_install_procedure ("global-transformation-run",
+                           tmg_global_transformation_run, 2, 0, 0);
   tmscm_install_procedure ("namespace-manager-show",
                            tmg_void_nullary<namespace_manager_show>, 0, 0, 0);
   tmscm_install_procedure ("namespace-explorer-show",

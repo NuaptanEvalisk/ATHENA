@@ -103,6 +103,7 @@
       (ads-prepare-floating)
       (new-document*)))
   ("Configure Font for Vault" (configure-font-for-vault))
+  ("Run global transformation" (run-global-transformation))
   ---
   (link athena-workspace-utilities-menu))
 

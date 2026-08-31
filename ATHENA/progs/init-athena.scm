@@ -169,6 +169,8 @@
 ;(display "Booting main TeXmacs functionality\n")
 (import-from (athena athena tm-server) (athena athena tm-vault-startup))
 (lazy-define (athena athena tm-vault) load-vault-dir)
+(lazy-define (athena athena tm-global-transformation)
+             run-global-transformation)
 (lazy-define (athena athena tm-files)
              buffer-missing-style? buffer-set-default-style)
 (import-from (athena keyboard config-kbd))

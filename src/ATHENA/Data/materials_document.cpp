@@ -89,6 +89,26 @@ material_document (tree body) {
 
 } // namespace
 
+std::string
+athena_materials_document_citation_style (
+    const tree& document, const std::string& fallback_style) {
+  for (int i=0; i<N(document); ++i) {
+    tree initial= document[i];
+    if (!is_compound (initial, "initial", 1)) continue;
+    tree attributes= initial[0];
+    if (!is_func (attributes, COLLECTION)) continue;
+    for (int j=0; j<N(attributes); ++j) {
+      tree entry= attributes[j];
+      if (is_compound (entry, "associate", 2) &&
+          stdstr (entry[0]) == "materials-csl-style") {
+        std::string style= stdstr (entry[1]);
+        if (!style.empty ()) return style;
+      }
+    }
+  }
+  return fallback_style.empty () ? "springer-mathphys" : fallback_style;
+}
+
 tree
 athena_materials_update_document (tree document,
                                   const std::string& default_style,
@@ -155,8 +175,16 @@ athena_materials_update_document (tree document,
     error= "Hayagriva returned fewer citation clusters than requested";
     return document;
   }
-  for (size_t i=0; i<citation_nodes.size (); ++i)
-    citation_nodes[i][1]= html_tree (rendered.citation_html[i]);
+  for (size_t i=0; i<citation_nodes.size (); ++i) {
+    tree content= html_tree (rendered.citation_html[i]);
+    tree previous= citation_nodes[i][1];
+    if (is_compound (previous, "hlink", 2) && is_atomic (previous[1])) {
+      std::string destination= stdstr (previous[1]);
+      if (destination.rfind ("tmfs://material/", 0) == 0)
+        content= compound ("hlink", content, previous[1]);
+    }
+    citation_nodes[i][1]= content;
+  }
 
   for (size_t bibliography_index=0;
        bibliography_index<bibliography_nodes.size (); ++bibliography_index) {
