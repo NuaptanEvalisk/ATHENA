@@ -65,11 +65,11 @@
     },
     "tm_build": {
       "theme": [
-        "view-refresh",
-        "system-run"
+        "system-run",
+        "view-refresh"
       ],
       "libreoffice": [
-        "cmd/32/reload.svg"
+        "cmd/32/calculate.svg"
       ]
     },
     "tm_print": {
