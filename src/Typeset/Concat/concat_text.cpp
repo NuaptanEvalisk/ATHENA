@@ -156,6 +156,7 @@ concater_rep::typeset_text_string (tree t, path ip, int pos, int end) {
     }
   }
 
+  size_t first_link= 0;
   auto typeset_piece= [&] (int first, int last) {
     // Empty text still contributes a box that anchors an otherwise empty
     // paragraph.  The former direct typeset_substring call had this behavior.
@@ -164,8 +165,10 @@ concater_rep::typeset_text_string (tree t, path ip, int pos, int end) {
       return;
     }
     int current= first;
-    for (const ActiveMatch& link: links) {
-      if (link.end <= current) continue;
+    while (first_link < links.size () && links[first_link].end <= current)
+      first_link++;
+    for (size_t i=first_link; i<links.size (); i++) {
+      const ActiveMatch& link= links[i];
       if (link.start >= last) break;
       int linked_start= std::max (current, link.start);
       int linked_end= std::min (last, link.end);
