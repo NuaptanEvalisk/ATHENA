@@ -168,7 +168,7 @@
         "go-previous-view"
       ],
       "libreoffice": [
-        "cmd/32/backward.svg"
+        "cmd/32/arrowshapes.left-arrow.svg"
       ]
     },
     "tm_reload": {
@@ -185,7 +185,7 @@
         "go-next-view"
       ],
       "libreoffice": [
-        "cmd/32/forward.svg"
+        "cmd/32/arrowshapes.right-arrow.svg"
       ]
     },
     "tm_bold": {
