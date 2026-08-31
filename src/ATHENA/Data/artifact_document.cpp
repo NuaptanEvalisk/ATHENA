@@ -39,7 +39,9 @@ tree artifact_document (tree body, string preferred_font) {
            << compound ("style", tuple ("generic"))
            << compound ("body", body);
   tree initial (COLLECTION);
-  initial << compound ("associate", "page-medium", "automatic");
+  initial << compound ("associate", "page-medium", "automatic")
+          << compound ("associate", "athena-radioactive-links-suppressed",
+                       "true");
   if (preferred_font != "") {
     initial << compound ("associate", "font", preferred_font)
             << compound ("associate", "font-family", "rm");
@@ -95,9 +97,7 @@ tree artifact_disambiguation_table (
 
     tree artifact= compound ("hlink", compound ("strong", name), destination);
 
-    tree source= tree (
-      WITH, "athena-radioactive-links-suppressed", "true",
-      compound ("samp", internal_text (record.relative_path)));
+    tree source= compound ("samp", internal_text (record.relative_path));
     tree row (ROW);
     row << table_cell (artifact)
         << table_cell (internal_text (record.type))
