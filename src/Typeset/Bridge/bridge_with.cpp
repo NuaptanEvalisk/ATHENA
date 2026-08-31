@@ -132,8 +132,8 @@ bridge_with_rep::my_exec_until (path p) {
     tree var_t= env->exec (st[i<<1]);
     if (is_atomic (var_t)) {
       string var= var_t->label;
-      vars[i]= var;
       newv[i]= env->exec (st[(i<<1)+1]);
+      vars[i]= env->normalize_legacy_math_font_variable (var, newv[i]);
     }
     else {
       STACK_DELETE_ARRAY(vars);
@@ -165,9 +165,9 @@ bridge_with_rep::my_typeset (int desired_status) {
     tree var_t= env->exec (st[i<<1]);
     if (is_atomic (var_t)) {
       string var= var_t->label;
-      vars[i]= var;
-      oldv[i]= env->read (var);
       newv[i]= env->exec (st[(i<<1)+1]);
+      vars[i]= env->normalize_legacy_math_font_variable (var, newv[i]);
+      oldv[i]= env->read (vars[i]);
     }
     /*
     else {

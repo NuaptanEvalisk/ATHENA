@@ -144,7 +144,7 @@
     Font modifiers which are sometimes poorly imported.
   </src-comment>>
 
-  <assign|mathcal|<macro|x|<with|font|cal|font-shape|right|math-font-shape|right|<arg|x>>>>
+  <assign|mathcal|<macro|x|<with|math-font|cal|math-font-shape|right|<arg|x>>>>
 
   <assign|mathfrak|<macro|x|<with|font|Euler|font-shape|right|math-font-shape|right|<arg|x>>>>
 

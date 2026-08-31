@@ -44,6 +44,7 @@ RESOURCE(smart_map);
 #define REWRITE_UPRIGHT         9
 #define REWRITE_ITALIC         10
 #define REWRITE_IGNORE         11
+#define REWRITE_CALLIGRAPHIC    12
 
 struct smart_map_rep: rep<smart_map> {
   int chv[256];
@@ -782,8 +783,9 @@ smart_font_rep::smart_font_rep (
   fn[SUBFONT_MAIN ]= adjust_subfont (base_fn);
   fn[SUBFONT_ERROR]= adjust_subfont (err_fn);
   this->copy_math_pars (base_fn);
-  if (shape == "mathitalic" || shape == "mathupright" || shape == "mathshape") {
-    if (is_math_family (mfam)) {
+  if (shape == "mathitalic" || shape == "mathupright" ||
+      shape == "mathshape" || shape == "mathcal") {
+    if (is_math_family (mfam) && shape != "mathcal") {
       rshape= "right";
       if (shape == "mathupright")
         this->copy_math_pars (base_fn);
@@ -799,8 +801,9 @@ smart_font_rep::smart_font_rep (
       math_kind= 1;
       if (shape == "mathupright") math_kind= 2;
       if (shape == "mathshape") math_kind= 3;
+      if (shape == "mathcal") math_kind= 4;
       rshape= "right";
-      if (math_kind == 2)
+      if (math_kind == 2 || math_kind == 4)
         this->copy_math_pars (base_fn);
       else {
         italic_nr= sm->add_font (tuple ("fast-italic"), REWRITE_NONE);
@@ -814,7 +817,9 @@ smart_font_rep::smart_font_rep (
       (void) sm->add_font (tuple ("bold-math"), REWRITE_LETTERS);
       (void) sm->add_font (tuple ("italic-math"), REWRITE_LETTERS);
       (void) sm->add_font (tuple ("bold-italic-math"), REWRITE_LETTERS);
-      (void) sm->add_font (tuple ("cal"), REWRITE_LETTERS);
+      (void) sm->add_font (tuple ("cal"),
+                           math_kind == 4 ? REWRITE_CALLIGRAPHIC
+                                          : REWRITE_LETTERS);
       (void) sm->add_font (tuple ("bold-cal"), REWRITE_LETTERS);
       (void) sm->add_font (tuple ("frak"), REWRITE_LETTERS);
       (void) sm->add_font (tuple ("bold-frak"), REWRITE_LETTERS);
@@ -891,6 +896,17 @@ rewrite_letters (string s) {
 }
 
 static string
+rewrite_calligraphic (string s) {
+  string r;
+  for (int i=0; i<N(s); i++) {
+    int c= (int) (unsigned char) s[i];
+    if (is_alpha (c)) r << "<cal-" << s (i, i+1) << ">";
+    else r << s (i, i+1);
+  }
+  return r;
+}
+
+static string
 rewrite (string s, int kind) {
   switch (kind) {
   case REWRITE_NONE:
@@ -917,6 +933,8 @@ rewrite (string s, int kind) {
     return substitute_italic (s);
   case REWRITE_IGNORE:
     return "";
+  case REWRITE_CALLIGRAPHIC:
+    return rewrite_calligraphic (s);
   default:
     return s;
   }
@@ -937,7 +955,7 @@ smart_font_rep::advance (string s, int& pos, string& r, int& nr) {
     if (s[pos] != '<') {
       int c= (int) (unsigned char) s[pos];
       int next= chv[c];
-      if (math_kind != 0 && math_kind != 2 && is_alpha (c) &&
+      if ((math_kind == 1 || math_kind == 3) && is_alpha (c) &&
           (pos == 0 || !is_alpha (s[pos-1])) &&
           (pos+1 == N(s) || !is_alpha (s[pos+1])))
         next= italic_nr;
@@ -1258,6 +1276,8 @@ smart_font_rep::resolve (string c) {
     return sm->add_char (tuple ("emoji"), c);
 
   if (math_kind != 0) {
+    if (math_kind == 4 && N(c) == 1 && is_alpha (c[0]))
+      return sm->add_char (tuple ("cal"), c);
     if (series == "bold" && starts (c, "<big-") &&
         !fn[SUBFONT_MAIN]->supports (c)) {
       tree key= tuple ("synthetic-bold-rubber");
@@ -1436,9 +1456,14 @@ smart_font_rep::initialize_font (int nr) {
     fn[nr]= smart_font_bis (family, "ss", series, "italic", sz, hdpi, dpi);
   else if (a[0] == "bold-italic-ss")
     fn[nr]= smart_font_bis (family, "ss", "bold", "italic", sz, hdpi, dpi);
-  else if (a[0] == "cal" && N(a) == 1)
-    fn[nr]= smart_font_bis (family, "calligraphic", series, "italic", sz,
-                            hdpi, dpi);
+  else if (a[0] == "cal" && N(a) == 1) {
+    if (math_kind == 4)
+      fn[nr]= smart_font_bis (family, variant, series, "mathupright", sz,
+                              hdpi, dpi);
+    else
+      fn[nr]= smart_font_bis (family, "calligraphic", series, "italic", sz,
+                              hdpi, dpi);
+  }
   else if (a[0] == "bold-cal")
     fn[nr]= smart_font_bis (family, "calligraphic", "bold", "italic", sz,
                             hdpi, dpi);
@@ -1846,7 +1871,8 @@ smart_font_bis (string family, string variant, string series, string shape,
   //family= stix_fix (family, series, shape);
   family= math_fix (family, series, shape);
   string sh= shape;
-  if (shape == "mathitalic" || shape == "mathshape") sh= "right";
+  if (shape == "mathitalic" || shape == "mathshape" || shape == "mathcal")
+    sh= "right";
   string mfam= main_family (family);
   font base_fn= closest_font (mfam, variant, series, sh, sz, vdpi);
   if (is_nil (base_fn)) return font ();
@@ -1881,6 +1907,8 @@ smart_font (string family, string variant, string series, string shape,
             string tfam, string tvar, string tser, string tsh,
             int sz, int dpi) {
   if (!new_fonts) return find_font (family, variant, series, shape, sz, dpi);
+  if (family == "cal" || variant == "cal")
+    return smart_font (tfam, tvar, tser, "mathcal", sz, dpi);
   if (tfam == "roman") tfam= family;
   if (variant != "mr") {
     if (variant == "ms") tvar= "ss";

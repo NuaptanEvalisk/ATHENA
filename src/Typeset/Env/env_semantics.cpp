@@ -548,6 +548,12 @@ edit_env_rep::get_script_size (int sz, int level) {
 * Updating the environment from the variables
 ******************************************************************************/
 
+static string
+text_font_base_for_math_font (string s) {
+  if (starts (s, "math-")) return s (5, N(s));
+  return s;
+}
+
 void
 edit_env_rep::update_font () {
   fn_size= (int) (((double) get_int (FONT_BASE_SIZE)) *
@@ -559,13 +565,25 @@ edit_env_rep::update_font () {
                     get_string (FONT_SERIES), get_string (FONT_SHAPE),
                     get_script_size (fn_size, index_level), (int) (magn*dpi));
     break;
-  case 2:
-    fn= smart_font (get_string (MATH_FONT), get_string (MATH_FONT_FAMILY),
-                    get_string (MATH_FONT_SERIES), get_string (MATH_FONT_SHAPE),
-                    get_string (FONT), get_string (FONT_FAMILY),
-                    get_string (FONT_SERIES), "mathitalic",
+  case 2: {
+    string math_font= get_string (MATH_FONT);
+    string math_family= get_string (MATH_FONT_FAMILY);
+    string math_series= get_string (MATH_FONT_SERIES);
+    string math_shape= get_string (MATH_FONT_SHAPE);
+    string text_font= get_string (FONT);
+    string text_family= get_string (FONT_FAMILY);
+    string text_series= get_string (FONT_SERIES);
+    string text_shape= "mathitalic";
+    if (text_font == "cal") {
+      text_font= text_font_base_for_math_font (math_font);
+      math_font= "cal";
+      math_shape= "right";
+    }
+    fn= smart_font (math_font, math_family, math_series, math_shape,
+                    text_font, text_family, text_series, text_shape,
                     get_script_size (fn_size, index_level), (int) (magn*dpi));
     break;
+  }
   case 3:
     fn= smart_font (get_string (PROG_FONT), get_string (PROG_FONT_FAMILY),
                     get_string (PROG_FONT_SERIES), get_string (PROG_FONT_SHAPE),

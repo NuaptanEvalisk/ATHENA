@@ -641,9 +641,9 @@ edit_env_rep::exec_with (tree t) {
     tree var_t= exec (t[i<<1]);
     if (is_atomic (var_t)) {
       string var= var_t->label;
-      vars[i]= var;
-      oldv[i]= read (var);
       newv[i]= exec (t[(i<<1)+1]);
+      vars[i]= normalize_legacy_math_font_variable (var, newv[i]);
+      oldv[i]= read (vars[i]);
     }
     else {
       STACK_DELETE_ARRAY(vars);

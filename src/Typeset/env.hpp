@@ -459,6 +459,10 @@ public:
     back->write_back (s, env); env (s)= t; update (s); }
   inline void write (string s, tree t) { env (s)= t; }
   inline void write_update (string s, tree t) { env (s)= t; update (s); }
+  inline string normalize_legacy_math_font_variable (string s, tree t) {
+    if (mode == 2 && s == FONT && t == "cal") return MATH_FONT;
+    return s;
+  }
   inline tree local_begin (string s, tree t) {
     // tree r (env [s]); monitored_write_update (s, t); return r;
     tree& val= env (s); tree r (val); val= t; update (s); return r; }
