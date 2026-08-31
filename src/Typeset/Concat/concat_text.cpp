@@ -47,10 +47,10 @@ concater_rep::typeset_radioactive_substring (
     color= get_locus_rendering (RADIOACTIVE_LINK_COLOR);
   typeset_colored_substring (s, ip, pos, color);
   if (N(a) > 0) {
-    a[N(a)-1]->b= locus_box (a[N(a)-1]->b->ip, a[N(a)-1]->b,
-                             list<string> (), env->pixel, destination, "");
-    // A locus is a modifier box, not a textual leaf.  Keeping STRING_ITEM here
-    // makes the line breaker call get_leaf_string() on the locus wrapper.
+    a[N(a)-1]->b= direct_link_box (
+      a[N(a)-1]->b->ip, a[N(a)-1]->b, destination);
+    // Keep automatic links intact instead of hyphenating them into unlinked
+    // text boxes.  The direct link wrapper remains cursor-transparent.
     a[N(a)-1]->type= STD_ITEM;
   }
 }

@@ -174,6 +174,47 @@ double modifier_box_rep::anim_next () { return b->anim_next (); }
 rectangles modifier_box_rep::anim_invalid () { return b->anim_invalid (); }
 
 /******************************************************************************
+* Direct link boxes
+******************************************************************************/
+
+class direct_link_box_rep: public modifier_box_rep {
+  string ref;
+public:
+  direct_link_box_rep (path ip, box b, string ref);
+  operator tree () { return tuple ("direct-link", (tree) b); }
+  box  adjust_kerning (int mode, double factor);
+  box  expand_glyphs (int mode, double factor);
+  tree message (tree type, SI x, SI y, rectangles& rs);
+  void post_display (renderer& ren);
+};
+
+direct_link_box_rep::direct_link_box_rep (path ip, box b, string ref2):
+  modifier_box_rep (ip, b), ref (ref2) {}
+
+box
+direct_link_box_rep::adjust_kerning (int mode, double factor) {
+  return direct_link_box (ip, b->adjust_kerning (mode, factor), ref);
+}
+
+box
+direct_link_box_rep::expand_glyphs (int mode, double factor) {
+  return direct_link_box (ip, b->expand_glyphs (mode, factor), ref);
+}
+
+tree
+direct_link_box_rep::message (tree type, SI x, SI y, rectangles& rs) {
+  if ((type == "select" || type == "double-click") &&
+      x >= x1 && x < x2 && y >= y1 && y < y2)
+    return tree (TUPLE, "direct-link", ref);
+  return modifier_box_rep::message (type, x, y, rs);
+}
+
+void
+direct_link_box_rep::post_display (renderer& ren) {
+  ren->href (ref, x1, y1, x2, y2);
+}
+
+/******************************************************************************
 * Symbol boxes
 ******************************************************************************/
 
@@ -489,6 +530,11 @@ shorter_box (path ip, box b, int len) {
 box
 frozen_box (path ip, box b) {
   return tm_new<frozen_box_rep> (ip, b);
+}
+
+box
+direct_link_box (path ip, box b, string ref) {
+  return tm_new<direct_link_box_rep> (ip, b, ref);
 }
 
 box
