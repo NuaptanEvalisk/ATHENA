@@ -1324,7 +1324,8 @@ smart_font_rep::resolve (string c) {
       //cout << "Found " << c << " in italic prime\n";
       return sm->add_char (tuple ("italic-math"), c);      
     }
-    if (is_special (c) && !fn[SUBFONT_MAIN]->supports (c) &&
+    if (is_special (c) &&
+        (!starts (c, "<big-") || !fn[SUBFONT_MAIN]->supports (c)) &&
         (N(c) != 1 || !ends (variant, "-tt")) &&
         (!starts (c, "<big") ||
          !starts (mfam, "TeX Gyre") || !ends (mfam, " Math")) &&
