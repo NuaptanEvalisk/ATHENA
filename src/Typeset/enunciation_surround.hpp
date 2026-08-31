@@ -323,15 +323,13 @@ athena_enunciation_surround_rewrite (edit_env env, tree t) {
   tree left = t[d];
   tree right= t[d + 1];
   tree body = t[d + 2];
-  tree title= tree (WITH, "athena-radioactive-links-suppressed", "true",
-                    left);
   bool display= athena_enunciation_starts_display (env, body);
   if (display) {
     tree title_line= tree (WITH, "par-mode", "left",
-                           tree (CONCAT, tree (NO_INDENT), title));
+                           tree (CONCAT, tree (NO_INDENT), left));
     return tree (DOCUMENT, title_line, body);
   }
-  return tree (SURROUND, title, right, body);
+  return tree (SURROUND, left, right, body);
 }
 
 static inline tree

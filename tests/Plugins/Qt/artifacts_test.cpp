@@ -51,7 +51,7 @@ private slots:
   void locatesStoredParagraphRange ();
   void locatesStructuredEnunciationsAfterEdits ();
   void excludesOnlyArtifactDefiningOccurrences ();
-  void excludesEnunciationTitlesFromRadioactiveLinks ();
+  void excludesDefinitionTitlesFromRadioactiveLinks ();
   void doesNotLinkNonAdjacentProof ();
   void buildsIncrementallyAndPurgesDeletedDocuments ();
   void preservesAccentedArtifactTextAcrossWorkerAndDatabase ();
@@ -692,28 +692,36 @@ TestArtifacts::excludesOnlyArtifactDefiningOccurrences () {
 }
 
 void
-TestArtifacts::excludesEnunciationTitlesFromRadioactiveLinks () {
+TestArtifacts::excludesDefinitionTitlesFromRadioactiveLinks () {
   tree definition_body (DOCUMENT);
   definition_body << compound ("strong", "Vector space")
                   << "A vector space is a module over a field.";
+  tree proposition_body (DOCUMENT);
+  proposition_body << compound ("strong", "Banach space")
+                   << "A Banach space is a complete normed vector space.";
   tree body (DOCUMENT);
-  body << compound ("definition", definition_body);
+  body << compound ("definition", definition_body)
+       << compound ("proposition", proposition_body);
   tree document (DOCUMENT);
   document << compound ("TeXmacs", "2.1.4")
            << compound ("style", "generic")
            << compound ("body", body);
 
   path title_path;
-  QVERIFY (athena_artifact_enunciation_title_path (
+  QVERIFY (athena_artifact_definition_title_path (
     subtree (body, path (0)), title_path));
   QCOMPARE (title_path, path (0) * 0);
-  QVERIFY (athena_artifact_is_enunciation_title (
+  QVERIFY (!athena_artifact_definition_title_path (
+    subtree (body, path (1)), title_path));
+  QVERIFY (athena_artifact_is_definition_title (
     document, path (0) * 0 * 0 * 0));
-  QVERIFY (!athena_artifact_is_enunciation_title (
+  QVERIFY (!athena_artifact_is_definition_title (
     document, path (0) * 0 * 1));
+  QVERIFY (!athena_artifact_is_definition_title (
+    document, path (1) * 0 * 0 * 0));
 
   tree marked=
-    athena_artifact_radioactive_suppress_enunciation_titles (body);
+    athena_artifact_radioactive_suppress_definition_titles (body);
   tree title= subtree (marked, path (0) * 0 * 0);
   QVERIFY (is_func (title, WITH, 3));
   QCOMPARE (title[0], tree ("athena-radioactive-links-suppressed"));
@@ -721,6 +729,8 @@ TestArtifacts::excludesEnunciationTitlesFromRadioactiveLinks () {
   QCOMPARE (title[2], compound ("strong", "Vector space"));
   QCOMPARE (subtree (marked, path (0) * 0 * 1),
             tree ("A vector space is a module over a field."));
+  QCOMPARE (subtree (marked, path (1) * 0 * 0),
+            compound ("strong", "Banach space"));
 }
 
 void

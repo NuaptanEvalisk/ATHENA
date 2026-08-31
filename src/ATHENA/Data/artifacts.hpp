@@ -152,11 +152,11 @@ bool athena_artifact_is_defining_occurrence (
   const tree& document, path source_path,
   const AthenaArtifactRecord& record);
 
-// Enunciation titles use the same leading-bold convention as artifact name
-// extraction. Rendering and matching consume this source-of-truth predicate.
-bool athena_artifact_enunciation_title_path (
-  const tree& enunciation, path& title_path);
-bool athena_artifact_is_enunciation_title (
+// Definitions alone reserve their leading bold scope for a title. Other
+// enunciations commonly use leading bold for their actual statement.
+bool athena_artifact_definition_title_path (
+  const tree& definition, path& title_path);
+bool athena_artifact_is_definition_title (
   const tree& document, path source_path);
 
 // Internal process worker used by the incremental parallel extractor.

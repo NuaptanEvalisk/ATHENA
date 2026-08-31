@@ -563,7 +563,7 @@ concater_rep::typeset_transclude (tree t, path ip) {
     return;
   }
   
-  tree content= athena_artifact_radioactive_suppress_enunciation_titles (
+  tree content= athena_artifact_radioactive_suppress_definition_titles (
     athena_resolve_transclusion_display (t));
   
   if (is_compound (content, DOCUMENT) && N(content) > 0)

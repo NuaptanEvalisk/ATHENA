@@ -1996,11 +1996,10 @@ athena_artifact_is_defining_occurrence (
 }
 
 bool
-athena_artifact_enunciation_title_path (
-  const tree& enunciation, path& title_path) {
-  std::string base;
-  if (enunciation_type (tag_name (enunciation), base).empty ()) return false;
-  return leading_bold_scope (enunciation, path (), title_path);
+athena_artifact_definition_title_path (
+  const tree& definition, path& title_path) {
+  if (tag_name (definition) != "definition") return false;
+  return leading_bold_scope (definition, path (), title_path);
 }
 
 static bool
@@ -2011,14 +2010,14 @@ path_starts_with (path value, path prefix) {
 }
 
 bool
-athena_artifact_is_enunciation_title (
+athena_artifact_is_definition_title (
   const tree& document, path source_path) {
   tree body= document_body (document);
   for (path current= source_path; !is_nil (current);
        current= path_up (current)) {
     if (!has_subtree (body, current)) continue;
     path relative_title;
-    if (!athena_artifact_enunciation_title_path (
+    if (!athena_artifact_definition_title_path (
           subtree (body, current), relative_title))
       continue;
     return path_starts_with (source_path, current * relative_title);

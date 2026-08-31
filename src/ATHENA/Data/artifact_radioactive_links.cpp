@@ -464,13 +464,13 @@ suppress_radioactive_links_at (const tree& value, path where) {
 }
 
 tree
-suppress_enunciation_titles (const tree& value) {
+suppress_definition_titles (const tree& value) {
   if (is_atomic (value)) return value;
   tree result (value, N(value));
   for (int i=0; i<N(value); i++)
-    result[i]= suppress_enunciation_titles (value[i]);
+    result[i]= suppress_definition_titles (value[i]);
   path title_path;
-  if (athena_artifact_enunciation_title_path (value, title_path))
+  if (athena_artifact_definition_title_path (value, title_path))
     result= suppress_radioactive_links_at (result, title_path);
   return result;
 }
@@ -478,9 +478,9 @@ suppress_enunciation_titles (const tree& value) {
 } // namespace
 
 tree
-athena_artifact_radioactive_suppress_enunciation_titles (
+athena_artifact_radioactive_suppress_definition_titles (
   const tree& document) {
-  return suppress_enunciation_titles (document);
+  return suppress_definition_titles (document);
 }
 
 void
