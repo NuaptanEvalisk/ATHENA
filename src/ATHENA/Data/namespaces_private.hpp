@@ -131,6 +131,7 @@ typedef int (*ns_compare_fn) (int, const AthenaNsField*, const AthenaNsField*);
 
 const char* field_type_name (ns_field_type t);
 int parse_roman_value (const std::string& s);
+bool field_value_satisfies_type (ns_field_type type, const std::string& value);
 bool parse_template (string templ, std::vector<template_token>& out,
                      string& error);
 bool parse_template_std (const std::string& templ,

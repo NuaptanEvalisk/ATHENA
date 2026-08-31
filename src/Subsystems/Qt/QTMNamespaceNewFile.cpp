@@ -28,6 +28,7 @@
 #include <QMessageBox>
 #include <QPushButton>
 #include <QRadioButton>
+#include <QRegularExpressionValidator>
 #include <QScrollArea>
 #include <QVBoxLayout>
 #include <QWizard>
@@ -56,6 +57,19 @@ concrete_namespaces () {
   for (const athena_namespace_definition& ns: athena_namespaces_list ())
     if (ns.kind == "concrete") out.push_back (ns);
   return out;
+}
+
+QValidator*
+namespace_field_validator (string type, QObject* parent) {
+  QString pattern;
+  if (type == "word") pattern= "\\S+";
+  else if (type == "char") pattern= ".";
+  else if (type == "int") pattern= "-?[0-9]+";
+  else if (type == "positive-int") pattern= "0*[1-9][0-9]*";
+  else if (type == "roman") pattern= "[IVXLCDMivxlcdm]+";
+  else return nullptr;
+  return new QRegularExpressionValidator (QRegularExpression (pattern),
+                                          parent);
 }
 
 class NamespaceSelectPage : public QWizardPage {
@@ -126,6 +140,9 @@ public:
     for (size_t i=0; i<fields.size (); i++) {
       QLineEdit* edit= new QLineEdit (this);
       edit->setPlaceholderText (to_qstring (fields[i].type));
+      if (QValidator* validator=
+            namespace_field_validator (fields[i].type, edit))
+        edit->setValidator (validator);
       edits.push_back (edit);
       QString label= QString ("%1 (%2)")
         .arg (to_qstring (fields[i].placeholder), to_qstring (fields[i].type));
@@ -140,6 +157,13 @@ public:
                               "All filename fields must be filled.");
         return false;
       }
+    }
+    string stem;
+    string error;
+    if (!athena_namespace_build_stem (select->selectedNamespace (), values (),
+                                      stem, error)) {
+      QMessageBox::warning (this, "New within namespace", to_qstring (error));
+      return false;
     }
     return true;
   }
@@ -220,8 +244,13 @@ public:
   void initializePage () override {
     string error;
     string stem;
-    athena_namespace_build_stem (select->selectedNamespace (),
-                                 fields->values (), stem, error);
+    if (!athena_namespace_build_stem (select->selectedNamespace (),
+                                      fields->values (), stem, error)) {
+      target.clear ();
+      label->setText ("Could not build the target filename:\n" +
+                      to_qstring (error));
+      return;
+    }
     target= QDir (dir->directory ())
       .absoluteFilePath (to_qstring (stem) + ".ath");
     athena_namespace_definition ns= select->selectedNamespace ();
@@ -237,6 +266,11 @@ public:
   }
 
   bool validatePage () override {
+    if (target.isEmpty ()) {
+      QMessageBox::warning (this, "New within namespace",
+                            "The target filename is invalid.");
+      return false;
+    }
     if (QFileInfo::exists (target)) {
       QMessageBox::warning (this, "New within namespace",
                             "The target file already exists.");

@@ -19,6 +19,19 @@ using namespace athena_namespaces;
 
 namespace {
 
+const char*
+namespace_field_placeholder (ns_field_type type) {
+  switch (type) {
+  case ns_string_field: return "%s";
+  case ns_word_field: return "%w";
+  case ns_char_field: return "%c";
+  case ns_int_field: return "%d";
+  case ns_pos_int_field: return "%N";
+  case ns_roman_field: return "%R";
+  }
+  return "%s";
+}
+
 std::filesystem::path
 namespace_resolve_path (string p, string base_root) {
   std::string raw= tm_to_std (p);
@@ -196,7 +209,18 @@ athena_namespace_build_stem (const athena_namespace_definition& ns,
   int value_i= 0;
   for (const template_token& tok: toks) {
     if (!tok.field) out += tok.literal;
-    else out += tm_to_std (values[value_i++]);
+    else {
+      std::string value= tm_to_std (values[value_i++]);
+      if (!field_value_satisfies_type (tok.type, value)) {
+        error= std_to_tm (
+          "Template field " + std::string (namespace_field_placeholder (
+                                tok.type)) +
+          " (" + field_type_name (tok.type) + ") does not accept \"" +
+          value + "\".");
+        return false;
+      }
+      out += value;
+    }
   }
   stem= std_to_tm (out);
   return true;

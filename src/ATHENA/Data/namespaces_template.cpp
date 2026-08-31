@@ -300,8 +300,8 @@ field_types_compatible_for_derivation (ns_field_type parent,
   return false;
 }
 
-static bool
-filled_literal_satisfies_field (ns_field_type type, const std::string& s) {
+bool
+field_value_satisfies_type (ns_field_type type, const std::string& s) {
   if (s.empty ()) return false;
   if (type == ns_string_field) return true;
   if (type == ns_word_field) {
@@ -354,7 +354,7 @@ field_fill_lengths_for_literal (ns_field_type type, const std::string& lit,
       end++;
     for (size_t len=end - off; len>0; len--) {
       std::string s= lit.substr (off, len);
-      if (filled_literal_satisfies_field (type, s)) lens.push_back (len);
+      if (field_value_satisfies_type (type, s)) lens.push_back (len);
     }
     return lens;
   }
@@ -364,7 +364,7 @@ field_fill_lengths_for_literal (ns_field_type type, const std::string& lit,
     while (end < lit.size () && roman_value (lit[end]) != 0) end++;
     for (size_t len=end - off; len>0; len--) {
       std::string s= lit.substr (off, len);
-      if (filled_literal_satisfies_field (type, s)) lens.push_back (len);
+      if (field_value_satisfies_type (type, s)) lens.push_back (len);
     }
     return lens;
   }
@@ -422,7 +422,7 @@ literal_allows_field_fragment (ns_field_type type, const std::string& s) {
       if (is_space_byte (c)) return false;
     return true;
   }
-  return filled_literal_satisfies_field (type, s);
+  return field_value_satisfies_type (type, s);
 }
 
 static std::vector<size_t>
@@ -468,7 +468,7 @@ field_expr_can_stop (const parent_field_expr& expr,
   if (expr.parts.size () != 1) return false;
   const field_fragment& f= expr.parts[0];
   if (f.child) return true;
-  return filled_literal_satisfies_field (type, f.literal);
+  return field_value_satisfies_type (type, f.literal);
 }
 
 static void
