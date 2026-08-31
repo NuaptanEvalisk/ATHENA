@@ -9,6 +9,7 @@
 ******************************************************************************/
 
 #include "bridge.hpp"
+#include "ATHENA/Data/artifact_radioactive_links.hpp"
 #include "ATHENA/Data/transclusion_cache.hpp"
 #include "drd_std.hpp"
 
@@ -124,7 +125,8 @@ bridge_transclude_rep::my_typeset (int desired_status) {
   string next_key;
   tree next= resolve_transclusion_tree (st, &next_key);
   if (resolved_key != next_key || !has_resolved) {
-    resolved= next;
+    resolved=
+      athena_artifact_radioactive_suppress_enunciation_titles (next);
     resolved_key= next_key;
     has_resolved= true;
   }

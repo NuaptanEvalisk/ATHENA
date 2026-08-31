@@ -152,6 +152,13 @@ bool athena_artifact_is_defining_occurrence (
   const tree& document, path source_path,
   const AthenaArtifactRecord& record);
 
+// Enunciation titles use the same leading-bold convention as artifact name
+// extraction. Rendering and matching consume this source-of-truth predicate.
+bool athena_artifact_enunciation_title_path (
+  const tree& enunciation, path& title_path);
+bool athena_artifact_is_enunciation_title (
+  const tree& document, path source_path);
+
 // Internal process worker used by the incremental parallel extractor.
 bool athena_artifacts_run_extract_worker (
   const std::filesystem::path& manifest,

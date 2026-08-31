@@ -67,6 +67,9 @@ bool athena_artifact_radioactive_is_defining_occurrence (
   const AthenaArtifactRadioactiveMatch& match, url current_file,
   const tree& document, path source_path);
 
+tree athena_artifact_radioactive_suppress_enunciation_titles (
+  const tree& document);
+
 void athena_artifact_radioactive_invalidate ();
 
 #endif // ATHENA_ARTIFACT_RADIOACTIVE_LINKS_HPP

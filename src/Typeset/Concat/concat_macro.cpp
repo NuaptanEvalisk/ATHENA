@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "concater.hpp"
+#include "ATHENA/Data/artifact_radioactive_links.hpp"
 #include "ATHENA/Data/transclusion_cache.hpp"
 #include "enunciation_surround.hpp"
 #include "Format/format.hpp"
@@ -562,7 +563,8 @@ concater_rep::typeset_transclude (tree t, path ip) {
     return;
   }
   
-  tree content= athena_resolve_transclusion_display (t);
+  tree content= athena_artifact_radioactive_suppress_enunciation_titles (
+    athena_resolve_transclusion_display (t));
   
   if (is_compound (content, DOCUMENT) && N(content) > 0)
     content = content[0];

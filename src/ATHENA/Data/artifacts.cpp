@@ -356,19 +356,29 @@ bool contains_tag (const tree& t, const std::string& wanted) {
   return false;
 }
 
-bool leading_bold_text (const tree& t, std::string& text) {
+bool leading_bold_scope (const tree& t, path base, path& scope,
+                         std::string* text= nullptr) {
   if (!is_compound (t)) return false;
   if (bold_wrapper (t)) {
-    text= plain_text (visible_body (t));
-    return !text.empty ();
+    std::string value= plain_text (visible_body (t));
+    if (value.empty ()) return false;
+    scope= base;
+    if (text != nullptr) *text= value;
+    return true;
   }
   if (formatting_wrapper (tag_name (t)) && N(t) >= 1)
-    return leading_bold_text (t[N(t)-1], text);
+    return leading_bold_scope (
+      t[N(t)-1], base * (N(t)-1), scope, text);
   for (int i=0; i<N(t); i++) {
     if (plain_text (t[i]).empty ()) continue;
-    return leading_bold_text (t[i], text);
+    return leading_bold_scope (t[i], base * i, scope, text);
   }
   return false;
+}
+
+bool leading_bold_text (const tree& t, std::string& text) {
+  path scope;
+  return leading_bold_scope (t, path (), scope, &text);
 }
 
 std::vector<std::string> semantic_names_for (
@@ -1981,6 +1991,37 @@ athena_artifact_is_defining_occurrence (
         to_std (tree_to_texmacs (value)) == record.keyword_tree) return true;
     if (record.origin == "enunciation" &&
         enunciation_matches_record (body, current, value, record)) return true;
+  }
+  return false;
+}
+
+bool
+athena_artifact_enunciation_title_path (
+  const tree& enunciation, path& title_path) {
+  std::string base;
+  if (enunciation_type (tag_name (enunciation), base).empty ()) return false;
+  return leading_bold_scope (enunciation, path (), title_path);
+}
+
+static bool
+path_starts_with (path value, path prefix) {
+  if (is_nil (prefix)) return true;
+  if (is_nil (value) || value->item != prefix->item) return false;
+  return path_starts_with (value->next, prefix->next);
+}
+
+bool
+athena_artifact_is_enunciation_title (
+  const tree& document, path source_path) {
+  tree body= document_body (document);
+  for (path current= source_path; !is_nil (current);
+       current= path_up (current)) {
+    if (!has_subtree (body, current)) continue;
+    path relative_title;
+    if (!athena_artifact_enunciation_title_path (
+          subtree (body, current), relative_title))
+      continue;
+    return path_starts_with (source_path, current * relative_title);
   }
   return false;
 }

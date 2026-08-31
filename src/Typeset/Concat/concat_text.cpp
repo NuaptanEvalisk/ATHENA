@@ -130,6 +130,20 @@ concater_rep::typeset_text_string (tree t, path ip, int pos, int end) {
   std::vector<ActiveMatch> links;
   bool transcluded=
     env->get_string ("athena-radioactive-links-in-transclusion") == "true";
+  tree source_document;
+  path source_path;
+  bool has_source_context= false;
+  if (is_accessible (ip)) {
+    path reversed= reverse (ip);
+    if (!is_nil (reversed)) {
+      path root (reversed->item);
+      if (has_subtree (the_et, root)) {
+        source_document= subtree (the_et, root);
+        source_path= reversed->next;
+        has_source_context= !is_nil (source_path);
+      }
+    }
+  }
   bool allow_links= get_user_preference ("enable radioactive links", "on") ==
                       "on" &&
                     athena_allows_radioactive_link_path (
@@ -138,6 +152,9 @@ concater_rep::typeset_text_string (tree t, path ip, int pos, int end) {
                     env->get_string ("athena-inside-locus") != "true" &&
                     env->get_string (
                       "athena-radioactive-links-suppressed") != "true";
+  if (allow_links && has_source_context &&
+      athena_artifact_is_enunciation_title (source_document, source_path))
+    allow_links= false;
   if (allow_links) {
     auto matches= athena_artifact_radioactive_matches (s);
     links.reserve (matches.size ());
@@ -145,15 +162,10 @@ concater_rep::typeset_text_string (tree t, path ip, int pos, int end) {
       if (match.start < pos || match.end > end || match.start >= match.end)
         continue;
       if (match.uuids.empty ()) continue;
-      path source_path= reverse (ip);
-      if (!is_nil (source_path)) {
-        path root (source_path->item);
-        if (has_subtree (the_et, root) &&
-            athena_artifact_radioactive_is_defining_occurrence (
-              match, env->cur_file_name, subtree (the_et, root),
-              source_path->next))
-          continue;
-      }
+      if (has_source_context &&
+          athena_artifact_radioactive_is_defining_occurrence (
+            match, env->cur_file_name, source_document, source_path))
+        continue;
       std::string target= athena_artifact_radioactive_destination (match);
       string destination (target.data (), (int) target.size ());
       links.push_back ({match.start, match.end, destination});

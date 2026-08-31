@@ -51,6 +51,7 @@ private slots:
   void locatesStoredParagraphRange ();
   void locatesStructuredEnunciationsAfterEdits ();
   void excludesOnlyArtifactDefiningOccurrences ();
+  void excludesEnunciationTitlesFromRadioactiveLinks ();
   void doesNotLinkNonAdjacentProof ();
   void buildsIncrementallyAndPurgesDeletedDocuments ();
   void preservesAccentedArtifactTextAcrossWorkerAndDatabase ();
@@ -688,6 +689,38 @@ TestArtifacts::excludesOnlyArtifactDefiningOccurrences () {
     theorem_document, path (1) * 0 * 0, *theorem));
   QVERIFY (!athena_artifact_is_defining_occurrence (
     theorem_document, path (0) * 0, *theorem));
+}
+
+void
+TestArtifacts::excludesEnunciationTitlesFromRadioactiveLinks () {
+  tree definition_body (DOCUMENT);
+  definition_body << compound ("strong", "Vector space")
+                  << "A vector space is a module over a field.";
+  tree body (DOCUMENT);
+  body << compound ("definition", definition_body);
+  tree document (DOCUMENT);
+  document << compound ("TeXmacs", "2.1.4")
+           << compound ("style", "generic")
+           << compound ("body", body);
+
+  path title_path;
+  QVERIFY (athena_artifact_enunciation_title_path (
+    subtree (body, path (0)), title_path));
+  QCOMPARE (title_path, path (0) * 0);
+  QVERIFY (athena_artifact_is_enunciation_title (
+    document, path (0) * 0 * 0 * 0));
+  QVERIFY (!athena_artifact_is_enunciation_title (
+    document, path (0) * 0 * 1));
+
+  tree marked=
+    athena_artifact_radioactive_suppress_enunciation_titles (body);
+  tree title= subtree (marked, path (0) * 0 * 0);
+  QVERIFY (is_func (title, WITH, 3));
+  QCOMPARE (title[0], tree ("athena-radioactive-links-suppressed"));
+  QCOMPARE (title[1], tree ("true"));
+  QCOMPARE (title[2], compound ("strong", "Vector space"));
+  QCOMPARE (subtree (marked, path (0) * 0 * 1),
+            tree ("A vector space is a module over a field."));
 }
 
 void
