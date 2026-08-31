@@ -50,6 +50,8 @@ struct tt_font_glyphs_rep: font_glyphs_rep {
 };
 
 tt_face load_tt_face (string name);
+int tt_math_vertical_variant (string family, unsigned int codepoint,
+                              unsigned int variant);
 font_metric tt_font_metric (string family, int size, int hdpi, int vdpi);
 //font_glyphs tt_font_glyphs (string family, int size, int hdpi, int vdpi);
 

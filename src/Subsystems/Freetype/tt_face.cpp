@@ -15,6 +15,10 @@
 #include "tm_timer.hpp"
 #include "sys_utils.hpp"
 
+#include <harfbuzz/hb-ft.h>
+#include <harfbuzz/hb-ot.h>
+#include <vector>
+
 RESOURCE_CODE(tt_face);
 
 /******************************************************************************
@@ -87,6 +91,32 @@ load_tt_face (string name) {
   tt_face face= make (tt_face, name, tm_new<tt_face_rep> (name));
   bench_cumul ("load tt face");
   return face;
+}
+
+int
+tt_math_vertical_variant (string family, unsigned int codepoint,
+                          unsigned int variant) {
+  tt_face face= load_tt_face (family);
+  if (face->bad_face) return 0;
+  FT_UInt glyph= ft_get_char_index (face->ft_face, codepoint);
+  if (glyph == 0) return 0;
+
+  hb_font_t* hb_font= hb_ft_font_create_referenced (face->ft_face);
+  unsigned int count= 0;
+  unsigned int total= hb_ot_math_get_glyph_variants (
+    hb_font, glyph, HB_DIRECTION_TTB, 0, &count, nullptr);
+  if (variant >= total) {
+    hb_font_destroy (hb_font);
+    return 0;
+  }
+
+  std::vector<hb_ot_math_glyph_variant_t> variants (total);
+  count= total;
+  hb_ot_math_get_glyph_variants (
+    hb_font, glyph, HB_DIRECTION_TTB, 0, &count, variants.data ());
+  hb_font_destroy (hb_font);
+  if (variant >= count || variants[variant].glyph == glyph) return 0;
+  return (int) variants[variant].glyph;
 }
 
 /******************************************************************************

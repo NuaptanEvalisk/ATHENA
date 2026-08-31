@@ -148,6 +148,12 @@ large_size (string s) {
   return 0;
 }
 
+static bool
+has_nary_unicode_glyph (string name) {
+  return name == "odot" || name == "oplus" || name == "otimes" ||
+         name == "pluscup" || name == "sqcap" || name == "sqcup";
+}
+
 int
 rubber_stix_font_rep::search_font_sub (string s, string& rew, string& ltype) {
   ltype= "";
@@ -157,6 +163,10 @@ rubber_stix_font_rep::search_font_sub (string s, string& rew, string& ltype) {
     if (starts (r, "up") && ends (r, "int")) {
       rew= "<big-" * r (2, N(r)) * ">";
       return 4;
+    }
+    if (has_nary_unicode_glyph (r) && base->supports (s)) {
+      rew= s;
+      return 0;
     }
     if (ends (r, "int") || r == "sum" || r == "prod" || r == "pluscup") {
       rew= s;
@@ -176,6 +186,10 @@ rubber_stix_font_rep::search_font_sub (string s, string& rew, string& ltype) {
     if (ends (r, "int")) {
       rew= "<big-" * r * ">";
       return 3;
+    }
+    if (has_nary_unicode_glyph (r) && base->supports (s)) {
+      rew= s;
+      return 0;
     }
     if (r == "sum" || r == "prod" || r == "amalg" ||
         r == "cap" || r == "cup" || r == "vee" || r == "wedge") {

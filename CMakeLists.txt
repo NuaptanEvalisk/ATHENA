@@ -213,6 +213,7 @@ include (FindPkgConfig)
 include (CheckCSourceCompiles)
 
 pkg_check_modules (SPDLOG REQUIRED IMPORTED_TARGET spdlog)
+pkg_check_modules (HARFBUZZ REQUIRED IMPORTED_TARGET harfbuzz)
 pkg_check_modules (LLAMA QUIET IMPORTED_TARGET llama)
 pkg_check_modules (KPATHSEA QUIET IMPORTED_TARGET kpathsea)
 if (UNIX AND NOT APPLE)
@@ -755,6 +756,7 @@ if (LINKED_SQLITE3)
 endif (LINKED_SQLITE3)
 
 set (ATHENA_Libraries ${ATHENA_Libraries} ${FREETYPE_LIBRARIES})
+set (ATHENA_Libraries ${ATHENA_Libraries} PkgConfig::HARFBUZZ)
 
 if (UNIX AND NOT APPLE)
   set (ATHENA_Libraries ${ATHENA_Libraries} PkgConfig::FONTCONFIG)

@@ -231,18 +231,23 @@ is_special (string s) {
   if (starts (s, "<big-."))
     special_table (s)= "";
   if (starts (s, "<big-") && (ends (s, "-1>") || ends (s, "-2>"))) {
+    bool found= false;
     string ss= s (0, N(s)-3) * ">";
     //cout << "Search " << ss << "\n";
-    if (unicode_provides (ss))
+    if (unicode_provides (ss)) {
       special_table (s)= ss;
+      found= true;
+    }
     ss= "<big" * s (5, N(s)-3) * ">";
     //cout << "Search " << ss << "\n";
-    if (unicode_provides (ss))
+    if (!found && unicode_provides (ss)) {
       special_table (s)= ss;
+      found= true;
+    }
     ss= "<" * s (5, N(s)-3) * ">";
     if (ends (ss, "lim>")) ss= ss (0, N(ss)-4) * ">";
     //cout << "Search " << ss << "\n";
-    if (unicode_provides (ss))
+    if (!found && unicode_provides (ss))
       special_table (s)= ss;
   }
   return special_table->contains (s);
@@ -1319,7 +1324,8 @@ smart_font_rep::resolve (string c) {
       //cout << "Found " << c << " in italic prime\n";
       return sm->add_char (tuple ("italic-math"), c);      
     }
-    if (is_special (c) && (N(c) != 1 || !ends (variant, "-tt")) &&
+    if (is_special (c) && !fn[SUBFONT_MAIN]->supports (c) &&
+        (N(c) != 1 || !ends (variant, "-tt")) &&
         (!starts (c, "<big") ||
          !starts (mfam, "TeX Gyre") || !ends (mfam, " Math")) &&
         (!starts (c, "<big") ||

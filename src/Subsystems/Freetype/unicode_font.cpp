@@ -32,6 +32,9 @@
 
 font unicode_font (string family, int size, int hdpi, int vdpi);
 
+static void add_nary_math_variants (hashmap<string,int>& native,
+                                    string family);
+
 hashmap<string,double> lsup_guessed_table ();
 hashmap<string,double> rsub_guessed_table ();
 
@@ -271,6 +274,7 @@ unicode_font_rep::unicode_font_rep (string name,
   // direct translations for certain characters without Unicode names
   if (starts (family, "texgyre") && ends (family, "-math"))
     tex_gyre_operators ();
+  add_nary_math_variants (native, family);
 
   if (starts (family, "STIX-")) {
     if (!ends (family, "italic")) {
@@ -468,12 +472,6 @@ tex_gyre_native () {
   native ("<big-vee-2>")= 3835;
   native ("<big-cap-2>")= 3827;
   native ("<big-cup-2>")= 3829;
-  native ("<big-odot-2>")= 3864;
-  native ("<big-oplus-2>")= 3868;
-  native ("<big-otimes-2>")= 3873;
-  native ("<big-pluscup-2>")= 3861;
-  native ("<big-sqcap-2>")= 3852;
-  native ("<big-sqcup-2>")= 3854;
   native ("<big-intlim-2>")= 4149;
   native ("<big-iintlim-2>")= 4150;
   native ("<big-iiintlim-2>")= 4151;
@@ -550,7 +548,24 @@ tex_gyre_native () {
 
 void
 unicode_font_rep::tex_gyre_operators () {
-  native= tex_gyre_native ();
+  native= copy (tex_gyre_native ());
+}
+
+static void
+add_math_variant (hashmap<string,int>& native, string family, string name,
+                  unsigned int codepoint) {
+  int glyph= tt_math_vertical_variant (family, codepoint, 1);
+  if (glyph != 0) native ("<big-" * name * "-2>")= glyph;
+}
+
+static void
+add_nary_math_variants (hashmap<string,int>& native, string family) {
+  add_math_variant (native, family, "odot", 0x2a00);
+  add_math_variant (native, family, "oplus", 0x2a01);
+  add_math_variant (native, family, "otimes", 0x2a02);
+  add_math_variant (native, family, "pluscup", 0x2a04);
+  add_math_variant (native, family, "sqcap", 0x2a05);
+  add_math_variant (native, family, "sqcup", 0x2a06);
 }
 
 /******************************************************************************
