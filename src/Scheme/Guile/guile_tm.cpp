@@ -22,11 +22,14 @@
 #include "../Scheme/glue.hpp"
 #include "convert.hpp" // tree_to_texmacs (should not belong here)
 
+#include <atomic>
+#include <mutex>
+#include <thread>
+#include <vector>
+
 /******************************************************************************
  * Installation of guile and initialization of guile
  ******************************************************************************/
-bool scm_busy= false;
-
 static void (*old_call_back) (int, char**)= NULL;
 static scheme_compile_callback old_compile_callback= nullptr;
 
@@ -48,6 +51,164 @@ new_call_back (void *closure, int argc, char** argv) {
 
 int guile_argc;
 char **guile_argv;
+
+/******************************************************************************
+ * Owner-affine Scheme roots and deferred C++ destruction
+ ******************************************************************************/
+
+struct scheme_execution_shard;
+
+struct tmscm_root_handle {
+  tmscm value;
+  scheme_execution_shard* owner;
+  tmscm_root_handle* next;
+  std::atomic<unsigned char> state;
+
+  explicit tmscm_root_handle (scheme_execution_shard* owner2):
+    value (SCM_UNDEFINED), owner (owner2), next (nullptr), state (0) {}
+};
+
+struct deferred_blackbox {
+  blackbox value;
+  scheme_execution_shard* owner;
+  deferred_blackbox* next;
+
+  deferred_blackbox (blackbox value2, scheme_execution_shard* owner2):
+    value (value2), owner (owner2), next (nullptr) {}
+};
+
+struct scheme_execution_shard {
+  std::thread::id owner_thread;
+  std::atomic<tmscm_root_handle*> released_roots;
+  std::atomic<deferred_blackbox*> released_blackboxes;
+  std::vector<tmscm_root_handle*> roots;
+  std::vector<tmscm_root_handle*> free_roots;
+
+  scheme_execution_shard ():
+    owner_thread (std::this_thread::get_id ()), released_roots (nullptr),
+    released_blackboxes (nullptr) {}
+};
+
+struct scheme_shard_registry {
+  std::mutex lock;
+  std::vector<scheme_execution_shard*> shards;
+};
+
+static scheme_shard_registry&
+scheme_shards () {
+  static scheme_shard_registry* registry= new scheme_shard_registry;
+  return *registry;
+}
+
+static thread_local scheme_execution_shard* current_scheme_shard= nullptr;
+
+static scheme_execution_shard*
+scheme_current_shard () {
+  if (current_scheme_shard != nullptr) return current_scheme_shard;
+  scheme_execution_shard* shard= new scheme_execution_shard;
+  scheme_shard_registry& registry= scheme_shards ();
+  {
+    std::lock_guard<std::mutex> guard (registry.lock);
+    registry.shards.push_back (shard);
+  }
+  current_scheme_shard= shard;
+  return shard;
+}
+
+template<typename Node>
+static void
+scheme_publish_release (std::atomic<Node*>& head, Node* node) noexcept {
+  Node* previous= head.load (std::memory_order_relaxed);
+  do node->next= previous;
+  while (!head.compare_exchange_weak (
+    previous, node, std::memory_order_release, std::memory_order_relaxed));
+}
+
+static void
+scheme_drain_shard (scheme_execution_shard* shard) {
+  ASSERT (shard->owner_thread == std::this_thread::get_id (),
+          "Scheme execution shard must be drained by its owner");
+  deferred_blackbox* boxes=
+    shard->released_blackboxes.exchange (nullptr, std::memory_order_acquire);
+  while (boxes != nullptr) {
+    deferred_blackbox* next= boxes->next;
+    tm_delete (boxes);
+    boxes= next;
+  }
+
+  tmscm_root_handle* roots=
+    shard->released_roots.exchange (nullptr, std::memory_order_acquire);
+  while (roots != nullptr) {
+    tmscm_root_handle* next= roots->next;
+    scm_gc_unprotect_object (roots->value);
+    roots->value= SCM_UNDEFINED;
+    roots->next= nullptr;
+    roots->state.store (0, std::memory_order_release);
+    shard->free_roots.push_back (roots);
+    roots= next;
+  }
+}
+
+void
+scheme_runtime_safe_point () {
+  scheme_drain_shard (scheme_current_shard ());
+}
+
+void
+scheme_runtime_drain_all () {
+  scheme_shard_registry& registry= scheme_shards ();
+  std::vector<scheme_execution_shard*> snapshot;
+  {
+    std::lock_guard<std::mutex> guard (registry.lock);
+    snapshot= registry.shards;
+  }
+  const std::thread::id current= std::this_thread::get_id ();
+  for (scheme_execution_shard* shard: snapshot) {
+    if (shard->owner_thread == current) scheme_drain_shard (shard);
+    else {
+      ASSERT (shard->released_roots.load (std::memory_order_acquire) == nullptr,
+              "foreign Scheme shard retained deferred roots at shutdown");
+      ASSERT (shard->released_blackboxes.load (std::memory_order_acquire) == nullptr,
+              "foreign Scheme shard retained deferred C++ objects at shutdown");
+    }
+  }
+}
+
+tmscm_root_handle*
+tmscm_root_acquire (tmscm obj) {
+  scheme_execution_shard* shard= scheme_current_shard ();
+  scheme_drain_shard (shard);
+  tmscm_root_handle* handle;
+  if (!shard->free_roots.empty ()) {
+    handle= shard->free_roots.back ();
+    shard->free_roots.pop_back ();
+  }
+  else {
+    handle= new tmscm_root_handle (shard);
+    shard->roots.push_back (handle);
+  }
+  handle->value= scm_gc_protect_object (obj);
+  handle->state.store (1, std::memory_order_release);
+  return handle;
+}
+
+tmscm
+tmscm_root_value (const tmscm_root_handle* handle) {
+  ASSERT (handle != nullptr &&
+          handle->state.load (std::memory_order_acquire) == 1,
+          "live Scheme root expected");
+  return handle->value;
+}
+
+void
+tmscm_root_release (tmscm_root_handle* handle) noexcept {
+  if (handle == nullptr) return;
+  unsigned char expected= 1;
+  if (!handle->state.compare_exchange_strong (
+        expected, 2, std::memory_order_acq_rel, std::memory_order_relaxed))
+    return;
+  scheme_publish_release (handle->owner->released_roots, handle);
+}
 
 void
 start_scheme (int argc, char** argv, void (*call_back) (int, char**),
@@ -112,8 +273,10 @@ eval_scheme_file (string file) {
     //static int cumul= 0;
     //timer tm;
   if (DEBUG_STD) debug_std << "Evaluating " << file << "...\n";
+  scheme_runtime_safe_point ();
   c_string _file (file);
   SCM result= TeXmacs_eval_file (_file);
+  scheme_runtime_safe_point ();
     //int extra= tm->watch (); cumul += extra;
     //cout << extra << "\t" << cumul << "\t" << file << "\n";
   return result;
@@ -146,15 +309,11 @@ TeXmacs_eval_string (char *s) {
 SCM
 eval_scheme (string s) {
     // cout << "Eval] " << s << "\n";
-#ifdef DEBUG_ON
-if ( ! scm_busy) {
-#endif
+  scheme_runtime_safe_point ();
   c_string _s (s);
   SCM result= TeXmacs_eval_string (_s);
+  scheme_runtime_safe_point ();
   return result;
-#ifdef DEBUG_ON
-  } else return SCM_BOOL_F;
-#endif
 }
 
 /******************************************************************************
@@ -193,13 +352,16 @@ TeXmacs_lazy_call_scm (arg_list* args) {
 
 static SCM
 TeXmacs_call_scm (arg_list *args) {
+  scheme_runtime_safe_point ();
 #ifndef DEBUG_ON
-  return scm_internal_catch (SCM_BOOL_T,
-                             (scm_t_catch_body) TeXmacs_lazy_call_scm, (void*) args,
-                             (scm_t_catch_handler) TeXmacs_catcher, (void*) args);
+  SCM result= scm_internal_catch (
+    SCM_BOOL_T, (scm_t_catch_body) TeXmacs_lazy_call_scm, (void*) args,
+    (scm_t_catch_handler) TeXmacs_catcher, (void*) args);
 #else
-  return TeXmacs_call(args);
+  SCM result= TeXmacs_call(args);
 #endif
+  scheme_runtime_safe_point ();
+  return result;
 }
 
 SCM
@@ -317,17 +479,11 @@ athena_scm_string_to_bytes (SCM value, size_t* length) {
 tmscm
 string_to_tmscm (string s) {
   c_string _s (s);
-#ifdef DEBUG_ON
-  if (! scm_busy) {
-#endif
   // TeXmacs strings are byte strings (typically Cork or UTF-8), matching
   // Guile 1.8 semantics.  Locale decoding corrupts both under embedded
   // Guile 3 when the process still has the C locale.
   SCM r= scm_from_latin1_stringn (_s, N(s));
   return r;
-#ifdef DEBUG_ON
-  } else return SCM_BOOL_F;
-#endif
 }
 
 string
@@ -381,14 +537,20 @@ tmscm_is_blackbox (tmscm t) {
 
 tmscm
 blackbox_to_tmscm (blackbox b) {
+  scheme_execution_shard* shard= scheme_current_shard ();
+  scheme_drain_shard (shard);
   SCM blackbox_smob;
-  SET_SMOB (blackbox_smob, (void*) (tm_new<blackbox> (b)), blackbox_tag);
+  deferred_blackbox* payload= tm_new<deferred_blackbox> (b, shard);
+  SET_SMOB (blackbox_smob, (void*) payload, blackbox_tag);
   return blackbox_smob;
 }
 
 blackbox
 tmscm_to_blackbox (tmscm blackbox_smob) {
-  return *((blackbox*) GET_SMOB_DATA (blackbox_smob));
+  deferred_blackbox* payload=
+    (deferred_blackbox*) GET_SMOB_DATA (blackbox_smob);
+  ASSERT (payload != nullptr, "live blackbox expected");
+  return payload->value;
 }
 
 static SCM
@@ -399,14 +561,11 @@ mark_blackbox (SCM blackbox_smob) {
 
 static size_t
 free_blackbox (SCM blackbox_smob) {
-  blackbox *ptr = (blackbox *) GET_SMOB_DATA (blackbox_smob);
-#ifdef DEBUG_ON
-  scm_busy= true;
-#endif
-  tm_delete (ptr);
-#ifdef DEBUG_ON
-  scm_busy= false;
-#endif
+  deferred_blackbox* payload=
+    (deferred_blackbox*) GET_SMOB_DATA (blackbox_smob);
+  if (payload == nullptr) return 0;
+  SCM_SET_SMOB_DATA (blackbox_smob, 0);
+  scheme_publish_release (payload->owner->released_blackboxes, payload);
   return 0;
 }
 
@@ -483,8 +642,6 @@ initialize_smobs () {
 
 #endif
 
-tmscm object_stack;
-
 void
 initialize_scheme () {
   const char* init_prg =
@@ -513,13 +670,11 @@ initialize_scheme () {
   "    (build-date . ,(texmacs-build-date))\n"
   "    (host-os . ,(texmacs-host-os))\n"
   "    (host-vendor . ,(texmacs-host-vendor))\n"
-  "    (host-cpu . ,(texmacs-host-cpu))))\n"
-  "(define object-stack '(()))";
+  "    (host-cpu . ,(texmacs-host-cpu))))";
   
   scm_c_eval_string (init_prg);
   initialize_smobs ();
   initialize_glue ();
-  object_stack= scm_lookup_string ("object-stack");
   
     // uncomment to have a guile repl available at startup	
     //	gh_repl(guile_argc, guile_argv);
@@ -530,5 +685,6 @@ initialize_scheme () {
 
 void
 finalize_scheme_bootstrap () {
+  scheme_runtime_drain_all ();
   scm_athena_flush_deferred_auto_compilation ();
 }

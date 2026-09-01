@@ -13,7 +13,6 @@
 #include "glue.hpp"
 
 #include "config.h"
-#include "list.hpp"
 #include "array.hpp"
 #include "hashmap.hpp"
 #include "promise.hpp"
@@ -29,26 +28,13 @@
 * The object representation class
 ******************************************************************************/
 
-static list<tmscm > destroy_list;
-extern tmscm object_stack;
-
-tmscm_object_rep::tmscm_object_rep (tmscm obj) {
-  while (!is_nil (destroy_list)) {
-    tmscm handle= destroy_list->item;
-    
-    tmscm_set_car (handle, tmscm_null ());
-    while (tmscm_is_pair (tmscm_cdr (handle)) && tmscm_is_null (tmscm_cadr (handle)))
-      tmscm_set_cdr (handle, tmscm_cddr( (handle)) );
-    destroy_list= destroy_list->next;
-  }
-  handle = tmscm_cons ( tmscm_cons (obj, tmscm_null ()), tmscm_car (object_stack) );
-  tmscm_set_car (object_stack, handle);
-}
+tmscm_object_rep::tmscm_object_rep (tmscm obj):
+  handle (tmscm_root_acquire (obj)) {}
 
 tmscm_object_rep::~tmscm_object_rep () {
-    // Be careful: can't call Scheme code from this destructor,
-    // because the destructor can be called during garbage collection.
-  destroy_list= list<tmscm > ( handle, destroy_list);
+  // This may run from Guile's finalizer thread.  Releasing only publishes the
+  // slot; the owner unroots it at a normal Guile safe point.
+  tmscm_root_release (handle);
 }
 
 

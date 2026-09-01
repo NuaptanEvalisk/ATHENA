@@ -81,6 +81,14 @@ typedef SCM (*FN)();
 
 typedef SCM tmscm;
 
+struct tmscm_root_handle;
+
+tmscm_root_handle* tmscm_root_acquire (tmscm obj);
+tmscm tmscm_root_value (const tmscm_root_handle* handle);
+void tmscm_root_release (tmscm_root_handle* handle) noexcept;
+void scheme_runtime_safe_point ();
+void scheme_runtime_drain_all ();
+
 bool tmscm_is_blackbox (tmscm obj);
 tmscm blackbox_to_tmscm (blackbox b);
 blackbox tmscm_to_blackbox (tmscm obj);

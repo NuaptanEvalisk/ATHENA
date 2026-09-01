@@ -19,7 +19,7 @@
 
 
 class tmscm_object_rep: public object_rep {
-	tmscm  handle;
+	tmscm_root_handle* handle;
 
 	tmscm_object_rep (tmscm  obj);
 	~tmscm_object_rep ();
@@ -32,8 +32,7 @@ class tmscm_object_rep: public object_rep {
 
 inline tmscm  object_to_tmscm  (object o) {
   tmscm_object_rep *oo = static_cast<tmscm_object_rep*>(o.operator->());
-  return tmscm_caar (oo->handle);
-  //return tmscm_caar ((tmscm )o->lookup ()); 
+  return tmscm_root_value (oo->handle);
 }
 inline object tmscm_to_object (tmscm  obj) { return tm_new<tmscm_object_rep> (obj); }
 
