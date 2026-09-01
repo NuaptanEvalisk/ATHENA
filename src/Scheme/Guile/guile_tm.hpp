@@ -91,6 +91,7 @@ tmscm tmscm_root_value (const tmscm_root_handle* handle);
 void tmscm_root_release (tmscm_root_handle* handle) noexcept;
 void scheme_runtime_safe_point ();
 void scheme_runtime_drain_all ();
+bool scheme_runtime_is_initialized () noexcept;
 tmscm scheme_with_execution_context (
   const SchemeExecutionContext& context,
   scheme_execution_callback callback, void* data);

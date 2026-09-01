@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "tm_data.hpp"
+#include "buffer_actor.hpp"
 #include "scheme_execution_context.hpp"
 #include "convert.hpp"
 #include "file.hpp"
@@ -22,6 +23,15 @@
 array<tm_buffer> bufs;
 
 string propose_title (string old_title, url u, tree doc);
+
+tm_buffer_rep::tm_buffer_rep (url name):
+  buf (name), data (), vws (0), document (make_document_tree ()), rp (0),
+  notify (false), actor (tm_new<buffer_actor> (this)) {}
+
+tm_buffer_rep::~tm_buffer_rep () {
+  tm_delete (actor);
+  clean_observers (document);
+}
 
 /******************************************************************************
 * Check for changes in the buffer
@@ -76,6 +86,7 @@ remove_buffer (tm_buffer buf) {
   int nr, n= N(bufs);
   for (nr=0; nr<n; nr++)
     if (bufs[nr] == buf) {
+      buf->actor->shutdown ();
       while (N(buf->vws) != 0)
         delete_view (abstract_view (buf->vws[0]));
       if (n == 1)
@@ -167,6 +178,7 @@ rename_buffer (url name, url new_name) {
   notify_rename_before (name);
   buf->buf->name= new_name;
   buf->buf->master= new_name;
+  buf->actor->update_buffer_id (as_string (new_name));
   array<url> vs= buffer_to_views (new_name);
   for (int i=0; i<N(vs); i++)
     view_to_editor (vs[i]) -> notify_change (THE_ENVIRONMENT);

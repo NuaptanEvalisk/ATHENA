@@ -13,10 +13,12 @@
 #define TM_BUFFER_H
 #include "new_data.hpp"
 #include "Data/new_buffer.hpp"
+#include "link.hpp"
 #include "new_document.hpp"
 
 class tm_buffer_rep;
 class tm_view_rep;
+class buffer_actor;
 typedef tm_buffer_rep* tm_buffer;
 typedef tm_view_rep*   tm_view;
 
@@ -32,13 +34,10 @@ public:
   path rp;                // path to the document inside document
   link_repository lns;    // global links
   bool notify;            // notify modifications to scheme
+  buffer_actor* actor;    // exclusive execution owner
 
-  inline tm_buffer_rep (url name):
-    buf (name), data (),
-    vws (0), document (make_document_tree ()), rp (0), notify (false) {}
-
-  inline ~tm_buffer_rep () {
-    clean_observers (document); }
+  tm_buffer_rep (url name);
+  ~tm_buffer_rep ();
 
   void attach_notifier ();
   bool needs_to_be_saved ();

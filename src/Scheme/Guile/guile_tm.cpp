@@ -34,6 +34,7 @@
 static void (*old_call_back) (int, char**)= NULL;
 static scheme_compile_callback old_compile_callback= nullptr;
 static SCM execution_context_fluid= SCM_UNDEFINED;
+static std::atomic<bool> scheme_runtime_initialized (false);
 static thread_local const SchemeExecutionContext* fluid_execution_context=
   nullptr;
 
@@ -76,6 +77,11 @@ scheme_with_execution_context (const SchemeExecutionContext& context,
     const_cast<SchemeExecutionContext*> (&context), nullptr);
   return scm_c_with_fluid (execution_context_fluid, value,
                            invoke_scheme_execution_request, &request);
+}
+
+bool
+scheme_runtime_is_initialized () noexcept {
+  return scheme_runtime_initialized.load (std::memory_order_acquire);
 }
 
 static SCM
@@ -753,6 +759,7 @@ initialize_scheme () {
   scm_c_eval_string (init_prg);
   initialize_smobs ();
   initialize_glue ();
+  scheme_runtime_initialized.store (true, std::memory_order_release);
   
     // uncomment to have a guile repl available at startup	
     //	gh_repl(guile_argc, guile_argv);
