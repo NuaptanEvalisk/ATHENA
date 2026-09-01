@@ -123,6 +123,15 @@
 (tm-define (buffers-modified?)
   (list-or (map buffer-modified? (buffer-list))))
 
+(define (discardable-blank-buffer? buf)
+  (and (buffer-exists? buf)
+       (url-scratch? buf)
+       (tree-empty? (buffer-get-body buf))))
+
+(define (buffer-needs-save-confirmation? buf)
+  (and (buffer-modified? buf)
+       (not (discardable-blank-buffer? buf))))
+
 (define (quit-save-candidate-buffer? buf)
   (and (not (buffer-aux? buf))
        (not (string-starts? (url->string buf) "tmfs://"))))
@@ -130,7 +139,7 @@
 (define (modified-quit-save-candidate-buffers)
   (filter (lambda (buf)
             (and (quit-save-candidate-buffer? buf)
-                 (buffer-modified? buf)))
+                 (buffer-needs-save-confirmation? buf)))
           (buffer-list)))
 
 (define (unsaved-buffer-display-name buf)
@@ -203,7 +212,7 @@
 (tm-define (safely-kill-buffer)
   (cond ((buffer-embedded? (current-buffer))
          (alt-windows-delete (alt-window-search (current-buffer))))
-        ((buffer-modified? (current-buffer))
+        ((buffer-needs-save-confirmation? (current-buffer))
          (user-confirm "The document has not been saved. Really close it?" #f  
            (lambda (answ)
              (when answ (buffer-close (current-buffer))))))
@@ -235,13 +244,13 @@
         ((and (<= (windows-number) 1) (not (ads-open-panes?)))
          (safely-quit-ATHENA))        ((nnull? opt-name)
          (with buf (window->buffer (car opt-name))
-           (if (and buf (buffer-modified? buf))
+           (if (and buf (buffer-needs-save-confirmation? buf))
                (user-confirm
                    "The document has not been saved. Really close it?" #f
                  (lambda (answ)
                    (when answ (do-kill-window* (car opt-name)))))
                (do-kill-window* (car opt-name)))))
-        ((buffer-modified? (current-buffer))
+        ((buffer-needs-save-confirmation? (current-buffer))
          (user-confirm "The document has not been saved. Really close it?" #f
            (lambda (answ)
              (when answ (do-kill-window)))))
