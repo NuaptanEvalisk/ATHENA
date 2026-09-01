@@ -10,14 +10,21 @@
 #include <QtTest/QtTest>
 
 #include "QTMRenderService.hpp"
+#include "qt_renderer.hpp"
 
 #include <QPainter>
+#include <condition_variable>
+#include <mutex>
+#include <thread>
+
+bool headless_mode= true;
 
 class TestQTMRenderService: public QObject {
   Q_OBJECT
 
 private slots:
   void rendersDisplayListOffTheProducerThread ();
+  void givesEachProducerThreadItsOwnQtRenderer ();
 };
 
 void
@@ -44,6 +51,37 @@ TestQTMRenderService::rendersDisplayListOffTheProducerThread () {
   QCOMPARE (frame.image.pixelColor (0, 0), QColor (255, 255, 255));
 
   connection->retire ();
+}
+
+void
+TestQTMRenderService::givesEachProducerThreadItsOwnQtRenderer () {
+  qt_renderer_rep* renderers[2]= {nullptr, nullptr};
+  std::mutex lock;
+  std::condition_variable changed;
+  int ready= 0;
+  bool release= false;
+  auto inspect= [&] (int index, double pixelRatio) {
+    renderers[index]= the_qt_renderer (pixelRatio);
+    std::unique_lock<std::mutex> guard (lock);
+    ++ready;
+    changed.notify_all ();
+    changed.wait (guard, [&] { return release; });
+  };
+
+  std::thread first (inspect, 0, 1.0);
+  std::thread second (inspect, 1, 1.5);
+  bool distinct= false;
+  {
+    std::unique_lock<std::mutex> guard (lock);
+    changed.wait (guard, [&] { return ready == 2; });
+    distinct= renderers[0] != nullptr && renderers[1] != nullptr &&
+              renderers[0] != renderers[1];
+    release= true;
+  }
+  changed.notify_all ();
+  first.join ();
+  second.join ();
+  QVERIFY (distinct);
 }
 
 QTEST_MAIN (TestQTMRenderService)

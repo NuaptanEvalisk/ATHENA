@@ -56,36 +56,11 @@ CONCRETE_NULL(qt_image);
 CONCRETE_NULL_CODE(qt_image);
 
 /******************************************************************************
- * Qt pixmaps
- ******************************************************************************/
-
-struct qt_pixmap_rep: concrete_struct {
-  QTMPixmapOrImage img;
-  SI xo,yo;
-  int w,h;
-  qt_pixmap_rep (QTMPixmapOrImage img2, SI xo2, SI yo2, int w2, int h2):
-    img (img2), xo (xo2), yo (yo2), w (w2), h (h2) {};
-  ~qt_pixmap_rep()  {};
-  friend class qt_pixmap;
-};
-
-class qt_pixmap {
-CONCRETE_NULL(qt_pixmap);
-  qt_pixmap (QTMPixmapOrImage img2, SI xo2, SI yo2, int w2, int h2):
-    rep (tm_new<qt_pixmap_rep> (img2, xo2, yo2, w2, h2)) {};
-  // qt_pixmap ();
-};
-
-CONCRETE_NULL_CODE(qt_pixmap);
-
-/******************************************************************************
 * Global support variables for all qt_renderers
 ******************************************************************************/
 
-// bitmaps of all characters
-static hashmap<basic_character,qt_image> character_image;  
-// image cache
-static hashmap<string,qt_pixmap> images;
+// A renderer and its glyph bitmaps are used only by their owning render thread.
+static thread_local hashmap<basic_character,qt_image> character_image;
 
 /*
 ** hash contents must be removed because 
@@ -93,8 +68,7 @@ static hashmap<string,qt_pixmap> images;
 ** Qt exit function
 */
 void del_obj_qt_renderer(void)  {
-  character_image= hashmap<basic_character,qt_image> ();  
-  images= hashmap<string,qt_pixmap>() ;
+  character_image= hashmap<basic_character,qt_image> ();
 }
 
 /******************************************************************************
@@ -222,9 +196,9 @@ get_pattern_image (brush br, SI pixel) {
 
 void
 qt_renderer_rep::clear_device (SI x1, SI y1, SI x2, SI y2) {
-  static bool first_time= true;
-  static QBrush br (Qt::lightGray, Qt::CrossPattern);
-  static int w= 8, h= 8;
+  static thread_local bool first_time= true;
+  static thread_local QBrush br (Qt::lightGray, Qt::CrossPattern);
+  static thread_local int w= 8, h= 8;
   if (first_time) {
     url neutral_pattern= resolve_pattern ("neutral-pattern.png");
     if (!is_none (neutral_pattern)) {
@@ -676,19 +650,15 @@ qt_renderer_rep::draw (const QFont& qfn, const QString& qs,
 
 qt_renderer_rep*
 the_qt_renderer (double pixel_ratio) {
-  static QPainter *the_painter = NULL;
-  static qt_renderer_rep* the_renderer= NULL;
-  if (!the_renderer) {
-    the_painter = new QPainter();
-    the_renderer= tm_new<qt_renderer_rep> (the_painter, pixel_ratio);
-  }
-  double old_pixel_ratio= the_renderer->pixel_ratio;
+  static thread_local QPainter the_painter;
+  static thread_local qt_renderer_rep the_renderer (&the_painter, 1.0);
+  double old_pixel_ratio= the_renderer.pixel_ratio;
   if (old_pixel_ratio != pixel_ratio) {
-    the_renderer->pixel_ratio= pixel_ratio;
-    the_renderer->set_zoom_factor (the_renderer->zoomf / old_pixel_ratio,
+    the_renderer.pixel_ratio= pixel_ratio;
+    the_renderer.set_zoom_factor (the_renderer.zoomf / old_pixel_ratio,
 				   false);
   }
-  return the_renderer;
+  return &the_renderer;
 }
 
 /******************************************************************************

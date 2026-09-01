@@ -20,6 +20,7 @@
 #include "effect.hpp"
 #include "iterator.hpp"
 #include "language.hpp"
+#include "convert.hpp"
 
 #include <QObject>
 #include <QWidget>
@@ -27,6 +28,7 @@
 #include <QPaintDevice>
 #include <QPixmap>
 #include <QFileInfo>
+#include <mutex>
 #ifdef USE_RESVGQT
 #include <ResvgQt.h>
 #endif
@@ -233,6 +235,8 @@ may_transform (url file_name, const QImage& pm) {
 ******************************************************************************/
 
 #ifdef USE_RESVGQT
+static std::mutex resvg_render_lock;
+
 static ResvgOptions&
 resvg_options_for (const QString& file_path) {
   static bool fonts_loaded= false;
@@ -250,6 +254,7 @@ resvg_options_for (const QString& file_path) {
 
 static QImage*
 render_svg_with_resvg (url u, int w, int h) {
+  std::lock_guard<std::mutex> guard (resvg_render_lock);
   QString file_path= utf8_to_qstring (concretize (u));
   ResvgRenderer renderer;
   if (!renderer.load (file_path, resvg_options_for (file_path)) ||
@@ -320,28 +325,48 @@ get_image_for_real (url u, int w, int h, tree eff, SI pixel) {
   return pm;
 }
 
-static hashmap<tree,QImage*> qt_pic_cache;
+static hashmap<string,QImage*> qt_pic_cache;
+static std::mutex qt_pic_cache_lock;
+
+static string
+qt_picture_cache_key (url u, int w, int h, tree eff, SI pixel) {
+  string location= as_string (u);
+  string effect= eff == "" ? string () : tree_to_scheme (eff);
+  return as_string (N (location)) * ":" * location * ":" * as_string (w) *
+         ":" * as_string (h) * ":" * as_string (N (effect)) * ":" * effect *
+         ":" * as_string (eff == "" ? 0 : pixel);
+}
 
 QImage*
 get_image (url u, int w, int h, tree eff, SI pixel) {
   // TODO: we may wish to flush the cache from time to time...
-  tree key= tuple (as_tree (u), as_tree (w), as_tree (h));
-  if (eff != "") key << eff << as_tree (pixel);
-  if (!qt_pic_cache->contains (key))
-    qt_pic_cache (key)= get_image_for_real (u, w, h, eff, pixel);
+  string key= qt_picture_cache_key (u, w, h, eff, pixel);
+  {
+    std::lock_guard<std::mutex> guard (qt_pic_cache_lock);
+    if (qt_pic_cache->contains (key)) return qt_pic_cache[key];
+  }
+
+  QImage* loaded= get_image_for_real (u, w, h, eff, pixel);
+  std::lock_guard<std::mutex> guard (qt_pic_cache_lock);
+  if (!qt_pic_cache->contains (key)) {
+    qt_pic_cache (key)= loaded;
+    return loaded;
+  }
+  delete loaded;
   return qt_pic_cache[key];
 }
 
 void
 qt_clean_picture_cache () {
-  iterator<tree> it= iterate (qt_pic_cache);
+  std::lock_guard<std::mutex> guard (qt_pic_cache_lock);
+  iterator<string> it= iterate (qt_pic_cache);
   while (it->busy ()) {
-    tree key= it->next ();
+    string key= it->next ();
     QImage* im= qt_pic_cache [key];
     delete im;
     qt_pic_cache (key)= (QImage*) NULL;
   }
-  qt_pic_cache= hashmap<tree,QImage*> ();
+  qt_pic_cache= hashmap<string,QImage*> ();
 }
 
 picture
