@@ -160,9 +160,8 @@ typesetter_rep::typeset () {
   b        = array<line_item> ();
   paper    = (env->get_string (PAGE_MEDIUM) == "paper");
   progressive_root_active= false;
-  progressive_pending=
-    progressive && !paper &&
-    !br->my_typeset_will_be_complete ();
+  // Actual unfinished document bridges set this while typesetting this pass.
+  progressive_pending= false;
   progressive_initial= false;
   progressive_deadline_ms= texmacs_time () + progressive_budget_ms;
 
