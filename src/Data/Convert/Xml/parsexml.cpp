@@ -686,7 +686,7 @@ xml_html_parser::finalize_space (string s, bool first, bool last) {
     }
   n= N(r);
   if (last && (n>0) && (r[n-1] == ' '))
-    r->resize (n-1);
+    r.resize (n-1);
   return r;
 }
 

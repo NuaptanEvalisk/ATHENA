@@ -34,7 +34,7 @@
 
 inline std::string
 texmacs_utf8_string_to_system_string (string utf8_string) {
-  return std::string (&utf8_string[0], 
+  return std::string (utf8_string.data (),
 		      (std::basic_string<char>::size_type) N(utf8_string));
 }
 

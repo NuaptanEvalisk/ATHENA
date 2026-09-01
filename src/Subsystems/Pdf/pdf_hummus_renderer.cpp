@@ -1943,10 +1943,10 @@ qt_image_data (url image, int& w, int&h, string& data, string& mask) {
   for (j= 0; j < im.height (); j++) {
     for (i=0; i < im.width (); i++) {
       QRgb p= im.pixel (i, j);
-      data[l++] = qRed (p);
-      data[l++] = qGreen (p);
-      data[l++] = qBlue (p);
-      mask[k++] = qAlpha (p);
+      data.set (l++, qRed (p));
+      data.set (l++, qGreen (p));
+      data.set (l++, qBlue (p));
+      mask.set (k++, qAlpha (p));
     }
   }
 }

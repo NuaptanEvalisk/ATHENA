@@ -802,25 +802,25 @@ encode_as_utf8 (unsigned int code) {
   else if (0x80 <= code  && code <= 0x7FF) {
     // 0x110ddddd 0x10dddddd
     string str(2);
-    str[0] = ((code >> 6) & 0x1F) | 0xC0;
-    str[1] = (code & 0x3F) | 0x80;
+    str.set (0, ((code >> 6) & 0x1F) | 0xC0);
+    str.set (1, (code & 0x3F) | 0x80);
     return str;
   } 
   else if (0x800 <= code && code <= 0xFFFF) {
     // 0x1110dddd 0x10dddddd 0x10dddddd
     string str(3);
-    str[0] = ((code >> 12) & 0x0F) | 0xE0;
-    str[1] = ((code >> 6) & 0x3F) | 0x80;
-    str[2] = (code & 0x3F) | 0x80;
+    str.set (0, ((code >> 12) & 0x0F) | 0xE0);
+    str.set (1, ((code >> 6) & 0x3F) | 0x80);
+    str.set (2, (code & 0x3F) | 0x80);
     return str;
   }
   else if (0x10000 <= code && code <= 0x1FFFFF) {
     // 0x11110uuu 0x10zzzzzz 0x10yyyyyy 0x10xxxxxx
     string str(4);
-    str[0] = ((code >> 18) & 0x07) | 0xF0;
-    str[1] = ((code >> 12) & 0x3F) | 0x80;
-    str[2] = ((code >> 6) & 0x3F) | 0x80;
-    str[3] = (code & 0x3F) | 0x80;
+    str.set (0, ((code >> 18) & 0x07) | 0xF0);
+    str.set (1, ((code >> 12) & 0x3F) | 0x80);
+    str.set (2, ((code >> 6) & 0x3F) | 0x80);
+    str.set (3, (code & 0x3F) | 0x80);
     return str;
   }
   else return "";

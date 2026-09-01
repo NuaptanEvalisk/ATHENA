@@ -1112,7 +1112,7 @@ latex_parser::parse_command (string s, int& i, string cmd, int change) {
     while (i < N(s) && s[i] != '{') {
       if (i < N(s) && s[i] == '#') {
         while (i < N(s) && s[i] == '#') i++;
-        if (i < N(s) && is_digit (s[i])) args = s[i];
+        if (i < N(s) && is_digit (s[i])) args = (char) s[i];
       }
       else
         i++;
@@ -1691,7 +1691,7 @@ from_char_code (int i) {
   if (i == ((int) '>')) return tree (TUPLE, "\\gtr");
   if (i == ((int) '\\')) return tree (TUPLE, "\\textbackslash");
   string s ("?");
-  s[0]= (unsigned char) i;
+  s.set (0, (unsigned char) i);
   return s;
 }
 
@@ -1780,7 +1780,7 @@ accented_to_Cork (tree t) {
     if (N(v)==0) {
       if (s[1] == '`' ) {
         string ret_s (1);
-        ret_s[0]= '\000';
+        ret_s.set (0, '\000');
         return ret_s;
       }
       if (s[1] == '\'') return "\001";

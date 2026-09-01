@@ -2649,9 +2649,9 @@ length_split (string &num, string &unit, string l) {
 
 static string
 length_minus (string l) {
-  if (l[0] == '+') l[0]= '-';
+  if (l[0] == '+') l.set (0, '-');
   else
-  if (l[0] == '-') l[0]= '+';
+  if (l[0] == '-') l.set (0, '+');
   else
     l= "-" * l;
   return l;
@@ -2659,7 +2659,7 @@ length_minus (string l) {
 
 static string
 length_abs (string l) {
-  if (l[0] == '-') l[0]= '+';
+  if (l[0] == '-') l.set (0, '+');
   return l;
 }
 

@@ -1,7 +1,7 @@
 
 /******************************************************************************
 * MODULE     : string.cpp
-* DESCRIPTION: Fixed size strings with reference counting.
+* DESCRIPTION: Inline/COW byte strings with standard storage.
 *              Zero characters can be part of string.
 * COPYRIGHT  : (C) 1999  Joris van der Hoeven
 *******************************************************************************
@@ -11,69 +11,250 @@
 ******************************************************************************/
 
 #include "string.hpp"
+#include <cstring>
 #include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
+#include <stdexcept>
 
 /******************************************************************************
 * Low level routines and constructors
 ******************************************************************************/
 
-static inline int
-round_length (int n) {
-  unsigned int u = (unsigned int) n;
-  u = (u + 3) & ~3u;
-  if (u < 24) return (int) u;
-  return 1 << (32 - __builtin_clz (u - 1));
+static string::storage_type::size_type
+string_size (int n) {
+  if (n < 0) throw std::length_error ("negative ATHENA string size");
+  return static_cast<string::storage_type::size_type> (n);
 }
 
-string_rep::string_rep (int n2):
-  n(n2), a ((n==0)?((char*) NULL):tm_new_array<char> (round_length(n))) {}
-
-struct dummy_string_rep_type : public string_rep {
-  dummy_string_rep_type() : string_rep(0) {
-    this->ref_count = 1000000000;
+string::shared_storage*
+string::make_rep (storage_type initial) {
+  void* raw= fast_new (sizeof (shared_storage));
+  try {
+    return new (raw) shared_storage (std::move (initial));
   }
-};
-static dummy_string_rep_type the_dummy_string_rep;
-string_rep* dummy_string_rep = &the_dummy_string_rep;
+  catch (...) {
+    fast_delete (raw);
+    throw;
+  }
+}
 
 void
-string_rep::resize (int m) {
-  int nn= round_length (n);
-  int mm= round_length (m);
-  if (mm != nn) {
-    if (mm != 0) {
-      char* b= tm_new_array<char> (mm);
-      int k= (m<n? m: n);
-      if (k > 0) memcpy (b, a, k);
-      if (nn != 0) tm_delete_array (a);
-      a= b;
-    }
-    else if (nn != 0) tm_delete_array (a);
+string::retain (shared_storage* storage) noexcept {
+  if (storage != nullptr)
+    storage->refs.fetch_add (1, std::memory_order_relaxed);
+}
+
+void
+string::release (shared_storage* storage) noexcept {
+  if (storage != nullptr &&
+      storage->refs.fetch_sub (1, std::memory_order_release) == 1) {
+    std::atomic_thread_fence (std::memory_order_acquire);
+    storage->~shared_storage ();
+    fast_delete (storage);
   }
-  n= m;
 }
 
-string::string (char c) {
-  rep= tm_new<string_rep> (1);
-  rep->a[0]=c;
+void
+string::assign_inline (const char* source, std::size_t size) noexcept {
+  rep= nullptr;
+  inline_size= static_cast<unsigned char> (size);
+  if (size != 0) std::memcpy (inline_data, source, size);
+  inline_data[size]= '\0';
 }
 
-string::string (char c, int n) {
-  rep= tm_new<string_rep> (n);
-  if (n > 0) memset (rep->a, c, n);
+string::storage_type&
+string::writable_heap () {
+  if (rep == nullptr) {
+    storage_type initial (inline_data, inline_size);
+    rep= make_rep (std::move (initial));
+    inline_size= 0;
+    inline_data[0]= '\0';
+  }
+  if (rep->refs.load (std::memory_order_acquire) != 1) {
+    shared_storage* previous= rep;
+    rep= make_rep (previous->value);
+    release (previous);
+  }
+  return rep->value;
 }
 
-string::string (const char* a) {
-  int n=strlen(a);
-  rep= tm_new<string_rep> (n);
-  if (n > 0) memcpy (rep->a, a, n);
+string::string (const string& other) noexcept:
+  rep (nullptr), inline_size (0), inline_data {} {
+  if (other.rep == nullptr)
+    assign_inline (other.inline_data, other.inline_size);
+  else {
+    rep= other.rep;
+    retain (rep);
+  }
 }
 
-string::string (const char* a, int n) {
-  rep= tm_new<string_rep> (n);
-  if (n > 0) memcpy (rep->a, a, n);
+string::string (string&& other) noexcept:
+  rep (nullptr), inline_size (0), inline_data {} {
+  if (other.rep == nullptr)
+    assign_inline (other.inline_data, other.inline_size);
+  else {
+    rep= other.rep;
+    other.rep= nullptr;
+  }
+  other.inline_size= 0;
+  other.inline_data[0]= '\0';
+}
+
+string&
+string::operator = (const string& other) noexcept {
+  if (this == &other) return *this;
+  if (other.rep == nullptr) {
+    release (rep);
+    assign_inline (other.inline_data, other.inline_size);
+  }
+  else if (rep != other.rep) {
+    retain (other.rep);
+    release (rep);
+    rep= other.rep;
+    inline_size= 0;
+    inline_data[0]= '\0';
+  }
+  return *this;
+}
+
+string&
+string::operator = (string&& other) noexcept {
+  if (this != &other) {
+    release (rep);
+    if (other.rep == nullptr) {
+      assign_inline (other.inline_data, other.inline_size);
+      other.inline_size= 0;
+      other.inline_data[0]= '\0';
+    }
+    else {
+      rep= other.rep;
+      inline_size= 0;
+      inline_data[0]= '\0';
+      other.rep= nullptr;
+      other.inline_size= 0;
+      other.inline_data[0]= '\0';
+    }
+  }
+  return *this;
+}
+
+string::~string () {
+  release (rep);
+}
+
+string::string (int n): rep (nullptr), inline_size (0), inline_data {} {
+  storage_type::size_type size= string_size (n);
+  if (size <= inline_capacity) {
+    inline_size= static_cast<unsigned char> (size);
+    inline_data[size]= '\0';
+  }
+  else rep= make_rep (storage_type (size, '\0'));
+}
+
+string::string (char c): string (c, 1) {}
+
+string::string (char c, int n):
+  rep (nullptr), inline_size (0), inline_data {} {
+  storage_type::size_type size= string_size (n);
+  if (size <= inline_capacity) {
+    inline_size= static_cast<unsigned char> (size);
+    if (size != 0) std::memset (inline_data, c, size);
+    inline_data[size]= '\0';
+  }
+  else rep= make_rep (storage_type (size, c));
+}
+
+string::string (const char* s):
+  rep (nullptr), inline_size (0), inline_data {} {
+  std::size_t size= std::strlen (s);
+  if (size <= inline_capacity) assign_inline (s, size);
+  else rep= make_rep (storage_type (s, size));
+}
+
+string::string (const char* s, int n):
+  rep (nullptr), inline_size (0), inline_data {} {
+  storage_type::size_type size= string_size (n);
+  if (size <= inline_capacity) assign_inline (s, size);
+  else rep= make_rep (storage_type (s, size));
+}
+
+char*
+string::mutable_data () {
+  return rep == nullptr ? inline_data : writable_heap ().data ();
+}
+
+void
+string::set (int i, char c) {
+  if (rep == nullptr) inline_data[i]= c;
+  else writable_heap ()[static_cast<storage_type::size_type> (i)]= c;
+}
+
+void
+string::resize (int n) {
+  storage_type::size_type size= string_size (n);
+  if (rep == nullptr) {
+    if (size <= inline_capacity) {
+      if (size > inline_size)
+        std::memset (inline_data + inline_size, '\0', size - inline_size);
+      inline_size= static_cast<unsigned char> (size);
+      inline_data[size]= '\0';
+    }
+    else {
+      storage_type initial (inline_data, inline_size);
+      initial.resize (size);
+      rep= make_rep (std::move (initial));
+      inline_size= 0;
+      inline_data[0]= '\0';
+    }
+  }
+  else if (size <= inline_capacity) {
+    shared_storage* previous= rep;
+    std::size_t copied=
+      size < previous->value.size () ? size : previous->value.size ();
+    if (copied != 0)
+      std::memcpy (inline_data, previous->value.data (), copied);
+    if (size > copied)
+      std::memset (inline_data + copied, '\0', size - copied);
+    rep= nullptr;
+    inline_size= static_cast<unsigned char> (size);
+    inline_data[size]= '\0';
+    release (previous);
+  }
+  else writable_heap ().resize (size);
+}
+
+void
+string::reserve (int n) {
+  storage_type::size_type size= string_size (n);
+  if (rep == nullptr && size <= inline_capacity) return;
+  writable_heap ().reserve (size);
+}
+
+void
+string::append (char c) {
+  if (rep == nullptr && inline_size < inline_capacity) {
+    inline_data[inline_size++]= c;
+    inline_data[inline_size]= '\0';
+  }
+  else writable_heap ().push_back (c);
+}
+
+void
+string::append (const string& s) {
+  if (s.empty ()) return;
+  storage_type snapshot;
+  const char* source= s.data ();
+  std::size_t source_size= static_cast<std::size_t> (s.size ());
+  if (this == &s) {
+    snapshot.assign (source, source_size);
+    source= snapshot.data ();
+  }
+  std::size_t combined= static_cast<std::size_t> (size ()) + source_size;
+  if (rep == nullptr && combined <= inline_capacity) {
+    std::memcpy (inline_data + inline_size, source, source_size);
+    inline_size= static_cast<unsigned char> (combined);
+    inline_data[inline_size]= '\0';
+  }
+  else writable_heap ().append (source, source_size);
 }
 
 /******************************************************************************
@@ -82,81 +263,62 @@ string::string (const char* a, int n) {
 
 bool
 string::operator == (const char* s) const {
-  int i, n= rep->n;
-  char* S= rep->a;
-  for (i=0; i<n; i++) {
-    if (s[i]!=S[i]) return false;
-    if (s[i]=='\0') return false;
-  }
-  return (s[i]=='\0');
+  std::size_t other_size= std::strlen (s);
+  return static_cast<std::size_t> (size ()) == other_size &&
+    (other_size == 0 || std::memcmp (data (), s, other_size) == 0);
 }
 
 bool
 string::operator != (const char* s) const {
-  int i, n= rep->n;
-  char* S= rep->a;
-  for (i=0; i<n; i++) {
-    if (s[i]!=S[i]) return true;
-    if (s[i]=='\0') return true;
-  }
-  return (s[i]!='\0');
+  return !(*this == s);
 }
 
 bool
 string::operator == (const string& a) const {
-  if (rep->n != a.rep->n) return false;
-  if (rep->n == 0) return true;
-  return memcmp (rep->a, a.rep->a, rep->n) == 0;
+  if (rep != nullptr && rep == a.rep) return true;
+  int length= size ();
+  return length == a.size () &&
+    (length == 0 || std::memcmp (data (), a.data (), length) == 0);
 }
 
 bool
 string::operator != (const string& a) const {
-  if (rep->n != a.rep->n) return true;
-  if (rep->n == 0) return false;
-  return memcmp (rep->a, a.rep->a, rep->n) != 0;
+  return !(*this == a);
 }
 
 string
 string::operator () (int begin, int end) const {
   if (end <= begin) return string();
 
-  begin = max(min(rep->n, begin), 0);
-  end = max(min(rep->n, end), 0);
+  begin = max(min(N (*this), begin), 0);
+  end = max(min(N (*this), end), 0);
   int n= end-begin;
-  string r (n);
-  if (n > 0) memcpy (&r[0], rep->a + begin, n);
-  return r;
+  return n > 0 ? string (data () + begin, n) : string ();
 }
 
 string
 copy (const string& s) {
-  int n=N(s);
-  string r (n);
-  if (n > 0) memcpy (&r[0], &s[0], n);
-  return r;
+  return N(s) == 0 ? string () : string (s.data (), N(s));
 }
 
 string&
 operator << (string& a, char x) {
-  a->resize (N(a)+ 1);
-  a [N(a)-1]=x;
+  a.append (x);
   return a;
 }
 
 string&
 operator << (string& a, const string& b) {
-  int k1= N(a), k2=N(b);
-  a->resize (k1+k2);
-  if (k2 > 0) memcpy (&a[k1], &b[0], k2);
+  a.append (b);
   return a;
 }
 
 string
 operator * (const string& a, const string& b) {
-  int n1=N(a), n2=N(b);
-  string c(n1+n2);
-  if (n1 > 0) memcpy(&c[0], &a[0], n1);
-  if (n2 > 0) memcpy(&c[n1], &b[0], n2);
+  string c;
+  c.reserve (N(a) + N(b));
+  c.append (a);
+  c.append (b);
   return c;
 }
 
@@ -194,7 +356,7 @@ operator <= (const string& s1, const string& s2) {
 
 tm_ostream&
 operator << (tm_ostream& out, const string& a) {
-  out->write (&a[0], N(a));
+  out->write (a.data (), N(a));
   return out;
 }
 

@@ -165,7 +165,7 @@ lsup_adjust_cmr (hashmap<string,double>& t) {
 
 void
 rsub_adjust_cmr (hashmap<string,double>& t) {
-  string empty= "a"; empty[0]= '\0';
+  string empty= "a"; empty.set (0, '\0');
   adjust_char (t, empty, -0.15); // Gamma
   adjust_char (t, "\2", -0.02);  // Theta
   adjust_char (t, "\3", 0.03);   // Lambda

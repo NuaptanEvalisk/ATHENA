@@ -224,7 +224,7 @@ printer_rep::print (string s) {
   }
   else if (s[0]!='(') sep ();
   if (tex_flag && (s[0]=='(')) {
-    body->resize (N(body)-2);
+    body.resize (N(body)-2);
     linelen -= 2;
     s= s (1,N(s));
   }
@@ -247,7 +247,7 @@ printer_rep::move_to (SI x, SI y) {
   if (y>=0) y= y/PIXEL; else y= (y-PIXEL+1)/PIXEL;
   if (tex_flag && (xpos==x) && (ypos==y)) return;
   if (tex_flag && (ypos==y)) {
-    body->resize (N(body)-1);
+    body.resize (N(body)-1);
     linelen -= 1;
     tex_flag= false;
 

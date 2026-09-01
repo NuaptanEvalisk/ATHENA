@@ -27,10 +27,10 @@ encode_base64 (char c1, char c2, char c3) {
   idx2= (((c2 << 2) & 0x3C) + ((c3 >> 6) & 0x03));
   idx3= (c3 & 0x3F);
 
-  r[0]= int_to_b64[idx0];
-  r[1]= int_to_b64[idx1];
-  r[2]= int_to_b64[idx2];
-  r[3]= int_to_b64[idx3];
+  r.set (0, int_to_b64[idx0]);
+  r.set (1, int_to_b64[idx1]);
+  r.set (2, int_to_b64[idx2]);
+  r.set (3, int_to_b64[idx3]);
   return r;
 }
 
@@ -71,9 +71,9 @@ decode_base64 (array<int> ac) {
   n3= (n>2)? b64_to_int[(int)ac[2]] - 64 : 0;
   n4= (n>3)? b64_to_int[(int)ac[3]] - 64 : 0;
 
-  r[0]= ((n1 << 2) & 0xFC) + ((n2 >> 4) & 0x03);
-  r[1]= ((n2 << 4) & 0xF0) + ((n3 >> 2) & 0x0F);
-  r[2]= ((n3 << 6) & 0xC0) + (n4 & 0x3F);
+  r.set (0, ((n1 << 2) & 0xFC) + ((n2 >> 4) & 0x03));
+  r.set (1, ((n2 << 4) & 0xF0) + ((n3 >> 2) & 0x0F));
+  r.set (2, ((n3 << 6) & 0xC0) + (n4 & 0x3F));
 
   return r(0,n-1);
 }

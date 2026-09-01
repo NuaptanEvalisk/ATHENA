@@ -192,7 +192,7 @@ as_verbatim (tree t, bool wrap) {
           //cout << "  mid= " << mid << "\n";
           pos += N(tm_recompose (range (a, start, mid)));
           ASSERT (buf[pos] == ' ', "error in space synchronization");
-          buf[pos]= '\n';
+          buf.set (pos, '\n');
           start= mid+1;
           pos++;
         }
@@ -270,7 +270,7 @@ un_special (string s) {
       j--;
     }
     else if ((s[i] == '\b') && (N(r)>0) && (r[N(r)-1]!='\n'))
-      r->resize (N(r)-1);
+      r.resize (N(r)-1);
     else r << s[i];
   return r;
 }

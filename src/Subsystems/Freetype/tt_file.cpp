@@ -277,7 +277,7 @@ tt_fontconfig_add_dir (FcConfig* config, url u) {
   }
   if (!is_directory (u)) return;
   string path= concretize (u);
-  FcConfigAppFontAddDir (config, (const FcChar8*) &path[0]);
+  FcConfigAppFontAddDir (config, (const FcChar8*) path.c_str ());
 }
 
 static void

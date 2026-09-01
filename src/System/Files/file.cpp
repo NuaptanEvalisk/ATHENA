@@ -90,8 +90,8 @@ load_string (url u, string& s, bool fatal) {
       }
     }
     if (!err) {
-      s->resize (size);
-      ssize_t readed= texmacs_fread (&(s[0]), size, fin);
+      s.resize (size);
+      ssize_t readed= texmacs_fread (s.mutable_data (), size, fin);
       texmacs_fclose (fin);
       if (readed != size) {
         err= true;
@@ -143,7 +143,7 @@ save_string (url u, string s, bool fatal) {
       }
       if (!err) {
         int n= N(s);
-        ssize_t written = texmacs_fwrite (&s[0], n, fout);
+        ssize_t written = texmacs_fwrite (s.data (), n, fout);
         texmacs_fclose (fout);
         if (written != n) {
           err= true;
@@ -189,7 +189,7 @@ append_string (url u, string s, bool fatal) {
       }
       if (!err) {
         int n= N(s);
-        ssize_t written = texmacs_fwrite (&s[0], n, fout);
+        ssize_t written = texmacs_fwrite (s.data (), n, fout);
         if (written != n) {
           err= true;
           std_warning << "Can't append to " << name << "\n";

@@ -243,7 +243,7 @@ get_std_locale (string language) {
 
   {
     string loc= language_to_locale(language);
-    loc[2] = '-';
+    loc.set (2, '-');
     c_string _loc (loc);
     try {
       return std::locale (_loc);

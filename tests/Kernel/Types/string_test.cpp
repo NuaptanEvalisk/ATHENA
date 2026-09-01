@@ -1,8 +1,8 @@
 
 /******************************************************************************
 * MODULE     : string_test.cpp
-* DESCRIPTION: Fixed size strings with reference counting and
-*              pointer copying. Zero-characters are allowed in strings.
+* DESCRIPTION: Inline/COW byte string tests.
+*              Zero characters are allowed in strings.
 * COPYRIGHT  : (C) 2018-2021  Darcy Shen
 *******************************************************************************
 * This software falls under the GNU general public license version 3 or later.
@@ -12,6 +12,12 @@
 
 #include <QtTest/QtTest>
 #include "string.hpp"
+#include <cstdint>
+#include <type_traits>
+
+struct alignas(64) aligned_test_value {
+  int value;
+};
 
 class TestString: public QObject {
   Q_OBJECT
@@ -22,6 +28,10 @@ private slots:
   void slice ();
   void concat ();
   void append ();
+  void value_semantics ();
+  void storage_boundaries ();
+  void embedded_zero ();
+  void aligned_array_allocation ();
 
   void test_as_bool ();
   void test_as_string_bool ();
@@ -94,6 +104,58 @@ TestString::append () {
   QVERIFY (str == string("x"));
   str << string("yz");
   QVERIFY (str == string("xyz"));
+}
+
+void
+TestString::value_semantics () {
+  string original ("abc");
+  string copied= original;
+  copied.set (0, 'x');
+  copied << 'd';
+
+  QVERIFY (original == string ("abc"));
+  QVERIFY (copied == string ("xbcd"));
+  static_assert (std::is_same_v<string::storage_type::allocator_type,
+                                mi_stl_allocator<char>>);
+}
+
+void
+TestString::storage_boundaries () {
+  string inline_value ('a', 22);
+  string inline_copy= inline_value;
+  inline_copy.set (0, 'b');
+  QVERIFY (inline_value[0] == 'a');
+
+  inline_value << 'x';
+  string shared_copy= inline_value;
+  shared_copy.set (0, 'c');
+  QVERIFY (inline_value[0] == 'a');
+  QVERIFY (shared_copy[0] == 'c');
+
+  shared_copy.resize (4);
+  shared_copy << shared_copy;
+  QVERIFY (shared_copy == string ("caaa" "caaa"));
+}
+
+void
+TestString::embedded_zero () {
+  const char bytes[]= {'a', '\0', 'b'};
+  string value (bytes, 3);
+
+  QCOMPARE (N(value), 3);
+  QCOMPARE (value[1], '\0');
+  QVERIFY (value != "a");
+  QVERIFY (value(1, 3) == string (bytes + 1, 2));
+}
+
+void
+TestString::aligned_array_allocation () {
+  aligned_test_value* values= tm_new_array<aligned_test_value> (3);
+  QCOMPARE (reinterpret_cast<uintptr_t> (values) % alignof (aligned_test_value),
+            uintptr_t (0));
+  QCOMPARE (values[0].value, 0);
+  QCOMPARE (values[2].value, 0);
+  tm_delete_array (values);
 }
 
 /******************************************************************************

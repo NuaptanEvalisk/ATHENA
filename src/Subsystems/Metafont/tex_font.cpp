@@ -479,11 +479,11 @@ get_unaccented (string s) {
   int i;
   string r(N(s));
   for (i=0; i<N(s); i++)
-    if ((s[i] & 128) == 0) r[i]= s[i];
+    if ((s[i] & 128) == 0) r.set (i, s[i]);
     else {
       char c= the_unaccented[s[i] & 127];
-      if (c==' ') r[i]= s[i];
-      else r[i]= the_unaccented[s[i] & 127];
+      if (c==' ') r.set (i, s[i]);
+      else r.set (i, the_unaccented[s[i] & 127]);
     }
   return r;
 }
@@ -493,8 +493,8 @@ get_accents (string s) {
   int i, n= N(s);
   string r (n);
   for (i=0; i<n; i++) {
-    if ((s[i] & 128) == 0) r[i]= ' ';
-    else r[i]= (char) the_accents [s[i] & 127];
+    if ((s[i] & 128) == 0) r.set (i, ' ');
+    else r.set (i, (char) the_accents [s[i] & 127]);
   }
   return r;
 }

@@ -151,22 +151,22 @@ edit_interface_rep::try_shortcut (string comb) {
 static string
 std_accent (string s) {
   string c= "x";
-  c[0]= '\0';
+        c.set (0, '\0');
   s= replace (s, c, "`");
-  c[0]= '\1';
+        c.set (0, '\1');
   s= replace (s, c, "'");
-  c[0]= '\2';
+        c.set (0, '\2');
   s= replace (s, c, "^");
-  c[0]= '\3';
+        c.set (0, '\3');
   s= replace (s, c, "~");
-  c[0]= '\4';
+        c.set (0, '\4');
   s= replace (s, c, "\"");
   return s;
 }
 
 void
 edit_interface_rep::key_press (string gkey) {
-  string zero= "a"; zero[0]= '\0';
+  string zero= "a"; zero.set (0, '\0');
   string key= replace (gkey, "<#0>", zero);
   if (pre_edit_mark != 0) {
     ASSERT (sh_mark == 0, "invalid shortcut during pre-edit");
@@ -326,7 +326,7 @@ edit_interface_rep::handle_keypress (string key, time_t t) {
       apply_changes ();
     start_editing ();
     started= true;
-    string zero= "a"; zero[0]= '\0';
+  string zero= "a"; zero.set (0, '\0');
     string gkey= replace (key, zero, "<#0>");
     if (gkey == "<#3000>") gkey= "space";
     if (starts (gkey, "pre-edit:"))

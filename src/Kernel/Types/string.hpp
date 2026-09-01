@@ -1,8 +1,8 @@
 
 /******************************************************************************
 * MODULE     : string.hpp
-* DESCRIPTION: Fixed size strings with reference counting and
-*              pointer copying. Zero-characters are allowed in strings.
+* DESCRIPTION: Inline/COW byte strings with mimalloc storage.
+*              Zero characters are allowed in strings.
 * COPYRIGHT  : (C) 1999  Joris van der Hoeven
 *******************************************************************************
 * This software falls under the GNU general public license version 3 or later.
@@ -13,55 +13,81 @@
 #ifndef STRING_H
 #define STRING_H
 #include "basic.hpp"
-
-class string;
-class string_rep: public concrete_struct {
-  int n;
-  char* a;
-
-public:
-  inline string_rep (): n(0), a(NULL) {}
-         string_rep (int n);
-  inline ~string_rep () { if (n!=0) tm_delete_array (a); }
-  void resize (int n);
-
-  friend class string;
-  friend inline int N (const string& a);
-};
-
-extern string_rep* dummy_string_rep;
+#include <atomic>
+#include <cstddef>
+#include <mimalloc.h>
+#include <string>
+#include <utility>
 
 class string {
-  CONCRETE(string);
 public:
-  inline string (): rep (tm_new<string_rep> ()) {}
-  inline string (int n): rep (tm_new<string_rep> (n)) {}
-  inline string (string&& x) noexcept : rep(x.rep) { 
-    x.rep = dummy_string_rep; 
-  }
-  inline string& operator = (string&& x) noexcept {
-    if (this != &x) {
-      string_rep* tmp = rep;
-      rep = x.rep;
-      x.rep = tmp;
-    }
-    return *this;
-  }
+  using storage_type=
+    std::basic_string<char, std::char_traits<char>, mi_stl_allocator<char>>;
+
+private:
+  // Keep the object at 32 bytes while covering the short tokens which dominate
+  // typesetting. Longer values share immutable standard-string storage.
+  static constexpr std::size_t inline_capacity= 22;
+
+  struct shared_storage {
+    std::atomic<unsigned int> refs;
+    storage_type value;
+
+    explicit shared_storage (storage_type&& initial):
+      refs (1), value (std::move (initial)) {}
+  };
+
+  shared_storage* rep;
+  unsigned char inline_size;
+  char inline_data[inline_capacity + 1];
+
+  static shared_storage* make_rep (storage_type initial);
+  static void retain (shared_storage* storage) noexcept;
+  static void release (shared_storage* storage) noexcept;
+  void assign_inline (const char* source, std::size_t size) noexcept;
+  storage_type& writable_heap ();
+
+public:
+  string () noexcept: rep (nullptr), inline_size (0), inline_data {} {}
+  string (const string& other) noexcept;
+  string (string&& other) noexcept;
+  string& operator = (const string& other) noexcept;
+  string& operator = (string&& other) noexcept;
+  ~string ();
+
+  string (int n);
   string (char c);
   string (char c, int n);
   string (const char *s);
   string (const char *s, int n);
-  inline char& operator [] (int i) { return rep->a[i]; }
-  inline const char& operator [] (int i) const { return rep->a[i]; }
+
+  inline char operator [] (int i) const noexcept {
+    return data ()[i]; }
+  inline const char* data () const noexcept {
+    return rep == nullptr ? inline_data : rep->value.data (); }
+  inline const char* c_str () const noexcept {
+    return rep == nullptr ? inline_data : rep->value.c_str (); }
+  inline int size () const noexcept {
+    return rep == nullptr ? static_cast<int> (inline_size) :
+      static_cast<int> (rep->value.size ()); }
+  inline bool empty () const noexcept {
+    return rep == nullptr ? inline_size == 0 : rep->value.empty (); }
+
+  char* mutable_data ();
+  void set (int i, char c);
+  void resize (int n);
+  void reserve (int n);
+  void append (char c);
+  void append (const string& s);
+
   bool operator == (const char* s) const;
   bool operator != (const char* s) const;
   bool operator == (const string& s) const;
   bool operator != (const string& s) const;
   string operator () (int start, int end) const;
 };
-CONCRETE_CODE(string);
 
-extern inline int N (const string& a) { return a->n; }
+inline int N (const string& a) { return a.size (); }
 string   copy (const string& a);
 tm_ostream& operator << (tm_ostream& out, const string& a);
 string&  operator << (string& a, char);
@@ -134,7 +160,7 @@ public:
     rep (tm_new<c_string_rep> ()) {}
   inline c_string (int len):
     rep (tm_new<c_string_rep> (tm_new_array<char> (len))) {}
-  inline c_string (string s):
+  inline c_string (const string& s):
     rep (tm_new<c_string_rep> (as_charp (s))) {}
   inline operator char* () const { return rep->value; }
 };

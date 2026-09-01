@@ -646,7 +646,7 @@ QTMLineEdit::keyPressEvent (QKeyEvent* ev)
       key= string ((char) last_key);
       if (is_upcase (key[0]))
         if ((ev->modifiers() & Qt::ShiftModifier) == 0)
-          key[0]= (int) (key[0] + ((int) 'a') - ((int) 'A'));
+          key.set (0, (char) (key[0] + ((int) 'a') - ((int) 'A')));
     }
     tmapp()->keyboard().getMappingIfExist (last_key, key);
     if ((ev->modifiers() & Qt::ShiftModifier) && N(key) > 1) key= "S-" * key;

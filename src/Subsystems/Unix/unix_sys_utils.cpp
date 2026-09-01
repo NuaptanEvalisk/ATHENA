@@ -111,12 +111,12 @@ struct _ts_string {
     a= new_a;
     l= new_l; }
 
-  void append (char* b, int m) {
+  void append (const char* b, int m) {
     resize (m + n);
     memcpy (a + n, b, m);
     n += m; }
 
-  void copy (char* b, int m) {
+  void copy (const char* b, int m) {
     resize (m);
     memcpy (a, b, m);
     n= m; }
@@ -150,7 +150,7 @@ struct _channel {
   _channel () : status (0) {}
   void _init_in (int fd2, string data2, int chunk_size) {
     fd= fd2;
-    data.copy (&data2[0], N(data2));
+    data.copy (data2.data (), N(data2));
     buffer_size= chunk_size; }
   void _init_out (int fd2, int buffer_size2) {
     fd= fd2;

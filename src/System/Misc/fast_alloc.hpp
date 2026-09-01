@@ -14,47 +14,25 @@
 
 #include "config.h"
 #include "tm_configure.hpp"
-#include <stdlib.h>
-#include <type_traits>
+#include <cstdio>
+#include <cstdint>
 #include <cstring>
+#include <limits>
 #include <mimalloc.h>
+#include <new>
+#include <type_traits>
 
 #include "tm_ostream.hpp"
 
-#define BLOCK_SIZE 65536 // should be >>> MAX_FAST
-
 /******************************************************************************
-* Globals
+* General purpose allocation routines
 ******************************************************************************/
 
-extern void*   alloc_table[MAX_FAST]; // Static declaration initializes with NULL's
-extern char*  alloc_mem;
-#ifdef DEBUG_ON
-extern char*  alloc_mem_top;
-extern char*  alloc_mem_bottom;
-#endif
-bool break_stub(void* ptr);
-extern size_t alloc_remains;
-extern int    allocated;
-extern int    large_uses;
-
-#define alloc_ptr(i) alloc_table[i]
-#define ind(ptr) (*((void **) ptr))
-
-/******************************************************************************
-* General purpose fast allocation routines
-******************************************************************************/
-
-extern void* safe_malloc (size_t s);
-extern void* enlarge_malloc (size_t s);
-extern void* fast_alloc (size_t s);
-extern void  fast_free (void* ptr, size_t s);
 extern void* fast_new (size_t s);
 extern void  fast_delete (void* ptr);
 
 extern int   mem_used ();
 extern void  mem_info ();
-void* alloc_check(const char *msg,void *ptr,size_t* sp);
 
 /******************************************************************************
 * Fast new and delete
@@ -380,72 +358,103 @@ tm_delete (C* ptr) {
   fast_delete ((void*) ptr);
 }
 
+namespace tm_memory_detail {
+
+struct array_header {
+  void* allocation;
+  int count;
 #ifdef DEBUG_ON
-template<typename C>  C*
-tm_new_array (int n) {
-  void* ptr= fast_alloc (n * sizeof (C) + (4 * WORD_LENGTH));
-  *((int*) ptr)= n;
-  ptr= (void*) (((char*) ptr) + WORD_LENGTH);
-  *((int*) ptr)= n;
-  ptr= (void*) (((char*) ptr) + WORD_LENGTH);
-  *((int*) ptr)= ~n;
-  ptr= (void*) (((char*) ptr) + WORD_LENGTH);
-  C* ctr= (C*) ptr;
-  for (int i=0; i<n; i++, ctr++)
-    (void) new ((void*) ctr) C ();
-  *((int*)ctr)=0x55AA;
-  return (C*) ptr;
+  int count_copy;
+  int count_complement;
+#endif
+};
+
+constexpr uint32_t array_guard= 0x55AA55AAu;
+
+template<typename C> constexpr size_t
+array_alignment () {
+  return alignof (C) > alignof (array_header)
+           ? alignof (C)
+           : alignof (array_header);
 }
 
-template<typename C>  void
-tm_delete_array (C* Ptr) {
-  void* ptr= (void*) Ptr;
-  ptr= (void*) (((char*) ptr) - WORD_LENGTH);
-  int comp= *((int*) ptr);
-  ptr= (void*) (((char*) ptr) - WORD_LENGTH);
-  int n1= *((int*) ptr);
-  ptr= (void*) (((char*) ptr) - WORD_LENGTH);
-  int n= *((int*) ptr);
-  if((n1 + comp) != -1 || (n + comp) != -1) {
-    printf("tm_delete_array size mismatch: %d:%d vs %d:%d\n",n,n+comp,n1,n1+comp);
-  }
-  
-  C* ctr= Ptr+n;
-  if(*((int*)ctr)!=0x55AA) {
-     printf("tm_delete_array buffer overflow\n");
-  }
-  ctr--;
-  for (int i=0; i<n; i++, ctr--) ctr -> ~C();
-  fast_free (ptr, n * sizeof (C) + (4 * WORD_LENGTH));
+template<typename C> inline array_header*
+array_header_for (C* ptr) {
+  return reinterpret_cast<array_header*> (ptr) - 1;
 }
-#else
+
+} // namespace tm_memory_detail
+
 template<typename C> inline C*
 tm_new_array (int n) {
-  void* ptr= fast_alloc (n * sizeof (C) + WORD_LENGTH);
-  *((int*) ptr)= n;
-  ptr= (void*) (((char*) ptr) + WORD_LENGTH);
-  C* ctr= (C*) ptr;
-  if constexpr (std::is_trivially_default_constructible_v<C>) {
-    std::memset (ctr, 0, n * sizeof (C));
-  } else {
-    for (int i=0; i<n; i++, ctr++)
-      (void) new ((void*) ctr) C ();
+  using namespace tm_memory_detail;
+  if (n < 0) throw std::bad_array_new_length ();
+
+  constexpr size_t alignment= array_alignment<C> ();
+  constexpr size_t guard_size=
+#ifdef DEBUG_ON
+    sizeof (array_guard);
+#else
+    0;
+#endif
+  const size_t count= static_cast<size_t> (n);
+  const size_t overhead= sizeof (array_header) + alignment - 1 + guard_size;
+  if (count > (std::numeric_limits<size_t>::max () - overhead) / sizeof (C))
+    throw std::bad_array_new_length ();
+
+  const size_t payload_size= count * sizeof (C);
+  void* allocation= mi_new_aligned (overhead + payload_size, alignment);
+  uintptr_t start= reinterpret_cast<uintptr_t> (allocation) +
+                   sizeof (array_header);
+  uintptr_t aligned= (start + alignment - 1) & ~(alignment - 1);
+  C* result= reinterpret_cast<C*> (aligned);
+  array_header* header= array_header_for (result);
+  header->allocation= allocation;
+  header->count= n;
+#ifdef DEBUG_ON
+  header->count_copy= n;
+  header->count_complement= ~n;
+  std::memcpy (reinterpret_cast<char*> (result) + payload_size,
+               &array_guard, sizeof (array_guard));
+#endif
+
+  if constexpr (std::is_trivial_v<C>) {
+    std::memset (result, 0, payload_size);
   }
-  return (C*) ptr;
+  else {
+    int constructed= 0;
+    try {
+      for (; constructed < n; ++constructed)
+        (void) new (static_cast<void*> (result + constructed)) C ();
+    }
+    catch (...) {
+      while (constructed > 0) result[--constructed].~C ();
+      mi_free (allocation);
+      throw;
+    }
+  }
+  return result;
 }
 
 template<typename C> inline void
-tm_delete_array (C* Ptr) {
-  void* ptr= (void*) Ptr;
-  ptr= (void*) (((char*) ptr) - WORD_LENGTH);
-  int n= *((int*) ptr);
-  if constexpr (!std::is_trivially_destructible_v<C>) {
-    C* ctr= Ptr+n-1;
-    for (int i=0; i<n; i++, ctr--) ctr -> ~C();
-  }
-  fast_free (ptr, n * sizeof (C) + WORD_LENGTH);
-}
+tm_delete_array (C* ptr) {
+  using namespace tm_memory_detail;
+  if (ptr == nullptr) return;
+  array_header* header= array_header_for (ptr);
+  const int n= header->count;
+#ifdef DEBUG_ON
+  if (header->count_copy != n || header->count_complement != ~n)
+    printf ("tm_delete_array size metadata mismatch\n");
+  uint32_t guard= 0;
+  std::memcpy (&guard, reinterpret_cast<char*> (ptr) +
+                      static_cast<size_t> (n) * sizeof (C), sizeof (guard));
+  if (guard != array_guard)
+    printf ("tm_delete_array buffer overflow\n");
 #endif
+  if constexpr (!std::is_trivially_destructible_v<C>)
+    for (int i= n; i > 0; --i) ptr[i - 1].~C ();
+  mi_free (header->allocation);
+}
 
 
 #endif // !defined(NO_FAST_ALLOC)

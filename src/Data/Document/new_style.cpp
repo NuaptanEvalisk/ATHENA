@@ -101,7 +101,7 @@ static string
 style_cache_file_name (tree style) {
   string ns= BUILD_DATE;
   for (int i=0; i<N(ns); i++)
-    if (!is_alpha (ns[i]) && !is_digit (ns[i])) ns[i]= '_';
+    if (!is_alpha (ns[i]) && !is_digit (ns[i])) ns.set (i, '_');
   return "__athena-style-cache-" * ns * "__" * cache_file_name (style);
 }
 

@@ -129,8 +129,8 @@ upcase_all (string s) {
   int i;
   string r (N(s));
   for (i=0; i<N(s); i++)
-    if (!is_iso_locase (s[i])) r[i]= s[i];
-    else r[i]= (char) (((int) ((unsigned char) s[i]))-32);
+    if (!is_iso_locase (s[i])) r.set (i, s[i]);
+    else r.set (i, (char) (((int) ((unsigned char) s[i]))-32));
   return r;
 }
 
@@ -139,8 +139,8 @@ locase_all (string s) {
   int i;
   string r (N(s));
   for (i=0; i<N(s); i++)
-    if (!is_iso_upcase (s[i])) r[i]= s[i];
-    else r[i]= (char) (((int) ((unsigned char) s[i]))+32);
+    if (!is_iso_upcase (s[i])) r.set (i, s[i]);
+    else r.set (i, (char) (((int) ((unsigned char) s[i]))+32));
   return r;
 }
 
@@ -271,7 +271,7 @@ il2_to_cork (string s) {
   int i, n= N(s);
   string r (n);
   for (i=0; i<n; i++)
-    r[i]= il2_to_cork (s[i]);
+    r.set (i, il2_to_cork (s[i]));
   return r;
 }
 
@@ -280,7 +280,7 @@ cork_to_il2 (string s) {
   int i, n= N(s);
   string r (n);
   for (i=0; i<n; i++)
-    r[i]= cork_to_il2 (s[i]);
+    r.set (i, cork_to_il2 (s[i]));
   return r;
 }
 
@@ -344,7 +344,7 @@ koi8_to_iso (string s) {
   int i, n= N(s);
   string r (n);
   for (i=0; i<n; i++)
-    r[i]= koi8_to_iso (s[i], false);
+    r.set (i, koi8_to_iso (s[i], false));
   return r;
 }
 
@@ -353,7 +353,7 @@ iso_to_koi8 (string s) {
   int i, n= N(s);
   string r (n);
   for (i=0; i<n; i++)
-    r[i]= iso_to_koi8 (s[i], false);
+    r.set (i, iso_to_koi8 (s[i], false));
   return r;
 }
 
@@ -362,7 +362,7 @@ koi8uk_to_iso (string s) {
   int i, n= N(s);
   string r (n);
   for (i=0; i<n; i++)
-    r[i]= koi8_to_iso (s[i], true);
+    r.set (i, koi8_to_iso (s[i], true));
   return r;
 }
 
@@ -371,7 +371,7 @@ iso_to_koi8uk (string s) {
   int i, n= N(s);
   string r (n);
   for (i=0; i<n; i++)
-    r[i]= iso_to_koi8 (s[i], true);
+    r.set (i, iso_to_koi8 (s[i], true));
   return r;
 }
 
