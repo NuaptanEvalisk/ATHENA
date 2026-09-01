@@ -121,7 +121,8 @@ TestString::value_semantics () {
 
 void
 TestString::storage_boundaries () {
-  string inline_value ('a', 22);
+  static_assert (sizeof (string) == 24);
+  string inline_value ('a', 14);
   string inline_copy= inline_value;
   inline_copy.set (0, 'b');
   QVERIFY (inline_value[0] == 'a');

@@ -25,9 +25,9 @@ public:
     std::basic_string<char, std::char_traits<char>, mi_stl_allocator<char>>;
 
 private:
-  // Keep the object at 32 bytes while covering the short tokens which dominate
+  // Keep the object at 24 bytes while covering the short tokens which dominate
   // typesetting. Longer values share immutable standard-string storage.
-  static constexpr std::size_t inline_capacity= 22;
+  static constexpr std::size_t inline_capacity= 14;
 
   struct shared_storage {
     std::atomic<unsigned int> refs;

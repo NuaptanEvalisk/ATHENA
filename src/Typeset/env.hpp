@@ -456,18 +456,27 @@ public:
   inline void monitored_write (string s, tree t) {
     back->write_back (s, env); env (s)= t; }
   inline void monitored_write_update (string s, tree t) {
-    back->write_back (s, env); env (s)= t; update (s); }
+    tree& val= env (s);
+    if (val != t) {
+      back->write_back (s, env); val= t; update (s); }
+  }
   inline void write (string s, tree t) { env (s)= t; }
-  inline void write_update (string s, tree t) { env (s)= t; update (s); }
+  inline void write_update (string s, tree t) {
+    tree& val= env (s);
+    if (val != t) { val= t; update (s); }
+  }
   inline string normalize_legacy_math_font_variable (string s, tree t) {
     if (mode == 2 && s == FONT && t == "cal") return MATH_FONT;
     return s;
   }
   inline tree local_begin (string s, tree t) {
-    // tree r (env [s]); monitored_write_update (s, t); return r;
-    tree& val= env (s); tree r (val); val= t; update (s); return r; }
+    tree& val= env (s); tree r (val);
+    if (val != t) { val= t; update (s); }
+    return r; }
   inline void local_end (string s, tree t) {
-     env (s)= t; update (s); }
+    tree& val= env (s);
+    if (val != t) { val= t; update (s); }
+  }
   inline tree local_begin_script () {
     return local_begin (MATH_LEVEL, as_string (index_level+1)); }
   inline void local_end_script (tree t) {

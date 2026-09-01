@@ -350,6 +350,9 @@ fi
 if [[ -d "$binary_build_dir/x64/lib" ]]; then
   library_path="$binary_build_dir/x64/lib:$library_path"
 fi
+if [[ -d "$binary_build_dir/athena-guile-runtime/lib" ]]; then
+  library_path="$binary_build_dir/athena-guile-runtime/lib:$library_path"
+fi
 if [[ -n "${LD_LIBRARY_PATH:-}" ]]; then
   library_path="$library_path:$LD_LIBRARY_PATH"
 fi

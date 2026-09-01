@@ -195,7 +195,7 @@ preserve destructor affinity, and add cost to every local copy.
 - Box trees remain entirely BufferActor-owned.  RenderService receives flattened
   render chunks, not `box` handles, so box reference counts need not become
   atomic.
-- `string` is now a value-semantic thin wrapper with a 22-byte inline form and
+- `string` is now a 24-byte value type with a 14-byte inline form and
   immutable shared
   `std::basic_string<char, std::char_traits<char>, mi_stl_allocator<char>>`
   storage for longer values.  Inline copies avoid allocation and atomic traffic
