@@ -63,6 +63,7 @@ public:
   server_rep*  sv;   // the underlying texmacs server
   widget_rep*  cvw;  // non reference counted canvas widget
   tm_view_rep* mvw;  // master view
+  tm_view_rep* owning_view; // view which owns this editor
 
 protected:
   tm_buffer    buf;  // the underlying buffer

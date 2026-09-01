@@ -50,13 +50,33 @@ public:
   template<typename Function>
   auto invoke_native (Function&& function)
     -> typename std::invoke_result<Function>::type {
-    return invoke (false, std::forward<Function> (function));
+    return invoke (false, std::forward<Function> (function), nullptr,
+                   string (), SCHEME_CAPABILITY_BUFFER);
+  }
+
+  template<typename Function>
+  auto invoke_native (Function&& function, editor_rep* editor, string view_id,
+                      SchemeCapabilitySet capabilities=
+                        SCHEME_CAPABILITY_BUFFER)
+    -> typename std::invoke_result<Function>::type {
+    return invoke (false, std::forward<Function> (function), editor,
+                   std::move (view_id), capabilities);
   }
 
   template<typename Function>
   auto invoke_scheme (Function&& function)
     -> typename std::invoke_result<Function>::type {
-    return invoke (true, std::forward<Function> (function));
+    return invoke (true, std::forward<Function> (function), nullptr,
+                   string (), SCHEME_CAPABILITY_BUFFER);
+  }
+
+  template<typename Function>
+  auto invoke_scheme (Function&& function, editor_rep* editor, string view_id,
+                      SchemeCapabilitySet capabilities=
+                        SCHEME_CAPABILITY_BUFFER)
+    -> typename std::invoke_result<Function>::type {
+    return invoke (true, std::forward<Function> (function), editor,
+                   std::move (view_id), capabilities);
   }
 
   void update_buffer_id (string id);
@@ -100,7 +120,8 @@ private:
   void execute (message& command);
 
   template<typename Function>
-  auto invoke (bool uses_scheme, Function&& function)
+  auto invoke (bool uses_scheme, Function&& function, editor_rep* editor,
+               string view_id, SchemeCapabilitySet capabilities)
     -> typename std::invoke_result<Function>::type {
     using result_type= typename std::invoke_result<Function>::type;
     if (is_owner_thread ()) return std::forward<Function> (function) ();
@@ -120,8 +141,11 @@ private:
       catch (...) { promise->set_exception (std::current_exception ()); }
     };
 
-    bool accepted= uses_scheme ? post_scheme (std::move (wrapped))
-                               : post_native (std::move (wrapped));
+    bool accepted= uses_scheme
+      ? post_scheme (std::move (wrapped), editor, std::move (view_id),
+                     capabilities)
+      : post_native (std::move (wrapped), editor, std::move (view_id),
+                     capabilities);
     if (!accepted)
       throw std::runtime_error ("buffer actor no longer accepts commands");
     return result.get ();

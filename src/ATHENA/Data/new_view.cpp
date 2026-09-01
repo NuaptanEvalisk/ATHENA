@@ -42,7 +42,9 @@ new_view_number (url u) {
 }
 
 tm_view_rep::tm_view_rep (tm_buffer buf2, editor ed2):
-  buf (buf2), ed (ed2), win (NULL), nr (new_view_number (buf->buf->name)) {}
+  buf (buf2), ed (ed2), win (NULL), nr (new_view_number (buf->buf->name)) {
+  ed->owning_view= this;
+}
 
 static string
 encode_url (url u) {
@@ -381,6 +383,7 @@ delete_view (url u) {
       buf->vws= a;
     }
   notify_delete_view (u);
+  vw->ed->owning_view= NULL;
   vw->ed->buf= NULL;
   with_document_tree document_scope (&buf->document);
   tm_delete (vw);

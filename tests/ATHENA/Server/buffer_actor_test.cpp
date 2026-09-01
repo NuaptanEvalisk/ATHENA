@@ -22,6 +22,7 @@ class TestBufferActor: public QObject {
 private slots:
   void startsLazily ();
   void ownsCommandsAndDocumentContext ();
+  void preservesSynchronousInvocationContext ();
   void drainsInFifoOrderAndRejectsAfterShutdown ();
 };
 
@@ -30,6 +31,22 @@ TestBufferActor::startsLazily () {
   tm_buffer buffer= tm_new<tm_buffer_rep> (url ("actor-lazy-test.ath"));
   QCOMPARE (buffer->actor->owner_thread (), std::thread::id ());
   QCOMPARE (buffer->actor->completed_commands (), std::uint64_t (0));
+  tm_delete (buffer);
+}
+
+void
+TestBufferActor::preservesSynchronousInvocationContext () {
+  tm_buffer buffer= tm_new<tm_buffer_rep> (url ("actor-context-test.ath"));
+  string expected_view= "tmfs://view/7/actor-context-test.ath";
+  bool valid_context= buffer->actor->invoke_native ([&] {
+    const SchemeExecutionContext* context=
+      current_scheme_execution_context ();
+    return context != nullptr && context->actor == buffer->actor &&
+           as_string (context->view_id) == expected_view &&
+           context->has (SCHEME_CAPABILITY_BUFFER);
+  }, nullptr, expected_view);
+
+  QVERIFY (valid_context);
   tm_delete (buffer);
 }
 

@@ -22,6 +22,7 @@
 #include "message.hpp"
 #include "tree_traverse.hpp"
 #include "boot.hpp"
+#include "buffer_actor.hpp"
 #ifdef EXPERIMENTAL
 #include "../../Style/Evaluate/evaluate_main.hpp"
 #endif
@@ -907,18 +908,36 @@ edit_interface_rep::apply_changes () {
   if (env_change & (THE_TREE+THE_ENVIRONMENT)) {
     typeset_invalidate_env ();
     SI old_heading_right= is_nil (eb) ? vx2 : eb->x2;
-    SI x1, y1, x2, y2;
-    typeset (x1, y1, x2, y2);
-    heading_cell_cache_valid= false;
+    struct typeset_result {
+      SI x1;
+      SI y1;
+      SI x2;
+      SI y2;
+    };
+    auto compute= [this] {
+      typeset_result result;
+      typeset (result.x1, result.y1, result.x2, result.y2);
+      heading_cell_cache_valid= false;
+      the_ghost_cursor ()= eb->find_check_cursor (tp);
+      return result;
+    };
+    typeset_result result;
+    if (buf != NULL && buf->actor != nullptr &&
+        !buf->actor->is_owner_thread ()) {
+      string view_id= owning_view == NULL ? string () :
+        as_string (abstract_view (owning_view));
+      result= buf->actor->invoke_scheme (compute, this, std::move (view_id));
+    }
+    else result= compute ();
     SI heading_strip_width= 80 * pixel;
     invalidate (old_heading_right - heading_strip_width, vy1,
                 old_heading_right + 2 * pixel, vy2);
     if (!is_nil (eb) && eb->x2 != old_heading_right)
       invalidate (eb->x2 - heading_strip_width, vy1,
                   eb->x2 + 2 * pixel, vy2);
-    invalidate (x1- 2*pixel, y1- 2*pixel, x2+ 2*pixel, y2+ 2*pixel);
+    invalidate (result.x1- 2*pixel, result.y1- 2*pixel,
+                result.x2+ 2*pixel, result.y2+ 2*pixel);
     // check_data_integrety ();
-    the_ghost_cursor()= eb->find_check_cursor (tp);
   }
   
 #ifdef EXPERIMENTAL
