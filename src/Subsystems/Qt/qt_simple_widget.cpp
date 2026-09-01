@@ -267,7 +267,8 @@ qt_simple_widget_rep::send (slot s, blackbox val) {
         shape= Qt::SizeVerCursor;
       else if (contents.x1 == "XC_bottom_right_corner")
         shape= Qt::SizeFDiagCursor;
-      if (canvas () != nullptr) canvas ()->setCursor (QCursor (shape));
+      if (canvas () != nullptr && canvas ()->cursor ().shape () != shape)
+        canvas ()->setCursor (QCursor (shape));
     }
       break;
 

@@ -911,21 +911,26 @@ edit_interface_rep::mouse_any (string type, SI x, SI y, int mods, time_t t,
   }
   if (type == "move") {
     mouse_message ("move", x, y);
+    string pointer_name= "XC_top_left_arrow";
     rectangle r;
     path p;
     int handle= image_resize_handle_at (x, y, r, p);
-    if (handle == IMAGE_RESIZE_CORNER) set_pointer ("XC_bottom_right_corner");
-    else if (handle == IMAGE_RESIZE_RIGHT) set_pointer ("XC_right_side");
-    else if (handle == IMAGE_RESIZE_BOTTOM) set_pointer ("XC_bottom_side");
+    if (handle == IMAGE_RESIZE_CORNER)
+      pointer_name= "XC_bottom_right_corner";
+    else if (handle == IMAGE_RESIZE_RIGHT)
+      pointer_name= "XC_right_side";
+    else if (handle == IMAGE_RESIZE_BOTTOM)
+      pointer_name= "XC_bottom_side";
     else {
       int row, column;
       handle= table_resize_handle_at (x, y, p, row, column, r);
       if (handle == TABLE_RESIZE_COLUMN)
-        set_pointer ("XC_sb_h_double_arrow");
+        pointer_name= "XC_sb_h_double_arrow";
       else if (handle == TABLE_RESIZE_ROW)
-        set_pointer ("XC_sb_v_double_arrow");
+        pointer_name= "XC_sb_v_double_arrow";
     }
-    if (over_heading_bracket) set_pointer ("XC_hand2");
+    if (over_heading_bracket) pointer_name= "XC_hand2";
+    set_pointer (pointer_name);
   }
 
   if (type == "leave")
