@@ -14,9 +14,11 @@
 
 #include "libguile/athena-runtime.h"
 #include "libguile/boolean.h"
+#include "libguile/dynwind.h"
 #include "libguile/error.h"
 #include "libguile/eq.h"
 #include "libguile/eval.h"
+#include "libguile/foreign.h"
 #include "libguile/gsubr.h"
 #include "libguile/gc.h"
 #include "libguile/hashtab.h"
@@ -34,19 +36,19 @@
 #include "libguile/symbols.h"
 #include "libguile/syntax.h"
 #include "libguile/throw.h"
+#include "libguile/threads.h"
 #include "libguile/variable.h"
 
 static SCM athena_root_module;
-static SCM athena_modules;
+static SCM athena_module_records;
 static SCM athena_sequential_modules;
-static SCM athena_module_states;
-static SCM athena_module_files;
 static SCM athena_definition_sources;
 static SCM athena_definition_names;
 static SCM athena_definition_modules;
 static SCM athena_property_contexts;
 static SCM athena_lazy_modules;
 static SCM athena_resolve_interface_proc;
+static SCM athena_make_fresh_user_module_proc;
 static SCM athena_module_use_proc;
 static SCM athena_module_add_proc;
 static SCM athena_module_name_proc;
@@ -58,10 +60,123 @@ static SCM athena_set_module_duplicates_proc;
 static SCM athena_lookup_duplicates_handlers_proc;
 static SCM athena_global_binder_proc;
 static SCM athena_original_module_export_proc;
-static SCM athena_state_loading;
-static SCM athena_state_loaded;
-static SCM athena_state_failed;
 static SCM athena_initial_root_bindings;
+
+enum athena_module_state
+{
+  ATHENA_MODULE_UNLOADED,
+  ATHENA_MODULE_LOADING,
+  ATHENA_MODULE_LOADED,
+  ATHENA_MODULE_FAILED
+};
+
+struct athena_runtime_thread;
+
+struct athena_module_record
+{
+  SCM name;
+  SCM module;
+  SCM source_file;
+  SCM interface;
+  SCM failure_tag;
+  SCM failure_args;
+  enum athena_module_state state;
+  struct athena_runtime_thread *owner;
+  scm_i_pthread_cond_t changed;
+};
+
+struct athena_runtime_thread
+{
+  struct athena_module_record *waiting_on;
+};
+
+static scm_i_pthread_mutex_t athena_module_registry_lock =
+  SCM_I_PTHREAD_MUTEX_INITIALIZER;
+static scm_i_pthread_mutex_t athena_publication_lock =
+  SCM_I_PTHREAD_MUTEX_INITIALIZER;
+static SCM_THREAD_LOCAL struct athena_runtime_thread *athena_runtime_thread;
+
+static struct athena_runtime_thread *
+athena_current_runtime_thread (void)
+{
+  if (athena_runtime_thread == NULL)
+    {
+      athena_runtime_thread = calloc (1, sizeof (*athena_runtime_thread));
+      if (athena_runtime_thread == NULL)
+        scm_misc_error ("ATHENA runtime",
+                        "could not allocate thread state", SCM_EOL);
+    }
+  return athena_runtime_thread;
+}
+
+static struct athena_module_record *
+athena_module_record (SCM name, int create)
+{
+  SCM pointer;
+  struct athena_module_record *record;
+
+  scm_dynwind_begin (0);
+  scm_dynwind_pthread_mutex_lock (&athena_module_registry_lock);
+  pointer = scm_hash_ref (athena_module_records, name, SCM_BOOL_F);
+  if (scm_is_true (pointer))
+    {
+      record = scm_to_pointer (pointer);
+      scm_dynwind_end ();
+      return record;
+    }
+  if (!create)
+    {
+      scm_dynwind_end ();
+      return NULL;
+    }
+
+  record = scm_gc_malloc (sizeof (*record), "ATHENA module record");
+  memset (record, 0, sizeof (*record));
+  record->name = name;
+  record->module = SCM_BOOL_F;
+  record->source_file = SCM_BOOL_F;
+  record->interface = SCM_BOOL_F;
+  record->failure_tag = SCM_BOOL_F;
+  record->failure_args = SCM_EOL;
+  record->state = ATHENA_MODULE_UNLOADED;
+  scm_i_pthread_cond_init (&record->changed, NULL);
+  scm_hash_set_x (athena_module_records, name,
+                  scm_from_pointer (record, NULL));
+  scm_dynwind_end ();
+  return record;
+}
+
+struct athena_module_wait
+{
+  scm_i_pthread_cond_t *condition;
+  scm_i_pthread_mutex_t *mutex;
+  int status;
+};
+
+static void *
+athena_module_wait_without_guile (void *data)
+{
+  struct athena_module_wait *wait = data;
+  wait->status = scm_i_pthread_cond_wait (wait->condition, wait->mutex);
+  return NULL;
+}
+
+static int
+athena_module_wait_cycle_p (struct athena_runtime_thread *thread,
+                            struct athena_module_record *target)
+{
+  struct athena_runtime_thread *owner = target->owner;
+  while (owner != NULL)
+    {
+      if (owner == thread)
+        return 1;
+      target = owner->waiting_on;
+      if (target == NULL)
+        return 0;
+      owner = target->owner;
+    }
+  return 0;
+}
 
 /* Guile compiles a module file before its leading module declaration has
    established imports.  ATHENA module files use `texmacs-module' in that
@@ -176,15 +291,25 @@ static int
 athena_module_p (SCM module)
 {
   SCM name;
-  SCM registered;
+  SCM registered = SCM_BOOL_F;
+  struct athena_module_record *record;
+  int sequential;
 
-  if (scm_is_true (scm_hashq_ref (athena_sequential_modules, module,
-                                  SCM_BOOL_F)))
+  scm_dynwind_begin (0);
+  scm_dynwind_pthread_mutex_lock (&athena_module_registry_lock);
+  sequential = scm_is_true
+    (scm_hashq_ref (athena_sequential_modules, module, SCM_BOOL_F));
+  scm_dynwind_end ();
+  if (sequential)
     return 1;
   name = scm_call_1 (athena_module_name_proc, module);
   if (scm_is_false (name))
     return 0;
-  registered = scm_hash_ref (athena_modules, name, SCM_BOOL_F);
+  record = athena_module_record (name, 0);
+  scm_i_pthread_mutex_lock (&athena_module_registry_lock);
+  if (record != NULL)
+    registered = record->module;
+  scm_i_pthread_mutex_unlock (&athena_module_registry_lock);
   return scm_is_eq (registered, module);
 }
 
@@ -196,6 +321,8 @@ athena_share_exported_bindings (SCM module, SCM names)
 
   if (!athena_module_p (module))
     return;
+  scm_dynwind_begin (0);
+  scm_dynwind_pthread_mutex_lock (&athena_publication_lock);
   while (scm_is_pair (cursor))
     {
       SCM spec = scm_car (cursor);
@@ -235,6 +362,7 @@ athena_share_exported_bindings (SCM module, SCM names)
   if (!scm_is_null (root_names))
     scm_apply_2 (athena_original_module_export_proc, athena_root_module,
                  root_names, SCM_EOL);
+  scm_dynwind_end ();
 }
 
 SCM_DEFINE (scm_athena_module_export_x, "%athena-module-export!", 2, 0, 1,
@@ -300,12 +428,17 @@ SCM_DEFINE (scm_athena_public_define_if_absent_x,
             "Define and export @var{name} from @var{module} if absent.")
 #define FUNC_NAME s_scm_athena_public_define_if_absent_x
 {
+  SCM result;
   if (!scm_is_symbol (name))
     scm_wrong_type_arg_msg (FUNC_NAME, 2, name, "symbol");
+  scm_dynwind_begin (0);
+  scm_dynwind_pthread_mutex_lock (&athena_publication_lock);
   if (!athena_variable_bound_p (scm_module_variable (module, name)))
     scm_module_define (module, name, value);
   scm_module_export (module, scm_list_1 (name));
-  return scm_variable_ref (scm_module_variable (module, name));
+  result = scm_variable_ref (scm_module_variable (module, name));
+  scm_dynwind_end ();
+  return result;
 }
 #undef FUNC_NAME
 
@@ -317,8 +450,11 @@ SCM_DEFINE (scm_athena_root_binding_set_x,
 {
   if (!scm_is_symbol (name))
     scm_wrong_type_arg_msg (FUNC_NAME, 1, name, "symbol");
+  scm_dynwind_begin (0);
+  scm_dynwind_pthread_mutex_lock (&athena_publication_lock);
   scm_module_define (athena_root_module, name, value);
   scm_module_export (athena_root_module, scm_list_1 (name));
+  scm_dynwind_end ();
   return value;
 }
 #undef FUNC_NAME
@@ -329,13 +465,18 @@ SCM_DEFINE (scm_athena_root_binding_ref,
 #define FUNC_NAME s_scm_athena_root_binding_ref
 {
   SCM variable;
+  SCM result;
   if (!scm_is_symbol (name))
     scm_wrong_type_arg_msg (FUNC_NAME, 1, name, "symbol");
+  scm_dynwind_begin (0);
+  scm_dynwind_pthread_mutex_lock (&athena_publication_lock);
   variable = scm_module_local_variable (athena_root_module, name);
   if (!athena_variable_bound_p (variable))
     scm_misc_error (FUNC_NAME, "unbound ATHENA state variable ~S",
                     scm_list_1 (name));
-  return scm_variable_ref (variable);
+  result = scm_variable_ref (variable);
+  scm_dynwind_end ();
+  return result;
 }
 #undef FUNC_NAME
 
@@ -414,15 +555,15 @@ athena_begin_expression (SCM body)
 struct athena_module_resolution
 {
   SCM name;
-  SCM module;
+  SCM relative_file;
+  struct athena_module_record *record;
+  int private_module;
   SCM failure_tag;
   SCM failure_args;
-  SCM source_file;
-  int reload;
 };
 
 static SCM
-athena_module_source_file (SCM name)
+athena_module_relative_file (SCM name)
 {
   SCM pieces = SCM_EOL;
   SCM cursor = name;
@@ -444,32 +585,44 @@ athena_module_source_file (SCM name)
   relative = scm_string_append (scm_reverse_x (pieces, SCM_EOL));
   relative = scm_string_append
     (scm_list_2 (relative, scm_from_utf8_string (".scm")));
+  return relative;
+}
+
+static SCM
+athena_module_source_file (SCM name)
+{
+  SCM relative = athena_module_relative_file (name);
+  if (scm_is_false (relative))
+    return SCM_BOOL_F;
   return scm_sys_search_load_path (relative);
 }
 
 static SCM
-athena_resolve_interface_body (void *data)
+athena_load_module_body (void *data)
 {
   struct athena_module_resolution *resolution = data;
+  SCM module;
   SCM interface;
 
-  if (resolution->reload)
-    {
-      if (scm_is_string (resolution->source_file))
-        scm_primitive_load (resolution->source_file);
-      else
-        scm_misc_error ("module-provide", "source file not found for ~S",
-                        scm_list_1 (resolution->name));
-      interface = scm_module_public_interface (resolution->module);
-      if (scm_is_false (interface))
-        interface = resolution->module;
-    }
-  else
-    interface = scm_call_1 (athena_resolve_interface_proc,
-                            resolution->name);
-  scm_hash_set_x (athena_module_states, resolution->name,
-                  athena_state_loaded);
-  return interface;
+  if (!resolution->private_module)
+    return scm_call_1 (athena_resolve_interface_proc, resolution->name);
+
+  scm_dynwind_begin (0);
+  scm_dynwind_current_module
+    (scm_call_0 (athena_make_fresh_user_module_proc));
+  scm_primitive_load_path (resolution->relative_file);
+  scm_dynwind_end ();
+
+  scm_i_pthread_mutex_lock (&athena_module_registry_lock);
+  module = resolution->record->module;
+  interface = resolution->record->interface;
+  scm_i_pthread_mutex_unlock (&athena_module_registry_lock);
+  if (scm_is_false (module))
+    scm_misc_error ("module-provide", "no code for ATHENA module ~S",
+                    scm_list_1 (resolution->name));
+  if (scm_is_false (interface))
+    interface = scm_module_public_interface (module);
+  return scm_is_true (interface) ? interface : module;
 }
 
 static SCM
@@ -485,8 +638,6 @@ static SCM
 athena_resolve_interface_handler (void *data, SCM tag, SCM throw_args)
 {
   struct athena_module_resolution *resolution = data;
-  scm_hash_set_x (athena_module_states, resolution->name,
-                  athena_state_failed);
   resolution->failure_tag = tag;
   resolution->failure_args = throw_args;
   return SCM_BOOL_F;
@@ -496,66 +647,133 @@ static SCM
 athena_module_provide_internal (SCM name, int rethrow)
 {
   struct athena_module_resolution resolution;
-  SCM registered = scm_hash_ref (athena_modules, name, SCM_BOOL_F);
-  SCM state = scm_hash_ref (athena_module_states, name, SCM_BOOL_F);
-  SCM result;
+  struct athena_runtime_thread *thread = athena_current_runtime_thread ();
+  struct athena_module_record *record;
+  SCM registered = SCM_BOOL_F;
+  SCM result = SCM_BOOL_F;
+  SCM failure_tag = SCM_BOOL_F;
+  SCM failure_args = SCM_EOL;
 
-  if (scm_is_eq (state, athena_state_loaded) && scm_is_true (registered))
+  record = athena_module_record (name, 1);
+  for (;;)
     {
-      SCM interface = scm_module_public_interface (registered);
-      return scm_is_true (interface) ? interface : registered;
-    }
-
-  if (scm_is_eq (state, athena_state_loading))
-    {
-      SCM module = scm_maybe_resolve_module (name);
-      if (scm_is_true (module))
+      scm_i_pthread_mutex_lock (&athena_module_registry_lock);
+      if (record->state == ATHENA_MODULE_LOADED)
         {
-          SCM interface = scm_module_public_interface (module);
-          return scm_is_true (interface) ? interface : module;
+          result = scm_is_true (record->interface)
+                     ? record->interface : record->module;
+          scm_i_pthread_mutex_unlock (&athena_module_registry_lock);
+          return result;
         }
-      scm_misc_error ("module-provide", "circular module load for ~S",
-                      scm_list_1 (name));
+      if (record->state == ATHENA_MODULE_FAILED)
+        {
+          failure_tag = record->failure_tag;
+          failure_args = record->failure_args;
+          scm_i_pthread_mutex_unlock (&athena_module_registry_lock);
+          if (rethrow && scm_is_true (failure_tag))
+            scm_ithrow (failure_tag, failure_args, 1);
+          return SCM_BOOL_F;
+        }
+      if (record->state == ATHENA_MODULE_LOADING)
+        {
+          if (record->owner == thread)
+            {
+              registered = record->module;
+              scm_i_pthread_mutex_unlock (&athena_module_registry_lock);
+              if (scm_is_false (registered))
+                registered = scm_maybe_resolve_module (name);
+              if (scm_is_true (registered))
+                {
+                  SCM interface = scm_module_public_interface (registered);
+                  return scm_is_true (interface) ? interface : registered;
+                }
+              scm_misc_error ("module-provide",
+                              "circular module load for ~S",
+                              scm_list_1 (name));
+            }
+          else
+            {
+              struct athena_module_wait wait;
+              int cycle;
+              thread->waiting_on = record;
+              cycle = athena_module_wait_cycle_p (thread, record);
+              if (cycle)
+                {
+                  thread->waiting_on = NULL;
+                  scm_i_pthread_mutex_unlock
+                    (&athena_module_registry_lock);
+                  scm_misc_error ("module-provide",
+                                  "cross-thread circular module load for ~S",
+                                  scm_list_1 (name));
+                }
+              wait.condition = &record->changed;
+              wait.mutex = &athena_module_registry_lock;
+              wait.status = 0;
+              scm_without_guile (athena_module_wait_without_guile, &wait);
+              thread->waiting_on = NULL;
+              scm_i_pthread_mutex_unlock (&athena_module_registry_lock);
+              if (wait.status != 0)
+                scm_misc_error ("module-provide",
+                                "could not wait for module ~S",
+                                scm_list_1 (name));
+              continue;
+            }
+        }
+
+      record->state = ATHENA_MODULE_LOADING;
+      record->owner = thread;
+      scm_i_pthread_mutex_unlock (&athena_module_registry_lock);
+      break;
     }
 
-  scm_hash_set_x (athena_module_states, name, athena_state_loading);
   resolution.name = name;
-  resolution.module = SCM_BOOL_F;
+  resolution.relative_file = athena_module_relative_file (name);
+  resolution.record = record;
+  {
+    SCM source_file = athena_module_source_file (name);
+    resolution.private_module = scm_is_true (source_file)
+      && scm_i_athena_source_path_p (source_file);
+  }
   resolution.failure_tag = SCM_BOOL_F;
   resolution.failure_args = SCM_EOL;
-  resolution.source_file = SCM_BOOL_F;
-  resolution.reload = 0;
+  if (scm_is_false (resolution.relative_file))
+    scm_misc_error ("module-provide", "invalid ATHENA module name ~S",
+                    scm_list_1 (name));
   result = scm_c_catch (SCM_BOOL_T,
-                        athena_resolve_interface_body, &resolution,
+                        athena_load_module_body, &resolution,
                         athena_resolve_interface_handler, &resolution,
                         athena_resolve_interface_pre_unwind, &resolution);
+
+  scm_i_pthread_mutex_lock (&athena_module_registry_lock);
+  record->owner = NULL;
+  if (scm_is_true (result))
+    {
+      record->interface = result;
+      record->failure_tag = SCM_BOOL_F;
+      record->failure_args = SCM_EOL;
+      record->state = ATHENA_MODULE_LOADED;
+    }
+  else
+    {
+      record->failure_tag = resolution.failure_tag;
+      record->failure_args = resolution.failure_args;
+      record->state = ATHENA_MODULE_FAILED;
+      failure_tag = record->failure_tag;
+      failure_args = record->failure_args;
+    }
+  scm_i_pthread_cond_broadcast (&record->changed);
+  scm_i_pthread_mutex_unlock (&athena_module_registry_lock);
+
   if (scm_is_true (result))
     return result;
-
-  registered = scm_hash_ref (athena_modules, name, SCM_BOOL_F);
-  if (scm_is_true (registered))
-    {
-      scm_hash_set_x (athena_module_states, name, athena_state_loading);
-      resolution.module = registered;
-      resolution.source_file =
-        scm_hash_ref (athena_module_files, name, SCM_BOOL_F);
-      if (!scm_is_string (resolution.source_file))
-        resolution.source_file = athena_module_source_file (name);
-      resolution.reload = 1;
-      if (scm_is_string (resolution.source_file))
-        {
-          result = scm_c_catch (SCM_BOOL_T,
-                                athena_resolve_interface_body, &resolution,
-                                athena_resolve_interface_handler, &resolution,
-                                athena_resolve_interface_pre_unwind,
-                                &resolution);
-          if (scm_is_true (result))
-            return result;
-        }
-    }
-
   if (rethrow)
-    scm_ithrow (resolution.failure_tag, resolution.failure_args, 1);
+    {
+      if (scm_is_true (failure_tag))
+        scm_ithrow (failure_tag, failure_args, 1);
+      scm_misc_error ("module-provide",
+                      "ATHENA module ~S failed without an exception",
+                      scm_list_1 (name));
+    }
   return SCM_BOOL_F;
 }
 
@@ -1161,12 +1379,17 @@ SCM_DEFINE (scm_athena_global_binder, "%athena-global-binder", 3, 0, 0,
 #define FUNC_NAME s_scm_athena_global_binder
 {
   SCM variable;
+  SCM result;
   (void) module;
   (void) define_p;
   if (!scm_is_symbol (name))
     scm_wrong_type_arg_msg (FUNC_NAME, 2, name, "symbol");
+  scm_dynwind_begin (0);
+  scm_dynwind_pthread_mutex_lock (&athena_publication_lock);
   variable = scm_module_local_variable (athena_root_module, name);
-  return athena_variable_bound_p (variable) ? variable : SCM_BOOL_F;
+  result = athena_variable_bound_p (variable) ? variable : SCM_BOOL_F;
+  scm_dynwind_end ();
+  return result;
 }
 #undef FUNC_NAME
 
@@ -1193,7 +1416,13 @@ SCM_DEFINE (scm_athena_module_register_x, "%athena-module-register!", 3, 0, 0,
 #define FUNC_NAME s_scm_athena_module_register_x
 {
   SCM effective_source = source_file;
-  scm_hash_set_x (athena_modules, name, module);
+  SCM interface = scm_module_public_interface (module);
+  struct athena_runtime_thread *thread = athena_current_runtime_thread ();
+  struct athena_module_record *record;
+  int conflicting_owner = 0;
+
+  if (scm_is_false (interface))
+    interface = module;
   if (!scm_is_string (effective_source))
     {
       SCM port = scm_current_load_port ();
@@ -1207,10 +1436,34 @@ SCM_DEFINE (scm_athena_module_register_x, "%athena-module-register!", 3, 0, 0,
       SCM resolved_source = scm_sys_search_load_path (effective_source);
       if (scm_is_string (resolved_source))
         effective_source = resolved_source;
-      scm_hash_set_x (athena_module_files, name, effective_source);
     }
-  if (scm_is_false (scm_hash_ref (athena_module_states, name, SCM_BOOL_F)))
-    scm_hash_set_x (athena_module_states, name, athena_state_loading);
+
+  record = athena_module_record (name, 1);
+  scm_i_pthread_mutex_lock (&athena_module_registry_lock);
+  if (record->state == ATHENA_MODULE_LOADING
+      && record->owner != NULL && record->owner != thread)
+    conflicting_owner = 1;
+  else
+    {
+      record->module = module;
+      record->source_file = effective_source;
+      if (record->state != ATHENA_MODULE_LOADING)
+        {
+          /* Normal resolve-interface loads are completed by the surrounding
+             state machine.  A direct primitive load has no end callback, so
+             registration is its atomic publication boundary. */
+          record->interface = interface;
+          record->failure_tag = SCM_BOOL_F;
+          record->failure_args = SCM_EOL;
+          record->state = ATHENA_MODULE_LOADED;
+          record->owner = NULL;
+          scm_i_pthread_cond_broadcast (&record->changed);
+        }
+    }
+  scm_i_pthread_mutex_unlock (&athena_module_registry_lock);
+  if (conflicting_owner)
+    scm_misc_error (FUNC_NAME, "concurrent registration of module ~S",
+                    scm_list_1 (name));
   return module;
 }
 #undef FUNC_NAME
@@ -1220,7 +1473,10 @@ SCM_DEFINE (scm_athena_module_mark_sequential_x,
             "Mark a compiler module as using ATHENA sequential top-level semantics.")
 #define FUNC_NAME s_scm_athena_module_mark_sequential_x
 {
+  scm_dynwind_begin (0);
+  scm_dynwind_pthread_mutex_lock (&athena_module_registry_lock);
   scm_hashq_set_x (athena_sequential_modules, module, SCM_BOOL_T);
+  scm_dynwind_end ();
   return module;
 }
 #undef FUNC_NAME
@@ -1230,7 +1486,14 @@ SCM_DEFINE (scm_athena_module_ref, "%athena-module-ref", 1, 0, 0,
             "Return the registered ATHENA module named @var{name}.")
 #define FUNC_NAME s_scm_athena_module_ref
 {
-  return scm_hash_ref (athena_modules, name, SCM_BOOL_F);
+  struct athena_module_record *record;
+  SCM module = SCM_BOOL_F;
+  record = athena_module_record (name, 0);
+  scm_i_pthread_mutex_lock (&athena_module_registry_lock);
+  if (record != NULL)
+    module = record->module;
+  scm_i_pthread_mutex_unlock (&athena_module_registry_lock);
+  return module;
 }
 #undef FUNC_NAME
 
@@ -1240,14 +1503,22 @@ SCM_DEFINE (scm_athena_sequential_top_level_p,
 #define FUNC_NAME s_scm_athena_sequential_top_level_p
 {
   SCM name;
+  struct athena_module_record *record;
+  int result;
   if (scm_is_eq (module, athena_root_module))
     return SCM_BOOL_T;
   name = scm_call_1 (athena_module_name_proc, module);
-  return scm_from_bool
-    (scm_is_true (scm_hashq_ref (athena_sequential_modules, module,
-                                SCM_BOOL_F))
-     || (scm_is_true (name)
-         && scm_is_true (scm_hash_ref (athena_modules, name, SCM_BOOL_F))));
+  scm_dynwind_begin (0);
+  scm_dynwind_pthread_mutex_lock (&athena_module_registry_lock);
+  result = scm_is_true
+    (scm_hashq_ref (athena_sequential_modules, module, SCM_BOOL_F));
+  scm_dynwind_end ();
+  record = scm_is_true (name) ? athena_module_record (name, 0) : NULL;
+  scm_i_pthread_mutex_lock (&athena_module_registry_lock);
+  if (record != NULL && scm_is_true (record->module))
+    result = 1;
+  scm_i_pthread_mutex_unlock (&athena_module_registry_lock);
+  return scm_from_bool (result);
 }
 #undef FUNC_NAME
 
@@ -1257,12 +1528,17 @@ SCM_DEFINE (scm_athena_binding_install_x, "%athena-binding-install!",
 #define FUNC_NAME s_scm_athena_binding_install_x
 {
   SCM variable = scm_module_variable (module, name);
+  SCM result;
   if (!athena_variable_bound_p (variable))
     scm_misc_error (FUNC_NAME, "module has no binding named ~S",
                     scm_list_1 (name));
+  scm_dynwind_begin (0);
+  scm_dynwind_pthread_mutex_lock (&athena_publication_lock);
   scm_module_define (athena_root_module, name, scm_variable_ref (variable));
   scm_module_export (athena_root_module, scm_list_1 (name));
-  return scm_variable_ref (variable);
+  result = scm_variable_ref (variable);
+  scm_dynwind_end ();
+  return result;
 }
 #undef FUNC_NAME
 
@@ -1271,8 +1547,12 @@ SCM_DEFINE (scm_athena_definition_defined_p, "%athena-definition-defined?",
             "Return true when @var{name} has an ATHENA definition.")
 #define FUNC_NAME s_scm_athena_definition_defined_p
 {
-  return scm_from_bool (scm_is_true
-    (scm_hashq_ref (athena_definition_sources, name, SCM_BOOL_F)));
+  SCM found;
+  scm_dynwind_begin (0);
+  scm_dynwind_pthread_mutex_lock (&athena_publication_lock);
+  found = scm_hashq_ref (athena_definition_sources, name, SCM_BOOL_F);
+  scm_dynwind_end ();
+  return scm_from_bool (scm_is_true (found));
 }
 #undef FUNC_NAME
 
@@ -1280,9 +1560,15 @@ SCM_DEFINE (scm_athena_definition_ref, "%athena-definition-ref", 1, 0, 0,
             (SCM name), "Return ATHENA's root definition named @var{name}.")
 #define FUNC_NAME s_scm_athena_definition_ref
 {
-  SCM variable = scm_module_variable (athena_root_module, name);
-  return athena_variable_bound_p (variable)
-           ? scm_variable_ref (variable) : SCM_BOOL_F;
+  SCM variable;
+  SCM result;
+  scm_dynwind_begin (0);
+  scm_dynwind_pthread_mutex_lock (&athena_publication_lock);
+  variable = scm_module_variable (athena_root_module, name);
+  result = athena_variable_bound_p (variable)
+             ? scm_variable_ref (variable) : SCM_BOOL_F;
+  scm_dynwind_end ();
+  return result;
 }
 #undef FUNC_NAME
 
@@ -1291,11 +1577,14 @@ SCM_DEFINE (scm_athena_definition_install_x, "%athena-definition-install!",
             "Install an ATHENA root definition and register its metadata.")
 #define FUNC_NAME s_scm_athena_definition_install_x
 {
+  scm_dynwind_begin (0);
+  scm_dynwind_pthread_mutex_lock (&athena_publication_lock);
   scm_module_define (athena_root_module, name, procedure);
   scm_module_export (athena_root_module, scm_list_1 (name));
   athena_table_prepend (athena_definition_sources, name, source);
   scm_hashq_set_x (athena_definition_names, procedure, name);
   athena_table_prepend (athena_definition_modules, name, module_name);
+  scm_dynwind_end ();
   return procedure;
 }
 #undef FUNC_NAME
@@ -1305,7 +1594,12 @@ SCM_DEFINE (scm_athena_definition_sources_ref, "%athena-definition-sources",
             "Return source forms registered for ATHENA definition @var{name}.")
 #define FUNC_NAME s_scm_athena_definition_sources_ref
 {
-  return scm_hashq_ref (athena_definition_sources, name, SCM_BOOL_F);
+  SCM result;
+  scm_dynwind_begin (0);
+  scm_dynwind_pthread_mutex_lock (&athena_publication_lock);
+  result = scm_hashq_ref (athena_definition_sources, name, SCM_BOOL_F);
+  scm_dynwind_end ();
+  return result;
 }
 #undef FUNC_NAME
 
@@ -1314,7 +1608,12 @@ SCM_DEFINE (scm_athena_definition_modules_ref, "%athena-definition-modules",
             "Return module names that contributed to definition @var{name}.")
 #define FUNC_NAME s_scm_athena_definition_modules_ref
 {
-  return scm_hashq_ref (athena_definition_modules, name, SCM_EOL);
+  SCM result;
+  scm_dynwind_begin (0);
+  scm_dynwind_pthread_mutex_lock (&athena_publication_lock);
+  result = scm_hashq_ref (athena_definition_modules, name, SCM_EOL);
+  scm_dynwind_end ();
+  return result;
 }
 #undef FUNC_NAME
 
@@ -1323,7 +1622,12 @@ SCM_DEFINE (scm_athena_procedure_name, "%athena-procedure-name", 1, 0, 0,
             "Return ATHENA's registered symbolic name for @var{procedure}.")
 #define FUNC_NAME s_scm_athena_procedure_name
 {
-  return scm_hashq_ref (athena_definition_names, procedure, SCM_BOOL_F);
+  SCM result;
+  scm_dynwind_begin (0);
+  scm_dynwind_pthread_mutex_lock (&athena_publication_lock);
+  result = scm_hashq_ref (athena_definition_names, procedure, SCM_BOOL_F);
+  scm_dynwind_end ();
+  return result;
 }
 #undef FUNC_NAME
 
@@ -1339,8 +1643,13 @@ SCM_DEFINE (scm_athena_defined_symbols, "%athena-defined-symbols", 0, 0, 0,
             (void), "Return all symbols registered through tm-define.")
 #define FUNC_NAME s_scm_athena_defined_symbols
 {
-  return scm_internal_hash_fold (collect_hash_key, NULL, SCM_EOL,
-                                 athena_definition_sources);
+  SCM result;
+  scm_dynwind_begin (0);
+  scm_dynwind_pthread_mutex_lock (&athena_publication_lock);
+  result = scm_internal_hash_fold (collect_hash_key, NULL, SCM_EOL,
+                                   athena_definition_sources);
+  scm_dynwind_end ();
+  return result;
 }
 #undef FUNC_NAME
 
@@ -1441,7 +1750,12 @@ SCM_DEFINE (scm_athena_property_context, "%athena-property-context", 2, 0, 0,
 #define FUNC_NAME s_scm_athena_property_context
 {
   SCM key = scm_cons (name, property);
-  return scm_hash_ref (athena_property_contexts, key, SCM_BOOL_F);
+  SCM result;
+  scm_dynwind_begin (0);
+  scm_dynwind_pthread_mutex_lock (&athena_publication_lock);
+  result = scm_hash_ref (athena_property_contexts, key, SCM_BOOL_F);
+  scm_dynwind_end ();
+  return result;
 }
 #undef FUNC_NAME
 
@@ -1452,7 +1766,10 @@ SCM_DEFINE (scm_athena_property_context_set_x,
 #define FUNC_NAME s_scm_athena_property_context_set_x
 {
   SCM key = scm_cons (name, property);
+  scm_dynwind_begin (0);
+  scm_dynwind_pthread_mutex_lock (&athena_publication_lock);
   scm_hash_set_x (athena_property_contexts, key, context);
+  scm_dynwind_end ();
   return context;
 }
 #undef FUNC_NAME
@@ -1463,11 +1780,15 @@ SCM_DEFINE (scm_athena_property_set_x, "property-set!", 4, 0, 0,
 #define FUNC_NAME s_scm_athena_property_set_x
 {
   SCM key = scm_cons (name, property);
-  SCM context = scm_hash_ref (athena_property_contexts, key, SCM_EOL);
+  SCM context;
   if (!athena_proper_list_p (conditions))
     scm_wrong_type_arg_msg (FUNC_NAME, 4, conditions, "proper list");
+  scm_dynwind_begin (0);
+  scm_dynwind_pthread_mutex_lock (&athena_publication_lock);
+  context = scm_hash_ref (athena_property_contexts, key, SCM_EOL);
   context = scm_cons (scm_cons (conditions, value), context);
   scm_hash_set_x (athena_property_contexts, key, context);
+  scm_dynwind_end ();
   return value;
 }
 #undef FUNC_NAME
@@ -1479,12 +1800,18 @@ SCM_DEFINE (scm_athena_property, "property", 2, 0, 0,
 {
   SCM key;
   SCM context;
+  scm_dynwind_begin (0);
+  scm_dynwind_pthread_mutex_lock (&athena_publication_lock);
   if (scm_is_true (scm_procedure_p (name)))
     name = scm_hashq_ref (athena_definition_names, name, SCM_BOOL_F);
   if (scm_is_false (name))
-    return SCM_BOOL_F;
+    {
+      scm_dynwind_end ();
+      return SCM_BOOL_F;
+    }
   key = scm_cons (name, property);
   context = scm_hash_ref (athena_property_contexts, key, SCM_EOL);
+  scm_dynwind_end ();
   while (scm_is_pair (context))
     {
       SCM entry = scm_car (context);
@@ -1502,7 +1829,10 @@ SCM_DEFINE (scm_athena_lazy_register_x, "%athena-lazy-register!", 2, 0, 0,
             "Register @var{module} as a lazy provider of @var{name}.")
 #define FUNC_NAME s_scm_athena_lazy_register_x
 {
+  scm_dynwind_begin (0);
+  scm_dynwind_pthread_mutex_lock (&athena_publication_lock);
   athena_table_prepend (athena_lazy_modules, name, module);
+  scm_dynwind_end ();
   return SCM_UNSPECIFIED;
 }
 #undef FUNC_NAME
@@ -1522,7 +1852,11 @@ SCM_DEFINE (scm_athena_lazy_install_x, "%athena-lazy-install!", 3, 0, 0,
             "Install a lazy ATHENA root binding unless one already exists.")
 #define FUNC_NAME s_scm_athena_lazy_install_x
 {
-  SCM variable = scm_module_variable (athena_root_module, name);
+  SCM variable;
+  SCM result;
+  scm_dynwind_begin (0);
+  scm_dynwind_pthread_mutex_lock (&athena_publication_lock);
+  variable = scm_module_variable (athena_root_module, name);
   if (!athena_variable_bound_p (variable))
     {
       scm_module_define (athena_root_module, name, procedure);
@@ -1530,8 +1864,10 @@ SCM_DEFINE (scm_athena_lazy_install_x, "%athena-lazy-install!", 3, 0, 0,
       scm_hashq_set_x (athena_definition_names, procedure, name);
     }
   athena_table_prepend (athena_lazy_modules, name, module);
-  return athena_variable_bound_p (variable)
-           ? scm_variable_ref (variable) : procedure;
+  result = athena_variable_bound_p (variable)
+             ? scm_variable_ref (variable) : procedure;
+  scm_dynwind_end ();
+  return result;
 }
 #undef FUNC_NAME
 
@@ -1542,9 +1878,12 @@ SCM_DEFINE (scm_athena_lazy_call, "%athena-lazy-call", 3, 0, 0,
 {
   SCM variable;
   SCM procedure;
+  SCM defined;
   athena_module_provide_internal (module, 1);
-  if (scm_is_false
-      (scm_hashq_ref (athena_definition_sources, name, SCM_BOOL_F)))
+  scm_dynwind_begin (0);
+  scm_dynwind_pthread_mutex_lock (&athena_publication_lock);
+  defined = scm_hashq_ref (athena_definition_sources, name, SCM_BOOL_F);
+  if (scm_is_false (defined))
     scm_misc_error (FUNC_NAME, "module ~S did not define ~S",
                     scm_list_2 (module, name));
   variable = scm_module_variable (athena_root_module, name);
@@ -1552,9 +1891,36 @@ SCM_DEFINE (scm_athena_lazy_call, "%athena-lazy-call", 3, 0, 0,
     scm_misc_error (FUNC_NAME, "could not resolve lazy definition ~S",
                     scm_list_1 (name));
   procedure = scm_variable_ref (variable);
+  scm_dynwind_end ();
   return scm_apply_0 (procedure, args);
 }
 #undef FUNC_NAME
+
+static int
+athena_lazy_snapshot_contains_p (SCM snapshot, SCM module)
+{
+  while (scm_is_pair (snapshot))
+    {
+      if (scm_is_true (scm_equal_p (scm_car (snapshot), module)))
+        return 1;
+      snapshot = scm_cdr (snapshot);
+    }
+  return 0;
+}
+
+static SCM
+athena_lazy_remove_snapshot (SCM current, SCM snapshot)
+{
+  SCM result = SCM_EOL;
+  while (scm_is_pair (current))
+    {
+      SCM module = scm_car (current);
+      if (!athena_lazy_snapshot_contains_p (snapshot, module))
+        result = scm_cons (module, result);
+      current = scm_cdr (current);
+    }
+  return scm_reverse_x (result, SCM_EOL);
+}
 
 SCM_DEFINE (scm_athena_lazy_force, "lazy-define-force", 1, 0, 0,
             (SCM value), "Load all providers of a lazy ATHENA definition.")
@@ -1562,23 +1928,40 @@ SCM_DEFINE (scm_athena_lazy_force, "lazy-define-force", 1, 0, 0,
 {
   SCM name = value;
   SCM modules;
+  SCM snapshot;
   if (scm_is_true (scm_procedure_p (name)))
     {
-      SCM registered =
+      SCM registered;
+      scm_dynwind_begin (0);
+      scm_dynwind_pthread_mutex_lock (&athena_publication_lock);
+      registered =
         scm_hashq_ref (athena_definition_names, name, SCM_BOOL_F);
+      scm_dynwind_end ();
       name = scm_is_false (registered) ? scm_procedure_name (name) : registered;
       if (scm_is_false (name))
         return SCM_UNSPECIFIED;
     }
   if (!scm_is_symbol (name))
     scm_wrong_type_arg_msg (FUNC_NAME, 1, value, "procedure or symbol");
+  scm_dynwind_begin (0);
+  scm_dynwind_pthread_mutex_lock (&athena_publication_lock);
   modules = scm_hashq_ref (athena_lazy_modules, name, SCM_EOL);
-  scm_hashq_remove_x (athena_lazy_modules, name);
+  snapshot = modules;
+  scm_dynwind_end ();
   while (scm_is_pair (modules))
     {
       athena_module_provide_internal (scm_car (modules), 1);
       modules = scm_cdr (modules);
     }
+  scm_dynwind_begin (0);
+  scm_dynwind_pthread_mutex_lock (&athena_publication_lock);
+  modules = scm_hashq_ref (athena_lazy_modules, name, SCM_EOL);
+  modules = athena_lazy_remove_snapshot (modules, snapshot);
+  if (scm_is_null (modules))
+    scm_hashq_remove_x (athena_lazy_modules, name);
+  else
+    scm_hashq_set_x (athena_lazy_modules, name, modules);
+  scm_dynwind_end ();
   return SCM_UNSPECIFIED;
 }
 #undef FUNC_NAME
@@ -1663,7 +2046,12 @@ SCM_DEFINE (scm_athena_lazy_modules_ref, "%athena-lazy-modules", 1, 0, 0,
             (SCM name), "Return lazy provider modules for @var{name}.")
 #define FUNC_NAME s_scm_athena_lazy_modules_ref
 {
-  return scm_hashq_ref (athena_lazy_modules, name, SCM_EOL);
+  SCM result;
+  scm_dynwind_begin (0);
+  scm_dynwind_pthread_mutex_lock (&athena_publication_lock);
+  result = scm_hashq_ref (athena_lazy_modules, name, SCM_EOL);
+  scm_dynwind_end ();
+  return result;
 }
 #undef FUNC_NAME
 
@@ -1671,7 +2059,10 @@ SCM_DEFINE (scm_athena_lazy_clear_x, "%athena-lazy-clear!", 1, 0, 0,
             (SCM name), "Remove all lazy provider modules for @var{name}.")
 #define FUNC_NAME s_scm_athena_lazy_clear_x
 {
+  scm_dynwind_begin (0);
+  scm_dynwind_pthread_mutex_lock (&athena_publication_lock);
   scm_hashq_remove_x (athena_lazy_modules, name);
+  scm_dynwind_end ();
   return SCM_UNSPECIFIED;
 }
 #undef FUNC_NAME
@@ -2062,20 +2453,16 @@ static void
 init_athena_runtime_module (void *data)
 {
   (void) data;
-  athena_modules = scm_c_make_hash_table (127);
+  athena_module_records = scm_c_make_hash_table (127);
   athena_sequential_modules = scm_c_make_hash_table (127);
-  athena_module_states = scm_c_make_hash_table (127);
-  athena_module_files = scm_c_make_hash_table (127);
   athena_definition_sources = scm_c_make_hash_table (4093);
   athena_definition_names = scm_c_make_hash_table (4093);
   athena_definition_modules = scm_c_make_hash_table (4093);
   athena_property_contexts = scm_c_make_hash_table (4093);
   athena_lazy_modules = scm_c_make_hash_table (1021);
 
-  scm_gc_protect_object (athena_modules);
+  scm_gc_protect_object (athena_module_records);
   scm_gc_protect_object (athena_sequential_modules);
-  scm_gc_protect_object (athena_module_states);
-  scm_gc_protect_object (athena_module_files);
   scm_gc_protect_object (athena_definition_sources);
   scm_gc_protect_object (athena_definition_names);
   scm_gc_protect_object (athena_definition_modules);
@@ -2213,6 +2600,8 @@ scm_init_athena_runtime (void)
                      scm_list_1 (athena_symbol ("texmacs-user")));
   athena_resolve_interface_proc =
     scm_c_private_ref ("guile", "resolve-interface");
+  athena_make_fresh_user_module_proc =
+    scm_c_private_ref ("guile", "make-fresh-user-module");
   athena_module_use_proc = scm_c_private_ref ("guile", "module-use!");
   athena_module_add_proc = scm_c_private_ref ("guile", "module-add!");
   athena_module_name_proc = scm_c_private_ref ("guile", "module-name");
@@ -2230,10 +2619,8 @@ scm_init_athena_runtime (void)
     scm_c_private_ref ("guile", "lookup-duplicates-handlers");
   athena_original_module_export_proc =
     scm_c_private_ref ("guile", "module-export!");
-  athena_state_loading = scm_from_utf8_symbol ("loading");
-  athena_state_loaded = scm_from_utf8_symbol ("loaded");
-  athena_state_failed = scm_from_utf8_symbol ("failed");
   scm_gc_protect_object (athena_resolve_interface_proc);
+  scm_gc_protect_object (athena_make_fresh_user_module_proc);
   scm_gc_protect_object (athena_module_use_proc);
   scm_gc_protect_object (athena_module_add_proc);
   scm_gc_protect_object (athena_module_name_proc);
@@ -2244,9 +2631,6 @@ scm_init_athena_runtime (void)
   scm_gc_protect_object (athena_set_module_duplicates_proc);
   scm_gc_protect_object (athena_lookup_duplicates_handlers_proc);
   scm_gc_protect_object (athena_original_module_export_proc);
-  scm_gc_protect_object (athena_state_loading);
-  scm_gc_protect_object (athena_state_loaded);
-  scm_gc_protect_object (athena_state_failed);
   /* The legacy root intentionally imports ATHENA definitions which replace
      Guile's generic helpers (for example display, when, and select).  Give
      that module the same deterministic last-import-wins policy as ATHENA

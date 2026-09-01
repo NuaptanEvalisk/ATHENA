@@ -50,5 +50,6 @@ SCM_INTERNAL void scm_init_load (void);
 SCM_INTERNAL void scm_init_load_should_auto_compile (void);
 SCM_INTERNAL void scm_init_eval_in_scheme (void);
 SCM_INTERNAL char *scm_i_mirror_backslashes (char *path);
+SCM_INTERNAL int scm_i_athena_source_path_p (SCM path);
 
 #endif  /* SCM_LOAD_H */

@@ -1202,10 +1202,46 @@ scm_athena_flush_deferred_auto_compilation (void)
    function determines the PATH to use as a key into the compilation
    cache.  See also (system base compile):compiled-file-name. */
 static SCM
+athena_source_root_path (void)
+{
+  const char *source_root = getenv ("ATHENA_GUILE_SOURCE_ROOT");
+  if (source_root == NULL || source_root[0] == '\0')
+    return SCM_BOOL_F;
+  return scm_canonicalize_path (scm_from_locale_string (source_root));
+}
+
+static int
+athena_path_below_root_p (SCM path, SCM root, size_t *root_len_out)
+{
+  size_t path_len = scm_c_string_length (path);
+  size_t root_len = scm_c_string_length (root);
+  char *path_chars = scm_to_locale_string (path);
+  char *root_chars = scm_to_locale_string (root);
+  int result = path_len > root_len
+    && strncmp (root_chars, path_chars, root_len) == 0
+    && (path_chars[root_len] == '/' || path_chars[root_len] == '\\');
+
+  free (path_chars);
+  free (root_chars);
+  if (result && root_len_out != NULL)
+    *root_len_out = root_len;
+  return result;
+}
+
+int
+scm_i_athena_source_path_p (SCM path)
+{
+  SCM root = athena_source_root_path ();
+  return scm_is_true (root)
+    && athena_path_below_root_p (scm_canonicalize_path (path), root, NULL);
+}
+
+static SCM
 canonical_suffix (SCM fname)
 {
   SCM canon;
-  char *athena_source_root;
+  SCM root;
+  size_t root_len;
 
   /* CANON should be absolute.  */
   canon = scm_canonicalize_path (fname);
@@ -1217,31 +1253,18 @@ canonical_suffix (SCM fname)
      relative path and drop the .scm suffix.  The resulting key is identical to
      Guile's module lookup name (foo/bar.go), while still serving absolute
      primitive-load calls such as init-texmacs.scm.  */
-  athena_source_root = getenv ("ATHENA_GUILE_SOURCE_ROOT");
-  if (athena_source_root && athena_source_root[0])
+  root = athena_source_root_path ();
+  if (scm_is_true (root)
+      && athena_path_below_root_p (canon, root, &root_len))
     {
-      SCM root = scm_canonicalize_path
-        (scm_from_locale_string (athena_source_root));
       size_t canon_len = scm_c_string_length (canon);
-      size_t root_len = scm_c_string_length (root);
       char *canon_chars = scm_to_locale_string (canon);
-      char *root_chars = scm_to_locale_string (root);
-
-      if (canon_len > root_len
-          && strncmp (root_chars, canon_chars, root_len) == 0
-          && (canon_chars[root_len] == '/'
-              || canon_chars[root_len] == '\\'))
-        {
-          size_t end = canon_len;
-          if (end >= 4
-              && strcmp (canon_chars + end - 4, ".scm") == 0)
-            end -= 4;
-          free (canon_chars);
-          free (root_chars);
-          return scm_c_substring (canon, root_len, end);
-        }
+      size_t end = canon_len;
+      if (end >= 4
+          && strcmp (canon_chars + end - 4, ".scm") == 0)
+        end -= 4;
       free (canon_chars);
-      free (root_chars);
+      return scm_c_substring (canon, root_len, end);
     }
 
 #ifdef __MINGW32__
