@@ -121,7 +121,7 @@ struct QTMRenderConnection::processor_state {
       frame.bufferGeneration= buffer_generation;
       frame.frameGeneration= frame_generation;
       frame.damage= damage;
-      if (target->publish (std::move (frame)) && completed) completed ();
+      if (target->publish (frame) && completed) completed (std::move (frame));
     }
     abandon_frame ();
   }

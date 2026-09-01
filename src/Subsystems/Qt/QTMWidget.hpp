@@ -22,9 +22,11 @@
 #include <QPixmap>
 #include <QScreen>
 #include <QElapsedTimer>
+#include <QImage>
 #include <QTimer>
 
 class qt_simple_widget_rep;
+struct QTMRenderedFrame;
 class QScrollBar;
 class QNativeGestureEvent;
 class QPainter;
@@ -55,6 +57,7 @@ public:
   virtual void scrollContentsBy (int dx, int dy) override;
 
   void setCursorPos (QPoint pos);
+  void presentRenderedFrame (QTMRenderedFrame frame);
   QPoint cursorGlobalPos () const {
     QPoint p = contentsToViewport (cursor_pos);
     return viewport ()->mapToGlobal (p + QPoint (0, 22));
@@ -125,6 +128,9 @@ private:
   QPointF viewPinchFocal;
   QPoint viewPinchStartOrigin;
   QPixmap viewPinchPreview;
+  QImage renderedFrame;
+  std::uint64_t renderedBufferGeneration= 0;
+  std::uint64_t renderedFrameGeneration= 0;
   bool neighborhoodTapCandidate = false;
   QElapsedTimer neighborhoodTapTimer;
   QPointF neighborhoodTapStartCenter;

@@ -18,6 +18,8 @@
 
 #include "QTMWidget.hpp"
 #include "QTMMenuHelper.hpp"
+#include <QCoreApplication>
+#include <QMetaObject>
 #include <QPixmap>
 #include <QCursor>
 #include <QLayout>
@@ -33,6 +35,12 @@ qt_simple_widget_rep::qt_simple_widget_rep ()
 
 qt_simple_widget_rep::~qt_simple_widget_rep () {
   all_widgets->remove ((pointer) this);
+  std::shared_ptr<QTMRenderConnection> retired;
+  {
+    std::lock_guard<std::mutex> guard (render_connection_lock);
+    retired= std::move (render_connection);
+  }
+  if (retired != nullptr) retired->retire ();
   if (backingPixmap != NULL) delete backingPixmap;
 }
 
@@ -58,6 +66,24 @@ qt_simple_widget_rep::as_qwidget (QWidget* parent_widget) {
     qRound (device_pixel_ratio () * backing_pos.x ()),
     qRound (device_pixel_ratio () * backing_pos.y ()));
   backing_valid = false;
+  if (is_editor_widget ()) {
+    QPointer<QTMWidget> target= canvas ();
+    std::shared_ptr<QTMRenderConnection> connection=
+      QTMRenderConnection::create (
+        [target] (QTMRenderedFrame frame) mutable {
+          QCoreApplication* application= QCoreApplication::instance ();
+          if (application == nullptr) return;
+          QMetaObject::invokeMethod (
+            application,
+            [target, frame= std::move (frame)] () mutable {
+              if (target != nullptr)
+                target->presentRenderedFrame (std::move (frame));
+            },
+            Qt::QueuedConnection);
+        });
+    std::lock_guard<std::mutex> guard (render_connection_lock);
+    render_connection= std::move (connection);
+  }
   return qwid;
 }
 
@@ -469,6 +495,23 @@ qt_simple_widget_rep::get_renderer() {
   qt_renderer_rep * ren = the_qt_renderer (device_pixel_ratio ());
   ren->begin ((void*) backingPixmap);
   return ren;
+}
+
+bool
+qt_simple_widget_rep::submit_render_frame (
+  const QPicture& picture, int pixel_width, int pixel_height,
+  double pixel_ratio, std::uint32_t background_argb,
+  std::uint64_t buffer_generation, std::uint64_t frame_generation,
+  render_damage damage) {
+  std::shared_ptr<QTMRenderConnection> connection;
+  {
+    std::lock_guard<std::mutex> guard (render_connection_lock);
+    connection= render_connection;
+  }
+  return connection != nullptr &&
+         connection->submit (picture, pixel_width, pixel_height, pixel_ratio,
+                             background_argb, buffer_generation,
+                             frame_generation, damage);
 }
 
 /*

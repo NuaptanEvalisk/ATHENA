@@ -18,6 +18,11 @@
 #include "qt_widget.hpp"
 #include "QTMScrollView.hpp"
 #include "QTMWidget.hpp"
+#include "QTMRenderService.hpp"
+
+#include <cstdint>
+#include <memory>
+#include <mutex>
 
 /*! A widget containing a TeXmacs canvas.
  
@@ -119,9 +124,18 @@ protected:
   bool is_invalid ();
   void repaint_invalid_regions ();
   basic_renderer get_renderer();
+  bool submit_render_frame (
+    const QPicture& picture, int pixel_width, int pixel_height,
+    double device_pixel_ratio, std::uint32_t background_argb,
+    std::uint64_t buffer_generation, std::uint64_t frame_generation,
+    render_damage damage);
   
   
   friend class QTMWidget;
+
+private:
+  std::mutex render_connection_lock;
+  std::shared_ptr<QTMRenderConnection> render_connection;
 };
 
 inline qt_simple_widget_rep* concrete_simple_widget (qt_widget w) {

@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "QTMWidget.hpp"
+#include "QTMRenderService.hpp"
 #include "QTMDocumentSearchBar.hpp"
 #include "qt_gui.hpp"
 #include "tm_window.hpp"
@@ -316,6 +317,9 @@ QTMWidget::surfacePaintEvent (QPaintEvent *event, QWidget *surfaceWidget) {
       !viewPinchPreview.isNull()) {
     drawViewPinchPreview (p);
   }
+  else if (!renderedFrame.isNull ()) {
+    p.drawImage (QPointF (0.0, 0.0), renderedFrame);
+  }
   else {
     qreal pixel_ratio= lastPixelRatio;
     QRegion reg= event->region();
@@ -331,6 +335,28 @@ QTMWidget::surfacePaintEvent (QPaintEvent *event, QWidget *surfaceWidget) {
     }
   }
   performanceMonitor.finishPaint (event, p);
+}
+
+void
+QTMWidget::presentRenderedFrame (QTMRenderedFrame frame) {
+  if (frame.image.isNull ()) return;
+  if (frame.bufferGeneration < renderedBufferGeneration ||
+      (frame.bufferGeneration == renderedBufferGeneration &&
+       frame.frameGeneration <= renderedFrameGeneration))
+    return;
+  renderedBufferGeneration= frame.bufferGeneration;
+  renderedFrameGeneration= frame.frameGeneration;
+  renderedFrame= std::move (frame.image);
+
+  double ratio= renderedFrame.devicePixelRatio ();
+  int x1= static_cast<int> (std::floor (frame.damage.x1 / ratio));
+  int y1= static_cast<int> (std::floor (frame.damage.y1 / ratio));
+  int x2= static_cast<int> (std::ceil (frame.damage.x2 / ratio));
+  int y2= static_cast<int> (std::ceil (frame.damage.y2 / ratio));
+  QRect damage (x1, y1, x2 - x1, y2 - y1);
+  damage= damage.intersected (surface ()->rect ());
+  if (damage.isEmpty ()) surface ()->update ();
+  else surface ()->update (damage);
 }
 
 bool
@@ -446,7 +472,9 @@ QTMWidget::beginViewPinchZoom (const QPointF& focal, const char* source) {
   viewPinchPixelRatio= surface()->devicePixelRatio();
   viewPinchFocal= focal;
   viewPinchStartOrigin= origin();
-  viewPinchPreview= *(tm_widget()->backingPixmap);
+  viewPinchPreview= renderedFrame.isNull ()
+    ? *(tm_widget()->backingPixmap)
+    : QPixmap::fromImage (renderedFrame);
   logGesture ("begin", source, viewPinchScale, viewPinchFocal);
 }
 

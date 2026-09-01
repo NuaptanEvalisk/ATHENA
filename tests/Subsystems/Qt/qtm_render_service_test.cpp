@@ -14,6 +14,7 @@
 
 #include <QPainter>
 #include <condition_variable>
+#include <future>
 #include <mutex>
 #include <thread>
 
@@ -29,7 +30,12 @@ private slots:
 
 void
 TestQTMRenderService::rendersDisplayListOffTheProducerThread () {
-  auto connection= QTMRenderConnection::create ({}, 2, 128);
+  std::promise<QTMRenderedFrame> completed;
+  std::future<QTMRenderedFrame> delivered= completed.get_future ();
+  auto connection= QTMRenderConnection::create (
+    [&completed] (QTMRenderedFrame frame) {
+      completed.set_value (std::move (frame));
+    }, 2, 128);
   QVERIFY (connection != nullptr);
 
   QPicture picture;
@@ -49,6 +55,12 @@ TestQTMRenderService::rendersDisplayListOffTheProducerThread () {
   QCOMPARE (frame.image.size (), QSize (20, 20));
   QCOMPARE (frame.image.pixelColor (6, 7), QColor (10, 120, 230));
   QCOMPARE (frame.image.pixelColor (0, 0), QColor (255, 255, 255));
+  QVERIFY (delivered.wait_for (std::chrono::seconds (1)) ==
+           std::future_status::ready);
+  QTMRenderedFrame callbackFrame= delivered.get ();
+  QCOMPARE (callbackFrame.bufferGeneration, std::uint64_t (3));
+  QCOMPARE (callbackFrame.frameGeneration, std::uint64_t (9));
+  QCOMPARE (callbackFrame.image.pixelColor (6, 7), QColor (10, 120, 230));
 
   connection->retire ();
 }

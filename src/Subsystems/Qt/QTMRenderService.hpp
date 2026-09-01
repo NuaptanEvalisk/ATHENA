@@ -48,7 +48,7 @@ private:
 
 class QTMRenderConnection {
 public:
-  using completion_callback= std::function<void ()>;
+  using completion_callback= std::function<void (QTMRenderedFrame)>;
 
   static std::shared_ptr<QTMRenderConnection> create (
     completion_callback completed= completion_callback (),
