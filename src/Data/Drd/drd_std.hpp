@@ -14,17 +14,33 @@
 #include "drd_info.hpp"
 
 extern drd_info std_drd;
-extern drd_info the_drd;
 extern hashmap<string,int> STD_CODE;
+
+drd_info& current_drd () noexcept;
+drd_info* swap_current_drd (drd_info* drd) noexcept;
+
+#define the_drd (current_drd ())
 
 inline bool std_contains (string s) { return STD_CODE->contains (s); }
 
 void init_std_drd ();
 
 struct with_drd {
-  drd_info old_drd;
-  inline with_drd (drd_info new_drd): old_drd (the_drd) { the_drd= new_drd; }
-  inline ~with_drd () { the_drd= old_drd; }
+  drd_info local_drd;
+  drd_info* old_drd;
+  inline with_drd (drd_info new_drd):
+    local_drd (new_drd), old_drd (swap_current_drd (&local_drd)) {}
+  inline ~with_drd () { swap_current_drd (old_drd); }
+};
+
+struct with_borrowed_drd {
+  drd_info* old_drd;
+  inline explicit with_borrowed_drd (drd_info* new_drd):
+    old_drd (swap_current_drd (new_drd)) {}
+  inline ~with_borrowed_drd () { swap_current_drd (old_drd); }
+
+  with_borrowed_drd (const with_borrowed_drd&)= delete;
+  with_borrowed_drd& operator = (const with_borrowed_drd&)= delete;
 };
 
 #endif // defined DRD_STD_H

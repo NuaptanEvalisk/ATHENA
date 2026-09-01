@@ -21,6 +21,7 @@
 #include "file.hpp"
 #include "../Scheme/glue.hpp"
 #include "convert.hpp" // tree_to_texmacs (should not belong here)
+#include "scheme_execution_context.hpp"
 
 #include <atomic>
 #include <mutex>
@@ -32,6 +33,58 @@
  ******************************************************************************/
 static void (*old_call_back) (int, char**)= NULL;
 static scheme_compile_callback old_compile_callback= nullptr;
+static SCM execution_context_fluid= SCM_UNDEFINED;
+static thread_local const SchemeExecutionContext* fluid_execution_context=
+  nullptr;
+
+struct scheme_execution_request {
+  const SchemeExecutionContext* context;
+  scheme_execution_callback callback;
+  void* data;
+};
+
+class fluid_execution_scope {
+  const SchemeExecutionContext* previous;
+
+public:
+  explicit fluid_execution_scope (const SchemeExecutionContext* context):
+    previous (fluid_execution_context) {
+    fluid_execution_context= context;
+  }
+
+  ~fluid_execution_scope () { fluid_execution_context= previous; }
+};
+
+static SCM
+invoke_scheme_execution_request (void* raw) {
+  scheme_execution_request* request=
+    static_cast<scheme_execution_request*> (raw);
+  SchemeExecutionScope scope (*request->context);
+  fluid_execution_scope fluid_scope (request->context);
+  return request->callback (request->data);
+}
+
+tmscm
+scheme_with_execution_context (const SchemeExecutionContext& context,
+                               scheme_execution_callback callback,
+                               void* data) {
+  if (fluid_execution_context == &context) return callback (data);
+  ASSERT (!scm_is_eq (execution_context_fluid, SCM_UNDEFINED),
+          "Scheme execution context fluid is not initialized");
+  scheme_execution_request request= { &context, callback, data };
+  SCM value= scm_from_pointer (
+    const_cast<SchemeExecutionContext*> (&context), nullptr);
+  return scm_c_with_fluid (execution_context_fluid, value,
+                           invoke_scheme_execution_request, &request);
+}
+
+static SCM
+invoke_in_current_execution_context (scheme_execution_callback callback,
+                                     void* data) {
+  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  if (context == nullptr) return callback (data);
+  return scheme_with_execution_context (*context, callback, data);
+}
 
 static void
 athena_auto_compile_callback (const char* source, int compiling, void* data) {
@@ -268,6 +321,11 @@ TeXmacs_eval_file (char *file) {
 #endif
 }
 
+static SCM
+TeXmacs_eval_file_in_context (void* file) {
+  return TeXmacs_eval_file (static_cast<char*> (file));
+}
+
 SCM
 eval_scheme_file (string file) {
     //static int cumul= 0;
@@ -275,7 +333,8 @@ eval_scheme_file (string file) {
   if (DEBUG_STD) debug_std << "Evaluating " << file << "...\n";
   scheme_runtime_safe_point ();
   c_string _file (file);
-  SCM result= TeXmacs_eval_file (_file);
+  SCM result= invoke_in_current_execution_context (
+    TeXmacs_eval_file_in_context, _file);
   scheme_runtime_safe_point ();
     //int extra= tm->watch (); cumul += extra;
     //cout << extra << "\t" << cumul << "\t" << file << "\n";
@@ -306,12 +365,18 @@ TeXmacs_eval_string (char *s) {
 #endif
 }
 
+static SCM
+TeXmacs_eval_string_in_context (void* source) {
+  return TeXmacs_eval_string (static_cast<char*> (source));
+}
+
 SCM
 eval_scheme (string s) {
     // cout << "Eval] " << s << "\n";
   scheme_runtime_safe_point ();
   c_string _s (s);
-  SCM result= TeXmacs_eval_string (_s);
+  SCM result= invoke_in_current_execution_context (
+    TeXmacs_eval_string_in_context, _s);
   scheme_runtime_safe_point ();
   return result;
 }
@@ -351,7 +416,7 @@ TeXmacs_lazy_call_scm (arg_list* args) {
 #endif
 
 static SCM
-TeXmacs_call_scm (arg_list *args) {
+TeXmacs_call_scm_unbound (arg_list *args) {
   scheme_runtime_safe_point ();
 #ifndef DEBUG_ON
   SCM result= scm_internal_catch (
@@ -362,6 +427,17 @@ TeXmacs_call_scm (arg_list *args) {
 #endif
   scheme_runtime_safe_point ();
   return result;
+}
+
+static SCM
+TeXmacs_call_scm_in_context (void* raw) {
+  return TeXmacs_call_scm_unbound (static_cast<arg_list*> (raw));
+}
+
+static SCM
+TeXmacs_call_scm (arg_list* args) {
+  return invoke_in_current_execution_context (TeXmacs_call_scm_in_context,
+                                               args);
 }
 
 SCM
@@ -672,6 +748,8 @@ initialize_scheme () {
   "    (host-vendor . ,(texmacs-host-vendor))\n"
   "    (host-cpu . ,(texmacs-host-cpu))))";
   
+  execution_context_fluid= scm_make_thread_local_fluid (SCM_BOOL_F);
+  scm_c_define ("%athena-execution-context-fluid", execution_context_fluid);
   scm_c_eval_string (init_prg);
   initialize_smobs ();
   initialize_glue ();

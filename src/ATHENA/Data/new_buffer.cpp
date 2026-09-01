@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "tm_data.hpp"
+#include "scheme_execution_context.hpp"
 #include "convert.hpp"
 #include "file.hpp"
 #include "web_files.hpp"
@@ -126,12 +127,20 @@ concrete_buffer_insist (url u) {
 
 url
 get_current_buffer () {
+  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  if (context != nullptr) {
+    ASSERT (!is_none (context->buffer_id),
+            "no active buffer in Scheme execution context");
+    return context->buffer_id;
+  }
   tm_view vw= concrete_view (get_current_view ());
   return vw->buf->buf->name;
 }
 
 url
 get_current_buffer_safe () {
+  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  if (context != nullptr) return context->buffer_id;
   url v= get_current_view_safe ();
   if (is_none (v)) return v;
   return concrete_view (v)->buf->buf->name;

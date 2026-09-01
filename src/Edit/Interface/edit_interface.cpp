@@ -171,18 +171,18 @@ edit_interface_rep::resume () {
   env_change= env_change & (~THE_FREEZE);
   notify_change (THE_FOCUS + THE_EXTENTS);
   bench_cumul ("initialize editor focus state");
-  drd_info old_drd= the_drd;
-  the_drd= drd;
-  if (!defer_chrome) {
-    bench_start ("make initial cursor accessible");
-    path new_tp= make_cursor_accessible (tp, true);
-    bench_cumul ("make initial cursor accessible");
-    if (new_tp != tp) {
-      notify_change (THE_CURSOR);
-      tp= new_tp;
+  {
+    with_borrowed_drd drd_scope (&drd);
+    if (!defer_chrome) {
+      bench_start ("make initial cursor accessible");
+      path new_tp= make_cursor_accessible (tp, true);
+      bench_cumul ("make initial cursor accessible");
+      if (new_tp != tp) {
+        notify_change (THE_CURSOR);
+        tp= new_tp;
+      }
     }
   }
-  the_drd= old_drd;
   bench_start ("reset initial editor");
   if (!headless_mode && !defer_chrome)
     reset_all ();

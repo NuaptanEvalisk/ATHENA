@@ -13,8 +13,21 @@
 #include "vars.hpp"
 
 drd_info std_drd ("tm");
-drd_info the_drd= std_drd;
 hashmap<string,int> STD_CODE (UNKNOWN);
+
+static thread_local drd_info* thread_drd= nullptr;
+
+drd_info&
+current_drd () noexcept {
+  return thread_drd == nullptr ? std_drd : *thread_drd;
+}
+
+drd_info*
+swap_current_drd (drd_info* drd) noexcept {
+  drd_info* previous= thread_drd;
+  thread_drd= drd;
+  return previous;
+}
 
 #define BIFORM   CHILD_BIFORM
 #define DETAILED CHILD_DETAILED

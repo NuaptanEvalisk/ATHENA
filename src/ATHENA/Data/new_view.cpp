@@ -18,6 +18,7 @@
 #include "new_document.hpp"
 #include "drd_std.hpp"
 #include "boot.hpp"
+#include "scheme_execution_context.hpp"
 
 #ifdef QTTEXMACS
 #include <QTimer>
@@ -105,6 +106,8 @@ tm_view the_view= NULL;
 
 bool
 has_current_view () {
+  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  if (context != nullptr) return !is_none (context->view_id);
   return the_view != NULL;
 }
 
@@ -114,19 +117,27 @@ set_current_view (url u) {
   //ASSERT (is_none (u) || starts (as_string (tail (u)), "no_name") || vw != NULL, "bad view");
   the_view= vw;
   if (vw != NULL) {
-    the_drd = vw->ed->drd;
+    swap_current_drd (&vw->ed->drd);
     vw->buf->buf->last_visit= texmacs_time ();
   }
+  else swap_current_drd (nullptr);
 }
 
 url
 get_current_view () {
+  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  if (context != nullptr) {
+    ASSERT (!is_none (context->view_id), "no active view in Scheme context");
+    return context->view_id;
+  }
   ASSERT (the_view != NULL, "no active view");
   return abstract_view (the_view);
 }
 
 url
 get_current_view_safe () {
+  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  if (context != nullptr) return context->view_id;
   if (the_view == NULL) return url_none ();
   return abstract_view (the_view);
 }
@@ -135,6 +146,14 @@ void notify_delete_view (url u);
 
 editor
 get_current_editor () {
+  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  if (context != nullptr) {
+    ASSERT (context->editor != nullptr,
+            "no editor capability in Scheme execution context");
+    ASSERT (context->has (SCHEME_CAPABILITY_BUFFER),
+            "Scheme execution context cannot access a buffer editor");
+    return editor (context->editor);
+  }
   url u= get_current_view();
   tm_view vw= concrete_view (u);
   if (vw == NULL) { // HACK: shouldn't happen!
@@ -345,6 +364,7 @@ void
 delete_view (url u) {
   tm_view vw= concrete_view (u);
   if (vw == NULL) return;
+  if (the_view == vw) set_current_view (url_none ());
   tm_buffer buf= vw->buf;
   int i, j, n= N(buf->vws);
   for (i=0; i<n; i++)
@@ -455,7 +475,7 @@ void
 set_current_drd (url name) {
   url u= get_passive_view (name);
   tm_view vw= concrete_view (u);
-  if (vw != NULL) the_drd = vw->ed->drd;
+  if (vw != NULL) swap_current_drd (&vw->ed->drd);
 }
 
 void

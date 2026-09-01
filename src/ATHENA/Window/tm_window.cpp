@@ -408,14 +408,14 @@ bool menu_caching= true;
 
 bool
 tm_window_rep::get_menu_widget (int which, string menu, widget& w) {
-  drd_info old_drd= the_drd;
+  drd_info* menu_drd= nullptr;
   if (!is_none (window_to_view (id))) {
     tm_view vw= concrete_view (window_to_view (id));
-    if (vw != NULL) the_drd= vw->ed->drd;
+    if (vw != NULL) menu_drd= &vw->ed->drd;
   }
+  with_borrowed_drd drd_scope (menu_drd);
   //cout << "expand " << menu << "\n";
   object xmenu= call ("menu-expand", eval ("'" * menu));
-  the_drd= old_drd;
   //if (which == 10) cout << "xmenu= " << xmenu << "\n";
   //cout << "xmenu= " << xmenu << "\n";
   if (menu_cache->contains (xmenu)) {
