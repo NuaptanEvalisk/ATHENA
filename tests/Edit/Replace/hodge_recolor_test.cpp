@@ -84,12 +84,11 @@ TestHodgeRecolor::hodgeFormula () {
 
 void
 TestHodgeRecolor::init () {
-  the_et     = tuple ();
-  the_et->obs= ip_observer (path ());
   buffer     = tm_new<tm_buffer_rep> (url ("hodge-recolor-test.ath"));
+  swap_current_document_tree (&buffer->document);
   buffer->data->init ("no-zoom")= "true";
   buffer->data->init (ZOOM_FACTOR)= "1";
-  set_document (buffer->rp, hodgeFormula ());
+  set_document (buffer->document, buffer->rp, hodgeFormula ());
   ed= tm_new<TestEditorRep> (testServer, buffer);
 }
 
@@ -97,10 +96,9 @@ void
 TestHodgeRecolor::cleanup () {
   tm_delete<editor_rep> (ed);
   ed= nullptr;
+  swap_current_document_tree (nullptr);
   tm_delete (buffer);
   buffer= nullptr;
-  clean_observers (the_et);
-  the_et= tree ();
 }
 
 void
@@ -108,14 +106,14 @@ TestHodgeRecolor::crossNodeCutRestoresInsertionSplice () {
   const tree initial= tree (
     DOCUMENT,
     tree (CONCAT, "ab", tree (WITH, "color", "#123456", "middle"), "cd"));
-  set_document (buffer->rp, initial);
+  set_document (buffer->document, buffer->rp, initial);
 
   const path concatPath= buffer->rp * 0;
   ed->setRawSelection (concatPath * 0 * 1, concatPath * 2 * 1);
   ed->selection_cut ("none");
   ed->insert_tree ("X");
 
-  QVERIFY (subtree (the_et, buffer->rp) == tree (DOCUMENT, "aXd"));
+  QVERIFY (subtree (current_document_tree (), buffer->rp) == tree (DOCUMENT, "aXd"));
 }
 
 void
@@ -123,7 +121,7 @@ TestHodgeRecolor::mixedMathTextFormattingKeepsPosition () {
   const tree initial= tree (
     DOCUMENT,
     tree (CONCAT, "Before ", compound ("math", "A"), "-forms after"));
-  set_document (buffer->rp, initial);
+  set_document (buffer->document, buffer->rp, initial);
 
   const path concatPath= buffer->rp * 0;
   ed->setRawSelection (concatPath * 1 * 0 * 0,
@@ -147,7 +145,7 @@ TestHodgeRecolor::mixedMathTextFormattingKeepsPosition () {
           tree (WITH, "font-series", "bold",
                 tree (CONCAT, compound ("math", "A"), "-forms")),
           " after"));
-  const tree result= subtree (the_et, buffer->rp);
+  const tree result= subtree (current_document_tree (), buffer->rp);
   QVERIFY (result == expected);
 }
 
@@ -158,7 +156,7 @@ TestHodgeRecolor::wikilinkDeletionKeepsInsertionAtSplice () {
   const tree initial= tree (
     DOCUMENT,
     tree (CONCAT, "Before ", link, " after"));
-  set_document (buffer->rp, initial);
+  set_document (buffer->document, buffer->rp, initial);
 
   const path concatPath= buffer->rp * 0;
   ed->setRawSelection (concatPath * 1 * 0 * 0,
@@ -171,7 +169,7 @@ TestHodgeRecolor::wikilinkDeletionKeepsInsertionAtSplice () {
 
   ed->selection_cut ("none");
   ed->insert_tree ("X");
-  QVERIFY (subtree (the_et, buffer->rp) ==
+  QVERIFY (subtree (current_document_tree (), buffer->rp) ==
            tree (DOCUMENT, "Before X after"));
 }
 
@@ -183,7 +181,7 @@ TestHodgeRecolor::patternRecolorKeepsOperatorBeforeCoexactTerm () {
   const path rawStart= coexactPath * 2 * 0 * 0 * 0;
   const path rawEnd= followingPath * 0;
 
-  const tree original= copy (subtree (the_et, concatPath));
+  const tree original= copy (subtree (current_document_tree (), concatPath));
   const tree oldCoexact= copy (original[7]);
   ed->setRawSelection (rawStart, rawEnd);
 
@@ -205,7 +203,7 @@ TestHodgeRecolor::patternRecolorKeepsOperatorBeforeCoexactTerm () {
 
   tree expected= copy (original);
   expected[7]= tree (WITH, "color", pattern, oldCoexact);
-  const tree result= subtree (the_et, concatPath);
+  const tree result= subtree (current_document_tree (), concatPath);
   QCOMPARE (N(result), N(expected));
   QVERIFY (result[6] == "<oplus>");
   QVERIFY (result[7] == expected[7]);
@@ -244,8 +242,7 @@ main (int argc, char** argv) {
                          as_string ((int) getpid ());
   set_env ("ATHENA_HOME_PATH", testHome);
   cache_initialize ();
-  the_et     = tuple ();
-  the_et->obs= ip_observer (path ());
+  reset_document_tree (current_document_tree ());
   init_athena ();
   start_scheme (argc, argv, runTests);
   return testStatus;

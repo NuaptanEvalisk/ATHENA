@@ -14,10 +14,23 @@
 #include "tree.hpp"
 #include "path.hpp"
 
-extern tree the_et;
+tree make_document_tree ();
+tree& current_document_tree () noexcept;
+tree* swap_current_document_tree (tree* document) noexcept;
 
-path new_document ();
-void delete_document (path rp);
-void set_document (path rp, tree t);
+class with_document_tree {
+  tree* previous;
+
+public:
+  inline explicit with_document_tree (tree* document):
+    previous (swap_current_document_tree (document)) {}
+  inline ~with_document_tree () { swap_current_document_tree (previous); }
+
+  with_document_tree (const with_document_tree&)= delete;
+  with_document_tree& operator = (const with_document_tree&)= delete;
+};
+
+void reset_document_tree (tree& document);
+void set_document (tree& document, path rp, tree t);
 
 #endif // NEW_DOCUMENT_H

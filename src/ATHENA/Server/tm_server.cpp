@@ -265,8 +265,12 @@ tm_server_rep::style_clear_cache () {
   style_invalidate_cache ();
 
   array<url> vs= get_all_views ();
-  for (int i=0; i<N(vs); i++)
-    view_to_editor (vs[i]) -> init_style ();
+  for (int i=0; i<N(vs); i++) {
+    tm_view vw= concrete_view (vs[i]);
+    if (vw == nullptr) continue;
+    with_document_tree document_scope (&vw->buf->document);
+    vw->ed->init_style ();
+  }
 }
 
 void
@@ -298,6 +302,7 @@ tm_server_rep::interpose_handler () {
     int i, j;
     for (i=0; i<N(bufs); i++) {
       tm_buffer buf= (tm_buffer) bufs[i];
+      with_document_tree document_scope (&buf->document);
       
       for (j=0; j<N(buf->vws); j++) {
 	tm_view vw= (tm_view) buf->vws[j];
@@ -319,6 +324,7 @@ tm_server_rep::post_repaint_handler () {
   if (headless_mode) return;
   for (int i=0; i<N(bufs); i++) {
     tm_buffer buf= (tm_buffer) bufs[i];
+    with_document_tree document_scope (&buf->document);
     for (int j=0; j<N(buf->vws); j++) {
       tm_view vw= (tm_view) buf->vws[j];
       if (vw->win != NULL)
@@ -387,6 +393,9 @@ tm_server_rep::typeset_update (path p) {
 
   url buf= view_to_buffer (cur);
   if (is_none (buf)) return;
+  tm_buffer concrete= concrete_buffer (buf);
+  if (is_nil (concrete)) return;
+  with_document_tree document_scope (&concrete->document);
 
   array<url> vs= buffer_to_views (buf);
   for (int i=0; i<N(vs); i++) {
@@ -399,8 +408,12 @@ tm_server_rep::typeset_update (path p) {
 void
 tm_server_rep::typeset_update_all () {
   array<url> vs= get_all_views ();
-  for (int i=0; i<N(vs); i++)
-    view_to_editor (vs[i]) -> typeset_invalidate_all ();
+  for (int i=0; i<N(vs); i++) {
+    tm_view vw= concrete_view (vs[i]);
+    if (vw == nullptr) continue;
+    with_document_tree document_scope (&vw->buf->document);
+    vw->ed->typeset_invalidate_all ();
+  }
 }
 
 bool

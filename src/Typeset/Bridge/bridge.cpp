@@ -12,6 +12,7 @@
 #include "bridge.hpp"
 #include "Boxes/construct.hpp"
 #include "scheme.hpp"
+#include "new_document.hpp"
 
 static box
 apply_block_backgrounds (path ip, box b, array<brush> bg) {
@@ -361,8 +362,6 @@ bridge_rep::exec_until (path p, bool skip_flag) {
   // cout << "  Done\n";
 }
 
-extern tree the_et;
-
 void
 bridge_rep::typeset (int desired_status) {
   // FIXME: this dirty hack ensures a perfect coherence between
@@ -370,7 +369,7 @@ bridge_rep::typeset (int desired_status) {
   // This should not be necessary, but we use because the ip_observers
   // may become wrong otherwise.
   if (!ttt->screen_tree && is_accessible (ip))
-    st= subtree (the_et, reverse (ip));
+    st= subtree (current_document_tree (), reverse (ip));
   if (!is_accessible (ip)) {
     path ip2= obtain_ip (st);
     if (ip2 != path (DETACHED))

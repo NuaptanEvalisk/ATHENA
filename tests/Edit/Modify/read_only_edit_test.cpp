@@ -52,12 +52,12 @@ private:
 
 void
 TestReadOnlyEdit::init () {
-  the_et     = tuple ();
-  the_et->obs= ip_observer (path ());
   buffer     = tm_new<tm_buffer_rep> (url ("tmfs://ns/Test"));
+  swap_current_document_tree (&buffer->document);
   buffer->data->init ("no-zoom")= "true";
   buffer->data->init (ZOOM_FACTOR)= "1";
-  set_document (buffer->rp, tree (DOCUMENT, "original"));
+  set_document (buffer->document, buffer->rp,
+                tree (DOCUMENT, "original"));
   buffer->buf->read_only= true;
   editor= tm_new<ReadOnlyTestEditorRep> (test_server, buffer);
 }
@@ -66,22 +66,21 @@ void
 TestReadOnlyEdit::cleanup () {
   tm_delete<editor_rep> (editor);
   editor= nullptr;
+  swap_current_document_tree (nullptr);
   tm_delete (buffer);
   buffer= nullptr;
-  clean_observers (the_et);
-  the_et= tree ();
 }
 
 void
 TestReadOnlyEdit::contentMutationIsRolledBack () {
-  const tree original= copy (subtree (the_et, buffer->rp));
+  const tree original= copy (subtree (current_document_tree (), buffer->rp));
   editor->go_to (buffer->rp * 0 * N (as_string (original[0])));
 
   editor->start_editing ();
   editor->insert_tree (" changed");
   editor->end_editing ();
 
-  QVERIFY (subtree (the_et, buffer->rp) == original);
+  QVERIFY (subtree (current_document_tree (), buffer->rp) == original);
   QVERIFY (!editor->need_save ());
 }
 
@@ -115,8 +114,7 @@ main (int argc, char** argv) {
                           as_string ((int) getpid ());
   set_env ("ATHENA_HOME_PATH", test_home);
   cache_initialize ();
-  the_et     = tuple ();
-  the_et->obs= ip_observer (path ());
+  reset_document_tree (current_document_tree ());
   init_athena ();
   start_scheme (argc, argv, run_tests);
   return test_status;

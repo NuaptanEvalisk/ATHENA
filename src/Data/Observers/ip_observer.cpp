@@ -13,9 +13,9 @@
 ******************************************************************************/
 
 #include "modification.hpp"
+#include "new_document.hpp"
 
 #define DETACHED (-5)
-extern tree the_et;
 
 /******************************************************************************
 * Definition of the ip_observer_rep class
@@ -62,7 +62,7 @@ ip_observer_rep::announce (tree& ref, modification mod) {
   (void) ref;
   //cout << "Announce " << ip << ", " << p << "\n";
   if (!has_parent (ip)) return;
-  tree& parent (subtree (the_et, reverse (ip->next)));
+  tree& parent (subtree (current_document_tree (), reverse (ip->next)));
   parent->obs->announce (parent, ip->item * mod);
 }
 
@@ -71,7 +71,7 @@ ip_observer_rep::done (tree& ref, modification mod) {
   (void) ref;
   //cout << "Done " << ip << ", " << p << "\n";
   if (!has_parent (ip)) return;
-  tree& parent (subtree (the_et, reverse (ip->next)));
+  tree& parent (subtree (current_document_tree (), reverse (ip->next)));
   parent->obs->done (parent, ip->item * mod);
 }
 
@@ -80,7 +80,7 @@ ip_observer_rep::touched (tree& ref, path p) {
   (void) ref;
   //cout << "Touched " << ip << ", " << p << "\n";
   if (!has_parent (ip)) return;
-  tree& parent (subtree (the_et, reverse (ip->next)));
+  tree& parent (subtree (current_document_tree (), reverse (ip->next)));
   parent->obs->touched (parent, path (ip->item, p));
 }
 

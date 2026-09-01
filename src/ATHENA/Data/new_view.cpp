@@ -118,9 +118,13 @@ set_current_view (url u) {
   the_view= vw;
   if (vw != NULL) {
     swap_current_drd (&vw->ed->drd);
+    swap_current_document_tree (&vw->buf->document);
     vw->buf->buf->last_visit= texmacs_time ();
   }
-  else swap_current_drd (nullptr);
+  else {
+    swap_current_drd (nullptr);
+    swap_current_document_tree (nullptr);
+  }
 }
 
 url
@@ -310,6 +314,7 @@ get_new_view (url name) {
 
   create_buffer (name, tree (DOCUMENT));
   tm_buffer buf= concrete_buffer (name);
+  with_document_tree document_scope (&buf->document);
   bench_start ("construct initial editor");
   editor    ed = new_editor (get_server () -> get_server (), buf);
   bench_cumul ("construct initial editor");
@@ -377,6 +382,7 @@ delete_view (url u) {
     }
   notify_delete_view (u);
   vw->ed->buf= NULL;
+  with_document_tree document_scope (&buf->document);
   tm_delete (vw);
 }
 
@@ -403,6 +409,7 @@ attach_view (url win_u, url u) {
   tm_window win= concrete_window (win_u);
   tm_view   vw = concrete_view (u);
   if (win == NULL || vw == NULL) return;
+  with_document_tree document_scope (&vw->buf->document);
   // cout << "Attach view " << vw->buf->buf->name << "\n";
   vw->win= win;
   widget wid= win->wid;
@@ -426,6 +433,7 @@ detach_view (url u) {
   if (vw == NULL) return;
   tm_window win= vw->win;
   if (win == NULL) return;
+  with_document_tree document_scope (&vw->buf->document);
   // cout << "Detach view " << vw->buf->buf->name << "\n";
   vw->win= NULL;
   widget wid= win->wid;
@@ -547,7 +555,10 @@ var_focus_on_buffer (url name) {
     if (N(vws) > 0) r= vws[0];
   }
   if (is_none (r)) return false;
-  the_view->ed->suspend ();
+  if (the_view != nullptr) {
+    with_document_tree document_scope (&the_view->buf->document);
+    the_view->ed->suspend ();
+  }
   set_current_view (r);
   tm_view new_vw = concrete_view (r);
   new_vw->ed->resume ();

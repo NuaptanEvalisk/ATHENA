@@ -413,6 +413,9 @@ tm_window_rep::get_menu_widget (int which, string menu, widget& w) {
     tm_view vw= concrete_view (window_to_view (id));
     if (vw != NULL) menu_drd= &vw->ed->drd;
   }
+  tm_view menu_view= concrete_view (window_to_view (id));
+  with_document_tree document_scope (
+    menu_view == nullptr ? nullptr : &menu_view->buf->document);
   with_borrowed_drd drd_scope (menu_drd);
   //cout << "expand " << menu << "\n";
   object xmenu= call ("menu-expand", eval ("'" * menu));

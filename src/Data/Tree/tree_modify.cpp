@@ -12,8 +12,7 @@
 #include "tree_modify.hpp"
 #include "drd_std.hpp"
 #include "path.hpp"
-
-extern tree the_et;
+#include "new_document.hpp"
 
 /******************************************************************************
 * DRD-based correction of trees
@@ -80,5 +79,5 @@ correct_upwards (tree& t) {
   correct_node (t);
   path ip= obtain_ip (t);
   if (ip_attached (ip) && !is_nil (ip))
-    correct_upwards (subtree (the_et, reverse (ip->next)));
+    correct_upwards (subtree (current_document_tree (), reverse (ip->next)));
 }

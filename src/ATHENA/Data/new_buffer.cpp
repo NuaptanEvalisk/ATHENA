@@ -30,8 +30,9 @@ string propose_title (string old_title, url u, tree doc);
 void
 tm_buffer_rep::attach_notifier () {
   if (notify) return;
+  with_document_tree document_scope (&document);
   string id= as_string (buf->name, URL_UNIX);
-  tree& st (subtree (the_et, rp));
+  tree& st (subtree (document, rp));
   call ("buffer-initialize", id, st, buf->name);
   lns= link_repository (true);
   lns->insert_locus (id, st, "buffer-notify");
@@ -41,6 +42,7 @@ tm_buffer_rep::attach_notifier () {
 bool
 tm_buffer_rep::needs_to_be_saved () {
   if (buf->read_only) return false;
+  with_document_tree document_scope (&document);
   for (int i=0; i<N(vws); i++)
     if (vws[i]->ed->need_save ())
       return true;
@@ -50,6 +52,7 @@ tm_buffer_rep::needs_to_be_saved () {
 bool
 tm_buffer_rep::needs_to_be_autosaved () {
   if (buf->read_only) return false;
+  with_document_tree document_scope (&document);
   for (int i=0; i<N(vws); i++)
     if (vws[i]->ed->need_save (false))
       return true;
@@ -73,8 +76,8 @@ remove_buffer (tm_buffer buf) {
   int nr, n= N(bufs);
   for (nr=0; nr<n; nr++)
     if (bufs[nr] == buf) {
-      for (int i=0; i<N(buf->vws); i++)
-        delete_view (abstract_view (buf->vws[i]));
+      while (N(buf->vws) != 0)
+        delete_view (abstract_view (buf->vws[0]));
       if (n == 1)
         get_server () -> quit ();
       for (int i=nr; i<n-1; i++)
@@ -148,10 +151,9 @@ get_current_buffer_safe () {
 
 url
 path_to_buffer (path p) {
-  int i;
-  for (i=0; i<N(bufs); i++)
-    if (bufs[i]->rp <= p)
-      return bufs[i]->buf->name;
+  url current= get_current_buffer_safe ();
+  tm_buffer buf= concrete_buffer (current);
+  if (!is_nil (buf) && buf->rp <= p) return current;
   return url_none ();
 }
 
@@ -161,6 +163,7 @@ rename_buffer (url name, url new_name) {
   kill_buffer (new_name);
   tm_buffer buf= concrete_buffer (name);
   if (is_nil (buf)) return;
+  with_document_tree document_scope (&buf->document);
   notify_rename_before (name);
   buf->buf->name= new_name;
   buf->buf->master= new_name;
@@ -168,7 +171,7 @@ rename_buffer (url name, url new_name) {
   for (int i=0; i<N(vs); i++)
     view_to_editor (vs[i]) -> notify_change (THE_ENVIRONMENT);
   notify_rename_after (new_name);
-  tree doc= subtree (the_et, buf->rp);
+  tree doc= subtree (buf->document, buf->rp);
   string title= propose_title (buf->buf->title, new_name, doc);
   set_title_buffer (new_name, title);
 }
@@ -253,6 +256,9 @@ set_title_buffer (url name, string title) {
 
 void
 set_buffer_data (url name, new_data data) {
+  tm_buffer buf= concrete_buffer (name);
+  if (is_nil (buf)) return;
+  with_document_tree document_scope (&buf->document);
   array<url> vs= buffer_to_views (name);
   for (int i=0; i<N(vs); i++) {
     view_to_editor (vs[i]) -> set_data (data);
@@ -263,20 +269,22 @@ set_buffer_data (url name, new_data data) {
 void
 set_buffer_tree (url name, tree doc) {
   tm_buffer buf= concrete_buffer (name);
-  if (is_nil (buf)) {
+  bool inserted= is_nil (buf);
+  string old_title;
+  if (inserted) {
     insert_buffer (name);
     buf= concrete_buffer (name);
-    tree body= detach_data (doc, buf->data);
-    set_document (buf->rp, body);
-    buf->buf->title= propose_title (buf->buf->title, name, body);
   }
+  else old_title= buf->buf->title;
+
+  with_document_tree document_scope (&buf->document);
+  tree body= detach_data (doc, buf->data);
+  if (inserted) set_document (buf->document, buf->rp, body);
   else {
-    string old_title= buf->buf->title;
-    tree body= detach_data (doc, buf->data);
-    assign (buf->rp, body);
+    assign (subtree (buf->document, buf->rp), body);
     set_buffer_data (name, buf->data);
-    buf->buf->title= propose_title (old_title, name, body);
   }
+  buf->buf->title= propose_title (old_title, name, body);
   if (is_rooted_tmfs (name))
     buf->buf->read_only=
       !as_bool (call ("tmfs-permission?", object (name), object ("write")));
@@ -287,7 +295,7 @@ tree
 get_buffer_tree (url name) {
   tm_buffer buf= concrete_buffer (name);
   if (is_nil (buf)) return "";
-  tree body= subtree (the_et, buf->rp);
+  tree body= subtree (buf->document, buf->rp);
   return attach_data (body, buf->data, true);
 }
 
@@ -299,7 +307,8 @@ set_buffer_body (url name, tree body) {
     set_buffer_tree (name, attach_data (body, data));
   }
   else {
-    assign (buf->rp, body);
+    with_document_tree document_scope (&buf->document);
+    assign (subtree (buf->document, buf->rp), body);
     pretend_buffer_saved (name);
   }
 }
@@ -308,7 +317,7 @@ tree
 get_buffer_body (url name) {
   tm_buffer buf= concrete_buffer (name);
   if (is_nil (buf)) return "";
-  return subtree (the_et, buf->rp);
+  return subtree (buf->document, buf->rp);
 }
 
 /******************************************************************************
@@ -327,6 +336,7 @@ set_master_buffer (url name, url master) {
   tm_buffer buf= concrete_buffer (name);
   if (is_nil (buf)) return;
   if (buf->buf->master == master) return;
+  with_document_tree document_scope (&buf->document);
   buf->buf->master= master;
   array<url> vs= buffer_to_views (name);
   for (int i=0; i<N(vs); i++)
@@ -383,6 +393,7 @@ void
 pretend_buffer_modified (url name) {
   tm_buffer buf= concrete_buffer (name);
   if (is_nil (buf)) return;
+  with_document_tree document_scope (&buf->document);
   array<url> vs= buffer_to_views (name);
   for (int i=0; i<N(vs); i++)
     view_to_editor (vs[i]) -> require_save ();
@@ -392,6 +403,7 @@ void
 pretend_buffer_saved (url name) {
   tm_buffer buf= concrete_buffer (name);
   if (is_nil (buf)) return;
+  with_document_tree document_scope (&buf->document);
   array<url> vs= buffer_to_views (name);
   for (int i=0; i<N(vs); i++)
     view_to_editor (vs[i]) -> notify_save ();
@@ -402,6 +414,7 @@ void
 pretend_buffer_autosaved (url name) {
   tm_buffer buf= concrete_buffer (name);
   if (is_nil (buf)) return;
+  with_document_tree document_scope (&buf->document);
   array<url> vs= buffer_to_views (name);
   for (int i=0; i<N(vs); i++)
     view_to_editor (vs[i]) -> notify_save (false);
@@ -553,6 +566,7 @@ bool
 buffer_export (url name, url dest, string fm) {
   tm_view vw= concrete_view (get_recent_view (name));
   ASSERT (vw != NULL, "view expected");
+  with_document_tree document_scope (&vw->buf->document);
 
   if (fm == "postscript" || fm == "pdf") {
     int old_stamp= last_modified (dest, false);
@@ -561,7 +575,7 @@ buffer_export (url name, url dest, string fm) {
     return new_stamp <= old_stamp;
   }
 
-  tree body= subtree (the_et, vw->buf->rp);
+  tree body= subtree (vw->buf->document, vw->buf->rp);
   if (fm == "verbatim")
     body= vw->ed->exec_verbatim (body);
   if (fm == "html")
@@ -587,6 +601,7 @@ buffer_export (url name, url dest, string fm) {
 tree
 latex_expand (tree doc, url name) {
   tm_view vw= concrete_view (get_recent_view (name));
+  with_document_tree document_scope (&vw->buf->document);
   tree body= vw->ed->exec_latex (extract (doc, "body"));
   return change_doc_attr (doc, "body", body);
 }
@@ -594,6 +609,7 @@ latex_expand (tree doc, url name) {
 tree
 latex_expand (tree doc) {
   tm_view vw= concrete_view (url (as_string (extract (doc, "view"))));
+  with_document_tree document_scope (&vw->buf->document);
   tree body= vw->ed->exec_latex (extract (doc, "body"));
   doc= change_doc_attr (doc, "body", body);
   return remove_doc_attr (doc, "view");

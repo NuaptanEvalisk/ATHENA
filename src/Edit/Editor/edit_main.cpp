@@ -42,14 +42,14 @@
 
 editor_rep::editor_rep ():
   simple_widget_rep (), cvw (NULL), mvw (NULL),
-  drd (std_drd), et (the_et), rp (),
+  drd (std_drd), et (current_document_tree ()), rp (),
   progressive_typeset_pending (false), progressive_typeset_continue (false) {
   cout << "ATHENA] warning, this virtual constructor should never be called\n";
 }
 
 editor_rep::editor_rep (server_rep* sv2, tm_buffer buf2):
   simple_widget_rep (), sv (sv2), cvw (NULL), mvw (NULL), buf (buf2),
-  drd (buf->buf->title, std_drd), et (the_et), rp (buf2->rp),
+  drd (buf->buf->title, std_drd), et (buf2->document), rp (buf2->rp),
   progressive_typeset_pending (false), progressive_typeset_continue (false) {}
 
 void

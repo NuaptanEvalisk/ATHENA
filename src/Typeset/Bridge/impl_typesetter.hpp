@@ -28,7 +28,7 @@ public:
   SI x1, y1, x2, y2;
   hashmap<string,tree> old_patch;
   bool paper;
-  bool screen_tree;          // typeset a transient screen tree, not the_et
+  bool screen_tree;          // typeset a transient tree, not the active document
   bool progressive;          // incrementally typeset a long screen document
   bool progressive_pending;  // root bridge has more work to do
   bool progressive_initial;  // this pass started a new progressive layout

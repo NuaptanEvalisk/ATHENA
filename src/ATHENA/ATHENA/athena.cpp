@@ -46,6 +46,7 @@
 #include "data_cache.hpp"
 #include "new_buffer.hpp"
 #include "new_view.hpp"
+#include "new_document.hpp"
 #include "tm_window.hpp"
 #include "Interface/edit_interface.hpp"
 #include "scheme.hpp"
@@ -84,7 +85,6 @@ extern string original_path;
 extern int geometry_w, geometry_h;
 extern int geometry_x, geometry_y;
 
-extern tree the_et;
 extern bool texmacs_started;
 
 extern void aofm_debug_dump(const std::string& file_path);
@@ -2202,8 +2202,7 @@ texmacs_entrypoint (int argc, char** argv) {
   }
   startup_progress (74, "Window icon ready");
   //cout << "Bench  ] Started TeXmacs\n";
-  the_et     = tuple ();
-  the_et->obs= ip_observer (path ());
+  reset_document_tree (current_document_tree ());
   startup_progress (78, "Initializing editor");
   bench_start ("initialize texmacs");
   init_athena ();

@@ -1,7 +1,7 @@
 
 /******************************************************************************
 * MODULE     : new_document.cpp
-* DESCRIPTION: Management of the global TeXmacs tree
+* DESCRIPTION: Selection and lifetime of per-buffer edit trees
 * COPYRIGHT  : (C) 1999-2011  Joris van der Hoeven
 *******************************************************************************
 * This software falls under the GNU general public license version 3 or later.
@@ -12,33 +12,40 @@
 #include "new_document.hpp"
 
 /******************************************************************************
-* Management of all edit trees
+* Management of edit-tree ownership contexts
 ******************************************************************************/
 
-tree the_et;
+static thread_local tree* thread_document_tree= nullptr;
 
-path
-new_document () {
-  int i, n= N(the_et);
-  for (i=0; i<n; i++)
-    if (the_et[i] == UNINIT) {
-      assign (the_et[i], tree (DOCUMENT, ""));
-      return path (i); // obtain_ip (the_et[i]);
-    }
-  insert (the_et, n, tuple (tree (DOCUMENT, "")));
-  return path (n); // obtain_ip (the_et[n]);
+tree
+make_document_tree () {
+  tree document= tuple (tree (DOCUMENT, ""));
+  attach_ip (document, path ());
+  return document;
+}
+
+tree&
+current_document_tree () noexcept {
+  static tree default_document_tree= make_document_tree ();
+  return thread_document_tree == nullptr ? default_document_tree
+                                         : *thread_document_tree;
+}
+
+tree*
+swap_current_document_tree (tree* document) noexcept {
+  tree* previous= thread_document_tree;
+  thread_document_tree= document;
+  return previous;
 }
 
 void
-delete_document (path rp) {
-  ASSERT (subtree (the_et, rp).operator->() != NULL,
-	  "NULL subtree in delete_document");
-  assign (subtree (the_et, rp), UNINIT);
-  clean_observers (subtree (the_et, rp));
+reset_document_tree (tree& document) {
+  clean_observers (document);
+  document= make_document_tree ();
 }
 
 void
-set_document (path rp, tree t) {
-  //assign (subtree (the_et, rp), t);
-  assign (subtree (the_et, rp), copy (t));
+set_document (tree& document, path rp, tree t) {
+  with_document_tree scope (&document);
+  assign (subtree (document, rp), copy (t));
 }

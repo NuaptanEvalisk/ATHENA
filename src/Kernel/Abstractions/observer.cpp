@@ -13,12 +13,11 @@
 #include "analyze.hpp"
 #include "hashmap.hpp"
 #include "blackbox.hpp"
+#include "new_document.hpp"
 
 #define DETACHED (-5)
 
 observer nil_observer;
-extern tree the_et;
-extern bool packrat_invalid_colors;
 
 /******************************************************************************
 * Debugging facilities
@@ -42,7 +41,7 @@ consistency_check (tree t, path ip) {
 
 void
 consistency_check () {
-  consistency_check (the_et, path ());
+  consistency_check (current_document_tree (), path ());
   cout << HRULE;
 }
 
@@ -359,18 +358,17 @@ raw_apply (tree& t, modification mod) {
     raw_set_cursor (subtree (t, root (mod)), index (mod), mod->t);
     break;
   }
-  packrat_invalid_colors= true;
 }
 
 /******************************************************************************
 * Wrappers which take into account mirroring
 ******************************************************************************/
 
-bool busy_modifying= false;
-bool busy_versioning= false;
-static bool is_busy= false;
-static list<path> busy_paths;
-static list<modification> upcoming;
+thread_local bool busy_modifying= false;
+thread_local bool busy_versioning= false;
+static thread_local bool is_busy= false;
+static thread_local list<path> busy_paths;
+static thread_local list<modification> upcoming;
 
 bool
 busy_path (path p) {
@@ -412,14 +410,14 @@ apply (tree& ref, modification mod) {
       upcoming  = list<modification> (reverse (ip) * mod);
       while (!is_nil (upcoming)) {
 	//cout << "Handle " << upcoming->item << "\n";
-	raw_apply (the_et, upcoming->item);
+	raw_apply (current_document_tree (), upcoming->item);
 	//cout << "Done " << upcoming->item << "\n";
 	upcoming= upcoming->next;
       }
       busy_paths= list<path> ();
       is_busy= false;
-      if (has_subtree (the_et, rp))
-	ref= subtree (the_et, rp);
+      if (has_subtree (current_document_tree (), rp))
+	ref= subtree (current_document_tree (), rp);
     }
   }
 }
@@ -482,22 +480,22 @@ touch (tree& ref) {
 
 void
 assign (path p, tree t) {
-  assign (subtree (the_et, p), t);
+  assign (subtree (current_document_tree (), p), t);
 }
 
 void
 insert (path p, tree ins) {
-  insert (subtree (the_et, path_up (p)), last_item (p), ins);
+  insert (subtree (current_document_tree (), path_up (p)), last_item (p), ins);
 }
 
 void
 remove (path p, int nr) {
-  remove (subtree (the_et, path_up (p)), last_item (p), nr);
+  remove (subtree (current_document_tree (), path_up (p)), last_item (p), nr);
 }
 
 void
 split (path p) {
-  tree& st= subtree (the_et, path_up (path_up (p)));
+  tree& st= subtree (current_document_tree (), path_up (path_up (p)));
   int   l1= last_item (path_up (p));
   int   l2= last_item (p);
   split (st, l1, l2);  
@@ -505,35 +503,35 @@ split (path p) {
 
 void
 join (path p) {
-  join (subtree (the_et, path_up (p)), last_item (p));
+  join (subtree (current_document_tree (), path_up (p)), last_item (p));
 }
 
 void
 assign_node (path p, tree_label op) {
-  assign_node (subtree (the_et, p), op);
+  assign_node (subtree (current_document_tree (), p), op);
 }
 
 void
 insert_node (path p, tree ins) {
-  insert_node (subtree (the_et, path_up (p)), last_item (p), ins);
+  insert_node (subtree (current_document_tree (), path_up (p)), last_item (p), ins);
 }
 
 void
 remove_node (path p) {
-  remove_node (subtree (the_et, path_up (p)), last_item (p));
+  remove_node (subtree (current_document_tree (), path_up (p)), last_item (p));
 }
 
 void
 set_cursor (path p, tree data) {
-  if (is_inside (the_et, p))
-    set_cursor (subtree (the_et, path_up (p)), last_item (p), data);
+  if (is_inside (current_document_tree (), p))
+    set_cursor (subtree (current_document_tree (), path_up (p)), last_item (p), data);
   else
     cout << "ATHENA] warning: invalid cursor position " << p << "\n";
 }
 
 void
 touch (path p) {
-  touch (subtree (the_et, p));
+  touch (subtree (current_document_tree (), p));
 }
 
 /******************************************************************************

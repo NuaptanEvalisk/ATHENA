@@ -12,6 +12,7 @@
 #define SCHEME_EXECUTION_CONTEXT_H
 
 #include "drd_std.hpp"
+#include "new_document.hpp"
 #include "url.hpp"
 
 #include <cstdint>
@@ -34,6 +35,7 @@ public:
   buffer_actor* const actor;
   editor_rep* const editor;
   drd_info* const drd;
+  tree* const document;
   const url buffer_id;
   const url view_id;
   const std::uint64_t command_id;
@@ -41,7 +43,8 @@ public:
   const std::thread::id owner_thread;
 
   SchemeExecutionContext (buffer_actor* actor, editor_rep* editor,
-                          drd_info* drd, url buffer_id, url view_id,
+                          drd_info* drd, tree* document,
+                          url buffer_id, url view_id,
                           std::uint64_t command_id,
                           SchemeCapabilitySet capabilities);
 
@@ -54,6 +57,7 @@ public:
 class SchemeExecutionScope {
   const SchemeExecutionContext* previous_context;
   with_borrowed_drd drd_scope;
+  with_document_tree document_scope;
 
 public:
   explicit SchemeExecutionScope (const SchemeExecutionContext& context);

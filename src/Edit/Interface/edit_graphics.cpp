@@ -16,8 +16,7 @@
 #include "Boxes/graphics.hpp"
 #include "Bridge/impl_typesetter.hpp"
 #include "drd_std.hpp"
-
-extern tree the_et;
+#include "new_document.hpp"
 
 /******************************************************************************
 * Constructors and destructors
@@ -356,10 +355,10 @@ admissible_selection (gr_selection sel) {
   if (sel->type != "box" || N(sel->cp) != 1) return true;
   if (last_item (sel->cp[0]) < 0 || N(sel->cp[0]) <= 2) return true;
   path p= path_up (sel->cp[0]);
-  if (!has_subtree (the_et, p)) return true;
-  tree st= subtree (the_et, p);
+  if (!has_subtree (current_document_tree (), p)) return true;
+  tree st= subtree (current_document_tree (), p);
   if (is_compound (st, "anim-edit")) return false;
-  tree pt= subtree (the_et, path_up (p));
+  tree pt= subtree (current_document_tree (), path_up (p));
   if (is_func (st, WITH) && is_compound (pt, "anim-edit")) return false;
   return true;
 }

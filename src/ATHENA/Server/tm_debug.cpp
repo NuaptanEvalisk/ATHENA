@@ -14,6 +14,7 @@
 #include "file.hpp"
 #include "tm_link.hpp"
 #include "sys_utils.hpp"
+#include "new_document.hpp"
 
 #include <ctime>
 
@@ -175,7 +176,7 @@ tm_failure (const char* msg) {
   //cerr << "Saving current buffer...\n";
   server sv= get_server ();
   editor ed= get_current_editor ();
-  string buf= tree_report (subtree (the_et, ed->rp), ed->rp);
+  string buf= tree_report (subtree (current_document_tree (), ed->rp), ed->rp);
   url buf_err= glue (err, "_tree");
   if (!save_string (buf_err, buf))
     cerr << "ATHENA] Current buffer report saved in " << buf_err << "\n";

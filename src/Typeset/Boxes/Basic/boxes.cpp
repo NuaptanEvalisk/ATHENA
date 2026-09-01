@@ -16,8 +16,7 @@
 #include "file.hpp"
 #include "merge_sort.hpp"
 #include "player.hpp"
-
-extern tree the_et;
+#include "new_document.hpp"
 
 /******************************************************************************
 * Default settings for virtual routines
@@ -836,8 +835,8 @@ box_rep::display_links (renderer ren) {
     path p= reverse (ip);
     while (N(p) > 1) {
       // FIXME: we might want to sort out overlapping and adjacent links
-      if (has_subtree (the_et, p)) {
-        tree t= subtree (the_et, p);
+      if (has_subtree (current_document_tree (), p)) {
+        tree t= subtree (current_document_tree (), p);
         list<string> ids= get_ids (t);
         for (int i=0; i<N(ids); i++) {
           list<tree> lns= get_links (compound ("id", ids[i]));

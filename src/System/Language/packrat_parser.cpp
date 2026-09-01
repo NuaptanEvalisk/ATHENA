@@ -13,10 +13,7 @@
 #include "analyze.hpp"
 #include "drd_std.hpp"
 #include "language.hpp" //(en|de)code_color
-
-extern tree the_et;
-bool packrat_invalid_colors= false;
-
+#include "new_document.hpp"
 /******************************************************************************
 * Constructor
 ******************************************************************************/

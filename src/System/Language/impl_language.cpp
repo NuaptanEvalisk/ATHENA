@@ -11,15 +11,14 @@
 #include "analyze.hpp"
 #include "impl_language.hpp"
 #include "path.hpp"
-
-extern tree the_et;
+#include "new_document.hpp"
 
 /*
  static bool
  is_line (tree t) {
  path p= obtain_ip (t);
  if (is_nil (p) || last_item (p) < 0) return false;
- tree pt= subtree (the_et, reverse (p->next));
+ tree pt= subtree (current_document_tree (), reverse (p->next));
  if (!is_func (pt, DOCUMENT)) return false;
  return true;
  }
@@ -29,7 +28,7 @@ int
 line_number (tree t) {
   path p= obtain_ip (t);
   if (is_nil (p) || last_item (p) < 0) return -1;
-  tree pt= subtree (the_et, reverse (p->next));
+  tree pt= subtree (current_document_tree (), reverse (p->next));
   if (!is_func (pt, DOCUMENT)) return -1;
   return p->item;
 }
@@ -38,7 +37,7 @@ int
 number_of_lines (tree t) {
   path p= obtain_ip (t);
   if (is_nil (p) || last_item (p) < 0) return -1;
-  tree pt= subtree (the_et, reverse (p->next));
+  tree pt= subtree (current_document_tree (), reverse (p->next));
   if (!is_func (pt, DOCUMENT)) return -1;
   return N(pt);
 }
@@ -48,7 +47,7 @@ line_inc (tree t, int i) {
   if (i == 0) return t;
   path p= obtain_ip (t);
   if (is_nil (p) || last_item (p) < 0) return tree (_ERROR);
-  tree pt= subtree (the_et, reverse (p->next));
+  tree pt= subtree (current_document_tree (), reverse (p->next));
   if (!is_func (pt, DOCUMENT)) return tree (_ERROR);
   if ((p->item + i < 0) || (p->item + i >= N(pt))) return tree (_ERROR);
   return pt[p->item + i];

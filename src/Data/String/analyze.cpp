@@ -14,6 +14,7 @@
 #include "converter.hpp"
 #include "scheme.hpp"
 #include "ntuple.hpp"
+#include "new_document.hpp"
 
 /******************************************************************************
 * Tests for characters
@@ -1408,7 +1409,6 @@ trim_spaces (tree t) {
  * Program bracket matching
  ******************************************************************************/
 
-extern tree the_et;
 enum dir_t { BACKWARD = -1, FORWARD = 1 }; // don't change the values
 
   // FIXME: UGLY and won't handle some things
@@ -1458,7 +1458,7 @@ find_bracket_sub (tree t, dir_t dir, const string& lbr, const string& rbr,
   }
   path ip = obtain_ip (t);
   if (is_nil (ip) || last_item (ip) < 0) return path();
-  const tree& pt = subtree (the_et, reverse (ip->next));
+  const tree& pt = subtree (current_document_tree (), reverse (ip->next));
   int npos = ip->item + (int)dir;
   return find_bracket_sub (pt, dir, lbr, rbr, cnt, npos);
 }
@@ -1466,7 +1466,7 @@ find_bracket_sub (tree t, dir_t dir, const string& lbr, const string& rbr,
 path
 find_left_bracket (path p, const string& lbr, const string& rbr) {
   if (N(lbr) == 0 || N(rbr) == 0 || is_nil (p)) return path();
-  const tree& pt = subtree (the_et, path_up (p));
+  const tree& pt = subtree (current_document_tree (), path_up (p));
   int pos = reverse(p)->item;
   string s = as_string (pt);
   if (pos < 0 || pos > N(s)) return path();
@@ -1477,7 +1477,7 @@ find_left_bracket (path p, const string& lbr, const string& rbr) {
 path
 find_right_bracket (path p, const string& lbr, const string& rbr) {
   if (N(lbr) == 0 || N(rbr) == 0 || is_nil (p)) return path();
-  const tree& pt = subtree (the_et, path_up (p));
+  const tree& pt = subtree (current_document_tree (), path_up (p));
   int pos = reverse(p)->item;
   string s = as_string (pt);
   if (pos < 0 || pos > N(s)) return path();

@@ -14,6 +14,7 @@
 #include "iterator.hpp"
 #include "vars.hpp"
 #include "boot.hpp"
+#include "new_document.hpp"
 
 hashmap<string,list<observer> > id_resolve;
 hashmap<observer,list<string> > pointer_resolve;
@@ -21,8 +22,6 @@ hashmap<tree,list<soft_link> > vertex_occurrences;
 hashmap<string,int> type_count (0);
 
 static hashset<string> visited_table;
-
-extern tree the_et;
 
 /******************************************************************************
 * Soft links

@@ -12,14 +12,13 @@
 #include "archiver.hpp"
 #include "hashset.hpp"
 #include "iterator.hpp"
-
-extern tree the_et;
+#include "new_document.hpp"
 array<patch> singleton (patch p);
 static patch make_compound (array<patch> a);
 static patch make_branches (array<patch> a);
-static hashset<double> genuine_authors;
-static hashset<pointer> archs;
-static hashset<pointer> pending_archs;
+static thread_local hashset<double> genuine_authors;
+static thread_local hashset<pointer> archs;
+static thread_local hashset<pointer> pending_archs;
 
 /******************************************************************************
 * Constructors, destructors, printing and announcements
@@ -38,13 +37,13 @@ archiver_rep::archiver_rep (double author, path rp2):
   versioning (false)
 {
   archs->insert ((pointer) this);
-  attach_observer (subtree (the_et, rp), undo_obs);
+  attach_observer (subtree (current_document_tree (), rp), undo_obs);
   genuine_authors->insert (the_author);
 }
 
 archiver_rep::~archiver_rep () {
   genuine_authors->remove (the_author);
-  detach_observer (subtree (the_et, rp), undo_obs);
+  detach_observer (subtree (current_document_tree (), rp), undo_obs);
   archs->remove ((pointer) this);
   pending_archs->remove ((pointer) this);
 }
@@ -67,12 +66,10 @@ archiver_rep::show_all () {
   cout << HRULE << archive << LF << HRULE << LF;
 }
 
-////extern tree the_et;
-
 void
 archive_announce (archiver_rep* arch, modification mod) {
   //cout << "Archive " << mod << "\n";
-  ////stretched_print (the_et, true);
+  ////stretched_print (current_document_tree (), true);
   if (DEBUG_HISTORY) debug_history << "Archive " << mod << "\n";
   ASSERT (arch->rp <= mod->p, "invalid modification");
   if (!arch->versioning) {
@@ -183,12 +180,12 @@ void
 archiver_rep::apply (patch p) {
   // apply a patch, while disabling versioning during the modifications
   // cout << "Apply " << p << "\n";
-  ASSERT (is_applicable (p, the_et), "invalid history");
+  ASSERT (is_applicable (p, current_document_tree ()), "invalid history");
   bool old= versioning;
   bool global_old= busy_versioning;
   versioning= true;
   busy_versioning= true;
-  ::apply (p, the_et);
+  ::apply (p, current_document_tree ());
   versioning= old;
   busy_versioning= global_old;
 }
@@ -282,7 +279,7 @@ archiver_rep::add (modification m) {
     confirm ();
   }
   else the_owner= get_author ();
-  modification i= invert (m, the_et);
+  modification i= invert (m, current_document_tree ());
   patch q (i, m);
   //cout << "Add [" << the_owner << "] " << q << "\n";
   current= patch (q, current);
@@ -359,7 +356,7 @@ archiver_rep::retract () {
   else current= un;
   the_owner= the_author;
   if (nr_branches (re) != 0) {
-    patch q= invert (current, the_et);
+    patch q= invert (current, current_document_tree ());
     re= patch (q, re);
   }
   if (nr_branches (nx) != 0) nx= get_undo (nx);
@@ -396,10 +393,10 @@ archiver_rep::simplify () {
       patch p1= car (get_undo (archive));
       patch p2= car (get_undo (cdr (get_undo (archive))));
       ////show_all ();
-      ////stretched_print (the_et, true);
+      ////stretched_print (current_document_tree (), true);
       //cout << "p1= " << p1 << "\n";
       //cout << "p2= " << p2 << "\n";
-      bool r= join (p1, p2, the_et);
+      bool r= join (p1, p2, current_document_tree ());
       //cout << "pr= " << p1 << "\n";
       if (r) {
         //cout << "\n\nSimplify\n";
@@ -436,8 +433,8 @@ archiver_rep::undo_one (int i) {
   if (undo_possibilities () != 0) {
     ASSERT (i == 0, "index out of range");
     patch p= car (get_undo (archive));
-    ASSERT (is_applicable (p, the_et), "history corrupted");
-    patch q= invert (p, the_et);
+    ASSERT (is_applicable (p, current_document_tree ()), "history corrupted");
+    patch q= invert (p, current_document_tree ());
     apply (p);
     patch re1= patch (q, get_redo (archive));
     patch nx = cdr (get_undo (archive));
@@ -447,7 +444,7 @@ archiver_rep::undo_one (int i) {
     archive= make_history (un, re);
     depth--;
     //show_all ();
-    return cursor_hint (q, the_et);
+    return cursor_hint (q, current_document_tree ());
   }
   return path ();
 }
@@ -462,8 +459,8 @@ archiver_rep::redo_one (int i) {
     patch re= get_redo (archive);
     patch p= car (branch (re, i));
     //cout << "p= " << p << "\n";
-    ASSERT (is_applicable (p, the_et), "future corrupted");
-    patch q= invert (p, the_et);
+    ASSERT (is_applicable (p, current_document_tree ()), "future corrupted");
+    patch q= invert (p, current_document_tree ());
     //cout << "q= " << q << "\n";
     apply (p);
     patch other= make_branches (append (branches (re, 0, i),
@@ -476,7 +473,7 @@ archiver_rep::redo_one (int i) {
     depth++;
     normalize ();
     //show_all ();
-    return cursor_hint (q, the_et);
+    return cursor_hint (q, current_document_tree ());
   }
   return path ();
 }

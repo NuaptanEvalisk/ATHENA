@@ -12,8 +12,7 @@
 #include "concater.hpp"
 #include "blackbox.hpp"
 #include "analyze.hpp"
-
-extern tree the_et;
+#include "new_document.hpp"
 
 /******************************************************************************
 * Basic constructs for animations
@@ -22,8 +21,8 @@ extern tree the_et;
 bool
 has_player (path ip) {
   path p= reverse (ip);
-  if (!has_subtree (the_et, p)) return false;
-  tree t= subtree (the_et, p);
+  if (!has_subtree (current_document_tree (), p)) return false;
+  tree t= subtree (current_document_tree (), p);
   blackbox bb;
   return t->obs->get_contents (ADDENDUM_PLAYER, bb);
 }
@@ -31,8 +30,8 @@ has_player (path ip) {
 player
 get_player (path ip) {
   path p= reverse (ip);
-  if (has_subtree (the_et, p)) {
-    tree t= subtree (the_et, p);
+  if (has_subtree (current_document_tree (), p)) {
+    tree t= subtree (current_document_tree (), p);
     blackbox bb;
     bool ok= t->obs->get_contents (ADDENDUM_PLAYER, bb);
     if (ok) return open_box<player> (bb);
@@ -44,8 +43,8 @@ path
 search_animation_ip (path ip) {
   if (is_nil (ip)) return ip;
   path p= reverse (ip);
-  if (has_subtree (the_et, p)) {
-    tree t= subtree (the_et, p);
+  if (has_subtree (current_document_tree (), p)) {
+    tree t= subtree (current_document_tree (), p);
     blackbox bb;
     bool ok= t->obs->get_contents (ADDENDUM_PLAYER, bb);
     if (ok) return ip;
@@ -56,7 +55,7 @@ search_animation_ip (path ip) {
 path
 search_longest_ip (path ip) {
   path p= reverse (ip);
-  if (has_subtree (the_et, p)) return ip;
+  if (has_subtree (current_document_tree (), p)) return ip;
   return search_longest_ip (ip->next);
 }
 
@@ -76,7 +75,7 @@ edit_env_rep::get_animation_ip (path ip) {
   if (!is_nil (aip)) return aip;
   aip= search_longest_ip (ip);
   if (is_nil (aip)) return aip;
-  tree t= subtree (the_et, reverse (aip));
+  tree t= subtree (current_document_tree (), reverse (aip));
   blackbox bb= close_box<player> (player ());
   (void) tree_addendum_new (t, ADDENDUM_PLAYER, bb, false);
   return aip;
@@ -130,13 +129,13 @@ void
 concater_rep::typeset_anim_accelerate (tree t, path ip) {
   if (N(t) != 2) { typeset_error (t, ip); return; }
   path uip= undecorate (ip);
-  while (!has_subtree (the_et, reverse (uip))) uip= uip->next;
+  while (!has_subtree (current_document_tree (), reverse (uip))) uip= uip->next;
   player apl= get_player (uip);
   if (!is_nil (uip) && !has_player (uip)) {
     path aip= search_animation_ip (uip);
     player pl = is_nil (aip)? player (): get_player (aip);
     apl= accelerate (pl, t[1]);
-    tree st= subtree (the_et, reverse (uip));
+    tree st= subtree (current_document_tree (), reverse (uip));
     blackbox bb= close_box<player> (apl);
     (void) tree_addendum_new (st, ADDENDUM_PLAYER, bb, false);
   }

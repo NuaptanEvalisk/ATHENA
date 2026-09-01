@@ -22,9 +22,9 @@ checked_context_drd (const SchemeExecutionContext& context) {
 
 SchemeExecutionContext::SchemeExecutionContext (
   buffer_actor* actor2, editor_rep* editor2, drd_info* drd2,
-  url buffer_id2, url view_id2, std::uint64_t command_id2,
+  tree* document2, url buffer_id2, url view_id2, std::uint64_t command_id2,
   SchemeCapabilitySet capabilities2):
-    actor (actor2), editor (editor2), drd (drd2),
+    actor (actor2), editor (editor2), drd (drd2), document (document2),
     buffer_id (buffer_id2), view_id (view_id2), command_id (command_id2),
     capabilities (capabilities2), owner_thread (std::this_thread::get_id ()) {}
 
@@ -35,7 +35,8 @@ SchemeExecutionContext::has (SchemeExecutionCapability capability) const noexcep
 
 SchemeExecutionScope::SchemeExecutionScope (
   const SchemeExecutionContext& context):
-    previous_context (nullptr), drd_scope (checked_context_drd (context)) {
+    previous_context (nullptr), drd_scope (checked_context_drd (context)),
+    document_scope (context.document) {
   previous_context= execution_context;
   execution_context= &context;
 }

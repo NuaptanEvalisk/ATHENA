@@ -15,6 +15,7 @@
 #include "boot.hpp"
 #include "ATHENA/Data/artifact_radioactive_links.hpp"
 #include "radioactive_link_scope.hpp"
+#include "new_document.hpp"
 
 #include <algorithm>
 #include <vector>
@@ -114,7 +115,6 @@ concater_rep::typeset_colored_substring
 #define PRINT_SPACE(spc_type) \
   if (spc_type != SPC_NONE) print (spc_tab[spc_type]);
 
-extern tree the_et;
 
 void
 concater_rep::typeset_text_string (tree t, path ip, int pos, int end) {
@@ -137,8 +137,8 @@ concater_rep::typeset_text_string (tree t, path ip, int pos, int end) {
     path reversed= reverse (ip);
     if (!is_nil (reversed)) {
       path root (reversed->item);
-      if (has_subtree (the_et, root)) {
-        source_document= subtree (the_et, root);
+      if (has_subtree (current_document_tree (), root)) {
+        source_document= subtree (current_document_tree (), root);
         source_path= reversed->next;
         has_source_context= !is_nil (source_path);
       }

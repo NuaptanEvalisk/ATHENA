@@ -27,11 +27,16 @@ void
 TestSchemeExecutionContext::restoresNestedContexts () {
   drd_info outer_drd ("execution-context-outer");
   drd_info inner_drd ("execution-context-inner");
+  tree outer_document= make_document_tree ();
+  tree inner_document= make_document_tree ();
+  tree* default_document= &current_document_tree ();
   SchemeExecutionContext outer (
-    nullptr, nullptr, &outer_drd, url_none (), url_none (), 1,
+    nullptr, nullptr, &outer_drd, &outer_document,
+    url_none (), url_none (), 1,
     SCHEME_CAPABILITY_GLOBAL);
   SchemeExecutionContext inner (
-    nullptr, nullptr, &inner_drd, url_none (), url_none (), 2,
+    nullptr, nullptr, &inner_drd, &inner_document,
+    url_none (), url_none (), 2,
     SCHEME_CAPABILITY_GLOBAL);
 
   QVERIFY (current_scheme_execution_context () == nullptr);
@@ -39,16 +44,26 @@ TestSchemeExecutionContext::restoresNestedContexts () {
     SchemeExecutionScope outer_scope (outer);
     QCOMPARE (current_scheme_execution_context (), &outer);
     QCOMPARE (&current_drd (), &outer_drd);
+    QCOMPARE (&current_document_tree (), &outer_document);
+    assign (path (0), tree (DOCUMENT, "outer"));
     {
       SchemeExecutionScope inner_scope (inner);
       QCOMPARE (current_scheme_execution_context (), &inner);
       QCOMPARE (&current_drd (), &inner_drd);
+      QCOMPARE (&current_document_tree (), &inner_document);
+      assign (path (0), tree (DOCUMENT, "inner"));
+      QCOMPARE (subtree (inner_document, path (0)),
+                tree (DOCUMENT, "inner"));
     }
     QCOMPARE (current_scheme_execution_context (), &outer);
     QCOMPARE (&current_drd (), &outer_drd);
+    QCOMPARE (&current_document_tree (), &outer_document);
+    QCOMPARE (subtree (outer_document, path (0)),
+              tree (DOCUMENT, "outer"));
   }
   QVERIFY (current_scheme_execution_context () == nullptr);
   QCOMPARE (&current_drd (), &std_drd);
+  QCOMPARE (&current_document_tree (), default_document);
 }
 
 void
@@ -59,15 +74,19 @@ TestSchemeExecutionContext::isolatesConcurrentThreads () {
 
   auto worker= [&] (std::uint64_t command_id) {
     drd_info local_drd ("execution-context-worker");
+    tree local_document= make_document_tree ();
     SchemeExecutionContext context (
-      nullptr, nullptr, &local_drd, url_none (), url_none (), command_id,
+      nullptr, nullptr, &local_drd, &local_document,
+      url_none (), url_none (),
+      command_id,
       SCHEME_CAPABILITY_GLOBAL);
     SchemeExecutionScope scope (context);
     ready.fetch_add (1, std::memory_order_release);
     while (!release.load (std::memory_order_acquire)) std::this_thread::yield ();
     if (current_scheme_execution_context () != &context ||
         current_scheme_execution_context ()->command_id != command_id ||
-        &current_drd () != &local_drd)
+        &current_drd () != &local_drd ||
+        &current_document_tree () != &local_document)
       valid.store (false, std::memory_order_relaxed);
   };
 
