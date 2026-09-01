@@ -1820,6 +1820,8 @@ QTMPreferencesDialog::buildVaultCategories () {
     }
     try { (void) call ("vault-anchor-title-filter-invalidate"); }
     catch (...) {}
+    try { (void) call ("update-current-buffer"); }
+    catch (...) {}
     return true;
   };
   if (qtm_vault_info_available ()) {

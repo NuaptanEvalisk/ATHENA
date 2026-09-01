@@ -17,6 +17,8 @@
 #include <memory>
 #include <vector>
 
+struct AthenaArtifactTitleFilter;
+
 struct AthenaArtifactRadioactiveMatch {
   int start= 0;
   int end= 0;
@@ -28,6 +30,9 @@ class AthenaArtifactRadioactiveMatcher {
 public:
   explicit AthenaArtifactRadioactiveMatcher (
     const std::vector<AthenaArtifactRecord>& records);
+  AthenaArtifactRadioactiveMatcher (
+    const std::vector<AthenaArtifactRecord>& records,
+    const AthenaArtifactTitleFilter& filter);
   ~AthenaArtifactRadioactiveMatcher ();
 
   AthenaArtifactRadioactiveMatcher (

@@ -8,6 +8,7 @@
 
 #include "ATHENA/Data/artifact_title_filter.hpp"
 
+#include "ATHENA/Data/artifact_radioactive_links.hpp"
 #include "ATHENA/Data/vaultfile_json.hpp"
 
 #include <QCryptographicHash>
@@ -191,5 +192,7 @@ athena_artifact_title_filter_write (
   AthenaArtifactTitleFilter filter=
     athena_artifact_title_filter_from_entries (entries);
   if (!write_entries (path, filter.entries, error)) return false;
-  return athena_vaultfile_write (vault_root, info, error);
+  if (!athena_vaultfile_write (vault_root, info, error)) return false;
+  athena_artifact_radioactive_invalidate ();
+  return true;
 }

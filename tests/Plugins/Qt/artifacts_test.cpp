@@ -67,6 +67,7 @@ private slots:
   void doesNotTransferDeletedUnanchoredDuplicateEnunciation ();
   void preservesIdentityAcrossTrustedPathRenames ();
   void matchesRadioactiveLinksByCaseAndInflection ();
+  void filtersRadioactiveLinksBeforeArtifactRebuild ();
   void matchesPossessiveAndEponymRadioactiveLinks ();
   void prefersLongestRadioactiveArtifactTerm ();
   void linksAmbiguousRadioactiveArtifactTerms ();
@@ -1730,6 +1731,29 @@ TestArtifacts::matchesRadioactiveLinksByCaseAndInflection () {
             string ("COMPACT OPERATORS"));
   QCOMPARE (text (matches[1].start, matches[1].end),
             string ("compact operator"));
+}
+
+void
+TestArtifacts::filtersRadioactiveLinksBeforeArtifactRebuild () {
+  std::vector<AthenaArtifactRecord> records= {
+    radioactive_record ("compact-operator", "compact operator"),
+    radioactive_record ("banach-space", "Banach space"),
+    radioactive_record ("noticeable", "noticeable")};
+  AthenaArtifactTitleFilter filter=
+    athena_artifact_title_filter_from_entries (
+      {"COMPACT  OPERATOR", "notice", "noticing"});
+  AthenaArtifactRadioactiveMatcher matcher (records, filter);
+
+  auto matches= matcher.matches (
+    "A compact operator acts between Banach spaces. Noticing it helps.");
+  QCOMPARE (matches.size (), (size_t) 1);
+  QCOMPARE (matches[0].uuids,
+            std::vector<std::string> ({"banach-space"}));
+
+  matches= matcher.matches ("The change is noticeable.");
+  QCOMPARE (matches.size (), (size_t) 1);
+  QCOMPARE (matches[0].uuids,
+            std::vector<std::string> ({"noticeable"}));
 }
 
 void

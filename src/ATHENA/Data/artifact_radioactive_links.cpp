@@ -8,6 +8,7 @@
 
 #include "ATHENA/Data/artifact_radioactive_links.hpp"
 
+#include "ATHENA/Data/artifact_title_filter.hpp"
 #include "ATHENA/Data/vault.hpp"
 #include "ATHENA/Data/vaultfile_json.hpp"
 #include "analyze.hpp"
@@ -58,6 +59,8 @@ struct RadioactiveIndex {
   std::vector<TrieNode> nodes= {TrieNode ()};
   std::unordered_map<std::string,AthenaArtifactRecord> records;
   std::unordered_map<std::string,std::vector<std::string>> records_by_key;
+  AthenaArtifactTitleFilter title_filter;
+  bool has_title_filter= false;
 };
 
 struct TextProjection {
@@ -167,13 +170,20 @@ std::string token_key (const std::vector<Token>& tokens) {
   return digest.result ().toHex ().toStdString ();
 }
 
-std::vector<QString> artifact_terms (const AthenaArtifactRecord& record) {
+std::vector<QString> artifact_terms (
+  const AthenaArtifactRecord& record,
+  const AthenaArtifactTitleFilter* filter= nullptr) {
   if (record.type == "completion") return {};
   std::vector<QString> terms;
   terms.reserve (record.semantic_names.size ());
   for (const std::string& name: record.semantic_names) {
     QString term= qstring_from_tm_or_utf8 (name).simplified ();
-    if (!term.isEmpty ()) terms.push_back (term);
+    QByteArray utf8= term.toUtf8 ();
+    if (!term.isEmpty () &&
+        (filter == nullptr ||
+         !athena_artifact_title_filter_contains (
+           *filter, std::string (utf8.constData (), (size_t) utf8.size ()))))
+      terms.push_back (term);
   }
   return terms;
 }
@@ -211,12 +221,17 @@ void add_term (RadioactiveIndex& index, const QString& term,
 
 std::shared_ptr<const RadioactiveIndex> build_index (
   const std::vector<AthenaArtifactRecord>& records,
-  const std::string& vault_root= {}) {
+  const std::string& vault_root= {},
+  const AthenaArtifactTitleFilter* filter= nullptr) {
   auto index= std::make_shared<RadioactiveIndex> ();
   index->vault_root= vault_root;
+  if (filter != nullptr) {
+    index->title_filter= *filter;
+    index->has_title_filter= true;
+  }
   for (const AthenaArtifactRecord& record: records) {
     index->records.emplace (record.uuid, record);
-    for (const QString& term: artifact_terms (record)) {
+    for (const QString& term: artifact_terms (record, filter)) {
       add_term (*index, term, record.uuid);
       std::string key= token_key (tokenize (term));
       std::vector<std::string>& matches= index->records_by_key[key];
@@ -285,6 +300,14 @@ std::vector<AthenaArtifactRadioactiveMatch> match_index (
       node= child.value ();
       const TrieNode& candidate= index.nodes[(size_t) node];
       if (!candidate.uuids.empty ()) {
+        QString surface= projection.text.mid (
+          tokens[start].start, tokens[position].end - tokens[start].start);
+        QByteArray utf8= surface.toUtf8 ();
+        if (index.has_title_filter &&
+            athena_artifact_title_filter_contains (
+              index.title_filter,
+              std::string (utf8.constData (), (size_t) utf8.size ())))
+          continue;
         best_end= (int) position;
         best_uuids= candidate.uuids;
         best_key= candidate.key;
@@ -335,7 +358,15 @@ std::shared_ptr<const RadioactiveIndex> active_index () {
                                 std::memory_order_release);
     return index;
   }
-  index= build_index (records, root);
+  AthenaArtifactTitleFilter title_filter;
+  bool has_title_filter=
+    athena_artifact_title_filter_read (
+      fs::path (root), title_filter, error);
+  if (!has_title_filter)
+    std_warning << "Could not apply artifact title filter to radioactive "
+                << "links: " << error.c_str () << LF;
+  index= build_index (
+    records, root, has_title_filter ? &title_filter : nullptr);
   std::atomic_store_explicit (&cached_index, index, std::memory_order_release);
   return index;
 }
@@ -345,6 +376,9 @@ std::shared_ptr<const RadioactiveIndex> active_index () {
 struct AthenaArtifactRadioactiveMatcher::Impl {
   explicit Impl (const std::vector<AthenaArtifactRecord>& records)
     : index (build_index (records)) {}
+  Impl (const std::vector<AthenaArtifactRecord>& records,
+        const AthenaArtifactTitleFilter& filter)
+    : index (build_index (records, {}, &filter)) {}
 
   std::shared_ptr<const RadioactiveIndex> index;
 };
@@ -352,6 +386,11 @@ struct AthenaArtifactRadioactiveMatcher::Impl {
 AthenaArtifactRadioactiveMatcher::AthenaArtifactRadioactiveMatcher (
     const std::vector<AthenaArtifactRecord>& records)
   : impl (std::make_shared<const Impl> (records)) {}
+
+AthenaArtifactRadioactiveMatcher::AthenaArtifactRadioactiveMatcher (
+    const std::vector<AthenaArtifactRecord>& records,
+    const AthenaArtifactTitleFilter& filter)
+  : impl (std::make_shared<const Impl> (records, filter)) {}
 
 AthenaArtifactRadioactiveMatcher::~AthenaArtifactRadioactiveMatcher () = default;
 
