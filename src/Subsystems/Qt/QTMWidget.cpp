@@ -58,6 +58,25 @@
 
 static long int QTMWcounter = 0; // debugging hack
 
+namespace {
+
+class scoped_event_check_suppression {
+  qt_gui_rep* gui;
+  bool restore;
+
+public:
+  explicit scoped_event_check_suppression (qt_gui_rep* gui2)
+    : gui (gui2), restore (gui2 != nullptr && gui2->event_checking_enabled ()) {
+    if (gui != nullptr) gui->set_check_events (false);
+  }
+
+  ~scoped_event_check_suppression () {
+    if (gui != nullptr) gui->set_check_events (restore);
+  }
+};
+
+}
+
 static string
 gestureEventTypeName (QEvent::Type type) {
   if (type == QEvent::TouchBegin) return "TouchBegin";
@@ -201,6 +220,13 @@ void
 QTMWidget::refreshEmbeddedBackingStore () {
   if (athena_qt_is_closing () || is_nil (tmwid) || !isVisible ()) return;
   if (!isEmbedded ()) return;
+
+  // A modal preview may be opened while qt_gui_rep::update() is processing
+  // the command which created it.  In that nested event loop, the outer
+  // update's interrupted flag cannot be cleared until the dialog closes.
+  // Embedded output is immutable and must complete its local repaint instead
+  // of inheriting that unrelated interruption state.
+  scoped_event_check_suppression suppress_event_checks (the_gui);
   tm_widget ()->repaint_invalid_regions ();
   if (surface () != nullptr) surface ()->update ();
 }

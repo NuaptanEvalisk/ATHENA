@@ -171,6 +171,7 @@ public:
   void show_help_balloon (widget wid, SI x, SI y);
   void add_event (const queued_event& ev);
   bool check_event (int type);
+  bool event_checking_enabled () const { return do_check_events; }
   void set_check_events (bool enable_check);
 
   void update();
