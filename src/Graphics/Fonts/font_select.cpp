@@ -657,6 +657,15 @@ distance (array<string> v, array<string> w) {
   return distance (v, v, w, w);
 }
 
+static int
+required_distance (const array<string>& requested,
+                   const array<string>& available) {
+  int d= 0;
+  for (int i=1; i<N(requested); i++)
+    d += distance (requested[i], available, false);
+  return d;
+}
+
 /******************************************************************************
 * Compute a best possible approximation for font
 ******************************************************************************/
@@ -743,7 +752,14 @@ search_font (array<string> v, bool require_exact, array<string> avoid) {
   }
   if (!found) {
     search_font_among (v, fams, avoid, best_distance, best_result, false);
-    if (best_distance < D_MASTER)
+    int required= D_INFINITY;
+    if (best_distance != D_INFINITY)
+      required= required_distance (
+        v, logical_font_exact (best_result[0], best_result[1]));
+    // Native family traits rank variants inside one master, but an omitted
+    // trait must not eject an explicitly selected master.  Only unmet
+    // requested traits justify a cross-family fallback.
+    if (required < D_MASTER)
       search_font_among (v, fams, avoid, best_distance, best_result, true);
     else {
       fams= font_database_families ();
