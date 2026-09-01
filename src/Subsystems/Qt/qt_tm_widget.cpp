@@ -78,6 +78,7 @@ static void
 athena_configure_toolbar (QToolBar* toolbar, const QSize& iconSize) {
   if (!toolbar || !iconSize.isValid ()) return;
 
+  toolbar->setFocusPolicy (Qt::NoFocus);
   toolbar->setIconSize (iconSize);
   toolbar->setToolButtonStyle (athena_text_toolbar_enabled () ?
                                Qt::ToolButtonTextOnly :
@@ -112,8 +113,21 @@ athena_configure_toolbar_button (QToolBar* toolbar, QToolButton* button,
                                  const QSize& iconSize) {
   if (!button) return;
 
+  button->setFocusPolicy (Qt::NoFocus);
   QAction* action= button->defaultAction ();
   if (!action && button->icon ().isNull ()) return;
+
+  if (action && action->menu ()) {
+    QMenu* menu= action->menu ();
+    QObject::connect (menu, &QMenu::aboutToHide, button, [] () {
+      QTMWidget::setFocusToLast ();
+    });
+  }
+  else {
+    QObject::connect (button, &QToolButton::clicked, button, [] () {
+      QTMWidget::setFocusToLast ();
+    });
+  }
 
   button->setPopupMode (QToolButton::InstantPopup);
 
@@ -208,6 +222,7 @@ replaceButtons (QToolBar* dest, QList<QAction*>* src) {
     }
     else if (a->icon().isNull() && !a->text().isEmpty()) {
       QPushButton* button= new QPushButton (dest);
+      button->setFocusPolicy (Qt::NoFocus);
       button->setText (a->text ());
       button->setMenu (a->menu ());
       button->setToolTip (a->toolTip ());
@@ -216,8 +231,17 @@ replaceButtons (QToolBar* dest, QList<QAction*>* src) {
       int w= button->fontMetrics().horizontalAdvance (a->text()) + 24;
       button->setFixedWidth (max (w, 44));
       dest->addWidget (button);
-      if (a->menu () == NULL)
+      if (a->menu () == NULL) {
         QObject::connect (button, SIGNAL (clicked ()), a, SLOT (trigger ()));
+        QObject::connect (button, &QPushButton::clicked, button, [] () {
+          QTMWidget::setFocusToLast ();
+        });
+      }
+      else {
+        QObject::connect (a->menu (), &QMenu::aboutToHide, button, [] () {
+          QTMWidget::setFocusToLast ();
+        });
+      }
     }
     else {
       dest->addAction (a);
