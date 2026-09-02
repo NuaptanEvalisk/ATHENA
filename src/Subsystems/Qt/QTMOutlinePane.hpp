@@ -11,7 +11,7 @@
 #ifndef QTMOUTLINEPANE_HPP
 #define QTMOUTLINEPANE_HPP
 
-#include "path.hpp"
+#include "actor_transport.hpp"
 #include <QSize>
 #include <QVector>
 #include <QWidget>
@@ -26,11 +26,13 @@ public:
     int     level;
     QString title;
     int     words;
-    path    treePath;
+    QVector<int> treePath;
   };
 
   QTMOutlinePane (QWidget* parent = nullptr);
   QSize sizeHint () const override;
+  void applySnapshot (athena_view_id viewId, owned_actor_blob snapshot,
+                      std::uint64_t signature);
 
 private:
   void refresh ();
@@ -39,9 +41,15 @@ private:
   QTreeWidget* tree;
   QTimer*      timer;
   QVector<Entry> entries;
-  QString      lastSignature;
+  athena_actor_id lastActorId;
+  athena_view_id lastViewId;
+  std::uint64_t lastSignature;
+  bool          hasSignature;
 };
 
 void outline_pane_show ();
+void outline_pane_accept_snapshot (athena_view_id viewId,
+                                   athena_blob_id payload,
+                                   std::uint64_t signature);
 
 #endif // QTMOUTLINEPANE_HPP

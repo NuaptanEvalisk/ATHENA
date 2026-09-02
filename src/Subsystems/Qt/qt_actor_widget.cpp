@@ -17,6 +17,7 @@
 #include "scheme.hpp"
 #include "tm_server.hpp"
 #include "QTMToast.hpp"
+#include "QTMOutlinePane.hpp"
 #include "QTMVaultExplorer.hpp"
 
 #include <QApplication>
@@ -316,6 +317,10 @@ qt_actor_widget_rep::drain_external_effects () {
       vault_explorer_track_file (url (std::move (file)));
       break;
     }
+    case actor_command_kind::ui_outline_snapshot:
+      outline_pane_accept_snapshot (
+        record.view_id, record.payload0, record.argument[0]);
+      break;
     case actor_command_kind::ui_keyboard_focus_field: {
       string field= actor_text_registry::instance ().take (record.payload0);
       tm_view view= concrete_runtime_view (view_id_);

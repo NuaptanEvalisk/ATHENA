@@ -9,17 +9,24 @@
 ******************************************************************************/
 
 #include "QTMQuickSwitcher.hpp"
+#include "actor_transport.hpp"
 #include "vault.hpp"
 #include "qt_utilities.hpp"
 #include <QApplication>
+#include <QCoreApplication>
 #include <QDir>
 #include <QEvent>
 #include <QFileInfo>
 #include <QHash>
 #include <QKeyEvent>
+#include <QMetaObject>
 #include <QShowEvent>
+#include <QThread>
 #include <QVariant>
 #include <algorithm>
+#include <memory>
+#include <mutex>
+#include <unordered_map>
 #include <utility>
 
 static const int quick_switcher_limit= 100;
@@ -37,6 +44,59 @@ enum QuickRoles {
   QuickCompletionRole,
   QuickNamespacePathRole
 };
+
+struct QuickSwitcherRequest {
+  array<string> recentFiles;
+  tree result;
+};
+
+std::mutex quickRequestMutex;
+std::unordered_map<athena_resource_id, std::unique_ptr<QuickSwitcherRequest>>
+  quickRequests;
+athena_resource_id nextQuickRequestId= 1;
+
+athena_resource_id
+registerQuickRequest (array<string> recentFiles) {
+  for (int i= 0; i < N (recentFiles); ++i)
+    recentFiles[i].ensure_transferable ();
+  auto request= std::make_unique<QuickSwitcherRequest> ();
+  request->recentFiles= std::move (recentFiles);
+  std::lock_guard<std::mutex> guard (quickRequestMutex);
+  athena_resource_id id= nextQuickRequestId++;
+  if (id == 0) id= nextQuickRequestId++;
+  quickRequests.emplace (id, std::move (request));
+  return id;
+}
+
+tree runQuickSwitcher (array<string> recentFiles);
+
+void
+executeQuickRequest (athena_resource_id id) {
+  array<string> recentFiles;
+  {
+    std::lock_guard<std::mutex> guard (quickRequestMutex);
+    auto found= quickRequests.find (id);
+    if (found == quickRequests.end ()) return;
+    recentFiles= std::move (found->second->recentFiles);
+  }
+  tree result= runQuickSwitcher (std::move (recentFiles));
+  std::lock_guard<std::mutex> guard (quickRequestMutex);
+  auto found= quickRequests.find (id);
+  if (found != quickRequests.end ()) found->second->result= std::move (result);
+}
+
+tree
+takeQuickResult (athena_resource_id id) {
+  std::unique_ptr<QuickSwitcherRequest> request;
+  {
+    std::lock_guard<std::mutex> guard (quickRequestMutex);
+    auto found= quickRequests.find (id);
+    if (found == quickRequests.end ()) return UNINIT;
+    request= std::move (found->second);
+    quickRequests.erase (found);
+  }
+  return std::move (request->result);
+}
 }
 
 QTMQuickSwitcher::QTMQuickSwitcher (QWidget* parent, array<string> recentFiles)
@@ -630,10 +690,32 @@ QTMQuickSwitcher::getResult () {
   return res;
 }
 
+namespace {
+
 tree
-vault_quick_switcher (array<string> recentFiles) {
+runQuickSwitcher (array<string> recentFiles) {
   QWidget* parent= QApplication::activeWindow ();
-  QTMQuickSwitcher switcher (parent, recentFiles);
+  QTMQuickSwitcher switcher (parent, std::move (recentFiles));
   if (switcher.exec () == QDialog::Accepted) return switcher.getResult ();
   return UNINIT;
+}
+
+} // namespace
+
+tree
+vault_quick_switcher (array<string> recentFiles) {
+  QCoreApplication* app= QCoreApplication::instance ();
+  if (app == nullptr || QThread::currentThread () == app->thread ())
+    return runQuickSwitcher (std::move (recentFiles));
+
+  athena_resource_id requestId=
+    registerQuickRequest (std::move (recentFiles));
+  bool invoked= QMetaObject::invokeMethod (
+    app, [requestId] () { executeQuickRequest (requestId); },
+    Qt::BlockingQueuedConnection);
+  if (!invoked) {
+    (void) takeQuickResult (requestId);
+    return UNINIT;
+  }
+  return takeQuickResult (requestId);
 }

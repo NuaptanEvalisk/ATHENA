@@ -20,6 +20,7 @@
 #include "guile_tm.hpp"
 #include "glue.hpp"
 #include "object.hpp"
+#include "outline_snapshot.hpp"
 #include "tm_buffer.hpp"
 #include "tm_window.hpp"
 
@@ -527,7 +528,8 @@ buffer_actor::execute (actor_command_record& command) {
       (command.kind == actor_command_kind::apply_changes ||
        command.kind == actor_command_kind::animate ||
        command.kind == actor_command_kind::progressive_typeset ||
-       command.kind == actor_command_kind::render_view))
+       command.kind == actor_command_kind::render_view ||
+       command.kind == actor_command_kind::request_outline))
     editor->ui_endpoint->finish_coalesced_command (command.kind);
   report_unhandled_actor_exception (request.failure);
 }
@@ -831,6 +833,39 @@ buffer_actor::dispatch (actor_command_record& command) {
       subtree (impl_->state.document, impl_->state.root_path));
     command.payload0= actor_tree_registry::instance ().store (
       std::move (snapshot));
+    break;
+  }
+  case actor_command_kind::request_outline: {
+    if (editor == nullptr || editor->ui_endpoint == nullptr) break;
+    const tree& document= subtree (
+      impl_->state.document, impl_->state.root_path);
+    std::uint64_t signature= athena_outline_signature (document);
+    bool has_previous= command.argument[1] != 0;
+    if (has_previous && command.argument[0] == signature) break;
+    array<heading_word_count_entry> entries=
+      athena_heading_word_count_entries (document, impl_->state.root_path);
+    athena_blob_id payload=
+      athena_pack_outline_snapshot (entries, signature);
+    if (!editor->ui_endpoint->publish (
+          actor_command_kind::ui_outline_snapshot, payload, signature))
+      (void) actor_blob_registry::instance ().discard (payload);
+    break;
+  }
+  case actor_command_kind::activate_outline_entry: {
+    owned_actor_blob payload=
+      actor_blob_registry::instance ().take (command.payload0);
+    std::size_t count= static_cast<std::size_t> (command.argument[0]);
+    if (editor == nullptr || !payload ||
+        count > payload.size () / sizeof (std::int32_t) ||
+        count * sizeof (std::int32_t) != payload.size ())
+      break;
+    path target;
+    const std::int32_t* items=
+      reinterpret_cast<const std::int32_t*> (payload.data ());
+    for (std::size_t i= count; i != 0; --i)
+      target= path (static_cast<int> (items[i - 1]), target);
+    editor->focus_on_this_editor ();
+    editor->go_to_start (target);
     break;
   }
   case actor_command_kind::set_master_buffer: {
