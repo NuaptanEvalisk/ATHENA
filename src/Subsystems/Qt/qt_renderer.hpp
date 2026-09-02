@@ -28,49 +28,52 @@ public:
 
   qt_renderer_rep (QPainter *_painter, double pixel_ratio,
 		   int w = 0, int h = 0, bool command_recording = false);
-  ~qt_renderer_rep ();
-  void* get_handle ();
+  ~qt_renderer_rep () override;
+  void* get_handle () override;
   bool supports_backing_store () const override;
 
-  void set_zoom_factor (double zoom, bool safe= true);
-  void begin (void* handle);
-  void end ();
+  void set_zoom_factor (double zoom, bool safe= true) override;
+  void begin (void* handle) override;
+  void end () override;
 
   //void set_extent (SI _w, SI _h) { w = _w; h = _h; }
-  void get_extents (SI& w, SI& h);
+  void get_extents (SI& w, SI& h) override;
 
-  void set_transformation (frame fr);
-  void reset_transformation ();
+  void set_transformation (frame fr) override;
+  void reset_transformation () override;
 
-  void set_clipping (SI x1, SI y1, SI x2, SI y2, bool restore = false);
+  void set_clipping (SI x1, SI y1, SI x2, SI y2,
+                     bool restore = false) override;
 
-  void  clear_device (SI x1, SI y1, SI x2, SI y2);
+  void  clear_device (SI x1, SI y1, SI x2, SI y2) override;
   void  draw_bis (int char_code, font_glyphs fn, SI x, SI y);
-  void  draw (int char_code, font_glyphs fn, SI x, SI y);
+  void  draw (int char_code, font_glyphs fn, SI x, SI y) override;
   void  draw (const QFont& qfn, const QString& s, SI x, SI y, double zoom);
-  void  set_pencil (pencil p);
-  void  set_brush (brush b);
-  void  line (SI x1, SI y1, SI x2, SI y2);
-  void  lines (array<SI> x, array<SI> y);
-  void  clear (SI x1, SI y1, SI x2, SI y2);
-  void  fill (SI x1, SI y1, SI x2, SI y2);
-  void  arc (SI x1, SI y1, SI x2, SI y2, int alpha, int delta);
-  void  fill_arc (SI x1, SI y1, SI x2, SI y2, int alpha, int delta);
-  void  polygon (array<SI> x, array<SI> y, bool convex=true);
-  void  draw_triangle (SI x1, SI y1, SI x2, SI y2, SI x3, SI y3);
-  void  draw_selection (rectangles rs);
+  void  set_pencil (pencil p) override;
+  void  set_brush (brush b) override;
+  void  line (SI x1, SI y1, SI x2, SI y2) override;
+  void  lines (array<SI> x, array<SI> y) override;
+  void  clear (SI x1, SI y1, SI x2, SI y2) override;
+  void  fill (SI x1, SI y1, SI x2, SI y2) override;
+  void  arc (SI x1, SI y1, SI x2, SI y2, int alpha, int delta) override;
+  void  fill_arc (SI x1, SI y1, SI x2, SI y2,
+                  int alpha, int delta) override;
+  void  polygon (array<SI> x, array<SI> y, bool convex=true) override;
+  void  draw_triangle (SI x1, SI y1, SI x2, SI y2,
+                       SI x3, SI y3) override;
+  void  draw_selection (rectangles rs) override;
 
   void draw_clipped (QImage * im, int w, int h, SI x, SI y);
   void draw_clipped (QTMPixmapOrImage * im, int w, int h, SI x, SI y);
   
-  void new_shadow (renderer& ren);
-  void delete_shadow (renderer& ren);
-  void get_shadow (renderer ren, SI x1, SI y1, SI x2, SI y2);
-  void put_shadow (renderer ren, SI x1, SI y1, SI x2, SI y2);
+  void new_shadow (renderer& ren) override;
+  void delete_shadow (renderer& ren) override;
+  void get_shadow (renderer ren, SI x1, SI y1, SI x2, SI y2) override;
+  void put_shadow (renderer ren, SI x1, SI y1, SI x2, SI y2) override;
 
-  void apply_shadow (SI x1, SI y1, SI x2, SI y2);
+  void apply_shadow (SI x1, SI y1, SI x2, SI y2) override;
 
-  void draw_picture (picture pict, SI x, SI y, int alpha);
+  void draw_picture (picture pict, SI x, SI y, int alpha) override;
 };
 
 qt_renderer_rep* the_qt_renderer (double pixel_ratio = 1.0);
@@ -83,8 +86,8 @@ public:
   
 public:
   qt_shadow_renderer_rep (QTMPixmapOrImage _px, double pixel_ratio);
-  ~qt_shadow_renderer_rep ();
-  void get_shadow (renderer ren, SI x1, SI y1, SI x2, SI y2);
+  ~qt_shadow_renderer_rep () override;
+  void get_shadow (renderer ren, SI x1, SI y1, SI x2, SI y2) override;
 };
 
 class qt_proxy_renderer_rep: public qt_renderer_rep {
@@ -95,9 +98,9 @@ public:
   qt_proxy_renderer_rep (qt_renderer_rep *_base)
     : qt_renderer_rep(_base->painter, _base->pixel_ratio, 0, 0,
                       _base->command_recording), base(_base) {}
-  ~qt_proxy_renderer_rep () {};
-  void new_shadow (renderer& ren);
-  void get_shadow (renderer ren, SI x1, SI y1, SI x2, SI y2);
+  ~qt_proxy_renderer_rep () override {};
+  void new_shadow (renderer& ren) override;
+  void get_shadow (renderer ren, SI x1, SI y1, SI x2, SI y2) override;
 };
 
 #endif

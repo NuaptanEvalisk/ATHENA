@@ -768,7 +768,7 @@ buffer_actor::dispatch (actor_command_record& command) {
     tmscm result= call_scheme (procedure);
     if (!tmscm_is_widget (result)) FAILED ("widget expected");
     widget value= tmscm_to_widget (result);
-    command.argument[0]= actor_ui_store_widget (value);
+    command.argument[0]= actor_ui_store_widget (std::move (value));
     break;
   }
   case actor_command_kind::release_scheme_handle:

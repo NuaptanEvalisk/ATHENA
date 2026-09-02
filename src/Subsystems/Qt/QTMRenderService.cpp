@@ -332,7 +332,6 @@ struct QTMRenderConnection::processor_state final: render_processor {
     active_image= std::make_unique<QImage> (
       frame.pixels.get (), frame.width, frame.height, frame.stride,
       QImage::Format_ARGB32_Premultiplied);
-    active_image->setDevicePixelRatio (frame.pixel_ratio);
     active_image->fill (begin.background_argb);
     painter= std::make_unique<QPainter> (active_image.get ());
     if (!painter->isActive ()) {
@@ -1060,8 +1059,9 @@ class recording_paint_device final: public QPaintDevice {
 public:
   recording_paint_device (render_stream_writer& writer, int width, int height,
                           double pixel_ratio):
-    engine_ (writer), width_ (width), height_ (height),
-    pixel_ratio_ (pixel_ratio) {}
+    engine_ (writer), width_ (width), height_ (height) {
+    (void) pixel_ratio;
+  }
 
   QPaintEngine* paintEngine () const override {
     return const_cast<recording_paint_engine*> (&engine_);
@@ -1072,17 +1072,17 @@ protected:
     switch (metric) {
     case PdmWidth: return width_;
     case PdmHeight: return height_;
-    case PdmWidthMM: return qRound (width_ * 25.4 / (96.0 * pixel_ratio_));
-    case PdmHeightMM: return qRound (height_ * 25.4 / (96.0 * pixel_ratio_));
+    case PdmWidthMM: return qRound (width_ * 25.4 / 96.0);
+    case PdmHeightMM: return qRound (height_ * 25.4 / 96.0);
     case PdmNumColors: return std::numeric_limits<int>::max ();
     case PdmDepth: return 32;
     case PdmDpiX:
-    case PdmPhysicalDpiX: return qRound (96.0 * pixel_ratio_);
+    case PdmPhysicalDpiX: return 96;
     case PdmDpiY:
-    case PdmPhysicalDpiY: return qRound (96.0 * pixel_ratio_);
-    case PdmDevicePixelRatio: return qRound (pixel_ratio_);
+    case PdmPhysicalDpiY: return 96;
+    case PdmDevicePixelRatio: return 1;
     case PdmDevicePixelRatioScaled:
-      return qRound (pixel_ratio_ * devicePixelRatioFScale ());
+      return devicePixelRatioFScale ();
     default: return 0;
     }
   }
@@ -1091,7 +1091,6 @@ private:
   mutable recording_paint_engine engine_;
   int width_;
   int height_;
-  double pixel_ratio_;
 };
 
 } // namespace

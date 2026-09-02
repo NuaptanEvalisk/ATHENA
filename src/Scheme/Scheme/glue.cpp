@@ -19,6 +19,8 @@
 #include "modification.hpp"
 #include "patch.hpp"
 #include "new_document.hpp"
+#include "actor_ui_bridge.hpp"
+#include "scheme_execution_context.hpp"
 
 #include "boxes.hpp"
 #include "editor.hpp"
@@ -2483,6 +2485,14 @@ tmg_artifact_disambiguation_page (tmscm arg1) {
 template<void (*Function) ()>
 static tmscm
 tmg_void_nullary () {
+  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  if (context != nullptr && context->editor != nullptr &&
+      context->view_id != ATHENA_NO_VIEW) {
+    athena_resource_id action= actor_ui_register_action (Function);
+    (void) context->editor->publish_ui (
+      actor_command_kind::ui_global_action, action);
+    return TMSCM_UNSPECIFIED;
+  }
   Function ();
   return TMSCM_UNSPECIFIED;
 }

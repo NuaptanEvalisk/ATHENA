@@ -503,7 +503,7 @@ qt_renderer_rep::draw_clipped (QImage *im, int w, int h, SI x, SI y) {
 
 void
 qt_renderer_rep::draw_clipped (QTMPixmapOrImage *im, int w, int h, SI x, SI y) {
-  if (headless_mode) {
+  if (im->is_image ()) {
     draw_clipped (im->QImage_ptr (), w, h, x, y);
     return;
   }
@@ -775,7 +775,7 @@ qt_renderer_rep::put_shadow (renderer ren, SI x1, SI y1, SI x2, SI y2) {
     //    cout << "qt_shadow_renderer_rep::put_shadow " 
     //         << rectangle(x1,y2,x2,y1) << LF;
     //    painter->setCompositionMode(QPainter::CompositionMode_Source);
-    if (headless_mode)
+    if (shadow->px.is_image ())
       painter->drawImage (rect, *(shadow->px.QImage_ptr ()), rect);
     else
       painter->drawPixmap (rect, *(shadow->px.QPixmap_ptr ()), rect);
@@ -803,6 +803,11 @@ qt_renderer_rep::apply_shadow (SI x1, SI y1, SI x2, SI y2)  {
 
 void 
 qt_proxy_renderer_rep::new_shadow (renderer& ren) {
+  if (command_recording) {
+    qt_renderer_rep::new_shadow (ren);
+    return;
+  }
+
   SI mw, mh, sw, sh;
   get_extents (mw, mh);
   if (ren != NULL) {
@@ -816,7 +821,7 @@ qt_proxy_renderer_rep::new_shadow (renderer& ren) {
     // cout << "Old: " << sw << ", " << sh << "\n";
   }
   if (ren == NULL) {
-    QTMPixmapOrImage px (mw, mh);
+    QTMPixmapOrImage px (mw, mh, command_recording);
     ren= (renderer) tm_new<qt_shadow_renderer_rep> (px, pixel_ratio);
   }
   // cout << "Create " << mw << ", " << mh << "\n";
@@ -826,6 +831,11 @@ qt_proxy_renderer_rep::new_shadow (renderer& ren) {
 
 void 
 qt_proxy_renderer_rep::get_shadow (renderer ren, SI x1, SI y1, SI x2, SI y2) {
+  if (command_recording) {
+    qt_renderer_rep::get_shadow (ren, x1, y1, x2, y2);
+    return;
+  }
+
   // FIXME: we should use the routine fetch later
   ASSERT (ren != NULL, "invalid renderer");
   if (ren->is_printer ()) return;
@@ -850,15 +860,13 @@ qt_proxy_renderer_rep::get_shadow (renderer ren, SI x1, SI y1, SI x2, SI y2) {
     shadow->painter->setClipRect(rect);
 
     //    shadow->painter->setCompositionMode(QPainter::CompositionMode_Source);
-    if (headless_mode) {
-      QImage *_image = static_cast<QImage*>(painter->device());
-      if (_image)
-	shadow->painter->drawImage (rect, *_image, rect);
-    } else {
-      QPixmap *_pixmap = static_cast<QPixmap*>(painter->device()); 
-      if (_pixmap)
-	shadow->painter->drawPixmap (rect, *_pixmap, rect);
-    }
+    QPaintDevice* device= painter->device ();
+    if (device != nullptr && device->devType () == QInternal::Image)
+      shadow->painter->drawImage (
+        rect, *static_cast<QImage*> (device), rect);
+    else if (device != nullptr && device->devType () == QInternal::Pixmap)
+      shadow->painter->drawPixmap (
+        rect, *static_cast<QPixmap*> (device), rect);
     //    cout << "qt_shadow_renderer_rep::get_shadow " 
     //         << rectangle(x1,y2,x2,y1) << LF;
     //  XCopyArea (dpy, win, shadow->win, gc, x1, y2, x2-x1, y1-y2, x1, y2);
@@ -908,7 +916,7 @@ qt_shadow_renderer_rep::get_shadow (renderer ren, SI x1, SI y1, SI x2, SI y2) {
     shadow->painter->setClipRect(rect);
 
 //    shadow->painter->setCompositionMode(QPainter::CompositionMode_Source);
-    if (headless_mode)
+    if (px.is_image ())
       shadow->painter->drawImage (rect, *(px.QImage_ptr ()), rect);
     else
       shadow->painter->drawPixmap (rect, *(px.QPixmap_ptr ()), rect);

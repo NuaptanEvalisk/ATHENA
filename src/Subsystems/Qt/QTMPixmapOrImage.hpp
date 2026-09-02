@@ -23,59 +23,73 @@
 
 struct QTMPixmapOrImage {
   void* rep;
-  QTMPixmapOrImage () {
-    if (headless_mode) rep= (void*) new QImage ();
+  bool image_backed;
+
+  QTMPixmapOrImage (): image_backed (headless_mode) {
+    if (image_backed) rep= (void*) new QImage ();
     else rep= (void*) new QPixmap ();
   }
   ~QTMPixmapOrImage () {
-    if (headless_mode) delete (QImage*) rep;
+    if (image_backed) delete (QImage*) rep;
     else delete (QPixmap*) rep;
   }
-  QTMPixmapOrImage (int w, int h) {
-    if (headless_mode)
+  QTMPixmapOrImage (int w, int h, bool force_image= false):
+    image_backed (force_image || headless_mode) {
+    if (image_backed)
       rep= (void*) new QImage (w, h, QImage::Format_ARGB32);
     else
       rep= (void*) new QPixmap (w, h);
   }
-  QTMPixmapOrImage (QSize s) {
-    if (headless_mode)
+  QTMPixmapOrImage (QSize s, bool force_image= false):
+    image_backed (force_image || headless_mode) {
+    if (image_backed)
       rep= (void*) new QImage (s, QImage::Format_ARGB32);
     else
       rep= (void*) new QPixmap (s);
   }
-  QTMPixmapOrImage (const QPixmap& px): rep ((void*) new QPixmap (px)) {}
-  QTMPixmapOrImage (const QImage& im): rep ((void*) new QImage (im)) {}
-  QTMPixmapOrImage (const QTMPixmapOrImage& pxim) {
-    if (headless_mode) rep= (void*) new QImage ();
-    else rep= (void*) new QPixmap ();
-    if (headless_mode)
-      *((QImage*) rep)= *((QImage*) pxim.rep);
+  QTMPixmapOrImage (const QPixmap& px):
+    rep ((void*) new QPixmap (px)), image_backed (false) {}
+  QTMPixmapOrImage (const QImage& im):
+    rep ((void*) new QImage (im)), image_backed (true) {}
+  QTMPixmapOrImage (const QTMPixmapOrImage& pxim):
+    image_backed (pxim.image_backed) {
+    if (image_backed)
+      rep= (void*) new QImage (*((QImage*) pxim.rep));
     else
-      *((QPixmap*) rep)= *((QPixmap*) pxim.rep);    
+      rep= (void*) new QPixmap (*((QPixmap*) pxim.rep));
   }
   QTMPixmapOrImage& operator=(const QTMPixmapOrImage& pxim) {
-    if (headless_mode)
+    if (this == &pxim) return *this;
+    if (image_backed != pxim.image_backed) {
+      if (image_backed) delete (QImage*) rep;
+      else delete (QPixmap*) rep;
+      image_backed= pxim.image_backed;
+      if (image_backed) rep= (void*) new QImage ();
+      else rep= (void*) new QPixmap ();
+    }
+    if (image_backed)
       *((QImage*) rep)= *((QImage*) pxim.rep);
     else
       *((QPixmap*) rep)= *((QPixmap*) pxim.rep);
     return *this;
   }
   void fill (const QColor& c) {
-    if (headless_mode)
+    if (image_backed)
       ((QImage*) rep)->fill (c);
     else
       ((QPixmap*) rep)->fill (c);
   }
   bool isNull () {
-    return headless_mode ?
+    return image_backed ?
       ((QImage*) rep)->isNull () : ((QPixmap*) rep)->isNull ();
   }
+  bool is_image () const { return image_backed; }
   QImage* QImage_ptr () {
-    ASSERT (headless_mode, "internal bug in QTMPixmapOrImage::QImage_ptr");
+    ASSERT (image_backed, "internal bug in QTMPixmapOrImage::QImage_ptr");
     return (QImage*) rep;
   }
   QPixmap* QPixmap_ptr () {
-    ASSERT (!headless_mode, "internal bug in QTMPixmapOrImage::QPixmap_ptr");
+    ASSERT (!image_backed, "internal bug in QTMPixmapOrImage::QPixmap_ptr");
     return (QPixmap*) rep;
   }
   void* void_ptr () {

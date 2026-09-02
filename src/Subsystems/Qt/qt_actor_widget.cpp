@@ -304,6 +304,12 @@ qt_actor_widget_rep::drain_external_effects () {
     }
     case actor_command_kind::ui_refresh_chrome:
       break;
+    case actor_command_kind::ui_global_action: {
+      tm_view view= concrete_runtime_view (view_id_);
+      if (view != nullptr) set_current_view (abstract_view (view));
+      (void) actor_ui_invoke_action (record.argument[0]);
+      break;
+    }
     case actor_command_kind::ui_keyboard_focus_field: {
       string field= actor_text_registry::instance ().take (record.payload0);
       tm_view view= concrete_runtime_view (view_id_);
@@ -330,6 +336,15 @@ qt_actor_widget_rep::drain_external_effects () {
       else if (which == 1) ::set_mode_icons (view->win->wid, icons);
       else if (which == 2) ::set_focus_icons (view->win->wid, icons);
       else if (which == 3) ::set_user_icons (view->win->wid, icons);
+      break;
+    }
+    case actor_command_kind::ui_side_tools: {
+      widget tools= actor_ui_take_widget (record.argument[0]);
+      tm_view view= concrete_runtime_view (view_id_);
+      int which= static_cast<int> (record.argument[1]);
+      if (is_nil (tools) || view == nullptr || view->win == nullptr) break;
+      if (which == 0) ::set_side_tools (view->win->wid, tools);
+      else if (which == 1) ::set_left_tools (view->win->wid, tools);
       break;
     }
     case actor_command_kind::ui_bottom_tools: {

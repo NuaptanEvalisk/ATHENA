@@ -14,18 +14,25 @@
 #include "convert.hpp"
 #include "iterator.hpp"
 #include "tm_timer.hpp"
+#include <mutex>
 
 /******************************************************************************
 * Caching routines
 ******************************************************************************/
 
-static hashmap<tree,tree> cache_data ("?");
-static hashset<string> cache_loaded;
-static hashset<string> cache_changed;
-static hashmap<string,bool> cache_valid (false);
+static thread_local hashmap<tree,tree> cache_data ("?");
+static thread_local hashset<string> cache_loaded;
+static thread_local hashset<string> cache_loading;
+static thread_local hashset<string> cache_changed;
+static thread_local hashmap<string,bool> cache_valid (false);
+
+// Cache objects contain legacy owner-affine trees.  Keep those objects local to
+// each BufferActor; only serialize access to the persistent files themselves.
+static std::recursive_mutex cache_disk_mutex;
 
 void
 cache_set (string buffer, tree key, tree t) {
+  cache_load (buffer);
   tree ckey= tuple (buffer, key);
   if (cache_data[ckey] != t) {
     cache_data (ckey)= t;
@@ -35,6 +42,7 @@ cache_set (string buffer, tree key, tree t) {
 
 void
 cache_reset (string buffer, tree key) {
+  cache_load (buffer);
   tree ckey= tuple (buffer, key);
   cache_data->reset (ckey);
   cache_changed->insert (buffer);
@@ -42,12 +50,14 @@ cache_reset (string buffer, tree key) {
 
 bool
 is_cached (string buffer, tree key) {
+  cache_load (buffer);
   tree ckey= tuple (buffer, key);
   return cache_data->contains (ckey);
 }
 
 tree
 cache_get (string buffer, tree key) {
+  cache_load (buffer);
   tree ckey= tuple (buffer, key);
   return cache_data [ckey];
 }
@@ -107,17 +117,37 @@ declare_out_of_date (url dir) {
 * Which files should be stored in the cache?
 ******************************************************************************/
 
-static url texmacs_path (url_none ());
-static url texmacs_doc_path (url_none ());
-static url texmacs_home_path (url_none ());
+static thread_local url texmacs_path (url_none ());
+static thread_local url texmacs_doc_path (url_none ());
+static thread_local url texmacs_home_path (url_none ());
 
-static string texmacs_path_string;
-static string texmacs_doc_path_string;
-static string texmacs_home_path_string;
-static string texmacs_font_path_string;
+static thread_local string texmacs_path_string;
+static thread_local string texmacs_doc_path_string;
+static thread_local string texmacs_home_path_string;
+static thread_local string texmacs_font_path_string;
+static thread_local bool cache_paths_initialized= false;
+
+static void
+cache_initialize_paths () {
+  if (cache_paths_initialized) return;
+  texmacs_path= url_system ("$ATHENA_PATH");
+  if (get_env ("ATHENA_HOME_PATH") == "")
+    texmacs_home_path= url_system ("$HOME/.ATHENA");
+  else texmacs_home_path= url_system ("$ATHENA_HOME_PATH");
+  if (get_env ("ATHENA_DOC_PATH") == "")
+    texmacs_doc_path= url_system ("$ATHENA_PATH/doc");
+  else texmacs_doc_path= url_system ("$ATHENA_DOC_PATH");
+
+  texmacs_path_string= concretize (texmacs_path);
+  texmacs_home_path_string= concretize (texmacs_home_path);
+  texmacs_doc_path_string= concretize (texmacs_doc_path);
+  texmacs_font_path_string= concretize (texmacs_home_path * "fonts/");
+  cache_paths_initialized= true;
+}
 
 bool
 do_cache_dir (string name) {
+  cache_initialize_paths ();
   return
     starts (name, texmacs_path_string) ||
     starts (name, texmacs_doc_path_string);
@@ -125,6 +155,7 @@ do_cache_dir (string name) {
 
 bool
 do_cache_stat (string name) {
+  cache_initialize_paths ();
   return
     starts (name, texmacs_path_string) ||
     starts (name, texmacs_font_path_string) ||
@@ -133,6 +164,7 @@ do_cache_stat (string name) {
 
 bool
 do_cache_stat_fail (string name) {
+  cache_initialize_paths ();
   return
     !ends (name, ".ts") &&
     (starts (name, texmacs_path_string) ||
@@ -141,6 +173,7 @@ do_cache_stat_fail (string name) {
 
 bool
 do_cache_file (string name) {
+  cache_initialize_paths ();
   return
     !ends (name, ".ts") && !ends (name, ".css") &&
     (starts (name, texmacs_path_string) ||
@@ -149,6 +182,7 @@ do_cache_file (string name) {
 
 bool
 do_cache_doc (string name) {
+  cache_initialize_paths ();
   return starts (name, texmacs_doc_path_string);
 }
 
@@ -159,6 +193,8 @@ do_cache_doc (string name) {
 void
 cache_save (string buffer) {
   if (cache_changed->contains (buffer)) {
+    cache_initialize_paths ();
+    std::lock_guard<std::recursive_mutex> disk_guard (cache_disk_mutex);
     url cache_dir= texmacs_home_path * url ("system/cache");
     if (!is_directory (cache_dir)) mkdir (cache_dir);
 
@@ -193,7 +229,11 @@ cache_save (string buffer) {
 
 void
 cache_load (string buffer) {
-  if (!cache_loaded->contains (buffer)) {
+  if (!cache_loaded->contains (buffer) &&
+      !cache_loading->contains (buffer)) {
+    cache_loading->insert (buffer);
+    cache_initialize_paths ();
+    std::lock_guard<std::recursive_mutex> disk_guard (cache_disk_mutex);
     url cache_file = texmacs_home_path * url ("system/cache/" * buffer);
     //cout << "cache_file "<< cache_file << LF;
     string cached;
@@ -222,6 +262,7 @@ cache_load (string buffer) {
           cache_data (tuple (buffer, t[i]))= t[i+1];
       }
     }
+    cache_loading->remove (buffer);
     cache_loaded->insert (buffer);
   }
 }
@@ -242,6 +283,7 @@ void
 cache_refresh () {
   cache_data   = hashmap<tree,tree> ("?");
   cache_loaded = hashset<string> ();
+  cache_loading= hashset<string> ();
   cache_changed= hashset<string> ();
   cache_load ("file_cache");
   cache_load ("dir_cache.scm");
@@ -254,18 +296,7 @@ cache_refresh () {
 
 void
 cache_initialize () {
-  texmacs_path= url_system ("$ATHENA_PATH");
-  if (get_env ("ATHENA_HOME_PATH") == "")
-    texmacs_home_path= url_system ("$HOME/.ATHENA");
-  else texmacs_home_path= url_system ("$ATHENA_HOME_PATH");
-  if (get_env ("ATHENA_DOC_PATH") == "")
-    texmacs_doc_path= url_system ("$ATHENA_PATH/doc");
-  else texmacs_doc_path= url_system ("$ATHENA_DOC_PATH");
-  
-  texmacs_path_string = concretize (texmacs_path);
-  texmacs_home_path_string = concretize (texmacs_home_path);
-  texmacs_doc_path_string = concretize (texmacs_doc_path);
-  texmacs_font_path_string = concretize (texmacs_home_path * "fonts/");
+  cache_initialize_paths ();
 
   // Version 1 used structural keys before tree labels were initialized.
   remove (texmacs_home_path * "system/cache/font_path_cache.scm");

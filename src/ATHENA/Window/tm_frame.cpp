@@ -12,6 +12,7 @@
 #include "tm_frame.hpp"
 #include "tm_window.hpp"
 #include "message.hpp"
+#include "actor_ui_bridge.hpp"
 #include "editor.hpp"
 #include "scheme_execution_context.hpp"
 
@@ -21,6 +22,14 @@ editor_rep*
 actor_frame_editor () noexcept {
   const SchemeExecutionContext* context= current_scheme_execution_context ();
   return context == nullptr ? nullptr : context->editor;
+}
+
+void
+publish_actor_widget (editor_rep* editor, actor_command_kind kind,
+                      widget value, std::uint64_t argument= 0) {
+  athena_resource_id id= actor_ui_store_widget (std::move (value));
+  if (!editor->publish_ui (kind, id, argument))
+    (void) actor_ui_discard_widget (id);
 }
 
 } // namespace
@@ -131,25 +140,60 @@ tm_frame_rep::menu_widget (string menu, widget& w) {
 
 void
 tm_frame_rep::menu_main (string menu) {
+  if (editor_rep* editor= actor_frame_editor ()) {
+    eval ("(lazy-initialize-force)");
+    object expanded= eval ("'" * menu);
+    publish_actor_widget (
+      editor, actor_command_kind::ui_menu_main, make_menu_widget (expanded));
+    return;
+  }
   if (!has_current_view ()) return;
   concrete_window () -> menu_main (menu);
 }
 
 void
 tm_frame_rep::menu_icons (int which, string menu) {
-  if ((which<0) || (which>3) || (!has_current_view())) return;
+  if ((which<0) || (which>3)) return;
+  if (editor_rep* editor= actor_frame_editor ()) {
+    eval ("(lazy-initialize-force)");
+    object expanded= eval ("'" * menu);
+    publish_actor_widget (
+      editor, actor_command_kind::ui_menu_icons, make_menu_widget (expanded),
+      static_cast<std::uint64_t> (which));
+    return;
+  }
+  if (!has_current_view ()) return;
   concrete_window () -> menu_icons (which, menu);
 }
 
 void
 tm_frame_rep::side_tools (int which, string tools) {
-  if ((which<0) || (which>1)|| (!has_current_view())) return;
+  if ((which<0) || (which>1)) return;
+  if (editor_rep* editor= actor_frame_editor ()) {
+    eval ("(lazy-initialize-force)");
+    object expanded= eval ("'" * tools);
+    publish_actor_widget (
+      editor, actor_command_kind::ui_side_tools,
+      make_menu_widget (expanded, 400, 1000),
+      static_cast<std::uint64_t> (which));
+    return;
+  }
+  if (!has_current_view ()) return;
   concrete_window () -> side_tools (which, tools);
 }
 
 void
 tm_frame_rep::bottom_tools (int which, string tools) {
-  if ((which<0) || (which>1)|| (!has_current_view())) return;
+  if ((which<0) || (which>1)) return;
+  if (editor_rep* editor= actor_frame_editor ()) {
+    eval ("(lazy-initialize-force)");
+    object expanded= eval ("'" * tools);
+    publish_actor_widget (
+      editor, actor_command_kind::ui_bottom_tools, make_menu_widget (expanded),
+      static_cast<std::uint64_t> (which));
+    return;
+  }
+  if (!has_current_view ()) return;
   concrete_window () -> bottom_tools (which, tools);
 }
 

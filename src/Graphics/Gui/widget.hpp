@@ -64,10 +64,25 @@ template<> void tm_delete<widget_rep> (widget_rep* ptr);
 class widget {
 public:
 ABSTRACT_NULL(widget);
+  inline widget (widget&& other) noexcept;
+  inline widget& operator = (widget&& other) noexcept;
   inline bool operator == (widget w) { return rep == w.rep; }
   inline bool operator != (widget w) { return rep != w.rep; }
 };
 ABSTRACT_NULL_CODE(widget);
+
+inline widget::widget (widget&& other) noexcept: rep (other.rep) {
+  other.rep= NULL;
+}
+
+inline widget&
+widget::operator = (widget&& other) noexcept {
+  if (this == &other) return *this;
+  DEC_COUNT_NULL (rep);
+  rep= other.rep;
+  other.rep= NULL;
+  return *this;
+}
 
 inline tm_ostream&
 operator << (tm_ostream& out, widget w) {

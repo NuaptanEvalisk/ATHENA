@@ -12,7 +12,7 @@
 #include "env.hpp"
 #include "scheme.hpp"
 
-/*static*/ hashmap<string,tree> default_env (UNINIT);
+thread_local hashmap<string,tree> default_env (UNINIT);
 
 /*static*/ void
 initialize_default_env () {

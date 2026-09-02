@@ -19,7 +19,7 @@
 * Retrieving the page size
 ******************************************************************************/
 
-/*static*/ hashmap<string,int> default_var_type (Env_User);
+thread_local hashmap<string,int> default_var_type (Env_User);
 
 /*static*/ void
 initialize_default_var_type () {

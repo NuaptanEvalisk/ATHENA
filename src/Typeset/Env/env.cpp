@@ -11,9 +11,9 @@
 
 #include "env.hpp"
 #include "iterator.hpp"
-extern hashmap<string,int> default_var_type;
+extern thread_local hashmap<string,int> default_var_type;
 void initialize_default_var_type ();
-extern hashmap<string,tree> default_env;
+extern thread_local hashmap<string,tree> default_env;
 void initialize_default_env ();
 #include "page_type.hpp"
 

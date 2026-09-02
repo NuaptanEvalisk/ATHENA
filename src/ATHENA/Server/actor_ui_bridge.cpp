@@ -52,6 +52,11 @@ std::unordered_map<athena_resource_id, std::unique_ptr<widget>>
   widget_registry;
 athena_resource_id next_widget_id= 1;
 
+std::mutex action_registry_lock;
+std::unordered_map<actor_ui_action, athena_resource_id> action_ids;
+std::unordered_map<athena_resource_id, actor_ui_action> action_registry;
+athena_resource_id next_action_id= 1;
+
 } // namespace
 
 actor_ui_endpoint::actor_ui_endpoint (athena_view_id view_id):
@@ -293,8 +298,8 @@ unregister_actor_ui_endpoint (athena_view_id view_id) noexcept {
 }
 
 athena_resource_id
-actor_ui_store_widget (const widget& value) {
-  auto owned= std::make_unique<widget> (value);
+actor_ui_store_widget (widget&& value) {
+  auto owned= std::make_unique<widget> (std::move (value));
   std::lock_guard<std::mutex> guard (widget_registry_lock);
   athena_resource_id id= next_widget_id++;
   if (id == 0) id= next_widget_id++;
@@ -312,7 +317,7 @@ actor_ui_take_widget (athena_resource_id id) {
     owned= std::move (found->second);
     widget_registry.erase (found);
   }
-  return *owned;
+  return std::move (*owned);
 }
 
 bool
@@ -325,5 +330,31 @@ actor_ui_discard_widget (athena_resource_id id) noexcept {
     owned= std::move (found->second);
     widget_registry.erase (found);
   }
+  return true;
+}
+
+athena_resource_id
+actor_ui_register_action (actor_ui_action action) {
+  if (action == nullptr) return 0;
+  std::lock_guard<std::mutex> guard (action_registry_lock);
+  auto found= action_ids.find (action);
+  if (found != action_ids.end ()) return found->second;
+  athena_resource_id id= next_action_id++;
+  if (id == 0) id= next_action_id++;
+  action_ids.emplace (action, id);
+  action_registry.emplace (id, action);
+  return id;
+}
+
+bool
+actor_ui_invoke_action (athena_resource_id id) {
+  actor_ui_action action= nullptr;
+  {
+    std::lock_guard<std::mutex> guard (action_registry_lock);
+    auto found= action_registry.find (id);
+    if (found == action_registry.end ()) return false;
+    action= found->second;
+  }
+  action ();
   return true;
 }
