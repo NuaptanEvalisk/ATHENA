@@ -26,6 +26,11 @@
 class QKeySequence;
 class QWidget;
 
+using qt_main_thread_action= void (*) ();
+
+// Return true when the action was deferred and the caller must return.
+bool qt_defer_to_main_thread (qt_main_thread_action action);
+
 typedef quartet<SI,SI,SI,SI> coord4;
 typedef pair<SI,SI> coord2;
 

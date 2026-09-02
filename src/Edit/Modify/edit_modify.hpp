@@ -21,6 +21,7 @@ protected:
   observer cur_pos;  // tree_position corresponding to tp
   double   author;   // the author identifier associated to this view
   archiver arch;     // archiver attached to the editor
+  int editing_depth; // nested commands belong to one input transaction
 
 public:
   edit_modify_rep ();

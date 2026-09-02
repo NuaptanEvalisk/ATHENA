@@ -68,6 +68,8 @@ athenaDiffEditorRanges (editor target, const range_set& relativeRanges) {
 
 void
 athena_diff_show () {
+  if (qt_defer_to_main_thread (athena_diff_show)) return;
+
   QWidget* parent= QApplication::activeWindow ();
   QTMMainTabWindow* host= QTMMainTabWindow::topTabWindow ();
   if (host == nullptr) {

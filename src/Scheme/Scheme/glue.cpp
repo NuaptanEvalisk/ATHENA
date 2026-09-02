@@ -220,10 +220,12 @@ ads_show_tool_pane (widget wid, string id, string title, command close,
   });
 
   if (floating)
+  {
     win->dockManager ()->addDockWidgetFloating (dock);
+    win->scheduleAdsLayoutRestore (dock);
+  }
   else {
     win->showAdsDockWidget (dock, ads::BottomDockWidgetArea);
-    win->restoreAdsLayoutState ();
     win->showAdsDockWidget (dock, ads::BottomDockWidgetArea);
   }
   dock->toggleView (true);
@@ -1657,10 +1659,24 @@ tmg_native_font_selector (tmscm arg1, tmscm arg2, tmscm arg3, tmscm arg4,
   return array_string_to_tmscm (result);
 }
 
+template<void (*Function) ()>
+static tmscm
+tmg_void_nullary () {
+  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  if (context != nullptr && context->editor != nullptr &&
+      context->view_id != ATHENA_NO_VIEW) {
+    athena_resource_id action= actor_ui_register_action (Function);
+    (void) context->editor->publish_ui (
+      actor_command_kind::ui_global_action, action);
+    return TMSCM_UNSPECIFIED;
+  }
+  Function ();
+  return TMSCM_UNSPECIFIED;
+}
+
 tmscm
 tmg_native_open_preferences () {
-  qtm_preferences_dialog_show ();
-  return TMSCM_UNSPECIFIED;
+  return tmg_void_nullary<qtm_preferences_dialog_show> ();
 }
 
 tmscm
@@ -1693,8 +1709,7 @@ tmg_native_preference_sensitiveP (tmscm arg1) {
 
 tmscm
 tmg_native_open_page_setup () {
-  qtm_page_setup_dialog_show ();
-  return TMSCM_UNSPECIFIED;
+  return tmg_void_nullary<qtm_page_setup_dialog_show> ();
 }
 
 tmscm
@@ -2480,21 +2495,6 @@ tmg_artifact_disambiguation_page (tmscm arg1) {
                        "artifact-disambiguation-page");
   return tree_to_tmscm (
     athena_artifact_disambiguation_page (tmscm_to_string (arg1)));
-}
-
-template<void (*Function) ()>
-static tmscm
-tmg_void_nullary () {
-  const SchemeExecutionContext* context= current_scheme_execution_context ();
-  if (context != nullptr && context->editor != nullptr &&
-      context->view_id != ATHENA_NO_VIEW) {
-    athena_resource_id action= actor_ui_register_action (Function);
-    (void) context->editor->publish_ui (
-      actor_command_kind::ui_global_action, action);
-    return TMSCM_UNSPECIFIED;
-  }
-  Function ();
-  return TMSCM_UNSPECIFIED;
 }
 
 void

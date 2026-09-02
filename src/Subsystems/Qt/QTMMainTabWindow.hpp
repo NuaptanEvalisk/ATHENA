@@ -18,6 +18,7 @@
 #include <QMdiArea>
 #include <QStackedWidget>
 #include <QList>
+#include <QPair>
 #include <QPointer>
 #include <DockManager.h>
 
@@ -57,6 +58,9 @@ public:
   void saveAdsLayoutState();
   void restoreAdsLayoutState();
   void restoreAdsVisiblePanes();
+  void scheduleAdsLayoutRestore(
+    ads::CDockWidget* revealDock= nullptr,
+    ads::DockWidgetArea area= ads::NoDockWidgetArea);
 
   QList<QWidget*> documentWidgets() const;
   bool hasOpenAdsPanes() const;
@@ -89,7 +93,6 @@ protected:
   bool adsLayoutPersistenceEnabled() const;
   QString adsLayoutStatePath() const;
   QString adsVisiblePanesStatePath() const;
-  void scheduleAdsLayoutRestore();
   ads::CDockContainerWidget* activeAdsDockContainer() const;
   ads::CDockAreaWidget* activeAdsDockArea(
     ads::CDockContainerWidget* container) const;
@@ -106,6 +109,9 @@ private:
   QMdiArea* mMdiArea;
   ads::CDockManager* mDockManager;
   QPointer<QWidget> mLastFocusedDocumentWidget;
+  QList<QPair<QPointer<ads::CDockWidget>, ads::DockWidgetArea>>
+    mAdsDocksToReveal;
+  bool mAdsLayoutRestoreScheduled;
 };
 
 #endif // QTMMAINTABWINDOW_HPP

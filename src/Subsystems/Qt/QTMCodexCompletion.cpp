@@ -1,5 +1,6 @@
 #include "QTMCodexCompletion.hpp"
 
+#include "actor_transport.hpp"
 #include "boot.hpp"
 #include "qt_utilities.hpp"
 
@@ -13,8 +14,10 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QLabel>
+#include <QMetaObject>
 #include <QProcess>
 #include <QPushButton>
+#include <QThread>
 #include <QTimer>
 #include <QVBoxLayout>
 
@@ -325,7 +328,29 @@ private:
 } // namespace
 
 void
-qtm_codex_initialize_models (const string& bridge, const string& home) {
+qtm_codex_initialize_models (string bridge, string home) {
+  QCoreApplication* app= QCoreApplication::instance ();
+  if (app != nullptr && QThread::currentThread () != app->thread ()) {
+    athena_blob_id bridgeId=
+      actor_text_registry::instance ().store (std::move (bridge));
+    athena_blob_id homeId=
+      actor_text_registry::instance ().store (std::move (home));
+    bool queued= QMetaObject::invokeMethod (
+      app,
+      [bridgeId, homeId] () {
+        string queuedBridge=
+          actor_text_registry::instance ().take (bridgeId);
+        string queuedHome= actor_text_registry::instance ().take (homeId);
+        qtm_codex_initialize_models (std::move (queuedBridge),
+                                     std::move (queuedHome));
+      },
+      Qt::QueuedConnection);
+    if (!queued) {
+      (void) actor_text_registry::instance ().discard (bridgeId);
+      (void) actor_text_registry::instance ().discard (homeId);
+    }
+    return;
+  }
   loadModels (to_qstring (bridge), to_qstring (home), false);
 }
 

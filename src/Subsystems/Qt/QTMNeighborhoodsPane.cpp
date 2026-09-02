@@ -264,7 +264,7 @@ neighborhoods_pane_show () {
       neighborhoods_pane_dock= nullptr;
     });
     win->dockManager ()->addDockWidgetFloating (neighborhoods_pane_dock);
-    win->restoreAdsLayoutState ();
+    win->scheduleAdsLayoutRestore (neighborhoods_pane_dock);
   }
   else if (neighborhoods_pane_dock->dockAreaWidget () == nullptr ||
            neighborhoods_pane_dock->dockContainer () == nullptr)

@@ -363,7 +363,7 @@ public:
       ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER, handle);
     if (!ticket) scheme_command_handle_release (handle);
   }
-  void apply () {
+  void apply () override {
     if (handle == ATHENA_NO_SCHEME_HANDLE) {
       (void) call_scheme (object_to_tmscm (obj));
       return;
@@ -372,7 +372,7 @@ public:
       actor_id, actor_command_kind::invoke_scheme_handle, view_id,
       ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER, handle);
   }
-  void apply (object args) {
+  void apply (object args) override {
     if (handle == ATHENA_NO_SCHEME_HANDLE) {
       (void) call_scheme (object_to_tmscm (obj),
                           array_lookup (as_array_object (args)));
@@ -386,7 +386,7 @@ public:
       handle, arguments);
     if (!ticket) scheme_command_handle_release (arguments);
   }
-  tm_ostream& print (tm_ostream& out) {
+  tm_ostream& print (tm_ostream& out) override {
     if (handle != ATHENA_NO_SCHEME_HANDLE)
       return out << "<actor-command " << actor_id << ":" << view_id << ">";
     object bis= call ("sourcify", obj);
@@ -423,13 +423,13 @@ public:
       ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER, handle);
     if (!ticket) scheme_command_handle_release (handle);
   }
-  tm_ostream& print (tm_ostream& out) {
+  tm_ostream& print (tm_ostream& out) override {
     if (handle != ATHENA_NO_SCHEME_HANDLE)
       return out << "<actor-widget-promise " << actor_id << ":" << view_id
                  << ">";
     return out << obj;
   }
-  widget eval () {
+  widget eval () override {
     if (handle != ATHENA_NO_SCHEME_HANDLE) {
       actor_command_record result;
       if (buffer_actor::invoke_on (

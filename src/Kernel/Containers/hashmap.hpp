@@ -56,7 +56,7 @@ public:
   void generate (void (*routine) (T));
   bool contains (const T& x);
   U&   bracket_rw (const T& x);
-  U    bracket_ro (const T& x);
+  U    bracket_ro (const T& x) const;
   U&   bracket_rw_debug (const T& x);
   void join (hashmap<T,U> H);
 
@@ -91,7 +91,7 @@ CONCRETE_TEMPLATE_2(hashmap,T,U);
   // only for hashmap<string,tree>
   hashmap (U init, tree t);
   // end only for hashmap<string,tree>
-  inline U  operator [] (T x) { return rep->bracket_ro (x); }
+  inline U  operator [] (const T& x) const { return rep->bracket_ro (x); }
   inline U& operator () (T x) { return rep->bracket_rw (x); }
   operator tree ();
 };

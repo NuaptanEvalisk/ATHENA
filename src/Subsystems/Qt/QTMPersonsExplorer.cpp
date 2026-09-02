@@ -346,7 +346,6 @@ persons_explorer_show () {
       });
     window->showAdsDockWidget (persons_explorer_dock,
                                ads::RightDockWidgetArea);
-    window->restoreAdsLayoutState ();
   }
   window->showAdsDockWidget (persons_explorer_dock,
                              ads::RightDockWidgetArea);

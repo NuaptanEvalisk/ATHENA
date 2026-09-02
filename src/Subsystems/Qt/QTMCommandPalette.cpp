@@ -237,8 +237,8 @@ menu_group_name (QAction* action) {
   if (name.isEmpty () && action->menu () != nullptr)
     name= clean_action_text (action->menu ()->title ());
   if (name.isEmpty ()) {
-    for (QWidget* widget : action->associatedWidgets ()) {
-      if (QToolButton* button= qobject_cast<QToolButton*> (widget)) {
+    for (QObject* object : action->associatedObjects ()) {
+      if (QToolButton* button= qobject_cast<QToolButton*> (object)) {
         name= clean_action_text (button->text ());
         if (!name.isEmpty ()) break;
       }

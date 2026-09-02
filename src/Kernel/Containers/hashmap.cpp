@@ -97,13 +97,13 @@ hashmap_rep<T,U>::bracket_rw (const T& x) {
 }
 
 TMPL U
-hashmap_rep<T,U>::bracket_ro (const T& x) {
+hashmap_rep<T,U>::bracket_ro (const T& x) const {
   int hv= hash (x);
-  list<hashentry<T,U> >  l (a [hv & (n-1)]);
-  while (!is_nil (l)) {
-    if (l->item.code == hv && l->item.key == x)
-      return l->item.im;
-    l= l->next;
+  const list<hashentry<T,U> >* l= &(a [hv & (n-1)]);
+  while (!is_nil (*l)) {
+    if ((*l)->item.code == hv && (*l)->item.key == x)
+      return (*l)->item.im;
+    l= &((*l)->next);
   }
   return init;
 }

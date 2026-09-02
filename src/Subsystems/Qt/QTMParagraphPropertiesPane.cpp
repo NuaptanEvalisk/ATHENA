@@ -448,7 +448,6 @@ paragraph_properties_pane_show () {
     });
     win->showAdsDockWidget (paragraph_properties_pane_dock,
                             ads::RightDockWidgetArea);
-    win->restoreAdsLayoutState ();
   }
 
   win->showAdsDockWidget (paragraph_properties_pane_dock,

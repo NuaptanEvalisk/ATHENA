@@ -146,7 +146,6 @@ outline_pane_show () {
       outline_pane_dock= nullptr;
     });
     win->showAdsDockWidget (outline_pane_dock, ads::RightDockWidgetArea);
-    win->restoreAdsLayoutState ();
   }
 
   win->showAdsDockWidget (outline_pane_dock, ads::RightDockWidgetArea);

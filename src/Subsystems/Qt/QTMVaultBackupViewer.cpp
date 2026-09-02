@@ -287,7 +287,6 @@ vault_backup_viewer_show () {
       vault_backup_viewer_dock= nullptr;
     });
     win->showAdsDockWidget (vault_backup_viewer_dock, ads::RightDockWidgetArea);
-    win->restoreAdsLayoutState ();
   }
 
   vault_backup_viewer_dock->setWindowTitle (title);

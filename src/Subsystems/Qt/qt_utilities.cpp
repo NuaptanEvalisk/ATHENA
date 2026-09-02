@@ -10,7 +10,9 @@
 ******************************************************************************/
 
 #include "QTMStyle.hpp"
+#include "actor_ui_bridge.hpp"
 #include "qt_utilities.hpp"
+#include "scheme_execution_context.hpp"
 #include <time.h>
 #include <cmath>
 
@@ -25,6 +27,8 @@
 #include <QHash>
 #include <QStringList>
 #include <QKeySequence>
+#include <QMetaObject>
+#include <QThread>
 
 #include <QPrinter>
 #include <QPrintDialog>
@@ -56,6 +60,28 @@
 #include "new_view.hpp"  // get_current_editor()
 
 #define SCREEN_PIXEL (PIXEL)
+
+bool
+qt_defer_to_main_thread (qt_main_thread_action action) {
+  QCoreApplication* app= QCoreApplication::instance ();
+  if (app == nullptr || QThread::currentThread () == app->thread ())
+    return false;
+
+  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  if (context != nullptr && context->editor != nullptr &&
+      context->view_id != ATHENA_NO_VIEW) {
+    athena_resource_id id= actor_ui_register_action (action);
+    (void) context->editor->publish_ui (
+      actor_command_kind::ui_global_action, id);
+    return true;
+  }
+
+  athena_resource_id id= actor_ui_register_action (action);
+  (void) QMetaObject::invokeMethod (
+    app, [id] () { (void) actor_ui_invoke_action (id); },
+    Qt::QueuedConnection);
+  return true;
+}
 
 /******************************************************************************
  * Debugging

@@ -555,7 +555,7 @@ handwriting_symbol_pane_show () {
       handwriting_dock= nullptr;
     });
     window->dockManager ()->addDockWidgetFloating (handwriting_dock);
-    window->restoreAdsLayoutState ();
+    window->scheduleAdsLayoutRestore (handwriting_dock);
   }
   else if (handwriting_dock->dockAreaWidget () == nullptr ||
            handwriting_dock->dockContainer () == nullptr)

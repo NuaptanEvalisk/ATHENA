@@ -123,7 +123,8 @@ block_to_scheme_tree (string s) {
 ******************************************************************************/
 
 tree
-scheme_tree_to_tree (scheme_tree t, hashmap<string,int> codes, bool flag) {
+scheme_tree_to_tree (scheme_tree t, const hashmap<string,int>& codes,
+                     bool flag) {
   if (is_atomic (t)) return scm_unquote (t->label);
   else if ((N(t) == 0) || is_compound (t[0])) {
     convert_error << "Invalid scheme tree " << t << "\n";

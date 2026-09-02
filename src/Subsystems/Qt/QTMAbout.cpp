@@ -169,6 +169,7 @@ QTMAbout::QTMAbout (QWidget* parent)
 QTMAbout::~QTMAbout () {}
 
 void help_about_qt () {
+  if (qt_defer_to_main_thread (help_about_qt)) return;
   QTMAbout about (QApplication::activeWindow ());
   about.exec ();
 }

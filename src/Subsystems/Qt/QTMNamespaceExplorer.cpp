@@ -881,7 +881,6 @@ namespace_explorer_show () {
       namespace_explorer_dock= nullptr;
     });
     win->showAdsDockWidget (namespace_explorer_dock, ads::LeftDockWidgetArea);
-    win->restoreAdsLayoutState ();
   }
 
   win->showAdsDockWidget (namespace_explorer_dock, ads::LeftDockWidgetArea);

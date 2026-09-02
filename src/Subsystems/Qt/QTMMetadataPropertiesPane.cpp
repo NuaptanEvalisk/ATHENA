@@ -197,7 +197,7 @@ metadata_properties_pane_show () {
       metadata_properties_pane_dock= nullptr;
     });
     win->dockManager ()->addDockWidgetFloating (metadata_properties_pane_dock);
-    win->restoreAdsLayoutState ();
+    win->scheduleAdsLayoutRestore (metadata_properties_pane_dock);
   }
   else if (metadata_properties_pane_dock->dockAreaWidget () == nullptr ||
            metadata_properties_pane_dock->dockContainer () == nullptr)

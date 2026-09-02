@@ -764,7 +764,6 @@ page_properties_pane_show () {
     });
     win->showAdsDockWidget (page_properties_pane_dock,
                             ads::RightDockWidgetArea);
-    win->restoreAdsLayoutState ();
   }
 
   win->showAdsDockWidget (page_properties_pane_dock, ads::RightDockWidgetArea);

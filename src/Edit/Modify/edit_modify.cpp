@@ -24,7 +24,8 @@
 edit_modify_rep::edit_modify_rep ():
   editor_rep (), // NOTE: ignored by the compiler, but suppresses warning
   author (new_author ()),
-  arch (author, rp) {}
+  arch (author, rp),
+  editing_depth (0) {}
 edit_modify_rep::~edit_modify_rep () {}
 
 /******************************************************************************
@@ -295,12 +296,17 @@ edit_modify_rep::archive_state () {
 void
 edit_modify_rep::start_editing () {
   //cout << "Start editing" << LF << INDENT;
-  set_author (this_author ());
+  if (editing_depth++ == 0) set_author (this_author ());
 }
 
 void
 edit_modify_rep::end_editing () {
   //cout << UNINDENT << "End editing" << LF;
+  if (editing_depth > 1) {
+    --editing_depth;
+    return;
+  }
+  editing_depth= 0;
   if (buf != nullptr && buf->read_only && arch->has_content_changes ()) {
     global_cancel ();
     set_message ("This view is read-only", "edit");
@@ -312,6 +318,7 @@ edit_modify_rep::end_editing () {
 void
 edit_modify_rep::cancel_editing () {
   //cout << UNINDENT << "Cancel editing" << LF;
+  editing_depth= 0;
   global_cancel ();
 }
 

@@ -11,7 +11,9 @@
 #include "QTMVaultExplorer.hpp"
 #include "QTMVaultSafeRename.hpp"
 #include "QTMMainTabWindow.hpp"
+#include "editor.hpp"
 #include "boot.hpp"
+#include "scheme_execution_context.hpp"
 #include "scheme.hpp"
 #include "qt_utilities.hpp"
 #include "vault.hpp"
@@ -39,6 +41,7 @@
 #include <QSizeGrip>
 #include <QStyle>
 #include <QTextStream>
+#include <QThread>
 #include <QTimer>
 #include <QToolBar>
 #include <QTreeView>
@@ -465,6 +468,8 @@ QTMVaultExplorer::showContextMenu (const QPoint& pos) {
 
 void
 vault_show_explorer () {
+  if (qt_defer_to_main_thread (vault_show_explorer)) return;
+
   if (!vault_active ()) {
     QMessageBox::warning (QApplication::activeWindow (), "Vault Explorer",
                           "No active vault. Please load a vault first.");
@@ -512,7 +517,6 @@ vault_show_explorer () {
       vault_explorer_dock= nullptr;
     });
     win->showAdsDockWidget (vault_explorer_dock, ads::LeftDockWidgetArea);
-    win->restoreAdsLayoutState ();
   }
 
   win->showAdsDockWidget (vault_explorer_dock, ads::LeftDockWidgetArea);
@@ -542,9 +546,20 @@ void
 vault_explorer_track_file (url file) {
   if (get_preference ("vault explorer track current file", "off") != "on")
     return;
-  if (!vault_active () || vault_explorer_widget == nullptr) return;
   if (is_none (file)) return;
   if (!is_rooted (file, "default") && !is_rooted (file, "file")) return;
+
+  QCoreApplication* app= QCoreApplication::instance ();
+  if (app != nullptr && QThread::currentThread () != app->thread ()) {
+    const SchemeExecutionContext* context= current_scheme_execution_context ();
+    if (context != nullptr && context->editor != nullptr &&
+        context->view_id != ATHENA_NO_VIEW)
+      (void) context->editor->publish_ui_text (
+        actor_command_kind::ui_vault_explorer_track_file, as_string (file));
+    return;
+  }
+
+  if (!vault_active () || vault_explorer_widget == nullptr) return;
 
   QString path= to_qstring (concretize (file));
   vault_explorer_widget->revealPath (path);

@@ -195,7 +195,8 @@ athenaMainWindowBaseTitle() {
 }
 
 QTMMainTabWindow::QTMMainTabWindow()
-  : mMdiArea (nullptr), mLastFocusedDocumentWidget (nullptr) {
+  : mMdiArea (nullptr), mLastFocusedDocumentWidget (nullptr),
+    mAdsLayoutRestoreScheduled (false) {
   bench_start ("construct main window base widgets");
   mStackedWidget = new QStackedWidget(this);
   setCentralWidget (mStackedWidget);
@@ -394,6 +395,7 @@ void QTMMainTabWindow::showAdsDockWidget(ads::CDockWidget* dock,
       mDockManager->addDockWidgetToContainer (area, dock, targetContainer);
     else
       mDockManager->addDockWidget (area, dock);
+    scheduleAdsLayoutRestore (dock, area);
   }
 
   dock->toggleView (true);
@@ -582,12 +584,46 @@ void QTMMainTabWindow::restoreAdsVisiblePanes() {
       custom_styles_manager_show ();
   }
 
-  restoreAdsLayoutState();
+  scheduleAdsLayoutRestore();
 }
 
-void QTMMainTabWindow::scheduleAdsLayoutRestore() {
+void QTMMainTabWindow::scheduleAdsLayoutRestore(
+  ads::CDockWidget* revealDock, ads::DockWidgetArea area) {
   if (!adsLayoutPersistenceEnabled()) return;
-  QTimer::singleShot (0, this, [this] () { restoreAdsLayoutState(); });
+  if (revealDock != nullptr) {
+    bool alreadyQueued= false;
+    for (const auto& pending: mAdsDocksToReveal)
+      if (pending.first == revealDock) {
+        alreadyQueued= true;
+        break;
+      }
+    if (!alreadyQueued)
+      mAdsDocksToReveal.append (qMakePair (QPointer<ads::CDockWidget> (
+                                            revealDock), area));
+  }
+  if (mAdsLayoutRestoreScheduled) return;
+  mAdsLayoutRestoreScheduled= true;
+  QTimer::singleShot (0, this, [this] () {
+    restoreAdsLayoutState();
+    QList<QPair<QPointer<ads::CDockWidget>, ads::DockWidgetArea>> pending=
+      std::move (mAdsDocksToReveal);
+    mAdsDocksToReveal.clear ();
+    for (const auto& reveal: pending) {
+      ads::CDockWidget* dock= reveal.first;
+      if (dock == nullptr) continue;
+      if (dock->dockAreaWidget () == nullptr ||
+          dock->dockContainer () == nullptr) {
+        if (reveal.second == ads::NoDockWidgetArea)
+          mDockManager->addDockWidgetFloating (dock);
+        else
+          mDockManager->addDockWidget (reveal.second, dock);
+      }
+      dock->toggleView (true);
+      dock->show ();
+      dock->raise ();
+    }
+    mAdsLayoutRestoreScheduled= false;
+  });
 }
 
 void QTMMainTabWindow::setNextWidgetFloating() {

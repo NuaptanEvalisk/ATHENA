@@ -147,12 +147,14 @@ public:
 
 QTMPixmapOrImage 
 qt_glue_widget_rep::render (double pixel_ratio) {
-  static QPainter painter;
-  static qt_renderer_rep ren (&painter, pixel_ratio);
   QSize s = to_qsize (pixel_ratio*w, pixel_ratio*h);
+  if (s.width () <= 0 || s.height () <= 0) return QPixmap ();
+
   QPixmap pxm (s);
   //cout << "glue (" << s.width() << "," << s.height() << ")\n";
   pxm.fill (Qt::transparent);
+  QPainter painter;
+  qt_renderer_rep ren (&painter, pixel_ratio);
   QPaintDevice *pd = static_cast<QPaintDevice*>(&pxm);
   ren.begin (pd);
   ren.set_shrinking_factor (1);

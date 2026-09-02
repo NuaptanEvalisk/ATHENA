@@ -518,9 +518,12 @@ qt_simple_widget_rep::get_renderer() {
  */
 void
 qt_simple_widget_rep::repaint_invalid_regions () {
-  double pixel_ratio= canvas()->surface()->devicePixelRatio();
+  QWidget* surface= canvas()->surface ();
+  if (surface == nullptr || surface->size ().isEmpty ()) return;
+
+  double pixel_ratio= surface->devicePixelRatio();
   // complete redrawing whenever the pixel ratio changes
-  QSize canvas_physical_size (pixel_ratio * canvas()->surface()->size());
+  QSize canvas_physical_size (pixel_ratio * surface->size());
   if (canvas_physical_size != backingPixmap->size() || backing_valid==false) {
     // cout << "repaint_invalid_regions after change of dpr" << LF;
     QPixmap newBackingPixmap (0, 0);
@@ -590,7 +593,7 @@ qt_simple_widget_rep::repaint_invalid_regions () {
   // the background color if the window is bigger.
   {
     QSize _oldSize = backingPixmap->size();
-    QSize _new_logical_Size = canvas()->surface()->size();
+    QSize _new_logical_Size = surface->size();
     QSize _newSize = _new_logical_Size;
     _newSize *= pixel_ratio;
     //cout << "      surface size of " << _newSize.width() << " x "

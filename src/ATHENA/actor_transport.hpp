@@ -95,6 +95,7 @@ enum class actor_command_kind: std::uint32_t {
   ui_focus_view,
   ui_refresh_chrome,
   ui_global_action,
+  ui_vault_explorer_track_file,
   ui_keyboard_focus_field,
   ui_mouse_grab,
   ui_menu_main,

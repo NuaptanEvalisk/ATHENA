@@ -17,6 +17,7 @@
 #include "scheme.hpp"
 #include "tm_server.hpp"
 #include "QTMToast.hpp"
+#include "QTMVaultExplorer.hpp"
 
 #include <QApplication>
 #include <QStyle>
@@ -308,6 +309,11 @@ qt_actor_widget_rep::drain_external_effects () {
       tm_view view= concrete_runtime_view (view_id_);
       if (view != nullptr) set_current_view (abstract_view (view));
       (void) actor_ui_invoke_action (record.argument[0]);
+      break;
+    }
+    case actor_command_kind::ui_vault_explorer_track_file: {
+      string file= actor_text_registry::instance ().take (record.payload0);
+      vault_explorer_track_file (url (std::move (file)));
       break;
     }
     case actor_command_kind::ui_keyboard_focus_field: {

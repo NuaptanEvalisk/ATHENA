@@ -1095,6 +1095,8 @@ QTMGlobalSearch::openCurrentResult () {
 
 void
 global_search_show () {
+  if (qt_defer_to_main_thread (global_search_show)) return;
+
   if (!vault_active ()) {
     QMessageBox::warning (QApplication::activeWindow (), "Global search",
                           "No active vault. Please load a vault first.");

@@ -341,7 +341,6 @@ custom_styles_manager_show () {
     });
     win->showAdsDockWidget (custom_styles_manager_dock,
                             ads::RightDockWidgetArea);
-    win->restoreAdsLayoutState ();
   }
 
   custom_styles_manager_widget->refresh ();

@@ -79,6 +79,7 @@
 #include <QWizardPage>
 
 #include <cmath>
+#include <atomic>
 #include <functional>
 #include <utility>
 #include <vector>
@@ -101,6 +102,7 @@ using QStringChoice = std::pair<QString, QString>;
 
 static QPointer<QTMPreferencesDialog> activePreferencesDialog;
 static QPointer<QDialog> activePageSetupDialog;
+static std::atomic<bool> activePreferencesDialogOpen {false};
 static bool collectingPreferencesMetadata= false;
 static const char* preferenceKeyProperty= "athenaPreferenceKey";
 
@@ -2954,18 +2956,23 @@ QTMPreferencesDialog::buildOtherPage () {
 void
 qtm_preferences_dialog_show () {
   if (headless_mode) return;
+  if (qt_defer_to_main_thread (qtm_preferences_dialog_show)) return;
   if (activePreferencesDialog) {
     activePreferencesDialog->raise ();
     activePreferencesDialog->activateWindow ();
     return;
   }
   activePreferencesDialog= new QTMPreferencesDialog (QApplication::activeWindow ());
+  activePreferencesDialogOpen.store (true, std::memory_order_release);
+  QObject::connect (activePreferencesDialog, &QObject::destroyed, [] () {
+    activePreferencesDialogOpen.store (false, std::memory_order_release);
+  });
   activePreferencesDialog->show ();
 }
 
 bool
 qtm_preferences_dialog_open () {
-  return !activePreferencesDialog.isNull ();
+  return activePreferencesDialogOpen.load (std::memory_order_acquire);
 }
 
 int
@@ -3002,6 +3009,7 @@ qtm_preferences_export_metadata () {
 void
 qtm_page_setup_dialog_show () {
   if (headless_mode) return;
+  if (qt_defer_to_main_thread (qtm_page_setup_dialog_show)) return;
   if (activePageSetupDialog) {
     activePageSetupDialog->raise ();
     activePageSetupDialog->activateWindow ();
