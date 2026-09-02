@@ -11,15 +11,33 @@
 
 #include "drd_std.hpp"
 #include "vars.hpp"
+#include <mutex>
 
 drd_info std_drd ("tm");
 hashmap<string,int> STD_CODE (UNKNOWN);
 
 static thread_local drd_info* thread_drd= nullptr;
+static std::recursive_mutex std_drd_mutex;
+
+static drd_info
+clone_standard_drd () {
+  std::lock_guard<std::recursive_mutex> guard (std_drd_mutex);
+  init_std_drd ();
+  tree locals= std_drd->get_locals ();
+  drd_info local ("tm-thread");
+  local->set_locals (locals);
+  return local;
+}
+
+drd_info&
+standard_drd_for_thread () {
+  static thread_local drd_info local= clone_standard_drd ();
+  return local;
+}
 
 drd_info&
 current_drd () noexcept {
-  return thread_drd == nullptr ? std_drd : *thread_drd;
+  return thread_drd == nullptr ? standard_drd_for_thread () : *thread_drd;
 }
 
 drd_info*
@@ -116,6 +134,7 @@ static bool std_drd_initialized= false;
 
 void
 init_std_drd () {
+  std::lock_guard<std::recursive_mutex> guard (std_drd_mutex);
   if (std_drd_initialized) return;
   std_drd_initialized=true;
 

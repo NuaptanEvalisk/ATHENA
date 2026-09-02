@@ -11,9 +11,9 @@
 #ifndef SCHEME_EXECUTION_CONTEXT_H
 #define SCHEME_EXECUTION_CONTEXT_H
 
+#include "actor_transport.hpp"
 #include "drd_std.hpp"
 #include "new_document.hpp"
-#include "url.hpp"
 
 #include <cstdint>
 #include <thread>
@@ -36,15 +36,15 @@ public:
   editor_rep* const editor;
   drd_info* const drd;
   tree* const document;
-  const url buffer_id;
-  const url view_id;
+  const athena_actor_id actor_id;
+  const athena_view_id view_id;
   const std::uint64_t command_id;
   const SchemeCapabilitySet capabilities;
   const std::thread::id owner_thread;
 
   SchemeExecutionContext (buffer_actor* actor, editor_rep* editor,
                           drd_info* drd, tree* document,
-                          url buffer_id, url view_id,
+                          athena_actor_id actor_id, athena_view_id view_id,
                           std::uint64_t command_id,
                           SchemeCapabilitySet capabilities);
 

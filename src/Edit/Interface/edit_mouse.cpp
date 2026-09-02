@@ -152,7 +152,7 @@ edit_interface_rep::image_resize_start (SI x, SI y) {
   image_resize_x1= r->x1; image_resize_y1= r->y1;
   image_resize_x2= r->x2; image_resize_y2= r->y2;
   image_resize_rects= image_resize_handles (r);
-  send_mouse_grab (this, true);
+  (void) publish_ui (actor_command_kind::ui_mouse_grab, 1);
   return true;
 }
 
@@ -219,7 +219,7 @@ edit_interface_rep::image_resize_finish () {
   image_resize_handle= IMAGE_RESIZE_NONE;
   if (!is_nil (image_resize_rects)) invalidate (image_resize_rects);
   image_resize_rects= rectangles ();
-  send_mouse_grab (this, false);
+  (void) publish_ui (actor_command_kind::ui_mouse_grab, 0);
   notify_change (THE_DECORATIONS);
 }
 
@@ -320,7 +320,7 @@ edit_interface_rep::table_resize_start (SI x, SI y) {
   table_resize_start_y= y;
   table_resize_initial_size= handle == TABLE_RESIZE_COLUMN ?
     abs_si (r->x2 - r->x1) : abs_si (r->y2 - r->y1);
-  send_mouse_grab (this, true);
+  (void) publish_ui (actor_command_kind::ui_mouse_grab, 1);
   return true;
 }
 
@@ -372,7 +372,7 @@ edit_interface_rep::table_resize_finish () {
   table_resize_active= false;
   table_resize_handle= TABLE_RESIZE_NONE;
   table_resize_format_path= path ();
-  send_mouse_grab (this, false);
+  (void) publish_ui (actor_command_kind::ui_mouse_grab, 0);
 }
 
 bool
@@ -402,7 +402,7 @@ edit_interface_rep::mouse_click (SI x, SI y) {
   if (mouse_message ("click", x, y)) return;
   start_x= x;
   start_y= y;
-  send_mouse_grab (this, true);
+  (void) publish_ui (actor_command_kind::ui_mouse_grab, 1);
 }
 
 bool
@@ -543,31 +543,14 @@ edit_interface_rep::mouse_adjust (SI x, SI y, int mods) {
   x= (SI) (x * magf);
   y= (SI) (y * magf);
   abs_round (x, y);
-  if (is_nil (popup_win)) {
-    widget wid;
+  if (!popup_open) {
     string menu= "texmacs-popup-menu";
     if ((mods & (ShiftMask + ControlMask)) != 0)
       menu= "texmacs-alternative-popup-menu";
-    SERVER (menu_widget ("(vertical (link " * menu * "))", wid));
-    widget popup_wid= ::popup_widget (wid);
-    popup_win= ::popup_window_widget (popup_wid, "Popup menu");
-#if defined (QTTEXMACS)
-    SI px, py;
-    if (qt_widget_global_position (this, x, y, px, py)) {
-      set_position (popup_win, px, py);
-    }
-    else {
-      SI wx, wy, ox, oy, sx, sy;
-      ::get_position (get_window (this), wx, wy);
-      get_position (this, ox, oy);
-      get_scroll_position (this, sx, sy);
-      ox -= sx; oy -= sy;
-      set_position (popup_win, wx+ ox+ x, wy+ oy+ y);
-    }
-#endif
-    set_visibility (popup_win, true);
-    send_keyboard_focus (this);
-    send_mouse_grab (popup_wid, true);
+    popup_open= publish_ui_text (
+      actor_command_kind::ui_show_popup,
+      "(vertical (link " * menu * "))",
+      static_cast<std::uint64_t> (x), static_cast<std::uint64_t> (y));
   }
 }
 
@@ -579,9 +562,13 @@ edit_interface_rep::mouse_scroll (SI x, SI y, bool up) {
   if (!up) dy= -dy;
   path sp= find_innermost_scroll (eb, tp);
   if (is_nil (sp)) {
-    SERVER (scroll_where (x, y));
+    actor_viewport_snapshot viewport= ui_viewport ();
+    x= viewport.scroll_x;
+    y= viewport.scroll_y;
     y += dy;
-    SERVER (scroll_to (x, y));
+    (void) publish_ui (
+      actor_command_kind::ui_scroll_to,
+      static_cast<std::uint64_t> (x), static_cast<std::uint64_t> (y));
   }
   else {
     SI x, y, sx, sy;
@@ -638,14 +625,17 @@ edit_interface_rep::get_mouse_position () {
 
 void
 edit_interface_rep::set_pointer (string name) {
-  send_mouse_pointer (this, name);
+  (void) publish_ui_text (
+    actor_command_kind::ui_set_pointer, std::move (name));
 }
 
 void
 edit_interface_rep::set_pointer (
   string curs_name, string mask_name)
 {
-  send_mouse_pointer (this, curs_name, mask_name);
+  curs_name << '\0' << mask_name;
+  (void) publish_ui_text (
+    actor_command_kind::ui_set_pointer, std::move (curs_name), 1);
 }
 
 /******************************************************************************
@@ -900,7 +890,7 @@ edit_interface_rep::mouse_any (string type, SI x, SI y, int mods, time_t t,
 
   bool move_like=
     (type == "move" || type == "dragging-left" || type == "dragging-right");
-  if ((!move_like) || (is_attached (this) && !check_event (MOTION_EVENT)))
+  if ((!move_like) || (ui_viewport ().attached && !check_event (MOTION_EVENT)))
     update_mouse_loci ();
   if (!is_nil (mouse_ids) && type == "move") {
     notify_change (THE_FREEZE);
@@ -937,10 +927,9 @@ edit_interface_rep::mouse_any (string type, SI x, SI y, int mods, time_t t,
     set_pointer ("XC_top_left_arrow");
   if ((!move_like) && (type != "enter") && (type != "leave"))
     set_input_normal ();
-  if (!is_nil (popup_win) && (type != "leave")) {
-    set_visibility (popup_win, false);
-    destroy_window_widget (popup_win);
-    popup_win= widget ();
+  if (popup_open && (type != "leave")) {
+    (void) publish_ui (actor_command_kind::ui_close_popup);
+    popup_open= false;
   }
 
   if (starts (type, "swipe-")) eval ("(" * type * ")");
@@ -952,7 +941,7 @@ edit_interface_rep::mouse_any (string type, SI x, SI y, int mods, time_t t,
   if (type == "double-left" && over_heading_bracket) {
     select_heading_cell (heading_bracket);
     heading_cell_pressed= path ();
-    send_mouse_grab (this, false);
+    (void) publish_ui (actor_command_kind::ui_mouse_grab, 0);
     drag_left_reset ();
     heading_fold_toggle_at (as_string (heading_bracket.heading_path));
     return;
@@ -961,14 +950,14 @@ edit_interface_rep::mouse_any (string type, SI x, SI y, int mods, time_t t,
       over_heading_bracket) {
     heading_cell_pressed= heading_bracket.heading_path;
     select_heading_cell (heading_bracket);
-    send_mouse_grab (this, true);
+    (void) publish_ui (actor_command_kind::ui_mouse_grab, 1);
     return;
   }
   if (!is_nil (heading_cell_pressed) && type == "dragging-left") return;
   if (!is_nil (heading_cell_pressed) &&
       (type == "release-left" || type == "end-drag-left")) {
     heading_cell_pressed= path ();
-    send_mouse_grab (this, false);
+    (void) publish_ui (actor_command_kind::ui_mouse_grab, 0);
     return;
   }
 
@@ -976,13 +965,13 @@ edit_interface_rep::mouse_any (string type, SI x, SI y, int mods, time_t t,
       mouse_message ("click", x, y)) {
     start_x= x;
     start_y= y;
-    send_mouse_grab (this, true);
+    (void) publish_ui (actor_command_kind::ui_mouse_grab, 1);
     return;
   }
   if (type == "dragging-left" && mouse_message ("drag", x, y)) return;
   if ((type == "release-left" || type == "end-drag-left") &&
       mouse_message ("select", x, y)) {
-    send_mouse_grab (this, false);
+    (void) publish_ui (actor_command_kind::ui_mouse_grab, 0);
     return;
   }
 
@@ -1035,7 +1024,7 @@ edit_interface_rep::mouse_any (string type, SI x, SI y, int mods, time_t t,
     if (mouse_adjusting && mods > 1) {
       mouse_adjusting = mods;
       mouse_adjust_selection(x, y, mods);
-    } else if (is_attached (this) && check_event (DRAG_EVENT)) return;
+    } else if (ui_viewport ().attached && check_event (DRAG_EVENT)) return;
     else mouse_drag (x, y);
   }
   if ((type == "release-left" || type == "end-drag-left")) {
@@ -1056,11 +1045,11 @@ edit_interface_rep::mouse_any (string type, SI x, SI y, int mods, time_t t,
     if (!(mouse_adjusting & ShiftMask))
       mouse_select (x, y, mods, type == "end-drag-left");
     mouse_adjusting &= ~mouse_adjusting;
-    send_mouse_grab (this, false);
+    (void) publish_ui (actor_command_kind::ui_mouse_grab, 0);
   }
 
   if (type == "double-left") {
-    send_mouse_grab (this, false);
+    (void) publish_ui (actor_command_kind::ui_mouse_grab, 0);
     if (mouse_extra_click (x, y))
       drag_left_reset ();
   }
@@ -1154,13 +1143,13 @@ delayed_call_mouse_event (string kind, SI x, SI y, SI m, time_t t,
 void
 edit_interface_rep::handle_mouse (string kind, SI x, SI y, int m, time_t t,
                                   array<double> data) {
-  if (is_nil (buf)) return;
+  if (buf == nullptr) return;
   bool started= false;
 #ifdef USE_EXCEPTIONS
   try {
 #endif
   if (is_nil (eb) || (env_change & (THE_TREE + THE_ENVIRONMENT)) != 0) {
-    //cout << "handle_mouse in " << buf->buf->name << ", " << got_focus << LF;
+    //cout << "handle_mouse in " << buf->name << ", " << got_focus << LF;
     //cout << kind << " (" << x << ", " << y << "; " << m << ", " << data << ")"
     //     << " at " << t << "\n";
     if (!got_focus) return;
@@ -1174,7 +1163,7 @@ edit_interface_rep::handle_mouse (string kind, SI x, SI y, int m, time_t t,
   //     << " at " << t << "\n";
 
   if (kind == "drop") {
-    call_drop_event (kind, x, y, m, t, buf->buf->name);
+    call_drop_event (kind, x, y, m, t, buf->name);
     if (inside_graphics (true))
       mouse_graphics ("drop-object", x, y, m, t, data);
   }

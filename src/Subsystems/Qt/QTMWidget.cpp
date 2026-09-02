@@ -312,13 +312,24 @@ void
 QTMWidget::surfacePaintEvent (QPaintEvent *event, QWidget *surfaceWidget) {
   (void) surfaceWidget;
   if (checkDprChange()) return;
+  {
+    std::shared_ptr<QTMRenderConnection> connection;
+    {
+      std::lock_guard<std::mutex> guard (tm_widget ()->render_connection_lock);
+      connection= tm_widget ()->render_connection;
+    }
+    if (connection != nullptr) {
+      QTMSharedFrame next= connection->acquireLatestFrame ();
+      if (next) renderedFrame= std::move (next);
+    }
+  }
   QPainter p (surface());
   if ((viewPinchActive || viewPinchCommitPending) &&
       !viewPinchPreview.isNull()) {
     drawViewPinchPreview (p);
   }
-  else if (!renderedFrame.isNull ()) {
-    p.drawImage (QPointF (0.0, 0.0), renderedFrame);
+  else if (renderedFrame) {
+    p.drawImage (QPointF (0.0, 0.0), renderedFrame.image ());
   }
   else {
     qreal pixel_ratio= lastPixelRatio;
@@ -338,25 +349,25 @@ QTMWidget::surfacePaintEvent (QPaintEvent *event, QWidget *surfaceWidget) {
 }
 
 void
-QTMWidget::presentRenderedFrame (QTMRenderedFrame frame) {
-  if (frame.image.isNull ()) return;
-  if (frame.bufferGeneration < renderedBufferGeneration ||
-      (frame.bufferGeneration == renderedBufferGeneration &&
-       frame.frameGeneration <= renderedFrameGeneration))
+QTMWidget::presentRenderedFrame (
+  std::uint64_t bufferGeneration, std::uint64_t frameGeneration,
+  render_damage damage) {
+  if (bufferGeneration < renderedBufferGeneration ||
+      (bufferGeneration == renderedBufferGeneration &&
+       frameGeneration <= renderedFrameGeneration))
     return;
-  renderedBufferGeneration= frame.bufferGeneration;
-  renderedFrameGeneration= frame.frameGeneration;
-  renderedFrame= std::move (frame.image);
+  renderedBufferGeneration= bufferGeneration;
+  renderedFrameGeneration= frameGeneration;
 
-  double ratio= renderedFrame.devicePixelRatio ();
-  int x1= static_cast<int> (std::floor (frame.damage.x1 / ratio));
-  int y1= static_cast<int> (std::floor (frame.damage.y1 / ratio));
-  int x2= static_cast<int> (std::ceil (frame.damage.x2 / ratio));
-  int y2= static_cast<int> (std::ceil (frame.damage.y2 / ratio));
-  QRect damage (x1, y1, x2 - x1, y2 - y1);
-  damage= damage.intersected (surface ()->rect ());
-  if (damage.isEmpty ()) surface ()->update ();
-  else surface ()->update (damage);
+  double ratio= surface ()->devicePixelRatio ();
+  int x1= static_cast<int> (std::floor (damage.x1 / ratio));
+  int y1= static_cast<int> (std::floor (damage.y1 / ratio));
+  int x2= static_cast<int> (std::ceil (damage.x2 / ratio));
+  int y2= static_cast<int> (std::ceil (damage.y2 / ratio));
+  QRect damaged_rect (x1, y1, x2 - x1, y2 - y1);
+  damaged_rect= damaged_rect.intersected (surface ()->rect ());
+  if (damaged_rect.isEmpty ()) surface ()->update ();
+  else surface ()->update (damaged_rect);
 }
 
 bool
@@ -378,18 +389,9 @@ QTMWidget::checkDprChange() {
 
 void
 QTMWidget::devicePixelRatioChanged () {
-  array<url> v= get_all_views ();
-  for (int i= 0; i < N(v); i++) {
-    editor ed= view_to_editor (v[i]);
-    if (!is_nil (ed) &&
-	(qt_simple_widget_rep*) (ed.operator->()) == tm_widget()) {
-      ed->suspend ();
-      tm_widget()->invalidate_all();
-      ed->resume ();
-      needs_update();
-      break;
-    }
-  }
+  tm_widget ()->handle_device_pixel_ratio_changed ();
+  tm_widget ()->invalidate_all ();
+  needs_update ();
 }
 
 static double
@@ -411,17 +413,10 @@ QTMWidget::gesturesSupportedForViewZoom () const {
 bool
 QTMWidget::activateOwningViewForGesture (const char* source) const {
   if (is_nil (tmwid) || !tm_widget()->is_editor_widget ()) return false;
-  array<url> views= get_all_views ();
-  for (int i=0; i<N(views); i++) {
-    editor ed= view_to_editor (views[i]);
-    if (!is_nil (ed) &&
-        (qt_simple_widget_rep*) ed.operator->() == tm_widget()) {
-      set_current_view (views[i]);
-      if (gestureDebugEnabled ())
-        cout << "[gesture] activate-view route=" << source
-             << " view=" << views[i] << LF;
-      return true;
-    }
+  if (tm_widget ()->handle_activate_owning_view ()) {
+    if (gestureDebugEnabled ())
+      cout << "[gesture] activate-view route=" << source << LF;
+    return true;
   }
   if (gestureDebugEnabled ())
     cout << "[gesture] activate-view route=" << source
@@ -472,9 +467,9 @@ QTMWidget::beginViewPinchZoom (const QPointF& focal, const char* source) {
   viewPinchPixelRatio= surface()->devicePixelRatio();
   viewPinchFocal= focal;
   viewPinchStartOrigin= origin();
-  viewPinchPreview= renderedFrame.isNull ()
+  viewPinchPreview= !renderedFrame
     ? *(tm_widget()->backingPixmap)
-    : QPixmap::fromImage (renderedFrame);
+    : QPixmap::fromImage (renderedFrame.image ());
   logGesture ("begin", source, viewPinchScale, viewPinchFocal);
 }
 

@@ -10,7 +10,6 @@
 ******************************************************************************/
 
 #include "edit_main.hpp"
-#include "tm_buffer.hpp"
 #include "file.hpp"
 #include "sys_utils.hpp"
 #include "printer.hpp"
@@ -22,6 +21,9 @@
 #include <setjmp.h>
 #include "image_files.hpp"
 #include "iterator.hpp"
+#include "actor_ui_bridge.hpp"
+#include "scheme_execution_context.hpp"
+#include "tm_frame.hpp"
 
 #ifdef EXPERIMENTAL
 #include "../../Style/Memorizer/clean_copy.hpp"
@@ -41,16 +43,18 @@
 ******************************************************************************/
 
 editor_rep::editor_rep ():
-  simple_widget_rep (), cvw (NULL), mvw (NULL), owning_view (NULL),
-  drd (std_drd), et (current_document_tree ()), rp (),
+  simple_widget_rep (), cvw (NULL), mvw (NULL),
+  runtime_view_id (ATHENA_NO_VIEW), ui_endpoint (nullptr),
+  drd ("virtual"), et (current_document_tree ()), rp (),
   progressive_typeset_pending (false), progressive_typeset_continue (false) {
   cout << "ATHENA] warning, this virtual constructor should never be called\n";
 }
 
-editor_rep::editor_rep (server_rep* sv2, tm_buffer buf2):
+editor_rep::editor_rep (server_rep* sv2, buffer_document_state* buf2):
   simple_widget_rep (), sv (sv2), cvw (NULL), mvw (NULL),
-  owning_view (NULL), buf (buf2),
-  drd (buf->buf->title, std_drd), et (buf2->document), rp (buf2->rp),
+  runtime_view_id (ATHENA_NO_VIEW), ui_endpoint (nullptr),
+  buf (buf2),
+  drd (buf->title), et (buf2->document), rp (buf2->root_path),
   progressive_typeset_pending (false), progressive_typeset_continue (false) {}
 
 void
@@ -62,11 +66,53 @@ editor_rep::schedule_progressive_typeset () {
 
 bool
 editor_rep::is_current_editor () {
-  editor ed= get_current_editor ();
-  return ed.rep == (editor_rep*) this;
+  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  return context != nullptr && context->editor == this &&
+         context->view_id == runtime_view_id;
 }
 
-edit_main_rep::edit_main_rep (server_rep* sv, tm_buffer buf):
+actor_viewport_snapshot
+editor_rep::ui_viewport () const {
+  ASSERT (ui_endpoint != nullptr, "editor has no UI endpoint");
+  return ui_endpoint->viewport ();
+}
+
+bool
+editor_rep::publish_ui (
+  actor_command_kind kind, std::uint64_t argument0,
+  std::uint64_t argument1, std::uint64_t argument2,
+  std::uint64_t argument3) {
+  return ui_endpoint != nullptr &&
+    ui_endpoint->publish (kind, ATHENA_NO_BLOB, argument0, argument1,
+                          argument2, argument3);
+}
+
+bool
+editor_rep::publish_ui_text (
+  actor_command_kind kind, string text, std::uint64_t argument0,
+  std::uint64_t argument1, std::uint64_t argument2,
+  std::uint64_t argument3) {
+  return ui_endpoint != nullptr &&
+    ui_endpoint->publish_text (kind, std::move (text), argument0, argument1,
+                               argument2, argument3);
+}
+
+bool
+editor_rep::publish_ui_text_pair (
+  actor_command_kind kind, string first, string second,
+  std::uint64_t argument0, std::uint64_t argument1,
+  std::uint64_t argument2, std::uint64_t argument3) {
+  return ui_endpoint != nullptr &&
+    ui_endpoint->publish_text_pair (kind, std::move (first), std::move (second),
+                                    argument0, argument1, argument2, argument3);
+}
+
+void
+editor_rep::rebuild_ui_chrome () {
+  (void) publish_ui (actor_command_kind::ui_refresh_chrome);
+}
+
+edit_main_rep::edit_main_rep (server_rep* sv, buffer_document_state* buf):
   editor_rep (sv, buf), props (UNKNOWN), ed_obs (edit_observer (this))
 {
 #ifdef EXPERIMENTAL
@@ -86,7 +132,7 @@ edit_main_rep::~edit_main_rep () {
 }
 
 editor
-new_editor (server_rep* sv, tm_buffer buf) {
+new_editor (server_rep* sv, buffer_document_state* buf) {
   return tm_new<edit_main_rep> (sv, buf);
 }
 
@@ -173,17 +219,18 @@ edit_main_rep::tex_buffer () {
 
 url
 edit_main_rep::get_name () {
-  return buf->buf->name;
+  return buf->name;
 }
 
 void
 edit_main_rep::focus_on_this_editor () {
-  focus_on_editor (this);
+  (void) publish_ui (actor_command_kind::ui_focus_view);
 }
 
 void
 edit_main_rep::notify_page_change () {
-  if (is_attached (this)) send_invalidate_all (this);
+  if (ui_endpoint != nullptr && ui_viewport ().attached)
+    (void) publish_ui (actor_command_kind::ui_invalidate_all);
 }
 
 string

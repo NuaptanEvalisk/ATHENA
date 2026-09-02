@@ -26,6 +26,7 @@
 #include <atomic>
 #include <mutex>
 #include <thread>
+#include <unordered_map>
 #include <vector>
 
 /******************************************************************************
@@ -267,6 +268,57 @@ tmscm_root_release (tmscm_root_handle* handle) noexcept {
         expected, 2, std::memory_order_acq_rel, std::memory_order_relaxed))
     return;
   scheme_publish_release (handle->owner->released_roots, handle);
+}
+
+namespace {
+
+struct scheme_command_handle_registry {
+  std::mutex lock;
+  std::unordered_map<athena_scheme_handle_id, tmscm_root_handle*> handles;
+  athena_scheme_handle_id next_id= 1;
+};
+
+scheme_command_handle_registry&
+command_handle_registry () {
+  static scheme_command_handle_registry registry;
+  return registry;
+}
+
+} // namespace
+
+athena_scheme_handle_id
+scheme_command_handle_acquire (tmscm command) {
+  tmscm_root_handle* root= tmscm_root_acquire (command);
+  scheme_command_handle_registry& registry= command_handle_registry ();
+  std::lock_guard<std::mutex> guard (registry.lock);
+  athena_scheme_handle_id id= registry.next_id++;
+  if (id == ATHENA_NO_SCHEME_HANDLE) id= registry.next_id++;
+  registry.handles.emplace (id, root);
+  return id;
+}
+
+tmscm
+scheme_command_handle_value (athena_scheme_handle_id id) {
+  scheme_command_handle_registry& registry= command_handle_registry ();
+  std::lock_guard<std::mutex> guard (registry.lock);
+  auto found= registry.handles.find (id);
+  if (found == registry.handles.end ()) return SCM_UNDEFINED;
+  return tmscm_root_value (found->second);
+}
+
+void
+scheme_command_handle_release (athena_scheme_handle_id id) noexcept {
+  if (id == ATHENA_NO_SCHEME_HANDLE) return;
+  tmscm_root_handle* root= nullptr;
+  scheme_command_handle_registry& registry= command_handle_registry ();
+  {
+    std::lock_guard<std::mutex> guard (registry.lock);
+    auto found= registry.handles.find (id);
+    if (found == registry.handles.end ()) return;
+    root= found->second;
+    registry.handles.erase (found);
+  }
+  tmscm_root_release (root);
 }
 
 void

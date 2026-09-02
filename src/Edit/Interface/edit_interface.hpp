@@ -56,7 +56,7 @@ protected:
   bool          pre_edit_skip; // temporarily disabled pre-edit mechanism
   string        pre_edit_s;    // pre-edit string
   double        pre_edit_mark; // 0 or mark for undoing pre-edit
-  widget        popup_win;     // the current popup window
+  bool          popup_open;    // popup lifetime is owned by the Qt proxy
   tree          message_l;     // a left message to display
   tree          message_r;     // a right message to display
   tree          last_l;        // last displayed left message
@@ -116,6 +116,7 @@ protected:
   SI            resize_wx, resize_wy;
   rectangles    keys_rects;
   bool          pending_idle_menu_update;
+  bool          external_center_message_active;
   time_t        typewriter_manual_scroll_time;
   path          typewriter_manual_scroll_path;
   int           live_statistics_cache_hash;
@@ -156,6 +157,7 @@ public:
   void update_visible ();
   void scroll_to (SI x, SI y);
   void set_extents (SI x1, SI y1, SI x2, SI y2);
+  SI   interface_scrollbar_width () const;
 
   /* repainting the window */
   void draw_background (renderer ren, SI x1, SI y1, SI x2, SI y2);
@@ -270,6 +272,7 @@ public:
   void set_footer ();
   void set_message (tree l, tree r= "", bool temp= false);
   void recall_message ();
+  void handle_center_message_state (bool active);
 
   /* event handlers */
   bool is_editor_widget ();

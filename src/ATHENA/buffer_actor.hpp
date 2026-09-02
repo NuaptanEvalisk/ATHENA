@@ -1,6 +1,6 @@
 /******************************************************************************
 * MODULE     : buffer_actor.hpp
-* DESCRIPTION: Per-buffer execution owner and FIFO mailbox
+* DESCRIPTION: Per-buffer execution owner and ID-only command mailbox
 * COPYRIGHT  : (C) 2026  Nuaptan F. Evalisk
 *******************************************************************************
 * This software falls under the GNU general public license version 3 or later.
@@ -11,145 +11,168 @@
 #ifndef BUFFER_ACTOR_H
 #define BUFFER_ACTOR_H
 
+#include "actor_transport.hpp"
 #include "scheme_execution_context.hpp"
-#include "string.hpp"
+#include "url.hpp"
 
 #include <condition_variable>
+#include <cstddef>
 #include <cstdint>
-#include <deque>
-#include <exception>
-#include <functional>
-#include <future>
-#include <memory>
 #include <mutex>
-#include <stdexcept>
+#include <memory>
 #include <thread>
-#include <type_traits>
-#include <utility>
+#include <unordered_map>
 
 class editor_rep;
 class tm_buffer_rep;
+struct buffer_document_state;
+
+struct actor_command_ticket {
+  std::uint64_t command_id= 0;
+  athena_response_id response_id= ATHENA_NO_RESPONSE;
+
+  explicit operator bool () const noexcept { return command_id != 0; }
+};
 
 class buffer_actor {
 public:
-  using task= std::function<void ()>;
-
   explicit buffer_actor (tm_buffer_rep* owner);
   ~buffer_actor ();
 
   buffer_actor (const buffer_actor&)= delete;
   buffer_actor& operator = (const buffer_actor&)= delete;
 
-  bool post_native (
-    task work, editor_rep* editor= nullptr, string view_id= string (),
-    SchemeCapabilitySet capabilities= SCHEME_CAPABILITY_BUFFER);
-  bool post_scheme (
-    task work, editor_rep* editor= nullptr, string view_id= string (),
-    SchemeCapabilitySet capabilities= SCHEME_CAPABILITY_BUFFER);
+  athena_actor_id id () const noexcept;
 
-  template<typename Function>
-  auto invoke_native (Function&& function)
-    -> typename std::invoke_result<Function>::type {
-    return invoke (false, std::forward<Function> (function), nullptr,
-                   string (), SCHEME_CAPABILITY_BUFFER);
-  }
+  actor_command_ticket submit (
+    actor_command_kind kind, athena_view_id view_id= ATHENA_NO_VIEW,
+    athena_blob_id payload0= ATHENA_NO_BLOB,
+    athena_blob_id payload1= ATHENA_NO_BLOB,
+    SchemeCapabilitySet capabilities= SCHEME_CAPABILITY_BUFFER,
+    std::uint64_t argument0= 0, std::uint64_t argument1= 0,
+    std::uint64_t argument2= 0, std::uint64_t argument3= 0,
+    std::uint64_t argument4= 0, std::uint64_t argument5= 0,
+    std::uint64_t argument6= 0, std::uint64_t argument7= 0);
 
-  template<typename Function>
-  auto invoke_native (Function&& function, editor_rep* editor, string view_id,
-                      SchemeCapabilitySet capabilities=
-                        SCHEME_CAPABILITY_BUFFER)
-    -> typename std::invoke_result<Function>::type {
-    return invoke (false, std::forward<Function> (function), editor,
-                   std::move (view_id), capabilities);
-  }
+  actor_command_ticket try_submit (
+    actor_command_kind kind, athena_view_id view_id= ATHENA_NO_VIEW,
+    athena_blob_id payload0= ATHENA_NO_BLOB,
+    athena_blob_id payload1= ATHENA_NO_BLOB,
+    SchemeCapabilitySet capabilities= SCHEME_CAPABILITY_BUFFER,
+    std::uint64_t argument0= 0, std::uint64_t argument1= 0,
+    std::uint64_t argument2= 0, std::uint64_t argument3= 0,
+    std::uint64_t argument4= 0, std::uint64_t argument5= 0,
+    std::uint64_t argument6= 0, std::uint64_t argument7= 0);
 
-  template<typename Function>
-  auto invoke_scheme (Function&& function)
-    -> typename std::invoke_result<Function>::type {
-    return invoke (true, std::forward<Function> (function), nullptr,
-                   string (), SCHEME_CAPABILITY_BUFFER);
-  }
+  static actor_command_ticket submit_to (
+    athena_actor_id actor_id, actor_command_kind kind,
+    athena_view_id view_id= ATHENA_NO_VIEW,
+    athena_blob_id payload0= ATHENA_NO_BLOB,
+    athena_blob_id payload1= ATHENA_NO_BLOB,
+    SchemeCapabilitySet capabilities= SCHEME_CAPABILITY_BUFFER,
+    std::uint64_t argument0= 0, std::uint64_t argument1= 0,
+    std::uint64_t argument2= 0, std::uint64_t argument3= 0,
+    std::uint64_t argument4= 0, std::uint64_t argument5= 0,
+    std::uint64_t argument6= 0, std::uint64_t argument7= 0);
 
-  template<typename Function>
-  auto invoke_scheme (Function&& function, editor_rep* editor, string view_id,
-                      SchemeCapabilitySet capabilities=
-                        SCHEME_CAPABILITY_BUFFER)
-    -> typename std::invoke_result<Function>::type {
-    return invoke (true, std::forward<Function> (function), editor,
-                   std::move (view_id), capabilities);
-  }
+  static bool try_submit_coalesced_to (
+    athena_actor_id actor_id, actor_command_kind kind,
+    athena_view_id view_id, std::uint64_t argument0= 0,
+    std::uint64_t argument1= 0, std::uint64_t argument2= 0,
+    std::uint64_t argument3= 0);
 
-  void update_buffer_id (string id);
-  void wait_until_idle ();
+  static bool invoke_on (
+    athena_actor_id actor_id, actor_command_kind kind,
+    athena_view_id view_id= ATHENA_NO_VIEW,
+    athena_blob_id payload0= ATHENA_NO_BLOB,
+    athena_blob_id payload1= ATHENA_NO_BLOB,
+    actor_command_record* result= nullptr,
+    SchemeCapabilitySet capabilities= SCHEME_CAPABILITY_BUFFER,
+    std::uint64_t argument0= 0, std::uint64_t argument1= 0,
+    std::uint64_t argument2= 0, std::uint64_t argument3= 0,
+    std::uint64_t argument4= 0, std::uint64_t argument5= 0,
+    std::uint64_t argument6= 0, std::uint64_t argument7= 0);
+
+  bool invoke (
+    actor_command_kind kind, athena_view_id view_id= ATHENA_NO_VIEW,
+    athena_blob_id payload0= ATHENA_NO_BLOB,
+    athena_blob_id payload1= ATHENA_NO_BLOB,
+    actor_command_record* result= nullptr,
+    SchemeCapabilitySet capabilities= SCHEME_CAPABILITY_BUFFER,
+    std::uint64_t argument0= 0, std::uint64_t argument1= 0,
+    std::uint64_t argument2= 0, std::uint64_t argument3= 0,
+    std::uint64_t argument4= 0, std::uint64_t argument5= 0,
+    std::uint64_t argument6= 0, std::uint64_t argument7= 0);
+  bool wait_until_idle ();
   void shutdown ();
 
   bool is_owner_thread () const noexcept;
   std::thread::id owner_thread () const noexcept;
   std::uint64_t completed_commands () const noexcept;
 
-private:
-  struct message {
-    std::uint64_t command_id;
-    bool uses_scheme;
-    editor_rep* editor;
-    string view_id;
-    SchemeCapabilitySet capabilities;
-    task work;
-  };
+  // Actor-thread accessors used by Scheme compatibility glue.
+  url current_buffer_url () const;
+  url current_view_url (athena_view_id view_id) const;
+  editor_rep* current_editor (athena_view_id view_id) const noexcept;
+  buffer_document_state* current_state () const noexcept;
 
-  tm_buffer_rep* owner_;
-  string buffer_id_;
-  mutable std::mutex lock_;
-  std::condition_variable changed_;
-  std::condition_variable idle_;
-  std::condition_variable started_;
-  std::deque<message> mailbox_;
+  // Fixed dispatch is public only for the Guile C trampoline.  Callers submit
+  // command ids; they never invoke this directly.
+  void dispatch (actor_command_record& command);
+
+private:
+  const athena_actor_id id_;
+  athena_blob_id initial_name_;
+  athena_blob_id initial_master_;
+  athena_blob_id initial_title_;
+  bool initial_read_only_;
+  actor_command_transport commands_;
+
+  // The transport itself remains SPSC. This lock is the one producer gate for
+  // callers from Qt and other Guile actors; it never protects actor state.
+  std::mutex submit_lock_;
+  mutable std::mutex state_lock_;
+  std::condition_variable started_condition_;
+  std::condition_variable completed_condition_;
   std::thread worker_;
   std::thread::id owner_thread_;
   std::uint64_t next_command_id_;
+  athena_response_id next_response_id_;
+  std::uint64_t completed_command_id_;
   std::uint64_t completed_commands_;
   bool accepting_;
-  bool stopping_;
-  bool executing_;
-  bool started_flag_;
+  bool started_;
 
-  bool post (bool uses_scheme, task work, editor_rep* editor,
-             string view_id, SchemeCapabilitySet capabilities);
+  struct response_state {
+    bool ready= false;
+    actor_command_record record;
+  };
+  std::unordered_map<athena_response_id, response_state> responses_;
+
+  struct implementation;
+  std::unique_ptr<implementation> impl_;
+
   bool ensure_started ();
-  void run ();
-  void execute (message& command);
+  actor_command_ticket submit_with_response (
+    actor_command_kind kind, athena_view_id view_id,
+    athena_blob_id payload0, athena_blob_id payload1,
+    SchemeCapabilitySet capabilities, athena_response_id response_id,
+    std::uint64_t argument0, std::uint64_t argument1,
+    std::uint64_t argument2, std::uint64_t argument3,
+    std::uint64_t argument4, std::uint64_t argument5,
+    std::uint64_t argument6, std::uint64_t argument7,
+    bool wait_for_slot);
+  bool wait (actor_command_ticket ticket,
+             actor_command_record* result= nullptr);
+  void run_in_guile ();
+  void execute (actor_command_record& command);
 
-  template<typename Function>
-  auto invoke (bool uses_scheme, Function&& function, editor_rep* editor,
-               string view_id, SchemeCapabilitySet capabilities)
-    -> typename std::invoke_result<Function>::type {
-    using result_type= typename std::invoke_result<Function>::type;
-    if (is_owner_thread ()) return std::forward<Function> (function) ();
-
-    auto promise= std::make_shared<std::promise<result_type>> ();
-    std::future<result_type> result= promise->get_future ();
-    auto callable= std::make_shared<typename std::decay<Function>::type> (
-      std::forward<Function> (function));
-    task wrapped= [promise, callable] () {
-      try {
-        if constexpr (std::is_void<result_type>::value) {
-          (*callable) ();
-          promise->set_value ();
-        }
-        else promise->set_value ((*callable) ());
-      }
-      catch (...) { promise->set_exception (std::current_exception ()); }
-    };
-
-    bool accepted= uses_scheme
-      ? post_scheme (std::move (wrapped), editor, std::move (view_id),
-                     capabilities)
-      : post_native (std::move (wrapped), editor, std::move (view_id),
-                     capabilities);
-    if (!accepted)
-      throw std::runtime_error ("buffer actor no longer accepts commands");
-    return result.get ();
-  }
+  static void thread_entry (athena_actor_id id);
+  static void* guile_entry (void* raw_id);
+  static void* wait_without_guile (void* raw_request);
+  static buffer_actor* lookup (athena_actor_id id) noexcept;
 };
+
+athena_blob_id actor_text_from_string (string text);
 
 #endif // defined BUFFER_ACTOR_H

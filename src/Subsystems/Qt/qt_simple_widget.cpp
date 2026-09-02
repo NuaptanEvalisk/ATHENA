@@ -18,8 +18,6 @@
 
 #include "QTMWidget.hpp"
 #include "QTMMenuHelper.hpp"
-#include <QCoreApplication>
-#include <QMetaObject>
 #include <QPixmap>
 #include <QCursor>
 #include <QLayout>
@@ -67,22 +65,16 @@ qt_simple_widget_rep::as_qwidget (QWidget* parent_widget) {
     qRound (device_pixel_ratio () * backing_pos.y ()));
   backing_valid = false;
   if (is_editor_widget ()) {
-    QPointer<QTMWidget> target= canvas ();
     std::shared_ptr<QTMRenderConnection> connection=
-      QTMRenderConnection::create (
-        [target] (QTMRenderedFrame frame) mutable {
-          QCoreApplication* application= QCoreApplication::instance ();
-          if (application == nullptr) return;
-          QMetaObject::invokeMethod (
-            application,
-            [target, frame= std::move (frame)] () mutable {
-              if (target != nullptr)
-                target->presentRenderedFrame (std::move (frame));
-            },
-            Qt::QueuedConnection);
-        });
-    std::lock_guard<std::mutex> guard (render_connection_lock);
-    render_connection= std::move (connection);
+      QTMRenderConnection::create ();
+    if (connection != nullptr) connection->bindWidget (canvas ());
+    athena_resource_id connection_id=
+      connection == nullptr ? 0 : connection->id ();
+    {
+      std::lock_guard<std::mutex> guard (render_connection_lock);
+      render_connection= std::move (connection);
+    }
+    handle_render_connection_ready (connection_id);
   }
   return qwid;
 }
@@ -149,6 +141,14 @@ qt_simple_widget_rep::handle_set_zoom_factor (double zoom) {
 }
 
 void
+qt_simple_widget_rep::handle_device_pixel_ratio_changed () {}
+
+bool
+qt_simple_widget_rep::handle_activate_owning_view () {
+  return false;
+}
+
+void
 qt_simple_widget_rep::handle_clear (renderer win, SI x1, SI y1, SI x2, SI y2) {
   (void) win; (void) x1; (void) y1; (void) x2; (void) y2;
 }
@@ -161,6 +161,15 @@ qt_simple_widget_rep::handle_repaint (renderer win, SI x1, SI y1, SI x2, SI y2) 
 void
 qt_simple_widget_rep::handle_post_repaint (bool painted) {
   (void) painted;
+}
+
+void
+qt_simple_widget_rep::drain_external_effects () {}
+
+void
+qt_simple_widget_rep::handle_render_connection_ready (
+  athena_resource_id connection_id) {
+  (void) connection_id;
 }
 
 
@@ -497,23 +506,6 @@ qt_simple_widget_rep::get_renderer() {
   return ren;
 }
 
-bool
-qt_simple_widget_rep::submit_render_frame (
-  const QPicture& picture, int pixel_width, int pixel_height,
-  double pixel_ratio, std::uint32_t background_argb,
-  std::uint64_t buffer_generation, std::uint64_t frame_generation,
-  render_damage damage) {
-  std::shared_ptr<QTMRenderConnection> connection;
-  {
-    std::lock_guard<std::mutex> guard (render_connection_lock);
-    connection= render_connection;
-  }
-  return connection != nullptr &&
-         connection->submit (picture, pixel_width, pixel_height, pixel_ratio,
-                             background_argb, buffer_generation,
-                             frame_generation, damage);
-}
-
 /*
  This function is called by the qt_gui::update method (via repaint_all) to keep
  the backing store in sync and propagate the changes to the surface on screen.
@@ -685,6 +677,7 @@ qt_simple_widget_rep::repaint_all () {
   iterator<pointer> i = iterate(qt_simple_widget_rep::all_widgets);
   while (i->busy()) {
     qt_simple_widget_rep *w = static_cast<qt_simple_widget_rep*>(i->next());
+    w->drain_external_effects ();
     if (w->canvas() && w->canvas()->isVisible()) w->repaint_invalid_regions();
   }
 }

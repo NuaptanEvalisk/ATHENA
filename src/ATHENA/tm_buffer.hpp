@@ -13,8 +13,6 @@
 #define TM_BUFFER_H
 #include "new_data.hpp"
 #include "Data/new_buffer.hpp"
-#include "link.hpp"
-#include "new_document.hpp"
 
 class tm_buffer_rep;
 class tm_view_rep;
@@ -28,12 +26,8 @@ void destroy_window_id (url);
 class tm_buffer_rep {
 public:
   new_buffer buf;         // file related information
-  new_data data;          // data associated to document
   array<tm_view> vws;     // views attached to buffer
-  tree document;          // actor-owned edit-tree root
-  path rp;                // path to the document inside document
-  link_repository lns;    // global links
-  bool notify;            // notify modifications to scheme
+  path rp;                // main-thread navigation prefix (always root today)
   buffer_actor* actor;    // exclusive execution owner
 
   tm_buffer_rep (url name);

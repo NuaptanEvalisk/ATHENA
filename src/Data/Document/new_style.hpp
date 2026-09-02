@@ -13,10 +13,12 @@
 #define NEW_STYLE_H
 #include "drd_std.hpp"
 #include "scheme.hpp"
+#include <cstdint>
 
 tree preprocess_style (tree st, url name);
 
 void style_invalidate_cache ();
+std::uint64_t style_cache_generation ();
 void style_set_cache (tree style, hashmap<string,tree> H, tree t);
 void style_get_cache (tree style, hashmap<string,tree>& H, tree& t, bool& f);
 

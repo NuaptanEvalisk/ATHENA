@@ -17,6 +17,7 @@
 #include "message.hpp"
 #include "new_document.hpp"
 #include "boot.hpp"
+#include "buffer_actor.hpp"
 
 /******************************************************************************
 * Manage global list of windows
@@ -216,9 +217,9 @@ switch_to_window (url new_w) {
   if (!is_none (old_u) && !is_none (new_u)) {
     tm_view old_vw = concrete_view (old_u);
     if (old_vw != NULL) {
-      with_document_tree document_scope (&old_vw->buf->document);
       //old_vw->ed->end_editing ();
-      old_vw->ed->suspend ();
+      (void) old_vw->buf->actor->submit (
+        actor_command_kind::suspend_view, old_vw->runtime_id);
     }
   }
   if (!is_none (new_u)) {
@@ -228,10 +229,10 @@ switch_to_window (url new_w) {
     tm_window win= concrete_window (new_w);
     if (win != NULL) win->map ();
     if (new_vw != NULL) {
-      with_document_tree document_scope (&new_vw->buf->document);
       //new_vw->ed->start_editing ();
-      new_vw->ed->resume ();
-      send_keyboard_focus (new_vw->ed);
+      (void) new_vw->buf->actor->submit (
+        actor_command_kind::resume_view, new_vw->runtime_id);
+      send_keyboard_focus (new_vw->canvas);
     }
   }
 }

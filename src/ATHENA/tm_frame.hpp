@@ -13,6 +13,9 @@
 #define TM_FRAME_H
 #include "server.hpp"
 
+widget make_menu_widget (object menu);
+widget make_menu_widget (object menu, int width, int height);
+
 class tm_frame_rep: virtual public server_rep {
 protected:
   bool full_screen;        // full screen mode

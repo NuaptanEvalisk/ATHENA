@@ -20,8 +20,6 @@
 #include "Qt/qt_utilities.hpp"
 #endif
 
-extern hashmap<tree,tree> font_features;
-extern hashmap<tree,tree> font_variants;
 array<string> remove_other (array<string> a, bool keep_glyphs= true);
 bool same_kind (string s1, string s2);
 bool is_glyphs (string s);
@@ -126,18 +124,12 @@ normalize_feature (string s) {
 
 array<string>
 family_features (string f) { 
-  font_database_load ();
   array<string> r;
-  if (font_features->contains (tree (f))) {
-    tree t= font_features [tree (f)];
-    if (is_func (t, TUPLE) && N(t) >= 1 && is_atomic (t[0])) {
-      for (int i=1; i<N(t); i++)
-        if (is_atomic (t[i]))
-          r << t[i]->label;
-      for (int i=0; i<N(r); i++)
-        r[i]= normalize_feature (r[i]);
-      return r;
-    }
+  array<string> entry= font_database_feature_entry (f);
+  if (N(entry) >= 1) {
+    for (int i=1; i<N(entry); i++) r << entry[i];
+    for (int i=0; i<N(r); i++) r[i]= normalize_feature (r[i]);
+    return r;
   }
   if (occurs ("Mono", f) ||
       occurs ("Console", f) ||
@@ -278,16 +270,12 @@ string
 family_to_master (string f) {
   if (occurs (",", f) && occurs ("=", f)) f= main_family (f);
   f= upgrade_family_name (f);
-  font_database_load ();
-  if (!font_features->contains (tree (f)) &&
-      f != "tcx" && f != "tc") {
+  array<string> entry= font_database_feature_entry (f);
+  if (N(entry) == 0 && f != "tcx" && f != "tc") {
     font_database_global_load (f);
+    entry= font_database_feature_entry (f);
   }
-  if (font_features->contains (tree (f))) {
-    tree t= font_features [tree (f)];
-    if (is_func (t, TUPLE) && N(t) >= 1 && is_atomic (t[0]))
-      return t[0]->label;
-  }
+  if (N(entry) >= 1) return entry[0];
   f= replace (f, " Mono", "");
   f= Replace (f, "Mono", "");
   f= replace (f, " Console", "");
@@ -331,17 +319,10 @@ array<string>
 master_to_families (string m) {
   if (occurs (",", m) && occurs ("=", m)) m= main_family (m);
   m= upgrade_family_name (m);
-  font_database_load ();
-  if (!font_variants->contains (tree (m)) &&
-      m != "tcx" && m != "tc") {
+  array<string> r= font_database_master_variants (m);
+  if (N(r) == 0 && m != "tcx" && m != "tc") {
     font_database_global_load (m);
-  }
-  array<string> r;
-  if (font_variants->contains (tree (m))) {
-    tree t= font_variants [tree (m)];
-    for (int i=0; i<N(t); i++)
-      if (is_atomic (t[i]))
-        r << t[i]->label;
+    r= font_database_master_variants (m);
   }
   if (N(r) == 0) r << m;
   return r;
@@ -775,7 +756,7 @@ search_font (array<string> v, bool require_exact, array<string> avoid) {
 
 array<string>
 search_font (array<string> v, int attempt) {
-  static hashmap<tree,tree> cache (UNINIT);
+  static thread_local hashmap<tree,tree> cache (UNINIT);
   tree key= array_as_tuple (v);
   key << as_string (attempt);
   if (cache->contains (key))

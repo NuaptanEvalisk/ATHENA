@@ -15,6 +15,8 @@
 #include "convert.hpp"
 #include "file.hpp"
 #include "iterator.hpp"
+#include <string>
+#include <unordered_map>
 
 bool is_weight (string s);
 bool is_category (string s);
@@ -94,82 +96,51 @@ get_shape (array<string> v) {
 
 string
 upgrade_family_name (string f) {
-  static hashmap<string,string> t ("");
-  if (N(t) == 0) {
-    t ("luxi")= "Luxi";
-    t ("ms-andalemo")= "Andale Mono";
-    t ("ms-arial")= "Arial";
-    t ("ms-comic")= "Comic Sans MS";
-    t ("ms-courier")= "Courier New";
-    t ("ms-georgia")= "Georgia";
-    t ("ms-impact")= "Impact";
-    t ("ms-lucida")= "Lucida Console";
-    t ("ms-tahoma")= "Tahoma";
-    t ("ms-times")= "Times New Roman";
-    t ("ms-trebuchet")= "Trebuchet MS";
-    t ("ms-verdana")= "Verdana";
-    t ("apple-gothic")= "AppleGothic";
-    t ("apple-lucida")= "Lucida Grande";
-    t ("apple-mingliu")= "MingLiU";
-    t ("apple-symbols")= "Apple Symbols";
-    t ("apple-simsun")= "SimSun";
-    t ("batang")= "Batang";
-    t ("fireflysung")= "AR PL New Sung";
-    t ("gulim")= "Baekmuk Gulim";
-    t ("ipa")= "IPAMincho";
-    t ("heiti")= "STHeiti";
-    t ("kaku")= "Hiragino Kaku Gothic ProN";
-    t ("kochi")= "Kochi Gothic";
-    t ("lihei")= "LiHei Pro";
-    t ("mingliu")= "MingLiU";
-    t ("ms-gothic")= "MS Gothic";
-    t ("ms-mincho")= "MS Mincho";
-    t ("sazanami")= "Sazanami Mincho";
-    t ("simfang")= "FangSong_GB2312";
-    t ("simhei")= "SimHei";
-    t ("simkai")= "KaiTi_GB2312";
-    t ("simli")= "LiSu";
-    t ("simsun")= "SimSun";
-    t ("simyou")= "YouYuan";
-    t ("ttf-japanese")= "TakaoPMincho";
-    t ("ukai")= "AR PL ZenKai Uni";
-    t ("uming")= "AR PL UMing CN";
-    t ("unbatang")= "UnBatang";
-    t ("wqy-microhei")= "WenQuanYi Micro Hei";
-    t ("wqy-zenhei")= "WenQuanYi Zen Hei";
-    t ("dejavu")= "DejaVu";
-    t ("stix")= "Stix";
-    t ("bonum")= "TeX Gyre Bonum";
-    t ("chancery")= "TeX Gyre Chorus";
-    t ("pagella")= "TeX Gyre Pagella";
-    t ("schola")= "TeX Gyre Schola";
-    t ("termes")= "TeX Gyre Termes";
-
-    t ("adobe")= "Stix";
-    t ("Duerer")= "duerer";
-    t ("math-asana")= "Asana Math";
-    t ("math-apple")= "Apple Symbols";
-    t ("math-bonum")= "TeX Gyre Bonum";
-    t ("math-dejavu")= "DejaVu";
-    t ("math-lucida")= "Lucida Grande";
-    t ("math-pagella")= "TeX Gyre Pagella";
-    t ("math-schola")= "TeX Gyre Schola";
-    t ("math-stix")= "Stix";
-    t ("math-termes")= "TeX Gyre Termes";
-
-    t ("modern")= "roman";
-    t ("TeXmacs Computer Modern")= "roman";
-    t ("TeXmacs Computer Modern Mono")= "roman";
-    t ("TeXmacs Computer Modern Sans")= "roman";
-    t ("cyrillic")= "roman";
-    t ("rm-cyrillic")= "roman";
-    t ("sys-chinese")= default_chinese_font_name ();
-    t ("sys-japanese")= default_japanese_font_name ();
-    t ("sys-korean")= default_korean_font_name ();
-    t ("sys-taiwanese")= default_taiwanese_font_name ();
-  }
-  if (t->contains (f)) return t[f];
-  else return f;
+  static const std::unordered_map<std::string, std::string> names= {
+    {"luxi", "Luxi"}, {"ms-andalemo", "Andale Mono"},
+    {"ms-arial", "Arial"}, {"ms-comic", "Comic Sans MS"},
+    {"ms-courier", "Courier New"}, {"ms-georgia", "Georgia"},
+    {"ms-impact", "Impact"}, {"ms-lucida", "Lucida Console"},
+    {"ms-tahoma", "Tahoma"}, {"ms-times", "Times New Roman"},
+    {"ms-trebuchet", "Trebuchet MS"}, {"ms-verdana", "Verdana"},
+    {"apple-gothic", "AppleGothic"}, {"apple-lucida", "Lucida Grande"},
+    {"apple-mingliu", "MingLiU"}, {"apple-symbols", "Apple Symbols"},
+    {"apple-simsun", "SimSun"}, {"batang", "Batang"},
+    {"fireflysung", "AR PL New Sung"}, {"gulim", "Baekmuk Gulim"},
+    {"ipa", "IPAMincho"}, {"heiti", "STHeiti"},
+    {"kaku", "Hiragino Kaku Gothic ProN"}, {"kochi", "Kochi Gothic"},
+    {"lihei", "LiHei Pro"}, {"mingliu", "MingLiU"},
+    {"ms-gothic", "MS Gothic"}, {"ms-mincho", "MS Mincho"},
+    {"sazanami", "Sazanami Mincho"}, {"simfang", "FangSong_GB2312"},
+    {"simhei", "SimHei"}, {"simkai", "KaiTi_GB2312"},
+    {"simli", "LiSu"}, {"simsun", "SimSun"}, {"simyou", "YouYuan"},
+    {"ttf-japanese", "TakaoPMincho"}, {"ukai", "AR PL ZenKai Uni"},
+    {"uming", "AR PL UMing CN"}, {"unbatang", "UnBatang"},
+    {"wqy-microhei", "WenQuanYi Micro Hei"},
+    {"wqy-zenhei", "WenQuanYi Zen Hei"}, {"dejavu", "DejaVu"},
+    {"stix", "Stix"}, {"bonum", "TeX Gyre Bonum"},
+    {"chancery", "TeX Gyre Chorus"}, {"pagella", "TeX Gyre Pagella"},
+    {"schola", "TeX Gyre Schola"}, {"termes", "TeX Gyre Termes"},
+    {"adobe", "Stix"}, {"Duerer", "duerer"},
+    {"math-asana", "Asana Math"}, {"math-apple", "Apple Symbols"},
+    {"math-bonum", "TeX Gyre Bonum"}, {"math-dejavu", "DejaVu"},
+    {"math-lucida", "Lucida Grande"},
+    {"math-pagella", "TeX Gyre Pagella"},
+    {"math-schola", "TeX Gyre Schola"}, {"math-stix", "Stix"},
+    {"math-termes", "TeX Gyre Termes"}, {"modern", "roman"},
+    {"TeXmacs Computer Modern", "roman"},
+    {"TeXmacs Computer Modern Mono", "roman"},
+    {"TeXmacs Computer Modern Sans", "roman"},
+    {"cyrillic", "roman"}, {"rm-cyrillic", "roman"}
+  };
+  if (f == "sys-chinese") return default_chinese_font_name ();
+  if (f == "sys-japanese") return default_japanese_font_name ();
+  if (f == "sys-korean") return default_korean_font_name ();
+  if (f == "sys-taiwanese") return default_taiwanese_font_name ();
+  std::string key (f.data (), static_cast<std::size_t> (N(f)));
+  auto found= names.find (key);
+  if (found == names.end ()) return f;
+  return string (found->second.data (), static_cast<int> (found->second.size ()));
 }
 
 /******************************************************************************

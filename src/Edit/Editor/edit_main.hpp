@@ -43,7 +43,7 @@ private:
   observer           ed_obs;  // edit observer attached to root of tree
 
 public:
-  edit_main_rep (server_rep* sv, tm_buffer buf);
+  edit_main_rep (server_rep* sv, buffer_document_state* buf);
   ~edit_main_rep ();
   virtual inline void* derived_this () {return (edit_main_rep*)this; }
 

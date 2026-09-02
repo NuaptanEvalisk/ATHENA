@@ -76,9 +76,9 @@ void del_obj_qt_renderer(void)  {
 ******************************************************************************/
 
 qt_renderer_rep::qt_renderer_rep (QPainter *_painter, double pixel_ratio2,
-				  int w2, int h2):
+				  int w2, int h2, bool command_recording2):
   basic_renderer_rep (true, pixel_ratio2, w2, h2), painter(_painter),
-  zoom_multiplier (1) {
+  zoom_multiplier (1), command_recording (command_recording2) {
 }
 
 qt_renderer_rep::~qt_renderer_rep () {}
@@ -86,6 +86,11 @@ qt_renderer_rep::~qt_renderer_rep () {}
 void*
 qt_renderer_rep::get_handle () {
   return (void*) this;
+}
+
+bool
+qt_renderer_rep::supports_backing_store () const {
+  return !command_recording;
 }
 
 void

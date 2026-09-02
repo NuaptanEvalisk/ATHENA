@@ -75,9 +75,14 @@ public:
   virtual void handle_mouse (string kind, SI x, SI y, int mods, time_t t,
                              array<double> data= array<double> ());
   virtual void handle_set_zoom_factor (double zoom);
+  virtual void handle_device_pixel_ratio_changed ();
+  virtual bool handle_activate_owning_view ();
   virtual void handle_clear (renderer win, SI x1, SI y1, SI x2, SI y2);
   virtual void handle_repaint (renderer win, SI x1, SI y1, SI x2, SI y2);
   virtual void handle_post_repaint (bool painted);
+  virtual void drain_external_effects ();
+  virtual void handle_render_connection_ready (
+    athena_resource_id connection_id);
   
     ////////////////////// Handling of TeXmacs' messages
   
@@ -124,11 +129,6 @@ protected:
   bool is_invalid ();
   void repaint_invalid_regions ();
   basic_renderer get_renderer();
-  bool submit_render_frame (
-    const QPicture& picture, int pixel_width, int pixel_height,
-    double device_pixel_ratio, std::uint32_t background_argb,
-    std::uint64_t buffer_generation, std::uint64_t frame_generation,
-    render_damage damage);
   
   
   friend class QTMWidget;

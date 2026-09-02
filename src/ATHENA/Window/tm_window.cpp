@@ -20,6 +20,7 @@
 #include "drd_std.hpp"
 #include "ATHENA/Data/vault.hpp"
 #include "ATHENA/Data/new_view.hpp"
+#include "buffer_actor.hpp"
 
 int geometry_w= 800, geometry_h= 600;
 int geometry_x= 0  , geometry_y= 0;
@@ -238,8 +239,9 @@ public:
 void
 close_embedded_command_rep::apply () {
   //cout << "Destroy " << vw->buf->buf->name << "\n";
-  ASSERT (!is_nil(vw->ed), "embedded command acting on deleted editor");
-  url foc= abstract_window (vw->ed->mvw->win);
+  ASSERT (vw->master_view != NULL,
+          "embedded command acting without a master view");
+  url foc= abstract_window (vw->master_view->win);
   if (is_none (foc)) {
     array<url> a= windows_list ();
     ASSERT (N(a) != 0, "no remaining windows");
@@ -336,9 +338,10 @@ texmacs_input_widget (tree doc, tree style, url wname) {
   tm_window win  = tm_new<tm_window_rep> (doc, command ());
   set_master_buffer (name, base);
   vw->win= win;
-  set_scrollable (win->wid, vw->ed);
-  vw->ed->cvw= win->wid.rep;
-  vw->ed->mvw= curvw;
+  vw->master_view= curvw;
+  set_scrollable (win->wid, vw->canvas);
+  (void) vw->buf->actor->submit (
+    actor_command_kind::resume_view, vw->runtime_id);
   command close_cmd= close_embedded_command (vw, name, last_window_handle);
   return wrapped_widget (win->wid, close_cmd);
 }
@@ -408,15 +411,9 @@ bool menu_caching= true;
 
 bool
 tm_window_rep::get_menu_widget (int which, string menu, widget& w) {
-  drd_info* menu_drd= nullptr;
-  if (!is_none (window_to_view (id))) {
-    tm_view vw= concrete_view (window_to_view (id));
-    if (vw != NULL) menu_drd= &vw->ed->drd;
-  }
-  tm_view menu_view= concrete_view (window_to_view (id));
-  with_document_tree document_scope (
-    menu_view == nullptr ? nullptr : &menu_view->buf->document);
-  with_borrowed_drd drd_scope (menu_drd);
+  // Menu expansion runs in the UI Scheme context.  Buffer-bound predicates
+  // are supplied by actor snapshots; the UI thread never borrows actor DRD or
+  // document storage.
   //cout << "expand " << menu << "\n";
   object xmenu= call ("menu-expand", eval ("'" * menu));
   //if (which == 10) cout << "xmenu= " << xmenu << "\n";

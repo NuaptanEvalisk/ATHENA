@@ -45,7 +45,8 @@ is_startup_banner_message (tree l, tree r) {
 
 void
 edit_interface_rep::set_left_footer (tree l) {
-  SERVER (set_left_footer (ui_text (l)));
+  (void) publish_ui_text (
+    actor_command_kind::ui_footer_left, ui_text (l));
 }
 
 void
@@ -124,12 +125,14 @@ edit_interface_rep::set_left_footer () {
 
 void
 edit_interface_rep::set_center_footer (tree c) {
-  SERVER (set_center_footer (ui_text (c)));
+  (void) publish_ui_text (
+    actor_command_kind::ui_footer_center, ui_text (c));
 }
 
 void
 edit_interface_rep::set_right_footer (tree r) {
-  SERVER (set_right_footer (ui_text (r)));
+  (void) publish_ui_text (
+    actor_command_kind::ui_footer_right, ui_text (r));
 }
 
 tree
@@ -511,10 +514,8 @@ tree
 edit_interface_rep::live_statistics_footer () {
   if (!has_current_view () || !has_subtree (et, rp)) return "";
 
-  string center= as_string (get_server () -> get_center_message ());
   bool stats= get_preference ("gui:live-statistics", "off") == "on";
-  if (!stats || center != "")
-    return as_footer_tree (call ("center-footer-hook", object (center)));
+  if (!stats || external_center_message_active) return "";
 
   string format= get_preference ("gui:live-statistics-format",
                                  "Words: %w, Chars: %c, Lines: %l");
@@ -531,6 +532,11 @@ edit_interface_rep::live_statistics_footer () {
   int block_words= athena_enunciation_word_count_at (et, tp);
   return tree (athena_expand_statistics_format (
     format, live_statistics_cache, heading_words, block_words));
+}
+
+void
+edit_interface_rep::handle_center_message_state (bool active) {
+  external_center_message_active= active;
 }
 
 void
@@ -581,9 +587,11 @@ void
 edit_interface_rep::set_message (tree l, tree r, bool temp) {
   eval ("(set-message-notify)");
 #ifdef QTTEXMACS
-  if ((l != "" || r != "") &&
-      !is_startup_banner_message (l, r) &&
-      qtm_show_toast (ui_text (l), ui_text (r))) {
+  if ((l != "" || r != "") && !is_startup_banner_message (l, r) &&
+      ((ui_endpoint != nullptr &&
+        publish_ui_text_pair (actor_command_kind::ui_show_toast,
+                              ui_text (l), ui_text (r))) ||
+       (ui_endpoint == nullptr && qtm_show_toast (ui_text (l), ui_text (r))))) {
     message_l= "";
     message_r= "";
     if (!temp) {

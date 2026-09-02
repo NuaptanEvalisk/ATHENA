@@ -61,6 +61,12 @@ public:
   string (const char *s);
   string (const char *s, int n);
 
+  // Allocate writable heap storage even for short strings.  This is used by
+  // owner-transfer arenas: moving the resulting string transfers one pointer
+  // and never copies inline bytes between execution owners.
+  static string transferable (int n);
+  void ensure_transferable ();
+
   inline char operator [] (int i) const noexcept {
     return data ()[i]; }
   inline const char* data () const noexcept {

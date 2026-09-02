@@ -56,7 +56,7 @@ edit_typeset_rep::edit_typeset_rep ():
   fold_view_has_toc (false),
   heading_word_count_cache_hash (INT_MIN), heading_word_count_cache (),
   heading_word_count_cache_map (0),
-  env (drd, buf->buf->master,
+  env (drd, buf->master,
        buf->data->ref, grefs,
        buf->data->aux, buf->data->aux,
        buf->data->att, buf->data->att),
@@ -83,7 +83,7 @@ edit_typeset_rep::set_data (new_data data) {
   while (it->busy()) {
     string key= it->next ();
     (void) call (string ("notify-set-attachment"),
-                 buf->buf->name, key, data->att [key]);
+                 buf->name, key, data->att [key]);
   }
   fold_view_has_toc= toc_fold_contains (subtree (et, rp));
   if (fold_view_has_toc) fold_view_rebuild= true;
@@ -285,7 +285,8 @@ use_modules (tree t) {
 
 void
 edit_typeset_rep::typeset_style_use_cache (tree style) {
-  style= preprocess_style (style, buf->buf->master);
+  style= preprocess_style (style, buf->master);
+  drd= drd_info (buf->title, standard_drd_for_thread ());
   //cout << "Typesetting style using cache " << style << LF;
   bool ok;
   hashmap<string,tree> H;
@@ -322,8 +323,8 @@ edit_typeset_rep::typeset_preamble () {
 
 void
 edit_typeset_rep::typeset_prepare () {
-  env->base_file_name= buf->buf->master;
-  env->read_only= buf->buf->read_only;
+  env->base_file_name= buf->master;
+  env->read_only= buf->read_only;
   env->write_default_env ();
   env->patch_env (pre);
   env->style_init_env ();

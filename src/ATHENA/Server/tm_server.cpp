@@ -24,6 +24,7 @@
 #include "new_style.hpp"
 #include "new_view.hpp"
 #include "Database/database.hpp"
+#include "buffer_actor.hpp"
 
 #ifdef QTTEXMACS
 #include <QCoreApplication>
@@ -83,10 +84,10 @@ bool is_server_started () {
   return the_server != NULL;
 }
 
-server
+server_rep*
 get_server () {
   ASSERT (is_server_started (), "TeXmacs server not yet started");
-  return *the_server;
+  return the_server->operator -> ();
 }
 
 bool
@@ -144,6 +145,15 @@ tm_server_rep::set_center_message (tree m) {
     QCoreApplication::instance ()->processEvents (QEventLoop::ExcludeUserInputEvents);
 #endif
   center_message= m;
+  bool active= as_string (m) != "";
+  for (int i= 0; i < N (bufs); ++i) {
+    tm_buffer buf= static_cast<tm_buffer> (bufs[i]);
+    for (int j= 0; j < N (buf->vws); ++j)
+      (void) buf->actor->submit (
+        actor_command_kind::center_message_state,
+        buf->vws[j]->runtime_id, ATHENA_NO_BLOB, ATHENA_NO_BLOB,
+        SCHEME_CAPABILITY_BUFFER, active ? 1 : 0);
+  }
   tree c = as_footer_tree (call ("center-footer-hook", object (as_string (m))));
   set_center_footer (ui_text (c));
 }
@@ -268,8 +278,8 @@ tm_server_rep::style_clear_cache () {
   for (int i=0; i<N(vs); i++) {
     tm_view vw= concrete_view (vs[i]);
     if (vw == nullptr) continue;
-    with_document_tree document_scope (&vw->buf->document);
-    vw->ed->init_style ();
+    (void) vw->buf->actor->submit (
+      actor_command_kind::init_style, vw->runtime_id);
   }
 }
 
@@ -302,16 +312,21 @@ tm_server_rep::interpose_handler () {
     int i, j;
     for (i=0; i<N(bufs); i++) {
       tm_buffer buf= (tm_buffer) bufs[i];
-      with_document_tree document_scope (&buf->document);
       
       for (j=0; j<N(buf->vws); j++) {
-	tm_view vw= (tm_view) buf->vws[j];
-	if (vw->win != NULL) vw->ed->apply_changes ();
+	  tm_view vw= (tm_view) buf->vws[j];
+	  if (vw->win != NULL)
+          (void) buffer_actor::try_submit_coalesced_to (
+            buf->actor->id (), actor_command_kind::apply_changes,
+            vw->runtime_id);
       }
       
       for (j=0; j<N(buf->vws); j++) {
-	tm_view vw= (tm_view) buf->vws[j];
-	if (vw->win != NULL) vw->ed->animate ();
+	  tm_view vw= (tm_view) buf->vws[j];
+	  if (vw->win != NULL)
+          (void) buffer_actor::try_submit_coalesced_to (
+            buf->actor->id (), actor_command_kind::animate,
+            vw->runtime_id);
       }
     }
     windows_refresh ();
@@ -324,11 +339,12 @@ tm_server_rep::post_repaint_handler () {
   if (headless_mode) return;
   for (int i=0; i<N(bufs); i++) {
     tm_buffer buf= (tm_buffer) bufs[i];
-    with_document_tree document_scope (&buf->document);
     for (int j=0; j<N(buf->vws); j++) {
       tm_view vw= (tm_view) buf->vws[j];
       if (vw->win != NULL)
-        vw->ed->schedule_progressive_typeset ();
+        (void) buffer_actor::try_submit_coalesced_to (
+          buf->actor->id (), actor_command_kind::progressive_typeset,
+          vw->runtime_id);
     }
   }
 }
@@ -395,13 +411,12 @@ tm_server_rep::typeset_update (path p) {
   if (is_none (buf)) return;
   tm_buffer concrete= concrete_buffer (buf);
   if (is_nil (concrete)) return;
-  with_document_tree document_scope (&concrete->document);
-
   array<url> vs= buffer_to_views (buf);
   for (int i=0; i<N(vs); i++) {
-    editor ed= view_to_editor (vs[i]);
-    if (ed != editor () && ed->test_subtree (p))
-      ed->typeset_invalidate (p);
+    tm_view vw= concrete_view (vs[i]);
+    if (vw != nullptr)
+      (void) concrete->actor->submit (
+        actor_command_kind::typeset_invalidate_all, vw->runtime_id);
   }
 }
 
@@ -411,8 +426,8 @@ tm_server_rep::typeset_update_all () {
   for (int i=0; i<N(vs); i++) {
     tm_view vw= concrete_view (vs[i]);
     if (vw == nullptr) continue;
-    with_document_tree document_scope (&vw->buf->document);
-    vw->ed->typeset_invalidate_all ();
+    (void) vw->buf->actor->submit (
+      actor_command_kind::typeset_invalidate_all, vw->runtime_id);
   }
 }
 

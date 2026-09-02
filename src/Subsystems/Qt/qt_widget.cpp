@@ -28,6 +28,8 @@
 #include "QTMMenuHelper.hpp"
 #include "QTMWindow.hpp"
 
+#include <atomic>
+
 
 /******************************************************************************
  * qt_widget_rep: the base widget for the Qt port.
@@ -49,10 +51,12 @@ tm_delete<qt_widget_rep> (qt_widget_rep* ptr) {
 }
 #endif
 
-static long widget_counter = 0;
+static std::atomic<long> widget_counter {0};
 
 qt_widget_rep::qt_widget_rep(types _type, QWidget* _qwid)
-  : widget_rep (), id (widget_counter++), qwid (_qwid), type (_type)
+  : widget_rep (),
+    id (widget_counter.fetch_add (1, std::memory_order_relaxed)),
+    qwid (_qwid), type (_type)
 {
   if (DEBUG_QT_WIDGETS)
     debug_widgets << "qt_widget_rep: created a " << type_as_string() << LF;

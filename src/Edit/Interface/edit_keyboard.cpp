@@ -293,7 +293,7 @@ edit_interface_rep::kbd_shortcut (string cmd) {
 
 void
 edit_interface_rep::handle_keypress (string key, time_t t) {
-  if (is_nil (buf)) return;
+  if (buf == nullptr) return;
   if (t > last_event) last_event= t;
   bool started= false;
 #ifdef USE_EXCEPTIONS
@@ -354,7 +354,7 @@ edit_interface_rep::handle_keypress (string key, time_t t) {
 
 void
 edit_interface_rep::handle_text_input (string text, time_t t) {
-  if (is_nil (buf) || text == "") return;
+  if (buf == nullptr || text == "") return;
   if (t > last_event) last_event= t;
   bool started= false;
 #ifdef USE_EXCEPTIONS
@@ -405,8 +405,8 @@ void drag_right_reset ();
 
 void
 edit_interface_rep::handle_keyboard_focus (bool has_focus, time_t t) {
-  if (is_nil (buf)) return;
-  if (has_focus && (!is_attached (this) || !editor_has_window (this))) {
+  if (buf == nullptr) return;
+  if (has_focus && !ui_viewport ().attached) {
     // Qt may deliver either the synthetic constructor FocusIn or a real mouse
     // FocusIn after the widget has a native window but before attach_view()
     // has connected its tm_view to a tm_window.  Such a passive view must
@@ -418,9 +418,9 @@ edit_interface_rep::handle_keyboard_focus (bool has_focus, time_t t) {
   }
   if (DEBUG_KEYBOARD) {
     if (has_focus)
-      debug_keyboard << "Got focus at " << t << ", "<< buf->buf->name << "\n";
+      debug_keyboard << "Got focus at " << t << ", "<< buf->name << "\n";
     else
-      debug_keyboard << "Lost focus at " << t << ", "<< buf->buf->name << "\n";
+      debug_keyboard << "Lost focus at " << t << ", "<< buf->name << "\n";
   }
   if (got_focus != has_focus) {
     drag_left_reset ();

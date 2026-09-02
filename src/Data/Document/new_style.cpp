@@ -15,6 +15,9 @@
 #include "convert.hpp"
 #include "tm_configure.hpp"
 #include "../../Typeset/env.hpp"
+#include <atomic>
+#include <cstdint>
+#include <mutex>
 
 /******************************************************************************
 * Global data
@@ -39,15 +42,25 @@ struct style_data_rep {
     drd_cached (drd_void) {}
 };
 
-static style_data_rep* sd= NULL;
+static std::atomic<std::uint64_t> style_generation {1};
+static std::mutex style_disk_cache_mutex;
+static thread_local style_data_rep* sd= NULL;
+static thread_local std::uint64_t local_style_generation= 0;
+thread_local hashmap<string,bool> hidden_packages (false);
 
 static void
 init_style_data () {
+  std::uint64_t generation= style_generation.load (std::memory_order_acquire);
+  if (sd != NULL && local_style_generation != generation) {
+    tm_delete<style_data_rep> (sd);
+    sd= NULL;
+    hidden_packages= hashmap<string,bool> (false);
+  }
   if (sd == NULL) sd= tm_new<style_data_rep> ();
+  local_style_generation= generation;
 }
 
-extern hashmap<string,tree> style_tree_cache;
-hashmap<string,bool> hidden_packages (false);
+extern thread_local hashmap<string,tree> style_tree_cache;
 
 /******************************************************************************
 * Modify style so as to search in all ancestor directories
@@ -107,6 +120,8 @@ style_cache_file_name (tree style) {
 
 void
 style_invalidate_cache () {
+  std::uint64_t generation=
+    style_generation.fetch_add (1, std::memory_order_acq_rel) + 1;
   style_tree_cache= hashmap<string,tree> ();
   hidden_packages= hashmap<string,bool> (false);
   if (sd != NULL) {
@@ -114,7 +129,13 @@ style_invalidate_cache () {
     sd= NULL;
   }
   init_style_data ();
+  local_style_generation= generation;
   remove ("$ATHENA_HOME_PATH/system/cache" * url_wildcard ("__*"));
+}
+
+std::uint64_t
+style_cache_generation () {
+  return style_generation.load (std::memory_order_acquire);
 }
 
 void
@@ -124,6 +145,7 @@ style_set_cache (tree style, hashmap<string,tree> H, tree t) {
   sd->style_cache (copy (style))= H;
   sd->style_drd   (copy (style))= t;
   url name ("$ATHENA_HOME_PATH/system/cache", style_cache_file_name (style));
+  std::lock_guard<std::mutex> guard (style_disk_cache_mutex);
   if (!exists (name)) {
     save_string (name, tree_to_scheme (tuple ((tree) H, t)));
     // cout << "saved " << name << LF;
@@ -143,6 +165,7 @@ style_get_cache (tree style, hashmap<string,tree>& H, tree& t, bool& f) {
   else {
     string s;
     url name ("$ATHENA_HOME_PATH/system/cache", style_cache_file_name (style));
+    std::lock_guard<std::mutex> guard (style_disk_cache_mutex);
     if (exists (name) && (!load_string (name, s, false))) {
       //cout << "loaded " << name << LF;
       tree p= scheme_to_tree (s);
@@ -172,7 +195,7 @@ compute_env_and_drd (tree style) {
 
   //cout << "Get environment of " << style << INDENT << LF;
   hashmap<string,tree> H;
-  drd_info drd ("none", std_drd);
+  drd_info drd ("none", standard_drd_for_thread ());
   url none= url ("$PWD/none");
   hashmap<string,tree> lref;
   hashmap<string,tree> gref;
@@ -229,7 +252,7 @@ get_style_drd (tree style) {
     return sd->drd_cached [style];
   else {
     //cout << "Busy drd: " << style << "\n";
-    return std_drd;
+    return standard_drd_for_thread ();
   }
 }
 

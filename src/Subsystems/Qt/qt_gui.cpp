@@ -23,7 +23,12 @@
 #include "new_window.hpp"
 #include "ATHENA/Data/new_buffer.hpp"
 #include "ATHENA/Data/vault_image_insertion.hpp"
+#include "actor_ui_bridge.hpp"
+#include "buffer_actor.hpp"
 #include "boot.hpp"
+#include "guile_tm.hpp"
+#include "object.hpp"
+#include "scheme_execution_context.hpp"
 
 #include "qt_gui.hpp"
 #include "qt_utilities.hpp"
@@ -79,6 +84,7 @@
 #include <QTabWidget>
 #include <QToolBar>
 #include <QToolButton>
+#include <QThread>
 
 #include "QTMGuiHelper.hpp"
 #include "QTMMainTabWindow.hpp"
@@ -1165,6 +1171,12 @@ qt_gui_rep::force_update() {
 
 void
 qt_gui_rep::need_update () {
+  if (updatetimer != nullptr &&
+      QThread::currentThread () != updatetimer->thread ()) {
+    QMetaObject::invokeMethod (
+      updatetimer, "start", Qt::QueuedConnection, Q_ARG (int, 0));
+    return;
+  }
   if (updating) needing_update = true;
   else          updatetimer->start (0);
     // 0 ms - call immediately when all other events have been processed
@@ -1316,6 +1328,9 @@ bool
 check_event (int type) {
     // Check whether an event of one of the above types has occurred;
     // we check for keyboard events while repainting windows
+  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  if (context != nullptr && context->actor_id != ATHENA_NO_ACTOR)
+    return false;
   return the_gui->check_event (type);
 }
 
@@ -1354,60 +1369,143 @@ command_queue::~command_queue() { clear_pending(); /* implicit */ }
 
 void
 command_queue::exec (object cmd) {
-  q << cmd;
-  start_times << (((time_t) texmacs_time ()) - 1000000000);
-  lapse = texmacs_time();
-  if (gui_event_loop_started) the_gui->need_update();
-  wait= true;
+  athena_scheme_handle_id handle=
+    scheme_command_handle_acquire (object_to_tmscm (cmd));
+  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  if (context != nullptr && context->view_id != ATHENA_NO_VIEW) {
+    actor_ui_endpoint* endpoint=
+      find_actor_ui_endpoint (context->view_id);
+    if (endpoint != nullptr && endpoint->publish (
+          actor_command_kind::ui_schedule_scheme, ATHENA_NO_BLOB,
+          handle, 0))
+      return;
+    scheme_command_handle_release (handle);
+    return;
+  }
+  exec_handle (handle, ATHENA_NO_ACTOR, ATHENA_NO_VIEW, false);
 }
 
 void
 command_queue::exec_pause (object cmd) {
-  q << cmd;
-  start_times << ((time_t) texmacs_time ());
-  lapse = texmacs_time();
-  if (gui_event_loop_started) the_gui->need_update();
+  athena_scheme_handle_id handle=
+    scheme_command_handle_acquire (object_to_tmscm (cmd));
+  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  if (context != nullptr && context->view_id != ATHENA_NO_VIEW) {
+    actor_ui_endpoint* endpoint=
+      find_actor_ui_endpoint (context->view_id);
+    if (endpoint != nullptr && endpoint->publish (
+          actor_command_kind::ui_schedule_scheme, ATHENA_NO_BLOB,
+          handle, 1))
+      return;
+    scheme_command_handle_release (handle);
+    return;
+  }
+  exec_handle (handle, ATHENA_NO_ACTOR, ATHENA_NO_VIEW, true);
+}
+
+void
+command_queue::exec_handle (
+  std::uint64_t handle, std::uint64_t actor_id, std::uint64_t view_id,
+  bool pause) {
+  if (handle == ATHENA_NO_SCHEME_HANDLE) return;
+  handles << handle;
+  actor_ids << actor_id;
+  view_ids << view_id;
+  time_t now= texmacs_time ();
+  start_times << (pause ? now : now - 1000000000);
+  lapse= now;
+  if (gui_event_loop_started) the_gui->need_update ();
   wait= true;
+}
+
+void
+command_queue::complete_handle (
+  std::uint64_t handle, std::uint64_t actor_id, std::uint64_t view_id,
+  bool repeat, std::int64_t delay) {
+  if (repeat) {
+    exec_handle (handle, actor_id, view_id, true);
+    start_times[N (start_times) - 1]= texmacs_time () +
+      static_cast<time_t> (delay);
+  }
+  else scheme_command_handle_release (handle);
 }
 
 void
 command_queue::exec_pending () {
   static const int delayed_command_call_budget= 20;
   static const time_t delayed_command_time_budget= 25;
-  array<object> a = q;
-  array<time_t> b = start_times;
-  q = array<object> (0);
-  start_times = array<time_t> (0);
-  int i, n = N(a);
+  array<std::uint64_t> h= handles;
+  array<std::uint64_t> actors= actor_ids;
+  array<std::uint64_t> views= view_ids;
+  array<time_t> times= start_times;
+  handles= array<std::uint64_t> (0);
+  actor_ids= array<std::uint64_t> (0);
+  view_ids= array<std::uint64_t> (0);
+  start_times= array<time_t> (0);
+  int i, n= N (h);
   int processed_calls= 0;
   time_t batch_begin= texmacs_time ();
   for (i = 0; i<n; i++) {
     time_t now =  texmacs_time ();
-    if ((now - b[i]) >= 0) {
-      object obj = call (a[i]);
+    if ((now - times[i]) >= 0) {
+      athena_actor_id actor_id= actors[i];
+      athena_view_id view_id= views[i];
+      if (actor_id == ATHENA_NO_ACTOR && has_current_view ()) {
+        tm_view view= concrete_view (get_current_view_safe ());
+        if (view != nullptr) {
+          actor_id= view->buf->actor->id ();
+          view_id= view->runtime_id;
+        }
+      }
+      bool allow_repeat= now - times[i] < 1000000000;
+      if (actor_id != ATHENA_NO_ACTOR) {
+        actor_command_ticket ticket= buffer_actor::submit_to (
+          actor_id, actor_command_kind::run_scheme_handle, view_id,
+          ATHENA_NO_BLOB, ATHENA_NO_BLOB,
+          SCHEME_CAPABILITY_BUFFER | SCHEME_CAPABILITY_UI |
+            SCHEME_CAPABILITY_GLOBAL,
+          h[i], allow_repeat ? 1 : 0);
+        if (!ticket) scheme_command_handle_release (h[i]);
+      }
+      else {
+        tmscm command= scheme_command_handle_value (h[i]);
+        if (scm_is_eq (command, SCM_UNDEFINED)) continue;
+        try {
+          tmscm result= call_scheme (command);
+          if (allow_repeat && tmscm_is_int (result)) {
+            handles << h[i];
+            actor_ids << ATHENA_NO_ACTOR;
+            view_ids << ATHENA_NO_VIEW;
+            start_times << now + static_cast<time_t> (tmscm_to_int (result));
+          }
+          else scheme_command_handle_release (h[i]);
+        }
+        catch (...) {
+          scheme_command_handle_release (h[i]);
+          throw;
+        }
+      }
       processed_calls++;
       time_t call_end= texmacs_time ();
-      if (is_int (obj) && (now - b[i] < 1000000000)) {
-        time_t pause = as_int (obj);
-          //cout << "pause = " << obj << "\n";
-        q << a[i];
-        start_times << (now + pause);
-      }
       if (processed_calls >= delayed_command_call_budget ||
           call_end - batch_begin >= delayed_command_time_budget) {
         for (int j=i+1; j<n; j++) {
-          q << a[j];
-          start_times << b[j];
+          handles << h[j];
+          actor_ids << actors[j];
+          view_ids << views[j];
+          start_times << times[j];
         }
         break;
       }
     }
     else {
-      q << a[i];
-      start_times << b[i];
+      handles << h[i];
+      actor_ids << actors[i];
+      view_ids << views[i];
+      start_times << times[i];
     }
   }
-  if (N(q) > 0) {
+  if (N(handles) > 0) {
     wait = true;  // wait_for_delayed_commands
     lapse = start_times[0];
     int n = N(start_times);
@@ -1420,7 +1518,11 @@ command_queue::exec_pending () {
 
 void
 command_queue::clear_pending () {
-  q = array<object> (0);
+  for (int i= 0; i < N (handles); ++i)
+    scheme_command_handle_release (handles[i]);
+  handles= array<std::uint64_t> (0);
+  actor_ids= array<std::uint64_t> (0);
+  view_ids= array<std::uint64_t> (0);
   start_times = array<time_t> (0);
   wait = false;
 }
@@ -1440,6 +1542,18 @@ void exec_delayed (object cmd) {
 }
 void exec_delayed_pause (object cmd) {
   the_gui->delayed_commands.exec_pause(cmd);
+}
+void schedule_delayed_scheme_handle (
+  std::uint64_t handle, std::uint64_t actor_id, std::uint64_t view_id,
+  bool pause) {
+  the_gui->delayed_commands.exec_handle (
+    handle, actor_id, view_id, pause);
+}
+void complete_delayed_scheme_handle (
+  std::uint64_t handle, std::uint64_t actor_id, std::uint64_t view_id,
+  bool repeat, std::int64_t delay) {
+  the_gui->delayed_commands.complete_handle (
+    handle, actor_id, view_id, repeat, delay);
 }
 void clear_pending_commands () {
   the_gui->delayed_commands.clear_pending();

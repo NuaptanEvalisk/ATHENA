@@ -17,7 +17,6 @@
 #include <condition_variable>
 #include <cstddef>
 #include <cstdint>
-#include <functional>
 #include <memory>
 #include <mutex>
 #include <thread>
@@ -25,15 +24,19 @@
 
 class render_connection;
 
+class render_processor {
+public:
+  virtual ~render_processor ()= default;
+  virtual void process (const render_chunk_descriptor& descriptor,
+                        const std::byte* payload)= 0;
+};
+
 class render_service {
 public:
-  using processor= std::function<void (
-    const render_chunk_descriptor&, const std::byte*)>;
-
   static render_service& instance ();
 
   std::shared_ptr<render_connection> connect (
-    processor process, std::size_t slot_count= 4,
+    std::shared_ptr<render_processor> process, std::size_t slot_count= 4,
     std::size_t slot_capacity= 4 * 1024 * 1024);
   void shutdown ();
   std::thread::id worker_thread () const noexcept;
@@ -75,11 +78,12 @@ public:
   render_chunk_arena& arena () noexcept;
 
 private:
-  render_connection (render_service& service, render_service::processor process,
+  render_connection (render_service& service,
+                     std::shared_ptr<render_processor> process,
                      std::size_t slot_count, std::size_t slot_capacity);
 
   render_service& service_;
-  render_service::processor process_;
+  std::shared_ptr<render_processor> process_;
   render_chunk_arena arena_;
   std::atomic<bool> retired_ {false};
 

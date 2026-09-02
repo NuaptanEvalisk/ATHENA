@@ -12,6 +12,8 @@
 #include "tag_info.hpp"
 #include "hashmap.hpp"
 
+#include <mutex>
+
 #define get_bits(which,nr) which=i&((1<<nr)-1);i=i>>nr
 #define set_bits(which,nr) i+=((int)which)<<offset;offset+=nr
 
@@ -19,24 +21,63 @@
 * Compact representation for environment changes
 ******************************************************************************/
 
-static hashmap<tree,int> encode_table (-1);
-static array<tree>       decode_table;
+namespace {
+
+struct drd_environment_table {
+  hashmap<tree,int> encode;
+  hashmap<int,tree> decode;
+
+  drd_environment_table (): encode (-1), decode (tree ()) {}
+};
+
+// Stable numeric ids are process-wide, but legacy tree handles must never be
+// shared between actor threads: their reference counts are intentionally not
+// atomic.  The global table is only touched on a thread-local cache miss and
+// owns deep copies of its keys and values.
+std::mutex drd_environment_lock;
+hashmap<tree,int> shared_encode_table (-1);
+array<tree> shared_decode_table;
+thread_local drd_environment_table local_environment_table;
+
+} // namespace
 
 int
 drd_encode (tree t) {
-  if (encode_table->contains (t))
-    return encode_table[t];
-  int n= N(decode_table);
-  ASSERT (n < (1 << 16), "drd_encode overflow");
-  encode_table (t) = n;
-  decode_table << t;
-  return n;
+  if (local_environment_table.encode->contains (t))
+    return local_environment_table.encode[t];
+
+  int id;
+  tree local= copy (t);
+  {
+    std::lock_guard<std::mutex> guard (drd_environment_lock);
+    if (shared_encode_table->contains (t)) id= shared_encode_table[t];
+    else {
+      id= N (shared_decode_table);
+      ASSERT (id < (1 << 16), "drd_encode overflow");
+      tree shared= copy (t);
+      shared_encode_table (shared)= id;
+      shared_decode_table << shared;
+    }
+  }
+  local_environment_table.encode (local)= id;
+  local_environment_table.decode (id)= local;
+  return id;
 }
 
 tree
 drd_decode (int i) {
-  ASSERT (i >= 0 && i < N (decode_table), "out of range");
-  return decode_table[i];
+  if (local_environment_table.decode->contains (i))
+    return local_environment_table.decode[i];
+
+  tree local;
+  {
+    std::lock_guard<std::mutex> guard (drd_environment_lock);
+    ASSERT (i >= 0 && i < N (shared_decode_table), "out of range");
+    local= copy (shared_decode_table[i]);
+  }
+  local_environment_table.encode (local)= i;
+  local_environment_table.decode (i)= local;
+  return local;
 }
 
 /******************************************************************************

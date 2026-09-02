@@ -23,6 +23,7 @@
 #include "tree_traverse.hpp"
 #include "boot.hpp"
 #include "buffer_actor.hpp"
+#include "actor_ui_bridge.hpp"
 #ifdef EXPERIMENTAL
 #include "../../Style/Evaluate/evaluate_main.hpp"
 #endif
@@ -54,8 +55,8 @@ MODE_LANGUAGE (string mode) {
 ******************************************************************************/
 
 static double
-get_zoom (editor_rep* ed, tm_buffer buf) {
-  if (!is_nil (buf) && buf->data->init->contains ("no-zoom"))
+get_zoom (editor_rep* ed, buffer_document_state* buf) {
+  if (buf != nullptr && buf->data->init->contains ("no-zoom"))
     return as_double (buf->data->init [ZOOM_FACTOR]);
   else return retina_zoom * ed->sv->get_default_zoom_factor ();
 }
@@ -69,7 +70,7 @@ edit_interface_rep::edit_interface_rep ():
   full_screen (false), got_focus (false), cursor_blink_visible (true),
   sh_s (""), sh_mark (0),
   pre_edit_skip (false), pre_edit_s (""), pre_edit_mark (0),
-  popup_win (),
+  popup_open (false),
   message_l (""), message_r (""), last_l (""), last_r (""),
   zoomf (get_zoom (this, buf)),
   magf (zoomf / std_shrinkf),
@@ -94,6 +95,7 @@ edit_interface_rep::edit_interface_rep ():
   cur_sb (2), cur_wb (2),
   resize_wx (0), resize_wy (0),
   pending_idle_menu_update (true),
+  external_center_message_active (false),
   typewriter_manual_scroll_time (0),
   typewriter_manual_scroll_path (),
   live_statistics_cache_hash (-1),
@@ -120,7 +122,7 @@ edit_interface_rep::operator tree () {
 
 void
 edit_interface_rep::suspend () {
-  //cout << "Suspend " << buf->buf->name << LF;
+  //cout << "Suspend " << buf->name << LF;
   if (got_focus) {
     interrupt_shortcut ();
     set_message ("", "", false);
@@ -136,36 +138,14 @@ edit_interface_rep::suspend () {
 
 void
 edit_interface_rep::resume () {
-  //cout << "Resume " << buf->buf->name << LF;
+  //cout << "Resume " << buf->name << LF;
   got_focus= true;
   bool defer_chrome= defer_editor_chrome_build;
   defer_editor_chrome_build= false;
   if (!defer_chrome) {
     bench_start ("build main menu");
-    SERVER (menu_main ("(horizontal (link texmacs-menu))"));
+    rebuild_ui_chrome ();
     bench_cumul ("build main menu");
-    bench_start ("build main toolbar");
-    SERVER (menu_icons (0, "(horizontal (link texmacs-main-icons))"));
-    bench_cumul ("build main toolbar");
-    bench_start ("build mode toolbar");
-    SERVER (menu_icons (1, "(horizontal (link texmacs-mode-icons))"));
-    bench_cumul ("build mode toolbar");
-    bench_start ("build focus toolbar");
-    SERVER (menu_icons (2, "(horizontal (link texmacs-focus-icons))"));
-    bench_cumul ("build focus toolbar");
-    bench_start ("build user toolbar");
-    SERVER (menu_icons (3, "(horizontal (link texmacs-extra-icons))"));
-    bench_cumul ("build user toolbar");
-    array<url> a= buffer_to_windows (buf->buf->name);
-    if (N(a) > 0) {
-      string win = "(string->url \"" * as_string (a[0]) * "\")";
-      string bdyn= "(dynamic (texmacs-bottom-tools " * win * "))";
-      string xdyn= "(dynamic (texmacs-extra-tools " * win * "))";
-      bench_start ("build bottom tools");
-      SERVER (bottom_tools (0, "(vertical " * bdyn * ")"));
-      SERVER (bottom_tools (1, "(vertical " * xdyn * ")"));
-      bench_cumul ("build bottom tools");
-    }
   }
   cur_sb= 2;
   bench_start ("initialize editor focus state");
@@ -186,17 +166,14 @@ edit_interface_rep::resume () {
   }
   bench_start ("reset initial editor");
   if (!headless_mode && !defer_chrome)
-    reset_all ();
+    (void) publish_ui (actor_command_kind::ui_invalidate_all);
   bench_cumul ("reset initial editor");
 }
 
 void
 edit_interface_rep::keyboard_focus_on (string field) {
-  array<url> a= buffer_to_windows (buf->buf->name);
-  if (N(a) >= 1) {
-    tm_window win= concrete_window (a[0]);
-    send_keyboard_focus_on (win->wid, field);
-  }
+  (void) publish_ui_text (
+    actor_command_kind::ui_keyboard_focus_field, std::move (field));
 }
 
 void box_broadcast (string msg);
@@ -228,8 +205,12 @@ edit_interface_rep::set_zoom_factor (double zoom) {
 
 void
 edit_interface_rep::invalidate (SI x1, SI y1, SI x2, SI y2) {
-  send_invalidate (this, (SI) floor (x1*magf), (SI) floor (y1*magf),
-                         (SI) ceil  (x2*magf), (SI) ceil  (y2*magf));
+  (void) publish_ui (
+    actor_command_kind::ui_invalidate,
+    static_cast<std::uint64_t> ((SI) floor (x1*magf)),
+    static_cast<std::uint64_t> ((SI) floor (y1*magf)),
+    static_cast<std::uint64_t> ((SI) ceil (x2*magf)),
+    static_cast<std::uint64_t> ((SI) ceil (y2*magf)));
 }
 
 void
@@ -243,12 +224,16 @@ edit_interface_rep::invalidate (rectangles rs) {
 
 void
 edit_interface_rep::invalidate_all () {
-  send_invalidate_all (this);
+  (void) publish_ui (actor_command_kind::ui_invalidate_all);
 }
 
 void
 edit_interface_rep::update_visible () {
-  SERVER (get_visible (vx1, vy1, vx2, vy2));
+  actor_viewport_snapshot viewport= ui_viewport ();
+  vx1= viewport.visible_x1;
+  vy1= viewport.visible_y1;
+  vx2= viewport.visible_x2;
+  vy2= viewport.visible_y2;
   vx1= (SI) (vx1 / magf); vy1= (SI) (vy1 / magf);
   vx2= (SI) (vx2 / magf); vy2= (SI) (vy2 / magf);
 }
@@ -265,86 +250,61 @@ edit_interface_rep::get_visible_height () {
   return vy2 - vy1;
 }
 
-#ifdef QTTEXMACS
-#include <QApplication>
-#include <QStyle>
-static SI
-scrollbar_width () {
-  return (qApp->style()->pixelMetric (QStyle::PM_ScrollBarExtent) + 2) * PIXEL;
+SI
+edit_interface_rep::interface_scrollbar_width () const {
+  if (ui_endpoint == nullptr) return 20 * PIXEL;
+  SI width= ui_endpoint->viewport ().scrollbar_width;
+  return width > 0 ? width : 20 * PIXEL;
 }
-#else
-static SI
-scrollbar_width () {
-  return 20 * PIXEL;
-}
-#endif
 
 SI
 edit_interface_rep::get_window_width () {
-  SI w, h;
-  widget me= ::get_canvas (widget (cvw));
-  ::get_size (me, w, h);
+  actor_viewport_snapshot viewport= ui_viewport ();
+  SI w= viewport.window_width;
   bool sb= (get_init_string (SCROLL_BARS) != "false");
   if (full_screen) {
     string medium= get_init_string (PAGE_MEDIUM);
     if (medium == "automatic" || medium == "beamer") sb= false;
   }
-  if (sb) w -= scrollbar_width ();
+  if (sb) w -= interface_scrollbar_width ();
   return w;
 }
 
 SI
 edit_interface_rep::get_window_height () {
-  SI w, h;
-  widget me= ::get_canvas (widget (cvw));
-  ::get_size (me, w, h);
-  return h;
+  return ui_viewport ().window_height;
 }
 
 SI
 edit_interface_rep::get_window_x () {
-  SI wx, wy;
-  ::get_position (get_window (this), wx, wy);
-  return wx;
+  return ui_viewport ().window_x;
 }
 
 SI
 edit_interface_rep::get_window_y () {
-  SI wx, wy;
-  ::get_position (get_window (this), wx, wy);
-  return wy;
+  return ui_viewport ().window_y;
 }
 
 SI
 edit_interface_rep::get_canvas_x () {
-  SI ox, oy;
-  widget me= ::get_canvas (widget (cvw));
-  ::get_position (me, ox, oy);
-  return ox;
+  return ui_viewport ().canvas_x;
 }
 
 SI
 edit_interface_rep::get_canvas_y () {
-  SI ox, oy;
-  widget me= ::get_canvas (widget (cvw));
-  ::get_position (me, ox, oy);
-  return oy;
+  return ui_viewport ().canvas_y;
 }
 
 SI
 edit_interface_rep::get_scroll_x () {
-  SI scx, scy;
-  SERVER (scroll_where (scx, scy));
+  SI scx= ui_viewport ().scroll_x;
   scx= (SI) (scx / magf);
-  scy= (SI) (scy / magf);
   return scx;
 }
 
 SI
 edit_interface_rep::get_scroll_y () {
-  SI scx, scy;
-  SERVER (scroll_where (scx, scy));
-  scx= (SI) (scx / magf);
+  SI scy= ui_viewport ().scroll_y;
   scy= (SI) (scy / magf);
   return scy;
 }
@@ -354,7 +314,10 @@ edit_interface_rep::scroll_to (SI x, SI y) {
   stored_rects= rectangles ();
   copy_always = rectangles ();
   notify_change (THE_FREEZE);
-  SERVER (scroll_to ((SI) (x * magf), ((SI) (y * magf))));
+  (void) publish_ui (
+    actor_command_kind::ui_scroll_to,
+    static_cast<std::uint64_t> ((SI) (x * magf)),
+    static_cast<std::uint64_t> ((SI) (y * magf)));
 }
 
 SI
@@ -373,8 +336,12 @@ void
 edit_interface_rep::set_extents (SI x1, SI y1, SI x2, SI y2) {
   stored_rects= rectangles ();
   copy_always = rectangles ();
-  SERVER (set_extents ((SI) floor (x1*magf), (SI) floor (y1*magf),
-                       (SI) ceil  (x2*magf), (SI) ceil  (y2*magf)));
+  (void) publish_ui (
+    actor_command_kind::ui_set_extents,
+    static_cast<std::uint64_t> ((SI) floor (x1*magf)),
+    static_cast<std::uint64_t> ((SI) floor (y1*magf)),
+    static_cast<std::uint64_t> ((SI) ceil (x2*magf)),
+    static_cast<std::uint64_t> ((SI) ceil (y2*magf)));
 }
 
 /******************************************************************************
@@ -424,7 +391,7 @@ edit_interface_rep::cursor_visible () {
       bool horizontal= cx1 < vx1 || cx2 >= vx2;
       if (vertical || horizontal) {
         scroll_to (horizontal ? cu->ox : ((vx1 + vx2) >> 1), cy);
-        send_invalidate_all (this);
+        invalidate_all ();
         return;
       }
     }
@@ -434,8 +401,8 @@ edit_interface_rep::cursor_visible () {
       if (N(pages) > 1) {
         SI vw= vx2 - vx1, vh= vy2 - vy1;
         for (int i=0; i<N(pages); i++) {
-          SI scx, scy;
-          SERVER (scroll_where (scx, scy));
+          actor_viewport_snapshot viewport= ui_viewport ();
+          SI scx= viewport.scroll_x, scy= viewport.scroll_y;
           scx= (SI) (scx / magf);
           scy= (SI) (scy / magf);
           SI x1= eb->sy(0)+ pages->sx1 (i);
@@ -475,7 +442,7 @@ edit_interface_rep::cursor_visible () {
                 else             my= y1 + ((vy2 - vy1) >> 1);
               }
               scroll_to (mx, my);
-              send_invalidate_all (this);
+              invalidate_all ();
               return;
             }
           }
@@ -485,7 +452,7 @@ edit_interface_rep::cursor_visible () {
 
     if (must_update) {
       scroll_to (cu->ox, cu->oy);
-      send_invalidate_all (this);
+      invalidate_all ();
     }
   }
   else {
@@ -549,7 +516,7 @@ edit_interface_rep::selection_visible () {
 
   if (dx != 0 || dy != 0) {
     scroll_to (((vx1 + vx2) >> 1) + dx, ((vy1 + vy2) >> 1) + dy);
-    send_invalidate_all (this);
+    invalidate_all ();
     SI old_vx1= vx1, old_vy1= vy1;
     update_visible ();
     end_x += vx1- old_vx1;
@@ -692,7 +659,7 @@ int
 edit_interface_rep::idle_time (int event_type) {
   if (env_change == 0 &&
       got_focus &&
-      (!query_invalid (this)) &&
+      (!ui_viewport ().invalid) &&
       (!check_event (event_type)))
     return texmacs_time () - last_change;
   else return 0;
@@ -705,29 +672,10 @@ edit_interface_rep::change_time () {
 
 void
 edit_interface_rep::update_menus () {
-  SERVER (menu_main ("(horizontal (link texmacs-menu))"));
-  SERVER (menu_icons (0, "(horizontal (link texmacs-main-icons))"));
-  SERVER (menu_icons (1, "(horizontal (link texmacs-mode-icons))"));
-  SERVER (menu_icons (2, "(horizontal (link texmacs-focus-icons))"));
-  SERVER (menu_icons (3, "(horizontal (link texmacs-extra-icons))"));
-  array<url> a= buffer_to_windows (buf->buf->name);
-  if (N(a) > 0) {
-    string win = "(string->url \"" * as_string (a[0]) * "\")";
-    string bdyn= "(dynamic (texmacs-bottom-tools " * win * "))";
-    string xdyn= "(dynamic (texmacs-extra-tools " * win * "))";
-    SERVER (bottom_tools (0, "(vertical " * bdyn * ")"));
-    SERVER (bottom_tools (1, "(vertical " * xdyn * ")"));
-  }
+  rebuild_ui_chrome ();
   set_footer ();
-  if (has_current_window ()) {
-    array<url> ws= buffer_to_windows (
-                     window_to_buffer (
-                       abstract_window (concrete_window ())));
-    int n= N(ws);
-    bool ns= need_save ();
-    for (int i=0; i<n; i++)
-      concrete_window (ws[i])->set_modified (ns);
-  }
+  (void) publish_ui (
+    actor_command_kind::ui_set_modified, need_save () ? 1 : 0);
   if (!gui_interrupted ()) drd_update ();
   cache_memorize ();
   last_update= last_change;
@@ -812,7 +760,8 @@ edit_interface_rep::apply_changes () {
   
   // cout << "Handling automatic resizing\n";
   int sb= 1;
-  if (is_attached (this) && has_current_window ()) {
+  actor_viewport_snapshot viewport= ui_viewport ();
+  if (viewport.attached) {
     tree new_zoom= as_string (zoomf);
     tree old_zoom= get_init_value (ZOOM_FACTOR);
     if (new_zoom != old_zoom) {
@@ -822,22 +771,18 @@ edit_interface_rep::apply_changes () {
   
     if (get_init_string (PAGE_MEDIUM) == "automatic")
     {
-      SI wx, wy;
+      SI wx= viewport.window_width, wy= viewport.window_height;
       bool visible_size= false;
-      if (cvw == NULL) ::get_size (get_window (this), wx, wy);
-      else {
-        ::get_size (widget (cvw), wx, wy);
-        SI ax1, ay1, ax2, ay2;
-        SERVER (get_visible (ax1, ay1, ax2, ay2));
-        if (ax2 > ax1 && ay2 > ay1) {
-          wx= ax2 - ax1;
-          wy= ay2 - ay1;
-          visible_size= true;
-        }
+      SI ax1= viewport.visible_x1, ay1= viewport.visible_y1;
+      SI ax2= viewport.visible_x2, ay2= viewport.visible_y2;
+      if (ax2 > ax1 && ay2 > ay1) {
+        wx= ax2 - ax1;
+        wy= ay2 - ay1;
+        visible_size= true;
       }
       if (get_init_string (SCROLL_BARS) == "false") sb= 0;
-      if (get_server () -> in_full_screen_mode ()) sb= 0;
-      if (sb && !visible_size) wx -= scrollbar_width();
+      if (viewport.full_screen) sb= 0;
+      if (sb && !visible_size) wx -= interface_scrollbar_width ();
       bool layout_changed= wx != cur_wx || new_zoom != old_zoom;
       if (layout_changed) {
         cur_wx= wx; cur_wy= wy;
@@ -850,14 +795,15 @@ edit_interface_rep::apply_changes () {
   if (get_init_string (PAGE_MEDIUM) == "beamer" && full_screen) sb= 0;
   if (sb != cur_sb) {
     cur_sb= sb;
-    if (has_current_window ())
-      concrete_window () -> set_scrollbars (sb);
+    (void) publish_ui (
+      actor_command_kind::ui_set_scrollbars,
+      static_cast<std::uint64_t> (sb));
   }
   init_env ("full-screen-mode", string (full_screen? "true": "false"));
 
   // window decorations (menu bar, icon bars, footer)
   int wb= 2;
-  if (is_attached (this)) {
+  if (viewport.attached) {
     string val= get_init_string (WINDOW_BARS);
     if (val == "auto") wb= 2;
     else if (val == "false") wb= 0;
@@ -865,8 +811,10 @@ edit_interface_rep::apply_changes () {
     if (wb != cur_wb) {
       cur_wb= wb;
       if (wb != 2) {
-        get_server () -> show_header (wb);
-        get_server () -> show_footer (wb);
+        (void) publish_ui (
+          actor_command_kind::ui_show_header, wb != 0 ? 1 : 0);
+        (void) publish_ui (
+          actor_command_kind::ui_show_footer, wb != 0 ? 1 : 0);
       }
     }
   }
@@ -908,35 +856,17 @@ edit_interface_rep::apply_changes () {
   if (env_change & (THE_TREE+THE_ENVIRONMENT)) {
     typeset_invalidate_env ();
     SI old_heading_right= is_nil (eb) ? vx2 : eb->x2;
-    struct typeset_result {
-      SI x1;
-      SI y1;
-      SI x2;
-      SI y2;
-    };
-    auto compute= [this] {
-      typeset_result result;
-      typeset (result.x1, result.y1, result.x2, result.y2);
-      heading_cell_cache_valid= false;
-      the_ghost_cursor ()= eb->find_check_cursor (tp);
-      return result;
-    };
-    typeset_result result;
-    if (buf != NULL && buf->actor != nullptr &&
-        !buf->actor->is_owner_thread ()) {
-      string view_id= owning_view == NULL ? string () :
-        as_string (abstract_view (owning_view));
-      result= buf->actor->invoke_scheme (compute, this, std::move (view_id));
-    }
-    else result= compute ();
+    SI x1, y1, x2, y2;
+    typeset (x1, y1, x2, y2);
+    heading_cell_cache_valid= false;
+    the_ghost_cursor ()= eb->find_check_cursor (tp);
     SI heading_strip_width= 80 * pixel;
     invalidate (old_heading_right - heading_strip_width, vy1,
                 old_heading_right + 2 * pixel, vy2);
     if (!is_nil (eb) && eb->x2 != old_heading_right)
       invalidate (eb->x2 - heading_strip_width, vy1,
                   eb->x2 + 2 * pixel, vy2);
-    invalidate (result.x1- 2*pixel, result.y1- 2*pixel,
-                result.x2+ 2*pixel, result.y2+ 2*pixel);
+    invalidate (x1- 2*pixel, y1- 2*pixel, x2+ 2*pixel, y2+ 2*pixel);
     // check_data_integrety ();
   }
   
@@ -962,21 +892,25 @@ edit_interface_rep::apply_changes () {
     SI ey2= (SI) (((double) eb->y2) * magf);
     abs_round (ex1, ey1);
     abs_round (ex2, ey2);
-    SI w, h;
+    actor_viewport_snapshot extents_viewport= ui_viewport ();
+    SI w= extents_viewport.window_width;
+    SI h= extents_viewport.window_height;
     bool visible_size= false;
-    widget me= ::get_canvas (widget (cvw));
-    ::get_size (me, w, h);
     if (medium == "automatic") {
-      SI ax1, ay1, ax2, ay2;
-      SERVER (get_visible (ax1, ay1, ax2, ay2));
+      SI ax1= extents_viewport.visible_x1;
+      SI ay1= extents_viewport.visible_y1;
+      SI ax2= extents_viewport.visible_x2;
+      SI ay2= extents_viewport.visible_y2;
       if (ax2 > ax1 && ay2 > ay1) {
         w= ax2 - ax1;
         h= ay2 - ay1;
         visible_size= true;
       }
     }
-    if (!visible_size && cur_sb && ey2 - ey1 > h) w -= scrollbar_width ();
-    if (!visible_size && cur_sb && ex2 - ex1 > w) h -= scrollbar_width ();
+    if (!visible_size && cur_sb && ey2 - ey1 > h)
+      w -= interface_scrollbar_width ();
+    if (!visible_size && cur_sb && ex2 - ex1 > w)
+      h -= interface_scrollbar_width ();
     if (ex2 - ex1 <= w + 2*PIXEL) {
       if (medium == "automatic")
         ex2= ex1 + w;
@@ -988,7 +922,12 @@ edit_interface_rep::apply_changes () {
     if (get_user_preference ("typewriter mode", "off") == "on" &&
         (medium == "papyrus" || medium == "automatic") && h > 0)
       ey1 -= h >> 1;
-    SERVER (set_extents (ex1, ey1, ex2, ey2));
+    (void) publish_ui (
+      actor_command_kind::ui_set_extents,
+      static_cast<std::uint64_t> (ex1),
+      static_cast<std::uint64_t> (ey1),
+      static_cast<std::uint64_t> (ex2),
+      static_cast<std::uint64_t> (ey2));
     //set_extents (eb->x1, eb->y1, eb->x2, eb->y2);
   }
   
@@ -1023,9 +962,11 @@ edit_interface_rep::apply_changes () {
     copy_always= rectangles (ncr, copy_always);
     oc= copy (cu);
    
-    // set hot spot in the gui
-    send_cursor (this, (SI) floor (cu->ox * magf),
-                       (SI) floor (cu->oy * magf));
+    // Set the input-method hot spot on the Qt owner thread.
+    (void) publish_ui (
+      actor_command_kind::ui_set_cursor,
+      static_cast<std::uint64_t> ((SI) floor (cu->ox * magf)),
+      static_cast<std::uint64_t> ((SI) floor (cu->oy * magf)));
 
     path sp= selection_get_cursor_path ();
     bool semantic_flag= semantic_active (path_up (sp));
@@ -1182,7 +1123,7 @@ edit_interface_rep::apply_changes () {
   
   // cout << "Handling environment changes\n";
   if (env_change & THE_ENVIRONMENT)
-    send_invalidate_all (this);
+    invalidate_all ();
 
   // cout << "Handling menus\n";
   if (env_change & THE_MENUS)
@@ -1223,7 +1164,7 @@ edit_interface_rep::animate () {
 void
 edit_interface_rep::full_screen_mode (bool flag) {
   full_screen= flag;
-  send_invalidate_all (this);
+  invalidate_all ();
 }
 
 void
@@ -1249,12 +1190,10 @@ edit_interface_rep::cancel_menu_action () {
 
 rectangle
 edit_interface_rep::get_window_extents () {
-  SI ox, oy, w, h;
-  widget me= ::get_canvas (widget (cvw));
-  ::get_position (me, ox, oy);
-  ::get_size (me, w, h);
-  SI vx1, vy1, vx2, vy2;
-  SERVER (get_visible (vx1, vy1, vx2, vy2));
+  actor_viewport_snapshot viewport= ui_viewport ();
+  SI ox= viewport.canvas_x, oy= viewport.canvas_y;
+  SI w= viewport.window_width, h= viewport.window_height;
+  SI vx1= viewport.visible_x1, vy2= viewport.visible_y2;
   ox -= vx1; oy -= vy2;
   return rectangle (ox, oy - h, ox + w, oy);
 }
@@ -1281,17 +1220,17 @@ edit_interface_rep::is_editor_widget () {
 
 bool
 edit_interface_rep::is_embedded_widget () {
-  if (is_nil (buf) || !has_subtree (et, rp) ||
+  if (buf == nullptr || !has_subtree (et, rp) ||
       subtree (et, rp) == tree (UNINIT))
     return false;
-  string name= as_string (buf->buf->name);
+  string name= as_string (buf->name);
   return starts (name, "tmfs://aux/");
   // FIXME: could be made more robust: test should not be based on file name
 }
 
 void
 edit_interface_rep::handle_user_scroll (time_t t) {
-  if (is_nil (buf) || is_nil (eb)) return;
+  if (buf == nullptr || is_nil (eb)) return;
   typewriter_manual_scroll_time= t;
   typewriter_manual_scroll_path= copy (tp);
 }
@@ -1303,7 +1242,7 @@ edit_interface_rep::handle_get_size_hint (SI& w, SI& h) {
 
 void
 edit_interface_rep::handle_notify_resize (SI w, SI h) {
-  if (is_nil (buf)) return;
+  if (buf == nullptr) return;
   bool width_changed= w != resize_wx;
   bool height_changed= h != resize_wy;
   resize_wx= w;

@@ -11,6 +11,8 @@
 
 #ifndef EDITOR_H
 #define EDITOR_H
+#include "actor_ui_bridge.hpp"
+#include "buffer_state.hpp"
 #include "typesetter.hpp"
 #include "tree_select.hpp"
 #include "Qt/qt_simple_widget.hpp"
@@ -34,10 +36,8 @@
 #define THE_MENUS ((int) 256)
 #define THE_FREEZE ((int) 512)
 
-class tm_buffer_rep;
 class tm_view_rep;
 class server_rep;
-typedef tm_buffer_rep* tm_buffer;
 typedef tm_view_rep* tm_view;
 class modification;
 class editor;
@@ -63,10 +63,30 @@ public:
   server_rep*  sv;   // the underlying texmacs server
   widget_rep*  cvw;  // non reference counted canvas widget
   tm_view_rep* mvw;  // master view
-  tm_view_rep* owning_view; // view which owns this editor
+  athena_view_id runtime_view_id;
+  actor_ui_endpoint* ui_endpoint;
+
+  actor_viewport_snapshot ui_viewport () const;
+  bool publish_ui (actor_command_kind kind,
+                   std::uint64_t argument0= 0,
+                   std::uint64_t argument1= 0,
+                   std::uint64_t argument2= 0,
+                   std::uint64_t argument3= 0);
+  bool publish_ui_text (actor_command_kind kind, string text,
+                        std::uint64_t argument0= 0,
+                        std::uint64_t argument1= 0,
+                        std::uint64_t argument2= 0,
+                        std::uint64_t argument3= 0);
+  bool publish_ui_text_pair (actor_command_kind kind, string first,
+                             string second,
+                             std::uint64_t argument0= 0,
+                             std::uint64_t argument1= 0,
+                             std::uint64_t argument2= 0,
+                             std::uint64_t argument3= 0);
+  void rebuild_ui_chrome ();
 
 protected:
-  tm_buffer    buf;  // the underlying buffer
+  buffer_document_state* buf; // actor-owned document state
   drd_info     drd;  // the drd for the buffer
   tree&        et;   // all TeXmacs trees
   box          eb;   // box translation of tree
@@ -155,7 +175,7 @@ protected:
 
 public:
   editor_rep ();
-  editor_rep (server_rep* sv, tm_buffer buf);
+  editor_rep (server_rep* sv, buffer_document_state* buf);
   inline virtual ~editor_rep () {}
   bool is_current_editor ();
   
@@ -228,6 +248,7 @@ public:
   virtual void set_pointer (string curs_name, string mask_name) = 0;
   virtual void set_message (tree l, tree r= "", bool temp= false) = 0;
   virtual void recall_message () = 0;
+  virtual void handle_center_message_state (bool active) = 0;
 
   /* public routines from edit_cursor */
   virtual path make_cursor_accessible (path p, bool forwards) = 0;
@@ -659,7 +680,6 @@ public:
   friend void   set_buffer_tree (url name, tree doc);
   friend void   set_current_view (url u);
   friend void   set_current_drd (url name);
-  friend void   focus_on_editor (editor ed);
   friend void   delete_view (url u);
 };
 
@@ -674,7 +694,7 @@ public:
 };
 EXTEND_NULL_CODE(widget,editor);
 
-editor new_editor (server_rep* sv, tm_buffer buf);
+editor new_editor (server_rep* sv, buffer_document_state* buf);
 
 #define SERVER(cmd) {                 \
   url temp= get_current_view_safe (); \

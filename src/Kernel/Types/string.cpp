@@ -177,6 +177,19 @@ string::string (const char* s, int n):
   else rep= make_rep (storage_type (s, size));
 }
 
+string
+string::transferable (int n) {
+  storage_type::size_type size= string_size (n);
+  string result;
+  result.rep= make_rep (storage_type (size, '\0'));
+  return result;
+}
+
+void
+string::ensure_transferable () {
+  if (rep == nullptr) (void) writable_heap ();
+}
+
 char*
 string::mutable_data () {
   return rep == nullptr ? inline_data : writable_heap ().data ();

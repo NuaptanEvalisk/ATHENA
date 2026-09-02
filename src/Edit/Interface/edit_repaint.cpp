@@ -429,8 +429,11 @@ void
 edit_interface_rep::draw_with_stored (renderer win, rectangle r) {
   //cout << "Redraw " << (r*magf/PIXEL) << "\n";
 
+  bool backing_store= win->supports_backing_store ();
+  if (!backing_store) stored_rects= rectangles ();
+
   /* Verify whether the backing store is still valid */
-  if (!is_nil (stored_rects)) {
+  if (backing_store && !is_nil (stored_rects)) {
     SI w1, h1, w2, h2;
     win    -> get_extents (w1, h1);
     stored -> get_extents (w2, h2);
@@ -455,7 +458,7 @@ edit_interface_rep::draw_with_stored (renderer win, rectangle r) {
     // cout << "."; cout.flush ();
     draw_with_shadow (win, r);
     if (!gui_interrupted ()) {
-      if (inside_active_graphics ()) {
+      if (backing_store && inside_active_graphics ()) {
         shadow->new_shadow (stored);
         shadow->get_shadow (stored, sr->x1, sr->y1, sr->x2, sr->y2);
         //stored_rects= /*stored_rects |*/ rectangles (r);

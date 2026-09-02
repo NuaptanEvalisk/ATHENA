@@ -13,10 +13,23 @@
 #include "iterator.hpp"
 #include "merge_sort.hpp"
 
-static hashmap<string,int> timing_level (0);
-static hashmap<string,int> timing_nr    (0);
-static hashmap<string,int> timing_cumul (0);
-static hashmap<string,int> timing_last  (0);
+namespace {
+
+struct timing_state {
+  hashmap<string,int> level;
+  hashmap<string,int> nr;
+  hashmap<string,int> cumul;
+  hashmap<string,int> last;
+
+  timing_state (): level (0), nr (0), cumul (0), last (0) {}
+};
+
+// Benchmark scopes are entered and left by the same execution context.  Keeping
+// their mutable bookkeeping local to that thread avoids sharing the legacy
+// hashmap implementation between BufferActors and the Qt thread.
+thread_local timing_state timing;
+
+} // namespace
 
 /******************************************************************************
 * Getting the time
@@ -57,20 +70,20 @@ texmacs_time () {
 void
 bench_start (string task) {
   // start timer for a given type of task
-  if (timing_level [task] == 0)
-    timing_last (task)= (int) texmacs_time ();
-  timing_level (task) ++;
+  if (timing.level [task] == 0)
+    timing.last (task)= (int) texmacs_time ();
+  timing.level (task) ++;
 }
 
 void
 bench_cumul (string task) {
   // end timer for a given type of task, but don't reset timer
-  timing_level (task) --;
-  if (timing_level [task] == 0) {
-    int ms= ((int) texmacs_time ()) - timing_last (task);
-    timing_nr    (task) ++;
-    timing_cumul (task) += ms;
-    timing_last -> reset (task);
+  timing.level (task) --;
+  if (timing.level [task] == 0) {
+    int ms= ((int) texmacs_time ()) - timing.last (task);
+    timing.nr    (task) ++;
+    timing.cumul (task) += ms;
+    timing.last -> reset (task);
   }
 }
 
@@ -85,19 +98,19 @@ bench_end (string task) {
 void
 bench_reset (string task) {
   // reset timer for a given type of task
-  timing_level->reset (task);
-  timing_nr   ->reset (task);
-  timing_cumul->reset (task);
-  timing_last ->reset (task);
+  timing.level->reset (task);
+  timing.nr   ->reset (task);
+  timing.cumul->reset (task);
+  timing.last ->reset (task);
 }
 
 void
 bench_print (string task) {
   // print timing for a given type of task
   if (DEBUG_BENCH) {
-    int nr= timing_nr [task];
+    int nr= timing.nr [task];
     std_bench << "Task '" << task << "' took "
-              << timing_cumul [task] << " ms";
+              << timing.cumul [task] << " ms";
     if (nr > 1) std_bench << " (" << nr << " invocations)";
     std_bench << "\n";
   }
@@ -116,7 +129,7 @@ collect (hashmap<string,int> h) {
 void
 bench_print () {
   // print timings for all types of tasks
-  array<string> a= collect (timing_cumul);
+  array<string> a= collect (timing.cumul);
   int i, n= N(a);
   for (i=0; i<n; i++)
     bench_print (a[i]);

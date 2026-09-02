@@ -62,6 +62,11 @@ renderer_rep::get_data_handle () {
   return NULL;
 }
 
+bool
+renderer_rep::supports_backing_store () const {
+  return true;
+}
+
 /******************************************************************************
 * Device specific
 ******************************************************************************/

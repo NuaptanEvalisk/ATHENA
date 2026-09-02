@@ -11,6 +11,7 @@
 
 #ifndef NEW_VIEW_H
 #define NEW_VIEW_H
+#include "actor_transport.hpp"
 #include "tree.hpp"
 #include "url.hpp"
 class editor;
@@ -37,8 +38,7 @@ void notify_rename_before (url old_name);
 void notify_rename_after (url new_name);
 void window_set_view (url win, url new_u, bool focus);
 void switch_to_buffer (url name);
-void focus_on_editor (editor ed);
-bool editor_has_window (editor ed);
+void switch_to_buffer_from_actor (string encoded_name);
 bool focus_on_buffer (url name);
 bool var_focus_on_buffer (url name);
 
@@ -46,9 +46,12 @@ bool var_focus_on_buffer (url name);
 class tm_view_rep;
 typedef tm_view_rep* tm_view;
 tm_view concrete_view (url name);
+tm_view concrete_runtime_view (athena_view_id view_id);
 url     abstract_view (tm_view vw);
+url     make_abstract_view_url (url buffer_name, int view_number);
 void    attach_view (url win_u, url u);
 void    detach_view (url u);
+void    initialize_current_view_scheme ();
 url     get_recent_view (url name, bool s, bool o, bool a, bool p);
 
 #endif // defined NEW_VIEW_H

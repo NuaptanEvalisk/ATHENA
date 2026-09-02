@@ -12,6 +12,18 @@
 #include "tm_frame.hpp"
 #include "tm_window.hpp"
 #include "message.hpp"
+#include "editor.hpp"
+#include "scheme_execution_context.hpp"
+
+namespace {
+
+editor_rep*
+actor_frame_editor () noexcept {
+  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  return context == nullptr ? nullptr : context->editor;
+}
+
+} // namespace
 
 /******************************************************************************
 * Constructor and destructor
@@ -143,59 +155,100 @@ tm_frame_rep::bottom_tools (int which, string tools) {
 
 void
 tm_frame_rep::show_header (bool flag) {
+  if (editor_rep* editor= actor_frame_editor ()) {
+    (void) editor->publish_ui (
+      actor_command_kind::ui_show_header, flag ? 1 : 0);
+    return;
+  }
   if (!has_current_view ()) return;
   concrete_window () -> set_header_flag (flag);
 }
 
 void
 tm_frame_rep::show_icon_bar (int which, bool flag) {
-  if ((which<0) || (which>3) || (!has_current_view())) return;
+  if ((which<0) || (which>3)) return;
+  if (editor_rep* editor= actor_frame_editor ()) {
+    (void) editor->publish_ui (
+      actor_command_kind::ui_show_icon_bar,
+      static_cast<std::uint64_t> (which), flag ? 1 : 0);
+    return;
+  }
+  if (!has_current_view ()) return;
   concrete_window () -> set_icon_bar_flag (which, flag);
 }
 
 void
 tm_frame_rep::show_side_tools (int which, bool flag) {
-  if ((which<0) || (which>1) || (!has_current_view())) return;
+  if ((which<0) || (which>1)) return;
+  if (editor_rep* editor= actor_frame_editor ()) {
+    (void) editor->publish_ui (
+      actor_command_kind::ui_show_side_tools,
+      static_cast<std::uint64_t> (which), flag ? 1 : 0);
+    return;
+  }
+  if (!has_current_view ()) return;
   concrete_window () -> set_side_tools_flag (which, flag);
 }
 
 void
 tm_frame_rep::show_bottom_tools (int which, bool flag) {
-  if ((which<0) || (which>1) || (!has_current_view())) return;
+  if ((which<0) || (which>1)) return;
+  if (editor_rep* editor= actor_frame_editor ()) {
+    (void) editor->publish_ui (
+      actor_command_kind::ui_show_bottom_tools,
+      static_cast<std::uint64_t> (which), flag ? 1 : 0);
+    return;
+  }
+  if (!has_current_view ()) return;
   concrete_window () -> set_bottom_tools_flag (which, flag);
 }
 
 void
 tm_frame_rep::show_footer (bool flag) {
+  if (editor_rep* editor= actor_frame_editor ()) {
+    (void) editor->publish_ui (
+      actor_command_kind::ui_show_footer, flag ? 1 : 0);
+    return;
+  }
   if (!has_current_view ()) return;
   concrete_window () -> set_footer_flag (flag);
 }
 
 bool
 tm_frame_rep::visible_header () {
+  if (editor_rep* editor= actor_frame_editor ())
+    return editor->ui_viewport ().header_visible;
   return concrete_window () -> get_header_flag ();
 }
 
 bool
 tm_frame_rep::visible_icon_bar (int which) {
   if ((which<0) || (which>3)) return false;
+  if (editor_rep* editor= actor_frame_editor ())
+    return (editor->ui_viewport ().icon_bar_mask & (1U << which)) != 0;
   return concrete_window () -> get_icon_bar_flag (which);
 }
 
 bool
 tm_frame_rep::visible_side_tools (int which) {
   if ((which<0) || (which>1)) return false;
+  if (editor_rep* editor= actor_frame_editor ())
+    return (editor->ui_viewport ().side_tools_mask & (1U << which)) != 0;
   return concrete_window () -> get_side_tools_flag (which);
 }
 
 bool
 tm_frame_rep::visible_bottom_tools (int which) {
   if ((which<0) || (which>1)) return false;
+  if (editor_rep* editor= actor_frame_editor ())
+    return (editor->ui_viewport ().bottom_tools_mask & (1U << which)) != 0;
   return concrete_window () -> get_bottom_tools_flag (which);
 }
 
 bool
 tm_frame_rep::visible_footer () {
+  if (editor_rep* editor= actor_frame_editor ())
+    return editor->ui_viewport ().footer_visible;
   return concrete_window () -> get_footer_flag ();
 }
 

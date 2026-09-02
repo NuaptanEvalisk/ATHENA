@@ -16,6 +16,8 @@
 #include <QList>
 #include <QByteArray>
 
+#include <cstdint>
+
 #include "qt_simple_widget.hpp"
 #include "tm_timer.hpp"
 #include "gui.hpp"
@@ -86,7 +88,9 @@ public:
 /*! The queue of delayed commands.
  */
 class command_queue {
-  array<object> q;
+  array<std::uint64_t> handles;
+  array<std::uint64_t> actor_ids;
+  array<std::uint64_t> view_ids;
   array<time_t> start_times;
   time_t lapse;
   
@@ -101,6 +105,11 @@ public:
 
   void exec (object cmd);
   void exec_pause (object cmd);
+  void exec_handle (std::uint64_t handle, std::uint64_t actor_id,
+                    std::uint64_t view_id, bool pause);
+  void complete_handle (std::uint64_t handle, std::uint64_t actor_id,
+                        std::uint64_t view_id, bool repeat,
+                        std::int64_t delay);
   void exec_pending ();
   void clear_pending ();
   bool must_wait (time_t now) const;
@@ -196,6 +205,12 @@ public:
   friend class QTMGuiHelper;
   friend void exec_delayed (object cmd);
   friend void exec_delayed_pause (object cmd);
+  friend void schedule_delayed_scheme_handle (
+    std::uint64_t handle, std::uint64_t actor_id,
+    std::uint64_t view_id, bool pause);
+  friend void complete_delayed_scheme_handle (
+    std::uint64_t handle, std::uint64_t actor_id,
+    std::uint64_t view_id, bool repeat, std::int64_t delay);
   friend void clear_pending_commands ();
   friend void needs_update ();
 };

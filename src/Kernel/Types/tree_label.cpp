@@ -10,30 +10,54 @@
 ******************************************************************************/
 
 #include "tree_label.hpp"
-#include "hashmap.hpp"
+#include <mutex>
+#include <shared_mutex>
+#include <unordered_map>
+#include <vector>
 
-hashmap<int,string> CONSTRUCTOR_NAME ("?");
-hashmap<string,int> CONSTRUCTOR_CODE (UNKNOWN);
+namespace {
+
+struct tree_label_string_hash {
+  std::size_t operator () (const string& value) const noexcept {
+    return static_cast<std::size_t> (hash (value));
+  }
+};
+
+std::shared_mutex constructor_lock;
+std::vector<string> constructor_names;
+std::unordered_map<string, int, tree_label_string_hash> constructor_codes;
+tree_label next_tree_label= START_EXTENSIONS;
+
+void
+store_tree_label (tree_label label, const string& name) {
+  std::size_t index= static_cast<std::size_t> (label);
+  if (constructor_names.size () <= index)
+    constructor_names.resize (index + 1, string ("?"));
+  constructor_names[index]= name;
+  constructor_codes[name]= static_cast<int> (label);
+}
+
+} // namespace
 
 /******************************************************************************
 * Setting up the conversion tables
 ******************************************************************************/
 
-static tree_label next_tree_label= START_EXTENSIONS;
-
 void
 make_tree_label (tree_label l, string s) {
-  CONSTRUCTOR_NAME ((int) l) = s;
-  CONSTRUCTOR_CODE (s)       = (int) l;
+  std::unique_lock<std::shared_mutex> guard (constructor_lock);
+  store_tree_label (l, s);
 }
 
 tree_label
 make_tree_label (string s) {
-  if (CONSTRUCTOR_CODE->contains (s))
-    return (tree_label) CONSTRUCTOR_CODE[s];
+  std::unique_lock<std::shared_mutex> guard (constructor_lock);
+  auto found= constructor_codes.find (s);
+  if (found != constructor_codes.end ())
+    return static_cast<tree_label> (found->second);
   tree_label l= next_tree_label;
   next_tree_label= (tree_label) (((int) next_tree_label) + 1);
-  make_tree_label (l, s);
+  store_tree_label (l, s);
   return l;
 }
 
@@ -43,15 +67,22 @@ make_tree_label (string s) {
 
 string
 as_string (tree_label l) {
-  return CONSTRUCTOR_NAME[(int) l];
+  std::shared_lock<std::shared_mutex> guard (constructor_lock);
+  std::size_t index= static_cast<std::size_t> (l);
+  return index < constructor_names.size () ? constructor_names[index] :
+    string ("?");
 }
 
 tree_label
 as_tree_label (string s) {
-  return (tree_label) CONSTRUCTOR_CODE[s];
+  std::shared_lock<std::shared_mutex> guard (constructor_lock);
+  auto found= constructor_codes.find (s);
+  return found == constructor_codes.end () ? UNKNOWN :
+    static_cast<tree_label> (found->second);
 }
 
 bool
 existing_tree_label (string s) {
-  return CONSTRUCTOR_CODE->contains (s);
+  std::shared_lock<std::shared_mutex> guard (constructor_lock);
+  return constructor_codes.find (s) != constructor_codes.end ();
 }

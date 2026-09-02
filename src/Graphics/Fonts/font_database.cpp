@@ -20,6 +20,7 @@
 #include "Freetype/tt_file.hpp"
 #include "Freetype/tt_tools.hpp"
 #include "data_cache.hpp"
+#include <mutex>
 
 void font_database_filter_features ();
 void font_database_filter_characteristics ();
@@ -111,6 +112,7 @@ bool new_fonts= false;
 static bool fonts_loaded= false;
 static bool fonts_loading= false;
 static bool fonts_global_loaded= false;
+static std::recursive_mutex font_database_mutex;
 hashmap<tree,tree> font_table (UNINIT);
 hashmap<tree,tree> font_features (UNINIT);
 hashmap<tree,tree> font_variants (UNINIT);
@@ -122,8 +124,15 @@ static array<string> font_database_families_cache;
 static hashmap<string,tree> font_database_styles_cache (UNINIT);
 static hashmap<tree,tree> font_database_characteristics_cache (UNINIT);
 
-void set_new_fonts (bool new_val) { new_fonts= new_val; }
-bool get_new_fonts () { return new_fonts; }
+void set_new_fonts (bool new_val) {
+  std::lock_guard<std::recursive_mutex> guard (font_database_mutex);
+  new_fonts= new_val;
+}
+
+bool get_new_fonts () {
+  std::lock_guard<std::recursive_mutex> guard (font_database_mutex);
+  return new_fonts;
+}
 
 static void
 font_database_invalidate_selectors () {
@@ -259,6 +268,7 @@ font_database_load_substitutions (url u) {
 
 void
 font_database_load () {
+  std::lock_guard<std::recursive_mutex> guard (font_database_mutex);
   if (fonts_loaded || fonts_loading) return;
   fonts_loading= true;
   system_wait ("Loading platform font catalog", "please wait...");
@@ -284,6 +294,7 @@ font_database_load () {
 
 void
 font_database_global_load (string name) {
+  std::lock_guard<std::recursive_mutex> guard (font_database_mutex);
   if (fonts_global_loaded) return;
   (void) name;
   font_database_load ();
@@ -294,6 +305,7 @@ font_database_global_load (string name) {
 
 void
 font_database_save () {
+  std::lock_guard<std::recursive_mutex> guard (font_database_mutex);
   font_database_save_features (LOCAL_FEATURES);
   font_database_save_characteristics (LOCAL_CHARACTERISTICS);
   font_closest_cache_invalidate ();
@@ -317,6 +329,7 @@ on_blacklist (string name) {
 
 void
 font_database_build (url u) {
+  std::lock_guard<std::recursive_mutex> guard (font_database_mutex);
   font_database_invalidate_selectors ();
   if (is_none (u));
   else if (is_or (u)) {
@@ -373,6 +386,7 @@ font_database_guess_features () {
 
 void
 font_database_build_local () {
+  std::lock_guard<std::recursive_mutex> guard (font_database_mutex);
   font_database_load ();
   font_database_load_catalog (true);
   font_database_filter_features ();
@@ -383,6 +397,7 @@ font_database_build_local () {
 
 void
 font_database_extend_local (url u) {
+  std::lock_guard<std::recursive_mutex> guard (font_database_mutex);
   tt_extend_font_path (u);
   font_database_load ();
   font_database_load_catalog (true);
@@ -394,16 +409,19 @@ font_database_extend_local (url u) {
 
 void
 font_database_build_global (url u) {
+  std::lock_guard<std::recursive_mutex> guard (font_database_mutex);
   font_database_extend_local (u);
 }
 
 void
 font_database_build_global () {
+  std::lock_guard<std::recursive_mutex> guard (font_database_mutex);
   font_database_build_global (tt_font_path ());
 }
 
 void
 font_database_save_local_delta () {
+  std::lock_guard<std::recursive_mutex> guard (font_database_mutex);
   font_database_load ();
   font_database_save_features (DELTA_FEATURES);
   font_database_save_characteristics (DELTA_CHARACTERISTICS);
@@ -411,6 +429,7 @@ font_database_save_local_delta () {
 
 void
 font_database_filter () {
+  std::lock_guard<std::recursive_mutex> guard (font_database_mutex);
   font_database_load_catalog (true);
   font_database_filter_features ();
   font_database_filter_characteristics ();
@@ -419,6 +438,7 @@ font_database_filter () {
 
 void
 font_database_filter_features () {
+  std::lock_guard<std::recursive_mutex> guard (font_database_mutex);
   hashmap<string,bool> families;
   iterator<tree> it= iterate (font_table);
   while (it->busy ()) {
@@ -451,6 +471,7 @@ font_database_filter_features () {
 
 void
 font_database_filter_characteristics () {
+  std::lock_guard<std::recursive_mutex> guard (font_database_mutex);
   hashmap<tree,tree> new_font_characteristics (UNINIT);
   iterator<tree> it= iterate (font_table);
   while (it->busy ()) {
@@ -494,6 +515,7 @@ font_database_build_characteristics_for (tree key, bool force) {
 
 void
 font_database_build_characteristics (bool force) {
+  std::lock_guard<std::recursive_mutex> guard (font_database_mutex);
   iterator<tree> it= iterate (font_table);
   while (it->busy ())
     (void) font_database_build_characteristics_for (it->next (), force);
@@ -536,9 +558,10 @@ font_database_build_selectors () {
 
 array<string>
 font_database_families () {
+  std::lock_guard<std::recursive_mutex> guard (font_database_mutex);
   font_database_load ();
   if (!font_database_families_cached) font_database_build_selectors ();
-  return font_database_families_cache;
+  return copy (font_database_families_cache);
 }
 
 array<string>
@@ -548,6 +571,7 @@ font_database_delta_families () {
 
 array<string>
 font_database_styles (string family) {
+  std::lock_guard<std::recursive_mutex> guard (font_database_mutex);
   family= upgrade_family_name (family);
   font_database_load ();
   if (!font_database_families_cached) font_database_build_selectors ();
@@ -566,6 +590,7 @@ font_database_global_styles (string family) {
 
 array<string>
 font_database_search (string family, string style) {
+  std::lock_guard<std::recursive_mutex> guard (font_database_mutex);
   family= upgrade_family_name (family);
   font_database_load ();
   array<string> r;
@@ -595,6 +620,7 @@ font_database_search (string fam, string var, string series, string shape) {
 
 array<string>
 font_database_characteristics (string family, string style) {
+  std::lock_guard<std::recursive_mutex> guard (font_database_mutex);
   family= upgrade_family_name (family);
   font_database_load ();
   tree key= tuple (family, style);
@@ -618,11 +644,34 @@ font_database_characteristics (string family, string style) {
   return r;
 }
 
+array<string>
+font_database_feature_entry (string family) {
+  std::lock_guard<std::recursive_mutex> guard (font_database_mutex);
+  font_database_load ();
+  tree key (family);
+  if (!font_features->contains (key)) return array<string> ();
+  tree entry= copy (font_features[key]);
+  if (!is_func (entry, TUPLE)) return array<string> ();
+  return tuple_as_array (entry);
+}
+
+array<string>
+font_database_master_variants (string master) {
+  std::lock_guard<std::recursive_mutex> guard (font_database_mutex);
+  font_database_load ();
+  tree key (master);
+  if (!font_variants->contains (key)) return array<string> ();
+  tree entry= copy (font_variants[key]);
+  if (!is_func (entry, TUPLE)) return array<string> ();
+  return tuple_as_array (entry);
+}
+
 tree
 font_database_substitutions (string family) {
+  std::lock_guard<std::recursive_mutex> guard (font_database_mutex);
   family= upgrade_family_name (family);
   font_database_load ();
   if (font_substitutions->contains (family))
-    return font_substitutions [family];
+    return copy (font_substitutions [family]);
   else return tree (TUPLE);
 }

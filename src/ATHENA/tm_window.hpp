@@ -11,6 +11,7 @@
 
 #ifndef TM_WINDOW_H
 #define TM_WINDOW_H
+#include "actor_transport.hpp"
 #include "server.hpp"
 #include "tm_buffer.hpp"
 
@@ -88,10 +89,12 @@ public:
 class tm_view_rep {
 public:
   tm_buffer buf;
-  editor    ed;
+  widget    canvas;
   tm_window win;
+  tm_view   master_view;
   int       nr;
-  tm_view_rep (tm_buffer buf2, editor ed2);
+  athena_view_id runtime_id;
+  tm_view_rep (tm_buffer buf2);
 };
 
 typedef tm_buffer_rep* tm_buffer;

@@ -1,6 +1,6 @@
 # ATHENA Actor, Rendering, and Guile Runtime Architecture
 
-Status: design decision; allocation and core string prerequisites implemented
+Status: implementation in progress
 
 This note records the agreed direction for moving document computation away
 from the Qt/Server thread while retaining one shared ATHENA Scheme world.  The
@@ -64,6 +64,33 @@ editor or Qt capability.  Buffer-bound Scheme is executed directly by the
 corresponding BufferActor, not forwarded to this pool.
 
 ## Zero-copy render hand-off
+
+## Cross-thread data invariant
+
+Thread queues carry numeric identifiers only.  They never carry C++ pointers,
+`string`, `url`, `tree`, `path`, `box`, `SCM`, Qt value objects, containers, or
+type-erased callables.  In particular, `std::function` and lambdas with captures
+are forbidden as actor messages because their captures make ownership invisible.
+
+Fixed command and completion records live in preallocated shared arenas.  A
+queue publication identifies the arena slot; the consumer reads that slot in
+place and returns its id when finished.  Variable-sized data lives in an
+immutable transferable blob allocated once by the producer.  The message holds
+only its blob id and the consumer takes unique ownership through the registry.
+Persistent text adopts that backing allocation instead of copying its bytes.
+
+The same rule applies in both directions and at every boundary:
+
+- Server/Qt to BufferActor commands;
+- BufferActor to Server/Qt effects;
+- BufferActor to RenderService command streams;
+- RenderService to Qt completed frame storage;
+- Scheme rooted-handle requests and owner-affine releases.
+
+Writing a semantic render command directly into a shared render slot is not an
+intermediate copy.  Recording into `QPicture`, serializing it, rebuilding it,
+and passing a `QImage` to Qt is an intermediate-copy pipeline and must be
+removed.
 
 Each BufferActor-to-RenderService connection owns a preallocated shared render
 chunk arena.  Payload slots are contiguous and are not interleaved with mutable

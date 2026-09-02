@@ -673,7 +673,7 @@ edit_select_rep::selection_get (string key) {
 
 void
 edit_select_rep::selection_paste (string key) {
-  bool read_only= !is_nil (buf) && buf->buf->read_only;
+  bool read_only= buf != nullptr && buf->read_only;
   if (read_only) {
     set_message ("This view is read-only", "paste");
     return;

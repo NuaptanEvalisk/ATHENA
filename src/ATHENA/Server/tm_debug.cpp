@@ -15,6 +15,7 @@
 #include "tm_link.hpp"
 #include "sys_utils.hpp"
 #include "new_document.hpp"
+#include "scheme_execution_context.hpp"
 
 #include <ctime>
 
@@ -88,8 +89,17 @@ get_editor_status_report () {
     r << "TeXmacs does not yet have a current view";
     return r;
   }
+
+  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  if (context == nullptr || context->editor == nullptr ||
+      !context->has (SCHEME_CAPABILITY_BUFFER)) {
+    r << "Editor status:\n"
+      << "  Current view       : " << as_string (get_current_view_safe ())
+      << "\n"
+      << "  Document state is owned by its BufferActor\n";
+    return r;
+  }
   
-  server sv= get_server ();
   r << "Editor status:\n";
   editor ed= get_current_editor ();
   path start_p, end_p;
@@ -173,21 +183,24 @@ tm_failure (const char* msg) {
          << "ATHENA] Dumping report below\n\n"
          << report << "\n";
 
-  //cerr << "Saving current buffer...\n";
-  server sv= get_server ();
-  editor ed= get_current_editor ();
-  string buf= tree_report (subtree (current_document_tree (), ed->rp), ed->rp);
-  url buf_err= glue (err, "_tree");
-  if (!save_string (buf_err, buf))
-    cerr << "ATHENA] Current buffer report saved in " << buf_err << "\n";
-  else
-    cerr << "ATHENA] Current buffer report could not be saved in "
-         << buf_err << "\n"
-         << "ATHENA] Dumping report below\n\n"
-         << buf << "\n";
-
-  //cerr << "Autosaving...\n";
-  call ("autosave-all");
+  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  if (context != nullptr && context->editor != nullptr &&
+      context->has (SCHEME_CAPABILITY_BUFFER)) {
+    // The actor thread owns the tree and is the only thread allowed to inspect
+    // or autosave it during failure handling.
+    editor ed= get_current_editor ();
+    string buf=
+      tree_report (subtree (current_document_tree (), ed->rp), ed->rp);
+    url buf_err= glue (err, "_tree");
+    if (!save_string (buf_err, buf))
+      cerr << "ATHENA] Current buffer report saved in " << buf_err << "\n";
+    else
+      cerr << "ATHENA] Current buffer report could not be saved in "
+           << buf_err << "\n"
+           << "ATHENA] Dumping report below\n\n"
+           << buf << "\n";
+    call ("autosave-all");
+  }
   //cerr << "Closing pipes...\n";
   close_all_pipes ();
   call ("quit-TeXmacs-scheme");

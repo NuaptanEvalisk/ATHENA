@@ -16,6 +16,7 @@
 extern drd_info std_drd;
 extern hashmap<string,int> STD_CODE;
 
+drd_info& standard_drd_for_thread ();
 drd_info& current_drd () noexcept;
 drd_info* swap_current_drd (drd_info* drd) noexcept;
 

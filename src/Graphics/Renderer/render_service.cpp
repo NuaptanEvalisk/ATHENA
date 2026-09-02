@@ -28,7 +28,8 @@ render_service::~render_service () {
 }
 
 std::shared_ptr<render_connection>
-render_service::connect (processor process, std::size_t slot_count,
+render_service::connect (std::shared_ptr<render_processor> process,
+                         std::size_t slot_count,
                          std::size_t slot_capacity) {
   auto connection= std::shared_ptr<render_connection> (
     new render_connection (*this, std::move (process), slot_count,
@@ -125,7 +126,7 @@ render_service::drain_connections () {
 }
 
 render_connection::render_connection (
-  render_service& service, render_service::processor process,
+  render_service& service, std::shared_ptr<render_processor> process,
   std::size_t slot_count, std::size_t slot_capacity):
   service_ (service), process_ (std::move (process)),
   arena_ (slot_count, slot_capacity) {}
@@ -179,7 +180,7 @@ render_connection::drain () {
   render_chunk_descriptor descriptor;
   while (arena_.try_submission (descriptor)) {
     if (!is_retired () && process_) {
-      try { process_ (descriptor, arena_.payload (descriptor.slot)); }
+      try { process_->process (descriptor, arena_.payload (descriptor.slot)); }
       catch (const std::exception& error) {
         std::fprintf (stderr, "ATHENA] RenderService processor failed: %s\n",
                       error.what ());

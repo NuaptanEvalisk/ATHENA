@@ -1,57 +1,72 @@
 /******************************************************************************
 * MODULE     : QTMRenderService.hpp
-* DESCRIPTION: Qt display-list connection to the shared RenderService
+* DESCRIPTION: Zero-copy Qt command recording and shared frame presentation
 * COPYRIGHT  : (C) 2026  Nuaptan F. Evalisk
-*******************************************************************************
-* This software falls under the GNU general public license version 3 or later.
-* It comes WITHOUT ANY WARRANTY WHATSOEVER. For details, see the file LICENSE
-* in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 
 #ifndef QTM_RENDER_SERVICE_HPP
 #define QTM_RENDER_SERVICE_HPP
 
+#include "actor_transport.hpp"
 #include "render_service.hpp"
 
 #include <QImage>
-#include <QPicture>
+#include <QPaintDevice>
 
-#include <chrono>
-#include <condition_variable>
+#include <cstddef>
 #include <cstdint>
-#include <functional>
 #include <memory>
-#include <mutex>
 
-struct QTMRenderedFrame {
-  QImage image;
-  std::uint64_t bufferGeneration= 0;
-  std::uint64_t frameGeneration= 0;
-  render_damage damage;
-};
+class QTMWidget;
+class QTMRenderConnection;
 
-class QTMRenderSurface {
+class QTMRenderRecording {
 public:
-  QTMRenderedFrame latestFrame () const;
-  bool waitForFrame (std::uint64_t generation,
-                     std::chrono::milliseconds timeout);
+  ~QTMRenderRecording ();
+
+  QTMRenderRecording (const QTMRenderRecording&)= delete;
+  QTMRenderRecording& operator = (const QTMRenderRecording&)= delete;
+
+  QPaintDevice* device () noexcept;
+  bool finish () noexcept;
 
 private:
-  mutable std::mutex lock_;
-  std::condition_variable changed_;
-  QTMRenderedFrame latest_;
+  struct implementation;
+  std::unique_ptr<implementation> impl_;
 
-  bool publish (QTMRenderedFrame frame);
-
+  explicit QTMRenderRecording (std::unique_ptr<implementation> impl) noexcept;
   friend class QTMRenderConnection;
 };
 
-class QTMRenderConnection {
+class QTMSharedFrame {
 public:
-  using completion_callback= std::function<void (QTMRenderedFrame)>;
+  QTMSharedFrame () noexcept;
+  QTMSharedFrame (QTMSharedFrame&&) noexcept;
+  QTMSharedFrame& operator = (QTMSharedFrame&&) noexcept;
+  ~QTMSharedFrame ();
+
+  QTMSharedFrame (const QTMSharedFrame&)= delete;
+  QTMSharedFrame& operator = (const QTMSharedFrame&)= delete;
+
+  explicit operator bool () const noexcept;
+  const QImage& image () const noexcept;
+  std::uint64_t bufferGeneration () const noexcept;
+  std::uint64_t frameGeneration () const noexcept;
+  render_damage damage () const noexcept;
+
+private:
+  struct implementation;
+  std::unique_ptr<implementation> impl_;
+
+  explicit QTMSharedFrame (std::unique_ptr<implementation> impl) noexcept;
+  friend class QTMRenderConnection;
+};
+
+class QTMRenderConnection: public std::enable_shared_from_this<QTMRenderConnection> {
+public:
+  struct processor_state;
 
   static std::shared_ptr<QTMRenderConnection> create (
-    completion_callback completed= completion_callback (),
     std::size_t slotCount= 4,
     std::size_t slotCapacity= 4 * 1024 * 1024);
   ~QTMRenderConnection ();
@@ -59,26 +74,38 @@ public:
   QTMRenderConnection (const QTMRenderConnection&)= delete;
   QTMRenderConnection& operator = (const QTMRenderConnection&)= delete;
 
-  bool submit (const QPicture& picture, int pixelWidth, int pixelHeight,
-               double devicePixelRatio, std::uint32_t backgroundArgb,
-               std::uint64_t bufferGeneration,
-               std::uint64_t frameGeneration, render_damage damage);
+  athena_resource_id id () const noexcept;
+  std::unique_ptr<QTMRenderRecording> beginRecording (
+    int pixelWidth, int pixelHeight, double devicePixelRatio,
+    std::uint32_t backgroundArgb, std::uint64_t bufferGeneration,
+    std::uint64_t frameGeneration, render_damage damage);
+  QTMSharedFrame acquireLatestFrame ();
+  void bindWidget (QTMWidget* widget);
+  void notifyWidget (std::uint64_t bufferGeneration,
+                     std::uint64_t frameGeneration, render_damage damage);
   void retire () noexcept;
-  std::shared_ptr<QTMRenderSurface> surface () const noexcept;
+
+  static std::shared_ptr<QTMRenderConnection> lookup (
+    athena_resource_id id) noexcept;
 
 private:
-  struct processor_state;
-
-  QTMRenderConnection (completion_callback completed, std::size_t slotCount,
-                       std::size_t slotCapacity);
+  QTMRenderConnection (std::size_t slotCount, std::size_t slotCapacity);
   bool initialize ();
 
-  completion_callback completed_;
-  std::shared_ptr<QTMRenderSurface> surface_;
+  const athena_resource_id id_;
   std::shared_ptr<processor_state> processor_;
   std::shared_ptr<render_connection> connection_;
   std::size_t slotCount_;
   std::size_t slotCapacity_;
+
+  friend class QTMSharedFrame;
+  friend class QTMRenderRecording;
 };
+
+std::unique_ptr<QTMRenderRecording> qtm_begin_render_recording (
+  athena_resource_id connectionId, int pixelWidth, int pixelHeight,
+  double devicePixelRatio, std::uint32_t backgroundArgb,
+  std::uint64_t bufferGeneration, std::uint64_t frameGeneration,
+  render_damage damage);
 
 #endif // defined QTM_RENDER_SERVICE_HPP

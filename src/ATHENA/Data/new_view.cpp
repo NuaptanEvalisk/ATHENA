@@ -19,9 +19,12 @@
 #include "drd_std.hpp"
 #include "boot.hpp"
 #include "scheme_execution_context.hpp"
+#include "buffer_actor.hpp"
+#include "editor.hpp"
 
 #ifdef QTTEXMACS
 #include <QTimer>
+#include "Qt/qt_actor_widget.hpp"
 #endif
 
 #ifdef OS_MINGW
@@ -34,6 +37,7 @@
 
 static hashmap<tree,int> view_number_table (0);
 static hashmap<tree,pointer> view_table (NULL);
+static athena_view_id next_runtime_view_id= 1;
 
 static int
 new_view_number (url u) {
@@ -41,9 +45,15 @@ new_view_number (url u) {
   return view_number_table [u->t];
 }
 
-tm_view_rep::tm_view_rep (tm_buffer buf2, editor ed2):
-  buf (buf2), ed (ed2), win (NULL), nr (new_view_number (buf->buf->name)) {
-  ed->owning_view= this;
+tm_view_rep::tm_view_rep (tm_buffer buf2):
+  buf (buf2), canvas (), win (NULL), master_view (NULL),
+  nr (new_view_number (buf->buf->name)),
+  runtime_id (next_runtime_view_id++) {
+  ASSERT (runtime_id != ATHENA_NO_VIEW, "view id space exhausted");
+#ifdef QTTEXMACS
+  bool embedded= starts (as_string (buf->buf->name), "tmfs://aux/");
+  canvas= actor_editor_widget (buf->actor->id (), runtime_id, embedded);
+#endif
 }
 
 static string
@@ -73,12 +83,17 @@ decode_url (string s) {
 }
 
 url
+make_abstract_view_url (url buffer_name, int view_number) {
+  string name= encode_url (buffer_name);
+  //cout << vw->buf->buf->name << " -> " << name << "\n";
+  string nr  = as_string (view_number);
+  return "tmfs://view/" * nr * "/" * name;
+}
+
+url
 abstract_view (tm_view vw) {
   if (vw == NULL) return url_none ();
-  string name= encode_url (vw->buf->buf->name);
-  //cout << vw->buf->buf->name << " -> " << name << "\n";
-  string nr  = as_string (vw->nr);
-  return "tmfs://view/" * nr * "/" * name;
+  return make_abstract_view_url (vw->buf->buf->name, vw->nr);
 }
 
 tm_view
@@ -100,6 +115,16 @@ concrete_view (url u) {
   return NULL;
 }
 
+tm_view
+concrete_runtime_view (athena_view_id view_id) {
+  if (view_id == ATHENA_NO_VIEW) return nullptr;
+  for (int i= 0; i < N (bufs); ++i)
+    for (int j= 0; j < N (bufs[i]->vws); ++j)
+      if (bufs[i]->vws[j]->runtime_id == view_id)
+        return bufs[i]->vws[j];
+  return nullptr;
+}
+
 /******************************************************************************
 * Views associated to editor, window, or buffer
 ******************************************************************************/
@@ -109,7 +134,7 @@ tm_view the_view= NULL;
 bool
 has_current_view () {
   const SchemeExecutionContext* context= current_scheme_execution_context ();
-  if (context != nullptr) return !is_none (context->view_id);
+  if (context != nullptr) return context->view_id != ATHENA_NO_VIEW;
   return the_view != NULL;
 }
 
@@ -119,22 +144,19 @@ set_current_view (url u) {
   //ASSERT (is_none (u) || starts (as_string (tail (u)), "no_name") || vw != NULL, "bad view");
   the_view= vw;
   if (vw != NULL) {
-    swap_current_drd (&vw->ed->drd);
-    swap_current_document_tree (&vw->buf->document);
     vw->buf->buf->last_visit= texmacs_time ();
   }
-  else {
-    swap_current_drd (nullptr);
-    swap_current_document_tree (nullptr);
-  }
+  swap_current_drd (nullptr);
+  swap_current_document_tree (nullptr);
 }
 
 url
 get_current_view () {
   const SchemeExecutionContext* context= current_scheme_execution_context ();
   if (context != nullptr) {
-    ASSERT (!is_none (context->view_id), "no active view in Scheme context");
-    return context->view_id;
+    ASSERT (context->view_id != ATHENA_NO_VIEW,
+            "no active view in Scheme context");
+    return context->actor->current_view_url (context->view_id);
   }
   ASSERT (the_view != NULL, "no active view");
   return abstract_view (the_view);
@@ -143,7 +165,9 @@ get_current_view () {
 url
 get_current_view_safe () {
   const SchemeExecutionContext* context= current_scheme_execution_context ();
-  if (context != nullptr) return context->view_id;
+  if (context != nullptr)
+    return context->view_id == ATHENA_NO_VIEW ? url_none () :
+      context->actor->current_view_url (context->view_id);
   if (the_view == NULL) return url_none ();
   return abstract_view (the_view);
 }
@@ -160,17 +184,8 @@ get_current_editor () {
             "Scheme execution context cannot access a buffer editor");
     return editor (context->editor);
   }
-  url u= get_current_view();
-  tm_view vw= concrete_view (u);
-  if (vw == NULL) { // HACK: shouldn't happen!
-    FAILED ("Current view is NULL");
-    notify_delete_view (u);
-    array<url> history = get_all_views();
-    if (history == NULL || N(history) == 0)
-      FAILED("View history is empty")
-    return view_to_editor (history[N(history)-1]);
-  }
-  return vw->ed;
+  FAILED ("editor state is owned by its BufferActor");
+  return editor ();
 }
 
 array<url>
@@ -209,7 +224,12 @@ view_to_editor (url u) {
     return editor ();
 #endif
   }
-  return vw->ed;
+  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  if (context != nullptr && context->actor == vw->buf->actor &&
+      context->view_id == vw->runtime_id && context->editor != nullptr)
+    return editor (context->editor);
+  FAILED ("editor state requested outside its BufferActor");
+  return editor ();
 }
 
 /******************************************************************************
@@ -283,19 +303,25 @@ defer_next_view_initialization () {
   defer_view_initialization= true;
 }
 
-static void
-initialize_view (tm_view vw) {
-  url previous= get_current_view_safe ();
-  set_current_view (abstract_view (vw));
-  if (is_none (tm_init_buffer_file))
-    tm_init_buffer_file= "$ATHENA_PATH/progs/init-buffer.scm";
-  if (is_none (my_init_buffer_file))
-    my_init_buffer_file= "$ATHENA_HOME_PATH/progs/my-init-buffer.scm";
+void
+initialize_current_view_scheme () {
+  ASSERT (!is_none (tm_init_buffer_file) && !is_none (my_init_buffer_file),
+          "view initialization paths were not prepared by the Server");
   bench_start ("load init buffer");
   if (exists (tm_init_buffer_file)) exec_file (tm_init_buffer_file);
   if (exists (my_init_buffer_file)) exec_file (my_init_buffer_file);
   bench_cumul ("load init buffer");
-  set_current_view (previous);
+}
+
+static void
+initialize_view (tm_view vw) {
+  if (is_none (tm_init_buffer_file))
+    tm_init_buffer_file= "$ATHENA_PATH/progs/init-buffer.scm";
+  if (is_none (my_init_buffer_file))
+    my_init_buffer_file= "$ATHENA_HOME_PATH/progs/my-init-buffer.scm";
+  if (!vw->buf->actor->invoke (
+        actor_command_kind::initialize_view, vw->runtime_id))
+    FAILED ("BufferActor rejected view initialization");
 }
 
 void
@@ -316,13 +342,15 @@ get_new_view (url name) {
 
   create_buffer (name, tree (DOCUMENT));
   tm_buffer buf= concrete_buffer (name);
-  with_document_tree document_scope (&buf->document);
-  bench_start ("construct initial editor");
-  editor    ed = new_editor (get_server () -> get_server (), buf);
-  bench_cumul ("construct initial editor");
-  tm_view   vw = tm_new<tm_view_rep> (buf, ed);
+  tm_view   vw = tm_new<tm_view_rep> (buf);
   buf->vws << vw;
-  ed->set_data (buf->data);
+  bench_start ("construct initial editor");
+  if (!buf->actor->invoke (
+        actor_command_kind::create_view, vw->runtime_id,
+        ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr,
+        SCHEME_CAPABILITY_BUFFER, static_cast<std::uint64_t> (vw->nr)))
+    FAILED ("BufferActor rejected view creation");
+  bench_cumul ("construct initial editor");
 
   if (defer_view_initialization) {
     defer_view_initialization= false;
@@ -383,9 +411,8 @@ delete_view (url u) {
       buf->vws= a;
     }
   notify_delete_view (u);
-  vw->ed->owning_view= NULL;
-  vw->ed->buf= NULL;
-  with_document_tree document_scope (&buf->document);
+  (void) buf->actor->invoke (
+    actor_command_kind::destroy_view, vw->runtime_id);
   tm_delete (vw);
 }
 
@@ -412,17 +439,16 @@ attach_view (url win_u, url u) {
   tm_window win= concrete_window (win_u);
   tm_view   vw = concrete_view (u);
   if (win == NULL || vw == NULL) return;
-  with_document_tree document_scope (&vw->buf->document);
   // cout << "Attach view " << vw->buf->buf->name << "\n";
   vw->win= win;
   widget wid= win->wid;
   bench_start ("attach editor canvas");
-  set_scrollable (wid, vw->ed);
+  set_scrollable (wid, vw->canvas);
   bench_cumul ("attach editor canvas");
-  vw->ed->cvw= wid.rep;
   ASSERT (is_attached (wid), "widget should be attached");
   bench_start ("resume initial editor");
-  vw->ed->resume ();
+  (void) vw->buf->actor->submit (
+    actor_command_kind::resume_view, vw->runtime_id);
   bench_cumul ("resume initial editor");
   win->set_window_name (vw->buf->buf->title);
   win->set_window_url (vw->buf->buf->name);
@@ -436,12 +462,12 @@ detach_view (url u) {
   if (vw == NULL) return;
   tm_window win= vw->win;
   if (win == NULL) return;
-  with_document_tree document_scope (&vw->buf->document);
   // cout << "Detach view " << vw->buf->buf->name << "\n";
   vw->win= NULL;
   widget wid= win->wid;
   ASSERT (is_attached (wid), "widget should be attached");
-  vw->ed->suspend ();
+  (void) vw->buf->actor->submit (
+    actor_command_kind::suspend_view, vw->runtime_id);
   set_scrollable (wid, glue_widget ());
   win->set_window_name ("TeXmacs");
   win->set_window_url (url_none ());
@@ -471,6 +497,12 @@ window_set_view (url win_u, url new_u, bool focus) {
 
 void
 switch_to_buffer (url name) {
+  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  if (context != nullptr && context->editor != nullptr) {
+    (void) context->editor->publish_ui_text (
+      actor_command_kind::ui_switch_to_buffer, encode_url (name));
+    return;
+  }
   //cout << "Switching to buffer " << name << "\n";
   url u= get_passive_view (name);
   tm_view vw= concrete_view (u);
@@ -483,53 +515,15 @@ switch_to_buffer (url name) {
 }
 
 void
-set_current_drd (url name) {
-  url u= get_passive_view (name);
-  tm_view vw= concrete_view (u);
-  if (vw != NULL) swap_current_drd (&vw->ed->drd);
+switch_to_buffer_from_actor (string encoded_name) {
+  switch_to_buffer (decode_url (std::move (encoded_name)));
 }
 
 void
-focus_on_editor (editor ed) {
-  array<url> bufs= get_all_buffers ();
-  for (int i=0; i<N(bufs); i++) {
-    array<url> vs= buffer_to_views (bufs[i]);
-    for (int j=0; j<N(vs); j++) {
-      tm_view vw= concrete_view (vs[j]);
-      if (vw != NULL && vw->ed == ed && vw->win != NULL) {
-        set_current_view (vs[j]);
-        return;
-      }
-    }
-  }
-
-  /* FIXME: directly using get_all_views produces synchronization error
-  array<url> vs= get_all_views ();
-  for (int i=0; i<N(vs); i++)
-    if (view_to_editor (vs[i]) == ed) {
-      cout << "Focus on " << vs[i] << "\n";
-      set_current_view (vs[i]);
-      return;
-    }
-  */
-
-  std_warning << "Warning: editor has no window-backed view, "
-              << "ignoring focus request\n";
-  //failed_error << "Name of buffer: " << ed->buf->buf->name << "\n";
-  //FAILED ("invalid situation");
-}
-
-bool
-editor_has_window (editor ed) {
-  array<url> bufs= get_all_buffers ();
-  for (int i=0; i<N(bufs); i++) {
-    array<url> vs= buffer_to_views (bufs[i]);
-    for (int j=0; j<N(vs); j++) {
-      tm_view vw= concrete_view (vs[j]);
-      if (vw != NULL && vw->ed == ed && vw->win != NULL) return true;
-    }
-  }
-  return false;
+set_current_drd (url name) {
+  (void) name;
+  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  swap_current_drd (context == nullptr ? nullptr : context->drd);
 }
 
 bool
@@ -559,12 +553,13 @@ var_focus_on_buffer (url name) {
   }
   if (is_none (r)) return false;
   if (the_view != nullptr) {
-    with_document_tree document_scope (&the_view->buf->document);
-    the_view->ed->suspend ();
+    (void) the_view->buf->actor->submit (
+      actor_command_kind::suspend_view, the_view->runtime_id);
   }
   set_current_view (r);
   tm_view new_vw = concrete_view (r);
-  new_vw->ed->resume ();
-  send_keyboard_focus (new_vw->ed);
+  (void) new_vw->buf->actor->submit (
+    actor_command_kind::resume_view, new_vw->runtime_id);
+  send_keyboard_focus (new_vw->canvas);
   return true;
 }

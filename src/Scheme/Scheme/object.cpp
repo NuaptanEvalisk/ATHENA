@@ -23,6 +23,10 @@
 #include "patch.hpp"
 #include "colors.hpp"
 #include "tm_ostream.hpp"
+#include "actor_ui_bridge.hpp"
+#include "buffer_actor.hpp"
+#include "guile_tm.hpp"
+#include "scheme_execution_context.hpp"
 
 /******************************************************************************
 * The object representation class
@@ -336,13 +340,55 @@ array_lookup (array<object> a) {
 
 class object_command_rep: public command_rep {
   object obj;
+  athena_actor_id actor_id;
+  athena_view_id view_id;
+  athena_scheme_handle_id handle;
 public:
-  object_command_rep (object obj2): obj (obj2) {}
-  void apply () { (void) call_scheme (object_to_tmscm (obj)); }
+  object_command_rep (object obj2):
+    obj (), actor_id (ATHENA_NO_ACTOR), view_id (ATHENA_NO_VIEW),
+    handle (ATHENA_NO_SCHEME_HANDLE) {
+    const SchemeExecutionContext* context= current_scheme_execution_context ();
+    if (context != nullptr && context->actor_id != ATHENA_NO_ACTOR &&
+        context->view_id != ATHENA_NO_VIEW) {
+      actor_id= context->actor_id;
+      view_id= context->view_id;
+      handle= scheme_command_handle_acquire (object_to_tmscm (obj2));
+    }
+    else obj= obj2;
+  }
+  ~object_command_rep () override {
+    if (handle == ATHENA_NO_SCHEME_HANDLE) return;
+    actor_command_ticket ticket= buffer_actor::submit_to (
+      actor_id, actor_command_kind::release_scheme_handle, view_id,
+      ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER, handle);
+    if (!ticket) scheme_command_handle_release (handle);
+  }
+  void apply () {
+    if (handle == ATHENA_NO_SCHEME_HANDLE) {
+      (void) call_scheme (object_to_tmscm (obj));
+      return;
+    }
+    (void) buffer_actor::submit_to (
+      actor_id, actor_command_kind::invoke_scheme_handle, view_id,
+      ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER, handle);
+  }
   void apply (object args) {
-    (void) call_scheme (object_to_tmscm (obj),
-                        array_lookup (as_array_object (args))); }
+    if (handle == ATHENA_NO_SCHEME_HANDLE) {
+      (void) call_scheme (object_to_tmscm (obj),
+                          array_lookup (as_array_object (args)));
+      return;
+    }
+    athena_scheme_handle_id arguments=
+      scheme_command_handle_acquire (object_to_tmscm (args));
+    actor_command_ticket ticket= buffer_actor::submit_to (
+      actor_id, actor_command_kind::invoke_scheme_handle, view_id,
+      ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER,
+      handle, arguments);
+    if (!ticket) scheme_command_handle_release (arguments);
+  }
   tm_ostream& print (tm_ostream& out) {
+    if (handle != ATHENA_NO_SCHEME_HANDLE)
+      return out << "<actor-command " << actor_id << ":" << view_id << ">";
     object bis= call ("sourcify", obj);
     return out << "<command " << bis << ">"; }
 };
@@ -354,10 +400,46 @@ as_command (object obj) {
 
 class object_promise_widget_rep: public promise_rep<widget> {
   object obj;
+  athena_actor_id actor_id;
+  athena_view_id view_id;
+  athena_scheme_handle_id handle;
 public:
-  object_promise_widget_rep (object obj2): obj (obj2) {}
-  tm_ostream& print (tm_ostream& out) { return out << obj; }
+  object_promise_widget_rep (object obj2):
+    obj (), actor_id (ATHENA_NO_ACTOR), view_id (ATHENA_NO_VIEW),
+    handle (ATHENA_NO_SCHEME_HANDLE) {
+    const SchemeExecutionContext* context= current_scheme_execution_context ();
+    if (context != nullptr && context->actor_id != ATHENA_NO_ACTOR &&
+        context->view_id != ATHENA_NO_VIEW) {
+      actor_id= context->actor_id;
+      view_id= context->view_id;
+      handle= scheme_command_handle_acquire (object_to_tmscm (obj2));
+    }
+    else obj= obj2;
+  }
+  ~object_promise_widget_rep () override {
+    if (handle == ATHENA_NO_SCHEME_HANDLE) return;
+    actor_command_ticket ticket= buffer_actor::submit_to (
+      actor_id, actor_command_kind::release_scheme_handle, view_id,
+      ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER, handle);
+    if (!ticket) scheme_command_handle_release (handle);
+  }
+  tm_ostream& print (tm_ostream& out) {
+    if (handle != ATHENA_NO_SCHEME_HANDLE)
+      return out << "<actor-widget-promise " << actor_id << ":" << view_id
+                 << ">";
+    return out << obj;
+  }
   widget eval () {
+    if (handle != ATHENA_NO_SCHEME_HANDLE) {
+      actor_command_record result;
+      if (buffer_actor::invoke_on (
+            actor_id, actor_command_kind::evaluate_widget_handle, view_id,
+            ATHENA_NO_BLOB, ATHENA_NO_BLOB, &result,
+            SCHEME_CAPABILITY_BUFFER, handle))
+        return actor_ui_take_widget (result.argument[0]);
+      FAILED ("BufferActor rejected widget promise evaluation");
+      return glue_widget ();
+    }
     tmscm result= call_scheme (object_to_tmscm (obj));
     if (tmscm_is_widget (result)) return tmscm_to_widget (result);
     else {

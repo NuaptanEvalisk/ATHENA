@@ -57,6 +57,7 @@ public:
   virtual bool is_started ();
   virtual void* get_handle ();
   virtual void* get_data_handle ();
+  virtual bool supports_backing_store () const;
 
   /* coordinate system */
   void set_origin (SI x, SI y);

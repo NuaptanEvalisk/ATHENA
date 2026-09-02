@@ -260,6 +260,8 @@ array<string> font_database_search (string family, string style);
 array<string> font_database_search (string fam, string var,
                                     string series, string shape);
 array<string> font_database_characteristics (string family, string style);
+array<string> font_database_feature_entry (string family);
+array<string> font_database_master_variants (string master);
 tree font_database_substitutions (string family);
 
 // Font selection

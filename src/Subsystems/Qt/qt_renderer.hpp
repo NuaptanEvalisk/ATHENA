@@ -24,11 +24,13 @@ class qt_renderer_rep:  public basic_renderer_rep {
 public:
   QPainter *painter; // FIXME: painter needs begin/end
   double zoom_multiplier; // adjustements for QTMImpressIconEngine
+  bool command_recording;
 
   qt_renderer_rep (QPainter *_painter, double pixel_ratio,
-		   int w = 0, int h = 0);
+		   int w = 0, int h = 0, bool command_recording = false);
   ~qt_renderer_rep ();
   void* get_handle ();
+  bool supports_backing_store () const override;
 
   void set_zoom_factor (double zoom, bool safe= true);
   void begin (void* handle);
@@ -91,7 +93,8 @@ public:
   
 public:
   qt_proxy_renderer_rep (qt_renderer_rep *_base)
-    : qt_renderer_rep(_base->painter, _base->pixel_ratio), base(_base) {}
+    : qt_renderer_rep(_base->painter, _base->pixel_ratio, 0, 0,
+                      _base->command_recording), base(_base) {}
   ~qt_proxy_renderer_rep () {};
   void new_shadow (renderer& ren);
   void get_shadow (renderer ren, SI x1, SI y1, SI x2, SI y2);

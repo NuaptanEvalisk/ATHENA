@@ -26,7 +26,7 @@
 #include <QTimer>
 
 class qt_simple_widget_rep;
-struct QTMRenderedFrame;
+#include "QTMRenderService.hpp"
 class QScrollBar;
 class QNativeGestureEvent;
 class QPainter;
@@ -57,7 +57,9 @@ public:
   virtual void scrollContentsBy (int dx, int dy) override;
 
   void setCursorPos (QPoint pos);
-  void presentRenderedFrame (QTMRenderedFrame frame);
+  void presentRenderedFrame (std::uint64_t bufferGeneration,
+                             std::uint64_t frameGeneration,
+                             render_damage damage);
   QPoint cursorGlobalPos () const {
     QPoint p = contentsToViewport (cursor_pos);
     return viewport ()->mapToGlobal (p + QPoint (0, 22));
@@ -128,7 +130,7 @@ private:
   QPointF viewPinchFocal;
   QPoint viewPinchStartOrigin;
   QPixmap viewPinchPreview;
-  QImage renderedFrame;
+  QTMSharedFrame renderedFrame;
   std::uint64_t renderedBufferGeneration= 0;
   std::uint64_t renderedFrameGeneration= 0;
   bool neighborhoodTapCandidate = false;

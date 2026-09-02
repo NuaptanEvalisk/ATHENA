@@ -629,9 +629,9 @@ edit_cursor_rep::search_label (string s, bool local) {
   url u;
   if (is_func (val, TUPLE, 3) && is_atomic (val[2]) &&
       !starts (val[2]->label, "#"))
-    u= relative (buf->buf->name, url (val[2]->label));
+    u= relative (buf->name, url (val[2]->label));
   if (local || is_none (u)) return path ();
-  if (u != buf->buf->name) {
+  if (u != buf->name) {
     url vw= get_passive_view (u);
     if (is_none (vw)) return path ();
     return view_to_editor (vw) -> search_label (s, true);
@@ -659,8 +659,8 @@ edit_cursor_rep::go_to_label (string s) {
       exec_delayed (scheme_cmd ("(if " * show * " (delayed " * jump * "))"));
     }
     else {
-      url u= relative (buf->buf->name, url (extra));
-      if (u != buf->buf->name) {
+      url u= relative (buf->name, url (extra));
+      if (u != buf->name) {
         string new_buf = scm_quote (as_string (u));
         string load_buf= "(load-buffer (system->url " * new_buf * "))";
         string jump_to = "(go-to-label " * scm_quote (s) * ")";

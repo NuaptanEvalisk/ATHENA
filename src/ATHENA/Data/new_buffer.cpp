@@ -18,19 +18,52 @@
 #include "tm_link.hpp"
 #include "message.hpp"
 #include "new_document.hpp"
+#include "new_style.hpp"
 #include "merge_sort.hpp"
 
 array<tm_buffer> bufs;
 
 string propose_title (string old_title, url u, tree doc);
 
+static bool
+invoke_buffer_actor (
+  tm_buffer buf, actor_command_kind kind,
+  athena_view_id view_id= ATHENA_NO_VIEW,
+  athena_blob_id payload0= ATHENA_NO_BLOB,
+  athena_blob_id payload1= ATHENA_NO_BLOB,
+  actor_command_record* result= nullptr,
+  std::uint64_t argument0= 0) {
+  return !is_nil (buf) && buf->actor->invoke (
+    kind, view_id, payload0, payload1, result, SCHEME_CAPABILITY_BUFFER,
+    argument0);
+}
+
+static void
+discard_tree_payload (athena_blob_id payload) {
+  if (payload != ATHENA_NO_BLOB)
+    (void) actor_tree_registry::instance ().discard (payload);
+}
+
+static void
+discard_text_payload (athena_blob_id payload) {
+  if (payload != ATHENA_NO_BLOB)
+    (void) actor_text_registry::instance ().discard (payload);
+}
+
+static athena_view_id
+buffer_command_view (tm_buffer buf, url name) {
+  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  if (context != nullptr)
+    return context->actor == buf->actor ? context->view_id : ATHENA_NO_VIEW;
+  tm_view view= concrete_view (get_recent_view (name));
+  return view == nullptr ? ATHENA_NO_VIEW : view->runtime_id;
+}
+
 tm_buffer_rep::tm_buffer_rep (url name):
-  buf (name), data (), vws (0), document (make_document_tree ()), rp (0),
-  notify (false), actor (tm_new<buffer_actor> (this)) {}
+  buf (name), vws (0), rp (0), actor (tm_new<buffer_actor> (this)) {}
 
 tm_buffer_rep::~tm_buffer_rep () {
   tm_delete (actor);
-  clean_observers (document);
 }
 
 /******************************************************************************
@@ -39,34 +72,27 @@ tm_buffer_rep::~tm_buffer_rep () {
 
 void
 tm_buffer_rep::attach_notifier () {
-  if (notify) return;
-  with_document_tree document_scope (&document);
-  string id= as_string (buf->name, URL_UNIX);
-  tree& st (subtree (document, rp));
-  call ("buffer-initialize", id, st, buf->name);
-  lns= link_repository (true);
-  lns->insert_locus (id, st, "buffer-notify");
-  notify= true;
+  (void) invoke_buffer_actor (this, actor_command_kind::attach_notifier);
 }
 
 bool
 tm_buffer_rep::needs_to_be_saved () {
   if (buf->read_only) return false;
-  with_document_tree document_scope (&document);
-  for (int i=0; i<N(vws); i++)
-    if (vws[i]->ed->need_save ())
-      return true;
-  return false;
+  actor_command_record result;
+  return invoke_buffer_actor (
+           this, actor_command_kind::query_modified, ATHENA_NO_VIEW,
+           ATHENA_NO_BLOB, ATHENA_NO_BLOB, &result) &&
+         result.argument[0] != 0;
 }
 
 bool
 tm_buffer_rep::needs_to_be_autosaved () {
   if (buf->read_only) return false;
-  with_document_tree document_scope (&document);
-  for (int i=0; i<N(vws); i++)
-    if (vws[i]->ed->need_save (false))
-      return true;
-  return false;
+  actor_command_record result;
+  return invoke_buffer_actor (
+           this, actor_command_kind::query_autosaved, ATHENA_NO_VIEW,
+           ATHENA_NO_BLOB, ATHENA_NO_BLOB, &result) &&
+         result.argument[0] != 0;
 }
 
 /******************************************************************************
@@ -86,9 +112,9 @@ remove_buffer (tm_buffer buf) {
   int nr, n= N(bufs);
   for (nr=0; nr<n; nr++)
     if (bufs[nr] == buf) {
-      buf->actor->shutdown ();
       while (N(buf->vws) != 0)
         delete_view (abstract_view (buf->vws[0]));
+      buf->actor->shutdown ();
       if (n == 1)
         get_server () -> quit ();
       for (int i=nr; i<n-1; i++)
@@ -143,9 +169,9 @@ url
 get_current_buffer () {
   const SchemeExecutionContext* context= current_scheme_execution_context ();
   if (context != nullptr) {
-    ASSERT (!is_none (context->buffer_id),
+    ASSERT (context->actor_id != ATHENA_NO_ACTOR,
             "no active buffer in Scheme execution context");
-    return context->buffer_id;
+    return context->actor->current_buffer_url ();
   }
   tm_view vw= concrete_view (get_current_view ());
   return vw->buf->buf->name;
@@ -154,7 +180,7 @@ get_current_buffer () {
 url
 get_current_buffer_safe () {
   const SchemeExecutionContext* context= current_scheme_execution_context ();
-  if (context != nullptr) return context->buffer_id;
+  if (context != nullptr) return context->actor->current_buffer_url ();
   url v= get_current_view_safe ();
   if (is_none (v)) return v;
   return concrete_view (v)->buf->buf->name;
@@ -174,16 +200,15 @@ rename_buffer (url name, url new_name) {
   kill_buffer (new_name);
   tm_buffer buf= concrete_buffer (name);
   if (is_nil (buf)) return;
-  with_document_tree document_scope (&buf->document);
   notify_rename_before (name);
   buf->buf->name= new_name;
   buf->buf->master= new_name;
-  buf->actor->update_buffer_id (as_string (new_name));
-  array<url> vs= buffer_to_views (new_name);
-  for (int i=0; i<N(vs); i++)
-    view_to_editor (vs[i]) -> notify_change (THE_ENVIRONMENT);
+  athena_blob_id renamed= actor_text_from_string (as_string (new_name));
+  if (!buf->actor->invoke (
+        actor_command_kind::rename_buffer, ATHENA_NO_VIEW, renamed))
+    (void) actor_text_registry::instance ().discard (renamed);
   notify_rename_after (new_name);
-  tree doc= subtree (buf->document, buf->rp);
+  tree doc= get_buffer_body (new_name);
   string title= propose_title (buf->buf->title, new_name, doc);
   set_title_buffer (new_name, title);
 }
@@ -252,6 +277,11 @@ set_title_buffer (url name, string title) {
   if (is_nil (buf)) return;
   if (buf->buf->title == title) return;
   buf->buf->title= title;
+  athena_blob_id title_payload= actor_text_from_string (copy (title));
+  if (!invoke_buffer_actor (
+        buf, actor_command_kind::set_buffer_title, ATHENA_NO_VIEW,
+        title_payload))
+    discard_text_payload (title_payload);
   array<url> vs= buffer_to_views (name);
   for (int i=0; i<N(vs); i++) {
     tm_window win= concrete_window (view_to_window (vs[i]));
@@ -267,18 +297,6 @@ set_title_buffer (url name, string title) {
 ******************************************************************************/
 
 void
-set_buffer_data (url name, new_data data) {
-  tm_buffer buf= concrete_buffer (name);
-  if (is_nil (buf)) return;
-  with_document_tree document_scope (&buf->document);
-  array<url> vs= buffer_to_views (name);
-  for (int i=0; i<N(vs); i++) {
-    view_to_editor (vs[i]) -> set_data (data);
-    view_to_editor (vs[i]) -> init_update ();
-  }
-}
-
-void
 set_buffer_tree (url name, tree doc) {
   tm_buffer buf= concrete_buffer (name);
   bool inserted= is_nil (buf);
@@ -289,17 +307,30 @@ set_buffer_tree (url name, tree doc) {
   }
   else old_title= buf->buf->title;
 
-  with_document_tree document_scope (&buf->document);
-  tree body= detach_data (doc, buf->data);
-  if (inserted) set_document (buf->document, buf->rp, body);
-  else {
-    assign (subtree (buf->document, buf->rp), body);
-    set_buffer_data (name, buf->data);
+  tree body= extract (doc, "body");
+  athena_blob_id document_payload=
+    actor_tree_registry::instance ().store (std::move (doc));
+  if (!invoke_buffer_actor (
+        buf, actor_command_kind::replace_document, ATHENA_NO_VIEW,
+        document_payload)) {
+    discard_tree_payload (document_payload);
+    return;
   }
   buf->buf->title= propose_title (old_title, name, body);
-  if (is_rooted_tmfs (name))
+  if (is_rooted_tmfs (name)) {
     buf->buf->read_only=
       !as_bool (call ("tmfs-permission?", object (name), object ("write")));
+    (void) invoke_buffer_actor (
+      buf, actor_command_kind::set_buffer_read_only, ATHENA_NO_VIEW,
+      ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr,
+      buf->buf->read_only ? 1 : 0);
+  }
+  athena_blob_id title_payload=
+    actor_text_from_string (copy (buf->buf->title));
+  if (!invoke_buffer_actor (
+        buf, actor_command_kind::set_buffer_title, ATHENA_NO_VIEW,
+        title_payload))
+    discard_text_payload (title_payload);
   pretend_buffer_saved (name);
 }
 
@@ -307,8 +338,12 @@ tree
 get_buffer_tree (url name) {
   tm_buffer buf= concrete_buffer (name);
   if (is_nil (buf)) return "";
-  tree body= subtree (buf->document, buf->rp);
-  return attach_data (body, buf->data, true);
+  actor_command_record result;
+  if (!invoke_buffer_actor (
+        buf, actor_command_kind::snapshot_document, ATHENA_NO_VIEW,
+        ATHENA_NO_BLOB, ATHENA_NO_BLOB, &result))
+    return "";
+  return actor_tree_registry::instance ().take (result.payload0);
 }
 
 void
@@ -319,8 +354,14 @@ set_buffer_body (url name, tree body) {
     set_buffer_tree (name, attach_data (body, data));
   }
   else {
-    with_document_tree document_scope (&buf->document);
-    assign (subtree (buf->document, buf->rp), body);
+    athena_blob_id body_payload=
+      actor_tree_registry::instance ().store (std::move (body));
+    if (!invoke_buffer_actor (
+          buf, actor_command_kind::replace_body, ATHENA_NO_VIEW,
+          body_payload)) {
+      discard_tree_payload (body_payload);
+      return;
+    }
     pretend_buffer_saved (name);
   }
 }
@@ -329,7 +370,12 @@ tree
 get_buffer_body (url name) {
   tm_buffer buf= concrete_buffer (name);
   if (is_nil (buf)) return "";
-  return subtree (buf->document, buf->rp);
+  actor_command_record result;
+  if (!invoke_buffer_actor (
+        buf, actor_command_kind::snapshot_body, ATHENA_NO_VIEW,
+        ATHENA_NO_BLOB, ATHENA_NO_BLOB, &result))
+    return "";
+  return actor_tree_registry::instance ().take (result.payload0);
 }
 
 /******************************************************************************
@@ -348,11 +394,12 @@ set_master_buffer (url name, url master) {
   tm_buffer buf= concrete_buffer (name);
   if (is_nil (buf)) return;
   if (buf->buf->master == master) return;
-  with_document_tree document_scope (&buf->document);
   buf->buf->master= master;
-  array<url> vs= buffer_to_views (name);
-  for (int i=0; i<N(vs); i++)
-    view_to_editor (vs[i]) -> notify_change (THE_ENVIRONMENT);
+  athena_blob_id master_payload= actor_text_from_string (as_string (master));
+  if (!invoke_buffer_actor (
+        buf, actor_command_kind::set_master_buffer, ATHENA_NO_VIEW,
+        master_payload))
+    discard_text_payload (master_payload);
 }
 
 void
@@ -405,20 +452,14 @@ void
 pretend_buffer_modified (url name) {
   tm_buffer buf= concrete_buffer (name);
   if (is_nil (buf)) return;
-  with_document_tree document_scope (&buf->document);
-  array<url> vs= buffer_to_views (name);
-  for (int i=0; i<N(vs); i++)
-    view_to_editor (vs[i]) -> require_save ();
+  (void) invoke_buffer_actor (buf, actor_command_kind::mark_modified);
 }
 
 void
 pretend_buffer_saved (url name) {
   tm_buffer buf= concrete_buffer (name);
   if (is_nil (buf)) return;
-  with_document_tree document_scope (&buf->document);
-  array<url> vs= buffer_to_views (name);
-  for (int i=0; i<N(vs); i++)
-    view_to_editor (vs[i]) -> notify_save ();
+  (void) invoke_buffer_actor (buf, actor_command_kind::mark_saved);
   set_last_save_buffer (name, last_modified (name));
 }
 
@@ -426,10 +467,7 @@ void
 pretend_buffer_autosaved (url name) {
   tm_buffer buf= concrete_buffer (name);
   if (is_nil (buf)) return;
-  with_document_tree document_scope (&buf->document);
-  array<url> vs= buffer_to_views (name);
-  for (int i=0; i<N(vs); i++)
-    view_to_editor (vs[i]) -> notify_save (false);
+  (void) invoke_buffer_actor (buf, actor_command_kind::mark_autosaved);
 }
 
 void
@@ -511,10 +549,16 @@ buffer_load (url name) {
   return buffer_import (name, name, fm);
 }
 
-hashmap<string,tree> style_tree_cache ("");
+thread_local hashmap<string,tree> style_tree_cache ("");
+static thread_local std::uint64_t style_tree_generation= 0;
 
 tree
 load_style_tree (string package) {
+  std::uint64_t generation= style_cache_generation ();
+  if (style_tree_generation != generation) {
+    style_tree_cache= hashmap<string,tree> ("");
+    style_tree_generation= generation;
+  }
   if (style_tree_cache->contains (package))
     return style_tree_cache [package];
   url name= url_none ();
@@ -576,55 +620,54 @@ export_tree (tree doc, url u, string fm) {
 
 bool
 buffer_export (url name, url dest, string fm) {
-  tm_view vw= concrete_view (get_recent_view (name));
-  ASSERT (vw != NULL, "view expected");
-  with_document_tree document_scope (&vw->buf->document);
-
-  if (fm == "postscript" || fm == "pdf") {
-    int old_stamp= last_modified (dest, false);
-    vw->ed->print_to_file (dest);
-    int new_stamp= last_modified (dest, false);
-    return new_stamp <= old_stamp;
+  tm_buffer buf= concrete_buffer (name);
+  if (is_nil (buf)) return true;
+  athena_blob_id destination= actor_text_from_string (as_string (dest));
+  athena_blob_id format= actor_text_from_string (copy (fm));
+  actor_command_record result;
+  bool completed= buf->actor->invoke (
+    actor_command_kind::export_buffer, buffer_command_view (buf, name),
+    destination, format, &result);
+  if (!completed) {
+    discard_text_payload (destination);
+    discard_text_payload (format);
+    return true;
   }
-
-  tree body= subtree (vw->buf->document, vw->buf->rp);
-  if (fm == "verbatim")
-    body= vw->ed->exec_verbatim (body);
-  if (fm == "html")
-    body= vw->ed->exec_html (body);
-  //if (fm == "latex")
-  //body= vw->ed->exec_latex (body);
-
-  vw->ed->get_data (vw->buf->data);
-  tree doc= attach_data (body, vw->buf->data, !vw->ed->get_save_aux());
-
-  if (fm == "latex")
-    doc= change_doc_attr (doc, "view", as_string (abstract_view (vw)));
-
-  object arg1 (vw->buf->buf->name);
-  object arg2 (body);
-  tree links= as_tree (call ("get-link-locations", arg1, arg2));
-  if (N (links) != 0)
-    doc << compound ("links", links);
-  
-  return export_tree (doc, dest, fm);
+  return result.argument[0] != 0;
 }
 
 tree
 latex_expand (tree doc, url name) {
-  tm_view vw= concrete_view (get_recent_view (name));
-  with_document_tree document_scope (&vw->buf->document);
-  tree body= vw->ed->exec_latex (extract (doc, "body"));
-  return change_doc_attr (doc, "body", body);
+  tm_buffer buf= concrete_buffer (name);
+  if (is_nil (buf)) return doc;
+  athena_blob_id payload=
+    actor_tree_registry::instance ().store (std::move (doc));
+  actor_command_record result;
+  if (!buf->actor->invoke (
+        actor_command_kind::latex_expand_buffer,
+        buffer_command_view (buf, name), payload, ATHENA_NO_BLOB, &result)) {
+    discard_tree_payload (payload);
+    return tree ();
+  }
+  return actor_tree_registry::instance ().take (result.payload0);
 }
 
 tree
 latex_expand (tree doc) {
-  tm_view vw= concrete_view (url (as_string (extract (doc, "view"))));
-  with_document_tree document_scope (&vw->buf->document);
-  tree body= vw->ed->exec_latex (extract (doc, "body"));
-  doc= change_doc_attr (doc, "body", body);
-  return remove_doc_attr (doc, "view");
+  url view_url (as_string (extract (doc, "view")));
+  tm_view view= concrete_view (view_url);
+  if (view == nullptr) return remove_doc_attr (doc, "view");
+  athena_blob_id payload=
+    actor_tree_registry::instance ().store (std::move (doc));
+  actor_command_record result;
+  if (!view->buf->actor->invoke (
+        actor_command_kind::latex_expand_buffer, view->runtime_id,
+        payload, ATHENA_NO_BLOB, &result)) {
+    discard_tree_payload (payload);
+    return tree ();
+  }
+  tree expanded= actor_tree_registry::instance ().take (result.payload0);
+  return remove_doc_attr (expanded, "view");
 }
 
 bool

@@ -13,6 +13,7 @@
 #define GUILE_TM_H
 
 #include "tm_configure.hpp"
+#include "actor_transport.hpp"
 #include "blackbox.hpp"
 #include "array.hpp"
 
@@ -89,6 +90,9 @@ using scheme_execution_callback= tmscm (*) (void*);
 tmscm_root_handle* tmscm_root_acquire (tmscm obj);
 tmscm tmscm_root_value (const tmscm_root_handle* handle);
 void tmscm_root_release (tmscm_root_handle* handle) noexcept;
+athena_scheme_handle_id scheme_command_handle_acquire (tmscm command);
+tmscm scheme_command_handle_value (athena_scheme_handle_id id);
+void scheme_command_handle_release (athena_scheme_handle_id id) noexcept;
 void scheme_runtime_safe_point ();
 void scheme_runtime_drain_all ();
 bool scheme_runtime_is_initialized () noexcept;

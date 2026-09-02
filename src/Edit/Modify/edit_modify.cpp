@@ -301,7 +301,7 @@ edit_modify_rep::start_editing () {
 void
 edit_modify_rep::end_editing () {
   //cout << UNINDENT << "End editing" << LF;
-  if (!is_nil (buf) && buf->buf->read_only && arch->has_content_changes ()) {
+  if (buf != nullptr && buf->read_only && arch->has_content_changes ()) {
     global_cancel ();
     set_message ("This view is read-only", "edit");
     return;
@@ -358,7 +358,7 @@ edit_modify_rep::undo_possibilities () {
 void
 edit_modify_rep::undo (bool redoable) {
   interrupt_shortcut ();
-  if (!is_nil (buf) && buf->buf->read_only) {
+  if (buf != nullptr && buf->read_only) {
     set_message ("This view is read-only", "undo");
     return;
   }
@@ -398,7 +398,7 @@ edit_modify_rep::redo_possibilities () {
 void
 edit_modify_rep::redo (int i) {
   interrupt_shortcut ();
-  if (!is_nil (buf) && buf->buf->read_only) {
+  if (buf != nullptr && buf->read_only) {
     set_message ("This view is read-only", "redo");
     return;
   }
