@@ -18,7 +18,9 @@
 #include "tm_server.hpp"
 #include "QTMToast.hpp"
 #include "QTMOutlinePane.hpp"
+#include "QTMVaultBackupDispatcher.hpp"
 #include "QTMVaultExplorer.hpp"
+#include "qt_utilities.hpp"
 
 #include <QApplication>
 #include <QStyle>
@@ -324,6 +326,26 @@ qt_actor_widget_rep::drain_external_effects () {
       QTimer::singleShot (0, qApp, [closing_actor_id] {
         kill_buffer_by_actor_id (closing_actor_id);
       });
+      break;
+    }
+    case actor_command_kind::ui_choose_file: {
+      string title= actor_text_registry::instance ().take (record.payload0);
+      string type= actor_text_registry::instance ().take (record.payload1);
+      widget chooser= actor_ui_take_widget (record.argument[0]);
+      tm_view view= concrete_runtime_view (view_id_);
+      if (is_nil (chooser) || view == nullptr) break;
+      set_current_view (abstract_view (view));
+      get_server ()->dialogue_start (title, chooser);
+      if (type == "directory")
+        ::send_keyboard_focus (::get_directory (chooser));
+      else
+        ::send_keyboard_focus (::get_file (chooser));
+      break;
+    }
+    case actor_command_kind::ui_vault_backup_dispatch_realtime: {
+      string saved_file=
+        actor_text_registry::instance ().take (record.payload0);
+      qtm_vault_backup_dispatch_realtime (to_qstring (saved_file));
       break;
     }
     case actor_command_kind::ui_vault_explorer_track_file: {

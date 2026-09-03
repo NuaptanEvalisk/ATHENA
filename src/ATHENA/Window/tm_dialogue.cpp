@@ -16,6 +16,9 @@
 #include "analyze.hpp"
 #include "message.hpp"
 #include "gui_text.hpp"
+#include "actor_ui_bridge.hpp"
+#include "editor.hpp"
+#include "scheme_execution_context.hpp"
 
 /******************************************************************************
 * Dialogues
@@ -147,6 +150,16 @@ tm_frame_rep::choose_file (object fun, string title, string type,
     }
   }
   else set_directory (wid, ".");
+  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  if (context != nullptr && context->editor != nullptr &&
+      context->view_id != ATHENA_NO_VIEW) {
+    athena_resource_id chooser_id= actor_ui_store_widget (std::move (wid));
+    if (!context->editor->publish_ui_text_pair (
+          actor_command_kind::ui_choose_file, std::move (title),
+          std::move (type), chooser_id))
+      (void) actor_ui_discard_widget (chooser_id);
+    return;
+  }
   dialogue_start (title, wid);
   if (type == "directory") send_keyboard_focus (get_directory (dialogue_wid));
   else send_keyboard_focus (get_file (dialogue_wid));

@@ -99,6 +99,8 @@ enum class actor_command_kind: std::uint32_t {
   ui_global_action,
   ui_open_document_window,
   ui_close_buffer,
+  ui_choose_file,
+  ui_vault_backup_dispatch_realtime,
   ui_vault_explorer_track_file,
   ui_outline_snapshot,
   ui_keyboard_focus_field,

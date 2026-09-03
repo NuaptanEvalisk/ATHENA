@@ -2391,8 +2391,16 @@ static tmscm
 tmg_vault_backup_dispatch_realtime (tmscm arg1) {
   TMSCM_ASSERT_URL (arg1, TMSCM_ARG1, "vault-backup-dispatch-realtime");
   url saved_file= tmscm_to_url (arg1);
-  qtm_vault_backup_dispatch_realtime (
-    to_qstring (as_string (concretize (saved_file), URL_SYSTEM)));
+  string saved_path= as_string (concretize (saved_file), URL_SYSTEM);
+  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  if (context != nullptr && context->editor != nullptr &&
+      context->view_id != ATHENA_NO_VIEW) {
+    (void) context->editor->publish_ui_text (
+      actor_command_kind::ui_vault_backup_dispatch_realtime,
+      std::move (saved_path));
+    return TMSCM_UNSPECIFIED;
+  }
+  qtm_vault_backup_dispatch_realtime (to_qstring (saved_path));
   return TMSCM_UNSPECIFIED;
 }
 
