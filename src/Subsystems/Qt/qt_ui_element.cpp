@@ -37,6 +37,8 @@
 #include <QPushButton>
 #include <QSplitter>
 #include <QApplication>
+#include <QThread>
+#include <QTimer>
 #include <QTreeView>
 #include <QIcon>
 #include <QStandardPaths>
@@ -217,23 +219,15 @@ qt_glue_widget_rep::as_qwidget(QWidget* parent_widget) {
  * on the magnifying glass
  ******************************************************************************/
 
-static list<QAction*> to_be_destroyed;
-static time_t last_addition;
-
 void
-schedule_destruction (QAction* a) {
-  time_t now= texmacs_time ();
-  if (!is_nil (to_be_destroyed) && last_addition + 3000 < now) {
-    to_be_destroyed= reverse (to_be_destroyed);
-    while (!is_nil (to_be_destroyed)) {
-      //cout << "Destroy\n";
-      delete to_be_destroyed->item;
-      to_be_destroyed= to_be_destroyed->next;
-    }
-  }
-  //cout << "Postpone\n";
-  last_addition= now;
-  to_be_destroyed= list<QAction*> (a, to_be_destroyed);
+qt_schedule_action_destruction (QAction* action) {
+  if (action == nullptr) return;
+  auto schedule= [action] {
+    QTimer::singleShot (3000, action, [action] { delete action; });
+  };
+  if (QThread::currentThread () == action->thread ()) schedule ();
+  else (void) QMetaObject::invokeMethod (
+    action, std::move (schedule), Qt::QueuedConnection);
 }
 
 /******************************************************************************
@@ -247,8 +241,7 @@ qt_ui_element_rep::~qt_ui_element_rep() {
   if (cachedActionList) {
     while (!cachedActionList->empty()) {
       QAction *a = cachedActionList->takeFirst();
-      //if (a) delete a;
-      if (a) schedule_destruction (a);
+      qt_schedule_action_destruction (a);
     }
     delete cachedActionList;
   }

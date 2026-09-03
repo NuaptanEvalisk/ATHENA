@@ -28,6 +28,8 @@
 class QMenu;
 class QAction;
 
+void qt_schedule_action_destruction (QAction* action);
+
 
 /*! Construction of UI elements / widgets.
 

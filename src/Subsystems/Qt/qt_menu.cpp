@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "qt_menu.hpp"
+#include "qt_ui_element.hpp"
 #include "qt_utilities.hpp"
 #include "qt_window_widget.hpp"
 #include "QTMMenuHelper.hpp"
@@ -25,7 +26,7 @@ qt_menu_rep::qt_menu_rep (qt_widget _content)
  default owns its actions.
  */
 qt_menu_rep::~qt_menu_rep () {
-  delete qact;
+  qt_schedule_action_destruction (qact);
 }
 
 QMenu*

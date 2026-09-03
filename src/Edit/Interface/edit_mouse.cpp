@@ -11,6 +11,7 @@
 
 #include "edit_interface.hpp"
 #include "Interface/selection_autoscroll.hpp"
+#include "actor_ui_bridge.hpp"
 #include "tm_buffer.hpp"
 #include "tm_timer.hpp"
 #include "link.hpp"
@@ -547,10 +548,14 @@ edit_interface_rep::mouse_adjust (SI x, SI y, int mods) {
     string menu= "texmacs-popup-menu";
     if ((mods & (ShiftMask + ControlMask)) != 0)
       menu= "texmacs-alternative-popup-menu";
-    popup_open= publish_ui_text (
-      actor_command_kind::ui_show_popup,
-      "(vertical (link " * menu * "))",
+    widget contents;
+    get_server ()->menu_widget ("(vertical (link " * menu * "))", contents);
+    athena_resource_id contents_id=
+      actor_ui_store_widget (std::move (contents));
+    popup_open= publish_ui (
+      actor_command_kind::ui_show_popup, contents_id,
       static_cast<std::uint64_t> (x), static_cast<std::uint64_t> (y));
+    if (!popup_open) (void) actor_ui_discard_widget (contents_id);
   }
 }
 

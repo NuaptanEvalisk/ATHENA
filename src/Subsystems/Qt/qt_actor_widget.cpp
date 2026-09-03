@@ -405,17 +405,16 @@ qt_actor_widget_rep::drain_external_effects () {
       break;
     }
     case actor_command_kind::ui_show_popup: {
-      string menu= actor_text_registry::instance ().take (record.payload0);
       if (!is_nil (popup_window_)) {
         set_visibility (popup_window_, false);
         destroy_window_widget (popup_window_);
       }
-      widget contents;
-      get_server ()->menu_widget (menu, contents);
+      widget contents= actor_ui_take_widget (record.argument[0]);
+      if (is_nil (contents)) break;
       popup_content_= ::popup_widget (contents);
       popup_window_= ::popup_window_widget (popup_content_, "Popup menu");
-      SI x= static_cast<SI> (record.argument[0]);
-      SI y= static_cast<SI> (record.argument[1]);
+      SI x= static_cast<SI> (record.argument[1]);
+      SI y= static_cast<SI> (record.argument[2]);
       SI px, py;
       if (qt_widget_global_position (this, x, y, px, py))
         set_position (popup_window_, px, py);
