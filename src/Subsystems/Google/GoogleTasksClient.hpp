@@ -11,7 +11,6 @@
 #ifndef GOOGLETASKSCLIENT_HPP
 #define GOOGLETASKSCLIENT_HPP
 
-#include <QObject>
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QSharedPointer>
@@ -34,7 +33,7 @@ struct GoogleTask {
   QString due;
 };
 
-class GoogleTasksClient: public QObject {
+class GoogleTasksClient {
 public:
   using ListsCallback= std::function<void(const QVector<GoogleTaskList>&,
                                           const QString&)>;
@@ -59,19 +58,32 @@ public:
                          bool completed, DoneCallback callback);
 
 private:
+  using ListsResult= std::function<void(QVector<GoogleTaskList>, QString)>;
+  using TasksResult= std::function<void(QVector<GoogleTask>, QString)>;
+  using DoneResult= std::function<void(bool, QString)>;
+  using InsertResult= std::function<void(bool, GoogleTask, QString)>;
+
   GoogleTasksClient ();
 
+  QNetworkAccessManager* networkManager ();
+  void listTaskListsOnQt (ListsResult callback);
+  void listTasksOnQt (QString taskListId, bool showCompleted,
+                      TasksResult callback);
+  void insertTaskDetailedOnQt (QString taskListId, QString title,
+                               InsertResult callback);
+  void setTaskCompletedOnQt (QString taskListId, QString taskId,
+                             bool completed, DoneResult callback);
   void authorizedRequest (std::function<void(const QString&)> body,
-                          DoneCallback errorCallback);
+                          DoneResult errorCallback);
   void listTasksPage (const QString& taskListId, bool showCompleted,
                       const QString& pageToken, const QString& token,
                       QSharedPointer<QVector<GoogleTask>> accumulated,
-                      TasksCallback callback);
+                      TasksResult callback);
   QNetworkRequest jsonRequest (const QUrl& url, const QString& token) const;
   QString replyError (QNetworkReply* reply, const QByteArray& body,
                       const QString& fallback) const;
 
-  QNetworkAccessManager* manager;
+  QNetworkAccessManager* manager= nullptr;
 };
 
 #endif // GOOGLETASKSCLIENT_HPP

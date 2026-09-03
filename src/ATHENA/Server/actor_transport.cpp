@@ -558,3 +558,50 @@ actor_tree_registry::discard (athena_blob_id id) noexcept {
   std::lock_guard<std::mutex> guard (impl_->lock);
   return impl_->trees.erase (id) != 0;
 }
+
+struct actor_continuation_registry::implementation {
+  mutable std::mutex lock;
+  std::unordered_map<athena_continuation_id, std::function<void()>>
+    continuations;
+  athena_continuation_id next_id= 1;
+};
+
+actor_continuation_registry&
+actor_continuation_registry::instance () {
+  static actor_continuation_registry registry;
+  return registry;
+}
+
+actor_continuation_registry::actor_continuation_registry ():
+  impl_ (std::make_unique<implementation> ()) {}
+
+actor_continuation_registry::~actor_continuation_registry ()= default;
+
+athena_continuation_id
+actor_continuation_registry::store (std::function<void()> continuation) {
+  if (!continuation) return ATHENA_NO_CONTINUATION;
+  std::lock_guard<std::mutex> guard (impl_->lock);
+  athena_continuation_id id= impl_->next_id++;
+  if (id == ATHENA_NO_CONTINUATION)
+    throw std::overflow_error ("actor continuation id space exhausted");
+  impl_->continuations.emplace (id, std::move (continuation));
+  return id;
+}
+
+std::function<void()>
+actor_continuation_registry::take (athena_continuation_id id) noexcept {
+  if (id == ATHENA_NO_CONTINUATION) return {};
+  std::lock_guard<std::mutex> guard (impl_->lock);
+  auto found= impl_->continuations.find (id);
+  if (found == impl_->continuations.end ()) return {};
+  std::function<void()> result= std::move (found->second);
+  impl_->continuations.erase (found);
+  return result;
+}
+
+bool
+actor_continuation_registry::discard (athena_continuation_id id) noexcept {
+  if (id == ATHENA_NO_CONTINUATION) return false;
+  std::lock_guard<std::mutex> guard (impl_->lock);
+  return impl_->continuations.erase (id) != 0;
+}

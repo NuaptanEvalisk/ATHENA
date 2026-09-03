@@ -10,11 +10,13 @@
 
 #include "GoogleOAuth.hpp"
 
+#include "GoogleAsyncDispatch.hpp"
 #include "boot.hpp"
 #include "scheme.hpp"
 #include "tm_ostream.hpp"
 
 #include <QByteArray>
+#include <QCoreApplication>
 #include <QCryptographicHash>
 #include <QDateTime>
 #include <QDesktopServices>
@@ -31,6 +33,7 @@
 #include <QStandardPaths>
 #include <QTcpServer>
 #include <QTcpSocket>
+#include <QThread>
 #include <QUrl>
 #include <QUrlQuery>
 
@@ -98,7 +101,15 @@ GoogleOAuth::instance () {
 }
 
 GoogleOAuth::GoogleOAuth ()
-  : QObject (nullptr), manager (new QNetworkAccessManager (this)) {}
+  = default;
+
+QNetworkAccessManager*
+GoogleOAuth::networkManager () {
+  QCoreApplication* app= QCoreApplication::instance ();
+  Q_ASSERT (app != nullptr && QThread::currentThread () == app->thread ());
+  if (manager == nullptr) manager= new QNetworkAccessManager (app);
+  return manager;
+}
 
 QString
 GoogleOAuth::clientId () const {
@@ -188,13 +199,15 @@ GoogleOAuth::forgetTokens () {
 
 void
 GoogleOAuth::authorizeTasks (QWidget*, BoolCallback callback) {
+  QCoreApplication* app= QCoreApplication::instance ();
+  Q_ASSERT (app != nullptr && QThread::currentThread () == app->thread ());
   QString cid= clientId ().trimmed ();
   if (cid.isEmpty ()) {
     callback (false, "Set the Google OAuth client ID first.");
     return;
   }
 
-  QTcpServer* server= new QTcpServer (this);
+  QTcpServer* server= new QTcpServer (app);
   if (!server->listen (QHostAddress::LocalHost, 0)) {
     QString error= server->errorString ();
     server->deleteLater ();
@@ -221,11 +234,11 @@ GoogleOAuth::authorizeTasks (QWidget*, BoolCallback callback) {
   auth.setQuery (q);
 
   bool* completed= new bool (false);
-  QObject::connect (server, &QTcpServer::newConnection, this,
+  QObject::connect (server, &QTcpServer::newConnection, server,
                     [=] () mutable {
     QTcpSocket* socket= server->nextPendingConnection ();
     if (socket == nullptr) return;
-    QObject::connect (socket, &QTcpSocket::readyRead, this,
+    QObject::connect (socket, &QTcpSocket::readyRead, socket,
                       [=] () mutable {
       if (*completed) return;
       QByteArray request= socket->readAll ();
@@ -294,8 +307,8 @@ GoogleOAuth::exchangeCode (const QString& code, const QString& verifier,
   q.addQueryItem ("redirect_uri", redirectUri);
   q.addQueryItem ("grant_type", "authorization_code");
 
-  QNetworkReply* reply= manager->post (request, form_body (q));
-  QObject::connect (reply, &QNetworkReply::finished, this, [=] () {
+  QNetworkReply* reply= networkManager ()->post (request, form_body (q));
+  QObject::connect (reply, &QNetworkReply::finished, reply, [=] () {
     QByteArray body= reply->readAll ();
     QJsonDocument doc= QJsonDocument::fromJson (body);
     QJsonObject root= doc.object ();
@@ -327,20 +340,39 @@ GoogleOAuth::exchangeCode (const QString& code, const QString& verifier,
 
 void
 GoogleOAuth::getAccessToken (TokenCallback callback) {
+  GoogleAsyncOrigin origin= google_async_origin ();
+  google_dispatch_to_qt (
+    [this, origin, callback= std::move (callback)] () mutable {
+      getAccessTokenOnQt (
+        [origin, callback= std::move (callback)] (
+          QString token, QString error) mutable {
+          google_dispatch_to_origin (
+            origin,
+            [callback= std::move (callback),
+             token= std::move (token),
+             error= std::move (error)] () mutable {
+              callback (token, error);
+            });
+        });
+    });
+}
+
+void
+GoogleOAuth::getAccessTokenOnQt (TokenResult callback) {
   TokenInfo token= loadToken ();
   if (accessTokenFresh (token)) {
-    callback (token.accessToken, QString ());
+    callback (std::move (token.accessToken), QString ());
     return;
   }
   if (token.refreshToken.isEmpty ()) {
     callback (QString (), "Google Tasks is not connected.");
     return;
   }
-  refreshToken (token, callback);
+  refreshToken (std::move (token), std::move (callback));
 }
 
 void
-GoogleOAuth::refreshToken (const TokenInfo& token, TokenCallback callback) {
+GoogleOAuth::refreshToken (TokenInfo token, TokenResult callback) {
   QUrl url ("https://oauth2.googleapis.com/token");
   QNetworkRequest request (url);
   request.setHeader (QNetworkRequest::ContentTypeHeader,
@@ -353,8 +385,8 @@ GoogleOAuth::refreshToken (const TokenInfo& token, TokenCallback callback) {
   q.addQueryItem ("refresh_token", token.refreshToken);
   q.addQueryItem ("grant_type", "refresh_token");
 
-  QNetworkReply* reply= manager->post (request, form_body (q));
-  QObject::connect (reply, &QNetworkReply::finished, this, [=] () {
+  QNetworkReply* reply= networkManager ()->post (request, form_body (q));
+  QObject::connect (reply, &QNetworkReply::finished, reply, [=] () {
     QByteArray body= reply->readAll ();
     QJsonDocument doc= QJsonDocument::fromJson (body);
     QJsonObject root= doc.object ();
@@ -378,6 +410,6 @@ GoogleOAuth::refreshToken (const TokenInfo& token, TokenCallback callback) {
       return;
     }
     reply->deleteLater ();
-    callback (updated.accessToken, QString ());
+    callback (std::move (updated.accessToken), QString ());
   });
 }

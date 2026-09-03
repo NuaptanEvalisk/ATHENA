@@ -18,6 +18,7 @@
 #include <condition_variable>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <type_traits>
@@ -30,12 +31,14 @@ using athena_blob_id= std::uint64_t;
 using athena_scheme_handle_id= std::uint64_t;
 using athena_resource_id= std::uint64_t;
 using athena_response_id= std::uint64_t;
+using athena_continuation_id= std::uint64_t;
 
 constexpr athena_actor_id ATHENA_NO_ACTOR= 0;
 constexpr athena_view_id ATHENA_NO_VIEW= 0;
 constexpr athena_blob_id ATHENA_NO_BLOB= 0;
 constexpr athena_scheme_handle_id ATHENA_NO_SCHEME_HANDLE= 0;
 constexpr athena_response_id ATHENA_NO_RESPONSE= 0;
+constexpr athena_continuation_id ATHENA_NO_CONTINUATION= 0;
 
 enum class actor_command_kind: std::uint32_t {
   none= 0,
@@ -68,6 +71,7 @@ enum class actor_command_kind: std::uint32_t {
   run_scheme_handle,
   invoke_scheme_handle,
   evaluate_widget_handle,
+  run_native_continuation,
   rename_buffer,
   save_buffer,
   autosave_buffer,
@@ -341,6 +345,27 @@ private:
   ~actor_tree_registry ();
   actor_tree_registry (const actor_tree_registry&)= delete;
   actor_tree_registry& operator = (const actor_tree_registry&)= delete;
+
+  struct implementation;
+  std::unique_ptr<implementation> impl_;
+};
+
+// Native continuations remain in shared storage while only their numeric ids
+// cross Qt and BufferActor queues.
+class actor_continuation_registry {
+public:
+  static actor_continuation_registry& instance ();
+
+  athena_continuation_id store (std::function<void()> continuation);
+  std::function<void()> take (athena_continuation_id id) noexcept;
+  bool discard (athena_continuation_id id) noexcept;
+
+private:
+  actor_continuation_registry ();
+  ~actor_continuation_registry ();
+  actor_continuation_registry (const actor_continuation_registry&)= delete;
+  actor_continuation_registry& operator = (
+    const actor_continuation_registry&)= delete;
 
   struct implementation;
   std::unique_ptr<implementation> impl_;

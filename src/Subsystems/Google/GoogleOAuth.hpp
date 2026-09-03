@@ -11,14 +11,13 @@
 #ifndef GOOGLEOAUTH_HPP
 #define GOOGLEOAUTH_HPP
 
-#include <QObject>
 #include <QString>
 #include <functional>
 
 class QNetworkAccessManager;
 class QWidget;
 
-class GoogleOAuth: public QObject {
+class GoogleOAuth {
 public:
   using BoolCallback= std::function<void(bool, const QString&)>;
   using TokenCallback= std::function<void(const QString&, const QString&)>;
@@ -36,7 +35,11 @@ public:
   void getAccessToken (TokenCallback callback);
 
 private:
+  using TokenResult= std::function<void(QString, QString)>;
+
   GoogleOAuth ();
+  QNetworkAccessManager* networkManager ();
+  void getAccessTokenOnQt (TokenResult callback);
 
   struct TokenInfo {
     QString accessToken;
@@ -50,9 +53,9 @@ private:
   bool accessTokenFresh (const TokenInfo& token) const;
   void exchangeCode (const QString& code, const QString& verifier,
                      const QString& redirectUri, BoolCallback callback);
-  void refreshToken (const TokenInfo& token, TokenCallback callback);
+  void refreshToken (TokenInfo token, TokenResult callback);
 
-  QNetworkAccessManager* manager;
+  QNetworkAccessManager* manager= nullptr;
 };
 
 #endif // GOOGLEOAUTH_HPP

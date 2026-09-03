@@ -804,6 +804,12 @@ buffer_actor::dispatch (actor_command_record& command) {
     scheme_command_handle_release (handle);
     break;
   }
+  case actor_command_kind::run_native_continuation: {
+    std::function<void()> continuation=
+      actor_continuation_registry::instance ().take (command.argument[0]);
+    if (continuation) continuation ();
+    break;
+  }
   case actor_command_kind::suspend_view:
     if (editor != nullptr) editor->suspend ();
     break;

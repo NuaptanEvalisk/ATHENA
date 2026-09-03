@@ -10,8 +10,10 @@
 
 #include "GoogleTasksClient.hpp"
 
+#include "GoogleAsyncDispatch.hpp"
 #include "GoogleOAuth.hpp"
 
+#include <QCoreApplication>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -19,6 +21,7 @@
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QSharedPointer>
+#include <QThread>
 #include <QUrl>
 #include <QUrlQuery>
 
@@ -29,11 +32,19 @@ GoogleTasksClient::instance () {
 }
 
 GoogleTasksClient::GoogleTasksClient ()
-  : QObject (nullptr), manager (new QNetworkAccessManager (this)) {}
+  = default;
+
+QNetworkAccessManager*
+GoogleTasksClient::networkManager () {
+  QCoreApplication* app= QCoreApplication::instance ();
+  Q_ASSERT (app != nullptr && QThread::currentThread () == app->thread ());
+  if (manager == nullptr) manager= new QNetworkAccessManager (app);
+  return manager;
+}
 
 void
 GoogleTasksClient::authorizedRequest (
-  std::function<void(const QString&)> body, DoneCallback errorCallback) {
+  std::function<void(const QString&)> body, DoneResult errorCallback) {
   GoogleOAuth::instance ().getAccessToken (
     [body, errorCallback] (const QString& token, const QString& error) {
       if (!error.isEmpty ()) {
@@ -67,10 +78,28 @@ GoogleTasksClient::replyError (QNetworkReply* reply, const QByteArray& body,
 
 void
 GoogleTasksClient::listTaskLists (ListsCallback callback) {
+  GoogleAsyncOrigin origin= google_async_origin ();
+  google_dispatch_to_qt (
+    [this, origin, callback= std::move (callback)] () mutable {
+      listTaskListsOnQt (
+        [origin, callback= std::move (callback)] (
+          QVector<GoogleTaskList> lists, QString error) mutable {
+          google_dispatch_to_origin (
+            origin,
+            [callback= std::move (callback), lists= std::move (lists),
+             error= std::move (error)] () mutable {
+              callback (lists, error);
+            });
+        });
+    });
+}
+
+void
+GoogleTasksClient::listTaskListsOnQt (ListsResult callback) {
   authorizedRequest ([=] (const QString& token) {
     QUrl url ("https://tasks.googleapis.com/tasks/v1/users/@me/lists");
-    QNetworkReply* reply= manager->get (jsonRequest (url, token));
-    QObject::connect (reply, &QNetworkReply::finished, this, [=] () {
+    QNetworkReply* reply= networkManager ()->get (jsonRequest (url, token));
+    QObject::connect (reply, &QNetworkReply::finished, reply, [=] () {
       QByteArray body= reply->readAll ();
       if (reply->error () != QNetworkReply::NoError) {
         QString error= replyError (reply, body, reply->errorString ());
@@ -89,7 +118,7 @@ GoogleTasksClient::listTaskLists (ListsCallback callback) {
         if (!list.id.isEmpty ()) lists << list;
       }
       reply->deleteLater ();
-      callback (lists, QString ());
+      callback (std::move (lists), QString ());
     });
   }, [=] (bool, const QString& error) { callback ({}, error); });
 }
@@ -97,6 +126,27 @@ GoogleTasksClient::listTaskLists (ListsCallback callback) {
 void
 GoogleTasksClient::listTasks (const QString& taskListId, bool showCompleted,
                               TasksCallback callback) {
+  GoogleAsyncOrigin origin= google_async_origin ();
+  google_dispatch_to_qt (
+    [this, origin, taskListId, showCompleted,
+     callback= std::move (callback)] () mutable {
+      listTasksOnQt (
+        taskListId, showCompleted,
+        [origin, callback= std::move (callback)] (
+          QVector<GoogleTask> tasks, QString error) mutable {
+          google_dispatch_to_origin (
+            origin,
+            [callback= std::move (callback), tasks= std::move (tasks),
+             error= std::move (error)] () mutable {
+              callback (tasks, error);
+            });
+        });
+    });
+}
+
+void
+GoogleTasksClient::listTasksOnQt (QString taskListId, bool showCompleted,
+                                  TasksResult callback) {
   if (taskListId.isEmpty ()) {
     callback ({}, "No task list selected.");
     return;
@@ -113,7 +163,7 @@ void
 GoogleTasksClient::listTasksPage (
   const QString& taskListId, bool showCompleted, const QString& pageToken,
   const QString& token, QSharedPointer<QVector<GoogleTask>> accumulated,
-  TasksCallback callback) {
+  TasksResult callback) {
     QUrl url ("https://tasks.googleapis.com/tasks/v1/lists/" +
               QString::fromLatin1 (QUrl::toPercentEncoding (taskListId)) +
               "/tasks");
@@ -123,8 +173,8 @@ GoogleTasksClient::listTasksPage (
     query.addQueryItem ("maxResults", "100");
     if (!pageToken.isEmpty ()) query.addQueryItem ("pageToken", pageToken);
     url.setQuery (query);
-    QNetworkReply* reply= manager->get (jsonRequest (url, token));
-    QObject::connect (reply, &QNetworkReply::finished, this, [=] () {
+    QNetworkReply* reply= networkManager ()->get (jsonRequest (url, token));
+    QObject::connect (reply, &QNetworkReply::finished, reply, [=] () {
       QByteArray body= reply->readAll ();
       if (reply->error () != QNetworkReply::NoError) {
         QString error= replyError (reply, body, reply->errorString ());
@@ -152,7 +202,7 @@ GoogleTasksClient::listTasksPage (
         return;
       }
       reply->deleteLater ();
-      callback (*accumulated, QString ());
+      callback (std::move (*accumulated), QString ());
     });
 }
 
@@ -170,6 +220,28 @@ void
 GoogleTasksClient::insertTaskDetailed (const QString& taskListId,
                                        const QString& title,
                                        InsertCallback callback) {
+  GoogleAsyncOrigin origin= google_async_origin ();
+  google_dispatch_to_qt (
+    [this, origin, taskListId, title,
+     callback= std::move (callback)] () mutable {
+      insertTaskDetailedOnQt (
+        taskListId, title,
+        [origin, callback= std::move (callback)] (
+          bool ok, GoogleTask task, QString message) mutable {
+          google_dispatch_to_origin (
+            origin,
+            [callback= std::move (callback), ok, task= std::move (task),
+             message= std::move (message)] () mutable {
+              callback (ok, task, message);
+            });
+        });
+    });
+}
+
+void
+GoogleTasksClient::insertTaskDetailedOnQt (QString taskListId,
+                                           QString title,
+                                           InsertResult callback) {
   QString trimmed= title.trimmed ();
   if (taskListId.isEmpty () || trimmed.isEmpty ()) {
     callback (false, GoogleTask (), "Task list and title are required.");
@@ -181,9 +253,9 @@ GoogleTasksClient::insertTaskDetailed (const QString& taskListId,
               "/tasks");
     QJsonObject payload;
     payload["title"]= trimmed;
-    QNetworkReply* reply= manager->post (
+    QNetworkReply* reply= networkManager ()->post (
       jsonRequest (url, token), QJsonDocument (payload).toJson ());
-    QObject::connect (reply, &QNetworkReply::finished, this, [=] () {
+    QObject::connect (reply, &QNetworkReply::finished, reply, [=] () {
       QByteArray body= reply->readAll ();
       bool ok= reply->error () == QNetworkReply::NoError;
       QString error= ok? QString (): replyError (reply, body,
@@ -198,7 +270,8 @@ GoogleTasksClient::insertTaskDetailed (const QString& taskListId,
         task.due= item.value ("due").toString ();
       }
       reply->deleteLater ();
-      callback (ok, task, ok? QString ("Task created."): error);
+      callback (ok, std::move (task),
+                ok? QString ("Task created."): std::move (error));
     });
   }, [=] (bool, const QString& error) {
     callback (false, GoogleTask (), error);
@@ -216,6 +289,28 @@ void
 GoogleTasksClient::setTaskCompleted (const QString& taskListId,
                                      const QString& taskId, bool completed,
                                      DoneCallback callback) {
+  GoogleAsyncOrigin origin= google_async_origin ();
+  google_dispatch_to_qt (
+    [this, origin, taskListId, taskId, completed,
+     callback= std::move (callback)] () mutable {
+      setTaskCompletedOnQt (
+        taskListId, taskId, completed,
+        [origin, callback= std::move (callback)] (
+          bool ok, QString message) mutable {
+          google_dispatch_to_origin (
+            origin,
+            [callback= std::move (callback), ok,
+             message= std::move (message)] () mutable {
+              callback (ok, message);
+            });
+        });
+    });
+}
+
+void
+GoogleTasksClient::setTaskCompletedOnQt (QString taskListId,
+                                         QString taskId, bool completed,
+                                         DoneResult callback) {
   if (taskListId.isEmpty () || taskId.isEmpty ()) {
     callback (false, "Task list and task are required.");
     return;
@@ -228,9 +323,9 @@ GoogleTasksClient::setTaskCompleted (const QString& taskListId,
     QJsonObject payload;
     payload["status"]= completed? "completed": "needsAction";
     if (!completed) payload["completed"]= QJsonValue ();
-    QNetworkReply* reply= manager->sendCustomRequest (
+    QNetworkReply* reply= networkManager ()->sendCustomRequest (
       jsonRequest (url, token), "PATCH", QJsonDocument (payload).toJson ());
-    QObject::connect (reply, &QNetworkReply::finished, this, [=] () {
+    QObject::connect (reply, &QNetworkReply::finished, reply, [=] () {
       QByteArray body= reply->readAll ();
       bool ok= reply->error () == QNetworkReply::NoError;
       QString error= ok? QString (): replyError (reply, body,
