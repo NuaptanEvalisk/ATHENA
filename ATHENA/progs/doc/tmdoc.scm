@@ -254,7 +254,11 @@
 (tm-define (tmdoc-find-title doc)
   (cond ((tm-atomic? doc) #f)
         ((tm-in? doc '(title doc-title tmdoc-title tmdoc-title* tmweb-title))
-         (with title (cpp-texmacs->verbatim (tm-ref doc 0) #f "default")
+         (let* ((source (tm-ref doc 0))
+                (expanded (catch #t
+                            (lambda () (verbatim-expand source))
+                            (lambda args source)))
+                (title (cpp-texmacs->verbatim expanded #f "default")))
            (string-append "Help - " title)))
         (else (tmdoc-find-title-list (tm-children doc)))))
 

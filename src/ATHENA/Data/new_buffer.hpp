@@ -83,6 +83,7 @@ void rename_buffer (url name, url new_name);
 url get_master_buffer (url name);
 void set_master_buffer (url name, url master);
 void set_title_buffer (url name, string title);
+void set_proposed_title_buffer (url name, string title);
 string get_title_buffer (url name);
 void set_buffer_tree (url name, tree doc);
 tree get_buffer_tree (url name);

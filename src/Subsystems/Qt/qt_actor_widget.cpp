@@ -11,6 +11,7 @@
 #include "qt_actor_widget.hpp"
 
 #include "buffer_actor.hpp"
+#include "Data/new_buffer.hpp"
 #include "Data/new_window.hpp"
 #include "Data/new_view.hpp"
 #include "message.hpp"
@@ -431,6 +432,13 @@ qt_actor_widget_rep::drain_external_effects () {
       string encoded_name=
         actor_text_registry::instance ().take (record.payload0);
       switch_to_buffer_from_actor (std::move (encoded_name));
+      break;
+    }
+    case actor_command_kind::ui_set_buffer_title: {
+      string title= actor_text_registry::instance ().take (record.payload0);
+      tm_view view= concrete_runtime_view (view_id_);
+      if (view != nullptr)
+        set_proposed_title_buffer (view->buf->buf->name, std::move (title));
       break;
     }
     case actor_command_kind::ui_show_popup: {

@@ -235,6 +235,20 @@ buffer_has_name (url name) {
 * Buffer title
 ******************************************************************************/
 
+static string
+unique_title (string old_title, string name) {
+  int i, j;
+  for (j=1; true; j++) {
+    bool flag= true;
+    string ret (name);
+    if (j>1) ret= name * " (" * as_string (j) * ")";
+    if (ret == old_title) return ret;
+    for (i=0; i<N(bufs); i++)
+      if (bufs[i]->buf->title == ret) flag= false;
+    if (flag) return ret;
+  }
+}
+
 string
 propose_title (string old_title, url u, tree doc) {
   string name= as_string (tail (u));
@@ -251,17 +265,7 @@ propose_title (string old_title, url u, tree doc) {
     name= as_string (u);
   if (is_rooted_tmfs (u))
     name= as_string (call ("tmfs-title", as_string (u), object (doc)));
-
-  int i, j;
-  for (j=1; true; j++) {
-    bool flag= true;
-    string ret (name);
-    if (j>1) ret= name * " (" * as_string (j) * ")";
-    if (ret == old_title) return ret;
-    for (i=0; i<N(bufs); i++)
-      if (bufs[i]->buf->title == ret) flag= false;
-    if (flag) return ret;
-  }
+  return unique_title (old_title, name);
 }
 
 string
@@ -290,6 +294,13 @@ set_title_buffer (url name, string title) {
       win->set_window_url (name);
     }
   }
+}
+
+void
+set_proposed_title_buffer (url name, string title) {
+  tm_buffer buf= concrete_buffer (name);
+  if (is_nil (buf)) return;
+  set_title_buffer (name, unique_title (buf->buf->title, std::move (title)));
 }
 
 /******************************************************************************

@@ -561,7 +561,17 @@ buffer_actor::dispatch (actor_command_record& command) {
     }
     break;
   case actor_command_kind::initialize_view:
-    if (editor != nullptr) initialize_current_view_scheme ();
+    if (editor != nullptr) {
+      initialize_current_view_scheme ();
+      url name= impl_->state.name;
+      if (is_rooted_tmfs (name)) {
+        tree body= subtree (impl_->state.document, impl_->state.root_path);
+        string title= as_string (
+          call ("tmfs-title", as_string (name), object (body)));
+        (void) editor->publish_ui_text (
+          actor_command_kind::ui_set_buffer_title, std::move (title));
+      }
+    }
     break;
   case actor_command_kind::apply_changes:
     if (editor != nullptr) editor->apply_changes ();

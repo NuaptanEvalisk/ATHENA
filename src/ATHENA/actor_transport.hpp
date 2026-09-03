@@ -114,6 +114,7 @@ enum class actor_command_kind: std::uint32_t {
   ui_footer_right,
   ui_show_toast,
   ui_switch_to_buffer,
+  ui_set_buffer_title,
   ui_show_popup,
   ui_close_popup,
   ui_set_scrollbars,
