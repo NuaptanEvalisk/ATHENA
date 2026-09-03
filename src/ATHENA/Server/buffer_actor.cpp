@@ -547,6 +547,7 @@ buffer_actor::dispatch (actor_command_record& command) {
     created->ui_endpoint= find_actor_ui_endpoint (command.view_id);
     ASSERT (created->ui_endpoint != nullptr,
             "view was created without a UI endpoint");
+    created->ui_endpoint->set_zoom_factor (created->handle_get_zoom_factor ());
     created->set_data (impl_->state.data);
     impl_->views.emplace (
       command.view_id,
@@ -648,6 +649,11 @@ buffer_actor::dispatch (actor_command_record& command) {
   case actor_command_kind::set_zoom:
     if (editor != nullptr)
       editor->handle_set_zoom_factor (argument_double (command.argument[0]));
+    break;
+  case actor_command_kind::change_zoom:
+    if (editor != nullptr)
+      call ("change-zoom-factor",
+            object (argument_double (command.argument[0])));
     break;
   case actor_command_kind::zoom_by:
     if (editor != nullptr)

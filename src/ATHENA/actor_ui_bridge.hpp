@@ -62,6 +62,8 @@ public:
   actor_viewport_snapshot viewport () const noexcept;
   void set_wheel_capture (bool capture) noexcept;
   bool wheel_capture () const noexcept;
+  void set_zoom_factor (double zoom) noexcept;
+  double zoom_factor () const noexcept;
 
   bool publish (actor_command_kind kind,
                 athena_blob_id payload0= ATHENA_NO_BLOB,
@@ -125,6 +127,7 @@ private:
   mutable std::atomic<std::uint64_t> viewport_sequence_ {0};
   atomic_viewport viewport_;
   std::atomic<bool> wheel_capture_ {false};
+  std::atomic<std::uint64_t> zoom_factor_bits_ {0};
   actor_command_transport effects_;
   std::uint64_t next_effect_id_;
   std::atomic<std::uint32_t> pending_commands_ {0};

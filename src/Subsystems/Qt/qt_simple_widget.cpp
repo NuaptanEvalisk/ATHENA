@@ -140,9 +140,19 @@ qt_simple_widget_rep::handle_wheel_capture () {
   return false;
 }
 
+double
+qt_simple_widget_rep::handle_get_zoom_factor () {
+  return 1.0;
+}
+
 void
 qt_simple_widget_rep::handle_zoom_by (bool zoom_in, double amount) {
   (void) zoom_in; (void) amount;
+}
+
+void
+qt_simple_widget_rep::handle_change_zoom_factor (double zoom) {
+  handle_set_zoom_factor (zoom);
 }
 
 void

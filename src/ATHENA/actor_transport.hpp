@@ -58,6 +58,7 @@ enum class actor_command_kind: std::uint32_t {
   user_scroll,
   mouse,
   set_zoom,
+  change_zoom,
   zoom_by,
   viewport_changed,
   device_pixel_ratio_changed,

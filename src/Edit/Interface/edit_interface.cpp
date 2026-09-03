@@ -1259,7 +1259,13 @@ edit_interface_rep::handle_notify_resize (SI w, SI h) {
     call ("schedule-resize-editing-position");
 }
 
+double
+edit_interface_rep::handle_get_zoom_factor () const {
+  return zoomf;
+}
+
 void
 edit_interface_rep::handle_set_zoom_factor (double zoom) {
   set_zoom_factor (zoom);
+  if (ui_endpoint != nullptr) ui_endpoint->set_zoom_factor (zoom);
 }

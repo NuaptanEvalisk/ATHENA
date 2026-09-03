@@ -426,14 +426,7 @@ QTMWidget::activateOwningViewForGesture (const char* source) const {
 
 bool
 QTMWidget::inActiveGraphicsMode () const {
-  try {
-    if (!as_bool (call ("defined?", symbol_object ("in-active-graphics?"))))
-      return false;
-    return as_bool (call ("in-active-graphics?"));
-  }
-  catch (...) {
-    return false;
-  }
+  return !is_nil (tmwid) && tm_widget()->handle_wheel_capture ();
 }
 
 bool
@@ -461,7 +454,7 @@ QTMWidget::beginViewPinchZoom (const QPointF& focal, const char* source) {
   viewPinchActive= true;
   viewPinchCommitPending= false;
   viewPinchStartZoom= athena_clamp_view_zoom (
-    as_double (call ("get-window-zoom-factor")));
+    tm_widget()->handle_get_zoom_factor ());
   viewPinchScale= 1.0;
   viewPinchCommittedScale= 1.0;
   viewPinchPixelRatio= surface()->devicePixelRatio();
@@ -516,7 +509,7 @@ QTMWidget::finishViewPinchZoom (bool commit, const char* source) {
   viewPinchCommittedScale= appliedScale;
   setPendingOriginAfterNextExtents (newOrigin);
   activateOwningViewForGesture (source);
-  call ("change-zoom-factor", object (finalZoom));
+  tm_widget()->handle_change_zoom_factor (finalZoom);
 }
 
 bool

@@ -61,7 +61,8 @@ athena_resource_id next_action_id= 1;
 } // namespace
 
 actor_ui_endpoint::actor_ui_endpoint (athena_view_id view_id):
-  view_id_ (view_id), effects_ (128), next_effect_id_ (1) {}
+  view_id_ (view_id), zoom_factor_bits_ (double_bits (1.0)),
+  effects_ (128), next_effect_id_ (1) {}
 
 athena_view_id
 actor_ui_endpoint::view_id () const noexcept {
@@ -182,6 +183,16 @@ actor_ui_endpoint::set_wheel_capture (bool capture) noexcept {
 bool
 actor_ui_endpoint::wheel_capture () const noexcept {
   return wheel_capture_.load (std::memory_order_acquire);
+}
+
+void
+actor_ui_endpoint::set_zoom_factor (double zoom) noexcept {
+  zoom_factor_bits_.store (double_bits (zoom), std::memory_order_release);
+}
+
+double
+actor_ui_endpoint::zoom_factor () const noexcept {
+  return bits_double (zoom_factor_bits_.load (std::memory_order_acquire));
 }
 
 bool

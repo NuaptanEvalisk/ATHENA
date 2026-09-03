@@ -285,6 +285,7 @@ public:
   void handle_cursor_blink (bool visible);
   void handle_user_scroll (time_t t);
   void handle_mouse (string k, SI x, SI y, int m, time_t t, array<double> d);
+  double handle_get_zoom_factor () const;
   void handle_set_zoom_factor (double zoomf);
   void handle_clear (renderer win, SI x1, SI y1, SI x2, SI y2);
   void handle_repaint (renderer win, SI x1, SI y1, SI x2, SI y2);
