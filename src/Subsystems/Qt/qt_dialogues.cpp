@@ -24,6 +24,7 @@
 #include "server.hpp"
 
 #include <QMessageBox>
+#include <QCoreApplication>
 #include <QLabel>
 #include <QHBoxLayout>
 #include <QVBoxLayout>
@@ -37,7 +38,12 @@
 #include <QApplication>
 #include <QGridLayout>
 #include <QSpacerItem>
+#include <QMetaObject>
+#include <QThread>
 
+#include <memory>
+#include <mutex>
+#include <unordered_map>
 
 #include "string.hpp"
 #include "scheme.hpp"
@@ -289,79 +295,143 @@ question_proposals_are_yes_no (const array<string>& proposals, int& yes, int& no
   return yes >= 0 && no >= 0;
 }
 
+namespace {
+
+struct QuestionDialogRequest {
+  string prompt;
+  array<string> proposals;
+  int selected= -1;
+};
+
+std::mutex questionDialogRequestMutex;
+std::unordered_map<std::uint64_t, std::unique_ptr<QuestionDialogRequest> >
+  questionDialogRequests;
+std::uint64_t nextQuestionDialogRequestId= 1;
+
+int
+runQuestionDialog (const string& prompt, const array<string>& proposals) {
+  QWidget* mainwindow= QApplication::activeWindow ();
+  QMessageBox msgBox (mainwindow);
+  msgBox.setMinimumWidth (620);
+  msgBox.setText (to_qstring (prompt));
+  msgBox.setTextFormat (Qt::PlainText);
+  for (QLabel* label: msgBox.findChildren<QLabel*> ())
+    label->setWordWrap (true);
+  if (QGridLayout* layout= qobject_cast<QGridLayout*> (msgBox.layout ())) {
+    QSpacerItem* spacer=
+      new QSpacerItem (560, 0, QSizePolicy::Minimum, QSizePolicy::Expanding);
+    layout->addItem (spacer, layout->rowCount (), 0, 1,
+                     layout->columnCount ());
+  }
+
+  int yes_index= -1;
+  int no_index= -1;
+  if (question_proposals_are_yes_no (proposals, yes_index, no_index)) {
+    msgBox.setStandardButtons (QMessageBox::Yes | QMessageBox::No |
+                               QMessageBox::Cancel);
+    msgBox.setDefaultButton (yes_index == 0 ? QMessageBox::Yes :
+                                              QMessageBox::No);
+    msgBox.setWindowTitle (QStringLiteral ("Question"));
+    msgBox.setIcon (QMessageBox::Question);
+    int result= msgBox.exec ();
+    if (result == QMessageBox::Yes) return yes_index;
+    if (result == QMessageBox::No) return no_index;
+    return -1;
+  }
+
+  msgBox.setStandardButtons (QMessageBox::Cancel);
+  QVector<QPushButton*> buttons (N (proposals));
+  for (int i= 0; i < N (proposals); ++i) {
+    string label= "&" * upcase_first (proposals[i]);
+    buttons[i]= msgBox.addButton (to_qstring (label),
+                                  QMessageBox::ActionRole);
+  }
+  if (!buttons.isEmpty ()) {
+    msgBox.setDefaultButton (buttons[0]);
+    for (int i= 0; i + 1 < buttons.size (); ++i)
+      QWidget::setTabOrder (buttons[i], buttons[i + 1]);
+    QWidget::setTabOrder (buttons.back (), msgBox.escapeButton ());
+  }
+  msgBox.setWindowTitle (QStringLiteral ("Question"));
+  msgBox.setIcon (QMessageBox::Question);
+#ifdef Q_OS_MAC
+  QTMFilterHack filter (msgBox.buttons ());
+  msgBox.installEventFilter (&filter);
+#endif
+  msgBox.exec ();
+  for (int i= 0; i < buttons.size (); ++i)
+    if (msgBox.clickedButton () == buttons[i]) return i;
+  return -1;
+}
+
+std::uint64_t
+registerQuestionDialogRequest (string prompt, array<string> proposals) {
+  prompt.ensure_transferable ();
+  for (int i= 0; i < N (proposals); ++i)
+    proposals[i].ensure_transferable ();
+  auto request= std::make_unique<QuestionDialogRequest> ();
+  request->prompt= std::move (prompt);
+  request->proposals= std::move (proposals);
+  std::lock_guard<std::mutex> guard (questionDialogRequestMutex);
+  std::uint64_t id= nextQuestionDialogRequestId++;
+  if (id == 0) id= nextQuestionDialogRequestId++;
+  questionDialogRequests.emplace (id, std::move (request));
+  return id;
+}
+
+void
+executeQuestionDialogRequest (std::uint64_t id) {
+  QuestionDialogRequest* request= nullptr;
+  {
+    std::lock_guard<std::mutex> guard (questionDialogRequestMutex);
+    auto found= questionDialogRequests.find (id);
+    if (found == questionDialogRequests.end ()) return;
+    request= found->second.get ();
+  }
+  request->selected=
+    runQuestionDialog (request->prompt, request->proposals);
+}
+
+int
+takeQuestionDialogResult (std::uint64_t id) {
+  std::unique_ptr<QuestionDialogRequest> request;
+  {
+    std::lock_guard<std::mutex> guard (questionDialogRequestMutex);
+    auto found= questionDialogRequests.find (id);
+    if (found == questionDialogRequests.end ()) return -1;
+    request= std::move (found->second);
+    questionDialogRequests.erase (found);
+  }
+  return request->selected;
+}
+
+int
+showQuestionDialog (string prompt, array<string> proposals) {
+  QCoreApplication* app= QCoreApplication::instance ();
+  if (app == nullptr || QThread::currentThread () == app->thread ())
+    return runQuestionDialog (prompt, proposals);
+
+  std::uint64_t requestId= registerQuestionDialogRequest (
+    std::move (prompt), std::move (proposals));
+  bool invoked= QMetaObject::invokeMethod (
+    app, [requestId] () { executeQuestionDialogRequest (requestId); },
+    Qt::BlockingQueuedConnection);
+  if (!invoked) {
+    (void) takeQuestionDialogResult (requestId);
+    return -1;
+  }
+  return takeQuestionDialogResult (requestId);
+}
+
+} // namespace
+
 void
 qt_inputs_list_widget_rep::perform_dialog() {
   if ((N(children)==1) && (field(0)->type == "question")) {
-   // then use Qt messagebox for smoother, more standard UI
-    QWidget* mainwindow = QApplication::activeWindow ();
-    // main texmacs window. There are probably better ways...
-    // Presently not checking if the windows has the focus;
-    // In case it has not, it should be brought into focus
-    // before calling the dialog
-    QMessageBox msgBox (mainwindow);
-    //sets parent widget, so that it appears at the proper location	
-    msgBox.setMinimumWidth (620);
-    msgBox.setText (to_qstring (field(0)->prompt));
-    msgBox.setTextFormat (Qt::PlainText);
-    for (QLabel* label: msgBox.findChildren<QLabel*> ())
-      label->setWordWrap (true);
-    if (QGridLayout* layout = qobject_cast<QGridLayout*> (msgBox.layout ())) {
-      QSpacerItem* spacer =
-        new QSpacerItem (560, 0, QSizePolicy::Minimum, QSizePolicy::Expanding);
-      layout->addItem (spacer, layout->rowCount (), 0, 1, layout->columnCount ());
-    }
-    int choices = N(field(0)->proposals);
-    int yes_index = -1;
-    int no_index = -1;
-    if (question_proposals_are_yes_no (field(0)->proposals,
-                                       yes_index, no_index)) {
-      msgBox.setStandardButtons (QMessageBox::Yes | QMessageBox::No |
-                                 QMessageBox::Cancel);
-      msgBox.setDefaultButton (yes_index == 0 ? QMessageBox::Yes :
-                                                QMessageBox::No);
-      msgBox.setWindowTitle (QStringLiteral ("Question"));
-      msgBox.setIcon (QMessageBox::Question);
-      int ret = msgBox.exec ();
-      if (ret == QMessageBox::Yes)
-        field(0)->input = scm_quote (field(0)->proposals[yes_index]);
-      else if (ret == QMessageBox::No)
-        field(0)->input = scm_quote (field(0)->proposals[no_index]);
-      else field(0)->input = "#f";
-    }
-    else {
-      msgBox.setStandardButtons (QMessageBox::Cancel);
-
-      // Allow any number of choices. The first one is the default.
-      QVector<QPushButton*> buttonlist (choices);
-      if (choices > 0) {
-        for(int i = 0; i < choices; ++i) {
-          // Capitalize the first character?
-          string blabel= "&" * upcase_first (field(0)->proposals[i]);
-          buttonlist[i] = msgBox.addButton (to_qstring (blabel),
-                                            QMessageBox::ActionRole);
-        }
-        msgBox.setDefaultButton (buttonlist[0]);
-        for (int i = 0; i < choices - 1; ++i)
-          QWidget::setTabOrder (buttonlist[i], buttonlist[i+1]);
-        QWidget::setTabOrder (buttonlist[choices-1], msgBox.escapeButton());
-      }
-      msgBox.setWindowTitle (QStringLiteral ("Question"));
-      msgBox.setIcon (QMessageBox::Question);
-#ifdef Q_OS_MAC
-      QTMFilterHack filter (msgBox.buttons());
-      msgBox.installEventFilter (&filter);
-#endif
-      msgBox.exec();
-      bool buttonclicked=false;
-      for(int i=0; i<choices; i++) {
-        if (msgBox.clickedButton() == buttonlist[i]) {
-          field(0)->input = scm_quote (field(0)->proposals[i]);
-          buttonclicked=true;
-          break;
-        }
-      }
-      if (!buttonclicked) {field(0)->input = "#f";} //cancelled
-    }
+    int selected= showQuestionDialog (
+      copy (field(0)->prompt), copy (field(0)->proposals));
+    field(0)->input= selected >= 0 && selected < N (field(0)->proposals) ?
+      scm_quote (field(0)->proposals[selected]) : string ("#f");
   }
   
   else {  //usual dialog layout
