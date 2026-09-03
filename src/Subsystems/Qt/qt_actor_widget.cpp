@@ -22,6 +22,7 @@
 
 #include <QApplication>
 #include <QStyle>
+#include <QTimer>
 #include <cstring>
 
 namespace {
@@ -310,6 +311,19 @@ qt_actor_widget_rep::drain_external_effects () {
       tm_view view= concrete_runtime_view (view_id_);
       if (view != nullptr) set_current_view (abstract_view (view));
       (void) actor_ui_invoke_action (record.argument[0]);
+      break;
+    }
+    case actor_command_kind::ui_open_document_window: {
+      tm_view view= concrete_runtime_view (view_id_);
+      if (view != nullptr) set_current_view (abstract_view (view));
+      open_document_window (record.argument[0] != 0);
+      break;
+    }
+    case actor_command_kind::ui_close_buffer: {
+      const athena_actor_id closing_actor_id= record.argument[0];
+      QTimer::singleShot (0, qApp, [closing_actor_id] {
+        kill_buffer_by_actor_id (closing_actor_id);
+      });
       break;
     }
     case actor_command_kind::ui_vault_explorer_track_file: {

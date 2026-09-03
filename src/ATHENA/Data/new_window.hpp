@@ -11,6 +11,7 @@
 
 #ifndef NEW_WINDOW_H
 #define NEW_WINDOW_H
+#include "actor_transport.hpp"
 #include "tree.hpp"
 #include "url.hpp"
 
@@ -26,8 +27,10 @@ void switch_to_window (url win);
 
 url  create_buffer ();
 url  open_window (tree geom= "");
+void open_document_window (bool floating);
 void clone_window ();
 void kill_buffer (url name);
+void kill_buffer_by_actor_id (athena_actor_id actor_id);
 void kill_window (url name);
 void kill_current_window_and_buffer ();
 

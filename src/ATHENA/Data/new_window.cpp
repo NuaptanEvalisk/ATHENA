@@ -18,6 +18,8 @@
 #include "new_document.hpp"
 #include "boot.hpp"
 #include "buffer_actor.hpp"
+#include "editor.hpp"
+#include "scheme_execution_context.hpp"
 
 /******************************************************************************
 * Manage global list of windows
@@ -286,6 +288,18 @@ open_window (tree geom) {
 }
 
 void
+open_document_window (bool floating) {
+  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  if (context != nullptr && context->editor != nullptr) {
+    (void) context->editor->publish_ui (
+      actor_command_kind::ui_open_document_window, floating ? 1 : 0);
+    return;
+  }
+  if (floating) get_server ()->ads_prepare_floating ();
+  (void) open_window ();
+}
+
+void
 clone_window () {
   url win= new_window ();
   window_set_view (win, get_passive_view (get_current_buffer ()), true);
@@ -293,6 +307,18 @@ clone_window () {
 
 void
 kill_buffer (url name) {
+  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  if (context != nullptr && context->editor != nullptr) {
+    athena_actor_id actor_id= context->actor_id;
+    if (name != context->actor->current_buffer_url ()) {
+      tm_buffer target= concrete_buffer (name);
+      if (is_nil (target)) return;
+      actor_id= target->actor->id ();
+    }
+    (void) context->editor->publish_ui (
+      actor_command_kind::ui_close_buffer, actor_id);
+    return;
+  }
   array<url> vs= buffer_to_views (name);
   for (int i=0; i<N(vs); i++)
     if (!is_none (vs[i])) {
@@ -305,6 +331,19 @@ kill_buffer (url name) {
       window_set_view (view_to_window (vs[i]), prev, false);
     }
   remove_buffer (name);
+}
+
+void
+kill_buffer_by_actor_id (athena_actor_id actor_id) {
+  if (actor_id == ATHENA_NO_ACTOR) return;
+  array<url> buffers= get_all_buffers ();
+  for (int i= 0; i < N (buffers); ++i) {
+    tm_buffer buffer= concrete_buffer (buffers[i]);
+    if (!is_nil (buffer) && buffer->actor->id () == actor_id) {
+      kill_buffer (buffers[i]);
+      return;
+    }
+  }
 }
 
 void

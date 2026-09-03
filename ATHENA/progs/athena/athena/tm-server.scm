@@ -288,7 +288,7 @@
   (new-buffer))
 
 (tm-define (new-document*)
-  (open-window))
+  (open-document-window #f))
 
 (tm-define (close-document)
   (delayed (:idle 1)

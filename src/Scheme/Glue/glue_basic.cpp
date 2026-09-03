@@ -9781,6 +9781,19 @@ tmg_open_window_geometry (tmscm arg1) {
 }
 
 tmscm
+tmg_open_document_window (tmscm arg1) {
+  TMSCM_ASSERT_BOOL (arg1, TMSCM_ARG1, "open-document-window");
+
+  bool in1= tmscm_to_bool (arg1);
+
+  // TMSCM_DEFER_INTS;
+  open_document_window (in1);
+  // TMSCM_ALLOW_INTS;
+
+  return TMSCM_UNSPECIFIED;
+}
+
+tmscm
 tmg_clone_window () {
   // TMSCM_DEFER_INTS;
   clone_window ();
@@ -11034,6 +11047,7 @@ initialize_glue_basic () {
   tmscm_install_procedure ("open-buffer-in-window",  tmg_open_buffer_in_window, 3, 0, 0);
   tmscm_install_procedure ("open-window",  tmg_open_window, 0, 0, 0);
   tmscm_install_procedure ("open-window-geometry",  tmg_open_window_geometry, 1, 0, 0);
+  tmscm_install_procedure ("open-document-window",  tmg_open_document_window, 1, 0, 0);
   tmscm_install_procedure ("clone-window",  tmg_clone_window, 0, 0, 0);
   tmscm_install_procedure ("cpp-buffer-close",  tmg_cpp_buffer_close, 1, 0, 0);
   tmscm_install_procedure ("kill-window",  tmg_kill_window, 1, 0, 0);

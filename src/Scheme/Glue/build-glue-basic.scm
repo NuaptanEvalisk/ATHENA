@@ -804,6 +804,7 @@
   (open-buffer-in-window new_buffer_in_new_window (url url content content))
   (open-window open_window (url))
   (open-window-geometry open_window (url content))
+  (open-document-window open_document_window (void bool))
   (clone-window clone_window (void))
   (cpp-buffer-close kill_buffer (void url))
   (kill-window kill_window (void url))
