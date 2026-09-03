@@ -15,21 +15,53 @@
 #include "tm_ostream.hpp"
 
 #include <QApplication>
+#include <QCoreApplication>
 #include <QDialog>
 #include <QEvent>
 #include <QFrame>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QListWidget>
+#include <QMetaObject>
 #include <QPointer>
 #include <QShowEvent>
+#include <QThread>
 #include <QTimer>
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <memory>
+#include <mutex>
+#include <unordered_map>
 #include <vector>
 
 static std::vector<QPointer<QWidget> > buffer_switcher_mru;
+
+namespace {
+
+struct BufferSwitcherRequest {
+  array<string> entries;
+  string result;
+};
+
+std::mutex bufferSwitcherRequestMutex;
+std::unordered_map<std::uint64_t, std::unique_ptr<BufferSwitcherRequest> >
+  bufferSwitcherRequests;
+std::uint64_t nextBufferSwitcherRequestId= 1;
+
+std::uint64_t
+registerBufferSwitcherRequest (array<string> entries) {
+  for (int i= 0; i < N (entries); ++i) entries[i].ensure_transferable ();
+  auto request= std::make_unique<BufferSwitcherRequest> ();
+  request->entries= std::move (entries);
+  std::lock_guard<std::mutex> guard (bufferSwitcherRequestMutex);
+  std::uint64_t id= nextBufferSwitcherRequestId++;
+  if (id == 0) id= nextBufferSwitcherRequestId++;
+  bufferSwitcherRequests.emplace (id, std::move (request));
+  return id;
+}
+
+} // namespace
 
 struct BufferSwitcherScrollSnapshot {
   QPointer<QTMWidget> widget;
@@ -284,8 +316,10 @@ private:
   bool              payloadMode;
 };
 
+namespace {
+
 void
-visual_buffer_switcher_show () {
+runVisualBufferSwitcher () {
   QTMMainTabWindow* win= QTMMainTabWindow::topTabWindow ();
   if (win == nullptr) {
     debug_qt << "ATHENA] buffer switcher: no top tab window" << LF;
@@ -323,7 +357,7 @@ visual_buffer_switcher_show () {
 }
 
 string
-visual_buffer_switcher_choose (array<string> entries) {
+runVisualBufferSwitcherChoose (array<string> entries) {
   debug_qt << "ATHENA] buffer switcher: invoked, session entries="
            << (N(entries) / 3) << LF;
 
@@ -338,4 +372,64 @@ visual_buffer_switcher_choose (array<string> entries) {
   if (switcher.exec () == QDialog::Accepted)
     return from_qstring (switcher.selectedPayload ());
   return "";
+}
+
+void
+executeBufferSwitcherRequest (std::uint64_t id) {
+  array<string> entries;
+  {
+    std::lock_guard<std::mutex> guard (bufferSwitcherRequestMutex);
+    auto found= bufferSwitcherRequests.find (id);
+    if (found == bufferSwitcherRequests.end ()) return;
+    entries= std::move (found->second->entries);
+  }
+  string result= runVisualBufferSwitcherChoose (std::move (entries));
+  std::lock_guard<std::mutex> guard (bufferSwitcherRequestMutex);
+  auto found= bufferSwitcherRequests.find (id);
+  if (found != bufferSwitcherRequests.end ())
+    found->second->result= std::move (result);
+}
+
+string
+takeBufferSwitcherResult (std::uint64_t id) {
+  std::unique_ptr<BufferSwitcherRequest> request;
+  {
+    std::lock_guard<std::mutex> guard (bufferSwitcherRequestMutex);
+    auto found= bufferSwitcherRequests.find (id);
+    if (found == bufferSwitcherRequests.end ()) return "";
+    request= std::move (found->second);
+    bufferSwitcherRequests.erase (found);
+  }
+  return std::move (request->result);
+}
+
+} // namespace
+
+void
+visual_buffer_switcher_show () {
+  QCoreApplication* app= QCoreApplication::instance ();
+  if (app == nullptr || QThread::currentThread () == app->thread ()) {
+    runVisualBufferSwitcher ();
+    return;
+  }
+  (void) QMetaObject::invokeMethod (
+    app, [] () { runVisualBufferSwitcher (); }, Qt::BlockingQueuedConnection);
+}
+
+string
+visual_buffer_switcher_choose (array<string> entries) {
+  QCoreApplication* app= QCoreApplication::instance ();
+  if (app == nullptr || QThread::currentThread () == app->thread ())
+    return runVisualBufferSwitcherChoose (std::move (entries));
+
+  std::uint64_t requestId=
+    registerBufferSwitcherRequest (std::move (entries));
+  bool invoked= QMetaObject::invokeMethod (
+    app, [requestId] () { executeBufferSwitcherRequest (requestId); },
+    Qt::BlockingQueuedConnection);
+  if (!invoked) {
+    (void) takeBufferSwitcherResult (requestId);
+    return "";
+  }
+  return takeBufferSwitcherResult (requestId);
 }

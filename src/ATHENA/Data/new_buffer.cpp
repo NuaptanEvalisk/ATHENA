@@ -300,12 +300,11 @@ void
 set_buffer_tree (url name, tree doc) {
   tm_buffer buf= concrete_buffer (name);
   bool inserted= is_nil (buf);
-  string old_title;
   if (inserted) {
     insert_buffer (name);
     buf= concrete_buffer (name);
   }
-  else old_title= buf->buf->title;
+  string old_title= buf->buf->title;
 
   tree body= extract (doc, "body");
   athena_blob_id document_payload=
