@@ -162,6 +162,19 @@ qt_actor_widget_rep::handle_mouse (
   discard_unsubmitted (kind_payload, data_payload, ticket);
 }
 
+bool
+qt_actor_widget_rep::handle_wheel_capture () {
+  return endpoint_ != nullptr && endpoint_->wheel_capture ();
+}
+
+void
+qt_actor_widget_rep::handle_zoom_by (bool zoom_in, double amount) {
+  (void) buffer_actor::submit_to (
+    actor_id_, actor_command_kind::zoom_by, view_id_,
+    ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER,
+    zoom_in ? 1 : 0, double_bits (amount));
+}
+
 void
 qt_actor_widget_rep::handle_set_zoom_factor (double zoom) {
   (void) buffer_actor::submit_to (

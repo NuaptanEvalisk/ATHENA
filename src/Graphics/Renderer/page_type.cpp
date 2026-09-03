@@ -12,8 +12,10 @@
 #include "vars.hpp"
 #include "hashmap.hpp"
 
-static bool page_data_base_initizalized= false;
+#include <mutex>
+
 static hashmap<string,string> page_data_base ("");
+static std::once_flag page_data_base_once;
 
 static void
 INIT (string type, string width, string height, string standard_format,
@@ -202,12 +204,11 @@ INIT_ALL () {
   INIT ("5:4", "192mm", "240mm", "no",
         "182mm",  "5mm",  "5mm",
         "230mm",  "5mm",  "5mm");
-  page_data_base_initizalized= true;
 }
 
 string
 page_get_feature (string type, string feature, bool landscape) {
-  if (!page_data_base_initizalized) INIT_ALL ();
+  std::call_once (page_data_base_once, INIT_ALL);
   string s= type * (landscape? string ("-L-"): string ("-P-")) * feature;
   if (page_data_base->contains (s)) return page_data_base [s];
   if (type == "a4") return "3cm";

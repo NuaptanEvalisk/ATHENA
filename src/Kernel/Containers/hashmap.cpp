@@ -66,11 +66,11 @@ hashmap_rep<T,U>::resize (int n2) {
 TMPL bool
 hashmap_rep<T,U>::contains (const T& x) {
   int hv= hash (x);
-  list<hashentry<T,U> >  l (a [hv & (n-1)]);
-  while (!is_nil (l)) {
-    if (l->item.code == hv && l->item.key == x)
+  const list<hashentry<T,U> >* l= &(a [hv & (n-1)]);
+  while (!is_nil (*l)) {
+    if ((*l)->item.code == hv && (*l)->item.key == x)
       return true;
-    l= l->next;
+    l= &((*l)->next);
   }
   return false;
 }

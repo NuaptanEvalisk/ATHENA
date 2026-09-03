@@ -174,6 +174,16 @@ actor_ui_endpoint::viewport () const noexcept {
   }
 }
 
+void
+actor_ui_endpoint::set_wheel_capture (bool capture) noexcept {
+  wheel_capture_.store (capture, std::memory_order_release);
+}
+
+bool
+actor_ui_endpoint::wheel_capture () const noexcept {
+  return wheel_capture_.load (std::memory_order_acquire);
+}
+
 bool
 actor_ui_endpoint::publish (
   actor_command_kind kind, athena_blob_id payload0,

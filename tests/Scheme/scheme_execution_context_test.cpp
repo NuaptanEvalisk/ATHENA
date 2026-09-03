@@ -29,14 +29,15 @@ TestSchemeExecutionContext::restoresNestedContexts () {
   drd_info inner_drd ("execution-context-inner");
   tree outer_document= make_document_tree ();
   tree inner_document= make_document_tree ();
+  drd_info* default_drd= &current_drd ();
   tree* default_document= &current_document_tree ();
   SchemeExecutionContext outer (
     nullptr, nullptr, &outer_drd, &outer_document,
-    url_none (), url_none (), 1,
+    ATHENA_NO_ACTOR, ATHENA_NO_VIEW, 1,
     SCHEME_CAPABILITY_GLOBAL);
   SchemeExecutionContext inner (
     nullptr, nullptr, &inner_drd, &inner_document,
-    url_none (), url_none (), 2,
+    ATHENA_NO_ACTOR, ATHENA_NO_VIEW, 2,
     SCHEME_CAPABILITY_GLOBAL);
 
   QVERIFY (current_scheme_execution_context () == nullptr);
@@ -62,7 +63,7 @@ TestSchemeExecutionContext::restoresNestedContexts () {
               tree (DOCUMENT, "outer"));
   }
   QVERIFY (current_scheme_execution_context () == nullptr);
-  QCOMPARE (&current_drd (), &std_drd);
+  QCOMPARE (&current_drd (), default_drd);
   QCOMPARE (&current_document_tree (), default_document);
 }
 
@@ -77,7 +78,7 @@ TestSchemeExecutionContext::isolatesConcurrentThreads () {
     tree local_document= make_document_tree ();
     SchemeExecutionContext context (
       nullptr, nullptr, &local_drd, &local_document,
-      url_none (), url_none (),
+      ATHENA_NO_ACTOR, ATHENA_NO_VIEW,
       command_id,
       SCHEME_CAPABILITY_GLOBAL);
     SchemeExecutionScope scope (context);

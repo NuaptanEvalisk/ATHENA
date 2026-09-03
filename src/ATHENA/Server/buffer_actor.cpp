@@ -649,6 +649,11 @@ buffer_actor::dispatch (actor_command_record& command) {
     if (editor != nullptr)
       editor->handle_set_zoom_factor (argument_double (command.argument[0]));
     break;
+  case actor_command_kind::zoom_by:
+    if (editor != nullptr)
+      call (command.argument[0] != 0 ? "zoom-in" : "zoom-out",
+            object (argument_double (command.argument[1])));
+    break;
   case actor_command_kind::viewport_changed:
     if (editor != nullptr)
       editor->handle_notify_resize (
@@ -984,4 +989,15 @@ buffer_actor::dispatch (actor_command_record& command) {
                   static_cast<unsigned int> (command.kind));
     break;
   }
+
+  if (editor != nullptr && editor->ui_endpoint != nullptr &&
+      (command.kind == actor_command_kind::initialize_view ||
+       command.kind == actor_command_kind::key_press ||
+       command.kind == actor_command_kind::text_input ||
+       command.kind == actor_command_kind::mouse ||
+       command.kind == actor_command_kind::replace_document ||
+       command.kind == actor_command_kind::replace_body ||
+       command.kind == actor_command_kind::activate_outline_entry))
+    editor->ui_endpoint->set_wheel_capture (
+      editor->inside_active_graphics ());
 }

@@ -15,10 +15,32 @@
 #include <chrono>
 #include <condition_variable>
 #include <cstring>
+#include <functional>
 #include <mutex>
 #include <set>
 #include <thread>
 #include <vector>
+
+namespace {
+
+class test_render_processor final: public render_processor {
+public:
+  using callback_type= std::function<void (
+    const render_chunk_descriptor&, const std::byte*)>;
+
+  explicit test_render_processor (callback_type callback):
+    callback_ (std::move (callback)) {}
+
+  void process (const render_chunk_descriptor& descriptor,
+                const std::byte* payload) override {
+    callback_ (descriptor, payload);
+  }
+
+private:
+  callback_type callback_;
+};
+
+} // namespace
 
 class TestRenderService: public QObject {
   Q_OBJECT
@@ -35,8 +57,9 @@ TestRenderService::usesOneWorkerForMultipleActors () {
   std::vector<std::uint64_t> buffers;
   std::set<std::thread::id> consumers;
 
-  auto processor= [&] (const render_chunk_descriptor& descriptor,
-                       const std::byte* payload) {
+  auto processor= std::make_shared<test_render_processor> (
+    [&] (const render_chunk_descriptor& descriptor,
+         const std::byte* payload) {
     QCOMPARE (static_cast<unsigned char> (payload[0]),
               static_cast<unsigned char> (descriptor.buffer_generation));
     {
@@ -45,7 +68,7 @@ TestRenderService::usesOneWorkerForMultipleActors () {
       consumers.insert (std::this_thread::get_id ());
     }
     changed.notify_all ();
-  };
+  });
 
   auto first= service.connect (processor, 2, 32);
   auto second= service.connect (processor, 2, 32);

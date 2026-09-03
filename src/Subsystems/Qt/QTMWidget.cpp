@@ -1605,7 +1605,8 @@ void
 QTMWidget::wheelEvent(QWheelEvent *event) {
   if (is_nil (tmwid)) return; 
   if (handleNeighborhoodWheelSwipe (event)) return;
-  if (as_bool (call ("wheel-capture?"))) {
+  qt_simple_widget_rep* widget= tm_widget ();
+  if (widget != nullptr && widget->handle_wheel_capture ()) {
     QPointF pos  = event->position();
     QPoint  point= QPointF (pos.x(), pos.y()).toPoint () + origin();
     QPoint  wheel= event->pixelDelta();
@@ -1624,15 +1625,19 @@ QTMWidget::wheelEvent(QWheelEvent *event) {
     double zoomFactor = 0.0; (void) zoomFactor;
     if (!numPixels.isNull()) {
       if (numPixels.y() > 0) {
-        call ("zoom-in", object (sqrt (sqrt (sqrt (sqrt (numPixels.y()))))));
+        widget->handle_zoom_by (
+          true, sqrt (sqrt (sqrt (sqrt (numPixels.y ())))));
       } else {
-        call ("zoom-out", object (sqrt (sqrt (sqrt (sqrt (-numPixels.y()))))));
+        widget->handle_zoom_by (
+          false, sqrt (sqrt (sqrt (sqrt (-numPixels.y ())))));
       }
     } else if (!numDegrees.isNull()) {
       if (numDegrees.y() > 0) {
-        call ("zoom-in", object (sqrt (sqrt (sqrt (sqrt (numDegrees.y()))))));
+        widget->handle_zoom_by (
+          true, sqrt (sqrt (sqrt (sqrt (numDegrees.y ())))));
       } else {
-        call ("zoom-out", object (sqrt (sqrt (sqrt (sqrt (-numDegrees.y()))))));
+        widget->handle_zoom_by (
+          false, sqrt (sqrt (sqrt (sqrt (-numDegrees.y ())))));
       }
     }
   }

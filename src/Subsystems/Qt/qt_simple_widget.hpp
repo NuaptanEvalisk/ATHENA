@@ -74,6 +74,8 @@ public:
   virtual void handle_user_scroll (time_t t);
   virtual void handle_mouse (string kind, SI x, SI y, int mods, time_t t,
                              array<double> data= array<double> ());
+  virtual bool handle_wheel_capture ();
+  virtual void handle_zoom_by (bool zoom_in, double amount);
   virtual void handle_set_zoom_factor (double zoom);
   virtual void handle_device_pixel_ratio_changed ();
   virtual bool handle_activate_owning_view ();

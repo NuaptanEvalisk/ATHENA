@@ -135,6 +135,16 @@ qt_simple_widget_rep::handle_mouse (string kind, SI x, SI y, int mods, time_t t,
   (void) kind; (void) x; (void) y; (void) mods; (void) t; (void) data;
 }
 
+bool
+qt_simple_widget_rep::handle_wheel_capture () {
+  return false;
+}
+
+void
+qt_simple_widget_rep::handle_zoom_by (bool zoom_in, double amount) {
+  (void) zoom_in; (void) amount;
+}
+
 void
 qt_simple_widget_rep::handle_set_zoom_factor (double zoom) {
   (void) zoom;
