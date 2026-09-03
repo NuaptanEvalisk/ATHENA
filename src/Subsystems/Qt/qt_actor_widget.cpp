@@ -315,6 +315,13 @@ qt_actor_widget_rep::drain_external_effects () {
       (void) actor_ui_invoke_action (record.argument[0]);
       break;
     }
+    case actor_command_kind::ui_new_buffer: {
+      tm_view view= concrete_runtime_view (view_id_);
+      if (view == nullptr) break;
+      set_current_view (abstract_view (view));
+      (void) create_buffer ();
+      break;
+    }
     case actor_command_kind::ui_open_document_window: {
       tm_view view= concrete_runtime_view (view_id_);
       if (view != nullptr) set_current_view (abstract_view (view));

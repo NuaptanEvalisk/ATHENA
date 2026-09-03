@@ -91,6 +91,7 @@ tmscm_root_handle* tmscm_root_acquire (tmscm obj);
 tmscm tmscm_root_value (const tmscm_root_handle* handle);
 void tmscm_root_release (tmscm_root_handle* handle) noexcept;
 athena_scheme_handle_id scheme_command_handle_acquire (tmscm command);
+bool scheme_command_handle_retain (athena_scheme_handle_id id) noexcept;
 tmscm scheme_command_handle_value (athena_scheme_handle_id id);
 void scheme_command_handle_release (athena_scheme_handle_id id) noexcept;
 void scheme_runtime_safe_point ();

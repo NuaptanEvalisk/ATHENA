@@ -273,8 +273,13 @@ tmscm_root_release (tmscm_root_handle* handle) noexcept {
 namespace {
 
 struct scheme_command_handle_registry {
+  struct entry {
+    tmscm_root_handle* root;
+    std::size_t references;
+  };
+
   std::mutex lock;
-  std::unordered_map<athena_scheme_handle_id, tmscm_root_handle*> handles;
+  std::unordered_map<athena_scheme_handle_id, entry> handles;
   athena_scheme_handle_id next_id= 1;
 };
 
@@ -293,8 +298,20 @@ scheme_command_handle_acquire (tmscm command) {
   std::lock_guard<std::mutex> guard (registry.lock);
   athena_scheme_handle_id id= registry.next_id++;
   if (id == ATHENA_NO_SCHEME_HANDLE) id= registry.next_id++;
-  registry.handles.emplace (id, root);
+  registry.handles.emplace (
+    id, scheme_command_handle_registry::entry {root, 1});
   return id;
+}
+
+bool
+scheme_command_handle_retain (athena_scheme_handle_id id) noexcept {
+  if (id == ATHENA_NO_SCHEME_HANDLE) return false;
+  scheme_command_handle_registry& registry= command_handle_registry ();
+  std::lock_guard<std::mutex> guard (registry.lock);
+  auto found= registry.handles.find (id);
+  if (found == registry.handles.end ()) return false;
+  ++found->second.references;
+  return true;
 }
 
 tmscm
@@ -303,7 +320,7 @@ scheme_command_handle_value (athena_scheme_handle_id id) {
   std::lock_guard<std::mutex> guard (registry.lock);
   auto found= registry.handles.find (id);
   if (found == registry.handles.end ()) return SCM_UNDEFINED;
-  return tmscm_root_value (found->second);
+  return tmscm_root_value (found->second.root);
 }
 
 void
@@ -315,7 +332,8 @@ scheme_command_handle_release (athena_scheme_handle_id id) noexcept {
     std::lock_guard<std::mutex> guard (registry.lock);
     auto found= registry.handles.find (id);
     if (found == registry.handles.end ()) return;
-    root= found->second;
+    if (--found->second.references != 0) return;
+    root= found->second.root;
     registry.handles.erase (found);
   }
   tmscm_root_release (root);

@@ -285,7 +285,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (tm-define (new-document)
-  (new-buffer))
+  (new-document-buffer))
 
 (tm-define (new-document*)
   (open-document-window #f))

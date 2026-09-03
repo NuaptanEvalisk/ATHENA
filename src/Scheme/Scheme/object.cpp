@@ -358,19 +358,18 @@ public:
   }
   ~object_command_rep () override {
     if (handle == ATHENA_NO_SCHEME_HANDLE) return;
-    actor_command_ticket ticket= buffer_actor::submit_to (
-      actor_id, actor_command_kind::release_scheme_handle, view_id,
-      ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER, handle);
-    if (!ticket) scheme_command_handle_release (handle);
+    scheme_command_handle_release (handle);
   }
   void apply () override {
     if (handle == ATHENA_NO_SCHEME_HANDLE) {
       (void) call_scheme (object_to_tmscm (obj));
       return;
     }
-    (void) buffer_actor::submit_to (
+    if (!scheme_command_handle_retain (handle)) return;
+    actor_command_ticket ticket= buffer_actor::submit_to (
       actor_id, actor_command_kind::invoke_scheme_handle, view_id,
       ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER, handle);
+    if (!ticket) scheme_command_handle_release (handle);
   }
   void apply (object args) override {
     if (handle == ATHENA_NO_SCHEME_HANDLE) {
@@ -380,11 +379,18 @@ public:
     }
     athena_scheme_handle_id arguments=
       scheme_command_handle_acquire (object_to_tmscm (args));
+    if (!scheme_command_handle_retain (handle)) {
+      scheme_command_handle_release (arguments);
+      return;
+    }
     actor_command_ticket ticket= buffer_actor::submit_to (
       actor_id, actor_command_kind::invoke_scheme_handle, view_id,
       ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER,
       handle, arguments);
-    if (!ticket) scheme_command_handle_release (arguments);
+    if (!ticket) {
+      scheme_command_handle_release (handle);
+      scheme_command_handle_release (arguments);
+    }
   }
   tm_ostream& print (tm_ostream& out) override {
     if (handle != ATHENA_NO_SCHEME_HANDLE)
@@ -418,10 +424,7 @@ public:
   }
   ~object_promise_widget_rep () override {
     if (handle == ATHENA_NO_SCHEME_HANDLE) return;
-    actor_command_ticket ticket= buffer_actor::submit_to (
-      actor_id, actor_command_kind::release_scheme_handle, view_id,
-      ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER, handle);
-    if (!ticket) scheme_command_handle_release (handle);
+    scheme_command_handle_release (handle);
   }
   tm_ostream& print (tm_ostream& out) override {
     if (handle != ATHENA_NO_SCHEME_HANDLE)
@@ -431,12 +434,15 @@ public:
   }
   widget eval () override {
     if (handle != ATHENA_NO_SCHEME_HANDLE) {
+      if (!scheme_command_handle_retain (handle))
+        FAILED ("Scheme widget promise handle is no longer live");
       actor_command_record result;
       if (buffer_actor::invoke_on (
             actor_id, actor_command_kind::evaluate_widget_handle, view_id,
             ATHENA_NO_BLOB, ATHENA_NO_BLOB, &result,
             SCHEME_CAPABILITY_BUFFER, handle))
         return actor_ui_take_widget (result.argument[0]);
+      scheme_command_handle_release (handle);
       FAILED ("BufferActor rejected widget promise evaluation");
       return glue_widget ();
     }

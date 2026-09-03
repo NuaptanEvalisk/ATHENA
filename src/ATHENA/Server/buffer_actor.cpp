@@ -757,25 +757,32 @@ buffer_actor::dispatch (actor_command_record& command) {
       }
     }
     catch (...) {
+      scheme_command_handle_release (handle);
       scheme_command_handle_release (arguments);
       throw;
     }
+    scheme_command_handle_release (handle);
     scheme_command_handle_release (arguments);
     break;
   }
   case actor_command_kind::evaluate_widget_handle: {
-    tmscm procedure= scheme_command_handle_value (command.argument[0]);
-    if (scm_is_eq (procedure, SCM_UNDEFINED))
-      FAILED ("Scheme widget promise handle is no longer live");
-    tmscm result= call_scheme (procedure);
-    if (!tmscm_is_widget (result)) FAILED ("widget expected");
-    widget value= tmscm_to_widget (result);
-    command.argument[0]= actor_ui_store_widget (std::move (value));
+    athena_scheme_handle_id handle= command.argument[0];
+    try {
+      tmscm procedure= scheme_command_handle_value (handle);
+      if (scm_is_eq (procedure, SCM_UNDEFINED))
+        FAILED ("Scheme widget promise handle is no longer live");
+      tmscm result= call_scheme (procedure);
+      if (!tmscm_is_widget (result)) FAILED ("widget expected");
+      widget value= tmscm_to_widget (result);
+      command.argument[0]= actor_ui_store_widget (std::move (value));
+    }
+    catch (...) {
+      scheme_command_handle_release (handle);
+      throw;
+    }
+    scheme_command_handle_release (handle);
     break;
   }
-  case actor_command_kind::release_scheme_handle:
-    scheme_command_handle_release (command.argument[0]);
-    break;
   case actor_command_kind::suspend_view:
     if (editor != nullptr) editor->suspend ();
     break;

@@ -801,6 +801,7 @@
   (switch-to-window switch_to_window (void url))
 
   (new-buffer create_buffer (url))
+  (new-document-buffer new_document_buffer (void))
   (open-buffer-in-window new_buffer_in_new_window (url url content content))
   (open-window open_window (url))
   (open-window-geometry open_window (url content))

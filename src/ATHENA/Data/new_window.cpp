@@ -281,6 +281,16 @@ create_buffer () {
   return name;
 }
 
+void
+new_document_buffer () {
+  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  if (context != nullptr && context->editor != nullptr) {
+    (void) context->editor->publish_ui (actor_command_kind::ui_new_buffer);
+    return;
+  }
+  (void) create_buffer ();
+}
+
 url
 open_window (tree geom) {
   url name= make_new_buffer ();
