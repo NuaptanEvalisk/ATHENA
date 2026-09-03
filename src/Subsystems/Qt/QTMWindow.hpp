@@ -67,11 +67,8 @@ class QTMWindow: public QMainWindow {
   Q_OBJECT
   
 public:
-  
-  QTMWindow (QWidget* parent)
-  : QMainWindow (parent) { 
-    if (DEBUG_QT) debug_qt << "Creating QTMWindow" << LF;
-  }
+
+  QTMWindow (QWidget* parent);
   virtual ~QTMWindow () {
     if (DEBUG_QT) debug_qt << "Deleting QTMWindow" << LF;
   }
@@ -80,10 +77,14 @@ signals:
   void closed ();
   
 protected:
+  virtual bool eventFilter (QObject* watched, QEvent* event) override;
   virtual bool event (QEvent* event) override;
   virtual void  closeEvent (QCloseEvent* event) override;
   virtual void   moveEvent (QMoveEvent* event) override;
   virtual void resizeEvent (QResizeEvent* event) override;
+
+private:
+  bool suppress_wayland_menu_release= false;
 };
 
 

@@ -13,8 +13,52 @@
 #include "window.hpp"
 #include "qt_utilities.hpp"
 
+#include <QApplication>
 #include <QMenuBar>
+#include <QMenu>
 #include <QKeyEvent>
+#include <QMouseEvent>
+
+QTMWindow::QTMWindow (QWidget* parent): QMainWindow (parent) {
+  if (DEBUG_QT) debug_qt << "Creating QTMWindow" << LF;
+  menuBar ()->installEventFilter (this);
+}
+
+bool
+QTMWindow::eventFilter (QObject* watched, QEvent* event) {
+  QMenuBar* bar= menuBar ();
+  if (watched == bar &&
+      QApplication::platformName ().startsWith (QStringLiteral ("wayland"))) {
+    if (event->type () == QEvent::MouseButtonPress) {
+      QMouseEvent* mouse= static_cast<QMouseEvent*> (event);
+      if (mouse->button () == Qt::LeftButton)
+        suppress_wayland_menu_release= false;
+      QAction* action= bar->actionAt (mouse->position ().toPoint ());
+      QMenu* menu= action == nullptr? nullptr: action->menu ();
+      if (mouse->button () == Qt::LeftButton && menu != nullptr &&
+          menu->isVisible () && QApplication::activePopupWidget () == menu) {
+        // Qt 6.11 closes an already open menubar menu and then grabs the
+        // non-popup QMenuBar. Wayland rejects that grab; the matching release
+        // can instead be consumed locally after closing the actual popup.
+        menu->setAttribute (Qt::WA_NoMouseReplay);
+        menu->hide ();
+        suppress_wayland_menu_release= true;
+        mouse->accept ();
+        return true;
+      }
+    }
+    else if (event->type () == QEvent::MouseButtonRelease &&
+             suppress_wayland_menu_release) {
+      QMouseEvent* mouse= static_cast<QMouseEvent*> (event);
+      if (mouse->button () == Qt::LeftButton) {
+        suppress_wayland_menu_release= false;
+        mouse->accept ();
+        return true;
+      }
+    }
+  }
+  return QMainWindow::eventFilter (watched, event);
+}
 
 void QTMPlainWindow::closeEvent (QCloseEvent* event)
 {
@@ -156,4 +200,3 @@ QTMPopupWidget::closeEvent (QCloseEvent* event)
   event->ignore ();
   emit closed();
 }
-
