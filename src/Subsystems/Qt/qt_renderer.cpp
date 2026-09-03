@@ -24,6 +24,8 @@
 #include <QPainterPath>
 #include <QPixmap>
 
+#include <cmath>
+
 /******************************************************************************
 * Qt images
 ******************************************************************************/
@@ -237,7 +239,18 @@ qt_renderer_rep::set_pencil (pencil np) {
   //if (pen->get_width () > pixel)
   //pw= (pen->get_width () + thicken) / (1.0*pixel);
   //p.setWidth (pw);
-  qreal pw= (qreal) (((double) pen->get_width ()) / ((double) pixel));
+  qreal pw= pixel > 0
+    ? (qreal) (((double) pen->get_width ()) / ((double) pixel)) : 0.0;
+  if (!std::isfinite ((double) pw) || pw < 0.0 || pw >= 32768.0) {
+    static thread_local bool warned= false;
+    if (!warned) {
+      std_warning << "Ignoring invalid Qt pen width " << pw
+                  << " from logical width " << pen->get_width ()
+                  << " and pixel size " << pixel << LF;
+      warned= true;
+    }
+    pw= 0.0;
+  }
   p.setWidthF (pw);
   if (np->get_type () == pencil_brush) {
     brush br= np->get_brush ();

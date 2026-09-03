@@ -29,6 +29,8 @@
 #endif
 #include "gui.hpp" // for gui_interrupted
 
+#include <cmath>
+
 extern void (*env_next_prog)(void);
 extern void set_snap_mode (tree t);
 extern void set_snap_distance (SI d);
@@ -55,10 +57,20 @@ MODE_LANGUAGE (string mode) {
 ******************************************************************************/
 
 static double
+valid_zoom_or (double zoom, double fallback) {
+  const double largest= static_cast<double> (std_shrinkf) * PIXEL;
+  return std::isfinite (zoom) && zoom >= 0.001 && zoom <= largest
+    ? zoom : fallback;
+}
+
+static double
 get_zoom (editor_rep* ed, buffer_document_state* buf) {
-  if (buf != nullptr && buf->data->init->contains ("no-zoom"))
-    return as_double (buf->data->init [ZOOM_FACTOR]);
-  else return retina_zoom * ed->sv->get_default_zoom_factor ();
+  double fallback= valid_zoom_or (
+    retina_zoom * ed->sv->get_default_zoom_factor (), 1.0);
+  if (buf != nullptr && buf->data->init->contains ("no-zoom") &&
+      buf->data->init->contains (ZOOM_FACTOR))
+    return valid_zoom_or (as_double (buf->data->init [ZOOM_FACTOR]), fallback);
+  return fallback;
 }
 
 edit_interface_rep::edit_interface_rep ():
@@ -197,6 +209,7 @@ edit_interface_rep::get_pixel_size () {
 
 void
 edit_interface_rep::set_zoom_factor (double zoom) {
+  zoom= valid_zoom_or (zoom, valid_zoom_or (zoomf, 1.0));
   zoomf = zoom;
   magf  = zoomf / std_shrinkf;
   pixel = (SI) tm_round ((std_shrinkf * PIXEL) / zoomf);

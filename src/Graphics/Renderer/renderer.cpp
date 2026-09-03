@@ -15,6 +15,9 @@
 #include "image_files.hpp"
 #include "frame.hpp"
 
+#include <cmath>
+#include <limits>
+
 int    std_shrinkf  = 5;
 
 bool   retina_manual= false;
@@ -139,6 +142,19 @@ normal_zoom (double zoom) {
 
 void
 renderer_rep::set_zoom_factor (double zoom, bool safe) {
+  double next_zoomf= pixel_ratio * zoom;
+  double next_pixel= (std_shrinkf * (double) PIXEL) / next_zoomf;
+  if (!std::isfinite (next_zoomf) || next_zoomf <= 0.0 ||
+      !std::isfinite (next_pixel) || next_pixel < 0.5 ||
+      next_pixel > (double) std::numeric_limits<SI>::max ()) {
+    static thread_local bool warned= false;
+    if (!warned) {
+      std_warning << "Ignoring invalid renderer zoom factor " << zoom
+                  << " at pixel ratio " << pixel_ratio << LF;
+      warned= true;
+    }
+    return;
+  }
   if (safe &&
       shrinkf != ((int) tm_round (pixel_ratio * std_shrinkf / zoomf)))
     cerr << "Invalid zoom: zoomf= " << zoomf
