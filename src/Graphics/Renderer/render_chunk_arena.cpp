@@ -40,13 +40,18 @@ render_chunk_arena::~render_chunk_arena () {
 
 bool
 render_chunk_arena::reclaim_completion () {
-  std::uint64_t read= completion_read_.value.load (std::memory_order_relaxed);
-  std::uint64_t write=
-    completion_write_.value.load (std::memory_order_acquire);
-  if (read == write) return false;
+  std::uint32_t slot;
+  {
+    std::lock_guard<std::mutex> guard (wait_lock_);
+    std::uint64_t read=
+      completion_read_.value.load (std::memory_order_relaxed);
+    std::uint64_t write=
+      completion_write_.value.load (std::memory_order_acquire);
+    if (read == write) return false;
 
-  std::uint32_t slot= completions_[read % slot_count_];
-  completion_read_.value.store (read + 1, std::memory_order_release);
+    slot= completions_[read % slot_count_];
+    completion_read_.value.store (read + 1, std::memory_order_release);
+  }
   producer_free_slots_.push_back (slot);
   completion_space_.notify_one ();
   return true;
@@ -87,53 +92,59 @@ render_chunk_arena::publish (const render_chunk_descriptor& descriptor) {
   if (!valid_slot (descriptor.slot) || descriptor.used > slot_capacity_)
     return false;
 
-  std::uint64_t write=
-    submission_write_.value.load (std::memory_order_relaxed);
-  while (write - submission_read_.value.load (std::memory_order_acquire) >=
-         slot_count_) {
+  {
     std::unique_lock<std::mutex> guard (wait_lock_);
+    std::uint64_t write=
+      submission_write_.value.load (std::memory_order_relaxed);
     submission_space_.wait (guard, [this, write] {
       return closed_.load (std::memory_order_acquire) ||
              write - submission_read_.value.load (std::memory_order_acquire) <
                slot_count_;
     });
     if (closed_.load (std::memory_order_acquire)) return false;
-  }
-  if (closed_.load (std::memory_order_acquire)) return false;
 
-  submissions_[write % slot_count_]= descriptor;
-  submission_write_.value.store (write + 1, std::memory_order_release);
+    submissions_[write % slot_count_]= descriptor;
+    submission_write_.value.store (write + 1, std::memory_order_release);
+  }
   submission_ready_.notify_one ();
   return true;
 }
 
 bool
 render_chunk_arena::try_submission (render_chunk_descriptor& descriptor) {
-  std::uint64_t read= submission_read_.value.load (std::memory_order_relaxed);
-  if (read == submission_write_.value.load (std::memory_order_acquire))
-    return false;
+  {
+    std::lock_guard<std::mutex> guard (wait_lock_);
+    std::uint64_t read=
+      submission_read_.value.load (std::memory_order_relaxed);
+    if (read == submission_write_.value.load (std::memory_order_acquire))
+      return false;
 
-  descriptor= submissions_[read % slot_count_];
-  submission_read_.value.store (read + 1, std::memory_order_release);
+    descriptor= submissions_[read % slot_count_];
+    submission_read_.value.store (read + 1, std::memory_order_release);
+  }
   submission_space_.notify_one ();
   return true;
 }
 
 bool
 render_chunk_arena::wait_submission (render_chunk_descriptor& descriptor) {
-  std::uint64_t read= submission_read_.value.load (std::memory_order_relaxed);
-  while (read == submission_write_.value.load (std::memory_order_acquire)) {
+  {
     std::unique_lock<std::mutex> guard (wait_lock_);
-    submission_ready_.wait (guard, [this, read] {
+    submission_ready_.wait (guard, [this] {
       return closed_.load (std::memory_order_acquire) ||
-             read != submission_write_.value.load (std::memory_order_acquire);
+             submission_read_.value.load (std::memory_order_relaxed) !=
+               submission_write_.value.load (std::memory_order_acquire);
     });
-    if (read == submission_write_.value.load (std::memory_order_acquire) &&
-        closed_.load (std::memory_order_acquire))
+    std::uint64_t read=
+      submission_read_.value.load (std::memory_order_relaxed);
+    if (read == submission_write_.value.load (std::memory_order_acquire))
       return false;
-  }
 
-  return try_submission (descriptor);
+    descriptor= submissions_[read % slot_count_];
+    submission_read_.value.store (read + 1, std::memory_order_release);
+  }
+  submission_space_.notify_one ();
+  return true;
 }
 
 const std::byte*
@@ -145,28 +156,30 @@ render_chunk_arena::payload (std::uint32_t slot) const noexcept {
 bool
 render_chunk_arena::complete (std::uint32_t slot) {
   if (!valid_slot (slot)) return false;
-  std::uint64_t write=
-    completion_write_.value.load (std::memory_order_relaxed);
-  while (write - completion_read_.value.load (std::memory_order_acquire) >=
-         slot_count_) {
+  {
     std::unique_lock<std::mutex> guard (wait_lock_);
+    std::uint64_t write=
+      completion_write_.value.load (std::memory_order_relaxed);
     completion_space_.wait (guard, [this, write] {
       return closed_.load (std::memory_order_acquire) ||
              write - completion_read_.value.load (std::memory_order_acquire) <
                slot_count_;
     });
     if (closed_.load (std::memory_order_acquire)) return false;
-  }
 
-  completions_[write % slot_count_]= slot;
-  completion_write_.value.store (write + 1, std::memory_order_release);
+    completions_[write % slot_count_]= slot;
+    completion_write_.value.store (write + 1, std::memory_order_release);
+  }
   completion_ready_.notify_one ();
   return true;
 }
 
 void
 render_chunk_arena::close () noexcept {
-  closed_.store (true, std::memory_order_release);
+  {
+    std::lock_guard<std::mutex> guard (wait_lock_);
+    closed_.store (true, std::memory_order_release);
+  }
   submission_ready_.notify_all ();
   submission_space_.notify_all ();
   completion_ready_.notify_all ();

@@ -36,13 +36,18 @@ actor_command_transport::~actor_command_transport () {
 
 bool
 actor_command_transport::reclaim_completion () {
-  std::uint64_t read= completion_read_.value.load (std::memory_order_relaxed);
-  std::uint64_t write=
-    completion_write_.value.load (std::memory_order_acquire);
-  if (read == write) return false;
+  athena_slot_id slot;
+  {
+    std::lock_guard<std::mutex> guard (wait_lock_);
+    std::uint64_t read=
+      completion_read_.value.load (std::memory_order_relaxed);
+    std::uint64_t write=
+      completion_write_.value.load (std::memory_order_acquire);
+    if (read == write) return false;
 
-  athena_slot_id slot= completions_[read % slot_count_];
-  completion_read_.value.store (read + 1, std::memory_order_release);
+    slot= completions_[read % slot_count_];
+    completion_read_.value.store (read + 1, std::memory_order_release);
+  }
   records_[slot]= actor_command_record {};
   producer_free_slots_.push_back (slot);
   completion_space_.notify_one ();
@@ -99,33 +104,37 @@ actor_command_transport::publish (athena_slot_id slot) {
   if (!valid_slot (slot) ||
       closed_.load (std::memory_order_acquire)) return false;
 
-  std::uint64_t write=
-    submission_write_.value.load (std::memory_order_relaxed);
-  while (write - submission_read_.value.load (std::memory_order_acquire) >=
-         slot_count_) {
+  {
     std::unique_lock<std::mutex> guard (wait_lock_);
+    std::uint64_t write=
+      submission_write_.value.load (std::memory_order_relaxed);
     command_space_.wait (guard, [this, write] {
       return closed_.load (std::memory_order_acquire) ||
              write - submission_read_.value.load (std::memory_order_acquire) <
                slot_count_;
     });
     if (closed_.load (std::memory_order_acquire)) return false;
-  }
 
-  submissions_[write % slot_count_]= slot;
-  submission_write_.value.store (write + 1, std::memory_order_release);
+    submissions_[write % slot_count_]= slot;
+    submission_write_.value.store (write + 1, std::memory_order_release);
+  }
   command_ready_.notify_one ();
   return true;
 }
 
 bool
 actor_command_transport::try_command (readable_command& command) {
-  std::uint64_t read= submission_read_.value.load (std::memory_order_relaxed);
-  if (read == submission_write_.value.load (std::memory_order_acquire))
-    return false;
+  athena_slot_id slot;
+  {
+    std::lock_guard<std::mutex> guard (wait_lock_);
+    std::uint64_t read=
+      submission_read_.value.load (std::memory_order_relaxed);
+    if (read == submission_write_.value.load (std::memory_order_acquire))
+      return false;
 
-  athena_slot_id slot= submissions_[read % slot_count_];
-  submission_read_.value.store (read + 1, std::memory_order_release);
+    slot= submissions_[read % slot_count_];
+    submission_read_.value.store (read + 1, std::memory_order_release);
+  }
   command_space_.notify_one ();
   command.slot= slot;
   command.record= &records_[slot];
@@ -134,45 +143,55 @@ actor_command_transport::try_command (readable_command& command) {
 
 bool
 actor_command_transport::wait_command (readable_command& command) {
-  std::uint64_t read= submission_read_.value.load (std::memory_order_relaxed);
-  while (read == submission_write_.value.load (std::memory_order_acquire)) {
+  athena_slot_id slot;
+  {
     std::unique_lock<std::mutex> guard (wait_lock_);
-    command_ready_.wait (guard, [this, read] {
+    command_ready_.wait (guard, [this] {
       return closed_.load (std::memory_order_acquire) ||
-             read != submission_write_.value.load (std::memory_order_acquire);
+             submission_read_.value.load (std::memory_order_relaxed) !=
+               submission_write_.value.load (std::memory_order_acquire);
     });
-    if (read == submission_write_.value.load (std::memory_order_acquire) &&
-        closed_.load (std::memory_order_acquire))
+    std::uint64_t read=
+      submission_read_.value.load (std::memory_order_relaxed);
+    if (read == submission_write_.value.load (std::memory_order_acquire))
       return false;
+
+    slot= submissions_[read % slot_count_];
+    submission_read_.value.store (read + 1, std::memory_order_release);
   }
-  return try_command (command);
+  command_space_.notify_one ();
+  command.slot= slot;
+  command.record= &records_[slot];
+  return true;
 }
 
 bool
 actor_command_transport::complete (athena_slot_id slot) {
   if (!valid_slot (slot)) return false;
-  std::uint64_t write=
-    completion_write_.value.load (std::memory_order_relaxed);
-  while (write - completion_read_.value.load (std::memory_order_acquire) >=
-         slot_count_) {
+  {
     std::unique_lock<std::mutex> guard (wait_lock_);
+    std::uint64_t write=
+      completion_write_.value.load (std::memory_order_relaxed);
     completion_space_.wait (guard, [this, write] {
       return closed_.load (std::memory_order_acquire) ||
              write - completion_read_.value.load (std::memory_order_acquire) <
                slot_count_;
     });
     if (closed_.load (std::memory_order_acquire)) return false;
-  }
 
-  completions_[write % slot_count_]= slot;
-  completion_write_.value.store (write + 1, std::memory_order_release);
+    completions_[write % slot_count_]= slot;
+    completion_write_.value.store (write + 1, std::memory_order_release);
+  }
   completion_ready_.notify_one ();
   return true;
 }
 
 void
 actor_command_transport::close () noexcept {
-  closed_.store (true, std::memory_order_release);
+  {
+    std::lock_guard<std::mutex> guard (wait_lock_);
+    closed_.store (true, std::memory_order_release);
+  }
   command_ready_.notify_all ();
   command_space_.notify_all ();
   completion_ready_.notify_all ();

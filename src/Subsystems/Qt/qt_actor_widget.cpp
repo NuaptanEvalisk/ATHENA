@@ -239,7 +239,9 @@ qt_actor_widget_rep::handle_render_connection_ready (
 void
 qt_actor_widget_rep::refresh_viewport () {
   if (qwid == nullptr) return;
-  actor_viewport_snapshot snapshot;
+  // Geometry refreshes must not erase the render target published by the
+  // repaint path while its BufferActor is preparing the corresponding frame.
+  actor_viewport_snapshot snapshot= endpoint_->viewport ();
   ::get_visible_part (widget (this), snapshot.visible_x1,
                       snapshot.visible_y1, snapshot.visible_x2,
                       snapshot.visible_y2);
