@@ -18,6 +18,7 @@
 #include <QAbstractButton>
 #include <QApplication>
 #include <QComboBox>
+#include <QCoreApplication>
 #include <QDir>
 #include <QFileDialog>
 #include <QFileInfo>
@@ -26,13 +27,20 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QMessageBox>
+#include <QMetaObject>
 #include <QPushButton>
 #include <QRadioButton>
 #include <QRegularExpressionValidator>
 #include <QScrollArea>
+#include <QThread>
 #include <QVBoxLayout>
 #include <QWizard>
 #include <QWizardPage>
+
+#include <cstdint>
+#include <memory>
+#include <mutex>
+#include <unordered_map>
 
 namespace {
 
@@ -326,24 +334,39 @@ private:
   NamespaceConfirmPage* confirm;
 };
 
-} // namespace
+struct NamespaceDialogRequest {
+  enum class Kind { new_file, optional_initializer };
+
+  explicit NamespaceDialogRequest (Kind kind): kind (kind) {}
+
+  Kind kind;
+  string system_path;
+  string result;
+  string error;
+  bool success= false;
+};
+
+std::mutex namespaceDialogRequestMutex;
+std::unordered_map<std::uint64_t, std::unique_ptr<NamespaceDialogRequest>>
+  namespaceDialogRequests;
+std::uint64_t nextNamespaceDialogRequestId= 1;
 
 string
-namespace_new_file_wizard () {
-  NamespaceNewFileWizard wizard;
+runNamespaceNewFileWizard () {
+  NamespaceNewFileWizard wizard (QApplication::activeWindow ());
   if (wizard.exec () != QDialog::Accepted) return "";
   QString target;
   QString message;
   if (!wizard.create (target, message)) {
-    QMessageBox::warning (nullptr, "New within namespace", message);
+    QMessageBox::warning (&wizard, "New within namespace", message);
     return "";
   }
   return from_qstring (target);
 }
 
 bool
-namespace_create_file_with_optional_initializer (string system_path,
-                                                 string& error) {
+runNamespaceCreateFileWithOptionalInitializer (string system_path,
+                                               string& error) {
   QString target= to_qstring (system_path);
   QString stem= namespace_new_stem_from_path (target);
   string match_error;
@@ -353,7 +376,7 @@ namespace_create_file_with_optional_initializer (string system_path,
 
   int chosen= -1;
   if (!matches.empty ()) {
-    QDialog dialog;
+    QDialog dialog (QApplication::activeWindow ());
     dialog.setWindowTitle ("Initialize from namespace");
     QVBoxLayout* layout= new QVBoxLayout (&dialog);
     QLabel* label= new QLabel (
@@ -388,4 +411,87 @@ namespace_create_file_with_optional_initializer (string system_path,
     return athena_namespace_create_file (matches[(size_t) chosen], target_url,
                                          "", true, error);
   return athena_namespace_create_plain_file (target_url, error);
+}
+
+std::uint64_t
+registerNamespaceDialogRequest (NamespaceDialogRequest::Kind kind,
+                                string system_path = "") {
+  system_path.ensure_transferable ();
+  auto request= std::make_unique<NamespaceDialogRequest> (kind);
+  request->system_path= std::move (system_path);
+  std::lock_guard<std::mutex> guard (namespaceDialogRequestMutex);
+  std::uint64_t id= nextNamespaceDialogRequestId++;
+  if (id == 0) id= nextNamespaceDialogRequestId++;
+  namespaceDialogRequests.emplace (id, std::move (request));
+  return id;
+}
+
+void
+executeNamespaceDialogRequest (std::uint64_t id) {
+  NamespaceDialogRequest* request= nullptr;
+  {
+    std::lock_guard<std::mutex> guard (namespaceDialogRequestMutex);
+    auto found= namespaceDialogRequests.find (id);
+    if (found == namespaceDialogRequests.end ()) return;
+    request= found->second.get ();
+  }
+  if (request->kind == NamespaceDialogRequest::Kind::new_file)
+    request->result= runNamespaceNewFileWizard ();
+  else
+    request->success= runNamespaceCreateFileWithOptionalInitializer (
+      request->system_path, request->error);
+}
+
+std::unique_ptr<NamespaceDialogRequest>
+takeNamespaceDialogRequest (std::uint64_t id) {
+  std::unique_ptr<NamespaceDialogRequest> request;
+  std::lock_guard<std::mutex> guard (namespaceDialogRequestMutex);
+  auto found= namespaceDialogRequests.find (id);
+  if (found == namespaceDialogRequests.end ()) return request;
+  request= std::move (found->second);
+  namespaceDialogRequests.erase (found);
+  return request;
+}
+
+} // namespace
+
+string
+namespace_new_file_wizard () {
+  QCoreApplication* app= QCoreApplication::instance ();
+  if (app == nullptr || QThread::currentThread () == app->thread ())
+    return runNamespaceNewFileWizard ();
+
+  std::uint64_t id= registerNamespaceDialogRequest (
+    NamespaceDialogRequest::Kind::new_file);
+  bool invoked= QMetaObject::invokeMethod (
+    app, [id] () { executeNamespaceDialogRequest (id); },
+    Qt::BlockingQueuedConnection);
+  std::unique_ptr<NamespaceDialogRequest> request=
+    takeNamespaceDialogRequest (id);
+  if (!invoked || request == nullptr) return "";
+  return std::move (request->result);
+}
+
+bool
+namespace_create_file_with_optional_initializer (string system_path,
+                                                 string& error) {
+  QCoreApplication* app= QCoreApplication::instance ();
+  if (app == nullptr || QThread::currentThread () == app->thread ())
+    return runNamespaceCreateFileWithOptionalInitializer (
+      std::move (system_path), error);
+
+  std::uint64_t id= registerNamespaceDialogRequest (
+    NamespaceDialogRequest::Kind::optional_initializer,
+    std::move (system_path));
+  bool invoked= QMetaObject::invokeMethod (
+    app, [id] () { executeNamespaceDialogRequest (id); },
+    Qt::BlockingQueuedConnection);
+  std::unique_ptr<NamespaceDialogRequest> request=
+    takeNamespaceDialogRequest (id);
+  if (!invoked || request == nullptr) {
+    error= "Could not invoke the namespace initializer on the Qt thread.";
+    return false;
+  }
+  error= std::move (request->error);
+  return request->success;
 }
