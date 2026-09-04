@@ -31,6 +31,7 @@ public:
 private:
   QLabel* messageLabel;
   QProgressBar* progressBar;
+  int retainedHeight;
 };
 
 #endif // QTMPROGRESSWINDOW_HPP

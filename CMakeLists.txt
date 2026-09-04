@@ -90,6 +90,9 @@ find_package (Boost REQUIRED)
 
 option (QTPIPES "use Qt pipes" ON)
 
+option (ATHENA_ENABLE_TSAN
+  "Instrument ATHENA and its private Guile runtime with ThreadSanitizer" OFF)
+
 set (ATHENA_CPU_TARGET "native" CACHE STRING
   "CPU ISA target: native, x86-64-v3, x86-64-v2, or x86-64")
 set_property (CACHE ATHENA_CPU_TARGET PROPERTY STRINGS
@@ -557,7 +560,7 @@ option (ATHENA_INTEL_NATIVE_OPTIMIZATION
         "Use native CPU tuning when building with IntelLLVM" ON)
 
 if (CMAKE_CXX_COMPILER_ID STREQUAL "IntelLLVM" AND
-    ATHENA_INTEL_NATIVE_OPTIMIZATION)
+    ATHENA_INTEL_NATIVE_OPTIMIZATION AND NOT ATHENA_ENABLE_TSAN)
   message(STATUS "Detected IntelLLVM compiler, adding aggressive optimization flags")
   # Release builders select a portable ISA baseline explicitly. Local builds
   # retain native tuning by default.
@@ -568,6 +571,22 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "IntelLLVM" AND
   set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -flto=thin -fuse-ld=lld -Wl,--thinlto-cache-dir=${CMAKE_BINARY_DIR}/lto_cache -static-intel")
   set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -flto=thin -fuse-ld=lld -Wl,--thinlto-cache-dir=${CMAKE_BINARY_DIR}/lto_cache -static-intel")
 endif()
+
+if (ATHENA_ENABLE_TSAN)
+  if (NOT CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|IntelLLVM")
+    message (FATAL_ERROR
+      "ATHENA_ENABLE_TSAN requires a compiler with -fsanitize=thread support")
+  endif ()
+  message (STATUS "ATHENA ThreadSanitizer instrumentation enabled")
+  set (ATHENA_TSAN_FLAGS
+    "-O1 -g -fsanitize=thread -fno-omit-frame-pointer")
+  string (APPEND CMAKE_C_FLAGS " ${ATHENA_TSAN_FLAGS}")
+  string (APPEND CMAKE_CXX_FLAGS " ${ATHENA_TSAN_FLAGS}")
+  string (APPEND CMAKE_EXE_LINKER_FLAGS
+    " -fsanitize=thread -fuse-ld=lld")
+  string (APPEND CMAKE_SHARED_LINKER_FLAGS
+    " -fsanitize=thread -fuse-ld=lld")
+endif ()
 
 
 ### --------------------------------------------------------------------

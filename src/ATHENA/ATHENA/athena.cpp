@@ -574,6 +574,12 @@ startup_progress (int progress, string message) {
     qtmapp->set_splash_progress (progress, message);
 }
 
+static void
+startup_process_events () {
+  if (!headless_mode && qtmapp != NULL && !no_splash_screen)
+    qtmapp->processEvents (QEventLoop::ExcludeUserInputEvents, 25);
+}
+
 static int startup_scheme_compile_depth= 0;
 
 static string
@@ -607,13 +613,18 @@ startup_progress (int progress, string message) {
 }
 
 static void
+startup_process_events () {}
+
+static void
 startup_scheme_compile (bool compiling, string source) {
   (void) compiling; (void) source;
 }
 #endif
 
-#include <mimalloc-override.h>
-#include <mimalloc-new-delete.h>
+#ifndef ATHENA_TSAN_BUILD
+#  include <mimalloc-override.h>
+#  include <mimalloc-new-delete.h>
+#endif
 
 bool
 is_headless () {
@@ -1828,13 +1839,25 @@ athena_refresh_stale_scheme_bytecode (int argc, char** argv) {
 
   cout << "ATHENA Scheme bytecode: detected " << stale_count
        << " stale module" << (stale_count == 1 ? "" : "s") << LF;
-  startup_progress (14, "Compiling changed Scheme modules");
+  startup_progress (0, "Compiling Scheme bytecode: preparing module plan");
   const char* previous_refresh= getenv ("ATHENA_SCHEME_RUNTIME_REFRESH");
   std::string previous_refresh_value=
     previous_refresh == nullptr ? "" : previous_refresh;
   setenv ("ATHENA_SCHEME_RUNTIME_REFRESH", "1", 1);
+  int compiler_output[2]= {-1, -1};
+  bool capture_output= pipe (compiler_output) == 0;
+  if (capture_output) {
+    (void) fcntl (compiler_output[0], F_SETFD, FD_CLOEXEC);
+    (void) fcntl (compiler_output[1], F_SETFD, FD_CLOEXEC);
+  }
+
   pid_t child= fork ();
   if (child == 0) {
+    if (capture_output) {
+      close (compiler_output[0]);
+      if (dup2 (compiler_output[1], STDOUT_FILENO) < 0) _exit (127);
+      close (compiler_output[1]);
+    }
     execv ("/bin/bash", exec_arguments.data ());
     _exit (127);
   }
@@ -1844,13 +1867,99 @@ athena_refresh_stale_scheme_bytecode (int argc, char** argv) {
     setenv ("ATHENA_SCHEME_RUNTIME_REFRESH",
             previous_refresh_value.c_str (), 1);
   if (child < 0) {
+    if (capture_output) {
+      close (compiler_output[0]);
+      close (compiler_output[1]);
+    }
     cerr << "ATHENA Scheme bytecode: could not start runtime compiler" << LF;
     return false;
   }
+
+  if (capture_output) {
+    close (compiler_output[1]);
+    int flags= fcntl (compiler_output[0], F_GETFL, 0);
+    if (flags >= 0)
+      (void) fcntl (compiler_output[0], F_SETFL, flags | O_NONBLOCK);
+  }
+
+  size_t compile_total= 0;
+  size_t compile_completed= 0;
+  std::string pending_output;
+  auto consume_line= [&] (const std::string& line) {
+    static const std::string plan_prefix=
+      "ATHENA Scheme bytecode: recompiling ";
+    static const std::string module_prefix= "ATHENA Scheme bytecode: /";
+    if (line.compare (0, plan_prefix.size (), plan_prefix) == 0) {
+      size_t affected= 0;
+      size_t available= 0;
+      if (std::sscanf (
+            line.c_str (),
+            "ATHENA Scheme bytecode: recompiling %zu of %zu modules",
+            &affected, &available) == 2) {
+        compile_total= affected;
+        startup_progress (
+          0, "Compiling Scheme bytecode: 0/" *
+               as_string (static_cast<long int> (compile_total)) * " modules");
+      }
+      return;
+    }
+    if (compile_total == 0 ||
+        line.compare (0, module_prefix.size (), module_prefix) != 0 ||
+        line.size () < 4 || line.substr (line.size () - 4) != ".scm")
+      return;
+
+    compile_completed= std::min (compile_completed + 1, compile_total);
+    std::string source= line.substr (
+      std::string ("ATHENA Scheme bytecode: ").size ());
+    std::string source_prefix= source_root.string () + "/";
+    if (source.compare (0, source_prefix.size (), source_prefix) == 0)
+      source.erase (0, source_prefix.size ());
+    int progress= static_cast<int> (
+      (100 * compile_completed) / std::max<size_t> (compile_total, 1));
+    startup_progress (
+      progress,
+      "Compiling Scheme bytecode: " *
+        as_string (static_cast<long int> (compile_completed)) * "/" *
+        as_string (static_cast<long int> (compile_total)) * "\n" *
+        string (source.c_str ()));
+  };
+
   int status= 0;
-  pid_t waited;
-  do waited= waitpid (child, &status, 0);
-  while (waited < 0 && errno == EINTR);
+  pid_t waited= 0;
+  bool output_open= capture_output;
+  while (waited == 0 || output_open) {
+    if (output_open) {
+      char buffer[4096];
+      ssize_t count;
+      do {
+        count= read (compiler_output[0], buffer, sizeof (buffer));
+        if (count > 0) {
+          std::cout.write (buffer, count);
+          std::cout.flush ();
+          pending_output.append (buffer, static_cast<size_t> (count));
+          size_t newline;
+          while ((newline= pending_output.find ('\n')) != std::string::npos) {
+            consume_line (pending_output.substr (0, newline));
+            pending_output.erase (0, newline + 1);
+          }
+        }
+        else if (count == 0) {
+          close (compiler_output[0]);
+          output_open= false;
+        }
+      } while (count > 0);
+    }
+
+    if (waited == 0) {
+      do waited= waitpid (child, &status, WNOHANG);
+      while (waited < 0 && errno == EINTR);
+    }
+    startup_process_events ();
+    if (waited == 0 || output_open) usleep (20000);
+  }
+  if (!pending_output.empty ()) consume_line (pending_output);
+  if (waited == child && WIFEXITED (status) && WEXITSTATUS (status) == 0)
+    startup_progress (100, "Scheme bytecode compiled; restarting ATHENA");
   if (waited != child || !WIFEXITED (status) || WEXITSTATUS (status) != 0) {
     cerr << "ATHENA Scheme bytecode: runtime refresh failed" << LF;
     return false;

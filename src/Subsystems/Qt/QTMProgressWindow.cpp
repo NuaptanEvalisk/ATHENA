@@ -35,7 +35,8 @@ QTMProgressWindow::QTMProgressWindow (const QString& title, bool busy,
                                       QWidget* parent):
   QWidget (parent, progress_window_flags (parent)),
   messageLabel (new QLabel (this)),
-  progressBar (new QProgressBar (this)) {
+  progressBar (new QProgressBar (this)),
+  retainedHeight (0) {
   setWindowTitle (title);
   setFixedWidth (progress_window_width);
 
@@ -60,6 +61,9 @@ QTMProgressWindow::setMessage (const QString& message) {
   messageLabel->setToolTip (message);
   adjustSize ();
   setFixedWidth (progress_window_width);
+  retainedHeight= std::max (retainedHeight, height ());
+  setMinimumHeight (retainedHeight);
+  if (height () < retainedHeight) resize (width (), retainedHeight);
 }
 
 void

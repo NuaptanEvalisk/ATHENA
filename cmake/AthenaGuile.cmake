@@ -22,10 +22,22 @@ set(ATHENA_GUILE_INCLUDE_DIR
 set(ATHENA_GUILE_LIBRARY
   "${ATHENA_GUILE_PREFIX}/lib/libathena-guile${CMAKE_SHARED_LIBRARY_SUFFIX}")
 
-set(ATHENA_GUILE_C_FLAGS
-  "-O3 -g -std=gnu17 -fno-omit-frame-pointer ${ATHENA_CPU_COMPILE_FLAGS} -funroll-loops")
-set(ATHENA_GUILE_LINK_FLAGS
-  "-flto=thin -fuse-ld=lld -Wl,--thinlto-cache-dir=${ATHENA_GUILE_BUILD_DIR}/lto-cache")
+if(ATHENA_ENABLE_TSAN)
+  set(ATHENA_GUILE_C_FLAGS
+    "-O1 -g -std=gnu17 -fno-omit-frame-pointer ${ATHENA_CPU_COMPILE_FLAGS} -fsanitize=thread")
+  set(ATHENA_GUILE_LINK_FLAGS "-fsanitize=thread -fuse-ld=lld")
+  set(ATHENA_GUILE_MAKE_OPTIONS "GUILE_OPTIMIZATIONS=-O0")
+  set(ATHENA_GUILE_BUILD_COMMAND
+    "${CMAKE_COMMAND}" -E env "GC_MARKERS=1"
+    "${ATHENA_GUILE_MAKE_EXECUTABLE}")
+else()
+  set(ATHENA_GUILE_C_FLAGS
+    "-O3 -g -std=gnu17 -fno-omit-frame-pointer ${ATHENA_CPU_COMPILE_FLAGS} -funroll-loops")
+  set(ATHENA_GUILE_LINK_FLAGS
+    "-flto=thin -fuse-ld=lld -Wl,--thinlto-cache-dir=${ATHENA_GUILE_BUILD_DIR}/lto-cache")
+  set(ATHENA_GUILE_MAKE_OPTIONS "")
+  set(ATHENA_GUILE_BUILD_COMMAND "${ATHENA_GUILE_MAKE_EXECUTABLE}")
+endif()
 if(CMAKE_C_COMPILER_ID MATCHES "Intel")
   # Guile's numeric semantics require gradual underflow. IntelLLVM defaults
   # optimized builds to fast floating point and enables FTZ/DAZ otherwise.
@@ -67,8 +79,9 @@ ExternalProject_Add(athena_guile_runtime
         --enable-jit=yes
         --disable-nls
         --enable-lto=thin
-  BUILD_COMMAND "${ATHENA_GUILE_MAKE_EXECUTABLE}" -j20
-  INSTALL_COMMAND "${ATHENA_GUILE_MAKE_EXECUTABLE}" -j20 install
+  BUILD_COMMAND ${ATHENA_GUILE_BUILD_COMMAND} -j20 ${ATHENA_GUILE_MAKE_OPTIONS}
+  INSTALL_COMMAND ${ATHENA_GUILE_BUILD_COMMAND} -j20
+    ${ATHENA_GUILE_MAKE_OPTIONS} install
   BUILD_BYPRODUCTS "${ATHENA_GUILE_LIBRARY}"
   DEPENDS athena_bdwgc_runtime
   USES_TERMINAL_BUILD TRUE

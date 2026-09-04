@@ -44,14 +44,20 @@ else (WIN32)
     ./ATHENA/ATHENA/athena.cpp
   )
 endif (WIN32)
+if (ATHENA_ENABLE_TSAN)
+  target_sources (${ATHENA_binary_name} PRIVATE
+    ./System/Misc/tsan_mimalloc_shim.cpp)
+else ()
+  target_link_libraries (${ATHENA_binary_name} mimalloc)
+endif ()
 target_compile_definitions(${ATHENA_binary_name} PRIVATE
   MI_OVERRIDE=1
   ATHENA_GUILE_RUNTIME_ID="${ATHENA_GUILE_RUNTIME_ID}"
+  $<$<BOOL:${ATHENA_ENABLE_TSAN}>:ATHENA_TSAN_BUILD=1>
   $<$<CONFIG:Debug>:ATHENA_DEBUG_BUILD=1>
 )
 target_link_libraries (${ATHENA_binary_name}
   athena_body
-  mimalloc
   PkgConfig::SPDLOG
   ${ATHENA_LLAMA_LIBRARIES}
   ${ADS_LIBRARIES}
