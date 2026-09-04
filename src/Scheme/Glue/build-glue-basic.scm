@@ -824,7 +824,7 @@
   (vault-find-uuid vault_find_uuid (string string string string))
   (vault-generate-uuid vault_generate_uuid (string))
   (vault-choose-link vault_choose_link (tree bool))
-  (vault-quick-switcher vault_quick_switcher (tree array_string))
+  (vault-quick-switcher vault_quick_switcher (void array_string))
   (vault-show-explorer vault_show_explorer (void))
   (vault-explorer-track-file vault_explorer_track_file (void url))
   (global-search-show global_search_show (void))

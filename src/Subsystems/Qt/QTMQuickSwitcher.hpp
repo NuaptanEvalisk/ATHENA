@@ -91,6 +91,6 @@ private:
   bool    resultAccepted;
 };
 
-tree vault_quick_switcher (array<string> recentFiles);
+void vault_quick_switcher (array<string> recentFiles);
 
 #endif // QTMQUICKSWITCHER_HPP

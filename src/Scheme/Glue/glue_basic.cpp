@@ -10007,10 +10007,10 @@ tmg_vault_quick_switcher (tmscm arg1) {
   array_string in1= tmscm_to_array_string (arg1);
 
   // TMSCM_DEFER_INTS;
-  tree out= vault_quick_switcher (in1);
+  vault_quick_switcher (in1);
   // TMSCM_ALLOW_INTS;
 
-  return tree_to_tmscm (out);
+  return TMSCM_UNSPECIFIED;
 }
 
 tmscm

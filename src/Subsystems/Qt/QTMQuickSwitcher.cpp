@@ -10,6 +10,9 @@
 
 #include "QTMQuickSwitcher.hpp"
 #include "actor_transport.hpp"
+#include "buffer_actor.hpp"
+#include "scheme.hpp"
+#include "scheme_execution_context.hpp"
 #include "vault.hpp"
 #include "qt_utilities.hpp"
 #include <QApplication>
@@ -47,7 +50,9 @@ enum QuickRoles {
 
 struct QuickSwitcherRequest {
   array<string> recentFiles;
-  tree result;
+  athena_actor_id actorId= ATHENA_NO_ACTOR;
+  athena_view_id viewId= ATHENA_NO_VIEW;
+  SchemeCapabilitySet capabilities= SCHEME_CAPABILITY_NONE;
 };
 
 std::mutex quickRequestMutex;
@@ -56,11 +61,17 @@ std::unordered_map<athena_resource_id, std::unique_ptr<QuickSwitcherRequest>>
 athena_resource_id nextQuickRequestId= 1;
 
 athena_resource_id
-registerQuickRequest (array<string> recentFiles) {
+registerQuickRequest (array<string> recentFiles,
+                      const SchemeExecutionContext* context) {
   for (int i= 0; i < N (recentFiles); ++i)
     recentFiles[i].ensure_transferable ();
   auto request= std::make_unique<QuickSwitcherRequest> ();
   request->recentFiles= std::move (recentFiles);
+  if (context != nullptr) {
+    request->actorId= context->actor_id;
+    request->viewId= context->view_id;
+    request->capabilities= context->capabilities;
+  }
   std::lock_guard<std::mutex> guard (quickRequestMutex);
   athena_resource_id id= nextQuickRequestId++;
   if (id == 0) id= nextQuickRequestId++;
@@ -72,30 +83,29 @@ tree runQuickSwitcher (array<string> recentFiles);
 
 void
 executeQuickRequest (athena_resource_id id) {
-  array<string> recentFiles;
-  {
-    std::lock_guard<std::mutex> guard (quickRequestMutex);
-    auto found= quickRequests.find (id);
-    if (found == quickRequests.end ()) return;
-    recentFiles= std::move (found->second->recentFiles);
-  }
-  tree result= runQuickSwitcher (std::move (recentFiles));
-  std::lock_guard<std::mutex> guard (quickRequestMutex);
-  auto found= quickRequests.find (id);
-  if (found != quickRequests.end ()) found->second->result= std::move (result);
-}
-
-tree
-takeQuickResult (athena_resource_id id) {
   std::unique_ptr<QuickSwitcherRequest> request;
   {
     std::lock_guard<std::mutex> guard (quickRequestMutex);
     auto found= quickRequests.find (id);
-    if (found == quickRequests.end ()) return UNINIT;
+    if (found == quickRequests.end ()) return;
     request= std::move (found->second);
     quickRequests.erase (found);
   }
-  return std::move (request->result);
+  tree result= runQuickSwitcher (std::move (request->recentFiles));
+  if (result == UNINIT || request->actorId == ATHENA_NO_ACTOR) return;
+
+  athena_continuation_id continuationId=
+    actor_continuation_registry::instance ().store (
+      [result= std::move (result)] () mutable {
+        (void) call ("quick-switcher-complete", object (std::move (result)));
+      });
+  actor_command_ticket ticket= buffer_actor::submit_to (
+    request->actorId, actor_command_kind::run_native_continuation,
+    request->viewId, ATHENA_NO_BLOB, ATHENA_NO_BLOB,
+    request->capabilities, continuationId);
+  if (!ticket) {
+    (void) actor_continuation_registry::instance ().discard (continuationId);
+  }
 }
 }
 
@@ -702,20 +712,19 @@ runQuickSwitcher (array<string> recentFiles) {
 
 } // namespace
 
-tree
+void
 vault_quick_switcher (array<string> recentFiles) {
   QCoreApplication* app= QCoreApplication::instance ();
-  if (app == nullptr || QThread::currentThread () == app->thread ())
-    return runQuickSwitcher (std::move (recentFiles));
+  if (app == nullptr) return;
 
   athena_resource_id requestId=
-    registerQuickRequest (std::move (recentFiles));
+    registerQuickRequest (
+      std::move (recentFiles), current_scheme_execution_context ());
   bool invoked= QMetaObject::invokeMethod (
     app, [requestId] () { executeQuickRequest (requestId); },
-    Qt::BlockingQueuedConnection);
+    Qt::QueuedConnection);
   if (!invoked) {
-    (void) takeQuickResult (requestId);
-    return UNINIT;
+    std::lock_guard<std::mutex> guard (quickRequestMutex);
+    quickRequests.erase (requestId);
   }
-  return takeQuickResult (requestId);
 }

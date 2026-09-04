@@ -13,10 +13,14 @@
 #include "GoogleOAuth.hpp"
 #include "GoogleTasksClient.hpp"
 #include "QTMToast.hpp"
+#include "actor_transport.hpp"
 #include "boot.hpp"
+#include "buffer_actor.hpp"
 #include "new_buffer.hpp"
 #include "qt_utilities.hpp"
 #include "scheme.hpp"
+#include "scheme_execution_context.hpp"
+#include "tm_data.hpp"
 
 #include <QHash>
 #include <QSet>
@@ -276,7 +280,27 @@ google_tasks_connected () {
 void
 google_cloud_todo_sync_buffer (url name, bool notifyDisconnected) {
   if (headless_mode || is_none (name)) return;
-  if (!contains (name, get_all_buffers ())) return;
+  tm_buffer buffer= concrete_buffer (name);
+  if (is_nil (buffer)) return;
+
+  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  if (context == nullptr || context->actor != buffer->actor) {
+    athena_continuation_id continuationId=
+      actor_continuation_registry::instance ().store (
+        [name= std::move (name), notifyDisconnected] () mutable {
+          google_cloud_todo_sync_buffer (
+            std::move (name), notifyDisconnected);
+        });
+    actor_command_ticket ticket= buffer_actor::submit_to (
+      buffer->actor->id (), actor_command_kind::run_native_continuation,
+      ATHENA_NO_VIEW, ATHENA_NO_BLOB, ATHENA_NO_BLOB,
+      SCHEME_CAPABILITY_BUFFER | SCHEME_CAPABILITY_GLOBAL,
+      continuationId);
+    if (!ticket)
+      (void) actor_continuation_registry::instance ().discard (continuationId);
+    return;
+  }
+
   tree doc= get_buffer_tree (name);
   QVector<CloudTodoItem> items= collect_cloud_todos (doc);
   if (items.isEmpty ()) return;
