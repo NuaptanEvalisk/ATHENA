@@ -584,12 +584,19 @@ qt_simple_widget_rep::repaint_invalid_regions () {
 
     if (!backing_valid) invalidate_rect (0, 0, sz.width(), sz.height());
     else if (dx != 0 || dy != 0) {
-      // QPixmap::scroll moves the reusable pixels in place and reports the
-      // newly exposed physical strips.  Tracking the rounded absolute
-      // physical origin, rather than rounding each logical delta, prevents
-      // fractional-DPR error from accumulating over a smooth scroll.
-      QRegion exposed;
-      backingPixmap->scroll (-dx, -dy, backingPixmap->rect(), &exposed);
+      // QPixmap::scroll reaches Qt's raw in-place raster memmove while a
+      // scroll-triggered paint is being processed.  Keep source and
+      // destination storage distinct while retaining reusable viewport pixels.
+      QRect bounds= backingPixmap->rect();
+      QRegion exposed (bounds);
+      exposed-= QRegion (bounds.translated (-dx, -dy));
+      QPixmap shifted (sz);
+      {
+        QPainter p (&shifted);
+        p.setCompositionMode (QPainter::CompositionMode_Source);
+        p.drawPixmap (-dx, -dy, *backingPixmap);
+      }
+      *backingPixmap= std::move (shifted);
       for (const QRect& r: exposed)
         invalidate_rect (r.left(), r.top(), r.right() + 1, r.bottom() + 1,
                          false);
