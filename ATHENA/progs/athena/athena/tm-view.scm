@@ -287,7 +287,7 @@
   (get-boolean-preference "persistent fit width"))
 
 (define (persistent-fit-width-applicable?)
-  (!= (get-init-page-rendering) "automatic"))
+  (in? (get-init-page-rendering) (list "paper" "papyrus")))
 
 (define (typewriter-mode?)
   (get-boolean-preference "typewriter mode"))
