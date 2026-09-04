@@ -757,6 +757,19 @@ tmg_exec_delayed_pause (tmscm arg1) {
 }
 
 tmscm
+tmg_exec_global (tmscm arg1) {
+  TMSCM_ASSERT_OBJECT (arg1, TMSCM_ARG1, "exec-global");
+
+  object in1= tmscm_to_object (arg1);
+
+  // TMSCM_DEFER_INTS;
+  exec_global (in1);
+  // TMSCM_ALLOW_INTS;
+
+  return TMSCM_UNSPECIFIED;
+}
+
+tmscm
 tmg_protected_call (tmscm arg1) {
   TMSCM_ASSERT_OBJECT (arg1, TMSCM_ARG1, "protected-call");
 
@@ -9474,6 +9487,32 @@ tmg_buffer_focus_dot (tmscm arg1) {
 }
 
 tmscm
+tmg_keyboard_focus_on (tmscm arg1) {
+  TMSCM_ASSERT_STRING (arg1, TMSCM_ARG1, "keyboard-focus-on");
+
+  string in1= tmscm_to_string (arg1);
+
+  // TMSCM_DEFER_INTS;
+  keyboard_focus_on_current_view (in1);
+  // TMSCM_ALLOW_INTS;
+
+  return TMSCM_UNSPECIFIED;
+}
+
+tmscm
+tmg_init_default_one (tmscm arg1) {
+  TMSCM_ASSERT_STRING (arg1, TMSCM_ARG1, "init-default-one");
+
+  string in1= tmscm_to_string (arg1);
+
+  // TMSCM_DEFER_INTS;
+  init_default_current_view (std::move (in1));
+  // TMSCM_ALLOW_INTS;
+
+  return TMSCM_UNSPECIFIED;
+}
+
+tmscm
 tmg_view_list () {
   // TMSCM_DEFER_INTS;
   array_url out= get_all_views ();
@@ -10408,6 +10447,7 @@ initialize_glue_basic () {
   tmscm_install_procedure ("ads-close-tool-pane",  tmg_ads_close_tool_pane, 1, 0, 0);
   tmscm_install_procedure ("exec-delayed",  tmg_exec_delayed, 1, 0, 0);
   tmscm_install_procedure ("exec-delayed-pause",  tmg_exec_delayed_pause, 1, 0, 0);
+  tmscm_install_procedure ("exec-global",  tmg_exec_global, 1, 0, 0);
   tmscm_install_procedure ("protected-call",  tmg_protected_call, 1, 0, 0);
   tmscm_install_procedure ("notify-preferences-booted",  tmg_notify_preferences_booted, 0, 0, 0);
   tmscm_install_procedure ("cpp-has-preference?",  tmg_cpp_has_preferenceP, 1, 0, 0);
@@ -11031,6 +11071,8 @@ initialize_glue_basic () {
   tmscm_install_procedure ("tree-load-style",  tmg_tree_load_style, 1, 0, 0);
   tmscm_install_procedure ("buffer-focus",  tmg_buffer_focus, 1, 0, 0);
   tmscm_install_procedure ("buffer-focus*",  tmg_buffer_focus_dot, 1, 0, 0);
+  tmscm_install_procedure ("keyboard-focus-on",  tmg_keyboard_focus_on, 1, 0, 0);
+  tmscm_install_procedure ("init-default-one",  tmg_init_default_one, 1, 0, 0);
   tmscm_install_procedure ("view-list",  tmg_view_list, 0, 0, 0);
   tmscm_install_procedure ("buffer->views",  tmg_buffer_2views, 1, 0, 0);
   tmscm_install_procedure ("current-view-url",  tmg_current_view_url, 0, 0, 0);

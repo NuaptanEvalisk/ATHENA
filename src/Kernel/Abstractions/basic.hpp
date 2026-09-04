@@ -248,8 +248,9 @@ public:                             \
     return rep; }                                \
   inline PTR& PTR::operator = (const PTR& x) {   \
     if (this->rep != x.rep) {                    \
-      INC_COUNT (x.rep); DEC_COUNT (this->rep);  \
-      this->rep=x.rep;                           \
+      PTR##_rep* new_rep= x.rep;                 \
+      INC_COUNT (new_rep); DEC_COUNT (this->rep); \
+      this->rep=new_rep;                         \
     }                                            \
     return *this;                                \
   }
@@ -273,8 +274,9 @@ public:                               \
     return this->rep; }                                           \
   template<TT T> inline PTR<T>& PTR<T>::operator = (const PTR<T>& x) { \
     if (this->rep != x.rep) {                                     \
-      INC_COUNT (x.rep); DEC_COUNT (this->rep);                   \
-      this->rep=x.rep;                                            \
+      PTR##_rep<T>* new_rep= x.rep;                               \
+      INC_COUNT (new_rep); DEC_COUNT (this->rep);                 \
+      this->rep=new_rep;                                          \
     }                                                             \
     return *this;                                                 \
   }
@@ -299,8 +301,9 @@ public:                                    \
   template <TT1 T1,TT2 T2>                                                    \
   inline PTR<T1,T2>& PTR<T1,T2>::operator = (const PTR<T1,T2>& x) {           \
     if (this->rep != x.rep) {                                                 \
-      INC_COUNT (x.rep); DEC_COUNT (this->rep);                               \
-      this->rep=x.rep;                                                        \
+      PTR##_rep<T1,T2>* new_rep= x.rep;                                       \
+      INC_COUNT (new_rep); DEC_COUNT (this->rep);                             \
+      this->rep=new_rep;                                                      \
     }                                                                         \
     return *this;                                                             \
   }
@@ -342,8 +345,9 @@ public:                                    \
     return this->rep; }                                 \
   inline PTR& PTR::operator = (const PTR& x) {          \
     if (this->rep != x.rep) {                           \
-      INC_COUNT_NULL (x.rep); DEC_COUNT_NULL (this->rep); \
-      this->rep=x.rep;                                  \
+      PTR##_rep* new_rep= x.rep;                        \
+      INC_COUNT_NULL (new_rep); DEC_COUNT_NULL (this->rep); \
+      this->rep=new_rep;                                \
     }                                                   \
     return *this;                                       \
   }                                                     \
@@ -363,8 +367,9 @@ public:                                    \
     return this->rep; }                                                 \
   template<TT T> inline PTR<T>& PTR<T>::operator = (const PTR<T>& x) {  \
     if (this->rep != x.rep) {                                           \
-      INC_COUNT_NULL (x.rep); DEC_COUNT_NULL (this->rep);               \
-      this->rep=x.rep;                                                  \
+      PTR##_rep<T>* new_rep= x.rep;                                     \
+      INC_COUNT_NULL (new_rep); DEC_COUNT_NULL (this->rep);             \
+      this->rep=new_rep;                                                \
     }                                                                   \
     return *this;                                                       \
   }                                                                     \
@@ -387,8 +392,9 @@ public:                                    \
   template<TT1 T1, TT2 T2>                                                \
   inline PTR<T1,T2>& PTR<T1,T2>::operator = (const PTR<T1,T2>& x) {       \
     if (this->rep != x.rep) {                                             \
-      INC_COUNT_NULL (x.rep); DEC_COUNT_NULL (this->rep);                 \
-      this->rep=x.rep;                                                    \
+      PTR##_rep<T1,T2>* new_rep= x.rep;                                   \
+      INC_COUNT_NULL (new_rep); DEC_COUNT_NULL (this->rep);               \
+      this->rep=new_rep;                                                  \
     }                                                                     \
     return *this;                                                         \
   }                                                                       \

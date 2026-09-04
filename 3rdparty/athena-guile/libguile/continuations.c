@@ -87,7 +87,8 @@ struct goto_continuation_code goto_continuation_code = {
     /* mcode = */ 0,
     /* counter = */ 0,
     /* start = */ sizeof (struct scm_jit_function_data),
-    /* end = */ sizeof (struct scm_jit_function_data) + 12
+    /* end = */ sizeof (struct scm_jit_function_data) + 12,
+    /* compiling = */ 0
   },
   {
     SCM_PACK_OP_24 (instrument_entry, 0),

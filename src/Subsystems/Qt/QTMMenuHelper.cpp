@@ -443,11 +443,13 @@ QTMLazyMenu::transferActions (QList<QAction*>* from) {
   while (!list.isEmpty()) {
     QAction* a = list.takeFirst();
     removeAction (a);
+    qt_schedule_action_destruction (a);
   }
   while (!from->isEmpty()) {
     QAction* a = from->takeFirst();
     if (QApplication::platformName ().startsWith (QStringLiteral ("wayland")))
       a->setFont (qApp->font ());
+    a->setParent (this);
     addAction (a);
   }
 }
@@ -460,6 +462,7 @@ BEGIN_SLOT
                source->requires_menu_scrolling ());
   QList<QAction*>* list= source->get_qactionlist ();
   transferActions (list);
+  delete list;
 END_SLOT
 }
 

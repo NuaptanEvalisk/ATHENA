@@ -36,12 +36,7 @@ struct scm_jit_function_data
   uint32_t counter;
   int32_t start;
   int32_t end;
-#if SCM_SIZEOF_UINTPTR_T == 4
-#elif SCM_SIZEOF_UINTPTR_T == 8
-  uint32_t pad;
-#else
-#error unhandled sizeof(uintptr_t)
-#endif
+  uint32_t compiling;
 };
 
 /* These values should be even, so that a function's counter is never

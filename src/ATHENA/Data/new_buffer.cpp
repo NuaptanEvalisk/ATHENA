@@ -23,7 +23,20 @@
 
 array<tm_buffer> bufs;
 
-string propose_title (string old_title, url u, tree doc);
+string propose_title (string old_title, url u);
+
+static bool
+invoke_buffer_actor (
+  buffer_actor* actor, actor_command_kind kind,
+  athena_view_id view_id= ATHENA_NO_VIEW,
+  athena_blob_id payload0= ATHENA_NO_BLOB,
+  athena_blob_id payload1= ATHENA_NO_BLOB,
+  actor_command_record* result= nullptr,
+  std::uint64_t argument0= 0) {
+  return actor != nullptr && actor->invoke (
+    kind, view_id, payload0, payload1, result, SCHEME_CAPABILITY_BUFFER,
+    argument0);
+}
 
 static bool
 invoke_buffer_actor (
@@ -33,9 +46,18 @@ invoke_buffer_actor (
   athena_blob_id payload1= ATHENA_NO_BLOB,
   actor_command_record* result= nullptr,
   std::uint64_t argument0= 0) {
-  return !is_nil (buf) && buf->actor->invoke (
-    kind, view_id, payload0, payload1, result, SCHEME_CAPABILITY_BUFFER,
-    argument0);
+  return !is_nil (buf) && invoke_buffer_actor (
+    buf->actor, kind, view_id, payload0, payload1, result, argument0);
+}
+
+static buffer_actor*
+current_buffer_actor (url name, athena_view_id& view_id) {
+  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  if (context == nullptr || context->actor == nullptr ||
+      context->actor->current_buffer_url () != name)
+    return nullptr;
+  view_id= context->view_id;
+  return context->actor;
 }
 
 static void
@@ -208,8 +230,7 @@ rename_buffer (url name, url new_name) {
         actor_command_kind::rename_buffer, ATHENA_NO_VIEW, renamed))
     (void) actor_text_registry::instance ().discard (renamed);
   notify_rename_after (new_name);
-  tree doc= get_buffer_body (new_name);
-  string title= propose_title (buf->buf->title, new_name, doc);
+  string title= propose_title (buf->buf->title, new_name);
   set_title_buffer (new_name, title);
 }
 
@@ -250,7 +271,7 @@ unique_title (string old_title, string name) {
 }
 
 string
-propose_title (string old_title, url u, tree doc) {
+propose_title (string old_title, url u) {
   string name= as_string (tail (u));
   if (starts (name, "no_name_") && ends (name, ".tm")) {
     string no_name= "No name";
@@ -263,8 +284,6 @@ propose_title (string old_title, url u, tree doc) {
     name= as_string (tail (u * url_parent ()));
   if ((name == "") || (name == "."))
     name= as_string (u);
-  if (is_rooted_tmfs (u))
-    name= as_string (call ("tmfs-title", as_string (u), object (doc)));
   return unique_title (old_title, name);
 }
 
@@ -317,7 +336,7 @@ set_buffer_tree (url name, tree doc) {
   }
   string old_title= buf->buf->title;
 
-  tree body= extract (doc, "body");
+  string proposed_title= propose_title (old_title, name);
   athena_blob_id document_payload=
     actor_tree_registry::instance ().store (std::move (doc));
   if (!invoke_buffer_actor (
@@ -326,7 +345,7 @@ set_buffer_tree (url name, tree doc) {
     discard_tree_payload (document_payload);
     return;
   }
-  buf->buf->title= propose_title (old_title, name, body);
+  buf->buf->title= std::move (proposed_title);
   if (is_rooted_tmfs (name)) {
     buf->buf->read_only=
       !as_bool (call ("tmfs-permission?", object (name), object ("write")));
@@ -346,11 +365,16 @@ set_buffer_tree (url name, tree doc) {
 
 tree
 get_buffer_tree (url name) {
-  tm_buffer buf= concrete_buffer (name);
-  if (is_nil (buf)) return "";
+  athena_view_id view_id= ATHENA_NO_VIEW;
+  buffer_actor* actor= current_buffer_actor (name, view_id);
+  if (actor == nullptr) {
+    tm_buffer buf= concrete_buffer (name);
+    if (is_nil (buf)) return "";
+    actor= buf->actor;
+  }
   actor_command_record result;
   if (!invoke_buffer_actor (
-        buf, actor_command_kind::snapshot_document, ATHENA_NO_VIEW,
+        actor, actor_command_kind::snapshot_document, view_id,
         ATHENA_NO_BLOB, ATHENA_NO_BLOB, &result))
     return "";
   return actor_tree_registry::instance ().take (result.payload0);
@@ -378,11 +402,16 @@ set_buffer_body (url name, tree body) {
 
 tree
 get_buffer_body (url name) {
-  tm_buffer buf= concrete_buffer (name);
-  if (is_nil (buf)) return "";
+  athena_view_id view_id= ATHENA_NO_VIEW;
+  buffer_actor* actor= current_buffer_actor (name, view_id);
+  if (actor == nullptr) {
+    tm_buffer buf= concrete_buffer (name);
+    if (is_nil (buf)) return "";
+    actor= buf->actor;
+  }
   actor_command_record result;
   if (!invoke_buffer_actor (
-        buf, actor_command_kind::snapshot_body, ATHENA_NO_VIEW,
+        actor, actor_command_kind::snapshot_body, view_id,
         ATHENA_NO_BLOB, ATHENA_NO_BLOB, &result))
     return "";
   return actor_tree_registry::instance ().take (result.payload0);
@@ -467,6 +496,17 @@ pretend_buffer_modified (url name) {
 
 void
 pretend_buffer_saved (url name) {
+  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  if (context != nullptr && context->actor != nullptr &&
+      context->actor->current_buffer_url () == name) {
+    (void) context->actor->invoke (
+      actor_command_kind::mark_saved, context->view_id);
+    if (context->editor != nullptr)
+      (void) context->editor->publish_ui (
+        actor_command_kind::ui_mark_buffer_saved,
+        static_cast<std::uint64_t> (last_modified (name)));
+    return;
+  }
   tm_buffer buf= concrete_buffer (name);
   if (is_nil (buf)) return;
   (void) invoke_buffer_actor (buf, actor_command_kind::mark_saved);

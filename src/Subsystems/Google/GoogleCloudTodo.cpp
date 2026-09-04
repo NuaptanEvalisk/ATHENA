@@ -231,9 +231,12 @@ collect_cloud_todos (tree t) {
 }
 
 static void
-sync_buffer_with_tasks (url name, const QString& listId,
-                        const QVector<GoogleTask>& tasks) {
-  if (!contains (name, get_all_buffers ())) return;
+sync_current_buffer_with_tasks (const QString& listId,
+                                const QVector<GoogleTask>& tasks) {
+  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  if (context == nullptr || context->actor == nullptr) return;
+  url name= context->actor->current_buffer_url ();
+  if (is_none (name)) return;
   tree doc= get_buffer_tree (name);
   QHash<QString, CloudTodoTaskState> map= task_state_map (tasks);
   CloudTodoRewrite state;
@@ -280,16 +283,18 @@ google_tasks_connected () {
 void
 google_cloud_todo_sync_buffer (url name, bool notifyDisconnected) {
   if (headless_mode || is_none (name)) return;
-  tm_buffer buffer= concrete_buffer (name);
-  if (is_nil (buffer)) return;
-
   const SchemeExecutionContext* context= current_scheme_execution_context ();
-  if (context == nullptr || context->actor != buffer->actor) {
+  if (context == nullptr) {
+    tm_buffer buffer= concrete_buffer (name);
+    if (is_nil (buffer)) return;
     athena_continuation_id continuationId=
       actor_continuation_registry::instance ().store (
-        [name= std::move (name), notifyDisconnected] () mutable {
+        [notifyDisconnected] {
+          const SchemeExecutionContext* actorContext=
+            current_scheme_execution_context ();
+          if (actorContext == nullptr || actorContext->actor == nullptr) return;
           google_cloud_todo_sync_buffer (
-            std::move (name), notifyDisconnected);
+            actorContext->actor->current_buffer_url (), notifyDisconnected);
         });
     actor_command_ticket ticket= buffer_actor::submit_to (
       buffer->actor->id (), actor_command_kind::run_native_continuation,
@@ -300,6 +305,8 @@ google_cloud_todo_sync_buffer (url name, bool notifyDisconnected) {
       (void) actor_continuation_registry::instance ().discard (continuationId);
     return;
   }
+  if (context->actor == nullptr || context->actor->current_buffer_url () != name)
+    return;
 
   tree doc= get_buffer_tree (name);
   QVector<CloudTodoItem> items= collect_cloud_todos (doc);
@@ -313,20 +320,20 @@ google_cloud_todo_sync_buffer (url name, bool notifyDisconnected) {
     return;
   }
 
-  with_task_list_id ([name] (const QString& listId, const QString& error) {
+  with_task_list_id ([] (const QString& listId, const QString& error) {
     if (!error.isEmpty ()) {
       show_cloud_todo_toast ("Cloud todo list", error);
       return;
     }
     GoogleTasksClient::instance ().listTasks (
       listId, true,
-      [name, listId] (const QVector<GoogleTask>& tasks,
-                      const QString& taskError) {
+      [listId] (const QVector<GoogleTask>& tasks,
+                const QString& taskError) {
         if (!taskError.isEmpty ()) {
           show_cloud_todo_toast ("Cloud todo list", taskError);
           return;
         }
-        sync_buffer_with_tasks (name, listId, tasks);
+        sync_current_buffer_with_tasks (listId, tasks);
       });
   });
 }

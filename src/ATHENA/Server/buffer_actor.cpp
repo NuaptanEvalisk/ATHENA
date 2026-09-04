@@ -121,6 +121,28 @@ argument_double (std::uint64_t bits) noexcept {
   return result;
 }
 
+void
+buffer_actor::publish_tmfs_title (editor_rep* preferred_editor) {
+  if (!is_rooted_tmfs (impl_->state.name)) return;
+
+  editor_rep* target= preferred_editor;
+  if (target == nullptr || target->ui_endpoint == nullptr) {
+    target= nullptr;
+    for (auto& entry: impl_->views)
+      if (entry.second.instance->ui_endpoint != nullptr) {
+        target= entry.second.instance.operator -> ();
+        break;
+      }
+  }
+  if (target == nullptr) return;
+
+  tree& body= subtree (impl_->state.document, impl_->state.root_path);
+  string title= as_string (
+    call ("tmfs-title", as_string (impl_->state.name), object (body)));
+  (void) target->publish_ui_text (
+    actor_command_kind::ui_set_buffer_title, std::move (title));
+}
+
 athena_blob_id
 actor_text_from_string (string text) {
   return actor_text_registry::instance ().store (std::move (text));
@@ -564,14 +586,7 @@ buffer_actor::dispatch (actor_command_record& command) {
   case actor_command_kind::initialize_view:
     if (editor != nullptr) {
       initialize_current_view_scheme ();
-      url name= impl_->state.name;
-      if (is_rooted_tmfs (name)) {
-        tree body= subtree (impl_->state.document, impl_->state.root_path);
-        string title= as_string (
-          call ("tmfs-title", as_string (name), object (body)));
-        (void) editor->publish_ui_text (
-          actor_command_kind::ui_set_buffer_title, std::move (title));
-      }
+      publish_tmfs_title (editor);
     }
     break;
   case actor_command_kind::apply_changes:
@@ -823,6 +838,7 @@ buffer_actor::dispatch (actor_command_record& command) {
       impl_->state.master= impl_->state.name;
       for (auto& entry: impl_->views)
         entry.second.instance->notify_change (THE_ENVIRONMENT);
+      publish_tmfs_title (editor);
     }
     break;
   }
@@ -835,12 +851,30 @@ buffer_actor::dispatch (actor_command_record& command) {
       entry.second.instance->set_data (impl_->state.data);
       entry.second.instance->init_update ();
     }
+    publish_tmfs_title (editor);
     break;
   }
   case actor_command_kind::replace_body: {
     tree body= actor_tree_registry::instance ().take (command.payload0);
     assign (subtree (impl_->state.document, impl_->state.root_path),
             std::move (body));
+    break;
+  }
+  case actor_command_kind::set_message: {
+    tree left= actor_tree_registry::instance ().take (command.payload0);
+    tree right= actor_tree_registry::instance ().take (command.payload1);
+    if (editor != nullptr)
+      editor->set_message (
+        std::move (left), std::move (right), command.argument[0] != 0);
+    break;
+  }
+  case actor_command_kind::recall_message:
+    if (editor != nullptr) editor->recall_message ();
+    break;
+  case actor_command_kind::init_default: {
+    string variable=
+      actor_text_registry::instance ().take (command.payload0);
+    if (editor != nullptr) editor->init_default (std::move (variable));
     break;
   }
   case actor_command_kind::set_buffer_read_only:

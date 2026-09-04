@@ -91,6 +91,7 @@ class command_queue {
   array<std::uint64_t> handles;
   array<std::uint64_t> actor_ids;
   array<std::uint64_t> view_ids;
+  array<int> execution_domains;
   array<time_t> start_times;
   time_t lapse;
   
@@ -105,8 +106,10 @@ public:
 
   void exec (object cmd);
   void exec_pause (object cmd);
+  void exec_global (object cmd);
   void exec_handle (std::uint64_t handle, std::uint64_t actor_id,
-                    std::uint64_t view_id, bool pause);
+                    std::uint64_t view_id, bool pause,
+                    bool force_global= false);
   void complete_handle (std::uint64_t handle, std::uint64_t actor_id,
                         std::uint64_t view_id, bool repeat,
                         std::int64_t delay);
@@ -205,9 +208,10 @@ public:
   friend class QTMGuiHelper;
   friend void exec_delayed (object cmd);
   friend void exec_delayed_pause (object cmd);
+  friend void exec_global (object cmd);
   friend void schedule_delayed_scheme_handle (
     std::uint64_t handle, std::uint64_t actor_id,
-    std::uint64_t view_id, bool pause);
+    std::uint64_t view_id, bool pause, bool force_global);
   friend void complete_delayed_scheme_handle (
     std::uint64_t handle, std::uint64_t actor_id,
     std::uint64_t view_id, bool repeat, std::int64_t delay);

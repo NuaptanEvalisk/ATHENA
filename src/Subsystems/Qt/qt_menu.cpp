@@ -20,19 +20,24 @@
 #include <QCursor>
 
 qt_menu_rep::qt_menu_rep (qt_widget _content)
- : qt_widget_rep (vertical_menu), qact (NULL), content (_content) { }
+ : qt_widget_rep (vertical_menu), action_id (qt_reserve_action_resource ()),
+   content (_content) { }
 
 /*! Destructor. Remember that qt_menu is the only parsed widget which by
  default owns its actions.
  */
 qt_menu_rep::~qt_menu_rep () {
-  qt_schedule_action_destruction (qact);
+  qt_retire_action_resource (action_id);
 }
 
 QMenu*
 qt_menu_rep::get_qmenu() {
-  if (!qact) qact = content->as_qaction();
-  return qact->menu();
+  QAction* action= qt_find_action_resource (action_id);
+  if (action == nullptr) {
+    action= content->as_qaction ();
+    qt_register_action_resource (action_id, action);
+  }
+  return action->menu();
 }
 
 /*!

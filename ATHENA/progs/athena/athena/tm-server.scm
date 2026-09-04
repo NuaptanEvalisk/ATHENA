@@ -44,7 +44,8 @@
 (define (notify-tool var val)
   ;; FIXME: the menus sometimes don't get updated,
   ;; but the fix below does not work
-  (if (current-view) (notify-change 1)))
+  (when (current-view)
+    (delayed (:idle 0) (notify-change 1))))
 
 (define (notify-new-fonts var val)
   (set-new-fonts (== val "on")))

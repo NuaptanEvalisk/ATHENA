@@ -153,6 +153,10 @@ get_nr_windows () {
 
 bool
 has_current_window () {
+  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  if (context != nullptr)
+    return context->editor != nullptr &&
+      context->editor->ui_viewport ().window_id != 0;
   tm_view vw= concrete_view (get_current_view_safe ());
   return vw != NULL && vw->win != NULL;
 }
@@ -166,6 +170,13 @@ concrete_window () {
 
 url
 get_current_window () {
+  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  if (context != nullptr) {
+    if (context->editor == nullptr) return url_none ();
+    std::uint64_t id= context->editor->ui_viewport ().window_id;
+    if (id == 0) return url_none ();
+    return url ("tmfs://window/" * as_string (static_cast<int> (id)));
+  }
   if (!has_current_window ()) return url_none ();
   tm_window win= concrete_window ();
   return abstract_window (win);

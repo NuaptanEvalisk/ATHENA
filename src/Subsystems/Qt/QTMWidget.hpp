@@ -57,9 +57,7 @@ public:
   virtual void scrollContentsBy (int dx, int dy) override;
 
   void setCursorPos (QPoint pos);
-  void presentRenderedFrame (std::uint64_t bufferGeneration,
-                             std::uint64_t frameGeneration,
-                             render_damage damage);
+  void presentLatestRenderedFrame (bool requestPaint);
   QPoint cursorGlobalPos () const {
     QPoint p = contentsToViewport (cursor_pos);
     return viewport ()->mapToGlobal (p + QPoint (0, 22));

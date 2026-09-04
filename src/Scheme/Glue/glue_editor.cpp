@@ -521,19 +521,6 @@ tmg_get_all_inits () {
 }
 
 tmscm
-tmg_init_default_one (tmscm arg1) {
-  TMSCM_ASSERT_STRING (arg1, TMSCM_ARG1, "init-default-one");
-
-  string in1= tmscm_to_string (arg1);
-
-  // TMSCM_DEFER_INTS;
-  get_current_editor()->init_default (in1);
-  // TMSCM_ALLOW_INTS;
-
-  return TMSCM_UNSPECIFIED;
-}
-
-tmscm
 tmg_init_env (tmscm arg1, tmscm arg2) {
   TMSCM_ASSERT_STRING (arg1, TMSCM_ARG1, "init-env");
   TMSCM_ASSERT_STRING (arg2, TMSCM_ARG2, "init-env");
@@ -2986,19 +2973,6 @@ tmg_custom_complete (tmscm arg1) {
 }
 
 tmscm
-tmg_keyboard_focus_on (tmscm arg1) {
-  TMSCM_ASSERT_STRING (arg1, TMSCM_ARG1, "keyboard-focus-on");
-
-  string in1= tmscm_to_string (arg1);
-
-  // TMSCM_DEFER_INTS;
-  get_current_editor()->keyboard_focus_on (in1);
-  // TMSCM_ALLOW_INTS;
-
-  return TMSCM_UNSPECIFIED;
-}
-
-tmscm
 tmg_broadcast_message (tmscm arg1) {
   TMSCM_ASSERT_STRING (arg1, TMSCM_ARG1, "broadcast-message");
 
@@ -3707,7 +3681,6 @@ initialize_glue_editor () {
   tmscm_install_procedure ("temp-proof-fix",  tmg_temp_proof_fix, 0, 0, 0);
   tmscm_install_procedure ("get-full-env",  tmg_get_full_env, 0, 0, 0);
   tmscm_install_procedure ("get-all-inits",  tmg_get_all_inits, 0, 0, 0);
-  tmscm_install_procedure ("init-default-one",  tmg_init_default_one, 1, 0, 0);
   tmscm_install_procedure ("init-env",  tmg_init_env, 2, 0, 0);
   tmscm_install_procedure ("init-env-tree",  tmg_init_env_tree, 2, 0, 0);
   tmscm_install_procedure ("init-style",  tmg_init_style, 1, 0, 0);
@@ -3918,7 +3891,6 @@ initialize_glue_editor () {
   tmscm_install_procedure ("spell-replace",  tmg_spell_replace, 1, 0, 0);
   tmscm_install_procedure ("session-complete-command",  tmg_session_complete_command, 1, 0, 0);
   tmscm_install_procedure ("custom-complete",  tmg_custom_complete, 1, 0, 0);
-  tmscm_install_procedure ("keyboard-focus-on",  tmg_keyboard_focus_on, 1, 0, 0);
   tmscm_install_procedure ("broadcast-message",  tmg_broadcast_message, 1, 0, 0);
   tmscm_install_procedure ("view-set-property",  tmg_view_set_property, 2, 0, 0);
   tmscm_install_procedure ("view-get-property",  tmg_view_get_property, 1, 0, 0);

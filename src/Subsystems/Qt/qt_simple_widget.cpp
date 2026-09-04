@@ -67,7 +67,6 @@ qt_simple_widget_rep::as_qwidget (QWidget* parent_widget) {
   if (is_editor_widget ()) {
     std::shared_ptr<QTMRenderConnection> connection=
       QTMRenderConnection::create ();
-    if (connection != nullptr) connection->bindWidget (canvas ());
     athena_resource_id connection_id=
       connection == nullptr ? 0 : connection->id ();
     {
@@ -708,6 +707,9 @@ qt_simple_widget_rep::repaint_all () {
   while (i->busy()) {
     qt_simple_widget_rep *w = static_cast<qt_simple_widget_rep*>(i->next());
     w->drain_external_effects ();
-    if (w->canvas() && w->canvas()->isVisible()) w->repaint_invalid_regions();
+    if (w->canvas() && w->canvas()->isVisible()) {
+      w->canvas()->presentLatestRenderedFrame (true);
+      w->repaint_invalid_regions();
+    }
   }
 }

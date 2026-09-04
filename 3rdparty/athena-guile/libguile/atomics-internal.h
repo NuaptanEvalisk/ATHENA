@@ -38,6 +38,24 @@ scm_atomic_subtract_uint32 (uint32_t *loc, uint32_t arg)
   atomic_uint_least32_t *a_loc = (atomic_uint_least32_t *) loc;
   return atomic_fetch_sub (a_loc, arg);
 }
+static inline uint32_t
+scm_atomic_ref_uint32_relaxed (uint32_t *loc)
+{
+  atomic_uint_least32_t *a_loc = (atomic_uint_least32_t *) loc;
+  return atomic_load_explicit (a_loc, memory_order_relaxed);
+}
+static inline void
+scm_atomic_set_uint32_relaxed (uint32_t *loc, uint32_t val)
+{
+  atomic_uint_least32_t *a_loc = (atomic_uint_least32_t *) loc;
+  atomic_store_explicit (a_loc, val, memory_order_relaxed);
+}
+static inline void
+scm_atomic_set_uint32_release (uint32_t *loc, uint32_t val)
+{
+  atomic_uint_least32_t *a_loc = (atomic_uint_least32_t *) loc;
+  atomic_store_explicit (a_loc, val, memory_order_release);
+}
 static inline _Bool
 scm_atomic_compare_and_swap_uint32 (uint32_t *loc, uint32_t *expected,
                                     uint32_t desired)
@@ -57,11 +75,29 @@ scm_atomic_ref_pointer (void **loc)
   atomic_uintptr_t *a_loc = (atomic_uintptr_t *) loc;
   return (void *) atomic_load (a_loc);
 }
+static inline void *
+scm_atomic_ref_pointer_acquire (void **loc)
+{
+  atomic_uintptr_t *a_loc = (atomic_uintptr_t *) loc;
+  return (void *) atomic_load_explicit (a_loc, memory_order_acquire);
+}
+static inline void
+scm_atomic_set_pointer_release (void **loc, void *val)
+{
+  atomic_uintptr_t *a_loc = (atomic_uintptr_t *) loc;
+  atomic_store_explicit (a_loc, (uintptr_t) val, memory_order_release);
+}
 static inline void
 scm_atomic_set_scm (SCM *loc, SCM val)
 {
   atomic_uintptr_t *a_loc = (atomic_uintptr_t *) loc;
   atomic_store (a_loc, SCM_UNPACK (val));
+}
+static inline void
+scm_atomic_set_scm_relaxed (SCM *loc, SCM val)
+{
+  atomic_uintptr_t *a_loc = (atomic_uintptr_t *) loc;
+  atomic_store_explicit (a_loc, SCM_UNPACK (val), memory_order_relaxed);
 }
 static inline SCM
 scm_atomic_ref_scm (SCM *loc)
@@ -99,6 +135,27 @@ scm_atomic_subtract_uint32 (uint32_t *loc, uint32_t arg)
   scm_i_pthread_mutex_unlock (&atomics_lock);
   return ret;
 }
+static inline uint32_t
+scm_atomic_ref_uint32_relaxed (uint32_t *loc)
+{
+  uint32_t ret;
+  scm_i_pthread_mutex_lock (&atomics_lock);
+  ret = *loc;
+  scm_i_pthread_mutex_unlock (&atomics_lock);
+  return ret;
+}
+static inline void
+scm_atomic_set_uint32_relaxed (uint32_t *loc, uint32_t val)
+{
+  scm_i_pthread_mutex_lock (&atomics_lock);
+  *loc = val;
+  scm_i_pthread_mutex_unlock (&atomics_lock);
+}
+static inline void
+scm_atomic_set_uint32_release (uint32_t *loc, uint32_t val)
+{
+  scm_atomic_set_uint32_relaxed (loc, val);
+}
 static inline int
 scm_atomic_compare_and_swap_uint32 (uint32_t *loc, uint32_t *expected,
                                     uint32_t desired)
@@ -135,6 +192,16 @@ scm_atomic_ref_pointer (void **loc)
   scm_i_pthread_mutex_unlock (&atomics_lock);
   return ret;
 }
+static inline void *
+scm_atomic_ref_pointer_acquire (void **loc)
+{
+  return scm_atomic_ref_pointer (loc);
+}
+static inline void
+scm_atomic_set_pointer_release (void **loc, void *val)
+{
+  scm_atomic_set_pointer (loc, val);
+}
 
 static inline void
 scm_atomic_set_scm (SCM *loc, SCM val)
@@ -142,6 +209,11 @@ scm_atomic_set_scm (SCM *loc, SCM val)
   scm_i_pthread_mutex_lock (&atomics_lock);
   *loc = val;
   scm_i_pthread_mutex_unlock (&atomics_lock);
+}
+static inline void
+scm_atomic_set_scm_relaxed (SCM *loc, SCM val)
+{
+  scm_atomic_set_scm (loc, val);
 }
 static inline SCM
 scm_atomic_ref_scm (SCM *loc)

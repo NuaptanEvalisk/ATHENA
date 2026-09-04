@@ -31,6 +31,7 @@
 #include "scheme_execution_context.hpp"
 
 #include "qt_gui.hpp"
+#include "qt_ui_element.hpp"
 #include "qt_utilities.hpp"
 #include "qt_renderer.hpp" // for the_qt_renderer
 #include "qt_simple_widget.hpp"
@@ -1058,6 +1059,7 @@ qt_gui_rep::add_event (const queued_event& ev) {
 
 void
 qt_gui_rep::update () {
+  qt_drain_action_retirements ();
 #ifdef QT_CPU_FIX
   time_t std_delay= 1;
   tm_sleep ();
@@ -1404,13 +1406,32 @@ command_queue::exec_pause (object cmd) {
 }
 
 void
+command_queue::exec_global (object cmd) {
+  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  if (context == nullptr) {
+    (void) call_scheme (object_to_tmscm (cmd));
+    return;
+  }
+
+  athena_scheme_handle_id handle=
+    scheme_command_handle_acquire (object_to_tmscm (cmd));
+  actor_ui_endpoint* endpoint= find_actor_ui_endpoint (context->view_id);
+  if (endpoint != nullptr && endpoint->publish (
+        actor_command_kind::ui_schedule_global_scheme, ATHENA_NO_BLOB,
+        handle))
+    return;
+  scheme_command_handle_release (handle);
+}
+
+void
 command_queue::exec_handle (
   std::uint64_t handle, std::uint64_t actor_id, std::uint64_t view_id,
-  bool pause) {
+  bool pause, bool force_global) {
   if (handle == ATHENA_NO_SCHEME_HANDLE) return;
   handles << handle;
   actor_ids << actor_id;
   view_ids << view_id;
+  execution_domains << (force_global ? 1 : 0);
   time_t now= texmacs_time ();
   start_times << (pause ? now : now - 1000000000);
   lapse= now;
@@ -1437,10 +1458,12 @@ command_queue::exec_pending () {
   array<std::uint64_t> h= handles;
   array<std::uint64_t> actors= actor_ids;
   array<std::uint64_t> views= view_ids;
+  array<int> domains= execution_domains;
   array<time_t> times= start_times;
   handles= array<std::uint64_t> (0);
   actor_ids= array<std::uint64_t> (0);
   view_ids= array<std::uint64_t> (0);
+  execution_domains= array<int> (0);
   start_times= array<time_t> (0);
   int i, n= N (h);
   int processed_calls= 0;
@@ -1450,7 +1473,9 @@ command_queue::exec_pending () {
     if ((now - times[i]) >= 0) {
       athena_actor_id actor_id= actors[i];
       athena_view_id view_id= views[i];
-      if (actor_id == ATHENA_NO_ACTOR && has_current_view ()) {
+      bool force_global= domains[i] != 0;
+      if (!force_global && actor_id == ATHENA_NO_ACTOR &&
+          has_current_view ()) {
         tm_view view= concrete_view (get_current_view_safe ());
         if (view != nullptr) {
           actor_id= view->buf->actor->id ();
@@ -1468,6 +1493,10 @@ command_queue::exec_pending () {
         if (!ticket) scheme_command_handle_release (h[i]);
       }
       else {
+        if (view_id != ATHENA_NO_VIEW) {
+          tm_view view= concrete_runtime_view (view_id);
+          if (view != nullptr) set_current_view (abstract_view (view));
+        }
         tmscm command= scheme_command_handle_value (h[i]);
         if (scm_is_eq (command, SCM_UNDEFINED)) continue;
         try {
@@ -1475,7 +1504,8 @@ command_queue::exec_pending () {
           if (allow_repeat && tmscm_is_int (result)) {
             handles << h[i];
             actor_ids << ATHENA_NO_ACTOR;
-            view_ids << ATHENA_NO_VIEW;
+            view_ids << view_id;
+            execution_domains << 1;
             start_times << now + static_cast<time_t> (tmscm_to_int (result));
           }
           else scheme_command_handle_release (h[i]);
@@ -1493,6 +1523,7 @@ command_queue::exec_pending () {
           handles << h[j];
           actor_ids << actors[j];
           view_ids << views[j];
+          execution_domains << domains[j];
           start_times << times[j];
         }
         break;
@@ -1502,6 +1533,7 @@ command_queue::exec_pending () {
       handles << h[i];
       actor_ids << actors[i];
       view_ids << views[i];
+      execution_domains << domains[i];
       start_times << times[i];
     }
   }
@@ -1523,6 +1555,7 @@ command_queue::clear_pending () {
   handles= array<std::uint64_t> (0);
   actor_ids= array<std::uint64_t> (0);
   view_ids= array<std::uint64_t> (0);
+  execution_domains= array<int> (0);
   start_times = array<time_t> (0);
   wait = false;
 }
@@ -1543,11 +1576,14 @@ void exec_delayed (object cmd) {
 void exec_delayed_pause (object cmd) {
   the_gui->delayed_commands.exec_pause(cmd);
 }
+void exec_global (object cmd) {
+  the_gui->delayed_commands.exec_global(cmd);
+}
 void schedule_delayed_scheme_handle (
   std::uint64_t handle, std::uint64_t actor_id, std::uint64_t view_id,
-  bool pause) {
+  bool pause, bool force_global) {
   the_gui->delayed_commands.exec_handle (
-    handle, actor_id, view_id, pause);
+    handle, actor_id, view_id, pause, force_global);
 }
 void complete_delayed_scheme_handle (
   std::uint64_t handle, std::uint64_t actor_id, std::uint64_t view_id,

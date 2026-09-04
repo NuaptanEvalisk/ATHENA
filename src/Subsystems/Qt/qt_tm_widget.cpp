@@ -39,6 +39,7 @@
 
 #include "qt_dialogues.hpp"
 #include "qt_simple_widget.hpp"
+#include "qt_ui_element.hpp"
 #include "qt_window_widget.hpp"
 #include "qt_menu.hpp"
 #include "QTMWindow.hpp"
@@ -203,7 +204,14 @@ replaceActions (QWidget* dest,  QList<QAction*>* src) {
 }
 
 static void
-replaceButtons (QToolBar* dest, QList<QAction*>* src) {
+retire_toolbar_actions (QList<QAction*>& actions) {
+  while (!actions.isEmpty ())
+    qt_schedule_action_destruction (actions.takeFirst ());
+}
+
+static void
+replaceButtons (QToolBar* dest, QList<QAction*>* src,
+                QList<QAction*>& owned) {
   if (src == NULL || dest == NULL)
     FAILED ("replaceButtons expects valid objects");
 
@@ -213,8 +221,12 @@ replaceButtons (QToolBar* dest, QList<QAction*>* src) {
   bool visible = dest->isVisible();
   if (visible) dest->hide(); //TRICK: to avoid flicker of the dest widget
   QList<QAction *> old= dest->actions();
-  for (int i=0; i<old.count(); i++)
+  for (int i=0; i<old.count(); i++) {
     dest->removeAction (old[i]);
+    if (old[i]->parent () == dest) old[i]->deleteLater ();
+  }
+  retire_toolbar_actions (owned);
+  owned= *src;
   for (int i=0; i<src->count(); i++) {
     QAction* a= (*src)[i];
     if (a->isSeparator()) {
@@ -582,6 +594,10 @@ qt_tm_widget_rep::~qt_tm_widget_rep () {
   waiting_widgets = remove(waiting_widgets, this);
   all_tm_widgets.remove (this);
   clear_main_menu_actions ();
+  retire_toolbar_actions (main_toolbar_actions);
+  retire_toolbar_actions (mode_toolbar_actions);
+  retire_toolbar_actions (focus_toolbar_actions);
+  retire_toolbar_actions (user_toolbar_actions);
 }
 
 void
@@ -1194,8 +1210,9 @@ qt_tm_widget_rep::write (slot s, blackbox index, widget w) {
 #if !DISABLE_QTMTOOLBAR
         mainToolBar->replaceButtons (list);
 #else
-        replaceButtons (mainToolBar, list);
+        replaceButtons (mainToolBar, list, main_toolbar_actions);
 #endif
+        delete list;
         update_visibility();
       }
     }
@@ -1210,8 +1227,9 @@ qt_tm_widget_rep::write (slot s, blackbox index, widget w) {
 #if !DISABLE_QTMTOOLBAR
         modeToolBar->replaceButtons (list);
 #else
-        replaceButtons (modeToolBar, list);
+        replaceButtons (modeToolBar, list, mode_toolbar_actions);
 #endif
+        delete list;
         update_visibility();
       }
     }
@@ -1240,8 +1258,9 @@ qt_tm_widget_rep::write (slot s, blackbox index, widget w) {
 #if !DISABLE_QTMTOOLBAR
           focusToolBar->replaceButtons (list);
 #else
-          replaceButtons (focusToolBar, list);
+          replaceButtons (focusToolBar, list, focus_toolbar_actions);
 #endif
+          delete list;
           update_visibility();
         }
       }
@@ -1257,8 +1276,9 @@ qt_tm_widget_rep::write (slot s, blackbox index, widget w) {
 #if !DISABLE_QTMTOOLBAR
         userToolBar->replaceButtons (list);
 #else
-        replaceButtons (userToolBar, list);
+        replaceButtons (userToolBar, list, user_toolbar_actions);
 #endif
+        delete list;
         update_visibility();
       }
     }

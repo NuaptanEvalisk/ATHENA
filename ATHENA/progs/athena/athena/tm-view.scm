@@ -35,7 +35,7 @@
 
 (define (notify-toolbar-presentation var val)
   (when (current-view)
-    (notify-change 256)))
+    (delayed (:idle 0) (notify-change 256))))
 
 (define (notify-status-bar var val)
   (show-footer (== val "on")))

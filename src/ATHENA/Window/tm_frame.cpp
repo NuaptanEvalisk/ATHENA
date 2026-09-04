@@ -13,7 +13,9 @@
 #include "tm_window.hpp"
 #include "message.hpp"
 #include "actor_ui_bridge.hpp"
+#include "buffer_actor.hpp"
 #include "editor.hpp"
+#include "new_view.hpp"
 #include "scheme_execution_context.hpp"
 
 namespace {
@@ -302,11 +304,17 @@ tm_frame_rep::set_window_zoom_factor (double zoom) {
   if (zoom >= 25.0 ) zoom= 25.0;
   if (zoom <=  0.04) zoom=  0.04;
   zoom= normal_zoom (zoom);
+  if (editor_rep* editor= actor_frame_editor ()) {
+    editor->handle_set_zoom_factor (zoom);
+    return;
+  }
   concrete_window () -> set_window_zoom_factor (zoom);
 }
 
 double
 tm_frame_rep::get_window_zoom_factor () {
+  if (editor_rep* editor= actor_frame_editor ())
+    return editor->handle_get_zoom_factor ();
   return concrete_window () -> get_window_zoom_factor ();
 }
 
@@ -346,32 +354,70 @@ tm_frame_rep::set_extents (SI x1, SI y1, SI x2, SI y2) {
 
 void
 tm_frame_rep::set_left_footer (string s) {
+  if (editor_rep* editor= actor_frame_editor ()) {
+    (void) editor->publish_ui_text (
+      actor_command_kind::ui_footer_left, std::move (s));
+    return;
+  }
   if (!has_current_window ()) return;
   concrete_window () -> set_left_footer (s);
 }
 
 void
 tm_frame_rep::set_center_footer (string s) {
+  if (editor_rep* editor= actor_frame_editor ()) {
+    (void) editor->publish_ui_text (
+      actor_command_kind::ui_footer_center, std::move (s));
+    return;
+  }
   if (!has_current_window ()) return;
   concrete_window () -> set_center_footer (s);
 }
 
 void
 tm_frame_rep::set_right_footer (string s) {
+  if (editor_rep* editor= actor_frame_editor ()) {
+    (void) editor->publish_ui_text (
+      actor_command_kind::ui_footer_right, std::move (s));
+    return;
+  }
   if (!has_current_window ()) return;
   concrete_window () -> set_right_footer (s);
 }
 
 void
 tm_frame_rep::set_message (tree left, tree right, bool temp) {
+  if (editor_rep* editor= actor_frame_editor ()) {
+    editor->set_message (std::move (left), std::move (right), temp);
+    return;
+  }
   if (!has_current_window ()) return;
-  view_to_editor (get_current_view ()) -> set_message (left, right, temp);
+  tm_view view= concrete_view (get_current_view_safe ());
+  if (view == nullptr) return;
+  athena_blob_id left_id=
+    actor_tree_registry::instance ().store (std::move (left));
+  athena_blob_id right_id=
+    actor_tree_registry::instance ().store (std::move (right));
+  if (!view->buf->actor->submit (
+        actor_command_kind::set_message, view->runtime_id,
+        left_id, right_id, SCHEME_CAPABILITY_BUFFER,
+        temp ? 1 : 0)) {
+    (void) actor_tree_registry::instance ().discard (left_id);
+    (void) actor_tree_registry::instance ().discard (right_id);
+  }
 }
 
 void
 tm_frame_rep::recall_message () {
+  if (editor_rep* editor= actor_frame_editor ()) {
+    editor->recall_message ();
+    return;
+  }
   if (!has_current_window ()) return;
-  get_current_editor() -> recall_message ();
+  tm_view view= concrete_view (get_current_view_safe ());
+  if (view != nullptr)
+    (void) view->buf->actor->submit (
+      actor_command_kind::recall_message, view->runtime_id);
 }
 
 void

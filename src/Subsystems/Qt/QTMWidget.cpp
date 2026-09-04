@@ -312,17 +312,7 @@ void
 QTMWidget::surfacePaintEvent (QPaintEvent *event, QWidget *surfaceWidget) {
   (void) surfaceWidget;
   if (checkDprChange()) return;
-  {
-    std::shared_ptr<QTMRenderConnection> connection;
-    {
-      std::lock_guard<std::mutex> guard (tm_widget ()->render_connection_lock);
-      connection= tm_widget ()->render_connection;
-    }
-    if (connection != nullptr) {
-      QTMSharedFrame next= connection->acquireLatestFrame ();
-      if (next) renderedFrame= std::move (next);
-    }
-  }
+  presentLatestRenderedFrame (false);
   QPainter p (surface());
   if ((viewPinchActive || viewPinchCommitPending) &&
       !viewPinchPreview.isNull()) {
@@ -349,15 +339,27 @@ QTMWidget::surfacePaintEvent (QPaintEvent *event, QWidget *surfaceWidget) {
 }
 
 void
-QTMWidget::presentRenderedFrame (
-  std::uint64_t bufferGeneration, std::uint64_t frameGeneration,
-  render_damage damage) {
+QTMWidget::presentLatestRenderedFrame (bool requestPaint) {
+  std::shared_ptr<QTMRenderConnection> connection;
+  {
+    std::lock_guard<std::mutex> guard (tm_widget ()->render_connection_lock);
+    connection= tm_widget ()->render_connection;
+  }
+  if (connection == nullptr) return;
+  QTMSharedFrame next= connection->acquireLatestFrame ();
+  if (!next) return;
+
+  std::uint64_t bufferGeneration= next.bufferGeneration ();
+  std::uint64_t frameGeneration= next.frameGeneration ();
   if (bufferGeneration < renderedBufferGeneration ||
       (bufferGeneration == renderedBufferGeneration &&
        frameGeneration <= renderedFrameGeneration))
     return;
+  render_damage damage= next.damage ();
   renderedBufferGeneration= bufferGeneration;
   renderedFrameGeneration= frameGeneration;
+  renderedFrame= std::move (next);
+  if (!requestPaint) return;
 
   double ratio= surface ()->devicePixelRatio ();
   int x1= static_cast<int> (std::floor (damage.x1 / ratio));

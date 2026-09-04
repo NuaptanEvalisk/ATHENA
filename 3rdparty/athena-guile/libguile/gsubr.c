@@ -217,6 +217,7 @@ scm_i_alloc_primitive_code_with_instrumentation (size_t uint32_count,
   data->counter = 0;
   data->start = -padded_byte_size;
   data->end = -(padded_byte_size - byte_size);
+  data->compiling = 0;
 
   return ret;
 }

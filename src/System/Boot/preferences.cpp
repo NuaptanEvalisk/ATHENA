@@ -24,6 +24,9 @@
 #include <QJsonValue>
 #include <QString>
 
+#include <mutex>
+#include <shared_mutex>
+
 /******************************************************************************
 * Changing the user preferences
 ******************************************************************************/
@@ -35,6 +38,9 @@ hashmap<string,bool> user_prefs_string_default (true);
 hashmap<string,string> user_prefs_callback ("");
 url user_prefs_file= "$ATHENA_HOME_PATH/system/preferences.json";
 void notify_preference (string var);
+
+static std::shared_mutex user_preferences_mutex;
+static std::once_flag builtin_preferences_once;
 
 enum builtin_default_kind {
   PREF_STATIC,
@@ -82,9 +88,8 @@ builtin_default_value (const builtin_preference& pref) {
 
 static void
 ensure_builtin_user_preferences () {
-  static bool done= false;
-  if (done) return;
-  done= true;
+  std::call_once (builtin_preferences_once, [] {
+  std::unique_lock<std::shared_mutex> guard (user_preferences_mutex);
 
   static const builtin_preference prefs[]= {
 #define PREF(k, d, cb) {k, d, true, cb, PREF_STATIC}
@@ -561,6 +566,7 @@ ensure_builtin_user_preferences () {
     if (pref.callback != nullptr && string (pref.callback) != "")
       user_prefs_callback (pref.key)= pref.callback;
   }
+  });
 }
 
 static QString
@@ -632,12 +638,14 @@ with_json_suffix (url u) {
 bool
 has_user_preference (string var) {
   ensure_builtin_user_preferences ();
+  std::shared_lock<std::shared_mutex> guard (user_preferences_mutex);
   return user_prefs->contains (var);
 }
 
 void
 register_user_preference (string var, string def, bool string_def) {
   ensure_builtin_user_preferences ();
+  std::unique_lock<std::shared_mutex> guard (user_preferences_mutex);
   if (!user_prefs_default->contains (var)) {
     user_prefs_default (var)= def;
     user_prefs_string_default (var)= string_def;
@@ -647,6 +655,7 @@ register_user_preference (string var, string def, bool string_def) {
 void
 register_user_preference_callback (string var, string callback) {
   ensure_builtin_user_preferences ();
+  std::unique_lock<std::shared_mutex> guard (user_preferences_mutex);
   if (callback == "") user_prefs_callback->reset (var);
   else user_prefs_callback (var)= callback;
 }
@@ -654,6 +663,7 @@ register_user_preference_callback (string var, string callback) {
 bool
 user_preference_default_is_string (string var) {
   ensure_builtin_user_preferences ();
+  std::shared_lock<std::shared_mutex> guard (user_preferences_mutex);
   if (user_prefs_string_default->contains (var))
     return user_prefs_string_default[var];
   return true;
@@ -662,6 +672,7 @@ user_preference_default_is_string (string var) {
 string
 get_user_preference_callback (string var) {
   ensure_builtin_user_preferences ();
+  std::shared_lock<std::shared_mutex> guard (user_preferences_mutex);
   if (user_prefs_callback->contains (var)) return user_prefs_callback[var];
   return "";
 }
@@ -669,6 +680,7 @@ get_user_preference_callback (string var) {
 array<string>
 get_user_preference_names () {
   ensure_builtin_user_preferences ();
+  std::shared_lock<std::shared_mutex> guard (user_preferences_mutex);
   iterator<string> it= iterate (user_prefs_default);
   array<string> a;
   while (it->busy ())
@@ -699,6 +711,7 @@ user_preference_is_sensitive (string var) {
 array<string>
 get_user_preference_callback_names () {
   ensure_builtin_user_preferences ();
+  std::shared_lock<std::shared_mutex> guard (user_preferences_mutex);
   iterator<string> it= iterate (user_prefs_callback);
   array<string> a;
   while (it->busy ())
@@ -710,9 +723,12 @@ get_user_preference_callback_names () {
 void
 set_user_preference (string var, string val) {
   ensure_builtin_user_preferences ();
-  if (val == "default") user_prefs->reset (var);
-  else user_prefs (var)= val;
-  user_prefs_modified= true;
+  {
+    std::unique_lock<std::shared_mutex> guard (user_preferences_mutex);
+    if (val == "default") user_prefs->reset (var);
+    else user_prefs (var)= val;
+    user_prefs_modified= true;
+  }
   apply_debug_preference (var, get_user_preference (var, "off"));
   notify_preference (var);
 }
@@ -720,8 +736,11 @@ set_user_preference (string var, string val) {
 void
 reset_user_preference (string var) {
   ensure_builtin_user_preferences ();
-  user_prefs->reset (var);
-  user_prefs_modified= true;
+  {
+    std::unique_lock<std::shared_mutex> guard (user_preferences_mutex);
+    user_prefs->reset (var);
+    user_prefs_modified= true;
+  }
   apply_debug_preference (var, get_user_preference (var, "off"));
   notify_preference (var);
 }
@@ -729,6 +748,7 @@ reset_user_preference (string var) {
 string
 get_user_preference (string var, string val) {
   ensure_builtin_user_preferences ();
+  std::shared_lock<std::shared_mutex> guard (user_preferences_mutex);
   if (user_prefs->contains (var)) return user_prefs[var];
   if (user_prefs_default->contains (var)) return user_prefs_default[var];
   else return val;
@@ -792,8 +812,9 @@ read_json_user_preferences (url prefs_file, bool& ok) {
 }
 
 static void
-write_scheme_user_preferences (url prefs_file) {
-  iterator<string> it= iterate (user_prefs);
+write_scheme_user_preferences (
+  url prefs_file, const hashmap<string,string>& preferences) {
+  iterator<string> it= iterate (preferences);
   array<string> a;
   while (it->busy ())
     a << it->next ();
@@ -801,18 +822,19 @@ write_scheme_user_preferences (url prefs_file) {
   string s;
   for (int i=0; i<N(a); i++)
     s << "(" << scm_quote (a[i])
-      << " " << scm_quote (user_prefs[a[i]]) << ")\n";
+      << " " << scm_quote (preferences[a[i]]) << ")\n";
   if (save_string (prefs_file, s))
     std_warning << "The user preferences could not be saved\n";
 }
 
 static void
-write_json_user_preferences (url prefs_file) {
-  iterator<string> it= iterate (user_prefs);
+write_json_user_preferences (
+  url prefs_file, const hashmap<string,string>& preferences) {
+  iterator<string> it= iterate (preferences);
   QJsonObject prefs;
   while (it->busy ()) {
     string key= it->next ();
-    prefs.insert (to_qstring (key), to_qstring (user_prefs[key]));
+    prefs.insert (to_qstring (key), to_qstring (preferences[key]));
   }
 
   QJsonObject root;
@@ -846,10 +868,7 @@ read_user_preferences (url prefs_file, url& canonical_file) {
         cout << "preferences: importing legacy preferences file "
              << legacy_file << LF;
       prefs= read_scheme_user_preferences (legacy_file);
-      if (!json_exists) {
-        user_prefs= prefs;
-        write_json_user_preferences (prefs_file);
-      }
+      if (!json_exists) write_json_user_preferences (prefs_file, prefs);
       return prefs;
     }
     return prefs;
@@ -866,17 +885,17 @@ read_user_preferences (url prefs_file, url& canonical_file) {
   }
 
   hashmap<string,string> prefs= read_scheme_user_preferences (prefs_file);
-  user_prefs= prefs;
-  write_json_user_preferences (canonical_file);
+  write_json_user_preferences (canonical_file, prefs);
   return prefs;
 }
 
 static void
-write_user_preferences (url prefs_file) {
+write_user_preferences (
+  url prefs_file, const hashmap<string,string>& preferences) {
   if (has_suffix (as_string (prefs_file), ".scm"))
-    write_scheme_user_preferences (prefs_file);
+    write_scheme_user_preferences (prefs_file, preferences);
   else
-    write_json_user_preferences (prefs_file);
+    write_json_user_preferences (prefs_file, preferences);
 }
 
 void
@@ -888,21 +907,30 @@ void
 load_user_preferences (url prefs_file) {
   ensure_builtin_user_preferences ();
   save_user_preferences ();
-  user_prefs= read_user_preferences (prefs_file, user_prefs_file);
+  url canonical_file;
+  hashmap<string,string> preferences=
+    read_user_preferences (prefs_file, canonical_file);
+  {
+    std::unique_lock<std::shared_mutex> guard (user_preferences_mutex);
+    user_prefs= std::move (preferences);
+    user_prefs_file= std::move (canonical_file);
+    user_prefs_modified= false;
+  }
   apply_debug_preferences ();
-  user_prefs_modified= false;
 }
 
 void
 dump_user_preferences (url prefs_file) {
   ensure_builtin_user_preferences ();
-  write_user_preferences (prefs_file);
+  std::shared_lock<std::shared_mutex> guard (user_preferences_mutex);
+  write_user_preferences (prefs_file, user_prefs);
 }
 
 void
 save_user_preferences () {
   ensure_builtin_user_preferences ();
+  std::unique_lock<std::shared_mutex> guard (user_preferences_mutex);
   if (!user_prefs_modified) return;
-  write_user_preferences (user_prefs_file);
+  write_user_preferences (user_prefs_file, user_prefs);
   user_prefs_modified= false;
 }

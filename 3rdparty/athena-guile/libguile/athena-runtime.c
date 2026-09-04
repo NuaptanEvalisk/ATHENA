@@ -61,6 +61,7 @@ static SCM athena_lookup_duplicates_handlers_proc;
 static SCM athena_global_binder_proc;
 static SCM athena_original_module_export_proc;
 static SCM athena_initial_root_bindings;
+static SCM athena_module_construction_lock;
 
 enum athena_module_state
 {
@@ -655,6 +656,37 @@ athena_module_provide_internal (SCM name, int rethrow)
   SCM failure_args = SCM_EOL;
 
   record = athena_module_record (name, 1);
+
+  /* Loaded modules are the normal runtime case.  Keep that path off the
+     construction lock; the registry lock publishes the completed module. */
+  scm_i_pthread_mutex_lock (&athena_module_registry_lock);
+  if (record->state == ATHENA_MODULE_LOADED)
+    {
+      result = scm_is_true (record->interface)
+                 ? record->interface : record->module;
+      scm_i_pthread_mutex_unlock (&athena_module_registry_lock);
+      return result;
+    }
+  if (record->state == ATHENA_MODULE_FAILED)
+    {
+      failure_tag = record->failure_tag;
+      failure_args = record->failure_args;
+      scm_i_pthread_mutex_unlock (&athena_module_registry_lock);
+      if (rethrow && scm_is_true (failure_tag))
+        scm_ithrow (failure_tag, failure_args, 1);
+      return SCM_BOOL_F;
+    }
+  scm_i_pthread_mutex_unlock (&athena_module_registry_lock);
+
+  /* Separate module files have private modules, but their legacy top-level
+     definitions and exports are published into the same ATHENA root module.
+     Guile's module obarrays are not concurrent hash tables, so constructing
+     two modules in parallel corrupts that shared publication boundary.  This
+     recursive lock serializes first-time module construction only; recursive
+     imports on the loader thread remain valid, while loaded-module execution
+     stays concurrent through the fast path above. */
+  scm_dynwind_begin (0);
+  scm_dynwind_lock_mutex (athena_module_construction_lock);
   for (;;)
     {
       scm_i_pthread_mutex_lock (&athena_module_registry_lock);
@@ -663,6 +695,7 @@ athena_module_provide_internal (SCM name, int rethrow)
           result = scm_is_true (record->interface)
                      ? record->interface : record->module;
           scm_i_pthread_mutex_unlock (&athena_module_registry_lock);
+          scm_dynwind_end ();
           return result;
         }
       if (record->state == ATHENA_MODULE_FAILED)
@@ -672,6 +705,7 @@ athena_module_provide_internal (SCM name, int rethrow)
           scm_i_pthread_mutex_unlock (&athena_module_registry_lock);
           if (rethrow && scm_is_true (failure_tag))
             scm_ithrow (failure_tag, failure_args, 1);
+          scm_dynwind_end ();
           return SCM_BOOL_F;
         }
       if (record->state == ATHENA_MODULE_LOADING)
@@ -685,6 +719,7 @@ athena_module_provide_internal (SCM name, int rethrow)
               if (scm_is_true (registered))
                 {
                   SCM interface = scm_module_public_interface (registered);
+                  scm_dynwind_end ();
                   return scm_is_true (interface) ? interface : registered;
                 }
               scm_misc_error ("module-provide",
@@ -765,7 +800,10 @@ athena_module_provide_internal (SCM name, int rethrow)
   scm_i_pthread_mutex_unlock (&athena_module_registry_lock);
 
   if (scm_is_true (result))
-    return result;
+    {
+      scm_dynwind_end ();
+      return result;
+    }
   if (rethrow)
     {
       if (scm_is_true (failure_tag))
@@ -774,6 +812,7 @@ athena_module_provide_internal (SCM name, int rethrow)
                       "ATHENA module ~S failed without an exception",
                       scm_list_1 (name));
     }
+  scm_dynwind_end ();
   return SCM_BOOL_F;
 }
 
@@ -2594,6 +2633,8 @@ scm_init_athena_runtime (void)
 
   athena_root_module = scm_current_module ();
   scm_gc_protect_object (athena_root_module);
+  athena_module_construction_lock = scm_make_recursive_mutex ();
+  scm_gc_protect_object (athena_module_construction_lock);
   scm_c_module_define (athena_root_module, "texmacs-user",
                        athena_root_module);
   scm_module_export (athena_root_module,

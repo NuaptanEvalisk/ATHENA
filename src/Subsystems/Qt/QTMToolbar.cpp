@@ -11,6 +11,7 @@
 #include "QTMToolbar.hpp"
 #include "QTMStyle.hpp"
 #include "QTMWidget.hpp"
+#include "qt_ui_element.hpp"
 #include "gui.hpp"
 
 #include <QToolButton>
@@ -97,6 +98,8 @@ QTMToolbar::QTMToolbar (const QString& title, QSize iconSize, QWidget* parent)
 }
 
 QTMToolbar::~QTMToolbar () {
+  while (!mOwnedActions.isEmpty ())
+    qt_schedule_action_destruction (mOwnedActions.takeFirst ());
 }
 
 void QTMToolbar::replaceActions (QList<QAction*>* src) {
@@ -104,14 +107,8 @@ void QTMToolbar::replaceActions (QList<QAction*>* src) {
     FAILED ("replaceActions expects valid objects");
   setUpdatesEnabled (false);
 
-  if (tmapp()->useNewToolbar()) {
-    while (mLayout->count() > 0) {
-      QWidget* w = mLayout->itemAt(0)->widget();
-      mLayout->removeWidget(w);
-      delete w;
-    }
-  } else {
-    clear ();
+  clear ();
+  if (!tmapp()->useNewToolbar()) {
     addSeparator ();
   }
   for (int i = 0; i < src->count(); i++) {
@@ -129,14 +126,8 @@ void QTMToolbar::replaceButtons (QList<QAction*>* src) {
   if (src == NULL)
     FAILED ("replaceButtons expects valid objects");
   setUpdatesEnabled (false);
-  if (tmapp()->useNewToolbar()) {
-    while (mLayout->count() > 0) {
-      QWidget* w = mLayout->itemAt(0)->widget();
-      mLayout->removeWidget(w);
-      delete w;
-    }
-  } else {
-    clear ();
+  clear ();
+  if (!tmapp()->useNewToolbar()) {
     addSeparator ();
   }
   for (int i = 0; i < src->count(); i++) {
@@ -184,6 +175,7 @@ void QTMToolbar::addRightSpacer () {
 }
 
 void QTMToolbar::addAction (QAction* action) {
+  mOwnedActions.append (action);
   // create the tool button
   QWidget *actionWidget = nullptr;
 
@@ -266,6 +258,8 @@ void QTMToolbar::addAction (QAction* action) {
 void QTMToolbar::removeAction (QAction* action) {
   if (!tmapp()->useNewToolbar()) {
     QToolBar::removeAction(action);
+    mOwnedActions.removeOne (action);
+    qt_schedule_action_destruction (action);
     return;
   }
   for (int i = 0; i < mLayout->count(); i++) {
@@ -276,12 +270,16 @@ void QTMToolbar::removeAction (QAction* action) {
       break;
     }
   }
+  mOwnedActions.removeOne (action);
+  qt_schedule_action_destruction (action);
   updateNavButtons();
 }
 
 void QTMToolbar::clear () {
   if (!tmapp()->useNewToolbar()) {
     QToolBar::clear();
+    while (!mOwnedActions.isEmpty ())
+      qt_schedule_action_destruction (mOwnedActions.takeFirst ());
     return;
   }
   while (mLayout->count() > 0) {
@@ -289,6 +287,8 @@ void QTMToolbar::clear () {
     mLayout->removeWidget(w);
     delete w;
   }
+  while (!mOwnedActions.isEmpty ())
+    qt_schedule_action_destruction (mOwnedActions.takeFirst ());
   updateNavButtons();
 }
 

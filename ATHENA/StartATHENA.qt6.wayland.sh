@@ -32,4 +32,8 @@ if [[ -e "$script_dir/lib/libggml-sycl.so.0" ]]; then
   done
 fi
 
+# Keep ATHENA's TSan-compatible TCM blocker ahead of the oneAPI runtime.
+export LD_LIBRARY_PATH="$script_dir/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+export TCM_ENABLE=0
+
 exec ./bin/ATHENA.bin --platform wayland "$@"

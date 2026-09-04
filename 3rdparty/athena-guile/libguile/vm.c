@@ -701,7 +701,7 @@ enum slot_desc
   };
 
 /* Mark the active VM stack region.  */
-struct GC_ms_entry *
+SCM_GC_MARKER_NO_SANITIZE_THREAD struct GC_ms_entry *
 scm_i_vm_mark_stack (struct scm_vm *vp, struct GC_ms_entry *mark_stack_ptr,
                      struct GC_ms_entry *mark_stack_limit)
 {

@@ -458,7 +458,7 @@
                                (vault-report-root-namespace-error)))))))
                '("Vault name" "string")))
 
-(tm-define (load-vault-dir dir)
+(define (load-vault-dir-main dir)
   (if (vaultfile-present? dir)
       (let ((err (vaultfile-ensure-json dir)))
         (if (and (string? err) (!= err ""))
@@ -487,17 +487,22 @@
                   (set-message "Invalid Vaultfile.json" "Error")))))
       (interactive-new-vault dir)))
 
+(tm-define (load-vault-dir dir)
+  (exec-global (lambda () (load-vault-dir-main dir))))
+
 (tm-define (open-vault)
   (choose-file load-vault-dir "Load Vault" "directory"))
 
 (tm-define (unload-vault)
   (:interactive #t)
-  (if (vault-active?)
-      (begin
-        (vault-preferences-deactivate)
-        (vault-close)
-        (set-message "Unloaded vault" "Vault"))
-      (set-message "No active vault to unload" "Vault")))
+  (exec-global
+    (lambda ()
+      (if (vault-active?)
+          (begin
+            (vault-preferences-deactivate)
+            (vault-close)
+            (set-message "Unloaded vault" "Vault"))
+          (set-message "No active vault to unload" "Vault")))))
 
 (tm-define (open-vault-explorer)
   (:interactive #t)

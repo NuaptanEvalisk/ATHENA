@@ -25,6 +25,24 @@
 #include <libguile/gc.h>
 #include <libguile/programs.h>
 
+/* BDW-GC deliberately performs incremental conservative reads while
+   mutators run.  Helpers called from its uninstrumented marker must carry
+   the same TSan boundary; this attribute has no production-build cost.  */
+#if defined(__has_feature)
+# if __has_feature(thread_sanitizer)
+#  define SCM_GC_MARKER_NO_SANITIZE_THREAD \
+    __attribute__((no_sanitize("thread")))
+# endif
+#endif
+#ifndef SCM_GC_MARKER_NO_SANITIZE_THREAD
+# if defined(__SANITIZE_THREAD__)
+#  define SCM_GC_MARKER_NO_SANITIZE_THREAD \
+    __attribute__((no_sanitize_thread))
+# else
+#  define SCM_GC_MARKER_NO_SANITIZE_THREAD
+# endif
+#endif
+
 #define SCM_VM_REGULAR_ENGINE 0
 #define SCM_VM_DEBUG_ENGINE 1
 #define SCM_VM_NUM_ENGINES 2
@@ -85,9 +103,9 @@ SCM_API void scm_c_set_default_vm_engine_x (int engine);
 
 SCM_INTERNAL void scm_i_vm_prepare_stack (struct scm_vm *vp);
 struct GC_ms_entry;
-SCM_INTERNAL struct GC_ms_entry * scm_i_vm_mark_stack (struct scm_vm *,
-                                                       struct GC_ms_entry *,
-                                                       struct GC_ms_entry *);
+SCM_INTERNAL SCM_GC_MARKER_NO_SANITIZE_THREAD struct GC_ms_entry *
+scm_i_vm_mark_stack (struct scm_vm *, struct GC_ms_entry *,
+                     struct GC_ms_entry *);
 SCM_INTERNAL void scm_i_vm_free_stack (struct scm_vm *vp);
 
 #define SCM_F_VM_CONT_PARTIAL 0x1

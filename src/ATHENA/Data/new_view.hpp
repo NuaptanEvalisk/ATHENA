@@ -21,6 +21,8 @@ array<url> buffer_to_views (url name);
 editor get_current_editor ();
 editor view_to_editor (url u);
 bool has_current_view ();
+void keyboard_focus_on_current_view (string field);
+void init_default_current_view (string variable);
 void set_current_view (url u);
 url  get_current_view ();
 url  get_current_view_safe ();

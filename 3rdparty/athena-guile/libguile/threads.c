@@ -78,7 +78,7 @@
    stacks.  */
 static int thread_gc_kind;
 
-static struct GC_ms_entry *
+static SCM_GC_MARKER_NO_SANITIZE_THREAD struct GC_ms_entry *
 thread_mark (GC_word *addr, struct GC_ms_entry *mark_stack_ptr,
              struct GC_ms_entry *mark_stack_limit, GC_word env)
 {
@@ -1840,4 +1840,3 @@ scm_init_threads_default_dynamic_state ()
 }
 
 
-

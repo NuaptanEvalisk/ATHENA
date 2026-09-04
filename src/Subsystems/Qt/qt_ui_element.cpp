@@ -43,6 +43,36 @@
 #include <QIcon>
 #include <QStandardPaths>
 
+#include <atomic>
+#include <mutex>
+#include <unordered_map>
+#include <vector>
+
+namespace {
+
+std::atomic<athena_resource_id> next_qaction_resource_id {1};
+std::unordered_map<athena_resource_id, QAction*> qaction_resources;
+std::mutex qaction_retirement_lock;
+std::vector<athena_resource_id> pending_qaction_retirements;
+std::atomic<bool> qaction_retirements_pending {false};
+
+bool
+on_qt_thread () {
+  QCoreApplication* app= QCoreApplication::instance ();
+  return app != nullptr && QThread::currentThread () == app->thread ();
+}
+
+void
+retire_qaction_on_qt_thread (athena_resource_id id) {
+  auto found= qaction_resources.find (id);
+  if (found == qaction_resources.end ()) return;
+  QAction* action= found->second;
+  qaction_resources.erase (found);
+  qt_schedule_action_destruction (action);
+}
+
+} // namespace
+
 static bool
 athena_extract_language_flag_label (string& str, QIcon& icon) {
   string prefix= "@ATHENA-LANGUAGE-FLAG:";
@@ -222,12 +252,57 @@ qt_glue_widget_rep::as_qwidget(QWidget* parent_widget) {
 void
 qt_schedule_action_destruction (QAction* action) {
   if (action == nullptr) return;
-  auto schedule= [action] {
-    QTimer::singleShot (3000, action, [action] { delete action; });
-  };
-  if (QThread::currentThread () == action->thread ()) schedule ();
-  else (void) QMetaObject::invokeMethod (
-    action, std::move (schedule), Qt::QueuedConnection);
+  ASSERT (on_qt_thread (), "QAction destruction must stay on the Qt thread");
+  QTimer::singleShot (3000, action, [action] { delete action; });
+}
+
+athena_resource_id
+qt_reserve_action_resource () {
+  athena_resource_id id=
+    next_qaction_resource_id.fetch_add (1, std::memory_order_relaxed);
+  if (id == ATHENA_NO_RESOURCE)
+    id= next_qaction_resource_id.fetch_add (1, std::memory_order_relaxed);
+  return id;
+}
+
+void
+qt_register_action_resource (athena_resource_id id, QAction* action) {
+  ASSERT (on_qt_thread (), "QAction resources belong to the Qt thread");
+  ASSERT (id != ATHENA_NO_RESOURCE && action != nullptr,
+          "invalid QAction resource");
+  auto inserted= qaction_resources.emplace (id, action);
+  ASSERT (inserted.second, "duplicate QAction resource");
+}
+
+QAction*
+qt_find_action_resource (athena_resource_id id) {
+  ASSERT (on_qt_thread (), "QAction resources belong to the Qt thread");
+  auto found= qaction_resources.find (id);
+  return found == qaction_resources.end () ? nullptr : found->second;
+}
+
+void
+qt_retire_action_resource (athena_resource_id id) {
+  if (id == ATHENA_NO_RESOURCE) return;
+  {
+    std::lock_guard<std::mutex> guard (qaction_retirement_lock);
+    pending_qaction_retirements.push_back (id);
+    qaction_retirements_pending.store (true, std::memory_order_release);
+  }
+}
+
+void
+qt_drain_action_retirements () {
+  ASSERT (on_qt_thread (), "QAction resources belong to the Qt thread");
+  if (!qaction_retirements_pending.load (std::memory_order_acquire)) return;
+  std::vector<athena_resource_id> pending;
+  {
+    std::lock_guard<std::mutex> guard (qaction_retirement_lock);
+    pending.swap (pending_qaction_retirements);
+    qaction_retirements_pending.store (false, std::memory_order_release);
+  }
+  for (athena_resource_id id: pending)
+    retire_qaction_on_qt_thread (id);
 }
 
 /******************************************************************************
@@ -235,17 +310,9 @@ qt_schedule_action_destruction (QAction* action) {
  ******************************************************************************/
 
 qt_ui_element_rep::qt_ui_element_rep (types _type, blackbox _load)
-: qt_widget_rep (_type), load (_load), cachedActionList (NULL) {}
+: qt_widget_rep (_type), load (_load) {}
 
-qt_ui_element_rep::~qt_ui_element_rep() {
-  if (cachedActionList) {
-    while (!cachedActionList->empty()) {
-      QAction *a = cachedActionList->takeFirst();
-      qt_schedule_action_destruction (a);
-    }
-    delete cachedActionList;
-  }
-}
+qt_ui_element_rep::~qt_ui_element_rep() {}
 
 blackbox
 qt_ui_element_rep::get_payload (qt_widget qtw, types check_type) {
@@ -288,11 +355,7 @@ qt_ui_element_rep::make_popup_widget () {
 
 QList<QAction*>*
 qt_ui_element_rep::get_qactionlist() {
-    if (cachedActionList) return cachedActionList;
-    
-    cachedActionList = get_fresh_qactionlist ();
-    if (cachedActionList == NULL) cachedActionList= new QList<QAction*> ();
-    return cachedActionList;
+  return get_fresh_qactionlist ();
 }
 
 QList<QAction*>*

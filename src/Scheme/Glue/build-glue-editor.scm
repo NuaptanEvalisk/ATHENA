@@ -69,7 +69,6 @@
   ;; document-wide modifications
   (get-full-env get_full_env (tree))
   (get-all-inits get_init_all (tree))
-  (init-default-one init_default (void string))
   (init-env init_env (void string string))
   (init-env-tree init_env (void string content))
   (init-style init_style (void string))
@@ -305,7 +304,6 @@
   (custom-complete custom_complete (void tree))
 
   ;; miscellaneous routines
-  (keyboard-focus-on keyboard_focus_on (void string))
   (broadcast-message broadcast_message (void string))
   (view-set-property set_property (void scheme_tree scheme_tree))
   (view-get-property get_property (scheme_tree scheme_tree))

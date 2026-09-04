@@ -188,6 +188,48 @@ get_current_editor () {
   return editor ();
 }
 
+void
+keyboard_focus_on_current_view (string field) {
+  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  if (context != nullptr) {
+    ASSERT (context->editor != nullptr,
+            "no editor capability in Scheme execution context");
+    ASSERT (context->has (SCHEME_CAPABILITY_BUFFER),
+            "Scheme execution context cannot access the current view");
+    context->editor->keyboard_focus_on (std::move (field));
+    return;
+  }
+
+  url current= get_current_view_safe ();
+  if (is_none (current)) return;
+  tm_view view= concrete_view (current);
+  if (view != nullptr && view->win != nullptr)
+    send_keyboard_focus_on (view->win->wid, std::move (field));
+}
+
+void
+init_default_current_view (string variable) {
+  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  if (context != nullptr) {
+    ASSERT (context->editor != nullptr,
+            "no editor capability in Scheme execution context");
+    ASSERT (context->has (SCHEME_CAPABILITY_BUFFER),
+            "Scheme execution context cannot modify a buffer editor");
+    context->editor->init_default (std::move (variable));
+    return;
+  }
+
+  tm_view view= the_view;
+  if (view == nullptr) return;
+  athena_blob_id payload=
+    actor_text_registry::instance ().store (std::move (variable));
+  actor_command_ticket ticket= buffer_actor::submit_to (
+    view->buf->actor->id (), actor_command_kind::init_default,
+    view->runtime_id, payload, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER);
+  if (!ticket)
+    (void) actor_text_registry::instance ().discard (payload);
+}
+
 array<url>
 buffer_to_views (url name) {
   tm_buffer buf= concrete_buffer (name);
@@ -319,7 +361,7 @@ initialize_view (tm_view vw) {
     tm_init_buffer_file= "$ATHENA_PATH/progs/init-buffer.scm";
   if (is_none (my_init_buffer_file))
     my_init_buffer_file= "$ATHENA_HOME_PATH/progs/my-init-buffer.scm";
-  if (!vw->buf->actor->invoke (
+  if (!vw->buf->actor->submit (
         actor_command_kind::initialize_view, vw->runtime_id))
     FAILED ("BufferActor rejected view initialization");
 }

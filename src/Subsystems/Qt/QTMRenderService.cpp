@@ -6,16 +6,11 @@
 
 #include "QTMRenderService.hpp"
 
-#include "QTMWidget.hpp"
-
-#include <QCoreApplication>
 #include <QGradient>
-#include <QMetaObject>
 #include <QPaintEngine>
 #include <QPaintEngineState>
 #include <QPainter>
 #include <QPainterPath>
-#include <QPointer>
 #include <QRegion>
 
 #include <algorithm>
@@ -220,7 +215,6 @@ struct QTMRenderConnection::processor_state final: render_processor {
     render_damage damage;
   };
 
-  const athena_resource_id connection_id;
   std::mutex resource_lock;
   std::unordered_map<athena_resource_id, std::unique_ptr<image_resource>> images;
   std::unordered_map<qint64, athena_resource_id> image_cache;
@@ -228,8 +222,6 @@ struct QTMRenderConnection::processor_state final: render_processor {
 
   std::array<frame_storage, frame_slot_count> frames;
   std::array<std::atomic<std::uint32_t>, frame_slot_count> frame_states;
-  std::mutex widget_lock;
-  QPointer<QTMWidget> widget;
 
   int active_frame= -1;
   std::unique_ptr<QImage> active_image;
@@ -237,7 +229,7 @@ struct QTMRenderConnection::processor_state final: render_processor {
   std::uint64_t active_buffer_generation= 0;
   std::uint64_t active_frame_generation= 0;
 
-  explicit processor_state (athena_resource_id id): connection_id (id) {
+  processor_state () {
     for (auto& state: frame_states)
       state.store (frame_idle, std::memory_order_relaxed);
   }
@@ -371,22 +363,6 @@ struct QTMRenderConnection::processor_state final: render_processor {
     active_buffer_generation= 0;
     active_frame_generation= 0;
     frame_states[published].store (frame_ready, std::memory_order_release);
-
-    QCoreApplication* application= QCoreApplication::instance ();
-    if (application == nullptr) return;
-    athena_resource_id id= connection_id;
-    std::uint64_t buffer_generation= descriptor.buffer_generation;
-    std::uint64_t frame_generation= descriptor.frame_generation;
-    render_damage damage= descriptor.damage;
-    QMetaObject::invokeMethod (
-      application,
-      [id, buffer_generation, frame_generation, damage] {
-        auto connection= QTMRenderConnection::lookup (id);
-        if (connection == nullptr) return;
-        connection->notifyWidget (
-          buffer_generation, frame_generation, damage);
-      },
-      Qt::QueuedConnection);
   }
 
   bool decode_brush (const std::byte* data, std::size_t size,
@@ -1212,7 +1188,7 @@ QTMRenderConnection::create (std::size_t slotCount,
 QTMRenderConnection::QTMRenderConnection (
   std::size_t slotCount, std::size_t slotCapacity):
   id_ (allocate_connection_id ()),
-  processor_ (std::make_shared<processor_state> (id_)), connection_ (),
+  processor_ (std::make_shared<processor_state> ()), connection_ (),
   slotCount_ (slotCount), slotCapacity_ (slotCapacity) {}
 
 bool
@@ -1281,34 +1257,10 @@ QTMRenderConnection::acquireLatestFrame () {
 }
 
 void
-QTMRenderConnection::bindWidget (QTMWidget* widget) {
-  std::lock_guard<std::mutex> guard (processor_->widget_lock);
-  processor_->widget= widget;
-}
-
-void
-QTMRenderConnection::notifyWidget (
-  std::uint64_t bufferGeneration, std::uint64_t frameGeneration,
-  render_damage damage) {
-  QPointer<QTMWidget> target;
-  {
-    std::lock_guard<std::mutex> guard (processor_->widget_lock);
-    target= processor_->widget;
-  }
-  if (target != nullptr)
-    target->presentRenderedFrame (
-      bufferGeneration, frameGeneration, damage);
-}
-
-void
 QTMRenderConnection::retire () noexcept {
   {
     std::lock_guard<std::mutex> guard (connection_registry_lock);
     connection_registry.erase (id_);
-  }
-  {
-    std::lock_guard<std::mutex> guard (processor_->widget_lock);
-    processor_->widget.clear ();
   }
   if (connection_ != nullptr) connection_->retire ();
   connection_.reset ();

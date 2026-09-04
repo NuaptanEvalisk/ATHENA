@@ -820,10 +820,12 @@ drd_info_rep::arg_access (tree t, tree arg, tree env, int& type, bool& found) {
   else if (is_func (t, WITH)) {
     int n= N(t)-1;
     //cout << "env= " << drd_env_merge (env, t (0, n)) << "\n";
-    return arg_access (t[n], arg, drd_env_merge (env, t (0, n)), type, found);
+    tree cenv= env == "" ? env : drd_env_merge (env, t (0, n));
+    return arg_access (t[n], arg, cenv, type, found);
   }
   else if (is_func (t, TFORMAT)) {
     int n= N(t)-1;
+    if (env == "") return arg_access (t[n], arg, env, type, found);
     tree oldf= drd_env_read (env, CELL_FORMAT, tree (TFORMAT));
     tree newf= oldf * tree (TFORMAT, A (t (0, n)));
     tree w   = tree (ATTR, CELL_FORMAT, newf);
@@ -842,7 +844,7 @@ drd_info_rep::arg_access (tree t, tree arg, tree env, int& type, bool& found) {
     for (i=0; i<n; i++) {
       int  ctype = get_type_child (t, i);
       bool cfound= false;
-      tree cenv  = get_env_child (t, i, env);
+      tree cenv  = env == "" ? env : get_env_child (t, i, env);
       tree aenv  = arg_access (t[i], arg, cenv, ctype, cfound);
       if (aenv != "") {
         if (ctype != TYPE_INVALID) { type= ctype; found= cfound; }

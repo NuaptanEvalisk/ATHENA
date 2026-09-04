@@ -28,6 +28,7 @@
 #include <stdio.h>
 #include <lightening.h>
 
+#include "atomics-internal.h"
 #include "frames.h"
 #include "gsubr.h"
 #include "gc-inline.h"
@@ -144,7 +145,7 @@ uint32_t scm_jit_counter_threshold = -1;
 
 /* If positive, stop JIT compilation after the Nth compilation.  Useful
    for hunting down bugs.  */
-static int jit_stop_after = -1;
+static uint32_t jit_stop_after = -1;
 
 /* If nonzero, pause when stopping JIT compilation after the Nth
    compilation.  For debugging.  */
@@ -848,13 +849,15 @@ emit_direct_tail_call (scm_jit_state *j, const uint32_t *vcode)
   else
     {
       struct scm_jit_function_data *data;
+      uint8_t *mcode;
       data = (struct scm_jit_function_data *) (vcode + (int32_t)(vcode[1]));
+      mcode = scm_atomic_ref_pointer_acquire ((void **) &data->mcode);
 
-      if (data->mcode)
+      if (mcode)
         {
           /* FIXME: Jump indirectly, to allow mcode to be changed
              (e.g. to add/remove breakpoints or hooks).  */
-          jit_jmpi (j->jit, data->mcode);
+          jit_jmpi (j->jit, mcode);
         }
       else
         {
@@ -6127,7 +6130,7 @@ initialize_jit (void)
 
   if (!init_jit ())
     {
-      scm_jit_counter_threshold = -1;
+      scm_atomic_set_uint32_relaxed (&scm_jit_counter_threshold, -1);
       fprintf (stderr, "JIT failed to initialize\n");
       fprintf (stderr, "disabling automatic JIT compilation\n");
       return;
@@ -6177,7 +6180,7 @@ compute_mcode (scm_thread *thread, uint32_t *entry_ip,
   if (!j)
     {
       scm_i_pthread_once (&initialize_jit_once, initialize_jit);
-      if (scm_jit_counter_threshold == -1)
+      if (scm_atomic_ref_uint32_relaxed (&scm_jit_counter_threshold) == -1)
         {
           /* initialization failed!  */
           return NULL;
@@ -6216,7 +6219,7 @@ compute_mcode (scm_thread *thread, uint32_t *entry_ip,
   if (mcode)
     {
       entry_mcode = j->labels[inline_label_offset (j->entry - j->start)];
-      data->mcode = mcode;
+      scm_atomic_set_pointer_release ((void **) &data->mcode, mcode);
 
       if (jit_log_level >= LOG_LEVEL_INFO) {
         scm_i_pthread_once (&create_perf_map_once, create_perf_map);
@@ -6253,11 +6256,13 @@ const uint8_t *
 scm_jit_compute_mcode (scm_thread *thread, struct scm_jit_function_data *data)
 {
   const uint32_t *vcode_start = (const uint32_t *) (((char *)data) + data->start);
+  uint8_t *published_mcode =
+    scm_atomic_ref_pointer_acquire ((void **) &data->mcode);
 
-  if (data->mcode)
+  if (published_mcode)
     {
       if (vcode_start == thread->vm.ip)
-        return data->mcode;
+        return published_mcode;
 
       /* The function has mcode, compiled via some other activation
          (possibly in another thread), but right now we're currently in
@@ -6277,13 +6282,14 @@ scm_jit_compute_mcode (scm_thread *thread, struct scm_jit_function_data *data)
 
   if (!mcode)
     {
-      scm_jit_counter_threshold = -1;
+      scm_atomic_set_uint32_relaxed (&scm_jit_counter_threshold, -1);
       fprintf (stderr, "JIT failed due to resource exhaustion\n");
       fprintf (stderr, "disabling automatic JIT compilation\n");
     }
-  else if (--jit_stop_after == 0)
+  else if (scm_atomic_ref_uint32_relaxed (&jit_stop_after) != UINT32_MAX &&
+           scm_atomic_subtract_uint32 (&jit_stop_after, 1) == 1)
     {
-      scm_jit_counter_threshold = -1;
+      scm_atomic_set_uint32_relaxed (&scm_jit_counter_threshold, -1);
       fprintf (stderr, "stopping automatic JIT compilation, as requested\n");
       if (jit_pause_when_stopping)
         {
@@ -6329,9 +6335,11 @@ scm_jit_state_free (scm_jit_state *j)
 void
 scm_init_jit (void)
 {
-  scm_jit_counter_threshold = scm_getenv_int ("GUILE_JIT_THRESHOLD",
-                                              default_jit_threshold);
-  jit_stop_after = scm_getenv_int ("GUILE_JIT_STOP_AFTER", -1);
+  scm_atomic_set_uint32_relaxed
+    (&scm_jit_counter_threshold,
+     scm_getenv_int ("GUILE_JIT_THRESHOLD", default_jit_threshold));
+  scm_atomic_set_uint32_relaxed
+    (&jit_stop_after, scm_getenv_int ("GUILE_JIT_STOP_AFTER", -1));
   jit_pause_when_stopping = scm_getenv_int ("GUILE_JIT_PAUSE_WHEN_STOPPING", 0);
   jit_log_level = scm_getenv_int ("GUILE_JIT_LOG", 0);
 }

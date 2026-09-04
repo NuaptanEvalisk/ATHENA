@@ -19,6 +19,7 @@
 #include "hashmap.hpp"
 
 #include "qt_widget.hpp"
+#include "actor_transport.hpp"
 #include "QTMMenuHelper.hpp"
 #include "QTMPixmapOrImage.hpp"
 
@@ -29,6 +30,11 @@ class QMenu;
 class QAction;
 
 void qt_schedule_action_destruction (QAction* action);
+athena_resource_id qt_reserve_action_resource ();
+void qt_register_action_resource (athena_resource_id id, QAction* action);
+QAction* qt_find_action_resource (athena_resource_id id);
+void qt_retire_action_resource (athena_resource_id id);
+void qt_drain_action_retirements ();
 
 
 /*! Construction of UI elements / widgets.
@@ -55,8 +61,6 @@ class qt_ui_element_rep: public qt_widget_rep {
     // NOTE: automatic deletion of the blackbox upon destruction will trigger
     // deletion of all the nested widgets within.
   blackbox                  load;
-  QPointer<QAction> cachedAction;
-  QList<QAction*>* cachedActionList;
     
 public:  
   qt_ui_element_rep (types _type, blackbox _load);

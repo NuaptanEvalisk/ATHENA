@@ -23,7 +23,7 @@ static drd_info
 clone_standard_drd () {
   std::lock_guard<std::recursive_mutex> guard (std_drd_mutex);
   init_std_drd ();
-  tree locals= std_drd->get_locals ();
+  tree locals= copy (std_drd->get_locals ());
   drd_info local ("tm-thread");
   local->set_locals (locals);
   return local;

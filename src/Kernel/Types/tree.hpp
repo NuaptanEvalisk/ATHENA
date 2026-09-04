@@ -158,11 +158,18 @@ typedef tree scheme_tree;
 #endif
 
 void destroy_tree_rep (tree_rep* rep);
-inline tree::tree (tree_rep* rep2): rep (rep2) { rep->ref_count++; }
-inline tree::tree (const tree& x): rep (x.rep) { rep->ref_count++; }
+inline tree::tree (tree_rep* rep2): rep (rep2) {
+  if (rep != dummy_tree_rep) rep->ref_count++;
+}
+inline tree::tree (const tree& x): rep (x.rep) {
+  if (rep != dummy_tree_rep) rep->ref_count++;
+}
 inline tree::tree (tree&& x) noexcept: rep (x.rep) { x.rep = dummy_tree_rep; }
 inline tree::~tree () {
-  if ((--rep->ref_count)==0) { destroy_tree_rep (rep); rep= NULL; } }
+  if (rep != dummy_tree_rep && (--rep->ref_count)==0) {
+    destroy_tree_rep (rep); rep= NULL;
+  }
+}
 inline atomic_rep* tree::operator -> () {
   CHECK_ATOMIC (*this);
   return static_cast<atomic_rep*> (rep); }
@@ -171,16 +178,25 @@ inline const atomic_rep* tree::operator -> () const {
   return static_cast<const atomic_rep*> (rep); }
 inline tree& tree::operator = (const tree& x) {
   if (rep != x.rep) {
-    x.rep->ref_count++;
-    if ((--rep->ref_count)==0) destroy_tree_rep (rep);
-    rep= x.rep;
+    tree_rep* new_rep= x.rep;
+    if (new_rep != dummy_tree_rep) new_rep->ref_count++;
+    if (rep != dummy_tree_rep && (--rep->ref_count)==0)
+      destroy_tree_rep (rep);
+    rep= new_rep;
   }
   return *this; }
 inline tree& tree::operator = (tree&& x) noexcept {
+  if (this == &x) return *this;
   if (rep != x.rep) {
-    if ((--rep->ref_count)==0) destroy_tree_rep (rep);
-    rep= x.rep;
-    x.rep = dummy_tree_rep;
+    tree_rep* new_rep= x.rep;
+    x.rep= dummy_tree_rep;
+    if (rep != dummy_tree_rep && (--rep->ref_count)==0)
+      destroy_tree_rep (rep);
+    rep= new_rep;
+  }
+  else if (rep != dummy_tree_rep) {
+    x.rep= dummy_tree_rep;
+    --rep->ref_count;
   }
   return *this; }
 

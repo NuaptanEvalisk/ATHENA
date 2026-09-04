@@ -17,7 +17,6 @@
 #include <cstdint>
 #include <memory>
 
-class QTMWidget;
 class QTMRenderConnection;
 
 class QTMRenderRecording {
@@ -80,9 +79,6 @@ public:
     std::uint32_t backgroundArgb, std::uint64_t bufferGeneration,
     std::uint64_t frameGeneration, render_damage damage);
   QTMSharedFrame acquireLatestFrame ();
-  void bindWidget (QTMWidget* widget);
-  void notifyWidget (std::uint64_t bufferGeneration,
-                     std::uint64_t frameGeneration, render_damage damage);
   void retire () noexcept;
 
   static std::shared_ptr<QTMRenderConnection> lookup (

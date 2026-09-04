@@ -10,6 +10,14 @@
 #include <limits>
 #include <new>
 
+extern "C" const char*
+__tsan_default_options () {
+  // System Qt and its platform plugins are not TSan-instrumented, so their
+  // internal synchronization is invisible. Instrumented ATHENA and Guile
+  // accesses remain reportable.
+  return "ignore_noninstrumented_modules=1";
+}
+
 extern "C" void*
 mi_new (size_t size) {
   if (void* allocation= std::malloc (size == 0 ? 1 : size)) return allocation;

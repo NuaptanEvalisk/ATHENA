@@ -43,6 +43,7 @@ protected:
   void setLeftActVisible (bool v);
 
 private:
+  QList<QAction*> mOwnedActions;
   QScrollArea* mScrollArea;
   QHBoxLayout* mLayout;
   QToolButton* mLeftBtn;

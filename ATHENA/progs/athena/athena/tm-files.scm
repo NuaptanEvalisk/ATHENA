@@ -708,14 +708,17 @@
   (:argument name smart-file "File name")
   (:default  name (propose-name-buffer))
   ;;(display* "load-buffer " name ", " opts "\n")
-  (apply load-buffer-main (cons name opts)))
+  (exec-global
+    (lambda () (apply load-buffer-main (cons name opts)))))
 
 (tm-define (load-buffer-in-new-window name . opts)
   (:argument name smart-file "File name")
   (:default  name (propose-name-buffer))
-  (if (buffer->window name)
-      (noop) ;;(window-focus (buffer->window name))
-      (apply load-buffer-main (cons name (cons :new-window opts)))))
+  (exec-global
+    (lambda ()
+      (if (buffer->window name)
+          (noop) ;;(window-focus (buffer->window name))
+          (apply load-buffer-main (cons name (cons :new-window opts)))))))
 
 (tm-define (load-browse-buffer name . opt-after-open)
   (:synopsis "Load a buffer or switch to it if already open")

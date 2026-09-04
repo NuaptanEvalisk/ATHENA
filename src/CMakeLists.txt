@@ -10,6 +10,8 @@ else (APPLE)
   set (ATHENA_binary_name "ATHENA.bin")
 endif (APPLE)
 
+list (REMOVE_ITEM ATHENA_All_SRCS
+  "${ATHENA_SOURCE_DIR}/src/System/Misc/tsan_mimalloc_shim.cpp")
 add_library(athena_body STATIC ${ATHENA_All_SRCS})
 add_dependencies(athena_body athena_build_info athena_guile_runtime)
 target_compile_definitions(athena_body PRIVATE

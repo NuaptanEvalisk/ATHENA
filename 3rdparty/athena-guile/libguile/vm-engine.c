@@ -350,34 +350,47 @@ VM_NAME (scm_thread *thread)
       if (!VP->disable_mcode)
         {
           struct scm_jit_function_data *data;
+          uint8_t *mcode;
+          uint32_t counter;
+          uint32_t threshold;
 
           int32_t data_offset = ip[1];
           data = (struct scm_jit_function_data *) (ip + data_offset);
 
-          if (data->mcode)
+          mcode = scm_atomic_ref_pointer_acquire ((void **) &data->mcode);
+          if (mcode)
             {
               SYNC_IP ();
-              scm_jit_enter_mcode (thread, data->mcode);
+              scm_jit_enter_mcode (thread, mcode);
               CACHE_REGISTER ();
               NEXT (0);
             }
 
-          if (data->counter >= scm_jit_counter_threshold)
+          counter = scm_atomic_ref_uint32_relaxed (&data->counter);
+          threshold =
+            scm_atomic_ref_uint32_relaxed (&scm_jit_counter_threshold);
+          if (counter >= threshold)
             {
-              const uint8_t *mcode;
+              uint32_t expected = 0;
 
-              SYNC_IP ();
-              mcode = scm_jit_compute_mcode (thread, data);
-
-              if (mcode)
+              if (scm_atomic_compare_and_swap_uint32 (&data->compiling,
+                                                      &expected, 1))
                 {
-                  scm_jit_enter_mcode (thread, mcode);
-                  CACHE_REGISTER ();
-                  NEXT (0);
+                  SYNC_IP ();
+                  mcode = (uint8_t *) scm_jit_compute_mcode (thread, data);
+                  scm_atomic_set_uint32_release (&data->compiling, 0);
+
+                  if (mcode)
+                    {
+                      scm_jit_enter_mcode (thread, mcode);
+                      CACHE_REGISTER ();
+                      NEXT (0);
+                    }
                 }
             }
           else
-            data->counter += SCM_JIT_COUNTER_ENTRY_INCREMENT;
+            scm_atomic_set_uint32_relaxed
+              (&data->counter, counter + SCM_JIT_COUNTER_ENTRY_INCREMENT);
         }
 #endif
 
@@ -400,25 +413,37 @@ VM_NAME (scm_thread *thread)
         {
           int32_t data_offset = ip[1];
           struct scm_jit_function_data *data;
+          uint32_t counter;
+          uint32_t threshold;
 
           data = (struct scm_jit_function_data *) (ip + data_offset);
 
-          if (data->counter >= scm_jit_counter_threshold)
+          counter = scm_atomic_ref_uint32_relaxed (&data->counter);
+          threshold =
+            scm_atomic_ref_uint32_relaxed (&scm_jit_counter_threshold);
+          if (counter >= threshold)
             {
               const uint8_t *mcode;
+              uint32_t expected = 0;
 
-              SYNC_IP ();
-              mcode = scm_jit_compute_mcode (thread, data);
-
-              if (mcode)
+              if (scm_atomic_compare_and_swap_uint32 (&data->compiling,
+                                                      &expected, 1))
                 {
-                  scm_jit_enter_mcode (thread, mcode);
-                  CACHE_REGISTER ();
-                  NEXT (0);
+                  SYNC_IP ();
+                  mcode = scm_jit_compute_mcode (thread, data);
+                  scm_atomic_set_uint32_release (&data->compiling, 0);
+
+                  if (mcode)
+                    {
+                      scm_jit_enter_mcode (thread, mcode);
+                      CACHE_REGISTER ();
+                      NEXT (0);
+                    }
                 }
             }
           else
-            data->counter += SCM_JIT_COUNTER_LOOP_INCREMENT;
+            scm_atomic_set_uint32_relaxed
+              (&data->counter, counter + SCM_JIT_COUNTER_LOOP_INCREMENT);
         }
 #endif
 

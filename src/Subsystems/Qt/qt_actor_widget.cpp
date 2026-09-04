@@ -541,9 +541,19 @@ qt_actor_widget_rep::drain_external_effects () {
         view->win->set_modified (record.argument[0] != 0);
       break;
     }
+    case actor_command_kind::ui_mark_buffer_saved: {
+      tm_view view= concrete_runtime_view (view_id_);
+      if (view != nullptr)
+        view->buf->buf->last_save= static_cast<int> (record.argument[0]);
+      break;
+    }
     case actor_command_kind::ui_schedule_scheme:
       schedule_delayed_scheme_handle (
         record.argument[0], actor_id_, view_id_, record.argument[1] != 0);
+      break;
+    case actor_command_kind::ui_schedule_global_scheme:
+      schedule_delayed_scheme_handle (
+        record.argument[0], ATHENA_NO_ACTOR, view_id_, false, true);
       break;
     case actor_command_kind::ui_scheme_completed:
       complete_delayed_scheme_handle (

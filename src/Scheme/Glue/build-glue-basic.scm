@@ -84,6 +84,7 @@
   (ads-close-tool-pane ads_close_tool_pane (void string))
   (exec-delayed exec_delayed (void object))
   (exec-delayed-pause exec_delayed_pause (void object))
+  (exec-global exec_global (void object))
   (protected-call protected_call (void object))
   (notify-preferences-booted notify_preferences_booted (void))
   (cpp-has-preference? has_user_preference (bool string))
@@ -776,6 +777,8 @@
   (tree-load-style load_style_tree (tree string))
   (buffer-focus focus_on_buffer (bool url))
   (buffer-focus* var_focus_on_buffer (bool url))
+  (keyboard-focus-on keyboard_focus_on_current_view (void string))
+  (init-default-one init_default_current_view (void string))
 
   (view-list get_all_views (array_url))
   (buffer->views buffer_to_views (array_url url))

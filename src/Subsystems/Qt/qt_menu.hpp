@@ -13,6 +13,7 @@
 #define QT_MENU_HPP
 
 #include "qt_widget.hpp"
+#include "actor_transport.hpp"
 #include <QMenu>
 #include <QAction>
 
@@ -22,14 +23,15 @@
  @note This object is *not intended* to be used in toolbars, menu bars or
  windows.
  
- This widget owns no underlying QWidget but a QAction. When SLOT_VISIBILITY or
- SLOT_MOUSE_GRAB are sent, it show()s or exec()s the QMenu associated to the
- action.
+ This widget owns no underlying QWidget and retains only a numeric resource id.
+ The GUI-thread action registry owns the corresponding QAction. When
+ SLOT_VISIBILITY or SLOT_MOUSE_GRAB are sent, it show()s or exec()s the QMenu
+ associated to that action.
  
  REMARK on memory management:
  
- Once a qt_menu_rep is created with some qt_widget as content, it owns all the
- QActions in the latter and is responsible for their deletion.
+ Once a qt_menu_rep is created with some qt_widget as content, its GUI resource
+ owns all QActions in the latter and is responsible for their deletion.
  Access to the QObject generating virtual functions is set to private to
  enforce this rule (notice that the overriden methods in the base class return
  empty values).
@@ -37,10 +39,11 @@
  supermenu, in order to guarantee that deletion of the root menu correctly
  deletes all of the tree below it. The root menu itself (without parent QObject)
  is owned by us as explained. This ensures correct memory management between
- TeXmacs and Qt since qt_menu_rep is sometimes cached at TeXmacs level.
+ TeXmacs and Qt since qt_menu_rep is sometimes cached at TeXmacs level.  Its
+ destructor submits only the numeric resource id for GUI-thread retirement.
  */
 class qt_menu_rep: public qt_widget_rep {
-  QAction*     qact;
+  athena_resource_id action_id;
   qt_widget content;
 
 public:

@@ -791,6 +791,92 @@ ATHENA_init_paths (int& argc, char** argv) {
 string the_default_font;
 string where= "";
 
+static void
+print_version () {
+  cout << "\n";
+  cout << "ATHENA (Advanced Typesetting and Hypertext Environment for Notes and Archives)\n";
+  cout << "Version " << ATHENA_APP_VERSION << "\n";
+  cout << ATHENA_COPYRIGHT << "\n";
+  cout << "\n";
+}
+
+static void
+print_command_line_help () {
+  cout << "\n";
+  cout << "Options for ATHENA:\n\n";
+  cout << "  -b [file]  Specify scheme buffers initialization file\n";
+  cout << "  -C [i] [o] Convert file 'i' into file 'o'\n";
+  cout << "  -d         For debugging purposes\n";
+  cout << "  -fn [font] Set the default TeX font\n";
+  cout << "  -g [geom]  Set geometry of window in pixels\n";
+  cout << "  -h         Display this help message\n";
+  cout << "  -H         Run ATHENA in headless mode\n";
+  cout << "  -i [file]  Specify scheme initialization file\n";
+  cout << "  -p         Get the ATHENA path\n";
+  cout << "  -q         Shortcut for -x \"(quit-TeXmacs)\"\n";
+  cout << "  -r         Reverse video mode\n";
+  cout << "  -s         Suppress information messages\n";
+  cout << "  -S         Rerun ATHENA setup program before starting\n";
+  cout << "  -v         Display current ATHENA version\n";
+  cout << "  -V         Show some informative messages\n";
+  cout << "  --no-splash-screen       Start without the startup progress window\n";
+  cout << "  --vault-maintenance [dir]  Maintain an ATHENA vault headlessly\n";
+  cout << "  --rag-delegated-embedding [dir]  Run only delegated incremental embedding\n";
+  cout << "  --vault-maintenance-toc-worker [file] [marker]  Internal ToC maintenance worker\n";
+  cout << "  --generate-website [dir] [id]  Generate a vault website headlessly\n";
+  cout << "  --run-website-post-command [dir] [id]  Run only a website post-generation command\n";
+  cout << "  --check-only               With --vault-maintenance, run only the document health check\n";
+  cout << "  --aofm-convert-file [file]  Convert one AOFM Markdown file headlessly\n";
+  cout << "  --aofm-convert-vault [src] [dest] [jobs]  Convert an AOFM vault headlessly\n";
+  cout << "  --rag-server [dir]          Start a Continuous RAG MCP server\n";
+  cout << "  --rag-embedding-device [auto|cpu]  Select RAG embedding device mode\n";
+  cout << "  --rag-index-jobs [n]        Parallelize initial RAG indexing with n processes\n";
+  cout << "  --rag-listen-address [addr] Listen address for RAG server endpoints\n";
+  cout << "  --delegation-key-dir [dir]  ATHENA delegation server key directory\n";
+  cout << "  --delegation-accepted-clients [json]  Accepted delegation client keys\n";
+  cout << "  --artifact-range-model [gguf]  Artifact definition-span model\n";
+  cout << "  --artifact-range-batch-size [n]  Artifact model microbatch size\n";
+  cout << "  --artifact-queue-limit [n]  Maximum queued artifact requests\n";
+  cout << "  --artifact-queue-bytes [n]  Maximum artifact queue plaintext bytes\n";
+  cout << "  --generate-server-keypair   Generate an ATHENA delegation server keypair\n";
+  cout << "  --skip-fonts-cache         Skip the private font file cache\n";
+  cout << "  --insert-build-warning     Insert ATHENA experimental build warnings during AOFM conversion\n";
+  cout << "  --model-vault [dir]        Reuse a model vault for AOFM namespace/style conversion\n";
+  cout << "  -x [cmd]   Execute scheme command\n";
+  cout << "  -Oc        TeX characters bitmap clipping off\n";
+  cout << "  +Oc        TeX characters bitmap clipping on (default)\n";
+  cout << "\nPlease report bugs to <nuaptan@outlook.com>\n";
+  cout << "\n";
+}
+
+static void
+process_query_options (int argc, char** argv) {
+  for (int i=1; i<argc; i++) {
+    string s= argv[i];
+    if ((N(s)>=2) && (s(0,2)=="--")) s= s (1, N(s));
+    if ((s == "-v") || (s == "-version")) {
+      print_version ();
+      exit (0);
+    }
+    if ((s == "-p") || (s == "-path")) {
+      cout << get_env ("ATHENA_PATH") << "\n";
+      exit (0);
+    }
+    if ((s == "-hp") || (s == "-homepath")) {
+      cout << get_env ("ATHENA_HOME_PATH") << "\n";
+      exit (0);
+    }
+    if ((s == "-bp") || (s == "-binpath")) {
+      cout << get_env ("ATHENA_BIN_PATH") << "\n";
+      exit (0);
+    }
+    if ((s == "-h") || (s == "-help")) {
+      print_command_line_help ();
+      exit (0);
+    }
+  }
+}
+
 void 
 set_global_options  (int argc, char** argv)  {
 
@@ -955,11 +1041,7 @@ set_global_options  (int argc, char** argv)  {
         if (i<argc) tm_init_file= url_system (argv[i]);
       }
       else if ((s == "-v") || (s == "-version")) {
-        cout << "\n";
-        cout << "ATHENA (Advanced Typesetting and Hypertext Environment for Notes and Archives)\n";
-        cout << "Version " << ATHENA_APP_VERSION << "\n";
-        cout << ATHENA_COPYRIGHT << "\n";
-        cout << "\n";
+        print_version ();
         exit (0);
       }
       else if ((s == "-p") || (s == "-path")) {
@@ -1021,51 +1103,7 @@ set_global_options  (int argc, char** argv)  {
       }
       else if (starts (s, "-psn"));
       else {
-        cout << "\n";
-        cout << "Options for ATHENA:\n\n";
-        cout << "  -b [file]  Specify scheme buffers initialization file\n";
-        cout << "  -C [i] [o] Convert file 'i' into file 'o'\n";
-        cout << "  -d         For debugging purposes\n";
-        cout << "  -fn [font] Set the default TeX font\n";
-        cout << "  -g [geom]  Set geometry of window in pixels\n";
-        cout << "  -h         Display this help message\n";
-        cout << "  -H         Run ATHENA in headless mode\n";
-        cout << "  -i [file]  Specify scheme initialization file\n";
-        cout << "  -p         Get the ATHENA path\n";
-        cout << "  -q         Shortcut for -x \"(quit-TeXmacs)\"\n";
-        cout << "  -r         Reverse video mode\n";
-        cout << "  -s         Suppress information messages\n";
-        cout << "  -S         Rerun ATHENA setup program before starting\n";
-        cout << "  -v         Display current ATHENA version\n";
-        cout << "  -V         Show some informative messages\n";
-        cout << "  --no-splash-screen       Start without the startup progress window\n";
-        cout << "  --vault-maintenance [dir]  Maintain an ATHENA vault headlessly\n";
-        cout << "  --rag-delegated-embedding [dir]  Run only delegated incremental embedding\n";
-        cout << "  --vault-maintenance-toc-worker [file] [marker]  Internal ToC maintenance worker\n";
-        cout << "  --generate-website [dir] [id]  Generate a vault website headlessly\n";
-        cout << "  --run-website-post-command [dir] [id]  Run only a website post-generation command\n";
-        cout << "  --check-only               With --vault-maintenance, run only the document health check\n";
-        cout << "  --aofm-convert-file [file]  Convert one AOFM Markdown file headlessly\n";
-        cout << "  --aofm-convert-vault [src] [dest] [jobs]  Convert an AOFM vault headlessly\n";
-        cout << "  --rag-server [dir]          Start a Continuous RAG MCP server\n";
-        cout << "  --rag-embedding-device [auto|cpu]  Select RAG embedding device mode\n";
-        cout << "  --rag-index-jobs [n]        Parallelize initial RAG indexing with n processes\n";
-        cout << "  --rag-listen-address [addr] Listen address for RAG server endpoints\n";
-        cout << "  --delegation-key-dir [dir]  ATHENA delegation server key directory\n";
-        cout << "  --delegation-accepted-clients [json]  Accepted delegation client keys\n";
-        cout << "  --artifact-range-model [gguf]  Artifact definition-span model\n";
-        cout << "  --artifact-range-batch-size [n]  Artifact model microbatch size\n";
-        cout << "  --artifact-queue-limit [n]  Maximum queued artifact requests\n";
-        cout << "  --artifact-queue-bytes [n]  Maximum artifact queue plaintext bytes\n";
-        cout << "  --generate-server-keypair   Generate an ATHENA delegation server keypair\n";
-        cout << "  --skip-fonts-cache         Skip the private font file cache\n";
-        cout << "  --insert-build-warning     Insert ATHENA experimental build warnings during AOFM conversion\n";
-        cout << "  --model-vault [dir]        Reuse a model vault for AOFM namespace/style conversion\n";
-        cout << "  -x [cmd]   Execute scheme command\n";
-        cout << "  -Oc        TeX characters bitmap clipping off\n";
-        cout << "  +Oc        TeX characters bitmap clipping on (default)\n";
-        cout << "\nPlease report bugs to <nuaptan@outlook.com>\n";
-        cout << "\n";
+        print_command_line_help ();
         exit (0);
       }
     } else {
@@ -1273,10 +1311,12 @@ TeXmacs_main (int argc, char** argv) {
       extra_init_cmd << "(delayed (:idle 100) "
                         "(import-from (fonts fonts-truetype)))";
       extra_init_cmd << "(delayed (:idle 0) "
-                        "(vault-startup-open-initial-buffer))";
+                        "(exec-global "
+                        "(lambda () (vault-startup-open-initial-buffer))))";
       extra_init_cmd << "(kbd-start-inverse-warmup)";
     }
-    extra_init_cmd << "(delayed (:idle 300) (ads-restore-visible-panes))";
+    extra_init_cmd << "(delayed (:idle 300) "
+                      "(exec-global (lambda () (ads-restore-visible-panes))))";
 
     if (!aofm_convert_file.empty ()) {
       eval ("(lazy-initialize-force)");
@@ -2175,6 +2215,7 @@ texmacs_entrypoint (int argc, char** argv) {
       headless_mode= true;
   }
   ATHENA_init_paths (argc, argv);
+  process_query_options (argc, argv);
   if (scheme_bytecode_output_dir != "") {
     set_env ("ATHENA_GUILE_SOURCE_ROOT", "$ATHENA_PATH/progs");
     set_env ("GUILE_AUTO_COMPILE", "0");

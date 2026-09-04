@@ -36,6 +36,7 @@ using athena_continuation_id= std::uint64_t;
 constexpr athena_actor_id ATHENA_NO_ACTOR= 0;
 constexpr athena_view_id ATHENA_NO_VIEW= 0;
 constexpr athena_blob_id ATHENA_NO_BLOB= 0;
+constexpr athena_resource_id ATHENA_NO_RESOURCE= 0;
 constexpr athena_scheme_handle_id ATHENA_NO_SCHEME_HANDLE= 0;
 constexpr athena_response_id ATHENA_NO_RESPONSE= 0;
 constexpr athena_continuation_id ATHENA_NO_CONTINUATION= 0;
@@ -53,6 +54,7 @@ enum class actor_command_kind: std::uint32_t {
   animate,
   progressive_typeset,
   init_style,
+  init_default,
   typeset_invalidate_all,
   key_press,
   text_input,
@@ -77,6 +79,8 @@ enum class actor_command_kind: std::uint32_t {
   autosave_buffer,
   replace_document,
   replace_body,
+  set_message,
+  recall_message,
   set_buffer_read_only,
   set_buffer_title,
   snapshot_document,
@@ -130,7 +134,9 @@ enum class actor_command_kind: std::uint32_t {
   ui_show_bottom_tools,
   ui_show_footer,
   ui_set_modified,
+  ui_mark_buffer_saved,
   ui_schedule_scheme,
+  ui_schedule_global_scheme,
   ui_scheme_completed
 };
 

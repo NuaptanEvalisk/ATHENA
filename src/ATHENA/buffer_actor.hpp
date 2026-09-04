@@ -166,6 +166,7 @@ private:
              actor_command_record* result= nullptr);
   void run_in_guile ();
   void execute (actor_command_record& command);
+  void publish_tmfs_title (editor_rep* preferred_editor);
 
   static void thread_entry (athena_actor_id id);
   static void* guile_entry (void* raw_id);
