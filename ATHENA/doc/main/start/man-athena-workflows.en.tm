@@ -21,7 +21,7 @@
   non-overwriting backup.
 
   Document and anchor identities are stored in <verbatim|map.sqlite>. A
-  legacy <verbatim|map.tmdb> is migrated automatically. UUIDs remain the
+  legacy TMDB map is no longer supported. UUIDs remain the
   authoritative link identity; filename and anchor hints are only aids for
   humans and repair tools.
 

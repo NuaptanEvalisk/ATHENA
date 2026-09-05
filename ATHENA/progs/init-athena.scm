@@ -445,15 +445,6 @@
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 ;(display* "memory: " (texmacs-memory) " bytes\n")
 
-;(display "Booting database facilities\n")
-(lazy-define (database db-widgets) open-db-chooser)
-(lazy-define (database db-menu) db-show-toolbar)
-(lazy-define (database db-convert) db-url?)
-(lazy-menu (database db-menu) db-menu db-toolbar)
-(lazy-tmfs-handler (database db-tmfs) db)
-;(display* "time: " (- (texmacs-time) boot-start) "\n")
-;(display* "memory: " (texmacs-memory) " bytes\n")
-
 ;(display "Booting linking facilities\n")
 (lazy-menu (link link-menu) link-menu)
 (lazy-keyboard (link link-kbd) with-linking-tool?)

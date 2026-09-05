@@ -176,7 +176,7 @@ warn_export (const QString& message) {
 }
 
 static bool
-has_string_qt (const strings& xs, const QString& value) {
+has_string_qt (const array<string>& xs, const QString& value) {
   for (int i=0; i<N(xs); i++)
     if (to_qstring (xs[i]) == value) return true;
   return false;

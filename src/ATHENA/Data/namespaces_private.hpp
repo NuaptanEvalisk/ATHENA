@@ -50,7 +50,7 @@ trim_std (const std::string& s) {
 }
 
 inline string
-join_list (const strings& s) {
+join_list (const array<string>& s) {
   string out= "";
   for (int i=0; i<N(s); i++) {
     if (i != 0) out << ", ";
@@ -60,7 +60,7 @@ join_list (const strings& s) {
 }
 
 inline bool
-has_string (const strings& xs, string x) {
+has_string (const array<string>& xs, string x) {
   for (int i=0; i<N(xs); i++)
     if (xs[i] == x) return true;
   return false;

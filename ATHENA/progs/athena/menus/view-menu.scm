@@ -25,13 +25,11 @@
 
 (tm-define toolbar-replace-active? #f)
 (tm-define toolbar-spell-active? #f)
-(tm-define toolbar-db-active? #f)
 (tm-define toolbar-animate-active? #f)
 
 (tm-define (extra-bottom-tools?)
   (or toolbar-replace-active?
       toolbar-spell-active?
-      toolbar-db-active?
       toolbar-animate-active?))
 
 (tm-widget (texmacs-bottom-toolbars)
@@ -40,14 +38,9 @@
   (if (and toolbar-spell-active?
            (not toolbar-replace-active?))
       (link spell-toolbar))
-  (if (and toolbar-db-active?
-           (not toolbar-replace-active?)
-           (not toolbar-spell-active?))
-      (link db-toolbar))
   (if (and toolbar-animate-active?
            (not toolbar-replace-active?)
-           (not toolbar-spell-active?)
-           (not toolbar-db-active?))
+           (not toolbar-spell-active?))
       (link animate-toolbar)))
 
 (tm-define (test-bottom-bar? which)
@@ -56,28 +49,20 @@
         ((== which "spell")
          (and toolbar-spell-active?
               (not toolbar-replace-active?)))
-        ((== which "database")
-         (and toolbar-db-active?
-              (not toolbar-replace-active?)
-              (not toolbar-spell-active?)))
         ((== which "animate")
          (and toolbar-animate-active?
               (not toolbar-replace-active?)
-              (not toolbar-spell-active?)
-              (not toolbar-db-active?)))
+              (not toolbar-spell-active?)))
         (else #f)))
 
 (tm-define (set-bottom-bar which val)
   (set! toolbar-replace-active? #f)
   (set! toolbar-spell-active? #f)
-  (set! toolbar-db-active? #f)
   (set! toolbar-animate-active? #f)
   (cond ((== which "replace")
          (set! toolbar-replace-active? val))
         ((== which "spell")
          (set! toolbar-spell-active? val))
-        ((== which "database")
-         (set! toolbar-db-active? val))
         ((== which "animate")
          (set! toolbar-animate-active? val)))
   (update-bottom-tools))

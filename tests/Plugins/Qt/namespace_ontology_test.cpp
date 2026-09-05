@@ -109,8 +109,8 @@ NamespaceOntologyTest::incrementallyMaintainsMembers () {
   QVERIFY2 (athena_namespace_ontology_refresh (true, tm_error),
             as_charp (tm_error));
 
-  strings visible;
-  strings folded;
+  array<string> visible;
+  array<string> folded;
   QVERIFY2 (athena_namespace_ontology_children (
               "Universe", false, visible, folded, tm_error),
             as_charp (tm_error));
@@ -201,7 +201,7 @@ NamespaceOntologyTest::incrementallyMaintainsMembers () {
                          "SELECT count FROM test_hierarchy_deletions;"),
             hierarchy_deletions_before_restart);
 
-  special.parents= strings ();
+  special.parents= array<string> ();
   special.parents << string ("Universe");
   QVERIFY2 (athena_namespace_save (special, tm_error), as_charp (tm_error));
   QVERIFY2 (athena_namespace_ontology_refresh (false, tm_error),

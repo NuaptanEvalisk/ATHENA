@@ -62,10 +62,6 @@ public:
     size_t& changed, std::string& error);
   bool quick_check (std::string& error) const;
   bool integrity_check (std::string& error) const;
-  bool set_migration_source (const std::string& relative_path,
-                             std::string& error);
-  bool migration_source (std::string& relative_path,
-                         std::string& error) const;
   bool count_path_rename (const std::string& old_path, bool is_directory,
                           size_t& count, std::string& error) const;
   bool prepare_path_rename (const AthenaVaultMapRenameOperation& operation,
@@ -83,8 +79,7 @@ private:
   std::unique_ptr<Impl> impl;
 };
 
-bool athena_vault_map_prepare (const std::filesystem::path& root,
-                               const std::string& requested_relative_path,
+bool athena_vault_map_prepare (const std::string& requested_relative_path,
                                std::string& resolved_relative_path,
                                std::string& error);
 

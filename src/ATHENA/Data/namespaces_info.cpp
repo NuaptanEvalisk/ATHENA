@@ -132,9 +132,9 @@ members_tree (const std::vector<athena_namespace_match>& members) {
   return body;
 }
 
-static strings
+static array<string>
 namespace_children (string name) {
-  strings out;
+  array<string> out;
   for (const athena_namespace_definition& ns: athena_namespaces_list ()) {
     if (has_string (ns.parents, name) || has_string (ns.derived_parents, name))
       out << ns.name;
@@ -142,9 +142,9 @@ namespace_children (string name) {
   return out;
 }
 
-static strings
+static array<string>
 namespace_all_parents (const athena_namespace_definition& ns) {
-  strings out;
+  array<string> out;
   for (int i=0; i<N(ns.parents); i++)
     if (!has_string (out, ns.parents[i])) out << ns.parents[i];
   for (int i=0; i<N(ns.derived_parents); i++)
@@ -153,7 +153,7 @@ namespace_all_parents (const athena_namespace_definition& ns) {
 }
 
 static tree
-namespace_list_tree (const strings& names) {
+namespace_list_tree (const array<string>& names) {
   tree body (DOCUMENT);
   if (N(names) == 0) {
     body << line ("<none>");

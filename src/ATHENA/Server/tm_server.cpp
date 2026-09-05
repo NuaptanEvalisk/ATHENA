@@ -23,7 +23,6 @@
 #include "socket_notifier.hpp"
 #include "new_style.hpp"
 #include "new_view.hpp"
-#include "Database/database.hpp"
 #include "buffer_actor.hpp"
 
 #ifdef QTTEXMACS
@@ -334,7 +333,6 @@ tm_server_rep::interpose_handler () {
     }
     windows_refresh ();
   }
-  sync_databases ();
 }
 
 void

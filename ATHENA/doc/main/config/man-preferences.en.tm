@@ -920,9 +920,8 @@
     <item*|Vault name>Name stored for the active vault.
 
     <item*|Map database path>Vault-relative path to the non-temporal SQLite
-    map database, normally <verbatim|map.sqlite>. Legacy
-    <verbatim|map.tmdb> maps are migrated automatically when the Vault is
-    opened.
+    map database, normally <verbatim|map.sqlite>. Legacy TMDB maps are no
+    longer supported.
 
     <item*|Local preferences path>Vault-relative path to the preferences file
     used when vault-local preferences are enabled.

@@ -22,7 +22,7 @@ void
 NamespacesTemplateTest::acceptsValidFieldValues () {
   athena_namespace_definition ns;
   ns.templ= "%s-%w-%c-%d-%N-%R";
-  strings values;
+  array<string> values;
   values << string ("title") << string ("word") << string ("x")
          << string ("-2") << string ("2") << string ("XIV");
   string stem;
@@ -46,7 +46,7 @@ NamespacesTemplateTest::rejectsInvalidFieldValues () {
   for (const InvalidValue& test: invalid) {
     athena_namespace_definition ns;
     ns.templ= test.placeholder;
-    strings values;
+    array<string> values;
     values << string (test.value);
     string stem;
     string error;

@@ -191,7 +191,7 @@ athena_namespace_template_fields (const athena_namespace_definition& ns,
 
 bool
 athena_namespace_build_stem (const athena_namespace_definition& ns,
-                             const strings& values, string& stem,
+                             const array<string>& values, string& stem,
                              string& error) {
   std::vector<template_token> toks;
   if (!parse_template (ns.templ, toks, error)) return false;

@@ -93,22 +93,22 @@ namespace_icon (const QString& name, QStyle::StandardPixmap fallback) {
   return icon;
 }
 
-static strings
+static array<string>
 qlist_to_strings (QListWidget* list) {
-  strings out;
+  array<string> out;
   for (int i=0; i<list->count (); i++)
     out << from_qstring (list->item (i)->text ());
   return out;
 }
 
 static void
-set_qlist_strings (QListWidget* list, const strings& xs) {
+set_qlist_strings (QListWidget* list, const array<string>& xs) {
   list->clear ();
   for (int i=0; i<N(xs); i++) list->addItem (to_qstring (xs[i]));
 }
 
 static QString
-namespace_join_strings (const strings& xs) {
+namespace_join_strings (const array<string>& xs) {
   QStringList parts;
   for (int i=0; i<N(xs); i++) parts << to_qstring (xs[i]);
   return parts.join (", ");
@@ -528,7 +528,7 @@ public:
       from_qstring (initialContentEdit->text ().trimmed ()) : string ("");
     ns.homepage_path= "";
     ns.parents= qlist_to_strings (parentList);
-    ns.derived_parents= strings ();
+    ns.derived_parents= array<string> ();
     return ns;
   }
 
@@ -1536,7 +1536,7 @@ QTMNamespaceManager::saveNamespace () {
     from_qstring (initialContentEdit->text ().trimmed ());
   ns.homepage_path= from_qstring (homepageEdit->text ().trimmed ());
   ns.parents= qlist_to_strings (explicitParentsList);
-  ns.derived_parents= strings ();
+  ns.derived_parents= array<string> ();
   if (ns.kind == "abstract") {
     ns.templ= "";
     ns.sorter_trivial= false;
@@ -1757,9 +1757,9 @@ QTMNamespaceManager::generateSubproducts () {
       ns.style_path= "";
       ns.initial_content_path= "";
       ns.homepage_path= "";
-      ns.parents= strings ();
+      ns.parents= array<string> ();
       ns.parents << first.name << second.name;
-      ns.derived_parents= strings ();
+      ns.derived_parents= array<string> ();
       if (ns.kind == "abstract") {
         ns.templ= "";
         ns.sorter_trivial= false;

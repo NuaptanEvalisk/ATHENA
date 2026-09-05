@@ -114,7 +114,6 @@ ensure_builtin_user_preferences () {
     PREF ("security", "prompt on scripts", "notify-security"),
     PREF ("latex command", "pdflatex", "notify-latex-command"),
     PREF ("scripting language", "none", "notify-scripting-language"),
-    PREF ("database tool", "off", "notify-tool"),
     PREF ("debugging tool", "off", "notify-tool"),
     PREF ("developer tool", "off", "notify-tool"),
     PREF ("linking tool", "off", "notify-tool"),

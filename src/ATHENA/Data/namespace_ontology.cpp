@@ -1649,7 +1649,7 @@ athena_namespace_ontology_members (
 
 bool
 athena_namespace_ontology_children (
-  string name, bool simplified, strings& visible, strings& folded,
+  string name, bool simplified, array<string>& visible, array<string>& folded,
   string& error) {
   std::shared_ptr<const OntologySnapshot> snapshot;
   if (!service ().snapshot (snapshot, error)) return false;
@@ -1659,8 +1659,8 @@ athena_namespace_ontology_children (
     error= "Unknown namespace: " * name;
     return false;
   }
-  visible= strings ();
-  folded= strings ();
+  visible= array<string> ();
+  folded= array<string> ();
   const auto& visible_map= simplified ? snapshot->visible_children :
                                         snapshot->all_children;
   auto visible_group= visible_map.find (key);

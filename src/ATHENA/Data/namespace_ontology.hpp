@@ -38,7 +38,7 @@ bool athena_namespace_ontology_relations (
 bool athena_namespace_ontology_members (
   string name, std::vector<athena_namespace_match>& out, string& error);
 bool athena_namespace_ontology_children (
-  string name, bool simplified, strings& visible, strings& folded,
+  string name, bool simplified, array<string>& visible, array<string>& folded,
   string& error);
 
 #endif // ATHENA_NAMESPACE_ONTOLOGY_HPP

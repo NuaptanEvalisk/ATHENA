@@ -1,5 +1,17 @@
 # TMDB Removal Audit
 
+## Removal Completed (2026-09-05)
+
+The inventory below is historical. The old Data tool, native TMDB engine,
+Scheme bindings, synchronization hooks, legacy Vault map migration and Scheme
+compiler database context have now been removed. SQLite Vault maps and
+namespaces remain, as do the independent title-markup/title-transform modules.
+Common string-array APIs now use `array<string>` without a database header.
+Existing user TMDB files are neither read nor deleted; Vault maps must use
+`.sqlite`. The separate legacy Vaultfile-to-JSON conversion is unchanged.
+
+## Historical Inventory
+
 Date: 2026-09-05. Baseline: master, bb80a57eb2.
 
 Removal update (2026-09-05): Literate programming has subsequently been removed

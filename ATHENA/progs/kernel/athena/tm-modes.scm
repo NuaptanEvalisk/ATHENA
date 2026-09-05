@@ -92,9 +92,6 @@
 (define-public (supports-korean?)
   (!= (default-korean-font) "roman"))
 
-(define-public (supports-db?)
-  (== (get-preference "database tool") "on"))
-
 (define-public (side-tools?)
   #f)
 
@@ -133,8 +130,6 @@
   (in-tmweb% (style-has? "tmweb-style") in-tmdoc%)
   (in-mmxdoc% (style-has? "mmxdoc-style") in-tmdoc%)
   (in-manual% (not (url-rooted-tmfs? (current-buffer))) in-tmdoc%)
-  (in-database% (style-has? "database-style"))
-  (in-bib% (style-has? "database-bib-style") in-database%)
   (in-preview-ref% (style-has? "preview-ref-package"))
   (in-smart-ref% (style-has? "smart-ref-package"))
   (in-plugin-with-converters%
@@ -272,7 +267,6 @@
   (buffers-share-window% #t)
   (window-attached? (not (window-floating? (current-window))))
   (window-detached? (window-floating? (current-window)))
-  (with-database-tool% (== (get-preference "database tool") "on"))
   (with-debugging-tool% (== (get-preference "debugging tool") "on"))
   (with-developer-tool% (== (get-preference "developer tool") "on"))
   (with-linking-tool% (== (get-preference "linking tool") "on"))

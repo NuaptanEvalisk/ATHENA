@@ -7,7 +7,6 @@
 #include "ATHENA/Data/vault_maintenance_internal.hpp"
 #include "ATHENA/Data/vault_map_sqlite.hpp"
 
-#include "Database/database.hpp"
 #include "scheme.hpp"
 #include "url.hpp"
 

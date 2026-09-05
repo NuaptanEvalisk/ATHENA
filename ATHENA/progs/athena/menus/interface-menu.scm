@@ -28,7 +28,6 @@
   ("Database toolbar" (toggle-bottom-bar "database"))
   ("Animation toolbar" (toggle-bottom-bar "animate"))
   ---
-  ("Database tool" (toggle-preference "database tool"))
   ("Developer tool" (toggle-preference "developer tool"))
   ("Linking tool" (toggle-preference "linking tool"))
   ("Presentation tool" (toggle-preference "presentation tool"))

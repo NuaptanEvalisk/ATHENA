@@ -1,6 +1,6 @@
 /******************************************************************************
 * MODULE     : vault_map_sqlite.cpp
-* DESCRIPTION: Non-temporal SQLite storage and TMDB migration for Vault maps
+* DESCRIPTION: Non-temporal SQLite storage for Vault maps
 * COPYRIGHT  : (C) 2026 Nuaptan Felix Evalisk
 * This software falls under the GNU general public license version 3 or later.
 *******************************************************************************/
@@ -8,14 +8,10 @@
 #include "ATHENA/Data/vault_map_sqlite.hpp"
 
 #include "ATHENA/Data/vaultfile_json.hpp"
-#include "Database/database.hpp"
-#include "tm_timer.hpp"
-#include "url.hpp"
 
 #include <sqlite3.h>
 
 #include <algorithm>
-#include <climits>
 #include <system_error>
 
 namespace fs = std::filesystem;
@@ -72,72 +68,6 @@ column_text (sqlite3_stmt* statement, int column) {
   int bytes = sqlite3_column_bytes (statement, column);
   return value == nullptr ? std::string () :
                             std::string ((const char*) value, (size_t) bytes);
-}
-
-fs::path
-numbered_backup_path (const fs::path& source) {
-  fs::path base = source;
-  base += ".old.bak";
-  if (!fs::exists (base)) return base;
-  for (int i=1; i<10000; ++i) {
-    fs::path candidate = source;
-    candidate += ".old.bak." + std::to_string (i);
-    if (!fs::exists (candidate)) return candidate;
-  }
-  fs::path overflow = source;
-  overflow += ".old.bak.overflow";
-  return overflow;
-}
-
-bool
-same_nodes (std::vector<AthenaVaultMapNode> a,
-            std::vector<AthenaVaultMapNode> b) {
-  auto less = [] (const AthenaVaultMapNode& x, const AthenaVaultMapNode& y) {
-    return x.uuid < y.uuid;
-  };
-  std::sort (a.begin (), a.end (), less);
-  std::sort (b.begin (), b.end (), less);
-  if (a.size () != b.size ()) return false;
-  for (size_t i=0; i<a.size (); ++i)
-    if (a[i].uuid != b[i].uuid || a[i].path != b[i].path ||
-        a[i].anchor_begin != b[i].anchor_begin ||
-        a[i].anchor_end != b[i].anchor_end)
-      return false;
-  return true;
-}
-
-bool
-read_tmdb_snapshot (const fs::path& source,
-                    std::vector<AthenaVaultMapNode>& nodes,
-                    std::string& error) {
-  nodes.clear ();
-  url db_url = url_system (string (source.string ().c_str ()));
-  sync_databases ();
-  db_time now = (db_time) (raw_time () / 1000);
-  tree query_all (TUPLE);
-  strings ids = query (db_url, query_all, now, INT_MAX, 0);
-  for (int i=0; i<N(ids); ++i) {
-    strings paths = get_field (db_url, ids[i], "v-path", now);
-    if (N(paths) == 0) continue;
-    strings begins = get_field (db_url, ids[i], "v-anchor-begin", now);
-    strings ends = get_field (db_url, ids[i], "v-anchor-end", now);
-    if (N(paths) != 1 || N(begins) > 1 || N(ends) > 1) {
-      error = "Vault map migration found multiple active values for UUID " +
-              std::string (as_charp (ids[i]), (size_t) N(ids[i]));
-      return false;
-    }
-    AthenaVaultMapNode node;
-    node.uuid = std::string (as_charp (ids[i]), (size_t) N(ids[i]));
-    node.path = std::string (as_charp (paths[0]), (size_t) N(paths[0]));
-    if (N(begins) == 1)
-      node.anchor_begin = std::string (as_charp (begins[0]),
-                                      (size_t) N(begins[0]));
-    if (N(ends) == 1)
-      node.anchor_end = std::string (as_charp (ends[0]),
-                                    (size_t) N(ends[0]));
-    nodes.push_back (std::move (node));
-  }
-  return true;
 }
 
 bool
@@ -488,44 +418,6 @@ AthenaVaultMapSqlite::integrity_check (std::string& error) const {
 }
 
 bool
-AthenaVaultMapSqlite::set_migration_source (const std::string& relative_path,
-                                            std::string& error) {
-  sqlite3_stmt* st = nullptr;
-  const char* sql =
-    "INSERT INTO map_metadata(key,value) VALUES('migration_source',?) "
-    "ON CONFLICT(key) DO UPDATE SET value=excluded.value;";
-  if (sqlite3_prepare_v2 (impl->db, sql, -1, &st, nullptr) != SQLITE_OK) {
-    error = sqlite_error (impl->db, "Could not prepare migration metadata");
-    return false;
-  }
-  bool ok = bind_text (st, 1, relative_path, impl->db, error) &&
-            sqlite3_step (st) == SQLITE_DONE;
-  if (!ok && error.empty ())
-    error = sqlite_error (impl->db, "Could not store migration metadata");
-  sqlite3_finalize (st);
-  return ok;
-}
-
-bool
-AthenaVaultMapSqlite::migration_source (std::string& relative_path,
-                                        std::string& error) const {
-  relative_path.clear ();
-  sqlite3_stmt* st = nullptr;
-  const char* sql =
-    "SELECT value FROM map_metadata WHERE key='migration_source';";
-  if (sqlite3_prepare_v2 (impl->db, sql, -1, &st, nullptr) != SQLITE_OK) {
-    error = sqlite_error (impl->db, "Could not read migration metadata");
-    return false;
-  }
-  int status = sqlite3_step (st);
-  if (status == SQLITE_ROW) relative_path = column_text (st, 0);
-  bool ok = status == SQLITE_ROW || status == SQLITE_DONE;
-  if (!ok) error = sqlite_error (impl->db, "Could not read migration metadata");
-  sqlite3_finalize (st);
-  return ok;
-}
-
-bool
 AthenaVaultMapSqlite::count_path_rename (const std::string& old_path,
                                          bool is_directory, size_t& count,
                                          std::string& error) const {
@@ -684,115 +576,18 @@ AthenaVaultMapSqlite::finish_path_rename (const std::string& operation_id,
 }
 
 bool
-athena_vault_map_prepare (const fs::path& root,
-                          const std::string& requested_relative_path,
+athena_vault_map_prepare (const std::string& requested_relative_path,
                           std::string& resolved_relative_path,
                           std::string& error) {
   fs::path requested;
   if (!validate_relative_map_path (requested_relative_path, requested, error))
     return false;
-  fs::path source = root / requested;
-  if (requested.extension () == ".sqlite") {
-    resolved_relative_path = requested.generic_string ();
-    return true;
-  }
-  if (requested.extension () != ".tmdb") {
-    error = "Unsupported Vault map format: " + requested_relative_path;
+  if (requested.extension () != ".sqlite") {
+    error = "Unsupported Vault map format (expected .sqlite): " +
+            requested_relative_path;
     return false;
   }
-  fs::path target_relative = requested;
-  target_relative.replace_extension (".sqlite");
-  fs::path target = root / target_relative;
-  fs::path temporary = target;
-  temporary += ".migrate.tmp";
-  if (!fs::exists (source)) {
-    AthenaVaultMapSqlite recovered;
-    std::string migration_source;
-    if (!fs::exists (target) ||
-        !recovered.open (target, false, error) ||
-        !recovered.migration_source (migration_source, error) ||
-        migration_source != requested.generic_string ()) {
-      if (error.empty ())
-        error = "Legacy Vault map does not exist: " + source.string ();
-      return false;
-    }
-    AthenaVaultfileInfo recovered_info;
-    if (!athena_vaultfile_read (root, recovered_info, error)) return false;
-    recovered_info.map_path = target_relative.generic_string ();
-    if (!athena_vaultfile_write (root, recovered_info, error)) return false;
-    resolved_relative_path = target_relative.generic_string ();
-    return true;
-  }
-  std::vector<AthenaVaultMapNode> legacy_nodes;
-  if (!read_tmdb_snapshot (source, legacy_nodes, error)) return false;
-
-  bool created_target = false;
-  if (fs::exists (target)) {
-    AthenaVaultMapSqlite existing;
-    std::vector<AthenaVaultMapNode> existing_nodes;
-    if (!existing.open (target, false, error) ||
-        !existing.read_all (existing_nodes, error) ||
-        !same_nodes (legacy_nodes, existing_nodes)) {
-      if (error.empty ())
-        error = "Existing SQLite Vault map does not match legacy map: " +
-                target.string ();
-      return false;
-    }
-  }
-  else {
-    std::error_code ec;
-    fs::remove (temporary, ec);
-    AthenaVaultMapSqlite migrated;
-    if (!migrated.open (temporary, true, error) ||
-        !migrated.replace_all (legacy_nodes, error) ||
-        !migrated.set_migration_source (requested.generic_string (), error) ||
-        !migrated.integrity_check (error)) {
-      migrated.close ();
-      fs::remove (temporary, ec);
-      return false;
-    }
-    std::vector<AthenaVaultMapNode> migrated_nodes;
-    if (!migrated.read_all (migrated_nodes, error) ||
-        !same_nodes (legacy_nodes, migrated_nodes)) {
-      migrated.close ();
-      fs::remove (temporary, ec);
-      if (error.empty ()) error = "Migrated Vault map verification failed";
-      return false;
-    }
-    migrated.close ();
-    fs::rename (temporary, target, ec);
-    if (ec) {
-      fs::remove (temporary);
-      error = "Could not install migrated Vault map: " + ec.message ();
-      return false;
-    }
-    created_target = true;
-  }
-
-  AthenaVaultfileInfo info;
-  if (!athena_vaultfile_read (root, info, error)) {
-    if (created_target) fs::remove (target);
-    return false;
-  }
-  info.map_path = target_relative.generic_string ();
-  fs::path backup = numbered_backup_path (source);
-  std::error_code ec;
-  fs::rename (source, backup, ec);
-  if (ec) {
-    if (created_target) fs::remove (target);
-    error = "Could not archive legacy Vault map: " + ec.message ();
-    return false;
-  }
-  if (!athena_vaultfile_write (root, info, error)) {
-    std::error_code rollback_error;
-    fs::rename (backup, source, rollback_error);
-    if (created_target) fs::remove (target);
-    if (rollback_error)
-      error += "; additionally could not restore legacy map: " +
-               rollback_error.message ();
-    return false;
-  }
-  resolved_relative_path = target_relative.generic_string ();
+  resolved_relative_path = requested.generic_string ();
   return true;
 }
 

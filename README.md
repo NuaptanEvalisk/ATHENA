@@ -82,8 +82,7 @@ ATHENA vaults are self-contained mathematical knowledge bases.
 
 - Load and track a current vault through `Vaultfile.json`.
 - Resolve document and anchor UUIDs through the non-temporal `map.sqlite`
-  database, with automatic migration from legacy `Vaultfile` and `map.tmdb`
-  data.
+  database. Legacy TMDB maps are no longer supported.
 - Use `.ath` as the primary ATHENA document format.
 - Keep vault-scoped preferences in addition to global preferences.
 - Open recent vaults and optionally auto-open vault startup pages or one-time

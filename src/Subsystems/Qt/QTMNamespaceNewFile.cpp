@@ -176,8 +176,8 @@ public:
     return true;
   }
 
-  strings values () const {
-    strings out;
+  array<string> values () const {
+    array<string> out;
     for (QLineEdit* edit: edits) out << from_qstring (edit->text ());
     return out;
   }

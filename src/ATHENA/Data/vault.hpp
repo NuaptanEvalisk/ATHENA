@@ -13,7 +13,7 @@
 
 #include "tree.hpp"
 #include "url.hpp"
-#include "Database/database.hpp"
+#include "array.hpp"
 
 #include <cstddef>
 
@@ -54,7 +54,7 @@ string  vault_generate_uuid ();
 
 /* Vault scanning */
 array<url> vault_get_all_files ();
-strings    vault_get_anchors (url u);
+array<string>    vault_get_anchors (url u);
 int        vault_get_mtime (url u);
 
 #endif // VAULT_HPP

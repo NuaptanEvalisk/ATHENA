@@ -777,8 +777,6 @@
   (set! search-match-current 0)
   (set! search-match-sels (list))
   (set-center-message "")
-  (when toolbar-db-active?
-    (db-show-toolbar))
   (when (and (not (cursor-accessible?)) (not (in-source?)))
     (cursor-show-hidden)))
 

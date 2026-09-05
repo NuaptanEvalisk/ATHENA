@@ -230,7 +230,7 @@ private:
 };
 
 static bool
-query_parent_list (sqlite3* db, string child, string source, strings& out,
+query_parent_list (sqlite3* db, string child, string source, array<string>& out,
                    string& error) {
   sqlite3_stmt* st= nullptr;
   if (!prepare_sql (db,
@@ -288,8 +288,8 @@ get_namespace_from_db (sqlite3* db, string name,
   out.initial_content_path= column_tm_string (st, 6);
   out.homepage_path= column_tm_string (st, 7);
   sqlite3_finalize (st);
-  out.parents= strings ();
-  out.derived_parents= strings ();
+  out.parents= array<string> ();
+  out.derived_parents= array<string> ();
   if (!query_parent_list (db, out.name, "declared", out.parents, error))
     return false;
   if (!query_parent_list (db, out.name, "derived", out.derived_parents, error))
@@ -342,8 +342,8 @@ namespace_row_list (sqlite3* db, std::vector<athena_namespace_definition>& out,
     ns.style_path= column_tm_string (st, 5);
     ns.initial_content_path= column_tm_string (st, 6);
     ns.homepage_path= column_tm_string (st, 7);
-    ns.parents= strings ();
-    ns.derived_parents= strings ();
+    ns.parents= array<string> ();
+    ns.derived_parents= array<string> ();
     out.push_back (ns);
   }
   sqlite3_finalize (st);

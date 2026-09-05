@@ -226,7 +226,7 @@ parse_namespace_tmfs_path (const QString& identity) {
 }
 
 static bool
-has_string_qt (const strings& xs, const QString& s) {
+has_string_qt (const array<string>& xs, const QString& s) {
   for (int i=0; i<N(xs); i++)
     if (to_qstring (xs[i]) == s) return true;
   return false;

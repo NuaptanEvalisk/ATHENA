@@ -152,24 +152,20 @@ athena_compile_scheme_file (const std::filesystem::path& source,
   }
 
   eval ("(use-modules (system base compile))");
-  eval ("(use-modules (utils edit variants) (database db-base))");
+  eval ("(use-modules (utils edit variants))");
   eval ("(when (and (not (defined? 'athena-time)) "
         "                 (defined? 'texmacs-time)) "
         "  (module-define! (current-module) 'athena-time texmacs-time))");
-  eval ("(let* ((module (resolve-module '(database db-base))) "
-        "       (database (module-variable module 'current-database)) "
-        "       (provider (module-ref module 'global-database))) "
-        "  (variable-set! database (provider)))");
   string optimization= get_env ("ATHENA_SCHEME_OPTIMIZATION_LEVEL");
   if (optimization != "0" && optimization != "1" &&
       optimization != "2" && optimization != "3")
     optimization= "1";
-  string command= "(with-database (global-database) (compile-file " *
+  string command= "(compile-file " *
     scm_quote (string (source.generic_string ().c_str ())) *
     " #:output-file " *
     scm_quote (string (output.generic_string ().c_str ())) *
     " #:env (current-module) #:optimization-level " * optimization *
-    " #:warning-level 0))";
+    " #:warning-level 0)";
   object result= eval (command);
   if (is_list (result) || !fs::exists (output)) {
     std::cerr << "ATHENA Scheme bytecode: compilation failed for "

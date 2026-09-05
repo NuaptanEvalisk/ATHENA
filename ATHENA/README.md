@@ -290,8 +290,8 @@ ATHENA has modular headless vault maintenance support.
   Ordinary files that ATHENA has never managed are left alone.
 - Anchor enunciations and headings across the whole vault.
 - Update stale anchors when titles change and preserve UUID-backed
-  `map.sqlite` reachability for wikilinks and transclusions. Legacy `map.tmdb`
-  files are migrated automatically because Vault maps do not need history.
+  `map.sqlite` reachability for wikilinks and transclusions. Legacy TMDB maps
+  are no longer supported.
 - Parallelize read-only anchoring checks using a configurable reader process
   count and a sequential writer.
 - Generate optional ATHENA maintenance summary pages and use them as one-time

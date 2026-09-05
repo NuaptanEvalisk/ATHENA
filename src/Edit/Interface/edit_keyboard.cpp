@@ -434,9 +434,6 @@ edit_interface_rep::handle_keyboard_focus (bool has_focus, time_t t) {
     notify_change (THE_DECORATIONS);
   }
   call ("keyboard-focus", object (has_focus), object ((double) t));
-  if (has_focus)
-    if (as_bool (call ("defined?", symbol_object ("db-show-toolbar"))))
-      call ("db-show-toolbar");
 }
 
 void

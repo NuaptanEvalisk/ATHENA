@@ -634,20 +634,6 @@
   (persistent-get persistent_get (string url string))
   (persistent-file-name persistent_file_name (url url string))
 
-  ;; native TeXmacs databases
-  (tmdb-keep-history keep_history (void url bool))
-  (tmdb-set-field set_field (void url string string array_string double))
-  (tmdb-get-field get_field (array_string url string string double))
-  (tmdb-remove-field remove_field (void url string string double))
-  (tmdb-get-attributes get_attributes (array_string url string double))
-  (tmdb-set-entry set_entry (void url string scheme_tree double))
-  (tmdb-get-entry get_entry (scheme_tree url string double))
-  (tmdb-remove-entry remove_entry (void url string double))
-  (tmdb-query query (array_string url scheme_tree double int int))
-  (tmdb-inspect-history inspect_history (void url string))
-  (tmdb-get-completions get_completions (array_string url string))
-  (tmdb-get-name-completions get_name_completions (array_string url string))
-
   ;; SQL interface
   (supports-sql? sqlite3_present (bool))
   (sql-exec sql_exec (scheme_tree url string))

@@ -429,8 +429,8 @@ QStringList
 QTMNamespaceExplorer::directChildNames (const QString& name,
                                         const QStringList& path) const {
   QStringList childNames;
-  strings visible;
-  strings folded;
+  array<string> visible;
+  array<string> folded;
   string error;
   if (!athena_namespace_ontology_children (
         from_qstring (name), false, visible, folded, error))
@@ -457,8 +457,8 @@ QTMNamespaceExplorer::simplifyChildNames (const QString& parent,
     visibleNames= childNames;
     return;
   }
-  strings cachedVisible;
-  strings cachedFolded;
+  array<string> cachedVisible;
+  array<string> cachedFolded;
   string error;
   if (!athena_namespace_ontology_children (
         from_qstring (parent), true, cachedVisible, cachedFolded, error)) {

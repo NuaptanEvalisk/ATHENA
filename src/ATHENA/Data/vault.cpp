@@ -168,7 +168,7 @@ vault_load (url root_dir, string name, string db_rel_path,
   std::filesystem::path root (vault_std_string (concretize (root_dir)));
   std::string resolved;
   std::string error;
-  if (!athena_vault_map_prepare (root, vault_std_string (db_rel_path),
+  if (!athena_vault_map_prepare (vault_std_string (db_rel_path),
                                  resolved, error))
     return vault_tm_string (error);
 
@@ -208,7 +208,6 @@ void
 vault_close () {
   if (is_vault_active) {
     athena_namespace_ontology_stop ();
-    sync_databases ();
   }
   current_vault_map.reset ();
   current_materials_store.reset ();
@@ -296,7 +295,7 @@ vault_get_all_files () {
 }
 
 static void
-find_labels (tree t, strings& res) {
+find_labels (tree t, array<string>& res) {
   if (is_atomic (t)) return;
   // Standard label tag
   if (is_func (t, LABEL, 1)) {
@@ -308,9 +307,9 @@ find_labels (tree t, strings& res) {
   }
 }
 
-strings
+array<string>
 vault_get_anchors (url u) {
-  strings res;
+  array<string> res;
   if (!exists (u)) return res;
   tree t = import_tree (u, "texmacs");
   find_labels (t, res);

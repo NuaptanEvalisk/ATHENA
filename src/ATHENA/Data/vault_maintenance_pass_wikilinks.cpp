@@ -130,7 +130,7 @@ vault_maintenance_pass_remove_redundant_wikilinks (
     return VaultMaintenancePassResult::failure (error);
   std::string map_relative;
   if (!athena_vault_map_prepare (
-        ctx.root, vaultfile.map_path, map_relative, error))
+        vaultfile.map_path, map_relative, error))
     return VaultMaintenancePassResult::failure (error);
   AthenaVaultMapSqlite map;
   if (!map.open (ctx.root / map_relative, false, error))

@@ -691,7 +691,6 @@ file (GLOB_RECURSE ATHENA_Base_SRCS CONFIGURE_DEPENDS
 )
 
 file (GLOB_RECURSE ATHENA_Subsystems_SRCS CONFIGURE_DEPENDS
-  "${ATHENA_SOURCE_DIR}/src/Subsystems/Database/*.cpp"
   "${ATHENA_SOURCE_DIR}/src/Subsystems/Freetype/*.cpp"
   "${ATHENA_SOURCE_DIR}/src/Subsystems/Google/*.cpp"
   "${ATHENA_SOURCE_DIR}/src/Subsystems/Gnutls/*.cpp"

@@ -11,7 +11,7 @@
 #ifndef ATHENA_NAMESPACES_HPP
 #define ATHENA_NAMESPACES_HPP
 
-#include "Database/database.hpp"
+#include "array.hpp"
 #include "tree.hpp"
 #include "url.hpp"
 
@@ -26,15 +26,15 @@ struct athena_namespace_definition {
   string  style_path;
   string  initial_content_path;
   string  homepage_path;
-  strings parents;
-  strings derived_parents;
+  array<string> parents;
+  array<string> derived_parents;
 };
 
 struct athena_namespace_match {
   url     file;
   string  stem;
-  strings captures;
-  strings capture_types;
+  array<string> captures;
+  array<string> capture_types;
   bool    ambiguous;
 };
 
@@ -94,7 +94,7 @@ std::vector<athena_namespace_template_field>
 athena_namespace_template_fields (const athena_namespace_definition& ns,
                                   string& error);
 bool athena_namespace_build_stem (const athena_namespace_definition& ns,
-                                  const strings& values, string& stem,
+                                  const array<string>& values, string& stem,
                                   string& error);
 tree athena_namespace_apply_style_to_tree (
   tree doc, const athena_namespace_definition& ns, string base_root,

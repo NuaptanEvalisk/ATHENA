@@ -1,6 +1,6 @@
 /******************************************************************************
 * MODULE     : vault_map_sqlite_test.cpp
-* DESCRIPTION: Tests for non-temporal SQLite Vault maps and TMDB migration
+* DESCRIPTION: Tests for non-temporal SQLite Vault maps
 * COPYRIGHT  : (C) 2026 Nuaptan Felix Evalisk
 *******************************************************************************
 * This software falls under the GNU general public license version 3 or later.
@@ -18,8 +18,6 @@
 #include "convert.hpp"
 #include "drd_std.hpp"
 #include "file.hpp"
-#include "Database/database.hpp"
-#include "tm_timer.hpp"
 #include "url.hpp"
 
 #include <filesystem>
@@ -36,8 +34,7 @@ private slots:
   void initTestCase ();
   void crudAndReverseLookup ();
   void rewriteAnchorsTransactionally ();
-  void migrateCurrentTmdbSnapshot ();
-  void migrateRealMapCopy ();
+  void validatesSqliteMapPaths ();
   void pathRenamePreservesIdentityAndBoundaries ();
   void structuralRewritePreservesRelativePathsAndHints ();
   void recoversInterruptedDirectoryRename ();
@@ -140,80 +137,18 @@ TestVaultMapSqlite::rewriteAnchorsTransactionally () {
 }
 
 void
-TestVaultMapSqlite::migrateCurrentTmdbSnapshot () {
-  QTemporaryDir temporary;
-  QVERIFY (temporary.isValid ());
-  std::filesystem::path root (temporary.path ().toStdString ());
-  AthenaVaultfileInfo info;
-  info.name = "Migration test";
-  info.map_path = "map.tmdb";
-  std::string error;
-  QVERIFY2 (athena_vaultfile_write (root, info, error), error.c_str ());
-
-  url legacy = url_system (string ((root / "map.tmdb").string ().c_str ()));
-  db_time now = (db_time) (raw_time () / 1000);
-  strings old_path; old_path << string ("Old/Test.ath");
-  set_field (legacy, "uuid", "v-path", old_path, now - 10);
-  strings path; path << string ("Folder/Test.ath");
-  strings begin; begin << string ("begin");
-  strings end; end << string ("end");
-  set_field (legacy, "uuid", "v-path", path, now);
-  set_field (legacy, "uuid", "v-anchor-begin", begin, now);
-  set_field (legacy, "uuid", "v-anchor-end", end, now);
-  sync_databases ();
-  QVERIFY (std::filesystem::exists (root / "map.tmdb"));
-
-  std::string resolved;
-  QVERIFY2 (athena_vault_map_prepare (root, "map.tmdb", resolved, error),
-            error.c_str ());
-  QCOMPARE (resolved, std::string ("map.sqlite"));
-  QVERIFY (std::filesystem::exists (root / "map.sqlite"));
-  QVERIFY (std::filesystem::exists (root / "map.tmdb.old.bak"));
-  QVERIFY (!std::filesystem::exists (root / "map.tmdb"));
-
-  AthenaVaultfileInfo migrated_info;
-  QVERIFY2 (athena_vaultfile_read (root, migrated_info, error), error.c_str ());
-  QCOMPARE (migrated_info.map_path, std::string ("map.sqlite"));
-  AthenaVaultMapSqlite map;
-  QVERIFY2 (map.open (root / "map.sqlite", false, error), error.c_str ());
-  AthenaVaultMapNode node;
-  bool found = false;
-  QVERIFY2 (map.get_node ("uuid", node, found, error), error.c_str ());
-  QVERIFY (found);
-  QCOMPARE (node.path, std::string ("Folder/Test.ath"));
-  QCOMPARE (node.anchor_begin, std::string ("begin"));
-  QCOMPARE (node.anchor_end, std::string ("end"));
-
-  // Simulate a crash after the legacy map was archived but before Vaultfile
-  // replacement became durable.
-  migrated_info.map_path = "map.tmdb";
-  QVERIFY2 (athena_vaultfile_write (root, migrated_info, error), error.c_str ());
-  resolved.clear ();
-  QVERIFY2 (athena_vault_map_prepare (root, "map.tmdb", resolved, error),
-            error.c_str ());
-  QCOMPARE (resolved, std::string ("map.sqlite"));
-}
-
-void
-TestVaultMapSqlite::migrateRealMapCopy () {
-  QByteArray source_root = qgetenv ("ATHENA_REAL_MAP_TEST_ROOT");
-  if (source_root.isEmpty ()) QSKIP ("No real-map test root was requested");
-  std::filesystem::path source (source_root.constData ());
-  QTemporaryDir temporary;
-  QVERIFY (temporary.isValid ());
-  std::filesystem::path root (temporary.path ().toStdString ());
-  std::filesystem::copy_file (source / "map.tmdb", root / "map.tmdb");
-  std::filesystem::copy_file (source / "Vaultfile.json",
-                              root / "Vaultfile.json");
+TestVaultMapSqlite::validatesSqliteMapPaths () {
   std::string resolved;
   std::string error;
-  QVERIFY2 (athena_vault_map_prepare (root, "map.tmdb", resolved, error),
+  QVERIFY2 (athena_vault_map_prepare ("data/map.sqlite", resolved, error),
             error.c_str ());
-  AthenaVaultMapSqlite map;
-  QVERIFY2 (map.open (root / resolved, false, error), error.c_str ());
-  std::vector<AthenaVaultMapNode> nodes;
-  QVERIFY2 (map.read_all (nodes, error), error.c_str ());
-  QVERIFY (!nodes.empty ());
+  QCOMPARE (resolved, std::string ("data/map.sqlite"));
+  for (const std::string& path:
+       {"map.tmdb", "map.json", "../map.sqlite", "/tmp/map.sqlite", ""}) {
+    error.clear ();
+    QVERIFY (!athena_vault_map_prepare (path, resolved, error));
+    QVERIFY (!error.empty ());
+  }
 }
 
 void

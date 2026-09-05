@@ -75,8 +75,6 @@
   (=> "View" (link view-menu))
   (=> "Workspace" (link workspace-menu))
   (=> "Go" (link go-menu))
-  (if (with-database-tool?)
-      (=> "Data" (link db-menu)))
   (if (with-debugging-tool?)
       (=> "Debug" (link debug-menu)))
   (if (with-developer-tool?)
@@ -158,7 +156,6 @@
   (-> "View" (link view-menu))
   (-> "Workspace" (link workspace-menu))
   (-> "Go" (link go-menu))
-  (if (with-database-tool?) (-> "Data" (link db-menu)))
   (if (with-debugging-tool?) (-> "Debug" (link debug-menu)))
   (if (nnull? (test-menu)) (-> "Test" (link test-menu)))
   ---
