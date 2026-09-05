@@ -58,8 +58,100 @@
 #include "qt_gui.hpp"    // gui_maximal_extents()
 #include "editor.hpp"
 #include "new_view.hpp"  // get_current_editor()
+#include "new_buffer.hpp"
+#include "tm_buffer.hpp"
+#include "tm_window.hpp"
+#include "buffer_actor.hpp"
+#include "guile_tm.hpp"
+#include "object.hpp"
 
 #define SCREEN_PIXEL (PIXEL)
+
+object
+qt_call_in_buffer (url buffer, const char* function, array<object> args) {
+  tm_view view= concrete_view (get_recent_view (buffer));
+  if (view == nullptr) return object (false);
+  if (view->buf->actor->is_owner_thread ()) return call (function, args);
+
+  struct request {
+    athena_scheme_handle_id arguments= ATHENA_NO_SCHEME_HANDLE;
+    athena_scheme_handle_id result= ATHENA_NO_SCHEME_HANDLE;
+    ~request () {
+      scheme_command_handle_release (arguments);
+      scheme_command_handle_release (result);
+    }
+  };
+  auto state= std::make_shared<request> ();
+  array<object> transferable;
+  for (int i= 0; i < N (args); ++i)
+    transferable << (is_tree (args[i]) ?
+      object (copy (as_tree (args[i]))) : args[i]);
+  state->arguments= scheme_command_handle_acquire (
+    object_to_tmscm (as_list_object (transferable)));
+  athena_continuation_id id= actor_continuation_registry::instance ().store (
+    [state, function] {
+      object values= tmscm_to_object (
+        scheme_command_handle_value (state->arguments));
+      object result= call (function, as_array_object (values));
+      // Property trees are detached once on this cold UI query boundary.
+      if (is_tree (result)) result= object (copy (as_tree (result)));
+      state->result= scheme_command_handle_acquire (object_to_tmscm (result));
+    });
+  if (!view->buf->actor->invoke (
+        actor_command_kind::run_native_continuation, view->runtime_id,
+        ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr,
+        SCHEME_CAPABILITY_BUFFER | SCHEME_CAPABILITY_UI |
+          SCHEME_CAPABILITY_GLOBAL, id)) {
+    (void) actor_continuation_registry::instance ().discard (id);
+    return object (false);
+  }
+  if (state->result == ATHENA_NO_SCHEME_HANDLE) return object (false);
+  return tmscm_to_object (scheme_command_handle_value (state->result));
+}
+
+object
+qt_call_in_buffer (url buffer, const char* function) {
+  return qt_call_in_buffer (buffer, function, array<object> ());
+}
+
+object
+qt_call_in_buffer (url buffer, const char* function, object arg) {
+  array<object> args;
+  args << arg;
+  return qt_call_in_buffer (buffer, function, args);
+}
+
+object
+qt_call_in_buffer (url buffer, const char* function, object a, object b) {
+  array<object> args;
+  args << a << b;
+  return qt_call_in_buffer (buffer, function, args);
+}
+
+void
+qt_post_to_main_thread (std::function<void()> action) {
+  QCoreApplication* app= QCoreApplication::instance ();
+  if (app == nullptr) return;
+  athena_continuation_id id=
+    actor_continuation_registry::instance ().store (std::move (action));
+  if (!QMetaObject::invokeMethod (app, [id] {
+        auto continuation= actor_continuation_registry::instance ().take (id);
+        if (continuation) continuation ();
+      }, Qt::QueuedConnection))
+    (void) actor_continuation_registry::instance ().discard (id);
+}
+
+bool
+qt_defer_to_main_thread (void (*action) (string), string argument) {
+  QCoreApplication* app= QCoreApplication::instance ();
+  if (app == nullptr || QThread::currentThread () == app->thread ())
+    return false;
+  argument.ensure_transferable ();
+  qt_post_to_main_thread ([action, argument= std::move (argument)] () mutable {
+    action (std::move (argument));
+  });
+  return true;
+}
 
 bool
 qt_defer_to_main_thread (qt_main_thread_action action) {

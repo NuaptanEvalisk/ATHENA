@@ -18,38 +18,40 @@
 #include "Freetype/tt_file.hpp"
 #include "sys_utils.hpp"
 #include "convert.hpp"
+#include <atomic>
 
 /******************************************************************************
 * debugging
 ******************************************************************************/
 
-static long int debug_status= 0;
+static std::atomic<long int> debug_status {0};
 
 bool
 debug (int which, bool write_flag) {
   if (write_flag) {
-    debug_status= debug_status | (((long int) 1) << which);
+    debug_status.fetch_or (((long int) 1) << which, std::memory_order_relaxed);
     return 0;
   }
-  else return (debug_status & (((long int) 1) << which)) > 0;
+  else return (debug_status.load (std::memory_order_relaxed) &
+               (((long int) 1) << which)) > 0;
 }
 
 int
 debug_off () {
-  int status= debug_status;
-  debug_status= 0;
-  return status;
+  return debug_status.exchange (0, std::memory_order_relaxed);
 }
 
 void
 debug_on (int status) {
-  debug_status= status;
+  debug_status.store (status, std::memory_order_relaxed);
 }
 
 static void
 debug_set (int which, bool on) {
-  if (on) debug_status= debug_status | (((long int) 1) << which);
-  else debug_status= debug_status & (~(((long int) 1) << which));
+  if (on) debug_status.fetch_or (((long int) 1) << which,
+                                std::memory_order_relaxed);
+  else debug_status.fetch_and (~(((long int) 1) << which),
+                               std::memory_order_relaxed);
 }
 
 void
@@ -75,7 +77,8 @@ debug_set (string s, bool on) {
 
 static bool
 debug_get (int which) {
-  return (debug_status & (((long int) 1) << which)) != 0;
+  return (debug_status.load (std::memory_order_relaxed) &
+          (((long int) 1) << which)) != 0;
 }
 
 bool

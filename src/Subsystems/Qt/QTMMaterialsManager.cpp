@@ -17,6 +17,7 @@
 #include "QTMZoteroImporter.hpp"
 #include "boot.hpp"
 #include "convert.hpp"
+#include "qt_utilities.hpp"
 #include "scheme.hpp"
 
 #include <DockWidget.h>
@@ -1495,6 +1496,8 @@ QTMMaterialsManager::dropEvent (QDropEvent* event) {
 
 void
 materials_manager_show () {
+  if (qt_defer_to_main_thread (materials_manager_show)) return;
+
   if (!vault_active ()) {
     QMessageBox::warning (QApplication::activeWindow (), "Materials",
                           "No active vault. Load a vault first.");

@@ -498,7 +498,7 @@ athena_reference_graph_query (
   }
 
   std::string mapSignature= file_signature (
-    fs::path (tm_std (concretize (current_vault.db_url))));
+    fs::path (tm_std (concretize (vault_get_map_db ()))));
   std::string previousMapSignature;
   ok= metadata_value (db, "map_signature", previousMapSignature, error) &&
       refresh_documents (db, root, progress, error);

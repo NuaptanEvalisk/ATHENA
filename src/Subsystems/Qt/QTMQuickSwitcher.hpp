@@ -31,7 +31,7 @@ class QShowEvent;
 
 class QTMQuickSwitcher : public QDialog {
 public:
-  QTMQuickSwitcher (QWidget* parent, array<string> recentFiles);
+  QTMQuickSwitcher (QWidget* parent, const array<string>& recentFiles);
 
   tree getResult ();
 
@@ -48,7 +48,7 @@ private:
     int     mtime;
   };
 
-  void loadFiles (array<string> recentFiles);
+  void loadFiles (const array<string>& recentFiles);
   void loadNamespaces ();
   void updateList ();
   void updateRawList ();
@@ -91,6 +91,6 @@ private:
   bool    resultAccepted;
 };
 
-void vault_quick_switcher (array<string> recentFiles);
+void vault_quick_switcher (array<string>& recentFiles);
 
 #endif // QTMQUICKSWITCHER_HPP

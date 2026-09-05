@@ -17,12 +17,15 @@ extern drd_info std_drd;
 extern hashmap<string,int> STD_CODE;
 
 drd_info& standard_drd_for_thread ();
+hashmap<string,int>& standard_codes_for_thread ();
 drd_info& current_drd () noexcept;
 drd_info* swap_current_drd (drd_info* drd) noexcept;
 
 #define the_drd (current_drd ())
 
-inline bool std_contains (string s) { return STD_CODE->contains (s); }
+inline bool std_contains (string s) {
+  return standard_codes_for_thread ()->contains (s);
+}
 
 void init_std_drd ();
 

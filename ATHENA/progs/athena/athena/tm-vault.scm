@@ -517,42 +517,44 @@
                     "Vault Backup Viewer")
       (vault-backup-viewer-show)))
 
+(define (insert-wikilink-complete res)
+  (when (and (tree? res) (== (tree-label res) 'tuple))
+    (let* ((rel-path (tree->string (tree-ref res 0)))
+           (anchor (tree->string (tree-ref res 1)))
+           (file-hint (tree->string (tree-ref res 2)))
+           (anchor-hint (tree->string (tree-ref res 3)))
+           (display-text (tree->string (tree-ref res 4)))
+           (uuid (vault-find-uuid rel-path "" anchor)))
+      (when (string-null? uuid)
+        (set! uuid (vault-generate-uuid))
+        (vault-set-node uuid rel-path "" anchor))
+      (insert `(hlink ,display-text
+                      ,(vault-wikilink-url uuid file-hint anchor-hint))))))
+
 (tm-define (insert-wikilink)
   (:interactive #t)
   (if (not (vault-active?))
       (set-message "No active vault. Please load a vault first." "Error")
-      (let ((res (vault-choose-link #f)))
-        (if (and (tree? res) (== (tree-label res) 'tuple))
-            (let* ((rel-path (tree->string (tree-ref res 0)))
-                   (anchor (tree->string (tree-ref res 1)))
-                   (file-hint (tree->string (tree-ref res 2)))
-                   (anchor-hint (tree->string (tree-ref res 3)))
-                   (display-text (tree->string (tree-ref res 4)))
-                   (uuid (vault-find-uuid rel-path "" anchor)))
-              (if (string-null? uuid)
-                  (begin
-                    (set! uuid (vault-generate-uuid))
-                    (vault-set-node uuid rel-path "" anchor)))
-              (insert `(hlink ,display-text
-                              ,(vault-wikilink-url uuid file-hint anchor-hint))))))))
+      (vault-choose-link #f insert-wikilink-complete)))
+
+(define (insert-transclude-complete res)
+  (when (and (tree? res) (== (tree-label res) 'tuple))
+    (let* ((rel-path (tree->string (tree-ref res 0)))
+           (anchor-b (tree->string (tree-ref res 1)))
+           (anchor-e (tree->string (tree-ref res 2)))
+           (file-hint (tree->string (tree-ref res 3)))
+           (anchor-hint (tree->string (tree-ref res 4)))
+           (uuid (vault-find-uuid rel-path anchor-b anchor-e)))
+      (when (string-null? uuid)
+        (set! uuid (vault-generate-uuid))
+        (vault-set-node uuid rel-path anchor-b anchor-e))
+      (insert `(transclude ,uuid ,file-hint ,anchor-b ,anchor-e)))))
 
 (tm-define (insert-transclude)
   (:interactive #t)
   (if (not (vault-active?))
       (set-message "No active vault. Please load a vault first." "Error")
-      (let ((res (vault-choose-link #t)))
-        (if (and (tree? res) (== (tree-label res) 'tuple))
-            (let* ((rel-path (tree->string (tree-ref res 0)))
-                   (anchor-b (tree->string (tree-ref res 1)))
-                   (anchor-e (tree->string (tree-ref res 2)))
-                   (file-hint (tree->string (tree-ref res 3)))
-                   (anchor-hint (tree->string (tree-ref res 4)))
-                   (uuid (vault-find-uuid rel-path anchor-b anchor-e)))
-              (if (string-null? uuid)
-                  (begin
-                    (set! uuid (vault-generate-uuid))
-                    (vault-set-node uuid rel-path anchor-b anchor-e)))
-              (insert `(transclude ,uuid ,file-hint ,anchor-b ,anchor-e)))))))
+      (vault-choose-link #t insert-transclude-complete)))
 
 (define (vault-transclude-replace-in-buffer! buf uuid file-hint
                                              anchor-b anchor-e)
@@ -570,28 +572,31 @@
         #f))
     changed?))
 
+(define (vault-transclude-repair-complete bad-uuid res)
+  (when (and (tree? res) (== (tree-label res) 'tuple))
+    (let* ((rel-path (tree->string (tree-ref res 0)))
+           (anchor-b (tree->string (tree-ref res 1)))
+           (anchor-e (tree->string (tree-ref res 2)))
+           (file-hint (tree->string (tree-ref res 3))))
+      (vault-set-node bad-uuid rel-path anchor-b anchor-e)
+      (let ((changed 0))
+        (for (b (buffer-list))
+          (when (vault-transclude-replace-in-buffer!
+                 b bad-uuid file-hint anchor-b anchor-e)
+            (set! changed (+ changed 1))))
+        (if (> changed 0)
+            (set-message "Transclusion repaired" "Vault")
+            (set-message
+             "Transclusion target repaired, but no open source node matched"
+             "Vault"))))))
+
 (tm-define (vault-transclude-repair bad-uuid old-file-hint old-anchor-b
                                     old-anchor-e)
   (:interactive #t)
   (if (not (vault-active?))
       (set-message "No active vault. Please load a vault first." "Error")
-      (let ((res (vault-choose-link #t)))
-        (if (and (tree? res) (== (tree-label res) 'tuple))
-            (let* ((rel-path (tree->string (tree-ref res 0)))
-                   (anchor-b (tree->string (tree-ref res 1)))
-                   (anchor-e (tree->string (tree-ref res 2)))
-                   (file-hint (tree->string (tree-ref res 3))))
-              (vault-set-node bad-uuid rel-path anchor-b anchor-e)
-              (let ((changed 0))
-                (for (b (buffer-list))
-                  (when (vault-transclude-replace-in-buffer!
-                         b bad-uuid file-hint anchor-b anchor-e)
-                    (set! changed (+ changed 1))))
-                (if (> changed 0)
-                    (set-message "Transclusion repaired" "Vault")
-                    (set-message
-                     "Transclusion target repaired, but no open source node matched"
-                     "Vault"))))))))
+      (vault-choose-link
+       #t (lambda (res) (vault-transclude-repair-complete bad-uuid res)))))
 
 (kbd-commands
   ("=" "Insert Wikilink" (if (in-text?) (insert-wikilink)))

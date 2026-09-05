@@ -124,7 +124,7 @@ QString
 QTMMetadataPropertiesPane::getMetadata (const QString& key) const {
   if (!targetLooksUsable ()) return "";
   try {
-    return qs (as_string (call ("buffer-get-metadata", object (targetBuffer),
+    return qs (as_string (qt_call_in_buffer (targetBuffer, "get-metadata",
                                 object (tm_string (key)))));
   }
   catch (...) {
@@ -137,7 +137,7 @@ QTMMetadataPropertiesPane::setMetadata (const QString& variable,
                                         const QString& value) {
   if (!targetLooksUsable ()) return;
   try {
-    call ("initial-set", object (targetBuffer), object (tm_string (variable)),
+    qt_call_in_buffer (targetBuffer, "init-env", object (tm_string (variable)),
           object (tm_string (value)));
   }
   catch (...) {}
@@ -147,10 +147,9 @@ void
 QTMMetadataPropertiesPane::resetMetadata () {
   if (!targetLooksUsable ()) return;
   array<object> args;
-  args << object (targetBuffer);
   for (const MetadataField& field: metadata_fields)
     args << object (string (field.variable));
-  try { call ("initial-default", args); }
+  try { qt_call_in_buffer (targetBuffer, "init-default", args); }
   catch (...) {}
 }
 
@@ -168,6 +167,7 @@ QTMMetadataPropertiesPane::refreshAll () {
 
 void
 metadata_properties_pane_show () {
+  if (qt_defer_to_main_thread (metadata_properties_pane_show)) return;
   QTMMainTabWindow* win= QTMMainTabWindow::topTabWindow ();
   if (win == nullptr || win->dockManager () == nullptr) {
     QMessageBox::warning (QApplication::activeWindow (), "Document metadata",

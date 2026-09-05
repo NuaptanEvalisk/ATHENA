@@ -249,6 +249,7 @@ QTMVaultBackupViewer::showContextMenu (const QPoint& pos) {
 
 void
 vault_backup_viewer_show () {
+  if (qt_defer_to_main_thread (vault_backup_viewer_show)) return;
   if (!vault_active ()) {
     QMessageBox::warning (QApplication::activeWindow (), "Vault Backup Viewer",
                           "No active vault. Please load a vault first.");

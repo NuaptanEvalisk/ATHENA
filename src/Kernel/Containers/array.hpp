@@ -43,6 +43,11 @@ template<class T> class array {
   array (T x1, T x2, T x3);
   array (T x1, T x2, T x3, T x4);
   array (T x1, T x2, T x3, T x4, T x5);
+  inline void swap (array<T>& other) noexcept {
+    array_rep<T>* old= rep;
+    rep= other.rep;
+    other.rep= old;
+  }
   inline T& operator [] (int i) { return rep->a[i]; }
   inline const T& operator [] (int i) const { return rep->a[i]; }
   operator tree (); // defined in tree.hpp

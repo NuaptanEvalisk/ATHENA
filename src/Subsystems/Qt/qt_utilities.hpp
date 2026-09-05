@@ -20,6 +20,7 @@
 #include <QColor>
 #include <QFont>
 #include <QUrl>
+#include <functional>
 
 
 #include <QStringList>
@@ -30,6 +31,13 @@ using qt_main_thread_action= void (*) ();
 
 // Return true when the action was deferred and the caller must return.
 bool qt_defer_to_main_thread (qt_main_thread_action action);
+bool qt_defer_to_main_thread (void (*action) (string), string argument);
+void qt_post_to_main_thread (std::function<void()> action);
+class object;
+object qt_call_in_buffer (url buffer, const char* function, array<object> args);
+object qt_call_in_buffer (url buffer, const char* function);
+object qt_call_in_buffer (url buffer, const char* function, object arg);
+object qt_call_in_buffer (url buffer, const char* function, object a, object b);
 
 typedef quartet<SI,SI,SI,SI> coord4;
 typedef pair<SI,SI> coord2;

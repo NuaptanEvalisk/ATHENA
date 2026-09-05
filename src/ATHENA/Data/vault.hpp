@@ -35,6 +35,7 @@ extern vault_info current_vault;
 bool vault_active ();
 string vault_get_name ();
 url  vault_get_root ();
+url  vault_get_map_db ();
 url  vault_get_namespace_db ();
 MaterialsStore* vault_get_materials_store ();
 string vault_load (url root_dir, string name, string db_rel_path);

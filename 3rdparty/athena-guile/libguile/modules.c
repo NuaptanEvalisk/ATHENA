@@ -282,6 +282,31 @@ default_duplicate_binding_handlers (void)
 static scm_i_pthread_mutex_t import_obarray_mutex =
   SCM_I_PTHREAD_MUTEX_INITIALIZER;
 
+/* Publish a new immutable use-list and invalidate its derived cache as one
+   operation.  ATHENA can add imports after actor threads start, so readers
+   must never observe a new use-list with the old cache (or a cache while it
+   is being cleared).  */
+int
+scm_i_module_use (SCM module, SCM interface)
+{
+  SCM uses;
+  int changed = 0;
+
+  scm_i_pthread_mutex_lock (&import_obarray_mutex);
+  uses = SCM_MODULE_USES (module);
+  if (scm_is_false (scm_memq (interface, uses)))
+    {
+      SCM new_uses = scm_append (scm_list_2 (uses,
+                                             scm_list_1 (interface)));
+      SCM_STRUCT_DATA_SET (module, scm_module_index_uses,
+                           SCM_UNPACK (new_uses));
+      scm_hash_clear_x (SCM_MODULE_IMPORT_OBARRAY (module));
+      changed = 1;
+    }
+  scm_i_pthread_mutex_unlock (&import_obarray_mutex);
+  return changed;
+}
+
 /* Resolve the import of SYM in MODULE, where SYM is currently provided by
    both IFACE1 as VAR1 and IFACE2 as VAR2.  Return the variable chosen by the
    duplicate binding handlers or `#f'.  */
@@ -345,13 +370,13 @@ static inline SCM
 module_imported_variable (SCM module, SCM sym)
 {
 #define SCM_BOUND_THING_P scm_is_true
-  register SCM var, imports;
+  register SCM var, imports, uses;
 
-  /* Search cached imported bindings.  */
-  imports = SCM_MODULE_IMPORT_OBARRAY (module);
-
+  /* Read the cache and the immutable use-list from one published state.  */
   scm_i_pthread_mutex_lock (&import_obarray_mutex);
+  imports = SCM_MODULE_IMPORT_OBARRAY (module);
   var = scm_hashq_ref (imports, sym, SCM_UNDEFINED);
+  uses = SCM_MODULE_USES (module);
   scm_i_pthread_mutex_unlock (&import_obarray_mutex);
 
   if (SCM_BOUND_THING_P (var))
@@ -361,16 +386,14 @@ module_imported_variable (SCM module, SCM sym)
     /* Search the use list for yet uncached imported bindings, possibly
        resolving duplicates as needed and caching the result in the import
        obarray.  */
-    SCM uses;
+    SCM cursor;
     SCM found_var = SCM_BOOL_F, found_iface = SCM_BOOL_F;
 
-    for (uses = SCM_MODULE_USES (module);
-	 scm_is_pair (uses);
-	 uses = SCM_CDR (uses))
+    for (cursor = uses; scm_is_pair (cursor); cursor = SCM_CDR (cursor))
       {
 	SCM iface;
 
-	iface = SCM_CAR (uses);
+	iface = SCM_CAR (cursor);
 	var = scm_module_variable (iface, sym);
 
 	if (SCM_BOUND_THING_P (var))
@@ -400,9 +423,13 @@ module_imported_variable (SCM module, SCM sym)
 
     if (SCM_BOUND_THING_P (found_var))
       {
-	/* Save the lookup result for future reference.  */
+        /* Do not publish a result derived from a use-list that was replaced
+           while the lookup ran.  The result remains valid for this lookup,
+           and the next one will resolve against the new list.  */
         scm_i_pthread_mutex_lock (&import_obarray_mutex);
-	(void) scm_hashq_set_x (imports, sym, found_var);
+        if (scm_is_eq (uses, SCM_MODULE_USES (module)))
+          (void) scm_hashq_set_x (SCM_MODULE_IMPORT_OBARRAY (module),
+                                  sym, found_var);
         scm_i_pthread_mutex_unlock (&import_obarray_mutex);
 	return found_var;
       }

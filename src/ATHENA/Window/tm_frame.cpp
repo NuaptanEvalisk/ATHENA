@@ -50,7 +50,7 @@ tm_frame_rep::~tm_frame_rep () {}
 
 widget
 make_menu_widget (object menu) {
-  widget w= as_widget (call ("make-menu-widget", menu, 0));
+  widget w= take_widget (call ("make-menu-widget", menu, 0));
   //string s= "(make-menu-widget '" * menu * " 0)";
   //widget w= as_widget (eval (s));
   if (is_nil (w)) {
@@ -62,7 +62,7 @@ make_menu_widget (object menu) {
 
 widget
 make_menu_widget (object menu, int ww, int wh) {
-  widget w= as_widget (call ("make-menu-widget*", menu, 0, ww, wh));
+  widget w= take_widget (call ("make-menu-widget*", menu, 0, ww, wh));
   //string s= "(make-menu-widget '" * menu * " 0)";
   //widget w= as_widget (eval (s));
   if (is_nil (w)) {

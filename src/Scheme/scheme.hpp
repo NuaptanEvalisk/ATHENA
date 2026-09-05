@@ -110,6 +110,7 @@ patch as_patch (object obj);
 command as_command (object obj);
 #ifdef WIDGET_H // FIXME: dirty hack
 widget as_widget (object obj);
+widget take_widget (object obj);
 promise<widget> as_promise_widget (object obj);
 #endif
 

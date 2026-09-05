@@ -10,6 +10,7 @@
 
 #include "QTMGlobalSearch.hpp"
 #include "QTMMainTabWindow.hpp"
+#include "actor_ui_bridge.hpp"
 #if ATHENA_ENABLE_PERSON_SUBSYSTEM
 #include "QTMPersonsExplorer.hpp"
 #include "ATHENA/Data/person_names.hpp"
@@ -1097,6 +1098,12 @@ void
 global_search_show () {
   if (qt_defer_to_main_thread (global_search_show)) return;
 
+  tm_view sourceView= concrete_view (get_current_view_safe ());
+  actor_ui_endpoint* sourceEndpoint= sourceView == nullptr ? nullptr :
+    find_actor_ui_endpoint (sourceView->runtime_id);
+  double previewZoom= sourceEndpoint == nullptr ? 1.0 :
+    sourceEndpoint->zoom_factor ();
+
   if (!vault_active ()) {
     QMessageBox::warning (QApplication::activeWindow (), "Global search",
                           "No active vault. Please load a vault first.");
@@ -1122,8 +1129,7 @@ global_search_show () {
   }
   global_search_widget->refreshNamespaces ();
   global_search_widget->refreshSearchOptions ();
-  global_search_widget->setPreviewZoomFactor (
-    get_server ()->get_window_zoom_factor ());
+  global_search_widget->setPreviewZoomFactor (previewZoom);
 
   QWidget* paneWidget= global_search_dock_widget ();
   if (paneWidget == nullptr) return;

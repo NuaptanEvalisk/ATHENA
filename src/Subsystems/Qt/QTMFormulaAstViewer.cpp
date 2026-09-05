@@ -13,6 +13,8 @@
 #include "QTMMainTabWindow.hpp"
 #include "editor.hpp"
 #include "qt_utilities.hpp"
+#include "scheme.hpp"
+#include "new_view.hpp"
 
 #include <DockWidget.h>
 #include <QApplication>
@@ -33,6 +35,7 @@
 #include <QSlider>
 #include <QStyle>
 #include <QTimer>
+#include <QThread>
 #include <QToolButton>
 #include <QVBoxLayout>
 #include <QWheelEvent>
@@ -388,6 +391,14 @@ showError (const QString& message) {
 
 void
 ast_viewer_show_tree (tree value, string title) {
+  if (qApp != nullptr && QThread::currentThread () != qApp->thread ()) {
+    title.ensure_transferable ();
+    qt_post_to_main_thread (
+      [value= copy (value), title= std::move (title)] () mutable {
+        ast_viewer_show_tree (std::move (value), std::move (title));
+      });
+    return;
+  }
   QTMMainTabWindow* window= QTMMainTabWindow::topTabWindow ();
   if (window == nullptr || window->dockManager () == nullptr) {
     showError ("No active ATHENA window.");
@@ -424,16 +435,26 @@ ast_viewer_show_tree (tree value, string title) {
 
 void
 formula_ast_show () {
+  if (qApp != nullptr && QThread::currentThread () == qApp->thread ()) {
+    if (!has_current_view ()) {
+      showError ("No active document editor.");
+      return;
+    }
+    exec_delayed (scheme_cmd ("(formula-ast-show)"));
+    return;
+  }
   editor ed= get_current_editor ();
   if (is_nil (ed)) {
-    showError ("No active document editor.");
+    qt_post_to_main_thread ([] { showError ("No active document editor."); });
     return;
   }
   const path cursor= ed->the_path ();
   const path root= ed->semantic_root (cursor);
   if (!ed->test_subtree (root)) {
-    showError ("The current formula could not be resolved.");
+    qt_post_to_main_thread ([] {
+      showError ("The current formula could not be resolved.");
+    });
     return;
   }
-  ast_viewer_show_tree (copy (ed->the_subtree (root)), "Formula AST");
+  ast_viewer_show_tree (ed->the_subtree (root), "Formula AST");
 }

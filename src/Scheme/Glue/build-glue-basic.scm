@@ -826,7 +826,7 @@
   (vault-has-node? vault_has_node (bool string))
   (vault-find-uuid vault_find_uuid (string string string string))
   (vault-generate-uuid vault_generate_uuid (string))
-  (vault-choose-link vault_choose_link (tree bool))
+  (vault-choose-link vault_choose_link (void bool object))
   (vault-quick-switcher vault_quick_switcher (void array_string))
   (vault-show-explorer vault_show_explorer (void))
   (vault-explorer-track-file vault_explorer_track_file (void url))

@@ -2067,6 +2067,7 @@ QTMNamespaceManager::setSelectedRelationDecision (const QString& decision) {
 
 void
 namespace_manager_show () {
+  if (qt_defer_to_main_thread (namespace_manager_show)) return;
   if (!vault_active ()) {
     QMessageBox::warning (QApplication::activeWindow (), "Namespace Manager",
                           "No active vault. Please load a vault first.");
@@ -2110,6 +2111,7 @@ namespace_manager_show () {
 
 void
 namespace_manager_show_namespace (string name) {
+  if (qt_defer_to_main_thread (namespace_manager_show_namespace, name)) return;
   namespace_manager_show ();
   if (namespace_manager_widget == nullptr) return;
 

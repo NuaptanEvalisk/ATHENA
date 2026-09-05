@@ -27,6 +27,7 @@
 #include "ATHENA/tm_window.hpp"
 
 #include <filesystem>
+#include <atomic>
 #include <memory>
 #include <string>
 #include <utility>
@@ -37,24 +38,91 @@ vault_info current_vault;
 static std::unique_ptr<AthenaVaultMapSqlite> current_vault_map;
 static std::unique_ptr<MaterialsStore> current_materials_store;
 
+namespace {
+
+struct vault_public_snapshot {
+  bool        active;
+  std::string root;
+  std::string name;
+  std::string map_db;
+  std::string namespace_db;
+};
+
+std::shared_ptr<const vault_public_snapshot> published_vault_snapshot=
+  std::make_shared<const vault_public_snapshot> (
+    vault_public_snapshot {false, "", "", "", ""});
+std::atomic<const vault_public_snapshot*> published_vault_identity {
+  published_vault_snapshot.get ()};
+
+static string
+fresh_tm_string (const std::string& value) {
+  return string (value.data (), (int) value.size ());
+}
+
+struct vault_thread_snapshot {
+  std::shared_ptr<const vault_public_snapshot> source;
+  vault_info info;
+};
+
+static const vault_thread_snapshot&
+vault_snapshot () {
+  static thread_local vault_thread_snapshot local;
+  // The identity is only a change hint, never dereferenced. Retaining source
+  // prevents address reuse; shared ownership is acquired only on a change.
+  if (local.source.get () !=
+      published_vault_identity.load (std::memory_order_acquire)) {
+    auto source= std::atomic_load_explicit (
+      &published_vault_snapshot, std::memory_order_acquire);
+    local.info.name= fresh_tm_string (source->name);
+    local.info.root= source->active ?
+      url_system (fresh_tm_string (source->root)) : url_none ();
+    local.info.db_url= source->active ?
+      url_system (fresh_tm_string (source->map_db)) : url_none ();
+    local.info.ns_db_url= source->active ?
+      url_system (fresh_tm_string (source->namespace_db)) : url_none ();
+    local.source= std::move (source);
+  }
+  return local;
+}
+
+static void
+publish_vault_snapshot (bool active, const std::filesystem::path& root,
+                        const std::string& name,
+                        const std::filesystem::path& map_db,
+                        const std::filesystem::path& namespace_db) {
+  auto next= std::make_shared<const vault_public_snapshot> (
+    vault_public_snapshot {
+      active, root.string (), name, map_db.string (), namespace_db.string ()});
+  std::atomic_store_explicit (
+    &published_vault_snapshot, next, std::memory_order_release);
+  published_vault_identity.store (next.get (), std::memory_order_release);
+}
+
+} // namespace
+
 bool
 vault_active () {
-  return is_vault_active;
+  return vault_snapshot ().source->active;
 }
 
 string
 vault_get_name () {
-  return current_vault.name;
+  return vault_snapshot ().info.name;
 }
 
 url
 vault_get_root () {
-  return current_vault.root;
+  return vault_snapshot ().info.root;
+}
+
+url
+vault_get_map_db () {
+  return vault_snapshot ().info.db_url;
 }
 
 url
 vault_get_namespace_db () {
-  return current_vault.ns_db_url;
+  return vault_snapshot ().info.ns_db_url;
 }
 
 MaterialsStore*
@@ -125,8 +193,11 @@ vault_load (url root_dir, string name, string db_rel_path,
   current_vault_map = std::move (map);
   current_materials_store = std::move (materials);
   is_vault_active = true;
-  athena_namespace_ontology_start (current_vault.root,
-                                   current_vault.ns_db_url);
+  publish_vault_snapshot (
+    true, root, vault_std_string (name), root / resolved,
+    root / vault_std_string (ns_db_rel_path));
+  athena_namespace_ontology_start (vault_get_root (),
+                                   vault_get_namespace_db ());
   athena_artifact_radioactive_invalidate ();
   athena_clear_transclusion_caches ();
   vault_refresh_window_titles ();
@@ -147,6 +218,7 @@ vault_close () {
   current_vault.name = "";
   current_vault.db_url = url_none ();
   current_vault.ns_db_url = url_none ();
+  publish_vault_snapshot (false, {}, "", {}, {});
   athena_clear_transclusion_caches ();
   vault_refresh_window_titles ();
 }
@@ -218,8 +290,8 @@ scan_recursive (url dir, array<url>& res) {
 array<url>
 vault_get_all_files () {
   array<url> res;
-  if (!is_vault_active) return res;
-  scan_recursive (current_vault.root, res);
+  if (!vault_active ()) return res;
+  scan_recursive (vault_get_root (), res);
   return res;
 }
 

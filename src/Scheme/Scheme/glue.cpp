@@ -771,6 +771,11 @@ tmscm_to_widget (tmscm o) {
   return open_box<widget> (tmscm_to_blackbox (o));
 }
 
+widget
+tmscm_take_widget (tmscm o) {
+  return take_box<widget> (tmscm_to_blackbox (o));
+}
+
 /******************************************************************************
 * Commands
 ******************************************************************************/

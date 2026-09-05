@@ -9,7 +9,6 @@
 ******************************************************************************/
 
 #include "QTMVaultLinkFocus.hpp"
-#include "editor.hpp"
 #include "new_view.hpp"
 #include <QApplication>
 #include <QEvent>
@@ -28,17 +27,6 @@ static url
 active_view_or_recent_active (url view) {
   if (is_window_backed_view (view)) return view;
   return get_recent_view (url_none (), false, false, true, false);
-}
-
-static bool
-editor_changes_pending (const TeXmacsFocusSnapshot& s) {
-  url view= active_view_or_recent_active (s.view);
-  if (!is_window_backed_view (view)) return false;
-  editor ed= view_to_editor (view);
-  if (is_nil (ed)) return false;
-  return ed->has_changed (
-    THE_CURSOR | THE_FOCUS | THE_TREE | THE_ENVIRONMENT | THE_SELECTION |
-    THE_DECORATIONS | THE_EXTENTS | THE_LOCUS | THE_MENUS | THE_FREEZE);
 }
 
 TeXmacsFocusSnapshot
@@ -98,10 +86,6 @@ class TeXmacsFocusRestorer final: public QObject {
     QTimer::singleShot (0, this, [this] () {
       restoreScheduled= false;
       if (!targetWindow.isNull () && !targetWindow->isActiveWindow ()) return;
-      if (editor_changes_pending (snapshot)) {
-        scheduleRestore ();
-        return;
-      }
       if (!targetWindow.isNull ()) targetWindow->removeEventFilter (this);
       restore_texmacs_focus_snapshot (snapshot, true);
       deleteLater ();

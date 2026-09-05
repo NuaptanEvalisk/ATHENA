@@ -415,6 +415,7 @@ QTMGoogleTasksPane::completeSelectedTask () {
 void
 google_tasks_show () {
   if (headless_mode) return;
+  if (qt_defer_to_main_thread (google_tasks_show)) return;
   QTMMainTabWindow* win= QTMMainTabWindow::topTabWindow ();
   if (win == nullptr || win->dockManager () == nullptr) {
     QMessageBox::warning (QApplication::activeWindow (), "Google Tasks",

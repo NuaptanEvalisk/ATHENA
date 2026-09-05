@@ -238,6 +238,7 @@ QTMNeighborhoodsPane::selectionChanged () {
 
 void
 neighborhoods_pane_show () {
+  if (qt_defer_to_main_thread (neighborhoods_pane_show)) return;
   QTMMainTabWindow* win= QTMMainTabWindow::topTabWindow ();
   if (win == nullptr || win->dockManager () == nullptr) {
     QMessageBox::warning (QApplication::activeWindow (), "Neighborhoods",

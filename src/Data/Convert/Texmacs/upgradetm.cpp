@@ -41,7 +41,7 @@ new_feature (hashmap<string,int>& H, string new_name) {
 /*static*/ hashmap<string,int>
 get_codes (string version) {
   hashmap<string,int> H (UNKNOWN);
-  H->join (STD_CODE);
+  H->join (standard_codes_for_thread ());
 
   if (version_inf ("1.0.7.6", version)) return H;
 
@@ -2028,7 +2028,7 @@ static charp var_rename []= {
   ""
 };
 
-static hashmap<string,string> var_rename_table ("?");
+static thread_local hashmap<string,string> var_rename_table ("?");
 
 static hashmap<string,string>
 cached_renamer (charp* T, hashmap<string,string>& H) {
@@ -2241,7 +2241,7 @@ static charp style_rename []= {
   ""
 };
 
-static hashmap<string,string> style_rename_table ("?");
+static thread_local hashmap<string,string> style_rename_table ("?");
 
 static tree
 upgrade_style_rename_sub (tree t) {
@@ -2935,7 +2935,7 @@ upgrade_presentation (tree t) {
 * Upgrade mathematical formulas
 ******************************************************************************/
 
-static hashset<string> existing_styles;
+static thread_local hashset<string> existing_styles;
 
 static void
 declare_style (url u) {
@@ -3840,7 +3840,7 @@ upgrade_subsession (tree t, bool in_session= false) {
 * Upgrade quotes
 ******************************************************************************/
 
-static hashset<string> std_textual_envs;
+static thread_local hashset<string> std_textual_envs;
 
 static array<string>&
 operator << (array<string>& a, const char* s) {
@@ -3934,8 +3934,8 @@ upgrade_quotes (tree t) {
     for (i=0; i<n; i++) {
       if (is_std_textual_env (as_string (L(t))))
         r[i]= upgrade_quotes (t[i]);
-      else if (std_drd->get_type_child (t, i) != TYPE_REGULAR ||
-               std_drd->get_env_child (t, i, MODE, "text") != "text")
+      else if (standard_drd_for_thread ()->get_type_child (t, i) != TYPE_REGULAR ||
+               standard_drd_for_thread ()->get_env_child (t, i, MODE, "text") != "text")
         r[i]= t[i];
       else r[i]= upgrade_quotes (t[i]);
     }
@@ -3959,7 +3959,7 @@ static charp equation_tags[]= {
 bool
 is_equation_env (tree t) {
   if (is_atomic (t) || N(t) != 1) return false;
-  static hashset<tree_label> H;
+  static thread_local hashset<tree_label> H;
   if (N(H) == 0)
     for (int i=0; equation_tags[i][0] != '\0'; i++)
       H->insert (as_tree_label (equation_tags[i]));

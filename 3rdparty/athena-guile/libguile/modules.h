@@ -77,6 +77,7 @@ SCM_API void scm_dynwind_current_module (SCM module);
 SCM_API SCM scm_module_variable (SCM module, SCM sym);
 SCM_API SCM scm_module_local_variable (SCM module, SCM sym);
 SCM_API SCM scm_module_ensure_local_variable (SCM module, SCM sym);
+SCM_INTERNAL int scm_i_module_use (SCM module, SCM interface);
 
 SCM_API SCM scm_c_lookup (const char *name);
 SCM_API SCM scm_c_define (const char *name, SCM val);

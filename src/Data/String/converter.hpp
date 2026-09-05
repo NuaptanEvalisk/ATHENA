@@ -17,7 +17,12 @@
 
 enum escape_type { NOESCAPES, BIT2BIT, UTF8, ENTITY_NAME, CHAR_ENTITY };
 
-RESOURCE(converter);
+struct converter_rep;
+struct converter: public resource_ptr<converter_rep> {
+  static thread_local hashmap<string,pointer> instances;
+  inline converter (converter_rep* value= nullptr) { rep= value; }
+  inline converter (string name) { rep= (converter_rep*) instances[name]; }
+};
 
 /******************************************************************************
 * The converter class applies a dictionary to a given string.

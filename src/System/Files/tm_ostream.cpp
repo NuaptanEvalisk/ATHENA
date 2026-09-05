@@ -21,6 +21,7 @@
 #include <csignal>
 #include <string>
 #include <vector>
+#include <unordered_map>
 #include <spdlog/logger.h>
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/basic_file_sink.h>
@@ -250,6 +251,27 @@ void tm_ostream_rep::write (tree t) { (void) t; }
 * Standard streams
 ******************************************************************************/
 
+struct thread_log_line {
+  std::shared_ptr<spdlog::logger> logger;
+  spdlog::level::level_enum level;
+  std::string text;
+  ~thread_log_line () {
+    if (!text.empty ()) athena_log_line (logger, level, text);
+  }
+};
+
+static std::string&
+thread_line (const std::shared_ptr<spdlog::logger>& logger,
+             spdlog::level::level_enum level) {
+  static thread_local std::unordered_map<spdlog::logger*, thread_log_line> lines;
+  auto& entry= lines[logger.get ()];
+  if (!entry.logger) {
+    entry.logger= logger;
+    entry.level= level;
+  }
+  return entry.text;
+}
+
 class std_ostream_rep: public tm_ostream_rep {
   FILE *file;
   bool is_w;
@@ -258,7 +280,6 @@ class std_ostream_rep: public tm_ostream_rep {
   bool error_stream;
   std::shared_ptr<spdlog::logger> logger;
   spdlog::level::level_enum level;
-  std::string line;
 
 public:
   std_ostream_rep ();
@@ -274,7 +295,7 @@ public:
 std_ostream_rep::std_ostream_rep ():
   file (0), is_w (false), is_mine (false), raw_file (false),
   error_stream (false),
-  logger (), level (spdlog::level::info), line ()
+  logger (), level (spdlog::level::info)
 {
   logger= athena_make_logger (false, true, nullptr);
   is_w= logger != nullptr;
@@ -283,7 +304,7 @@ std_ostream_rep::std_ostream_rep ():
 std_ostream_rep::std_ostream_rep (char* fn):
   file (0), is_w (false), is_mine (false), raw_file (false),
   error_stream (false),
-  logger (), level (spdlog::level::info), line ()
+  logger (), level (spdlog::level::info)
 {
   logger= athena_make_logger (false, false, fn);
   is_w= logger != nullptr;
@@ -292,7 +313,7 @@ std_ostream_rep::std_ostream_rep (char* fn):
 std_ostream_rep::std_ostream_rep (FILE* f) :
   file (0), is_w (false), is_mine (false), raw_file (false),
   error_stream (f == stderr),
-  logger (), level (spdlog::level::info), line ()
+  logger (), level (spdlog::level::info)
 {
   if (f == stdout || f == stderr) {
     level= (f == stderr) ? spdlog::level::err : spdlog::level::info;
@@ -307,7 +328,9 @@ std_ostream_rep::std_ostream_rep (FILE* f) :
 }
 
 std_ostream_rep::~std_ostream_rep () {
-  flush ();
+  // Standard streams can outlive the main thread's TLS buffers.
+  if (raw_file && file) fflush (file);
+  else if (logger) logger->flush ();
   if (raw_file && file && is_mine) fclose (file);
 }
 
@@ -348,6 +371,7 @@ std_ostream_rep::write (const char* s, size_t n) {
   }
   if (!logger) return;
 
+  std::string& line= thread_line (logger, level);
   size_t start= 0;
   for (size_t i=0; i<n; ++i) {
     if (s[i] == '\n') {
@@ -369,6 +393,7 @@ std_ostream_rep::flush () {
     return;
   }
   if (!logger) return;
+  std::string& line= thread_line (logger, level);
   if (!line.empty ()) {
     athena_log_line (logger, level, line);
     line.clear ();

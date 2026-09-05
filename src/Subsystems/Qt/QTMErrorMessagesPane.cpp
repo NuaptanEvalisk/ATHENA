@@ -271,6 +271,7 @@ QTMErrorMessagesPane::clearMessages () {
 
 void
 error_messages_show () {
+  if (qt_defer_to_main_thread (error_messages_show)) return;
   QTMMainTabWindow* win= QTMMainTabWindow::topTabWindow ();
   if (win == nullptr || win->dockManager () == nullptr) {
     QMessageBox::warning (QApplication::activeWindow (), "Error messages",

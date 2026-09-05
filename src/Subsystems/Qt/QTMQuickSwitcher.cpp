@@ -61,12 +61,10 @@ std::unordered_map<athena_resource_id, std::unique_ptr<QuickSwitcherRequest>>
 athena_resource_id nextQuickRequestId= 1;
 
 athena_resource_id
-registerQuickRequest (array<string> recentFiles,
+registerQuickRequest (array<string>& recentFiles,
                       const SchemeExecutionContext* context) {
-  for (int i= 0; i < N (recentFiles); ++i)
-    recentFiles[i].ensure_transferable ();
   auto request= std::make_unique<QuickSwitcherRequest> ();
-  request->recentFiles= std::move (recentFiles);
+  request->recentFiles.swap (recentFiles);
   if (context != nullptr) {
     request->actorId= context->actor_id;
     request->viewId= context->view_id;
@@ -79,7 +77,7 @@ registerQuickRequest (array<string> recentFiles,
   return id;
 }
 
-tree runQuickSwitcher (array<string> recentFiles);
+tree runQuickSwitcher (const array<string>& recentFiles);
 
 void
 executeQuickRequest (athena_resource_id id) {
@@ -91,7 +89,7 @@ executeQuickRequest (athena_resource_id id) {
     request= std::move (found->second);
     quickRequests.erase (found);
   }
-  tree result= runQuickSwitcher (std::move (request->recentFiles));
+  tree result= runQuickSwitcher (request->recentFiles);
   if (result == UNINIT || request->actorId == ATHENA_NO_ACTOR) return;
 
   athena_continuation_id continuationId=
@@ -109,7 +107,8 @@ executeQuickRequest (athena_resource_id id) {
 }
 }
 
-QTMQuickSwitcher::QTMQuickSwitcher (QWidget* parent, array<string> recentFiles)
+QTMQuickSwitcher::QTMQuickSwitcher (QWidget* parent,
+                                    const array<string>& recentFiles)
   : QDialog (parent),
     structuredParentChoice (false),
     resultAccepted (false) {
@@ -170,7 +169,7 @@ QTMQuickSwitcher::showEvent (QShowEvent* event) {
 }
 
 void
-QTMQuickSwitcher::loadFiles (array<string> recentFiles) {
+QTMQuickSwitcher::loadFiles (const array<string>& recentFiles) {
   url root= vault_get_root ();
   array<url> files= vault_get_all_files ();
   QHash<QString, int> entryByCanonicalPath;
@@ -703,9 +702,9 @@ QTMQuickSwitcher::getResult () {
 namespace {
 
 tree
-runQuickSwitcher (array<string> recentFiles) {
+runQuickSwitcher (const array<string>& recentFiles) {
   QWidget* parent= QApplication::activeWindow ();
-  QTMQuickSwitcher switcher (parent, std::move (recentFiles));
+  QTMQuickSwitcher switcher (parent, recentFiles);
   if (switcher.exec () == QDialog::Accepted) return switcher.getResult ();
   return UNINIT;
 }
@@ -713,13 +712,12 @@ runQuickSwitcher (array<string> recentFiles) {
 } // namespace
 
 void
-vault_quick_switcher (array<string> recentFiles) {
+vault_quick_switcher (array<string>& recentFiles) {
   QCoreApplication* app= QCoreApplication::instance ();
   if (app == nullptr) return;
 
   athena_resource_id requestId=
-    registerQuickRequest (
-      std::move (recentFiles), current_scheme_execution_context ());
+    registerQuickRequest (recentFiles, current_scheme_execution_context ());
   bool invoked= QMetaObject::invokeMethod (
     app, [requestId] () { executeQuickRequest (requestId); },
     Qt::QueuedConnection);

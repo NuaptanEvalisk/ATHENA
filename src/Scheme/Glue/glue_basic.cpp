@@ -10027,16 +10027,18 @@ tmg_vault_generate_uuid () {
 }
 
 tmscm
-tmg_vault_choose_link (tmscm arg1) {
+tmg_vault_choose_link (tmscm arg1, tmscm arg2) {
   TMSCM_ASSERT_BOOL (arg1, TMSCM_ARG1, "vault-choose-link");
+  TMSCM_ASSERT_OBJECT (arg2, TMSCM_ARG2, "vault-choose-link");
 
   bool in1= tmscm_to_bool (arg1);
+  object in2= tmscm_to_object (arg2);
 
   // TMSCM_DEFER_INTS;
-  tree out= vault_choose_link (in1);
+  vault_choose_link (in1, in2);
   // TMSCM_ALLOW_INTS;
 
-  return tree_to_tmscm (out);
+  return TMSCM_UNSPECIFIED;
 }
 
 tmscm
@@ -11115,7 +11117,7 @@ initialize_glue_basic () {
   tmscm_install_procedure ("vault-has-node?",  tmg_vault_has_nodeP, 1, 0, 0);
   tmscm_install_procedure ("vault-find-uuid",  tmg_vault_find_uuid, 3, 0, 0);
   tmscm_install_procedure ("vault-generate-uuid",  tmg_vault_generate_uuid, 0, 0, 0);
-  tmscm_install_procedure ("vault-choose-link",  tmg_vault_choose_link, 1, 0, 0);
+  tmscm_install_procedure ("vault-choose-link",  tmg_vault_choose_link, 2, 0, 0);
   tmscm_install_procedure ("vault-quick-switcher",  tmg_vault_quick_switcher, 1, 0, 0);
   tmscm_install_procedure ("vault-show-explorer",  tmg_vault_show_explorer, 0, 0, 0);
   tmscm_install_procedure ("vault-explorer-track-file",  tmg_vault_explorer_track_file, 1, 0, 0);

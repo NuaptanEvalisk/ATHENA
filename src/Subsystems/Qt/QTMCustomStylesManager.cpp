@@ -305,6 +305,7 @@ QTMCustomStylesManager::showContextMenu (const QPoint& pos) {
 
 void
 custom_styles_manager_show () {
+  if (qt_defer_to_main_thread (custom_styles_manager_show)) return;
   QTMMainTabWindow* win= QTMMainTabWindow::topTabWindow ();
   if (win == nullptr) {
     QMessageBox::warning (QApplication::activeWindow (),

@@ -15,8 +15,10 @@
 #include <iconv.h>
 #endif
 #include <errno.h>
+#include <vector>
 
-RESOURCE_CODE (converter);
+// A converter owns both its dictionary and its incremental output buffer.
+thread_local hashmap<string,pointer> converter::instances (nullptr);
 
 /******************************************************************************
 * converter methods
@@ -52,7 +54,16 @@ load_converter (string from, string to) {
   string name= from * "-" * to;
   if (converter::instances -> contains (name))
     return converter (name);
+  struct owned_converters {
+    std::vector<converter_rep*> entries;
+    ~owned_converters () {
+      for (auto* entry: entries) tm_delete (entry);
+    }
+  };
+  // Initialized after instances, so entries are destroyed before their index.
+  static thread_local owned_converters owned;
   converter conv = tm_new<converter_rep> (from, to);
+  owned.entries.push_back (conv.rep);
   return conv;
 }
 

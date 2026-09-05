@@ -12,6 +12,7 @@
 
 #include "QTMMainTabWindow.hpp"
 #include "QTMVaultPreviewWidget.hpp"
+#include "qt_utilities.hpp"
 #include "scheme.hpp"
 #include "sys_utils.hpp"
 #include "tree.hpp"
@@ -529,6 +530,7 @@ QTMHandwritingSymbolPane::insertCurrent () {
 
 void
 handwriting_symbol_pane_show () {
+  if (qt_defer_to_main_thread (handwriting_symbol_pane_show)) return;
   QTMMainTabWindow* window= QTMMainTabWindow::topTabWindow ();
   if (window == nullptr || window->dockManager () == nullptr) {
     QMessageBox::warning (QApplication::activeWindow (), "Handwritten Symbol",

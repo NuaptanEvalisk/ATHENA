@@ -34,7 +34,7 @@ struct tm_reader {
 
   tm_reader (string buf2):
     version (TEXMACS_COMPAT_VERSION),
-    codes (STD_CODE),
+    codes (standard_codes_for_thread ()),
     EXPAND_APPLY (EXPAND),
     backslash_ok (true),
     with_extensions (true),

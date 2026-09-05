@@ -174,7 +174,7 @@ QTMPagePropertiesPane::buildFormatTab () {
   connect (renderingCombo, &QComboBox::currentTextChanged,
            this, [this] (const QString& text) {
     if (!loading) {
-      call ("initial-set-page-rendering", object (targetBuffer),
+      qt_call_in_buffer (targetBuffer, "init-page-rendering",
             object (tm_string (encodeRendering (text))));
       refreshFormat ();
     }
@@ -342,7 +342,7 @@ QString
 QTMPagePropertiesPane::getString (const QString& variable) const {
   if (!targetLooksUsable ()) return "";
   try {
-    return qs (as_string (call ("initial-get", object (targetBuffer),
+    return qs (as_string (qt_call_in_buffer (targetBuffer, "get-init-env",
                                 object (tm_string (variable)))));
   }
   catch (...) {
@@ -354,7 +354,7 @@ bool
 QTMPagePropertiesPane::getBool (const QString& variable) const {
   if (!targetLooksUsable ()) return false;
   try {
-    return as_bool (call ("initial-defined?", object (targetBuffer),
+    return as_bool (qt_call_in_buffer (targetBuffer, "style-has?",
                          object (tm_string (variable))));
   }
   catch (...) {
@@ -367,7 +367,7 @@ QTMPagePropertiesPane::setString (const QString& variable,
                                   const QString& value) {
   if (!targetLooksUsable ()) return;
   try {
-    call ("initial-set", object (targetBuffer), object (tm_string (variable)),
+    qt_call_in_buffer (targetBuffer, "init-env", object (tm_string (variable)),
           object (tm_string (value)));
   }
   catch (...) {}
@@ -377,10 +377,9 @@ void
 QTMPagePropertiesPane::resetVariables (const QStringList& variables) {
   if (!targetLooksUsable ()) return;
   array<object> args;
-  args << object (targetBuffer);
   for (const QString& variable: variables)
     args << object (tm_string (variable));
-  try { call ("initial-default", args); }
+  try { qt_call_in_buffer (targetBuffer, "init-default", args); }
   catch (...) {}
 }
 
@@ -463,8 +462,8 @@ QTMPagePropertiesPane::refreshFormat () {
 
   QString rendering;
   try {
-    rendering= qs (as_string (call ("initial-get-page-rendering",
-                                    object (targetBuffer))));
+    rendering= qs (as_string (qt_call_in_buffer (
+      targetBuffer, "get-init-page-rendering")));
   }
   catch (...) {
     rendering= getString ("page-medium");
@@ -681,7 +680,7 @@ QTMPagePropertiesPane::rebuildHeaderEditors () {
     QVBoxLayout* groupLayout= new QVBoxLayout (group);
     tree body;
     try {
-      body= as_tree (call ("initial-get-tree", object (targetBuffer),
+      body= as_tree (qt_call_in_buffer (targetBuffer, "get-init-tree",
                            object (string (spec.variable))));
     }
     catch (...) {
@@ -712,31 +711,32 @@ QTMPagePropertiesPane::applyHeaders () {
       url inputUrl (string ("tmfs://aux/") * tm_string (variable));
       tree body= get_buffer_body (inputUrl);
       if (is_func (body, DOCUMENT, 1)) body= body[0];
-      call ("initial-set-tree", object (targetBuffer),
+      qt_call_in_buffer (targetBuffer, "init-env-tree",
             object (tm_string (variable)), object (body));
     }
     catch (...) {}
   }
-  try { call ("refresh-window"); }
+  try { qt_call_in_buffer (targetBuffer, "refresh-window"); }
   catch (...) {}
 }
 
 void
 QTMPagePropertiesPane::insertHeaderTab () {
   if (!is_header_aux_buffer (get_current_buffer_safe ())) return;
-  try { eval ("(make-htab \"5mm\")"); }
+  try { qt_call_in_buffer (get_current_buffer_safe (), "make-htab", object ("5mm")); }
   catch (...) {}
 }
 
 void
 QTMPagePropertiesPane::insertHeaderPageNumber () {
   if (!is_header_aux_buffer (get_current_buffer_safe ())) return;
-  try { eval ("(make 'page-the-page)"); }
+  try { qt_call_in_buffer (get_current_buffer_safe (), "make", symbol_object ("page-the-page")); }
   catch (...) {}
 }
 
 void
 page_properties_pane_show () {
+  if (qt_defer_to_main_thread (page_properties_pane_show)) return;
   QTMMainTabWindow* win= QTMMainTabWindow::topTabWindow ();
   if (win == nullptr || win->dockManager () == nullptr) {
     QMessageBox::warning (QApplication::activeWindow (), "Page properties",

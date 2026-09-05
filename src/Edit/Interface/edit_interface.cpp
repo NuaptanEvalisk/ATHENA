@@ -1191,14 +1191,18 @@ void
 edit_interface_rep::after_menu_action () {
   notify_change (THE_DECORATIONS);
   end_editing ();
-  windows_delayed_refresh (1);
+  if (ui_endpoint != nullptr)
+    (void) publish_ui (actor_command_kind::ui_refresh_chrome, 1);
+  else windows_delayed_refresh (1);
 }
 
 void
 edit_interface_rep::cancel_menu_action () {
   notify_change (THE_DECORATIONS);
   cancel_editing ();
-  windows_delayed_refresh (1);
+  if (ui_endpoint != nullptr)
+    (void) publish_ui (actor_command_kind::ui_refresh_chrome, 1);
+  else windows_delayed_refresh (1);
 }
 
 rectangle

@@ -315,6 +315,7 @@ QTMPersonsExplorer::openOccurrence (QListWidgetItem* occurrence) {
 
 void
 persons_explorer_show () {
+  if (qt_defer_to_main_thread (persons_explorer_show)) return;
   if (!vault_active ()) {
     QMessageBox::warning (QApplication::activeWindow (), "Persons Explorer",
                           "No active vault. Please load a vault first.");

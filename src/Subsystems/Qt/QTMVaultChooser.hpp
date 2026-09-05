@@ -11,8 +11,8 @@
 #ifndef QTMVAULTCHOOSER_HPP
 #define QTMVAULTCHOOSER_HPP
 
-#include "tree.hpp"
+class object;
 
-tree vault_choose_link (bool transcludeMode = false);
+void vault_choose_link (bool transcludeMode, object completion);
 
 #endif // QTMVAULTCHOOSER_HPP

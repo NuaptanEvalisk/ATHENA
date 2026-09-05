@@ -50,6 +50,8 @@ static SCM athena_lazy_modules;
 static SCM athena_resolve_interface_proc;
 static SCM athena_make_fresh_user_module_proc;
 static SCM athena_module_use_proc;
+static SCM athena_module_use_interfaces_proc;
+static SCM athena_module_modified_proc;
 static SCM athena_module_add_proc;
 static SCM athena_module_name_proc;
 static SCM athena_syntax_to_datum_proc;
@@ -2488,6 +2490,42 @@ athena_install_native_syntax (SCM module, const char *name,
   scm_c_module_define (module, name, transformer);
 }
 
+static SCM
+athena_thread_safe_module_use_x (SCM module, SCM interface)
+{
+#define FUNC_NAME "module-use!"
+  SCM_VALIDATE_MODULE (1, module);
+  SCM_VALIDATE_MODULE (2, interface);
+  if (!scm_is_eq (module, interface)
+      && scm_i_module_use (module, interface))
+    scm_call_1 (athena_module_modified_proc, module);
+#undef FUNC_NAME
+  return SCM_UNSPECIFIED;
+}
+
+static SCM
+athena_thread_safe_module_use_interfaces_x (SCM module, SCM interfaces)
+{
+  SCM cursor;
+  int changed = 0;
+#define FUNC_NAME "module-use-interfaces!"
+  SCM_VALIDATE_MODULE (1, module);
+  for (cursor = interfaces; scm_is_pair (cursor); cursor = scm_cdr (cursor))
+    {
+      SCM interface = scm_car (cursor);
+      SCM_VALIDATE_MODULE (2, interface);
+      if (!scm_is_eq (module, interface)
+          && scm_i_module_use (module, interface))
+        changed = 1;
+    }
+  if (!scm_is_null (cursor))
+    scm_wrong_type_arg_msg (FUNC_NAME, 2, interfaces, "proper list");
+  if (changed)
+    scm_call_1 (athena_module_modified_proc, module);
+#undef FUNC_NAME
+  return SCM_UNSPECIFIED;
+}
+
 static void
 init_athena_runtime_module (void *data)
 {
@@ -2643,7 +2681,25 @@ scm_init_athena_runtime (void)
     scm_c_private_ref ("guile", "resolve-interface");
   athena_make_fresh_user_module_proc =
     scm_c_private_ref ("guile", "make-fresh-user-module");
-  athena_module_use_proc = scm_c_private_ref ("guile", "module-use!");
+  athena_module_modified_proc =
+    scm_c_private_ref ("guile", "module-modified");
+  athena_module_use_proc =
+    scm_c_make_gsubr ("module-use!", 2, 0, 0,
+                      (SCM_FUNC_CAST_ARBITRARY_ARGS)
+                      athena_thread_safe_module_use_x);
+  athena_module_use_interfaces_proc =
+    scm_c_make_gsubr ("module-use-interfaces!", 2, 0, 0,
+                      (SCM_FUNC_CAST_ARBITRARY_ARGS)
+                      athena_thread_safe_module_use_interfaces_x);
+  /* Compiled callers dereference this variable at run time.  Replace it
+     before ATHENA starts actor threads, leaving Guile's single-threaded boot
+     path unchanged while making all later module imports use one publication
+     operation. */
+  scm_variable_set_x (scm_c_private_lookup ("guile", "module-use!"),
+                      athena_module_use_proc);
+  scm_variable_set_x
+    (scm_c_private_lookup ("guile", "module-use-interfaces!"),
+     athena_module_use_interfaces_proc);
   athena_module_add_proc = scm_c_private_ref ("guile", "module-add!");
   athena_module_name_proc = scm_c_private_ref ("guile", "module-name");
   athena_syntax_to_datum_proc =
@@ -2663,6 +2719,8 @@ scm_init_athena_runtime (void)
   scm_gc_protect_object (athena_resolve_interface_proc);
   scm_gc_protect_object (athena_make_fresh_user_module_proc);
   scm_gc_protect_object (athena_module_use_proc);
+  scm_gc_protect_object (athena_module_use_interfaces_proc);
+  scm_gc_protect_object (athena_module_modified_proc);
   scm_gc_protect_object (athena_module_add_proc);
   scm_gc_protect_object (athena_module_name_proc);
   scm_gc_protect_object (athena_syntax_to_datum_proc);

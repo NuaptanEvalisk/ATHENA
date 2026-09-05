@@ -35,6 +35,16 @@ standard_drd_for_thread () {
   return local;
 }
 
+hashmap<string,int>&
+standard_codes_for_thread () {
+  static thread_local hashmap<string,int> local= [] {
+    std::lock_guard<std::recursive_mutex> guard (std_drd_mutex);
+    init_std_drd ();
+    return copy (STD_CODE);
+  } ();
+  return local;
+}
+
 drd_info&
 current_drd () noexcept {
   return thread_drd == nullptr ? standard_drd_for_thread () : *thread_drd;

@@ -11,13 +11,18 @@ foreach (_test_file ${TEST_SRC_FILES})
   )
   target_link_libraries (${_test_name}
     athena_body
-    mimalloc
     PkgConfig::SPDLOG
     ${ATHENA_LLAMA_LIBRARIES}
     ${ADS_LIBRARIES}
     ${ATHENA_Libraries}
     ${ATHENA_QT_TEST_LIBRARY}
   )
+  if (ATHENA_ENABLE_TSAN)
+    target_sources (${_test_name} PRIVATE
+      "${ATHENA_SOURCE_DIR}/src/System/Misc/tsan_mimalloc_shim.cpp")
+  else ()
+    target_link_libraries (${_test_name} mimalloc)
+  endif ()
   add_test (${_test_name} ${_test_name})
   if (_test_name STREQUAL "artifacts_test" OR
       _test_name STREQUAL "bold_big_operator_test" OR

@@ -1182,6 +1182,7 @@ private:
 
 void
 websites_manager_show () {
+  if (qt_defer_to_main_thread (websites_manager_show)) return;
   if (!vault_active ()) {
     QMessageBox::warning (QApplication::activeWindow (), "Websites manager",
                           "No active vault. Please load a vault first.");

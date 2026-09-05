@@ -407,6 +407,7 @@ QTMArtifactsPane::openRow (int row) {
 
 void
 artifacts_pane_show () {
+  if (qt_defer_to_main_thread (artifacts_pane_show)) return;
   if (!vault_active ()) {
     QMessageBox::warning (QApplication::activeWindow (), "Artifacts",
                           "No active vault. Please load a vault first.");

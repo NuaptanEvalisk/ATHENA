@@ -839,6 +839,7 @@ QTMNamespaceExplorer::showContextMenu (const QPoint& pos) {
 
 void
 namespace_explorer_show () {
+  if (qt_defer_to_main_thread (namespace_explorer_show)) return;
   if (!vault_active ()) {
     QMessageBox::warning (QApplication::activeWindow (), "Namespace Explorer",
                           "No active vault. Please load a vault first.");
@@ -899,6 +900,7 @@ namespace_explorer_show () {
 
 void
 namespace_explorer_show_namespace (string name) {
+  if (qt_defer_to_main_thread (namespace_explorer_show_namespace, name)) return;
   namespace_explorer_show ();
   if (namespace_explorer_widget == nullptr) return;
 

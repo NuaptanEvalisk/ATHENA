@@ -1288,7 +1288,27 @@ TeXmacs_main (int argc, char** argv) {
       exit (ok ? 0 : 1);
     }
   
-    if (number_buffers () == 0) {
+    bool needs_initial_window= number_buffers () == 0;
+    if (needs_initial_window) {
+      extra_init_cmd << "(delayed (:idle 1) "
+                        "(begin "
+                        "(import-from (utils plugins plugin-convert)) "
+                        "(update-menus)))";
+      extra_init_cmd << "(delayed (:idle 100) "
+                        "(import-from (fonts fonts-truetype)))";
+      extra_init_cmd << "(delayed (:idle 0) "
+                        "(exec-global "
+                        "(lambda () (vault-startup-open-initial-buffer))))";
+      extra_init_cmd << "(kbd-start-inverse-warmup)";
+    }
+    extra_init_cmd << "(delayed (:idle 300) "
+                      "(exec-global (lambda () (ads-restore-visible-panes))))";
+
+    // Compile on the bootstrap thread before opening a window starts actors
+    // which may concurrently publish lazily loaded module definitions.
+    object startup_commands;
+    if (N (extra_init_cmd) > 0) startup_commands= scheme_cmd (extra_init_cmd);
+    if (needs_initial_window) {
       if (DEBUG_STD) debug_boot << "Creating 'no name' buffer...\n";
       startup_progress (94, "Building editor window");
       bench_start ("build editor window");
@@ -1303,20 +1323,7 @@ TeXmacs_main (int argc, char** argv) {
       QTimer::singleShot (1000, [] () {
         cache_validate_font_directories ();
       });
-      if (DEBUG_STD) debug_boot << "Queueing vault startup initialization...\n";
-      extra_init_cmd << "(delayed (:idle 1) "
-                        "(begin "
-                        "(import-from (utils plugins plugin-convert)) "
-                        "(update-menus)))";
-      extra_init_cmd << "(delayed (:idle 100) "
-                        "(import-from (fonts fonts-truetype)))";
-      extra_init_cmd << "(delayed (:idle 0) "
-                        "(exec-global "
-                        "(lambda () (vault-startup-open-initial-buffer))))";
-      extra_init_cmd << "(kbd-start-inverse-warmup)";
     }
-    extra_init_cmd << "(delayed (:idle 300) "
-                      "(exec-global (lambda () (ads-restore-visible-panes))))";
 
     if (!aofm_convert_file.empty ()) {
       eval ("(lazy-initialize-force)");
@@ -1403,7 +1410,7 @@ TeXmacs_main (int argc, char** argv) {
     release_boot_lock ();
     
     // inject scheme commands 
-    if (N(extra_init_cmd) > 0) exec_delayed (scheme_cmd (extra_init_cmd));
+    if (N(extra_init_cmd) > 0) exec_delayed (startup_commands);
     if (N(extra_init_cmd) > 0)
       startup_progress (97, "Scheduling startup tasks");
     startup_progress (98, "Preparing editor");

@@ -631,7 +631,7 @@ scm_i_vm_prepare_stack (struct scm_vm *vp)
 #undef INIT_HOOK
 }
 
-static void
+static SCM_GC_MARKER_NO_SANITIZE_THREAD void
 return_unused_stack_to_os (struct scm_vm *vp)
 {
 #if HAVE_SYS_MMAN_H

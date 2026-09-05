@@ -292,7 +292,7 @@ QString
 QTMParagraphPropertiesPane::getString (const QString& variable) const {
   if (!targetLooksUsable ()) return "";
   try {
-    return qs (as_string (call ("initial-get", object (targetBuffer),
+    return qs (as_string (qt_call_in_buffer (targetBuffer, "get-init-env",
                                 object (tm_string (variable)))));
   }
   catch (...) {
@@ -305,7 +305,7 @@ QTMParagraphPropertiesPane::setString (const QString& variable,
                                        const QString& value) {
   if (!targetLooksUsable ()) return;
   try {
-    call ("initial-set", object (targetBuffer), object (tm_string (variable)),
+    qt_call_in_buffer (targetBuffer, "init-env", object (tm_string (variable)),
           object (tm_string (value)));
   }
   catch (...) {}
@@ -315,10 +315,9 @@ void
 QTMParagraphPropertiesPane::resetParagraphVariables () {
   if (!targetLooksUsable ()) return;
   array<object> args;
-  args << object (targetBuffer);
   for (const QString& variable: paragraph_variables ())
     args << object (tm_string (variable));
-  try { call ("initial-default", args); }
+  try { qt_call_in_buffer (targetBuffer, "init-default", args); }
   catch (...) {}
 }
 
@@ -418,6 +417,7 @@ QTMParagraphPropertiesPane::refreshColumnSeparationVisibility () {
 
 void
 paragraph_properties_pane_show () {
+  if (qt_defer_to_main_thread (paragraph_properties_pane_show)) return;
   QTMMainTabWindow* win= QTMMainTabWindow::topTabWindow ();
   if (win == nullptr || win->dockManager () == nullptr) {
     QMessageBox::warning (QApplication::activeWindow (), "Paragraph properties",

@@ -25,6 +25,7 @@
 #include "analyze.hpp"
 #include "editor.hpp"
 #include "namespaces.hpp"
+#include "new_buffer.hpp"
 #include "new_view.hpp"
 #include "qt_utilities.hpp"
 #include "scheme.hpp"
@@ -180,9 +181,8 @@ constexpr int default_reference_depth= 2;
 
 static QString
 current_buffer_identity () {
-  editor ed= get_current_editor ();
-  if (is_nil (ed)) return QString ();
-  return to_qstring (as_string (ed->get_name ()));
+  url name= get_current_buffer_safe ();
+  return is_none (name) ? QString () : to_qstring (as_string (name));
 }
 
 static QString
@@ -201,9 +201,7 @@ namespace_map () {
 
 static bool
 current_physical_file_path (QString& path) {
-  editor ed= get_current_editor ();
-  if (is_nil (ed)) return false;
-  url name= ed->get_name ();
+  url name= get_current_buffer_safe ();
   if (!is_rooted (name, "default") && !is_rooted (name, "file"))
     return false;
   path= to_qstring (concretize (name));
@@ -2239,6 +2237,7 @@ hierarchy_graph_interactivity_changed () {
 
 void
 reverse_hierarchy_graph_show () {
+  if (qt_defer_to_main_thread (reverse_hierarchy_graph_show)) return;
   QTMMainTabWindow* win= QTMMainTabWindow::topTabWindow ();
   if (win == nullptr || win->dockManager () == nullptr) {
     show_error ("No active ATHENA window.");
@@ -2481,6 +2480,7 @@ ensure_global_hierarchy_graph_pane (QString& error) {
 
 void
 direct_hierarchy_graph_show () {
+  if (qt_defer_to_main_thread (direct_hierarchy_graph_show)) return;
   QString error;
   if (!ensure_direct_hierarchy_graph_pane (error)) {
     show_error (error, "Direct Hierarchy Graph");
@@ -2491,6 +2491,8 @@ direct_hierarchy_graph_show () {
 
 void
 direct_hierarchy_graph_show_namespace (string name) {
+  if (qt_defer_to_main_thread (direct_hierarchy_graph_show_namespace, name))
+    return;
   QString error;
   if (!ensure_direct_hierarchy_graph_pane (error)) {
     show_error (error, "Direct Hierarchy Graph");
@@ -2501,6 +2503,7 @@ direct_hierarchy_graph_show_namespace (string name) {
 
 void
 global_hierarchy_graph_show () {
+  if (qt_defer_to_main_thread (global_hierarchy_graph_show)) return;
   QString error;
   if (!ensure_global_hierarchy_graph_pane (error)) {
     show_error (error, "Global Hierarchy Graph");
@@ -2524,6 +2527,7 @@ global_hierarchy_graph_show () {
 
 void
 local_reference_graph_show () {
+  if (qt_defer_to_main_thread (local_reference_graph_show)) return;
   QString error;
   if (!ensure_reference_graph_pane (
         false, local_reference_graph_dock, local_reference_graph_widget,
@@ -2537,6 +2541,7 @@ local_reference_graph_show () {
 
 void
 reference_graph_show () {
+  if (qt_defer_to_main_thread (reference_graph_show)) return;
   QString error;
   if (!ensure_reference_graph_pane (
         true, reference_graph_dock, reference_graph_widget,

@@ -281,6 +281,13 @@ as_widget (object obj) {
   return tmscm_to_widget (w);
 }
 
+widget
+take_widget (object obj) {
+  tmscm w= object_to_tmscm (obj);
+  if (!tmscm_is_widget (w)) return widget ();
+  return tmscm_take_widget (w);
+}
+
 object
 tree_to_stree (scheme_tree t) {
   return call ("tree->stree", t);

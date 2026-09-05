@@ -17,6 +17,7 @@
 #include "message.hpp"
 #include "scheme.hpp"
 #include "tm_server.hpp"
+#include "tm_window.hpp"
 #include "QTMToast.hpp"
 #include "QTMOutlinePane.hpp"
 #include "QTMVaultBackupDispatcher.hpp"
@@ -337,6 +338,7 @@ qt_actor_widget_rep::drain_external_effects () {
       break;
     }
     case actor_command_kind::ui_refresh_chrome:
+      windows_delayed_refresh (static_cast<int> (record.argument[0]));
       break;
     case actor_command_kind::ui_global_action: {
       tm_view view= concrete_runtime_view (view_id_);

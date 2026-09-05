@@ -16,6 +16,8 @@
 #include "server.hpp"
 #include "tm_ostream.hpp"
 #include "tm_window.hpp"
+#include "new_view.hpp"
+#include "actor_ui_bridge.hpp"
 #include <QLabel>
 #include <QMouseEvent>
 #include <QSizePolicy>
@@ -164,7 +166,11 @@ WikilinkPreview::currentPreviewWidth () const {
 
 double
 WikilinkPreview::currentPreviewZoom () const {
-  return get_retina_zoom () * get_server ()->get_window_zoom_factor ();
+  tm_view view= concrete_view (get_current_view_safe ());
+  actor_ui_endpoint* endpoint= view == nullptr ? nullptr :
+    find_actor_ui_endpoint (view->runtime_id);
+  return get_retina_zoom () * (endpoint == nullptr ? 1.0 :
+                               endpoint->zoom_factor ());
 }
 
 void

@@ -165,7 +165,7 @@ scheme_tree_to_tree (scheme_tree t, string version) {
 
 tree
 scheme_tree_to_tree (scheme_tree t) {
-  return scheme_tree_to_tree (t, STD_CODE, true);
+  return scheme_tree_to_tree (t, standard_codes_for_thread (), true);
 }
 
 /******************************************************************************

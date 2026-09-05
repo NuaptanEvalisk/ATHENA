@@ -12,6 +12,7 @@
 #ifndef BLACKBOX_H
 #define BLACKBOX_H
 #include "basic.hpp"
+#include <utility>
 
 class blackbox_rep: public abstract_struct {
 public:
@@ -66,6 +67,12 @@ template<class T> T
 open_box (blackbox bb) {
   ASSERT (type_box (bb) == type_helper<T>::id, "type mismatch");
   return ((whitebox_rep<T>*) bb.rep) -> data;
+}
+
+template<class T> T
+take_box (blackbox bb) {
+  ASSERT (type_box (bb) == type_helper<T>::id, "type mismatch");
+  return std::move (((whitebox_rep<T>*) bb.rep)->data);
 }
 
 #endif // BLACKBOX_H
