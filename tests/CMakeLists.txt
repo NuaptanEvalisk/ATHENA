@@ -2,6 +2,10 @@ file (GLOB_RECURSE TEST_SRC_FILES CONFIGURE_DEPENDS "*.cpp")
 
 find_program (ATHENA_TEST_GUILE guile)
 if (ATHENA_TEST_GUILE)
+  add_test (NAME math_keyboard_scheme_test
+    COMMAND ${ATHENA_TEST_GUILE} --no-auto-compile
+      ${CMAKE_CURRENT_SOURCE_DIR}/scheme/math-keyboard-test.scm
+      ${ATHENA_SOURCE_DIR})
   add_test (NAME unsaved_buffers_scheme_test
     COMMAND ${ATHENA_TEST_GUILE} --no-auto-compile
       ${CMAKE_CURRENT_SOURCE_DIR}/scheme/unsaved-buffers-test.scm

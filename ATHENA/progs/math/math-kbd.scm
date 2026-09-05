@@ -294,6 +294,7 @@
   (". var" "<point>")
   (". var var" "<cdummy>")
   (". var var var" "<nosymbol>")
+  ("- var" "<setminus>")
 
   ("math:symbol a" "<amalg>")
   ("math:symbol d" "<partial>")
