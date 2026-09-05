@@ -25,6 +25,7 @@ foreach (_test_file ${TEST_SRC_FILES})
   endif ()
   add_test (${_test_name} ${_test_name})
   if (_test_name STREQUAL "artifacts_test" OR
+      _test_name STREQUAL "command_line_conversion_test" OR
       _test_name STREQUAL "bold_big_operator_test" OR
       _test_name STREQUAL "finite_part_integral_test" OR
       _test_name STREQUAL "latex_import_test" OR
@@ -37,6 +38,9 @@ foreach (_test_file ${TEST_SRC_FILES})
     endif ()
   endif ()
   set_tests_properties (${_test_name} PROPERTIES TIMEOUT 5)
+  if (_test_name STREQUAL "command_line_conversion_test")
+    set_tests_properties (${_test_name} PROPERTIES TIMEOUT 90)
+  endif ()
   if (_test_name STREQUAL "delegation_network_test")
     set_tests_properties (${_test_name} PROPERTIES TIMEOUT 600)
   endif ()

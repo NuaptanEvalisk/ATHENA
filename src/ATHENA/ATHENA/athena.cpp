@@ -882,6 +882,7 @@ set_global_options  (int argc, char** argv)  {
 
   // parse command line options
   bool flag= true;
+  string conversion_continuations= "";
 
   for (int i=1; i<argc; i++) {
     if (argv[i][0] == '\0') argc= i;
@@ -1065,9 +1066,12 @@ set_global_options  (int argc, char** argv)  {
         if (i<argc) {
           url in  ("$PWD", argv[i-1]);
           url out ("$PWD", argv[ i ]);
+          // Loading crosses to the UI owner. Keep subsequent commands,
+          // including headless exit, inside its completion continuation.
           my_init_cmds= my_init_cmds * " " *
-            "(load-buffer " * scm_quote (as_string (in)) * " :strict) " *
-            "(export-buffer " * scm_quote (as_string (out)) * ")";
+            "(command-line-convert " * scm_quote (as_string (in)) * " " *
+            scm_quote (as_string (out)) * " (lambda ()";
+          conversion_continuations= conversion_continuations * " (noop)))";
         }
       }
       else if ((s == "-x") || (s == "-execute")) {
@@ -1122,6 +1126,7 @@ set_global_options  (int argc, char** argv)  {
 
   // in headless mode quit after processing of the command line
   if (headless_mode && exec_exit) my_init_cmds= my_init_cmds * " (quit-TeXmacs)";
+  my_init_cmds= my_init_cmds * conversion_continuations;
 
   // Further options via environment variables
   // End options via environment variables

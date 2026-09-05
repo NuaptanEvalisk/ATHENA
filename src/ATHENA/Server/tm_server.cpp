@@ -32,8 +32,11 @@
 #include <QDir>
 #include <QMdiSubWindow>
 #include <QProcess>
+#include <QThread>
 #include "QTMApplication.hpp"
 #include "QTMMainTabWindow.hpp"
+#include "qt_utilities.hpp"
+#include "scheme_execution_context.hpp"
 #endif
 
 server* the_server= NULL;
@@ -351,6 +354,25 @@ tm_server_rep::post_repaint_handler () {
 
 void
 tm_server_rep::wait_handler (string message, string arg) {
+#ifdef QTTEXMACS
+  if (!headless_mode && qApp != nullptr &&
+      QThread::currentThread () != qApp->thread ()) {
+    const auto* context= current_scheme_execution_context ();
+    athena_view_id view_id= context? context->view_id: ATHENA_NO_VIEW;
+    message.ensure_transferable ();
+    arg.ensure_transferable ();
+    // Resolve the parent on the UI thread: the source view can close while
+    // printing, and no QWidget or window-registry access belongs to the actor.
+    qt_post_to_main_thread (
+      [view_id, message= std::move (message), arg= std::move (arg)] () mutable {
+        tm_view view= concrete_runtime_view (view_id);
+        widget parent;
+        if (view != nullptr && view->win != nullptr) parent= view->win->win;
+        show_wait_indicator (parent, ui_text (message), std::move (arg));
+      });
+    return;
+  }
+#endif
   if (has_current_window ())
     show_wait_indicator (concrete_window () -> win, ui_text (message), arg);
   else

@@ -172,7 +172,7 @@
 (lazy-define (athena athena tm-global-transformation)
              run-global-transformation)
 (lazy-define (athena athena tm-files)
-             buffer-missing-style? buffer-set-default-style)
+             buffer-missing-style? buffer-set-default-style command-line-convert)
 (import-from (athena keyboard config-kbd))
 (lazy-keyboard (athena keyboard prefix-kbd) always?)
 (lazy-keyboard (athena keyboard latex-kbd) always?)

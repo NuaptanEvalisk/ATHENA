@@ -650,6 +650,8 @@ void qt_gui_rep::set_mouse_pointer (string curs_name, string mask_name)
 void
 qt_gui_rep::show_wait_indicator (widget w, string message, string arg)  {
   if (headless_mode) return;
+  ASSERT (QThread::currentThread () == qApp->thread (),
+          "wait indicator accessed outside the Qt thread");
   
   if (!waitWindow) {
     waitWindow= new QTMProgressWindow ("ATHENA", true);
@@ -680,8 +682,7 @@ qt_gui_rep::show_wait_indicator (widget w, string message, string arg)  {
     }
     else waitWindow->centerOnScreen ();
     
-    waitWindow->repaint();
-    qApp->processEvents(QEventLoop::ExcludeUserInputEvents);
+    waitWindow->update ();
   } else {
     if (waitWindow) waitWindow->hide();
   }
@@ -1417,6 +1418,14 @@ command_queue::exec_global (object cmd) {
 
   athena_scheme_handle_id handle=
     scheme_command_handle_acquire (object_to_tmscm (cmd));
+  if (headless_mode) {
+    // Headless views have no canvas endpoint to drain global UI effects.
+    qt_post_to_main_thread ([handle] {
+      schedule_delayed_scheme_handle (
+        handle, ATHENA_NO_ACTOR, ATHENA_NO_VIEW, false, true);
+    });
+    return;
+  }
   actor_ui_endpoint* endpoint= find_actor_ui_endpoint (context->view_id);
   if (endpoint != nullptr && endpoint->publish (
         actor_command_kind::ui_schedule_global_scheme, ATHENA_NO_BLOB,

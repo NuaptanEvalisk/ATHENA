@@ -368,6 +368,26 @@
     (if (== fm "generic") (set! fm "verbatim"))
     (export-buffer-main (current-buffer) to fm (list :overwrite))))
 
+(tm-define (command-line-convert from to next)
+  (exec-global
+    (lambda ()
+      (let* ((name (string->url from))
+             (dest (string->url to))
+             (fm (url-format dest)))
+        ;; Do not use load-buffer here: its actor-side UI dispatch is
+        ;; asynchronous, and its missing-file fallback creates an empty buffer.
+        (when (buffer-load name)
+          (display* "ATHENA: could not load " from "\n")
+          (primitive-exit 1))
+        (switch-to-buffer name)
+        (set! current-save-source name)
+        (set! current-save-target dest)
+        (when (buffer-export name dest (if (== fm "generic") "verbatim" fm))
+          (display* "ATHENA: could not export " from " to " to "\n")
+          (primitive-exit 1))
+        ;; Resume on the selected buffer's actor, as ordinary -x commands do.
+        (exec-delayed next)))))
+
 (tm-define (buffer-exporter fm)
   (with opts (if (x-gui?) (list) (list :overwrite))
     (lambda (s) (export-buffer-main (current-buffer) s fm opts))))
