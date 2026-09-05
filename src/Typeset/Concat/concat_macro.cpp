@@ -82,9 +82,9 @@ concater_rep::typeset_with (tree t, path ip) {
     tree var_t= env->exec (t[i<<1]);
     if (is_atomic (var_t)) {
       string var= var_t->label;
-      vars[i]= var;
-      oldv[i]= env->read (var);
       newv[i]= env->exec (t[(i<<1)+1]);
+      vars[i]= env->normalize_legacy_math_font_variable (var, newv[i]);
+      oldv[i]= env->read (vars[i]);
     }
     else {
       STACK_DELETE_ARRAY(vars);

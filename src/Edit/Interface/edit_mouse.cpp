@@ -11,6 +11,7 @@
 
 #include "edit_interface.hpp"
 #include "Interface/selection_autoscroll.hpp"
+#include "Interface/table_resize.hpp"
 #include "actor_ui_bridge.hpp"
 #include "tm_buffer.hpp"
 #include "tm_timer.hpp"
@@ -258,6 +259,7 @@ edit_interface_rep::table_resize_handle_at (SI x, SI y, path& best_fp,
     if (!(rp <= structural) || !has_subtree (et, structural)) continue;
     path fp= ::table_search_format (et, structural);
     if (is_nil (fp) || !(rp <= fp) || !has_subtree (et, fp)) continue;
+    if (!table_mouse_resize_allowed (et, fp)) continue;
     tree format= subtree (et, fp);
     if (!is_func (format, TFORMAT) && !is_func (format, TABLE)) continue;
 
@@ -330,6 +332,7 @@ edit_interface_rep::table_resize_update (SI x, SI y) {
   if (!table_resize_active) return false;
   path fp= table_resize_format_path;
   if (!(rp <= fp) || !has_subtree (et, fp) ||
+      !table_mouse_resize_allowed (et, fp) ||
       (!is_func (subtree (et, fp), TFORMAT) &&
        !is_func (subtree (et, fp), TABLE))) {
     table_resize_finish ();
