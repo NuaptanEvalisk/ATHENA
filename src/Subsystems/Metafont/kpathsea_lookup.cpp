@@ -6,13 +6,15 @@
 #include "kpathsea_lookup.hpp"
 
 #ifdef USE_KPATHSEA_API
+#include <QCoreApplication>
 #include <kpathsea/kpathsea.h>
 
 namespace {
 struct kpathsea_context {
   kpathsea instance= kpathsea_new ();
   kpathsea_context () {
-    kpathsea_set_program_name (instance, "ATHENA", "ATHENA");
+    QByteArray executable= QCoreApplication::applicationFilePath ().toLocal8Bit ();
+    kpathsea_set_program_name (instance, executable.constData (), "ATHENA");
   }
   ~kpathsea_context () { kpathsea_finish (instance); }
 };
