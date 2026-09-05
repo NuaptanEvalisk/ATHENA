@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "font.hpp"
+#include "font_domain.hpp"
 #include "Metafont/load_tex.hpp"
 #include "translator.hpp"
 #include "iterator.hpp"
@@ -240,8 +241,15 @@ tex_font_rep::tex_font_rep (string name, int status2,
 * Handle <, > and (in the future?) other special characters
 ******************************************************************************/
 
-static bool special_initialized= false;
-static hashmap<string,string> special_translate ("");
+namespace {
+struct local_font_state {
+  bool special_initialized= false;
+  hashmap<string,string> special_translate{""};
+};
+local_font_state& font_state () {
+  return font_domain_local<local_font_state> ();
+}
+}
 
 static void
 special_initialize (string enc) {
@@ -249,23 +257,23 @@ special_initialize (string enc) {
   iterator<string> it= iterate (trl->dict);
   while (it->busy ()) {
     string s= it->next ();
-    special_translate (s)= string ((char) (unsigned char) trl->dict[s]);
+    font_state ().special_translate (s)= string ((char) (unsigned char) trl->dict[s]);
     if (N(s) > 2 && s(0,2) == "<#") {
       string sl= locase_all (s), su= upcase_all (s);
-      special_translate (sl)= string ((char) (unsigned char) trl->dict[s]);
-      special_translate (su)= string ((char) (unsigned char) trl->dict[s]);
+      font_state ().special_translate (sl)= string ((char) (unsigned char) trl->dict[s]);
+      font_state ().special_translate (su)= string ((char) (unsigned char) trl->dict[s]);
     }
   }
 }
 
 static void
 special_initialize () {
-  if (special_initialized) return;
-  special_translate ("<less>")= "<";
-  special_translate ("<gtr>")= ">";
+  if (font_state ().special_initialized) return;
+  font_state ().special_translate ("<less>")= "<";
+  font_state ().special_translate ("<gtr>")= ">";
   special_initialize ("larm");
   special_initialize ("grmn");
-  special_initialized= true;
+  font_state ().special_initialized= true;
 }
 
 void
@@ -283,7 +291,7 @@ tex_font_rep::special_get_extents (string s, metric& ex) {
   int temp= status;
   status= TEX_ANY;
   string r = s (i, j);
-  string rr= special_translate[r];
+  string rr= font_state ().special_translate[r];
   if (N(rr) != 0) r= rr;
   get_extents (r, ey);
   x= ex->x2;
@@ -324,7 +332,7 @@ tex_font_rep::special_get_xpositions (string s, SI* xpos, bool ligf) {
     int temp= status;
     status= TEX_ANY;
     string r= s (i, j);
-    string rr= special_translate[r];
+    string rr= font_state ().special_translate[r];
     if (N(rr) != 0) r= rr;
     get_extents (r, ey);
     status= temp;
@@ -350,7 +358,7 @@ tex_font_rep::special_draw (renderer ren, string s, SI x, SI y) {
   int temp= status;
   status= TEX_ANY;
   string r= s (i, j);
-  string rr= special_translate[r];
+  string rr= font_state ().special_translate[r];
   pencil pen= ren->get_pencil ();
   if (N(rr) != 0) r= rr;
   else ren->set_pencil (red);
@@ -367,7 +375,7 @@ SI
 tex_font_rep::special_get_left_correction (string s) {
   int i= 0;
   tm_char_forwards (s, i);
-  string r= special_translate (s (0, i));
+  string r= font_state ().special_translate (s (0, i));
   if (N(r)!=0) return (SI) (slope * conv (tfm->d ((N8) r[0])));
   return (SI) (slope * conv (tfm->d ((N8) '<')));
 }
@@ -376,7 +384,7 @@ SI
 tex_font_rep::special_get_right_correction (string s) {
   int n= N(s), i= n;
   tm_char_backwards (s, i);
-  string r= special_translate (s (i, n));
+  string r= font_state ().special_translate (s (i, n));
   if (N(r)!=0) return conv (tfm->i ((N8) r[0]));
   return conv (tfm->i ((N8) '>'));
 }
@@ -385,7 +393,7 @@ tex_font_rep::special_get_right_correction (string s) {
 * Handle accents
 ******************************************************************************/
 
-static char CM_unaccented[128]= {
+static const char CM_unaccented[128]= {
     'A', ' ', 'C', 'C',   'D',   'E',   ' ',   'G', 
     'L', 'L', ' ', 'N',   'N',   ' ',   'O',   'R', 
     'R', 'S', 'S', 'S',   'T',   'T',   'U',   'U', 
@@ -404,7 +412,7 @@ static char CM_unaccented[128]= {
   '\34', 'u', 'u', 'u',   'u',   'y',   ' ', '\31'
 };
 
-static char CM_accents[128]= {
+static const char CM_accents[128]= {
    '\25',    ' ',  '\23',  '\24',  '\24',  '\24',    ' ',  '\25', 
    '\23',  '\47',    ' ',  '\23',  '\24',    ' ', '\175',  '\23', 
    '\24',  '\23',  '\24',  '\30',  '\24',  '\30', '\175',  '\27', 
@@ -423,7 +431,7 @@ static char CM_accents[128]= {
      ' ',  '\22',  '\23', '\136', '\177',  '\23',    ' ',    ' ' 
 };
 
-static char ADOBE_unaccented[128]= {
+static const char ADOBE_unaccented[128]= {
      'A', 'A',    'C', 'C',    'D',    'E',    'E',    'G', 
      'L', 'L', '\350', 'N',    'N',    ' ',    'O',    'R', 
      'R', 'S',    'S', 'S',    'T',    'T',    'U',    'U', 
@@ -442,7 +450,7 @@ static char ADOBE_unaccented[128]= {
   '\371', 'u',    'u', 'u',    'u',    'y',    ' ', '\373'
 };
 
-static char ADOBE_accents[128]= {
+static const char ADOBE_accents[128]= {
   '\306', '\316', '\302', '\317', '\317', '\317', '\316', '\306', 
   '\302',  '\47',    ' ', '\302', '\317',    ' ', '\315', '\302', 
   '\317', '\302', '\317', '\313', '\317', '\313', '\315', '\312', 
@@ -461,21 +469,9 @@ static char ADOBE_accents[128]= {
      ' ', '\301', '\302', '\303', '\310', '\302',    ' ',    ' ' 
 };
 
-static char* the_unaccented;
-static char* the_accents;
-
-#define ACCENTS_PREPARE \
-  if (status==TEX_CM) { \
-    the_unaccented= CM_unaccented; \
-    the_accents   = CM_accents; \
-  } \
-  else { \
-    the_unaccented= ADOBE_unaccented; \
-    the_accents   = ADOBE_accents; \
-  }
-
 static string
-get_unaccented (string s) {
+get_unaccented (string s, int status) {
+  const char* the_unaccented= status == TEX_CM ? CM_unaccented : ADOBE_unaccented;
   int i;
   string r(N(s));
   for (i=0; i<N(s); i++)
@@ -489,7 +485,8 @@ get_unaccented (string s) {
 }
 
 static string
-get_accents (string s) {
+get_accents (string s, int status) {
+  const char* the_accents= status == TEX_CM ? CM_accents : ADOBE_accents;
   int i, n= N(s);
   string r (n);
   for (i=0; i<n; i++) {
@@ -505,8 +502,8 @@ tex_font_rep::accented_get_extents (string s, metric& ex) {
   status= TEX_ANY;
 
   int i;
-  string acc= get_accents (s);
-  s= get_unaccented (s);
+  string acc= get_accents (s, old_status);
+  s= get_unaccented (s, old_status);
   get_extents (s, ex);
   
   for (i=0; i<N(acc); i++)
@@ -540,8 +537,8 @@ void
 tex_font_rep::accented_get_xpositions (string s, SI* xpos, bool ligf) {
   int old_status= status;
   status= TEX_ANY;
-  string acc= get_accents (s);
-  s= get_unaccented (s);
+  string acc= get_accents (s, old_status);
+  s= get_unaccented (s, old_status);
   get_xpositions (s, xpos, ligf);
   status= old_status;
 }
@@ -552,8 +549,8 @@ tex_font_rep::accented_draw (renderer ren, string s, SI x, SI y) {
   status= TEX_ANY;
 
   int i;
-  string acc= get_accents (s);
-  s= get_unaccented (s);
+  string acc= get_accents (s, old_status);
+  s= get_unaccented (s, old_status);
   draw_fixed (ren, s, x, y);
 
   for (i=0; i<N(acc); i++)
@@ -582,13 +579,13 @@ tex_font_rep::accented_draw (renderer ren, string s, SI x, SI y) {
 
 SI
 tex_font_rep::accented_get_left_correction (string s) {
-  s= get_unaccented (s);
+  s= get_unaccented (s, status);
   return (SI) (slope * conv (tfm->d ((N8) s[0])));
 }
 
 SI
 tex_font_rep::accented_get_right_correction (string s) {
-  s= get_unaccented (s);
+  s= get_unaccented (s, status);
   return conv (tfm->i ((N8) s[N(s)-1]));
 }
 
@@ -619,8 +616,7 @@ tex_font_rep::supports (string s) {
       if (N(s) != 1) return s == "<less>" || s == "<gtr>";
       else if (((unsigned int) s[0]) < ((unsigned int) 128)) return true;
       else {
-        ACCENTS_PREPARE;
-        return get_accents (s) != " ";
+        return get_accents (s, status) != " ";
       }
   }
   return false;
@@ -649,7 +645,6 @@ tex_font_rep::get_extents (string s, metric& ex) {
           return;
         }
         if ((s[i] & 128) != 0) {
-          ACCENTS_PREPARE;
           accented_get_extents (s, ex);
           return;
         }
@@ -745,7 +740,6 @@ tex_font_rep::get_xpositions (string s, SI* xpos, bool ligf) {
           return;
         }
         if ((s[i] & 128) != 0) {
-          ACCENTS_PREPARE;
           accented_get_xpositions (s, xpos, ligf);
           return;
         }
@@ -787,7 +781,6 @@ tex_font_rep::draw_fixed (renderer ren, string s, SI ox, SI y) {
           return;
         }
         if ((s[i] & 128) != 0) {
-          ACCENTS_PREPARE;
           accented_draw (ren, s, ox, y);
           return;
         }
@@ -862,7 +855,6 @@ tex_font_rep::get_left_correction (string s) {
   case TEX_ADOBE:
     if (s[0] == '<') return special_get_left_correction (s);
     if ((s[0] & 128) != 0) {
-      ACCENTS_PREPARE;
       return accented_get_left_correction (s);
     }
   }
@@ -884,7 +876,6 @@ tex_font_rep::get_right_correction (string s) {
   case TEX_ADOBE:
     if (s[N(s)-1] == '>') return special_get_right_correction (s);
     if ((s[N(s)-1] & 128) != 0) {
-      ACCENTS_PREPARE;
       return accented_get_right_correction (s);
     }
   }
@@ -985,7 +976,7 @@ tex_font_rep::get_glyph (string s) {
   case TEX_GR:
     if (s == "<less>") s= "<";
     else if (s == "<gtr>") s= ">";
-    else if (N(s) >= 2 && s[0] == '<') s= special_translate[s];
+    else if (N(s) >= 2 && s[0] == '<') s= font_state ().special_translate[s];
     break;
   case TEX_CM:
   case TEX_ADOBE:
@@ -1016,7 +1007,7 @@ tex_font_rep::index_glyph (string s, font_metric& rm, font_glyphs& rg) {
   case TEX_GR:
     if (s == "<less>") s= "<";
     else if (s == "<gtr>") s= ">";
-    else if (N(s) >= 2 && s[0] == '<') s= special_translate[s];
+    else if (N(s) >= 2 && s[0] == '<') s= font_state ().special_translate[s];
     break;
   case TEX_CM:
   case TEX_ADOBE:
@@ -1061,21 +1052,20 @@ tex_font_rep::get_ligature_code (string s) {
 * TeX font metrics as usual metrics
 ******************************************************************************/
 
-extern metric error_metric;
 
 struct tfm_font_metric_rep: public font_metric_rep {
   tex_font_metric tfm;
   font_glyphs pk;
   double unit;
-  hashmap<int,pointer> ms;
+  font_metric_cache ms;
   tfm_font_metric_rep (string name, tex_font_metric tfm2,
                        font_glyphs pk2, double unit2):
     font_metric_rep (name), tfm (tfm2), pk (pk2),
-    unit (unit2), ms (error_metric) {}
+    unit (unit2), ms (font_error_metric ()) {}
   bool exists (int c) {
     return c >= ((int) tfm->bc) && ((int) tfm->ec) >= c; }
   metric& get (int c) {
-    if (!exists (c)) return error_metric;
+    if (!exists (c)) return font_error_metric ();
     if (!ms->contains (c)) {
       metric_struct* r= tm_new<metric_struct> ();
       ms(c)= (pointer) r;

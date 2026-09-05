@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "font.hpp"
+#include "font_domain.hpp"
 
 /******************************************************************************
 * Table initialization
@@ -405,54 +406,66 @@ above_adjust_schola (hashmap<string,double>& t) {
 * Interface
 ******************************************************************************/
 
-static hashmap<string,double> lsub_schola (0.0);
-static hashmap<string,double> lsup_schola (0.0);
-static hashmap<string,double> rsub_schola (0.0);
-static hashmap<string,double> rsup_schola (0.0);
-static hashmap<string,double> above_schola (0.0);
+namespace {
+struct local_font_state {
+  hashmap<string,double> lsub_schola{0.0};
+  hashmap<string,double> lsub_schola_italic{0.0};
+  hashmap<string,double> lsup_schola{0.0};
+  hashmap<string,double> lsup_schola_italic{0.0};
+  hashmap<string,double> rsub_schola{0.0};
+  hashmap<string,double> rsub_schola_italic{0.0};
+  hashmap<string,double> rsup_schola{0.0};
+  hashmap<string,double> rsup_schola_italic{0.0};
+  hashmap<string,double> above_schola{0.0};
+  hashmap<string,double> above_schola_italic{0.0};
+};
+local_font_state& font_state () {
+  return font_domain_local<local_font_state> ();
+}
+}
 
 hashmap<string,double>
 lsub_schola_table () {
-  if (N (lsub_schola) == 0) {
-    lsub_adjust_std (lsub_schola);
-    lsub_adjust_schola (lsub_schola);
+  if (N (font_state ().lsub_schola) == 0) {
+    lsub_adjust_std (font_state ().lsub_schola);
+    lsub_adjust_schola (font_state ().lsub_schola);
   }
-  return lsub_schola;
+  return font_state ().lsub_schola;
 }
 
 hashmap<string,double>
 lsup_schola_table () {
-  if (N (lsup_schola) == 0) {
-    lsup_adjust_std (lsup_schola);
-    lsup_adjust_schola (lsup_schola);
+  if (N (font_state ().lsup_schola) == 0) {
+    lsup_adjust_std (font_state ().lsup_schola);
+    lsup_adjust_schola (font_state ().lsup_schola);
   }
-  return lsup_schola;
+  return font_state ().lsup_schola;
 }
 
 hashmap<string,double>
 rsub_schola_table () {
-  if (N (rsub_schola) == 0) {
-    rsub_adjust_std (rsub_schola);
-    rsub_adjust_schola (rsub_schola);
+  if (N (font_state ().rsub_schola) == 0) {
+    rsub_adjust_std (font_state ().rsub_schola);
+    rsub_adjust_schola (font_state ().rsub_schola);
   }
-  return rsub_schola;
+  return font_state ().rsub_schola;
 }
 
 hashmap<string,double>
 rsup_schola_table () {
-  if (N (rsup_schola) == 0) {
-    rsup_adjust_std (rsup_schola);
-    rsup_adjust_schola (rsup_schola);
+  if (N (font_state ().rsup_schola) == 0) {
+    rsup_adjust_std (font_state ().rsup_schola);
+    rsup_adjust_schola (font_state ().rsup_schola);
   }
-  return rsup_schola;
+  return font_state ().rsup_schola;
 }
 
 hashmap<string,double>
 above_schola_table () {
-  if (N (above_schola) == 0) {
-    above_adjust_schola (above_schola);
+  if (N (font_state ().above_schola) == 0) {
+    above_adjust_schola (font_state ().above_schola);
   }
-  return above_schola;
+  return font_state ().above_schola;
 }
 
 /******************************************************************************
@@ -588,52 +601,47 @@ above_adjust_schola_italic (hashmap<string,double>& t) {
 * Interface
 ******************************************************************************/
 
-static hashmap<string,double> lsub_schola_italic (0.0);
-static hashmap<string,double> lsup_schola_italic (0.0);
-static hashmap<string,double> rsub_schola_italic (0.0);
-static hashmap<string,double> rsup_schola_italic (0.0);
-static hashmap<string,double> above_schola_italic (0.0);
 
 hashmap<string,double>
 lsub_schola_italic_table () {
-  if (N (lsub_schola_italic) == 0) {
-    lsub_adjust_std (lsub_schola_italic);
-    lsub_adjust_schola_italic (lsub_schola_italic);
+  if (N (font_state ().lsub_schola_italic) == 0) {
+    lsub_adjust_std (font_state ().lsub_schola_italic);
+    lsub_adjust_schola_italic (font_state ().lsub_schola_italic);
   }
-  return lsub_schola_italic;
+  return font_state ().lsub_schola_italic;
 }
 
 hashmap<string,double>
 lsup_schola_italic_table () {
-  if (N (lsup_schola_italic) == 0) {
-    lsup_adjust_std (lsup_schola_italic);
-    lsup_adjust_schola_italic (lsup_schola_italic);
+  if (N (font_state ().lsup_schola_italic) == 0) {
+    lsup_adjust_std (font_state ().lsup_schola_italic);
+    lsup_adjust_schola_italic (font_state ().lsup_schola_italic);
   }
-  return lsup_schola_italic;
+  return font_state ().lsup_schola_italic;
 }
 
 hashmap<string,double>
 rsub_schola_italic_table () {
-  if (N (rsub_schola_italic) == 0) {
-    rsub_adjust_std (rsub_schola_italic);
-    rsub_adjust_schola_italic (rsub_schola_italic);
+  if (N (font_state ().rsub_schola_italic) == 0) {
+    rsub_adjust_std (font_state ().rsub_schola_italic);
+    rsub_adjust_schola_italic (font_state ().rsub_schola_italic);
   }
-  return rsub_schola_italic;
+  return font_state ().rsub_schola_italic;
 }
 
 hashmap<string,double>
 rsup_schola_italic_table () {
-  if (N (rsup_schola_italic) == 0) {
-    rsup_adjust_std (rsup_schola_italic);
-    rsup_adjust_schola_italic (rsup_schola_italic);
+  if (N (font_state ().rsup_schola_italic) == 0) {
+    rsup_adjust_std (font_state ().rsup_schola_italic);
+    rsup_adjust_schola_italic (font_state ().rsup_schola_italic);
   }
-  return rsup_schola_italic;
+  return font_state ().rsup_schola_italic;
 }
 
 hashmap<string,double>
 above_schola_italic_table () {
-  if (N (above_schola_italic) == 0) {
-    above_adjust_schola_italic (above_schola_italic);
+  if (N (font_state ().above_schola_italic) == 0) {
+    above_adjust_schola_italic (font_state ().above_schola_italic);
   }
-  return above_schola_italic;
+  return font_state ().above_schola_italic;
 }

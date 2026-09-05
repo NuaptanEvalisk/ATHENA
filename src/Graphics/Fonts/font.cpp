@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "boot.hpp"
+#include "font_domain.hpp"
 #include "font.hpp"
 #include "gui.hpp"
 #include "Freetype/tt_file.hpp"
@@ -17,7 +18,7 @@
 #include "file.hpp"
 #include "convert.hpp"
 
-RESOURCE_CODE(font);
+FONT_RESOURCE_CODE(font);
 
 hashmap<string,double> lsub_guessed_table ();
 hashmap<string,double> lsup_guessed_table ();
@@ -515,7 +516,14 @@ x_font (string family, int size, int dpi) {
 * Miscellaneous
 ******************************************************************************/
 
-static hashmap<string,font> larger_font_table;
+namespace {
+struct local_font_state {
+  hashmap<string,font> larger_font_table{};
+};
+local_font_state& font_state () {
+  return font_domain_local<local_font_state> ();
+}
+}
 bool has_poor_rubber= true;
 
 bool
@@ -548,10 +556,10 @@ make_rubber_font (font fn) {
 
 font
 rubber_font (font base) {
-  if (larger_font_table->contains (base->res_name))
-    return larger_font_table (base->res_name);
+  if (font_state ().larger_font_table->contains (base->res_name))
+    return font_state ().larger_font_table (base->res_name);
   font larger= make_rubber_font (base);
-  larger_font_table (base->res_name)= larger;
+  font_state ().larger_font_table (base->res_name)= larger;
   return larger;
 }
 

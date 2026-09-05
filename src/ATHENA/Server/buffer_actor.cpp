@@ -17,6 +17,7 @@
 #include "Data/new_view.hpp"
 #include "editor.hpp"
 #include "file.hpp"
+#include "font_domain.hpp"
 #include "guile_tm.hpp"
 #include "glue.hpp"
 #include "object.hpp"
@@ -479,6 +480,8 @@ buffer_actor::wait_without_guile (void* raw_request) {
 
 void
 buffer_actor::run_in_guile () {
+  font_domain fonts;
+  font_domain_binding font_owner (fonts);
   string initial_name= actor_text_registry::instance ().take (initial_name_);
   string initial_master= actor_text_registry::instance ().take (initial_master_);
   string initial_title= actor_text_registry::instance ().take (initial_title_);
@@ -534,6 +537,7 @@ buffer_actor::run_in_guile () {
 
 void
 buffer_actor::execute (actor_command_record& command) {
+  current_font_domain ().synchronize_configuration ();
   editor_rep* editor= current_editor (command.view_id);
   drd_info* drd= editor == nullptr ? nullptr : &editor->drd;
   SchemeExecutionContext context (

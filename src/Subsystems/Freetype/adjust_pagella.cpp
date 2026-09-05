@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "font.hpp"
+#include "font_domain.hpp"
 
 /******************************************************************************
 * Table initialization
@@ -442,54 +443,66 @@ above_adjust_pagella (hashmap<string,double>& t) {
 * Interface
 ******************************************************************************/
 
-static hashmap<string,double> lsub_pagella (0.0);
-static hashmap<string,double> lsup_pagella (0.0);
-static hashmap<string,double> rsub_pagella (0.0);
-static hashmap<string,double> rsup_pagella (0.0);
-static hashmap<string,double> above_pagella (0.0);
+namespace {
+struct local_font_state {
+  hashmap<string,double> lsub_pagella{0.0};
+  hashmap<string,double> lsub_pagella_italic{0.0};
+  hashmap<string,double> lsup_pagella{0.0};
+  hashmap<string,double> lsup_pagella_italic{0.0};
+  hashmap<string,double> rsub_pagella{0.0};
+  hashmap<string,double> rsub_pagella_italic{0.0};
+  hashmap<string,double> rsup_pagella{0.0};
+  hashmap<string,double> rsup_pagella_italic{0.0};
+  hashmap<string,double> above_pagella{0.0};
+  hashmap<string,double> above_pagella_italic{0.0};
+};
+local_font_state& font_state () {
+  return font_domain_local<local_font_state> ();
+}
+}
 
 hashmap<string,double>
 lsub_pagella_table () {
-  if (N (lsub_pagella) == 0) {
-    lsub_adjust_std (lsub_pagella);
-    lsub_adjust_pagella (lsub_pagella);
+  if (N (font_state ().lsub_pagella) == 0) {
+    lsub_adjust_std (font_state ().lsub_pagella);
+    lsub_adjust_pagella (font_state ().lsub_pagella);
   }
-  return lsub_pagella;
+  return font_state ().lsub_pagella;
 }
 
 hashmap<string,double>
 lsup_pagella_table () {
-  if (N (lsup_pagella) == 0) {
-    lsup_adjust_std (lsup_pagella);
-    lsup_adjust_pagella (lsup_pagella);
+  if (N (font_state ().lsup_pagella) == 0) {
+    lsup_adjust_std (font_state ().lsup_pagella);
+    lsup_adjust_pagella (font_state ().lsup_pagella);
   }
-  return lsup_pagella;
+  return font_state ().lsup_pagella;
 }
 
 hashmap<string,double>
 rsub_pagella_table () {
-  if (N (rsub_pagella) == 0) {
-    rsub_adjust_std (rsub_pagella);
-    rsub_adjust_pagella (rsub_pagella);
+  if (N (font_state ().rsub_pagella) == 0) {
+    rsub_adjust_std (font_state ().rsub_pagella);
+    rsub_adjust_pagella (font_state ().rsub_pagella);
   }
-  return rsub_pagella;
+  return font_state ().rsub_pagella;
 }
 
 hashmap<string,double>
 rsup_pagella_table () {
-  if (N (rsup_pagella) == 0) {
-    rsup_adjust_std (rsup_pagella);
-    rsup_adjust_pagella (rsup_pagella);
+  if (N (font_state ().rsup_pagella) == 0) {
+    rsup_adjust_std (font_state ().rsup_pagella);
+    rsup_adjust_pagella (font_state ().rsup_pagella);
   }
-  return rsup_pagella;
+  return font_state ().rsup_pagella;
 }
 
 hashmap<string,double>
 above_pagella_table () {
-  if (N (above_pagella) == 0) {
-    above_adjust_pagella (above_pagella);
+  if (N (font_state ().above_pagella) == 0) {
+    above_adjust_pagella (font_state ().above_pagella);
   }
-  return above_pagella;
+  return font_state ().above_pagella;
 }
 
 /******************************************************************************
@@ -593,52 +606,47 @@ above_adjust_pagella_italic (hashmap<string,double>& t) {
 * Interface
 ******************************************************************************/
 
-static hashmap<string,double> lsub_pagella_italic (0.0);
-static hashmap<string,double> lsup_pagella_italic (0.0);
-static hashmap<string,double> rsub_pagella_italic (0.0);
-static hashmap<string,double> rsup_pagella_italic (0.0);
-static hashmap<string,double> above_pagella_italic (0.0);
 
 hashmap<string,double>
 lsub_pagella_italic_table () {
-  if (N (lsub_pagella_italic) == 0) {
-    lsub_adjust_std (lsub_pagella_italic);
-    lsub_adjust_pagella_italic (lsub_pagella_italic);
+  if (N (font_state ().lsub_pagella_italic) == 0) {
+    lsub_adjust_std (font_state ().lsub_pagella_italic);
+    lsub_adjust_pagella_italic (font_state ().lsub_pagella_italic);
   }
-  return lsub_pagella_italic;
+  return font_state ().lsub_pagella_italic;
 }
 
 hashmap<string,double>
 lsup_pagella_italic_table () {
-  if (N (lsup_pagella_italic) == 0) {
-    lsup_adjust_std (lsup_pagella_italic);
-    lsup_adjust_pagella_italic (lsup_pagella_italic);
+  if (N (font_state ().lsup_pagella_italic) == 0) {
+    lsup_adjust_std (font_state ().lsup_pagella_italic);
+    lsup_adjust_pagella_italic (font_state ().lsup_pagella_italic);
   }
-  return lsup_pagella_italic;
+  return font_state ().lsup_pagella_italic;
 }
 
 hashmap<string,double>
 rsub_pagella_italic_table () {
-  if (N (rsub_pagella_italic) == 0) {
-    rsub_adjust_std (rsub_pagella_italic);
-    rsub_adjust_pagella_italic (rsub_pagella_italic);
+  if (N (font_state ().rsub_pagella_italic) == 0) {
+    rsub_adjust_std (font_state ().rsub_pagella_italic);
+    rsub_adjust_pagella_italic (font_state ().rsub_pagella_italic);
   }
-  return rsub_pagella_italic;
+  return font_state ().rsub_pagella_italic;
 }
 
 hashmap<string,double>
 rsup_pagella_italic_table () {
-  if (N (rsup_pagella_italic) == 0) {
-    rsup_adjust_std (rsup_pagella_italic);
-    rsup_adjust_pagella_italic (rsup_pagella_italic);
+  if (N (font_state ().rsup_pagella_italic) == 0) {
+    rsup_adjust_std (font_state ().rsup_pagella_italic);
+    rsup_adjust_pagella_italic (font_state ().rsup_pagella_italic);
   }
-  return rsup_pagella_italic;
+  return font_state ().rsup_pagella_italic;
 }
 
 hashmap<string,double>
 above_pagella_italic_table () {
-  if (N (above_pagella_italic) == 0) {
-    above_adjust_pagella_italic (above_pagella_italic);
+  if (N (font_state ().above_pagella_italic) == 0) {
+    above_adjust_pagella_italic (font_state ().above_pagella_italic);
   }
-  return above_pagella_italic;
+  return font_state ().above_pagella_italic;
 }

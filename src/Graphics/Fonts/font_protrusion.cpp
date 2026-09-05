@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "font.hpp"
+#include "font_domain.hpp"
 #include "analyze.hpp"
 
 /******************************************************************************
@@ -224,16 +225,23 @@ add_kaiming (hashmap<string,double>& t, int mode, bool right) {
 * Setting up the global protrusion tables
 ******************************************************************************/
 
-static hashmap<string,int> protrusion_index_table (-1);
-static array<hashmap<string,double> > protrusion_tables;
+namespace {
+struct local_font_state {
+  hashmap<string,int> protrusion_index_table{-1};
+  array<hashmap<string,double> > protrusion_tables{};
+};
+local_font_state& font_state () {
+  return font_domain_local<local_font_state> ();
+}
+}
 
 int
 init_protrusion_table (string font_name, int mode, bool right) {
   int index= (mode<<1) + (right?1:0);
   string key= font_name * ":" * as_string (index);
-  if (!protrusion_index_table->contains (key)) {
-    int im= N(protrusion_tables);
-    protrusion_index_table (key)= im;
+  if (!font_state ().protrusion_index_table->contains (key)) {
+    int im= N(font_state ().protrusion_tables);
+    font_state ().protrusion_index_table (key)= im;
     hashmap<string,double> t (0.0);
     if ((mode & WESTERN_PROTRUSION) != 0)
       add_western (t, font_name, right);
@@ -251,9 +259,9 @@ init_protrusion_table (string font_name, int mode, bool right) {
       add_kaiming (t, mode, right);
       break;
     }
-    protrusion_tables << t;
+    font_state ().protrusion_tables << t;
   }
-  return protrusion_index_table [key];
+  return font_state ().protrusion_index_table [key];
 }
 
 /******************************************************************************
@@ -282,7 +290,7 @@ font_rep::get_left_protrusion (string s, int mode) {
     int code= init_protrusion_table (res_name, mode, false);
     protrusion_maps (index)= code;
   }
-  hashmap<string,double> t= protrusion_tables [protrusion_maps [index]];
+  hashmap<string,double> t= font_state ().protrusion_tables [protrusion_maps [index]];
 
   int pos= 0;
   tm_char_forwards (s, pos);
@@ -304,7 +312,7 @@ font_rep::get_right_protrusion (string s, int mode) {
     int code= init_protrusion_table (res_name, mode, true);
     protrusion_maps (index)= code;
   }
-  hashmap<string,double> t= protrusion_tables [protrusion_maps [index]];
+  hashmap<string,double> t= font_state ().protrusion_tables [protrusion_maps [index]];
 
   int pos= N(s);
   tm_char_backwards (s, pos);

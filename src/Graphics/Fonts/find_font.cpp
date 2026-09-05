@@ -15,8 +15,38 @@
 #include "hashmap.hpp"
 #include "tm_timer.hpp"
 #include "Freetype/tt_file.hpp"
+#include "iterator.hpp"
+#include <mutex>
 
-hashmap<string,tree> font_conversion ("rule");
+namespace {
+struct published_font_rules {
+  std::mutex lock;
+  hashmap<string,tree> rules{"rule"};
+};
+published_font_rules& published_rules () {
+  static published_font_rules rules;
+  return rules;
+}
+struct local_font_rules {
+  hashmap<string,tree> rules{"rule"};
+  bool loaded= false;
+};
+hashmap<string,tree>& font_conversion () {
+  auto& local= font_domain_local<local_font_rules> ();
+  if (!local.loaded) {
+    auto& published= published_rules ();
+    std::lock_guard<std::mutex> guard (published.lock);
+    local.rules= hashmap<string,tree> ("rule");
+    iterator<string> it= iterate (published.rules);
+    while (it->busy ()) {
+      string name= it->next ();
+      local.rules (name)= copy (published.rules[name]);
+    }
+    local.loaded= true;
+  }
+  return local.rules;
+}
+}
 
 /******************************************************************************
 * Declare a new rule
@@ -25,10 +55,17 @@ hashmap<string,tree> font_conversion ("rule");
 void
 font_rule (tree which, tree by) {
   if ((arity (which) * arity (by) == 0) || is_compound (which[0])) return;
-  if (!font_conversion->contains (which[0]->label))
-    font_conversion (which[0]->label)=
-      tree (TUPLE, tree (ASSOCIATE, which, by));
-  else font_conversion (which[0]->label) << tree (ASSOCIATE, which, by);
+  {
+    auto& published= published_rules ();
+    std::lock_guard<std::mutex> guard (published.lock);
+    string name= which[0]->label;
+    tree rule (ASSOCIATE, copy (which), copy (by));
+    if (!published.rules->contains (name))
+      published.rules (name)= tree (TUPLE, rule);
+    else published.rules (name) << rule;
+  }
+  font_domain_local<local_font_rules> ().loaded= false;
+  invalidate_font_configuration ();
 }
 
 /******************************************************************************
@@ -178,7 +215,7 @@ find_font_bis (tree t) {
     return math_font (t, fn, error_fn, 1.0, 1.0);
   }
 
-  if (!font_conversion->contains (t[0]->label)) {
+  if (!font_conversion ()->contains (t[0]->label)) {
     font_database_load ();
     if (is_tuple (t) && N(t) == 6) {
       string family = as_string (t[0]);
@@ -195,7 +232,7 @@ find_font_bis (tree t) {
     return font ();
   }
 
-  tree rule= font_conversion [t[0]->label];
+  tree rule= font_conversion ()[t[0]->label];
   int i, n= N(rule);
   for (i=0; i<n; i++) {
     hashmap<string,tree> H ("?");

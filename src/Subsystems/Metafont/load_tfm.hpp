@@ -13,10 +13,10 @@
 #define LOAD_TFM_H
 #include "file.hpp"
 #include "tex_files.hpp"
-#include "resource.hpp"
+#include "font_domain.hpp"
 #include "bitmap_font.hpp"
 
-RESOURCE(tex_font_metric);
+FONT_RESOURCE(tex_font_metric, 2);
 
 struct tex_font_metric_rep: rep<tex_font_metric> {
   N16     lf, lh, bc, ec;

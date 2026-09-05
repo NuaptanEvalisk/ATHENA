@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "font.hpp"
+#include "font_domain.hpp"
 #include "analyze.hpp"
 #include "frame.hpp"
 
@@ -215,11 +216,18 @@ poor_italic_font_rep::get_left_correction (string s) {
   return base->get_left_correction (s) + dx;
 }
 
-static hashmap<string,double> multipliers (1.0);
+namespace {
+struct local_font_state {
+  hashmap<string,double> multipliers{1.0};
+};
+local_font_state& font_state () {
+  return font_domain_local<local_font_state> ();
+}
+}
 
 static double
 get_multiplier (string r) {
-  if (N(multipliers) == 0) {
+  if (N(font_state ().multipliers) == 0) {
     double _A= 0.25;
     double _B= 0.8;
     double _D= 0.7;
@@ -228,41 +236,41 @@ get_multiplier (string r) {
     double _k= 0.6;
     double _n= 0.7;
     double _o= 0.65;
-    multipliers ("A")= _A;
-    multipliers ("B")= _B;
-    multipliers ("C")= _O;
-    multipliers ("D")= _D;
-    multipliers ("L")= 0;
-    multipliers ("O")= _O;
-    multipliers ("P")= _B;
-    multipliers ("Q")= _O;
-    multipliers ("R")= _B;
-    multipliers ("b")= _b;
-    multipliers ("c")= _o;
-    multipliers ("e")= _o;
-    multipliers ("h")= _b;
-    multipliers ("k")= _k;
-    multipliers ("m")= _n;
-    multipliers ("n")= _n;
-    multipliers ("o")= _o;
-    multipliers ("p")= _o;
-    multipliers ("r")= _o;
-    multipliers ("p")= _o;
-    multipliers ("t")= _b;
-    multipliers ("<eta>")= _n;
-    multipliers ("<lambda>")= _b;
-    multipliers ("<theta>")= _n;
-    multipliers ("<omicron>")= _o;
-    multipliers ("<rho>")= _o;
-    multipliers ("<phi>")= _o;
-    multipliers ("<omega>")= _o;
-    multipliers ("<Delta>")= _A;
-    multipliers ("<Theta>")= _O;
-    multipliers ("<Lambda>")= _A;
-    multipliers ("<Phi>")= _O;
-    multipliers ("<Omega>")= _O;
+    font_state ().multipliers ("A")= _A;
+    font_state ().multipliers ("B")= _B;
+    font_state ().multipliers ("C")= _O;
+    font_state ().multipliers ("D")= _D;
+    font_state ().multipliers ("L")= 0;
+    font_state ().multipliers ("O")= _O;
+    font_state ().multipliers ("P")= _B;
+    font_state ().multipliers ("Q")= _O;
+    font_state ().multipliers ("R")= _B;
+    font_state ().multipliers ("b")= _b;
+    font_state ().multipliers ("c")= _o;
+    font_state ().multipliers ("e")= _o;
+    font_state ().multipliers ("h")= _b;
+    font_state ().multipliers ("k")= _k;
+    font_state ().multipliers ("m")= _n;
+    font_state ().multipliers ("n")= _n;
+    font_state ().multipliers ("o")= _o;
+    font_state ().multipliers ("p")= _o;
+    font_state ().multipliers ("r")= _o;
+    font_state ().multipliers ("p")= _o;
+    font_state ().multipliers ("t")= _b;
+    font_state ().multipliers ("<eta>")= _n;
+    font_state ().multipliers ("<lambda>")= _b;
+    font_state ().multipliers ("<theta>")= _n;
+    font_state ().multipliers ("<omicron>")= _o;
+    font_state ().multipliers ("<rho>")= _o;
+    font_state ().multipliers ("<phi>")= _o;
+    font_state ().multipliers ("<omega>")= _o;
+    font_state ().multipliers ("<Delta>")= _A;
+    font_state ().multipliers ("<Theta>")= _O;
+    font_state ().multipliers ("<Lambda>")= _A;
+    font_state ().multipliers ("<Phi>")= _O;
+    font_state ().multipliers ("<Omega>")= _O;
   }
-  return multipliers[r];
+  return font_state ().multipliers[r];
 }
 
 SI

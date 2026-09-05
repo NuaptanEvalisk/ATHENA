@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "font.hpp"
+#include <mutex>
 #include "Freetype/tt_tools.hpp"
 #include "analyze.hpp"
 #include "convert.hpp"
@@ -233,47 +234,102 @@ logical_font (string family, string variant, string series, string shape) {
 
 #define CLOSEST_CACHE "$ATHENA_HOME_PATH/fonts/font-closest-cache.scm"
 
-static hashmap<tree,tree> closest_cache (UNINIT);
-static bool closest_cache_loaded= false;
+namespace {
+struct local_closest_cache {
+  hashmap<tree,tree> entries{UNINIT};
+  bool loaded= false;
+  unsigned long generation= 0;
+};
 
-static void
-closest_cache_load () {
-  if (closest_cache_loaded) return;
-  closest_cache_loaded= true;
-  if (!exists (CLOSEST_CACHE)) return;
-  string s;
-  if (load_string (CLOSEST_CACHE, s, false)) return;
-  tree t= block_to_scheme_tree (s);
-  if (!is_tuple (t) || N(t) == 0 ||
-      !is_func (t[0], TUPLE, 2) ||
-      t[0][0] != "athena-font-closest-cache" ||
-      t[0][1] != font_database_cache_signature ()) return;
-  for (int i=1; i<N(t); i++)
-    if (is_func (t[i], TUPLE, 2) &&
-        is_func (t[i][0], TUPLE, 5) &&
-        is_func (t[i][1], TUPLE, 4))
-      closest_cache (t[i][0])= t[i][1];
+struct persisted_closest_cache {
+  std::mutex lock;
+  hashmap<tree,tree> entries{UNINIT};
+  bool loaded= false;
+  string signature;
+  unsigned long generation= 0;
+
+  void load (string current_signature) {
+    if (loaded && signature == current_signature) return;
+    loaded= true;
+    signature= current_signature;
+    entries= hashmap<tree,tree> (UNINIT);
+    ++generation;
+    string source;
+    if (!exists (CLOSEST_CACHE) ||
+        load_string (CLOSEST_CACHE, source, false)) return;
+    tree t= block_to_scheme_tree (source);
+    if (!is_tuple (t) || N(t) == 0 ||
+        !is_func (t[0], TUPLE, 2) ||
+        t[0][0] != "athena-font-closest-cache" ||
+        t[0][1] != signature) return;
+    for (int i=1; i<N(t); ++i)
+      if (is_func (t[i], TUPLE, 2) &&
+          is_func (t[i][0], TUPLE, 5) &&
+          is_func (t[i][1], TUPLE, 4))
+        entries (t[i][0])= t[i][1];
+  }
+
+  void save () {
+    array<scheme_tree> records;
+    records << tuple ("athena-font-closest-cache", signature);
+    iterator<tree> it= iterate (entries);
+    while (it->busy ()) {
+      tree key= it->next ();
+      records << tuple (key, entries[key]);
+    }
+    save_string (CLOSEST_CACHE,
+                 scheme_tree_to_block (tree (TUPLE, records)));
+  }
+};
+
+persisted_closest_cache& closest_persistence () {
+  static persisted_closest_cache cache;
+  return cache;
+}
 }
 
 static void
-closest_cache_save () {
-  array<scheme_tree> entries;
-  entries << tuple ("athena-font-closest-cache",
-                    font_database_cache_signature ());
-  iterator<tree> it= iterate (closest_cache);
+closest_cache_load () {
+  auto& local= font_domain_local<local_closest_cache> ();
+  if (local.loaded) return;
+  // Do not acquire the font database lock while holding the persistence lock.
+  string signature= font_database_cache_signature ();
+  auto& persisted= closest_persistence ();
+  std::lock_guard<std::mutex> guard (persisted.lock);
+  persisted.load (signature);
+  iterator<tree> it= iterate (persisted.entries);
   while (it->busy ()) {
     tree key= it->next ();
-    entries << tuple (key, closest_cache[key]);
+    local.entries (copy (key))= copy (persisted.entries[key]);
   }
-  save_string (CLOSEST_CACHE,
-               scheme_tree_to_block (tree (TUPLE, entries)));
+  local.generation= persisted.generation;
+  local.loaded= true;
+}
+
+static void
+closest_cache_save (tree key, tree value) {
+  auto& local= font_domain_local<local_closest_cache> ();
+  auto& persisted= closest_persistence ();
+  std::lock_guard<std::mutex> guard (persisted.lock);
+  if (local.generation != persisted.generation) return;
+  // Only this store writes the profile file; actor lookup hits stay local.
+  persisted.entries (copy (key))= copy (value);
+  persisted.save ();
 }
 
 void
 font_closest_cache_invalidate () {
-  closest_cache= hashmap<tree,tree> (UNINIT);
-  closest_cache_loaded= true;
-  remove (CLOSEST_CACHE);
+  {
+    auto& persisted= closest_persistence ();
+    std::lock_guard<std::mutex> guard (persisted.lock);
+    persisted.entries= hashmap<tree,tree> (UNINIT);
+    ++persisted.generation;
+    remove (CLOSEST_CACHE);
+  }
+  auto& local= font_domain_local<local_closest_cache> ();
+  local.entries= hashmap<tree,tree> (UNINIT);
+  local.loaded= false;
+  invalidate_font_configuration ();
 }
 
 bool
@@ -281,6 +337,7 @@ find_closest (string& family, string& variant, string& series, string& shape,
 	      int attempt) {
   font_database_load ();
   closest_cache_load ();
+  auto& closest_cache= font_domain_local<local_closest_cache> ().entries;
   tree val= tuple (copy (family), variant, series, shape);
   tree key= tuple (copy (family), variant, series, shape, as_string (attempt));
   if (closest_cache->contains (key)) {
@@ -332,7 +389,7 @@ find_closest (string& family, string& variant, string& series, string& shape,
     //     << ", " << series << ", " << shape << "\n";
     tree t= tuple (family, variant, series, shape);
     closest_cache (key)= t;
-    closest_cache_save ();
+    closest_cache_save (key, t);
     return t != val;
   }
 }

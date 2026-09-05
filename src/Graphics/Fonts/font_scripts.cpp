@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "font.hpp"
+#include "font_domain.hpp"
 #include "analyze.hpp"
 
 /******************************************************************************
@@ -249,43 +250,50 @@ rsup_adjust_guessed (hashmap<string,double>& t) {
 * Interface
 ******************************************************************************/
 
-static hashmap<string,double> lsub_guessed (0.0);
-static hashmap<string,double> lsup_guessed (0.0);
-static hashmap<string,double> rsub_guessed (0.0);
-static hashmap<string,double> rsup_guessed (0.0);
+namespace {
+struct local_font_state {
+  hashmap<string,double> lsub_guessed{0.0};
+  hashmap<string,double> lsup_guessed{0.0};
+  hashmap<string,double> rsub_guessed{0.0};
+  hashmap<string,double> rsup_guessed{0.0};
+};
+local_font_state& font_state () {
+  return font_domain_local<local_font_state> ();
+}
+}
 
 hashmap<string,double>
 lsub_guessed_table () {
-  if (N (lsub_guessed) == 0) {
-    lsub_adjust_std (lsub_guessed);
-    lsub_adjust_guessed (lsub_guessed);
+  if (N (font_state ().lsub_guessed) == 0) {
+    lsub_adjust_std (font_state ().lsub_guessed);
+    lsub_adjust_guessed (font_state ().lsub_guessed);
   }
-  return lsub_guessed;
+  return font_state ().lsub_guessed;
 }
 
 hashmap<string,double>
 lsup_guessed_table () {
-  if (N (lsup_guessed) == 0) {
-    lsup_adjust_std (lsup_guessed);
-    lsup_adjust_guessed (lsup_guessed);
+  if (N (font_state ().lsup_guessed) == 0) {
+    lsup_adjust_std (font_state ().lsup_guessed);
+    lsup_adjust_guessed (font_state ().lsup_guessed);
   }
-  return lsup_guessed;
+  return font_state ().lsup_guessed;
 }
 
 hashmap<string,double>
 rsub_guessed_table () {
-  if (N (rsub_guessed) == 0) {
-    rsub_adjust_std (rsub_guessed);
-    rsub_adjust_guessed (rsub_guessed);
+  if (N (font_state ().rsub_guessed) == 0) {
+    rsub_adjust_std (font_state ().rsub_guessed);
+    rsub_adjust_guessed (font_state ().rsub_guessed);
   }
-  return rsub_guessed;
+  return font_state ().rsub_guessed;
 }
 
 hashmap<string,double>
 rsup_guessed_table () {
-  if (N (rsup_guessed) == 0) {
-    rsup_adjust_std (rsup_guessed);
-    rsup_adjust_guessed (rsup_guessed);
+  if (N (font_state ().rsup_guessed) == 0) {
+    rsup_adjust_std (font_state ().rsup_guessed);
+    rsup_adjust_guessed (font_state ().rsup_guessed);
   }
-  return rsup_guessed;
+  return font_state ().rsup_guessed;
 }

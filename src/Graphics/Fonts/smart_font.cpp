@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "font.hpp"
+#include "font_domain.hpp"
 #include "convert.hpp"
 #include "converter.hpp"
 #include "Freetype/tt_tools.hpp"
@@ -27,7 +28,7 @@ font smart_font_bis (string f, string v, string s, string sh, int sz,
 * Efficient computation of the appropriate subfont
 ******************************************************************************/
 
-RESOURCE(smart_map);
+FONT_RESOURCE(smart_map, 0);
 
 #define SUBFONT_MAIN  0
 #define SUBFONT_ERROR 1
@@ -98,7 +99,7 @@ public:
 };
 
 
-RESOURCE_CODE(smart_map);
+FONT_RESOURCE_CODE(smart_map);
 
 smart_map
 get_smart_map (tree fn) {
@@ -112,40 +113,53 @@ get_smart_map (tree fn) {
 * Virtual font handling
 ******************************************************************************/
 
-static bool virt_initialized= false;
-static array<string> std_virt;
-static array<translator> std_trl;
+namespace {
+struct local_font_state {
+  bool virt_initialized= false;
+  array<string> std_virt{};
+  array<translator> std_trl{};
+  bool gen_initialized= false;
+  translator gen_trl{};
+  hashmap<string,string> special_table{""};
+  hashmap<string,string> substitution_char{""};
+  hashmap<string,string> substitution_font{""};
+  hashmap<string,string> italic_greek{""};
+  hashmap<string,hashset<string> > char_collections{};
+  string empty_string{""};
+};
+local_font_state& font_state () {
+  return font_domain_local<local_font_state> ();
+}
+}
 
 static void
 initialize_virtual () {
-  if (virt_initialized) return;
-  std_virt << string ("tradi-long")
+  if (font_state ().virt_initialized) return;
+  font_state ().std_virt << string ("tradi-long")
            << string ("tradi-negate")
            << string ("tradi-misc");
-  for (int i=0; i<N(std_virt); i++)
-    std_trl << load_translator (std_virt[i]);
-  virt_initialized= true;
+  for (int i=0; i<N(font_state ().std_virt); i++)
+    font_state ().std_trl << load_translator (font_state ().std_virt[i]);
+  font_state ().virt_initialized= true;
 }
 
 static string
 find_in_virtual (string c) {
   initialize_virtual ();
-  for (int i=0; i<N(std_virt); i++)
-    if (std_trl[i]->dict->contains (c))
-      return std_virt[i];
+  for (int i=0; i<N(font_state ().std_virt); i++)
+    if (font_state ().std_trl[i]->dict->contains (c))
+      return font_state ().std_virt[i];
   return "";
 }
 
-static bool gen_initialized= false;
-static translator gen_trl;
 
 static bool
 find_in_emu_bracket (string c) {
-  if (!gen_initialized) {
-    gen_trl= load_translator ("emu-bracket");
-    gen_initialized= true;
+  if (!font_state ().gen_initialized) {
+    font_state ().gen_trl= load_translator ("emu-bracket");
+    font_state ().gen_initialized= true;
   }
-  return gen_trl->dict->contains (c);
+  return font_state ().gen_trl->dict->contains (c);
 }
 
 static array<string>
@@ -178,7 +192,8 @@ is_math_family (string f) {
 
 static bool
 is_greek (string c) {
-  static hashmap<string,bool> t (false);
+  struct math_letters_cache;
+  auto& t= font_domain_local<hashmap<string,bool>, math_letters_cache> (false);
   if (N(t) == 0) {
     array<int> a;
     //for (int i= 0x391; i<=0x3a9; i++) if (i != 0x3a2) a << i;
@@ -204,7 +219,6 @@ is_rubber (string c) {
           starts (c, "<mid-")) && ends (c, ">");
 }
 
-static hashmap<string,string> special_table ("");
 
 static bool
 unicode_provides (string s) {
@@ -213,52 +227,50 @@ unicode_provides (string s) {
 
 static bool
 is_special (string s) {
-  if (N (special_table) == 0) {
-    special_table ("<noplus>")= "";
-    special_table ("<nocomma>")= "";
-    special_table ("<nospace>")= "";
-    special_table ("<nobracket>")= "";
-    special_table ("<nosymbol>")= "";
-    special_table ("*")= "";
-    special_table ("-")= "<minus>";
-    special_table ("|")= "<mid>";
-    special_table ("'")= "<#2B9>";
-    special_table ("`")= "<backprime>";
-    special_table ("<hat>")= "<#2C6>";
-    special_table ("<tilde>")= "<#2DC>";
-    special_table ("<comma>")= ",";
+  if (N (font_state ().special_table) == 0) {
+    font_state ().special_table ("<noplus>")= "";
+    font_state ().special_table ("<nocomma>")= "";
+    font_state ().special_table ("<nospace>")= "";
+    font_state ().special_table ("<nobracket>")= "";
+    font_state ().special_table ("<nosymbol>")= "";
+    font_state ().special_table ("*")= "";
+    font_state ().special_table ("-")= "<minus>";
+    font_state ().special_table ("|")= "<mid>";
+    font_state ().special_table ("'")= "<#2B9>";
+    font_state ().special_table ("`")= "<backprime>";
+    font_state ().special_table ("<hat>")= "<#2C6>";
+    font_state ().special_table ("<tilde>")= "<#2DC>";
+    font_state ().special_table ("<comma>")= ",";
   }
   if (starts (s, "<big-."))
-    special_table (s)= "";
+    font_state ().special_table (s)= "";
   if (starts (s, "<big-") && (ends (s, "-1>") || ends (s, "-2>"))) {
     bool found= false;
     string ss= s (0, N(s)-3) * ">";
     //cout << "Search " << ss << "\n";
     if (unicode_provides (ss)) {
-      special_table (s)= ss;
+      font_state ().special_table (s)= ss;
       found= true;
     }
     ss= "<big" * s (5, N(s)-3) * ">";
     //cout << "Search " << ss << "\n";
     if (!found && unicode_provides (ss)) {
-      special_table (s)= ss;
+      font_state ().special_table (s)= ss;
       found= true;
     }
     ss= "<" * s (5, N(s)-3) * ">";
     if (ends (ss, "lim>")) ss= ss (0, N(ss)-4) * ">";
     //cout << "Search " << ss << "\n";
     if (!found && unicode_provides (ss))
-      special_table (s)= ss;
+      font_state ().special_table (s)= ss;
   }
-  return special_table->contains (s);
+  return font_state ().special_table->contains (s);
 }
 
 /******************************************************************************
 * Mathematical letters in Unicode
 ******************************************************************************/
 
-static hashmap<string,string> substitution_char ("");
-static hashmap<string,string> substitution_font ("");
 
 static void
 unicode_subst (int src, int dest, int nr, string fn) {
@@ -266,14 +278,14 @@ unicode_subst (int src, int dest, int nr, string fn) {
     string csrc = upcase_all ("<#" * as_hexadecimal (src  + i) * ">");
     string cdest= upcase_all ("<#" * as_hexadecimal (dest + i) * ">");
     if (dest + i < 128) cdest= string ((char) (dest + i));
-    substitution_char (csrc)= cdest;
-    substitution_font (csrc)= fn;
+    font_state ().substitution_char (csrc)= cdest;
+    font_state ().substitution_font (csrc)= fn;
     csrc= locase_all (csrc);
-    substitution_char (csrc)= cdest;
-    substitution_font (csrc)= fn;
+    font_state ().substitution_char (csrc)= cdest;
+    font_state ().substitution_font (csrc)= fn;
     csrc= rewrite_math (csrc);
-    substitution_char (csrc)= cdest;
-    substitution_font (csrc)= fn;
+    font_state ().substitution_char (csrc)= cdest;
+    font_state ().substitution_font (csrc)= fn;
   }
 }
 
@@ -304,7 +316,7 @@ unicode_digits (int start, string fn) {
 
 static void
 init_unicode_substitution () {
-  if (N (substitution_char) != 0) return;
+  if (N (font_state ().substitution_char) != 0) return;
   unicode_letters (0x1d400, "bold-math");
   unicode_letters (0x1d434, "italic-math");
   unicode_letters (0x1d468, "bold-italic-math");
@@ -393,8 +405,8 @@ substitute_math_letter (string c, int math_kind) {
       (code >= 0x2100 && code <= 0x213f)) {
     init_unicode_substitution ();
     string nc= "<#" * as_hexadecimal (code) * ">";
-    string sc= substitution_char [nc];
-    string sf= substitution_font [nc];
+    string sc= font_state ().substitution_char [nc];
+    string sf= font_state ().substitution_font [nc];
     //cout << c << " (" << nc << ") -> " << sc << ", " << sf << "\n";
     if (sc != "" && sc != c) {
       bool flag= ends (sf, "cal") || ends (sf, "frak") || ends (sf, "bbb");
@@ -408,7 +420,6 @@ substitute_math_letter (string c, int math_kind) {
 * Getting mathematical characters from unicode planes
 ******************************************************************************/
 
-static hashmap<string,string> italic_greek ("");
 
 static void
 unicode_subst_back (int dest, int src, int nr, hashmap<string,string>& h) {
@@ -427,7 +438,7 @@ unicode_subst_back (int dest, int src, int nr, hashmap<string,string>& h) {
 
 string
 substitute_italic_greek (string c) {
-  hashmap<string,string>& h (italic_greek);
+  hashmap<string,string>& h (font_state ().italic_greek);
   if (N (h) == 0) {
     int start= 0x1d6e2;
     unicode_subst_back (start, 0x391, 25, h); // FIXME: attention to 0x3a2
@@ -441,8 +452,8 @@ substitute_italic_greek (string c) {
     unicode_subst_back (start + 56, 0x3f1, 1, h);
     unicode_subst_back (start + 57, 0x3d6, 1, h);
   }
-  if (!italic_greek->contains (c)) return "";
-  return italic_greek[c];
+  if (!font_state ().italic_greek->contains (c)) return "";
+  return font_state ().italic_greek[c];
 }
 
 string
@@ -553,24 +564,23 @@ in_unicode_range (string c, string range) {
 * Further character collections
 ******************************************************************************/
 
-static hashmap<string,hashset<string> > char_collections;
 
 static void
 collection_insert (string name, string c) {
   if (c == "") return;
-  if (!char_collections->contains (name))
-    char_collections (name)= hashset<string> ();
-  char_collections (name) -> insert (c);
+  if (!font_state ().char_collections->contains (name))
+    font_state ().char_collections (name)= hashset<string> ();
+  font_state ().char_collections (name) -> insert (c);
   int code= get_utf8_code (c);
   if (code >= 0) {
     string uc= "<#" * upcase_all (as_hexadecimal (code)) * ">";
-    if (uc != c) char_collections (name) -> insert (uc);
+    if (uc != c) font_state ().char_collections (name) -> insert (uc);
   }
 }
 
 static void
 collection_inherit (string name, string base) {
-  hashset<string> h= char_collections [base];
+  hashset<string> h= font_state ().char_collections [base];
   iterator<string> it= iterate (h);
   while (it->busy ())
     collection_insert (name, it->next ());
@@ -578,7 +588,7 @@ collection_inherit (string name, string base) {
 
 static void
 init_collections () {
-  if (N(char_collections) > 0) return;
+  if (N(font_state ().char_collections) > 0) return;
   for (char c='0'; c <= '9'; c++)
     collection_insert ("digit", string (c));
   for (char c='a'; c <= 'z'; c++) {
@@ -623,8 +633,8 @@ init_collections () {
 static bool
 in_collection (string c, string name) {
   init_collections ();
-  return char_collections->contains (name) &&
-         char_collections [name] -> contains (c);
+  return font_state ().char_collections->contains (name) &&
+         font_state ().char_collections [name] -> contains (c);
 }
 
 /******************************************************************************
@@ -894,7 +904,7 @@ rewrite_letters (string s) {
     int start= i;
     tm_char_forwards (s, i);
     string ss= s (start, i);
-    if (substitution_char->contains (ss)) r << substitution_char[ss];
+    if (font_state ().substitution_char->contains (ss)) r << font_state ().substitution_char[ss];
     else r << ss;
   }
   return r;
@@ -923,7 +933,7 @@ rewrite (string s, int kind) {
   case REWRITE_LETTERS:
     return rewrite_letters (s);
   case REWRITE_SPECIAL:
-    return special_table [s];
+    return font_state ().special_table [s];
   case REWRITE_EMULATE:
     return (N(s) <= 1? s: string ("<emu-") * s(1, N(s)));
   case REWRITE_POOR_BBB:
@@ -1554,7 +1564,6 @@ smart_font_rep::adjusted_dpi (string fam, string var, string ser, string sh,
 * Getting extents and drawing strings
 ******************************************************************************/
 
-static string empty_string ("");
 
 bool
 smart_font_rep::supports (string c) {
@@ -1566,7 +1575,7 @@ void
 smart_font_rep::get_extents (string s, metric& ex) {
   //cout << "Extents of " << s << " for " << res_name << "\n";
   int i=0, n= N(s);
-  if (n == 0) fn[0]->get_extents (empty_string, ex);
+  if (n == 0) fn[0]->get_extents (font_state ().empty_string, ex);
   else {
     int nr;
     string r= s;
@@ -1579,7 +1588,7 @@ smart_font_rep::get_extents (string s, metric& ex) {
         break;
       }
       if (i >= n) {
-        fn[0]->get_extents (empty_string, ex);
+        fn[0]->get_extents (font_state ().empty_string, ex);
         break;
       }
     }

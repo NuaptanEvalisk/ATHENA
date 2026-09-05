@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "font.hpp"
+#include "font_domain.hpp"
 
 /******************************************************************************
 * Table initialization
@@ -387,54 +388,66 @@ above_adjust_bonum (hashmap<string,double>& t) {
 * Interface
 ******************************************************************************/
 
-static hashmap<string,double> lsub_bonum (0.0);
-static hashmap<string,double> lsup_bonum (0.0);
-static hashmap<string,double> rsub_bonum (0.0);
-static hashmap<string,double> rsup_bonum (0.0);
-static hashmap<string,double> above_bonum (0.0);
+namespace {
+struct local_font_state {
+  hashmap<string,double> lsub_bonum{0.0};
+  hashmap<string,double> lsub_bonum_italic{0.0};
+  hashmap<string,double> lsup_bonum{0.0};
+  hashmap<string,double> lsup_bonum_italic{0.0};
+  hashmap<string,double> rsub_bonum{0.0};
+  hashmap<string,double> rsub_bonum_italic{0.0};
+  hashmap<string,double> rsup_bonum{0.0};
+  hashmap<string,double> rsup_bonum_italic{0.0};
+  hashmap<string,double> above_bonum{0.0};
+  hashmap<string,double> above_bonum_italic{0.0};
+};
+local_font_state& font_state () {
+  return font_domain_local<local_font_state> ();
+}
+}
 
 hashmap<string,double>
 lsub_bonum_table () {
-  if (N (lsub_bonum) == 0) {
-    lsub_adjust_std (lsub_bonum);
-    lsub_adjust_bonum (lsub_bonum);
+  if (N (font_state ().lsub_bonum) == 0) {
+    lsub_adjust_std (font_state ().lsub_bonum);
+    lsub_adjust_bonum (font_state ().lsub_bonum);
   }
-  return lsub_bonum;
+  return font_state ().lsub_bonum;
 }
 
 hashmap<string,double>
 lsup_bonum_table () {
-  if (N (lsup_bonum) == 0) {
-    lsup_adjust_std (lsup_bonum);
-    lsup_adjust_bonum (lsup_bonum);
+  if (N (font_state ().lsup_bonum) == 0) {
+    lsup_adjust_std (font_state ().lsup_bonum);
+    lsup_adjust_bonum (font_state ().lsup_bonum);
   }
-  return lsup_bonum;
+  return font_state ().lsup_bonum;
 }
 
 hashmap<string,double>
 rsub_bonum_table () {
-  if (N (rsub_bonum) == 0) {
-    rsub_adjust_std (rsub_bonum);
-    rsub_adjust_bonum (rsub_bonum);
+  if (N (font_state ().rsub_bonum) == 0) {
+    rsub_adjust_std (font_state ().rsub_bonum);
+    rsub_adjust_bonum (font_state ().rsub_bonum);
   }
-  return rsub_bonum;
+  return font_state ().rsub_bonum;
 }
 
 hashmap<string,double>
 rsup_bonum_table () {
-  if (N (rsup_bonum) == 0) {
-    rsup_adjust_std (rsup_bonum);
-    rsup_adjust_bonum (rsup_bonum);
+  if (N (font_state ().rsup_bonum) == 0) {
+    rsup_adjust_std (font_state ().rsup_bonum);
+    rsup_adjust_bonum (font_state ().rsup_bonum);
   }
-  return rsup_bonum;
+  return font_state ().rsup_bonum;
 }
 
 hashmap<string,double>
 above_bonum_table () {
-  if (N (above_bonum) == 0) {
-    above_adjust_bonum (above_bonum);
+  if (N (font_state ().above_bonum) == 0) {
+    above_adjust_bonum (font_state ().above_bonum);
   }
-  return above_bonum;
+  return font_state ().above_bonum;
 }
 
 /******************************************************************************
@@ -586,52 +599,47 @@ above_adjust_bonum_italic (hashmap<string,double>& t) {
 * Interface
 ******************************************************************************/
 
-static hashmap<string,double> lsub_bonum_italic (0.0);
-static hashmap<string,double> lsup_bonum_italic (0.0);
-static hashmap<string,double> rsub_bonum_italic (0.0);
-static hashmap<string,double> rsup_bonum_italic (0.0);
-static hashmap<string,double> above_bonum_italic (0.0);
 
 hashmap<string,double>
 lsub_bonum_italic_table () {
-  if (N (lsub_bonum_italic) == 0) {
-    lsub_adjust_std (lsub_bonum_italic);
-    lsub_adjust_bonum_italic (lsub_bonum_italic);
+  if (N (font_state ().lsub_bonum_italic) == 0) {
+    lsub_adjust_std (font_state ().lsub_bonum_italic);
+    lsub_adjust_bonum_italic (font_state ().lsub_bonum_italic);
   }
-  return lsub_bonum_italic;
+  return font_state ().lsub_bonum_italic;
 }
 
 hashmap<string,double>
 lsup_bonum_italic_table () {
-  if (N (lsup_bonum_italic) == 0) {
-    lsup_adjust_std (lsup_bonum_italic);
-    lsup_adjust_bonum_italic (lsup_bonum_italic);
+  if (N (font_state ().lsup_bonum_italic) == 0) {
+    lsup_adjust_std (font_state ().lsup_bonum_italic);
+    lsup_adjust_bonum_italic (font_state ().lsup_bonum_italic);
   }
-  return lsup_bonum_italic;
+  return font_state ().lsup_bonum_italic;
 }
 
 hashmap<string,double>
 rsub_bonum_italic_table () {
-  if (N (rsub_bonum_italic) == 0) {
-    rsub_adjust_std (rsub_bonum_italic);
-    rsub_adjust_bonum_italic (rsub_bonum_italic);
+  if (N (font_state ().rsub_bonum_italic) == 0) {
+    rsub_adjust_std (font_state ().rsub_bonum_italic);
+    rsub_adjust_bonum_italic (font_state ().rsub_bonum_italic);
   }
-  return rsub_bonum_italic;
+  return font_state ().rsub_bonum_italic;
 }
 
 hashmap<string,double>
 rsup_bonum_italic_table () {
-  if (N (rsup_bonum_italic) == 0) {
-    rsup_adjust_std (rsup_bonum_italic);
-    rsup_adjust_bonum_italic (rsup_bonum_italic);
+  if (N (font_state ().rsup_bonum_italic) == 0) {
+    rsup_adjust_std (font_state ().rsup_bonum_italic);
+    rsup_adjust_bonum_italic (font_state ().rsup_bonum_italic);
   }
-  return rsup_bonum_italic;
+  return font_state ().rsup_bonum_italic;
 }
 
 hashmap<string,double>
 above_bonum_italic_table () {
-  if (N (above_bonum_italic) == 0) {
-    above_adjust_bonum_italic (above_bonum_italic);
+  if (N (font_state ().above_bonum_italic) == 0) {
+    above_adjust_bonum_italic (font_state ().above_bonum_italic);
   }
-  return above_bonum_italic;
+  return font_state ().above_bonum_italic;
 }

@@ -145,19 +145,21 @@ load_tex_tfm (string family, int size, int dsize, tex_font_metric& tfm) {
 * PK font glyphs with lazy parsing
 ******************************************************************************/
 
-static glyph error_glyph;
 
 struct pk_font_glyphs_rep: public font_glyphs_rep {
-  pk_loader* pkl;
+  std::unique_ptr<pk_loader, decltype (&tm_delete<pk_loader>)> pkl;
   int bc, ec;
   glyph* fng; // definitions of the characters
 
   pk_font_glyphs_rep (string name, pk_loader*);
-  glyph& get (int char_code);
+  ~pk_font_glyphs_rep () override {
+    if (fng) tm_delete_array (fng);
+  }
+  glyph& get (int char_code) override;
 };
 
 pk_font_glyphs_rep::pk_font_glyphs_rep(string name, pk_loader* pkl2)
-  :font_glyphs_rep (name), pkl (pkl2)
+  :font_glyphs_rep (name), pkl (pkl2, &tm_delete<pk_loader>), fng (nullptr)
 {
   if (pkl) {
     fng = pkl->load_pk ();
@@ -174,7 +176,7 @@ pk_font_glyphs_rep::pk_font_glyphs_rep(string name, pk_loader* pkl2)
 glyph&
 pk_font_glyphs_rep::get(int c)
 {
-  if ((c<bc) || (c>ec)) return error_glyph;
+  if ((c<bc) || (c>ec)) return font_error_glyph ();
   if (pkl && !pkl->unpacked[c-bc]) {
     pkl->input_pos = pkl->char_pos[c-bc];
     pkl->flagbyte  = pkl->char_flag[c-bc];

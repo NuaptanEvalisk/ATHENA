@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "font.hpp"
+#include "font_domain.hpp"
 
 /******************************************************************************
 * Table initialization
@@ -458,210 +459,240 @@ above_adjust_rsfs (hashmap<string,double>& t) {
 
 hashmap<string,double>
 lsub_ecrm_table () {
-  static hashmap<string,double> lsub_ecrm (0.0);
+  struct lsub_ecrm_cache;
+  auto& lsub_ecrm= font_domain_local<hashmap<string,double>, lsub_ecrm_cache> (0.0);
   if (N (lsub_ecrm) == 0) lsub_adjust_ecrm (lsub_ecrm);
   return lsub_ecrm;
 }
 
 hashmap<string,double>
 lsup_ecrm_table () {
-  static hashmap<string,double> lsup_ecrm (0.0);
+  struct lsup_ecrm_cache;
+  auto& lsup_ecrm= font_domain_local<hashmap<string,double>, lsup_ecrm_cache> (0.0);
   if (N (lsup_ecrm) == 0) lsup_adjust_ecrm (lsup_ecrm);
   return lsup_ecrm;
 }
 
 hashmap<string,double>
 rsub_ecrm_table () {
-  static hashmap<string,double> rsub_ecrm (0.0);
+  struct rsub_ecrm_cache;
+  auto& rsub_ecrm= font_domain_local<hashmap<string,double>, rsub_ecrm_cache> (0.0);
   if (N (rsub_ecrm) == 0) rsub_adjust_ecrm (rsub_ecrm);
   return rsub_ecrm;
 }
 
 hashmap<string,double>
 rsup_ecrm_table () {
-  static hashmap<string,double> rsup_ecrm (0.0);
+  struct rsup_ecrm_cache;
+  auto& rsup_ecrm= font_domain_local<hashmap<string,double>, rsup_ecrm_cache> (0.0);
   if (N (rsup_ecrm) == 0) rsup_adjust_ecrm (rsup_ecrm);
   return rsup_ecrm;
 }
 
 hashmap<string,double>
 lsub_ecss_table () {
-  static hashmap<string,double> lsub_ecss (0.0);
+  struct lsub_ecss_cache;
+  auto& lsub_ecss= font_domain_local<hashmap<string,double>, lsub_ecss_cache> (0.0);
   if (N (lsub_ecss) == 0) lsub_adjust_ecss (lsub_ecss);
   return lsub_ecss;
 }
 
 hashmap<string,double>
 lsup_ecss_table () {
-  static hashmap<string,double> lsup_ecss (0.0);
+  struct lsup_ecss_cache;
+  auto& lsup_ecss= font_domain_local<hashmap<string,double>, lsup_ecss_cache> (0.0);
   if (N (lsup_ecss) == 0) lsup_adjust_ecss (lsup_ecss);
   return lsup_ecss;
 }
 
 hashmap<string,double>
 rsub_ecss_table () {
-  static hashmap<string,double> rsub_ecss (0.0);
+  struct rsub_ecss_cache;
+  auto& rsub_ecss= font_domain_local<hashmap<string,double>, rsub_ecss_cache> (0.0);
   if (N (rsub_ecss) == 0) rsub_adjust_ecss (rsub_ecss);
   return rsub_ecss;
 }
 
 hashmap<string,double>
 rsup_ecss_table () {
-  static hashmap<string,double> rsup_ecss (0.0);
+  struct rsup_ecss_cache;
+  auto& rsup_ecss= font_domain_local<hashmap<string,double>, rsup_ecss_cache> (0.0);
   if (N (rsup_ecss) == 0) rsup_adjust_ecss (rsup_ecss);
   return rsup_ecss;
 }
 
 hashmap<string,double>
 lsub_cmr_table () {
-  static hashmap<string,double> lsub_cmr (0.0);
+  struct lsub_cmr_cache;
+  auto& lsub_cmr= font_domain_local<hashmap<string,double>, lsub_cmr_cache> (0.0);
   if (N (lsub_cmr) == 0) lsub_adjust_cmr (lsub_cmr);
   return lsub_cmr;
 }
 
 hashmap<string,double>
 lsup_cmr_table () {
-  static hashmap<string,double> lsup_cmr (0.0);
+  struct lsup_cmr_cache;
+  auto& lsup_cmr= font_domain_local<hashmap<string,double>, lsup_cmr_cache> (0.0);
   if (N (lsup_cmr) == 0) lsup_adjust_cmr (lsup_cmr);
   return lsup_cmr;
 }
 
 hashmap<string,double>
 rsub_cmr_table () {
-  static hashmap<string,double> rsub_cmr (0.0);
+  struct rsub_cmr_cache;
+  auto& rsub_cmr= font_domain_local<hashmap<string,double>, rsub_cmr_cache> (0.0);
   if (N (rsub_cmr) == 0) rsub_adjust_cmr (rsub_cmr);
   return rsub_cmr;
 }
 
 hashmap<string,double>
 rsup_cmr_table () {
-  static hashmap<string,double> rsup_cmr (0.0);
+  struct rsup_cmr_cache;
+  auto& rsup_cmr= font_domain_local<hashmap<string,double>, rsup_cmr_cache> (0.0);
   if (N (rsup_cmr) == 0) rsup_adjust_cmr (rsup_cmr);
   return rsup_cmr;
 }
 
 hashmap<string,double>
 above_cmr_table () {
-  static hashmap<string,double> above_cmr (0.0);
+  struct above_cmr_cache;
+  auto& above_cmr= font_domain_local<hashmap<string,double>, above_cmr_cache> (0.0);
   if (N (above_cmr) == 0) above_adjust_cmr (above_cmr);
   return above_cmr;
 }
 
 hashmap<string,double>
 lsub_cmmi_table () {
-  static hashmap<string,double> lsub_cmmi (0.0);
+  struct lsub_cmmi_cache;
+  auto& lsub_cmmi= font_domain_local<hashmap<string,double>, lsub_cmmi_cache> (0.0);
   if (N (lsub_cmmi) == 0) lsub_adjust_cmmi (lsub_cmmi);
   return lsub_cmmi;
 }
 
 hashmap<string,double>
 lsup_cmmi_table () {
-  static hashmap<string,double> lsup_cmmi (0.0);
+  struct lsup_cmmi_cache;
+  auto& lsup_cmmi= font_domain_local<hashmap<string,double>, lsup_cmmi_cache> (0.0);
   if (N (lsup_cmmi) == 0) lsup_adjust_cmmi (lsup_cmmi);
   return lsup_cmmi;
 }
 
 hashmap<string,double>
 rsub_cmmi_table () {
-  static hashmap<string,double> rsub_cmmi (0.0);
+  struct rsub_cmmi_cache;
+  auto& rsub_cmmi= font_domain_local<hashmap<string,double>, rsub_cmmi_cache> (0.0);
   if (N (rsub_cmmi) == 0) rsub_adjust_cmmi (rsub_cmmi);
   return rsub_cmmi;
 }
 
 hashmap<string,double>
 rsup_cmmi_table () {
-  static hashmap<string,double> rsup_cmmi (0.0);
+  struct rsup_cmmi_cache;
+  auto& rsup_cmmi= font_domain_local<hashmap<string,double>, rsup_cmmi_cache> (0.0);
   if (N (rsup_cmmi) == 0) rsup_adjust_cmmi (rsup_cmmi);
   return rsup_cmmi;
 }
 
 hashmap<string,double>
 above_cmmi_table () {
-  static hashmap<string,double> above_cmmi (0.0);
+  struct above_cmmi_cache;
+  auto& above_cmmi= font_domain_local<hashmap<string,double>, above_cmmi_cache> (0.0);
   if (N (above_cmmi) == 0) above_adjust_cmmi (above_cmmi);
   return above_cmmi;
 }
 
 hashmap<string,double>
 lsub_cmsy_table () {
-  static hashmap<string,double> lsub_cmsy (0.0);
+  struct lsub_cmsy_cache;
+  auto& lsub_cmsy= font_domain_local<hashmap<string,double>, lsub_cmsy_cache> (0.0);
   if (N (lsub_cmsy) == 0) lsub_adjust_cmsy (lsub_cmsy);
   return lsub_cmsy;
 }
 
 hashmap<string,double>
 lsup_cmsy_table () {
-  static hashmap<string,double> lsup_cmsy (0.0);
+  struct lsup_cmsy_cache;
+  auto& lsup_cmsy= font_domain_local<hashmap<string,double>, lsup_cmsy_cache> (0.0);
   if (N (lsup_cmsy) == 0) lsup_adjust_cmsy (lsup_cmsy);
   return lsup_cmsy;
 }
 
 hashmap<string,double>
 above_cmsy_table () {
-  static hashmap<string,double> above_cmsy (0.0);
+  struct above_cmsy_cache;
+  auto& above_cmsy= font_domain_local<hashmap<string,double>, above_cmsy_cache> (0.0);
   if (N (above_cmsy) == 0) above_adjust_cmsy (above_cmsy);
   return above_cmsy;
 }
 
 hashmap<string,double>
 lsub_bbm_table () {
-  static hashmap<string,double> lsub_bbm (0.0);
+  struct lsub_bbm_cache;
+  auto& lsub_bbm= font_domain_local<hashmap<string,double>, lsub_bbm_cache> (0.0);
   if (N (lsub_bbm) == 0) lsub_adjust_bbm (lsub_bbm);
   return lsub_bbm;
 }
 
 hashmap<string,double>
 lsup_bbm_table () {
-  static hashmap<string,double> lsup_bbm (0.0);
+  struct lsup_bbm_cache;
+  auto& lsup_bbm= font_domain_local<hashmap<string,double>, lsup_bbm_cache> (0.0);
   if (N (lsup_bbm) == 0) lsup_adjust_bbm (lsup_bbm);
   return lsup_bbm;
 }
 
 hashmap<string,double>
 rsub_bbm_table () {
-  static hashmap<string,double> rsub_bbm (0.0);
+  struct rsub_bbm_cache;
+  auto& rsub_bbm= font_domain_local<hashmap<string,double>, rsub_bbm_cache> (0.0);
   if (N (rsub_bbm) == 0) rsub_adjust_bbm (rsub_bbm);
   return rsub_bbm;
 }
 
 hashmap<string,double>
 rsup_bbm_table () {
-  static hashmap<string,double> rsup_bbm (0.0);
+  struct rsup_bbm_cache;
+  auto& rsup_bbm= font_domain_local<hashmap<string,double>, rsup_bbm_cache> (0.0);
   if (N (rsup_bbm) == 0) rsup_adjust_bbm (rsup_bbm);
   return rsup_bbm;
 }
 
 hashmap<string,double>
 above_bbm_table () {
-  static hashmap<string,double> above_bbm (0.0);
+  struct above_bbm_cache;
+  auto& above_bbm= font_domain_local<hashmap<string,double>, above_bbm_cache> (0.0);
   if (N (above_bbm) == 0) above_adjust_bbm (above_bbm);
   return above_bbm;
 }
 
 hashmap<string,double>
 above_eufm_table () {
-  static hashmap<string,double> above_eufm (0.0);
+  struct above_eufm_cache;
+  auto& above_eufm= font_domain_local<hashmap<string,double>, above_eufm_cache> (0.0);
   if (N (above_eufm) == 0) above_adjust_eufm (above_eufm);
   return above_eufm;
 }
 
 hashmap<string,double>
 rsub_rsfs_table () {
-  static hashmap<string,double> rsub_rsfs (0.0);
+  struct rsub_rsfs_cache;
+  auto& rsub_rsfs= font_domain_local<hashmap<string,double>, rsub_rsfs_cache> (0.0);
   if (N (rsub_rsfs) == 0) rsub_adjust_rsfs (rsub_rsfs);
   return rsub_rsfs;
 }
 
 hashmap<string,double>
 rsup_rsfs_table () {
-  static hashmap<string,double> rsup_rsfs (0.0);
+  struct rsup_rsfs_cache;
+  auto& rsup_rsfs= font_domain_local<hashmap<string,double>, rsup_rsfs_cache> (0.0);
   if (N (rsup_rsfs) == 0) rsup_adjust_rsfs (rsup_rsfs);
   return rsup_rsfs;
 }
 
 hashmap<string,double>
 above_rsfs_table () {
-  static hashmap<string,double> above_rsfs (0.0);
+  struct above_rsfs_cache;
+  auto& above_rsfs= font_domain_local<hashmap<string,double>, above_rsfs_cache> (0.0);
   if (N (above_rsfs) == 0) above_adjust_rsfs (above_rsfs);
   return above_rsfs;
 }

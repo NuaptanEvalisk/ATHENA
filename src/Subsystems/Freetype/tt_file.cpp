@@ -10,6 +10,8 @@
 ******************************************************************************/
 
 #include "tt_file.hpp"
+#include "font_domain.hpp"
+#include <mutex>
 #include "tt_tools.hpp"
 #include "file.hpp"
 #include "boot.hpp"
@@ -25,14 +27,21 @@
 #include <fontconfig/fontconfig.h>
 #endif
 
-static hashmap<string,string> tt_fonts ("no");
+namespace {
+struct local_font_state {
+  hashmap<string,string> tt_fonts{"no"};
+  bool tt_font_file_index_ready= false;
+  bool tt_font_file_index_building= false;
+};
+local_font_state& font_state () {
+  return font_domain_local<local_font_state> ();
+}
+}
 
 #define TT_FONT_PATH_CACHE "font_path_cache_v2.scm"
 #define TT_FONT_FILE_INDEX_CACHE "font_file_index_v2.scm"
 #define TT_FONT_CACHE_VERSION "2"
 
-static bool tt_font_file_index_ready= false;
-static bool tt_font_file_index_building= false;
 static bool tt_font_file_index_warmup_disabled= false;
 
 static string
@@ -84,8 +93,9 @@ tt_extend_font_path (url u) {
     url dirs= add_to_path (url_unix (old), u);
     set_preference ("imported fonts", as_unix_string (dirs));
   }
-  tt_fonts= hashmap<string,string> ("no");
-  tt_font_file_index_ready= false;
+  font_state ().tt_fonts= hashmap<string,string> ("no");
+  font_state ().tt_font_file_index_ready= false;
+  invalidate_font_configuration ();
 }
 
 static void
@@ -165,6 +175,7 @@ static tree tt_platform_catalog (TUPLE);
 static string tt_platform_request_signature;
 static string tt_platform_catalog_digest;
 static bool tt_platform_initialized= false;
+static std::mutex platform_catalog_mutex;
 
 static string
 tt_font_basename (string path) {
@@ -291,14 +302,8 @@ tt_platform_font_catalog (bool refresh= false) {
   tt_platform_dirs= url_none ();
   tt_platform_catalog= tree (TUPLE);
 
-  // Qt has initialized Fontconfig by the time ATHENA reaches this path.
-  // Reuse that catalog instead of parsing every system font a second time.
-  FcConfig* config= FcConfigGetCurrent ();
-  bool own_config= false;
-  if (config == nullptr) {
-    config= FcInitLoadConfigAndFonts ();
-    own_config= config != nullptr;
-  }
+  // This published catalog must not mutate Qt's concurrently used FcConfig.
+  FcConfig* config= FcInitLoadConfigAndFonts ();
   if (config != nullptr) {
     if (refresh) (void) FcConfigBuildFonts (config);
     string xtt= get_env ("ATHENA_FONT_PATH");
@@ -317,7 +322,7 @@ tt_platform_font_catalog (bool refresh= false) {
           tt_platform_dirs, url_system (string ((const char*) dir)));
       FcStrListDone (dirs);
     }
-    if (own_config) FcConfigDestroy (config);
+    FcConfigDestroy (config);
   }
 
   string digest_source;
@@ -336,6 +341,7 @@ tt_platform_font_catalog (bool refresh= false) {
 
 static url
 tt_platform_font_find (string name) {
+  std::lock_guard<std::mutex> guard (platform_catalog_mutex);
   tt_platform_font_catalog (false);
   if (!tt_platform_fonts->contains (name)) return url_none ();
   url u= url_system (tt_platform_fonts[name]);
@@ -344,18 +350,21 @@ tt_platform_font_find (string name) {
 
 static url
 tt_platform_font_path () {
+  std::lock_guard<std::mutex> guard (platform_catalog_mutex);
   tt_platform_font_catalog (false);
-  return tt_platform_dirs;
+  return as_url (copy (tt_platform_dirs->t));
 }
 
 static tree
 tt_platform_font_entries (bool refresh) {
+  std::lock_guard<std::mutex> guard (platform_catalog_mutex);
   tt_platform_font_catalog (refresh);
   return copy (tt_platform_catalog);
 }
 
 static string
 tt_platform_font_signature () {
+  std::lock_guard<std::mutex> guard (platform_catalog_mutex);
   tt_platform_font_catalog (false);
   return tt_platform_catalog_digest;
 }
@@ -400,10 +409,17 @@ tt_font_catalog_signature () {
 
 url
 tt_font_path () {
-  static bool initialized= false;
-  static string cached_xtt;
-  static string cached_imported;
-  static url cached_path= url_none ();
+  struct path_cache {
+    bool initialized= false;
+    string xtt;
+    string imported;
+    url path= url_none ();
+  };
+  auto& state= font_domain_local<path_cache> ();
+  auto& initialized= state.initialized;
+  auto& cached_xtt= state.xtt;
+  auto& cached_imported= state.imported;
+  auto& cached_path= state.path;
   string xtt= get_env ("ATHENA_FONT_PATH");
   string ximp= get_preference ("imported fonts", "");
   if (initialized && xtt == cached_xtt && ximp == cached_imported)
@@ -487,15 +503,15 @@ tt_font_cache_set_warmup_disabled (bool disabled) {
 void
 tt_font_cache_warmup () {
   if (tt_font_file_index_warmup_disabled) return;
-  if (tt_font_file_index_ready || tt_font_file_index_building) return;
-  tt_font_file_index_building= true;
+  if (font_state ().tt_font_file_index_ready || font_state ().tt_font_file_index_building) return;
+  font_state ().tt_font_file_index_building= true;
 
   string sig= tt_font_cache_signature ();
   string ready_key= tt_font_cache_key ("ready", sig);
   if (is_cached (TT_FONT_FILE_INDEX_CACHE, ready_key) &&
       cache_get (TT_FONT_FILE_INDEX_CACHE, ready_key)->label == "yes") {
-    tt_font_file_index_ready= true;
-    tt_font_file_index_building= false;
+    font_state ().tt_font_file_index_ready= true;
+    font_state ().tt_font_file_index_building= false;
     return;
   }
 
@@ -528,13 +544,13 @@ tt_font_cache_warmup () {
        << ", directories=" << N(dirs)
        << ", new-files=" << indexed << LF;
 
-  tt_font_file_index_ready= true;
-  tt_font_file_index_building= false;
+  font_state ().tt_font_file_index_ready= true;
+  font_state ().tt_font_file_index_building= false;
 }
 
 static url
 tt_font_index_find (string name) {
-  if (!tt_font_file_index_ready && !tt_font_file_index_building)
+  if (!font_state ().tt_font_file_index_ready && !font_state ().tt_font_file_index_building)
     tt_font_cache_warmup ();
 
   string key= tt_font_cache_key ("file", tt_font_cache_signature (), name);
@@ -646,9 +662,9 @@ tt_font_find (string name) {
 bool
 tt_font_exists (string name) {
   //cout << "tt_font_exists? " << name << "\n";
-  if (tt_fonts->contains (name)) return tt_fonts[name] == "yes";
+  if (font_state ().tt_fonts->contains (name)) return font_state ().tt_fonts[name] == "yes";
   bool yes= !is_none (tt_font_find (name));
-  tt_fonts (name)= yes? string ("yes"): string ("no");
+  font_state ().tt_fonts (name)= yes? string ("yes"): string ("no");
   return yes;
 }
 

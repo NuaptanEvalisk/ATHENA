@@ -13,8 +13,9 @@
 #define FONT_H
 #include "space.hpp"
 #include "renderer.hpp"
+#include "font_domain.hpp"
 
-RESOURCE(font);
+FONT_RESOURCE(font, 0);
 
 struct glyph;
 struct font_metric;

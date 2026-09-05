@@ -10,12 +10,11 @@
 ******************************************************************************/
 
 #include "bitmap_font.hpp"
+#include "font_domain.hpp"
 #include "renderer.hpp"
 #include "hashset.hpp"
 #include "frame.hpp"
 
-extern glyph error_glyph;
-extern metric error_metric;
 
 /******************************************************************************
 * Slanted font metrics
@@ -24,13 +23,13 @@ extern metric error_metric;
 struct slanted_font_metric_rep: public font_metric_rep {
   font_metric fnm;
   double slant;
-  hashmap<int,pointer> ms;
+  font_metric_cache ms;
   slanted_font_metric_rep (string name, font_metric fnm2, double slant2):
-    font_metric_rep (name), fnm (fnm2), slant (slant2), ms (error_metric) {}
+    font_metric_rep (name), fnm (fnm2), slant (slant2), ms (font_error_metric ()) {}
   bool exists (int c) { return fnm->exists (c); }
   metric& get (int c) {
     metric& m (fnm->get (c));
-    if (&m == &error_metric) return error_metric;
+    if (&m == &font_error_metric ()) return font_error_metric ();
     if (!ms->contains (c)) {
       metric_struct* r= tm_new<metric_struct> ();
       ms(c)= (pointer) r;
@@ -93,10 +92,10 @@ struct slanted_font_glyphs_rep: public font_glyphs_rep {
   double slant;
   hashmap<int,glyph> gs;
   slanted_font_glyphs_rep (string name, font_glyphs fng2, double slant2):
-    font_glyphs_rep (name), fng (fng2), slant (slant2), gs (error_glyph) {}
+    font_glyphs_rep (name), fng (fng2), slant (slant2), gs (font_error_glyph ()) {}
   glyph& get (int c) {
     glyph& orig (fng->get (c));
-    if ((&orig != &error_glyph) && !gs->contains (c))
+    if ((&orig != &font_error_glyph ()) && !gs->contains (c))
       gs(c)= slanted (orig, slant);
     return gs(c); }
 };
@@ -115,15 +114,15 @@ slanted (font_glyphs fng, double slant) {
 struct stretched_font_metric_rep: public font_metric_rep {
   font_metric fnm;
   double xf, yf;
-  hashmap<int,pointer> ms;
+  font_metric_cache ms;
   stretched_font_metric_rep (string name, font_metric fnm2,
                              double xf2, double yf2):
     font_metric_rep (name), fnm (fnm2),
-    xf (xf2), yf (yf2), ms (error_metric) {}
+    xf (xf2), yf (yf2), ms (font_error_metric ()) {}
   bool exists (int c) { return fnm->exists (c); }
   metric& get (int c) {
     metric& m (fnm->get (c));
-    if (&m == &error_metric) return error_metric;
+    if (&m == &font_error_metric ()) return font_error_metric ();
     if (!ms->contains (c)) {
       metric_struct* r= tm_new<metric_struct> ();
       ms(c)= (pointer) r;
@@ -203,10 +202,10 @@ struct stretched_font_glyphs_rep: public font_glyphs_rep {
   stretched_font_glyphs_rep (string name, font_glyphs fng2,
                              double xf2, double yf2):
     font_glyphs_rep (name), fng (fng2),
-    xf (xf2), yf (yf2), gs (error_glyph) {}
+    xf (xf2), yf (yf2), gs (font_error_glyph ()) {}
   glyph& get (int c) {
     glyph& orig (fng->get (c));
-    if ((&orig != &error_glyph) && !gs->contains (c))
+    if ((&orig != &font_error_glyph ()) && !gs->contains (c))
       gs(c)= stretched (orig, xf, yf);
     return gs(c); }
 };
@@ -277,10 +276,10 @@ struct extended_font_glyphs_rep: public font_glyphs_rep {
   hashmap<int,glyph> gs;
   extended_font_glyphs_rep (string name, font_glyphs fng2, double xf2, SI p2):
     font_glyphs_rep (name), fng (fng2),
-    xf (xf2), penw (p2), gs (error_glyph) {}
+    xf (xf2), penw (p2), gs (font_error_glyph ()) {}
   glyph& get (int c) {
     glyph& orig (fng->get (c));
-    if ((&orig != &error_glyph) && !gs->contains (c))
+    if ((&orig != &font_error_glyph ()) && !gs->contains (c))
       gs(c)= widen (orig, xf, penw);
     return gs(c); }
 };
@@ -300,14 +299,14 @@ extended (font_glyphs fng, double xf, SI penw) {
 struct mono_font_metric_rep: public font_metric_rep {
   font_metric fnm;
   SI lw, phw;
-  hashmap<int,pointer> ms;
+  font_metric_cache ms;
   mono_font_metric_rep (string name, font_metric fnm2, SI lw2, SI phw2):
     font_metric_rep (name), fnm (fnm2),
-    lw (lw2), phw (phw2), ms (error_metric) {}
+    lw (lw2), phw (phw2), ms (font_error_metric ()) {}
   bool exists (int c) { return fnm->exists (c); }
   metric& get (int c) {
     metric& m (fnm->get (c));
-    if (&m == &error_metric) return error_metric;
+    if (&m == &font_error_metric ()) return font_error_metric ();
     if (!ms->contains (c)) {
       metric_struct* r= tm_new<metric_struct> ();
       ms(c)= (pointer) r;
@@ -368,10 +367,10 @@ struct mono_font_glyphs_rep: public font_glyphs_rep {
   hashmap<int,glyph> gs;
   mono_font_glyphs_rep (string name, font_glyphs fng2, SI lw2, SI phw2):
     font_glyphs_rep (name), fng (fng2),
-    lw (lw2), phw (phw2), gs (error_glyph) {}
+    lw (lw2), phw (phw2), gs (font_error_glyph ()) {}
   glyph& get (int c) {
     glyph& orig (fng->get (c));
-    if ((&orig != &error_glyph) && !gs->contains (c))
+    if ((&orig != &font_error_glyph ()) && !gs->contains (c))
       gs(c)= mono (orig, lw, phw);
     return gs(c); }
 };
@@ -392,14 +391,14 @@ mono (font_glyphs fng, SI lw, SI phw) {
 struct bolden_font_metric_rep: public font_metric_rep {
   font_metric fnm;
   SI dtot, dver;
-  hashmap<int,pointer> ms;
+  font_metric_cache ms;
   bolden_font_metric_rep (string name, font_metric fnm2, SI dtot2, SI dver2):
     font_metric_rep (name), fnm (fnm2),
-    dtot (dtot2), dver (dver2), ms (error_metric) {}
+    dtot (dtot2), dver (dver2), ms (font_error_metric ()) {}
   bool exists (int c) { return fnm->exists (c); }
   metric& get (int c) {
     metric& m (fnm->get (c));
-    if (&m == &error_metric) return error_metric;
+    if (&m == &font_error_metric ()) return font_error_metric ();
     if (!ms->contains (c)) {
       metric_struct* r= tm_new<metric_struct> ();
       ms(c)= (pointer) r;
@@ -471,10 +470,10 @@ struct bolden_font_glyphs_rep: public font_glyphs_rep {
   bolden_font_glyphs_rep (string name, font_glyphs fng2,
                           SI dpen2, SI dtot2, SI dver2):
     font_glyphs_rep (name), fng (fng2),
-    dpen (dpen2), dtot (dtot2), dver (dver2), gs (error_glyph) {}
+    dpen (dpen2), dtot (dtot2), dver (dver2), gs (font_error_glyph ()) {}
   glyph& get (int c) {
     glyph& orig (fng->get (c));
-    if ((&orig != &error_glyph) && !gs->contains (c))
+    if ((&orig != &font_error_glyph ()) && !gs->contains (c))
       gs(c)= bolden (orig, dpen, dtot, dver);
     return gs(c); }
 };
@@ -706,14 +705,21 @@ hollow (glyph gl, SI penw, SI penh) {
   return simplify (bmr);
 }
 
-static hashset<int> bbb_left;
-static hashset<int> bbb_right;
+namespace {
+struct local_font_state {
+  hashset<int> bbb_left{};
+  hashset<int> bbb_right{};
+};
+local_font_state& font_state () {
+  return font_domain_local<local_font_state> ();
+}
+}
 
 static void
 bbb_initialize () {
-  if (N(bbb_left) != 0) return;
-  bbb_left  << ((int) 'K')<< ((int) 'N') << ((int) 'R');
-  bbb_right << ((int) '1') << ((int) '2') << ((int) '3')
+  if (N(font_state ().bbb_left) != 0) return;
+  font_state ().bbb_left  << ((int) 'K')<< ((int) 'N') << ((int) 'R');
+  font_state ().bbb_right << ((int) '1') << ((int) '2') << ((int) '3')
             << ((int) '5') << ((int) '7') << ((int) '9')
             << ((int) 'J')
     //      << ((int) 'A') << ((int) 'J') << ((int) 'M')
@@ -725,12 +731,12 @@ bbb_initialize () {
 glyph
 make_bbb (glyph gl, int code, SI penw, SI penh, SI fat) {
   bbb_initialize ();
-  if (bbb_right->contains (code)) {
+  if (font_state ().bbb_right->contains (code)) {
     glyph fgl = hor_flip (gl);
     glyph fret= var_make_bbb (fgl, code, penw, penh, fat);
     return hor_flip (fret);
   }
-  else if (true || bbb_left->contains (code))
+  else if (true || font_state ().bbb_left->contains (code))
     return var_make_bbb (gl, code, penw, penh, fat);
   else return hollow (bolden (gl, fat, 0), penw, penh);
 }
@@ -742,10 +748,10 @@ struct make_bbb_font_glyphs_rep: public font_glyphs_rep {
   make_bbb_font_glyphs_rep (string name, font_glyphs fng2,
 			    SI pw, SI ph, SI fw):
     font_glyphs_rep (name), fng (fng2),
-    penw (pw), penh (ph), fatw (fw), gs (error_glyph) {}
+    penw (pw), penh (ph), fatw (fw), gs (font_error_glyph ()) {}
   glyph& get (int c) {
     glyph& orig (fng->get (c));
-    if ((&orig != &error_glyph) && !gs->contains (c))
+    if ((&orig != &font_error_glyph ()) && !gs->contains (c))
       gs(c)= make_bbb (orig, c, penw, penh, fatw);
     return gs(c); }
 };

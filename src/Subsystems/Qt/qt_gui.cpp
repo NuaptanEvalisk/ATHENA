@@ -12,6 +12,7 @@
 #include <locale.h>
 
 #include "convert.hpp"
+#include "font_domain.hpp"
 #include "iterator.hpp"
 #include "file.hpp" // added for copy_as_graphics
 #include "analyze.hpp"
@@ -1077,6 +1078,7 @@ qt_gui_rep::update () {
   
   updatetimer->stop();
   updating = true;
+  current_font_domain ().synchronize_configuration ();
   
   static int count_events    = 0;
   static int max_proc_events = 40;

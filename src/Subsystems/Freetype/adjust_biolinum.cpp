@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "font.hpp"
+#include "font_domain.hpp"
 
 /******************************************************************************
 * Table initialization
@@ -101,54 +102,66 @@ above_adjust_biolinum (hashmap<string,double>& t) {
 * Interface
 ******************************************************************************/
 
-static hashmap<string,double> lsub_biolinum (0.0);
-static hashmap<string,double> lsup_biolinum (0.0);
-static hashmap<string,double> rsub_biolinum (0.0);
-static hashmap<string,double> rsup_biolinum (0.0);
-static hashmap<string,double> above_biolinum (0.0);
+namespace {
+struct local_font_state {
+  hashmap<string,double> lsub_biolinum{0.0};
+  hashmap<string,double> lsub_biolinum_italic{0.0};
+  hashmap<string,double> lsup_biolinum{0.0};
+  hashmap<string,double> lsup_biolinum_italic{0.0};
+  hashmap<string,double> rsub_biolinum{0.0};
+  hashmap<string,double> rsub_biolinum_italic{0.0};
+  hashmap<string,double> rsup_biolinum{0.0};
+  hashmap<string,double> rsup_biolinum_italic{0.0};
+  hashmap<string,double> above_biolinum{0.0};
+  hashmap<string,double> above_biolinum_italic{0.0};
+};
+local_font_state& font_state () {
+  return font_domain_local<local_font_state> ();
+}
+}
 
 hashmap<string,double>
 lsub_biolinum_table () {
-  if (N (lsub_biolinum) == 0) {
-    lsub_adjust_std (lsub_biolinum);
-    lsub_adjust_biolinum (lsub_biolinum);
+  if (N (font_state ().lsub_biolinum) == 0) {
+    lsub_adjust_std (font_state ().lsub_biolinum);
+    lsub_adjust_biolinum (font_state ().lsub_biolinum);
   }
-  return lsub_biolinum;
+  return font_state ().lsub_biolinum;
 }
 
 hashmap<string,double>
 lsup_biolinum_table () {
-  if (N (lsup_biolinum) == 0) {
-    lsup_adjust_std (lsup_biolinum);
-    lsup_adjust_biolinum (lsup_biolinum);
+  if (N (font_state ().lsup_biolinum) == 0) {
+    lsup_adjust_std (font_state ().lsup_biolinum);
+    lsup_adjust_biolinum (font_state ().lsup_biolinum);
   }
-  return lsup_biolinum;
+  return font_state ().lsup_biolinum;
 }
 
 hashmap<string,double>
 rsub_biolinum_table () {
-  if (N (rsub_biolinum) == 0) {
-    rsub_adjust_std (rsub_biolinum);
-    rsub_adjust_biolinum (rsub_biolinum);
+  if (N (font_state ().rsub_biolinum) == 0) {
+    rsub_adjust_std (font_state ().rsub_biolinum);
+    rsub_adjust_biolinum (font_state ().rsub_biolinum);
   }
-  return rsub_biolinum;
+  return font_state ().rsub_biolinum;
 }
 
 hashmap<string,double>
 rsup_biolinum_table () {
-  if (N (rsup_biolinum) == 0) {
-    rsup_adjust_std (rsup_biolinum);
-    rsup_adjust_biolinum (rsup_biolinum);
+  if (N (font_state ().rsup_biolinum) == 0) {
+    rsup_adjust_std (font_state ().rsup_biolinum);
+    rsup_adjust_biolinum (font_state ().rsup_biolinum);
   }
-  return rsup_biolinum;
+  return font_state ().rsup_biolinum;
 }
 
 hashmap<string,double>
 above_biolinum_table () {
-  if (N (above_biolinum) == 0) {
-    above_adjust_biolinum (above_biolinum);
+  if (N (font_state ().above_biolinum) == 0) {
+    above_adjust_biolinum (font_state ().above_biolinum);
   }
-  return above_biolinum;
+  return font_state ().above_biolinum;
 }
 
 /******************************************************************************
@@ -348,52 +361,47 @@ above_adjust_biolinum_italic (hashmap<string,double>& t) {
 * Interface
 ******************************************************************************/
 
-static hashmap<string,double> lsub_biolinum_italic (0.0);
-static hashmap<string,double> lsup_biolinum_italic (0.0);
-static hashmap<string,double> rsub_biolinum_italic (0.0);
-static hashmap<string,double> rsup_biolinum_italic (0.0);
-static hashmap<string,double> above_biolinum_italic (0.0);
 
 hashmap<string,double>
 lsub_biolinum_italic_table () {
-  if (N (lsub_biolinum_italic) == 0) {
-    lsub_adjust_std (lsub_biolinum_italic);
-    lsub_adjust_biolinum_italic (lsub_biolinum_italic);
+  if (N (font_state ().lsub_biolinum_italic) == 0) {
+    lsub_adjust_std (font_state ().lsub_biolinum_italic);
+    lsub_adjust_biolinum_italic (font_state ().lsub_biolinum_italic);
   }
-  return lsub_biolinum_italic;
+  return font_state ().lsub_biolinum_italic;
 }
 
 hashmap<string,double>
 lsup_biolinum_italic_table () {
-  if (N (lsup_biolinum_italic) == 0) {
-    lsup_adjust_std (lsup_biolinum_italic);
-    lsup_adjust_biolinum_italic (lsup_biolinum_italic);
+  if (N (font_state ().lsup_biolinum_italic) == 0) {
+    lsup_adjust_std (font_state ().lsup_biolinum_italic);
+    lsup_adjust_biolinum_italic (font_state ().lsup_biolinum_italic);
   }
-  return lsup_biolinum_italic;
+  return font_state ().lsup_biolinum_italic;
 }
 
 hashmap<string,double>
 rsub_biolinum_italic_table () {
-  if (N (rsub_biolinum_italic) == 0) {
-    rsub_adjust_std (rsub_biolinum_italic);
-    rsub_adjust_biolinum_italic (rsub_biolinum_italic);
+  if (N (font_state ().rsub_biolinum_italic) == 0) {
+    rsub_adjust_std (font_state ().rsub_biolinum_italic);
+    rsub_adjust_biolinum_italic (font_state ().rsub_biolinum_italic);
   }
-  return rsub_biolinum_italic;
+  return font_state ().rsub_biolinum_italic;
 }
 
 hashmap<string,double>
 rsup_biolinum_italic_table () {
-  if (N (rsup_biolinum_italic) == 0) {
-    rsup_adjust_std (rsup_biolinum_italic);
-    rsup_adjust_biolinum_italic (rsup_biolinum_italic);
+  if (N (font_state ().rsup_biolinum_italic) == 0) {
+    rsup_adjust_std (font_state ().rsup_biolinum_italic);
+    rsup_adjust_biolinum_italic (font_state ().rsup_biolinum_italic);
   }
-  return rsup_biolinum_italic;
+  return font_state ().rsup_biolinum_italic;
 }
 
 hashmap<string,double>
 above_biolinum_italic_table () {
-  if (N (above_biolinum_italic) == 0) {
-    above_adjust_biolinum_italic (above_biolinum_italic);
+  if (N (font_state ().above_biolinum_italic) == 0) {
+    above_adjust_biolinum_italic (font_state ().above_biolinum_italic);
   }
-  return above_biolinum_italic;
+  return font_state ().above_biolinum_italic;
 }

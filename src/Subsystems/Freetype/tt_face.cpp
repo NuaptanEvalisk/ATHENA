@@ -19,7 +19,7 @@
 #include <harfbuzz/hb-ot.h>
 #include <vector>
 
-RESOURCE_CODE(tt_face);
+FONT_RESOURCE_CODE(tt_face);
 
 /******************************************************************************
 * Utilities
@@ -69,7 +69,7 @@ tt_face_rep::tt_face_rep (string name): rep<tt_face> (name) {
   }
   texmacs_fclose(font_file);
 
-  if (ft_new_memory_face (ft_library, buffer, fsize, 0, &ft_face)) {  
+  if (ft_new_memory_face (current_ft_library (), buffer, fsize, 0, &ft_face)) {
     debug_fonts << "Can't load font " << name << LF;
     free (buffer);
     buffer = nullptr;
@@ -80,7 +80,6 @@ tt_face_rep::tt_face_rep (string name): rep<tt_face> (name) {
 }
 
 tt_face_rep::~tt_face_rep () {
-  std_warning << "tt_face_rep should not be deleted\n";
   if (ft_face) ft_done_face (ft_face);
   if (buffer) free (buffer);
 }
@@ -123,7 +122,6 @@ tt_math_vertical_variant (string family, unsigned int codepoint,
 * Font metrics
 ******************************************************************************/
 
-static metric error_metric;
 
 tt_font_metric_rep::tt_font_metric_rep (
   string name, string family, int size2, int hdpi2, int vdpi2):
@@ -134,10 +132,6 @@ tt_font_metric_rep::tt_font_metric_rep (
     ft_set_char_size (face->ft_face, 0, size<<6, hdpi, vdpi);
   if (bad_font_metric) return;
 
-  error_metric->x1= error_metric->y1= 0;
-  error_metric->x2= error_metric->y2= 0;
-  error_metric->x3= error_metric->y3= 0;
-  error_metric->x4= error_metric->y4= 0;
 }
 
 bool
@@ -150,13 +144,14 @@ tt_font_metric_rep::exists (int i) {
 
 metric&
 tt_font_metric_rep::get (int i) {
+  if (bad_font_metric) return font_error_metric ();
   if (!face->bad_face && !fnm->contains(i)) {
     ft_set_char_size (face->ft_face, 0, size<<6, hdpi, vdpi);
     FT_UInt glyph_index= decode_index (face->ft_face, i);
     if (ft_load_glyph (face->ft_face, glyph_index, FT_LOAD_DEFAULT))
-      return error_metric;
+      return font_error_metric ();
     FT_GlyphSlot slot= face->ft_face->glyph;
-    if (ft_render_glyph (slot, ft_render_mode_mono)) return error_metric;
+    if (ft_render_glyph (slot, ft_render_mode_mono)) return font_error_metric ();
     metric_struct* M= tm_new<metric_struct> ();
     fnm(i)= (pointer) M;
     int w= slot->bitmap.width;
@@ -209,7 +204,6 @@ tt_font_metric (string family, int size, int hdpi, int vdpi) {
 * Font glyphs
 ******************************************************************************/
 
-static glyph error_glyph;
 
 tt_font_glyphs_rep::tt_font_glyphs_rep (
   string name, string family, int size2, int hdpi2, int vdpi2):
@@ -224,13 +218,14 @@ tt_font_glyphs_rep::tt_font_glyphs_rep (
 
 glyph&
 tt_font_glyphs_rep::get (int i) {
+  if (bad_font_glyphs) return font_error_glyph ();
   if (!face->bad_face && !fng->contains(i)) {
     ft_set_char_size (face->ft_face, 0, size<<6, hdpi, vdpi);
     FT_UInt glyph_index= decode_index (face->ft_face, i);
     if (ft_load_glyph (face->ft_face, glyph_index, FT_LOAD_DEFAULT))
-      return error_glyph;
+      return font_error_glyph ();
     FT_GlyphSlot slot= face->ft_face->glyph;
-    if (ft_render_glyph (slot, ft_render_mode_mono)) return error_glyph;
+    if (ft_render_glyph (slot, ft_render_mode_mono)) return font_error_glyph ();
 
     int w= slot->bitmap.width;
     int h= slot->bitmap.rows;
@@ -258,7 +253,7 @@ tt_font_glyphs_rep::get (int i) {
     }
     //cout << "Glyph " << i << " of " << res_name << "\n";
     //cout << G << "\n";
-    if (G->width * G->height == 0) G= error_glyph;
+    if (G->width * G->height == 0) G= font_error_glyph ();
     fng(i)= G;
   }
   return fng(i);

@@ -16,8 +16,6 @@
 #include "raster_picture.hpp"
 #include "true_color.hpp"
 
-extern glyph error_glyph;
-extern metric error_metric;
 extern string functional_to_string (tree t);
 
 /******************************************************************************
@@ -27,13 +25,13 @@ extern string functional_to_string (tree t);
 struct effected_font_metric_rep: public font_metric_rep {
   font_metric fnm;
   effect eff;
-  hashmap<int,pointer> ms;
+  font_metric_cache ms;
   effected_font_metric_rep (string name, font_metric fnm2, effect eff2):
-    font_metric_rep (name), fnm (fnm2), eff (eff2), ms (error_metric) {}
+    font_metric_rep (name), fnm (fnm2), eff (eff2), ms (font_error_metric ()) {}
   bool exists (int c) { return fnm->exists (c); }
   metric& get (int c) {
     metric& m (fnm->get (c));
-    if (&m == &error_metric) return error_metric;
+    if (&m == &font_error_metric ()) return font_error_metric ();
     if (!ms->contains (c)) {
       array<rectangle> a;
       a << rectangle (m->x3, m->y3, m->x4, m->y4);
@@ -130,10 +128,10 @@ struct effected_font_glyphs_rep: public font_glyphs_rep {
   effect eff;
   hashmap<int,glyph> gs;
   effected_font_glyphs_rep (string name, font_glyphs fng2, effect e2):
-    font_glyphs_rep (name), fng (fng2), eff (e2), gs (error_glyph) {}
+    font_glyphs_rep (name), fng (fng2), eff (e2), gs (font_error_glyph ()) {}
   glyph& get (int c) {
     glyph& orig (fng->get (c));
-    if ((&orig != &error_glyph) && !gs->contains (c))
+    if ((&orig != &font_error_glyph ()) && !gs->contains (c))
       gs(c)= effected (orig, eff);
     return gs(c); }
 };

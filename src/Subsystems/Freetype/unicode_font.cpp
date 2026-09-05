@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "font.hpp"
+#include "font_domain.hpp"
 #include "Freetype/free_type.hpp"
 #include "Freetype/tt_file.hpp"
 #include "Freetype/tt_face.hpp"
@@ -456,7 +457,8 @@ wide (hashmap<string,int>& h, string c, int n1, int n2, int im, int d) {
 
 static hashmap<string,int>
 tex_gyre_native () {
-  static hashmap<string,int> native;
+  struct native_characters;
+  auto& native= font_domain_local<hashmap<string,int>, native_characters> ();
   if (N(native) != 0) return native;
   native ("<big-prod-2>")= 4215;
   native ("<big-amalg-2>")= 4216;

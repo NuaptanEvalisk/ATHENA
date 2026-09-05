@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "tex_files.hpp"
+#include "font_domain.hpp"
 #include "boot.hpp"
 #include "file.hpp"
 #include "sys_utils.hpp"
@@ -24,12 +25,19 @@
 #include "kpathsea_lookup.hpp"
 #endif
 
-static url the_tfm_path= url_none ();
-static url the_pk_path = url_none ();
-static url the_pfb_path= url_none ();
-static bool tfm_fallback_loaded= false;
-static bool pk_fallback_loaded = false;
-static bool pfb_fallback_loaded= false;
+namespace {
+struct local_font_state {
+  url the_tfm_path= url_none ();
+  url the_pk_path= url_none ();
+  url the_pfb_path= url_none ();
+  bool tfm_fallback_loaded= false;
+  bool pk_fallback_loaded= false;
+  bool pfb_fallback_loaded= false;
+};
+local_font_state& font_state () {
+  return font_domain_local<local_font_state> ();
+}
+}
 
 static url get_kpsepath (string s);
 
@@ -59,27 +67,27 @@ legacy_tex_roots (string kind) {
 
 static void
 load_tfm_fallback () {
-  if (tfm_fallback_loaded) return;
-  tfm_fallback_loaded= true;
+  if (font_state ().tfm_fallback_loaded) return;
+  font_state ().tfm_fallback_loaded= true;
   url fallback= get_kpsepath ("tfm");
   if (is_none (fallback)) fallback= legacy_tex_roots ("tfm");
-  the_tfm_path= expand (factor (the_tfm_path | fallback));
+  font_state ().the_tfm_path= expand (factor (font_state ().the_tfm_path | fallback));
 }
 
 static void
 load_pk_fallback () {
-  if (pk_fallback_loaded) return;
-  pk_fallback_loaded= true;
+  if (font_state ().pk_fallback_loaded) return;
+  font_state ().pk_fallback_loaded= true;
   url fallback= get_kpsepath ("pk");
   if (is_none (fallback)) fallback= legacy_tex_roots ("pk");
-  the_pk_path= expand (factor (the_pk_path | fallback));
+  font_state ().the_pk_path= expand (factor (font_state ().the_pk_path | fallback));
 }
 
 static void
 load_pfb_fallback () {
-  if (pfb_fallback_loaded) return;
-  pfb_fallback_loaded= true;
-  the_pfb_path= expand (factor (the_pfb_path |
+  if (font_state ().pfb_fallback_loaded) return;
+  font_state ().pfb_fallback_loaded= true;
+  font_state ().the_pfb_path= expand (factor (font_state ().the_pfb_path |
                                 legacy_tex_roots ("type1")));
 }
 
@@ -106,8 +114,8 @@ kpsewhich (string name, int format) {
 
 static url
 resolve_tfm (url name) {
-  if (is_none (the_tfm_path)) reset_tfm_path (false);
-  url r= resolve (the_tfm_path * name);
+  if (is_none (font_state ().the_tfm_path)) reset_tfm_path (false);
+  url r= resolve (font_state ().the_tfm_path * name);
   if (!is_none (r)) return r;
   if (get_setting ("KPSEWHICH") == "true") {
     string which= kpsewhich (as_string (name),
@@ -122,15 +130,15 @@ resolve_tfm (url name) {
   }
   else {
     load_tfm_fallback ();
-    r= resolve (the_tfm_path * name);
+    r= resolve (font_state ().the_tfm_path * name);
   }
   return r;
 }
 
 static url
 resolve_pk (url name) {
-  if (is_none (the_pk_path)) reset_pk_path (false);
-  url r= resolve (the_pk_path * name);
+  if (is_none (font_state ().the_pk_path)) reset_pk_path (false);
+  url r= resolve (font_state ().the_pk_path * name);
   if (!is_none (r)) return r;
 #ifndef OS_WIN32 // The kpsewhich from MikTeX is bugged for pk fonts
   if (get_setting ("KPSEWHICH") == "true") {
@@ -151,15 +159,15 @@ resolve_pk (url name) {
 #endif
   if (need_fallback) {
     load_pk_fallback ();
-    r= resolve (the_pk_path * name);
+    r= resolve (font_state ().the_pk_path * name);
   }
   return r;
 }
 
 static url
 resolve_pfb (url name) {
-  if (is_none (the_pfb_path)) reset_pfb_path ();
-  url r= resolve (the_pfb_path * name);
+  if (is_none (font_state ().the_pfb_path)) reset_pfb_path ();
+  url r= resolve (font_state ().the_pfb_path * name);
   if (!is_none (r)) return r;
 #ifndef OS_WIN32 // The kpsewhich from MikTeX is bugged for pfb fonts
   if (get_setting ("KPSEWHICH") == "true") {
@@ -180,15 +188,15 @@ resolve_pfb (url name) {
 #endif
   if (need_fallback) {
     load_pfb_fallback ();
-    r= resolve (the_pfb_path * name);
+    r= resolve (font_state ().the_pfb_path * name);
   }
   return r;
 }
 
 url
 tfm_font_path () {
-  if (is_none (the_tfm_path)) reset_tfm_path (false);
-  return the_tfm_path;
+  if (is_none (font_state ().the_tfm_path)) reset_tfm_path (false);
+  return font_state ().the_tfm_path;
 }
 
 /******************************************************************************
@@ -333,33 +341,33 @@ get_kpsepath (string s) {
 
 void
 reset_tfm_path (bool rehash) { (void) rehash;
-  tfm_fallback_loaded= false;
-  the_tfm_path=
+  font_state ().tfm_fallback_loaded= false;
+  font_state ().the_tfm_path=
     url_here () |
     search_sub_dirs ("$ATHENA_HOME_PATH/fonts/tfm") |
     search_sub_dirs ("$ATHENA_PATH/fonts/tfm") |
     "$TEX_TFM_PATH";
-  the_tfm_path= expand (factor (the_tfm_path));
+  font_state ().the_tfm_path= expand (factor (font_state ().the_tfm_path));
 }
 
 void
 reset_pk_path (bool rehash) { (void) rehash;
-  pk_fallback_loaded= false;
-  the_pk_path=
+  font_state ().pk_fallback_loaded= false;
+  font_state ().the_pk_path=
     url_here () |
     search_sub_dirs ("$ATHENA_HOME_PATH/fonts/pk") |
     search_sub_dirs ("$ATHENA_PATH/fonts/pk") |
     "$TEX_PK_PATH";
-  the_pk_path= expand (factor (the_pk_path));
+  font_state ().the_pk_path= expand (factor (font_state ().the_pk_path));
 }
 
 void
 reset_pfb_path () {
-  pfb_fallback_loaded= false;
-  the_pfb_path=
+  font_state ().pfb_fallback_loaded= false;
+  font_state ().the_pfb_path=
     url_here () |
     search_sub_dirs ("$ATHENA_HOME_PATH/fonts/type1") |
     search_sub_dirs ("$ATHENA_PATH/fonts/type1") |
     "$TEX_PFB_PATH";
-  the_pfb_path= expand (factor (the_pfb_path));
+  font_state ().the_pfb_path= expand (factor (font_state ().the_pfb_path));
 }

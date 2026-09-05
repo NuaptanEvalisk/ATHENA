@@ -15,7 +15,7 @@
 #include "iterator.hpp"
 #include "analyze.hpp"
 
-RESOURCE_CODE(translator);
+FONT_RESOURCE_CODE(translator);
 
 /******************************************************************************
 * Routines for translators
@@ -27,8 +27,8 @@ operator << (translator& trl, int i) {
   return trl;
 }
 
-translator&
-operator << (translator& trl, string s) {
+static void
+append_symbol (translator_rep* trl, string s) {
   if (N(s)>0) {
     if (N(s)>1) s= "<" * s * ">";
     trl->dict(s) = trl->cur_c;
@@ -37,22 +37,32 @@ operator << (translator& trl, string s) {
       trl->dict ("<left-"  * sub * ">") = trl->cur_c;
       trl->dict ("<mid-"   * sub * ">") = trl->cur_c;
       trl->dict ("<right-" * sub * ">") = trl->cur_c;
-      if (ends (s, "-0>")) return trl << s (1, N(s)-3);
+      if (ends (s, "-0>")) return append_symbol (trl, s (1, N(s)-3));
     }
   }
   trl->cur_c++;
-  return trl;
 }
 
-translator&
-operator << (translator& trl, translator trm) {
-  if ((trl->cur_c & 255) != 0) return trl;
+static void
+append_translator (translator_rep* trl, translator trm) {
+  if ((trl->cur_c & 255) != 0) return;
   iterator<string> it= iterate (trm->dict);
   while (it->busy()) {
     string key= it->next();
     trl->dict (key)= trl->cur_c+ trm->dict [key];
   }
   trl->cur_c += 256;
+}
+
+translator&
+operator << (translator& trl, string s) {
+  append_symbol (trl.rep, s);
+  return trl;
+}
+
+translator&
+operator << (translator& trl, translator trm) {
+  append_translator (trl.rep, trm);
   return trl;
 }
 
@@ -64,7 +74,8 @@ translator
 load_virtual (string name) {
   if (translator::instances -> contains (name))
     return translator (name);
-  translator trl= tm_new<translator_rep> (name);
+  std::unique_ptr<translator_rep, decltype (&tm_delete<translator_rep>)> trl (
+    tm_new<translator_rep> (name), &tm_delete<translator_rep>);
 
   string s, r;
   name= name * ".vfn";
@@ -84,7 +95,7 @@ load_virtual (string name) {
       trl->virt_def[i]= t[i][1];
       // cout << s << "\t" << i << "\t" << t[i][1] << "\n";
     }
-  return trl;
+  return translator (trl.release ());
 }
 
 /******************************************************************************
@@ -102,7 +113,8 @@ load_translator (string name) {
   url u ("$ATHENA_HOME_PATH/fonts/enc:$ATHENA_PATH/fonts/enc", file_name);
   if (load_string (u, s, false)) return load_virtual (name);
 
-  translator trl= tm_new<translator_rep> (name);
+  std::unique_ptr<translator_rep, decltype (&tm_delete<translator_rep>)> trl (
+    tm_new<translator_rep> (name), &tm_delete<translator_rep>);
   int i, j, num=0;
   for (i=0; i<N(s); i++)
     switch (s[i]) {
@@ -113,27 +125,27 @@ load_translator (string name) {
 	else if (s[i]=='\"') break; // "
 	r << s[i];
       }
-      trl << r;
+      append_symbol (trl.get (), r);
       num= 0;
       break;
     case '0': case '1': case '2': case '3': case '4':
     case '5': case '6': case '7': case '8': case '9':
       if (i==N(s)-1) break;
       num= 10*num+ ((int) s[i])- ((int) '0');
-      trl << num;
+      trl->cur_c= num;
       break;
     case '*':
       if (i==N(s)-1) break;
       num= 256*num;
-      trl << num;
+      trl->cur_c= num;
       break;
     case '[':
       i++; j=i;
       while ((i<N(s)) && (s[i]!=']')) i++;
-      trl << load_translator (s (j, i));
+      append_translator (trl.get (), load_translator (s (j, i)));
       break;
     default:
       num= 0;
     }
-  return trl;
+  return translator (trl.release ());
 }

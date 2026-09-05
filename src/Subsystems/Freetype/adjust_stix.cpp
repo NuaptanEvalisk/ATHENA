@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "font.hpp"
+#include "font_domain.hpp"
 
 /******************************************************************************
 * Table initialization
@@ -320,53 +321,65 @@ above_adjust_stix (hashmap<string,double>& t) {
 * Interface
 ******************************************************************************/
 
-static hashmap<string,double> lsub_stix (0.0);
-static hashmap<string,double> lsup_stix (0.0);
-static hashmap<string,double> rsub_stix (0.0);
-static hashmap<string,double> rsup_stix (0.0);
-static hashmap<string,double> above_stix (0.0);
+namespace {
+struct local_font_state {
+  hashmap<string,double> lsub_stix{0.0};
+  hashmap<string,double> lsub_stix_italic{0.0};
+  hashmap<string,double> lsup_stix{0.0};
+  hashmap<string,double> lsup_stix_italic{0.0};
+  hashmap<string,double> rsub_stix{0.0};
+  hashmap<string,double> rsub_stix_italic{0.0};
+  hashmap<string,double> rsup_stix{0.0};
+  hashmap<string,double> rsup_stix_italic{0.0};
+  hashmap<string,double> above_stix{0.0};
+  hashmap<string,double> above_stix_italic{0.0};
+};
+local_font_state& font_state () {
+  return font_domain_local<local_font_state> ();
+}
+}
 
 hashmap<string,double>
 lsub_stix_table () {
-  if (N (lsub_stix) == 0) {
-    lsub_adjust_std (lsub_stix);
-    lsub_adjust_stix (lsub_stix);
+  if (N (font_state ().lsub_stix) == 0) {
+    lsub_adjust_std (font_state ().lsub_stix);
+    lsub_adjust_stix (font_state ().lsub_stix);
   }
-  return lsub_stix;
+  return font_state ().lsub_stix;
 }
 
 hashmap<string,double>
 lsup_stix_table () {
-  if (N (lsup_stix) == 0) {
-    lsup_adjust_std (lsup_stix);
-    lsup_adjust_stix (lsup_stix);
+  if (N (font_state ().lsup_stix) == 0) {
+    lsup_adjust_std (font_state ().lsup_stix);
+    lsup_adjust_stix (font_state ().lsup_stix);
   }
-  return lsup_stix;
+  return font_state ().lsup_stix;
 }
 
 hashmap<string,double>
 rsub_stix_table () {
-  if (N (rsub_stix) == 0) {
-    rsub_adjust_std (rsub_stix);
-    rsub_adjust_stix (rsub_stix);
+  if (N (font_state ().rsub_stix) == 0) {
+    rsub_adjust_std (font_state ().rsub_stix);
+    rsub_adjust_stix (font_state ().rsub_stix);
   }
-  return rsub_stix;
+  return font_state ().rsub_stix;
 }
 
 hashmap<string,double>
 rsup_stix_table () {
-  if (N (rsup_stix) == 0) {
-    rsup_adjust_std (rsup_stix);
-    rsup_adjust_stix (rsup_stix);
+  if (N (font_state ().rsup_stix) == 0) {
+    rsup_adjust_std (font_state ().rsup_stix);
+    rsup_adjust_stix (font_state ().rsup_stix);
   }
-  return rsup_stix;
+  return font_state ().rsup_stix;
 }
 
 hashmap<string,double>
 above_stix_table () {
-  if (N (above_stix) == 0)
-    above_adjust_stix (above_stix);
-  return above_stix;
+  if (N (font_state ().above_stix) == 0)
+    above_adjust_stix (font_state ().above_stix);
+  return font_state ().above_stix;
 }
 
 /******************************************************************************
@@ -461,51 +474,46 @@ above_adjust_stix_italic (hashmap<string,double>& t) {
 * Interface
 ******************************************************************************/
 
-static hashmap<string,double> lsub_stix_italic (0.0);
-static hashmap<string,double> lsup_stix_italic (0.0);
-static hashmap<string,double> rsub_stix_italic (0.0);
-static hashmap<string,double> rsup_stix_italic (0.0);
-static hashmap<string,double> above_stix_italic (0.0);
 
 hashmap<string,double>
 lsub_stix_italic_table () {
-  if (N (lsub_stix_italic) == 0) {
-    lsub_adjust_std (lsub_stix_italic);
-    lsub_adjust_stix_italic (lsub_stix_italic);
+  if (N (font_state ().lsub_stix_italic) == 0) {
+    lsub_adjust_std (font_state ().lsub_stix_italic);
+    lsub_adjust_stix_italic (font_state ().lsub_stix_italic);
   }
-  return lsub_stix_italic;
+  return font_state ().lsub_stix_italic;
 }
 
 hashmap<string,double>
 lsup_stix_italic_table () {
-  if (N (lsup_stix_italic) == 0) {
-    lsup_adjust_std (lsup_stix_italic);
-    lsup_adjust_stix_italic (lsup_stix_italic);
+  if (N (font_state ().lsup_stix_italic) == 0) {
+    lsup_adjust_std (font_state ().lsup_stix_italic);
+    lsup_adjust_stix_italic (font_state ().lsup_stix_italic);
   }
-  return lsup_stix_italic;
+  return font_state ().lsup_stix_italic;
 }
 
 hashmap<string,double>
 rsub_stix_italic_table () {
-  if (N (rsub_stix_italic) == 0) {
-    rsub_adjust_std (rsub_stix_italic);
-    rsub_adjust_stix_italic (rsub_stix_italic);
+  if (N (font_state ().rsub_stix_italic) == 0) {
+    rsub_adjust_std (font_state ().rsub_stix_italic);
+    rsub_adjust_stix_italic (font_state ().rsub_stix_italic);
   }
-  return rsub_stix_italic;
+  return font_state ().rsub_stix_italic;
 }
 
 hashmap<string,double>
 rsup_stix_italic_table () {
-  if (N (rsup_stix_italic) == 0) {
-    rsup_adjust_std (rsup_stix_italic);
-    rsup_adjust_stix_italic (rsup_stix_italic);
+  if (N (font_state ().rsup_stix_italic) == 0) {
+    rsup_adjust_std (font_state ().rsup_stix_italic);
+    rsup_adjust_stix_italic (font_state ().rsup_stix_italic);
   }
-  return rsup_stix_italic;
+  return font_state ().rsup_stix_italic;
 }
 
 hashmap<string,double>
 above_stix_italic_table () {
-  if (N (above_stix_italic) == 0)
-    above_adjust_stix_italic (above_stix_italic);
-  return above_stix_italic;
+  if (N (font_state ().above_stix_italic) == 0)
+    above_adjust_stix_italic (font_state ().above_stix_italic);
+  return font_state ().above_stix_italic;
 }

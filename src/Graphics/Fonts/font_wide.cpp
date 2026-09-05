@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "font.hpp"
+#include "font_domain.hpp"
 #include "analyze.hpp"
 
 /******************************************************************************
@@ -119,23 +120,30 @@ below_adjust_guessed (hashmap<string,double>& t) {
 * Interface
 ******************************************************************************/
 
-static hashmap<string,double> above_guessed (0.0);
-static hashmap<string,double> below_guessed (0.0);
+namespace {
+struct local_font_state {
+  hashmap<string,double> above_guessed{0.0};
+  hashmap<string,double> below_guessed{0.0};
+};
+local_font_state& font_state () {
+  return font_domain_local<local_font_state> ();
+}
+}
 
 hashmap<string,double>
 above_guessed_table () {
-  if (N (above_guessed) == 0) {
-    above_adjust_std (above_guessed);
-    above_adjust_guessed (above_guessed);
+  if (N (font_state ().above_guessed) == 0) {
+    above_adjust_std (font_state ().above_guessed);
+    above_adjust_guessed (font_state ().above_guessed);
   }
-  return above_guessed;
+  return font_state ().above_guessed;
 }
 
 hashmap<string,double>
 below_guessed_table () {
-  if (N (below_guessed) == 0) {
-    below_adjust_std (below_guessed);
-    below_adjust_guessed (below_guessed);
+  if (N (font_state ().below_guessed) == 0) {
+    below_adjust_std (font_state ().below_guessed);
+    below_adjust_guessed (font_state ().below_guessed);
   }
-  return below_guessed;
+  return font_state ().below_guessed;
 }

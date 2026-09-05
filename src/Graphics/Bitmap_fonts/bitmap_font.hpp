@@ -13,12 +13,12 @@
 #define BITMAP_FONT_H
 
 #include "config.h"
-#include "resource.hpp"
+#include "font_domain.hpp"
 
 class frame;
 
-RESOURCE(font_metric);
-RESOURCE(font_glyphs);
+FONT_RESOURCE(font_metric, 1);
+FONT_RESOURCE(font_glyphs, 1);
 
 struct metric_struct {
   SI x1, y1;
@@ -28,6 +28,14 @@ struct metric_struct {
 };
 
 typedef metric_struct metric[1];
+
+class font_metric_cache: public hashmap<int,pointer> {
+public:
+  explicit font_metric_cache (pointer fallback): hashmap<int,pointer> (fallback) {}
+  ~font_metric_cache ();
+  font_metric_cache (const font_metric_cache&) = delete;
+  font_metric_cache& operator= (const font_metric_cache&) = delete;
+};
 
 /******************************************************************************
 * The glyph structure
@@ -60,6 +68,9 @@ struct glyph {
   glyph (int w2, int h2, int xoff2, int yoff2, int depth2=1, int status2= 0);
 };
 CONCRETE_NULL_CODE(glyph);
+
+metric& font_error_metric ();
+glyph& font_error_glyph ();
 
 inline int
 glyph_rep::get_1 (int i, int j) {

@@ -15,7 +15,7 @@
 #include "Freetype/free_type.hpp"
 #include "hashmap.hpp"
 
-RESOURCE(tt_face);
+FONT_RESOURCE(tt_face, 3);
 
 struct tt_face_rep: rep<tt_face> {
   bool bad_face = true;
@@ -29,13 +29,13 @@ struct tt_font_metric_rep: font_metric_rep {
   bool bad_metric;
   tt_face face;
   int size, hdpi, vdpi;
-  hashmap<int,pointer> fnm;
+  font_metric_cache fnm;
   //metric* fnm;
   //bool* done;
   tt_font_metric_rep (string name, string family, int size, int hdpi, int vdpi);
-  bool exists (int char_code);
-  metric& get (int char_code);
-  SI kerning (int left_code, int right_code);
+  bool exists (int char_code) override;
+  metric& get (int char_code) override;
+  SI kerning (int left_code, int right_code) override;
 };
 
 struct tt_font_glyphs_rep: font_glyphs_rep {
@@ -46,7 +46,7 @@ struct tt_font_glyphs_rep: font_glyphs_rep {
   //glyph* fng;
   //bool* done;
   tt_font_glyphs_rep (string name, string family, int size, int hdpi, int vdpi);
-  glyph& get (int char_code);
+  glyph& get (int char_code) override;
 };
 
 tt_face load_tt_face (string name);

@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "font.hpp"
+#include "font_domain.hpp"
 #include "analyze.hpp"
 #include "universal.hpp"
 
@@ -70,12 +71,19 @@ poor_bold_font_rep::poor_bold_font_rep (string name, font b,
   this->wline += vertical (dup);
 }
 
-static hashmap<string,double> bold_multiplier (1.0);
+namespace {
+struct local_font_state {
+  hashmap<string,double> bold_multiplier{1.0};
+};
+local_font_state& font_state () {
+  return font_domain_local<local_font_state> ();
+}
+}
 
 static double
 get_bold_multiplier (string s) {
   // FIXME: there is still a lot of room for improvements here
-  if (N (bold_multiplier) != 0) return bold_multiplier[s];
+  if (N (font_state ().bold_multiplier) != 0) return font_state ().bold_multiplier[s];
   array<string> _1_5;
   array<string> _2_0;
   _1_5 << string ("#") << string ("%") << string ("&") << string ("@")
@@ -85,15 +93,15 @@ get_bold_multiplier (string s) {
        << string ("w");
   _2_0 << string ("H") << string ("M") << string ("N") << string ("W")
        << string ("m");
-  for (int i=0; i<N(_1_5); i++) bold_multiplier (_1_5[i])= 1.5;
-  for (int i=0; i<N(_2_0); i++) bold_multiplier (_2_0[i])= 2.0;
+  for (int i=0; i<N(_1_5); i++) font_state ().bold_multiplier (_1_5[i])= 1.5;
+  for (int i=0; i<N(_2_0); i++) font_state ().bold_multiplier (_2_0[i])= 2.0;
   array<string> accs= get_accented_list ();
   for (int i=0; i<N(accs); i++) {
     string unacc= uni_unaccent_char (accs[i]);
-    if (bold_multiplier->contains (unacc))
-      bold_multiplier (accs[i])= bold_multiplier [unacc];
+    if (font_state ().bold_multiplier->contains (unacc))
+      font_state ().bold_multiplier (accs[i])= font_state ().bold_multiplier [unacc];
   }
-  return bold_multiplier[s];
+  return font_state ().bold_multiplier[s];
 }
 
 void

@@ -31,6 +31,12 @@ pk_loader::pk_loader (url pk_file_name, tex_font_metric tfm2, int dpi2):
   input_pos= 0;
 }
 
+pk_loader::~pk_loader () {
+  if (char_pos) tm_delete_array (char_pos);
+  if (char_flag) tm_delete_array (char_flag);
+  if (unpacked) tm_delete_array (unpacked);
+}
+
 /******************************************************************************
 * File handling
 ******************************************************************************/
@@ -284,7 +290,9 @@ pk_loader::load_pk () {
   Z32 yoff;
   
   bench_start ("decode pk");
-  glyph* fng= tm_new_array<glyph> (ec+1-bc);
+  std::unique_ptr<glyph[], decltype (&tm_delete_array<glyph>)> storage (
+    tm_new_array<glyph> (ec+1-bc), &tm_delete_array<glyph>);
+  glyph* fng= storage.get ();
   char_pos = tm_new_array<int> (ec+1-bc);
   unpacked = tm_new_array<bool> (ec+1-bc);
   char_flag = tm_new_array<N16> (ec+1-bc);
@@ -427,5 +435,5 @@ pk_loader::load_pk () {
     }
 
   bench_cumul ("decode pk");
-  return fng;
+  return storage.release ();
 }

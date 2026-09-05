@@ -22,12 +22,29 @@
 #include "../Scheme/glue.hpp"
 #include "convert.hpp" // tree_to_texmacs (should not belong here)
 #include "scheme_execution_context.hpp"
+#include "scheme_native_context.hpp"
 
 #include <atomic>
 #include <mutex>
 #include <thread>
 #include <unordered_map>
 #include <vector>
+
+/******************************************************************************
+ * Native dynamic context lifetime
+ ******************************************************************************/
+
+void
+scheme_begin_native_scope (void (*cleanup) (void*), void* data) {
+  // Stack-owned native state must not be re-entered by a saved continuation.
+  scm_dynwind_begin (static_cast<scm_t_dynwind_flags> (0));
+  scm_dynwind_unwind_handler (cleanup, data, SCM_F_WIND_EXPLICITLY);
+}
+
+void
+scheme_end_native_scope () {
+  scm_dynwind_end ();
+}
 
 /******************************************************************************
  * Installation of guile and initialization of guile

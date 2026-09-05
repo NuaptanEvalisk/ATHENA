@@ -17,6 +17,7 @@
 #include "image_files.hpp"
 #include "scheme.hpp"
 #include "frame.hpp"
+#include "font_domain.hpp"
 
 #include <QObject>
 #include <QWidget>
@@ -61,8 +62,11 @@ CONCRETE_NULL_CODE(qt_image);
 * Global support variables for all qt_renderers
 ******************************************************************************/
 
-// A renderer and its glyph bitmaps are used only by their owning render thread.
-static thread_local hashmap<basic_character,qt_image> character_image;
+// Cache keys contain non-owning glyph handles, so their lifetime follows fonts.
+static hashmap<basic_character,qt_image>&
+character_images () {
+  return font_domain_local<hashmap<basic_character,qt_image>> ();
+}
 
 /*
 ** hash contents must be removed because 
@@ -70,7 +74,7 @@ static thread_local hashmap<basic_character,qt_image> character_image;
 ** Qt exit function
 */
 void del_obj_qt_renderer(void)  {
-  character_image= hashmap<basic_character,qt_image> ();
+  character_images ()= hashmap<basic_character,qt_image> ();
 }
 
 /******************************************************************************
@@ -581,7 +585,7 @@ qt_renderer_rep::draw (int c, font_glyphs fng, SI x, SI y) {
   // get the pixmap
   color fgc= pen->get_color ();
   basic_character xc (c, fng, std_shrinkf, fgc, 0);
-  qt_image mi = character_image [xc];
+  qt_image mi = character_images ()[xc];
   if (is_nil(mi)) {
     int r, g, b, a;
     get_rgb (fgc, r, g, b, a);
@@ -640,7 +644,7 @@ qt_renderer_rep::draw (int c, font_glyphs fng, SI x, SI y) {
     qt_image mi2 (im, xo, yo, w, h);
     mi = mi2;
     //[im release]; // qt_image retains im
-    character_image (xc)= mi;
+    character_images ()(xc)= mi;
     // FIXME: we must release the image at some point 
     //        (this should be ok now, see qt_image)
   }

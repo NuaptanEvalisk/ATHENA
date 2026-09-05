@@ -39,6 +39,7 @@ struct pk_loader {
   bool* unpacked;
 
   pk_loader (url pk_file_name, tex_font_metric tfm, int dpi);
+  ~pk_loader ();
   Z16 pkbyte ();
   Z32 pkquad ();
   Z32 pktrio ();

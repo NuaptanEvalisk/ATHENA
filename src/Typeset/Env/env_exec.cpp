@@ -15,6 +15,7 @@
 #include "locale.hpp"
 #include "image_files.hpp"
 #include "scheme.hpp"
+#include "scheme_native_context.hpp"
 #include "page_type.hpp"
 #include "typesetter.hpp"
 #include "drd_mode.hpp"
@@ -39,9 +40,9 @@ edit_env_rep::exec_string (tree t) {
 * Rewriting (scheme-like macro expansion)
 ******************************************************************************/
 
-// Hack to transmit the current environment back to C++
-// across the Scheme level, and to maintain reentrancy.
-static edit_env current_rewrite_env= edit_env ();
+// EXTERN callbacks are synchronous on the owning actor.  Keep a per-thread
+// stack of retained environments, including nested Scheme-to-C++ re-entry.
+using rewrite_environment= scheme_native_context<edit_env>;
 
 tree
 edit_env_rep::rewrite (tree t) {
@@ -62,10 +63,11 @@ edit_env_rep::rewrite (tree t) {
 	if (!as_bool (call ("secure?", expr)))
 	  return tree (_ERROR, "insecure script");
       }
-      edit_env old_env= current_rewrite_env;
-      current_rewrite_env= edit_env (this);
-      object o= eval (expr);
-      current_rewrite_env= old_env;
+      object o= [&] () {
+        rewrite_environment context;
+        context.bind (edit_env (this));
+        return eval (expr);
+      } ();
       return content_to_tree (o);
     }
   case MAP_ARGS:
@@ -174,8 +176,10 @@ edit_env_rep::exec_until_rewrite (tree t, path p, string var, int level) {
 
 tree
 texmacs_exec (edit_env env, tree cmd) {
-  // re-entrancy
-  if (!is_nil (current_rewrite_env)) env= current_rewrite_env;
+  // Use only the context belonging to this thread.  Outside EXTERN, retain
+  // the explicit environment supplied by the caller.
+  const edit_env* current= rewrite_environment::current ();
+  if (current != nullptr && !is_nil (*current)) env= *current;
   return env->exec (cmd);
 }
 

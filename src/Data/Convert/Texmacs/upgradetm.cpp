@@ -2356,9 +2356,6 @@ substitute (tree t, tree which, tree by) {
 * Upgrading title information
 ******************************************************************************/
 
-static tree doc_keywords;
-static tree doc_ams_class;
-
 static void
 abstract_add (tree& data, tree what) {
   if (is_func (what, DOCUMENT, 1)) what= what[0];
@@ -2381,7 +2378,7 @@ abstract_add (tree& data, tree what) {
 }
 
 static tree
-upgrade_abstract (tree t) {
+upgrade_abstract (tree t, tree& doc_keywords, tree& doc_ams_class) {
   if (is_atomic (t)) return t;
   else if (is_compound (t, "abstract", 1) && is_document (t[0])) {
     int i, n= N(t[0]);
@@ -2399,7 +2396,7 @@ upgrade_abstract (tree t) {
     int i, n= N(t);
     tree r (t, n);
     for (i=0; i<n; i++)
-      r[i]= upgrade_abstract (t[i]);
+      r[i]= upgrade_abstract (t[i], doc_keywords, doc_ams_class);
     return r;
   }
 }
@@ -2448,7 +2445,7 @@ add_info (tree& data, tree t, string ntag, string otag,
 }
 
 static tree
-upgrade_title2 (tree t) {
+upgrade_title2 (tree t, tree& doc_keywords, tree& doc_ams_class) {
   if (is_atomic (t)) return t;
   else if (is_compound (t, "make-title", 1)) {
     //cout << "t= " << t << "\n";
@@ -2493,17 +2490,17 @@ upgrade_title2 (tree t) {
     int i, n= N(t);
     tree r (t, n);
     for (i=0; i<n; i++)
-      r[i]= upgrade_title2 (t[i]);
+      r[i]= upgrade_title2 (t[i], doc_keywords, doc_ams_class);
     return r;
   }
 }
 
 static tree
 upgrade_doc_info (tree t) {
-  doc_keywords = compound ("doc-keywords");
-  doc_ams_class= compound ("doc-AMS-class");
-  t= upgrade_abstract (t);
-  t= upgrade_title2 (t);
+  tree doc_keywords = compound ("doc-keywords");
+  tree doc_ams_class= compound ("doc-AMS-class");
+  t= upgrade_abstract (t, doc_keywords, doc_ams_class);
+  t= upgrade_title2 (t, doc_keywords, doc_ams_class);
   return t;
 }
 

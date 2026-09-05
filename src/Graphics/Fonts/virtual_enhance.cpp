@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "font.hpp"
+#include "font_domain.hpp"
 #include "universal.hpp"
 
 /******************************************************************************
@@ -70,7 +71,14 @@ virtual_enhance_font_rep::is_basic (string c) {
 * Getting extents and drawing strings
 ******************************************************************************/
 
-static string empty_string ("");
+namespace {
+struct local_font_state {
+  string empty_string{""};
+};
+local_font_state& font_state () {
+  return font_domain_local<local_font_state> ();
+}
+}
 
 void
 virtual_enhance_font_rep::get_extents (string s, metric& ex) {

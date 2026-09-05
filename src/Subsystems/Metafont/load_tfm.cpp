@@ -13,7 +13,7 @@
 #include "analyze.hpp"
 #include "tm_timer.hpp"
 
-RESOURCE_CODE(tex_font_metric);
+FONT_RESOURCE_CODE(tex_font_metric);
 
 /******************************************************************************
 * Constructors and destructors for tex_font_metric
@@ -378,8 +378,9 @@ print (tex_font_metric tfm) {
 
 tex_font_metric
 load_tfm (url file_name, string family, int size) {
-  tex_font_metric tfm=
-    tm_new<tex_font_metric_rep> (family * as_string (size) * ".tfm");
+  std::unique_ptr<tex_font_metric_rep, decltype (&tm_delete<tex_font_metric_rep>)>
+    tfm (tm_new<tex_font_metric_rep> (family * as_string (size) * ".tfm"),
+         &tm_delete<tex_font_metric_rep>);
 
   int i= 0;
   string s;
@@ -452,5 +453,5 @@ load_tfm (url file_name, string family, int size) {
   // End fixes
 
   bench_cumul ("decode tfm");
-  return tfm;
+  return tex_font_metric (tfm.release ());
 }

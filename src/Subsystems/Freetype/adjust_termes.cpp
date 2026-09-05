@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "font.hpp"
+#include "font_domain.hpp"
 
 /******************************************************************************
 * Table initialization
@@ -406,53 +407,65 @@ above_adjust_termes (hashmap<string,double>& t) {
 * Interface
 ******************************************************************************/
 
-static hashmap<string,double> lsub_termes (0.0);
-static hashmap<string,double> lsup_termes (0.0);
-static hashmap<string,double> rsub_termes (0.0);
-static hashmap<string,double> rsup_termes (0.0);
-static hashmap<string,double> above_termes (0.0);
+namespace {
+struct local_font_state {
+  hashmap<string,double> lsub_termes{0.0};
+  hashmap<string,double> lsub_termes_italic{0.0};
+  hashmap<string,double> lsup_termes{0.0};
+  hashmap<string,double> lsup_termes_italic{0.0};
+  hashmap<string,double> rsub_termes{0.0};
+  hashmap<string,double> rsub_termes_italic{0.0};
+  hashmap<string,double> rsup_termes{0.0};
+  hashmap<string,double> rsup_termes_italic{0.0};
+  hashmap<string,double> above_termes{0.0};
+  hashmap<string,double> above_termes_italic{0.0};
+};
+local_font_state& font_state () {
+  return font_domain_local<local_font_state> ();
+}
+}
 
 hashmap<string,double>
 lsub_termes_table () {
-  if (N (lsub_termes) == 0) {
-    lsub_adjust_std (lsub_termes);
-    lsub_adjust_termes (lsub_termes);
+  if (N (font_state ().lsub_termes) == 0) {
+    lsub_adjust_std (font_state ().lsub_termes);
+    lsub_adjust_termes (font_state ().lsub_termes);
   }
-  return lsub_termes;
+  return font_state ().lsub_termes;
 }
 
 hashmap<string,double>
 lsup_termes_table () {
-  if (N (lsup_termes) == 0) {
-    lsup_adjust_std (lsup_termes);
-    lsup_adjust_termes (lsup_termes);
+  if (N (font_state ().lsup_termes) == 0) {
+    lsup_adjust_std (font_state ().lsup_termes);
+    lsup_adjust_termes (font_state ().lsup_termes);
   }
-  return lsup_termes;
+  return font_state ().lsup_termes;
 }
 
 hashmap<string,double>
 rsub_termes_table () {
-  if (N (rsub_termes) == 0) {
-    rsub_adjust_std (rsub_termes);
-    rsub_adjust_termes (rsub_termes);
+  if (N (font_state ().rsub_termes) == 0) {
+    rsub_adjust_std (font_state ().rsub_termes);
+    rsub_adjust_termes (font_state ().rsub_termes);
   }
-  return rsub_termes;
+  return font_state ().rsub_termes;
 }
 
 hashmap<string,double>
 rsup_termes_table () {
-  if (N (rsup_termes) == 0) {
-    rsup_adjust_std (rsup_termes);
-    rsup_adjust_termes (rsup_termes);
+  if (N (font_state ().rsup_termes) == 0) {
+    rsup_adjust_std (font_state ().rsup_termes);
+    rsup_adjust_termes (font_state ().rsup_termes);
   }
-  return rsup_termes;
+  return font_state ().rsup_termes;
 }
 
 hashmap<string,double>
 above_termes_table () {
-  if (N (above_termes) == 0)
-    above_adjust_termes (above_termes);
-  return above_termes;
+  if (N (font_state ().above_termes) == 0)
+    above_adjust_termes (font_state ().above_termes);
+  return font_state ().above_termes;
 }
 
 /******************************************************************************
@@ -571,51 +584,46 @@ above_adjust_termes_italic (hashmap<string,double>& t) {
 * Interface
 ******************************************************************************/
 
-static hashmap<string,double> lsub_termes_italic (0.0);
-static hashmap<string,double> lsup_termes_italic (0.0);
-static hashmap<string,double> rsub_termes_italic (0.0);
-static hashmap<string,double> rsup_termes_italic (0.0);
-static hashmap<string,double> above_termes_italic (0.0);
 
 hashmap<string,double>
 lsub_termes_italic_table () {
-  if (N (lsub_termes_italic) == 0) {
-    lsub_adjust_std (lsub_termes_italic);
-    lsub_adjust_termes_italic (lsub_termes_italic);
+  if (N (font_state ().lsub_termes_italic) == 0) {
+    lsub_adjust_std (font_state ().lsub_termes_italic);
+    lsub_adjust_termes_italic (font_state ().lsub_termes_italic);
   }
-  return lsub_termes_italic;
+  return font_state ().lsub_termes_italic;
 }
 
 hashmap<string,double>
 lsup_termes_italic_table () {
-  if (N (lsup_termes_italic) == 0) {
-    lsup_adjust_std (lsup_termes_italic);
-    lsup_adjust_termes_italic (lsup_termes_italic);
+  if (N (font_state ().lsup_termes_italic) == 0) {
+    lsup_adjust_std (font_state ().lsup_termes_italic);
+    lsup_adjust_termes_italic (font_state ().lsup_termes_italic);
   }
-  return lsup_termes_italic;
+  return font_state ().lsup_termes_italic;
 }
 
 hashmap<string,double>
 rsub_termes_italic_table () {
-  if (N (rsub_termes_italic) == 0) {
-    rsub_adjust_std (rsub_termes_italic);
-    rsub_adjust_termes_italic (rsub_termes_italic);
+  if (N (font_state ().rsub_termes_italic) == 0) {
+    rsub_adjust_std (font_state ().rsub_termes_italic);
+    rsub_adjust_termes_italic (font_state ().rsub_termes_italic);
   }
-  return rsub_termes_italic;
+  return font_state ().rsub_termes_italic;
 }
 
 hashmap<string,double>
 rsup_termes_italic_table () {
-  if (N (rsup_termes_italic) == 0) {
-    rsup_adjust_std (rsup_termes_italic);
-    rsup_adjust_termes_italic (rsup_termes_italic);
+  if (N (font_state ().rsup_termes_italic) == 0) {
+    rsup_adjust_std (font_state ().rsup_termes_italic);
+    rsup_adjust_termes_italic (font_state ().rsup_termes_italic);
   }
-  return rsup_termes_italic;
+  return font_state ().rsup_termes_italic;
 }
 
 hashmap<string,double>
 above_termes_italic_table () {
-  if (N (above_termes_italic) == 0)
-    above_adjust_termes_italic (above_termes_italic);
-  return above_termes_italic;
+  if (N (font_state ().above_termes_italic) == 0)
+    above_adjust_termes_italic (font_state ().above_termes_italic);
+  return font_state ().above_termes_italic;
 }

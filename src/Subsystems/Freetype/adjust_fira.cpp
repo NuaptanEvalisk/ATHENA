@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "font.hpp"
+#include "font_domain.hpp"
 
 /******************************************************************************
 * Table initialization
@@ -92,54 +93,66 @@ above_adjust_fira (hashmap<string,double>& t) {
 * Interface
 ******************************************************************************/
 
-static hashmap<string,double> lsub_fira (0.0);
-static hashmap<string,double> lsup_fira (0.0);
-static hashmap<string,double> rsub_fira (0.0);
-static hashmap<string,double> rsup_fira (0.0);
-static hashmap<string,double> above_fira (0.0);
+namespace {
+struct local_font_state {
+  hashmap<string,double> lsub_fira{0.0};
+  hashmap<string,double> lsub_fira_italic{0.0};
+  hashmap<string,double> lsup_fira{0.0};
+  hashmap<string,double> lsup_fira_italic{0.0};
+  hashmap<string,double> rsub_fira{0.0};
+  hashmap<string,double> rsub_fira_italic{0.0};
+  hashmap<string,double> rsup_fira{0.0};
+  hashmap<string,double> rsup_fira_italic{0.0};
+  hashmap<string,double> above_fira{0.0};
+  hashmap<string,double> above_fira_italic{0.0};
+};
+local_font_state& font_state () {
+  return font_domain_local<local_font_state> ();
+}
+}
 
 hashmap<string,double>
 lsub_fira_table () {
-  if (N (lsub_fira) == 0) {
-    lsub_adjust_std (lsub_fira);
-    lsub_adjust_fira (lsub_fira);
+  if (N (font_state ().lsub_fira) == 0) {
+    lsub_adjust_std (font_state ().lsub_fira);
+    lsub_adjust_fira (font_state ().lsub_fira);
   }
-  return lsub_fira;
+  return font_state ().lsub_fira;
 }
 
 hashmap<string,double>
 lsup_fira_table () {
-  if (N (lsup_fira) == 0) {
-    lsup_adjust_std (lsup_fira);
-    lsup_adjust_fira (lsup_fira);
+  if (N (font_state ().lsup_fira) == 0) {
+    lsup_adjust_std (font_state ().lsup_fira);
+    lsup_adjust_fira (font_state ().lsup_fira);
   }
-  return lsup_fira;
+  return font_state ().lsup_fira;
 }
 
 hashmap<string,double>
 rsub_fira_table () {
-  if (N (rsub_fira) == 0) {
-    rsub_adjust_std (rsub_fira);
-    rsub_adjust_fira (rsub_fira);
+  if (N (font_state ().rsub_fira) == 0) {
+    rsub_adjust_std (font_state ().rsub_fira);
+    rsub_adjust_fira (font_state ().rsub_fira);
   }
-  return rsub_fira;
+  return font_state ().rsub_fira;
 }
 
 hashmap<string,double>
 rsup_fira_table () {
-  if (N (rsup_fira) == 0) {
-    rsup_adjust_std (rsup_fira);
-    rsup_adjust_fira (rsup_fira);
+  if (N (font_state ().rsup_fira) == 0) {
+    rsup_adjust_std (font_state ().rsup_fira);
+    rsup_adjust_fira (font_state ().rsup_fira);
   }
-  return rsup_fira;
+  return font_state ().rsup_fira;
 }
 
 hashmap<string,double>
 above_fira_table () {
-  if (N (above_fira) == 0) {
-    above_adjust_fira (above_fira);
+  if (N (font_state ().above_fira) == 0) {
+    above_adjust_fira (font_state ().above_fira);
   }
-  return above_fira;
+  return font_state ().above_fira;
 }
 
 /******************************************************************************
@@ -324,52 +337,47 @@ above_adjust_fira_italic (hashmap<string,double>& t) {
 * Interface
 ******************************************************************************/
 
-static hashmap<string,double> lsub_fira_italic (0.0);
-static hashmap<string,double> lsup_fira_italic (0.0);
-static hashmap<string,double> rsub_fira_italic (0.0);
-static hashmap<string,double> rsup_fira_italic (0.0);
-static hashmap<string,double> above_fira_italic (0.0);
 
 hashmap<string,double>
 lsub_fira_italic_table () {
-  if (N (lsub_fira_italic) == 0) {
-    lsub_adjust_std (lsub_fira_italic);
-    lsub_adjust_fira_italic (lsub_fira_italic);
+  if (N (font_state ().lsub_fira_italic) == 0) {
+    lsub_adjust_std (font_state ().lsub_fira_italic);
+    lsub_adjust_fira_italic (font_state ().lsub_fira_italic);
   }
-  return lsub_fira_italic;
+  return font_state ().lsub_fira_italic;
 }
 
 hashmap<string,double>
 lsup_fira_italic_table () {
-  if (N (lsup_fira_italic) == 0) {
-    lsup_adjust_std (lsup_fira_italic);
-    lsup_adjust_fira_italic (lsup_fira_italic);
+  if (N (font_state ().lsup_fira_italic) == 0) {
+    lsup_adjust_std (font_state ().lsup_fira_italic);
+    lsup_adjust_fira_italic (font_state ().lsup_fira_italic);
   }
-  return lsup_fira_italic;
+  return font_state ().lsup_fira_italic;
 }
 
 hashmap<string,double>
 rsub_fira_italic_table () {
-  if (N (rsub_fira_italic) == 0) {
-    rsub_adjust_std (rsub_fira_italic);
-    rsub_adjust_fira_italic (rsub_fira_italic);
+  if (N (font_state ().rsub_fira_italic) == 0) {
+    rsub_adjust_std (font_state ().rsub_fira_italic);
+    rsub_adjust_fira_italic (font_state ().rsub_fira_italic);
   }
-  return rsub_fira_italic;
+  return font_state ().rsub_fira_italic;
 }
 
 hashmap<string,double>
 rsup_fira_italic_table () {
-  if (N (rsup_fira_italic) == 0) {
-    rsup_adjust_std (rsup_fira_italic);
-    rsup_adjust_fira_italic (rsup_fira_italic);
+  if (N (font_state ().rsup_fira_italic) == 0) {
+    rsup_adjust_std (font_state ().rsup_fira_italic);
+    rsup_adjust_fira_italic (font_state ().rsup_fira_italic);
   }
-  return rsup_fira_italic;
+  return font_state ().rsup_fira_italic;
 }
 
 hashmap<string,double>
 above_fira_italic_table () {
-  if (N (above_fira_italic) == 0) {
-    above_adjust_fira_italic (above_fira_italic);
+  if (N (font_state ().above_fira_italic) == 0) {
+    above_adjust_fira_italic (font_state ().above_fira_italic);
   }
-  return above_fira_italic;
+  return font_state ().above_fira_italic;
 }

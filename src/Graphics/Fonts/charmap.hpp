@@ -11,9 +11,9 @@
 
 #ifndef CHARMAP_H
 #define CHARMAP_H
-#include "resource.hpp"
+#include "font_domain.hpp"
 
-RESOURCE(charmap);
+FONT_RESOURCE(charmap, 0);
 
 /******************************************************************************
 * The charmap structure for finding the physical font

@@ -14,8 +14,6 @@
 #include "hashset.hpp"
 #include "raster.hpp"
 
-extern glyph error_glyph;
-extern metric error_metric;
 
 /******************************************************************************
 * degraded font glyphs
@@ -93,10 +91,10 @@ struct distorted_font_glyphs_rep: public font_glyphs_rep {
   SI em;
   hashmap<int,glyph> gs;
   distorted_font_glyphs_rep (string name, font_glyphs fng2, tree k2, int e2):
-    font_glyphs_rep (name), fng (fng2), kind (k2), em (e2), gs (error_glyph) {}
+    font_glyphs_rep (name), fng (fng2), kind (k2), em (e2), gs (font_error_glyph ()) {}
   glyph& get (int c) {
     glyph& orig (fng->get (c));
-    if ((&orig != &error_glyph) && !gs->contains (c))
+    if ((&orig != &font_error_glyph ()) && !gs->contains (c))
       gs(c)= distorted (orig, kind, em, c);
     return gs(c); }
 };

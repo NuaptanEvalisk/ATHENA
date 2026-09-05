@@ -10,9 +10,33 @@
 ******************************************************************************/
 
 #include "bitmap_font.hpp"
+#include "iterator.hpp"
 
-RESOURCE_CODE(font_metric);
-RESOURCE_CODE(font_glyphs);
+FONT_RESOURCE_CODE(font_metric);
+FONT_RESOURCE_CODE(font_glyphs);
+
+namespace {
+struct font_fallbacks {
+  metric metrics{};
+  glyph glyphs;
+};
+}
+
+metric& font_error_metric () {
+  return font_domain_local<font_fallbacks> ().metrics;
+}
+
+glyph& font_error_glyph () {
+  return font_domain_local<font_fallbacks> ().glyphs;
+}
+
+font_metric_cache::~font_metric_cache () {
+  iterator<int> it= iterate (static_cast<hashmap<int,pointer>&> (*this));
+  while (it->busy ()) {
+    auto* value= static_cast<metric_struct*> ((*this)[it->next ()]);
+    if (value != nullptr) tm_delete (value);
+  }
+}
 
 /******************************************************************************
 * font_metrics
@@ -21,8 +45,7 @@ RESOURCE_CODE(font_glyphs);
 font_metric_rep::font_metric_rep (string name):
   rep<font_metric> (name), bad_font_metric (false) {}
 
-font_metric_rep::~font_metric_rep () {
-  FAILED ("not yet implemented"); }
+font_metric_rep::~font_metric_rep () = default;
 
 bool font_metric_rep::exists (int char_code) {
   (void) char_code; return true; }
@@ -34,34 +57,34 @@ SI font_metric_rep::kerning (int left_code, int right_code) {
 * Standard bitmap metrics
 ******************************************************************************/
 
-metric error_metric;
 
 struct std_font_metric_rep: public font_metric_rep {
   int bc, ec;
   metric* fnm;
 
   std_font_metric_rep (string name, metric* fnm, int bc, int ec);
-  metric& get (int char_code);
+  ~std_font_metric_rep () override { if (fnm) tm_delete_array (fnm); }
+  metric& get (int char_code) override;
 };
 
 std_font_metric_rep::std_font_metric_rep (
   string name, metric* fnm2, int bc2, int ec2):
     font_metric_rep (name), bc (bc2), ec (ec2), fnm (fnm2)
 {
-  error_metric->x1= error_metric->y1= 0;
-  error_metric->x2= error_metric->y2= 0;
-  error_metric->x3= error_metric->y3= 0;
-  error_metric->x4= error_metric->y4= 0;
 }
 
 metric&
 std_font_metric_rep::get (int c) {
-  if ((c<bc) || (c>ec)) return error_metric;
+  if ((c<bc) || (c>ec)) return font_error_metric ();
   return fnm [c-bc];
 }
 
 font_metric
 std_font_metric (string name, metric* fnm, int bc, int ec) {
+  if (font_metric::instances->contains (name)) {
+    if (fnm) tm_delete_array (fnm);
+    return font_metric (name);
+  }
   return make (font_metric, name,
 	       tm_new<std_font_metric_rep> (name, fnm, bc, ec));
 }
@@ -73,21 +96,20 @@ std_font_metric (string name, metric* fnm, int bc, int ec) {
 font_glyphs_rep::font_glyphs_rep (string name):
   rep<font_glyphs> (name), bad_font_glyphs (false) {}
 
-font_glyphs_rep::~font_glyphs_rep () {
-  FAILED ("not yet implemented"); }
+font_glyphs_rep::~font_glyphs_rep () = default;
 
 /******************************************************************************
 * Standard bitmap fonts
 ******************************************************************************/
 
-glyph error_glyph;
 
 struct std_font_glyphs_rep: public font_glyphs_rep {
   int bc, ec;
   glyph* fng; // definitions of the characters
 
   std_font_glyphs_rep (string name, glyph* fng, int bc, int ec);
-  glyph& get (int char_code);
+  ~std_font_glyphs_rep () override { if (fng) tm_delete_array (fng); }
+  glyph& get (int char_code) override;
 };
 
 std_font_glyphs_rep::std_font_glyphs_rep (
@@ -96,11 +118,15 @@ std_font_glyphs_rep::std_font_glyphs_rep (
 
 glyph&
 std_font_glyphs_rep::get (int c) {
-  if ((c<bc) || (c>ec)) return error_glyph;
+  if ((c<bc) || (c>ec)) return font_error_glyph ();
   return fng [c-bc];
 }
 
 font_glyphs
 std_font_glyphs (string name, glyph* fng, int bc, int ec) {
+  if (font_glyphs::instances->contains (name)) {
+    if (fng) tm_delete_array (fng);
+    return font_glyphs (name);
+  }
   return make (font_glyphs, name, tm_new<std_font_glyphs_rep> (name, fng, bc, ec));
 }

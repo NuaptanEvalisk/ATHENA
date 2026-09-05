@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "font.hpp"
+#include "font_domain.hpp"
 #include "charmap.hpp"
 #include "convert.hpp"
 
@@ -93,12 +94,19 @@ compound_font_rep::advance (string s, int& pos, string& r, int& ch) {
 * Getting extents and drawing strings
 ******************************************************************************/
 
-static string empty_string ("");
+namespace {
+struct local_font_state {
+  string empty_string{""};
+};
+local_font_state& font_state () {
+  return font_domain_local<local_font_state> ();
+}
+}
 
 void
 compound_font_rep::get_extents (string s, metric& ex) {
   int i=0, n= N(s);
-  fn[0]->get_extents (empty_string, ex);
+  fn[0]->get_extents (font_state ().empty_string, ex);
   while (i < n) {
     int nr;
     string r= s;

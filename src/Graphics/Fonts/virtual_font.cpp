@@ -11,6 +11,7 @@
 ******************************************************************************/
 
 #include "font.hpp"
+#include "font_domain.hpp"
 #include "translator.hpp"
 #include "analyze.hpp"
 #include "frame.hpp"
@@ -2049,22 +2050,29 @@ virtual_font_rep::get_wide_correction (string s, int mode) {
 * User interface
 ******************************************************************************/
 
-static hashmap<string,bool> vdefined (false);
+namespace {
+struct local_font_state {
+  hashmap<string,bool> vdefined{false};
+};
+local_font_state& font_state () {
+  return font_domain_local<local_font_state> ();
+}
+}
 
 bool
 virtually_defined (string c, string name) {
-  if (!vdefined->contains (name)) {
-    vdefined (name)= true;
+  if (!font_state ().vdefined->contains (name)) {
+    font_state ().vdefined (name)= true;
     translator virt= load_translator (name);
     iterator<string> it= iterate (virt->dict);
     while (it->busy ()) {
       string c= it->next ();
-      vdefined (name * "-" * c)= true;
+      font_state ().vdefined (name * "-" * c)= true;
     }
   }
-  if (vdefined [name * "-" * c]) return true;
+  if (font_state ().vdefined [name * "-" * c]) return true;
   string nr;
-  return vdefined [name * "-" * decode_sharp (c, nr)];
+  return font_state ().vdefined [name * "-" * decode_sharp (c, nr)];
 }
 
 font

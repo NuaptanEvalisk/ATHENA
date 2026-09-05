@@ -13,7 +13,7 @@
 #include "translator.hpp"
 #include "analyze.hpp"
 
-RESOURCE_CODE(charmap);
+FONT_RESOURCE_CODE(charmap);
 
 /******************************************************************************
 * The charmap structure for finding the physical font
@@ -154,13 +154,14 @@ struct join_charmap_rep: public charmap_rep {
   int      jn;
   join_charmap_rep (charmap* a, int n):
     charmap_rep (join_name (a, n)), ja (a), jn (n) {}
-  int arity () {
+  ~join_charmap_rep () override { tm_delete_array (ja); }
+  int arity () override {
     int i, sum= 0;
     for (i=0; i<jn; i++)
       sum += ja[i] -> arity ();
     return sum;
   }
-  charmap child (int ch) {
+  charmap child (int ch) override {
     int i, sum= 0;
     for (i=0; i<jn; i++) {
       int p= ja[i] -> arity ();
@@ -170,7 +171,7 @@ struct join_charmap_rep: public charmap_rep {
     FAILED ("bad child");
     return this;
   }
-  void lookup (string s, int& ch, string& r) {
+  void lookup (string s, int& ch, string& r) override {
     int i, sum= 0;
     for (i=0; i<jn; i++) {
       ja[i]->lookup (s, ch, r);
@@ -188,8 +189,10 @@ struct join_charmap_rep: public charmap_rep {
 charmap
 join_charmap (charmap* a, int n) {
   string name= join_name (a, n);
-  if (charmap::instances -> contains (name))
+  if (charmap::instances -> contains (name)) {
+    tm_delete_array (a);
     return charmap (name);
+  }
   return make (charmap, name, tm_new<join_charmap_rep> (a, n));
 }
 

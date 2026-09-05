@@ -16,6 +16,8 @@
 #include "tm_buffer.hpp"
 #include "message.hpp"
 #include "Qt/qt_simple_widget.hpp"
+#include <QCoreApplication>
+#include <QThread>
 
 /******************************************************************************
 * Getting extents of a typesetted tree
@@ -233,8 +235,8 @@ box_widget (box b, bool tr) {
   return widget (tm_new<box_widget_rep> (b, col, tr, zoom, 3*PIXEL, 3*PIXEL));
 }
 
-widget
-box_widget (scheme_tree p, string s, color col, bool trans, bool ink) {
+static box
+typeset_text_widget (scheme_tree p, string s, color col, bool ink) {
   if (occurs ("dark", tm_style_sheet))
     col= reverse (col);  
   string family  = "roman";
@@ -253,7 +255,7 @@ box_widget (scheme_tree p, string s, color col, bool trans, bool ink) {
   font fn= smart_font (family, fn_class, series, shape, sz, dpi);
   box  b = text_box (decorate (), 0, s, fn, col);
   if (ink) b= resize_box (decorate (), b, b->x3, b->y3, b->x4, b->y4, true);
-  return box_widget (b, trans);
+  return b;
 }
 
 tree enrich_embedded_document (tree body, tree style);
@@ -266,9 +268,9 @@ is_transparent (tree init) {
   return true;
 }
 
-static widget
-texmacs_output_widget_with_width (tree doc, tree style, SI screen_width,
-                                  double widget_zoom) {
+static box
+typeset_output_widget (tree doc, tree style, SI screen_width,
+                      double widget_zoom, color& col) {
   doc= enrich_embedded_document (doc, style);
   drd_info drd ("none", std_drd);
   hashmap<string,tree> h1 (UNINIT), h2 (UNINIT);
@@ -293,7 +295,7 @@ texmacs_output_widget_with_width (tree doc, tree style, SI screen_width,
   //SI dw2= env->get_length (PAGE_SCREEN_RIGHT);
   //SI dh1= env->get_length (PAGE_SCREEN_BOT);
   //SI dh2= env->get_length (PAGE_SCREEN_TOP);
-  color col= env->get_color (BG_COLOR);
+  col= env->get_color (BG_COLOR);
   if (env->get_string (BG_COLOR) == "white" &&
       is_transparent (extract (doc, "body")))
 #ifdef QTTEXMACS
@@ -301,7 +303,74 @@ texmacs_output_widget_with_width (tree doc, tree style, SI screen_width,
 #else
     col= light_grey;
 #endif
-  return widget (tm_new<box_widget_rep> (b, col, false, zoom, 0, 0));
+  return b;
+}
+
+// Widget descriptions may be built by an actor. Only markup crosses to Qt;
+// boxes, fonts and FreeType faces are created in the thread that paints them.
+class deferred_box_widget_rep final: public qt_widget_rep {
+  tree description, style;
+  string text;
+  color foreground;
+  bool output, transparent, ink;
+  SI width;
+  double zoom;
+  widget materialized;
+
+  box typeset (color& background) {
+    if (output)
+      return typeset_output_widget (description, style, width, zoom, background);
+    background= light_grey;
+    return typeset_text_widget (description, text, foreground, ink);
+  }
+  widget realize () {
+    ASSERT (QThread::currentThread () == QCoreApplication::instance ()->thread (),
+            "box widget must be materialized on the Qt thread");
+    if (is_nil (materialized)) {
+      color background;
+      box content= typeset (background);
+      SI margin= output ? 0 : 3*PIXEL;
+      materialized= tm_new<box_widget_rep> (
+        content, background, transparent, zoom, margin, margin);
+      add_child (materialized);
+    }
+    return materialized;
+  }
+public:
+  deferred_box_widget_rep (tree p, string s, color col, bool tr, bool ink2):
+    description (copy (p)), text (std::move (s)), foreground (col),
+    output (false), transparent (tr), ink (ink2), width (0), zoom (5.0/6.0) {}
+  deferred_box_widget_rep (tree doc, tree st, SI w, double z):
+    description (copy (doc)), style (copy (st)), foreground (0),
+    output (true), transparent (false), ink (false), width (w),
+    zoom (z > 0.0 ? z : 1.0) {}
+  QWidget* as_qwidget (QWidget* parent) override {
+    qwid= concrete (realize ())->as_qwidget (parent);
+    return qwid;
+  }
+  QAction* as_qaction () override {
+    return concrete (realize ())->as_qaction ();
+  }
+  void size_hint (SI& w, SI& h) {
+    // Tooltips need their size on the actor before choosing a popup position.
+    // This temporary box never leaves that actor or survives the measurement.
+    color background;
+    box content= typeset (background);
+    SI margin= (output ? 2 : 5) * PIXEL;
+    w= (SI) ceil (content->w () * zoom / std_shrinkf) + 2*margin;
+    h= (SI) ceil (content->h () * zoom / std_shrinkf) + 2*margin;
+    abs_round (w, h);
+  }
+};
+
+widget
+box_widget (scheme_tree p, string s, color col, bool trans, bool ink) {
+  return tm_new<deferred_box_widget_rep> (p, s, col, trans, ink);
+}
+
+static widget
+texmacs_output_widget_with_width (tree doc, tree style, SI width, double zoom) {
+  return tm_new<deferred_box_widget_rep> (doc, style, width, zoom);
 }
 
 widget
@@ -323,7 +392,10 @@ array<SI>
 get_texmacs_widget_size (widget wid) {
   array<SI> ret;
   SI w, h;
-  ((simple_widget_rep*) wid.rep)->handle_get_size_hint (w, h);
+  if (auto* deferred= dynamic_cast<deferred_box_widget_rep*> (wid.rep))
+    deferred->size_hint (w, h);
+  else
+    ((simple_widget_rep*) wid.rep)->handle_get_size_hint (w, h);
   ret << w << h;
   return ret;
 }

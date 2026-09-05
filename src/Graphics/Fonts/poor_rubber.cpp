@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "font.hpp"
+#include "font_domain.hpp"
 #include "converter.hpp"
 #include "translator.hpp"
 
@@ -113,12 +114,19 @@ poor_rubber_font_rep::get_font (int nr) {
   return larger[nr];
 }
 
-static hashset<string> thin_delims;
+namespace {
+struct local_font_state {
+  hashset<string> thin_delims{};
+};
+local_font_state& font_state () {
+  return font_domain_local<local_font_state> ();
+}
+}
 
 static bool
 is_thin (string s) {
-  if (N(thin_delims) == 0)
-    thin_delims << string ("|") << string ("||") << string ("interleave")
+  if (N(font_state ().thin_delims) == 0)
+    font_state ().thin_delims << string ("|") << string ("||") << string ("interleave")
                 << string ("[") << string ("]")
                 << string ("lfloor") << string ("rfloor")
                 << string ("lceil") << string ("rceil")
@@ -128,7 +136,7 @@ is_thin (string s) {
                 << string ("tlbracket") << string ("trbracket")
                 << string ("tlfloor") << string ("trfloor")
                 << string ("tlceil") << string ("trceil");
-  return thin_delims->contains (s);
+  return font_state ().thin_delims->contains (s);
 }
 
 int

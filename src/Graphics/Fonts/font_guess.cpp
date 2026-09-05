@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "font.hpp"
+#include "font_domain.hpp"
 #include "Freetype/tt_tools.hpp"
 #include "analyze.hpp"
 
@@ -187,7 +188,8 @@ category_distance (array<string> f1, array<string> f2) {
 
 double
 guessed_distance (string fam1, string sty1, string fam2, string sty2) {
-  static thread_local hashmap<tree,double> memo (1000000.0);
+  struct memo_cache;
+  auto& memo= font_domain_local<hashmap<tree,double>, memo_cache> (1000000.0);
   tree key= tuple (fam1, sty1, fam2, sty2);
   if (memo->contains (key)) return memo[key];
   array<string> f1= logical_font_exact (fam1, sty1);
@@ -203,7 +205,8 @@ guessed_distance (string fam1, string sty1, string fam2, string sty2) {
 
 double
 guessed_distance_families (string fam1, string fam2) {
-  static thread_local hashmap<tree,double> memo (1000000.0);
+  struct memo_cache;
+  auto& memo= font_domain_local<hashmap<tree,double>, memo_cache> (1000000.0);
   tree key= tuple (fam1, fam2);
   if (memo->contains (key)) return memo[key];
   array<string> stys1= font_database_styles (fam1);
@@ -222,7 +225,8 @@ guessed_distance_families (string fam1, string fam2) {
 
 double
 guessed_distance (string master1, string master2) {
-  static thread_local hashmap<tree,double> memo (1000000.0);
+  struct memo_cache;
+  auto& memo= font_domain_local<hashmap<tree,double>, memo_cache> (1000000.0);
   if (master1 == master2) return 0.0;
   tree key= tuple (master1, master2);
   if (memo->contains (key)) return memo[key];

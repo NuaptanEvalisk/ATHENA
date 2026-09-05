@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "font.hpp"
+#include "font_domain.hpp"
 #include "Freetype/tt_tools.hpp"
 #include "analyze.hpp"
 #include "boot.hpp"
@@ -756,7 +757,8 @@ search_font (array<string> v, bool require_exact, array<string> avoid) {
 
 array<string>
 search_font (array<string> v, int attempt) {
-  static thread_local hashmap<tree,tree> cache (UNINIT);
+  struct search_cache;
+  auto& cache= font_domain_local<hashmap<tree,tree>, search_cache> (UNINIT);
   tree key= array_as_tuple (v);
   key << as_string (attempt);
   if (cache->contains (key))

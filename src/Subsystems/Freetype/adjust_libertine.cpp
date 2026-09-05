@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "font.hpp"
+#include "font_domain.hpp"
 
 /******************************************************************************
 * Table initialization
@@ -98,54 +99,66 @@ above_adjust_libertine (hashmap<string,double>& t) {
 * Interface
 ******************************************************************************/
 
-static hashmap<string,double> lsub_libertine (0.0);
-static hashmap<string,double> lsup_libertine (0.0);
-static hashmap<string,double> rsub_libertine (0.0);
-static hashmap<string,double> rsup_libertine (0.0);
-static hashmap<string,double> above_libertine (0.0);
+namespace {
+struct local_font_state {
+  hashmap<string,double> lsub_libertine{0.0};
+  hashmap<string,double> lsub_libertine_italic{0.0};
+  hashmap<string,double> lsup_libertine{0.0};
+  hashmap<string,double> lsup_libertine_italic{0.0};
+  hashmap<string,double> rsub_libertine{0.0};
+  hashmap<string,double> rsub_libertine_italic{0.0};
+  hashmap<string,double> rsup_libertine{0.0};
+  hashmap<string,double> rsup_libertine_italic{0.0};
+  hashmap<string,double> above_libertine{0.0};
+  hashmap<string,double> above_libertine_italic{0.0};
+};
+local_font_state& font_state () {
+  return font_domain_local<local_font_state> ();
+}
+}
 
 hashmap<string,double>
 lsub_libertine_table () {
-  if (N (lsub_libertine) == 0) {
-    lsub_adjust_std (lsub_libertine);
-    lsub_adjust_libertine (lsub_libertine);
+  if (N (font_state ().lsub_libertine) == 0) {
+    lsub_adjust_std (font_state ().lsub_libertine);
+    lsub_adjust_libertine (font_state ().lsub_libertine);
   }
-  return lsub_libertine;
+  return font_state ().lsub_libertine;
 }
 
 hashmap<string,double>
 lsup_libertine_table () {
-  if (N (lsup_libertine) == 0) {
-    lsup_adjust_std (lsup_libertine);
-    lsup_adjust_libertine (lsup_libertine);
+  if (N (font_state ().lsup_libertine) == 0) {
+    lsup_adjust_std (font_state ().lsup_libertine);
+    lsup_adjust_libertine (font_state ().lsup_libertine);
   }
-  return lsup_libertine;
+  return font_state ().lsup_libertine;
 }
 
 hashmap<string,double>
 rsub_libertine_table () {
-  if (N (rsub_libertine) == 0) {
-    rsub_adjust_std (rsub_libertine);
-    rsub_adjust_libertine (rsub_libertine);
+  if (N (font_state ().rsub_libertine) == 0) {
+    rsub_adjust_std (font_state ().rsub_libertine);
+    rsub_adjust_libertine (font_state ().rsub_libertine);
   }
-  return rsub_libertine;
+  return font_state ().rsub_libertine;
 }
 
 hashmap<string,double>
 rsup_libertine_table () {
-  if (N (rsup_libertine) == 0) {
-    rsup_adjust_std (rsup_libertine);
-    rsup_adjust_libertine (rsup_libertine);
+  if (N (font_state ().rsup_libertine) == 0) {
+    rsup_adjust_std (font_state ().rsup_libertine);
+    rsup_adjust_libertine (font_state ().rsup_libertine);
   }
-  return rsup_libertine;
+  return font_state ().rsup_libertine;
 }
 
 hashmap<string,double>
 above_libertine_table () {
-  if (N (above_libertine) == 0) {
-    above_adjust_libertine (above_libertine);
+  if (N (font_state ().above_libertine) == 0) {
+    above_adjust_libertine (font_state ().above_libertine);
   }
-  return above_libertine;
+  return font_state ().above_libertine;
 }
 
 /******************************************************************************
@@ -324,52 +337,47 @@ above_adjust_libertine_italic (hashmap<string,double>& t) {
 * Interface
 ******************************************************************************/
 
-static hashmap<string,double> lsub_libertine_italic (0.0);
-static hashmap<string,double> lsup_libertine_italic (0.0);
-static hashmap<string,double> rsub_libertine_italic (0.0);
-static hashmap<string,double> rsup_libertine_italic (0.0);
-static hashmap<string,double> above_libertine_italic (0.0);
 
 hashmap<string,double>
 lsub_libertine_italic_table () {
-  if (N (lsub_libertine_italic) == 0) {
-    lsub_adjust_std (lsub_libertine_italic);
-    lsub_adjust_libertine_italic (lsub_libertine_italic);
+  if (N (font_state ().lsub_libertine_italic) == 0) {
+    lsub_adjust_std (font_state ().lsub_libertine_italic);
+    lsub_adjust_libertine_italic (font_state ().lsub_libertine_italic);
   }
-  return lsub_libertine_italic;
+  return font_state ().lsub_libertine_italic;
 }
 
 hashmap<string,double>
 lsup_libertine_italic_table () {
-  if (N (lsup_libertine_italic) == 0) {
-    lsup_adjust_std (lsup_libertine_italic);
-    lsup_adjust_libertine_italic (lsup_libertine_italic);
+  if (N (font_state ().lsup_libertine_italic) == 0) {
+    lsup_adjust_std (font_state ().lsup_libertine_italic);
+    lsup_adjust_libertine_italic (font_state ().lsup_libertine_italic);
   }
-  return lsup_libertine_italic;
+  return font_state ().lsup_libertine_italic;
 }
 
 hashmap<string,double>
 rsub_libertine_italic_table () {
-  if (N (rsub_libertine_italic) == 0) {
-    rsub_adjust_std (rsub_libertine_italic);
-    rsub_adjust_libertine_italic (rsub_libertine_italic);
+  if (N (font_state ().rsub_libertine_italic) == 0) {
+    rsub_adjust_std (font_state ().rsub_libertine_italic);
+    rsub_adjust_libertine_italic (font_state ().rsub_libertine_italic);
   }
-  return rsub_libertine_italic;
+  return font_state ().rsub_libertine_italic;
 }
 
 hashmap<string,double>
 rsup_libertine_italic_table () {
-  if (N (rsup_libertine_italic) == 0) {
-    rsup_adjust_std (rsup_libertine_italic);
-    rsup_adjust_libertine_italic (rsup_libertine_italic);
+  if (N (font_state ().rsup_libertine_italic) == 0) {
+    rsup_adjust_std (font_state ().rsup_libertine_italic);
+    rsup_adjust_libertine_italic (font_state ().rsup_libertine_italic);
   }
-  return rsup_libertine_italic;
+  return font_state ().rsup_libertine_italic;
 }
 
 hashmap<string,double>
 above_libertine_italic_table () {
-  if (N (above_libertine_italic) == 0) {
-    above_adjust_libertine_italic (above_libertine_italic);
+  if (N (font_state ().above_libertine_italic) == 0) {
+    above_adjust_libertine_italic (font_state ().above_libertine_italic);
   }
-  return above_libertine_italic;
+  return font_state ().above_libertine_italic;
 }

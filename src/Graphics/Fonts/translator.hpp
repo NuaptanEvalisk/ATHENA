@@ -11,10 +11,10 @@
 
 #ifndef TRANSLATOR_H
 #define TRANSLATOR_H
-#include "resource.hpp"
+#include "font_domain.hpp"
 #include "tree.hpp"
 
-RESOURCE(translator);
+FONT_RESOURCE(translator, 0);
 
 /******************************************************************************
 * The translator structure
