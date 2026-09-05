@@ -6,7 +6,6 @@
 |------------|--------|-----------|---------|---------------|--------------|------------|
 | asymptote  | :100:  | :100:     | :100:   | Python(tmpy)  | @sadhen      | 2019-08-31 |
 | coq        | :x:    |           |         | Scheme/C      | @sadhen      | 2018-10-20 |
-| dratex     | :100:  | :100:     | :x:     | Python(tmpy)  | Pedro        | 2018-10-20 |
 | eukleides  |        | :x:       | :x:     | Scheme/Shell  | Pedro        | 2018-10-14 |
 | fricas     | 1.3.4  | 1.3.4     |         | Scheme        | @sadhen      | 2018-10-14 |
 | gnuplot    | :100:  | :100:     | :100:   | Python(tmpy)  | @sadhen      | 2019-08-31 |

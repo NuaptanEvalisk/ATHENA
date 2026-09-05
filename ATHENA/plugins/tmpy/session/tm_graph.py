@@ -32,7 +32,6 @@ from io        import StringIO
 from tmpy.protocol        import *
 from tmpy.capture         import CaptureStdout
 from tmpy.graph.asymptote import Asymptote
-from tmpy.graph.dratex    import DraTeX
 from tmpy.graph.graphviz  import Graphviz
 from tmpy.graph.mermaid   import Mermaid
 from tmpy.graph.plantuml  import PlantUML
@@ -98,7 +97,7 @@ else:
 grapvizs = list(map(lambda x: Graphviz(x), ["dot", "neato", "twopi", "circo", "fdp", "sfdp", "patchwork", "osage"]))
 diagrams = list(map(lambda x: Diagrams(x), ["flowchart", "sequence", "railroad"]))
 others = [Asymptote(), PlantUML(), Mermaid(), XYpic(), TikZ(),
-          FeynMF(), LaTeX(), PDFLaTeX(), Gnuplot(), DraTeX()]
+          FeynMF(), LaTeX(), PDFLaTeX(), Gnuplot()]
 graphs = list(filter(lambda x: x.available(), grapvizs + diagrams + others))
 graph_names = list(map(lambda x: x.name, graphs))
 

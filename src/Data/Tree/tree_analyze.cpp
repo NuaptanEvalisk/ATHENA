@@ -20,7 +20,7 @@ drd_info get_style_drd (tree style);
 
 array<tree>
 concat_tokenize (tree t) {
-  static language lan= math_language ("std-math");
+  language lan= math_language ("std-math");
   array<tree> r;
   if (is_atomic (t)) {
     int i= 0;
@@ -141,7 +141,7 @@ with_recompose (tree w, array<tree> a) {
 
 int
 symbol_type (tree t) {
-  static language lan= math_language ("std-math");
+  language lan= math_language ("std-math");
   tree r= the_drd->get_syntax (t);
   if (r != UNINIT) {
     if (is_compound (t, "text")) return SYMBOL_SKIP;
@@ -250,7 +250,7 @@ symbol_types (array<tree> a) {
 
 int
 symbol_priority (tree t) {
-  static language lan= math_language ("std-math");
+  language lan= math_language ("std-math");
   if (is_atomic (t)) {
     string g= lan->get_group (t->label);
     if (starts (g, "Separator")) return PRIORITY_SEPARATOR;

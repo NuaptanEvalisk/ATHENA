@@ -16,9 +16,9 @@
 #define LANGUAGE_H
 #include "space.hpp"
 #include "array.hpp"
-#include "resource.hpp"
+#include "font_domain.hpp"
 
-RESOURCE(language);
+FONT_RESOURCE(language, 0);
 
 /******************************************************************************
 * The text property class

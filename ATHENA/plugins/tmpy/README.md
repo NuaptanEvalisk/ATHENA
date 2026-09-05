@@ -8,7 +8,6 @@ Here is a list of plugins implemented in Python:
   + Xy-pic
   + Gnuplot
   + Asymptote
-  + DraTex
   + Graphviz
   + Mermaid
   + PlantUML

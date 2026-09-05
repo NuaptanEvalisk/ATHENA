@@ -15,7 +15,7 @@
 #include "iterator.hpp"
 #include "universal.hpp"
 
-RESOURCE_CODE(language);
+FONT_RESOURCE_CODE(language);
 
 text_property_rep global_tpr;
 

@@ -515,7 +515,7 @@ public:
 
 bool
 invisible_corrector::is_letter_like (string s) {
-  static language lan= math_language ("std-math");
+  language lan= math_language ("std-math");
   if (s != "" && is_iso_alpha (s)) return true;
   return lan->get_group (s) == "Letter-symbol";
 }
@@ -600,7 +600,7 @@ invisible_corrector::count_invisible (tree t, string mode) {
 int
 invisible_corrector::get_status (tree t, bool left, bool script_flag) {
   if (is_atomic (t)) {
-    static language lan= math_language ("std-math");
+    language lan= math_language ("std-math");
     string s= t->label;
     string g= lan->get_group (t->label);
     if (is_numeric (s))

@@ -17,7 +17,7 @@
 verb_language_rep::verb_language_rep (string name):
   language_rep (name)
 {
-  hl_lan= packrat_abbreviation (res_name, "Main");
+  hl_lan= 0;
 }
 
 inline static bool

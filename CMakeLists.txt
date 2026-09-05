@@ -599,7 +599,6 @@ set (ATHENA_Include_Dirs
   ${ATHENA_SOURCE_DIR}/src/Data/Drd
   ${ATHENA_SOURCE_DIR}/src/Data/History
   ${ATHENA_SOURCE_DIR}/src/Data/Observers
-  ${ATHENA_SOURCE_DIR}/src/Data/Parser
   ${ATHENA_SOURCE_DIR}/src/Data/String
   ${ATHENA_SOURCE_DIR}/src/Data/Tree
   ${ATHENA_SOURCE_DIR}/src/Edit
@@ -794,6 +793,7 @@ endif (LINKED_GNUTLS)
 ### --------------------------------------------------------------------
 
 set (GUI_TYPE) # nothing or WIN32, MACOSX bundles are treated independetly
+find_package (KF6SyntaxHighlighting REQUIRED)
 
 if (ATHENA_GUI STREQUAL "Qt" OR ATHENA_GUI STREQUAL "Qt6")
   find_package (Qt6 COMPONENTS Core Gui Widgets PrintSupport Svg Network Core5Compat REQUIRED)
@@ -813,10 +813,9 @@ if (ATHENA_GUI STREQUAL "Qt" OR ATHENA_GUI STREQUAL "Qt6")
     set (CMAKE_POSITION_INDEPENDENT_CODE ON)
   endif ()
 
-  if (UNIX AND NOT APPLE)
-    find_package (KF6SyntaxHighlighting REQUIRED)
-    add_definitions ("-DUSE_KF6_SYNTAX_HIGHLIGHTING")
+  add_definitions ("-DUSE_KF6_SYNTAX_HIGHLIGHTING")
 
+  if (UNIX AND NOT APPLE)
     option (USE_KF6_KIO_FILE_DIALOGS
             "Use KDE Frameworks KIO file dialogs" ON)
     if (USE_KF6_KIO_FILE_DIALOGS)

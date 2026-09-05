@@ -17,7 +17,6 @@
 
 (texmacs-module (prog fortran-edit)
   (:use (prog prog-edit)))
-(import-from (kernel athena tm-preferences))
 
 
 
@@ -59,13 +58,3 @@
   (:require prog-highlight-brackets?)
   (:mode in-prog-fortran?)
   (select-brackets-after-movement "([" ")]" "\\"))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Preferences for syntax highlighting
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(define (notify-fortran-pref var val)
-   (syntax-read-preferences "fortran"))
-
-(register-preference-callback-procedures
-  (list notify-fortran-pref))

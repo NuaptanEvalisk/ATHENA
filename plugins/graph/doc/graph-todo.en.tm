@@ -6,7 +6,7 @@
   <tmdoc-title|Possible improvements>
 
   <\itemize-dot>
-    <item>Re-implement the FeynMF/Xy-pic/Asymptote/DraTeX plugins using
+    <item>Re-implement the FeynMF/Xy-pic/Asymptote plugins using
     Python and share the common part of the code. Remember to check the
     usability on Windows. Currently, these plugins are implemented using
     Shell scripting and not available for Windows.
