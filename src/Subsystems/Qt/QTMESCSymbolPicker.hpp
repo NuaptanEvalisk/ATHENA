@@ -14,6 +14,7 @@
 #include "string.hpp"
 
 void initialize_escape_symbol_picker_data ();
+// Actor callers return empty immediately and receive insertion asynchronously.
 string escape_symbol_picker_dialog ();
 void escape_symbol_configurator_show ();
 

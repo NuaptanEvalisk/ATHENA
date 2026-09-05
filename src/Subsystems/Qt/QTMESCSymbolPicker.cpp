@@ -10,9 +10,13 @@
 
 #include "QTMESCSymbolPicker.hpp"
 
+#include "actor_transport.hpp"
+#include "buffer_actor.hpp"
 #include "file.hpp"
 #include "QTMWidget.hpp"
 #include "qt_utilities.hpp"
+#include "scheme.hpp"
+#include "scheme_execution_context.hpp"
 
 #include <QApplication>
 #include <QAbstractItemView>
@@ -42,6 +46,7 @@
 #include <QSet>
 #include <QTableWidget>
 #include <QTableWidgetItem>
+#include <QThread>
 #include <QVBoxLayout>
 #include <algorithm>
 #include <string>
@@ -169,6 +174,7 @@ invalidate_escape_symbol_data () {
 
 void
 initialize_escape_symbol_picker_data () {
+  if (qt_defer_to_main_thread (initialize_escape_symbol_picker_data)) return;
   esc_symbol_data& data= escape_symbol_data ();
   if (data.loaded) return;
   data.loaded= true;
@@ -613,16 +619,48 @@ private:
   string selected;
 };
 
-string
-escape_symbol_picker_dialog () {
+static string
+run_escape_symbol_picker () {
+  Q_ASSERT (QThread::currentThread () == qApp->thread ());
   initialize_escape_symbol_picker_data ();
   QTMESCSymbolPicker picker (QApplication::activeWindow ());
   if (picker.exec () != QDialog::Accepted) return "";
   return picker.selectedSymbol ();
 }
 
+string
+escape_symbol_picker_dialog () {
+  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  if (context != nullptr && context->actor_id != ATHENA_NO_ACTOR &&
+      context->view_id != ATHENA_NO_VIEW) {
+    const athena_actor_id actor= context->actor_id;
+    const athena_view_id view= context->view_id;
+    const SchemeCapabilitySet capabilities= context->capabilities;
+    qt_post_to_main_thread ([actor, view, capabilities] {
+      string action= run_escape_symbol_picker ();
+      if (action == "") return;
+      action.ensure_transferable ();
+      athena_continuation_id id=
+        actor_continuation_registry::instance ().store (
+          [action= std::move (action)] () mutable {
+            const auto* context= current_scheme_execution_context ();
+            if (context != nullptr && context->editor != nullptr)
+              (void) call ("escape-symbol-insert", object (std::move (action)));
+          });
+      if (!buffer_actor::submit_to (
+            actor, actor_command_kind::run_native_continuation, view,
+            ATHENA_NO_BLOB, ATHENA_NO_BLOB, capabilities, id))
+        (void) actor_continuation_registry::instance ().discard (id);
+    });
+    // The Scheme caller returns now; insertion resumes on its original actor.
+    return "";
+  }
+  return run_escape_symbol_picker ();
+}
+
 void
 escape_symbol_configurator_show () {
+  if (qt_defer_to_main_thread (escape_symbol_configurator_show)) return;
   QTMESCSymbolConfigurator dialog (QApplication::activeWindow ());
   dialog.exec ();
 }
