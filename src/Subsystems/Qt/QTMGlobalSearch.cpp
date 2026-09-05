@@ -819,14 +819,14 @@ QTMGlobalSearch::startSearch () {
   }
   else {
     string error;
-    athena_namespace_definition def;
+    std::shared_ptr<const athena_namespace_definition> def;
     if (!athena_namespace_get (from_qstring (ns), def)) {
       QMessageBox::warning (this, "Global search",
                             "Unknown namespace: " + ns);
       setIdleStatus ();
       return;
     }
-    std::vector<athena_namespace_match> members=
+    namespace_records<athena_namespace_match> members=
       athena_namespace_members (from_qstring (ns), error);
     if (error != "") {
       QMessageBox::warning (this, "Global search",
@@ -834,10 +834,10 @@ QTMGlobalSearch::startSearch () {
     }
     std::set<std::string> seen;
     for (const athena_namespace_match& m: members) {
-      if (suffix (m.file) != "ath") continue;
-      std::string key= to_qstring (concretize (m.file)).toStdString ();
+      if (suffix (m.file_url ()) != "ath") continue;
+      std::string key= to_qstring (m.file_path).toStdString ();
       if (!seen.insert (key).second) continue;
-      scanFiles.push_back (m.file);
+      scanFiles.push_back (m.file_url ());
     }
   }
 

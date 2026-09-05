@@ -25,6 +25,7 @@
 #include <map>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <sys/stat.h>
 #include <tuple>
 #include <vector>
@@ -32,8 +33,8 @@
 namespace athena_namespaces {
 
 inline std::string
-tm_to_std (string s) {
-  return std::string (as_charp (s));
+tm_to_std (const string& s) {
+  return std::string (s.data (), (size_t) N(s));
 }
 
 inline string
@@ -50,9 +51,9 @@ trim_std (const std::string& s) {
 }
 
 inline string
-join_list (const array<string>& s) {
+join_list (const std::vector<string>& s) {
   string out= "";
-  for (int i=0; i<N(s); i++) {
+  for (int i=0; i<(int) s.size (); i++) {
     if (i != 0) out << ", ";
     out << s[i];
   }
@@ -64,6 +65,11 @@ has_string (const array<string>& xs, string x) {
   for (int i=0; i<N(xs); i++)
     if (xs[i] == x) return true;
   return false;
+}
+
+inline bool
+has_string (const std::vector<string>& xs, const string& x) {
+  return std::find (xs.begin (), xs.end (), x) != xs.end ();
 }
 
 inline string
@@ -130,7 +136,7 @@ typedef struct {
 typedef int (*ns_compare_fn) (int, const AthenaNsField*, const AthenaNsField*);
 
 const char* field_type_name (ns_field_type t);
-int parse_roman_value (const std::string& s);
+int parse_roman_value (std::string_view s);
 bool field_value_satisfies_type (ns_field_type type, const std::string& value);
 bool parse_template (string templ, std::vector<template_token>& out,
                      string& error);
@@ -157,9 +163,11 @@ bool subproduct_candidate_from_order (string first_template,
                                       bool aggressive_string,
                                       string& suggestion, string& error);
 
-ns_compare_fn load_sorter (string sorter_path, string& error);
-int compare_with_sorter (ns_compare_fn fn, const athena_namespace_match& a,
-                         const athena_namespace_match& b);
+struct compiled_sorter;
+using sorter_handle= std::shared_ptr<const compiled_sorter>;
+sorter_handle load_sorter (string sorter_path, string& error);
+void sort_namespace_members (const sorter_handle& sorter,
+                              namespace_records<athena_namespace_match>& members);
 
 bool refresh_derived_parents_if_needed (bool force, bool& changed,
                                         string& error);

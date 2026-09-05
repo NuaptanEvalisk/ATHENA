@@ -342,11 +342,11 @@ QTMQuickSwitcher::structuredParentsOf (const QString& name) const {
   QStringList out;
   for (const athena_namespace_definition& ns: namespaces) {
     if (to_qstring (ns.name) != name) continue;
-    for (int i=0; i<N(ns.parents); i++) {
+    for (int i=0; i<(int) ns.parents.size (); i++) {
       QString parent= to_qstring (ns.parents[i]);
       if (!out.contains (parent)) out << parent;
     }
-    for (int i=0; i<N(ns.derived_parents); i++) {
+    for (int i=0; i<(int) ns.derived_parents.size (); i++) {
       QString parent= to_qstring (ns.derived_parents[i]);
       if (!out.contains (parent)) out << parent;
     }
@@ -393,9 +393,9 @@ QTMQuickSwitcher::updateStructuredList () {
     prompt->setText (QString ("Namespace %1").arg (structuredPath.join (" / ")));
     for (const athena_namespace_definition& ns: namespaces) {
       bool child= false;
-      for (int i=0; i<N(ns.parents); i++)
+      for (int i=0; i<(int) ns.parents.size (); i++)
         if (to_qstring (ns.parents[i]) == current) child= true;
-      for (int i=0; i<N(ns.derived_parents); i++)
+      for (int i=0; i<(int) ns.derived_parents.size (); i++)
         if (to_qstring (ns.derived_parents[i]) == current) child= true;
       if (!child) continue;
       QString name= to_qstring (ns.name);
@@ -434,12 +434,12 @@ QTMQuickSwitcher::updateStructuredList () {
 
   if (!structuredParentChoice && !current.isEmpty () && n < quick_switcher_limit) {
     string error;
-    std::vector<athena_namespace_match> members=
+    namespace_records<athena_namespace_match> members=
       athena_namespace_members (from_qstring (current), error);
     url root= vault_get_root ();
     if (queryText.isEmpty ()) {
       for (const athena_namespace_match& m: members) {
-        url rel= delta (root * url (""), m.file);
+        url rel= delta (root * url (""), m.file_url ());
         QString relPath= to_qstring (as_unix_string (rel));
         QListWidgetItem* item= new QListWidgetItem (relPath);
         item->setData (QuickTypeRole, QuickFile);
@@ -453,7 +453,7 @@ QTMQuickSwitcher::updateStructuredList () {
       std::vector<std::pair<int,int> > matches;
       for (int i=0; i<(int) members.size (); i++) {
         const athena_namespace_match& m= members[i];
-        url rel= delta (root * url (""), m.file);
+        url rel= delta (root * url (""), m.file_url ());
         string relString= as_unix_string (rel);
         array<fuzzy_rank_field> fields;
         fields << fuzzy_rank_field (m.stem, 100);
@@ -475,7 +475,7 @@ QTMQuickSwitcher::updateStructuredList () {
                  });
       for (auto match: matches) {
         const athena_namespace_match& m= members[match.second];
-        url rel= delta (root * url (""), m.file);
+        url rel= delta (root * url (""), m.file_url ());
         QString relPath= to_qstring (as_unix_string (rel));
         QListWidgetItem* item= new QListWidgetItem (relPath);
         item->setData (QuickTypeRole, QuickFile);

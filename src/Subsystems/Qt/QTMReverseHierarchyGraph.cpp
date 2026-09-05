@@ -226,9 +226,9 @@ parse_namespace_tmfs_path (const QString& identity) {
 }
 
 static bool
-has_string_qt (const array<string>& xs, const QString& s) {
-  for (int i=0; i<N(xs); i++)
-    if (to_qstring (xs[i]) == s) return true;
+has_string_qt (const std::vector<string>& xs, const QString& s) {
+  for (const string& value: xs)
+    if (to_qstring (value) == s) return true;
   return false;
 }
 
@@ -320,8 +320,8 @@ collect_parent_namespaces (const QString& name,
   if (!all.contains (name)) return;
   const athena_namespace_definition& ns= all[name];
   QStringList parents;
-  for (int i=0; i<N(ns.parents); i++) parents << to_qstring (ns.parents[i]);
-  for (int i=0; i<N(ns.derived_parents); i++)
+  for (const string& parent: ns.parents) parents << to_qstring (parent);
+  for (int i=0; i<(int) ns.derived_parents.size (); i++)
     if (!parents.contains (to_qstring (ns.derived_parents[i])))
       parents << to_qstring (ns.derived_parents[i]);
 

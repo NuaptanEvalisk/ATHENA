@@ -359,9 +359,11 @@ QTMNamespaceExplorer::refresh (bool invalidateCache) {
   ontologyPollTimer->stop ();
 
   QStringList names;
-  for (const athena_namespace_definition& ns: athena_namespaces_list ()) {
+  auto definitions= athena_namespaces_list ();
+  for (size_t i=0; i<definitions.size (); ++i) {
+    const auto& ns= definitions[i];
     QString name= to_qstring (ns.name);
-    namespaces.insert (name, ns);
+    namespaces.insert (name, definitions.retain (i));
     names << name;
   }
   names.sort ();
@@ -429,13 +431,13 @@ QStringList
 QTMNamespaceExplorer::directChildNames (const QString& name,
                                         const QStringList& path) const {
   QStringList childNames;
-  array<string> visible;
-  array<string> folded;
+  namespace_records<string> visible;
+  namespace_records<string> folded;
   string error;
   if (!athena_namespace_ontology_children (
         from_qstring (name), false, visible, folded, error))
     return childNames;
-  for (int i=0; i<N(visible); ++i) {
+  for (int i=0; i<(int) visible.size (); ++i) {
     QString child= to_qstring (visible[i]);
     if (!path.contains (child)) childNames << child;
   }
@@ -457,20 +459,20 @@ QTMNamespaceExplorer::simplifyChildNames (const QString& parent,
     visibleNames= childNames;
     return;
   }
-  array<string> cachedVisible;
-  array<string> cachedFolded;
+  namespace_records<string> cachedVisible;
+  namespace_records<string> cachedFolded;
   string error;
   if (!athena_namespace_ontology_children (
         from_qstring (parent), true, cachedVisible, cachedFolded, error)) {
     visibleNames= childNames;
     return;
   }
-  for (int i=0; i<N(cachedVisible); ++i) {
+  for (int i=0; i<(int) cachedVisible.size (); ++i) {
     QString child= to_qstring (cachedVisible[i]);
     if (childNames.contains (child) && !path.contains (child))
       visibleNames << child;
   }
-  for (int i=0; i<N(cachedFolded); ++i) {
+  for (int i=0; i<(int) cachedFolded.size (); ++i) {
     QString child= to_qstring (cachedFolded[i]);
     if (childNames.contains (child) && !path.contains (child))
       foldedNames << child;
@@ -553,12 +555,12 @@ QTMNamespaceExplorer::populateNamespaceItem (QTreeWidgetItem* item) {
 
   if (!namespace_explorer_leaf_matches_only () || childNames.isEmpty ()) {
     string error;
-    std::vector<athena_namespace_match> members=
+    namespace_records<athena_namespace_match> members=
       athena_namespace_members (from_qstring (name), error);
     if (error != "")
       showError ("Namespace sorter warning: " + to_qstring (error));
     for (const athena_namespace_match& m: members) {
-      QString path= to_qstring (concretize (m.file));
+      QString path= to_qstring (m.file_path);
       QFileInfo info (path);
       QString display= info.fileName ();
       if (display.isEmpty ()) display= to_qstring (m.stem) + ".ath";

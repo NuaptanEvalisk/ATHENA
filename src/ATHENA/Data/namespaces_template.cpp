@@ -122,7 +122,7 @@ roman_value (char c) {
 }
 
 int
-parse_roman_value (const std::string& s) {
+parse_roman_value (std::string_view s) {
   if (s.empty ()) return 0;
   int total= 0;
   int prev= 0;
@@ -248,8 +248,8 @@ match_stem (const athena_namespace_definition& ns, const std::string& stem,
   out.stem= std_to_tm (stem);
   out.ambiguous= ambiguous;
   for (size_t i=0; i<captures.size (); ++i) {
-    out.captures << std_to_tm (captures[i]);
-    out.capture_types << std_to_tm (capture_types[i]);
+    out.captures.push_back (std_to_tm (captures[i]));
+    out.capture_types.push_back (std_to_tm (capture_types[i]));
   }
   return true;
 }

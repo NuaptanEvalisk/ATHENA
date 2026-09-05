@@ -78,7 +78,7 @@ private:
   QSizeGrip*   floatingSizeGrip;
   QTimer*      ontologyPollTimer;
   QString      rootPath;
-  QMap<QString, athena_namespace_definition> namespaces;
+  QMap<QString, std::shared_ptr<const athena_namespace_definition>> namespaces;
 };
 
 void namespace_explorer_show ();

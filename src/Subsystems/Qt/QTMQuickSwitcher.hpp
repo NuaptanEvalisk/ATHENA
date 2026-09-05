@@ -81,7 +81,7 @@ private:
   std::vector<Entry> entries;
   std::vector<int>   recentIndices;
   std::vector<int>   rawDefaultIndices;
-  std::vector<athena_namespace_definition> namespaces;
+  namespace_records<athena_namespace_definition> namespaces;
   QStringList structuredPath;
   bool        structuredParentChoice;
   QString     structuredParentChoiceFor;

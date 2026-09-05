@@ -30,15 +30,17 @@ athena_namespace_ontology_status
 athena_namespace_ontology_get_status (string& error);
 
 bool athena_namespace_ontology_namespaces (
-  std::vector<athena_namespace_definition>& out);
+  namespace_records<athena_namespace_definition>& out);
 bool athena_namespace_ontology_namespace (string name,
-                                          athena_namespace_definition& out);
+                                          std::shared_ptr<const athena_namespace_definition>& out);
 bool athena_namespace_ontology_relations (
-  std::vector<athena_namespace_relation>& out);
+  namespace_records<athena_namespace_relation>& out);
 bool athena_namespace_ontology_members (
-  string name, std::vector<athena_namespace_match>& out, string& error);
+  string name, namespace_records<athena_namespace_match>& out, string& error,
+  std::shared_ptr<const athena_namespace_definition>* definition = nullptr);
 bool athena_namespace_ontology_children (
-  string name, bool simplified, array<string>& visible, array<string>& folded,
+  string name, bool simplified, namespace_records<string>& visible,
+  namespace_records<string>& folded,
   string& error);
 
 #endif // ATHENA_NAMESPACE_ONTOLOGY_HPP

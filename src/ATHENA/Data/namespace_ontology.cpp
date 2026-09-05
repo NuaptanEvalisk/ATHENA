@@ -107,18 +107,27 @@ struct OntologySnapshot {
   std::map<std::string,std::vector<std::string>> all_children;
   std::map<std::string,std::vector<std::string>> visible_children;
   std::map<std::string,std::vector<std::string>> folded_children;
-  std::map<std::string,size_t> namespace_indices;
+  std::map<std::string,size_t,std::less<>> namespace_indices;
   fs::path root;
+  namespace_records<athena_namespace_definition> definitions;
+  namespace_records<athena_namespace_relation> relation_records;
+  std::shared_ptr<const std::vector<athena_namespace_match>> matches;
+  std::map<std::string,std::vector<size_t>,std::less<>> member_indices;
+  std::map<std::string,namespace_records<string>,std::less<>> all_child_records;
+  std::map<std::string,namespace_records<string>,std::less<>> visible_child_records;
+  std::map<std::string,namespace_records<string>,std::less<>> folded_child_records;
 };
 
 static std::string
-tm_to_std_string (string value) {
-  return std::string (as_charp (value), (size_t) N(value));
+tm_to_std_string (const string& value) {
+  return std::string (value.data (), (size_t) N(value));
 }
 
 static string
 std_to_tm_string (const std::string& value) {
-  return string (value.data (), (int) value.size ());
+  string result (value.data (), (int) value.size ());
+  result.ensure_transferable ();
+  return result;
 }
 
 static std::string
@@ -849,13 +858,13 @@ namespace_is_child_of (const NativeNamespace& child,
 static athena_namespace_match
 materialize_match (const fs::path& root, const CachedMatch& cached) {
   athena_namespace_match match;
-  match.file= url_system (std_to_tm_string ((root / cached.file).string ()));
+  match.file_path= std_to_tm_string ((root / cached.file).string ());
   match.stem= std_to_tm_string (cached.stem);
   match.ambiguous= cached.ambiguous;
   for (size_t i=0; i<cached.captures.size (); ++i) {
-    match.captures << std_to_tm_string (cached.captures[i]);
-    match.capture_types << std_to_tm_string (
-      i < cached.capture_types.size () ? cached.capture_types[i] : "");
+    match.captures.push_back (std_to_tm_string (cached.captures[i]));
+    match.capture_types.push_back (std_to_tm_string (
+      i < cached.capture_types.size () ? cached.capture_types[i] : ""));
   }
   return match;
 }
@@ -872,9 +881,9 @@ materialize_namespace (const NativeNamespace& native) {
   ns.initial_content_path= std_to_tm_string (native.initial_content_path);
   ns.homepage_path= std_to_tm_string (native.homepage_path);
   for (const std::string& parent: native.parents)
-    ns.parents << std_to_tm_string (parent);
+    ns.parents.push_back (std_to_tm_string (parent));
   for (const std::string& parent: native.derived_parents)
-    ns.derived_parents << std_to_tm_string (parent);
+    ns.derived_parents.push_back (std_to_tm_string (parent));
   return ns;
 }
 
@@ -889,34 +898,59 @@ materialize_relation (const NativeRelation& native) {
 }
 
 static void
-collect_members (
-  const std::string& name, bool descendants,
-  const std::vector<NativeNamespace>& namespaces,
-  const std::map<std::string,std::vector<CachedMatch>>& direct,
-  const fs::path& root, std::set<std::string>& visiting,
-  std::set<std::string>& seen_files,
-  std::vector<CachedMatch>& out) {
-  (void) root;
+collect_members (const std::string& name, bool descendants,
+                 const OntologySnapshot& snapshot,
+                 std::set<std::string_view>& visiting,
+                 std::set<std::string_view>& seen_files,
+                 std::vector<size_t>& out) {
   if (!visiting.insert (name).second) return;
-  auto matches= direct.find (name);
-  if (matches != direct.end ())
-    for (const CachedMatch& cached: matches->second)
-      if (seen_files.insert (cached.file).second)
-        out.push_back (cached);
-
+  auto matches= snapshot.member_indices.find (name);
+  if (matches != snapshot.member_indices.end ())
+    for (size_t id: matches->second) {
+      const string& file= (*snapshot.matches)[id].file_path;
+      if (seen_files.emplace (file.data (), N(file)).second) out.push_back (id);
+    }
   if (descendants)
-    for (const NativeNamespace& child: namespaces)
+    for (const NativeNamespace& child: snapshot.namespaces)
       if (namespace_is_child_of (child, name))
-        collect_members (child.name, true, namespaces,
-                         direct, root, visiting, seen_files, out);
+        collect_members (child.name, true, snapshot, visiting, seen_files, out);
   visiting.erase (name);
 }
 
 static void
 build_snapshot_index (OntologySnapshot& snapshot) {
-  snapshot.namespace_indices.clear ();
-  for (size_t i=0; i<snapshot.namespaces.size (); ++i)
+  std::vector<athena_namespace_definition> definitions;
+  for (size_t i=0; i<snapshot.namespaces.size (); ++i) {
     snapshot.namespace_indices[snapshot.namespaces[i].name]= i;
+    definitions.push_back (materialize_namespace (snapshot.namespaces[i]));
+  }
+  snapshot.definitions= namespace_records<athena_namespace_definition> (
+    std::move (definitions));
+  std::vector<athena_namespace_relation> relations;
+  for (const auto& relation: snapshot.relations)
+    relations.push_back (materialize_relation (relation));
+  snapshot.relation_records= namespace_records<athena_namespace_relation> (
+    std::move (relations));
+  std::vector<athena_namespace_match> matches;
+  for (const auto& group: snapshot.direct_matches)
+    for (const auto& match: group.second) {
+      snapshot.member_indices[group.first].push_back (matches.size ());
+      matches.push_back (materialize_match (snapshot.root, match));
+    }
+  snapshot.matches=
+    std::make_shared<const std::vector<athena_namespace_match>> (
+      std::move (matches));
+  auto publish_children= [] (const auto& source, auto& target) {
+    for (const auto& group: source) {
+      std::vector<string> names;
+      for (const auto& name: group.second)
+        names.push_back (std_to_tm_string (name));
+      target.emplace (group.first, namespace_records<string> (std::move (names)));
+    }
+  };
+  publish_children (snapshot.all_children, snapshot.all_child_records);
+  publish_children (snapshot.visible_children, snapshot.visible_child_records);
+  publish_children (snapshot.folded_children, snapshot.folded_child_records);
 }
 
 static bool
@@ -1583,95 +1617,87 @@ athena_namespace_ontology_get_status (string& error) {
 
 bool
 athena_namespace_ontology_namespaces (
-  std::vector<athena_namespace_definition>& out) {
+  namespace_records<athena_namespace_definition>& out) {
   std::shared_ptr<const OntologySnapshot> snapshot;
   string error;
   if (!service ().snapshot (snapshot, error)) return false;
-  out.clear ();
-  out.reserve (snapshot->namespaces.size ());
-  for (const NativeNamespace& ns: snapshot->namespaces)
-    out.push_back (materialize_namespace (ns));
+  out= snapshot->definitions;
   return true;
 }
 
 bool
-athena_namespace_ontology_namespace (string name,
-                                     athena_namespace_definition& out) {
+athena_namespace_ontology_namespace (
+  string name, std::shared_ptr<const athena_namespace_definition>& out) {
   std::shared_ptr<const OntologySnapshot> snapshot;
   string error;
   if (!service ().snapshot (snapshot, error)) return false;
-  auto found= snapshot->namespace_indices.find (tm_to_std_string (name));
+  auto found= snapshot->namespace_indices.find (
+    std::string_view (name.data (), N(name)));
   if (found == snapshot->namespace_indices.end () ||
       found->second >= snapshot->namespaces.size ())
     return false;
-  out= materialize_namespace (snapshot->namespaces[found->second]);
+  out= snapshot->definitions.retain (found->second);
   return true;
 }
 
 bool
 athena_namespace_ontology_relations (
-  std::vector<athena_namespace_relation>& out) {
+  namespace_records<athena_namespace_relation>& out) {
   std::shared_ptr<const OntologySnapshot> snapshot;
   string error;
   if (!service ().snapshot (snapshot, error)) return false;
-  out.clear ();
-  out.reserve (snapshot->relations.size ());
-  for (const NativeRelation& relation: snapshot->relations)
-    out.push_back (materialize_relation (relation));
+  out= snapshot->relation_records;
   return true;
 }
 
 bool
 athena_namespace_ontology_members (
-  string name, std::vector<athena_namespace_match>& out, string& error) {
+  string name, namespace_records<athena_namespace_match>& out, string& error,
+  std::shared_ptr<const athena_namespace_definition>* definition) {
   std::shared_ptr<const OntologySnapshot> snapshot;
   if (!service ().snapshot (snapshot, error)) return false;
-  std::string key= tm_to_std_string (name);
+  std::string_view key (name.data (), N(name));
   auto found= snapshot->namespace_indices.find (key);
   if (found == snapshot->namespace_indices.end () ||
       found->second >= snapshot->namespaces.size ()) {
     error= "Unknown namespace: " * name;
     return false;
   }
+  if (definition) *definition= snapshot->definitions.retain (found->second);
   const NativeNamespace& ns= snapshot->namespaces[found->second];
-  std::set<std::string> visiting;
-  std::set<std::string> seen_files;
-  std::vector<CachedMatch> cached;
-  collect_members (key, ns.kind == "abstract", snapshot->namespaces,
-                   snapshot->direct_matches, snapshot->root, visiting,
-                   seen_files, cached);
-  out.clear ();
-  out.reserve (cached.size ());
-  for (const CachedMatch& match: cached)
-    out.push_back (materialize_match (snapshot->root, match));
+  std::set<std::string_view> visiting;
+  std::set<std::string_view> seen_files;
+  std::vector<size_t> selected;
+  collect_members (ns.name, ns.kind == "abstract", *snapshot, visiting,
+                   seen_files, selected);
+  out= namespace_records<athena_namespace_match> (
+    snapshot->matches, std::move (selected));
   return true;
 }
 
 bool
 athena_namespace_ontology_children (
-  string name, bool simplified, array<string>& visible, array<string>& folded,
+  string name, bool simplified, namespace_records<string>& visible,
+  namespace_records<string>& folded,
   string& error) {
   std::shared_ptr<const OntologySnapshot> snapshot;
   if (!service ().snapshot (snapshot, error)) return false;
-  std::string key= tm_to_std_string (name);
+  std::string_view key (name.data (), N(name));
   if (snapshot->namespace_indices.find (key) ==
       snapshot->namespace_indices.end ()) {
     error= "Unknown namespace: " * name;
     return false;
   }
-  visible= array<string> ();
-  folded= array<string> ();
-  const auto& visible_map= simplified ? snapshot->visible_children :
-                                        snapshot->all_children;
+  visible= namespace_records<string> ();
+  folded= namespace_records<string> ();
+  const auto& visible_map= simplified ? snapshot->visible_child_records :
+                                        snapshot->all_child_records;
   auto visible_group= visible_map.find (key);
-  if (visible_group != visible_map.end ())
-    for (const std::string& child: visible_group->second)
-      visible << std_to_tm_string (child);
+  if (visible_group != visible_map.end ()) visible= visible_group->second;
   if (simplified) {
-    auto folded_group= snapshot->folded_children.find (key);
-    if (folded_group != snapshot->folded_children.end ())
-      for (const std::string& child: folded_group->second)
-        folded << std_to_tm_string (child);
+    auto folded_group= snapshot->folded_child_records.find (key);
+    if (folded_group != snapshot->folded_child_records.end ())
+      folded= folded_group->second;
   }
   return true;
 }

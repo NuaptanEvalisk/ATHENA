@@ -84,13 +84,13 @@ namespace_children () {
   for (const auto& item: all) {
     const std::string& child_name = item.first;
     const athena_namespace_definition& child = item.second;
-    for (int i=0; i<N(child.parents); i++) {
+    for (int i=0; i<(int) child.parents.size (); i++) {
       std::string parent = tm_to_std (child.parents[i]);
       if (all.count (parent) != 0 &&
           denied.count (parent + "\n" + child_name) == 0)
         children[parent].push_back (child_name);
     }
-    for (int i=0; i<N(child.derived_parents); i++) {
+    for (int i=0; i<(int) child.derived_parents.size (); i++) {
       std::string parent = tm_to_std (child.derived_parents[i]);
       if (all.count (parent) != 0 &&
           denied.count (parent + "\n" + child_name) == 0)
@@ -137,14 +137,14 @@ std::set<std::string>
 namespace_selector_files (const std::string& name) {
   std::set<std::string> out;
   for (const std::string& ns_name: namespace_descendants_inclusive (name)) {
-    athena_namespace_definition ns;
+    std::shared_ptr<const athena_namespace_definition> ns;
     if (!athena_namespace_get (std_to_tm (ns_name), ns)) continue;
-    if (ns.kind == "abstract") continue;
+    if (ns->kind == "abstract") continue;
     string error;
-    std::vector<athena_namespace_match> members =
+    namespace_records<athena_namespace_match> members =
       athena_namespace_members (std_to_tm (ns_name), error);
     for (const athena_namespace_match& match: members)
-      out.insert (file_rel_from_url (match.file));
+      out.insert (file_rel_from_url (match.file_url ()));
   }
   return out;
 }

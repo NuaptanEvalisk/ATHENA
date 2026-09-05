@@ -119,14 +119,14 @@ error_page (const std::string& title, const std::string& message) {
 }
 
 static tree
-members_tree (const std::vector<athena_namespace_match>& members) {
+members_tree (const namespace_records<athena_namespace_match>& members) {
   tree body (DOCUMENT);
   if (members.empty ()) {
     body << line ("No matching .ath files.");
     return body;
   }
   for (const athena_namespace_match& m: members) {
-    tree link= link_to_url (m.stem, m.file);
+    tree link= link_to_url (m.stem, m.file_url ());
     body << compound ("paragraph*", link);
   }
   return body;
@@ -145,9 +145,9 @@ namespace_children (string name) {
 static array<string>
 namespace_all_parents (const athena_namespace_definition& ns) {
   array<string> out;
-  for (int i=0; i<N(ns.parents); i++)
+  for (int i=0; i<(int) ns.parents.size (); i++)
     if (!has_string (out, ns.parents[i])) out << ns.parents[i];
-  for (int i=0; i<N(ns.derived_parents); i++)
+  for (int i=0; i<(int) ns.derived_parents.size (); i++)
     if (!has_string (out, ns.derived_parents[i])) out << ns.derived_parents[i];
   return out;
 }
@@ -188,7 +188,7 @@ is_ns_tag (tree t, const char* name) {
 static tree namespace_dynamic_tree (
   const athena_namespace_definition& ns,
   const std::vector<string>& path,
-  const std::vector<athena_namespace_match>& members,
+  const namespace_records<athena_namespace_match>& members,
   tree t);
 
 static bool
@@ -203,7 +203,7 @@ namespace_homepage_needs_members (tree t) {
 static tree
 namespace_dynamic_replacement (const athena_namespace_definition& ns,
                                const std::vector<string>& path,
-                               const std::vector<athena_namespace_match>& members,
+                               const namespace_records<athena_namespace_match>& members,
                                tree t, bool& replaced) {
   replaced= true;
   if (is_ns_tag (t, "ns-name")) return tree (ns.name);
@@ -225,7 +225,7 @@ namespace_dynamic_replacement (const athena_namespace_definition& ns,
 static tree
 namespace_dynamic_tree (const athena_namespace_definition& ns,
                         const std::vector<string>& path,
-                        const std::vector<athena_namespace_match>& members,
+                        const namespace_records<athena_namespace_match>& members,
                         tree t) {
   bool replaced= false;
   tree r= namespace_dynamic_replacement (ns, path, members, t, replaced);
@@ -272,7 +272,7 @@ load_homepage (const athena_namespace_definition& ns,
   string s;
   if (load_string (u, s, false)) return false;
   tree doc= import_loaded_tree (s, u, "texmacs");
-  std::vector<athena_namespace_match> members;
+  namespace_records<athena_namespace_match> members;
   if (namespace_homepage_needs_members (doc)) {
     string error;
     members= athena_namespace_members (ns.name, error);
@@ -284,7 +284,7 @@ load_homepage (const athena_namespace_definition& ns,
 
 static tree
 technical_summary_page (const athena_namespace_definition& ns,
-                        const std::vector<athena_namespace_match>& members,
+                        const namespace_records<athena_namespace_match>& members,
                         string error) {
   tree body (DOCUMENT);
   body << compound ("section*", tree ("Namespace " * ns.name));
@@ -297,10 +297,10 @@ technical_summary_page (const athena_namespace_definition& ns,
                    (ns.homepage_path == "" ? string ("<none>") :
                     ns.homepage_path));
   body << line_tm ("Parents: " *
-                   (N(ns.parents) == 0 ? string ("<none>") :
+                   ((int) ns.parents.size () == 0 ? string ("<none>") :
                     join_list (ns.parents)));
   body << line_tm ("Derived parents: " *
-                   (N(ns.derived_parents) == 0 ? string ("<none>") :
+                   ((int) ns.derived_parents.size () == 0 ? string ("<none>") :
                     join_list (ns.derived_parents)));
   if (ns.sorter_trivial)
     body << line_tm ("Sorter: trivial");
@@ -347,16 +347,17 @@ athena_namespace_info_page (string tmfs_name) {
   }
 
   string name= path.back ();
-  athena_namespace_definition ns;
-  if (!athena_namespace_get (name, ns))
+  std::shared_ptr<const athena_namespace_definition> definition;
+  if (!athena_namespace_get (name, definition))
     return error_page ("Namespace", "Unknown namespace: " + tm_to_std (name));
+  const auto& ns= *definition;
 
   if (!technical) {
     tree homepage;
     if (load_homepage (ns, path, homepage)) return homepage;
   }
   string error;
-  std::vector<athena_namespace_match> members=
+  namespace_records<athena_namespace_match> members=
     athena_namespace_members (name, error);
   return technical_summary_page (ns, members, error);
 }

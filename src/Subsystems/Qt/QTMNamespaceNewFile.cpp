@@ -59,11 +59,13 @@ namespace_new_stem_from_path (const QString& path) {
   return info.fileName ();
 }
 
-std::vector<athena_namespace_definition>
+namespace_records<athena_namespace_definition>
 concrete_namespaces () {
-  std::vector<athena_namespace_definition> out;
-  for (const athena_namespace_definition& ns: athena_namespaces_list ())
-    if (ns.kind == "concrete") out.push_back (ns);
+  auto out= athena_namespaces_list ();
+  std::vector<size_t> selected;
+  for (size_t i=0; i<out.size (); ++i)
+    if (out[i].kind == "concrete") selected.push_back (i);
+  out.reorder (selected);
   return out;
 }
 
@@ -114,7 +116,7 @@ public:
 
 private:
   QComboBox* combo;
-  std::vector<athena_namespace_definition> namespaces;
+  namespace_records<athena_namespace_definition> namespaces;
 };
 
 class NamespaceFieldsPage : public QWizardPage {
@@ -370,7 +372,7 @@ runNamespaceCreateFileWithOptionalInitializer (string system_path,
   QString target= to_qstring (system_path);
   QString stem= namespace_new_stem_from_path (target);
   string match_error;
-  std::vector<athena_namespace_definition> matches=
+  namespace_records<athena_namespace_definition> matches=
     athena_namespace_concrete_matches_stem (from_qstring (stem), match_error);
   if (match_error != "" && matches.empty ()) error= match_error;
 

@@ -17,6 +17,7 @@
 #include <cstdio>
 #include <ctime>
 #include <functional>
+#include <thread>
 
 namespace athena_namespaces {
 
@@ -41,7 +42,7 @@ athena_ns_cmp_int (long long a, long long b) {
 
 extern "C" int
 athena_ns_roman_value (const char* s) {
-  return parse_roman_value (s == nullptr ? std::string () : std::string (s));
+  return parse_roman_value (s == nullptr ? std::string_view () : std::string_view (s));
 }
 
 extern "C" int
@@ -49,16 +50,21 @@ athena_ns_cmp_roman (int a, int b) {
   return (a > b) - (a < b);
 }
 
-typedef int (*ns_compare_fn) (int, const AthenaNsField*, const AthenaNsField*);
-
-struct sorter_cache_entry {
-  TCCState*     state= nullptr;
-  ns_compare_fn fn= nullptr;
-  time_t        mtime= 0;
-  std::string   error;
+struct compiled_sorter {
+  TCCState* state;
+  ns_compare_fn fn;
+  std::thread::id owner= std::this_thread::get_id ();
+  compiled_sorter (TCCState* s, ns_compare_fn f): state (s), fn (f) {}
+  ~compiled_sorter () { tcc_delete (state); }
 };
 
-static std::map<std::string, sorter_cache_entry> sorter_cache;
+struct sorter_cache_entry {
+  sorter_handle compiled;
+  std::filesystem::file_time_type mtime {};
+  std::string error;
+};
+
+static thread_local std::map<std::string, sorter_cache_entry> sorter_cache;
 
 static std::string
 read_file_std (const std::string& path) {
@@ -68,11 +74,11 @@ read_file_std (const std::string& path) {
   return ss.str ();
 }
 
-static time_t
+static std::filesystem::file_time_type
 mtime_for_path (const std::string& path) {
-  struct stat st;
-  if (stat (path.c_str (), &st) != 0) return 0;
-  return st.st_mtime;
+  std::error_code error;
+  auto stamp= std::filesystem::last_write_time (path, error);
+  return error ? std::filesystem::file_time_type::min () : stamp;
 }
 
 static std::string
@@ -92,24 +98,20 @@ tcc_error_cb (void* opaque, const char* msg) {
   *error += msg == nullptr ? "unknown libtcc error" : msg;
 }
 
-ns_compare_fn
+sorter_handle
 load_sorter (string sorter_path, string& error) {
   std::string path= resolve_vault_relative_path (sorter_path);
   if (path.empty ()) return nullptr;
-  time_t mt= mtime_for_path (path);
+  auto mt= mtime_for_path (path);
 
   sorter_cache_entry& ent= sorter_cache[path];
-  if (ent.fn != nullptr && ent.mtime == mt) return ent.fn;
+  if (ent.compiled && ent.mtime == mt) return ent.compiled;
   if (!ent.error.empty () && ent.mtime == mt) {
     error= std_to_tm (ent.error);
     return nullptr;
   }
-  if (ent.state != nullptr) {
-    tcc_delete (ent.state);
-    ent.state= nullptr;
-    ent.fn= nullptr;
-    ent.error.clear ();
-  }
+  ent.compiled.reset ();
+  ent.error.clear ();
   ent.mtime= mt;
 
   std::ifstream probe (path);
@@ -141,7 +143,9 @@ load_sorter (string sorter_path, string& error) {
     "int athena_ns_roman_value(const char*);\n";
 
   std::string errors;
-  TCCState* s= tcc_new ();
+  std::unique_ptr<TCCState, decltype (&tcc_delete)> state (
+    tcc_new (), &tcc_delete);
+  TCCState* s= state.get ();
   if (s == nullptr) {
     ent.error= "Cannot initialize libtcc.";
     error= std_to_tm (ent.error);
@@ -153,7 +157,6 @@ load_sorter (string sorter_path, string& error) {
   if (tcc_compile_string (s, program.c_str ()) < 0) {
     ent.error= errors.empty () ? "Sorter compilation failed." : errors;
     error= std_to_tm (ent.error);
-    tcc_delete (s);
     return nullptr;
   }
 
@@ -170,49 +173,61 @@ load_sorter (string sorter_path, string& error) {
 #endif
     ent.error= errors.empty () ? "Sorter relocation failed." : errors;
     error= std_to_tm (ent.error);
-    tcc_delete (s);
     return nullptr;
   }
   void* sym= tcc_get_symbol (s, "athena_ns_compare");
   if (sym == nullptr) {
     ent.error= "Sorter must define athena_ns_compare.";
     error= std_to_tm (ent.error);
-    tcc_delete (s);
     return nullptr;
   }
-  ent.state= s;
-  ent.fn= reinterpret_cast<ns_compare_fn> (sym);
+  tcc_set_error_func (s, nullptr, nullptr);
+  ent.compiled= std::make_shared<const compiled_sorter> (
+    s, reinterpret_cast<ns_compare_fn> (sym));
+  state.release ();
   ent.error.clear ();
-  return ent.fn;
+  return ent.compiled;
 }
 
 static AthenaNsField
 to_c_field (const athena_namespace_match& m, int i) {
   AthenaNsField f;
-  f.text= as_charp (m.captures[i]);
-  string type= m.capture_types[i];
+  f.text= m.captures[i].c_str ();
+  const string& type= m.capture_types[i];
   f.type= ATHENA_NS_STRING;
   if (type == "word") f.type= ATHENA_NS_WORD;
   else if (type == "char") f.type= ATHENA_NS_CHAR;
   else if (type == "int") f.type= ATHENA_NS_INT;
   else if (type == "positive-int") f.type= ATHENA_NS_POS_INT;
   else if (type == "roman") f.type= ATHENA_NS_ROMAN;
-  f.integer= std::strtoll (as_charp (m.captures[i]), nullptr, 10);
+  f.integer= std::strtoll (f.text, nullptr, 10);
   f.roman= athena_ns_roman_value (f.text);
   return f;
 }
 
-int
-compare_with_sorter (ns_compare_fn fn, const athena_namespace_match& a,
-                     const athena_namespace_match& b) {
-  if (fn == nullptr) return 0;
-  int n= std::min (N(a.captures), N(b.captures));
-  std::vector<AthenaNsField> aa, bb;
-  for (int i=0; i<n; i++) {
-    aa.push_back (to_c_field (a, i));
-    bb.push_back (to_c_field (b, i));
+void
+sort_namespace_members (const sorter_handle& sorter,
+                         namespace_records<athena_namespace_match>& members) {
+  if (!sorter) return;
+  ASSERT (sorter->owner == std::this_thread::get_id (),
+          "namespace sorter used outside its owning thread");
+  std::vector<std::vector<AthenaNsField>> fields (members.size ());
+  std::vector<size_t> order (members.size ());
+  std::iota (order.begin (), order.end (), 0);
+  for (size_t i=0; i<members.size (); ++i) {
+    const auto& member= members[i];
+    ASSERT (member.captures.size () == member.capture_types.size (),
+            "namespace capture types do not match captures");
+    fields[i].reserve (member.captures.size ());
+    for (size_t j=0; j<member.captures.size (); ++j)
+      fields[i].push_back (to_c_field (member, (int) j));
   }
-  return fn (n, aa.data (), bb.data ());
+  // Records stay immutable and stationary while C borrows their string storage.
+  std::stable_sort (order.begin (), order.end (), [&] (size_t a, size_t b) {
+    int n= (int) std::min (fields[a].size (), fields[b].size ());
+    return sorter->fn (n, fields[a].data (), fields[b].data ()) < 0;
+  });
+  members.reorder (order);
 }
 
 static tree

@@ -93,24 +93,24 @@ namespace_icon (const QString& name, QStyle::StandardPixmap fallback) {
   return icon;
 }
 
-static array<string>
+static std::vector<string>
 qlist_to_strings (QListWidget* list) {
-  array<string> out;
+  std::vector<string> out;
   for (int i=0; i<list->count (); i++)
-    out << from_qstring (list->item (i)->text ());
+    out.push_back (from_qstring (list->item (i)->text ()));
   return out;
 }
 
 static void
-set_qlist_strings (QListWidget* list, const array<string>& xs) {
+set_qlist_strings (QListWidget* list, const std::vector<string>& xs) {
   list->clear ();
-  for (int i=0; i<N(xs); i++) list->addItem (to_qstring (xs[i]));
+  for (int i=0; i<(int) xs.size (); i++) list->addItem (to_qstring (xs[i]));
 }
 
 static QString
-namespace_join_strings (const array<string>& xs) {
+namespace_join_strings (const std::vector<string>& xs) {
   QStringList parts;
-  for (int i=0; i<N(xs); i++) parts << to_qstring (xs[i]);
+  for (int i=0; i<(int) xs.size (); i++) parts << to_qstring (xs[i]);
   return parts.join (", ");
 }
 
@@ -528,7 +528,7 @@ public:
       from_qstring (initialContentEdit->text ().trimmed ()) : string ("");
     ns.homepage_path= "";
     ns.parents= qlist_to_strings (parentList);
-    ns.derived_parents= array<string> ();
+    ns.derived_parents.clear ();
     return ns;
   }
 
@@ -667,7 +667,7 @@ public:
           << "Homepage: " + (ns.homepage_path == "" ? QString ("<none>") :
                              to_qstring (ns.homepage_path))
           << "Explicit parents: " +
-             (N(ns.parents) == 0 ? QString ("<none>") :
+             ((int) ns.parents.size () == 0 ? QString ("<none>") :
               namespace_join_strings (ns.parents));
     summary->setText (lines.join ("\n"));
   }
@@ -1384,18 +1384,18 @@ QTMNamespaceManager::refreshMembers () {
   }
 
   string error;
-  std::vector<athena_namespace_match> members=
+  namespace_records<athena_namespace_match> members=
     athena_namespace_members (from_qstring (name), error);
   for (const athena_namespace_match& m: members) {
     QStringList caps;
-    for (int i=0; i<N(m.captures); i++)
+    for (int i=0; i<(int) m.captures.size (); i++)
       caps << QString ("%1=%2").arg (to_qstring (m.capture_types[i]),
                                      to_qstring (m.captures[i]));
     QTreeWidgetItem* item= new QTreeWidgetItem ();
     item->setText (0, to_qstring (m.stem));
     item->setText (1, caps.join (", "));
     item->setText (2, m.ambiguous ? "yes" : "");
-    item->setText (3, to_qstring (concretize (m.file)));
+    item->setText (3, to_qstring (m.file_path));
     membersTree->addTopLevelItem (item);
   }
   int index= editorTabs->indexOf (matchedFilesTab);
@@ -1413,7 +1413,7 @@ QTMNamespaceManager::refreshMembers () {
 void
 QTMNamespaceManager::refreshRelations () {
   relationsTree->clear ();
-  std::vector<athena_namespace_relation> relations=
+  namespace_records<athena_namespace_relation> relations=
     athena_namespace_relations_list ();
   for (const athena_namespace_relation& rel: relations) {
     QTreeWidgetItem* item= new QTreeWidgetItem ();
@@ -1432,8 +1432,9 @@ QTMNamespaceManager::refreshRelations () {
 void
 QTMNamespaceManager::loadNamespace (QListWidgetItem* item) {
   if (item == nullptr) return;
-  athena_namespace_definition ns;
-  if (!athena_namespace_get (from_qstring (item->text ()), ns)) return;
+  std::shared_ptr<const athena_namespace_definition> definition;
+  if (!athena_namespace_get (from_qstring (item->text ()), definition)) return;
+  const auto& ns= *definition;
 
   bool previousLoading= loadingUi;
   loadingUi= true;
@@ -1492,7 +1493,7 @@ QTMNamespaceManager::newNamespace () {
 
   athena_namespace_definition ns= details->definition ();
   ns.homepage_path= from_qstring (homepage->homepagePath ());
-  athena_namespace_definition existing;
+  std::shared_ptr<const athena_namespace_definition> existing;
   if (athena_namespace_get (ns.name, existing)) {
     if (QMessageBox::question (
           this, "Update Namespace",
@@ -1536,7 +1537,7 @@ QTMNamespaceManager::saveNamespace () {
     from_qstring (initialContentEdit->text ().trimmed ());
   ns.homepage_path= from_qstring (homepageEdit->text ().trimmed ());
   ns.parents= qlist_to_strings (explicitParentsList);
-  ns.derived_parents= array<string> ();
+  ns.derived_parents.clear ();
   if (ns.kind == "abstract") {
     ns.templ= "";
     ns.sorter_trivial= false;
@@ -1581,7 +1582,7 @@ QTMNamespaceManager::saveNamespace () {
     return false;
   }
 
-  athena_namespace_definition existing;
+  std::shared_ptr<const athena_namespace_definition> existing;
   bool targetExists= athena_namespace_get (ns.name, existing);
   if (creating && targetExists) {
     if (QMessageBox::question (
@@ -1699,15 +1700,17 @@ QTMNamespaceManager::generateSubproducts () {
     return;
   }
 
-  athena_namespace_definition first, second;
-  if (!athena_namespace_get (from_qstring (names[0]), first) ||
-      !athena_namespace_get (from_qstring (names[1]), second)) {
+  std::shared_ptr<const athena_namespace_definition> firstHandle, secondHandle;
+  if (!athena_namespace_get (from_qstring (names[0]), firstHandle) ||
+      !athena_namespace_get (from_qstring (names[1]), secondHandle)) {
     QMessageBox::warning (this, "Generate Sub-products",
                           "Could not load the selected namespaces.");
     return;
   }
 
   string error;
+  const auto& first= *firstHandle;
+  const auto& second= *secondHandle;
   bool firstSemi= namespace_at_least_semi_concrete (first);
   bool secondSemi= namespace_at_least_semi_concrete (second);
   if (first.kind != "abstract" && !firstSemi) {
@@ -1732,7 +1735,7 @@ QTMNamespaceManager::generateSubproducts () {
   auto confirmExisting= [this] (const QStringList& productNames) {
     QStringList existing;
     for (const QString& name: productNames) {
-      athena_namespace_definition ignored;
+      std::shared_ptr<const athena_namespace_definition> ignored;
       if (athena_namespace_get (from_qstring (name), ignored))
         existing << name;
     }
@@ -1757,9 +1760,8 @@ QTMNamespaceManager::generateSubproducts () {
       ns.style_path= "";
       ns.initial_content_path= "";
       ns.homepage_path= "";
-      ns.parents= array<string> ();
-      ns.parents << first.name << second.name;
-      ns.derived_parents= array<string> ();
+      ns.parents= {first.name, second.name};
+      ns.derived_parents.clear ();
       if (ns.kind == "abstract") {
         ns.templ= "";
         ns.sorter_trivial= false;

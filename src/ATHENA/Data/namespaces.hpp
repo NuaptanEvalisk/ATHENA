@@ -12,6 +12,7 @@
 #define ATHENA_NAMESPACES_HPP
 
 #include "array.hpp"
+#include "namespace_records.hpp"
 #include "tree.hpp"
 #include "url.hpp"
 
@@ -26,15 +27,16 @@ struct athena_namespace_definition {
   string  style_path;
   string  initial_content_path;
   string  homepage_path;
-  array<string> parents;
-  array<string> derived_parents;
+  std::vector<string> parents;
+  std::vector<string> derived_parents;
 };
 
 struct athena_namespace_match {
-  url     file;
+  string  file_path;
+  url file_url () const { return url_system (file_path); }
   string  stem;
-  array<string> captures;
-  array<string> capture_types;
+  std::vector<string> captures;
+  std::vector<string> capture_types;
   bool    ambiguous;
 };
 
@@ -50,14 +52,15 @@ struct athena_namespace_template_field {
   string type;
 };
 
-std::vector<athena_namespace_definition> athena_namespaces_list ();
-bool athena_namespace_get (string name, athena_namespace_definition& out);
+namespace_records<athena_namespace_definition> athena_namespaces_list ();
+bool athena_namespace_get (
+  string name, std::shared_ptr<const athena_namespace_definition>& out);
 bool athena_namespace_save (const athena_namespace_definition& ns,
                             string& error);
 bool athena_namespace_remove (string name, string& error);
 bool athena_namespace_refresh_derived (string& error);
 
-std::vector<athena_namespace_relation> athena_namespace_relations_list ();
+namespace_records<athena_namespace_relation> athena_namespace_relations_list ();
 bool athena_namespace_relation_set (string parent, string child,
                                     string decision, string source,
                                     string& error);
@@ -83,12 +86,12 @@ bool athena_namespace_generate_restricted_sorter (
   const athena_namespace_definition& parent,
   string product_template, string& sorter_path, string& error);
 
-std::vector<athena_namespace_match> athena_namespace_members (string name,
-                                                              string& error);
+namespace_records<athena_namespace_match>
+athena_namespace_members (string name, string& error);
 bool athena_namespace_match_stem (const athena_namespace_definition& ns,
                                   string stem, athena_namespace_match& match,
                                   string& error);
-std::vector<athena_namespace_definition>
+namespace_records<athena_namespace_definition>
 athena_namespace_concrete_matches_stem (string stem, string& error);
 std::vector<athena_namespace_template_field>
 athena_namespace_template_fields (const athena_namespace_definition& ns,

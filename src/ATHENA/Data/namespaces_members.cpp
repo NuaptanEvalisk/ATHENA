@@ -32,7 +32,7 @@ static bool
 append_unique_namespace_match (std::vector<athena_namespace_match>& out,
                                std::map<std::string,bool>& seen,
                                const athena_namespace_match& m) {
-  std::string key= tm_to_std (concretize (m.file));
+  std::string key= tm_to_std (m.file_path);
   if (seen[key]) return false;
   seen[key]= true;
   out.push_back (m);
@@ -42,9 +42,9 @@ append_unique_namespace_match (std::vector<athena_namespace_match>& out,
 static bool
 namespace_is_child_of (const athena_namespace_definition& child,
                        string parent) {
-  for (int i=0; i<N(child.parents); i++)
+  for (int i=0; i<(int) child.parents.size (); i++)
     if (child.parents[i] == parent) return true;
-  for (int i=0; i<N(child.derived_parents); i++)
+  for (int i=0; i<(int) child.derived_parents.size (); i++)
     if (child.derived_parents[i] == parent) return true;
   return false;
 }
@@ -65,7 +65,7 @@ collect_direct_namespace_members (const athena_namespace_definition& ns,
     athena_namespace_match m;
     string err;
     if (match_stem (ns, stem_for_file (files[i]), m, err)) {
-      m.file= files[i];
+      m.file_path= concretize (files[i]);
       append_unique_namespace_match (out, seen, m);
     }
     else if (err != "") {
@@ -110,16 +110,16 @@ collect_namespace_members (const athena_namespace_definition& ns,
 
 using namespace athena_namespaces;
 
-std::vector<athena_namespace_match>
+namespace_records<athena_namespace_match>
 athena_namespace_members (string name, string& error) {
-  std::vector<athena_namespace_match> out;
+  namespace_records<athena_namespace_match> out;
   if (!vault_active ()) {
     error= "No active vault.";
     return out;
   }
-  bool cached= athena_namespace_ontology_members (name, out, error);
-  athena_namespace_definition ns;
-  if (!athena_namespace_get (name, ns)) {
+  std::shared_ptr<const athena_namespace_definition> ns;
+  bool cached= athena_namespace_ontology_members (name, out, error, &ns);
+  if (!cached && !athena_namespace_get (name, ns)) {
     error= "Unknown namespace: " * name;
     return out;
   }
@@ -127,28 +127,25 @@ athena_namespace_members (string name, string& error) {
     error= "";
     std::map<std::string,bool> visiting;
     std::map<std::string,bool> seen;
-    if (!collect_namespace_members (ns, ns.kind == "abstract", visiting, seen,
-                                    out, error))
-      return out;
+    std::vector<athena_namespace_match> local;
+    collect_namespace_members (*ns, ns->kind == "abstract", visiting, seen,
+                               local, error);
+    out= namespace_records<athena_namespace_match> (std::move (local));
+    if (error != "") return out;
   }
 
-  if (ns.sorter_trivial || ns.sorter_path != "") {
+  if (ns->sorter_trivial) return out;
+  if (ns->sorter_path != "") {
     string sort_error;
-    ns_compare_fn fn= ns.sorter_trivial ? nullptr :
-      load_sorter (ns.sorter_path, sort_error);
+    sorter_handle sorter= load_sorter (ns->sorter_path, sort_error);
     if (sort_error != "") error= sort_error;
-    std::stable_sort (out.begin (), out.end (),
-               [fn] (const athena_namespace_match& a,
-                     const athena_namespace_match& b) {
-                 return compare_with_sorter (fn, a, b) < 0;
-               });
+    sort_namespace_members (sorter, out);
   }
   else {
-    std::sort (out.begin (), out.end (),
-               [] (const athena_namespace_match& a,
-                   const athena_namespace_match& b) {
-                 return std::strcmp (as_charp (a.stem), as_charp (b.stem)) < 0;
-               });
+    out.stable_sort ([] (const athena_namespace_match& a,
+                        const athena_namespace_match& b) {
+      return std::strcmp (a.stem.c_str (), b.stem.c_str ()) < 0;
+    });
   }
   return out;
 }

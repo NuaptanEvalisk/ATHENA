@@ -149,21 +149,23 @@ athena_namespace_match_stem (const athena_namespace_definition& ns,
   return match_stem (ns, tm_to_std (stem), match, error);
 }
 
-std::vector<athena_namespace_definition>
+namespace_records<athena_namespace_definition>
 athena_namespace_concrete_matches_stem (string stem, string& error) {
-  std::vector<athena_namespace_definition> out;
+  std::vector<size_t> selected;
   std::string s= tm_to_std (stem);
-  std::vector<athena_namespace_definition> all= athena_namespaces_list ();
-  for (const athena_namespace_definition& ns: all) {
+  namespace_records<athena_namespace_definition> all= athena_namespaces_list ();
+  for (size_t i=0; i<all.size (); ++i) {
+    const auto& ns= all[i];
     if (canonical_kind (ns.kind) != "concrete") continue;
     athena_namespace_match m;
     string local_error;
     if (match_stem (ns, s, m, local_error))
-      out.push_back (ns);
+      selected.push_back (i);
     else if (local_error != "" && error == "")
       error= local_error;
   }
-  return out;
+  all.reorder (selected);
+  return all;
 }
 
 std::vector<athena_namespace_template_field>

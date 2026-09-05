@@ -359,11 +359,11 @@ QTMArtifactsPane::applyFilter () {
   std::set<std::string> namespaceFiles;
   if (scope->currentIndex () == 2 && !namespaceSelector->currentText ().isEmpty ()) {
     string error;
-    std::vector<athena_namespace_match> members= athena_namespace_members (
+    namespace_records<athena_namespace_match> members= athena_namespace_members (
       from_qstring (namespaceSelector->currentText ()), error);
     fs::path root= active_root ();
     for (const athena_namespace_match& member: members) {
-      fs::path path (std_string (concretize (member.file)));
+      fs::path path (std_string (member.file_path));
       std::error_code ec;
       fs::path rel= fs::relative (path, root, ec);
       if (!ec) namespaceFiles.insert (rel.generic_string ());

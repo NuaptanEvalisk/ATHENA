@@ -41,20 +41,18 @@ struct vault_ath_file {
 };
 
 struct namespace_containment_cache {
-  std::map<std::string,athena_namespace_definition> defs;
   std::map<std::string,std::set<std::string> > direct_parents;
   std::map<std::string,std::set<std::string> > ancestor_memo;
   std::set<std::string> visiting;
 
   namespace_containment_cache (
-    const std::vector<athena_namespace_definition>& definitions) {
+    const namespace_records<athena_namespace_definition>& definitions) {
     for (const athena_namespace_definition& ns: definitions) {
       std::string name= tm_to_std (ns.name);
-      defs[name]= ns;
       std::set<std::string>& parents= direct_parents[name];
-      for (int i=0; i<N(ns.parents); i++)
+      for (int i=0; i<(int) ns.parents.size (); i++)
         parents.insert (tm_to_std (ns.parents[i]));
-      for (int i=0; i<N(ns.derived_parents); i++)
+      for (int i=0; i<(int) ns.derived_parents.size (); i++)
         parents.insert (tm_to_std (ns.derived_parents[i]));
     }
   }
@@ -244,7 +242,7 @@ path_row (const std::string& current_key, url current,
 
 static athena_neighborhood_row
 namespace_row (const athena_namespace_definition& ns,
-               const std::vector<athena_namespace_match>& matches,
+               const namespace_records<athena_namespace_match>& matches,
                const std::string& current_key, string warning) {
   athena_neighborhood_row row;
   row.kind= ATHENA_NEIGHBORHOOD_NAMESPACE;
@@ -256,9 +254,9 @@ namespace_row (const athena_namespace_definition& ns,
 
   std::set<std::string> seen;
   for (const athena_namespace_match& match: matches) {
-    string display= match.stem == "" ? display_for_file (match.file)
+    string display= match.stem == "" ? display_for_file (match.file_url ())
                                      : match.stem;
-    append_unique_entry (row.files, seen, match.file, display);
+    append_unique_entry (row.files, seen, match.file_url (), display);
   }
   row.current_index= find_current_index (row.files, current_key);
   return row;
@@ -267,12 +265,12 @@ namespace_row (const athena_namespace_definition& ns,
 static std::vector<athena_neighborhood_row>
 namespace_rows (const std::string& current_key, const std::string& current_stem) {
   std::vector<athena_neighborhood_row> rows;
-  std::vector<athena_namespace_definition> defs_v= athena_namespaces_list ();
+  namespace_records<athena_namespace_definition> defs_v= athena_namespaces_list ();
   namespace_containment_cache contains (defs_v);
 
   struct containing_namespace {
-    athena_namespace_definition ns;
-    std::vector<athena_namespace_match> matches;
+    const athena_namespace_definition* ns;
+    namespace_records<athena_namespace_match> matches;
     string warning;
   };
   std::vector<containing_namespace> containing;
@@ -284,10 +282,10 @@ namespace_rows (const std::string& current_key, const std::string& current_stem)
     if (!athena_namespace_match_stem (ns, std_to_tm (current_stem),
                                       current_match, error))
       continue;
-    std::vector<athena_namespace_match> matches=
+    namespace_records<athena_namespace_match> matches=
       athena_namespace_members (ns.name, error);
     containing_namespace entry;
-    entry.ns= ns;
+    entry.ns= &ns;
     entry.matches= matches;
     entry.warning= error;
     containing.push_back (entry);
@@ -296,14 +294,14 @@ namespace_rows (const std::string& current_key, const std::string& current_stem)
   for (const containing_namespace& candidate: containing) {
     bool has_containing_child= false;
     for (const containing_namespace& other: containing) {
-      if (other.ns.name == candidate.ns.name) continue;
-      if (contains.contains (candidate.ns.name, other.ns.name)) {
+      if (other.ns->name == candidate.ns->name) continue;
+      if (contains.contains (candidate.ns->name, other.ns->name)) {
         has_containing_child= true;
         break;
       }
     }
     if (!has_containing_child)
-      rows.push_back (namespace_row (candidate.ns, candidate.matches,
+      rows.push_back (namespace_row (*candidate.ns, candidate.matches,
                                      current_key, candidate.warning));
   }
 

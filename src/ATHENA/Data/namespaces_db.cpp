@@ -230,8 +230,8 @@ private:
 };
 
 static bool
-query_parent_list (sqlite3* db, string child, string source, array<string>& out,
-                   string& error) {
+query_parent_list (sqlite3* db, string child, string source,
+                   std::vector<string>& out, string& error) {
   sqlite3_stmt* st= nullptr;
   if (!prepare_sql (db,
         "SELECT parent FROM namespace_parents "
@@ -244,7 +244,7 @@ query_parent_list (sqlite3* db, string child, string source, array<string>& out,
   }
   while (true) {
     int status= sqlite3_step (st);
-    if (status == SQLITE_ROW) out << column_tm_string (st, 0);
+    if (status == SQLITE_ROW) out.push_back (column_tm_string (st, 0));
     else if (status == SQLITE_DONE) break;
     else {
       set_sql_error (db, "SQLite parent query failed", error);
@@ -288,8 +288,8 @@ get_namespace_from_db (sqlite3* db, string name,
   out.initial_content_path= column_tm_string (st, 6);
   out.homepage_path= column_tm_string (st, 7);
   sqlite3_finalize (st);
-  out.parents= array<string> ();
-  out.derived_parents= array<string> ();
+  out.parents.clear ();
+  out.derived_parents.clear ();
   if (!query_parent_list (db, out.name, "declared", out.parents, error))
     return false;
   if (!query_parent_list (db, out.name, "derived", out.derived_parents, error))
@@ -342,8 +342,8 @@ namespace_row_list (sqlite3* db, std::vector<athena_namespace_definition>& out,
     ns.style_path= column_tm_string (st, 5);
     ns.initial_content_path= column_tm_string (st, 6);
     ns.homepage_path= column_tm_string (st, 7);
-    ns.parents= array<string> ();
-    ns.derived_parents= array<string> ();
+    ns.parents.clear ();
+    ns.derived_parents.clear ();
     out.push_back (ns);
   }
   sqlite3_finalize (st);
@@ -547,9 +547,9 @@ load_namespace_snapshot_from_db (
     if (found == indices.end ()) continue;
     string parent= column_tm_string (st, 1);
     string source= column_tm_string (st, 2);
-    if (source == "declared") namespaces[found->second].parents << parent;
+    if (source == "declared") namespaces[found->second].parents.push_back (parent);
     else if (source == "derived")
-      namespaces[found->second].derived_parents << parent;
+      namespaces[found->second].derived_parents.push_back (parent);
   }
   sqlite3_finalize (st);
 
@@ -593,24 +593,29 @@ athena_namespace_refresh_derived (string& error) {
   return ok;
 }
 
-std::vector<athena_namespace_definition>
+namespace_records<athena_namespace_definition>
 athena_namespaces_list () {
+  namespace_records<athena_namespace_definition> cached;
+  if (athena_namespace_ontology_namespaces (cached)) return cached;
   std::vector<athena_namespace_definition> out;
-  if (athena_namespace_ontology_namespaces (out)) return out;
   std::vector<athena_namespace_relation> ignored;
   string error;
   load_namespace_snapshot_from_db (out, ignored, error);
-  return out;
+  return namespace_records<athena_namespace_definition> (std::move (out));
 }
 
 bool
-athena_namespace_get (string name, athena_namespace_definition& out) {
+athena_namespace_get (
+  string name, std::shared_ptr<const athena_namespace_definition>& out) {
   if (athena_namespace_ontology_namespace (name, out)) return true;
   if (!ns_db_exists () || name == "") return false;
   string error;
   ns_sqlite_connection cx;
   if (!cx.open (false, error)) return false;
-  return get_namespace_from_db (cx.db, name, out, error);
+  athena_namespace_definition value;
+  if (!get_namespace_from_db (cx.db, name, value, error)) return false;
+  out= std::make_shared<const athena_namespace_definition> (std::move (value));
+  return true;
 }
 
 bool
@@ -663,7 +668,7 @@ athena_namespace_save (const athena_namespace_definition& ns, string& error) {
       "DELETE FROM namespace_parents WHERE child=? AND source='declared';",
       { ns.name }, error);
 
-  for (int i=0; ok && i<N(ns.parents); i++)
+  for (int i=0; ok && i<(int) ns.parents.size (); i++)
     ok= exec_prepared (cx.db,
       "INSERT OR REPLACE INTO namespace_parents"
       "(child, parent, source, ord) VALUES(?, ?, 'declared', ?);",
@@ -720,27 +725,28 @@ athena_namespace_remove (string name, string& error) {
   return ok;
 }
 
-std::vector<athena_namespace_relation>
+namespace_records<athena_namespace_relation>
 athena_namespace_relations_list () {
+  namespace_records<athena_namespace_relation> cached;
+  if (athena_namespace_ontology_relations (cached)) return cached;
   std::vector<athena_namespace_relation> out;
-  if (athena_namespace_ontology_relations (out)) return out;
-  if (!ns_db_exists ()) return out;
+  if (!ns_db_exists ()) return {};
 
   string error;
   ns_sqlite_connection cx;
-  if (!cx.open (false, error)) return out;
+  if (!cx.open (false, error)) return {};
 
   sqlite3_stmt* st= nullptr;
   if (!prepare_sql (cx.db,
         "SELECT parent, child, decision, source "
         "FROM relation_decisions ORDER BY parent, child;",
-        &st, error)) return out;
+        &st, error)) return {};
   while (true) {
     int status= sqlite3_step (st);
     if (status == SQLITE_DONE) break;
     if (status != SQLITE_ROW) {
       sqlite3_finalize (st);
-      return out;
+      return namespace_records<athena_namespace_relation> (std::move (out));
     }
     athena_namespace_relation r;
     r.parent= column_tm_string (st, 0);
@@ -750,7 +756,7 @@ athena_namespace_relations_list () {
     if (r.parent != "" && r.child != "") out.push_back (r);
   }
   sqlite3_finalize (st);
-  return out;
+  return namespace_records<athena_namespace_relation> (std::move (out));
 }
 
 bool
@@ -803,10 +809,10 @@ athena_namespace_validate_relation (string parent, string child, bool ask_user,
     return false;
   }
 
-  athena_namespace_definition child_ns;
+  std::shared_ptr<const athena_namespace_definition> child_ns;
   if (athena_namespace_get (child, child_ns)) {
-    if (has_string (child_ns.parents, parent) ||
-        has_string (child_ns.derived_parents, parent)) {
+    if (has_string (child_ns->parents, parent) ||
+        has_string (child_ns->derived_parents, parent)) {
       string ignored;
       athena_namespace_relation_set (parent, child, "allow", "derived",
                                      ignored);

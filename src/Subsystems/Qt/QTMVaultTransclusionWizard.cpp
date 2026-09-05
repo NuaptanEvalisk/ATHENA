@@ -1474,25 +1474,25 @@ TransclusionSearchPage::startSearch () {
   }
   else {
     string error;
-    athena_namespace_definition def;
+    std::shared_ptr<const athena_namespace_definition> def;
     if (!athena_namespace_get (from_qstring (ns), def)) {
       QMessageBox::warning (this, "Insert transclusion",
                             "Unknown namespace: " + ns);
       finishSearch ();
       return;
     }
-    std::vector<athena_namespace_match> members=
+    namespace_records<athena_namespace_match> members=
       athena_namespace_members (from_qstring (ns), error);
     if (error != "")
       QMessageBox::warning (this, "Insert transclusion",
                             "Namespace warning: " + to_qstring (error));
     std::set<std::string> seen;
     for (const athena_namespace_match& m: members) {
-      string suf= suffix (m.file);
+      string suf= suffix (m.file_url ());
       if (suf != "ath" && suf != "tm") continue;
-      std::string key= to_qstring (concretize (m.file)).toStdString ();
+      std::string key= to_qstring (m.file_path).toStdString ();
       if (!seen.insert (key).second) continue;
-      files.push_back (m.file);
+      files.push_back (m.file_url ());
     }
   }
 

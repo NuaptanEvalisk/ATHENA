@@ -248,13 +248,13 @@ build_namespace_relations (
   for (auto it= all.constBegin (); it != all.constEnd (); ++it) {
     const QString childName= it.key ();
     const athena_namespace_definition& child= it.value ();
-    for (int i=0; i<N(child.parents); i++) {
+    for (int i=0; i<(int) child.parents.size (); i++) {
       QString parent= to_qstring (child.parents[i]);
       if (known.contains (parent) &&
           !denied.contains (relation_key (parent, childName)))
         add_unique_relation (rel.directChildren, parent, childName);
     }
-    for (int i=0; i<N(child.derived_parents); i++) {
+    for (int i=0; i<(int) child.derived_parents.size (); i++) {
       QString parent= to_qstring (child.derived_parents[i]);
       if (known.contains (parent) &&
           !denied.contains (relation_key (parent, childName)))
@@ -739,13 +739,13 @@ build_export_context (const QString& root, ExportContext& cx, QString& error) {
     const QString name= it.key ();
     if (it.value ().kind == "abstract") continue;
     string nsError;
-    std::vector<athena_namespace_match> members=
+    namespace_records<athena_namespace_match> members=
       athena_namespace_members (from_qstring (name), nsError);
     if (nsError != "")
       warn_export ("Sorter/member warning for " + name + ": " + to_qstring (nsError));
     for (const athena_namespace_match& m: members) {
       FileMatch fm;
-      fm.file= m.file;
+      fm.file= m.file_url ();
       fm.stem= to_qstring (m.stem);
       directFiles[name].push_back (fm);
     }

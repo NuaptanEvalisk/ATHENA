@@ -2438,7 +2438,7 @@ tmg_vault_validate_root_namespace () {
   if (!qtm_vaultfile_read (info)) return string_to_tmscm ("");
   if (info.rootNamespace.isEmpty ()) return string_to_tmscm ("");
 
-  athena_namespace_definition ns;
+  std::shared_ptr<const athena_namespace_definition> ns;
   string root= from_qstring (info.rootNamespace);
   if (athena_namespace_get (root, ns)) return string_to_tmscm ("");
   return string_to_tmscm (
