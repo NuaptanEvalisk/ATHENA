@@ -245,22 +245,13 @@
             ("Remove selected entries" (structured-remove-left))))))
 
 (menu-bind db-menu
-  ("Open identities" (open-identities))
-  (if (supports-gpg?) ("Open key manager" (open-gpg-key-manager)))
-  ---
   (when (in-database?)
     (link db-entry-menu))
   ---
   (when (in-database?)
     (=> "Storage"
-        (if (nnull? (recent-databases))
-            (with cur (user-database)
-              (for (db (recent-databases))
-                ((check (eval (url->system (url-tail db)))
-                        "v" (== db cur))
-                 (use-database db))))
-            ---)
-        ("Other" (choose-file use-database "Select database" "generic"))))
+        ("Select database" (choose-file db-use-database
+                                      "Select database" "generic"))))
   (when (db-importable?)
     (if (selection-active-any?)
         ("Import selected entries" (db-import-selection)))

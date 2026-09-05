@@ -1159,12 +1159,7 @@
   <\description>
     <item*|Script execution>Controls whether document scripts are rejected,
     allowed after prompting, or accepted without prompting.
-
-    <item*|Encryption>Enables experimental encryption support.
   </description>
-
-  Wallet and <name|GnuPG> maintenance remain available through their
-  dedicated commands while the native Preferences dialog is being completed.
 
   <subsubsection|ATHENA Delegation>
 

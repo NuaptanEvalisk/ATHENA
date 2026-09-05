@@ -306,11 +306,10 @@
   (with doc (outer-document (cursor-tree))
     (when doc
       (let* ((i (tree-index (tree-down doc)))
-             (id (with-database (user-database) (db-create-id)))
+             (id (with-database (db-selected-database) (db-create-id)))
              (date (number->string (current-time)))
              (res `(db-entry ,id ,type ""
                              (document
-                               (db-field "contributor" ,(get-default-user))
                                (db-field "modus" "manual")
                                (db-field "date" ,date))
                              (document))))
@@ -396,7 +395,7 @@
     (for (id (map car (ahash-table->list h)))
       (with l (ahash-ref h id)
         (when (> (length l) 1)
-          (with-database (user-database)
+          (with-database (db-selected-database)
             (let* ((old (db-get-entry id))
                    (pred? (cut db-matches-entry? <> old)))
               (receive (l1 l2) (list-partition l pred?)
@@ -415,12 +414,11 @@
 
 (define (confirm-entry t)
   (and (db-entry-any? t) (db-complete-fields? t)
-       (with-database (user-database)
+       (with-database (db-selected-database)
          (let* ((old-id (tm->string (db-entry-ref t "id")))
                 (old (db-get-entry old-id))
                 (new (entry->assoc-list (tm->stree t))))
-           (with-extra-fields (list (list "contributor" (get-default-user))
-                                    (list "modus" "manual")
+           (with-extra-fields (list (list "modus" "manual")
                                     (list "origin"))
              (with-time-stamp #t
 	       (with new-id (db-update-entry old-id new)
@@ -480,7 +478,7 @@
 
 (define (remove-entry t)
   (when (db-entry-any? t)
-    (with-database (user-database)
+    (with-database (db-selected-database)
       (with id (tm->string (db-entry-ref t "id"))
         (when (nnull? (db-get-entry id))
           (db-remove-entry id)

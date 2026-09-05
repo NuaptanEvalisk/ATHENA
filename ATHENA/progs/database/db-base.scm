@@ -20,6 +20,22 @@
 (tm-define (global-database)
   (url-concretize "$ATHENA_HOME_PATH/server/global.tmdb"))
 
+(tm-define (db-get-kind) "general")
+
+(tm-define (db-selected-database . opt-kind)
+  (let* ((kind (if (null? opt-kind) (db-get-kind) (car opt-kind)))
+         (path (get-preference (string-append "database storage," kind))))
+    (if (== path "default")
+        (with db (global-database)
+          (system-mkdir (url-head db))
+          db)
+        (system->url path))))
+
+(tm-define (db-use-database db)
+  (set-preference (string-append "database storage," (db-get-kind))
+                  (url->system db))
+  (revert-buffer-revert))
+
 (tm-define current-database (url-none))
 
 (tm-define-macro (with-database db . body)
@@ -153,9 +169,6 @@
 
 (tm-define (db-search-name name)
   (db-search (list (list "name" name))))
-
-(tm-define (db-search-owner owner)
-  (db-search (list (list "owner" owner))))
 
 (tm-define (db-inspect-history name)
   (tmdb-inspect-history (db-get-db) name))

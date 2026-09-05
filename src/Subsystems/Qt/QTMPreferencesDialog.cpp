@@ -2595,12 +2595,6 @@ QTMPreferencesDialog::buildOtherPage () {
              {{"accept no scripts", "Accept no scripts"},
               {"prompt on scripts", "Prompt on scripts"},
               {"accept all scripts", "Accept all scripts"}});
-  add_toggle (s, "Encryption:", "experimental encryption");
-  QLabel* note= new QLabel (
-    "Wallet and GnuPG maintenance remain available through their dedicated "
-    "commands while the Preferences UI moves to native Qt.");
-  note->setWordWrap (true);
-  security->layout ()->addWidget (note);
 
   QFormLayout* rd= add_section (security, "ATHENA Delegation");
   QListWidget* ragServers= new QListWidget (security);

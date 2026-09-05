@@ -179,30 +179,3 @@
 (tm-define (db-import-selection) (noop))
 (tm-define (db-import-this-entry) (noop))
 (tm-define (db-import-current-buffer) (noop))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Subroutines for syncing
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(tm-define (db-change-list uid kind t)
-  ;;(display* "Get changes " current-database ", " uid ", " kind ", " t "\n")
-  (when (number? t) (set! t (number->string t)))
-  (let* ((types (or (smart-ref db-kind-table kind) #t))
-         (ids '()))
-    (with-time :always
-      (with-user #t
-        (set! ids (db-search `(,@(if (== uid #t) (list)
-                                     `(("owner" ,uid)))
-                               ,@(if (== types #t) (list)
-                                     `(("type" ,@types)))
-                               (:modified ,t "10675199165"))))))
-    (with-user #t
-      (with get (lambda (id)
-                  (list id
-                        (with-time :always
-                          (db-get-field-first id "name" #f))
-                        (with-time :now
-                          (db-get-entry id))))
-        (with r (map get ids)
-          ;;(display* "r= " r "\n")
-          r)))))

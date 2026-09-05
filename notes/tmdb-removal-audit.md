@@ -5,8 +5,20 @@ Date: 2026-09-05. Baseline: master, bb80a57eb2.
 Removal update (2026-09-05): Literate programming has subsequently been removed
 at the user's request: all three `utils/literate` Scheme modules, the `literate`
 package, and its example document. The five-group inventory below describes
-the audited baseline; group 3 is now retired, leaving four dependency groups.
-No user `lp-master.tmdb` cache files were deleted. The other groups remain.
+the audited baseline; group 3 is now retired. No user `lp-master.tmdb` cache
+files were deleted.
+
+Second removal update (2026-09-05): group 1 (identities, GPG and wallet) is also
+retired, without compatibility shims or user-data migration. Three dependency
+groups remain: the generic Data tool, legacy Vault import, and bytecode setup.
+The Data tool now selects storage using the profile preference
+`database storage,<kind>`, falling back to `server/global.tmdb`. It no longer
+loads `db-users`, creates contributor identities or applies identity-based
+permissions. Existing user databases, key directories and wallet files are
+untouched and are not automatically discovered or migrated.
+
+The numbered sections below are historical evidence from the baseline, not
+a description of features still available after these removals.
 
 ## Scope and Evidence
 

@@ -12,8 +12,6 @@
 
     <branch|Formats of database entries|database-format.en.tm>
 
-    <branch|Users, groups, and permissions|database-permissions.en.tm>
-
     <branch|Version management|database-version.en.tm>
   </traverse>
 

@@ -45,8 +45,7 @@ static std::once_flag builtin_preferences_once;
 enum builtin_default_kind {
   PREF_STATIC,
   PREF_PRINTING_COMMAND,
-  PREF_PAPER_TYPE,
-  PREF_GPG_EXECUTABLE
+  PREF_PAPER_TYPE
 };
 
 struct builtin_preference {
@@ -56,13 +55,6 @@ struct builtin_preference {
   const char* callback;
   builtin_default_kind kind;
 };
-
-static string
-default_gpg_executable () {
-  if (exists_in_path ("gpg")) return "gpg";
-  if (exists_in_path ("gpg2")) return "gpg2";
-  return "";
-}
 
 static string
 default_paper_type () {
@@ -78,8 +70,6 @@ builtin_default_value (const builtin_preference& pref) {
     return get_printing_default ();
   case PREF_PAPER_TYPE:
     return default_paper_type ();
-  case PREF_GPG_EXECUTABLE:
-    return default_gpg_executable ();
   case PREF_STATIC:
   default:
     return pref.def;
@@ -539,20 +529,6 @@ ensure_builtin_user_preferences () {
     PREF ("mathml->texmacs:latex-annotations", "on", "converter-set-option"),
     PREF ("latex->texmacs:fallback-on-pictures", "off",
           "converter-set-option"),
-    PREF_KIND ("gpg executable", "", "notify-gpg-executable",
-               PREF_GPG_EXECUTABLE),
-    PREF ("experimental encryption", "off",
-          "gpg-notify-experimental-encryption"),
-    PREF ("gpg cipher algorithm", "AES256",
-          "notify-gpg-cipher-algorithm"),
-    PREF ("gpg wallet key fingerprint", "",
-          "notify-gpg-wallet-key-fingerprint"),
-    PREF ("gpg default key fingerprint", "",
-          "notify-gpg-default-key-fingerprint"),
-    PREF ("wallet persistent status", "off",
-          "notify-wallet-persistent-status"),
-    PREF ("wallet always remember", "off",
-          "notify-wallet-always-remember")
 #undef PREF_KIND
 #undef PREF_OBJ
 #undef PREF

@@ -20,7 +20,7 @@
     </src-license>
   </src-title>>
 
-  <use-package|std-counter|std-markup|std-utils|std-symbol|std-math|std-list|std-automatic|std-pattern|std-fold|std-graphics|std-security|std-animate|session|scripts|calc|program>
+  <use-package|std-counter|std-markup|std-utils|std-symbol|std-math|std-list|std-automatic|std-pattern|std-fold|std-graphics|std-animate|session|scripts|calc|program>
 
   \;
 </body>

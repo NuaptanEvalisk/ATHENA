@@ -12,7 +12,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (texmacs-module (database db-version)
-  (:use (database db-users)))
+  (:use (database db-format)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Warnings
@@ -81,14 +81,10 @@
 
 (tm-define (db-import-entry id l)
   (let* ((name (assoc-ref-first l "name"))
-         (contributor (or (assoc-ref-first l "contributor")
-                          (assoc-ref-first db-extra-fields "contributor")))
-         (sim (if (and name contributor)
-                  (db-search (list (list "name" name)
-                                   (list "contributor" contributor)))
+         (sim (if name
+                  (db-search-name name)
                   (list)))
          (his (with h (assoc-ref l "newer") (or h (list)))))
-    ;;(display* "Processing " name ", " contributor ", " id ", " sim "\n")
     (cond ((nnull? (db-get-entry id)) ;; new entries must have new identifiers
            (when (and db-duplicate-warning?
                       (not (db-same-entries? l (db-get-entry id))))

@@ -10,20 +10,25 @@
   <hlink|NoSQL|http://en.wikipedia.org/wiki/NoSQL>-style database model,
   using a variant of <hlink|column data stores|http://en.wikipedia.org/wiki/Column_%28data_store%29>.
   For the moment, we only support a limit number of entry types and field
-  types, although new types can easily be added later. Currently, databases
-  are used for managing remote files, bibliographies, user lists, versions,
-  etc.
+  types, although new types can easily be added later. ATHENA retains this
+  engine for the optional Data tool and entry version management, separately
+  from the modern SQLite-backed vault.
 
   The interface has been kept to be as simple as possible, so that our low
   level implementation can be most easily optimized for efficiently when
   needed. Furthermore, the routines of our basic API can all be customized
   <em|a posteriori> to add specific features. For instance, the basic API is
   string-based, so a<nbsp>special additional layer was added to support
-  <TeXmacs> snippets as values instead of strings. Similarly, an additional
-  layer was added for managing the permissions of specific users. The
+  <TeXmacs> snippets as values instead of strings. The
   advantage of this design based on <em|a posteriori> customizations is that
   the routines in the basic API always keep the same semantics, no matter how
   many additional layers are added.
+
+  ATHENA is single-user: database operations do not select an identity or
+  apply per-user access rules. The Data tool uses
+  <verbatim|$ATHENA_HOME_PATH/server/global.tmdb> by default. Its Storage menu
+  selects a database through a profile preference, independently of the
+  removed identity subsystem.
 
   A <TeXmacs> database is always a collection of database <em|entries>. Each
   entry consists of a <em|unique identifier> and a list of <em|fields>. Each

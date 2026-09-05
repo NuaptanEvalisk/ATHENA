@@ -11,21 +11,15 @@
   <scm|db-version.scm>, we introduce a few additional attributes and routines
   for version management of database entries.
 
-  This is particularly important when entries are attached to files and
-  automatically imported into the databases of other users. In this case, one
-  must be careful to determine the most recent version (or versions) and only
-  update entries when we are sure that the new version is better. In order to
-  achieve this, we use the following principle: each entry comes with a main
-  contributor and for each contributor, we only allow one most recent
-  version. In addition, the current version of a first contributor may be
-  declared to be ``newer'' than the current version of a second contributor.
+  ATHENA resolves import conflicts between entries with the same name in the
+  selected database, without contributor identities. Explicit version history,
+  manual-edit precedence and timestamps determine whether an incoming entry
+  replaces an existing one. The <scm|newer> attribute records the identifiers
+  of superseded entries.
 
   <paragraph|Special attributes>
 
   <\description>
-    <item*|<scm|contributor>>Specifies the user who originally contributed
-    the entry.
-
     <item*|<scm|modus>>Specifies the way the entry was contributed
     (<scm|manual> or <scm|imported>).
 

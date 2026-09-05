@@ -43,10 +43,10 @@
   )
 
 (tm-define (db-reserved-attributes)
-  (list "type" "location" "dir" "date" "pseudo" "id"))
+  (list "type" "location" "dir" "date" "id"))
 
 (tm-define (db-meta-attributes)
-  (list "date" "contributor" "modus" "origin" "newer"))
+  (list "date" "modus" "origin" "newer"))
 
 (smart-table db-encoding-table
   ;; For each entry+field type, specify the encoding being used for

@@ -834,9 +834,7 @@
       ("Default" (init-default "prog-scripts"))
       ---
       (link supported-scripts-menu))
-  (-> "Informative flags" (link document-informative-flags-menu))
-  (if (== (get-preference "experimental encryption") "on")
-      (-> "Encryption" (link document-encryption-menu))))
+  (-> "Informative flags" (link document-informative-flags-menu)))
 
 (menu-bind compressed-document-menu
   (-> "Style" (link document-style-menu))
@@ -870,9 +868,7 @@
       ("Default" (init-default "prog-scripts"))
       ---
       (link supported-scripts-menu))
-  (-> "Informative flags" (link document-informative-flags-menu))
-  (if (== (get-preference "experimental encryption") "on")
-      (-> "Encryption" (link document-encryption-menu))))
+  (-> "Informative flags" (link document-informative-flags-menu)))
 
 (menu-bind document-menu
   (if (use-menus?)
@@ -939,9 +935,6 @@
       (link document-columns-menu))
   (-> "Layout"
       (link page-layout-menu))
-  (if (and (== (get-preference "experimental encryption") "on")
-	   (!= (get-init "encryption") ""))
-      (-> "Encryption" (link document-encryption-menu)))
   (-> (eval (upcase-first (get-init "language")))
       (link document-language-menu))
   (-> (eval (upcase-first (font-family-main (get-init "font"))))
@@ -1042,10 +1035,6 @@
 	(link page-rendering-menu)
         ---
         (link page-layout-menu))
-    (if (and (== (get-preference "experimental encryption") "on")
-	     (!= (get-init "encryption") ""))
-	(=> (balloon (icon "tm_lock_open.xpm") "Encryption")
-	 (link document-encryption-menu)))
     (=> (balloon (icon (eval (current-language-icon))) "Document language")
         (link document-language-menu))))
 

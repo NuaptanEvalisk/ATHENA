@@ -8,10 +8,6 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 
-// SECURITY_WIN32 is needed to include the security headers and to get 
-// the user name using GetUserNameExW
-#define SECURITY_WIN32
-
 #include "windows64_entrypoint.hpp"
 #include "windows64_system.hpp"
 #include "windows64_encoding.hpp"
@@ -20,8 +16,6 @@
 
 #include <windows.h>
 #include <shellapi.h>
-#include <sspi.h>
-#include <secext.h>
 #include <stdio.h>
 #include <fcntl.h>
 #include <io.h>
@@ -79,7 +73,6 @@ void setup_athena_home_path () {
 
 int WINAPI CommonMain() {
   texmacs_attach_console();
-  texmacs_initialize_displayname();
   setup_athena_path();
   //if (is_running_in_msix()) {
   //  setup_athena_home_path();
@@ -133,32 +126,5 @@ void texmacs_attach_console() {
     freopen("CONIN$", "r", stdin);
     freopen("CONOUT$", "w", stdout);
     freopen("CONOUT$", "w", stderr);
-  }
-}
-
-void texmacs_initialize_displayname() {
-  if (_wgetenv(L"ATHENA_DISPLAYNAME") != nullptr) {
-    return;
-  }
-  wchar_t username[256 + 1];
-  DWORD username_size = 256 + 1;
-  bool result = GetUserNameExW(NameDisplay, username, &username_size);
-  if (!result) {
-    result = GetUserNameW(username, &username_size);
-  }
-
-  if (result) {
-    std::wstring full_username = L"ATHENA_DISPLAYNAME=" 
-                                 + std::wstring(username);
-    _wputenv(full_username.c_str());
-  } else {
-    wchar_t error_message[256];
-    FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM, nullptr, GetLastError(),
-                   0, error_message, 256, nullptr);
-
-    cout << "texmacs_initialize_displayname error " 
-         << texmacs_wide_to_utf8(error_message) << "\r\n";
-
-    _wputenv(L"ATHENA_DISPLAYNAME=Default User");
   }
 }

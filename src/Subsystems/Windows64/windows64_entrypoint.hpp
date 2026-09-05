@@ -39,10 +39,4 @@ void texmacs_attach_console();
  */
 void texmacs_init_guile_hooks();
 
-/**
-  * @brief Initialize the ATHENA_DISPLAYNAME environment variable with the
-  * full username.
-  */
-void texmacs_initialize_displayname();
-
 #endif

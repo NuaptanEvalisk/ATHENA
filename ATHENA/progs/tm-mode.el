@@ -25,7 +25,6 @@
     define-grammar define-regexp-grammar
     drd-rule logic-rules assume texmacs-modes
     user-delayed delayed on-entry on-exit widget-delayed
-    with-wallet
     association-tile bar concat dense-bar dense-tile document
     header-bar sequence short-bar short-tile minibar
     wrap-selection-any wrap-selection-small
@@ -56,7 +55,7 @@
     with-server with-database with-database*
     with-time with-time-stamp with-limit
     with-encoding with-indexing
-    with-user with-extra-fields
+    with-extra-fields
     with-remote-context with-identifier-context
     user-ask
     tab icon-tab section-tab form item meti refreshable division

@@ -32,7 +32,6 @@
 ("developer tool" "off")
 ("enunciation color preset" "Nord Light")
 ("equation-editor" "on")
-("experimental encryption" "off")
 ("gui cursor color" "#0000ff")
 ("gui selection color" "blue")
 ("gui:live-statistics" "on")
