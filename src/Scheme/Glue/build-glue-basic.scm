@@ -732,6 +732,7 @@
   (current-buffer-url get_current_buffer_safe (url))
   (path-to-buffer path_to_buffer (url path))
   (buffer-new make_new_buffer (url))
+  (exec-buffer exec_buffer (bool url object))
   (buffer-rename rename_buffer (void url url))
   (buffer-set set_buffer_tree (void url content))
   (buffer-get get_buffer_tree (tree url))

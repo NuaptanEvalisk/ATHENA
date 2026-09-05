@@ -1,5 +1,13 @@
 file (GLOB_RECURSE TEST_SRC_FILES CONFIGURE_DEPENDS "*.cpp")
 
+find_program (ATHENA_TEST_GUILE guile)
+if (ATHENA_TEST_GUILE)
+  add_test (NAME unsaved_buffers_scheme_test
+    COMMAND ${ATHENA_TEST_GUILE} --no-auto-compile
+      ${CMAKE_CURRENT_SOURCE_DIR}/scheme/unsaved-buffers-test.scm
+      ${ATHENA_SOURCE_DIR})
+endif ()
+
 # from list of files we'll create tests test_name.cpp -> test_name
 foreach (_test_file ${TEST_SRC_FILES})
   get_filename_component (_test_name ${_test_file} NAME_WE)

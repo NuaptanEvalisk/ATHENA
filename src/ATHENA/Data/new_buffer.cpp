@@ -12,6 +12,8 @@
 #include "tm_data.hpp"
 #include "buffer_actor.hpp"
 #include "scheme_execution_context.hpp"
+#include "guile_tm.hpp"
+#include "object.hpp"
 #include "convert.hpp"
 #include "file.hpp"
 #include "web_files.hpp"
@@ -22,6 +24,25 @@
 #include "merge_sort.hpp"
 
 array<tm_buffer> bufs;
+
+bool
+exec_buffer (url name, object command) {
+  ASSERT (current_scheme_execution_context () == nullptr,
+          "buffer command scheduling requires the global context");
+  tm_buffer buf= concrete_buffer (name);
+  if (is_nil (buf)) return false;
+  tm_view view= concrete_view (get_recent_view (name));
+  if (view == nullptr) return false;
+  athena_scheme_handle_id handle=
+    scheme_command_handle_acquire (object_to_tmscm (command));
+  actor_command_ticket ticket= buf->actor->try_submit (
+    actor_command_kind::run_scheme_handle, view->runtime_id,
+    ATHENA_NO_BLOB, ATHENA_NO_BLOB,
+    SCHEME_CAPABILITY_BUFFER | SCHEME_CAPABILITY_UI | SCHEME_CAPABILITY_GLOBAL,
+    handle);
+  if (!ticket) scheme_command_handle_release (handle);
+  return static_cast<bool> (ticket);
+}
 
 string propose_title (string old_title, url u);
 

@@ -179,7 +179,12 @@
   (when (defined? 'google-cloud-todo-sync-buffer)
     (delayed (:idle 0) (google-cloud-todo-sync-buffer name)))
   (when (defined? 'vault-backup-dispatch-realtime)
-    (vault-backup-dispatch-realtime name)))
+    (vault-backup-dispatch-realtime name))
+  ;; Only successful saves (including save-as) may advance an exit sequence.
+  (for-each (lambda (opt)
+              (when (and (pair? opt) (eq? (car opt) 'on-saved))
+                ((cdr opt))))
+            opts))
 
 (define (save-buffer-save-now name opts)
   ;;(display* "save-buffer-save " name "\n")
@@ -234,7 +239,8 @@
     (cond ((url-scratch? name)
            (choose-file
 	    (lambda (x) (apply save-buffer-as-main
-		(cons x (if (x-gui?) opts (cons :overwrite opts)))))
+		(cons x (cons name (if (x-gui?) opts
+                                      (cons :overwrite opts))))))
 	      "Save ATHENA file" "texmacs"))
           ((not (buffer-exists? name))
            (with msg `(concat "The buffer " ,vname " does not exist")
