@@ -38,5 +38,7 @@ CMakeLists.txt.user
 misc/benchmark/gbench
 
 TeXmacs/progs/ice-9
+# Deployed Scheme resource generated from src/Scheme/Glue/*.xml.
+ATHENA/progs/prog/glue-symbols.scm
 /release/
 ATHENA/lib/

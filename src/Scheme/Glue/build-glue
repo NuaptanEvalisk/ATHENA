@@ -1,13 +1,12 @@
 #!/bin/sh
-# Program to make Guile interface to TeXmacs
+set -eu
 
-# update documentation of glue 
-./build-auto-doc
-
-GUILE="${ATHENA_GUILE_FOR_BUILD:-guile}"
-
-if test $# = 2; then
-  $GUILE -l build-glue.scm -l $1 -c "(quit)" | cat > $2
-else
-  echo "Usage: build-glue <input.scm> <output.cpp>"
+if [ "$#" -ne 1 ]; then
+  echo "Usage: build-glue <output-directory>" >&2
+  exit 2
 fi
+source_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+exec "${PYTHON:-python3}" "$source_dir/generate-glue.py" \
+  --output-dir "$1" \
+  "$source_dir/basic.xml" "$source_dir/editor.xml" "$source_dir/server.xml" \
+  "$source_dir/native.xml"

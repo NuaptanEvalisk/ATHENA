@@ -1,0 +1,734 @@
+<?xml version="1.0" encoding="utf-8"?>
+<glue version="1" prefix="get_current_editor()-&gt;" initializer="initialize_glue_editor">
+  <binding name="root-tree" native="the_root" returns="tree" />
+  <binding name="buffer-path" native="the_buffer_path" returns="path" />
+  <binding name="buffer-tree" native="the_buffer" returns="tree" />
+  <binding name="paragraph-tree" native="the_line" returns="tree" />
+  <binding name="cursor-path" native="the_path" returns="path" />
+  <binding name="cursor-path*" native="the_shifted_path" returns="path" />
+  <binding name="selection-tree" native="selection_get" returns="tree" />
+  <binding name="path-exists?" native="test_subtree" returns="bool">
+    <arg type="path" />
+  </binding>
+  <binding name="cpp-path-&gt;tree" native="the_subtree" returns="tree">
+    <arg type="path" />
+  </binding>
+  <binding name="path-correct-old" native="correct" returns="void">
+    <arg type="path" />
+  </binding>
+  <binding name="path-insert-with" native="insert_with" returns="void">
+    <arg type="path" />
+    <arg type="string" />
+    <arg type="content" />
+  </binding>
+  <binding name="path-remove-with" native="remove_with" returns="void">
+    <arg type="path" />
+    <arg type="string" />
+  </binding>
+  <binding name="position-new-path" native="position_new" returns="observer">
+    <arg type="path" />
+  </binding>
+  <binding name="position-delete" native="position_delete" returns="void">
+    <arg type="observer" />
+  </binding>
+  <binding name="position-set" native="position_set" returns="void">
+    <arg type="observer" />
+    <arg type="path" />
+  </binding>
+  <binding name="position-get" native="position_get" returns="path">
+    <arg type="observer" />
+  </binding>
+  <binding name="inside?" native="inside" returns="bool">
+    <arg type="tree_label" />
+  </binding>
+  <binding name="cpp-insert" native="insert_tree" returns="void">
+    <arg type="content" />
+  </binding>
+  <binding name="cpp-insert-go-to" native="var_insert_tree" returns="void">
+    <arg type="content" />
+    <arg type="path" />
+  </binding>
+  <binding name="insert-raw-go-to" native="insert_tree" returns="void">
+    <arg type="content" />
+    <arg type="path" />
+  </binding>
+  <binding name="insert-raw-return" native="insert_return" returns="void" />
+  <binding name="remove-text" native="remove_text" returns="void">
+    <arg type="bool" />
+  </binding>
+  <binding name="remove-structure" native="remove_structure" returns="void">
+    <arg type="bool" />
+  </binding>
+  <binding name="remove-structure-upwards" native="remove_structure_upwards" returns="void" />
+  <binding name="cpp-make" native="make_compound" returns="void">
+    <arg type="tree_label" />
+  </binding>
+  <binding name="cpp-make-arity" native="make_compound" returns="void">
+    <arg type="tree_label" />
+    <arg type="int" />
+  </binding>
+  <binding name="activate" native="activate" returns="void" />
+  <binding name="insert-argument" native="insert_argument" returns="void">
+    <arg type="bool" />
+  </binding>
+  <binding name="remove-argument" native="remove_argument" returns="void">
+    <arg type="bool" />
+  </binding>
+  <binding name="insert-argument-at" native="insert_argument" returns="void">
+    <arg type="path" />
+    <arg type="bool" />
+  </binding>
+  <binding name="remove-argument-at" native="remove_argument" returns="void">
+    <arg type="path" />
+    <arg type="bool" />
+  </binding>
+  <binding name="cpp-make-with" native="make_with" returns="void">
+    <arg type="string" />
+    <arg type="string" />
+  </binding>
+  <binding name="make-mod-active" native="make_mod_active" returns="void">
+    <arg type="tree_label" />
+  </binding>
+  <binding name="make-style-with" native="make_style_with" returns="void">
+    <arg type="string" />
+    <arg type="string" />
+  </binding>
+  <binding name="cpp-make-hybrid" native="make_hybrid" returns="void" />
+  <binding name="activate-latex" native="activate_latex" returns="void" />
+  <binding name="activate-hybrid" native="activate_hybrid" returns="void">
+    <arg type="bool" />
+  </binding>
+  <binding name="activate-symbol" native="activate_symbol" returns="void" />
+  <binding name="make-return-before" native="make_return_before" returns="void" />
+  <binding name="make-return-after" native="make_return_after" returns="bool" />
+  <binding name="temp-proof-fix" native="temp_proof_fix" returns="void" />
+  <binding name="get-full-env" native="get_full_env" returns="tree" />
+  <binding name="get-all-inits" native="get_init_all" returns="tree" />
+  <binding name="init-env" native="init_env" returns="void">
+    <arg type="string" />
+    <arg type="string" />
+  </binding>
+  <binding name="init-env-tree" native="init_env" returns="void">
+    <arg type="string" />
+    <arg type="content" />
+  </binding>
+  <binding name="init-style" native="init_style" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="get-style-tree" native="get_style" returns="tree" />
+  <binding name="set-style-tree" native="change_style" returns="void">
+    <arg type="tree" />
+  </binding>
+  <binding name="get-env" native="get_env_string" returns="string">
+    <arg type="string" />
+  </binding>
+  <binding name="get-env-tree" native="get_env_value" returns="tree">
+    <arg type="string" />
+  </binding>
+  <binding name="get-env-tree-at" native="get_env_value" returns="tree">
+    <arg type="string" />
+    <arg type="path" />
+  </binding>
+  <binding name="get-init" native="get_init_string" returns="string">
+    <arg type="string" />
+  </binding>
+  <binding name="get-init-tree" native="get_init_value" returns="tree">
+    <arg type="string" />
+  </binding>
+  <binding name="context-has?" native="defined_at_cursor" returns="bool">
+    <arg type="string" />
+  </binding>
+  <binding name="style-has?" native="defined_at_init" returns="bool">
+    <arg type="string" />
+  </binding>
+  <binding name="init-has?" native="defined_in_init" returns="bool">
+    <arg type="string" />
+  </binding>
+  <binding name="get-page-count" native="get_page_count" returns="int" />
+  <binding name="get-page-width" native="get_page_width" returns="int">
+    <arg type="bool" />
+  </binding>
+  <binding name="get-pages-width" native="get_pages_width" returns="int">
+    <arg type="bool" />
+  </binding>
+  <binding name="get-page-height" native="get_page_height" returns="int">
+    <arg type="bool" />
+  </binding>
+  <binding name="get-total-width" native="get_total_width" returns="int">
+    <arg type="bool" />
+  </binding>
+  <binding name="get-total-height" native="get_total_height" returns="int">
+    <arg type="bool" />
+  </binding>
+  <binding name="get-reference" native="get_ref" returns="tree">
+    <arg type="string" />
+  </binding>
+  <binding name="set-reference" native="set_ref" returns="void">
+    <arg type="string" />
+    <arg type="content" />
+  </binding>
+  <binding name="reset-reference" native="reset_ref" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="find-references" native="find_refs" returns="array_string">
+    <arg type="string" />
+  </binding>
+  <binding name="list-references" native="list_refs" returns="array_string" />
+  <binding name="list-references*" native="list_refs" returns="array_string">
+    <arg type="bool" />
+  </binding>
+  <binding name="get-auxiliary" native="get_aux" returns="tree">
+    <arg type="string" />
+  </binding>
+  <binding name="set-auxiliary" native="set_aux" returns="void">
+    <arg type="string" />
+    <arg type="content" />
+  </binding>
+  <binding name="reset-auxiliary" native="reset_aux" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="list-auxiliaries" native="list_auxs" returns="array_string" />
+  <binding name="list-auxiliaries*" native="list_auxs" returns="array_string">
+    <arg type="bool" />
+  </binding>
+  <binding name="get-attachment" native="get_att" returns="tree">
+    <arg type="string" />
+  </binding>
+  <binding name="set-attachment" native="set_att" returns="void">
+    <arg type="string" />
+    <arg type="content" />
+  </binding>
+  <binding name="reset-attachment" native="reset_att" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="list-attachments" native="list_atts" returns="array_string" />
+  <binding name="list-attachments*" native="list_atts" returns="array_string">
+    <arg type="bool" />
+  </binding>
+  <binding name="make-htab" native="make_htab" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="make-space" native="make_space" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="make-var-space" native="make_space" returns="void">
+    <arg type="string" />
+    <arg type="string" />
+    <arg type="string" />
+  </binding>
+  <binding name="make-hspace" native="make_hspace" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="make-var-hspace" native="make_hspace" returns="void">
+    <arg type="string" />
+    <arg type="string" />
+    <arg type="string" />
+  </binding>
+  <binding name="make-vspace-before" native="make_vspace_before" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="make-var-vspace-before" native="make_vspace_before" returns="void">
+    <arg type="string" />
+    <arg type="string" />
+    <arg type="string" />
+  </binding>
+  <binding name="make-vspace-after" native="make_vspace_after" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="make-var-vspace-after" native="make_vspace_after" returns="void">
+    <arg type="string" />
+    <arg type="string" />
+    <arg type="string" />
+  </binding>
+  <binding name="make-image" native="make_image" returns="void">
+    <arg type="string" />
+    <arg type="bool" />
+    <arg type="string" />
+    <arg type="string" />
+    <arg type="string" />
+    <arg type="string" />
+  </binding>
+  <binding name="length-decode" native="as_length" returns="int">
+    <arg type="string" />
+  </binding>
+  <binding name="length-add" native="add_lengths" returns="string">
+    <arg type="string" />
+    <arg type="string" />
+  </binding>
+  <binding name="length-sub" native="sub_lengths" returns="string">
+    <arg type="string" />
+    <arg type="string" />
+  </binding>
+  <binding name="length-max" native="max_lengths" returns="string">
+    <arg type="string" />
+    <arg type="string" />
+  </binding>
+  <binding name="length-min" native="min_lengths" returns="string">
+    <arg type="string" />
+    <arg type="string" />
+  </binding>
+  <binding name="length-mult" native="multiply_length" returns="string">
+    <arg type="double" />
+    <arg type="string" />
+  </binding>
+  <binding name="length?" native="is_length" returns="bool">
+    <arg type="string" />
+  </binding>
+  <binding name="length-divide" native="divide_lengths" returns="double">
+    <arg type="string" />
+    <arg type="string" />
+  </binding>
+  <binding name="cpp-make-rigid" native="make_rigid" returns="void" />
+  <binding name="cpp-make-lprime" native="make_lprime" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="cpp-make-rprime" native="make_rprime" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="cpp-make-below" native="make_below" returns="void" />
+  <binding name="cpp-make-above" native="make_above" returns="void" />
+  <binding name="cpp-make-script" native="make_script" returns="void">
+    <arg type="bool" />
+    <arg type="bool" />
+  </binding>
+  <binding name="cpp-make-fraction" native="make_fraction" returns="void" />
+  <binding name="cpp-make-sqrt" native="make_sqrt" returns="void" />
+  <binding name="cpp-make-wide" native="make_wide" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="cpp-make-wide-under" native="make_wide_under" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="cpp-make-var-sqrt" native="make_var_sqrt" returns="void" />
+  <binding name="cpp-make-neg" native="make_neg" returns="void" />
+  <binding name="cpp-make-tree" native="make_tree" returns="void" />
+  <binding name="make-subtable" native="make_subtable" returns="void" />
+  <binding name="table-deactivate" native="table_deactivate" returns="void" />
+  <binding name="table-extract-format" native="table_extract_format" returns="void" />
+  <binding name="table-insert-row" native="table_insert_row" returns="void">
+    <arg type="bool" />
+  </binding>
+  <binding name="table-insert-column" native="table_insert_column" returns="void">
+    <arg type="bool" />
+  </binding>
+  <binding name="table-remove-row" native="table_remove_row" returns="void">
+    <arg type="bool" />
+  </binding>
+  <binding name="table-remove-column" native="table_remove_column" returns="void">
+    <arg type="bool" />
+  </binding>
+  <binding name="table-nr-rows" native="table_nr_rows" returns="int" />
+  <binding name="table-nr-columns" native="table_nr_columns" returns="int" />
+  <binding name="table-get-extents" native="table_get_extents" returns="array_int" />
+  <binding name="table-set-extents" native="table_set_extents" returns="void">
+    <arg type="int" />
+    <arg type="int" />
+  </binding>
+  <binding name="table-which-row" native="table_which_row" returns="int" />
+  <binding name="table-which-column" native="table_which_column" returns="int" />
+  <binding name="table-which-cells" native="table_which_cells" returns="array_int" />
+  <binding name="table-cell-path" native="table_search_cell" returns="path">
+    <arg type="int" />
+    <arg type="int" />
+  </binding>
+  <binding name="table-go-to" native="table_go_to" returns="void">
+    <arg type="int" />
+    <arg type="int" />
+  </binding>
+  <binding name="table-set-format" native="table_set_format" returns="void">
+    <arg type="string" />
+    <arg type="content" />
+  </binding>
+  <binding name="table-get-format-all" native="table_get_format" returns="tree" />
+  <binding name="table-get-format" native="table_get_format" returns="string">
+    <arg type="string" />
+  </binding>
+  <binding name="table-del-format" native="table_del_format" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="table-row-decoration" native="table_row_decoration" returns="void">
+    <arg type="bool" />
+  </binding>
+  <binding name="table-column-decoration" native="table_column_decoration" returns="void">
+    <arg type="bool" />
+  </binding>
+  <binding name="table-format-center" native="table_format_center" returns="void" />
+  <binding name="table-correct-block-content" native="table_correct_block_content" returns="void" />
+  <binding name="set-cell-mode" native="set_cell_mode" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="get-cell-mode" native="get_cell_mode" returns="string" />
+  <binding name="cell-set-format" native="cell_set_format" returns="void">
+    <arg type="string" />
+    <arg type="content" />
+  </binding>
+  <binding name="cell-get-format" native="cell_get_format" returns="string">
+    <arg type="string" />
+  </binding>
+  <binding name="cell-del-format" native="cell_del_format" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="table-test" native="table_test" returns="void" />
+  <binding name="key-press" native="key_press" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="raw-emulate-keyboard" native="emulate_keyboard" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="complete-try?" native="complete_try" returns="bool" />
+  <binding name="get-input-mode" native="get_input_mode" returns="int" />
+  <binding name="key-press-search" native="search_keypress" returns="bool">
+    <arg type="string" />
+  </binding>
+  <binding name="key-press-replace" native="replace_keypress" returns="bool">
+    <arg type="string" />
+  </binding>
+  <binding name="key-press-spell" native="spell_keypress" returns="bool">
+    <arg type="string" />
+  </binding>
+  <binding name="key-press-complete" native="complete_keypress" returns="bool">
+    <arg type="string" />
+  </binding>
+  <binding name="mouse-any" native="mouse_any" returns="void">
+    <arg type="string" />
+    <arg type="int" />
+    <arg type="int" />
+    <arg type="int" />
+    <arg type="double" />
+    <arg type="array_double" />
+  </binding>
+  <binding name="get-mouse-position" native="get_mouse_position" returns="array_SI" />
+  <binding name="set-mouse-pointer" native="set_pointer" returns="void">
+    <arg type="string" />
+    <arg type="string" />
+  </binding>
+  <binding name="set-predef-mouse-pointer" native="set_pointer" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="go-to-path" native="go_to" returns="void">
+    <arg type="path" />
+  </binding>
+  <binding name="go-left" native="go_left" returns="void" />
+  <binding name="go-right" native="go_right" returns="void" />
+  <binding name="go-up" native="go_up" returns="void" />
+  <binding name="go-down" native="go_down" returns="void" />
+  <binding name="go-start" native="go_start" returns="void" />
+  <binding name="go-end" native="go_end" returns="void" />
+  <binding name="go-start-of" native="go_start_of" returns="void">
+    <arg type="tree_label" />
+  </binding>
+  <binding name="go-end-of" native="go_end_of" returns="void">
+    <arg type="tree_label" />
+  </binding>
+  <binding name="go-start-with" native="go_start_with" returns="void">
+    <arg type="string" />
+    <arg type="string" />
+  </binding>
+  <binding name="go-end-with" native="go_end_with" returns="void">
+    <arg type="string" />
+    <arg type="string" />
+  </binding>
+  <binding name="go-start-line" native="go_start_line" returns="void" />
+  <binding name="go-end-line" native="go_end_line" returns="void" />
+  <binding name="go-page-up" native="go_page_up" returns="void" />
+  <binding name="go-page-down" native="go_page_down" returns="void" />
+  <binding name="go-start-paragraph" native="go_start_paragraph" returns="void" />
+  <binding name="go-end-paragraph" native="go_end_paragraph" returns="void" />
+  <binding name="label-&gt;path" native="search_label" returns="path">
+    <arg type="string" />
+  </binding>
+  <binding name="go-to-label" native="go_to_label" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="cursor-accessible?" native="cursor_is_accessible" returns="bool" />
+  <binding name="cursor-show-if-hidden" native="show_cursor_if_hidden" returns="void" />
+  <binding name="select-all" native="select_all" returns="void" />
+  <binding name="select-line" native="select_line" returns="void" />
+  <binding name="select-from-cursor" native="select_from_cursor" returns="void" />
+  <binding name="select-from-cursor-if-active" native="select_from_cursor_if_active" returns="void" />
+  <binding name="select-from-keyboard" native="select_from_keyboard" returns="void">
+    <arg type="bool" />
+  </binding>
+  <binding name="select-from-shift-keyboard" native="select_from_shift_keyboard" returns="void" />
+  <binding name="select-enlarge" native="select_enlarge" returns="void" />
+  <binding name="select-enlarge-environmental" native="select_enlarge_environmental" returns="void" />
+  <binding name="selection-active-any?" native="selection_active_any" returns="bool" />
+  <binding name="selection-active-normal?" native="selection_active_normal" returns="bool" />
+  <binding name="selection-active-table?" native="selection_active_table" returns="bool" />
+  <binding name="selection-active-small?" native="selection_active_small" returns="bool" />
+  <binding name="selection-active-enlarging?" native="selection_active_enlarging" returns="bool" />
+  <binding name="selection-set-start" native="selection_set_start" returns="void" />
+  <binding name="selection-set-end" native="selection_set_end" returns="void" />
+  <binding name="selection-get-start" native="selection_get_start" returns="path" />
+  <binding name="selection-get-end" native="selection_get_end" returns="path" />
+  <binding name="selection-get-start*" native="selection_var_get_start" returns="path" />
+  <binding name="selection-get-end*" native="selection_var_get_end" returns="path" />
+  <binding name="selection-path" native="selection_get_path" returns="path" />
+  <binding name="selection-set" native="selection_set_paths" returns="void">
+    <arg type="path" />
+    <arg type="path" />
+  </binding>
+  <binding name="selection-set-range-set" native="selection_set_range_set" returns="void">
+    <arg type="array_path" />
+  </binding>
+  <binding name="clipboard-set" native="selection_set" returns="void">
+    <arg type="string" />
+    <arg type="content" />
+  </binding>
+  <binding name="clipboard-get" native="selection_get" returns="tree">
+    <arg type="string" />
+  </binding>
+  <binding name="cpp-clipboard-copy" native="selection_copy" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="cpp-clipboard-cut" native="selection_cut" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="clipboard-cut-at" native="cut" returns="void">
+    <arg type="path" />
+  </binding>
+  <binding name="clipboard-cut-between" native="cut" returns="void">
+    <arg type="path" />
+    <arg type="path" />
+  </binding>
+  <binding name="cpp-clipboard-paste" native="selection_paste" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="selection-move" native="selection_move" returns="void" />
+  <binding name="clipboard-clear" native="selection_clear" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="selection-cancel" native="selection_cancel" returns="void" />
+  <binding name="clipboard-set-import" native="selection_set_import" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="clipboard-set-export" native="selection_set_export" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="clipboard-get-import" native="selection_get_import" returns="string" />
+  <binding name="clipboard-get-export" native="selection_get_export" returns="string" />
+  <binding name="set-manual-focus-path" native="manual_focus_set" returns="void">
+    <arg type="path" />
+  </binding>
+  <binding name="get-manual-focus-path" native="manual_focus_get" returns="path" />
+  <binding name="get-focus-path" native="focus_get" returns="path" />
+  <binding name="set-alt-selection" native="set_alt_selection" returns="void">
+    <arg type="string" />
+    <arg type="array_path" />
+  </binding>
+  <binding name="get-alt-selection" native="get_alt_selection" returns="array_path">
+    <arg type="string" />
+  </binding>
+  <binding name="cancel-alt-selection" native="cancel_alt_selection" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="cancel-alt-selections" native="cancel_alt_selections" returns="void" />
+  <binding name="clear-undo-history" native="clear_undo_history" returns="void" />
+  <binding name="commit-changes" native="end_editing" returns="void" />
+  <binding name="start-slave" native="start_slave" returns="void">
+    <arg type="double" />
+  </binding>
+  <binding name="mark-start" native="mark_start" returns="void">
+    <arg type="double" />
+  </binding>
+  <binding name="mark-end" native="mark_end" returns="void">
+    <arg type="double" />
+  </binding>
+  <binding name="mark-cancel" native="mark_cancel" returns="void">
+    <arg type="double" />
+  </binding>
+  <binding name="remove-undo-mark" native="remove_undo_mark" returns="void" />
+  <binding name="add-undo-mark" native="add_undo_mark" returns="void" />
+  <binding name="unredoable-undo" native="unredoable_undo" returns="void" />
+  <binding name="undo-possibilities" native="undo_possibilities" returns="int" />
+  <binding name="undo" native="undo" returns="void">
+    <arg type="int" />
+  </binding>
+  <binding name="redo-possibilities" native="redo_possibilities" returns="int" />
+  <binding name="redo" native="redo" returns="void">
+    <arg type="int" />
+  </binding>
+  <binding name="show-history" native="show_history" returns="void" />
+  <binding name="archive-state" native="archive_state" returns="void" />
+  <binding name="start-editing" native="start_editing" returns="void" />
+  <binding name="end-editing" native="end_editing" returns="void" />
+  <binding name="cancel-editing" native="cancel_editing" returns="void" />
+  <binding name="in-graphics?" native="inside_graphics" returns="bool" />
+  <binding name="get-graphical-x" native="get_x" returns="double" />
+  <binding name="get-graphical-y" native="get_y" returns="double" />
+  <binding name="get-graphical-pixel" native="get_pixel" returns="double" />
+  <binding name="get-graphical-object" native="get_graphical_object" returns="tree" />
+  <binding name="set-graphical-object" native="set_graphical_object" returns="void">
+    <arg type="tree" />
+  </binding>
+  <binding name="invalidate-graphical-object" native="invalidate_graphical_object" returns="void" />
+  <binding name="graphical-select" native="graphical_select" returns="tree">
+    <arg type="double" />
+    <arg type="double" />
+  </binding>
+  <binding name="graphical-select-area" native="graphical_select" returns="tree">
+    <arg type="double" />
+    <arg type="double" />
+    <arg type="double" />
+    <arg type="double" />
+  </binding>
+  <binding name="in-normal-mode?" native="in_normal_mode" returns="bool" />
+  <binding name="in-search-mode?" native="in_search_mode" returns="bool" />
+  <binding name="in-replace-mode?" native="in_replace_mode" returns="bool" />
+  <binding name="in-spell-mode?" native="in_spell_mode" returns="bool" />
+  <binding name="search-start" native="search_start" returns="void">
+    <arg type="bool" />
+  </binding>
+  <binding name="search-button-next" native="search_button_next" returns="void" />
+  <binding name="replace-start" native="replace_start" returns="void">
+    <arg type="string" />
+    <arg type="string" />
+    <arg type="bool" />
+  </binding>
+  <binding name="spell-start" native="spell_start" returns="void" />
+  <binding name="spell-replace" native="spell_replace" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="session-complete-command" native="session_complete_command" returns="string">
+    <arg type="tree" />
+  </binding>
+  <binding name="custom-complete" native="custom_complete" returns="void">
+    <arg type="tree" />
+  </binding>
+  <binding name="broadcast-message" native="broadcast_message" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="view-set-property" native="set_property" returns="void">
+    <arg type="scheme_tree" />
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="view-get-property" native="get_property" returns="scheme_tree">
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="get-window-width" native="get_window_width" returns="int" />
+  <binding name="get-window-height" native="get_window_height" returns="int" />
+  <binding name="get-window-x" native="get_window_x" returns="int" />
+  <binding name="get-window-y" native="get_window_y" returns="int" />
+  <binding name="get-canvas-x" native="get_canvas_x" returns="int" />
+  <binding name="get-canvas-y" native="get_canvas_y" returns="int" />
+  <binding name="get-scroll-x" native="get_scroll_x" returns="int" />
+  <binding name="get-scroll-y" native="get_scroll_y" returns="int" />
+  <binding name="set-scroll" native="scroll_to" returns="void">
+    <arg type="int" />
+    <arg type="int" />
+  </binding>
+  <binding name="get-cursor-x" native="get_cursor_x" returns="int" />
+  <binding name="get-cursor-y" native="get_cursor_y" returns="int" />
+  <binding name="clear-buffer" native="clear_buffer" returns="void" />
+  <binding name="tex-buffer" native="tex_buffer" returns="void" />
+  <binding name="clear-local-info" native="clear_local_info" returns="void" />
+  <binding name="refresh-window" native="invalidate_all" returns="void" />
+  <binding name="update-forced" native="typeset_forced" returns="void" />
+  <binding name="update-path" native="typeset_invalidate" returns="void">
+    <arg type="path" />
+  </binding>
+  <binding name="update-current-buffer" native="typeset_invalidate_all" returns="void" />
+  <binding name="update-players" native="typeset_invalidate_players" returns="void">
+    <arg type="path" />
+    <arg type="bool" />
+  </binding>
+  <binding name="generate-all-aux" native="generate_aux" returns="void" />
+  <binding name="generate-aux" native="generate_aux" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="notify-page-change" native="notify_page_change" returns="void" />
+  <binding name="notify-change" native="notify_change" returns="void">
+    <arg type="int" />
+  </binding>
+  <binding name="notified-change?" native="has_changed" returns="bool">
+    <arg type="int" />
+  </binding>
+  <binding name="get-metadata" native="get_metadata" returns="string">
+    <arg type="string" />
+  </binding>
+  <binding name="cpp-nr-pages" native="nr_pages" returns="int" />
+  <binding name="print-to-file" native="print_to_file" returns="void">
+    <arg type="url" />
+  </binding>
+  <binding name="print-pages-to-file" native="print_to_file" returns="void">
+    <arg type="url" />
+    <arg type="string" />
+    <arg type="string" />
+  </binding>
+  <binding name="print" native="print_buffer" returns="void" />
+  <binding name="print-pages" native="print_buffer" returns="void">
+    <arg type="string" />
+    <arg type="string" />
+  </binding>
+  <binding name="print-snippet" native="print_snippet" returns="array_SI">
+    <arg type="url" />
+    <arg type="content" />
+    <arg type="bool" />
+  </binding>
+  <binding name="graphics-file-to-clipboard" native="graphics_file_to_clipboard" returns="bool">
+    <arg type="url" />
+  </binding>
+  <binding name="export-postscript" native="export_ps" returns="void">
+    <arg type="url" />
+  </binding>
+  <binding name="export-pages-postscript" native="export_ps" returns="void">
+    <arg type="url" />
+    <arg type="string" />
+    <arg type="string" />
+  </binding>
+  <binding name="footer-eval" native="footer_eval" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="texmacs-exec" native="texmacs_exec" returns="tree">
+    <arg type="content" />
+  </binding>
+  <binding name="texmacs-exec*" native="var_texmacs_exec" returns="tree">
+    <arg type="content" />
+  </binding>
+  <binding name="texmacs-expand" native="exec_texmacs" returns="tree">
+    <arg type="content" />
+  </binding>
+  <binding name="verbatim-expand" native="exec_verbatim" returns="tree">
+    <arg type="content" />
+  </binding>
+  <binding name="latex-expand" native="exec_latex" returns="tree">
+    <arg type="content" />
+  </binding>
+  <binding name="html-expand" native="exec_html" returns="tree">
+    <arg type="content" />
+  </binding>
+  <binding name="animate-checkout" native="checkout_animation" returns="tree">
+    <arg type="content" />
+  </binding>
+  <binding name="animate-commit" native="commit_animation" returns="tree">
+    <arg type="content" />
+  </binding>
+  <binding name="idle-time" native="idle_time" returns="int" />
+  <binding name="change-time" native="change_time" returns="int" />
+  <binding name="menu-before-action" native="before_menu_action" returns="void" />
+  <binding name="menu-after-action" native="after_menu_action" returns="void" />
+  <binding name="update-menus" native="update_menus" returns="void" />
+  <binding name="show-tree" native="show_tree" returns="void" />
+  <binding name="show-box" native="show_box" returns="void" />
+  <binding name="show-env" native="show_env" returns="void" />
+  <binding name="show-path" native="show_path" returns="void" />
+  <binding name="show-cursor" native="show_cursor" returns="void" />
+  <binding name="show-selection" native="show_selection" returns="void" />
+  <binding name="show-meminfo" native="show_meminfo" returns="void" />
+  <binding name="edit-special" native="edit_special" returns="void" />
+  <binding name="edit-test" native="edit_test" returns="void" />
+  <binding name="heading-fold-toggle" native="heading_fold_toggle" returns="bool" />
+  <binding name="heading-fold-current" native="heading_fold_current" returns="bool" />
+  <binding name="heading-unfold-current" native="heading_unfold_current" returns="bool" />
+  <binding name="heading-fold-toggle-path" native="heading_fold_toggle_at" returns="bool">
+    <arg type="string" />
+  </binding>
+  <binding name="heading-word-count-path" native="heading_word_count_at" returns="int">
+    <arg type="path" />
+  </binding>
+  <binding name="heading-unfold-all" native="heading_unfold_all" returns="void" />
+  <binding name="toc-fold-set-path" native="toc_fold_set_at" returns="bool">
+    <arg type="path" />
+    <arg type="bool" />
+  </binding>
+</glue>

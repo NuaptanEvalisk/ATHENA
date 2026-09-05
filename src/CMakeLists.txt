@@ -12,8 +12,11 @@ endif (APPLE)
 
 list (REMOVE_ITEM ATHENA_All_SRCS
   "${ATHENA_SOURCE_DIR}/src/System/Misc/tsan_mimalloc_shim.cpp")
+include(AthenaGlue)
 add_library(athena_body STATIC ${ATHENA_All_SRCS})
-add_dependencies(athena_body athena_build_info athena_guile_runtime)
+add_dependencies(athena_body athena_build_info athena_guile_runtime athena_glue)
+set_source_files_properties(Scheme/Scheme/glue.cpp PROPERTIES
+  INCLUDE_DIRECTORIES "${ATHENA_BINARY_DIR}/generated")
 target_compile_definitions(athena_body PRIVATE
   ATHENA_GUILE_BUILD_RUNTIME_ROOT="${ATHENA_GUILE_PREFIX}"
   ATHENA_GUILE_RUNTIME_ID="${ATHENA_GUILE_RUNTIME_ID}"
@@ -78,6 +81,8 @@ if (NOT WIN32)
        "Parallel workers used to precompile ATHENA Scheme modules")
   file (GLOB_RECURSE ATHENA_SCHEME_SOURCES CONFIGURE_DEPENDS
         "${ATHENA_SOURCE_DIR}/ATHENA/progs/*.scm")
+  list (APPEND ATHENA_SCHEME_SOURCES "${ATHENA_GLUE_RESOURCE}")
+  list (REMOVE_DUPLICATES ATHENA_SCHEME_SOURCES)
   list (SORT ATHENA_SCHEME_SOURCES)
   string (JOIN "\n" ATHENA_SCHEME_SOURCE_MANIFEST_CONTENT
           ${ATHENA_SCHEME_SOURCES})

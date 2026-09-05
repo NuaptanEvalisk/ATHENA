@@ -1,0 +1,142 @@
+<?xml version='1.0' encoding='utf-8'?>
+<glue version="1" prefix="get_server()-&gt;" initializer="initialize_glue_server">
+  <binding name="insert-kbd-wildcard" native="insert_kbd_wildcard" returns="void">
+    <arg type="string" />
+    <arg type="string" />
+    <arg type="bool" />
+    <arg type="bool" />
+    <arg type="bool" />
+  </binding>
+  <binding name="set-variant-keys" native="set_variant_keys" returns="void">
+    <arg type="string" />
+    <arg type="string" />
+  </binding>
+  <binding name="kbd-pre-rewrite" native="kbd_pre_rewrite" returns="string">
+    <arg type="string" />
+  </binding>
+  <binding name="kbd-post-rewrite" native="kbd_post_rewrite" returns="string">
+    <arg type="string" />
+    <arg type="bool" />
+  </binding>
+  <binding name="kbd-system-rewrite" native="kbd_system_rewrite" returns="tree">
+    <arg type="string" />
+  </binding>
+  <binding name="set-font-rules" native="set_font_rules" returns="void">
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="window-get-serial" native="get_window_serial" returns="int" />
+  <binding name="window-set-property" native="set_window_property" returns="void">
+    <arg type="scheme_tree" />
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="window-get-property" native="get_window_property" returns="scheme_tree">
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="show-header" native="show_header" returns="void">
+    <arg type="bool" />
+  </binding>
+  <binding name="show-icon-bar" native="show_icon_bar" returns="void">
+    <arg type="int" />
+    <arg type="bool" />
+  </binding>
+  <binding name="show-side-tools" native="show_side_tools" returns="void">
+    <arg type="int" />
+    <arg type="bool" />
+  </binding>
+  <binding name="show-bottom-tools" native="show_bottom_tools" returns="void">
+    <arg type="int" />
+    <arg type="bool" />
+  </binding>
+  <binding name="show-footer" native="show_footer" returns="void">
+    <arg type="bool" />
+  </binding>
+  <binding name="visible-header?" native="visible_header" returns="bool" />
+  <binding name="visible-icon-bar?" native="visible_icon_bar" returns="bool">
+    <arg type="int" />
+  </binding>
+  <binding name="visible-side-tools?" native="visible_side_tools" returns="bool">
+    <arg type="int" />
+  </binding>
+  <binding name="visible-bottom-tools?" native="visible_bottom_tools" returns="bool">
+    <arg type="int" />
+  </binding>
+  <binding name="visible-footer?" native="visible_footer" returns="bool" />
+  <binding name="full-screen-mode" native="full_screen_mode" returns="void">
+    <arg type="bool" />
+    <arg type="bool" />
+  </binding>
+  <binding name="full-screen?" native="in_full_screen_mode" returns="bool" />
+  <binding name="full-screen-edit?" native="in_full_screen_edit_mode" returns="bool" />
+  <binding name="set-window-zoom-factor" native="set_window_zoom_factor" returns="void">
+    <arg type="double" />
+  </binding>
+  <binding name="get-window-zoom-factor" native="get_window_zoom_factor" returns="double" />
+  <binding name="shell" native="shell" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="dialogue-end" native="dialogue_end" returns="void" />
+  <binding name="cpp-choose-file" native="choose_file" returns="void">
+    <arg type="object" />
+    <arg type="string" />
+    <arg type="string" />
+    <arg type="string" />
+    <arg type="url" />
+  </binding>
+  <binding name="tm-interactive" native="interactive" returns="void">
+    <arg type="object" />
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="cpp-style-clear-cache" native="style_clear_cache" returns="void" />
+  <binding name="set-script-status" native="set_script_status" returns="void">
+    <arg type="int" />
+  </binding>
+  <binding name="set-printing-command" native="set_printing_command" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="set-printer-paper-type" native="set_printer_page_type" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="get-printer-paper-type" native="get_printer_page_type" returns="string" />
+  <binding name="set-printer-dpi" native="set_printer_dpi" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="set-default-zoom-factor" native="set_default_zoom_factor" returns="void">
+    <arg type="double" />
+  </binding>
+  <binding name="get-default-zoom-factor" native="get_default_zoom_factor" returns="double" />
+  <binding name="inclusions-gc" native="inclusions_gc" returns="void" />
+  <binding name="update-all-path" native="typeset_update" returns="void">
+    <arg type="path" />
+  </binding>
+  <binding name="update-all-buffers" native="typeset_update_all" returns="void" />
+  <binding name="set-message" native="set_message" returns="void">
+    <arg type="content" />
+    <arg type="content" />
+  </binding>
+  <binding name="set-message-temp" native="set_message" returns="void">
+    <arg type="content" />
+    <arg type="content" />
+    <arg type="bool" />
+  </binding>
+  <binding name="set-center-message" native="set_center_message" returns="void">
+    <arg type="content" />
+  </binding>
+  <binding name="window-floating?" native="is_window_floating" returns="bool">
+    <arg type="url" />
+  </binding>
+  <binding name="mdi-tile" native="mdi_tile" returns="void" />
+  <binding name="mdi-cascade" native="mdi_cascade" returns="void" />
+  <binding name="mdi-maximize-active" native="mdi_maximize_active" returns="void" />
+  <binding name="mdi-minimize-active" native="mdi_minimize_active" returns="void" />
+  <binding name="mdi-detach" native="mdi_detach" returns="void" />
+  <binding name="ads-detach" native="ads_detach" returns="void" />
+  <binding name="ads-prepare-floating" native="ads_prepare_floating" returns="void" />
+  <binding name="ads-open-panes?" native="ads_open_panes" returns="bool" />
+  <binding name="mdi-attach" native="mdi_attach" returns="void" />
+  <binding name="recall-message" native="recall_message" returns="void" />
+  <binding name="yes?" native="is_yes" returns="bool">
+    <arg type="string" />
+  </binding>
+  <binding name="restart-TeXmacs" native="restart" returns="bool" />
+  <binding name="quit-TeXmacs" native="quit" returns="void" />
+</glue>

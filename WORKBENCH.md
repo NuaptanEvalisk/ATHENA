@@ -45,7 +45,7 @@
    - Consult Quiver design/implementation (q.uiver.app) for terminology and
      geometry. Preserve label placement, allow transverse arrow displacement,
      and test direction, curve, rendering, editing, and serialization.
-6. **TODO: XML-driven glue preprocessor**
+6. **DONE: XML-driven glue preprocessor**
    - PRIORITY NEXT after item 1: a real missing-binding failure was found.
      `exec-buffer` exists in `build-glue-basic.scm` but not `glue_basic.cpp`;
      the current CMake graph does not run the glue generator.
@@ -60,13 +60,55 @@
      manually implemented GUI color setters, and a std::move call. Preserve or
      relocate those semantics to native implementation/policy, not handwritten
      generated wrappers.
-   - Candidate: Python ElementTree XML frontend feeding the established Scheme
-     marshalling generator, with validated XML and build-directory C++/Scheme
-     outputs. Also considered SWIG (Guile supported, different interface model)
-     and Shiboken (XML but Python-targeted); no package installation is needed.
+   - Implementation choice: Python ElementTree with direct C++/Scheme emission.
+     Also considered SWIG (Guile supported, different interface model) and
+     Shiboken (XML but Python-targeted); no package installation is needed.
    - References: https://www.swig.org/compat.html,
      https://doc.qt.io/qtforpython-6/shiboken6/typesystem.html,
      https://docs.python.org/3/library/xml.etree.elementtree.html.
+   - Initial migration used the old Scheme emitter for comparison only. The
+     user's clarification superseded that intermediate design: build-glue.scm,
+     its Scheme inputs and legacy API generators are now deleted. The Python
+     preprocessor directly emits C++, Scheme symbol inventory and API docs;
+     no function-name branches or hardcoded receiver accessor names.
+   - Migrated 1,211 bindings: 748 basic, 320 editor, 56 server, 87 native.
+     The initial 1,117 signatures used a one-time Guile reader/SXML conversion;
+     the additional 94 registrations were audited against the old native
+     wrappers. Clang AST ranges located their implementations for relocation.
+   - All native helpers formerly embedded in glue.cpp, including ADS state,
+     dialogs, Materials/Vault record adapters, editor tree operations, GUI
+     preference setters and UI dispatch, now live in native_interfaces.cpp
+     with typed declarations. No handwritten wrappers or raw Scheme values
+     remain in that implementation file. Predicates retain legacy semantics.
+   - Generic XML policies cover argument moves, procedure validation and free
+     nullary UI calls. Rooted object results preserve heterogeneous #f/string,
+     #f/tree and #f/(url path) native contracts. No feature code in XML.
+   - CMake generates before athena_body and deploys the generated symbol list
+     to the ignored local runtime resource before Scheme compilation. Initial
+     configuration seeds the resource before the source glob, avoiding a second
+     configure/full rebuild when it first appears. Missing outputs are restored.
+   - PASS: 11 generator tests including arbitrary-name policies, compiling and
+     invoking generated wrappers, CMake regeneration and restored runtime
+     resources, determinism, invalid interfaces and migration-boundary checks.
+   - PASS: full native migration normal icpx -j20 build, then isolated headless
+     runtime test covering 1,211 arities, native return contracts, procedure
+     validation and exec-buffer. Log: /tmp/athena-native-glue-runtime.log.
+   - PASS: final normal build and complete local runtime deployment, including
+     compilation of the generated Scheme symbol inventory. Log:
+     /tmp/athena-glue-deploy.log. Built and installed binary SHA-256:
+     3e3561de414125139c7fa933b2fee5e252b5f7bac914fcbedb8119f43e1f829d.
+   - PASS: final CTest glue_generator_test, glue_runtime_test,
+     math_keyboard_scheme_test and unsaved_buffers_scheme_test: 4/4 in 3.68s.
+     Log: /tmp/athena-glue-final-tests.log. The generator suite has 11 checks.
+   - PASS: no-op normal build performed no C++ compilation, glue generation or
+     linking: /tmp/athena-glue-noop-build.log. API documentation generation and
+     git diff --check passed. Battery 100%. No GUI/vault tests were launched.
+   - Runtime harness correction: CLI -x executes in an actor; exec-buffer is
+     global-only. Test uses -H -X and exec-global, with a temporary HOME/profile
+     and explicit TeX setup. Exit must be outside Scheme catch, since Guile
+     implements it as a quit exception. No source ownership guards were bypassed.
+   - The deployed symbol resource is ignored and removed from Git's index;
+     its generated local copy remains available to the installed runtime.
 7. **TODO: Eqnarray copy/paste semantics**
    - Whole selections carry the enclosing eqnarray, not its table/document.
      Partial rows/cells retain equation-array semantics when pasted.
@@ -105,8 +147,10 @@
 
 ## Next Build Note
 
-The next C++ build needs a supported way to reuse the existing
-`build_qt6/athena-guile-runtime` and GC instead of repeating Guile bootstrap.
-`cmake/AthenaGuile.cmake` currently unconditionally creates ExternalProject;
-do not fabricate completed stamps or pretend the interrupted bootstrap passed.
-The installed runtime is unchanged and the Scheme build above used it directly.
+`cmake/AthenaGuile.cmake` now has an explicit `ATHENA_GUILE_PREBUILT_PREFIX`
+cache option. `build_qt6` uses its existing `athena-guile-runtime`. Configuration
+checks the library, headers, standard and compiled modules, and ATHENA-specific
+exported callback symbol; normal builds reject TSan runtime libraries. No fake
+ExternalProject stamps. Vendored runtime edits deliberately do not rebuild an
+explicit prebuilt prefix, and CMake prints that limitation. Default builds still
+build Guile/GC from source. The full normal binary build above succeeded.

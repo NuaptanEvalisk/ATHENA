@@ -1,5 +1,23 @@
 file (GLOB_RECURSE TEST_SRC_FILES CONFIGURE_DEPENDS "*.cpp")
 
+add_test(NAME glue_generator_test
+  COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/glue-generator-test.py)
+if(TARGET ATHENA.bin)
+  set(ATHENA_GLUE_TEST_BINARY ATHENA.bin)
+else()
+  set(ATHENA_GLUE_TEST_BINARY ATHENA)
+endif()
+get_target_property(ATHENA_GLUE_TEST_INPUTS athena_glue ATHENA_GLUE_INTERFACES)
+add_test(NAME glue_runtime_test
+  COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/glue-runtime-test.py
+    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
+    --runtime ${ATHENA_GUILE_PREFIX}
+    --resources ${ATHENA_SOURCE_DIR}/ATHENA
+    ${ATHENA_GLUE_TEST_INPUTS})
+set_tests_properties(glue_runtime_test PROPERTIES TIMEOUT 100)
+
 find_program (ATHENA_TEST_GUILE guile)
 if (ATHENA_TEST_GUILE)
   add_test (NAME math_keyboard_scheme_test

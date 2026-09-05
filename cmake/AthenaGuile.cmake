@@ -1,5 +1,4 @@
 include(ExternalProject)
-include(AthenaBdwgc)
 
 find_program(ATHENA_GUILE_MAKE_EXECUTABLE NAMES gmake make REQUIRED)
 
@@ -17,10 +16,43 @@ set(ATHENA_GUILE_BUILD_DIR
   "${ATHENA_BINARY_DIR}/athena-guile-build")
 set(ATHENA_GUILE_PREFIX
   "${ATHENA_BINARY_DIR}/athena-guile-runtime")
+set(ATHENA_GUILE_PREBUILT_PREFIX "" CACHE PATH
+  "Explicitly reuse an existing private ATHENA Guile/GC runtime instead of rebuilding it")
+if(ATHENA_GUILE_PREBUILT_PREFIX)
+  get_filename_component(ATHENA_GUILE_PREFIX
+    "${ATHENA_GUILE_PREBUILT_PREFIX}" ABSOLUTE)
+endif()
 set(ATHENA_GUILE_INCLUDE_DIR
   "${ATHENA_GUILE_PREFIX}/include/guile/3.0")
 set(ATHENA_GUILE_LIBRARY
   "${ATHENA_GUILE_PREFIX}/lib/libathena-guile${CMAKE_SHARED_LIBRARY_SUFFIX}")
+
+if(ATHENA_GUILE_PREBUILT_PREFIX)
+  foreach(required
+      "${ATHENA_GUILE_LIBRARY}"
+      "${ATHENA_GUILE_INCLUDE_DIR}/libguile.h"
+      "${ATHENA_GUILE_INCLUDE_DIR}/libguile/load.h"
+      "${ATHENA_GUILE_PREFIX}/share/guile/3.0/ice-9/boot-9.scm"
+      "${ATHENA_GUILE_PREFIX}/lib/guile/3.0/ccache/ice-9/boot-9.go")
+    if(NOT EXISTS "${required}")
+      message(FATAL_ERROR "Incomplete prebuilt ATHENA Guile runtime: ${required}")
+    endif()
+  endforeach()
+  execute_process(COMMAND "${CMAKE_NM}" -D "${ATHENA_GUILE_LIBRARY}"
+    RESULT_VARIABLE runtime_symbols_status OUTPUT_VARIABLE runtime_symbols
+    ERROR_VARIABLE runtime_symbols_error)
+  if(NOT runtime_symbols_status EQUAL 0 OR
+     NOT runtime_symbols MATCHES "scm_athena_set_auto_compile_callback")
+    message(FATAL_ERROR
+      "The prebuilt library is not the private ATHENA Guile runtime: ${runtime_symbols_error}")
+  endif()
+  if(NOT ATHENA_ENABLE_TSAN AND runtime_symbols MATCHES "__tsan_")
+    message(FATAL_ERROR "A normal ATHENA build cannot reuse a TSan Guile runtime")
+  endif()
+  message(STATUS "Reusing private Guile/GC from ${ATHENA_GUILE_PREFIX}; vendored runtime changes will not rebuild it")
+  add_custom_target(athena_guile_runtime DEPENDS "${ATHENA_GUILE_LIBRARY}")
+else()
+include(AthenaBdwgc)
 
 if(ATHENA_ENABLE_TSAN)
   set(ATHENA_GUILE_C_FLAGS
@@ -103,6 +135,7 @@ ExternalProject_Add_Step(athena_guile_runtime source_changes
   DEPENDERS build
   DEPENDS ${ATHENA_GUILE_RUNTIME_SOURCES}
   COMMENT "Checking the modified ATHENA Guile runtime sources")
+endif()
 
 add_library(ATHENA::Guile SHARED IMPORTED GLOBAL)
 set_target_properties(ATHENA::Guile PROPERTIES

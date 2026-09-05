@@ -1,0 +1,210 @@
+<?xml version="1.0" encoding="utf-8"?>
+<glue version="1" prefix="" initializer="initialize_glue_native">
+  <binding name="tree?" native="tmscm_is_tree" returns="bool">
+    <arg type="tmscm" />
+  </binding>
+  <binding name="tm?" native="tmscm_is_content" returns="bool">
+    <arg type="tmscm" />
+  </binding>
+  <binding name="observer?" native="tmscm_is_observer" returns="bool">
+    <arg type="tmscm" />
+  </binding>
+  <binding name="url?" native="tmscm_is_url" returns="bool">
+    <arg type="tmscm" />
+  </binding>
+  <binding name="modification?" native="tmscm_is_modification" returns="bool">
+    <arg type="tmscm" />
+  </binding>
+  <binding name="patch?" native="tmscm_is_patch" returns="bool">
+    <arg type="tmscm" />
+  </binding>
+  <binding name="blackbox?" native="tmscm_is_blackbox" returns="bool">
+    <arg type="tmscm" />
+  </binding>
+  <binding name="outline-pane-show" native="outline_pane_show" returns="void" dispatch="ui" />
+  <binding name="neighborhoods-pane-show" native="neighborhoods_pane_show" returns="void" dispatch="ui" />
+  <binding name="handwriting-symbol-pane-show" native="handwriting_symbol_pane_show" returns="void" dispatch="ui" />
+  <binding name="error-messages-show" native="error_messages_show" returns="void" dispatch="ui" />
+  <binding name="command-palette-show" native="command_palette_show" returns="void" dispatch="ui" />
+  <binding name="custom-styles-manager-show" native="custom_styles_manager_show" returns="void" dispatch="ui" />
+  <binding name="visual-buffer-switcher-show" native="visual_buffer_switcher_show" returns="void" dispatch="ui" />
+  <binding name="visual-buffer-switcher-choose" native="visual_buffer_switcher_choose" returns="string">
+    <arg type="array_string" />
+  </binding>
+  <binding name="native-info-dialog" native="athena_native_info_dialog" returns="void">
+    <arg type="string" />
+    <arg type="string" />
+  </binding>
+  <binding name="native-anchor-enunciations-confirm" native="athena_native_anchor_enunciations_confirm" returns="bool">
+    <arg type="string" />
+    <arg type="string" />
+    <arg type="string" />
+    <arg type="string" />
+  </binding>
+  <binding name="native-font-selector" native="athena_native_font_selector" returns="array_string">
+    <arg type="string" />
+    <arg type="string" />
+    <arg type="string" />
+    <arg type="string" />
+    <arg type="string" />
+  </binding>
+  <binding name="configure-font-for-vault" native="qtm_configure_font_for_vault" returns="void" dispatch="ui" />
+  <binding name="native-open-preferences" native="qtm_preferences_dialog_show" returns="void" dispatch="ui" />
+  <binding name="native-preferences-open?" native="athena_native_preferences_openP" returns="bool" />
+  <binding name="native-preferences-export-privacy" native="athena_native_preferences_export_privacy" returns="int" />
+  <binding name="native-preferences-export-metadata" native="athena_native_preferences_export_metadata" returns="array_string" />
+  <binding name="native-preference-sensitive?" native="user_preference_is_sensitive" returns="bool">
+    <arg type="string" />
+  </binding>
+  <binding name="native-open-page-setup" native="qtm_page_setup_dialog_show" returns="void" dispatch="ui" />
+  <binding name="page-properties-pane-show" native="page_properties_pane_show" returns="void" dispatch="ui" />
+  <binding name="paragraph-properties-pane-show" native="paragraph_properties_pane_show" returns="void" dispatch="ui" />
+  <binding name="metadata-properties-pane-show" native="metadata_properties_pane_show" returns="void" dispatch="ui" />
+  <binding name="escape-symbol-picker" native="athena_escape_symbol_picker" returns="string" />
+  <binding name="ads-restore-visible-panes" native="ads_restore_visible_panes" returns="void" />
+  <binding name="vault-backup-viewer-show" native="vault_backup_viewer_show" returns="void" dispatch="ui" />
+  <binding name="google-tasks-show" native="google_tasks_show" returns="void" dispatch="ui" />
+  <binding name="google-cloud-todo-sync-buffer" native="athena_google_cloud_todo_sync_buffer" returns="void">
+    <arg type="url" />
+  </binding>
+  <binding name="google-cloud-todo-sync-open-buffers" native="athena_google_cloud_todo_sync_open_buffers" returns="void" />
+  <binding name="google-cloud-todo-push-item" native="google_cloud_todo_push_item" returns="void">
+    <arg type="tree" />
+    <arg type="bool" />
+  </binding>
+  <binding name="codex-initialize-models" native="athena_codex_initialize_models" returns="void">
+    <arg type="string" />
+    <arg type="string" />
+  </binding>
+  <binding name="codex-completion-options" native="athena_codex_completion_options" returns="array_string">
+    <arg type="string" />
+    <arg type="string" />
+  </binding>
+  <binding name="codex-run-completion-async" native="athena_codex_run_completion_async" returns="void">
+    <arg type="string" />
+    <arg type="string" />
+    <arg type="string" />
+    <arg type="string" />
+    <arg type="string" />
+    <arg type="string" />
+    <arg type="string" />
+    <arg type="string" />
+    <arg type="array_string" />
+    <arg type="command" />
+  </binding>
+  <binding name="document-search-open" native="document_search_open" returns="void" />
+  <binding name="document-search-next" native="document_search_next" returns="void">
+    <arg type="bool" />
+  </binding>
+  <binding name="document-search-close" native="document_search_close" returns="void" />
+  <binding name="artifacts-pane-show" native="artifacts_pane_show" returns="void" dispatch="ui" />
+  <binding name="artifacts-build-entire-vault" native="artifacts_build_entire_vault" returns="void" dispatch="ui" />
+  <binding name="artifacts-build-current-document" native="artifacts_build_current_document" returns="void" dispatch="ui" />
+  <binding name="artifact-open-uuid" native="artifacts_open_uuid" returns="bool">
+    <arg type="string" />
+  </binding>
+  <binding name="artifact-resolve-uuid" native="athena_artifact_resolve_uuid" returns="object">
+    <arg type="string" />
+  </binding>
+  <binding name="artifact-disambiguation-page" native="athena_artifact_disambiguation_page" returns="tree">
+    <arg type="string" />
+  </binding>
+  <binding name="materials-manager-show" native="materials_manager_show" returns="void" dispatch="ui" />
+  <binding name="material-choose-citation" native="athena_material_choose_citation" returns="tree">
+    <arg type="string" />
+  </binding>
+  <binding name="material-choose-references" native="qtm_material_choose_references" returns="tree" />
+  <binding name="material-resolve-uuid" native="athena_material_resolve_uuid" returns="object">
+    <arg type="string" />
+  </binding>
+  <binding name="material-find-by-identifier" native="athena_material_find_by_identifier" returns="object">
+    <arg type="string" />
+    <arg type="string" />
+  </binding>
+  <binding name="material-get" native="athena_material_get" returns="object">
+    <arg type="string" />
+  </binding>
+  <binding name="materials-search" native="athena_materials_search" returns="tree">
+    <arg type="string" />
+    <arg type="int" />
+  </binding>
+  <binding name="materials-list" native="athena_materials_list" returns="tree">
+    <arg type="int" />
+    <arg type="int" />
+  </binding>
+  <binding name="materials-update-document" native="athena_materials_update_document" returns="tree">
+    <arg type="tree" />
+    <arg type="string" />
+  </binding>
+  <binding name="materials-update-document-auto" native="athena_materials_update_document_auto" returns="tree">
+    <arg type="tree" />
+  </binding>
+  <binding name="materials-csl-styles" native="athena_materials_csl_styles" returns="tree" />
+  <binding name="material-info-page" native="athena_material_info_page" returns="tree">
+    <arg type="string" />
+  </binding>
+  <binding name="global-transformation-run" native="athena_global_transformation_run" returns="tree">
+    <arg type="procedure" />
+    <arg type="string" />
+  </binding>
+  <binding name="namespace-manager-show" native="namespace_manager_show" returns="void" dispatch="ui" />
+  <binding name="namespace-explorer-show" native="namespace_explorer_show" returns="void" dispatch="ui" />
+  <binding name="reverse-hierarchy-graph-show" native="reverse_hierarchy_graph_show" returns="void" dispatch="ui" />
+  <binding name="reverse-hierarchy-graph-insert" native="reverse_hierarchy_graph_insert" returns="void" dispatch="ui" />
+  <binding name="reverse-hierarchy-graph-render" native="athena_reverse_hierarchy_graph_render" returns="tree">
+    <arg type="content" />
+  </binding>
+  <binding name="direct-hierarchy-graph-show" native="direct_hierarchy_graph_show" returns="void" dispatch="ui" />
+  <binding name="direct-hierarchy-graph-show-namespace" native="direct_hierarchy_graph_show_namespace" returns="void">
+    <arg type="string" />
+  </binding>
+  <binding name="global-hierarchy-graph-show" native="global_hierarchy_graph_show" returns="void" dispatch="ui" />
+  <binding name="local-reference-graph-show" native="local_reference_graph_show" returns="void" dispatch="ui" />
+  <binding name="reference-graph-show" native="reference_graph_show" returns="void" dispatch="ui" />
+  <binding name="formula-ast-show" native="formula_ast_show" returns="void" dispatch="ui" />
+  <binding name="vault-validate-root-namespace" native="athena_vault_validate_root_namespace" returns="string" />
+  <binding name="namespace-info-page" native="athena_namespace_info_page" returns="tree">
+    <arg type="string" />
+  </binding>
+  <binding name="namespace-new-file-wizard" native="athena_namespace_new_file_wizard" returns="string" />
+  <binding name="namespace-create-file-with-optional-initializer" native="athena_namespace_create_file_with_optional_initializer" returns="string">
+    <arg type="string" />
+  </binding>
+  <binding name="namespace-export-show" native="namespace_export_show" returns="void" dispatch="ui" />
+  <binding name="websites-manager-show" native="websites_manager_show" returns="void" dispatch="ui" />
+  <binding name="vault-load-with-ns" native="vault_load" returns="string">
+    <arg type="url" />
+    <arg type="string" />
+    <arg type="string" />
+    <arg type="string" />
+  </binding>
+  <binding name="vault-rewrite-anchor-references" native="athena_vault_rewrite_anchor_references" returns="int">
+    <arg type="string" />
+    <arg type="string" />
+  </binding>
+  <binding name="vault-maintenance-setup" native="athena_vault_maintenance_setup" returns="tree">
+    <arg type="url" />
+  </binding>
+  <binding name="vaultfile-present?" native="athena_vaultfile_presentP" returns="bool">
+    <arg type="url" />
+  </binding>
+  <binding name="vaultfile-read" native="athena_vaultfile_read" returns="array_string">
+    <arg type="url" />
+  </binding>
+  <binding name="artifact-title-filter-read" native="athena_artifact_title_filter_read" returns="array_string">
+    <arg type="url" />
+  </binding>
+  <binding name="vaultfile-write" native="athena_vaultfile_write" returns="string">
+    <arg type="url" />
+    <arg type="array_string" />
+  </binding>
+  <binding name="vaultfile-ensure-json" native="athena_vaultfile_ensure_json" returns="string">
+    <arg type="url" />
+  </binding>
+  <binding name="vault-backup-dispatch-realtime" native="athena_vault_backup_dispatch_realtime" returns="void">
+    <arg type="url" />
+  </binding>
+  <binding name="image-remove-background" native="image_remove_background_current" returns="string">
+    <arg type="object" />
+  </binding>
+</glue>

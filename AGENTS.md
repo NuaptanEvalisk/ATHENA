@@ -128,3 +128,19 @@ boundaries, do not patch from intuition. Debug from evidence.
 - After identifying a missing system dependency, make no further dependency
   integration or feature implementation changes until the user confirms that
   the package is installed.
+
+## Generated Scheme Interfaces
+
+- Do not write or edit per-procedure C++ glue wrappers, registration calls, or
+  Scheme glue declarations manually. Define native interfaces in XML under
+  `src/Scheme/Glue/` and let the CMake `athena_glue` preprocessor generate them.
+- The XML preprocessor emits C++ and Scheme directly. Do not revive the removed
+  Scheme-to-C++ generator or add function-name exceptions to the preprocessor.
+  Feature implementations belong in separately compiled native C++ files, not
+  in `glue.cpp` or XML code fragments.
+- Read `src/Scheme/Glue/README.md` before changing bindings. Generated files
+  belong in the build directory, not in source control.
+- Keep native implementation and thread/actor ownership outside the XML.
+  Generated marshalling does not authorize GUI access or editor-state access.
+- Verify both generation and the resulting binary's runtime binding. A changed
+  declaration alone does not prove that a procedure is available to Scheme.

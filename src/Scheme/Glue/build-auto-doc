@@ -1,9 +1,9 @@
 #!/bin/sh
-# Program to make Guile interface to TeXmacs
+set -eu
 
-GUILE="${ATHENA_GUILE_FOR_BUILD:-guile}"
-
-# update documentation of glue
-$GUILE -l make-apidoc-module.scm -c "(quit)" | cat >../../../ATHENA/progs/prog/glue-symbols.scm
-
-$GUILE -l make-apidoc-doc.scm -c "(quit)" | cat >../../../ATHENA/doc/devel/scheme/api/glue-auto-doc.en.tm
+if [ "$#" -ne 1 ]; then
+  echo "Usage: build-auto-doc <output-directory>" >&2
+  exit 2
+fi
+source_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+"$source_dir/build-glue" "$1"
