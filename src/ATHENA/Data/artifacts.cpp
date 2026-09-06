@@ -2036,31 +2036,13 @@ athena_artifact_is_defining_occurrence (
 }
 
 bool
-athena_artifact_definition_title_path (
-  const tree& definition, path& title_path) {
-  if (tag_name (definition) != "definition") return false;
-  return leading_bold_scope (definition, path (), title_path);
-}
-
-static bool
-path_starts_with (path value, path prefix) {
-  if (is_nil (prefix)) return true;
-  if (is_nil (value) || value->item != prefix->item) return false;
-  return path_starts_with (value->next, prefix->next);
-}
-
-bool
-athena_artifact_is_definition_title (
+athena_artifact_is_inside_definition (
   const tree& document, path source_path) {
   tree body= document_body (document);
+  if (!has_subtree (body, source_path)) return false;
   for (path current= source_path; !is_nil (current);
        current= path_up (current)) {
-    if (!has_subtree (body, current)) continue;
-    path relative_title;
-    if (!athena_artifact_definition_title_path (
-          subtree (body, current), relative_title))
-      continue;
-    return path_starts_with (source_path, current * relative_title);
+    if (is_compound (subtree (body, current), "definition", 1)) return true;
   }
   return false;
 }

@@ -15,7 +15,8 @@
 
 inline bool
 athena_suppresses_radioactive_links (string name) {
-  return name == "doc-title" ||
+  return name == "definition" ||
+         name == "doc-title" ||
          name == "heading-fold-title" ||
          name == "table-of-contents" ||
          name == "table-of-contents*" ||

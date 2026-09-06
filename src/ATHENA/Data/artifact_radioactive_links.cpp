@@ -490,36 +490,22 @@ athena_artifact_radioactive_is_defining_occurrence (
 namespace {
 
 tree
-suppress_radioactive_links_at (const tree& value, path where) {
-  if (is_nil (where))
-    return tree (WITH, "athena-radioactive-links-suppressed", "true", value);
-  if (is_atomic (value) || where->item < 0 || where->item >= N(value))
-    return value;
-  tree result (value, N(value));
-  for (int i=0; i<N(value); i++) result[i]= value[i];
-  result[where->item]=
-    suppress_radioactive_links_at (value[where->item], where->next);
-  return result;
-}
-
-tree
-suppress_definition_titles (const tree& value) {
+suppress_definitions (const tree& value) {
   if (is_atomic (value)) return value;
+  if (is_compound (value, "definition", 1))
+    return tree (WITH, "athena-radioactive-links-suppressed", "true", value);
   tree result (value, N(value));
   for (int i=0; i<N(value); i++)
-    result[i]= suppress_definition_titles (value[i]);
-  path title_path;
-  if (athena_artifact_definition_title_path (value, title_path))
-    result= suppress_radioactive_links_at (result, title_path);
+    result[i]= suppress_definitions (value[i]);
   return result;
 }
 
 } // namespace
 
 tree
-athena_artifact_radioactive_suppress_definition_titles (
+athena_artifact_radioactive_suppress_definitions (
   const tree& document) {
-  return suppress_definition_titles (document);
+  return suppress_definitions (document);
 }
 
 void

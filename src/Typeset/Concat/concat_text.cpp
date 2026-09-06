@@ -153,7 +153,7 @@ concater_rep::typeset_text_string (tree t, path ip, int pos, int end) {
                     env->get_string (
                       "athena-radioactive-links-suppressed") != "true";
   if (allow_links && has_source_context &&
-      athena_artifact_is_definition_title (source_document, source_path))
+      athena_artifact_is_inside_definition (source_document, source_path))
     allow_links= false;
   if (allow_links) {
     auto matches= athena_artifact_radioactive_matches (s);

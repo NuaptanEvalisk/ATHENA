@@ -22,6 +22,7 @@
 #include "ATHENA/Data/vaultfile_json.hpp"
 #include "converter.hpp"
 #include "convert.hpp"
+#include "drd_std.hpp"
 
 #include <sqlite3.h>
 
@@ -51,7 +52,7 @@ private slots:
   void locatesStoredParagraphRange ();
   void locatesStructuredEnunciationsAfterEdits ();
   void excludesOnlyArtifactDefiningOccurrences ();
-  void excludesDefinitionTitlesFromRadioactiveLinks ();
+  void excludesEntireDefinitionsFromRadioactiveLinks ();
   void doesNotLinkNonAdjacentProof ();
   void buildsIncrementallyAndPurgesDeletedDocuments ();
   void preservesAccentedArtifactTextAcrossWorkerAndDatabase ();
@@ -183,6 +184,7 @@ private:
 
 void
 TestArtifacts::initTestCase () {
+  init_std_drd ();
   qputenv ("ATHENA_ARTIFACT_WORKER_EXECUTABLE",
            (QCoreApplication::applicationDirPath () + "/../src/ATHENA.bin")
              .toUtf8 ());
@@ -694,45 +696,48 @@ TestArtifacts::excludesOnlyArtifactDefiningOccurrences () {
 }
 
 void
-TestArtifacts::excludesDefinitionTitlesFromRadioactiveLinks () {
+TestArtifacts::excludesEntireDefinitionsFromRadioactiveLinks () {
   tree definition_body (DOCUMENT);
   definition_body << compound ("strong", "Vector space")
-                  << "A vector space is a module over a field.";
+                  << "A vector space is a module over a field."
+                  << tree (WITH, "color", "red",
+                       compound ("em", "Banach space in nested content"));
   tree proposition_body (DOCUMENT);
   proposition_body << compound ("strong", "Banach space")
                    << "A Banach space is a complete normed vector space.";
   tree body (DOCUMENT);
   body << compound ("definition", definition_body)
-       << compound ("proposition", proposition_body);
+       << compound ("proposition", proposition_body)
+       << "A vector space outside the definition.";
   tree document (DOCUMENT);
   document << compound ("TeXmacs", "2.1.4")
            << compound ("style", "generic")
            << compound ("body", body);
 
-  path title_path;
-  QVERIFY (athena_artifact_definition_title_path (
-    subtree (body, path (0)), title_path));
-  QCOMPARE (title_path, path (0) * 0);
-  QVERIFY (!athena_artifact_definition_title_path (
-    subtree (body, path (1)), title_path));
-  QVERIFY (athena_artifact_is_definition_title (
+  QVERIFY (athena_artifact_is_inside_definition (
     document, path (0) * 0 * 0 * 0));
-  QVERIFY (!athena_artifact_is_definition_title (
+  QVERIFY (athena_artifact_is_inside_definition (
     document, path (0) * 0 * 1));
-  QVERIFY (!athena_artifact_is_definition_title (
+  QVERIFY (athena_artifact_is_inside_definition (
+    document, path (0) * 0 * 2 * 2 * 0));
+  QVERIFY (!athena_artifact_is_inside_definition (
+    document, path (0) * 0 * 9));
+  QVERIFY (!athena_artifact_is_inside_definition (
     document, path (1) * 0 * 0 * 0));
+  QVERIFY (!athena_artifact_is_inside_definition (document, path (2)));
 
   tree marked=
-    athena_artifact_radioactive_suppress_definition_titles (body);
-  tree title= subtree (marked, path (0) * 0 * 0);
-  QVERIFY (is_func (title, WITH, 3));
-  QCOMPARE (title[0], tree ("athena-radioactive-links-suppressed"));
-  QCOMPARE (title[1], tree ("true"));
-  QCOMPARE (title[2], compound ("strong", "Vector space"));
-  QCOMPARE (subtree (marked, path (0) * 0 * 1),
-            tree ("A vector space is a module over a field."));
-  QCOMPARE (subtree (marked, path (1) * 0 * 0),
-            compound ("strong", "Banach space"));
+    athena_artifact_radioactive_suppress_definitions (body);
+  QVERIFY (is_func (marked[0], WITH, 3));
+  QCOMPARE (marked[0][0], tree ("athena-radioactive-links-suppressed"));
+  QCOMPARE (marked[0][1], tree ("true"));
+  QCOMPARE (marked[0][2], body[0]);
+  QCOMPARE (marked[1], body[1]);
+  QCOMPARE (marked[2], body[2]);
+  tree untitled= compound ("definition", "A definition without bold title.");
+  tree marked_untitled= athena_artifact_radioactive_suppress_definitions (untitled);
+  QVERIFY (is_func (marked_untitled, WITH, 3));
+  QCOMPARE (marked_untitled[2], untitled);
 }
 
 void

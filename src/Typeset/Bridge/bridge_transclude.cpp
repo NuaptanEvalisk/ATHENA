@@ -126,7 +126,7 @@ bridge_transclude_rep::my_typeset (int desired_status) {
   tree next= resolve_transclusion_tree (st, &next_key);
   if (resolved_key != next_key || !has_resolved) {
     resolved=
-      athena_artifact_radioactive_suppress_definition_titles (next);
+      athena_artifact_radioactive_suppress_definitions (next);
     resolved_key= next_key;
     has_resolved= true;
   }

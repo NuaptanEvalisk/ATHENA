@@ -18,6 +18,7 @@ class TestRadioactiveLinkScope: public QObject {
 private slots:
   void suppressesDocumentAndHeadingTitles ();
   void suppressesTableOfContents ();
+  void suppressesEntireDefinitions ();
   void preservesOrdinaryContent ();
   void permitsSyntheticTransclusionContent ();
 };
@@ -38,6 +39,11 @@ TestRadioactiveLinkScope::suppressesTableOfContents () {
     athena_suppresses_radioactive_links ("screen-unfolded-table-of-contents*"));
   QVERIFY (athena_suppresses_radioactive_links (
     "render-unfolded-table-of-contents"));
+}
+
+void
+TestRadioactiveLinkScope::suppressesEntireDefinitions () {
+  QVERIFY (athena_suppresses_radioactive_links ("definition"));
 }
 
 void

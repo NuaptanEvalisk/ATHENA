@@ -152,11 +152,8 @@ bool athena_artifact_is_defining_occurrence (
   const tree& document, path source_path,
   const AthenaArtifactRecord& record);
 
-// Definitions alone reserve their leading bold scope for a title. Other
-// enunciations commonly use leading bold for their actual statement.
-bool athena_artifact_definition_title_path (
-  const tree& definition, path& title_path);
-bool athena_artifact_is_definition_title (
+// Exclude the entire definition, including titles and nested body content.
+bool athena_artifact_is_inside_definition (
   const tree& document, path source_path);
 
 // Internal process worker used by the incremental parallel extractor.

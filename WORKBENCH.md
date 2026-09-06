@@ -248,9 +248,22 @@
    - Normal icpx -j20 build and runtime installation passed:
      /tmp/athena-definition-alias-verified-build.log and
      /tmp/athena-definition-alias-deploy.log. No personal vault touched.
-9. **TODO: Suppress radioactive matches throughout definitions**
+9. **DONE: Suppress radioactive matches throughout definitions**
    - Exclude both title and all body content of definitions, including nested
      markup, while retaining ordinary downstream matches.
+   - Public macro suppression scope now includes definition for concat, lazy
+     and bridge typesetting. Source-path checking excludes any descendant,
+     rather than only the leading bold title. Transclusion marks the whole
+     definition before rewriting, including untitled definitions.
+   - Removed obsolete title-only APIs. Tests cover title/body/nested content,
+     invalid paths, ordinary downstream content and other enunciations.
+     Artifact fixture initializes standard DRD labels explicitly, eliminating
+     a test-order dependency when exercising formatted definition aliases.
+   - PASS: five focused Qt test cases including fixture setup/teardown in
+     /tmp/athena-definition-scope-verified-tests.log; three CTest regressions
+     in /tmp/athena-definition-scope-ctest.log. All test-owned processes ended.
+     Normal build/deployment: /tmp/athena-definition-scope-build.log and
+     /tmp/athena-definition-scope-deploy.log. No TSan-clean claim.
 10. **TODO: Structural global search**
     - Inspect index/query representation and design non-plaintext matching.
       Ensure mathematical structure such as `x^2+1` is searchable, with tests for
