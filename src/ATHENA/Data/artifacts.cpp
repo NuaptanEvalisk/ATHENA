@@ -247,7 +247,7 @@ bool open_databases (const fs::path& root, SqliteDb& holder,
     "CREATE INDEX IF NOT EXISTS artifacts_search_idx ON artifacts(display_text);"
     "CREATE TABLE IF NOT EXISTS artifact_names("
     " artifact_uuid TEXT NOT NULL,name TEXT NOT NULL,ordinal INTEGER NOT NULL,"
-    " PRIMARY KEY(artifact_uuid,ordinal),UNIQUE(artifact_uuid,name),"
+    " name_tree TEXT NOT NULL,PRIMARY KEY(artifact_uuid,ordinal),"
     " FOREIGN KEY(artifact_uuid) REFERENCES artifacts(uuid) ON DELETE CASCADE);"
     "CREATE INDEX IF NOT EXISTS artifact_names_name_idx ON artifact_names(name);"
     "CREATE TABLE IF NOT EXISTS artifact_range_cache("
@@ -385,36 +385,93 @@ bool leading_bold_text (const tree& t, std::string& text) {
   return leading_bold_scope (t, path (), scope, &text);
 }
 
+void append_title_parts (const tree& t, tree& parts) {
+  if (is_func (t, DOCUMENT)) {
+    if (N(t) > 0) append_title_parts (t[0], parts);
+  }
+  else if (is_func (t, CONCAT)) {
+    for (int i=0; i<N(t); ++i) {
+      if (is_func (t[i], NEXT_LINE, 0) || is_func (t[i], NEW_LINE, 0)) break;
+      append_title_parts (t[i], parts);
+    }
+  }
+  else parts << t;
+}
+
+std::string definition_name_text (const tree& name) {
+  if (!is_func (name, CONCAT)) return plain_text (name);
+  std::string text;
+  for (int i=0; i<N(name); ++i) text += definition_name_text (name[i]);
+  return text;
+}
+
+void append_definition_names (const tree& title, AthenaArtifactRecord& record) {
+  tree parts (CONCAT);
+  append_title_parts (title, parts);
+  if (N(parts) > 0 && is_atomic (parts[0]) && is_atomic (parts[N(parts)-1])) {
+    QString first= qstr (cork_bytes_to_utf8 (to_std (parts[0]->label))).trimmed ();
+    QString last= qstr (cork_bytes_to_utf8 (to_std (parts[N(parts)-1]->label))).trimmed ();
+    if ((first.startsWith ('(') && last.endsWith (')')) ||
+        (first.startsWith (QChar (0xff08)) && last.endsWith (QChar (0xff09)))) {
+      auto native= [] (const QString& s) {
+        QByteArray bytes= s.toUtf8 ();
+        return tree (utf8_to_cork (string (bytes.constData (), bytes.size ())));
+      };
+      if (N(parts) == 1) parts[0]= native (first.mid (1, first.size ()-2));
+      else {
+        parts[0]= native (first.mid (1));
+        parts[N(parts)-1]= native (last.left (last.size ()-1));
+      }
+    }
+  }
+  // Delimit only text; commas inside a mathematical subtree are not aliases.
+  std::vector<tree> aliases (1, tree (CONCAT));
+  for (int i=0; i<N(parts); ++i) {
+    if (!is_atomic (parts[i])) { aliases.back () << parts[i]; continue; }
+    QString text= qstr (cork_bytes_to_utf8 (to_std (parts[i]->label)));
+    const QStringList pieces= text.split (
+      QRegularExpression (QStringLiteral ("[,\\x{ff0c}]")));
+    for (qsizetype j=0; j<pieces.size (); ++j) {
+      if (j != 0) aliases.emplace_back (CONCAT);
+      QByteArray bytes= pieces[j].toUtf8 ();
+      aliases.back () << tree (utf8_to_cork (string (bytes.constData (), bytes.size ())));
+    }
+  }
+  for (tree alias: aliases) {
+    if (N(alias) == 0) continue;
+    if (is_atomic (alias[0])) alias[0]= trim_spaces (alias[0]->label);
+    if (is_atomic (alias[N(alias)-1]))
+      alias[N(alias)-1]= trim_spaces (alias[N(alias)-1]->label);
+    alias= simplify_concat (alias);
+    std::string display= cork_bytes_to_utf8 (collapse_spaces (definition_name_text (alias)));
+    std::string serialized= to_std (tree_to_texmacs (alias));
+    if (display.empty () || std::find (record.semantic_name_trees.begin (),
+        record.semantic_name_trees.end (), serialized) != record.semantic_name_trees.end ())
+      continue;
+    record.semantic_names.push_back (display);
+    record.semantic_name_trees.push_back (serialized);
+  }
+}
+
 void definition_names_in_first_line (
-  const tree& t, std::vector<std::string>& names) {
+  const tree& t, AthenaArtifactRecord& record) {
   if (!is_compound (t)) return;
   if (bold_wrapper (t)) {
-    QString title= qstr (cork_bytes_to_utf8 (plain_text (visible_body (t), true)))
-                     .simplified ();
-    if ((title.startsWith ('(') && title.endsWith (')')) ||
-        (title.startsWith (QChar (0xff08)) && title.endsWith (QChar (0xff09))))
-      title= title.mid (1, title.size ()-2);
-    for (const QString& part: title.split (
-           QRegularExpression (QStringLiteral ("[,，]")), Qt::SkipEmptyParts)) {
-      std::string name= part.trimmed ().toStdString ();
-      if (!name.empty () && std::find (names.begin (), names.end (), name) ==
-                            names.end ())
-        names.push_back (std::move (name));
-    }
+    append_definition_names (visible_body (t), record);
     return;
   }
   if (formatting_wrapper (tag_name (t)) && N(t) >= 1) {
-    definition_names_in_first_line (t[N(t)-1], names);
+    definition_names_in_first_line (t[N(t)-1], record);
     return;
   }
   if (is_func (t, DOCUMENT)) {
-    if (N(t) > 0) definition_names_in_first_line (t[0], names);
+    if (N(t) > 0) definition_names_in_first_line (t[0], record);
     return;
   }
   if (is_func (t, CONCAT))
     for (int i=0; i<N(t); ++i) {
       if (is_func (t[i], NEXT_LINE, 0) || is_func (t[i], NEW_LINE, 0)) break;
-      definition_names_in_first_line (t[i], names);
+      definition_names_in_first_line (t[i], record);
     }
 }
 
@@ -631,7 +688,7 @@ void scan_enunciations (const tree& parent, const std::string& rel,
       if (leading_bold_text (child, explicit_title))
         explicit_title= cork_bytes_to_utf8 (explicit_title);
       if (type == "definition" && N(child) > 0)
-        definition_names_in_first_line (child[N(child)-1], record.semantic_names);
+        definition_names_in_first_line (child[N(child)-1], record);
       else
         record.semantic_names= semantic_names_for (
           record.origin, record.type, record.display_text, explicit_title);
@@ -885,6 +942,7 @@ bool extract (const tree& document, const std::string& rel,
       record.semantic_names= semantic_names_for (
         record.origin, record.type, record.display_text);
       record.keyword_tree= serialized;
+      record.semantic_name_trees= {to_std (tree_to_texmacs (visible_body (keyword)))};
       record.keyword_occurrence= occurrence;
       record.definition_candidates= candidates;
       record.paragraph_offsets= {0};
@@ -917,6 +975,10 @@ QJsonObject record_json (const AthenaArtifactRecord& record) {
   for (const std::string& name: record.semantic_names)
     semantic_names.append (qstr (name));
   object["semantic_names"]= semantic_names;
+  QJsonArray name_trees;
+  for (const std::string& name: record.semantic_name_trees)
+    name_trees.append (qstr (encode_opaque (name)));
+  object["semantic_name_trees"]= name_trees;
   object["keyword"]= qstr (encode_opaque (record.keyword_tree));
   object["occurrence"]= record.keyword_occurrence;
   object["order"]= record.document_order;
@@ -953,6 +1015,8 @@ AthenaArtifactRecord record_from_json (const QJsonObject& object) {
     record.semantic_names.emplace_back (name.constData (), (size_t) name.size ());
   }
   record.keyword_tree= decode_opaque (s ("keyword"));
+  for (const QJsonValue& value: object.value ("semantic_name_trees").toArray ())
+    record.semantic_name_trees.push_back (decode_opaque (value.toString ().toStdString ()));
   record.keyword_occurrence= object.value ("occurrence").toInt ();
   record.document_order= object.value ("order").toInt ();
   record.identity_focus= s ("identity_focus");
@@ -1522,8 +1586,8 @@ bool replace_document (sqlite3* db, const std::string& rel,
       "VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11);", insert_artifact, error))
     return false;
   if (!prepare (db,
-                "INSERT INTO artifact_names(artifact_uuid,name,ordinal) "
-                "VALUES(?1,?2,?3);", insert_name, error))
+                "INSERT INTO artifact_names(artifact_uuid,name,ordinal,name_tree) "
+                "VALUES(?1,?2,?3,?4);", insert_name, error))
     return false;
 
   std::map<int,std::string> enunciation_order_ids;
@@ -1595,6 +1659,8 @@ bool replace_document (sqlite3* db, const std::string& rel,
       bind_text (insert_name.st, 1, record.uuid);
       bind_text (insert_name.st, 2, record.semantic_names[i]);
       sqlite3_bind_int (insert_name.st, 3, (int) i);
+      bind_text (insert_name.st, 4, i < record.semantic_name_trees.size ()
+        ? record.semantic_name_trees[i] : std::string ());
       if (sqlite3_step (insert_name.st) != SQLITE_DONE) {
         error= sqlite3_errmsg (db); return false;
       }
@@ -2395,9 +2461,9 @@ bool load_semantic_names (sqlite3* db,
 
   Statement names;
   const char* sql= records.size () == 1
-    ? "SELECT artifact_uuid,name FROM artifact_names WHERE artifact_uuid=?1 "
+    ? "SELECT artifact_uuid,name,name_tree FROM artifact_names WHERE artifact_uuid=?1 "
       "ORDER BY ordinal;"
-    : "SELECT artifact_uuid,name FROM artifact_names "
+    : "SELECT artifact_uuid,name,name_tree FROM artifact_names "
       "ORDER BY artifact_uuid,ordinal;";
   if (!prepare (db, sql, names, error))
     return false;
@@ -2405,8 +2471,10 @@ bool load_semantic_names (sqlite3* db,
   int rc;
   while ((rc= sqlite3_step (names.st)) == SQLITE_ROW) {
     auto found= by_uuid.find (column_text (names.st, 0));
-    if (found != by_uuid.end ())
+    if (found != by_uuid.end ()) {
       records[found->second].semantic_names.push_back (column_text (names.st, 1));
+      records[found->second].semantic_name_trees.push_back (column_text (names.st, 2));
+    }
   }
   if (rc != SQLITE_DONE) {
     error= sqlite3_errmsg (db);

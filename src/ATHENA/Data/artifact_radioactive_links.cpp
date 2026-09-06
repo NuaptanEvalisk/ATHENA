@@ -13,6 +13,7 @@
 #include "ATHENA/Data/vaultfile_json.hpp"
 #include "analyze.hpp"
 #include "converter.hpp"
+#include "convert.hpp"
 #include "message.hpp"
 #include "wencoding.hpp"
 
@@ -61,6 +62,7 @@ struct RadioactiveIndex {
   std::unordered_map<std::string,std::vector<std::string>> records_by_key;
   AthenaArtifactTitleFilter title_filter;
   bool has_title_filter= false;
+  bool has_structured_names= false;
 };
 
 struct TextProjection {
@@ -193,11 +195,9 @@ QString artifact_term (const AthenaArtifactRecord& record) {
   return terms.empty () ? QString () : terms.front ();
 }
 
-void add_term (RadioactiveIndex& index, const QString& term,
+void add_term (RadioactiveIndex& index, const std::vector<Token>& tokens,
                const std::string& uuid) {
-  if (uuid.empty () || term.isEmpty () || term.size () > maximum_term_characters)
-    return;
-  std::vector<Token> tokens= tokenize (term);
+  if (uuid.empty ()) return;
   if (tokens.empty () || tokens.size () > maximum_term_tokens) return;
   if (tokens.size () == 1 && tokens[0].key.size () < 3 &&
       tokens[0].key.front ().unicode () < 128)
@@ -219,6 +219,46 @@ void add_term (RadioactiveIndex& index, const QString& term,
       terminal.uuids.end ()) terminal.uuids.push_back (uuid);
 }
 
+// Hash native structure directly, without copying trees or storing actor-owned
+// nodes in the immutable cross-thread index. Length framing preserves identity.
+void hash_structure (QCryptographicHash& hash, const tree& value) {
+  QByteArray header= is_atomic (value) ? QByteArray ("s") : QByteArray ("t");
+  string label= is_atomic (value) ? value->label : as_string (L(value));
+  header += QByteArray::number (N(label)) + ':';
+  hash.addData (header);
+  hash.addData (QByteArrayView (as_charp (label), N(label)));
+  if (is_compound (value)) {
+    hash.addData (QByteArray::number (N(value)) + ':');
+    for (int i=0; i<N(value); ++i) hash_structure (hash, value[i]);
+  }
+}
+
+QString structure_key (const tree& value) {
+  QCryptographicHash hash (QCryptographicHash::Sha256);
+  hash_structure (hash, value);
+  return QString (QChar (0)) + QString::fromLatin1 (hash.result ().toHex ());
+}
+
+std::vector<Token> name_tokens (const AthenaArtifactRecord& record, size_t i) {
+  if (i >= record.semantic_name_trees.size () || record.semantic_name_trees[i].empty ())
+    return tokenize (qstring_from_tm_or_utf8 (record.semantic_names[i]));
+  const std::string& bytes= record.semantic_name_trees[i];
+  tree name= texmacs_to_tree (string (bytes.data (), (int) bytes.size ()));
+  if (is_func (name, DOCUMENT, 1)) name= name[0];
+  std::vector<Token> result;
+  auto append= [&] (const tree& part) {
+    if (is_atomic (part)) {
+      auto tokens= tokenize (qstring_from_tm_or_utf8 (to_std (part->label)));
+      result.insert (result.end (), tokens.begin (), tokens.end ());
+    }
+    else result.push_back ({structure_key (part), 0, 0});
+  };
+  if (is_func (name, CONCAT))
+    for (int j=0; j<N(name); ++j) append (name[j]);
+  else append (name);
+  return result;
+}
+
 std::shared_ptr<const RadioactiveIndex> build_index (
   const std::vector<AthenaArtifactRecord>& records,
   const std::string& vault_root= {},
@@ -231,9 +271,17 @@ std::shared_ptr<const RadioactiveIndex> build_index (
   }
   for (const AthenaArtifactRecord& record: records) {
     index->records.emplace (record.uuid, record);
-    for (const QString& term: artifact_terms (record, filter)) {
-      add_term (*index, term, record.uuid);
-      std::string key= token_key (tokenize (term));
+    if (record.type == "completion") continue;
+    for (size_t i=0; i<record.semantic_names.size (); ++i) {
+      QString term= qstring_from_tm_or_utf8 (record.semantic_names[i]).simplified ();
+      if (term.isEmpty () || term.size () > maximum_term_characters ||
+          (filter && athena_artifact_title_filter_contains (*filter, term.toStdString ())))
+        continue;
+      auto tokens= name_tokens (record, i);
+      add_term (*index, tokens, record.uuid);
+      for (const Token& token: tokens)
+        if (token.key.startsWith (QChar (0))) index->has_structured_names= true;
+      std::string key= token_key (tokens);
       std::vector<std::string>& matches= index->records_by_key[key];
       if (std::find (matches.begin (), matches.end (), record.uuid) ==
           matches.end ())
@@ -281,12 +329,10 @@ TextProjection project_text (string source) {
   return projection;
 }
 
-std::vector<AthenaArtifactRadioactiveMatch> match_index (
-  const RadioactiveIndex& index, string source) {
+std::vector<AthenaArtifactRadioactiveMatch> match_tokens (
+  const RadioactiveIndex& index, const std::vector<Token>& tokens,
+  const QString& text) {
   std::vector<AthenaArtifactRadioactiveMatch> result;
-  if (index.nodes.size () <= 1 || N(source) == 0) return result;
-  TextProjection projection= project_text (source);
-  std::vector<Token> tokens= tokenize (projection.text);
   for (size_t start=0; start<tokens.size (); ) {
     int node= 0;
     int best_end= -1;
@@ -300,7 +346,7 @@ std::vector<AthenaArtifactRadioactiveMatch> match_index (
       node= child.value ();
       const TrieNode& candidate= index.nodes[(size_t) node];
       if (!candidate.uuids.empty ()) {
-        QString surface= projection.text.mid (
+        QString surface= text.mid (
           tokens[start].start, tokens[position].end - tokens[start].start);
         QByteArray utf8= surface.toUtf8 ();
         if (index.has_title_filter &&
@@ -314,13 +360,58 @@ std::vector<AthenaArtifactRadioactiveMatch> match_index (
       }
     }
     if (best_end < 0) { start++; continue; }
-    int begin_utf16= tokens[start].start;
-    int end_utf16= tokens[(size_t) best_end].end;
-    if (begin_utf16 >= 0 && end_utf16 < projection.source_boundary.size ())
-      result.push_back ({projection.source_boundary[begin_utf16],
-                         projection.source_boundary[end_utf16], best_uuids,
-                         best_key});
+    result.push_back ({(int) start, best_end+1, best_uuids, best_key});
     start= (size_t) best_end + 1;
+  }
+  return result;
+}
+
+std::vector<AthenaArtifactRadioactiveMatch> match_index (
+  const RadioactiveIndex& index, string source) {
+  if (index.nodes.size () <= 1 || N(source) == 0) return {};
+  TextProjection projection= project_text (source);
+  auto tokens= tokenize (projection.text);
+  auto result= match_tokens (index, tokens, projection.text);
+  for (auto& match: result) {
+    match.start= projection.source_boundary[tokens[match.start].start];
+    match.end= projection.source_boundary[tokens[match.end-1].end];
+  }
+  return result;
+}
+
+std::vector<AthenaArtifactRadioactiveTreeMatch> match_tree (
+  const RadioactiveIndex& index, const tree& source) {
+  if (!index.has_structured_names || !is_func (source, CONCAT)) return {};
+  std::vector<Token> tokens;
+  std::vector<std::pair<path,path>> positions;
+  QString text;
+  for (int i=0; i<N(source); ++i) {
+    int offset= text.size ();
+    if (is_atomic (source[i])) {
+      TextProjection part= project_text (source[i]->label);
+      for (Token token: tokenize (part.text)) {
+        positions.push_back ({path (i, part.source_boundary[token.start]),
+                              path (i, part.source_boundary[token.end])});
+        token.start += offset;
+        token.end += offset;
+        tokens.push_back (token);
+      }
+      text += part.text;
+    }
+    else {
+      tokens.push_back ({structure_key (source[i]), offset, offset+1});
+      positions.push_back ({path (i, 0), path (i, 1)});
+      text += QChar (0xfffc);
+    }
+  }
+  std::vector<AthenaArtifactRadioactiveTreeMatch> result;
+  for (const auto& match: match_tokens (index, tokens, text)) {
+    bool structured= false;
+    for (int i=match.start; i<match.end; ++i)
+      structured |= tokens[i].key.startsWith (QChar (0));
+    if (structured)
+      result.push_back ({positions[match.start].first,
+                        positions[match.end-1].second, match});
   }
   return result;
 }
@@ -400,6 +491,12 @@ AthenaArtifactRadioactiveMatcher::matches (string text) const {
                              : std::vector<AthenaArtifactRadioactiveMatch> ();
 }
 
+std::vector<AthenaArtifactRadioactiveTreeMatch>
+AthenaArtifactRadioactiveMatcher::matches_tree (const tree& text) const {
+  return impl && impl->index ? match_tree (*impl->index, text)
+    : std::vector<AthenaArtifactRadioactiveTreeMatch> ();
+}
+
 std::string
 athena_artifact_radioactive_destination (
   const AthenaArtifactRadioactiveMatch& match) {
@@ -418,7 +515,8 @@ athena_artifact_radioactive_name (const AthenaArtifactRecord& record) {
 
 std::string
 athena_artifact_radioactive_key (const AthenaArtifactRecord& record) {
-  return token_key (tokenize (artifact_term (record)));
+  return token_key (record.semantic_names.empty () ? std::vector<Token> ()
+                                                  : name_tokens (record, 0));
 }
 
 std::vector<AthenaArtifactRadioactiveMatch>
@@ -426,6 +524,13 @@ athena_artifact_radioactive_matches (string text) {
   auto index= active_index ();
   return index ? match_index (*index, text)
                : std::vector<AthenaArtifactRadioactiveMatch> ();
+}
+
+std::vector<AthenaArtifactRadioactiveTreeMatch>
+athena_artifact_radioactive_matches_tree (const tree& text) {
+  auto index= active_index ();
+  return index ? match_tree (*index, text)
+    : std::vector<AthenaArtifactRadioactiveTreeMatch> ();
 }
 
 std::vector<AthenaArtifactRadioactiveMatch>

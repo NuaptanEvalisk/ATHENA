@@ -285,9 +285,24 @@
     - Normal build/deploy passed: /tmp/athena-structural-search-final-build.log.
       Installed SHA256 d3d1f7e090e0a73f3a43610dccef94d1d169a332d861c8314c3a656a460a8c53.
       No GUI interaction or TSan run claimed; helper is used by the real pane.
-11. **TODO: Structured definition titles and radioactive linking**
+11. **DONE: Structured definition titles and radioactive linking**
     - Artifactize and match mixed titles such as math sigma + `-algebra` without
       flattening away mathematical identity; integrate with alias extraction.
+    - Preserve serialized native name trees alongside their display projection
+      through worker JSON and fresh artifact databases. Text-level commas split
+      aliases; mathematical commas and equal-looking text/math names stay distinct.
+      No old database migration or compatibility layer is retained.
+    - Extend the immutable trie with framed mathematical structure hashes and
+      actor-local source positions. Decorate existing line items without copying
+      trees on the typesetting hot path; retain definition/locus/print exclusions.
+    - PASS: 11 artifact test cases, including fresh-database round trips,
+      structural ambiguity, scripts, inflection, filtering and 2000 concurrent
+      matches: /tmp/athena-structured-names-final-tests.log.
+    - PASS: real offscreen typesetting verifies clickable math/text boxes,
+      unchanged geometry, restored environment and print suppression:
+      /tmp/athena-structured-render-final-test.log. No TSan run claimed.
+    - Normal build/deployment: /tmp/athena-structured-names-final-build.log.
+      Installed SHA256 044457144427cc6f0e35e1d050718ab1f7fac26739fb64c1722e665b8c66101d.
 12. **TODO: Multithreading-aware crash reporting**
     - Audit inherited signal/exception handling; produce useful thread/actor
       information without unsafe editor access in signal handlers.

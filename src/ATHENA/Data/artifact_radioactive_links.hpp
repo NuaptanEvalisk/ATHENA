@@ -26,6 +26,12 @@ struct AthenaArtifactRadioactiveMatch {
   std::string disambiguation_key;
 };
 
+struct AthenaArtifactRadioactiveTreeMatch {
+  path start;
+  path end;
+  AthenaArtifactRadioactiveMatch link;
+};
+
 class AthenaArtifactRadioactiveMatcher {
 public:
   explicit AthenaArtifactRadioactiveMatcher (
@@ -41,6 +47,7 @@ public:
     const AthenaArtifactRadioactiveMatcher&) = delete;
 
   std::vector<AthenaArtifactRadioactiveMatch> matches (string text) const;
+  std::vector<AthenaArtifactRadioactiveTreeMatch> matches_tree (const tree& text) const;
 
 private:
   struct Impl;
@@ -57,6 +64,9 @@ std::string athena_artifact_radioactive_key (
 
 std::vector<AthenaArtifactRadioactiveMatch>
 athena_artifact_radioactive_matches (string text);
+
+std::vector<AthenaArtifactRadioactiveTreeMatch>
+athena_artifact_radioactive_matches_tree (const tree& text);
 
 std::vector<AthenaArtifactRadioactiveMatch>
 athena_artifact_radioactive_matches_for_records (

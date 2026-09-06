@@ -342,9 +342,77 @@ concater_rep::typeset_surround (tree t, path ip) {
 
 void
 concater_rep::typeset_concat (tree t, path ip) {
-  int i, n= N(t);
-  for (i=0; i<n; i++)
-    typeset (t[i], descend (ip, i));
+  std::vector<AthenaArtifactRadioactiveTreeMatch> links;
+  bool transcluded=
+    env->get_string ("athena-radioactive-links-in-transclusion") == "true";
+  bool allow= env->mode == 1 &&
+    get_user_preference ("enable radioactive links", "on") == "on" &&
+    athena_allows_radioactive_link_path (is_accessible (ip), transcluded) &&
+    env->get_string (PAGE_PRINTED) != "true" &&
+    env->get_string ("athena-inside-locus") != "true" &&
+    env->get_string ("athena-radioactive-links-suppressed") != "true";
+  tree source_document;
+  path source_path;
+  if (allow && is_accessible (ip)) {
+    path p= reverse (ip);
+    if (!is_nil (p) && has_subtree (current_document_tree (), path (p->item))) {
+      source_document= subtree (current_document_tree (), path (p->item));
+      source_path= p->next;
+      if (athena_artifact_is_inside_definition (source_document, source_path))
+        allow= false;
+    }
+  }
+  if (allow) {
+    for (const auto& match: athena_artifact_radioactive_matches_tree (t)) {
+      if (!is_nil (source_path) &&
+          athena_artifact_radioactive_is_defining_occurrence (
+            match.link, env->cur_file_name, source_document, source_path)) continue;
+      links.push_back (match);
+    }
+  }
+  if (links.empty ()) {
+    for (int i=0; i<N(t); ++i) typeset (t[i], descend (ip, i));
+    return;
+  }
+  // Match boundaries address existing text offsets or whole inline structures.
+  // Keep those source paths while decorating their line items, not a copied AST.
+  size_t next= 0;
+  for (int i=0; i<N(t); ++i) {
+    int pos= 0, length= is_atomic (t[i]) ? N(t[i]->label) : 1;
+    do {
+      while (next < links.size () &&
+             (links[next].end->item < i ||
+              (links[next].end->item == i && links[next].end->next->item <= pos))) ++next;
+      const auto* link= next < links.size () ? &links[next] : nullptr;
+      bool linked= link && (link->start->item < i ||
+        (link->start->item == i && link->start->next->item <= pos));
+      int end= length;
+      if (linked && link->end->item == i) end= link->end->next->item;
+      else if (!linked && link && link->start->item == i) end= link->start->next->item;
+      int first_item= N(a);
+      tree old_locus, old_color;
+      if (linked) {
+        old_locus= env->local_begin ("athena-inside-locus", "true");
+        string color= env->get_string (RADIOACTIVE_LINK_COLOR);
+        if (color == "global") color= get_locus_rendering (RADIOACTIVE_LINK_COLOR);
+        old_color= env->local_begin (COLOR,
+          color == "preserve" || color == "" ? env->read (COLOR) : tree (color));
+      }
+      if (pos == 0 && end == length) typeset (t[i], descend (ip, i));
+      else typeset_text_string (t[i], descend (ip, i), pos, end);
+      if (linked) {
+        env->local_end (COLOR, old_color);
+        env->local_end ("athena-inside-locus", old_locus);
+        std::string target= athena_artifact_radioactive_destination (link->link);
+        string destination (target.data (), (int) target.size ());
+        for (int j=first_item; j<N(a); ++j) {
+          a[j]->b= direct_link_box (a[j]->b->ip, a[j]->b, destination);
+          if (a[j]->type == STRING_ITEM) a[j]->type= STD_ITEM;
+        }
+      }
+      pos= end;
+    } while (pos < length);
+  }
 }
 
 void

@@ -35,6 +35,9 @@ struct AthenaArtifactRecord {
   // a source navigation locator and must never be treated as a user-facing
   // name.  Several artifacts may intentionally share the same name.
   std::vector<std::string> semantic_names;
+  // Serialized native names, aligned with semantic_names (the display
+  // projection). Empty entries denote ordinary text, not mathematical markup.
+  std::vector<std::string> semantic_name_trees;
   std::string keyword_tree;
   int keyword_occurrence= 0;
   std::vector<int> paragraph_offsets;

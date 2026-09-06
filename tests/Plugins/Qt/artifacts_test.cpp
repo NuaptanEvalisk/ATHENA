@@ -30,6 +30,8 @@
 #include <filesystem>
 #include <fstream>
 #include <map>
+#include <atomic>
+#include <thread>
 
 bool headless_mode= true;
 bool is_headless () { return true; }
@@ -74,6 +76,8 @@ private slots:
   void linksAmbiguousRadioactiveArtifactTerms ();
   void namesEnunciationsStrictlyAndSkipsCompletions ();
   void extractsEveryDefinitionAliasFromFirstLine ();
+  void preservesStructuredDefinitionNames ();
+  void matchesStructuredRadioactiveNames ();
   void preservesUnicodeRadioactiveMatchOffsets ();
   void matchesLargeRadioactiveArtifactIndexWithinBudget ();
   void reportsBuildPhasesInOrder ();
@@ -1800,6 +1804,111 @@ TestArtifacts::extractsEveryDefinitionAliasFromFirstLine () {
   AthenaArtifactsBuildResult unchanged;
   QVERIFY2 (athena_artifacts_build (root, {}, true, {}, unchanged, error), error.c_str ());
   QCOMPARE (unchanged.documents_changed, (size_t) 0);
+}
+
+void
+TestArtifacts::preservesStructuredDefinitionNames () {
+  MissingRangeModel noModel;
+  tree sigma= compound ("math", "<sigma>");
+  tree script= compound ("math", tree (CONCAT, "R", tree (RSUB, "n")));
+  tree pair= compound ("math", "(x,y)");
+  tree title (CONCAT);
+  title << "(" << sigma << "-algebra, " << script << "-module, " << pair
+        << "-space, <sigma>-algebra)";
+  tree body (DOCUMENT);
+  body << compound ("definition", tree (CONCAT, compound ("strong", title), " is defined here."));
+  tree document (DOCUMENT);
+  document << compound ("TeXmacs", "2.1.4") << compound ("style", "generic")
+           << compound ("body", body);
+  std::vector<AthenaArtifactRecord> records;
+  std::string error;
+  QVERIFY2 (athena_artifacts_extract_document (
+    document, "structured.ath", records, error), error.c_str ());
+  QCOMPARE (records.size (), size_t (1));
+  QCOMPARE (records[0].semantic_names.size (), size_t (4));
+  QCOMPARE (records[0].semantic_name_trees.size (), size_t (4));
+  QCOMPARE (records[0].semantic_names[0], records[0].semantic_names[3]);
+  auto parse= [] (const std::string& source) {
+    tree parsed= texmacs_to_tree (string (source.data (), source.size ()));
+    return is_func (parsed, DOCUMENT, 1) ? parsed[0] : parsed;
+  };
+  QCOMPARE (parse (records[0].semantic_name_trees[0]), tree (CONCAT, sigma, "-algebra"));
+  QCOMPARE (parse (records[0].semantic_name_trees[1]), tree (CONCAT, script, "-module"));
+  QCOMPARE (parse (records[0].semantic_name_trees[2]), tree (CONCAT, pair, "-space"));
+  QCOMPARE (parse (records[0].semantic_name_trees[3]), tree ("<sigma>-algebra"));
+
+  QTemporaryDir temporary;
+  QVERIFY (temporary.isValid ());
+  fs::path root (temporary.path ().toStdString ());
+  AthenaVaultfileInfo info;
+  info.artifacts_path= "indexes/artifacts.db";
+  info.enunciations_path= "indexes/enunciations.db";
+  info.bold_text_path= "indexes/bold-text.db";
+  QVERIFY2 (athena_vaultfile_write (root, info, error), error.c_str ());
+  write_document (root / "structured.ath", document);
+  AthenaArtifactsBuildResult built;
+  QVERIFY2 (athena_artifacts_build (root, {}, true, {}, built, error), error.c_str ());
+  std::vector<AthenaArtifactRecord> stored;
+  QVERIFY2 (athena_artifacts_query (root, stored, error), error.c_str ());
+  QCOMPARE (stored.size (), records.size ());
+  QCOMPARE (stored[0].semantic_name_trees, records[0].semantic_name_trees);
+  QCOMPARE (stored[0].semantic_names, records[0].semantic_names);
+}
+
+void
+TestArtifacts::matchesStructuredRadioactiveNames () {
+  tree sigma= compound ("math", "<sigma>");
+  tree subscript= compound ("math", tree (CONCAT, "R", tree (RSUB, "n")));
+  auto record= [] (const char* uuid, tree name) {
+    AthenaArtifactRecord r= radioactive_record (uuid, "structured term");
+    string bytes= tree_to_texmacs (name);
+    r.semantic_name_trees= {std::string (as_charp (bytes), N(bytes))};
+    return r;
+  };
+  std::vector<AthenaArtifactRecord> records {
+    record ("sigma", tree (CONCAT, sigma, "-algebra")),
+    record ("sigma-other", tree (CONCAT, sigma, "-algebras")),
+    record ("module", tree (CONCAT, subscript, "-module")),
+    radioactive_record ("plain", "<sigma>-algebra")};
+  AthenaArtifactRadioactiveMatcher matcher (records);
+  tree paragraph (CONCAT);
+  paragraph << "A " << sigma << "-algebra and an " << subscript << "-MODULE.";
+  auto matches= matcher.matches_tree (paragraph);
+  QCOMPARE (matches.size (), size_t (2));
+  QCOMPARE (matches[0].start, path (1, 0));
+  QCOMPARE (matches[0].end, path (2, 8));
+  QCOMPARE (matches[0].link.uuids, std::vector<std::string> ({"sigma", "sigma-other"}));
+  QCOMPARE (matches[1].start, path (3, 0));
+  QCOMPARE (matches[1].end, path (4, 7));
+  QCOMPARE (matches[1].link.uuids, std::vector<std::string> ({"module"}));
+  QCOMPARE (matches[0].link.disambiguation_key,
+            athena_artifact_radioactive_key (records[0]));
+  QVERIFY (matches[0].link.disambiguation_key != athena_artifact_radioactive_key (records[3]));
+  auto plain= matcher.matches (string ("<sigma>-algebra"));
+  QCOMPARE (plain.size (), size_t (1));
+  QCOMPARE (plain[0].uuids, std::vector<std::string> ({"plain"}));
+  tree wrong_script= compound ("math", tree (CONCAT, "R", tree (RSUP, "n")));
+  QVERIFY (matcher.matches_tree (tree (CONCAT, wrong_script, "-module")).empty ());
+  QVERIFY (matcher.matches_tree (tree (CONCAT, compound ("math", "<Sigma>"), "-algebra")).empty ());
+  QVERIFY (matcher.matches_tree (tree (CONCAT, sigma, "-algebrash")).empty ());
+  QVERIFY (matcher.matches_tree (tree (CONCAT, sigma, compound ("label", "barrier"), "-algebra")).empty ());
+  std::atomic<int> correct {0};
+  auto run= [&] {
+    // Each worker owns its source tree; only the immutable matcher is shared.
+    tree local (CONCAT, compound ("math", "<sigma>"), "-algebra");
+    for (int i=0; i<1000; ++i) {
+      auto found= matcher.matches_tree (local);
+      if (found.size () == 1 && found[0].link.uuids.size () == 2)
+        correct.fetch_add (1, std::memory_order_relaxed);
+    }
+  };
+  QElapsedTimer timer;
+  timer.start ();
+  std::thread first (run), second (run);
+  first.join ();
+  second.join ();
+  QCOMPARE (correct.load (), 2000);
+  QVERIFY2 (timer.elapsed () < 3000, "Structured matching exceeded the hot-path budget");
 }
 
 void
