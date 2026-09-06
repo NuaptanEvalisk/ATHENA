@@ -12,7 +12,6 @@
 
     <branch|The <ATHENA> authors|authors/authors.en.tm>
 
-    <branch|Important changes|changes/changes-main.en.tm>
   </traverse>
 
   <tmdoc-copyright|1998\U2026|Joris van der Hoeven>

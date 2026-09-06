@@ -1,0 +1,9 @@
+Outdated developer documentation
+
+The documents in this directory were largely inherited from TeXmacs and are
+outdated. They do not reliably describe the current ATHENA architecture,
+thread ownership, build system, or supported features.
+
+This directory will undergo a major revision. Until then, treat its contents
+as historical reference and verify technical claims against the current source
+code and tests, not as authoritative ATHENA development instructions.

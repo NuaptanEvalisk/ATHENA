@@ -51,8 +51,6 @@
 
     <extra-branch|About <TeXmacs>|../about/about.en.tm>
 
-    <extra-branch|Contributing to <TeXmacs>|../about/contribute/contribute.en.tm>
-
     <extra-branch|Interfacing <TeXmacs> with other
     programs|../devel/interface/interface.en.tm>
 

@@ -120,45 +120,11 @@
 	     (load-help-article "about/philosophy/philosophy"))
 	    ("The ATHENA authors"
 	     (load-help-article "about/authors/authors"))
-	    (when (url-exists-in-help? "about/changes/changes-recent")
-		  ("What is new"
-		   (load-help-article "about/changes/changes-recent")))
-	    ("Major changes"
-	     (load-help-article "about/changes/changes-main"))
-	    ("Change log"
-	     (load-help-article "about/changes/change-log"))
 	    ---
 	    ("Original welcome message"
 	     (load-help-article "about/welcome/first"))))
   (if (detailed-menus?)
       ---
-      (when (url-exists-in-help? "about/contribute/contribute.en.tm")
-	(-> "Help us"
-	    ("Browse" (load-help-buffer "about/contribute/contribute"))
-	    ---
-	    ("Use TeXmacs"
-	     (load-help-article "about/contribute/using/using"))
-	    ("Making donations"
-	     (load-help-article "about/contribute/material/donations"))
-	    ("Documentation"
-	     (load-help-article
-	      "about/contribute/documentation/documentation"))
-	    ("Writing data converters"
-	     (load-help-article "about/contribute/converters/converters"))
-	    ("Porting TeXmacs to other platforms"
-	     (load-help-article "about/contribute/porting/porting"))
-	    ("Interfacing ATHENA with other systems"
-	     (load-help-article "about/contribute/interfaces/interfaces"))
-	    ("Become an ATHENA developer"
-	     (load-help-article "about/contribute/develop/develop"))))
-;;      (when (url-exists-in-help? "about/projects/projects.en.tm")
-;;	(-> "Projects"
-;;	    ("Browse" (load-help-buffer "about/projects/projects"))
-;;	    ---
-;;	    ("Improving the current implementation"
-;;	     (load-help-buffer "about/projects/improvements"))
-;;	    ("Plans for the future"
-;;	     (load-help-buffer "about/projects/future"))))
 ;;       (when (url-exists-in-help? "devel/format/format.en.tm")
 ;; 	(-> "Document format"
 ;; 	    ("Browse" (load-help-buffer "devel/format/format"))

@@ -58,8 +58,8 @@
   </verbatim>
 
   The first file is the main entry point to the plugin's documentation and
-  should follow <hlink|the general conventions for structuring <TeXmacs>
-  documentation|../../about/contribute/documentation/traversal.en.tm>. The
+  should follow the general conventions for structuring <TeXmacs>
+  documentation. The
   <verbatim|-abstract> file provides a short description of the plugin's
   functionality.
 

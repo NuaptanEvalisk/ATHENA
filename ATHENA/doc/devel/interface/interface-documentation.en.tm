@@ -11,9 +11,7 @@
 
   <\description-long>
     <item*|<verbatim|myplugin.en.tm>>This file should mainly contain a
-    <markup|traverse> tag with links to the other documentation files, as
-    described in the section ``<hlink|traversing the <TeXmacs>
-    documentation|$ATHENA_DOC_PATH/about/contribute/documentation/traversal.en.tm>''.
+    <markup|traverse> tag with links to the other documentation files.
 
     <item*|<verbatim|myplugin-abstract.en.tm>>This file should contain a
     short description of the purpose of the plugin-in. If appropriate, then
