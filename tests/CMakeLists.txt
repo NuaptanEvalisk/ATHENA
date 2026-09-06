@@ -17,6 +17,13 @@ add_test(NAME glue_runtime_test
     --resources ${ATHENA_SOURCE_DIR}/ATHENA
     ${ATHENA_GLUE_TEST_INPUTS})
 set_tests_properties(glue_runtime_test PROPERTIES TIMEOUT 100)
+add_test(NAME evaluation_bar_editor_test
+  COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/evaluation-bar-test.py
+    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
+    --runtime ${ATHENA_GUILE_PREFIX}
+    --resources ${ATHENA_SOURCE_DIR}/ATHENA)
+set_tests_properties(evaluation_bar_editor_test PROPERTIES TIMEOUT 90)
 
 find_program (ATHENA_TEST_GUILE guile)
 if (ATHENA_TEST_GUILE)
@@ -75,6 +82,7 @@ foreach (_test_file ${TEST_SRC_FILES})
     set_tests_properties (${_test_name} PROPERTIES TIMEOUT 600)
   endif ()
   if (_test_name STREQUAL "hodge_recolor_test" OR
+      _test_name STREQUAL "evaluation_bar_test" OR
       _test_name STREQUAL "preview_math_font_test")
     set_tests_properties (${_test_name} PROPERTIES TIMEOUT 30)
   endif ()

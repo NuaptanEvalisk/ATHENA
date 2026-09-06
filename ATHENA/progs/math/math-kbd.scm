@@ -502,6 +502,7 @@
   ("math:right <" (math-bracket-close "<langle>" "<rangle>" #t))
   ("math:right >" (math-bracket-close "<rangle>" "<langle>" #t))
   ("math:right |" (math-bracket-close "|" "|" #t))
+  ("math:right | var" (math-evaluation-bar))
   ("math:right | |" (math-bracket-close "<||>" "<||>" #t))
   ("math:right /" (math-bracket-close "/" "\\" #t))
   ("math:right \\" (math-bracket-close "\\" "/" #t))

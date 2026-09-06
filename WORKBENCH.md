@@ -30,11 +30,34 @@
    - Full runtime target was deliberately stopped during redundant Guile
      bootstrap caused by branch checkout timestamps; Guile/GC content matches
      master exactly. All its processes were terminated. No C++ changed here.
-2. **TODO: Automatically sized evaluation bar**
+2. **DONE: Automatically sized evaluation bar**
    - Support a trailing vertical bar sized to preceding content, including
      `frac(d, d x)` with a `t=0` subscript; make it accessible through editing.
    - Inspect existing bracket sizing and semantic markup first. Verify tall and
      short expressions, scripts, nesting, and export rather than fixed glyphs.
+   - Added math-evaluation-bar using the existing around* representation with
+     an invisible left delimiter and dynamically sized right bar. No renderer
+     or new mathematical parser: wrap selected content or the current row
+     prefix, bounded by fraction arguments, bracket bodies and table cells.
+   - Menu: Insert -> Evaluation bar; keymap: math:right | var. Existing
+     absolute-value, closing-bar and minus variants remain unchanged.
+   - PASS: isolated headless actor editor tests for fraction, limit outside the
+     pair, scripts, a derivative followed by f(x), explicit selection, content
+     after the cursor, fraction argument boundaries, empty and nested insertion.
+   - PASS: PDF export, rendered with pdftoppm and inspected visually. Artifacts:
+     /tmp/athena-evaluation-bar-artifacts/evaluation.pdf and evaluation.png.
+   - Harness finding: buffer-get-body is a snapshot, not the live editor tree.
+     Use buffer-tree for cursor paths. After replacing the fixture, explicitly
+     refresh its style/DRD and typesetter before selecting. Exit through global
+     context and write the test result before exit so queued logs are not lost.
+   - PASS: normal icpx -j20 native build, Scheme bytecode compilation and local
+     deployment: /tmp/athena-evaluation-bar-build.log. Installed binary SHA-256:
+     b5b21e7def6b1fae7e0d431f64f3e8dab07f92f5cf0ac4d9e42c91d47136eada.
+   - PASS: evaluation_bar_editor_test, math_keyboard_scheme_test and
+     evaluation_bar_test: 3/3 in 6.18 seconds. Pixel test measures increasing
+     actual right-bar ink height for a character, fraction and nested fraction
+     with Pagella, bold Pagella and Termes. Log:
+     /tmp/athena-evaluation-bar-tests.log. No Xvfb or real vault used.
 3. **TODO: Freeze saving one of two open documents**
    - Reproduce with isolated buffers and inspect UI/actor stacks and command
      ownership. Include both active and inactive buffer saves and save-as.

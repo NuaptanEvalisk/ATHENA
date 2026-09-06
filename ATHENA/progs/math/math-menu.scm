@@ -1113,6 +1113,7 @@
 
 (menu-bind math-insert-menu
   ("Fraction" (make-fraction))
+  ("Evaluation bar" (math-evaluation-bar))
   (-> "Combinatorial number"
       ("Binomial coefficient" (make 'binom))
       ("Stirling number of the first kind" (make 'stirling-first))

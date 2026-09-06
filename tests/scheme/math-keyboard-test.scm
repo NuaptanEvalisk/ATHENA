@@ -25,6 +25,12 @@
 (check '(("- var" "<setminus>")) (binding "- var") "minus variant")
 (check '(("- >" "<rightarrow>")) (binding "- >") "right arrow unchanged")
 (check '(("- -" "<longminus>")) (binding "- -") "long minus unchanged")
+(check '(("math:right | var" (math-evaluation-bar)))
+       (binding "math:right | var") "evaluation bar variant")
+(check '(("|" (math-bracket-open "|" "|" (quote default))))
+       (binding "|") "absolute value unchanged")
+(check '(("math:right |" (math-bracket-close "|" "|" #t)))
+       (binding "math:right |") "closing bar unchanged")
 (check #t
   (and (member '(set-variant-keys "tab" "S-tab")
                (forms "athena/keyboard/prefix-kbd.scm")) #t)

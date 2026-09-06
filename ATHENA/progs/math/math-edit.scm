@@ -371,6 +371,25 @@
       (with body (cut-before-cursor)
         (insert-go-to `(below ,body "") '(1 0)))))
 
+(tm-define (math-evaluation-bar)
+  (:synopsis "Evaluate the preceding or selected expression at a limit")
+  (when (and (in-math?)
+             (or (not (selection-active-any?)) (selection-active-small?)))
+    ;; Use the current mathematical row, stopping at structural boundaries
+    ;; such as a fraction argument, bracket body, or equation-array cell.
+    (unless (selection-active-any?)
+      (with t (cursor-tree)
+        (when (tree-is? (tree-up t) 'concat) (set! t (tree-up t)))
+        (selection-set (tree->path t :start) (cursor-path))))
+    (with body (if (selection-active-any?)
+                   (with selected (selection-tree)
+                     (cpp-clipboard-cut "dummy")
+                     selected)
+                   "")
+      ;; Keep the limit outside the stretchable pair, not inside its body.
+      (insert-go-to `(around* "<nobracket>" ,body "|")
+                    (if (tree-empty? body) '(1 0) '(1))))))
+
 (define (math-word-char? c)
   (or (char-alphabetic? c) (char-numeric? c)))
 

@@ -44,6 +44,17 @@
   vertical bars. For instance, the binary relation ``divides'' is entered
   using <shortcut|\<divides\>> or <key|\| var var var var>.
 
+  To evaluate an expression at a particular value, use
+  <menu|Insert|Evaluation bar> or <shortcut|(math-evaluation-bar)>, then
+  enter a right subscript. For example,
+  <math|<around*|\<nobracket\>|<frac|d|d x>|\|><rsub|t=0>> has a bar
+  which automatically follows the height of the derivative. With no
+  selection, this wraps the part of the current mathematical row before
+  the cursor; a fraction argument, bracket body, or table cell provides a
+  boundary. Select a smaller expression first to evaluate only that part.
+  At an empty position, the command creates an empty expression and places
+  the cursor inside it. The bar continues to resize when its contents change.
+
   In <TeXmacs>, large delimiters may either be ``left delimiters'', ``right
   delimiters'' or ``middle delimiters''. By default, <math|(,[,{> and
   <math|\<langle\>> are left delimiters, <math|),],}> and <math|\<rangle\>>
