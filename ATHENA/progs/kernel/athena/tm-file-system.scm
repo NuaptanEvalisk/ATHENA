@@ -367,6 +367,10 @@
 (define-public aux-buffers (make-ahash-table))
 (define-public aux-masters (make-ahash-table))
 
+;; Auxiliary documents are editable in-memory inputs, not read-only TMFS pages.
+(tmfs-permission-handler (aux name kind)
+  (or (== kind "read") (== kind "write")))
+
 (tmfs-load-handler (aux name)
   (or (ahash-ref aux-buffers name)
       `(document
