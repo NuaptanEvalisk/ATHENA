@@ -8,6 +8,7 @@
         (kernel athena tm-define)
         (utils library cursor)))
 
+(use-modules (ice-9 threads))
 
 (define vault-anchor-enunciation-tags
   '(theorem lemma corollary proposition axiom definition notation convention
@@ -171,12 +172,12 @@
   (vault-anchor-downcase-ascii
    (vault-anchor-sanitize-text s 0)))
 
-(define vault-anchor-title-filter-cache-root #f)
-(define vault-anchor-title-filter-cache '())
+(define vault-anchor-title-filter-cache #f)
+(define vault-anchor-title-filter-mutex (make-mutex))
 
 (tm-define (vault-anchor-title-filter-invalidate)
-  (set! vault-anchor-title-filter-cache-root #f)
-  (set! vault-anchor-title-filter-cache '()))
+  (with-mutex vault-anchor-title-filter-mutex
+    (set! vault-anchor-title-filter-cache #f)))
 
 (define (vault-anchor-title-filter-root)
   (if (and (defined? 'vault-active?) (vault-active?))
@@ -184,14 +185,17 @@
       (url-none)))
 
 (define (vault-anchor-title-filter)
-  (let ((root (vault-anchor-title-filter-root)))
-    (when (or (not vault-anchor-title-filter-cache-root)
-              (!= root vault-anchor-title-filter-cache-root))
-      (set! vault-anchor-title-filter-cache-root root)
-      (set! vault-anchor-title-filter-cache
-            (map vault-anchor-normalize-title-candidate
-                 (artifact-title-filter-read root))))
-    vault-anchor-title-filter-cache))
+  (let* ((root (vault-anchor-title-filter-root))
+         ;; Native URLs belong to their creating thread, even during equality.
+         (key (and (not (url-none? root)) (url->unix root))))
+    (with-mutex vault-anchor-title-filter-mutex
+      (unless (and vault-anchor-title-filter-cache
+                   (equal? key (car vault-anchor-title-filter-cache)))
+        (set! vault-anchor-title-filter-cache
+              (cons key
+                    (map vault-anchor-normalize-title-candidate
+                         (artifact-title-filter-read root)))))
+      (cdr vault-anchor-title-filter-cache))))
 
 (define (vault-anchor-common-title-candidate? s)
   (in? (vault-anchor-normalize-title-candidate s)

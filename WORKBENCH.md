@@ -58,7 +58,7 @@
      actual right-bar ink height for a character, fraction and nested fraction
      with Pagella, bold Pagella and Termes. Log:
      /tmp/athena-evaluation-bar-tests.log. No Xvfb or real vault used.
-3. **IN PROGRESS, PRO REVIEW NEEDED: Freeze saving one of two open documents**
+3. **IN PROGRESS: Freeze saving one of two open documents**
    - Reproduce with isolated buffers and inspect UI/actor stacks and command
      ownership. Include both active and inactive buffer saves and save-as.
    - Initial source audit (not yet a reproduced root cause): manual saves call
@@ -145,6 +145,39 @@
      do NOT commit item 3 as complete or weaken its runtime tests. All owned
      test/debugger/build processes ended; battery last checked at 93%.
      Other independent workbench items can proceed while review is pending.
+   - 2026-09-06: Applied Pro's branch-matched candidate: owner-local keyboard
+     decoding, actor save timestamps, leased actor lookup, immutable buffer-name
+     catalog, callback capabilities/cancellation, typed export failure handling
+     and single-shot confirmation destruction. Normal build/deployment and
+     focused tests passed. The candidate still crashed once during concurrent
+     manual saves: /tmp/athena-save-pro.core captured whitebox_rep<url>::equal
+     jumping through a freed object's vtable, with the two boxes owned by
+     different BufferActors.
+   - Built build_san with icpx -j20, reusing build_qt6/athena-guile-runtime to
+     avoid the slow Guile bootstrap. C++ is TSan-instrumented; reused Guile/GC
+     is not. /tmp/athena-save-tsan-report.1417605 identifies competing
+     blackbox reference-count increments/decrements in cmp_blackbox, plus
+     shared URL tree-array reference counts. The shared URL was created by
+     url-none and retained in vault-anchor-title-filter-cache-root.
+   - Fixed that first incorrect ownership transition in tm-vault-anchors.scm:
+     cache only a Scheme string key (or #f for no vault), publish the key and
+     filters together, and synchronize lookup/reload/invalidation. Native URLs
+     remain on the calling actor. No generic blackbox changes, native deep
+     copies, or global execution lock. Removed the temporary save trace.
+   - Verification: the same TSan manual-decline run completed all six saves
+     with correct files and callbacks; no cmp_blackbox or URL blackbox reports
+     remain. /tmp/athena-save-tsan-cache-after contains the artifacts. Exit 66
+     still reports independent packrat/math-language shared-cache races and
+     the Qt queued-lambda report; this is NOT a TSan-clean application claim.
+     Those reports are retained in /tmp/athena-save-tsan-fixed-cache.1418976.
+   - Normal runtime: plain, manual-decline and manual-approve all passed,
+     six saves each, with unchanged content/source-ownership assertions:
+     /tmp/athena-save-normal-cache-fixed.log and matching artifacts directory.
+     anchor_confirmation_scheme_test now also exercises the actual filter
+     cache with owner-affine URL stand-ins, concurrent different-vault lookups
+     and invalidation; passed. No Xvfb or personal vault used. Remaining
+     broader save-as/lifecycle integration and independent grammar races have
+     not been declared complete from this targeted crash fix.
 4. **DONE: Angle brackets nested inside vertical bars**
    - Baseline real typesetting reproduced shorter outer bars with both fixed
      and stretchable angles, most visible in bold Pagella. Source, box metrics

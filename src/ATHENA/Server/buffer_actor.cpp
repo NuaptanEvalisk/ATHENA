@@ -9,6 +9,7 @@
 ******************************************************************************/
 
 #include "buffer_actor.hpp"
+#include "actor_lifetime.hpp"
 #include "System/Misc/crash_report.hpp"
 
 #include "actor_ui_bridge.hpp"
@@ -42,7 +43,20 @@
 namespace {
 
 std::mutex actor_registry_lock;
-std::unordered_map<athena_actor_id, buffer_actor*> actor_registry;
+using actor_entry= actor_lifetime<buffer_actor>;
+std::unordered_map<athena_actor_id, std::shared_ptr<actor_entry>> actor_registry;
+
+actor_entry::lease
+acquire_actor (athena_actor_id id) {
+  std::shared_ptr<actor_entry> entry;
+  {
+    std::lock_guard<std::mutex> guard (actor_registry_lock);
+    auto found= actor_registry.find (id);
+    if (found == actor_registry.end ()) return {};
+    entry= found->second;
+  }
+  return entry->acquire ();
+}
 athena_actor_id next_actor_id= 1;
 
 struct actor_wait_request {
@@ -86,14 +100,23 @@ register_actor (buffer_actor* actor) {
   athena_actor_id id= next_actor_id++;
   if (id == ATHENA_NO_ACTOR)
     FAILED ("buffer actor id space exhausted");
-  actor_registry.emplace (id, actor);
+  actor_registry.emplace (id, std::make_shared<actor_entry> (actor));
   return id;
 }
 
 void
 unregister_actor (athena_actor_id id) noexcept {
-  std::lock_guard<std::mutex> guard (actor_registry_lock);
-  actor_registry.erase (id);
+  std::shared_ptr<actor_entry> entry;
+  {
+    std::lock_guard<std::mutex> guard (actor_registry_lock);
+    auto found= actor_registry.find (id);
+    if (found == actor_registry.end ()) return;
+    entry= found->second;
+    actor_registry.erase (found);
+  }
+  // A raw lookup pointer could otherwise outlive this registry lock and race
+  // the actor's destruction. Drain leases outside the global registry lock.
+  entry->close ();
 }
 
 } // namespace
@@ -111,9 +134,9 @@ struct buffer_actor::implementation {
   std::unordered_map<athena_view_id, actor_view> views;
 
   implementation (buffer_actor* actor, string name, string master,
-                  string title, bool read_only):
+                  string title, bool read_only, int last_save):
     state (actor, std::move (name), std::move (master), std::move (title),
-           read_only), views () {}
+           read_only, last_save), views () {}
 };
 
 static double
@@ -156,14 +179,15 @@ buffer_actor::buffer_actor (tm_buffer_rep* owner):
   initial_master_ (
     actor_text_from_string (copy (as_string (owner->buf->master)))),
   initial_title_ (actor_text_from_string (copy (owner->buf->title))),
-  initial_read_only_ (owner->buf->read_only), commands_ (128),
+  initial_read_only_ (owner->buf->read_only),
+  initial_last_save_ (static_cast<int> (owner->buf->last_save)), commands_ (128),
   owner_thread_ (), next_command_id_ (1), next_response_id_ (1),
   completed_command_id_ (0), completed_commands_ (0), accepting_ (true),
   started_ (false), impl_ () {}
 
 buffer_actor::~buffer_actor () {
-  shutdown ();
   unregister_actor (id_);
+  shutdown ();
 }
 
 athena_actor_id
@@ -263,7 +287,8 @@ buffer_actor::submit_to (
   std::uint64_t argument3, std::uint64_t argument4,
   std::uint64_t argument5, std::uint64_t argument6,
   std::uint64_t argument7) {
-  buffer_actor* actor= lookup (actor_id);
+  auto lifetime= acquire_actor (actor_id);
+  buffer_actor* actor= lifetime.get ();
   return actor == nullptr ? actor_command_ticket {} : actor->submit (
     kind, view_id, payload0, payload1, capabilities, argument0, argument1,
     argument2, argument3, argument4, argument5, argument6, argument7);
@@ -274,7 +299,8 @@ buffer_actor::try_submit_coalesced_to (
   athena_actor_id actor_id, actor_command_kind kind, athena_view_id view_id,
   std::uint64_t argument0, std::uint64_t argument1,
   std::uint64_t argument2, std::uint64_t argument3) {
-  buffer_actor* actor= lookup (actor_id);
+  auto lifetime= acquire_actor (actor_id);
+  buffer_actor* actor= lifetime.get ();
   actor_ui_endpoint* endpoint= find_actor_ui_endpoint (view_id);
   if (actor == nullptr || endpoint == nullptr) return false;
   if (!endpoint->begin_coalesced_command (kind)) return true;
@@ -294,7 +320,8 @@ buffer_actor::invoke_on (
   std::uint64_t argument2, std::uint64_t argument3,
   std::uint64_t argument4, std::uint64_t argument5,
   std::uint64_t argument6, std::uint64_t argument7) {
-  buffer_actor* actor= lookup (actor_id);
+  auto lifetime= acquire_actor (actor_id);
+  buffer_actor* actor= lifetime.get ();
   return actor != nullptr && actor->invoke (
     kind, view_id, payload0, payload1, result, capabilities,
     argument0, argument1, argument2, argument3, argument4, argument5,
@@ -393,8 +420,9 @@ buffer_actor::ensure_started () {
   std::unique_lock<std::mutex> guard (state_lock_);
   if (!accepting_ || !scheme_runtime_is_initialized ()) return false;
   if (!worker_.joinable ()) {
-    athena_actor_id actor_id= id_;
-    worker_= std::thread ([actor_id] { thread_entry (actor_id); });
+    // The destructor joins this thread. Startup must not look itself up in
+    // a registry from which concurrent teardown may already have removed it.
+    worker_= std::thread ([this] { thread_entry (this); });
   }
   started_condition_.wait (guard, [this] {
     return started_ || !accepting_;
@@ -450,27 +478,16 @@ buffer_actor::current_view_url (athena_view_id view_id) const {
   return url_none ();
 }
 
-buffer_actor*
-buffer_actor::lookup (athena_actor_id id) noexcept {
-  std::lock_guard<std::mutex> guard (actor_registry_lock);
-  auto found= actor_registry.find (id);
-  return found == actor_registry.end () ? nullptr : found->second;
-}
-
 void
-buffer_actor::thread_entry (athena_actor_id id) {
-  athena_crash_register_thread (AthenaCrashThreadRole::BufferActor, id);
-  athena_crash_set_execution (id, 0, 0);
-  scm_with_guile (guile_entry,
-                  reinterpret_cast<void*> (static_cast<std::uintptr_t> (id)));
+buffer_actor::thread_entry (buffer_actor* actor) {
+  athena_crash_register_thread (AthenaCrashThreadRole::BufferActor, actor->id ());
+  athena_crash_set_execution (actor->id (), 0, 0);
+  scm_with_guile (guile_entry, actor);
 }
 
 void*
-buffer_actor::guile_entry (void* raw_id) {
-  athena_actor_id id= static_cast<athena_actor_id> (
-    reinterpret_cast<std::uintptr_t> (raw_id));
-  buffer_actor* actor= lookup (id);
-  if (actor != nullptr) actor->run_in_guile ();
+buffer_actor::guile_entry (void* raw_actor) {
+  static_cast<buffer_actor*> (raw_actor)->run_in_guile ();
   return nullptr;
 }
 
@@ -493,7 +510,7 @@ buffer_actor::run_in_guile () {
   initial_title_= ATHENA_NO_BLOB;
   impl_= std::make_unique<implementation> (
     this, std::move (initial_name), std::move (initial_master),
-    std::move (initial_title), initial_read_only_);
+    std::move (initial_title), initial_read_only_, initial_last_save_);
   {
     std::lock_guard<std::mutex> guard (state_lock_);
     owner_thread_= std::this_thread::get_id ();
@@ -755,6 +772,10 @@ buffer_actor::dispatch (actor_command_record& command) {
   }
   case actor_command_kind::run_scheme_handle: {
     athena_scheme_handle_id handle= command.argument[0];
+    if (command.view_id != ATHENA_NO_VIEW && editor == nullptr) {
+      scheme_command_handle_release (handle);
+      break;
+    }
     bool allow_repeat= command.argument[1] != 0;
     bool repeat= false;
     std::int64_t delay= 0;
@@ -781,6 +802,13 @@ buffer_actor::dispatch (actor_command_record& command) {
   case actor_command_kind::invoke_scheme_handle: {
     athena_scheme_handle_id handle= command.argument[0];
     athena_scheme_handle_id arguments= command.argument[1];
+    // A source-bound callback may outlive its view. Cancel it; never execute
+    // with a null editor or borrow whichever view happens to be current.
+    if (command.view_id != ATHENA_NO_VIEW && editor == nullptr) {
+      scheme_command_handle_release (handle);
+      scheme_command_handle_release (arguments);
+      break;
+    }
     try {
       tmscm procedure= scheme_command_handle_value (handle);
       if (scm_is_eq (procedure, SCM_UNDEFINED))
@@ -992,7 +1020,11 @@ buffer_actor::dispatch (actor_command_record& command) {
     for (auto& entry: impl_->views) entry.second.instance->require_save ();
     break;
   case actor_command_kind::mark_saved:
+    // Commit the timestamp before a save continuation may start another save.
+    // Never make the actor wait for its queued UI mirror to catch up.
+    impl_->state.last_save= last_modified (impl_->state.name);
     for (auto& entry: impl_->views) entry.second.instance->notify_save ();
+    command.argument[0]= static_cast<std::uint64_t> (impl_->state.last_save);
     break;
   case actor_command_kind::mark_autosaved:
     for (auto& entry: impl_->views)
@@ -1010,12 +1042,16 @@ buffer_actor::dispatch (actor_command_record& command) {
     }
     break;
   case actor_command_kind::export_buffer: {
+    // A thrown conversion/export must not leave the default success value in
+    // a synchronous reply. execute() reports exceptions but still replies.
+    command.argument[0]= 1;
     string destination=
       actor_text_registry::instance ().take (command.payload0);
     string format= actor_text_registry::instance ().take (command.payload1);
     url dest (std::move (destination));
     editor_rep* export_editor= editor;
-    if (export_editor == nullptr && !impl_->views.empty ())
+    if (export_editor == nullptr && command.view_id == ATHENA_NO_VIEW &&
+        !impl_->views.empty ())
       export_editor=
         impl_->views.begin ()->second.instance.operator -> ();
     bool failed= export_editor == nullptr;

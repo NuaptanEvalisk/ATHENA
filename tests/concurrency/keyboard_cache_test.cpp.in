@@ -1,0 +1,169 @@
+// Test doubles enforce thread affinity; @@SOURCE@@ is the actual production
+// keyboard section, not a reimplementation of its cache or rewrite algorithm.
+#include <atomic>
+#include <cctype>
+#include <future>
+#include <iostream>
+#include <map>
+#include <stdexcept>
+#include <string>
+#include <thread>
+#include <vector>
+
+static void check (bool value, const char* message) {
+  if (!value) throw std::runtime_error (message);
+}
+struct string {
+  std::string data;
+  string ()= default;
+  string (const char* s): data (s) {}
+  string (std::string s): data (std::move (s)) {}
+  char operator [] (int i) const { return data.at (i); }
+  string operator () (int first, int last) const {
+    return data.substr (first, last - first);
+  }
+};
+static int N (const string& s) { return static_cast<int> (s.data.size ()); }
+static bool operator == (const string& a, const string& b) { return a.data == b.data; }
+static bool operator != (const string& a, const string& b) { return !(a == b); }
+static string operator * (const string& a, const string& b) { return a.data + b.data; }
+static bool starts (const string& a, const string& b) { return a.data.find (b.data) == 0; }
+static bool is_locase (char c) { return c >= 'a' && c <= 'z'; }
+static bool is_upcase (char c) { return c >= 'A' && c <= 'Z'; }
+static string upcase_all (string s) {
+  for (char& c: s.data) c= static_cast<char> (std::toupper (static_cast<unsigned char> (c)));
+  return s;
+}
+static thread_local bool setting_mac= false, setting_qt= true, setting_case= false;
+static thread_local unsigned label_calls= 0;
+static bool use_macos_fonts () { return setting_mac; }
+static bool gui_is_qt () { return setting_qt; }
+static bool os_macos () { return false; }
+static string get_preference (string key) {
+  if (key == "case sensitive shortcuts") return setting_case ? "on" : "off";
+  return "default";
+}
+static string ui_text (string s) {
+  ++label_calls;
+  auto context= s.data.find ("::");
+  return context == std::string::npos ? s : string (s.data.substr (0, context));
+}
+enum tree_label { CONCAT, WITH };
+struct tree {
+  std::string text;
+  std::thread::id owner;
+  tree ()= default;
+  tree (const char* s): text (s), owner (std::this_thread::get_id ()) {}
+  tree (const string& s): text (s.data), owner (std::this_thread::get_id ()) {}
+  tree (const tree& t): text (t.text), owner (t.owner) { t.check_owner (); }
+  tree& operator = (const tree& t) {
+    t.check_owner ();
+    text= t.text; owner= t.owner;
+    return *this;
+  }
+  template<typename... Args>
+  tree (tree_label, const Args&... args): owner (std::this_thread::get_id ()) {
+    (append (tree (args)), ...);
+  }
+  void check_owner () const {
+    check (owner == std::thread::id () || owner == std::this_thread::get_id (),
+           "shortcut cache returned another thread's native tree");
+  }
+  void append (const tree& t) { t.check_owner (); text += t.text; }
+  tree& operator << (const tree& t) { append (t); return *this; }
+};
+template<typename T> static tree compound (const char* name, const T& value) {
+  tree out (name); out << tree (value); return out;
+}
+static tree simplify_concat (tree t) { return t; }
+template<typename K, typename V> struct hashmap {
+  std::map<std::string,V> values;
+  hashmap* operator -> () { return this; }
+  bool contains (const K& key) const { return values.count (key.data) != 0; }
+  V operator [] (const K& key) { return values.at (key.data); }
+  V& operator () (const K& key) { return values[key.data]; }
+};
+template<typename K, typename V> static int N (const hashmap<K,V>& h) {
+  return static_cast<int> (h.values.size ());
+}
+class tm_config_rep {
+public:
+  // Kept in the double so the pre-fix source compiles too. Fixed source never
+  // touches this member; it uses its own thread-local table.
+  hashmap<string,tree> system_kbd_decode;
+  tree kbd_system_rewrite (string s);
+};
+
+@@SOURCE@@
+
+static void test_concurrent_owners () {
+  tm_config_rep shared;
+  std::promise<void> ready, done;
+  auto ready_future= ready.get_future ();
+  auto done_future= done.get_future ();
+  std::exception_ptr failure1, failure2;
+  std::thread first ([&] {
+    try {
+      tree value= shared.kbd_system_rewrite ("C-x");
+      check (value.text.find ("Ctrl+X") != std::string::npos, "Qt shortcut changed");
+      unsigned initialized= label_calls;
+      for (int i= 0; i < 50; ++i) shared.kbd_system_rewrite ("C-x");
+      check (label_calls == initialized, "labels rebuilt on the hot path");
+    } catch (...) { failure1= std::current_exception (); }
+    ready.set_value ();
+    done_future.get (); // keep the first thread's identity alive
+  });
+  std::thread second ([&] {
+    ready_future.get ();
+    try { shared.kbd_system_rewrite ("C-x"); }
+    catch (...) { failure2= std::current_exception (); }
+    done.set_value ();
+  });
+  first.join (); second.join ();
+  if (failure1) std::rethrow_exception (failure1);
+  if (failure2) std::rethrow_exception (failure2);
+}
+static void test_settings () {
+  tm_config_rep server;
+  setting_qt= true; setting_mac= false; setting_case= false;
+  tree old= server.kbd_system_rewrite ("C-x");
+  unsigned initialized= label_calls;
+  setting_case= true;
+  auto lower= server.kbd_system_rewrite ("C-x");
+  check (lower.text.find ("Ctrl+x") != std::string::npos, "case preference ignored");
+  check (label_calls == initialized, "case preference needlessly rebuilt labels");
+  setting_mac= true;
+  auto mac= server.kbd_system_rewrite ("C-x");
+  check (mac.text.find ("<#2303>") != std::string::npos, "Mac-mode cache was stale");
+  check (mac.text.find ("Ctrl+") == std::string::npos, "Qt entries survived mode change");
+  check (old.text.find ("Ctrl+X") != std::string::npos, "rebuild invalidated a live result");
+  setting_mac= false; setting_qt= false;
+  auto plain= server.kbd_system_rewrite ("C-x");
+  check (plain.text.find ("C-x") != std::string::npos, "non-Qt cache was stale");
+  setting_qt= true; setting_case= false;
+}
+static void test_eight_threads () {
+  tm_config_rep server;
+  std::atomic<unsigned> failures {0};
+  std::vector<std::thread> workers;
+  for (unsigned i= 0; i < 8; ++i)
+    workers.emplace_back ([&, i] {
+      try {
+        setting_mac= (i % 3) == 0; setting_qt= (i % 3) != 2;
+        for (unsigned j= 0; j < 500; ++j) {
+          auto value= server.kbd_system_rewrite ("C-x S-left");
+          check (!value.text.empty (), "empty shortcut");
+        }
+      } catch (...) { ++failures; }
+    });
+  for (auto& worker: workers) worker.join ();
+  check (failures == 0, "parallel shortcut rendering failed");
+}
+int main () {
+  try {
+    test_concurrent_owners (); test_settings (); test_eight_threads ();
+    std::cout << "PASS: production shortcut code, thread ownership, cache reuse, settings\n";
+  } catch (const std::exception& error) {
+    std::cerr << "FAIL: " << error.what () << '\n'; return 1;
+  }
+}

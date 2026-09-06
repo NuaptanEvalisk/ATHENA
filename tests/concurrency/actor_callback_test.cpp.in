@@ -1,0 +1,193 @@
+// Actual object_command_rep and invoke_scheme_handle dispatch, with a counted
+// Scheme handle registry and mailbox double. No Qt or Guile implementation is
+// substituted in production; these doubles exist only in this test executable.
+#include <cstdint>
+#include <iostream>
+#include <map>
+#include <stdexcept>
+#include <vector>
+using athena_actor_id= std::uint64_t;
+using athena_view_id= std::uint64_t;
+using athena_scheme_handle_id= std::uint64_t;
+using SchemeCapabilitySet= std::uint32_t;
+constexpr auto ATHENA_NO_ACTOR= 0;
+constexpr auto ATHENA_NO_VIEW= 0;
+constexpr auto ATHENA_NO_BLOB= 0;
+constexpr auto ATHENA_NO_SCHEME_HANDLE= 0;
+constexpr SchemeCapabilitySet SCHEME_CAPABILITY_NONE= 0;
+constexpr SchemeCapabilitySet SCHEME_CAPABILITY_BUFFER= 1;
+constexpr SchemeCapabilitySet SCHEME_CAPABILITY_UI= 2;
+constexpr SchemeCapabilitySet SCHEME_CAPABILITY_GLOBAL= 4;
+static void check (bool value, const char* message) {
+  if (!value) throw std::runtime_error (message);
+}
+#define FAILED(message) throw std::runtime_error (message)
+struct object {
+  int value= 0;
+  std::vector<int> list;
+  object ()= default;
+  explicit object (int n): value (n) {}
+  explicit object (std::vector<int> values): list (std::move (values)) {}
+};
+using tmscm= object;
+static const tmscm SCM_UNDEFINED (-999);
+static tmscm object_to_tmscm (const object& o) { return o; }
+static object tmscm_to_object (const tmscm& o) { return o; }
+static bool scm_is_eq (const tmscm& a, const tmscm& b) { return a.value == b.value; }
+template<typename T> using array= std::vector<T>;
+template<typename T> static int N (const array<T>& a) { return static_cast<int> (a.size ()); }
+static array<object> as_array_object (const object& o) {
+  array<object> result;
+  for (int value: o.list) result.emplace_back (value);
+  return result;
+}
+static array<tmscm> array_lookup (array<object> a) { return a; }
+static unsigned calls= 0;
+static tmscm call_scheme (tmscm) { ++calls; return {}; }
+static tmscm call_scheme (tmscm, array<tmscm>) { ++calls; return {}; }
+static object call (const char*, object o) { return o; }
+using tm_ostream= std::ostream;
+static std::ostream& operator << (std::ostream& out, const object& o) { return out << o.value; }
+struct command_rep {
+  virtual ~command_rep ()= default;
+  virtual void apply ()= 0;
+  virtual void apply (object)= 0;
+  virtual tm_ostream& print (tm_ostream&)= 0;
+};
+struct SchemeExecutionContext {
+  athena_actor_id actor_id;
+  athena_view_id view_id;
+  SchemeCapabilitySet capabilities;
+};
+static SchemeExecutionContext* active= nullptr;
+static const SchemeExecutionContext* current_scheme_execution_context () { return active; }
+static athena_scheme_handle_id next_handle= 1;
+struct root { tmscm value; unsigned references; };
+static std::map<athena_scheme_handle_id,root> handles;
+static athena_scheme_handle_id scheme_command_handle_acquire (tmscm value) {
+  auto id= next_handle++;
+  handles.emplace (id, root {std::move (value), 1}); return id;
+}
+static bool scheme_command_handle_retain (athena_scheme_handle_id id) {
+  auto found= handles.find (id);
+  if (found == handles.end ()) return false;
+  ++found->second.references; return true;
+}
+static void scheme_command_handle_release (athena_scheme_handle_id id) {
+  if (!id) return;
+  auto found= handles.find (id);
+  check (found != handles.end () && found->second.references != 0, "handle released twice");
+  if (--found->second.references == 0) handles.erase (found);
+}
+static tmscm scheme_command_handle_value (athena_scheme_handle_id id) {
+  auto found= handles.find (id);
+  return found == handles.end () ? SCM_UNDEFINED : found->second.value;
+}
+enum class actor_command_kind { invoke_scheme_handle };
+struct actor_command_record {
+  actor_command_kind kind= actor_command_kind::invoke_scheme_handle;
+  athena_actor_id actor_id= 0;
+  athena_view_id view_id= 0;
+  SchemeCapabilitySet capabilities= 0;
+  std::uint64_t argument[8] {};
+};
+struct actor_command_ticket {
+  bool accepted;
+  explicit operator bool () const { return accepted; }
+};
+static actor_command_record queued;
+static bool accept_submission= true;
+static unsigned submissions= 0;
+class buffer_actor {
+public:
+  static actor_command_ticket submit_to (
+      athena_actor_id actor, actor_command_kind kind, athena_view_id view,
+      int, int, SchemeCapabilitySet capabilities, std::uint64_t handle,
+      std::uint64_t arguments= 0) {
+    ++submissions;
+    queued= {}; queued.actor_id= actor; queued.view_id= view;
+    queued.kind= kind; queued.capabilities= capabilities;
+    queued.argument[0]= handle; queued.argument[1]= arguments;
+    return {accept_submission};
+  }
+};
+
+@@COMMAND@@
+
+static void dispatch_callback (actor_command_record& command, bool view_alive) {
+  int placeholder= 0;
+  void* editor= view_alive ? &placeholder : nullptr;
+  switch (command.kind) {
+@@DISPATCH@@
+  }
+}
+
+static void test_origin_and_capabilities () {
+  SchemeExecutionContext source {11, 21, 7}, switched {12, 22, 1};
+  active= &source;
+  {
+    object_command_rep callback (object (123));
+    active= &switched;
+    callback.apply (object (std::vector<int> {1}));
+    check (queued.actor_id == 11 && queued.view_id == 21, "callback followed current buffer");
+    check (queued.capabilities == 7, "callback lost original execution capabilities");
+    check (handles.size () == 2, "callback arguments not retained");
+    unsigned before= calls;
+    dispatch_callback (queued, true);
+    check (calls == before + 1 && handles.size () == 1, "live callback lifetime incorrect");
+  }
+  check (handles.empty (), "live callback leaked handles");
+  active= &source;
+  {
+    object_command_rep callback (object (123));
+    callback.apply (object (std::vector<int> {0}));
+    unsigned before= calls;
+    dispatch_callback (queued, false);
+    check (calls == before, "closed-view callback executed without its source editor");
+    check (handles.size () == 1, "closed-view callback leaked argument handles");
+  }
+  check (handles.empty (), "cancelled callback leaked procedure handle");
+}
+static void test_closed_actor_and_viewless_actor () {
+  SchemeExecutionContext source {11, 21, 1};
+  active= &source;
+  accept_submission= false;
+  {
+    object_command_rep callback (object (123));
+    callback.apply (object (std::vector<int> {1}));
+    check (handles.size () == 1 && handles.begin ()->second.references == 1,
+           "failed submission leaked retained handles");
+    callback.apply ();
+    check (handles.begin ()->second.references == 1, "zero-argument submission leaked handle");
+  }
+  check (handles.empty (), "closed-actor callback leaked handle");
+  accept_submission= true;
+  source.view_id= ATHENA_NO_VIEW;
+  {
+    object_command_rep callback (object (123));
+    unsigned before= calls, queued_before= submissions;
+    callback.apply ();
+    check (calls == before && submissions == queued_before + 1,
+           "viewless actor command escaped to global execution");
+    check (queued.actor_id == source.actor_id && queued.view_id == 0,
+           "viewless actor identity lost");
+    dispatch_callback (queued, false);
+    check (calls == before + 1, "intentional viewless command was discarded");
+  }
+  check (handles.empty (), "viewless callback leaked handle");
+  active= nullptr;
+  {
+    object_command_rep global (object (123));
+    unsigned before= calls;
+    global.apply ();
+    check (calls == before + 1, "global command behavior changed");
+  }
+}
+int main () {
+  try {
+    test_origin_and_capabilities (); test_closed_actor_and_viewless_actor ();
+    std::cout << "PASS: production callback code, actor/view identity, capabilities, close cancellation, handle release\n";
+  } catch (const std::exception& error) {
+    std::cerr << "FAIL: " << error.what () << '\n'; return 1;
+  }
+}

@@ -1,6 +1,6 @@
 ;; Run with: guile --no-auto-compile anchor-confirmation-test.scm ROOT
 ;; Load the actual continuation-bearing procedures, not copies of their logic.
-(use-modules (srfi srfi-1))
+(use-modules (srfi srfi-1) (ice-9 threads))
 (define root (cadr (command-line)))
 (define (check value message) (unless value (error message)))
 (define (:interactive ignored) #f)
@@ -72,3 +72,62 @@
 (vault-anchor-enunciations-before-save "unsupported" (lambda () (set! saved 1)))
 (check (and (not pending) (= saved 1)) "unsupported buffers must continue")
 (display "PASS: asynchronous anchor approval, cancellation and save continuations\n")
+
+;; Exercise the production filter cache with owner-affine URL stand-ins.
+(define filter-root (make-fluid #f))
+(define filter-reads 0)
+(define (vault-active?) #t)
+(define (vault-get-root) (vector (current-thread) (fluid-ref filter-root)))
+(define (checked-root url)
+  (check (eq? (vector-ref url 0) (current-thread)) "foreign native URL access")
+  (vector-ref url 1))
+(define (url-none? url) (not (checked-root url)))
+(define (url->unix url) (checked-root url))
+(define (artifact-title-filter-read url)
+  (set! filter-reads (+ filter-reads 1))
+  (list (or (checked-root url) "Default")))
+(define vault-anchor-normalize-title-candidate string-downcase)
+
+(call-with-input-file
+  (string-append root "/ATHENA/progs/athena/athena/tm-vault-anchors.scm")
+  (lambda (port)
+    (let loop ((form (read port)))
+      (unless (eof-object? form)
+        (when (and (pair? form) (memq (car form) '(define tm-define))
+                   (memq (if (pair? (cadr form)) (caadr form) (cadr form))
+                     '(vault-anchor-title-filter-cache
+                       vault-anchor-title-filter-mutex
+                       vault-anchor-title-filter-invalidate
+                       vault-anchor-title-filter-root
+                       vault-anchor-title-filter)))
+          (eval (cons 'define (cdr form)) (current-module)))
+        (loop (read port))))))
+
+(check (equal? (vault-anchor-title-filter) '("default")) "no-vault defaults")
+(check (equal? (vault-anchor-title-filter) '("default")) "no-vault cache hit")
+(check (= filter-reads 1) "default cache must avoid repeated reads")
+(vault-anchor-title-filter-invalidate)
+(vault-anchor-title-filter)
+(check (= filter-reads 2) "invalidation must reload filters")
+(let ((workers
+       (map (lambda (name)
+              (call-with-new-thread
+               (lambda ()
+                 (with-fluids ((filter-root name))
+                   (let loop ((round 0))
+                     (when (< round 100)
+                       (check (equal? (vault-anchor-title-filter)
+                                      (list (string-downcase name)))
+                              "cache key and filters belong to different vaults")
+                       (when (zero? (modulo round 7))
+                         (vault-anchor-title-filter-invalidate))
+                       (loop (+ round 1)))))
+                 #t)))
+            '("Alpha" "Beta" "Alpha" "Beta"))))
+  (for-each (lambda (worker) (check (join-thread worker) "filter worker failed"))
+            workers))
+(vault-anchor-title-filter)
+(check (or (not (car vault-anchor-title-filter-cache))
+           (string? (car vault-anchor-title-filter-cache)))
+       "shared cache must not retain native URLs")
+(display "PASS: filter cache ownership, key/value consistency and invalidation\n")

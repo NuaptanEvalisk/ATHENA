@@ -21,7 +21,6 @@ protected:
   string unvar_suffix;                      // space + the unvariant key
   hashmap<string,tree> pre_kbd_wildcards;   // wildcards applied to defns
   hashmap<string,tree> post_kbd_wildcards;  // wildcards applied at lookup
-  hashmap<string,tree> system_kbd_decode;   // for printing of shortcuts
 
 public:
   tm_config_rep ();

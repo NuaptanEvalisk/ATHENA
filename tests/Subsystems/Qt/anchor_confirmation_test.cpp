@@ -42,6 +42,45 @@ private slots:
     QTest::newRow ("escape") << "escape";
     QTest::newRow ("close") << "close";
   }
+  void destructionCompletesOnce_data () {
+    QTest::addColumn<bool> ("destroy_parent");
+    QTest::newRow ("dialog-destroyed") << false;
+    QTest::newRow ("parent-destroyed") << true;
+  }
+  void destructionCompletesOnce () {
+    QFETCH (bool, destroy_parent);
+    QPointer<QWidget> parent= new QWidget;
+    parent->show ();
+    QApplication::setActiveWindow (parent);
+    int calls= 0;
+    bool accepted= true;
+    QThread* callback_thread= nullptr;
+    auto lifetime= std::make_shared<int> (7);
+    std::weak_ptr<int> weak= lifetime;
+    auto cleanup= qScopeGuard ([&] {
+      if (auto* dialog= confirmation ()) delete dialog;
+      delete parent.data ();
+    });
+    qt_anchor_enunciations_confirm ("1", "0", "0", "wrap definition",
+      [&, lifetime] (bool result) {
+        ++calls;
+        accepted= result;
+        callback_thread= QThread::currentThread ();
+      });
+    lifetime.reset ();
+    QTRY_VERIFY (confirmation ());
+    QPointer<QDialog> dialog= confirmation ();
+    QCOMPARE (dialog->parentWidget (), parent.data ());
+    if (destroy_parent) delete parent.data ();
+    else delete dialog.data ();
+    QVERIFY (dialog.isNull ());
+    QCOMPARE (calls, 1);
+    QVERIFY (!accepted);
+    QCOMPARE (callback_thread, qApp->thread ());
+    QVERIFY (weak.expired ());
+    QCoreApplication::sendPostedEvents (nullptr, QEvent::DeferredDelete);
+    QCOMPARE (calls, 1);
+  }
   void completesOnGui () {
     QFETCH (QString, action);
     int calls= 0;

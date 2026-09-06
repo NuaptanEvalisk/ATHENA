@@ -126,6 +126,7 @@ private:
   athena_blob_id initial_master_;
   athena_blob_id initial_title_;
   bool initial_read_only_;
+  int initial_last_save_;
   actor_command_transport commands_;
 
   // The transport itself remains SPSC. This lock is the one producer gate for
@@ -168,10 +169,9 @@ private:
   void execute (actor_command_record& command);
   void publish_tmfs_title (editor_rep* preferred_editor);
 
-  static void thread_entry (athena_actor_id id);
-  static void* guile_entry (void* raw_id);
+  static void thread_entry (buffer_actor* actor);
+  static void* guile_entry (void* raw_actor);
   static void* wait_without_guile (void* raw_request);
-  static buffer_actor* lookup (athena_actor_id id) noexcept;
 };
 
 athena_blob_id actor_text_from_string (string text);

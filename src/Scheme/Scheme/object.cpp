@@ -349,16 +349,17 @@ class object_command_rep: public command_rep {
   object obj;
   athena_actor_id actor_id;
   athena_view_id view_id;
+  SchemeCapabilitySet capabilities;
   athena_scheme_handle_id handle;
 public:
   object_command_rep (object obj2):
     obj (), actor_id (ATHENA_NO_ACTOR), view_id (ATHENA_NO_VIEW),
-    handle (ATHENA_NO_SCHEME_HANDLE) {
+    capabilities (SCHEME_CAPABILITY_NONE), handle (ATHENA_NO_SCHEME_HANDLE) {
     const SchemeExecutionContext* context= current_scheme_execution_context ();
-    if (context != nullptr && context->actor_id != ATHENA_NO_ACTOR &&
-        context->view_id != ATHENA_NO_VIEW) {
+    if (context != nullptr && context->actor_id != ATHENA_NO_ACTOR) {
       actor_id= context->actor_id;
       view_id= context->view_id;
+      capabilities= context->capabilities;
       handle= scheme_command_handle_acquire (object_to_tmscm (obj2));
     }
     else obj= obj2;
@@ -375,7 +376,7 @@ public:
     if (!scheme_command_handle_retain (handle)) return;
     actor_command_ticket ticket= buffer_actor::submit_to (
       actor_id, actor_command_kind::invoke_scheme_handle, view_id,
-      ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER, handle);
+      ATHENA_NO_BLOB, ATHENA_NO_BLOB, capabilities, handle);
     if (!ticket) scheme_command_handle_release (handle);
   }
   void apply (object args) override {
@@ -392,7 +393,7 @@ public:
     }
     actor_command_ticket ticket= buffer_actor::submit_to (
       actor_id, actor_command_kind::invoke_scheme_handle, view_id,
-      ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER,
+      ATHENA_NO_BLOB, ATHENA_NO_BLOB, capabilities,
       handle, arguments);
     if (!ticket) {
       scheme_command_handle_release (handle);

@@ -1,0 +1,165 @@
+// Production function bodies with explicit UI/actor and conversion test doubles.
+#include "buffer_name_catalog.hpp"
+#include <cstdint>
+#include <iostream>
+#include <stdexcept>
+#include <string>
+#include <vector>
+using string= std::string;
+static string operator * (const string& a, const string& b) { return a + b; }
+static void check (bool value, const char* message) {
+  if (!value) throw std::runtime_error (message);
+}
+struct tree { string text; };
+struct url {
+  string text;
+  explicit url (string s= {}): text (std::move (s)) {}
+};
+static bool operator == (const url& a, const url& b) { return a.text == b.text; }
+struct object {
+  bool text_value= false;
+  string text;
+  object (bool): text_value (false) {}
+  object (tree t): text_value (false), text (std::move (t.text)) {}
+  object (const char* s): text_value (true), text (s) {}
+  object (string s): text_value (true), text (std::move (s)) {}
+};
+static object conversion_result (false);
+static unsigned writes= 0;
+static bool write_failed= false;
+static string saved_bytes;
+static object call (const char*, object, object, object) { return conversion_result; }
+static bool is_string (const object& value) { return value.text_value; }
+static string as_string (const object& value) { return value.text; }
+static string tree_to_generic (tree, string) {
+  return conversion_result.text_value ? conversion_result.text : "Error: bad format or data";
+}
+static bool save_string (url, string bytes) {
+  ++writes; saved_bytes= std::move (bytes); return write_failed;
+}
+using athena_view_id= std::uint64_t;
+using athena_blob_id= std::uint64_t;
+constexpr auto ATHENA_NO_VIEW= 0;
+constexpr auto ATHENA_NO_BLOB= 0;
+enum class actor_command_kind { mark_saved, ui_mark_buffer_saved };
+struct actor_command_record { std::uint64_t argument[8] {}; };
+static int disk_stamp= 100;
+static int last_modified (url) { return disk_stamp; }
+struct document_state { url name {"first"}; int last_save= 100; };
+struct saved_editor { void notify_save () {} };
+struct actor_view { saved_editor* instance; };
+struct implementation {
+  document_state state;
+  std::vector<std::pair<int,actor_view>> views;
+};
+class buffer_actor {
+public:
+  implementation owned;
+  implementation* impl_= &owned;
+  document_state* current_state () { return &owned.state; }
+  url current_buffer_url () { return owned.state.name; }
+  bool invoke (actor_command_kind kind, athena_view_id= 0,
+               athena_blob_id= 0, athena_blob_id= 0,
+               actor_command_record* result= nullptr) {
+    actor_command_record command;
+    switch (kind) {
+@@MARK_SAVED@@
+    default: break;
+    }
+    if (result) *result= command;
+    return true;
+  }
+};
+struct ui_editor {
+  std::vector<int> queued_timestamps;
+  bool publish_ui (actor_command_kind, std::uint64_t value) {
+    queued_timestamps.push_back (static_cast<int> (value)); return true;
+  }
+};
+struct SchemeExecutionContext {
+  buffer_actor* actor;
+  ui_editor* editor;
+  athena_view_id view_id;
+};
+static SchemeExecutionContext* active= nullptr;
+static const SchemeExecutionContext* current_scheme_execution_context () { return active; }
+struct metadata { int last_save= 100; url name {"first"}; };
+struct tm_buffer_rep { metadata* buf; buffer_actor* actor; };
+using tm_buffer= tm_buffer_rep*;
+static tm_buffer ui_buffer;
+static tm_buffer concrete_buffer (url) {
+  check (!active, "BufferActor read UI-owned buffer metadata"); return ui_buffer;
+}
+static bool is_nil (tm_buffer value) { return !value; }
+static bool invoke_buffer_actor (tm_buffer buf, actor_command_kind kind,
+                                athena_view_id view= 0,
+                                athena_blob_id p0= 0, athena_blob_id p1= 0,
+                                actor_command_record* result= nullptr) {
+  return buf && buf->actor->invoke (kind, view, p0, p1, result);
+}
+static buffer_actor* current_buffer_actor (url name, athena_view_id& view) {
+  if (!active || !(active->actor->current_buffer_url () == name)) return nullptr;
+  view= active->view_id; return active->actor;
+}
+template<typename T> using array= std::vector<T>;
+template<typename T> static int N (const array<T>& a) { return static_cast<int> (a.size ()); }
+static int N (const array<tm_buffer>& a) {
+  check (!active, "BufferActor traversed the UI-owned buffer list");
+  return static_cast<int> (a.size ());
+}
+template<typename T> static array<T>& operator << (array<T>& a, T value) {
+  a.push_back (std::move (value)); return a;
+}
+static array<tm_buffer> bufs;
+static buffer_name_catalog published_buffer_names;
+
+@@SOURCE@@
+
+static void test_typed_failure () {
+  writes= 0; saved_bytes= "original document"; conversion_result= object (false);
+  check (export_tree ({"doc"}, url ("first"), "texmacs"), "failed conversion reported success");
+  check (writes == 0 && saved_bytes == "original document", "conversion error overwrote document");
+  for (auto literal: {"Error: bad format or data", "* error: unknown format *", ""}) {
+    conversion_result= object (literal); writes= 0;
+    check (!export_tree ({"doc"}, url ("first"), "verbatim"), "valid string rejected");
+    check (writes == 1 && saved_bytes == literal, "valid output changed");
+  }
+  write_failed= true;
+  check (export_tree ({"doc"}, url ("first"), "texmacs"), "write failure lost");
+  write_failed= false;
+}
+static void test_actor_metadata () {
+  buffer_actor actor;
+  ui_editor editor;
+  metadata metadata;
+  tm_buffer_rep buffer {&metadata, &actor};
+  ui_buffer= &buffer; bufs= {&buffer};
+  published_buffer_names.publish ({"second", "first"});
+  SchemeExecutionContext context {&actor, &editor, 7};
+  active= &context;
+  auto all= get_all_buffers ();
+  check (all.size () == 2 && all[0].text == "second" && all[1].text == "first",
+         "buffer-list snapshot or ordering changed");
+  // Publication is deliberately NOT drained between successive saves.
+  for (int stamp: {200, 201, 202}) {
+    disk_stamp= stamp;
+    pretend_buffer_saved (url ("first"));
+    check (actor.current_state ()->last_save == stamp, "actor did not commit save timestamp");
+    check (get_last_save_buffer (url ("first")) == stamp, "actor read delayed UI timestamp");
+    check (metadata.last_save == 100, "actor wrote UI metadata directly");
+  }
+  check (editor.queued_timestamps.size () == 3, "save UI effect was lost");
+  active= nullptr;
+  disk_stamp= 300;
+  pretend_buffer_saved (url ("first"));
+  check (metadata.last_save == 300 && actor.current_state ()->last_save == 300,
+         "UI-origin save did not mirror actor timestamp");
+}
+int main () {
+  try {
+    test_typed_failure (); test_actor_metadata ();
+    std::cout << "PASS: production save code, typed failure, preserved bytes, owner-local timestamps, buffer list\n";
+  } catch (const std::exception& error) {
+    std::cerr << "FAIL: " << error.what () << '\n'; return 1;
+  }
+}

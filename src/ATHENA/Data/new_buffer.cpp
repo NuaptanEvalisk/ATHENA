@@ -11,6 +11,8 @@
 
 #include "tm_data.hpp"
 #include "buffer_actor.hpp"
+#include "buffer_state.hpp"
+#include "buffer_name_catalog.hpp"
 #include "scheme_execution_context.hpp"
 #include "guile_tm.hpp"
 #include "object.hpp"
@@ -24,6 +26,28 @@
 #include "merge_sort.hpp"
 
 array<tm_buffer> bufs;
+
+namespace {
+
+buffer_name_catalog published_buffer_names;
+
+// Called only by the UI owner after membership/name changes. No native URL,
+// string, array or tree representation is retained in the published snapshot.
+void
+publish_buffer_names () {
+  buffer_name_catalog::names names;
+  names.reserve (N (bufs));
+  for (int i= N (bufs) - 1; i >= 0; --i) {
+    string text= as_string (bufs[i]->buf->name);
+    std::string encoded;
+    encoded.reserve (N (text));
+    for (int j= 0; j < N (text); ++j) encoded.push_back (text[j]);
+    names.push_back (std::move (encoded));
+  }
+  published_buffer_names.publish (std::move (names));
+}
+
+} // namespace
 
 bool
 exec_buffer (url name, object command) {
@@ -148,6 +172,7 @@ insert_buffer (url name) {
   if (!is_nil (concrete_buffer (name))) return;
   tm_buffer buf= tm_new<tm_buffer_rep> (name);
   bufs << buf;
+  publish_buffer_names ();
 }
 
 void
@@ -163,6 +188,7 @@ remove_buffer (tm_buffer buf) {
       for (int i=nr; i<n-1; i++)
         bufs[i]= bufs[i+1];
       bufs->resize (n-1);
+      publish_buffer_names ();
       tm_delete (buf);
       return;
     }
@@ -182,6 +208,22 @@ number_buffers () {
 array<url>
 get_all_buffers () {
   array<url> r;
+  if (current_scheme_execution_context () != nullptr) {
+    // Decode only when membership changes. Native URL representations remain
+    // local to this reader thread; each result gets its own array container.
+    static thread_local buffer_name_catalog::snapshot observed;
+    static thread_local array<url> decoded;
+    auto names= published_buffer_names.read ();
+    if (names != observed) {
+      array<url> fresh;
+      for (const std::string& name: *names)
+        fresh << url (string (name.data (), static_cast<int> (name.size ())));
+      decoded= fresh;
+      observed= std::move (names);
+    }
+    for (int i= 0; i < N (decoded); ++i) r << decoded[i];
+    return r;
+  }
   for (int i=N(bufs)-1; i>=0; i--)
     r << bufs[i]->buf->name;
   return r;
@@ -231,6 +273,11 @@ get_current_buffer_safe () {
 
 url
 path_to_buffer (path p) {
+  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  if (context != nullptr && context->actor != nullptr) {
+    buffer_document_state* state= context->actor->current_state ();
+    return state != nullptr && state->root_path <= p ? state->name : url_none ();
+  }
   url current= get_current_buffer_safe ();
   tm_buffer buf= concrete_buffer (current);
   if (!is_nil (buf) && buf->rp <= p) return current;
@@ -246,6 +293,7 @@ rename_buffer (url name, url new_name) {
   notify_rename_before (name);
   buf->buf->name= new_name;
   buf->buf->master= new_name;
+  publish_buffer_names ();
   athena_blob_id renamed= actor_text_from_string (as_string (new_name));
   if (!buf->actor->invoke (
         actor_command_kind::rename_buffer, ATHENA_NO_VIEW, renamed))
@@ -310,6 +358,9 @@ propose_title (string old_title, url u) {
 
 string
 get_title_buffer (url name) {
+  athena_view_id view_id= ATHENA_NO_VIEW;
+  if (buffer_actor* actor= current_buffer_actor (name, view_id))
+    return actor->current_state ()->title;
   tm_buffer buf= concrete_buffer (name);
   if (is_nil (buf)) return "";
   return buf->buf->title;
@@ -444,6 +495,9 @@ get_buffer_body (url name) {
 
 url
 get_master_buffer (url name) {
+  athena_view_id view_id= ATHENA_NO_VIEW;
+  if (buffer_actor* actor= current_buffer_actor (name, view_id))
+    return actor->current_state ()->master;
   tm_buffer buf= concrete_buffer (name);
   if (is_nil (buf)) return url_none ();
   return buf->buf->master;
@@ -471,6 +525,9 @@ set_last_save_buffer (url name, int t) {
 
 int
 get_last_save_buffer (url name) {
+  athena_view_id view_id= ATHENA_NO_VIEW;
+  if (buffer_actor* actor= current_buffer_actor (name, view_id))
+    return actor->current_state ()->last_save;
   tm_buffer buf= concrete_buffer (name);
   if (is_nil (buf)) {
     //cout << "Get last save " << name << " -> *\n";
@@ -482,6 +539,11 @@ get_last_save_buffer (url name) {
 
 bool
 is_aux_buffer (url name) {
+  athena_view_id view_id= ATHENA_NO_VIEW;
+  if (buffer_actor* actor= current_buffer_actor (name, view_id)) {
+    buffer_document_state* state= actor->current_state ();
+    return state->master != state->name;
+  }
   tm_buffer buf= concrete_buffer (name);
   if (is_nil (buf)) return false;
   return buf->buf->master != buf->buf->name;
@@ -539,18 +601,23 @@ pretend_buffer_saved (url name) {
   const SchemeExecutionContext* context= current_scheme_execution_context ();
   if (context != nullptr && context->actor != nullptr &&
       context->actor->current_buffer_url () == name) {
-    (void) context->actor->invoke (
-      actor_command_kind::mark_saved, context->view_id);
+    actor_command_record result;
+    if (!context->actor->invoke (
+          actor_command_kind::mark_saved, context->view_id,
+          ATHENA_NO_BLOB, ATHENA_NO_BLOB, &result))
+      return;
     if (context->editor != nullptr)
       (void) context->editor->publish_ui (
-        actor_command_kind::ui_mark_buffer_saved,
-        static_cast<std::uint64_t> (last_modified (name)));
+        actor_command_kind::ui_mark_buffer_saved, result.argument[0]);
     return;
   }
   tm_buffer buf= concrete_buffer (name);
   if (is_nil (buf)) return;
-  (void) invoke_buffer_actor (buf, actor_command_kind::mark_saved);
-  set_last_save_buffer (name, last_modified (name));
+  actor_command_record result;
+  if (invoke_buffer_actor (
+        buf, actor_command_kind::mark_saved, ATHENA_NO_VIEW,
+        ATHENA_NO_BLOB, ATHENA_NO_BLOB, &result))
+    set_last_save_buffer (name, static_cast<int> (result.argument[0]));
 }
 
 void
@@ -698,9 +765,12 @@ with_package_definitions (string package, tree body) {
 bool
 export_tree (tree doc, url u, string fm) {
   if (fm == "generic") fm= "verbatim";
-  string s= tree_to_generic (doc, fm * "-document");
-  if (s == "* error: unknown format *") return true;
-  return save_string (u, s);
+  // convert returns #f on failure. texmacs->generic turns that failure into
+  // printable text; it is not a serialization API and must not feed a writer.
+  object converted= call ("convert", object (doc), object ("texmacs-tree"),
+                          object (fm * "-document"));
+  if (!is_string (converted)) return true;
+  return save_string (u, as_string (converted));
 }
 
 bool
@@ -718,7 +788,7 @@ buffer_export (url name, url dest, string fm) {
   actor_command_record result;
   bool completed= actor->invoke (
     actor_command_kind::export_buffer, view_id,
-    destination, format, &result);
+    destination, format, &result, SCHEME_CAPABILITY_BUFFER, 1);
   if (!completed) {
     discard_text_payload (destination);
     discard_text_payload (format);

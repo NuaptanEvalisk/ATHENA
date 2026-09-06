@@ -16,6 +16,8 @@
 #include <QListWidget>
 #include <QPushButton>
 #include <QVBoxLayout>
+#include <memory>
+#include <utility>
 
 void
 qt_anchor_enunciations_confirm (
@@ -95,14 +97,23 @@ qt_anchor_enunciations_confirm (
     QObject::connect (buttons, &QDialogButtonBox::rejected,
                       dialog, &QDialog::reject);
     layout->addWidget (buttons);
+    // Destroying a dialog's parent need not emit finished(). Both paths
+    // consume the same completion, on the GUI thread, before invoking it.
+    auto pending= std::make_shared<std::function<void (bool)>> (
+      std::move (completion));
+    auto finish= [pending] (bool accepted) {
+      if (!*pending) return;
+      auto callback= std::move (*pending);
+      *pending= nullptr;
+      callback (accepted);
+    };
     QObject::connect (dialog, &QDialog::finished, dialog,
-                      [dialog, completion= std::move (completion), done= false]
-                      (int result) mutable {
-      if (done) return;
-      done= true;
+                      [dialog, finish] (int result) {
       dialog->deleteLater ();
-      completion (result == QDialog::Accepted);
+      finish (result == QDialog::Accepted);
     });
+    QObject::connect (dialog, &QObject::destroyed, qApp,
+                      [finish] (QObject*) { finish (false); });
     dialog->setModal (true);
     dialog->show ();
   });

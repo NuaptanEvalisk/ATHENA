@@ -230,9 +230,8 @@ mathop (string s) {
 }
 
 static void
-system_kbd_initialize (hashmap<string,tree>& h) {
-  if (N(h) != 0);
-  else if (use_macos_fonts ()) {
+system_kbd_initialize (hashmap<string,tree>& h, bool macos, bool qt) {
+  if (macos) {
     h ("S-")= "<#21E7>";
     h ("C-")= "<#2303>";
     h ("A-")= "<#2325>";
@@ -261,7 +260,7 @@ system_kbd_initialize (hashmap<string,tree>& h) {
     h ("<less>")= "<#3C>";
     h ("<gtr>")= "<#3E>";
   }
-  else if (gui_is_qt ()) {
+  else if (qt) {
     h ("S-")= keyboard_label ("Shift::keyboard", true);
     h ("C-")= keyboard_label ("Ctrl::keyboard", true);
     h ("A-")= keyboard_label ("Alt::keyboard", true);
@@ -314,8 +313,8 @@ system_kbd_initialize (hashmap<string,tree>& h) {
 }
 
 static tree
-kbd_render (tree t) {
-  if (use_macos_fonts ())
+kbd_render (tree t, bool macos) {
+  if (macos)
     t= tree (WITH, "font", "apple-lucida", "font-family", "rm",
              tree (WITH, "font-size", "0.7", t));
   return compound ("render-key", t);
@@ -338,7 +337,20 @@ kbd_system_prevails (string s) {
 tree
 tm_config_rep::kbd_system_rewrite (string s) {
   bool cs= (get_preference ("case sensitive shortcuts") == "on");
-  system_kbd_initialize (system_kbd_decode);
+  const bool macos= use_macos_fonts ();
+  const bool qt= gui_is_qt ();
+  const int mode= macos ? 2 : qt ? 1 : 0;
+  // Both the table and the trees returned from it must have one thread owner:
+  // locking initialization alone does not protect their non-atomic refcounts.
+  // ui_text only strips English context suffixes; it has no language setting.
+  static thread_local hashmap<string,tree> system_kbd_decode;
+  static thread_local int system_kbd_mode= -1;
+  if (system_kbd_mode != mode) {
+    hashmap<string,tree> fresh;
+    system_kbd_initialize (fresh, macos, qt);
+    system_kbd_decode= fresh;
+    system_kbd_mode= mode;
+  }
   int start= 0, i;
   for (i=0; i <= N(s); i++)
     if (i == N(s) || s[i] == ' ') {
@@ -357,14 +369,14 @@ tm_config_rep::kbd_system_rewrite (string s) {
       if (i < N(s) && s[i] == '-') i++;
       string ss= s (start, i);
       if (system_kbd_decode->contains (ss)) r << system_kbd_decode[ss];
-      else if (N(ss) == 1 && (use_macos_fonts () || gui_is_qt ()) && !cs) {
+      else if (N(ss) == 1 && (macos || qt) && !cs) {
         if (is_locase (ss[0])) r << upcase_all (ss);
         else if (is_upcase (ss[0])) r << system_kbd_decode ("S-") << ss;
         else r << ss;
       }
       else r << ss;
       if (i == N(s) || s[i] == ' ') {
-        k << kbd_render (simplify_concat (r));
+        k << kbd_render (simplify_concat (r), macos);
         r= tree (CONCAT);
         if (i == N(s)) break;
         i++;

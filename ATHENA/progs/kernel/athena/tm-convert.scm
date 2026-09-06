@@ -273,8 +273,11 @@
                    (opts1 (acons 'last? last? options))
                    (opts2 (std-converter-options from (car path)))
                    (what* (fun what (append opts1 opts2)))
-                   (result (convert-via what* (car path) (cdr path) options)))
-              (if (and (not last?) (string-ends? (car path) "-file"))
+                   ;; Failure is a value, not input for the next converter.
+                   (result (and what*
+                             (convert-via what* (car path) (cdr path) options))))
+              (if (and what* (not last?)
+                       (string-ends? (car path) "-file"))
                   (system-remove what*))
               result)
             #f))))
