@@ -9,6 +9,7 @@
 ******************************************************************************/
 
 #include "QTMVaultSearch.hpp"
+#include "math_token.hpp"
 #include "QTMVaultAnchorModel.hpp"
 #include "analyze.hpp"
 #include "drd_mode.hpp"
@@ -294,14 +295,34 @@ collect_fuzzy_atomic_matches (
 
 } // namespace
 
+static bool
+math_match_boundary (tree t, path base, path position) {
+  path relative= position / base;
+  if (is_nil (relative)) return true;
+  tree value= subtree (t, path_up (relative));
+  if (!is_atomic (value)) return true;
+  int wanted= last_item (relative), pos= 0;
+  while (pos < wanted && pos < N(value->label))
+    pos= math_word_end (value->label, pos);
+  return pos == wanted;
+}
+
 void
 append_content_matches (std::vector<VaultContentMatch>& out, tree t,
                         tree query, path base, int limit,
                         bool caseInsensitive, bool fuzzy) {
   if (limit <= 0) return;
-  range_set exactRanges= search (t, query, base, caseInsensitive, limit);
+  // Keep the mathematical context but select the expression inside it,
+  // rather than requiring the enclosing formula to equal the whole query.
+  tree pattern= query;
+  if (is_compound (query, "math", 1))
+    pattern= compound ("math", compound ("select-region", query[0]));
+  range_set exactRanges= search (t, pattern, base, caseInsensitive, limit);
   std::vector<VaultContentMatch> exact;
   for (int i=0; i+1<N(exactRanges); i+=2) {
+    if (is_compound (query, "math", 1) &&
+        (!math_match_boundary (t, base, exactRanges[i]) ||
+         !math_match_boundary (t, base, exactRanges[i+1]))) continue;
     VaultContentMatch match;
     match.start= exactRanges[i];
     match.end= exactRanges[i + 1];

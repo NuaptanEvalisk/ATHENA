@@ -15,6 +15,7 @@
 #include "file.hpp"
 #include "iterator.hpp"
 #include "packrat_grammar.hpp"
+#include "math_token.hpp"
 
 /******************************************************************************
 * Mathematical languages
@@ -204,27 +205,8 @@ math_language_rep::math_language_rep (string name):
 string
 math_language_rep::next_word (string s, int& pos) {
   int start= pos;
-
   if (pos>=N(s)) return string ("");
-
-  if (is_digit (s[pos])) {
-    while ((pos<N(s)) && is_numeric (s[pos])) pos++;
-    while (s[pos-1]=='.') pos--;
-    return s (start, pos);
-  }
-
-  if (is_alpha (s[pos])) {
-    while ((pos<N(s)) && (is_alpha (s[pos]))) pos++;
-    return s (start, pos);
-  }
-
-  if (s[pos]=='<') {
-    while ((pos<N(s)) && (s[pos]!='>')) pos++;
-    if (pos<N(s)) pos++;
-    return s (start, pos);
-  }
-
-  pos++;
+  pos= math_word_end (s, pos);
   return s (start, pos);
 }
 

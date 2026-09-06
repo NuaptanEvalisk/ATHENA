@@ -14,20 +14,20 @@
 #include "boot.hpp"
 #include "drd_mode.hpp"
 
-int  search_max_hits= 1000000;
-bool blank_match_flag= false;
-bool initial_match_flag= false;
-bool partial_match_flag= false;
-bool injective_match_flag= false;
-bool cascaded_match_flag= false;
-bool case_insensitive_match_flag= false;
+static thread_local int  search_max_hits= 1000000;
+static thread_local bool blank_match_flag= false;
+static thread_local bool initial_match_flag= false;
+static thread_local bool partial_match_flag= false;
+static thread_local bool injective_match_flag= false;
+static thread_local bool cascaded_match_flag= false;
+static thread_local bool case_insensitive_match_flag= false;
 
 void search (range_set& sel, tree t, tree what, path p);
 bool match (tree t, tree what);
 void select (range_set& sel, tree t, tree what, path p);
 
-tree_label WILDCARD= UNKNOWN;
-tree_label SELECT_REGION= UNKNOWN;
+static thread_local tree_label WILDCARD= UNKNOWN;
+static thread_local tree_label SELECT_REGION= UNKNOWN;
 
 /******************************************************************************
 * Initialization and useful subroutines

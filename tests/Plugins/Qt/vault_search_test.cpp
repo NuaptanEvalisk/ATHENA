@@ -13,11 +13,18 @@
 #include "Qt/QTMVaultAnchorModel.hpp"
 #include "Qt/QTMVaultSearch.hpp"
 #include "Qt/qt_utilities.hpp"
+#include "drd_std.hpp"
+#include "drd_mode.hpp"
+#include <atomic>
+#include <thread>
 
 class TestVaultSearch: public QObject {
   Q_OBJECT
 
 private slots:
+  void initTestCase ();
+  void findsStructuredMathematicalExpressions ();
+  void keepsConcurrentSearchOptionsIndependent ();
   void fuzzyInsertion ();
   void fuzzySubstitution ();
   void shortQueryIsExactOnly ();
@@ -33,6 +40,83 @@ private slots:
   void rawPrefilterRespectsCaseOption ();
   void rawPrefilterIsConservative ();
 };
+
+void
+TestVaultSearch::initTestCase () {
+  init_std_drd ();
+}
+
+void
+TestVaultSearch::keepsConcurrentSearchOptionsIndependent () {
+  std::atomic<int> ready {0}, errors {0};
+  auto worker= [&] (bool insensitive) {
+    tree source ("AAA AAA AAA AAA AAA AAA AAA AAA"), query ("aaa");
+    ready.fetch_add (1);
+    while (ready.load () != 2) std::this_thread::yield ();
+    for (int i=0; i<2000; ++i) {
+      auto ranges= search (source, query, path (), insensitive, 200);
+      if (N(ranges) != (insensitive ? 16 : 0)) errors.fetch_add (1);
+    }
+  };
+  std::thread sensitive (worker, false), insensitive (worker, true);
+  sensitive.join ();
+  insensitive.join ();
+  QCOMPARE (errors.load (), 0);
+}
+
+void
+TestVaultSearch::findsStructuredMathematicalExpressions () {
+  tree expression= tree (CONCAT, "x", tree (RSUP, "2"), "+1");
+  tree math_query= compound ("math", expression);
+  tree longer= compound ("math",
+    tree (CONCAT, "f=x", tree (RSUP, "2"), "+1+y"));
+  std::vector<VaultContentMatch> matches;
+  int previous= set_access_mode (DRD_ACCESS_SOURCE);
+  append_content_matches (matches, longer, math_query, path (), 200, false, false);
+  set_access_mode (previous);
+  QCOMPARE (matches.size (), (size_t) 1);
+  QVERIFY (matches[0].exact);
+  QCOMPARE (matches[0].start, path (0) * 0 * 2);
+  QCOMPARE (matches[0].end, path (0) * 2 * 2);
+
+  for (tree different: {
+         tree ("f=x2+1+y"),
+         compound ("math", tree (CONCAT, "f=x", tree (RSUB, "2"), "+1+y")),
+         compound ("math", tree (CONCAT, "f=x", tree (RSUP, "20"), "+1+y")),
+         compound ("math", tree (CONCAT, "f=x", tree (RSUP, "2"), "+10+y"))}) {
+    matches.clear ();
+    append_content_matches (matches, different, math_query, path (), 200, false, false);
+    QVERIFY (matches.empty ());
+  }
+
+  tree fraction= tree (FRAC, tree (CONCAT, "x", tree (RSUP, "2")), "y");
+  tree fraction_source= compound ("math", tree (CONCAT, "f=", fraction, "+z"));
+  matches.clear ();
+  append_content_matches (matches, fraction_source, compound ("math", fraction),
+                          path (), 200, false, true);
+  QCOMPARE (matches.size (), (size_t) 1);
+  QVERIFY (matches[0].exact);
+  matches.clear ();
+  append_content_matches (matches, fraction_source,
+                          compound ("math", tree (FRAC, "y", "x")),
+                          path (), 200, false, true);
+  QVERIFY (matches.empty ());
+
+  tree mixed_query= tree (CONCAT, "where ", compound ("math", "x"), " is");
+  tree mixed_source= tree (CONCAT, "Observe where ", compound ("math", "x"),
+                          " is defined.");
+  matches.clear ();
+  append_content_matches (matches, mixed_source, mixed_query, path (), 200, false, false);
+  QCOMPARE (matches.size (), (size_t) 1);
+  matches.clear ();
+  append_content_matches (matches, tree ("Observe where x is defined."),
+                          mixed_query, path (), 200, false, false);
+  QVERIFY (matches.empty ());
+  matches.clear ();
+  append_content_matches (matches, compound ("math", "sinh"),
+                          compound ("math", "sin"), path (), 200, false, false);
+  QVERIFY (matches.empty ());
+}
 
 static std::vector<VaultContentMatch>
 matchesFor (const QString& text, const QString& query,

@@ -264,10 +264,27 @@
      in /tmp/athena-definition-scope-ctest.log. All test-owned processes ended.
      Normal build/deployment: /tmp/athena-definition-scope-build.log and
      /tmp/athena-definition-scope-deploy.log. No TSan-clean claim.
-10. **TODO: Structural global search**
+10. **DONE: Structural global search**
     - Inspect index/query representation and design non-plaintext matching.
       Ensure mathematical structure such as `x^2+1` is searchable, with tests for
       token/structure boundaries, scripts, fractions, mixed text/math, and UI.
+    - Verified UI path: QTMGlobalSearch retains query trees, imports document
+      trees and calls append_content_matches. Existing tree search already
+      handles structure; no plaintext index or replacement parser introduced.
+    - Reproduced zero results for math x^2+1 inside f=x^2+1+y in
+      /tmp/athena-structural-search-baseline.log. Reuse select-region to search
+      within the math context and return exact source ranges.
+    - Reject substring hits inside mathematical words/numbers using the same
+      lexer as math_language::next_word, extracted into math_token.hpp.
+      Thread-local search configuration prevents concurrent GUI/actor queries
+      from overwriting each other's flags and limits.
+    - PASS: all 18 vault-search cases, including scripts, fractions, mixed
+      text/math, numeric/operator boundaries, existing fuzzy behavior and
+      4000 concurrent case-sensitive/insensitive queries. Log:
+      /tmp/athena-structural-search-final-tests.log.
+    - Normal build/deploy passed: /tmp/athena-structural-search-final-build.log.
+      Installed SHA256 d3d1f7e090e0a73f3a43610dccef94d1d169a332d861c8314c3a656a460a8c53.
+      No GUI interaction or TSan run claimed; helper is used by the real pane.
 11. **TODO: Structured definition titles and radioactive linking**
     - Artifactize and match mixed titles such as math sigma + `-algebra` without
       flattening away mathematical identity; integrate with alias extraction.
