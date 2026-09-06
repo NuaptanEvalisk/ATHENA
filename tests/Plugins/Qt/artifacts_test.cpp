@@ -72,6 +72,7 @@ private slots:
   void prefersLongestRadioactiveArtifactTerm ();
   void linksAmbiguousRadioactiveArtifactTerms ();
   void namesEnunciationsStrictlyAndSkipsCompletions ();
+  void extractsEveryDefinitionAliasFromFirstLine ();
   void preservesUnicodeRadioactiveMatchOffsets ();
   void matchesLargeRadioactiveArtifactIndexWithinBudget ();
   void reportsBuildPhasesInOrder ();
@@ -1717,6 +1718,83 @@ radioactive_record (const char* uuid, const char* term,
     record.anchor_stem= std::string ("theorem:") + term;
   }
   return record;
+}
+
+void
+TestArtifacts::extractsEveryDefinitionAliasFromFirstLine () {
+  MissingRangeModel noModel;
+  tree first (CONCAT);
+  first << "We call this "
+        << compound ("strong", "(covering map, local homeomorphism, atlas map)")
+        << " or " << tree (WITH, "font-series", "bold", "C*-algebra")
+        << ". This prose is not a name.";
+  tree lines (DOCUMENT);
+  lines << first << compound ("strong", "Later body emphasis");
+  tree unnamed (DOCUMENT);
+  unnamed << "No name declared here." << compound ("strong", "Later title");
+  tree body (DOCUMENT);
+  body << compound ("definition", lines)
+       << compound ("definition", unnamed);
+  tree document (DOCUMENT);
+  document << compound ("TeXmacs", "2.1.4") << compound ("style", "generic")
+           << compound ("body", body);
+  std::vector<AthenaArtifactRecord> records;
+  std::string error;
+  QVERIFY2 (athena_artifacts_extract_document (
+              document, "aliases.ath", records, error), error.c_str ());
+  QCOMPARE (records.size (), (size_t) 2);
+  QCOMPARE (records[0].semantic_names, std::vector<std::string> (
+    {"covering map", "local homeomorphism", "atlas map", "C*-algebra"}));
+  QVERIFY (records[1].semantic_names.empty ());
+  records[0].uuid= "definition-aliases";
+  const string text=
+    "covering map; local homeomorphism; atlas map; C*-algebra. "
+    "Later body emphasis. Later title. No name declared here.";
+  auto matches= athena_artifact_radioactive_matches_for_records (records, text);
+  QCOMPARE (matches.size (), (size_t) 4);
+  for (size_t i=0; i<matches.size (); ++i) {
+    QCOMPARE (matches[i].uuids, std::vector<std::string> ({"definition-aliases"}));
+    QCOMPARE (text (matches[i].start, matches[i].end),
+              string (records[0].semantic_names[i].c_str ()));
+  }
+
+  tree wrapped_lines (DOCUMENT);
+  wrapped_lines << "(first alias, second alias, first alias)" << "Not a title";
+  tree break_line (CONCAT);
+  break_line << compound ("strong", "Before break") << tree (NEXT_LINE)
+             << compound ("strong", "After break");
+  tree extra (DOCUMENT);
+  extra << compound ("definition", compound ("strong", wrapped_lines))
+        << compound ("definition", break_line);
+  tree extra_document (DOCUMENT);
+  extra_document << compound ("body", extra);
+  std::vector<AthenaArtifactRecord> extra_records;
+  QVERIFY2 (athena_artifacts_extract_document (
+              extra_document, "wrappers.ath", extra_records, error), error.c_str ());
+  QCOMPARE (extra_records.size (), (size_t) 2);
+  QCOMPARE (extra_records[0].semantic_names,
+            std::vector<std::string> ({"first alias", "second alias"}));
+  QCOMPARE (extra_records[1].semantic_names,
+            std::vector<std::string> ({"Before break"}));
+
+  QTemporaryDir temporary;
+  QVERIFY (temporary.isValid ());
+  fs::path root (temporary.path ().toStdString ());
+  AthenaVaultfileInfo info;
+  info.artifacts_path= "indexes/artifacts.db";
+  info.enunciations_path= "indexes/enunciations.db";
+  info.bold_text_path= "indexes/bold-text.db";
+  QVERIFY2 (athena_vaultfile_write (root, info, error), error.c_str ());
+  write_document (root / "aliases.ath", document);
+  AthenaArtifactsBuildResult built;
+  QVERIFY2 (athena_artifacts_build (root, {}, true, {}, built, error), error.c_str ());
+  std::vector<AthenaArtifactRecord> stored;
+  QVERIFY2 (athena_artifacts_query (root, stored, error), error.c_str ());
+  QCOMPARE (stored.size (), records.size ());
+  QCOMPARE (stored[0].semantic_names, records[0].semantic_names);
+  AthenaArtifactsBuildResult unchanged;
+  QVERIFY2 (athena_artifacts_build (root, {}, true, {}, unchanged, error), error.c_str ());
+  QCOMPARE (unchanged.documents_changed, (size_t) 0);
 }
 
 void

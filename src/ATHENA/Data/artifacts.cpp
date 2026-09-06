@@ -333,14 +333,18 @@ bool nonsemantic_resource_tag (const std::string& tag) {
   return tag == "image" || tag == "include" || tag == "bibliography";
 }
 
-std::string plain_text (const tree& t) {
+std::string plain_text (const tree& t, bool first_line= false) {
   if (is_atomic (t)) return to_std (t->label);
   std::string tag= tag_name (t);
   if (tag == "label" || nonsemantic_resource_tag (tag)) return "";
-  if (formatting_wrapper (tag) && N(t) >= 1) return plain_text (t[N(t)-1]);
+  if (formatting_wrapper (tag) && N(t) >= 1)
+    return plain_text (t[N(t)-1], first_line);
   std::string out;
-  for (int i=0; i<N(t); i++) {
-    std::string part= plain_text (t[i]);
+  int count= first_line && is_func (t, DOCUMENT) ? std::min (1, N(t)) : N(t);
+  for (int i=0; i<count; i++) {
+    if (first_line && (is_func (t[i], NEXT_LINE, 0) || is_func (t[i], NEW_LINE, 0)))
+      break;
+    std::string part= plain_text (t[i], first_line);
     if (part.empty ()) continue;
     if (!out.empty ()) out += " ";
     out += part;
@@ -379,6 +383,39 @@ bool leading_bold_scope (const tree& t, path base, path& scope,
 bool leading_bold_text (const tree& t, std::string& text) {
   path scope;
   return leading_bold_scope (t, path (), scope, &text);
+}
+
+void definition_names_in_first_line (
+  const tree& t, std::vector<std::string>& names) {
+  if (!is_compound (t)) return;
+  if (bold_wrapper (t)) {
+    QString title= qstr (cork_bytes_to_utf8 (plain_text (visible_body (t), true)))
+                     .simplified ();
+    if ((title.startsWith ('(') && title.endsWith (')')) ||
+        (title.startsWith (QChar (0xff08)) && title.endsWith (QChar (0xff09))))
+      title= title.mid (1, title.size ()-2);
+    for (const QString& part: title.split (
+           QRegularExpression (QStringLiteral ("[,，]")), Qt::SkipEmptyParts)) {
+      std::string name= part.trimmed ().toStdString ();
+      if (!name.empty () && std::find (names.begin (), names.end (), name) ==
+                            names.end ())
+        names.push_back (std::move (name));
+    }
+    return;
+  }
+  if (formatting_wrapper (tag_name (t)) && N(t) >= 1) {
+    definition_names_in_first_line (t[N(t)-1], names);
+    return;
+  }
+  if (is_func (t, DOCUMENT)) {
+    if (N(t) > 0) definition_names_in_first_line (t[0], names);
+    return;
+  }
+  if (is_func (t, CONCAT))
+    for (int i=0; i<N(t); ++i) {
+      if (is_func (t[i], NEXT_LINE, 0) || is_func (t[i], NEW_LINE, 0)) break;
+      definition_names_in_first_line (t[i], names);
+    }
 }
 
 std::vector<std::string> semantic_names_for (
@@ -593,8 +630,11 @@ void scan_enunciations (const tree& parent, const std::string& rel,
       std::string explicit_title;
       if (leading_bold_text (child, explicit_title))
         explicit_title= cork_bytes_to_utf8 (explicit_title);
-      record.semantic_names= semantic_names_for (
-        record.origin, record.type, record.display_text, explicit_title);
+      if (type == "definition" && N(child) > 0)
+        definition_names_in_first_line (child[N(child)-1], record.semantic_names);
+      else
+        record.semantic_names= semantic_names_for (
+          record.origin, record.type, record.display_text, explicit_title);
       record.keyword_tree= base;
       record.identity_focus= identity_fingerprint (child);
       record.identity_before= identity_neighbor (parent, i - 1, -1);

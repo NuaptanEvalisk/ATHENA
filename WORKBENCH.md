@@ -228,10 +228,26 @@
    - Two additional eqnarray runs passed: /tmp/athena-eqnarray-repeat.log.
      An intentionally failing script is still rejected despite clean app exit:
      /tmp/athena-editor-expected-failure.log. Assertion checks are not weakened.
-8. **TODO: Definition names and comma-separated aliases**
+8. **DONE: Definition names and comma-separated aliases**
    - Extract bold first-line names, not arbitrary body text; split all declared
      aliases and make every alias eligible for radioactive linking.
    - Test artifactization and actual matching, including spaces and punctuation.
+   - Definition semantic_names now come from bold first-line declarations,
+     including declarations after introductory text and formatting wrappers.
+     Split every comma-separated alias, trim and deduplicate, and stop at the
+     first paragraph or explicit newline. No fallback to definition prose.
+     Other enunciation naming remains unchanged; matcher already indexes all
+     semantic_names. No matching hot-path deep copy or new shared state.
+   - User explicitly requires no old artifacts database compatibility: no
+     migration or extraction-contract change. Rebuild artifacts from source.
+   - New extraction, alias matching and fresh temporary-vault storage tests
+     passed. Full artifacts suite: 39 passed, 1 failed, 1 skipped. Remaining
+     failure is navigatesArtifactAndLoadsDisambiguationPage's immediate-buffer
+     assertion, recorded separately rather than hidden or marked passed.
+     Log: /tmp/athena-definition-alias-verified-ctest.log.
+   - Normal icpx -j20 build and runtime installation passed:
+     /tmp/athena-definition-alias-verified-build.log and
+     /tmp/athena-definition-alias-deploy.log. No personal vault touched.
 9. **TODO: Suppress radioactive matches throughout definitions**
    - Exclude both title and all body content of definitions, including nested
      markup, while retaining ordinary downstream matches.
