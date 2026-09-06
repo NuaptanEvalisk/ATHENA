@@ -45,6 +45,12 @@ class GlueGeneratorTest(unittest.TestCase):
             (glue.Argument("url"), glue.Argument("object"))))
         self.assertEqual(bindings["init-default-one"].arguments,
                          (glue.Argument("string", "move"),))
+        # The native entry consumes the widget smob and binds the close thunk
+        # on its source actor before transferring the request to the GUI.
+        self.assertEqual(bindings["ads-show-tool-pane"].arguments,
+                         (glue.Argument("object"), glue.Argument("string"),
+                          glue.Argument("string"), glue.Argument("object"),
+                          glue.Argument("bool")))
         self.assertEqual(interfaces[1].prefix, "get_current_editor()->")
         self.assertEqual(interfaces[2].prefix, "get_server()->")
 

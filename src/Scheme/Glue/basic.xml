@@ -130,10 +130,10 @@
     <arg type="object" />
   </binding>
   <binding name="ads-show-tool-pane" native="ads_show_tool_pane" returns="void">
-    <arg type="widget" />
+    <arg type="object" />
     <arg type="string" />
     <arg type="string" />
-    <arg type="command" />
+    <arg type="object" />
     <arg type="bool" />
   </binding>
   <binding name="ads-close-tool-pane" native="ads_close_tool_pane" returns="void">

@@ -1127,10 +1127,9 @@
   (with (bufs qqq) (decode-options opts)
     (let* ((id name)
            (del (make-ads-pane-deleter id bufs))
-           (qui (object->command
-                  (lambda ()
-                    (qqq)
-                    (unregister-window-deleters bufs))))
+           (qui (lambda ()
+                  (qqq)
+                  (unregister-window-deleters bufs)))
            (lbd (lambda x (apply cmd x) (del)))
            (men (menu-promise lbd))
            (scm (list 'vertical men))

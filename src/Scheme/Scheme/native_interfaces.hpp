@@ -18,7 +18,7 @@ string texmacs_version (string which);
 string image_remove_background_current (object image);
 void ads_restore_visible_panes ();
 void ads_close_tool_pane (string id);
-void ads_show_tool_pane (widget wid, string id, string title, command close, bool floating);
+void ads_show_tool_pane (object wid, string id, string title, object close, bool floating);
 void win32_display (string s);
 void tm_output (string s);
 void tm_errput (string s);

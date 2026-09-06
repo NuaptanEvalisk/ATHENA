@@ -9,6 +9,7 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 
+#include "widget.hpp"
 #include "scheme.hpp"
 
 #include "promise.hpp"
@@ -108,6 +109,7 @@
 #include <QSpacerItem>
 #include <QVBoxLayout>
 #include <QWidget>
+#include <QThread>
 #include <map>
 #include <filesystem>
 #include <memory>
@@ -193,12 +195,21 @@ ads_destroy_tool_pane (const std::string& key, bool run_close) {
 
 void
 ads_close_tool_pane (string id) {
-  ads_destroy_tool_pane (ads_tool_key (id), false);
+  const std::string key= ads_tool_key (id);
+  auto* app= QCoreApplication::instance ();
+  if (app == nullptr) return;
+  if (QThread::currentThread () != app->thread ()) {
+    QMetaObject::invokeMethod (app, [key] {
+      ads_destroy_tool_pane (key, false);
+    }, Qt::QueuedConnection);
+    return;
+  }
+  ads_destroy_tool_pane (key, false);
 }
 
-void
-ads_show_tool_pane (widget wid, string id, string title, command close,
-                    bool floating) {
+static void
+ads_show_tool_pane_on_gui (widget wid, string id, string title, command close,
+                           bool floating) {
   std::string key= ads_tool_key (id);
   ads_destroy_tool_pane (key, false);
 
@@ -249,6 +260,34 @@ ads_show_tool_pane (widget wid, string id, string title, command close,
   dock->show ();
   dock->raise ();
   pane_widget->setFocus ();
+}
+
+void
+ads_show_tool_pane (object wid, string id, string title, object close,
+                    bool floating) {
+  auto* app= QCoreApplication::instance ();
+  if (app == nullptr) return;
+
+  struct request {
+    widget contents;
+    command on_close;
+    std::string id;
+    std::string title;
+  };
+  auto pending= std::make_shared<request> ();
+  // Consume the description and bind callbacks on the source actor before
+  // handing native ownership to Qt. Do not share Scheme widget smob handles.
+  pending->contents= take_widget (wid);
+  pending->on_close= as_command (close);
+  pending->id= ads_tool_key (id);
+  pending->title= ads_tool_key (title);
+  auto show= [pending, floating] {
+    ads_show_tool_pane_on_gui (
+      std::move (pending->contents), string (pending->id.c_str ()),
+      string (pending->title.c_str ()), pending->on_close, floating);
+  };
+  if (QThread::currentThread () == app->thread ()) show ();
+  else QMetaObject::invokeMethod (app, show, Qt::QueuedConnection);
 }
 
 string
