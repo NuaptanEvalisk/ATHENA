@@ -1197,8 +1197,9 @@ void
 qt_gui_rep::need_update () {
   if (updatetimer != nullptr &&
       QThread::currentThread () != updatetimer->thread ()) {
+    // Recheck updating on the GUI thread, including inside nested dialog loops.
     QMetaObject::invokeMethod (
-      updatetimer, "start", Qt::QueuedConnection, Q_ARG (int, 0));
+      updatetimer, [this] { need_update (); }, Qt::QueuedConnection);
     return;
   }
   if (updating) needing_update = true;
