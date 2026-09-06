@@ -30,6 +30,8 @@
 #include <QGridLayout>
 #include <QByteArray>
 #include <QUrl>
+#include <QApplication>
+#include <QThread>
 
 #ifdef USE_KF6
 #include <KIOFileWidgets/KFileCustomDialog>
@@ -60,9 +62,8 @@ qt_chooser_widget_rep::send (slot s, blackbox val) {
     case SLOT_VISIBILITY:
     {   
       check_type<bool> (val, s);
-      bool flag = open_box<bool> (val);
-      (void) flag;
-      NOT_IMPLEMENTED("qt_chooser_widget::SLOT_VISIBILITY");
+      // dialogue_start sets visibility before keyboard focus opens the chooser.
+      if (!open_box<bool> (val) && dialog) dialog->reject ();
     }
       break;
     case SLOT_SIZE:
@@ -75,7 +76,7 @@ qt_chooser_widget_rep::send (slot s, blackbox val) {
       break;
     case SLOT_KEYBOARD_FOCUS:
       check_type<bool>(val, s);
-      perform_dialog ();
+      if (open_box<bool> (val)) perform_dialog ();
       break;              
     case SLOT_STRING_INPUT:
       check_type<string>(val, s);
@@ -207,57 +208,26 @@ qt_chooser_widget_rep::set_type (const string& _type)
 }
 
 void
-qt_chooser_widget_rep::perform_dialog_with_qfiledialog() {
-  QString caption = to_qstring (win_title);
-  c_string tmp (directory * "/" * file);
-  QString path = QString::fromUtf8 (&tmp[0]);
-  QString filter = nameFilter;
-  if (type == "image")
-    filter = QStringLiteral ("Image file (*.png *.jpg *.jpeg *.bmp *.gif *.pdf)");
-  else if (type == "directory")
-    filter = "";
-  else if (type == "generic")
-    filter = QStringLiteral ("All files (*)");
-  else
-    filter = to_qstring (ui_text (as_string (call ("format-get-name", type))
-                                  * " file")) + " (" + filter + ")";
-  if (prompt != "") {
-    string text= prompt;
-    if (ends (text, ":")) text= text (0, N(text) - 1);
-    if (ends (text, " as")) text= text (0, N(text) - 3);
-    filter = to_qstring (ui_text (text)) + " (" + filter + ")";
-  }
-  //QString imqstring = QFileDialog::getSaveFileName (NULL, caption, path, filter);
-  // if save dialog, then use getSaveFileName, otherwise use getOpenFileName
-  QString imqstring;
-  if (prompt != "")
-    imqstring = QFileDialog::getSaveFileName (NULL, caption, path, filter);
-  else
-    imqstring = QFileDialog::getOpenFileName (NULL, caption, path, filter);
-  if (imqstring.isEmpty()) {
-    file = "#f";
-    return;
-  }
-
-  QByteArray imqstringutf8 = imqstring.toUtf8();
-  string imname(imqstringutf8.data(), imqstringutf8.size());
-
-  file = "(system->url " * scm_quote (imname) * ")";
-  if (type == "image") {
-    url u= url_system (imname);
-    string w, h;
-    qt_pretty_image_size (u, w, h);
-    string params;
-    params << "\"" << w << "\" "
-           << "\"" << h << "\" "
-           << "\"" << "" << "\" "  // xps ??
-           << "\"" << "" << "\"";   // yps ??
-    file = "(list " * file * " " * params * ")";
-  }
-
-  cmd ();
-  if (!is_nil (quit)) quit ();
-
+qt_chooser_widget_rep::show_dialog (
+    QDialog* window, std::function<void ()> read_result) {
+  dialog= window;
+  file= "#f";
+  // Completion reads this widget even when the caller has released its copy.
+  widget owner (this);
+  QObject::connect (window, &QDialog::finished, window,
+                    [this, owner, window, read_result, completed= false]
+                    (int result) mutable {
+    if (completed) return;
+    completed= true;
+    widget keep_alive= owner;
+    if (result == QDialog::Accepted) read_result ();
+    window->deleteLater ();
+    cmd ();
+    if (!is_nil (quit)) quit ();
+  });
+  // Keep application modality without exec() reentering the GUI update loop.
+  window->setModal (true);
+  window->show ();
 }
 
 
@@ -311,18 +281,20 @@ qt_chooser_set_kde_filter (KFileWidget* file_widget, const QString& filter) {
 
 void
 qt_chooser_widget_rep::perform_dialog_with_kfiledialog() {
+  Q_ASSERT (qApp && QThread::currentThread () == qApp->thread ());
+  if (dialog) return;
   QString caption= to_qstring (win_title);
   c_string tmp (directory * "/" * file);
   QString path= QString::fromUtf8 (&tmp[0]);
   QUrl start_url= QUrl::fromLocalFile (path);
 
-  KFileCustomDialog dialog (start_url);
-  dialog.setWindowTitle (caption);
-  dialog.setOperationMode (prompt == ""?
+  auto* window= new KFileCustomDialog (start_url);
+  window->setWindowTitle (caption);
+  window->setOperationMode (prompt == ""?
                            KFileWidget::Opening:
                            KFileWidget::Saving);
 
-  KFileWidget* file_widget= dialog.fileWidget ();
+  KFileWidget* file_widget= window->fileWidget ();
   if (type == "directory")
     file_widget->setMode (KFile::Directory | KFile::ExistingOnly |
                           KFile::LocalOnly);
@@ -340,25 +312,24 @@ qt_chooser_widget_rep::perform_dialog_with_kfiledialog() {
   QTMImagePreview* preview= NULL;
   if (type == "image") {
     preview= new QTMImagePreview ();
-    dialog.setCustomWidget (preview);
+    window->setCustomWidget (preview);
     QObject::connect (file_widget, &KFileWidget::fileHighlighted,
                       preview, [preview] (const QUrl& url) {
       preview->setImage (url.isLocalFile ()? url.toLocalFile (): QString ());
     });
   }
 
-  dialog.updateGeometry ();
+  window->updateGeometry ();
   QRect r;
-  QSize dialog_size= dialog.sizeHint ();
+  QSize dialog_size= window->sizeHint ();
   int max_width= type == "image"? 980: 860;
   if (dialog_size.width () > max_width)
     dialog_size.setWidth (max_width);
   r.setSize (dialog_size);
   r.moveCenter (to_qpoint (position));
-  dialog.setGeometry (r);
+  window->setGeometry (r);
 
-  file= "#f";
-  if (dialog.exec () == QDialog::Accepted) {
+  show_dialog (window, [this, file_widget, preview] {
     QString imqstring= qt_chooser_selected_local_file (file_widget);
     if (!defaultSuffix.isEmpty () && imqstring.contains (QLatin1Char ('/'))
         && !imqstring.endsWith (QLatin1Char ('/'))
@@ -389,10 +360,7 @@ qt_chooser_widget_rep::perform_dialog_with_kfiledialog() {
         file= "(list " * file * " " * params * ")";
       }
     }
-  }
-
-  cmd ();
-  if (!is_nil (quit)) quit ();
+  });
 }
 #endif
 
@@ -405,8 +373,15 @@ void
 qt_chooser_widget_rep::perform_dialog () {
 #ifdef USE_KF6
   return perform_dialog_with_kfiledialog();
+#else
+  return perform_dialog_with_qfiledialog();
 #endif
+}
 
+void
+qt_chooser_widget_rep::perform_dialog_with_qfiledialog () {
+  Q_ASSERT (qApp && QThread::currentThread () == qApp->thread ());
+  if (dialog) return;
   QString caption = to_qstring (win_title);
   c_string tmp (directory * "/" * file);
   QString path = QString::fromUtf8 (&tmp[0]);
@@ -462,7 +437,7 @@ qt_chooser_widget_rep::perform_dialog () {
     file_ptr->setNameFilters (filters);
   }
 
-  QWidget* actual_dialog = native_dialog ? (QWidget*)native_dialog : (QWidget*)custom_dialog;
+  QDialog* actual_dialog = native_dialog ? (QDialog*)native_dialog : (QDialog*)custom_dialog;
   actual_dialog->updateGeometry();
   QSize   sz = actual_dialog->sizeHint();
   QPoint pos = to_qpoint (position);
@@ -472,11 +447,8 @@ qt_chooser_widget_rep::perform_dialog () {
   r.moveCenter (pos);
   actual_dialog->setGeometry (r);
   
-  QStringList fileNames;
-  file = "#f";
-  int result = native_dialog ? native_dialog->exec() : custom_dialog->exec();
-  if (result) {
-    fileNames = file_ptr->selectedFiles();
+  show_dialog (actual_dialog, [this, file_ptr, portable_latex, img_dialog] {
+    QStringList fileNames = file_ptr->selectedFiles();
     if (fileNames.count() > 0) {
       QString imqstring = fileNames.first();
       // QTBUG-59401: QFileDialog::setDefaultSuffix doesn't work when file path contains a dot
@@ -492,7 +464,7 @@ qt_chooser_widget_rep::perform_dialog () {
                scm_quote (portable_latex->isChecked () ? "on" : "off") * ")";
       if (type == "image") {
         if (img_dialog) {
-          file = "(list " * file * img_dialog->getParamsAsString () * ")"; //set image size from preview
+          file = "(list " * file * " " * img_dialog->getParamsAsString () * ")";
         } else {
           url u= url_system (imname);
           string w, h;
@@ -506,11 +478,5 @@ qt_chooser_widget_rep::perform_dialog () {
         }
       }
     }
-  }
-
-  if (native_dialog) delete native_dialog;
-  else delete custom_dialog;
-  
-  cmd ();
-  if (!is_nil (quit)) quit ();
+  });
 }

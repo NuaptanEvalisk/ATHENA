@@ -61,6 +61,17 @@
 3. **TODO: Freeze saving one of two open documents**
    - Reproduce with isolated buffers and inspect UI/actor stacks and command
      ownership. Include both active and inactive buffer saves and save-as.
+   - Initial source audit (not yet a reproduced root cause): manual saves call
+     vault-anchor-before-manual-save. If changes require confirmation,
+     vault-anchor-confirm-native calls athena_native_anchor_enunciations_confirm
+     in native_interfaces.cpp:621. That function constructs QDialog and runs
+     exec() directly, with no GUI dispatch guard, although the save continuation
+     executes in its BufferActor. This is an unsafe boundary to reproduce and
+     fix with asynchronous confirmation and actor-bound completion, not a
+     blocking GUI hop or a function-name exception in the glue generator.
+   - Also inspect buffer_export -> export_buffer -> get-link-locations and
+     save completion. buffer_actor::wait blocks on its condition variable;
+     prove an actual wait cycle before attributing the two-document freeze.
 4. **TODO: Angle brackets nested inside vertical bars**
    - Trace source delimiters -> sizing -> font selection -> boxes -> pixels.
      Test Pagella bold and regular, nested `|<...>|`, and tall contents.
@@ -156,10 +167,41 @@
       information without unsafe editor access in signal handlers.
     - Remove the old root/current/shifted path and physical-selection dump.
       Test crash reporting in isolated subprocesses, including worker faults.
-13. **TODO: NESTED UPDATING when saving an unsaved buffer**
+13. **DONE: NESTED UPDATING when saving an unsaved buffer**
     - Locate the first reentrant update boundary in save-as, correct ownership
       and scheduling without hiding the diagnostic. Test cancellation, success,
       UI responsiveness, and related save flows.
+    - Confirmed source shape: qt_chooser_widget.cpp still uses stack KFileDialog
+      with dialog.exec() in perform_dialog_with_kfiledialog, and exec() in the
+      QFileDialog fallback. Launch is reached from the GUI update's external
+      effect drain. Trace the reentrant timer and convert the modal lifetime to
+      open()/finished with an explicit retained widget/callback lifetime.
+    - Replaced both chooser exec() paths with heap dialogs, application-modal
+      show() and finished callbacks. The completion connection retains the
+      TeXmacs widget until native dialog destruction, reads values before child
+      destruction and delivers callbacks once even with repeated finish signals.
+      Visibility cancellation is implemented; duplicate focus/open requests do
+      not create additional dialogs. No suppression of NESTED UPDATING.
+    - The old unused static QFileDialog helper was replaced by the complete Qt
+      fallback, preserving suffixes, directories, image parameters and portable
+      LaTeX options. KDE remains the normal backend. GUI creation asserts thread
+      affinity. Corrected the missing separator before Qt image parameters.
+    - Baseline stack in /tmp/athena-file-chooser-baseline.log confirms
+      perform_dialog_with_kfiledialog -> QDialog::exec. The initial test's
+      single-shot watchdog expired before the KDE dialog appeared; corrected
+      the harness to wait for a visible chooser instead of treating that test
+      timeout as a separate product defect.
+    - PASS: 14 offscreen Qt/KDE cases for nonblocking completion, application
+      modality, caller-reference release, cancellation, duplicate completion,
+      file opening, save suffix, directory and image selection. Tests use only
+      temporary homes and input files. No Xvfb or real vault used.
+    - PASS: file_chooser_test, unsaved_buffers_scheme_test and
+      glue_generator_test: 3/3 in 3.69s, /tmp/athena-file-chooser-ctest.log.
+    - PASS: normal icpx -j20 build and local runtime deployment,
+      /tmp/athena-file-chooser-deploy.log. Built/installed binary SHA-256:
+      68585ee627378f999becf18099765b234bbf88bfa8e6b916aa7deb85c1114fb3.
+      This removes the chooser's nested update boundary; it does not establish
+      the separate two-document save freeze as resolved.
 
 ## Verification and Handoff
 

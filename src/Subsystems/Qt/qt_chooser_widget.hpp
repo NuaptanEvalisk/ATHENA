@@ -13,6 +13,9 @@
 
 #include "qt_widget.hpp"
 #include "qt_utilities.hpp"
+#include <QDialog>
+#include <QPointer>
+#include <functional>
 
 /*!
   A file/directory chooser dialog, using native dialogs where available.
@@ -35,13 +38,16 @@ protected:
   QString nameFilter;    //!< For use in QFileDialog::setNameFilter()
   QString defaultSuffix; //!< For use in QFileDialog::setDefaultSuffix()
 
+  QPointer<QDialog> dialog;
+  void show_dialog (QDialog*, std::function<void ()> read_result);
+
 public:
   qt_chooser_widget_rep (command, string, string);
   
-  virtual void send (slot s, blackbox val);
-  virtual blackbox query (slot s, int type_id);
-  virtual widget read (slot s, blackbox index);
-  virtual widget plain_window_widget (string s, command q, int b);
+  void send (slot s, blackbox val) override;
+  blackbox query (slot s, int type_id) override;
+  widget read (slot s, blackbox index) override;
+  widget plain_window_widget (string s, command q, int b) override;
   
   bool set_type (const string& _type);
   void perform_dialog();

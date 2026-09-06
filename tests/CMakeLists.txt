@@ -82,6 +82,7 @@ foreach (_test_file ${TEST_SRC_FILES})
     set_tests_properties (${_test_name} PROPERTIES TIMEOUT 600)
   endif ()
   if (_test_name STREQUAL "hodge_recolor_test" OR
+      _test_name STREQUAL "file_chooser_test" OR
       _test_name STREQUAL "evaluation_bar_test" OR
       _test_name STREQUAL "preview_math_font_test")
     set_tests_properties (${_test_name} PROPERTIES TIMEOUT 30)
