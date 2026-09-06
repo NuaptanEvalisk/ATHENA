@@ -122,6 +122,45 @@ edit_select_rep::semantic_select (path p, path& q1, path& q2, int mode) {
 * Selecting particular things
 ******************************************************************************/
 
+static bool
+is_equation_array (tree t) {
+  return is_compound (t, "eqnarray", 1) || is_compound (t, "eqnarray*", 1);
+}
+
+static path
+equation_array_owner (tree document, path format) {
+  while (!is_nil (format)) {
+    path parent= path_up (format);
+    tree t= subtree (document, parent);
+    if (is_equation_array (t)) return parent;
+    if (!is_func (t, DOCUMENT, 1) &&
+        !(is_func (t, TFORMAT) && last_item (format) == N(t)-1)) break;
+    format= parent;
+  }
+  return path ();
+}
+
+static tree
+equation_array_clipboard (tree document, path p1, path p2, tree selection) {
+  if ((!is_func (selection, TABLE) && !is_func (selection, TFORMAT)) ||
+      !is_table_selection (document, p1, p2, false)) return selection;
+  int r1, c1, r2, c2;
+  path fp= find_subtable_selection (document, p1, p2, r1, c1, r2, c2);
+  path owner= equation_array_owner (document, fp);
+  if (is_nil (owner)) return selection;
+  // Rebuild only the semantic/layout wrappers around the extracted subtable.
+  // A nested matrix stops at its cell and never acquires the outer eqnarray.
+  while (fp != owner) {
+    tree parent= subtree (document, path_up (fp));
+    tree wrapped (L(parent), N(parent));
+    for (int i=0; i<N(parent); ++i)
+      wrapped[i]= i == last_item (fp)? selection: copy (parent[i]);
+    selection= wrapped;
+    fp= path_up (fp);
+  }
+  return selection;
+}
+
 void
 edit_select_rep::select (path p1, path p2) {
   //cout << "Select " << p1 << " -- " << p2 << "\n";
@@ -132,6 +171,19 @@ edit_select_rep::select (path p1, path p2) {
     return;
   }
   if (p1 != p2) {
+    if (!in_source () && is_table_selection (et, p1, p2, false)) {
+      int r1, c1, r2, c2, rows, cols;
+      path fp= find_subtable_selection (et, p1, p2, r1, c1, r2, c2);
+      path owner= equation_array_owner (et, fp);
+      if (!is_nil (owner)) {
+        table_bound (fp, r1, c1, r2, c2);
+        table_get_extents (fp, rows, cols);
+        if (r1 == 0 && c1 == 0 && r2 == rows-1 && c2 == cols-1) {
+          p1= owner * 0;
+          p2= owner * 1;
+        }
+      }
+    }
     path cp= common (p1, p2);
     tree st= subtree (et, cp);
     if (!is_func (st, TABLE) && !is_func (st, ROW))
@@ -605,6 +657,7 @@ void
 edit_select_rep::selection_set (string key, tree t, bool persistant) {
   selecting= shift_selecting= false;
   string mode= as_string (selection_get_env_value (MODE));
+  if (mode != "src" && is_equation_array (t)) mode= "text";
   string lan = as_string (selection_get_env_value (MODE_LANGUAGE (mode)));
   tree sel= tuple ("texmacs", t, mode, lan);
   /* TODO: add mode="graphics" somewhere in the context of the <graphics>
@@ -658,6 +711,8 @@ edit_select_rep::selection_copy (string key) {
     selection sel; selection_get (sel);
     go_to (sel->end);
     tree t= selection_get ();
+    if (!in_source ())
+      t= equation_array_clipboard (et, start (cur_sel), end (cur_sel), t);
     go_to (sel->start);
     selection_set (key, t, !emacs);
     go_to (old_tp);
@@ -712,6 +767,17 @@ edit_select_rep::selection_paste (string key) {
   if (is_tuple (t, "texmacs", 3)) {
     string mode= get_env_string (MODE);
     string lan = get_env_string (MODE_LANGUAGE (mode));
+    if (mode == "math" && is_equation_array (t[1])) {
+      int row, col;
+      path fp= search_format (row, col);
+      tree content= t[1][0];
+      while (is_func (content, DOCUMENT, 1)) content= content[0];
+      if (!is_nil (fp) && !is_nil (equation_array_owner (et, fp)) &&
+          (is_func (content, TFORMAT) || is_func (content, TABLE))) {
+        table_write_subtable (fp, row, col, content);
+        return;
+      }
+    }
     if (is_compound (t[1], "text", 1) && mode == "text")
       t= tuple ("texmacs", t[1][0], "text", lan);
     if (is_compound (t[1], "math", 1) && mode == "math")
@@ -904,6 +970,7 @@ edit_select_rep::selection_cut (string key) {
       p1= start (cur_sel); p2= end (cur_sel);
       if(key != "none") {
         tree sel= selection_get ();
+        if (!in_source ()) sel= equation_array_clipboard (et, p1, p2, sel);
         selection_set (key, sel);
       }
       cut (p1, p2);

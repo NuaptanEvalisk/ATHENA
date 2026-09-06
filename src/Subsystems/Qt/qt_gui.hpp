@@ -125,6 +125,8 @@ public:
 * The qt_gui class
 ******************************************************************************/
 
+#include <mutex>
+
 class QTMGuiHelper;
 class QTMProgressWindow;
 
@@ -139,6 +141,7 @@ class qt_gui_rep {
   
   hashmap<string,tree>   selection_t;
   hashmap<string,string> selection_s;
+  std::mutex selection_mutex;
   QByteArray clipboard_text_cache;
   bool clipboard_text_cache_valid;
   

@@ -193,11 +193,41 @@
      implements it as a quit exception. No source ownership guards were bypassed.
    - The deployed symbol resource is ignored and removed from Git's index;
      its generated local copy remains available to the installed runtime.
-7. **TODO: Eqnarray copy/paste semantics**
+7. **DONE: Eqnarray copy/paste semantics**
    - Whole selections carry the enclosing eqnarray, not its table/document.
      Partial rows/cells retain equation-array semantics when pasted.
    - Verify whole, partial, mouse, keyboard, clipboard serialization, and ordinary
      tables, without damaging editable equation contents.
+   - Isolated baseline /tmp/athena-eqnarray-baseline.log proves selecting the
+     complete layout TFORMAT returns bare TFORMAT instead of the source
+     eqnarray*. Selection promotion now targets its enclosing equation array;
+     partial clipboard copies rebuild only the intervening semantic wrappers.
+     Nested matrices stop at their own cell/wrapper and ordinary tables retain
+     their previous behavior. Plain text within a cell remains inline math.
+   - Equation fragments paste as display arrays into text, or fill cells when
+     the destination is another equation array. Full cuts remove the equation
+     shell; partial cuts preserve it. Source editing bypasses promotion.
+   - Full-copy validation initially reached an unrelated headless clipboard
+     crash: named clipboard retrieval unconditionally dereferenced QClipboard.
+     Internal/headless get/set/clear now avoid system clipboard operations.
+     Protect internal stores with a mutex and give stored keys independent
+     string storage; do not retain actor-owned key reference counts.
+   - Expanded runtime asserts numbered/unnumbered whole document/format/table
+     selections, full cuts, reverse keyboard selection, row/cell fragments,
+     paste into an existing array, ordinary tables and nested matrices.
+   - The test harness previously called Guile exit, bypassing application
+     shutdown and crashing after writing #t. Use quit-TeXmacs on the GUI
+     execution context instead; still require a zero process exit and #t
+     report. No production shutdown behavior or crash handling changed.
+   - PASS: /tmp/athena-eqnarray-shutdown-ctest.log, all four focused editor and
+     keyboard tests, including actual clipboard operations and PDF export.
+     Normal build and installation: /tmp/athena-eqnarray-final-build.log;
+     installed SHA256 a34e389d3b1f6ffe2ac24b921480316ff92c6aa991b10e1db7ba7f1ae411dc0e.
+     Profiles isolated under /tmp, Qt offscreen, no personal vault or Xvfb.
+     System clipboard GUI integration and TSan were not exercised here.
+   - Two additional eqnarray runs passed: /tmp/athena-eqnarray-repeat.log.
+     An intentionally failing script is still rejected despite clean app exit:
+     /tmp/athena-editor-expected-failure.log. Assertion checks are not weakened.
 8. **TODO: Definition names and comma-separated aliases**
    - Extract bold first-line names, not arbitrary body text; split all declared
      aliases and make every alias eligible for radioactive linking.

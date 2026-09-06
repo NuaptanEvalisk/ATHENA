@@ -379,6 +379,16 @@ qt_gui_rep::refresh_external_clipboard_cache () {
 
 bool
 qt_gui_rep::get_selection (string key, tree& t, string& s, string format) {
+  // Named clipboards are internal data, not offers from the window system.
+  if (headless_mode || (key != "extern" && key != "primary" && key != "mouse" &&
+                        format != "temp" && format != "wrapbuf")) {
+    std::lock_guard<std::mutex> lock (selection_mutex);
+    s= ""; t= "none";
+    if (!selection_t->contains (key)) return false;
+    t= copy (selection_t[key]);
+    s= copy (selection_s[key]);
+    return true;
+  }
   QClipboard *cb = QApplication::clipboard ();
   QClipboard::Mode mode = QClipboard::Clipboard;
   bool direct_selection= (key == "extern");
@@ -409,6 +419,7 @@ qt_gui_rep::get_selection (string key, tree& t, string& s, string format) {
   }
   
   if (owns) {
+    std::lock_guard<std::mutex> lock (selection_mutex);
     if (!selection_t->contains (key)) return false;
     t = copy (selection_t [key]);
     s = copy (selection_s [key]);
@@ -555,8 +566,12 @@ qt_gui_rep::get_selection (string key, tree& t, string& s, string format) {
 bool
 qt_gui_rep::set_selection (string key, tree t,
                            string s, string sv, string sh, string format) {
-  selection_t (key)= copy (t);
-  selection_s (key)= copy (s);
+  {
+    std::lock_guard<std::mutex> lock (selection_mutex);
+    selection_t (copy (key))= copy (t);
+    selection_s (copy (key))= copy (s);
+  }
+  if (headless_mode || (key != "primary" && key != "mouse")) return true;
   
   QClipboard *cb = QApplication::clipboard ();
   QClipboard::Mode mode = QClipboard::Clipboard;
@@ -614,8 +629,12 @@ qt_gui_rep::set_selection (string key, tree t,
 
 void
 qt_gui_rep::clear_selection (string key) {
-  selection_t->reset (key);
-  selection_s->reset (key);
+  {
+    std::lock_guard<std::mutex> lock (selection_mutex);
+    selection_t->reset (key);
+    selection_s->reset (key);
+  }
+  if (headless_mode || (key != "primary" && key != "mouse")) return;
   
   QClipboard *cb = QApplication::clipboard();
   QClipboard::Mode mode = QClipboard::Clipboard;

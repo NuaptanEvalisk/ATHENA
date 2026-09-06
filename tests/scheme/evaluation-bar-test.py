@@ -53,7 +53,7 @@ def main():
             '(lambda args args)))) '
             f'(call-with-output-file {json.dumps(str(report))} '
             '(lambda (port) (write result port))) '
-            '(exec-global (lambda () (exit (if (eq? result #t) 0 1)))))')
+            '(exec-global (lambda () (quit-TeXmacs))))')
         with tempfile.TemporaryFile(mode="w+t") as log:
             process = subprocess.Popen(
                 [str(args.binary.resolve()), "-H", "-X", "-x",
