@@ -496,6 +496,13 @@ last_visited (url name) {
 
 bool
 buffer_modified (url name) {
+  athena_view_id view_id= ATHENA_NO_VIEW;
+  if (buffer_actor* actor= current_buffer_actor (name, view_id)) {
+    actor_command_record result;
+    return invoke_buffer_actor (
+      actor, actor_command_kind::query_modified, view_id,
+      ATHENA_NO_BLOB, ATHENA_NO_BLOB, &result) && result.argument[0] != 0;
+  }
   tm_buffer buf= concrete_buffer (name);
   if (is_nil (buf)) return false;
   return buf->needs_to_be_saved ();
@@ -503,6 +510,13 @@ buffer_modified (url name) {
 
 bool
 buffer_modified_since_autosave (url name) {
+  athena_view_id view_id= ATHENA_NO_VIEW;
+  if (buffer_actor* actor= current_buffer_actor (name, view_id)) {
+    actor_command_record result;
+    return invoke_buffer_actor (
+      actor, actor_command_kind::query_autosaved, view_id,
+      ATHENA_NO_BLOB, ATHENA_NO_BLOB, &result) && result.argument[0] != 0;
+  }
   tm_buffer buf= concrete_buffer (name);
   if (is_nil (buf)) return false;
   return buf->needs_to_be_autosaved ();
@@ -510,6 +524,11 @@ buffer_modified_since_autosave (url name) {
 
 void
 pretend_buffer_modified (url name) {
+  athena_view_id view_id= ATHENA_NO_VIEW;
+  if (buffer_actor* actor= current_buffer_actor (name, view_id)) {
+    (void) invoke_buffer_actor (actor, actor_command_kind::mark_modified, view_id);
+    return;
+  }
   tm_buffer buf= concrete_buffer (name);
   if (is_nil (buf)) return;
   (void) invoke_buffer_actor (buf, actor_command_kind::mark_modified);
@@ -536,6 +555,11 @@ pretend_buffer_saved (url name) {
 
 void
 pretend_buffer_autosaved (url name) {
+  athena_view_id view_id= ATHENA_NO_VIEW;
+  if (buffer_actor* actor= current_buffer_actor (name, view_id)) {
+    (void) invoke_buffer_actor (actor, actor_command_kind::mark_autosaved, view_id);
+    return;
+  }
   tm_buffer buf= concrete_buffer (name);
   if (is_nil (buf)) return;
   (void) invoke_buffer_actor (buf, actor_command_kind::mark_autosaved);
@@ -681,13 +705,19 @@ export_tree (tree doc, url u, string fm) {
 
 bool
 buffer_export (url name, url dest, string fm) {
-  tm_buffer buf= concrete_buffer (name);
-  if (is_nil (buf)) return true;
+  athena_view_id view_id= ATHENA_NO_VIEW;
+  buffer_actor* actor= current_buffer_actor (name, view_id);
+  if (actor == nullptr) {
+    tm_buffer buf= concrete_buffer (name);
+    if (is_nil (buf)) return true;
+    actor= buf->actor;
+    view_id= buffer_command_view (buf, name);
+  }
   athena_blob_id destination= actor_text_from_string (as_string (dest));
   athena_blob_id format= actor_text_from_string (copy (fm));
   actor_command_record result;
-  bool completed= buf->actor->invoke (
-    actor_command_kind::export_buffer, buffer_command_view (buf, name),
+  bool completed= actor->invoke (
+    actor_command_kind::export_buffer, view_id,
     destination, format, &result);
   if (!completed) {
     discard_text_payload (destination);
@@ -738,9 +768,12 @@ buffer_save (url name) {
   bool r= buffer_export (name, name, fm);
   if (!r) {
     pretend_buffer_saved (name);
-    array<url> ws = buffer_to_windows (name);
-    for (int i=0; i<N(ws); i++)
-      concrete_window (ws[i])->set_modified (false);
+    athena_view_id view_id= ATHENA_NO_VIEW;
+    if (current_buffer_actor (name, view_id) == nullptr) {
+      array<url> ws = buffer_to_windows (name);
+      for (int i=0; i<N(ws); i++)
+        concrete_window (ws[i])->set_modified (false);
+    }
   }
   return r;
 }

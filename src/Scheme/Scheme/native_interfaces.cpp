@@ -69,6 +69,7 @@
 #include "QTMVaultBackupDispatcher.hpp"
 #include "QTMVaultMaintenanceDialog.hpp"
 #include "QTMAbout.hpp"
+#include "QTMAnchorConfirmation.hpp"
 #include "QTMESCSymbolPicker.hpp"
 #include "QTMHandwritingSymbolPane.hpp"
 #include "QTMFontSelector.hpp"
@@ -617,100 +618,21 @@ athena_native_info_dialog (string arg1, string arg2) {
   return;
 }
 
-bool
-athena_native_anchor_enunciations_confirm (string arg1, string arg2, string arg3, string arg4) {
-  if (headless_mode) return bool (false);
-
-  QString wraps= to_qstring (arg1);
-  QString dead = to_qstring (arg2);
-  QString headings= to_qstring (arg3);
-  QString notes= to_qstring (arg4);
-
-  notes.replace ("<<<ATHENA-ANCHOR-ACTION>>>", "\n");
-  notes.replace ("\\r\\n", "\n");
-  notes.replace ("\\n", "\n");
-  notes.replace ("\\t", "\t");
-  notes.replace ("\r\n", "\n");
-  notes.replace ('\r', '\n');
-
-  QStringList items;
-  QString current;
-  for (int i=0; i<notes.size (); i++) {
-    QChar c= notes.at (i);
-    if (c == '\n' || c == '\t' || c.unicode () == 0x1e ||
-        c.unicode () == 0x00af) {
-      QString trimmed= current.trimmed ();
-      if (!trimmed.isEmpty ()) items << trimmed;
-      current.clear ();
-    }
-    else current.append (c);
+void
+athena_native_anchor_enunciations_confirm (
+    string wraps, string dead, string headings, string notes, object callback) {
+  if (headless_mode) {
+    (void) call (callback, object (false));
+    return;
   }
-  QString trimmed= current.trimmed ();
-  if (!trimmed.isEmpty ()) items << trimmed;
-
-  if (items.size () <= 1 && !notes.trimmed ().isEmpty ()) {
-    QString compact= notes.simplified ();
-    QStringList split;
-    int start= 0;
-    for (int i=1; i<compact.size (); i++) {
-      bool boundary=
-        compact.mid (i).startsWith ("wrap ") ||
-        compact.mid (i).startsWith ("anchor heading: ") ||
-        compact.mid (i).startsWith ("remove dead anchors: ");
-      if (boundary && compact.at (i - 1).isSpace ()) {
-        QString item= compact.mid (start, i - start).trimmed ();
-        if (!item.isEmpty ()) split << item;
-        start= i;
-      }
-    }
-    QString item= compact.mid (start).trimmed ();
-    if (!item.isEmpty ()) split << item;
-    if (split.size () > items.size ()) items= split;
-  }
-
-  QDialog dialog (QApplication::activeWindow ());
-  dialog.setWindowTitle ("Anchor structures");
-  dialog.resize (760, 480);
-
-  QVBoxLayout* layout= new QVBoxLayout (&dialog);
-
-  QLabel* intro= new QLabel (
-    QString ("ATHENA will wrap %1 enunciation(s), add %2 heading anchor(s), "
-             "and remove %3 dead anchor pair(s). Review the planned changes "
-             "before applying them.")
-      .arg (wraps, headings, dead),
-    &dialog);
-  intro->setWordWrap (true);
-  layout->addWidget (intro);
-
-  QLabel* list_label= new QLabel ("Planned actions:", &dialog);
-  layout->addWidget (list_label);
-
-  QListWidget* list= new QListWidget (&dialog);
-  list->setAlternatingRowColors (true);
-  list->setSelectionMode (QAbstractItemView::NoSelection);
-  list->setWordWrap (true);
-  list->setHorizontalScrollBarPolicy (Qt::ScrollBarAlwaysOff);
-  list->setMinimumHeight (300);
-  if (items.isEmpty ())
-    list->addItem ("No individual action details are available.");
-  else
-    for (const QString& item: items)
-      list->addItem (item);
-  layout->addWidget (list, 1);
-
-  QDialogButtonBox* buttons= new QDialogButtonBox (&dialog);
-  QPushButton* apply= buttons->addButton ("Apply", QDialogButtonBox::AcceptRole);
-  QPushButton* cancel= buttons->addButton (QDialogButtonBox::Cancel);
-  cancel->setDefault (true);
-  apply->setAutoDefault (false);
-  QObject::connect (buttons, &QDialogButtonBox::accepted,
-                    &dialog, &QDialog::accept);
-  QObject::connect (buttons, &QDialogButtonBox::rejected,
-                    &dialog, &QDialog::reject);
-  layout->addWidget (buttons);
-
-  return bool (dialog.exec () == QDialog::Accepted);
+  // Bind before crossing to Qt. Share the command holder, not its non-atomic
+  // reference counter; completion resumes on the requesting BufferActor.
+  auto completion= std::make_shared<command> (as_command (callback));
+  qt_anchor_enunciations_confirm (
+    to_qstring (wraps), to_qstring (dead), to_qstring (headings),
+    to_qstring (notes), [completion] (bool accepted) {
+      (*completion) (list_object (object (accepted)));
+    });
 }
 
 array<string>

@@ -155,7 +155,6 @@ int main() {
         native = (ROOT / "src/Scheme/Scheme/native_interfaces.cpp").read_text()
         self.assertNotIn('tmscm', native)
         self.assertNotIn('TMSCM', native)
-        self.assertIn('QDialog ', native)
 
     def test_generate_deterministic_outputs_and_preserve_mtime(self):
         body = ('<binding name="test?" native="native" returns="bool">'

@@ -545,8 +545,12 @@ qt_actor_widget_rep::drain_external_effects () {
     }
     case actor_command_kind::ui_mark_buffer_saved: {
       tm_view view= concrete_runtime_view (view_id_);
-      if (view != nullptr)
+      if (view != nullptr) {
         view->buf->buf->last_save= static_cast<int> (record.argument[0]);
+        array<url> windows= buffer_to_windows (view->buf->buf->name);
+        for (int i=0; i<N(windows); i++)
+          concrete_window (windows[i])->set_modified (false);
+      }
       break;
     }
     case actor_command_kind::ui_schedule_scheme:

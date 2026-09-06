@@ -35,11 +35,12 @@
     <arg type="string" />
     <arg type="string" />
   </binding>
-  <binding name="native-anchor-enunciations-confirm" native="athena_native_anchor_enunciations_confirm" returns="bool">
+  <binding name="native-anchor-enunciations-confirm" native="athena_native_anchor_enunciations_confirm" returns="void">
     <arg type="string" />
     <arg type="string" />
     <arg type="string" />
     <arg type="string" />
+    <arg type="procedure" />
   </binding>
   <binding name="native-font-selector" native="athena_native_font_selector" returns="array_string">
     <arg type="string" />

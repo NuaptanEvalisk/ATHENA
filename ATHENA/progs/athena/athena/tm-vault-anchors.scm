@@ -916,12 +916,13 @@
         (vector-ref summary 2))
    "<<<ATHENA-ANCHOR-ACTION>>>"))
 
-(define (vault-anchor-confirm-native summary)
+(define (vault-anchor-confirm-native summary cont)
   (native-anchor-enunciations-confirm
    (number->string (vector-ref summary 0))
    (number->string (vector-ref summary 1))
    (number->string (vector-ref summary 3))
-   (vault-anchor-summary-notes-string summary)))
+   (vault-anchor-summary-notes-string summary)
+   cont))
 
 (define (vault-anchor-current-buffer-supported? buf)
   (and buf
@@ -991,9 +992,11 @@
                    (set-message "No structural anchors needed"
                                 "Anchor structures")
                    (when cont (cont)))
-                 (if (vault-anchor-confirm-native summary)
-                     (vault-anchor-enunciations-confirmed buf cont)
-                     (when cont (cont)))))))))
+                 (vault-anchor-confirm-native summary
+                   (lambda (accepted?)
+                     (if accepted?
+                         (vault-anchor-enunciations-confirmed buf cont)
+                         (when cont (cont)))))))))))
 
 (tm-define (anchor-enunciations-current-document)
   (:interactive #t)
@@ -1011,11 +1014,15 @@
                  (set-message "No structural anchors needed"
                               "Anchor structures")
                  (when cont (cont)))
-               (if (or (== (get-preference
-                             "vault auto approve anchor changes") "on")
-                       (vault-anchor-confirm-native summary))
+               (if (== (get-preference
+                         "vault auto approve anchor changes") "on")
                    (vault-anchor-enunciations-confirmed-before-save buf cont)
-                   (when cont (cont))))))))
+                   (vault-anchor-confirm-native summary
+                     (lambda (accepted?)
+                       (if accepted?
+                           (vault-anchor-enunciations-confirmed-before-save
+                             buf cont)
+                           (when cont (cont)))))))))))
 
 (tm-define (vault-auto-anchor-before-save? buf)
   (and (== (get-preference "vault auto anchor enunciations on save") "on")

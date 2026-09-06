@@ -52,6 +52,13 @@ add_test(NAME eqnarray_clipboard_editor_test
     --runtime ${ATHENA_GUILE_PREFIX}
     --resources ${ATHENA_SOURCE_DIR}/ATHENA)
 set_tests_properties(eqnarray_clipboard_editor_test PROPERTIES TIMEOUT 90)
+add_test(NAME two_buffer_save_test
+  COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/two-buffer-save-test.py
+    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
+    --runtime ${ATHENA_GUILE_PREFIX}
+    --resources ${ATHENA_SOURCE_DIR}/ATHENA)
+set_tests_properties(two_buffer_save_test PROPERTIES TIMEOUT 120)
 
 find_program (ATHENA_TEST_GUILE guile)
 if (ATHENA_TEST_GUILE)
@@ -62,6 +69,14 @@ if (ATHENA_TEST_GUILE)
   add_test (NAME unsaved_buffers_scheme_test
     COMMAND ${ATHENA_TEST_GUILE} --no-auto-compile
       ${CMAKE_CURRENT_SOURCE_DIR}/scheme/unsaved-buffers-test.scm
+      ${ATHENA_SOURCE_DIR})
+  add_test (NAME anchor_confirmation_scheme_test
+    COMMAND ${ATHENA_TEST_GUILE} --no-auto-compile
+      ${CMAKE_CURRENT_SOURCE_DIR}/scheme/anchor-confirmation-test.scm
+      ${ATHENA_SOURCE_DIR})
+  add_test (NAME converter_search_scheme_test
+    COMMAND ${ATHENA_TEST_GUILE} --no-auto-compile
+      ${CMAKE_CURRENT_SOURCE_DIR}/scheme/converter-search-test.scm
       ${ATHENA_SOURCE_DIR})
 endif ()
 

@@ -58,7 +58,7 @@
      actual right-bar ink height for a character, fraction and nested fraction
      with Pagella, bold Pagella and Termes. Log:
      /tmp/athena-evaluation-bar-tests.log. No Xvfb or real vault used.
-3. **TODO: Freeze saving one of two open documents**
+3. **IN PROGRESS, PRO REVIEW NEEDED: Freeze saving one of two open documents**
    - Reproduce with isolated buffers and inspect UI/actor stacks and command
      ownership. Include both active and inactive buffer saves and save-as.
    - Initial source audit (not yet a reproduced root cause): manual saves call
@@ -72,6 +72,79 @@
    - Also inspect buffer_export -> export_buffer -> get-link-locations and
      save completion. buffer_actor::wait blocks on its condition variable;
      prove an actual wait cycle before attributing the two-document freeze.
+   - Reproducer: /tmp/athena-two-buffer-save-probe.py creates two real views in
+     an isolated headless runtime, leaves the second current, and dispatches
+     three saves to each owning actor. No vault or personal profile involved.
+   - Baseline crashed twice. First artifacts:
+     /tmp/athena-two-buffer-save-wuq4pd9t. GDB first-SIGSEGV capture:
+     /tmp/athena-two-buffer-save-bss59wxn/output.log. Faulting actor was resuming
+     its editor and rebuilding menus: previous_section -> init_sections ->
+     hashset<tree_label>::insert/resize -> list destruction at a corrupt heap
+     address. The other actor was inside buffer_save/export_tree. This is not
+     evidence of a condition-variable wait cycle.
+   - Found two unsynchronized global lazy hashsets in tree_traverse.cpp.
+     Changed both to static thread_local caches, since even their read paths
+     copy non-atomic reference-counted list buckets. No Scheme initialization
+     lock, hot-path deep copy, or global serialization introduced.
+   - PASS after that change: the exact probe completed all six saves and both
+     files contain their respective FIRST BUFFER / SECOND BUFFER content.
+     Artifacts: /tmp/athena-two-buffer-save-lt8_hsak. Normal build and deployment
+     passed: /tmp/athena-two-buffer-save-build.log.
+   - Still pending before the item-3 commit: promote the probe to a checked-in
+     regression, exercise manual/linked saves, and fix/test the independent
+     actor-thread anchor confirmation identified above. Do not claim all
+     two-document saving paths are fixed from the plain-save probe alone.
+   - Implemented asynchronous anchor confirmation: native.xml takes a procedure,
+     native_interfaces captures an actor-bound command, and QTMAnchorConfirmation
+     owns creation, presentation, completion and deletion on Qt's main thread.
+     No function-name cases in the generator and no nested QDialog::exec.
+     Scheme continuations preserve acceptance, rejection (save without anchor
+     changes), auto-approval and empty-plan behavior.
+   - PASS: normal build/deployment /tmp/athena-save-confirmation-build.log.
+     Five focused tests passed in /tmp/athena-save-confirmation-ctest.log:
+     glue generator/runtime, anchor confirmation Scheme/Qt, and file chooser.
+     Qt test checks worker-origin requests, all QObject affinities, application
+     modality, Apply/Cancel/Escape/close, single completion and destruction.
+   - Expanded checked-in two-buffer-save-test to save definitions, headings and
+     cross-document hyperlinks, three times per actor, with isolated profiles.
+     Found an additional real failure: both callbacks reported success but
+     second.ath contained only "Error: bad format or data". Artifacts:
+     /tmp/athena-two-buffer-save-artifacts/plain. This is data loss, not a pass.
+   - Deterministic converter-search-test reproduced the cause: shared Dijkstra
+     working tables expose a visited source before its paths are complete.
+     Fixed with private search tables, publication of completed path tables,
+     short cache read/publication/invalidation locks, and generation capture.
+     Converter execution and graph traversal remain outside the cache lock.
+     PASS: deterministic interleaving, weighted/cyclic paths, invalidation
+     during search and eight threads making repeated queries.
+   - A subsequent runtime crashed in concrete_buffer URL comparison during
+     buffer_export; see /tmp/athena-two-buffer-save-artifacts-fixed/plain.
+     GDB run /tmp/athena-two-buffer-save-gdb/plain completed all six plain
+     saves with correct contents, so this ownership failure is intermittent.
+     Own-buffer exports now use current_buffer_actor; saved window updates
+     move to the existing ui_mark_buffer_saved handler on the GUI thread.
+     Build/deployment passed in /tmp/athena-two-buffer-save-owner-build.log.
+     Still must rerun all plain/manual-decline/manual-approve cases before
+     claiming item 3 complete or committing it. No TSan-clean claim made.
+   - Own-buffer export build: rich plain mode passed six correct saves. Manual
+     mode timed out, then GDB captured both actors concurrently in
+     buffer_modified -> concrete_buffer -> URL/tree comparison. Artifacts:
+     /tmp/athena-two-buffer-save-manual-gdb/manual-decline/output.log.
+     Added own-actor modified/autosave query and mark paths. Build/deployment
+     passed: /tmp/athena-two-buffer-save-state-build.log.
+   - Latest manual validation still failed: first SIGSEGV resolves to shared
+     tm_config_rep::system_kbd_decode initialization during menu rebuild.
+     This cache has NOT been patched. The later timeout stack shows GUI and
+     actors idle, rather than a proven wait cycle. Both documents were written
+     but save test completions were missing. Artifacts:
+     /tmp/athena-two-buffer-save-state-tests/manual-decline/{output,stacks}.log.
+   - Per AGENTS.md, stopped additional local fixes after three unsuccessful
+     manual validations. Prepared Pro review prompt and source/log archive:
+     /tmp/athena-two-buffer-save-review.md and
+     /tmp/athena-two-buffer-save-review.tar.gz. Keep existing partial fixes;
+     do NOT commit item 3 as complete or weaken its runtime tests. All owned
+     test/debugger/build processes ended; battery last checked at 93%.
+     Other independent workbench items can proceed while review is pending.
 4. **DONE: Angle brackets nested inside vertical bars**
    - Baseline real typesetting reproduced shorter outer bars with both fixed
      and stretchable angles, most visible in bold Pagella. Source, box metrics

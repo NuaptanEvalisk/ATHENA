@@ -61,8 +61,9 @@ tree var_apply (tree& t, patch p);
 void
 athena_native_info_dialog (string arg1, string arg2);
 
-bool
-athena_native_anchor_enunciations_confirm (string arg1, string arg2, string arg3, string arg4);
+void
+athena_native_anchor_enunciations_confirm (
+  string wraps, string dead, string headings, string notes, object callback);
 
 array<string>
 athena_native_font_selector (string arg1, string arg2, string arg3, string arg4, string arg5);

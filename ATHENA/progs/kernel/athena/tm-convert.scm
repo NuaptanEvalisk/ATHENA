@@ -14,6 +14,7 @@
 (texmacs-module (kernel athena tm-convert)
   (:use (kernel athena tm-define) (kernel athena tm-modes)))
 (import-from (kernel athena tm-preferences))
+(use-modules (ice-9 threads))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -44,8 +45,9 @@
 (define converter-function (make-ahash-table))
 (define converter-options (make-ahash-table))
 (define converter-option-for (make-ahash-table))
-(define converter-distance (make-ahash-table))
+;; Each source maps to a completed, immutable table of destination paths.
 (define converter-path (make-ahash-table))
+(define converter-path-mutex (make-mutex))
 
 (define (converter-set-penalty from to penalty)
   (if (not (ahash-ref converter-forward from))
@@ -117,8 +119,8 @@
           (else (loop (cdr rest))))))
 
 (define-public (converter-register from to options)
-  (set! converter-distance (make-ahash-table))
-  (set! converter-path (make-ahash-table))
+  (with-mutex converter-path-mutex
+    (set! converter-path (make-ahash-table)))
   (when (converter-requirements-satisfied? options)
     (converter-set-penalty from to 1.0)
     (for-each (lambda (cmd) (converter-cmd from to cmd)) options)))
@@ -199,34 +201,45 @@
 ;; Finding the shortest path
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define (converter-insert from to penalty path)
-  (if (ahash-ref converter-distance (list from to)) #f
+(define (converter-insert distances paths to penalty path)
+  (if (ahash-ref distances to) #f
       (begin
-        (ahash-set! converter-distance (list from to) penalty)
-        (ahash-set! converter-path (list from to) path)
+        (ahash-set! distances to penalty)
+        (ahash-set! paths to path)
         #t)))
 
-(define (converter-walk from l*)
+(define (converter-walk distances paths l*)
   ;;(display* "convert-walk " from ", " l* "\n")
   (if (nnull? l*)
       (let* ((l (list-sort l* (lambda (x y) (< (cadr x) (cadr y)))))
              (aux (caar l))
              (d (cadar l))
              (path (caddar l)))
-        (if (converter-insert from aux d (reverse path))
+        (if (converter-insert distances paths aux d (reverse path))
             (let* ((hn (ahash-ref converter-forward aux))
                    (next (if hn (ahash-table->list hn) '()))
                    (r (map (lambda (x) (list (car x)
                                              (+ d (cdr x))
                                              (cons (car x) path)))
                            next)))
-              (converter-walk from (append (cdr l) r)))
-            (converter-walk from (cdr l))))))
+              (converter-walk distances paths (append (cdr l) r)))
+            (converter-walk distances paths (cdr l))))))
 
 (define-public (converter-search from to)
   (lazy-format-force)
-  (converter-walk from (list (list from 0.0 (list from))))
-  (ahash-ref converter-path (list from to)))
+  ;; Never expose Dijkstra's working set to another BufferActor. Capture the
+  ;; cache generation so registration invalidation also discards late results.
+  (let* ((state (with-mutex converter-path-mutex
+                  (cons converter-path (ahash-ref converter-path from))))
+         (cache (car state))
+         (cached (cdr state)))
+    (if cached (ahash-ref cached to)
+        (let ((distances (make-ahash-table))
+              (paths (make-ahash-table)))
+          (converter-walk distances paths (list (list from 0.0 (list from))))
+          (with-mutex converter-path-mutex
+            (ahash-set! cache from paths))
+          (ahash-ref paths to)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Actual conversion

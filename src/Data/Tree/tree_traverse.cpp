@@ -633,8 +633,10 @@ inside_contiguous_document (tree t, path op, path oq) {
 * Find sections in document
 ******************************************************************************/
 
-hashset<tree_label> section_traverse_tags;
-hashset<tree_label> section_tags;
+// BufferActors traverse sections independently. Even contains() walks
+// reference-counted list buckets, so these lazy caches cannot be shared.
+static thread_local hashset<tree_label> section_traverse_tags;
+static thread_local hashset<tree_label> section_tags;
 
 void
 init_sections () {
