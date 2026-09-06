@@ -801,6 +801,9 @@
       (cd-set-option! a "label-alignment"
         (cd-swap-side (cd-option a "label-alignment" "left")
                       "left" "right"))
+      (cd-set-option! a "label-position"
+        (number->string (- 100 (max 0 (min 100
+          (cd-option-number a "label-position" 50))))))
       (cd-set-option! a "tail"
         (cd-swap-side (cd-option a "tail" "none")
                       "top-hook" "bottom-hook"))
@@ -871,7 +874,7 @@
                        "curve" (cd-live-input-value answer))
                      (cd-live-input-type "curve")
                      (list (cd-selected-option "curve" "0")) "12em"))
-            (item (text "Offset (-5..5)")
+            (item (text "Transverse edge offset")
               (input (cd-set-selected-option
                        "offset" (cd-live-input-value answer))
                      (cd-live-input-type "offset")

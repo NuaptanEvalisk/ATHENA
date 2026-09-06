@@ -93,10 +93,42 @@
    - PASS: evaluation_bar_test, evaluation_bar_editor_test and
      math_keyboard_scheme_test, 3/3 in 8.88s; /tmp/athena-angle-tests.log.
      Tests used temporary profiles and offscreen Qt, no personal vault or Xvfb.
-5. **TODO: Commutative diagram labels and transverse arrow displacement**
+5. **DONE: Commutative diagram labels and transverse arrow displacement**
    - Consult Quiver design/implementation (q.uiver.app) for terminology and
      geometry. Preserve label placement, allow transverse arrow displacement,
      and test direction, curve, rendering, editing, and serialization.
+   - Reproduced shaft-through-fraction labels in actual native PDF output:
+     /tmp/athena-cd-baseline/evaluation.pdf. The first incorrect transition is
+     fixed 0.16cm centre displacement, independent of typeset label dimensions.
+   - Consulted MIT Quiver src/arrow.mjs and src/ui.mjs at
+     /tmp/athena-quiver-reference-20260906. Edge offset already moves all native
+     control points; retain its AST and make its transverse meaning explicit.
+     Use existing Qt QPainterPath/Stroker for curve intersection, rather than
+     importing Quiver's DOM editor or hand-porting its intersection engine.
+   - Side labels now clear the complete own-edge footprint, including multiple
+     shafts and markers. Actor-local Qt value geometry only; no QObject, GUI
+     access or shared caches. Do not construct collision paths for unlabelled,
+     centre or over edges. Preserve native mathematical boxes and vector output.
+   - Centre clips only its own arrow below the horizontal label; over rotates
+     the label with its tangent. Reverse preserves the displaced curved route,
+     side and longitudinal label position (the last was previously omitted).
+   - Initial geometry and real-editor/PDF checks passed. Pixel verification
+     found zero black intrusion in six side/centre labels, while over retained
+     intentional overlap. Artifacts: /tmp/athena-diagram-final/.
+   - Visual inspection exposed a PDF clipping-state bug: restored Q returned
+     line width to 5, while the backend cached 10 and omitted the next w command.
+     Invalidate current_width on clipping restoration. MuPDF XML trace test
+     correctly rejects the pre-fix PDF with widths {5,10}. The fixed export
+     retains the same width across every clipped segment and arrowhead.
+   - PASS: normal icpx -j20 build, bytecode and local runtime deployment:
+     /tmp/athena-diagram-final-build.log. Built/installed SHA-256:
+     0950ac7dd13af8ecbdfa8378fe0aa72a8ab5d9f0d5431329a096b0a75b45ca54.
+   - PASS: commutative_diagram_geometry_test, commutative_diagram_editor_test,
+     evaluation_bar_editor_test and math_keyboard_scheme_test, 4/4 in 12.25s;
+     /tmp/athena-diagram-ctest.log. Geometry covers both sides, wide/tall labels,
+     curves, loops, multiple shafts, reversal and already-clear positions.
+     All editor tests use isolated /tmp profiles and offscreen Qt, no Xvfb,
+     personal vault access or TSan-clean claim.
 6. **DONE: XML-driven glue preprocessor**
    - PRIORITY NEXT after item 1: a real missing-binding failure was found.
      `exec-buffer` exists in `build-glue-basic.scm` but not `glue_basic.cpp`;

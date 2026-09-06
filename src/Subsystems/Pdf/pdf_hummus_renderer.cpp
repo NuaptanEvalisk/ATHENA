@@ -570,6 +570,8 @@ pdf_hummus_renderer_rep::set_clipping (SI x1, SI y1, SI x2, SI y2, bool restore)
     // debug_convert << "restore clipping\n";
     if (clip_level > 0) { contentContext->Q(); clip_level--; }
     cfn= "";
+    // Q restores the PDF width, not our cache of the last emitted width.
+    current_width= -1.0;
   }
   else {
     // debug_convert << "set clipping\n";

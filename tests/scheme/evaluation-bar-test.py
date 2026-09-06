@@ -17,8 +17,10 @@ def main():
     parser.add_argument("--runtime", type=Path, required=True)
     parser.add_argument("--resources", type=Path, required=True)
     parser.add_argument("--artifacts", type=Path)
+    parser.add_argument("--script", type=Path,
+                        default=Path(__file__).with_suffix(".scm"))
     args = parser.parse_args()
-    script = Path(__file__).with_suffix(".scm").resolve()
+    script = args.script.resolve()
     with tempfile.TemporaryDirectory(prefix="athena-evaluation-bar-") as temporary:
         home = Path(temporary)
         system = home / "profile/system"
@@ -75,14 +77,14 @@ def main():
             trace = home / "trace.scm"
             if trace.exists():
                 output += "\n" + trace.read_text()
-            raise RuntimeError(f"Evaluation bar test failed ({process.returncode}):\n{output}")
+            raise RuntimeError(f"{script.name} failed ({process.returncode}):\n{output}")
         pdf = home / "evaluation.pdf"
         if not pdf.exists() or not pdf.read_bytes().startswith(b"%PDF-"):
             raise RuntimeError(f"Evaluation PDF export failed:\n{output}")
         if args.artifacts:
             args.artifacts.mkdir(parents=True, exist_ok=True)
             shutil.copy2(pdf, args.artifacts / pdf.name)
-        print("ATHENA-EVALUATION-BAR-PASS: editor structure, cursor placement and PDF export")
+        print(f"ATHENA-PASS: {script.name} assertions and PDF export")
 
 
 if __name__ == "__main__":

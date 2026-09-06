@@ -13,8 +13,10 @@
 #include "Boxes/graphics.hpp"
 #include "curve.hpp"
 #include "drd_std.hpp"
+#include "commutative_diagram_geometry.hpp"
 
 #include <cmath>
+#include <QPainterPathStroker>
 
 struct cd_point {
   double x, y;
@@ -197,14 +199,29 @@ public:
   SI line_unit;
   array<box> boxes;
   array<SI> xs, ys;
+  bool track_ink;
+  QPainterPath ink;
 
-  cd_box_builder (edit_env env2, path ip2, frame fr2):
-    env (env2), ip (ip2), fr (fr2) {
+  cd_box_builder (edit_env env2, path ip2, frame fr2, bool track= false):
+    env (env2), ip (ip2), fr (fr2), track_ink (track) {
     line_unit= max ((SI) 1, env->as_length ("1ln"));
   }
 
   point physical (cd_point p) {
     return fr (point (p.x, p.y));
+  }
+
+  QPointF pixels (point p) {
+    return QPointF (p[0]/PIXEL, p[1]/PIXEL);
+  }
+
+  void track_path (const QPainterPath& path, SI width) {
+    if (!track_ink) return;
+    QPainterPathStroker stroker;
+    stroker.setWidth (((qreal) width)/PIXEL);
+    stroker.setCapStyle (Qt::RoundCap);
+    stroker.setJoinStyle (Qt::RoundJoin);
+    ink= ink.united (stroker.createStroke (path));
   }
 
   void add (box b, SI x= 0, SI y= 0) {
@@ -217,6 +234,11 @@ public:
              SI width= 0) {
     point p= physical (a), q= physical (b);
     SI w= width == 0? line_unit: width;
+    if (track_ink) {
+      QPainterPath path (pixels (p));
+      path.lineTo (pixels (q));
+      track_path (path, w);
+    }
     add (line_box (decorate (ip), (SI) p[0], (SI) p[1],
                    (SI) q[0], (SI) q[1],
                    pencil (named_color (color), w)));
@@ -226,6 +248,11 @@ public:
               string dash= "solid") {
     array<point> points (4);
     for (int i=0; i<4; i++) points[i]= physical (geometry.p[i]);
+    if (track_ink) {
+      QPainterPath path (pixels (points[0]));
+      path.cubicTo (pixels (points[1]), pixels (points[2]), pixels (points[3]));
+      track_path (path, width);
+    }
     array<bool> style;
     SI style_unit= 0;
     if (dash == "dashed") {
@@ -254,6 +281,11 @@ public:
       points << physical (p + normal * wave);
       paths << decorate (ip);
     }
+    if (track_ink) {
+      QPainterPath path (pixels (points[0]));
+      for (int i=1; i<N(points); ++i) path.lineTo (pixels (points[i]));
+      track_path (path, width);
+    }
     add (curve_box (decorate (ip), poly_segment (points, paths), 1.0,
                     pencil (named_color (color), width),
                     array<bool> (), array<point> (), 0,
@@ -267,18 +299,35 @@ public:
     SI w= width == 0? line_unit: width;
     pencil pen (named_color (color), w);
     brush fill= filled? brush (named_color (color)): brush (false);
+    if (track_ink) {
+      QPainterPath path;
+      path.addEllipse (pixels (p), ((qreal) r)/PIXEL, ((qreal) r)/PIXEL);
+      ink= ink.united (path);
+      track_path (path, w);
+    }
     add (point_box (decorate (ip), p, r, pen, fill, "round"));
   }
 
-  void formula (tree formula, path formula_ip, cd_point position,
-                string color, bool small, string halo_color= "",
-                bool strong_halo= false) {
+  box typeset_formula (tree formula, path formula_ip,
+                        string color, bool small) {
     tree old_color= env->local_begin (COLOR, color);
     tree old_size;
     if (small) old_size= env->local_begin (FONT_SIZE, "0.84");
     box b= typeset_as_concat (env, formula, formula_ip);
     if (small) env->local_end (FONT_SIZE, old_size);
     env->local_end (COLOR, old_color);
+    return b;
+  }
+
+  void formula (tree formula, path formula_ip, cd_point position,
+                string color, bool small, string halo_color= "",
+                bool strong_halo= false) {
+    this->formula (typeset_formula (formula, formula_ip, color, small),
+             formula_ip, position, halo_color, strong_halo);
+  }
+
+  void formula (box b, path formula_ip, cd_point position,
+                string halo_color= "", bool strong_halo= false) {
     point p= physical (position);
     SI x= (SI) p[0] - ((b->x1 + b->x2) >> 1);
     SI y= (SI) p[1] - ((b->y1 + b->y2) >> 1);
@@ -428,6 +477,24 @@ cd_add_arrow_body (cd_box_builder& b, const cd_geometry& geometry,
   (void) normal;
 }
 
+static void
+cd_add_masked_arrow (cd_box_builder& builder, box arrow, QRectF hole) {
+  SI left= max (arrow->x3, (SI) std::floor (hole.left ()*PIXEL));
+  SI right= min (arrow->x4, (SI) std::ceil (hole.right ()*PIXEL));
+  SI bottom= max (arrow->y3, (SI) std::floor (hole.top ()*PIXEL));
+  SI top= min (arrow->y4, (SI) std::ceil (hole.bottom ()*PIXEL));
+  if (left >= right || bottom >= top) { builder.add (arrow); return; }
+  // Clip only this edge, preserving the grid and other edges below the label.
+  auto add= [&] (SI x1, SI y1, SI x2, SI y2) {
+    if (x1 < x2 && y1 < y2)
+      builder.add (clip_box (decorate (builder.ip), arrow, x1, y1, x2, y2));
+  };
+  add (arrow->x3, arrow->y3, left, arrow->y4);
+  add (right, arrow->y3, arrow->x4, arrow->y4);
+  add (left, arrow->y3, right, bottom);
+  add (left, top, right, arrow->y4);
+}
+
 void
 concater_rep::typeset_commutative_diagram (tree t, path ip) {
   if (N(t) != 3) { typeset_error (t, ip); return; }
@@ -503,22 +570,57 @@ concater_rep::typeset_commutative_diagram (tree t, path ip) {
                    state.selected_id == arrows[i].id;
     bool hovered= state.hover_kind == "arrow" &&
                   state.hover_id == arrows[i].id;
-    cd_add_arrow_body (builder, geometry, arrows[i].node);
+    string alignment= cd_option (arrows[i].node,
+                                 "label-alignment", "left");
+    bool has_label= arrows[i].node[3] != tree ("");
+    bool avoid_edge= has_label &&
+                     (alignment == "left" || alignment == "right");
+    cd_box_builder edge (env, ip, fr, avoid_edge);
+    cd_add_arrow_body (edge, geometry, arrows[i].node);
+    box arrow= composite_box (decorate (ip), edge.boxes, edge.xs, edge.ys);
 
     double label_t= 0.01 * max (0.0, min (100.0,
       cd_option_number (arrows[i].node, "label-position", 50.0)));
     cd_point label_position= cd_bezier_point (geometry, label_t);
     cd_point tangent= cd_bezier_tangent (geometry, label_t);
     cd_point normal (-tangent.y, tangent.x);
-    string alignment= cd_option (arrows[i].node,
-                                 "label-alignment", "left");
-    if (alignment == "left") label_position= label_position + normal * 0.16;
-    else if (alignment == "right")
-      label_position= label_position - normal * 0.16;
-    builder.formula (arrows[i].node[3], arrows[i].formula_ip,
-                     label_position,
-                     cd_option (arrows[i].node, "label-color", "black"),
-                     true);
+    box label= builder.typeset_formula (
+      arrows[i].node[3], arrows[i].formula_ip,
+      cd_option (arrows[i].node, "label-color", "black"), true);
+    QPointF centre= builder.pixels (builder.physical (label_position));
+    // Include glyph overhangs, symmetrically about the logical placement centre.
+    double cx= (label->x1 + label->x2)/2.0;
+    double cy= (label->y1 + label->y2)/2.0;
+    QSizeF footprint (2*max (cx-min (label->x1, label->x3),
+                            max (label->x2, label->x4)-cx)/PIXEL,
+                      2*max (cy-min (label->y1, label->y3),
+                            max (label->y2, label->y4)-cy)/PIXEL);
+    double padding= ((double) max (builder.line_unit,
+                                   env->as_length ("0.04cm")))/PIXEL;
+    if (avoid_edge) {
+      double side= alignment == "left"? 1.0: -1.0;
+      QPointF clear= cd_clear_label_position (
+        edge.ink, centre, QPointF (normal.x*side, normal.y*side),
+        footprint, padding);
+      label_position= label_position +
+        cd_point ((clear.x ()-centre.x ())*PIXEL/unit,
+                  (clear.y ()-centre.y ())*PIXEL/unit);
+    }
+    if (has_label && alignment == "centre") {
+      QSizeF size= footprint + QSizeF (2*padding, 2*padding);
+      cd_add_masked_arrow (builder, arrow,
+        QRectF (centre-QPointF (size.width ()/2, size.height ()/2), size));
+    }
+    else builder.add (arrow);
+    if (alignment == "over") {
+      double angle= std::atan2 (tangent.y, tangent.x);
+      const double pi= std::acos (-1.0);
+      if (angle > pi/2) angle -= pi;
+      if (angle < -pi/2) angle += pi;
+      label= transformed_box (arrows[i].formula_ip, label,
+                              rotation_2D (point (cx, cy), angle));
+    }
+    builder.formula (label, arrows[i].formula_ip, label_position);
     if (selected || hovered) {
       string handle_color= selected? "#3976c5": "#82aee5";
       builder.circle (geometry.p[0], selected? 0.075: 0.060,
