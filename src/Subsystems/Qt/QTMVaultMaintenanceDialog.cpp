@@ -78,7 +78,7 @@ public:
       cellLayout->setContentsMargins (0, 0, 0, 0);
       cellLayout->setAlignment (Qt::AlignCenter);
       QCheckBox* check= new QCheckBox (cell);
-      check->setChecked (true);
+      check->setChecked (entries[i].selected_by_default);
       check->setAccessibleName (
         "Run " + QString::fromStdString (entries[i].description));
       cellLayout->addWidget (check);
@@ -113,6 +113,13 @@ public:
     return skipped;
   }
 
+  std::vector<std::string> enabled_passes () const {
+    std::vector<std::string> enabled;
+    for (size_t i=0; i<entries.size (); ++i)
+      if (checks[i]->isChecked ()) enabled.push_back (entries[i].id);
+    return enabled;
+  }
+
 private:
   std::vector<VaultMaintenancePlanEntry> entries;
   std::vector<QCheckBox*> checks;
@@ -139,7 +146,11 @@ qtm_vault_maintenance_setup (string vault_root) {
 
   tree result (TUPLE);
   result << tree ("accepted");
+  tree skipped (TUPLE), enabled (TUPLE);
   for (const std::string& id: dialog.skipped_passes ())
-    result << tree (id.c_str ());
+    skipped << tree (id.c_str ());
+  for (const std::string& id: dialog.enabled_passes ())
+    enabled << tree (id.c_str ());
+  result << skipped << enabled;
   return result;
 }

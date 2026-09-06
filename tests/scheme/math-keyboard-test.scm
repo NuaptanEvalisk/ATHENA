@@ -29,6 +29,11 @@
        (binding "math:right | var") "evaluation bar variant")
 (check '(("|" (math-bracket-open "|" "|" (quote default))))
        (binding "|") "absolute value unchanged")
+(check '(("| var" "|")) (binding "| var") "literal bar remains available")
+(check '(("| var var" (math-evaluation-bar)))
+       (binding "| var var") "evaluation bar in ordinary Tab cycle")
+(check '(("| var var var" (math-separator "|" (quote default))))
+       (binding "| var var var") "middle separator remains available")
 (check '(("math:right |" (math-bracket-close "|" "|" #t)))
        (binding "math:right |") "closing bar unchanged")
 (check #t

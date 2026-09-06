@@ -408,6 +408,11 @@ ATHENA has modular headless vault maintenance support.
   directories with an `orphans.lst` map and hlinks in generated summaries.
   Ordinary files that ATHENA has never managed are left alone.
 - Anchor enunciations and headings across the whole vault.
+- Optionally promote ordinary mathematical `|` / `\vert` to stretchable
+  evaluation bars in `.ath` documents. This pass is unchecked by default in
+  Maintenance Setup and leaves `\mid`, existing bracket delimiters, and prose
+  unchanged. Headless runs require
+  `ATHENA_VAULT_MAINTENANCE_ENABLE_PASSES=promote-evaluation-bars` to enable it.
 - Update stale anchors when titles change and preserve UUID-backed
   `map.sqlite` reachability for wikilinks and transclusions.
 - Parallelize read-only anchoring checks using a configurable reader process

@@ -19,6 +19,7 @@
 struct VaultMaintenancePlanEntry {
   std::string id;
   std::string description;
+  bool selected_by_default= true;
 };
 
 bool vault_maintenance_run (string vault_dir, bool check_only = false);

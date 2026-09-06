@@ -166,6 +166,8 @@ VaultMaintenancePassResult vault_maintenance_pass_normalize_person_names (
   VaultMaintenanceContext& ctx);
 VaultMaintenancePassResult vault_maintenance_pass_anchor_enunciations (
   VaultMaintenanceContext& ctx);
+VaultMaintenancePassResult vault_maintenance_pass_promote_evaluation_bars (
+  VaultMaintenanceContext& ctx);
 VaultMaintenancePassResult vault_maintenance_pass_build_artifacts (
   VaultMaintenanceContext& ctx);
 VaultMaintenancePassResult vault_maintenance_pass_remove_redundant_wikilinks (

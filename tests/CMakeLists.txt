@@ -98,6 +98,10 @@ foreach (_test_file ${TEST_SRC_FILES})
   target_include_directories (${_test_name} PRIVATE
     ${ATHENA_SOURCE_DIR}/src
   )
+  # Match ATHENA.bin: the allocator must outlive SYCL's unload-time allocations.
+  if (NOT ATHENA_ENABLE_TSAN)
+    target_link_libraries (${_test_name} mimalloc)
+  endif ()
   target_link_libraries (${_test_name}
     athena_body
     PkgConfig::SPDLOG
@@ -109,8 +113,6 @@ foreach (_test_file ${TEST_SRC_FILES})
   if (ATHENA_ENABLE_TSAN)
     target_sources (${_test_name} PRIVATE
       "${ATHENA_SOURCE_DIR}/src/System/Misc/tsan_mimalloc_shim.cpp")
-  else ()
-    target_link_libraries (${_test_name} mimalloc)
   endif ()
   add_test (${_test_name} ${_test_name})
   if (_test_name STREQUAL "artifacts_test" OR
@@ -136,6 +138,7 @@ foreach (_test_file ${TEST_SRC_FILES})
   if (_test_name STREQUAL "hodge_recolor_test" OR
       _test_name STREQUAL "file_chooser_test" OR
       _test_name STREQUAL "evaluation_bar_test" OR
+      _test_name STREQUAL "evaluation_bar_conversion_test" OR
       _test_name STREQUAL "structured_radioactive_test" OR
       _test_name STREQUAL "preview_math_font_test")
     set_tests_properties (${_test_name} PROPERTIES TIMEOUT 30)

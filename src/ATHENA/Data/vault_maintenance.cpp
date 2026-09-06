@@ -34,6 +34,7 @@ struct RegisteredVaultMaintenancePass {
   VaultMaintenancePass pass;
   bool setup;
   VaultMaintenancePassEnabled enabled;
+  bool selected_by_default= true;
 };
 
 bool
@@ -111,6 +112,9 @@ registered_passes () {
       vault_maintenance_pass_normalize_person_names}, false,
       pass_always_enabled},
 #endif
+    {{"promote-evaluation-bars", "Promote ordinary math bars to evaluation bars",
+      vault_maintenance_pass_promote_evaluation_bars}, false,
+      pass_always_enabled, false},
     {{"anchor-structures", "Anchor structures",
       vault_maintenance_pass_anchor_enunciations}, false,
       pass_always_enabled},
@@ -145,10 +149,10 @@ registered_passes () {
 }
 
 std::set<std::string>
-skipped_passes_from_environment () {
+passes_from_environment (string variable) {
   std::set<std::string> skipped;
   std::string configured= tm_to_std (
-    get_env ("ATHENA_VAULT_MAINTENANCE_SKIP_PASSES"));
+    get_env (variable));
   std::stringstream stream (configured);
   std::string id;
   while (std::getline (stream, id, ',')) {
@@ -221,7 +225,10 @@ vault_maintenance_run (string vault_dir, bool check_only) {
     return true;
   }
 
-  std::set<std::string> skipped= skipped_passes_from_environment ();
+  std::set<std::string> skipped= passes_from_environment (
+    "ATHENA_VAULT_MAINTENANCE_SKIP_PASSES");
+  std::set<std::string> selected= passes_from_environment (
+    "ATHENA_VAULT_MAINTENANCE_ENABLE_PASSES");
   const auto& passes= registered_passes ();
   for (size_t i=0; i<passes.size (); ++i) {
     const RegisteredVaultMaintenancePass& registered= passes[i];
@@ -231,13 +238,14 @@ vault_maintenance_run (string vault_dir, bool check_only) {
                 " (disabled by current configuration)");
       continue;
     }
-    if (!registered.setup && skipped.count (pass.id) != 0) {
+    if (!registered.setup && (skipped.count (pass.id) != 0 ||
+        (!registered.selected_by_default && selected.count (pass.id) == 0))) {
       log_info (std::string ("pass skipped: ") + pass.id +
-                " (disabled in Maintenance Setup)");
+                " (not selected)");
       if (std::string (pass.id) != "summary")
         ctx.pass_records.push_back (
           {pass.id, pass.description, "skipped",
-           "disabled in Maintenance Setup", false});
+           "not selected", false});
       continue;
     }
     VaultMaintenancePassResult result= run_registered_pass (ctx, registered);
@@ -250,7 +258,9 @@ vault_maintenance_run (string vault_dir, bool check_only) {
         if (std::string (pending.id) == "summary") continue;
         if (!pending_registered.setup && !pending_registered.enabled (ctx))
           continue;
-        if (!pending_registered.setup && skipped.count (pending.id) != 0)
+        if (!pending_registered.setup && (skipped.count (pending.id) != 0 ||
+            (!pending_registered.selected_by_default &&
+             selected.count (pending.id) == 0)))
           continue;
         ctx.pass_records.push_back (
           {pending.id, pending.description, "not-run",
@@ -278,7 +288,8 @@ vault_maintenance_plan (
   for (const auto& registered: registered_passes ())
     if (!registered.setup && registered.enabled (ctx))
       entries.push_back (
-        {registered.pass.id, registered.pass.description});
+        {registered.pass.id, registered.pass.description,
+         registered.selected_by_default});
   return true;
 }
 
