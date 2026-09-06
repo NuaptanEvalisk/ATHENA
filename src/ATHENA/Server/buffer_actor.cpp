@@ -9,6 +9,7 @@
 ******************************************************************************/
 
 #include "buffer_actor.hpp"
+#include "System/Misc/crash_report.hpp"
 
 #include "actor_ui_bridge.hpp"
 #include "buffer_state.hpp"
@@ -458,6 +459,8 @@ buffer_actor::lookup (athena_actor_id id) noexcept {
 
 void
 buffer_actor::thread_entry (athena_actor_id id) {
+  athena_crash_register_thread (AthenaCrashThreadRole::BufferActor, id);
+  athena_crash_set_execution (id, 0, 0);
   scm_with_guile (guile_entry,
                   reinterpret_cast<void*> (static_cast<std::uintptr_t> (id)));
 }

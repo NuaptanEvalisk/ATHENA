@@ -303,11 +303,29 @@
       /tmp/athena-structured-render-final-test.log. No TSan run claimed.
     - Normal build/deployment: /tmp/athena-structured-names-final-build.log.
       Installed SHA256 044457144427cc6f0e35e1d050718ab1f7fac26739fb64c1722e665b8c66101d.
-12. **TODO: Multithreading-aware crash reporting**
+12. **DONE: Multithreading-aware crash reporting**
     - Audit inherited signal/exception handling; produce useful thread/actor
       information without unsafe editor access in signal handlers.
     - Remove the old root/current/shifted path and physical-selection dump.
       Test crash reporting in isolated subprocesses, including worker faults.
+    - Replace exception-throwing fatal handlers with bounded signal-safe reports
+      to a pre-opened private file and best-effort nonblocking stderr. Preserve
+      the original terminating signal and leave all-thread unwinding to OS core
+      dumps, where configured. Do not invoke Qt, Scheme, editor rescue or shared
+      service destruction in the fatal path.
+    - Publish thread role, owner actor, active actor/view/command IDs independently
+      of editor objects. Preserve nested execution scopes and provide alternate
+      signal stacks for registered threads without replacing runtime-owned stacks.
+      Make normal exception caches thread-local and serialize report-file naming.
+    - PASS: 12 isolated fatal probes cover main/actor/render/unknown threads,
+      stack overflow, forbidden allocation, closed/full stderr, uncaught C++
+      termination and fatal signals. Actual offscreen ATHENA also receives
+      SIGSEGV and exits with its original signal without Scheme unwinding.
+    - PASS: crash_report_test, scheme_execution_context_test and
+      scheme_native_context_test, 3/3 in 5.97s:
+      /tmp/athena-crash-context-final-tests.log. No Xvfb or TSan run claimed.
+    - Normal build/deployment: /tmp/athena-crash-report-final-build.log.
+      Build and installed SHA256 ad222462317617deaf4e3d093cad1fd190c157ef10df4e5eb8dfd9de61673697.
 13. **DONE: NESTED UPDATING when saving an unsaved buffer**
     - Locate the first reentrant update boundary in save-as, correct ownership
       and scheduling without hiding the diagnostic. Test cancellation, success,

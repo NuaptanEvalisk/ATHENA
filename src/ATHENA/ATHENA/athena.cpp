@@ -21,6 +21,7 @@
 #include <unistd.h>
 #include <locale.h> // for setlocale
 #include <signal.h>
+#include "System/Misc/crash_report.hpp"
 #include <algorithm>
 #include <cstdint>
 #include <cstdio>
@@ -640,29 +641,19 @@ test_routines () {
 }
 #endif
 
-/******************************************************************************
-* Clean exit on segmentation faults
-******************************************************************************/
-
-void 
-clean_exit_on_segfault (int sig_num) {
-  (void) sig_num;
-  athena_enable_emergency_logging ();
-  FAILED ("segmentation fault");
+static void
+install_crash_reporting () {
+  string directory= concretize (url ("$ATHENA_HOME_PATH/system/crash"));
+  if (!athena_install_crash_handlers (as_charp (directory)))
+    std_warning << "Fatal crash reporting could not open its report file or install all handlers" << LF;
 }
 
 void
 clean_exit_on_sigterm (int sig_num) {
   (void) sig_num;
-  // Headless services can receive SIGTERM while Qt, SQLite, or an embedding
-  // runtime is active.  Running C++ global destructors from a signal handler
-  // is not async-signal-safe; let the operating system reclaim the process.
-  if (headless_mode) _exit (0);
-#ifdef ADVANCED_DEVELOPER_MODE
-  exit (0);
-#else
+  // SIGTERM can interrupt any thread or runtime. Do not run global destructors
+  // from a signal handler, including in interactive/developer builds.
   _exit (0);
-#endif
 }
 
 void ATHENA_init_font() {
@@ -1272,7 +1263,7 @@ TeXmacs_main (int argc, char** argv) {
       bool ok= athena::mcp::start_rag_server (options);
       if (!ok) exit (1);
       texmacs_started= true;
-      if (!disable_error_recovery) signal (SIGSEGV, clean_exit_on_segfault);
+      if (!disable_error_recovery) install_crash_reporting ();
       signal (SIGTERM, clean_exit_on_sigterm);
       release_boot_lock ();
       io_info << "rag mcp: bearer token "
@@ -1404,7 +1395,7 @@ TeXmacs_main (int argc, char** argv) {
   
     if (DEBUG_STD) debug_boot << "Starting event loop...\n";
     texmacs_started= true;
-    if (!disable_error_recovery) signal (SIGSEGV, clean_exit_on_segfault);
+    if (!disable_error_recovery) install_crash_reporting ();
 
     // allow docker stop to work
     signal (SIGTERM, clean_exit_on_sigterm);
@@ -2018,6 +2009,7 @@ athena_refresh_stale_scheme_bytecode (int argc, char** argv) {
 
 int
 texmacs_entrypoint (int argc, char** argv) {
+  athena_crash_register_thread (AthenaCrashThreadRole::Main);
   bench_start ("startup to editor shell");
   for (int i=1; i<argc; i++) {
     string s= argv[i];

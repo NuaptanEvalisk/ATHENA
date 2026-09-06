@@ -16,10 +16,11 @@
 #include "sys_utils.hpp"
 #include "new_document.hpp"
 #include "scheme_execution_context.hpp"
+#include "System/Misc/crash_report.hpp"
 
 #include <ctime>
 
-bool rescue_mode= false;
+std::atomic<bool> rescue_mode {false};
 
 /******************************************************************************
 * Status reports
@@ -27,9 +28,14 @@ bool rescue_mode= false;
 
 string get_system_date () {
   std::time_t now= std::time (nullptr);
-  std::tm* local_time= std::localtime (&now);
+  std::tm local_time;
+#ifdef _WIN32
+  if (localtime_s (&local_time, &now) != 0) return "Unknown date";
+#else
+  if (localtime_r (&now, &local_time) == nullptr) return "Unknown date";
+#endif
   char buffer[1024];
-  size_t len = std::strftime(buffer, sizeof(buffer), "%a %b %d %H:%M:%S %Z %Y", local_time);
+  size_t len = std::strftime(buffer, sizeof(buffer), "%a %b %d %H:%M:%S %Z %Y", &local_time);
   if (len > 0) {
     return string(buffer, len);
   } else {
@@ -72,55 +78,10 @@ path_as_string (path p) {
   return r;
 }
 
-string
-get_editor_status_report () {
-  string r;
-
-  if (!is_server_started ()) {
-    r << "TeXmacs server not yet started";
-    return r;
-  }
-
-  // If an error happens too early then there is no current view
-  // and get_current_editor() will raise an exception leading to
-  // an infinite loop. So we stop before.
-  
-  if (!has_current_view()) {
-    r << "TeXmacs does not yet have a current view";
-    return r;
-  }
-
-  const SchemeExecutionContext* context= current_scheme_execution_context ();
-  if (context == nullptr || context->editor == nullptr ||
-      !context->has (SCHEME_CAPABILITY_BUFFER)) {
-    r << "Editor status:\n"
-      << "  Current view       : " << as_string (get_current_view_safe ())
-      << "\n"
-      << "  Document state is owned by its BufferActor\n";
-    return r;
-  }
-  
-  r << "Editor status:\n";
-  editor ed= get_current_editor ();
-  path start_p, end_p;
-  ed->get_selection (start_p, end_p);
-  r << "  Root path          : "
-    << path_as_string (ed->rp) << "\n"
-    << "  Current path       : "
-    << path_as_string (ed->the_path ()) << "\n"
-    << "  Shifted path       : "
-    << path_as_string (ed->the_shifted_path ()) << "\n"
-    << "  Physical selection : "
-    << path_as_string (start_p) << " -- "
-    << path_as_string (end_p) << "\n";
-  if (start_p != end_p) {
-    selection sel;
-    ed->selection_get (sel);
-    r << "  Logical selection  : "
-      << path_as_string (sel->start) << " -- "
-      << path_as_string (sel->end) << "\n";
-  }
-  return r;
+static string
+get_execution_status_report () {
+  std::string report= athena_crash_execution_report ();
+  return "Execution status:\n  " * string (report.data (), report.size ());
 }
 
 void
@@ -154,61 +115,15 @@ get_crash_report (const char* msg) {
   string r;
   r << "Error message:\n  " << msg << "\n"
     << "\n" << get_system_information ()
-    << "\n" << get_editor_status_report ()
+    << "\n" << get_execution_status_report ()
     << "\n" << get_stacktrace ();
   return r;
 }
 
 void
 tm_failure (const char* msg) {
-  if (rescue_mode) {
-    fprintf (stderr, "\nATHENA] Fatal unrecoverable error, %s\n", msg);
-#ifdef DEBUG_ASSERT
-    return;
-#endif
-    exit (1);
-  }
-  rescue_mode= true;
-  cerr << "\nATHENA] Fatal error, " << msg << "\n";
-
-  //cerr << "Saving crash report...\n";
-  string report= get_crash_report (msg);
-  url dir ("$ATHENA_HOME_PATH/system/crash");
-  url err= url_numbered (dir, "crash_report_", "");
-  if (!save_string (err, report))
-    cerr << "ATHENA] Crash report saved in " << err << "\n";
-  else
-    cerr << "ATHENA] Crash report could not be saved in "
-         << err << "\n"
-         << "ATHENA] Dumping report below\n\n"
-         << report << "\n";
-
-  const SchemeExecutionContext* context= current_scheme_execution_context ();
-  if (context != nullptr && context->editor != nullptr &&
-      context->has (SCHEME_CAPABILITY_BUFFER)) {
-    // The actor thread owns the tree and is the only thread allowed to inspect
-    // or autosave it during failure handling.
-    editor ed= get_current_editor ();
-    string buf=
-      tree_report (subtree (current_document_tree (), ed->rp), ed->rp);
-    url buf_err= glue (err, "_tree");
-    if (!save_string (buf_err, buf))
-      cerr << "ATHENA] Current buffer report saved in " << buf_err << "\n";
-    else
-      cerr << "ATHENA] Current buffer report could not be saved in "
-           << buf_err << "\n"
-           << "ATHENA] Dumping report below\n\n"
-           << buf << "\n";
-    call ("autosave-all");
-  }
-  //cerr << "Closing pipes...\n";
-  close_all_pipes ();
-  call ("quit-TeXmacs-scheme");
-  clear_pending_commands ();
-
-  // defined in src/Kernel/Abstractions/basic.cpp
-  void qarma_crash_report (string report);
-  qarma_crash_report (report);
-
-  //exit (1);
+  rescue_mode.store (true);
+  // A damaged process cannot safely run Scheme, autosave other actors or
+  // destroy shared services. The fatal-signal reporter leaves those untouched.
+  athena_crash_abort (msg);
 }

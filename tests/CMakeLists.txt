@@ -1,5 +1,17 @@
 file (GLOB_RECURSE TEST_SRC_FILES CONFIGURE_DEPENDS "*.cpp")
 
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  add_test (NAME crash_report_test
+    COMMAND ${Python3_EXECUTABLE}
+      ${CMAKE_CURRENT_SOURCE_DIR}/scheme/crash-report-test.py
+      --compiler ${CMAKE_CXX_COMPILER}
+      --source-dir ${ATHENA_SOURCE_DIR}
+      --binary $<TARGET_FILE:ATHENA.bin>
+      --runtime ${ATHENA_GUILE_PREFIX}
+      --resources ${ATHENA_SOURCE_DIR}/ATHENA)
+  set_tests_properties (crash_report_test PROPERTIES TIMEOUT 90)
+endif ()
+
 add_test(NAME glue_generator_test
   COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_CURRENT_SOURCE_DIR}/scheme/glue-generator-test.py)

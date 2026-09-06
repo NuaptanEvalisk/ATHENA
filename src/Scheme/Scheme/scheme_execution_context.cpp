@@ -10,6 +10,7 @@
 
 #include "scheme_execution_context.hpp"
 #include "drd_std.hpp"
+#include "System/Misc/crash_report.hpp"
 
 static thread_local const SchemeExecutionContext* execution_context= nullptr;
 
@@ -39,10 +40,15 @@ SchemeExecutionScope::SchemeExecutionScope (
     document_scope (context.document) {
   previous_context= execution_context;
   execution_context= &context;
+  athena_crash_set_execution (context.actor_id, context.view_id, context.command_id);
 }
 
 SchemeExecutionScope::~SchemeExecutionScope () {
   execution_context= previous_context;
+  athena_crash_set_execution (
+    previous_context ? previous_context->actor_id : 0,
+    previous_context ? previous_context->view_id : 0,
+    previous_context ? previous_context->command_id : 0);
 }
 
 const SchemeExecutionContext*

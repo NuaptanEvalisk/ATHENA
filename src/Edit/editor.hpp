@@ -675,8 +675,6 @@ public:
   friend class server_command_rep;
   friend void   edit_announce (editor_rep* ed, modification mod);
   friend void   edit_done (editor_rep* ed, modification mod);
-  friend string get_editor_status_report ();
-  friend void   tm_failure (const char* msg);
   friend void   set_buffer_tree (url name, tree doc);
   friend void   set_current_view (url u);
   friend void   set_current_drd (url name);

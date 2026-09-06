@@ -106,7 +106,7 @@ bool debug_get (string s);
 #define USE_EXCEPTIONS
 void tm_failure (const char* msg);
 #ifdef USE_EXCEPTIONS
-extern string the_exception;
+extern thread_local string the_exception;
 void tm_throw (const char* msg);
 void handle_exceptions ();
 #define ASSERT(cond,msg) { if (!(cond)) tm_throw (msg); }

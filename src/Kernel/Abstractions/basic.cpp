@@ -19,6 +19,7 @@
 #include "sys_utils.hpp"
 #include "convert.hpp"
 #include <atomic>
+#include <mutex>
 
 /******************************************************************************
 * debugging
@@ -200,16 +201,23 @@ clear_debug_messages () {
 }
 
 #ifdef USE_EXCEPTIONS
-string the_exception;
-string the_report;
+thread_local string the_exception;
+static thread_local string the_report;
 string get_crash_report (const char* msg);
 
 void
 qarma_crash_report (string report) {
   // Save full crash report to a file
   url dir ("$ATHENA_HOME_PATH/system/crash");
-  url err= url_numbered (dir, "crash_report_", "");
-  save_string (err, report);
+  url err;
+  {
+    // Ordinary exceptions can arrive from several actors at once. Allocate
+    // and save the numbered file together; fatal signals never enter here.
+    static std::mutex report_files;
+    std::lock_guard<std::mutex> lock (report_files);
+    err= url_numbered (dir, "crash_report_", "");
+    save_string (err, report);
+  }
 
   // Extract first 10 lines for the dialog
   string summary = "";

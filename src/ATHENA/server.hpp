@@ -18,6 +18,7 @@
 #include "Data/new_buffer.hpp"
 #include "Data/new_view.hpp"
 #include "Data/new_window.hpp"
+#include <atomic>
 
 class editor;
 
@@ -128,7 +129,7 @@ public:
 };
 ABSTRACT_CODE(server);
 
-extern bool rescue_mode;
+extern std::atomic<bool> rescue_mode;
 scheme_tree menu_merge (scheme_tree m1, scheme_tree m2);
 server_rep* get_server ();
 inline bool in_rescue_mode () { return rescue_mode; }

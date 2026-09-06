@@ -9,6 +9,7 @@
 ******************************************************************************/
 
 #include "render_service.hpp"
+#include "System/Misc/crash_report.hpp"
 
 #include <cstdio>
 #include <exception>
@@ -84,6 +85,7 @@ render_service::worker_thread () const noexcept {
 
 void
 render_service::run () {
+  athena_crash_register_thread (AthenaCrashThreadRole::RenderService);
   {
     std::lock_guard<std::mutex> guard (lock_);
     worker_thread_= std::this_thread::get_id ();

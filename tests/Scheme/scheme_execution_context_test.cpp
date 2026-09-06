@@ -11,6 +11,7 @@
 
 #include "drd_std.hpp"
 #include "scheme_execution_context.hpp"
+#include "System/Misc/crash_report.hpp"
 
 #include <atomic>
 #include <thread>
@@ -44,12 +45,14 @@ TestSchemeExecutionContext::restoresNestedContexts () {
   {
     SchemeExecutionScope outer_scope (outer);
     QCOMPARE (current_scheme_execution_context (), &outer);
+    QVERIFY (athena_crash_execution_report ().find ("command=1\n") != std::string::npos);
     QCOMPARE (&current_drd (), &outer_drd);
     QCOMPARE (&current_document_tree (), &outer_document);
     assign (path (0), tree (DOCUMENT, "outer"));
     {
       SchemeExecutionScope inner_scope (inner);
       QCOMPARE (current_scheme_execution_context (), &inner);
+      QVERIFY (athena_crash_execution_report ().find ("command=2\n") != std::string::npos);
       QCOMPARE (&current_drd (), &inner_drd);
       QCOMPARE (&current_document_tree (), &inner_document);
       assign (path (0), tree (DOCUMENT, "inner"));
@@ -57,12 +60,14 @@ TestSchemeExecutionContext::restoresNestedContexts () {
                 tree (DOCUMENT, "inner"));
     }
     QCOMPARE (current_scheme_execution_context (), &outer);
+    QVERIFY (athena_crash_execution_report ().find ("command=1\n") != std::string::npos);
     QCOMPARE (&current_drd (), &outer_drd);
     QCOMPARE (&current_document_tree (), &outer_document);
     QCOMPARE (subtree (outer_document, path (0)),
               tree (DOCUMENT, "outer"));
   }
   QVERIFY (current_scheme_execution_context () == nullptr);
+  QVERIFY (athena_crash_execution_report ().find ("command=0\n") != std::string::npos);
   QCOMPARE (&current_drd (), default_drd);
   QCOMPARE (&current_document_tree (), default_document);
 }
@@ -82,12 +87,16 @@ TestSchemeExecutionContext::isolatesConcurrentThreads () {
       command_id,
       SCHEME_CAPABILITY_GLOBAL);
     SchemeExecutionScope scope (context);
+    the_exception= as_string ((int) command_id);
     ready.fetch_add (1, std::memory_order_release);
     while (!release.load (std::memory_order_acquire)) std::this_thread::yield ();
     if (current_scheme_execution_context () != &context ||
         current_scheme_execution_context ()->command_id != command_id ||
         &current_drd () != &local_drd ||
-        &current_document_tree () != &local_document)
+        &current_document_tree () != &local_document ||
+        the_exception != as_string ((int) command_id) ||
+        athena_crash_execution_report ().find (
+          "command=" + std::to_string (command_id) + "\n") == std::string::npos)
       valid.store (false, std::memory_order_relaxed);
   };
 
