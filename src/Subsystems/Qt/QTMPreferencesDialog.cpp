@@ -19,6 +19,7 @@
 #include "qt_tm_widget.hpp"
 #include "QTMVaultInfoModel.hpp"
 #include "QTMDelegationClient.hpp"
+#include "QTMVaultSearchWorker.hpp"
 #include "GoogleOAuth.hpp"
 #include "GoogleTasksClient.hpp"
 
@@ -61,6 +62,7 @@
 #include <QScrollArea>
 #include <QSignalBlocker>
 #include <QShortcut>
+#include <QSpinBox>
 #include <QStackedWidget>
 #include <QStandardItemModel>
 #include <QStandardPaths>
@@ -1752,6 +1754,16 @@ QTMPreferencesDialog::buildVaultCategories () {
 
   QWidget* wikilinks= make_page ();
   QFormLayout* wt= add_section (wikilinks, "Wikilinks and Transclusion");
+  QSpinBox* searchWorkers= new QSpinBox;
+  mark_preference_control (searchWorkers, "vault link search workers");
+  searchWorkers->setRange (1, vault_search_worker_limit ());
+  searchWorkers->setValue (vault_search_worker_count ());
+  searchWorkers->setKeyboardTracking (false);
+  QObject::connect (searchWorkers, &QSpinBox::valueChanged, searchWorkers,
+                    [] (int count) {
+    set_pref ("vault link search workers", QString::number (count));
+  });
+  wt->addRow (label ("Search workers:"), searchWorkers);
   add_toggle (wt, "Wikilink inserter uses case-insensitive search:",
               "vault wikilink inserter case insensitive search");
   add_toggle (wt, "Transclusion inserter uses case-insensitive search:",

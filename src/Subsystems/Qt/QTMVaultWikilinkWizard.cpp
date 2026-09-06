@@ -21,6 +21,7 @@
 #include "QTMVaultPreviewBuilder.hpp"
 #include "QTMVaultPreviewWidget.hpp"
 #include "QTMVaultSearch.hpp"
+#include "QTMVaultSearchWorker.hpp"
 #include "drd_mode.hpp"
 #include "namespaces.hpp"
 #include "qt_utilities.hpp"
@@ -354,8 +355,16 @@ public:
   bool caseInsensitiveSearch () const;
   bool fuzzySearch () const;
   void startSearch ();
-  int  searchFile (url u, const tree& query,
-                   std::vector<WikilinkSearchResult>& hits) const;
+  ~WikilinkSearchPage () override { if (searchTask) searchTask->cancelled= true; }
+  void cleanupPage () override {
+    ++searchGeneration;
+    if (searchTask) searchTask->cancelled= true;
+    stopButton->setEnabled (false);
+    searchButton->setEnabled (true);
+  }
+  static int searchFile (tree body, url u, const tree& query,
+                         const VaultSearchOptions& options,
+                         std::vector<WikilinkSearchResult>& hits);
   void addResult (const WikilinkSearchResult& result);
   void updatePreview (QListWidgetItem* current);
   void updateDefaultDisplayText ();
@@ -384,7 +393,8 @@ public:
   std::vector<WikilinkSearchResult> results;
   std::vector<WikilinkAnchorEntry> currentAnchors;
   bool        displayTouched;
-  bool        searchStopRequested;
+  std::shared_ptr<VaultSearchControl> searchTask;
+  unsigned long searchGeneration= 0;
 };
 
 class QTMVaultWikilinkWizard : public QWizard {
@@ -853,7 +863,7 @@ WikilinkAnchorPage::validatePage () {
 }
 
 WikilinkSearchPage::WikilinkSearchPage (QWidget* parent)
-  : QWizardPage (parent), displayTouched (false), searchStopRequested (false) {
+  : QWizardPage (parent), displayTouched (false) {
   setFinalPage (true);
   setTitle ("Locate by search");
   setSubTitle ("Search the vault, then click a usable { anchor from the preview.");
@@ -987,7 +997,7 @@ WikilinkSearchPage::WikilinkSearchPage (QWidget* parent)
            this, [this] () { startSearch (); });
   connect (stopButton, &QPushButton::clicked,
            this, [this] () {
-             searchStopRequested= true;
+             if (searchTask) searchTask->cancelled= true;
              stopButton->setEnabled (false);
              statusLabel->setText ("Stopping search...");
            });
@@ -1127,12 +1137,12 @@ WikilinkSearchPage::fuzzySearch () const {
 }
 
 int
-WikilinkSearchPage::searchFile (url u, const tree& query,
-                                std::vector<WikilinkSearchResult>& hits) const {
+WikilinkSearchPage::searchFile (
+  tree body, url u, const tree& query, const VaultSearchOptions& options,
+  std::vector<WikilinkSearchResult>& hits) {
   try {
-    tree body= import_body_for_preview (u);
 #if ATHENA_ENABLE_PERSON_SUBSYSTEM
-    QString person= selectedPerson ();
+    QString person= options.person;
     if (!person.isEmpty () &&
         !athena_tree_contains_person_text (body, from_qstring (person)))
       return 0;
@@ -1140,9 +1150,9 @@ WikilinkSearchPage::searchFile (url u, const tree& query,
     int oldMode= set_access_mode (DRD_ACCESS_SOURCE);
     std::vector<VaultContentMatch> matches;
     try {
-      QString enunciation= selectedEnunciation ();
-      bool caseInsensitive= caseInsensitiveSearch ();
-      bool fuzzy= fuzzySearch ();
+      QString enunciation= options.enunciation;
+      bool caseInsensitive= options.caseInsensitive;
+      bool fuzzy= options.fuzzy;
       if (enunciation.isEmpty ()) {
         append_content_matches (matches, body, query, path (), 200,
                                 caseInsensitive, fuzzy);
@@ -1169,7 +1179,7 @@ WikilinkSearchPage::searchFile (url u, const tree& query,
     int hitCount= (int) matches.size ();
     if (hitCount <= 0) return 0;
 
-    url root= vault_get_root ();
+    url root= url_system (from_qstring (options.root));
     QString rel= to_qstring (as_unix_string (delta (root * url (""), u)));
     int occurrence= 1;
     for (const VaultContentMatch& match: matches) {
@@ -1195,7 +1205,6 @@ WikilinkSearchPage::searchFile (url u, const tree& query,
 void
 WikilinkSearchPage::startSearch () {
   if (!searchButton->isEnabled ()) return;
-  searchStopRequested= false;
   searchButton->setEnabled (false);
   stopButton->setEnabled (true);
   auto finishSearch= [this] () {
@@ -1221,7 +1230,6 @@ WikilinkSearchPage::startSearch () {
     return;
   }
 
-  tree query= tree (from_qstring (queryText));
   std::vector<url> files;
   refreshNamespaces ();
   QString ns= selectedNamespace ();
@@ -1261,84 +1269,62 @@ WikilinkSearchPage::startSearch () {
                return as_unix_string (a) < as_unix_string (b);
              });
 
-  VaultRawSearchPrefilter prefilter (
-    queryText, caseInsensitiveSearch (), fuzzySearch ());
-  std::vector<url> candidates;
-  int prefiltered= 0;
-  progress->setRange (0, (int) files.size ());
-  progress->setValue (0);
-  for (const url& file: files) {
-    if (searchStopRequested) break;
-    if (prefilter.fileMayMatch (file)) candidates.push_back (file);
-    prefiltered++;
-    progress->setValue (prefiltered);
-    statusLabel->setText (
-      QString ("Prefiltering source %1/%2; %3 candidate file(s).")
-        .arg (prefiltered)
-        .arg ((int) files.size ())
-        .arg ((int) candidates.size ()));
-    if ((prefiltered % 16) == 0) QApplication::processEvents ();
-  }
-
-  int matchedFiles= 0;
-  std::vector<WikilinkSearchResult> collected;
-  progress->setRange (0, (int) candidates.size ());
-  progress->setValue (0);
-  int scanned= 0;
-  for (const url& file: candidates) {
-    if (searchStopRequested) break;
-    std::vector<WikilinkSearchResult> fileHits;
-    if (searchFile (file, query, fileHits) > 0) {
-      matchedFiles++;
-      for (const WikilinkSearchResult& hit: fileHits)
-        collected.push_back (hit);
-    }
-    scanned++;
-    progress->setValue (scanned);
-    statusLabel->setText (
-      QString ("Inspecting %1/%2 candidate files; %3 occurrence(s) in %4 file(s).")
-        .arg (scanned)
-        .arg ((int) candidates.size ())
-        .arg ((int) collected.size ())
-        .arg (matchedFiles));
-    if ((scanned % 8) == 0)
-      QApplication::processEvents ();
-  }
-
-  if (searchStopRequested)
-    statusLabel->setText (
-      QString ("Search stopped after %1/%2 candidate files; %3 occurrence(s) in %4 file(s).")
-        .arg (scanned)
-        .arg ((int) candidates.size ())
-        .arg ((int) collected.size ())
-        .arg (matchedFiles));
-  else
-    statusLabel->setText (
-      QString ("%1 occurrence(s) in %2 file(s); structurally inspected %3 of %4 source files. Click a { anchor below to insert.")
-        .arg ((int) collected.size ())
-        .arg (matchedFiles)
-        .arg ((int) candidates.size ())
-        .arg ((int) files.size ()));
-  std::stable_sort (
-    collected.begin (), collected.end (),
-    [] (const WikilinkSearchResult& a, const WikilinkSearchResult& b) {
-      if (a.titleMatchScore != b.titleMatchScore)
-        return a.titleMatchScore > b.titleMatchScore;
-      if (a.exact != b.exact) return a.exact;
-      if (a.exact) return false;
-      if (a.score != b.score) return a.score > b.score;
-      int pathOrder= QString::compare (a.relPath, b.relPath,
-                                      Qt::CaseSensitive);
-      if (pathOrder != 0) return pathOrder < 0;
-      return path_less (a.hitStart, b.hitStart);
+  VaultSearchOptions options;
+  options.query= queryText;
+  options.root= to_qstring (as_system_string (vault_get_root ()));
+  options.enunciation= selectedEnunciation ();
+  options.caseInsensitive= caseInsensitiveSearch ();
+  options.fuzzy= fuzzySearch ();
+#if ATHENA_ENABLE_PERSON_SUBSYSTEM
+  options.person= selectedPerson ();
+#endif
+  std::vector<std::string> paths;
+  paths.reserve (files.size ());
+  for (const url& file: files)
+    paths.push_back (to_qstring (concretize (file)).toStdString ());
+  if (searchTask) searchTask->cancelled= true;
+  const auto generation= ++searchGeneration;
+  searchTask= start_vault_search<WikilinkSearchResult> (
+    this, std::move (paths), std::move (options), &WikilinkSearchPage::searchFile,
+    [this, generation] (const VaultSearchProgress& p) {
+      if (generation != searchGeneration) return;
+      progress->setRange (0, p.total);
+      progress->setValue (p.completed);
+      statusLabel->setText (p.inspecting ?
+        QString ("Inspecting %1/%2 candidate files; %3 occurrence(s) in %4 file(s).")
+          .arg (p.completed).arg (p.total).arg (p.hits).arg (p.matchedFiles) :
+        QString ("Prefiltering source %1/%2; %3 candidate file(s).")
+          .arg (p.completed).arg (p.total).arg (p.candidates));
+    },
+    [this, finishSearch, generation] (std::vector<WikilinkSearchResult> collected,
+                          const VaultSearchProgress& p, bool stopped) {
+      if (generation != searchGeneration) return;
+      statusLabel->setText (stopped ?
+        QString ("Search stopped after %1/%2 files; %3 occurrence(s) in %4 file(s).")
+          .arg (p.completed).arg (p.total).arg (p.hits).arg (p.matchedFiles) :
+        QString ("%1 occurrence(s) in %2 file(s); structurally inspected %3 files.")
+          .arg (p.hits).arg (p.matchedFiles).arg (p.completed));
+      std::stable_sort (
+        collected.begin (), collected.end (),
+        [] (const WikilinkSearchResult& a, const WikilinkSearchResult& b) {
+          if (a.titleMatchScore != b.titleMatchScore)
+            return a.titleMatchScore > b.titleMatchScore;
+          if (a.exact != b.exact) return a.exact;
+          if (a.exact) return false;
+          if (a.score != b.score) return a.score > b.score;
+          int pathOrder= QString::compare (a.relPath, b.relPath,
+                                          Qt::CaseSensitive);
+          if (pathOrder != 0) return pathOrder < 0;
+          return path_less (a.hitStart, b.hitStart);
+        });
+      for (const WikilinkSearchResult& hit: collected) addResult (hit);
+      if (resultList->count () > 0) {
+        resultList->setCurrentRow (0);
+        resultList->setFocus ();
+      }
+      else queryEdit->setFocus ();
+      finishSearch ();
     });
-  for (const WikilinkSearchResult& hit: collected) addResult (hit);
-  if (resultList->count () > 0) {
-    resultList->setCurrentRow (0);
-    resultList->setFocus ();
-  }
-  else queryEdit->setFocus ();
-  finishSearch ();
 }
 
 void

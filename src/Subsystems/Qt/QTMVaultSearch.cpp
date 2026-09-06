@@ -9,6 +9,9 @@
 ******************************************************************************/
 
 #include "QTMVaultSearch.hpp"
+#include "QTMVaultSearchWorker.hpp"
+#include "convert.hpp"
+#include "boot.hpp"
 #include "math_token.hpp"
 #include "QTMVaultAnchorModel.hpp"
 #include "analyze.hpp"
@@ -16,6 +19,7 @@
 #include "fuzzy_rank.hpp"
 #include "qt_utilities.hpp"
 #include <QFile>
+#include <QThread>
 #include <QRegularExpression>
 #include <rapidfuzz/distance/Levenshtein.hpp>
 #include <rapidfuzz/fuzz.hpp>
@@ -25,6 +29,65 @@
 #include <cstdint>
 #include <deque>
 #include <utility>
+#include <stdexcept>
+
+static thread_local const std::atomic<bool>* search_cancel_flag= nullptr;
+
+VaultSearchCancellationScope::VaultSearchCancellationScope (
+  const std::atomic<bool>* flag): previous (search_cancel_flag) {
+  search_cancel_flag= flag;
+}
+
+VaultSearchCancellationScope::~VaultSearchCancellationScope () {
+  search_cancel_flag= previous;
+}
+
+bool vault_search_cancelled () {
+  return search_cancel_flag && search_cancel_flag->load (std::memory_order_relaxed);
+}
+
+int vault_search_worker_limit () {
+  return std::max (8, QThread::idealThreadCount () - 3);
+}
+
+int vault_search_worker_count () {
+  bool valid= false;
+  int count= to_qstring (get_user_preference (
+    "vault link search workers", "8")).toInt (&valid);
+  return std::clamp (valid ? count : 8, 1, vault_search_worker_limit ());
+}
+
+QThreadPool& vault_search_workers () {
+  static QThreadPool pool;
+  static const bool configured= [] {
+    pool.setExpiryTimeout (-1);
+    return true;
+  } ();
+  (void) configured;
+  return pool;
+}
+
+tree vault_search_read_body (const QString& file) {
+  QFile input (file);
+  if (!input.open (QIODevice::ReadOnly)) throw std::runtime_error ("Cannot read search file");
+  QByteArray bytes;
+  while (!input.atEnd ()) {
+    if (vault_search_cancelled ()) return tree (DOCUMENT, "");
+    QByteArray block= input.read (256 * 1024);
+    if (input.error () != QFileDevice::NoError)
+      throw std::runtime_error ("Cannot read search file");
+    bytes.append (block);
+  }
+  if (bytes.isEmpty ()) return tree (DOCUMENT, "");
+  string source (bytes.constData (), bytes.size ());
+  // Search parses persisted documents, without converter/Scheme callbacks,
+  // current-buffer fallback, link registration, or preview image rewriting.
+  tree doc= starts (source, "(document (TeXmacs") ? scheme_document_to_tree (source) :
+                                                   texmacs_document_to_tree (source);
+  if (is_func (doc, _ERROR)) throw std::runtime_error ("Invalid search document");
+  tree body= extract (doc, "body");
+  return is_empty (body) ? doc : body;
+}
 
 static QByteArray
 longest_ascii_word (const QString& query) {
@@ -64,12 +127,25 @@ VaultRawSearchPrefilter::isEffective () const {
 bool
 VaultRawSearchPrefilter::fileMayMatch (url file) const {
   if (!isEffective ()) return true;
-  QFile input (to_qstring (concretize (file)));
+  return fileMayMatch (to_qstring (concretize (file)));
+}
+
+bool
+VaultRawSearchPrefilter::fileMayMatch (const QString& file) const {
+  if (!isEffective ()) return true;
+  QFile input (file);
   if (!input.open (QIODevice::ReadOnly)) return true;
-  QByteArray source= input.readAll ();
-  if (input.error () != QFileDevice::NoError) return true;
-  if (caseInsensitive) source= source.toLower ();
-  return source.contains (needle);
+  QByteArray tail;
+  while (!input.atEnd ()) {
+    if (vault_search_cancelled ()) return false;
+    QByteArray source= input.read (256 * 1024);
+    if (input.error () != QFileDevice::NoError) return true;
+    if (caseInsensitive) source= source.toLower ();
+    source.prepend (tail);
+    if (source.contains (needle)) return true;
+    tail= source.right (needle.size () - 1);
+  }
+  return false;
 }
 
 static int
@@ -145,6 +221,7 @@ static FuzzyAtomicText
 normalize_atomic_text (const string& source, bool caseInsensitive) {
   FuzzyAtomicText out;
   for (int start=0; start<N(source); ) {
+    if (vault_search_cancelled ()) break;
     int end= tm_char_next (source, start);
     append_normalized_character (
       out, to_qstring (source (start, end)), start, end, caseInsensitive);
@@ -206,6 +283,7 @@ append_fuzzy_atomic_matches (
     pending.push_back (region);
 
   while (!pending.empty () && limit > 0) {
+    if (vault_search_cancelled ()) return;
     auto region= pending.front ();
     pending.pop_front ();
     if (region.second <= region.first) continue;
@@ -278,7 +356,7 @@ collect_fuzzy_atomic_matches (
   const rapidfuzz::fuzz::CachedPartialRatio<char32_t>& scorer,
   const std::vector<VaultContentMatch>& exact)
 {
-  if (remaining <= 0) return;
+  if (remaining <= 0 || vault_search_cancelled ()) return;
   if (is_atomic (t)) {
     size_t before= out.size ();
     append_fuzzy_atomic_matches (
@@ -311,7 +389,7 @@ void
 append_content_matches (std::vector<VaultContentMatch>& out, tree t,
                         tree query, path base, int limit,
                         bool caseInsensitive, bool fuzzy) {
-  if (limit <= 0) return;
+  if (limit <= 0 || vault_search_cancelled ()) return;
   // Keep the mathematical context but select the expression inside it,
   // rather than requiring the enclosing formula to equal the whole query.
   tree pattern= query;
@@ -333,14 +411,21 @@ append_content_matches (std::vector<VaultContentMatch>& out, tree t,
   }
   if (!fuzzy || !is_atomic (query) || (int) exact.size () >= limit) return;
 
-  std::u32string normalizedQuery=
-    normalize_query (query->label, caseInsensitive);
+  static thread_local string cachedQuery;
+  static thread_local bool cachedInsensitive= false;
+  static thread_local std::u32string normalizedQuery;
+  static thread_local std::unique_ptr<rapidfuzz::fuzz::CachedPartialRatio<char32_t>> scorer;
+  if (!scorer || cachedQuery != query->label || cachedInsensitive != caseInsensitive) {
+    cachedQuery= copy (query->label);
+    cachedInsensitive= caseInsensitive;
+    normalizedQuery= normalize_query (cachedQuery, caseInsensitive);
+    scorer= std::make_unique<rapidfuzz::fuzz::CachedPartialRatio<char32_t>> (normalizedQuery);
+  }
   if (normalizedQuery.size () < 4) return;
   double cutoff= normalizedQuery.size () <= 5 ? 75.0 : 80.0;
   int remaining= limit - (int) exact.size ();
-  rapidfuzz::fuzz::CachedPartialRatio<char32_t> scorer (normalizedQuery);
   collect_fuzzy_atomic_matches (out, t, base, normalizedQuery, remaining,
-                                cutoff, caseInsensitive, scorer, exact);
+                                cutoff, caseInsensitive, *scorer, exact);
 }
 
 void

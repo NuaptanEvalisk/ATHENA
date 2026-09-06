@@ -299,6 +299,7 @@ ensure_builtin_user_preferences () {
     PREF ("vault transclusion inserter case insensitive search", "off", ""),
     PREF ("vault wikilink inserter fuzzy search", "off", ""),
     PREF ("vault transclusion inserter fuzzy search", "off", ""),
+    PREF ("vault link search workers", "8", ""),
     PREF ("vault global search case insensitive search", "off", ""),
     PREF ("vault global search fuzzy search", "off", ""),
     PREF ("vault wikilink display template file", "%f", ""),

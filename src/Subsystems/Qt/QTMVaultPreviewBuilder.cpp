@@ -100,7 +100,7 @@ build_preview_from_body (tree body, path focus, int* firstOut,
 
 tree
 build_preview_from_anchor_range (tree body, path upper, path lower,
-                                 int* firstOut, int* lastOut) {
+                                 int* firstOut, int* lastOut, bool detached) {
   if (firstOut != nullptr) *firstOut= 0;
   if (lastOut != nullptr) *lastOut= 0;
   if (is_empty (body)) return tree (DOCUMENT, "");
@@ -122,7 +122,8 @@ build_preview_from_anchor_range (tree body, path upper, path lower,
 
   tree preview (DOCUMENT);
   for (int i= first; i<last; i++) {
-    tree block= copy (body[i]);
+    // Search only reads this range in the source tree's owning worker.
+    tree block= detached ? copy (body[i]) : body[i];
     if (i == first) block= compound ("marked", block);
     preview << block;
   }

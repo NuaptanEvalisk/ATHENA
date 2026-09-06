@@ -20,7 +20,7 @@
 #include "tree_correct.hpp"
 #include "merge_sort.hpp"
 
-static bool upgrade_tex_flag= false;
+static thread_local bool upgrade_tex_flag= false;
 double get_magnification (string s);
 
 /******************************************************************************
@@ -2660,7 +2660,7 @@ length_abs (string l) {
   return l;
 }
 
-static int length_add_error;
+static thread_local int length_add_error;
 
 static string
 length_add (string l1, string l2) {

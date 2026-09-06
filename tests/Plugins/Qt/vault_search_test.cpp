@@ -12,6 +12,8 @@
 #include <QTemporaryFile>
 #include "Qt/QTMVaultAnchorModel.hpp"
 #include "Qt/QTMVaultSearch.hpp"
+#include "Qt/QTMVaultSearchWorker.hpp"
+#include <QSemaphore>
 #include "Qt/qt_utilities.hpp"
 #include "drd_std.hpp"
 #include "drd_mode.hpp"
@@ -39,6 +41,9 @@ private slots:
   void rawPrefilterRejectsUnrelatedFiles ();
   void rawPrefilterRespectsCaseOption ();
   void rawPrefilterIsConservative ();
+  void parallelSearchPreservesOrder ();
+  void parallelSearchCancelsOnOwnerDestruction ();
+  void rawPrefilterMatchesAcrossReadBoundary ();
 };
 
 void
@@ -353,6 +358,80 @@ TestVaultSearch::rawPrefilterIsConservative () {
   VaultRawSearchPrefilter exact ("definitely absent", false, false);
   QVERIFY (exact.fileMayMatch (
     url_system (from_qstring (file.fileName () + ".missing"))));
+}
+
+void TestVaultSearch::parallelSearchPreservesOrder () {
+  QTemporaryFile first, second;
+  temporarySource (first, "<TeXmacs|2.1.4>\n\n<style|generic>\n\n<\\body>\nsubgroup\n</body>\n");
+  temporarySource (second, "<TeXmacs|2.1.4>\n\n<style|generic>\n\n<\\body>\nunrelated\n</body>\n");
+  QVERIFY (vault_search_read_body (first.fileName ()) == tree (DOCUMENT, "subgroup"));
+  for (bool fuzzy: {false, true}) {
+    QObject owner;
+    VaultSearchOptions options;
+    options.query= "subgroup";
+    options.fuzzy= fuzzy;
+    bool done= false;
+    int scanned= -1;
+    std::vector<std::string> results;
+    auto task= start_vault_search<std::string> (&owner,
+      {first.fileName ().toStdString (), second.fileName ().toStdString ()},
+      options,
+      [] (tree body, url, const tree& query, const VaultSearchOptions& options,
+          std::vector<std::string>& out) {
+        std::vector<VaultContentMatch> matches;
+        int previous= set_access_mode (DRD_ACCESS_SOURCE);
+        append_content_matches (matches, body, query, path (), 200,
+                                options.caseInsensitive, options.fuzzy);
+        set_access_mode (previous);
+        if (!matches.empty ()) out.push_back ("subgroup");
+      }, [] (const VaultSearchProgress&) {},
+      [&] (std::vector<std::string> out, const VaultSearchProgress& p, bool stopped) {
+        QVERIFY (!stopped);
+        results= std::move (out);
+        scanned= p.completed;
+        done= true;
+      });
+    QTRY_VERIFY_WITH_TIMEOUT (done, 5000);
+    QCOMPARE (scanned, fuzzy ? 2 : 1);
+    QCOMPARE (results.size (), size_t (1));
+    QCOMPARE (results[0], std::string ("subgroup"));
+  }
+}
+
+void TestVaultSearch::parallelSearchCancelsOnOwnerDestruction () {
+  QTemporaryFile source;
+  temporarySource (source, "<TeXmacs|2.1.4>\n\n<style|generic>\n\n<\\body>\nsubgroup\n</body>\n");
+  auto gate= std::make_shared<QSemaphore> ();
+  auto entered= std::make_shared<std::atomic<bool>> (false);
+  auto* owner= new QObject;
+  VaultSearchOptions options;
+  options.query= "subgroup";
+  options.fuzzy= true;
+  bool delivered= false;
+  auto task= start_vault_search<int> (owner,
+    {source.fileName ().toStdString ()}, options,
+    [gate, entered] (tree, url, const tree&, const VaultSearchOptions&, std::vector<int>& out) {
+      *entered= true;
+      gate->acquire ();
+      out.push_back (1);
+    }, [] (const VaultSearchProgress&) {},
+    [&] (std::vector<int>, const VaultSearchProgress&, bool) { delivered= true; });
+  QTRY_VERIFY_WITH_TIMEOUT (entered->load (), 5000);
+  delete owner;
+  bool cancelled= task->cancelled.load ();
+  gate->release ();
+  QVERIFY (vault_search_workers ().waitForDone (5000));
+  QVERIFY (cancelled);
+  QVERIFY (!delivered);
+}
+
+void TestVaultSearch::rawPrefilterMatchesAcrossReadBoundary () {
+  QTemporaryFile source;
+  QByteArray text (256 * 1024 - 3, ' ');
+  text += "Subgroup";
+  temporarySource (source, text);
+  VaultRawSearchPrefilter filter ("subgroup", true, false);
+  QVERIFY (filter.fileMayMatch (source.fileName ()));
 }
 
 QTEST_MAIN(TestVaultSearch)

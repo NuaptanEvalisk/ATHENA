@@ -64,6 +64,7 @@ public:
 
   bool isEffective () const;
   bool fileMayMatch (url file) const;
+  bool fileMayMatch (const QString& file) const;
 };
 
 int fuzzy_score (const QString& text, const QString& query);
