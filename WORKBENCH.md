@@ -72,9 +72,27 @@
    - Also inspect buffer_export -> export_buffer -> get-link-locations and
      save completion. buffer_actor::wait blocks on its condition variable;
      prove an actual wait cycle before attributing the two-document freeze.
-4. **TODO: Angle brackets nested inside vertical bars**
-   - Trace source delimiters -> sizing -> font selection -> boxes -> pixels.
-     Test Pagella bold and regular, nested `|<...>|`, and tall contents.
+4. **DONE: Angle brackets nested inside vertical bars**
+   - Baseline real typesetting reproduced shorter outer bars with both fixed
+     and stretchable angles, most visible in bold Pagella. Source, box metrics
+     and 27 baseline images: /tmp/athena-angle-{metrics.log,baseline/}.
+   - First incorrect transition: nested delimiter boxes report the enclosed
+     body's bracket extents, not their resolved glyph size. The outer sizing
+     heuristic then tightens further, selecting a bar shorter than the angles.
+   - In concat_post.cpp, retain already resolved opening/middle/closing glyph
+     bounds as a minimum after normal body tightening. Use existing line-item
+     semantics, with no font names, glyph-name cases or renderer compensation.
+     Rejected the broader trial of changing all delimiter box extent reporting.
+   - PASS: 18 actual pixel-enclosure cases (Pagella medium/bold and Termes,
+     fixed/stretchable angles, character/fraction/nested fraction), plus stable
+     heights through 12 repeated delimiter layers for all three body sizes.
+     Final images: /tmp/athena-angle-regression/. Temporary metrics removed.
+   - PASS: normal icpx -j20 build and complete local runtime installation:
+     /tmp/athena-angle-runtime-build.log. Built/installed SHA-256:
+     e7fe1f60f814f832d05a597af95a62a29579d5d634e75657251a5d5e3def2db0.
+   - PASS: evaluation_bar_test, evaluation_bar_editor_test and
+     math_keyboard_scheme_test, 3/3 in 8.88s; /tmp/athena-angle-tests.log.
+     Tests used temporary profiles and offscreen Qt, no personal vault or Xvfb.
 5. **TODO: Commutative diagram labels and transverse arrow displacement**
    - Consult Quiver design/implementation (q.uiver.app) for terminology and
      geometry. Preserve label placement, allow transverse arrow displacement,

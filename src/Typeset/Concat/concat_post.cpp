@@ -293,6 +293,8 @@ concater_rep::handle_matching (int start, int end) {
   int i;
   SI y1=  MAX_SI;
   SI y2= -MAX_SI;
+  SI delimiter_y1= MAX_SI;
+  SI delimiter_y2= -MAX_SI;
   bool uninit= true;
   a[start]->penalty++;
   a[end]->penalty++;
@@ -305,6 +307,13 @@ concater_rep::handle_matching (int start, int end) {
     a[i]->b->get_bracket_extents (lo, hi);
     y1= min (y1, lo);
     y2= max (y2, hi);
+    if (a[i]->type == STD_ITEM &&
+        (a[i]->op_type == OP_OPENING_BRACKET ||
+         a[i]->op_type == OP_CLOSING_BRACKET ||
+         a[i]->op_type == OP_MIDDLE_BRACKET)) {
+      delimiter_y1= min (delimiter_y1, a[i]->b->y1);
+      delimiter_y2= max (delimiter_y2, a[i]->b->y2);
+    }
     a[i]->penalty++;
     uninit= false;
   }
@@ -352,6 +361,11 @@ concater_rep::handle_matching (int start, int end) {
         if (N(ls) >= 8 && (ls[6] == '.' || ls[7] == '.'))
           if (starts (ls, "<left-.") || starts (ls, "<right-.")) {
             Y1 += d/6; Y2 -= d/12; }
+
+        // Tightening around the body must not shrink past already resolved
+        // inner delimiters, whose glyphs may have different natural heights.
+        Y1= min (Y1, delimiter_y1);
+        Y2= max (Y2, delimiter_y2);
 
         // replace item by large or small delimiter
         if (Y1 < fn->y1 || Y2 > fn->y2 || custom || use_poor_rubber (fn))
