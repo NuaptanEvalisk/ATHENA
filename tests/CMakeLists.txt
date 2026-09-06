@@ -59,6 +59,15 @@ add_test(NAME two_buffer_save_test
     --runtime ${ATHENA_GUILE_PREFIX}
     --resources ${ATHENA_SOURCE_DIR}/ATHENA)
 set_tests_properties(two_buffer_save_test PROPERTIES TIMEOUT 120)
+add_test(NAME packrat_concurrency_test
+  COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/two-buffer-save-test.py
+    --script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/packrat-concurrency-test.scm
+    --mode plain
+    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
+    --runtime ${ATHENA_GUILE_PREFIX}
+    --resources ${ATHENA_SOURCE_DIR}/ATHENA)
+set_tests_properties(packrat_concurrency_test PROPERTIES TIMEOUT 60)
 
 find_program (ATHENA_TEST_GUILE guile)
 if (ATHENA_TEST_GUILE)

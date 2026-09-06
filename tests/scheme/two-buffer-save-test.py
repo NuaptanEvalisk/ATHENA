@@ -37,7 +37,7 @@ def run_case(args, mode):
             "LD_LIBRARY_PATH": ":".join([str(args.runtime / "lib"),
                                           str(args.resources / "lib"),
                                           env.get("LD_LIBRARY_PATH", "")])})
-        script = Path(__file__).with_suffix(".scm").resolve()
+        script = args.script.resolve()
         expression = '(exec-global (lambda () (primitive-load ' + json.dumps(str(script)) + ')))'
         timed_out = False
         with (home / "output.log").open("w") as log:
@@ -105,6 +105,8 @@ def main():
     parser.add_argument("--runtime", type=Path, required=True)
     parser.add_argument("--resources", type=Path, required=True)
     parser.add_argument("--artifacts", type=Path)
+    parser.add_argument("--script", type=Path,
+                        default=Path(__file__).with_suffix(".scm"))
     parser.add_argument("--gdb", action="store_true")
     parser.add_argument("--capture-stacks", action="store_true")
     parser.add_argument("--mode", choices=("plain", "manual-decline", "manual-approve"))

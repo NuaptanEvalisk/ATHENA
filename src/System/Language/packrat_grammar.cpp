@@ -12,15 +12,98 @@
 #include "packrat_grammar.hpp"
 #include "analyze.hpp"
 #include "iterator.hpp"
+#include "convert.hpp"
+#include <atomic>
+#include <mutex>
+#include <string>
+#include <vector>
 
-tree                 packrat_uninit (UNINIT);
-int                  packrat_nr_tokens= 256;
-int                  packrat_nr_symbols= 0;
-hashmap<string,C>    packrat_tokens;
-hashmap<tree,C>      packrat_symbols;
-hashmap<C,tree>      packrat_decode (packrat_uninit);
+thread_local tree                 packrat_uninit (UNINIT);
+thread_local int                  packrat_nr_tokens= 256;
+thread_local int                  packrat_nr_symbols= 0;
+thread_local hashmap<string,C>    packrat_tokens;
+thread_local hashmap<tree,C>      packrat_symbols;
+thread_local hashmap<C,tree>      packrat_decode (packrat_uninit);
 
-RESOURCE_CODE(packrat_grammar);
+namespace {
+enum class grammar_edit_kind { define, property, inherit };
+struct grammar_edit {
+  grammar_edit_kind kind;
+  std::string language, symbol, value, property;
+};
+struct grammar_definitions {
+  std::recursive_mutex mutex;
+  std::vector<grammar_edit> edits;
+  std::atomic<size_t> revision{0};
+};
+grammar_definitions& definitions () {
+  static grammar_definitions value;
+  return value;
+}
+struct local_grammars {
+  hashmap<string,packrat_grammar> values;
+  size_t revision= 0;
+  ~local_grammars () {
+    iterator<string> it= iterate (values);
+    while (it->busy ()) tm_delete (values[it->next ()].rep);
+  }
+};
+local_grammars& grammars () {
+  static thread_local local_grammars value;
+  return value;
+}
+std::string native_string (const string& s) {
+  return std::string (s.data (), N(s));
+}
+string local_string (const std::string& s) {
+  return string (s.data (), static_cast<int> (s.size ()));
+}
+packrat_grammar local_grammar (string name) {
+  auto& values= grammars ().values;
+  if (!values->contains (name))
+    values(name)= packrat_grammar (tm_new<packrat_grammar_rep> (name));
+  return values[name];
+}
+void inherit_grammar (packrat_grammar gr, packrat_grammar from) {
+  iterator<C> it= iterate (from->grammar);
+  while (it->busy ()) {
+    C sym= it->next ();
+    gr->grammar(sym)= from->grammar[sym];
+    gr->productions(sym)= from->productions[sym];
+  }
+  iterator<D> props= iterate (from->properties);
+  while (props->busy ()) {
+    D key= props->next ();
+    gr->properties(key)= from->properties[key];
+  }
+}
+// Registration is cold. Replay value-only edits once per owner/revision;
+// never share native trees, hash buckets or token IDs between owners.
+void synchronize_grammars () {
+  auto& local= grammars ();
+  const auto& edits= definitions ().edits;
+  while (local.revision < edits.size ()) {
+    const auto& edit= edits[local.revision];
+    packrat_grammar gr= local_grammar (local_string (edit.language));
+    if (edit.kind == grammar_edit_kind::define)
+      gr->define (local_string (edit.symbol),
+                  scheme_to_tree (local_string (edit.value)));
+    else if (edit.kind == grammar_edit_kind::property)
+      gr->set_property (local_string (edit.symbol),
+                        local_string (edit.property), local_string (edit.value));
+    else inherit_grammar (gr, local_grammar (local_string (edit.value)));
+    ++local.revision;
+  }
+}
+void publish_edit (grammar_edit edit) {
+  auto& shared= definitions ();
+  shared.edits.push_back (std::move (edit));
+  grammars ().revision= shared.edits.size ();
+  shared.revision.store (shared.edits.size (), std::memory_order_release);
+}
+}
+
+size_t packrat_grammar_revision () { return grammars ().revision; }
 
 /******************************************************************************
 * Encoding and decoding of tokens and symbols
@@ -170,7 +253,7 @@ singleton (C c) {
 }
 
 packrat_grammar_rep::packrat_grammar_rep (string s):
-  rep<packrat_grammar> (s),
+  lan_name (s),
   grammar (singleton (PACKRAT_TM_FAIL)),
   productions (packrat_uninit)
 {
@@ -182,16 +265,18 @@ packrat_grammar_rep::packrat_grammar_rep (string s):
 }
 
 packrat_grammar
-make_packrat_grammar (string s) {
-  if (packrat_grammar::instances -> contains (s)) return packrat_grammar (s);
-  return make (packrat_grammar, s, tm_new<packrat_grammar_rep> (s));
-}
-
-packrat_grammar
 find_packrat_grammar (string s) {
-  if (packrat_grammar::instances -> contains (s)) return packrat_grammar (s);
-  eval ("(lazy-language-force " * s * ")");
-  return make_packrat_grammar (s);
+  auto& local= grammars ();
+  auto& shared= definitions ();
+  if (local.revision == shared.revision.load (std::memory_order_acquire) &&
+      local.values->contains (s)) return local.values[s];
+  std::lock_guard<std::recursive_mutex> guard (shared.mutex);
+  synchronize_grammars ();
+  if (!local.values->contains (s)) {
+    eval ("(lazy-language-force " * s * ")");
+    synchronize_grammars ();
+  }
+  return local_grammar (s);
 }
 
 /******************************************************************************
@@ -377,44 +462,49 @@ packrat_grammar_rep::members (string s) {
 
 void
 packrat_define (string lan, string s, tree t) {
+  std::lock_guard<std::recursive_mutex> guard (definitions ().mutex);
+  synchronize_grammars ();
   packrat_grammar gr= find_packrat_grammar (lan);
+  std::string source= native_string (tree_to_scheme (t));
   gr->define (s, t);
+  publish_edit ({grammar_edit_kind::define, native_string (lan),
+                native_string (s), std::move (source), {}});
 }
 
 void
 packrat_property (string lan, string s, string var, string val) {
+  std::lock_guard<std::recursive_mutex> guard (definitions ().mutex);
+  synchronize_grammars ();
   packrat_grammar gr= find_packrat_grammar (lan);
   gr->set_property (s, var, val);
+  publish_edit ({grammar_edit_kind::property, native_string (lan),
+                native_string (s), native_string (val), native_string (var)});
 }
 
 void
 packrat_inherit (string lan, string from) {
+  std::lock_guard<std::recursive_mutex> guard (definitions ().mutex);
+  synchronize_grammars ();
   packrat_grammar gr = find_packrat_grammar (lan);
   packrat_grammar inh= find_packrat_grammar (from);
-  iterator<C>     it = iterate (inh->grammar);
-  while (it->busy ()) {
-    C sym= it->next ();
-    //cout << "Inherit " << sym << " -> " << inh->grammar (sym) << LF;
-    gr->grammar (sym)= inh->grammar (sym);
-    gr->productions (sym)= inh->productions (sym);
-  }
-
-  iterator<D> it2 = iterate (inh->properties);
-  while (it2->busy ()) {
-    D p= it2->next ();
-    //cout << "Inherit " << p << " -> " << inh->properties (p) << LF;
-    gr->properties (p)= inh->properties (p);
-  }
+  inherit_grammar (gr, inh);
+  publish_edit ({grammar_edit_kind::inherit, native_string (lan), {},
+                native_string (from), {}});
 }
 
 int
 packrat_abbreviation (string lan, string s) {
-  static int nr= 1;
-  static hashmap<string,int> abbrs (-1);
+  static thread_local int nr= 1;
+  static thread_local hashmap<string,int> abbrs (-1);
+  static thread_local size_t revision= 0;
+  packrat_grammar gr= find_packrat_grammar (lan);
+  if (revision != packrat_grammar_revision ()) {
+    abbrs= hashmap<string,int> (-1);
+    revision= packrat_grammar_revision ();
+  }
   string key= lan * ":" * s;
   int r= abbrs[key];
   if (r >= 0) return r;
-  packrat_grammar gr= find_packrat_grammar (lan);
   C sym= encode_symbol (compound ("symbol", s));
   if (gr->grammar->contains (sym)) r= nr++;
   else r= 0;

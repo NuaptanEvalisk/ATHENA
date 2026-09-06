@@ -36,30 +36,36 @@ packrat_parser_rep::packrat_parser_rep (packrat_grammar gr):
 
 packrat_parser
 make_packrat_parser (string lan, tree in) {
-  static string         last_lan   = "";
-  static tree           last_in    = "";
-  static packrat_parser last_par;
-  if (lan != last_lan || in != last_in) {
-    packrat_grammar gr= find_packrat_grammar (lan);
+  static thread_local string         last_lan   = "";
+  static thread_local tree           last_in    = "";
+  static thread_local packrat_parser last_par;
+  static thread_local size_t last_revision= 0;
+  packrat_grammar gr= find_packrat_grammar (lan);
+  if (is_nil (last_par) || lan != last_lan || in != last_in ||
+      last_revision != packrat_grammar_revision ()) {
     last_lan   = lan;
     last_in    = copy (in);
     last_par   = packrat_parser (gr, last_in);
+    last_revision= packrat_grammar_revision ();
   }
   return last_par;
 }
 
 packrat_parser
 make_packrat_parser (string lan, tree in, path in_pos) {
-  static string         last_lan   = "";
-  static tree           last_in    = "";
-  static path           last_in_pos= path ();
-  static packrat_parser last_par;
-  if (lan != last_lan || in != last_in || in_pos != last_in_pos) {
-    packrat_grammar gr= find_packrat_grammar (lan);
+  static thread_local string         last_lan   = "";
+  static thread_local tree           last_in    = "";
+  static thread_local path           last_in_pos= path ();
+  static thread_local packrat_parser last_par;
+  static thread_local size_t last_revision= 0;
+  packrat_grammar gr= find_packrat_grammar (lan);
+  if (is_nil (last_par) || lan != last_lan || in != last_in ||
+      in_pos != last_in_pos || last_revision != packrat_grammar_revision ()) {
     last_lan   = lan;
     last_in    = copy (in);
     last_in_pos= copy (in_pos);
     last_par   = packrat_parser (gr, last_in, last_in_pos);
+    last_revision= packrat_grammar_revision ();
   }
   return last_par;
 }
@@ -378,7 +384,7 @@ packrat_parser_rep::is_left_recursive (C sym) {
 
 bool
 packrat_parser_rep::is_associative (C sym) {
-  static C prop= encode_symbol (compound ("property", "associativity"));
+  static thread_local C prop= encode_symbol (compound ("property", "associativity"));
   D key = (((D) prop) << 32) + ((D) (sym ^ prop));
   if (!properties->contains (key)) return false;
   return properties[key] == "associative";
@@ -386,7 +392,7 @@ packrat_parser_rep::is_associative (C sym) {
 
 bool
 packrat_parser_rep::is_anti_associative (C sym) {
-  static C prop= encode_symbol (compound ("property", "associativity"));
+  static thread_local C prop= encode_symbol (compound ("property", "associativity"));
   D key = (((D) prop) << 32) + ((D) (sym ^ prop));
   if (!properties->contains (key)) return false;
   return properties[key] == "anti-associative";
@@ -420,14 +426,14 @@ packrat_parser_rep::context
   if (next < 0 || pos > w1 || next < w2) return;
 
   if (mode == 2 && (pos == w1 || next == w2)) {
-    static C prop= encode_symbol (compound ("property", "operator"));
+    static thread_local C prop= encode_symbol (compound ("property", "operator"));
     D key = (((D) prop) << 32) + ((D) (sym ^ prop));
     if (properties->contains (key)) return;
   }
 
   if (true) {
-    static C sel_prop= encode_symbol (compound ("property", "selectable"));
-    static C foc_prop= encode_symbol (compound ("property", "focus"));
+    static thread_local C sel_prop= encode_symbol (compound ("property", "selectable"));
+    static thread_local C foc_prop= encode_symbol (compound ("property", "focus"));
     D sel_key = (((D) sel_prop) << 32) + ((D) (sym ^ sel_prop));
     D foc_key = (((D) foc_prop) << 32) + ((D) (sym ^ foc_prop));
     if (properties->contains (sel_key) &&
@@ -450,7 +456,7 @@ packrat_parser_rep::context
   }
 
   if (mode >= 0) {
-    static C prop= encode_symbol (compound ("property", "atomic"));
+    static thread_local C prop= encode_symbol (compound ("property", "atomic"));
     D key = (((D) prop) << 32) + ((D) (sym ^ prop));
     if (properties->contains (key)) return;
   }
@@ -609,14 +615,14 @@ packrat_parser_rep::highlight (C sym, C pos) {
   C next= parse (sym, pos);
   if (next < 0) return;
   if (sym >= PACKRAT_SYMBOLS) {
-    static C prop= encode_symbol (compound ("property", "highlight"));
+    static thread_local C prop= encode_symbol (compound ("property", "highlight"));
     D key = (((D) prop) << 32) + ((D) (sym ^ prop));
     if (properties->contains (key)) {
       int  col  = encode_color (properties [key]);
       path start= decode_tree_position (pos);
       path end  = decode_tree_position (next);
       highlight (current_tree, path (), start, end, col);
-      static C prop= encode_symbol (compound ("property", "transparent"));
+      static thread_local C prop= encode_symbol (compound ("property", "transparent"));
       D key = (((D) prop) << 32) + ((D) (sym ^ prop));
       if (!properties->contains (key)) return;
     }

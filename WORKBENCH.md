@@ -470,6 +470,36 @@
 
 ## Verification and Handoff
 
+### Mathematical Grammar Cache Follow-Up (2026-09-06)
+
+- Preserved the concurrent-save fixes on `codex-workbench` as `f29575f1d`.
+- Baseline `/tmp/athena-save-tsan-fixed-cache.1418976` identifies shared
+  packrat grammar instances, token/symbol maps and native reference counts
+  accessed concurrently during mathematical language initialization.
+- Grammar registries, token encodings, abbreviations and last-parser caches
+  now belong to their calling thread. Cold registrations publish a synchronized
+  value-only edit journal; other owners replay definitions, properties and
+  inheritance locally. Grammar revisions invalidate cached parses. Normal
+  parsing takes no global grammar lock and adds no deep copy on cache hits.
+- The regression exercises four concurrent grammar owners, inherited rules,
+  a redefinition while those owners remain alive, cached-input invalidation,
+  a newly created owner and six saves through two real BufferActors. Worker
+  creation is an explicit statement, not a top-level definition initializer:
+  the latter was observed creating two batches during test loading. Temporary
+  native parser diagnostics were removed.
+- PASS: `packrat_concurrency_test`, 5.79s;
+  `/tmp/athena-grammar-final-ctest.log`. The final TSan run passed all grammar
+  assertions and both actors' three saves, with no mathematical grammar report.
+  `/tmp/athena-grammar-final-tsan.1450194` retains one independent Qt queued
+  callback warning at `qt_utilities.cpp:138`, so its exit code remains 66.
+  Reused normal Guile/GC and system Qt are not TSan-instrumented; no claim of
+  a fully instrumented or globally race-free runtime is made.
+- Normal and TSan icpx builds succeeded. Normal runtime deployed to
+  `ATHENA/bin/ATHENA.bin`, SHA-256
+  `2c5a6d22c9df8cb4050a34230631e555c85d5c2f01ae227d46daa8ffb0854b4b`.
+  Tests used isolated temporary profiles and offscreen Qt, not the real vault
+  or Xvfb. No live user process was altered.
+
 - Record commands/results and commit identifiers here as each item completes.
 - Current GUI testing is limited to targeted checks, not repeated broad Xvfb
   sweeps. The user will test the resulting branch before merging.

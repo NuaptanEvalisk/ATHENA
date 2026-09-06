@@ -25,7 +25,13 @@
 #define D long long int
 #endif
 
-RESOURCE(packrat_grammar);
+struct packrat_grammar_rep;
+// Borrowed from the calling thread's grammar registry; never transfer owners.
+struct packrat_grammar {
+  packrat_grammar_rep* rep;
+  packrat_grammar (packrat_grammar_rep* p= nullptr): rep (p) {}
+  packrat_grammar_rep* operator-> () const { return rep; }
+};
 
 /******************************************************************************
 * Important constants
@@ -53,12 +59,12 @@ RESOURCE(packrat_grammar);
 * Encoding of tokens and symbols
 ******************************************************************************/
 
-extern int               packrat_nr_tokens;
-extern int               packrat_nr_symbols;
-extern hashmap<string,C> packrat_tokens;
-extern hashmap<tree,C>   packrat_symbols;
-extern hashmap<C,tree>   packrat_decode;
-extern tree              packrat_uninit;
+extern thread_local int               packrat_nr_tokens;
+extern thread_local int               packrat_nr_symbols;
+extern thread_local hashmap<string,C> packrat_tokens;
+extern thread_local hashmap<tree,C>   packrat_symbols;
+extern thread_local hashmap<C,tree>   packrat_decode;
+extern thread_local tree              packrat_uninit;
 
 C        encode_token  (string s);
 array<C> encode_tokens (string s);
@@ -68,7 +74,7 @@ C        encode_symbol (tree t);
 * The packrat_grammar resource
 ******************************************************************************/
 
-struct packrat_grammar_rep: rep<packrat_grammar> {
+struct packrat_grammar_rep {
   string                 lan_name;  // name of the packrat_grammar
   hashmap<C,array<C> >   grammar;
   hashmap<C,tree>        productions;
@@ -89,5 +95,6 @@ struct packrat_grammar_rep: rep<packrat_grammar> {
 };
 
 packrat_grammar find_packrat_grammar (string s);
+size_t packrat_grammar_revision ();
 
 #endif // PACKRAT_GRAMMAR_H
