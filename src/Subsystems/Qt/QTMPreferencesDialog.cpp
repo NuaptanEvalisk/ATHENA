@@ -2570,6 +2570,8 @@ QTMPreferencesDialog::buildOtherPage () {
   addDebugChannel ("Document and image conversion:",
                    "debug channel convert");
   addDebugChannel ("Live relations:", "debug channel live");
+  addDebugChannel ("Anchor structure dry-run details:",
+                   "debug anchor structure dry runs");
   QPushButton* resetDebugChannels= new QPushButton (
     "Disable all diagnostic logging", debugging);
   QObject::connect (resetDebugChannels, &QPushButton::clicked,

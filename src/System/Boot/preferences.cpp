@@ -148,6 +148,7 @@ ensure_builtin_user_preferences () {
     PREF ("debug channel correct", "off", ""),
     PREF ("debug channel convert", "off", ""),
     PREF ("debug channel live", "off", ""),
+    PREF ("debug anchor structure dry runs", "off", ""),
     PREF ("gui:line-input:autocommit", "on", ""),
     PREF ("show font substitution warning", "on", ""),
     PREF ("check for updates", "on", ""),

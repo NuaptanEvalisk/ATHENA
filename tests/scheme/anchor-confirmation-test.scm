@@ -9,6 +9,7 @@
 (define applied '())
 (define saved 0)
 (define auto? #f)
+(define anchor-debug? #f)
 (define empty? #f)
 (define supported? #t)
 (define summary (vector 2 1 '() 3 0))
@@ -18,7 +19,11 @@
 (define (vault-anchor-summary-print summary) #f)
 (define (vault-anchor-summary-empty? summary) empty?)
 (define (vault-anchor-summary-notes-string summary) "plans")
-(define (get-preference key) (if auto? "on" "off"))
+(define (get-preference key)
+  (cond ((equal? key "debug anchor structure dry runs")
+         (if anchor-debug? "on" "off"))
+        (auto? "on")
+        (else "off")))
 (define (set-message . args) #f)
 (define (native-anchor-enunciations-confirm wraps dead headings notes cont)
   (check (equal? (list wraps dead headings notes) '("2" "1" "3" "plans"))
@@ -72,6 +77,42 @@
 (vault-anchor-enunciations-before-save "unsupported" (lambda () (set! saved 1)))
 (check (and (not pending) (= saved 1)) "unsupported buffers must continue")
 (display "PASS: asynchronous anchor approval, cancellation and save continuations\n")
+
+;; The detailed dry-run log is opt-in and converts internal Cork strings before
+;; passing them to the UTF-8 terminal/logger boundary.
+(define printed '())
+(define (display* . parts) (set! printed (append printed parts)))
+(define (cork->utf8 value)
+  (check (string-contains value (list->string (list (integer->char #x9f))))
+         "diagnostic input must retain the Cork section-sign byte")
+  "anchor heading: H1 §3")
+(call-with-input-file
+  (string-append root "/ATHENA/progs/athena/athena/tm-vault-anchors.scm")
+  (lambda (port)
+    (let loop ((form (read port)))
+      (unless (eof-object? form)
+        (when (and (pair? form) (eq? (car form) 'define)
+                   (pair? (cadr form))
+                   (memq (caadr form)
+                     '(vault-anchor-diagnostic-logging?
+                       vault-anchor-summary-print)))
+          (eval form (current-module)))
+        (loop (read port))))))
+(define log-summary
+  (vector 0 0
+          (list (string-append "anchor heading: H1 "
+                               (list->string (list (integer->char #x9f)))
+                               "3"))
+          1 0))
+(set! printed '())
+(set! anchor-debug? #f)
+(vault-anchor-summary-print log-summary)
+(check (null? printed) "anchor dry-run diagnostics must default to off")
+(set! anchor-debug? #t)
+(vault-anchor-summary-print log-summary)
+(check (member "anchor heading: H1 §3" printed)
+       "anchor dry-run diagnostics must convert Cork strings to UTF-8")
+(display "PASS: anchor dry-run diagnostic preference and UTF-8 boundary\n")
 
 ;; Exercise the production filter cache with owner-affine URL stand-ins.
 (define filter-root (make-fluid #f))

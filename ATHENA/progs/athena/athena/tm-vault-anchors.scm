@@ -882,19 +882,25 @@
       s
       (string-append (substring s 0 (- limit 3)) "...")))
 
+(define (vault-anchor-diagnostic-logging?)
+  (== (get-preference "debug anchor structure dry runs") "on"))
+
 (define (vault-anchor-summary-print summary)
-  (display* "ATHENA] anchor structures dry-run: wrap "
-            (number->string (vector-ref summary 0))
-            " enunciation(s), remove "
-            (number->string (vector-ref summary 1))
-            " dead anchor pair(s), add "
-            (number->string (vector-ref summary 3))
-            " heading anchor(s), update "
-            (number->string (vector-ref summary 4))
-            " stale anchor structure(s)\n")
-  (for-each (lambda (note)
-              (display* "ATHENA]   " note "\n"))
-            (vector-ref summary 2)))
+  (when (vault-anchor-diagnostic-logging?)
+    (display* "ATHENA] anchor structures dry-run: wrap "
+              (number->string (vector-ref summary 0))
+              " enunciation(s), remove "
+              (number->string (vector-ref summary 1))
+              " dead anchor pair(s), add "
+              (number->string (vector-ref summary 3))
+              " heading anchor(s), update "
+              (number->string (vector-ref summary 4))
+              " stale anchor structure(s)\n")
+    (for-each (lambda (note)
+                ;; Document strings use TeXmacs/Cork internally; the diagnostic
+                ;; logger consumes UTF-8 bytes.
+                (display* "ATHENA]   " (cork->utf8 note) "\n"))
+              (vector-ref summary 2))))
 
 (define (vault-anchor-summary-message summary action)
   (let* ((wraps (number->string (vector-ref summary 0)))
@@ -908,10 +914,12 @@
                               "Add heading anchors: " headings "\n"
                               "Remove dead anchor pairs: " dead "\n"
                               "Update stale anchors: " updates))
-         (tail (if (null? notes) ""
-                   (string-append "\n\nExamples:\n- "
-                                  (string-join notes "\n- ")
-                                  "\n\nFull dry-run summary was printed to the console."))))
+          (tail (if (null? notes) ""
+                    (string-append "\n\nExamples:\n- "
+                                   (string-join notes "\n- ")
+                                   (if (vault-anchor-diagnostic-logging?)
+                                       "\n\nFull dry-run summary was printed to the console."
+                                       "\n\nEnable Anchor structure dry-run details in Preferences > Debugging > Diagnostic Logging for the full console summary.")))))
     (string-append head tail "\n\n" action)))
 
 (define (vault-anchor-summary-notes-string summary)
