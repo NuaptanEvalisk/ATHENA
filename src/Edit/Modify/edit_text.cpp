@@ -223,6 +223,25 @@ edit_text_rep::insert_tree (tree t, path p_in_t) {
     if (!empty) remove_return (path_add (p, N(t)-2));
   }
   else if (is_multi_paragraph (t)) {
+    path body_p= path_up (tp);
+    path with_p= path_up (body_p);
+    tree parent= subtree (et, with_p);
+    if (subtree (et, body_p) == "" &&
+        is_func (parent, WITH) &&
+        last_item (body_p) == N(parent)-1) {
+      // Formatting wrappers such as Ctrl+B are transparent to block
+      // insertion.  Turning their empty body into a DOCUMENT first makes
+      // that newly-created document look like the enclosing block container,
+      // so displayed equations are inserted one level too deep.  Keep the
+      // formatting wrapper around the block itself and let an enclosing
+      // paragraph CONCAT split at the multi-paragraph child.
+      assign (body_p, t);
+      go_to (correct_cursor (et, body_p * p_in_t));
+      path container_p= path_up (with_p);
+      if (is_concat (subtree (et, container_p)))
+        correct_concat (container_p);
+      return;
+    }
     if (subtree (et, path_up (tp)) == "" &&
         accepts_return (path_up (tp)) &&
         !is_func (subtree (et, path_up (tp, 2)), DOCUMENT))

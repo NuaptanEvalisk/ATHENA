@@ -278,7 +278,7 @@ ads_show_tool_pane (object wid, string id, string title, object close,
   // Consume the description and bind callbacks on the source actor before
   // handing native ownership to Qt. Do not share Scheme widget smob handles.
   pending->contents= take_widget (wid);
-  pending->on_close= as_command (close);
+  pending->on_close= as_actor_command (close);
   pending->id= ads_tool_key (id);
   pending->title= ads_tool_key (title);
   auto show= [pending, floating] {
@@ -666,7 +666,7 @@ athena_native_anchor_enunciations_confirm (
   }
   // Bind before crossing to Qt. Share the command holder, not its non-atomic
   // reference counter; completion resumes on the requesting BufferActor.
-  auto completion= std::make_shared<command> (as_command (callback));
+  auto completion= std::make_shared<command> (as_actor_command (callback));
   qt_anchor_enunciations_confirm (
     to_qstring (wraps), to_qstring (dead), to_qstring (headings),
     to_qstring (notes), [completion] (bool accepted) {

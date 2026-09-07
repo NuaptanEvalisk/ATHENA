@@ -1,4 +1,4 @@
-// Actual object_command_rep and invoke_scheme_handle dispatch, with a counted
+// Actual actor_object_command_rep and invoke_scheme_handle dispatch, with a counted
 // Scheme handle registry and mailbox double. No Qt or Guile implementation is
 // substituted in production; these doubles exist only in this test executable.
 #include <cstdint>
@@ -126,7 +126,7 @@ static void test_origin_and_capabilities () {
   SchemeExecutionContext source {11, 21, 7}, switched {12, 22, 1};
   active= &source;
   {
-    object_command_rep callback (object (123));
+    actor_object_command_rep callback (object (123));
     active= &switched;
     callback.apply (object (std::vector<int> {1}));
     check (queued.actor_id == 11 && queued.view_id == 21, "callback followed current buffer");
@@ -139,7 +139,7 @@ static void test_origin_and_capabilities () {
   check (handles.empty (), "live callback leaked handles");
   active= &source;
   {
-    object_command_rep callback (object (123));
+    actor_object_command_rep callback (object (123));
     callback.apply (object (std::vector<int> {0}));
     unsigned before= calls;
     dispatch_callback (queued, false);
@@ -153,7 +153,7 @@ static void test_closed_actor_and_viewless_actor () {
   active= &source;
   accept_submission= false;
   {
-    object_command_rep callback (object (123));
+    actor_object_command_rep callback (object (123));
     callback.apply (object (std::vector<int> {1}));
     check (handles.size () == 1 && handles.begin ()->second.references == 1,
            "failed submission leaked retained handles");
@@ -164,7 +164,7 @@ static void test_closed_actor_and_viewless_actor () {
   accept_submission= true;
   source.view_id= ATHENA_NO_VIEW;
   {
-    object_command_rep callback (object (123));
+    actor_object_command_rep callback (object (123));
     unsigned before= calls, queued_before= submissions;
     callback.apply ();
     check (calls == before && submissions == queued_before + 1,
@@ -177,7 +177,7 @@ static void test_closed_actor_and_viewless_actor () {
   check (handles.empty (), "viewless callback leaked handle");
   active= nullptr;
   {
-    object_command_rep global (object (123));
+    actor_object_command_rep global (object (123));
     unsigned before= calls;
     global.apply ();
     check (calls == before + 1, "global command behavior changed");

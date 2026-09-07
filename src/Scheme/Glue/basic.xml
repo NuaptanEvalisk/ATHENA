@@ -119,7 +119,7 @@
   <binding name="math-symbol-type" native="math_symbol_type" returns="string">
     <arg type="string" />
   </binding>
-  <binding name="object-&gt;command" native="as_command" returns="command">
+  <binding name="object-&gt;command" native="as_actor_command" returns="command">
     <arg type="object" />
   </binding>
   <binding name="command-eval" native="eval" returns="void">

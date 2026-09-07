@@ -345,14 +345,61 @@ array_lookup (array<object> a) {
   return tmscm ;
 }
 
-class object_command_rep: public command_rep {
+class local_object_command_rep: public command_rep {
+  object obj;
+  athena_actor_id actor_id;
+  athena_view_id view_id;
+  SchemeCapabilitySet capabilities;
+public:
+  local_object_command_rep (object obj2):
+    obj (obj2), actor_id (ATHENA_NO_ACTOR), view_id (ATHENA_NO_VIEW),
+    capabilities (SCHEME_CAPABILITY_NONE) {
+    const SchemeExecutionContext* context= current_scheme_execution_context ();
+    if (context != nullptr && context->actor_id != ATHENA_NO_ACTOR) {
+      actor_id= context->actor_id;
+      view_id= context->view_id;
+      capabilities= context->capabilities;
+    }
+  }
+  void apply () override {
+    if (actor_id != ATHENA_NO_ACTOR) {
+      const SchemeExecutionContext* context= current_scheme_execution_context ();
+      ASSERT (context != nullptr && context->actor_id == actor_id &&
+              context->view_id == view_id && context->capabilities == capabilities,
+              "execution-local Scheme command invoked outside its owner context");
+    }
+    (void) call_scheme (object_to_tmscm (obj));
+  }
+  void apply (object args) override {
+    if (actor_id != ATHENA_NO_ACTOR) {
+      const SchemeExecutionContext* context= current_scheme_execution_context ();
+      ASSERT (context != nullptr && context->actor_id == actor_id &&
+              context->view_id == view_id && context->capabilities == capabilities,
+              "execution-local Scheme command invoked outside its owner context");
+    }
+    (void) call_scheme (object_to_tmscm (obj),
+                        array_lookup (as_array_object (args)));
+  }
+  tm_ostream& print (tm_ostream& out) override {
+    if (actor_id != ATHENA_NO_ACTOR)
+      return out << "<local-actor-command " << actor_id << ":" << view_id << ">";
+    object bis= call ("sourcify", obj);
+    return out << "<command " << bis << ">"; }
+};
+
+command
+as_command (object obj) {
+  return tm_new<local_object_command_rep> (obj);
+}
+
+class actor_object_command_rep: public command_rep {
   object obj;
   athena_actor_id actor_id;
   athena_view_id view_id;
   SchemeCapabilitySet capabilities;
   athena_scheme_handle_id handle;
 public:
-  object_command_rep (object obj2):
+  actor_object_command_rep (object obj2):
     obj (), actor_id (ATHENA_NO_ACTOR), view_id (ATHENA_NO_VIEW),
     capabilities (SCHEME_CAPABILITY_NONE), handle (ATHENA_NO_SCHEME_HANDLE) {
     const SchemeExecutionContext* context= current_scheme_execution_context ();
@@ -364,7 +411,7 @@ public:
     }
     else obj= obj2;
   }
-  ~object_command_rep () override {
+  ~actor_object_command_rep () override {
     if (handle == ATHENA_NO_SCHEME_HANDLE) return;
     scheme_command_handle_release (handle);
   }
@@ -408,8 +455,8 @@ public:
 };
 
 command
-as_command (object obj) {
-  return tm_new<object_command_rep> (obj);
+as_actor_command (object obj) {
+  return tm_new<actor_object_command_rep> (obj);
 }
 
 class object_promise_widget_rep: public promise_rep<widget> {

@@ -43,6 +43,8 @@ class GlueGeneratorTest(unittest.TestCase):
         self.assertEqual(bindings["exec-buffer"], glue.Binding(
             "exec-buffer", "exec_buffer", "bool",
             (glue.Argument("url"), glue.Argument("object"))))
+        self.assertEqual(bindings["object->command"].native,
+                         "as_actor_command")
         self.assertEqual(bindings["init-default-one"].arguments,
                          (glue.Argument("string", "move"),))
         # The native entry consumes the widget smob and binds the close thunk

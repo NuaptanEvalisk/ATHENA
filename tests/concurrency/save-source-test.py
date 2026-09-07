@@ -53,8 +53,8 @@ def main() -> int:
     buffers = (root / "src/ATHENA/Data/new_buffer.cpp").read_text()
     actors = (root / "src/ATHENA/Server/buffer_actor.cpp").read_text()
     objects = (root / "src/Scheme/Scheme/object.cpp").read_text()
-    command_start = objects.index("class object_command_rep:")
-    command_end = objects.index("\ncommand\nas_command", command_start)
+    command_start = objects.index("class actor_object_command_rep:")
+    command_end = objects.index("\ncommand\nas_actor_command", command_start)
     sections = {
         "keyboard_cache": {"SOURCE": config[config.index("static tree\nkeyboard_label"): ]},
         "buffer_save": {

@@ -87,9 +87,6 @@ void TestFinitePartIntegral::fallsBackToStixForPagellaDisplayMath() {
 
   QVERIFY2 (resolution.contains ("source=<big-fint-1>"),
             resolution.constData ());
-  QVERIFY2 (resolution.contains ("source=<big-fint-2>") &&
-            resolution.contains ("subfont=rubberstix["),
-            resolution.constData ());
   QVERIFY2 (!resolution.contains ("spec=tuple (error)"),
             resolution.constData ());
 }

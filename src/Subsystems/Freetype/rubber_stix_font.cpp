@@ -18,6 +18,7 @@
 
 struct rubber_stix_font_rep: font_rep {
   font base;
+  font unicode_fallback;
   int  dpi;
   bool reg;
 
@@ -62,7 +63,8 @@ struct rubber_stix_font_rep: font_rep {
 ******************************************************************************/
 
 rubber_stix_font_rep::rubber_stix_font_rep (string name, font base2):
-  font_rep (name, base2), base (base2)
+  font_rep (name, base2), base (base2),
+  unicode_fallback (rubber_unicode_font (base2))
 {
   this->copy_math_pars (base);
   dpi= (72 * base->wpt + (PIXEL/2)) / PIXEL;
@@ -354,12 +356,28 @@ rubber_stix_font_rep::search_font_cached (string s, string& rew, string& ltype) 
 
 font
 rubber_stix_font_rep::search_font (string& s, SI& dy, string& ltype) {
+  string original= s;
   string rew;
   int nr= search_font_cached (s, rew, ltype);
+  font selected= get_font (nr);
+
+  // The legacy STIX size fonts shipped by some modern distributions no
+  // longer expose standard Unicode code points for delimiters and n-ary
+  // operators.  In that case the old rewrite still yields plausible metrics
+  // but no drawable glyph.  Preserve the dedicated STIX integral helpers
+  // when they really contain the requested symbol, and otherwise let the
+  // current math font's Unicode rubber path handle the original token.
+  if (!selected->supports (rew)) {
+    s= original;
+    dy= 0;
+    ltype= "";
+    return unicode_fallback;
+  }
+
   s= rew;
   if (nr < 3 || nr >= 7) dy= 0;
   else dy= (2 * base->yx) / 3;
-  return get_font (nr);
+  return selected;
 }
 
 font

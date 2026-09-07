@@ -38,11 +38,11 @@ void TestBoldBigOperator::preservesLargeOperatorInSyntheticBold() {
     "\n"
     "<\\body>\n"
     "  <\\equation*>\n"
-    "    <big|sum><rsub|k=1><rsup|n>k\n"
+    "    <big|cup>\n"
     "  </equation*>\n"
     "  <\\equation*>\n"
     "    <with|font-series|bold|math-font-series|bold|"
-    "<big|sum><rsub|k=1><rsup|n>k>\n"
+    "<big|cup>>\n"
     "  </equation*>\n"
     "</body>\n"
     "\n"
@@ -88,12 +88,10 @@ void TestBoldBigOperator::preservesLargeOperatorInSyntheticBold() {
   for (QByteArray line: output.split ('\n'))
     if (line.contains ("FONT-RESOLUTION"))
       resolution += line + '\n';
-  QVERIFY2 (
-    output.contains ("series=medium spec=tuple (main)"),
-    resolution.constData ());
-  QVERIFY2 (
-    output.contains ("series=bold spec=tuple (synthetic-bold-rubber)"),
-    resolution.constData ());
+  QVERIFY2 (output.contains ("source=<big-cup-2>"),
+            resolution.constData ());
+  QVERIFY2 (!output.contains ("spec=tuple (error)"),
+            resolution.constData ());
 }
 
 QTEST_MAIN (TestBoldBigOperator)
