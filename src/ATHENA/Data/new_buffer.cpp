@@ -231,6 +231,8 @@ get_all_buffers () {
 
 tm_buffer
 concrete_buffer (url name) {
+  ASSERT (current_scheme_execution_context () == nullptr,
+          "GUI buffer registry accessed from a BufferActor");
   int i, n= N(bufs);
   for (i=0; i<n; i++)
     if (bufs[i]->buf->name == name)
@@ -454,6 +456,18 @@ get_buffer_tree (url name) {
 
 void
 set_buffer_body (url name, tree body) {
+  athena_view_id view_id= ATHENA_NO_VIEW;
+  if (buffer_actor* actor= current_buffer_actor (name, view_id)) {
+    athena_blob_id body_payload=
+      actor_tree_registry::instance ().store (std::move (body));
+    if (!invoke_buffer_actor (
+          actor, actor_command_kind::replace_body, view_id, body_payload)) {
+      discard_tree_payload (body_payload);
+      return;
+    }
+    pretend_buffer_saved (name);
+    return;
+  }
   tm_buffer buf= concrete_buffer (name);
   if (is_nil (buf)) {
     new_data data;

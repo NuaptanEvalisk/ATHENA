@@ -510,7 +510,13 @@
     (if (> len 0)
         (delayed
           (:pause len)
-          (autosave-now)))))
+          ;; Autosave enumerates every open buffer.  A source-bound delayed
+          ;; callback runs on one BufferActor, so doing that enumeration there
+          ;; would turn foreign-buffer queries into actor-to-UI graph access.
+          ;; Move the orchestration to the global/UI owner; each buffer's
+          ;; document work is still dispatched to its BufferActor by native
+          ;; buffer operations.
+          (exec-global (lambda () (autosave-now)))))))
 
 (define (notify-autosave var val)
   (if (current-view) ; delayed-autosave would crash at initialization time
