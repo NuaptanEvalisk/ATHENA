@@ -937,7 +937,7 @@
       (link page-layout-menu))
   (-> (eval (upcase-first (get-init "language")))
       (link document-language-menu))
-  (-> (eval (upcase-first (font-family-main (get-init "font"))))
+  (-> (eval (document-font-display-name (get-init "font")))
       (link document-short-font-menu)))
 
 (tm-menu (standard-focus-menu t)
@@ -1019,8 +1019,8 @@
     (=> (balloon (eval (upcase-first (get-init "page-type")))
                  "Paper size")
         (link document-page-size-menu))
-    (=> (balloon (eval `(verbatim ,(upcase-first
-                                    (font-family-main (get-init "font")))))
+    (=> (balloon (eval `(verbatim ,(document-font-display-name
+                                    (get-init "font"))))
                  "Main document font")
         (link document-short-font-menu))
     (=> (balloon (eval (string-append (get-init "font-base-size") "pt"))

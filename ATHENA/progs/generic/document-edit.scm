@@ -104,8 +104,21 @@
            (init-env (car l) (cadr l))))
     (init-multi (cddr l))))
 
+(tm-define (document-font-display-name val)
+  (with fam (font-family-main val)
+    (cond ((or (== fam "bonum")
+               (string-starts? fam "TeX Gyre Bonum")) "Bonum")
+          ((or (== fam "pagella")
+               (string-starts? fam "TeX Gyre Pagella")) "Pagella")
+          ((or (== fam "schola")
+               (string-starts? fam "TeX Gyre Schola")) "Schola")
+          ((or (== fam "termes")
+               (string-starts? fam "TeX Gyre Termes")) "Termes")
+          (else (upcase-first fam)))))
+
 (tm-define (test-init-font? val . opts)
-  (== (font-family-main (get-init "font")) val))
+  (== (document-font-display-name (get-init "font"))
+      (document-font-display-name val)))
 
 (tm-define (remove-font-packages)
   (with l (get-style-list)

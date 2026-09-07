@@ -31,6 +31,11 @@
 (check-family '("Schola" "schola" "TeX Gyre Schola") "TeX Gyre Schola")
 (check-family '("Termes" "termes" "TeX Gyre Termes") "TeX Gyre Termes")
 
+(check (== (document-font-display-name "TeX Gyre Pagella") "Pagella")
+       "TeX Gyre Pagella should use the short menu label")
+(check (== (document-font-display-name "pagella") "Pagella")
+       "legacy Pagella alias should use the same menu label")
+
 ;; The built-in short document menu passes the legacy matching math font as
 ;; an explicit argument.  It must still use the smart profile rather than
 ;; reinstalling pagella-font.ts.
@@ -40,6 +45,8 @@
        "built-in Pagella menu did not use the smart-font profile")
 (check (not (init-has? "math-font"))
        "built-in Pagella menu left the legacy math-font override")
+(check (test-init-font? "pagella" "math-pagella")
+       "built-in Pagella menu should be checked for the smart profile")
 
 (init-env "page-medium" "paper")
 (update-current-buffer)
