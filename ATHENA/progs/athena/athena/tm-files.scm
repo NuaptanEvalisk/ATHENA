@@ -707,19 +707,27 @@
   ;;(display* "load-buffer-check-autosave " name ", " opts "\n")
   (let ((proposal (autosave-propose name)))
     (if (and proposal (nin? :strict opts))
-        (with question (if (autosave-rescue? name)
-                           "Rescue file from crash?"
-                           "Load more recent autosave file?")
+        (let* ((question (if (autosave-rescue? name)
+                             "Rescue file from crash?"
+                             "Load more recent autosave file?"))
+               ;; Interactive answers resume through the current view and may
+               ;; therefore run on its BufferActor.  Keep only a detached
+               ;; string across that continuation; buffer creation, registry
+               ;; lookup, and opening remain global/UI-owned operations.
+               (name* (url->string name)))
           (user-confirm question #t
             (lambda (answ)
-              (if answ
-                  (let* ((autosave-name (autosave-propose name))
-                         (format (url-format name))
-                         (doc (tree-import autosave-name format)))
-                    (buffer-set name doc)
-                    (load-buffer-open name opts)
-                    (buffer-pretend-modified name))
-                  (load-buffer-check-permissions name opts)))))
+              (exec-global
+                (lambda ()
+                  (let ((name (string->url name*)))
+                    (if answ
+                        (let* ((autosave-name (autosave-propose name))
+                               (format (url-format name))
+                               (doc (tree-import autosave-name format)))
+                          (buffer-set name doc)
+                          (load-buffer-open name opts)
+                          (buffer-pretend-modified name))
+                        (load-buffer-check-permissions name opts))))))))
         (load-buffer-check-permissions name opts))))
 
 (tm-define (load-buffer-main name . opts)
