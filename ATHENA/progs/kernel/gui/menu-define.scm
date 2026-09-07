@@ -517,12 +517,28 @@
   (receive (opts body) (list-break l not-define-option?)
     `(tm-define (,name) ,@opts (menu-dynamic ,@body))))
 
+(define-public lazy-menu-modules '())
+
+(define-public (lazy-menu-register module)
+  (when (not (member module lazy-menu-modules))
+    (set! lazy-menu-modules (append lazy-menu-modules (list module)))))
+
+(define-public (lazy-menu-force-all)
+  ;; Menu modules contribute to shared menu dispatch chains as a side effect of
+  ;; loading.  Complete that graph during startup instead of depending on an
+  ;; idle callback whose execution owner may later become a BufferActor.
+  (when (nnull? lazy-menu-modules)
+    (with modules lazy-menu-modules
+      (set! lazy-menu-modules '())
+      (for-each module-provide modules)
+      ;; Be robust if a menu provider registers additional menu modules while
+      ;; it is being loaded.
+      (lazy-menu-force-all))))
+
 (define-public-macro (lazy-menu module . menus)
   `(begin
      (lazy-define ,module ,@menus)
-     (delayed
-       (:idle 500)
-       (module-provide ',module))))
+     (lazy-menu-register ',module)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Section tabs

@@ -68,6 +68,14 @@ add_test(NAME font_init_alias_editor_test
     --runtime ${ATHENA_GUILE_PREFIX}
     --resources ${ATHENA_SOURCE_DIR}/ATHENA)
 set_tests_properties(font_init_alias_editor_test PROPERTIES TIMEOUT 90)
+add_test(NAME lazy_menu_startup_editor_test
+  COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/evaluation-bar-test.py
+    --script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/lazy-menu-startup-test.scm
+    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
+    --runtime ${ATHENA_GUILE_PREFIX}
+    --resources ${ATHENA_SOURCE_DIR}/ATHENA)
+set_tests_properties(lazy_menu_startup_editor_test PROPERTIES TIMEOUT 90)
 add_test(NAME two_buffer_save_test
   COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_CURRENT_SOURCE_DIR}/scheme/two-buffer-save-test.py
