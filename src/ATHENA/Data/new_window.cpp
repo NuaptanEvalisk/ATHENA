@@ -75,7 +75,7 @@ public:
   inline ~kill_window_command_rep () { tm_delete (id); }
   inline void apply () {
     object cmd= list_object (symbol_object ("safely-kill-window"),
-                             object (*id));
+                             object (as_string (*id)));
     exec_delayed (scheme_cmd (cmd)); }
   tm_ostream& print (tm_ostream& out) {
     return out << "<command kill_window>"; }
@@ -123,6 +123,8 @@ delete_view_from_window (url win) {
 
 void
 delete_window (url win_u) {
+  ASSERT (current_scheme_execution_context () == nullptr,
+          "window teardown entered from a BufferActor");
   tm_window win= concrete_window (win_u);
   if (win == NULL) return;
   while (delete_view_from_window (win_u)) {}
@@ -369,6 +371,8 @@ kill_buffer_by_actor_id (athena_actor_id actor_id) {
 
 void
 kill_window (url wname) {
+  ASSERT (current_scheme_execution_context () == nullptr,
+          "window teardown entered from a BufferActor");
   array<url> vs= get_all_views ();
   for (int i=0; i<N(vs); i++) {
     url win= view_to_window (vs[i]);

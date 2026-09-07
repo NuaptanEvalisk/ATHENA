@@ -241,37 +241,51 @@
   (when (or (> (windows-number) 0) (not (ads-open-panes?)))
     (buffer-close buf)))
 
-(define (do-kill-window)
-  (with buf (current-buffer)
-    (kill-window (current-window))
+(define (close-buffer-after-window-later buf)
+  (let ((buf-name (url->string buf)))
     (delayed
       (:idle 100)
-      (close-buffer-after-window buf))))
+      (exec-global
+        (lambda ()
+          (close-buffer-after-window (string->url buf-name)))))))
 
-(define (do-kill-window* u)
- (with buf (window->buffer u)
-   (kill-window u)
-   (delayed
-     (:idle 100)
-     (close-buffer-after-window buf))))
+(define (do-kill-window-global win buf)
+  (kill-window win)
+  (close-buffer-after-window-later buf))
+
+(define (safely-kill-window-global win-name fallback-buf-name)
+  (let* ((win (string->url win-name))
+         (mapped (window->buffer win))
+         (buf (if (url-none? mapped)
+                  (string->url fallback-buf-name)
+                  mapped))
+         (win-name* (url->string win))
+         (buf-name* (url->string buf)))
+    (cond ((and (<= (windows-number) 1) (not (ads-open-panes?)))
+           (safely-quit-ATHENA))
+          ((buffer-needs-save-confirmation? buf)
+           (user-confirm
+             "The document has not been saved. Really close it?" #f
+             (lambda (answ)
+               (when answ
+                 (exec-global
+                   (lambda ()
+                     (do-kill-window-global
+                       (string->url win-name*)
+                       (string->url buf-name*))))))))
+          (else (do-kill-window-global win buf)))))
 
 (tm-define (safely-kill-window . opt-name)
-  (cond ((and (buffer-embedded? (current-buffer)) (null? opt-name))
-         (alt-windows-delete (alt-window-search (current-buffer))))
-        ((and (<= (windows-number) 1) (not (ads-open-panes?)))
-         (safely-quit-ATHENA))        ((nnull? opt-name)
-         (with buf (window->buffer (car opt-name))
-           (if (and buf (buffer-needs-save-confirmation? buf))
-               (user-confirm
-                   "The document has not been saved. Really close it?" #f
-                 (lambda (answ)
-                   (when answ (do-kill-window* (car opt-name)))))
-               (do-kill-window* (car opt-name)))))
-        ((buffer-needs-save-confirmation? (current-buffer))
-         (user-confirm "The document has not been saved. Really close it?" #f
-           (lambda (answ)
-             (when answ (do-kill-window)))))
-        (else (do-kill-window))))
+  (if (and (buffer-embedded? (current-buffer)) (null? opt-name))
+      (alt-windows-delete (alt-window-search (current-buffer)))
+      (let* ((raw-win (if (null? opt-name) (current-window) (car opt-name)))
+             (win-name (if (string? raw-win) raw-win (url->string raw-win)))
+             (buf-name (url->string (current-buffer))))
+        ;; Window tables, view mappings and ADS state are global/Qt-owned.
+        ;; A source-bound close command transfers only Scheme strings and then
+        ;; returns to its BufferActor before any window teardown is attempted.
+        (exec-global
+          (lambda () (safely-kill-window-global win-name buf-name))))))
 
 (define (confirm-finish-ATHENA restart?)
   (let* ((l (modified-quit-save-candidate-buffers)))
