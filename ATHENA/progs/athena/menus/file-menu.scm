@@ -57,11 +57,16 @@
     (list (url->string name) short-name long-name)))
 
 (tm-define (visual-buffer-switcher-show)
-  (let* ((buffers (buffer-menu-list 50))
-         (entries (apply append (map buffer-switcher-entry buffers)))
-         (selected (visual-buffer-switcher-choose entries)))
-    (when (!= selected "")
-      (switch-to-buffer* (string->url selected)))))
+  ;; Keyboard commands run on the source BufferActor, while the buffer list,
+  ;; visit timestamps, window mappings, and final switch are global/UI-owned.
+  ;; Move the complete switcher workflow before consulting any of that state.
+  (exec-global
+    (lambda ()
+      (let* ((buffers (buffer-menu-list 50))
+             (entries (apply append (map buffer-switcher-entry buffers)))
+             (selected (visual-buffer-switcher-choose entries)))
+        (when (!= selected "")
+          (switch-to-buffer* (string->url selected)))))))
 
 (tm-define (buffer-go-menu)
   (let* ((l1 (list-difference (buffer-menu-list 15) (linked-file-list)))
