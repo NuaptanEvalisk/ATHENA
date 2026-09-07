@@ -213,7 +213,9 @@ athena_document_with_font_profile (tree document, string profile) {
   for (int i=0; i<N(initial); ++i) {
     tree entry= initial[i];
     if (is_func (entry, ASSOCIATE, 2) && is_atomic (entry[0]) &&
-        (entry[0]->label == "font" || entry[0]->label == "font-family"))
+        (entry[0]->label == "font" ||
+         entry[0]->label == "font-family" ||
+         entry[0]->label == "math-font"))
       continue;
     rewrittenInitial << entry;
   }

@@ -26,6 +26,7 @@ VaultFontConfiguratorTest::rewritesProfileWithoutDisturbingOtherMetadata () {
   tree initial (COLLECTION);
   initial << tree (ASSOCIATE, "font", "pagella")
           << tree (ASSOCIATE, "font-family", "ss")
+          << tree (ASSOCIATE, "math-font", "roman")
           << tree (ASSOCIATE, "language", "english")
           << tree (ASSOCIATE, "page-medium", "paper");
   tree document (DOCUMENT);
@@ -42,6 +43,7 @@ VaultFontConfiguratorTest::rewritesProfileWithoutDisturbingOtherMetadata () {
 
   QCOMPARE (initialValue (rewritten, "font"), tree (profile));
   QCOMPARE (initialValue (rewritten, "font-family"), tree ("rm"));
+  QCOMPARE (initialValue (rewritten, "math-font"), tree (UNINIT));
   QCOMPARE (initialValue (rewritten, "language"), tree ("english"));
   QCOMPARE (initialValue (rewritten, "page-medium"), tree ("paper"));
 

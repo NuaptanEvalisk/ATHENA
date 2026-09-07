@@ -361,6 +361,10 @@
              (vault-active?))
     (let ((font (get-preference "vault preferred font")))
       (when (!= font "")
+        ;; A Vault font profile owns its mathematics override as part of the
+        ;; profile (or derives it from the main family).  Do not let a stale
+        ;; document-level math-font association override that profile.
+        (init-default "math-font")
         (init-font font)))))
 
 (tm-widget (vault-preferences-widget)
