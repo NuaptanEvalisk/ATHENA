@@ -23,6 +23,7 @@ class QLabel;
 class QLineEdit;
 class QListWidget;
 class QComboBox;
+class QTMFontPreview;
 
 class QTMFontSelector : public QDialog {
 public:
@@ -53,10 +54,10 @@ private:
   QListWidget* familyList;
   QListWidget* styleList;
   QListWidget* sizeList;
-  QLabel* preview;
+  QTMFontPreview* preview;
   QLabel* cjkCoverage;
   QMap<QString,QComboBox*> subfontSelectors;
-  QMap<QString,QLabel*> subfontPreviews;
+  QMap<QString,QTMFontPreview*> subfontPreviews;
   QStringList unknownAssignments;
 };
 

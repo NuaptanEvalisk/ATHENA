@@ -27,6 +27,7 @@
 #include <QLineEdit>
 #include <QListWidget>
 #include <QPushButton>
+#include <QPainter>
 #include <QSignalBlocker>
 #include <QSplitter>
 #include <QTabWidget>
@@ -34,8 +35,50 @@
 
 static QString
 qtm_font_text (string s) {
-  return to_qstring (s);
+  return utf8_to_qstring (s);
 }
+
+static string
+qtm_font_string (const QString& s) {
+  return from_qstring_utf8 (s);
+}
+
+class QTMFontPreview: public QFrame {
+public:
+  QTMFontPreview (const QString& text, Qt::Alignment alignment,
+                  bool wordWrap, QWidget* parent):
+    QFrame (parent), sample (text), sampleAlignment (alignment),
+    wrap (wordWrap), previewFont (QApplication::font ()) {
+    setFrameShape (QFrame::StyledPanel);
+  }
+
+  void setPreviewFont (const QFont& font) {
+    previewFont= font;
+    setProperty ("athenaPreviewFontFamily", previewFont.family ());
+    update ();
+  }
+
+  const QFont& renderedFont () const { return previewFont; }
+
+protected:
+  void paintEvent (QPaintEvent* event) override {
+    QFrame::paintEvent (event);
+    QPainter painter (this);
+    painter.setFont (previewFont);
+    painter.setPen (palette ().color (QPalette::Text));
+    QRect area= contentsRect ().adjusted (5, 5, -5, -5);
+    int flags= static_cast<int> (sampleAlignment);
+    if (wrap) flags |= Qt::TextWordWrap;
+    else flags |= Qt::TextSingleLine;
+    painter.drawText (area, flags, sample);
+  }
+
+private:
+  QString       sample;
+  Qt::Alignment sampleAlignment;
+  bool          wrap;
+  QFont         previewFont;
+};
 
 namespace {
 
@@ -98,8 +141,33 @@ trimmedMainFamily (const QString& profile) {
 QString
 logicalMainFamily (const QString& family, const QString& style) {
   array<string> logical=
-    logical_font_exact (from_qstring (family), from_qstring (style));
+    logical_font_exact (qtm_font_string (family), qtm_font_string (style));
   return qtm_font_text (get_family (logical));
+}
+
+QString
+qtFamilyMatch (const QString& wanted) {
+  const QString needle= wanted.trimmed ();
+  if (needle.isEmpty ()) return QString ();
+  for (const QString& family: QFontDatabase::families ())
+    if (family.compare (needle, Qt::CaseInsensitive) == 0) return family;
+  return QString ();
+}
+
+QString
+automaticMathPreviewFamily (const QString& family) {
+  const QString exact= qtFamilyMatch (family);
+  const QString base= exact.isEmpty () ? family.trimmed () : exact;
+  if (base.endsWith (" Math", Qt::CaseInsensitive)) return base;
+  const QString companion= qtFamilyMatch (base + " Math");
+  if (!companion.isEmpty ()) return companion;
+  return base;
+}
+
+bool
+mathPreviewRole (const QString& key) {
+  return key == "math" || key == "greek" || key == "bbb" ||
+         key == "cal" || key == "frak";
 }
 
 QComboBox*
@@ -122,23 +190,24 @@ makeSubfontSelector (QWidget* parent, const QStringList& families,
 
 QGroupBox*
 makeSubfontGroup (const QString& title, const SubfontRole* roles, int count,
-                  QWidget* parent, const QStringList& families,
-                  QMap<QString,QComboBox*>& selectors,
-                  QMap<QString,QLabel*>& previews) {
+                   QWidget* parent, const QStringList& families,
+                   QMap<QString,QComboBox*>& selectors,
+                   QMap<QString,QTMFontPreview*>& previews) {
   QGroupBox* group= new QGroupBox (title, parent);
   QGridLayout* grid= new QGridLayout (group);
   for (int i=0; i<count; ++i) {
     const SubfontRole& role= roles[i];
     QLabel* label= new QLabel (role.label, group);
     QComboBox* combo= makeSubfontSelector (group, families, role);
-    QLabel* sample= new QLabel (QString::fromUtf8 (role.sample), group);
-    sample->setFrameShape (QFrame::StyledPanel);
-    sample->setAlignment (Qt::AlignVCenter | Qt::AlignLeft);
+    QTMFontPreview* sample=
+      new QTMFontPreview (QString::fromUtf8 (role.sample),
+                          Qt::AlignVCenter | Qt::AlignLeft, false, group);
+    combo->setObjectName (QString ("fontSubfontSelector_%1").arg (role.key));
+    sample->setObjectName (QString ("fontSubfontPreview_%1").arg (role.key));
     sample->setMinimumWidth (220);
     sample->setMinimumHeight (34);
-    sample->setMargin (5);
     sample->setToolTip (QString ("Preview using the selected %1 font")
-                        .arg (role.label));
+                         .arg (role.label));
     label->setBuddy (combo);
     grid->addWidget (label, i, 0);
     grid->addWidget (combo, i, 1);
@@ -153,10 +222,10 @@ makeSubfontGroup (const QString& title, const SubfontRole* roles, int count,
 
 void
 addSubfontGroup (QGridLayout* layout, int row,
-                 const QString& title, const SubfontRole* roles, int count,
-                 QWidget* parent, const QStringList& families,
-                 QMap<QString,QComboBox*>& selectors,
-                 QMap<QString,QLabel*>& previews) {
+                  const QString& title, const SubfontRole* roles, int count,
+                  QWidget* parent, const QStringList& families,
+                  QMap<QString,QComboBox*>& selectors,
+                  QMap<QString,QTMFontPreview*>& previews) {
   layout->addWidget (makeSubfontGroup (title, roles, count, parent, families,
                                       selectors, previews), row, 0);
 }
@@ -164,24 +233,29 @@ addSubfontGroup (QGridLayout* layout, int row,
 QStringList
 cjkFontFamilies () {
   QStringList families;
-  for (const char* feature: {"cjk", "hangul"}) {
-    array<string> query;
-    query << string (feature);
-    array<string> matches= search_font_families (query);
-    for (int i=0; i<N(matches); ++i) {
-      const QString family= qtm_font_text (matches[i]);
-      if (!families.contains (family)) families << family;
-    }
+  for (const QString& family: QFontDatabase::families ()) {
+    const QList<QFontDatabase::WritingSystem> systems=
+      QFontDatabase::writingSystems (family);
+    if (systems.contains (QFontDatabase::SimplifiedChinese) ||
+        systems.contains (QFontDatabase::TraditionalChinese) ||
+        systems.contains (QFontDatabase::Japanese) ||
+        systems.contains (QFontDatabase::Korean))
+      families << family;
   }
+  families.removeDuplicates ();
+  families.sort (Qt::CaseInsensitive);
   return families;
 }
 
 bool
 fontIncludesCjk (const QString& family, const QString& style) {
-  array<string> features=
-    logical_font_exact (from_qstring (family), from_qstring (style));
-  return contains (string ("cjk"), features) ||
-         contains (string ("hangul"), features);
+  (void) style;
+  const QList<QFontDatabase::WritingSystem> systems=
+    QFontDatabase::writingSystems (family);
+  return systems.contains (QFontDatabase::SimplifiedChinese) ||
+         systems.contains (QFontDatabase::TraditionalChinese) ||
+         systems.contains (QFontDatabase::Japanese) ||
+         systems.contains (QFontDatabase::Korean);
 }
 
 } // namespace
@@ -196,7 +270,9 @@ QTMFontSelector::QTMFontSelector (const QString& family, const QString& style,
     familyList (new QListWidget (this)),
     styleList (new QListWidget (this)),
     sizeList (new QListWidget (this)),
-    preview (new QLabel (this)),
+    preview (new QTMFontPreview (
+      "The quick brown fox jumps over the lazy dog.\n0123456789  ABC abc",
+      Qt::AlignCenter, true, this)),
     cjkCoverage (new QLabel (this))
 {
   setWindowTitle (title.isEmpty () ? QString ("Font selector") : title);
@@ -210,13 +286,8 @@ QTMFontSelector::QTMFontSelector (const QString& family, const QString& style,
   sizeList->setMaximumWidth (120);
   loadFamilies ();
 
-  preview->setText (
-    "The quick brown fox jumps over the lazy dog.\n"
-    "0123456789  ABC abc  \xce\xb1\xce\xb2\xce\xb3  \xe4\xb8\xad\xe6\x96\x87");
-  preview->setAlignment (Qt::AlignCenter);
-  preview->setWordWrap (true);
+  preview->setObjectName ("fontSelectorMainPreview");
   preview->setMinimumHeight (120);
-  preview->setFrameShape (QFrame::StyledPanel);
 
   QWidget* familyPane= new QWidget (this);
   QVBoxLayout* familyLayout= new QVBoxLayout (familyPane);
@@ -363,10 +434,11 @@ QTMFontSelector::populateSubfonts (const QString& fontProfile) {
 
 void
 QTMFontSelector::loadFamilies () {
-  allFamilies.clear ();
-  array<string> families= font_database_families ();
-  for (int i=0; i<N(families); i++)
-    allFamilies << qtm_font_text (families[i]);
+  allFamilies= QFontDatabase::families ();
+  for (qsizetype i= allFamilies.size () - 1; i >= 0; --i)
+    if (allFamilies[i].trimmed ().isEmpty ()) allFamilies.removeAt (i);
+  allFamilies.removeDuplicates ();
+  allFamilies.sort (Qt::CaseInsensitive);
 }
 
 void
@@ -389,11 +461,7 @@ QTMFontSelector::populateStyles (const QString& preferred) {
   QString keep= preferred.isEmpty () ? selectedStyle () : preferred;
   QSignalBlocker blocker (styleList);
   styleList->clear ();
-  if (!family.isEmpty ()) {
-    array<string> styles= font_database_styles (from_qstring (family));
-    for (int i=0; i<N(styles); i++)
-      styleList->addItem (qtm_font_text (styles[i]));
-  }
+  if (!family.isEmpty ()) styleList->addItems (QFontDatabase::styles (family));
   if (styleList->count () == 0)
     styleList->addItem ("Regular");
   selectListText (styleList, keep);
@@ -432,7 +500,8 @@ QTMFontSelector::updatePreview () {
     QFontDatabase::font (family, style, static_cast<int> (pointSize));
   font.setFamily (family);
   font.setPointSizeF (pointSize);
-  preview->setFont (font);
+  font.setStyleStrategy (QFont::NoFontMerging);
+  preview->setPreviewFont (font);
 }
 
 void
@@ -456,16 +525,20 @@ QTMFontSelector::updateSubfontPreview (const QString& key) {
 
   QString family= selector.value ()->currentText ().trimmed ();
   const bool automatic= family.isEmpty () || family == "Automatic";
-  if (automatic) family= selectedFamily ();
-  QString style= automatic ? selectedStyle () : QString ("Regular");
+  if (automatic)
+    family= mathPreviewRole (key) ? automaticMathPreviewFamily (selectedFamily ())
+                                  : selectedFamily ();
+  QString style= automatic && !mathPreviewRole (key) ? selectedStyle ()
+                                                      : QString ("Regular");
 
   QFont font= QFontDatabase::font (family, style, 13);
   font.setFamily (family);
   font.setPointSize (13);
+  font.setStyleStrategy (QFont::NoFontMerging);
   if (key == "bold" || key == "bold cjk") font.setBold (true);
   if (key == "italic" || key == "italic cjk") font.setItalic (true);
   if (key == "smallcaps") font.setCapitalization (QFont::SmallCaps);
-  sample.value ()->setFont (font);
+  sample.value ()->setPreviewFont (font);
 }
 
 void
@@ -526,16 +599,16 @@ array<string>
 native_font_selector_dialog (string family, string style,
                              string size, string font_profile, string title) {
   array<string> result;
-  QTMFontSelector dialog (to_qstring (family), to_qstring (style),
-                          to_qstring (size), to_qstring (font_profile),
+  QTMFontSelector dialog (qtm_font_text (family), qtm_font_text (style),
+                          to_qstring (size), qtm_font_text (font_profile),
                           to_qstring (title), true,
                           QApplication::activeWindow ());
   if (dialog.exec () != QDialog::Accepted)
     return result;
-  result << from_qstring (dialog.selectedFamily ());
-  result << from_qstring (dialog.selectedStyle ());
-  result << from_qstring (dialog.selectedSize ());
-  result << from_qstring (dialog.selectedFontProfile ());
+  result << qtm_font_string (dialog.selectedFamily ());
+  result << qtm_font_string (dialog.selectedStyle ());
+  result << qtm_font_string (dialog.selectedSize ());
+  result << qtm_font_string (dialog.selectedFontProfile ());
   return result;
 }
 
@@ -553,7 +626,7 @@ native_font_profile_selector_dialog (string current, string title,
                           parent == nullptr ? QApplication::activeWindow ()
                                             : parent);
   if (dialog.exec () != QDialog::Accepted) return false;
-  selected= from_qstring (dialog.selectedFontProfile ());
+  selected= qtm_font_string (dialog.selectedFontProfile ());
   return true;
 }
 
