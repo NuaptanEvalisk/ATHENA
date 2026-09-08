@@ -14,6 +14,7 @@ list (REMOVE_ITEM ATHENA_All_SRCS
   "${ATHENA_SOURCE_DIR}/src/System/Misc/tsan_mimalloc_shim.cpp")
 include(AthenaGlue)
 add_library(athena_body STATIC ${ATHENA_All_SRCS})
+target_sources (athena_body PRIVATE ./ATHENA/Watchdog/watchdog_client.cpp)
 add_dependencies(athena_body athena_build_info athena_guile_runtime athena_glue)
 set_source_files_properties(Scheme/Scheme/glue.cpp PROPERTIES
   INCLUDE_DIRECTORIES "${ATHENA_BINARY_DIR}/generated")
@@ -47,8 +48,6 @@ else (WIN32)
     ./ATHENA/ATHENA/athena.cpp
   )
 endif (WIN32)
-target_sources (${ATHENA_binary_name} PRIVATE
-  ./ATHENA/Watchdog/watchdog_client.cpp)
 if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
   add_executable (ATHENA-Watchdog
     ./ATHENA/Watchdog/watchdog_main.cpp)

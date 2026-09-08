@@ -19,6 +19,8 @@
 #include "typesetter.hpp"
 #include "convert.hpp"
 #include "ATHENA/Data/artifacts.hpp"
+#include "ATHENA/Data/artifact_document.hpp"
+#include "ATHENA/Data/artifact_title_filter.hpp"
 #include "ATHENA/Data/vault.hpp"
 #include "ATHENA/Data/vaultfile_json.hpp"
 
@@ -40,6 +42,68 @@ static int link_count (box b, const string& destination) {
 class StructuredRadioactiveTest: public QObject {
   Q_OBJECT
 private slots:
+  void resolvesFullAndIncludedNames () {
+    auto record= [] (const char* id, std::vector<std::string> names) {
+      AthenaArtifactRecord r;
+      r.uuid= id;
+      r.type= "definition";
+      r.relative_path= "test.ath";
+      r.semantic_names= std::move (names);
+      return r;
+    };
+    auto group= record ("1", {"group", "finite groups"});
+    auto subgroup= record ("2", {"subgroups", "normal subgroup"});
+    auto theorem= record ("3", {"Euler theorem", "Eulerian theorem"});
+    auto general= record ("4", {"generalized Euler's theorems"});
+    auto excluded= record ("5", {"groups"});
+    excluded.type= "completion";
+    auto math= record ("6", {"sigma-algebra"});
+    tree sigma= compound ("math", "<sigma>");
+    tree name (CONCAT, sigma, "-algebra");
+    string serialized= tree_to_texmacs (name);
+    math.semantic_name_trees= {std::string (as_charp (serialized), N(serialized))};
+    AthenaArtifactRadioactiveMatcher matcher ({group, subgroup, theorem, general, excluded, math});
+    auto result= matcher.resolve (tree ("GROUPS"));
+    QCOMPARE (result.exact.size (), size_t (1));
+    QCOMPARE (result.exact[0].uuid, std::string ("1"));
+    QCOMPARE (result.partial.size (), size_t (1));
+    QCOMPARE (result.partial[0].uuid, std::string ("2"));
+    AthenaArtifactRadioactiveMatcher filtered ({group, subgroup},
+      athena_artifact_title_filter_from_entries ({"subgroups", "normal subgroup"}));
+    QVERIFY (filtered.resolve (tree ("group")).partial.empty ());
+    result= matcher.resolve (tree ("Eulerian theorem"));
+    QCOMPARE (result.exact.size (), size_t (1));
+    QCOMPARE (result.partial.size (), size_t (1));
+    QCOMPARE (result.partial[0].uuid, std::string ("4"));
+    result= matcher.resolve (tree ("theorem"));
+    QVERIFY (result.exact.empty ());
+    QCOMPARE (result.partial.size (), size_t (2));
+    QVERIFY (matcher.resolve (tree ("unrelated")).partial.empty ());
+    QVERIFY (matcher.resolve (tree ("")).partial.empty ());
+    QCOMPARE (matcher.resolve (name).exact.size (), size_t (1));
+    QCOMPARE (matcher.resolve (sigma).partial.size (), size_t (1));
+    QVERIFY (matcher.resolve (tree ("sigma")).partial.empty ());
+    QVERIFY (matcher.resolve (compound ("math", "<tau>")).partial.empty ());
+    auto matches= matcher.matches ("group");
+    QCOMPARE (matches.size (), size_t (1));
+    QCOMPARE (athena_artifact_radioactive_destination (matches[0]),
+              "tmfs://artifact-disambiguation/" + matches[0].disambiguation_key);
+    QVERIFY (athena_artifact_radioactive_destination (AthenaArtifactRadioactiveMatch ()).empty ());
+    string page= tree_to_texmacs (athena_artifact_disambiguation_document (result, "Pagella"));
+    std::string document (as_charp (page), N(page));
+    QVERIFY (document.find ("No full matches.") != std::string::npos);
+    QVERIFY (document.find ("Partial matches") != std::string::npos);
+    QVERIFY (document.find ("tmfs://artifact/3") != std::string::npos);
+    QVERIFY (document.find ("tmfs://artifact/4") != std::string::npos);
+    string query_url= athena_artifact_name_query_url (name);
+    QByteArray payload (as_charp (query_url), N(query_url));
+    payload= QByteArray::fromHex (payload.mid (QByteArray ("tmfs://artifact-name-query/").size ()));
+    tree roundtrip= texmacs_to_tree (string (payload.constData (), payload.size ()));
+    QCOMPARE (matcher.resolve (roundtrip).exact.size (), size_t (1));
+    std::string oversized (8193, 'x');
+    QCOMPARE (athena_artifact_name_query_url (tree (string (oversized.c_str ()))), string (""));
+  }
+
   void typesetsMixedNameWithoutChangingGeometry () {
     QTemporaryDir directory;
     QVERIFY (directory.isValid ());
@@ -63,9 +127,22 @@ private slots:
     std::vector<AthenaArtifactRecord> records;
     QVERIFY2 (athena_artifacts_query (root, records, error), error.c_str ());
     QCOMPARE (records.size (), size_t (1));
-    string destination= "tmfs://artifact/" * string (records[0].uuid.c_str ());
+    string destination= "tmfs://artifact-disambiguation/" *
+      string (athena_artifact_radioactive_key (records[0]).c_str ());
     QCOMPARE (vault_load (url_system (root.string ().c_str ()), "test", "vault.sqlite"), string (""));
     struct CloseVault { ~CloseVault () { vault_close (); } } close;
+    AthenaArtifactNameResolution resolved;
+    QVERIFY (athena_artifact_resolve_name_key (athena_artifact_radioactive_key (records[0]), resolved));
+    QCOMPARE (resolved.exact.size (), size_t (1));
+    string page= tree_to_texmacs (athena_artifact_disambiguation_page (
+      string (athena_artifact_radioactive_key (records[0]).c_str ())));
+    QVERIFY (std::string (as_charp (page), N(page)).find ("tmfs://artifact/" + records[0].uuid) != std::string::npos);
+    string query_url= athena_artifact_name_query_url (name);
+    string prefix= "tmfs://artifact-name-query/";
+    page= tree_to_texmacs (athena_artifact_name_query_page (query_url (N(prefix), N(query_url))));
+    QVERIFY (std::string (as_charp (page), N(page)).find ("tmfs://artifact/" + records[0].uuid) != std::string::npos);
+    page= tree_to_texmacs (athena_artifact_name_query_page ("zz"));
+    QVERIFY (std::string (as_charp (page), N(page)).find ("query is invalid") != std::string::npos);
 
     drd_info drd ("structured-radioactive", std_drd);
     hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);

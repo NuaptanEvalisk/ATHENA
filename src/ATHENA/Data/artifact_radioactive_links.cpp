@@ -34,6 +34,7 @@ extern "C" {
 #include <memory>
 #include <mutex>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 
 namespace fs= std::filesystem;
@@ -60,6 +61,11 @@ struct RadioactiveIndex {
   std::vector<TrieNode> nodes= {TrieNode ()};
   std::unordered_map<std::string,AthenaArtifactRecord> records;
   std::unordered_map<std::string,std::vector<std::string>> records_by_key;
+  struct Name {
+    std::vector<Token> tokens;
+    std::string display;
+  };
+  std::unordered_map<std::string,Name> names;
   AthenaArtifactTitleFilter title_filter;
   bool has_title_filter= false;
   bool has_structured_names= false;
@@ -239,11 +245,7 @@ QString structure_key (const tree& value) {
   return QString (QChar (0)) + QString::fromLatin1 (hash.result ().toHex ());
 }
 
-std::vector<Token> name_tokens (const AthenaArtifactRecord& record, size_t i) {
-  if (i >= record.semantic_name_trees.size () || record.semantic_name_trees[i].empty ())
-    return tokenize (qstring_from_tm_or_utf8 (record.semantic_names[i]));
-  const std::string& bytes= record.semantic_name_trees[i];
-  tree name= texmacs_to_tree (string (bytes.data (), (int) bytes.size ()));
+std::vector<Token> tree_tokens (tree name) {
   if (is_func (name, DOCUMENT, 1)) name= name[0];
   std::vector<Token> result;
   auto append= [&] (const tree& part) {
@@ -257,6 +259,13 @@ std::vector<Token> name_tokens (const AthenaArtifactRecord& record, size_t i) {
     for (int j=0; j<N(name); ++j) append (name[j]);
   else append (name);
   return result;
+}
+
+std::vector<Token> name_tokens (const AthenaArtifactRecord& record, size_t i) {
+  if (i >= record.semantic_name_trees.size () || record.semantic_name_trees[i].empty ())
+    return tokenize (qstring_from_tm_or_utf8 (record.semantic_names[i]));
+  const std::string& bytes= record.semantic_name_trees[i];
+  return tree_tokens (texmacs_to_tree (string (bytes.data (), (int) bytes.size ())));
 }
 
 std::shared_ptr<const RadioactiveIndex> build_index (
@@ -282,6 +291,7 @@ std::shared_ptr<const RadioactiveIndex> build_index (
       for (const Token& token: tokens)
         if (token.key.startsWith (QChar (0))) index->has_structured_names= true;
       std::string key= token_key (tokens);
+      index->names.emplace (key, RadioactiveIndex::Name {std::move (tokens), term.toStdString ()});
       std::vector<std::string>& matches= index->records_by_key[key];
       if (std::find (matches.begin (), matches.end (), record.uuid) ==
           matches.end ())
@@ -289,6 +299,60 @@ std::shared_ptr<const RadioactiveIndex> build_index (
     }
   }
   return index;
+}
+
+bool contains_tokens (const std::vector<Token>& name,
+                      const std::vector<Token>& query) {
+  if (query.empty () || name.size () < query.size ()) return false;
+  for (size_t start=0; start + query.size () <= name.size (); ++start) {
+    bool matches= true;
+    for (size_t i=0; i<query.size (); ++i) {
+      const QString& haystack= name[start+i].key;
+      const QString& needle= query[i].key;
+      // Structural tokens are opaque identities, never substrings of hashes.
+      bool same= haystack == needle;
+      if (!same && !haystack.startsWith (QChar (0)) &&
+          !needle.startsWith (QChar (0))) {
+        if (query.size () == 1) same= haystack.contains (needle);
+        else if (i == 0) same= haystack.endsWith (needle);
+        else if (i+1 == query.size ()) same= haystack.startsWith (needle);
+      }
+      if (!same) { matches= false; break; }
+    }
+    if (matches) return true;
+  }
+  return false;
+}
+
+AthenaArtifactNameResolution resolve_tokens (
+  const RadioactiveIndex& index, const std::vector<Token>& query,
+  const std::string& display) {
+  AthenaArtifactNameResolution result;
+  result.query= display;
+  if (query.empty ()) return result;
+  std::unordered_set<std::string> exact, partial;
+  auto full= index.records_by_key.find (token_key (query));
+  if (full != index.records_by_key.end ())
+    exact.insert (full->second.begin (), full->second.end ());
+  for (const auto& entry: index.names) {
+    if (!contains_tokens (entry.second.tokens, query)) continue;
+    for (const auto& uuid: index.records_by_key.at (entry.first))
+      if (!exact.count (uuid)) partial.insert (uuid);
+  }
+  auto collect= [&] (const auto& ids, auto& records) {
+    for (const auto& id: ids) {
+      auto found= index.records.find (id);
+      if (found != index.records.end ()) records.push_back (found->second);
+    }
+    std::sort (records.begin (), records.end (), [] (const auto& a, const auto& b) {
+      if (a.semantic_names != b.semantic_names) return a.semantic_names < b.semantic_names;
+      if (a.relative_path != b.relative_path) return a.relative_path < b.relative_path;
+      return a.uuid < b.uuid;
+    });
+  };
+  collect (exact, result.exact);
+  collect (partial, result.partial);
+  return result;
 }
 
 TextProjection project_text (string source) {
@@ -497,12 +561,18 @@ AthenaArtifactRadioactiveMatcher::matches_tree (const tree& text) const {
     : std::vector<AthenaArtifactRadioactiveTreeMatch> ();
 }
 
+AthenaArtifactNameResolution
+AthenaArtifactRadioactiveMatcher::resolve (const tree& query) const {
+  return impl && impl->index
+    ? resolve_tokens (*impl->index, tree_tokens (query),
+                      to_std (cork_to_utf8 (tree_to_texmacs (query))))
+    : AthenaArtifactNameResolution ();
+}
+
 std::string
 athena_artifact_radioactive_destination (
   const AthenaArtifactRadioactiveMatch& match) {
   if (match.uuids.empty ()) return {};
-  if (match.uuids.size () == 1)
-    return "tmfs://artifact/" + match.uuids.front ();
   return match.disambiguation_key.empty () ? std::string ()
     : "tmfs://artifact-disambiguation/" + match.disambiguation_key;
 }
@@ -564,6 +634,29 @@ athena_artifact_radioactive_records_for_key (
     auto found= index->records.find (uuid);
     if (found != index->records.end ()) records.push_back (found->second);
   }
+  return true;
+}
+
+bool
+athena_artifact_resolve_name_key (
+  const std::string& key, AthenaArtifactNameResolution& result) {
+  result= {};
+  auto index= active_index ();
+  if (!index) return false;
+  auto name= index->names.find (key);
+  if (name != index->names.end ())
+    result= resolve_tokens (*index, name->second.tokens, name->second.display);
+  return true;
+}
+
+bool
+athena_artifact_resolve_name (
+  const tree& query, AthenaArtifactNameResolution& result) {
+  result= {};
+  auto index= active_index ();
+  if (!index) return false;
+  result= resolve_tokens (*index, tree_tokens (query),
+                         to_std (cork_to_utf8 (tree_to_texmacs (query))));
   return true;
 }
 

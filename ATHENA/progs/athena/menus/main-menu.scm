@@ -113,6 +113,9 @@
   ("Remote control" (toggle-remote-control-mode)))
 
 (menu-bind texmacs-popup-menu
+  (if (and (vault-active?) (selection-active-any?))
+      ("Resolve as artifact name" (resolve-selection-as-artifact-name))
+      ---)
   (if (commutative-diagram-context-menu?)
       (link commutative-diagram-popup-menu))
   (if (commutative-diagram-context-menu?) ---)
@@ -129,6 +132,9 @@
   (former))
 
 (menu-bind texmacs-alternative-popup-menu
+  (if (and (vault-active?) (selection-active-any?))
+      ("Resolve as artifact name" (resolve-selection-as-artifact-name))
+      ---)
   (-> "File" (link file-menu))
   (-> "Edit" (link edit-menu))
   (assuming (and (in-graphics?) (not (in-commutative-diagram?)))

@@ -110,6 +110,12 @@
   <binding name="artifact-disambiguation-page" native="athena_artifact_disambiguation_page" returns="tree">
     <arg type="string" />
   </binding>
+  <binding name="artifact-name-query-url" native="athena_artifact_name_query_url" returns="string">
+    <arg type="tree" />
+  </binding>
+  <binding name="artifact-name-query-page" native="athena_artifact_name_query_page" returns="tree">
+    <arg type="string" />
+  </binding>
   <binding name="materials-manager-show" native="materials_manager_show" returns="void" dispatch="ui" />
   <binding name="material-choose-citation" native="athena_material_choose_citation" returns="tree">
     <arg type="string" />

@@ -19,6 +19,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <QByteArray>
 namespace {
 
 std::string to_std (string value) {
@@ -132,22 +133,31 @@ tree artifact_disambiguation_table (
 tree
 athena_artifact_disambiguation_document (
   const std::vector<AthenaArtifactRecord>& records, string preferred_font) {
-  if (records.empty ())
-    return error_document ("Artifact not found",
-      "None of the candidate artifacts is available in this vault.",
-      preferred_font);
+  AthenaArtifactNameResolution result;
+  result.exact= records;
+  if (!records.empty ())
+    result.query= to_std (cork_to_utf8 (athena_artifact_radioactive_name (records.front ())));
+  return athena_artifact_disambiguation_document (result, preferred_font);
+}
 
-  string term= athena_artifact_radioactive_name (records.front ());
+tree
+athena_artifact_disambiguation_document (
+  const AthenaArtifactNameResolution& result, string preferred_font) {
+  string term= internal_text (result.query);
   if (term == "") term= "Artifact";
   tree body (DOCUMENT);
   body << compound ("section*", term);
   tree introduction (CONCAT);
   introduction << "The term " << compound ("strong", term)
-               << " refers to more than one artifact in this vault. "
-                  "Select the intended one:";
+               << " resolves to the following artifacts. Select the intended one:";
   body << compound ("paragraph*", introduction);
 
-  body << artifact_disambiguation_table (records);
+  body << compound ("subsection*", "Full matches");
+  if (result.exact.empty ()) body << "No full matches.";
+  else body << artifact_disambiguation_table (result.exact);
+  body << compound ("subsection*", "Partial matches");
+  if (result.partial.empty ()) body << "No additional names contain this term.";
+  else body << artifact_disambiguation_table (result.partial);
   return artifact_document (body, preferred_font);
 }
 
@@ -164,14 +174,37 @@ athena_artifact_disambiguation_page (string disambiguation_key) {
       }))
     return error_document ("Artifact disambiguation",
                            "The artifact disambiguation key is invalid.", font);
-  std::vector<AthenaArtifactRecord> records;
-  if (!athena_artifact_radioactive_records_for_key (key, records))
+  AthenaArtifactNameResolution result;
+  if (!athena_artifact_resolve_name_key (key, result))
     return error_document (
       "Artifact disambiguation", "The artifact index is unavailable.", font);
-  if (records.size () < 2)
-    return error_document (
-      "Artifact disambiguation",
-      "This name no longer refers to multiple artifacts in the active vault.",
-      font);
-  return athena_artifact_disambiguation_document (records, font);
+  return athena_artifact_disambiguation_document (result, font);
+}
+
+string
+athena_artifact_name_query_url (tree query) {
+  string serialized= tree_to_texmacs (query);
+  if (N(serialized) == 0 || N(serialized) > 8192) return "";
+  QByteArray encoded= QByteArray (as_charp (serialized), N(serialized)).toHex ();
+  return "tmfs://artifact-name-query/" * string (encoded.constData (), encoded.size ());
+}
+
+tree
+athena_artifact_name_query_page (string encoded_query) {
+  string font= get_preference ("vault preferred font", "");
+  if (!vault_active ())
+    return error_document ("Artifact disambiguation", "No vault is currently active.", font);
+  std::string encoded= to_std (encoded_query);
+  if (encoded.empty () || encoded.size () > 16384 || encoded.size () % 2 != 0 ||
+      !std::all_of (encoded.begin (), encoded.end (), [] (unsigned char c) {
+        return std::isxdigit (c) != 0;
+      }))
+    return error_document ("Artifact disambiguation", "The artifact name query is invalid.", font);
+  QByteArray bytes= QByteArray::fromHex (QByteArray (encoded.data (), encoded.size ()));
+  // Parse only as data for structural token comparison; never expand or execute it.
+  tree query= texmacs_to_tree (string (bytes.constData (), bytes.size ()));
+  AthenaArtifactNameResolution result;
+  if (!athena_artifact_resolve_name (query, result))
+    return error_document ("Artifact disambiguation", "The artifact index is unavailable.", font);
+  return athena_artifact_disambiguation_document (result, font);
 }

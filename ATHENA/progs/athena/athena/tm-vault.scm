@@ -1129,6 +1129,25 @@
 (tmfs-permission-handler (artifact-disambiguation name kind)
   (== kind "read"))
 
+(tm-define (resolve-selection-as-artifact-name)
+  (when (selection-active-any?)
+    (let ((target (artifact-name-query-url (selection-tree))))
+      (if (string-null? target)
+          (set-message "Select an artifact name of at most 8192 bytes" "Artifact")
+          (begin
+            (cursor-history-add (cursor-path))
+            (exec-global
+              (lambda () (load-browse-buffer (system->url target)))))))))
+
+(tmfs-load-handler (artifact-name-query name)
+  (tree->stree (artifact-name-query-page name)))
+
+(tmfs-title-handler (artifact-name-query name doc)
+  "Artifact disambiguation")
+
+(tmfs-permission-handler (artifact-name-query name kind)
+  (== kind "read"))
+
 (define (wikilink-trigger-repair uuid file-hint anchor-hint)
   (display* "Trigger repair for " uuid ", hint: " file-hint "\n")
   (if (string-null? file-hint)

@@ -12,10 +12,16 @@
 #define ATHENA_ARTIFACT_DOCUMENT_HPP
 
 #include "ATHENA/Data/artifacts.hpp"
+#include "ATHENA/Data/artifact_radioactive_links.hpp"
+
+tree athena_artifact_disambiguation_document (
+  const AthenaArtifactNameResolution& result, string preferred_font);
 
 tree athena_artifact_disambiguation_document (
   const std::vector<AthenaArtifactRecord>& records, string preferred_font);
 
 tree athena_artifact_disambiguation_page (string disambiguation_key);
+string athena_artifact_name_query_url (tree query);
+tree athena_artifact_name_query_page (string encoded_query);
 
 #endif // ATHENA_ARTIFACT_DOCUMENT_HPP

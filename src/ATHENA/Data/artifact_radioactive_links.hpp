@@ -19,6 +19,12 @@
 
 struct AthenaArtifactTitleFilter;
 
+struct AthenaArtifactNameResolution {
+  std::string query;
+  std::vector<AthenaArtifactRecord> exact;
+  std::vector<AthenaArtifactRecord> partial;
+};
+
 struct AthenaArtifactRadioactiveMatch {
   int start= 0;
   int end= 0;
@@ -48,6 +54,7 @@ public:
 
   std::vector<AthenaArtifactRadioactiveMatch> matches (string text) const;
   std::vector<AthenaArtifactRadioactiveTreeMatch> matches_tree (const tree& text) const;
+  AthenaArtifactNameResolution resolve (const tree& query) const;
 
 private:
   struct Impl;
@@ -77,6 +84,11 @@ bool athena_artifact_radioactive_record (
 
 bool athena_artifact_radioactive_records_for_key (
   const std::string& key, std::vector<AthenaArtifactRecord>& records);
+
+bool athena_artifact_resolve_name_key (
+  const std::string& key, AthenaArtifactNameResolution& result);
+bool athena_artifact_resolve_name (
+  const tree& query, AthenaArtifactNameResolution& result);
 
 bool athena_artifact_radioactive_is_defining_occurrence (
   const AthenaArtifactRadioactiveMatch& match, url current_file,
