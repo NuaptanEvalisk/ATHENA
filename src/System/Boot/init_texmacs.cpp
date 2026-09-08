@@ -64,34 +64,6 @@ get_env_path (string which, url def) {
   return val;
 }
 
-static url
-plugin_path (string which) {
-  url base= "$ATHENA_HOME_PATH:/etc/ATHENA:$ATHENA_PATH:/usr/share/ATHENA";
-  url search= base * "plugins" * url_wildcard ("*") * which;
-  return expand (complete (search, "r"));
-}
-
-scheme_tree
-plugin_list () {
-  bool flag;
-  array<string> a= read_directory ("$ATHENA_PATH/plugins", flag);
-  a << read_directory ("/etc/ATHENA/plugins", flag);
-  a << read_directory ("$ATHENA_HOME_PATH/plugins", flag);
-  a << read_directory ("/usr/share/ATHENA/plugins", flag);
-  merge_sort (a);
-  int i, n= N(a);
-  tree t (TUPLE);
-  bool jupyter= false;
-  for (i=0; i<n; i++)
-    if (a[i] == "jupyter") jupyter= true;
-    else if ((a[i] != ".") && (a[i] != "..") &&
-             ((i==0) || (a[i] != a[i-1])) &&
-             !ends (a[i], ".txt") && !ends (a[i], ".md"))
-      t << a[i];
-  if (jupyter) t= tree (TUPLE, "jupyter") * t;
-  return t;
-}
-
 /******************************************************************************
 * Initialize main paths
 ******************************************************************************/
@@ -254,7 +226,6 @@ init_user_dirs () {
   make_dir ("$ATHENA_HOME_PATH/misc/pixmaps");
   make_dir ("$ATHENA_HOME_PATH/misc/themes");
   make_dir ("$ATHENA_HOME_PATH/packages");
-  make_dir ("$ATHENA_HOME_PATH/plugins");
   make_dir ("$ATHENA_HOME_PATH/progs");
   make_dir ("$ATHENA_HOME_PATH/styles");
   make_dir ("$ATHENA_HOME_PATH/system");
@@ -367,7 +338,7 @@ init_guile () {
     FAILED ("guile could not be found");
   }
 
-  guile_path= guile_path | "$ATHENA_HOME_PATH/progs" | plugin_path ("progs");
+  guile_path= guile_path | "$ATHENA_HOME_PATH/progs";
   set_env_path ("GUILE_LOAD_PATH", guile_path);
 }
 
@@ -377,35 +348,26 @@ init_guile () {
 
 static void
 init_env_vars () {
-  // Handle binary, library and guile paths for plugins
-  url bin_path= get_env_path ("PATH") | plugin_path ("bin");
+  // Set the application binary and resource paths
+  url bin_path= get_env_path ("PATH");
 #if defined (OS_MINGW) || defined (OS_MACOS)
   bin_path= bin_path | url ("$ATHENA_PATH/bin");
 #endif
-  if (has_user_preference ("manual path"))
-    bin_path= url_system (get_user_preference ("manual path")) | bin_path;
-
   set_env_path ("PATH", bin_path);
-  url lib_path= get_env_path ("LD_LIBRARY_PATH") | plugin_path ("lib");
-  set_env_path ("LD_LIBRARY_PATH", lib_path);
-
   // Get TeXmacs style and package paths
   url style_root=
     get_env_path ("ATHENA_STYLE_ROOT",
-                  "$ATHENA_HOME_PATH/styles:$ATHENA_PATH/styles" |
-                  plugin_path ("styles"));
+                  "$ATHENA_HOME_PATH/styles:$ATHENA_PATH/styles");
   url package_root=
     get_env_path ("ATHENA_PACKAGE_ROOT",
-                  "$ATHENA_HOME_PATH/packages:$ATHENA_PATH/packages" |
-                  plugin_path ("packages"));
+                  "$ATHENA_HOME_PATH/packages:$ATHENA_PATH/packages");
   url all_root= style_root | package_root;
   url style_path=
     get_env_path ("ATHENA_STYLE_PATH",
                   search_sub_dirs (all_root));
   url text_root=
     get_env_path ("ATHENA_TEXT_ROOT",
-                  "$ATHENA_HOME_PATH/texts:$ATHENA_PATH/texts" |
-                  plugin_path ("texts"));
+                  "$ATHENA_HOME_PATH/texts:$ATHENA_PATH/texts");
   url text_path=
     get_env_path ("ATHENA_TEXT_PATH",
                   search_sub_dirs (text_root));
@@ -414,16 +376,14 @@ init_env_vars () {
   (void) get_env_path ("ATHENA_FILE_PATH",text_path | style_path);
   (void) set_env_path ("ATHENA_DOC_PATH",
                        get_env_path ("ATHENA_DOC_PATH") |
-                       "$ATHENA_HOME_PATH/doc:$ATHENA_PATH/doc" |
-                       plugin_path ("doc"));
+                       "$ATHENA_HOME_PATH/doc:$ATHENA_PATH/doc");
   (void) set_env_path ("ATHENA_SECURE_PATH",
                        get_env_path ("ATHENA_SECURE_PATH") |
                        "$ATHENA_PATH:$ATHENA_HOME_PATH");
   (void) get_env_path ("ATHENA_PATTERN_PATH",
                        "$ATHENA_HOME_PATH/misc/patterns" |
                        url ("$ATHENA_PATH/misc/patterns") |
-                       url ("$ATHENA_PATH/misc/pictures") |
-                       plugin_path ("misc/patterns"));
+                       url ("$ATHENA_PATH/misc/pictures"));
   (void) get_env_path ("ATHENA_PIXMAP_PATH",
 		       url ("$ATHENA_PATH/misc/pixmaps") |
                        url ("$ATHENA_HOME_PATH/misc/pixmaps") |
@@ -432,14 +392,12 @@ init_env_vars () {
                        url ("$ATHENA_PATH/misc/pixmaps/modern/24x24/main") |
                        url ("$ATHENA_PATH/misc/pixmaps/modern/20x20/mode") |
                        url ("$ATHENA_PATH/misc/pixmaps/modern/16x16/focus") |
-                       url ("$ATHENA_PATH/misc/pixmaps/traditional/--x17") |
-                       plugin_path ("misc/pixmaps"));
+                       url ("$ATHENA_PATH/misc/pixmaps/traditional/--x17"));
   (void) get_env_path ("ATHENA_DOCUMENT_LOCALE_PATH",
                        url ("$ATHENA_PATH/langs/document"));
   (void) get_env_path ("ATHENA_THEME_PATH",
                        url ("$ATHENA_PATH/misc/themes") |
-                       url ("$ATHENA_HOME_PATH/misc/themes") |
-                       plugin_path ("misc/themes"));
+                       url ("$ATHENA_HOME_PATH/misc/themes"));
 #ifdef OS_WIN32
   set_env ("ATHENA_SOURCE_PATH", "");
 #else
@@ -649,7 +607,7 @@ setup_athena () {
     failed_error << "rerun 'ATHENA'.\n";
     failed_error << HRULE;    FAILED ("unable to write settings");
   }
-  
+
   debug_boot << HRULE;
   debug_boot << "ATHENA setup okay, booting now.\n";
   debug_boot << HRULE;
@@ -684,11 +642,11 @@ init_athena () {
 }
 
 /******************************************************************************
-* Initialization of built-in plug-ins
+* Initialization of TeX resources
 ******************************************************************************/
 
 void
-init_plugins () {
+init_tex_resources () {
   url old_settings= "$ATHENA_HOME_PATH/system/TEX_PATHS";
 
   install_status= 0;

@@ -82,7 +82,7 @@
 
   For this reason, <TeXmacs> also provides the instruction <scm|import-from>
   to force a particular module to be loaded. Similarly, the commands
-  <scm|lazy-keyboard-force>, <scm|lazy-plugin-force>, <abbr|etc.> may be used
+  <scm|lazy-keyboard-force>, <abbr|etc.> may be used
   to force all lazy keyboard definitions <abbr|resp.> plug-ins to be loaded.
   In other words, the use of laziness forces to make implicit dependencies
   between modules more explicit.

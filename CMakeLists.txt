@@ -566,7 +566,7 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "IntelLLVM" AND
   # retain native tuning by default.
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 ${ATHENA_CPU_COMPILE_FLAGS} -funroll-loops -flto=thin -fp-model fast")
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 ${ATHENA_CPU_COMPILE_FLAGS} -funroll-loops -flto=thin -fp-model fast")
-  
+
   # Linker flags: Use lld, ThinLTO, and enable caching in the build directory
   set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -flto=thin -fuse-ld=lld -Wl,--thinlto-cache-dir=${CMAKE_BINARY_DIR}/lto_cache -static-intel")
   set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -flto=thin -fuse-ld=lld -Wl,--thinlto-cache-dir=${CMAKE_BINARY_DIR}/lto_cache -static-intel")
@@ -1029,7 +1029,6 @@ if (UNIX AND NOT APPLE)
   add_subdirectory (tools/athena-transmitter)
   add_subdirectory (tools/athena-web-server)
 endif ()
-add_subdirectory (plugins)
 add_subdirectory (misc)
 add_subdirectory (ATHENA)
 
@@ -1041,25 +1040,6 @@ file (COPY "${CMAKE_SOURCE_DIR}/ATHENA/misc/materials"
 ### --------------------------------------------------------------------
 ### Installation
 ### --------------------------------------------------------------------
-
-### include/
-install (DIRECTORY ATHENA/include DESTINATION ${CMAKE_INSTALL_PREFIX}
-  FILE_PERMISSIONS OWNER_READ GROUP_READ WORLD_READ)
-
-### share/
-if (WIN32)
-  install (DIRECTORY plugins DESTINATION ${CMAKE_INSTALL_PREFIX}
-    FILE_PERMISSIONS OWNER_READ GROUP_READ WORLD_READ
-    PATTERN "bin" EXCLUDE
-    PATTERN "CMakeLists.txt" EXCLUDE
-    PATTERN ".gitignore" EXCLUDE)
-else (WIN32)
-  install (DIRECTORY plugins DESTINATION share/ATHENA
-    FILE_PERMISSIONS OWNER_READ GROUP_READ WORLD_READ
-    PATTERN "bin" EXCLUDE
-    PATTERN "CMakeLists.txt" EXCLUDE
-    PATTERN ".gitignore" EXCLUDE)
-endif (WIN32)
 
 install (FILES ATHENA/misc/mime/athena.desktop DESTINATION share/applications)
 install (FILES ATHENA/misc/images/athena.svg RENAME ATHENA.svg

@@ -121,7 +121,7 @@
   ("l" (graphics-set-origin "0gw" "0.5gh"))
   ("b" (graphics-set-origin "0gw" "0gh"))
   ("#" (graphics-toggle-grid))
-  ("!" (open-plots-editor "scheme" "default" ""))
+
   ("left" (graphics-move-origin-left))
   ("right" (graphics-move-origin-right))
   ("down" (graphics-move-origin-down))

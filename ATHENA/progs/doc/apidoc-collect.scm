@@ -181,8 +181,8 @@
   (:synopsis "Collect all explain tags available in the documentation")
   (with loc (string-take (language-to-locale lan) 2)
    (doc-collect-sub "devel/scheme" "scheme" loc)
-   (doc-collect-sub "devel/plugin" "plugin" loc)
-   (doc-collect-sub "devel/plugin" "plugins" loc)
+
+
    (doc-collect-sub "devel/source" "source" loc)
    (doc-collect-sub "devel/style" "style" loc)
    (doc-collect-sub "main" "man-reference" loc)
@@ -207,7 +207,7 @@
           (if (and (null? res) (!= lan "english")) ; second check just in case 
               (doc-retrieve* cache key "english") 
               res)))))
-  
+
 (tm-define (doc-retrieve cache key lan)
   (:synopsis "A list with all help items for @key in language @lan in @cache")
   (doc-check-cache)

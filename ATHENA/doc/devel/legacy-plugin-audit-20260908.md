@@ -1,5 +1,12 @@
 # Legacy Plugin and CAS Integration Audit
 
+> Historical audit of the implementation before plugin removal.
+> TeXmacs plugin discovery, transports, adapters, and external sessions have
+> since been removed. See [plugin-removal-20260908.md](plugin-removal-20260908.md)
+> for the resulting architecture and validation. Paths below describe the
+> pre-removal tree, not the current runtime.
+
+
 Date: 2026-09-08. Scope: the checked-in implementation, not installation or
 runtime validation of every external CAS. This is an audit, not a removal.
 

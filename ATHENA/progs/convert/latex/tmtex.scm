@@ -2736,7 +2736,7 @@
 (define (tmtex-script-inout s l)
   (let ((name  (string->symbol (string-append "tm" (string-replace s "-" ""))))
         (lang  (car l))
-        (lang* (session-name (car l)))
+        (lang* (upcase-first (car l)))
         (in    (tmtex (caddr l)))
         (out   (tmtex (cadddr l))))
     `(,name ,lang ,lang* ,in ,out)))
@@ -3607,7 +3607,7 @@
   ((:or twith cwith tmarker) tmtex-noop)
   (table tmtex-table)
   ((:or row cell subtable) tmtex-noop)
-  
+
   (assign tmtex-assign)
   (with tmtex-with-wrapped)
   (provides tmtex-noop)

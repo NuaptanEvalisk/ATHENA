@@ -116,7 +116,7 @@
     (when (tree-is? tit 'tmweb-title)
       (and-with links (tree-ref tit 1)
         (with s (string-append "tmweb-" (locase-all main) "-links")
-          (if (== s "tmweb-plug-ins-links") (set! s "tmweb-plugin-links"))
+
           (tree-set links `(,(string->symbol s))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

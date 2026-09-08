@@ -66,6 +66,14 @@ add_test(NAME evaluation_bar_editor_test
     --runtime ${ATHENA_GUILE_PREFIX}
     --resources ${ATHENA_SOURCE_DIR}/ATHENA)
 set_tests_properties(evaluation_bar_editor_test PROPERTIES TIMEOUT 90)
+add_test(NAME builtin_scheme_editor_test
+  COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/evaluation-bar-test.py
+    --script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/builtin-scheme-test.scm
+    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
+    --runtime ${ATHENA_GUILE_PREFIX}
+    --resources ${ATHENA_SOURCE_DIR}/ATHENA)
+set_tests_properties(builtin_scheme_editor_test PROPERTIES TIMEOUT 90)
 add_test(NAME commutative_diagram_editor_test
   COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_CURRENT_SOURCE_DIR}/scheme/commutative-diagram-render-test.py

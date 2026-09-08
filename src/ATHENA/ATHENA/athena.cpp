@@ -683,7 +683,7 @@ ATHENA_init_paths (int& argc, char** argv) {
   // and add the most useful (gif, jpeg, svg converters)
   // to the bundle package. I still do not have a reliable solution
   // so just allow everything that is reachable.
-        
+
   // Plugins need to be installed in ATHENA.app/Contents/Plugins.
   string plugins_path = concretize (exedir * "../Plugins");
   QCoreApplication::addLibraryPath(QString::fromUtf8(&plugins_path[0], N(plugins_path)));
@@ -729,7 +729,7 @@ ATHENA_init_paths (int& argc, char** argv) {
   // HOME is set to USERPROFILE
   // PWD is set to HOME
   // if PWD is lacking, then the path resolution machinery may not work
-  
+
   if (is_empty (current_athena_path)) {
     string module_root= athena_windows_module_directory (true);
     if (!is_empty (module_root)) set_env ("ATHENA_PATH", module_root);
@@ -1075,7 +1075,7 @@ set_global_options  (int argc, char** argv)  {
       else if ((s == "-S") || (s == "-setup") ||
                (s == "-delete-cache") || (s == "-delete-font-cache") ||
                (s == "-delete-style-cache") || (s == "-delete-file-cache") ||
-               (s == "-delete-doc-cache") || (s == "-delete-plugin-cache") ||
+               (s == "-delete-doc-cache") ||
                (s == "-delete-databases") ||
 	       (s == "-headless") || (s == "-H"));
       else if (s == "-build-manual") {
@@ -1134,7 +1134,7 @@ set_global_options  (int argc, char** argv)  {
   if (!use_native_menubar) use_unified_toolbar= false;
   // End user preferences
 }
- 
+
 /******************************************************************************
 * Real main program for encaptulation of guile
 ******************************************************************************/
@@ -1146,7 +1146,7 @@ TeXmacs_main (int argc, char** argv) {
   set_global_options (argc, argv);
 
   if (scheme_bytecode_output_dir != "") {
-    init_plugins ();
+    init_tex_resources ();
     gui_open (argc, argv);
     server sv;
     // Bootstrap against source so legacy shared-root bindings are installed
@@ -1166,18 +1166,18 @@ TeXmacs_main (int argc, char** argv) {
     exit (ok ? 0 : 1);
   }
 
-  if (DEBUG_STD) debug_boot << "Installing internal plug-ins...\n";
-  startup_progress (84, "Loading plug-ins");
-  bench_start ("initialize plugins");
-  init_plugins ();
-  bench_cumul ("initialize plugins");
+  if (DEBUG_STD) debug_boot << "Initializing TeX resources...\n";
+  startup_progress (84, "Initializing TeX resources");
+  bench_start ("initialize TeX resources");
+  init_tex_resources ();
+  bench_cumul ("initialize TeX resources");
   if (DEBUG_STD) debug_boot << "Opening display...\n";
-  
+
   startup_progress (86, "Opening display");
   gui_open (argc, argv);
   startup_progress (88, "Display ready");
   set_default_font (the_default_font);
-  
+
   { // opening scope for server sv
     if (DEBUG_STD) debug_boot << "Starting server...\n";
     startup_progress (90, "Starting server");
@@ -1194,7 +1194,7 @@ TeXmacs_main (int argc, char** argv) {
     if (headless_mode && rag_server_dir == "" &&
         rag_delegated_embedding_dir == "")
       eval ("(module-provide '(athena athena tm-files))");
-  
+
     // append commands to open standard welcome messages if needed
     if (install_status == 1) {
       if (DEBUG_STD) debug_boot << "Loading welcome message...\n";
@@ -1293,12 +1293,11 @@ TeXmacs_main (int argc, char** argv) {
       bench_cumul ("initialize menus");
       startup_process_events ();
     }
-  
+
     bool needs_initial_window= number_buffers () == 0;
     if (needs_initial_window) {
       extra_init_cmd << "(delayed (:idle 1) "
                         "(begin "
-                        "(import-from (utils plugins plugin-convert)) "
                         "(update-menus)))";
       extra_init_cmd << "(delayed (:idle 100) "
                         "(import-from (fonts fonts-truetype)))";
@@ -1404,9 +1403,9 @@ TeXmacs_main (int argc, char** argv) {
 
     bench_print ();
     bench_reset ("initialize texmacs");
-    bench_reset ("initialize plugins");
+    bench_reset ("initialize TeX resources");
     bench_reset ("initialize scheme");
-  
+
     if (DEBUG_STD) debug_boot << "Starting event loop...\n";
     texmacs_started= true;
     if (!disable_error_recovery) install_crash_reporting ();
@@ -1414,7 +1413,7 @@ TeXmacs_main (int argc, char** argv) {
     // allow docker stop to work
     signal (SIGTERM, clean_exit_on_sigterm);
     release_boot_lock ();
-    
+
     // inject scheme commands 
     if (N(extra_init_cmd) > 0) exec_delayed (startup_commands);
     if (N(extra_init_cmd) > 0)
@@ -1425,16 +1424,16 @@ TeXmacs_main (int argc, char** argv) {
     if (!headless_mode) athena_watchdog_start_qt_heartbeat ();
 #endif
     gui_start_loop ();
-  
+
     if (DEBUG_STD) debug_boot << "Stopping server...\n";
   } // ending scope for server sv
-  
+
   if (DEBUG_STD) debug_boot << "Closing display...\n";
   gui_close ();
-      
+
   if (DEBUG_STD) debug_boot << "Good bye...\n";
 }  
-  
+
 /******************************************************************************
 * Main program
 ******************************************************************************/
@@ -1523,8 +1522,6 @@ immediate_options (int argc, char** argv) {
       remove (url ("$ATHENA_HOME_PATH/system/cache/dir_cache.scm"));
       remove (url ("$ATHENA_HOME_PATH/system/cache/stat_cache.scm"));
     }
-    else if (s == "-delete-plugin-cache")
-      remove (url ("$ATHENA_HOME_PATH/system/cache/plugin_cache.scm"));
     else if (s == "-delete-databases") {
       system ("rm -rf", url ("$ATHENA_HOME_PATH/system/database"));
       system ("rm -rf", url ("$ATHENA_HOME_PATH/users"));

@@ -1261,7 +1261,6 @@ edit_env_rep::exec_use_module (tree t) {
   for (i=0; i<n; i++) {
     string s= exec_string (t[i]);
     if (starts (s, "(")) eval ("(use-modules " * s * ")");
-    else if (s != "") eval ("(plugin-initialize '" * s * ")");
     assign (THE_MODULES, read (THE_MODULES) * tuple (s));
   }
   return "";

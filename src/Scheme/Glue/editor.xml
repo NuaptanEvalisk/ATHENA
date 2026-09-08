@@ -589,12 +589,6 @@
   <binding name="spell-replace" native="spell_replace" returns="void">
     <arg type="string" />
   </binding>
-  <binding name="session-complete-command" native="session_complete_command" returns="string">
-    <arg type="tree" />
-  </binding>
-  <binding name="custom-complete" native="custom_complete" returns="void">
-    <arg type="tree" />
-  </binding>
   <binding name="broadcast-message" native="broadcast_message" returns="void">
     <arg type="string" />
   </binding>

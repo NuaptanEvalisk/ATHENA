@@ -215,7 +215,7 @@ static int testStatus= 1;
 
 static void
 runTests (int argc, char** argv) {
-  init_plugins ();
+  init_tex_resources ();
   gui_open (argc, argv);
 
   {

@@ -20,41 +20,18 @@
 ;; Inserting sessions
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(tm-menu (supported-sessions-menu)
-  (for (name (session-list))
-    (let* ((menu-name (session-name name))
-           (l (local-connection-variants name)))
-      (assuming (nnull? l)
-        (assuming (== l (list "default"))
-          ((eval menu-name) (make-session name "default")))
-        (assuming (!= l (list "default"))
-          (-> (eval menu-name)
-              (for (variant l)
-                ((eval variant) (make-session name variant)))))))))
 
 (menu-bind insert-session-menu
   (when (and (style-has? "std-dtd") (in-text?))
-    ("Scheme" (make-session "scheme" "default"))
-    ---
-    (link supported-sessions-menu)
-    ---
-    ("Other" (interactive make-session))
-    ---
-    (assuming (nnull? (plugins-with-preferences))
-      ("Preferences" (open-plugins-preferences)))
-    (assuming (or (os-mingw?) (os-win32?) (os-macos?))
-      ("Manual path" (interactive set-manual-path)))
-    ("Redetect" (reinit-plugin-cache))))
+    ("Scheme" (make-session "scheme" "default"))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Submenus of the Sessions menu
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (menu-bind session-input-menu
-  (when (connection-cmdline? (get-env "prog-language"))
-    ("Textual input" (toggle-session-text-input)))
-  (when (in-plugin-with-converters?)
-    ("Mathematical input" (toggle-session-math-input)))
+
+
   ("Multiline input" (toggle-session-multiline-input)))
 
 (menu-bind session-output-menu
@@ -87,7 +64,7 @@
 
 (tm-define (focus-session-language)
   (with lan (get-env "prog-language")
-    (or (session-name lan) "Scheme")))
+    "Scheme"))
 
 (tm-define (standard-options l)
   (:require (in? l field-tags))
@@ -138,8 +115,8 @@
   (-> "Session" (link session-session-menu))
   ---
   (-> "Evaluate" (link session-evaluate-menu))
-  ("Interrupt execution" (plugin-interrupt))
-  ("Close session" (plugin-stop)))
+
+  )
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Sessions icons
@@ -191,25 +168,17 @@
 (tm-menu (focus-extra-icons t)
   (:require (field-context? t))
   (glue #f #f 8 0)
-  (=> (balloon (icon "tm_plugin_input.xpm") "Input options")
+  (=> (balloon (icon "tm_input.xpm") "Input options")
       (link session-input-menu))
-  (=> (balloon (icon "tm_plugin_output.xpm") "Output options")
+  (=> (balloon (icon "tm_output.xpm") "Output options")
       (link session-output-menu))
   (=> (balloon (icon "tm_session_session.xpm") "Session commands")
       (link session-session-menu))
   (glue #f #f 10 0)
   (=> (balloon (icon "tm_go.xpm") "Evaluate fields")
       (link session-evaluate-menu))
-  (if (!= (get-env "prog-language") "scheme")
-      ((balloon (icon "tm_stop.xpm") "Interrupt execution")
-       (plugin-interrupt))
-      ((balloon (icon "tm_clsession.xpm") "Close session")
-       (plugin-stop))))
+  )
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Help icons
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(menu-bind session-help-icons
-  ;; Each plugin appends its own entry
-  )

@@ -165,7 +165,6 @@ evaluate_use_module (tree t) {
   for (i=0; i<n; i++) {
     string s= evaluate_string (t[i]);
     if (starts (s, "(")) eval ("(use-modules " * s * ")");
-    else if (s != "") eval ("(plugin-initialize '" * s * ")");
     tree t= std_env[THE_MODULES] * tuple (s);
     assoc_environment local (1);
     local->raw_write (0, THE_MODULES, t);

@@ -11,7 +11,6 @@
 
 #include "edit_interface.hpp"
 #include "convert.hpp"
-#include "connect.hpp"
 #include "gui_text.hpp"
 #include "tm_server.hpp"
 #include "server.hpp"
@@ -99,22 +98,6 @@ edit_interface_rep::set_left_footer () {
   string r= get_env_string (COLOR);
   if (r != "black") s << " " << r;
   if (N(s) > 0 && s[0] == " ") s= s (1, N(s));
-  if (inside ("session") && (lan != "scheme")) {
-    string lan    = get_env_string (PROG_LANGUAGE);
-    string session= get_env_string (PROG_SESSION);
-    switch (connection_status (lan, session)) {
-    case CONNECTION_DEAD:
-      s= s << " [dead]";
-      break;
-    case CONNECTION_DYING:
-    case WAITING_FOR_OUTPUT:
-      s= s << " [busy]";
-      break;
-    case WAITING_FOR_INPUT:
-      s= s << " [idle]";
-      break;
-    }
-  }
   s= as_footer_tree (call ("footer-hook", object (s)));
   set_left_footer (s);
 }

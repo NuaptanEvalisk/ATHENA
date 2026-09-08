@@ -784,11 +784,6 @@ edit_select_rep::selection_paste (string key) {
       t= tuple ("texmacs", t[1][0], "math", lan);
     if (mode == "math" && t[2] == "text")
       set_message ("Error: invalid paste of text into a formula", "paste");
-    else if (mode == "prog" && t[2] == "math") {
-      tree in= tuple (lan, t[1]);
-      tree r= stree_to_tree (call ("plugin-math-input", tree_to_stree (in)));
-      insert_tree (r);
-    }
     else {
       if ((t[2] != mode) && (t[2] != "src") && (mode != "src") &&
   ((t[2] == "math") || (mode == "math"))) {

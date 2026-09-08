@@ -42,17 +42,6 @@
     are in the range 10-15.
   </explain>
 
-  <subsection|Plugins>
-
-  <\explain>
-    <scm|("plugins:embedded postscript width"
-    <scm-arg|length>)><explain-synopsis|preference>
-  <|explain>
-    Specifies the width that embedded <name|PostScript> images will have in
-    sessions by default. This defaults to 0.7par and has to be a
-    <hlink|<TeXmacs> length|../../devel/format/basics/lengths.en.tm>.
-  </explain>
-
   <tmdoc-copyright|2013, 2015|Miguel de Benito Delgado>
 
   <tmdoc-license|Permission is granted to copy, distribute and/or modify this

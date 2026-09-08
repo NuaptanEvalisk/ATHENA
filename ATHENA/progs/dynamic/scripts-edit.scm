@@ -15,7 +15,7 @@
   (:use (utils library tree)
 	(utils library cursor)
         (utils edit selections)
-	(utils plugins plugin-cmd)
+	(dynamic scheme-runtime)
 	(convert tools tmconcat)
 	(dynamic scripts-drd)))
 
@@ -43,18 +43,14 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (tm-define (script-defined?)
-  (with lan (get-env "prog-scripts")
-    (or (connection-defined? lan)
-	(begin
-	  (set-message `(concat "undefined plugin: " (verbatim ,lan)) "")
-	  #f))))
+  (== (get-env "prog-scripts") "scheme"))
 
 (tm-define (script-evaluable?)
   (or (selection-active-any?)
       (nnot (tree-innermost formula-context? #t))))
 
 (tm-define (script-src-context? t)
-  (tm-in? t '(script-eval script-result script-approx)))
+  (tm-in? t '(script-eval script-result)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Style parameters
@@ -69,12 +65,11 @@
     (search-parameters (if (style-has? var) var gen))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; In place asynchronous plug-in evaluations
+;; In place asynchronous Scheme evaluations
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (tm-define (script-feed lan ses in out opts)
-  ;;(with ok? (scripts-defined? lan)
-  (with ok? (or (scripts-defined? lan) (session-defined? lan))
+  (with ok? (== lan "scheme")
     (when (not ok?)
       (with m `(concat "Error: " (verbatim ,lan)
                        " is not a scripting language")
@@ -188,10 +183,6 @@
 	  ;;(display* "cmd= " cmd "\n")
 	  (cond ((and (func? input 'concat) (in? '(script-assign) input))
 		 (set! declaration? #t))
-		((and (script-keep-input?) (== opts '(:approx)))
-		 (tree-set! t `(script-approx ,input (script-busy)))
-		 (set! t (tree-ref t 1))
-		 (tree-go-to t :end))
 		((script-keep-input?)
 		 (tree-set! t `(script-result ,cmd (script-busy)))
 		 (set! t (tree-ref t 1))
@@ -206,7 +197,7 @@
 	(fun)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; High-level evaluation and function application via plug-in
+;; High-level evaluation and function application in Scheme
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define (insert-function fun)
@@ -218,10 +209,6 @@
 (tm-define (script-eval)
   (script-modified-eval noop))
 
-(tm-define (script-approx)
-  (and-with cmd (plugin-approx-command-ref (get-env "prog-scripts"))
-    (with fun (lambda () (insert-function cmd))
-      (script-modified-eval fun :approx))))
 
 (tm-define (script-apply fun . opts)
   (if (and (in? opts '(() (1))) (not-in-session?))
@@ -247,7 +234,7 @@
 (define (script-background-eval in . opts)
   (let* ((lan (get-env "prog-scripts"))
 	 (ses (get-env "prog-session")))
-    (when (scripts-defined? lan)
+    (when (== lan "scheme")
       (silent-feed* lan ses in noop opts))))
 
 (tm-define (widget->script cas-var id)
@@ -259,7 +246,7 @@
   (let* ((lan (get-env "prog-scripts"))
 	 (ses (get-env "prog-session"))
 	 (prefix widget-prefix))
-    (when (scripts-defined? lan)
+    (when (== lan "scheme")
       (with return (lambda (r)
 		     (widget-with prefix
 		       (widget-set! id r)))
@@ -267,86 +254,6 @@
 
 (tm-define (script->widget id cas-expr)
   (script-widget-eval id cas-expr :math-input :simplify-output))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Plots
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(tm-define (plot-context? t)
-  (tree-in? t '(plot-curve plot-curve* plot-surface plot-surface*)))
-
-(tm-define (script-plot-command lan t)
-  (cond
-   ((== (car t) 'plot-curve)
-   `(concat "set samples 1000 \n"
-            "set xrange [" ,(tm-ref t 1) ":" ,(tm-ref t 2) "] \n"
-            "plot " ,(tm-ref t 0)))
-   ((== (car t) 'plot-curve*)
-   `(concat "set samples 1000 \n"
-            "set parametric \n"
-            "set trange [" ,(tm-ref t 2) ":" ,(tm-ref t 3) "] \n"
-            "plot " ,(tm-ref t 0) ", " ,(tm-ref t 1)))
-   ((== (car t) 'plot-surface)
-   `(concat "set samples 50 \n set isosamples 50 \n set hidden3d \n"
-            "set pm3d \n"
-            "set xrange [" ,(tm-ref t 1) ":" ,(tm-ref t 2) "] \n"
-            "set yrange [" ,(tm-ref t 3) ":" ,(tm-ref t 4) "] \n"
-            "splot " ,(tm-ref t 0)))
-   ((== (car t) 'plot-surface*)
-   `(concat "set samples 50 \n set isosamples 50 \n set hidden3d \n"
-            "set parametric \n"
-            "set pm3d \n"
-            "set urange [" ,(tm-ref t 3) ":" ,(tm-ref t 4) "] \n"
-            "set vrange [" ,(tm-ref t 5) ":" ,(tm-ref t 6) "] \n"
-            "splot " ,(tm-ref t 0)
-            ", " ,(tm-ref t 1)
-            ", " ,(tm-ref t 2)))))
-
-(define (activate-plot t)
-  (let* ((lan "gnuplot")
-         (session "default")
-         (in (script-plot-command lan (tree->stree t))))
-    (tree-set! t `(plot-output ,t ""))
-    (script-eval-at (tree-ref t 1) lan session in :math-correct :math-input)
-    (tree-go-to t 1 :end)))
-
-(tm-define (alternate-toggle t)
-  (:require (plot-context? t))
-  (activate-plot t))
-
-(tm-define (alternate-toggle t)
-  (:require (tree-is? t 'plot-output))
-  (tree-remove-node! t 0)
-  (tree-go-to t 0 :end))
-
-(tm-define (kbd-enter t forwards?)
-  (:require (plot-context? t))
-  (if (= (tree-down-index t) (- (tree-arity t) 1))
-      (activate-plot t)
-      (tree-go-to t (1+ (tree-down-index t)) :end)))
-
-(tm-define (kbd-enter t forwards?)
-  (:require (tree-is? t 'plot-output))
-  (alternate-toggle t))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Call backs
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(define (mathemagix-alive?)
-  (and (connection-defined? "mathemagix")
-       (> (connection-status "mathemagix" "default") 1)))
-
-(tm-define (notify-graphics-extents id x1 y1 x2 y2)
-  (when (mathemagix-alive?)
-    (with msg (string-append "notify_graphics_extents (\"" id "\", "
-                             (number->string x1) ", " (number->string y1) ", "
-                             (number->string x2) ", " (number->string y2) ")")
-      ;;(display* "sending " msg "\n")
-      (silent-feed* "mathemagix" "default" msg noop '()))))
-
-(tm-define (graphics-notify-extents id x1 y1 x2 y2)
-  (delayed (:idle 1) (notify-graphics-extents id x1 y1 x2 y2)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Converters
@@ -375,9 +282,6 @@
   (:require (tree-is-buffer? t))
   (script-eval))
 
-(tm-define (kbd-alternate-enter t shift?)
-  (:require (tree-is-buffer? t))
-  (script-approx))
 
 (tm-define (alternate-toggle t)
   (:require (tree-is? t 'converter-input))

@@ -48,7 +48,7 @@
       ("Build for current document" (artifacts-build-current-document)))
   ("Google Tasks" (google-tasks-show))
   (-> "Refresh caches"
-      ("Plugins" (reinit-plugin-cache))
+
       ("Styles" (style-clear-cache)))
   ("Clean cache" (clean-athena-cache))
   (if supports-email?

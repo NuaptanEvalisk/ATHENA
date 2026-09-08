@@ -550,7 +550,7 @@
 (tm-menu (document-columns-menu)
   ("One column" (init-env "par-columns" "1"))
   ("Two columns" (init-env "par-columns" "2")))
-  
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; The Document -> Page menu
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -773,13 +773,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (tm-menu (supported-scripts-menu)
-  (let* ((dummy (lazy-plugin-force))
-         (l (scripts-list)))
-    (for (name l)
-      ((check (eval (scripts-name name)) "v"
-              (test-env? "prog-scripts" name))
-       (noop) ;; NOTE: inhibit segfault due to property searching?
-       (init-env "prog-scripts" name)))))
+  ((check "Scheme" "v" (test-env? "prog-scripts" "scheme"))
+   (init-env "prog-scripts" "scheme")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Document -> Informative flags menu

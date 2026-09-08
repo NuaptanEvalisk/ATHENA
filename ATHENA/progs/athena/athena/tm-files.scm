@@ -83,7 +83,7 @@
   (with type (get-preference "page medium")
     (if (!= type "papyrus") (init-env "page-medium" type)))
   (when (!= (get-preference "scripting language") "none")
-    (lazy-plugin-force)
+
     (init-env "prog-scripts" (get-preference "scripting language")))
   (buffer-pretend-saved (current-buffer)))
 

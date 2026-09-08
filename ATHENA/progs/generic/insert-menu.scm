@@ -135,9 +135,7 @@
   ("Insert image" (choose-file make-inline-image "Load image" "image"))
   (if (detailed-menus?)
       ("Thumbnails" (interactive make-thumbnails)))
-  (if (or (lazy-plugin-force)
-	  (and (style-has? "scripts-dtd") (scripts-defined? "gnuplot")))
-      (-> "Plot" (link scripts-plot-menu)))
+
   ---
   ("Draw image" (make-graphics))
   (when (selection-active-small?)

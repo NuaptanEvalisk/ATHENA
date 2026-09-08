@@ -14,7 +14,7 @@
 (texmacs-module (dynamic program-edit)
   (:use (utils library tree)
 	(utils library cursor)
-	(utils plugins plugin-cmd)
+	(dynamic scheme-runtime)
 	(dynamic program-drd)
 	(dynamic program-menu)
 	(dynamic fold-edit)))
@@ -214,56 +214,9 @@
 ;; Low-level evaluation management
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define (program-encode in out next opts)
-  (list (list program-do program-notify program-next program-cancel)
-        (if (tm? in) (tm->stree in) in)
-	(tree->tree-pointer out)
-	(tree->tree-pointer next)
-	opts))
-
-(define (program-decode l)
-  (list (second l)
-	(tree-pointer->tree (third l))
-	(tree-pointer->tree (fourth l))
-	(fifth l)))
-
-(define (program-detach l)
-  (tree-pointer-detach (third l))
-  (tree-pointer-detach (fourth l)))
-
 (define (program-coherent? out next)
   (and (prog-field-or-output-context? (tree-ref out :up))
        (prog-field-context? next)))
-
-(define (program-do lan ses)
-  (with l (pending-ref lan ses)
-    (with (in out next opts) (program-decode (car l))
-      ;;(display* "Program do " lan ", " ses ", " in "\n")
-      (if (or (and (tree-empty? in) (!= lan "r"))
-	      (not (program-coherent? out next)))
-	  (plugin-next lan ses)
-	  (begin
-	    (plugin-write lan ses in :program)
-	    (tree-set out :up 0 (plugin-prompt lan ses)))))))
-
-(define (program-next lan ses)
-  ;;(display* "Program next " lan ", " ses "\n")
-  (with l (pending-ref lan ses)
-    (with (in out next opts) (program-decode (car l))
-      (when (and (program-coherent? out next)
-		 (tm-func? out 'document)
-		 (tm-func? (tree-ref out :last) 'script-busy))
-	(let* ((dt (plugin-timing lan ses))
-	       (ts (if (< dt 1000)
-		       (string-append (number->string dt) " msec")
-		       (string-append (number->string (/ dt 1000.0)) " sec"))))
-	  (if (and (in? :timings opts) (>= dt 1))
-	      (tree-set (tree-ref out :last) `(timing ,ts))
-	      (tree-remove! out (- (tree-arity out) 1) 1))))
-      (when (and (program-coherent? out next)
-		 (tree-empty? out))
-	(prog-field-remove-output (tree-ref out :up)))
-      (program-detach (car l)))))
 
 (define (var-tree-children t)
   (with r (tree-children t)
@@ -279,47 +232,9 @@
       (if (tm-func? u 'document)
 	  (tree-insert! t i (var-tree-children u))))))
 
-(define (program-errput t u)
-  (when (tm-func? t 'document)
-    (with i (tree-arity t)
-      (if (and (> i 0) (tm-func? (tree-ref t (- i 1)) 'script-busy))
-	  (set! i (- i 1)))
-      (if (and (> i 0) (tm-func? (tree-ref t (- i 1)) 'errput))
-	  (set! i (- i 1))
-	  (tree-insert! t i '((errput (document)))))
-      (program-output (tree-ref t i 0) u))))
-
-(define (program-notify lan ses ch t)
-  ;;(display* "Program notify " lan ", " ses ", " ch ", " t "\n")
-  (with l (pending-ref lan ses)
-    (with (in out next opts) (program-decode (car l))
-      (when (program-coherent? out next)
-	(cond ((== ch "output")
-	       (program-output out t))
-	      ((== ch "error")
-	       (program-errput out t))
-	      ((== ch "prompt")
-	       (if (and (== (length l) 1) (tree-empty? (tree-ref next 1)))
-		   (tree-set! next 0 (tree-copy t))))
-	      ((and (== ch "input") (null? (cdr l)))
-	       (tree-set! next 1 t)))))))
-
-(define (program-cancel lan ses dead?)
-  ;;(display* "Program cancel " lan ", " ses ", " dead? "\n")
-  (with l (pending-ref lan ses)
-    (with (in out next opts) (program-decode (car l))
-      (when (and (program-coherent? out next)
-		 (tm-func? out 'document)
-		 (tm-func? (tree-ref out :last) 'script-busy))
-	(tree-assign (tree-ref out :last)
-		     (if dead? '(script-dead) '(script-interrupted))))
-      (program-detach (car l)))))
-
 (tm-define (program-feed lan ses in out next opts)
-  (set! in (plugin-preprocess lan ses in opts))
-  (tree-assign! out '(document (script-busy)))
-  (with x (program-encode in out next opts)
-    (apply plugin-feed `(,lan ,ses ,@(car x) ,(cdr x)))))
+  (scheme-eval-field lan ses in out next opts :program
+                    program-coherent? program-output prog-field-remove-output))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Program contexts
@@ -413,41 +328,16 @@
 (tm-define (program-ready? . err-flag?)
   (with lan (get-env "prog-language")
     (or (== lan "scheme")
-	(connection-defined? lan)
-	(begin
-	  (if err-flag?
-	      (set-message `(concat "undefined plugin: " (verbatim ,lan)) ""))
-	  #f))))
+        (begin
+          (when (nnull? err-flag?)
+            (set-message "Only Scheme evaluation is supported" ""))
+          #f))))
 
 (tm-define (program-status)
-  (let* ((lan (get-env "prog-language"))
-	 (ses (get-env "prog-program")))
-    (cond ((== lan "scheme") 2)
-	  ((not (connection-defined? lan)) 0)
-	  (else (connection-status lan ses)))))
-
-(tm-define (program-busy-message msg)
-  (let* ((lan (get-env "prog-language"))
-	 (ses (get-env "prog-program")))
-    (with l (pending-ref lan ses)
-      (for-each
-       (lambda (x)
-         (with (in out next opts) (program-decode x)
-           (when (and (tm-func? out 'document)
-                      (tm-func? (tree-ref out :last) 'script-busy))
-             (tree-assign (tree-ref out :last) `(script-busy ,msg)))))
-       l))))
+  (if (== (get-env "prog-language") "scheme") 2 0))
 
 (tm-define (program-alive?)
   (> (program-status) 1))
-
-(tm-define (program-supports-completions?)
-  (and (program-alive?)
-       (plugin-supports-completions? (get-env "prog-language"))))
-
-(tm-define (program-supports-input-done?)
-  (and (program-alive?)
-       (plugin-supports-input-done? (get-env "prog-language"))))
 
 (define (prog-field-next* t forward?)
   (and-with u (tree-ref t (if forward? :next :previous))
@@ -549,11 +439,12 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (tm-define (make-program lan ses)
+  (when (!= lan "scheme") (error "Only Scheme sessions are supported"))
   (let* ((ban `(output (document "")))
 	 (l (cond ((program-text-input?) 'input-text)
                   ((program-math-input?) 'input-math)
                   (else 'input)))
-	 (p (plugin-prompt lan ses))
+	 (p (scheme-prompt lan ses))
 	 (in `(,l (document ,p) (document "")))
 	 (s `(program ,lan ,ses (document ,ban ,in))))
     (insert-go-to s '(2 1 1 0 0))
@@ -580,7 +471,7 @@
 	   (tree-assign-node! t 'unfolded-prog-io-math)))
     (let* ((lan (get-env "prog-language"))
 	   (ses (get-env "prog-program"))
-	   (p (plugin-prompt lan ses))
+	   (p (scheme-prompt lan ses))
 	   (in (tree->stree (tree-ref t 1)))
 	   (out (tree-ref t 2))
 	   (opts (input-options t)))
@@ -588,28 +479,11 @@
 	(program-feed lan ses in out u opts)
 	(tree-go-to u 1 :end)))))
 
-(define (kbd-enter-sub t done?)
-  (if (in? done? (list #f "#f"))
-      (insert-return)
-      (delayed
-        (:idle 1)
-        (program-evaluate))))
-
 (tm-define (kbd-enter t shift?)
   (:require (prog-field-input-context? t))
   (cond ((xor (program-multiline-input?) shift?)
          (insert-return))
-        ((program-supports-input-done?)
-         (let* ((lan (get-env "prog-language"))
-                (ses (get-env "prog-program"))
-                (opts (input-options t))
-                (st (tree->stree (tree-ref t 1)))
-                (pre (plugin-preprocess lan ses st opts))
-                (in (plugin-serialize lan pre))
-                (rew (if (string-ends? in "\n") (string-drop-right in 1) in))
-                (cmd (string-append "(input-done? " (string-quote rew) ")"))
-                (ret (lambda (done?) (kbd-enter-sub t done?))))
-           (plugin-command lan ses cmd ret '())))
+
         (else (program-evaluate))))
 
 (tm-define (program-evaluate)
@@ -699,15 +573,6 @@
   (clipboard-cut "nowhere")
   (clipboard-clear "nowhere"))
 
-(tm-define (kbd-variant t forwards?)
-  (:require (and (prog-field-context? t) (program-supports-completions?)))
-  (let* ((lan (get-env "prog-language"))
-         (ses (get-env "prog-program"))
-         (cmd (session-complete-command t))
-         (ret (lambda (x) (when x (custom-complete (tm->tree x))))))
-    (when (!= cmd "")
-      (plugin-command lan ses cmd ret '()))))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Structured keyboard movements
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -774,7 +639,7 @@
   (and-with t (tree-search-upwards t* prog-field-input-context?)
     (let* ((lan (get-env "prog-language"))
 	   (ses (get-env "prog-program"))
-	   (p (plugin-prompt lan ses))
+	   (p (scheme-prompt lan ses))
 	   (t (prog-field-create t p forwards?)))
       (tree-go-to t 1 :end))))
 

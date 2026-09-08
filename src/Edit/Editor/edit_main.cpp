@@ -14,7 +14,6 @@
 #include "sys_utils.hpp"
 #include "printer.hpp"
 #include "convert.hpp"
-#include "connect.hpp"
 #include "typesetter.hpp"
 #include "drd_std.hpp"
 #include "message.hpp"
@@ -312,7 +311,7 @@ edit_main_rep::print_doc (url name, bool conform, int first, int last) {
   if (!use_ps () && ps)
     name= url_temp (".pdf");
 #endif
-  
+
   string medium = env->get_string (PAGE_MEDIUM);
   if (conform && (medium != "paper")) conform= false;
     // FIXME: better command for conform printing
@@ -320,7 +319,7 @@ edit_main_rep::print_doc (url name, bool conform, int first, int last) {
   typeset_preamble ();
     // FIXME: when printing several files via aux buffers,
     // it seems that the style can be corrupted.  Why?
-  
+
   // Set environment variables for printing
 
   typeset_prepare ();
@@ -359,10 +358,10 @@ edit_main_rep::print_doc (url name, bool conform, int first, int last) {
     w= env->as_length (bws);
     h= env->as_length (bhs);
   }
-  
+
   // Print pages
   renderer ren= printer (name, dpi, pages, page_type, landsc, w/cm, h/cm);
-  
+
   if (ren->is_started ()) {
     int i;
     ren->set_metadata ("title", get_metadata ("title"));
@@ -487,7 +486,7 @@ edit_main_rep::print_snippet (url name, tree t, bool conserve_preamble) {
   env->write (INFO_FLAG, old_info_flag);
   env->style_init_env ();
   env->update ();
-  
+
   if (b->x4 - b->x3 >= 5*PIXEL && b->y4 - b->y3 >= 5*PIXEL) {
     if (bitmap) make_raster_image (name, b, 5.0);
     else if (ps) make_eps (name, b, dpi);

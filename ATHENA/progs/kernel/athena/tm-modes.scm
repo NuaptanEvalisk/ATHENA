@@ -14,7 +14,7 @@
 (texmacs-module (kernel athena tm-modes)
   (:use
     (kernel logic logic-rules) (kernel logic logic-query) (kernel logic logic-data)
-    (kernel athena tm-plugins) (kernel athena tm-preferences)))
+     (kernel athena tm-preferences)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Defining new modes
@@ -132,8 +132,7 @@
   (in-manual% (not (url-rooted-tmfs? (current-buffer))) in-tmdoc%)
   (in-preview-ref% (style-has? "preview-ref-package"))
   (in-smart-ref% (style-has? "smart-ref-package"))
-  (in-plugin-with-converters%
-   (plugin-supports-math-input-ref (get-env "prog-language")))
+
   (in-screens% (inside? 'screens))
   (in-article% (style-has? "header-article-package"))
   (in-book% (style-has? "header-book-package"))

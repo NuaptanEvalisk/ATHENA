@@ -33,8 +33,6 @@
 hashset<pointer> pipe_link_set;
 void pipe_callback (void *obj, void *info);
 extern char **environ;
-void close_all_cmdlines ();
-void process_all_cmdlines ();
 
 #define STDIN 0
 #define STDOUT 1
@@ -57,11 +55,11 @@ struct pipe_link_rep: tm_link_rep {
   int    out;           // file descriptor for data coming from the child
   int    err;           // file descriptor for errors coming from the child
 
-  string outbuf;        // pending output from plugin
-  string errbuf;        // pending errors from plugin
+  string outbuf;        // pending output from the child process
+  string errbuf;        // pending errors from the child process
 
   socket_notifier snout, snerr;
-  
+
 public:
   pipe_link_rep (string cmd);
   ~pipe_link_rep ();
@@ -112,7 +110,6 @@ sleep(2);
     }
   }
 #endif
-  close_all_cmdlines ();
 }
 
 void
@@ -122,7 +119,6 @@ process_all_pipes () {
     pipe_link_rep* con= (pipe_link_rep*) it->next();
     if (con->alive) con->apply_command ();
   }
-  process_all_cmdlines ();
 }
 
 /******************************************************************************
@@ -181,7 +177,7 @@ pipe_link_rep::start () {
     snerr = socket_notifier (err, &pipe_callback, this, NULL);
     add_notifier (snout);
     add_notifier (snerr);
-    
+
     if (/* !banner */ true) return "ok";
     else {
       int r;
@@ -204,29 +200,11 @@ pipe_link_rep::start () {
 #endif
 }
 
-#ifndef OS_MINGW
-static string
-debug_io_string (string s) {
-  int i, n= N(s);
-  string r;
-  for (i=0; i<n; i++) {
-    unsigned char c= (unsigned char) s[i];
-    if (c == DATA_BEGIN) r << "[BEGIN]";
-    else if (c == DATA_END) r << "[END]";
-    else if (c == DATA_ABORT) r << "[ABORT]";
-    else if (c == DATA_COMMAND) r << "[COMMAND]";
-    else if (c == DATA_ESCAPE) r << "[ESCAPE]";
-    else r << s[i];
-  }
-  return r;
-}
-#endif
-
 void
 pipe_link_rep::write (string s, int channel) {
 #ifndef OS_MINGW
   if ((!alive) || (channel != LINK_IN)) return;
-  if (DEBUG_IO) debug_io << "[INPUT]" << debug_io_string (s);
+  if (DEBUG_IO) debug_io << "[INPUT]" << s;
   c_string _s (s);
   int err= ::write (in, _s, N(s));
   (void) err;
@@ -256,7 +234,7 @@ pipe_link_rep::feed (int channel) {
     remove_notifier (snerr);      
   }
   else {
-    if (DEBUG_IO) debug_io << debug_io_string (string (tempout, r));
+    if (DEBUG_IO) debug_io << string (tempout, r);
     if (channel == LINK_OUT) outbuf << string (tempout, r);
     else errbuf << string (tempout, r);
   }
@@ -350,7 +328,7 @@ void pipe_callback (void *obj, void *info) {
     int max_fd= max (con->err, con->out) + 1;
     FD_SET (con->out, &rfds);
     FD_SET (con->err, &rfds);
-  
+
     struct timeval tv;
     tv.tv_sec  = 0;
     tv.tv_usec = 0;

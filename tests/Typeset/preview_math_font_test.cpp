@@ -82,7 +82,7 @@ private slots:
 
 static void
 run_tests (int argc, char** argv) {
-  init_plugins ();
+  init_tex_resources ();
   gui_open (argc, argv);
   int result;
   {

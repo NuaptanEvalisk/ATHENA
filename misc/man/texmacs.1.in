@@ -116,8 +116,7 @@ Silent execution: less messages to standard output.
 .TP
 \fB\-S\fR, \fB\-\-setup\fR
 Rerun the setup program before starting TeXmacs.
-The setup program analyzes your TeX/LaTeX distribution and
-the plugins which are installed on your system.
+The setup program analyzes your TeX/LaTeX distribution.
 .TP
 \fB\-v\fR, \fB\-\-version\fR
 Display the current TeXmacs version.

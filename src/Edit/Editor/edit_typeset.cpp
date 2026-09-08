@@ -279,7 +279,6 @@ use_modules (tree t) {
     for (int i=0; i<N(t); i++) {
       string s= as_string (t[i]);
       if (starts (s, "(")) eval ("(use-modules " * s * ")");
-      else if (s != "") eval ("(plugin-initialize '" * s * ")");
     }
 }
 

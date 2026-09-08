@@ -15,17 +15,6 @@
 #include "command.hpp"
 #include "socket_contact.hpp"
 
-#define CONNECTION_DEAD    0
-#define CONNECTION_DYING   1
-#define WAITING_FOR_INPUT  2
-#define WAITING_FOR_OUTPUT 3
-
-#define DATA_ABORT   ((char) 1)
-#define DATA_BEGIN   ((char) 2)
-#define DATA_END     ((char) 5)
-#define DATA_COMMAND ((char) 16)
-#define DATA_ESCAPE  ((char) 27)
-
 #define LINK_IN   0
 #define LINK_OUT  0
 #define LINK_ERR  1
@@ -38,7 +27,7 @@ struct tm_link_rep: abstract_struct {
   bool   alive;   // link is alive
   string secret;  // empty string or secret key for encrypted connections
   command feed_cmd; // called when async data available
-  
+
 public:
   inline tm_link_rep () {}
   inline virtual ~tm_link_rep () {}
@@ -59,7 +48,7 @@ public:
 
   void set_command (command _cmd) { feed_cmd = _cmd; }
   void apply_command () { if (!is_nil (feed_cmd)) feed_cmd->apply (); }
-  
+
   friend class tm_link;
 };
 
@@ -74,9 +63,7 @@ ABSTRACT_NULL_CODE(tm_link);
 inline bool tm_link::operator == (tm_link l) { return rep == l.rep; }
 inline bool tm_link::operator != (tm_link l) { return rep != l.rep; }
 
-tm_link make_cmdline_link (string name);
 tm_link make_pipe_link (string cmd);
-tm_link make_dynamic_link (string lib, string symb, string init, string ses);
 tm_link make_socket_link (string h, int p, int t,
 			  int fd, tm_contact contact);
 tm_link make_socket_server (int port);

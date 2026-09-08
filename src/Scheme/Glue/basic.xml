@@ -56,7 +56,6 @@
   <binding name="scheme-dialect" native="scheme_dialect" returns="string" />
   <binding name="get-texmacs-path" native="get_texmacs_path" returns="url" />
   <binding name="get-texmacs-home-path" native="get_texmacs_home_path" returns="url" />
-  <binding name="plugin-list" native="plugin_list" returns="scheme_tree" />
   <binding name="font-exists-in-tt?" native="tt_font_exists" returns="bool">
     <arg type="string" />
   </binding>
@@ -1185,12 +1184,6 @@
     <arg type="string" />
     <arg type="string" />
   </binding>
-  <binding name="escape-generic" native="escape_generic" returns="string">
-    <arg type="string" />
-  </binding>
-  <binding name="escape-verbatim" native="escape_verbatim" returns="string">
-    <arg type="string" />
-  </binding>
   <binding name="escape-shell" native="escape_sh" returns="string">
     <arg type="string" />
   </binding>
@@ -1879,42 +1872,6 @@
     <arg type="string" />
   </binding>
   <binding name="disable-certificate-time-checks" native="disable_certificate_time_checks" returns="void" />
-  <binding name="connection-start" native="connection_start" returns="string">
-    <arg type="string" />
-    <arg type="string" />
-  </binding>
-  <binding name="connection-status" native="connection_status" returns="int">
-    <arg type="string" />
-    <arg type="string" />
-  </binding>
-  <binding name="connection-write-string" native="connection_write" returns="void">
-    <arg type="string" />
-    <arg type="string" />
-    <arg type="string" />
-  </binding>
-  <binding name="connection-write" native="connection_write" returns="void">
-    <arg type="string" />
-    <arg type="string" />
-    <arg type="content" />
-  </binding>
-  <binding name="connection-cmd" native="connection_cmd" returns="tree">
-    <arg type="string" />
-    <arg type="string" />
-    <arg type="string" />
-  </binding>
-  <binding name="connection-eval" native="connection_eval" returns="tree">
-    <arg type="string" />
-    <arg type="string" />
-    <arg type="content" />
-  </binding>
-  <binding name="connection-interrupt" native="connection_interrupt" returns="void">
-    <arg type="string" />
-    <arg type="string" />
-  </binding>
-  <binding name="connection-stop" native="connection_stop" returns="void">
-    <arg type="string" />
-    <arg type="string" />
-  </binding>
   <binding name="widget-printer" native="printer_widget" returns="widget">
     <arg type="command" />
     <arg type="url" />

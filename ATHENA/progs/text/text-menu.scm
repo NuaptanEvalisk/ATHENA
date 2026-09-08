@@ -421,11 +421,7 @@
        (make (string->symbol lan))))))
 
 (tm-menu (local-supported-scripts-menu)
-  (let* ((dummy (lazy-plugin-force))
-         (l (scripts-list)))
-    (for (name l)
-      ((eval (scripts-name name))
-       (make-with "prog-scripts" name)))))
+  ("Scheme" (make-with "prog-scripts" "scheme")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Enumerations

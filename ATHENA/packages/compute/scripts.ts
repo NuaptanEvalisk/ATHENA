@@ -51,12 +51,7 @@
   <assign|script-result|<macro|in|out|<arg|in><with|color|dark
   blue|=><arg|out>>>
 
-  <assign|script-approx|<macro|in|out|<arg|in><with|color|dark
-  blue|\<approx\>><arg|out>>>
-
   <drd-props|script-result|arity|2|border|no>
-
-  <drd-props|script-approx|arity|2|border|no>
 
   <\active*>
     <\src-comment>
@@ -113,98 +108,6 @@
   <assign|script-eval|<macro|in|<render-eval-script|<value|prog-scripts>|<script-aux-3|<value|prog-scripts>|<arg|in>>>>>
 
   <drd-props|script-input|arity|3|accessible|2|unaccessible|1|unaccessible|3>
-
-  <\active*>
-    <\src-comment>
-      Plots.
-    </src-comment>
-  </active*>
-
-  <assign|plot|<macro|name|body|<render-big-script|<arg|name>|<arg|body>>>>
-
-  <assign|plot-group|<macro|text|<style-with|src-compact|none|<resize|<small|<with|font-shape|italic|font-series|bold|<arg|text>>>||<minus|1b|0.3fn>||<plus|1t|0.3fn>>>>>
-
-  <assign|plot-input-field|<macro|size|body|<with|old-color|<value|color>|color|<value|script-border-color>|<tabular|<tformat|<cwith|1|1|1|1|cell-background|<value|script-input-field-background-color>>|<cwith|1|1|1|1|cell-lborder|0.5ln>|<cwith|1|1|1|1|cell-rborder|0.5ln>|<cwith|1|1|1|1|cell-bborder|0.5ln>|<cwith|1|1|1|1|cell-tborder|0.5ln>|<cwith|1|1|1|1|cell-width|<arg|size>>|<cwith|1|1|1|1|cell-hyphen|t>|<table|<row|<cell|<with|color|<value|old-color>|<arg|body>>>>>>>>>>
-
-  <assign|plot-function|<macro|x|body|<style-with|src-compact|none|<resize|<math|<arg|x>>:
-  |||1.5fn|><plot-input-field|0.666par|<math|<arg|body>>>>>>
-
-  <assign|plot-range|<macro|x|start|end|<style-with|src-compact|none|<resize|<math|<arg|x>>:
-  |||1.5fn|><plot-input-field|0.25par|<math|<arg|start>>> \U
-  <plot-input-field|0.25par|<math|<arg|end>>>>>>
-
-  <assign|plot-curve|<macro|fun-f|start-x|end-x|<\plot|<localize|Plot curve>>
-    <plot-group|<localize|Function>>
-
-    <plot-function|f|<arg|fun-f>>
-
-    <plot-group|<localize|Range>>
-
-    <plot-range|x|<arg|start-x>|<arg|end-x>>
-  </plot>>>
-
-  <assign|plot-curve*|<macro|fun-x|fun-y|start-t|end-t|<\plot|<localize|Plot
-  parametric curve>>
-    <plot-group|<localize|Function>>
-
-    <plot-function|x|<arg|fun-x>>
-
-    <plot-function|y|<arg|fun-y>>
-
-    <plot-group|<localize|Range>>
-
-    <plot-range|t|<arg|start-t>|<arg|end-t>>
-  </plot>>>
-
-  <assign|plot-surface|<macro|fun-f|start-x|end-x|start-y|end-y|<\plot|<localize|Plot
-  surface>>
-    <plot-group|<localize|Function>>
-
-    <plot-function|f|<arg|fun-f>>
-
-    <plot-group|<localize|Range>>
-
-    <plot-range|x|<arg|start-x>|<arg|end-x>>
-
-    <plot-range|y|<arg|start-y>|<arg|end-y>>
-  </plot>>>
-
-  <assign|plot-surface*|<macro|fun-x|fun-y|fun-z|start-u|end-u|start-v|end-v|<\plot|<localize|Plot
-  parametric surface>>
-    <plot-group|<localize|Function>>
-
-    <plot-function|x|<arg|fun-x>>
-
-    <plot-function|y|<arg|fun-y>>
-
-    <plot-function|z|<arg|fun-z>>
-
-    <plot-group|<localize|Range>>
-
-    <plot-range|u|<arg|start-u>|<arg|end-u>>
-
-    <plot-range|v|<arg|start-v>|<arg|end-v>>
-  </plot>>>
-
-  <assign|plot-output|<macro|in|out|<arg|out>>>
-
-  <\active*>
-    <\src-comment>
-      New plots.
-    </src-comment>
-  </active*>
-
-  <assign|plot-script-output|<macro|language|session|name|in|out|<arg|out>>>
-
-  <assign|plot-script-input|<\macro|language|session|name|in|out>
-    <\with|par-par-sep|0fn>
-      <\script-aux-2|<arg|language>>
-        <arg|in>
-      </script-aux-2>
-    </with>
-  </macro>>
-
-  <drd-props|plot-script-input|arity|5|unaccessible|0|unaccessible|1|unaccessible|2|accessible|3|unaccessible|4|border|no>
 
   <\active*>
     <\src-comment>

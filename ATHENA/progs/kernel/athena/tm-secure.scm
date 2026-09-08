@@ -12,7 +12,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (texmacs-module (kernel athena tm-secure)
-  (:use (kernel athena tm-define) (kernel athena tm-plugins)))
+  (:use (kernel athena tm-define) ))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Primitive secure functions
@@ -116,8 +116,7 @@
 
 (define-public (secure? expr)
   "Test whether it is secure to evaluate the expression @expr"
-  (or (secure-expr? expr '())
-      (and (lazy-plugin-force) (secure-expr? expr '()))))
+  (secure-expr? expr '()))
 
 (define-public (secure-eval expr)
   "Evaluate @expr only when it is secure to do so"

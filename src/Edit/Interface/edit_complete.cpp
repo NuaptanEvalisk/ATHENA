@@ -12,7 +12,6 @@
 #include "edit_interface.hpp"
 #include "hashset.hpp"
 #include "analyze.hpp"
-#include "connect.hpp"
 #include "wencoding.hpp"
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -166,65 +165,3 @@ edit_interface_rep::complete_keypress (string key) {
 /******************************************************************************
 * Tab completion inside sessions
 ******************************************************************************/
-
-static string cursor_symbol ("[tmcursor]");
-
-static tree
-put_cursor (tree t, path p) {
-  if (is_atomic (t)) {
-    string s= t->label;
-    return s (0, p->item) * cursor_symbol * s (p->item, N(s));
-  }
-  else {
-    if (p == path (0)) return tree (CONCAT, cursor_symbol, t);
-    else if (p == path (1)) return tree (CONCAT, t, cursor_symbol);
-    else {
-      int i, n= N(t);
-      tree u (t, n);
-      for (i=0; i<n; i++)
-        if (i == p->item) u[i]= put_cursor (t[i], p->next);
-        else u[i]= t[i];
-      return u;
-    }
-  }
-}
-
-string
-edit_interface_rep::session_complete_command (tree tt) {
-  path p= reverse (obtain_ip (tt));
-  tree st= subtree (et, p);
-  if ((N(tp) <= N(p)) || (tp[N(p)] != 1)) return "";
-  tree t= put_cursor (st[1], tail (tp, N(p)+1));
-  // cout << t << LF;
-
-  (void) eval ("(use-modules (utils plugins plugin-cmd))");
-  string lan= get_env_string (PROG_LANGUAGE);
-  string ses= get_env_string (PROG_SESSION);
-  string s  = as_string (call ("verbatim-serialize", lan, tree_to_stree (t)));
-  s= s (0, N(s)-1);
-
-  int pos= search_forwards (cursor_symbol, s);
-  if (pos == -1) return "";
-  s= s (0, pos) * s (pos + N(cursor_symbol), N(s));
-  // cout << s << ", " << pos << LF;
-  return "(complete " * scm_quote (s) * " " * as_string (pos) * ")";
-}
-
-void
-edit_interface_rep::custom_complete (tree r) {
-  if (!is_tuple (r)) return;
-  int i, n= N(r);
-  string prefix;
-  array<string> compls;
-  for (i=0; i<n; i++)
-    if (is_atomic (r[i])) {
-      string l= r[i]->label;
-      if (is_quoted (l)) l= scm_unquote (l);
-      if (prefix == "") prefix= l;
-      else compls << l;
-    }
-  // cout << prefix << ", " << compls << LF;
-
-  if ((prefix == "") || (N(compls) == 0)) return;
-  complete_start (prefix, compls);
-}

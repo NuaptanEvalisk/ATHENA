@@ -178,7 +178,7 @@ public:
   editor_rep (server_rep* sv, buffer_document_state* buf);
   inline virtual ~editor_rep () {}
   bool is_current_editor ();
-  
+
   /* public routines from edit_interface */
   virtual void suspend () = 0;
   virtual void resume () = 0;
@@ -229,8 +229,6 @@ public:
   virtual void complete_start (string prefix, array<string> compls) = 0;
   virtual void complete_choose (std::uint64_t session, int index) = 0;
   virtual bool complete_keypress (string key) = 0;
-  virtual string session_complete_command (tree t) = 0;
-  virtual void custom_complete (tree t) = 0;
   virtual void mouse_any (string s, SI x, SI y, int m, time_t t,
                           array<double> d) = 0;
   virtual bool mouse_message (string message, SI x, SI y) = 0;

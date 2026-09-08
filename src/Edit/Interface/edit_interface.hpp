@@ -237,8 +237,6 @@ public:
   void complete_start (string prefix, array<string> compls);
   void complete_choose (std::uint64_t session, int index);
   bool complete_keypress (string key);
-  string session_complete_command (tree t);
-  void custom_complete (tree t);
 
   /* mouse handling */
   void mouse_any (string s, SI x, SI y, int m, time_t t, array<double> d);

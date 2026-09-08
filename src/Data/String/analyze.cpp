@@ -854,29 +854,6 @@ escape_sh (string s) {
 }
 
 string
-escape_generic (string s) {
-  int i, n= N(s);
-  string r;
-  for (i=0; i<n; i++) {
-    if ((s[i] == '\2') || (s[i] == '\5') || (s[i] == '\33')) r << '\33';
-    r << s[i];
-  }
-  return r;
-}
-
-string
-escape_verbatim (string s) {
-  int i, n= N(s);
-  string r;
-  for (i=0; i<n; i++) {
-    unsigned char c= (unsigned char) s[i];
-    if ((c == '\n') || (c == '\t')) r << ' ';
-    else if (((int) c) >= 32) r << s[i];
-  }
-  return r;
-}
-
-string
 escape_spaces (string s) {
   int i, n= N(s);
   string r;

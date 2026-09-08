@@ -19,32 +19,17 @@
 ;; Inserting programs
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(tm-menu (supported-programs-menu)
-  (for (name (session-list))
-    (let* ((menu-name (session-name name))
-           (l (connection-variants name)))
-      (assuming (== l (list "default"))
-        ((eval menu-name) (make-program name "default")))
-      (assuming (!= l (list "default"))
-        (-> (eval menu-name)
-            (for (variant l)
-              ((eval variant) (make-program name variant))))))))
 
 (menu-bind insert-program-menu
   (when (and (style-has? "std-dtd") (in-text?))
-    ("Scheme" (make-program "scheme" "default"))
-    ---
-    (link supported-programs-menu)
-    ---
-    ("Other" (interactive make-program))))
+    ("Scheme" (make-program "scheme" "default"))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Submenus of the Programs menu
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (menu-bind program-input-menu
-  (when (in-plugin-with-converters?)
-    ("Mathematical input" (toggle-program-math-input)))
+
   ("Multiline input" (toggle-program-multiline-input)))
 
 (menu-bind program-output-menu
@@ -77,7 +62,7 @@
 
 (tm-define (focus-program-language)
   (with lan (get-env "prog-language")
-    (or (session-name lan) "Scheme")))
+    "Scheme"))
 
 (tm-define (standard-options l)
   (:require (in? l prog-field-tags))
@@ -128,8 +113,8 @@
   (-> "Program" (link program-program-menu))
   ---
   (-> "Evaluate" (link program-evaluate-menu))
-  ("Interrupt execution" (plugin-interrupt))
-  ("Close program" (plugin-stop)))
+
+  )
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Programs icons
@@ -181,25 +166,17 @@
 (tm-menu (focus-extra-icons t)
   (:require (prog-field-context? t))
   (glue #f #f 8 0)
-  (=> (balloon (icon "tm_plugin_input.xpm") "Input options")
+  (=> (balloon (icon "tm_input.xpm") "Input options")
       (link program-input-menu))
-  (=> (balloon (icon "tm_plugin_output.xpm") "Output options")
+  (=> (balloon (icon "tm_output.xpm") "Output options")
       (link program-output-menu))
   (=> (balloon (icon "tm_session_session.xpm") "Program commands")
       (link program-program-menu))
   (glue #f #f 10 0)
   (=> (balloon (icon "tm_go.xpm") "Evaluate fields")
       (link program-evaluate-menu))
-  (if (!= (get-env "prog-language") "scheme")
-      ((balloon (icon "tm_stop.xpm") "Interrupt execution")
-       (plugin-interrupt))
-      ((balloon (icon "tm_clsession.xpm") "Close program")
-       (plugin-stop))))
+  )
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Help icons
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(menu-bind program-help-icons
-  ;; Each plugin appends its own entry
-  )

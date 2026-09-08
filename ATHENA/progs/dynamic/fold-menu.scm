@@ -68,10 +68,7 @@
         (insert-go-to `(converter-input ,name "" "") '(1 0)))))
 
 (tm-menu (supported-executable-menu)
-  (for (name (session-list))
-    (with menu-name (session-name name)
-      ((eval menu-name)
-       (make-script-input* name "default")))))
+  ("Scheme" (make-script-input* "scheme" "default")))
 
 (menu-bind insert-fold-menu
   (-> "Folded"
@@ -127,9 +124,7 @@
           ("Alternate only here" (make-overlay 'alternate-this))
           ("Alternate except here" (make-overlay 'alternate-other))))
   (-> "Convertible" (link supported-convertible-menu))
-  (if (!= (session-list) '())
-      (-> "Executable"
-          (link supported-executable-menu)))
+  (-> "Executable" (link supported-executable-menu))
   ;;(-> "Hidden content"
   ;;    ("Deleted" (make 'hidden-deleted))
   ;;    ("Invisible" (make 'hidden-invisible))

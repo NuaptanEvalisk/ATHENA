@@ -1249,8 +1249,6 @@
 ;; Widgets that have to be defined early on
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(tm-widget (plugin-preferences-widget name)
-  (text (string-append "No preferences for '" (plugin->name name) "'.")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Attaching global information to widgets and tools

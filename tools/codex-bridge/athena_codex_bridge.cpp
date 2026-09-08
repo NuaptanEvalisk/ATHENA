@@ -19,32 +19,6 @@
 
 namespace {
 
-constexpr char dataBegin= 2;
-constexpr char dataEnd= 5;
-constexpr char dataEscape= 27;
-
-QByteArray
-escapeProtocol (QByteArray text) {
-  QByteArray escaped;
-  escaped.reserve (text.size ());
-  for (char c: text) {
-    if (c == dataBegin || c == dataEnd || c == dataEscape)
-      escaped.append (dataEscape);
-    escaped.append (c);
-  }
-  return escaped;
-}
-
-void
-emitVerbatim (const QString& text) {
-  QByteArray payload= escapeProtocol (text.toUtf8 ());
-  std::fputc (dataBegin, stdout);
-  std::fputs ("verbatim:", stdout);
-  std::fwrite (payload.constData (), 1, payload.size (), stdout);
-  std::fputc (dataEnd, stdout);
-  std::fflush (stdout);
-}
-
 QString
 resolveCodex (const QString& requested) {
   if (!requested.isEmpty () && QFileInfo (requested).isExecutable ())
@@ -301,30 +275,6 @@ private:
   }
 };
 
-int
-runSession (AppServer& server, const QString& threadId) {
-  emitVerbatim ("OpenAI Codex ChatGPT session\n"
-                "Authentication and history use the configured Codex home.");
-  QFile input;
-  if (!input.open (stdin, QIODevice::ReadOnly)) {
-    std::fprintf (stderr, "Cannot read ATHENA session input\n");
-    return 1;
-  }
-  while (!input.atEnd ()) {
-    QByteArray line= input.readLine ();
-    QString prompt= QString::fromUtf8 (line).trimmed ();
-    if (prompt.isEmpty ()) continue;
-    QString answer;
-    QString error;
-    if (server.turn (threadId, prompt, QStringList (), QString (),
-                     answer, error))
-      emitVerbatim (answer);
-    else
-      emitVerbatim (QString ("Codex error: %1").arg (error));
-  }
-  return 0;
-}
-
 } // namespace
 
 int
@@ -354,6 +304,15 @@ main (int argc, char** argv) {
                       modelOption, effortOption, serviceTierOption,
                       webSearchOption, noWebSearchOption});
   parser.process (app);
+  if (parser.isSet (oneShotOption) == parser.isSet (listModelsOption)) {
+    std::fprintf (stderr, "Specify exactly one of --one-shot or --list-models\n");
+    return 2;
+  }
+  if (parser.isSet (oneShotOption) &&
+      (!parser.isSet (inputOption) || !parser.isSet (outputOption))) {
+    std::fprintf (stderr, "--one-shot requires --input and --output\n");
+    return 2;
+  }
 
   QString codex= resolveCodex (parser.value (codexOption));
   if (codex.isEmpty ()) {
@@ -405,8 +364,6 @@ main (int argc, char** argv) {
     std::fprintf (stderr, "%s\n", qPrintable (error));
     return 4;
   }
-
-  if (!parser.isSet (oneShotOption)) return runSession (server, threadId);
 
   QFile input (parser.value (inputOption));
   if (!input.open (QIODevice::ReadOnly)) {

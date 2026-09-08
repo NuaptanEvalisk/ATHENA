@@ -264,17 +264,16 @@
           (calc))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Communication with the plug-in
+;; In-process Scheme evaluation
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (tm-define (calc-ready?)
   (let* ((lan (get-env "prog-scripts"))
 	 (ses (get-env "prog-session")))
-    (and (connection-defined? lan)
-         (scripts-defined? lan))))
+    (== lan "scheme")))
 
 (tm-define (calc-feed lan ses var in out)
-  (when (scripts-defined? lan)
+  (when (== lan "scheme")
     (tree-set! out '(script-busy))
     ;;(display* "Calc " var ", " lan ", " ses "\n")
     ;;(display* "Feed " in "\n")

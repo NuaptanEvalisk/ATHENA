@@ -1583,12 +1583,12 @@
         "cmd/32/paragraphdialog.svg"
       ]
     },
-    "tm_plugin_input": {
+    "tm_input": {
       "libreoffice": [
         "cmd/32/insertplugin.svg"
       ]
     },
-    "tm_plugin_output": {
+    "tm_output": {
       "libreoffice": [
         "cmd/32/insertplugin.svg"
       ]

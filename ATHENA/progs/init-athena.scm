@@ -123,7 +123,7 @@
 (inherit-modules (kernel athena tm-define)
                  (kernel athena tm-dialogue)
                  (kernel athena tm-preferences) (kernel athena tm-modes)
-                 (kernel athena tm-plugins) (kernel athena tm-secure)
+                 (kernel athena tm-secure)
                  (kernel athena tm-convert)
                  (kernel athena tm-language) (kernel athena tm-file-system)
                  (kernel athena tm-states))
@@ -144,12 +144,11 @@
 (lazy-define (utils library cursor) notify-cursor-moved)
 (lazy-define (utils edit variants) make-inline-tag-list make-wrapped-tag-list)
 (lazy-define (utils cas cas-out) cas->stree)
-(lazy-define (utils plugins plugin-cmd) pre-serialize verbatim-serialize)
+
 (lazy-define (utils test test-convert) delayed-quit
              build-manual build-ref-suite run-test-suite)
 (import-from (utils library smart-table))
-(when (not (qt-gui?))
-  (use-modules (utils plugins plugin-convert)))
+
 (import-from (utils misc markup-funcs))
 (import-from (utils misc artwork))
 (lazy-define (utils handwriting handwriting) learn-glyphs)
@@ -194,10 +193,10 @@
            athena-help-utilities-menu)
 (lazy-menu (athena menus preferences-widgets)
            preferences-open?
-           open-preferences open-plugin-preferences open-plugins-preferences)
+           open-preferences)
 (lazy-menu (athena menus main-menu)
            texmacs-extra-menu texmacs-extra-icons
-           plugin-menu plugin-icons bookmarks-menu test-menu help-icons
+           bookmarks-menu test-menu help-icons
            athena-focus-menu texmacs-menu window-list-menu
            workspace-menu presentation-popup-menu texmacs-popup-menu
            texmacs-alternative-popup-menu texmacs-main-icons
@@ -294,8 +293,8 @@
 
 ;(display "Booting programming modes\n")
 (lazy-format (prog prog-format) scheme)
-(lazy-format (code-format) cpp julia scala java json csv)
-(lazy-format (python-format) python)
+(lazy-format (prog code-format) cpp julia scala java json csv)
+(lazy-format (prog python-format) python)
 (lazy-keyboard (prog prog-kbd) in-prog?)
 (lazy-menu (prog prog-menu) prog-format-menu prog-format-icons
 	   prog-menu prog-icons)
@@ -388,9 +387,8 @@
 (lazy-menu (dynamic fold-menu) insert-fold-menu dynamic-menu dynamic-icons
            graphics-overlays-menu graphics-screens-menu
            graphics-focus-overlays-menu graphics-focus-overlays-icons)
-(lazy-menu (dynamic session-menu) insert-session-menu session-help-icons)
-(lazy-menu (dynamic scripts-menu) scripts-eval-menu scripts-plot-menu
-           plugin-eval-menu plugin-eval-toggle-menu plugin-plot-menu)
+(lazy-menu (dynamic session-menu) insert-session-menu)
+(lazy-menu (dynamic scripts-menu) scripts-eval-menu scripts-eval-toggle-menu)
 (lazy-menu (dynamic calc-menu) calc-table-menu calc-insert-menu
            calc-icourse-menu)
 (lazy-menu (dynamic animate-menu) insert-animation-menu animate-toolbar)
@@ -398,7 +396,7 @@
              screens-switch-to dynamic-make-slides overlays-context?)
 (lazy-define (dynamic session-edit) scheme-eval)
 (lazy-define (dynamic calc-edit) calc-ready? calc-table-renumber)
-(lazy-define (dynamic scripts-plot) open-plots-editor)
+
 (lazy-initialize (dynamic session-menu) (in-session?))
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 ;(display* "memory: " (texmacs-memory) " bytes\n")
@@ -477,8 +475,7 @@
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 ;(display* "memory: " (texmacs-memory) " bytes\n")
 
-;(display "Booting plugins\n")
-(for-each lazy-plugin-initialize (plugin-list))
+
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 ;(display* "memory: " (texmacs-memory) " bytes\n")
 

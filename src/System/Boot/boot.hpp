@@ -25,12 +25,11 @@ void   set_setting (string var, string val);
 void   get_old_settings (string s);
 void   init_upgrade ();
 void   init_athena ();
-void   init_plugins ();
+void   init_tex_resources ();
 void   setup_athena ();
 void   release_boot_lock ();
 bool   test_athena_path (url path, bool set_environment = true);
 
-scheme_tree plugin_list ();
 
 bool   has_user_preference (string var);
 void   register_user_preference (string var, string def, bool string_def);

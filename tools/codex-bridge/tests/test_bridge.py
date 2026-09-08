@@ -67,11 +67,10 @@ with tempfile.TemporaryDirectory(prefix="athena-codex-test-") as directory:
 
     session = subprocess.run(
         [str(bridge), "--codex", str(fake_codex),
-         "--codex-home", str(root / "home"), "--cwd", str(root / "work")],
+         "--codex-home", str(root / "unused-home")],
         input="Continue $x$\n", text=True, capture_output=True, timeout=10,
         check=False)
-    if session.returncode != 0:
-        raise SystemExit(
-            f"session bridge failed ({session.returncode}): {session.stderr}")
-    if "verbatim:continued formula" not in session.stdout:
-        raise SystemExit("session bridge did not return a TeXmacs data frame")
+    if session.returncode != 2 or "Specify exactly one" not in session.stderr:
+        raise SystemExit("bridge still accepts the removed plugin session mode")
+    if (root / "unused-home").exists():
+        raise SystemExit("invalid session invocation started the Codex backend")

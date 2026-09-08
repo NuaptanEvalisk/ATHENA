@@ -18,16 +18,6 @@
 ;; The Help menu
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define (plugin-documented? name)
-  (and (url-exists-in-help? (string-append name ".en.tm"))
-       (url-exists-in-help? (string-append name "-abstract.en.tm"))))
-
-(tm-menu (help-plugins-menu)
-  (for (name (list-filter (map symbol->string (plugin-list))
-                          plugin-documented?))
-    (with menu-name `(verbatim ,(session-name name))
-      ((eval menu-name)
-       (load-help-article (string-append name))))))
 
 (menu-bind help-menu
   ("About ATHENA" (help-about))
@@ -88,8 +78,7 @@
 	     (load-help-article "devel/style/style"))
 	    ("Customizing ATHENA"
 	     (load-help-article "main/scheme/man-scheme"))
-	    ("The ATHENA plug-in system"
-	     (load-help-article "devel/plugin/plugins"))))
+	    ))
   (when (url-exists-in-help? "main/man-manual.en.tm")
 	(-> "Reference guide"
 	    ("Browse" (load-help-buffer "main/man-reference"))
@@ -106,8 +95,7 @@
 	     (load-help-article "main/styles/styles"))
 	    ("Compatibility with other formats"
 	     (load-help-article "main/convert/man-convert"))))
-  (-> "Plug-ins"
-      (link help-plugins-menu))
+
   (when (url-exists-in-help? "about/about.en.tm")
 	(-> "Apropos"
 	    ("Browse" (load-help-buffer "about/about"))
@@ -139,34 +127,7 @@
 ;; 	     (load-help-article "devel/format/env-vars"))
 ;; 	    ("Planned changes"
 ;; 	     (load-help-article "devel/format/planned-changes"))))
-      (when (url-exists-in-help? "devel/interface/interface.en.tm")
-	(-> "Interfacing"
-	    ("Browse" (load-help-buffer "devel/interface/interface"))
-	    ---
-	    ("Introduction"
-	     (load-help-article "devel/interface/interface-intro"))
-	    ("Basic communication using pipes"
-	     (load-help-article "devel/interface/interface-pipes"))
-	    ("Formatted and structured output"
-	     (load-help-article "devel/interface/interface-nested"))
-	    ("Prompts and default input"
-	     (load-help-article "devel/interface/interface-channels"))
-	    ("Sending commands to TeXmacs"
-	     (load-help-article "devel/interface/interface-commands"))
-	    ("Background evaluations"
-	     (load-help-article "devel/interface/interface-background"))
-	    ("Mathematical and customized input"
-	     (load-help-article "devel/interface/interface-input"))
-	    ("Tab-completion"
-	     (load-help-article "devel/interface/interface-tab"))
-	    ("Dynamic libraries"
-	     (load-help-article "devel/interface/interface-dynlibs"))
-	    ("Miscellaneous features"
-	     (load-help-article "devel/interface/interface-misc"))
-	    ("Writing documentation"
-	     (load-help-article "devel/interface/interface-documentation"))
-	    ("Plans for the future"
-	     (load-help-article "devel/interface/interface-plans"))))
+
 ;;       (when (url-exists-in-help? "devel/source/source.en.tm")
 ;; 	(-> "Source code"
 ;; 	    ("Browse" (load-help-buffer "devel/source/source"))
@@ -199,7 +160,7 @@
 	     (load-help-article "devel/scheme/buffer/scheme-buffer"))
 	    ("Scheme interface for the graphical mode"
 	     (load-help-article "devel/scheme/graphics/scheme-graphics"))
-            
+
             ("Customizing and extending the user interface"
              (load-help-article "devel/scheme/gui/scheme-gui"))
             ---

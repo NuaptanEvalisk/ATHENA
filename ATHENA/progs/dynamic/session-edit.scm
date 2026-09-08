@@ -14,33 +14,13 @@
 (texmacs-module (dynamic session-edit)
   (:use (utils library tree)
 	(utils library cursor)
-	(utils plugins plugin-cmd)
+	(dynamic scheme-runtime)
 	(dynamic session-drd)
 	(dynamic fold-edit)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Where to find plug-in binaries
+;; Built-in Scheme sessions
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(tm-define (set-manual-path p)
-  (:synopsis* "Set path to plug-in binaries")
-  (:argument p "Path")
-  (:proposals p (if (cpp-has-preference? "manual path")
-                    (list (get-preference "manual path"))
-                    (list)))
-  (with old (get-preference "manual path")
-    (if (== old "default") (set! old ""))
-    (when (!= p (or old ""))
-      (when (cpp-has-preference? "manual path")
-        (with cur (getenv "PATH")
-          (when (string-starts? cur (string-append old ":"))
-            (setenv "PATH" (string-drop cur (+ (string-length old) 1))))))
-      (if (== p "")
-          (reset-preference "manual path")
-          (begin
-            (set-preference "manual path" p)
-            (setenv "PATH" (string-append p ":" (getenv "PATH")))))
-      (reinit-plugin-cache))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Style package rules for sessions
@@ -49,11 +29,6 @@
 (tm-define (style-category p)
   (:require (in? p (list "framed-session" "ring-session" "large-formulas")))
   :session-theme)
-
-(tm-define (style-category-precedes? x y)
-  (:require (and (== x :session-theme)
-                 (in? y (map symbol->string (plugin-list)))))
-  #t)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Switches
@@ -203,56 +178,9 @@
 ;; Low-level evaluation management
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define (session-encode in out next opts)
-  (list (list session-do session-notify session-next session-cancel)
-        (if (tm? in) (tm->stree in) in)
-	(tree->tree-pointer out)
-	(tree->tree-pointer next)
-	opts))
-
-(define (session-decode l)
-  (list (second l)
-	(tree-pointer->tree (third l))
-	(tree-pointer->tree (fourth l))
-	(fifth l)))
-
-(define (session-detach l)
-  (tree-pointer-detach (third l))
-  (tree-pointer-detach (fourth l)))
-
 (define (session-coherent? out next)
   (and (field-or-output-context? (tree-ref out :up))
        (field-context? next)))
-
-(define (session-do lan ses)
-  (with l (pending-ref lan ses)
-    (with (in out next opts) (session-decode (car l))
-      ;;(display* "Session do " lan ", " ses ", " in "\n")
-      (if (or (and (tree-empty? in) (!= lan "r"))
-	      (not (session-coherent? out next)))
-	  (plugin-next lan ses)
-	  (begin
-	    (plugin-write lan ses in :session)
-	    (tree-set out :up 0 (plugin-prompt lan ses)))))))
-
-(define (session-next lan ses)
-  ;;(display* "Session next " lan ", " ses "\n")
-  (with l (pending-ref lan ses)
-    (with (in out next opts) (session-decode (car l))
-      (when (and (session-coherent? out next)
-		 (tm-func? out 'document)
-		 (tm-func? (tree-ref out :last) 'script-busy))
-	(let* ((dt (plugin-timing lan ses))
-	       (ts (if (< dt 1000)
-		       (string-append (number->string dt) " msec")
-		       (string-append (number->string (/ dt 1000.0)) " sec"))))
-	  (if (and (in? :timings opts) (>= dt 1))
-	      (tree-set (tree-ref out :last) `(timing ,ts))
-	      (tree-remove! out (- (tree-arity out) 1) 1))))
-      (when (and (session-coherent? out next)
-		 (tree-empty? out))
-	(field-remove-output (tree-ref out :up)))
-      (session-detach (car l)))))
 
 (define (var-tree-children t)
   (with r (tree-children t)
@@ -268,47 +196,9 @@
       (if (tm-func? u 'document)
 	  (tree-insert! t i (var-tree-children u))))))
 
-(define (session-errput t u)
-  (when (tm-func? t 'document)
-    (with i (tree-arity t)
-      (if (and (> i 0) (tm-func? (tree-ref t (- i 1)) 'script-busy))
-	  (set! i (- i 1)))
-      (if (and (> i 0) (tm-func? (tree-ref t (- i 1)) 'errput))
-	  (set! i (- i 1))
-	  (tree-insert! t i '((errput (document)))))
-      (session-output (tree-ref t i 0) u))))
-
-(define (session-notify lan ses ch t)
-  ;;(display* "Session notify " lan ", " ses ", " ch ", " t "\n")
-  (with l (pending-ref lan ses)
-    (with (in out next opts) (session-decode (car l))
-      (when (session-coherent? out next)
-	(cond ((== ch "output")
-	       (session-output out t))
-	      ((== ch "error")
-	       (session-errput out t))
-	      ((== ch "prompt")
-	       (if (and (== (length l) 1) (tree-empty? (tree-ref next 1)))
-		   (tree-set! next 0 (tree-copy t))))
-	      ((and (== ch "input") (null? (cdr l)))
-	       (tree-set! next 1 t)))))))
-
-(define (session-cancel lan ses dead?)
-  ;;(display* "Session cancel " lan ", " ses ", " dead? "\n")
-  (with l (pending-ref lan ses)
-    (with (in out next opts) (session-decode (car l))
-      (when (and (session-coherent? out next)
-		 (tm-func? out 'document)
-		 (tm-func? (tree-ref out :last) 'script-busy))
-	(tree-assign (tree-ref out :last)
-		     (if dead? '(script-dead) '(script-interrupted))))
-      (session-detach (car l)))))
-
 (tm-define (session-feed lan ses in out next opts)
-  (set! in (plugin-preprocess lan ses in opts))
-  (tree-assign! out '(document (script-busy)))
-  (with x (session-encode in out next opts)
-    (apply plugin-feed `(,lan ,ses ,@(car x) ,(cdr x)))))
+  (scheme-eval-field lan ses in out next opts :session
+                    session-coherent? session-output field-remove-output))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Session contexts
@@ -400,41 +290,16 @@
 (tm-define (session-ready? . err-flag?)
   (with lan (get-env "prog-language")
     (or (== lan "scheme")
-	(connection-defined? lan)
-	(begin
-	  (if err-flag?
-	      (set-message `(concat "undefined plugin: " (verbatim ,lan)) ""))
-	  #f))))
+        (begin
+          (when (nnull? err-flag?)
+            (set-message "Only Scheme evaluation is supported" ""))
+          #f))))
 
 (tm-define (session-status)
-  (let* ((lan (get-env "prog-language"))
-	 (ses (get-env "prog-session")))
-    (cond ((== lan "scheme") 2)
-	  ((not (connection-defined? lan)) 0)
-	  (else (connection-status lan ses)))))
-
-(tm-define (session-busy-message msg)
-  (let* ((lan (get-env "prog-language"))
-	 (ses (get-env "prog-session")))
-    (with l (pending-ref lan ses)
-      (for-each
-       (lambda (x)
-         (with (in out next opts) (session-decode x)
-           (when (and (tm-func? out 'document)
-                      (tm-func? (tree-ref out :last) 'script-busy))
-             (tree-assign (tree-ref out :last) `(script-busy ,msg)))))
-       l))))
+  (if (== (get-env "prog-language") "scheme") 2 0))
 
 (tm-define (session-alive?)
   (> (session-status) 1))
-
-(tm-define (session-supports-completions?)
-  (and (session-alive?)
-       (plugin-supports-completions? (get-env "prog-language"))))
-
-(tm-define (session-supports-input-done?)
-  (and (session-alive?)
-       (plugin-supports-input-done? (get-env "prog-language"))))
 
 (define (field-next* t forward?)
   (and-with u (tree-ref t (if forward? :next :previous))
@@ -537,11 +402,12 @@
   (:synopsis "Insert session")
   (:argument lan "Language")
   (:argument ses "Session identifier")
+  (when (!= lan "scheme") (error "Only Scheme sessions are supported"))
   (let* ((ban `(output (document "")))
 	 (l (cond ((session-text-input? lan ses) 'input-text)
                   ((session-math-input? lan ses) 'input-math)
                   (else 'input)))
-	 (p (plugin-prompt lan ses))
+	 (p (scheme-prompt lan ses))
 	 (in `(,l (document ,p) (document "")))
 	 (s `(session ,lan ,ses (document ,ban ,in))))
     (insert-go-to s '(2 1 1 0 0))
@@ -569,7 +435,7 @@
 	   (tree-assign-node! t 'unfolded-io-math)))
     (let* ((lan (get-env "prog-language"))
 	   (ses (get-env "prog-session"))
-	   (p (plugin-prompt lan ses))
+	   (p (scheme-prompt lan ses))
 	   (in (tree->stree (tree-ref t 1)))
 	   (out (tree-ref t 2))
 	   (opts (input-options t)))
@@ -577,28 +443,11 @@
 	(session-feed lan ses in out u opts)
 	(tree-go-to u 1 :end)))))
 
-(define (kbd-enter-sub t done?)
-  (if (in? done? (list #f "#f"))
-      (insert-return)
-      (delayed
-        (:idle 1)
-        (session-evaluate))))
-
 (tm-define (kbd-enter t shift?)
   (:require (field-input-context? t))
   (cond ((xor (session-multiline-input?) shift?)
          (insert-return))
-        ((session-supports-input-done?)
-         (let* ((lan (get-env "prog-language"))
-                (ses (get-env "prog-session"))
-                (opts (input-options t))
-                (st (tree->stree (tree-ref t 1)))
-                (pre (plugin-preprocess lan ses st opts))
-                (in (plugin-serialize lan pre))
-                (rew (if (string-ends? in "\n") (string-drop-right in 1) in))
-                (cmd (string-append "(input-done? " (string-quote rew) ")"))
-                (ret (lambda (done?) (kbd-enter-sub t done?))))
-           (plugin-command lan ses cmd ret '())))
+
         (else (session-evaluate))))
 
 (tm-define (session-evaluate)
@@ -688,15 +537,6 @@
   (clipboard-cut "nowhere")
   (clipboard-clear "nowhere"))
 
-(tm-define (kbd-variant t forwards?)
-  (:require (and (field-context? t) (session-supports-completions?)))
-  (let* ((lan (get-env "prog-language"))
-         (ses (get-env "prog-session"))
-         (cmd (session-complete-command t))
-         (ret (lambda (x) (when x (custom-complete (tm->tree x))))))
-    (when (!= cmd "")
-      (plugin-command lan ses cmd ret '()))))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Structured keyboard movements
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -763,7 +603,7 @@
   (and-with t (tree-search-upwards t* field-input-context?)
     (let* ((lan (get-env "prog-language"))
 	   (ses (get-env "prog-session"))
-	   (p (plugin-prompt lan ses))
+	   (p (scheme-prompt lan ses))
 	   (t (field-create t p forwards?)))
       (tree-go-to t 1 :end))))
 

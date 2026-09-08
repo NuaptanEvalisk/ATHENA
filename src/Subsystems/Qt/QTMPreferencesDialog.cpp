@@ -563,17 +563,7 @@ document_language_choices () {
 
 static std::vector<QStringChoice>
 script_choices () {
-  std::vector<QStringChoice> choices;
-  choices.push_back ({"none", "None"});
-  (void) call ("lazy-plugin-force");
-  list<string> scripts= as_list_string (call ("scripts-list"));
-  for (list<string> it= scripts; !is_nil (it); it= it->next) {
-    QString value= to_qstring_pref (it->item);
-    QString label= to_qstring_pref (as_string (call ("scripts-name",
-                                                     it->item)));
-    choices.push_back ({value, label});
-  }
-  return choices;
+  return {{"none", "None"}, {"scheme", "Scheme"}};
 }
 
 using PrefValue = Choice;

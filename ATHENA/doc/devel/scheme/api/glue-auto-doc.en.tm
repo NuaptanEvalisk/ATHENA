@@ -291,14 +291,6 @@ source code.
   </explain>
 
   <\explain>
-    <scm|(plugin-list)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|plugin_list> which returns
-    <scm|scheme_tree>.
-  </explain>
-
-  <\explain>
     <scm|(font-exists-in-tt? <scm-arg|string>)>
 <explain-synopsis|no synopsis>
   <|explain>
@@ -2923,22 +2915,6 @@ source code.
   </explain>
 
   <\explain>
-    <scm|(escape-generic <scm-arg|string>)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|escape_generic> which returns
-    <scm|string>.
-  </explain>
-
-  <\explain>
-    <scm|(escape-verbatim <scm-arg|string>)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|escape_verbatim> which returns
-    <scm|string>.
-  </explain>
-
-  <\explain>
     <scm|(escape-shell <scm-arg|string>)>
 <explain-synopsis|no synopsis>
   <|explain>
@@ -4623,70 +4599,6 @@ source code.
 <explain-synopsis|no synopsis>
   <|explain>
     Calls the <c++> function <cpp|disable_certificate_time_checks> which returns
-    <scm|void>.
-  </explain>
-
-  <\explain>
-    <scm|(connection-start <scm-arg|string> <scm-arg|string>)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|connection_start> which returns
-    <scm|string>.
-  </explain>
-
-  <\explain>
-    <scm|(connection-status <scm-arg|string> <scm-arg|string>)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|connection_status> which returns
-    <scm|int>.
-  </explain>
-
-  <\explain>
-    <scm|(connection-write-string <scm-arg|string> <scm-arg|string> <scm-arg|string>)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|connection_write> which returns
-    <scm|void>.
-  </explain>
-
-  <\explain>
-    <scm|(connection-write <scm-arg|string> <scm-arg|string> <scm-arg|content>)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|connection_write> which returns
-    <scm|void>.
-  </explain>
-
-  <\explain>
-    <scm|(connection-cmd <scm-arg|string> <scm-arg|string> <scm-arg|string>)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|connection_cmd> which returns
-    <scm|tree>.
-  </explain>
-
-  <\explain>
-    <scm|(connection-eval <scm-arg|string> <scm-arg|string> <scm-arg|content>)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|connection_eval> which returns
-    <scm|tree>.
-  </explain>
-
-  <\explain>
-    <scm|(connection-interrupt <scm-arg|string> <scm-arg|string>)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|connection_interrupt> which returns
-    <scm|void>.
-  </explain>
-
-  <\explain>
-    <scm|(connection-stop <scm-arg|string> <scm-arg|string>)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|connection_stop> which returns
     <scm|void>.
   </explain>
 
@@ -8423,22 +8335,6 @@ source code.
 <explain-synopsis|no synopsis>
   <|explain>
     Calls the <c++> function <cpp|spell_replace> which returns
-    <scm|void>.
-  </explain>
-
-  <\explain>
-    <scm|(session-complete-command <scm-arg|tree>)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|session_complete_command> which returns
-    <scm|string>.
-  </explain>
-
-  <\explain>
-    <scm|(custom-complete <scm-arg|tree>)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|custom_complete> which returns
     <scm|void>.
   </explain>
 

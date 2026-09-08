@@ -271,8 +271,7 @@
 	((func? x 'quote 1) (cadr x))
 	((func? x 'quasiquote 1) (cas-out-quasiquote (cadr x)))
 	((func? x 'eval 1) (eval (cadr x)))
-	((func? x 'eval 2)
-	 (plugin-eval (cadr x) "default" (tm->tree (caddr x))))
+
 	((func? x 'matrix) `(matrix (table ,@(map cas-out (cdr x)))))
 	((func? x 'det) `(det (table ,@(map cas-out (cdr x)))))
 	((func? x 'bmatrix) `(matrix (table ,@(map cas-out (cdr x)))))

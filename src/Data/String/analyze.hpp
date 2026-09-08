@@ -111,8 +111,6 @@ string scm_unquote (string s);
 string raw_quote (string s);
 string raw_unquote (string s);
 string escape_sh (string s);
-string escape_generic (string s);
-string escape_verbatim (string s);
 string escape_spaces (string s);
 string unescape_guile (string s);
 string dos_to_better (string s);

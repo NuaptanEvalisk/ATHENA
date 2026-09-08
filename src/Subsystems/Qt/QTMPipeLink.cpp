@@ -21,22 +21,6 @@
 #include <wordexp.h>
 #endif
 
-static string
-debug_io_string (QByteArray s) {
-  int i, n= s.size ();
-  string r;
-  for (i=0; i<n; i++) {
-    unsigned char c= (unsigned char) s[i];
-    if (c == DATA_BEGIN) r << "[BEGIN]";
-    else if (c == DATA_END) r << "[END]";
-    else if (c == DATA_ABORT) r << "[ABORT]";
-    else if (c == DATA_COMMAND) r << "[COMMAND]";
-    else if (c == DATA_ESCAPE) r << "[ESCAPE]";
-    else r << s[i];
-  }
-  return r;
-}
-
 void
 QTMPipeLink::readErrOut () {
 BEGIN_SLOT
@@ -108,7 +92,7 @@ QTMPipeLink::launchCmd () {
 int
 QTMPipeLink::writeStdin (string s) {
   c_string _s (s);
-  if (DEBUG_IO) debug_io << "[INPUT]" << debug_io_string ((char*)_s);
+  if (DEBUG_IO) debug_io << "[INPUT]" << s;
   int err= QIODevice::write (_s, N(s));
   return err;
 }
@@ -120,7 +104,8 @@ QTMPipeLink::feedBuf (ProcessChannel channel) {
   if (channel == QProcess::StandardOutput) outbuf << tempout.constData ();
   else errbuf << tempout.constData ();
   if (DEBUG_IO)
-    debug_io << "[OUTPUT " << channel << "]" << debug_io_string (tempout.constData ()) << "\n";
+    debug_io << "[OUTPUT " << channel << "]"
+             << string (tempout.constData (), tempout.size ()) << "\n";
 }
 
 bool

@@ -14,7 +14,6 @@
 #include "tm_server.hpp"
 #include "drd_std.hpp"
 #include "convert.hpp"
-#include "connect.hpp"
 #include "sys_utils.hpp"
 #include "file.hpp"
 #include "analyze.hpp"
@@ -315,7 +314,7 @@ tm_server_rep::interpose_handler () {
     int i, j;
     for (i=0; i<N(bufs); i++) {
       tm_buffer buf= (tm_buffer) bufs[i];
-      
+
       for (j=0; j<N(buf->vws); j++) {
 	  tm_view vw= (tm_view) buf->vws[j];
 	  if (vw->win != NULL)
@@ -323,7 +322,7 @@ tm_server_rep::interpose_handler () {
             buf->actor->id (), actor_command_kind::apply_changes,
             vw->runtime_id);
       }
-      
+
       for (j=0; j<N(buf->vws); j++) {
 	  tm_view vw= (tm_view) buf->vws[j];
 	  if (vw->win != NULL)

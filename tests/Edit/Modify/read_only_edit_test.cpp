@@ -88,7 +88,7 @@ static int test_status= 1;
 
 static void
 run_tests (int argc, char** argv) {
-  init_plugins ();
+  init_tex_resources ();
   gui_open (argc, argv);
   {
     server sv;

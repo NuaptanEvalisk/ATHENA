@@ -3,17 +3,10 @@
 <style|<tuple|tmdoc|english>>
 
 <\body>
-  <tmdoc-title|Using GNU <TeXmacs> as an interface>
+  <tmdoc-title|Scheme sessions and computation>
 
-  An important feature of <TeXmacs> is it's ability to communicate with
-  extern systems. For computer algebra systems or other scientific
-  computation systems, this is typically done in shell-like sessions, in
-  which it is possible to evaluate commands and display the results in a
-  nice, graphical way. Some systems can also be used more in the background
-  as scripting languages.
-
-  See <menu|Help|Plug-ins> for a list of existing plug-ins and more
-  documentation on these systems.
+  ATHENA provides in-process Scheme sessions, executable fields, and
+  spreadsheet calculations. External TeXmacs plug-ins are not supported.
 
   <\traverse>
     <branch|Creating sessions|man-session-basic.en.tm>
