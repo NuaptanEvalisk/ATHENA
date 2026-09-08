@@ -46,4 +46,25 @@
               (member '("- var" "<setminus>") (cdr form))))
        (forms "generic/generic-kbd.scm"))
   "no text-mode override")
-(display "PASS: math minus variant and existing arrow bindings\n")
+(for-each
+  (lambda (entry)
+    (check (list entry) (binding (car entry)) "normal subgroup Tab variant"))
+  '(("< | var" "<vartriangleleft>")
+    ("| > var" "<vartriangleright>")
+    ("< | var var" "<blacktriangleleft>")
+    ("| > var var" "<blacktriangleright>")
+    ("< | var var var" "<trianglelefteq>")
+    ("| > var var var" "<trianglerighteq>")
+    ("| var > var var" "<trianglerighteq>")))
+(define latex-commands
+  (append-map cdr
+    (filter (lambda (form) (and (pair? form) (eq? (car form) 'kbd-commands)))
+            (forms "athena/keyboard/latex-kbd.scm"))))
+(for-each
+  (lambda (entry)
+    (check `(insert ,(cadr entry))
+           (caddr (assoc (car entry) latex-commands))
+           "normal subgroup command uses canonical symbol"))
+  '(("lhd" "<vartriangleleft>") ("rhd" "<vartriangleright>")
+    ("unlhd" "<trianglelefteq>") ("unrhd" "<trianglerighteq>")))
+(display "PASS: math variants, normal subgroup commands and arrow bindings\n")

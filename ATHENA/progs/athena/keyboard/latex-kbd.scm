@@ -124,6 +124,12 @@
   "dagger" "ddagger" "boxbar" "checked" "obar" "kreuz")
 
 (kbd-commands
+  ("lhd" "Insert left normal subgroup relation" (insert "<vartriangleleft>"))
+  ("rhd" "Insert right normal subgroup relation" (insert "<vartriangleright>"))
+  ("unlhd" "Insert left normal subgroup or equal relation"
+   (insert "<trianglelefteq>"))
+  ("unrhd" "Insert right normal subgroup or equal relation"
+   (insert "<trianglerighteq>"))
   ("cd" "Insert a commutative diagram" (make-cd))
   ("#" "Insert sharp" (insert "#"))
   ("$" "Insert dollar" (insert "$"))
