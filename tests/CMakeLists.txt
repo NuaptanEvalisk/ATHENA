@@ -90,6 +90,14 @@ add_test(NAME eqnarray_clipboard_editor_test
     --runtime ${ATHENA_GUILE_PREFIX}
     --resources ${ATHENA_SOURCE_DIR}/ATHENA)
 set_tests_properties(eqnarray_clipboard_editor_test PROPERTIES TIMEOUT 90)
+add_test(NAME proof_eqnarray_navigation_editor_test
+  COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/evaluation-bar-test.py
+    --script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/proof-eqnarray-navigation-test.scm
+    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
+    --runtime ${ATHENA_GUILE_PREFIX}
+    --resources ${ATHENA_SOURCE_DIR}/ATHENA)
+set_tests_properties(proof_eqnarray_navigation_editor_test PROPERTIES TIMEOUT 90)
 add_test(NAME scheme_command_order_editor_test
   COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_CURRENT_SOURCE_DIR}/scheme/evaluation-bar-test.py

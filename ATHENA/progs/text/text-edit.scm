@@ -557,6 +557,11 @@
   (make 'equation*)
   (temp-proof-fix))
 
+(tm-define (make-eqnarray)
+  (:applicable (not (selection-active-non-small?)))
+  (make 'eqnarray)
+  (temp-proof-fix))
+
 (tm-define (make-eqnarray*)
   (:applicable (not (selection-active-non-small?)))
   (make 'eqnarray*)

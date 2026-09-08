@@ -146,6 +146,7 @@
 
   ("[" "Insert equation" (make-equation*))
   ("equation" "Insert numbered equation" (make-equation))
+  ("eqnarray" "Insert equation array" (make-eqnarray))
   ("eqnarray*" "Insert equation array" (make-eqnarray*))
 
   ("cC" "Make Ç" (emulate-keyboard "cedilla C"))
