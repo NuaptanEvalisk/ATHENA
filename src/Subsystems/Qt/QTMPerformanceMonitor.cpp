@@ -149,10 +149,10 @@ QTMPerformanceMonitor::drawHud (QPainter& painter, qint64 nowNs) {
   int firstBaseline= hud.top () + 7 + metrics.ascent ();
 
   painter.save ();
-  painter.setRenderHint (QPainter::Antialiasing, true);
+  painter.setRenderHint (QPainter::Antialiasing, false);
   painter.setPen (QColor (255, 255, 255, 70));
   painter.setBrush (QColor (20, 24, 28, 190));
-  painter.drawRoundedRect (hud, 3, 3);
+  painter.drawRect (hud);
   painter.setFont (font);
   painter.setPen (QColor (245, 247, 248));
   painter.drawText (textLeft, firstBaseline,
