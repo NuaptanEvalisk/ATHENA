@@ -62,6 +62,10 @@ public:
   void update_viewport (const actor_viewport_snapshot& snapshot) noexcept;
   actor_viewport_snapshot viewport () const noexcept;
   void set_wheel_capture (bool capture) noexcept;
+  void set_overlay_wheel_capture (bool capture) noexcept;
+  bool overlay_wheel_capture () const noexcept {
+    return overlay_wheel_capture_.load (std::memory_order_acquire);
+  }
   bool wheel_capture () const noexcept;
   void set_zoom_factor (double zoom) noexcept;
   double zoom_factor () const noexcept;
@@ -129,6 +133,7 @@ private:
   mutable std::atomic<std::uint64_t> viewport_sequence_ {0};
   atomic_viewport viewport_;
   std::atomic<bool> wheel_capture_ {false};
+  std::atomic<bool> overlay_wheel_capture_ {false};
   std::atomic<std::uint64_t> zoom_factor_bits_ {0};
   actor_command_transport effects_;
   std::uint64_t next_effect_id_;

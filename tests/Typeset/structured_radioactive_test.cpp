@@ -50,6 +50,36 @@ static int link_count (box b, const string& destination) {
 class StructuredRadioactiveTest: public QObject {
   Q_OBJECT
 private slots:
+  void disambiguationTableFitsPreviewWidth () {
+    AthenaArtifactRecord record;
+    record.uuid= "preview-width";
+    record.display_text= "Algebraic Independence";
+    record.type= "definition";
+    record.relative_path= "Notes Root/Sources/Lecture Notes/Algebraic Geometry/AG Lecture Notes II.ath";
+    tree document= athena_artifact_disambiguation_document (
+      std::vector<AthenaArtifactRecord> {record}, "");
+    tree body= extract (document, "body");
+    QVERIFY (is_compound (body[3], "tabular", 1));
+    for (SI width: {320*PIXEL, 540*PIXEL}) {
+      drd_info drd ("preview-table", std_drd);
+      hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
+      hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
+      edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+      env->write_default_env ();
+      env->write (PAR_WIDTH, as_string (width) * "tmpt");
+      env->write (PAR_LEFT, "0tmpt");
+      env->write (PAR_RIGHT, "0tmpt");
+      env->update ();
+      lazy content= make_lazy (env, tree (DOCUMENT, body[3][0]), path ());
+      lazy lines= content->produce (LAZY_VSTREAM,
+                                   make_format_vstream (width, 0, 0));
+      box rendered= (box) lines->produce (LAZY_BOX, make_format_none ());
+      QVERIFY (!is_nil (rendered));
+      QVERIFY2 (rendered->w () <= width+PIXEL,
+                as_charp (as_string (rendered->w ())));
+    }
+  }
+
   void editableLocusRetainsHitTarget () {
     tree text ("Editable link");
     attach_ip (text, path (0));

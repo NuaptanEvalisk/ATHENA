@@ -75,6 +75,7 @@ public:
   virtual void handle_mouse (string kind, SI x, SI y, int mods, time_t t,
                              array<double> data= array<double> ());
   virtual bool handle_wheel_capture ();
+  virtual bool handle_overlay_wheel_capture () { return false; }
   virtual double handle_get_zoom_factor ();
   virtual void handle_zoom_by (bool zoom_in, double amount);
   virtual void handle_change_zoom_factor (double zoom);

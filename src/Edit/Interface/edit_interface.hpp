@@ -121,6 +121,7 @@ protected:
     url source;
     box content;
     rectangle bounds;
+    SI scroll_y= 0;
   };
   std::vector<link_peek_layer> link_peeks;
   bool          link_peek_pressed= false;
@@ -154,7 +155,8 @@ public:
   bool dismiss_link_peek ();
   int link_peek_at (SI x, SI y, SI margin= 0);
   string link_peek_hit (int layer, SI x, SI y);
-  bool mouse_link_peek (string type, SI x, SI y, int modifiers);
+  bool mouse_link_peek (string type, SI x, SI y, int modifiers,
+                        array<double> data);
   void update_link_peek (SI x, SI y, int modifiers);
   void draw_link_peek (renderer ren);
   edit_interface_rep ();

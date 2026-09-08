@@ -175,6 +175,11 @@ qt_actor_widget_rep::handle_wheel_capture () {
   return endpoint_ != nullptr && endpoint_->wheel_capture ();
 }
 
+bool
+qt_actor_widget_rep::handle_overlay_wheel_capture () {
+  return endpoint_ != nullptr && endpoint_->overlay_wheel_capture ();
+}
+
 double
 qt_actor_widget_rep::handle_get_zoom_factor () {
   return endpoint_ == nullptr ? 1.0 : endpoint_->zoom_factor ();

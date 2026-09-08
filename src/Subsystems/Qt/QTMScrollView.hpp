@@ -67,6 +67,7 @@ public:
   QPoint contentsToViewport (QPoint const& pos) const { return pos - p_origin; }
   
 protected:
+  virtual void applyScrollDelta (int dx, int dy);
   
   void updateScrollBars();
   void scrollContentsBy (int dx, int dy);

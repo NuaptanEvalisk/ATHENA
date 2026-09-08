@@ -184,7 +184,13 @@ actor_ui_endpoint::set_wheel_capture (bool capture) noexcept {
 
 bool
 actor_ui_endpoint::wheel_capture () const noexcept {
-  return wheel_capture_.load (std::memory_order_acquire);
+  return wheel_capture_.load (std::memory_order_acquire) ||
+         overlay_wheel_capture_.load (std::memory_order_acquire);
+}
+
+void
+actor_ui_endpoint::set_overlay_wheel_capture (bool capture) noexcept {
+  overlay_wheel_capture_.store (capture, std::memory_order_release);
 }
 
 void

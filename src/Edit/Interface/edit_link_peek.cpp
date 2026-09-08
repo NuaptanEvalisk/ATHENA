@@ -12,11 +12,14 @@
 #include "drd_std.hpp"
 #include "formatter.hpp"
 #include "Format/format.hpp"
+#include "actor_ui_bridge.hpp"
+#include <cmath>
 #include <QUrl>
 
 void edit_interface_rep::clear_link_peek () {
   if (link_peeks.empty ()) return;
   link_peeks.clear ();
+  if (ui_endpoint) ui_endpoint->set_overlay_wheel_capture (false);
   link_peek_pressed_target= "";
   invalidate_all ();
 }
@@ -24,6 +27,8 @@ void edit_interface_rep::clear_link_peek () {
 bool edit_interface_rep::dismiss_link_peek () {
   if (link_peeks.empty ()) return false;
   link_peeks.pop_back ();
+  if (ui_endpoint && link_peeks.empty ())
+    ui_endpoint->set_overlay_wheel_capture (false);
   link_peek_pressed_target= "";
   invalidate_all ();
   return true;
@@ -51,7 +56,7 @@ string edit_interface_rep::link_peek_hit (int layer, SI x, SI y) {
         y < r->y1+pad || y >= r->y2-pad) return "";
     hit= peek.content->message ("link-target",
       x-r->x1-pad+peek.content->x1,
-      y-r->y2+pad+peek.content->y2, ignored);
+      y-r->y2+pad+peek.content->y2-peek.scroll_y, ignored);
   }
   if (!is_tuple (hit, "link-target", 1) || !is_atomic (hit[1])) return "";
   string target= hit[1]->label;
@@ -66,7 +71,8 @@ string edit_interface_rep::link_peek_hit (int layer, SI x, SI y) {
   return target;
 }
 
-bool edit_interface_rep::mouse_link_peek (string type, SI x, SI y, int modifiers) {
+bool edit_interface_rep::mouse_link_peek (string type, SI x, SI y, int modifiers,
+                                         array<double> data) {
   if (type == "move" && !(modifiers & 1)) {
     link_peek_pressed= false;
     link_peek_pressed_target= "";
@@ -80,6 +86,18 @@ bool edit_interface_rep::mouse_link_peek (string type, SI x, SI y, int modifiers
     update_link_peek (x, y, modifiers);
   int layer= link_peek_at (x, y);
   bool inside= link_peek_at (x, y, 24*pixel) >= 0;
+  if (ui_endpoint) ui_endpoint->set_overlay_wheel_capture (inside);
+  if (type == "wheel" && layer >= 0 && N(data) == 2) {
+    auto& peek= link_peeks[layer];
+    SI visible= peek.bounds->y2-peek.bounds->y1-20*pixel;
+    SI limit= max (0, peek.content->h ()-visible);
+    double offset= peek.scroll_y + data[1]/magf;
+    if (std::isfinite (offset))
+      peek.scroll_y= (SI) std::max (0.0, std::min ((double) limit, offset));
+    link_peek_pressed_target= "";
+    invalidate_all ();
+    return true;
+  }
   string target= layer < 0 ? string ("") : link_peek_hit (layer, x, y);
   if (type == "press-left" && inside) {
     link_peek_pressed= true;
@@ -185,8 +203,18 @@ void edit_interface_rep::draw_link_peek (renderer ren) {
     ren->clip (r->x1+pad, r->y1+pad, r->x2-pad, r->y2-pad);
     rectangles painted;
     peek.content->redraw (ren, path (), painted,
-      r->x1+pad-peek.content->x1, r->y2-pad-peek.content->y2);
+      r->x1+pad-peek.content->x1,
+      r->y2-pad-peek.content->y2+peek.scroll_y);
     ren->unclip ();
+    SI visible= r->y2-r->y1-2*pad;
+    if (peek.content->h () > visible) {
+      SI thumb= max (8*pixel,
+        (SI) ((double) visible*visible/peek.content->h ()));
+      SI top= r->y2-pad-(SI) ((double) peek.scroll_y*(visible-thumb)/
+                            (peek.content->h ()-visible));
+      ren->set_pencil (pencil (rgb_color (100, 110, 120), 3*pixel));
+      ren->line (r->x2-pad/2, top, r->x2-pad/2, top-thumb);
+    }
   }
   ren->set_background (background);
   ren->set_pencil (pen);

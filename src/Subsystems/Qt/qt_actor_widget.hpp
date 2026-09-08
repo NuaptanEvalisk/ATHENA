@@ -38,6 +38,7 @@ public:
   void handle_mouse (string kind, SI x, SI y, int modifiers, time_t time,
                      array<double> data) override;
   bool handle_wheel_capture () override;
+  bool handle_overlay_wheel_capture () override;
   double handle_get_zoom_factor () override;
   void handle_zoom_by (bool zoom_in, double amount) override;
   void handle_change_zoom_factor (double zoom) override;

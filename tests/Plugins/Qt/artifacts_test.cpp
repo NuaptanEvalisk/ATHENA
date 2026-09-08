@@ -994,7 +994,8 @@ TestArtifacts::storesAndDisambiguatesSameNamedArtifacts () {
   QVERIFY (serialized.find ("<itemize|") == std::string::npos);
   QVERIFY (serialized.find ("page-medium|automatic") != std::string::npos);
   QVERIFY (serialized.find ("table-hmode|exact") != std::string::npos);
-  QVERIFY (serialized.find ("cell-width|16em") != std::string::npos);
+  QVERIFY (serialized.find ("cell-width|0.4par") != std::string::npos);
+  QVERIFY (serialized.find ("cell-width|0.2par") != std::string::npos);
   QVERIFY2 (serialized.find (
               "<associate|athena-radioactive-links-suppressed|true>") !=
             std::string::npos, serialized.c_str ());

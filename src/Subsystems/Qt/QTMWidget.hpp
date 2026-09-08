@@ -45,6 +45,11 @@ class QTMWidget: public QTMScrollView {
   QLabel*      imwidget;
   QPoint       cursor_pos;
   bool         preediting;
+  bool         inertiaOverlay= false;
+  QPoint       inertiaOverlayPosition;
+  unsigned int inertiaOverlayModifiers= 0;
+  void scrollWheel (QWheelEvent* event, bool overlay);
+  void applyScrollDelta (int dx, int dy) override;
 
 public:
 

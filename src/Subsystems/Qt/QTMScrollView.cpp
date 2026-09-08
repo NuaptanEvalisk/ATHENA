@@ -106,10 +106,7 @@ QTMScrollView::QTMScrollView (QWidget *_parent):
     }
     int dx= qRound (mInertiaVelocityX);
     int dy= qRound (mInertiaVelocityY);
-    if (dx != 0)
-      horizontalScrollBar ()->setValue (horizontalScrollBar ()->value () - dx);
-    if (dy != 0)
-      verticalScrollBar ()->setValue (verticalScrollBar ()->value () - dy);
+    applyScrollDelta (dx, dy);
     mInertiaVelocityX *= mInertiaFriction;
     mInertiaVelocityY *= mInertiaFriction;
   });
@@ -133,7 +130,15 @@ QTMScrollView::QTMScrollView (QWidget *_parent):
   QScroller::scroller(this)->setScrollerProperties(properties);
 }
 
-void 
+void
+QTMScrollView::applyScrollDelta (int dx, int dy) {
+  if (dx != 0)
+    horizontalScrollBar ()->setValue (horizontalScrollBar ()->value () - dx);
+  if (dy != 0)
+    verticalScrollBar ()->setValue (verticalScrollBar ()->value () - dy);
+}
+
+void
 QTMScrollView::setOrigin ( QPoint newOrigin ) {
   scoped_internal_scroll_change guard (p_internal_scroll_change);
   if (newOrigin.x() != p_origin.x())

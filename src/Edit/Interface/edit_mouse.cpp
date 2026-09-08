@@ -1168,7 +1168,7 @@ edit_interface_rep::handle_mouse (string kind, SI x, SI y, int m, time_t t,
   x= ((SI) (x / magf));
   y= ((SI) (y / magf));
   // Consume overlay input before document drag and double-click recognition.
-  if (mouse_link_peek (kind, x, y, m)) {
+  if (mouse_link_peek (kind, x, y, m, data)) {
     end_editing ();
     return;
   }

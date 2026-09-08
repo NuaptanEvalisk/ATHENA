@@ -119,11 +119,12 @@ tree artifact_disambiguation_table (
          << cell_property ("1", "-1", "1", "-1", "cell-rsep", "0.6em")
          << cell_property ("1", "-1", "1", "-1", "cell-tsep", "0.35em")
          << cell_property ("1", "-1", "1", "-1", "cell-bsep", "0.35em")
-         << cell_property ("1", "-1", "1", "1", "cell-width", "16em")
+         << cell_property ("1", "-1", "1", "1", "cell-width", "0.4par")
          << cell_property ("1", "-1", "1", "1", "cell-hmode", "exact")
-         << cell_property ("1", "-1", "2", "2", "cell-width", "8em")
+         << cell_property ("1", "-1", "2", "2", "cell-width", "0.2par")
          << cell_property ("1", "-1", "2", "2", "cell-hmode", "exact")
-         << cell_property ("1", "-1", "3", "3", "cell-hpart", "1")
+         << cell_property ("1", "-1", "3", "3", "cell-width", "0.4par")
+         << cell_property ("1", "-1", "3", "3", "cell-hmode", "exact")
          << table;
   return compound ("tabular", format);
 }

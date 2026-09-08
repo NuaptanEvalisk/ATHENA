@@ -1610,12 +1610,15 @@ wheel_state (QWheelEvent* event) {
 void
 QTMWidget::wheelEvent(QWheelEvent *event) {
   if (is_nil (tmwid)) return; 
-  if (handleNeighborhoodWheelSwipe (event)) return;
   qt_simple_widget_rep* widget= tm_widget ();
-  if (widget != nullptr && widget->handle_wheel_capture ()) {
+  if (widget != nullptr && widget->handle_overlay_wheel_capture ()) {
+    scrollWheel (event, true);
+  }
+  else if (widget != nullptr && widget->handle_wheel_capture ()) {
     QPointF pos  = event->position();
     QPoint  point= QPointF (pos.x(), pos.y()).toPoint () + origin();
     QPoint  wheel= event->pixelDelta();
+    if (wheel.isNull ()) wheel= event->angleDelta () / 3;
     coord2 pt = from_qpoint (point);
     coord2 wh = from_qpoint (wheel);
     unsigned int mstate= wheel_state (event);
@@ -1623,6 +1626,7 @@ QTMWidget::wheelEvent(QWheelEvent *event) {
     the_gui -> process_mouse (tm_widget(), "wheel", pt.x1, pt.x2,
                               mstate, texmacs_time (), data);
   }
+  else if (handleNeighborhoodWheelSwipe (event)) return;
   else if (QApplication::keyboardModifiers() == Qt::ControlModifier) {
     QPoint numPixels = event->pixelDelta();
     QPoint numDegrees = event->angleDelta() / 8;
@@ -1649,6 +1653,40 @@ QTMWidget::wheelEvent(QWheelEvent *event) {
   }
   else {
     notifyUserScroll ();
+    scrollWheel (event, false);
+  }
+}
+
+void QTMWidget::applyScrollDelta (int dx, int dy) {
+  qt_simple_widget_rep* widget= is_nil (tmwid) ? nullptr : tm_widget ();
+  bool capture= widget != nullptr && widget->handle_overlay_wheel_capture ();
+  if (capture != inertiaOverlay || widget == nullptr) {
+    mInertiaTimer->stop ();
+    mInertiaVelocityX= mInertiaVelocityY= 0;
+    return;
+  }
+  if (!inertiaOverlay) {
+    QTMScrollView::applyScrollDelta (dx, dy);
+    return;
+  }
+  coord2 pt= from_qpoint (inertiaOverlayPosition);
+  coord2 delta= from_qpoint (QPoint (dx, dy));
+  array<double> data;
+  data << (double) delta.x1 << (double) delta.x2;
+  the_gui->process_mouse (widget, "wheel", pt.x1, pt.x2,
+                          inertiaOverlayModifiers, texmacs_time (), data);
+}
+
+void QTMWidget::scrollWheel (QWheelEvent* event, bool overlay) {
+    if (inertiaOverlay != overlay) {
+      mInertiaTimer->stop ();
+      mInertiaVelocityX= mInertiaVelocityY= 0;
+    }
+    inertiaOverlay= overlay;
+    if (overlay) {
+      inertiaOverlayPosition= event->position ().toPoint () + origin ();
+      inertiaOverlayModifiers= wheel_state (event);
+    }
     if (get_user_preference("inertial scrolling") == "on") {
       QPoint numPixels = event->pixelDelta();
       QPoint numDegrees = event->angleDelta() / 8;
@@ -1666,15 +1704,19 @@ QTMWidget::wheelEvent(QWheelEvent *event) {
       mInertiaVelocityY += dy * 0.15 * sensitivity;
       if (!mInertiaTimer->isActive()) mInertiaTimer->start(16);
       
-      QScrollBar *hBar = horizontalScrollBar();
-      QScrollBar *vBar = verticalScrollBar();
-      hBar->setValue(hBar->value() - qRound(dx));
-      vBar->setValue(vBar->value() - qRound(dy));
+      applyScrollDelta (qRound (dx), qRound (dy));
       event->accept();
     } else {
-      QAbstractScrollArea::wheelEvent (event);
+      mInertiaTimer->stop ();
+      mInertiaVelocityX= mInertiaVelocityY= 0;
+      if (overlay) {
+        QPoint delta= event->pixelDelta ();
+        if (delta.isNull ()) delta= event->angleDelta () / 3;
+        applyScrollDelta (delta.x (), delta.y ());
+        event->accept ();
+      }
+      else QAbstractScrollArea::wheelEvent (event);
     }
-  }
 }
 
 void QTMWidget::showEvent (QShowEvent *event) {
