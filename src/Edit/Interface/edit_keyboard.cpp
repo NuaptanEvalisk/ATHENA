@@ -299,6 +299,7 @@ void
 edit_interface_rep::handle_keypress (string key, time_t t) {
   if (buf == nullptr) return;
   if (t > last_event) last_event= t;
+  if ((key == "escape" || key == "S-escape") && dismiss_link_peek ()) return;
   bool started= false;
 #ifdef USE_EXCEPTIONS
   try {

@@ -19,6 +19,8 @@
 #include "typesetter.hpp"
 #include "convert.hpp"
 #include "link.hpp"
+#include "formatter.hpp"
+#include "Format/format.hpp"
 #include "ATHENA/Data/artifacts.hpp"
 #include "ATHENA/Data/artifact_document.hpp"
 #include "ATHENA/Data/link_peek.hpp"
@@ -33,7 +35,8 @@ bool is_headless () { return true; }
 static int link_count (box b, const string& destination) {
   int result= 0;
   tree description= (tree) b;
-  if (is_tuple (description) && N(description) > 0 && description[0] == "direct-link") {
+  if (is_tuple (description) && N(description) > 0 &&
+      (description[0] == "direct-link" || description[0] == "locus")) {
     rectangles regions;
     tree action= b->message ("select", (b->x1+b->x2)/2, (b->y1+b->y2)/2, regions);
     tree peek= b->message ("link-target", (b->x1+b->x2)/2, (b->y1+b->y2)/2, regions);
@@ -98,8 +101,37 @@ private slots:
              extract (preview, "body"));
     QVERIFY (athena_link_peek_target ("tmfs://wikilink/target/file/anchor"));
     QVERIFY (athena_link_peek_target ("tmfs://artifact-disambiguation/key"));
+    QVERIFY (athena_link_peek_target ("tmfs://artifact/uuid"));
     QVERIFY (!athena_link_peek_target ("https://example.com"));
     QVERIFY (!athena_link_peek_target ("tmfs://unknown/key"));
+  }
+  void detachedLazyLocusRetainsTarget () {
+    drd_info drd ("detached-locus", std_drd);
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
+    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
+    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    env->write_default_env ();
+    env->read_only= true;
+    env->update ();
+    QVERIFY (is_nil (env->link_env));
+    string target= "tmfs://wikilink/detached";
+    tree vertex= compound ("url", target);
+    int registered= N(get_links (vertex));
+    tree text= "A link spanning several words and more than one preview line";
+    tree locus (LOCUS, compound ("id", "detached-test"),
+      tree (LINK, "hyperlink", compound ("id", "detached-test"), vertex), text);
+    auto render= [&] (tree body) -> box {
+      lazy content= make_lazy (env, tree (DOCUMENT, body), path ());
+      lazy lines= content->produce (LAZY_VSTREAM,
+                                    make_format_vstream (env->as_length ("12em"), 0, 0));
+      return (box) lines->produce (LAZY_BOX, make_format_none ());
+    };
+    box linked= render (locus), plain= render (text);
+    QCOMPARE (linked->w (), plain->w ());
+    QCOMPARE (linked->h (), plain->h ());
+    QVERIFY (link_count (linked, target) >= 2);
+    QCOMPARE (N(get_links (vertex)), registered);
+    QVERIFY (is_nil (env->link_env));
   }
   void resolvesFullAndIncludedNames () {
     auto record= [] (const char* id, std::vector<std::string> names) {
@@ -205,6 +237,11 @@ private slots:
     QCOMPARE (extract (wikipeek, "body"), tree (DOCUMENT, compound ("marked", body[0])));
     QCOMPARE (peek_source, url_system ((root / "name.ath").string ().c_str ()));
     QVERIFY (is_document (athena_link_peek_document (destination, peek_source)));
+    tree artifactpeek= athena_link_peek_document (
+      "tmfs://artifact/" * string (records[0].uuid.c_str ()), peek_source);
+    QCOMPARE (extract (artifactpeek, "body"),
+              tree (DOCUMENT, compound ("marked", body[0])));
+    QCOMPARE (peek_source, url_system ((root / "name.ath").string ().c_str ()));
     AthenaArtifactNameResolution resolved;
     QVERIFY (athena_artifact_resolve_name_key (athena_artifact_radioactive_key (records[0]), resolved));
     QCOMPARE (resolved.exact.size (), size_t (1));

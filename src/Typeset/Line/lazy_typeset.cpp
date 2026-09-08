@@ -654,20 +654,51 @@ make_lazy_expand_as (edit_env env, tree t, path ip) {
 * Locus
 ******************************************************************************/
 
+struct lazy_locus_rep: public lazy_surround_rep {
+  list<string> ids;
+  string ref, anchor;
+  SI pixel;
+
+  lazy_locus_rep (array<line_item> a, array<line_item> b, lazy par, path ip,
+                  list<string> ids2, string ref2, string anchor2, SI pixel2):
+    lazy_surround_rep (a, b, par, ip), ids (ids2), ref (ref2),
+    anchor (anchor2), pixel (pixel2) {}
+
+  lazy produce (lazy_type request, format fm) override {
+    lazy result= lazy_surround_rep::produce (request, fm);
+    if (request != LAZY_VSTREAM) return result;
+    lazy_vstream stream= (lazy_vstream) result;
+    array<page_item> lines (N(stream->l));
+    for (int i=0; i<N(lines); ++i) {
+      lines[i]= copy (stream->l[i]);
+      if (lines[i]->type == PAGE_LINE_ITEM || lines[i]->type == PAGE_HIDDEN_ITEM)
+        lines[i]->b= locus_box (lines[i]->b->ip, lines[i]->b, ids,
+                               pixel, ref, anchor);
+    }
+    return lazy_vstream (ip, stream->channel, lines, stream->sb);
+  }
+};
+
 lazy
 make_lazy_locus (edit_env env, tree t, path ip) {
-  extern bool build_locus (edit_env env, tree t, list<string>& ids, string& c);
+  extern bool build_locus (edit_env env, tree t, list<string>& ids, string& c,
+                          string& ref, string& anchor);
   list<string> ids;
-  string col;
-  if (!build_locus (env, t, ids, col) && N(ids) == 0)
+  string col, ref, anchor;
+  if (!build_locus (env, t, ids, col, ref, anchor) &&
+      N(ids) == 0 && ref == "" && anchor == "")
     typeset_warning << "Ignored unaccessible loci\n";
   int last= N(t)-1;
   tree old_col= env->read (COLOR);
   env->write_update (COLOR, col);
   array<line_item> a= typeset_marker (env, descend (ip, 0));
   array<line_item> b= typeset_marker (env, descend (ip, 1));
+  tree old_scope= env->local_begin ("athena-inside-locus", "true");
   lazy par= make_lazy (env, t[last], descend (ip, last));
+  env->local_end ("athena-inside-locus", old_scope);
   env->write_update (COLOR, old_col);
+  if (!is_nil (ids) || ref != "" || anchor != "")
+    return tm_new<lazy_locus_rep> (a, b, par, ip, ids, ref, anchor, env->pixel);
   return lazy_surround (a, b, par, ip);
 }
 

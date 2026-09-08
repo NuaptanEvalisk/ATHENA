@@ -15,7 +15,7 @@ import subprocess
 import tempfile
 import time
 
-from PIL import Image
+from PIL import Image, ImageChops
 
 ROOT = Path(__file__).resolve().parents[2]
 parser = argparse.ArgumentParser(description=__doc__)
@@ -57,11 +57,25 @@ try:
 <style|generic>
 
 <\\body>
-  <label|peek-start><strong|A preview with mathematics>
+  <label|peek-start><hlink|Nested preview|tmfs://wikilink/peek-child>
 
   A sigma field <math|<with|font|cal|E>=2<rsup|E>> retains its mathematical font.
 
   This is the target, not the source buffer.<label|peek-end>
+</body>
+
+<\\initial>
+  <\\collection>
+    <associate|font|TeX Gyre Pagella>
+  </collection>
+</initial>
+''')
+    (vault / 'leaf.ath').write_text('''<TeXmacs|2.1.4>
+
+<style|generic>
+
+<\\body>
+  Nested preview content.
 </body>
 
 <\\initial>
@@ -75,7 +89,8 @@ try:
       (set-preference "vault preferred font" "TeX Gyre Pagella")
       (exec-global (lambda ()
         (vault-load (system->url VAULT) "Peek test" "vault.sqlite")
-        (vault-set-node "peek-node" "target.ath" "peek-start" "peek-end")))
+        (vault-set-node "peek-node" "target.ath" "peek-start" "peek-end")
+        (vault-set-node "peek-child" "leaf.ath" "" "")))
       (init-style "generic")
       (buffer-set-body (current-buffer)
         (stree->tree '(document
@@ -116,6 +131,21 @@ try:
                 assert time.monotonic() < deadline, f'{name}: overlay visible={not visible}'
                 time.sleep(.2)
 
+        def overlay_bounds(name):
+            with Image.open(home / (name + '.png')) as image:
+                channels = image.convert('RGB').split()
+                masks = [channel.point(lambda value, expected=color:
+                                       255 if value == expected else 0)
+                         for channel, color in zip(channels, (248, 250, 252))]
+                return ImageChops.multiply(ImageChops.multiply(masks[0], masks[1]),
+                                           masks[2]).getbbox()
+
+        def same_preview(first, second, bounds):
+            with Image.open(home / (first + '.png')) as a, \
+                 Image.open(home / (second + '.png')) as b:
+                return ImageChops.difference(a.convert('RGB').crop(bounds),
+                                            b.convert('RGB').crop(bounds)).getbbox() is None
+
         time.sleep(3)
         windows = xdo('search', '--onlyvisible', '--pid', str(app.pid)).splitlines()
         xdo('windowfocus', '--sync', windows[0])
@@ -125,15 +155,56 @@ try:
         expect_overlay('before', False)
         xdo('keydown', 'Shift_L')
         expect_overlay('wikilink', True)
+        bounds = overlay_bounds('wikilink')
         xdo('keyup', 'Shift_L')
+        time.sleep(.3)
+        expect_overlay('released', True)
+        # Keep the pointer in the small halo, then enter the parent link.
+        xdo('mousemove', str(bounds[0] - 12), str(bounds[1] + 20))
+        time.sleep(.3)
+        expect_overlay('halo', True)
+        link = (str(bounds[0] + 30), str(bounds[1] + 16))
+        xdo('mousemove', *link)
+        xdo('keydown', 'Shift_L')
+        deadline = time.monotonic() + 20
+        while True:
+            expect_overlay('nested', True)
+            if not same_preview('wikilink', 'nested', bounds):
+                break
+            assert time.monotonic() < deadline, 'Nested preview did not open'
+            time.sleep(.2)
+        xdo('keyup', 'Shift_L')
+        xdo('mousemove', str(bounds[0] + 3), str(bounds[1] + 3))
+        time.sleep(.3)
+        expect_overlay('nested-held', True)
+        assert same_preview('nested', 'nested-held', bounds), 'Ancestor hover closed child'
+        xdo('key', 'Escape')
+        time.sleep(.3)
+        expect_overlay('parent', True)
+        assert same_preview('wikilink', 'parent', bounds), 'Escape did not restore parent'
+        xdo('key', 'Escape')
         expect_overlay('dismissed', False)
+        assert xdo('search', '--onlyvisible', '--pid', str(app.pid)).splitlines() == windows, \
+            'Escape opened another window instead of only dismissing the peek'
         xdo('mousemove', '290', '360')
         xdo('keydown', 'Shift_L')
         expect_overlay('radioactive', True)
         xdo('mousemove', '1100', '750')
         expect_overlay('left', False)
         xdo('keyup', 'Shift_L')
-        print('PASS: Wikilink and native radioactive peeks; Shift release and mouse leave.')
+        xdo('mousemove', '280', '329', 'keydown', 'Shift_L')
+        expect_overlay('click-source', True)
+        xdo('keyup', 'Shift_L', 'mousemove', *link, 'click', '1')
+        deadline = time.monotonic() + 20
+        while True:
+            assert app.poll() is None, f'ATHENA exited {app.returncode}'
+            titles = [xdo('getwindowname', window) for window in
+                      xdo('search', '--onlyvisible', '--pid', str(app.pid)).splitlines()]
+            if any('leaf.ath' in title for title in titles):
+                break
+            assert time.monotonic() < deadline, f'Overlay link did not navigate: {titles}'
+            time.sleep(.2)
+        print('PASS: persistent peeks, halo, nested overlays, Escape priority, leave and link click.')
 finally:
     for process in [app, xvfb]:
         if process is not None and process.poll() is None:

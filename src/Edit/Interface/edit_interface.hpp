@@ -16,6 +16,7 @@
 #include "pointer_shake_detector.hpp"
 #include "tm_timer.hpp"
 #include "widget.hpp"
+#include <vector>
 
 #define INPUT_NORMAL      0
 #define INPUT_SEARCH      1
@@ -106,9 +107,15 @@ protected:
   std::uint64_t completion_session= 0;
   path          completion_cursor;
   string        completion_original;
-  string        link_peek_target;
-  box           link_peek_box;
-  rectangle     link_peek_rect;
+  struct link_peek_layer {
+    string target;
+    url source;
+    box content;
+    rectangle bounds;
+  };
+  std::vector<link_peek_layer> link_peeks;
+  bool          link_peek_pressed= false;
+  string        link_peek_pressed_target;
   renderer      shadow;
   SI            vx1, vy1, vx2, vy2;
   rectangles    stored_rects;
@@ -134,6 +141,10 @@ protected:
 
 public:
   void clear_link_peek ();
+  bool dismiss_link_peek ();
+  int link_peek_at (SI x, SI y, SI margin= 0);
+  string link_peek_hit (int layer, SI x, SI y);
+  bool mouse_link_peek (string type, SI x, SI y, int modifiers);
   void update_link_peek (SI x, SI y, int modifiers);
   void draw_link_peek (renderer ren);
   edit_interface_rep ();

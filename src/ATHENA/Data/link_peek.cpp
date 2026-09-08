@@ -30,12 +30,27 @@ tree unavailable (string message) {
   return tree (DOCUMENT, compound ("style", tuple ("generic")),
                compound ("body", tree (DOCUMENT, message)));
 }
+tree with_preview_body (tree document, tree preview, path focus) {
+  tree body= extract (document, "body");
+  tree result= copy (document);
+  if (is_document (body) && N(body) &&
+      is_compound (body[0], "hide-preamble") &&
+      !is_nil (focus) && focus->item != 0) {
+    tree with_preamble (DOCUMENT, copy (body[0]));
+    with_preamble << A(preview);
+    preview= with_preamble;
+  }
+  for (int i=0; i<N(result); ++i)
+    if (is_compound (result[i], "body", 1)) result[i][0]= preview;
+  return result;
+}
 }
 
 bool athena_link_peek_target (string target) {
   QUrl parsed= parsed_target (target);
   return parsed.scheme () == "tmfs" &&
-    (parsed.host () == "wikilink" || parsed.host () == "artifact-disambiguation");
+    (parsed.host () == "wikilink" || parsed.host () == "artifact-disambiguation" ||
+     parsed.host () == "artifact");
 }
 
 tree athena_link_peek_range (tree document, string begin, string end) {
@@ -69,17 +84,7 @@ tree athena_link_peek_range (tree document, string begin, string end) {
       return unavailable ("Preview unavailable: source anchors were not found.");
     preview= build_preview_from_anchor_range (body, first, last);
   }
-  tree result= copy (document);
-  // A source preamble may define macros used inside the selected range.
-  if (is_document (body) && N(body) &&
-      is_compound (body[0], "hide-preamble") && first->item != 0) {
-    tree with_preamble (DOCUMENT, copy (body[0]));
-    with_preamble << A(preview);
-    preview= with_preamble;
-  }
-  for (int i=0; i<N(result); ++i)
-    if (is_compound (result[i], "body", 1)) result[i][0]= preview;
-  return result;
+  return with_preview_body (document, preview, first);
 }
 
 tree athena_link_peek_document (string target, url& source) {
@@ -101,8 +106,15 @@ tree athena_link_peek_document (string target, url& source) {
   AthenaVaultMapNode node;
   std::string error;
   bool found= false;
-  if (!map.open_read_only (fs::path (bytes (concretize (vault.db_url))), error) ||
-      !map.get_node (bytes (native (key)), node, found, error) || !found)
+  AthenaArtifactRecord artifact;
+  bool artifact_target= parsed.host () == "artifact";
+  if (artifact_target) {
+    if (!athena_artifact_radioactive_record (bytes (native (key)), artifact))
+      return unavailable ("Preview unavailable: artifact was not found.");
+    node.path= artifact.relative_path;
+  }
+  else if (!map.open_read_only (fs::path (bytes (concretize (vault.db_url))), error) ||
+           !map.get_node (bytes (native (key)), node, found, error) || !found)
     return unavailable ("Preview unavailable: link target was not found.");
   fs::path relative= fs::path (node.path).lexically_normal ();
   if (relative.empty () || relative.is_absolute () || *relative.begin () == "..")
@@ -115,6 +127,13 @@ tree athena_link_peek_document (string target, url& source) {
   // registers links globally, neither of which belongs to a hover operation.
   tree document= texmacs_document_to_tree (serialized);
   if (!is_document (document)) return unavailable ("Preview unavailable: cannot read source.");
+  if (artifact_target) {
+    path focus;
+    if (!athena_artifact_locate_source (document, artifact, focus, error))
+      return unavailable ("Preview unavailable: artifact source has changed.");
+    return with_preview_body (document,
+      build_preview_from_body (extract (document, "body"), focus), focus);
+  }
   return athena_link_peek_range (document, string (node.anchor_begin.c_str ()),
                                string (node.anchor_end.c_str ()));
 }

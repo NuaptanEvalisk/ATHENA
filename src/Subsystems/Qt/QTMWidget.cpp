@@ -1308,7 +1308,7 @@ QTMWidget::gestureEvent (QGestureEvent* event) {
 bool
 QTMWidget::event (QEvent* event) {
   if (event->type () == QEvent::Leave && !is_nil (tmwid))
-    the_gui->process_mouse (tm_widget (), "peek-modifier", 0, 0, 0, texmacs_time ());
+    the_gui->process_mouse (tm_widget (), "peek-leave", 0, 0, 0, texmacs_time ());
   if ((event->type () == QEvent::KeyPress || event->type () == QEvent::KeyRelease) &&
       static_cast<QKeyEvent*> (event)->key () == Qt::Key_Shift && !is_nil (tmwid)) {
     QPoint local= surface ()->mapFromGlobal (QCursor::pos ());
