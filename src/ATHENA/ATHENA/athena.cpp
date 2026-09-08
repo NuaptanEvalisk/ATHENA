@@ -1759,6 +1759,12 @@ athena_restart_after_startup_refresh (int argc, char** argv,
   (void) argc; (void) argv; (void) reason;
 #else
   cout << "ATHENA] startup refresh: restarting after " << reason << LF;
+  auto watchdog_restart= athena_watchdog_request_restart ();
+  if (watchdog_restart == AthenaWatchdogRestartResult::Requested) _exit (0);
+  if (watchdog_restart == AthenaWatchdogRestartResult::Failed) {
+    cerr << "ATHENA] startup refresh: watchdog restart request failed" << LF;
+    return;
+  }
   char** exec_argv= tm_new_array<char*> (argc + 1);
   for (int i=0; i<argc; i++) exec_argv[i]= argv[i];
   exec_argv[argc]= NULL;

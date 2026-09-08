@@ -4,6 +4,9 @@ list (FILTER TEST_SRC_FILES EXCLUDE REGEX "/watchdog/watchdog_fake_child\\.cpp$"
 
 if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
   add_executable (watchdog_fake_child watchdog/watchdog_fake_child.cpp)
+  target_sources (watchdog_fake_child PRIVATE
+    ${ATHENA_SOURCE_DIR}/src/ATHENA/Watchdog/watchdog_client.cpp)
+  target_link_libraries (watchdog_fake_child PRIVATE Qt6::Core)
   target_include_directories (watchdog_fake_child PRIVATE ${ATHENA_SOURCE_DIR}/src)
   add_test (NAME watchdog_supervisor_test
     COMMAND ${Python3_EXECUTABLE}

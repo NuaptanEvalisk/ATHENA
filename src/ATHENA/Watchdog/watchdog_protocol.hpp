@@ -12,6 +12,7 @@ enum class PacketType: std::uint16_t {
   Ready= 1,
   Heartbeat= 2,
   Shutdown= 3,
+  Restart= 4,
 };
 
 enum class Phase: std::uint32_t {

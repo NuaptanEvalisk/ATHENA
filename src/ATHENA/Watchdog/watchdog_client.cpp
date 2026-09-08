@@ -19,6 +19,7 @@
 namespace {
 
 int watchdog_fd= -1;
+bool watchdog_configured= false;
 std::uint64_t watchdog_sequence= 0;
 QTimer* heartbeat_timer= nullptr;
 
@@ -30,10 +31,10 @@ monotonic_ns () noexcept {
          static_cast<std::uint64_t> (now.tv_nsec);
 }
 
-void
+bool
 send_packet (athena_watchdog::PacketType type,
              athena_watchdog::Phase phase) noexcept {
-  if (watchdog_fd < 0) return;
+  if (watchdog_fd < 0) return false;
   athena_watchdog::Packet packet;
   packet.type= static_cast<std::uint16_t> (type);
   packet.phase= static_cast<std::uint32_t> (phase);
@@ -41,12 +42,13 @@ send_packet (athena_watchdog::PacketType type,
   packet.monotonic_ns= monotonic_ns ();
   ssize_t written= send (watchdog_fd, &packet, sizeof (packet),
                           MSG_DONTWAIT | MSG_NOSIGNAL);
-  if (written == static_cast<ssize_t> (sizeof (packet))) return;
+  if (written == static_cast<ssize_t> (sizeof (packet))) return true;
   if (written < 0 && (errno == EAGAIN || errno == EWOULDBLOCK ||
                       errno == EINTR))
-    return;
+    return false;
   close (watchdog_fd);
   watchdog_fd= -1;
+  return false;
 }
 
 bool
@@ -83,6 +85,7 @@ athena_watchdog_configure_from_argv (int& argc, char** argv) noexcept {
   argc= out;
   argv[argc]= nullptr;
   if (configured_fd < 0) return;
+  watchdog_configured= true;
 
   int flags= fcntl (configured_fd, F_GETFL, 0);
   if (flags < 0 || fcntl (configured_fd, F_SETFL, flags | O_NONBLOCK) != 0) {
@@ -99,6 +102,15 @@ athena_watchdog_configure_from_argv (int& argc, char** argv) noexcept {
 
   (void) prctl (PR_SET_PTRACER, static_cast<unsigned long> (getppid ()),
                 0UL, 0UL, 0UL);
+}
+
+AthenaWatchdogRestartResult
+athena_watchdog_request_restart () noexcept {
+  if (!watchdog_configured) return AthenaWatchdogRestartResult::NotSupervised;
+  return send_packet (athena_watchdog::PacketType::Restart,
+                      athena_watchdog::Phase::Shutdown)
+    ? AthenaWatchdogRestartResult::Requested
+    : AthenaWatchdogRestartResult::Failed;
 }
 
 void
@@ -124,5 +136,8 @@ athena_watchdog_start_qt_heartbeat () noexcept {
 
 void athena_watchdog_configure_from_argv (int&, char**) noexcept {}
 void athena_watchdog_start_qt_heartbeat () noexcept {}
+AthenaWatchdogRestartResult athena_watchdog_request_restart () noexcept {
+  return AthenaWatchdogRestartResult::NotSupervised;
+}
 
 #endif

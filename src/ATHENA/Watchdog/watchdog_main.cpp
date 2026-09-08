@@ -68,6 +68,7 @@ struct DrainResult {
   bool ready= false;
   bool heartbeat= false;
   bool shutdown= false;
+  bool restart= false;
   bool peer_closed= false;
   athena_watchdog::Packet latest;
 };
@@ -460,6 +461,7 @@ DrainResult drain_packets (int fd) {
       case athena_watchdog::PacketType::Ready: result.ready= true; break;
       case athena_watchdog::PacketType::Heartbeat: result.heartbeat= true; break;
       case athena_watchdog::PacketType::Shutdown: result.shutdown= true; break;
+      case athena_watchdog::PacketType::Restart: result.restart= true; break;
     }
   }
 }
@@ -472,18 +474,7 @@ int child_exit_code (int status) {
 
 } // namespace
 
-int main (int argc, char** argv) {
-  umask (077);
-  auto parsed= parse_options (argc, argv);
-  if (!parsed) { usage (); return 2; }
-  Options options= std::move (*parsed);
-
-  struct sigaction action {};
-  action.sa_handler= signal_handler;
-  sigemptyset (&action.sa_mask);
-  for (int signal_number: {SIGTERM, SIGINT, SIGHUP, SIGQUIT})
-    sigaction (signal_number, &action, nullptr);
-
+static int supervise_child (const Options& options, bool& restart_requested) {
   int pair[2]= {-1, -1};
   if (socketpair (AF_UNIX, SOCK_SEQPACKET | SOCK_CLOEXEC, 0, pair) != 0) {
     std::cerr << "ATHENA-Watchdog: socketpair failed: " << std::strerror (errno) << '\n';
@@ -511,6 +502,7 @@ int main (int argc, char** argv) {
 
   bool ready= false;
   bool shutdown_seen= false;
+  bool stopping= false;
   std::uint64_t last_sequence= 0;
   Clock::time_point last_seen= Clock::now ();
   Clock::time_point last_loop= last_seen;
@@ -523,6 +515,8 @@ int main (int argc, char** argv) {
     if (forwarded_signal != 0) {
       int signal_number= forwarded_signal;
       forwarded_signal= 0;
+      stopping= true;
+      restart_requested= false;
       kill (child_pid, signal_number);
     }
 
@@ -553,7 +547,8 @@ int main (int argc, char** argv) {
       last_sequence= drained.latest.sequence;
       last_seen= now;
       ready= ready || drained.ready;
-      shutdown_seen= shutdown_seen || drained.shutdown;
+      restart_requested= !stopping && (restart_requested || drained.restart);
+      shutdown_seen= shutdown_seen || drained.shutdown || drained.restart;
       if (incident && (drained.heartbeat || drained.ready)) {
         std::cerr << "ATHENA-Watchdog: ATHENA recovered after stall; report: "
                   << incident->directory << '\n';
@@ -569,7 +564,12 @@ int main (int argc, char** argv) {
     pid_t wait_result= waitpid (child_pid, &child_status, WNOHANG);
     if (wait_result == child_pid) child_exited= true;
     else if (wait_result < 0 && errno == ECHILD) child_exited= true;
-    if (child_exited) break;
+    if (child_exited) {
+      // The child may send Restart and exit between the drain and waitpid.
+      if (supervisor_fd >= 0 && !stopping)
+        restart_requested= restart_requested || drain_packets (supervisor_fd).restart;
+      break;
+    }
 
     if (ready && !shutdown_seen && !incident &&
         now - last_seen >= Milliseconds (options.heartbeat_timeout_ms)) {
@@ -598,6 +598,26 @@ int main (int argc, char** argv) {
   if (pidfd >= 0) close (pidfd);
   if (supervisor_fd >= 0) close (supervisor_fd);
   return child_exit_code (child_status);
+}
+
+int main (int argc, char** argv) {
+  umask (077);
+  auto parsed= parse_options (argc, argv);
+  if (!parsed) { usage (); return 2; }
+  Options options= std::move (*parsed);
+
+  struct sigaction action {};
+  action.sa_handler= signal_handler;
+  sigemptyset (&action.sa_mask);
+  for (int signal_number: {SIGTERM, SIGINT, SIGHUP, SIGQUIT})
+    sigaction (signal_number, &action, nullptr);
+
+  for (;;) {
+    bool restart_requested= false;
+    int status= supervise_child (options, restart_requested);
+    if (!restart_requested || status != 0 || forwarded_signal != 0) return status;
+    std::cerr << "ATHENA-Watchdog: restarting ATHENA\n";
+  }
 }
 
 #endif

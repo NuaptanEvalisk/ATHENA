@@ -24,6 +24,7 @@
 #include "new_style.hpp"
 #include "new_view.hpp"
 #include "buffer_actor.hpp"
+#include "ATHENA/Watchdog/watchdog_client.hpp"
 
 #ifdef QTTEXMACS
 #include <QCoreApplication>
@@ -469,6 +470,12 @@ tm_server_rep::is_yes (string s) {
 bool
 tm_server_rep::restart () {
 #ifdef QTTEXMACS
+  auto watchdog_restart= athena_watchdog_request_restart ();
+  if (watchdog_restart == AthenaWatchdogRestartResult::Failed) return false;
+  if (watchdog_restart == AthenaWatchdogRestartResult::Requested) {
+    quit ();
+    return true;
+  }
   QString program= qEnvironmentVariable ("APPIMAGE");
   if (program.isEmpty ()) program= QCoreApplication::applicationFilePath ();
   QStringList arguments= QCoreApplication::arguments ();

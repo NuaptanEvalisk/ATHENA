@@ -1,9 +1,11 @@
 #include "ATHENA/Watchdog/watchdog_protocol.hpp"
+#include "ATHENA/Watchdog/watchdog_client.hpp"
 
 #include <chrono>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <fstream>
 #include <string>
 #include <sys/socket.h>
 #include <thread>
@@ -58,6 +60,31 @@ int main (int argc, char** argv) {
   int fd= parse_fd (argc, argv);
   std::string selected= mode (argc, argv);
   if (fd < 0 || selected.empty ()) return 2;
+  if (athena_watchdog_request_restart () !=
+      AthenaWatchdogRestartResult::NotSupervised) return 4;
+  if (selected.rfind ("restart-", 0) == 0) {
+    if (argc < 4) return 5;
+    std::string record= argv[argc - 1];
+    bool first= !std::ifstream (record).good ();
+    {
+      std::ofstream out (record, std::ios::app);
+      out << getpid () << ' ' << getppid () << '\n';
+    }
+    if (first) {
+      if (selected != "restart-startup")
+        send_packet (fd, athena_watchdog::PacketType::Ready);
+      athena_watchdog_configure_from_argv (argc, argv);
+      if (athena_watchdog_request_restart () !=
+          AthenaWatchdogRestartResult::Requested) return 6;
+      return selected == "restart-failure" ? 7 : 0;
+    }
+    // Prove that the replacement receives a fresh channel and is monitored
+    // with the original supervisor's timeout and diagnostic directory.
+    send_packet (fd, athena_watchdog::PacketType::Ready);
+    std::this_thread::sleep_for (std::chrono::milliseconds (700));
+    send_packet (fd, athena_watchdog::PacketType::Shutdown);
+    return 0;
+  }
   send_packet (fd, athena_watchdog::PacketType::Ready);
   if (selected == "healthy") {
     heartbeats (fd, 450);

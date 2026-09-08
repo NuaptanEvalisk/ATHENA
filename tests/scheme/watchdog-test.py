@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Exercise the standalone ATHENA watchdog with a deterministic fake child."""
 import argparse
+import json
 from pathlib import Path
 import subprocess
 import tempfile
@@ -13,7 +14,7 @@ args = parser.parse_args()
 with tempfile.TemporaryDirectory(prefix="athena-watchdog-") as temporary:
     root = Path(temporary)
 
-    def run(mode: str):
+    def run(mode: str, extra=(), expected=0):
         output = root / mode
         result = subprocess.run([
             str(args.watchdog.resolve()),
@@ -22,9 +23,9 @@ with tempfile.TemporaryDirectory(prefix="athena-watchdog-") as temporary:
             "--no-gdb",
             f"--output-dir={output}",
             "--",
-            str(args.child.resolve()), mode,
+            str(args.child.resolve()), mode, *extra,
         ], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=8)
-        assert result.returncode == 0, (mode, result.returncode, result.stderr)
+        assert result.returncode == expected, (mode, result.returncode, result.stderr)
         return output, result.stderr
 
     healthy, healthy_log = run("healthy")
@@ -56,4 +57,21 @@ with tempfile.TemporaryDirectory(prefix="athena-watchdog-") as temporary:
     assert (incident / "proc-000.txt").exists()
     assert (incident / "terminated.json").exists()
 
-print("PASS: standalone watchdog detects, snapshots and records recovery")
+    for mode in ("restart-ui", "restart-startup", "restart-failure"):
+        record = root / f"{mode} child pids.txt"
+        output, log = run(mode, (str(record),), 7 if mode == "restart-failure" else 0)
+        processes = [tuple(map(int, row.split())) for row in record.read_text().splitlines()]
+        if mode == "restart-failure":
+            assert len(processes) == 1, (processes, log)
+            continue
+        assert len(processes) == 2, (processes, log)
+        assert processes[0][0] != processes[1][0], processes
+        assert processes[0][1] == processes[1][1], processes
+        incidents = list(output.glob("*/meta.json"))
+        assert len(incidents) == 1, (incidents, log)
+        metadata = json.loads(incidents[0].read_text())
+        assert metadata["pid"] == processes[1][0], metadata
+        assert metadata["heartbeat_timeout_ms"] == 200, metadata
+        assert (incidents[0].parent / "proc-000.txt").exists()
+
+print("PASS: watchdog detects stalls, records recovery and supervises restarts")
