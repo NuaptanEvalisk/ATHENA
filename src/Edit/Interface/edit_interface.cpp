@@ -134,6 +134,7 @@ edit_interface_rep::operator tree () {
 
 void
 edit_interface_rep::suspend () {
+  clear_link_peek ();
   //cout << "Suspend " << buf->name << LF;
   if (got_focus) {
     interrupt_shortcut ();
@@ -657,6 +658,8 @@ edit_interface_rep::compute_env_rects (path p, rectangles& rs, bool recurse,
 
 void
 edit_interface_rep::notify_change (int env_set, int env_unset) {
+  if (env_set & (THE_TREE | THE_ENVIRONMENT | THE_EXTENTS | THE_CURSOR | THE_SELECTION))
+    clear_link_peek ();
   env_change= (env_change | env_set) & (~env_unset);
   needs_update ();
   if ((env_set & (THE_TREE | THE_SELECTION | THE_CURSOR)) != 0)
@@ -1247,6 +1250,7 @@ edit_interface_rep::is_embedded_widget () {
 
 void
 edit_interface_rep::handle_user_scroll (time_t t) {
+  clear_link_peek ();
   if (buf == nullptr || is_nil (eb)) return;
   typewriter_manual_scroll_time= t;
   typewriter_manual_scroll_path= copy (tp);

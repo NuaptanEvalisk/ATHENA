@@ -105,6 +105,11 @@ vault_active () {
   return vault_snapshot ().source->active;
 }
 
+vault_info
+vault_get_snapshot () {
+  return vault_snapshot ().info;
+}
+
 string
 vault_get_name () {
   return vault_snapshot ().info.name;

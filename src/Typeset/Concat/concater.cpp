@@ -1064,6 +1064,7 @@ typeset_as_atomic (edit_env env, tree t, path ip) {
     tree old= env->local_begin (COLOR, col);
     box b= typeset_as_atomic (env, t[last], descend (ip, last));
     env->local_end (COLOR, old);
+    if (ref != "") b= locus_box (ip, b, ids, env->pixel, ref, anchor);
     return b;
   }
   else {

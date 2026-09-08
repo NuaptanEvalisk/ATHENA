@@ -94,16 +94,28 @@ AthenaVaultMapSqlite::~AthenaVaultMapSqlite () { close (); }
 bool
 AthenaVaultMapSqlite::open (const fs::path& path, bool create,
                             std::string& error) {
+  return open_impl (path, create, false, error);
+}
+
+bool
+AthenaVaultMapSqlite::open_read_only (const fs::path& path, std::string& error) {
+  return open_impl (path, false, true, error);
+}
+
+bool
+AthenaVaultMapSqlite::open_impl (const fs::path& path, bool create,
+                                bool read_only, std::string& error) {
   close ();
-  int flags = SQLITE_OPEN_READWRITE | (create ? SQLITE_OPEN_CREATE : 0);
+  int flags = read_only ? SQLITE_OPEN_READONLY :
+    SQLITE_OPEN_READWRITE | (create ? SQLITE_OPEN_CREATE : 0);
   if (sqlite3_open_v2 (path.string ().c_str (), &impl->db, flags, nullptr) !=
       SQLITE_OK) {
     error = sqlite_error (impl->db, "Could not open Vault map " + path.string ());
     close ();
     return false;
   }
-  sqlite3_busy_timeout (impl->db, 5000);
-  if (!exec_sql (impl->db, "PRAGMA journal_mode=DELETE;", error) ||
+  sqlite3_busy_timeout (impl->db, read_only ? 250 : 5000);
+  if ((!read_only && !exec_sql (impl->db, "PRAGMA journal_mode=DELETE;", error)) ||
       !exec_sql (impl->db, "PRAGMA foreign_keys=ON;", error)) {
     close ();
     return false;
@@ -159,7 +171,7 @@ AthenaVaultMapSqlite::open (const fs::path& path, bool create,
     }
     version = vault_map_schema_version;
   }
-  if (version == 1) {
+  if (version == 1 && !read_only) {
     if (!exec_sql (impl->db,
           "BEGIN IMMEDIATE;"
           "CREATE TABLE IF NOT EXISTS rename_operations ("
@@ -191,7 +203,9 @@ AthenaVaultMapSqlite::open (const fs::path& path, bool create,
     return false;
   }
   sqlite3_finalize (statement);
-  if (!quick_check (error)) {
+  // The GUI writer checks integrity on opening the Vault. Short-lived hover
+  // readers validate the schema above without rescanning the entire index.
+  if (!read_only && !quick_check (error)) {
     close ();
     return false;
   }

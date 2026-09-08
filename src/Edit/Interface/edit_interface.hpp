@@ -106,6 +106,9 @@ protected:
   std::uint64_t completion_session= 0;
   path          completion_cursor;
   string        completion_original;
+  string        link_peek_target;
+  box           link_peek_box;
+  rectangle     link_peek_rect;
   renderer      shadow;
   SI            vx1, vy1, vx2, vy2;
   rectangles    stored_rects;
@@ -130,6 +133,9 @@ protected:
   path          heading_cell_hovered;
 
 public:
+  void clear_link_peek ();
+  void update_link_peek (SI x, SI y, int modifiers);
+  void draw_link_peek (renderer ren);
   edit_interface_rep ();
   ~edit_interface_rep ();
   operator tree ();

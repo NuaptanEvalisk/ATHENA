@@ -791,6 +791,9 @@ locus_box_rep::expand_glyphs (int mode, double factor) {
 
 tree
 locus_box_rep::message (tree type, SI x, SI y, rectangles& rs) {
+  if (type == "link-target" && ref != "" &&
+      x >= x1 && x < x2 && y >= y1 && y < y2)
+    return tree (TUPLE, "link-target", ref);
   if (ref != "" && is_nil (ids) &&
       (type == "select" || type == "double-click") &&
       x >= x1 && x < x2 && y >= y1 && y < y2)

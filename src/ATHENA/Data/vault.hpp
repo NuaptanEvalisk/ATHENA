@@ -33,6 +33,7 @@ extern vault_info current_vault;
 
 /* Vault lifecycle */
 bool vault_active ();
+vault_info vault_get_snapshot ();
 string vault_get_name ();
 url  vault_get_root ();
 url  vault_get_map_db ();

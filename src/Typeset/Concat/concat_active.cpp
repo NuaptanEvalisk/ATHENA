@@ -237,7 +237,8 @@ concater_rep::typeset_locus (tree t, path ip) {
   bool force_pdf_printed_locus=
     printed &&
     (anchor != "" || ref != "");
-  if (!ok || force_pdf_printed_locus) {
+  // Editable loci still need their URL in the box tree for hit testing.
+  if (!ok || ref != "" || force_pdf_printed_locus) {
     path dip= decorate_middle (descend (ip, N(t) - 1));
     array<line_item> new_a;
     array<line_item> tmp_a;

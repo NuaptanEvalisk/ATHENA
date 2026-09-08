@@ -382,6 +382,7 @@ edit_interface_rep::draw_post (renderer win, renderer ren, rectangle r) {
   draw_heading_cell_brackets (ren, r);
   draw_cursor (ren); // the text cursor must be drawn over the graphical object
   draw_keys (ren);
+  draw_link_peek (ren);
   ren->reset_zoom_factor ();
   win->reset_zoom_factor ();
 }

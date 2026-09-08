@@ -279,6 +279,7 @@ QTMScrollView::viewportEvent(QEvent *e)
       return event(e);
 #endif
     case QEvent::NativeGesture:
+    case QEvent::Leave:
       return event(e);
       
     default:
@@ -291,6 +292,8 @@ bool
 QTMScrollView::surfaceEvent(QEvent *e)
 {
   switch (e->type()) {
+    case QEvent::Leave:
+      return event(e);
     case QEvent::Resize:
     case QEvent::Paint:
     case QEvent::MouseButtonPress:

@@ -40,6 +40,7 @@ public:
 
   bool open (const std::filesystem::path& path, bool create,
              std::string& error);
+  bool open_read_only (const std::filesystem::path& path, std::string& error);
   void close ();
   bool valid () const;
 
@@ -75,6 +76,8 @@ public:
     std::string& error) const;
 
 private:
+  bool open_impl (const std::filesystem::path& path, bool create,
+                  bool read_only, std::string& error);
   struct Impl;
   std::unique_ptr<Impl> impl;
 };

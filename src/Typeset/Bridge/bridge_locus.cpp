@@ -145,7 +145,7 @@ bridge_locus_rep::my_typeset (int desired_status) {
   bool force_pdf_printed_locus=
     env->get_string (PAGE_PRINTED) == "true" &&
     (anchor != "" || ref != "");
-  bool wrap= ((!ok && N(ids) != 0) || force_pdf_printed_locus);
+  bool wrap= ((!ok && N(ids) != 0) || ref != "" || force_pdf_printed_locus);
   if (!ok && !wrap) typeset_warning << "Ignored unaccessible loci\n";
   tree old_col= env->read (COLOR);
   tree old_locus_scope= env->read ("athena-inside-locus");

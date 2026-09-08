@@ -18,11 +18,14 @@
 #include "server.hpp"
 #include "typesetter.hpp"
 #include "convert.hpp"
+#include "link.hpp"
 #include "ATHENA/Data/artifacts.hpp"
 #include "ATHENA/Data/artifact_document.hpp"
+#include "ATHENA/Data/link_peek.hpp"
 #include "ATHENA/Data/artifact_title_filter.hpp"
 #include "ATHENA/Data/vault.hpp"
 #include "ATHENA/Data/vaultfile_json.hpp"
+#include "ATHENA/Data/vault_map_sqlite.hpp"
 
 bool headless_mode= true;
 bool is_headless () { return true; }
@@ -33,7 +36,9 @@ static int link_count (box b, const string& destination) {
   if (is_tuple (description) && N(description) > 0 && description[0] == "direct-link") {
     rectangles regions;
     tree action= b->message ("select", (b->x1+b->x2)/2, (b->y1+b->y2)/2, regions);
-    if (action == tree (TUPLE, "direct-link", destination)) ++result;
+    tree peek= b->message ("link-target", (b->x1+b->x2)/2, (b->y1+b->y2)/2, regions);
+    if (action == tree (TUPLE, "direct-link", destination) &&
+        peek == tree (TUPLE, "link-target", destination)) ++result;
   }
   for (int i=0; i<N(b); ++i) result += link_count (b[i], destination);
   return result;
@@ -42,6 +47,60 @@ static int link_count (box b, const string& destination) {
 class StructuredRadioactiveTest: public QObject {
   Q_OBJECT
 private slots:
+  void editableLocusRetainsHitTarget () {
+    tree text ("Editable link");
+    attach_ip (text, path (0));
+    drd_info drd ("peek-locus", std_drd);
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
+    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
+    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    env->write_default_env ();
+    env->link_env= link_repository (true);
+    env->update ();
+    string target= "tmfs://wikilink/test";
+    tree locus (LOCUS, compound ("id", "peek-test"),
+      tree (LINK, "hyperlink", compound ("id", "peek-test"),
+            compound ("url", target)), text);
+    box rendered= typeset_as_concat (env, locus, path ());
+    box plain= typeset_as_concat (env, text, path ());
+    QCOMPARE (rendered->w (), plain->w ());
+    QCOMPARE (rendered->h (), plain->h ());
+    rectangles ignored;
+    QCOMPARE (rendered->message ("link-target", (rendered->x1+rendered->x2)/2,
+                                (rendered->y1+rendered->y2)/2, ignored),
+              tree (TUPLE, "link-target", target));
+    QVERIFY (rendered->message ("link-target", rendered->x2+PIXEL,
+                               rendered->y2+PIXEL, ignored) == tree (""));
+    box atomic= typeset_as_atomic (env, locus, path ());
+    QCOMPARE (atomic->message ("link-target", (atomic->x1+atomic->x2)/2,
+                              (atomic->y1+atomic->y2)/2, ignored),
+              tree (TUPLE, "link-target", target));
+  }
+  void peekRetainsSourceMathAndInitialEnvironment () {
+    tree math= compound ("math", tree (WITH, "font", "cal", "E"));
+    tree body (DOCUMENT, "outside before",
+      tree (CONCAT, compound ("label", "start"), math, compound ("label", "end")),
+      "outside after");
+    tree initial= compound ("initial", tree (COLLECTION,
+      tree (ASSOCIATE, "font", "TeX Gyre Pagella")));
+    tree document (DOCUMENT, compound ("style", tuple ("generic")),
+                   compound ("body", body), initial);
+    tree before= copy (document);
+    tree preview= athena_link_peek_range (document, "start", "end");
+    QCOMPARE (document, before);
+    QCOMPARE (extract (preview, "initial"), extract (document, "initial"));
+    QCOMPARE (extract (preview, "style"), extract (document, "style"));
+    QCOMPARE (extract (preview, "body"),
+      tree (DOCUMENT, compound ("marked", body[1])));
+    QCOMPARE (N(extract (athena_link_peek_range (document, "", "end"), "body")), 3);
+    QCOMPARE (N(extract (athena_link_peek_range (document, "", ""), "body")), 3);
+    QVERIFY (extract (athena_link_peek_range (document, "missing", "end"), "body") !=
+             extract (preview, "body"));
+    QVERIFY (athena_link_peek_target ("tmfs://wikilink/target/file/anchor"));
+    QVERIFY (athena_link_peek_target ("tmfs://artifact-disambiguation/key"));
+    QVERIFY (!athena_link_peek_target ("https://example.com"));
+    QVERIFY (!athena_link_peek_target ("tmfs://unknown/key"));
+  }
   void resolvesFullAndIncludedNames () {
     auto record= [] (const char* id, std::vector<std::string> names) {
       AthenaArtifactRecord r;
@@ -114,7 +173,9 @@ private slots:
     tree sigma= compound ("math", "<sigma>");
     tree name (CONCAT, sigma, "-algebra");
     tree body (DOCUMENT, compound ("definition",
-      tree (CONCAT, compound ("strong", name), " is a family of subsets.")));
+      tree (CONCAT, compound ("label", "peek-start"),
+        compound ("strong", name), " is a family of subsets.",
+        compound ("label", "peek-end"))));
     tree document (DOCUMENT);
     document << compound ("TeXmacs", "2.1.4") << compound ("style", "generic")
              << compound ("body", body);
@@ -131,6 +192,19 @@ private slots:
       string (athena_artifact_radioactive_key (records[0]).c_str ());
     QCOMPARE (vault_load (url_system (root.string ().c_str ()), "test", "vault.sqlite"), string (""));
     struct CloseVault { ~CloseVault () { vault_close (); } } close;
+    vault_set_node ("peek target", "name.ath", "peek-start", "peek-end");
+    AthenaVaultMapSqlite reader;
+    QVERIFY (reader.open_read_only (root / "vault.sqlite", error));
+    AthenaVaultMapNode node;
+    bool found= false;
+    QVERIFY (reader.get_node ("peek target", node, found, error));
+    QVERIFY (found);
+    QVERIFY (!reader.set_node (node, error));
+    url peek_source;
+    tree wikipeek= athena_link_peek_document ("tmfs://wikilink/peek%20target", peek_source);
+    QCOMPARE (extract (wikipeek, "body"), tree (DOCUMENT, compound ("marked", body[0])));
+    QCOMPARE (peek_source, url_system ((root / "name.ath").string ().c_str ()));
+    QVERIFY (is_document (athena_link_peek_document (destination, peek_source)));
     AthenaArtifactNameResolution resolved;
     QVERIFY (athena_artifact_resolve_name_key (athena_artifact_radioactive_key (records[0]), resolved));
     QCOMPARE (resolved.exact.size (), size_t (1));
@@ -167,6 +241,16 @@ private slots:
     env->write ("athena-radioactive-links-suppressed", "false");
     env->write (PAGE_PRINTED, "true");
     QCOMPARE (link_count (typeset_as_concat (env, paragraph, path ()), destination), 0);
+    // The opt-in GUI smoke uses a real index built by the production writer,
+    // never a handcrafted schema or a user's Vault.
+    QByteArray fixture= qgetenv ("ATHENA_TEST_PEEK_FIXTURE");
+    if (!fixture.isEmpty ()) {
+      vault_close ();
+      std::filesystem::copy (root, std::filesystem::path (fixture.constData ()),
+                             std::filesystem::copy_options::recursive);
+      std::ofstream out (std::filesystem::path (fixture.constData ()) / "radioactive-url.txt");
+      out << std::string (as_charp (destination), N(destination));
+    }
   }
 };
 

@@ -409,6 +409,7 @@ void drag_right_reset ();
 
 void
 edit_interface_rep::handle_keyboard_focus (bool has_focus, time_t t) {
+  if (!has_focus) clear_link_peek ();
   if (buf == nullptr) return;
   if (has_focus && !ui_viewport ().attached) {
     // Qt may deliver either the synthetic constructor FocusIn or a real mouse

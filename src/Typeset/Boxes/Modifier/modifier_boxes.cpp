@@ -203,6 +203,8 @@ direct_link_box_rep::expand_glyphs (int mode, double factor) {
 
 tree
 direct_link_box_rep::message (tree type, SI x, SI y, rectangles& rs) {
+  if (type == "link-target" && x >= x1 && x < x2 && y >= y1 && y < y2)
+    return tree (TUPLE, "link-target", ref);
   if ((type == "select" || type == "double-click") &&
       x >= x1 && x < x2 && y >= y1 && y < y2)
     return tree (TUPLE, "direct-link", ref);
