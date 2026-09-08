@@ -138,6 +138,7 @@ protected:
   SI            resize_wx, resize_wy;
   rectangles    keys_rects;
   bool          pending_idle_menu_update;
+  bool          pending_idle_footer_update;
   bool          external_center_message_active;
   time_t        typewriter_manual_scroll_time;
   path          typewriter_manual_scroll_path;

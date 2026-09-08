@@ -107,6 +107,7 @@ edit_interface_rep::edit_interface_rep ():
   cur_sb (2), cur_wb (2),
   resize_wx (0), resize_wy (0),
   pending_idle_menu_update (true),
+  pending_idle_footer_update (true),
   external_center_message_active (false),
   typewriter_manual_scroll_time (0),
   typewriter_manual_scroll_path (),
@@ -658,6 +659,9 @@ edit_interface_rep::compute_env_rects (path p, rectangles& rs, bool recurse,
 
 void
 edit_interface_rep::notify_change (int env_set, int env_unset) {
+  if (env_set & (THE_TREE | THE_ENVIRONMENT | THE_CURSOR | THE_SELECTION |
+                 THE_FOCUS))
+    pending_idle_footer_update= true;
   if (env_set & (THE_TREE | THE_ENVIRONMENT)) {
     live_spelling.reset ();
     live_spelling_dirty= true;
@@ -696,6 +700,7 @@ void
 edit_interface_rep::update_menus () {
   rebuild_ui_chrome ();
   set_footer ();
+  pending_idle_footer_update= false;
   (void) publish_ui (
     actor_command_kind::ui_set_modified, need_save () ? 1 : 0);
   if (!gui_interrupted ()) drd_update ();
@@ -776,6 +781,13 @@ edit_interface_rep::apply_changes () {
     if (pending_idle_menu_update &&
         idle_time (INTERRUPTED_EVENT) >= 1000/6)
       update_menus ();
+    // Typing does not rebuild menus, but must refresh document statistics.
+    // Keep this pending across unrelated repaint/extent changes until idle.
+    if (pending_idle_footer_update &&
+        idle_time (INTERRUPTED_EVENT) >= 1000/6) {
+      set_footer ();
+      pending_idle_footer_update= false;
+    }
     if (new_visible == last_visible) return;
   }
 
