@@ -13,6 +13,9 @@
 #include "hashset.hpp"
 #include "analyze.hpp"
 #include "connect.hpp"
+#include "wencoding.hpp"
+#include <QJsonArray>
+#include <QJsonDocument>
 
 /******************************************************************************
 * Finding completions in text
@@ -87,19 +90,6 @@ edit_interface_rep::complete_try () {
 }
 
 void
-edit_interface_rep::complete_message () {
-  int i, n= N(completions);
-  string s= "";
-  string sep= ", ";
-  for (i=1; i<min(n,11); i++) {
-    int j= (completion_pos + i) % n;
-    if (i != 1) s << sep;
-    s << completion_prefix << completions[j];
-  }
-  set_message (concat ("Other completions: ", verbatim (s)), "tab");
-}
-
-void
 edit_interface_rep::complete_start (string prefix, array<string> compls) {
   // check consistency
   tree st= subtree (et, path_up (tp));
@@ -108,50 +98,69 @@ edit_interface_rep::complete_start (string prefix, array<string> compls) {
   int end= last_item (tp);
   if ((end<N(prefix)) || (s (end-N(prefix), end) != prefix)) return;
 
-  // perform first completion and switch to completion mode if necessary
-  if (N (compls) == 1) {
-    string s= compls[0];
-    if (ends (s, "()")) // temporary fix for Pari
-      insert_tree (s, path (N(s)-1));
-    else insert_tree (s);
-    completions= array<string> ();
+  if (N(compls) == 0) return;
+  set_input_normal ();
+  completion_prefix= copy (prefix);
+  completions= copy (compls);
+  completion_pos= 0;
+  completion_cursor= copy (tp);
+  completion_original= copy (s);
+  ++completion_session;
+  set_input_mode (INPUT_COMPLETE);
+  QJsonArray choices;
+  for (int i=0; i<N(completions); ++i) {
+    string utf8= cork_to_utf8 (completion_prefix * completions[i]);
+    choices.append (QString::fromUtf8 (as_charp (utf8), N(utf8)));
   }
-  else {
-    completion_prefix= prefix;
-    completions      = close_completions (compls);
-    completion_pos   = 0;
-    insert_tree (completions[0]);
-    complete_message ();
-    beep ();
-    set_input_mode (INPUT_COMPLETE);
+  QByteArray encoded= QJsonDocument (choices).toJson (QJsonDocument::Compact);
+  cursor cu= get_cursor ();
+  if (!publish_ui_text (actor_command_kind::ui_show_completion,
+        string (encoded.constData (), encoded.size ()), completion_session,
+        static_cast<std::uint64_t> ((SI) (cu->ox * magf)),
+        static_cast<std::uint64_t> ((SI) ((cu->oy + cu->y1) * magf)), 0))
+    set_input_normal ();
+}
+
+void
+edit_interface_rep::complete_choose (std::uint64_t session, int index) {
+  if (input_mode != INPUT_COMPLETE || session != completion_session) return;
+  bool valid= index >= 0 && index < N(completions) && tp == completion_cursor;
+  if (valid) {
+    tree st= subtree (et, path_up (tp));
+    valid= is_atomic (st) && st->label == completion_original;
+  }
+  string suffix= valid ? copy (completions[index]) : string ("");
+  set_input_normal ();
+  if (!valid) return;
+  start_editing ();
+  try {
+    archive_state ();
+    if (ends (suffix, "()")) insert_tree (suffix, path (N(suffix)-1));
+    else insert_tree (suffix);
+    end_editing ();
+  }
+  catch (...) {
+    cancel_editing ();
+    throw;
   }
 }
 
 bool
 edit_interface_rep::complete_keypress (string key) {
-  set_message ("", "");
-  if (key == "space") key= " ";
-  if ((key != "tab") && (key != "S-tab")) {
-    set_input_normal (); return false; }
-  tree st= subtree (et, path_up (tp));
-  if (is_compound (st)) {
-    set_input_normal (); return false; }
-  string s= st->label;
-  int end= last_item (tp);
-  string old_s= completions [completion_pos];
-  string test= completion_prefix * old_s;
-  if ((end<N(test)) || (s (end-N(test), end) != test)) {
-    set_input_normal (); return false; }
-
-  if (key == "tab") completion_pos++;
-  else completion_pos--;
-  if (completion_pos < 0) completion_pos= N(completions)-1;
-  if (completion_pos >= N(completions)) completion_pos= 0;
-  string new_s= completions [completion_pos];
-  remove (path_up (tp) * (end-N(old_s)), N(old_s));
-  insert (path_up (tp) * (end-N(old_s)), new_s);
-  complete_message ();
-  return true;
+  if (input_mode != INPUT_COMPLETE || N(completions) == 0) return false;
+  if (key == "tab" || key == "return" || key == "enter") {
+    complete_choose (completion_session, completion_pos);
+    return true;
+  }
+  if (key == "up" || key == "down" || key == "S-tab") {
+    int delta= key == "down" ? 1 : -1;
+    completion_pos= (completion_pos + delta + N(completions)) % N(completions);
+    (void) publish_ui (actor_command_kind::ui_select_completion,
+                      completion_session, completion_pos);
+    return true;
+  }
+  set_input_normal ();
+  return key == "escape";
 }
 
 /******************************************************************************

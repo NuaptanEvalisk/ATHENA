@@ -103,6 +103,9 @@ protected:
   array<string> completions;
   string        completion_prefix;
   int           completion_pos;
+  std::uint64_t completion_session= 0;
+  path          completion_cursor;
+  string        completion_original;
   renderer      shadow;
   SI            vx1, vy1, vx2, vy2;
   rectangles    stored_rects;
@@ -214,8 +217,8 @@ public:
   void key_press (string key);
   void emulate_keyboard (string keys, string action= "");
   bool complete_try ();
-  void complete_message ();
   void complete_start (string prefix, array<string> compls);
+  void complete_choose (std::uint64_t session, int index);
   bool complete_keypress (string key);
   string session_complete_command (tree t);
   void custom_complete (tree t);

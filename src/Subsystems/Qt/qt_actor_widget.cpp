@@ -20,6 +20,7 @@
 #include "tm_window.hpp"
 #include "QTMToast.hpp"
 #include "QTMOutlinePane.hpp"
+#include "QTMCompletionPopup.hpp"
 #include "QTMVaultBackupDispatcher.hpp"
 #include "QTMVaultExplorer.hpp"
 #include "qt_utilities.hpp"
@@ -27,6 +28,8 @@
 #include <QApplication>
 #include <QStyle>
 #include <QTimer>
+#include <QJsonArray>
+#include <QJsonDocument>
 #include <cstring>
 
 namespace {
@@ -59,6 +62,7 @@ qt_actor_widget_rep::qt_actor_widget_rep (
   popup_content_ () {}
 
 qt_actor_widget_rep::~qt_actor_widget_rep () {
+  delete completion_popup_.data ();
   unregister_actor_ui_endpoint (view_id_);
 }
 
@@ -111,12 +115,14 @@ qt_actor_widget_rep::handle_keypress (string key, time_t time) {
 
 void
 qt_actor_widget_rep::handle_text_input (string text, time_t time) {
+  if (completion_popup_) completion_popup_->cancel ();
   submit_text (actor_command_kind::text_input, std::move (text),
                static_cast<std::uint64_t> (time));
 }
 
 void
 qt_actor_widget_rep::handle_keyboard_focus (bool focused, time_t time) {
+  if (!focused && completion_popup_) completion_popup_->cancel ();
   refresh_viewport ();
   (void) buffer_actor::submit_to (
     actor_id_, actor_command_kind::keyboard_focus, view_id_,
@@ -134,6 +140,7 @@ qt_actor_widget_rep::handle_cursor_blink (bool visible) {
 
 void
 qt_actor_widget_rep::handle_user_scroll (time_t time) {
+  if (completion_popup_) completion_popup_->cancel ();
   refresh_viewport ();
   (void) buffer_actor::submit_to (
     actor_id_, actor_command_kind::user_scroll, view_id_,
@@ -491,6 +498,48 @@ qt_actor_widget_rep::drain_external_effects () {
       send_mouse_grab (popup_content_, true);
       break;
     }
+    case actor_command_kind::ui_show_completion: {
+      string encoded= actor_text_registry::instance ().take (record.payload0);
+      auto reject= [&] {
+        (void) buffer_actor::submit_to (actor_id_, actor_command_kind::completion_choice,
+          view_id_, 0, 0, SCHEME_CAPABILITY_BUFFER, record.argument[0],
+          static_cast<std::uint64_t> (-1));
+      };
+      if (!canvas () || !canvas ()->isVisible () ||
+          !(canvas ()->hasFocus () || canvas ()->surface ()->hasFocus ())) {
+        reject ();
+        break;
+      }
+      QStringList items;
+      for (const auto& item: QJsonDocument::fromJson (
+             QByteArray (as_charp (encoded), N(encoded))).array ())
+        items.append (item.toString ());
+      SI gx, gy;
+      if (items.isEmpty () || !qt_widget_global_position (this,
+            static_cast<SI> (record.argument[1]), static_cast<SI> (record.argument[2]), gx, gy)) {
+        reject ();
+        break;
+      }
+      if (!completion_popup_) {
+        auto actor= actor_id_;
+        auto view= view_id_;
+        completion_popup_= new QTMCompletionPopup (canvas (),
+          [actor, view] (std::uint64_t session, int index) {
+            (void) buffer_actor::submit_to (actor, actor_command_kind::completion_choice,
+              view, 0, 0, SCHEME_CAPABILITY_BUFFER, session,
+              static_cast<std::uint64_t> (index));
+          });
+      }
+      completion_popup_->present (record.argument[0], items,
+        to_qpoint (coord2 (gx, gy)), static_cast<int> (record.argument[3]));
+      break;
+    }
+    case actor_command_kind::ui_select_completion:
+      if (completion_popup_) completion_popup_->select (record.argument[0], record.argument[1]);
+      break;
+    case actor_command_kind::ui_close_completion:
+      if (completion_popup_) completion_popup_->dismiss (record.argument[0]);
+      break;
     case actor_command_kind::ui_close_popup:
       if (!is_nil (popup_window_)) {
         set_visibility (popup_window_, false);

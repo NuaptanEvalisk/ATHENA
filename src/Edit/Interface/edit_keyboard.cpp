@@ -47,8 +47,12 @@ edit_interface_rep::set_input_mode (int mode) {
   // avoids keyboard shortcuts when using the menu between two keystrokes
 
   if ((mode == INPUT_NORMAL) && (input_mode != INPUT_NORMAL)) {
+    if (input_mode == INPUT_COMPLETE)
+      (void) publish_ui (actor_command_kind::ui_close_completion, completion_session);
     selection_cancel ();
     completions= array<string> ();
+    completion_cursor= path ();
+    completion_original= "";
   }
   input_mode= mode;
 }

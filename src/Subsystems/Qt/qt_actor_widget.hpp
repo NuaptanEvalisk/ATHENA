@@ -14,6 +14,9 @@
 #include "actor_transport.hpp"
 #include "actor_ui_bridge.hpp"
 #include "qt_simple_widget.hpp"
+#include <QPointer>
+
+class QTMCompletionPopup;
 
 class qt_actor_widget_rep final: public qt_simple_widget_rep {
 public:
@@ -53,6 +56,7 @@ private:
   actor_ui_endpoint* const endpoint_;
   widget popup_window_;
   widget popup_content_;
+  QPointer<QTMCompletionPopup> completion_popup_;
 
   void submit_text (actor_command_kind kind, string text,
                     std::uint64_t argument0= 0);

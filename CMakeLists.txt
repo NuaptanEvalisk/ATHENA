@@ -793,6 +793,7 @@ endif (LINKED_GNUTLS)
 
 set (GUI_TYPE) # nothing or WIN32, MACOSX bundles are treated independetly
 find_package (KF6SyntaxHighlighting REQUIRED)
+find_package (KF6Completion REQUIRED)
 
 if (ATHENA_GUI STREQUAL "Qt" OR ATHENA_GUI STREQUAL "Qt6")
   find_package (Qt6 COMPONENTS Core Gui Widgets PrintSupport Svg Network Core5Compat REQUIRED)

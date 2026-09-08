@@ -1,6 +1,16 @@
 file (GLOB_RECURSE TEST_SRC_FILES CONFIGURE_DEPENDS "*.cpp")
 
 list (FILTER TEST_SRC_FILES EXCLUDE REGEX "/watchdog/watchdog_fake_child\\.cpp$")
+list (FILTER TEST_SRC_FILES EXCLUDE REGEX "/qt/completion_popup_test\\.cpp$")
+
+add_executable (completion_popup_test qt/completion_popup_test.cpp
+  ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMCompletionPopup.cpp)
+target_include_directories (completion_popup_test PRIVATE
+  ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt)
+target_link_libraries (completion_popup_test PRIVATE KF6::Completion Qt6::Test)
+add_test (NAME completion_popup_test COMMAND completion_popup_test)
+set_tests_properties (completion_popup_test PROPERTIES TIMEOUT 20
+  ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
 if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
   add_test (NAME stacktrace_symbolize_test
@@ -104,6 +114,14 @@ add_test(NAME link_invalidation_editor_test
     --runtime ${ATHENA_GUILE_PREFIX}
     --resources ${ATHENA_SOURCE_DIR}/ATHENA)
 set_tests_properties(link_invalidation_editor_test PROPERTIES TIMEOUT 90)
+add_test(NAME completion_editor_test
+  COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/evaluation-bar-test.py
+    --script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/completion-editor-test.scm
+    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
+    --runtime ${ATHENA_GUILE_PREFIX}
+    --resources ${ATHENA_SOURCE_DIR}/ATHENA)
+set_tests_properties(completion_editor_test PROPERTIES TIMEOUT 90)
 add_test(NAME two_buffer_save_test
   COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_CURRENT_SOURCE_DIR}/scheme/two-buffer-save-test.py
