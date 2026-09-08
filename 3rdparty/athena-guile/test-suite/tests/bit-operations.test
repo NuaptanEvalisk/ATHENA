@@ -31,8 +31,6 @@
        (apply test-proc arg-set)))
    arg-sets))
 
-(define (documented? object)
-  (not (not (object-documentation object))))
 
 (define fixnum-bit
   (inexact->exact (round (+ (/ (log (+ most-positive-fixnum 1)) (log 2)) 1))))
@@ -42,8 +40,6 @@
 
 (with-test-prefix "bit-extract"
 
-  (pass-if "documented?"
-    (documented? bit-extract))
 
   (with-test-prefix "extract from zero"
 

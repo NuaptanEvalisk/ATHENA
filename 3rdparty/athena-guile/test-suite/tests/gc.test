@@ -37,8 +37,6 @@
 ;;;
 
 
-(define (documented? object)
-  (not (not (object-documentation object))))
 
 ;; In guile 1.6.4 this test bombed, due to the record in h being collected
 ;; by the gc, but not removed from h, leaving "x" as a freed cell.

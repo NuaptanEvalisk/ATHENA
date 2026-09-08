@@ -92,7 +92,7 @@ static void
 init_print_frame_var (void)
 {
   print_frame_var =
-    scm_c_public_variable ("system repl debug", "print-frame");
+    scm_c_public_variable ("system vm backtrace", "print-frame");
 }
 
 static void
@@ -100,9 +100,9 @@ init_print_frames_var_and_frame_to_stack_vector_var (void)
 {
   kw_count = scm_from_latin1_keyword ("count");
   print_frames_var =
-    scm_c_public_variable ("system repl debug", "print-frames");
+    scm_c_public_variable ("system vm backtrace", "print-frames");
   frame_to_stack_vector_var =
-    scm_c_public_variable ("system repl debug", "frame->stack-vector");
+    scm_c_public_variable ("system vm backtrace", "frame->stack-vector");
 }
 
 SCM

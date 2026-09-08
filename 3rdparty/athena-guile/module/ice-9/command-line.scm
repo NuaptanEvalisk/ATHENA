@@ -106,11 +106,11 @@ There is NO WARRANTY, to the extent permitted by law."))
           (G_ "General help using GNU software: <http://www.gnu.org/gethelp/>\n")))
 
 (define *usage*
-  (G_ "Evaluate code with Guile, interactively or from a script.
+  (G_ "ATHENA private Scheme batch runtime (no interactive REPL).
 
   [-s] FILE      load source code from FILE, and exit
   -c EXPR        evalute expression EXPR, and exit
-  --             stop scanning arguments; run interactively
+  --             stop scanning arguments
 
 The above switches stop argument processing, and pass all
 remaining arguments as the value of (command-line).
@@ -122,20 +122,16 @@ If FILE begins with `-' the -s switch is mandatory.
   -l FILE        load source code from FILE
   -e FUNCTION    after reading script, apply FUNCTION to
                  command line arguments
-  --language=LANG  change language; default: scheme
   -ds            do -s script at this point
   --debug        start with the \"debugging\" VM engine
   --no-debug     start with the normal VM engine (backtraces but
-                 no breakpoints); default is --debug for interactive
-                 use, but not for `-s' and `-c'.
+                 no breakpoints); this is the default.
   --auto-compile compile source files automatically
   --fresh-auto-compile  invalidate auto-compilation cache
   --no-auto-compile  disable automatic source file compilation;
                  default is to enable auto-compilation of source
                  files.
-  --listen[=P]   listen on a local port or a path for REPL clients;
-                 if P is not given, the default is local port 37146
-  -q             inhibit loading of user init file
+  -q             accepted for batch-script compatibility
   --use-srfi=LS  load SRFI modules for the SRFIs in LS,
                  which is a list of numbers like \"2,13,14\"
   --r6rs         change initial Guile environment to better support
@@ -158,14 +154,6 @@ If FILE begins with `-' the -s switch is mandatory.
     (format port (G_ "Usage: ~a [OPTION]... [FILE]...\n") name)
     (display *usage* port)
     (newline port)
-
-    (emit-bug-reporting-address
-     "GNU Guile" "bug-guile@gnu.org"
-     #:port port
-     #:url "http://www.gnu.org/software/guile/"
-     #:packager (assq-ref %guile-build-info 'packager)
-     #:packager-bug-address
-     (assq-ref %guile-build-info 'packager-bug-address))
 
     (if fatal?
         (exit 1))))
@@ -202,8 +190,6 @@ If FILE begins with `-' the -s switch is mandatory.
         (user-load-path '())
         (user-load-compiled-path '())
         (user-extensions '())
-        (interactive? #t)
-        (inhibit-user-init? #f)
         (turn-on-debugging? #f)
         (turn-off-debugging? #f))
 
@@ -224,7 +210,6 @@ If FILE begins with `-' the -s switch is mandatory.
             ;; an expression like (load #f).  We replace the car (i.e.,
             ;; the #f) with the script name.
             (set! arg0 arg)
-            (set! interactive? #f)
             (if script-cell
                 (begin
                   (set-car! script-cell arg0)
@@ -237,7 +222,6 @@ If FILE begins with `-' the -s switch is mandatory.
             (if (null? args)
                 (error "missing argument to `-s' switch"))
             (set! arg0 (car args))
-            (set! interactive? #f)
             (if script-cell
                 (begin
                   (set-car! script-cell arg0)
@@ -249,13 +233,12 @@ If FILE begins with `-' the -s switch is mandatory.
            ((string=? arg "-c")         ; evaluate expr
             (if (null? args)
                 (error "missing argument to `-c' switch"))
-            (set! interactive? #f)
             (finish (cdr args)
                     (cons `((@@ (ice-9 command-line) eval-string/lang)
                             ,(car args))
                           out)))
 
-           ((string=? arg "--")         ; end args go interactive
+           ((string=? arg "--")         ; end arguments
             (finish args out))
 
            ((string=? arg "-l")         ; load a file
@@ -308,20 +291,6 @@ If FILE begins with `-' the -s switch is mandatory.
             (parse (cdr args)
                    out))
 
-           ((string-prefix? "--language=" arg) ; language
-            (parse args
-                   (cons `(current-language
-                           ',(string->symbol
-                              (substring arg (string-length "--language="))))
-                         out)))
-
-           ((string=? "--language" arg) ; language
-            (when (null? args)
-              (error "missing argument to `--language' option"))
-            (parse (cdr args)
-                   (cons `(current-language ',(string->symbol (car args)))
-                         out)))
-
            ((string=? arg "-ds")        ; do script here
             ;; We put a dummy "load" expression, and let the -s put the
             ;; filename in.
@@ -358,8 +327,7 @@ If FILE begins with `-' the -s switch is mandatory.
             (set! %load-should-auto-compile #f)
             (parse args out))
 
-           ((string=? arg "-q")         ; don't load user init
-            (set! inhibit-user-init? #t)
+           ((string=? arg "-q")         ; batch mode never loads user init
             (parse args out))
 
            ((string-prefix? "--use-srfi=" arg)
@@ -382,35 +350,12 @@ If FILE begins with `-' the -s switch is mandatory.
             (parse args
                    (cons '(install-r7rs!) out)))
 
-           ((string=? arg "--listen")   ; start a repl server
-            (parse args
-                   (cons '((@@ (system repl server) spawn-server)) out)))
-           
-           ((string-prefix? "--listen=" arg) ; start a repl server
-            (parse
-             args
-             (cons
-              (let ((where (substring arg 9)))
-                (cond
-                 ((string->number where) ; --listen=PORT
-                  => (lambda (port)
-                       (if (and (integer? port) (exact? port) (>= port 0))
-                           `((@@ (system repl server) spawn-server)
-                             ((@@ (system repl server) make-tcp-server-socket) #:port ,port))
-                           (error "invalid port for --listen"))))
-                 ((string-prefix? "/" where) ; --listen=/PATH/TO/SOCKET
-                  `((@@ (system repl server) spawn-server)
-                    ((@@ (system repl server) make-unix-domain-server-socket) #:path ,where)))
-                 (else
-                  (error "unknown argument to --listen"))))
-              out)))
-
            ((or (string=? arg "-h") (string=? arg "--help"))
             (shell-usage usage-name #f)
             (exit 0))
 
            ((or (string=? arg "-v") (string=? arg "--version"))
-            (version-etc "GNU Guile" (version)
+            (version-etc "ATHENA private Guile" (version)
                          #:license *LGPLv3+*
                          #:command-name "guile"
                          #:packager (assq-ref %guile-build-info 'packager)
@@ -430,10 +375,7 @@ If FILE begins with `-' the -s switch is mandatory.
       ;; script/command/whatever.
       (set-program-arguments (cons arg0 args))
 
-      ;; If debugging was requested, or we are interactive and debugging
-      ;; was not explicitly turned off, use the debug engine.
-      (if (or turn-on-debugging?
-              (and interactive? (not turn-off-debugging?)))
+      (if (and turn-on-debugging? (not turn-off-debugging?))
           (begin
             (set-default-vm-engine! 'debug)
             (set-vm-engine! 'debug)))
@@ -443,19 +385,12 @@ If FILE begins with `-' the -s switch is mandatory.
         ;; default-prompt-handler is nontrivial.
         (@ (ice-9 control) %)
         (begin
-          ;; If we didn't end with a -c or a -s and didn't supply a -q, load
-          ;; the user's customization file.
-          ,@(if (and interactive? (not inhibit-user-init?))
-                '((load-user-init))
-                '())
-
           ;; Use-specified extensions.
           ,@(map (lambda (ext)
                    `(set! %load-extensions (cons ,ext %load-extensions)))
                  user-extensions)
 
-          ;; Add the user-specified load paths here, so they won't be in
-          ;; effect during the loading of the user's customization file.
+          ;; Add the user-specified load paths.
           ,@(map (lambda (path)
                    `(set! %load-path (cons ,path %load-path)))
                  user-load-path)
@@ -471,13 +406,7 @@ If FILE begins with `-' the -s switch is mandatory.
           ,@(if entry-point
                 `((,entry-point (command-line)))
                 '())
-          ,(if interactive?
-               ;; If we didn't end with a -c or a -s, start the
-               ;; repl.
-               '((@ (ice-9 top-repl) top-repl))
-               ;; Otherwise, after doing all the other actions
-               ;; prescribed by the command line, quit.
-               '(quit)))))
+          (quit))))
 
       (if (pair? args)
           (begin

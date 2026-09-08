@@ -52,6 +52,7 @@ if(ATHENA_GUILE_PREBUILT_PREFIX)
   message(STATUS "Reusing private Guile/GC from ${ATHENA_GUILE_PREFIX}; vendored runtime changes will not rebuild it")
   add_custom_target(athena_guile_runtime DEPENDS "${ATHENA_GUILE_LIBRARY}")
 else()
+find_program(ATHENA_GUILE_AUTORECONF_EXECUTABLE NAMES autoreconf REQUIRED)
 include(AthenaBdwgc)
 
 if(ATHENA_ENABLE_TSAN)
@@ -90,6 +91,24 @@ file(GLOB_RECURSE ATHENA_GUILE_RUNTIME_SOURCES CONFIGURE_DEPENDS
   "${ATHENA_GUILE_SOURCE_DIR}/*.h"
   "${ATHENA_GUILE_SOURCE_DIR}/*.scm")
 
+file(GLOB_RECURSE ATHENA_GUILE_BUILD_DESCRIPTIONS CONFIGURE_DEPENDS
+  "${ATHENA_GUILE_SOURCE_DIR}/*.am"
+  "${ATHENA_GUILE_SOURCE_DIR}/*.ac"
+  "${ATHENA_GUILE_SOURCE_DIR}/m4/*.m4")
+file(GLOB ATHENA_GUILE_CONFIG_TEMPLATES CONFIGURE_DEPENDS
+  "${ATHENA_GUILE_SOURCE_DIR}/meta/*.in"
+  "${ATHENA_GUILE_SOURCE_DIR}/libguile/*.in")
+list(FILTER ATHENA_GUILE_CONFIG_TEMPLATES EXCLUDE REGEX "/Makefile\\.in$")
+list(APPEND ATHENA_GUILE_BUILD_DESCRIPTIONS
+  ${ATHENA_GUILE_CONFIG_TEMPLATES}
+  "${ATHENA_GUILE_SOURCE_DIR}/acinclude.m4"
+  "${ATHENA_GUILE_SOURCE_DIR}/am/snarf"
+  "${ATHENA_GUILE_SOURCE_DIR}/GUILE-VERSION")
+# Include the inventory so removing a source also invalidates the build stamp.
+set(ATHENA_GUILE_SOURCE_MANIFEST "${ATHENA_BINARY_DIR}/athena-guile-sources.txt")
+athena_write_build_fingerprint("${ATHENA_GUILE_SOURCE_MANIFEST}"
+  "${ATHENA_GUILE_RUNTIME_SOURCES}\n${ATHENA_GUILE_BUILD_DESCRIPTIONS}\n")
+
 ExternalProject_Add(athena_guile_runtime
   SOURCE_DIR "${ATHENA_GUILE_SOURCE_DIR}"
   BINARY_DIR "${ATHENA_GUILE_BUILD_DIR}"
@@ -98,6 +117,8 @@ ExternalProject_Add(athena_guile_runtime
   UPDATE_COMMAND ""
   PATCH_COMMAND ""
   CONFIGURE_COMMAND
+    "${ATHENA_GUILE_AUTORECONF_EXECUTABLE}" -fi <SOURCE_DIR>
+    COMMAND
     "${CMAKE_COMMAND}" -E env
       "CC=${CMAKE_C_COMPILER}"
       "CFLAGS=${ATHENA_GUILE_C_FLAGS}"
@@ -112,7 +133,11 @@ ExternalProject_Add(athena_guile_runtime
         --disable-nls
         --enable-lto=thin
   BUILD_COMMAND ${ATHENA_GUILE_BUILD_COMMAND} -j20 ${ATHENA_GUILE_MAKE_OPTIONS}
-  INSTALL_COMMAND ${ATHENA_GUILE_BUILD_COMMAND} -j20
+  # This is a private prefix. Remove old modules before installing the exact
+  # source manifest; otherwise deleted .go files silently remain loadable.
+  INSTALL_COMMAND "${CMAKE_COMMAND}" -E rm -rf
+    <INSTALL_DIR>/share/guile/3.0 <INSTALL_DIR>/lib/guile/3.0
+    COMMAND ${ATHENA_GUILE_BUILD_COMMAND} -j20
     ${ATHENA_GUILE_MAKE_OPTIONS} install
   BUILD_BYPRODUCTS "${ATHENA_GUILE_LIBRARY}"
   DEPENDS athena_bdwgc_runtime
@@ -123,6 +148,7 @@ ExternalProject_Add_Step(athena_guile_runtime toolchain_changes
   COMMAND "${CMAKE_COMMAND}" -E true
   DEPENDERS configure
   DEPENDS "${ATHENA_GUILE_TOOLCHAIN_FINGERPRINT}"
+    "${ATHENA_GUILE_SOURCE_MANIFEST}" ${ATHENA_GUILE_BUILD_DESCRIPTIONS}
   COMMENT "Checking the private ATHENA Guile toolchain configuration")
 
 # ExternalProject normally treats an in-tree SOURCE_DIR as opaque: without an

@@ -22,9 +22,9 @@
 include $(top_srcdir)/am/bootstrap.am
 
 moddir = $(pkgdatadir)/$(GUILE_EFFECTIVE_VERSION)
-nobase_mod_DATA = $(SOURCES) $(ELISP_SOURCES) $(NOCOMP_SOURCES)
-EXTRA_DIST = $(SOURCES) $(ELISP_SOURCES) $(NOCOMP_SOURCES)
-ETAGS_ARGS = $(SOURCES) $(ELISP_SOURCES) $(NOCOMP_SOURCES)
+nobase_mod_DATA = $(SOURCES) $(NOCOMP_SOURCES)
+EXTRA_DIST = $(SOURCES) $(NOCOMP_SOURCES)
+ETAGS_ARGS = $(SOURCES) $(NOCOMP_SOURCES)
 
 # Don't build .go files here.
 nobase_noinst_DATA =
@@ -32,11 +32,7 @@ nobase_noinst_DATA =
 ## ice-9/test.scm is not currently installed.
 EXTRA_DIST +=					\
   ice-9/test.scm				\
-  ice-9/compile-psyntax.scm			\
-  ice-9/ChangeLog-2008				\
-  scripts/ChangeLog-2008			\
-  scripts/README				\
-  oop/ChangeLog-2008
+  ice-9/compile-psyntax.scm
 
 ETAGS_ARGS +=					\
   ice-9/test.scm				\

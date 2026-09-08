@@ -52,16 +52,16 @@ export GUILE_AUTO_COMPILE
 # compiler.
 if test "@cross_compiling@" = "no"
 then
-    GUILE_LOAD_PATH="${top_srcdir}/module:${top_srcdir}/guile-readline"
+    GUILE_LOAD_PATH="${top_srcdir}/module"
     if test "${top_srcdir}" != "${top_builddir}"; then
-        GUILE_LOAD_PATH="$GUILE_LOAD_PATH:${top_builddir}/module:${top_builddir}/guile-readline"
+        GUILE_LOAD_PATH="$GUILE_LOAD_PATH:${top_builddir}/module"
     fi
     export GUILE_LOAD_PATH
     case "$GUILE_BOOTSTRAP_STAGE" in
         stage0) GUILE_LOAD_COMPILED_PATH="${top_builddir}/stage0:${top_srcdir}/prebuilt/@SCM_PREBUILT_BINARIES@" ;;
         stage1) GUILE_LOAD_COMPILED_PATH="${top_builddir}/stage1:${top_builddir}/stage0" ;;
         stage2) GUILE_LOAD_COMPILED_PATH="${top_builddir}/stage1" ;;
-        *) GUILE_LOAD_COMPILED_PATH="${top_builddir}/stage2:${top_builddir}/guile-readline" ;;
+        *) GUILE_LOAD_COMPILED_PATH="${top_builddir}/stage2" ;;
     esac
     export GUILE_LOAD_COMPILED_PATH
 
@@ -83,7 +83,7 @@ then
 fi
 
 # handle LTDL_LIBRARY_PATH (no clobber)
-for dir in guile-readline libguile ; do
+for dir in libguile ; do
     if test -z "$LTDL_LIBRARY_PATH"; then
       LTDL_LIBRARY_PATH="${top_builddir}/${dir}"
     else

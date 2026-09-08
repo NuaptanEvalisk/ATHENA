@@ -27,7 +27,6 @@
 ;;;
 
 (with-test-prefix "hash"
-  (pass-if (->bool (object-documentation hash)))
   (pass-if-exception "hash #t -1" exception:out-of-range
     (hash #t -1))
   (pass-if-exception "hash #t 0" exception:out-of-range
@@ -64,7 +63,6 @@
 ;;;
 
 (with-test-prefix "hashv"
-  (pass-if (->bool (object-documentation hashv)))
   (pass-if-exception "hashv #t -1" exception:out-of-range
     (hashv #t -1))
   (pass-if-exception "hashv #t 0" exception:out-of-range
@@ -78,7 +76,6 @@
 ;;;
 
 (with-test-prefix "hashq"
-  (pass-if (->bool (object-documentation hashq)))
   (pass-if-exception "hashq #t -1" exception:out-of-range
     (hashq #t -1))
   (pass-if-exception "hashq #t 0" exception:out-of-range
@@ -324,7 +321,6 @@
 ;;; hashx-remove!
 ;;;
 (with-test-prefix "hashx-remove!"
-  (pass-if (->bool (object-documentation hashx-remove!)))
 
   (pass-if (let ((table (make-hash-table)))
 	     (hashx-set! hashq assq table 'x 123)

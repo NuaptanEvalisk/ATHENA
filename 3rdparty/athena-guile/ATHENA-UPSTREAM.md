@@ -9,11 +9,36 @@ runtime.  It is not a general-purpose Guile distribution.
 - Upstream license: GNU LGPL version 3 or later; see `COPYING.LESSER`
 - Imported from: `https://git.savannah.gnu.org/git/guile.git`
 
-ATHENA carries the complete upstream source so that the runtime, module
-registry, bytecode compiler, and ABI evolve together with ATHENA.  Local
-changes must retain upstream copyright and licensing notices.  Features may
-only be removed after the ATHENA Scheme corpus has been checked against the
-resulting runtime.
+ATHENA carries a Scheme-only subset so that the runtime, module registry,
+bytecode compiler, and ABI evolve together with ATHENA. Local changes retain
+upstream copyright and licensing notices. The upstream revision above records
+provenance; upstream NEWS and ChangeLogs do not describe this private runtime.
+
+Removed surfaces: Brainfuck, ECMAScript, Elisp, Wisp, interactive/network REPL,
+readline, Emacs integration, examples, benchmarks, Guix packaging, Texinfo
+documentation generation, Guile Web/SXML/Texinfo modules, and unused interactive
+inspection, session, expect, channel, and sandbox utilities. ATHENA's separate
+HTML/SXML conversion modules are unaffected. Scheme/RNRS/SRFI, GOOPS, FFI,
+Unicode, GC, threads, fluids, compiler IRs, and JIT support remain.
+
+The private `guile` executable is a batch driver used by ATHENA's bytecode
+planner. It does not start a REPL or read user startup files. `guild compile`
+remains available for the three bootstrap stages. Noninteractive C backtraces
+use `(system vm backtrace)`. Procedure docstrings remain available in memory;
+there is no generated `guile-procedures.txt` database. C `.x` snarf registration
+is retained independently of the removed `.doc`/Texinfo extraction pipeline.
+
+The module installation and all bootstrap stages share the explicit source
+manifest in `am/bootstrap.am`. Do not remove dependencies based only on direct
+ATHENA imports: include compiler, native C lookup, test, and build-time users.
+Core regression tests remain in `test-suite/`; tests for deleted features are
+removed with those features.
+
+Build through ATHENA's `cmake/AthenaGuile.cmake`, which regenerates Autotools
+inputs before configuring. For a clean validation, do not set
+`ATHENA_GUILE_PREBUILT_PREFIX` and do not reuse old bootstrap or installed
+standard-library trees. See `notes/guile-trimming-audit.md` in the ATHENA root
+for the audit and validation record.
 
 The runtime is built with a private library name and is installed beside
 ATHENA.  ATHENA must never silently fall back to a system Guile installation.

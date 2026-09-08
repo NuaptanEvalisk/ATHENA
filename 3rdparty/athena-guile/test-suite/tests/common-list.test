@@ -26,8 +26,6 @@
 ;;;
 
 
-(define (documented? object)
-  (not (not (object-documentation object))))
 
 
 ;;;
@@ -36,8 +34,6 @@
 
 (with-test-prefix "intersection"
 
-  (pass-if "documented?" 
-    (documented? intersection))
 
   (pass-if "both arguments empty"
     (eq? (intersection '() '()) '()))
@@ -75,8 +71,6 @@
 
 (with-test-prefix "set-difference"
 
-  (pass-if "documented?" 
-    (documented? set-difference))
 
   (pass-if "both arguments empty"
     (eq? (set-difference '() '()) '()))
@@ -114,8 +108,6 @@
 
 (with-test-prefix "remove-if"
 
-  (pass-if "documented?" 
-    (documented? remove-if))
 
   (pass-if "empty list, remove all"
     (eq? (remove-if (lambda (x) #t) '()) '()))
@@ -142,8 +134,6 @@
 
 (with-test-prefix "remove-if-not"
 
-  (pass-if "documented?" 
-    (documented? remove-if-not))
 
   (pass-if "empty list, remove all"
     (eq? (remove-if-not (lambda (x) #f) '()) '()))
@@ -170,8 +160,6 @@
 
 (with-test-prefix "delete-if!"
 
-  (pass-if "documented?" 
-    (documented? delete-if!))
 
   (pass-if "empty list, remove all"
     (eq? (delete-if! (lambda (x) #t) '()) '()))
@@ -198,8 +186,6 @@
 
 (with-test-prefix "delete-if-not!"
 
-  (pass-if "documented?" 
-    (documented? delete-if-not!))
 
   (pass-if "empty list, remove all"
     (eq? (delete-if-not! (lambda (x) #f) '()) '()))

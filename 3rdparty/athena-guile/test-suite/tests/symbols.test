@@ -28,8 +28,6 @@
 (define exception:immutable-string
   (cons 'misc-error "^string is read-only"))
 
-(define (documented? object)
-  (not (not (object-documentation object))))
 
 (define (symbol-length s)
   (string-length (symbol->string s)))
@@ -92,8 +90,6 @@
 
 (with-test-prefix "symbol?"
 
-  (pass-if "documented?"
-    (documented? symbol?))
 
   (pass-if "string"
     (not (symbol? "foo")))
@@ -129,8 +125,6 @@
 
 (with-test-prefix "gensym"
 
-  (pass-if "documented?"
-    (documented? gensym))
 
   (pass-if "produces a symbol"
     (symbol? (gensym)))

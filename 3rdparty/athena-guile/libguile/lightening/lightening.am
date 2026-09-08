@@ -20,8 +20,6 @@ lightening_c_files = 					\
 
 lightening_extra_files =				\
 	$(lightening)/AUTHORS				\
-	$(lightening)/ChangeLog				\
-	$(lightening)/ChangeLog.lightning		\
 	$(lightening)/COPYING				\
 	$(lightening)/COPYING.DOC			\
 	$(lightening)/COPYING.LESSER			\

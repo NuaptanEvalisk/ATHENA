@@ -15,75 +15,13 @@
 ;;; License along with this program.  If not, see
 ;;; <http://www.gnu.org/licenses/>.
 
-;;; Commentary:
-
-;;; * This module exports:
-;;;
-;;; file-commentary      -- a procedure that returns a file's "commentary"
-;;;
-;;; documentation-files  -- a search-list of files using the Guile
-;;;                         Documentation Format Version 2.
-;;;
-;;; search-documentation-files -- a procedure that takes NAME (a symbol)
-;;;                               and searches `documentation-files' for
-;;;                               associated documentation.  optional
-;;;                               arg FILES is a list of filenames to use
-;;;                               instead of `documentation-files'.
-;;;
-;;; object-documentation -- a procedure that returns its arg's docstring
-;;;
-;;; * Guile Documentation Format
-;;;
-;;; Here is the complete and authoritative documentation for the Guile
-;;; Documentation Format Version 2:
-;;;
-;;; HEADER
-;;; ^LPROC1
-;;; DOCUMENTATION1
-;;;
-;;; ^LPROC2
-;;; DOCUMENTATION2
-;;;
-;;; ^L...
-;;;
-;;; The HEADER is completely ignored.  The "^L" are formfeeds.  PROC1, PROC2
-;;; and so on are symbols that name the element documented.  DOCUMENTATION1,
-;;; DOCUMENTATION2 and so on are the related documentation, w/o any further
-;;; formatting.  Note that there are two newlines before the next formfeed;
-;;; these are discarded when the documentation is read in.
-;;;
-;;; (Version 1, corresponding to guile-1.4 and prior, is documented as being
-;;; not documented anywhere except by this embarrassingly circular comment.)
-;;;
-;;; * File Commentary
-;;;
-;;; A file's commentary is the body of text found between comments
-;;;     ;;; Commentary:
-;;; and
-;;;     ;;; Code:
-;;; both of which must be at the beginning of the line.  In the result string,
-;;; semicolons at the beginning of each line are discarded.
-;;;
-;;; You can specify to `file-commentary' alternate begin and end strings, and
-;;; scrub procedure.  Use #t to get default values.  For example:
-;;;
-;;; (file-commentary "documentation.scm")
-;;; You should see this text!
-;;;
-;;; (file-commentary "documentation.scm" "^;;; Code:" "ends here$")
-;;; You should see the rest of this file.
-;;;
-;;; (file-commentary "documentation.scm" #t #t string-upcase)
-;;; You should see this text very loudly (note semicolons untouched).
-
-;;; Code:
+;;; In-memory docstrings and source commentary; no generated documentation database.
 
 (define-module (ice-9 documentation)
   #:use-module (ice-9 rdelim)
   #:use-module (ice-9 regex)
   #:use-module (ice-9 match)
   #:export (file-commentary
-            documentation-files search-documentation-files
             object-documentation))
 
 
@@ -92,12 +30,7 @@
 ;;
 
 (define (file-commentary filename . cust) ; (IN-LINE-RE AFTER-LINE-RE SCRUB)
-   
-  ;; These are constants but are not at the top level because the repl in
-  ;; boot-9.scm loads session.scm which in turn loads this file, and we want
-  ;; that to work even even when regexps are not available (ie. make-regexp
-  ;; doesn't exist), as for instance is the case on mingw.
-  ;;
+
   (define default-in-line-re (make-regexp "^;;; Commentary:"))
   (define default-after-line-re (make-regexp "^;;; Code:"))
   (define default-scrub (let ((dirt (make-regexp "^;+")))
@@ -144,50 +77,6 @@
 
 
 
-(define (parse-path var)
-  (match (getenv var)
-    (#f #f)
-    ;; Ignore e.g. "export GUILE_SYSTEM_EXTENSIONS_PATH=".
-    ("" '())
-    (val (string-split val #\:))))
-
-;;
-;; documentation-files is the list of places to look for documentation
-;;
-(define documentation-files
-  (map (lambda (vicinity)
-	 (in-vicinity vicinity "guile-procedures.txt"))
-       (or (parse-path "GUILE_DOCSTRINGS_PATH")
-           (list (%library-dir) (%package-data-dir) (%site-dir)))))
-
-(define entry-delimiter "\f")
-
-(define (find-documentation-in-file name file)
-  (and (file-exists? file)
-       (call-with-input-file file
-	 (lambda (port)
-	   (let ((name (symbol->string name)))
-	     (let ((len (string-length name)))
-	       (read-delimited entry-delimiter port) ;skip to first entry
-	       (let loop ((entry (read-delimited entry-delimiter port)))
-		 (cond ((eof-object? entry) #f)
-		       ;; match?
-		       ((and ;; large enough?
-		         (>= (string-length entry) len)
-			 ;; matching name?
-			 (string=? (substring entry 0 len) name)
-			 ;; terminated?
-			 (memq (string-ref entry len) '(#\newline)))
-			;; cut away name tag and extra surrounding newlines
-			(substring entry (+ len 2) (- (string-length entry) 2)))
-		       (else (loop (read-delimited entry-delimiter port)))))))))))
-
-(define (search-documentation-files name . files)
-  (or-map (lambda (file)
-	    (find-documentation-in-file name file))
-          (cond ((null? files) documentation-files)
-                (else files))))
-
 (define (object-documentation object)
   "Return the docstring for OBJECT.
 OBJECT can be a procedure, macro or any object that has its
@@ -196,13 +85,6 @@ OBJECT can be a procedure, macro or any object that has its
 	   (procedure-documentation object))
       (object-property object 'documentation)
       (and (macro? object)
-           (object-documentation (macro-transformer object)))
-      (and (procedure? object)
-	   (procedure-name object)
-	   (let ((docstring (search-documentation-files
-                             (procedure-name object))))
-	     (if docstring
-		 (set-procedure-property! object 'documentation docstring))
-	     docstring))))
+           (object-documentation (macro-transformer object)))))
 
 ;;; documentation.scm ends here

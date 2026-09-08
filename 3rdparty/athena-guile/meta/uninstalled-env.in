@@ -32,7 +32,7 @@
 # Example: ../../uninstalled-env ./guile-test-foo
 
 # config
-subdirs_with_ltlibs="guile-readline libguile"       # maintain me
+subdirs_with_ltlibs="libguile"       # maintain me
 
 # env (set by configure)
 top_srcdir="@top_srcdir_absolute@"
@@ -46,8 +46,6 @@ top_builddir="@top_builddir_absolute@"
     exit 1
 }
 
-GUILE_DOCSTRINGS_PATH="@top_builddir_absolute@/libguile${GUILE_DOCSTRINGS_PATH:+:$GUILE_DOCSTRINGS_PATH}"
-export GUILE_DOCSTRINGS_PATH
 
 # When cross-compiling, let $GUILE_FOR_BUILD use its own .go files since
 # the ones that are being built may be incompatible ($GUILE_FOR_BUILD is
@@ -60,12 +58,12 @@ if test "@cross_compiling@" = "no"
 then
     if [ x"$GUILE_LOAD_PATH" = x ]
     then
-	GUILE_LOAD_PATH="${top_srcdir}/module:${top_srcdir}/guile-readline"
+	GUILE_LOAD_PATH="${top_srcdir}/module"
 	if test "${top_srcdir}" != "${top_builddir}"; then
-            GUILE_LOAD_PATH="$GUILE_LOAD_PATH:${top_builddir}/module:${top_builddir}/guile-readline"
+            GUILE_LOAD_PATH="$GUILE_LOAD_PATH:${top_builddir}/module"
 	fi
     else
-	for d in "/module" "/guile-readline"
+	for d in "/module"
 	do
             # This hair prevents double inclusion.
             # The ":" prevents prefix aliasing.
@@ -83,7 +81,7 @@ then
     fi
     export GUILE_LOAD_PATH
 
-    for d in "/prebuilt/@SCM_PREBUILT_BINARIES@" "/stage2" "/guile-readline"
+    for d in "/prebuilt/@SCM_PREBUILT_BINARIES@" "/stage2"
     do
         # This hair prevents double inclusion.
         # The ":" prevents prefix aliasing.

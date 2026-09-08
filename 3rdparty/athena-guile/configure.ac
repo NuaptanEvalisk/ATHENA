@@ -33,7 +33,7 @@ AC_CONFIG_SRCDIR(GUILE-VERSION)
 
 AC_CANONICAL_TARGET
 
-AM_INIT_AUTOMAKE([1.12 gnu no-define -Wall -Wno-override \
+AM_INIT_AUTOMAKE([1.12 foreign no-define -Wall -Wno-override \
   color-tests dist-lzip dist-xz])
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])], [AC_SUBST([AM_DEFAULT_VERBOSITY],1)])
 
@@ -171,11 +171,8 @@ AM_CONDITIONAL([HAVE_SHARED_LIBRARIES], [test "x$enable_shared" = "xyes"])
 # Some systems provide dlopen via libc; others require -ldl.
 AC_SEARCH_LIBS([dlopen], [dl])
 
-AC_CHECK_PROG(have_makeinfo, makeinfo, yes, no)
-AM_CONDITIONAL(HAVE_MAKEINFO, test "$have_makeinfo" = yes)
 
 PKG_INSTALLDIR
-AM_PATH_LISPDIR
 
 AC_DEFINE_UNQUOTED([HOST_TYPE], ["$host"],
   [Define to the host's GNU triplet.])
@@ -1415,11 +1412,9 @@ for file in $LIBOBJS; do
 done
 
 ## We also need to create corresponding .doc and .x files
-EXTRA_DOT_DOC_FILES="`echo ${LIB@&t@OBJS} | sed 's,\.[[^.]]* ,.doc ,g;s,\.[[^.]]*$,.doc,'`"
 EXTRA_DOT_X_FILES="`echo ${LIB@&t@OBJS} | sed 's,\.[[^.]]* ,.x ,g;s,\.[[^.]]*$,.x,'`"
 
 # GNU Readline bindings.
-GUILE_READLINE
 
 AC_SUBST(GUILE_MAJOR_VERSION)
 AC_SUBST(GUILE_MINOR_VERSION)
@@ -1470,7 +1465,6 @@ AC_SUBST(GUILE_CFLAGS)
 
 AC_SUBST(AWK)
 AC_SUBST(LIBLOBJS)
-AC_SUBST(EXTRA_DOT_DOC_FILES)
 AC_SUBST(EXTRA_DOT_X_FILES)
 
 dnl See also top_builddir in info node: (libtool)AC_PROG_LIBTOOL
@@ -1497,13 +1491,8 @@ AC_CONFIG_FILES([libguile/gen-scmconfig.h])
 AC_CONFIG_FILES([
   Makefile
   lib/Makefile
-  doc/Makefile
-  doc/r5rs/Makefile
-  doc/ref/Makefile
-  examples/Makefile
   libguile/Makefile
   libguile/version.h
-  guile-readline/Makefile
   test-suite/Makefile
   test-suite/standalone/Makefile
   meta/Makefile
@@ -1519,13 +1508,11 @@ AC_CONFIG_FILES([
 
 
 GUILE_CONFIG_SCRIPT([check-guile])
-GUILE_CONFIG_SCRIPT([benchmark-guile])
 GUILE_CONFIG_SCRIPT([meta/guile])
 GUILE_CONFIG_SCRIPT([meta/build-env])
 GUILE_CONFIG_SCRIPT([meta/uninstalled-env])
 GUILE_CONFIG_SCRIPT([meta/gdb-uninstalled-guile])
 GUILE_CONFIG_SCRIPT([libguile/guile-snarf])
-GUILE_CONFIG_SCRIPT([libguile/guile-snarf-docs])
 GUILE_CONFIG_SCRIPT([test-suite/standalone/test-use-srfi])
 GUILE_CONFIG_SCRIPT([test-suite/standalone/test-fast-slot-ref])
 

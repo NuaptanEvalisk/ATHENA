@@ -31,8 +31,6 @@
 (define exception:numerical-overflow
   (cons 'numerical-overflow "^Numerical overflow"))
 
-(define (documented? object)
-  (not (not (object-documentation object))))
 
 (define fixnum-bit
   (do ((i 0 (+ 1 i))
@@ -188,8 +186,6 @@
 
 (with-test-prefix/c&e "1+"
 
-  (pass-if "documented?"
-    (documented? 1+))
 
   (pass-if "0"   (eqv? 1 (1+ 0)))
   (pass-if "-1"   (eqv? 0 (1+ -1)))
@@ -210,8 +206,6 @@
 
 (with-test-prefix/c&e "1-"
 
-  (pass-if "documented?"
-    (documented? 1-))
 
   (pass-if "0"    (eqv? -1 (1- 0)))
   (pass-if "1"    (eqv? 0 (1- 1)))
@@ -232,8 +226,6 @@
 
 (with-test-prefix "exact?"
 
-  (pass-if "documented?"
-    (documented? exact?))
 
   (with-test-prefix "integers"
 
@@ -298,7 +290,6 @@
 ;;;
 
 (with-test-prefix "exp"
-  (pass-if (documented? exp))
 
   (pass-if-exception "no args" exception:wrong-num-args
     (exp))
@@ -327,7 +318,6 @@
 ;;;
 
 (with-test-prefix "odd?"
-  (pass-if (documented? odd?))  
   (pass-if (odd? 1))
   (pass-if (odd? -1))
   (pass-if (not (odd? 0)))
@@ -343,7 +333,6 @@
 ;;;
 
 (with-test-prefix "even?"
-  (pass-if (documented? even?))  
   (pass-if (even? 2))
   (pass-if (even? -2))
   (pass-if (even? 0))
@@ -359,7 +348,6 @@
 ;;;
 
 (with-test-prefix "finite?"
-  (pass-if (documented? finite?))
   (pass-if (not (finite? (inf))))
   (pass-if (not (finite? +inf.0)))
   (pass-if (not (finite? -inf.0)))
@@ -391,7 +379,6 @@
 ;;;
 
 (with-test-prefix "inf?"
-  (pass-if (documented? inf?))
   (pass-if (inf? (inf)))
   ;; FIXME: what are the expected behaviors?
   ;; (pass-if (inf? (/ 1.0 0.0))
@@ -411,7 +398,6 @@
 ;;;
 
 (with-test-prefix "nan?"
-  (pass-if (documented? nan?))
   (pass-if (nan? (nan)))
   ;; FIXME: other ways we should be able to generate NaN?
   (pass-if (not (nan? 0)))
@@ -424,7 +410,6 @@
 ;;;
 
 (with-test-prefix "abs"
-  (pass-if (documented? abs))
   (pass-if (eqv? 0 (abs 0)))
   (pass-if (eqv? 1 (abs 1)))
   (pass-if (eqv? 1 (abs -1)))
@@ -448,7 +433,6 @@
 ;;;
 
 (with-test-prefix "quotient"
-  (pass-if (documented? quotient))
 
   (with-test-prefix "0 / n"
 
@@ -668,7 +652,6 @@
 ;;;
 
 (with-test-prefix "remainder"
-  (pass-if (documented? remainder))
 
   (with-test-prefix "0 / n"
 
@@ -867,7 +850,6 @@
 ;;;
 
 (with-test-prefix "modulo"
-  (pass-if (documented? modulo))
 
   (with-test-prefix "0 % n"
 
@@ -1159,8 +1141,6 @@
 
 (with-test-prefix "gcd"
 
-  (pass-if "documented?"
-    (documented? gcd))
 
   (with-test-prefix "(n)"
 
@@ -1370,7 +1350,6 @@
 (with-test-prefix "lcm"
   ;; FIXME: more tests?
   ;; (some of these are already in r4rs.test)
-  (pass-if (documented? lcm))
   (pass-if-equal 1 (lcm))
   (pass-if-equal 15 (lcm -15))
   (pass-if-equal 288 (lcm 32 -36))
@@ -1414,7 +1393,6 @@
 ;;; rationalize
 ;;;
 (with-test-prefix "rationalize"
-  (pass-if (documented? rationalize))
   (pass-if (eqv?  2     (rationalize  4   2  )))
   (pass-if (eqv? -2     (rationalize -4   2  )))
   (pass-if (eqv?  2.0   (rationalize  4   2.0)))
@@ -1493,7 +1471,6 @@
           (- num)
         (num->str->num (- num) 10)))
 
-    (pass-if (documented? number->string))
     (pass-if (string=? (number->string 0) "0"))
     (pass-if (string=? (number->string 171) "171"))
     (pass-if (= (+ fixnum-max 1) (num->str->num (+ fixnum-max 1) 10)))
@@ -1597,8 +1574,6 @@
 
 (with-test-prefix "string->number"
 
-  (pass-if "documented?"
-    (documented? string->number))
 
   (pass-if "non number strings"
     (for-each (lambda (x) (if (string->number x) (throw 'fail)))
@@ -1719,7 +1694,6 @@
 ;;;
 
 (with-test-prefix "number?"
-  (pass-if (documented? number?))
   (pass-if (number? 0))
   (pass-if (number? 7))
   (pass-if (number? -7))
@@ -1740,7 +1714,6 @@
 ;;;
 
 (with-test-prefix "complex?"
-  (pass-if (documented? complex?))
   (pass-if (complex? 0))
   (pass-if (complex? 7))
   (pass-if (complex? -7))
@@ -1761,7 +1734,6 @@
 ;;;
 
 (with-test-prefix "real?"
-  (pass-if (documented? real?))
   (pass-if (real? 0))
   (pass-if (real? 7))
   (pass-if (real? -7))
@@ -1787,7 +1759,6 @@
 ;;;
 
 (with-test-prefix "rational?"
-  (pass-if (documented? rational?))
   (pass-if (rational? 0))
   (pass-if (rational? 7))
   (pass-if (rational? -7))
@@ -1813,7 +1784,6 @@
 ;;;
 
 (with-test-prefix "integer?"
-  (pass-if (documented? integer?))
   (pass-if (integer? 0))
   (pass-if (integer? 7))
   (pass-if (integer? -7))
@@ -1841,7 +1811,6 @@
 ;;;
 
 (with-test-prefix "exact-integer?"
-  (pass-if (documented? exact-integer?))
   (pass-if (exact-integer? 0))
   (pass-if (exact-integer? 7))
   (pass-if (exact-integer? -7))
@@ -1869,7 +1838,6 @@
 ;;;
 
 (with-test-prefix "inexact?"
-  (pass-if (documented? inexact?))
   (pass-if (not (inexact? 0)))
   (pass-if (not (inexact? 7)))
   (pass-if (not (inexact? -7)))
@@ -1907,7 +1875,6 @@
 ;;;
 
 (with-test-prefix "equal?"
-  (pass-if (documented? equal?))
 
   ;; The following test will fail on platforms
   ;; without distinct signed zeroes 0.0 and -0.0.
@@ -1984,7 +1951,6 @@
 ;;;
 
 (with-test-prefix "eqv?"
-  (pass-if (documented? eqv?))
 
   ;; The following test will fail on platforms
   ;; without distinct signed zeroes 0.0 and -0.0.
@@ -2062,7 +2028,6 @@
 ;;;
 
 (with-test-prefix "="
-  (pass-if (documented? =))
   (pass-if (= 7 7))
   (pass-if (= -7 -7))
   (pass-if (= 1.0 1))
@@ -2192,8 +2157,6 @@
 
 (with-test-prefix "<"
 
-  (pass-if "documented?"
-    (documented? <))
 
   (with-test-prefix "(< 0 n)"
     
@@ -2721,7 +2684,6 @@
 ;;;
 
 (with-test-prefix "zero?"
-  (pass-if (documented? zero?))
 
   (pass-if (zero?  0))
   (pass-if (zero?  0.0))
@@ -2750,7 +2712,6 @@
 ;;;
 
 (with-test-prefix "positive?"
-  (pass-if (documented? positive?))
   (pass-if (positive? 1))
   (pass-if (positive? (+ fixnum-max 1)))
   (pass-if (positive? 1.3))
@@ -2764,7 +2725,6 @@
 ;;;
 
 (with-test-prefix "negative?"
-  (pass-if (documented? negative?))
   (pass-if (not (negative? 1)))
   (pass-if (not (negative? (+ fixnum-max 1))))
   (pass-if (not (negative? 1.3)))
@@ -2968,7 +2928,6 @@
         (big*4 (* fixnum-max 4))
         (big*5 (* fixnum-max 5)))
 
-    (pass-if (documented? min))
     (pass-if (eqv? 1 (min 7 3 1 5)))
     (pass-if (eqv? 1 (min 1 7 3 5)))
     (pass-if (eqv? 1 (min 7 3 5 1)))
@@ -3117,8 +3076,6 @@
 
 (with-test-prefix/c&e "+"
 
-  (pass-if "documented?"
-    (documented? +))
 
   (pass-if "simple"
     (and (eqv?  7 (+ 3 4))
@@ -3468,8 +3425,6 @@
     (pass-if (eqv?   fixnum-min (/ (/ fixnum-min -1) -1)))
     (pass-if (equal? fixnum-min (/ (/ fixnum-min -1) -1))))
 
-  (pass-if "documented?"
-    (documented? /))
 
   (with-test-prefix "division by zero"
 
@@ -4379,7 +4334,6 @@
 ;;;
 
 (with-test-prefix "expt"
-  (pass-if (documented? expt))
 
   ;;
   ;; expt no longer requires its first argument to be a scheme number,
@@ -4585,7 +4539,6 @@
 ;;;
 
 (with-test-prefix "real-part"
-  (pass-if (documented? real-part))
   (pass-if (eqv? 5.0 (real-part  5.0)))
   (pass-if (eqv? 0.0 (real-part +5.0i)))
   (pass-if (eqv? 5   (real-part  5)))
@@ -4597,7 +4550,6 @@
 ;;;
 
 (with-test-prefix "imag-part"
-  (pass-if (documented? imag-part))
   (pass-if (eqv? 0   (imag-part  5.0)))
   (pass-if (eqv? 5.0 (imag-part +5.0i)))
   (pass-if (eqv? 0   (imag-part  5)))
@@ -4609,7 +4561,6 @@
 ;;;
 
 (with-test-prefix "magnitude"
-  (pass-if (documented? magnitude))
   (pass-if (= 0 (magnitude 0)))
   (pass-if (= 1 (magnitude 1)))
   (pass-if (= 1 (magnitude -1)))
@@ -4629,7 +4580,6 @@
   (define (almost= x y)
     (> 0.000001 (magnitude (- x y))))
   
-  (pass-if (documented? angle))
 
   (pass-if "inum +ve"   (=        0 (angle 1)))
   (pass-if "inum -ve"   (almost= pi (angle -1)))
@@ -4655,7 +4605,6 @@
       (pass-if-equal "pos" want (inexact->exact f))
       (pass-if-equal "neg" (- want) (inexact->exact (- f)))))
 
-  (pass-if (documented? inexact->exact))
 
   (pass-if-exception "+inf" exception:out-of-range
     (inexact->exact +inf.0))
@@ -4720,7 +4669,6 @@
 ;;;
 
 (with-test-prefix "integer-expt"
-  (pass-if (documented? integer-expt))
 
   (pass-if-exception "2^+inf" exception:wrong-type-arg
     (integer-expt 2 +inf.0))
@@ -4753,7 +4701,6 @@
 ;;;
 
 (with-test-prefix "integer-length"
-  (pass-if (documented? integer-length))
   
   (with-test-prefix "-2^i, ...11100..00"
     (do ((n -1 (ash n 1))
@@ -4781,7 +4728,6 @@
 ;;;
 
 (with-test-prefix "log"
-  (pass-if (documented? log))
 
   (pass-if-exception "no args" exception:wrong-num-args
     (log))
@@ -4834,7 +4780,6 @@
 ;;;
 
 (with-test-prefix "log10"
-  (pass-if (documented? log10))
 
   (pass-if-exception "no args" exception:wrong-num-args
     (log10))
@@ -4887,7 +4832,6 @@
 ;;;
 
 (with-test-prefix "logbit?"
-  (pass-if (documented? logbit?))
 
   (pass-if (eq? #f (logbit?  0 0)))
   (pass-if (eq? #f (logbit?  1 0)))
@@ -4924,7 +4868,6 @@
 ;;;
 
 (with-test-prefix "logcount"
-  (pass-if (documented? logcount))
   
   (with-test-prefix "-2^i, meaning ...11100..00"
     (do ((n -1 (ash n 1))
@@ -4952,7 +4895,6 @@
 ;;;
 
 (with-test-prefix "logior"
-  (pass-if (documented? logior))
 
   (pass-if (eqv? -1 (logior (ash -1 1) 1)))
 
@@ -4983,7 +4925,6 @@
 ;;;
 
 (with-test-prefix "lognot"
-  (pass-if (documented? lognot))
 
   (pass-if (= -1 (lognot 0)))
   (pass-if (= 0  (lognot -1)))
@@ -5015,7 +4956,6 @@
                        (let-values (((s r) (exact-integer-sqrt k)))
                          #t)))
 
-  (pass-if (documented? exact-integer-sqrt))
 
   (pass-if-exception "no args" exception:wrong-num-args
     (exact-integer-sqrt))
@@ -5048,7 +4988,6 @@
 ;;;
 
 (with-test-prefix "sqrt"
-  (pass-if (documented? sqrt))
 
   (pass-if-exception "no args" exception:wrong-num-args
     (sqrt))
@@ -5278,11 +5217,6 @@
         (pass-if-exception name exception (quo n d))
         (pass-if-exception name exception (rem n d))))
 
-    (run-test "documented?" #t
-              (lambda ()
-                (and (documented? quo+rem)
-                     (documented? quo)
-                     (documented? rem))))
 
     (with-test-prefix "inum / inum"
       (with-test-prefix "fixnum-min / -1"
@@ -5421,8 +5355,6 @@
           (eqv? (ash-variant n count)
                 (round-variant (* n (expt 2 count))))))
 
-      (pass-if "documented?"
-        (documented? ash-variant))
 
       (for-each (lambda (n)
                   (for-each (lambda (count) (test n count))

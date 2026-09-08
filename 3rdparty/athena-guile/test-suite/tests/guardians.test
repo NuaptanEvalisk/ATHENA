@@ -44,8 +44,6 @@
 ;;; miscellaneous
 ;;;
 
-(define (documented? object)
-  (not (not (object-documentation object))))
 
 
 (gc)
@@ -113,8 +111,6 @@
 
   (with-test-prefix "make-guardian"
 
-    (pass-if "documented?"
-      (documented? make-guardian))
 
     (pass-if "returns procedure"
       (procedure? (make-guardian)))

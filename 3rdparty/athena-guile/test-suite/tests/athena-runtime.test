@@ -1,0 +1,50 @@
+;;; ATHENA private runtime boundaries and retained facilities.
+;;; SPDX-License-Identifier: LGPL-3.0-or-later
+
+(define-module (test-athena-runtime)
+  #:use-module (test-suite lib)
+  #:use-module (ice-9 documentation)
+  #:use-module (ice-9 threads)
+  #:use-module (system base compile)
+  #:use-module (system vm backtrace))
+
+(with-test-prefix "ATHENA embedded runtime"
+  (pass-if "always batch mode" (batch-mode?))
+  (pass-if "no interactive reader" (not (defined? 'repl-reader)))
+  (pass-if "no readline state" (not (defined? 'using-readline?)))
+
+  (for-each
+   (lambda (module-name)
+     (pass-if (string-append "removed module: " (object->string module-name))
+       (not (false-if-exception (resolve-interface module-name)))))
+   '((web client) (sxml simple) (texinfo)
+     (language brainfuck spec) (language ecmascript spec)
+     (language elisp spec) (language wisp spec)
+     (system repl repl) (system repl server) (ice-9 readline)))
+
+  (pass-if "compiled Scheme docstrings"
+    (let ((proc (compile '(lambda () "ATHENA test docstring" 42))))
+      (and (= (proc) 42)
+           (equal? (procedure-documentation proc) "ATHENA test docstring")
+           (equal? (object-documentation proc) "ATHENA test docstring"))))
+
+  (pass-if "noninteractive backtrace"
+    (let ((trace (call-with-output-string
+                 (lambda (port) (display-backtrace (make-stack #t) port)))))
+      (> (string-length trace) 0)))
+
+  (pass-if "thread-local fluid ownership"
+    (let ((fluid (make-thread-local-fluid 'main)))
+      (and (eq? (join-thread
+                 (call-with-new-thread
+                  (lambda ()
+                    (with-fluids ((fluid 'worker)) (fluid-ref fluid)))))
+                'worker)
+           (eq? (fluid-ref fluid) 'main))))
+
+  (pass-if "exception unwinds fluid"
+    (let ((fluid (make-fluid 'before)))
+      (catch 'test-unwind
+        (lambda () (with-fluids ((fluid 'during)) (throw 'test-unwind)))
+        (lambda args #t))
+      (eq? (fluid-ref fluid) 'before))))

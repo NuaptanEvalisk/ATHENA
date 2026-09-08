@@ -847,12 +847,6 @@ initialize_scheme () {
   initialize_smobs ();
   initialize_glue ();
   scheme_runtime_initialized.store (true, std::memory_order_release);
-  
-    // uncomment to have a guile repl available at startup	
-    //	gh_repl(guile_argc, guile_argv);
-    //scm_shell (guile_argc, guile_argv);
-  
-  
 }
 
 void

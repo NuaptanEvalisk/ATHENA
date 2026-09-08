@@ -26,9 +26,6 @@ fi
 
 echo ""
 ${M4:-m4} --version
-echo ""
-flex --version
-echo ""
 
 ######################################################################
 ### update infrastructure

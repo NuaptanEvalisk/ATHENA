@@ -42,8 +42,6 @@
 ;;; miscellaneous
 ;;;
 
-(define (documented? object)
-  (not (not (object-documentation object))))
 
 
 ;;;
@@ -179,8 +177,6 @@
 
   ;; Is documentation available?
 
-  (expect-fail "documented?"
-    (documented? map))
 
   (with-test-prefix "argument error"
 

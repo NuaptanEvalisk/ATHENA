@@ -135,6 +135,7 @@ if (NOT WIN32)
             "${ATHENA_SCHEME_COMPILE_JOBS}"
             "${ATHENA_GUILE_RUNTIME_ID}"
     DEPENDS ${ATHENA_SCHEME_SOURCES}
+            "${ATHENA_GUILE_LIBRARY}"
             "${ATHENA_SCHEME_SOURCE_MANIFEST}"
             "${ATHENA_SOURCE_DIR}/src/ATHENA/ATHENA/athena.cpp"
             "${ATHENA_SOURCE_DIR}/3rdparty/athena-guile/libguile/athena-runtime.c"

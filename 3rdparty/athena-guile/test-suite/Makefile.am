@@ -22,14 +22,13 @@
 SUBDIRS = standalone
 
 SCM_TESTS = tests/00-initial-env.test		\
-	    tests/00-repl-server.test		\
 	    tests/00-socket.test		\
             tests/alist.test			\
+            tests/athena-runtime.test		\
 	    tests/and-let-star.test		\
 	    tests/arrays.test			\
 	    tests/bit-operations.test		\
 	    tests/bitvectors.test		\
-	    tests/brainfuck.test		\
 	    tests/bytevectors.test		\
 	    tests/c-api.test			\
 	    tests/chars.test			\
@@ -43,15 +42,10 @@ SCM_TESTS = tests/00-initial-env.test		\
 	    tests/cross-compilation.test	\
 	    tests/curried-definitions.test	\
 	    tests/dwarf.test			\
-	    tests/ecmascript.test		\
-	    tests/elisp.test			\
-	    tests/elisp-compiler.test		\
-	    tests/elisp-reader.test		\
 	    tests/encoding-escapes.test		\
 	    tests/encoding-iso88591.test	\
 	    tests/encoding-iso88597.test	\
 	    tests/encoding-utf8.test		\
-	    tests/error-handling.test		\
 	    tests/eval.test			\
 	    tests/eval-string.test		\
 	    tests/exceptions.test		\
@@ -123,8 +117,6 @@ SCM_TESTS = tests/00-initial-env.test		\
 	    tests/regexp.test			\
 	    tests/rtl.test			\
 	    tests/rtl-compilation.test		\
-	    tests/sandbox.test			\
-	    tests/session.test			\
 	    tests/signals.test			\
 	    tests/sort.test			\
 	    tests/srcprop.test			\
@@ -159,7 +151,6 @@ SCM_TESTS = tests/00-initial-env.test		\
 	    tests/srfi-98.test			\
 	    tests/srfi-105.test			\
 	    tests/srfi-111.test			\
-	    tests/srfi-119.test			\
 	    tests/srfi-171.test			\
 	    tests/srfi-4.test			\
 	    tests/srfi-9.test			\
@@ -168,21 +159,9 @@ SCM_TESTS = tests/00-initial-env.test		\
 	    tests/strings.test			\
 	    tests/structs.test			\
 	    tests/suspendable-ports.test	\
-	    tests/sxml.fold.test		\
-	    tests/sxml.match.test		\
-	    tests/sxml.simple.test		\
-	    tests/sxml.ssax.test		\
-	    tests/sxml.transform.test		\
-	    tests/sxml.xpath.test		\
 	    tests/symbols.test			\
 	    tests/syncase.test			\
 	    tests/syntax.test			\
-	    tests/texinfo.test			\
-	    tests/texinfo.docbook.test		\
-	    tests/texinfo.html.test		\
-	    tests/texinfo.plain-text.test	\
-	    tests/texinfo.serialize.test	\
-	    tests/texinfo.string-utils.test	\
 	    tests/threads.test			\
 	    tests/time.test			\
 	    tests/tree-il.test			\
@@ -192,13 +171,7 @@ SCM_TESTS = tests/00-initial-env.test		\
 	    tests/vectors.test			\
 	    tests/vlist.test			\
 	    tests/vm.test			\
-	    tests/weaks.test			\
-	    tests/web-client.test		\
-	    tests/web-http.test			\
-	    tests/web-request.test		\
-	    tests/web-response.test		\
-	    tests/web-server.test		\
-	    tests/web-uri.test
+	    tests/weaks.test
 
 EXTRA_DIST = \
 	guile-test \
@@ -209,8 +182,7 @@ EXTRA_DIST = \
 	tests/multilingual.nottest \
 	tests/popen-child.scm \
 	tests/rnrs-test-a.scm \
-	tests/srfi-64-test.scm \
-	ChangeLog-2008
+	tests/srfi-64-test.scm
 
 
 # Test suite of Dominique Boucher's `lalr-scm'.
@@ -262,4 +234,4 @@ AM_SCM_LOG_FLAGS = --no-auto-compile
 # See the automake info pages regarding "Custom Test Drivers".
 TEST_LOG_DRIVER = $(srcdir)/driver
 
-EXTRA_DIST += $(LALR_EXTRA) $(LALR_TESTS) tests/sxml-match-tests.ss driver
+EXTRA_DIST += $(LALR_EXTRA) $(LALR_TESTS) driver

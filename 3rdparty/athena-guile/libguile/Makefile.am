@@ -55,7 +55,7 @@ ETAGS_ARGS = --regex='/SCM_\(GLOBAL_\)?\(G?PROC\|G?PROC1\|SYMBOL\|VCELL\|CONST_L
 lib_LTLIBRARIES = libathena-guile.la
 bin_PROGRAMS = guile
 
-noinst_PROGRAMS = guile_filter_doc_snarfage gen-scmconfig
+noinst_PROGRAMS = gen-scmconfig
 
 gen_scmconfig_SOURCES = gen-scmconfig.c
 
@@ -92,30 +92,6 @@ scmconfig.h: ${top_builddir}/config.h gen-scmconfig$(EXEEXT)
 	chmod 444 scmconfig.h.tmp; \
 	rm -f scmconfig.h; \
 	mv scmconfig.h.tmp scmconfig.h)
-
-
-guile_filter_doc_snarfage_SOURCES = c-tokenize.c
-
-## Override default rule; this should be compiled for BUILD host.
-## For some reason, OBJEXT does not include the dot
-c-tokenize.$(OBJEXT): c-tokenize.c
-	$(AM_V_GEN)							\
-	if [ "$(cross_compiling)" = "yes" ]; then			\
-		$(CC_FOR_BUILD) -DCROSS_COMPILING=1 -I$(top_builddir)	\
-	           -c -o "$@" "$<";					\
-	else								\
-		$(COMPILE) -c -o "$@" "$<";				\
-	fi
-
-## Override default rule; this should run on BUILD host.
-guile_filter_doc_snarfage$(EXEEXT): $(guile_filter_doc_snarfage_OBJECTS) $(guile_filter_doc_snarfage_DEPENDENCIES)
-	$(AM_V_GEN) \
-	rm -f guile_filter_doc_snarfage$(EXEEXT); \
-	if [ "$(cross_compiling)" = "yes" ]; then \
-		$(CCLD_FOR_BUILD) -o $@ $(guile_filter_doc_snarfage_OBJECTS); \
-	else \
-		$(LINK) $(guile_filter_doc_snarfage_OBJECTS) $(LDADD) $(gnulib_library) $(LIBS); \
-	fi
 
 
 guile_SOURCES = guile.c
@@ -356,108 +332,6 @@ DOT_X_FILES =					\
 
 EXTRA_DOT_X_FILES = @EXTRA_DOT_X_FILES@
 
-DOT_DOC_FILES = 				\
-	alist.doc				\
-	athena-runtime.doc			\
-	array-handle.doc			\
-	array-map.doc				\
-	arrays.doc				\
-	async.doc				\
-	atomic.doc				\
-	backtrace.doc				\
-	boolean.doc				\
-	bitvectors.doc				\
-	bytevectors.doc				\
-	chars.doc				\
-	control.doc				\
-	continuations.doc			\
-	custom-ports.doc			\
-	debug.doc				\
-	deprecated.doc				\
-	deprecation.doc				\
-	dynl.doc				\
-	dynwind.doc				\
-	eq.doc					\
-	error.doc				\
-	eval.doc				\
-	evalext.doc				\
-	exceptions.doc				\
-	expand.doc				\
-	extensions.doc				\
-	fdes-finalizers.doc			\
-	feature.doc				\
-	filesys.doc 				\
-	fluids.doc				\
-	foreign.doc				\
-	fports.doc				\
-	gc-malloc.doc				\
-	gc.doc					\
-	gettext.doc				\
-	generalized-vectors.doc			\
-	goops.doc				\
-	gsubr.doc				\
-	guardians.doc				\
-	hash.doc				\
-	hashtab.doc				\
-	hooks.doc				\
-	i18n.doc				\
-	init.doc				\
-	ioext.doc				\
-	keywords.doc				\
-	list.doc				\
-	load.doc				\
-	macros.doc				\
-	mallocs.doc				\
-	memoize.doc				\
-	modules.doc				\
-	numbers.doc				\
-	objprop.doc				\
-	options.doc				\
-	pairs.doc				\
-	ports.doc				\
-	print.doc				\
-	procprop.doc				\
-	procs.doc				\
-	promises.doc				\
-	r6rs-ports.doc				\
-	random.doc				\
-	rdelim.doc				\
-	read.doc				\
-	rw.doc					\
-	scmsigs.doc				\
-	script.doc				\
-	simpos.doc				\
-	smob.doc				\
-	sort.doc				\
-	srcprop.doc				\
-	srfi-1.doc				\
-	srfi-4.doc				\
-	srfi-13.doc				\
-	srfi-14.doc				\
-	srfi-60.doc				\
-	stackchk.doc				\
-	stacks.doc				\
-	stime.doc				\
-	strings.doc				\
-	strorder.doc				\
-	strports.doc				\
-	struct.doc				\
-	symbols.doc				\
-	syntax.doc				\
-	threads.doc				\
-	throw.doc				\
-	unicode.doc				\
-	uniform.doc				\
-	values.doc				\
-	variable.doc				\
-	vectors.doc				\
-	version.doc				\
-	vports.doc				\
-	weak-set.doc				\
-	weak-table.doc				\
-	weak-vector.doc
-
-EXTRA_DOT_DOC_FILES = @EXTRA_DOT_DOC_FILES@
 
 vm-operations.h: vm-engine.c
 	@echo '/* This file was generated automatically from $<; do not' > $@
@@ -475,9 +349,6 @@ BUILT_INCLUDES = vm-operations.h scmconfig.h libpath.h srfi-14.i.c
 BUILT_SOURCES = cpp-E.c cpp-SIG.c $(BUILT_INCLUDES) \
     $(DOT_X_FILES) $(EXTRA_DOT_X_FILES)
 
-# Force the generation of `guile-procedures.texi' because the top-level
-# Makefile expects it to be built.
-all-local: guile-procedures.texi
 
 EXTRA_libathena_guile_la_SOURCES = \
     syscalls.h					\
@@ -700,21 +571,13 @@ nodist_modinclude_HEADERS = version.h scmconfig.h
 
 bin_SCRIPTS = guile-snarf
 
-# We can re-enable install for some of these if/when they are documented
-# and people feel like maintaining them.  For now, this is not the case.
-noinst_SCRIPTS = guile-snarf-docs
-
-EXTRA_DIST = ChangeLog-scm ChangeLog-threads				\
-    ChangeLog-1996-1999 ChangeLog-2000 ChangeLog-2008			\
+EXTRA_DIST = \
     guile-func-name-check						\
     cpp-E.syms cpp-E.c cpp-SIG.syms cpp-SIG.c				\
-    c-tokenize.lex							\
     scmconfig.h.top libgettext.h libguile.map				\
     unidata_to_charset.awk UnicodeData.txt				\
     vm-operations.h libguile-@GUILE_EFFECTIVE_VERSION@-gdb.scm		\
     $(lightening_c_files) $(lightening_extra_files)
-#    $(DOT_DOC_FILES) $(EXTRA_DOT_DOC_FILES) \
-#    guile-procedures.txt guile.texi
 
 ## FIXME: Consider using timestamp file, to avoid unnecessary rebuilds.
 if MINGW_LIBPATH
@@ -808,32 +671,16 @@ endif
 
 snarfcppopts = $(DEFS) $(AM_CPPFLAGS) $(CPPFLAGS) $(CFLAGS)
 
-SUFFIXES = .x .doc
+SUFFIXES = .x
 
 .c.x:
 	$(AM_V_SNARF)$(GUILE_SNARF) -o $@ $< $(snarfcppopts)
-.c.doc:
-	$(AM_V_SNARF)./guile-snarf-docs -o $@ $< -- $(snarfcppopts)
 
 $(DOT_X_FILES) $(EXTRA_DOT_X_FILES): $(BUILT_INCLUDES) snarf.h guile-snarf.in version.h
 
-$(DOT_DOC_FILES) $(EXTRA_DOT_DOC_FILES): $(BUILT_INCLUDES) snarf.h guile-snarf-docs.in guile_filter_doc_snarfage$(EXEEXT)
 
 error.x: cpp-E.c
 posix.x: cpp-SIG.c
-
-alldotdocfiles    = $(DOT_DOC_FILES) $(EXTRA_DOT_DOC_FILES)
-snarf2checkedtexi = GUILE_AUTO_COMPILE=0 $(top_builddir)/meta/build-env guild snarf-check-and-output-texi
-dotdoc2texi       = cat $(alldotdocfiles) | $(snarf2checkedtexi)
-
-guile.texi: $(alldotdocfiles) guile$(EXEEXT)
-	$(dotdoc2texi) --manual > $@ || { rm $@; false; }
-
-guile-procedures.texi: $(alldotdocfiles) guile$(EXEEXT)
-	$(AM_V_GEN)$(dotdoc2texi)          > $@ || { rm $@; false; }
-
-c-tokenize.c: c-tokenize.lex
-	flex -t $(srcdir)/c-tokenize.lex > $@ || { rm $@; false; }
 
 ## Add -MG to make the .x magic work with auto-dep code.
 MKDEP = gcc -M -MG $(DEFS) $(AM_CPPFLAGS) $(CPPFLAGS) $(CFLAGS)
@@ -897,7 +744,4 @@ chknew-E chknew-SIG:
 MOSTLYCLEANFILES = \
 	scmconfig.h scmconfig.h.tmp
 
-CLEANFILES = libpath.h *.x *.doc srfi-14.i.c guile-procedures.txt	\
-     guile-procedures.texi guile.texi
-
-MAINTAINERCLEANFILES = c-tokenize.c
+CLEANFILES = libpath.h *.x srfi-14.i.c

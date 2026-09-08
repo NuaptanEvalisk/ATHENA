@@ -23,7 +23,7 @@ GUILE_OPTIMIZATIONS ?= -O2
 GUILE_TARGET ?= $(host)
 GUILE_BUILD_TAG ?= BOOTSTRAP($(GUILE_BOOTSTRAP_STAGE))
 
-GOBJECTS = $(SOURCES:%.scm=%.go) $(ELISP_SOURCES:%.el=%.go)
+GOBJECTS = $(SOURCES:%.scm=%.go)
 nobase_noinst_DATA = $(GOBJECTS)
 CLEANFILES = $(GOBJECTS)
 
@@ -35,9 +35,8 @@ AM_V_GUILEC_ = $(AM_V_GUILEC_$(AM_DEFAULT_VERBOSITY))
 AM_V_GUILEC_0 = @echo "  $(GUILE_BUILD_TAG) GUILEC" $@;
 
 vpath %.scm @top_srcdir@/module
-vpath %.el @top_srcdir@/module
 
-SUFFIXES = .scm .el .go
+SUFFIXES = .scm .go
 
 COMPILE = $(AM_V_GUILEC)					\
 	GUILE_BOOTSTRAP_STAGE=$(GUILE_BOOTSTRAP_STAGE)		\
@@ -48,9 +47,6 @@ COMPILE = $(AM_V_GUILEC)					\
 
 .scm.go:
 	$(COMPILE) -o "$@" "$<"
-
-.el.go:
-	$(COMPILE) --from=elisp -o "$@" "$<"
 
 ice-9/boot-9.go: ice-9/boot-9.scm ice-9/quasisyntax.scm ice-9/r6rs-libraries.scm ice-9/r7rs-libraries.scm ice-9/read.scm
 ice-9/match.go: ice-9/match.scm ice-9/match.upstream.scm
@@ -141,7 +137,6 @@ SOURCES =					\
   ice-9/documentation.scm			\
   ice-9/eval-string.scm				\
   ice-9/exceptions.scm				\
-  ice-9/expect.scm				\
   ice-9/fdes-finalizers.scm			\
   ice-9/format.scm				\
   ice-9/ftw.scm					\
@@ -160,7 +155,6 @@ SOURCES =					\
   ice-9/match.scm				\
   ice-9/networking.scm				\
   ice-9/null.scm				\
-  ice-9/occam-channel.scm			\
   ice-9/optargs.scm				\
   ice-9/peg.scm					\
   ice-9/peg/cache.scm				\
@@ -183,11 +177,8 @@ SOURCES =					\
   ice-9/rw.scm					\
   ice-9/safe-r5rs.scm				\
   ice-9/safe.scm				\
-  ice-9/sandbox.scm				\
   ice-9/save-stack.scm				\
-  ice-9/scm-style-repl.scm			\
   ice-9/serialize.scm				\
-  ice-9/session.scm				\
   ice-9/slib.scm				\
   ice-9/soft-ports.scm				\
   ice-9/stack-catch.scm				\
@@ -197,37 +188,15 @@ SOURCES =					\
   ice-9/textual-ports.scm			\
   ice-9/threads.scm				\
   ice-9/time.scm				\
-  ice-9/top-repl.scm				\
   ice-9/unicode.scm				\
   ice-9/vlist.scm				\
   ice-9/weak-vector.scm				\
 						\
-  language/brainfuck/parse.scm			\
-  language/brainfuck/compile-scheme.scm		\
-  language/brainfuck/compile-tree-il.scm	\
-  language/brainfuck/spec.scm			\
 						\
   language/bytecode.scm				\
   language/bytecode/spec.scm			\
 						\
-  language/ecmascript/tokenize.scm		\
-  language/ecmascript/parse.scm			\
-  language/ecmascript/impl.scm			\
-  language/ecmascript/base.scm			\
-  language/ecmascript/function.scm		\
-  language/ecmascript/array.scm			\
-  language/ecmascript/compile-tree-il.scm	\
-  language/ecmascript/spec.scm			\
 						\
-  language/elisp/falias.scm			\
-  language/elisp/lexer.scm			\
-  language/elisp/parser.scm			\
-  language/elisp/bindings.scm			\
-  language/elisp/compile-tree-il.scm		\
-  language/elisp/runtime.scm			\
-  language/elisp/runtime/function-slot.scm	\
-  language/elisp/runtime/value-slot.scm		\
-  language/elisp/spec.scm			\
 						\
   language/scheme/compile-tree-il.scm		\
   language/scheme/decompile-tree-il.scm		\
@@ -266,7 +235,6 @@ SOURCES =					\
   oop/goops.scm					\
   oop/goops/active-slot.scm			\
   oop/goops/composite-slot.scm			\
-  oop/goops/describe.scm			\
   oop/goops/internal.scm			\
   oop/goops/save.scm				\
   oop/goops/stklos.scm				\
@@ -292,24 +260,8 @@ SOURCES =					\
 						\
   scripts/compile.scm				\
   scripts/disassemble.scm			\
-  scripts/display-commentary.scm		\
-  scripts/doc-snarf.scm				\
-  scripts/frisk.scm				\
-  scripts/generate-autoload.scm			\
   scripts/help.scm				\
-  scripts/lint.scm				\
   scripts/list.scm				\
-  scripts/punify.scm				\
-  scripts/read-scheme-source.scm		\
-  scripts/read-text-outline.scm			\
-  scripts/use2dot.scm				\
-  scripts/snarf-check-and-output-texi.scm	\
-  scripts/summarize-guile-TODO.scm		\
-  scripts/api-diff.scm				\
-  scripts/read-rfc822.scm			\
-  scripts/snarf-guile-m4-docs.scm		\
-  scripts/autofrisk.scm				\
-  scripts/scan-api.scm				\
 						\
   srfi/srfi-1.scm				\
   srfi/srfi-2.scm				\
@@ -370,13 +322,7 @@ SOURCES =					\
   system/foreign-library.scm			\
   system/foreign-object.scm			\
 						\
-  system/repl/debug.scm				\
-  system/repl/error-handling.scm		\
-  system/repl/common.scm			\
-  system/repl/command.scm			\
-  system/repl/repl.scm				\
-  system/repl/server.scm			\
-  system/repl/coop-server.scm			\
+  system/vm/backtrace.scm				\
 						\
   system/vm/assembler.scm			\
   system/vm/coverage.scm			\
@@ -385,7 +331,6 @@ SOURCES =					\
   system/vm/dwarf.scm				\
   system/vm/elf.scm				\
   system/vm/frame.scm				\
-  system/vm/inspect.scm				\
   system/vm/linker.scm				\
   system/vm/loader.scm				\
   system/vm/program.scm				\
@@ -396,39 +341,8 @@ SOURCES =					\
 						\
   system/syntax.scm				\
 						\
-  language/wisp.scm				\
-  language/wisp/spec.scm			\
 						\
-  system/xref.scm				\
-						\
-  sxml/apply-templates.scm			\
-  sxml/fold.scm					\
-  sxml/match.scm				\
-  sxml/simple.scm				\
-  sxml/ssax/input-parse.scm			\
-  sxml/ssax.scm					\
-  sxml/transform.scm				\
-  sxml/xpath.scm				\
-						\
-  texinfo.scm					\
-  texinfo/docbook.scm				\
-  texinfo/html.scm				\
-  texinfo/indexing.scm				\
-  texinfo/string-utils.scm			\
-  texinfo/plain-text.scm			\
-  texinfo/reflection.scm			\
-  texinfo/serialize.scm				\
-						\
-  web/client.scm				\
-  web/http.scm					\
-  web/request.scm				\
-  web/response.scm				\
-  web/server.scm				\
-  web/server/http.scm				\
-  web/uri.scm
-
-ELISP_SOURCES =					\
-  language/elisp/boot.el
+  system/xref.scm
 
 NOCOMP_SOURCES =				\
   ice-9/match.upstream.scm			\
@@ -440,11 +354,4 @@ NOCOMP_SOURCES =				\
   srfi/srfi-42/ec.scm				\
   srfi/srfi-64/testing.scm			\
   srfi/srfi-67/compare.scm			\
-  system/base/lalr.upstream.scm			\
-  system/repl/describe.scm			\
-  sxml/sxml-match.ss				\
-  sxml/upstream/SSAX.scm			\
-  sxml/upstream/SXML-tree-trans.scm		\
-  sxml/upstream/SXPath-old.scm			\
-  sxml/upstream/assert.scm			\
-  sxml/upstream/input-parse.scm
+  system/base/lalr.upstream.scm

@@ -23,7 +23,7 @@
 
 bin_SCRIPTS = guile-config guild
 EXTRA_DIST=						\
-  guile.m4 ChangeLog-2008				\
+  guile.m4						\
   guile-$(GUILE_EFFECTIVE_VERSION).pc.in		\
   guile-$(GUILE_EFFECTIVE_VERSION)-uninstalled.pc.in	\
   guild.in guile-config.in

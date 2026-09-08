@@ -211,7 +211,6 @@ gl_MODULES([
   locale
   log1p
   lstat
-  maintainer-makefile
   malloc-gnu
   malloca
   mkdir
