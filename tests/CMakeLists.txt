@@ -3,6 +3,12 @@ file (GLOB_RECURSE TEST_SRC_FILES CONFIGURE_DEPENDS "*.cpp")
 list (FILTER TEST_SRC_FILES EXCLUDE REGEX "/watchdog/watchdog_fake_child\\.cpp$")
 
 if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  add_test (NAME stacktrace_symbolize_test
+    COMMAND ${Python3_EXECUTABLE}
+      ${CMAKE_CURRENT_SOURCE_DIR}/scheme/stacktrace-symbolize-test.py
+      --compiler ${CMAKE_CXX_COMPILER}
+      --source-dir ${ATHENA_SOURCE_DIR})
+  set_tests_properties (stacktrace_symbolize_test PROPERTIES TIMEOUT 150)
   add_executable (watchdog_fake_child watchdog/watchdog_fake_child.cpp)
   target_sources (watchdog_fake_child PRIVATE
     ${ATHENA_SOURCE_DIR}/src/ATHENA/Watchdog/watchdog_client.cpp)

@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "string.hpp"
+#include "System/Misc/stacktrace_symbolize.hpp"
 
 #ifdef USE_STACK_TRACE
 
@@ -37,6 +38,7 @@ get_stacktrace (unsigned int max_frames) {
   // resolve addresses into strings containing "filename(function+address)",
   // this array must be free()-ed
   char** symbollist = backtrace_symbols (addrlist, addrlen);
+  const auto locations= athena_symbolize_stack (addrlist, addrlen);
 
   // allocate string which will be filled with the demangled function name
   size_t funcnamesize = 1024;
@@ -45,6 +47,14 @@ get_stacktrace (unsigned int max_frames) {
   // iterate over the returned symbol lines. skip the first, it is the
   // address of this function.
   for (int i = 1; i < addrlen; i++) {
+    if (!locations[i].empty ())
+      r << "  addr2line: " << locations[i].c_str () << "\n";
+    if (!symbollist) {
+      char address[64];
+      snprintf (address, sizeof (address), "  [%p]\n", addrlist[i]);
+      r << address;
+      continue;
+    }
     char *begin_name = 0, *end_name = 0, *begin_offset = 0, *end_offset = 0;
 
     // find parentheses and +address offset surrounding the mangled name:
