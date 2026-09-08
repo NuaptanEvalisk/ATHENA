@@ -18,10 +18,12 @@
 #include "vars.hpp"
 #include "hashset.hpp"
 #include "universal.hpp"
+#include "tree_spell.hpp"
+#include <chrono>
 
-int  spell_max_hits= 1000000;
+thread_local int spell_max_hits= 1000000;
 void spell (range_set& sel, tree t, tree what, path p);
-hashset<tree_label> spell_ignore;
+thread_local hashset<tree_label> spell_ignore;
 
 /******************************************************************************
 * Useful subroutines
@@ -207,6 +209,109 @@ spell (tree mode, tree lan, range_set& sel, tree t,
 /******************************************************************************
 * Front end
 ******************************************************************************/
+
+incremental_spell::frame::frame (tree t2, tree mode2, tree lan2,
+                                path p2, path focus2):
+  t (t2), mode (mode2), lan (lan2), p (p2), focus (focus2) {
+  if (!is_atomic (t) && !is_nil (focus))
+    pivot= max (0, min (N(t)-1, focus->item));
+  if (is_atomic (t)) {
+    limit= N(t->label);
+    if (!is_nil (focus)) {
+      offset= max (0, min (limit, focus->item));
+      int remaining= 512;
+      while (offset > 0 && t->label[offset-1] != ' ' && --remaining > 0)
+        --offset;
+      if (remaining == 0) offset= 0;
+      stop= offset;
+    }
+  }
+}
+
+void
+incremental_spell::reset () {
+  stack.clear ();
+  errors.clear ();
+  initialized= false;
+}
+
+void
+incremental_spell::start (tree t, tree mode, tree lan, path root, path focus) {
+  reset ();
+  spell_initialize ();
+  stack.emplace_back (t, mode, lan, root, focus);
+  initialized= true;
+}
+
+bool
+incremental_spell::step (int word_budget, int node_budget, int milliseconds) {
+  auto deadline= std::chrono::steady_clock::now () +
+                std::chrono::milliseconds (milliseconds);
+  int chars= 4096;
+  bool changed= false;
+  while (!stack.empty () && word_budget > 0 && node_budget > 0 && chars > 0 &&
+         std::chrono::steady_clock::now () < deadline) {
+    frame& f= stack.back ();
+    if (is_atomic (f.t)) {
+      if (f.mode != "text" || (f.offset >= f.limit && f.stop == 0)) {
+        stack.pop_back ();
+        --node_budget;
+        continue;
+      }
+      if (f.offset >= f.limit) {
+        f.limit= f.stop;
+        f.stop= 0;
+        f.offset= 0;
+      }
+      string s= f.t->label;
+      while (f.offset < f.limit && s[f.offset] == ' ' && chars > 0) {
+        ++f.offset;
+        --chars;
+      }
+      if (f.begin < 0) f.begin= f.offset;
+      while (f.offset < f.limit && s[f.offset] != ' ' && chars > 0) {
+        ++f.offset;
+        --chars;
+      }
+      if (f.offset < f.limit && s[f.offset] != ' ') continue;
+      range_set hits;
+      // Hunspell is a word checker, not a checker for megabyte-long tokens.
+      if (f.offset - f.begin <= 512)
+        spell_string (f.lan, hits, s, f.p, f.begin, f.offset);
+      for (int i=0; i+1<N(hits); i+=2) {
+        errors[hits[i]]= hits[i+1];
+        changed= true;
+      }
+      f.begin= -1;
+      --word_budget;
+    }
+    else {
+      // Visit the viewport branch first, then successively farther siblings.
+      int n= f.next++;
+      int i= n == 0? f.pivot:
+             (n & 1)? f.pivot + (n+1)/2: f.pivot - n/2;
+      --node_budget;
+      if (n >= 2*N(f.t)) { stack.pop_back (); continue; }
+      if (i < 0 || i >= N(f.t) || !is_accessible_for_spell (f.t, i)) continue;
+      tree mode= the_drd->get_env_child (f.t, i, MODE, f.mode);
+      tree lan= the_drd->get_env_child (f.t, i, LANGUAGE, f.lan);
+      path focus= !is_nil (f.focus) && i == f.focus->item?
+                  f.focus->next: path ();
+      frame child (f.t[i], mode, lan, f.p * i, focus);
+      stack.push_back (std::move (child));
+    }
+  }
+  return changed;
+}
+
+range_set
+incremental_spell::selections (path cursor) const {
+  range_set result;
+  for (const auto& hit: errors)
+    if (!(path_less_eq (hit.first, cursor) && path_less (cursor, hit.second)))
+      result << hit.first << hit.second;
+  return result;
+}
 
 range_set
 spell (string lan, tree t, path p, int limit) {

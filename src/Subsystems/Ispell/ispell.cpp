@@ -1,8 +1,7 @@
-
 /******************************************************************************
 * MODULE     : ispell.cpp
-* DESCRIPTION: interface with the ispell spell checker
-* COPYRIGHT  : (C) 2025  Liza Belos
+* DESCRIPTION: In-process Hunspell, with thread-owned dictionaries
+* COPYRIGHT  : (C) 2026  Felix Lian
 *******************************************************************************
 * This software falls under the GNU general public license version 3 or later.
 * It comes WITHOUT ANY WARRANTY WHATSOEVER. For details, see the file LICENSE
@@ -10,209 +9,221 @@
 ******************************************************************************/
 
 #include "Ispell/ispell.hpp"
-#include "file.hpp"
-#include "resource.hpp"
 #include "convert.hpp"
 #include "locale.hpp"
+#include "file.hpp"
+#include <hunspell.hxx>
+#include <QDir>
+#include <QFile>
+#include <QFileInfo>
+#include <QSaveFile>
+#include <QTextCodec>
+#include <atomic>
+#include <map>
+#include <memory>
+#include <mutex>
+#include <set>
 
-#if USE_ASPELL
-#include <aspell.h>
+namespace {
 
-string ispell_encode (string lan, string s);
-string ispell_decode (string lan, string s);
+std::string bytes (string s) {
+  c_string c (s);
+  return std::string (c, N(s));
+}
 
-RESOURCE(ispeller);
-
-struct ispeller_rep: rep<ispeller> {
-  string         lan;
-  AspellConfig* config;
-  AspellSpeller* speller;
-  bool           unavailable;
-  string         error_msg;
-
-public:
-  ispeller_rep (string lan);
-  ~ispeller_rep ();
-
-  string start ();
-  
-  tree check (string word);
-  void accept (string word);
-  void insert (string word);
-  void save_all ();
+struct personal_dictionary {
+  std::set<std::string> words; // UTF-8, independent of system dictionary encoding
+  QString file;
+  bool loaded= false;
+  bool dirty= false;
 };
 
-RESOURCE_CODE(ispeller);
+std::mutex personal_mutex;
+std::map<std::string, personal_dictionary> personal_dictionaries;
+std::atomic<unsigned long> dictionary_revision {1};
 
-ispeller_rep::ispeller_rep (string lan2): 
-  rep<ispeller> (lan2), 
-  lan (lan2), 
-  config (NULL), 
-  speller (NULL), 
-  unavailable (false) {}
-
-ispeller_rep::~ispeller_rep () {
-  if (speller) delete_aspell_speller (speller);
-  if (config) delete_aspell_config (config);
-}
-
-string
-ispeller_rep::start () {
-  if (speller) return "ok";
-  if (unavailable) return error_msg;
-
-  string locale = language_to_locale (lan);
-  
-  config = new_aspell_config ();
-
-  url aspell_path = url_system ("$ATHENA_PATH/aspell-0.60");
-  if (exists (aspell_path)) {
-    cout << "Found aspell path: " << concretize(aspell_path) << "\n";
-    aspell_config_replace (config, "data-dir", as_charp(concretize(aspell_path)));
-    aspell_config_replace (config, "dict-dir", as_charp(concretize(aspell_path)));
+personal_dictionary& personal (const std::string& locale) {
+  auto& p= personal_dictionaries[locale];
+  if (p.loaded) return p;
+  p.loaded= true;
+  p.file= QString::fromStdString (bytes (concretize (
+    url_system ("$ATHENA_HOME_PATH/system/spelling")))) + "/" +
+    QString::fromStdString (locale) + ".txt";
+  QFile file (p.file);
+  if (file.open (QIODevice::ReadOnly))
+    while (!file.atEnd ()) {
+      QByteArray word= file.readLine ().trimmed ();
+      if (!word.isEmpty ()) p.words.insert (word.toStdString ());
+    }
+  // The old -a -i utf-8 subprocess stored additions here. Read it without
+  // modifying it; new additions are saved atomically in ATHENA's own profile.
+  QFile legacy (QDir::homePath () + "/.hunspell_" +
+                QString::fromStdString (locale));
+  if (legacy.open (QIODevice::ReadOnly)) {
+    bool first= true;
+    while (!legacy.atEnd ()) {
+      QByteArray word= legacy.readLine ().trimmed ();
+      bool count= false;
+      word.toUInt (&count);
+      if (!(first && count) && !word.isEmpty ())
+        p.words.insert (word.toStdString ());
+      first= false;
+    }
   }
-  
-  if (locale != "") {
-    char* c_locale = as_charp(locale);
-    aspell_config_replace (config, "lang", c_locale);
-  } else {
-    aspell_config_replace (config, "lang", "en_US"); 
+  return p;
+}
+
+QString dictionary_base (const std::string& locale) {
+  QStringList dirs= QString::fromLocal8Bit (qgetenv ("DICPATH"))
+    .split (QDir::listSeparator (), Qt::SkipEmptyParts);
+  dirs << QString::fromStdString (bytes (concretize (
+            url_system ("$ATHENA_PATH/dictionaries"))))
+       << QDir::homePath () + "/.local/share/hunspell"
+       << "/usr/local/share/hunspell" << "/usr/share/hunspell"
+       << "/usr/local/share/myspell" << "/usr/share/myspell"
+       << "/usr/share/myspell/dicts"
+       << QDir::homePath () + "/Library/Spelling" << "/Library/Spelling";
+  QString name= QString::fromStdString (locale);
+  // Prefer the exact locale everywhere before trying a language-only dictionary.
+  for (const QString& candidate: {name, name.section ('_', 0, 0)})
+    for (const QString& dir: dirs) {
+      QString base= QDir (dir).filePath (candidate);
+      if (QFile::exists (base + ".aff") && QFile::exists (base + ".dic"))
+        return base;
+    }
+  return {};
+}
+
+struct dictionary {
+  std::string locale;
+  std::unique_ptr<Hunspell> engine;
+  QTextCodec* codec= nullptr;
+  std::set<std::string> accepted;
+  unsigned long revision= 0;
+  string error;
+
+  explicit dictionary (string lan) {
+    locale= bytes (language_to_locale (lan));
+    // These historical locale names differ from the installed dictionary names.
+    if (lan == "greek") locale= "el_GR";
+    if (lan == "slovene") locale= "sl_SI";
+    if (lan == "swedish") locale= "sv_SE";
+    QString base= dictionary_base (locale);
+    if (base.isEmpty ()) {
+      error= "Error: Hunspell dictionary not found for " * lan;
+      return;
+    }
+    engine= std::make_unique<Hunspell> (
+      QFile::encodeName (base + ".aff").constData (),
+      QFile::encodeName (base + ".dic").constData ());
+    codec= QTextCodec::codecForName (engine->get_dic_encoding ());
+    if (!codec) {
+      error= "Error: unsupported Hunspell dictionary encoding";
+      engine.reset ();
+    }
   }
 
-  aspell_config_replace (config, "encoding", "utf-8");
-
-  AspellCanHaveError* ret = new_aspell_speller (config);
-
-  if (aspell_error (ret)) {
-    error_msg = "Error: ";
-    error_msg << aspell_error_message (ret);
-    delete_aspell_can_have_error (ret);
-    
-    std_error << error_msg << "\nCannot spellcheck\n";
-    unavailable = true;
-    return error_msg;
+  std::string encode (const std::string& utf8) const {
+    return codec->fromUnicode (QString::fromUtf8 (
+      utf8.data (), (int) utf8.size ())).toStdString ();
   }
 
-  speller = to_aspell_speller (ret);
-  
-  if (DEBUG_IO) debug_spell << "Aspell library initialized for " << lan << "\n";
-  unavailable = false;
-  return "ok";
-}
-
-tree
-ispeller_rep::check (string word) {
-  if (unavailable || !speller) return "Error: unavailable";
-
-  string word_utf8 = ispell_encode (lan, word);
-  int len = N(word_utf8);
-  
-  char* c_word = as_charp(word_utf8); 
-
-  int correct = aspell_speller_check (speller, c_word, len);
-
-  if (correct == -1) {
-    return "Error: aspell check failed";
+  void sync () {
+    auto current= dictionary_revision.load (std::memory_order_acquire);
+    if (!engine || revision == current) return;
+    std::lock_guard<std::mutex> lock (personal_mutex);
+    for (const auto& word: personal (locale).words) engine->add (encode (word));
+    revision= current;
   }
 
-  if (correct == 1) {
-    return "ok"; 
+  bool test (const std::string& utf8) {
+    sync ();
+    // Missing dictionaries must not mark every word as an error.
+    if (!engine || accepted.count (utf8)) return true;
+    return engine->spell (encode (utf8));
   }
+};
 
-  tree t (TUPLE, word);
-  
-  const AspellWordList* suggestions = aspell_speller_suggest (speller, c_word, len);
-  AspellStringEnumeration* elements = aspell_word_list_elements (suggestions);
-  
-  const char* suggestion;
-  while ((suggestion = aspell_string_enumeration_next (elements)) != NULL) {
-    t << ispell_decode (lan, string(suggestion));
-  }
-  
-  delete_aspell_string_enumeration (elements);
-
-  return t;
+dictionary& get_dictionary (string lan) {
+  thread_local std::map<std::string, std::unique_ptr<dictionary>> dictionaries;
+  auto& d= dictionaries[bytes (lan)];
+  if (!d) d= std::make_unique<dictionary> (lan);
+  return *d;
 }
+} // namespace
 
-void
-ispeller_rep::accept (string word) {
-  if (unavailable || !speller) return;
-  string word_utf8 = ispell_encode (lan, word);
-  char* c_word = as_charp(word_utf8);
-  aspell_speller_add_to_session (speller, c_word, N(word_utf8));
-}
-
-void
-ispeller_rep::insert (string word) {
-  if (unavailable || !speller) return;
-  string word_utf8 = ispell_encode (lan, word);
-  char* c_word = as_charp(word_utf8);
-  aspell_speller_add_to_personal (speller, c_word, N(word_utf8));
-}
-
-void
-ispeller_rep::save_all () {
-  if (unavailable || !speller) return;
-  aspell_speller_save_all_word_lists (speller);
-}
-
-string
-ispell_encode (string lan, string s) {
-  (void) lan;
-  return cork_to_utf8 (s);
-}
-
-string
-ispell_decode (string lan, string s) {
-  (void) lan;
-  return utf8_to_cork (s);
+unsigned long
+ispell_dictionary_revision () {
+  return dictionary_revision.load (std::memory_order_acquire);
 }
 
 string
 ispell_start (string lan) {
-  if (DEBUG_IO) debug_spell << "Start " << lan << "\n";
-  ispeller sc= ispeller (lan);
-  if (is_nil (sc)) sc= tm_new<ispeller_rep> (lan);
-  string res = sc->start ();
-  return res;
+  auto& d= get_dictionary (lan);
+  return d.engine? string ("ok"): d.error;
+}
+
+bool
+ispell_test (string lan, string word) {
+  return lan == "verbatim" || get_dictionary (lan).test (bytes (cork_to_utf8 (word)));
 }
 
 tree
-ispell_check (string lan, string s) {
-  if (DEBUG_IO) debug_spell << "Check " << s << "\n";
-  ispeller sc= ispeller (lan);
-  
-  if (is_nil (sc)) {
-    string message= ispell_start (lan);
-    if (starts (message, "Error: ")) return message;
-    sc = ispeller(lan);
+ispell_check (string lan, string word) {
+  if (lan == "verbatim") return "ok";
+  auto& d= get_dictionary (lan);
+  if (!d.engine) return d.error;
+  std::string utf8= bytes (cork_to_utf8 (word));
+  if (d.test (utf8)) return "ok";
+  tree result (TUPLE, word);
+  for (const auto& suggestion: d.engine->suggest (d.encode (utf8))) {
+    QByteArray decoded= d.codec->toUnicode (suggestion.data (),
+                                           (int) suggestion.size ()).toUtf8 ();
+    result << utf8_to_cork (string (decoded.constData (), decoded.size ()));
   }
-  
-  if (is_nil(sc) || sc->unavailable) return "Error: unavailable";
-  
-  return sc->check(s);
+  return result;
 }
 
 void
-ispell_accept (string lan, string s) {
-  if (DEBUG_IO) debug_spell << "Accept " << s << "\n";
-  ispeller sc= ispeller (lan);
-  if (!is_nil (sc)) sc->accept(s);
+ispell_accept (string lan, string word) {
+  get_dictionary (lan).accepted.insert (bytes (cork_to_utf8 (word)));
 }
 
 void
-ispell_insert (string lan, string s) {
-  if (DEBUG_IO) debug_spell << "Insert " << s << "\n";
-  ispeller sc= ispeller (lan);
-  if (!is_nil (sc)) sc->insert(s);
+ispell_insert (string lan, string word) {
+  auto& d= get_dictionary (lan);
+  std::string utf8= bytes (cork_to_utf8 (word));
+  if (utf8.empty () || utf8.find_first_of ("\r\n") != std::string::npos) return;
+  std::lock_guard<std::mutex> lock (personal_mutex);
+  auto& p= personal (d.locale);
+  if (p.words.insert (utf8).second) {
+    p.dirty= true;
+    dictionary_revision.fetch_add (1, std::memory_order_release);
+  }
 }
 
 void
 ispell_done (string lan) {
-  if (DEBUG_IO) debug_spell << "End " << lan << "\n";
-  ispeller sc= ispeller (lan);
-  if (!is_nil (sc)) {
-      sc->save_all();
+  auto& d= get_dictionary (lan);
+  d.accepted.clear ();
+  std::lock_guard<std::mutex> lock (personal_mutex);
+  auto& p= personal (d.locale);
+  if (!p.dirty) return;
+  QDir ().mkpath (QFileInfo (p.file).absolutePath ());
+  QSaveFile file (p.file);
+  bool ok= file.open (QIODevice::WriteOnly);
+  if (ok) {
+    for (const auto& word: p.words) {
+      std::string line= word + "\n";
+      if (file.write (line.data (), line.size ()) != (qint64) line.size ()) {
+        ok= false;
+        break;
+      }
+    }
+    if (ok) ok= file.commit ();
+    else file.cancelWriting ();
   }
+  if (ok) p.dirty= false;
+  else std_warning << "Could not save Hunspell personal dictionary "
+                   << string (p.file.toUtf8 ().constData ()) << LF;
 }
-#endif

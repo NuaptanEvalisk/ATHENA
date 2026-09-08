@@ -28,6 +28,7 @@ target_link_libraries (athena_body
   PkgConfig::SPDLOG
   ${ATHENA_LLAMA_LIBRARIES}
   PRIVATE
+  PkgConfig::HUNSPELL
   ${ADS_LIBRARIES}
   rapidfuzz::rapidfuzz
   athena_snowball_english

@@ -210,7 +210,6 @@
 
 ;(display "Booting generic mode\n")
 (lazy-keyboard (generic generic-kbd) always?)
-(lazy-keyboard (generic live-spell) always?)
 (lazy-menu (generic live-spell) spell-live-popup-menu)
 (lazy-define (generic live-spell)
              spell-live-import-custom-dictionary-from-preferences)

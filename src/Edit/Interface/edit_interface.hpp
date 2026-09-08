@@ -13,6 +13,7 @@
 #define EDIT_INTERFACE_H
 #include "editor.hpp"
 #include "heading_word_count.hpp"
+#include "tree_spell.hpp"
 #include "pointer_shake_detector.hpp"
 #include "tm_timer.hpp"
 #include "widget.hpp"
@@ -44,6 +45,14 @@ struct heading_cell_bracket {
 
 class edit_interface_rep: virtual public editor_rep {
 protected:
+  incremental_spell live_spelling;
+  bool live_spelling_dirty= true;
+  time_t live_spelling_next= 0;
+  unsigned long live_spelling_dictionary_revision= 0;
+  path live_spelling_cursor;
+  path live_spelling_edit_cursor;
+  SI live_spelling_x= 0, live_spelling_y= 0;
+  void update_live_spelling ();
   int           env_change;    // which things have been changed ?
   time_t        last_change;   // time of last processed change
   time_t        last_update;   // time of last update of menu, icons and footer

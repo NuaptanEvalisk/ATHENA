@@ -15,6 +15,8 @@
 
 string ispell_start (string lan);
 tree   ispell_check (string lan, string s);
+bool   ispell_test (string lan, string s);
+unsigned long ispell_dictionary_revision ();
 void   ispell_accept (string lan, string s);
 void   ispell_insert (string lan, string s);
 void   ispell_done (string lan);

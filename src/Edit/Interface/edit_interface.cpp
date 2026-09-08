@@ -658,6 +658,12 @@ edit_interface_rep::compute_env_rects (path p, rectangles& rs, bool recurse,
 
 void
 edit_interface_rep::notify_change (int env_set, int env_unset) {
+  if (env_set & (THE_TREE | THE_ENVIRONMENT)) {
+    live_spelling.reset ();
+    live_spelling_dirty= true;
+    live_spelling_next= texmacs_time () + 450;
+  }
+  if (env_set & THE_TREE) live_spelling_edit_cursor= copy (tp);
   if (env_set & (THE_TREE | THE_ENVIRONMENT | THE_EXTENTS | THE_CURSOR | THE_SELECTION))
     clear_link_peek ();
   env_change= (env_change | env_set) & (~env_unset);
@@ -728,6 +734,8 @@ edit_interface_rep::apply_changes () {
 
   update_visible ();
   rectangle new_visible= rectangle (vx1, vy1, vx2, vy2);  
+
+  update_live_spelling ();
 
   if (kbd_show_keys && N(kbd_last_times) > 0) {
     if (got_focus) {

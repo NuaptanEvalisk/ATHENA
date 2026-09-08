@@ -13,16 +13,7 @@
 #include "Replace/edit_replace.hpp"
 #include "Interface/edit_interface.hpp"
 
-#ifdef MACOSX_EXTENSIONS
-#include "MacOS/mac_spellservice.h"
-#define ispell_start mac_spell_start
-#define ispell_check mac_spell_check
-#define ispell_accept mac_spell_accept
-#define ispell_insert mac_spell_insert
-#define ispell_done mac_spell_done
-#else
 #include "Ispell/ispell.hpp"
-#endif
 
 
 /******************************************************************************

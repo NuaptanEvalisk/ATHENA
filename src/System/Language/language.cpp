@@ -426,21 +426,12 @@ ad_hoc_language (language base, tree hyphs) {
 * Interface with spell engines and cache
 ******************************************************************************/
 
-#ifdef MACOSX_EXTENSIONS
-#include "MacOS/mac_spellservice.h"
-#define ispell_start mac_spell_start
-#define ispell_check mac_spell_check
-#define ispell_accept mac_spell_accept
-#define ispell_insert mac_spell_insert
-#define ispell_done mac_spell_done
-#else
 #include "Ispell/ispell.hpp"
-#endif
 
-static bool spell_active= false;
-static hashmap<string,bool> spell_busy (false);
-static hashmap<string,int > spell_cache (0);
-static hashmap<string,bool> spell_temp (false);
+static thread_local bool spell_active= false;
+static thread_local hashmap<string,bool> spell_busy (false);
+static thread_local hashmap<string,int > spell_cache (0);
+static thread_local hashmap<string,bool> spell_temp (false);
 
 void
 spell_start () {
@@ -458,8 +449,9 @@ spell_done () {
 string
 spell_start (string lan) {
   if (spell_busy->contains (lan)) return "ok";
-  spell_busy (lan)= true;
-  return ispell_start (lan);
+  string result= ispell_start (lan);
+  if (result == "ok") spell_busy (lan)= true;
+  return result;
 }
 
 void
@@ -514,15 +506,21 @@ spell_check (string lan, string s) {
 
 bool
 check_word (string lan, string s) {
+  static thread_local unsigned long revision= 0;
+  unsigned long current= ispell_dictionary_revision ();
+  if (revision != current) {
+    spell_cache= hashmap<string,int> (0);
+    revision= current;
+  }
   string key= lan * ":" * s;
   string f= uni_Locase_all (s);
   string l= uni_locase_first (f);
   if (s != l && s != f) key= lan * ":" * l;
   int val= spell_cache[key];
   if (val == 0) {
-    tree t= spell_check (lan, s);
-    if (t == "ok") val= 1;
-    else val= -1;
+    // Live highlighting needs a verdict, not the expensive suggestion list.
+    string word= s == f? s: uni_locase_all (s);
+    val= ispell_test (lan, word)? 1: -1;
     spell_cache (key)= val;
   }
   return val == 1;

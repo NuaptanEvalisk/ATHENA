@@ -217,6 +217,7 @@ include (CheckCSourceCompiles)
 
 pkg_check_modules (SPDLOG REQUIRED IMPORTED_TARGET spdlog)
 pkg_check_modules (HARFBUZZ REQUIRED IMPORTED_TARGET harfbuzz)
+pkg_check_modules (HUNSPELL REQUIRED IMPORTED_TARGET hunspell>=1.7)
 pkg_check_modules (LLAMA QUIET IMPORTED_TARGET llama)
 pkg_check_modules (KPATHSEA QUIET IMPORTED_TARGET kpathsea)
 if (UNIX AND NOT APPLE)
@@ -742,7 +743,6 @@ set (ATHENA_Qt_Moc_HDRS
 set (ATHENA_MacOS_SRCS
   ${ATHENA_SOURCE_DIR}/src/Subsystems/MacOS/HIDRemote.m
   ${ATHENA_SOURCE_DIR}/src/Subsystems/MacOS/mac_images.mm
-  ${ATHENA_SOURCE_DIR}/src/Subsystems/MacOS/mac_spellservice.mm
   ${ATHENA_SOURCE_DIR}/src/Subsystems/MacOS/mac_utilities.mm
 )
 

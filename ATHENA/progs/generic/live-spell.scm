@@ -16,46 +16,8 @@
 (import-from (kernel athena tm-preferences))
 
 
-(define spell-live-serial 0)
-(define spell-live-engine-active? #f)
-
-(define (spell-live-clear!)
-  (when (current-buffer)
-    (cancel-alt-selection "spell-live")))
-
-(define (spell-live-stop!)
-  (spell-live-clear!)
-  (when spell-live-engine-active?
-    (multi-spell-done)
-    (set! spell-live-engine-active? #f)))
-
-(define (spell-live-notify name val)
-  (when (== val "off")
-    (spell-live-stop!)))
-
-
-(define (spell-live-enabled?)
-  (get-boolean-preference "live spell checking"))
-
-(define (spell-live-edit-key? key)
-  (and (not (string-starts? key "pre-edit:"))
-       (or (== key "space")
-           (== key "return")
-           (== key "enter")
-           (== key "backspace")
-           (== key "delete")
-           (== key "C-v")
-           (== key "S-insert")
-           (== (string-length key) 1))))
-
-(define (spell-live-buffer-supported? buf)
-  (and buf #t))
-
-(define (spell-live-active-context?)
-  (and (spell-live-enabled?)
-       (== (get-input-mode) 0)
-       (not (in-math?))
-       (spell-live-buffer-supported? (current-buffer))))
+;; Traversal and debounce belong to the editor's BufferActor, not a delayed
+;; Scheme callback which rescans the entire document after each keystroke.
 
 (define (spell-live-range-contains? start end p)
   (and (path-less-eq? start p)
@@ -106,7 +68,6 @@
           (clipboard-cut "dummy")
           (insert-go-to by (list (string-length by)))
           (end-editing)
-          (spell-live-refresh! buf)
           (set-message (string-append "Corrected spelling to '" by "'")
                        "spell check")))))
 
@@ -126,13 +87,8 @@
         (set-message "No live spelling error at cursor" "spell check")
         (and-with word (spell-live-selection->string sel)
           (let ((lan (spell-live-selection-language sel)))
-            (when (not spell-live-engine-active?)
-              (multi-spell-start)
-              (set! spell-live-engine-active? #t))
             (spell-insert lan word)
-            (multi-spell-done)
-            (set! spell-live-engine-active? #f)
-            (spell-live-refresh! (current-buffer))
+            (single-spell-done lan)
             (set-message (string-append "Added '" word "' to dictionary")
                          "spell check"))))))
 
@@ -163,9 +119,6 @@
          (count 0)
          (result #f))
     (close-input-port port)
-    (when spell-live-engine-active?
-      (multi-spell-done)
-      (set! spell-live-engine-active? #f))
     (set! result (single-spell-start lan))
     (if (!= result "ok")
         (set-message result "import dictionary")
@@ -176,8 +129,6 @@
               (set! count (+ count 1)))
             words)
           (single-spell-done lan)
-          (when (spell-live-active-context?)
-            (spell-live-refresh! (current-buffer)))
           (let ((msg (string-append "Imported " (number->string count)
                                     " words into " lan " dictionary")))
             (set-message msg "import dictionary")
@@ -190,50 +141,3 @@
     (choose-file
      (lambda (name) (spell-live-import-custom-dictionary lan name))
      "Import custom dictionary" "")))
-
-(define (spell-live-filter-current-word sels)
-  (let ((cur (cursor-path)))
-    (let loop ((l sels) (out '()))
-      (cond ((null? l) (reverse out))
-            ((null? (cdr l)) (reverse out))
-            ((spell-live-range-contains? (car l) (cadr l) cur)
-             (loop (cddr l) out))
-            (else
-             (loop (cddr l) (cons (cadr l) (cons (car l) out))))))))
-
-(define (spell-live-refresh! buf)
-  (when (and (spell-live-active-context?)
-             (== (url->url (current-buffer)) (url->url buf)))
-    (when (not spell-live-engine-active?)
-      (multi-spell-start)
-      (set! spell-live-engine-active? #t))
-    (let* ((t (buffer-tree))
-           (p (tree->path t))
-           (cp (cDr (cursor-path)))
-           (pos (if (list-starts? cp p) (list-tail cp (length p)) (list)))
-           (lan (get-init "language"))
-           (sels (spell-live-filter-current-word
-                  (tree-spell-at lan t p pos 250))))
-      (if (null? sels)
-          (cancel-alt-selection "spell-live")
-          (set-alt-selection "spell-live" sels)))))
-
-(define (spell-live-schedule! key)
-  (when (and (spell-live-edit-key? key)
-             (spell-live-active-context?))
-    (set! spell-live-serial (+ spell-live-serial 1))
-    (let ((serial spell-live-serial)
-          (buf (current-buffer)))
-      (delayed
-        (:pause 450)
-        (when (and (== serial spell-live-serial)
-                   (spell-live-buffer-supported? buf))
-          (spell-live-refresh! buf))))))
-
-(tm-define (keyboard-press key time)
-  (:require (spell-live-enabled?))
-  (former key time)
-  (spell-live-schedule! key))
-
-(register-preference-callback-procedures
-  (list spell-live-notify))
