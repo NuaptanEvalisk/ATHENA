@@ -311,6 +311,8 @@
 (kbd-map
   (:mode in-hybrid?)
   ("space" (hybrid-kbd-space))
+  ("[" (hybrid-kbd-formula-open "["))
+  ("(" (hybrid-kbd-formula-open "("))
   ("{" (hybrid-kbd-curly-left))
   ("}" (hybrid-kbd-curly-right))
   ("\\" (hybrid-kbd-backslash))

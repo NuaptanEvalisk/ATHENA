@@ -1215,10 +1215,22 @@
   (activate-hybrid #f)
   (insert " "))
 
+(tm-define (hybrid-kbd-formula-open bracket)
+  (with-innermost t 'hybrid
+    (with cmd (tm->string (tm-ref t 0))
+      (if (== cmd "")
+          (begin
+            (tree-set t 0 bracket)
+            (activate-hybrid #f))
+          (insert bracket)))))
+
 (tm-define (hybrid-kbd-curly-left)
   (with-innermost t 'hybrid
     (with cmd (tm->string (tm-ref t 0))
-      (cond ((or (not cmd) (== cmd "begin"))
+      (cond ((== cmd "")
+             (tree-set t 0 "eqnarray")
+             (activate-hybrid #f))
+            ((or (not cmd) (== cmd "begin"))
              (insert "{"))
             ((in? cmd '("left\\" "right\\"))
              (insert "{")
