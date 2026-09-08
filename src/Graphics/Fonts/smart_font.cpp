@@ -1534,22 +1534,15 @@ smart_font_rep::initialize_font (int nr) {
   }
 }
 
-static int
-get_ex (string family, string variant, string series, string shape,
-	int attempt) {
-  array<string> lfn= logical_font (family, variant, series, shape);
-  array<string> pfn= search_font (lfn, attempt);
-  array<string> chs= font_database_characteristics (pfn[0], pfn[1]);
-  string ex= find_attribute_value (chs, "ex");
-  if (ex == "") return 0;
-  else return as_int (ex);
-}
-
 int
 smart_font_rep::adjusted_dpi (string fam, string var, string ser, string sh,
                               int attempt) {
-  int ex1= get_ex (mfam, variant, series, rshape, 1);
-  int ex2= get_ex (fam, var, ser, sh, attempt);
+  // Catalog characteristics can be absent or describe a different face.
+  // Compare the actual cached fonts at the same size and resolution instead.
+  font base= closest_font (mfam, variant, series, rshape, sz, dpi, 1);
+  font substitute= closest_font (fam, var, ser, sh, sz, dpi, attempt);
+  SI ex1= base->yx;
+  SI ex2= substitute->yx;
   double zoom= 1.0;
   if (ex1 != 0 && ex2 != 0) zoom= ((double) ex1) / ((double) ex2);
   if (zoom > 0.975 && zoom < 1.025) zoom= 1;
@@ -1904,8 +1897,9 @@ smart_font (string family, string variant, string series, string shape,
             int sz, int dpi) {
   if (variant == "rm")
     return smart_font_bis (family, variant, series, shape, sz, dpi, dpi);
-  array<string> lfn1= logical_font (family, "rm", series, shape);
-  array<string> lfn2= logical_font (family, variant, series, shape);
+  string primary= main_family (family);
+  array<string> lfn1= logical_font (primary, "rm", series, shape);
+  array<string> lfn2= logical_font (primary, variant, series, shape);
   array<string> pfn1= search_font (lfn1, 1);
   array<string> pfn2= search_font (lfn2, 1);
   if (N(pfn1) > 0 && N(pfn2) > 0 && pfn1[0] == pfn2[0])

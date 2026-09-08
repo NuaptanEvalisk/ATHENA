@@ -36,6 +36,23 @@ letter_font (box b) {
 class PreviewMathFontTest: public QObject {
   Q_OBJECT
 private slots:
+  void configuredTypewriterMetrics () {
+    string family= "typewriter=JetBrains Mono,TeX Gyre Pagella";
+    for (string series: {string ("medium"), string ("bold")}) {
+      font text= smart_font (family, "rm", series, "right", 12, 600);
+      font mono= smart_font (family, "tt", series, "right", 12, 600);
+      metric text_x, mono_x;
+      text->get_extents ("x", text_x);
+      mono->get_extents ("x", mono_x);
+      double ratio= (double) (mono_x->y2-mono_x->y1)/
+                            (text_x->y2-text_x->y1);
+      QVERIFY2 (ratio > 0.95 && ratio < 1.05, as_charp (as_string (ratio)));
+      double reported= (double) (mono_x->y2-mono_x->y1)/mono->yx;
+      QVERIFY2 (reported > 0.95 && reported < 1.05,
+                as_charp (as_string (reported)));
+    }
+  }
+
   void legacyInlineCalPreservesFont () {
     drd_info drd ("preview-test", std_drd);
     hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
