@@ -971,6 +971,26 @@ buffer_actor::dispatch (actor_command_record& command) {
       std::move (snapshot));
     break;
   }
+  case actor_command_kind::document_search_update:
+  case actor_command_kind::document_search_navigate:
+  case actor_command_kind::document_search_clear: {
+    string query;
+    if (command.kind == actor_command_kind::document_search_update)
+      query= actor_text_registry::instance ().take (command.payload0);
+    if (editor == nullptr) break;
+    if (command.kind == actor_command_kind::document_search_update)
+      editor->document_search (tree (query), command.argument[1] != 0);
+    else if (command.kind == actor_command_kind::document_search_navigate)
+      editor->document_search_navigate (command.argument[1] != 0,
+                                       command.argument[2] != 0);
+    else editor->document_search_clear ();
+    if (editor->ui_endpoint != nullptr)
+      editor->ui_endpoint->publish (
+        actor_command_kind::ui_document_search_state, ATHENA_NO_BLOB,
+        command.argument[0], editor->document_search_current (),
+        editor->document_search_total ());
+    break;
+  }
   case actor_command_kind::request_outline: {
     if (editor == nullptr || editor->ui_endpoint == nullptr) break;
     const tree& document= subtree (

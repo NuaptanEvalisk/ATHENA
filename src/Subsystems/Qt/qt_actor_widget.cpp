@@ -20,6 +20,7 @@
 #include "tm_window.hpp"
 #include "QTMToast.hpp"
 #include "QTMOutlinePane.hpp"
+#include "QTMDocumentSearchBar.hpp"
 #include "QTMCompletionPopup.hpp"
 #include "QTMVaultBackupDispatcher.hpp"
 #include "QTMVaultExplorer.hpp"
@@ -407,6 +408,12 @@ qt_actor_widget_rep::drain_external_effects () {
     case actor_command_kind::ui_outline_snapshot:
       outline_pane_accept_snapshot (
         record.view_id, record.payload0, record.argument[0]);
+      break;
+    case actor_command_kind::ui_document_search_state:
+      QTMDocumentSearchBar::acceptState (
+        canvas (), record.view_id, record.argument[0],
+        static_cast<int> (record.argument[1]),
+        static_cast<int> (record.argument[2]));
       break;
     case actor_command_kind::ui_keyboard_focus_field: {
       string field= actor_text_registry::instance ().take (record.payload0);

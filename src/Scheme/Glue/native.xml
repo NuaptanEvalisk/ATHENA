@@ -93,11 +93,11 @@
     <arg type="array_string" />
     <arg type="command" />
   </binding>
-  <binding name="document-search-open" native="document_search_open" returns="void" />
+  <binding name="document-search-open" native="document_search_open" returns="void" dispatch="ui" />
   <binding name="document-search-next" native="document_search_next" returns="void">
     <arg type="bool" />
   </binding>
-  <binding name="document-search-close" native="document_search_close" returns="void" />
+  <binding name="document-search-close" native="document_search_close" returns="void" dispatch="ui" />
   <binding name="artifacts-pane-show" native="artifacts_pane_show" returns="void" dispatch="ui" />
   <binding name="artifacts-build-entire-vault" native="artifacts_build_entire_vault" returns="void" dispatch="ui" />
   <binding name="artifacts-build-current-document" native="artifacts_build_current_document" returns="void" dispatch="ui" />

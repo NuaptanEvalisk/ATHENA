@@ -12,6 +12,11 @@
 #include "QTMWidget.hpp"
 #include "boot.hpp"
 #include "new_view.hpp"
+#include "native_interfaces.hpp"
+#include "buffer_actor.hpp"
+#include "tm_buffer.hpp"
+#include "tm_window.hpp"
+#include "qt_actor_widget.hpp"
 #include "qt_utilities.hpp"
 
 #include <QCheckBox>
@@ -47,12 +52,20 @@ activeBar () {
 }
 
 QTMDocumentSearchBar::QTMDocumentSearchBar (QTMWidget* owner):
-  QFrame (owner), canvas (owner), queryEdit (new QLineEdit (this)),
+  QFrame (owner), canvas (owner), dispatchTimer (new QTimer (this)),
+  queryEdit (new QLineEdit (this)),
   caseSensitive (new QCheckBox (tr ("Match case"), this)),
   resultLabel (new QLabel (this)) {
   setObjectName (QStringLiteral ("athenaDocumentSearchBar"));
   setFrameShape (QFrame::StyledPanel);
   setAutoFillBackground (true);
+  if (auto* proxy= dynamic_cast<qt_actor_widget_rep*> (owner->tm_widget ())) {
+    actorId= proxy->actor_id ();
+    viewId= proxy->view_id ();
+  }
+  dispatchTimer->setSingleShot (true);
+  connect (dispatchTimer, &QTimer::timeout, this,
+           [this] { dispatchPending (); });
 
   auto* layout= new QHBoxLayout (this);
   layout->setContentsMargins (8, 5, 8, 5);
@@ -112,6 +125,7 @@ QTMDocumentSearchBar::QTMDocumentSearchBar (QTMWidget* owner):
            [this] { closeSearch (); });
 
   queryEdit->installEventFilter (this);
+  caseSensitive->installEventFilter (this);
   owner->installEventFilter (this);
   hide ();
 }
@@ -123,20 +137,19 @@ QTMDocumentSearchBar::makeButton (const QIcon& icon,
   button->setAutoRaise (true);
   button->setIcon (icon);
   button->setToolTip (tooltip);
+  button->installEventFilter (this);
   return button;
 }
 
 void
-QTMDocumentSearchBar::open (editor ed) {
-  if (is_nil (ed)) return;
-  if (!is_nil (searchEditor) && searchEditor != ed)
-    searchEditor->document_search_clear ();
-  searchEditor= ed;
+QTMDocumentSearchBar::open () {
+  if (actorId == ATHENA_NO_ACTOR) return;
   show ();
   raise ();
   positionBar ();
   updateSearch ();
   QTimer::singleShot (0, queryEdit, [this] {
+    if (!isVisible ()) return;
     queryEdit->setFocus (Qt::ShortcutFocusReason);
     queryEdit->selectAll ();
   });
@@ -144,34 +157,87 @@ QTMDocumentSearchBar::open (editor ed) {
 
 void
 QTMDocumentSearchBar::closeSearch () {
-  if (!is_nil (searchEditor)) searchEditor->document_search_clear ();
+  dispatchTimer->stop ();
+  pending.clear ();
+  pending.push_back ({actor_command_kind::document_search_clear,
+                     ++generation, {}});
+  dispatchPending ();
   hide ();
   if (canvas != nullptr) canvas->setFocus (Qt::ShortcutFocusReason);
 }
 
 void
 QTMDocumentSearchBar::updateSearch () {
-  if (is_nil (searchEditor)) return;
-  QByteArray bytes= queryEdit->text ().toUtf8 ();
-  string query (bytes.constData (), bytes.size ());
-  searchEditor->document_search (tree (query), !caseSensitive->isChecked ());
-  updateResultLabel ();
+  if (!isVisible () || actorId == ATHENA_NO_ACTOR) return;
+  // At most one search is running; replace only adjacent unsent queries so
+  // navigation and clear remain ordered against the query they apply to.
+  if (!pending.empty () &&
+      pending.back ().kind == actor_command_kind::document_search_update)
+    pending.pop_back ();
+  pending.push_back ({actor_command_kind::document_search_update,
+                     ++generation, queryEdit->text (),
+                     !caseSensitive->isChecked ()});
+  resultLabel->setText (tr ("Searching..."));
+  dispatchTimer->start (120);
 }
 
 void
 QTMDocumentSearchBar::navigate (bool forward, bool extreme) {
-  if (is_nil (searchEditor)) return;
-  searchEditor->document_search_navigate (forward, extreme);
-  updateResultLabel ();
+  if (!isVisible () || actorId == ATHENA_NO_ACTOR) return;
+  dispatchTimer->stop ();
+  pending.push_back ({actor_command_kind::document_search_navigate,
+                     ++generation, {}, forward, extreme});
+  dispatchPending ();
+}
+
+void
+QTMDocumentSearchBar::dispatchPending () {
+  if (inFlight != 0 || pending.empty ()) return;
+  tm_view view= concrete_runtime_view (viewId);
+  if (view == nullptr || view->buf == nullptr || view->buf->actor == nullptr ||
+      view->buf->actor->id () != actorId) {
+    pending.clear ();
+    return;
+  }
+  const Pending& request= pending.front ();
+  athena_blob_id payload= ATHENA_NO_BLOB;
+  if (request.kind == actor_command_kind::document_search_update) {
+    QByteArray bytes= request.text.toUtf8 ();
+    payload= actor_text_registry::instance ().store (
+      string (bytes.constData (), bytes.size ()));
+  }
+  auto ticket= view->buf->actor->try_submit (
+    request.kind, viewId, payload, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER,
+    request.generation, request.flag1, request.flag2);
+  if (!ticket) {
+    if (payload != ATHENA_NO_BLOB)
+      actor_text_registry::instance ().discard (payload);
+    dispatchTimer->start (20);
+    return;
+  }
+  inFlight= request.generation;
+  pending.pop_front ();
+}
+
+void
+QTMDocumentSearchBar::acceptState (QTMWidget* canvas, athena_view_id view,
+                                  std::uint64_t serial, int current, int total) {
+  auto* bar= barForCanvas (canvas, false);
+  if (bar == nullptr || bar->viewId != view || bar->inFlight != serial) return;
+  bar->inFlight= 0;
+  if (serial == bar->generation && bar->isVisible ()) {
+    bar->currentResult= current;
+    bar->totalResults= total;
+    bar->updateResultLabel ();
+  }
+  if (!bar->dispatchTimer->isActive ()) bar->dispatchPending ();
 }
 
 void
 QTMDocumentSearchBar::updateResultLabel () {
-  int current= is_nil (searchEditor) ? 0 : searchEditor->document_search_current ();
-  int total= is_nil (searchEditor) ? 0 : searchEditor->document_search_total ();
-  resultLabel->setText (total == 0
+  resultLabel->setText (totalResults == 0
     ? tr ("No matches")
-    : QStringLiteral ("%1 / %2").arg (current).arg (total));
+    : QStringLiteral ("%1 / %2").arg (currentResult).arg (totalResults));
 }
 
 void
@@ -190,7 +256,7 @@ QTMDocumentSearchBar::eventFilter (QObject* watched, QEvent* event) {
   if (watched == canvas && event->type () == QEvent::Resize) {
     positionBar ();
   }
-  else if (watched == queryEdit && event->type () == QEvent::KeyPress) {
+  else if (watched != canvas && event->type () == QEvent::KeyPress) {
     auto* key= static_cast<QKeyEvent*> (event);
     if (key->key () == Qt::Key_Escape) {
       closeSearch ();
@@ -217,7 +283,7 @@ void
 QTMDocumentSearchBar::showForCurrentEditor () {
   QTMWidget* canvas= QTMWidget::getLastFocusedWidget ();
   if (canvas == nullptr) return;
-  barForCanvas (canvas, true)->open (get_current_editor ());
+  barForCanvas (canvas, true)->open ();
 }
 
 void
@@ -232,6 +298,9 @@ QTMDocumentSearchBar::closeCurrent () {
 
 void document_search_open () { QTMDocumentSearchBar::showForCurrentEditor (); }
 void document_search_next (bool forward) {
-  QTMDocumentSearchBar::navigateCurrent (forward);
+  if (forward)
+    athena_dispatch_ui ([] { QTMDocumentSearchBar::navigateCurrent (true); });
+  else
+    athena_dispatch_ui ([] { QTMDocumentSearchBar::navigateCurrent (false); });
 }
 void document_search_close () { QTMDocumentSearchBar::closeCurrent (); }
