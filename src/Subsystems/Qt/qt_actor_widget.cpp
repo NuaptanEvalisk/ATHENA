@@ -232,7 +232,7 @@ qt_actor_widget_rep::handle_repaint (
     actor_id_, actor_command_kind::render_view, view_id_,
     static_cast<std::uint64_t> (x1), static_cast<std::uint64_t> (y1),
     static_cast<std::uint64_t> (x2), static_cast<std::uint64_t> (y2));
-  if (!submitted) invalidate_rect (x1, y2, x2, y1);
+  if (!submitted) invalidate_render_rect (renderer, x1, y1, x2, y2);
 }
 
 void
@@ -297,11 +297,11 @@ qt_actor_widget_rep::drain_external_effects () {
     const actor_command_record& record= *effect.record;
     switch (record.kind) {
     case actor_command_kind::ui_invalidate:
-      invalidate_rect (
-        static_cast<int> (record.argument[0]),
-        static_cast<int> (record.argument[1]),
-        static_cast<int> (record.argument[2]),
-        static_cast<int> (record.argument[3]));
+      send (SLOT_INVALIDATE, close_box<coord4> (coord4 (
+        static_cast<SI> (record.argument[0]),
+        static_cast<SI> (record.argument[1]),
+        static_cast<SI> (record.argument[2]),
+        static_cast<SI> (record.argument[3]))));
       break;
     case actor_command_kind::ui_invalidate_all:
       invalidate_all ();

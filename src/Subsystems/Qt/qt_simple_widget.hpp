@@ -129,6 +129,7 @@ protected:
 
   void invalidate_rect (int x1, int y1, int x2, int y2,
                         bool widen_fractional_text= true);
+  void invalidate_render_rect (renderer ren, SI x1, SI y1, SI x2, SI y2);
   void invalidate_all ();
   bool is_invalid ();
   void repaint_invalid_regions ();

@@ -11,10 +11,10 @@
 
 #include "QTMRenderService.hpp"
 #include "qt_renderer.hpp"
+#include "qt_simple_widget.hpp"
 
 #include <QPainter>
 #include <condition_variable>
-#include <future>
 #include <mutex>
 #include <thread>
 
@@ -26,41 +26,36 @@ class TestQTMRenderService: public QObject {
 private slots:
   void rendersDisplayListOffTheProducerThread ();
   void givesEachProducerThreadItsOwnQtRenderer ();
+  void retryDamageStaysInBackingPixels ();
 };
 
 void
 TestQTMRenderService::rendersDisplayListOffTheProducerThread () {
-  std::promise<QTMRenderedFrame> completed;
-  std::future<QTMRenderedFrame> delivered= completed.get_future ();
-  auto connection= QTMRenderConnection::create (
-    [&completed] (QTMRenderedFrame frame) {
-      completed.set_value (std::move (frame));
-    }, 2, 128);
+  auto connection= QTMRenderConnection::create (2, 4096);
   QVERIFY (connection != nullptr);
 
-  QPicture picture;
-  QPainter painter (&picture);
+  render_damage damage {4, 5, 12, 12};
+  auto recording= connection->beginRecording (
+    20, 20, 1.0, qRgba (255, 255, 255, 255), 3, 9, damage);
+  QVERIFY (recording != nullptr);
+  QPainter painter (recording->device ());
   painter.fillRect (QRect (4, 5, 8, 7), QColor (10, 120, 230));
   painter.end ();
 
-  render_damage damage {4, 5, 12, 12};
-  QVERIFY (connection->submit (picture, 20, 20, 1.0,
-                               qRgba (255, 255, 255, 255),
-                               3, 9, damage));
-  auto surface= connection->surface ();
-  QVERIFY (surface->waitForFrame (9, std::chrono::seconds (1)));
-  QTMRenderedFrame frame= surface->latestFrame ();
-  QCOMPARE (frame.bufferGeneration, std::uint64_t (3));
-  QCOMPARE (frame.frameGeneration, std::uint64_t (9));
-  QCOMPARE (frame.image.size (), QSize (20, 20));
-  QCOMPARE (frame.image.pixelColor (6, 7), QColor (10, 120, 230));
-  QCOMPARE (frame.image.pixelColor (0, 0), QColor (255, 255, 255));
-  QVERIFY (delivered.wait_for (std::chrono::seconds (1)) ==
-           std::future_status::ready);
-  QTMRenderedFrame callbackFrame= delivered.get ();
-  QCOMPARE (callbackFrame.bufferGeneration, std::uint64_t (3));
-  QCOMPARE (callbackFrame.frameGeneration, std::uint64_t (9));
-  QCOMPARE (callbackFrame.image.pixelColor (6, 7), QColor (10, 120, 230));
+  QVERIFY (recording->finish ());
+  QTMSharedFrame frame;
+  auto deadline= std::chrono::steady_clock::now () + std::chrono::seconds (1);
+  do {
+    frame= connection->acquireLatestFrame ();
+    if (frame) break;
+    std::this_thread::sleep_for (std::chrono::milliseconds (1));
+  } while (std::chrono::steady_clock::now () < deadline);
+  QVERIFY (static_cast<bool> (frame));
+  QCOMPARE (frame.bufferGeneration (), std::uint64_t (3));
+  QCOMPARE (frame.frameGeneration (), std::uint64_t (9));
+  QCOMPARE (frame.image ().size (), QSize (20, 20));
+  QCOMPARE (frame.image ().pixelColor (6, 7), QColor (10, 120, 230));
+  QCOMPARE (frame.image ().pixelColor (0, 0), QColor (255, 255, 255));
 
   connection->retire ();
 }
@@ -94,6 +89,42 @@ TestQTMRenderService::givesEachProducerThreadItsOwnQtRenderer () {
   first.join ();
   second.join ();
   QVERIFY (distinct);
+}
+
+class damage_test_widget: public qt_simple_widget_rep {
+public:
+  void attachCanvas () { qwid= new QTMWidget (nullptr, this); }
+  void retry (renderer ren, SI x1, SI y1, SI x2, SI y2) {
+    invalid_regions= rectangles ();
+    invalidate_render_rect (ren, x1, y1, x2, y2);
+  }
+  rectangle damage () { return least_upper_bound (invalid_regions); }
+};
+
+void
+TestQTMRenderService::retryDamageStaysInBackingPixels () {
+  auto* rep= tm_new<damage_test_widget> ();
+  widget owner (rep);
+  rep->attachCanvas ();
+  qt_renderer_rep* ren= the_qt_renderer (1.0);
+  ren->set_origin (-123 * PIXEL, 4567 * PIXEL);
+  int padding= (int) ceil (rep->canvas ()->devicePixelRatio () * 8.0);
+  rectangle pixels (10, 20, 300, 180);
+  for (int i= 0; i < 12; ++i) {
+    SI x1= pixels->x1, y1= pixels->y1;
+    SI x2= pixels->x2, y2= pixels->y2;
+    ren->encode (x1, y1);
+    ren->encode (x2, y2);
+    rep->retry (ren, x1, y2, x2, y1);
+    pixels= rep->damage ();
+    // Each failed attempt adds only the existing text damage halo, never
+    // another internal-unit scale factor or scroll offset.
+    QCOMPARE (pixels->x1, 10 - (i + 1) * padding);
+    QCOMPARE (pixels->y1, 20 - (i + 1) * padding);
+    QCOMPARE (pixels->x2, 300 + (i + 1) * padding);
+    QCOMPARE (pixels->y2, 180 + (i + 1) * padding);
+  }
+  delete rep->canvas ();
 }
 
 QTEST_MAIN (TestQTMRenderService)

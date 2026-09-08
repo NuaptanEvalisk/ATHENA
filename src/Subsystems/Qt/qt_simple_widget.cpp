@@ -247,9 +247,7 @@ qt_simple_widget_rep::send (slot s, blackbox val) {
       ren->set_origin(ox,oy);
       SI x1 = p.x1, y1 = p.x2, x2 = p.x3, y2 = p.x4;
       ren->outer_round (x1, y1, x2, y2);
-      ren->decode (x1, y1);
-      ren->decode (x2, y2);
-      invalidate_rect (x1, y2, x2, y1);
+      invalidate_render_rect (ren, x1, y1, x2, y2);
     }
       break;
       
@@ -476,6 +474,16 @@ physical_rect_to_logical_qrect (rectangle r, double pixel_ratio) {
 static bool
 fractional_pixel_ratio (double pixel_ratio) {
   return fabs (pixel_ratio - floor (pixel_ratio + 0.5)) > 0.001;
+}
+
+void
+qt_simple_widget_rep::invalidate_render_rect (
+  renderer ren, SI x1, SI y1, SI x2, SI y2) {
+  // Document coordinates are y-up internal units; damage is y-down pixels
+  // relative to the backing store, including its current scroll origin.
+  ren->decode (x1, y1);
+  ren->decode (x2, y2);
+  invalidate_rect (x1, y2, x2, y1);
 }
 
 void
