@@ -262,6 +262,7 @@ qt_actor_widget_rep::refresh_viewport () {
   snapshot.invalid= is_invalid ();
   tm_view view= concrete_runtime_view (view_id_);
   if (view != nullptr && view->win != nullptr) {
+    snapshot.window_serial= view->win->serial;
     string id= as_string (abstract_window (view->win));
     string prefix= "tmfs://window/";
     if (starts (id, prefix))

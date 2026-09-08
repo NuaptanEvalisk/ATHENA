@@ -424,6 +424,14 @@ tm_server_rep::inclusions_gc (string which) {
 
 void
 tm_server_rep::typeset_update (path p) {
+  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  if (context != nullptr) {
+    // Link visitation runs before navigation, in the source buffer's actor.
+    // Its views are already owned here; do not consult the GUI registry or
+    // enqueue a command into the mailbox that this thread is consuming.
+    context->actor->invalidate_typesetting (p);
+    return;
+  }
   url cur= get_current_view_safe ();
   if (is_none (cur)) return;
 

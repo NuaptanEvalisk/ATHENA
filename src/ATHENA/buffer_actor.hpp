@@ -14,6 +14,7 @@
 #include "actor_transport.hpp"
 #include "scheme_execution_context.hpp"
 #include "url.hpp"
+#include "path.hpp"
 
 #include <condition_variable>
 #include <cstddef>
@@ -115,6 +116,7 @@ public:
   url current_view_url (athena_view_id view_id) const;
   editor_rep* current_editor (athena_view_id view_id) const noexcept;
   buffer_document_state* current_state () const noexcept;
+  void invalidate_typesetting (path p);
 
   // Fixed dispatch is public only for the Guile C trampoline.  Callers submit
   // command ids; they never invoke this directly.

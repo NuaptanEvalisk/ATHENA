@@ -39,6 +39,7 @@ struct actor_viewport_snapshot {
   SI render_height= 0;
   double render_pixel_ratio= 1.0;
   std::uint64_t window_id= 0;
+  int window_serial= 0;
   std::uint32_t icon_bar_mask= 0;
   std::uint32_t side_tools_mask= 0;
   std::uint32_t bottom_tools_mask= 0;
@@ -112,6 +113,7 @@ private:
     std::atomic<SI> render_height {0};
     std::atomic<std::uint64_t> render_pixel_ratio_bits {0};
     std::atomic<std::uint64_t> window_id {0};
+    std::atomic<int> window_serial {0};
     std::atomic<std::uint32_t> icon_bar_mask {0};
     std::atomic<std::uint32_t> side_tools_mask {0};
     std::atomic<std::uint32_t> bottom_tools_mask {0};

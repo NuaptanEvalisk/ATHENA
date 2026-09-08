@@ -468,6 +468,13 @@ buffer_actor::current_state () const noexcept {
   return is_owner_thread () && impl_ != nullptr ? &impl_->state : nullptr;
 }
 
+void
+buffer_actor::invalidate_typesetting (path p) {
+  ASSERT (is_owner_thread (), "typesetting invalidated outside its actor");
+  for (auto& entry: impl_->views)
+    entry.second.instance->typeset_invalidate (p);
+}
+
 url
 buffer_actor::current_view_url (athena_view_id view_id) const {
   ASSERT (is_owner_thread (), "view URL accessed outside its actor");

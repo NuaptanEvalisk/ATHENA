@@ -607,7 +607,8 @@
          (converter-search from "texmacs-tree"))))
 
 (define (linked-file-opened name after-open)
-  (when (and after-open (buffer-exists? name)) (after-open)))
+  (when (and after-open (buffer-exists? name))
+    (exec-buffer name after-open)))
 
 (define (linked-file-load-native name after-open)
   (load-buffer name)
@@ -643,11 +644,13 @@
             (linked-file-convertible-open-widget name cmd)
             (linked-file-unknown-open-widget name cmd)))
       (lambda (answer)
-        (cond ((== answer "convert")
-               (linked-file-convert name after-open))
-              ((== answer "plain")
-               (linked-file-edit-plain name after-open))
-              ((== answer "system") (load-external name))))
+        (exec-global
+          (lambda ()
+            (cond ((== answer "convert")
+                   (linked-file-convert name after-open))
+                  ((== answer "plain")
+                   (linked-file-edit-plain name after-open))
+                  ((== answer "system") (load-external name))))))
       "Open linked file")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -759,6 +762,17 @@
 
 (tm-define (load-browse-buffer name . opt-after-open)
   (:synopsis "Load a buffer or switch to it if already open")
+  ;; Resolve relative links in their source buffer before leaving its actor.
+  ;; Only a detached string crosses into the GUI registry owner.
+  (let* ((target (if (and (not (url-rooted? name)) (current-buffer))
+                     (url-relative (current-buffer) name) name))
+         (text (string-copy (url->system target))))
+    (exec-global
+      (lambda ()
+        (apply load-browse-buffer-main
+               (cons (system->url text) opt-after-open))))))
+
+(define (load-browse-buffer-main name . opt-after-open)
   (let ((after-open (and (pair? opt-after-open) (car opt-after-open))))
     (cond ((url-rooted-protocol? name "mailto") (load-external name))
           ((buffer-exists? name)

@@ -579,10 +579,12 @@
   (if (nnull? opt-from) (cursor-history-add (car opt-from)))
   (if (string? u) (set! u (system->url u)))
   (with (action post) (url-handlers u)
-    (action u (lambda ()
-                (post u)
-                (if (and (nnull? opt-from) (not (wikilink-url? u)))
-                    (cursor-history-add (cursor-path)))))))
+    (let ((text (string-copy (url->system u)))
+          (record-history? (and (nnull? opt-from) (not (wikilink-url? u)))))
+      (action u (lambda ()
+                  (post (system->url text))
+                  (if record-history?
+                      (cursor-history-add (cursor-path))))))))
 
 (define (execute-at cmd opt-location)
   (if (null? opt-location) (exec-delayed cmd)

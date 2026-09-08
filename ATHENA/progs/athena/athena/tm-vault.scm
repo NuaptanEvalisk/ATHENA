@@ -23,12 +23,17 @@
 
 
 (tm-define (vault-jump-to-source path anchor)
-  (load-buffer path)
-  (if (!= anchor "")
-      (delayed (:idle 100) (go-to-label anchor))))
+  (let ((label (string-copy anchor)))
+    (load-browse-buffer path
+      (lambda () (if (!= label "") (go-to-label label))))))
 
-(tm-define (artifact-jump-to-position path position)
-  (load-buffer path)
+(tm-define (artifact-jump-to-position path position . opt-history)
+  (load-browse-buffer path
+    (lambda ()
+      (artifact-position-in-buffer position)
+      (when (pair? opt-history) (cursor-history-add (cursor-path))))))
+
+(define (artifact-position-in-buffer position)
   (and-with target
       (path->tree (append (tree->path (buffer-tree)) position))
     (tree-go-to target :start)
@@ -1048,14 +1053,13 @@
           (if (url-exists? abs-url)
               (begin
                 (display* "  Opening target via delayed execution...\n")
-                (exec-delayed (lambda ()
-                                (display* "  Executing load-buffer for " abs-url "\n")
-                                (load-buffer abs-url)
-                                (if (not (string-null? a-end))
-                                    (begin
-                                      (display* "  Jumping to label " a-end "\n")
-                                      (delayed (:idle 100) (go-to-label a-end))))
-                                (display* "  Navigation complete.\n")))
+                (let ((target (string-copy (url->system abs-url)))
+                      (label (string-copy a-end)))
+                  (exec-delayed
+                    (lambda ()
+                      (exec-global
+                        (lambda ()
+                          (vault-jump-to-source (system->url target) label))))))
                 `(document (TeXmacs ,(texmacs-compat-version)) 
                            (style (tuple "generic")) 
                            (body (document "Redirecting..."))))
@@ -1104,14 +1108,17 @@
 (tm-define (go-to-url u . opt-from)
   (:require (artifact-url? u))
   (when (pair? opt-from) (cursor-history-add (car opt-from)))
-  (let ((target (artifact-resolve-uuid (artifact-url-uuid u))))
-    (if target
-        (begin
-          (artifact-jump-to-position (car target) (cadr target))
-          (when (pair? opt-from) (cursor-history-add (cursor-path))))
-        (set-message
-          "Artifact not found or its definition has changed; rebuild artifacts"
-          "Artifact"))))
+  (let ((uuid (string-copy (artifact-url-uuid u)))
+        (history (if (pair? opt-from) '(#t) '())))
+    (exec-global
+      (lambda ()
+        (let ((target (artifact-resolve-uuid uuid)))
+          (if target
+              (apply artifact-jump-to-position
+                     (append target history))
+              (set-message
+                "Artifact not found or its definition has changed; rebuild artifacts"
+                "Artifact")))))))
 
 (tmfs-load-handler (artifact-disambiguation name)
   (tree->stree (artifact-disambiguation-page name)))

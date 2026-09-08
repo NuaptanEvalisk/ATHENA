@@ -102,6 +102,7 @@ actor_ui_endpoint::update_viewport (
   viewport_.render_pixel_ratio_bits.store (
     double_bits (snapshot.render_pixel_ratio), std::memory_order_relaxed);
   viewport_.window_id.store (snapshot.window_id, std::memory_order_relaxed);
+  viewport_.window_serial.store (snapshot.window_serial, std::memory_order_relaxed);
   viewport_.icon_bar_mask.store (
     snapshot.icon_bar_mask, std::memory_order_relaxed);
   viewport_.side_tools_mask.store (
@@ -154,6 +155,7 @@ actor_ui_endpoint::viewport () const noexcept {
     result.render_pixel_ratio= bits_double (
       viewport_.render_pixel_ratio_bits.load (std::memory_order_relaxed));
     result.window_id= viewport_.window_id.load (std::memory_order_relaxed);
+    result.window_serial= viewport_.window_serial.load (std::memory_order_relaxed);
     result.icon_bar_mask=
       viewport_.icon_bar_mask.load (std::memory_order_relaxed);
     result.side_tools_mask=
