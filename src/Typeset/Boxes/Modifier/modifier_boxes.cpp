@@ -536,7 +536,16 @@ frozen_box (path ip, box b) {
 
 box
 direct_link_box (path ip, box b, string ref) {
-  return tm_new<direct_link_box_rep> (ip, b, ref);
+  return b->with_direct_link (ip, ref);
+}
+
+box
+box_rep::with_direct_link (path ip, string ref) {
+  box linked= tm_new<direct_link_box_rep> (ip, this, ref);
+  // Reparent an already positioned box without retaining an inner offset.
+  linked->x0= x0; linked->y0= y0;
+  x0= y0= 0;
+  return linked;
 }
 
 box

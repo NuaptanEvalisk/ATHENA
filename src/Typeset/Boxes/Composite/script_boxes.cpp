@@ -185,6 +185,7 @@ struct dummy_script_box_rep: public composite_box_rep {
   dummy_script_box_rep (path ip, box b1, box b2, font fn);
   operator tree () { return "dummy script"; }
   void finalize ();
+  box with_direct_link (path ip, string ref);
   box adjust_kerning (int mode, double factor);
   box expand_glyphs (int mode, double factor);
 
@@ -244,6 +245,18 @@ dummy_script_box_rep::adjust_kerning (int mode, double factor) {
   box sub, sup;
   if ((type & 1) != 0) sub= bs[0]->adjust_kerning (mode, factor/2);
   if ((type & 2) != 0) sup= bs[N(bs)-1]->adjust_kerning (mode, factor/2);
+  return script_box (ip, sub, sup, fn);
+}
+
+box
+dummy_script_box_rep::with_direct_link (path ip, string ref) {
+  // Script attachment consumes these children, not the temporary container.
+  // Keep its shape and font so links survive attachment without moving twice.
+  box sub, sup;
+  if ((type & 1) != 0)
+    sub= direct_link_box (bs[0]->ip, bs[0], ref);
+  if ((type & 2) != 0)
+    sup= direct_link_box (bs[N(bs)-1]->ip, bs[N(bs)-1], ref);
   return script_box (ip, sub, sup, fn);
 }
 

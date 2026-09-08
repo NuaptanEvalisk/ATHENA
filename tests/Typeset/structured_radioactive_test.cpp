@@ -47,9 +47,77 @@ static int link_count (box b, const string& destination) {
   return result;
 }
 
+static void text_positions (box b, SI x, SI y, tree& positions) {
+  if (b->get_type () == TEXT_BOX)
+    positions << tuple (b->get_leaf_string (), as_string (x), as_string (y));
+  for (int i=0; i<N(b); ++i)
+    text_positions (b[i], x+b->sx (i), y+b->sy (i), positions);
+}
+
 class StructuredRadioactiveTest: public QObject {
   Q_OBJECT
 private slots:
+  void linkedScriptsRetainGeometry_data () {
+    QTest::addColumn<int> ("scriptKind");
+    QTest::newRow ("subscript") << 0;
+    QTest::newRow ("superscript") << 1;
+    QTest::newRow ("both-right") << 2;
+    QTest::newRow ("both-left") << 3;
+  }
+
+  void linkedScriptsRetainGeometry () {
+    QFETCH (int, scriptKind);
+    QTemporaryDir directory;
+    QVERIFY (directory.isValid ());
+    std::filesystem::path root (directory.path ().toStdString ());
+    AthenaVaultfileInfo info;
+    std::string error;
+    QVERIFY2 (athena_vaultfile_write (root, info, error), error.c_str ());
+    tree formula (CONCAT, "e", tree (RSUB, "1"));
+    if (scriptKind == 1) formula= tree (CONCAT, "e", tree (RSUP, "2"));
+    if (scriptKind == 2) formula << tree (RSUP, "2");
+    if (scriptKind == 3)
+      formula= tree (CONCAT, tree (LSUB, "1"), tree (LSUP, "2"), "e");
+    tree math= compound ("math", formula);
+    tree body (DOCUMENT, compound ("definition", compound ("strong", math)));
+    tree document (DOCUMENT, compound ("TeXmacs", "2.1.4"),
+                   compound ("style", "generic"), compound ("body", body));
+    string bytes= tree_to_texmacs (document);
+    std::ofstream source (root / "scripts.ath");
+    source.write (as_charp (bytes), N(bytes));
+    source.close ();
+    AthenaArtifactsBuildResult built;
+    QVERIFY2 (athena_artifacts_build (root, {}, true, {}, built, error), error.c_str ());
+    std::vector<AthenaArtifactRecord> records;
+    QVERIFY2 (athena_artifacts_query (root, records, error), error.c_str ());
+    QCOMPARE (records.size (), size_t (1));
+    string destination= "tmfs://artifact-disambiguation/" *
+      string (athena_artifact_radioactive_key (records[0]).c_str ());
+    QCOMPARE (vault_load (url_system (root.string ().c_str ()), "test", "vault.sqlite"), string (""));
+    struct CloseVault { ~CloseVault () { vault_close (); } } close;
+    drd_info drd ("linked-scripts", std_drd);
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
+    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
+    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    env->write_default_env ();
+    env->write (FONT, "TeX Gyre Pagella");
+    env->write ("athena-radioactive-links-in-transclusion", "true");
+    env->write (RADIOACTIVE_LINK_COLOR, "preserve");
+    env->update ();
+    tree paragraph (CONCAT, "Vectors ", math);
+    box linked= typeset_as_concat (env, paragraph, path ());
+    QVERIFY (link_count (linked, destination) >= (scriptKind < 2 ? 2 : 3));
+    env->write ("athena-radioactive-links-suppressed", "true");
+    box plain= typeset_as_concat (env, paragraph, path ());
+    QCOMPARE (linked->w (), plain->w ());
+    QCOMPARE (linked->y1, plain->y1);
+    QCOMPARE (linked->y2, plain->y2);
+    tree linked_positions (TUPLE), plain_positions (TUPLE);
+    text_positions (linked, 0, 0, linked_positions);
+    text_positions (plain, 0, 0, plain_positions);
+    QCOMPARE (linked_positions, plain_positions);
+  }
+
   void disambiguationTableFitsPreviewWidth () {
     AthenaArtifactRecord record;
     record.uuid= "preview-width";

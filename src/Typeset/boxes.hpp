@@ -183,6 +183,7 @@ public:
 
   virtual box  adjust_kerning (int mode, double factor);
   virtual box  expand_glyphs (int mode, double factor);
+  virtual box  with_direct_link (path ip, string ref);
   virtual void get_cell_extents (SI& l, SI& r);
   virtual box  adjust_cell_geometry (SI dx, SI dl, SI dr);
 
