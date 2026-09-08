@@ -33,9 +33,49 @@ letter_font (box b) {
   return font ();
 }
 
+static SI
+delimiter_center (box b, string symbol, SI y=0) {
+  if (b->get_type () == TEXT_BOX && b->get_leaf_string () == symbol)
+    return y + (b->y1 + b->y2) / 2;
+  for (int i=0; i<N(b); ++i) {
+    SI center= delimiter_center (b[i], symbol, y+b->sy(i));
+    if (center != MAX_SI) return center;
+  }
+  return MAX_SI;
+}
+
 class PreviewMathFontTest: public QObject {
   Q_OBJECT
 private slots:
+  void pagellaDelimitersFollowMathAxis () {
+    drd_info drd ("braces", std_drd);
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
+    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
+    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    env->write_default_env ();
+    env->write (FONT, "TeX Gyre Pagella");
+    env->write (MODE, "math");
+    env->update ();
+    for (string size: {string ("10"), string ("12")}) {
+      env->write (FONT_BASE_SIZE, size);
+      env->update ();
+      for (string pair: {string ("{}"), string ("()")}) {
+        for (string body: {string (""), string ("0")}) {
+          box b= typeset_as_concat (env,
+            tree (VAR_AROUND, pair(0,1), body, pair(1,2)), path ());
+          for (int side=0; side<2; ++side) {
+            string symbol= (side == 0 ? string ("<left-") : string ("<right-")) *
+                           pair(side,side+1) * "-0>";
+            SI center= delimiter_center (b, symbol);
+            QVERIFY2 (center != MAX_SI, as_charp (symbol));
+            QVERIFY2 (abs (center-env->fn->yfrac) <= PIXEL/2,
+                      as_charp (as_string (center-env->fn->yfrac)));
+          }
+        }
+      }
+    }
+  }
+
   void configuredTypewriterMetrics () {
     string family= "typewriter=JetBrains Mono,TeX Gyre Pagella";
     for (string series: {string ("medium"), string ("bold")}) {

@@ -332,24 +332,17 @@ concater_rep::handle_matching (int start, int end) {
         pencil lp= a[i]->b->get_leaf_pencil ();
         font   fn= a[i]->b->get_leaf_font ();
 
-        // find the middle of the bracket, around where to center
-        SI mid= (a[i]->b->y1 + a[i]->b->y2) >> 1;
+        // The unsized placeholder may use a different fallback font from the
+        // selected delimiter. Use the math axis, not the placeholder's bounds.
+        SI mid= fn->yfrac;
         bool custom=
           N(ls) > 2 && is_digit (ls[N(ls)-2]) && !ends (ls, "-0>");
-        if (custom) {
-          int pos= N(ls)-1;
-          while (pos > 0 && ls[pos] != '-') pos--;
-          if (pos > 0 && ls[pos-1] == '-') pos--;
-          string ss= ls (0, pos) * ">";
-          box auxb= text_box (a[i]->b->ip, 0, ss, fn, lp);
-          mid= (auxb->y1 + auxb->y2) >> 1;
-        }
 
         // make symmetric and prevent from too large delimiters if possible
         SI Y1   = y1 + (fn->sep >> 1);
         SI Y2   = y2 - (fn->sep >> 1);
         SI tol  = fn->sep << 1;
-        SI drift= ((Y1 + Y2) >> 1) - mid; // fn->yfrac;
+        SI drift= ((Y1 + Y2) >> 1) - mid;
         if (drift < 0) Y2 += min (-drift, tol) << 1;
         else Y1 -= min (drift, tol) << 1;
 
