@@ -1,6 +1,6 @@
 /******************************************************************************
 * MODULE     : table_resize_test.cpp
-* DESCRIPTION: Equation layout tables cannot be resized with the mouse
+* DESCRIPTION: Mathematical layout tables cannot be resized with the mouse
 * COPYRIGHT  : (C) 2026 Felix
 *******************************************************************************
 * This software falls under the GNU general public license version 3 or later.
@@ -16,7 +16,8 @@ private slots:
   void protectsEquationLayout () {
     tree table (TABLE, tree (ROW, tree (CELL, "x")));
     QVERIFY (table_mouse_resize_allowed (tree (DOCUMENT, table), path (0)));
-    for (const char* name: {"eqnarray", "eqnarray*"}) {
+    for (const char* name: {"eqnarray", "eqnarray*", "matrix", "matrix*",
+                           "bmatrix", "Bmatrix", "det"}) {
       tree doc (DOCUMENT, compound (name, tree (TFORMAT, table)));
       QVERIFY (!table_mouse_resize_allowed (doc, path (0, 0)));
       QVERIFY (!table_mouse_resize_allowed (doc, path (0, 0, 0)));
@@ -28,7 +29,8 @@ private slots:
 
   void protectsDocumentWrappedEquationLayout () {
     tree table (TABLE, tree (ROW, tree (CELL, "x")));
-    for (const char* name: {"eqnarray", "eqnarray*"}) {
+    for (const char* name: {"eqnarray", "eqnarray*", "matrix", "matrix*",
+                           "bmatrix", "Bmatrix", "det"}) {
       tree format (TFORMAT,
         tree (CWITH, "1", "-1", "1", "1", "cell-width", "100px"), table);
       // Source shape observed in the live editor, including an existing resize.

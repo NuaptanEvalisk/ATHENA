@@ -21,7 +21,10 @@ table_mouse_resize_allowed (tree document, path format) {
   while (!is_nil (format)) {
     format= path_up (format);
     t= subtree (document, format);
-    if (is_compound (t, "eqnarray") || is_compound (t, "eqnarray*"))
+    if (is_compound (t, "eqnarray") || is_compound (t, "eqnarray*") ||
+        is_compound (t, "matrix") || is_compound (t, "matrix*") ||
+        is_compound (t, "bmatrix") || is_compound (t, "Bmatrix") ||
+        is_compound (t, "det"))
       return false;
     // Content wrappers (notably DOCUMENT) do not own the layout table.
     // A surrounding cell/table does: its nested tables remain independent.
