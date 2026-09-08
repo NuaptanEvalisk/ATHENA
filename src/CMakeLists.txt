@@ -47,6 +47,14 @@ else (WIN32)
     ./ATHENA/ATHENA/athena.cpp
   )
 endif (WIN32)
+target_sources (${ATHENA_binary_name} PRIVATE
+  ./ATHENA/Watchdog/watchdog_client.cpp)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  add_executable (ATHENA-Watchdog
+    ./ATHENA/Watchdog/watchdog_main.cpp)
+  target_compile_features (ATHENA-Watchdog PRIVATE cxx_std_17)
+  set_target_properties (ATHENA-Watchdog PROPERTIES AUTOMOC OFF)
+endif ()
 if (ATHENA_ENABLE_TSAN)
   target_sources (${ATHENA_binary_name} PRIVATE
     ./System/Misc/tsan_mimalloc_shim.cpp)
@@ -138,6 +146,14 @@ if (NOT WIN32)
   add_dependencies (athena_scheme_bytecode ${ATHENA_binary_name})
 
   set (ATHENA_LOCAL_RUNTIME_DIR "${ATHENA_SOURCE_DIR}/ATHENA")
+  if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    set (ATHENA_LOCAL_WATCHDOG_COPY
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+              $<TARGET_FILE:ATHENA-Watchdog>
+              "${ATHENA_LOCAL_RUNTIME_DIR}/bin/ATHENA-Watchdog")
+  else ()
+    set (ATHENA_LOCAL_WATCHDOG_COPY)
+  endif ()
   add_custom_target (athena_local_runtime ALL
     COMMAND ${CMAKE_COMMAND} -E make_directory
             "${ATHENA_LOCAL_RUNTIME_DIR}/bin"
@@ -155,10 +171,14 @@ if (NOT WIN32)
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
             $<TARGET_FILE:${ATHENA_binary_name}>
             "${ATHENA_LOCAL_RUNTIME_DIR}/bin/ATHENA.bin"
+    ${ATHENA_LOCAL_WATCHDOG_COPY}
     COMMENT "Deploying the complete ATHENA runtime tree"
     VERBATIM)
   add_dependencies (athena_local_runtime
                     athena_scheme_bytecode athena_guile_runtime)
+  if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    add_dependencies (athena_local_runtime ATHENA-Watchdog)
+  endif ()
 endif ()
 
 if (APPLE)
@@ -174,4 +194,7 @@ elseif (WIN32)
   install (TARGETS ${ATHENA_binary_name} DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 else (APPLE)
   install (TARGETS ${ATHENA_binary_name} DESTINATION ${tmbin}/bin)
+  if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    install (TARGETS ATHENA-Watchdog DESTINATION ${tmbin}/bin)
+  endif ()
 endif (APPLE)

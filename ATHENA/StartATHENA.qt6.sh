@@ -36,4 +36,17 @@ fi
 export LD_LIBRARY_PATH="$script_dir/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 export TCM_ENABLE=0
 
-exec ./bin/ATHENA.bin --platform wayland "$@"
+watchdog=0
+args=()
+for arg in "$@"; do
+  if [[ "$arg" == "--enable-watchdog" ]]; then
+    watchdog=1
+  else
+    args+=("$arg")
+  fi
+done
+
+if (( watchdog )); then
+  exec ./bin/ATHENA-Watchdog -- ./bin/ATHENA.bin --platform wayland "${args[@]}"
+fi
+exec ./bin/ATHENA.bin --platform wayland "${args[@]}"

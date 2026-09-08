@@ -52,6 +52,7 @@
 #include "new_document.hpp"
 #include "tm_window.hpp"
 #include "Interface/edit_interface.hpp"
+#include "ATHENA/Watchdog/watchdog_client.hpp"
 #include "scheme.hpp"
 #include "convert.hpp"
 #include "Freetype/tt_file.hpp"
@@ -1421,6 +1422,7 @@ TeXmacs_main (int argc, char** argv) {
     startup_progress (98, "Preparing editor");
 #ifdef QTTEXMACS
     google_tasks_schedule_background_refresh ();
+    if (!headless_mode) athena_watchdog_start_qt_heartbeat ();
 #endif
     gui_start_loop ();
   
@@ -2022,6 +2024,7 @@ athena_refresh_stale_scheme_bytecode (int argc, char** argv) {
 
 int
 texmacs_entrypoint (int argc, char** argv) {
+  athena_watchdog_configure_from_argv (argc, argv);
   athena_crash_register_thread (AthenaCrashThreadRole::Main);
   bench_start ("startup to editor shell");
   for (int i=1; i<argc; i++) {

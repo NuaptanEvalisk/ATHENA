@@ -1,6 +1,17 @@
 file (GLOB_RECURSE TEST_SRC_FILES CONFIGURE_DEPENDS "*.cpp")
 
+list (FILTER TEST_SRC_FILES EXCLUDE REGEX "/watchdog/watchdog_fake_child\\.cpp$")
+
 if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  add_executable (watchdog_fake_child watchdog/watchdog_fake_child.cpp)
+  target_include_directories (watchdog_fake_child PRIVATE ${ATHENA_SOURCE_DIR}/src)
+  add_test (NAME watchdog_supervisor_test
+    COMMAND ${Python3_EXECUTABLE}
+      ${CMAKE_CURRENT_SOURCE_DIR}/scheme/watchdog-test.py
+      --watchdog $<TARGET_FILE:ATHENA-Watchdog>
+      --child $<TARGET_FILE:watchdog_fake_child>)
+  set_tests_properties (watchdog_supervisor_test PROPERTIES TIMEOUT 15)
+
   add_test (NAME crash_report_test
     COMMAND ${Python3_EXECUTABLE}
       ${CMAKE_CURRENT_SOURCE_DIR}/scheme/crash-report-test.py
