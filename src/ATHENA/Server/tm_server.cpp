@@ -443,6 +443,17 @@ tm_server_rep::typeset_update (path p) {
 
 void
 tm_server_rep::typeset_update_all () {
+#ifdef QTTEXMACS
+  QCoreApplication* app= QCoreApplication::instance ();
+  if (app != nullptr && QThread::currentThread () != app->thread ()) {
+    // The GUI owns the view registry. Queue the fan-out without waiting for
+    // the GUI, which may itself be waiting for the calling BufferActor.
+    QMetaObject::invokeMethod (app, [] {
+      if (is_server_started ()) ::get_server ()->typeset_update_all ();
+    }, Qt::QueuedConnection);
+    return;
+  }
+#endif
   array<url> vs= get_all_views ();
   for (int i=0; i<N(vs); i++) {
     tm_view vw= concrete_view (vs[i]);
