@@ -622,10 +622,6 @@
     <arg type="path" />
   </binding>
   <binding name="update-current-buffer" native="typeset_invalidate_all" returns="void" />
-  <binding name="update-players" native="typeset_invalidate_players" returns="void">
-    <arg type="path" />
-    <arg type="bool" />
-  </binding>
   <binding name="generate-all-aux" native="generate_aux" returns="void" />
   <binding name="generate-aux" native="generate_aux" returns="void">
     <arg type="string" />
@@ -689,12 +685,6 @@
     <arg type="content" />
   </binding>
   <binding name="html-expand" native="exec_html" returns="tree">
-    <arg type="content" />
-  </binding>
-  <binding name="animate-checkout" native="checkout_animation" returns="tree">
-    <arg type="content" />
-  </binding>
-  <binding name="animate-commit" native="commit_animation" returns="tree">
     <arg type="content" />
   </binding>
   <binding name="idle-time" native="idle_time" returns="int" />

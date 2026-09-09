@@ -30,10 +30,6 @@
 
     <branch|Decorations|man-decorations.en.tm>
 
-    <\branch>
-      Animations
-    </branch|man-animations.en.tm>
-
     <branch|Exporting presentations|man-beamer-export.en.tm>
   </traverse>
 

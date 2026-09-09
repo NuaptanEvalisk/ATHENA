@@ -36,7 +36,6 @@ std::uint32_t
 coalesced_command_mask (actor_command_kind kind) noexcept {
   switch (kind) {
   case actor_command_kind::apply_changes: return 1U << 0;
-  case actor_command_kind::animate: return 1U << 1;
   case actor_command_kind::progressive_typeset: return 1U << 2;
   case actor_command_kind::render_view: return 1U << 3;
   case actor_command_kind::request_outline: return 1U << 4;

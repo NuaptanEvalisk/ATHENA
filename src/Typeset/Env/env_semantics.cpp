@@ -957,6 +957,7 @@ edit_env_rep::update () {
   zoomf          = normal_zoom (get_double (ZOOM_FACTOR));
   pixel          = (SI) tm_round ((std_shrinkf * PIXEL) / zoomf);
   magn           = get_double (MAGNIFICATION);
+  mgfy           = get_double (MAGNIFY);
   magn_len       = (get_string (LENGTH_MODE) == "fixed"? 1.0: magn);
   index_level    = get_int (MATH_LEVEL);
   display_style  = get_bool (MATH_DISPLAY);

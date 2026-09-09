@@ -20,7 +20,6 @@
 
 extern int nr_painted;
 extern void clear_pattern_rectangles (renderer ren, rectangle m, rectangles l);
-extern bool animated_flag;
 
 static void
 athena_profile_mark_first_paint () {
@@ -128,13 +127,7 @@ edit_interface_rep::draw_text (renderer ren, rectangles& l) {
   bool tp_found= false;
   tree bg= effective_document_background (get_init_value (BG_COLOR));
   ren->set_background (bg);
-  animated_flag= (texmacs_time () >= anim_next);
-  if (animated_flag) anim_next= 1.0e12;
   eb->redraw (ren, eb->find_box_path (tp, tp_found), l);
-  if (animated_flag) {
-    double t= max (((double) texmacs_time ()) + 25.0, eb->anim_next ());
-    anim_next= min (anim_next, t);
-  }
 }
 
 void

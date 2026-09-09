@@ -837,8 +837,8 @@
 
     <item*|Collect orphan assets during vault maintenance>Finds and collects
     managed assets that are no longer referenced by vault documents. Vault
-    maintenance recognizes structural image, hyperlink, card-link, include,
-    sound, video, and animation references. Known image/PDF assets and
+    maintenance recognizes structural image, hyperlink, card-link, and include
+    references. Known image/PDF assets and
     referenced files of every ordinary asset type are normalized to stable
     <verbatim|asset-UUID> names; existing
     <verbatim|figure-UUID> names remain valid. Ordinary files that ATHENA has

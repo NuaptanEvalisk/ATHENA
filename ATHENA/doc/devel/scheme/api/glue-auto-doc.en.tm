@@ -859,22 +859,6 @@ source code.
   </explain>
 
   <\explain>
-    <scm|(players-set-elapsed <scm-arg|tree> <scm-arg|double>)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|players_set_elapsed> which returns
-    <scm|void>.
-  </explain>
-
-  <\explain>
-    <scm|(players-set-speed <scm-arg|tree> <scm-arg|double>)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|players_set_speed> which returns
-    <scm|void>.
-  </explain>
-
-  <\explain>
     <scm|(apply-effect <scm-arg|content> <scm-arg|array_url> <scm-arg|url> <scm-arg|int> <scm-arg|int>)>
 <explain-synopsis|no synopsis>
   <|explain>
@@ -1264,14 +1248,6 @@ source code.
   <|explain>
     Calls the <c++> function <cpp|image_to_psdoc> which returns
     <scm|string>.
-  </explain>
-
-  <\explain>
-    <scm|(anim-control-times <scm-arg|content>)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|get_control_times> which returns
-    <scm|array_double>.
   </explain>
 
   <\explain>
@@ -8515,14 +8491,6 @@ source code.
   </explain>
 
   <\explain>
-    <scm|(update-players <scm-arg|path> <scm-arg|bool>)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|typeset_invalidate_players> which returns
-    <scm|void>.
-  </explain>
-
-  <\explain>
     <scm|(generate-all-aux)>
 <explain-synopsis|no synopsis>
   <|explain>
@@ -8695,22 +8663,6 @@ source code.
 <explain-synopsis|no synopsis>
   <|explain>
     Calls the <c++> function <cpp|exec_html> which returns
-    <scm|tree>.
-  </explain>
-
-  <\explain>
-    <scm|(animate-checkout <scm-arg|content>)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|checkout_animation> which returns
-    <scm|tree>.
-  </explain>
-
-  <\explain>
-    <scm|(animate-commit <scm-arg|content>)>
-<explain-synopsis|no synopsis>
-  <|explain>
-    Calls the <c++> function <cpp|commit_animation> which returns
     <scm|tree>.
   </explain>
 

@@ -257,14 +257,6 @@
     <arg type="tree" />
   </binding>
   <binding name="busy-versioning?" native="is_busy_versioning" returns="bool" />
-  <binding name="players-set-elapsed" native="players_set_elapsed" returns="void">
-    <arg type="tree" />
-    <arg type="double" />
-  </binding>
-  <binding name="players-set-speed" native="players_set_speed" returns="void">
-    <arg type="tree" />
-    <arg type="double" />
-  </binding>
   <binding name="apply-effect" native="apply_effect" returns="void">
     <arg type="content" />
     <arg type="array_url" />
@@ -422,9 +414,6 @@
     <arg type="int" />
     <arg type="int" />
     <arg type="int" />
-  </binding>
-  <binding name="anim-control-times" native="get_control_times" returns="array_double">
-    <arg type="content" />
   </binding>
   <binding name="tree-&gt;stree" native="tree_to_scheme_tree" returns="scheme_tree">
     <arg type="tree" />

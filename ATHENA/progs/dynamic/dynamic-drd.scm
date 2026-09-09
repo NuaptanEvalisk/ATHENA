@@ -129,31 +129,3 @@
 
 (define-group hidden-tag
   hidden-deleted hidden-invisible hidden-greyed)
-
-;; animation tags
-
-(define-group variant-tag
-  (appear-tag) (disappear-tag) (smooth-tag) (anim-emphasize-tag))
-
-(define-group similar-tag
-  (appear-tag) (disappear-tag) (smooth-tag) (anim-emphasize-tag))
-
-(define-group anim-tag
-  (appear-tag) (disappear-tag) (smooth-tag) (anim-emphasize-tag))
-
-(define-group appear-tag
-  translate-in progressive-in fade-in zoom-in)
-
-(define-group disappear-tag
-  translate-out progressive-out fade-out zoom-out)
-
-(define-group smooth-tag
-  translate-smooth progressive-smooth fade-smooth zoom-smooth)
-
-(define-group anim-emphasize-tag
-  shadowed-smooth emboss-smooth outlined-emboss-smooth)
-
-(define-group animation-tag
-  anim-constant anim-compose anim-repeat
-  anim-translate anim-progressive
-  (anim-tag))

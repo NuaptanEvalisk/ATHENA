@@ -60,12 +60,6 @@ public:
   SI        wide_correction (int mode);
   void      get_bracket_extents (SI& lo, SI& hi);
 
-  virtual player     anim_player ();
-  virtual double     anim_delay ();
-  virtual double     anim_duration ();
-  virtual void       anim_position (double delay);
-  virtual double     anim_next ();
-  virtual rectangles anim_invalid ();
 };
 
 #endif // defined MODIFIER_H

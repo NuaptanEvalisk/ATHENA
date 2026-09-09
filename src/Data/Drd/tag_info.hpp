@@ -34,7 +34,6 @@
 #define TYPE_CONSTRAINT      17
 #define TYPE_GRAPHICAL_ID    18
 #define TYPE_EFFECT          19
-#define TYPE_ANIMATION       20
 #define TYPE_DURATION        21
 #define TYPE_FONT_SIZE       22
 #define TYPE_OBSOLETE        23

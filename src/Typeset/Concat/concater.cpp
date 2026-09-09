@@ -758,38 +758,6 @@ concater_rep::typeset (tree t, path ip) {
     typeset_hyphenate_as (t, ip);
     break;
 
-  case ANIM_STATIC:
-  case ANIM_DYNAMIC:
-  case MORPH:
-  case ANIM_TIME:
-  case ANIM_PORTION:
-    typeset_executable (t, ip);
-    break;
-  case ANIM_COMPOSE:
-    typeset_anim_compose (t, ip);
-    break;
-  case ANIM_REPEAT:
-    typeset_anim_repeat (t, ip);
-    break;
-  case ANIM_CONSTANT:
-    typeset_anim_constant (t, ip);
-    break;
-  case ANIM_ACCELERATE:
-    typeset_anim_accelerate (t, ip);
-    break;
-  case ANIM_TRANSLATE:
-    typeset_anim_translate (t, ip);
-    break;
-  case ANIM_PROGRESSIVE:
-    typeset_anim_progressive (t, ip);
-    break;
-  case VIDEO:
-    typeset_video (t, ip);
-    break;
-  case SOUND:
-    typeset_sound (t, ip);
-    break;
-
   case COMMUTATIVE_DIAGRAM:
     typeset_commutative_diagram (t, ip);
     break;

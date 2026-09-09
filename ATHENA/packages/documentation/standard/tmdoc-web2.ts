@@ -231,13 +231,9 @@
     </src-comment>
   </active*>
 
-  <assign|tmweb-slide|<macro|body|<anim-constant|<arg|body>|5sec>>>
 
-  <assign|tmweb-carousel|<xmacro|args|<anim-repeat|<map-args|tmweb-slide|anim-compose|args>>>>
 
-  <assign|tmhtml-tmweb-slide|<macro|body|<html-div-class|tmweb-slide|<arg|body>>>>
 
-  <assign|tmhtml-tmweb-carousel|<xmacro|args|<style-with|src-compact|none|<html-javascript-src|https://www.texmacs.org/javascript/texmacs_carousel.js><html-div-class|tmweb-carousel|<map-args|tmhtml-tmweb-slide|concat|args>>>>>
 
   <\active*>
     <\src-comment>

@@ -32,7 +32,6 @@
 #define SHORTER_BOX   6
 #define BIG_OP_BOX    7
 
-class player;
 
 /******************************************************************************
 * The cursor class
@@ -250,15 +249,6 @@ public:
   virtual box       get_leaf_box ();
   virtual lazy      get_leaf_lazy ();
   virtual SI        get_leaf_offset (string search);
-
-  /******************************** animations *******************************/
-
-  virtual player     anim_player ();
-  virtual double     anim_delay ();
-  virtual double     anim_duration ();
-  virtual void       anim_position (double delay);
-  virtual double     anim_next ();
-  virtual rectangles anim_invalid ();
 
   /********************************* obsolete ********************************/
 

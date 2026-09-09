@@ -326,7 +326,6 @@ is_correctable_child (tree t, int i, bool noaround) {
     case TYPE_INVALID:
     case TYPE_REGULAR:
     case TYPE_GRAPHICAL:
-    case TYPE_ANIMATION:
     case TYPE_UNKNOWN:
       return true;
     default:

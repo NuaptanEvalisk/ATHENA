@@ -15,7 +15,6 @@
 #include "printer.hpp"
 #include "file.hpp"
 #include "merge_sort.hpp"
-#include "player.hpp"
 #include "new_document.hpp"
 
 /******************************************************************************
@@ -747,64 +746,6 @@ as_tree (gr_selections sels) {
   for (i=0; i<n; i++)
     res[i]= sels[i]->cp;
   return (tree) res;
-}
-
-/******************************************************************************
-* Animations
-******************************************************************************/
-
-player box_rep::anim_player () { return player (); }
-
-double
-box_rep::anim_delay () {
-  int i, n= subnr ();
-  double r= 0.0;
-  for (i=0; i<n; i++) {
-    double sr= subbox (i)->anim_delay ();
-    r= max (r, sr);
-  }
-  return r;
-}
-
-double
-box_rep::anim_duration () {
-  int i, n= subnr ();
-  double r= 0.0;
-  for (i=0; i<n; i++) {
-    double sr= subbox (i)->anim_duration ();
-    r= max (r, sr);
-  }
-  return r;
-}
-
-void
-box_rep::anim_position (double t) {
-  int i, n= subnr ();
-  for (i=0; i<n; i++)
-    subbox (i)->anim_position (t);
-}
-
-double
-box_rep::anim_next () {
-  double r= 1.0e12;
-  int i, n= subnr ();
-  for (i=0; i<n; i++) {
-    double sr= subbox (i)->anim_next ();
-    r= min (r, sr);
-  }
-  return r;
-}
-
-rectangles
-box_rep::anim_invalid () {
-  rectangles rs;
-  int i, n= subnr ();
-  for (i=0; i<n; i++) {
-    rectangles rs2= subbox (i)->anim_invalid ();
-    rs2= translate (rs2, sx (i), sy (i));
-    rs << rs2;
-  }
-  return rs;
 }
 
 /******************************************************************************

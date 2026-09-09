@@ -895,9 +895,6 @@ make_lazy (edit_env env, tree t, path ip) {
     return make_lazy_compound (env, t, ip);
   case RELAY:
     return add_markers (env, lazy_relay (env, t, ip), ip);
-  case ANIM_STATIC:
-  case ANIM_DYNAMIC:
-    return make_lazy_eval (env, t, ip);
   case CANVAS:
     return make_lazy_canvas (env, t, ip);
   case ORNAMENT:

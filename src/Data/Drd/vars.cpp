@@ -281,7 +281,6 @@ string GR_TRANSFORMATION ("gr-transformation");
 string GR_SNAP_DISTANCE ("gr-snap-distance");
 
 string GR_GID ("gr-gid");
-string GR_ANIM_ID ("gr-anim-id");
 string GR_PROVISO ("gr-proviso");
 string GR_MAGNIFY ("gr-magnify");
 string GR_OPACITY ("gr-opacity");
@@ -316,7 +315,6 @@ string GR_PEN_ENHANCE ("gr-pen-enhance");
 string GR_PEN_STYLE ("gr-pen-style");
 
 string GID ("gid");
-string ANIM_ID ("anim-id");
 string PROVISO ("proviso");
 string MAGNIFY ("magnify");
 string POINT_STYLE ("point-style");

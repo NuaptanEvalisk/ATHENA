@@ -81,7 +81,6 @@ swap_current_drd (drd_info* drd) noexcept {
 #define graphical_id(i) type (i, TYPE_GRAPHICAL_ID)
 #define point_type(i) type (i, TYPE_POINT)
 #define effect(i) type (i, TYPE_EFFECT)
-#define animation(i) type (i, TYPE_ANIMATION)
 #define duration(i) type (i, TYPE_DURATION)
 
 #define returns_adhoc() type (TYPE_ADHOC)
@@ -92,7 +91,6 @@ swap_current_drd (drd_info* drd) noexcept {
 #define returns_length() type (TYPE_LENGTH)
 #define returns_url() type (TYPE_URL)
 #define returns_identifier() type (TYPE_IDENTIFIER)
-#define returns_animation() type (TYPE_ANIMATION)
 #define returns_duration() type (TYPE_DURATION)
 #define returns_color() type (TYPE_COLOR)
 #define returns_graphical() type (TYPE_GRAPHICAL)
@@ -673,43 +671,6 @@ init_std_drd () {
         options (1, 1, BIFORM) ->
         string_type (0) -> name (0, "hyphenation") ->
         accessible (1) -> regular (1) -> name (1, "content"));
-
-  init (ANIM_STATIC, "anim-static",
-        fixed (1, 3, BIFORM) -> returns_animation () ->
-        duration (1));
-  init (ANIM_DYNAMIC, "anim-dynamic",
-        fixed (1, 3, BIFORM) -> returns_animation () ->
-        duration (1));
-  init (MORPH, "morph",
-        repeat (1, 1) -> regular (0));
-  init (ANIM_TIME, "anim-time",
-        fixed (0) -> returns_duration ());
-  init (ANIM_PORTION, "anim-portion",
-        fixed (0) -> returns_numeric ());
-  init (ANIM_COMPOSE, "anim-compose",
-        repeat (1, 1) -> returns_animation () ->
-        animation (0));
-  init (ANIM_REPEAT, "anim-repeat",
-        fixed (1) -> returns_animation () ->
-        accessible (0) -> animation (0));
-  init (ANIM_CONSTANT, "anim-constant",
-        fixed (1, 1, BIFORM) -> returns_animation () ->
-        accessible (0) -> duration (1));
-  init (ANIM_ACCELERATE, "anim-accelerate",
-        fixed (1, 1, BIFORM) -> returns_animation () ->
-        accessible (0) -> string_type (1));
-  init (ANIM_TRANSLATE, "anim-translate",
-        fixed (1, 3, DETAILED) -> returns_animation () ->
-        accessible (0) -> animation (0) ->
-        duration (1));
-  init (ANIM_PROGRESSIVE, "anim-progressive",
-        fixed (1, 3, DETAILED) -> returns_animation () ->
-        accessible (0) -> animation (0) ->
-        duration (1));
-  init (VIDEO, "video",
-        fixed (1, 4, BIFORM) -> url_type (0));
-  init (SOUND, "sound",
-        fixed (1) -> url_type (0));
 
   init (COMMUTATIVE_DIAGRAM, "commutative-diagram",
         fixed (3, 0, DETAILED) ->
@@ -1309,7 +1270,6 @@ init_std_drd () {
   init_var (GR_TRANSFORMATION, TYPE_ADHOC);
 
   init_var (GR_GID, TYPE_INTEGER);
-  init_var (GR_ANIM_ID, TYPE_INTEGER);
   init_var (GR_PROVISO, TYPE_BOOLEAN);
   init_var (GR_MAGNIFY, TYPE_NUMERIC);
   init_var (GR_OPACITY, TYPE_NUMERIC);
@@ -1343,7 +1303,6 @@ init_std_drd () {
   init_var (GR_PEN_STYLE, TYPE_ADHOC);
 
   init_var (GID, TYPE_INTEGER);
-  init_var (ANIM_ID, TYPE_INTEGER);
   init_var (PROVISO, TYPE_BOOLEAN);
   init_var (MAGNIFY, TYPE_NUMERIC);
   init_var (POINT_STYLE, TYPE_STRING);

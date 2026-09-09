@@ -91,9 +91,7 @@ TestVaultMaintenanceAssets::normalizesEveryStructuralAssetKind () {
   const std::vector<std::pair<std::string, std::string>> cases= {
     {"image", "picture.png"}, {"cardlink", "report.pdf"},
     {"hlink", "notes.txt"}, {"cardlink", "extensionless"},
-    {"include", "fragment.dat"},
-    {"sound", "audio.bin"}, {"video", "movie.xyz"},
-    {"animation", "motion.tar.gz"}};
+    {"include", "fragment.dat"}};
   std::vector<tree> nodes;
   for (const auto& item: cases) {
     touch (root / "assets" / item.second);

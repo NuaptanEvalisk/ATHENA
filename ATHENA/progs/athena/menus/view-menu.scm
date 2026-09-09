@@ -25,23 +25,17 @@
 
 (tm-define toolbar-replace-active? #f)
 (tm-define toolbar-spell-active? #f)
-(tm-define toolbar-animate-active? #f)
 
 (tm-define (extra-bottom-tools?)
   (or toolbar-replace-active?
-      toolbar-spell-active?
-      toolbar-animate-active?))
+      toolbar-spell-active?))
 
 (tm-widget (texmacs-bottom-toolbars)
   (if toolbar-replace-active?
       (link replace-toolbar))
   (if (and toolbar-spell-active?
            (not toolbar-replace-active?))
-      (link spell-toolbar))
-  (if (and toolbar-animate-active?
-           (not toolbar-replace-active?)
-           (not toolbar-spell-active?))
-      (link animate-toolbar)))
+      (link spell-toolbar)))
 
 (tm-define (test-bottom-bar? which)
   (cond ((== which "replace")
@@ -49,22 +43,15 @@
         ((== which "spell")
          (and toolbar-spell-active?
               (not toolbar-replace-active?)))
-        ((== which "animate")
-         (and toolbar-animate-active?
-              (not toolbar-replace-active?)
-              (not toolbar-spell-active?)))
         (else #f)))
 
 (tm-define (set-bottom-bar which val)
   (set! toolbar-replace-active? #f)
   (set! toolbar-spell-active? #f)
-  (set! toolbar-animate-active? #f)
   (cond ((== which "replace")
          (set! toolbar-replace-active? val))
         ((== which "spell")
-         (set! toolbar-spell-active? val))
-        ((== which "animate")
-         (set! toolbar-animate-active? val)))
+         (set! toolbar-spell-active? val)))
   (update-bottom-tools))
 
 (tm-define (toggle-bottom-bar which)

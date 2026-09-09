@@ -390,7 +390,6 @@
 (lazy-menu (dynamic scripts-menu) scripts-eval-menu scripts-eval-toggle-menu)
 (lazy-menu (dynamic calc-menu) calc-table-menu calc-insert-menu
            calc-icourse-menu)
-(lazy-menu (dynamic animate-menu) insert-animation-menu animate-toolbar)
 (lazy-define (dynamic fold-edit)
              screens-switch-to dynamic-make-slides overlays-context?)
 (lazy-define (dynamic session-edit) scheme-eval)

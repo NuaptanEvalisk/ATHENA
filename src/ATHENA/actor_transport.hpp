@@ -51,7 +51,6 @@ enum class actor_command_kind: std::uint32_t {
   resume_view,
   apply_changes,
   typeset_document,
-  animate,
   progressive_typeset,
   init_style,
   init_default,

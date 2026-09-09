@@ -1166,21 +1166,6 @@
     (tree-set t 3 va)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Sound and video
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(tm-define (make-sound u)
-  (if (not (url-none? u))
-      (insert `(sound ,(url->delta-unix u)))))
-
-(tm-define (make-animation u)
-  (interactive
-      (lambda (w h len rep)
-        (if (== rep "no") (set! rep "false"))
-        (insert `(video ,(url->delta-unix u) ,w ,h ,len ,rep)))
-    "Width" "Height" "Length" "Repeat?"))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Labels attached to markup
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

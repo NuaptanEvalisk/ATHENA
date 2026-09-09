@@ -59,9 +59,6 @@
     <markup|resize>, <markup|extend>, <markup|clipped>, <markup|smashed>,
     <markup|inflate> from the <menu|Format|Adjust> menu.
 
-    <item*|Animations>The durations of animations can be modified using
-    <shortcut|(geometry-left)> and <shortcut|(geometry-right)>.
-
     <item*|Images>The size and alignment of images can be changed.
   </description>
 

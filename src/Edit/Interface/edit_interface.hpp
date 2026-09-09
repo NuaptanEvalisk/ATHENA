@@ -57,7 +57,6 @@ protected:
   time_t        last_change;   // time of last processed change
   time_t        last_update;   // time of last update of menu, icons and footer
   time_t        last_event;    // time of last event
-  double        anim_next;     // time for next animation
   bool          full_screen;   // full screen mode ?
   bool          got_focus;     // do we have keyboard focus ?
   bool          cursor_blink_visible;
@@ -215,7 +214,6 @@ public:
   void update_menus ();
   int  find_alt_selection_index (range_set alt_sel, SI y, int b, int e);
   void apply_changes ();
-  void animate ();
 
   /* miscellaneous */
   void compute_env_rects (path p, rectangles& rs, bool recurse,

@@ -755,13 +755,7 @@
                (y (fy t)))
          ($point x y)))))
 
-(tm-define (markup-build-animation duration l)
-  (with x (append-map markup-expand-document l)
-    (cons 'anim-compose
-          (map (lambda (f) `(anim-constant ,f ,duration)) x))))
 
-(tm-define-macro ($animation duration . l)
-  `(markup-build-animation ,duration ($list ,@l)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; User interface for dynamic content generation

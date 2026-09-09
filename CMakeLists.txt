@@ -703,7 +703,6 @@ file (GLOB_RECURSE ATHENA_Subsystems_SRCS CONFIGURE_DEPENDS
   "${ATHENA_SOURCE_DIR}/src/Subsystems/Metafont/*.cpp"
   "${ATHENA_SOURCE_DIR}/src/Subsystems/LaTeX_Preview/*.cpp"
   "${ATHENA_SOURCE_DIR}/src/Subsystems/MCP/*.cpp"
-  "${ATHENA_SOURCE_DIR}/src/Subsystems/Mplayer/*.cpp"
   "${ATHENA_SOURCE_DIR}/src/Subsystems/Openssl/*.cpp"
   "${ATHENA_SOURCE_DIR}/src/Subsystems/RAG/*.cpp"
   "${ATHENA_SOURCE_DIR}/src/Subsystems/Sqlite3/*.cpp"

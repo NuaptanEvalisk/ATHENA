@@ -34,7 +34,6 @@ typedef list<int> path;
 #define OBSERVER_HIGHLIGHT  8
 #define OBSERVER_WIDGET     9
 
-#define ADDENDUM_PLAYER     1
 
 /******************************************************************************
 * The observer class

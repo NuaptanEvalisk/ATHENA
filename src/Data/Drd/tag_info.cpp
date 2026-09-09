@@ -105,7 +105,6 @@ drd_decode_type (int i) {
   case TYPE_CONSTRAINT: return "constraint";
   case TYPE_GRAPHICAL_ID: return "graphical-id";
   case TYPE_EFFECT: return "effect";
-  case TYPE_ANIMATION: return "animation";
   case TYPE_DURATION: return "duration";
   case TYPE_FONT_SIZE: return "font-size";
   case TYPE_OBSOLETE: return "obsolete";
@@ -135,7 +134,6 @@ drd_encode_type (string s) {
   else if (s == "constraint") return TYPE_CONSTRAINT;
   else if (s == "graphical-id") return TYPE_GRAPHICAL_ID;
   else if (s == "effect") return TYPE_EFFECT;
-  else if (s == "animation") return TYPE_ANIMATION;
   else if (s == "duration") return TYPE_DURATION;
   else if (s == "font-size") return TYPE_FONT_SIZE;
   else if (s == "unknown") return TYPE_UNKNOWN;

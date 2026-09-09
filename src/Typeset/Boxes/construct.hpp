@@ -15,7 +15,6 @@
 #include "array.hpp"
 #include "font.hpp"
 #include "command.hpp"
-#include "player.hpp"
 
 class frame;
 
@@ -208,15 +207,5 @@ box tag_box (path ip, path tip, box b, tree keys);
 box note_box (path ip, box b, box note, SI nx, SI ny);
 box relay_box (path ip, box b, array<tree> args);
 
-box anim_compose_box (path ip, array<box> b, player pl);
-box anim_repeat_box (path ip, box b, player pl);
-box anim_constant_box (path ip, box b, player pl, int l);
-box anim_translate_box (path ip, box b, player pl,
-                        int len, SI sx, SI sy, SI ex, SI ey);
-box anim_progressive_box (path ip, box b, player pl,
-                          int len, rectangle r1, rectangle r2);
-box sound_box (path ip, player pl, url u, SI h);
-box video_box (path ip, player pl, url u,
-               SI w, SI h, int a, int msecs, bool rep, int px);
 
 #endif // defined CONSTRUCT_H

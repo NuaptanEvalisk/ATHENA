@@ -156,7 +156,6 @@ protected:
   virtual tree kbd_shortcut (string s) = 0;
   virtual path tree_path (path sp, SI x, SI y, SI delta) = 0;
   virtual void apply_changes () = 0;
-  virtual void animate () = 0;
   virtual path search_format () = 0;
   virtual path search_format (int& row, int& col) = 0;
   virtual path search_table (path fp) = 0;
@@ -355,8 +354,6 @@ public:
   virtual tree     exec_latex (tree t) = 0;
   virtual tree     texmacs_exec (tree t) = 0;
   virtual tree     var_texmacs_exec (tree t) = 0;
-  virtual tree     checkout_animation (tree t) = 0;
-  virtual tree     commit_animation (tree t) = 0;
   virtual tree     get_style () = 0;
   virtual void     set_style (tree t) = 0;
   virtual void     init_style () = 0;
@@ -381,7 +378,6 @@ public:
   virtual void     typeset_forced () = 0;
   virtual void     typeset_invalidate (path p) = 0;
   virtual void     typeset_invalidate_all () = 0;
-  virtual void     typeset_invalidate_players (path p, bool reattach) = 0;
   virtual bool     heading_fold_toggle () = 0;
   virtual bool     heading_fold_current () = 0;
   virtual bool     heading_unfold_current () = 0;

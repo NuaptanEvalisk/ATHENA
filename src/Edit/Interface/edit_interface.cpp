@@ -78,7 +78,6 @@ edit_interface_rep::edit_interface_rep ():
   env_change (0),
   last_change (texmacs_time()), last_update (last_change-1),
   last_event (texmacs_time()),
-  anim_next (1.0e12),
   full_screen (false), got_focus (false), cursor_blink_visible (true),
   sh_s (""), sh_mark (0),
   pre_edit_skip (false), pre_edit_s (""), pre_edit_mark (0),
@@ -618,10 +617,6 @@ edit_interface_rep::compute_env_rects (path p, rectangles& rs, bool recurse,
            is_graphical (st) ||
            (is_func (st, WITH) && is_graphical (st[N(st)-1])) ||
            (is_func (st, WITH) && is_graphical_text (st[N(st)-1])) ||
-           (is_func (pt, GRAPHICS) &&
-            (is_compound (st, "anim-edit") ||
-             is_compound (st, "anim-static") ||
-             is_compound (st, "anim-dynamic"))) ||
            (is_compound (st, "math", 1) &&
             is_compound (subtree (et, path_up (p)), "input")))
     compute_env_rects (path_up (p), rs, recurse, outline_width);
@@ -1178,19 +1173,6 @@ edit_interface_rep::apply_changes () {
   last_update = schedule_idle_menu_update? last_change-1: last_change;
   last_visible= new_visible;
   manual_focus_release ();
-}
-
-/******************************************************************************
-* Animations
-******************************************************************************/
-
-void
-edit_interface_rep::animate () {
-  if (((double) texmacs_time ()) >= anim_next) {
-    rectangles rs= eb->anim_invalid ();
-    invalidate (rs);
-    stored_rects= rectangles ();
-  }
 }
 
 /******************************************************************************

@@ -279,7 +279,6 @@ initialize_default_env () {
   env (GR_SNAP_DISTANCE)    = "10px";         // default snap distance
 
   env (GR_GID)           = "default";   // graphical identifier of new objects
-  env (GR_ANIM_ID)       = "default";   // animation identifier of new objects
   env (GR_PROVISO)       = "default";   // visibility condition for new objects
   env (GR_MAGNIFY)       = "default";   // magnify of new objects
   env (GR_OPACITY)       = "default";   // opacity of new objects
@@ -314,7 +313,6 @@ initialize_default_env () {
   env (GR_PEN_STYLE)       = "default";   // pen style for hand-drawings
 
   env (GID)              = "default";   // graphical identifier
-  env (ANIM_ID)          = "";          // identifier inside animations
   env (PROVISO)          = "true";      // visibility condition
   env (MAGNIFY)          = "1";         // magnification for graphical objects
   env (POINT_STYLE)      = "disk";      // point style (square, circle...)

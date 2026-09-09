@@ -113,8 +113,6 @@ public:
   tree     texmacs_exec (tree t);
   tree     var_texmacs_exec (tree t);
 
-  tree     checkout_animation (tree t);
-  tree     commit_animation (tree t);
 
   void     change_style (tree style);
   tree     get_init_all ();
@@ -143,7 +141,6 @@ public:
   void     typeset_exec_until (path p);
   void     typeset_invalidate (path p);
   void     typeset_invalidate_all ();
-  void     typeset_invalidate_players (path p, bool reattach);
   bool     heading_fold_toggle ();
   bool     heading_fold_current ();
   bool     heading_unfold_current ();

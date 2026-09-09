@@ -579,7 +579,6 @@ buffer_actor::execute (actor_command_record& command) {
   catch (...) { request.failure= std::current_exception (); }
   if (editor != nullptr && editor->ui_endpoint != nullptr &&
       (command.kind == actor_command_kind::apply_changes ||
-       command.kind == actor_command_kind::animate ||
        command.kind == actor_command_kind::progressive_typeset ||
        command.kind == actor_command_kind::render_view ||
        command.kind == actor_command_kind::request_outline))
@@ -632,9 +631,6 @@ buffer_actor::dispatch (actor_command_record& command) {
       command.argument[2]= static_cast<std::uint64_t> (x2);
       command.argument[3]= static_cast<std::uint64_t> (y2);
     }
-    break;
-  case actor_command_kind::animate:
-    if (editor != nullptr) editor->animate ();
     break;
   case actor_command_kind::progressive_typeset:
     if (editor != nullptr) editor->schedule_progressive_typeset ();

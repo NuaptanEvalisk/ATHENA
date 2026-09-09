@@ -515,16 +515,6 @@ edit_env_rep::exec (tree t) {
   case _PATTERN:
     return exec_pattern (t);
 
-  case ANIM_STATIC:
-    return exec_anim_static (t);
-  case ANIM_DYNAMIC:
-    return exec_anim_dynamic (t);
-  case MORPH:
-    return exec_morph (t);
-  case ANIM_TIME:
-    return exec_anim_time ();
-  case ANIM_PORTION:
-    return exec_anim_portion ();
 
   case _POINT:
     return exec_point (t);

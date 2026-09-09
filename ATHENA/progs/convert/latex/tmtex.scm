@@ -3659,8 +3659,6 @@
   (specific tmtex-specific)
   ((:or tag meaning flag) tmtex-noop)
 
-  ((:or anim-compose anim-repeat anim-constant
-        anim-translate anim-progressive video sound) tmtex-noop)
 
   (graphics tmtex-graphics)
   (commutative-diagram tmtex-commutative-diagram)

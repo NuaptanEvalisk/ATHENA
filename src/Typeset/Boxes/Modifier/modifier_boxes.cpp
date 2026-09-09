@@ -162,16 +162,6 @@ modifier_box_rep::graphical_select (SI x1, SI y1, SI x2, SI y2) {
   return b->graphical_select (x1- sx(0), y1- sy(0), x2- sx(0), y2- sy(0));
 }
 
-/******************************************************************************
-* Animations
-******************************************************************************/
-
-player modifier_box_rep::anim_player () { return b->anim_player (); }
-double modifier_box_rep::anim_delay () { return b->anim_delay (); }
-double modifier_box_rep::anim_duration () { return b->anim_duration (); }
-void   modifier_box_rep::anim_position (double t) { b->anim_position (t); }
-double modifier_box_rep::anim_next () { return b->anim_next (); }
-rectangles modifier_box_rep::anim_invalid () { return b->anim_invalid (); }
 
 /******************************************************************************
 * Direct link boxes

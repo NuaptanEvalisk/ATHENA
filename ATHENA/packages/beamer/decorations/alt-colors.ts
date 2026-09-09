@@ -178,7 +178,6 @@
     </src-comment>
   </active*>
 
-  <assign|blink|<macro|x|<anim-repeat|<anim-compose|<anim-constant|<arg|x>|1sec>|<anim-constant||0.5sec>>>>>
 
   \;
 </body>

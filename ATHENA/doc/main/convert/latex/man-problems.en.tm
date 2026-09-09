@@ -30,7 +30,7 @@
     <item>Indentation flags ``before'' and ``after''.
 
     <item>Most types of interactive content: hyperlinks, actions, sessions,
-    tags for the presentation mode, animations and sounds, etc.
+    tags for the presentation mode, etc.
   </itemize>
 
   In addition, several issues are only partially implemented:

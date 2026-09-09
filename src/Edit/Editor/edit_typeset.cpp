@@ -873,34 +873,6 @@ edit_typeset_rep::var_texmacs_exec (tree t) {
 }
 
 /******************************************************************************
-* Wrappers for editing animations
-******************************************************************************/
-
-tree
-edit_typeset_rep::checkout_animation (tree t) {
-  path p= search_upwards (ANIM_STATIC);
-  if (is_nil (p)) p= search_upwards (ANIM_DYNAMIC);
-  if (is_nil (p)) p= search_upwards ("anim-edit");
-  if (!is_nil (p)) {
-    typeset_exec_until (p);
-    env->write_env (cur[p]);
-  }
-  return env->checkout_animation (t);
-}
-
-tree
-edit_typeset_rep::commit_animation (tree t) {
-  path p= search_upwards ("anim-edit");
-  if (is_nil (p)) p= search_upwards (ANIM_STATIC);
-  if (is_nil (p)) p= search_upwards (ANIM_DYNAMIC);
-  if (!is_nil (p)) {
-    typeset_exec_until (p);
-    env->write_env (cur[p]);
-  }
-  return env->commit_animation (t);
-}
-
-/******************************************************************************
 * Initialization
 ******************************************************************************/
 
@@ -1437,22 +1409,4 @@ edit_typeset_rep::typeset_invalidate_all () {
   notify_change (THE_ENVIRONMENT);
   typeset_preamble ();
   ttt->br->notify_assign (path (), subtree (et, rp));
-}
-
-void
-edit_typeset_rep::typeset_invalidate_players (path p, bool reattach) {
-  if (rp <= p) {
-    tree t= subtree (et, p);
-    blackbox bb;
-    bool ok= t->obs->get_contents (ADDENDUM_PLAYER, bb);
-    if (ok) {
-      if (reattach) tree_addendum_delete (t, ADDENDUM_PLAYER);
-      typeset_invalidate (p);
-    }
-    if (is_compound (t)) {
-      int i, n= N(t);
-      for (i=0; i<n; i++)
-        typeset_invalidate_players (p * i, reattach);
-    }
-  }
 }

@@ -145,9 +145,7 @@
 
   <assign|tmweb-caption-below|<macro|fig|cap|<tabular*|<tformat|<table|<row|<cell|<arg|fig>>>|<row|<cell|<small|<arg|cap>>>>>>>>>
 
-  <assign|tmweb-slide|<macro|body|<anim-constant|<arg|body>|5sec>>>
 
-  <assign|tmweb-carousel|<xmacro|args|<anim-repeat|<map-args|tmweb-slide|anim-compose|args>>>>
 
   <assign|item-pic|<macro|name|<smash|<image|<arg|name>|3em|||-1.5em>><space|0.5em>>>
 </body>

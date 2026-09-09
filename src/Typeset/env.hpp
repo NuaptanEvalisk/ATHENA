@@ -22,7 +22,6 @@
 #include "url.hpp"
 #include "frame.hpp"
 #include "link.hpp"
-#include "player.hpp"
 
 #define DECORATION (-1)
 
@@ -198,9 +197,6 @@ public:
   int          inactive_mode;
   tree         recover_env;
 
-  double       anim_start;
-  double       anim_end;
-  double       anim_portion;
 
   SI           gw;
   SI           gh;
@@ -383,11 +379,6 @@ private:
 
   tree exec_pattern (tree t);
 
-  tree exec_anim_static (tree t);
-  tree exec_anim_dynamic (tree t);
-  tree exec_morph (tree t);
-  tree exec_anim_time ();
-  tree exec_anim_portion ();
 
   tree exec_point (tree t);
 
@@ -447,11 +438,6 @@ public:
   tree   expand (tree t, bool search_accessible= false);
   bool   depends (tree t, string s, int level);
   tree   rewrite (tree t);
-  path   get_animation_ip (path ip);
-  tree   animate (tree t);
-  tree   checkout_animation (tree t);
-  tree   commit_animation (tree t);
-  tree   expand_morph (tree t);
 
   inline void monitored_write (string s, tree t) {
     back->write_back (s, env); env (s)= t; }
@@ -611,7 +597,6 @@ double as_percentage (tree t);
 bool is_magnification (string s);
 double get_magnification (string s);
 int decode_alpha (string s);
-array<double> get_control_times (tree t);
 
 void set_graphical_value (tree var, tree val);
 bool has_graphical_value (tree var);
@@ -620,7 +605,5 @@ bool graphics_needs_update ();
 void graphics_require_update (tree var);
 void graphics_notify_update (tree var);
 
-void players_set_elapsed (tree t, double el);
-void players_set_speed (tree t, double sp);
 
 #endif // defined ENV_H

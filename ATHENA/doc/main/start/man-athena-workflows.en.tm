@@ -33,7 +33,7 @@
   rewritten in real time.
 
   Vault Maintenance uses the same structural reference collector for images,
-  hyperlinks, card links, includes, sounds, videos, animations, and arbitrary
+  hyperlinks, card links, includes, and arbitrary
   local files. It can normalize every referenced vault asset to a stable
   asset-UUID name and rewrite all affected document references transactionally.
   Structurally referenced files are never collected as orphans merely because

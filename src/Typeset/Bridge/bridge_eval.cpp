@@ -87,8 +87,6 @@ bridge_eval_rep::my_typeset (int desired_status) {
     initialize (env->exec (st[0]));
   else if (is_func (st, QUASI, 1))
     initialize (env->exec (tree (QUASIQUOTE, st[0])));
-  else if (is_func (st, ANIM_STATIC) || is_func (st, ANIM_DYNAMIC))
-    initialize (env->exec (st));
   else if (is_func (st, MAP_ARGS))
     initialize (env->rewrite (st));
   else initialize (tree (_ERROR, "bad eval bridge"));

@@ -150,7 +150,7 @@
   ;;(display* "create-graphical-props " mode ", " ps0 "\n")
   (let ((tab (make-ahash-table))
         (l (graphics-all-attributes)))
-    (set! l (list-difference l '("gid" "anim-id")))
+    (set! l (list-difference l '("gid")))
     (cond
       ((== mode 'active)
        (for (var l)
@@ -264,12 +264,6 @@
 	        (mag (get-graphical-prop 'basic "magnify")))
            (create-graphical-embedding-box
             o ha va "center" "center" "1par" "min" "0fn" mag)))
-	((in? (car o) '(anim-edit))
-	 (create-graphical-contour* (caddr o) 0 #f))
-	((in? (car o) '(anim-static anim-dynamic))
-         (let* ((a (or (graphics-anim-frames o) (list (cadr o))))
-                (c (map (lambda (x) (create-graphical-contour* x 0 #f)) a)))
-           (map (lambda (x) `(concat ,@x)) c)))
 	((== (car o) 'with)
 	 (create-graphical-contour* (cAr o) 0 #f))
         ((integer? no)
@@ -353,8 +347,6 @@
   (if (and (== pts 'points) ptr)
       (set! l (cons (path->tree ptr) l)))
 
-  (set! l (append-map (lambda (x)
-                        (or (graphics-anim-radicals x) (list x))) l))
 
   (for (o l)
     (if (not (and (tree? o) (< (cAr (tree-ip o)) 0)))
@@ -520,7 +512,7 @@
                   (graphical-fetch-props 
                    (if (== (car current-obj) 'with)
                        current-obj `(with ,current-obj)))
-                  (set! current-obj (stree-radical* current-obj #f))))
+                  (set! current-obj (stree-radical current-obj))))
             (create-graphical-object
              current-obj
              mode

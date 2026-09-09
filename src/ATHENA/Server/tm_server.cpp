@@ -323,13 +323,6 @@ tm_server_rep::interpose_handler () {
             vw->runtime_id);
       }
 
-      for (j=0; j<N(buf->vws); j++) {
-	  tm_view vw= (tm_view) buf->vws[j];
-	  if (vw->win != NULL)
-          (void) buffer_actor::try_submit_coalesced_to (
-            buf->actor->id (), actor_command_kind::animate,
-            vw->runtime_id);
-      }
     }
     windows_refresh ();
   }

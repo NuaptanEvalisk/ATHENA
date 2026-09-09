@@ -133,9 +133,6 @@ athena_vault_file_reference_argument (tree t, int& index) {
     { index= 1; return true; }
   if ((is_func (t, INCLUDE) || is_compound (t, "include")) && N(t) >= 1)
     { index= 0; return true; }
-  if ((is_compound (t, "sound") || is_compound (t, "video") ||
-       is_compound (t, "animation")) && N(t) >= 1)
-    { index= 0; return true; }
   return false;
 }
 

@@ -126,7 +126,6 @@
 
 (define-table attribute-default-table
   ("gid" . "default")
-  ("anim-id" . "default")
   ("proviso" . "true")
   ("magnify" . "1")
   ("color" . "black")
@@ -191,7 +190,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (tm-define (graphics-common-attributes)
-  '("gid" "anim-id" "proviso" "magnify" "color" "opacity"))
+  '("gid" "proviso" "magnify" "color" "opacity"))
 
 (tm-define (graphics-all-attributes)
   (map car (ahash-table->list attribute-default-table)))
@@ -267,14 +266,8 @@
 (tm-define (graphics-mode-attribute? mode attr)
   (in? attr (graphics-mode-attributes mode)))
 
-(tm-define (graphics-get-anim-type) #f)
 
-(tm-define (graphics-test-anim-type? val)
-  (== (graphics-get-anim-type) val))
 
-(tm-define (graphics-set-anim-type val)
-  (:check-mark "*" graphics-test-anim-type?)
-  (noop))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Refined properties concerning arity and types of children

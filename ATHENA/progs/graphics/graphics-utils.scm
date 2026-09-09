@@ -346,7 +346,7 @@
     (tm->stree val)))
 
 (tm-define ((graphics-get-property-at p) var)
-  (with r (if (and (pair? p) (in? var (list "gr-gid" "gr-anim-id")))
+  (with r (if (and (pair? p) (== var "gr-gid"))
               (graphics-path-property p (string-drop var 3))
               (graphics-get-property var))
     ;;(display* p ", " var " ~~> " r "\n")
@@ -509,7 +509,7 @@
 
 (tm-define (graphics-object-root-path p)
   (with t (path->tree p)
-    (cond ((tree-in? t :up '(with anim-edit))
+    (cond ((tree-is? t :up 'with)
            (graphics-object-root-path (cDr p)))
           (else p))))
 
@@ -577,13 +577,11 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (tm-define (enhanced-tree? t)
-  (tree-in? t '(with anim-edit)))
+  (tree-is? t 'with))
 
 (tm-define (enhanced-tree->radical t)
   (cond ((tree-is? t 'with)
          (enhanced-tree->radical (tree-ref t :last)))
-        ((tree-is? t 'anim-edit)
-         (enhanced-tree->radical (tree-ref t 1)))
         (else t)))
 
 (tm-define (radical->enhanced-tree r)
@@ -595,42 +593,7 @@
 (tm-define (stree-radical t)
   (cond ((tm-is? t 'with)
          (stree-radical (tm-ref t :last)))
-        ((tm-is? t 'anim-edit)
-         (stree-radical (tm-ref t 1)))
         (else t)))
-
-(tm-define (stree-radical* t anim?)
-  (cond ((and (tm-is? t 'with) (not anim?))
-         (stree-radical* (tm-ref t :last) anim?))
-        ((tm-is? t 'anim-edit)
-         (stree-radical* (tm-ref t 1) #t))
-        (else t)))
-
-(tm-define (graphics-re-enhance obj compl anim?)
-  (cond ((tm-is? compl 'anim-edit)
-         `(anim-edit ,(tm-ref compl 0)
-                     ,(graphics-re-enhance obj (tm-ref compl 1) #t)
-                     ,@(cddr (tm-children compl))))
-        ((and (tm-is? compl 'with)
-	      (or anim? (tm-is? (tm-ref compl :last) 'anim-edit)))
-         `(with ,@(cDr (tm-children compl))
-	      ,(graphics-re-enhance obj (tm-ref compl :last) anim?)))
-        (else obj)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Animations
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(tm-define (graphics-anim-frames t)
-  (and (tm-in? t '(anim-static anim-dynamic))
-       (tm-is? (tm-ref t 0) 'morph)
-       (with c (tm-children (tm-ref t 0))
-         (and (list-and (map (lambda (x) (tm-func? x 'tuple 2)) c))
-              (map (lambda (x) (tm-ref x 1)) c)))))
-
-(tm-define (graphics-anim-radicals t)
-  (and-with l (graphics-anim-frames t)
-    (map stree-radical l)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; New style graphical attributes
