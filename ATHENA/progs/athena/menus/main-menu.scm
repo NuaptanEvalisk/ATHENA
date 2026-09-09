@@ -88,7 +88,7 @@
     (let* ((buf (window-to-buffer win))
            (title (buffer-get-title buf))
            (title* (if (== title "") (url->system (url-tail buf)) title))
-           (mod? (buffer-modified? buf))
+           (mod? (buffer-menu-modified? buf))
            (short-name `(verbatim ,(string-append title* (if mod? " *" ""))))
            (active? (== (current-window) win)))
       ((check (eval short-name) "v" active?)

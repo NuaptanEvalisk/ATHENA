@@ -20,6 +20,9 @@
 #include "buffer_actor.hpp"
 #include "editor.hpp"
 #include "scheme_execution_context.hpp"
+#include <memory>
+#include <vector>
+#include <string>
 
 /******************************************************************************
 * Manage global list of windows
@@ -28,6 +31,42 @@
 static int last_window= 1;
 static array<url> all_windows;
 extern int nr_windows;
+
+namespace {
+struct window_catalog_entry {
+  std::string window, view, buffer;
+};
+using window_catalog= std::vector<window_catalog_entry>;
+std::shared_ptr<const window_catalog> published_windows=
+  std::make_shared<const window_catalog> ();
+
+std::string window_catalog_key (url value) {
+  string text= as_string (value);
+  return std::string (text.data (), N (text));
+}
+
+url window_catalog_url (const std::string& value) {
+  if (value.empty ()) return url_none ();
+  return url (string (value.data (), static_cast<int> (value.size ())));
+}
+}
+
+void
+publish_window_catalog () {
+  ASSERT (current_scheme_execution_context () == nullptr,
+          "window catalog publication requires the GUI owner");
+  window_catalog entries;
+  for (int i= 0; i < N (all_windows); ++i) {
+    url view= window_to_view (all_windows[i]);
+    entries.push_back ({window_catalog_key (all_windows[i]),
+      is_none (view) ? std::string () : window_catalog_key (view),
+      is_none (view) ? std::string () : window_catalog_key (view_to_buffer (view))});
+  }
+  std::shared_ptr<const window_catalog> next=
+    std::make_shared<const window_catalog> (std::move (entries));
+  std::atomic_store_explicit (&published_windows, std::move (next),
+                              std::memory_order_release);
+}
 
 /*
 static path
@@ -42,6 +81,7 @@ url
 create_window_id () {
   url r= "tmfs://window/" * as_string (last_window);
   all_windows << r;
+  publish_window_catalog ();
   last_window++;
   return r;
 }
@@ -52,6 +92,7 @@ destroy_window_id (url win) {
     if (all_windows[i] == win) {
       all_windows= append (range (all_windows, 0, i),
                            range (all_windows, i+1, N(all_windows)));
+      publish_window_catalog ();
       return;
     }
 }
@@ -145,6 +186,14 @@ concrete_window (url win) {
 
 array<url>
 windows_list () {
+  if (current_scheme_execution_context () != nullptr) {
+    array<url> result;
+    auto catalog= std::atomic_load_explicit (&published_windows,
+                                            std::memory_order_acquire);
+    for (const auto& entry: *catalog)
+      result << window_catalog_url (entry.window);
+    return result;
+  }
   return all_windows;
 }
 
@@ -186,6 +235,15 @@ get_current_window () {
 
 array<url>
 buffer_to_windows (url name) {
+  if (current_scheme_execution_context () != nullptr) {
+    array<url> result;
+    auto catalog= std::atomic_load_explicit (&published_windows,
+                                            std::memory_order_acquire);
+    auto key= window_catalog_key (name);
+    for (const auto& entry: *catalog)
+      if (entry.buffer == key) result << window_catalog_url (entry.window);
+    return result;
+  }
   array<url> r, vs= buffer_to_views (name);
   for (int i=0; i<N(vs); i++) {
     url win= view_to_window (vs[i]);
@@ -196,11 +254,27 @@ buffer_to_windows (url name) {
 
 url
 window_to_buffer (url win) {
+  if (current_scheme_execution_context () != nullptr) {
+    auto catalog= std::atomic_load_explicit (&published_windows,
+                                            std::memory_order_acquire);
+    auto key= window_catalog_key (win);
+    for (const auto& entry: *catalog)
+      if (entry.window == key) return window_catalog_url (entry.buffer);
+    return url_none ();
+  }
   return view_to_buffer (window_to_view (win));
 }
 
 url
 window_to_view (url win) {
+  if (current_scheme_execution_context () != nullptr) {
+    auto catalog= std::atomic_load_explicit (&published_windows,
+                                            std::memory_order_acquire);
+    auto key= window_catalog_key (win);
+    for (const auto& entry: *catalog)
+      if (entry.window == key) return window_catalog_url (entry.view);
+    return url_none ();
+  }
   array<url> vs= get_all_views ();
   for (int i=0; i<N(vs); i++)
     if (view_to_window (vs[i]) == win)

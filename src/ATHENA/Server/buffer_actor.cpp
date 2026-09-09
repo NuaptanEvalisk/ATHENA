@@ -871,6 +871,9 @@ buffer_actor::dispatch (actor_command_record& command) {
   }
   case actor_command_kind::evaluate_widget_handle: {
     athena_scheme_handle_id handle= command.argument[0];
+    // A failed dispatch is still acknowledged. Never return the input Scheme
+    // handle as though it were an output widget resource ID.
+    command.argument[0]= ATHENA_NO_RESOURCE;
     try {
       tmscm procedure= scheme_command_handle_value (handle);
       if (scm_is_eq (procedure, SCM_UNDEFINED))

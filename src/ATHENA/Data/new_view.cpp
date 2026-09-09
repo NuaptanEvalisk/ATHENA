@@ -144,7 +144,7 @@ set_current_view (url u) {
   //ASSERT (is_none (u) || starts (as_string (tail (u)), "no_name") || vw != NULL, "bad view");
   the_view= vw;
   if (vw != NULL) {
-    vw->buf->buf->last_visit= texmacs_time ();
+    visit_buffer (vw->buf);
   }
   swap_current_drd (nullptr);
   swap_current_document_tree (nullptr);
@@ -293,6 +293,7 @@ notify_set_view (url u) {
       view_history[j]= view_history[j-1];
     view_history[j]= u;
   }
+  publish_window_catalog ();
 }
 
 void
@@ -301,6 +302,7 @@ notify_delete_view (url u) {
     if (view_history[i] == u) {
       view_history= append (range (view_history, 0, i),
 			    range (view_history, i+1, N(view_history)));
+      publish_window_catalog ();
       return;
     }
 }
@@ -506,6 +508,7 @@ detach_view (url u) {
   if (win == NULL) return;
   // cout << "Detach view " << vw->buf->buf->name << "\n";
   vw->win= NULL;
+  publish_window_catalog ();
   widget wid= win->wid;
   ASSERT (is_attached (wid), "widget should be attached");
   (void) vw->buf->actor->submit (

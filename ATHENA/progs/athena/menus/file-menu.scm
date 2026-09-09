@@ -28,7 +28,7 @@
   (for (name l)
     (let* ((abbr (buffer-get-title name))
            (abbr* (if (== abbr "") (url->system (url-tail name)) abbr))
-           (mod? (buffer-modified? name))
+           (mod? (buffer-menu-modified? name))
            (short-name `(verbatim ,(string-append abbr* (if mod? " *" ""))))
            (long-name `(verbatim ,(url->system name))))
       ((check (balloon (eval short-name) (eval long-name)) "v"

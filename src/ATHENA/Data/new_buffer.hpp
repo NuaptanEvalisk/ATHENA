@@ -31,13 +31,14 @@ public:
   bool secure;            // is the buffer secure?
   int last_save;          // last time that the buffer was saved
   time_t last_visit;      // time that the buffer was visited last
+  bool menu_modified;     // GUI's last published unsaved indicator, not save state
 
   inline new_buffer_rep (url name2):
     name (name2), master (name2),
     fm ("texmacs"), title (as_string (tail (name))),
     read_only (false), secure (is_secure (name2)),
     last_save (- (int) (((unsigned int) (-1)) >> 1)),
-    last_visit (texmacs_time ()) {}
+    last_visit (texmacs_time ()), menu_modified (false) {}
 };
 
 class new_buffer;
@@ -96,7 +97,10 @@ int  get_last_save_buffer (url name);
 void set_last_save_buffer (url name, int t);
 bool is_aux_buffer (url name);
 double last_visited (url name);
+void visit_buffer (tm_buffer buf);
 bool buffer_modified (url name);
+bool buffer_menu_modified (url name);
+void publish_buffer_menu_modified (tm_buffer buf, bool modified);
 bool buffer_modified_since_autosave (url name);
 void pretend_buffer_modified (url name);
 void pretend_buffer_saved (url name);

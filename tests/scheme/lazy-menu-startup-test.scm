@@ -13,6 +13,15 @@
 ;; window.  Exercise that result explicitly in this headless test.
 (lazy-menu-force-all)
 
+;; This script executes on the initial BufferActor. Menu sorting must read
+;; published GUI metadata, even for its own buffer's GUI-owned visit time.
+(check (number? (buffer-last-visited (current-buffer)))
+       "actor menu could not read its buffer visit time")
+(check (number? (buffer-last-visited (string->url "/missing-menu-buffer.ath")))
+       "missing buffer visit fallback failed")
+(map buffer-get-title (buffer-sorted-list))
+(workspace-menu)
+
 (check (member '(generic embedded-menu)
                (%athena-definition-modules 'focus-misc-menu))
        "embedded image menu was not loaded by the startup menu barrier")

@@ -19,6 +19,8 @@ def main():
     parser.add_argument("--artifacts", type=Path)
     parser.add_argument("--script", type=Path,
                         default=Path(__file__).with_suffix(".scm"))
+    parser.add_argument("--setup-script", type=Path,
+                        help="Optional GUI-owner setup before the actor test")
     args = parser.parse_args()
     script = args.script.resolve()
     with tempfile.TemporaryDirectory(prefix="athena-evaluation-bar-") as temporary:
@@ -54,14 +56,22 @@ def main():
             f'(call-with-output-file {json.dumps(str(report))} '
             '(lambda (port) (write result port))) '
             '(exec-global (lambda () (quit-TeXmacs))))')
+        if args.setup_script:
+            expression = (
+                '(exec-global (lambda () '
+                f'(primitive-load {json.dumps(str(args.setup_script.resolve()))}) '
+                f'(exec-buffer (current-buffer) (lambda () {expression}))))')
         with tempfile.TemporaryFile(mode="w+t") as log:
             process = subprocess.Popen(
                 [str(args.binary.resolve()), "-H", "-X", "-x",
                  expression],
                 cwd=home, env=environment, start_new_session=True,
                 stdout=log, stderr=subprocess.STDOUT, text=True)
+            timed_out = False
             try:
                 process.wait(timeout=60)
+            except subprocess.TimeoutExpired:
+                timed_out = True
             finally:
                 # A crash reporter can outlive the test process.
                 try:
@@ -72,12 +82,13 @@ def main():
             log.seek(0)
             output = log.read()
         result = report.read_text() if report.exists() else "No Scheme result"
-        if process.returncode or result != "#t":
+        if timed_out or process.returncode or result != "#t":
             output += "\n" + result
             trace = home / "trace.scm"
             if trace.exists():
                 output += "\n" + trace.read_text()
-            raise RuntimeError(f"{script.name} failed ({process.returncode}):\n{output}")
+            status = "timeout" if timed_out else str(process.returncode)
+            raise RuntimeError(f"{script.name} failed ({status}):\n{output}")
         pdf = home / "evaluation.pdf"
         if not pdf.exists() or not pdf.read_bytes().startswith(b"%PDF-"):
             raise RuntimeError(f"Evaluation PDF export failed:\n{output}")

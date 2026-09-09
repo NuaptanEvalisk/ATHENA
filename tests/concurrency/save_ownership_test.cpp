@@ -86,6 +86,39 @@ static void test_lifetime_pin () {
   lifetime.close (); // idempotent
 }
 
+static void test_menu_metadata () {
+  buffer_name_catalog catalog;
+  catalog.publish_metadata ({{"first", {"First", 10}},
+                             {"second", {"Second", 20}}});
+  buffer_name_catalog::metadata value;
+  assert (catalog.lookup ("first", value));
+  assert (value.title == "First" && value.last_visit == 10);
+  std::thread reader ([&] {
+    for (int i= 0; i < 10000; ++i) {
+      buffer_name_catalog::metadata entry;
+      assert (catalog.lookup ("first", entry));
+      assert (entry.title == "First" && entry.last_visit >= 10);
+    }
+  });
+  for (int i= 10; i < 10010; ++i) catalog.visit ("first", i);
+  reader.join ();
+  catalog.set_modified ("first", true);
+  assert (catalog.lookup ("first", value) && value.modified);
+  assert (catalog.lookup ("second", value) && !value.modified);
+  catalog.set_modified ("first", false);
+  assert (catalog.lookup ("first", value) && !value.modified);
+  assert (catalog.lookup ("first", value) && value.last_visit == 10009);
+  assert (catalog.lookup ("second", value) && value.last_visit == 20);
+  catalog.publish_metadata ({{"renamed", {"New title", 10009}}});
+  assert (!catalog.lookup ("first", value));
+  assert (!catalog.lookup ("second", value));
+  assert (catalog.lookup ("renamed", value));
+  assert (value.title == "New title" && value.last_visit == 10009);
+  catalog.publish_metadata ({});
+  catalog.visit ("renamed", 20000);
+  assert (!catalog.lookup ("renamed", value));
+}
+
 static void test_exception_and_racing_close () {
   for (unsigned round= 0; round < 200; ++round) {
     std::atomic<unsigned> owner {0};
@@ -114,8 +147,10 @@ static void test_exception_and_racing_close () {
 
 int main () {
   test_snapshot_publication ();
+  test_menu_metadata ();
   test_lifetime_pin ();
   test_exception_and_racing_close ();
   std::cout << "PASS: immutable catalog publication, retained generations, "
-               "eight readers, lifetime pins, stale IDs, close races\n";
+               "eight readers, menu metadata, lifetime pins, stale IDs, "
+               "close races\n";
 }

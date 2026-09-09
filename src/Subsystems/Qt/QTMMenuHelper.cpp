@@ -458,6 +458,11 @@ void
 QTMLazyMenu::force () {
 BEGIN_SLOT
   qt_widget source= concrete (promise_widget ());
+  if (is_nil (source)) {
+    QList<QAction*> empty;
+    transferActions (&empty);
+    return;
+  }
   setProperty (QTM_SCROLLABLE_MENU_PROPERTY,
                source->requires_menu_scrolling ());
   QList<QAction*>* list= source->get_qactionlist ();

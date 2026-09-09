@@ -2156,6 +2156,9 @@
   <binding name="buffer-modified?" native="buffer_modified" returns="bool">
     <arg type="url" />
   </binding>
+  <binding name="buffer-menu-modified?" native="buffer_menu_modified" returns="bool">
+    <arg type="url" />
+  </binding>
   <binding name="buffer-modified-since-autosave?" native="buffer_modified_since_autosave" returns="bool">
     <arg type="url" />
   </binding>

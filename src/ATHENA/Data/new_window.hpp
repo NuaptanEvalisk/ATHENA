@@ -16,6 +16,7 @@
 #include "url.hpp"
 
 array<url> windows_list ();
+void publish_window_catalog ();
 array<url> buffer_to_windows (url name);
 int  get_nr_windows ();
 bool has_current_window ();

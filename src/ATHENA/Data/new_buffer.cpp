@@ -31,10 +31,28 @@ namespace {
 
 buffer_name_catalog published_buffer_names;
 
+std::string
+catalog_text (string text) {
+  return std::string (text.data (), N (text));
+}
+
+void
+publish_buffer_metadata () {
+  buffer_name_catalog::records records;
+  for (int i= 0; i < N (bufs); ++i)
+    records.emplace (catalog_text (as_string (bufs[i]->buf->name)),
+      buffer_name_catalog::metadata {
+        catalog_text (bufs[i]->buf->title),
+        static_cast<double> (bufs[i]->buf->last_visit),
+        bufs[i]->buf->menu_modified});
+  published_buffer_names.publish_metadata (std::move (records));
+}
+
 // Called only by the UI owner after membership/name changes. No native URL,
 // string, array or tree representation is retained in the published snapshot.
 void
 publish_buffer_names () {
+  publish_buffer_metadata ();
   buffer_name_catalog::names names;
   names.reserve (N (bufs));
   for (int i= N (bufs) - 1; i >= 0; --i) {
@@ -363,6 +381,12 @@ get_title_buffer (url name) {
   athena_view_id view_id= ATHENA_NO_VIEW;
   if (buffer_actor* actor= current_buffer_actor (name, view_id))
     return actor->current_state ()->title;
+  if (current_scheme_execution_context () != nullptr) {
+    buffer_name_catalog::metadata entry;
+    if (!published_buffer_names.lookup (catalog_text (as_string (name)), entry))
+      return "";
+    return string (entry.title.data (), static_cast<int> (entry.title.size ()));
+  }
   tm_buffer buf= concrete_buffer (name);
   if (is_nil (buf)) return "";
   return buf->buf->title;
@@ -374,6 +398,7 @@ set_title_buffer (url name, string title) {
   if (is_nil (buf)) return;
   if (buf->buf->title == title) return;
   buf->buf->title= title;
+  publish_buffer_metadata ();
   athena_blob_id title_payload= actor_text_from_string (copy (title));
   if (!invoke_buffer_actor (
         buf, actor_command_kind::set_buffer_title, ATHENA_NO_VIEW,
@@ -565,9 +590,24 @@ is_aux_buffer (url name) {
 
 double
 last_visited (url name) {
+  if (current_scheme_execution_context () != nullptr) {
+    buffer_name_catalog::metadata entry;
+    if (published_buffer_names.lookup (catalog_text (as_string (name)), entry))
+      return entry.last_visit;
+    return (double) texmacs_time ();
+  }
   tm_buffer buf= concrete_buffer (name);
   if (is_nil (buf)) return (double) texmacs_time ();
   return (double) buf->buf->last_visit;
+}
+
+void
+visit_buffer (tm_buffer buf) {
+  ASSERT (current_scheme_execution_context () == nullptr,
+          "buffer visits require the GUI owner");
+  buf->buf->last_visit= texmacs_time ();
+  published_buffer_names.visit (catalog_text (as_string (buf->buf->name)),
+                               (double) buf->buf->last_visit);
 }
 
 bool
@@ -582,6 +622,26 @@ buffer_modified (url name) {
   tm_buffer buf= concrete_buffer (name);
   if (is_nil (buf)) return false;
   return buf->needs_to_be_saved ();
+}
+
+bool
+buffer_menu_modified (url name) {
+  athena_view_id view_id= ATHENA_NO_VIEW;
+  if (current_scheme_execution_context () == nullptr ||
+      current_buffer_actor (name, view_id) != nullptr)
+    return buffer_modified (name);
+  buffer_name_catalog::metadata entry;
+  return published_buffer_names.lookup (catalog_text (as_string (name)), entry)
+         && entry.modified;
+}
+
+void
+publish_buffer_menu_modified (tm_buffer buf, bool modified) {
+  ASSERT (current_scheme_execution_context () == nullptr,
+          "buffer menu publication requires the GUI owner");
+  buf->buf->menu_modified= modified;
+  published_buffer_names.set_modified (
+    catalog_text (as_string (buf->buf->name)), modified);
 }
 
 bool

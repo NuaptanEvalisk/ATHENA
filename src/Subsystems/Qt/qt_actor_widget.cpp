@@ -601,6 +601,8 @@ qt_actor_widget_rep::drain_external_effects () {
     }
     case actor_command_kind::ui_set_modified: {
       tm_view view= concrete_runtime_view (view_id_);
+      if (view != nullptr)
+        publish_buffer_menu_modified (view->buf, record.argument[0] != 0);
       if (view != nullptr && view->win != nullptr)
         view->win->set_modified (record.argument[0] != 0);
       break;
@@ -608,6 +610,7 @@ qt_actor_widget_rep::drain_external_effects () {
     case actor_command_kind::ui_mark_buffer_saved: {
       tm_view view= concrete_runtime_view (view_id_);
       if (view != nullptr) {
+        publish_buffer_menu_modified (view->buf, false);
         view->buf->buf->last_save= static_cast<int> (record.argument[0]);
         array<url> windows= buffer_to_windows (view->buf->buf->name);
         for (int i=0; i<N(windows); i++)
