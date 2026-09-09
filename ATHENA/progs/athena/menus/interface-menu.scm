@@ -23,12 +23,7 @@
         ("User provided icons" (toggle-visible-icon-bar 3)))
   ("Status bar" (toggle-visible-footer))
   ---
-  ("Search toolbar" (toggle-bottom-bar "search"))
-  ("Replace toolbar" (toggle-bottom-bar "replace"))
-  ("Database toolbar" (toggle-bottom-bar "database"))
-  ---
   ("Developer tool" (toggle-preference "developer tool"))
-  ("Linking tool" (toggle-preference "linking tool"))
   ("Presentation tool" (toggle-preference "presentation tool"))
   ("Source macros tool" (toggle-preference "source tool"))
   ---

@@ -23,36 +23,22 @@
 ;; Extra toolbars at the bottom
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(tm-define toolbar-replace-active? #f)
 (tm-define toolbar-spell-active? #f)
 
 (tm-define (extra-bottom-tools?)
-  (or toolbar-replace-active?
-      toolbar-spell-active?))
+  toolbar-spell-active?)
 
 (tm-widget (texmacs-bottom-toolbars)
-  (if toolbar-replace-active?
-      (link replace-toolbar))
-  (if (and toolbar-spell-active?
-           (not toolbar-replace-active?))
+  (if toolbar-spell-active?
       (link spell-toolbar)))
 
 (tm-define (test-bottom-bar? which)
-  (cond ((== which "replace")
-         toolbar-replace-active?)
-        ((== which "spell")
-         (and toolbar-spell-active?
-              (not toolbar-replace-active?)))
-        (else #f)))
+  (and (== which "spell") toolbar-spell-active?))
 
 (tm-define (set-bottom-bar which val)
-  (set! toolbar-replace-active? #f)
-  (set! toolbar-spell-active? #f)
-  (cond ((== which "replace")
-         (set! toolbar-replace-active? val))
-        ((== which "spell")
-         (set! toolbar-spell-active? val)))
-  (update-bottom-tools))
+  (when (== which "spell")
+    (set! toolbar-spell-active? val)
+    (update-bottom-tools)))
 
 (tm-define (toggle-bottom-bar which)
   (:check-mark "*" test-bottom-bar?)

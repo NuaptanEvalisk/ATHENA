@@ -116,7 +116,6 @@ ensure_builtin_user_preferences () {
     PREF ("scripting language", "none", "notify-scripting-language"),
     PREF ("debugging tool", "off", "notify-tool"),
     PREF ("developer tool", "off", "notify-tool"),
-    PREF ("linking tool", "off", "notify-tool"),
     PREF ("presentation tool", "off", "notify-tool"),
     PREF ("inertial scrolling", "off", ""),
     PREF ("inertial scrolling friction", "0.95", ""),

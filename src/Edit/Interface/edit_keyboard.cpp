@@ -73,11 +73,6 @@ edit_interface_rep::in_search_mode () {
 }
 
 bool
-edit_interface_rep::in_replace_mode () {
-  return input_mode == INPUT_REPLACE;
-}
-
-bool
 edit_interface_rep::in_spell_mode () {
   return input_mode == INPUT_SPELL;
 }

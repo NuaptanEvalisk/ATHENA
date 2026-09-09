@@ -365,7 +365,6 @@
   ("emacs:meta <" (go-start))
   ("emacs:meta >" (go-end))
   ("emacs:meta $" (interactive-spell))
-  ("emacs:meta %" (interactive-replace))
 
   ("emacs:prefix b" (interactive go-to-buffer))
   ("emacs:prefix h" (select-all))
@@ -465,7 +464,6 @@
   ("M-F4" (interactive print-pages))
   ("M-S-F4" (interactive print-pages-to-file))
 
-  ("emacs =" (interactive-replace))
   ("emacs:meta g" (kbd-cancel))
   ("emacs:meta [" (undo 0))
   ("emacs:meta ]" (redo 0))
@@ -554,7 +552,6 @@
 
   ;; standard Gnome shortcuts
   ("gnome d" (remove-text #t))
-  ("gnome h" (interactive-replace))
   ("gnome k" (kill-paragraph))
   ("gnome left" (kbd-plain-move traverse-left))
   ("gnome right" (kbd-plain-move traverse-right))
@@ -623,7 +620,6 @@
   ;; standard KDE shortcuts
   ("kde d" (remove-text #t))
   ("kde k" (kill-paragraph))
-  ("kde r" (interactive-replace))
   ("kde left" (kbd-plain-move traverse-left))
   ("kde right" (kbd-plain-move traverse-right))
   ("kde home" (kbd-plain-move go-start))
@@ -734,7 +730,6 @@
   ;;("macos A-x" (cut-formatting))  ;; TeXmacs addition
 
   ;; further shortcuts for MacOS look and feel
-  ("macos r" (interactive-replace))
   ("macos F" (toggle-full-screen-mode))
   ("macos C-f" (toggle-full-screen-edit-mode))
 
@@ -792,14 +787,12 @@
   ("windows A-c" (make 'copyright))
   ("windows e" (make 'footnote))
   ("windows F" (make 'footnote))
-  ("windows h" (interactive-replace))
   ("windows k" (make 'hlink))
   ("windows K" (toggle-small-caps))
   ("windows A-r" (make 'registered))
   ("windows A-t" (make 'trademark))
   ("windows y" (redo 0))
 
-  ("F2" (interactive-replace))
   ("S-delete" (kbd-cut))
   ("S-insert" (kbd-paste))
   ("C-insert" (kbd-copy))

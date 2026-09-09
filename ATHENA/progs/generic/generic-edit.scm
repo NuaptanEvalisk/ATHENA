@@ -1280,13 +1280,6 @@
   (key-press-search "previous"))
 
 (tm-define (keyboard-press key time)
-  (:mode replace-mode?)
-  (with cmd (key-press-command (string-append "replace " key))
-    (cond (cmd (cmd))
-          ((key-press-replace key) (noop))
-          (else (key-press key)))))
-
-(tm-define (keyboard-press key time)
   (:mode spell-mode?)
   (with cmd (key-press-command (string-append "spell " key))
     (cond (cmd (cmd))

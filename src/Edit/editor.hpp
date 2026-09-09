@@ -218,7 +218,6 @@ public:
   virtual void set_input_normal () = 0;
   virtual bool in_normal_mode () = 0;
   virtual bool in_search_mode () = 0;
-  virtual bool in_replace_mode () = 0;
   virtual bool in_spell_mode () = 0;
   virtual void interrupt_shortcut () = 0;
   virtual bool kbd_get_command (string cmd_s, string& help, command& cmd) = 0;
@@ -620,8 +619,6 @@ public:
   virtual void document_search_clear () = 0;
   virtual int document_search_current () = 0;
   virtual int document_search_total () = 0;
-  virtual void replace_start (tree what, tree by, bool forward= true) = 0;
-  virtual bool replace_keypress (string s) = 0;
   virtual void spell_start () = 0;
   virtual void spell_replace (string by) = 0;
   virtual bool spell_keypress (string s) = 0;

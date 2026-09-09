@@ -21,7 +21,6 @@
 
 #define INPUT_NORMAL      0
 #define INPUT_SEARCH      1
-#define INPUT_REPLACE     2
 #define INPUT_SPELL       3
 #define INPUT_COMPLETE    4
 
@@ -75,7 +74,7 @@ protected:
   SI            pixel;         // current size of a pixel on the screen
   SI            zpixel;        // pixel multiplied by zoom factor
   rectangles    copy_always;   // for wiping out cursor
-  int           input_mode;    // INPUT_NORMAL, INPUT_SEARCH, INPUT_REPLACE
+  int           input_mode;    // INPUT_NORMAL, INPUT_SEARCH
 
 protected:
   SI            last_x, last_y;
@@ -234,7 +233,6 @@ public:
   void set_input_normal ();
   bool in_normal_mode ();
   bool in_search_mode ();
-  bool in_replace_mode ();
   bool in_spell_mode ();
   bool kbd_get_command (string which, string& help, command& cmd);
   void interrupt_shortcut ();

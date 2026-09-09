@@ -380,9 +380,6 @@
   <binding name="key-press-search" native="search_keypress" returns="bool">
     <arg type="string" />
   </binding>
-  <binding name="key-press-replace" native="replace_keypress" returns="bool">
-    <arg type="string" />
-  </binding>
   <binding name="key-press-spell" native="spell_keypress" returns="bool">
     <arg type="string" />
   </binding>
@@ -574,17 +571,11 @@
   </binding>
   <binding name="in-normal-mode?" native="in_normal_mode" returns="bool" />
   <binding name="in-search-mode?" native="in_search_mode" returns="bool" />
-  <binding name="in-replace-mode?" native="in_replace_mode" returns="bool" />
   <binding name="in-spell-mode?" native="in_spell_mode" returns="bool" />
   <binding name="search-start" native="search_start" returns="void">
     <arg type="bool" />
   </binding>
   <binding name="search-button-next" native="search_button_next" returns="void" />
-  <binding name="replace-start" native="replace_start" returns="void">
-    <arg type="string" />
-    <arg type="string" />
-    <arg type="bool" />
-  </binding>
   <binding name="spell-start" native="spell_start" returns="void" />
   <binding name="spell-replace" native="spell_replace" returns="void">
     <arg type="string" />

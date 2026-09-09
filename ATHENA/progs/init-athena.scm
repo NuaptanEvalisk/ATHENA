@@ -234,9 +234,8 @@
 (lazy-define (generic generic-edit) notify-activated notify-disactivated
              wheel-capture?)
 (lazy-define (generic generic-doc) focus-help)
-(lazy-define (generic search-widgets) replace-toolbar
-             open-replace toolbar-replace-start interactive-replace
-             search-next-match open-global-search)
+(lazy-define (generic global-search) open-global-search
+             global-search-open-result global-search-open-occurrence)
 (lazy-define (generic spell-widgets) spell-toolbar
              open-spell toolbar-spell-start interactive-spell)
 (lazy-define (generic format-widgets) open-paragraph-format open-page-format)
@@ -442,9 +441,7 @@
 ;(display* "memory: " (texmacs-memory) " bytes\n")
 
 ;(display "Booting linking facilities\n")
-(lazy-menu (link link-menu) link-menu)
-(lazy-keyboard (link link-kbd) with-linking-tool?)
-(lazy-define (link link-edit) create-unique-id)
+(lazy-define (link locus-edit) create-unique-id)
 (lazy-define (link link-navigate) link-active-upwards link-active-ids
              link-follow-ids link-mouse-ids
              heading-word-count-schedule-refresh)
