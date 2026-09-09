@@ -413,7 +413,8 @@ qt_actor_widget_rep::drain_external_effects () {
       QTMDocumentSearchBar::acceptState (
         canvas (), record.view_id, record.argument[0],
         static_cast<int> (record.argument[1]),
-        static_cast<int> (record.argument[2]));
+        static_cast<int> (record.argument[2]),
+        static_cast<int> (record.argument[3]));
       break;
     case actor_command_kind::ui_keyboard_focus_field: {
       string field= actor_text_registry::instance ().take (record.payload0);

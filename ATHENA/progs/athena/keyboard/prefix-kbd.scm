@@ -188,7 +188,6 @@
   ("font" "altcmd f")
   ("executable" "altcmd e")
   ("inactive" "altcmd i")
-  ("link" "altcmd l")
   ("version" "altcmd #")
   ("table" "altcmd t")
   ("script" "altcmd *")
@@ -289,7 +288,6 @@
   ("executable" "" "Insert executable markup")
   ("inactive" "" "Insert inactive markup")
   ("script" "" "Evaluate function or insert evaluation tag")
-  ("link" "" "Linking command")
   ("version" "" "Versioning command")
   ("table" "" "Table command"))
 

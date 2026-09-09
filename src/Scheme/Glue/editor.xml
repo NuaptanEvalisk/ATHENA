@@ -571,6 +571,19 @@
   </binding>
   <binding name="in-normal-mode?" native="in_normal_mode" returns="bool" />
   <binding name="in-search-mode?" native="in_search_mode" returns="bool" />
+  <binding name="document-search" native="document_search" returns="int">
+    <arg type="tree" />
+    <arg type="bool" />
+  </binding>
+  <binding name="document-search-navigate" native="document_search_navigate" returns="bool">
+    <arg type="bool" />
+    <arg type="bool" />
+  </binding>
+  <binding name="document-search-clear" native="document_search_clear" returns="void" />
+  <binding name="document-replace" native="document_replace" returns="int">
+    <arg type="tree" />
+    <arg type="bool" />
+  </binding>
   <binding name="in-spell-mode?" native="in_spell_mode" returns="bool" />
   <binding name="search-start" native="search_start" returns="void">
     <arg type="bool" />

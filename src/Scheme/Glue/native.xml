@@ -94,6 +94,7 @@
     <arg type="command" />
   </binding>
   <binding name="document-search-open" native="document_search_open" returns="void" dispatch="ui" />
+  <binding name="document-replace-open" native="document_replace_open" returns="void" dispatch="ui" />
   <binding name="document-search-next" native="document_search_next" returns="void">
     <arg type="bool" />
   </binding>

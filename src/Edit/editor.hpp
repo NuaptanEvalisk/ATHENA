@@ -619,6 +619,7 @@ public:
   virtual void document_search_clear () = 0;
   virtual int document_search_current () = 0;
   virtual int document_search_total () = 0;
+  virtual int document_replace (tree by, bool all) = 0;
   virtual void spell_start () = 0;
   virtual void spell_replace (string by) = 0;
   virtual bool spell_keypress (string s) = 0;

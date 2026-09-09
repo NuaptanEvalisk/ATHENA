@@ -27,6 +27,8 @@ protected:
   range_set   document_search_sels;
   path        document_search_reference;
   int         document_search_index;
+  tree        document_search_query= tree ("");
+  bool        document_search_ignore_case= false;
 
   path        spell_end_p;   // spell check until here
   string      spell_s;       // the word being checked
@@ -73,6 +75,7 @@ public:
   void document_search_clear ();
   int document_search_current ();
   int document_search_total ();
+  int document_replace (tree by, bool all);
 
   /* spell */
   path test_spellable (path p);

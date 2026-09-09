@@ -890,6 +890,11 @@ QTMWidget::keyPressEvent (QKeyEvent* event) {
     document_search_open ();
     return;
   }
+  if (event->key () == Qt::Key_H &&
+      commandModifiers == Qt::ControlModifier) {
+    document_replace_open ();
+    return;
+  }
   if (handleNeighborhoodKeyShortcut (event)) return;
   QTMKeyboardEvent ke (tmapp()->keyboard(), *event);
   string r = ke.texmacsKeyCombination();

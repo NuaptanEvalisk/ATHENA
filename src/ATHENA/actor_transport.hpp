@@ -90,6 +90,7 @@ enum class actor_command_kind: std::uint32_t {
   document_search_update,
   document_search_navigate,
   document_search_clear,
+  document_replace,
   activate_outline_entry,
   set_master_buffer,
   notify_environment,

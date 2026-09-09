@@ -27,15 +27,16 @@ class QTMDocumentSearchBar final: public QFrame {
 public:
   explicit QTMDocumentSearchBar (QTMWidget* canvas);
 
-  void open ();
+  void open (bool replace= false);
   void closeSearch ();
   void navigate (bool forward, bool extreme= false);
 
-  static void showForCurrentEditor ();
+  static void showForCurrentEditor (bool replace= false);
   static void navigateCurrent (bool forward);
   static void closeCurrent ();
   static void acceptState (QTMWidget* canvas, athena_view_id view,
-                           std::uint64_t generation, int current, int total);
+                           std::uint64_t generation, int current, int total,
+                           int replacementStatus);
 
 protected:
   bool eventFilter (QObject* watched, QEvent* event) override;
@@ -60,8 +61,14 @@ private:
   QLineEdit* queryEdit;
   QCheckBox* caseSensitive;
   QLabel* resultLabel;
+  QWidget* replaceRow;
+  QLineEdit* replacementEdit;
+  QLabel* replacementLabel;
+  QToolButton* replaceOne;
+  QToolButton* replaceAll;
 
   void updateSearch ();
+  void replaceMatches (bool all);
   void dispatchPending ();
   void updateResultLabel ();
   void positionBar ();
@@ -69,6 +76,7 @@ private:
 };
 
 void document_search_open ();
+void document_replace_open ();
 void document_search_next (bool forward);
 void document_search_close ();
 

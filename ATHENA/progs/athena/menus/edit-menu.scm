@@ -76,6 +76,7 @@
   ---
   ("Search" (document-search-open))
   ("Global search" (open-global-search))
+  ("Replace" (document-replace-open))
   (if (not (in-math?))
       ("Spell" (interactive-spell)))
   (if (in-math?)

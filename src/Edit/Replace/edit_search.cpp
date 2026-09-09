@@ -507,8 +507,9 @@ document_search_result_index (range_set sels, path start) {
 
 int
 edit_replace_rep::document_search (tree what, bool case_insensitive) {
-  if (document_search_reference == path ())
-    document_search_reference= copy (tp);
+  document_search_query= what;
+  document_search_ignore_case= case_insensitive;
+  document_search_reference= copy (tp);
 
   selection_cancel ();
   if (is_empty (what)) {
@@ -540,6 +541,8 @@ edit_replace_rep::document_search (tree what, bool case_insensitive) {
 
 bool
 edit_replace_rep::document_search_navigate (bool forward, bool extreme) {
+  document_search_reference= copy (tp);
+  document_search (document_search_query, document_search_ignore_case);
   if (N(document_search_sels) < 2) return false;
   path current= document_search_index > 0
     ? document_search_sels[2 * (document_search_index - 1)]
@@ -574,6 +577,7 @@ edit_replace_rep::document_search_clear () {
   document_search_sels= range_set ();
   document_search_index= 0;
   document_search_reference= path ();
+  document_search_query= tree ("");
   set_message ("", "");
   set_center_message ("");
 }
@@ -586,4 +590,43 @@ edit_replace_rep::document_search_current () {
 int
 edit_replace_rep::document_search_total () {
   return N(document_search_sels) / 2;
+}
+
+int
+edit_replace_rep::document_replace (tree by, bool all) {
+  if (buf != nullptr && buf->read_only) return -1;
+  if (is_empty (document_search_query)) return 0;
+  document_search_reference= copy (tp);
+  document_search (document_search_query, document_search_ignore_case);
+  if (document_search_index == 0) return 0;
+
+  range_set hits= all ? document_search_sels
+    : range (document_search_sels, 2 * (document_search_index - 1),
+             2 * document_search_index);
+  // Track boundaries because cutting a match may normalize adjacent concats.
+  // Process the original matches backwards; inserted text is never searched
+  // again during this replacement operation.
+  array<observer> positions;
+  for (int i=0; i<N(hits); ++i)
+    positions << position_new (hits[i]);
+  start_editing ();
+  try {
+    for (int i=N(positions)-2; i>=0; i-=2) {
+      path p= position_get (positions[i]);
+      path q= position_get (positions[i+1]);
+      selection_set_range_set (range_set (p, q));
+      selection_cut ("none");
+      insert_tree (copy (by));
+    }
+    end_editing ();
+  }
+  catch (...) {
+    for (int i=0; i<N(positions); ++i) position_delete (positions[i]);
+    cancel_editing ();
+    throw;
+  }
+  for (int i=0; i<N(positions); ++i) position_delete (positions[i]);
+  document_search_reference= copy (tp);
+  document_search (document_search_query, document_search_ignore_case);
+  return N(hits) / 2;
 }

@@ -497,6 +497,7 @@
   ("std b" (toggle-bold))
   ("std c" (kbd-copy))
   ("std f" (document-search-open))
+  ("std h" (document-replace-open))
   ("std F" (open-global-search))
   ("std i" (toggle-italic))
   ("std n" (new-document))

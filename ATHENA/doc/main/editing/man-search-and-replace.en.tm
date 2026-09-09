@@ -5,82 +5,31 @@
 <\body>
   <tmdoc-title|Search and replace>
 
-  You can start searching text by pressing <key|C-s> or <menu|Edit|Search>.
-  Doing this, a new special \Psearch toolbar\Q will appear below the main
-  text, just above the footer. When typing text in the search field of the
-  toolbar, all occurrences of this text will be highlighted in the main
-  document. Moreover, one \Pprincipal\Q occurrence will be highlighted in red
-  and you may navigate through all occurrences using <key|pageup> and
-  <key|pagedown> (or <key|up> and <key|down>, or <key|return>). Using
-  <key|home> and <key|end>, you may jump to the first and last occurrences
-  respectively. As soon as you press the escape key <key|escape>, the search
-  toolbar will be closed, searching stops and focus returns to the main
-  document.
+  Press <key|C-f> or choose <menu|Edit|Search> to open the document search
+  bar. Matches are highlighted in the document. The counter shows the current
+  match and the total number of matches. Use the arrow buttons to select the
+  first, previous, next, or last match. <key|return> advances to the next
+  match; <key|S-return> moves to the previous one. Enable Match case to
+  distinguish uppercase and lowercase letters.
 
-  During a search, <TeXmacs> only looks for text in the same mode and
-  language as at the position where you started your search. In other words,
-  when searching an <math|x> in math-mode, you will not find any x's in the
-  ordinary text. As a current limitation, the search string on the search
-  toolbar can only contain ordinary text and no math-symbols or more
-  complicated structured text. More complex searches will be discussed below.
+  Press <key|C-h> or choose <menu|Edit|Replace> to show the replacement field
+  below the search field. The Replace match button replaces the current match
+  and selects the next one. Pressing <key|return> in the replacement field
+  has the same effect. An empty replacement removes the matched text.
 
-  In order to replace text, you should use <menu|Edit|Replace> or press
-  <key|C-=>. This will cause a special \Preplace toolbar\Q to appear below
-  the main text, just above the footer. You are prompted for the string that
-  is to be replaced and the string by which to replace. Again, you may use
-  the <key|pageup> and <key|pagedown> keys in order to navigate through the
-  occurrences of the search string. When pressing <key|tab> or <key|return>
-  in the search field, focus will be moved to the replace field. You may
-  still use the <key|pageup> and <key|pagedown> keys in order to navigate
-  through the occurrences of the search string. In addition, pressing
-  <key|return> will replace the principal occurrence of the search string by
-  the replace string. Using <key|S-return>, you may undo the last
-  replacement. You may replace all remaining occurrences by pressing
-  <key|C-return>. Like in the case of searching, the query-replace command is
-  mode and language sensitive.
+  The Replace all matches button, or <key|C-return>, replaces all matches in
+  the document, including those before the cursor. It processes the matches
+  found before the operation, without repeatedly matching newly inserted text.
+  All changes from this operation form one undo step. Read-only documents
+  cannot be modified.
 
-  The search and replace toolbars are quite rudimentary in the sense that
-  they only allow for searching and replacing plain text. By pressing the
-  <icon|tm_expand_tool.xpm> icon on either of these toolbars, you may expand
-  the toolbar into a full blown widget with larger search and replace fields
-  that may contain arbitrary markup. Searching and replacing can be done
-  using more or less the same keyboard shortcuts as in the case of the
-  toolbars, but you may now search and replace arbitrary content.
+  These fields accept text, not document markup. Text within formatting is
+  searchable; the old structured search and replacement panels are no longer
+  available. Global search remains a separate command.
 
-  When searching non textual content, the conditions for having a hit are
-  somewhat released. For instance, assume that you are just starting a new
-  search with an empty search field. Then typing<nbsp><key|F6> inserts the
-  <markup|strong> tag with no text inside yet. Instead of looking only for
-  \Pstrong empty strings\Q, <TeXmacs> will rather look for all strong markup
-  in your document. If you next enter the letter \Pa\Q, then <TeXmacs> will
-  look for all strong text that contains the letter \Pa\Q. In a<nbsp>similar
-  way, when searching for the formula <math|<frac|x|>>, <TeXmacs> will
-  highlight all fractions in which the numerator contains the variable
-  <math|x>. Yet another example: a search for <math|<frac||<sqrt|x>>> will
-  highlight all formulas in which the denominator contains a square root that
-  contains the variable <math|x>. For instance, the fraction
-  <math|<frac|a+b|c+<sqrt|x+y>>> will be highlighted, but not
-  <math|<frac|<sqrt|x+y>|a+<sqrt|y>>>.
-
-  When using the structured text and replace widgets, <TeXmacs> also
-  implements a few additional special tags for enhancing structured
-  searching. First of all, it can happen that you would like to search for
-  certain content <em|inside> a special context. For instance, you might want
-  to search for all occurrences of the letter \Pa\Q inside a <markup|strong>
-  tag. When searching for <strong|a>, as above, <TeXmacs> will highlight all
-  <markup|strong> tags that contain the letter \Pa\Q. In order to highlight
-  the letters \Pa\Q themselves, you should first enter the <markup|strong>
-  tag inside an empty search field using <key|F6>. You next enter a special
-  <markup|select-region> tag using <key|std ?>, and finally insert the letter
-  \Pa\Q inside this tag. Other special markup that can be used inside search
-  fields are the \Pwildcards\Q <math|x>, <math|y> and <math|z>, which are
-  entered using <key|std 1>,<nbsp><key|std 2> and<nbsp><key|std 3>.
-
-  As soon as you start using the structured text and replace widgets instead
-  of the toolbars, this will be remembered as a user preference: any
-  subsequent searches or replacements will again use the widgets. In order to
-  switch back to the less intrusive toolbar methods for searching and
-  replacing, you should press the <icon|tm_compress_tool.xpm> icon.
+  Press <key|C-f> to hide the replacement row while keeping the search bar.
+  Press <key|escape> to close the bar and return focus to the document. To undo
+  a document replacement, return to the document and use its Undo command.
 
   <tmdoc-copyright|1998--2002|Joris van der Hoeven>
 

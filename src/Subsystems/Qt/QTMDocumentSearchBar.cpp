@@ -27,6 +27,7 @@
 #include <QLineEdit>
 #include <QTimer>
 #include <QToolButton>
+#include <QVBoxLayout>
 
 namespace {
 constexpr int search_bar_margin= 12;
@@ -67,8 +68,11 @@ QTMDocumentSearchBar::QTMDocumentSearchBar (QTMWidget* owner):
   connect (dispatchTimer, &QTimer::timeout, this,
            [this] { dispatchPending (); });
 
-  auto* layout= new QHBoxLayout (this);
-  layout->setContentsMargins (8, 5, 8, 5);
+  auto* rows= new QVBoxLayout (this);
+  rows->setContentsMargins (8, 5, 8, 5);
+  rows->setSpacing (5);
+  auto* layout= new QHBoxLayout ();
+  rows->addLayout (layout);
   layout->setSpacing (5);
 
   auto* prompt= new QLabel (tr ("Find:"), this);
@@ -109,6 +113,37 @@ QTMDocumentSearchBar::QTMDocumentSearchBar (QTMWidget* owner):
   layout->addWidget (last);
   layout->addWidget (close);
 
+  replaceRow= new QWidget (this);
+  auto* replacementLayout= new QHBoxLayout (replaceRow);
+  replacementLayout->setContentsMargins (0, 0, 0, 0);
+  replacementLayout->setSpacing (5);
+  replacementEdit= new QLineEdit (replaceRow);
+  replacementEdit->setObjectName (QStringLiteral ("athenaDocumentReplaceInput"));
+  replacementEdit->setClearButtonEnabled (true);
+  auto* replacementPrompt= new QLabel (tr ("Replace with:"), replaceRow);
+  replacementPrompt->setBuddy (replacementEdit);
+  replacementLabel= new QLabel (replaceRow);
+  replaceOne= makeButton (
+    tmapp ()->icon_manager ().getIcon ("tm_replace_one.xpm"),
+    tr ("Replace match (Enter in replacement field)"));
+  replaceOne->setObjectName (QStringLiteral ("athenaDocumentReplaceOne"));
+  replaceAll= makeButton (
+    tmapp ()->icon_manager ().getIcon ("tm_replace_all.xpm"),
+    tr ("Replace all matches (Ctrl+Enter)"));
+  replaceAll->setObjectName (QStringLiteral ("athenaDocumentReplaceAll"));
+  replacementLayout->addWidget (replacementPrompt);
+  replacementLayout->addWidget (replacementEdit, 1);
+  replacementLayout->addWidget (replacementLabel);
+  replacementLayout->addWidget (replaceOne);
+  replacementLayout->addWidget (replaceAll);
+  rows->addWidget (replaceRow);
+  replaceRow->hide ();
+  replacementEdit->installEventFilter (this);
+  connect (replaceOne, &QToolButton::clicked, this,
+           [this] { replaceMatches (false); });
+  connect (replaceAll, &QToolButton::clicked, this,
+           [this] { replaceMatches (true); });
+
   connect (queryEdit, &QLineEdit::textChanged, this,
            [this] { updateSearch (); });
   connect (caseSensitive, &QCheckBox::toggled, this,
@@ -142,8 +177,12 @@ QTMDocumentSearchBar::makeButton (const QIcon& icon,
 }
 
 void
-QTMDocumentSearchBar::open () {
+QTMDocumentSearchBar::open (bool replace) {
   if (actorId == ATHENA_NO_ACTOR) return;
+  replaceRow->setVisible (replace);
+  replacementLabel->clear ();
+  layout ()->invalidate ();
+  layout ()->activate ();
   show ();
   raise ();
   positionBar ();
@@ -178,7 +217,23 @@ QTMDocumentSearchBar::updateSearch () {
                      ++generation, queryEdit->text (),
                      !caseSensitive->isChecked ()});
   resultLabel->setText (tr ("Searching..."));
+  replacementLabel->clear ();
+  replaceOne->setEnabled (false);
+  replaceAll->setEnabled (false);
   dispatchTimer->start (120);
+}
+
+void
+QTMDocumentSearchBar::replaceMatches (bool all) {
+  if (!isVisible () || !replaceRow->isVisible () ||
+      actorId == ATHENA_NO_ACTOR || queryEdit->text ().isEmpty ()) return;
+  dispatchTimer->stop ();
+  pending.push_back ({actor_command_kind::document_replace,
+                     ++generation, replacementEdit->text (), all});
+  replaceOne->setEnabled (false);
+  replaceAll->setEnabled (false);
+  replacementLabel->setText (tr ("Replacing..."));
+  dispatchPending ();
 }
 
 void
@@ -201,10 +256,10 @@ QTMDocumentSearchBar::dispatchPending () {
   }
   const Pending& request= pending.front ();
   athena_blob_id payload= ATHENA_NO_BLOB;
-  if (request.kind == actor_command_kind::document_search_update) {
-    QByteArray bytes= request.text.toUtf8 ();
+  if (request.kind == actor_command_kind::document_search_update ||
+      request.kind == actor_command_kind::document_replace) {
     payload= actor_text_registry::instance ().store (
-      string (bytes.constData (), bytes.size ()));
+      from_qstring (request.text));
   }
   auto ticket= view->buf->actor->try_submit (
     request.kind, viewId, payload, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER,
@@ -221,7 +276,8 @@ QTMDocumentSearchBar::dispatchPending () {
 
 void
 QTMDocumentSearchBar::acceptState (QTMWidget* canvas, athena_view_id view,
-                                  std::uint64_t serial, int current, int total) {
+                                  std::uint64_t serial, int current, int total,
+                                  int replacementStatus) {
   auto* bar= barForCanvas (canvas, false);
   if (bar == nullptr || bar->viewId != view || bar->inFlight != serial) return;
   bar->inFlight= 0;
@@ -229,6 +285,13 @@ QTMDocumentSearchBar::acceptState (QTMWidget* canvas, athena_view_id view,
     bar->currentResult= current;
     bar->totalResults= total;
     bar->updateResultLabel ();
+    bar->replaceOne->setEnabled (total > 0 && replacementStatus != 1);
+    bar->replaceAll->setEnabled (total > 0 && replacementStatus != 1);
+    if (replacementStatus == 1)
+      bar->replacementLabel->setText (tr ("Read-only document"));
+    else if (replacementStatus >= 2)
+      bar->replacementLabel->setText (
+        tr ("Replaced %1").arg (replacementStatus - 2));
   }
   if (!bar->dispatchTimer->isActive ()) bar->dispatchPending ();
 }
@@ -263,16 +326,20 @@ QTMDocumentSearchBar::eventFilter (QObject* watched, QEvent* event) {
       return true;
     }
     if (key->key () == Qt::Key_Return || key->key () == Qt::Key_Enter) {
-      navigate (!(key->modifiers () & Qt::ShiftModifier));
+      if (replaceRow->isVisible () &&
+          (watched == replacementEdit ||
+           key->modifiers ().testFlag (Qt::ControlModifier)))
+        replaceMatches (key->modifiers ().testFlag (Qt::ControlModifier));
+      else navigate (!(key->modifiers () & Qt::ShiftModifier));
       return true;
     }
     if (key->key () == Qt::Key_F3) {
       navigate (!(key->modifiers () & Qt::ShiftModifier));
       return true;
     }
-    if (key->key () == Qt::Key_F &&
+    if ((key->key () == Qt::Key_F || key->key () == Qt::Key_H) &&
         key->modifiers ().testFlag (Qt::ControlModifier)) {
-      queryEdit->selectAll ();
+      open (key->key () == Qt::Key_H);
       return true;
     }
   }
@@ -280,10 +347,10 @@ QTMDocumentSearchBar::eventFilter (QObject* watched, QEvent* event) {
 }
 
 void
-QTMDocumentSearchBar::showForCurrentEditor () {
+QTMDocumentSearchBar::showForCurrentEditor (bool replace) {
   QTMWidget* canvas= QTMWidget::getLastFocusedWidget ();
   if (canvas == nullptr) return;
-  barForCanvas (canvas, true)->open ();
+  barForCanvas (canvas, true)->open (replace);
 }
 
 void
@@ -297,6 +364,9 @@ QTMDocumentSearchBar::closeCurrent () {
 }
 
 void document_search_open () { QTMDocumentSearchBar::showForCurrentEditor (); }
+void document_replace_open () {
+  QTMDocumentSearchBar::showForCurrentEditor (true);
+}
 void document_search_next (bool forward) {
   if (forward)
     athena_dispatch_ui ([] { QTMDocumentSearchBar::navigateCurrent (true); });

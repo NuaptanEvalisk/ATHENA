@@ -198,6 +198,8 @@
    (kbd-paste))
   ((balloon (icon "tm_find.xpm") "Find text")
    (document-search-open))
+  ((balloon (icon "tm_replace.xpm") "Replace text")
+   (document-replace-open))
   (if (not (in-math?))
       ((balloon (icon "tm_spell.xpm") "Check text for spelling errors")
        (interactive-spell)))

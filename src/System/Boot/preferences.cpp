@@ -287,8 +287,6 @@ ensure_builtin_user_preferences () {
     PREF ("live spell checking", "off", ""),
     PREF ("custom dictionary import language", "english", ""),
     PREF ("toolbar spell", "on", ""),
-    PREF ("toolbar search", "on", ""),
-    PREF ("toolbar replace", "on", ""),
     PREF ("allow-blank-match", "on", ""),
     PREF ("allow-initial-match", "on", ""),
     PREF ("allow-partial-match", "on", ""),
