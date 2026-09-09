@@ -15,12 +15,19 @@
 #include "vars.hpp"
 #include "boot.hpp"
 #include "new_document.hpp"
+#include <mutex>
 
-hashmap<string,list<observer> > id_resolve;
-hashmap<observer,list<string> > pointer_resolve;
-hashmap<tree,list<soft_link> > vertex_occurrences;
-hashmap<string,int> type_count (0);
+// Live loci belong to the document's execution owner, just like its observers.
+static thread_local hashmap<string,list<observer> > id_resolve;
+static thread_local hashmap<observer,list<string> > pointer_resolve;
 
+// Repositories own the links. The shared index only borrows them while locked;
+// copying soft_link handles here would race their owner-local reference counts.
+static std::mutex link_mutex;
+static hashmap<tree,list<const soft_link_rep*> > vertex_occurrences;
+static hashmap<string,int> type_count (0);
+
+static std::mutex visited_mutex;
 static hashset<string> visited_table;
 
 /******************************************************************************
@@ -49,31 +56,38 @@ unregister_pointer (string id, observer which) {
   if (is_nil (l2)) pointer_resolve->reset (which);
 }
 
-void
-register_vertex (tree v, soft_link ln) {
-  list<soft_link>& l= vertex_occurrences (v);
-  l= list<soft_link> (ln, l);
+static void
+register_vertex (const tree& v, const soft_link_rep* ln) {
+  // A new key must not retain an actor-owned tree after its actor unregisters.
+  if (!vertex_occurrences->contains (v))
+    vertex_occurrences (copy (v))= list<const soft_link_rep*> (ln);
+  else {
+    list<const soft_link_rep*>& l= vertex_occurrences (v);
+    l= list<const soft_link_rep*> (ln, l);
+  }
 }
 
-void
-unregister_vertex (tree v, soft_link ln) {
-  list<soft_link>& l= vertex_occurrences (v);
+static void
+unregister_vertex (const tree& v, const soft_link_rep* ln) {
+  list<const soft_link_rep*>& l= vertex_occurrences (v);
   l= remove (l, ln);
   if (is_nil (l)) vertex_occurrences->reset (v);
 }
 
-void
-register_link (soft_link ln) {
+static void
+register_link (const soft_link& ln) {
+  std::lock_guard<std::mutex> lock (link_mutex);
   // cout << "Register: " << ln->t << "\n";
   int i, n= N(ln->t);
   if (is_atomic (ln->t[0]))
     type_count (ln->t[0]->label) ++;
   for (i=1; i<n; i++)
-    register_vertex (ln->t[i], ln);
+    register_vertex (ln->t[i], ln.operator->());
 }
 
-void
-unregister_link (soft_link ln) {
+static void
+unregister_link (const soft_link& ln) {
+  std::lock_guard<std::mutex> lock (link_mutex);
   // cout << "Unregister: " << ln->t << "\n";
   int i, n= N(ln->t);
   if (is_atomic (ln->t[0])) {
@@ -82,7 +96,7 @@ unregister_link (soft_link ln) {
       type_count->reset (ln->t[0]->label);
   }
   for (i=1; i<n; i++)
-    unregister_vertex (ln->t[i], ln);
+    unregister_vertex (ln->t[i], ln.operator->());
 }
 
 /******************************************************************************
@@ -157,19 +171,22 @@ get_trees (string id) {
   return reverse (as_trees (id_resolve [id]));
 }
 
-list<tree>
-as_tree_list (list<soft_link> l) {
+static list<tree>
+as_tree_list (list<const soft_link_rep*> l) {
   if (is_nil (l)) return list<tree> ();
-  else return list<tree> (l->item->t, as_tree_list (l->next));
+  // Returned metadata may outlive the lock and its originating repository.
+  else return list<tree> (copy (l->item->t), as_tree_list (l->next));
 }
 
 list<tree>
 get_links (tree v) {
+  std::lock_guard<std::mutex> lock (link_mutex);
   return reverse (as_tree_list (vertex_occurrences [v]));
 }
 
 list<string>
 all_link_types () {
+  std::lock_guard<std::mutex> lock (link_mutex);
   list<string> l;
   iterator<string> it= iterate (type_count);
   while (it->busy()) {
@@ -203,10 +220,12 @@ get_locus_rendering (string var) {
 
 void
 declare_visited (string id) {
+  std::lock_guard<std::mutex> lock (visited_mutex);
   visited_table->insert (id);
 }
 
 bool
 has_been_visited (string id) {
+  std::lock_guard<std::mutex> lock (visited_mutex);
   return visited_table->contains (id);
 }

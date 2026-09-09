@@ -143,7 +143,8 @@ copy (const tree& t) {
   if (is_atomic (t)) return tree (copy (t->label));
   else {
     int i, n= N(t);
-    tree t2 (t, n);
+    // Do not change the source's owner-local reference count while copying it.
+    tree t2 (L(t), n);
     for (i=0; i<n; i++) t2[i]= copy (t[i]);
     return t2;
   }
