@@ -9,17 +9,16 @@ ATHENA is currently maintained on Linux with Qt 6.  The default local launcher
 uses native Wayland:
 
     cd ATHENA
-    ./StartATHENA.sh
+    ./StartATHENA.qt6.wayland.sh
 
-`StartATHENA.sh`, `StartATHENA.qt6.sh`, and `StartATHENA.qt6.wayland.sh` are
-currently equivalent.  They run:
+`StartATHENA.qt6.wayland.sh` is the canonical local launcher.  It runs:
 
     ./bin/ATHENA.bin --platform wayland
 
 Any arguments passed to the launcher are forwarded to `ATHENA.bin`:
 
-    ./StartATHENA.sh --no-splash-screen
-    ./StartATHENA.sh /path/to/document.ath
+    ./StartATHENA.qt6.wayland.sh --no-splash-screen
+    ./StartATHENA.qt6.wayland.sh /path/to/document.ath
 
 The Wayland launcher deliberately does not force fcitx or Qt scale override
 environment variables.  Qt should use its native Wayland input context, and

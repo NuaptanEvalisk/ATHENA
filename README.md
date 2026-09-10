@@ -647,7 +647,7 @@ cp -f build_qt6/src/ATHENA.bin ATHENA/bin/ATHENA.bin
 mkdir -p ATHENA/lib
 cp -a build_qt6/x64/lib/libqt6advanceddocking*.so* ATHENA/lib/
 cd ATHENA
-./StartATHENA.sh
+./StartATHENA.qt6.wayland.sh
 ```
 
 Redistributable Linux builds are produced through the scripted openSUSE

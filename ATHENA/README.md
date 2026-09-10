@@ -430,7 +430,7 @@ tree before running:
 cp -f ../build_qt6/src/ATHENA.bin bin/ATHENA.bin
 mkdir -p lib
 cp -a ../build_qt6/x64/lib/libqt6advanceddocking*.so* lib/
-./StartATHENA.sh
+./StartATHENA.qt6.wayland.sh
 ```
 
 Redistributable Linux builds are produced through the scripted openSUSE

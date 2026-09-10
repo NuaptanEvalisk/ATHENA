@@ -154,14 +154,14 @@ Copy the build output into the ATHENA runtime tree first:
 
 Then run:
 
-  ./ATHENA/StartATHENA.sh
+  ./ATHENA/StartATHENA.qt6.wayland.sh
 
 This matters because ATHENA expects its Scheme code, packages, tools, assets,
 and runtime paths to be arranged under the ATHENA tree.
 
-`StartATHENA.sh`, `StartATHENA.qt6.sh`, and `StartATHENA.qt6.wayland.sh`
-currently use native Wayland. They clear Qt scale override variables, avoid
-forcing fcitx input modules, prepend `ATHENA/lib` to `LD_LIBRARY_PATH`, and run:
+`StartATHENA.qt6.wayland.sh` is the canonical launcher. It uses native
+Wayland, clears Qt scale override variables, avoids forcing fcitx input modules,
+prepends `ATHENA/lib` to `LD_LIBRARY_PATH`, and runs:
 
   ./bin/ATHENA.bin --platform wayland
 
@@ -215,7 +215,7 @@ absolute build rpath.
 
 Run the release tree with:
 
-  ./release/ATHENA/StartATHENA.sh
+  ./release/ATHENA/StartATHENA.qt6.wayland.sh
 
 Do not construct a release tree with a raw `cp` or `rsync` of `ATHENA/`.
 `runtime_policy.py verify PATH` can be used to audit a staged runtime.
