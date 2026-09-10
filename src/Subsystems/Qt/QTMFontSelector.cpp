@@ -16,6 +16,7 @@
 #include <QApplication>
 #include <QComboBox>
 #include <QCompleter>
+#include <QCoreApplication>
 #include <QDialogButtonBox>
 #include <QFont>
 #include <QFontDatabase>
@@ -31,7 +32,10 @@
 #include <QSignalBlocker>
 #include <QSplitter>
 #include <QTabWidget>
+#include <QThread>
 #include <QVBoxLayout>
+
+#include <memory>
 
 static QString
 qtm_font_text (string s) {
@@ -256,6 +260,33 @@ fontIncludesCjk (const QString& family, const QString& style) {
          systems.contains (QFontDatabase::TraditionalChinese) ||
          systems.contains (QFontDatabase::Japanese) ||
          systems.contains (QFontDatabase::Korean);
+}
+
+struct NativeFontSelectorRequest {
+  QString family;
+  QString style;
+  QString size;
+  QString fontProfile;
+  QString title;
+  QStringList result;
+};
+
+void
+runNativeFontSelectorRequest (
+  const std::shared_ptr<NativeFontSelectorRequest>& request) {
+  QCoreApplication* app= QCoreApplication::instance ();
+  Q_ASSERT (app != nullptr);
+  Q_ASSERT (QThread::currentThread () == app->thread ());
+
+  QTMFontSelector dialog (request->family, request->style, request->size,
+                          request->fontProfile, request->title, true,
+                          QApplication::activeWindow ());
+  if (dialog.exec () != QDialog::Accepted) return;
+
+  request->result << dialog.selectedFamily ()
+                  << dialog.selectedStyle ()
+                  << dialog.selectedSize ()
+                  << dialog.selectedFontProfile ();
 }
 
 } // namespace
@@ -597,18 +628,29 @@ QTMFontSelector::selectedFontProfile () const {
 
 array<string>
 native_font_selector_dialog (string family, string style,
-                             string size, string font_profile, string title) {
+                              string size, string font_profile, string title) {
   array<string> result;
-  QTMFontSelector dialog (qtm_font_text (family), qtm_font_text (style),
-                          to_qstring (size), qtm_font_text (font_profile),
-                          to_qstring (title), true,
-                          QApplication::activeWindow ());
-  if (dialog.exec () != QDialog::Accepted)
-    return result;
-  result << qtm_font_string (dialog.selectedFamily ());
-  result << qtm_font_string (dialog.selectedStyle ());
-  result << qtm_font_string (dialog.selectedSize ());
-  result << qtm_font_string (dialog.selectedFontProfile ());
+  QCoreApplication* app= QCoreApplication::instance ();
+  if (app == nullptr) return result;
+
+  auto request= std::make_shared<NativeFontSelectorRequest> ();
+  request->family= qtm_font_text (family);
+  request->style= qtm_font_text (style);
+  request->size= to_qstring (size);
+  request->fontProfile= qtm_font_text (font_profile);
+  request->title= to_qstring (title);
+
+  if (QThread::currentThread () == app->thread ())
+    runNativeFontSelectorRequest (request);
+  else {
+    bool invoked= QMetaObject::invokeMethod (
+      app, [request] () { runNativeFontSelectorRequest (request); },
+      Qt::BlockingQueuedConnection);
+    if (!invoked) return result;
+  }
+
+  for (const QString& value: request->result)
+    result << qtm_font_string (value);
   return result;
 }
 
