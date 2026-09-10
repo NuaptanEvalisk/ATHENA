@@ -128,24 +128,6 @@
 ;; 	    ("Planned changes"
 ;; 	     (load-help-article "devel/format/planned-changes"))))
 
-;;       (when (url-exists-in-help? "devel/source/source.en.tm")
-;; 	(-> "Source code"
-;; 	    ("Browse" (load-help-buffer "devel/source/source"))
-;; 	    ---
-;; 	    ("General architecture of TeXmacs"
-;; 	     (load-help-article "devel/source/architecture"))
-;; 	    ("Basic data types"
-;; 	     (load-help-article "devel/source/types"))
-;; 	    ("Converters to other data formats"
-;; 	     (load-help-article "devel/source/conversions"))
-;; 	    ("The graphical user interface"
-;; 	     (load-help-article "devel/source/gui"))
-;; 	    ("TeXmacs fonts"
-;; 	     (load-help-article "devel/source/fonts"))
-;; 	    ("Mathematical typesetting"
-;; 	     (load-help-article "devel/source/maths"))
-;; 	    ("The boxes produced by the typesetter"
-;; 	     (load-help-article "devel/source/boxes"))))
       (when (url-exists-in-help? "devel/scheme/scheme.en.tm")
 	(-> "Scheme extensions"
 	    ("Browse" (load-help-buffer "devel/scheme/scheme"))
@@ -179,8 +161,6 @@
             ("User manual" (load-help-book "main/man-user-manual")))
           ;; (when (url-exists-in-help? "tutorial/tut-tutorial.en.tm")
           ;;   ("Tutorial" (load-help-book "tutorial/tut-tutorial")))
-          (when (url-exists-in-help? "devel/source/source.en.tm")
-            ("Developers guide" (load-help-book "devel/source/source")))
           (when (url-exists-in-help? "devel/scheme/scheme.en.tm")
             ("Scheme developers guide" (load-help-book "devel/scheme/scheme")))
           ---

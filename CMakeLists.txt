@@ -648,7 +648,6 @@ set (ATHENA_Include_Dirs
   ${ATHENA_SOURCE_DIR}/src/Typeset/Bridge
   ${ATHENA_SOURCE_DIR}/src/Typeset/Concat
   ${ATHENA_SOURCE_DIR}/src/Typeset/Page
-  ${ATHENA_SOURCE_DIR}/ATHENA/include
 )
 
 if (WIN32)
@@ -892,7 +891,7 @@ if (ATHENA_GUI STREQUAL "Qt" OR ATHENA_GUI STREQUAL "Qt6")
   FetchContent_MakeAvailable(rapidfuzz)
 
   ### --------------------------------------------------------------------
-  ### Snowball English stemmer (radioactive artifact links)
+  ### libstemmer English stemmer (Snowball project; radioactive artifact links)
   ### --------------------------------------------------------------------
   FetchContent_Declare(
     snowball_libstemmer_c
@@ -1028,7 +1027,6 @@ if (UNIX AND NOT APPLE)
   add_subdirectory (tools/athena-transmitter)
   add_subdirectory (tools/athena-web-server)
 endif ()
-add_subdirectory (misc)
 add_subdirectory (ATHENA)
 
 # Keep the pinned Materials schema beside build-tree executables, matching the
@@ -1040,7 +1038,7 @@ file (COPY "${CMAKE_SOURCE_DIR}/ATHENA/misc/materials"
 ### Installation
 ### --------------------------------------------------------------------
 
-install (FILES ATHENA/misc/mime/athena.desktop DESTINATION share/applications)
+install (FILES ATHENA/misc/mime/ATHENA.desktop DESTINATION share/applications)
 install (FILES ATHENA/misc/images/athena.svg RENAME ATHENA.svg
   DESTINATION share/icons/hicolor/scalable/apps)
 install (FILES ATHENA/misc/images/text-x-athena.svg

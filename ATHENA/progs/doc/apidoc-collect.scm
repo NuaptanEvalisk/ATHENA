@@ -183,7 +183,6 @@
    (doc-collect-sub "devel/scheme" "scheme" loc)
 
 
-   (doc-collect-sub "devel/source" "source" loc)
    (doc-collect-sub "devel/style" "style" loc)
    (doc-collect-sub "main" "man-reference" loc)
    (set-preference "doc:collect-timestamp" (current-time))
