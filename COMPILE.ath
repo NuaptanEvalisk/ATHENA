@@ -1,0 +1,733 @@
+<TeXmacs|2.1.4>
+
+<style|generic>
+
+<\body>
+  <doc-data|<doc-title|<ATHENA> - Compiling>>
+
+  <label|H1 Introduction>
+
+  <section|Introduction>
+
+  This document describes how to build <ATHENA> from source.
+
+  The supported build target is x86_64 GNU/Linux with Qt 6 and Wayland. The
+  reference development environment is openSUSE Tumbleweed snapshot 20260812,
+  KDE Plasma/KWin 6.7.4 on Wayland, and Qt 6.11.1. The Tumbleweed build with
+  Intel oneAPI <verbatim|icx>/<verbatim|icpx> is the configuration currently
+  expected to compile without source changes.
+
+  Intel oneAPI C++ (<verbatim|icpx>) is the recommended compiler. Install the
+  current Intel oneAPI DPC++/C++ Compiler using the instructions on the
+  <hlink|Intel compiler download and installation
+  page|https://www.intel.com/content/www/us/en/developer/tools/oneapi/dpc-compiler-download.html>.
+
+  <label|H1 Building on x64 GNU/Linux>
+
+  <section|Building <ATHENA> on x64 GNU/Linux>
+
+  To build <ATHENA> for direct use, follow sections 2.1 through 2.4. To build
+  an RPM, DEB, or AppImage, obtain the source as in 2.1 and then use 2.5.
+
+  <label|H2 Obtaining the source>
+
+  <subsection|Obtaining the source>
+
+  <\code>
+    git clone https://github.com/NuaptanEvalisk/ATHENA.git
+
+    cd ATHENA
+  </code>
+
+  Checkout the branch or tag that you intend to build.
+
+  <label|H2 Installing dependencies>
+
+  <subsection|Installing dependencies>
+
+  Install the corresponding development packages for your distribution. On
+  current openSUSE Tumbleweed, the following is an example:
+
+  <\code>
+    sudo zypper install \\
+
+    \ \ git cmake ninja pkgconf-pkg-config patchelf \\
+
+    \ \ autoconf automake libtool make makeinfo gperf bison flex \\
+
+    \ \ qt6-base-devel qt6-svg-devel qt6-qt5compat-devel \\
+
+    \ \ qt6-wayland-devel qt6-waylandclient-devel \\
+
+    \ \ kf6-kio-devel kf6-kconfigwidgets-devel \\
+
+    \ \ kf6-kcompletion-devel kf6-syntax-highlighting-devel \\
+
+    \ \ boost-devel mimalloc-devel sqlite3-devel spdlog-devel hunspell-devel
+    \\
+
+    \ \ freetype2-devel fontconfig-devel harfbuzz-devel \\
+
+    \ \ libpng16-devel libjpeg8-devel zlib-devel libzstd-devel \\
+
+    \ \ libsodium-devel ImageMagick-devel libgnutls-devel gmp-devel \\
+
+    \ \ libffi-devel libunistring-devel readline-devel ncurses-devel \\
+
+    \ \ libcurl-devel ghostscript resvg-devel \\
+
+    \ \ python3 python313-uv cargo rust
+  </code>
+
+  <label|remark:A system Guile installation is neither needed nor used CMake
+  builds the vendored Guile 3 runtime aut {>
+
+  <\remark>
+    A system Guile installation is neither needed nor used. CMake builds the
+    vendored <ATHENA> Guile 3 runtime automatically. Do not configure the
+    build against system Guile.
+  </remark>
+
+  <label|remark:A system Guile installation is neither needed nor used CMake
+  builds the vendored Guile 3 runtime aut }>
+
+  <label|H3 Compiling libtcc>
+
+  <subsubsection*|Compiling libtcc>
+
+  If no usable libtcc development package is available, build TinyCC from
+  source:
+
+  <\code>
+    git clone https://repo.or.cz/tinycc.git
+
+    cd tinycc
+
+    CC=icx ./configure
+
+    make -j16
+  </code>
+
+  Pass the resulting header and library to the <ATHENA> CMake configuration:
+
+  <\code>
+    -DTCC_INCLUDE_DIR=/path/to/tinycc \\
+
+    -DTCC_LIBRARY=/path/to/tinycc/libtcc.a
+  </code>
+
+  <label|H3 Compiling llama.cpp>
+
+  <subsubsection*|Compiling llama.cpp>
+
+  <ATHENA> currently builds against the llama.cpp revision used by its
+  container toolchain: <verbatim|66c4f9ded01b29d9120255be1ed8d5835bcbb51d>. A
+  CPU build can be produced with:
+
+  <\code>
+    git clone https://github.com/ggml-org/llama.cpp.git
+
+    cd llama.cpp
+
+    git checkout 66c4f9ded01b29d9120255be1ed8d5835bcbb51d
+
+    source /opt/intel/oneapi/setvars.sh
+
+    cmake -S . -B build -G Ninja \\
+
+    \ \ -DCMAKE_BUILD_TYPE=Release \\
+
+    \ \ -DCMAKE_C_COMPILER=icx \\
+
+    \ \ -DCMAKE_CXX_COMPILER=icpx \\
+
+    \ \ -DBUILD_SHARED_LIBS=ON \\
+
+    \ \ -DLLAMA_BUILD_COMMON=ON \\
+
+    \ \ -DLLAMA_BUILD_EXAMPLES=OFF \\
+
+    \ \ -DLLAMA_BUILD_TESTS=OFF \\
+
+    \ \ -DLLAMA_BUILD_TOOLS=OFF
+
+    cmake --build build -j16
+  </code>
+
+  For an Intel SYCL-enabled build, configure llama.cpp with the additional
+  backend options:
+
+  <\code>
+    cmake -S . -B build -G Ninja \\
+
+    \ \ -DCMAKE_BUILD_TYPE=Release \\
+
+    \ \ -DCMAKE_C_COMPILER=icx \\
+
+    \ \ -DCMAKE_CXX_COMPILER=icpx \\
+
+    \ \ -DBUILD_SHARED_LIBS=ON \\
+
+    \ \ -DGGML_SYCL=ON \\
+
+    \ \ -DGGML_SYCL_TARGET=INTEL \\
+
+    \ \ -DGGML_SYCL_DNN=ON \\
+
+    \ \ -DGGML_SYCL_GRAPH=ON \\
+
+    \ \ -DLLAMA_BUILD_COMMON=ON \\
+
+    \ \ -DLLAMA_BUILD_EXAMPLES=OFF \\
+
+    \ \ -DLLAMA_BUILD_TESTS=OFF \\
+
+    \ \ -DLLAMA_BUILD_TOOLS=OFF
+
+    cmake --build build -j16
+  </code>
+
+  <label|H2 Compiling ATHENA>
+
+  <subsection|Compiling <ATHENA>>
+
+  Load the oneAPI environment and choose the build parallelism. The
+  <verbatim|ATHENA_BUILD_JOBS> variable controls the private runtime builds;
+  <verbatim|-j> controls the outer CMake build.
+
+  <\code>
+    source /opt/intel/oneapi/setvars.sh
+
+    JOBS=16
+
+    export ATHENA_BUILD_JOBS="$JOBS"
+  </code>
+
+  For a Debug build in <verbatim|build_qt6>:
+
+  <\code>
+    CC=icx CXX=icpx cmake -S . -B build_qt6 -G Ninja \\
+
+    \ \ -DATHENA_GUI=Qt6 \\
+
+    \ \ -DCMAKE_BUILD_TYPE=Debug \\
+
+    \ \ -DLLAMA_CPP_SOURCE_DIR=/path/to/llama.cpp
+
+    cmake --build build_qt6 -j"$JOBS"
+  </code>
+
+  For a <verbatim|RelWithDebInfo> build in <verbatim|build_rel>:
+
+  <\code>
+    CC=icx CXX=icpx cmake -S . -B build_rel -G Ninja \\
+
+    \ \ -DATHENA_GUI=Qt6 \\
+
+    \ \ -DCMAKE_BUILD_TYPE=RelWithDebInfo \\
+
+    \ \ -DLLAMA_CPP_SOURCE_DIR=/path/to/llama.cpp
+
+    cmake --build build_rel -j"$JOBS"
+  </code>
+
+  If libtcc was built in a non-system location, add the
+  <verbatim|TCC_INCLUDE_DIR> and <verbatim|TCC_LIBRARY> arguments from 2.2 to
+  the CMake configuration.
+
+  <label|remark:The first build may spend a substantial amount of time
+  bootstrapping the vendored Guile runtime Thin {>
+
+  <\remark>
+    The first build may spend a substantial amount of time bootstrapping the
+    vendored Guile runtime. ThinLTO links may also take a long time.
+  </remark>
+
+  <label|remark:The first build may spend a substantial amount of time
+  bootstrapping the vendored Guile runtime Thin }>
+
+  <label|H3 Compiling ATHENA with ThreadSanitizer enabled>
+
+  <subsubsection*|Compiling <ATHENA> with ThreadSanitizer enabled>
+
+  <\code>
+    CC=icx CXX=icpx cmake -S . -B build_tsan -G Ninja \\
+
+    \ \ -DATHENA_GUI=Qt6 \\
+
+    \ \ -DCMAKE_BUILD_TYPE=Debug \\
+
+    \ \ -DATHENA_ENABLE_TSAN=ON \\
+
+    \ \ -DLLAMA_CPP_SOURCE_DIR=/path/to/llama.cpp
+
+    cmake --build build_tsan -j"$JOBS"
+  </code>
+
+  <label|remark:To build the test suite configure with DBUILDTESTSON Run it
+  with ctest testdir buildqt6 outputonfail {>
+
+  <\remark>
+    To build the test suite, configure with <verbatim|-DBUILD_TESTS=ON>. Run
+    it with <verbatim|ctest --test-dir build_qt6 --output-on-failure> or the
+    corresponding build directory.
+  </remark>
+
+  <label|remark:To build the test suite configure with DBUILDTESTSON Run it
+  with ctest testdir buildqt6 outputonfail }>
+
+  <label|H2 Assembling the ATHENA tree>
+
+  <subsection|Assembling the <ATHENA> tree>
+
+  The default build stages the private Guile runtime and compiled Scheme
+  modules into <verbatim|ATHENA/>. Assemble or refresh the remaining runtime
+  files with the outputs from the selected build directory:
+
+  <\code>
+    BUILD=build_qt6
+
+    install -m755 "$BUILD/src/ATHENA.bin" ATHENA/bin/
+
+    install -m755 "$BUILD/src/ATHENA-Watchdog" ATHENA/bin/
+
+    install -m755 "$BUILD/src/athena-codex-bridge" ATHENA/bin/
+
+    install -m755 "$BUILD/materials-engine-cargo/release/athena-materials-engine"
+    ATHENA/bin/
+
+    install -m755 "$BUILD/tools/athena-transmitter/athena-transmitter"
+    ATHENA/bin/
+
+    install -m755 "$BUILD/tools/athena-web-server/athena-web-server"
+    ATHENA/bin/
+
+    mkdir -p ATHENA/lib ATHENA/share/ATHENA/web
+
+    cp -a "$BUILD"/x64/lib/libqt6advanceddocking*.so* ATHENA/lib/
+
+    cp -a /path/to/llama.cpp/build/bin/libllama.so* ATHENA/lib/
+
+    cp -a /path/to/llama.cpp/build/bin/libggml*.so* ATHENA/lib/
+
+    cp -a tools/athena-web-server/web/. ATHENA/share/ATHENA/web/
+  </code>
+
+  Use <verbatim|BUILD=build_rel> for a RelWithDebInfo tree. For a SYCL
+  llama.cpp build, include the matching oneAPI runtime libraries when they
+  are not provided by the target system.
+
+  <label|H2 Building RPM, DEB, and AppImage packages>
+
+  <subsection|Building RPM, DEB, and AppImage packages>
+
+  The container builder requires Podman and expects Intel oneAPI under
+  <verbatim|/opt/intel/oneapi>. To build the release flavor:
+
+  <\code>
+    ATHENA_BUILD_JOBS=16 ATHENA_BUILD_FLAVORS=rel \\
+
+    \ \ tools/container-build/build-athena-container.sh
+  </code>
+
+  The principal outputs are:
+
+  <\itemize>
+    <item><verbatim|container_build/ATHENA-rel.AppImage>.
+
+    <item><verbatim|container_build/packages/ATHENA-VERSION-rel-linux-x86_64.deb>.
+
+    <item><verbatim|container_build/packages/ATHENA-VERSION-rel-linux-x86_64.rpm>.
+  </itemize>
+
+  Set <verbatim|ATHENA_BUILD_FLAVORS> to <verbatim|dev>, <verbatim|rel>, or
+  both as required.
+
+  <label|H1 Building ATHENA on other platforms>
+
+  <section|Building <ATHENA> on other platforms>
+
+  <label|H2 Building ATHENA for Windows>
+
+  <subsection|Building <ATHENA> for Windows>
+
+  Windows is not a tested or actively maintained target. A native Windows
+  build is theoretically possible with the necessary platform work.
+
+  The repository contains a MinGW-w64 cross-build pipeline under
+  <verbatim|tools/windows-deps>. It is currently incomplete because the
+  vendored, modified Guile 3.0.10 runtime has not been ported to the Windows
+  target. The pipeline must be adapted to build and package that private
+  Guile runtime and its BDW-GC dependency before it can produce a current
+  <ATHENA> Windows build. The old Guile 1.8 path is obsolete.
+
+  <label|H2 Building ATHENA for macOS, arm64 Linux, and other targets>
+
+  <subsection|Building <ATHENA> for macOS, arm64 Linux, and other targets>
+
+  macOS, arm64 GNU/Linux, and other platforms are theoretically possible with
+  appropriate source, dependency, and toolchain modifications. They are not
+  currently tested or supported build targets.
+
+  <label|H1 Getting Started with ATHENA>
+
+  <section|Getting Started with <ATHENA>>
+
+  <label|H2 Launching ATHENA>
+
+  <subsection|Launching <ATHENA>>
+
+  If you followed sections 2.1 through 2.4, start <ATHENA> with:
+
+  <\code>
+    cd ATHENA
+
+    ./StartATHENA.qt6.wayland.sh
+  </code>
+
+  To run through the watchdog:
+
+  <\code>
+    ./StartATHENA.qt6.wayland.sh --enable-watchdog
+  </code>
+
+  If you followed 2.1 and 2.5, install the RPM or DEB with the package
+  manager of the target distribution, or run the AppImage directly.
+
+  <label|remark:X11XCB support is not actively maintained and may contain
+  defects Native Wayland is the maintained d {>
+
+  <\remark>
+    X11/XCB support is not actively maintained and may contain defects.
+    Native Wayland is the maintained desktop path.
+  </remark>
+
+  <label|remark:X11XCB support is not actively maintained and may contain
+  defects Native Wayland is the maintained d }>
+
+  <label|remark:docking uses xdgtopleveldragv1 KDE Plasma 61 and later
+  support the merged protocol in KWin GNOME 48 {>
+
+  <\remark>
+    <ATHENA> docking uses <verbatim|xdg-toplevel-drag-v1>. KDE Plasma 6.1 and
+    later support the merged protocol in KWin; GNOME 48 and later support it
+    in Mutter. Older Wayland compositors may not support detachable-window
+    dragging and redocking correctly. The reference system uses Plasma 6.7.4.
+  </remark>
+
+  <label|remark:docking uses xdgtopleveldragv1 KDE Plasma 61 and later
+  support the merged protocol in KWin GNOME 48 }>
+
+  <label|H2 Setting up ATHENA Transmitter on a server>
+
+  <subsection|Setting up <ATHENA> Transmitter on a server>
+
+  A typical deployment runs a headless <ATHENA> backend on loopback port 8765
+  and <verbatim|athena-transmitter> in front of it on port 8766.
+
+  Generate the backend delegation keypair and start the backend:
+
+  <\code>
+    ATHENA/bin/ATHENA.bin -H \\
+
+    \ \ --delegation-key-dir /var/lib/athena-backend/delegation \\
+
+    \ \ --generate-server-keypair
+
+    ATHENA/bin/ATHENA.bin -H \\
+
+    \ \ --rag-server /srv/athena/vault \\
+
+    \ \ --rag-listen-address 127.0.0.1 \\
+
+    \ \ --delegation-key-dir /var/lib/athena-backend/delegation
+  </code>
+
+  Create <verbatim|/etc/athena-transmitter/config.json>:
+
+  <\code>
+    {
+
+    \ \ "listen_address": "127.0.0.1",
+
+    \ \ "listen_port": 8766,
+
+    \ \ "key_dir": "/var/lib/athena-transmitter",
+
+    \ \ "accepted_clients": "/var/lib/athena-transmitter/accepted-clients.json",
+
+    \ \ "pending_clients": "/var/lib/athena-transmitter/pending-clients.json",
+
+    \ \ "upstream": {
+
+    \ \ \ \ "url": "http://127.0.0.1:8765",
+
+    \ \ \ \ "public_key": "BACKEND_PUBLIC_KEY",
+
+    \ \ \ \ "fingerprint": "BACKEND_FINGERPRINT"
+
+    \ \ }
+
+    }
+  </code>
+
+  Generate the transmitter keypair:
+
+  <\code>
+    ATHENA/bin/athena-transmitter --config
+    /etc/athena-transmitter/config.json --generate-keypair
+  </code>
+
+  Add trusted client public keys to the transmitter
+  <verbatim|accepted-clients.json>:
+
+  <\code>
+    {
+
+    \ \ "accepted": [
+
+    \ \ \ \ "CLIENT_PUBLIC_KEY"
+
+    \ \ ]
+
+    }
+  </code>
+
+  Add the transmitter public key to the backend
+  <verbatim|accepted-clients.json> with role <verbatim|proxy>:
+
+  <\code>
+    {
+
+    \ \ "accepted": [
+
+    \ \ \ \ {
+
+    \ \ \ \ \ \ "public_key": "TRANSMITTER_PUBLIC_KEY",
+
+    \ \ \ \ \ \ "role": "proxy"
+
+    \ \ \ \ }
+
+    \ \ ]
+
+    }
+  </code>
+
+  Start the transmitter:
+
+  <\code>
+    ATHENA/bin/athena-transmitter --config
+    /etc/athena-transmitter/config.json
+  </code>
+
+  Reference systemd units, the optional XClarity Controller power hook, and a
+  Cloudflare Tunnel unit are provided under
+  <verbatim|tools/athena-transmitter/deploy>.
+
+  <label|H2 Setting up Web-Accessible ATHENA on a server>
+
+  <subsection|Setting up Web-Accessible <ATHENA> on a server>
+
+  Build the release AppImage as in 2.5, then build the Web-Accessible
+  <ATHENA> OCI image:
+
+  <\code>
+    tools/athena-web-server/build-image.sh \\
+
+    \ \ --runtime container_build/ATHENA-rel.AppImage \\
+
+    \ \ --image localhost/athena-web:latest
+  </code>
+
+  Run the broker as an unprivileged user with rootless Podman and delegated
+  cgroup v2 memory and PID controllers. On a systemd host, enable memory
+  accounting for the broker user slice before starting it:
+
+  <\code>
+    sudo systemctl set-property user-$(id -u).slice MemoryAccounting=yes
+  </code>
+
+  A basic loopback broker invocation is:
+
+  <\code>
+    ATHENA/bin/athena-web-server \\
+
+    \ \ --listen-address 127.0.0.1 \\
+
+    \ \ --port 8090 \\
+
+    \ \ --image localhost/athena-web:latest \\
+
+    \ \ --max-connections 4 \\
+
+    \ \ --max-memory 4GiB \\
+
+    \ \ --storage-limit 2GiB
+  </code>
+
+  Put a WebSocket-capable TLS reverse proxy or tunnel in front of the broker.
+  Configure STUN/TURN for the WebRTC media path as required by the
+  deployment. The reference production templates under
+  <verbatim|tools/athena-web-server/deploy> use a dedicated openSUSE MicroOS
+  KVM guest for the broker and rootless session containers, with Cloudflare
+  Tunnel for signaling and Cloudflare Realtime TURN for media relay.
+
+  <label|H2 Next steps>
+
+  <subsection|Next steps>
+
+  Start <ATHENA> and read the documentation available from the Help menu. The
+  documentation is still under construction. Additional information is
+  available at <hlink|athena.evalisk.org|https://athena.evalisk.org/>. For
+  questions or build problems, contact <hlink|nuaptan@evalisk.org|mailto:nuaptan@evalisk.org>.
+</body>
+
+<\initial>
+  <\collection>
+    <associate|font|typewriter=JetBrains Mono,TeX Gyre Pagella>
+    <associate|font-family|rm>
+    <associate|page-medium|automatic>
+  </collection>
+</initial>
+
+<\references>
+  <\collection>
+    <associate|H1 Building ATHENA on other
+    platforms|<tuple|<with|mode|<quote|math>|\<bullet\>>|?>>
+    <associate|H1 Building on x64 GNU/Linux|<tuple|1|?>>
+    <associate|H1 Getting Started with ATHENA|<tuple|3.2|?>>
+    <associate|H1 Introduction|<tuple|?|?>>
+    <associate|H2 Assembling the ATHENA tree|<tuple|3|?>>
+    <associate|H2 Building ATHENA for Windows|<tuple|3|?>>
+    <associate|H2 Building ATHENA for macOS, arm64 Linux, and other
+    targets|<tuple|3.1|?>>
+    <associate|H2 Building RPM, DEB, and AppImage packages|<tuple|2.4|?>>
+    <associate|H2 Compiling ATHENA|<tuple|1|?>>
+    <associate|H2 Installing dependencies|<tuple|2.1|?>>
+    <associate|H2 Launching ATHENA|<tuple|4|?>>
+    <associate|H2 Next steps|<tuple|4.3|?>>
+    <associate|H2 Obtaining the source|<tuple|2|?>>
+    <associate|H2 Setting up ATHENA Transmitter on a server|<tuple|5|?>>
+    <associate|H2 Setting up Web-Accessible ATHENA on a server|<tuple|4.2|?>>
+    <associate|H3 Compiling ATHENA with ThreadSanitizer enabled|<tuple|2|?>>
+    <associate|H3 Compiling libtcc|<tuple|1|?>>
+    <associate|H3 Compiling llama.cpp|<tuple|1|?>>
+    <associate|auto-1|<tuple|1|?>>
+    <associate|auto-10|<tuple|2.5|?>>
+    <associate|auto-11|<tuple|3|?>>
+    <associate|auto-12|<tuple|3.1|?>>
+    <associate|auto-13|<tuple|3.2|?>>
+    <associate|auto-14|<tuple|4|?>>
+    <associate|auto-15|<tuple|4.1|?>>
+    <associate|auto-16|<tuple|4.2|?>>
+    <associate|auto-17|<tuple|4.3|?>>
+    <associate|auto-18|<tuple|4.4|?>>
+    <associate|auto-2|<tuple|2|?>>
+    <associate|auto-3|<tuple|2.1|?>>
+    <associate|auto-4|<tuple|2.2|?>>
+    <associate|auto-5|<tuple|1|?>>
+    <associate|auto-6|<tuple|1|?>>
+    <associate|auto-7|<tuple|2.3|?>>
+    <associate|auto-8|<tuple|2|?>>
+    <associate|auto-9|<tuple|2.4|?>>
+    <associate|remark:A system Guile installation is neither needed nor used
+    CMake builds the vendored Guile 3 runtime aut {|<tuple|2.2|?>>
+    <associate|remark:A system Guile installation is neither needed nor used
+    CMake builds the vendored Guile 3 runtime aut }|<tuple|1|?>>
+    <associate|remark:The first build may spend a substantial amount of time
+    bootstrapping the vendored Guile runtime Thin {|<tuple|2.3|?>>
+    <associate|remark:The first build may spend a substantial amount of time
+    bootstrapping the vendored Guile runtime Thin }|<tuple|2|?>>
+    <associate|remark:To build the test suite configure with DBUILDTESTSON
+    Run it with ctest testdir buildqt6 outputonfail {|<tuple|2|?>>
+    <associate|remark:To build the test suite configure with DBUILDTESTSON
+    Run it with ctest testdir buildqt6 outputonfail }|<tuple|3|?>>
+    <associate|remark:X11XCB support is not actively maintained and may
+    contain defects Native Wayland is the maintained d {|<tuple|4.1|?>>
+    <associate|remark:X11XCB support is not actively maintained and may
+    contain defects Native Wayland is the maintained d }|<tuple|4|?>>
+    <associate|remark:docking uses xdgtopleveldragv1 KDE Plasma 61 and later
+    support the merged protocol in KWin GNOME 48 {|<tuple|4|?>>
+    <associate|remark:docking uses xdgtopleveldragv1 KDE Plasma 61 and later
+    support the merged protocol in KWin GNOME 48 }|<tuple|5|?>>
+  </collection>
+</references>
+
+<\auxiliary>
+  <\collection>
+    <\associate|toc>
+      <vspace*|1fn><with|font-series|<quote|bold>|math-font-series|<quote|bold>|1<space|2spc>Introduction>
+      <datoms|<macro|x|<repeat|<arg|x>|<with|font-series|medium|<with|font-size|1|<space|0.2fn>.<space|0.2fn>>>>>|<htab|5mm>>
+      <no-break><pageref|auto-1><vspace|0.5fn>
+
+      <vspace*|1fn><with|font-series|<quote|bold>|math-font-series|<quote|bold>|2<space|2spc>Building
+      <ATHENA> on x64 GNU/Linux> <datoms|<macro|x|<repeat|<arg|x>|<with|font-series|medium|<with|font-size|1|<space|0.2fn>.<space|0.2fn>>>>>|<htab|5mm>>
+      <no-break><pageref|auto-2><vspace|0.5fn>
+
+      <with|par-left|<quote|1tab>|2.1<space|2spc>Obtaining the source
+      <datoms|<macro|x|<repeat|<arg|x>|<with|font-series|medium|<with|font-size|1|<space|0.2fn>.<space|0.2fn>>>>>|<htab|5mm>>
+      <no-break><pageref|auto-3>>
+
+      <with|par-left|<quote|1tab>|2.2<space|2spc>Installing dependencies
+      <datoms|<macro|x|<repeat|<arg|x>|<with|font-series|medium|<with|font-size|1|<space|0.2fn>.<space|0.2fn>>>>>|<htab|5mm>>
+      <no-break><pageref|auto-4>>
+
+      <with|par-left|<quote|2tab>|Compiling libtcc
+      <datoms|<macro|x|<repeat|<arg|x>|<with|font-series|medium|<with|font-size|1|<space|0.2fn>.<space|0.2fn>>>>>|<htab|5mm>>
+      <no-break><pageref|auto-5>>
+
+      <with|par-left|<quote|2tab>|Compiling llama.cpp
+      <datoms|<macro|x|<repeat|<arg|x>|<with|font-series|medium|<with|font-size|1|<space|0.2fn>.<space|0.2fn>>>>>|<htab|5mm>>
+      <no-break><pageref|auto-6>>
+
+      <with|par-left|<quote|1tab>|2.3<space|2spc>Compiling <ATHENA>
+      <datoms|<macro|x|<repeat|<arg|x>|<with|font-series|medium|<with|font-size|1|<space|0.2fn>.<space|0.2fn>>>>>|<htab|5mm>>
+      <no-break><pageref|auto-7>>
+
+      <with|par-left|<quote|2tab>|Compiling <ATHENA> with ThreadSanitizer
+      enabled <datoms|<macro|x|<repeat|<arg|x>|<with|font-series|medium|<with|font-size|1|<space|0.2fn>.<space|0.2fn>>>>>|<htab|5mm>>
+      <no-break><pageref|auto-8>>
+
+      <with|par-left|<quote|1tab>|2.4<space|2spc>Assembling the <ATHENA> tree
+      <datoms|<macro|x|<repeat|<arg|x>|<with|font-series|medium|<with|font-size|1|<space|0.2fn>.<space|0.2fn>>>>>|<htab|5mm>>
+      <no-break><pageref|auto-9>>
+
+      <with|par-left|<quote|1tab>|2.5<space|2spc>Building RPM, DEB, and
+      AppImage packages <datoms|<macro|x|<repeat|<arg|x>|<with|font-series|medium|<with|font-size|1|<space|0.2fn>.<space|0.2fn>>>>>|<htab|5mm>>
+      <no-break><pageref|auto-10>>
+
+      <vspace*|1fn><with|font-series|<quote|bold>|math-font-series|<quote|bold>|3<space|2spc>Building
+      <ATHENA> on other platforms> <datoms|<macro|x|<repeat|<arg|x>|<with|font-series|medium|<with|font-size|1|<space|0.2fn>.<space|0.2fn>>>>>|<htab|5mm>>
+      <no-break><pageref|auto-11><vspace|0.5fn>
+
+      <with|par-left|<quote|1tab>|3.1<space|2spc>Building <ATHENA> for
+      Windows <datoms|<macro|x|<repeat|<arg|x>|<with|font-series|medium|<with|font-size|1|<space|0.2fn>.<space|0.2fn>>>>>|<htab|5mm>>
+      <no-break><pageref|auto-12>>
+
+      <with|par-left|<quote|1tab>|3.2<space|2spc>Building <ATHENA> for macOS,
+      arm64 Linux, and other targets <datoms|<macro|x|<repeat|<arg|x>|<with|font-series|medium|<with|font-size|1|<space|0.2fn>.<space|0.2fn>>>>>|<htab|5mm>>
+      <no-break><pageref|auto-13>>
+
+      <vspace*|1fn><with|font-series|<quote|bold>|math-font-series|<quote|bold>|4<space|2spc>Getting
+      Started with <ATHENA>> <datoms|<macro|x|<repeat|<arg|x>|<with|font-series|medium|<with|font-size|1|<space|0.2fn>.<space|0.2fn>>>>>|<htab|5mm>>
+      <no-break><pageref|auto-14><vspace|0.5fn>
+
+      <with|par-left|<quote|1tab>|4.1<space|2spc>Launching <ATHENA>
+      <datoms|<macro|x|<repeat|<arg|x>|<with|font-series|medium|<with|font-size|1|<space|0.2fn>.<space|0.2fn>>>>>|<htab|5mm>>
+      <no-break><pageref|auto-15>>
+
+      <with|par-left|<quote|1tab>|4.2<space|2spc>Setting up <ATHENA>
+      Transmitter on a server <datoms|<macro|x|<repeat|<arg|x>|<with|font-series|medium|<with|font-size|1|<space|0.2fn>.<space|0.2fn>>>>>|<htab|5mm>>
+      <no-break><pageref|auto-16>>
+
+      <with|par-left|<quote|1tab>|4.3<space|2spc>Setting up Web-Accessible
+      <ATHENA> on a server <datoms|<macro|x|<repeat|<arg|x>|<with|font-series|medium|<with|font-size|1|<space|0.2fn>.<space|0.2fn>>>>>|<htab|5mm>>
+      <no-break><pageref|auto-17>>
+
+      <with|par-left|<quote|1tab>|4.4<space|2spc>Next steps
+      <datoms|<macro|x|<repeat|<arg|x>|<with|font-series|medium|<with|font-size|1|<space|0.2fn>.<space|0.2fn>>>>>|<htab|5mm>>
+      <no-break><pageref|auto-18>>
+    </associate>
+  </collection>
+</auxiliary>

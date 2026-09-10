@@ -1,0 +1,437 @@
+% IMPORTANT: This LaTeX file is exported by ATHENA. Please do NOT change ANY ATHENA-DATA record to avoid loss of ATHENA interoperability.
+% ATHENA is free software. To learn more about ATHENA please visit https://athena.evalisk.org/
+% ATHENA-DATA cmd="version" val=("0.9")
+% ATHENA-DATA cmd="aux" val=("document_style", "20", "PHR1cGxlfGdlbmVyaWM+")
+% ATHENA-DATA cmd="aux" val=("document_initial", "208", "PFxjb2xsZWN0aW9uPgogIDxhc3NvY2lhdGV8Zm9udHx0eXBld3JpdGVyPUpldEJyYWlucyBNb25vLFRlWCBHeXJlIFBhZ2VsbGE+CiAgPGFzc29jaWF0ZXxmb250LWZhbWlseXxybT4KICA8YXNzb2NpYXRlfHBhZ2UtbWVkaXVtfGF1dG9tYXRpYz4KPC9jb2xsZWN0aW9uPg==")
+\documentclass{article}
+\long\def\INLINE_COMMENT#1{}
+\usepackage[english]{babel}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath,graphicx,hyperref,alltt,theorem}
+
+%%%%%%%%%% Start TeXmacs macros
+\newcommand{\ATHENA}{\textbf{\kern.07emA\kern-.07em\raisebox{.25ex}{\scalebox{.7}{T}}\kern-.05emH\kern.05em\raisebox{-.25ex}{\scalebox{.7}{E}}NA}}
+\newcommand{\tmverbatim}[1]{\text{{\ttfamily{#1}}}}
+\newenvironment{tmcode}[1][]{\begin{alltt} }{\end{alltt}}
+{\theorembodyfont{\rmfamily}\newtheorem{remark}{Remark}}
+%%%%%%%%%% End TeXmacs macros
+
+\begin{document}
+
+\title{{\ATHENA} - Compiling}
+
+\date{}
+
+\maketitle
+
+\INLINE_COMMENT{ATHENA-DATA cmd="object" val=("32", "PGxhYmVsfEgxIEludHJvZHVjdGlvbj4=")}
+
+\section{Introduction}
+
+This document describes how to build {\ATHENA} from source.
+
+The supported build target is x86\_64 GNU/Linux with Qt 6 and Wayland. The
+reference development environment is openSUSE Tumbleweed snapshot 20260812,
+KDE Plasma/KWin 6.7.4 on Wayland, and Qt 6.11.1. The Tumbleweed build with
+Intel oneAPI \tmverbatim{icx}/\tmverbatim{icpx} is the configuration currently
+expected to compile without source changes.
+
+Intel oneAPI C++ (\tmverbatim{icpx}) is the recommended compiler. Install the
+current Intel oneAPI DPC++/C++ Compiler using the instructions on the
+\href{https://www.intel.com/content/www/us/en/developer/tools/oneapi/dpc-compiler-download.html}{Intel
+compiler download and installation page}.
+
+\INLINE_COMMENT{ATHENA-DATA cmd="object" val=("48", "PGxhYmVsfEgxIEJ1aWxkaW5nIG9uIHg2NCBHTlUvTGludXg+")}
+
+\section{Building {\ATHENA} on x64 GNU/Linux}
+
+To build {\ATHENA} for direct use, follow sections 2.1 through 2.4. To build
+an RPM, DEB, or AppImage, obtain the source as in 2.1 and then use 2.5.
+
+\INLINE_COMMENT{ATHENA-DATA cmd="object" val=("44", "PGxhYmVsfEgyIE9idGFpbmluZyB0aGUgc291cmNlPg==")}
+
+\subsection{Obtaining the source}
+
+\begin{tmcode}
+git clone https://github.com/NuaptanEvalisk/ATHENA.git
+cd ATHENA
+\end{tmcode}
+Checkout the branch or tag that you intend to build.
+
+\INLINE_COMMENT{ATHENA-DATA cmd="object" val=("48", "PGxhYmVsfEgyIEluc3RhbGxpbmcgZGVwZW5kZW5jaWVzPg==")}
+
+\subsection{Installing dependencies}
+
+Install the corresponding development packages for your distribution. On
+current openSUSE Tumbleweed, the following is an example:
+\begin{tmcode}
+sudo zypper install \textbackslash
+  git cmake ninja pkgconf-pkg-config patchelf \textbackslash
+  autoconf automake libtool make makeinfo gperf bison flex \textbackslash
+  qt6-base-devel qt6-svg-devel qt6-qt5compat-devel \textbackslash
+  qt6-wayland-devel qt6-waylandclient-devel \textbackslash
+  kf6-kio-devel kf6-kconfigwidgets-devel \textbackslash
+  kf6-kcompletion-devel kf6-syntax-highlighting-devel \textbackslash
+  boost-devel mimalloc-devel sqlite3-devel spdlog-devel hunspell-devel \textbackslash
+  freetype2-devel fontconfig-devel harfbuzz-devel \textbackslash
+  libpng16-devel libjpeg8-devel zlib-devel libzstd-devel \textbackslash
+  libsodium-devel ImageMagick-devel libgnutls-devel gmp-devel \textbackslash
+  libffi-devel libunistring-devel readline-devel ncurses-devel \textbackslash
+  libcurl-devel ghostscript resvg-devel \textbackslash
+  python3 python313-uv cargo rust
+\end{tmcode}
+\INLINE_COMMENT{ATHENA-DATA cmd="object" val=("156", "PGxhYmVsfHJlbWFyazpBIHN5c3RlbSBHdWlsZSBpbnN0YWxsYXRpb24gaXMgbmVpdGhlciBuZWVkZWQgbm9yIHVzZWQgQ01ha2UKYnVpbGRzIHRoZSB2ZW5kb3JlZCBHdWlsZSAzIHJ1bnRpbWUgYXV0IHs+")}
+
+\begin{remark}
+  A system Guile installation is neither needed nor used. CMake builds the
+  vendored {\ATHENA} Guile 3 runtime automatically. Do not configure the build
+  against system Guile.
+\end{remark}
+
+\INLINE_COMMENT{ATHENA-DATA cmd="object" val=("156", "PGxhYmVsfHJlbWFyazpBIHN5c3RlbSBHdWlsZSBpbnN0YWxsYXRpb24gaXMgbmVpdGhlciBuZWVkZWQgbm9yIHVzZWQgQ01ha2UKYnVpbGRzIHRoZSB2ZW5kb3JlZCBHdWlsZSAzIHJ1bnRpbWUgYXV0IH0+")}
+
+\INLINE_COMMENT{ATHENA-DATA cmd="object" val=("36", "PGxhYmVsfEgzIENvbXBpbGluZyBsaWJ0Y2M+")}
+
+\subsubsection*{Compiling libtcc}
+
+If no usable libtcc development package is available, build TinyCC from
+source:
+\begin{tmcode}
+git clone https://repo.or.cz/tinycc.git
+cd tinycc
+CC=icx ./configure
+make -j16
+\end{tmcode}
+Pass the resulting header and library to the {\ATHENA} CMake configuration:
+\begin{tmcode}
+-DTCC_INCLUDE_DIR=/path/to/tinycc \textbackslash
+-DTCC_LIBRARY=/path/to/tinycc/libtcc.a
+\end{tmcode}
+\INLINE_COMMENT{ATHENA-DATA cmd="object" val=("40", "PGxhYmVsfEgzIENvbXBpbGluZyBsbGFtYS5jcHA+")}
+
+\subsubsection*{Compiling llama.cpp}
+
+{\ATHENA} currently builds against the llama.cpp revision used by its
+container toolchain: \tmverbatim{66c4f9ded01b29d9120255be1ed8d5835bcbb51d}. A
+CPU build can be produced with:
+\begin{tmcode}
+git clone https://github.com/ggml-org/llama.cpp.git
+cd llama.cpp
+git checkout 66c4f9ded01b29d9120255be1ed8d5835bcbb51d
+source /opt/intel/oneapi/setvars.sh
+cmake -S . -B build -G Ninja \textbackslash
+  -DCMAKE_BUILD_TYPE=Release \textbackslash
+  -DCMAKE_C_COMPILER=icx \textbackslash
+  -DCMAKE_CXX_COMPILER=icpx \textbackslash
+  -DBUILD_SHARED_LIBS=ON \textbackslash
+  -DLLAMA_BUILD_COMMON=ON \textbackslash
+  -DLLAMA_BUILD_EXAMPLES=OFF \textbackslash
+  -DLLAMA_BUILD_TESTS=OFF \textbackslash
+  -DLLAMA_BUILD_TOOLS=OFF
+cmake --build build -j16
+\end{tmcode}
+For an Intel SYCL-enabled build, configure llama.cpp with the additional
+backend options:
+\begin{tmcode}
+cmake -S . -B build -G Ninja \textbackslash
+  -DCMAKE_BUILD_TYPE=Release \textbackslash
+  -DCMAKE_C_COMPILER=icx \textbackslash
+  -DCMAKE_CXX_COMPILER=icpx \textbackslash
+  -DBUILD_SHARED_LIBS=ON \textbackslash
+  -DGGML_SYCL=ON \textbackslash
+  -DGGML_SYCL_TARGET=INTEL \textbackslash
+  -DGGML_SYCL_DNN=ON \textbackslash
+  -DGGML_SYCL_GRAPH=ON \textbackslash
+  -DLLAMA_BUILD_COMMON=ON \textbackslash
+  -DLLAMA_BUILD_EXAMPLES=OFF \textbackslash
+  -DLLAMA_BUILD_TESTS=OFF \textbackslash
+  -DLLAMA_BUILD_TOOLS=OFF
+cmake --build build -j16
+\end{tmcode}
+\INLINE_COMMENT{ATHENA-DATA cmd="object" val=("36", "PGxhYmVsfEgyIENvbXBpbGluZyBBVEhFTkE+")}
+
+\subsection{Compiling {\ATHENA}}
+
+Load the oneAPI environment and choose the build parallelism. The
+\tmverbatim{ATHENA\_BUILD\_JOBS} variable controls the private runtime builds;
+\tmverbatim{-j} controls the outer CMake build.
+\begin{tmcode}
+source /opt/intel/oneapi/setvars.sh
+JOBS=16
+export ATHENA_BUILD_JOBS="$JOBS"
+\end{tmcode}
+For a Debug build in \tmverbatim{build\_qt6}:
+\begin{tmcode}
+CC=icx CXX=icpx cmake -S . -B build_qt6 -G Ninja \textbackslash
+  -DATHENA_GUI=Qt6 \textbackslash
+  -DCMAKE_BUILD_TYPE=Debug \textbackslash
+  -DLLAMA_CPP_SOURCE_DIR=/path/to/llama.cpp
+cmake --build build_qt6 -j"$JOBS"
+\end{tmcode}
+For a \tmverbatim{RelWithDebInfo} build in \tmverbatim{build\_rel}:
+\begin{tmcode}
+CC=icx CXX=icpx cmake -S . -B build_rel -G Ninja \textbackslash
+  -DATHENA_GUI=Qt6 \textbackslash
+  -DCMAKE_BUILD_TYPE=RelWithDebInfo \textbackslash
+  -DLLAMA_CPP_SOURCE_DIR=/path/to/llama.cpp
+cmake --build build_rel -j"$JOBS"
+\end{tmcode}
+If libtcc was built in a non-system location, add the
+\tmverbatim{TCC\_INCLUDE\_DIR} and \tmverbatim{TCC\_LIBRARY} arguments from
+2.2 to the CMake configuration.
+
+\INLINE_COMMENT{ATHENA-DATA cmd="object" val=("156", "PGxhYmVsfHJlbWFyazpUaGUgZmlyc3QgYnVpbGQgbWF5IHNwZW5kIGEgc3Vic3RhbnRpYWwgYW1vdW50IG9mIHRpbWUKYm9vdHN0cmFwcGluZyB0aGUgdmVuZG9yZWQgR3VpbGUgcnVudGltZSBUaGluIHs+")}
+
+\begin{remark}
+  The first build may spend a substantial amount of time bootstrapping the
+  vendored Guile runtime. ThinLTO links may also take a long time.
+\end{remark}
+
+\INLINE_COMMENT{ATHENA-DATA cmd="object" val=("156", "PGxhYmVsfHJlbWFyazpUaGUgZmlyc3QgYnVpbGQgbWF5IHNwZW5kIGEgc3Vic3RhbnRpYWwgYW1vdW50IG9mIHRpbWUKYm9vdHN0cmFwcGluZyB0aGUgdmVuZG9yZWQgR3VpbGUgcnVudGltZSBUaGluIH0+")}
+
+\INLINE_COMMENT{ATHENA-DATA cmd="object" val=("76", "PGxhYmVsfEgzIENvbXBpbGluZyBBVEhFTkEgd2l0aCBUaHJlYWRTYW5pdGl6ZXIgZW5hYmxlZD4=")}
+
+\subsubsection*{Compiling {\ATHENA} with ThreadSanitizer enabled}
+
+\begin{tmcode}
+CC=icx CXX=icpx cmake -S . -B build_tsan -G Ninja \textbackslash
+  -DATHENA_GUI=Qt6 \textbackslash
+  -DCMAKE_BUILD_TYPE=Debug \textbackslash
+  -DATHENA_ENABLE_TSAN=ON \textbackslash
+  -DLLAMA_CPP_SOURCE_DIR=/path/to/llama.cpp
+cmake --build build_tsan -j"$JOBS"
+\end{tmcode}
+\INLINE_COMMENT{ATHENA-DATA cmd="object" val=("156", "PGxhYmVsfHJlbWFyazpUbyBidWlsZCB0aGUgdGVzdCBzdWl0ZSBjb25maWd1cmUgd2l0aCBEQlVJTERURVNUU09OIFJ1biBpdAp3aXRoIGN0ZXN0IHRlc3RkaXIgYnVpbGRxdDYgb3V0cHV0b25mYWlsIHs+")}
+
+\begin{remark}
+  To build the test suite, configure with \tmverbatim{-DBUILD\_TESTS=ON}. Run
+  it with \tmverbatim{ctest --test-dir build\_qt6 --output-on-failure} or the
+  corresponding build directory.
+\end{remark}
+
+\INLINE_COMMENT{ATHENA-DATA cmd="object" val=("156", "PGxhYmVsfHJlbWFyazpUbyBidWlsZCB0aGUgdGVzdCBzdWl0ZSBjb25maWd1cmUgd2l0aCBEQlVJTERURVNUU09OIFJ1biBpdAp3aXRoIGN0ZXN0IHRlc3RkaXIgYnVpbGRxdDYgb3V0cHV0b25mYWlsIH0+")}
+
+\INLINE_COMMENT{ATHENA-DATA cmd="object" val=("52", "PGxhYmVsfEgyIEFzc2VtYmxpbmcgdGhlIEFUSEVOQSB0cmVlPg==")}
+
+\subsection{Assembling the {\ATHENA} tree}
+
+The default build stages the private Guile runtime and compiled Scheme modules
+into \tmverbatim{ATHENA/}. Assemble or refresh the remaining runtime files
+with the outputs from the selected build directory:
+\begin{tmcode}
+BUILD=build_qt6
+install -m755 "$BUILD/src/ATHENA.bin" ATHENA/bin/
+install -m755 "$BUILD/src/ATHENA-Watchdog" ATHENA/bin/
+install -m755 "$BUILD/src/athena-codex-bridge" ATHENA/bin/
+install -m755 "$BUILD/materials-engine-cargo/release/athena-materials-engine" ATHENA/bin/
+install -m755 "$BUILD/tools/athena-transmitter/athena-transmitter" ATHENA/bin/
+install -m755 "$BUILD/tools/athena-web-server/athena-web-server" ATHENA/bin/
+mkdir -p ATHENA/lib ATHENA/share/ATHENA/web
+cp -a "$BUILD"/x64/lib/libqt6advanceddocking*.so* ATHENA/lib/
+cp -a /path/to/llama.cpp/build/bin/libllama.so* ATHENA/lib/
+cp -a /path/to/llama.cpp/build/bin/libggml*.so* ATHENA/lib/
+cp -a tools/athena-web-server/web/. ATHENA/share/ATHENA/web/
+\end{tmcode}
+Use \tmverbatim{BUILD=build\_rel} for a RelWithDebInfo tree. For a SYCL
+llama.cpp build, include the matching oneAPI runtime libraries when they are
+not provided by the target system.
+
+\INLINE_COMMENT{ATHENA-DATA cmd="object" val=("68", "PGxhYmVsfEgyIEJ1aWxkaW5nIFJQTSwgREVCLCBhbmQgQXBwSW1hZ2UgcGFja2FnZXM+")}
+
+\subsection{Building RPM, DEB, and AppImage packages}
+
+The container builder requires Podman and expects Intel oneAPI under
+\tmverbatim{/opt/intel/oneapi}. To build the release flavor:
+\begin{tmcode}
+ATHENA_BUILD_JOBS=16 ATHENA_BUILD_FLAVORS=rel \textbackslash
+  tools/container-build/build-athena-container.sh
+\end{tmcode}
+The principal outputs are:
+\begin{itemize}
+  \item \tmverbatim{container\_build/ATHENA-rel.AppImage}.
+
+  \item
+  \tmverbatim{container\_build/packages/ATHENA-VERSION-rel-linux-x86\_64.deb}.
+
+  \item
+  \tmverbatim{container\_build/packages/ATHENA-VERSION-rel-linux-x86\_64.rpm}.
+\end{itemize}
+Set \tmverbatim{ATHENA\_BUILD\_FLAVORS} to \tmverbatim{dev}, \tmverbatim{rel},
+or both as required.
+
+\INLINE_COMMENT{ATHENA-DATA cmd="object" val=("60", "PGxhYmVsfEgxIEJ1aWxkaW5nIEFUSEVOQSBvbiBvdGhlciBwbGF0Zm9ybXM+")}
+
+\section{Building {\ATHENA} on other platforms}
+
+\INLINE_COMMENT{ATHENA-DATA cmd="object" val=("52", "PGxhYmVsfEgyIEJ1aWxkaW5nIEFUSEVOQSBmb3IgV2luZG93cz4=")}
+
+\subsection{Building {\ATHENA} for Windows}
+
+Windows is not a tested or actively maintained target. A native Windows build
+is theoretically possible with the necessary platform work.
+
+The repository contains a MinGW-w64 cross-build pipeline under
+\tmverbatim{tools/windows-deps}. It is currently incomplete because the
+vendored, modified Guile 3.0.10 runtime has not been ported to the Windows
+target. The pipeline must be adapted to build and package that private Guile
+runtime and its BDW-GC dependency before it can produce a current {\ATHENA}
+Windows build. The old Guile 1.8 path is obsolete.
+
+\INLINE_COMMENT{ATHENA-DATA cmd="object" val=("92", "PGxhYmVsfEgyIEJ1aWxkaW5nIEFUSEVOQSBmb3IgbWFjT1MsIGFybTY0IExpbnV4LCBhbmQgb3RoZXIgdGFyZ2V0cz4=")}
+
+\subsection{Building {\ATHENA} for macOS, arm64 Linux, and other targets}
+
+macOS, arm64 GNU/Linux, and other platforms are theoretically possible with
+appropriate source, dependency, and toolchain modifications. They are not
+currently tested or supported build targets.
+
+\INLINE_COMMENT{ATHENA-DATA cmd="object" val=("52", "PGxhYmVsfEgxIEdldHRpbmcgU3RhcnRlZCB3aXRoIEFUSEVOQT4=")}
+
+\section{Getting Started with {\ATHENA}}
+
+\INLINE_COMMENT{ATHENA-DATA cmd="object" val=("36", "PGxhYmVsfEgyIExhdW5jaGluZyBBVEhFTkE+")}
+
+\subsection{Launching {\ATHENA}}
+
+If you followed sections 2.1 through 2.4, start {\ATHENA} with:
+\begin{tmcode}
+cd ATHENA
+./StartATHENA.qt6.wayland.sh
+\end{tmcode}
+To run through the watchdog:
+\begin{tmcode}
+./StartATHENA.qt6.wayland.sh --enable-watchdog
+\end{tmcode}
+If you followed 2.1 and 2.5, install the RPM or DEB with the package manager
+of the target distribution, or run the AppImage directly.
+
+\INLINE_COMMENT{ATHENA-DATA cmd="object" val=("156", "PGxhYmVsfHJlbWFyazpYMTFYQ0Igc3VwcG9ydCBpcyBub3QgYWN0aXZlbHkgbWFpbnRhaW5lZCBhbmQgbWF5IGNvbnRhaW4KZGVmZWN0cyBOYXRpdmUgV2F5bGFuZCBpcyB0aGUgbWFpbnRhaW5lZCBkIHs+")}
+
+\begin{remark}
+  X11/XCB support is not actively maintained and may contain defects. Native
+  Wayland is the maintained desktop path.
+\end{remark}
+
+\INLINE_COMMENT{ATHENA-DATA cmd="object" val=("156", "PGxhYmVsfHJlbWFyazpYMTFYQ0Igc3VwcG9ydCBpcyBub3QgYWN0aXZlbHkgbWFpbnRhaW5lZCBhbmQgbWF5IGNvbnRhaW4KZGVmZWN0cyBOYXRpdmUgV2F5bGFuZCBpcyB0aGUgbWFpbnRhaW5lZCBkIH0+")}
+
+\INLINE_COMMENT{ATHENA-DATA cmd="object" val=("156", "PGxhYmVsfHJlbWFyazpkb2NraW5nIHVzZXMgeGRndG9wbGV2ZWxkcmFndjEgS0RFIFBsYXNtYSA2MSBhbmQgbGF0ZXIgc3VwcG9ydAp0aGUgbWVyZ2VkIHByb3RvY29sIGluIEtXaW4gR05PTUUgNDggez4=")}
+
+\begin{remark}
+  {\ATHENA} docking uses \tmverbatim{xdg-toplevel-drag-v1}. KDE Plasma 6.1 and
+  later support the merged protocol in KWin; GNOME 48 and later support it in
+  Mutter. Older Wayland compositors may not support detachable-window dragging
+  and redocking correctly. The reference system uses Plasma 6.7.4.
+\end{remark}
+
+\INLINE_COMMENT{ATHENA-DATA cmd="object" val=("156", "PGxhYmVsfHJlbWFyazpkb2NraW5nIHVzZXMgeGRndG9wbGV2ZWxkcmFndjEgS0RFIFBsYXNtYSA2MSBhbmQgbGF0ZXIgc3VwcG9ydAp0aGUgbWVyZ2VkIHByb3RvY29sIGluIEtXaW4gR05PTUUgNDggfT4=")}
+
+\INLINE_COMMENT{ATHENA-DATA cmd="object" val=("72", "PGxhYmVsfEgyIFNldHRpbmcgdXAgQVRIRU5BIFRyYW5zbWl0dGVyIG9uIGEgc2VydmVyPg==")}
+
+\subsection{Setting up {\ATHENA} Transmitter on a server}
+
+A typical deployment runs a headless {\ATHENA} backend on loopback port 8765
+and \tmverbatim{athena-transmitter} in front of it on port 8766.
+
+Generate the backend delegation keypair and start the backend:
+\begin{tmcode}
+ATHENA/bin/ATHENA.bin -H \textbackslash
+  --delegation-key-dir /var/lib/athena-backend/delegation \textbackslash
+  --generate-server-keypair
+ATHENA/bin/ATHENA.bin -H \textbackslash
+  --rag-server /srv/athena/vault \textbackslash
+  --rag-listen-address 127.0.0.1 \textbackslash
+  --delegation-key-dir /var/lib/athena-backend/delegation
+\end{tmcode}
+Create \tmverbatim{/etc/athena-transmitter/config.json}:
+\begin{tmcode}
+\{
+  "listen_address": "127.0.0.1",
+  "listen_port": 8766,
+  "key_dir": "/var/lib/athena-transmitter",
+  "accepted_clients": "/var/lib/athena-transmitter/accepted-clients.json",
+  "pending_clients": "/var/lib/athena-transmitter/pending-clients.json",
+  "upstream": \{
+    "url": "http://127.0.0.1:8765",
+    "public_key": "BACKEND_PUBLIC_KEY",
+    "fingerprint": "BACKEND_FINGERPRINT"
+  \}
+\}
+\end{tmcode}
+Generate the transmitter keypair:
+\begin{tmcode}
+ATHENA/bin/athena-transmitter --config /etc/athena-transmitter/config.json --generate-keypair
+\end{tmcode}
+Add trusted client public keys to the transmitter
+\tmverbatim{accepted-clients.json}:
+\begin{tmcode}
+\{
+  "accepted": [
+    "CLIENT_PUBLIC_KEY"
+  ]
+\}
+\end{tmcode}
+Add the transmitter public key to the backend
+\tmverbatim{accepted-clients.json} with role \tmverbatim{proxy}:
+\begin{tmcode}
+\{
+  "accepted": [
+    \{
+      "public_key": "TRANSMITTER_PUBLIC_KEY",
+      "role": "proxy"
+    \}
+  ]
+\}
+\end{tmcode}
+Start the transmitter:
+\begin{tmcode}
+ATHENA/bin/athena-transmitter --config /etc/athena-transmitter/config.json
+\end{tmcode}
+Reference systemd units, the optional XClarity Controller power hook, and a
+Cloudflare Tunnel unit are provided under
+\tmverbatim{tools/athena-transmitter/deploy}.
+
+\INLINE_COMMENT{ATHENA-DATA cmd="object" val=("76", "PGxhYmVsfEgyIFNldHRpbmcgdXAgV2ViLUFjY2Vzc2libGUgQVRIRU5BIG9uIGEgc2VydmVyPg==")}
+
+\subsection{Setting up Web-Accessible {\ATHENA} on a server}
+
+Build the release AppImage as in 2.5, then build the Web-Accessible {\ATHENA}
+OCI image:
+\begin{tmcode}
+tools/athena-web-server/build-image.sh \textbackslash
+  --runtime container_build/ATHENA-rel.AppImage \textbackslash
+  --image localhost/athena-web:latest
+\end{tmcode}
+Run the broker as an unprivileged user with rootless Podman and delegated
+cgroup v2 memory and PID controllers. On a systemd host, enable memory
+accounting for the broker user slice before starting it:
+\begin{tmcode}
+sudo systemctl set-property user-$(id -u).slice MemoryAccounting=yes
+\end{tmcode}
+A basic loopback broker invocation is:
+\begin{tmcode}
+ATHENA/bin/athena-web-server \textbackslash
+  --listen-address 127.0.0.1 \textbackslash
+  --port 8090 \textbackslash
+  --image localhost/athena-web:latest \textbackslash
+  --max-connections 4 \textbackslash
+  --max-memory 4GiB \textbackslash
+  --storage-limit 2GiB
+\end{tmcode}
+Put a WebSocket-capable TLS reverse proxy or tunnel in front of the broker.
+Configure STUN/TURN for the WebRTC media path as required by the deployment.
+The reference production templates under
+\tmverbatim{tools/athena-web-server/deploy} use a dedicated openSUSE MicroOS
+KVM guest for the broker and rootless session containers, with Cloudflare
+Tunnel for signaling and Cloudflare Realtime TURN for media relay.
+
+\INLINE_COMMENT{ATHENA-DATA cmd="object" val=("28", "PGxhYmVsfEgyIE5leHQgc3RlcHM+")}
+
+\subsection{Next steps}
+
+Start {\ATHENA} and read the documentation available from the Help menu. The
+documentation is still under construction. Additional information is available
+at \href{https://athena.evalisk.org/}{athena.evalisk.org}. For questions or
+build problems, contact
+\href{mailto:nuaptan@evalisk.org}{nuaptan@evalisk.org}.
+
+\end{document}
