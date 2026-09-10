@@ -154,6 +154,13 @@ add_test(NAME two_buffer_save_test
     --runtime ${ATHENA_GUILE_PREFIX}
     --resources ${ATHENA_SOURCE_DIR}/ATHENA)
 set_tests_properties(two_buffer_save_test PROPERTIES TIMEOUT 120)
+add_test(NAME save_as_ownership_test
+  COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/save-as-ownership-test.py
+    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
+    --runtime ${ATHENA_GUILE_PREFIX}
+    --resources ${ATHENA_SOURCE_DIR}/ATHENA)
+set_tests_properties(save_as_ownership_test PROPERTIES TIMEOUT 60)
 add_test(NAME packrat_concurrency_test
   COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_CURRENT_SOURCE_DIR}/scheme/two-buffer-save-test.py

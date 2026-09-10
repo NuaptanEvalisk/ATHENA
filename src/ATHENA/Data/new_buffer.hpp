@@ -83,6 +83,7 @@ url  get_current_buffer ();
 url  get_current_buffer_safe ();
 url  path_to_buffer (path p);
 void rename_buffer (url name, url new_name);
+void rename_buffer_from_actor (tm_buffer buf, url new_name);
 url get_master_buffer (url name);
 void set_master_buffer (url name, url master);
 void set_title_buffer (url name, string title);

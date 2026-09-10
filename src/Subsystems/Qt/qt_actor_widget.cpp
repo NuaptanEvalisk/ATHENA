@@ -485,6 +485,13 @@ qt_actor_widget_rep::drain_external_effects () {
       switch_to_buffer_from_actor (std::move (encoded_name));
       break;
     }
+    case actor_command_kind::ui_rename_buffer: {
+      string new_name= actor_text_registry::instance ().take (record.payload0);
+      tm_view view= concrete_runtime_view (view_id_);
+      if (view != nullptr)
+        rename_buffer_from_actor (view->buf, url (std::move (new_name)));
+      break;
+    }
     case actor_command_kind::ui_set_buffer_title: {
       string title= actor_text_registry::instance ().take (record.payload0);
       tm_view view= concrete_runtime_view (view_id_);

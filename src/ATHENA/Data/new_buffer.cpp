@@ -306,6 +306,22 @@ path_to_buffer (path p) {
 
 void
 rename_buffer (url name, url new_name) {
+  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  if (context != nullptr && context->actor != nullptr &&
+      context->actor->current_buffer_url () == name) {
+    if (new_name == name) return;
+    athena_blob_id renamed= actor_text_from_string (as_string (new_name));
+    if (!context->actor->invoke (
+          actor_command_kind::rename_buffer, context->view_id, renamed)) {
+      discard_text_payload (renamed);
+      return;
+    }
+    if (context->editor != nullptr)
+      (void) context->editor->publish_ui_text (
+        actor_command_kind::ui_rename_buffer, as_string (new_name));
+    return;
+  }
+
   if (new_name == name || is_nil (concrete_buffer (name))) return;
   kill_buffer (new_name);
   tm_buffer buf= concrete_buffer (name);
@@ -321,6 +337,42 @@ rename_buffer (url name, url new_name) {
   notify_rename_after (new_name);
   string title= propose_title (buf->buf->title, new_name);
   set_title_buffer (new_name, title);
+}
+
+void
+rename_buffer_from_actor (tm_buffer buf, url new_name) {
+  ASSERT (current_scheme_execution_context () == nullptr,
+          "actor buffer rename publication requires the GUI owner");
+  if (is_nil (buf) || new_name == buf->buf->name) return;
+
+  url old_name= buf->buf->name;
+  tm_buffer existing= concrete_buffer (new_name);
+  if (!is_nil (existing) && existing != buf) kill_buffer (new_name);
+
+  notify_rename_before (old_name);
+  buf->buf->name= new_name;
+  buf->buf->master= new_name;
+  publish_buffer_names ();
+  notify_rename_after (new_name);
+
+  string title= propose_title (buf->buf->title, new_name);
+  if (buf->buf->title != title) {
+    buf->buf->title= title;
+    publish_buffer_metadata ();
+    athena_blob_id title_payload= actor_text_from_string (copy (title));
+    actor_command_ticket ticket= buf->actor->try_submit (
+      actor_command_kind::set_buffer_title, ATHENA_NO_VIEW, title_payload);
+    if (!ticket) discard_text_payload (title_payload);
+  }
+
+  array<url> vs= buffer_to_views (new_name);
+  for (int i= 0; i < N (vs); ++i) {
+    tm_window win= concrete_window (view_to_window (vs[i]));
+    if (win != NULL) {
+      win->set_window_name (title);
+      win->set_window_url (new_name);
+    }
+  }
 }
 
 url
